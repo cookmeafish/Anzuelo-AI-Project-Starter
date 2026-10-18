@@ -1,0 +1,103 @@
+{
+  "_comment": "Project checks, added to the baseline checks built into tools/hooks/hooks.mjs (BASE_REQUIREMENTS). An entry with a baseline tag overrides it; turning a baseline check off needs disabled: [{tag, reason}]. Each entry: when (all true) -> require (all must hold), else block with message. Conditions: promptMatches, promptNotMatches, answerMatches, answerNotMatches, minToolCalls, workTurn, filesChanged, allFilesChanged, toolRan, toolUsed, resultMatches, fileRead, playbookRouted, playbookUsed, skillUsed, toolPassed {cmd, pass, selfRun}, runEach {files, cmd}. Every tag needs a row in docs/checks/rule-enforcement.md and a test in tools/hooks/test-hooks.mjs.",
+  "requirements": [
+    {
+      "tag": "plan-saved",
+      "rule": "2",
+      "when": {
+        "playbookUsed": "plan"
+      },
+      "require": {
+        "filesChanged": [
+          "docs/plans/**"
+        ]
+      },
+      "message": "Save the plan to docs/plans/YYYY-MM-DD-<topic>.md (plan skill) and link it in the answer, then ask the user to review it before work starts."
+    },
+    {
+      "tag": "debug-root-cause",
+      "rule": "4",
+      "when": {
+        "skillUsed": "debug"
+      },
+      "require": {
+        "answerMatches": "root cause\\s*:"
+      },
+      "message": "Debug skill: state the root cause in the answer (\"Root cause: <what and why>\") with the evidence that shows it, found before the fix."
+    },
+    {
+      "tag": "parallel-merged",
+      "rule": "4",
+      "when": {
+        "skillUsed": "parallel-agents"
+      },
+      "require": {
+        "answerMatches": "\\b(combined|merged|together|full (checks|suite|test))\\b"
+      },
+      "message": "Parallel-agents skill: run the full checks on the combined result after the last change, and say in the answer what they showed, part by part."
+    },
+    {
+      "tag": "research-cited",
+      "rule": "4",
+      "when": {
+        "skillUsed": "research"
+      },
+      "require": {
+        "answerMatches": "https?://|docs/knowledge/|sources/|nothing (is )?recorded|not (in|recorded in) the project"
+      },
+      "message": "Research skill: every fact needs its source in the answer: the link of the page it was read on (with a date for anything that changes), or the project file it came from, or say plainly that nothing is recorded in the project."
+    },
+    {
+      "tag": "research-ledger",
+      "rule": "4",
+      "when": {
+        "skillUsed": "research",
+        "answerMatches": "verified:\\s*\\d+\\s+claims"
+      },
+      "require": {
+        "toolPassed": {
+          "cmd": "claims\\.mjs\\s+check",
+          "pass": "CLAIMS: PASS"
+        }
+      },
+      "message": "Research skill: the answer says it is verified, so its ledger must pass: node skills/research/scripts/claims.mjs check .cache/research/<slug>.md, and fix every ERROR."
+    },
+    {
+      "tag": "skill-finder-report",
+      "rule": "2",
+      "when": {
+        "skillUsed": "skill-finder"
+      },
+      "require": {
+        "answerMatches": "existing skills? checked\\s*:"
+      },
+      "message": "Skill-finder skill: report the search in the answer: \"Existing skills checked: <where> - <result>\"."
+    },
+    {
+      "tag": "plan-checked",
+      "rule": "2",
+      "when": {
+        "playbookUsed": "plan",
+        "filesChanged": [
+          "docs/plans/**"
+        ]
+      },
+      "require": {
+        "toolRan": "plan-tasks\\.mjs\\s+check"
+      },
+      "message": "Plan skill: run node skills/plan/scripts/plan-tasks.mjs check <plan> and fix each warning (or give its reason) before handing the plan over."
+    },
+    {
+      "tag": "security-report",
+      "rule": "4",
+      "when": {
+        "skillUsed": "security-review"
+      },
+      "require": {
+        "answerMatches": "\\|\\s*(PASS|FAIL|N/?A)\\b"
+      },
+      "message": "Security-review skill: end with the report table: every area PASS, FAIL or N/A with its evidence, and where each open FAIL went."
+    }
+  ],
+  "disabled": []
+}

@@ -1,0 +1,24 @@
+{
+  "title": "Visual interface",
+  "for": "Projects with anything people look at: app screens, web pages, dashboards, desktop windows, HTML reports or pages produced as deliverables.",
+  "notFor": "Projects with no screens or HTML output. If one appears later, the gui-pack check asks for this pack.",
+  "menu": [
+    "| U1 | Check the GUI | gui.md | screenshot every screen I changed (desktop + phone, light + dark), review them, fix what's wrong, and repeat until a round finds nothing |"
+  ],
+  "precedence": [
+    "Only the look changes → `gui.md`. A screen changes as part of a feature or fix → that runbook, plus the review loop from `gui.md`."
+  ],
+  "layout": [
+    [
+      "`tools/screenshot.mjs`",
+      "Screenshots for the GUI review loop",
+      "Bundled Chromium only (hook: browser-guard)"
+    ],
+    [
+      "`.cache/gui-review/`",
+      "Screenshots of each review round",
+      "Never committed (hook: gui-review-loop)"
+    ]
+  ],
+  "requirements": []
+}

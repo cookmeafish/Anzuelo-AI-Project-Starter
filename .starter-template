@@ -1,0 +1,1 @@
+starter template marker: hooks skip the bootstrap hint in the starter itself; new-project.mjs does not copy this file.

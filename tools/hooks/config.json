@@ -1,0 +1,13 @@
+{
+  "_comment": "Tuning for tools/hooks/hooks.mjs. Anything left out uses the default in hooks.mjs (DEFAULTS). Regexes are case-insensitive strings.",
+  "workToolCalls": 15,
+  "maxBlocksPerTurn": 3,
+  "promoteAfterUses": 3,
+  "notWork": [
+    "docs/STATUS.md",
+    "docs/CHANGELOG.md"
+  ],
+  "harden": "block",
+  "packs": [],
+  "recommendedSkills": []
+}

@@ -1,0 +1,53 @@
+# App standards (data, security, UX, performance, AI features, docs)
+
+Baselines for any application. Items marked (check) are enforced by `codeRules`, `commitGate` or requirements.json
+when configured. The rest are review items for the independent reviewer. The project-wide security baseline is
+`docs/security.md`; this app's own decisions are in `docs/foundation.md`.
+
+## Data safety (persistent state)
+- **Saving needs a good load first.** If loading the data failed or came back incomplete, the save is blocked, so a
+  bad read can't overwrite good data. Receiving nothing is not an instruction to erase what is stored.
+- Whole-file writes are atomic: temp file, then rename. A file that won't parse is set aside (`*.corrupt-<date>`),
+  never treated as empty. An unreachable store is an error, never "no data".
+- Saves send only what changed. Deletes are explicit, with tombstones where data syncs.
+- Moves and migrations never delete. Collisions go to a dated backup folder, and a migration ships with a restore test
+  (`data-change.md`).
+- Async results land only where they were requested (tag them with a request id). Never write back a copy taken
+  before an await.
+- Tests and agent runs use a sandbox data folder or stub every write. They never touch the user's real data.
+- Never save a default value over a choice the user made.
+
+## Security
+- A local server answers only on loopback and checks Host and Origin. A web page must not be able to call it.
+- Never build a file path from client input. Cap request sizes.
+- Untrusted HTML or markdown goes through a sanitizer (check: raw `innerHTML` assignments), and nothing rendered may
+  load a remote URL by itself.
+- Secrets live in ignored files (`.env*`), never in code, logs or commits (hook: no-secrets). Client-exposed env
+  prefixes never carry keys the user would mind leaking.
+- Never run `.cmd` or `.bat` files through `execFile` without a shell. Every spawned process has an error handler.
+
+## UX and UI
+- Design tokens, not hardcoded colors. Readable contrast (WCAG AA) in every theme.
+- Every user-facing string goes through the i18n layer when the app is translated, with no missing or duplicate keys.
+- No native `alert`, `confirm` or `prompt` (check). Use the app's own dialogs.
+- Nothing fixed-position covers controls. Layouts survive zoom and small screens.
+- Errors are explained in plain words with a next step, never a raw "500".
+- Deleting a control deletes its handler too.
+
+## Performance
+- **Measure, don't guess.** Every performance claim comes with before and after numbers from the same tool
+  (hook: perf-numbers).
+- Motion is time-based, not frame-based. Nothing animates off-screen. Heavy work runs off the main thread, in small
+  slices. Cache what is expensive, keyed by its inputs.
+
+## AI features (apps that call language models)
+- One call layer; every call names its purpose and has a timeout.
+- Empty, refused or truncated replies are errors, never saved as content.
+- Parse model JSON tolerantly, and test the parser against real reply variants.
+- Never let the model claim it changed something. The app reports what actually happened.
+- Never invent prices, citations or results. Track cost.
+
+## Docs
+- The README is for users: tight, current, no internals. Every command, port and shortcut it names must exist.
+- Lists that must stay in sync (routes, settings readers, tables) get a test that compares them.
+- One canonical agent-instructions file (AGENTS.md = CLAUDE.md). Other copies are generated and verified, or don't exist.

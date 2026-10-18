@@ -1,0 +1,6 @@
+{
+  "_about": "Every name that may change is written here once. Docs show it as <!--name:KEY-->value<!--/name--> and code reads this file. Change a value, then run: node tools/hooks/hooks.mjs sync",
+  "PROJECT_NAME": "{{PROJECT_NAME}}",
+  "STARTER_NAME": "Anzuelo",
+  "STARTER_TAGLINE": "A project starter for AI agents"
+}
