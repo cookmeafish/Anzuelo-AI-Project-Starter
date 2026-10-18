@@ -29,7 +29,7 @@ const ENGINE = [
   '.githooks/commit-msg', '.githooks/pre-commit', '.githooks/pre-push',
   'docs/checks/session-checklist.md', 'docs/checks/finish-checklist.md', 'docs/checks/runbook-standards.md',
   'docs/checks/writing-standards.md', 'docs/checks/layout-standards.md',
-  'docs/playbooks/_TEMPLATE.md', 'docs/playbooks/_fallback.md', 'HOW-TO-USE.md', 'tools/skills.mjs', 'tools/starter.mjs', 'tools/recall.mjs', 'tools/hooks/wire.mjs', 'tools/hooks/agents/claude-settings.json'
+  'docs/playbooks/_TEMPLATE.md', 'docs/playbooks/_fallback.md', 'HOW-TO-USE.md', 'tools/skills.mjs', 'tools/starter.mjs', 'tools/recall.mjs', 'tools/hooks/wire.mjs', 'tools/survey.mjs'
 ];
 // Added on upgrade only when missing: the project may have tuned them.
 const ENGINE_IF_MISSING = ['docs/playbooks/plan.md', 'docs/plans/README.md', 'docs/security.md', 'docs/names.json'];
@@ -248,8 +248,15 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   items.push('self-tests: node tools/hooks/test-hooks.mjs passes here');
   const dp = path.join(dest, 'docs', 'DECISIONS.md');
   fs.mkdirSync(path.dirname(dp), { recursive: true });
-  fs.appendFileSync(dp, `\n## Upgrade review (${today})\n<!-- Decide each line with the user, replacing "?": "adopted - Worth it: <gain> / <cost>", "fixed - <how>" or ` +
-    `"declined - <why>". Adopt only what makes this project better. The hooks hold work until every line is decided. -->\n` + items.map(i => `- ${i}: ?`).join('\n') + '\n');
+  // each pack and skill in plain words: what it does and what the user will notice
+  const plainOf = i => {
+    const [kind, name] = i.split(': ');
+    const e = kind === 'skill' ? (JSON.parse(fs.readFileSync(path.join(STARTER, 'library', 'catalog.json'), 'utf8')).skills || []).find(x => x.name === name)
+      : kind === 'pack' && fs.existsSync(path.join(STARTER, 'packs', name || '', 'pack.json')) ? JSON.parse(fs.readFileSync(path.join(STARTER, 'packs', name, 'pack.json'), 'utf8')) : null;
+    return e?.plain ? `\n  ${e.plain}: ${e.does} What you'll notice: ${e.outcome}` : '';
+  };
+  fs.appendFileSync(dp, `\n## Upgrade review (${today})\n<!-- Decide each line with the user, or let the AI decide (it writes why), replacing "?": "adopted - Worth it: <gain> / <cost>", ` +
+    `"fixed - <how>" or "declined - <why>". Adopt only what makes this project better. -->\n` + items.map(i => `- ${i}: ?${plainOf(i)}`).join('\n') + '\n');
   // what changed in the starter since the last review, to explain the items
   const last = [...decided.matchAll(/^## Upgrade review \((\d{4}-\d\d-\d\d)\)/gm)].pop()?.[1] || '';
   const news = fs.readFileSync(path.join(STARTER, 'tools', 'starter', 'STARTER-CHANGELOG.md'), 'utf8').split(/\n(?=- \d{4}-\d\d-\d\d:)/).filter(e => /^- (\d{4}-\d\d-\d\d)/.test(e) && e.slice(2, 12) > last);

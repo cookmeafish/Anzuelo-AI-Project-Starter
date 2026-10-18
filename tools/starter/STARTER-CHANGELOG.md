@@ -40,6 +40,11 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
   - **No vendor files in git:** the rules live in `AGENTS.md`. `CLAUDE.md`, `.claude/` and `.codex/` are made on each
     machine by `node tools/hooks/wire.mjs` (new projects and upgrades run it) and ignored by git. Upgrades don't
     force this on projects that already commit `CLAUDE.md`.
+  - **Setup understands the project first, and speaks plainly:** `node tools/survey.mjs` reads the folder (documents,
+    earlier AI instructions, code, data) before any question. Question 0 asks how involved the user wants to be: let
+    the AI decide everything, only the important questions, or everything. Every choice is offered in plain words
+    (what it does, what you'll notice) with "Let the AI decide" as an option; packs and library skills carry that
+    wording, and the audit requires it. The upgrade review uses the same wording.
   - **Commercial use:** every skill's license must allow commercial use without copyleft (audit), and the weighing
     in hard rule 16 includes the license. New library skill: teach (our own, original wording).
 

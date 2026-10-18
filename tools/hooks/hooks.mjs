@@ -77,7 +77,7 @@ const DEFAULTS = {
   // REQ: gitignore-ready. Sample paths that must be ignored, and files that must never be (checked before every push).
   gitignoreMustIgnore: ['.env', '.env.local', 'server.pem', 'server.key', '.cache/x', 'node_modules/x', '.private-terms', 'tools/starter.local.json',
     '.claude/settings.local.json', '.codex/hooks.json', '.claude/skills/debug/SKILL.md', 'tools/hooks/state/history.jsonl', 'tools/hooks/state/turn.json', '.obsidian/app.json'],
-  gitignoreMustKeep: ['README.md', 'AGENTS.md', '.gitignore', '.env.example', 'tools/hooks/agents/claude-settings.json', 'tools/hooks/wire.mjs', 'tools/hooks/hooks.mjs', 'tools/hooks/config.json', 'tools/hooks/requirements.json'],
+  gitignoreMustKeep: ['README.md', 'AGENTS.md', '.gitignore', '.env.example', 'tools/hooks/wire.mjs', 'tools/hooks/hooks.mjs', 'tools/hooks/config.json', 'tools/hooks/requirements.json'],
   // Kept files that may discuss prompt injection itself (REQ: injection-guard).
   injectionIgnore: ['docs/security.md', 'skills/security-review/**', 'skills/research/references.md', 'skills/skill-finder/references.md', '.claude/skills/**'],
   // Files loaded at every session start: over this many characters together, the audit warns (consolidate them).
@@ -880,7 +880,7 @@ export function setupProblems(cfg = config()) {
 // ---------- setup: the interview, and everything that fits ----------
 // REQ: setup-interview. The user answers the setup questions before anything is installed, and the answers are
 // recorded in docs/DECISIONS.md under "## Setup interview" as "- Key: answer" lines.
-export const INTERVIEW = ['Focus', 'Kind of work', 'Visual interface', 'Typical requests', 'Inputs', 'People', 'Sensitive data',
+export const INTERVIEW = ['Involvement', 'Focus', 'Kind of work', 'Visual interface', 'Typical requests', 'Inputs', 'People', 'Sensitive data',
   'Constraints', 'Quality bar', 'Always/never'];
 export const INTERVIEW_AFTER = ['Packs', 'Library skills', 'Starter']; // recorded as each choice is made
 export const INTERVIEW_APP = ['Commands', 'Branches', 'Sign-off', 'Release'];
@@ -911,6 +911,8 @@ export function setupCompleteness(cfg = config(), { final = false, beforeStarter
   const missing = keys.filter(k => unanswered(f[k.toLowerCase()]));
   if (missing.length) probs.push(`docs/DECISIONS.md "## Setup interview": record the user's answer for ${missing.join(', ')} ("- Key: answer")`);
   if (!final) return probs;
+  // "Let the AI decide everything" holds after setup too: later choices don't ask either
+  if (/^decide/i.test(f.involvement || '') && cfg.autonomy !== 'auto') probs.push('Setup interview "Involvement: decide": set "autonomy": "auto" in tools/hooks/config.json, so later choices don\'t ask either');
   const want = packsFor(f);
   if (!/^(knowledge|software|app|both|neither|none)\b/i.test(f['kind of work'] || '')) probs.push('Setup interview "Kind of work" must start with knowledge, software, both or neither');
   if (!/^(yes|no)\b/i.test(f['visual interface'] || '')) probs.push('Setup interview "Visual interface" must start with yes or no');

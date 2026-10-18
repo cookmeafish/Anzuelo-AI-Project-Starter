@@ -121,7 +121,7 @@ const RUNEACH = withReqs({ tag: 'json-valid', when: { filesChanged: ['data/*.jso
 // The project's own setup answers and upgrade reviews would leak into every fixture: the base has neither.
 function withoutInterview(s) { return s.replace(/^## Setup interview[^\n]*\n(?:(?!## )[^\n]*\n?)*/m, '').replace(/^## Upgrade review[^\n]*\n(?:(?!## )[^\n]*\n?)*/gm, ''); }
 // a recorded setup interview (docs/DECISIONS.md) and a set security baseline
-const INTERVIEW = (kind, visual, packs, library) => `\n## Setup interview (2026-10-17)\n- Focus: track home office gear\n- Kind of work: ${kind}\n- Visual interface: ${visual}\n` +
+const INTERVIEW = (kind, visual, packs, library) => `\n## Setup interview (2026-10-17)\n- Involvement: everything\n- Focus: track home office gear\n- Kind of work: ${kind}\n- Visual interface: ${visual}\n` +
   '- Typical requests: see docs/BRIEF.md\n- Inputs: the user\'s notes\n- People: one\n- Sensitive data: none beyond prices\n- Constraints: none\n- Quality bar: short and sourced\n- Always/never: none\n' +
   '- Commands: npm test, npm run build\n- Branches: work on dev, never touch main\n- Sign-off: none\n- Release: none yet\n' + `- Packs: ${packs}\n- Library skills: ${library}\n`;
 const SEC_SET = '---\nstatus: set 2026-10-17\n---\n# Security baseline\n| Question | Answer |\n|---|---|\n| What is sensitive | prices only |\n';

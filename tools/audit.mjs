@@ -200,8 +200,13 @@ if (exists('library')) sweep('skill library is valid, cataloged and credited', (
   }
   for (const e of cat) {
     if (!dirs.includes(e.name)) fail.push(`catalog entry ${e.name} has no folder in library/skills`);
-    for (const k of ['summary', 'for', 'ask']) if (!e[k]) fail.push(`catalog entry ${e.name}: missing "${k}"`);
+    // plain, does, outcome: setup offers every choice in plain words (what it does, what the user will notice)
+    for (const k of ['summary', 'for', 'ask', 'plain', 'does', 'outcome']) if (!e[k]) fail.push(`catalog entry ${e.name}: missing "${k}"`);
     if (e.for && !['any', 'app', 'knowledge', 'gui'].includes(e.for)) fail.push(`catalog entry ${e.name}: "for" must be any or a pack name (app, knowledge, gui)`);
+  }
+  for (const p of exists('packs') ? fs.readdirSync(abs('packs')).filter(n => exists(`packs/${n}/pack.json`)) : []) {
+    let j = {}; try { j = JSON.parse(read(abs(`packs/${p}/pack.json`))); } catch { }
+    for (const k of ['plain', 'does', 'outcome']) if (!j[k]) fail.push(`packs/${p}/pack.json: missing "${k}" (setup offers it in plain words)`);
   }
   return { fail, note: `${dirs.length} skills` };
 });

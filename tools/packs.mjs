@@ -158,7 +158,7 @@ if (isMain) {
   const [cmd, ...rest] = process.argv.slice(2);
   if (cmd === 'list' || !cmd) {
     const inst = installed();
-    for (const p of available()) console.log(`${inst.includes(p.name) ? '[installed]' : '[ ]        '} ${p.name}: ${p.title}${p.from === 'project' ? '' : ` (from the ${p.from})`}\n            For: ${p.for}\n            Not for: ${p.notFor || '-'}`);
+    for (const p of available()) console.log(`${inst.includes(p.name) ? '[installed]' : '[ ]        '} ${p.plain || p.title} (pack: ${p.name})${p.from === 'project' ? '' : ` (from the ${p.from})`}\n            What it does: ${p.does || p.title}\n            What you'll notice: ${p.outcome || '-'}\n            For: ${p.for}\n            Not for: ${p.notFor || '-'}`);
     if (!available().length) console.log(`(no pack payloads: the starter's leftovers were removed and no starter is linked) installed: ${inst.join(', ') || 'core only'}\nTo grow later: node tools/starter.mjs link "<starter folder>"`);
   } else if (cmd === 'install') install(rest.filter(a => !a.startsWith('--')));
   else if (cmd === 'configure' && rest[0] === 'app') configureApp(rest.slice(1));

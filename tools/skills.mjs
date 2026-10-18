@@ -64,8 +64,7 @@ else if (cmd === 'recommended') {
   const lib = findLibrary();
   if (!cat.length) console.log('no skill library: the starter\'s leftovers were removed and no starter is linked. To grow later: node tools/starter.mjs link "<starter folder>"');
   else if (lib.kind !== 'project') console.log(`(from the ${lib.kind})`);
-  for (const e of cat) console.log(`${fs.existsSync(path.join(dir(e.name), 'SKILL.md')) ? 'enabled ' : '        '} ${e.name.padEnd(20)} for: ${e.for.padEnd(9)} ${e.summary}
-${' '.repeat(30)}ask: ${e.ask}`);
+  for (const e of cat) console.log(`${fs.existsSync(path.join(dir(e.name), 'SKILL.md')) ? 'enabled ' : '        '} ${e.plain || e.name} (skill: ${e.name}, fits: ${e.for})\n${' '.repeat(9)}What it does: ${e.does || e.summary}\n${' '.repeat(9)}What you'll notice: ${e.outcome || '-'}\n${' '.repeat(9)}Question: ${e.ask}`);
 } else if (cmd === 'enable') {
   (await import('./packs.mjs')).setupGate();
   const names = process.argv.slice(3).map(skillName);

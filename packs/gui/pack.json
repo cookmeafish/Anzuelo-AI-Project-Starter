@@ -1,4 +1,7 @@
 {
+  "plain": "Screen checking",
+  "does": "Takes screenshots of anything visual it builds, looks at them and fixes what looks wrong.",
+  "outcome": "Pages and screens that look right on phone and desktop, in light and dark mode.",
   "title": "Visual interface",
   "for": "Projects with anything people look at: app screens, web pages, dashboards, desktop windows, HTML reports or pages produced as deliverables.",
   "notFor": "Projects with no screens or HTML output. If one appears later, the gui-pack check asks for this pack.",

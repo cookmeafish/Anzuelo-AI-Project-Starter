@@ -1,4 +1,7 @@
 {
+  "plain": "Software toolkit",
+  "does": "Adds specs, testing, quality checks, performance budgets and safe releases for building apps, sites or tools.",
+  "outcome": "Software that is tested and checked before it is called done.",
   "title": "Application",
   "for": "Projects that build and ship software: apps, sites, tools, games, services. Adds specs with acceptance criteria, the triple-check QA, gates that must pass before commit, releases, performance, data safety and security.",
   "notFor": "Knowledge or context projects that don't build software: it would add machinery the project never uses.",

@@ -3,7 +3,7 @@
 //   node tools/hooks/wire.mjs
 // The rules live in AGENTS.md, the neutral file that most agents read. Agent-specific files are made here and kept out
 // of git, so the repository names no vendor: CLAUDE.md (a copy of AGENTS.md; the hooks keep the two in sync),
-// .claude/settings.json (Claude Code's hooks, from tools/hooks/agents/claude-settings.json), the .claude/skills
+// .claude/settings.json (Claude Code's hooks), the .claude/skills
 // mirrors, .codex/hooks.json (Codex needs this folder's real path), the git hooks (core.hooksPath) and Obsidian's
 // link settings. Existing files are merged or kept, never replaced.
 import fs from 'node:fs';
@@ -21,7 +21,10 @@ export function wire(dir, { dry = false } = {}) {
   const sp = at('.claude', 'settings.json');
   let mine = {};
   if (fs.existsSync(sp)) { try { mine = JSON.parse(fs.readFileSync(sp, 'utf8')); } catch (e) { throw new Error(`${sp} does not parse (${e.message}); fix it, then run wire again`); } }
-  const theirs = JSON.parse(fs.readFileSync(path.join(HERE, 'agents', 'claude-settings.json'), 'utf8'));
+  // Claude Code expands $CLAUDE_PROJECT_DIR itself, so its wiring is the same on every machine
+  const cc = (cmd, timeout, extra = {}) => [{ ...extra, hooks: [{ type: 'command', command: `node "$CLAUDE_PROJECT_DIR/tools/hooks/hooks.mjs" ${cmd}`, timeout }] }];
+  const theirs = { hooks: { SessionStart: cc('session', 60), UserPromptSubmit: cc('prompt', 30), PreToolUse: cc('pretool', 30, { matcher: 'Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell|Read|Agent|Task' }),
+    PostToolUse: cc('posttool', 30, { matcher: 'Write|Edit|MultiEdit' }), Stop: cc('stop', 300) } };
   const before = JSON.stringify(mine);
   mine.includeCoAuthoredBy = false;
   mine.attribution = { commit: '', pr: '' };

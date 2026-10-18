@@ -35,12 +35,35 @@ The starter was added around work that already exists (`config.json` has `adopte
 ## Phase 1: Learn the engine (no questions yet)
 Read `AGENTS.md`, `DIRECTORY.md`, `docs/checks/runbook-standards.md`, `docs/checks/writing-standards.md`,
 `tools/hooks/config.json` and `tools/hooks/requirements.json`. Run `node tools/packs.mjs list` and
-`node tools/skills.mjs library`. For an existing project, also read its files as above.
+`node tools/skills.mjs library`.
+
+**Understand the project before asking anything.** Run `node tools/survey.mjs`. It lists the project's own files, the
+documents to read first, earlier AI instructions, code projects and large data files, with suggested starting answers.
+Read what it points to (the README, the main notes, the main code entry, any earlier AI instructions) until you can say
+in three plain sentences what the project is for, who uses it and what it contains. That summary opens Phase 2, and
+every recommendation below rests on it, not on the survey's guesses alone.
 
 ## Phase 2: Ask the questions, and wait for the answers
-**No questions wanted** (`"autonomy": "auto"` in `tools/hooks/config.json`, or the user said to just run): answer every
-question yourself from the folder, the request and sensible defaults, write each answer as `- Key: assumed - <answer>`,
-list them in your final answer so the user can correct any, and go on without waiting.
+**Start with "What I found":** your three-sentence summary of the project, so the user can correct it first.
+
+**Then question 0, always first: "How involved do you want to be?"**
+- **Let the AI decide everything** (good if you don't want to be bothered): it uses what it found, makes every choice
+  below, writes down why, and you can change anything later. This also sets `"autonomy": "auto"`, so later choices
+  don't ask either.
+- **Ask only the important ones:** what the project is for, what's private, and anything it must always or never do.
+  The AI decides the rest the same way.
+- **Ask me everything.**
+
+**Every question you ask is in plain words:**
+- Each option says what it does and what the user will notice afterwards. Never offer a bare name ("orchestrate",
+  "app pack"): use the plain name and the "What it does" / "What you'll notice" lines from `packs.mjs list` and
+  `skills.mjs library`.
+- Every multiple-choice question also offers **"Let the AI decide"**, saying what it would pick and why, in one line.
+- Mark the recommended option, based on what you found.
+
+**Answers the AI decided** (question 0 said so, the user picked "Let the AI decide", or `"autonomy": "auto"` in
+`tools/hooks/config.json`) are written as `- Key: assumed - <answer> (why)`. List them in your final answer so the user
+can correct any, and go on without waiting.
 
 Ask in ONE message, grouped, with a multiple-choice tool if your agent has one. Skip only what the folder or the
 conversation already answers, and say what you inferred so the user can correct it.
@@ -65,6 +88,7 @@ how it is released.
 
 ```
 ## Setup interview (YYYY-MM-DD)
+- Involvement: decide | important only | everything
 - Focus: ...
 - Kind of work: knowledge | software | both  (then a few words)
 - Visual interface: yes | no  (then what: app screens, web pages, HTML reports ...)
@@ -93,16 +117,16 @@ how it is released.
    | Kind of work: software or both | `app` | specs, triple-check QA, gates, foundation, release safety |
    | Visual interface: yes | `gui` | the GUI runbook, the screenshot review loop and tool, visual-review checklist, the frontend-design skill |
 
-   Tell the user which packs and why, in one line each, then run:
+   Tell the user which packs and why, in one plain line each (what it does, what they'll notice), then run:
    ```
    node tools/packs.mjs install <packs>
    node tools/packs.mjs configure app --test "<cmd>" --build "<cmd>" --code "<globs>" --version-file <file>   (app only)
    ```
 2. **Library skills:** `node tools/skills.mjs library` lists them with the pack each fits. Every skill that fits an
-   installed pack (or "any") is enabled unless the user declines it. Ask each fitting skill's question in one
-   message, recommending yes. Then `node tools/skills.mjs enable <names>`. Add the phrases people use for these jobs
+   installed pack (or "any") is enabled unless the user declines it. Ask about all the fitting skills in one message, in
+   plain words (each skill's plain name, what it does, what they'll notice), with "Let the AI decide" as an option. Then `node tools/skills.mjs enable <names>`. Add the phrases people use for these jobs
    to each skill's `triggers:` and check them with `node tools/hooks/test-hooks.mjs --route "..."`.
-3. **The starter's leftovers:** ask the user, with a recommendation:
+3. **The starter's leftovers:** ask the user, with a recommendation and "Let the AI decide" as an option:
 
    | Choice | What happens | Fits when |
    |---|---|---|

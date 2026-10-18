@@ -1,4 +1,7 @@
 {
+  "plain": "Knowledge base",
+  "does": "Keeps facts, research and notes in organized files, each with its source and date.",
+  "outcome": "Answers come from your own recorded facts, and nothing has to be researched twice.",
   "title": "Knowledge and context",
   "for": "Projects whose job is to know things and answer from them: research, planning, records, notes, guides, decisions, a subject the user keeps coming back to.",
   "notFor": "Building software. A project that is mainly an application takes the app pack (it can take both if it also keeps a knowledge base).",
