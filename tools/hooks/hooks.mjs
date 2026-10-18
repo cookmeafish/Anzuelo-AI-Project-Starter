@@ -76,8 +76,8 @@ const DEFAULTS = {
   autonomy: 'ask',
   // REQ: gitignore-ready. Sample paths that must be ignored, and files that must never be (checked before every push).
   gitignoreMustIgnore: ['.env', '.env.local', 'server.pem', 'server.key', '.cache/x', 'node_modules/x', '.private-terms', 'tools/starter.local.json',
-    '.claude/settings.local.json', '.codex/hooks.json', 'tools/hooks/state/history.jsonl', 'tools/hooks/state/turn.json', '.obsidian/app.json'],
-  gitignoreMustKeep: ['README.md', 'CLAUDE.md', 'AGENTS.md', '.gitignore', '.env.example', '.claude/settings.json', 'tools/hooks/hooks.mjs', 'tools/hooks/config.json', 'tools/hooks/requirements.json'],
+    '.claude/settings.local.json', '.codex/hooks.json', '.claude/skills/debug/SKILL.md', 'tools/hooks/state/history.jsonl', 'tools/hooks/state/turn.json', '.obsidian/app.json'],
+  gitignoreMustKeep: ['README.md', 'AGENTS.md', '.gitignore', '.env.example', 'tools/hooks/agents/claude-settings.json', 'tools/hooks/wire.mjs', 'tools/hooks/hooks.mjs', 'tools/hooks/config.json', 'tools/hooks/requirements.json'],
   // Kept files that may discuss prompt injection itself (REQ: injection-guard).
   injectionIgnore: ['docs/security.md', 'skills/security-review/**', 'skills/research/references.md', 'skills/skill-finder/references.md', '.claude/skills/**'],
   // Files loaded at every session start: over this many characters together, the audit warns (consolidate them).
@@ -500,7 +500,7 @@ export function syncTwin() {
   // Only files that both declare the twin contract are synced. Lesson-in-advance: an adopted folder may have its own,
   // different CLAUDE.md and AGENTS.md, and an automatic "newer wins" copy would destroy one of them.
   const a = abs('CLAUDE.md'), b = abs('AGENTS.md');
-  const twin = t => /are twins/i.test(t);
+  const twin = t => /are twins|keep the two identical/i.test(t); // the twin note at the top of both files
   try {
     if (!fs.existsSync(a)) return true;
     const ta = read(a);

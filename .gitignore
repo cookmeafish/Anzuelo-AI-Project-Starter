@@ -6,8 +6,9 @@ tools/hooks/state/
 .cache/
 # The local blocklist of private terms the publish-safety sweep checks (the list itself is private)
 .private-terms
-# Local agent settings and generated per-machine wiring
-.claude/settings.local.json
+# Agent-specific files, made on each machine by node tools/hooks/wire.mjs (the rules live in AGENTS.md)
+CLAUDE.md
+.claude/
 .codex/
 tools/starter.local.json
 .starter/

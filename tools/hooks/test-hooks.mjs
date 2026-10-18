@@ -839,6 +839,20 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
   } finally { fs.rmSync(proj, { recursive: true, force: true }); }
 }
 
+{ // agent-neutral: a fresh clone has no agent files; wire makes CLAUDE.md, Claude Code's and Codex's hooks, and the mirrors
+  const dir = copyProject();
+  try {
+    for (const p of ['CLAUDE.md', '.claude', '.codex']) fs.rmSync(path.join(dir, p), { recursive: true, force: true });
+    const r = spawnSync(process.execPath, ['tools/hooks/wire.mjs'], { cwd: dir, encoding: 'utf8' });
+    const has = p => fs.existsSync(path.join(dir, p));
+    const same = has('CLAUDE.md') && fs.readFileSync(path.join(dir, 'CLAUDE.md'), 'utf8') === fs.readFileSync(path.join(dir, 'AGENTS.md'), 'utf8');
+    const settings = has('.claude/settings.json') && /hooks\.mjs\\?" stop/.test(fs.readFileSync(path.join(dir, '.claude/settings.json'), 'utf8'));
+    const again = spawnSync(process.execPath, ['tools/hooks/wire.mjs'], { cwd: dir, encoding: 'utf8' }).stdout;
+    report(r.status === 0 && same && settings && has('.codex/hooks.json') && has('.claude/skills/debug/SKILL.md') && /already connected/.test(again),
+      'agent-neutral: wire makes every agent\'s files on a fresh clone, and a second run changes nothing', `${r.stdout}${r.stderr} | ${again}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
 { // gitignore-ready: a push waits until .gitignore keeps private files out and needed files in
   const dir = copyProject();
   try {

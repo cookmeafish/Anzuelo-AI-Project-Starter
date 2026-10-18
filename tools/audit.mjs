@@ -50,12 +50,13 @@ const skillNames = fs.existsSync(abs(cfg.skillsDir)) ? fs.readdirSync(abs(cfg.sk
 const git = (...a) => spawnSync('git', a, { cwd: ROOT, encoding: 'utf8' });
 const isRepo = exists('.git');
 
-sweep('AGENTS.md and CLAUDE.md are identical twins', () =>
+sweep('AGENTS.md and CLAUDE.md are identical twins', () => !exists('CLAUDE.md') ? { warn: ['CLAUDE.md is made on each machine: run node tools/hooks/wire.mjs'] } :
   read(abs('CLAUDE.md')) && read(abs('CLAUDE.md')) === read(abs('AGENTS.md')) ? {} : { fail: ['AGENTS.md and CLAUDE.md differ or one is missing. Run node tools/hooks/hooks.mjs sync (both must say they "are twins").'] });
 
 sweep('hooks wired for every agent', () => {
   const fail = [], warn = [];
   const want = { SessionStart: 'session', UserPromptSubmit: 'prompt', PreToolUse: 'pretool', PostToolUse: 'posttool', Stop: 'stop' };
+  if (!exists('.claude/settings.json')) return { warn: ['the agent wiring is made on each machine: run node tools/hooks/wire.mjs'] };
   let j; try { j = JSON.parse(read(abs('.claude/settings.json'))); } catch (e) { return { fail: [`.claude/settings.json does not parse: ${e.message}`] }; }
   for (const [ev, arg] of Object.entries(want)) if (!(j.hooks?.[ev] || []).flatMap(m => m.hooks || []).some(h => (h.command || '').includes('hooks.mjs') && new RegExp(`\\b${arg}\\b`).test(h.command))) fail.push(`.claude/settings.json: ${ev} does not run hooks.mjs ${arg}`);
   const pre = (j.hooks?.PreToolUse || []).map(m => m.matcher || '').join('|');
@@ -63,7 +64,7 @@ sweep('hooks wired for every agent', () => {
   if (exists('.codex/hooks.json')) { try { const c = JSON.parse(read(abs('.codex/hooks.json'))); if (!JSON.stringify(c).includes('hooks.mjs')) fail.push('.codex/hooks.json does not run hooks.mjs'); } catch (e) { fail.push(`.codex/hooks.json does not parse: ${e.message}`); } }
   if (j.includeCoAuthoredBy !== false) warn.push('.claude/settings.json: set "includeCoAuthoredBy": false (no AI attribution)');
   for (const g of ['commit-msg', 'pre-push', 'pre-commit']) if (!exists(`.githooks/${g}`)) fail.push(`.githooks/${g} is missing`);
-  if (isRepo && (git('config', 'core.hooksPath').stdout || '').trim() !== '.githooks') fail.push('git hooks are not enabled: git config core.hooksPath .githooks');
+  if (isRepo && (git('config', 'core.hooksPath').stdout || '').trim() !== '.githooks') fail.push('git hooks are not enabled: run node tools/hooks/wire.mjs');
   return { fail, warn };
 });
 

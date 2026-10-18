@@ -37,6 +37,9 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
   - **.gitignore before every push** (gitignore-ready): the pretool hook, the git pre-push hook and the audit check
     that secrets, local state, caches and private files are ignored, that what the project needs is not, and that
     nothing ignored is already committed. Projects get it from the engine; upgrades add `.codex/` to their ignores.
+  - **No vendor files in git:** the rules live in `AGENTS.md`. `CLAUDE.md`, `.claude/` and `.codex/` are made on each
+    machine by `node tools/hooks/wire.mjs` (new projects and upgrades run it) and ignored by git. Upgrades don't
+    force this on projects that already commit `CLAUDE.md`.
   - **Commercial use:** every skill's license must allow commercial use without copyleft (audit), and the weighing
     in hard rule 16 includes the license. New library skill: teach (our own, original wording).
 

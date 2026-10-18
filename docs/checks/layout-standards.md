@@ -7,7 +7,7 @@ existing ones. Allowed root files are `rootAllowed` in `tools/hooks/config.json`
 ## The root
 | Kind | Files |
 |---|---|
-| Read first | `README.md`, `HOW-TO-USE.md`, `AGENTS.md` = `CLAUDE.md`, `DIRECTORY.md`, `SETUP-PROMPT.md` (until setup is done), `LICENSE` |
+| Read first | `README.md`, `HOW-TO-USE.md`, `AGENTS.md` (plus its local twin `CLAUDE.md`, not in git), `DIRECTORY.md`, `SETUP-PROMPT.md` (until setup is done), `LICENSE` |
 | Start the app (apps only) | ONE obvious start file, e.g. `Start <App>.bat` (Windows) and `start.sh` (macOS/Linux), or the toolchain's own (`npm start` via `package.json`). The README's first instruction points at it. |
 | Toolchain config that must sit in the root | `package.json` and its lock file, `pyproject.toml`, `requirements.txt`, `Cargo.toml`, `go.mod`, `tsconfig.json`, bundler config, `.gitignore`, `.gitattributes`, `.editorconfig`, `.env.example` |
 
@@ -17,7 +17,7 @@ Everything else goes in a folder. When in doubt, use a folder.
 | Folder | What |
 |---|---|
 | `docs/` | Brief, status, decisions, changelog, menu, security baseline, `playbooks/` (runbooks), `checks/` (standards), `plans/` |
-| `skills/` | Skills, one folder each (`.claude/skills/` is a generated mirror) |
+| `skills/` | Skills, one folder each (`.claude/skills/` is a generated local mirror, not in git) |
 | `tools/` | Project tools and the hook engine (`tools/hooks/`) |
 | `library/` | The starter's optional skills, until setup enables the ones that fit and `tools/starter.mjs` clears the rest |
 | `.cache/` | Scratch: screenshots, drafts, temporary output. Never committed |

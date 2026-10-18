@@ -3,7 +3,9 @@
 Anzuelo is Spanish for fishing hook. Its hooks catch the agent whenever it skips a step, cuts a corner or makes something up.
 
 It works with any agent (Claude Code, Codex, Cursor, Copilot, Gemini and others). Each project enforces its own way
-of working with hooks and checks, so you never have to keep reminding the agent.
+of working with hooks and checks, so you never have to keep reminding the agent. The rules live in `AGENTS.md`, the
+shared standard; each agent's own files are made on your machine by `node tools/hooks/wire.mjs`, so the repository
+favors no vendor.
 
 > **For AI agents: you were pointed here to set up a project.** Do exactly this:
 > 1. Run `node "<this starter folder>/tools/new-project.mjs" "<the project folder>"`. It copies everything the
@@ -60,6 +62,9 @@ of working with hooks and checks, so you never have to keep reminding the agent.
   nothing in git that credits an AI agent.
 
 ## Start a project
+**After cloning this repository**, run `node tools/hooks/wire.mjs` once. It connects the folder to your agent
+(Claude Code, Codex and others) and switches on the git checks.
+
 Once a project is set up, [HOW-TO-USE.md](HOW-TO-USE.md) explains the day-to-day.
 
 **The easy way:** open your project folder (new or existing) with your AI agent and say:
@@ -89,11 +94,11 @@ The link and the copy are both ignored by git.
 ## How it works
 | Piece | Where | Role |
 |---|---|---|
-| Rules | `AGENTS.md` = `CLAUDE.md` | 18 hard rules, each mapped to a check (`docs/checks/rule-enforcement.md`) |
+| Rules | `AGENTS.md` (a local copy, `CLAUDE.md`, is made for Claude Code) | 18 hard rules, each mapped to a check (`docs/checks/rule-enforcement.md`) |
 | Names | `docs/names.json` | Every name that may change, written once; docs show it in a marker, code reads the file |
 | Directory | `DIRECTORY.md` | "When this happens, use this runbook or skill", generated from the runbooks and skills |
 | Runbooks | `docs/playbooks/` | Procedures in plain markdown that any agent can follow |
-| Skills | `skills/` | Open SKILL.md format, mirrored to `.claude/skills/` |
+| Skills | `skills/` | Open SKILL.md format, mirrored locally where an agent looks for them |
 | Checks | `tools/hooks/requirements.json` + the engine's baseline | "When X, require Y", checked at the end of every turn |
 | Engine | `tools/hooks/hooks.mjs` | Session start, every prompt, before and after tool calls, and stop. Agents without hooks run `begin` / `check` |
 | Packs | `packs/` | Installed during setup with `tools/packs.mjs` |

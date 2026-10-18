@@ -2,10 +2,10 @@
 
 {{ONE_LINE}}
 
-> `AGENTS.md` and `CLAUDE.md` are twins: the same rules for every AI agent (Codex, Claude Code, Cursor, Copilot,
-> Gemini and others). The hooks copy whichever one was edited last over the other. The project's purpose is in
-> [docs/BRIEF.md](docs/BRIEF.md), where things stand is in [docs/STATUS.md](docs/STATUS.md), and the map of what to
-> use when is in [DIRECTORY.md](DIRECTORY.md).
+> `AGENTS.md` holds the rules for every AI agent (Codex, Claude Code, Cursor, Copilot, Gemini and others). Claude
+> Code reads `CLAUDE.md` instead: `node tools/hooks/wire.mjs` makes it on each machine, kept out of git, and the hooks
+> keep the two identical. The project's purpose is in [docs/BRIEF.md](docs/BRIEF.md), where things stand is in
+> [docs/STATUS.md](docs/STATUS.md), and the map of what to use when is in [DIRECTORY.md](DIRECTORY.md).
 
 ## Step 0, every message: route it (never skip)
 1. **Read the hook hints** (`ROUTE`, `SKILL`, `NO RUNBOOK`, `RULE REQUEST`, `SCOPE`, `MENU CODE`, notices) and obey

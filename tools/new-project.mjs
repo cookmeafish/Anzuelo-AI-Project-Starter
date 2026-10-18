@@ -18,6 +18,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { CORE_SKILLS, today as localToday, usageOf } from './hooks/hooks.mjs';
+import { wire } from './hooks/wire.mjs';
 
 const STARTER = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -28,7 +29,7 @@ const ENGINE = [
   '.githooks/commit-msg', '.githooks/pre-commit', '.githooks/pre-push',
   'docs/checks/session-checklist.md', 'docs/checks/finish-checklist.md', 'docs/checks/runbook-standards.md',
   'docs/checks/writing-standards.md', 'docs/checks/layout-standards.md',
-  'docs/playbooks/_TEMPLATE.md', 'docs/playbooks/_fallback.md', 'HOW-TO-USE.md', 'tools/skills.mjs', 'tools/starter.mjs', 'tools/recall.mjs'
+  'docs/playbooks/_TEMPLATE.md', 'docs/playbooks/_fallback.md', 'HOW-TO-USE.md', 'tools/skills.mjs', 'tools/starter.mjs', 'tools/recall.mjs', 'tools/hooks/wire.mjs', 'tools/hooks/agents/claude-settings.json'
 ];
 // Added on upgrade only when missing: the project may have tuned them.
 const ENGINE_IF_MISSING = ['docs/playbooks/plan.md', 'docs/plans/README.md', 'docs/security.md', 'docs/names.json'];
@@ -136,48 +137,6 @@ function mergeSkill(theirs, mine) {
   return out;
 }
 
-function mergeSettings() {
-  const sp = path.join(dest, '.claude', 'settings.json');
-  let mine = {};
-  if (fs.existsSync(sp)) { try { mine = JSON.parse(fs.readFileSync(sp, 'utf8')); } catch (e) { console.error(`${sp} does not parse (${e.message}); fix it, then re-run.`); process.exit(1); } }
-  const theirs = JSON.parse(fs.readFileSync(path.join(STARTER, '.claude', 'settings.json'), 'utf8'));
-  mine.includeCoAuthoredBy = false;
-  mine.attribution = { commit: '', pr: '' };
-  mine.hooks ||= {};
-  for (const [ev, v] of Object.entries(theirs.hooks)) {
-    const cur = JSON.stringify(mine.hooks[ev] || []);
-    if (!cur.includes('hooks.mjs')) { mine.hooks[ev] = [...(mine.hooks[ev] || []), ...v]; log.push(`wired    ${ev} hook`); }
-    else if (ev === 'PreToolUse') mine.hooks[ev] = mine.hooks[ev].map(m => JSON.stringify(m).includes('hooks.mjs') ? { ...m, matcher: v[0].matcher } : m);
-  }
-  if (!dry) { fs.mkdirSync(path.dirname(sp), { recursive: true }); fs.writeFileSync(sp, JSON.stringify(mine, null, 2) + '\n'); }
-}
-
-// Codex can't expand a project variable in hook commands, so its wiring carries this project's real path.
-function codexHooks() {
-  const hp = path.join(dest, 'tools', 'hooks', 'hooks.mjs').split(path.sep).join('/');
-  const ev = (cmd, extra = {}) => [{ ...extra, hooks: [{ type: 'command', command: `node "${hp}" ${cmd}`, timeout: cmd === 'stop' ? 300 : 30 }] }];
-  const j = { hooks: { SessionStart: ev('session'), UserPromptSubmit: ev('prompt'), PreToolUse: ev('pretool', { matcher: 'Write|Edit|MultiEdit|Bash|PowerShell|Read|Agent|Task' }), PostToolUse: ev('posttool', { matcher: 'Write|Edit|MultiEdit' }), Stop: ev('stop') } };
-  const to = path.join(dest, '.codex', 'hooks.json');
-  if (fs.existsSync(to) && !JSON.stringify(fs.readFileSync(to, 'utf8')).includes('hooks.mjs')) { log.push('kept     .codex/hooks.json (exists; add the hooks.mjs entries by hand)'); return; }
-  log.push(`${fs.existsSync(to) ? 'updated' : 'created'}  .codex/hooks.json`);
-  if (!dry) { fs.mkdirSync(path.dirname(to), { recursive: true }); fs.writeFileSync(to, JSON.stringify(j, null, 2) + '\n'); }
-}
-
-// Obsidian (obsidian skill): the folder opens as a vault whose new links are relative markdown links, the kind GitHub
-// and every agent follow too. Local and ignored by git; an existing vault setup is never changed.
-function obsidianVault() {
-  const to = path.join(dest, '.obsidian', 'app.json');
-  if (fs.existsSync(path.join(dest, '.obsidian'))) return;
-  log.push('created  .obsidian/app.json (Obsidian: markdown links, relative paths, updated when notes move)');
-  if (!dry) { fs.mkdirSync(path.dirname(to), { recursive: true }); fs.writeFileSync(to, JSON.stringify({ useMarkdownLinks: true, newLinkFormat: 'relative', alwaysUpdateLinks: true }, null, 2) + '\n'); }
-}
-
-function gitHooks() {
-  if (!fs.existsSync(path.join(dest, '.git'))) return;
-  if (!dry) spawnSync('git', ['config', 'core.hooksPath', '.githooks'], { cwd: dest });
-  log.push('git      core.hooksPath = .githooks (commits and pushes are checked for AI attribution and secrets)');
-}
-
 // With no mode flag the folder decides: empty → a new project; made from the starter → upgrade its engine; anything
 // else → adopt it (existing files are never overwritten). So an agent pointed at the starter needs one command.
 const madeFromStarter = fs.existsSync(path.join(dest, 'tools', 'hooks', 'hooks.mjs'));
@@ -209,7 +168,7 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   // ignore lines added since the project was made (the starter link, a kept copy), and the link itself if missing
   const gi = path.join(dest, '.gitignore');
   const have = fs.existsSync(gi) ? fs.readFileSync(gi, 'utf8').split(/\r?\n/) : [];
-  const want = fs.readFileSync(path.join(STARTER, 'tools', 'starter', 'gitignore.project'), 'utf8').split(/\r?\n/).filter(l => l && !l.startsWith('#') && !have.includes(l));
+  const want = fs.readFileSync(path.join(STARTER, 'tools', 'starter', 'gitignore.project'), 'utf8').split(/\r?\n/).filter(l => l && !l.startsWith('#') && !have.includes(l) && !['CLAUDE.md', '.claude/'].includes(l));
   if (want.length) { log.push(`appended .gitignore (${want.join(', ')})`); if (!dry) fs.appendFileSync(gi, '\n# Project starter\n' + want.join('\n') + '\n'); }
   const lk = path.join(dest, 'tools', 'starter.local.json');
   if (!fs.existsSync(lk) && !dry) { fs.writeFileSync(lk, JSON.stringify({ path: STARTER }, null, 2) + '\n'); log.push('linked   tools/starter.local.json → this starter'); }
@@ -254,7 +213,7 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
     try { const j = JSON.parse(fs.readFileSync(rq, 'utf8')); j.requirements = j.requirements.filter(r => !tags.includes(r.tag)); fs.writeFileSync(rq, JSON.stringify(j, null, 2) + '\n'); } catch { }
     if (fs.existsSync(ep)) fs.writeFileSync(ep, tags.reduce((t, tag) => t.replace(new RegExp(`,?\\s*\\b${tag}\\b`, 'g'), ''), fs.readFileSync(ep, 'utf8')));
   }
-  mergeSettings(); codexHooks(); gitHooks(); obsidianVault();
+  log.push(...wire(dest, { dry })); // every agent's wiring, the git hooks and Obsidian (tools/hooks/wire.mjs)
   console.log(log.join('\n'));
   console.log(`\n${dry ? 'Dry run, nothing written: this is what an upgrade of' : 'Upgraded the engine in'} ${dest}${dry ? ' would change' : ''}. The project's own content (AGENTS.md / CLAUDE.md, requirements.json, config.json, runbooks, knowledge, code) was not touched. ${unchanged} engine file(s) were already current.${backedUp ? ` ${backedUp} replaced file(s) are backed up in .cache/upgrade-backup/${stamp}/.` : ''}`);
   // regenerate the project's skills, mirrors and DIRECTORY.md with its new engine, so nothing is left stale
@@ -348,7 +307,7 @@ for (const f of files) {
   // An existing CLAUDE.md / AGENTS.md is never replaced: the starter's versions arrive as *.starter.md and the setup
   // merges them. Both get renamed, so the twin sync can't copy one over the user's file.
   if ((f === 'CLAUDE.md' || f === 'AGENTS.md') && hadInstructions) { put(f, { as: f.replace('.md', '.starter.md') }); continue; }
-  if (f === '.claude/settings.json' && fs.existsSync(path.join(dest, f))) { mergeSettings(); continue; }
+  if (f === 'CLAUDE.md' || f.startsWith('.claude/')) continue; // made for this machine by wire (tools/hooks/wire.mjs)
   put(f);
 }
 if (!dry) {
@@ -361,15 +320,13 @@ if (!dry) {
   fs.writeFileSync(path.join(dest, 'tools', 'starter.local.json'), JSON.stringify({ path: STARTER }, null, 2) + '\n');
   log.push('linked   tools/starter.local.json → this starter (setup asks: link, keep a copy, or remove)');
 }
-codexHooks();
 if (flag('--auto') && !dry) { const cp = path.join(dest, 'tools', 'hooks', 'config.json'); const c = JSON.parse(fs.readFileSync(cp, 'utf8')); c.autonomy = 'auto'; fs.writeFileSync(cp, JSON.stringify(c, null, 2) + '\n'); log.push('autonomy auto: setup assumes the answers and the agent decides without asking (tools/hooks/config.json)'); }
 if (flag('--git') && !dry && !fs.existsSync(path.join(dest, '.git'))) {
   const r = spawnSync('git', ['init'], { cwd: dest, encoding: 'utf8' });
   log.push(r.status === 0 ? 'git init done' : `git init failed: ${r.stderr}`);
 }
-gitHooks(); obsidianVault();
-// the generated files describe this project, not the starter they were copied from
-if (!dry) spawnSync(process.execPath, [path.join(dest, 'tools', 'hooks', 'hooks.mjs'), 'sync'], { cwd: dest, encoding: 'utf8' });
+// every agent's wiring, the git hooks, Obsidian, and the generated files for this project (not the starter's)
+log.push(...wire(dest, { dry }));
 console.log(log.join('\n'));
 console.log(`\n${existing.length ? 'Added the starter to' : 'Created'} ${dest}${dry ? ' (dry run: nothing written)' : ''}.`);
 if (existing.length && hadInstructions) console.log('The folder already had CLAUDE.md / AGENTS.md: the starter versions are *.starter.md, and setup merges them (your rules are kept).');
