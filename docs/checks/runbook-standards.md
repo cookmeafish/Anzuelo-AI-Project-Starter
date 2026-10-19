@@ -20,6 +20,9 @@ Every kind of task the project handles has three parts:
   - `checks`: only when the checks are not in requirements.json, as `core: <tags>` or `none - <reason>`
   - `hardened`: date, or `harden: never - <reason>`
   - `skill`: only to point at a hand-written skill instead of the generated one
+  - `owns`: optional folders this runbook fills itself, as comma-separated globs (`sources/raids/**`). In a turn that
+    follows it, another runbook's trigger skips files there (research downloads don't call for ingest); in any other
+    turn the trigger still fires
   - `reuse`: only for a procedure no other project could have, as `none - project-specific: <why>` (its own data
     layout, people or tools). It replaces the search for an existing skill (REQ: skill-reuse); anything general still
     gets the search (skill-finder skill).

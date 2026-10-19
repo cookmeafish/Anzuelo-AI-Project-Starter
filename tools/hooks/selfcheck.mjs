@@ -1008,6 +1008,9 @@ STOP.push(
   { pack: 'app', name: 'install-trigger: the install-update runbook followed: passes', prompt: 'fix the shortcut', tools: [pb('install-update')], files: { 'scripts/install.ps1': 'Write-Output hi\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: install-update.md.' + FIN, expect: { not: ['install-trigger'] } },
   { pack: 'knowledge', name: 'ingest-trigger: a new original without the ingest runbook: blocked', prompt: 'keep this', files: { 'sources/2026-10-18 scan.pdf': 'pdf' }, answer: 'Saved.' + FIN, expect: { tags: ['ingest-trigger'] } },
   { pack: 'knowledge', name: 'ingest-trigger: registered in SOURCES.md: passes', prompt: 'keep this', files: { 'sources/2026-10-18 scan.pdf': 'pdf', 'docs/knowledge/SOURCES.md': '| scan |' }, answer: 'Saved.' + FIN, expect: { not: ['ingest-trigger'] } },
+  // a runbook's "owns:" folders: its own downloads skip another runbook's trigger, but only in a turn that follows it
+  { pack: 'knowledge', name: 'ingest-trigger: a download into a folder the followed runbook owns: passes', prompt: 'research the raid', tools: [pb('raid-notes')], files: { 'docs/playbooks/raid-notes.md': '---\nname: raid-notes\nsummary: raid notes\ntriggers: raid notes\nowns: sources/raids/**\nchecks: none - a test runbook\n---\n# Playbook: raid notes\n', 'sources/raids/boss.html': 'page' }, answer: 'Saved.' + FIN, expect: { not: ['ingest-trigger'] } },
+  { pack: 'knowledge', name: 'ingest-trigger: the owned folder without its runbook followed: blocked', prompt: 'keep this', files: { 'docs/playbooks/raid-notes.md': '---\nname: raid-notes\nsummary: raid notes\ntriggers: raid notes\nowns: sources/raids/**\nchecks: none - a test runbook\n---\n# Playbook: raid notes\n', 'sources/raids/boss.html': 'page' }, answer: 'Saved.' + FIN, expect: { tags: ['ingest-trigger'] } },
   { pack: 'knowledge', name: 'deliverable-trigger: an output written without the deliverable runbook: blocked', prompt: 'put it in a file', files: { 'outputs/report.md': '# Report\nShort.\n' }, answer: 'Saved.' + FIN, expect: { tags: ['deliverable-trigger'] } },
   { pack: 'knowledge', name: 'deliverable-trigger: the deliverable runbook followed: passes', prompt: 'put it in a file', tools: [pb('deliverable')], files: { 'outputs/report.md': '# Report\nShort.\n' }, answer: 'Playbook: deliverable.md. Saved.' + FIN, expect: { not: ['deliverable-trigger'] } },
   { pack: 'knowledge', name: 'knowledge-source-trigger: facts written without research or capture: blocked', prompt: 'tidy the desk note', files: { 'docs/knowledge/desks.md': KNOW, 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { tags: ['knowledge-source-trigger'] } },
@@ -1061,7 +1064,7 @@ const B = base();
 const hereSrc = fs.readFileSync(path.join(B, 'tools/hooks/hooks.mjs'), 'utf8') + fs.readFileSync(path.join(B, 'tools/hooks/requirements.json'), 'utf8');
 const INSTALLED = (() => { try { return JSON.parse(fs.readFileSync(path.join(B, 'tools/hooks/config.json'), 'utf8')).packs || []; } catch { return []; } })();
 const packOk = s => !s.pack || INSTALLED.includes(s.pack);
-const applies = s => packOk(s) && (s.tools || []).every(t => t.name !== 'Read' || !/^docs\/playbooks\//.test(t.input.file_path) || fs.existsSync(path.join(B, t.input.file_path)))
+const applies = s => packOk(s) && (s.tools || []).every(t => t.name !== 'Read' || !/^docs\/playbooks\//.test(t.input.file_path) || fs.existsSync(path.join(B, t.input.file_path)) || (s.files || {})[t.input.file_path] != null)
   && (s.expect?.tags || []).every(t => SCENARIO_TAGS.has(t) || hereSrc.includes(`'${t}'`) || hereSrc.includes(`"${t}"`) || hereSrc.includes(`REQ: ${t}`))
   && Object.keys(s.edit || {}).every(p => p !== 'tools/hooks/requirements.json' || !/version-bump/.test(String(s.edit[p])) || hereSrc.includes('"version-bump"'));
 let skipped = 0;
@@ -1723,7 +1726,15 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
       if (!links.length) bad.push(`${f}: no links found`);
     }
     const a = spawnSync(process.execPath, ['tools/audit.mjs'], { cwd: dir, encoding: 'utf8' });
-    if (/^FAIL.*(generated files|relative links)/m.test(a.stdout)) bad.push(a.stdout.split('\n').filter(l => /differs|broken link/.test(l)).slice(0, 3).join(' | '));
+    // only this fixture's skill files count: inside a real project its own runbooks link to content the base removed
+    // Lesson: in a project, its runbooks' links to docs/knowledge/ looked broken here and failed this test.
+    const mine = a.stdout.split('\n').filter(l => /differs|broken link/.test(l) && /skills\//.test(l.split(':')[0].replace(/^\s*-?\s*/, '')));
+    if (mine.length) bad.push(mine.slice(0, 3).join(' | '));
+    // a mirror left out of skillMirrors (its skills still carry .mirror) is still refreshed
+    applyEdits(dir, { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), skillMirrors: ['.claude/skills'] }) });
+    fs.writeFileSync(path.join(dir, '.agents/skills/plan/SKILL.md'), 'stale\n');
+    spawnSync(process.execPath, ['tools/hooks/hooks.mjs', 'sync'], { cwd: dir, encoding: 'utf8' });
+    if (fs.readFileSync(path.join(dir, '.agents/skills/plan/SKILL.md'), 'utf8') === 'stale\n') bad.push('a mirror missing from skillMirrors was not refreshed');
     report(!bad.length, 'skill-mirror: a mirrored link resolves from the mirror (any depth), and the audit agrees', bad.join(' | '));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }

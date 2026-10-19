@@ -17,7 +17,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { CORE_SKILLS, today as localToday, usageOf, isEngineCheck, shippedChecks } from './hooks/hooks.mjs';
+import { CORE_SKILLS, today as localToday, usageOf, isEngineCheck, shippedChecks, checkKey, ENGINE_CHECKS_HISTORY } from './hooks/hooks.mjs';
 import { wire } from './hooks/wire.mjs';
 
 const STARTER = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -30,7 +30,7 @@ const ENGINE = [
   'docs/checks/session-checklist.md', 'docs/checks/finish-checklist.md', 'docs/checks/runbook-standards.md',
   'docs/checks/writing-standards.md', 'docs/checks/layout-standards.md', 'docs/recommended-tools.md', 'docs/checks/better-or-worse.md',
   'docs/playbooks/_TEMPLATE.md', 'docs/playbooks/_fallback.md', 'docs/playbooks/project.md', 'docs/playbooks/plan.md', 'HOW-TO-USE.md', 'tools/skills.mjs', 'tools/starter.mjs', 'tools/recall.mjs', 'tools/hooks/wire.mjs', 'tools/survey.mjs', 'tools/dedupe.mjs', 'tools/fit.mjs',
-  'tools/hooks/engine-checks.json'
+  'tools/hooks/engine-checks.json', 'tools/hooks/engine-checks-history.json'
 ];
 // The engine's own runbooks (hooks.mjs CORE_RUNBOOKS: project, plan; and _fallback, _TEMPLATE) are engine like the core
 // skills: replaced on upgrade, keeping the project's added triggers, its "## Project lessons" section and its
@@ -148,7 +148,7 @@ function put(rel, { overwrite = false, as = rel } = {}) {
     // An upgrade replaces engine files, but never loses what the project added: a core skill keeps its own triggers
     // and its "## Project lessons" section (where skill-learn writes), and every replaced file is backed up first.
     const mine = fs.readFileSync(to, 'utf8');
-    if (/^(skills\/[^/]+\/SKILL\.md|docs\/playbooks\/[^_/][^/]*\.md)$/.test(as)) text = mergeSkill(fs.readFileSync(from, 'utf8'), mine);
+    if (/^(skills\/[^/]+\/SKILL\.md|docs\/playbooks\/[^_/][^/]*\.md)$/.test(as)) text = mergeSkill(fs.readFileSync(from, 'utf8'), mine, rel);
     const backup = path.join(dest, '.cache', 'upgrade-backup', stamp, as + '.orig'); // .orig: never loaded or run as code
     if (!dry) { fs.mkdirSync(path.dirname(backup), { recursive: true }); fs.writeFileSync(backup, mine); }
     note = text && text !== fs.readFileSync(from, 'utf8') ? ' (kept the project\'s triggers and lessons)' : '';
@@ -164,8 +164,21 @@ function put(rel, { overwrite = false, as = rel } = {}) {
   else if (TEXT.test(rel) && !rel.endsWith('.mjs') && !overwrite) fs.writeFileSync(to, fill(fs.readFileSync(from, 'utf8'), rel.endsWith('.json'))); else fs.copyFileSync(from, to);
   return true;
 }
-// The starter's new SKILL.md, plus the triggers the project added and its "## Project lessons" section.
-function mergeSkill(theirs, mine) {
+// Every line the starter ever shipped in a file (from its git history, when it has one), so a line the project wrote
+// can be told from an older engine line.
+const shippedLinesCache = {};
+function shippedLines(rel) {
+  if (shippedLinesCache[rel]) return shippedLinesCache[rel];
+  const set = new Set(), git = (...a) => spawnSync('git', a, { cwd: STARTER, encoding: 'utf8', maxBuffer: 64 << 20 });
+  for (const c of (git('log', '--format=%H', '--', rel).stdout || '').split('\n').filter(Boolean))
+    for (const l of (git('show', `${c}:${rel}`).stdout || '').split(/\r?\n/)) set.add(l.trim());
+  return (shippedLinesCache[rel] = set);
+}
+const movedLessons = [];
+// The starter's new SKILL.md, plus the triggers the project added and its "## Project lessons" section. Lines the
+// project added to the file's "## Pitfalls" (in neither the new file nor any shipped version) move to "## Project
+// lessons". Lesson: project.md became an engine runbook, and the pitfalls a project had written into it were lost.
+function mergeSkill(theirs, mine, rel) {
   const trig = t => (/^triggers:\s*(.*)$/m.exec(t)?.[1] || '').split(',').map(s => s.trim()).filter(Boolean);
   const extra = trig(mine).filter(t => !trig(theirs).includes(t));
   let out = theirs;
@@ -175,7 +188,14 @@ function mergeSkill(theirs, mine) {
   const fmOf = t => /^---\r?\n([\s\S]*?)\r?\n---/.exec(t)?.[1] || '';
   const marks = fmOf(mine).split(/\r?\n/).filter(l => /^(hardened|harden|keep):/.test(l) && !new RegExp(`^${l.split(':')[0]}:`, 'm').test(fmOf(out)));
   if (marks.length && /^---\r?\n/.test(out)) out = out.replace(/^(---\r?\n[\s\S]*?)(\r?\n---)/, (m, a, b) => `${a}\n${marks.join('\n')}${b}`);
-  const lessons = /^## Project lessons[^\n]*\n[\s\S]*?(?=^## |(?![\s\S]))/m.exec(mine)?.[0];
+  let lessons = /^## Project lessons[^\n]*\n[\s\S]*?(?=^## |(?![\s\S]))/m.exec(mine)?.[0];
+  const pit = /^## Pitfalls[^\n]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(mine)?.[1] || '';
+  const known = new Set([...theirs.split(/\r?\n/).map(l => l.trim()), ...(rel ? shippedLines(rel) : [])]);
+  const added = pit.split(/\r?\n/).filter(l => /^\s*[-*]\s+\S/.test(l) && !known.has(l.trim()) && !(lessons || '').includes(l.trim()));
+  if (added.length) {
+    lessons = (lessons ? lessons.replace(/\s*$/, '\n') : '## Project lessons\n') + added.join('\n') + '\n';
+    movedLessons.push([rel, added.length]);
+  }
   // the heading itself, not a mention of it in the text (Lesson: project.md names the section in a sentence, and the lessons were dropped)
   if (lessons && !/^## Project lessons/m.test(out)) out = out.replace(/\s*$/, '\n\n') + lessons.replace(/\s*$/, '\n');
   return out;
@@ -247,15 +267,18 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
     const refreshed = [];
     // What a project sets on purpose is not an edit: switching a check off, and the app pack's code folders and version
     // file (packs.mjs configure app). They are left out of the comparison and kept on a refresh.
-    const local = r => { const c = JSON.parse(JSON.stringify(r)); delete c.enabled; delete c.custom;
-      if (c.codeGlobs && c.when) delete c.when.filesChanged; if (c.tag === 'version-bump' && c.require) delete c.require.filesChanged; return c; };
-    const canon = v => Array.isArray(v) ? v.map(canon) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map(k => [k, canon(v[k])])) : v;
-    const same = (a, b) => JSON.stringify(canon(local(a))) === JSON.stringify(canon(local(b)));
+    // (checkKey in hooks.mjs leaves out what a project sets on purpose: enabled, code folders, the pack / skill labels)
+    const same = (a, b) => checkKey(a) === checkKey(b);
+    let history = {}; try { history = JSON.parse(fs.readFileSync(path.join(STARTER, ENGINE_CHECKS_HISTORY), 'utf8')).versions || {}; } catch { }
+    const everShipped = m => (history[m.tag] || []).includes(checkKey(m));
     mine.requirements = mine.requirements.map(m => {
       const s = skillChecks.find(r => r.tag === m.tag);
-      if (!s || m.custom || same(m, s)) return m;
+      // equal to the newest apart from labels: it gets the pack / skill label older releases didn't write
+      if (s && same(m, s)) return { ...m, ...(s.pack ? { pack: s.pack } : {}), ...(s.skill ? { skill: s.skill } : {}) };
+      // "custom" on an entry that is exactly an older shipped version came from an older upgrade's mistake, not the project
+      if (!s || (m.custom && !everShipped(m))) return m;
       const was = prevShipped?.find(r => r.tag === m.tag);
-      if (!was || !same(m, was)) { keptChecks.push(m.tag); return { ...m, custom: true }; } // edited here (or unknown): never replaced silently
+      if (!everShipped(m) && (!was || !same(m, was))) { keptChecks.push(m.tag); return { ...m, custom: true }; } // edited here (or unknown): never replaced silently
       refreshed.push(m.tag);
       const next = { ...s, ...('enabled' in m ? { enabled: m.enabled } : {}) }; // a check the project switched off (or on) stays so
       if (s.codeGlobs && m.when?.filesChanged) next.when = { ...next.when, filesChanged: m.when.filesChanged };
@@ -358,7 +381,8 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   for (const [ev, ms] of Object.entries(after.speed)) if (before.speed[ev] && ms > before.speed[ev] * 1.5 && ms - before.speed[ev] > 100) items.push(`speed: the ${ev} hook went from ${before.speed[ev]} to ${ms} ms`);
   // no ": " inside an item: the review's parser ends the item at the first one
   for (const a of addedChecks) items.push(`check: ${a}; it now runs in this project's hooks (to switch it off, set its "enabled" to false)`);
-  for (const tag of keptChecks) items.push(`check: ${tag}, kept your edited version; the starter's newer one differs (to take it, delete the entry's "custom" flag and upgrade again)`);
+  for (const tag of keptChecks) items.push(`check: ${tag}, kept your edited version; the starter's newer one differs (to take it, replace the entry with the one in tools/hooks/engine-checks.json)`);
+  for (const [file, n] of movedLessons) items.push(`lessons: ${file} became an engine file, so ${n} line(s) this project added moved to its "## Project lessons" section (check they still read right there)`);
   items.push('self-tests: node tools/hooks/selfcheck.mjs passes here');
   const dp = path.join(dest, 'docs', 'DECISIONS.md');
   fs.mkdirSync(path.dirname(dp), { recursive: true });

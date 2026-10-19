@@ -4,6 +4,25 @@ Changes to the starter itself. A project picks up engine changes with `node tool
 starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook changes listed here are adopted by hand
 (project-rule, runbook-create), because an upgrade never touches a project's own content.
 
+- 2026-10-19 (later): Fixes from the same project's next upgrade.
+  - **No false "kept your edited version".** An older shipped check is not a local edit. The starter now ships
+    `tools/hooks/engine-checks-history.json`, the fingerprint of every version of every check it ever released
+    (backfilled from git history, grown by sync). A project entry equal to any of them is refreshed, even in a project
+    from before `engine-checks.json` existed, and so is one an older upgrade wrongly marked `"custom"`. The `pack` and
+    `skill` labels older releases didn't write no longer count as differences. To take the newer version of a check
+    you did edit, replace the entry with the one in `engine-checks.json` (removing `"custom"` alone kept it again).
+  - **Lessons survive a runbook becoming engine-owned.** Lines a project wrote under `## Pitfalls` of an engine runbook
+    or core skill (lines in neither the new file nor any shipped version of it) move to its `## Project lessons`
+    section, and the upgrade review lists the file. Before, `project.md` turning engine-owned dropped them silently.
+  - **A stale mirror is refreshed.** A skills folder the engine generated (its skills carry `.mirror`) stays a mirror
+    even when it is missing from `skillMirrors`, so it is synced, pruned and protected; one left out kept a link that
+    pointed one folder short.
+  - **A runbook can own folders.** `owns: sources/raids/**` in a runbook's frontmatter: in a turn that follows it,
+    another runbook's trigger skips files there, so research downloads don't call for ingest. In any other turn the
+    trigger still fires.
+  - The mirror-link self-test looks only at its own fixture's links, so a project's own runbooks (whose content the
+    test base removes) no longer fail it.
+
 - 2026-10-19: Fixes from a real project's upgrade.
   - **Pack and library checks are upgraded too.** `tools/hooks/engine-checks.json` now ships every check: the core
     skills', each pack's (tagged `pack`) and each library skill's (tagged `skill`). An upgrade runs the same 3-way merge
