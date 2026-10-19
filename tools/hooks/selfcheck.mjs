@@ -39,7 +39,15 @@ try { for (const n of fs.readdirSync(os.tmpdir())) if (/^starter-(base|test|fake
 function base() {
   if (BASE) return BASE;
   BASE = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-base-'));
-  fs.cpSync(ROOT, BASE, { recursive: true, filter: s => !SKIP_DIRS.has(path.basename(s)) });
+  // A project's build output, environments, engine caches and the folders its .gitignore lists are never test material:
+  // left out of the copy, so each of the many test copies stays small. Lesson: in a large project the self-test took
+  // twice as long, copying a venv and a game engine's import cache dozens of times.
+  const ignored = new Set((() => { try { return fs.readFileSync(path.join(ROOT, '.gitignore'), 'utf8').split(/\r?\n/).map(l => l.trim().replace(/^\/|\/$/g, '')).filter(l => l && !/[*!#?\[]/.test(l) && !l.includes('/')); } catch { return []; } })());
+  const BULK = /^(venv|\.venv|__pycache__|dist|build|target|obj|coverage|\.godot|\.import|Library|Temp|\.gradle|\.dart_tool|\.next|\.turbo)$/;
+  fs.cpSync(ROOT, BASE, { recursive: true, filter: s => { const n = path.basename(s), top = path.relative(ROOT, s).split(path.sep).length === 1;
+    if (SKIP_DIRS.has(n)) return false;
+    if (!top || !(BULK.test(n) || (ignored.has(n) && !/^(tools|skills|docs|\.githooks|\.claude)$/.test(n)))) return true;
+    try { return !fs.statSync(s).isDirectory(); } catch { return true; } } });
   const node = (...a) => spawnSync(process.execPath, a, { cwd: BASE, encoding: 'utf8', env: { ...process.env, STARTER_MEMORY_DIR: path.join(BASE, '.memtest') } });
   // Run from inside a finished project, the base starts from the same neutral state as the starter: no link to a
   // starter, no setup answers or app gates of the project's own, and a setup prompt marked as the template.
@@ -99,7 +107,10 @@ function base() {
   const CODE_DEFAULT = ['src/**', 'app/**', 'lib/**', 'server/**', 'packages/**'];
   rq0.requirements = rq0.requirements.map(r => shipped.find(s => s.tag === r.tag && (s.when?.skillUsed || s.when?.playbookUsed === 'plan') && !s.pack) || r);
   rq0.requirements.push(...shipped.filter(s => (s.when?.skillUsed || s.when?.playbookUsed === 'plan') && !s.pack && !rq0.requirements.some(r => r.tag === s.tag)));
-  rq0.requirements = rq0.requirements.filter(r => !r.appGate).map(r => r.tag === 'version-bump' ? { ...r, enabled: false } : r)
+  // the app gates run the project's own test and build commands, so the sandbox leaves them out, except the ones the
+  // project's own scenarios test. Lesson: a project's "blocked without the test gate" scenario could never pass.
+  const ownScenarios = fs.existsSync(at('tools/hooks/project-scenarios.mjs')) ? fs.readFileSync(at('tools/hooks/project-scenarios.mjs'), 'utf8') : '';
+  rq0.requirements = rq0.requirements.filter(r => !r.appGate || new RegExp(`['"\`]${r.tag}['"\`]`).test(ownScenarios)).map(r => r.tag === 'version-bump' ? { ...r, enabled: false } : r)
     .map(r => r.codeGlobs && r.when?.filesChanged ? { ...r, when: { ...r.when, filesChanged: CODE_DEFAULT } } : r);
   fs.writeFileSync(rqPath, JSON.stringify(rq0, null, 2) + '\n');
   // The project's own names would collide with fixture text: the base has only the template's placeholder.

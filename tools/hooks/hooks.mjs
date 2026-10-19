@@ -1691,7 +1691,10 @@ const FIT_SIGNALS = [
 ];
 // What the brief and the setup answers say the work is: evidence too, so a skill whose files don't exist yet is still
 // weighed. Lesson: a bakery whose brief was all newsletters and supplier emails got "no direct signal" for marketing.
-const briefText = () => `${read(abs('docs/BRIEF.md'))}\n${section(read(abs('docs/DECISIONS.md')), 'Setup interview')}`.replace(/<!--[\s\S]*?-->/g, ' ');
+// The choices about the starter itself (packs, library skills, tools) name skills, so they are not evidence about the
+// work. Lesson: "Library skills: frontend-design ..." counted as the brief asking for a library and a front end.
+const briefText = () => `${read(abs('docs/BRIEF.md')).replace(/^##\s+Tools\b[\s\S]*?(?=^##\s|(?![\s\S]))/m, '')}\n${section(read(abs('docs/DECISIONS.md')), 'Setup interview')}`
+  .replace(/<!--[\s\S]*?-->/g, ' ').split(/\r?\n/).filter(l => !/^\s*[-*]\s*\**(packs|library skills|starter|commands|release|tools)\**\s*:/i.test(l)).join('\n');
 const BRIEF_SIGNALS = [
   ['marketing', /\b(marketing|campaigns?|newsletters?|social media|instagram|brand|promotions?|ads?|seo)\b/i],
   ['legal-review', /\b(contracts?|terms of (service|use)|privacy policy|gdpr|legal|compliance|lease|ndas?)\b/i],
@@ -1704,7 +1707,7 @@ const BRIEF_SIGNALS = [
   ['mobile-app', /\b(mobile app|android|ios|iphone|flutter|react native|swiftui|play store|app store)\b/i],
   ['game-dev', /\b(game|godot|unity|unreal|sprites?|levels?|player character|steam|itch\.io)\b/i],
   ['web-app-patterns', /\b(web app|website|react|vue|svelte|next\.?js|front.?end|dashboard)\b/i],
-  ['package-release', /\b(library|package|crate|npm package|pypi|publish(ed)? to|sdk|cli tool)\b/i],
+  ['package-release', /\b((code|software|client|python|js|javascript|typescript|rust|dart) library|crates?\.io|crate|npm package|pypi|nuget|pub\.dev|publish(ed)? to (npm|pypi|crates|nuget|pub)|sdk|cli tool)\b/i],
   ['data-pipeline', /\b(pipeline|etl|imports? (of|from)|exports? from|batch(es)?|ingest(ion)?)\b/i],
   ['notes-vault', /\b(obsidian|vault|my notes|notes app|zettelkasten)\b/i],
   ['dependency-update', /\b(dependenc(y|ies)|upgrade|outdated|vulnerab\w+|dependabot|renovate)\b/i]

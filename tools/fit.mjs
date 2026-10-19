@@ -38,6 +38,16 @@ that evidence doesn't make it worth it. Signal lines starting with "survey:" are
 Only choices that cost money, touch privacy or act outside the project go to the user, as one question with choices. -->
 `;
 
+// tools that only work on one language: [item, file extensions, the language in words]
+const LANG_TOOLS = [
+  [/^(clippy|cargo-audit|cargo-nextest)$/i, 'rs', 'Rust'],
+  [/^(ruff|pyright|mypy|pytest)$/i, 'py|ipynb', 'Python'],
+  [/^(nbstripout|nbqa)$/i, 'ipynb', 'Jupyter notebook'],
+  [/^(gdtoolkit|gdunit4)$/i, 'gd', 'GDScript'],
+  [/^(biome|eslint|prettier|vitest)$/i, 'js|mjs|cjs|jsx|ts|tsx', 'JavaScript or TypeScript'],
+  [/^typescript \(tsc\)$/i, 'ts|tsx|js|mjs', 'TypeScript or JavaScript'],
+  [/^shellcheck$/i, 'sh', 'shell script']
+];
 function build(sv) {
   const old = fitRows(read(abs(FIT_FILE)));
   const byKey = new Map(old.map(r => [key(r.kind, r.item), r]));
@@ -55,6 +65,14 @@ function build(sv) {
     // a code tool in a project with no code: decided "later" here, so the AI weighs only what can matter now
     if (!was && noCode) {
       rows.push({ item: c.item, kind: c.kind, signal: auto, decision: 'later - when: the first code file appears', reason: `${c.item} works on code, and this project has no code files yet, so it would only add setup and noise now` });
+      continue;
+    }
+    // a tool for one language in a project with no file of that language: "later", until the first one appears. Lesson:
+    // Clippy, cargo-audit and cargo-nextest needed three reasons that all said "no Rust here" in a JavaScript project.
+    const lang = !was && c.kind === 'tool' && !(signals[k] || []).length && LANG_TOOLS.find(([rx]) => rx.test(c.item));
+    if (lang && !sv.files.some(f => new RegExp(`\\.(${lang[1]})$`, 'i').test(f.p))) {
+      const ext = lang[1].split('|')[0];
+      rows.push({ item: c.item, kind: c.kind, signal: `survey: no .${ext} files`, decision: `later - when: the first .${ext} file appears`, reason: `${c.item} works on ${lang[2]} files, and this project has none yet, so it would only add an install and setup now` });
       continue;
     }
     // already in the project (a pack setup installed, an enabled skill, a feature that is on): decided "add" here, with

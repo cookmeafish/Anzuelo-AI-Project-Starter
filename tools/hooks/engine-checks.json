@@ -673,7 +673,7 @@
       "forces": "release",
       "hint": "\\b(release|ship it|publish|tag (a|the) (release|version)|cut a version|deploy to prod\\w*)\\b",
       "when": {
-        "toolRan": "\\bgit\\s+tag\\s+(-[as]\\s+)?v?\\d|\\bgh\\s+release\\s+create\\b|\\b(npm|pnpm|yarn)\\s+(publish|version)\\b|\\bcargo\\s+publish\\b|\\b(dart|flutter)\\s+pub\\s+publish\\b|\\b(poetry|uv)\\s+publish\\b|\\bgem\\s+push\\b|\\bfastlane\\s+\\w*(deliver|release|upload|beta)\\b|\\bhf\\s+upload\\b|\\bhuggingface-cli\\s+upload\\b|\\btwine\\s+upload\\b|\\bvsce\\s+publish\\b"
+        "toolRan": "^(?![^\\n]*--dry-run)[\\s\\S]*?(?:\\bgit\\s+tag\\s+(-[as]\\s+)?v?\\d|\\bgh\\s+release\\s+create\\b|\\b(npm|pnpm|yarn)\\s+(publish|version)\\b|\\bcargo\\s+publish\\b|\\b(dart|flutter)\\s+pub\\s+publish\\b|\\b(poetry|uv)\\s+publish\\b|\\bgem\\s+push\\b|\\bfastlane\\s+\\w*(deliver|release|upload|beta)\\b|\\bhf\\s+upload\\b|\\bhuggingface-cli\\s+upload\\b|\\btwine\\s+upload\\b|\\bvsce\\s+publish\\b)"
       },
       "require": {
         "playbookUsed": "release"
