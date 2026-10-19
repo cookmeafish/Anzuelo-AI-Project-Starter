@@ -31,6 +31,9 @@ if (process.argv[2] === '--route') {
 const TAGS = (() => { const i = process.argv.indexOf('--tags'); const v = i > 0 ? process.argv[i + 1] : (process.argv.find(a => a.startsWith('--tags=')) || '').slice(7); return v ? v.split(',').map(s => s.trim()).filter(Boolean) : null; })();
 const SKIP_DIRS = new Set(['.git', 'node_modules', 'state', '.cache', '.private-terms']);
 let BASE = null;
+// Copies left by an earlier run that was killed before it could clean up: removed once they are 6 hours old, so a run
+// still going in another session keeps its own. Lesson: 136 stale copies piled up in the temp folder.
+try { for (const n of fs.readdirSync(os.tmpdir())) if (/^starter-(base|test|fake|dry|upg)-/.test(n)) { const p = path.join(os.tmpdir(), n); if (Date.now() - fs.statSync(p).mtimeMs > 6 * 3600_000) fs.rmSync(p, { recursive: true, force: true }); } } catch { }
 // The base: a copy of this project with every available pack installed and the generated files synced, so every
 // check can be exercised. Files are aged, so only what a scenario writes counts as changed this turn.
 function base() {
@@ -711,6 +714,9 @@ STOP.push(
   { name: 'new runbook without checking for existing skills: blocked', prompt: 'make a runbook for meal planning', tools: [pb('project'), bash('node tools/audit.mjs')],
     files: { 'docs/playbooks/meal-plan.md': NEWPB, 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.' + FIN, expect: { block: true, tags: ['skill-reuse'] } },
   { name: 'a loose new file in the project root: blocked', prompt: 'save my notes', files: { 'notes.txt': 'x' }, answer: 'Saved. N/A(runbook-exists): test.' + FIN, expect: { block: true, tags: ['root-tidy'] } },
+  // Lesson: in an adopted project, editing its own main.py asked to move it out of the root
+  { name: 'root-tidy: editing a file that was already in the root: passes', prompt: 'save my notes',
+    prep: dir => { write(dir, { 'notes.txt': 'x' }); run(dir, 'prompt', { prompt: 'save my notes' }); }, files: { 'notes.txt': 'x2' }, answer: 'Saved. N/A(runbook-exists): test.' + FIN, expect: { not: ['root-tidy'] } },
   // plain writing
   { name: 'answer with an em dash: blocked', prompt: 'hello', answer: 'Sure \u2014 here it is.', expect: { block: true, tags: ['plain-writing'] } },
   { name: 'answer with filler: blocked', prompt: 'hello', answer: 'Great question! I hope this helps.', expect: { block: true, tags: ['plain-writing'] } },
@@ -1405,6 +1411,19 @@ if (!TAGS) { // the standalone checks run in a full run only
     const tail = JSON.parse(spawnSync(process.execPath, ['--input-type=module', '-e', `import { FIT_WHEN_TAIL as T } from ${H}; console.log(JSON.stringify(['Recommend when: a team shares the repo, so it helps', 'later - when: 30 files', 'it helps; when: 30 files'].map(s => s.replace(T, '').trim())))`], { cwd: dir, encoding: 'utf8' }).stdout || '[]');
     report(added.length > 0 && /item\(s\) with no sign of need here/.test(sum) && sum.split(/\s+/).length < all.split(/\s+/).length / 2 && tail[0]?.startsWith('Recommend when:') && tail[1] === '' && tail[2] === 'it helps',
       'fit: what is already in the project starts as add, the summary stays short, and only a later-when tail is cut', `${added.length} add rows | ${sum.split(/\s+/).length} vs ${all.split(/\s+/).length} words | ${JSON.stringify(tail)}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+{ // two sessions in one folder: each keeps its own turn record, so one's request never becomes the other's
+  // Lesson: a second session's prompt replaced the first one's turn record, and the first was checked against it
+  const dir = copyProject();
+  try {
+    run(dir, 'prompt', { prompt: 'write the menu for spring', session_id: 'aaa' });
+    run(dir, 'prompt', { prompt: 'fix the login page', session_id: 'bbb' });
+    const st = n => { try { return JSON.parse(fs.readFileSync(path.join(dir, 'tools/hooks/state', n), 'utf8')); } catch { return {}; } };
+    const a = st('turn.aaa.json'), b = st('turn.bbb.json');
+    report(/spring/.test(a.prompt || '') && !/login/.test(a.prompt || '') && /login/.test(b.prompt || '') && !!st('snapshot.aaa.json').files,
+      'sessions: two sessions in one folder keep separate turn records and snapshots', `${(a.prompt || '').slice(0, 60)} | ${(b.prompt || '').slice(0, 60)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 

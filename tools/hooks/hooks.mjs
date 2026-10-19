@@ -34,9 +34,17 @@ export const usageOf = url => { const out = []; for (const l of read(fileURLToPa
 // Environment switches use the neutral STARTER_ prefix. Lesson: names from the starter's old name (KS_) outlived the
 // rename; the old names are still read for one release so nothing breaks mid-upgrade.
 export const envOf = n => process.env[`STARTER_${n}`] ?? process.env[`KS_${n}`];
+// Each agent session keeps its own turn record and snapshot, so two sessions working in one folder at once don't read
+// each other's request or changes. Without a session id (a manual begin/check) the shared files are used.
+// Lesson: a second session's prompt replaced the first one's turn record, and the first was checked against it.
+let SID = '';
+const PER_SESSION = new Set(['turn.json', 'snapshot.json', 'turn-end.json', 'notices-shown.json']);
+const stateName = n => SID && PER_SESSION.has(n) ? n.replace(/.json$/, `.${SID}.json`) : n;
+// a session's own file when it has one, else the shared one (written before sessions were told apart, or by a test)
+const stateFile = n => { const own = path.join(STATE, stateName(n)); return own !== path.join(STATE, n) && !fs.existsSync(own) ? path.join(STATE, n) : own; };
 function writeState(name, obj) {
   if (envOf('BENCH')) return; // hooks.mjs bench times the hooks without touching the session's state
-  try { fs.mkdirSync(STATE, { recursive: true }); fs.writeFileSync(path.join(STATE, name), JSON.stringify(obj, null, 2)); } catch {}
+  try { fs.mkdirSync(STATE, { recursive: true }); fs.writeFileSync(path.join(STATE, stateName(name)), JSON.stringify(obj, null, 2)); } catch {}
 }
 
 export function globRe(g) {
@@ -489,7 +497,7 @@ function backgroundRunning(rows) {
 function fallbackTurn() {
   // bench: a turn that starts now and changed nothing, so it times an ordinary turn whatever the real session is doing
   if (envOf('BENCH')) return { since: Date.now(), entries: [], prompt: 'what does the brief say', queued: [], toolsKnown: false, allPrompts: ['what does the brief say'] };
-  const s = readJSON(path.join(STATE, 'turn.json'), null);
+  const s = readJSON(stateFile('turn.json'), null);
   if (!s || !s.at) return null;
   return { since: Date.parse(s.at), entries: [], prompt: userText(s.prompt), queued: [], toolsKnown: false, allPrompts: [s.prompt || ''], bgRunning: [], sessionWrites: '' };
 }
@@ -497,7 +505,7 @@ function fallbackTurn() {
 // save by writing a fresh file made edited runbooks look new.
 // A message typed mid-turn adds to the request but keeps the turn's start (and what existed then).
 const recordTurn = (prompt, fresh = true) => {
-  const old = fresh ? null : readJSON(path.join(STATE, 'turn.json'), null);
+  const old = fresh ? null : readJSON(stateFile('turn.json'), null);
   writeState('turn.json', old?.at ? { ...old, prompt: `${old.prompt || ''}\n${prompt}`.slice(-4000) }
     : { at: new Date().toISOString(), prompt: String(prompt).slice(0, 4000), runbooks: list('docs/playbooks'), skills: list(config().skillsDir) });
 };
@@ -523,7 +531,7 @@ function transcriptMidTurn(tp) {
   } catch { return null; } finally { if (fd !== undefined) try { fs.closeSync(fd); } catch { } }
 }
 function turnNotices(force, tp) {
-  const shown = readJSON(path.join(STATE, SHOWN), null), end = readJSON(path.join(STATE, TURN_END), {});
+  const shown = readJSON(stateFile(SHOWN), null), end = readJSON(stateFile(TURN_END), {});
   const mid = force ? false : transcriptMidTurn(tp);
   const fresh = force || !shown?.at || Date.parse(end.at || 0) >= Date.parse(shown.at) || mid === false || (mid === null && Date.now() - Date.parse(shown.at) > 6 * 3600_000);
   // what the session start just announced is not repeated by the first prompt after it
@@ -531,9 +539,12 @@ function turnNotices(force, tp) {
 }
 const noticeKey = h => /^[A-Z][A-Z /-]{3,}?(?=[:(]|\s+for\b|$)/.exec(h)?.[0].trim() || '';
 function bornThisTurn(file, since) {
-  const snap = readJSON(path.join(STATE, 'turn.json'), null);
+  const snap = readJSON(stateFile('turn.json'), null);
   const pb = /^docs\/playbooks\/([^/]+)$/.exec(file), sk = /^[^/]+\/([^/]+)\/SKILL\.md$/.exec(file);
   if (snap && snap.runbooks && Date.parse(snap.at) >= (since || 0) - 5000 && (pb || sk)) return pb ? !snap.runbooks.includes(pb[1]) : !snap.skills.includes(sk[1]);
+  // a file the turn-start snapshot already had was not born this turn, whatever its creation time says
+  const files = readJSON(stateFile('snapshot.json'), null);
+  if (files?.files && Date.parse(files.at) >= (since || 0) - 5000 && files.files[file]) return false;
   try { return fs.statSync(abs(file)).birthtimeMs > (since || 0) - 1000; } catch { return false; }
 }
 
@@ -639,7 +650,7 @@ export function changedFiles(since, cfg) {
   const out = [], ign = cfg.ignoreForChanges.map(globRe), gen = engineWrites();
   // A file that wasn't there at the turn's start is new, whatever its mtime: a move, "cp -p" or an unzip keeps the old
   // time. Lesson: "mv inbox/x.pdf sources/" never counted as a change, so the ingest trigger never fired.
-  const snap = readJSON(path.join(STATE, SNAPSHOT), {}), before = snap.files && Date.parse(snap.at) >= since - 5000 ? snap.files : null;
+  const snap = readJSON(stateFile(SNAPSHOT), {}), before = snap.files && Date.parse(snap.at) >= since - 5000 ? snap.files : null;
   const walk = d => {
     for (const n of list(d)) {
       const p = d ? `${d}/${n}` : n;
@@ -674,7 +685,7 @@ export function flushEngineWrites(extra = []) {
 const SNAPSHOT = 'snapshot.json', HASH_MAX = 2 * 1024 * 1024;
 const sha = p => { try { return createHash('sha1').update(fs.readFileSync(abs(p))).digest('hex'); } catch { return null; } };
 export function takeSnapshot(cfg = config()) {
-  const old = readJSON(path.join(STATE, SNAPSHOT), {}).files || {}, files = {}, ign = cfg.ignoreForChanges.map(globRe);
+  const old = readJSON(stateFile(SNAPSHOT), {}).files || {}, files = {}, ign = cfg.ignoreForChanges.map(globRe);
   const walk = d => {
     for (const n of list(d)) {
       const p = d ? `${d}/${n}` : n;
@@ -691,7 +702,7 @@ export function takeSnapshot(cfg = config()) {
   for (const f of ['requirements.json', 'config.json']) { try { if (!envOf('BENCH')) { fs.mkdirSync(path.join(STATE, 'turn-start'), { recursive: true }); fs.copyFileSync(path.join(HOOKS, f), path.join(STATE, 'turn-start', f)); } } catch { } }
 }
 function sameAsTurnStart(p, since) {
-  const snap = sameAsTurnStart.snap ??= readJSON(path.join(STATE, SNAPSHOT), {});
+  const snap = sameAsTurnStart.snap ??= readJSON(stateFile(SNAPSHOT), {});
   if (!snap.files || Date.parse(snap.at) < (since || 0) - 5000) return false;
   const o = snap.files[p];
   if (!o || !o[2]) return false;
@@ -1459,6 +1470,10 @@ export function setupCompleteness(cfg = config(), { final = false, beforeStarter
   const want = packsFor(f);
   if (!/^(knowledge|software|app|both|neither|none)\b/i.test(f['kind of work'] || '')) probs.push('Setup interview "Kind of work" must start with knowledge, software, both or neither');
   if (!/^(yes|no)\b/i.test(f['visual interface'] || '')) probs.push('Setup interview "Visual interface" must start with yes or no');
+  // the Branches answer decides which branches the push guard protects. Lesson: "I work on master directly" kept master
+  // protected, so every push the user asked for was refused unless they typed the branch name.
+  const workOn = /(?<!\b(never|don'?t|do not|not|no)\s+)\b(work|commit|push)(s|ing)?\s+(directly\s+)?(on|to)\s+(main|master)\b(?![^.;]*\b(never|don'?t|not)\b)/i.exec(f.branches || '');
+  if (workOn && (cfg.protectedBranches || []).includes(workOn[6].toLowerCase())) probs.push(`Setup interview "Branches" says the work goes on ${workOn[6]}, but tools/hooks/config.json still protects it: set "protectedBranches" to the branches never to push to (or [])`);
   for (const p of want.filter(p => !packs.includes(p))) probs.push(`the answers call for the ${p} pack and it is not installed: node tools/packs.mjs install ${p}`);
   for (const p of packs.filter(p => !want.includes(p))) probs.push(`the ${p} pack is installed but the answers don't call for it: fix the "Kind of work" / "Visual interface" answer or remove the pack`);
   // every file each installed pack owns is really here (nothing dropped on the way)
@@ -2038,7 +2053,7 @@ export function briefFileNamesRules(prompt) {
 // Every path in a delete command that lies in the originals folder d was created during this turn: missing from the
 // turn-start snapshot (taken at the turn's first prompt) and not tracked by git. No snapshot, or a glob: not new.
 export function deletesOnlyNewFiles(cmd, d) {
-  const snap = readJSON(path.join(STATE, SNAPSHOT), null), turnAt = Date.parse(readJSON(path.join(STATE, 'turn.json'), {}).at || '');
+  const snap = readJSON(stateFile(SNAPSHOT), null), turnAt = Date.parse(readJSON(stateFile('turn.json'), {}).at || '');
   if (!snap?.files || !turnAt || Date.parse(snap.at) < turnAt - 5000) return false;
   const paths = [...String(cmd).matchAll(new RegExp(`(["']?)((?:[^\\s"';|&]*[\\\\/])?${esc(d)}[\\\\/](?:[^"';|&\\n]+?))\\1(?=$|[\\s;|&])`, 'g'))].map(m => rel(m[2].replace(/\\/g, '/')));
   if (!paths.length) return false;
@@ -2351,7 +2366,7 @@ export function eventHintAfterEdit(p, inp, cfg = config()) {
   if (!p || p.startsWith('..')) return null;
   const text = [inp.content, inp.new_string, inp.new_source, ...(inp.edits || []).map(e => e.new_string)].filter(v => typeof v === 'string').join('\n');
   if (!text) return null;
-  const turnAt = readJSON(path.join(STATE, 'turn.json'), {}).at || '';
+  const turnAt = readJSON(stateFile('turn.json'), {}).at || '';
   const seen = readJSON(path.join(STATE, 'event-hints.json'), {});
   const shown = seen.at === turnAt ? seen.tags || [] : [];
   const out = [];
@@ -2610,8 +2625,10 @@ export function coreChecks(x, cfg) {
   if (vb.length) add('no-verbatim-examples', `These files copy the user's own words: ${vb.slice(0, 5).join('; ')}. Rephrase each as the general principle ` +
     'and why it matters (what goes wrong, for whom), without the user\'s examples, names or details.');
   // REQ: root-tidy. Everything goes in a folder that says what it is; the root holds only what people open first.
-  const loose = x.changed.filter(p => !p.includes('/') && !match(p, cfg.rootAllowed) && exists(p));
-  if (loose.length) add('root-tidy', `New or changed files sit loose in the project root: ${loose.join(', ')}. Move each into the folder that fits ` +
+  // Only files new this turn: a file that was already in the root is the project's own layout. Lesson: in an adopted
+  // project, editing its main.py asked to move it out of the root.
+  const loose = x.changed.filter(p => !p.includes('/') && !match(p, cfg.rootAllowed) && exists(p) && bornThisTurn(p, x.since));
+  if (loose.length) add('root-tidy', `New files sit loose in the project root: ${loose.join(', ')}. Move each into the folder that fits ` +
     '(docs/checks/layout-standards.md), or add it to rootAllowed in tools/hooks/config.json if it really must live in the root (toolchain config, the one start file).');
   // REQ: code-rules. Project-defined patterns that must not appear in changed code (filled by packs and setup).
   const cr = [];
@@ -3247,7 +3264,7 @@ function cmdCheck() {
   const i = process.argv.indexOf('--answer-file');
   if (i > 0 && !fs.existsSync(path.resolve(process.argv[i + 1] || ''))) { console.log(`CHECK: the answer file ${process.argv[i + 1] || '(none given)'} was not found. Write your answer there first.`); process.exit(1); }
   const answer = i > 0 ? read(path.resolve(process.argv[i + 1])) : '';
-  if (!readJSON(path.join(STATE, 'turn.json'), null)) { console.log('CHECK: no request recorded. Run: node tools/hooks/hooks.mjs begin "<the user\'s request>" first.'); process.exit(1); }
+  if (!readJSON(stateFile('turn.json'), null)) { console.log('CHECK: no request recorded. Run: node tools/hooks/hooks.mjs begin "<the user\'s request>" first.'); process.exit(1); }
   const d = stopDecision({ transcript_path: '', last_assistant_message: answer }, { ...config(), maxBlocksPerTurn: 1e9 });
   if (!d) { console.log('CHECK: PASS'); process.exit(0); }
   // the same short steps a hook host shows, then the full steps (an agent without hooks has no "why" round trip)
@@ -3292,6 +3309,9 @@ if (isMain) {
   let data = {};
   try { data = JSON.parse(fs.readFileSync(0, 'utf8') || '{}'); } catch {}
   HOST = hookHost(data);
+  SID = String(data.session_id || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
+  // old sessions' turn files go after two days
+  if (cmd === 'session' && SID) try { for (const n of fs.readdirSync(STATE)) if (/^(turn|snapshot|turn-end|notices-shown)\.[A-Za-z0-9_-]+\.json$/.test(n) && Date.now() - fs.statSync(path.join(STATE, n)).mtimeMs > 2 * 86400_000) fs.rmSync(path.join(STATE, n), { force: true }); } catch { }
   try {
     const fn = { session: cmdSession, prompt: cmdPrompt, pretool: cmdPretool, posttool: cmdPosttool, stop: cmdStop }[cmd];
     if (fn) fn(data);

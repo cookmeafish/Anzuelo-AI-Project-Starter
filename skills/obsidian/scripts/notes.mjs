@@ -12,7 +12,9 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
-const NOT_NOTES = /^(docs\/(CHANGELOG|STATUS|MENU)\.md|docs\/playbooks\/_|docs\/checks\/|DIRECTORY\.md|CLAUDE\.md|AGENTS\.md|SETUP-PROMPT\.md)/;
+// the starter's own records and templates are not notes: they are linked from the rules, not from each other.
+// Lesson: a new project's audit listed BRIEF, DECISIONS, security and the spec template as orphan notes.
+const NOT_NOTES = /^(docs\/(CHANGELOG|STATUS|MENU|BRIEF|DECISIONS|security|foundation|lessons|fit-checklist|recommended-tools|glossary)\.md|docs\/(specs|releases)\/_TEMPLATE\.md|docs\/(plans|knowledge)\/README\.md|docs\/knowledge\/SOURCES\.md|docs\/feedback-inbox\/|docs\/playbooks\/_|docs\/checks\/|DIRECTORY\.md|CLAUDE\.md|AGENTS\.md|SETUP-PROMPT\.md|HOW-TO-USE\.md)/;
 const SKIP = /^(\.git|node_modules|\.cache|\.claude|\.agents|\.codex|\.gemini|\.obsidian|\.starter|state)$/;
 const ALL = process.argv.includes('--all');
 const STOP = new Set('a an the this that these to of for in on at my me it its is are be do does did and or with from by i we our you your as not no can will should was were has have had but if then than so what when which who how why all any each one'.split(' '));

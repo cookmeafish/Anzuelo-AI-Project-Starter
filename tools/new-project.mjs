@@ -540,6 +540,14 @@ for (const f of files) {
     continue;
   }
   if (f === '.gitignore') continue; // the starter's own ignore list; projects get gitignore.project
+  // A repository with history keeps its own line endings: "* eol=lf" would mark every CRLF file as changed. Only the
+  // starter's files get LF (its git hooks must have it). Lesson: adopting a Windows repo showed 400 modified files.
+  if (f === '.gitattributes' && existing.length && !fs.existsSync(path.join(dest, f)) && spawnSync('git', ['rev-parse', '--verify', 'HEAD'], { cwd: dest, encoding: 'utf8' }).status === 0) {
+    if (!dry) fs.writeFileSync(path.join(dest, f), '# The starter\'s files keep LF line endings (its git hooks need them); the project\'s own files keep theirs\n' +
+      ['.githooks/**', 'tools/hooks/**', 'tools/*.mjs', 'skills/**', 'docs/playbooks/**', 'docs/checks/**'].map(g => `${g} text eol=lf`).join('\n') + '\n');
+    log.push('created  .gitattributes (LF for the starter\'s files only: the project\'s own line endings are kept)');
+    continue;
+  }
   // An existing CLAUDE.md / AGENTS.md is never replaced: the starter's versions arrive as *.starter.md and the setup
   // merges them. Both get renamed, so the twin sync can't copy one over the user's file.
   if ((f === 'CLAUDE.md' || f === 'AGENTS.md') && hadInstructions) { put(f, { as: f.replace('.md', '.starter.md') }); continue; }

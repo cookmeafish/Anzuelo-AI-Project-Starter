@@ -175,7 +175,8 @@ how it is released.
    existing skill that does the job (skill-finder skill), read every file of it, and install third-party skills only
    with the user's OK. Every request must show a ROUTE or SKILL in `node tools/hooks/selfcheck.mjs --route "<request>"`.
 5. **Guards** in `tools/hooks/config.json`, as the answers require: `protectedOriginals`, `noOverwrite`,
-   `writeOnlyVia`, `protectedBranches`, `forbiddenCommands` (e.g. never stop the user's own app or port), `codeRules`,
+   `writeOnlyVia`, `protectedBranches` (from the Branches answer: a user who works directly on main or master doesn't
+   want it protected), `forbiddenCommands` (e.g. never stop the user's own app or port), `codeRules`,
    `commitGate`, `watchedInputs`, `approvalPaths` (sign-off), `userFacing`.
 6. **Validators:** anything that can be checked deterministically (a data format, a calculation, a naming rule) gets a
    small script in `tools/` that prints `RESULT: PASS` or `FAIL`, wired in with `toolPassed` + `selfRun` or `runEach`,
