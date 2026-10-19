@@ -200,14 +200,14 @@ const DEFAULTS = {
   // a lasting requirement on the project's work (REQ: requirement-enforced); one-off instructions don't match
   requirementWords: String.raw`\b(every|each|all|any) (\w+ ){0,3}(must|should|needs? to|has to|have to)\b|\b(must|should|needs? to|has to) (always|never|include|contain|cite|have|show)\b|\b(it'?s|this is|that'?s|make (it|this|that)) a requirement\b|\brequirements? (are|is)\b|\bmake sure (every|each|all|that every|that each)\b`,
   ruleRequest: "update (the|this|your|ur) project|from now on|going forward|\\bremember (to|that|this)\\b|\\bmandatory\\b|make (it|this|that) a (rule|requirement)|\\b(always|never) (do|make|use|check|include|ask|tell|run|add|keep|start|end|read|write|put|give|show|create|follow|save|delete|send)\\b|never .{0,40} again|don'?t ever|stop doing|i shouldn'?t have to (tell|remind)",
-  // A complaint about a miss: like a rule request, it becomes an enforced rule (and the miss itself gets fixed).
+  // A complaint about a miss: the learn-from-upset skill fixes it and stores the lesson where it belongs (REQ: upset-learned).
   // Lesson: "you forgot the allergens again!!" got a frustration hint, but nothing made it a rule.
   // A small touch-up: no runbook is needed when it changes at most 2 files (REQ: runbook-exists). Lesson: "fix the typo
   // in the README" was told to create a runbook, its check and two scenarios.
   trivial: "\\b(typos?|spelling|misspel\\w*|reword|rephrase|wording|punctuation|capitali[sz]\\w*|whitespace|indentation|formatting|broken link|dead link|fix the link)\\b|\\brename\\s+\\S+\\s+to\\b|\\bchange (the )?(text|title|label|heading|colou?r|date|year|number) (of |on |in |to |from )",
-  complaint: "\\byou (forgot|didn'?t|did not|missed|skipped|ignored|left out|keep forgetting|never)\\b|\\b(i|we) (already )?told you\\b|\\bwhy (did|didn'?t|do|does) (you|it) (keep )?\\b|\\bagain\\s*[!?]|\\bnot again\\b|\\bkeeps? (happening|forgetting|missing)\\b",
+  complaint: "\\byou (forgot|didn'?t|did not|missed|skipped|ignored|left out|keep forgetting|never)\\b|\\b(i|we) (already )?told you\\b|\\bwhy (did|didn'?t) you\\b|\\bwhy (do|does) (you|it) keep\\b|\\bagain\\s*[!?]|\\bnot again\\b|\\bkeeps? (happening|forgetting|missing)\\b",
   // (Lesson: "annoying", "ugh", "why do you keep" and "I keep telling you" were missed, so friction never counted them)
-  frustration: "\\bwhy (did|didn'?t|would|do|does) (you|it)( keep)?\\b|\\byou (forgot|didn'?t|ignored|skipped|missed|keep)\\b|\\bi (already |keep )?(told|telling|said|asked) you\\b|\\bagain\\?|\\bwtf\\b|\\bseriously\\b|\\bugh+\\b|\\bannoying\\b|\\bso (frustrating|annoying)\\b|\\bstop (making|asking|doing) me\\b|\\bhow many times\\b|\\bfor the (last|third|nth) time\\b|!!",
+  frustration: "\\bwhy (did|didn'?t|would) you\\b|\\bwhy (do|does) (you|it) keep\\b|\\byou (forgot|didn'?t|ignored|skipped|missed)\\b|\\byou keep (\\w+ing|on)\\b|\\bi (already |keep )?(told|telling|said|asked) you\\b|\\bagain\\?|\\bwtf\\b|\\bseriously\\b|\\bugh+\\b|\\bannoying\\b|\\bso (frustrating|annoying)\\b|\\bstop (making|asking|doing) me\\b|\\bhow many times\\b|\\bfor the (last|third|nth) time\\b|!!",
   taskVerbs: "\\b(make|create|build|write|draft|add|update|fix|research|find|look up|plan|compare|organi[sz]e|set ?up|analy[sz]e|summari[sz]e|review|generate|turn|convert|change|edit|rewrite|remove|delete|move|import|ingest|prepare|track|calculate|design|outline|translate|clean ?up|sort|merge|split|audit|check|run|train|retrain|tune|test|document|refactor|rename|upgrade|bump|migrate|restyle|deploy|release|publish|install|configure)\\b",
   overwriteWords: "\\b(overwrite|in place|edit (it|this|that|the (file|doc|output))|replace (it|the file)|fix (it|this|that|the) (file|doc|output|typo))\\b",
   // The user's OK for an outward action in this request (REQ: outward-gate). "email the supplier" alone asks for a draft;
@@ -2581,7 +2581,7 @@ export function coreChecks(x, cfg) {
   }
   // REQ: runbook-exists. Work that matched no runbook must leave one behind (runbook + its skill + a check), so the next
   // time it is a known procedure and the user never has to explain it again.
-  // a complaint is not a new kind of task: rule-request makes it a rule, and the miss is fixed by the runbook it belonged to
+  // an upset message is not a new kind of task: learn-from-upset stores the lesson, and the miss is fixed by its own runbook
   // _fallback and the runbook-create skill are how a new runbook gets made, not a runbook for the task itself.
   // Lesson: the agent followed _fallback.md as told, and the turn ended without leaving a runbook behind.
   const META_SKILLS = ['runbook-create', 'skill-finder'];
@@ -2771,7 +2771,7 @@ export function coreChecks(x, cfg) {
   // enforced in the same turn, without being asked: a "Done when" item in its runbook or skill that names its check, the
   // check, and a test; or a "(judgment: <why>)" item when no script can tell. Lesson: the user stated requirements, the
   // agent only wrote them into a runbook, and nothing enforced them until the user asked whether they were enforced.
-  if (x.prompt && re(cfg.requirementWords).test(x.prompt) && !re(cfg.ruleRequest).test(x.prompt) && !complaint) {
+  if (x.prompt && re(cfg.requirementWords).test(x.prompt) && !re(cfg.ruleRequest).test(x.prompt) && !isUpset(x.prompt, cfg)) {
     const checkAdded = x.changed.some(p => /^(tools\/hooks\/(requirements\.json|hooks\.mjs|project-scenarios\.mjs)|library\/catalog\.json|packs\/[^/]+\/pack\.json)$/.test(p) || /\.(mjs|py|js|ts)$/.test(p) && /check|guard|lint|validate/i.test(p));
     const tested = x.changed.some(p => /^tools\/hooks\/(selfcheck|project-scenarios)\.mjs$/.test(p) || /(^|\/)(tests?|__tests__)\/|\.(test|spec)\./.test(p)) || x.cmds.some(c => /selfcheck\.mjs|\btest\b/.test(c));
     const judged = x.changed.filter(p => /(^docs\/playbooks\/|SKILL\.md$)/.test(p) && exists(p)).some(p => doneWhenItems(read(abs(p))).some(i => /\bjudg(e)?ment\b/i.test(i)));

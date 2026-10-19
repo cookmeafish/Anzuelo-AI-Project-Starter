@@ -47,7 +47,9 @@ function build(sv) {
   for (const c of candidates) {
     const k = key(c.kind, c.item), was = byKey.get(k);
     const noCode = c.codeOnly && !(sv.n?.code) && !(signals[k] || []).length;
-    const auto = noCode ? 'survey: no code files yet' : `survey: ${(signals[k] || []).map(s => s.label).join('; ') || 'no direct signal'}`;
+    const here = c.kind !== 'tool' && !!c.present(cfg);
+    // the same every refresh, so a second upgrade changes nothing (Lesson: the note was added to new rows only)
+    const auto = noCode ? 'survey: no code files yet' : `survey: ${(signals[k] || []).map(s => s.label).join('; ') || 'no direct signal'}${here ? '; already in the project' : ''}`;
     if (was) kept.add(k); else added.push(c.item);
     const signal = was && was.signal && !/^survey:/i.test(was.signal) && was.signal !== '?' ? was.signal : auto;
     // a code tool in a project with no code: decided "later" here, so the AI weighs only what can matter now
@@ -57,9 +59,9 @@ function build(sv) {
     }
     // already in the project (a pack setup installed, an enabled skill, a feature that is on): decided "add" here, with
     // what it does as the reason; the AI can still change it. Lesson: installed packs and built-in features were "?" rows.
-    if (!was && c.kind !== 'tool' && c.present(cfg)) {
+    if (!was && here) {
       const does = String(c.what || '').split(/(?<=\.)\s/)[0].replace(/\s+/g, ' ').trim();
-      rows.push({ item: c.item, kind: c.kind, signal: `${auto}; already in the project`, decision: 'add', reason: `already in the project and kept (change it if it does not fit): ${does || 'part of how this project works'}` });
+      rows.push({ item: c.item, kind: c.kind, signal: auto, decision: 'add', reason: `already in the project and kept (change it if it does not fit): ${does || 'part of how this project works'}` });
       continue;
     }
     rows.push({ item: c.item, kind: c.kind, signal, decision: was ? was.decision : '?', reason: was ? was.reason : '' });

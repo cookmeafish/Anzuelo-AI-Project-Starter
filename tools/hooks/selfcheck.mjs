@@ -594,6 +594,7 @@ const PROMPT = [
   { name: 'word routing: key words in any order and with endings still route', prompt: 'please search for the latest version on the web', has: ['SKILL: research'] },
   { name: 'upset-learned: shouting in capitals sends the agent to the learn-from-upset skill', prompt: 'WHY DID YOU SKIP THE SOURCES AGAIN', has: ['THE USER SOUNDS UPSET', 'learn-from-upset'] },
   { name: 'upset-learned: a calm request gets no upset hint', prompt: 'please add the sources to the desk note', hasNot: ['THE USER SOUNDS UPSET'] },
+  { name: 'upset-learned: a plain why-question is not upset', prompt: 'why does the page take 2 seconds to load', hasNot: ['THE USER SOUNDS UPSET'] },
   { name: 'menu code expands', prompt: 'K2 standing desks under 500 --brief', has: ['MENU CODE K2', 'MENU FLAG --brief', 'ROUTE: research'] },
   { name: 'unknown menu code asks', prompt: 'Z9 do the thing', has: ['UNKNOWN MENU CODE Z9'] },
   { name: 'notification is not a prompt', prompt: '<task-notification>agent done</task-notification>', none: true },
@@ -1541,8 +1542,8 @@ if (!TAGS) { // the standalone checks run in a full run only
     run(P, 'session', { source: 'startup' });
     const inbox = fs.existsSync(path.join(S, 'docs/feedback-inbox')) ? fs.readdirSync(path.join(S, 'docs/feedback-inbox')).map(f => fs.readFileSync(path.join(S, 'docs/feedback-inbox', f), 'utf8')).join('\n') : '';
     const ss = run(S, 'session', { source: 'startup' }).out;
-    report(/SUSPENDED check:plain-writing/.test(pr) && /check:plain-writing was suspended in a project/.test(fb) && /check:plain-writing was suspended/.test(inbox) && /FEEDBACK FROM PROJECTS: d+ engine lesson/.test(ss),
-      'self-improve: an engine check that annoys a project is reported to the starter and announced there', `${pr.slice(0, 120)} | ${fb.slice(-120)} | ${inbox.slice(-120)} | ${(/FEEDBACK FROM PROJECTS[^\n]*/.exec(ss) || ['none'])[0].slice(0, 120)}`);
+    const steps = { suspended: /SUSPENDED check:plain-writing/.test(pr), feedback: /check:plain-writing was suspended in a project/.test(fb), reported: /check:plain-writing was suspended/.test(inbox), announced: /FEEDBACK FROM PROJECTS: \d+ engine lesson/.test(ss) };
+    report(Object.values(steps).every(Boolean), 'self-improve: an engine check that annoys a project is reported to the starter and announced there', JSON.stringify(steps));
   } finally { for (const d of [P, S]) fs.rmSync(d, { recursive: true, force: true }); }
 }
 

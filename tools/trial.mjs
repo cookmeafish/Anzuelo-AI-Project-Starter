@@ -91,7 +91,8 @@ for (const [name, s] of Object.entries(SAMPLES)) {
     check(name, "kept the user's own agent permissions and hooks", JSON.stringify(j.permissions || {}).includes('npm test') && JSON.stringify(j.hooks || {}).includes('echo mine'), JSON.stringify(j).slice(0, 300));
   }
   // "are my rules kept?" The user's rule files are untouched, and the starter's arrive beside them for setup to merge
-  for (const f of ['AGENTS.md', 'CLAUDE.md']) if (before[f]) check(name, `the starter's ${f} arrived as ${f.replace('.md', '.starter.md')} for setup to merge`, after[f.replace('.md', '.starter.md')]);
+  // the starter's rules are AGENTS.md (a clean clone has no CLAUDE.md: wire makes it on each machine)
+  if (before['AGENTS.md'] || before['CLAUDE.md']) check(name, 'the starter\'s rules arrived as AGENTS.starter.md for setup to merge, and the project\'s own rules were kept for the merge check', after['AGENTS.starter.md'] && Object.keys(after).some(p => p.startsWith('.starter/original-rules/')));
   // "are my secrets still out of git?"
   if (s.files['.env']) check(name, '.env stays ignored by git', ignored(dir, '.env'));
   // a tracked .env.example must not keep ".env.*" out (Lesson: .env.local stayed unignored and git hygiene failed)
