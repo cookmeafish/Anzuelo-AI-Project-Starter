@@ -8,7 +8,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -1312,13 +1312,27 @@ function explain(query) {
 // With --tags, a scenario runs when it proves one of the tags: it expects the tag (or expects it absent), or its name
 // spells the tag (or the name COVERS gives for it). A tag no scenario proves at all is a FAIL: add one.
 const proves = s => TAGS.filter(t => (s.expect?.tags || []).includes(t) || (s.expect?.not || []).includes(t) || s.tag === t || s.name.includes(t) || (COVERS[t] && s.name.includes(COVERS[t])));
+// The scenarios run in parallel: a run with many of them starts helper processes (--shard i/n), each with its own
+// sandbox, runs its own share and the standalone tests itself, then merges the helpers' results. Lesson: one scenario
+// at a time, the full self-test took over 12 minutes. SELFCHECK_SERIAL=1 runs them all here.
+const SHARD = (() => { const i = process.argv.indexOf('--shard'), m = /^(\d+)\/(\d+)$/.exec(i > 0 ? process.argv[i + 1] || '' : ''); return m ? { i: Number(m[1]), n: Number(m[2]) } : null; })();
+const HELPER = !!SHARD;
 if (TAGS) {
   const all = [...STOP, ...PRETOOL, ...PROMPT];
-  for (const t of TAGS) if (!all.some(s => proves(s).includes(t))) report(false, `tags: a scenario proves ${t}`, `no scenario proves "${t}": add one to tools/hooks/project-scenarios.mjs (blocked when skipped, passes when followed)`);
+  for (const t of TAGS) if (!HELPER && !all.some(s => proves(s).includes(t))) report(false, `tags: a scenario proves ${t}`, `no scenario proves "${t}": add one to tools/hooks/project-scenarios.mjs (blocked when skipped, passes when followed)`);
   for (const list of [STOP, PRETOOL, PROMPT]) { const keep = list.filter(s => proves(s).length); list.length = 0; list.push(...keep); }
 }
 
+const SHARDS = HELPER ? SHARD.n : process.env.SELFCHECK_SERIAL ? 1 : Math.max(1, Math.min(6, os.cpus().length - 1, Math.ceil((STOP.length + PRETOOL.length + PROMPT.length) / 40)));
+const MINE = HELPER ? SHARD.i : 0;
+let nth = 0; const mine = () => nth++ % SHARDS === MINE; // one counter across the three lists, so the shares even out
+const helpers = HELPER ? [] : Array.from({ length: SHARDS - 1 }, (_, k) => new Promise(done => {
+  const c = spawn(process.execPath, [fileURLToPath(import.meta.url), '--shard', `${k + 1}/${SHARDS}`, ...(TAGS ? ['--tags', TAGS.join(',')] : [])], { cwd: process.cwd(), env: process.env });
+  let out = ''; c.stdout.on('data', d => { out += d; }); c.stderr.on('data', d => { out += d; }); c.on('close', code => done({ out, code }));
+}));
+
 for (const s of STOP) {
+  if (!mine()) continue;
   if (!applies(s)) { skipped++; if (process.env.SHOW_SKIPS) console.log('SKIP  stop: ' + s.name); continue; }
   const r = runStop(s);
   let why = '';
@@ -1337,6 +1351,7 @@ for (const s of STOP) {
 }
 
 for (const s of PRETOOL) {
+  if (!mine()) continue;
   if (!packOk(s)) { skipped++; continue; }
   const dir = copyProject();
   try {
@@ -1356,6 +1371,7 @@ for (const s of PRETOOL) {
 }
 
 for (const s of PROMPT) {
+  if (!mine()) continue;
   const routes = (s.has || []).map(h => /^ROUTE: ([\w-]+)$/.exec(h)?.[1]).filter(Boolean);
   if (!packOk(s) || routes.some(r => !fs.existsSync(path.join(B, 'docs/playbooks', r + '.md')))) { skipped++; continue; }
   const dir = copyProject();
@@ -1375,6 +1391,7 @@ for (const s of PROMPT) {
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
+if (HELPER) { console.log(`SHARD ${pass} ${fail} ${skipped}`); process.exit(0); } // a helper's share is done
 if (!TAGS) { // the standalone checks run in a full run only
 { // --explain: every check that fires for a scenario at once, with its short label and what satisfies it
   const out = explain('unrouted work turn with no runbook created').join('\n'), none = explain('no such scenario xyz').join('\n');
@@ -2094,6 +2111,12 @@ if (INSTALLED.includes('app')) { // app gates: their own pass lines, from packs.
       'commit-gate: packs.mjs configure --build-pass sets the gate\'s own pass line', `${r.stdout}${r.stderr}`.slice(0, 300));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
+}
+// the helpers' results, as if this process had run them (their lines, their passes for the COVERS check below)
+for (const [k, { out, code }] of (await Promise.all(helpers)).entries()) {
+  const lines = out.split(/\r?\n/), done = lines.map(l => /^SHARD (\d+) (\d+) (\d+)$/.exec(l)).find(Boolean);
+  for (const l of lines) { const m = /^(PASS|FAIL)  (.*?)(?:  -> .*)?$/.exec(l); if (!m) continue; console.log(l); if (m[1] === 'PASS') { pass++; PASSED.push(m[2]); } else fail++; }
+  if (done) skipped += Number(done[3]); else report(false, `self-test helper ${k + 1} finished its share`, `exit ${code}: ${out.trim().split(/\r?\n/).slice(-5).join(' | ').slice(0, 500)}`);
 }
 if (!TAGS) for (const [tag, name] of Object.entries(COVERS)) if (hereSrc.includes(tag)) report(PASSED.some(n => n.includes(name)), `covers: ${tag} is proven by "${name}"`, 'no passing scenario with that name');
 
