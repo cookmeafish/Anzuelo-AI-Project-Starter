@@ -75,7 +75,9 @@ function base() {
   if (!fs.existsSync(path.join(ROOT, '.starter-template'))) {
     const list = spawnSync(process.execPath, ['--input-type=module', '-e', `import { projectSurvey } from ${JSON.stringify(pathToFileURL(at('tools/hooks/hooks.mjs')).href)}; console.log(JSON.stringify(projectSurvey({ git: false }).files.map(f => f.p)));`], { cwd: BASE, encoding: 'utf8' });
     let own = []; try { own = JSON.parse(list.stdout || '[]'); } catch { }
-    const KEEP = /^(README\.md|LICENSE[^/]*|\.gitignore|\.gitattributes|\.env\.example|tools\/new-project\.mjs|tools\/trial\.mjs)$/;
+    // the project's own tools and skill scripts stay: its checks run them (runEach, toolPassed). Lesson: a sprite check's
+    // script was deleted from the base, so its "blocked" scenario passed only because the missing script crashed.
+    const KEEP = /^(README\.md|LICENSE[^/]*|\.gitignore|\.gitattributes|\.env\.example|tools\/.+|skills\/.+)$/;
     for (const p of own) if (!KEEP.test(p)) fs.rmSync(at(p), { force: true });
     let prot = []; try { prot = JSON.parse(fs.readFileSync(at('tools/hooks/config.json'), 'utf8')).protectedOriginals || []; } catch { }
     for (const d of [...new Set([...prot.map(g => g.split(/[/*]/)[0]).filter(Boolean), 'sources', 'inbox', 'outputs', 'data', 'profiles', 'docs/knowledge', 'docs/notes', 'dist', 'build', 'out'])]) fs.rmSync(at(d), { recursive: true, force: true });

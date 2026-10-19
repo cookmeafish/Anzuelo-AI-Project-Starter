@@ -195,13 +195,21 @@ function shippedLines(rel) {
     for (const l of (git('show', `${c}:${rel}`).stdout || '').split(/\r?\n/)) set.add(l.trim());
   return (shippedLinesCache[rel] = set);
 }
-const movedLessons = [];
+const movedLessons = [], legacyScenarios = [], untracked = [];
+// every version of a file the starter shipped (from its git history), newest first
+function shippedTexts(rel) {
+  const git = (...a) => spawnSync('git', a, { cwd: STARTER, encoding: 'utf8', maxBuffer: 64 << 20 });
+  return (git('log', '--format=%H', '--', rel).stdout || '').split('\n').filter(Boolean).map(c => git('show', `${c}:${rel}`).stdout || '').filter(Boolean);
+}
 // The starter's new SKILL.md, plus the triggers the project added and its "## Project lessons" section. Lines the
 // project added to the file's "## Pitfalls" (in neither the new file nor any shipped version) move to "## Project
 // lessons". Lesson: project.md became an engine runbook, and the pitfalls a project had written into it were lost.
 function mergeSkill(theirs, mine, rel) {
   const trig = t => (/^triggers:\s*(.*)$/m.exec(t)?.[1] || '').split(',').map(s => s.trim()).filter(Boolean);
-  const extra = trig(mine).filter(t => !trig(theirs).includes(t));
+  // a trigger some release shipped is the starter's, not the project's: one the starter has since removed stays removed
+  // Lesson: "remember, audit, skill, skills, hook, hooks" came back into project.md after the starter dropped them
+  const everShipped = new Set(rel ? [...shippedLines(rel)].filter(l => /^triggers:/.test(l)).flatMap(l => trig(l)) : []);
+  const extra = trig(mine).filter(t => !trig(theirs).includes(t) && !everShipped.has(t));
   let out = theirs;
   if (extra.length) out = /^triggers:/m.test(out) ? out.replace(/^triggers:\s*(.*)$/m, (l, v) => `triggers: ${[v.trim(), ...extra].filter(Boolean).join(', ')}`)
     : out.replace(/^---\r?\n/, `---\ntriggers: ${extra.join(', ')}\n`);
@@ -260,8 +268,23 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   const tmpl = fs.readFileSync(path.join(STARTER, 'tools', 'starter', 'gitignore.project'), 'utf8').split(/\r?\n/), tmplNeg = tmpl.filter(l => l.startsWith('!'));
   const want = tmpl.filter(l => l && !l.startsWith('#') && !have.includes(l) && !['CLAUDE.md', '.claude/'].includes(l) && (l.startsWith('!') || !tracked(l, tmplNeg)));
   if (want.length) { log.push(`appended .gitignore (${want.join(', ')})`); if (!dry) fs.appendFileSync(gi, '\n# Project starter\n' + want.join('\n') + '\n'); }
+  // Files the engine generates and an older release let into git (skill copies, hook state) leave the index; the files
+  // stay on disk. The user's own files are never untracked. Lesson: a project tracked .claude/skills and its hook state,
+  // so git hygiene and the push check failed after every upgrade.
+  if (fs.existsSync(path.join(dest, '.git'))) {
+    const gen = (spawnSync('git', ['ls-files', '--', '.claude/skills', '.agents/skills', 'tools/hooks/state'], { cwd: dest, encoding: 'utf8' }).stdout || '').split(/\r?\n/).filter(f => f && !/runbook-usage\.json$/.test(f));
+    if (gen.length) { log.push(`untracked ${gen.length} generated file(s) from git (skill copies, hook state; still on disk)`); if (!dry) { spawnSync('git', ['rm', '-r', '--cached', '-q', '--', ...gen], { cwd: dest }); untracked.push(...gen); } }
+  }
   const lk = path.join(dest, 'tools', 'starter.local.json');
-  if (!fs.existsSync(lk) && !dry) { fs.writeFileSync(lk, JSON.stringify({ path: STARTER }, null, 2) + '\n'); log.push('linked   tools/starter.local.json → this starter'); }
+  // The link follows the starter the project was just upgraded from (a stable copy), so packs, library skills and the
+  // self-tests read the same release. Lesson: upgrading from a new clone kept the link to an old one, and 5 self-tests
+  // failed against its older checks. A development copy never replaces a link to a stable one.
+  const was = (() => { try { return JSON.parse(fs.readFileSync(lk, 'utf8')).path; } catch { return null; } })();
+  const devCopy = fs.existsSync(path.join(STARTER, '.starter-dev'));
+  if (!dry && (!was || (path.resolve(was) !== path.resolve(STARTER) && (!devCopy || !fs.existsSync(was))))) {
+    fs.writeFileSync(lk, JSON.stringify({ path: STARTER }, null, 2) + '\n');
+    log.push(was ? `relinked tools/starter.local.json → this starter (was ${was})` : 'linked   tools/starter.local.json → this starter');
+  }
   // the core skills' checks: added when the project lacks them, and refreshed when the starter's version changed, so a
   // core skill and its check never disagree. A 3-way merge keeps local edits: an entry equal to the copy shipped last
   // time (tools/hooks/engine-checks.json) is refreshed; one that differs from it (or any differing entry when there is no
@@ -347,6 +370,18 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
     const at = path.join(dest, old);
     if (!fs.existsSync(at)) continue;
     log.push(`retired  ${old} (renamed or replaced; old version in .cache/upgrade-backup/${stamp}/)`);
+    // The project's own scenarios lived in the old self-test file: the ones no starter ever shipped are listed for the
+    // review, and kept in tools/hooks/legacy-scenarios.txt (not run) until they are moved into project-scenarios.mjs.
+    // Lesson: retiring test-hooks.mjs dropped a project's own scenarios, and the audit then rolled the upgrade back.
+    if (/test-hooks\.mjs$/.test(old)) {
+      const names = t => [...t.matchAll(/\bname:\s*'((?:[^'\\]|\\.)*)'/g)].map(m => m[1]);
+      const shipped = new Set([...shippedLines('tools/hooks/test-hooks.mjs'), ...shippedLines('tools/hooks/selfcheck.mjs')].flatMap(l => names(l)));
+      const own = names(fs.readFileSync(at, 'utf8')).filter(n => !shipped.has(n));
+      if (own.length && shipped.size) {
+        legacyScenarios.push(...own);
+        if (!dry) fs.writeFileSync(path.join(dest, 'tools', 'hooks', 'legacy-scenarios.txt'), `The project's own scenarios from the retired test-hooks.mjs. Move each into tools/hooks/project-scenarios.mjs, then delete this file.\n\n${fs.readFileSync(at, 'utf8')}`);
+      }
+    }
     if (dry) continue;
     const b = path.join(backupDir, old + '.orig');
     fs.mkdirSync(path.dirname(b), { recursive: true });
@@ -383,6 +418,7 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
     const now = fingerprint(dest);
     for (const p of now.keys()) if (!print0.has(p)) fs.rmSync(path.join(dest, p), { force: true });
     (function prune(d) { for (const e of fs.existsSync(d) ? fs.readdirSync(d, { withFileTypes: true }) : []) { const p = path.join(d, e.name); if (e.isDirectory() && !e.isSymbolicLink() && !FP_SKIP.test(e.name)) { prune(p); const r = path.relative(dest, p).split(path.sep).join('/'); try { if (!print0.dirs.has(r) && !fs.readdirSync(p).length) fs.rmdirSync(p); } catch { } } } })(dest);
+    if (untracked.length) spawnSync('git', ['add', '-f', '--', ...untracked.filter(f => fs.existsSync(path.join(dest, f)))], { cwd: dest }); // back into git, as before
     const after2 = fingerprint(dest), differ = [...print0].filter(([p, h]) => after2.get(p) !== h).map(([p]) => p);
     console.error(`\nROLLED BACK: after the upgrade these checks failed that passed before: ${broke.join('; ')}. ` +
       (differ.length ? `${differ.length} file(s) could not be put back exactly: ${differ.slice(0, 8).join(', ')} (copies in .cache/upgrade-backup/${stamp}/).\n` : 'The project is exactly as it was (every file checked).\n') +
@@ -398,6 +434,16 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   const rulesOf = d => ['AGENTS.md', 'CLAUDE.md'].map(n => path.join(d, n)).filter(p => fs.existsSync(p)).map(p => fs.readFileSync(p, 'utf8')).join('\n');
   const mineRules = rulesOf(dest);
   for (const t of titles(rulesOf(STARTER))) if (!mineRules.includes(t) && !decided.includes(`- rule: ${t}:`)) items.push(`rule: ${t}`);
+  // a rule the project has, still worded as an older release shipped it, while the starter's wording changed since:
+  // offered too. Lesson: old projects never got "never offer to add checks" or the message kinds, which were added to
+  // existing rules, because only the titles were compared.
+  const bodies = text => Object.fromEntries([...String(text).matchAll(/^\d+\. \*\*(.+?)\*\*([\s\S]*?)(?=^\d+\. \*\*|^## |(?![\s\S]))/gm)].map(m => [m[1].replace(/[.:]+$/, ''), m[2].replace(/\s+/g, ' ').trim()]));
+  const theirsB = bodies(rulesOf(STARTER)), mineB = bodies(mineRules);
+  const oldB = shippedTexts('AGENTS.md').map(bodies);
+  for (const [t, body] of Object.entries(theirsB)) {
+    const m = mineB[t];
+    if (m && m !== body && oldB.some(o => o[t] === m) && !decided.includes(`- rule-changed: ${t}:`)) items.push(`rule-changed: ${t} (the starter's wording grew; compare AGENTS.md with the starter's and take what fits)`);
+  }
   // the fit checklist gets a row for every new candidate (pack, library skill, tool, feature), decided by the AI
   const fitNew = spawnSync(process.execPath, [path.join(dest, 'tools', 'fit.mjs'), '--count-new'], { cwd: dest, encoding: 'utf8' });
   const fresh = Number((fitNew.stdout || '').trim()) || 0;
@@ -413,6 +459,7 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   // no ": " inside an item: the review's parser ends the item at the first one
   for (const a of addedChecks) items.push(`check: ${a}; it now runs in this project's hooks (to switch it off, set its "enabled" to false)`);
   for (const tag of keptChecks) items.push(`check: ${tag}, kept your edited version; the starter's newer one differs (to take it, replace the entry with the one in tools/hooks/engine-checks.json)`);
+  if (legacyScenarios.length) items.push(`scenarios: ${legacyScenarios.length} of this project's own test scenarios were in the retired test-hooks.mjs (${legacyScenarios.slice(0, 4).join('; ').replace(/: /g, ' - ')}${legacyScenarios.length > 4 ? '; ...' : ''}); move them into tools/hooks/project-scenarios.mjs from tools/hooks/legacy-scenarios.txt, then delete that file`);
   for (const [file, n] of movedLessons) items.push(`lessons: ${file} became an engine file, so ${n} line(s) this project added moved to its "## Project lessons" section (check they still read right there)`);
   items.push('self-tests: node tools/hooks/selfcheck.mjs passes here');
   const dp = path.join(dest, 'docs', 'DECISIONS.md');

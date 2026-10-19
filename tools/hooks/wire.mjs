@@ -15,12 +15,17 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 export function wire(dir, { dry = false } = {}) {
   const log = [], at = (...p) => path.join(dir, ...p), write = (p, text) => { if (!dry) { fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, text); } };
+  // Which agents to wire on this project: "wireAgents" in tools/hooks/config.json (default: all). Lesson: a Codex-only
+  // user got CLAUDE.md and .claude/ back on every upgrade, with no way to say no.
+  let agents = ['claude', 'codex', 'gemini'];
+  try { const w = JSON.parse(fs.readFileSync(at('tools', 'hooks', 'config.json'), 'utf8')).wireAgents; if (Array.isArray(w)) agents = w.map(String); } catch { }
+  const on = a => agents.includes(a);
   // CLAUDE.md: Claude Code reads only this name. It starts as a copy of AGENTS.md; the hooks keep the twins in sync.
-  if (!fs.existsSync(at('CLAUDE.md')) && fs.existsSync(at('AGENTS.md'))) { write(at('CLAUDE.md'), fs.readFileSync(at('AGENTS.md'), 'utf8')); log.push('created  CLAUDE.md (a copy of AGENTS.md for Claude Code)'); }
+  if (on('claude') && !fs.existsSync(at('CLAUDE.md')) && fs.existsSync(at('AGENTS.md'))) { write(at('CLAUDE.md'), fs.readFileSync(at('AGENTS.md'), 'utf8')); log.push('created  CLAUDE.md (a copy of AGENTS.md for Claude Code)'); }
   // Claude Code's hooks: merged into any settings the folder already has
   const sp = at('.claude', 'settings.json');
   let mine = {};
-  if (fs.existsSync(sp)) { try { mine = JSON.parse(fs.readFileSync(sp, 'utf8')); } catch (e) { throw new Error(`${sp} does not parse (${e.message}); fix it, then run wire again`); } }
+  if (on('claude') && fs.existsSync(sp)) { try { mine = JSON.parse(fs.readFileSync(sp, 'utf8')); } catch (e) { throw new Error(`${sp} does not parse (${e.message}); fix it, then run wire again`); } }
   // Claude Code expands $CLAUDE_PROJECT_DIR itself, so its wiring is the same on every machine
   const cc = (cmd, timeout, extra = {}) => [{ ...extra, hooks: [{ type: 'command', command: `node "$CLAUDE_PROJECT_DIR/tools/hooks/hooks.mjs" ${cmd}`, timeout }] }];
   const theirs = { hooks: { SessionStart: cc('session', 60), UserPromptSubmit: cc('prompt', 30), PreToolUse: cc('pretool', 30, { matcher: 'Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell|Read|Agent|Task|mcp__.*' }),
@@ -29,24 +34,25 @@ export function wire(dir, { dry = false } = {}) {
   mine.includeCoAuthoredBy = false;
   mine.attribution = { commit: '', pr: '' };
   mine.hooks ||= {};
-  for (const [ev, v] of Object.entries(theirs.hooks)) {
+  if (on('claude')) for (const [ev, v] of Object.entries(theirs.hooks)) {
     if (!JSON.stringify(mine.hooks[ev] || []).includes('hooks.mjs')) { mine.hooks[ev] = [...(mine.hooks[ev] || []), ...v]; log.push(`wired    ${ev} hook (Claude Code)`); }
     else if (ev === 'PreToolUse') mine.hooks[ev] = mine.hooks[ev].map(m => JSON.stringify(m).includes('hooks.mjs') ? { ...m, matcher: v[0].matcher } : m);
   }
-  if (JSON.stringify(mine) !== before) write(sp, JSON.stringify(mine, null, 2) + '\n');
+  if (on('claude') && JSON.stringify(mine) !== before) write(sp, JSON.stringify(mine, null, 2) + '\n');
   // Codex can't expand a project variable in hook commands, so its wiring carries this folder's real path.
   const hp = at('tools', 'hooks', 'hooks.mjs').split(path.sep).join('/');
   const ev = (cmd, extra = {}) => [{ ...extra, hooks: [{ type: 'command', command: `node "${hp}" ${cmd}`, timeout: cmd === 'stop' ? 300 : 30 }] }];
   const codex = JSON.stringify({ hooks: { SessionStart: ev('session'), UserPromptSubmit: ev('prompt'), PreToolUse: ev('pretool', { matcher: 'apply_patch|Write|Edit|MultiEdit|Bash|PowerShell|Read|Agent|Task|mcp__.*' }), PostToolUse: ev('posttool', { matcher: 'apply_patch|Write|Edit|MultiEdit' }), Stop: ev('stop') } }, null, 2) + '\n';
   const cp = at('.codex', 'hooks.json');
-  if (fs.existsSync(cp) && !fs.readFileSync(cp, 'utf8').includes('hooks.mjs')) log.push('kept     .codex/hooks.json (exists; add the hooks.mjs entries by hand)');
+  if (!on('codex')) { /* not wired for Codex on this project (wireAgents) */ }
+  else if (fs.existsSync(cp) && !fs.readFileSync(cp, 'utf8').includes('hooks.mjs')) log.push('kept     .codex/hooks.json (exists; add the hooks.mjs entries by hand)');
   // Codex runs project hooks only after they are trusted, and asks again whenever the file changes.
   else if (!fs.existsSync(cp) || fs.readFileSync(cp, 'utf8') !== codex) { log.push(`${fs.existsSync(cp) ? 'updated' : 'created'}  .codex/hooks.json (Codex: run /hooks in Codex once to trust them; it asks again after a change)`); write(cp, codex); }
   // Gemini CLI reads GEMINI.md unless told otherwise: point it at AGENTS.md (merged into any settings it has).
   // Its hooks are not wired: their input format isn't documented. A Gemini agent runs hooks.mjs begin / check by hand.
   const gp = at('.gemini', 'settings.json');
   let gem = {}; if (fs.existsSync(gp)) { try { gem = JSON.parse(fs.readFileSync(gp, 'utf8')); } catch { gem = null; } }
-  if (gem && !JSON.stringify(gem.context?.fileName || gem.contextFileName || '').includes('AGENTS.md')) {
+  if (on('gemini') && gem && !JSON.stringify(gem.context?.fileName || gem.contextFileName || '').includes('AGENTS.md')) {
     gem.context = { ...(gem.context || {}), fileName: [...new Set(['AGENTS.md', ...[].concat(gem.context?.fileName || gem.contextFileName || 'GEMINI.md')])] };
     write(gp, JSON.stringify(gem, null, 2) + '\n'); log.push('wired    .gemini/settings.json (Gemini CLI reads AGENTS.md)');
   }

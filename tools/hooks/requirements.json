@@ -12,7 +12,7 @@
           "docs/plans/**"
         ]
       },
-      "message": "Save the plan to docs/plans/YYYY-MM-DD-<topic>.md (plan skill) and link it in the answer, then ask the user to review it before work starts."
+      "message": "Save the plan to docs/plans/YYYY-MM-DD-<topic>.md (plan skill) and link it in the answer, then ask the user to review it before work starts (with \"autonomy\": \"auto\", carry it out and record your choices instead)."
     },
     {
       "tag": "debug-root-cause",

@@ -22,7 +22,8 @@ quick question. Then just do it by its own runbook.
 2. Save it to `docs/plans/YYYY-MM-DD-<topic>.md` ([how plans are kept](../plans/README.md)) and run
    `node skills/plan/scripts/plan-tasks.mjs check <plan>`.
 3. Link it and ask the user to review it before any work starts. Offer the two ways to run it (supervised task by
-   task, or straight through), with a recommendation.
+   task, or straight through), with a recommendation. With `"autonomy": "auto"` (or "keep going, don't ask me") skip
+   the review: run it straight through and record each choice as `Assumed: <choice> - <why> - <cost if wrong>`.
 4. Once approved, do the work by its own runbook (feature, bugfix, research...), ticking the plan's checkboxes as
    steps finish (`plan-tasks.mjs next <plan>` shows where to continue).
 5. When every box is ticked and every check passes, set `status: done` (or `status: dropped - <why>`).

@@ -20,6 +20,8 @@ export const readJSON = (p, d) => { try { return JSON.parse(read(p)); } catch { 
 export const abs = p => path.resolve(ROOT, p);
 export const rel = p => path.relative(ROOT, path.resolve(ROOT, String(p || ''))).split(path.sep).join('/');
 export const exists = p => { try { fs.statSync(abs(p)); return true; } catch { return false; } };
+// The rules: AGENTS.md is the shared file; CLAUDE.md is its local twin for Claude Code (a Codex-only machine has none).
+export const rulesText = () => read(abs('AGENTS.md')) || read(abs('CLAUDE.md'));
 const list = d => { try { return fs.readdirSync(abs(d || '.')); } catch { return []; } };
 // A folder walk never follows a link or junction (it throws, and the walker skips the entry). Lesson: a workspace link
 // in packages/*/node_modules pointing back into the repo made the prompt hook loop past its timeout.
@@ -88,8 +90,9 @@ const DEFAULTS = {
   autonomy: 'ask',
   // REQ: gitignore-ready. Sample paths that must be ignored, and files that must never be (checked before every push).
   gitignoreMustIgnore: ['.env', '.env.local', 'server.pem', 'server.key', '.cache/x', 'node_modules/x', '.private-terms', 'tools/starter.local.json',
-    '.claude/settings.local.json', '.codex/hooks.json', '.claude/skills/debug/SKILL.md', 'tools/hooks/state/history.jsonl', 'tools/hooks/state/turn.json', '.obsidian/app.json'],
-  gitignoreMustKeep: ['README.md', 'AGENTS.md', '.gitignore', '.env.example', 'tools/hooks/wire.mjs', 'tools/hooks/hooks.mjs', 'tools/hooks/config.json', 'tools/hooks/requirements.json'],
+    '.claude/settings.local.json', '.codex/hooks.json', '.claude/skills/debug/SKILL.md', 'tools/hooks/state/history.jsonl', 'tools/hooks/state/turn.json', '.obsidian/app.json',
+    'tools/hooks/state/runs.jsonl', 'tools/hooks/state/stop-details.md', 'tools/hooks/state/engine-writes.json', '.gemini/settings.json', '.agents/skills/debug/SKILL.md'],
+  gitignoreMustKeep: ['README.md', 'AGENTS.md', '.gitignore', '.env.example', 'tools/hooks/wire.mjs', 'tools/hooks/hooks.mjs', 'tools/hooks/config.json', 'tools/hooks/requirements.json', 'tools/hooks/state/runbook-usage.json'],
   // Kept files that may discuss prompt injection itself (REQ: injection-guard).
   injectionIgnore: ['docs/security.md', 'skills/security-review/**', 'skills/research/references.md', 'skills/skill-finder/references.md', '.claude/skills/**'],
   // Files loaded at every session start: over this many characters together, the audit warns (consolidate them).
@@ -143,7 +146,7 @@ const DEFAULTS = {
   // Lesson: NO RUNBOOK demanded a runbook, then question-no-file called that runbook an unrequested edit.)
   questionNoFileExempt: ['docs/knowledge/**', 'docs/STATUS.md', 'docs/CHANGELOG.md', 'docs/DECISIONS.md', 'docs/BRIEF.md', '.cache/**', 'tools/hooks/state/**',
     'docs/playbooks/**', 'skills/**', 'docs/checks/**', 'docs/plans/**', 'docs/glossary.md', 'tools/hooks/requirements.json', 'tools/hooks/project-scenarios.mjs', 'DIRECTORY.md', 'AGENTS.md', 'CLAUDE.md'],
-  changeWords: "\\b(make|create|write|add|update|fix|change|edit|save|build|apply|implement|set ?up|delete|remove|rename|move|ingest|record|note|remember|go ahead|do it|yes|yep|sure|ok(ay)?|proceed|draft|generate|turn|convert|organi[sz]e|clean|refactor|improve|put)\\b",
+  changeWords: "\\b(make|create|write|add|update|fix|change|edit|save|build|apply|implement|set ?up|delete|remove|rename|move|ingest|record|note|remember|go ahead|do it|yes|yep|sure|ok(ay)?|proceed|draft|generate|turn|convert|organi[sz]e|clean|refactor|improve|put|bump|raise|lower|increase|decrease|tweak|adjust|enable|disable|install|switch|replace|restyle|resize|translate|merge|split|commit|push|send|post|publish|deploy|release|run)\\b",
   praise: "\\b(great job|good job|well done|nailed it|perfect|awesome|amazing|love (it|this|that)|exactly what i wanted|keep (doing|making) (this|that|these|it))\\b",
   // Git: nothing in a commit, push, PR or release may credit an AI agent. Everything is solely the user's.
   aiAttribution: "co-authored-by:[^\\n]*(claude|anthropic|openai|chatgpt|gpt-?\\d|codex|copilot|cursor|gemini|bard|llama|mistral|devin|aider|\\bai\\b|bot\\b)|generated (with|by) [^\\n]*(claude|chatgpt|gpt|codex|copilot|cursor|gemini|\\bai\\b)|noreply@anthropic\\.com|claude\\.(ai|com)/code|🤖|\\[bot\\]@|(written|made|created) (with|by) (claude|chatgpt|codex|copilot|cursor|gemini)",
@@ -163,7 +166,13 @@ const DEFAULTS = {
   instructionBudgetKB: 60, // audit warns when AGENTS.md / CLAUDE.md grows past this; split detail into docs/
   // Root stays small (docs/checks/layout-standards.md): files allowed directly in the project root. Folders are fine.
   rootAllowed: ['README.md', 'HOW-TO-USE.md', 'AGENTS.md', 'CLAUDE.md', 'DIRECTORY.md', 'SETUP-PROMPT.md', 'LICENSE', 'LICENSE.md', 'LICENSE.txt',
-    '.gitignore', '.gitattributes', '.editorconfig', '.env.example', '.starter-template', '.starter-dev', '.private-terms', 'New Project.bat'],
+    '.gitignore', '.gitattributes', '.editorconfig', '.env.example', '.starter-template', '.starter-dev', '.private-terms', 'New Project.bat',
+    // toolchains that must sit in the root (Lesson: a Godot project's project.godot and *.csproj failed on its first turn)
+    'package.json', 'package-lock.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'yarn.lock', 'bun.lockb', 'tsconfig*.json', '*.config.js', '*.config.mjs', '*.config.cjs', '*.config.ts', '.npmrc', '.nvmrc',
+    '.prettierrc*', '.eslintrc*', 'biome.json', 'pyproject.toml', 'requirements*.txt', 'setup.py', 'setup.cfg', 'uv.lock', 'poetry.lock', 'Pipfile*', '.python-version',
+    'Cargo.toml', 'Cargo.lock', 'go.mod', 'go.sum', 'Gemfile*', 'composer.json', 'composer.lock', 'pubspec.yaml', 'pubspec.lock', 'analysis_options.yaml',
+    '*.csproj', '*.sln', '*.fsproj', 'global.json', 'Directory.Build.props', 'project.godot', '*.uproject', 'Makefile', 'justfile', 'Dockerfile', 'docker-compose*.y*ml',
+    '.dockerignore', 'Procfile', 'vercel.json', 'netlify.toml', 'mise.toml', '.tool-versions', 'CHANGELOG.md', 'CONTRIBUTING.md', 'SECURITY.md', 'CODE_OF_CONDUCT.md'],
   approvalPaths: [],       // taste-driven paths: committing them needs the user's OK in this request ("approve", "looks good", "commit it")
   // Docs and code capture the principle and the reason, never the user's literal examples (that also keeps personal
   // details out). A run of this many words copied from the user's messages into a file is flagged.
@@ -186,7 +195,8 @@ const DEFAULTS = {
   // A complaint about a miss: like a rule request, it becomes an enforced rule (and the miss itself gets fixed).
   // Lesson: "you forgot the allergens again!!" got a frustration hint, but nothing made it a rule.
   complaint: "\\byou (forgot|didn'?t|did not|missed|skipped|ignored|left out|keep forgetting|never)\\b|\\b(i|we) (already )?told you\\b|\\bwhy (did|didn'?t|do|does) (you|it) (keep )?\\b|\\bagain\\s*[!?]|\\bnot again\\b|\\bkeeps? (happening|forgetting|missing)\\b",
-  frustration: "\\bwhy (did|didn'?t|would) you\\b|\\byou (forgot|didn'?t|ignored|skipped|missed)\\b|\\bi (already )?told you\\b|\\bagain\\?|\\bwtf\\b|\\bseriously\\b|!!",
+  // (Lesson: "annoying", "ugh", "why do you keep" and "I keep telling you" were missed, so friction never counted them)
+  frustration: "\\bwhy (did|didn'?t|would|do|does) (you|it)( keep)?\\b|\\byou (forgot|didn'?t|ignored|skipped|missed|keep)\\b|\\bi (already |keep )?(told|telling|said|asked) you\\b|\\bagain\\?|\\bwtf\\b|\\bseriously\\b|\\bugh+\\b|\\bannoying\\b|\\bso (frustrating|annoying)\\b|\\bstop (making|asking|doing) me\\b|\\bhow many times\\b|\\bfor the (last|third|nth) time\\b|!!",
   taskVerbs: "\\b(make|create|build|write|draft|add|update|fix|research|find|look up|plan|compare|organi[sz]e|set ?up|analy[sz]e|summari[sz]e|review|generate|turn|convert|change|edit|rewrite|remove|delete|move|import|ingest|prepare|track|calculate|design|outline|translate|clean ?up|sort|merge|split|audit|check|run|train|retrain|tune|test|document|refactor|rename|upgrade|bump|migrate|restyle|deploy|release|publish|install|configure)\\b",
   overwriteWords: "\\b(overwrite|in place|edit (it|this|that|the (file|doc|output))|replace (it|the file)|fix (it|this|that|the) (file|doc|output|typo))\\b",
   // The user's OK for an outward action in this request (REQ: outward-gate). "email the supplier" alone asks for a draft;
@@ -826,7 +836,11 @@ export function context(t, cfg, answerOverride) {
   const helpers = list(cfg.skillsDir).map(n => [n, (frontmatter(read(abs(`${cfg.skillsDir}/${n}/SKILL.md`))) || {}).runbook]).filter(([, r]) => r);
   // Editing a runbook or skill is maintaining it, not following it: it counts only when the request routed to it, the
   // answer names it, or the skill was invoked. Lesson: fixing a runbook's wording made its checks demand its outputs.
-  const edited = uses.filter(u => /^(Write|Edit|MultiEdit|NotebookEdit)$/.test(u.name)).map(u => rel(u.input.file_path || u.input.notebook_path || ''));
+  // (shell edits count too: sed -i, a redirect, Set-Content. Lesson: fixing a runbook with sed made its checks fire)
+  const shellTargets = c => [...sedInPlaceFiles(c), ...[...String(c).matchAll(/(?:^|[^<>2&])>{1,2}\s*["']?([^\s"';|&]+)/g)].map(m => m[1]),
+    ...[...String(c).matchAll(/\b(?:Set-Content|Add-Content|Out-File)\b\s+(?:-(?:Path|FilePath)\s+)?["']?([^\s"';|&]+)/gi)].map(m => m[1])];
+  const edited = [...uses.filter(u => /^(Write|Edit|MultiEdit|NotebookEdit)$/.test(u.name)).map(u => rel(u.input.file_path || u.input.notebook_path || '')),
+    ...uses.filter(u => typeof u.input.command === 'string').flatMap(u => shellTargets(u.input.command)).map(p => rel(p))];
   const maintained = (file, skill) => edited.some(p => p === file || (skill && p.startsWith(`${cfg.skillsDir}/${skill}/`)));
   const namesIt = n => re(`\\b(playbook|runbook|skill)s?\\s*:\\s*\`?(docs/playbooks/|skills/)?${esc(n)}(\\.md)?\\b`).test(answer);
   let usedPb = pbs.filter(pb => (reads.has(pb.file) || (pb.skillName && skillOpened(pb.skillName)) ||
@@ -904,7 +918,8 @@ export function curateDue(cfg = config(), record = false) {
 }
 
 export function hardenDue(pbs, use, cfg, extra = new Set()) {
-  return pbs.filter(pb => !pb.name.startsWith('_') && !pb.fm.hardened && !/^never/i.test(pb.fm.harden || '') &&
+  // the engine's own runbooks are hardened in the starter, not in each project (Lesson: project.md came due after setup)
+  return pbs.filter(pb => !pb.name.startsWith('_') && !(CORE_RUNBOOKS.includes(pb.name) && !exists('.starter-template')) && !pb.fm.hardened && !/^never/i.test(pb.fm.harden || '') &&
     ((use[pb.name]?.uses || 0) + (extra.has(pb.name) ? 1 : 0)) >= cfg.promoteAfterUses);
 }
 
@@ -1351,15 +1366,15 @@ export function setupProblems(cfg = config()) {
   if (typical.length < 3) probs.push('docs/BRIEF.md: list at least 3 typical requests, each as a short, plain description of the kind of request');
   const pbs = playbooks(), sks = routableSkills(cfg);
   for (const t of typical) if (!route(t, pbs).length && !route(t, sks).length) probs.push(`typical request "${t.slice(0, 70)}" routes to no runbook or skill: add its wording to a runbook's or skill's triggers (node tools/hooks/selfcheck.mjs --route "...")`);
-  const claude = read(abs('CLAUDE.md'));
-  if (/\{\{[A-Z_]+\}\}|<!-- One line on what/.test(claude)) probs.push('CLAUDE.md: replace the template placeholders (name, one-line purpose)');
+  const claude = rulesText();
+  if (/\{\{[A-Z_]+\}\}|<!-- One line on what/.test(claude)) probs.push('AGENTS.md: replace the template placeholders (name, one-line purpose)');
   if (!names().PROJECT_NAME || /\{\{/.test(names().PROJECT_NAME)) probs.push(`${NAMES_FILE}: set PROJECT_NAME, and add every other name the project uses (products, brands, companies)`);
   for (const p of nameFiles(cfg)) probs.push(...nameProblems(p, read(abs(p)), names(), cfg));
-  if (/^- \(none yet\)\s*$/m.test(section(claude, "The user's standing preferences"))) probs.push('CLAUDE.md: record the user\'s standing preferences as principles (or "- (none stated, YYYY-MM-DD)")');
+  if (/^- \(none yet\)\s*$/m.test(section(claude, "The user's standing preferences"))) probs.push('AGENTS.md: record the user\'s standing preferences as principles (or "- (none stated, YYYY-MM-DD)")');
   if (/Not bootstrapped yet/i.test(read(abs('docs/STATUS.md')))) probs.push('docs/STATUS.md: still says "Not bootstrapped yet"');
   for (const f of ['CLAUDE.starter.md', 'AGENTS.starter.md']) if (exists(f)) probs.push(`${f}: merge it into CLAUDE.md/AGENTS.md, then delete it`);
-  if (!exists('tools/hooks/state/last-session.json')) probs.push('the hooks have never run in a live session here (open Claude Code in this folder; SessionStart records it)');
-  if (read(abs('CLAUDE.md')) !== read(abs('AGENTS.md'))) probs.push('CLAUDE.md and AGENTS.md differ');
+  if (!exists('tools/hooks/state/last-session.json')) probs.push('the hooks have never run in a live session here (open the project with your agent so its session start runs them, or run node tools/hooks/hooks.mjs begin "<a request>")');
+  if (exists('CLAUDE.md') && read(abs('CLAUDE.md')) !== read(abs('AGENTS.md'))) probs.push('CLAUDE.md and AGENTS.md differ');
   const own = readJSON(path.join(HOOKS, 'config.json'), {});
   if (!(own.packs || []).length && !/core only/i.test(read(abs('docs/DECISIONS.md'))))
     probs.push('choose the packs: node tools/packs.mjs install <packs> (or record "core only" and why in docs/DECISIONS.md)');
@@ -1487,7 +1502,7 @@ export function upgradeReview() {
 export function upgradeProblems(cfg = config()) {
   const r = upgradeReview(), probs = [];
   if (!r) return probs;
-  const own = readJSON(path.join(HOOKS, 'config.json'), {}), claude = read(abs('CLAUDE.md'));
+  const own = readJSON(path.join(HOOKS, 'config.json'), {}), claude = rulesText();
   for (const { kind, item, decision } of r.items) {
     const at = `"- ${kind}: ${item}"`;
     if (kind === 'self-tests' && /^\?|^$/.test(decision)) { probs.push(`${at}: run node tools/hooks/selfcheck.mjs until it passes, then write "passed"`); continue; }
@@ -2419,7 +2434,9 @@ export function coreChecks(x, cfg) {
       `Unlabeled: ${unlabeled.slice(0, 4).join('; ')}${unlabeled.length > 4 ? ` and ${unlabeled.length - 4} more` : ''}. Add the checks now; don't ask (hard rule 3).`);
   // REQ: plan-required. A bigger addition (many new files) has a checklist in docs/plans/, so nothing is left half done
   // and the next session or another agent can finish it. Setup has its own checklist (SETUP-PROMPT.md).
-  const born = x.changed.filter(p => !match(p, cfg.notWork) && !/^(AGENTS\.md$|CLAUDE\.md$|docs\/checks\/|docs\/plans\/|\.cache\/|tools\/hooks\/state\/|\.memtest\/|\.claude\/|\.codex\/)/.test(p) && !GENERATED_WRITES.has(p) && exists(p) && bornThisTurn(p, x.since));
+  // (the records a runbook itself asks for, like a spec, a review, release notes or a new runbook's skill, are not the
+  // work being planned. Lesson: a feature's own spec, review and notes tipped it over the limit after the fact.)
+  const born = x.changed.filter(p => !match(p, cfg.notWork) && !/^(AGENTS\.md$|CLAUDE\.md$|docs\/checks\/|docs\/plans\/|docs\/(specs|releases|reviews|incidents|knowledge)\/|docs\/playbooks\/|skills\/[^/]+\/SKILL\.md$|\.cache\/|tools\/hooks\/state\/|\.memtest\/|\.claude\/|\.codex\/|\.agents\/)/.test(p) && !GENERATED_WRITES.has(p) && exists(p) && bornThisTurn(p, x.since));
   if (x.workTurn && born.length >= cfg.planNewFiles && !x.changed.some(p => /^docs\/plans\/.+\.md$/.test(p)) && !(exists('SETUP-PROMPT.md') && !exists('.starter-template')))
     add('plan-required', `This turn added ${born.length} new files (${born.slice(0, 4).join(', ')}${born.length > 4 ? ', ...' : ''}) without a plan. Write or update one in docs/plans/ with the plan skill ` +
       '(a checkbox per task, ticked as they finish), so nothing is left half done and the next session can continue it.');
@@ -2518,8 +2535,10 @@ export function coreChecks(x, cfg) {
     // (the principle in the agent's own words, never the user's: hard rule 14)
     if (!x.changed.includes('CLAUDE.md') && !x.changed.includes('AGENTS.md')) need.push('AGENTS.md (the rule as a principle in your own words, why it matters, and the date)');
     if (!x.changed.includes('docs/checks/user-requirements.md')) need.push('docs/checks/user-requirements.md (words -> rule -> REQ tag)');
-    if (!x.changed.some(p => /^tools\/hooks\/(requirements\.json|hooks\.mjs)$/.test(p)) && !/hook:\s*n\/a/i.test(x.said))
-      need.push('tools/hooks/requirements.json (a check), or "hook: N/A <reason>" in the answer if it cannot be checked');
+    // (a commit gate, forbidden command or protected path in config.json enforces a rule too. Lesson: a "dotnet format
+    // before commit" rule, made a commit gate, was told to write a false "hook: N/A")
+    if (!x.changed.some(p => /^tools\/hooks\/(requirements\.json|hooks\.mjs|config\.json)$/.test(p)) && !/hook:\s*n\/a/i.test(x.said))
+      need.push('tools/hooks/requirements.json (a check) or tools/hooks/config.json (a commit gate, forbidden command or protected path), or "hook: N/A <reason>" in the answer if it cannot be checked');
     // REQ: rule-memory. The rule also goes into memory, so it survives even outside this project's docs.
     if (cfg.memoryOnRuleRequest) {
       const md = memoryDir(cfg);
@@ -3132,7 +3151,9 @@ const SHORT = {
   'knowledge-changelog': 'Note the knowledge change in docs/CHANGELOG.md', 'knowledge-captured': 'Write the new fact or decision into the project',
   'history-hashes': 'Back the history with commit hashes', 'teach-step': 'End with one question that has the user try the next step',
   'marketing-sourced': 'Name the brand voice and source every claim', 'mcp-linted': 'Lint the MCP server\'s tool list',
-  'security-checklist': 'Give the security checklist table with evidence'
+  'security-checklist': 'Give the security checklist table with evidence',
+  'skill-harden': 'Turn the runbook used 3 times into scripts and checks (skill-harden)', 'runbook-complete': 'Give the new runbook its check, test and rule-map row',
+  'plan-required': 'Write a plan first: this work adds many files'
 };
 function writeDetails(missing, title) {
   if (envOf('BENCH')) return;

@@ -1,10 +1,7 @@
 # Scratch and machine-specific hook state (runbook-usage.json is kept: it drives skill hardening)
 .cache/
-tools/hooks/state/stop-blocks.json
-tools/hooks/state/last-session.json
-tools/hooks/state/last-stop-input.json
-tools/hooks/state/unresolved.json
-tools/hooks/state/turn.json
+tools/hooks/state/*
+!tools/hooks/state/runbook-usage.json
 .codex/
 .gemini/
 .agents/

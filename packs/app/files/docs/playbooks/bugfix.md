@@ -2,6 +2,7 @@
 name: bugfix
 summary: Fix a bug - reproduce it, write a failing test, fix the cause, prove the test passes, check for siblings of the bug
 triggers: bug, broken, doesn't work, does not work, not working, crash, crashes, error, fix this, fix it, regression, wrong result, stopped working, it breaks, glitch, wrong, fails, failing, build broke, build failed, ci failing, ci is red, pipeline failed, exception, traceback, stack trace
+trigger_regex: \b(sometimes|randomly|keeps?|still)\s+(fall(s|ing)?|crash(es|ing)?|freez(es|ing)|break(s|ing)?|disappear(s|ing)?|glitch(es|ing)?|jump(s|ing)?|reset(s|ting)?|duplicat(es|ing)|fail(s|ing)?)\b|\bfeels?\s+(floaty|laggy|off|wrong|broken|janky|sluggish)\b|\b(doesn'?t|does not|won'?t|can'?t|cannot)\s+(show|load|save|open|start|connect|log ?in|sync|update|work)\b|\bfalls? through\b
 menu: A2
 ---
 # Playbook: fix a bug

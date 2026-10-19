@@ -11,7 +11,7 @@ import {
   ROOT, read, abs, exists, frontmatter, playbooks, skillProblems, playbookProblems, knowledgeProblems, config,
   loadRequirements, usage, hardenDue, menu, runbookHasCheck, generatedSkill, directoryBlock, staleKnowledge,
   setupProblems, upgradeProblems, bench, gitignoreProblems, writingProblems, aiAttributedCommits, BASE_REQUIREMENTS, routableSkills, skillHasCheck, curateDue,
-  FIT_FILE, fitProblems, fitRows, fitDecision, fitWhenOf, doneWhenItems, DONE_LABEL, findLibrary, secretHit, mirrorText, logRun, testInputsHash, deadTriggers
+  FIT_FILE, fitProblems, fitRows, fitDecision, fitWhenOf, doneWhenItems, DONE_LABEL, findLibrary, secretHit, mirrorText, logRun, testInputsHash, deadTriggers, rulesText
 } from './hooks/hooks.mjs';
 
 const cfg = config();
@@ -43,7 +43,9 @@ const walk = (d, pred, acc = [], skip = SKIPDIR) => {
 const isTemplate = exists('.starter-template');
 const pbs = playbooks();
 const hooksSrc = read(abs('tools/hooks/hooks.mjs'));
-const testsSrc = read(abs('tools/hooks/selfcheck.mjs')) + read(abs('tools/hooks/project-scenarios.mjs')); // the project's own scenarios count too
+// the project's own scenarios count too, and while an upgrade's move is pending, the ones kept from the old test file
+const legacyScenarios = read(abs('tools/hooks/legacy-scenarios.txt'));
+const testsSrc = read(abs('tools/hooks/selfcheck.mjs')) + read(abs('tools/hooks/project-scenarios.mjs')) + legacyScenarios;
 const { reqs, fileReqs = [], error: reqError, disabled = [] } = loadRequirements();
 const baseTags = new Set(BASE_REQUIREMENTS.map(b => b.tag));
 // pack checks count as known even when the pack is not installed here (the starter keeps them in packs/*/pack.json)
@@ -261,7 +263,7 @@ sweep('third-party skills are credited', () => {
   return { fail };
 });
 sweep('every hard rule has an enforcement row', () => {
-  const sec = /## Hard rules[^\n]*\n([\s\S]*?)(\n## |$)/.exec(read(abs('CLAUDE.md')));
+  const sec = /## Hard rules[^\n]*\n([\s\S]*?)(\n## |$)/.exec(rulesText());
   if (!sec) return { fail: ['AGENTS.md / CLAUDE.md has no "## Hard rules" section'] };
   const nums = [...sec[1].matchAll(/^(\d+)\.\s/gm)].map(m => m[1]);
   const enf = read(abs('docs/checks/rule-enforcement.md'));
@@ -284,7 +286,8 @@ sweep('every REQ tag is enforced and tested', () => {
   const enf = read(abs('docs/checks/rule-enforcement.md'));
   for (const t of reqTags) if (!enf.includes(t) && !reqs.find(r => r.tag === t)?.pack && !reqs.find(r => r.tag === t)?.appGate) fail.push(`requirements.json tag ${t} has no row in docs/checks/rule-enforcement.md`);
   for (const t of [...coreTags, ...reqTags, ...packTags]) if (!testsSrc.includes(t) && !reqs.find(r => r.tag === t)?.appGate) fail.push(`tag ${t} has no test scenario in tools/hooks/selfcheck.mjs`);
-  return { fail, note: `${coreTags.size} core + ${reqTags.size} project tags` };
+  const warn = legacyScenarios ? ['tools/hooks/legacy-scenarios.txt still holds scenarios from the retired test-hooks.mjs: move them into tools/hooks/project-scenarios.mjs (they do not run until then), then delete it'] : [];
+  return { fail, warn, note: `${coreTags.size} core + ${reqTags.size} project tags` };
 });
 
 if (exists('docs/knowledge')) sweep('knowledge files are labeled, sourced, dated', () => {
