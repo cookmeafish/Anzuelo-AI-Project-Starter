@@ -20,6 +20,9 @@ wants the security, performance or usability baseline revisited. Run it before t
    project: "Page size under 2 MB, so the guide opens in about a second on a phone". Offer "Let the AI decide".
 3. **Write** the confirmed values into `docs/foundation.md`, set `status: set YYYY-MM-DD`, and record the key choices
    in `docs/DECISIONS.md`.
+4. **Shape it to grow** with the **modular-code** skill, section A: the module layout for the stack, the config module
+   and the names module (read from `docs/names.json`) made first, and the extension points the app will need written
+   into `docs/foundation.md`.
 4. **Build the scaffolding that enforces it,** so the foundation holds without anyone remembering it:
    - **Security:**
      - `.gitignore` covers every secret file;

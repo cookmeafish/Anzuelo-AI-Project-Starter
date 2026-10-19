@@ -476,6 +476,51 @@
         "playbookUsed": "install-update"
       },
       "message": "This turn changed how the app is installed, launched or updated: follow the install-update runbook (its install matrix in docs/releases/)."
+    },
+    {
+      "tag": "modular-code",
+      "rule": "17",
+      "codeGlobs": true,
+      "when": {
+        "workTurn": true,
+        "filesChanged": [
+          "src/**",
+          "app/**",
+          "lib/**",
+          "server/**",
+          "packages/**",
+          "**/*.py"
+        ]
+      },
+      "require": {
+        "runEach": {
+          "files": [
+            "**/*.js",
+            "**/*.jsx",
+            "**/*.mjs",
+            "**/*.cjs",
+            "**/*.ts",
+            "**/*.tsx",
+            "**/*.vue",
+            "**/*.svelte",
+            "**/*.py",
+            "**/*.dart",
+            "**/*.rs",
+            "**/*.go",
+            "**/*.cs",
+            "**/*.kt",
+            "**/*.swift",
+            "**/*.gd",
+            "**/*.java",
+            "**/*.rb",
+            "**/*.php"
+          ],
+          "cmd": "node skills/modular-code/scripts/modularity.mjs \"{file}\"",
+          "pass": "RESULT: PASS",
+          "timeout": 30
+        }
+      },
+      "message": "Modular-code skill: keep the code easy to grow and rename. Each FAIL above names the file and line: split a file that grew past 400 lines by job, read URLs, hosts and ports from the config module (not typed in), import other modules only through their public entry. Details: skills/modular-code/SKILL.md."
     }
   ]
 }

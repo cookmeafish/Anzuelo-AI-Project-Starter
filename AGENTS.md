@@ -32,8 +32,11 @@
 2. **Every new kind of task leaves a runbook, a skill and a check behind.** The next time is a known procedure, and
    the user never has to explain it again. `DIRECTORY.md` and the skill are generated from the runbook. A miss while
    following a runbook or skill writes the lesson into it. Ones nobody uses get reviewed and retired (skill-curate).
-3. **Standing instructions become enforced rules.** "Always / never / remember / from now on / update the project", a
-   complaint about a miss, or praise for something to repeat all go through the **project-rule** skill: the principle
+3. **Standing instructions become enforced rules, and an upset user teaches the project.** When the user is upset or
+   complains, the **learn-from-upset** skill fixes the miss, weighs how important the lesson is, and stores it where it
+   stops the next one (the skill that missed it, a rule, a check, a new skill, or the starter for every project), ending
+   with "Learned (<level>): <lesson> → <file>". "Always / never / remember / from now on / update the project", or
+   praise for something to repeat, go through the **project-rule** skill: the principle
    and why it matters, with the date, a rule here, a row in `docs/checks/user-requirements.md`, a check in
    `tools/hooks/requirements.json` (or "hook: N/A <reason>"), a memory note, a test, and the audit. If something would
    have surprised the user, harden the project the same way without being asked. A requirement that has no check yet
@@ -89,7 +92,9 @@
 ## How the project improves itself
 ```
 new kind of task ──► _fallback ──► runbook + check (runbook-create) ──► skill + DIRECTORY row (generated)
-"always / never" or a complaint ──► project-rule ──► rule + user-requirements row + check + memory + test
+"always / never" ──► project-rule ──► rule + user-requirements row + check + memory + test
+the user is upset ──► learn-from-upset ──► fix, then the lesson where it belongs (skill, rule, check, new skill) + "Learned:" line
+an engine lesson or a suspended engine check ──► docs/starter-feedback.md ──► the starter (next session) ──► every project (upgrade)
 runbook used 3x ──► skill-harden ──► repeated steps become scripts/, pitfalls added, "Done when" becomes checks
 followed a runbook and still missed ──► Stop hook (skill-learn) ──► the lesson is written into that runbook or skill
 unused for 60 days ──► skill-curate ──► keep with a reason, merge, or retire (with the user's OK)

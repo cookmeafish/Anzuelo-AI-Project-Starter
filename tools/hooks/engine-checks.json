@@ -717,6 +717,52 @@
       "pack": "app"
     },
     {
+      "tag": "modular-code",
+      "rule": "17",
+      "codeGlobs": true,
+      "when": {
+        "workTurn": true,
+        "filesChanged": [
+          "src/**",
+          "app/**",
+          "lib/**",
+          "server/**",
+          "packages/**",
+          "**/*.py"
+        ]
+      },
+      "require": {
+        "runEach": {
+          "files": [
+            "**/*.js",
+            "**/*.jsx",
+            "**/*.mjs",
+            "**/*.cjs",
+            "**/*.ts",
+            "**/*.tsx",
+            "**/*.vue",
+            "**/*.svelte",
+            "**/*.py",
+            "**/*.dart",
+            "**/*.rs",
+            "**/*.go",
+            "**/*.cs",
+            "**/*.kt",
+            "**/*.swift",
+            "**/*.gd",
+            "**/*.java",
+            "**/*.rb",
+            "**/*.php"
+          ],
+          "cmd": "node skills/modular-code/scripts/modularity.mjs \"{file}\"",
+          "pass": "RESULT: PASS",
+          "timeout": 30
+        }
+      },
+      "message": "Modular-code skill: keep the code easy to grow and rename. Each FAIL above names the file and line: split a file that grew past 400 lines by job, read URLs, hosts and ports from the config module (not typed in), import other modules only through their public entry. Details: skills/modular-code/SKILL.md.",
+      "pack": "app"
+    },
+    {
       "tag": "research-recorded",
       "rule": "4",
       "when": {
@@ -840,6 +886,9 @@
       "when": {
         "filesChanged": [
           "outputs/**"
+        ],
+        "filesIgnore": [
+          "outputs/drafts/**"
         ]
       },
       "require": {
@@ -1334,6 +1383,331 @@
       },
       "message": "User-research skill: give every theme its count as \"n of N\" with quotes traced to participant IDs, or, for a study plan, name the decision it informs.",
       "skill": "user-research"
+    },
+    {
+      "tag": "correspondence-draft-saved",
+      "rule": "6",
+      "when": {
+        "skillUsed": "correspondence"
+      },
+      "require": {
+        "filesChanged": [
+          "outputs/drafts/**",
+          "profiles/*/outputs/drafts/**"
+        ],
+        "answerMatches": "\\bnot (been |yet )?sent\\b|\\bnothing (was|has been) sent\\b|\\bno se ha enviado\\b|\\bno (lo |la )?(he|hemos) enviado\\b|\\bsin enviar\\b"
+      },
+      "message": "Correspondence skill: save the draft as a new file in outputs/drafts/ (YYYY-MM-DD-<recipient>-<topic>.md), show it in the answer, and say plainly that it was not sent, with what the user must check before sending (placeholders, worked-out figures, tone).",
+      "skill": "correspondence"
+    },
+    {
+      "tag": "pipeline-schema-checked",
+      "rule": "4",
+      "when": {
+        "skillUsed": "data-pipeline",
+        "filesChanged": [
+          "data/**",
+          "**/raw/**",
+          "**/*.csv",
+          "**/*.tsv",
+          "**/*.jsonl",
+          "**/*.ndjson",
+          "**/*.parquet",
+          "**/*.schema.json"
+        ],
+        "filesIgnore": [
+          "skills/**",
+          "library/**",
+          "packs/**",
+          ".claude/**",
+          "tools/**",
+          "docs/**",
+          "node_modules/**",
+          "**/test/**",
+          "**/tests/**",
+          "**/__tests__/**",
+          "**/fixtures/**",
+          "**/*.test.*",
+          "**/*_test.*"
+        ]
+      },
+      "require": {
+        "toolRan": "schema-check\\.mjs"
+      },
+      "message": "Data-pipeline skill: pipeline inputs changed. Check each new or changed input against its schema before any step uses it: node skills/data-pipeline/scripts/schema-check.mjs <input> <schema.json>. A FAIL stops the run: fix the source or record the schema change (section C).",
+      "skill": "data-pipeline"
+    },
+    {
+      "tag": "dependency-gates-compared",
+      "rule": "4",
+      "when": {
+        "skillUsed": "dependency-update",
+        "filesChanged": [
+          "**/package.json",
+          "**/package-lock.json",
+          "**/npm-shrinkwrap.json",
+          "**/pnpm-lock.yaml",
+          "**/pnpm-workspace.yaml",
+          "**/yarn.lock",
+          "**/bun.lock",
+          "**/bun.lockb",
+          "**/requirements*.txt",
+          "**/pyproject.toml",
+          "**/uv.lock",
+          "**/poetry.lock",
+          "**/Pipfile",
+          "**/Pipfile.lock",
+          "**/Cargo.toml",
+          "**/Cargo.lock",
+          "**/go.mod",
+          "**/go.sum",
+          "**/*.csproj",
+          "**/*.fsproj",
+          "**/Directory.Packages.props",
+          "**/packages.lock.json",
+          "**/global.json",
+          "**/pubspec.yaml",
+          "**/pubspec.lock",
+          "**/Gemfile",
+          "**/Gemfile.lock",
+          "**/composer.json",
+          "**/composer.lock",
+          "**/build.gradle",
+          "**/build.gradle.kts",
+          "**/libs.versions.toml",
+          "**/gradle.lockfile",
+          "**/pom.xml",
+          "**/.nvmrc",
+          "**/.node-version",
+          "**/.python-version",
+          "**/rust-toolchain.toml",
+          "**/rust-toolchain"
+        ],
+        "filesIgnore": [
+          "skills/**",
+          "library/**",
+          "packs/**",
+          ".claude/**",
+          "tools/**"
+        ]
+      },
+      "require": {
+        "anyOf": [
+          {
+            "toolRan": "\\b(npm|pnpm|yarn|bun)\\b[^\\n;&|]*\\s(run\\s+)?(test|build|lint|typecheck|check)(?![\\w@/.-])|\\bnode\\s+--test\\b|\\bnpx\\s+(vitest|jest|tsc|playwright|mocha)\\b|\\bpytest\\b|\\bpython3?\\s+-m\\s+(pytest|unittest)\\b|\\b(tox|nox)\\b|\\bmypy\\b|\\bruff\\s+check\\b|\\bcargo\\s+(test|build|check|clippy)\\b|\\bgo\\s+(test|build|vet)\\b|\\bdotnet\\s+(test|build)\\b|\\b(flutter|dart)\\s+(test|analyze)\\b|\\bflutter\\s+build\\b|\\b(rspec|rake\\s+test|rails\\s+test)\\b|\\bphpunit\\b|\\bcomposer\\s+(test|run)\\b|\\b(gradlew|gradle|mvnw|mvn)\\b[^\\n;&|]*\\b(test|build|check|verify)\\b|\\bmake\\s+(test|check|build)\\b"
+          },
+          {
+            "answerMatches": "before/after\\s*:"
+          }
+        ]
+      },
+      "message": "Dependency-update skill: a manifest or lockfile changed. Run the same gates as before the change (tests, build, lint, type check) and compare them in the answer, one line per gate: \"Before/after: tests 214 pass -> 214 pass\". A gate that passed before and fails now means roll back (section G).",
+      "skill": "dependency-update"
+    },
+    {
+      "tag": "game-smoke-ran",
+      "rule": "4",
+      "when": {
+        "skillUsed": "game-dev",
+        "filesChanged": [
+          "**/*.gd",
+          "**/*.tscn",
+          "**/*.tres",
+          "**/*.gdshader",
+          "**/*.cs",
+          "project.godot",
+          "export_presets.cfg",
+          "**/*.unity",
+          "**/*.prefab"
+        ]
+      },
+      "require": {
+        "toolRan": "export-smoke\\.mjs|\\bgodot[\\w.-]*\\b[^\\n;&|]*--headless[^\\n;&|]*(\\s-s\\s|--script|gut|gdunit|--export-(release|debug))|\\bdotnet\\s+test\\b|\\bUnity(\\.exe)?\\b[^\\n;&|]*-runTests\\b|\\bRunUAT\\b"
+      },
+      "message": "Game-dev skill: scenes or scripts changed, so build, test, export and start the game before reporting: node skills/game-dev/scripts/export-smoke.mjs --preset \"<preset>\" --out builds/<target>/<Game>.<ext> (or the engine tests: GUT, GdUnit4, dotnet test, Unity -runTests).",
+      "skill": "game-dev"
+    },
+    {
+      "tag": "continuity-checked",
+      "rule": "4",
+      "when": {
+        "skillUsed": "manuscript"
+      },
+      "require": {
+        "anyOf": [
+          {
+            "toolRan": "continuity\\.mjs"
+          },
+          {
+            "answerMatches": "^[ \\t>*_-]*continuity[*_]*\\s*:"
+          }
+        ]
+      },
+      "message": "Manuscript skill: run node skills/manuscript/scripts/continuity.mjs on the chapters (with --style for the style sheet), or end the answer with a line \"Continuity: <what was checked and found>\" (\"Continuity: not checked this turn (summaries only)\" when nothing was).",
+      "skill": "manuscript"
+    },
+    {
+      "tag": "experiment-logged",
+      "rule": "4",
+      "when": {
+        "skillUsed": "ml-experiments",
+        "toolRan": "\\b(python3?|py|uv\\s+run|poetry\\s+run|pixi\\s+run)\\b[^\\n;&|]*\\b\\w*(train|tune|fit|eval|experiment|sweep|cross_?val)\\w*|\\bjupyter\\s+(nbconvert\\b[^\\n;&|]*--execute|execute)\\b|\\bpapermill\\b|\\bdvc\\s+(exp\\s+run|repro)\\b|\\bmlflow\\s+run\\b"
+      },
+      "require": {
+        "filesChanged": [
+          "experiments/**",
+          "**/EXPERIMENTS.md",
+          "**/experiment-log*.md"
+        ]
+      },
+      "message": "ML-experiments skill: a model was trained or scored this turn, so log the run: node skills/ml-experiments/scripts/exp-log.mjs add experiments/log.md --name <run> --data <data> --params \"<k=v>\" --seed <n> --score \"<metric>=<value>+-<spread>\".",
+      "skill": "ml-experiments"
+    },
+    {
+      "tag": "mobile-checked",
+      "rule": "4",
+      "when": {
+        "skillUsed": "mobile-app",
+        "filesChanged": [
+          "**/*.dart",
+          "**/*.kt",
+          "**/*.kts",
+          "**/*.java",
+          "**/*.swift",
+          "**/*.m",
+          "**/*.tsx",
+          "**/*.jsx",
+          "**/*.ts",
+          "**/*.js",
+          "android/**",
+          "ios/**",
+          "pubspec.yaml",
+          "app.json"
+        ]
+      },
+      "require": {
+        "toolRan": "\\b(flutter|dart)\\s+(analyze|test)\\b|\\bgradlew(\\.bat)?\\b[^\\n;&|]*\\b(test\\w*|lint\\w*|check)\\b|\\bxcodebuild\\b[^\\n;&|]*\\btest\\b|\\bswift\\s+test\\b|\\bnpx\\s+(jest|tsc|eslint|expo\\s+lint)\\b|\\b(npm|yarn|pnpm)\\s+(run\\s+)?(test|lint|typecheck)\\b"
+      },
+      "message": "Mobile-app skill: app code changed, so run the platform's checks before reporting: flutter analyze and flutter test, ./gradlew lint testDebugUnitTest, xcodebuild test, or npx tsc --noEmit / npx eslint . / npx jest.",
+      "skill": "mobile-app"
+    },
+    {
+      "tag": "vault-links-checked",
+      "rule": "12",
+      "when": {
+        "skillUsed": "notes-vault",
+        "filesChanged": [
+          "**/*.md"
+        ],
+        "filesIgnore": [
+          "docs/STATUS.md",
+          "docs/CHANGELOG.md",
+          "docs/DECISIONS.md",
+          "docs/glossary.md",
+          "docs/plans/**",
+          "outputs/**",
+          "skills/**",
+          "library/**",
+          "packs/**",
+          ".claude/**",
+          ".agents/**",
+          ".codex/**"
+        ]
+      },
+      "require": {
+        "toolRan": "notes\\.mjs\\s+check"
+      },
+      "message": "Notes-vault skill: notes changed, so run the link check: node skills/obsidian/scripts/notes.mjs check --all (note folders outside docs/ are read only with --all). Fix every broken link this turn caused and report the ones that were already there.",
+      "skill": "notes-vault"
+    },
+    {
+      "tag": "package-dry-run",
+      "rule": "4",
+      "when": {
+        "skillUsed": "package-release",
+        "filesChanged": [
+          "**/package.json",
+          "**/Cargo.toml",
+          "**/pyproject.toml",
+          "**/setup.py",
+          "**/setup.cfg",
+          "**/__init__.py",
+          "**/_version.py",
+          "**/version.py",
+          "**/pubspec.yaml",
+          "**/*.csproj",
+          "**/*.fsproj",
+          "**/Directory.Build.props",
+          "**/*.gemspec",
+          "**/version.rb",
+          "**/composer.json",
+          "**/build.gradle",
+          "**/build.gradle.kts",
+          "**/gradle.properties",
+          "**/pom.xml",
+          "**/CHANGELOG*",
+          "**/CHANGES*",
+          "**/HISTORY*",
+          "**/NEWS*"
+        ],
+        "filesIgnore": [
+          "skills/**",
+          "library/**",
+          "packs/**",
+          ".claude/**",
+          "tools/**"
+        ]
+      },
+      "require": {
+        "toolRan": "\\b(npm|pnpm|yarn|bun)\\s+pack\\b|\\b(npm|pnpm|yarn)\\s+publish\\b[^\\n;&|]*--dry-run|\\bcargo\\s+package\\b|\\bcargo\\s+publish\\b[^\\n;&|]*--dry-run|\\btwine\\s+check\\b|\\b(python3?|py)\\s+-m\\s+build\\b|\\b(uv|poetry|hatch|pdm|flit)\\s+build\\b|\\b(dart|flutter)\\s+pub\\s+publish\\b[^\\n;&|]*--dry-run|\\bdotnet\\s+pack\\b|\\bgem\\s+build\\b|\\bpublishToMavenLocal\\b|\\bmvnw?\\b[^\\n;&|]*\\b(package|verify|install)\\b|\\bvsce\\s+(package|ls)\\b"
+      },
+      "message": "Package-release skill: preview the package before it goes out. Run its dry run this turn (npm pack --dry-run, cargo package --list, python -m build then twine check dist/*, dart pub publish --dry-run, dotnet pack, gem build) and read the file list: no secrets, no private fixtures, license and entry points present.",
+      "skill": "package-release"
+    },
+    {
+      "tag": "routines-checked",
+      "rule": "4",
+      "when": {
+        "filesChanged": [
+          "docs/routines.md"
+        ]
+      },
+      "require": {
+        "toolPassed": {
+          "cmd": "routines\\.mjs\\s+(check|done|add)\\b",
+          "pass": "RESULT: PASS",
+          "selfRun": "node skills/routines/scripts/routines.mjs check"
+        }
+      },
+      "message": "Routines skill: docs/routines.md changed, so validate it: node skills/routines/scripts/routines.mjs check must print RESULT: PASS (a known Every, an existing runbook, Last run as YYYY-MM-DD or never). Fix every problem it lists.",
+      "skill": "routines"
+    },
+    {
+      "tag": "client-verified",
+      "rule": "4",
+      "when": {
+        "skillUsed": "web-app-patterns",
+        "filesChanged": [
+          "**/*.tsx",
+          "**/*.jsx",
+          "**/*.vue",
+          "**/*.svelte",
+          "**/*.astro",
+          "src/**/*.ts",
+          "src/**/*.js",
+          "src/**/*.mjs",
+          "app/**/*.ts",
+          "app/**/*.js",
+          "components/**",
+          "pages/**",
+          "routes/**"
+        ]
+      },
+      "require": {
+        "toolRan": "\\b(vitest|jest|playwright\\s+test|cypress\\s+run|(npm|pnpm|yarn|bun)\\s+(run\\s+)?(test|typecheck|type-check|check)|node\\s+--test|tsc|vue-tsc|svelte-check|nuxi\\s+typecheck|ng\\s+test)\\b|client-secrets\\.mjs"
+      },
+      "message": "Web-app-patterns skill: client code changed, so prove it: run the component tests (npx vitest run, npx jest, npm test) or the type check (npx tsc --noEmit, npx vue-tsc --noEmit, npx svelte-check), and before a build ships run node skills/web-app-patterns/scripts/client-secrets.mjs . and fix every FAIL.",
+      "skill": "web-app-patterns"
     }
   ]
 }

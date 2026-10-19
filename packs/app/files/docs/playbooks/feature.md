@@ -16,7 +16,9 @@ through the gui-review-loop.
 - Which parts of the code it touches, and the existing patterns there.
 
 ## Steps
-Library skills, when the project has them: **frontend-design** for screens, **backend-patterns** for server code,
+Always: the **modular-code** skill (`skills/modular-code/SKILL.md`): the feature in its own module with one public entry,
+names from `docs/names.json`, settings from config, an extension point when there will be "more of these". Library
+skills, when the project has them: **frontend-design** for screens, **backend-patterns** for server code,
 **mcp-builder** for an MCP server.
 1. **Spec** in `docs/specs/<feature>.md` (copy `docs/specs/_TEMPLATE.md`):
    - what the user wants and why, as principles in your own words, dated;

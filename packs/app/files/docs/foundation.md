@@ -43,6 +43,7 @@ The project-wide baseline is `docs/security.md`. These rows add what an app need
 | Screens: phone width, tablet, desktop, zoom; light and dark themes (a game: resolutions and aspect ratios; a CLI: --help and plain error messages) | <...> |
 | Undo and safety: destructive actions confirmed in-app or undoable; nothing lost silently | <...> |
 | Design tokens: the one file for colors (light and dark), type scale, spacing, radius, motion; screens use tokens, never raw values | <...> |
+| Modules: the layout (one folder per feature, one public entry each), the config module, the names module (from docs/names.json), and the extension points (what there will be "more of": payment methods, export formats, screens, plugins) | <...> |
 | Design direction: the look in one line, and the one thing people should remember (frontend-design skill, if enabled) | <...> |
 
 ## 4. Quality gates for this app

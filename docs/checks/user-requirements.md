@@ -40,3 +40,5 @@ The rows below are the starter's own design requirements. A project keeps them a
 | 29 | 2026-10-18 | .gitignore is checked before every push, in this starter and in every project made from it | 15 | gitignore-ready |
 | 30 | 2026-10-18 | Setup, adopting and upgrading explain every choice in plain words (what it does, what you will notice), and always offer to let the AI decide | SETUP-PROMPT.md | setup-interview, setup-complete |
 | 31 | 2026-10-18 | Setup reads the project (documents, code, data, earlier AI instructions) to understand it before asking anything | SETUP-PROMPT.md | setup-interview |
+| 32 | 2026-10-19 | When the user is upset, the miss is fixed and the project learns from it in the place that stops it happening again; lessons about the engine reach every project | 3 | upset-learned, friction-suspend |
+| 33 | 2026-10-19 | Names are variables and app code is modular, so a project can grow and be renamed without rewrites | 17, app pack | name-var, modular-code |

@@ -249,9 +249,20 @@ const STOP = [
     answer: 'Skill: research. Sources: https://a.com' + FIN, expect: { block: true, tags: ['knowledge-changelog'] } },
   { name: 'rule request with nothing written: blocked', prompt: 'from now on always include a budget table in plans', answer: 'Got it, I will.',
     expect: { block: true, tags: ['rule-request'] } },
-  // Lesson: a complaint got a frustration hint, but nothing made it a rule, and it was asked for a new runbook instead
-  { name: 'rule-request: a complaint about a miss, fixed but not made a rule: blocked', prompt: 'you forgot to add the allergens again!!', files: { 'docs/menu.md': 'Croissant (gluten, milk)' },
-    answer: 'Added the allergens to the menu.' + FIN, expect: { block: true, tags: ['rule-request'], not: ['runbook-exists'] } },
+  // Lesson: complaints were answered with an apology and a fix, and the same miss came back the next week
+  { name: 'upset-learned: a complaint fixed but nothing learned: blocked', prompt: 'you forgot to add the allergens again!!', files: { 'docs/menu.md': 'Croissant (gluten, milk)' },
+    answer: 'Added the allergens to the menu.' + FIN, expect: { block: true, tags: ['upset-learned'], not: ['runbook-exists', 'rule-request'] } },
+  { name: 'upset-learned: the lesson named, but its file never changed: blocked', prompt: 'you forgot to add the allergens again!!', files: { 'docs/menu.md': 'Croissant (gluten, milk)' },
+    answer: 'Added the allergens to the menu.\nLearned (rule): every menu item lists its allergens → AGENTS.md' + FIN, expect: { block: true, tags: ['upset-learned'] } },
+  { name: 'upset-learned: "again" with only a one-off note: blocked', prompt: 'you forgot to add the allergens again!!', files: { 'docs/menu.md': 'Croissant (gluten, milk)', 'docs/lessons.md': '- 2026-10-19: allergens missed' },
+    answer: 'Added the allergens to the menu.\nLearned (one-off): allergens were missed → docs/lessons.md' + FIN, expect: { block: true, tags: ['upset-learned'] } },
+  { name: 'upset-learned: an engine lesson kept in one project: blocked', removeMarker: true, prompt: 'ugh, that check fired for nothing again', files: { 'docs/lessons.md': '- 2026-10-19: the check misfires' },
+    answer: 'Learned (engine): the check misfires on menus → docs/lessons.md' + FIN, expect: { block: true, tags: ['upset-learned'] } },
+  { name: 'upset-learned: fixed, and the lesson written where it stops the next miss: passes', prompt: 'you forgot to add the allergens again!!', tools: [pb('project')],
+    files: { 'docs/menu.md': 'Croissant (gluten, milk)', 'docs/playbooks/menu.md': '---\nname: menu\nsummary: menus\ntriggers: menu card\nchecks: none - a test runbook\n---\n# Playbook: menu\n## Pitfalls\n- Every item lists its allergens.\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Added the allergens to the menu. Playbook: project.md.\nLearned (lesson): every menu item lists its allergens, a step the menu runbook lacked → docs/playbooks/menu.md' + FIN, expect: { not: ['upset-learned', 'rule-request'] } },
+  { name: 'upset-learned: upset about something outside the project, said so: passes', prompt: 'ugh the wifi died again, what was I saying', answer: 'You were planning the spring menu. N/A(upset-learned): the wifi is outside the project.',
+    expect: { not: ['upset-learned'] } },
   { name: 'rule request fully enforced: passes', prompt: 'from now on always include a budget table in plans', tools: [pb('project'), bash('node tools/hooks/selfcheck.mjs'), bash('node tools/audit.mjs')],
     files: { ...MEM, 'CLAUDE.md': TWIN, 'docs/checks/user-requirements.md': 'row', 'tools/hooks/requirements.json': '{"requirements":[]}', 'docs/CHANGELOG.md': 'x', 'docs/checks/rule-enforcement.md': 'row' },
     answer: 'Playbook: project.md. Rule added.' + FIN, expect: { block: false } },
@@ -461,7 +472,7 @@ const STOP = [
     active: true, blocks: 1, failed: ['finished-summary'], answer: 'Skill: debug. Root cause: the date parser.' + FIN, expect: { block: false, not: ['skill-learn'] } },
   { name: 'skill followed, user complains, lesson written into the skill: passes', prompt: 'you forgot the logs, debug the failing import', tools: [sk('debug'), pb('project'), bash('node tools/audit.mjs')],
     files: { 'notes/import.md': 'x', 'docs/CHANGELOG.md': 'x', 'skills/debug/references.md': '# refs\n- Pitfall: read the logs first.' },
-    answer: 'Skill: debug. Playbook: project.md. Root cause: the date parser.' + FIN, expect: { block: false } },
+    answer: 'Skill: debug. Playbook: project.md. Root cause: the date parser.\nLearned (lesson): read the logs before guessing → skills/debug/references.md' + FIN, expect: { block: false } },
   { name: 'skill followed after a blocked draft, not its fault: passes with a stated reason', prompt: 'debug the failing import', tools: [sk('debug')], drafts: ['Fixed it.'],
     files: { 'notes/import.md': 'x', 'docs/CHANGELOG.md': 'x' }, answer: 'Skill: debug. Root cause: the date parser.\nSkill lesson: none - the draft only lacked its summary.' + FIN, expect: { block: false } },
   { name: 'skill followed after a blocked draft, the skill\'s own check failed, no lesson: blocked', prompt: 'debug the failing import', tools: [sk('debug')], drafts: ['Fixed it.'], active: true, blocks: 1, failed: ['debug-root-cause', 'finished-summary'],
@@ -581,7 +592,8 @@ const PROMPT = [
   { name: 'NO RUNBOOK hint for an unrouted task', prompt: 'build me a cleaning rota for the flat', has: ['NO RUNBOOK'] },
   { name: 'rule request hint', prompt: 'from now on always give prices in euros', has: ['RULE REQUEST'] },
   { name: 'word routing: key words in any order and with endings still route', prompt: 'please search for the latest version on the web', has: ['SKILL: research'] },
-  { name: 'frustration hint (caps)', prompt: 'WHY DID YOU SKIP THE SOURCES AGAIN', has: ['FRUSTRATED'] },
+  { name: 'upset-learned: shouting in capitals sends the agent to the learn-from-upset skill', prompt: 'WHY DID YOU SKIP THE SOURCES AGAIN', has: ['THE USER SOUNDS UPSET', 'learn-from-upset'] },
+  { name: 'upset-learned: a calm request gets no upset hint', prompt: 'please add the sources to the desk note', hasNot: ['THE USER SOUNDS UPSET'] },
   { name: 'menu code expands', prompt: 'K2 standing desks under 500 --brief', has: ['MENU CODE K2', 'MENU FLAG --brief', 'ROUTE: research'] },
   { name: 'unknown menu code asks', prompt: 'Z9 do the thing', has: ['UNKNOWN MENU CODE Z9'] },
   { name: 'notification is not a prompt', prompt: '<task-notification>agent done</task-notification>', none: true },
@@ -699,6 +711,13 @@ STOP.push(
     answer: 'Skill: security-review.\n\n| Area | Result | Evidence |\n|---|---|---|\n| Secrets | PASS | an env var keeps it out of files |', expect: { not: ['security-logged'] } },
   { name: 'hardening without a saved plan: blocked', prompt: 'harden the app', tools: [sk('security-hardening')], answer: 'Skill: security-hardening. Hardened.',
     expect: { block: true, tags: ['hardening-plan'] } },
+  // Lesson: an app hard-coded its API address and reached into another feature's files, and the next feature needed a rewrite
+  { pack: 'app', name: 'modular-code: a URL typed into code and a private import: blocked', prompt: 'add the orders screen', tools: [pb('feature')],
+    files: { 'src/features/orders/api.js': 'import { tax } from "../billing/internal/tax.js";\nexport const BASE = "https://api.shop-example.net/v1";\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Playbook: feature.md.' + VERIF + FIN, expect: { block: true, tags: ['modular-code'] } },
+  { pack: 'app', name: 'modular-code: settings from config and the other module through its entry: passes', prompt: 'add the orders screen', tools: [pb('feature')],
+    files: { 'src/features/orders/api.js': 'import { tax } from "../billing/index.js";\nimport { config } from "../../config.js";\nexport const base = config.apiBase;\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Playbook: feature.md.' + VERIF + FIN, expect: { not: ['modular-code'] } },
   { name: 'server code changed without tests: blocked', prompt: 'add a rest api endpoint for orders', tools: [sk('backend-patterns')], files: { 'src/orders.js': 'export const list = () => [];\n', 'docs/CHANGELOG.md': 'x' },
     answer: 'Skill: backend-patterns.' + FIN, expect: { block: true, tags: ['backend-tested'] } },
   { name: 'codebase map not saved: blocked', prompt: 'map the codebase for me', tools: [sk('codebase-map')], answer: 'Skill: codebase-map. Here is the map.',
@@ -709,6 +728,43 @@ STOP.push(
     expect: { block: true, tags: ['ledger-checked'] } },
   { name: 'mcp server without the tool lint: blocked', prompt: 'build an mcp server for the notes', tools: [sk('mcp-builder')], answer: 'Skill: mcp-builder. Built.',
     expect: { block: true, tags: ['mcp-linted'] } },
+  // correspondence (library)
+  { name: 'correspondence: draft shown but never saved: blocked', prompt: 'email the supplier about the missing sacks', tools: [sk('correspondence')], answer: 'Skill: correspondence. Subject: Order 2041: 2 sacks missing. Hello, ... It was not sent.' + FIN, expect: { block: true, tags: ['correspondence-draft-saved'] } },
+  { name: 'correspondence: draft saved but the answer never says it was not sent: blocked', prompt: 'email the supplier about the missing sacks', tools: [sk('correspondence'), bash('node skills/correspondence/scripts/draft-check.mjs outputs/drafts/2026-10-19-supplier-missing-sacks.md --facts sources/order-2041.md', 'RESULT: PASS')], files: { 'outputs/drafts/2026-10-19-supplier-missing-sacks.md': 'To: supplier (email)\n\nSubject: Order 2041: 2 sacks missing\n\nHello,\n' }, answer: 'Skill: correspondence. Draft saved, ready to go.' + FIN, expect: { block: true, tags: ['correspondence-draft-saved'] } },
+  { name: 'correspondence: draft saved in outputs/drafts and stated as not sent: passes', prompt: 'email the supplier about the missing sacks', tools: [sk('correspondence'), bash('node skills/correspondence/scripts/draft-check.mjs outputs/drafts/2026-10-19-supplier-missing-sacks.md --facts sources/order-2041.md', 'RESULT: PASS')], files: { 'outputs/drafts/2026-10-19-supplier-missing-sacks.md': 'To: supplier (email)\n\nSubject: Order 2041: 2 sacks missing\n\nHello,\n' }, answer: 'Skill: correspondence. The draft is below. It was not sent: fill in [delivery date?] before you send it.' + FIN, expect: { not: ['correspondence-draft-saved'] } },
+  // data-pipeline (library)
+  { name: 'new pipeline input without the schema check: blocked', prompt: 'the new batch of data arrived, run the pipeline', tools: [sk('data-pipeline')], files: { 'data/raw/orders-2026-03-01.csv': 'order_id,amount\n1,5\n' }, answer: 'Skill: data-pipeline. Loaded the batch.', expect: { block: true, tags: ['pipeline-schema-checked'] } },
+  { name: 'new pipeline input checked against its schema: passes', prompt: 'the new batch of data arrived, run the pipeline', tools: [sk('data-pipeline'), bash('node skills/data-pipeline/scripts/schema-check.mjs data/raw/orders-2026-03-01.csv data/schemas/orders.schema.json', 'rows: 1, columns: 2\nRESULT: PASS')], files: { 'data/raw/orders-2026-03-01.csv': 'order_id,amount\n1,5\n' }, answer: 'Skill: data-pipeline. The batch passed its schema check and was loaded.' + FIN, expect: { not: ['pipeline-schema-checked'] } },
+  // dependency-update (library)
+  { name: 'dependency added without gates after: blocked', prompt: 'add a dependency for date parsing', tools: [sk('dependency-update'), bash('npm install dayjs@1.11.13', 'added 1 package')], files: { 'package.json': '{"dependencies":{"dayjs":"^1.11.13"}}', 'package-lock.json': '{}' }, answer: 'Skill: dependency-update. Added dayjs. Worth it: small date library / one more package.', expect: { block: true, tags: ['dependency-gates-compared'] } },
+  { name: 'dependency added with tests before and after: passes', prompt: 'add a dependency for date parsing', tools: [sk('dependency-update'), bash('npm test', '12 passing'), bash('npm install dayjs@1.11.13', 'added 1 package'), bash('npm test', '12 passing')], files: { 'package.json': '{"dependencies":{"dayjs":"^1.11.13"}}', 'package-lock.json': '{}' }, answer: 'Skill: dependency-update. Added dayjs. Worth it: small date library / one more package. Before/after: tests 12 pass -> 12 pass.' + FIN, expect: { not: ['dependency-gates-compared'] } },
+  // game-dev (library)
+  { name: 'game script changed without export or tests: blocked', prompt: 'make the player jump higher in godot', tools: [sk('game-dev')], files: { 'scripts/player.gd': 'x' }, answer: 'Skill: game-dev. The player jumps higher now.' + FIN, expect: { block: true, tags: ['game-smoke-ran'] } },
+  { name: 'game script changed, then exported and smoke-started: passes', prompt: 'make the player jump higher in godot', tools: [sk('game-dev'), bash('node skills/game-dev/scripts/export-smoke.mjs --preset Linux --out builds/linux/game.x86_64', 'ok   export\nok   smoke\nRESULT: PASS')], files: { 'scripts/player.gd': 'x' }, answer: 'Skill: game-dev. The player jumps higher; the export and smoke start pass.' + FIN, expect: { not: ['game-smoke-ran'] } },
+  // manuscript (library)
+  { name: 'manuscript: chapter checked with no names script and no Continuity line: blocked', prompt: 'check continuity in chapter 4 against the character notes', tools: [sk('manuscript')], answer: 'Skill: manuscript. Chapter 4 looks consistent with the notes.', expect: { block: true, tags: ['continuity-checked'] } },
+  { name: 'manuscript: the names script ran: passes', prompt: 'check continuity in chapter 4 against the character notes', tools: [sk('manuscript'), bash('node skills/manuscript/scripts/continuity.mjs chapters --style docs/knowledge/style-sheet.md', 'Variants (1):\n  - "Lindqvist" and "Lindquist" may be one name spelled two ways\nRESULT: FAIL 1 variant(s) to decide')], files: { 'outputs/continuity-ch04.md': '# Continuity: chapter 4\n| Place | Text | Notes | Fix |\n' }, answer: 'Skill: manuscript. One name is spelled two ways; the report lists it with a suggested fix.' + FIN, expect: { not: ['continuity-checked'] } },
+  { name: 'manuscript: summaries only, with a Continuity line: passes', prompt: 'summarize the chapters of my novel', tools: [sk('manuscript')], answer: 'Skill: manuscript. Chapter summaries are below.\n\nContinuity: not checked this turn (summaries only)', expect: { not: ['continuity-checked'] } },
+  // ml-experiments (library)
+  { name: 'ml experiment trained without a log row: blocked', prompt: 'train the model with depth 6', tools: [sk('ml-experiments'), bash('python src/train.py --depth 6', 'val auc 0.81')], files: { 'src/train.py': 'x' }, answer: 'Skill: ml-experiments. Trained it, validation AUC 0.81.' + FIN, expect: { block: true, tags: ['experiment-logged'] } },
+  { name: 'ml experiment trained and logged: passes', prompt: 'train the model with depth 6', tools: [sk('ml-experiments'), bash('python src/train.py --depth 6', 'val auc 0.81'), bash('node skills/ml-experiments/scripts/exp-log.mjs add experiments/log.md --name gbm-d6 --data data/processed --params depth=6 --seed 42 --score auc=0.81+-0.01', 'RESULT: PASS')], files: { 'src/train.py': 'x', 'experiments/log.md': '| date | name | data | commit | params | seed | score | notes |\n|---|---|---|---|---|---|---|---|\n| 2026-10-17 | gbm-d6 | data/processed sha256:abc | 1a2b3c | depth=6 | 42 | auc=0.81+-0.01 |  |\n' }, answer: 'Skill: ml-experiments. Trained and logged gbm-d6, validation AUC 0.81.' + FIN, expect: { not: ['experiment-logged'] } },
+  // mobile-app (library)
+  { name: 'mobile screen changed without analyzer or tests: blocked', prompt: 'add a settings screen to the flutter app', tools: [sk('mobile-app')], files: { 'lib/settings_screen.dart': 'x' }, answer: 'Skill: mobile-app. Added the settings screen.' + FIN, expect: { block: true, tags: ['mobile-checked'] } },
+  { name: 'mobile screen changed, then analyzed and tested: passes', prompt: 'add a settings screen to the flutter app', tools: [sk('mobile-app'), bash('flutter analyze', 'No issues found!'), bash('flutter test', 'All tests passed!')], files: { 'lib/settings_screen.dart': 'x' }, answer: 'Skill: mobile-app. Added the settings screen; flutter analyze and flutter test pass.' + FIN, expect: { not: ['mobile-checked'] } },
+  // notes-vault (library)
+  { name: 'notes-vault: a note changed without the link check: blocked', prompt: 'update the note on sleep in my vault with the new study', tools: [sk('notes-vault')], files: { 'Notes/Sleep.md': '# Sleep\n- Adults need 7 to 9 hours (sources/sleep-study.pdf, checked 2026-10-19)\n\n## Related\n- [Caffeine](Caffeine.md): affects sleep\n' }, answer: 'Skill: notes-vault. Added the finding to Notes/Sleep.md with its source and date.' + FIN, expect: { block: true, tags: ['vault-links-checked'] } },
+  { name: 'notes-vault: a note changed and the link check ran: passes', prompt: 'update the note on sleep in my vault with the new study', tools: [sk('notes-vault'), bash('node skills/obsidian/scripts/notes.mjs check --all', 'NOTES: every link resolves')], files: { 'Notes/Sleep.md': '# Sleep\n- Adults need 7 to 9 hours (sources/sleep-study.pdf, checked 2026-10-19)\n\n## Related\n- [Caffeine](Caffeine.md): affects sleep\n' }, answer: 'Skill: notes-vault. Added the finding to Notes/Sleep.md with its source and date. Every link resolves.' + FIN, expect: { not: ['vault-links-checked'] } },
+  // package-release (library)
+  { name: 'package version set without a dry run: blocked', prompt: 'publish the crate to crates.io', tools: [sk('package-release')], files: { 'Cargo.toml': '[package]\nname = "x"\nversion = "0.3.0"\n', 'CHANGELOG.md': '## 0.3.0' }, answer: 'Skill: package-release. Version set to 0.3.0.', expect: { block: true, tags: ['package-dry-run'] } },
+  { name: 'package version set and contents previewed: passes', prompt: 'publish the crate to crates.io', tools: [sk('package-release'), bash('cargo package --list', 'Cargo.toml\nLICENSE\nREADME.md\nsrc/lib.rs')], files: { 'Cargo.toml': '[package]\nname = "x"\nversion = "0.3.0"\n', 'CHANGELOG.md': '## 0.3.0' }, answer: 'Skill: package-release. Version 0.3.0, contents previewed: 4 files. Waiting for your OK to publish.' + FIN, expect: { not: ['package-dry-run'] } },
+  // routines (library)
+  { name: 'routines: docs/routines.md changed without the check: blocked', prompt: 'make the order plan every monday', tools: [sk('routines')], files: { 'docs/routines.md': '# Routines\n| Routine | Every | Runbook | Last run |\n|---|---|---|---|\n| Order plan | monday | docs/playbooks/plan.md | never |\n' }, answer: 'Skill: routines. Added the routine; it comes up when you open a session on or after a Monday.' + FIN, expect: { block: true, tags: ['routines-checked'] } },
+  { name: 'routines: docs/routines.md changed and the check passed: passes', prompt: 'make the order plan every monday', tools: [sk('routines'), bash('node skills/routines/scripts/routines.mjs check', 'RESULT: PASS docs/routines.md (1 routines)')], files: { 'docs/routines.md': '# Routines\n| Routine | Every | Runbook | Last run |\n|---|---|---|---|\n| Order plan | monday | docs/playbooks/plan.md | never |\n' }, answer: 'Skill: routines. Added the routine; it comes up when you open a session on or after a Monday.' + FIN, expect: { not: ['routines-checked'] } },
+  { name: 'routines: a check that failed does not count: blocked', prompt: 'make the order plan every monday', tools: [sk('routines'), bash('node skills/routines/scripts/routines.mjs check', 'RESULT: FAIL 1 problem(s) in docs/routines.md')], files: { 'docs/routines.md': '# Routines\n| Routine | Every | Runbook | Last run |\n|---|---|---|---|\n| Order plan | fortnight | docs/playbooks/plan.md | never |\n' }, answer: 'Skill: routines. Added the routine.' + FIN, expect: { block: true, tags: ['routines-checked'] } },
+  // web-app-patterns (library)
+  { name: 'web-app-patterns: client code changed without tests or a type check: blocked', prompt: 'add form validation to the signup form', tools: [sk('web-app-patterns')], files: { 'src/SignupForm.tsx': 'export const SignupForm = () => null;' }, answer: 'Skill: web-app-patterns. Added validation to the signup form.' + FIN, expect: { block: true, tags: ['client-verified'] } },
+  { name: 'web-app-patterns: client code changed and the tests ran: passes', prompt: 'add form validation to the signup form', tools: [sk('web-app-patterns'), bash('npx vitest run', ' Test Files  1 passed (1)\n      Tests  3 passed (3)')], files: { 'src/SignupForm.tsx': 'export const SignupForm = () => null;', 'src/SignupForm.test.tsx': 'test' }, answer: 'Skill: web-app-patterns. Added validation; npx vitest run: 3 passed.' + FIN, expect: { not: ['client-verified'] } },
+  { name: 'web-app-patterns: the secrets scan counts as the check: passes', prompt: 'is my NEXT_PUBLIC_ key safe', tools: [sk('web-app-patterns'), bash('node skills/web-app-patterns/scripts/client-secrets.mjs .', 'Scanned 1 .env file(s), 4 source file(s), 0 bundle file(s).\nRESULT: PASS')], files: { 'src/config.ts': 'export const url = process.env.NEXT_PUBLIC_API_URL;' }, answer: 'Skill: web-app-patterns. The scan passed.' + FIN, expect: { not: ['client-verified'] } },
   { pack: 'app', name: 'bugfix that never states the root cause: blocked', prompt: 'the export is broken, fix it', tools: [pb('bugfix')], files: { 'src/export.js': 'x', 'tests/export.test.js': 'test' },
     answer: 'Playbook: bugfix.md. Fixed it.\n' + VERIF + FIN, expect: { block: true, tags: ['root-cause-stated'] } },
   { name: 'plan written but not saved: blocked', prompt: 'make a plan for the csv export', tools: [pb('plan')], answer: 'Playbook: plan.md. Here is the plan: 1. a 2. b', expect: { block: true, tags: ['plan-saved'] } },
@@ -1009,6 +1065,7 @@ function runStop(s) {
   try {
     const since = Date.now() - 1000;
     if (s.usage) write(dir, { 'tools/hooks/state/runbook-usage.json': JSON.stringify(s.usage) });
+    if (s.removeMarker) fs.rmSync(path.join(dir, '.starter-template'), { force: true }); // a project, not the starter
     applyEdits(dir, s.edit, since - 3600_000);
     if (s.prep) s.prep(dir);
     const tp = transcript(dir, s, since);
@@ -1466,6 +1523,25 @@ if (!TAGS) { // the standalone checks run in a full run only
     const after = lost();
     report(/billing/.test(before) && !/pytest/.test(before) && !after.trim(), 'adoption: a rule lost in the merge is found; a reworded or dropped-with-reason rule passes', `${before.slice(0, 200)} | ${after.slice(0, 100)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+{ // one project's lesson about the engine reaches the starter on its own, and the starter announces it
+  // Lesson: a check one project found annoying was suspended there, and every other project kept the same problem
+  const P = copyProject(), S = copyProject();
+  try {
+    fs.rmSync(path.join(P, '.starter-template'), { force: true });
+    fs.writeFileSync(path.join(P, 'tools/starter.local.json'), JSON.stringify({ path: S }));
+    fs.mkdirSync(path.join(P, 'tools/hooks/state'), { recursive: true });
+    fs.writeFileSync(path.join(P, 'tools/hooks/state/friction-turn.json'), JSON.stringify({ key: 'k', items: ['check:plain-writing'] }));
+    fs.writeFileSync(path.join(P, 'tools/hooks/state/friction.json'), JSON.stringify({ 'check:plain-writing': [1, 1, 0] }));
+    const pr = run(P, 'prompt', { prompt: 'ugh, stop flagging my wording again' }).out;
+    const fb = fs.existsSync(path.join(P, 'docs/starter-feedback.md')) ? fs.readFileSync(path.join(P, 'docs/starter-feedback.md'), 'utf8') : '';
+    run(P, 'session', { source: 'startup' });
+    const inbox = fs.existsSync(path.join(S, 'docs/feedback-inbox')) ? fs.readdirSync(path.join(S, 'docs/feedback-inbox')).map(f => fs.readFileSync(path.join(S, 'docs/feedback-inbox', f), 'utf8')).join('\n') : '';
+    const ss = run(S, 'session', { source: 'startup' }).out;
+    report(/SUSPENDED check:plain-writing/.test(pr) && /check:plain-writing was suspended in a project/.test(fb) && /check:plain-writing was suspended/.test(inbox) && /FEEDBACK FROM PROJECTS: d+ engine lesson/.test(ss),
+      'self-improve: an engine check that annoys a project is reported to the starter and announced there', `${pr.slice(0, 120)} | ${fb.slice(-120)} | ${inbox.slice(-120)} | ${(/FEEDBACK FROM PROJECTS[^\n]*/.exec(ss) || ['none'])[0].slice(0, 120)}`);
+  } finally { for (const d of [P, S]) fs.rmSync(d, { recursive: true, force: true }); }
 }
 
 { // two sessions in one folder: each keeps its own turn record, so one's request never becomes the other's

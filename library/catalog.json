@@ -657,6 +657,474 @@
           "message": "User-research skill: give every theme its count as \"n of N\" with quotes traced to participant IDs, or, for a study plan, name the decision it informs."
         }
       ]
+    },
+    {
+      "name": "correspondence",
+      "plain": "Emails and letters drafted, not sent",
+      "does": "Writes emails, messages and letters in your voice, takes every amount, date and order number from your own files, and saves each one as a draft for you to send.",
+      "outcome": "Ready-to-send drafts in outputs/drafts/ with the facts checked and any gaps marked for you to fill; nothing goes out unless you send it.",
+      "good": "You write to suppliers, customers, landlords, partners or officials about orders, invoices, complaints, reminders or replies, and want them right the first time.",
+      "costs": "One extra step per message (a facts check against the source files) and a draft file for each message and revision. Nothing for projects that never write to anyone.",
+      "summary": "Drafts correspondence by channel (email, letter, chat, official form) in the user's voice, traces every figure to project files with the zero-dependency draft-check.mjs (figures, placeholders, secrets, legal-threat wording), treats pasted messages as untrusted data with scam flags, saves to outputs/drafts/ as new versions, and sends only on an explicit OK.",
+      "for": "any",
+      "ask": "Will you ask the agent to write emails, messages or letters to other people (suppliers, customers, a landlord, officials) for you to send?",
+      "default": false,
+      "requirements": [
+        {
+          "tag": "correspondence-draft-saved",
+          "rule": "6",
+          "when": {
+            "skillUsed": "correspondence"
+          },
+          "require": {
+            "filesChanged": [
+              "outputs/drafts/**",
+              "profiles/*/outputs/drafts/**"
+            ],
+            "answerMatches": "\\bnot (been |yet )?sent\\b|\\bnothing (was|has been) sent\\b|\\bno se ha enviado\\b|\\bno (lo |la )?(he|hemos) enviado\\b|\\bsin enviar\\b"
+          },
+          "message": "Correspondence skill: save the draft as a new file in outputs/drafts/ (YYYY-MM-DD-<recipient>-<topic>.md), show it in the answer, and say plainly that it was not sent, with what the user must check before sending (placeholders, worked-out figures, tone)."
+        }
+      ]
+    },
+    {
+      "name": "data-pipeline",
+      "plain": "Repeatable data processing",
+      "does": "Keeps a process that turns incoming data files into reports trustworthy: the original files stay untouched and logged, each new file is checked against its expected columns before use, and every total is checked against the original data.",
+      "outcome": "Reports whose numbers can be traced back to the files they came from, and a clear stop when a new export arrives in a different shape.",
+      "good": "Projects that receive data exports or batches again and again (weekly sales, monthly logs, survey waves) and turn them into the same outputs each time.",
+      "costs": "A schema file per data source and a check before each run; little value for one-off questions about a single file (the data-analysis skill covers those).",
+      "summary": "Repeatable file pipelines: raw inputs immutable, dated and logged with row counts and checksums; schema check per input with the zero-dependency scripts/schema-check.mjs (columns, types, required, enum, range, pattern; RESULT: PASS/FAIL); schema changes as recorded decisions with fixtures; deterministic runs writing versioned outputs; totals reconciled against raw.",
+      "for": "any",
+      "ask": "Will this project process the same kind of data files again and again (weekly or monthly exports, batches) into reports or totals?",
+      "default": false,
+      "requirements": [
+        {
+          "tag": "pipeline-schema-checked",
+          "rule": "4",
+          "when": {
+            "skillUsed": "data-pipeline",
+            "filesChanged": [
+              "data/**",
+              "**/raw/**",
+              "**/*.csv",
+              "**/*.tsv",
+              "**/*.jsonl",
+              "**/*.ndjson",
+              "**/*.parquet",
+              "**/*.schema.json"
+            ],
+            "filesIgnore": [
+              "skills/**",
+              "library/**",
+              "packs/**",
+              ".claude/**",
+              "tools/**",
+              "docs/**",
+              "node_modules/**",
+              "**/test/**",
+              "**/tests/**",
+              "**/__tests__/**",
+              "**/fixtures/**",
+              "**/*.test.*",
+              "**/*_test.*"
+            ]
+          },
+          "require": {
+            "toolRan": "schema-check\\.mjs"
+          },
+          "message": "Data-pipeline skill: pipeline inputs changed. Check each new or changed input against its schema before any step uses it: node skills/data-pipeline/scripts/schema-check.mjs <input> <schema.json>. A FAIL stops the run: fix the source or record the schema change (section C)."
+        }
+      ]
+    },
+    {
+      "name": "dependency-update",
+      "plain": "Safe package updates",
+      "does": "Adds, upgrades or removes the code libraries the app uses one at a time, checks each for license, upkeep and known security holes, and runs the tests before and after.",
+      "outcome": "Updates that do not quietly break the app, a clear before and after for each one, and a rollback when one does break something.",
+      "good": "Apps that use packages from npm, PyPI, crates.io, pub.dev, NuGet and similar, especially monorepos and projects that get bot update requests.",
+      "costs": "A test run before and after each dependency change, so updates take a few minutes longer.",
+      "summary": "Dependency and framework/runtime changes across npm, pnpm, yarn, bun, pip, uv, poetry, cargo, go, dotnet, pub, bundler, composer, gradle and maven: need, license, maintenance and vulnerability vetting, smallest change in the right workspace, before/after gate comparison, one change per round, rollback on regression, recorded decision.",
+      "for": "app",
+      "ask": "Will this project add or upgrade third-party packages, frameworks or runtimes over time?",
+      "default": false,
+      "requirements": [
+        {
+          "tag": "dependency-gates-compared",
+          "rule": "4",
+          "when": {
+            "skillUsed": "dependency-update",
+            "filesChanged": [
+              "**/package.json",
+              "**/package-lock.json",
+              "**/npm-shrinkwrap.json",
+              "**/pnpm-lock.yaml",
+              "**/pnpm-workspace.yaml",
+              "**/yarn.lock",
+              "**/bun.lock",
+              "**/bun.lockb",
+              "**/requirements*.txt",
+              "**/pyproject.toml",
+              "**/uv.lock",
+              "**/poetry.lock",
+              "**/Pipfile",
+              "**/Pipfile.lock",
+              "**/Cargo.toml",
+              "**/Cargo.lock",
+              "**/go.mod",
+              "**/go.sum",
+              "**/*.csproj",
+              "**/*.fsproj",
+              "**/Directory.Packages.props",
+              "**/packages.lock.json",
+              "**/global.json",
+              "**/pubspec.yaml",
+              "**/pubspec.lock",
+              "**/Gemfile",
+              "**/Gemfile.lock",
+              "**/composer.json",
+              "**/composer.lock",
+              "**/build.gradle",
+              "**/build.gradle.kts",
+              "**/libs.versions.toml",
+              "**/gradle.lockfile",
+              "**/pom.xml",
+              "**/.nvmrc",
+              "**/.node-version",
+              "**/.python-version",
+              "**/rust-toolchain.toml",
+              "**/rust-toolchain"
+            ],
+            "filesIgnore": [
+              "skills/**",
+              "library/**",
+              "packs/**",
+              ".claude/**",
+              "tools/**"
+            ]
+          },
+          "require": {
+            "anyOf": [
+              {
+                "toolRan": "\\b(npm|pnpm|yarn|bun)\\b[^\\n;&|]*\\s(run\\s+)?(test|build|lint|typecheck|check)(?![\\w@/.-])|\\bnode\\s+--test\\b|\\bnpx\\s+(vitest|jest|tsc|playwright|mocha)\\b|\\bpytest\\b|\\bpython3?\\s+-m\\s+(pytest|unittest)\\b|\\b(tox|nox)\\b|\\bmypy\\b|\\bruff\\s+check\\b|\\bcargo\\s+(test|build|check|clippy)\\b|\\bgo\\s+(test|build|vet)\\b|\\bdotnet\\s+(test|build)\\b|\\b(flutter|dart)\\s+(test|analyze)\\b|\\bflutter\\s+build\\b|\\b(rspec|rake\\s+test|rails\\s+test)\\b|\\bphpunit\\b|\\bcomposer\\s+(test|run)\\b|\\b(gradlew|gradle|mvnw|mvn)\\b[^\\n;&|]*\\b(test|build|check|verify)\\b|\\bmake\\s+(test|check|build)\\b"
+              },
+              {
+                "answerMatches": "before/after\\s*:"
+              }
+            ]
+          },
+          "message": "Dependency-update skill: a manifest or lockfile changed. Run the same gates as before the change (tests, build, lint, type check) and compare them in the answer, one line per gate: \"Before/after: tests 214 pass -> 214 pass\". A gate that passed before and fails now means roll back (section G)."
+        }
+      ]
+    },
+    {
+      "name": "game-dev",
+      "plain": "Game builds and saves",
+      "does": "For games (Godot first, with notes for Unity and others), it exports and starts the game after each change, keeps motion smooth on any machine, keeps old save files loading, and checks sprite sizes.",
+      "outcome": "Builds that start on the first try, saves that survive updates, and sprites that line up on the grid.",
+      "good": "Godot, Unity or other game projects, especially ones that send builds to testers.",
+      "costs": "Each check runs an export, which takes a little time; Godot export templates must be installed by you.",
+      "summary": "Game procedure, Godot 4 first: headless build, test, export with a preset and a smoke start (export-smoke.mjs, RESULT: PASS/FAIL), frame-time budget and delta-based motion, input actions, versioned saves with migrations, a PNG grid check (sprite-check.mjs), playtest notes.",
+      "for": "app",
+      "ask": "Is this project a game (Godot, Unity or another engine)?",
+      "default": false,
+      "requirements": [
+        {
+          "tag": "game-smoke-ran",
+          "rule": "4",
+          "when": {
+            "skillUsed": "game-dev",
+            "filesChanged": [
+              "**/*.gd",
+              "**/*.tscn",
+              "**/*.tres",
+              "**/*.gdshader",
+              "**/*.cs",
+              "project.godot",
+              "export_presets.cfg",
+              "**/*.unity",
+              "**/*.prefab"
+            ]
+          },
+          "require": {
+            "toolRan": "export-smoke\\.mjs|\\bgodot[\\w.-]*\\b[^\\n;&|]*--headless[^\\n;&|]*(\\s-s\\s|--script|gut|gdunit|--export-(release|debug))|\\bdotnet\\s+test\\b|\\bUnity(\\.exe)?\\b[^\\n;&|]*-runTests\\b|\\bRunUAT\\b"
+          },
+          "message": "Game-dev skill: scenes or scripts changed, so build, test, export and start the game before reporting: node skills/game-dev/scripts/export-smoke.mjs --preset \"<preset>\" --out builds/<target>/<Game>.<ext> (or the engine tests: GUT, GdUnit4, dotnet test, Unity -runTests)."
+        }
+      ]
+    },
+    {
+      "name": "manuscript",
+      "plain": "Keeps a long book consistent",
+      "does": "Checks your chapters against your character, place and timeline notes and your style sheet, flags names spelled two ways, turns editor or reader notes into a revision plan, and writes chapter summaries, without rewriting your prose unless you ask.",
+      "outcome": "Continuity reports with each problem's place and a suggested fix, a style sheet that grows with the book, and a revision plan with one row per note for your decision.",
+      "good": "You are writing a novel, memoir, screenplay or long non-fiction book over many chapters and sessions, especially with notes on characters, places or a timeline.",
+      "costs": "A few extra minutes per check (reading the notes, running the names script). The style sheet and notes need keeping up for the checks to be useful.",
+      "summary": "Continuity checks against character, place and timeline notes with the zero-dependency continuity.mjs (capitalized terms per chapter, spelling variants by accent or edit distance, style sheet names and marked-wrong spellings), a style sheet, feedback turned into a revision plan, chapter summaries and pacing notes, and edits only on the author's explicit request; every answer ends with a Continuity: line.",
+      "for": "knowledge",
+      "ask": "Are you writing a book, script or other long text over many chapters that should stay consistent (names, characters, timeline)?",
+      "default": false,
+      "requirements": [
+        {
+          "tag": "continuity-checked",
+          "rule": "4",
+          "when": {
+            "skillUsed": "manuscript"
+          },
+          "require": {
+            "anyOf": [
+              {
+                "toolRan": "continuity\\.mjs"
+              },
+              {
+                "answerMatches": "^[ \\t>*_-]*continuity[*_]*\\s*:"
+              }
+            ]
+          },
+          "message": "Manuscript skill: run node skills/manuscript/scripts/continuity.mjs on the chapters (with --style for the style sheet), or end the answer with a line \"Continuity: <what was checked and found>\" (\"Continuity: not checked this turn (summaries only)\" when nothing was)."
+        }
+      ]
+    },
+    {
+      "name": "ml-experiments",
+      "plain": "Logged model experiments",
+      "does": "Every time a model is trained or scored, it writes down the data, code, settings and score, so the best model is picked from a record instead of from memory.",
+      "outcome": "An experiment log you can read back, scores you can repeat, and notebooks that are committed clean.",
+      "good": "Projects that train or tune machine-learning models, or keep Jupyter notebooks in git.",
+      "costs": "One log line per run and a little discipline about data splits; no use in projects without models.",
+      "summary": "Experiment tracking for ML: fixed seeds and splits without leakage, a Markdown experiment log with data hash and commit (exp-log.mjs), best-run selection from the log, and notebook output and secret stripping (nb-strip.mjs).",
+      "for": "app",
+      "ask": "Will this project train, tune or compare machine-learning models?",
+      "default": false,
+      "requirements": [
+        {
+          "tag": "experiment-logged",
+          "rule": "4",
+          "when": {
+            "skillUsed": "ml-experiments",
+            "toolRan": "\\b(python3?|py|uv\\s+run|poetry\\s+run|pixi\\s+run)\\b[^\\n;&|]*\\b\\w*(train|tune|fit|eval|experiment|sweep|cross_?val)\\w*|\\bjupyter\\s+(nbconvert\\b[^\\n;&|]*--execute|execute)\\b|\\bpapermill\\b|\\bdvc\\s+(exp\\s+run|repro)\\b|\\bmlflow\\s+run\\b"
+          },
+          "require": {
+            "filesChanged": [
+              "experiments/**",
+              "**/EXPERIMENTS.md",
+              "**/experiment-log*.md"
+            ]
+          },
+          "message": "ML-experiments skill: a model was trained or scored this turn, so log the run: node skills/ml-experiments/scripts/exp-log.mjs add experiments/log.md --name <run> --data <data> --params \"<k=v>\" --seed <n> --score \"<metric>=<value>+-<spread>\"."
+        }
+      ]
+    },
+    {
+      "name": "mobile-app",
+      "plain": "Phone app checks",
+      "does": "For phone apps, it runs the app checks after each change, looks at screens on a phone emulator, handles permissions and offline use, and prepares store releases as drafts you send yourself.",
+      "outcome": "Fewer surprises on real phones, version numbers that the stores accept, and nothing sent to a store without your OK.",
+      "good": "Flutter, React Native or Expo, SwiftUI or Jetpack Compose apps.",
+      "costs": "Needs an emulator or simulator for screen checks (iOS needs a Mac); no use for projects without a phone app.",
+      "summary": "Mobile app procedure for Flutter, React Native/Expo, SwiftUI and Compose: analyzer and tests after code changes, emulator screenshots via gui-review-loop, permissions, offline states, version and build bump check (app-version.mjs), signing keys out of git, store releases as drafts.",
+      "for": "app",
+      "ask": "Is this project a phone app (Android or iOS)?",
+      "default": false,
+      "requirements": [
+        {
+          "tag": "mobile-checked",
+          "rule": "4",
+          "when": {
+            "skillUsed": "mobile-app",
+            "filesChanged": [
+              "**/*.dart",
+              "**/*.kt",
+              "**/*.kts",
+              "**/*.java",
+              "**/*.swift",
+              "**/*.m",
+              "**/*.tsx",
+              "**/*.jsx",
+              "**/*.ts",
+              "**/*.js",
+              "android/**",
+              "ios/**",
+              "pubspec.yaml",
+              "app.json"
+            ]
+          },
+          "require": {
+            "toolRan": "\\b(flutter|dart)\\s+(analyze|test)\\b|\\bgradlew(\\.bat)?\\b[^\\n;&|]*\\b(test\\w*|lint\\w*|check)\\b|\\bxcodebuild\\b[^\\n;&|]*\\btest\\b|\\bswift\\s+test\\b|\\bnpx\\s+(jest|tsc|eslint|expo\\s+lint)\\b|\\b(npm|yarn|pnpm)\\s+(run\\s+)?(test|lint|typecheck)\\b"
+          },
+          "message": "Mobile-app skill: app code changed, so run the platform's checks before reporting: flutter analyze and flutter test, ./gradlew lint testDebugUnitTest, xcodebuild test, or npx tsc --noEmit / npx eslint . / npx jest."
+        }
+      ]
+    },
+    {
+      "name": "notes-vault",
+      "plain": "Your notes as the knowledge base",
+      "does": "Uses the notes folder you already keep (an Obsidian vault or plain Markdown notes) as the project's knowledge, where it is, adding facts with their source and date and linking new notes to related ones.",
+      "outcome": "Answers cite your own notes, new facts land in the right existing note instead of a duplicate, and links between notes keep working. No note is moved or renamed.",
+      "good": "You already keep notes in Obsidian or a folder of Markdown files and want the agent to read and extend them instead of starting a second knowledge base.",
+      "costs": "The link check runs after every note change (a second or two). Notes stay in your style, so facts may be formatted less uniformly than in docs/knowledge.",
+      "summary": "Registers existing note folders in knowledgeDirs (zero-dependency vault.mjs scan/find: note folders, link style, registration, topic search by title, aliases and text), keeps one note per topic with sources and dates in the vault's own format, links via the obsidian skill's notes.mjs suggest, and runs notes.mjs check --all after changes.",
+      "for": "knowledge",
+      "ask": "Do you already keep notes (an Obsidian vault or a folder of Markdown files) that the agent should use and extend where they are?",
+      "default": false,
+      "requirements": [
+        {
+          "tag": "vault-links-checked",
+          "rule": "12",
+          "when": {
+            "skillUsed": "notes-vault",
+            "filesChanged": [
+              "**/*.md"
+            ],
+            "filesIgnore": [
+              "docs/STATUS.md",
+              "docs/CHANGELOG.md",
+              "docs/DECISIONS.md",
+              "docs/glossary.md",
+              "docs/plans/**",
+              "outputs/**",
+              "skills/**",
+              "library/**",
+              "packs/**",
+              ".claude/**",
+              ".agents/**",
+              ".codex/**"
+            ]
+          },
+          "require": {
+            "toolRan": "notes\\.mjs\\s+check"
+          },
+          "message": "Notes-vault skill: notes changed, so run the link check: node skills/obsidian/scripts/notes.mjs check --all (note folders outside docs/ are read only with --all). Fix every broken link this turn caused and report the ones that were already there."
+        }
+      ]
+    },
+    {
+      "name": "package-release",
+      "plain": "Publishing packages",
+      "does": "Gets a library or command-line tool ready for a public package registry: picks the right version number, writes the changelog, checks for changes that would break users, and previews exactly which files go out.",
+      "outcome": "Releases with the right version number and only the files that belong in them, published only after you say so.",
+      "good": "Projects that publish a library or tool to npm, PyPI, crates.io, pub.dev, NuGet, RubyGems or Maven Central.",
+      "costs": "A dry run and an API check before each release; nothing for projects that never publish a package.",
+      "summary": "Registry releases: semver from user-visible changes, public API break checks per ecosystem, minimum supported version tested, package contents previewed with a dry run (npm pack --dry-run, cargo package --list, python -m build + twine check, dart pub publish --dry-run, dotnet pack), changelog and version together, publish behind the engine publish-gate and outward-gate.",
+      "for": "app",
+      "ask": "Will this project publish a library or command-line tool to a package registry such as npm, PyPI or crates.io?",
+      "default": false,
+      "requirements": [
+        {
+          "tag": "package-dry-run",
+          "rule": "4",
+          "when": {
+            "skillUsed": "package-release",
+            "filesChanged": [
+              "**/package.json",
+              "**/Cargo.toml",
+              "**/pyproject.toml",
+              "**/setup.py",
+              "**/setup.cfg",
+              "**/__init__.py",
+              "**/_version.py",
+              "**/version.py",
+              "**/pubspec.yaml",
+              "**/*.csproj",
+              "**/*.fsproj",
+              "**/Directory.Build.props",
+              "**/*.gemspec",
+              "**/version.rb",
+              "**/composer.json",
+              "**/build.gradle",
+              "**/build.gradle.kts",
+              "**/gradle.properties",
+              "**/pom.xml",
+              "**/CHANGELOG*",
+              "**/CHANGES*",
+              "**/HISTORY*",
+              "**/NEWS*"
+            ],
+            "filesIgnore": [
+              "skills/**",
+              "library/**",
+              "packs/**",
+              ".claude/**",
+              "tools/**"
+            ]
+          },
+          "require": {
+            "toolRan": "\\b(npm|pnpm|yarn|bun)\\s+pack\\b|\\b(npm|pnpm|yarn)\\s+publish\\b[^\\n;&|]*--dry-run|\\bcargo\\s+package\\b|\\bcargo\\s+publish\\b[^\\n;&|]*--dry-run|\\btwine\\s+check\\b|\\b(python3?|py)\\s+-m\\s+build\\b|\\b(uv|poetry|hatch|pdm|flit)\\s+build\\b|\\b(dart|flutter)\\s+pub\\s+publish\\b[^\\n;&|]*--dry-run|\\bdotnet\\s+pack\\b|\\bgem\\s+build\\b|\\bpublishToMavenLocal\\b|\\bmvnw?\\b[^\\n;&|]*\\b(package|verify|install)\\b|\\bvsce\\s+(package|ls)\\b"
+          },
+          "message": "Package-release skill: preview the package before it goes out. Run its dry run this turn (npm pack --dry-run, cargo package --list, python -m build then twine check dist/*, dart pub publish --dry-run, dotnet pack, gem build) and read the file list: no secrets, no private fixtures, license and entry points present."
+        }
+      ]
+    },
+    {
+      "name": "routines",
+      "plain": "Recurring jobs that come back",
+      "does": "When you ask for something every Monday or every month, it writes the job down with its schedule, and the project brings it up when it is due.",
+      "outcome": "Weekly and monthly jobs are announced when you open a session on or after their day, and none are quietly forgotten.",
+      "good": "The project has work that repeats on a schedule: weekly plans, monthly reports, regular checks.",
+      "costs": "A small table (docs/routines.md) to keep. Nothing runs while no session is open, unless you agree to set up your computer's scheduler.",
+      "summary": "Recurring work as docs/routines.md rows (Every, Runbook, Last run) announced by the session hook, with a zero-dependency routines.mjs (list, due, done, add, check, and an exported dueRoutines) and an opt-in path to OS schedulers.",
+      "for": "any",
+      "ask": "Will you ask for work that repeats on a schedule, like every Monday or each month?",
+      "default": false,
+      "requirements": [
+        {
+          "tag": "routines-checked",
+          "rule": "4",
+          "when": {
+            "filesChanged": [
+              "docs/routines.md"
+            ]
+          },
+          "require": {
+            "toolPassed": {
+              "cmd": "routines\\.mjs\\s+(check|done|add)\\b",
+              "pass": "RESULT: PASS",
+              "selfRun": "node skills/routines/scripts/routines.mjs check"
+            }
+          },
+          "message": "Routines skill: docs/routines.md changed, so validate it: node skills/routines/scripts/routines.mjs check must print RESULT: PASS (a known Every, an existing runbook, Last run as YYYY-MM-DD or never). Fix every problem it lists."
+        }
+      ]
+    },
+    {
+      "name": "web-app-patterns",
+      "plain": "Habits for web screen code",
+      "does": "Follows proven habits when writing the code behind web screens: where data is kept, loading and error states, forms, pages, tests, download size, and keeping secret keys out of what the browser downloads.",
+      "outcome": "Screens that don't show old or wrong data, forms that keep what people typed, tests run after each change, and no secret keys shipped to visitors.",
+      "good": "The project has web screens built with React, Vue, Svelte or plain TypeScript, or will have.",
+      "costs": "A test or type-check run after each change to screen code (seconds to a minute). Nothing for projects without web screens.",
+      "summary": "Client-side patterns for React, Vue, Svelte and plain TypeScript (state placement, request states and stale-response handling, forms, routes, typed props, component tests, bundle size, public-variable secrets) with a zero-dependency secrets scan of .env files, source and build output.",
+      "for": "gui",
+      "ask": "Will this project have web screens whose code (React, Vue, Svelte or plain TypeScript) the agent writes or changes?",
+      "default": false,
+      "requirements": [
+        {
+          "tag": "client-verified",
+          "rule": "4",
+          "when": {
+            "skillUsed": "web-app-patterns",
+            "filesChanged": [
+              "**/*.tsx",
+              "**/*.jsx",
+              "**/*.vue",
+              "**/*.svelte",
+              "**/*.astro",
+              "src/**/*.ts",
+              "src/**/*.js",
+              "src/**/*.mjs",
+              "app/**/*.ts",
+              "app/**/*.js",
+              "components/**",
+              "pages/**",
+              "routes/**"
+            ]
+          },
+          "require": {
+            "toolRan": "\\b(vitest|jest|playwright\\s+test|cypress\\s+run|(npm|pnpm|yarn|bun)\\s+(run\\s+)?(test|typecheck|type-check|check)|node\\s+--test|tsc|vue-tsc|svelte-check|nuxi\\s+typecheck|ng\\s+test)\\b|client-secrets\\.mjs"
+          },
+          "message": "Web-app-patterns skill: client code changed, so prove it: run the component tests (npx vitest run, npx jest, npm test) or the type check (npx tsc --noEmit, npx vue-tsc --noEmit, npx svelte-check), and before a build ships run node skills/web-app-patterns/scripts/client-secrets.mjs . and fix every FAIL."
+        }
+      ]
     }
   ]
 }

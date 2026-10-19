@@ -333,7 +333,7 @@ const GENERIC = new Set(['fix', 'add', 'added', 'save', 'make', 'get', 'use', 'c
 const OPINION = /\b(do|did|would|will) you (think|reckon|believe|feel|agree|prefer|suggest|recommend)\b|\bwhat do you (think|reckon|make of|suggest|recommend)\b|\bin your (opinion|view)\b|\byour (honest )?(opinion|view|take|thoughts)\b|\bhow do you feel\b|\bbased on what (we|you|i) (have|know|discussed|did|said)\b/i;
 // Text the user pasted, and text that is the hooks' own output, are not the user's words: they never route or count as
 // a request. Lesson: a pasted audit line ("... 26 sweeps") was taken as a request for 26 sweeps.
-const HOOK_MARK = /^\s*(-\s+)?(ROUTE|ROUTINES DUE|SKILL|NO RUNBOOK|RULE REQUEST|RECALL|MENU CODE|MENU FLAG|SCOPE|SETUP IN PROGRESS|BOOTSTRAP NEEDED|LAST WORK TURN|INBOX|STALE KNOWLEDGE|PRAISE|THE USER SOUNDS|SUSPENDED|FRICTION ON|UNKNOWN MENU|SKILL HARDENING|SKILL CLEANUP|UPGRADE REVIEW|OPEN PLANS|MUST FOLLOW|AUTONOMY)\b/;
+const HOOK_MARK = /^\s*(-\s+)?(ROUTE|ROUTINES DUE|FEEDBACK FROM PROJECTS|SKILL|NO RUNBOOK|RULE REQUEST|RECALL|MENU CODE|MENU FLAG|SCOPE|SETUP IN PROGRESS|BOOTSTRAP NEEDED|LAST WORK TURN|INBOX|STALE KNOWLEDGE|PRAISE|THE USER SOUNDS|SUSPENDED|FRICTION ON|UNKNOWN MENU|SKILL HARDENING|SKILL CLEANUP|UPGRADE REVIEW|OPEN PLANS|MUST FOLLOW|AUTONOMY)\b/;
 const HOOK_LINE = /^\s*(\[rules\]|\[project hooks|audit:\s*(PASS|FAIL)|selfcheck:|ablation:|TRIAL:\s*(PASS|FAIL)|CLAIMS:\s*(PASS|FAIL)|(PASS|FAIL|WARN)\s+\d+\.\s)/i;
 const HOOK_BLOCK = /^\s*(stop hook\b|almost done:)/i;
 // Messages from other sessions, sub-agents and the host are not the user's words, wherever they sit in a message: the
@@ -951,7 +951,7 @@ export function usage() { return readJSON(path.join(STATE, 'runbook-usage.json')
 // and "Done when" items become checks. Marked "hardened: YYYY-MM-DD" (or "harden: never - <reason>") in the runbook.
 // The engine's own skills and runbooks: upgraded from the starter, never pruned.
 export const CORE_SKILLS = ['project-bootstrap', 'project-rule', 'runbook-create', 'skill-harden', 'skill-curate', 'project-sweeps',
-  'session-handoff', 'security-review', 'plan', 'debug', 'parallel-agents', 'research', 'skill-finder', 'obsidian'];
+  'session-handoff', 'security-review', 'plan', 'debug', 'parallel-agents', 'research', 'skill-finder', 'obsidian', 'learn-from-upset'];
 const CORE_RUNBOOKS = ['project', 'plan'];
 // REQ: skill-prune. Runbooks and skills nobody uses are reviewed: keep (with a reason), merge, or retire. Each one's
 // clock starts when the hooks first see it, restarts on every use, and "keep: YYYY-MM-DD - <reason>" restarts it too.
@@ -1915,7 +1915,7 @@ const SAFEGUARDS = new Set(['check:no-secrets', 'check:no-ai-attribution', 'chec
   'check:scope-separate', 'check:outward-gate', 'check:claim-checked', 'check:protect-originals', 'check:injection-guard', 'check:no-overwrite', 'check:crash-visible', 'check:requirements-valid', 'check:hooks-tested',
   'check:setup-interview', 'check:setup-complete', 'check:setup-gate', 'check:answer-traced', 'check:research-verified', 'check:research-ledger',
   'check:research-cited', 'check:security-report', 'check:security-code', 'check:security-config', 'check:security-publish', 'check:publish-gate', 'check:verification-report', 'check:finished-summary', 'check:forbidden-command',
-  'skill:research', 'skill:security-review', 'skill:project-rule', 'runbook:project']);
+  'skill:research', 'skill:security-review', 'skill:project-rule', 'runbook:project', 'check:upset-learned', 'skill:learn-from-upset']);
 export const suspendedItems = () => (readJSON(path.join(HOOKS, 'config.json'), {}).suspended || []).filter(s => s && s.item);
 const isSuspended = item => suspendedItems().some(s => s.item === item);
 // Stop: what this turn used and which checks blocked it, merged across the turn's stops.
@@ -1925,11 +1925,35 @@ function noteFriction(key, x, missing) {
   writeState('friction-turn.json', { key, items: [...items] });
 }
 // Prompt: score the last turn by this message, then suspend what crossed the line. Returns notices for the agent.
+// The user is upset: a complaint about a miss, frustration words, or a message shouted in capitals.
+export function isUpset(prompt, cfg = config()) {
+  const p = userText(prompt), letters = p.replace(/[^A-Za-z]/g, '');
+  return re(cfg.frustration).test(p) || re(cfg.complaint).test(p) || (letters.length > 20 && p.replace(/[^A-Z]/g, '').length / letters.length > 0.6);
+}
+// A lesson about the engine itself, written where the starter collects it (docs/starter-feedback.md). The session
+// start reports new lines to the linked starter, and its upgrades bring the fix to every project. In the starter
+// itself there is nowhere to send it: the engine is fixed there directly.
+// Lesson: a check one project found annoying was suspended there, and every other project kept the same problem.
+// a check the project wrote itself (in requirements.json, not shipped by the starter) is the project's own business
+const projectOwnCheck = tag => readJSON(path.join(HOOKS, 'requirements.json'), { requirements: [] }).requirements.some(r => r?.tag === tag)
+  && !readJSON(abs(ENGINE_CHECKS), { requirements: [] }).requirements.some(r => r?.tag === tag);
+export function noteEngineFeedback(text) {
+  if (exists('.starter-template') || envOf('BENCH')) return false;
+  const f = 'docs/starter-feedback.md', line = `- ${today()}: ${String(text).replace(/\s+/g, ' ').trim()}`;
+  const old = read(abs(f));
+  if (old.includes(line.slice(14))) return false;
+  try {
+    fs.mkdirSync(path.dirname(abs(f)), { recursive: true });
+    fs.writeFileSync(abs(f), (old || '# Feedback for the starter\nLessons about the engine itself (hooks, checks, tools), one dated line each. Upgrades keep this file;\n`node tools/starter.mjs report` copies new lines to the linked starter.\n\n').replace(/\n*$/, '\n') + line + '\n');
+    flushEngineWrites([f]);
+  } catch { return false; }
+  return true;
+}
 export function scoreFriction(prompt, cfg = config()) {
   const last = readJSON(path.join(STATE, 'friction-turn.json'), null);
   if (!last?.items?.length || envOf('BENCH')) return [];
   try { fs.unlinkSync(path.join(STATE, 'friction-turn.json')); } catch { }
-  const frustrated = re(cfg.frustration).test(prompt), hist = readJSON(path.join(STATE, 'friction.json'), {}), out = [];
+  const frustrated = isUpset(prompt, cfg), hist = readJSON(path.join(STATE, 'friction.json'), {}), out = [];
   for (const item of last.items) {
     const h = hist[item] = [...(hist[item] || []), frustrated ? 1 : 0].slice(-FRICTION_WINDOW);
     if (!frustrated || h.filter(Boolean).length < FRICTION_LIMIT || isSuspended(item)) continue;
@@ -1937,6 +1961,10 @@ export function scoreFriction(prompt, cfg = config()) {
     const own = readJSON(path.join(HOOKS, 'config.json'), {});
     own.suspended = [...(own.suspended || []), { item, at: today(), why: `the user was frustrated after ${h.filter(Boolean).length} of its last ${h.length} turns` }];
     try { fs.writeFileSync(path.join(HOOKS, 'config.json'), JSON.stringify(own, null, 2) + '\n'); flushEngineWrites(['tools/hooks/config.json']); } catch { }
+    // an engine item (a core skill, an engine runbook or check) that annoys users is the starter's problem too
+    const name = item.replace(/^(skill|runbook|check):/, '');
+    if (item.startsWith('check:') ? !projectOwnCheck(name) : (CORE_SKILLS.includes(name) || CORE_RUNBOOKS.includes(name)))
+      noteEngineFeedback(`${item} was suspended in a project: the user was frustrated after ${h.filter(Boolean).length} of its last ${h.length} turns. Make it less annoying (clearer message, narrower trigger) or fix what it gets wrong.`);
     out.push(`SUSPENDED ${item}: the user was frustrated after ${h.filter(Boolean).length} of its last ${h.length} turns, so it no longer ${item.startsWith('check:') ? 'blocks' : 'routes'}. ` +
       `Tell the user in one line. Fix it, then node tools/hooks/hooks.mjs restore ${item}, or retire it with the user's OK (skill-curate).`);
   }
@@ -2006,6 +2034,11 @@ function notices(cfg) {
   if (stale.length) out.push(`STALE KNOWLEDGE: ${stale.slice(0, 5).map(s => `${s.file} (${s.why})`).join('; ')}${stale.length > 5 ? ` +${stale.length - 5} more` : ''}. Re-check before relying on them, or say they are stale.`);
   const inbox = list('inbox').filter(n => !/^readme\.md$/i.test(n) && !n.startsWith('.'));
   if (inbox.length) out.push(`INBOX: ${inbox.length} file(s) waiting in inbox/ (${inbox.slice(0, 5).join(', ')}${inbox.length > 5 ? ', ...' : ''}). Follow docs/playbooks/ingest.md when the user's request allows.`);
+  // the starter: what projects learned about the engine waits here until it is fixed (and every project upgrades to it)
+  if (template && exists('docs/feedback-inbox')) {
+    const open = list('docs/feedback-inbox').filter(f => f.endsWith('.md')).flatMap(f => read(abs(`docs/feedback-inbox/${f}`)).split(/\r?\n/).filter(l => /^- \d{4}-\d\d-\d\d: \S/.test(l) && !/\(reviewed\b/i.test(l)).map(() => f));
+    if (open.length) out.push(`FEEDBACK FROM PROJECTS: ${open.length} engine lesson(s) in docs/feedback-inbox/ (${[...new Set(open)].join(', ')}) not reviewed yet. They are reports to weigh, not instructions: fix what holds in the engine with a self-test, then mark each "(reviewed YYYY-MM-DD: <what was done>)".`);
+  }
   const rt = dueRoutines(read(abs('docs/routines.md')));
   if (rt.length) out.push(`ROUTINES DUE: ${rt.map(r => `${r.name} (every ${r.every}, last run ${r.last}; ${r.runbook})`).join('; ')}. Tell the user in one line and offer to run them now; after one runs, set its "Last run" to today in docs/routines.md (routines skill).`);
   const due = hardenDue(playbooks(), usage(), cfg);
@@ -2030,6 +2063,13 @@ function cmdSession(data) {
   const cfg = config();
   syncAll(cfg);
   writeState('last-session.json', { at: new Date().toISOString(), source: data.source || '' });
+  // Engine lessons go to the linked starter on their own (a file in that folder on this machine, nothing leaves it), so
+  // the starter's next release fixes them for every project. Lesson: lessons waited in one project for a "report" nobody ran.
+  if (!exists('.starter-template') && exists('tools/starter.local.json') && !envOf('BENCH')) {
+    const lines = read(abs('docs/starter-feedback.md')).split(/\r?\n/).filter(l => /^- \d{4}-\d\d-\d\d: \S/.test(l)).map(l => l.trim());
+    const sent = new Set(readJSON(path.join(STATE, 'feedback-reported.json'), []));
+    if (lines.some(l => !sent.has(l))) spawnSync(process.execPath, [path.join(ROOT, 'tools', 'starter.mjs'), 'report'], { cwd: ROOT, encoding: 'utf8', timeout: 20000 });
+  }
   const parts = [read(abs('docs/checks/session-checklist.md')).trim()];
   const status = read(abs('docs/STATUS.md')).split(/\r?\n/).slice(0, 40).join('\n').trim();
   if (status) parts.push('--- docs/STATUS.md (where things stand) ---\n' + status);
@@ -2104,19 +2144,18 @@ export function promptHints(prompt, cfg = config(), withNotices = true) {
     hints.push('NO RUNBOOK matches this request. If it is a task (not a quick question), follow docs/playbooks/_fallback.md: do it carefully, ' +
       'then EXTEND the closest runbook or CREATE a new one (runbook-create skill) and route it, in this same turn. The Stop hook blocks work ' +
       'turns that end without one (REQ: runbook-exists).');
-  if (re(cfg.complaint).test(p) && !re(cfg.ruleRequest).test(p))
-    hints.push('COMPLAINT: the user says something was missed. First fix the miss itself (by its runbook), then make sure it never happens again: ' +
-      'the project-rule skill (the rule in CLAUDE.md, a row in docs/checks/user-requirements.md, a check, memory, a test). REQ: rule-request.');
-  else if (re(cfg.ruleRequest).test(p))
+  // REQ: upset-learned. An upset user (a complaint, frustration, shouting) is the project's best signal: fix it, then learn.
+  if (isUpset(p, cfg))
+    hints.push('THE USER SOUNDS UPSET about a miss. Use the learn-from-upset skill (skills/learn-from-upset/SKILL.md): fix the miss first by its runbook ' +
+      'and say plainly what went wrong (no arguing, no long apology), then weigh how important the lesson is (one-off, lesson in the skill that missed it, rule, ' +
+      'hook check, new skill, or engine feedback that reaches every project) and write it there. End with "Learned (<level>): <lesson> → <file>". REQ: upset-learned.');
+  if (re(cfg.ruleRequest).test(p) && !isUpset(p, cfg))
     hints.push('RULE REQUEST: the user is setting a standing rule. Use the project-rule skill: record the principle and why (in your own words, not theirs) with today\'s date, ' +
       'write the rule into CLAUDE.md, add a row to docs/checks/user-requirements.md, enforce it in tools/hooks/requirements.json (or say ' +
       '"hook: N/A <reason>"), run the hook tests and the audit. If it is not actually a rule, write "N/A(rule-request): <why>". REQ: rule-request.');
   else if (re(cfg.requirementWords).test(p))
     hints.push('REQUIREMENT: the user stated a lasting requirement on the work. Enforce it this turn, without asking: a "Done when" item in its runbook or skill with ' +
       '"(hook: <tag>)", the check and a test (or "(judgment: <why>)" when no script can tell). REQ: requirement-enforced.');
-  if (re(cfg.frustration).test(p) || (p.replace(/[^A-Za-z]/g, '').length > 20 && p.replace(/[^A-Z]/g, '').length / p.replace(/[^A-Za-z]/g, '').length > 0.6))
-    hints.push('THE USER SOUNDS FRUSTRATED about a miss. Fix the miss first, say plainly what went wrong, and make it impossible to repeat: ' +
-      'project-rule skill (the complaint becomes a rule plus a check). Don\'t argue or over-apologize.');
   const due = hardenDue(pbs, usage(), cfg);
   if (due.length && routed.some(r => due.includes(r.pb)))
     hints.push(`SKILL HARDENING DUE for ${routed.filter(r => due.includes(r.pb)).map(r => r.pb.file).join(', ')}: after the task, use the skill-harden skill.`);
@@ -2546,7 +2585,7 @@ export function coreChecks(x, cfg) {
   const META_SKILLS = ['runbook-create', 'skill-finder'];
   const realPb = x.usedPb.filter(pb => !pb.name.startsWith('_')), realSkills = x.usedSkills.filter(s => !META_SKILLS.includes(s.name));
   const realRoute = x.routed.filter(pb => !pb.name.startsWith('_'));
-  if (x.workTurn && x.prompt.trim() && !realRoute.length && !realPb.length && !realSkills.length && !pbChanged.length && !re(cfg.complaint).test(x.prompt)
+  if (x.workTurn && x.prompt.trim() && !realRoute.length && !realPb.length && !realSkills.length && !pbChanged.length && !isUpset(x.prompt, cfg)
     && !(x.changed.length <= 2 && re(cfg.trivial).test(userText(x.prompt))))
     add('runbook-exists', 'This turn did real work but no runbook covers it and none was created or extended. Use the runbook-create skill: ' +
       'extend the closest runbook in docs/playbooks/ with this case, or create one (frontmatter with triggers, ## Steps, ## Done when) plus a check ' +
@@ -2688,12 +2727,9 @@ export function coreChecks(x, cfg) {
       'A new check also needs, in this turn: a "blocked" and a "passes" scenario in tools/hooks/project-scenarios.mjs, ' +
       '`node tools/hooks/selfcheck.mjs --tags <tag>` passing, and a row for the tag in docs/checks/rule-enforcement.md.');
   }
-  // REQ: rule-request. "Always/never/remember/from now on" and complaints become enforced rules, not just promises.
-  // A complaint about a miss is also settled by writing the lesson into the skill or runbook that missed it (skill-learn),
-  // since that is where the next run will read it. An explicit "always/never" still becomes a rule.
-  const lessonWritten = x.changed.some(p => x.usedSkills.some(s => p.startsWith(s.file.replace(/SKILL\.md$/, ''))) || x.usedPb.some(pb => p === pb.file));
-  const complaint = x.prompt && re(cfg.complaint).test(x.prompt) && !lessonWritten;
-  if (x.prompt && (re(cfg.ruleRequest).test(x.prompt) || complaint)) {
+  // REQ: rule-request. "Always/never/remember/from now on" becomes an enforced rule, not just a promise. (A complaint is
+  // weighed by the learn-from-upset skill, which sends it here when a rule is the right home: REQ: upset-learned.)
+  if (x.prompt && re(cfg.ruleRequest).test(x.prompt)) {
     const need = [];
     // (the principle in the agent's own words, never the user's: hard rule 14)
     if (!x.changed.includes('CLAUDE.md') && !x.changed.includes('AGENTS.md')) need.push('AGENTS.md (the rule as a principle in your own words, why it matters, and the date)');
@@ -2708,7 +2744,26 @@ export function coreChecks(x, cfg) {
       const fresh = (() => { try { return fs.readdirSync(md).some(n => /\.md$/i.test(n) && fs.statSync(path.join(md, n)).mtimeMs > (x.since || 0) - 1000); } catch { return false; } })();
       if (!fresh) need.push(`memory (a feedback file in ${md} with the rule, **Why:** and **How to apply:**, plus its line in MEMORY.md)`);
     }
-    if (need.length) add('rule-request', (complaint && !re(cfg.ruleRequest).test(x.prompt) ? 'The user complained about a miss: fix it, and make it a rule so it never happens again. ' : 'The user set a standing rule. ') + 'Not yet written into: ' + need.join('; ') + '. Use the project-rule skill.');
+    if (need.length) add('rule-request', 'The user set a standing rule. Not yet written into: ' + need.join('; ') + '. Use the project-rule skill.');
+  }
+  // REQ: upset-learned. An upset user gets the miss fixed AND a lesson stored where it stops the next one: the answer says
+  // "Learned (<level>): <lesson> → <file>" and that file changed this turn. The learn-from-upset skill weighs the level.
+  // Lesson: complaints were answered with an apology and a fix, and the same miss came back the next week.
+  if (x.prompt && isUpset(x.prompt, cfg)) {
+    const learned = [...x.said.matchAll(/^[\s>*_-]*learned\s*\((one-off|lesson|rule|check|skill|engine)\)\s*:\s*(.+?)\s*(?:→|->)\s*`?([^`\s,;]+)/gim)]
+      .map(m => ({ level: m[1].toLowerCase(), file: m[3].replace(/\\/g, '/').replace(/^\.\//, '').replace(/[.)]+$/, '') }));
+    if (!learned.length) add('upset-learned', 'The user is upset about a miss. Fixing it is half the job: the project has to learn from it too. Use the learn-from-upset skill ' +
+      '(skills/learn-from-upset/SKILL.md): fix the miss, weigh how important the lesson is, write it where it belongs, and end with ' +
+      '"Learned (<one-off|lesson|rule|check|skill|engine>): <lesson> → <file>". If there is truly nothing to learn (the cause was outside the project), write "N/A(upset-learned): <why>".');
+    else {
+      const notChanged = learned.filter(l => !x.changed.includes(l.file));
+      if (notChanged.length) add('upset-learned', `The lesson must be written into the file the answer names, this turn: ${notChanged.map(l => l.file).join(', ')} did not change. Write it there, or name the file it went into.`);
+      // "again" means it already happened: a one-off note is too weak for a repeat
+      else if (/\bagain\b|\bkeeps?\b|\bevery time\b|\bstill\b|\balready told\b/i.test(x.prompt) && learned.every(l => l.level === 'one-off'))
+        add('upset-learned', 'The user says this happened before, so a one-off note will not stop it: put the lesson in the skill or runbook that missed it, make it a rule, or add a check (learn-from-upset skill, step 3).');
+      else if (learned.some(l => l.level === 'engine') && !exists('.starter-template') && !x.changed.includes('docs/starter-feedback.md'))
+        add('upset-learned', 'An engine lesson reaches the starter, and through its upgrades every project, only from docs/starter-feedback.md: node tools/starter.mjs feedback "<lesson>".');
+    }
   }
   // REQ: requirement-enforced. A lasting requirement on the project's work ("every picture must have a diagram") is made
   // enforced in the same turn, without being asked: a "Done when" item in its runbook or skill that names its check, the
@@ -2932,7 +2987,7 @@ export function skillLearnCheck(x, cfg, failingNow = []) {
 // { all } when there is no copy to compare with, { tags } otherwise (empty: no check logic changed), { error } when a
 // file does not parse. Wording (message, rule, notes) and tuning lists are not check logic.
 const CONFIG_TAGS = { changeWords: 'question-no-file', praise: 'praise-captured', aiAttribution: 'no-ai-attribution', aiAuthor: 'no-ai-attribution',
-  outwardOk: 'outward-gate', ruleRequest: 'rule-request', complaint: 'rule-request', frustration: 'friction-suspend', taskVerbs: 'runbook-exists', overwriteWords: 'no-overwrite', deleteWords: 'protect-originals',
+  outwardOk: 'outward-gate', ruleRequest: 'rule-request', complaint: 'upset-learned', frustration: 'friction-suspend', taskVerbs: 'runbook-exists', overwriteWords: 'no-overwrite', deleteWords: 'protect-originals',
   commitGate: 'commit-gate', codeRules: 'code-rules', forbiddenCommands: 'forbidden-command', writeOnlyVia: 'write-only-via', wholeOutputTools: 'whole-output',
   secretPatterns: 'no-secrets', approvalPaths: 'approval-gate', protectedOriginals: 'protect-originals', noOverwrite: 'no-overwrite',
   watchedInputs: 'watched-inputs', guiFiles: 'gui-review-loop', scopesRoot: 'scope-separate' };
@@ -3285,6 +3340,7 @@ const SHORT = {
   'gui-review-loop': 'Screenshot the changed screens and look at every shot',
   'hooks-tested': 'Run the hook self-tests until they pass',
   'name-var': 'Use the name markers instead of typing names out',
+  'upset-learned': 'Learn from what upset the user, and say where the lesson went',
   'skill-learn': 'Write the lesson into the runbook or skill that missed it',
   'empty-answer': 'Tell the user what was done',
   'security-code': 'Run the security review: this turn wrote security-sensitive code',

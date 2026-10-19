@@ -27,7 +27,11 @@ favors no vendor.
   - A miss while following a skill writes the lesson into that skill.
   - A skill used often gets hardened with scripts.
   - Skills nobody uses get reviewed and retired, with your OK.
-- **"Always", "never" and complaints become rules with automatic checks,** not promises.
+- **"Always" and "never" become rules with automatic checks,** not promises.
+- **An upset user teaches the project.** When you are annoyed, the agent fixes the miss, decides how important the
+  lesson is, and stores it where it stops the next one (the skill that missed it, a rule, a check, or a new skill),
+  telling you where. Lessons about the engine itself go to the starter on their own, and its next upgrade fixes every
+  project.
 - **Only what makes it better.** Every added skill, pack or dependency comes with its gain and its cost, weighed.
   Upgrades roll back if a passing check breaks, and the agent weighs each new item and tells you what it added or skipped (it asks only about money, privacy or outward actions). The hooks have a
   speed budget the audit enforces.

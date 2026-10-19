@@ -12,7 +12,9 @@ checks: core: rule-request, rule-memory, hooks-tested, runbook-complete
 
 ## Steps
 ### §1 A rule, a complaint, or "keep doing this" (E2)
-Follow the **project-rule** skill (`skills/project-rule/SKILL.md`).
+The user is upset or complains: follow the **learn-from-upset** skill (`skills/learn-from-upset/SKILL.md`); it fixes
+the miss and decides where the lesson goes. A standing rule or praise: follow the **project-rule** skill
+(`skills/project-rule/SKILL.md`).
 
 ### §2 A new kind of task (no runbook)
 Follow the **runbook-create** skill: `_fallback.md`, then a runbook plus a check. The skill and the DIRECTORY row are

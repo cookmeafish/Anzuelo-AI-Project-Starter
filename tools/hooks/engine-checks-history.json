@@ -24,9 +24,18 @@
     "bugfix-regression-test": [
       "0f9b13dfa991"
     ],
+    "client-verified": [
+      "4ad82326dc5d"
+    ],
     "compress-verified": [
       "ca5a2da0bf01",
       "704a2ef73ec7"
+    ],
+    "continuity-checked": [
+      "0716a2e39c52"
+    ],
+    "correspondence-draft-saved": [
+      "6daf2253b5f5"
     ],
     "data-backup": [
       "8a18a7b48f5e"
@@ -54,14 +63,24 @@
       "be690ff4323d"
     ],
     "deliverable-trigger": [
-      "18ee3d944a27"
+      "18ee3d944a27",
+      "4dbe4b684e20"
+    ],
+    "dependency-gates-compared": [
+      "ee8185184d9b"
     ],
     "design-plan": [
       "8923c887bedb",
       "f2593c1f4fe8"
     ],
+    "experiment-logged": [
+      "ea256829d455"
+    ],
     "foundation-set": [
       "46c4b3bb76c0"
+    ],
+    "game-smoke-ran": [
+      "0c5238139a36"
     ],
     "hardening-plan": [
       "11377b834ad2"
@@ -123,6 +142,15 @@
     "mcp-trigger": [
       "e66a5eeb081d"
     ],
+    "mobile-checked": [
+      "d43b0b3dc4ba"
+    ],
+    "modular-code": [
+      "a518f4eff797"
+    ],
+    "package-dry-run": [
+      "e85f24b68136"
+    ],
     "parallel-merged": [
       "fbd9f2d56fdc",
       "25336b8c5c2c"
@@ -132,6 +160,9 @@
     ],
     "perf-numbers": [
       "fd2da49a0739"
+    ],
+    "pipeline-schema-checked": [
+      "18c0f2dd1c40"
     ],
     "plan-checked": [
       "f62cdffe703d"
@@ -178,6 +209,9 @@
     "root-cause-stated": [
       "b23f0ba86bb8"
     ],
+    "routines-checked": [
+      "6b22d649fa3d"
+    ],
     "security-checklist": [
       "0f5f11a644c0"
     ],
@@ -215,6 +249,9 @@
     ],
     "user-research-counted": [
       "76eca3295f96"
+    ],
+    "vault-links-checked": [
+      "69c4d35a07aa"
     ],
     "verification-report": [
       "406515ce3dc9",

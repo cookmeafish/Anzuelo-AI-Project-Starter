@@ -57,6 +57,7 @@ what a trigger watches. "Judgment" rows have no event a script can see without f
 | skill-finder (core skill) | A new runbook or a new hand-written skill (a `reuse: none - project-specific: <why>` frontmatter line replaces the search) | extended | skill-reuse |
 | project-rule (core skill) | "Always / never / from now on" or a complaint | existing | rule-request |
 | project-rule (core skill) | The user hands the work over ("without my input", "don't ask me") | added | autonomy-hint |
+| learn-from-upset (core skill) | The user is upset or complains about a miss | added | upset-learned |
 | runbook-create (core skill) | Real work no runbook covers | existing | runbook-exists |
 | session-handoff (core skill) | A long work turn | existing | status-handoff |
 | skill-harden (core skill) | A runbook used 3 times | existing | skill-harden |
@@ -66,12 +67,24 @@ what a trigger watches. "Judgment" rows have no event a script can see without f
 | project-bootstrap (core skill) | Setup steps before the interview, or the setup prompt deleted too early | existing | setup-interview, setup-gate |
 | gui-review-loop (gui pack) | Screen files changed | existing | gui-review-loop, gui-review-report |
 | gui-review-loop (gui pack) | A changed page has a saved flow in docs/checks/flows/ | added | gui-flows |
+| modular-code (app pack) | Code files changed: each is checked for growing past 400 lines, typed-in URLs, hosts and ports, and imports of another module's private files | added | modular-code |
 | frontend-design (library) | Screen files changed: accessibility checked and reported | added | a11y-checked |
 | mcp-builder (library) | MCP server code written | added | mcp-trigger |
 | architecture (library) | A dependency installed, a migration or schema, or a new service in docker-compose | added | architecture-trigger |
 | incident-response (library) | The user reports production down | added | incident-trigger |
 | data-analysis (library) | A data file read and the answer gives computed numbers | added | data-computed-trigger |
 | legal-review (library) | A privacy policy, terms or a contract written | added | legal-trigger |
+| correspondence (library) | the correspondence skill was used | added | correspondence-draft-saved |
+| data-pipeline (library) | The skill was used and pipeline inputs changed (data/, a raw folder, CSV, TSV, JSON Lines, Parquet or a schema file): the schema check ran this turn | added | pipeline-schema-checked |
+| dependency-update (library) | The skill was used and a manifest, lockfile or runtime version file changed: the gates ran this turn or the answer compares them in a "Before/after:" line | added | dependency-gates-compared |
+| game-dev (library) | scenes, scripts or project settings changed in a turn that used the skill | added | game-smoke-ran |
+| manuscript (library) | the manuscript skill was used | added | continuity-checked |
+| ml-experiments (library) | a model was trained or evaluated in a turn that used the skill | added | experiment-logged |
+| mobile-app (library) | app code changed in a turn that used the skill | added | mobile-checked |
+| notes-vault (library) | a note changed while the notes-vault skill was used | added | vault-links-checked |
+| package-release (library) | The skill was used and a version file or changelog changed: a package dry run ran this turn | added | package-dry-run |
+| routines (library) | docs/routines.md changed | added | routines-checked |
+| web-app-patterns (library) | client code (.tsx, .jsx, .vue, .svelte, src/) changed while following the skill | added | client-verified |
 | worth-it (rule 16) | A pack, skill or dependency added | existing | worth-it |
 | data-change (app pack) | A migration, schema or data format file changed | added | data-change-trigger |
 | data-change (app pack) | The runbook was used: backup and restore stated | existing | data-backup |
