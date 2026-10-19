@@ -98,7 +98,8 @@ function base() {
   if (!fs.existsSync(at('.starter-template'))) fs.writeFileSync(at('.starter-template'), 'test base\n');
   if (!fs.existsSync(at('SETUP-PROMPT.md'))) fs.writeFileSync(at('SETUP-PROMPT.md'), '# Setup prompt\n');
   const cfgPath = at('tools/hooks/config.json'), cfg0 = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
-  for (const k of ['app', 'starter', 'adopted', 'autonomy', 'suspended']) delete cfg0[k];
+  // (protectedBranches too: a project that works on main sets it to [], and the push fixtures expect the defaults)
+  for (const k of ['app', 'starter', 'adopted', 'autonomy', 'suspended', 'protectedBranches']) delete cfg0[k];
   cfg0.commitGate = (cfg0.commitGate || []).filter(g => !g.app);
   fs.writeFileSync(cfgPath, JSON.stringify(cfg0, null, 2) + '\n');
   const rqPath = at('tools/hooks/requirements.json'), rq0 = JSON.parse(fs.readFileSync(rqPath, 'utf8'));

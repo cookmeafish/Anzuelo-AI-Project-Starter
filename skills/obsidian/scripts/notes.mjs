@@ -30,11 +30,21 @@ function notes(every = false) {
   return out;
 }
 const read = p => { try { return fs.readFileSync(path.join(ROOT, p), 'utf8'); } catch { return ''; } };
+// Every file of the project (attachments included), read once, for embeds of non-note files.
+let fileList = null;
+const files = () => fileList ??= (() => { const out = []; const walk = d => { for (const n of fs.readdirSync(path.join(ROOT, d || '.'))) { if (SKIP.test(n) || n === 'node_modules') continue; const p = d ? `${d}/${n}` : n; let st; try { st = fs.statSync(path.join(ROOT, p)); } catch { continue; } if (st.isDirectory()) walk(p); else out.push(p); } }; walk(''); return out; })();
 // Links out of a note to other project files: relative markdown links and [[wikilinks]], resolved to project paths.
 function linksOf(p, all) {
-  const text = read(p).replace(/```[\s\S]*?```/g, ''), out = new Set();
+  // code (fenced or inline) shows links as examples, it doesn't make them (Lesson: a skill's `[[wikilinks]]` advice
+  // counted as broken links)
+  const text = read(p).replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]*`/g, ''), out = new Set();
   for (const m of text.matchAll(/\]\(([^)\s#]+\.md)(#[^)]*)?\)/g)) { if (/^[a-z]+:/i.test(m[1])) continue; out.add(path.posix.normalize(path.posix.join(path.posix.dirname(p), decodeURI(m[1])))); }
-  for (const m of text.matchAll(/\[\[([^\]|#]+)/g)) { const t = m[1].trim().toLowerCase(); const hit = all.find(n => n.toLowerCase() === t || n.toLowerCase() === `${t}.md` || path.posix.basename(n, '.md').toLowerCase() === path.posix.basename(t, '.md')); out.add(hit || `${t}.md`); }
+  for (const m of text.matchAll(/\[\[([^\]|#]+)/g)) {
+    const t = m[1].trim().toLowerCase();
+    // an embed of another kind of file (![[seed-catalog.pdf]]) points at that file, found by its name anywhere
+    if (/\.(?!md$)[a-z0-9]{2,5}$/i.test(t)) { const f = files().find(n => n.toLowerCase() === t || n.toLowerCase().endsWith('/' + t) || path.posix.basename(n).toLowerCase() === path.posix.basename(t)); out.add(f || t); continue; }
+    const hit = all.find(n => n.toLowerCase() === t || n.toLowerCase() === `${t}.md` || path.posix.basename(n, '.md').toLowerCase() === path.posix.basename(t, '.md')); out.add(hit || `${t}.md`);
+  }
   out.delete(p);
   return [...out];
 }

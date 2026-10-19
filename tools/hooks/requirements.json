@@ -287,7 +287,7 @@
       "waiver": "specific",
       "hint": "\\b(publish|release it|go live|make it public|deploy to prod\\w*|push to production|npm publish|open.?source it)\\b",
       "when": {
-        "toolRan": "\\b(npm|pnpm|yarn)\\s+publish\\b|\\bgh\\s+release\\s+create\\b|\\bgh\\s+repo\\s+(create\\b[^\\n;&|]*--public|edit\\b[^\\n;&|]*--visibility[= ]public)|\\b(vercel|netlify)\\b[^\\n;&|]*--prod\\b|\\bfirebase\\s+deploy\\b|\\bdocker\\s+push\\b|\\btwine\\s+upload\\b|\\bcargo\\s+publish\\b|\\b(dart|flutter)\\s+pub\\s+publish\\b|\\b(poetry|uv)\\s+publish\\b|\\bgem\\s+push\\b|\\bfastlane\\s+\\w*(deliver|release|upload|beta)\\b|\\bhf\\s+upload\\b|\\bhuggingface-cli\\s+upload\\b|\\bvsce\\s+publish\\b|\\bflyctl?\\s+deploy\\b|\\bwrangler\\s+(deploy|publish)\\b"
+        "toolRan": "^(?![^\\n]*--dry-run)[\\s\\S]*?(?:\\b(npm|pnpm|yarn)\\s+publish\\b|\\bgh\\s+release\\s+create\\b|\\bgh\\s+repo\\s+(create\\b[^\\n;&|]*--public|edit\\b[^\\n;&|]*--visibility[= ]public)|\\b(vercel|netlify)\\b[^\\n;&|]*--prod\\b|\\bfirebase\\s+deploy\\b|\\bdocker\\s+push\\b|\\btwine\\s+upload\\b|\\bcargo\\s+publish\\b|\\b(dart|flutter)\\s+pub\\s+publish\\b|\\b(poetry|uv)\\s+publish\\b|\\bgem\\s+push\\b|\\bfastlane\\s+\\w*(deliver|release|upload|beta)\\b|\\bhf\\s+upload\\b|\\bhuggingface-cli\\s+upload\\b|\\bvsce\\s+publish\\b|\\bflyctl?\\s+deploy\\b|\\bwrangler\\s+(deploy|publish)\\b)"
       },
       "require": {
         "skillUsed": "security-review"

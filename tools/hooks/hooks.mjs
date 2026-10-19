@@ -52,7 +52,9 @@ export function globRe(g) {
   for (let i = 0; i < g.length; i++) {
     const c = g[i];
     if (c === '*') {
-      if (g[i + 1] === '*') { s += '.*'; i++; if (g[i + 1] === '/') i++; } else s += '[^/]*';
+      // "**/" is any number of whole folders, so "**/schema.*" never matches "sales.schema.json" (Lesson: it did, and a
+      // pipeline's schema description was taken for a database migration)
+      if (g[i + 1] === '*') { i++; if (g[i + 1] === '/') { s += '(?:.*/)?'; i++; } else s += '.*'; } else s += '[^/]*';
     } else if (c === '?') s += '[^/]';
     else s += esc(c);
   }
@@ -123,7 +125,9 @@ const DEFAULTS = {
   guiIgnore: ['.cache/**', 'packs/**', 'library/**', '.starter/**', 'skills/**', 'node_modules/**', 'dist/**', 'build/**', 'docs/**', 'sources/**', 'inbox/**', '**/*.md', '**/__pycache__/**', 'tools/hooks/**'],
   // Files where a name from docs/names.json may be typed out: history, licenses and credits keep the names of their day,
   // toolchain manifests can't read another file, and the hook tests use made-up names as fixtures.
-  namesIgnore: ['**/CHANGELOG*.md', 'docs/DECISIONS.md', 'docs/fit-checklist.md', 'docs/releases/**', '**/STARTER-CHANGELOG.md', '**/LICENSE*', '**/SOURCE*', '**/*.lock', '**/package-lock.json', '**/package.json', '**/pyproject.toml', '**/Cargo.toml', 'tools/hooks/selfcheck.mjs', 'tools/hooks/project-scenarios.mjs', '.cache/**', 'tools/hooks/state/**', '.claude/skills/**', '.claude/settings*.json', '.codex/**', '.gemini/**', '.cursor/**', '.agents/**', '.obsidian/**'],
+  // (outputs/**: letters and deliverables leave the project as they are, so a marker would reach the reader. Lesson: a
+  // supplier letter was asked to carry name markers)
+  namesIgnore: ['**/CHANGELOG*.md', 'outputs/**', 'profiles/*/outputs/**', 'docs/DECISIONS.md', 'docs/fit-checklist.md', 'docs/releases/**', '**/STARTER-CHANGELOG.md', '**/LICENSE*', '**/SOURCE*', '**/*.lock', '**/package-lock.json', '**/package.json', '**/pyproject.toml', '**/Cargo.toml', 'tools/hooks/selfcheck.mjs', 'tools/hooks/project-scenarios.mjs', '.cache/**', 'tools/hooks/state/**', '.claude/skills/**', '.claude/settings*.json', '.codex/**', '.gemini/**', '.cursor/**', '.agents/**', '.obsidian/**'],
   guiShotDir: '.cache/gui-review',
   guiShotCommand: 'screenshot\\.mjs',
   guiMaxRounds: 10,
@@ -312,13 +316,24 @@ export function routableSkills(cfg = config()) {
 export function skillHasCheck(s) {
   const c = (s.fm.checks || '').trim();
   if (/^core\b:?\s*\S/i.test(c) || /^none\s*-\s*\S/i.test(c)) return true;
-  return loadRequirements().reqs.some(q => q && q.enabled !== false && q.when?.skillUsed === s.name);
+  // a check the skill brought with it ("skill": its name, set by skills.mjs enable) counts even when it fires on an event
+  // rather than on the skill being used (Lesson: the routines check, on docs/routines.md changing, was not recognized)
+  return loadRequirements().reqs.some(q => q && q.enabled !== false && (q.when?.skillUsed === s.name || q.skill === s.name));
 }
 
 // Word match for multi-word triggers: every key word of the trigger appears in the message, in any order and with
 // simple endings ("why does this code exist" matches "explain why this code exists"). Exact phrases score higher.
 const STOP = new Set(['a', 'an', 'the', 'this', 'that', 'these', 'to', 'of', 'for', 'in', 'on', 'at', 'my', 'me', 'it', 'its', 'is', 'are', 'be', 'do', 'does', 'did', 'and', 'or', 'with', 'from', 'by', 'i', 'we', 'our', 'you', 'your']);
-const stem = w => w.length > 4 ? w.replace(/(ing|ed|es|s)$/, '') : w;
+// Plural and past forms meet their base word: notes and noted are note, boxes is box, created is create, added is add.
+// Lesson: "-es" was cut from every word, so "notes" became "not", a common word, and "in my notes" could never route.
+const stem = w => w.length <= 4 || /(ss|us|is)$/.test(w) ? w
+  : /ies$/.test(w) ? w.slice(0, -3) + 'y'
+  : /(s|x|z|ch|sh)es$/.test(w) ? w.slice(0, -2)
+  : /s$/.test(w) ? w.slice(0, -1)
+  : /ing$/.test(w) ? w.slice(0, -3)
+  : /ssed$/.test(w) ? w.slice(0, -2)
+  : /([aiou]t|[vcsz]|[aeiou]g|[nr]g)ed$/.test(w) ? w.slice(0, -1)
+  : /ed$/.test(w) ? w.slice(0, -2) : w;
 export const keyWords = s => String(s).toLowerCase().split(/[^a-z0-9]+/).filter(w => w && !STOP.has(w)).map(stem);
 // Words too common to be evidence on their own. A trigger made only of these ("fix it", "i added", "look up") matches
 // ordinary sentences, so it never routes. Lesson: single generic words sent requests to the wrong runbook.
@@ -380,7 +395,9 @@ export function route(prompt, pbs) {
       // ...and only backs up a real match: "can you fix it here" alone is no bug report
       if (common) { score += 0.5; hits.push(t); continue; }
       score += exact ? 1 + t.split(' ').length / 10 : 0.5 + k.length / 10; hits.push(t);
-      if (k.length >= 2 || !/\s/.test(t.trim())) strong = true; else k.forEach(w => weak.add(w));
+      // a phrase that points at the user's own thing ("my vault", "in my notes", "remember this"), typed exactly, is a
+      // request on its own. Lesson: such triggers could never route, so "check the links in my vault" found nothing.
+      if (k.length >= 2 || !/\s/.test(t.trim()) || (exact && /\b(my|our|this|these)\b/i.test(t))) strong = true; else k.forEach(w => weak.add(w));
     }
     if (pb.triggerRe && pb.triggerRe.test(low)) { score += 2; strong = true; hits.push('/' + pb.fm.trigger_regex + '/'); }
     if (score && (strong || weak.size >= 2)) scored.push({ pb, score, hits });
@@ -1446,7 +1463,9 @@ export function setupProblems(cfg = config()) {
   const claude = rulesText();
   if (/\{\{[A-Z_]+\}\}|<!-- One line on what/.test(claude)) probs.push('AGENTS.md: replace the template placeholders (name, one-line purpose)');
   if (!names().PROJECT_NAME || /\{\{/.test(names().PROJECT_NAME)) probs.push(`${NAMES_FILE}: set PROJECT_NAME, and add every other name the project uses (products, brands, companies)`);
-  for (const p of nameFiles(cfg)) probs.push(...nameProblems(p, read(abs(p)), names(), cfg));
+  // files the project had before the starter came stay as the user wrote them (new-project.mjs lists them on adoption)
+  const original = new Set(read(abs('.starter/original-files.txt')).split(/\r?\n/).filter(Boolean));
+  for (const p of nameFiles(cfg).filter(p => !original.has(p))) probs.push(...nameProblems(p, read(abs(p)), names(), cfg));
   if (/^- \(none yet\)\s*$/m.test(section(claude, "The user's standing preferences"))) probs.push('AGENTS.md: record the user\'s standing preferences as principles (or "- (none stated, YYYY-MM-DD)")');
   if (/Not bootstrapped yet/i.test(read(abs('docs/STATUS.md')))) probs.push('docs/STATUS.md: still says "Not bootstrapped yet"');
   for (const f of ['CLAUDE.starter.md', 'AGENTS.starter.md']) if (exists(f)) probs.push(`${f}: merge it into CLAUDE.md/AGENTS.md, then delete it`);
@@ -1499,7 +1518,9 @@ export function setupInterview() {
     f[m[1].trim().toLowerCase()] = m[2].trim().replace(/^assumed\s*[-:]\s*/i, ''); // autonomy auto: "assumed - <answer>"
   return f;
 }
-const unanswered = v => !v || /<[^>]*>|^\.{3}$|^(tbd|todo|\?)$/i.test(v);
+// a placeholder is a whole answer in angle brackets or "<...>"; "run: python -m tool <csv> <report>" is a real answer
+// (Lesson: a command with its arguments in angle brackets was read as unanswered)
+const unanswered = v => !v || /^\s*<[^>]*>\s*$|<\.\.\.>|<e\.g\.|^\.{3}$|^(tbd|todo|\?)$/i.test(v);
 // The packs the answers call for: knowledge work → knowledge, software → app, a visual interface → gui.
 export function packsFor(f) {
   // the leading keyword decides; the words after it only describe. Lesson: "knowledge (posts and prices; no software)"
@@ -1897,7 +1918,9 @@ export function gitignoreProblems(cfg = config()) {
   const probs = [];
   const all = [...cfg.gitignoreMustIgnore, ...cfg.gitignoreMustKeep];
   const ignored = new Set((git(['check-ignore', '--no-index', '--stdin'], all.join('\n')).stdout || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean));
-  const leak = cfg.gitignoreMustIgnore.filter(p => !ignored.has(p));
+  // a vault the user keeps in git owns its .obsidian settings (Lesson: adopting a tracked vault failed hygiene over them)
+  const ownVault = (git(['ls-files', '.obsidian']).stdout || '').trim() !== '';
+  const leak = cfg.gitignoreMustIgnore.filter(p => !ignored.has(p) && !(ownVault && p.startsWith('.obsidian/')));
   if (leak.length) probs.push(`.gitignore does not cover: ${leak.join(', ')} (secrets, local state or caches would be pushed)`);
   const hidden = cfg.gitignoreMustKeep.filter(p => ignored.has(p) && exists(p));
   if (hidden.length) probs.push(`.gitignore hides files the project needs: ${hidden.join(', ')}`);
@@ -3160,7 +3183,9 @@ export const BASE_REQUIREMENTS = [
     message: "Don't ask whether to add checks, runbooks, tests or skills for what the user already asked for: add them now, then say what you added (hard rule 3). Ask only about money, privacy or outward actions." },
   { tag: 'decision-logged', rule: '12', when: { promptMatches: String.raw`\b(we|i)('ve| have)? decided\b|\blet'?s go with\b|\bfinal decision\b|\bi('m| am) going with\b|\bwe'?ll go with\b` },
     require: { filesChanged: ['docs/DECISIONS.md'] }, message: 'The user made a decision: record it in docs/DECISIONS.md (date, decision, why, what it rules out, what would reopen it).' },
-  { tag: 'redo-changes', rule: '8', when: { workTurn: true, promptMatches: String.raw`\b(redo|re-do|re-?check|double.?check|try again|one more time|re-?run|second look|(do|check|look|go|run|try) (it |this |that |them )?(over |through )?again)\b` },
+  // (re-run / re-check count only for the last answer's work: "rerun the pipeline on the new batch" is a new run.
+  // Lesson: a monthly pipeline run was asked to say what changed from the last answer)
+  { tag: 'redo-changes', rule: '8', when: { workTurn: true, promptMatches: String.raw`\b(redo|re-do|double.?check|try again|one more time|second look|re-?(run|check) (it|this|that|them|your (work|answer|check))\b|(do|check|look|go|run|try) (it |this |that |them )?(over |through )?again)\b` },
     require: { answerMatches: 'what changed|changes from (the|my) (earlier|previous|last)|same result|nothing changed|no changes|differences from' },
     message: "This is a redo or re-check: add 'What changed from the earlier answer, and why' (old → new → reason for each change), or say 'same result' if nothing changed." },
   { tag: 'praise-captured', rule: '3', when: { promptMatches: String.raw`\bkeep (doing|making) (this|that|these|it)\b|\b(do|make) (it|them) like this (every time|from now on)\b|\bthis is (exactly )?how i want\b` },

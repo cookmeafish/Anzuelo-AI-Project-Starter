@@ -28,14 +28,20 @@ const git = spawnSync('git', ['log', '-n', '1', '--format=%cs'], { cwd: ROOT, en
 const isRepo = !!sv.git || fs.existsSync(path.join(ROOT, '.git'));
 const n = { code: sv.n.code, visual: sv.n.visual, data: sv.n.data, scripts: sv.n.scripts, notes: sv.n.notes, all: sv.n.all };
 // suggested answers: a starting point the agent checks against what it reads, never a verdict
-const software = n.code >= 5 || manifests.length > 0;
+// a few code files with tests or a notebook are software too; manifests and tool config are not data
+// (Lesson: an ML project with 4 code files got no app pack, and a monorepo's package.json files made it "knowledge")
+const software = n.code >= 3 || manifests.length > 0;
+n.data = files.filter(f => SURVEY_KINDS.data.test(f.p) && !manifests.includes(f.p) && !/(^|\/)(package-lock|tsconfig|jsconfig|turbo|lerna|nx|tslint|\.?eslintrc|\.?prettierrc|composer\.lock|[\w.-]*\.config)\.json$|(^|\/)\.[\w-]+\.ya?ml$|(^|\/)(pnpm-workspace|docker-compose|compose)\.ya?ml$/i.test(f.p)).length;
 // screens that are not web files: Flutter, XAML, QML, Godot scenes, Android layouts, iOS storyboards
 const readOf = p => { try { return fs.readFileSync(path.join(ROOT, p), 'utf8'); } catch { return ''; } };
 const appUi = files.filter(f => /\.(xaml|axaml|qml|tscn|storyboard|xib)$|(^|\/)res\/layout\/[^/]+\.xml$/i.test(f.p)).length
   + (manifests.some(m => /pubspec\.yaml$/.test(m) && /\bflutter\s*:/.test(readOf(m))) ? files.filter(f => /\.dart$/i.test(f.p)).length : 0);
 const has = rx => manifests.some(m => rx.test(m)), testsPy = files.some(f => /(^|\/)(tests?\/|test_[^/]+\.py$|[^/]+_test\.py$)/.test(f.p));
+// pytest only when the project uses it (a dependency, its config, or a conftest); plain unittest otherwise.
+// Lesson: "pytest" was suggested for a project whose tests are unittest and where pytest was not installed.
+const usesPytest = files.some(f => /(^|\/)(conftest\.py|pytest\.ini)$/.test(f.p)) || manifests.some(m => /(pyproject\.toml|requirements[^/]*\.txt|setup\.cfg)$/.test(m) && /\bpytest\b/.test(readOf(m)));
 const toolCmds = [
-  ...(has(/(pyproject\.toml|requirements[^/]*\.txt)$/) && testsPy ? ['pytest'] : []),
+  ...(has(/(pyproject\.toml|requirements[^/]*\.txt)$/) && testsPy ? [usesPytest ? 'pytest' : `python -m unittest discover${files.some(f => /^tests\//.test(f.p)) ? ' -s tests' : ''}`] : []),
   ...(has(/Cargo\.toml$/) ? ['cargo build', 'cargo test'] : []),
   ...(has(/go\.mod$/) ? ['go build ./...', 'go test ./...'] : []),
   ...(has(/pubspec\.yaml$/) ? (manifests.some(m => /pubspec\.yaml$/.test(m) && /\bflutter\s*:/.test(readOf(m))) ? ['flutter analyze', 'flutter test'] : ['dart analyze', 'dart test']) : []),

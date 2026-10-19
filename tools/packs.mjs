@@ -3,7 +3,7 @@
 // packs that fit what it is about, so it never carries machinery it doesn't use. REQ: pack-purity.
 //   node tools/packs.mjs list                               every available pack, what it is for, installed or not
 //   node tools/packs.mjs install knowledge [app ...]        install packs (never overwrites an existing file)
-//   node tools/packs.mjs configure app --test "npm test" --build "npm run build" [--code "src/**,lib/**"] [--version-file package.json]
+//   node tools/packs.mjs configure app --test "npm test" --build "npm run build" [--code "src/**,lib/**"] [--version-file package.json] (a monorepo: "packages/*/package.json")
 //                                       [--test-pass "<regex>"] [--build-pass "<regex>"]
 //                                                           wire the app pack's gates to this project's real commands. A
 //                                                           gate passes on its own pass line (--<gate>-pass) or, without
@@ -124,7 +124,7 @@ function configureApp(argv) {
   if (!['--test', '--build', '--lint', '--typecheck', '--run', '--code', '--version-file', '--test-pass', '--build-pass', '--lint-pass', '--typecheck-pass'].some(k => argv.includes(k))) {
     console.log('usage: node tools/packs.mjs configure app --test "<cmd>" --build "<cmd>" [--lint "<cmd>"] [--typecheck "<cmd>"] [--run "<cmd>"] [--code "<globs>"] [--version-file <file>] [--test-pass "<regex>"] [--build-pass "<regex>"] [--lint-pass "<regex>"] [--typecheck-pass "<regex>"]'); process.exit(1);
   }
-  if (opt('--version-file') && !fs.existsSync(path.join(ROOT, opt('--version-file')))) console.log(`note: ${opt('--version-file')} does not exist yet; the version-bump check will ask for it once code changes.`);
+  if (opt('--version-file') && !/[*,]/.test(opt('--version-file')) && !fs.existsSync(path.join(ROOT, opt('--version-file')))) console.log(`note: ${opt('--version-file')} does not exist yet; the version-bump check will ask for it once code changes.`);
   const app = cfg.app || {};
   for (const k of ['test', 'build', 'lint', 'typecheck', 'run']) if (opt('--' + k) !== undefined) app[k] = opt('--' + k);
   // A gate's own pass line, so a gate run in one line with other commands is judged by its own result.
@@ -152,7 +152,7 @@ function configureApp(argv) {
     when: { filesChanged: app.code }, require: { toolPassed: { cmd: escRe(app[k]), pass: app.pass[k] || '', selfRun: app[k] } },
     message: `Code changed: run \`${app[k]}\` as its own command (not chained to other commands with && or ;) and get it passing after your last edit. Fix the code, never the test.`
   });
-  if (app.versionFile) reqs.requirements = reqs.requirements.map(r => r.tag === 'version-bump' ? { ...r, enabled: true, when: { ...r.when, filesChanged: app.code }, require: { filesChanged: [app.versionFile] } } : r);
+  if (app.versionFile) reqs.requirements = reqs.requirements.map(r => r.tag === 'version-bump' ? { ...r, enabled: true, when: { ...r.when, filesChanged: app.code }, require: { filesChanged: String(app.versionFile).split(',').map(s => s.trim()).filter(Boolean) } } : r);
   for (const r of reqs.requirements) if (r.pack === 'app' && r.when?.filesChanged && r.codeGlobs) r.when.filesChanged = app.code;
   wj(REQS, reqs);
   console.log(`configured app gates: ${['test', 'build', 'lint', 'typecheck'].filter(k => app[k]).map(k => `${k}="${app[k]}"${app.pass[k] ? ` (passes on /${app.pass[k]}/)` : ' (passes on its exit code)'}`).join(', ') || '(none given)'}; code: ${app.code.join(', ')}`);

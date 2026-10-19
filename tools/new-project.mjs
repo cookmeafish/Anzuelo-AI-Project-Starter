@@ -526,6 +526,15 @@ if (flag('--add-pack')) {
 const existing = fs.existsSync(dest) ? fs.readdirSync(dest).filter(n => n !== '.git') : [];
 if (existing.length && !flag('--adopt')) console.log(`${dest} already has files: adding the starter around them. Nothing existing is overwritten.\n`);
 const hadInstructions = ['CLAUDE.md', 'AGENTS.md'].some(f => fs.existsSync(path.join(dest, f)));
+// The project's own files, as they were before the starter came: setup never asks to rewrite them (name markers in the
+// user's README or web page). Lesson: setup asked to edit an adopted project's README and index.html.
+if (existing.length && !dry && !fs.existsSync(path.join(dest, '.starter', 'original-files.txt'))) {
+  const own = [];
+  const walk = d => { for (const e of fs.readdirSync(path.join(dest, d || '.'), { withFileTypes: true })) { if (/^(\.git|node_modules|\.venv|venv|dist|build|target)$/.test(e.name) || own.length > 20000) continue; const p = d ? `${d}/${e.name}` : e.name; if (e.isDirectory()) walk(p); else own.push(p); } };
+  walk('');
+  fs.mkdirSync(path.join(dest, '.starter'), { recursive: true });
+  fs.writeFileSync(path.join(dest, '.starter', 'original-files.txt'), own.join('\n') + '\n');
+}
 // The user's own rules are kept as they were, so setup can prove the merge lost none of them (setup-gate).
 if (hadInstructions && !dry) for (const f of ['CLAUDE.md', 'AGENTS.md']) if (fs.existsSync(path.join(dest, f)) && !fs.existsSync(path.join(dest, '.starter', 'original-rules', f))) {
   fs.mkdirSync(path.join(dest, '.starter', 'original-rules'), { recursive: true });

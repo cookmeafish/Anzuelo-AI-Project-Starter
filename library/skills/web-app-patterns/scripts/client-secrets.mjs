@@ -56,7 +56,9 @@ function shapeHit(text) {
   return j ? { what: 'service or admin JWT', value: j } : null;
 }
 
-const SKIP_DIRS = new Set(['node_modules', '.git', '.cache', 'coverage', '.turbo', '.vercel', '.netlify']);
+// the agent's own folders (skills and their mirrors, the starter's tools) hold examples of bad code on purpose
+// (Lesson: this script flagged its own example in skills/ and both mirrors)
+const SKIP_DIRS = new Set(['node_modules', '.git', '.cache', 'coverage', '.turbo', '.vercel', '.netlify', 'skills', '.claude', '.agents', '.codex', '.gemini', 'packs', 'library']);
 const BUNDLE_DIRS = ['dist', 'build', 'out', '.next/static', '.output/public', '.svelte-kit/output/client', 'www'];
 const SOURCE_EXT = /\.(m?[jt]sx?|vue|svelte|astro)$/;
 const BUNDLE_EXT = /\.(m?js|cjs|html|json|map|txt)$/;
