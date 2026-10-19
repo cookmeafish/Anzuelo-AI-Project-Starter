@@ -155,6 +155,8 @@ how it is released.
    Run `node tools/starter.mjs link | keep | remove`. It refuses while anything that fits is still missing.
 4. **App pack:** run `docs/playbooks/app-foundation.md` with the user before Phase 4. It sets the performance budgets,
    the usability defaults and the app's security rows, and builds the scaffolding that enforces them.
+   It also shapes the app to grow (modular-code skill, section A): one module per feature with one public entry, a
+   config module, a names module that reads `docs/names.json`, and the extension points written into the foundation.
 5. **Optional tools** are rows of the fit checklist. [docs/recommended-tools.md](docs/recommended-tools.md) gives each
    one's "Recommend when", "Skip when", costs and license. Install the newest version with the official command: a
    low-risk tool you decided to add needs no question under `"autonomy": "auto"`, any other needs the user's OK (the
@@ -164,7 +166,9 @@ how it is released.
 ## Phase 4: Build it
 1. `docs/BRIEF.md`: fill every section from the answers, as principles in your own words with the date and why. Set
    `status: bootstrapped YYYY-MM-DD`.
-2. `docs/names.json`: check `PROJECT_NAME`, and add every other name the project uses (products, brands, companies).
+2. `docs/names.json`: check `PROJECT_NAME`, and add every other name the project uses (products, brands, companies,
+   the app's title, its company and support addresses). Every one of them is written only there, so a rename or a
+   white-label copy is one edit (hook: name-var).
    When the project is named after what it is about (a game, a city, a product), list that key in `"_subjects"`, so
    the content's mentions of the subject are not flagged as the project's name.
    `AGENTS.md` / `CLAUDE.md`: replace `{{ONE_LINE}}`; the name heading fills itself from `docs/names.json`. Each
