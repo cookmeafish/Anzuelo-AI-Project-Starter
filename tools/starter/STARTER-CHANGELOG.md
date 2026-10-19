@@ -85,6 +85,9 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
   - **Adopted vaults pass their own self-tests**: the tests no longer use a folder name a project's notes can claim, and
     a vault that tracks `.obsidian/` keeps it tracked in the test copy. The survey suggests the knowledge pack too when
     notebooks sit next to data. Monorepos set `--version-file "packages/*/package.json"` (SETUP-PROMPT says so).
+  - **Security review of the sweep:** feedback from projects (`docs/feedback-inbox/`) is ignored by the starter's git
+    and the audit fails if it is ever committed, since it names the user's projects; the survey drops `__proto__`
+    keys from a manifest's scripts.
 - 2026-10-19 (later): Fixes from the same project's next upgrade.
   - **No false "kept your edited version".** An older shipped check is not a local edit. The starter now ships
     `tools/hooks/engine-checks-history.json`, the fingerprint of every version of every check it ever released
