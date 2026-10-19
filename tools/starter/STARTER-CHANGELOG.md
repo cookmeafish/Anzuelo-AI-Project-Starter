@@ -51,7 +51,7 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
   - **Messages show their kind in the terminal:** "In the terminal" in `docs/checks/writing-standards.md` gives
     each block a bold lead word (`Question for you:`, `Done:`, `Heads-up:`, `Problem:`), keeps questions last and
     lines short. `audit.mjs` and `trial.mjs` color PASS, FAIL and WARN at a terminal (plain when piped or `NO_COLOR`).
-  - **Renamed Anzuelo** (Spanish for fishing hook, after the hooks that hold the agent to its work). "Roe" is also an
+  - **Renamed Anzuelo** (after the hooks that hold the agent to its work). "Roe" is also an
     AI agent company. The name lives only in `docs/names.json`.
   - **Upgrade guard:** an upgrade audits and times the project before and after. A check that passed before and fails
     after rolls it all back (`--accept-findings` keeps it and lists them to fix).
@@ -130,6 +130,13 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
       `docs/glossary.md`), skill-harden (share skills as a bundle, `bundle-check.mjs`), and the app pack's qa
       (code review, test planning), release (deploy checklist, rollback) and feature (docs) runbooks;
     - the knowledge pack's deliverable runbook gained a prose review.
+  - **Requirements enforce themselves:** a lasting requirement the user states ("every picture must have a diagram")
+    is enforced in the same turn without being asked: a "Done when" item that names its check, the check and its test,
+    or "(judgment: <why>)" when no script can tell (requirement-enforced). Every "Done when" item in a runbook or skill
+    changed in a turn says how it is proven (done-when-labeled; older ones get an audit warning). An answer may not end
+    by offering to add checks, runbooks, tests or skills instead of adding them (self-improve).
+  - **Update from GitHub:** `node tools/starter.mjs update` gets the newest starter into the linked copy (it stops if
+    that copy has local changes or is a development copy), then upgrades the project the safe way.
   - **Commercial use:** every skill's license must allow commercial use without copyleft (audit), and the weighing
     in hard rule 16 includes the license. New library skill: teach (our own, original wording).
 

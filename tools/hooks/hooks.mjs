@@ -161,6 +161,8 @@ const DEFAULTS = {
     'navigate the complexities', 'a testament to', 'plays a crucial role', 'plays a vital role', 'plays a pivotal role', 'in the realm of',
     'at the end of the day', 'needless to say', 'without further ado', 'i hope you', 'in summary,', 'to summarize,', 'dive into', 'deep dive'],
   evidenceLabels: ['observed', 'user reported', 'source verified', 'document verified', 'measured', 'inferred', 'hypothesis', 'assumption', 'unresolved'],
+  // a lasting requirement on the project's work (REQ: requirement-enforced); one-off instructions don't match
+  requirementWords: String.raw`\b(every|each|all|any) (\w+ ){0,3}(must|should|needs? to|has to|have to)\b|\b(must|should|needs? to|has to) (always|never|include|contain|cite|have|show)\b|\b(it'?s|this is|that'?s|make (it|this|that)) a requirement\b|\brequirements? (are|is)\b|\bmake sure (every|each|all|that every|that each)\b`,
   ruleRequest: "update (the|this|your|ur) project|from now on|going forward|\\bremember (to|that|this)\\b|\\bmandatory\\b|make (it|this|that) a (rule|requirement)|\\b(always|never) (do|make|use|check|include|ask|tell|run|add|keep|start|end|read|write|put|give|show|create|follow|save|delete|send)\\b|never .{0,40} again|don'?t ever|stop doing|i shouldn'?t have to (tell|remind)",
   frustration: "\\bwhy (did|didn'?t|would) you\\b|\\byou (forgot|didn'?t|ignored|skipped|missed)\\b|\\bi (already )?told you\\b|\\bagain\\?|\\bwtf\\b|\\bseriously\\b|!!",
   taskVerbs: "\\b(make|create|build|write|draft|add|update|fix|research|find|look up|plan|compare|organi[sz]e|set ?up|analy[sz]e|summari[sz]e|review|generate|turn|convert|change|edit|rewrite|remove|delete|move|import|ingest|prepare|track|calculate|design|outline|translate|clean ?up|sort|merge|split|audit|check)\\b",
@@ -1646,6 +1648,9 @@ export function promptHints(prompt, cfg = config(), withNotices = true) {
     hints.push('RULE REQUEST: the user is setting a standing rule. Use the project-rule skill: record the principle and why (in your own words, not theirs) with today\'s date, ' +
       'write the rule into CLAUDE.md, add a row to docs/checks/user-requirements.md, enforce it in tools/hooks/requirements.json (or say ' +
       '"hook: N/A <reason>"), run the hook tests and the audit. If it is not actually a rule, write "N/A(rule-request): <why>". REQ: rule-request.');
+  else if (re(cfg.requirementWords).test(p))
+    hints.push('REQUIREMENT: the user stated a lasting requirement on the work. Enforce it this turn, without asking: a "Done when" item in its runbook or skill with ' +
+      '"(hook: <tag>)", the check and a test (or "(judgment: <why>)" when no script can tell). REQ: requirement-enforced.');
   if (re(cfg.frustration).test(p) || (p.replace(/[^A-Za-z]/g, '').length > 20 && p.replace(/[^A-Z]/g, '').length / p.replace(/[^A-Za-z]/g, '').length > 0.6))
     hints.push('THE USER SOUNDS FRUSTRATED about a miss. Fix the miss first, say plainly what went wrong, and make it impossible to repeat: ' +
       'project-rule skill (the complaint becomes a rule plus a check). Don\'t argue or over-apologize.');
@@ -1915,6 +1920,14 @@ export function coreChecks(x, cfg) {
   if ((newSkills.length || added.length) && !/\bworth it\s*:\s*\S[^\n]*\//i.test(x.answer + '\n' + turnText(x.entries)))
     add('worth-it', `You added ${[...newSkills.map(n => `the ${n} skill`), ...added].slice(0, 4).join(', ')}. Say why it makes this project better and what it costs ` +
       '(noise, upkeep, speed, conflicts, risk, and whether its license lets a project that uses it be sold): "Worth it: <gain> / <cost>". If the cost is bigger, undo it and say why (hard rule 16).');
+  // REQ: done-when-labeled. Every "Done when" item in a runbook or skill changed this turn says how it is proven: the
+  // check that enforces it ("hook: <tag>") or why only judgment can ("judgment: <why>"). Lesson: the user's requirements
+  // were written into a runbook as plain items, nothing enforced them, and the agent moved on until the user asked.
+  const unlabeled = x.changed.filter(p => /^(docs\/playbooks\/[^/_][^/]*\.md|(skills|library\/skills|packs\/[^/]+\/files\/skills)\/[^/]+\/SKILL\.md|packs\/[^/]+\/files\/docs\/playbooks\/[^/_][^/]*\.md)$/.test(p) && exists(p))
+    .flatMap(p => doneWhenItems(read(abs(p))).filter(i => !DONE_LABEL.test(i)).map(i => `${p}: "${i.slice(0, 60)}"`));
+  if (unlabeled.length)
+    add('done-when-labeled', `Every "Done when" item needs its proof: add a check and write "(hook: <tag>)", or write "(judgment: <why no check can tell>)". ` +
+      `Unlabeled: ${unlabeled.slice(0, 4).join('; ')}${unlabeled.length > 4 ? ` and ${unlabeled.length - 4} more` : ''}. Add the checks now; don't ask (hard rule 3).`);
   // REQ: plan-required. A bigger addition (many new files) has a checklist in docs/plans/, so nothing is left half done
   // and the next session or another agent can finish it. Setup has its own checklist (SETUP-PROMPT.md).
   const born = x.changed.filter(p => !match(p, cfg.notWork) && !/^(AGENTS\.md$|CLAUDE\.md$|docs\/checks\/|docs\/plans\/|\.cache\/|tools\/hooks\/state\/|\.memtest\/|\.claude\/|\.codex\/)/.test(p) && !GENERATED_WRITES.has(p) && exists(p) && bornThisTurn(p, x.since));
@@ -2005,6 +2018,18 @@ export function coreChecks(x, cfg) {
       if (!fresh) need.push(`memory (a feedback file in ${md} with the rule, **Why:** and **How to apply:**, plus its line in MEMORY.md)`);
     }
     if (need.length) add('rule-request', 'The user set a standing rule. Not yet written into: ' + need.join('; ') + '. Use the project-rule skill.');
+  }
+  // REQ: requirement-enforced. A lasting requirement on the project's work ("every picture must have a diagram") is made
+  // enforced in the same turn, without being asked: a "Done when" item in its runbook or skill that names its check, the
+  // check, and a test; or a "(judgment: <why>)" item when no script can tell. Lesson: the user stated requirements, the
+  // agent only wrote them into a runbook, and nothing enforced them until the user asked whether they were enforced.
+  if (x.prompt && re(cfg.requirementWords).test(x.prompt) && !re(cfg.ruleRequest).test(x.prompt)) {
+    const checkAdded = x.changed.some(p => /^(tools\/hooks\/(requirements\.json|hooks\.mjs|project-scenarios\.mjs)|library\/catalog\.json|packs\/[^/]+\/pack\.json)$/.test(p) || /\.(mjs|py|js|ts)$/.test(p) && /check|guard|lint|validate/i.test(p));
+    const tested = x.changed.some(p => /^tools\/hooks\/(selfcheck|project-scenarios)\.mjs$/.test(p) || /(^|\/)(tests?|__tests__)\/|\.(test|spec)\./.test(p)) || x.cmds.some(c => /selfcheck\.mjs|\btest\b/.test(c));
+    const judged = x.changed.filter(p => /(^docs\/playbooks\/|SKILL\.md$)/.test(p) && exists(p)).some(p => doneWhenItems(read(abs(p))).some(i => /\bjudg(e)?ment\b/i.test(i)));
+    if (!(checkAdded && tested) && !judged)
+      add('requirement-enforced', 'The user stated a lasting requirement. Enforce it now, without asking: add it to the "Done when" of the runbook or skill it belongs to with "(hook: <tag>)", ' +
+        'write that check (requirements.json, or the project\'s own check script) and a test for it; or mark it "(judgment: <why no script can tell>)". If it was only for this one task, waive it with N/A(requirement-enforced): one-off.');
   }
   // REQ: question-no-file. A question gets an answer, not unrequested edits.
   const question = /\?\s*$/.test(x.prompt.trim()) || /^\s*(what|why|how|which|who|where|when|should|is|are|can|could|would|do|does|did|will|any)\b/i.test(x.prompt);
@@ -2205,6 +2230,13 @@ export function touchedChecks(files) {
   return { tags: [...tags] };
 }
 
+// The checklist items under "## Done when" in a runbook or skill (REQ: done-when-labeled)
+export function doneWhenItems(text) {
+  const sec = (/^##\s+Done when[^\n]*\n([\s\S]*?)(?=^##\s|(?![\s\S]))/m.exec(text) || [])[1] || '';
+  return sec.split(/\r?\n/).filter(l => /^\s*[-*] \[[ xX]\]/.test(l)).map(l => l.replace(/^\s*[-*] \[[ xX]\]\s*/, '').trim());
+}
+export const DONE_LABEL = /\bhooks?\s*:\s*`?[a-z][\w-]+|\bjudgment\b|\bjudgement\b/i;
+
 export function holds(c, x) {
   const r = s => new RegExp(s, 'im');
   const globs = v => [].concat(v);
@@ -2268,6 +2300,12 @@ export const BASE_REQUIREMENTS = [
   { tag: 'audit-run', rule: '12', when: { filesChanged: ['CLAUDE.md', 'AGENTS.md', 'docs/MENU.md', 'docs/playbooks/**', 'docs/checks/**', 'skills/**', 'tools/hooks/requirements.json', 'tools/hooks/config.json'] },
     require: { toolPassed: { cmd: String.raw`audit\.mjs`, pass: 'audit: PASS', selfRun: 'node tools/audit.mjs' } },
     message: 'Project structure changed: run node tools/audit.mjs until it prints "audit: PASS" (fix every FAIL) before finishing.' },
+  // REQ: self-improve. Turning what the user already asked for into checks, runbooks, tests or skills is the agent's
+  // job (rule 3), not a question for the user. Lesson: an agent listed six unenforced requirements and asked "should I add
+  // those checks?", and the user had to point out that the project is meant to improve itself.
+  { tag: 'self-improve', rule: '3', when: { answerMatches: String.raw`\b(should|shall|can|may) i\b[^\n?]{0,60}\b(add|create|write|set up|turn)\b[^\n?]{0,80}\b(checks?|runbooks?|tests?|skills?|hooks?|rules?)\b[^\n]*\?|\b(want|like) me to\b[^\n?]{0,60}\b(add|create|write|set up|turn)\b[^\n?]{0,80}\b(checks?|runbooks?|tests?|skills?|hooks?|rules?)\b[^\n]*\?` },
+    require: { answerNotMatches: String.raw`\b(should|shall|can|may) i\b[^\n?]{0,60}\b(add|create|write|set up|turn)\b[^\n?]{0,80}\b(checks?|runbooks?|tests?|skills?|hooks?|rules?)\b[^\n]*\?|\b(want|like) me to\b[^\n?]{0,60}\b(add|create|write|set up|turn)\b[^\n?]{0,80}\b(checks?|runbooks?|tests?|skills?|hooks?|rules?)\b[^\n]*\?` },
+    message: "Don't ask whether to add checks, runbooks, tests or skills for what the user already asked for: add them now, then say what you added (hard rule 3). Ask only about money, privacy or outward actions." },
   { tag: 'decision-logged', rule: '12', when: { promptMatches: String.raw`\b(we|i)('ve| have)? decided\b|\blet'?s go with\b|\bfinal decision\b|\bi('m| am) going with\b|\bwe'?ll go with\b` },
     require: { filesChanged: ['docs/DECISIONS.md'] }, message: 'The user made a decision: record it in docs/DECISIONS.md (date, decision, why, what it rules out, what would reopen it).' },
   { tag: 'redo-changes', rule: '8', when: { workTurn: true, promptMatches: String.raw`\b(redo|re-do|re-?check|double.?check|try again|one more time|re-?run|second look|(do|check|look|go|run|try) (it |this |that |them )?(over |through )?again)\b` },
@@ -2413,6 +2451,9 @@ const SHORT = {
   'audit-run': "Run the project's health check until it passes",
   'playbook-named': 'Name the runbook or skill you followed in the answer',
   'rule-request': "Write the user's new rule down everywhere it belongs",
+  'requirement-enforced': "Make the user's new requirement enforced (a check and its test)",
+  'done-when-labeled': 'Say how each "Done when" item is proven (its check, or why judgment)',
+  'self-improve': 'Add the checks now instead of offering to',
   'verification-report': 'Say how the work was verified',
   'status-handoff': 'Update docs/STATUS.md so the next session can pick it up',
   'skill-read': 'Open the matching skill and check the work against it',

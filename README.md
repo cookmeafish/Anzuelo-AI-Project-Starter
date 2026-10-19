@@ -1,6 +1,6 @@
 # <!--name:STARTER_NAME-->Anzuelo<!--/name-->: <!--name:STARTER_TAGLINE-->A project starter for AI agents<!--/name-->
 
-Anzuelo is Spanish for fishing hook. Its hooks catch the agent whenever it skips a step, cuts a corner or makes something up.
+Its hooks catch the agent whenever it skips a step, cuts a corner or makes something up.
 
 It works with any agent (Claude Code, Codex, Cursor, Copilot, Gemini and others). Each project enforces its own way
 of working with hooks and checks, so you never have to keep reminding the agent. The rules live in `AGENTS.md`, the
@@ -89,6 +89,7 @@ The link and the copy are both ignored by git.
 | New project | `node tools/new-project.mjs "<folder>" --name "<Name>" [--desc "..."] [--git]` |
 | Existing project | `node tools/new-project.mjs "<folder>"`, then "set up this project". Nothing existing is overwritten |
 | Add a pack or library skill later | In the project: `node tools/packs.mjs install <name>` or `node tools/skills.mjs enable <name>` |
+| Update a project to the newest release | In the project: `node tools/starter.mjs update`. It gets the newest starter from GitHub (into the linked copy), then upgrades the project the safe way below. `node tools/starter.mjs status` says whether a newer release exists |
 | Upgrade a project's engine | In the project: `node tools/starter.mjs upgrade` (or from here: `node tools/new-project.mjs "<folder>" --upgrade`). Rolls back if a passing check breaks; lists what is new and fits, to weigh with you |
 | Preview any of these | add `--dry-run` |
 

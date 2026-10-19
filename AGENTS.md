@@ -36,7 +36,8 @@
    complaint about a miss, or praise for something to repeat all go through the **project-rule** skill: the principle
    and why it matters, with the date, a rule here, a row in `docs/checks/user-requirements.md`, a check in
    `tools/hooks/requirements.json` (or "hook: N/A <reason>"), a memory note, a test, and the audit. If something would
-   have surprised the user, harden the project the same way without being asked.
+   have surprised the user, harden the project the same way without being asked. A requirement that has no check yet
+   gets one now, without asking: never end an answer by offering to add checks, runbooks, tests or skills.
 4. **Accuracy over confidence.** Never invent facts, sources, numbers, quotes, file contents or results. Verify before
    claiming something works or is true. Say plainly what was not verified. Label uncertainty. Facts, from the web or
    from the project's own files, go through the **research** skill: several independent sources with paid and biased

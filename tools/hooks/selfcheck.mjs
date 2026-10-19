@@ -125,7 +125,7 @@ const many = n => Array.from({ length: n }, (_, i) => ({ name: 'Grep', input: { 
 const FIN = '\n\n## Finished\n- Done. Files: docs/x.md';
 const KNOW = '---\ntopic: Desks\nchecked: 2026-10-17\nvolatile: yes\n---\n# Desks\n| Fact | Label | Source | Date |\n|---|---|---|---|\n| Desk X costs $300 | source verified | https://example.com | 2026-10-17 |\n\n## Related\n- [Budget](budget.md): the limit this choice must fit\n';
 const TWIN = '# changed twin\nCLAUDE.md and AGENTS.md are twins.\n';
-const NEWPB = '---\nname: meal-plan\nsummary: Plan meals\ntriggers: meal plan, plan meals\nchecks: none - a test runbook\n---\n# Playbook\n## Steps\n1. a\n## Done when\n- [ ] b\n';
+const NEWPB = '---\nname: meal-plan\nsummary: Plan meals\ntriggers: meal plan, plan meals\nchecks: none - a test runbook\n---\n# Playbook\n## Steps\n1. a\n## Done when\n- [ ] b (judgment: a test runbook)\n';
 
 // expect: { block: bool, tags: [...must be reported], not: [...must NOT be reported] }
 const SHOT = '.cache/gui-review/r1/page-1400x900-light.png';
@@ -265,6 +265,28 @@ const STOP = [
     answer: 'Installed dayjs.', expect: { block: true, tags: ['worth-it'] } },
   { name: 'worth-it: a dependency installed with its gain and cost: passes the check', prompt: 'install a date library for the importer', tools: [bash('npm install dayjs', 'added 1 package')],
     answer: 'Installed dayjs.\nWorth it: parses the three date formats we get / one small dependency to keep updated.', expect: { block: false } },
+  // a lasting requirement the user states is enforced in the same turn, without being asked
+  { name: 'requirement-enforced: a requirement written only into a runbook: blocked', prompt: 'every raid picture must have a paired diagram', tools: [pb('project'), bash('node tools/audit.mjs')],
+    files: { 'docs/playbooks/raid-research.md': '---\nname: raid-research\nsummary: research a raid\ntriggers: research a raid\nchecks: none - test\n---\n# Playbook: raid research\n## Steps\n1. Research.\n## Done when\n- [ ] Every picture has a paired diagram (hook: diagram-paired).\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Playbook: project.md. Added the requirement.' + FIN, expect: { block: true, tags: ['requirement-enforced'] } },
+  { name: 'requirement-enforced: the check and its test were added: passes that check', prompt: 'every raid picture must have a paired diagram', tools: [pb('project'), bash('node tools/audit.mjs'), bash('node tools/hooks/selfcheck.mjs --tags diagram-paired', 'selfcheck: ALL PASS (2 passed, 0 failed)')],
+    files: { 'docs/playbooks/raid-research.md': '---\nname: raid-research\nsummary: research a raid\ntriggers: research a raid\nchecks: none - test\n---\n# Playbook: raid research\n## Steps\n1. Research.\n## Done when\n- [ ] Every picture has a paired diagram (hook: diagram-paired).\n',
+      'tools/hooks/project-scenarios.mjs': 'export default () => ({ stop: [] });\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Playbook: project.md. Added the requirement, its check and its test.' + FIN, expect: { block: true, not: ['requirement-enforced'] } },
+  { name: 'requirement-enforced: a one-off instruction is not a lasting requirement', prompt: 'fix the typo in the raid guide and make sure you run the tests', tools: [pb('project'), bash('node tools/audit.mjs')],
+    files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md. Fixed it.' + FIN, expect: { not: ['requirement-enforced'], block: false } },
+  // a requirement written into a runbook says how it is proven, so none stays unenforced unnoticed
+  { name: 'done-when-labeled: a runbook changed with an item that names no check or judgment: blocked', prompt: 'every raid answer must cite its raid file', tools: [pb('project'), bash('node tools/audit.mjs')],
+    files: { 'docs/playbooks/raid-answer.md': '---\nname: raid-answer\nsummary: answer a raid question\ntriggers: raid question\n---\n# Playbook: raid answer\n## Steps\n1. Answer.\n## Done when\n- [ ] The answer cites the raid file.\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Playbook: project.md. Added the citation rule.' + FIN, expect: { block: true, tags: ['done-when-labeled'] } },
+  { name: 'done-when-labeled: each item names its check or why only judgment can tell: passes that check', prompt: 'every raid answer must cite its raid file', tools: [pb('project'), bash('node tools/audit.mjs')],
+    files: { 'docs/playbooks/raid-answer.md': '---\nname: raid-answer\nsummary: answer a raid question\ntriggers: raid question\n---\n# Playbook: raid answer\n## Steps\n1. Answer.\n## Done when\n- [ ] The answer cites the raid file (hook: raid-cited).\n- [ ] The tone fits a new player (judgment: no script can tell tone).\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Playbook: project.md. Added the citation rule.' + FIN, expect: { block: true, not: ['done-when-labeled'] } },
+  // the project improves itself: no asking whether to add checks for what the user already asked for
+  { name: 'self-improve: offering to add checks instead of adding them: blocked', prompt: 'are these requirements enforced', tools: [],
+    answer: 'Two of them have no check yet.\n\n**Question for you:** should I add those checks now?', expect: { block: true, tags: ['self-improve'] } },
+  { name: 'self-improve: a question about money or publishing is fine', prompt: 'are these requirements enforced', tools: [],
+    answer: 'All of them are enforced now.\n\n**Question for you:** should I publish the guide to the website?', expect: { block: false } },
   // library skills from the imported plugins prove their own outcome
   { name: 'architecture: a decision with no file named: blocked', prompt: 'which database should we use for the app', tools: [sk('architecture')],
     answer: 'Skill: architecture. Use Postgres for its transactions.', expect: { block: true, tags: ['architecture-recorded'] } },

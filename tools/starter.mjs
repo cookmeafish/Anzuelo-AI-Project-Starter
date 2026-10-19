@@ -8,6 +8,7 @@
 // Later:
 //   node tools/starter.mjs status                 the choice, the link, what can still be added, and how many commits the
 //                                                 linked starter is behind its git origin
+//   node tools/starter.mjs update                 get the newest starter (git pull in the linked copy), then upgrade
 //   node tools/starter.mjs upgrade                refresh the engine from the linked starter (new-project.mjs --upgrade):
 //                                                 rolls back if a check that passed now fails, then lists what to review
 //   node tools/starter.mjs feedback "<text>"      note a lesson about the engine itself (hooks, checks, tools) in
@@ -95,6 +96,24 @@ if (cmd === 'link') {
   if (!link) { console.error('No starter is linked. Run: node tools/starter.mjs link "<starter folder>" first.'); process.exit(1); }
   const r = spawnSync(process.execPath, [path.join(link, 'tools', 'new-project.mjs'), ROOT, '--upgrade', ...process.argv.slice(3).filter(a => ['--dry-run', '--accept-findings'].includes(a))], { encoding: 'utf8', stdio: 'inherit' });
   process.exit(r.status ?? 1);
+} else if (cmd === 'update') {
+  // Get the newest starter from where it came from (its git origin), then upgrade this project from it. The upgrade
+  // audits before and after and rolls back if anything that passed now fails. Lesson: projects could upgrade only from
+  // whatever copy sat on the machine, with no way to fetch a newer release.
+  const link = starterLink();
+  if (!link) { console.error('No starter is linked. Clone the starter into its own folder (git clone <its repository>), then: node tools/starter.mjs link "<that folder>"'); process.exit(1); }
+  if (fs.existsSync(path.join(link, '.starter-dev'))) { console.error(`${link} is a development copy: projects update from a stable copy. Link one with: node tools/starter.mjs link "<stable starter folder>"`); process.exit(1); }
+  if (!fs.existsSync(path.join(link, '.git'))) { console.error(`${link} is not a git clone, so it can't fetch updates. Replace it with a clone of the starter's repository, link that, and run update again.`); process.exit(1); }
+  const g = (...a) => spawnSync('git', a, { cwd: link, encoding: 'utf8', timeout: 120000 });
+  if ((g('status', '--porcelain').stdout || '').trim()) { console.error(`${link} has local changes, so it is left alone. Commit or discard them there, then run update again.`); process.exit(1); }
+  const before = g('rev-parse', 'HEAD').stdout.trim();
+  const pull = g('pull', '--ff-only', '--quiet');
+  if (pull.status !== 0) { console.error(`Could not get the newest starter (offline, or its history changed): ${(pull.stderr || pull.stdout).trim().split('\n')[0]}`); process.exit(1); }
+  const after = g('rev-parse', 'HEAD').stdout.trim();
+  if (before === after && !process.argv.includes('--force')) { console.log('Done: the starter is already the newest version, so there is nothing to upgrade. (--force upgrades anyway.)'); process.exit(0); }
+  console.log(before === after ? 'Upgrading from the current starter (--force).' : `Got the newest starter (${g('rev-list', '--count', `${before}..${after}`).stdout.trim()} new change(s)). Upgrading this project from it.`);
+  const r = spawnSync(process.execPath, [path.join(link, 'tools', 'new-project.mjs'), ROOT, '--upgrade', ...process.argv.slice(3).filter(a => ['--dry-run', '--accept-findings'].includes(a))], { encoding: 'utf8', stdio: 'inherit' });
+  process.exit(r.status ?? 1);
 } else if (cmd === 'status' || !cmd) {
   const mode = readCfg().starter;
   console.log(`choice: ${mode || 'not made yet (setup asks the user: link, keep or remove)'}`);
@@ -108,7 +127,7 @@ if (cmd === 'link') {
     const g = (...a) => spawnSync('git', a, { cwd: link, encoding: 'utf8', timeout: 15000 });
     if (g('fetch', '--quiet').status === 0) {
       const n = g('rev-list', '--count', 'HEAD..@{u}');
-      if (n.status === 0 && /^\d+$/.test(n.stdout.trim())) console.log(`linked starter: ${+n.stdout.trim() ? `${n.stdout.trim()} commit(s) behind its origin (git pull in ${link}, then node tools/starter.mjs upgrade)` : 'up to date with its origin'}`);
+      if (n.status === 0 && /^\d+$/.test(n.stdout.trim())) console.log(`linked starter: ${+n.stdout.trim() ? `${n.stdout.trim()} commit(s) behind its origin (node tools/starter.mjs update)` : 'up to date with its origin'}`);
     }
   }
   const fb = feedbackLines(), sent = reportedLines();

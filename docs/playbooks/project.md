@@ -1,7 +1,7 @@
 ---
 name: project
 summary: The project itself - new rules, complaints about misses, praise to repeat, sweeps, gaps, runbooks, skills, hooks, packs, status, engine upgrades
-triggers: clean up skills, prune skills, unused skills, retire a skill, show me the menu, menu codes, set up this project, enable a skill, remove a skill, library skills, update the project, update this project, from now on, new rule, make it a rule, remember to always, remember from now on, you forgot, i told you, why did you, i shouldn't have to, sweeps, sweep, audit the project, run the audit, gaps, gap review, what's missing, runbook, runbooks, playbook, project skills, the skills, harden a skill, harden the skill, the hooks, hook change, add a pack, install a pack, packs, where are we, where were we, what's next, status, to-do, remind me, handoff for the next session, what's on my plate, what am i waiting on, daily summary, standup update, share these skills, package skills, skill bundle, make a plugin, customize a plugin, upgrade the engine, upgrade the starter
+triggers: clean up skills, prune skills, unused skills, retire a skill, show me the menu, menu codes, set up this project, enable a skill, remove a skill, library skills, update the project, update this project, from now on, new rule, make it a rule, remember to always, remember from now on, you forgot, i told you, why did you, i shouldn't have to, sweeps, sweep, audit the project, run the audit, gaps, gap review, what's missing, runbook, runbooks, playbook, project skills, the skills, harden a skill, harden the skill, the hooks, hook change, add a pack, install a pack, packs, where are we, where were we, what's next, status, to-do, remind me, handoff for the next session, what's on my plate, what am i waiting on, daily summary, standup update, share these skills, package skills, skill bundle, make a plugin, customize a plugin, upgrade the engine, upgrade the starter, update the starter, newest starter, new starter release, starter update
 menu: E1
 checks: core: rule-request, rule-memory, hooks-tested, runbook-complete
 ---
@@ -33,6 +33,8 @@ Follow the **session-handoff** skill: "where are we", "what's next", reminders a
 standup update, a handoff for the next session, and `docs/glossary.md`.
 
 ### §7 Upgrade the engine (E6)
+To get a newer release of the starter first, run `node tools/starter.mjs update`: it pulls the newest starter into the
+linked copy (stopping if that copy has local changes or is a development copy), then upgrades as below. Otherwise:
 `node tools/starter.mjs upgrade` (needs the starter linked; run it with `--dry-run` first to see the list). It
 replaces only the engine files (hooks, tests, audit, tools, core skills and checklists) and never touches this
 project's content. It can't make the project worse unseen:

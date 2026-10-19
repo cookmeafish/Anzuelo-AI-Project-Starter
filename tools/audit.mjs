@@ -11,7 +11,7 @@ import {
   ROOT, read, abs, exists, frontmatter, playbooks, skillProblems, playbookProblems, knowledgeProblems, config,
   loadRequirements, usage, hardenDue, menu, runbookHasCheck, generatedSkill, directoryBlock, staleKnowledge,
   setupProblems, upgradeProblems, bench, gitignoreProblems, writingProblems, aiAttributedCommits, BASE_REQUIREMENTS, routableSkills, skillHasCheck, curateDue,
-  FIT_FILE, fitProblems, fitRows, fitDecision, fitWhenOf
+  FIT_FILE, fitProblems, fitRows, fitDecision, fitWhenOf, doneWhenItems, DONE_LABEL
 } from './hooks/hooks.mjs';
 
 const cfg = config();
@@ -79,6 +79,13 @@ sweep('hooks wired for every agent', () => {
     else if (!calls) warn.push(`the project's own git hooks (${own}) don't call .githooks/commit-msg, pre-commit and pre-push, so git does not check AI attribution, secrets or .gitignore (the agent hooks still do)`);
   }
   return { fail, warn };
+});
+
+// a warning, never a failure: older runbooks get labeled when they are next changed (the stop check then requires it)
+sweep('every "Done when" item says how it is proven', () => {
+  const files = walk('', p => /^(docs\/playbooks\/[^/_][^/]*\.md|(skills|library\/skills|packs\/[^/]+\/files\/skills)\/[^/]+\/SKILL\.md|packs\/[^/]+\/files\/docs\/playbooks\/[^/_][^/]*\.md)$/.test(p));
+  const warn = files.flatMap(p => { const n = doneWhenItems(read(abs(p))).filter(i => !DONE_LABEL.test(i)).length; return n ? [`${p}: ${n} item(s) without "(hook: <tag>)" or "(judgment: <why>)"`] : []; });
+  return { warn, note: `${files.length} files` };
 });
 
 sweep('requirements.json is valid', () => {
