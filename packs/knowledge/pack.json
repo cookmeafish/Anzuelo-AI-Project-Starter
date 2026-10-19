@@ -173,6 +173,9 @@
       "when": {
         "filesChanged": [
           "outputs/**"
+        ],
+        "filesIgnore": [
+          "outputs/drafts/**"
         ]
       },
       "require": {

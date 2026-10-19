@@ -17,12 +17,15 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.
 const NOT_NOTES = /^(docs\/(CHANGELOG|STATUS|MENU|BRIEF|DECISIONS|security|foundation|lessons|fit-checklist|recommended-tools|glossary)\.md|docs\/(specs|releases)\/_TEMPLATE\.md|docs\/(plans|knowledge)\/README\.md|docs\/knowledge\/SOURCES\.md|docs\/feedback-inbox\/|docs\/playbooks\/_|docs\/checks\/|DIRECTORY\.md|CLAUDE\.md|AGENTS\.md|SETUP-PROMPT\.md|HOW-TO-USE\.md)/;
 const SKIP = /^(\.git|node_modules|\.cache|\.claude|\.agents|\.codex|\.gemini|\.obsidian|\.starter|state)$/;
 const ALL = process.argv.includes('--all');
+// the project's own note folders ("knowledgeDirs" in tools/hooks/config.json, e.g. a vault in Notes/) are notes too.
+// Lesson: a vault in Notes/ reported every link resolving while its links were never read.
+const KNOWLEDGE_ROOTS = (() => { try { return [].concat(JSON.parse(fs.readFileSync(path.join(ROOT, 'tools', 'hooks', 'config.json'), 'utf8')).knowledgeDirs || []).map(d => String(d).split(/[\/]/)[0]).filter(Boolean); } catch { return []; } })();
 const STOP = new Set('a an the this that these to of for in on at my me it its is are be do does did and or with from by i we our you your as not no can will should was were has have had but if then than so what when which who how why all any each one'.split(' '));
 const words = s => [...new Set(String(s).toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length > 3 && !STOP.has(w)).map(w => w.replace(/(?<![su])s$/, '')))];
 
 function notes(every = false) {
   const out = [];
-  const walk = d => { for (const n of fs.readdirSync(path.join(ROOT, d || '.'))) { if (SKIP.test(n)) continue; const p = d ? `${d}/${n}` : n; const st = fs.statSync(path.join(ROOT, p)); if (st.isDirectory()) { if (!d && !ALL && !['docs', 'profiles'].includes(n)) continue; walk(p); } else if (p.endsWith('.md') && (every || ALL || !NOT_NOTES.test(p))) out.push(p); } };
+  const walk = d => { for (const n of fs.readdirSync(path.join(ROOT, d || '.'))) { if (SKIP.test(n)) continue; const p = d ? `${d}/${n}` : n; const st = fs.statSync(path.join(ROOT, p)); if (st.isDirectory()) { if (!d && !ALL && !['docs', 'profiles', ...KNOWLEDGE_ROOTS].includes(n)) continue; walk(p); } else if (p.endsWith('.md') && (every || ALL || !NOT_NOTES.test(p))) out.push(p); } };
   walk('');
   return out;
 }

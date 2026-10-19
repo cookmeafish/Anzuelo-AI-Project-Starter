@@ -212,7 +212,7 @@ const DEFAULTS = {
   overwriteWords: "\\b(overwrite|in place|edit (it|this|that|the (file|doc|output))|replace (it|the file)|fix (it|this|that|the) (file|doc|output|typo))\\b",
   // The user's OK for an outward action in this request (REQ: outward-gate). "email the supplier" alone asks for a draft;
   // "send it", "post it", "push" or "open a PR" is the OK.
-  outwardOk: "\\b(send|sent|post (it|this|that|them)|publish|push|ship it|deploy|release|submit|reply (to|now)|open (a|an|the) (pr|pull request|issue)|create (a|an|the) (pr|pull request|issue)|file (a|an) issue|comment on|merge (it|the)|go ahead|do it|approved?)\\b",
+  outwardOk: "\\b(send|sent|post (it|this|that|them)|publish|push|ship it|deploy|release|submit|reply now|send (the|my|this|that) (reply|answer|email|message)|open (a|an|the) (pr|pull request|issue)|create (a|an|the) (pr|pull request|issue)|file (a|an) issue|comment on|merge (it|the)|go ahead|do it|approved?)\\b",
   deleteWords: "\\b(delete|remove|clean ?up|get rid of|trash|erase)\\b"
 };
 // List settings in config.json EXTEND the defaults (a pack adding root files must not drop AGENTS.md from the list).
