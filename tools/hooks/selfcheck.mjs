@@ -3,6 +3,7 @@
 // synthetic transcript, and checks that skipping a rule is blocked and following it passes.
 //   node tools/hooks/selfcheck.mjs              run every scenario
 //   node tools/hooks/selfcheck.mjs --route "…"  show which runbooks a message routes to, plus all prompt hints
+//   node tools/hooks/selfcheck.mjs --explain "<scenario name>"  every check that fires for that scenario, with what satisfies it
 // Add a scenario for every new REQ tag (project-rule skill): one where the rule is skipped, one where it is followed.
 import fs from 'node:fs';
 import os from 'node:os';
@@ -818,6 +819,13 @@ STOP.push(
     } },
   // plain writing: a quoted list is a list
   { name: 'plain-writing: a quoted list is not one long paragraph: passes', prompt: 'hello', answer: QUOTED_LIST, expect: { block: false, not: ['plain-writing'] } },
+  // Lesson: a 2-line progress answer whose first line had no final period ran into the markers line: one 47-word "sentence"
+  { name: 'plain-writing: a short progress answer with a markers line, paths and code is not a long sentence: passes', prompt: 'hello',
+    answer: 'Progress: the merge now covers pack and library checks in tools/new-project.mjs and the trial sample passes; next I run the full checks with `node tools/audit.mjs`\n' +
+      'Playbook: project.md · Skill: debug · N/A(status-handoff): a progress note mid-task, the handoff comes when the work ends · N/A(changelog): nothing finished yet', expect: { not: ['plain-writing'] } },
+  { name: 'plain-writing: a long run-on sentence in a real answer: blocked', prompt: 'hello',
+    answer: 'The desk we looked at last week is still the best pick for the room because it is sturdy and quiet and easy to adjust and it fits by the window and the price stayed the same and the shop can deliver it on Friday and they will also take the old one away for free if we ask them nicely before noon on the day.',
+    expect: { tags: ['plain-writing'] } },
   // the self-test a check-file change needs: none for tuning, the touched checks' scenarios for check logic
   { name: 'hooks-tested: a namesIgnore glob in config.json needs no self-test: passes', prompt: 'ignore the vendor folder in the name check', tools: [pb('project'), bash('node tools/audit.mjs')],
     prep: turnStart('config.json', s => JSON.stringify({ ...JSON.parse(s), namesIgnore: ['vendor/**'] }, null, 2)), files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.' + FIN, expect: { block: false, not: ['hooks-tested'] } },
@@ -1090,6 +1098,47 @@ if (fs.existsSync(OWN)) {
   STOP.push(...(own.stop || [])); PRETOOL.push(...(own.pretool || [])); PROMPT.push(...(own.prompt || []));
 }
 
+// --explain "<scenario name or part of it>": every check that fires for the matching scenarios, at once, each with its
+// short label and what would satisfy it (the full message), so a pass scenario is fixed in one go.
+// Lesson: a project writing pass scenarios found the checks one stop round at a time.
+function explain(query) {
+  const q = String(query || '').toLowerCase().trim(), out = [];
+  const hits = [...STOP.map(s => ['stop', s]), ...PRETOOL.map(s => ['pretool', s]), ...PROMPT.map(s => ['prompt', s])].filter(([, s]) => q && s.name.toLowerCase().includes(q));
+  if (!hits.length) return [`no scenario name contains "${query}". Names: node tools/hooks/selfcheck.mjs prints them (PASS/FAIL lines).`];
+  for (const [kind, s] of hits) {
+    out.push(`${kind}: ${s.name}`);
+    if (!packOk(s)) { out.push(`  skipped here: the ${s.pack} pack is not installed in the test base`); continue; }
+    if (kind === 'stop') {
+      const r = runStop({ ...s, blocks: undefined });
+      if (!r.blocked) { out.push('  nothing fires: the Stop hook passes this scenario'); continue; }
+      const shorts = (r.reason.match(/^\d+\. .*$/gm) || []).map(l => l.replace(/^\d+\.\s*/, ''));
+      const full = (r.details.match(/^\d+\. \[[^\]]+\] .*$/gm) || []).map(l => /^\d+\. \[([^\]]+)\] (.*)$/.exec(l));
+      full.forEach((m, i) => out.push(`  - ${m[1]}: ${shorts[i] || ''}\n      satisfy it: ${m[2]}\n      or waive it if it truly does not apply: N/A(${m[1]}): <reason>`));
+      if (!full.length) out.push(`  ${r.reason.replace(/\n/g, '\n  ')}`);
+    } else if (kind === 'pretool') {
+      const dir = copyProject();
+      try {
+        write(dir, s.setup); applyEdits(dir, s.edit);
+        const tp = transcript(dir, { prompt: s.prompt || 'do the thing', answer: null, tools: s.tools }, Date.now());
+        const input = { ...s.input }; if (input.file_path) input.file_path = path.join(dir, input.file_path);
+        const { out: o } = run(dir, 'pretool', { tool_name: s.tool, tool_input: input, transcript_path: tp });
+        let d = null; try { d = JSON.parse(o); } catch { }
+        const why = d?.hookSpecificOutput?.permissionDecisionReason || '';
+        out.push(/"permissionDecision":"deny"/.test(o) ? `  denied: ${why}` : `  allowed${why ? `: ${why}` : ''}`);
+      } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+    } else {
+      const dir = copyProject();
+      try { write(dir, s.setup); applyEdits(dir, s.setupFn); const pr = run(dir, 'prompt', { prompt: s.prompt }); out.push(pr.out.trim() ? `  hints:\n    ${pr.out.trim().replace(/\n/g, '\n    ')}` : '  no hints'); }
+      finally { fs.rmSync(dir, { recursive: true, force: true }); }
+    }
+  }
+  return out;
+}
+{
+  const i = process.argv.indexOf('--explain');
+  if (i > 0) { console.log(explain(process.argv.slice(i + 1).join(' ')).join('\n')); process.exit(0); }
+}
+
 // With --tags, a scenario runs when it proves one of the tags: it expects the tag (or expects it absent), or its name
 // spells the tag (or the name COVERS gives for it). A tag no scenario proves at all is a FAIL: add one.
 const proves = s => TAGS.filter(t => (s.expect?.tags || []).includes(t) || (s.expect?.not || []).includes(t) || s.tag === t || s.name.includes(t) || (COVERS[t] && s.name.includes(COVERS[t])));
@@ -1157,6 +1206,11 @@ for (const s of PROMPT) {
 }
 
 if (!TAGS) { // the standalone checks run in a full run only
+{ // --explain: every check that fires for a scenario at once, with its short label and what satisfies it
+  const out = explain('unrouted work turn with no runbook created').join('\n'), none = explain('no such scenario xyz').join('\n');
+  report(/- runbook-exists: Leave a runbook behind/.test(out) && /satisfy it: /.test(out) && /N\/A\(runbook-exists\)/.test(out) && /no scenario name contains/.test(none),
+    'selfcheck --explain: lists every firing check with its label and what satisfies it', out.slice(0, 400));
+}
 { // session hook output
   const dir = copyProject();
   try {
@@ -1650,6 +1704,27 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
     fs.rmSync(path.join(dir, 'skills/debug/extra-notes.md')); fs.rmSync(path.join(dir, 'skills/debug/old'), { recursive: true }); sync();
     const gone = !fs.existsSync(path.join(dir, '.claude/skills/debug/extra-notes.md')) && !fs.existsSync(path.join(dir, '.claude/skills/debug/old')) && fs.existsSync(path.join(dir, '.claude/skills/debug/SKILL.md'));
     report(made && gone, 'skill-mirror: sync deletes files removed from the skill folder', `made ${made}, gone ${gone}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+{ // skill-mirror: a mirror at another depth re-points relative links, so they resolve from the mirror to the same file
+  // Lesson: .agents/skills/plan/SKILL.md kept skills/plan/'s "../../docs/plans/README.md", which broke one folder deeper.
+  const dir = copyProject();
+  try {
+    applyEdits(dir, { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), skillMirrors: ['.claude/skills', '.agents/skills'] }) });
+    write(dir, { 'skills/debug/ref/links.md': '# Links\n- [plans](../../../docs/plans/README.md#top) and [own](../SKILL.md)\n- `../../../not/a/link.md` stays code\n\n[brief]: ../../../docs/BRIEF.md\n' });
+    spawnSync(process.execPath, ['tools/hooks/hooks.mjs', 'sync'], { cwd: dir, encoding: 'utf8' });
+    const bad = [];
+    for (const f of ['.agents/skills/plan/SKILL.md', '.claude/skills/plan/SKILL.md', '.agents/skills/debug/ref/links.md']) {
+      const t = fs.existsSync(path.join(dir, f)) ? fs.readFileSync(path.join(dir, f), 'utf8') : '';
+      if (!t) { bad.push(`${f} missing`); continue; }
+      const links = [...t.replace(/`[^`]*`/g, '').matchAll(/\]\(([^)\s#]+)[^)]*\)|^\[[^\]]+\]:\s+(\S+)/gm)].map(m => m[1] || m[2]).filter(l => !/^[a-z]+:/i.test(l));
+      for (const l of links) if (!fs.existsSync(path.resolve(path.dirname(path.join(dir, f)), decodeURI(l)))) bad.push(`${f}: ${l}`);
+      if (!links.length) bad.push(`${f}: no links found`);
+    }
+    const a = spawnSync(process.execPath, ['tools/audit.mjs'], { cwd: dir, encoding: 'utf8' });
+    if (/^FAIL.*(generated files|relative links)/m.test(a.stdout)) bad.push(a.stdout.split('\n').filter(l => /differs|broken link/.test(l)).slice(0, 3).join(' | '));
+    report(!bad.length, 'skill-mirror: a mirrored link resolves from the mirror (any depth), and the audit agrees', bad.join(' | '));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 

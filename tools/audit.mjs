@@ -11,7 +11,7 @@ import {
   ROOT, read, abs, exists, frontmatter, playbooks, skillProblems, playbookProblems, knowledgeProblems, config,
   loadRequirements, usage, hardenDue, menu, runbookHasCheck, generatedSkill, directoryBlock, staleKnowledge,
   setupProblems, upgradeProblems, bench, gitignoreProblems, writingProblems, aiAttributedCommits, BASE_REQUIREMENTS, routableSkills, skillHasCheck, curateDue,
-  FIT_FILE, fitProblems, fitRows, fitDecision, fitWhenOf, doneWhenItems, DONE_LABEL, findLibrary, secretHit
+  FIT_FILE, fitProblems, fitRows, fitDecision, fitWhenOf, doneWhenItems, DONE_LABEL, findLibrary, secretHit, mirrorText
 } from './hooks/hooks.mjs';
 
 const cfg = config();
@@ -130,7 +130,8 @@ sweep('generated files are current (skills, mirrors, DIRECTORY.md)', () => {
     if (!cur) fail.push(`${f} is missing (run node tools/hooks/hooks.mjs sync)`);
     else if (/^generated:\s*true/m.test(cur) && cur !== generatedSkill(pb)) fail.push(`${f} is out of date (sync)`);
   }
-  for (const m of cfg.skillMirrors) for (const n of skillNames) if (read(abs(`${m}/${n}/SKILL.md`)) !== read(abs(`${cfg.skillsDir}/${n}/SKILL.md`))) fail.push(`${m}/${n}/SKILL.md differs from ${cfg.skillsDir}/${n}/SKILL.md (sync)`);
+  // a mirror is the skill with its relative links re-pointed from the mirror's folder (hooks.mjs mirrorText)
+  for (const m of cfg.skillMirrors) for (const n of skillNames) if (read(abs(`${m}/${n}/SKILL.md`)) !== mirrorText(read(abs(`${cfg.skillsDir}/${n}/SKILL.md`)), `${cfg.skillsDir}/${n}`, `${m}/${n}`)) fail.push(`${m}/${n}/SKILL.md differs from ${cfg.skillsDir}/${n}/SKILL.md (sync)`);
   if (!read(abs('DIRECTORY.md')).includes(directoryBlock(cfg))) fail.push('DIRECTORY.md is out of date (sync)');
   return { fail };
 });

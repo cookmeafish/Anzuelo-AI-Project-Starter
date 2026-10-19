@@ -126,6 +126,29 @@ for (const [name, s] of Object.entries(SAMPLES)) {
   if (sec) sec.message = 'our own security wording'; // edited here, never shipped like this
   fs.writeFileSync(rqPath, JSON.stringify(rq0, null, 2) + '\n');
   if (noPrev) fs.rmSync(ecPath, { force: true }); else fs.writeFileSync(ecPath, JSON.stringify(ec0, null, 2) + '\n');
+  // an older engine runbook: project.md with unlabeled "Done when" items, plus the project's own trigger, lessons and mark.
+  // Lesson: project.md was never refreshed by upgrades, so done-when-labeled fired on the engine's own runbook.
+  const pmPath = path.join(dir, 'docs/playbooks/project.md');
+  const pmOld = fs.readFileSync(path.join(STARTER, 'docs/playbooks/project.md'), 'utf8').replace(/\s*\([^)]*\b(hooks?|judgment)\b[^)]*\)/g, '')
+    .replace(/^triggers:\s*(.*)$/m, 'triggers: $1, our quarterly tidy-up').replace(/^---\r?\n/, '---\nhardened: 2026-10-01\n') + '\n## Project lessons\n- Keep the menu to one screen.\n';
+  fs.writeFileSync(pmPath, pmOld);
+  // installed pack and enabled library skill whose checks this project never got (as with an older starter): the
+  // upgrade adds them, with their rule-enforcement rows, and lists them in the review.
+  // Lesson: upgrades merged only core checks, so the live hooks skipped pack and library checks the self-tests ran.
+  const packSample = /knowledge/.test(name), packTags = ['knowledge-source-trigger', 'a11y-checked'];
+  if (packSample) {
+    const cfgP = path.join(dir, 'tools/hooks/config.json');
+    fs.writeFileSync(cfgP, JSON.stringify({ ...JSON.parse(fs.readFileSync(cfgP, 'utf8')), autonomy: 'auto' }, null, 2) + '\n');
+    fs.appendFileSync(path.join(dir, 'docs/DECISIONS.md'), '\n## Setup interview (2026-10-18)\n' + ['Involvement: decide', 'Focus: trip notes', 'Kind of work: knowledge', 'Visual interface: a small page',
+      'Typical requests: see docs/BRIEF.md', 'Inputs: notes and prices', 'People: one', 'Sensitive data: none', 'Constraints: none', 'Quality bar: sourced', 'Always/never: none'].map(a => `- ${a.replace(': ', ': assumed - ')}`).join('\n') + '\n');
+    const ip = node(['tools/packs.mjs', 'install', 'knowledge'], dir), en = node(['tools/skills.mjs', 'enable', 'frontend-design'], dir);
+    check(name, 'the knowledge pack installs and frontend-design enables', ip.status === 0 && en.status === 0, `${ip.stdout.slice(-200)} ${ip.stderr.slice(0, 200)} ${en.stderr.slice(0, 200)}`);
+    const rq = JSON.parse(fs.readFileSync(path.join(dir, 'tools/hooks/requirements.json'), 'utf8'));
+    rq.requirements = rq.requirements.filter(r => !packTags.includes(r.tag));
+    fs.writeFileSync(path.join(dir, 'tools/hooks/requirements.json'), JSON.stringify(rq, null, 2) + '\n');
+    const ep = path.join(dir, 'docs/checks/rule-enforcement.md');
+    fs.writeFileSync(ep, fs.readFileSync(ep, 'utf8').split('\n').filter(l => !packTags.some(t => l.includes(t))).join('\n'));
+  }
   const mine = snapshot(dir);
   const u1 = starterRun(dir, '--upgrade', '--accept-findings');
   const rq1 = JSON.parse(fs.readFileSync(rqPath, 'utf8')).requirements, starterRq = JSON.parse(fs.readFileSync(path.join(STARTER, 'tools/hooks/requirements.json'), 'utf8')).requirements;
@@ -135,6 +158,16 @@ for (const [name, s] of Object.entries(SAMPLES)) {
   if (sec) check(name, 'an upgrade keeps a core check edited in the project, marks it custom and lists it in the review', rq1.find(r => r.tag === 'security-report')?.message === 'our own security wording' && rq1.find(r => r.tag === 'security-report')?.custom === true && /- check: security-report, kept your edited version/.test(review), review.slice(-600));
   if (rooted) check(name, 'an upgrade keeps a core check the project marked "custom"', rq1.find(r => r.tag === 'debug-root-cause')?.message === 'our own wording');
   check(name, 'an upgrade runs without an error', u1.status === 0, (u1.stderr || u1.stdout).slice(-400));
+  const pmNew = fs.readFileSync(pmPath, 'utf8'), dw = (/^## Done when[^\n]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(pmNew)?.[1] || '').split('\n').filter(l => /^\s*- \[[ x]\]/.test(l));
+  check(name, "an upgrade refreshes the engine's project runbook (every Done when item labeled) and keeps its trigger, lessons and hardened mark",
+    dw.length && dw.every(l => /\b(hooks?\s*:|judgment\b)/.test(l)) && /^triggers:.*our quarterly tidy-up/m.test(pmNew) && pmNew.includes('Keep the menu to one screen.') && /^hardened: 2026-10-01$/m.test(pmNew),
+    dw.filter(l => !/\b(hooks?\s*:|judgment\b)/.test(l)).slice(0, 2).join(' | ') || pmNew.slice(0, 300));
+  if (packSample) {
+    const ruleMap = fs.readFileSync(path.join(dir, 'docs/checks/rule-enforcement.md'), 'utf8');
+    const got = packTags.filter(t => rq1.some(r => r.tag === t && (r.pack === 'knowledge' || r.skill === 'frontend-design')));
+    check(name, 'an upgrade adds the new checks of an installed pack and an enabled library skill, with their rows, and lists them in the review',
+      got.length === 2 && packTags.every(t => ruleMap.includes(t) && new RegExp(`- check: ${t}, added from`).test(review)), `got ${got.join(', ')} | ${review.slice(-500)}`);
+  }
   const afterUp = snapshot(dir);
   check(name, "an upgrade keeps the project's own runbook", afterUp['docs/playbooks/my-own.md'] === mine['docs/playbooks/my-own.md']);
   for (const f of Object.keys(before)) if (!MAY_GROW.includes(f)) check(name, `an upgrade kept ${f}`, afterUp[f] === before[f]);

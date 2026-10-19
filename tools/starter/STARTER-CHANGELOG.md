@@ -4,6 +4,29 @@ Changes to the starter itself. A project picks up engine changes with `node tool
 starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook changes listed here are adopted by hand
 (project-rule, runbook-create), because an upgrade never touches a project's own content.
 
+- 2026-10-19: Fixes from a real project's upgrade.
+  - **Pack and library checks are upgraded too.** `tools/hooks/engine-checks.json` now ships every check: the core
+    skills', each pack's (tagged `pack`) and each library skill's (tagged `skill`). An upgrade runs the same 3-way merge
+    on the checks of the packs the project installed and the library skills it enabled: missing ones are added with
+    their `docs/checks/rule-enforcement.md` rows, unedited ones are refreshed, edited ones are kept and marked
+    `"custom": true`, and the upgrade review lists every added check. Switching a check off and the app pack's own code
+    folders and version file count as settings, not edits. Before, the live hooks skipped new pack and library checks
+    that the self-tests ran.
+  - **Skill mirrors keep working links.** A mirror (`.claude/skills`, `.agents/skills`, any `skillMirrors` entry) sits
+    at a different depth than `skills/`, so its Markdown links are re-pointed from the mirror's folder to the same
+    target. Links inside the skill's own folder and code stay as they are, and the audit compares mirrors the same way.
+  - **The engine's runbooks are upgraded.** `docs/playbooks/project.md` was in neither upgrade list, so projects kept
+    an old copy with unlabeled "Done when" items and done-when-labeled fired on it. `project.md` and `plan.md` are now
+    engine files like `_fallback.md` and `_TEMPLATE.md`: replaced on upgrade, keeping the project's added triggers, its
+    `## Project lessons` section and its `hardened`, `harden` and `keep` marks (older copy in `.cache/upgrade-backup/`).
+  - **No plain-writing alarm on short answers.** A 2-line progress answer whose first line had no final period ran into
+    the markers line and was measured as one 47-word sentence. Length now counts prose only: the answer's markers line
+    (`Playbook:`, `Skill:`, `Worth it:`, `N/A(...)`), code spans and file paths are left out, and an answer under 40
+    words is never too long. Em dashes and filler are still caught everywhere.
+  - **See every check a scenario trips at once.** `node tools/hooks/selfcheck.mjs --explain "<scenario name>"` runs the
+    matching scenarios and prints each check that fires, with its short label, what satisfies it and how to waive it,
+    so a project writing pass scenarios fixes them in one go instead of one stop round at a time.
+
 - 2026-10-18: Runbooks and skills come up when the work needs them, not only when the request names them.
   - **Event triggers.** What the agent did now makes a runbook or skill mandatory, even if nobody asked. Code written
     for sign-in, passwords, tokens, secrets, permissions, sessions, CORS, uploads, endpoints, shell or eval, query
