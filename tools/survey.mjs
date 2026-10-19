@@ -21,8 +21,9 @@ const heading = p => { try { return (/^#\s+(.+)$/m.exec(fs.readFileSync(path.joi
 const instructions = files.filter(f => /(^|\/)(\.cursorrules|\.windsurfrules|\.clinerules|copilot-instructions\.md|GEMINI\.md|CONVENTIONS\.md)$|(^|\/)(\.cursor|\.windsurf|\.clinerules|\.roo|\.github\/instructions)\/.+\.(md|mdc|txt)$|(^|\/)archive\/.*(AGENTS|CLAUDE)/i.test(f.p)).map(f => f.p);
 const readmes = files.filter(f => /(^|\/)readme(\.[a-z]+)?$/i.test(f.p)).map(f => f.p);
 const notes = files.filter(f => /\.(md|mdx|txt)$/i.test(f.p) && SURVEY_KINDS.notes.test(f.p) && !readmes.includes(f.p)).sort((a, b) => b.size - a.size).slice(0, 12).map(f => ({ p: f.p, title: heading(f.p) }));
-const scripts = {};
-for (const m of manifests.filter(p => p.endsWith('package.json'))) { try { Object.assign(scripts, JSON.parse(fs.readFileSync(path.join(ROOT, m), 'utf8')).scripts || {}); } catch { } }
+// a manifest is untrusted data: no __proto__ or constructor key may reach the object
+const scripts = Object.create(null);
+for (const m of manifests.filter(p => p.endsWith('package.json'))) { try { for (const [k, v] of Object.entries(JSON.parse(fs.readFileSync(path.join(ROOT, m), 'utf8')).scripts || {})) if (!/^(__proto__|constructor|prototype)$/.test(k)) scripts[k] = v; } catch { } }
 const git = spawnSync('git', ['log', '-n', '1', '--format=%cs'], { cwd: ROOT, encoding: 'utf8' });
 // (a repository with no commits yet is still a repository. Lesson: "git init" then the survey said "not a git repository")
 const isRepo = !!sv.git || fs.existsSync(path.join(ROOT, '.git'));

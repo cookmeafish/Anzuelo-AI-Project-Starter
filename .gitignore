@@ -8,6 +8,9 @@ tools/hooks/state/
 .private-terms
 # Marks a development copy of the starter: real projects refuse to be made from it or linked to it
 .starter-dev
+# Lessons linked projects send back (node tools/starter.mjs report): they name the user's projects and quote their
+# words, so they stay on this machine and never reach the public repository
+docs/feedback-inbox/
 # Agent-specific files, made on each machine by node tools/hooks/wire.mjs (the rules live in AGENTS.md)
 CLAUDE.md
 .claude/
