@@ -1168,6 +1168,8 @@ STOP.push(
 );
 PRETOOL.push(
   { name: 'publish-gate: publishing before a security review: denied', tool: 'Bash', input: { command: 'npm publish' }, deny: true, tag: 'publish-gate' },
+  // Lesson: "cargo publish --dry-run" was refused, so the preview a release needs could not run
+  { name: 'publish-gate: a dry run publishes nothing: allowed', tool: 'Bash', input: { command: 'cargo publish --dry-run' }, prompt: 'check what the crate would contain', deny: false },
   { name: 'publish-gate: publishing after the review this turn: allowed', tool: 'Bash', input: { command: 'npm publish' }, tools: [sk('security-review')], deny: false },
   { name: 'subagent-brief: a prompt naming a brief file that points at AGENTS.md: allowed', tool: 'Agent', input: { prompt: 'Your brief is .cache/briefs/export.md. Do what it says.', subagent_type: 'general-purpose' }, setup: { '.cache/briefs/export.md': 'Read AGENTS.md first and follow its rules.\nReview the export.' }, deny: false },
   { name: 'subagent-brief: a brief file without the rules: denied', tool: 'Agent', input: { prompt: 'Your brief is .cache/briefs/export.md. Do what it says.', subagent_type: 'general-purpose' }, setup: { '.cache/briefs/export.md': 'Review the export.' }, deny: true, tag: 'subagent-brief' },

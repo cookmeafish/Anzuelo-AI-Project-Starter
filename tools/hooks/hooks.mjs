@@ -2381,7 +2381,9 @@ export function pretoolDecision(data, cfg = config()) {
     // docs/security.md): hard rule 15 says before, and a Stop check could only say it after the fact.
     // Lesson: a package went public before anyone looked at what it contained.
     const pub = /\b(npm|pnpm|yarn)\s+publish\b|\bgh\s+release\s+create\b|\bgh\s+repo\s+(create\b[^\n;&|]*--public|edit\b[^\n;&|]*--visibility[= ]public)|\b(vercel|netlify)\b[^\n;&|]*--prod\b|\bfirebase\s+deploy\b|\bdocker\s+push\b|\btwine\s+upload\b|\bcargo\s+publish\b|\b(dart|flutter)\s+pub\s+publish\b|\b(poetry|uv)\s+publish\b|\bgem\s+push\b|\bfastlane\s+\w*(deliver|release|upload|beta)\b|\bhf\s+upload\b|\bhuggingface-cli\s+upload\b|\bvsce\s+publish\b|\bflyctl?\s+deploy\b|\bwrangler\s+(deploy|publish)\b/i.exec(cmd);
-    if (pub && !isSuspended('check:publish-gate')) {
+    // a dry run publishes nothing: it is how the package-release skill previews the contents (Lesson: "cargo publish
+    // --dry-run" was refused until a security review, so the preview that the review needs could not run)
+    if (pub && !/(^|\s)--dry-run\b/.test(cmd) && !isSuspended('check:publish-gate')) {
       const reviewed = toolUses(t().entries || []).some(u => (u.name === 'Skill' && /(^|:)security-review$/.test(String(u.input.skill || ''))) || (u.name === 'Read' && /skills[\\/]security-review[\\/]SKILL\.md$/i.test(String(u.input.file_path || ''))));
       const loggedToday = new RegExp(`^\\|\\s*${esc(today())}\\s*\\|`, 'm').test(read(abs('docs/security.md')));
       if (!reviewed && !loggedToday) return `REQ: publish-gate. "${pub[0].trim()}" publishes or deploys. Run the security-review skill first (skills/security-review/SKILL.md) and log it in docs/security.md, then publish (hard rule 15). The user's OK to publish is needed too (rule 6).`;
@@ -2969,7 +2971,9 @@ export function skillLearnCheck(x, cfg, failingNow = []) {
   // A miss is a check of the runbook's own that blocked an earlier round and is met now: following it really fell
   // short, and the fix is known. A check failing for the first time is just being done, not a lesson yet.
   // Lesson: skill-learn fired in round 1 of ordinary turns and pushed "Skill lesson: none" filler into answers.
-  const failing = new Set((x.failedBefore || []).filter(t => !failingNow.includes(t)));
+  // A runbook's own check failing right now is listed too, as "once it is fixed": every step shows in round 1, so a
+  // later round never brings a new one. Lesson: the lesson step appeared only in round 2, one more round for the user.
+  const failing = new Set([...(x.failedBefore || []).filter(t => !failingNow.includes(t)), ...failingNow]);
   const own = item => ownChecks(item, cfg);
   // Friction from a wording check (reworded to satisfy it) is the check's, not the runbook's: never a lesson to write.
   // Lesson: rewording twice for no-verbatim-examples made skill-learn demand a lesson from an innocent runbook.
