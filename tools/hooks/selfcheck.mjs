@@ -1428,6 +1428,28 @@ if (!TAGS) { // the standalone checks run in a full run only
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
+{ // Codex transcripts: its rollout lines are read like Claude Code's, so the tool history counts for Codex too
+  // Lesson: under Codex no tool call was ever seen, so a claim after a refused push passed
+  const dir = copyProject();
+  try {
+    const ts = new Date().toISOString(), line = (type, payload) => JSON.stringify({ timestamp: ts, type, payload });
+    const tp = path.join(dir, '.cache', 'rollout.jsonl');
+    fs.mkdirSync(path.dirname(tp), { recursive: true });
+    fs.writeFileSync(tp, [
+      line('session_meta', { id: 'x', cwd: dir }),
+      line('response_item', { type: 'message', role: 'user', content: [{ type: 'input_text', text: '<environment_context>cwd</environment_context>' }] }),
+      line('response_item', { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'push my work' }] }),
+      line('response_item', { type: 'function_call', name: 'shell', arguments: JSON.stringify({ command: ['bash', '-lc', 'git push origin main'] }), call_id: 'c1' }),
+      line('response_item', { type: 'function_call_output', call_id: 'c1', output: JSON.stringify({ output: 'REQ: git-safety. This pushes to the protected branch "main"', metadata: { exit_code: 1 } }) })
+    ].join('\n') + '\n');
+    const H = JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href);
+    const t = JSON.parse(spawnSync(process.execPath, ['--input-type=module', '-e', `import { turn } from ${H}; const t = turn(${JSON.stringify(tp)}); console.log(JSON.stringify({ prompt: t.prompt, tools: t.entries.flatMap(e => e.message?.content || []).filter(x => x.type === 'tool_use').map(x => x.name + ':' + x.input.command), err: t.entries.flatMap(e => e.message?.content || []).some(x => x.is_error) }))`], { cwd: dir, encoding: 'utf8' }).stdout || '{}');
+    const stop = run(dir, 'stop', { transcript_path: tp, last_assistant_message: 'Pushed.' }).out;
+    report(t.prompt === 'push my work' && t.tools?.[0] === 'Bash:git push origin main' && t.err && /claim-checked/.test(stop),
+      'codex: a Codex transcript gives the request, the tool calls and their failures to the checks', `${JSON.stringify(t)} | ${stop.slice(0, 200)}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
 { // two sessions in one folder: each keeps its own turn record, so one's request never becomes the other's
   // Lesson: a second session's prompt replaced the first one's turn record, and the first was checked against it
   const dir = copyProject();

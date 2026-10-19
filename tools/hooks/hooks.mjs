@@ -435,12 +435,47 @@ function promptOf(r) {
   return t;
 }
 
+// Codex writes its transcript as rollout lines ({ type: "response_item", payload: { type: "message" | "function_call"
+// | "function_call_output" | "custom_tool_call" | ... } }). They are turned into the same user / assistant / tool_use /
+// tool_result rows as Claude Code's, so every check that reads the tool history works for Codex too. Lesson: under Codex
+// no tool call was ever seen, so every "did it run the tests" check fell back to guessing.
+const CODEX_SKIP = /^\s*(<environment_context>|<user_instructions>|<permissions instructions>|# AGENTS\.md instructions)/;
+export function codexRows(rows) {
+  if (!rows.some(r => r && r.payload && /^(response_item|session_meta|turn_context|event_msg)$/.test(r.type))) return rows;
+  const out = [], shellCmd = a => { const c = a?.command ?? a?.cmd ?? a?.action?.command; return Array.isArray(c) ? (/^(ba|z)?sh$|powershell|pwsh|cmd$/i.test(c[0] || '') && c.length >= 3 ? c[c.length - 1] : c.join(' ')) : String(c ?? ''); };
+  for (const r of rows) {
+    const p = r?.payload, ts = r?.timestamp;
+    if (r?.type !== 'response_item' || !p) continue;
+    if (p.type === 'message') {
+      const text = (Array.isArray(p.content) ? p.content : []).map(c => c?.text || '').join('\n');
+      if (p.role === 'user' && !CODEX_SKIP.test(text)) out.push({ type: 'user', timestamp: ts, message: { content: [{ type: 'text', text }] } });
+      else if (p.role === 'assistant') out.push({ type: 'assistant', timestamp: ts, message: { content: [{ type: 'text', text }] } });
+    } else if (/^(function_call|custom_tool_call|local_shell_call)$/.test(p.type)) {
+      let args = p.arguments ?? p.input ?? p.action ?? {};
+      if (typeof args === 'string') { try { args = JSON.parse(args); } catch { args = { command: args }; } }
+      const n = String(p.name || (p.type === 'local_shell_call' ? 'shell' : ''));
+      const tool = /^(shell|exec_command|container\.exec|local_shell|shell_command)$/.test(n) ? { name: 'Bash', input: { command: shellCmd(args) } }
+        : n === 'apply_patch' ? { name: 'apply_patch', input: { command: typeof p.input === 'string' ? p.input : shellCmd(args) } }
+        : { name: n, input: args };
+      if (tool.name === 'Bash' && /^\s*apply_patch\b/.test(tool.input.command)) tool.name = 'apply_patch';
+      out.push({ type: 'assistant', timestamp: ts, message: { content: [{ type: 'tool_use', id: p.call_id || p.id, ...tool }] } });
+    } else if (/^(function_call_output|custom_tool_call_output|local_shell_call_output)$/.test(p.type)) {
+      let o = p.output, err = false;
+      if (typeof o === 'string') { try { const j = JSON.parse(o); if (j && typeof j === 'object' && 'output' in j) { err = Number(j.metadata?.exit_code) > 0; o = j.output; } } catch { } }
+      else if (o && typeof o === 'object') { err = Number(o.metadata?.exit_code ?? o.exit_code) > 0; o = o.output ?? o.content ?? JSON.stringify(o); }
+      out.push({ type: 'user', timestamp: ts, message: { content: [{ type: 'tool_result', tool_use_id: p.call_id || p.id, content: String(o ?? ''), ...(err ? { is_error: true } : {}) }] } });
+    }
+  }
+  return out;
+}
+
 export function turn(transcript) {
-  const rows = [];
+  let rows = [];
   for (const line of read(transcript).split(/\r?\n/)) {
     if (!line.trim()) continue;
     try { rows.push(JSON.parse(line)); } catch {}
   }
+  rows = codexRows(rows);
   let start = -1, prompt = '';
   for (let i = rows.length - 1; i >= 0; i--) {
     const p = promptOf(rows[i]);
@@ -523,7 +558,8 @@ function transcriptMidTurn(tp) {
     const size = fs.fstatSync(fd).size, n = Math.min(size, 256 * 1024), buf = Buffer.alloc(n);
     fs.readSync(fd, buf, 0, n, size - n);
     const rows = buf.toString('utf8').split(/\r?\n/).slice(size > n ? 1 : 0).filter(Boolean)
-      .map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(r => r && (r.type === 'user' || r.type === 'assistant'));
+      .map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+    rows.splice(0, rows.length, ...codexRows(rows).filter(r => r.type === 'user' || r.type === 'assistant'));
     while (rows.length && promptOf(rows[rows.length - 1]) !== null) rows.pop(); // the message being submitted now
     const last = rows[rows.length - 1], c = last?.message?.content;
     if (!last) return false;
