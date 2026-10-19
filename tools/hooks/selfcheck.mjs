@@ -1026,6 +1026,8 @@ PROMPT.push(
   { pack: 'app', name: 'route: a real bug report still routes', prompt: 'the export is broken, fix it', has: ['ROUTE: bugfix'] },
   { name: 'route: "save tokens" in passing does not route to compress-for-ai', prompt: 'keep the answers short to save tokens', hasNot: ['SKILL: compress-for-ai'] },
   { pack: 'knowledge', name: 'route: "i added" alone does not route to ingest', prompt: 'i added a line to the notes, does it read well', hasNot: ['ROUTE: ingest'] },
+  // Lesson: "notes" was cut to "not", and a phrase about the user's own thing could never route on its own
+  { pack: 'knowledge', name: 'route: a phrase about the user\'s own notes routes ("add this fact to my notes")', prompt: 'add this fact to my notes on composting', has: ['SKILL: knowledge-capture'] },
   { name: 'route: a question asking the agent\'s opinion routes nowhere', prompt: 'do you think the standing desk is worth it?', hasNot: ['SKILL: research', 'ROUTE:', 'NO RUNBOOK'] },
   { name: 'route: "based on what we have" is a meta question, not research', prompt: 'based on what we have, should we keep going this way?', hasNot: ['SKILL: research'] },
   { name: 'pasted: text inside pasted_content does not route', prompt: 'what is this?\n<pasted_content source="x">make a plan for the csv export</pasted_content>', hasNot: ['ROUTE: plan'] },
@@ -1115,6 +1117,8 @@ STOP.push(
     files: { ...AUTH, 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { not: ['security-code'] } },
   { name: 'security-config: a CI workflow changed without the review: blocked', prompt: 'speed up the build', files: { '.github/workflows/ci.yml': 'on: push\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { block: true, tags: ['security-config'] } },
   { name: 'security-config: the review followed: passes', prompt: 'speed up the build', tools: [sk('security-review')], files: { '.github/workflows/ci.yml': 'on: push\n', ...SEC_LOG, 'docs/CHANGELOG.md': 'x' }, answer: SEC_TABLE + FIN, expect: { not: ['security-config'] } },
+  // Lesson: the package-release skill's own dry run counted as publishing
+  { name: 'security-publish: a dry run publishes nothing: passes', prompt: 'check what the crate would contain', tools: [bash('cargo publish --dry-run', 'Packaged 12 files')], answer: 'The crate would contain 12 files.', expect: { not: ['security-publish'] } },
   { name: 'security-publish: published without the review: blocked', prompt: 'ship the package', tools: [bash('npm publish', 'published')], answer: 'Published.', expect: { block: true, tags: ['security-publish'] } },
   { name: 'security-publish: the review came first: passes', prompt: 'ship the package', tools: [sk('security-review'), bash('npm publish', 'published')], answer: SEC_TABLE, expect: { not: ['security-publish'] } },
   { name: 'debug-trigger: a failing test fixed with no root cause: blocked', prompt: 'make the parser handle empty rows', tools: [bash('npm test', 'not ok 1 parses empty rows\n1 failed')], files: { 'src/parser.js': 'x', 'docs/CHANGELOG.md': 'x' }, answer: 'Fixed.' + FIN, expect: { block: true, tags: ['debug-trigger'] } },
@@ -1160,6 +1164,8 @@ STOP.push(
   { name: 'legal-trigger: a privacy policy written without the legal review: blocked', prompt: 'write the privacy page', files: { 'site/privacy-policy.md': '# Privacy\nWe keep your email.\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { tags: ['legal-trigger'] } },
   { name: 'legal-trigger: not legal advice said: passes', prompt: 'write the privacy page', files: { 'site/privacy-policy.md': '# Privacy\nWe keep your email.\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done. This is a draft and not legal advice.' + FIN, expect: { not: ['legal-trigger'] } },
   // pack runbooks' triggers
+  // Lesson: "**/schema.*" matched "sales.schema.json", so a pipeline's description of its input was taken for a migration
+  { pack: 'app', name: 'data-change-trigger: a schema description file named *.schema.json is no data change: passes', prompt: 'describe the october export', files: { 'data/schema/sales.schema.json': '{"columns":[]}', 'docs/CHANGELOG.md': 'x' }, answer: 'Described the export.' + FIN, expect: { not: ['data-change-trigger'] } },
   { pack: 'app', name: 'data-change-trigger: a migration without backup and restore: blocked', prompt: 'add a column for notes', files: { 'db/migrations/002_notes.sql': 'ALTER TABLE t ADD notes TEXT;\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { tags: ['data-change-trigger'] } },
   { pack: 'app', name: 'data-change-trigger: backup and restore stated: passes', prompt: 'add a column for notes', files: { 'db/migrations/002_notes.sql': 'ALTER TABLE t ADD notes TEXT;\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done. Backup: copied app.db first. Restore: copy it back and roll back 002.' + FIN, expect: { not: ['data-change-trigger'] } },
   { pack: 'app', name: 'release-trigger: a version tagged without the release runbook: blocked', prompt: 'tag it', tools: [bash('git tag v1.2.0')], answer: 'Tagged.', expect: { tags: ['release-trigger'] } },
@@ -1555,6 +1561,16 @@ if (!TAGS) { // the standalone checks run in a full run only
     const after = lost();
     report(/billing/.test(before) && !/pytest/.test(before) && !after.trim(), 'adoption: a rule lost in the merge is found; a reworded or dropped-with-reason rule passes', `${before.slice(0, 200)} | ${after.slice(0, 100)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+{ // globs and word stems: "**/name" means a file of that name in any folder; plurals and past forms meet their base word
+  // Lesson: "**/schema.*" matched "sales.schema.json", and "notes" was cut to the common word "not"
+  const H = JSON.stringify(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks.mjs')).href);
+  const r = JSON.parse(spawnSync(process.execPath, ['--input-type=module', '-e', `import { match, keyWords } from ${H}; console.log(JSON.stringify({
+    g: [match('data/schema/sales.schema.json', ['**/schema.*']), match('db/schema.sql', ['**/schema.*']), match('schema.sql', ['**/schema.*']), match('a/node_modules/b', ['**/node_modules/**'])],
+    k: ['notes', 'noted', 'boxes', 'created', 'saved', 'changed', 'passed'].map(w => keyWords(w).join('')) }))`], { cwd: ROOT, encoding: 'utf8' }).stdout || '{}');
+  report(JSON.stringify(r.g) === '[false,true,true,true]' && JSON.stringify(r.k) === '["note","note","box","create","save","change","pass"]',
+    'routing words: globs match whole folder names, and plural and past forms meet their base word', JSON.stringify(r));
 }
 
 { // one project's lesson about the engine reaches the starter on its own, and the starter announces it
