@@ -195,6 +195,10 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
     by offering to add checks, runbooks, tests or skills instead of adding them (self-improve).
   - **Update from GitHub:** `node tools/starter.mjs update` gets the newest starter into the linked copy (it stops if
     that copy has local changes or is a development copy), then upgrades the project the safe way.
+  - **Docs checked for accuracy and compression:** every Markdown file was checked against the code (8 fixes, e.g.
+    project test scenarios belong in `tools/hooks/project-scenarios.mjs`, which upgrades keep). The 82 AI-facing files
+    were tried at the light compression level with the protect check: none changed, since each would shrink under 5%
+    (they are already short; most of their length is commands, tags and tables that must not change).
   - **Commercial use:** every skill's license must allow commercial use without copyleft (audit), and the weighing
     in hard rule 16 includes the license. New library skill: teach (our own, original wording).
 
