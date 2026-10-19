@@ -174,7 +174,7 @@ sweep('references point at real files, commands and skills', () => {
   for (const n of libNames) addPath(`skills/${n}/SKILL.md`);
   for (const f of walk('library/skills', () => true)) addPath(f.replace(/^library\//, ''));
   // folders that work fills in, files tools create at runtime, and the starter folder's own files (tools/starter/)
-  const RUNTIME = /^(outputs|inbox|sources|profiles|logs|src|app|lib|server|packages|data|site|\.cache|\.codex|\.claude|\.starter|tools\/hooks\/state|tools\/starter|docs\/(knowledge|plans|specs|releases|reviews|retired|incidents))(\/|$)|^tools\/(starter\.local|packs-registry)\.json$|^docs\/(codebase-map|tech-debt|glossary|legal-positions|brand-voice|fit-checklist)\.md$/;
+  const RUNTIME = /^(outputs|inbox|sources|profiles|logs|src|app|lib|server|packages|data|site|\.cache|\.codex|\.claude|\.starter|tools\/hooks\/state|tools\/starter|docs\/(knowledge|plans|specs|releases|reviews|retired|incidents|feedback-inbox))(\/|$)|^tools\/(starter\.local|packs-registry)\.json$|^docs\/(codebase-map|tech-debt|glossary|legal-positions|brand-voice|fit-checklist)\.md$/;
   const real = p => { p = p.replace(/\/$/, ''); return exists(p) || provided.has(p) || RUNTIME.test(p); };
   const skillNames = new Set([...fs.readdirSync(abs(cfg.skillsDir)), ...libNames, ...[...provided].map(p => /^skills\/([^/]+)/.exec(p)?.[1]).filter(Boolean),
     ...pbs.map(p => p.name), ...[...provided].map(p => /^docs\/playbooks\/([^/_][^/]*)\.md$/.exec(p)?.[1]).filter(Boolean)]);
