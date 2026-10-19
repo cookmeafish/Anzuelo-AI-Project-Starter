@@ -23,7 +23,7 @@ export function wire(dir, { dry = false } = {}) {
   if (fs.existsSync(sp)) { try { mine = JSON.parse(fs.readFileSync(sp, 'utf8')); } catch (e) { throw new Error(`${sp} does not parse (${e.message}); fix it, then run wire again`); } }
   // Claude Code expands $CLAUDE_PROJECT_DIR itself, so its wiring is the same on every machine
   const cc = (cmd, timeout, extra = {}) => [{ ...extra, hooks: [{ type: 'command', command: `node "$CLAUDE_PROJECT_DIR/tools/hooks/hooks.mjs" ${cmd}`, timeout }] }];
-  const theirs = { hooks: { SessionStart: cc('session', 60), UserPromptSubmit: cc('prompt', 30), PreToolUse: cc('pretool', 30, { matcher: 'Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell|Read|Agent|Task' }),
+  const theirs = { hooks: { SessionStart: cc('session', 60), UserPromptSubmit: cc('prompt', 30), PreToolUse: cc('pretool', 30, { matcher: 'Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell|Read|Agent|Task|mcp__.*' }),
     PostToolUse: cc('posttool', 30, { matcher: 'Write|Edit|MultiEdit' }), Stop: cc('stop', 300) } };
   const before = JSON.stringify(mine);
   mine.includeCoAuthoredBy = false;
@@ -37,10 +37,19 @@ export function wire(dir, { dry = false } = {}) {
   // Codex can't expand a project variable in hook commands, so its wiring carries this folder's real path.
   const hp = at('tools', 'hooks', 'hooks.mjs').split(path.sep).join('/');
   const ev = (cmd, extra = {}) => [{ ...extra, hooks: [{ type: 'command', command: `node "${hp}" ${cmd}`, timeout: cmd === 'stop' ? 300 : 30 }] }];
-  const codex = JSON.stringify({ hooks: { SessionStart: ev('session'), UserPromptSubmit: ev('prompt'), PreToolUse: ev('pretool', { matcher: 'Write|Edit|MultiEdit|Bash|PowerShell|Read|Agent|Task' }), PostToolUse: ev('posttool', { matcher: 'Write|Edit|MultiEdit' }), Stop: ev('stop') } }, null, 2) + '\n';
+  const codex = JSON.stringify({ hooks: { SessionStart: ev('session'), UserPromptSubmit: ev('prompt'), PreToolUse: ev('pretool', { matcher: 'apply_patch|Write|Edit|MultiEdit|Bash|PowerShell|Read|Agent|Task|mcp__.*' }), PostToolUse: ev('posttool', { matcher: 'apply_patch|Write|Edit|MultiEdit' }), Stop: ev('stop') } }, null, 2) + '\n';
   const cp = at('.codex', 'hooks.json');
   if (fs.existsSync(cp) && !fs.readFileSync(cp, 'utf8').includes('hooks.mjs')) log.push('kept     .codex/hooks.json (exists; add the hooks.mjs entries by hand)');
-  else if (!fs.existsSync(cp) || fs.readFileSync(cp, 'utf8') !== codex) { log.push(`${fs.existsSync(cp) ? 'updated' : 'created'}  .codex/hooks.json (Codex)`); write(cp, codex); }
+  // Codex runs project hooks only after they are trusted, and asks again whenever the file changes.
+  else if (!fs.existsSync(cp) || fs.readFileSync(cp, 'utf8') !== codex) { log.push(`${fs.existsSync(cp) ? 'updated' : 'created'}  .codex/hooks.json (Codex: run /hooks in Codex once to trust them; it asks again after a change)`); write(cp, codex); }
+  // Gemini CLI reads GEMINI.md unless told otherwise: point it at AGENTS.md (merged into any settings it has).
+  // Its hooks are not wired: their input format isn't documented. A Gemini agent runs hooks.mjs begin / check by hand.
+  const gp = at('.gemini', 'settings.json');
+  let gem = {}; if (fs.existsSync(gp)) { try { gem = JSON.parse(fs.readFileSync(gp, 'utf8')); } catch { gem = null; } }
+  if (gem && !JSON.stringify(gem.context?.fileName || gem.contextFileName || '').includes('AGENTS.md')) {
+    gem.context = { ...(gem.context || {}), fileName: [...new Set(['AGENTS.md', ...[].concat(gem.context?.fileName || gem.contextFileName || 'GEMINI.md')])] };
+    write(gp, JSON.stringify(gem, null, 2) + '\n'); log.push('wired    .gemini/settings.json (Gemini CLI reads AGENTS.md)');
+  }
   // git checks commits and pushes for every agent and for manual git use
   // A project's own git hooks (another hooks folder, or real hooks in .git/hooks) are never switched off: pointing git at
   // .githooks would silently disable them. Then the starter's checks are offered to chain in, not forced.
@@ -62,6 +71,6 @@ export function wire(dir, { dry = false } = {}) {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const dir = path.resolve(HERE, '..', '..');
-  try { const log = wire(dir); console.log(log.length ? log.join('\n') : 'wire: everything was already connected'); console.log('wire: this folder works with Claude Code, Codex and any agent that reads AGENTS.md'); }
+  try { const log = wire(dir); console.log(log.length ? log.join('\n') : 'wire: everything was already connected'); console.log('wire: this folder works with Claude Code, Codex, Gemini CLI and any agent that reads AGENTS.md'); }
   catch (e) { console.error(`wire: ${e.message}`); process.exit(1); }
 }

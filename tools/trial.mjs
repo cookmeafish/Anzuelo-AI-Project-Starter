@@ -55,6 +55,7 @@ const SAMPLES = {
       'AGENTS.md': '# Shop rules\n- Never change prices without a test.\n- Use metric units.\n',
       '.gitignore': 'node_modules/\n.env\ncoverage-custom/\n',
       '.env': 'API_KEY=not-a-real-key-123\n',
+      '.env.example': 'API_KEY=\n',
       '.husky/pre-commit': '#!/bin/sh\necho own hook\n',
       '.claude/settings.json': JSON.stringify({ permissions: { allow: ['Bash(npm test)'] }, hooks: { Stop: [{ hooks: [{ type: 'command', command: 'echo mine' }] }] } }, null, 2) + '\n'
     },
@@ -93,6 +94,8 @@ for (const [name, s] of Object.entries(SAMPLES)) {
   for (const f of ['AGENTS.md', 'CLAUDE.md']) if (before[f]) check(name, `the starter's ${f} arrived as ${f.replace('.md', '.starter.md')} for setup to merge`, after[f.replace('.md', '.starter.md')]);
   // "are my secrets still out of git?"
   if (s.files['.env']) check(name, '.env stays ignored by git', ignored(dir, '.env'));
+  // a tracked .env.example must not keep ".env.*" out (Lesson: .env.local stayed unignored and git hygiene failed)
+  if (s.files['.env.example'] && s.git) check(name, '.env.local is ignored while the tracked .env.example stays in git', ignored(dir, '.env.local') && !ignored(dir, '.env.example'));
   // (git can only answer inside a repository; a folder without git is checked once it becomes one)
   if (s.git) for (const p of ['tools/hooks/state/turn.json', '.codex/hooks.json', 'tools/starter.local.json', 'CLAUDE.md']) if (!before[p]) check(name, `${p} is ignored by git`, ignored(dir, p));
   if (s.git) {
@@ -186,6 +189,20 @@ for (const [name, s] of Object.entries(SAMPLES)) {
   const diff = [...new Set([...Object.keys(prev), ...Object.keys(again)])].filter(f => prev[f] !== again[f]);
   check(name, 'a second upgrade changes nothing', u2.status === 0 && !diff.length, diff.slice(0, 8).join(', '));
 
+  // "if an upgrade breaks something, is my project exactly as it was?" A project file names the old self-test file, which
+  // the upgrade retires (a doc names it too, which the upgrade rewrites): the references sweep then fails, the upgrade
+  // rolls back, and every file must match. Lesson: a rollback left rewritten docs and new skill copies behind.
+  if (!noPrev) {
+    write(dir, { 'tools/hooks/test-hooks.mjs': '// an old engine file\n', 'docs/old-notes.md': '# Old notes\nRun `node tools/hooks/test-hooks.mjs` after hook changes.\n', 'tools/my-tool.mjs': '// run `node tools/hooks/test-hooks.mjs` before this tool\n' });
+    const pre = snapshot(dir, /^(\.git|tools\/hooks\/state|\.cache)(\/|$)/);
+    const u3 = starterRun(dir, '--upgrade');
+    const post = snapshot(dir, /^(\.git|tools\/hooks\/state|\.cache)(\/|$)/);
+    const moved = [...new Set([...Object.keys(pre), ...Object.keys(post)])].filter(f => pre[f] !== post[f]);
+    check(name, 'an upgrade that breaks a passing check rolls back to exactly the project it was', u3.status === 1 && /ROLLED BACK/.test(u3.stderr) && /exactly as it was/.test(u3.stderr) && !moved.length,
+      `status ${u3.status} | ${moved.slice(0, 6).join(', ')} | ${(u3.stderr || '').slice(0, 300)}`);
+    for (const f of ['tools/hooks/test-hooks.mjs', 'docs/old-notes.md', 'tools/my-tool.mjs']) fs.rmSync(path.join(dir, f), { force: true });
+  }
+
   // "is everything that helps added, and nothing that doesn't?" The fit checklist starts undecided, and after the AI
   // fills it the way setup does (no question to the user), it validates. Run last: setup changes the project's files.
   if (s.files['package.json']) {
@@ -205,6 +222,16 @@ for (const [name, s] of Object.entries(SAMPLES)) {
     fs.writeFileSync(path.join(WORK, 'fit-decisions.json'), JSON.stringify(list));
     fit('decide', '--file', path.join(WORK, 'fit-decisions.json'));
     const done = fit('check'), sum = fit('summary');
+    // "does the recommended last step of setup keep the project healthy?" link (or keep, or remove) takes packs/ and
+    // library/ out of the project; the audit must still pass without them. Lesson: right after link, the audit failed on
+    // library tags the project had never enabled. (Linking itself waits for setup to finish, so its effect is made here.)
+    const parked = path.join(WORK, `${path.basename(dir)}-parked`);
+    fs.mkdirSync(parked, { recursive: true });
+    for (const d of ['packs', 'library']) if (fs.existsSync(path.join(dir, d))) fs.renameSync(path.join(dir, d), path.join(parked, d));
+    const la = node(['tools/audit.mjs'], dir);
+    for (const d of ['packs', 'library']) if (fs.existsSync(path.join(parked, d))) fs.renameSync(path.join(parked, d), path.join(dir, d));
+    check(name, 'without packs/ and library/ (as after starter.mjs link) the audit still passes', /audit: PASS/.test(la.stdout),
+      la.stdout.split('\n').filter(l => /^FAIL|^\s+- /.test(l)).slice(0, 6).join(' | '));
     check(name, 'the fit checklist starts undecided and validates after setup-style filling', /FIT: FAIL/.test(open.stdout) && inst.status === 0 && /FIT: PASS/.test(done.stdout) && /Added: [^.]*\bapp\b/.test(sum.stdout) && /Later: ripgrep \(when: the code passes 500 files\)/.test(sum.stdout),
       `${open.stdout.slice(-120)} | ${inst.stderr.slice(0, 200)} | ${done.stdout.slice(0, 400)} | ${sum.stdout.slice(0, 200)}`);
   }

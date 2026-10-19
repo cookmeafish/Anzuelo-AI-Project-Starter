@@ -16,7 +16,7 @@ const args = process.argv.slice(2);
 const hi = args.indexOf('--hours');
 const hours = hi >= 0 ? Number(args[hi + 1]) : 24;
 const given = args.filter((a, i) => !a.startsWith('--') && args[i - 1] !== '--hours');
-const SKIP = /^(\.git|node_modules|\.cache|dist|build|\.claude|tools[\\/]hooks[\\/]state)$/;
+const SKIP = /^(\.git|node_modules|\.cache|dist|build|\.claude|\.agents|\.gemini|tools[\\/]hooks[\\/]state)$/;
 
 const files = [];
 if (given.length) files.push(...given.map(f => path.resolve(f)));

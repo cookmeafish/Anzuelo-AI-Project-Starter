@@ -15,6 +15,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 // The self-tests make throwaway projects from this copy on purpose, even when it is a development copy (.starter-dev).
 process.env.STARTER_ALLOW_DEV = '1';
+// what the tests depend on, as the run starts (audit --setup reuses a full pass while it is unchanged)
+const INPUTS0 = await (async () => { try { return (await import('./hooks.mjs')).testInputsHash(); } catch { return null; } })();
 
 if (process.argv[2] === '--route') {
   const { promptHints } = await import('./hooks.mjs');
@@ -64,6 +66,9 @@ function base() {
   // conditions), its plans (OPEN PLANS) and its hook state. Lesson: inside a project mid-setup, the fit tests read the
   // project's own checklist and the setup-gate test was denied by the project's unfinished setup.
   fs.rmSync(at('docs/fit-checklist.md'), { force: true });
+  // The project's security reviews: one logged today would let the publish-gate fixtures publish without a review.
+  // Lesson: setup logs its first review today, so the self-test failed and setup could not finish until the next day.
+  try { const sp = at('docs/security.md'); fs.writeFileSync(sp, fs.readFileSync(sp, 'utf8').replace(/^\|\s*\d{4}-\d{2}-\d{2}\s*\|.*$/gm, '').replace(/\n{3,}/g, '\n\n')); } catch { }
   // Inside a real project (not the starter), its own content goes too: the survey would count its code, data and notes,
   // and dedupe would find its real duplicates. Everything the survey sees as the project's (not the engine's) is removed,
   // plus the usual content folders. Lesson: in a large project the fit and dedupe tests read its real files.
@@ -193,6 +198,9 @@ const STOP = [
   { pack: 'knowledge', name: 'quick KB question with few tools: no runbook needed', prompt: 'hey whats the price we found for desk x', tools: [{ name: 'Read', input: { file_path: 'docs/knowledge/desks.md' } }, ...many(2)], edit: { 'docs/knowledge/desks.md': () => KNOW }, answer: '$300 (docs/knowledge/desks.md)', expect: { block: false } },
   { name: 'unrouted work turn with no runbook created: blocked', prompt: 'build me a weekly cleaning rota for the flat', files: { 'docs/rota.md': 'rota' }, answer: 'Done.' + FIN,
     expect: { block: true, tags: ['runbook-exists'] } },
+  // Lesson: following _fallback.md (as NO RUNBOOK says) counted as a runbook used, and no runbook was left behind
+  { name: 'runbook-exists: _fallback followed but no runbook left behind: blocked', prompt: 'build me a weekly cleaning rota for the flat', tools: [pb('_fallback')], files: { 'docs/rota.md': 'rota' }, answer: 'Playbook: _fallback.md. Done.' + FIN,
+    expect: { block: true, tags: ['runbook-exists'] } },
   // the Stop hook's form per host: calm feedback where the host supports it (Claude Code sets CLAUDE_PROJECT_DIR for its
   // hooks), the classic block for any other host (Codex, unknown), and stopStyle forces either
   { name: 'stop form: a host that supports feedback gets it, with no "decision" and a one-line note for the user', prompt: 'build me a weekly cleaning rota for the flat', files: { 'docs/rota.md': 'rota' }, answer: 'Done.' + FIN,
@@ -233,6 +241,9 @@ const STOP = [
     answer: 'Skill: research. Sources: https://a.com' + FIN, expect: { block: true, tags: ['knowledge-changelog'] } },
   { name: 'rule request with nothing written: blocked', prompt: 'from now on always include a budget table in plans', answer: 'Got it, I will.',
     expect: { block: true, tags: ['rule-request'] } },
+  // Lesson: a complaint got a frustration hint, but nothing made it a rule, and it was asked for a new runbook instead
+  { name: 'rule-request: a complaint about a miss, fixed but not made a rule: blocked', prompt: 'you forgot to add the allergens again!!', files: { 'docs/menu.md': 'Croissant (gluten, milk)' },
+    answer: 'Added the allergens to the menu.' + FIN, expect: { block: true, tags: ['rule-request'], not: ['runbook-exists'] } },
   { name: 'rule request fully enforced: passes', prompt: 'from now on always include a budget table in plans', tools: [pb('project'), bash('node tools/hooks/selfcheck.mjs'), bash('node tools/audit.mjs')],
     files: { ...MEM, 'CLAUDE.md': TWIN, 'docs/checks/user-requirements.md': 'row', 'tools/hooks/requirements.json': '{"requirements":[]}', 'docs/CHANGELOG.md': 'x', 'docs/checks/rule-enforcement.md': 'row' },
     answer: 'Playbook: project.md. Rule added.' + FIN, expect: { block: false } },
@@ -432,7 +443,7 @@ const STOP = [
   { name: 'skill-learn: the followed skill\'s own check failed earlier this turn, no lesson written: blocked', prompt: 'debug the failing import', tools: [sk('debug')], files: { 'notes/import.md': 'x', 'docs/CHANGELOG.md': 'x' },
     active: true, blocks: 1, failed: ['debug-root-cause'], answer: 'Skill: debug. Root cause: the date parser.' + FIN, expect: { block: true, tags: ['skill-learn'] } },
   { name: 'skill-learn: a complaint with no failed check of the skill demands no lesson: passes', prompt: 'you forgot the logs, debug the failing import', tools: [sk('debug')], files: { 'notes/import.md': 'x', 'docs/CHANGELOG.md': 'x' },
-    answer: 'Skill: debug. Root cause: the date parser.' + FIN, expect: { block: false, not: ['skill-learn'] } },
+    answer: 'Skill: debug. Root cause: the date parser.' + FIN, expect: { not: ['skill-learn'] } },
   { name: 'skill-learn: another check failed, not the followed skill\'s own: no lesson demanded', prompt: 'debug the failing import', tools: [sk('debug')], files: { 'notes/import.md': 'x', 'docs/CHANGELOG.md': 'x' },
     active: true, blocks: 1, failed: ['finished-summary'], answer: 'Skill: debug. Root cause: the date parser.' + FIN, expect: { block: false, not: ['skill-learn'] } },
   { name: 'skill followed, user complains, lesson written into the skill: passes', prompt: 'you forgot the logs, debug the failing import', tools: [sk('debug'), pb('project'), bash('node tools/audit.mjs')],
@@ -475,6 +486,11 @@ const STOP = [
     answer: 'Skill: research. Desk X. Sources: https://a.com' + FIN, expect: { block: true, tags: ['redo-changes'] } },
   { name: '"keep doing this" with nothing written down: blocked', prompt: 'perfect, keep doing this', answer: 'Thanks!', expect: { block: true, tags: ['praise-captured'] } },
   // scopes (multi-person)
+  // Lesson: the folder guards held, but an answer about one person could still carry another person's details
+  { name: 'scope-separate: an answer about alice that brings in bob: blocked', prompt: 'what is alice budget for groceries', edit: PEOPLE,
+    answer: 'Alice spends about the same as Bob, who has a bigger budget.', expect: { block: true, tags: ['scope-separate'] } },
+  { name: 'scope-separate: an answer about alice alone: passes', prompt: 'what is alice budget for groceries', edit: PEOPLE,
+    answer: 'Alice has no grocery budget written down yet.', expect: { not: ['scope-separate'] } },
   { name: 'request about alice changed bob\'s files: blocked', prompt: 'update alice notes with her new budget', tools: [pb('project')], edit: PEOPLE,
     files: { 'profiles/alice/notes.md': 'x', 'profiles/bob/notes.md': 'x', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md' + FIN, expect: { block: true, tags: ['scope-separate'] } },
   { name: 'request about alice changed only alice\'s files: passes', prompt: 'update alice notes with her new budget', tools: [pb('project')], edit: PEOPLE,
@@ -511,6 +527,10 @@ const PRETOOL = [
   { pack: 'knowledge', name: 'Remove-Item absolute path in sources: denied', tool: 'PowerShell', input: { command: 'Remove-Item -Force C:\\proj\\sources\\a.pdf' }, deny: true, tag: 'protect-originals' },
   { pack: 'knowledge', name: 'move a file out of sources/: denied', tool: 'Bash', input: { command: 'mv sources/a.pdf inbox/' }, deny: true, tag: 'protect-originals' },
   { pack: 'knowledge', name: 'redirect over a file in sources/: denied', tool: 'Bash', input: { command: 'echo hi > sources/a.md' }, deny: true, tag: 'protect-originals' },
+  // Codex edits with apply_patch: every file in the patch gets the file guards (Lesson: an apply_patch passed them all)
+  { pack: 'knowledge', name: 'protect-originals: a Codex apply_patch that changes an original: denied', tool: 'apply_patch', input: { command: '*** Begin Patch\n*** Update File: sources/a.md\n@@\n-x\n+y\n*** End Patch' }, setup: { 'sources/a.md': 'x' }, deny: true, tag: 'protect-originals' },
+  { name: 'plain-writing: a Codex apply_patch that adds an em dash to a user-facing file: denied', tool: 'apply_patch', input: { command: '*** Begin Patch\n*** Add File: docs/notes.md\n+A note — with a dash\n*** End Patch' }, deny: true, tag: 'plain-writing' },
+  { name: 'pretool: a plain Codex apply_patch: allowed', tool: 'apply_patch', input: { command: '*** Begin Patch\n*** Add File: docs/notes.md\n+A plain note.\n*** End Patch' }, deny: false },
   { pack: 'knowledge', name: 'protect-originals: sed -i on a file in sources/: denied', tool: 'Bash', input: { command: "sed -i 's|a|b|' \"sources/my notes.md\"" }, deny: true, tag: 'protect-originals' },
   { pack: 'knowledge', name: 'protect-originals: sed -i whose script only names sources/: allowed', tool: 'Bash', input: { command: "sed -i '/^summary:/a owns: sources/raids/**' docs/playbooks/raid-research.md" }, deny: false },
   { pack: 'knowledge', name: 'move inbox file INTO sources/: allowed', tool: 'Bash', input: { command: 'mv "inbox/scan.pdf" "sources/2026-10-17 scan.pdf"' }, deny: false },
@@ -599,6 +619,9 @@ STOP.push(
     expect: { block: true, tags: ['research-cited'] } },
   { name: 'research-cited: a bare list of links with no numbers in the text: blocked', prompt: 'search the web for standing desk weight limits', tools: [sk('research')],
     answer: 'Skill: research. Most hold 100 kg.\n\nSources:\nhttps://example.com/desks\nhttps://example.org/loads', expect: { block: true, tags: ['research-cited'] } },
+  // Lesson: "[1] [title](link)", the linked-evidence form the user asked for, was rejected
+  { name: 'research-cited: a Sources line written as a markdown link: passes', prompt: 'search the web for standing desk weight limits', tools: [sk('research'), { name: 'WebFetch', input: { url: 'https://example.com/desks' }, result: 'Rated load: 100 kg.' }],
+    answer: 'Skill: research. Most hold 100 kg.[1]\n\nSources:\n[1] [Desk load ratings](https://example.com/desks)', expect: { not: ['research-cited'] } },
   { name: 'research-cited: [2] used in the text but missing from Sources: blocked', prompt: 'search the web for standing desk weight limits', tools: [sk('research')],
     answer: 'Skill: research. Most hold 100 kg.[1] Some hold 150 kg.[2]\n\nSources:\n[1] https://example.com/desks', expect: { block: true, tags: ['research-cited'] } },
   { name: 'research-cited: [1] and [2] each with a Sources line: passes', edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), packs: (JSON.parse(s).packs || []).filter(p => p !== 'knowledge') }), 'tools/hooks/requirements.json': s => JSON.stringify({ ...JSON.parse(s), requirements: JSON.parse(s).requirements.filter(r => r.pack !== 'knowledge') }) }, prompt: 'search the web for standing desk weight limits',
@@ -854,11 +877,26 @@ PRETOOL.push(
   { name: 'asked-for reset with a fresh backup bundle: allowed', tool: 'Bash', input: { command: 'git reset --hard HEAD~1' }, prompt: 'reset the last commit', setup: { '.cache/git-backups/b.bundle': 'x' }, deny: false },
   { name: 'push to a protected branch the user did not name: denied', tool: 'Bash', input: { command: 'git push origin main' }, prompt: 'push my work', deny: true, tag: 'git-safety' },
   { name: 'push to main when the user named it: allowed', tool: 'Bash', input: { command: 'git push origin main' }, prompt: 'push it to main', deny: false },
+  // rule 6: outward actions need the OK in this request (Lesson: a mail send, an API POST and "gh issue create" ran unasked)
+  { name: 'outward-gate: sending an email the user only asked to write: denied', tool: 'PowerShell', input: { command: 'Send-MailMessage -To flour@example.com -Subject "Short order"' }, prompt: 'email the flour guy that the order was short', deny: true, tag: 'outward-gate' },
+  { name: 'outward-gate: a POST to an outside API unasked: denied', tool: 'Bash', input: { command: 'curl -X POST https://api.example.com/v1/messages -d @msg.json' }, prompt: 'tell the team the build is green', deny: true, tag: 'outward-gate' },
+  { name: 'outward-gate: opening an issue unasked: denied', tool: 'Bash', input: { command: 'gh issue create --title "Bug" --body "x"' }, prompt: 'note this bug somewhere', deny: true, tag: 'outward-gate' },
+  { name: 'outward-gate: an MCP tool that sends a message unasked: denied', tool: 'mcp__slack__send_message', input: { channel: 'general', text: 'hi' }, prompt: 'what is new in the channel', deny: true, tag: 'outward-gate' },
+  { name: 'outward-gate: the user said send it: allowed', tool: 'PowerShell', input: { command: 'Send-MailMessage -To flour@example.com -Subject "Short order"' }, prompt: 'looks good, send it', deny: false },
+  { name: 'outward-gate: a POST to localhost (testing the app): allowed', tool: 'Bash', input: { command: 'curl -X POST http://localhost:3000/api/orders -d "{}"' }, prompt: 'test the orders endpoint', deny: false },
+  { name: 'outward-gate: an MCP tool that only reads: allowed', tool: 'mcp__slack__read_channel', input: { channel: 'general' }, prompt: 'what is new in the channel', deny: false },
   { name: 'commit message crediting an AI: denied', tool: 'Bash', input: { command: 'git commit -m "fix\n\nCo-Authored-By: Claude <noreply@anthropic.com>"' }, deny: true, tag: 'no-ai-attribution' },
   { name: 'PR body "generated with" an AI tool: denied', tool: 'Bash', input: { command: 'gh pr create --title x --body "Generated with Claude Code"' }, deny: true, tag: 'no-ai-attribution' },
   { name: 'an AI as commit author: denied', tool: 'Bash', input: { command: 'git commit --author="Claude <noreply@anthropic.com>" -m x' }, deny: true, tag: 'no-ai-attribution' },
   { name: 'a clean commit: allowed', tool: 'Bash', input: { command: 'git commit -m "Add CSV export"' }, deny: false },
   { name: 'committing a staged secret: denied', tool: 'Bash', input: { command: 'git commit -m "config"' }, prep: dir => stage(dir, { 'conf.js': 'const key = "' + ['sk', 'ant', 'abcdefghijklmnopqrstuvwxyz0123'].join('-') + '";' }), deny: true, tag: 'no-secrets' },
+  // Lesson: "cat .env", Read .env, a key written into src/ and "git add -f .env" all went through before
+  { name: 'no-secrets: printing .env into the conversation: denied', tool: 'Bash', input: { command: 'cat .env' }, prompt: 'why does the app fail to start', deny: true, tag: 'no-secrets' },
+  { name: 'no-secrets: reading .env with the Read tool: denied', tool: 'Read', input: { file_path: '.env' }, prompt: 'why does the app fail to start', deny: true, tag: 'no-secrets' },
+  { name: 'no-secrets: reading .env when the user asked for it: allowed', tool: 'Read', input: { file_path: '.env' }, prompt: 'check my .env for a typo', deny: false },
+  { name: 'no-secrets: reading .env.example: allowed', tool: 'Bash', input: { command: 'cat .env.example' }, prompt: 'why does the app fail to start', deny: false },
+  { name: 'no-secrets: writing a key into a tracked source file: denied', tool: 'Write', input: { file_path: 'src/config.js', content: 'export const key = "' + ['sk', 'ant', 'abcdefghijklmnopqrstuvwxyz0123'].join('-') + '";' }, prompt: 'hook up the api', deny: true, tag: 'no-secrets' },
+  { name: 'no-secrets: force-adding .env to git: denied', tool: 'Bash', input: { command: 'git add -f .env' }, prompt: 'commit everything', deny: true, tag: 'no-secrets' },
   { name: 'commit gate not passed this turn: denied', tool: 'Bash', input: { command: 'git commit -m "feature"' }, edit: cfgEdit({ commitGate: [{ cmd: 'npm test', pass: '', when: ['src/**'] }] }), prep: dir => stage(dir, { 'src/a.js': 'x' }), deny: true, tag: 'commit-gate' },
   { name: 'commit gate passed this turn: allowed', tool: 'Bash', input: { command: 'git commit -m "feature"' }, edit: cfgEdit({ commitGate: [{ cmd: 'npm test', pass: '', when: ['src/**'] }] }), prep: dir => stage(dir, { 'src/a.js': 'x' }), tools: [bash('npm test', '5 passed')], deny: false },
   { name: 'taste-driven files committed without the user\'s OK: denied', tool: 'Bash', input: { command: 'git commit -m "new art"' }, prompt: 'commit the new art', edit: cfgEdit({ approvalPaths: ['art/**'] }), prep: dir => stage(dir, { 'art/hero.svg': '<svg></svg>' }), deny: true, tag: 'approval-gate' },
@@ -1014,6 +1052,9 @@ STOP.push(
   { pack: 'app', name: 'install-trigger: the install-update runbook followed: passes', prompt: 'fix the shortcut', tools: [pb('install-update')], files: { 'scripts/install.ps1': 'Write-Output hi\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: install-update.md.' + FIN, expect: { not: ['install-trigger'] } },
   { pack: 'knowledge', name: 'ingest-trigger: a new original without the ingest runbook: blocked', prompt: 'keep this', files: { 'sources/2026-10-18 scan.pdf': 'pdf' }, answer: 'Saved.' + FIN, expect: { tags: ['ingest-trigger'] } },
   { pack: 'knowledge', name: 'ingest-trigger: registered in SOURCES.md: passes', prompt: 'keep this', files: { 'sources/2026-10-18 scan.pdf': 'pdf', 'docs/knowledge/SOURCES.md': '| scan |' }, answer: 'Saved.' + FIN, expect: { not: ['ingest-trigger'] } },
+  // Lesson: "mv inbox/x.pdf sources/" kept the file's old time, so the move never counted as a change
+  { pack: 'knowledge', name: 'ingest-trigger: a file moved into sources/ (old time, new since the turn began): blocked', prompt: 'keep this',
+    prep: dir => run(dir, 'prompt', { prompt: 'keep this' }), files: { 'sources/2026-10-18 moved.pdf': 'pdf' }, mtimes: { 'sources/2026-10-18 moved.pdf': -7200_000 }, answer: 'Saved.' + FIN, expect: { tags: ['ingest-trigger'] } },
   // a runbook's "owns:" folders: its own downloads skip another runbook's trigger, but only in a turn that follows it
   { pack: 'knowledge', name: 'ingest-trigger: a download into a folder the followed runbook owns: passes', prompt: 'research the raid', tools: [pb('raid-notes')], files: { 'docs/playbooks/raid-notes.md': '---\nname: raid-notes\nsummary: raid notes\ntriggers: raid notes\nowns: sources/raids/**\nchecks: none - a test runbook\n---\n# Playbook: raid notes\n', 'sources/raids/boss.html': 'page' }, answer: 'Saved.' + FIN, expect: { not: ['ingest-trigger'] } },
   { pack: 'knowledge', name: 'ingest-trigger: the owned folder without its runbook followed: blocked', prompt: 'keep this', files: { 'docs/playbooks/raid-notes.md': '---\nname: raid-notes\nsummary: raid notes\ntriggers: raid notes\nowns: sources/raids/**\nchecks: none - a test runbook\n---\n# Playbook: raid notes\n', 'sources/raids/boss.html': 'page' }, answer: 'Saved.' + FIN, expect: { tags: ['ingest-trigger'] } },
@@ -1258,6 +1299,80 @@ if (!TAGS) { // the standalone checks run in a full run only
     const c2 = node('check', '--answer-file', path.join(dir, '.cache/answer.md'));
     report(b.stdout.includes('ROUTE: plan') && c1.status === 1 && /CHECK: FAIL\nAlmost done: [^\n]*\n1\. [^\n]+/.test(c1.stdout) && /Names: [a-z]/.test(c1.stdout) && !/round 1 of/.test(c1.stdout) && /Full steps:/.test(c1.stdout) && !/Claude/.test(c1.stdout) && c2.status === 0 && /CHECK: PASS/.test(c2.stdout),
       'agent-neutral: begin routes, check fails an incomplete answer and passes a complete one', `begin: ${b.stdout.slice(0, 120)} | c1: ${c1.stdout.slice(0, 200)} | c2: ${c2.stdout.slice(0, 300)}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+{ // walks never follow links: a workspace link that loops back into the repo can't hang a hook
+  // Lesson: packages/shared/node_modules/@mono/web pointing back at packages/web made the prompt hook time out
+  const dir = copyProject();
+  try {
+    fs.mkdirSync(path.join(dir, 'packages/web/src'), { recursive: true }); fs.writeFileSync(path.join(dir, 'packages/web/src/a.ts'), 'x');
+    fs.mkdirSync(path.join(dir, 'packages/web/sub/@mono'), { recursive: true });
+    let linked = true; try { fs.symlinkSync(path.join(dir, 'packages/web'), path.join(dir, 'packages/web/sub/@mono/web'), 'junction'); } catch { linked = false; }
+    const t0 = Date.now(); const r = spawnSync(process.execPath, [path.join(dir, 'tools/hooks/hooks.mjs'), 'prompt'], { cwd: dir, encoding: 'utf8', input: JSON.stringify({ prompt: 'hello' }), timeout: 30000, env: { ...process.env, STARTER_MEMORY_DIR: path.join(dir, '.memtest') } });
+    const ms = Date.now() - t0;
+    report(!linked || (r.status === 0 && ms < 10000), 'walks: a link that loops back into the project never hangs the prompt hook', `linked ${linked}, ${ms} ms, status ${r.status} ${String(r.error || '')}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+{ // knowledgeDirs, fit, labels and names: what a notes-only project (an adopted vault) needs
+  const dir = copyProject();
+  try {
+    const imp = async () => import(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href + `?t=${Date.now()}`);
+    applyEdits(dir, { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), knowledgeDirs: ['Notas de Salud'] }) });
+    const sub = `--input-type=module`, js = code => spawnSync(process.execPath, [sub, '-e', code], { cwd: dir, encoding: 'utf8' }).stdout.trim();
+    const H = JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href);
+    // every knowledge check that names docs/knowledge/** also covers the vault folder
+    const globs = js(`import { loadRequirements } from ${H}; console.log(JSON.stringify(loadRequirements().reqs.filter(r => JSON.stringify(r).includes('docs/knowledge/**')).map(r => JSON.stringify(r).includes('Notas de Salud/**'))))`);
+    const allCovered = (() => { try { const a = JSON.parse(globs); return a.length > 0 && a.every(Boolean); } catch { return false; } })() || !INSTALLED.includes('knowledge');
+    // step labels keep their sentence when paths are dropped
+    const { shortStep } = await imp();
+    const lab = shortStep({ tag: 'x', msg: 'Add a dated line to docs/CHANGELOG.md for the knowledge change.' }), lab2 = shortStep({ tag: 'x', msg: 'Research skill, section E: record the confirmed findings in docs/knowledge so the next question is answered.' });
+    // a gitignored file is not checked for typed-out names
+    write(dir, { 'docs/names.json': '{ "PROJECT_NAME": "Saludario" }', '.gitignore': fs.readFileSync(path.join(dir, '.gitignore'), 'utf8') + '\nlocal-notes.md\n', 'local-notes.md': 'Saludario on this machine', 'docs/shared.md': 'Saludario typed out' });
+    spawnSync('git', ['init', '-q'], { cwd: dir });
+    const files = js(`import { nameFiles } from ${H}; console.log(JSON.stringify(nameFiles()))`);
+    // names in code: text people read counts, identifiers and import paths don't; a plain word is no name
+    const np = (f, t, nm) => js(`import { nameProblems } from ${H}; console.log(nameProblems(${JSON.stringify(f)}, ${JSON.stringify(t)}, ${JSON.stringify(nm)}).length)`);
+    const nmB = { PROJECT_NAME: 'ShopBoard' };
+    const codeOk = np('src/App.tsx', "import { ShopBoard } from './ShopBoard';\nShopBoard.render();\n", nmB) === '0' && np('src/App.tsx', 'const title = "ShopBoard orders";\n', nmB) === '1'
+      && np('src/clean.py', 'from pipe.clean import run\nprint("pipe")\n', { PROJECT_NAME: 'pipe' }) === '0' && np('tools/hooks/hooks.mjs', '"ShopBoard"', nmB) === (fs.existsSync(path.join(dir, '.starter-template')) ? '1' : '0');
+    report(allCovered && lab === 'Add a dated line to CHANGELOG.md for the knowledge change' && /^Record the confirmed findings/.test(lab2) && files.includes('docs/shared.md') && !files.includes('local-notes.md') && codeOk,
+      'knowledgeDirs, labels, names: a vault folder gets the knowledge checks, labels read as sentences, ignored files and code identifiers are not name-checked', `${globs} | ${lab} | ${lab2} | ${files.slice(0, 200)} | code ${codeOk}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+{ // fit: in a project with no code, code tools are decided "later" by fit.mjs itself
+  // Lesson: a notes-only project had 63 code tools to decide one by one
+  const dir = copyProject();
+  try {
+    const H = JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href);
+    const survey = () => JSON.parse(spawnSync(process.execPath, ['--input-type=module', '-e', `import { projectSurvey } from ${H}; const s = projectSurvey({ git: false }); console.log(JSON.stringify({ code: s.n.code, files: s.files.filter(f => f.kind === 'code' || /\\.(m?js|cjs|ts|tsx|py|sh|ps1|bat|go|rs|java|cs|rb|php)$/i.test(f.p)).map(f => f.p) }))`], { cwd: dir, encoding: 'utf8' }).stdout || '{}');
+    for (const p of survey().files || []) fs.rmSync(path.join(dir, p), { force: true }); // the project's own code goes: a notes-only project
+    const sv = String(survey().code);
+    const r = spawnSync(process.execPath, ['tools/fit.mjs'], { cwd: dir, encoding: 'utf8' });
+    const rows = fs.readFileSync(path.join(dir, 'docs/fit-checklist.md'), 'utf8').split('\n');
+    const row = n => rows.find(l => l.toLowerCase().startsWith(`| ${n} |`)) || '';
+    report(r.status === 0 && sv === '0' && /later - when: the first code file appears/.test(row('ruff')) && /\| \? \|/.test(row('vale')),
+      'fit: with no code files, code tools are decided "later" and prose tools stay open', `code files ${sv} | ${row('ruff').slice(0, 160)} | ${row('vale').slice(0, 120)}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+{ // hooks-tested without a transcript: the Stop hook never runs the self-tests itself; it reads the run log
+  // Lesson: with no transcript, every stop ran the whole self-test (minutes) inside the hook.
+  const dir = copyProject();
+  try {
+    const node = (...a) => spawnSync(process.execPath, [path.join(dir, 'tools', 'hooks', 'hooks.mjs'), ...a], { cwd: dir, encoding: 'utf8', env: { ...process.env, STARTER_MEMORY_DIR: path.join(dir, '.memtest') } });
+    node('begin', 'tune the hook messages');
+    write(dir, { 'tools/hooks/wire.mjs': fs.readFileSync(path.join(dir, 'tools/hooks/wire.mjs'), 'utf8') + '\n// tuned\n', '.cache/answer.md': 'Tuned the wire message.' + FIN });
+    const t0 = Date.now(), c1 = node('check', '--answer-file', path.join(dir, '.cache/answer.md')), ms = Date.now() - t0;
+    node('run', 'node -e "console.log(\'selfcheck: ALL PASS (1 passed, 0 failed)\')" && echo node tools/hooks/selfcheck.mjs');
+    const { logRun } = await import(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href);
+    const logged = fs.readFileSync(path.join(dir, 'tools/hooks/state/runs.jsonl'), 'utf8');
+    fs.appendFileSync(path.join(dir, 'tools/hooks/state/runs.jsonl'), JSON.stringify({ at: new Date().toISOString(), cmd: 'node tools/hooks/selfcheck.mjs', out: 'selfcheck: ALL PASS (430 passed, 0 failed)', error: false }) + '\n');
+    const c2 = node('check', '--answer-file', path.join(dir, '.cache/answer.md'));
+    report(ms < 15000 && /hooks-tested/.test(c1.stdout) && /selfcheck\.mjs/.test(c1.stdout) && typeof logRun === 'function' && /"cmd":"node -e/.test(logged) && !/hooks-tested/.test(c2.stdout),
+      'hooks-tested: without a transcript the Stop hook reads the run log instead of running the self-tests', `${ms} ms | c1: ${c1.stdout.slice(0, 300)} | c2: ${c2.stdout.slice(0, 300)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
@@ -1770,6 +1885,8 @@ if (INSTALLED.includes('app')) { // app gates: their own pass lines, from packs.
 if (!TAGS) for (const [tag, name] of Object.entries(COVERS)) if (hereSrc.includes(tag)) report(PASSED.some(n => n.includes(name)), `covers: ${tag} is proven by "${name}"`, 'no passing scenario with that name');
 
 console.log(`\nselfcheck: ${fail ? 'FAIL' : 'ALL PASS'}${TAGS ? ` for ${TAGS.join(', ')}` : ''} (${pass} passed, ${fail} failed${skipped ? `, ${skipped} skipped: packs not installed here` : ''})`);
+// recorded for agents whose tool history the hooks can't read (REQ: hooks-tested)
+try { const { logRun } = await import('./hooks.mjs'); logRun(`node tools/hooks/selfcheck.mjs ${process.argv.slice(2).join(' ')}`.trim(), `selfcheck: ${fail ? 'FAIL' : 'ALL PASS'}${TAGS ? ` for ${TAGS.join(', ')}` : ''} (${pass} passed, ${fail} failed)`, !!fail); } catch { }
 // a full run is what the upgrade review asks for (REQ: upgrade-review)
-if (!TAGS) try { const d = new Date(); fs.mkdirSync(path.join(ROOT, 'tools/hooks/state'), { recursive: true }); fs.writeFileSync(path.join(ROOT, 'tools/hooks/state/selftest.json'), JSON.stringify({ at: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`, passed: !fail, count: pass })); } catch { }
+if (!TAGS) try { const d = new Date(); fs.mkdirSync(path.join(ROOT, 'tools/hooks/state'), { recursive: true }); fs.writeFileSync(path.join(ROOT, 'tools/hooks/state/selftest.json'), JSON.stringify({ at: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`, passed: !fail, count: pass, inputs: INPUTS0 })); } catch { }
 process.exit(fail ? 1 : 0);

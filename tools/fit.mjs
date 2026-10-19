@@ -45,9 +45,15 @@ function build(sv) {
   const rows = [], added = [], kept = new Set();
   for (const c of candidates) {
     const k = key(c.kind, c.item), was = byKey.get(k);
-    const auto = `survey: ${(signals[k] || []).map(s => s.label).join('; ') || 'no direct signal'}`;
+    const noCode = c.codeOnly && !(sv.n?.code) && !(signals[k] || []).length;
+    const auto = noCode ? 'survey: no code files yet' : `survey: ${(signals[k] || []).map(s => s.label).join('; ') || 'no direct signal'}`;
     if (was) kept.add(k); else added.push(c.item);
     const signal = was && was.signal && !/^survey:/i.test(was.signal) && was.signal !== '?' ? was.signal : auto;
+    // a code tool in a project with no code: decided "later" here, so the AI weighs only what can matter now
+    if (!was && noCode) {
+      rows.push({ item: c.item, kind: c.kind, signal: auto, decision: 'later - when: the first code file appears', reason: `${c.item} works on code, and this project has no code files yet, so it would only add setup and noise now` });
+      continue;
+    }
     rows.push({ item: c.item, kind: c.kind, signal, decision: was ? was.decision : '?', reason: was ? was.reason : '' });
   }
   // packs and skills the starter can't list right now (it was removed): their decided rows stay

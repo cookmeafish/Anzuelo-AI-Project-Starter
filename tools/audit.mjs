@@ -11,7 +11,7 @@ import {
   ROOT, read, abs, exists, frontmatter, playbooks, skillProblems, playbookProblems, knowledgeProblems, config,
   loadRequirements, usage, hardenDue, menu, runbookHasCheck, generatedSkill, directoryBlock, staleKnowledge,
   setupProblems, upgradeProblems, bench, gitignoreProblems, writingProblems, aiAttributedCommits, BASE_REQUIREMENTS, routableSkills, skillHasCheck, curateDue,
-  FIT_FILE, fitProblems, fitRows, fitDecision, fitWhenOf, doneWhenItems, DONE_LABEL, findLibrary, secretHit, mirrorText
+  FIT_FILE, fitProblems, fitRows, fitDecision, fitWhenOf, doneWhenItems, DONE_LABEL, findLibrary, secretHit, mirrorText, logRun, testInputsHash
 } from './hooks/hooks.mjs';
 
 const cfg = config();
@@ -27,13 +27,15 @@ const sweep = (name, fn) => {
   const fail = out.fail || [], warn = out.warn || [];
   results.push({ name, status: fail.length ? 'FAIL' : warn.length ? 'WARN' : 'PASS', lines: [...fail, ...warn], note: out.note || '' });
 };
-const SKIPDIR = /^(\.git|node_modules|state|\.cache|\.starter|dist|build|__pycache__)$/;
+// (.agents, .codex and .gemini hold generated agent wiring and skill copies, like .claude: never the project's notes)
+const SKIPDIR = /^(\.git|node_modules|state|\.cache|\.starter|\.agents|\.codex|\.gemini|dist|build|__pycache__)$/;
 const walk = (d, pred, acc = [], skip = SKIPDIR) => {
   let names = []; try { names = fs.readdirSync(abs(d || '.')); } catch { return acc; }
   for (const n of names) {
     const p = d ? `${d}/${n}` : n;
     if (skip.test(n)) continue;
-    let s; try { s = fs.statSync(abs(p)); } catch { continue; }
+    let s; try { s = fs.lstatSync(abs(p)); } catch { continue; }
+    if (s.isSymbolicLink()) continue; // never follow a link (Lesson: a workspace link loop hung the audit)
     if (s.isDirectory()) walk(p, pred, acc, skip); else if (pred(p)) acc.push(p);
   }
   return acc;
@@ -48,7 +50,10 @@ const baseTags = new Set(BASE_REQUIREMENTS.map(b => b.tag));
 const packTags = new Set([...(() => { try { return fs.readdirSync(abs('packs')); } catch { return []; } })().flatMap(n => { try { return JSON.parse(read(abs(`packs/${n}/pack.json`))).requirements.map(r => r.tag); } catch { return []; } }),
   ...Object.values((() => { try { return JSON.parse(read(abs('tools/packs-registry.json'))).packs; } catch { return {}; } })()).flatMap(p => p.tags || []),
   // library skills' checks, which enable adds to requirements.json
-  ...(() => { try { return JSON.parse(read(abs('library/catalog.json'))).skills.flatMap(e => (e.requirements || []).map(r => r.tag)); } catch { return []; } })()]);
+  ...(() => { try { return JSON.parse(read(abs('library/catalog.json'))).skills.flatMap(e => (e.requirements || []).map(r => r.tag)); } catch { return []; } })(),
+  // every check the engine ships, from the project's own engine-checks.json: library/ goes once the starter is linked,
+  // kept or removed. Lesson: right after "starter.mjs link", library tags in rule-enforcement.md were "enforced nowhere".
+  ...(() => { try { return JSON.parse(read(abs('tools/hooks/engine-checks.json'))).requirements.map(r => r.tag); } catch { return []; } })()]);
 const coreTags = new Set([...hooksSrc.matchAll(/REQ: ([a-z0-9-]+)/g)].map(m => m[1]));
 const reqTags = new Set(fileReqs.map(r => r && r.tag).filter(Boolean));
 const knownTag = t => coreTags.has(t) || reqTags.has(t) || packTags.has(t);
@@ -430,6 +435,13 @@ if (process.argv.includes('--setup')) sweep('setup is complete (SETUP-PROMPT.md 
 if (process.argv.includes('--full') || process.argv.includes('--setup')) {
   for (const [name, args] of [['hook self-tests', []], ['ablation tests (every required step is load-bearing)', ['--ablation']]].slice(0, process.argv.includes('--full') ? 2 : 1)) {
     sweep(name, () => {
+      // --setup: the self-tests take minutes, so they wait until the quick sweeps pass, and a full pass from earlier counts
+      // while nothing they test has changed since. --full always runs them. Lesson: each setup retry cost 11 minutes.
+      if (!process.argv.includes('--full')) {
+        if (results.some(r => r.status === 'FAIL')) return { warn: ['skipped until the failures above are fixed (the self-tests take minutes)'] };
+        const st = (() => { try { return JSON.parse(read(abs('tools/hooks/state/selftest.json'))); } catch { return {}; } })();
+        if (st.passed && st.inputs && st.inputs === testInputsHash()) return { note: `passed earlier (${st.count} tests) and nothing they test has changed since` };
+      }
       const r = spawnSync(process.execPath, [abs('tools/hooks/selfcheck.mjs'), ...args], { encoding: 'utf8', timeout: 900000 });
       const out = (r.stdout || '') + (r.stderr || '');
       const summary = out.trim().split(/\r?\n/).pop();
@@ -454,4 +466,6 @@ results.forEach((r, i) => {
   for (const l of r.lines) console.log(`        - ${l}`);
 });
 console.log(`\naudit: ${paint(failed ? 'FAIL' : 'PASS')} (${results.length} sweeps, ${failed} failed, ${results.filter(r => r.status === 'WARN').length} warnings)`);
+// recorded for agents whose tool history the hooks can't read (REQ: audit-run)
+logRun(`node tools/audit.mjs ${process.argv.slice(2).join(' ')}`.trim(), results.filter(r => r.status === 'FAIL').map(r => `FAIL ${r.name}`).concat(`audit: ${failed ? 'FAIL' : 'PASS'} (${results.length} sweeps, ${failed} failed)`).join('\n'), !!failed);
 process.exit(failed ? 1 : 0);

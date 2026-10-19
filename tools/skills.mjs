@@ -118,7 +118,7 @@ else if (cmd === 'recommended') {
     (function walk(d) {
       for (const e of fs.readdirSync(path.join(ROOT, d), { withFileTypes: true })) {
         const p = d ? `${d}/${e.name}` : e.name;
-        if (e.isDirectory()) { if (!/^(\.git|\.claude|\.cache|\.starter|node_modules|state|library|packs)$/.test(e.name)) walk(p); }
+        if (e.isDirectory()) { if (!/^(\.git|\.claude|\.agents|\.gemini|\.cache|\.starter|node_modules|state|library|packs)$/.test(e.name)) walk(p); }
         else if (/\.md$/.test(e.name) && !/CHANGELOG/.test(e.name) && new RegExp(`\\b${n}\\.md\\b|${cfg.skillsDir}/${n}/`).test(fs.readFileSync(path.join(ROOT, p), 'utf8'))) refs.push(p);
       }
     })('');

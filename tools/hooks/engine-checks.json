@@ -76,10 +76,10 @@
         "skillUsed": "research"
       },
       "require": {
-        "answerMatches": "(?<!^[ \\t]*)\\[\\d+\\][\\s\\S]*^[ \\t]*\\**sources:?\\**[ \\t]*\\r?\\n(?:[ \\t]*[-*]?[ \\t]*\\[\\d+\\][ \\t]+(?:https?:\\/\\/\\S+|[\\w.-]+\\/\\S+)[^\\n]*(?:\\r?\\n|$))+|nothing (is )?recorded|not (in|recorded in) the project",
-        "answerNotMatches": "(?<!^[ \\t]*[-*]?[ \\t]*)\\[(\\d+)\\](?![\\s\\S]*^[ \\t]*[-*]?[ \\t]*\\[\\1\\][ \\t]+(?:https?:\\/\\/|[\\w.-]+\\/))"
+        "answerMatches": "(?<!^[ \\t]*)\\[\\d+\\][\\s\\S]*^[ \\t]*\\**sources:?\\**[ \\t]*\\r?\\n(?:[ \\t]*[-*]?[ \\t]*\\[\\d+\\][ \\t]+(?:https?:\\/\\/\\S+|[\\w.-]+\\/\\S+|<[^>\\n]+>|\\[[^\\]\\n]+\\]\\([^)\\n]+\\)|[\\w.-]+\\.\\w{1,5}\\b)[^\\n]*(?:\\r?\\n|$))+|nothing (is )?recorded|not (in|recorded in) the project",
+        "answerNotMatches": "(?<!^[ \\t]*[-*]?[ \\t]*)\\[(\\d+)\\](?![\\s\\S]*^[ \\t]*[-*]?[ \\t]*\\[\\1\\][ \\t]+(?:https?:\\/\\/|[\\w.-]+\\/|<|\\[[^\\]\\n]+\\]\\(|[\\w.-]+\\.\\w{1,5}\\b))"
       },
-      "message": "Research skill, answer format: end each fact with a numbered citation [1], [2], and end the answer with \"Sources:\" and one line per number, \"[n] <link or project file>\", each a source read this turn. Or say plainly that nothing is recorded in the project.",
+      "message": "Answers from research cite their sources: end each fact with a numbered citation [1], [2], and end the answer with \"Sources:\" and one line per number, \"[n] <link or project file>\" (a markdown link [title](link) works too), each a source read this turn. Or say plainly that nothing is recorded in the project.",
       "waitsForAgents": true
     },
     {
@@ -730,9 +730,9 @@
         "answerNotMatches": "verified:\\s*\\d+\\s+claims"
       },
       "require": {
-        "answerMatches": "docs/knowledge/|not (in|recorded in) the (knowledge base|project)|nothing recorded"
+        "answerMatches": "docs/knowledge/|^[ \\t]*[-*]?[ \\t]*\\[\\d+\\][ \\t]+(?:https?:\\/\\/|<https?:|\\[[^\\]\\n]+\\]\\(https?:)|not (in|recorded in) the (knowledge base|project)|nothing recorded"
       },
-      "message": "Research skill, section A: cite the knowledge files the answer came from by number, with a Sources: line for each ([1] docs/knowledge/...; answer format in skills/research/SKILL.md), or say plainly that the project has nothing recorded on it.",
+      "message": "Answer from what the project knows: cite the knowledge files the answer came from by number, with a Sources: line for each ([1] docs/knowledge/...; web sources are fine for what the project doesn't have), or say plainly that the project has nothing recorded on it.",
       "pack": "knowledge"
     },
     {

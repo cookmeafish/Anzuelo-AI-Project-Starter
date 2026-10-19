@@ -43,7 +43,7 @@ const inBusy = p => [...busy].some(d => path.posix.dirname(p) === d);
 
 // The project's text files, searched once for references to each candidate (its path, or its file name).
 const TEXT = /\.(md|mdx|txt|html?|css|js|mjs|cjs|jsx|ts|tsx|json|ya?ml|py|csv|svg)$/i;
-const SKIP = /^(\.git|node_modules|\.cache|\.claude|\.codex|\.obsidian|\.starter|state|dist|build)$/;
+const SKIP = /^(\.git|node_modules|\.cache|\.claude|\.agents|\.gemini|\.codex|\.obsidian|\.starter|state|dist|build)$/;
 const texts = [];
 (function scan(d) {
   let ents; try { ents = fs.readdirSync(path.join(ROOT, d || '.'), { withFileTypes: true }); } catch { return; }

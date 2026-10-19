@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const NOT_NOTES = /^(docs\/(CHANGELOG|STATUS|MENU)\.md|docs\/playbooks\/_|docs\/checks\/|DIRECTORY\.md|CLAUDE\.md|AGENTS\.md|SETUP-PROMPT\.md)/;
-const SKIP = /^(\.git|node_modules|\.cache|\.claude|\.obsidian|\.starter|state)$/;
+const SKIP = /^(\.git|node_modules|\.cache|\.claude|\.agents|\.codex|\.gemini|\.obsidian|\.starter|state)$/;
 const ALL = process.argv.includes('--all');
 const STOP = new Set('a an the this that these to of for in on at my me it its is are be do does did and or with from by i we our you your as not no can will should was were has have had but if then than so what when which who how why all any each one'.split(' '));
 const words = s => [...new Set(String(s).toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length > 3 && !STOP.has(w)).map(w => w.replace(/(?<![su])s$/, '')))];

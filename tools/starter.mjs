@@ -107,10 +107,15 @@ if (cmd === 'link') {
   const g = (...a) => spawnSync('git', a, { cwd: link, encoding: 'utf8', timeout: 120000 });
   if ((g('status', '--porcelain').stdout || '').trim()) { console.error(`${link} has local changes, so it is left alone. Commit or discard them there, then run update again.`); process.exit(1); }
   const before = g('rev-parse', 'HEAD').stdout.trim();
+  if (g('rev-parse', '--abbrev-ref', '@{u}').status !== 0) { console.error(`${link} has no remote to get updates from (no "origin" branch it follows). Clone the starter's repository instead, link that clone, and run update again.`); process.exit(1); }
   const pull = g('pull', '--ff-only', '--quiet');
   if (pull.status !== 0) { console.error(`Could not get the newest starter (offline, or its history changed): ${(pull.stderr || pull.stdout).trim().split('\n')[0]}`); process.exit(1); }
   const after = g('rev-parse', 'HEAD').stdout.trim();
-  if (before === after && !process.argv.includes('--force')) { console.log('Done: the starter is already the newest version, so there is nothing to upgrade. (--force upgrades anyway.)'); process.exit(0); }
+  // Up to date means this project's engine matches the starter's, not that the pull brought nothing new.
+  // Lesson: "update --dry-run" pulled, so the real update then said "already the newest" with the engine still old.
+  const same = f => { try { return fs.readFileSync(path.join(link, f)).equals(fs.readFileSync(at(f))); } catch { return false; } };
+  const current = ['tools/hooks/hooks.mjs', 'tools/hooks/engine-checks.json', 'tools/new-project.mjs', 'tools/audit.mjs'].every(same);
+  if (before === after && current && !process.argv.includes('--force')) { console.log('Done: this project already runs the newest starter, so there is nothing to upgrade. (--force upgrades anyway.)'); process.exit(0); }
   console.log(before === after ? 'Upgrading from the current starter (--force).' : `Got the newest starter (${g('rev-list', '--count', `${before}..${after}`).stdout.trim()} new change(s)). Upgrading this project from it.`);
   const r = spawnSync(process.execPath, [path.join(link, 'tools', 'new-project.mjs'), ROOT, '--upgrade', ...process.argv.slice(3).filter(a => ['--dry-run', '--accept-findings'].includes(a))], { encoding: 'utf8', stdio: 'inherit' });
   process.exit(r.status ?? 1);
@@ -130,6 +135,9 @@ if (cmd === 'link') {
       if (n.status === 0 && /^\d+$/.test(n.stdout.trim())) console.log(`linked starter: ${+n.stdout.trim() ? `${n.stdout.trim()} commit(s) behind its origin (node tools/starter.mjs update)` : 'up to date with its origin'}`);
     }
   }
+  // the project's own engine can lag behind the linked starter even when the starter itself is current
+  if (link && !['tools/hooks/hooks.mjs', 'tools/hooks/engine-checks.json'].every(f => { try { return fs.readFileSync(path.join(link, f)).equals(fs.readFileSync(at(f))); } catch { return false; } }))
+    console.log('this project: its engine is older than the linked starter (node tools/starter.mjs update, or upgrade)');
   const fb = feedbackLines(), sent = reportedLines();
   if (fb.length) console.log(`starter feedback: ${fb.length} line(s) in ${FEEDBACK}, ${fb.filter(l => !sent.has(l)).length} not reported yet (node tools/starter.mjs report)`);
 } else if (cmd === 'feedback') {

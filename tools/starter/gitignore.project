@@ -6,6 +6,8 @@ tools/hooks/state/last-stop-input.json
 tools/hooks/state/unresolved.json
 tools/hooks/state/turn.json
 .codex/
+.gemini/
+.agents/
 .private-terms
 
 # The starter's leftovers kept for later (tools/starter.mjs keep) and the link to the starter folder (a path on this

@@ -21,6 +21,9 @@ export const abs = p => path.resolve(ROOT, p);
 export const rel = p => path.relative(ROOT, path.resolve(ROOT, String(p || ''))).split(path.sep).join('/');
 export const exists = p => { try { fs.statSync(abs(p)); return true; } catch { return false; } };
 const list = d => { try { return fs.readdirSync(abs(d || '.')); } catch { return []; } };
+// A folder walk never follows a link or junction (it throws, and the walker skips the entry). Lesson: a workspace link
+// in packages/*/node_modules pointing back into the repo made the prompt hook loop past its timeout.
+const walkStat = p => { const s = fs.lstatSync(abs(p)); if (s.isSymbolicLink()) throw new Error('link'); return s; };
 const esc = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const localDate = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 export const today = () => localDate(); // the user's calendar day, not UTC
@@ -95,17 +98,18 @@ const DEFAULTS = {
   hookBudgetMs: 1000,         // a hook event slower than this (median, node start included) slows every turn: the audit fails         // a runbook or skill unused this long is reviewed: keep, merge or retire (skill-curate)
   harden: 'block',            // 'block' = harden a skill in the turn it becomes due; 'remind' = hint only
   skillsDir: 'skills',        // agent-neutral home of every skill (SKILL.md format)
-  skillMirrors: ['.claude/skills'], // generated copies where an agent discovers skills natively (Claude Code)
+  skillMirrors: ['.claude/skills', '.agents/skills'], // generated copies where an agent discovers skills natively (Claude Code; Codex)
   protectedOriginals: [],     // globs of originals that are never changed (packs and setup fill this)
   noOverwrite: [],            // globs of delivered files: a new version is a new file
-  ignoreForChanges: ['.git/**', 'node_modules/**', 'tools/hooks/state/**', '.obsidian/**', '.claude/skills/**', '**/__pycache__/**', '.cache/**', '.starter/**', '**/.DS_Store', '**/Thumbs.db', '**/~$*'],
+  // (plus every plain folder the root .gitignore names, like dist/ or target/: see config())
+  ignoreForChanges: ['.git/**', 'node_modules/**', '**/node_modules/**', '**/.venv/**', '**/venv/**', '**/.next/**', '**/.turbo/**', '**/.gradle/**', 'tools/hooks/state/**', '.obsidian/**', '.claude/skills/**', '.agents/skills/**', '**/__pycache__/**', '.cache/**', '.starter/**', '**/.DS_Store', '**/Thumbs.db', '**/~$*'],
   notWork: ['docs/STATUS.md', 'docs/CHANGELOG.md'],
   // Visual review loop: a change to any of these files is not done until fresh screenshots were taken AND looked at.
   guiFiles: ['**/*.html', '**/*.htm', '**/*.css', '**/*.scss', '**/*.jsx', '**/*.tsx', '**/*.vue', '**/*.svelte', '**/gui/**', '**/ui/**', '**/static/**', '**/templates/**', '**/components/**'],
   guiIgnore: ['.cache/**', 'packs/**', 'library/**', '.starter/**', 'skills/**', 'node_modules/**', 'dist/**', 'build/**', 'docs/**', 'sources/**', 'inbox/**', '**/*.md', '**/__pycache__/**', 'tools/hooks/**'],
   // Files where a name from docs/names.json may be typed out: history, licenses and credits keep the names of their day,
   // toolchain manifests can't read another file, and the hook tests use made-up names as fixtures.
-  namesIgnore: ['**/CHANGELOG*.md', '**/STARTER-CHANGELOG.md', '**/LICENSE*', '**/SOURCE*', '**/*.lock', '**/package-lock.json', '**/package.json', '**/pyproject.toml', '**/Cargo.toml', 'tools/hooks/selfcheck.mjs', 'tools/hooks/project-scenarios.mjs', '.cache/**', 'tools/hooks/state/**', '.claude/skills/**'],
+  namesIgnore: ['**/CHANGELOG*.md', '**/STARTER-CHANGELOG.md', '**/LICENSE*', '**/SOURCE*', '**/*.lock', '**/package-lock.json', '**/package.json', '**/pyproject.toml', '**/Cargo.toml', 'tools/hooks/selfcheck.mjs', 'tools/hooks/project-scenarios.mjs', '.cache/**', 'tools/hooks/state/**', '.claude/skills/**', '.claude/settings*.json', '.codex/**', '.gemini/**', '.cursor/**', '.agents/**', '.obsidian/**'],
   guiShotDir: '.cache/gui-review',
   guiShotCommand: 'screenshot\\.mjs',
   guiMaxRounds: 10,
@@ -128,6 +132,9 @@ const DEFAULTS = {
   // Files that may only be created/changed through a tool that validates them: [{ "glob": "data/**/*.json", "tool": "tools/save.mjs" }]
   writeOnlyVia: [],
   volatileMaxAgeDays: 90,
+  // Where the project keeps what it knows. Setup adds a folder the project already uses (an Obsidian vault's notes),
+  // and every knowledge check covers it like docs/knowledge. Lesson: an adopted vault got none of the knowledge checks.
+  knowledgeDirs: ['docs/knowledge'],
   // A question (no change words) that changes files outside these must quote what asked for the change.
   questionNoFileExempt: ['docs/knowledge/**', 'docs/STATUS.md', 'docs/CHANGELOG.md', 'docs/DECISIONS.md', 'docs/BRIEF.md', '.cache/**', 'tools/hooks/state/**'],
   changeWords: "\\b(make|create|write|add|update|fix|change|edit|save|build|apply|implement|set ?up|delete|remove|rename|move|ingest|record|note|remember|go ahead|do it|yes|yep|sure|ok(ay)?|proceed|draft|generate|turn|convert|organi[sz]e|clean|refactor|improve|put)\\b",
@@ -170,14 +177,20 @@ const DEFAULTS = {
   // a lasting requirement on the project's work (REQ: requirement-enforced); one-off instructions don't match
   requirementWords: String.raw`\b(every|each|all|any) (\w+ ){0,3}(must|should|needs? to|has to|have to)\b|\b(must|should|needs? to|has to) (always|never|include|contain|cite|have|show)\b|\b(it'?s|this is|that'?s|make (it|this|that)) a requirement\b|\brequirements? (are|is)\b|\bmake sure (every|each|all|that every|that each)\b`,
   ruleRequest: "update (the|this|your|ur) project|from now on|going forward|\\bremember (to|that|this)\\b|\\bmandatory\\b|make (it|this|that) a (rule|requirement)|\\b(always|never) (do|make|use|check|include|ask|tell|run|add|keep|start|end|read|write|put|give|show|create|follow|save|delete|send)\\b|never .{0,40} again|don'?t ever|stop doing|i shouldn'?t have to (tell|remind)",
+  // A complaint about a miss: like a rule request, it becomes an enforced rule (and the miss itself gets fixed).
+  // Lesson: "you forgot the allergens again!!" got a frustration hint, but nothing made it a rule.
+  complaint: "\\byou (forgot|didn'?t|did not|missed|skipped|ignored|left out|keep forgetting|never)\\b|\\b(i|we) (already )?told you\\b|\\bwhy (did|didn'?t|do|does) (you|it) (keep )?\\b|\\bagain\\s*[!?]|\\bnot again\\b|\\bkeeps? (happening|forgetting|missing)\\b",
   frustration: "\\bwhy (did|didn'?t|would) you\\b|\\byou (forgot|didn'?t|ignored|skipped|missed)\\b|\\bi (already )?told you\\b|\\bagain\\?|\\bwtf\\b|\\bseriously\\b|!!",
   taskVerbs: "\\b(make|create|build|write|draft|add|update|fix|research|find|look up|plan|compare|organi[sz]e|set ?up|analy[sz]e|summari[sz]e|review|generate|turn|convert|change|edit|rewrite|remove|delete|move|import|ingest|prepare|track|calculate|design|outline|translate|clean ?up|sort|merge|split|audit|check)\\b",
   overwriteWords: "\\b(overwrite|in place|edit (it|this|that|the (file|doc|output))|replace (it|the file)|fix (it|this|that|the) (file|doc|output|typo))\\b",
+  // The user's OK for an outward action in this request (REQ: outward-gate). "email the supplier" alone asks for a draft;
+  // "send it", "post it", "push" or "open a PR" is the OK.
+  outwardOk: "\\b(send|sent|post (it|this|that|them)|publish|push|ship it|deploy|release|submit|reply (to|now)|open (a|an|the) (pr|pull request|issue)|create (a|an|the) (pr|pull request|issue)|file (a|an) issue|comment on|merge (it|the)|go ahead|do it|approved?)\\b",
   deleteWords: "\\b(delete|remove|clean ?up|get rid of|trash|erase)\\b"
 };
 // List settings in config.json EXTEND the defaults (a pack adding root files must not drop AGENTS.md from the list).
-const EXTENDS = ['gitignoreMustIgnore', 'gitignoreMustKeep', 'rootAllowed', 'namesIgnore', 'injectionIgnore', 'fluff', 'secretPatterns', 'userFacing', 'userFacingIgnore', 'verbatimAllowed', 'ignoreForChanges', 'guiFiles', 'guiIgnore', 'evidenceLabels', 'questionNoFileExempt', 'notWork'];
-let foundMirrors = null;
+const EXTENDS = ['knowledgeDirs', 'gitignoreMustIgnore', 'gitignoreMustKeep', 'rootAllowed', 'namesIgnore', 'injectionIgnore', 'fluff', 'secretPatterns', 'userFacing', 'userFacingIgnore', 'verbatimAllowed', 'ignoreForChanges', 'guiFiles', 'guiIgnore', 'evidenceLabels', 'questionNoFileExempt', 'notWork'];
+let foundMirrors = null, ignoredDirs = null;
 export function config() {
   const c = readJSON(path.join(HOOKS, 'config.json'), {});
   const out = { ...DEFAULTS, ...c };
@@ -187,6 +200,11 @@ export function config() {
   // of the plan skill kept a link that pointed one folder short.
   foundMirrors ??= list('.').filter(d => /^\.[\w-]+$/.test(d) && d !== '.git').map(d => `${d}/skills`).filter(m => list(m).some(n => exists(`${m}/${n}/.mirror`)));
   for (const m of foundMirrors) if (!out.skillMirrors.includes(m)) out.skillMirrors = [...out.skillMirrors, m];
+  // Plain folders the root .gitignore names ("dist/", "/target/") hold build output and caches: never walked for changes.
+  // Lesson: a monorepo's dist/ and nested caches were walked on every prompt and stop, which tripled the hook time.
+  ignoredDirs ??= read(abs('.gitignore')).split(/\r?\n/).map(l => l.trim()).filter(l => /^\/?[\w.-]+\/$/.test(l) && !l.startsWith('.') && !l.startsWith('/.'))
+    .map(l => l.startsWith('/') ? `${l.slice(1)}**` : `**/${l}**`);
+  out.ignoreForChanges = [...new Set([...out.ignoreForChanges, ...ignoredDirs])];
   return out;
 }
 const re = (s, f = 'i') => new RegExp(s, f);
@@ -566,13 +584,16 @@ export function finalText(entries) {
 export function changedFiles(since, cfg) {
   if (!since) return [];
   const out = [], ign = cfg.ignoreForChanges.map(globRe), gen = engineWrites();
+  // A file that wasn't there at the turn's start is new, whatever its mtime: a move, "cp -p" or an unzip keeps the old
+  // time. Lesson: "mv inbox/x.pdf sources/" never counted as a change, so the ingest trigger never fired.
+  const snap = readJSON(path.join(STATE, SNAPSHOT), {}), before = snap.files && Date.parse(snap.at) >= since - 5000 ? snap.files : null;
   const walk = d => {
     for (const n of list(d)) {
       const p = d ? `${d}/${n}` : n;
       if (ign.some(r => r.test(p) || r.test(p + '/'))) continue;
-      let s; try { s = fs.statSync(abs(p)); } catch { continue; }
+      let s; try { s = walkStat(p); } catch { continue; }
       if (s.isDirectory()) walk(p);
-      else if (s.mtimeMs > since - 1000 && !GENERATED_WRITES.has(p) && !(gen[p] && Math.abs(gen[p] - s.mtimeMs) < 2)) out.push(p);
+      else if ((s.mtimeMs > since - 1000 || (before && !before[p])) && !GENERATED_WRITES.has(p) && !(gen[p] && Math.abs(gen[p] - s.mtimeMs) < 2)) out.push(p);
     }
   };
   walk('');
@@ -605,7 +626,7 @@ export function takeSnapshot(cfg = config()) {
     for (const n of list(d)) {
       const p = d ? `${d}/${n}` : n;
       if (ign.some(r => r.test(p) || r.test(p + '/'))) continue;
-      let s; try { s = fs.statSync(abs(p)); } catch { continue; }
+      let s; try { s = walkStat(p); } catch { continue; }
       if (s.isDirectory()) { walk(p); continue; }
       const o = old[p];
       files[p] = o && o[0] === s.mtimeMs && o[1] === s.size ? o : [s.mtimeMs, s.size, s.size <= HASH_MAX ? sha(p) : null];
@@ -671,6 +692,32 @@ function readsOf(uses) {
 }
 
 // Each shell run with its output, in order: lets checks require that a validator PASSED, not just that it ran.
+// Everything the self-tests depend on, as one hash: the engine and the project's checks, rules, runbooks, skills and
+// security log. A full self-test pass stays valid while it is unchanged (audit --setup reuses it).
+export function testInputsHash() {
+  const h = createHash('sha1'), add = p => { try { h.update(p + '\0'); h.update(fs.readFileSync(abs(p))); } catch { } };
+  const walk = (d, rx) => { for (const n of list(d).sort()) { const p = `${d}/${n}`; let s; try { s = walkStat(p); } catch { continue; } if (s.isDirectory()) { if (n !== 'state') walk(p, rx); } else if (rx.test(n) && n !== 'starter.local.json') add(p); } };
+  walk('tools', /\.(mjs|json)$/); walk('docs/checks', /\.md$/); walk('docs/playbooks', /\.md$/); walk(config().skillsDir, /\.(md|mjs)$/);
+  for (const f of ['AGENTS.md', 'docs/security.md', 'docs/names.json', 'docs/DECISIONS.md']) add(f);
+  return h.digest('hex').slice(0, 16);
+}
+// The run log: commands with their results, for agents whose tool history can't be read. The audit and the self-tests
+// record themselves; any other command is recorded by running it through "hooks.mjs run <command>". Checks then judge
+// real runs instead of running the validators themselves. Lesson: without a transcript, the Stop hook ran the whole
+// self-test and audit itself, and an agent waited minutes on every stop.
+const RUN_LOG = 'runs.jsonl';
+export function logRun(cmd, out, error) {
+  try {
+    fs.mkdirSync(STATE, { recursive: true });
+    const f = path.join(STATE, RUN_LOG), line = JSON.stringify({ at: new Date().toISOString(), cmd: String(cmd), out: String(out || '').slice(-4000), error: !!error }) + '\n';
+    let old = ''; try { old = fs.readFileSync(f, 'utf8'); } catch { }
+    fs.writeFileSync(f, (old.length > 256 * 1024 ? old.split('\n').slice(-200).join('\n') : old) + line);
+  } catch { }
+}
+export function loggedRuns(since) {
+  let rows = []; try { rows = fs.readFileSync(path.join(STATE, RUN_LOG), 'utf8').split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean); } catch { }
+  return rows.filter(r => Date.parse(r.at) >= (since || 0)).map(r => ({ cmd: r.cmd, out: r.out, error: r.error }));
+}
 export function runsOf(entries) {
   const byId = new Map(), out = [];
   for (const r of entries) {
@@ -764,7 +811,7 @@ export function context(t, cfg, answerOverride) {
   // Lesson: stop rounds alternated, each one asking again for what an earlier message of the turn already said.
   const all = turnText(t.entries), said = `${answer}\n${all}`;
   return {
-    ...t, uses, cmds, changed, work, pbs, routed, reads, skillsUsed, usedPb, routedSkills, usedSkills, runs: runsOf(t.entries),
+    ...t, uses, cmds, changed, work, pbs, routed, reads, skillsUsed, usedPb, routedSkills, usedSkills, runs: t.toolsKnown ? runsOf(t.entries) : loggedRuns(t.since),
     answer, said, afterChange: `${textAfterLastChange(t.entries, changed.reduce((m, p) => { try { return Math.max(m, fs.statSync(abs(p)).mtimeMs); } catch { return m; } }, 0))}\n${answer}`, results: toolResults(t.entries),
     gui: changed.filter(p => match(p, cfg.guiFiles) && !match(p, cfg.guiIgnore) && exists(p)),
     workTurn: work.length > 0 || (t.toolsKnown && uses.length >= cfg.workToolCalls),
@@ -885,7 +932,7 @@ export function syncSkills(cfg = config()) {
       writeIfChanged(`${m}/${n}/.mirror`, `generated copy of ${cfg.skillsDir}/${n}/ - edit that folder, not this one\n`);
       // Lesson: files removed from a skill stayed in its mirror, so agents kept loading a script or reference that was gone.
       const prune = d => { for (const f of list(`${m}/${n}${d}`)) { const p = `${m}/${n}${d}/${f}`, src = `${cfg.skillsDir}/${n}${d}/${f}`; if (!d && f === '.mirror') continue;
-        let s; try { s = fs.statSync(abs(p)); } catch { continue; }
+        let s; try { s = walkStat(p); } catch { continue; }
         if (!exists(src) || fs.statSync(abs(src)).isDirectory() !== s.isDirectory()) fs.rmSync(abs(p), { recursive: true, force: true }); else if (s.isDirectory()) prune(`${d}/${f}`); } };
       prune('');
     }
@@ -926,16 +973,22 @@ export function directoryBlock(cfg = config()) {
   lines.push('', '## 3. Checks and standards', '| File | What it is |', '|---|---|');
   for (const f of list('docs/checks').filter(f => f.endsWith('.md')).sort()) lines.push(`| [${f}](docs/checks/${f}) | ${cell(firstHeading(read(abs(`docs/checks/${f}`))))} |`);
   const know = [];
-  const walk = d => { for (const n of list(d)) { const p = `${d}/${n}`; try { if (fs.statSync(abs(p)).isDirectory()) walk(p); else if (/\.md$/i.test(n) && !/^(README|SOURCES)\.md$/i.test(n)) know.push(p); } catch { } } };
+  const walk = d => { for (const n of list(d)) { const p = `${d}/${n}`; try { if (walkStat(p).isDirectory()) walk(p); else if (/\.md$/i.test(n) && !/^(README|SOURCES)\.md$/i.test(n)) know.push(p); } catch { } } };
   walk('docs/knowledge');
-  if (exists('docs/knowledge')) {
+  // the project's own knowledge folders (an existing vault): one row each, so a big vault doesn't flood the map
+  const ownDirs = cfg.knowledgeDirs.map(d => d.replace(/\/+$/, '')).filter(d => d !== 'docs/knowledge' && exists(d));
+  if (exists('docs/knowledge') || ownDirs.length) {
     lines.push('', '## 4. Knowledge', '| File | Topic | Checked |', '|---|---|---|');
-    if (!know.length) lines.push('| (none yet) | | |');
+    if (!know.length && !ownDirs.length) lines.push('| (none yet) | | |');
     for (const p of know.sort()) { const fm = frontmatter(read(abs(p))) || {}; lines.push(`| [${p.replace(/^docs\/knowledge\//, '')}](${p}) | ${cell(fm.topic || firstHeading(read(abs(p))))} | ${cell(fm.checked)} |`); }
+    for (const d of ownDirs) {
+      const mine = []; const w = p0 => { for (const n of list(p0)) { const p = `${p0}/${n}`; try { if (walkStat(p).isDirectory()) w(p); else if (/\.md$/i.test(n)) mine.push(p); } catch { } } }; w(d);
+      lines.push(`| [${d}/](${d.split('/').map(encodeURIComponent).join('/')}/) | the project's own notes (${mine.length} files) | |`);
+    }
   }
   // The starter itself: every pack and library file it can add, linked, so its whole map shows in Obsidian's graph.
   if (exists('.starter-template')) {
-    const mds = d => { const out = []; const w = p => { for (const n of list(p)) { const q = `${p}/${n}`; try { if (fs.statSync(abs(q)).isDirectory()) w(q); else if (n.endsWith('.md')) out.push(q); } catch { } } }; w(d); return out.sort(); };
+    const mds = d => { const out = []; const w = p => { for (const n of list(p)) { const q = `${p}/${n}`; try { if (walkStat(q).isDirectory()) w(q); else if (n.endsWith('.md')) out.push(q); } catch { } } }; w(d); return out.sort(); };
     const link = p => `[${p.split('/').slice(-2).join('/')}](${p})`;
     lines.push('', '## 5. What this starter can add (packs and library skills)', '| Pack or skill | Files |', '|---|---|');
     for (const p of list('packs').filter(p => exists(`packs/${p}/pack.json`)).sort()) lines.push(`| ${p} pack | ${mds(`packs/${p}/files`).map(link).join(', ')} |`);
@@ -982,19 +1035,33 @@ const subjects = () => new Set([].concat(readJSON(abs(NAMES_FILE), {})._subjects
 const checkable = nm => { const sub = subjects(); return Object.entries(nm).filter(([k, v]) => !sub.has(k) && v.trim().length >= 3 && !/\{\{|<!--/.test(v)); };
 export const stampNames = (text, nm = names()) => text.replace(NAME_MARK, (m, k) => k in nm ? `<!--name:${k}-->${nm[k]}<!--/name-->` : m);
 // REQ: name-var. A changeable name typed out in a file: outside a marker in docs, or anywhere in code.
+// Lesson: a project named "pipe" flagged the engine's own files, "from pipe.clean import" and the user's README, and a
+// name inside an HTML <title> was told to take a marker that the browser would show as text.
 export function nameProblems(file, text, nm = names(), cfg = config()) {
   if (file === NAMES_FILE || match(file, cfg.namesIgnore)) return [];
-  const bare = text.replace(NAME_MARK, '');
-  return checkable(nm).filter(([, v]) => new RegExp(`(?<![\\w-])${esc(v)}(?![\\w-])`).test(bare))
-    .map(([k, v]) => `${file}: "${v}" is typed out; ${NAME_DOCS.test(file) ? `write <!--name:${k}-->${v}<!--/name-->` : `read it from ${NAMES_FILE} (key ${k})`}`);
+  // the engine's files belong to the starter, not the project (in the starter itself they are its own code)
+  if (!exists('.starter-template') && match(file, VERBATIM_ENGINE)) return [];
+  const doc = NAME_DOCS.test(file), html = /\.html?$/i.test(file);
+  // code: only text people read (strings and comments) counts, never an identifier, module or import path
+  let bare = text.replace(NAME_MARK, '');
+  if (!doc) bare = bare.split(/\r?\n/).filter(l => !/^\s*(import|from|export\s+\*|use|require|package|module|#include|using)\b/.test(l)).join('\n');
+  const word = v => doc ? new RegExp(`(?<![\\w-])${esc(v)}(?![\\w-])`) : new RegExp(`(?<![\\w./\\\\-])${esc(v)}(?![\\w./\\\\(-])`);
+  return checkable(nm).filter(([, v]) => !/^[a-z]+$/.test(v) || v.length > 5).filter(([, v]) => word(v).test(bare))
+    .map(([k, v]) => `${file}: "${v}" is typed out; ${html && new RegExp(`<title>[^<]*${esc(v)}`, 'i').test(bare) ? `inside <title> or an attribute a marker would show: fill it from ${NAMES_FILE} when the page is built, or write N/A(name-var) with why`
+      : doc ? `write <!--name:${k}-->${v}<!--/name-->` : `read it from ${NAMES_FILE} (key ${k})`}`);
 }
 const NAME_DOCS = /\.(md|mdx|txt|html?)$/i; // markers are refilled only in docs: code reads the file
 const NAME_FILES = /\.(md|mdx|txt|html?|js|mjs|cjs|jsx|ts|tsx|py|json|ya?ml|css|vue|svelte|toml|ini|sh|ps1|bat)$/i;
 export function nameFiles(cfg = config()) {
   const out = [];
-  const walk = d => { for (const n of list(d)) { const p = d ? `${d}/${n}` : n; if (match(p, cfg.ignoreForChanges) || /^(\.git|node_modules)$/.test(n)) continue; let s; try { s = fs.statSync(abs(p)); } catch { continue; } if (s.isDirectory()) walk(p); else if (NAME_FILES.test(n)) out.push(p); } };
+  const walk = d => { for (const n of list(d)) { const p = d ? `${d}/${n}` : n; if (match(p, cfg.ignoreForChanges) || /^(\.git|node_modules)$/.test(n)) continue; let s; try { s = walkStat(p); } catch { continue; } if (s.isDirectory()) walk(p); else if (NAME_FILES.test(n)) out.push(p); } };
   walk('');
-  return out;
+  // files git ignores are this machine's own (generated agent wiring with the folder's path, local notes): not checked.
+  // Lesson: the audit flagged .codex/hooks.json, which is ignored by git and holds the project folder's path.
+  if (!out.length) return out;
+  const ig = spawnSync('git', ['check-ignore', '--stdin'], { cwd: ROOT, input: out.join('\n'), encoding: 'utf8' });
+  const ignored = new Set((ig.status === 0 ? ig.stdout : '').split(/\r?\n/).filter(Boolean).map(p => p.replace(/\\/g, '/')));
+  return out.filter(p => !ignored.has(p));
 }
 // Refill every marker when docs/names.json changed since the last fill (the stamp keeps this off the hot path).
 export function syncNames(cfg = config(), { force = false } = {}) {
@@ -1221,7 +1288,7 @@ export function staleKnowledge(cfg = config()) {
   const walk = d => {
     for (const n of list(d)) {
       const p = `${d}/${n}`;
-      let s; try { s = fs.statSync(abs(p)); } catch { continue; }
+      let s; try { s = walkStat(p); } catch { continue; }
       if (s.isDirectory()) { walk(p); continue; }
       if (!/\.md$/i.test(n) || /^(README|SOURCES)\.md$/i.test(n)) continue;
       const fm = frontmatter(read(abs(p))) || {};
@@ -1230,7 +1297,7 @@ export function staleKnowledge(cfg = config()) {
         out.push({ file: p, why: `volatile, last checked ${fm.checked}` });
     }
   };
-  walk('docs/knowledge');
+  for (const d of cfg.knowledgeDirs) walk(d.replace(/\/+$/, ''));
   return out;
 }
 
@@ -1283,7 +1350,8 @@ export function setupProblems(cfg = config()) {
     probs.push('docs/security.md: "What needs protecting" is all N/A. Every project has something to protect (at least its files and the user\'s accounts): answer each row');
   if (exists('README.starter.md')) probs.push('README.starter.md: merge what helps into README.md (the user\'s README stays), then delete it');
   // the starter's leftovers: the user decides whether the project stays linked to the starter, keeps a copy, or drops it
-  if (!['link', 'keep', 'remove'].includes(own.starter)) probs.push('ask the user what happens to the starter now: link this project to it (recommended), keep a copy of the unused packs and library skills in .starter/, or remove it. Then run node tools/starter.mjs link | keep | remove');
+  if (!['link', 'keep', 'remove'].includes(own.starter)) probs.push(own.autonomy === 'auto' ? 'decide what happens to the starter (link is the default: packs, skills and upgrades stay available) and run node tools/starter.mjs link | keep | remove'
+    : 'ask the user what happens to the starter now: link this project to it (recommended), keep a copy of the unused packs and library skills in .starter/, or remove it. Then run node tools/starter.mjs link | keep | remove');
   if (exists('packs') || exists('library')) probs.push(`packs/ or library/ is still in the project: run node tools/starter.mjs ${own.starter || 'link | keep | remove'}`);
   return probs;
 }
@@ -1305,7 +1373,11 @@ export function setupInterview() {
 const unanswered = v => !v || /<[^>]*>|^\.{3}$|^(tbd|todo|\?)$/i.test(v);
 // The packs the answers call for: knowledge work → knowledge, software → app, a visual interface → gui.
 export function packsFor(f) {
-  const kind = (f['kind of work'] || '').toLowerCase(), want = [];
+  // the leading keyword decides; the words after it only describe. Lesson: "knowledge (posts and prices; no software)"
+  // read as software, and setup demanded the app pack.
+  const full = (f['kind of work'] || '').toLowerCase().replace(/^\s*assumed\s*-\s*/, ''), want = [];
+  const lead = (/^\W*(knowledge|software|both|app|neither|none)\b/.exec(full) || [])[1];
+  const kind = lead || full.split(/[(;,.]| - /)[0];
   if (/knowledge|both/.test(kind)) want.push('knowledge');
   if (/software|\bapp\b|both/.test(kind)) want.push('app');
   if (/^yes\b/i.test(f['visual interface'] || '')) want.push('gui');
@@ -1321,7 +1393,8 @@ export function setupCompleteness(cfg = config(), { final = false, beforeStarter
   const after = beforeStarter ? INTERVIEW_AFTER.filter(k => k !== 'Starter') : INTERVIEW_AFTER;
   const keys = [...INTERVIEW, ...(final ? after : []), ...(final && packs.includes('app') ? INTERVIEW_APP : [])];
   const missing = keys.filter(k => unanswered(f[k.toLowerCase()]));
-  if (missing.length) probs.push(`docs/DECISIONS.md "## Setup interview": record the user's answer for ${missing.join(', ')} ("- Key: answer")`);
+  if (missing.length) probs.push(cfg.autonomy === 'auto' ? `docs/DECISIONS.md "## Setup interview": decide and record ${missing.join(', ')} yourself ("- Key: assumed - <answer> - <why>")`
+    : `docs/DECISIONS.md "## Setup interview": record the user's answer for ${missing.join(', ')} ("- Key: answer")`);
   if (!final) return probs;
   // "Let the AI decide everything" holds after setup too: later choices don't ask either
   if (/^decide/i.test(f.involvement || '') && cfg.autonomy !== 'auto') probs.push('Setup interview "Involvement: decide": set "autonomy": "auto" in tools/hooks/config.json, so later choices don\'t ask either');
@@ -1405,7 +1478,7 @@ export function upgradeProblems(cfg = config()) {
 
 // ---------- survey: what is in the project (tools/survey.mjs, the fit checklist, the "later" notices) ----------
 // The project's own files, without the starter's files, dependencies and build output. Read-only.
-const SURVEY_SKIP = /^(\.git|node_modules|\.cache|\.claude|\.codex|\.obsidian|\.starter|dist|build|out|target|bin|obj|venv|\.venv|__pycache__|coverage|packs|library)$/;
+const SURVEY_SKIP = /^(\.git|node_modules|\.cache|\.claude|\.agents|\.gemini|\.codex|\.obsidian|\.starter|dist|build|out|target|bin|obj|venv|\.venv|__pycache__|coverage|packs|library)$/;
 export const SURVEY_STARTER = /^(AGENTS|CLAUDE|DIRECTORY|HOW-TO-USE|SETUP-PROMPT)\.md$|^(README|AGENTS|CLAUDE)\.starter\.md$|^skills\/|^tools\/hooks\/|^tools\/(audit|packs|skills|starter|new-project|writing-check|integrity-check|recall|survey|screenshot|fit|dedupe)\.mjs$|^tools\/starter\.local\.json$|^\.githooks\/|^docs\/(checks|playbooks|plans)\/|^docs\/(BRIEF|STATUS|CHANGELOG|DECISIONS|MENU|security|names\.json|foundation|lessons|fit-checklist|recommended-tools|glossary)(\.md)?$|^docs\/names\.json$/;
 export const SURVEY_KINDS = {
   code: /\.(js|mjs|cjs|ts|tsx|jsx|py|rb|go|rs|java|kt|cs|cpp|c|h|swift|php|lua|gd|dart|scala|ex|exs)$/i,
@@ -1471,6 +1544,9 @@ const FIT_SIGNALS = [
   { id: 'python', count: s => s.n.python, label: c => `${c} Python files`, words: /\bpython\b|\.py\b/i, for: ['tool:ruff', 'tool:pytest', 'tool:uv'] },
   { id: 'shell', count: s => s.n.shell, label: c => `${c} shell scripts`, words: /\b(shell|bash|sh|scripts?)\b/i, for: ['tool:shellcheck'] },
   { id: 'big', count: s => s.big.length, label: c => `${c} large files (over 5 MB)`, words: /\b(large|big|binary|binaries|lfs|size|media)\b/i, for: ['tool:git lfs'] },
+  // Lesson: a vault with .obsidian/ and PDFs in its inbox got "no direct signal" for Obsidian, MarkItDown and OCR
+  { id: 'obsidian', count: () => exists('.obsidian') ? 1 : 0, label: () => 'an Obsidian vault (.obsidian/)', words: /\b(obsidian|vault|notes?|graph|links?)\b/i, for: ['feature:obsidian vault', 'tool:obsidian', 'pack:knowledge'] },
+  { id: 'docs', count: s => s.files.filter(f => /\.(pdf|docx?|pptx?|xlsx|epub)$/i.test(f.p)).length, label: c => `${c} PDF or Office documents`, words: /\b(pdfs?|documents?|office|docx?|word|pptx?|slides|scans?|ocr|convert|text)\b/i, for: ['tool:markitdown', 'tool:pandoc', 'tool:tesseract ocr', 'pack:knowledge'] },
   { id: 'js', count: s => s.n.jsts && s.manifests.some(m => /package\.json$/.test(m)) ? s.n.jsts : 0, label: c => `${c} JavaScript or TypeScript files`, words: /\b(js|javascript|ts|typescript|node|npm|eslint|prettier|lint|linter|types?)\b/i, for: ['tool:biome', 'tool:typescript (tsc)'] }
 ];
 const fitKey = (kind, item) => `${kind}:${String(item).toLowerCase()}`;
@@ -1481,6 +1557,9 @@ export function fitSignals(sv = projectSurvey()) {
 }
 // Every candidate: { kind, item, what, present(cfg), how }. Packs and skills come from the starter's sources; when none
 // is reachable (the starter was removed), known=false keeps the rows already decided instead of dropping them.
+// Sections of docs/recommended-tools.md whose tools only work on code: in a project with no code yet, fit.mjs decides
+// them "later - when: the first code file appears" itself. Lesson: a notes-only project had 63 code tools to decide.
+const FIT_CODE_SECTIONS = /code quality|testing|environment managers|task runners/i;
 export function fitCandidates(cfg = config()) {
   const own = readJSON(path.join(HOOKS, 'config.json'), {}), out = [], known = { pack: false, skill: false };
   const packNames = new Set(own.packs || []);
@@ -1495,11 +1574,13 @@ export function fitCandidates(cfg = config()) {
     for (const e of readJSON(path.join(lib.dir, 'catalog.json'), { skills: [] }).skills)
       out.push({ kind: 'skill', item: e.name, what: [e.does, e.good && `Good when: ${e.good}`, e.costs && `Costs: ${e.costs}`, `Fits: ${e.for}`].filter(Boolean).join(' '), present: () => exists(`${cfg.skillsDir}/${e.name}/SKILL.md`), how: `node tools/skills.mjs enable ${e.name}` });
   }
+  let section = '';
   for (const line of read(abs('docs/recommended-tools.md')).split(/\r?\n/)) {
+    if (/^## /.test(line)) section = line.slice(3).trim();
     const m = /^\|\s*\[([^\]]+)\]\([^)]*\)[^|]*\|([^|]*)\|([^|]*)\|([^|]*)\|/.exec(line);
     if (!m) continue;
     const item = m[1].trim();
-    out.push({ kind: 'tool', item, what: `${m[2].trim()}. Recommend when: ${m[3].trim()}. Skip when: ${m[4].trim()}.`, present: () => fitToolListed(item), how: `install it (docs/recommended-tools.md), then list it under "## Tools" in docs/BRIEF.md` });
+    out.push({ kind: 'tool', item, section, codeOnly: FIT_CODE_SECTIONS.test(section) && !/^(lychee|vale|markdownlint)/i.test(item), what: `${m[2].trim()}. Recommend when: ${m[3].trim()}. Skip when: ${m[4].trim()}.`, present: () => fitToolListed(item), how: `install it (docs/recommended-tools.md), then list it under "## Tools" in docs/BRIEF.md` });
   }
   for (const f of FIT_FEATURES) out.push({ kind: 'feature', ...f });
   return { candidates: out, known };
@@ -1665,7 +1746,7 @@ export function gitignoreProblems(cfg = config()) {
 // Lesson in advance: a check or skill that only causes friction makes the project worse, and nobody would notice.
 const FRICTION_WINDOW = 6, FRICTION_LIMIT = 3;
 const SAFEGUARDS = new Set(['check:no-secrets', 'check:no-ai-attribution', 'check:git-safety', 'check:commit-gate', 'check:approval-gate', 'check:browser-guard',
-  'check:scope-separate', 'check:protect-originals', 'check:injection-guard', 'check:no-overwrite', 'check:crash-visible', 'check:requirements-valid', 'check:hooks-tested',
+  'check:scope-separate', 'check:outward-gate', 'check:protect-originals', 'check:injection-guard', 'check:no-overwrite', 'check:crash-visible', 'check:requirements-valid', 'check:hooks-tested',
   'check:setup-interview', 'check:setup-complete', 'check:setup-gate', 'check:answer-traced', 'check:research-verified', 'check:research-ledger',
   'check:research-cited', 'check:security-report', 'check:security-code', 'check:security-config', 'check:security-publish', 'check:publish-gate', 'check:verification-report', 'check:finished-summary', 'check:forbidden-command',
   'skill:research', 'skill:security-review', 'skill:project-rule', 'runbook:project']);
@@ -1822,7 +1903,10 @@ export function promptHints(prompt, cfg = config(), withNotices = true) {
     hints.push('NO RUNBOOK matches this request. If it is a task (not a quick question), follow docs/playbooks/_fallback.md: do it carefully, ' +
       'then EXTEND the closest runbook or CREATE a new one (runbook-create skill) and route it, in this same turn. The Stop hook blocks work ' +
       'turns that end without one (REQ: runbook-exists).');
-  if (re(cfg.ruleRequest).test(p))
+  if (re(cfg.complaint).test(p) && !re(cfg.ruleRequest).test(p))
+    hints.push('COMPLAINT: the user says something was missed. First fix the miss itself (by its runbook), then make sure it never happens again: ' +
+      'the project-rule skill (the rule in CLAUDE.md, a row in docs/checks/user-requirements.md, a check, memory, a test). REQ: rule-request.');
+  else if (re(cfg.ruleRequest).test(p))
     hints.push('RULE REQUEST: the user is setting a standing rule. Use the project-rule skill: record the principle and why (in your own words, not theirs) with today\'s date, ' +
       'write the rule into CLAUDE.md, add a row to docs/checks/user-requirements.md, enforce it in tools/hooks/requirements.json (or say ' +
       '"hook: N/A <reason>"), run the hook tests and the audit. If it is not actually a rule, write "N/A(rule-request): <why>". REQ: rule-request.');
@@ -1903,8 +1987,63 @@ export function deletesOnlyNewFiles(cmd, d) {
   }
   return true;
 }
+// Secrets files: .env and its variants (not .env.example), private keys. Reading one is fine when the user asked for
+// that file in this request ("check my .env").
+const SECRET_FILE = /(^|[\\/])(\.env(\.(?!example$|sample$|template$)[\w.-]+)?|[^\\/]+\.(pem|key|p12|pfx)|id_(rsa|ed25519|ecdsa))$/i;
+const SECRET_IN_CMD = /(^|[\s"'/\\])(\.env(?:\.(?!example\b|sample\b|template\b)[\w.-]+)?|[\w.-]+\.(?:pem|key|p12|pfx)|id_(?:rsa|ed25519|ecdsa))(?=$|[\s"';|&)])/i;
+const SECRET_ASKED =/\.env\b|\b(env|environment) (file|variables?)\b|\b(private )?key file\b|\bsecrets? file\b/i;
+const secretReadMsg = f => `REQ: no-secrets. Reading ${f} would put its secrets into this conversation. Check .env.example for the names, test that a value is set without printing it, or ask the user if they want this file read.`;
+// Outward actions (rule 6) in a command: mail, messaging or web APIs written to (not localhost), GitHub issues, PRs,
+// comments and reviews, and any git push. Returns the matched text, or null.
+const OUTWARD_MCP = /(^|_)(send|post|reply|publish|tweet|email|mail|message|comment|submit|invite|share|upload|delete|remove|create_(issue|pull|pr|comment|event|page|post|message|release))/i;
+export function outwardCommand(cmd) {
+  const c = String(cmd || '');
+  const pats = [
+    /\bSend-MailMessage\b[^\n;&|]*/i, /\b(sendmail|mailx|msmtp|swaks)\b[^\n;&|]*/i, /(^|[\s;&|(])mail\s+-s\b[^\n;&|]*/i,
+    /\bgh\s+(issue|pr)\s+(create|comment|close|reopen|merge|edit|review|ready)\b[^\n;&|]*/i, /\bgh\s+api\b[^\n;&|]*(-X|--method)\s*(POST|PUT|PATCH|DELETE)\b[^\n;&|]*/i,
+    /\bgit\b[^;&|\n]*\bpush\b[^\n;&|]*/i
+  ];
+  for (const p of pats) { const m = p.exec(c); if (m) return m[0]; }
+  // web writes: curl / wget / Invoke-WebRequest / Invoke-RestMethod sending data or a writing method, to a non-local host
+  for (const seg of c.split(/&&|\|\||[;\n]/)) {
+    if (!/\b(curl|wget|Invoke-WebRequest|Invoke-RestMethod|iwr|irm|http)\b/i.test(seg)) continue;
+    const writes = /(-X|--request|-Method)\s*["']?(POST|PUT|PATCH|DELETE)\b|\s(-d|--data(-raw|-binary|-urlencode)?|-F|--form|--post-data|-Body)\b/i.test(seg);
+    const url = (/https?:\/\/[^\s"']+/i.exec(seg) || [])[0] || '';
+    if (writes && url && !/^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(:\d+)?\b/i.test(url)) return seg.trim();
+  }
+  return null;
+}
+const outwardWhat = m => /mail|smtp/i.test(m) ? 'it sends an email' : /\bgh\b/i.test(m) ? 'it changes GitHub for other people to see' : /\bpush\b/i.test(m) ? 'it pushes to a shared repository' : 'it sends data to an outside service';
+// Codex edits files with apply_patch (tool_input.command holds the patch): each file in it gets the same guards as a
+// Write, Edit or delete. Lesson: an apply_patch that overwrote an original and added an em dash passed every guard.
+export function patchFiles(patch) {
+  const out = [];
+  let cur = null;
+  for (const line of String(patch || '').split(/\r?\n/)) {
+    const m = /^\*\*\*\s+(Add|Update|Delete) File:\s*(.+?)\s*$/.exec(line), mv = /^\*\*\*\s+Move to:\s*(.+?)\s*$/.exec(line);
+    if (m) { cur = { op: m[1].toLowerCase(), file: m[2], added: [] }; out.push(cur); continue; }
+    if (mv && cur) { out.push({ op: 'add', file: mv[1], added: cur.added }); continue; }
+    if (cur && /^\+(?!\+\+)/.test(line)) cur.added.push(line.slice(1));
+  }
+  return out.map(f => ({ ...f, added: f.added.join('\n') }));
+}
 export function pretoolDecision(data, cfg = config()) {
+  if (data.tool_name === 'apply_patch' || (/^(Bash|shell)$/.test(data.tool_name || '') && /^\s*apply_patch\b/.test(data.tool_input?.command || ''))) {
+    for (const f of patchFiles(data.tool_input?.command || data.tool_input?.patch || data.tool_input?.input || '')) {
+      const sub = f.op === 'delete' ? { tool_name: 'Bash', tool_input: { command: `rm "${f.file}"` } }
+        : { tool_name: f.op === 'add' ? 'Write' : 'Edit', tool_input: f.op === 'add' ? { file_path: f.file, content: f.added } : { file_path: f.file, old_string: '', new_string: f.added } };
+      const r = pretoolDecision({ ...data, ...sub }, cfg);
+      if (r) return r;
+    }
+    return null;
+  }
   const name = data.tool_name || '', inp = data.tool_input || {};
+  // REQ: outward-gate (MCP tools). A connected service's tool that sends, posts, creates or deletes acts outside the
+  // project: it needs the user's OK in this request, like the commands below.
+  if (/^mcp__/.test(name) && OUTWARD_MCP.test(name.replace(/^mcp__[^_]+(?:_[^_]+)*?__/, '')) && !isSuspended('check:outward-gate')) {
+    const prompt = (turn(data.transcript_path || '') || {}).prompt || '';
+    if (!re(config().outwardOk).test(prompt)) return `REQ: outward-gate. ${name} acts outside the project (it sends, posts, creates or deletes something). Rule 6: that needs the user's OK in this request. Draft it and ask first.`;
+  }
   let _t;
   const t = () => (_t ??= turn(data.transcript_path || '') || { prompt: '', entries: [] });
   const req = () => t().prompt || '';
@@ -1925,6 +2064,8 @@ export function pretoolDecision(data, cfg = config()) {
   if (name === 'Read' && inp.file_path) {
     const who = personOf(rel(inp.file_path), cfg);
     if (who) { const named = peopleIn(req(), ppl); if (named.length && !named.includes(who)) return scopeCheck([who], false); }
+    // REQ: no-secrets (reading). A secrets file read into the conversation leaves the machine with it.
+    if (SECRET_FILE.test(rel(inp.file_path)) && !SECRET_ASKED.test(req())) return secretReadMsg(rel(inp.file_path));
     return null;
   }
   if (/^(Write|Edit|MultiEdit|NotebookEdit)$/.test(name)) {
@@ -1936,6 +2077,11 @@ export function pretoolDecision(data, cfg = config()) {
     const who = personOf(p, cfg);
     if (who) { const s = scopeCheck([who], true); if (s) return s; }
     const incoming = [inp.content, inp.new_string, ...(inp.edits || []).map(e => e.new_string)].filter(s => typeof s === 'string').join('\n');
+    // REQ: no-secrets (writing). A key typed into a tracked file is one commit from leaking. Ignored secret stores are fine.
+    // Lesson: a live-looking key written into src/ was only caught at commit time.
+    const key = !SECRET_FILE.test(p) && secretHit(incoming, cfg);
+    if (key && spawnSync('git', ['check-ignore', '-q', p], { cwd: ROOT }).status !== 0)
+      return `REQ: no-secrets. This writes something that looks like a secret (pattern ${key}) into ${p}. Keep secrets in .env (ignored by git) and read them from the environment; a test uses an obviously fake value.`;
     // REQ: browser-guard. Automating the INSTALLED Chrome/Edge can trigger failed OS sign-ins that lock the user's account.
     if (!/\.md$/i.test(p) && !p.startsWith('tools/hooks/') && BROWSER_CODE.test(incoming))
       return `REQ: browser-guard. ${p} would drive the installed Chrome/Edge (executablePath / channel / CHROME_BIN / chrome.exe). Use Playwright's bundled Chromium (no executablePath, no channel) and --mute-audio, like tools/screenshot.mjs.`;
@@ -1995,6 +2141,17 @@ export function pretoolDecision(data, cfg = config()) {
       const loggedToday = new RegExp(`^\\|\\s*${esc(today())}\\s*\\|`, 'm').test(read(abs('docs/security.md')));
       if (!reviewed && !loggedToday) return `REQ: publish-gate. "${pub[0].trim()}" publishes or deploys. Run the security-review skill first (skills/security-review/SKILL.md) and log it in docs/security.md, then publish (hard rule 15). The user's OK to publish is needed too (rule 6).`;
     }
+    // REQ: outward-gate (commands). Rule 6: sending, posting, pushing and opening issues or PRs act outside the project,
+    // so they need the user's OK in this request. Lesson: a mail send, an API POST and "gh issue create" all ran unasked.
+    const out = outwardCommand(cmd);
+    if (out && !isSuspended('check:outward-gate') && !re(cfg.outwardOk).test(req()))
+      return `REQ: outward-gate. "${out.trim().slice(0, 80)}" acts outside the project (${outwardWhat(out)}). Rule 6: that needs the user's OK in this request. Draft it instead and ask, or run it once they say so.`;
+    // REQ: no-secrets (reading and force-adding). Printing a secrets file puts it in the conversation; "git add -f" puts
+    // an ignored one in the history. Lesson: "cat .env" and "git add -f .env" both ran without a word.
+    const readsSecret = new RegExp(`(^|[\\s;&|(])(cat|type|Get-Content|gc|less|more|head|tail|bat|nl|strings|xxd|od|findstr|sed\\s+-n|awk)\\b[^;&|\\n]*${SECRET_IN_CMD.source}`, 'i');
+    if ((readsSecret.test(cmd) || /open\(\s*\\?["'][^"']*\.env\\?["']/.test(cmd)) && !SECRET_ASKED.test(req())) return secretReadMsg((SECRET_IN_CMD.exec(cmd) || [, , 'that file'])[2]);
+    if (/\bgit\s+add\b[^;&|\n]*(\s-f\b|--force)/i.test(cmd) && SECRET_IN_CMD.test(cmd))
+      return 'REQ: no-secrets. "git add -f" on a secrets file puts it into the history even though .gitignore keeps it out. Commit .env.example with empty values instead.';
     // REQ: no-secrets. Nothing that looks like a key or private key gets committed.
     if (/\bgit\b[^;&|]*\b(commit|push)\b/i.test(cmd)) {
       const staged = spawnSync('git', ['diff', '--cached', '-U0'], { cwd: ROOT, encoding: 'utf8' }).stdout || '';
@@ -2173,7 +2330,13 @@ export function coreChecks(x, cfg) {
   }
   // REQ: runbook-exists. Work that matched no runbook must leave one behind (runbook + its skill + a check), so the next
   // time it is a known procedure and the user never has to explain it again.
-  if (x.workTurn && x.prompt.trim() && !x.routed.length && !x.usedPb.length && !x.usedSkills.length && !pbChanged.length)
+  // a complaint is not a new kind of task: rule-request makes it a rule, and the miss is fixed by the runbook it belonged to
+  // _fallback and the runbook-create skill are how a new runbook gets made, not a runbook for the task itself.
+  // Lesson: the agent followed _fallback.md as told, and the turn ended without leaving a runbook behind.
+  const META_SKILLS = ['runbook-create', 'skill-finder'];
+  const realPb = x.usedPb.filter(pb => !pb.name.startsWith('_')), realSkills = x.usedSkills.filter(s => !META_SKILLS.includes(s.name));
+  const realRoute = x.routed.filter(pb => !pb.name.startsWith('_'));
+  if (x.workTurn && x.prompt.trim() && !realRoute.length && !realPb.length && !realSkills.length && !pbChanged.length && !re(cfg.complaint).test(x.prompt))
     add('runbook-exists', 'This turn did real work but no runbook covers it and none was created or extended. Use the runbook-create skill: ' +
       'extend the closest runbook in docs/playbooks/ with this case, or create one (frontmatter with triggers, ## Steps, ## Done when) plus a check ' +
       'in tools/hooks/requirements.json. Its skill and its DIRECTORY.md row are generated automatically. Say so in the answer.');
@@ -2238,10 +2401,17 @@ export function coreChecks(x, cfg) {
       (knowledge ? '.' : '. A one-fact lookup for the work at hand instead says so: "Quick lookup:" with its link.'));
   // REQ: answer-traced. "Did I make that up?": every number in a factual answer, and every number written into the
   // knowledge base, appears in something read this turn; every project file the answer cites was opened.
-  const cited = [...new Set((x.answer.match(/\b(?:docs\/knowledge|sources)\/[\w./-]+\.\w+/g) || []).map(p => p.replace(/[.,;:)]+$/, '')))];
+  // A cited file is a bare path, a markdown link's target or a path in backticks, so one with spaces counts too, in any
+  // knowledge folder or sources/. Lesson: "sources/2026-10-18 scan.pdf" and links to vault notes were never traced.
+  const kRe = knowledgeRe(cfg), inKb = new RegExp(`^${kRe}`);
+  const kbOrSrc = new RegExp(`^(?:${kRe}|sources/)`);
+  const dec = s => { try { return decodeURI(s); } catch { return s; } };
+  const cited = [...new Set([...(x.answer.match(new RegExp(`(?<![\\w/])(?:${kRe}|sources/)[\\w./-]+\\.\\w+`, 'g')) || []),
+    ...[...x.answer.matchAll(/\]\(<?([^)>\s]+)>?\)/g)].map(m => dec(m[1])), ...[...x.answer.matchAll(/`([^`\n]+\.\w+)`/g)].map(m => m[1])]
+    .map(p => p.replace(/[.,;:)]+$/, '').replace(/^\.\//, '')).filter(p => kbOrSrc.test(p)))];
   // Facts written into the knowledge base are traced even when no research skill ran (an event, not a request).
   // Lesson: numbers typed into docs/knowledge outside the research skill were never checked against a source.
-  const kbWritten = x.toolsKnown && x.uses.some(u => /^(Write|Edit|MultiEdit)$/.test(u.name) && /^docs\/knowledge\//.test(rel(u.input.file_path || '')));
+  const kbWritten = x.toolsKnown && x.uses.some(u => /^(Write|Edit|MultiEdit)$/.test(u.name) && inKb.test(rel(u.input.file_path || '')));
   const traceAnswer = (knowledge && (researched || cited.length)) || ledgerRuns.length;
   if (traceAnswer || kbWritten) {
     const ledgers = ledgerRuns.map(r => /claims\.mjs\s+check\s+"?([^"\s]+)/.exec(r.cmd)?.[1]).filter(Boolean);
@@ -2265,12 +2435,12 @@ export function coreChecks(x, cfg) {
       return [...new Set(out)];
     };
     const fromAnswer = traceAnswer ? untraced(x.answer, ownWrites) : []; // what goes into the knowledge base itself must trace to a source
-    const written = x.uses.filter(u => /^(Write|Edit|MultiEdit)$/.test(u.name) && /^docs\/knowledge\//.test(rel(u.input.file_path || '')))
+    const written = x.uses.filter(u => /^(Write|Edit|MultiEdit)$/.test(u.name) && inKb.test(rel(u.input.file_path || '')))
       .flatMap(u => untraced([u.input.content, u.input.new_string, ...(u.input.edits || []).map(e => e.new_string)].filter(Boolean).join('\n')));
     const unopened = x.toolsKnown ? cited.filter(p => !x.reads.has(p) && !x.cmds.some(c => c.includes(p)) && !x.results.includes(p)) : [];
     if (fromAnswer.length || written.length || unopened.length)
       add('answer-traced', 'Did you make that up? ' + [fromAnswer.length && `The answer states ${fromAnswer.slice(0, 6).join(', ')}, found in nothing read this turn`,
-        written.length && `docs/knowledge got ${written.slice(0, 6).join(', ')}, found in nothing read this turn`,
+        written.length && `the knowledge base got ${written.slice(0, 6).join(', ')}, found in nothing read this turn`,
         unopened.length && `the answer cites ${unopened.slice(0, 4).join(', ')} without opening it`].filter(Boolean).join('; ') +
         '. Open the source and quote it, cut the claim, or mark the line "(not verified)", "(calculated: ...)" or "(estimate)". Research skill, section D.');
   }
@@ -2286,9 +2456,11 @@ export function coreChecks(x, cfg) {
       'that tests its "Done when" list, or set "checks: core <tags>" / "checks: none - <reason>" in its frontmatter.');
   }
   // REQ: rule-request. "Always/never/remember/from now on" and complaints become enforced rules, not just promises.
-  if (x.prompt && re(cfg.ruleRequest).test(x.prompt)) {
+  const complaint = x.prompt && re(cfg.complaint).test(x.prompt);
+  if (x.prompt && (re(cfg.ruleRequest).test(x.prompt) || complaint)) {
     const need = [];
-    if (!x.changed.includes('CLAUDE.md')) need.push('CLAUDE.md (the rule, with the user\'s words and date)');
+    // (the principle in the agent's own words, never the user's: hard rule 14)
+    if (!x.changed.includes('CLAUDE.md') && !x.changed.includes('AGENTS.md')) need.push('AGENTS.md (the rule as a principle in your own words, why it matters, and the date)');
     if (!x.changed.includes('docs/checks/user-requirements.md')) need.push('docs/checks/user-requirements.md (words -> rule -> REQ tag)');
     if (!x.changed.some(p => /^tools\/hooks\/(requirements\.json|hooks\.mjs)$/.test(p)) && !/hook:\s*n\/a/i.test(x.said))
       need.push('tools/hooks/requirements.json (a check), or "hook: N/A <reason>" in the answer if it cannot be checked');
@@ -2298,13 +2470,13 @@ export function coreChecks(x, cfg) {
       const fresh = (() => { try { return fs.readdirSync(md).some(n => /\.md$/i.test(n) && fs.statSync(path.join(md, n)).mtimeMs > (x.since || 0) - 1000); } catch { return false; } })();
       if (!fresh) need.push(`memory (a feedback file in ${md} with the rule, **Why:** and **How to apply:**, plus its line in MEMORY.md)`);
     }
-    if (need.length) add('rule-request', 'The user set a standing rule. Not yet written into: ' + need.join('; ') + '. Use the project-rule skill.');
+    if (need.length) add('rule-request', (complaint && !re(cfg.ruleRequest).test(x.prompt) ? 'The user complained about a miss: fix it, and make it a rule so it never happens again. ' : 'The user set a standing rule. ') + 'Not yet written into: ' + need.join('; ') + '. Use the project-rule skill.');
   }
   // REQ: requirement-enforced. A lasting requirement on the project's work ("every picture must have a diagram") is made
   // enforced in the same turn, without being asked: a "Done when" item in its runbook or skill that names its check, the
   // check, and a test; or a "(judgment: <why>)" item when no script can tell. Lesson: the user stated requirements, the
   // agent only wrote them into a runbook, and nothing enforced them until the user asked whether they were enforced.
-  if (x.prompt && re(cfg.requirementWords).test(x.prompt) && !re(cfg.ruleRequest).test(x.prompt)) {
+  if (x.prompt && re(cfg.requirementWords).test(x.prompt) && !re(cfg.ruleRequest).test(x.prompt) && !complaint) {
     const checkAdded = x.changed.some(p => /^(tools\/hooks\/(requirements\.json|hooks\.mjs|project-scenarios\.mjs)|library\/catalog\.json|packs\/[^/]+\/pack\.json)$/.test(p) || /\.(mjs|py|js|ts)$/.test(p) && /check|guard|lint|validate/i.test(p));
     const tested = x.changed.some(p => /^tools\/hooks\/(selfcheck|project-scenarios)\.mjs$/.test(p) || /(^|\/)(tests?|__tests__)\/|\.(test|spec)\./.test(p)) || x.cmds.some(c => /selfcheck\.mjs|\btest\b/.test(c));
     const judged = x.changed.filter(p => /(^docs\/playbooks\/|SKILL\.md$)/.test(p) && exists(p)).some(p => doneWhenItems(read(abs(p))).some(i => /\bjudg(e)?ment\b/i.test(i)));
@@ -2368,6 +2540,10 @@ export function coreChecks(x, cfg) {
     const touched = [...new Set(x.changed.map(p => personOf(p, cfg)).filter(Boolean))];
     const wrong = touched.filter(n => named.length ? !named.includes(n) : !re(cfg.ruleRequest).test(x.prompt));
     if (wrong.length) add('scope-separate', `Files of ${wrong.join(', ')} changed, but this request is ${named.length ? `about ${named.join(', ')}` : 'not about them'}. Undo those changes or confirm with the user.`);
+    // the answer itself: a request about one person whose answer brings in another person's details
+    // Lesson: the guards kept another person's folder closed, but nothing stopped their data in the answer.
+    const others = named.length === 1 ? peopleIn(x.answer, ppl).filter(n => !named.includes(n) && !peopleIn(x.allPrompts?.join('\n') || '', ppl).includes(n)) : [];
+    if (!wrong.length && others.length) add('scope-separate', `This request is about ${named[0]}, and the answer also talks about ${others.join(', ')}. Keep each person's details apart: take ${others.join(', ')} out, or say why they belong here with N/A(scope-separate): <why>.`);
   }
   // REQ: watched-inputs. Data the user updates mid-turn changes the answer; say what it changed.
   const written = new Set(x.uses.filter(u => /^(Write|Edit|MultiEdit)$/.test(u.name)).map(u => rel(u.input.file_path || '')));
@@ -2422,7 +2598,7 @@ export function coreChecks(x, cfg) {
   else if (gui.length) {
     const lastEdit = Math.max(...gui.map(p => fs.statSync(abs(p)).mtimeMs));
     const shots = [];
-    const walkShots = d => { for (const n of list(d)) { const p = `${d}/${n}`; let s; try { s = fs.statSync(abs(p)); } catch { continue; } if (s.isDirectory()) walkShots(p); else if (/\.png$/i.test(n) && s.mtimeMs > (x.since || 0) - 1000) shots.push({ p, t: s.mtimeMs }); } };
+    const walkShots = d => { for (const n of list(d)) { const p = `${d}/${n}`; let s; try { s = walkStat(p); } catch { continue; } if (s.isDirectory()) walkShots(p); else if (/\.png$/i.test(n) && s.mtimeMs > (x.since || 0) - 1000) shots.push({ p, t: s.mtimeMs }); } };
     walkShots(cfg.guiShotDir);
     const fresh = shots.filter(s => s.t >= lastEdit).map(s => s.p);
     const files = gui.slice(0, 5).join(', ') + (gui.length > 5 ? ', ...' : '');
@@ -2467,10 +2643,8 @@ export function coreChecks(x, cfg) {
       const how = need.all ? 'node tools/hooks/selfcheck.mjs' : `node tools/hooks/selfcheck.mjs --tags ${need.tags.join(',')}`;
       const covers = r => !/--route|--ablation/.test(r.cmd) && (!/--tags/.test(r.cmd) || (!need.all && need.tags.every(t => new RegExp(`--tags[= ]["']?[\\w,-]*\\b${esc(t)}\\b`).test(r.cmd))));
       const tests = x.runs.filter(r => /selfcheck\.mjs/.test(r.cmd) && covers(r));
-      if (!x.toolsKnown) {
-        const res = spawnSync(process.execPath, [path.join(HOOKS, 'selfcheck.mjs'), ...(need.all ? [] : ['--tags', need.tags.join(',')])], { cwd: ROOT, encoding: 'utf8', timeout: 300000 });
-        if (!/ALL PASS/.test(res.stdout || '')) add('hooks-tested', `The hooks changed and ${how} does not pass: ${(res.stdout || res.stderr || 'timed out').split(/\r?\n/).filter(l => /^FAIL/.test(l)).slice(0, 3).join(' | ')}`);
-      } else if (!tests.length) add('hooks-tested', `${need.all ? 'The hook logic changed' : `The checks ${need.tags.join(', ')} changed`}: run ${how} and fix any FAIL (fix the hook, not the test) before finishing.`);
+      // without a transcript, x.runs is the run log (the self-tests record themselves), so the same rule applies
+      if (!tests.length) add('hooks-tested', `${need.all ? 'The hook logic changed' : `The checks ${need.tags.join(', ')} changed`}: run ${how} and fix any FAIL (fix the hook, not the test) before finishing.`);
       else if (tests[tests.length - 1].out && !/ALL PASS/.test(tests[tests.length - 1].out))
         add('hooks-tested', `The last run of ${how} did not print ALL PASS. Fix the failures (the hook, not the test) and run it again.`);
     }
@@ -2486,7 +2660,10 @@ export function coreChecks(x, cfg) {
 // stop rounds kept bringing up steps the first round never mentioned.
 // Lesson: it fired on any block or complaint, also for runbooks that were only opened or wrongly matched.
 export function skillLearnCheck(x, cfg, failingNow = []) {
-  const failing = new Set([...(x.failedBefore || []), ...failingNow]);
+  // A miss is a check of the runbook's own that blocked an earlier round and is met now: following it really fell
+  // short, and the fix is known. A check failing for the first time is just being done, not a lesson yet.
+  // Lesson: skill-learn fired in round 1 of ordinary turns and pushed "Skill lesson: none" filler into answers.
+  const failing = new Set((x.failedBefore || []).filter(t => !failingNow.includes(t)));
   const own = item => ownChecks(item, cfg);
   // Friction from a wording check (reworded to satisfy it) is the check's, not the runbook's: never a lesson to write.
   // Lesson: rewording twice for no-verbatim-examples made skill-learn demand a lesson from an innocent runbook.
@@ -2504,7 +2681,7 @@ export function skillLearnCheck(x, cfg, failingNow = []) {
 // { all } when there is no copy to compare with, { tags } otherwise (empty: no check logic changed), { error } when a
 // file does not parse. Wording (message, rule, notes) and tuning lists are not check logic.
 const CONFIG_TAGS = { changeWords: 'question-no-file', praise: 'praise-captured', aiAttribution: 'no-ai-attribution', aiAuthor: 'no-ai-attribution',
-  ruleRequest: 'rule-request', frustration: 'friction-suspend', taskVerbs: 'runbook-exists', overwriteWords: 'no-overwrite', deleteWords: 'protect-originals',
+  outwardOk: 'outward-gate', ruleRequest: 'rule-request', complaint: 'rule-request', frustration: 'friction-suspend', taskVerbs: 'runbook-exists', overwriteWords: 'no-overwrite', deleteWords: 'protect-originals',
   commitGate: 'commit-gate', codeRules: 'code-rules', forbiddenCommands: 'forbidden-command', writeOnlyVia: 'write-only-via', wholeOutputTools: 'whole-output',
   secretPatterns: 'no-secrets', approvalPaths: 'approval-gate', protectedOriginals: 'protect-originals', noOverwrite: 'no-overwrite',
   watchedInputs: 'watched-inputs', guiFiles: 'gui-review-loop', scopesRoot: 'scope-separate' };
@@ -2616,11 +2793,13 @@ export function holds(c, x) {
   if (c.toolPassed) {
     const spec = typeof c.toolPassed === 'string' ? { cmd: c.toolPassed } : c.toolPassed;
     const runs = x.runs.filter(rn => r(spec.cmd).test(rn.cmd));
-    // no tool history (another agent, or no hooks): run the validator ourselves when the requirement says how
-    if (!x.toolsKnown && spec.selfRun) {
-      const res = spawnSync(spec.selfRun, { shell: true, cwd: ROOT, encoding: 'utf8', timeout: 120000 });
+    // no tool history (another agent, or no hooks): the run log holds what ran. With nothing logged, a quick validator
+    // is run here (capped at 20 s); a slow one is left to the agent, with the command that records it.
+    if (!x.toolsKnown && !runs.length && spec.selfRun) {
+      const res = spawnSync(spec.selfRun, { shell: true, cwd: ROOT, encoding: 'utf8', timeout: 20000 });
+      if (res.error?.code === 'ETIMEDOUT' || res.signal) { x.detail = `run it and let the hooks see the result: node tools/hooks/hooks.mjs run "${spec.selfRun}"`; return false; }
       runs.push({ cmd: spec.selfRun, out: (res.stdout || '') + (res.stderr || ''), error: res.status !== 0 });
-    } else if (!x.toolsKnown) return true; // can't verify and can't re-run: don't block on missing evidence
+    } else if (!x.toolsKnown && !runs.length) return true; // can't verify and can't re-run: don't block on missing evidence
     const last = runs[runs.length - 1];
     if (!last) { x.detail = `no run of /${spec.cmd}/ this turn`; return false; }
     const g = gateResult(last, spec);
@@ -2697,7 +2876,19 @@ export function loadRequirements() {
   const file = Array.isArray(j.requirements) ? j.requirements : [];
   const disabled = (Array.isArray(j.disabled) ? j.disabled : []).filter(d => d && d.tag && d.reason);
   const off = new Set([...file.map(r => r && r.tag), ...disabled.map(d => d.tag)]);
-  return { reqs: [...BASE_REQUIREMENTS.filter(b => !off.has(b.tag)), ...file], fileReqs: file, error: null, disabled };
+  return { reqs: withKnowledgeDirs([...BASE_REQUIREMENTS.filter(b => !off.has(b.tag)), ...file]), fileReqs: file, error: null, disabled };
+}
+// The checks name docs/knowledge; each extra knowledge folder (config knowledgeDirs) is added next to it: a glob gets a
+// twin for each folder, and a pattern that names the folder matches any of them.
+export const knowledgeRe = (cfg = config()) => `(?:${cfg.knowledgeDirs.map(d => esc(d.replace(/\/+$/, '')) + '/').join('|')})`;
+function withKnowledgeDirs(reqs) {
+  const cfg = config(), extra = cfg.knowledgeDirs.map(d => d.replace(/\/+$/, '')).filter(d => d !== 'docs/knowledge');
+  if (!extra.length) return reqs;
+  const PATTERN = /^(answerMatches|answerNotMatches|promptMatches|promptNotMatches|resultMatches|pattern)$/;
+  const fix = (v, k) => Array.isArray(v) ? v.flatMap(s => typeof s === 'string' && s.startsWith('docs/knowledge/') ? [s, ...extra.map(d => d + s.slice('docs/knowledge'.length))] : [fix(s, k)])
+    : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([kk, vv]) => [kk, fix(vv, kk)]))
+    : typeof v === 'string' && PATTERN.test(k || '') ? v.replace(/docs\\?\/knowledge\\?\//g, knowledgeRe(cfg)) : v;
+  return reqs.map(r => r && typeof r === 'object' ? { ...r, when: fix(r.when), require: fix(r.require) } : r);
 }
 
 const HISTORY_KEYS = ['toolRan', 'toolUsed', 'resultMatches', 'fileRead', 'ranFailing', 'toolCount'];
@@ -2854,7 +3045,13 @@ function writeDetails(missing, title) {
 }
 export function shortStep(m) {
   if (SHORT[m.tag]) return SHORT[m.tag];
-  let s = String(m.msg || '').replace(/`[^`]*`|\/[^/\s]+\/|"[^"]*"|\([^)]*\)/g, ' ').replace(/\b[\w.-]+\/[\w./*<>-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  // A path becomes its last part ("docs/knowledge/SOURCES.md" → SOURCES.md), so the sentence still reads; code, quotes
+  // and asides go. Lesson: removing paths whole left "Add a dated line to for the knowledge" and "files changed .".
+  const last = p => p.replace(/[/*]+$/, '').split('/').filter(x => x && !/^[*<]/.test(x)).pop() || '';
+  let s = String(m.msg || '').replace(/`([^`]*)`/g, (a, c) => /^[\w.-]+(\/[\w.*<>-]+)+\/?$/.test(c) ? last(c) : ' ').replace(/"[^"]*"|\([^)]*\)/g, ' ')
+    .replace(/\b[\w.-]+(?:\/[\w.*<>-]+)+\/?/g, p => last(p)).replace(/\s+([.,;:])/g, '$1').replace(/\s+/g, ' ').trim();
+  // "Research skill, section E: record ..." says where the step comes from; the user needs the step itself
+  s = s.replace(/^[\w -]+ (skill|runbook|playbook)(,? (section|step) [\w.]+)?:\s*/i, '');
   s = (s.split(/(?<=[a-z0-9])[.:;](\s|$)/i)[0] || s).replace(/^(this|the) (turn|answer|request)[^,]*,\s*/i, '').trim();
   s = s.charAt(0).toUpperCase() + s.slice(1);
   return s.length > 70 ? s.slice(0, s.lastIndexOf(' ', 67) > 20 ? s.lastIndexOf(' ', 67) : 67) + '...' : s || m.tag;
@@ -2936,9 +3133,18 @@ if (isMain) {
   if (cmd === 'bench') { const b = bench(), budget = config().hookBudgetMs, slow = Object.entries(b).filter(([, v]) => v > budget); console.log(Object.entries(b).map(([k, v]) => `${k} ${v} ms`).join(', ') + ` (budget ${budget} ms)` + (slow.length ? `: TOO SLOW ${slow.map(([k]) => k).join(', ')}` : '')); process.exit(slow.length ? 1 : 0); }
   // the full text of the steps the Stop hook asked for (its message to the user stays short)
   if (cmd === 'why') { const d = read(path.join(STATE, 'stop-details.md')).trim(); console.log(d || 'nothing pending: the last answer passed every check.'); process.exit(0); }
+  // run a command and record its result in the run log, for agents whose tool history the hooks can't read
+  if (cmd === 'run') {
+    const line = process.argv.slice(3).join(' ');
+    if (!line) { console.log('usage: node tools/hooks/hooks.mjs run "<command>"'); process.exit(1); }
+    const r = spawnSync(line, { shell: true, cwd: process.cwd(), encoding: 'utf8', maxBuffer: 64 << 20 });
+    process.stdout.write(r.stdout || ''); process.stderr.write(r.stderr || '');
+    logRun(line, `${r.stdout || ''}${r.stderr || ''}`, r.status !== 0);
+    process.exit(r.status ?? 1);
+  }
   if (cmd === 'sync') { const ok = syncAll(); console.log(ok ? 'sync: skills, mirrors, DIRECTORY.md and the CLAUDE.md/AGENTS.md twin are current' : 'sync: FAILED'); process.exit(ok ? 0 : 1); }
   if (!['session', 'prompt', 'pretool', 'posttool', 'stop'].includes(cmd)) {
-    console.log('usage: node tools/hooks/hooks.mjs begin "<the user\'s request>" | check --answer-file <file> | why | sync | bench | restore <item>\n' +
+    console.log('usage: node tools/hooks/hooks.mjs begin "<the user\'s request>" | check --answer-file <file> | run "<command>" | why | sync | bench | restore <item>\n' +
       '       node tools/hooks/hooks.mjs session | prompt | pretool | posttool | stop   (hook events: JSON on stdin, run by the agent)');
     process.exit(1);
   }

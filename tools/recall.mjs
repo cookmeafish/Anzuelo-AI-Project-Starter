@@ -24,7 +24,7 @@ if (hits.length) {
 const want = new Set(keyWords(q).filter(w => w.length > 2));
 const files = ['docs/CHANGELOG.md', 'docs/DECISIONS.md', 'docs/STATUS.md', 'docs/glossary.md'];
 for (const d of ['docs/plans', 'docs/knowledge']) {
-  const walk = p => { let st; try { st = fs.statSync(path.join(ROOT, p)); } catch { return; } if (st.isDirectory()) for (const n of fs.readdirSync(path.join(ROOT, p))) walk(`${p}/${n}`); else if (p.endsWith('.md')) files.push(p); };
+  const walk = p => { let st; try { st = fs.lstatSync(path.join(ROOT, p)); } catch { return; } if (st.isSymbolicLink()) return; if (st.isDirectory()) for (const n of fs.readdirSync(path.join(ROOT, p))) walk(`${p}/${n}`); else if (p.endsWith('.md')) files.push(p); };
   walk(d);
 }
 const lines = files.flatMap(f => read(path.join(ROOT, f)).split(/\r?\n/).map((l, i) => ({ f, i: i + 1, l: l.trim() })))

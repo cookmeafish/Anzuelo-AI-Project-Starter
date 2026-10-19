@@ -181,7 +181,10 @@ how it is released.
    small script in `tools/` that prints `RESULT: PASS` or `FAIL`, wired in with `toolPassed` + `selfRun` or `runEach`,
    plus a test scenario.
 7. **People:** several people → `profiles/<name>/PROFILE.md` for each (with `aliases:`). The scope guard switches on.
-8. **Knowledge** the user already gave goes into `docs/knowledge/` (knowledge pack). No empty placeholder files.
+8. **Knowledge** the user already gave goes into `docs/knowledge/` (knowledge pack). No empty placeholder files. A
+   folder of notes the project already keeps (an Obsidian vault's notes, a wiki) stays where it is: add it to
+   `"knowledgeDirs"` in `tools/hooks/config.json` (for example `["Notes"]`), so the knowledge checks, citations and
+   freshness sweeps cover it too. Never move the user's notes to make them fit.
 9. `docs/STATUS.md` (Now / Next / Open questions), `docs/CHANGELOG.md` (a "set up" line).
 10. **Git**, if the folder is a repo or the user wants one: `git config core.hooksPath .githooks`, and confirm the git
     identity is the user's own name and email.

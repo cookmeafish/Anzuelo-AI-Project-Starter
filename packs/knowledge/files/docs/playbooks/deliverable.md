@@ -20,7 +20,8 @@ nobody asked for. If the user asks for a specific format (Word, PDF, slides, spr
    with numbered citations and a closing `Sources:` list, as in the research skill's "Answer format"
    (`skills/research/SKILL.md`).
 3. **Save** as a NEW file: `outputs/<name>.md`, or `outputs/<name> v2.md` for a revision. Never overwrite a delivered
-   file (the hook denies it) unless the user explicitly asks for an in-place edit.
+   file (the hook denies it) unless the user explicitly asks for an in-place edit. A deliverable about one person (the
+   project has `profiles/<name>/`) goes in `profiles/<name>/outputs/` and uses only that person's data.
 4. **Check** it against the brief's quality bar: does it answer what was asked, for this audience, at this length? Read
    it once as the reader would.
 5. **Prose review.** Run `node tools/writing-check.mjs outputs/<name>.md`, then read it once more for what the check

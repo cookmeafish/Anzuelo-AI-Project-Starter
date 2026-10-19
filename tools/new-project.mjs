@@ -16,6 +16,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { CORE_SKILLS, today as localToday, usageOf, isEngineCheck, shippedChecks, checkKey, ENGINE_CHECKS_HISTORY } from './hooks/hooks.mjs';
 import { wire } from './hooks/wire.mjs';
@@ -66,8 +67,11 @@ if (!target) { console.log(usageOf(import.meta.url)); process.exit(1); }
 const dest = path.resolve(target);
 // An ignore pattern that matches files the project already commits is never added: ignoring them would push the user
 // to untrack their own files (e.g. a CLAUDE.md they keep in git). Lesson: adopting such a project flagged its CLAUDE.md.
-const tracked = pattern => fs.existsSync(path.join(dest, '.git')) &&
-  !!(spawnSync('git', ['ls-files', '-ci', `--exclude=${pattern}`], { cwd: dest, encoding: 'utf8' }).stdout || '').trim();
+// A tracked file the ignore list itself re-includes ("!.env.example" after ".env.*") doesn't count. Lesson: a repo that
+// tracked .env.example never got ".env.*", so .env.local was left unignored and git hygiene failed on adoption.
+const trackedBy = pattern => (spawnSync('git', ['ls-files', '-ci', `--exclude=${pattern}`], { cwd: dest, encoding: 'utf8' }).stdout || '').split(/\r?\n/).filter(Boolean);
+const tracked = (pattern, negations = []) => fs.existsSync(path.join(dest, '.git')) &&
+  trackedBy(pattern).filter(f => !negations.some(n => trackedBy(n.slice(1)).includes(f))).length > 0;
 // A development copy (marked by .starter-dev, ignored by git) never feeds real projects: half-finished changes would
 // reach them through every upgrade and every pack or skill they add. Projects use a stable copy (a clean clone).
 if (fs.existsSync(path.join(STARTER, '.starter-dev')) && !flag('--dev') && !(process.env.STARTER_ALLOW_DEV ?? process.env.KS_ALLOW_DEV)) {
@@ -109,7 +113,24 @@ const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
 let unchanged = 0, backedUp = 0;
 const created = []; // files an upgrade added, so a rollback can take them out again
 // Project files an upgrade may change besides the engine: copied first, so a rollback restores them exactly.
-const SNAP = ['tools/hooks/config.json', 'tools/hooks/requirements.json', '.gitignore', 'docs/checks/rule-enforcement.md', '.claude/settings.json', '.codex/hooks.json', 'tools/starter.local.json'];
+const SNAP = ['tools/hooks/config.json', 'tools/hooks/requirements.json', '.gitignore', 'docs/checks/rule-enforcement.md', '.claude/settings.json', '.codex/hooks.json', '.gemini/settings.json', 'CLAUDE.md', 'AGENTS.md', 'tools/starter.local.json'];
+// Every file of the project and its hash, so a rollback can prove the project is exactly as it was (caches, git,
+// dependencies and hook state are left out). Lesson: a rollback said "the project is as it was" while renamed-file
+// rewrites and freshly synced skill copies were still there, and the audit that passed before now failed.
+const FP_SKIP = /^(\.git|node_modules|\.cache|state|dist|build|__pycache__|\.venv|venv|target)$/;
+function fingerprint(root) {
+  const out = new Map();
+  out.dirs = new Set();
+  (function walk(d) {
+    for (const e of fs.existsSync(path.join(root, d)) ? fs.readdirSync(path.join(root, d), { withFileTypes: true }) : []) {
+      const p = d ? `${d}/${e.name}` : e.name;
+      if (e.isSymbolicLink()) continue;
+      if (e.isDirectory()) { if (!FP_SKIP.test(e.name)) { out.dirs.add(p); walk(p); } continue; }
+      try { const b = fs.readFileSync(path.join(root, p)); out.set(p, createHash('sha1').update(b).digest('hex')); } catch { }
+    }
+  })('');
+  return out;
+}
 // The project's audit (which sweeps ran, which failed) and its hook speed, as its current engine reports them.
 function probe() {
   if (dry) return { failed: [], swept: [], speed: {} };
@@ -210,6 +231,7 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   if (!madeFromStarter) { console.error(`${dest} is not a project made from the starter (no tools/hooks/hooks.mjs). Use --adopt.`); process.exit(1); }
   // Never worse: audit and time the project before, so the result can be compared after.
   const before = probe();
+  const print0 = dry ? null : fingerprint(dest);
   const backupDir = path.join(dest, '.cache', 'upgrade-backup', stamp);
   const snapMissing = SNAP.filter(f => !fs.existsSync(path.join(dest, f)));
   // the core checks this project got from its last upgrade, read before the engine files are replaced (3-way merge below)
@@ -235,7 +257,8 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   // ignore lines added since the project was made (the starter link, a kept copy), and the link itself if missing
   const gi = path.join(dest, '.gitignore');
   const have = fs.existsSync(gi) ? fs.readFileSync(gi, 'utf8').split(/\r?\n/) : [];
-  const want = fs.readFileSync(path.join(STARTER, 'tools', 'starter', 'gitignore.project'), 'utf8').split(/\r?\n/).filter(l => l && !l.startsWith('#') && !have.includes(l) && !['CLAUDE.md', '.claude/'].includes(l) && !tracked(l));
+  const tmpl = fs.readFileSync(path.join(STARTER, 'tools', 'starter', 'gitignore.project'), 'utf8').split(/\r?\n/), tmplNeg = tmpl.filter(l => l.startsWith('!'));
+  const want = tmpl.filter(l => l && !l.startsWith('#') && !have.includes(l) && !['CLAUDE.md', '.claude/'].includes(l) && (l.startsWith('!') || !tracked(l, tmplNeg)));
   if (want.length) { log.push(`appended .gitignore (${want.join(', ')})`); if (!dry) fs.appendFileSync(gi, '\n# Project starter\n' + want.join('\n') + '\n'); }
   const lk = path.join(dest, 'tools', 'starter.local.json');
   if (!fs.existsSync(lk) && !dry) { fs.writeFileSync(lk, JSON.stringify({ path: STARTER }, null, 2) + '\n'); log.push('linked   tools/starter.local.json → this starter'); }
@@ -333,11 +356,14 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   // A renamed engine file: the project's own docs that name it are pointed at the new name (a path swap, nothing else).
   // Lesson: an upgrade retired test-hooks.mjs, the project's rules still named it, and the references sweep rolled it back.
   const docs = []; (function walk(d) { for (const e of fs.existsSync(d) ? fs.readdirSync(d, { withFileTypes: true }) : []) { const p = path.join(d, e.name);
-    if (e.isDirectory()) { if (!/^(\.git|node_modules|\.cache|\.claude|\.codex|state)$/.test(e.name)) walk(p); } else if (/\.md$/i.test(e.name)) docs.push(p); } })(dest);
+    if (e.isDirectory()) { if (!/^(\.git|node_modules|\.cache|\.claude|\.agents|\.gemini|\.codex|state)$/.test(e.name)) walk(p); } else if (/\.md$/i.test(e.name)) docs.push(p); } })(dest);
   for (const p of docs) {
     const text = fs.readFileSync(p, 'utf8'); let next = text;
     for (const [from, to] of Object.entries(RENAMED_FILES)) next = next.split(from).join(to);
-    if (next !== text) { log.push(`updated  ${path.relative(dest, p).replace(/\\/g, '/')} (renamed engine file: ${Object.entries(RENAMED_FILES).filter(([f]) => text.includes(f)).map(([f, t]) => `${f} -> ${t}`).join(', ')})`); if (!dry) fs.writeFileSync(p, next); }
+    if (next !== text) {
+      log.push(`updated  ${path.relative(dest, p).replace(/\\/g, '/')} (renamed engine file: ${Object.entries(RENAMED_FILES).filter(([f]) => text.includes(f)).map(([f, t]) => `${f} -> ${t}`).join(', ')})`);
+      if (!dry) { const b = path.join(backupDir, path.relative(dest, p) + '.orig'); if (!fs.existsSync(b)) { fs.mkdirSync(path.dirname(b), { recursive: true }); fs.writeFileSync(b, text); } fs.writeFileSync(p, next); }
+    }
   }
   log.push(...wire(dest, { dry })); // every agent's wiring, the git hooks and Obsidian (tools/hooks/wire.mjs)
   printLog();
@@ -353,8 +379,13 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
     for (const f of created) fs.rmSync(path.join(dest, f), { force: true });
     for (const f of snapMissing) fs.rmSync(path.join(dest, f), { force: true });
     (function restore(d) { for (const n of fs.existsSync(d) ? fs.readdirSync(d) : []) { const p = path.join(d, n); if (fs.statSync(p).isDirectory()) restore(p); else if (n.endsWith('.orig')) { const to = path.join(dest, path.relative(backupDir, p).slice(0, -5)); fs.mkdirSync(path.dirname(to), { recursive: true }); fs.copyFileSync(p, to); } } })(backupDir);
-    spawnSync(process.execPath, [path.join(dest, 'tools', 'hooks', 'hooks.mjs'), 'sync'], { cwd: dest, encoding: 'utf8' });
-    console.error(`\nROLLED BACK: after the upgrade these checks failed that passed before: ${broke.join('; ')}. The project is as it was.\n` +
+    // every file the upgrade (or its sync) added goes, then the result is compared with the fingerprint taken before
+    const now = fingerprint(dest);
+    for (const p of now.keys()) if (!print0.has(p)) fs.rmSync(path.join(dest, p), { force: true });
+    (function prune(d) { for (const e of fs.existsSync(d) ? fs.readdirSync(d, { withFileTypes: true }) : []) { const p = path.join(d, e.name); if (e.isDirectory() && !e.isSymbolicLink() && !FP_SKIP.test(e.name)) { prune(p); const r = path.relative(dest, p).split(path.sep).join('/'); try { if (!print0.dirs.has(r) && !fs.readdirSync(p).length) fs.rmdirSync(p); } catch { } } } })(dest);
+    const after2 = fingerprint(dest), differ = [...print0].filter(([p, h]) => after2.get(p) !== h).map(([p]) => p);
+    console.error(`\nROLLED BACK: after the upgrade these checks failed that passed before: ${broke.join('; ')}. ` +
+      (differ.length ? `${differ.length} file(s) could not be put back exactly: ${differ.slice(0, 8).join(', ')} (copies in .cache/upgrade-backup/${stamp}/).\n` : 'The project is exactly as it was (every file checked).\n') +
       broke.map(b => (after.details?.[b] || []).slice(0, 8).map(l => `  ${b}: ${l}`).join('\n')).filter(Boolean).join('\n') + '\n' +
       `The new engine checks more or checks differently. Upgrade with --accept-findings to keep it anyway: each of these goes into the upgrade review, to fix.`);
     process.exit(1);
@@ -441,7 +472,8 @@ for (const f of files) {
   if (f === 'tools/starter/gitignore.project') {
     const gi = path.join(dest, '.gitignore');
     const lines = fs.readFileSync(path.join(STARTER, f), 'utf8').split(/\r?\n/);
-    const keep = lines.filter(l => !l || l.startsWith('#') || !tracked(l));
+    const neg = lines.filter(l => l.startsWith('!'));
+    const keep = lines.filter(l => !l || l.startsWith('#') || l.startsWith('!') || !tracked(l, neg));
     if (keep.length < lines.length) log.push(`kept in git what the project already commits (${lines.filter(l => !keep.includes(l)).join(', ')}): not added to .gitignore`);
     if (!fs.existsSync(gi)) { if (!dry) fs.writeFileSync(gi, keep.join('\n')); log.push('created  .gitignore'); }
     else {

@@ -12,6 +12,8 @@ tools/hooks/state/
 CLAUDE.md
 .claude/
 .codex/
+.gemini/
+.agents/
 tools/starter.local.json
 .starter/
 
