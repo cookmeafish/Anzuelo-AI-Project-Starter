@@ -46,7 +46,14 @@ favors no vendor.
 - **Every name is a variable.** The project's name and every other name live in `docs/names.json`; a rename is one
   edit there. Docs and code refer to it, and a check catches names typed out anywhere else.
 - **Secure by default,** whatever the project is: a security baseline, a security-review skill, no secrets in
-  commits, untrusted files treated as data, and the installed browser is never automated.
+  commits or in the conversation, untrusted files treated as data, and the installed browser is never automated.
+- **Nothing leaves the project without your OK.** Sending mail, posting, opening issues or pull requests, pushing,
+  publishing and connected services that send or create things wait for your OK in the request. An answer that
+  claims something happened when it was refused or failed is caught. Skipping the git hooks needs your own words.
+- **Recurring work that really recurs.** "Every Monday" becomes a routine in `docs/routines.md` with its runbook; a
+  due routine is announced when a session opens (routines library skill).
+- **Your notes stay where they are.** An existing vault or notes folder becomes the knowledge base in place
+  (`"knowledgeDirs"` in `tools/hooks/config.json`).
 - **Packs that fit the project:**
 
   | Pack | For | Brings |
@@ -65,6 +72,16 @@ favors no vendor.
 ## Start a project
 **After cloning this repository**, run `node tools/hooks/wire.mjs` once. It connects the folder to your agent
 (Claude Code, Codex and others) and switches on the git checks.
+
+| Agent | What wire sets up |
+|---|---|
+| Claude Code | `CLAUDE.md` (a copy of `AGENTS.md`), the hooks in `.claude/settings.json`, the skills in `.claude/skills/` |
+| Codex | The hooks in `.codex/hooks.json` (run `/hooks` in Codex once to trust them; it asks again after a change), the skills in `.agents/skills/`. The checks read Codex's transcript too |
+| Gemini CLI | `.gemini/settings.json`, so it reads `AGENTS.md`. It has no hooks here: the agent runs `node tools/hooks/hooks.mjs begin "<request>"` and `check` itself |
+| Any other | It reads `AGENTS.md`, and the git checks apply to every commit and push |
+
+`"wireAgents"` in `tools/hooks/config.json` (for example `["codex"]`) limits the wiring to the agents you use. Two
+sessions can work in one folder at once: each keeps its own record of its turn.
 
 Once a project is set up, [HOW-TO-USE.md](HOW-TO-USE.md) explains the day-to-day.
 
@@ -114,7 +131,9 @@ Requires Node.js 18 or newer. No dependencies. The GUI screenshot tool uses Play
 ## Improving the starter itself
 Open this folder with an agent and work on it like any project. The hooks run here too. `.starter-template` keeps the
 setup prompt from triggering in this folder. Add a test for every new check, run `node tools/audit.mjs --full`, and
-record changes in [tools/starter/STARTER-CHANGELOG.md](tools/starter/STARTER-CHANGELOG.md). `node tools/trial.mjs`
+record changes in [tools/starter/STARTER-CHANGELOG.md](tools/starter/STARTER-CHANGELOG.md). The self-tests and the
+audit record their results in a run log (`tools/hooks/state/runs.jsonl`), so the Stop hook never reruns them;
+`node tools/hooks/hooks.mjs run "<command>"` records any other check the same way. `node tools/trial.mjs`
 (starter only) proves on sample projects that making a new project, adopting a folder and upgrading never leave a
 project worse (`--deep` also runs the self-tests inside a project mid-setup). A copy you are developing carries a
 `.starter-dev` file (ignored by git): projects are never made from it or linked to it (`--dev` for throwaway tests),

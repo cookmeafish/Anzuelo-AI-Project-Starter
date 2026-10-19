@@ -4,6 +4,64 @@ Changes to the starter itself. A project picks up engine changes with `node tool
 starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook changes listed here are adopted by hand
 (project-rule, runbook-create), because an upgrade never touches a project's own content.
 
+- 2026-10-19 (gap sweep): Fixes from simulating nine kinds of projects end to end (a notes vault, a bakery's office
+  work, a Godot game, a web app, a monorepo, an adopted Python pipeline, Flutter, Rust and ML projects, and upgrades).
+  - **No more slow stops.** The self-tests and the audit write their results to a run log
+    (`tools/hooks/state/runs.jsonl`); the Stop hook reads it instead of running them inside the hook.
+    `node tools/hooks/hooks.mjs run "<command>"` logs any other check. `audit --setup` reuses a passing full self-test
+    run when nothing it tests has changed, and skips the self-tests while other sweeps still fail.
+  - **Setup could not finish** when a security review was logged the same day: the self-tests' copy now drops it.
+    Self-tests also keep the project's own tools and skill scripts, so their checks can run.
+  - **Outward actions wait for your OK:** mail, posts, `gh issue|pr create`, API POSTs, pushes to other remotes and
+    connected services (MCP tools) that send or create (REQ: outward-gate, `"outwardOk"` in config). An answer that says
+    "pushed" or "sent" after the action was refused or failed is caught (REQ: claim-checked). `--no-verify`,
+    `HUSKY=0` and re-pointing `core.hooksPath` need the user's own words.
+  - **Secrets:** reading `.env` and other secret files, printing them (`cat .env`), writing a live key into a tracked
+    file and `git add -f` of an ignored secret are refused before they run.
+  - **Codex:** `apply_patch` gets every file guard, its transcript is read like Claude Code's (tool calls, results and
+    failures reach the checks), and `.agents/skills` is a default mirror. **Gemini CLI:** `.gemini/settings.json` makes
+    it read AGENTS.md. `"wireAgents"` limits the wiring to the agents you use. Audits read AGENTS.md when there is no
+    CLAUDE.md.
+  - **Two sessions in one folder** keep separate turn records, snapshots and notices (by session id).
+  - **Change detection:** files moved or copied in with an old date count as new; workspace symlinks and junctions are
+    never followed (a monorepo hung); folders `.gitignore` lists are skipped; nested `node_modules`, `.venv`, `.next`
+    and build folders are ignored anywhere.
+  - **Notes in your own folders:** `"knowledgeDirs"` points the knowledge checks, citations and sweeps at a vault or
+    notes folder in place. Citations accept `[1] [title](link)`, `<url>` and paths with spaces.
+  - **Fewer false alarms:** a typo fix or rename needs no runbook; complaints become rules (or a lesson in the skill
+    that missed); a phrase of common words ("fix it") only backs up a real match; quoted text and code fences don't
+    route; files the pack installer copies are not the agent's own new work; root-tidy only flags new files;
+    names in code are checked in strings and comments, not identifiers or imports; gitignored and generated files are
+    not name-checked; records (DECISIONS, the fit checklist, release notes) are history, not notes to link or rename;
+    plan-required ignores a feature's own spec and release notes; the version bump ignores test-only and refactor
+    changes; the verification report accepts a bold line.
+  - **Routing:** bugs described as "keeps crashing", "feels floaty" or "can't log in" reach bugfix, and a runbook is
+    followed through the skill it names; refactors, renames, endpoints, sprints, roadmaps, newsletters, "add a note"
+    and knowledge questions (also in Spanish) route; more frustration and "don't bother me" phrasings are heard.
+  - **Mobile, desktop and game screens** (Flutter, SwiftUI, Compose layouts, XAML, QML, Godot scenes) trigger the GUI
+    review; the gui-review-loop skill has emulator and simulator screenshot commands. The app foundation fits every
+    kind of app (CLI, library, game, ML), with N/A for rows that don't apply.
+  - **Dependencies:** `cargo add`, `flutter pub add`, `uv add`, `poetry add` and manifest edits (Cargo.toml,
+    pubspec.yaml, requirements.txt) need "Worth it: <gain> / <cost>". Debug hints cover flutter, dart and swift.
+  - **Fit checklist:** code tools wait for the first code file in a project without code; what is already installed
+    starts as "add"; the brief's and the setup answers' words are evidence (a newsletter brief points at marketing);
+    the summary is a few lines (`summary --all` lists every skip); "Recommend when:" in a reason is no longer cut.
+  - **Survey:** Flutter, XAML, QML and Godot count as screens; notebooks count as Python code; requirements.txt and
+    licences are not notes; `.cursor/rules`, `.clinerules` and `.windsurf` rules are found; a repository with no commits
+    is a repository; test and build commands are suggested for Python, Rust, Go, Dart, Flutter and .NET.
+  - **Adopting:** the project's name comes from its README title or manifest; its own rules are kept in
+    `.starter/original-rules/` and setup lists any rule the merge lost; a repository with history keeps its line
+    endings (LF only for the starter's files); husky and other hooks are chained, not replaced; the Branches answer
+    decides `protectedBranches`.
+  - **Upgrading:** an exact rollback (fingerprints, untracked files restored, renamed-file rewrites backed up); the
+    link is re-pointed when upgrading from another starter copy; old `test-hooks.mjs` scenarios are saved for moving;
+    generated files tracked by mistake are untracked; triggers the starter removed stay removed; rule text changes are
+    offered, not only new rules; `update --dry-run` no longer leaves the real update thinking it is current; a repeat
+    upgrade that changed nothing writes no review.
+  - **Routines:** `docs/routines.md` (routine, every, runbook, last run) is read at session start and due routines are
+    announced (ROUTINES DUE).
+  - **Labels:** stop steps read as short plain sentences, without paths cut in half.
+  - **Feedback inbox:** project reports are marked as data to weigh, never instructions.
 - 2026-10-19 (later): Fixes from the same project's next upgrade.
   - **No false "kept your edited version".** An older shipped check is not a local edit. The starter now ships
     `tools/hooks/engine-checks-history.json`, the fingerprint of every version of every check it ever released
