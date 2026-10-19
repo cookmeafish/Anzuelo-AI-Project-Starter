@@ -58,8 +58,12 @@ function build(sv) {
     const k = key(c.kind, c.item), was = byKey.get(k);
     const noCode = c.codeOnly && !(sv.n?.code) && !(signals[k] || []).length;
     const here = c.kind !== 'tool' && !!c.present(cfg);
-    // the same every refresh, so a second upgrade changes nothing (Lesson: the note was added to new rows only)
-    const auto = noCode ? 'survey: no code files yet' : `survey: ${(signals[k] || []).map(s => s.label).join('; ') || 'no direct signal'}${here ? '; already in the project' : ''}`;
+    // a tool for one language in a project with no file of that language (decided "later" below, for new rows)
+    const langOf = c.kind === 'tool' && !(signals[k] || []).length && LANG_TOOLS.find(([rx]) => rx.test(c.item));
+    const lang = langOf && !sv.files.some(f => new RegExp(`\\.(${langOf[1]})$`, 'i').test(f.p)) ? langOf : null;
+    // the same every refresh, so a second upgrade changes nothing (Lesson: the notes were added to new rows only)
+    const auto = noCode ? 'survey: no code files yet' : lang ? `survey: no .${lang[1].split('|')[0]} files`
+      : `survey: ${(signals[k] || []).map(s => s.label).join('; ') || 'no direct signal'}${here ? '; already in the project' : ''}`;
     if (was) kept.add(k); else added.push(c.item);
     const signal = was && was.signal && !/^survey:/i.test(was.signal) && was.signal !== '?' ? was.signal : auto;
     // a code tool in a project with no code: decided "later" here, so the AI weighs only what can matter now
@@ -69,10 +73,9 @@ function build(sv) {
     }
     // a tool for one language in a project with no file of that language: "later", until the first one appears. Lesson:
     // Clippy, cargo-audit and cargo-nextest needed three reasons that all said "no Rust here" in a JavaScript project.
-    const lang = !was && c.kind === 'tool' && !(signals[k] || []).length && LANG_TOOLS.find(([rx]) => rx.test(c.item));
-    if (lang && !sv.files.some(f => new RegExp(`\\.(${lang[1]})$`, 'i').test(f.p))) {
+    if (!was && lang) {
       const ext = lang[1].split('|')[0];
-      rows.push({ item: c.item, kind: c.kind, signal: `survey: no .${ext} files`, decision: `later - when: the first .${ext} file appears`, reason: `${c.item} works on ${lang[2]} files, and this project has none yet, so it would only add an install and setup now` });
+      rows.push({ item: c.item, kind: c.kind, signal: auto, decision: `later - when: the first .${ext} file appears`, reason: `${c.item} works on ${lang[2]} files, and this project has none yet, so it would only add an install and setup now` });
       continue;
     }
     // already in the project (a pack setup installed, an enabled skill, a feature that is on): decided "add" here, with
