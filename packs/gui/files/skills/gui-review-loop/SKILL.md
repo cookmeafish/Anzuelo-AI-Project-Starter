@@ -17,6 +17,10 @@ so you must shoot again. That is the loop.
    - Already running somewhere you were told to use: `--url <url>`
    - A flow: `--steps .cache/flow.json` with `[{"type":"#q","text":"desks"},{"click":"#go"},{"wait":800},{"shot":"results"}]`
      (also `{"eval":"document.title"}` to check values)
+   - **Saved flows:** a flow worth keeping goes in `docs/checks/flows/<page>.json`, named after the page file it drives
+     (`index.json` for `site/index.html`), as a steps list or `{"page": "<url or file>", "steps": [...]}`. Every round
+     reruns the saved flows of the pages you touched: `node tools/screenshot.mjs --flows --pages index,settings`
+     (plus `--url` or `--file` when a flow has no `"page"`). The Stop hook asks for it (hook: gui-flows).
    - A desktop window (Windows): `--window "<window title>" [--launch "<start command>"]`
    - The defaults are desktop 1400x900 and phone 390x844, each in light and dark. Use `--full` for long pages.
 2. **Look.** Open EVERY `SCREENSHOT:` image file to look at it. Read the `WARN` lines too (sideways scroll, console

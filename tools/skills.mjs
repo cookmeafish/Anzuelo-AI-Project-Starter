@@ -98,7 +98,7 @@ else if (cmd === 'recommended') {
     // its checks: tagged with the skill, or triggered by using it
     const rq = path.join(ROOT, 'tools', 'hooks', 'requirements.json');
     const j = JSON.parse(fs.readFileSync(rq, 'utf8'));
-    const mine = r => r.when?.playbookUsed === n || (!core && (r.skill === n || r.when?.skillUsed === n));
+    const mine = r => r.when?.playbookUsed === n || (!core && (r.skill === n || r.when?.skillUsed === n || r.forces === n));
     const tags = j.requirements.filter(mine).map(r => r.tag);
     j.requirements = j.requirements.filter(r => !mine(r));
     fs.writeFileSync(rq, JSON.stringify(j, null, 2) + '\n');
@@ -161,7 +161,7 @@ function syncLibraryRow() {
   const mine = reqs.filter(r => r.skill);
   const lines = fs.readFileSync(f, 'utf8').split(/\r?\n/);
   const i = lines.findIndex(l => l.startsWith('| Library |'));
-  const row = `| Library | Each enabled library skill proves its own "Done when" (added by \`tools/skills.mjs enable\`) | the skill's SKILL.md | stop, when the skill was used: ${[...new Set(mine.map(r => r.skill))].join(', ')} | ${mine.map(r => r.tag).join(', ')} |`;
+  const row = `| Library | Each enabled library skill proves its own "Done when" (added by \`tools/skills.mjs enable\`) | the skill's SKILL.md | stop, when the skill was used or its event happened: ${[...new Set(mine.map(r => r.skill))].join(', ')} | ${mine.map(r => r.tag).join(', ')} |`;
   if (!mine.length) { if (i >= 0) lines.splice(i, 1); }
   else if (i >= 0) lines[i] = row; else lines.push(row);
   fs.writeFileSync(f, lines.join('\n').replace(/\n*$/, '\n'));

@@ -21,3 +21,4 @@ menu: A6
 
 ## Done when
 - [ ] The answer names the backup, the restore test, and record counts before and after (hook: data-backup).
+- [ ] Followed whenever a migration, schema or data format file changes, even unasked, with backup and restore stated (hook: data-change-trigger).

@@ -115,15 +115,24 @@ for (const [name, s] of Object.entries(SAMPLES)) {
   // "does an upgrade keep my work, and a second upgrade change nothing?"
   write(dir, { 'docs/playbooks/my-own.md': '---\nname: my-own\nsummary: the project\'s own runbook\ntriggers: my own thing\nchecks: none - a sample runbook in the trial\n---\n# Playbook: my own\n## Steps\n1. Do it.\n## Done when\n- [ ] Done.\n' });
   // an outdated core check is refreshed by the upgrade; one the project marked "custom" is kept as it is
+  // 3-way merge: an outdated entry still equal to what was shipped last time (tools/hooks/engine-checks.json) is refreshed;
+  // one edited here is kept, marked "custom" and listed in the review; with no earlier shipped copy a differing entry is kept too
   const rqPath = path.join(dir, 'tools/hooks/requirements.json'), rq0 = JSON.parse(fs.readFileSync(rqPath, 'utf8'));
-  const cited = rq0.requirements.find(r => r.tag === 'research-cited'), rooted = rq0.requirements.find(r => r.tag === 'debug-root-cause');
-  if (cited) cited.require = { answerMatches: 'an old pattern' };
+  const ecPath = path.join(dir, 'tools/hooks/engine-checks.json'), noPrev = /python/.test(name);
+  const ec0 = fs.existsSync(ecPath) ? JSON.parse(fs.readFileSync(ecPath, 'utf8')) : { requirements: [] };
+  const cited = rq0.requirements.find(r => r.tag === 'research-cited'), rooted = rq0.requirements.find(r => r.tag === 'debug-root-cause'), sec = rq0.requirements.find(r => r.tag === 'security-report');
+  if (cited) { cited.require = { answerMatches: 'an old pattern' }; const e = ec0.requirements.find(r => r.tag === 'research-cited'); if (e) e.require = { answerMatches: 'an old pattern' }; } // as an older starter shipped it
   if (rooted) Object.assign(rooted, { custom: true, message: 'our own wording' });
+  if (sec) sec.message = 'our own security wording'; // edited here, never shipped like this
   fs.writeFileSync(rqPath, JSON.stringify(rq0, null, 2) + '\n');
+  if (noPrev) fs.rmSync(ecPath, { force: true }); else fs.writeFileSync(ecPath, JSON.stringify(ec0, null, 2) + '\n');
   const mine = snapshot(dir);
   const u1 = starterRun(dir, '--upgrade', '--accept-findings');
   const rq1 = JSON.parse(fs.readFileSync(rqPath, 'utf8')).requirements, starterRq = JSON.parse(fs.readFileSync(path.join(STARTER, 'tools/hooks/requirements.json'), 'utf8')).requirements;
-  if (cited) check(name, 'an upgrade refreshes an outdated core skill check', JSON.stringify(rq1.find(r => r.tag === 'research-cited')?.require) === JSON.stringify(starterRq.find(r => r.tag === 'research-cited')?.require));
+  const review = (() => { try { return fs.readFileSync(path.join(dir, 'docs/DECISIONS.md'), 'utf8'); } catch { return ''; } })();
+  if (cited && !noPrev) check(name, 'an upgrade refreshes an outdated core skill check the project never edited', JSON.stringify(rq1.find(r => r.tag === 'research-cited')?.require) === JSON.stringify(starterRq.find(r => r.tag === 'research-cited')?.require));
+  if (cited && noPrev) check(name, 'with no earlier shipped copy, an upgrade keeps a differing core check and lists it in the review', rq1.find(r => r.tag === 'research-cited')?.require?.answerMatches === 'an old pattern' && /- check: research-cited, kept your edited version/.test(review));
+  if (sec) check(name, 'an upgrade keeps a core check edited in the project, marks it custom and lists it in the review', rq1.find(r => r.tag === 'security-report')?.message === 'our own security wording' && rq1.find(r => r.tag === 'security-report')?.custom === true && /- check: security-report, kept your edited version/.test(review), review.slice(-600));
   if (rooted) check(name, 'an upgrade keeps a core check the project marked "custom"', rq1.find(r => r.tag === 'debug-root-cause')?.message === 'our own wording');
   check(name, 'an upgrade runs without an error', u1.status === 0, (u1.stderr || u1.stdout).slice(-400));
   const afterUp = snapshot(dir);
@@ -166,6 +175,18 @@ if (deep) {
   const cfgP = path.join(dir, 'tools/hooks/config.json');
   try { fs.writeFileSync(cfgP, JSON.stringify({ ...JSON.parse(fs.readFileSync(cfgP, 'utf8')), autonomy: 'auto' }, null, 2) + '\n'); } catch { }
   write(dir, { 'docs/plans/2026-10-18-setup.md': '# Setup: plan\n- [x] interview\n- [ ] runbooks\n', 'tools/hooks/state/setup.json': '{"prompts":1}' });
+  // and the project's own content the fixtures must never see: real duplicates in an originals folder, a decided fit
+  // checklist with a "later" row about the project's own files, and files that match it.
+  // Lesson: in a big project the fit and dedupe tests read the project's real checklist, files and duplicates.
+  try { const c = JSON.parse(fs.readFileSync(cfgP, 'utf8')); c.protectedOriginals = [...new Set([...(c.protectedOriginals || []), 'sources/**'])]; fs.writeFileSync(cfgP, JSON.stringify(c, null, 2) + '\n'); } catch { }
+  write(dir, { 'sources/raid-a.png': 'same bytes', 'sources/raid-a-copy.png': 'same bytes', 'sources/raid-b.png': 'same bytes',
+    ...Object.fromEntries(Array.from({ length: 8 }, (_, i) => [`notes/raid-${i}.md`, `# Raid ${i}\n`])) });
+  node(['tools/fit.mjs'], dir);
+  const fitRows = JSON.parse(node(['tools/fit.mjs', '--json'], dir).stdout || '[]').map(r => ({ item: r.item, kind: r.kind,
+    decision: r.item === 'fd' ? 'later - when: more than 6 raid files' : r.present ? 'add' : 'skip',
+    reason: r.present ? `Worth it: ${r.item} is set up in this project and keeps its checks running / a little upkeep` : `${r.item} adds nothing this sample project needs, so it would only cost upkeep${r.signals.length ? `, even with ${r.signals.join(' and ')}` : ''}` }));
+  fs.writeFileSync(path.join(WORK, 'deep-fit.json'), JSON.stringify(fitRows));
+  node(['tools/fit.mjs', 'decide', '--file', path.join(WORK, 'deep-fit.json')], dir);
   const t = node(['tools/hooks/selfcheck.mjs'], dir, 1800000);
   check('deep', "the engine's self-tests pass inside an adopted project mid-setup", fs.existsSync(path.join(dir, 'SETUP-PROMPT.md')) && /ALL PASS/.test(t.stdout), t.stdout.split('\n').filter(l => /^FAIL/.test(l)).slice(0, 5).join(' | '));
 }

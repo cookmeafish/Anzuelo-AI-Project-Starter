@@ -50,11 +50,30 @@ function base() {
   for (const src of [at('.starter/tools/hooks/requirements.json'), linked && path.join(linked, 'tools/hooks/requirements.json')].filter(Boolean)) {
     try { shipped = JSON.parse(fs.readFileSync(src, 'utf8')).requirements || []; break; } catch { }
   }
+  // An adopted project mid-setup still has its own rule files (the starter's wait in AGENTS.starter.md): the fixtures need
+  // the starter's twin pair. Lesson: in an adopted project, every test that edits CLAUDE.md failed on twin-sync.
+  const twin = t => /are twins|keep the two identical/i.test(t || '');
+  const rd = p => { try { return fs.readFileSync(at(p), 'utf8'); } catch { return ''; } };
+  if (!twin(rd('AGENTS.md')) || !twin(rd('CLAUDE.md'))) {
+    const rules = [rd('AGENTS.starter.md'), rd('CLAUDE.starter.md'), rd('AGENTS.md'), rd('CLAUDE.md')].find(twin) || '# Project\nCLAUDE.md and AGENTS.md are twins.\n';
+    for (const p of ['AGENTS.md', 'CLAUDE.md']) fs.writeFileSync(at(p), rules);
+  }
   for (const p of ['tools/starter.local.json', '.starter', '.starter-dev', 'README.starter.md', 'CLAUDE.starter.md', 'AGENTS.starter.md']) fs.rmSync(at(p), { recursive: true, force: true });
   // The project's own progress would leak into fixtures that build their own: its fit checklist (decided rows, "later"
   // conditions), its plans (OPEN PLANS) and its hook state. Lesson: inside a project mid-setup, the fit tests read the
   // project's own checklist and the setup-gate test was denied by the project's unfinished setup.
   fs.rmSync(at('docs/fit-checklist.md'), { force: true });
+  // Inside a real project (not the starter), its own content goes too: the survey would count its code, data and notes,
+  // and dedupe would find its real duplicates. Everything the survey sees as the project's (not the engine's) is removed,
+  // plus the usual content folders. Lesson: in a large project the fit and dedupe tests read its real files.
+  if (!fs.existsSync(path.join(ROOT, '.starter-template'))) {
+    const list = spawnSync(process.execPath, ['--input-type=module', '-e', `import { projectSurvey } from ${JSON.stringify(pathToFileURL(at('tools/hooks/hooks.mjs')).href)}; console.log(JSON.stringify(projectSurvey({ git: false }).files.map(f => f.p)));`], { cwd: BASE, encoding: 'utf8' });
+    let own = []; try { own = JSON.parse(list.stdout || '[]'); } catch { }
+    const KEEP = /^(README\.md|LICENSE[^/]*|\.gitignore|\.gitattributes|\.env\.example|tools\/new-project\.mjs|tools\/trial\.mjs)$/;
+    for (const p of own) if (!KEEP.test(p)) fs.rmSync(at(p), { force: true });
+    let prot = []; try { prot = JSON.parse(fs.readFileSync(at('tools/hooks/config.json'), 'utf8')).protectedOriginals || []; } catch { }
+    for (const d of [...new Set([...prot.map(g => g.split(/[/*]/)[0]).filter(Boolean), 'sources', 'inbox', 'outputs', 'data', 'profiles', 'docs/knowledge', 'docs/notes', 'dist', 'build', 'out'])]) fs.rmSync(at(d), { recursive: true, force: true });
+  }
   for (const n of (() => { try { return fs.readdirSync(at('docs/plans')); } catch { return []; } })()) if (!/^readme\.md$/i.test(n)) fs.rmSync(at(`docs/plans/${n}`), { recursive: true, force: true });
   fs.rmSync(at('tools/hooks/state'), { recursive: true, force: true });
   if (!fs.existsSync(at('.starter-template'))) fs.writeFileSync(at('.starter-template'), 'test base\n');
@@ -117,6 +136,9 @@ function transcript(dir, s, since) {
     rows.push({ type: 'assistant', message: { content: [{ type: 'text', text: d }] } });
     rows.push({ type: 'user', message: { content: 'Stop hook feedback: Project rules not met yet' } });
   }
+  // tool calls after the blocked drafts (a change made in a later round)
+  for (const t of s.later || []) { const id = `toolu_${++idc}`; const input = { ...t.input }; if (input.file_path) input.file_path = path.join(dir, input.file_path);
+    rows.push({ type: 'assistant', message: { content: [{ type: 'tool_use', id, name: t.name, input }] } }, { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: id, content: t.result || 'ok' }] } }); }
   if (s.answer != null) rows.push({ type: 'assistant', message: { content: [{ type: 'text', text: s.answer }] } });
   const file = path.join(dir, 'transcript.jsonl');
   fs.writeFileSync(file, rows.map(r => JSON.stringify(r)).join('\n') + '\n');
@@ -223,8 +245,11 @@ const STOP = [
   { name: 'compaction summary is not a request: passes', compact: true, prompt: '', answer: 'Continuing.', expect: { block: false, not: ['rule-request'] } },
   { name: 'denied tool calls do not count as work: passes', prompt: 'hi there', tools: many(16).map(t => ({ ...t, denied: true, result: 'Error: PreToolUse:Grep hook blocked' })), answer: 'ok',
     expect: { block: false } },
-  { pack: 'knowledge', name: 'blocked draft text does not satisfy the final answer: blocked', prompt: 'research desk prices', tools: [sk('research')], drafts: ['Skill: research. Sources: https://a.com' + FIN],
-    files: { 'docs/knowledge/desks.md': KNOW, 'docs/CHANGELOG.md': 'x' }, answer: 'Fixed.', expect: { block: true, tags: ['finished-summary'] } },
+  // a Finished section from an earlier round counts only while no file changed after it
+  { pack: 'knowledge', name: 'a Finished section in a draft before a later change does not count: blocked', prompt: 'research desk prices', tools: [sk('research')], drafts: ['Skill: research. Sources: https://a.com' + FIN],
+    later: [{ name: 'Write', input: { file_path: 'docs/knowledge/desks.md', content: KNOW } }], files: { 'docs/knowledge/desks.md': KNOW, 'docs/CHANGELOG.md': 'x' }, answer: 'Fixed.', expect: { block: true, tags: ['finished-summary'] } },
+  { pack: 'knowledge', name: 'a Finished section in a draft with no change after it still counts: finished-summary passes', prompt: 'research desk prices', tools: [sk('research')], drafts: ['Skill: research. Sources: https://a.com' + FIN],
+    files: { 'docs/knowledge/desks.md': KNOW, 'docs/CHANGELOG.md': 'x' }, answer: 'Fixed.', expect: { not: ['finished-summary', 'playbook-named'] } },
   { name: 'hooks changed without running the tests: blocked', prompt: 'add a hook check for budget tables', tools: [pb('project'), bash('node tools/audit.mjs')],
     files: { 'tools/hooks/requirements.json': '{"requirements":[]}', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.' + FIN, expect: { block: true, tags: ['hooks-tested'] } },
   { name: 'broken requirements.json: blocked', prompt: 'hello', files: { 'tools/hooks/requirements.json': '{ broken' }, answer: 'hi' + FIN,
@@ -253,7 +278,8 @@ const STOP = [
     answer: null, last: 'Playbook: plan.md. Saved docs/plans/2026-10-17-export.md.' + FIN, expect: { block: false } },
   { pack: 'knowledge', name: 'last_assistant_message is checked too: blocked when it lacks Finished', prompt: 'research desk prices', tools: [sk('research')],
     files: { 'docs/knowledge/desks.md': KNOW, 'docs/CHANGELOG.md': 'x' },
-    answer: 'Skill: research. Sources: https://a.com' + FIN, last: 'Skill: research. Sources: https://a.com', expect: { block: true, tags: ['finished-summary'] } },
+    drafts: ['Skill: research. Sources: https://a.com' + FIN], later: [{ name: 'Write', input: { file_path: 'docs/knowledge/desks.md', content: KNOW } }],
+    answer: null, last: 'Skill: research. Sources: https://a.com', expect: { block: true, tags: ['finished-summary'] } },
   { name: 'reblock cap: 4th stop in a turn lets the session end', prompt: 'build me a weekly cleaning rota', files: { 'docs/rota.md': 'r' }, answer: 'Done.', active: true, blocks: 3,
     expect: { block: false } },
   { name: '2nd block in a turn still blocks', prompt: 'build me a weekly cleaning rota', files: { 'docs/rota.md': 'r' }, answer: 'Done.', active: true, blocks: 1,
@@ -296,7 +322,7 @@ const STOP = [
   { name: 'worth-it: a dependency installed without weighing it: blocked', prompt: 'install a date library for the importer', tools: [bash('npm install dayjs', 'added 1 package')],
     answer: 'Installed dayjs.', expect: { block: true, tags: ['worth-it'] } },
   { name: 'worth-it: a dependency installed with its gain and cost: passes the check', prompt: 'install a date library for the importer', tools: [bash('npm install dayjs', 'added 1 package')],
-    answer: 'Installed dayjs.\nWorth it: parses the three date formats we get / one small dependency to keep updated.', expect: { block: false } },
+    answer: 'Installed dayjs.\nWorth it: parses the three date formats we get / one small dependency to keep updated.', expect: { not: ['worth-it'] } },
   // a lasting requirement the user states is enforced in the same turn, without being asked
   { name: 'requirement-enforced: a requirement written only into a runbook: blocked', prompt: 'every raid picture must have a paired diagram', tools: [pb('project'), bash('node tools/audit.mjs')],
     files: { 'docs/playbooks/raid-research.md': '---\nname: raid-research\nsummary: research a raid\ntriggers: research a raid\nchecks: none - test\n---\n# Playbook: raid research\n## Steps\n1. Research.\n## Done when\n- [ ] Every picture has a paired diagram (hook: diagram-paired).\n', 'docs/CHANGELOG.md': 'x' },
@@ -433,7 +459,7 @@ const STOP = [
     answer: 'Playbook: gui.md\n- Round 1: ok\nVisual review: PASS after 1 round' + FIN, expect: { block: true, tags: ['gui-warnings'] } },
   { pack: 'gui', name: 'GUI loop done right: passes', prompt: 'make the dashboard page look cleaner', tools: [pb('gui'), bash('node tools/screenshot.mjs --url x', GUISHOT(0)), { name: 'Read', input: { file_path: SHOT } }],
     files: { 'site/index.html': '<h1>x</h1>', [SHOT]: 'png', 'docs/CHANGELOG.md': 'x' }, mtimes: { 'site/index.html': -500 },
-    answer: 'Playbook: gui.md\n## Visual review\n- Round 1: header overlapped on phone, fixed.\n- Round 2: nothing found.\nVisual review: PASS after 2 rounds' + FIN, expect: { block: false } },
+    answer: 'Playbook: gui.md\n## Visual review\n- Round 1: header overlapped on phone, fixed.\n- Round 2: nothing found.\nVisual review: PASS after 2 rounds\nAccessibility: keyboard, focus and contrast checked - PASS' + FIN, expect: { block: false } },
   // honesty and answer checks
   { pack: 'knowledge', name: 'a question that changed files without being asked: blocked', prompt: 'what do you think of the plan?', files: { 'outputs/plan v2.md': 'x', 'docs/CHANGELOG.md': 'x' }, tools: [pb('deliverable')],
     answer: 'Playbook: deliverable.md. It is fine.' + FIN, expect: { block: true, tags: ['question-no-file'] } },
@@ -909,6 +935,93 @@ function runStop(s) {
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
+// Event triggers: what the work did, not what the request said, makes a runbook or skill mandatory.
+const SEC_TABLE = 'Skill: security-review.\n\n| Area | Result | Evidence |\n|---|---|---|\n| Authentication | PASS | bcrypt compare, tested |';
+const SEC_LOG = { 'docs/security.md': '# Security\n## Reviews\n| Date | Scope | Result |\n|---|---|---|\n| 2026-10-18 | sign-in | PASS |\n' };
+const AUTH = { 'src/auth.js': 'export const check = (u, password) => bcrypt.compare(password, u.hash);\n' };
+const BIG = 'Pick the plan that fits the team and the budget we agreed on for this quarter and next. ';
+STOP.push(
+  { name: 'security-code: sign-in code written without the security review: blocked', prompt: 'make the form check the user', files: { ...AUTH, 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { block: true, tags: ['security-code'], says: /src\/auth\.js/ } },
+  { name: 'security-code: the review followed and logged: passes', prompt: 'make the form check the user', tools: [sk('security-review')], files: { ...AUTH, ...SEC_LOG, 'docs/CHANGELOG.md': 'x' }, answer: SEC_TABLE + FIN, expect: { not: ['security-code', 'security-report', 'security-logged'] } },
+  { name: 'security-code: a waiver needs a specific reason: blocked', prompt: 'make the form check the user', files: { ...AUTH, 'docs/CHANGELOG.md': 'x' }, answer: 'Done. N/A(security-code): no' + FIN, expect: { tags: ['security-code'] } },
+  { name: 'security-code: a specific waiver holds: passes', prompt: 'make the form check the user', files: { ...AUTH, 'docs/CHANGELOG.md': 'x' }, answer: 'Done. N/A(security-code): the word is only a label in a sample screen, nothing checks it' + FIN, expect: { not: ['security-code'] } },
+  { name: 'security-code: tests and engine files never trigger it: passes', prompt: 'add a test', files: { 'tests/auth.test.js': 'test("password", () => bcrypt.compare("a", "b"));\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { not: ['security-code'] } },
+  { name: 'security-code: only what this turn added counts, not what the file already had: passes', prompt: 'rename a variable', tools: [{ name: 'Edit', input: { file_path: 'src/auth.js', old_string: 'u', new_string: 'const total = 1;' } }],
+    files: { ...AUTH, 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { not: ['security-code'] } },
+  { name: 'security-config: a CI workflow changed without the review: blocked', prompt: 'speed up the build', files: { '.github/workflows/ci.yml': 'on: push\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { block: true, tags: ['security-config'] } },
+  { name: 'security-config: the review followed: passes', prompt: 'speed up the build', tools: [sk('security-review')], files: { '.github/workflows/ci.yml': 'on: push\n', ...SEC_LOG, 'docs/CHANGELOG.md': 'x' }, answer: SEC_TABLE + FIN, expect: { not: ['security-config'] } },
+  { name: 'security-publish: published without the review: blocked', prompt: 'ship the package', tools: [bash('npm publish', 'published')], answer: 'Published.', expect: { block: true, tags: ['security-publish'] } },
+  { name: 'security-publish: the review came first: passes', prompt: 'ship the package', tools: [sk('security-review'), bash('npm publish', 'published')], answer: SEC_TABLE, expect: { not: ['security-publish'] } },
+  { name: 'debug-trigger: a failing test fixed with no root cause: blocked', prompt: 'make the parser handle empty rows', tools: [bash('npm test', 'not ok 1 parses empty rows\n1 failed')], files: { 'src/parser.js': 'x', 'docs/CHANGELOG.md': 'x' }, answer: 'Fixed.' + FIN, expect: { block: true, tags: ['debug-trigger'] } },
+  { name: 'debug-trigger: the root cause stated: passes', prompt: 'make the parser handle empty rows', tools: [bash('npm test', 'not ok 1 parses empty rows\n1 failed')], files: { 'src/parser.js': 'x', 'docs/CHANGELOG.md': 'x' }, answer: 'Root cause: empty rows had no cells, so the split returned nothing.' + FIN, expect: { not: ['debug-trigger'] } },
+  { name: 'parallel-trigger: two sub-agents and no combined check: blocked', prompt: 'review the two modules', tools: [{ name: 'Agent', input: { prompt: 'Read AGENTS.md first. Review module a.' } }, { name: 'Agent', input: { prompt: 'Read AGENTS.md first. Review module b.' } }], answer: 'Both reviewed.', expect: { block: true, tags: ['parallel-trigger'] } },
+  { name: 'parallel-trigger: the combined result checked: passes', prompt: 'review the two modules', tools: [{ name: 'Agent', input: { prompt: 'Read AGENTS.md first. Review module a.' } }, { name: 'Agent', input: { prompt: 'Read AGENTS.md first. Review module b.' } }], answer: 'Ran the full checks on the combined result: both modules pass.', expect: { not: ['parallel-trigger'] } },
+  { name: 'skill-reuse: a new hand-written skill without a search: blocked', prompt: 'make a skill for our budget sheet', files: { 'skills/budget-sheet/SKILL.md': '---\nname: budget-sheet\ndescription: Reads the budget sheet. Use for budget questions.\ntriggers: budget sheet\nchecks: none - a test skill\n---\n# Budget sheet\n## Done when\n- [ ] read (judgment: test)\n', 'docs/CHANGELOG.md': 'x' },
+    tools: [pb('project'), bash('node tools/audit.mjs')], answer: 'Playbook: project.md. Worth it: faster budget answers / one file.' + FIN, expect: { tags: ['skill-reuse'] } },
+  { name: 'skill-reuse: a project-specific waiver in the frontmatter: passes', prompt: 'make a skill for our budget sheet', files: { 'skills/budget-sheet/SKILL.md': '---\nname: budget-sheet\ndescription: Reads the budget sheet. Use for budget questions.\ntriggers: budget sheet\nreuse: none - project-specific: reads our own sheet layout and column names\nchecks: none - a test skill\n---\n# Budget sheet\n## Done when\n- [ ] read (judgment: test)\n', 'docs/CHANGELOG.md': 'x' },
+    tools: [pb('project'), bash('node tools/audit.mjs')], answer: 'Playbook: project.md. Worth it: faster budget answers / one file.' + FIN, expect: { not: ['skill-reuse'] } },
+  { name: 'plain-writing: a page\'s script and style are code, not sentences: passes', prompt: 'hello', files: { 'site/page.html': `<html><body><p>Hi there.</p><script>const t = \`${BIG.repeat(4)}\`; ${'let a = 1 '.repeat(60)}</script><style>${'.a { color: red } '.repeat(40)}</style></body></html>\n` },
+    answer: 'Done. N/A(gui-review-loop): fixture. N/A(gui-pack): fixture.' + FIN, expect: { not: ['plain-writing'] } },
+  { name: 'plain-writing: image lines one after another are separate blocks: passes', prompt: 'hello', files: { 'docs/gallery.md': '# Gallery\n' + Array.from({ length: 12 }, (_, i) => `![screen ${i} of the main page in dark mode](img/s${i}.png)`).join('\n') + '\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Done.' + FIN, expect: { not: ['plain-writing'] } },
+  { name: 'name-var: tools/hooks/project-scenarios.mjs may use fixture names: passes', prompt: 'add a project scenario', edit: { 'docs/names.json': () => '{ "PROJECT_NAME": "Deskmate" }' },
+    files: { 'tools/hooks/project-scenarios.mjs': '// Deskmate fixtures\nexport default () => ({ stop: [] });\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { not: ['name-var'] } },
+  { name: 'no-verbatim-examples: engine files and relayed agent messages are not the user\'s words: passes', prompt: 'tidy up\n<agent-message from="helper">every chart in the monthly report should use the warm colour palette</agent-message>',
+    files: { 'docs/notes-a.md': '# Notes\nevery chart in the monthly report should use the warm colour palette\n', 'tools/chart-check.mjs': '// make every chart in the monthly report use the warm colour palette\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { not: ['no-verbatim-examples'] } },
+  { name: 'no-verbatim-examples: engine files are never scanned for the user\'s words: passes', prompt: 'please make every chart in the monthly report use the warm colour palette',
+    files: { 'tools/chart-check.mjs': '// make every chart in the monthly report use the warm colour palette\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { not: ['no-verbatim-examples'] } },
+  { pack: 'knowledge', name: 'answer-traced: a number typed into docs/knowledge outside research: blocked', prompt: 'note the desk price', tools: [{ name: 'Write', input: { file_path: 'docs/knowledge/desks.md', content: KNOW.replace('$300', '$345') } }],
+    files: { 'docs/knowledge/desks.md': KNOW.replace('$300', '$345'), 'docs/CHANGELOG.md': 'x' }, answer: 'Noted.' + FIN, expect: { tags: ['answer-traced'] } },
+  { pack: 'gui', name: 'gui-flows: a page with a saved flow, flow not rerun: blocked', prompt: 'make the dashboard page look cleaner', tools: [pb('gui'), bash('node tools/screenshot.mjs --url x', GUISHOT(0)), { name: 'Read', input: { file_path: SHOT } }],
+    files: { 'site/index.html': '<h1>x</h1>', 'docs/checks/flows/index.json': '[{"click":"#go"}]', [SHOT]: 'png' }, mtimes: { 'site/index.html': -500 },
+    answer: 'Playbook: gui.md\n## Visual review\n- Round 1: nothing found.\nVisual review: PASS after 1 rounds' + FIN, expect: { tags: ['gui-flows'] } },
+  { pack: 'gui', name: 'gui-flows: the saved flow rerun: passes', prompt: 'make the dashboard page look cleaner', tools: [pb('gui'), bash('node tools/screenshot.mjs --flows --pages index --url x', GUISHOT(0)), { name: 'Read', input: { file_path: SHOT } }],
+    files: { 'site/index.html': '<h1>x</h1>', 'docs/checks/flows/index.json': '[{"click":"#go"}]', [SHOT]: 'png' }, mtimes: { 'site/index.html': -500 },
+    answer: 'Playbook: gui.md\n## Visual review\n- Round 1: nothing found.\nVisual review: PASS after 1 rounds' + FIN, expect: { not: ['gui-flows'] } },
+  // library skills' triggers (the base enables every library skill)
+  { pack: 'gui', name: 'a11y-checked: screens changed without an accessibility line: blocked', prompt: 'tweak the page', files: { 'site/index.html': '<h1>x</h1>' }, answer: 'Done.' + FIN, expect: { tags: ['a11y-checked'] } },
+  { pack: 'gui', name: 'a11y-checked: accessibility reported: passes', prompt: 'tweak the page', files: { 'site/index.html': '<h1>x</h1>' }, answer: 'Done. Accessibility: keyboard, focus and contrast checked - PASS.' + FIN, expect: { not: ['a11y-checked'] } },
+  { name: 'mcp-trigger: MCP server code without the mcp-builder skill: blocked', prompt: 'add a tool to the server', files: { 'src/server.ts': "import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';\n", 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { tags: ['mcp-trigger'] } },
+  { name: 'mcp-trigger: the tool lint ran: passes', prompt: 'add a tool to the server', tools: [bash('node skills/mcp-builder/scripts/lint-tools.mjs src/server.ts')], files: { 'src/server.ts': "import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';\n", 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { not: ['mcp-trigger'] } },
+  { name: 'architecture-trigger: a dependency added, no decision recorded: blocked', prompt: 'validate the form input', tools: [bash('npm install zod')], answer: 'Added zod. Worth it: safer input / one dependency.', expect: { tags: ['architecture-trigger'] } },
+  { name: 'architecture-trigger: the decision recorded: passes', prompt: 'validate the form input', tools: [bash('npm install zod')], files: { 'docs/DECISIONS.md': '## 2026-10-18 zod for input checks\n' }, answer: 'Added zod. Worth it: safer input / one dependency.' + FIN, expect: { not: ['architecture-trigger'] } },
+  { name: 'incident-trigger: production down without the incident skill: blocked', prompt: 'help, the production site is down for everyone', answer: 'Restart it.', expect: { block: true, tags: ['incident-trigger'] } },
+  { name: 'incident-trigger: the incident skill followed: passes', prompt: 'help, the production site is down for everyone', tools: [sk('incident-response')], answer: 'Skill: incident-response. Stabilized; timeline in docs/incidents/2026-10-18-down.md. Root cause: a bad config push.', expect: { not: ['incident-trigger'] } },
+  { name: 'data-computed-trigger: a number from a data file with no method: blocked', prompt: 'how big are our orders', tools: [{ name: 'Read', input: { file_path: 'data/orders.csv' }, result: 'id,total\n1,40\n2,45' }], answer: 'The average order is 42.5.', expect: { tags: ['data-computed-trigger'] } },
+  { name: 'data-computed-trigger: how it was computed: passes', prompt: 'how big are our orders', tools: [{ name: 'Read', input: { file_path: 'data/orders.csv' }, result: 'id,total\n1,40\n2,45' }], answer: 'The average order is 42.5 (calculated: (40 + 45) / 2).', expect: { not: ['data-computed-trigger'] } },
+  { name: 'legal-trigger: a privacy policy written without the legal review: blocked', prompt: 'write the privacy page', files: { 'site/privacy-policy.md': '# Privacy\nWe keep your email.\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { tags: ['legal-trigger'] } },
+  { name: 'legal-trigger: not legal advice said: passes', prompt: 'write the privacy page', files: { 'site/privacy-policy.md': '# Privacy\nWe keep your email.\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done. This is a draft and not legal advice.' + FIN, expect: { not: ['legal-trigger'] } },
+  // pack runbooks' triggers
+  { pack: 'app', name: 'data-change-trigger: a migration without backup and restore: blocked', prompt: 'add a column for notes', files: { 'db/migrations/002_notes.sql': 'ALTER TABLE t ADD notes TEXT;\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { tags: ['data-change-trigger'] } },
+  { pack: 'app', name: 'data-change-trigger: backup and restore stated: passes', prompt: 'add a column for notes', files: { 'db/migrations/002_notes.sql': 'ALTER TABLE t ADD notes TEXT;\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done. Backup: copied app.db first. Restore: copy it back and roll back 002.' + FIN, expect: { not: ['data-change-trigger'] } },
+  { pack: 'app', name: 'release-trigger: a version tagged without the release runbook: blocked', prompt: 'tag it', tools: [bash('git tag v1.2.0')], answer: 'Tagged.', expect: { tags: ['release-trigger'] } },
+  { pack: 'app', name: 'release-trigger: the release runbook followed: passes', prompt: 'tag it', tools: [pb('release'), bash('git tag v1.2.0')], answer: 'Playbook: release.md. Tagged.', expect: { not: ['release-trigger'] } },
+  { pack: 'app', name: 'install-trigger: the installer changed without its runbook: blocked', prompt: 'fix the shortcut', files: { 'scripts/install.ps1': 'Write-Output hi\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { tags: ['install-trigger'] } },
+  { pack: 'app', name: 'install-trigger: the install-update runbook followed: passes', prompt: 'fix the shortcut', tools: [pb('install-update')], files: { 'scripts/install.ps1': 'Write-Output hi\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: install-update.md.' + FIN, expect: { not: ['install-trigger'] } },
+  { pack: 'knowledge', name: 'ingest-trigger: a new original without the ingest runbook: blocked', prompt: 'keep this', files: { 'sources/2026-10-18 scan.pdf': 'pdf' }, answer: 'Saved.' + FIN, expect: { tags: ['ingest-trigger'] } },
+  { pack: 'knowledge', name: 'ingest-trigger: registered in SOURCES.md: passes', prompt: 'keep this', files: { 'sources/2026-10-18 scan.pdf': 'pdf', 'docs/knowledge/SOURCES.md': '| scan |' }, answer: 'Saved.' + FIN, expect: { not: ['ingest-trigger'] } },
+  { pack: 'knowledge', name: 'deliverable-trigger: an output written without the deliverable runbook: blocked', prompt: 'put it in a file', files: { 'outputs/report.md': '# Report\nShort.\n' }, answer: 'Saved.' + FIN, expect: { tags: ['deliverable-trigger'] } },
+  { pack: 'knowledge', name: 'deliverable-trigger: the deliverable runbook followed: passes', prompt: 'put it in a file', tools: [pb('deliverable')], files: { 'outputs/report.md': '# Report\nShort.\n' }, answer: 'Playbook: deliverable.md. Saved.' + FIN, expect: { not: ['deliverable-trigger'] } },
+  { pack: 'knowledge', name: 'knowledge-source-trigger: facts written without research or capture: blocked', prompt: 'tidy the desk note', files: { 'docs/knowledge/desks.md': KNOW, 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { tags: ['knowledge-source-trigger'] } },
+  { pack: 'knowledge', name: 'knowledge-source-trigger: through the research skill: passes', prompt: 'tidy the desk note', tools: [sk('research')], files: { 'docs/knowledge/desks.md': KNOW, 'docs/CHANGELOG.md': 'x' }, answer: 'Skill: research. Desk X costs $300.[1]\n\nSources:\n[1] docs/knowledge/desks.md' + FIN, expect: { not: ['knowledge-source-trigger'] } }
+);
+PRETOOL.push(
+  { name: 'publish-gate: publishing before a security review: denied', tool: 'Bash', input: { command: 'npm publish' }, deny: true, tag: 'publish-gate' },
+  { name: 'publish-gate: publishing after the review this turn: allowed', tool: 'Bash', input: { command: 'npm publish' }, tools: [sk('security-review')], deny: false },
+  { name: 'subagent-brief: a prompt naming a brief file that points at AGENTS.md: allowed', tool: 'Agent', input: { prompt: 'Your brief is .cache/briefs/export.md. Do what it says.', subagent_type: 'general-purpose' }, setup: { '.cache/briefs/export.md': 'Read AGENTS.md first and follow its rules.\nReview the export.' }, deny: false },
+  { name: 'subagent-brief: a brief file without the rules: denied', tool: 'Agent', input: { prompt: 'Your brief is .cache/briefs/export.md. Do what it says.', subagent_type: 'general-purpose' }, setup: { '.cache/briefs/export.md': 'Review the export.' }, deny: true, tag: 'subagent-brief' },
+  { pack: 'knowledge', name: 'protect-originals: deleting a file this turn created: allowed', tool: 'Bash', input: { command: 'rm "sources/junk download.tmp"' }, setup: { 'sources/junk download.tmp': 'x' },
+    prep: dir => write(dir, { 'tools/hooks/state/turn.json': JSON.stringify({ at: new Date(Date.now() - 2000).toISOString() }), 'tools/hooks/state/snapshot.json': JSON.stringify({ at: new Date(Date.now() - 2000).toISOString(), files: {} }) }), deny: false },
+  { pack: 'knowledge', name: 'protect-originals: deleting a file that was there at the turn start: denied', tool: 'Bash', input: { command: 'rm "sources/junk download.tmp"' }, setup: { 'sources/junk download.tmp': 'x' },
+    prep: dir => write(dir, { 'tools/hooks/state/turn.json': JSON.stringify({ at: new Date(Date.now() - 2000).toISOString() }), 'tools/hooks/state/snapshot.json': JSON.stringify({ at: new Date(Date.now() - 2000).toISOString(), files: { 'sources/junk download.tmp': [1, 1, 'x'] } }) }), deny: true, tag: 'protect-originals' }
+);
+PROMPT.push(
+  { name: 'event-hint: a request about sign-in names the security review before work starts', prompt: 'add a login page with passwords', has: ['MUST FOLLOW: security-review'] },
+  { name: 'event-hint: an ordinary request gets no MUST FOLLOW', prompt: 'tidy up the readme wording', hasNot: ['MUST FOLLOW'] },
+  { name: 'autonomy-hint: "without my input" asks to set autonomy auto', prompt: 'go go go without my input until it is finished', has: ['AUTONOMY'] },
+  { name: 'autonomy-hint: already auto, no hint', prompt: 'go go go without my input until it is finished', setupFn: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), autonomy: 'auto' }) }, hasNot: ['AUTONOMY'] }
+);
+
 // Golden workflows: done right they pass; with any one required step removed they must be blocked.
 // A step that can be removed without a block is a hole in the checks (fix the hook, never the test).
 const GOLDEN = [
@@ -920,7 +1033,7 @@ const GOLDEN = [
   { pack: 'gui', name: 'GUI change (gui pack)', prompt: 'make the dashboard page look cleaner',
     tools: [pb('gui'), bash('node tools/screenshot.mjs --url x', GUISHOT(0)), { name: 'Read', input: { file_path: SHOT } }],
     files: { 'site/index.html': '<h1>x</h1>', [SHOT]: 'png' }, mtimes: { 'site/index.html': -500 },
-    answer: ['Playbook: gui.md', '## Visual review\n- Round 1: header overlapped on phone, fixed.\n- Round 2: nothing found.\nVisual review: PASS after 2 rounds', FIN],
+    answer: ['Playbook: gui.md', '## Visual review\n- Round 1: header overlapped on phone, fixed.\n- Round 2: nothing found.\nVisual review: PASS after 2 rounds', 'Accessibility: keyboard, focus and contrast checked - PASS', FIN],
     optional: ['tools:1', 'files:site/index.html'] },
   { name: 'standing rule (core)', prompt: 'from now on always include a budget table in plans',
     tools: [pb('project'), bash('node tools/hooks/selfcheck.mjs'), bash('node tools/audit.mjs')],
@@ -996,6 +1109,9 @@ for (const s of STOP) {
   const named = t => (/Names: ([^\n]*)\.\s*$/.exec(r.reason || '')?.[1] || '').split(', ').includes(t);
   for (const t of s.expect.tags || []) if (!named(t)) why ||= `missing tag [${t}] in: ${r.reason || '(no block)'}`;
   for (const t of s.expect.not || []) if (named(t)) why ||= `unexpected tag [${t}]`;
+  // a scenario with nothing to judge would always pass. Lesson: a project scenario meant as a pass had only a name.
+  if (s.expect.block === undefined && !(s.expect.tags || []).length && !(s.expect.not || []).length && !s.expect.says && !s.after)
+    why ||= 'this scenario checks nothing: a pass scenario needs block: false (a block scenario needs block: true and its tags, or "not" to judge it on tags only)';
   if (s.expect.says && !s.expect.says.test(`${r.reason || ''}\n${r.details || ''}`)) why ||= `the message does not say ${s.expect.says}: ${r.reason || '(no block)'}`;
   if (!why && r.after !== true) why = r.after;
   report(!why, 'stop: ' + s.name, why);
@@ -1240,6 +1356,7 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
     c.protectedOriginals = ['sources/**']; fs.writeFileSync(cfgPath, JSON.stringify(c, null, 2));
     write(dir, { 'sources/a.jpg': 'same bytes', 'sources/b.txt': 'different', 'sources/sub/a-copy.jpg': 'same bytes' });
     fs.utimesSync(path.join(dir, 'sources/a.jpg'), new Date(2026, 0, 1), new Date(2026, 0, 1));
+    for (const p of ['sources/b.txt', 'sources/sub/a-copy.jpg']) fs.utimesSync(path.join(dir, p), new Date(2026, 0, 2), new Date(2026, 0, 2)); // not "being written"
     const look = spawnSync(process.execPath, ['tools/dedupe.mjs'], { cwd: dir, encoding: 'utf8' }).stdout;
     const keptBefore = fs.existsSync(path.join(dir, 'sources/sub/a-copy.jpg'));
     spawnSync(process.execPath, ['tools/dedupe.mjs', '--apply'], { cwd: dir, encoding: 'utf8' });
@@ -1247,6 +1364,80 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
     report(/1 exact duplicate/.test(look) && keptBefore && has('sources/a.jpg') && has('sources/b.txt') && !has('sources/sub/a-copy.jpg') && /removed exact duplicate sources\/sub\/a-copy\.jpg/.test(fs.readFileSync(path.join(dir, 'docs/CHANGELOG.md'), 'utf8')),
       'protect-originals: dedupe lists first, then removes only exact duplicates, keeps the oldest and logs it', look.slice(0, 300));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+{ // protect-originals: dedupe keeps the copy the project refers to, never deletes a referenced one, skips busy folders
+  const dir = copyProject();
+  try {
+    const cfgPath = path.join(dir, 'tools/hooks/config.json'), c = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+    c.protectedOriginals = ['sources/**']; fs.writeFileSync(cfgPath, JSON.stringify(c, null, 2));
+    write(dir, { 'sources/IMG_0001.jpg': 'pic', 'sources/pics/desk-photo.jpg': 'pic', 'sources/x/one.png': 'two', 'sources/x/two.png': 'two',
+      'docs/page.md': '![desk](../sources/pics/desk-photo.jpg)\n![a](one.png) ![b](two.png)\n', 'sources/busy/a.txt': 'z', 'sources/busy/b.txt': 'z' });
+    const old = new Date(2026, 0, 1);
+    for (const p of ['sources/IMG_0001.jpg', 'sources/pics/desk-photo.jpg', 'sources/x/one.png', 'sources/x/two.png']) fs.utimesSync(path.join(dir, p), old, old);
+    const out = spawnSync(process.execPath, ['tools/dedupe.mjs', '--apply'], { cwd: dir, encoding: 'utf8' }).stdout;
+    const has = p => fs.existsSync(path.join(dir, p));
+    const limited = spawnSync(process.execPath, ['tools/dedupe.mjs', '--path', 'sources/busy'], { cwd: dir, encoding: 'utf8' }).stdout;
+    report(has('sources/pics/desk-photo.jpg') && !has('sources/IMG_0001.jpg') && has('sources/x/one.png') && has('sources/x/two.png') && /both referenced: sources\/x\/one\.png and sources\/x\/two\.png/.test(out)
+      && has('sources/busy/a.txt') && has('sources/busy/b.txt') && /skipped/.test(limited),
+      'protect-originals: dedupe keeps the referenced copy, never deletes a referenced one, and skips a folder being written', out.slice(0, 400) + ' | ' + limited.slice(0, 200));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+{ // no-secrets: a key prefix only counts at the start of a word
+  const dir = copyProject();
+  try {
+    const key = ['sk', 'A'.repeat(24)].join('-');
+    const out = spawnSync(process.execPath, ['--input-type=module', '-e', `import { secretHit } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; console.log(JSON.stringify([secretHit('art/obelisk-encounter-glyphkeeper_shacknews.png'), secretHit('token=${key}'), secretHit('x ${key.replace('sk-', 'ghp_').replace(/-/g, '')}AAAAAAAAAA')]));`], { cwd: dir, encoding: 'utf8' }).stdout;
+    let r = []; try { r = JSON.parse(out); } catch { }
+    report(r[0] == null && !!r[1] && !!r[2], 'no-secrets: a word that contains a key prefix passes, a real-shaped key still fails', out);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+{ // the research ledger: one per topic, so helpers on the same topic share it
+  const dir = copyProject();
+  try {
+    const c = (...a) => spawnSync(process.execPath, ['skills/research/scripts/claims.mjs', 'new', ...a], { cwd: dir, encoding: 'utf8' }).stdout;
+    const a = c('which standing desk holds the most weight', '--slug', 'desk load'), b = c('max load of standing desks?', '--slug', 'desk load'), d = c('What are the best standing desks under 500');
+    const ledgers = fs.readdirSync(path.join(dir, '.cache/research'));
+    report(/created: .*desk-load\.md/.test(a) && /exists: .*desk-load\.md/.test(b) && /standing-desks-under-500\.md/.test(d) && ledgers.length === 2, 'research-ledger: --slug makes helpers on one topic share one ledger; the default slug is the key words', `${a} | ${b} | ${d} | ${ledgers}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+{ // event-hint after an edit: writing sign-in code names the mandatory skill at once, once per turn
+  const dir = copyProject();
+  try {
+    write(dir, { 'tools/hooks/state/turn.json': JSON.stringify({ at: new Date().toISOString(), prompt: 'make the form work' }) });
+    const edit = content => run(dir, 'posttool', { tool_name: 'Write', tool_input: { file_path: path.join(dir, 'src/auth.js'), content } }).out;
+    const first = edit('export const ok = (u, password) => bcrypt.compare(password, u.hash);'), again = edit('const hash = await bcrypt.hash(password, 12);'), plain = run(dir, 'posttool', { tool_name: 'Write', tool_input: { file_path: path.join(dir, 'src/sum.js'), content: 'export const sum = (a, b) => a + b;' } }).out;
+    report(/MUST FOLLOW: security-review/.test(first) && /security-code/.test(first) && !/MUST FOLLOW/.test(again) && !plain.trim(), 'event-hint: an edit that writes sign-in code names the security review at once, once per turn', `${first.slice(0, 200)} | ${again.slice(0, 100)} | ${plain.slice(0, 100)}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+{ // autonomy-hint and the fit checklist: "autonomy auto" decided add passes once config says auto
+  const dir = copyProject();
+  try {
+    fitFill(dir);
+    const fit = (...a) => spawnSync(process.execPath, ['tools/fit.mjs', ...a], { cwd: dir, encoding: 'utf8' }).stdout;
+    const before = fit('check');
+    applyEdits(dir, cfgEdit({ autonomy: 'auto' }));
+    const skipped = fit('check');
+    spawnSync(process.execPath, ['tools/fit.mjs', 'decide', 'autonomy auto', 'add', 'Worth it: the user asked for no questions, so the agent decides and records each choice / a wrong guess costs a redo'], { cwd: dir, encoding: 'utf8' });
+    const added = fit('check');
+    report(/FIT: PASS/.test(before) && /autonomy auto: decided skip, but it is in the project/.test(skipped) && /FIT: PASS/.test(added), 'autonomy-hint: with "autonomy": "auto" in config, the fit row passes as add', `${before.slice(-80)} | ${skipped.slice(0, 200)} | ${added.slice(-200)}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+{ // stop rounds: round 1 lists everything; a waiver and markers given once hold; later rounds add nothing new
+  const tagsOf = r => (/Names: ([^\n]*)\.\s*$/.exec(r.reason || '')?.[1] || '').split(', ').filter(Boolean);
+  const s = { prompt: 'debug the failing test in the parser please', tools: [sk('debug'), ...many(15)], files: { 'docs/STATUS.md': 'x', 'src/parser.js': 'export const parse = s => s;', 'docs/CHANGELOG.md': 'x' } };
+  const a1 = 'Skill: debug. Fixed it. N/A(debug-test-added): this fixture has no test framework yet. N/A(verification-report): a fixture with no app to run.' + FIN;
+  const r1 = runStop({ ...s, answer: a1 }), t1 = tagsOf(r1);
+  const a2 = 'Root cause: the parser read the header twice.';
+  const r2 = runStop({ ...s, drafts: [a1], answer: a2, active: true, blocks: 1, failed: t1 }), t2 = tagsOf(r2);
+  const r3 = runStop({ ...s, drafts: [a1, a2], answer: 'Skill lesson: none - the root cause was found, only not written down yet.', active: true, blocks: 2, failed: [...t1, ...t2] }), t3 = tagsOf(r3);
+  report(t1.includes('debug-root-cause') && t1.includes('skill-learn') && ![...t1, ...t2, ...t3].some(t => ['debug-test-added', 'verification-report'].includes(t)) && t2.every(t => t1.includes(t)) && !t2.includes('debug-root-cause') && !t2.includes('playbook-named') && !t2.includes('finished-summary') && !r3.blocked,
+    'stop rounds: round 1 lists every step, a waiver and markers from an earlier round hold, and later rounds bring nothing new', `round 1: ${t1} | round 2: ${t2} | round 3: ${t3}`);
 }
 
 { // plan-open: a plan with unticked steps is announced at the next session, for any agent, until it is done or dropped

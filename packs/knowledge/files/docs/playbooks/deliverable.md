@@ -45,6 +45,7 @@ nobody asked for. If the user asks for a specific format (Word, PDF, slides, spr
 - [ ] Uncertain facts are labeled in the document, and the answer gives the path in a Finished section (hook: finished-summary).
 - [ ] Facts in the document carry numbered citations with a matching `Sources:` list (judgment: no check reads the
       file's citations; research-cited only reads the chat answer).
+- [ ] Followed whenever a file is written to outputs/, even unasked (hook: deliverable-trigger).
 
 ## Pitfalls
 - Padding: process narration, restating the question, generic advice. Keep only what the reader needs.

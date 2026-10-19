@@ -9,6 +9,9 @@
 //   --themes light,dark        prefers-color-scheme (default: both)
 //   --full                     whole page height, not just the viewport
 //   --steps flow.json          interactions: [{"click":"#go"},{"type":"#q","text":"hi"},{"wait":500},{"eval":"js"},{"shot":"after-search"}]
+//   --flows [docs/checks/flows] every saved flow in the folder, one run each (named after the file). A flow file is a
+//                              steps list, or {"page": "<url or file>", "steps": [...]}; without "page" it runs on
+//                              --url / --file. --pages a,b runs only the flows named a.json, b.json (the pages touched)
 //   --name home                file name prefix (default: page)
 //   --settle 700               ms to wait before each shot (default 700)
 //   --wait 20000               ms to wait for a launched app (default 20000; 3000 with --window)
@@ -38,7 +41,7 @@ const warn = m => { warns.push(m); console.log('WARN ' + m); };
 const round = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
 const outDir = path.join(ROOT, '.cache', 'gui-review', round);
 fs.mkdirSync(outDir, { recursive: true });
-const name = (opt('--name', 'page')).replace(/[^\w.-]+/g, '-');
+const PAGE = (opt('--name', 'page')).replace(/[^\w.-]+/g, '-'), name = PAGE;
 
 function freePort() {
   return new Promise((res, rej) => { const s = net.createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => res(p)); }); s.on('error', rej); });
@@ -93,7 +96,7 @@ class CDP {
   }
 }
 
-async function webShots(target) {
+async function webShots(target, steps = [], name = PAGE) {
   const exe = findChromium();
   if (!exe) {
     console.log('ERROR no bundled Chromium found. Install it once with: npx playwright install chromium-headless-shell');
@@ -121,7 +124,6 @@ async function webShots(target) {
     await Promise.all(['Page.enable', 'Runtime.enable', 'Log.enable'].map(x => c.send(x)));
     const sizes = opt('--sizes', '1400x900,390x844').split(',').map(s => s.trim().split('x').map(Number));
     const themes = opt('--themes', 'light,dark').split(',').map(s => s.trim());
-    const steps = opt('--steps') ? JSON.parse(fs.readFileSync(path.resolve(opt('--steps')), 'utf8')) : [];
     const settle = Number(opt('--settle', '700'));
 
     const capture = async (label, w, h, theme) => {
@@ -241,9 +243,24 @@ try {
     windowShot(opt('--window'));
   } else {
     const target = opt('--file') ? pathToFileURL(path.resolve(opt('--file'))).href : sub(opt('--url'));
-    if (!target) { console.log(fs.readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').slice(1, 22).join('\n')); process.exit(1); }
+    if (!target && !has('--flows')) { console.log(fs.readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').slice(1, 25).join('\n')); process.exit(1); }
     if (launch && /^https?:/.test(target) && !(await waitForUrl(target, Number(opt('--wait', '20000'))))) warn(`${target} did not answer within the wait time`);
-    await webShots(target);
+    // Saved flows (docs/checks/flows/<page>.json): the review loop reruns every flow of the pages it touched, so a fix to
+    // one screen can't quietly break a click path saved earlier. Lesson: a flow checked once was never run again.
+    if (has('--flows')) {
+      const dir = path.resolve(ROOT, opt('--flows', 'docs/checks/flows'));
+      const only = opt('--pages') ? opt('--pages').split(',').map(x => x.trim().replace(/\.json$/, '')) : null;
+      const flows = (fs.existsSync(dir) ? fs.readdirSync(dir) : []).filter(f => f.endsWith('.json') && (!only || only.includes(f.slice(0, -5))));
+      if (!flows.length) warn(`no saved flows in ${path.relative(ROOT, dir) || dir}${only ? ` for ${only.join(', ')}` : ''}`);
+      for (const f of flows) {
+        let flow; try { flow = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')); } catch (e) { warn(`flow ${f} is not valid JSON: ${e.message}`); continue; }
+        const steps = Array.isArray(flow) ? flow : flow.steps || [];
+        const page = !Array.isArray(flow) && flow.page ? (/^https?:/.test(sub(flow.page)) ? sub(flow.page) : pathToFileURL(path.resolve(ROOT, flow.page)).href) : target;
+        if (!page) { warn(`flow ${f} has no "page" and no --url / --file was given`); continue; }
+        console.log(`FLOW: ${f}`);
+        await webShots(page, steps, f.slice(0, -5).replace(/[^\w.-]+/g, '-'));
+      }
+    } else await webShots(target, opt('--steps') ? JSON.parse(fs.readFileSync(path.resolve(opt('--steps')), 'utf8')) : []);
   }
 } catch (e) {
   warn(`screenshot run failed: ${e.message}`);

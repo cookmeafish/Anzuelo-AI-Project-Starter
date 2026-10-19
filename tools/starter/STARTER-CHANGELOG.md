@@ -4,6 +4,42 @@ Changes to the starter itself. A project picks up engine changes with `node tool
 starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook changes listed here are adopted by hand
 (project-rule, runbook-create), because an upgrade never touches a project's own content.
 
+- 2026-10-18: Runbooks and skills come up when the work needs them, not only when the request names them.
+  - **Event triggers.** What the agent did now makes a runbook or skill mandatory, even if nobody asked. Code written
+    for sign-in, passwords, tokens, secrets, permissions, sessions, CORS, uploads, endpoints, shell or eval, query
+    building, crypto, payments or personal data needs the security review (security-code). So do `.env`, CI, Docker
+    and hosting changes (security-config), and publish or deploy commands, which now wait for the review before they
+    run (security-publish). A test or build that failed and was then fixed needs its root cause (debug-trigger), and
+    two or more sub-agents need their results checked together (parallel-trigger). Library skills and packs got their
+    own: accessibility for screen changes, MCP server code, dependencies and schemas (architecture), production down
+    (incident-response), numbers from data files, privacy policies and contracts, migrations (data-change), version
+    tags (release), installers (install-update), new originals (ingest), outputs (deliverable) and facts written into
+    the knowledge base. The full matrix, with what stays judgment and why, is in `docs/checks/rule-enforcement.md`.
+  - **Told early, not only at the end.** The prompt hook prints `MUST FOLLOW: <skill>` when the request shows the
+    event coming ("add a login page"), and the edit hook prints it the moment an edit writes what a trigger watches,
+    once per turn. The security waivers need a real reason of a few words. New check conditions: `changedContentMatches`
+    (what this turn added to the changed files, from the agent's own edits, capped), `anyOf`, `filesIgnore`,
+    `ranFailing`, `toolCount` and `guiChanged`; a check names what it makes mandatory with `forces` and its prompt hint
+    with `hint`.
+  - **Stop rounds no longer alternate.** The first round lists every step, including the lesson for a skill whose own
+    check failed. A waiver, a `Playbook:` or `Skill:` marker, or a Finished section written in an earlier message of
+    the turn still counts (the Finished section only while no file changed after it).
+  - **Upgrades keep checks you edited.** The core checks ship as `tools/hooks/engine-checks.json`. An upgrade refreshes
+    an entry only when it still equals the copy shipped last time; an entry edited in the project stays, is marked
+    `"custom": true` and goes into the upgrade review.
+  - **Fixes from real projects.** A sub-agent prompt may name a brief file that tells it to read AGENTS.md. "Without my
+    input" or "don't ask me" prompts a hint to set `"autonomy": "auto"` and record it, after which the fit row passes
+    as add. The writing check skips scripts, styles and template literals in pages, and treats image, link-only and
+    table lines as their own blocks. `tools/hooks/project-scenarios.mjs` may use fixture names. A new runbook or skill
+    that only this project could have says `reuse: none - project-specific: <why>` instead of a skill search, and new
+    hand-written skills need the search too. The gui pack saves click-through flows as `docs/checks/flows/<page>.json`,
+    `screenshot.mjs --flows --pages <page>` reruns them, and gui-flows asks for it when that page changes. Key prefixes
+    such as `sk-` count as secrets only at the start of a word. The user-words check skips engine files and relayed
+    agent or session messages. `dedupe.mjs` keeps the copy the project refers to (else the better name, then the
+    oldest), never deletes a referenced copy, skips folders written in the last 10 minutes, and takes `--path`.
+    `claims.mjs new --slug <topic>` lets helpers on one topic share a ledger. A file created during this turn in an
+    originals folder may be deleted again. The self-tests strip a real project's own content from their sandbox, and a
+    scenario that judges nothing fails with a hint.
 - 2026-10-18: Upgrades and additions can't make a project worse unseen.
   - **A calm display when the checks ask for more, used where the agent's host documents it.** Claude Code (it sets
     `CLAUDE_PROJECT_DIR` for its hooks) gets the steps as feedback for the agent instead of an error, plus one short

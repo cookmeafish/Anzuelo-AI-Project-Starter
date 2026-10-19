@@ -62,8 +62,9 @@ the page as `[1]`, and list it under `Sources:` (answer format). Anything the us
 **C**.
 
 ## C. Research and fact checks
-Work in a ledger: `node skills/research/scripts/claims.mjs new "<question>"` creates `.cache/research/<slug>.md`
-(format in [references.md](references.md)).
+Work in a ledger: `node skills/research/scripts/claims.mjs new "<question>" --slug <topic>` creates
+`.cache/research/<topic>.md` (format in [references.md](references.md)), or reuses the ledger with that slug, so
+helpers on the same topic share one. Give every helper the same `--slug`.
 1. **Frame it:** the question in one line, its scope (place, version, dates, audience), and the claims a full answer
    needs. Check what the project already has (**A**). A project file is a source too.
 2. **Search wide:** at least three searches at once, worded differently. One for the primary source ("official",
@@ -123,6 +124,7 @@ for anything that changes), the sources in `docs/knowledge/SOURCES.md`. A delive
       `Sources limit:` line, and the answer ends with the Verified line (hooks: research-ledger, research-verified).
 - [ ] **D:** every number and cited file is traced (hook: answer-traced).
 - [ ] **E**, in a knowledge project: the findings are recorded (hook: research-recorded).
+- [ ] Facts written into docs/knowledge come through this skill, knowledge-capture or ingest, and their numbers trace to a source read this turn (hook: knowledge-source-trigger, answer-traced).
 
 ## Pitfalls
 - Answering from general knowledge while implying it came from the project or a source. Say which is which.

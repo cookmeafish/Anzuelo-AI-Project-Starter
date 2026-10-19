@@ -164,6 +164,213 @@
         ]
       },
       "message": "Security-review skill: log the review in the Reviews table of docs/security.md (date, scope, result, open FAILs and where they went)."
+    },
+    {
+      "tag": "security-code",
+      "rule": "15",
+      "forces": "security-review",
+      "waiver": "specific",
+      "hint": "\\b(log ?in|sign ?in|sign ?up|log ?out|passwords?|auth|authentication|authori[sz]ation|permissions?|user roles?|admin panel|session cookies?|cookies?|access tokens?|auth tokens?|api keys?|secrets?|credentials|cors|uploads?|endpoints?|webhooks?|api routes?|sql|query builder|shell commands?|eval|deserializ\\w*|encrypt\\w*|payments?|stripe|credit cards?|personal data|pii|gdpr)\\b|\\.env\\b",
+      "when": {
+        "changedContentMatches": {
+          "files": [
+            "**/*.js",
+            "**/*.mjs",
+            "**/*.cjs",
+            "**/*.ts",
+            "**/*.tsx",
+            "**/*.jsx",
+            "**/*.py",
+            "**/*.rb",
+            "**/*.go",
+            "**/*.rs",
+            "**/*.java",
+            "**/*.kt",
+            "**/*.cs",
+            "**/*.php",
+            "**/*.swift",
+            "**/*.vue",
+            "**/*.svelte",
+            "**/*.html",
+            "**/*.htm",
+            "**/*.sql",
+            "**/*.sh",
+            "**/*.ps1"
+          ],
+          "ignore": [
+            "tools/hooks/**",
+            "tools/audit.mjs",
+            "tools/packs.mjs",
+            "tools/skills.mjs",
+            "tools/starter.mjs",
+            "tools/new-project.mjs",
+            "tools/recall.mjs",
+            "tools/survey.mjs",
+            "tools/dedupe.mjs",
+            "tools/fit.mjs",
+            "tools/writing-check.mjs",
+            "tools/integrity-check.mjs",
+            "tools/screenshot.mjs",
+            "tools/trial.mjs",
+            "skills/**",
+            "library/**",
+            "packs/**",
+            ".claude/**",
+            ".codex/**",
+            ".githooks/**",
+            "node_modules/**",
+            "dist/**",
+            "build/**",
+            "**/*.min.js",
+            "**/*.test.*",
+            "**/*.spec.*",
+            "**/test/**",
+            "**/tests/**",
+            "**/__tests__/**",
+            "**/*_test.*",
+            "**/test_*.*"
+          ],
+          "pattern": "\\b(passw(or)?d|passwd|bcrypt|argon2|scrypt|pbkdf2|jsonwebtoken|jwt\\.(sign|verify|decode)|oauth2?|openid|saml|csrf|xsrf|set-cookie|document\\.cookie|cookie-?parser|express-session|login_required|requireAuth|isAuthenticated|authenticate|authorize|hasPermission|has_permission|checkPermission|isAdmin|is_admin|rbac|api[_-]?key|secret[_-]?key|client[_-]?secret|access[_-]?token|refresh[_-]?token|private[_-]?key|Access-Control-Allow-Origin|cors|multer|multipart\\/form-data|formidable|busboy|UploadFile|req\\.files?|request\\.files|child_process|execSync|execFile|spawnSync|subprocess|os\\.system|os\\.popen|eval|vm\\.runIn\\w+|pickle\\.loads?|yaml\\.load|unserialize|ObjectInputStream|Marshal\\.load|BinaryFormatter|createCipheriv|createDecipheriv|crypto\\.subtle|hashlib|paypal|braintree|payment_?intent|card_?number|cvv|iban|ssn|social_security|date_?of_?birth|dangerouslySetInnerHTML|v-html|mark_safe)\\b|\\bshell\\s*=\\s*True\\b|\\bnew Function\\s*\\(|\\b(exec|spawn)\\s*\\(|\\.innerHTML\\s*=|type\\s*=\\s*[\"']file[\"']|stripe\\.(charges|paymentIntents|checkout|customers)|@stripe\\/|\\b(app|router|server|api)\\.(get|post|put|patch|delete|all|use|listen)\\s*\\(|@(app|router|bp|blueprint)\\.(route|get|post|put|delete)\\b|@(Get|Post|Put|Delete|Request)Mapping\\b|\\bcreateServer\\s*\\(|\\bFastAPI\\s*\\(|\\bAPIRouter\\s*\\(|\\b(execute|query|raw)\\s*\\(\\s*(f[\"']|[\"'\\x60][^\"'\\x60\\n]*(\\$\\{|[\"'\\x60]\\s*\\+))"
+        }
+      },
+      "require": {
+        "skillUsed": "security-review"
+      },
+      "message": "This turn wrote security-sensitive code (sign-in, passwords, tokens, secrets, permissions, sessions, cookies, CORS, uploads, endpoints, shell or eval, query building, deserializing, crypto, payments or personal data). Follow the security-review skill for what changed (its report table and the log line in docs/security.md), even though nobody asked. If the match is not security work, waive it with N/A(security-code): <the specific reason, e.g. \"the word is a CSS class name\">."
+    },
+    {
+      "tag": "security-config",
+      "rule": "15",
+      "forces": "security-review",
+      "waiver": "specific",
+      "hint": "\\b(\\.env|environment variables?|docker\\w*|deploy\\w*|ci pipeline|github actions?|workflow file|nginx|hosting|firewall|terraform|kubernetes|k8s|firebase rules)\\b",
+      "when": {
+        "filesChanged": [
+          ".env",
+          ".env.*",
+          "**/.env",
+          "**/.env.*",
+          ".github/workflows/**",
+          ".gitlab-ci.yml",
+          "**/Dockerfile",
+          "**/docker-compose*.yml",
+          "**/docker-compose*.yaml",
+          "**/nginx*.conf",
+          "vercel.json",
+          "netlify.toml",
+          "fly.toml",
+          "**/*.tf",
+          "k8s/**",
+          "**/helm/**",
+          "firebase.json",
+          "**/firestore.rules",
+          "**/storage.rules",
+          "app.yaml",
+          "Procfile",
+          "**/.htaccess"
+        ],
+        "filesIgnore": [
+          "**/.env.example",
+          "**/.env.sample",
+          "**/.env.template"
+        ]
+      },
+      "require": {
+        "skillUsed": "security-review"
+      },
+      "message": "This turn changed secrets, the build pipeline or deployment settings (.env, CI workflows, Docker, hosting, infrastructure). Follow the security-review skill for those areas (Secrets, Deployment, Build pipeline, Access to infrastructure), or waive it with N/A(security-config): <the specific reason>."
+    },
+    {
+      "tag": "security-publish",
+      "rule": "15",
+      "forces": "security-review",
+      "waiver": "specific",
+      "hint": "\\b(publish|release it|go live|make it public|deploy to prod\\w*|push to production|npm publish|open.?source it)\\b",
+      "when": {
+        "toolRan": "\\b(npm|pnpm|yarn)\\s+publish\\b|\\bgh\\s+release\\s+create\\b|\\bgh\\s+repo\\s+(create\\b[^\\n;&|]*--public|edit\\b[^\\n;&|]*--visibility[= ]public)|\\b(vercel|netlify)\\b[^\\n;&|]*--prod\\b|\\bfirebase\\s+deploy\\b|\\bdocker\\s+push\\b|\\btwine\\s+upload\\b|\\bcargo\\s+publish\\b|\\bvsce\\s+publish\\b|\\bflyctl?\\s+deploy\\b|\\bwrangler\\s+(deploy|publish)\\b"
+      },
+      "require": {
+        "skillUsed": "security-review"
+      },
+      "message": "Something was published or deployed this turn. Hard rule 15: the security-review skill runs before anything is shared, published or released. Follow it now, log it in docs/security.md, and tell the user what it found."
+    },
+    {
+      "tag": "debug-trigger",
+      "rule": "4",
+      "forces": "debug",
+      "when": {
+        "ranFailing": "\\b(npm|pnpm|yarn)\\s+(run\\s+)?(test|build)\\b|\\bnode\\s+--test\\b|\\bpytest\\b|\\bpython3?\\s+-m\\s+(pytest|unittest)\\b|\\bjest\\b|\\bvitest\\b|\\bmocha\\b|\\bcargo\\s+(test|build)\\b|\\bgo\\s+(test|build)\\b|\\bdotnet\\s+(test|build)\\b|\\bmvn\\s+\\w*\\s*test\\b|\\bgradlew?\\s+test\\b|\\btsc\\b|selfcheck\\.mjs|\\bmake\\s+test\\b",
+        "filesChanged": [
+          "src/**",
+          "app/**",
+          "lib/**",
+          "server/**",
+          "packages/**",
+          "**/*.js",
+          "**/*.mjs",
+          "**/*.cjs",
+          "**/*.ts",
+          "**/*.tsx",
+          "**/*.jsx",
+          "**/*.py",
+          "**/*.rb",
+          "**/*.go",
+          "**/*.rs",
+          "**/*.java",
+          "**/*.kt",
+          "**/*.cs",
+          "**/*.php",
+          "**/*.swift",
+          "**/*.vue",
+          "**/*.svelte",
+          "**/*.html",
+          "**/*.htm",
+          "**/*.sql",
+          "**/*.sh",
+          "**/*.ps1"
+        ],
+        "filesIgnore": [
+          "docs/**",
+          "**/*.md"
+        ]
+      },
+      "require": {
+        "anyOf": [
+          {
+            "skillUsed": "debug"
+          },
+          {
+            "playbookUsed": "bugfix"
+          },
+          {
+            "answerMatches": "root cause\\s*:"
+          }
+        ]
+      },
+      "message": "A test or build failed this turn and code was changed after it: that is a fix, so the debug skill applies. Say what was wrong and why (\"Root cause: <what and why>\", with the evidence), found before the fix. A test written first to fail on purpose: \"Root cause: the feature did not exist yet\"."
+    },
+    {
+      "tag": "parallel-trigger",
+      "rule": "4",
+      "forces": "parallel-agents",
+      "waitsForAgents": true,
+      "when": {
+        "toolCount": {
+          "name": "^(Agent|Task)$",
+          "min": 2
+        }
+      },
+      "require": {
+        "anyOf": [
+          {
+            "skillUsed": "parallel-agents"
+          },
+          {
+            "answerMatches": "\\b(combined|merged|together|full (checks|suite|test))\\b"
+          }
+        ]
+      },
+      "message": "Several sub-agents worked this turn: their results are only done once checked together (parallel-agents skill). Run the full checks on the combined result after the last change and say what they showed, part by part."
     }
   ],
   "disabled": []

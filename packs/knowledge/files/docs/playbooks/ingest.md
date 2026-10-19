@@ -28,6 +28,7 @@ menu: K3
 - [ ] `inbox/` holds only README.md; originals are in `sources/`, unchanged (hook: protect-originals keeps them
       unchanged; judgment: the INBOX session notice lists any file still in `inbox/`).
 - [ ] Facts are in docs/knowledge with labels, sources and dates; SOURCES.md is updated (hook: knowledge-labels).
+- [ ] Followed whenever new originals land in sources/, even unasked (hook: ingest-trigger).
 
 ## Pitfalls
 - Summarizing a file without recording its facts, so the next session has to re-read it.

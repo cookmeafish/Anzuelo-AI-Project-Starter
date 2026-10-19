@@ -11,7 +11,7 @@ import {
   ROOT, read, abs, exists, frontmatter, playbooks, skillProblems, playbookProblems, knowledgeProblems, config,
   loadRequirements, usage, hardenDue, menu, runbookHasCheck, generatedSkill, directoryBlock, staleKnowledge,
   setupProblems, upgradeProblems, bench, gitignoreProblems, writingProblems, aiAttributedCommits, BASE_REQUIREMENTS, routableSkills, skillHasCheck, curateDue,
-  FIT_FILE, fitProblems, fitRows, fitDecision, fitWhenOf, doneWhenItems, DONE_LABEL, findLibrary
+  FIT_FILE, fitProblems, fitRows, fitDecision, fitWhenOf, doneWhenItems, DONE_LABEL, findLibrary, secretHit
 } from './hooks/hooks.mjs';
 
 const cfg = config();
@@ -324,7 +324,8 @@ sweep('publish safety (no personal or machine details)', () => {
     for (const t of terms) if (text.toLowerCase().includes(t.toLowerCase())) fail.push(`${f}: contains a private term from .private-terms`);
     // Lesson: a fake key in a test fixture made every project's first full commit fail the secret check. Build such
     // strings at runtime instead of writing them out.
-    const key = cfg.secretPatterns.find(s => new RegExp(s).test(text));
+    // A key prefix counts only at the start of a word (Lesson: "...isk-encounter-..." in a file name read as a key).
+    const key = secretHit(`${f}\n${text}`, cfg);
     if (key) fail.push(`${f}: looks like a secret (pattern ${key}). Real ones go in .env; test fixtures build the string at runtime`);
   }
   return { fail, note: `${all.length - ignored.size} publishable files, ${terms.length} private terms` };

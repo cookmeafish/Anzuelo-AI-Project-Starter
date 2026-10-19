@@ -89,6 +89,7 @@ when it is.
   its significant choices are recorded as in part A.
 - [ ] C: `docs/tech-debt.md` has a ranked table where every item names its evidence, and the top items have a plan (judgment: whether the evidence and ranking hold needs a reviewer).
 - [ ] The answer names the file written (`docs/DECISIONS.md`, the design file or `docs/tech-debt.md`) (hook: architecture-recorded).
+- [ ] Followed unasked when a dependency, a service or a data model is added, and the decision recorded (hook: architecture-trigger).
 
 ## Pitfalls
 - Designing before the numbers are known, then building for a scale that never comes, or one that is far too small.

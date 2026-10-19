@@ -30,3 +30,4 @@ menu: A8
 
 ## Done when
 - [ ] Decision logic tested; the test matrix is in the release notes, with each case marked tested, or to be run by the user (hook: install-matrix).
+- [ ] Followed whenever installer, launcher or updater files change, even unasked (hook: install-trigger).

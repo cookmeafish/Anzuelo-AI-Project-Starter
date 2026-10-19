@@ -126,6 +126,7 @@ page, no external scripts. A PNG or a plotting library is fine when the user alr
 - [ ] Every number in the answer came from code run this turn, with a `How it was computed:` line (hook: data-computed).
 - [ ] Charts have honest axes, titles, units, source and accessible colors (**E**) (judgment: honest axes and colors need a human eye).
 - [ ] The analysis was re-run from the original before sharing (**F**) (judgment: no check sees the re-run yet).
+- [ ] Numbers computed from data files say how they were computed, even unasked (hook: data-computed-trigger).
 
 ## Pitfalls
 - Summarising a column the profiler typed as text: some values are not numbers, and they were silently dropped.

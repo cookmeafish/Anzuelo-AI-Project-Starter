@@ -20,6 +20,9 @@ Every kind of task the project handles has three parts:
   - `checks`: only when the checks are not in requirements.json, as `core: <tags>` or `none - <reason>`
   - `hardened`: date, or `harden: never - <reason>`
   - `skill`: only to point at a hand-written skill instead of the generated one
+  - `reuse`: only for a procedure no other project could have, as `none - project-specific: <why>` (its own data
+    layout, people or tools). It replaces the search for an existing skill (REQ: skill-reuse); anything general still
+    gets the search (skill-finder skill).
 - **Use when / Not when**, naming which neighbouring runbook takes the other cases.
 - **Inputs:** what to gather or ask first. Ask only for what is really needed.
 - **## Steps:** numbered, in order, each one checkable. Name the exact files, tools and commands. Branches go inline as
@@ -36,7 +39,7 @@ library skill) is a procedure in its own right and follows the same rules:
 - `triggers:` in its frontmatter, so the prompt hook can route to it (`SKILL:` hint, REQ: skill-read);
 - a check that proves its "Done when": a requirements.json entry with `"when": {"skillUsed": "<name>"}`
   (REQ: skill-complete);
-- "Done when" and "Pitfalls" sections, and a test for its check in `tools/hooks/selfcheck.mjs`.
+- "Done when" and "Pitfalls" sections, and a test for its check in `tools/hooks/project-scenarios.mjs` (upgrades keep it; in the starter itself: `tools/hooks/selfcheck.mjs`).
 
 ## Extend or create?
 Extend when the new task is a variant of an existing one (same goal, different inputs). Add a branch and the new
@@ -49,8 +52,22 @@ trigger phrases. Create when the goal, steps or "Done when" differ. Never leave 
   with `selfRun` so agents without tool history can still be checked), the hook re-running a validator on each
   changed file (`runEach`), or a required answer section (`answerMatches`).
 - `message` tells the agent exactly what to do.
-- Every new tag gets a test scenario in `tools/hooks/selfcheck.mjs` (skipped → blocked, followed → passes) and a
+- Every new tag gets a test scenario in `tools/hooks/project-scenarios.mjs` (upgrades keep it; in the starter itself: `tools/hooks/selfcheck.mjs`) (skipped → blocked, followed → passes) and a
   row in `docs/checks/rule-enforcement.md`.
+
+## Event triggers: when what happened makes a runbook or skill mandatory
+Some procedures are needed because of what the work did, not what the request said: sign-in code needs the security
+review, a fixed test failure needs its root cause, a migration needs a backup plan. Such a check:
+- `when` describes the event: `filesChanged` (with `filesIgnore`), `changedContentMatches` (`{files, ignore, pattern}`:
+  what this turn added to those files), `toolRan`, `ranFailing` (a matching command failed), `toolCount`, `guiChanged`,
+  `promptMatches`, or several of them in `anyOf`.
+- `require` is the runbook or skill being followed (`playbookUsed`, `skillUsed`), or its one proof line; `anyOf` lists
+  the alternatives.
+- `forces: "<runbook or skill>"` names what it makes mandatory, and `hint: "<prompt regex>"` lets the prompt hook say
+  `MUST FOLLOW` as soon as the request shows the event coming. Safeguards add `"waiver": "specific"`: a waiver then
+  needs a real reason.
+- Keep it quiet (hard rule 18): match code constructs, not common words, and ignore engine files and tests.
+- Every event trigger gets a row in the matrix in `docs/checks/rule-enforcement.md` ("Event triggers").
 
 ## Hardening (skill-harden, due after 3 uses)
 - Steps that are the same every time become a script in `skills/<name>/scripts/` (Node, no dependencies, prints

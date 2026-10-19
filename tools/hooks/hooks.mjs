@@ -78,7 +78,8 @@ const DEFAULTS = {
   stopStyle: 'auto',
   promoteAfterUses: 3,        // a runbook followed this many times becomes a skill
   pruneAfterDays: 60,
-  // 'ask': setup waits for the user's answers, and the upgrade review is decided with the user. 'auto': the agent assumes
+  // 'ask': setup waits for the user's answers; the agent decides the upgrade review itself, asking only about money,
+  // privacy or outward actions (the user is disturbed as little as possible). 'auto': the agent also assumes
   // the answers (recorded as assumed), decides the review itself and keeps going. Outward actions and installing
   // third-party code still need an OK in both modes (rules 6 and 15).
   autonomy: 'ask',
@@ -104,7 +105,7 @@ const DEFAULTS = {
   guiIgnore: ['.cache/**', 'packs/**', 'library/**', '.starter/**', 'skills/**', 'node_modules/**', 'dist/**', 'build/**', 'docs/**', 'sources/**', 'inbox/**', '**/*.md', '**/__pycache__/**', 'tools/hooks/**'],
   // Files where a name from docs/names.json may be typed out: history, licenses and credits keep the names of their day,
   // toolchain manifests can't read another file, and the hook tests use made-up names as fixtures.
-  namesIgnore: ['**/CHANGELOG*.md', '**/STARTER-CHANGELOG.md', '**/LICENSE*', '**/SOURCE*', '**/*.lock', '**/package-lock.json', '**/package.json', '**/pyproject.toml', '**/Cargo.toml', 'tools/hooks/selfcheck.mjs', '.cache/**', 'tools/hooks/state/**', '.claude/skills/**'],
+  namesIgnore: ['**/CHANGELOG*.md', '**/STARTER-CHANGELOG.md', '**/LICENSE*', '**/SOURCE*', '**/*.lock', '**/package-lock.json', '**/package.json', '**/pyproject.toml', '**/Cargo.toml', 'tools/hooks/selfcheck.mjs', 'tools/hooks/project-scenarios.mjs', '.cache/**', 'tools/hooks/state/**', '.claude/skills/**'],
   guiShotDir: '.cache/gui-review',
   guiShotCommand: 'screenshot\\.mjs',
   guiMaxRounds: 10,
@@ -137,9 +138,10 @@ const DEFAULTS = {
   // Git safety: branches nobody pushes to without naming them; history-rewriting needs a fresh backup bundle first.
   protectedBranches: ['main', 'master'],
   backupDir: '.cache/git-backups',
-  // Secrets that must never be committed (key prefixes and private key blocks).
-  secretPatterns: ['sk-[A-Za-z0-9_-]{20,}', 'sk-ant-[A-Za-z0-9_-]{20,}', 'AIza[0-9A-Za-z_-]{30,}', 'xai-[A-Za-z0-9]{20,}', 'gh[pousr]_[A-Za-z0-9]{30,}',
-    'AKIA[0-9A-Z]{16}', '-----BEGIN [A-Z ]*PRIVATE KEY-----', 'xox[baprs]-[A-Za-z0-9-]{10,}'],
+  // Secrets that must never be committed (key prefixes and private key blocks). Each prefix starts at a word boundary.
+  // Lesson: a file name with "...isk-encounter-..." in it was flagged as a key, because "sk-" matched inside a word.
+  secretPatterns: ['(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{20,}', '(?<![A-Za-z0-9])sk-ant-[A-Za-z0-9_-]{20,}', '(?<![A-Za-z0-9])AIza[0-9A-Za-z_-]{30,}', '(?<![A-Za-z0-9])xai-[A-Za-z0-9]{20,}',
+    '(?<![A-Za-z0-9])gh[pousr]_[A-Za-z0-9]{30,}', '(?<![A-Za-z0-9])AKIA[0-9A-Z]{16}', '-----BEGIN [A-Z ]*PRIVATE KEY-----', '(?<![A-Za-z0-9])xox[baprs]-[A-Za-z0-9-]{10,}'],
   // Project-defined guards (filled by packs and setup): commands to deny, code patterns to flag, gates before commit.
   forbiddenCommands: [],   // [{ "pattern": "regex", "reason": "why" }]
   codeRules: [],           // [{ "files": ["src/**/*.js"], "pattern": "regex", "message": "what to do instead" }]
@@ -182,6 +184,13 @@ export function config() {
   return out;
 }
 const re = (s, f = 'i') => new RegExp(s, f);
+// The secret patterns, compiled. A pattern that starts with a letter or digit and has no boundary of its own gets one, so
+// an older project's own patterns (config.json extends the list) don't match inside words either. REQ: no-secrets
+export const secretRes = (cfg = config()) => [...new Set(cfg.secretPatterns)].map(s => {
+  const src = /^[A-Za-z0-9]/.test(s) ? `(?<![A-Za-z0-9])${s}` : s;
+  try { return { s, rx: new RegExp(src) }; } catch { return null; }
+}).filter(Boolean);
+export const secretHit = (text, cfg = config()) => secretRes(cfg).find(p => p.rx.test(text))?.s;
 
 // ---------- project content ----------
 export function playbooks() {
@@ -273,13 +282,19 @@ const GENERIC = new Set(['fix', 'add', 'added', 'save', 'make', 'get', 'use', 'c
 const OPINION = /\b(do|did|would|will) you (think|reckon|believe|feel|agree|prefer|suggest|recommend)\b|\bwhat do you (think|reckon|make of|suggest|recommend)\b|\bin your (opinion|view)\b|\byour (honest )?(opinion|view|take|thoughts)\b|\bhow do you feel\b|\bbased on what (we|you|i) (have|know|discussed|did|said)\b/i;
 // Text the user pasted, and text that is the hooks' own output, are not the user's words: they never route or count as
 // a request. Lesson: a pasted audit line ("... 26 sweeps") was taken as a request for 26 sweeps.
-const HOOK_MARK = /^\s*(-\s+)?(ROUTE|SKILL|NO RUNBOOK|RULE REQUEST|RECALL|MENU CODE|MENU FLAG|SCOPE|SETUP IN PROGRESS|BOOTSTRAP NEEDED|LAST WORK TURN|INBOX|STALE KNOWLEDGE|PRAISE|THE USER SOUNDS|SUSPENDED|FRICTION ON|UNKNOWN MENU|SKILL HARDENING|SKILL CLEANUP|UPGRADE REVIEW|OPEN PLANS)\b/;
+const HOOK_MARK = /^\s*(-\s+)?(ROUTE|SKILL|NO RUNBOOK|RULE REQUEST|RECALL|MENU CODE|MENU FLAG|SCOPE|SETUP IN PROGRESS|BOOTSTRAP NEEDED|LAST WORK TURN|INBOX|STALE KNOWLEDGE|PRAISE|THE USER SOUNDS|SUSPENDED|FRICTION ON|UNKNOWN MENU|SKILL HARDENING|SKILL CLEANUP|UPGRADE REVIEW|OPEN PLANS|MUST FOLLOW|AUTONOMY)\b/;
 const HOOK_LINE = /^\s*(\[rules\]|\[project hooks|audit:\s*(PASS|FAIL)|selfcheck:|ablation:|TRIAL:\s*(PASS|FAIL)|CLAIMS:\s*(PASS|FAIL)|(PASS|FAIL|WARN)\s+\d+\.\s)/i;
 const HOOK_BLOCK = /^\s*(stop hook\b|almost done:)/i;
+// Messages from other sessions, sub-agents and the host are not the user's words, wherever they sit in a message: the
+// whole block goes, not just its first line. Lesson: a relayed agent message counted as the user's words, so the
+// engine files an upgrade wrote were flagged for copying them (REQ: no-verbatim-examples).
+const RELAYED = /<(cross-session-message|agent-message|system-reminder|task-notification)\b[^>]*>[\s\S]*?(<\/\1>|$(?![\s\S]))/gi;
+export const relayedOut = s => String(s || '').replace(RELAYED, ' ');
 export function userText(prompt) {
   const out = [];
   let inBlock = false; // a pasted Stop message: its numbered steps run until "For the agent: ... Names: ..." or a blank line
-  for (const l of String(prompt || '').replace(/<pasted_content\b[^>]*>[\s\S]*?<\/pasted_content>/gi, ' ').replace(/<pasted_content\b[^>]*\/>/gi, ' ').split(/\r?\n/)) {
+  for (const l of relayedOut(String(prompt || '').replace(/<pasted_content\b[^>]*>[\s\S]*?<\/pasted_content>/gi, ' ').replace(/<pasted_content\b[^>]*\/>/gi, ' ')).split(/\r?\n/)) {
+    if (/^\s*Another Claude session\b/i.test(l)) break; // a relayed message runs to the end: none of it is the user's
     if (HOOK_BLOCK.test(l)) { inBlock = true; continue; }
     if (inBlock) { if (!l.trim() || /^\s*for the agent:/i.test(l)) inBlock = false; continue; }
     if (!HOOK_MARK.test(l) && !HOOK_LINE.test(l)) out.push(l);
@@ -341,7 +356,7 @@ export function expandMenu(prompt) {
 }
 
 // ---------- transcript ----------
-const SKIP = ['Stop hook feedback', '<system-reminder>', '<task-notification>', 'Another Claude session', '<agent-message',
+const SKIP = ['Stop hook feedback', '<system-reminder>', '<task-notification>', 'Another Claude session', '<agent-message', '<cross-session-message',
   '[SYSTEM NOTIFICATION', 'Caveat: The messages below', 'Almost done:', 'Project rules not met yet', 'Stop hook error', '<local-command-stdout>', '<local-command-stderr>', '[Request interrupted'];
 const COMPACT = 'This session is being continued from a previous conversation';
 export const textOf = c => typeof c === 'string' ? c
@@ -388,8 +403,8 @@ export function turn(transcript) {
   }
   const since = Date.parse(rows[start].timestamp || '') || null;
   // every message the user typed in this session (for the verbatim check), excluding compaction summaries
-  const allPrompts = rows.map(r => (r.isCompactSummary ? null : promptOf(r))).filter(p => p && !p.trimStart().startsWith(COMPACT));
-  for (const r of rows) { const a = r.attachment; if (r.type === 'attachment' && a?.type === 'queued_command') allPrompts.push(textOf(a.prompt ?? a.content ?? '')); }
+  const allPrompts = rows.map(r => (r.isCompactSummary ? null : promptOf(r))).filter(p => p && !p.trimStart().startsWith(COMPACT)).map(userText);
+  for (const r of rows) { const a = r.attachment; if (r.type === 'attachment' && a?.type === 'queued_command') { const q = textOf(a.prompt ?? a.content ?? ''); if (!skipped(q)) allPrompts.push(userText(q)); } }
   // what the agent itself wrote into files this session (tool inputs): its own numbers are not made up (REQ: answer-traced)
   const sessionWrites = rows.flatMap(r => r.type === 'assistant' && Array.isArray(r.message?.content) ? r.message.content : [])
     .filter(x => x && x.type === 'tool_use' && /^(Write|Edit|MultiEdit|NotebookEdit)$/.test(x.name))
@@ -510,6 +525,22 @@ export function toolResults(entries) {
 export function turnText(entries = []) {
   return entries.filter(r => r.type === 'assistant' && Array.isArray(r.message?.content))
     .flatMap(r => r.message.content.filter(x => x.type === 'text').map(x => x.text || '')).join('\n');
+}
+// The agent's text after its last tool call that could change a file (an edit or a shell command): a Finished section
+// there still describes every change, even when a later, blocked round answered with something shorter.
+// With timestamps, a text counts when it was written after the newest changed file's time (a command that only ran a check
+// changes nothing); without them, any command may have changed a file.
+export function textAfterLastChange(entries = [], lastChange = 0) {
+  let texts = [];
+  for (const r of entries) {
+    if (r.type !== 'assistant' || !Array.isArray(r.message?.content)) continue;
+    const ts = Date.parse(r.timestamp || '') || 0;
+    for (const x of r.message.content) {
+      if (x.type === 'tool_use' && (/^(Write|Edit|MultiEdit|NotebookEdit)$/.test(x.name) || (!ts && /^(Bash|PowerShell)$/.test(x.name)))) texts = [];
+      else if (x.type === 'text') { if (ts && lastChange && ts < lastChange - 1000) texts = []; else texts.push(x.text || ''); }
+    }
+  }
+  return texts.join('\n');
 }
 export function finalText(entries) {
   let texts = [];
@@ -722,9 +753,14 @@ export function context(t, cfg, answerOverride) {
   let usedSkills = skills.filter(s => skillsUsed.includes(s.name) || ([s.file, ...cfg.skillMirrors.map(m => `${m}/${s.name}/SKILL.md`)].some(f => reads.has(f)) &&
     (routedSkills.includes(s) || (ranScript(s.name) && !maintained(s.file, s.name)) || re(`\\bskills?\\s*:\\s*\`?(skills/)?${esc(s.name)}\\b`).test(answer))));
   if (!t.toolsKnown) usedSkills = skills.filter(s => re(`\\bskills?\\s*:\\s*\`?(skills/)?${esc(s.name)}\\b`).test(answer));
+  // Everything the agent wrote this turn (said), and what it wrote after its last change to a file (afterChange): a marker,
+  // a waiver or a Finished section given once stays given, so a re-block never makes the answer repeat it.
+  // Lesson: stop rounds alternated, each one asking again for what an earlier message of the turn already said.
+  const all = turnText(t.entries), said = `${answer}\n${all}`;
   return {
     ...t, uses, cmds, changed, work, pbs, routed, reads, skillsUsed, usedPb, routedSkills, usedSkills, runs: runsOf(t.entries),
-    answer, results: toolResults(t.entries),
+    answer, said, afterChange: `${textAfterLastChange(t.entries, changed.reduce((m, p) => { try { return Math.max(m, fs.statSync(abs(p)).mtimeMs); } catch { return m; } }, 0))}\n${answer}`, results: toolResults(t.entries),
+    gui: changed.filter(p => match(p, cfg.guiFiles) && !match(p, cfg.guiIgnore) && exists(p)),
     workTurn: work.length > 0 || (t.toolsKnown && uses.length >= cfg.workToolCalls),
     // the turn went wrong somewhere: the stop hook already blocked an answer, or the user is complaining about a miss
     missed: t.entries.some(r => r.type === 'user' && /Stop hook feedback/.test(typeof r.message?.content === 'string' ? r.message.content : JSON.stringify(r.message?.content || ''))) || re(cfg.frustration).test(t.prompt || '')
@@ -837,7 +873,7 @@ export function directoryBlock(cfg = config()) {
   const { reqs } = loadRequirements();
   const { codes } = menu();
   const cell = s => String(s || '').replace(/\|/g, '/').replace(/\s+/g, ' ').trim();
-  const checksFor = pb => [...reqs.filter(q => q && q.enabled !== false && [q.when?.playbookUsed, q.when?.playbookRouted].includes(pb.name)).map(q => q.tag),
+  const checksFor = pb => [...reqs.filter(q => q && q.enabled !== false && ([q.when?.playbookUsed, q.when?.playbookRouted].includes(pb.name) || q.forces === pb.name)).map(q => q.tag),
     ...splitList((pb.fm.checks || '').replace(/^core:?/i, '').replace(/^none.*$/i, ''))];
   // One short line per runbook and skill, with its link: the full description and triggers live in the file itself.
   // Lesson: rows carrying whole descriptions and trigger lists pushed this always-read file past the loaded budget.
@@ -858,7 +894,7 @@ export function directoryBlock(cfg = config()) {
     const rb = fm.runbook || `docs/playbooks/${n}.md`;
     if (!s && fm.generated === 'true') continue; // a runbook's generated skill: its row is in §1
     const how = s ? 'own route' : `via [${rb.split('/').pop()}](${rb})`;
-    const checks = s ? [...reqs.filter(q => q && q.enabled !== false && q.when?.skillUsed === n).map(q => q.tag), ...splitList((fm.checks || '').replace(/^core:?/i, '').replace(/^none.*$/i, ''))] : [];
+    const checks = s ? [...reqs.filter(q => q && q.enabled !== false && (q.when?.skillUsed === n || q.forces === n)).map(q => q.tag), ...splitList((fm.checks || '').replace(/^core:?/i, '').replace(/^none.*$/i, ''))] : [];
     lines.push(`| [${n}](${cfg.skillsDir}/${n}/SKILL.md) | ${short(fm.description, 70)} | ${how} | ${s ? cell(checks.join(', ')) || '(none)' : 'see §1'} |`);
   }
   lines.push('', '## 3. Checks and standards', '| File | What it is |', '|---|---|');
@@ -945,7 +981,18 @@ export function syncNames(cfg = config(), { force = false } = {}) {
 }
 
 export function syncAll(cfg = config()) {
-  try { syncSkills(cfg); syncDirectory(cfg); syncNames(cfg); syncTwin(); flushEngineWrites(); return true; } catch (e) { process.stderr.write(`[hooks sync] ${e.message}\n`); return false; }
+  try { syncSkills(cfg); syncDirectory(cfg); syncNames(cfg); syncEngineChecks(); syncTwin(); flushEngineWrites(); return true; } catch (e) { process.stderr.write(`[hooks sync] ${e.message}\n`); return false; }
+}
+// The core skills' checks as the starter ships them (tools/hooks/engine-checks.json, an engine file). An upgrade compares
+// a project's entry with the copy it got last time: unchanged since then means refresh it; different means the project
+// edited it, so it is kept. Written only in the starter itself, from its requirements.json.
+export const ENGINE_CHECKS = 'tools/hooks/engine-checks.json';
+export const isEngineCheck = r => !!r && !r.pack && !r.skill && (CORE_SKILLS.includes(r.when?.skillUsed) || r.when?.playbookUsed === 'plan' || CORE_SKILLS.includes(r.forces));
+function syncEngineChecks() {
+  if (!exists('.starter-template')) return;
+  const own = readJSON(path.join(HOOKS, 'requirements.json'), null);
+  if (!own || !Array.isArray(own.requirements)) return;
+  writeIfChanged(ENGINE_CHECKS, JSON.stringify({ _comment: 'Generated by tools/hooks/hooks.mjs sync in the starter: the core skills\' checks as shipped. Upgrades compare a project\'s entries with this copy (a 3-way merge), so local edits are kept. Do not edit.', requirements: own.requirements.filter(isEngineCheck) }, null, 2) + '\n');
 }
 
 export function skillProblems(dir) {
@@ -1002,6 +1049,9 @@ export function aiAttributedCommits(cfg = config(), sinceMs = null) {
     .map(x => `${x.h.slice(0, 8)} "${x.m.split('\n')[0].slice(0, 60)}"`);
 }
 
+// The engine's own files (what tools/new-project.mjs --upgrade replaces): written by the starter, not from the user's words.
+const VERBATIM_ENGINE = ['tools/**', '.githooks/**', 'HOW-TO-USE.md', 'docs/recommended-tools.md', 'docs/playbooks/_TEMPLATE.md', 'docs/playbooks/_fallback.md',
+  ...['session-checklist', 'finish-checklist', 'runbook-standards', 'writing-standards', 'layout-standards', 'better-or-worse'].map(n => `docs/checks/${n}.md`)];
 // Runs of verbatimWords+ consecutive words from the user's messages that appear in a changed file.
 const words = s => String(s || '').toLowerCase().replace(/[`*_>#|"'“”‘’()[\]{}]/g, ' ').match(/[a-z0-9]+(?:'[a-z]+)?/g) || [];
 export function verbatimHits(x, cfg = config()) {
@@ -1020,7 +1070,11 @@ export function verbatimHits(x, cfg = config()) {
   for (const g of [...grams.keys()]) if (std.includes(` ${g} `)) grams.delete(g);
   if (!grams.size) return [];
   const hits = [];
-  for (const f of x.changed.filter(p => !match(p, cfg.verbatimAllowed) && exists(p) && /\.(md|mdx|txt|html?|js|mjs|cjs|jsx|ts|tsx|py|json|ya?ml|css|vue|svelte)$/i.test(p))) {
+  // Engine files are the starter's words, not the user's: never scanned (an upgrade rewrites them mid-session), and
+  // neither are generated skills. Lesson: right after an upgrade, tools/audit.mjs and hooks.mjs were flagged.
+  const engine = [...VERBATIM_ENGINE, ...CORE_SKILLS.map(n => `${cfg.skillsDir}/${n}/**`), ...cfg.skillMirrors.map(m => `${m}/**`)];
+  for (const f of x.changed.filter(p => !match(p, cfg.verbatimAllowed) && !match(p, engine) && exists(p) && /\.(md|mdx|txt|html?|js|mjs|cjs|jsx|ts|tsx|py|json|ya?ml|css|vue|svelte)$/i.test(p))) {
+    if (/SKILL\.md$/.test(f) && /^generated:\s*true/m.test(read(abs(f)))) continue;
     const w = words(read(abs(f)).replace(/```template[\s\S]*?```/g, ' ').replace(/^\s*(>\s*)?[-*]?\s*template:.*$/gim, ' '));
     for (let i = 0; i + n <= w.length; i++) {
       const g = w.slice(i, i + n).join(' ');
@@ -1037,7 +1091,13 @@ const BROWSER_CODE = /executablePath\s*[:=]|channel\s*:\s*['"](chrome|msedge|chr
 // Problems a reader would notice: em dashes, filler phrases, walls of text, run-on sentences. Code and quotes are skipped.
 export function writingProblems(text, cfg = config(), where = 'answer') {
   const probs = [];
-  const lines = String(text || '').replace(/```[\s\S]*?```/g, m => m.replace(/[^\n]/g, ' ')).replace(/`[^`\n]*`/g, '``').split(/\r?\n/);
+  const blank = m => m.replace(/[^\n]/g, ' '); // keeps line numbers
+  let src = String(text || '');
+  // In a page, only the text people read is writing: scripts, styles, comments and template literals are code.
+  // Lesson: a page's inline script was measured as a 200-word "sentence".
+  if (/\.html?$/i.test(where) || /^\s*<!doctype html|<html[\s>]/i.test(src))
+    src = src.replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, blank).replace(/<!--[\s\S]*?-->/g, blank).replace(/`[^`]*`/g, blank);
+  const lines = src.replace(/```[\s\S]*?```/g, blank).replace(/`[^`\n]*`/g, '``').split(/\r?\n/);
   const at = i => where === 'answer' ? '' : `:${i + 1}`;
   lines.forEach((l, i) => {
     if (/^\s*>/.test(l)) return; // quoted text is the user's or a source's words
@@ -1048,7 +1108,10 @@ export function writingProblems(text, cfg = config(), where = 'answer') {
   });
   // A blank quote line (">") ends a paragraph, and each quoted list item stands on its own. Lesson: a multi-line
   // blockquote with list items was counted as one long paragraph.
-  const paras = lines.map(l => /^\s*>\s*$/.test(l) ? '' : /^\s*>\s*([-*+]|\d+[.)])\s/.test(l) ? `\n${l}\n` : l).join('\n').split(/\n\s*\n/);
+  // A line that is only an image, only a link, or a table row stands on its own too. Lesson: a gallery of image embeds,
+  // one per line, was measured as one long sentence.
+  const own = l => /^\s*>\s*([-*+]|\d+[.)])\s/.test(l) || /^\s*(!?\[[^\]]*\]\([^)]*\)\s*)+$/.test(l) || /^\s*\|/.test(l);
+  const paras = lines.map(l => /^\s*>\s*$/.test(l) ? '' : own(l) ? `\n${l}\n` : l).join('\n').split(/\n\s*\n/);
   for (const p of paras) {
     if (/^\s*(\||[-*]\s|\d+\.\s|#)/m.test(p) && p.split('\n').length > 1) continue; // tables and lists are already structured
     const words = p.split(/\s+/).filter(Boolean).length;
@@ -1274,7 +1337,7 @@ export function upgradeProblems(cfg = config()) {
 // ---------- survey: what is in the project (tools/survey.mjs, the fit checklist, the "later" notices) ----------
 // The project's own files, without the starter's files, dependencies and build output. Read-only.
 const SURVEY_SKIP = /^(\.git|node_modules|\.cache|\.claude|\.codex|\.obsidian|\.starter|dist|build|out|target|bin|obj|venv|\.venv|__pycache__|coverage|packs|library)$/;
-export const SURVEY_STARTER = /^(AGENTS|CLAUDE|DIRECTORY|HOW-TO-USE|SETUP-PROMPT)\.md$|^(README|AGENTS|CLAUDE)\.starter\.md$|^skills\/|^tools\/hooks\/|^tools\/(audit|packs|skills|starter|new-project|writing-check|integrity-check|recall|survey|screenshot|fit)\.mjs$|^tools\/starter\.local\.json$|^\.githooks\/|^docs\/(checks|playbooks|plans)\/|^docs\/(BRIEF|STATUS|CHANGELOG|DECISIONS|MENU|security|names\.json|foundation|lessons|fit-checklist|recommended-tools|glossary)(\.md)?$|^docs\/names\.json$/;
+export const SURVEY_STARTER = /^(AGENTS|CLAUDE|DIRECTORY|HOW-TO-USE|SETUP-PROMPT)\.md$|^(README|AGENTS|CLAUDE)\.starter\.md$|^skills\/|^tools\/hooks\/|^tools\/(audit|packs|skills|starter|new-project|writing-check|integrity-check|recall|survey|screenshot|fit|dedupe)\.mjs$|^tools\/starter\.local\.json$|^\.githooks\/|^docs\/(checks|playbooks|plans)\/|^docs\/(BRIEF|STATUS|CHANGELOG|DECISIONS|MENU|security|names\.json|foundation|lessons|fit-checklist|recommended-tools|glossary)(\.md)?$|^docs\/names\.json$/;
 export const SURVEY_KINDS = {
   code: /\.(js|mjs|cjs|ts|tsx|jsx|py|rb|go|rs|java|kt|cs|cpp|c|h|swift|php|lua|gd|dart|scala|ex|exs)$/i,
   visual: /\.(html?|css|scss|vue|svelte|jsx|tsx)$/i,
@@ -1535,7 +1598,7 @@ const FRICTION_WINDOW = 6, FRICTION_LIMIT = 3;
 const SAFEGUARDS = new Set(['check:no-secrets', 'check:no-ai-attribution', 'check:git-safety', 'check:commit-gate', 'check:approval-gate', 'check:browser-guard',
   'check:scope-separate', 'check:protect-originals', 'check:injection-guard', 'check:no-overwrite', 'check:crash-visible', 'check:requirements-valid', 'check:hooks-tested',
   'check:setup-interview', 'check:setup-complete', 'check:setup-gate', 'check:answer-traced', 'check:research-verified', 'check:research-ledger',
-  'check:research-cited', 'check:security-report', 'check:verification-report', 'check:finished-summary', 'check:forbidden-command',
+  'check:research-cited', 'check:security-report', 'check:security-code', 'check:security-config', 'check:security-publish', 'check:publish-gate', 'check:verification-report', 'check:finished-summary', 'check:forbidden-command',
   'skill:research', 'skill:security-review', 'skill:project-rule', 'runbook:project']);
 export const suspendedItems = () => (readJSON(path.join(HOOKS, 'config.json'), {}).suspended || []).filter(s => s && s.item);
 const isSuspended = item => suspendedItems().some(s => s.item === item);
@@ -1598,7 +1661,7 @@ function notices(cfg) {
   if (due.length) out.push(`SKILL HARDENING DUE: ${due.map(p => p.file).join(', ')} (used ${cfg.promoteAfterUses}+ times). Use the skill-harden skill.`);
   const idle = template ? [] : curateDue(cfg, true);
   const up = upgradeProblems(cfg);
-  if (up.length) out.push(`UPGRADE REVIEW PENDING: the engine was upgraded and ${up.length} item(s) still need a decision (docs/DECISIONS.md "## Upgrade review"). ${cfg.autonomy === 'auto' ? 'Decide each one yourself by the same weighing and list the decisions in your answer:' : 'Go through them with the user before other work:'} adopt what makes this project better (Worth it: <gain> / <cost>), decline the rest with the reason.`);
+  if (up.length) out.push(`UPGRADE REVIEW PENDING: the engine was upgraded and ${up.length} item(s) still need a decision (docs/DECISIONS.md "## Upgrade review"). ${cfg.autonomy === 'auto' ? 'Decide each one yourself by the same weighing and list the decisions in your answer:' : 'Decide them yourself before other work, asking the user only about money, privacy or outward actions, then show the one-line summary:'} adopt what makes this project better (Worth it: <gain> / <cost>), decline the rest with the reason.`);
   if (!template) { const fl = fitLaterNotice(); if (fl) out.push(fl); }
   // REQ: plan-open. A plan with unticked steps is announced at every session start until it is done or dropped.
   const plans = openPlans();
@@ -1635,6 +1698,8 @@ function cmdSession(data) {
 }
 
 // ---------- UserPromptSubmit ----------
+// The user handing the work over: "without my input", "don't ask me", "keep going until it's finished", "go go go".
+const AUTONOMY_WORDS = /\bwithout (my|any) (input|approval|questions?|ok)\b|\bdon'?t (ask|bother) me\b|\bno (more )?questions\b|\bkeep going (until|till) (it'?s |you'?re |everything is )?(done|finished|complete)\b|\bgo,? go,? go\b|\bdon'?t stop (until|till|for)\b|\bdecide (everything|for me|yourself)\b/i;
 export function promptHints(prompt, cfg = config(), withNotices = true) {
   if (!String(prompt || '').trim() || skipped(prompt)) return []; // REQ: notification-not-prompt
   const p = userText(prompt); // pasted text and the hooks' own output are not the request
@@ -1665,6 +1730,24 @@ export function promptHints(prompt, cfg = config(), withNotices = true) {
   const sk = route(m.expanded, routableSkills(cfg));
   for (const { pb: s, hits } of sk)
     hints.push(`SKILL: ${s.name} (matched: ${hits.join(', ')}). If this is the task: open ${s.file} THIS turn (or invoke the ${s.name} skill) and follow it, together with any runbook above. Name it in the answer ("Skill: ${s.name}"). REQ: skill-read.`);
+  // REQ: event-hint. A check that makes a skill or runbook mandatory when something happens (an event trigger with
+  // "forces") says so as soon as the request shows it is coming, so the work follows it from the start instead of being
+  // stopped at the end. Lesson: a change to sign-in code was only reviewed when the user remembered to ask.
+  const forced = new Map();
+  for (const q of loadRequirements().reqs) {
+    if (!q || q.enabled === false || !q.forces || !q.hint || isSuspended(`check:${q.tag}`)) continue;
+    let hit = null; try { hit = re(q.hint).exec(p); } catch { }
+    if (hit && !forced.has(q.forces)) forced.set(q.forces, { q, word: hit[0].trim() });
+  }
+  for (const [n, { q, word }] of forced) {
+    const file = exists(`${cfg.skillsDir}/${n}/SKILL.md`) ? `${cfg.skillsDir}/${n}/SKILL.md` : `docs/playbooks/${n}.md`;
+    if (!exists(file)) continue;
+    hints.push(`MUST FOLLOW: ${n} (the request mentions "${word.slice(0, 40)}"). Changes like this make ${file} mandatory this turn, even unasked: open it now and follow it from the start. The Stop hook checks it (REQ: ${q.tag}).`);
+  }
+  // REQ: autonomy-hint. "Don't ask me, keep going" is a standing choice: it goes into config, not just this turn.
+  if (cfg.autonomy !== 'auto' && AUTONOMY_WORDS.test(p))
+    hints.push('AUTONOMY: the user wants the work done without their input. Set "autonomy": "auto" in tools/hooks/config.json and record it in docs/DECISIONS.md (date, the choice, why), ' +
+      'then decide instead of asking and record each choice as "Assumed: <choice> - <why> - <cost if wrong>". Outward actions, third-party installs and anything irreversible still need an OK.');
   const isTask = re(cfg.taskVerbs).test(p) && p.split(/\s+/).length >= 3 && !OPINION.test(p);
   if (!routed.length && !sk.length && isTask)
     hints.push('NO RUNBOOK matches this request. If it is a task (not a quick question), follow docs/playbooks/_fallback.md: do it carefully, ' +
@@ -1725,6 +1808,32 @@ function deny(reason) {
   process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }));
 }
 
+// A sub-agent prompt that points at a brief file ("Your brief: .cache/briefs/export.md") passes on the rules when that
+// file tells the sub-agent to read AGENTS.md. Lesson: a short prompt naming a full brief that began "Read AGENTS.md
+// first" was denied, so the brief had to be pasted into the prompt.
+export function briefFileNamesRules(prompt) {
+  const paths = [...String(prompt).matchAll(/(?:[A-Za-z]:)?[\w.~\\/-]*[\w-]\.(?:md|txt)\b/g)].map(m => m[0]).filter(s => !/^(AGENTS|CLAUDE)\.md$/.test(s)).slice(0, 8);
+  for (const s of paths) {
+    const full = path.isAbsolute(s) ? s : abs(s);
+    try { const st = fs.statSync(full); if (st.isFile() && st.size < 1024 * 1024 && /\bAGENTS\.md\b|\bCLAUDE\.md\b/.test(fs.readFileSync(full, 'utf8'))) return true; } catch { }
+  }
+  return false;
+}
+// Every path in a delete command that lies in the originals folder d was created during this turn: missing from the
+// turn-start snapshot (taken at the turn's first prompt) and not tracked by git. No snapshot, or a glob: not new.
+export function deletesOnlyNewFiles(cmd, d) {
+  const snap = readJSON(path.join(STATE, SNAPSHOT), null), turnAt = Date.parse(readJSON(path.join(STATE, 'turn.json'), {}).at || '');
+  if (!snap?.files || !turnAt || Date.parse(snap.at) < turnAt - 5000) return false;
+  const paths = [...String(cmd).matchAll(new RegExp(`(["']?)((?:[^\\s"';|&]*[\\\\/])?${esc(d)}[\\\\/](?:[^"';|&\\n]+?))\\1(?=$|[\\s;|&])`, 'g'))].map(m => rel(m[2].replace(/\\/g, '/')));
+  if (!paths.length) return false;
+  for (const p of paths) {
+    if (/[*?]/.test(p) || p.startsWith('..') || !exists(p) || snap.files[p]) return false;
+    let s; try { s = fs.statSync(abs(p)); } catch { return false; }
+    if (s.isDirectory()) return false;
+    if (exists('.git') && spawnSync('git', ['ls-files', '--error-unmatch', p], { cwd: ROOT, encoding: 'utf8' }).status === 0) return false;
+  }
+  return true;
+}
 export function pretoolDecision(data, cfg = config()) {
   const name = data.tool_name || '', inp = data.tool_input || {};
   let _t;
@@ -1742,8 +1851,8 @@ export function pretoolDecision(data, cfg = config()) {
     return null;
   };
   // REQ: subagent-brief. A sub-agent only follows the rules it is shown: every brief points it at AGENTS.md.
-  if (/^(Agent|Task)$/.test(name) && cfg.subagentBrief && typeof inp.prompt === 'string' && inp.subagent_type !== 'fork' && !/AGENTS\.md|CLAUDE\.md/.test(inp.prompt))
-    return 'REQ: subagent-brief. Sub-agents follow only what their brief says. Add to the prompt: "Read AGENTS.md first and follow its rules (plain writing, no invented facts, no AI attribution, the runbook for this task: docs/playbooks/<name>.md)." Then re-check its output yourself before reporting it.';
+  if (/^(Agent|Task)$/.test(name) && cfg.subagentBrief && typeof inp.prompt === 'string' && inp.subagent_type !== 'fork' && !/AGENTS\.md|CLAUDE\.md/.test(inp.prompt) && !briefFileNamesRules(inp.prompt))
+    return 'REQ: subagent-brief. Sub-agents follow only what their brief says. Add to the prompt: "Read AGENTS.md first and follow its rules (plain writing, no invented facts, no AI attribution, the runbook for this task: docs/playbooks/<name>.md)." A prompt that names a brief file saying it works too. Then re-check its output yourself before reporting it.';
   if (name === 'Read' && inp.file_path) {
     const who = personOf(rel(inp.file_path), cfg);
     if (who) { const named = peopleIn(req(), ppl); if (named.length && !named.includes(who)) return scopeCheck([who], false); }
@@ -1762,7 +1871,7 @@ export function pretoolDecision(data, cfg = config()) {
     if (!/\.md$/i.test(p) && !p.startsWith('tools/hooks/') && BROWSER_CODE.test(incoming))
       return `REQ: browser-guard. ${p} would drive the installed Chrome/Edge (executablePath / channel / CHROME_BIN / chrome.exe). Use Playwright's bundled Chromium (no executablePath, no channel) and --mute-audio, like tools/screenshot.mjs.`;
     // REQ: plain-writing (fast path): no em dashes go into anything the user reads.
-    if (match(p, cfg.userFacing) && !match(p, cfg.userFacingIgnore) && /—/.test(incoming.replace(/```[\s\S]*?```/g, '')))
+    if (match(p, cfg.userFacing) && !match(p, cfg.userFacingIgnore) && /—/.test(incoming.replace(/```[\s\S]*?```/g, '').replace(/\.html?$/i.test(p) ? /<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>|`[^`]*`/gi : /$^/g, '')))
       return `REQ: plain-writing. ${p} is user-facing and this text contains an em dash ("—"). Rewrite those spots with a period, comma, colon or parentheses (docs/checks/writing-standards.md).`;
     // REQ: write-only-via. Some files may only be written by the tool that validates them.
     const via = cfg.writeOnlyVia.find(v => match(p, [v.glob]));
@@ -1808,11 +1917,20 @@ export function pretoolDecision(data, cfg = config()) {
       const gi = gitignoreProblems(cfg);
       if (gi.length) return `REQ: gitignore-ready. Fix .gitignore before pushing:\n- ${gi.join('\n- ')}`;
     }
+    // REQ: publish-gate. Publishing or deploying waits for a security review this turn (or one logged today in
+    // docs/security.md): hard rule 15 says before, and a Stop check could only say it after the fact.
+    // Lesson: a package went public before anyone looked at what it contained.
+    const pub = /\b(npm|pnpm|yarn)\s+publish\b|\bgh\s+release\s+create\b|\bgh\s+repo\s+(create\b[^\n;&|]*--public|edit\b[^\n;&|]*--visibility[= ]public)|\b(vercel|netlify)\b[^\n;&|]*--prod\b|\bfirebase\s+deploy\b|\bdocker\s+push\b|\btwine\s+upload\b|\bcargo\s+publish\b|\bvsce\s+publish\b|\bflyctl?\s+deploy\b|\bwrangler\s+(deploy|publish)\b/i.exec(cmd);
+    if (pub && !isSuspended('check:publish-gate')) {
+      const reviewed = toolUses(t().entries || []).some(u => (u.name === 'Skill' && /(^|:)security-review$/.test(String(u.input.skill || ''))) || (u.name === 'Read' && /skills[\\/]security-review[\\/]SKILL\.md$/i.test(String(u.input.file_path || ''))));
+      const loggedToday = new RegExp(`^\\|\\s*${esc(today())}\\s*\\|`, 'm').test(read(abs('docs/security.md')));
+      if (!reviewed && !loggedToday) return `REQ: publish-gate. "${pub[0].trim()}" publishes or deploys. Run the security-review skill first (skills/security-review/SKILL.md) and log it in docs/security.md, then publish (hard rule 15). The user's OK to publish is needed too (rule 6).`;
+    }
     // REQ: no-secrets. Nothing that looks like a key or private key gets committed.
     if (/\bgit\b[^;&|]*\b(commit|push)\b/i.test(cmd)) {
       const staged = spawnSync('git', ['diff', '--cached', '-U0'], { cwd: ROOT, encoding: 'utf8' }).stdout || '';
       const added = staged.split('\n').filter(l => l.startsWith('+') && !l.startsWith('+++')).join('\n');
-      const hit = cfg.secretPatterns.find(s => new RegExp(s).test(added) || new RegExp(s).test(cmd));
+      const hit = secretHit(added, cfg) || secretHit(cmd, cfg);
       if (hit) return `REQ: no-secrets. The staged changes contain something that looks like a secret (pattern ${hit}). Unstage it, move it to an ignored file (.env), and make sure .gitignore covers it.`;
       const names = /\bcommit\b/i.test(cmd) ? (spawnSync('git', ['diff', '--cached', '--name-only'], { cwd: ROOT, encoding: 'utf8' }).stdout || '').split(/\r?\n/).filter(Boolean) : [];
       // REQ: approval-gate. Taste-driven work is committed only after the user has seen it and said yes.
@@ -1874,13 +1992,18 @@ export function pretoolDecision(data, cfg = config()) {
     // over files in it is not. A path may be relative, ./-prefixed, absolute, or quoted.
     for (const d of cfg.protectedOriginals.map(g => g.replace(/\/?\*\*.*$/, '')).filter(Boolean)) {
       const P = `["']?(?:[^\\s"';|&]*[\\\\/])?${esc(d)}(?:[\\\\/]|["'\\s;|&]|$)`;
-      const bad = [
+      const hits = [
         `(^|[\\s;&|(])(rm|del|erase|rmdir|rd|Remove-Item|ri|Clear-Content|truncate|shred|unlink)\\b[^;&|]*?(\\s|^)${P}`,
         `(^|[\\s;&|(])(mv|move|Move-Item|Rename-Item|ren)\\s+(-{1,2}\\S+\\s+)*${P}`,
         `(^|[^<>2&])>{1,2}\\s*${P}`,
         `(^|[\\s;&|(])(Set-Content|Out-File|Add-Content|tee)\\b[^;&|]*?(\\s|^)${P}`,
         `(^|[\\s;&|(])sed\\s+(-\\S*\\s+)*-i[^;&|]*?${P}`
-      ].find(b => re(b).test(cmd));
+      ].map(b => re(b).test(cmd));
+      const bad = hits.some(Boolean);
+      // A file this turn created (not in the turn-start snapshot, not in git) is not an original yet: a helper may delete
+      // junk it just downloaded. Only a plain delete, and only when every file it names is new.
+      // Lesson: helpers could not remove a broken download and left it in the evidence folder.
+      if (bad && hits[0] && !hits.slice(1).some(Boolean) && deletesOnlyNewFiles(cmd, d)) continue;
       if (bad && !re(cfg.deleteWords).test(req()))
         return `REQ: protect-originals. This command could delete, move or overwrite files in ${d}/ (originals). Only do that when the user asked for it in this request; copying new files INTO ${d}/ is fine. For exact duplicates, run node tools/dedupe.mjs (it keeps the oldest copy).`;
     }
@@ -1898,6 +2021,32 @@ function cmdPosttool(data) {
   const p = rel((data.tool_input || {}).file_path || '');
   if (p === 'CLAUDE.md' || p === 'AGENTS.md') syncTwin();
   if (/^(docs\/(playbooks|checks|knowledge|MENU\.md)|skills\/|tools\/hooks\/requirements\.json)/.test(p)) syncAll();
+  const h = eventHintAfterEdit(p, data.tool_input || {});
+  if (h) contextOut('PostToolUse', h + '\n');
+}
+// REQ: event-hint (after an edit). The moment an edit writes what an event trigger watches for (sign-in code, a secret,
+// a shell call), the agent hears which skill is now mandatory, once per trigger and turn, while it can still follow it.
+export function eventHintAfterEdit(p, inp, cfg = config()) {
+  if (!p || p.startsWith('..')) return null;
+  const text = [inp.content, inp.new_string, inp.new_source, ...(inp.edits || []).map(e => e.new_string)].filter(v => typeof v === 'string').join('\n');
+  if (!text) return null;
+  const turnAt = readJSON(path.join(STATE, 'turn.json'), {}).at || '';
+  const seen = readJSON(path.join(STATE, 'event-hints.json'), {});
+  const shown = seen.at === turnAt ? seen.tags || [] : [];
+  const out = [];
+  for (const q of loadRequirements().reqs) {
+    const spec = q?.when?.changedContentMatches;
+    if (!spec || !q.forces || q.enabled === false || shown.includes(q.tag) || isSuspended(`check:${q.tag}`)) continue;
+    const sp = typeof spec === 'string' ? { pattern: spec } : spec;
+    if (q.when.filesIgnore && match(p, [].concat(q.when.filesIgnore))) continue;
+    if (!match(p, sp.files || ['**']) || match(p, sp.ignore || [])) continue;
+    let m = null; try { m = new RegExp(sp.pattern, 'im').exec(text); } catch { }
+    if (!m) continue;
+    shown.push(q.tag);
+    out.push(`MUST FOLLOW: ${q.forces}. ${p} now has "${m[0].trim().slice(0, 50)}", so the ${q.forces} ${exists(`${cfg.skillsDir}/${q.forces}/SKILL.md`) ? 'skill' : 'runbook'} is mandatory this turn (REQ: ${q.tag}). Follow it before finishing, or waive it with N/A(${q.tag}): <the specific reason>.`);
+  }
+  if (out.length) writeState('event-hints.json', { at: turnAt, tags: shown });
+  return out.length ? '[project hooks: obey these]\n- ' + out.join('\n- ') : null;
 }
 
 // ---------- Stop ----------
@@ -1917,7 +2066,7 @@ export function coreChecks(x, cfg) {
     add('skill-read', `This request matched the ${x.routedSkills.map(s => s.name).join(' / ')} skill but it was not opened this turn. ` +
       `Open ${x.routedSkills[0].file} (or invoke the skill), check the work against its steps and "Done when", fix what was skipped, then finish.`);
   // REQ: playbook-named
-  if (x.workTurn && (x.usedPb.length || x.usedSkills.length) && !/\b(playbook|runbook|skill)s?\s*:/i.test(x.answer))
+  if (x.workTurn && (x.usedPb.length || x.usedSkills.length) && !/\b(playbook|runbook|skill)s?\s*:/i.test(x.said))
     add('playbook-named', x.usedPb.length ? `Name the runbook you followed in the answer, e.g. "Playbook: ${x.usedPb[0].file.split('/').pop()}".`
       : `Name the skill you followed in the answer, e.g. "Skill: ${x.usedSkills[0].name}".`);
   // REQ: skill-complete. A hand-written skill no runbook owns routes by its own triggers and has its own check.
@@ -1933,11 +2082,17 @@ export function coreChecks(x, cfg) {
       'extend the closest runbook in docs/playbooks/ with this case, or create one (frontmatter with triggers, ## Steps, ## Done when) plus a check ' +
       'in tools/hooks/requirements.json. Its skill and its DIRECTORY.md row are generated automatically. Say so in the answer.');
   // REQ: skill-reuse. Before writing a new procedure, look for an existing skill that already does it (don't reinvent).
-  const created = pbChanged.filter(p => exists(p) && bornThisTurn(p, x.since));
-  if (created.length && !/existing skills?\b[^\n]*(checked|searched|looked|none|found|reused|installed|adapted)/i.test(x.answer))
-    add('skill-reuse', `New runbook ${created.join(', ')}: first look for an existing skill that already does this (official skill repos and plugin ` +
+  // A new hand-written skill counts too. A procedure only this project can have says so in its frontmatter instead:
+  // "reuse: none - project-specific: <why>" (docs/checks/runbook-standards.md). Lesson: a runbook for the project's own
+  // data layout was blocked until a marketplace search that could never find it.
+  const projectOnly = p => /^none\s*-\s*project-specific\s*:\s*\S+(\s+\S+){2,}/i.test((frontmatter(read(abs(p))) || {}).reuse || '');
+  const created = [...pbChanged.filter(p => exists(p) && bornThisTurn(p, x.since)),
+    ...x.changed.filter(p => new RegExp(`^${esc(cfg.skillsDir)}/[^/]+/SKILL\\.md$`).test(p) && exists(p) && bornThisTurn(p, x.since) && !/^generated:\s*true/m.test(read(abs(p))))].filter(p => !projectOnly(p));
+  if (created.length && !/existing skills?\b[^\n]*(checked|searched|looked|none|found|reused|installed|adapted)/i.test(x.said))
+    add('skill-reuse', `New runbook or skill ${created.join(', ')}: first look for an existing skill that already does this (official skill repos and plugin ` +
       'marketplaces, the agent\'s installed skills, reputable community collections). Reuse or adapt it when it fits, after reading every file it ' +
-      'contains, and install third-party skills only with the user\'s OK. Say what you found: "Existing skills checked: <where> - <result>".');
+      'contains, and install third-party skills only with the user\'s OK. Say what you found: "Existing skills checked: <where> - <result>". ' +
+      'A procedure only this project can have needs no search: put "reuse: none - project-specific: <why>" in its frontmatter.');
   // REQ: worth-it. An addition must make the project better: a new skill, pack or dependency comes with its gain and its
   // cost, weighed. Lesson: "it fits" alone let additions in that made the project noisier or slower than before.
   const newSkills = list(cfg.skillsDir).filter(n => { const f = `${cfg.skillsDir}/${n}/SKILL.md`; return x.changed.includes(f) && bornThisTurn(f, x.since) && !/^generated:\s*true/m.test(read(abs(f))); });
@@ -1981,14 +2136,18 @@ export function coreChecks(x, cfg) {
   const ledgerRuns = x.runs.filter(r => /claims\.mjs\s+check\b/.test(r.cmd));
   const ledgerOk = ledgerRuns.length && /CLAIMS: PASS/.test(ledgerRuns[ledgerRuns.length - 1].out || '');
   const knowledge = (cfg.packs || []).includes('knowledge'), researched = x.usedSkills.some(s => s.name === 'research');
-  if (web && (knowledge || researched) && !(ledgerOk && /verified:\s*\d+\s+claims/i.test(x.answer)) && !(!knowledge && /\bquick lookup:/i.test(x.answer)))
+  if (web && (knowledge || researched) && !(ledgerOk && /verified:\s*\d+\s+claims/i.test(x.said)) && !(!knowledge && /\bquick lookup:/i.test(x.said)))
     add('research-verified', `This turn used the web${knowledge ? ' in a knowledge project' : ''}. Follow the research skill, situation C: a ledger (node skills/research/scripts/claims.mjs new "<question>"), ` +
       'at least three independent sources with sponsored and biased ones screened out, claims.mjs check passing, and the answer ending with "Verified: <n> claims ..."' +
       (knowledge ? '.' : '. A one-fact lookup for the work at hand instead says so: "Quick lookup:" with its link.'));
   // REQ: answer-traced. "Did I make that up?": every number in a factual answer, and every number written into the
   // knowledge base, appears in something read this turn; every project file the answer cites was opened.
   const cited = [...new Set((x.answer.match(/\b(?:docs\/knowledge|sources)\/[\w./-]+\.\w+/g) || []).map(p => p.replace(/[.,;:)]+$/, '')))];
-  if ((knowledge && (researched || cited.length)) || ledgerRuns.length) {
+  // Facts written into the knowledge base are traced even when no research skill ran (an event, not a request).
+  // Lesson: numbers typed into docs/knowledge outside the research skill were never checked against a source.
+  const kbWritten = x.toolsKnown && x.uses.some(u => /^(Write|Edit|MultiEdit)$/.test(u.name) && /^docs\/knowledge\//.test(rel(u.input.file_path || '')));
+  const traceAnswer = (knowledge && (researched || cited.length)) || ledgerRuns.length;
+  if (traceAnswer || kbWritten) {
     const ledgers = ledgerRuns.map(r => /claims\.mjs\s+check\s+"?([^"\s]+)/.exec(r.cmd)?.[1]).filter(Boolean);
     // Lesson: numbers the agent itself wrote into files earlier in the session were flagged as made up: what it wrote
     // (its Write/Edit inputs, this session) is part of what it knows, like what it read.
@@ -2009,7 +2168,7 @@ export function coreChecks(x, cfg) {
       }
       return [...new Set(out)];
     };
-    const fromAnswer = untraced(x.answer, ownWrites); // what goes into the knowledge base itself must trace to a source
+    const fromAnswer = traceAnswer ? untraced(x.answer, ownWrites) : []; // what goes into the knowledge base itself must trace to a source
     const written = x.uses.filter(u => /^(Write|Edit|MultiEdit)$/.test(u.name) && /^docs\/knowledge\//.test(rel(u.input.file_path || '')))
       .flatMap(u => untraced([u.input.content, u.input.new_string, ...(u.input.edits || []).map(e => e.new_string)].filter(Boolean).join('\n')));
     const unopened = x.toolsKnown ? cited.filter(p => !x.reads.has(p) && !x.cmds.some(c => c.includes(p)) && !x.results.includes(p)) : [];
@@ -2035,7 +2194,7 @@ export function coreChecks(x, cfg) {
     const need = [];
     if (!x.changed.includes('CLAUDE.md')) need.push('CLAUDE.md (the rule, with the user\'s words and date)');
     if (!x.changed.includes('docs/checks/user-requirements.md')) need.push('docs/checks/user-requirements.md (words -> rule -> REQ tag)');
-    if (!x.changed.some(p => /^tools\/hooks\/(requirements\.json|hooks\.mjs)$/.test(p)) && !/hook:\s*n\/a/i.test(x.answer))
+    if (!x.changed.some(p => /^tools\/hooks\/(requirements\.json|hooks\.mjs)$/.test(p)) && !/hook:\s*n\/a/i.test(x.said))
       need.push('tools/hooks/requirements.json (a check), or "hook: N/A <reason>" in the answer if it cannot be checked');
     // REQ: rule-memory. The rule also goes into memory, so it survives even outside this project's docs.
     if (cfg.memoryOnRuleRequest) {
@@ -2063,7 +2222,7 @@ export function coreChecks(x, cfg) {
   const question = !instructs && (/\?\s*$/.test(x.prompt.trim()) || /^\s*(what|why|how|which|who|where|when|should|is|are|can|could|would|do|does|did|will|any)\b/i.test(x.prompt));
   if (x.prompt && question && !re(cfg.changeWords).test(x.prompt)) {
     const unasked = x.changed.filter(p => !match(p, cfg.questionNoFileExempt));
-    if (unasked.length && !/asked for:\s*["“]/i.test(x.answer))
+    if (unasked.length && !/asked for:\s*["“]/i.test(x.said))
       add('question-no-file', `This was a question, but files changed (${unasked.slice(0, 5).join(', ')}). Questions get answers, not edits: ` +
         'undo the unrequested changes, or quote the words that asked for them ("Asked for: "...").');
   }
@@ -2072,7 +2231,7 @@ export function coreChecks(x, cfg) {
   for (const m of x.prompt.toLowerCase().matchAll(/\b(\d{1,3}|two|three|four|five|six|seven|eight|nine|ten|twelve|fifteen|twenty)\s+(?:more\s+)?(sweeps?|passes|checks|rounds|options|ideas|examples|alternatives|variations|versions|drafts|sources|questions|suggestions)\b/g)) {
     const n = NUM[m[1]] || Number(m[1]);
     const word = Object.keys(NUM).find(k => NUM[k] === n);
-    if (n > 1 && !re(`\\b(${n}${word ? '|' + word : ''})\\b`).test(x.answer))
+    if (n > 1 && !re(`\\b(${n}${word ? '|' + word : ''})\\b`).test(x.said))
       add('count-honored', `The user asked for ${n} ${m[2]}. Deliver exactly that many and say so with the number (e.g. "${n} ${m[2]}: ...").`);
   }
   // REQ: plain-writing. The answer and every user-facing file changed this turn: straight to the point, no filler, no em dashes.
@@ -2118,13 +2277,13 @@ export function coreChecks(x, cfg) {
   const written = new Set(x.uses.filter(u => /^(Write|Edit|MultiEdit)$/.test(u.name)).map(u => rel(u.input.file_path || '')));
   for (const p of x.changed.filter(p => match(p, cfg.watchedInputs) && !written.has(p))) {
     let mt = 0; try { mt = fs.statSync(abs(p)).mtimeMs; } catch { }
-    if (mt > (x.since || 0) + 1000 && !(x.answer.includes(p.split('/').pop()) && /\b(updated|changed|new|refresh)/i.test(x.answer)))
+    if (mt > (x.since || 0) + 1000 && !(x.said.includes(p.split('/').pop()) && /\b(updated|changed|new|refresh)/i.test(x.said)))
       add('watched-inputs', `${p} was updated while you worked. Re-run what depends on it and say in the answer what the new data changed (name the file).`);
   }
   // REQ: stale-cited. Relying on a stale knowledge file is fine only if the answer says so (or it was re-checked now).
   for (const s of staleKnowledge(cfg)) {
     const base = s.file.split('/').pop();
-    if ((x.answer.includes(s.file) || x.answer.includes(base)) && !x.changed.includes(s.file) && !/\bstale|out of date|re-?check|as of\b/i.test(x.answer))
+    if ((x.answer.includes(s.file) || x.answer.includes(base)) && !x.changed.includes(s.file) && !/\bstale|out of date|re-?check|as of\b/i.test(x.said))
       add('stale-cited', `The answer relies on ${s.file}, which is stale (${s.why}). Re-check it now (and update its date) or tell the user it may be out of date.`);
   }
   // REQ: directory-current. DIRECTORY.md is the map every agent reads first; its generated block must exist and be current.
@@ -2148,19 +2307,6 @@ export function coreChecks(x, cfg) {
       add('skill-harden', `${due.map(p => p.file).join(', ')} has now been used ${cfg.promoteAfterUses}+ times. Harden it with the skill-harden skill ` +
         '(then set "hardened: YYYY-MM-DD" in its frontmatter), or set "harden: never - <reason>".');
   }
-  // REQ: skill-learn. Skills improve from use: when a check that belongs to a runbook or skill followed this turn failed
-  // (an earlier block of this turn), the lesson goes into it, so the next run does not repeat the miss.
-  // Lesson: it fired on any block or complaint, also for runbooks that were only opened or wrongly matched.
-  const own = item => ownChecks(item, cfg);
-  // Friction from a wording check (reworded to satisfy it) is the check's, not the runbook's: never a lesson to write.
-  // Lesson: rewording twice for no-verbatim-examples made skill-learn demand a lesson from an innocent runbook.
-  const WORDING = new Set(['no-verbatim-examples', 'plain-writing', 'playbook-named', 'finished-summary', 'empty-answer', 'count-honored']);
-  const failedOwn = [...x.usedPb, ...x.usedSkills].filter(item => own(item).some(tag => !WORDING.has(tag) && (x.failedBefore || []).includes(tag)));
-  const followed = failedOwn.map(item => item.file.endsWith('SKILL.md') ? item.file.replace(/SKILL\.md$/, '') : item.file);
-  if (x.workTurn && followed.length && !x.changed.some(p => followed.some(f => p === f || p.startsWith(f))) && !/skill lesson:\s*none\b.{8,}/i.test(x.answer))
-    add('skill-learn', `This turn followed ${followed.join(', ')} and its own check failed earlier in the turn. Write the lesson into it (a step, a pitfall, or a check ` +
-      'through the project-rule skill), so the next run gets it right. In an engine skill (one of the starter\'s core skills), put it under ' +
-      '"## Project lessons" at the end, which upgrades keep. If it was not the runbook\'s fault, write "Skill lesson: none - <why>".');
   // REQ: name-var. Names live in docs/names.json only, so a rename is one edit. Markers in changed files are refilled first.
   const nm = names();
   const named = x.changed.filter(p => p !== NAMES_FILE && NAME_FILES.test(p) && !GENERATED_WRITES.has(p) && exists(p));
@@ -2190,18 +2336,25 @@ export function coreChecks(x, cfg) {
         'list what is wrong (docs/checks/visual-review.md), fix, and repeat until a full round finds nothing.');
     else {
       // with tool history: each screenshot was opened; without it: the answer lists each one it looked at
-      const unread = fresh.filter(p => x.toolsKnown ? !x.reads.has(p) : !x.answer.includes(p.split('/').pop()));
+      const unread = fresh.filter(p => x.toolsKnown ? !x.reads.has(p) : !x.said.includes(p.split('/').pop()));
       if (unread.length) add('gui-review-loop', `Look at every screenshot of the latest round (open the image) before judging it${x.toolsKnown ? '' : ', and list each file name in the Visual review section'}: ${unread.slice(0, 8).join(', ')}${unread.length > 8 ? ` (+${unread.length - 8} more)` : ''}.`);
       // REQ: gui-review-report
-      const verdict = /visual review:\s*(pass|stopped)/i.exec(x.answer);
-      if (!verdict || !/\bround/i.test(x.answer))
+      const verdict = /visual review:\s*(pass|stopped)/i.exec(x.afterChange);
+      if (!verdict || !/\bround/i.test(x.afterChange))
         add('gui-review-report', 'Add a "Visual review" section: one line per round (what you saw, what you fixed), ending with "Visual review: PASS after N rounds" ' +
           `(a full round found nothing) or, only after ${cfg.guiMaxRounds} rounds, "Visual review: STOPPED after N rounds - remaining: ...".`);
+      // REQ: gui-flows. A page with a saved flow (docs/checks/flows/<page>.json) gets that flow rerun when it changes, so a
+      // fix can't quietly break a click path checked earlier. Lesson: flows driven once were never driven again.
+      const flowFor = [...new Set(gui.map(p => p.split('/').pop().replace(/\.[^.]+$/, '')))].filter(n => exists(`docs/checks/flows/${n}.json`));
+      const shotRuns = x.runs.filter(r => re(cfg.guiShotCommand).test(r.cmd));
+      const rerun = n => shotRuns.some(r => (/--flows\b/.test(r.cmd) && (!/--pages\b/.test(r.cmd) || new RegExp(`--pages[= ]["']?[\\w.,-]*\\b${esc(n)}\\b`).test(r.cmd))) || new RegExp(`--steps[= ]["']?[^\\s"']*flows[\\\\/]${esc(n)}\\.json`).test(r.cmd));
+      const stale = x.toolsKnown ? flowFor.filter(n => !rerun(n)) : [];
+      if (stale.length) add('gui-flows', `Saved flows exist for the pages you changed (${stale.map(n => `docs/checks/flows/${n}.json`).join(', ')}): rerun them in this round with node tools/screenshot.mjs --flows --pages ${stale.join(',')} (plus --url or --file), and look at their screenshots.`);
       // REQ: gui-warnings. Measured problems (sideways scroll, console errors, broken images) from the latest run are fixed or answered.
       const runs = x.results.split(/GUI-SHOT:/);
       const lastRun = runs.length > 1 ? runs[runs.length - 2].split(/NEXT: Read every screenshot/).pop() : '';
       const w = [...lastRun.matchAll(/^WARN (.+)$/gm)].map(m => m[1]);
-      if (verdict && /pass/i.test(verdict[1]) && w.length && !/warn(ing)?s?\b[^\n]*(accepted|expected|not a problem|intentional|n\/a)/i.test(x.answer))
+      if (verdict && /pass/i.test(verdict[1]) && w.length && !/warn(ing)?s?\b[^\n]*(accepted|expected|not a problem|intentional|n\/a)/i.test(x.said))
         add('gui-warnings', `The latest screenshot run reported ${w.length} warning(s) (e.g. ${w[0].slice(0, 140)}). Fix them and re-shoot, or say in the answer why each is accepted ("warnings accepted: ...").`);
     }
   }
@@ -2229,6 +2382,26 @@ export function coreChecks(x, cfg) {
   // REQ: twin-sync
   if (!syncTwin()) add('twin-sync', 'CLAUDE.md and AGENTS.md differ and could not be synced automatically. Make them identical.');
   return miss;
+}
+
+// REQ: skill-learn. Skills improve from use: when a check that belongs to a runbook or skill followed this turn fails
+// (now, or in an earlier block of this turn), the lesson goes into it, so the next run does not repeat the miss. It is
+// judged with every other check, so the first round already lists it. Lesson: it only appeared from round 2 on, so the
+// stop rounds kept bringing up steps the first round never mentioned.
+// Lesson: it fired on any block or complaint, also for runbooks that were only opened or wrongly matched.
+export function skillLearnCheck(x, cfg, failingNow = []) {
+  const failing = new Set([...(x.failedBefore || []), ...failingNow]);
+  const own = item => ownChecks(item, cfg);
+  // Friction from a wording check (reworded to satisfy it) is the check's, not the runbook's: never a lesson to write.
+  // Lesson: rewording twice for no-verbatim-examples made skill-learn demand a lesson from an innocent runbook.
+  const WORDING = new Set(['no-verbatim-examples', 'plain-writing', 'playbook-named', 'finished-summary', 'empty-answer', 'count-honored']);
+  const failedOwn = [...x.usedPb, ...x.usedSkills].filter(item => own(item).some(tag => !WORDING.has(tag) && failing.has(tag)));
+  const followed = [...new Set(failedOwn.map(item => item.file.endsWith('SKILL.md') ? item.file.replace(/SKILL\.md$/, '') : item.file))];
+  if (x.workTurn && followed.length && !x.changed.some(p => followed.some(f => p === f || p.startsWith(f))) && !/skill lesson:\s*none\b.{8,}/i.test(x.said))
+    return [{ tag: 'skill-learn', msg: `This turn followed ${followed.join(', ')} and its own check failed this turn. Write the lesson into it (a step, a pitfall, or a check ` +
+      'through the project-rule skill), so the next run gets it right. In an engine skill (one of the starter\'s core skills), put it under ' +
+      '"## Project lessons" at the end, which upgrades keep. If it was not the runbook\'s fault, write "Skill lesson: none - <why>".' }];
+  return [];
 }
 
 // Which checks a change to requirements.json / config.json touched, against the copies taken at the turn's start:
@@ -2281,6 +2454,29 @@ export const DONE_LABEL = /\bhooks?\s*:\s*`?[a-z][\w-]*(?:`?\s*,\s*`?[a-z][\w-]*
 const WAITS_FOR_AGENTS = new Set(['parallel-merged', 'research-cited']);
 export const waitsForAgents = q => q.waitsForAgents ?? WAITS_FOR_AGENTS.has(q.tag);
 
+// A failed test or build run: its output, beyond the exit code (a runner piped through another command exits 0).
+const FAILED_RUN = /^\s*(FAIL(ED)?\b|not ok\b)|\b[1-9]\d* (tests? )?(failed|failing|errors?)\b|Traceback \(most recent call last\)|AssertionError|\bERR!/m;
+// What this turn added to each changed file that the spec covers: the text the agent's own edits wrote (Write, Edit) when
+// the tool history shows them, else the whole file. Capped, so it stays cheap on a big turn. Returns "<file>: <match>".
+const ADDED_MAX_FILES = 300, ADDED_MAX_BYTES = 512 * 1024;
+function addedContentHit(x, spec, counted = () => true) {
+  let rx; try { rx = new RegExp(spec.pattern, 'im'); } catch { return null; }
+  const edits = new Map();
+  if (x.toolsKnown) for (const u of x.uses || []) {
+    if (!/^(Write|Edit|MultiEdit|NotebookEdit)$/.test(u.name)) continue;
+    const f = rel(u.input.file_path || u.input.notebook_path || '');
+    const add = [u.input.content, u.input.new_string, u.input.new_source, ...(u.input.edits || []).map(e => e.new_string)].filter(v => typeof v === 'string').join('\n');
+    edits.set(f, `${edits.get(f) || ''}\n${add}`);
+  }
+  const files = x.changed.filter(p => counted(p) && match(p, spec.files || ['**']) && !match(p, spec.ignore || []) && exists(p)).slice(0, ADDED_MAX_FILES);
+  for (const f of files) {
+    let text = edits.get(f);
+    if (text == null) { try { const fd = fs.openSync(abs(f), 'r'), buf = Buffer.alloc(Math.min(fs.fstatSync(fd).size, ADDED_MAX_BYTES)); fs.readSync(fd, buf, 0, buf.length, 0); fs.closeSync(fd); text = buf.toString('utf8'); } catch { continue; } }
+    const m = rx.exec(text);
+    if (m) return `${f}: "${m[0].trim().slice(0, 60)}"`;
+  }
+  return null;
+}
 export function holds(c, x) {
   const r = s => new RegExp(s, 'im');
   const globs = v => [].concat(v);
@@ -2290,7 +2486,27 @@ export function holds(c, x) {
   if (c.answerNotMatches && r(c.answerNotMatches).test(x.answer)) return false;
   if (c.minToolCalls && x.uses.length < c.minToolCalls) return false;
   if (c.workTurn && !x.workTurn) return false;
-  if (c.filesChanged && !x.changed.some(p => match(p, globs(c.filesChanged)))) return false;
+  // filesIgnore narrows filesChanged and changedContentMatches: those files never count
+  const counted = p => !c.filesIgnore || !match(p, globs(c.filesIgnore));
+  if (c.filesChanged && !x.changed.some(p => counted(p) && match(p, globs(c.filesChanged)))) return false;
+  // anyOf: at least one of these condition sets holds (each one is judged like a whole "when" or "require")
+  if (c.anyOf && !c.anyOf.some(sub => (x.toolsKnown || !needsHistory(sub)) && holds(sub, x))) return false; // without history, only what can be judged counts
+  // guiChanged: a screen file changed (the engine's guiFiles, without guiIgnore), as the screenshot loop sees it
+  if (c.guiChanged && !(x.gui || []).length) return false;
+  // changedContentMatches: what this turn added to the changed files matches. Event triggers: what the agent wrote,
+  // not what the user asked, makes a skill mandatory (a change to sign-in code needs the security review).
+  if (c.changedContentMatches) {
+    const spec = typeof c.changedContentMatches === 'string' ? { pattern: c.changedContentMatches } : c.changedContentMatches;
+    const hit = addedContentHit(x, spec, counted);
+    if (!hit) return false;
+    x.trigger = hit;
+  }
+  // ranFailing: a command matching this ran this turn and failed (an error exit or a failure line in its output)
+  if (c.ranFailing && x.toolsKnown && !(x.runs || []).some(rn => r(c.ranFailing).test(rn.cmd) && (rn.error || FAILED_RUN.test(rn.out || '')))) return false;
+  if (c.ranFailing && !x.toolsKnown) return false;
+  // toolCount: { name: "<regex of tool names>", min: n } tool calls this turn
+  if (c.toolCount && x.toolsKnown && (x.uses || []).filter(u => r(c.toolCount.name).test(u.name)).length < (c.toolCount.min || 1)) return false;
+  if (c.toolCount && !x.toolsKnown) return false;
   if (c.allFilesChanged && !globs(c.allFilesChanged).every(g => x.changed.some(p => match(p, [g])))) return false;
   // tool-history conditions can't be judged without a transcript; they then neither trigger nor block
   if (c.toolRan && x.toolsKnown && !x.cmds.some(cmd => r(c.toolRan).test(cmd))) return false;
@@ -2388,6 +2604,8 @@ export function loadRequirements() {
   return { reqs: [...BASE_REQUIREMENTS.filter(b => !off.has(b.tag)), ...file], fileReqs: file, error: null, disabled };
 }
 
+const HISTORY_KEYS = ['toolRan', 'toolUsed', 'resultMatches', 'fileRead', 'ranFailing', 'toolCount'];
+const needsHistory = c => !!c && (HISTORY_KEYS.some(k => c[k]) || (c.anyOf || []).every(needsHistory) && (c.anyOf || []).length > 0);
 export function declarativeChecks(x) {
   const { reqs, error } = loadRequirements();
   // REQ: requirements-valid. Lesson: a broken config silently turned every check off.
@@ -2400,17 +2618,23 @@ ${turnText(x.entries)}`;
     // "waitsForAgents": a check on results that helpers launched in the background this turn will deliver later
     // Lesson: a turn that only started background agents was asked to merge and cite results that did not exist yet.
     if (waitsForAgents(q) && (x.uses || []).some(u => /^(Agent|Task)$/.test(u.name) && u.input?.run_in_background)) continue;
+    // A "when" that needs the tool history can't be judged without it (an agent with no transcript): it never triggers.
+    // Lesson: with no history, "a publish command ran" read as true and asked a plain planning turn for a security review.
+    if (!x.toolsKnown && needsHistory(q.when)) continue;
     try {
-      x.detail = '';
+      x.detail = ''; x.trigger = '';
       // a requirement met by an earlier message of this turn stays met, so a re-block never forces the answer to repeat
-      // it (the Finished section still belongs to the final answer). Lesson: every re-block produced a near-copy.
-      if (holds(q.when || {}, x) && !holds(q.require || {}, x) && (q.tag === 'finished-summary' || !holds(q.require || {}, { ...x, answer: earlier }))) out.push({ tag: q.tag, msg: (q.message || `Requirement ${q.tag} is not met.`) + (x.detail ? ` (${x.detail})` : '') });
+      // it. A Finished section counts from any message after the last file change, since it still lists every change.
+      // Lesson: every re-block produced a near-copy.
+      if (holds(q.when || {}, x) && !holds(q.require || {}, x) && !holds(q.require || {}, { ...x, answer: q.tag === 'finished-summary' ? x.afterChange : earlier })) out.push({ tag: q.tag, specific: q.waiver === 'specific', msg: (q.message || `Requirement ${q.tag} is not met.`) + (x.trigger ? ` (seen in ${x.trigger})` : '') + (x.detail ? ` (${x.detail})` : '') });
     } catch (e) { out.push({ tag: 'requirements-valid', msg: `requirements.json entry "${q.tag}" is invalid (${e.message}).` }); }
   }
   return out;
 }
 
-const waived = (tag, answer) => re(`N/?A\\s*\\(\\s*${esc(tag)}\\s*\\)|N/?A:\\s*${esc(tag)}\\b`).test(answer || '');
+// A waiver holds for the whole turn: written once, in any message of it. A check marked "waiver": "specific" (a safeguard)
+// takes one only with a real reason of a few words. Lesson: a waiver in round 1 was asked for again in round 3.
+export const waived = (tag, text, specific = false) => re(specific ? `N/?A\\s*\\(\\s*${esc(tag)}\\s*\\)[ \\t]*:[ \\t]*\\S+([ \\t]+\\S+){3,}` :`N/?A\\s*\\(\\s*${esc(tag)}\\s*\\)|N/?A:\\s*${esc(tag)}\\b`).test(text || '');
 
 // ---------- recall: the project never forgets how it solved a problem (REQ: recall-hint) ----------
 // Every finished work turn leaves one line in tools/hooks/state/history.jsonl: the request, what was followed, what
@@ -2456,7 +2680,9 @@ export function stopDecision(data, cfg = config()) {
   const failed = readJSON(path.join(STATE, 'stop-failed.json'), {});
   x.failedBefore = data.stop_hook_active && failed.key === key ? failed.tags || [] : [];
   // REQ: stop-reblock. Up to maxBlocksPerTurn blocks per turn, then let the session end so it can never loop.
-  const missing = [...coreChecks(x, cfg), ...declarativeChecks(x)].filter(m => !waived(m.tag, x.answer) && !isSuspended(`check:${m.tag}`));
+  const open = m => !waived(m.tag, x.said, m.specific) && !isSuspended(`check:${m.tag}`);
+  const found = [...coreChecks(x, cfg), ...declarativeChecks(x)].filter(open);
+  const missing = [...found, ...skillLearnCheck(x, cfg, found.map(m => m.tag)).filter(open)];
   noteFriction(key, x, missing);
   const ended = (keep = false) => { writeState(TURN_END, { at: new Date().toISOString() }); if (!keep && !envOf('BENCH')) try { fs.unlinkSync(path.join(STATE, 'stop-details.md')); } catch { } }; // the next prompt starts a new turn
   if (nblocks >= cfg.maxBlocksPerTurn) {
@@ -2510,7 +2736,13 @@ const SHORT = {
   'hooks-tested': 'Run the hook self-tests until they pass',
   'name-var': 'Use the name markers instead of typing names out',
   'skill-learn': 'Write the lesson into the runbook or skill that missed it',
-  'empty-answer': 'Tell the user what was done'
+  'empty-answer': 'Tell the user what was done',
+  'security-code': 'Run the security review: this turn wrote security-sensitive code',
+  'security-config': 'Run the security review: secrets or deployment settings changed',
+  'security-publish': 'Run the security review: something was published',
+  'debug-trigger': 'State the root cause of the failure that was fixed',
+  'parallel-trigger': 'Check the sub-agents\' results together and report it',
+  'gui-flows': 'Rerun the saved click-through flows of the changed pages'
 };
 function writeDetails(missing, title) {
   if (envOf('BENCH')) return;

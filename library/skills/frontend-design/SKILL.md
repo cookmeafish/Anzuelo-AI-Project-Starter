@@ -266,6 +266,7 @@ Use the handoff template. Ask for the tech stack if unknown, so notes fit it.
 - [ ] **E:** every finding cites a WCAG 2.2 criterion (judgment: what was measured shows only in the work); contrast was measured, not judged by eye; what wasn't tested
       (for example a real screen reader) is said.
 - [ ] **F:** every state and edge case is covered, and every value is a token or flagged (judgment: full coverage needs a reviewer).
+- [ ] Whenever screens change, accessibility was checked and reported as "Accessibility: <what was checked> - PASS/FAIL" (hook: a11y-checked).
 
 ## Pitfalls
 - Starting with code and deciding the look along the way. The defaults win when nothing was decided.

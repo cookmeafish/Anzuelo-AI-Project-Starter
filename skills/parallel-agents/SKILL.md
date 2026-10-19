@@ -68,6 +68,7 @@ When they report back:
 - [ ] Every brief pointed at AGENTS.md and had scope, goal, facts, limits and a return format (hook: subagent-brief for AGENTS.md; judgment: whether the rest of the brief is clear).
 - [ ] Every report was read and its status acted on (judgment: acting on each report needs reading it).
 - [ ] The full checks passed on the combined result, after the last change (hook: parallel-merged).
+- [ ] Also unasked: a turn with two or more sub-agents checks their results together and reports it (hook: parallel-trigger).
 
 ## Pitfalls
 - Splitting connected problems: the agents each patch a symptom of one shared cause.

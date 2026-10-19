@@ -26,5 +26,64 @@ automatic fix. stop = blocks finishing. git = git hook. audit = fails the sweep.
 | 16 | Only what makes the project better | AGENTS.md rule 16 | stop: a new skill, an installed pack or a new dependency comes with "Worth it: <gain> / <cost>"; setup: every pack, library skill, tool and feature is decided (add, skip or later) with a checked reason in docs/fit-checklist.md; upgrade: rolled back if a passing check fails, then every new rule, fitting pack or skill, finding and slowdown is decided with its reason before other work; audit: the hooks stay within hookBudgetMs | worth-it, setup-complete, upgrade-review, fit-checklist |
 | 17 | Every name is a variable | `docs/names.json` | stop: a name from docs/names.json typed out in a changed file (outside its marker in docs, anywhere in code); sync refills the markers; setup: PROJECT_NAME is set and no file types a name out | name-var |
 | 18 | Only improvements, never friction | AGENTS.md rule 18 | prompt: the last turn's runbooks, skills and blocking checks are scored by the user's next message; 3 frustrated turns of the last 6 suspend one (safeguards are flagged instead); stop: a suspended check doesn't block, a suspended runbook or skill doesn't route; session: suspended items are announced until fixed and restored or retired; every gate blocks at most 3 times per turn | friction-suspend, stop-reblock |
+| Events | What the work did, not only what the request said, makes a runbook or skill mandatory | "Event triggers" below, `runbook-standards.md` | prompt: MUST FOLLOW names the runbook or skill when the request shows the event coming, and AUTONOMY asks to record "autonomy": "auto" when the user hands the work over; posttool: MUST FOLLOW the moment an edit writes what a trigger watches; pretool: publishing waits for a security review; stop: the forced runbook or skill was followed, or waived with a specific reason; stop: saved GUI flows of changed pages were rerun | security-code, security-config, security-publish, publish-gate, debug-trigger, parallel-trigger, event-hint, autonomy-hint, gui-flows |
 | Machine | Agents never endanger the user's machine or running apps | AGENTS.md rules 6 and 10 | pretool: never the installed browser; project-forbidden commands; sub-agents get the rules; project code rules on changed files | browser-guard, forbidden-command, subagent-brief, code-rules |
-| Engine | The checks can't silently stop working, for any agent | `project.md` §3 | crash blocks once; broken requirements.json blocks; block cap with carry-over; notifications aren't prompts; final answer read from the agent; agents without transcripts or hooks use `begin` / `check`; setup: nothing installed before the user answered, the starter leaves only when everything that fits is in, the setup prompt is deleted only after a passing setup audit | crash-visible, requirements-valid, stop-reblock, unresolved-carryover, notification-not-prompt, final-answer-source, agent-neutral, setup-interview, setup-complete, setup-gate, whole-output |
+| Engine | The checks can't silently stop working, for any agent | `hooks.mjs` (core) | crash blocks once; broken requirements.json blocks; block cap with carry-over; notifications aren't prompts; final answer read from the agent; agents without transcripts or hooks use `begin` / `check`; setup: nothing installed before the user answered, the starter leaves only when everything that fits is in, the setup prompt is deleted only after a passing setup audit | crash-visible, requirements-valid, stop-reblock, unresolved-carryover, notification-not-prompt, final-answer-source, agent-neutral, setup-interview, setup-complete, setup-gate, whole-output |
+
+## Event triggers: what forces a runbook or skill
+
+Some runbooks and skills are needed because of what the work did, whatever the request said. Each row says what
+happens, how the hooks see it, and the check that holds the answer until the runbook or skill was followed (or waived
+with `N/A(<check>): <reason>`; the security checks take only a specific reason). Checks of library skills apply only
+when the skill is enabled, and pack checks only when the pack is installed. The prompt hook prints
+`MUST FOLLOW: <name>` when the request shows the event coming, and the edit hook prints it the moment an edit writes
+what a trigger watches. "Judgment" rows have no event a script can see without false alarms; the reason is given.
+
+| Runbook or skill | What happened (the trigger) | Status | Check tags |
+|---|---|---|---|
+| security-review (core skill) | Code written this turn for sign-in, passwords, tokens, secrets, permissions, sessions, cookies, CORS, uploads, endpoints, shell or eval, query building, deserializing, crypto, payments or personal data (tests and engine files ignored) | added | security-code |
+| security-review (core skill) | `.env`, CI workflows, Docker, hosting or infrastructure files changed | added | security-config |
+| security-review (core skill) | A publish or deploy command (npm publish, gh release create, docker push and the like): denied before it runs until the review ran this turn or one is logged today | added | security-publish, publish-gate |
+| security-review (core skill) | The skill was used: report table and log line | existing | security-report, security-logged |
+| debug (core skill) | A test or build failed this turn and code changed after it | added | debug-trigger |
+| debug (core skill) | The skill was used: root cause, and a test changed with the code | existing | debug-root-cause, debug-test-added |
+| parallel-agents (core skill) | Two or more sub-agents ran this turn | added | parallel-trigger |
+| parallel-agents (core skill) | A sub-agent was started: its brief points at AGENTS.md, or names a brief file that does | existing (brief files added) | subagent-brief |
+| research (core skill) | A web search or fetch | existing | research-verified |
+| research (core skill) | Numbers written into docs/knowledge, with or without the skill, trace to something read this turn | extended | answer-traced |
+| research (core skill, knowledge pack) | Facts written into docs/knowledge without research, knowledge-capture or ingest | added | knowledge-source-trigger |
+| obsidian (core skill) | A new note | existing | note-linked |
+| plan (core runbook) | Many new files in one turn | existing | plan-required |
+| skill-finder (core skill) | A new runbook or a new hand-written skill (a `reuse: none - project-specific: <why>` frontmatter line replaces the search) | extended | skill-reuse |
+| project-rule (core skill) | "Always / never / from now on" or a complaint | existing | rule-request |
+| project-rule (core skill) | The user hands the work over ("without my input", "don't ask me") | added | autonomy-hint |
+| runbook-create (core skill) | Real work no runbook covers | existing | runbook-exists |
+| session-handoff (core skill) | A long work turn | existing | status-handoff |
+| skill-harden (core skill) | A runbook used 3 times | existing | skill-harden |
+| project-sweeps (core skill) | Rules, runbooks, checks or skills changed | existing | audit-run |
+| project (core runbook) | The hook logic or its checks changed | existing | hooks-tested |
+| skill-curate (core skill) | Unused for 60 days (a session notice, never a block) | existing | skill-prune |
+| project-bootstrap (core skill) | Setup steps before the interview, or the setup prompt deleted too early | existing | setup-interview, setup-gate |
+| gui-review-loop (gui pack) | Screen files changed | existing | gui-review-loop, gui-review-report |
+| gui-review-loop (gui pack) | A changed page has a saved flow in docs/checks/flows/ | added | gui-flows |
+| frontend-design (library) | Screen files changed: accessibility checked and reported | added | a11y-checked |
+| mcp-builder (library) | MCP server code written | added | mcp-trigger |
+| architecture (library) | A dependency installed, a migration or schema, or a new service in docker-compose | added | architecture-trigger |
+| incident-response (library) | The user reports production down | added | incident-trigger |
+| data-analysis (library) | A data file read and the answer gives computed numbers | added | data-computed-trigger |
+| legal-review (library) | A privacy policy, terms or a contract written | added | legal-trigger |
+| worth-it (rule 16) | A pack, skill or dependency added | existing | worth-it |
+| data-change (app pack) | A migration, schema or data format file changed | added | data-change-trigger |
+| data-change (app pack) | The runbook was used: backup and restore stated | existing | data-backup |
+| release (app pack) | A version tagged or published | added | release-trigger |
+| install-update (app pack) | Installer, launcher or updater files changed | added | install-trigger |
+| bugfix (app pack) | A failing test fixed: covered by the debug trigger, which accepts this runbook | existing | debug-trigger |
+| security-review (app pack runbook) | Runs through the core skill's triggers, plus its own app items | existing | security-checklist |
+| ingest (knowledge pack) | New originals in sources/ | added | ingest-trigger |
+| deliverable (knowledge pack) | A file written to outputs/ | added | deliverable-trigger |
+| knowledge-capture (knowledge pack) | Facts the user states: counted by the knowledge source trigger | existing | knowledge-source-trigger |
+| feature, perf, qa, app-foundation (app pack) | Judgment: "a new feature", "slow" or "a review" can't be told from a diff without flagging every ordinary edit; they route by the request's words | judgment | N/A |
+| security-hardening, backend-patterns, repo-setup (library) | Judgment: they follow a security review or a request; server code alone already triggers the security review | judgment | N/A |
+| codebase-map, commit-archaeologist, teach, user-research, marketing, orchestrate (library) | Judgment: on request only; no change in the files says they are needed | judgment | N/A |
+| compress-for-ai (library) | Judgment: a shorter instruction file is usually an ordinary edit; its own check runs when the skill is used | judgment | N/A |
+| downloads (rule 15) | Judgment: what a download command fetched and where it went can't be told reliably from the command; skill installs go through skill-finder's compare | judgment | N/A |

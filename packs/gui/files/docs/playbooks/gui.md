@@ -3,7 +3,7 @@ name: gui
 summary: Build or change anything visual (an app screen, web page, dashboard, HTML report, form) and prove it looks right with the screenshot review loop
 triggers: gui, ui, user interface, dashboard, web page, webpage, layout, styling, css, looks, look nicer, look better, more modern, user friendly, user-friendly, mobile view, dark mode, light mode, redesign the screen, how it looks, screenshot the page, screenshot the screens, take screenshots
 menu: U1
-checks: core: gui-review-loop, gui-review-report, gui-warnings
+checks: core: gui-review-loop, gui-review-report, gui-warnings, gui-flows
 ---
 # Playbook: build or change a GUI
 
@@ -27,7 +27,8 @@ or a developer spec, use its sections B, E and F.
 3. **Run the review loop:** follow the **gui-review-loop** skill (`skills/gui-review-loop/SKILL.md`) until a full
    round finds nothing.
 4. **Test behaviour, not just looks:** drive the main flow with `--steps` (type, click, check the result with `eval`).
-   Syntax-check the scripts you changed.
+   Save a flow worth repeating as `docs/checks/flows/<page>.json`; from then on every change to that page reruns it
+   (`node tools/screenshot.mjs --flows --pages <page>`). Syntax-check the scripts you changed.
 5. **Answer** with a "Visual review" section: one line per round (what you saw, what you fixed), then
    `Visual review: PASS after N rounds`. Tell the user how to see it (restart the app, or open the file).
 
@@ -35,6 +36,7 @@ or a developer spec, use its sections B, E and F.
 - [ ] Fresh screenshots of the final state, taken after the last edit, all opened and looked at (hook: gui-review-loop).
 - [ ] "Visual review: PASS after N rounds" with a line per round; tool warnings fixed or explained (hook: gui-review-report, gui-warnings).
 - [ ] The main flow works when driven, not just when looked at (judgment: which flow is the main one, and that it works, needs a person to drive it).
+- [ ] Every saved flow of a changed page (docs/checks/flows/<page>.json) was rerun in the last round (hook: gui-flows).
 
 ## Pitfalls
 - Declaring it done from the code alone. Layout bugs only show up in the picture.

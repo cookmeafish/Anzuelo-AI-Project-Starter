@@ -14,7 +14,7 @@ favors no vendor.
 >    `--dry-run` first to show the user what will happen.
 > 2. Never copy files by hand, and never put the project inside this folder.
 > 3. Continue in the project folder: open its [SETUP-PROMPT.md](SETUP-PROMPT.md) and follow it from Phase 1. (After an upgrade there
->    is no setup prompt: go through the upgrade review it wrote into `docs/DECISIONS.md` with the user.)
+>    is no setup prompt: decide the upgrade review it wrote into `docs/DECISIONS.md`, asking the user only about money, privacy or outward actions.)
 
 ## What a project gets
 - **Setup that asks first, then gives the project everything that fits.** The agent asks about the project, records
@@ -29,7 +29,7 @@ favors no vendor.
   - Skills nobody uses get reviewed and retired, with your OK.
 - **"Always", "never" and complaints become rules with automatic checks,** not promises.
 - **Only what makes it better.** Every added skill, pack or dependency comes with its gain and its cost, weighed.
-  Upgrades roll back if a passing check breaks, and each new item is adopted or declined with you. The hooks have a
+  Upgrades roll back if a passing check breaks, and the agent weighs each new item and tells you what it added or skipped (it asks only about money, privacy or outward actions). The hooks have a
   speed budget the audit enforces.
 - **Only improvements, never friction.** A skill, runbook or check that keeps frustrating you is suspended
   automatically and announced; safety and honesty checks stay, and get made less annoying instead. No check can stall
@@ -89,9 +89,9 @@ The link and the copy are both ignored by git.
 | New project | `node tools/new-project.mjs "<folder>" --name "<Name>" [--desc "..."] [--git]` |
 | Existing project | `node tools/new-project.mjs "<folder>"`, then "set up this project". Nothing existing is overwritten |
 | Add a pack or library skill later | In the project: `node tools/packs.mjs install <name>` or `node tools/skills.mjs enable <name>` |
-| Update a project to the newest release | In the project: `node tools/starter.mjs update`. It gets the newest starter from GitHub (into the linked copy), then upgrades the project the safe way below. `node tools/starter.mjs status` says whether a newer release exists |
+| Update a project to the newest release | In the project: `node tools/starter.mjs update`. It gets the newest starter from its git origin (into the linked copy), then upgrades the project the safe way below. `node tools/starter.mjs status` says whether a newer release exists |
 | Upgrade a project's engine | In the project: `node tools/starter.mjs upgrade` (or from here: `node tools/new-project.mjs "<folder>" --upgrade`). Rolls back if a passing check breaks; lists what is new and fits, to weigh with you |
-| Preview any of these | add `--dry-run` |
+| Preview any of these | add `--dry-run` (for `update`, the linked starter is still pulled; only the project's upgrade is previewed) |
 
 ## How it works
 | Piece | Where | Role |
@@ -116,7 +116,11 @@ Open this folder with an agent and work on it like any project. The hooks run he
 setup prompt from triggering in this folder. Add a test for every new check, run `node tools/audit.mjs --full`, and
 record changes in [tools/starter/STARTER-CHANGELOG.md](tools/starter/STARTER-CHANGELOG.md). `node tools/trial.mjs`
 (starter only) proves on sample projects that making a new project, adopting a folder and upgrading never leave a
-project worse. Before publishing, list any private words (names, project names) in `.private-terms`. That file is
+project worse (`--deep` also runs the self-tests inside a project mid-setup). A copy you are developing carries a
+`.starter-dev` file (ignored by git): projects are never made from it or linked to it (`--dev` for throwaway tests),
+and the app pack's gates apply to the starter itself there. Projects send engine lessons back with
+`node tools/starter.mjs feedback "<text>"` and `report`; they land in `docs/feedback-inbox/` here, and the audit
+warns until each is reviewed. Before publishing, list any private words (names, project names) in `.private-terms`. That file is
 ignored by git, and the publish-safety sweep fails if any of them appear.
 
 ## License

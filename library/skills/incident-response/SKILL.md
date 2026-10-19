@@ -88,6 +88,7 @@ Write it in the incident file within a few days, for every level 1 or 2 incident
 - [ ] The answer states `Root cause: <what and why>`, and a regression test covers it (debug skill, `bugfix` runbook) (hook: incident-root-cause for the line; judgment: the test is checked only when the bugfix runbook is followed).
 - [ ] Level 1 and 2: the post-mortem has impact numbers, the why-chain and actions with owner, date and type (judgment: only level 1 and 2 need it, and the level is a call), and
   `docs/lessons.md` has its row.
+- [ ] Followed whenever the user reports production down, even without naming this skill (hook: incident-trigger).
 
 ## Pitfalls
 - Debugging for an hour while users are still down, when a rollback would have stopped the harm in minutes.

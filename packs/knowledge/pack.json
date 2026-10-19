@@ -133,6 +133,76 @@
         ]
       },
       "message": "Knowledge-capture skill: write the fact, preference or decision into docs/knowledge (labeled, sourced, dated), docs/DECISIONS.md or docs/BRIEF.md. Saying it in the answer is not recording it."
+    },
+    {
+      "tag": "ingest-trigger",
+      "rule": "4",
+      "forces": "ingest",
+      "hint": "\\b(here'?s|attached|i (dropped|added|uploaded|saved)|new)\\b[^.\\n]{0,20}\\b(file|files|pdf|document|export|screenshot|spreadsheet|scan)s?\\b",
+      "when": {
+        "filesChanged": [
+          "sources/**"
+        ],
+        "filesIgnore": [
+          "sources/README.md"
+        ]
+      },
+      "require": {
+        "anyOf": [
+          {
+            "playbookUsed": "ingest"
+          },
+          {
+            "filesChanged": [
+              "docs/knowledge/SOURCES.md"
+            ]
+          }
+        ]
+      },
+      "message": "New originals arrived in sources/: follow the ingest runbook, so each one is registered in docs/knowledge/SOURCES.md and its facts are captured."
+    },
+    {
+      "tag": "deliverable-trigger",
+      "rule": "4",
+      "forces": "deliverable",
+      "when": {
+        "filesChanged": [
+          "outputs/**"
+        ]
+      },
+      "require": {
+        "playbookUsed": "deliverable"
+      },
+      "message": "A file was written to outputs/: that is a deliverable, so follow the deliverable runbook (new version as a new file, sources, the writing check)."
+    },
+    {
+      "tag": "knowledge-source-trigger",
+      "rule": "4",
+      "forces": "research",
+      "when": {
+        "filesChanged": [
+          "docs/knowledge/**"
+        ],
+        "filesIgnore": [
+          "docs/knowledge/README.md",
+          "docs/knowledge/SOURCES.md",
+          "docs/knowledge/INDEX.md"
+        ]
+      },
+      "require": {
+        "anyOf": [
+          {
+            "skillUsed": "research"
+          },
+          {
+            "skillUsed": "knowledge-capture"
+          },
+          {
+            "playbookUsed": "ingest"
+          }
+        ]
+      },
+      "message": "Facts were written into docs/knowledge: they come through the research skill (sources read this turn, cited), the knowledge-capture skill (what the user said) or the ingest runbook (a file they gave)."
     }
   ]
 }

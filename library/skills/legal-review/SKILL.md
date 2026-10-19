@@ -157,6 +157,7 @@ In these cases the agent may still prepare a draft for the lawyer, marked `DRAFT
 - [ ] Redlines quote the current text and give replacement text ready to paste (judgment: redline quality needs a reader).
 - [ ] Sources checked and not checked are listed (judgment: no check reads the list yet).
 - [ ] Nothing was sent, signed or submitted without the user's explicit OK (judgment: the user's OK is in the conversation).
+- [ ] Followed unasked whenever the turn writes a privacy policy, terms or a contract (hook: legal-trigger).
 
 ## Pitfalls
 - Sounding certain. A confident wrong answer about a contract can cost the user far more than "ask a lawyer".

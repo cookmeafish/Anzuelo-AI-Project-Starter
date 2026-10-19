@@ -108,6 +108,7 @@ change, known rate limits, and the security notes (what it can reach, what it ne
 - [ ] Tests pass after the last edit (judgment: the inspector run and the agent tasks are checked by hand), every tool was called through an inspector, and the agent tasks were answered
       correctly.
 - [ ] The README covers setup, config, every tool and every environment variable. Sample data, if any, is labeled (judgment: README completeness needs a reader).
+- [ ] Followed unasked whenever the turn writes MCP server code, with the tool lint run (hook: mcp-trigger).
 
 ## Pitfalls
 - Wrapping every endpoint one to one without asking whether the jobs need it. The model drowns in near-identical

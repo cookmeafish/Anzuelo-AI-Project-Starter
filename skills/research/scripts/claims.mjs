@@ -1,13 +1,18 @@
 #!/usr/bin/env node
 // The research ledger: every source screened, every claim traced. Zero dependencies; never contacts anything.
-//   node skills/research/scripts/claims.mjs new "<question>"     create .cache/research/<slug>.md from the template
+//   node skills/research/scripts/claims.mjs new "<question>" [--slug <topic>]
+//                                                               create .cache/research/<slug>.md from the template, or
+//                                                               reuse the ledger that already has that slug. The slug is
+//                                                               --slug, else the question's first 5 key words.
 //   node skills/research/scripts/claims.mjs check <ledger.md>    validate it (exit 0 = pass, 1 = errors, 2 = usage or read error)
 // The format and the rules are in ../references.md.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const [cmd, arg] = process.argv.slice(2);
+const argv = process.argv.slice(2), si = argv.indexOf('--slug');
+const slugArg = si >= 0 ? argv[si + 1] : null;
+const [cmd, arg] = argv.filter((a, i) => si < 0 || (i !== si && i !== si + 1));
 const usage = () => { for (const l of fs.readFileSync(fileURLToPath(import.meta.url), 'utf8').split(/\r?\n/).slice(1)) { if (!l.startsWith('//')) break; console.log(l); } process.exit(2); };
 const TYPES = ['primary', 'secondary', 'forum', 'social', 'wiki', 'aggregator', 'ai', 'project'];
 const NOT_EVIDENCE = ['forum', 'social', 'wiki', 'aggregator', 'ai'];
@@ -16,10 +21,14 @@ const STATUS = ['confirmed', 'primary', 'single source', 'conflict', 'unverified
 const PAID = /sponsor|affiliate|paid|advert|\bads?\b|#ad|press release|partner content|commission/i;
 
 if (cmd === 'new' && arg) {
-  const slug = arg.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'research';
+  // A short slug of the topic, so helpers researching the same thing share one ledger. Lesson: two agents with the same
+  // topic named their ledgers after their own wording of the question and made two ledgers.
+  const STOPWORDS = new Set('a an the of for to in on at by and or is are was were be what which who how why when where does do did can could should would i we you it its this that these those with about from best vs versus'.split(' '));
+  const words = String(slugArg || arg).toLowerCase().split(/[^a-z0-9]+/).filter(w => w && (slugArg || !STOPWORDS.has(w)));
+  const slug = words.slice(0, 5).join('-').slice(0, 60) || 'research';
   const d = new Date(), day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const file = path.join('.cache', 'research', `${slug}.md`);
-  if (fs.existsSync(file)) { console.log(`exists: ${file}`); process.exit(0); }
+  if (fs.existsSync(file)) { console.log(`exists: ${file} (reusing it: add your sources and claims there)`); process.exit(0); }
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, `# Research: ${arg}\ndate: ${day}\nscope: \n\n## Sources\n| ID | Link | Owner | Type | Incentive | Date | Use |\n|---|---|---|---|---|---|---|\n\n` +
     '## Claims\n| Claim | Sources | Quote or data | Status |\n|---|---|---|---|\n\n## Verdict\n\n');

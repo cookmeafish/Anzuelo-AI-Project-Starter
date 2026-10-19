@@ -79,6 +79,17 @@ The other half is pruning: a runbook or skill unused for `pruneAfterDays` shows 
 skill-curate skill keeps it with a reason, merges it, or retires it (`node tools/skills.mjs retire <name>`) with the
 user's OK.
 
+### §12 Tools at a glance
+- `node tools/hooks/hooks.mjs why`: the full steps behind the last stop message. `restore <item>`: bring back a
+  runbook, skill or check the friction rule suspended.
+- `node tools/hooks/selfcheck.mjs --tags a,b`: only the scenarios of the checks you changed. `--route "<request>"`:
+  where a request routes. `--ablation`: every required step of a golden workflow is load-bearing.
+- `node tools/fit.mjs` / `check` / `summary` / `decide "<item>" <add|skip|later> "<reason>"`: the add-or-skip checklist.
+- `node tools/starter.mjs feedback "<text>"`, then `report`: send a lesson about the engine back to the starter.
+- `node tools/dedupe.mjs` (then `--apply`): remove exact duplicates from originals folders, keeping the referenced copy.
+- `node tools/packs.mjs configure app --test "<cmd>" --test-pass "<regex>" --build "<cmd>" --build-pass "<regex>"`
+  (also `--lint`, `--typecheck`, `--run`, `--code`, `--version-file`): the app pack's gates.
+
 ## Done when
 - [ ] Rule requests: AGENTS/CLAUDE + user-requirements + rule-enforcement + a check (or hook: N/A) + memory; tests and audit PASS (hook: rule-request, rule-memory, hooks-tested, audit-run).
 - [ ] The original miss behind a complaint is fixed, not just prevented (judgment: whether the miss itself is fixed needs a look at the result).

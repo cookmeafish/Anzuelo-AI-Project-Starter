@@ -43,7 +43,7 @@ A rule that only lives in the docs gets forgotten. Here the docs say it and a ho
    `coreChecks()` or `pretoolDecision()` in `tools/hooks/hooks.mjs`, with a `// REQ: <tag>` comment. Pure judgment:
    write "hook: N/A <reason>" in the answer and mark the row `doc`. Keep `when` specific: a check that fires on
    unrelated turns teaches everyone to waive it.
-6. **Prove it.** Add a scenario to `tools/hooks/selfcheck.mjs`: skipped → blocked with the tag, followed → passes.
+6. **Prove it.** Add a scenario to `tools/hooks/project-scenarios.mjs` (upgrades keep it; in the starter itself: `tools/hooks/selfcheck.mjs`): skipped → blocked with the tag, followed → passes.
    Run `node tools/hooks/selfcheck.mjs`, then `node tools/audit.mjs`. Both must PASS.
 7. **Report** the rule in one line, where it lives, and how it is enforced (or why it can't be), with a Finished
    section and a CHANGELOG line.

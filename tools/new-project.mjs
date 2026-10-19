@@ -17,7 +17,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { CORE_SKILLS, today as localToday, usageOf } from './hooks/hooks.mjs';
+import { CORE_SKILLS, today as localToday, usageOf, isEngineCheck } from './hooks/hooks.mjs';
 import { wire } from './hooks/wire.mjs';
 
 const STARTER = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -29,10 +29,11 @@ const ENGINE = [
   '.githooks/commit-msg', '.githooks/pre-commit', '.githooks/pre-push',
   'docs/checks/session-checklist.md', 'docs/checks/finish-checklist.md', 'docs/checks/runbook-standards.md',
   'docs/checks/writing-standards.md', 'docs/checks/layout-standards.md', 'docs/recommended-tools.md', 'docs/checks/better-or-worse.md',
-  'docs/playbooks/_TEMPLATE.md', 'docs/playbooks/_fallback.md', 'HOW-TO-USE.md', 'tools/skills.mjs', 'tools/starter.mjs', 'tools/recall.mjs', 'tools/hooks/wire.mjs', 'tools/survey.mjs', 'tools/dedupe.mjs', 'tools/fit.mjs'
+  'docs/playbooks/_TEMPLATE.md', 'docs/playbooks/_fallback.md', 'HOW-TO-USE.md', 'tools/skills.mjs', 'tools/starter.mjs', 'tools/recall.mjs', 'tools/hooks/wire.mjs', 'tools/survey.mjs', 'tools/dedupe.mjs', 'tools/fit.mjs',
+  'tools/hooks/engine-checks.json'
 ];
 // Added on upgrade only when missing: the project may have tuned them.
-const ENGINE_IF_MISSING = ['docs/playbooks/plan.md', 'docs/plans/README.md', 'docs/security.md', 'docs/names.json', 'docs/glossary.md'];
+const ENGINE_IF_MISSING = ['tools/hooks/project-scenarios.mjs', 'docs/playbooks/plan.md', 'docs/plans/README.md', 'docs/security.md', 'docs/names.json', 'docs/glossary.md'];
 // Core skills are engine too: an upgrade replaces each whole folder (SKILL.md, references, scripts, LICENSE, SOURCE).
 // Engine skills merged into another (the old folder and its checks go on upgrade), and pack runbooks whose job an engine
 // skill took over (the upgrade review offers to merge them; the project may have tuned them).
@@ -182,6 +183,9 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   const before = probe();
   const backupDir = path.join(dest, '.cache', 'upgrade-backup', stamp);
   const snapMissing = SNAP.filter(f => !fs.existsSync(path.join(dest, f)));
+  // the core checks this project got from its last upgrade, read before the engine files are replaced (3-way merge below)
+  const prevShipped = (() => { try { return JSON.parse(fs.readFileSync(path.join(dest, 'tools', 'hooks', 'engine-checks.json'), 'utf8')).requirements || null; } catch { return null; } })();
+  const keptChecks = [];
   if (!dry) for (const f of SNAP.filter(f => fs.existsSync(path.join(dest, f)))) { const b = path.join(backupDir, f + '.orig'); fs.mkdirSync(path.dirname(b), { recursive: true }); fs.copyFileSync(path.join(dest, f), b); }
   for (const f of ENGINE) if (fs.existsSync(path.join(STARTER, f))) put(f, { overwrite: true });
   for (const f of ENGINE_IF_MISSING) if (fs.existsSync(path.join(STARTER, f))) put(f);
@@ -207,27 +211,35 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   const lk = path.join(dest, 'tools', 'starter.local.json');
   if (!fs.existsSync(lk) && !dry) { fs.writeFileSync(lk, JSON.stringify({ path: STARTER }, null, 2) + '\n'); log.push('linked   tools/starter.local.json → this starter'); }
   // the core skills' checks: added when the project lacks them, and refreshed when the starter's version changed, so a
-  // core skill and its check never disagree. A project keeps its own version by marking the entry "custom": true.
+  // core skill and its check never disagree. A 3-way merge keeps local edits: an entry equal to the copy shipped last
+  // time (tools/hooks/engine-checks.json) is refreshed; one that differs from it (or any differing entry when there is no
+  // earlier copy) was edited here, so it is kept, marked "custom": true, and listed in the upgrade review.
   // Lesson: the research skill moved to numbered citations, but upgraded projects kept the old check for it.
+  // Lesson: a refresh replaced a check the project had tuned, and nobody was told.
   const rq = path.join(dest, 'tools', 'hooks', 'requirements.json');
   try {
     const mine = JSON.parse(fs.readFileSync(rq, 'utf8'));
-    const theirs = JSON.parse(fs.readFileSync(path.join(STARTER, 'tools', 'hooks', 'requirements.json'), 'utf8')).requirements;
-    const skillChecks = theirs.filter(r => CORE_SKILLS.includes(r.when?.skillUsed) || r.when?.playbookUsed === 'plan');
+    const shipped = path.join(STARTER, 'tools', 'hooks', 'engine-checks.json');
+    const theirs = JSON.parse(fs.readFileSync(fs.existsSync(shipped) ? shipped : path.join(STARTER, 'tools', 'hooks', 'requirements.json'), 'utf8')).requirements;
+    const skillChecks = theirs.filter(isEngineCheck);
     const missing = skillChecks.filter(r => !mine.requirements.some(m => m.tag === r.tag));
     if (missing.length) {
       log.push(`added    checks ${missing.map(r => r.tag).join(', ')} to tools/hooks/requirements.json`);
       if (!dry) mine.requirements.push(...missing);
     }
     const refreshed = [];
+    const same = (a, b) => JSON.stringify({ ...a, enabled: undefined, custom: undefined }) === JSON.stringify({ ...b, enabled: undefined, custom: undefined });
     mine.requirements = mine.requirements.map(m => {
       const s = skillChecks.find(r => r.tag === m.tag);
-      if (!s || m.custom || JSON.stringify({ ...m, enabled: undefined }) === JSON.stringify({ ...s, enabled: undefined })) return m;
+      if (!s || m.custom || same(m, s)) return m;
+      const was = prevShipped?.find(r => r.tag === m.tag);
+      if (!was || !same(m, was)) { keptChecks.push(m.tag); return { ...m, custom: true }; } // edited here (or unknown): never replaced silently
       refreshed.push(m.tag);
       return { ...s, ...(m.enabled === false ? { enabled: false } : {}) }; // a check the project switched off stays off
     });
     if (refreshed.length) log.push(`updated  checks ${refreshed.join(', ')} in tools/hooks/requirements.json (the starter's newer version; mark an entry "custom": true to keep yours)`);
-    if (!dry && (missing.length || refreshed.length)) fs.writeFileSync(rq, JSON.stringify(mine, null, 2) + '\n');
+    if (keptChecks.length) log.push(`kept     checks ${keptChecks.join(', ')}: edited in this project, so they stay (marked "custom") and go into the upgrade review`);
+    if (!dry && (missing.length || refreshed.length || keptChecks.length)) fs.writeFileSync(rq, JSON.stringify(mine, null, 2) + '\n');
     // pack checks whose patterns lost their backslashes in an older starter: take the corrected pattern
     let fixed = 0;
     for (const r of mine.requirements.filter(r => r.pack && /\[sS\]|root causes\*/.test(r.require?.answerMatches || ''))) {
@@ -319,6 +331,7 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   for (const [rb, into] of Object.entries(MERGED_RUNBOOKS)) if (fs.existsSync(path.join(dest, 'docs', 'playbooks', `${rb}.md`)) && !decided.includes(`- merge: docs/playbooks/${rb}.md`)) items.push(`merge: docs/playbooks/${rb}.md into the ${into} skill`);
   for (const s of after.failed.filter(s => !before.failed.includes(s) && !(fresh && /fit checklist/.test(s)))) items.push(`check: ${s.replace(/: /g, ', ')}`);
   for (const [ev, ms] of Object.entries(after.speed)) if (before.speed[ev] && ms > before.speed[ev] * 1.5 && ms - before.speed[ev] > 100) items.push(`speed: the ${ev} hook went from ${before.speed[ev]} to ${ms} ms`);
+  for (const tag of keptChecks) items.push(`check: ${tag}, kept your edited version; the starter's newer one differs (to take it, delete the entry's "custom" flag and upgrade again)`);
   items.push('self-tests: node tools/hooks/selfcheck.mjs passes here');
   const dp = path.join(dest, 'docs', 'DECISIONS.md');
   fs.mkdirSync(path.dirname(dp), { recursive: true });

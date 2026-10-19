@@ -7,7 +7,7 @@
 //                                                              or while .gitignore lets private files out
 //   node tools/hooks/git-guard.mjs scan                        list unpushed commits that credit an AI
 import fs from 'node:fs';
-import { config, aiAttributedCommits, gitignoreProblems } from './hooks.mjs';
+import { config, aiAttributedCommits, gitignoreProblems, secretHit } from './hooks.mjs';
 
 const cfg = config();
 const [mode, file] = process.argv.slice(2);
@@ -32,7 +32,7 @@ if (mode === 'pre-commit') {
   const { spawnSync } = await import('node:child_process');
   const git = (...a) => spawnSync('git', a, { encoding: 'utf8' }).stdout || '';
   const added = git('diff', '--cached', '-U0').split('\n').filter(l => l.startsWith('+') && !l.startsWith('+++')).join('\n');
-  const hit = cfg.secretPatterns.find(s => new RegExp(s).test(added));
+  const hit = secretHit(added, cfg);
   if (hit) { console.error(`commit rejected (no-secrets): staged changes contain something that looks like a secret (pattern ${hit}). Move it to an ignored file such as .env.`); process.exit(1); }
   const stray = git('diff', '--cached', '--name-only', '--diff-filter=A').split(/\r?\n/).filter(f => /(^|\/)(nul|con|aux|prn|com\d|lpt\d)(\.[a-z0-9]+)?$/i.test(f));
   if (stray.length) { console.error(`commit rejected (shell-hygiene): Windows reserved-name files staged: ${stray.join(', ')}. Delete them; they come from "> nul" in Bash.`); process.exit(1); }

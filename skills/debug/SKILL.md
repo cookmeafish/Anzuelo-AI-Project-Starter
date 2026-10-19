@@ -119,6 +119,7 @@ root cause" findings are unfinished investigations, so be sure before landing he
 - [ ] A test that failed before the fix now passes, and the rest of the suite still passes (hook: debug-test-added sees a test change with the code; judgment: that it failed before the fix).
 - [ ] The original problem is gone where it was seen (the real app, the build, the script) (judgment: where the problem showed differs per bug).
 - [ ] Layers that let bad data through now reject it, or the answer says why that wasn't needed (judgment: which layers matter depends on the data flow).
+- [ ] Also unasked: a test or build that failed this turn and was then fixed has its root cause stated (hook: debug-trigger).
 
 ## Pitfalls
 - Fixing where the error surfaced because the true source is several calls away.

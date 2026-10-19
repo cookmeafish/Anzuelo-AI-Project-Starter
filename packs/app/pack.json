@@ -386,6 +386,87 @@
         "answerMatches": "root cause\\s*:"
       },
       "message": "Bugfix: state the root cause in the answer (\"Root cause: <what and why>\"), found before the fix (debug skill), not a description of the symptom."
+    },
+    {
+      "tag": "data-change-trigger",
+      "rule": "4",
+      "forces": "data-change",
+      "hint": "\\b(migrat\\w*|schema|database change|alter table|add (a |the )?column|rename (a |the )?(column|field|table)|change (where|how) (the )?data is (saved|stored))\\b",
+      "when": {
+        "filesChanged": [
+          "**/migrations/**",
+          "**/migrate/**",
+          "**/*.sql",
+          "**/*.prisma",
+          "**/schema.*",
+          "**/alembic/**",
+          "**/db/schema*"
+        ],
+        "filesIgnore": [
+          "docs/**",
+          "**/*.md",
+          "skills/**",
+          ".claude/**"
+        ]
+      },
+      "require": {
+        "anyOf": [
+          {
+            "playbookUsed": "data-change"
+          },
+          {
+            "answerMatches": "backup[\\s\\S]*restor"
+          }
+        ]
+      },
+      "message": "This turn changed a migration, a schema or the data format: follow the data-change runbook, and say how the data is backed up and restored if the change goes wrong."
+    },
+    {
+      "tag": "release-trigger",
+      "rule": "6",
+      "forces": "release",
+      "hint": "\\b(release|ship it|publish|tag (a|the) (release|version)|cut a version|deploy to prod\\w*)\\b",
+      "when": {
+        "toolRan": "\\bgit\\s+tag\\s+(-[as]\\s+)?v?\\d|\\bgh\\s+release\\s+create\\b|\\b(npm|pnpm|yarn)\\s+(publish|version)\\b|\\bcargo\\s+publish\\b|\\btwine\\s+upload\\b|\\bvsce\\s+publish\\b"
+      },
+      "require": {
+        "playbookUsed": "release"
+      },
+      "message": "A version was tagged or published this turn: follow the release runbook (release notes, rollback plan, attribution check)."
+    },
+    {
+      "tag": "install-trigger",
+      "rule": "4",
+      "forces": "install-update",
+      "hint": "\\b(installer|install script|setup script|launcher|shortcut|auto.?update|self.?update|updater|packaging|first run)\\b",
+      "when": {
+        "filesChanged": [
+          "**/install.*",
+          "**/install-*.*",
+          "**/installer/**",
+          "**/setup.ps1",
+          "**/setup.sh",
+          "**/setup.bat",
+          "**/*.iss",
+          "**/*.nsi",
+          "**/*.wxs",
+          "**/updater*",
+          "**/auto-update*",
+          "**/launcher*",
+          "**/electron-builder*"
+        ],
+        "filesIgnore": [
+          "docs/**",
+          "**/*.md",
+          "skills/**",
+          "node_modules/**",
+          ".claude/**"
+        ]
+      },
+      "require": {
+        "playbookUsed": "install-update"
+      },
+      "message": "This turn changed how the app is installed, launched or updated: follow the install-update runbook (its install matrix in docs/releases/)."
     }
   ]
 }

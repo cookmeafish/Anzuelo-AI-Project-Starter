@@ -11,7 +11,16 @@ stays FAIL (or "not verified") until evidence says otherwise.
 
 Every project gets this skill, not only apps: a notes or research project still holds secrets, private data and
 untrusted files. Review a single change (what it touches) or the whole project. Run it at setup (the first review),
-before anything is shared, published or released (hard rule 15), and when the user asks. In app projects, the
+before anything is shared, published or released (hard rule 15), and when the user asks.
+
+**It is also mandatory, asked or not, when the work itself touches security.** That means code for sign-in, passwords,
+tokens, secrets, permissions, sessions, cookies, CORS, uploads, endpoints, shell or eval, query building, deserializing,
+crypto, payments or personal data. It also means `.env`, CI, Docker or hosting settings, or a publish or deploy
+command. The prompt hook says `MUST FOLLOW: security-review` when the request shows it coming, the edit hook says it
+the moment such code is written, and the Stop hook holds the answer until the review is done (or waived with
+`N/A(<check>): <the specific reason>`). Review only what changed, with the areas it touches.
+
+In app projects, the
 `security-review.md` runbook adds its own items on top. **This skill finds problems and fixes the few critical ones.
 The security-hardening library skill fixes a long list as a staged project.** Both use the same areas, severity scale
 and report table ([references.md](references.md)), so one's report is the other's input.
@@ -116,6 +125,7 @@ apps, `docs/foundation.md`), and any risk the user must decide on.
 - [ ] Automatic checks were added where a pattern can be caught by a tool (judgment: which patterns a tool can catch needs a reviewer).
 - [ ] Tests and checks pass after the last edit (app projects: `docs/checks/qa-standards.md`) (judgment: each project has its own test commands).
 - [ ] The review is logged in the Reviews table of `docs/security.md` (hook: security-logged).
+- [ ] Run unasked whenever the turn wrote security-sensitive code (sign-in, passwords, tokens, secrets, permissions, sessions, uploads, endpoints, shell or eval, query building, crypto, payments, personal data), changed secrets or deployment settings, or published something (hook: security-code, security-config, security-publish).
 
 ## Pitfalls
 - Checking that a user is signed in but not that the record is theirs. This is the most common real hole.
