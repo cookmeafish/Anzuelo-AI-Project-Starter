@@ -1,7 +1,7 @@
 ---
 name: feature
 summary: Build a new feature or change behaviour - spec with acceptance criteria, written plan, build, triple-check QA, independent review, release notes
-triggers: add a feature, new feature, build a, implement, make it so, i want the app to, add support for, change how, new screen, new mode, new option, new setting, feature request
+triggers: add a feature, new feature, build a, implement, make it so, i want the app to, add support for, change how, new screen, new mode, new option, new setting, feature request, refactor, rename, restructure, clean up the code, login, sign in, sign up, endpoint, rate limiting, add a column, new page, new field, new endpoint, add a button, add an option, add a setting, token expiry
 menu: A1
 ---
 # Playbook: build a feature

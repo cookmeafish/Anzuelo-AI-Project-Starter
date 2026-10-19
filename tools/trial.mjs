@@ -193,7 +193,8 @@ for (const [name, s] of Object.entries(SAMPLES)) {
   // the upgrade retires (a doc names it too, which the upgrade rewrites): the references sweep then fails, the upgrade
   // rolls back, and every file must match. Lesson: a rollback left rewritten docs and new skill copies behind.
   if (!noPrev) {
-    write(dir, { 'tools/hooks/test-hooks.mjs': '// an old engine file\n', 'docs/old-notes.md': '# Old notes\nRun `node tools/hooks/test-hooks.mjs` after hook changes.\n', 'tools/my-tool.mjs': '// run `node tools/hooks/test-hooks.mjs` before this tool\n' });
+    const oldRef = '`node tools/hooks/' + 'test-hooks.mjs`'; // split, so the starter's own audit doesn't read it as a reference
+    write(dir, { 'tools/hooks/test-hooks.mjs': '// an old engine file\n', 'docs/old-notes.md': `# Old notes\nRun ${oldRef} after hook changes.\n`, 'tools/my-tool.mjs': `// run ${oldRef} before this tool\n` });
     const pre = snapshot(dir, /^(\.git|tools\/hooks\/state|\.cache)(\/|$)/);
     const u3 = starterRun(dir, '--upgrade');
     const post = snapshot(dir, /^(\.git|tools\/hooks\/state|\.cache)(\/|$)/);

@@ -47,7 +47,8 @@
       "bf26c6019b17"
     ],
     "debug-trigger": [
-      "88454786e437"
+      "88454786e437",
+      "53c62b919954"
     ],
     "deliverable-file": [
       "be690ff4323d"
@@ -155,7 +156,8 @@
       "3fa00272685a"
     ],
     "release-trigger": [
-      "0b4eafe24756"
+      "0b4eafe24756",
+      "269878611d38"
     ],
     "research-cited": [
       "2440d828a7cb",
@@ -188,7 +190,8 @@
       "0f2426df7abf"
     ],
     "security-publish": [
-      "b6b61adb7d28"
+      "b6b61adb7d28",
+      "8aa67289a0df"
     ],
     "security-report": [
       "1660d0c4ce4a"
@@ -213,10 +216,12 @@
       "76eca3295f96"
     ],
     "verification-report": [
-      "406515ce3dc9"
+      "406515ce3dc9",
+      "04e5e22de051"
     ],
     "version-bump": [
-      "0e1ccf4ecec0"
+      "0e1ccf4ecec0",
+      "5a5ff7d60e5c"
     ]
   }
 }

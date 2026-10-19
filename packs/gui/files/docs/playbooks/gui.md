@@ -1,7 +1,7 @@
 ---
 name: gui
 summary: Build or change anything visual (an app screen, web page, dashboard, HTML report, form) and prove it looks right with the screenshot review loop
-triggers: gui, ui, user interface, dashboard, web page, webpage, layout, styling, css, looks, look nicer, look better, more modern, user friendly, user-friendly, mobile view, dark mode, light mode, redesign the screen, how it looks, screenshot the page, screenshot the screens, take screenshots
+triggers: gui, ui, user interface, dashboard, web page, webpage, layout, styling, css, look nicer, look better, more modern, user friendly, user-friendly, mobile view, dark mode, light mode, redesign the screen, how it looks, screenshot the page, screenshot the screens, take screenshots, restyle, appearance, look and feel, looks bad, looks off, looks ugly, looks wrong, too small, too big, hard to read, spacing, colors, colours, fonts, button size, the screen, screens, on my phone, on mobile
 menu: U1
 checks: core: gui-review-loop, gui-review-report, gui-warnings, gui-flows
 ---

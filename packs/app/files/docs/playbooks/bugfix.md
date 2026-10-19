@@ -1,7 +1,7 @@
 ---
 name: bugfix
 summary: Fix a bug - reproduce it, write a failing test, fix the cause, prove the test passes, check for siblings of the bug
-triggers: bug, broken, doesn't work, does not work, not working, crash, crashes, error, fix this, fix it, regression, wrong result, stopped working, it breaks, glitch
+triggers: bug, broken, doesn't work, does not work, not working, crash, crashes, error, fix this, fix it, regression, wrong result, stopped working, it breaks, glitch, wrong, fails, failing, build broke, build failed, ci failing, ci is red, pipeline failed, exception, traceback, stack trace
 menu: A2
 ---
 # Playbook: fix a bug

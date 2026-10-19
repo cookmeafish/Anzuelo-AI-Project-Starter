@@ -105,7 +105,10 @@ const DEFAULTS = {
   ignoreForChanges: ['.git/**', 'node_modules/**', '**/node_modules/**', '**/.venv/**', '**/venv/**', '**/.next/**', '**/.turbo/**', '**/.gradle/**', 'tools/hooks/state/**', '.obsidian/**', '.claude/skills/**', '.agents/skills/**', '**/__pycache__/**', '.cache/**', '.starter/**', '**/.DS_Store', '**/Thumbs.db', '**/~$*'],
   notWork: ['docs/STATUS.md', 'docs/CHANGELOG.md'],
   // Visual review loop: a change to any of these files is not done until fresh screenshots were taken AND looked at.
-  guiFiles: ['**/*.html', '**/*.htm', '**/*.css', '**/*.scss', '**/*.jsx', '**/*.tsx', '**/*.vue', '**/*.svelte', '**/gui/**', '**/ui/**', '**/static/**', '**/templates/**', '**/components/**'],
+  // (screens of mobile and desktop apps too: Flutter widgets and screens, Android layouts, iOS views, XAML, QML, Godot
+  // scenes. Lesson: a Flutter screen edit with the gui pack installed never asked for a screenshot.)
+  guiFiles: ['**/*.html', '**/*.htm', '**/*.css', '**/*.scss', '**/*.jsx', '**/*.tsx', '**/*.vue', '**/*.svelte', '**/gui/**', '**/ui/**', '**/static/**', '**/templates/**', '**/components/**',
+    'lib/**/screens/**', 'lib/**/widgets/**', 'lib/**/pages/**', '**/*_screen.dart', '**/*_page.dart', '**/*_view.dart', '**/res/layout/**', '**/*.xaml', '**/*.qml', '**/*.storyboard', '**/*.xib', '**/*View.swift', '**/*Screen.kt', '**/*.tscn'],
   guiIgnore: ['.cache/**', 'packs/**', 'library/**', '.starter/**', 'skills/**', 'node_modules/**', 'dist/**', 'build/**', 'docs/**', 'sources/**', 'inbox/**', '**/*.md', '**/__pycache__/**', 'tools/hooks/**'],
   // Files where a name from docs/names.json may be typed out: history, licenses and credits keep the names of their day,
   // toolchain manifests can't read another file, and the hook tests use made-up names as fixtures.
@@ -136,7 +139,10 @@ const DEFAULTS = {
   // and every knowledge check covers it like docs/knowledge. Lesson: an adopted vault got none of the knowledge checks.
   knowledgeDirs: ['docs/knowledge'],
   // A question (no change words) that changes files outside these must quote what asked for the change.
-  questionNoFileExempt: ['docs/knowledge/**', 'docs/STATUS.md', 'docs/CHANGELOG.md', 'docs/DECISIONS.md', 'docs/BRIEF.md', '.cache/**', 'tools/hooks/state/**'],
+  // (plus what the engine itself asks for on any turn: a new runbook, its check and test, the rule map, a plan, a lesson.
+  // Lesson: NO RUNBOOK demanded a runbook, then question-no-file called that runbook an unrequested edit.)
+  questionNoFileExempt: ['docs/knowledge/**', 'docs/STATUS.md', 'docs/CHANGELOG.md', 'docs/DECISIONS.md', 'docs/BRIEF.md', '.cache/**', 'tools/hooks/state/**',
+    'docs/playbooks/**', 'skills/**', 'docs/checks/**', 'docs/plans/**', 'docs/glossary.md', 'tools/hooks/requirements.json', 'tools/hooks/project-scenarios.mjs', 'DIRECTORY.md', 'AGENTS.md', 'CLAUDE.md'],
   changeWords: "\\b(make|create|write|add|update|fix|change|edit|save|build|apply|implement|set ?up|delete|remove|rename|move|ingest|record|note|remember|go ahead|do it|yes|yep|sure|ok(ay)?|proceed|draft|generate|turn|convert|organi[sz]e|clean|refactor|improve|put)\\b",
   praise: "\\b(great job|good job|well done|nailed it|perfect|awesome|amazing|love (it|this|that)|exactly what i wanted|keep (doing|making) (this|that|these|it))\\b",
   // Git: nothing in a commit, push, PR or release may credit an AI agent. Everything is solely the user's.
@@ -181,7 +187,7 @@ const DEFAULTS = {
   // Lesson: "you forgot the allergens again!!" got a frustration hint, but nothing made it a rule.
   complaint: "\\byou (forgot|didn'?t|did not|missed|skipped|ignored|left out|keep forgetting|never)\\b|\\b(i|we) (already )?told you\\b|\\bwhy (did|didn'?t|do|does) (you|it) (keep )?\\b|\\bagain\\s*[!?]|\\bnot again\\b|\\bkeeps? (happening|forgetting|missing)\\b",
   frustration: "\\bwhy (did|didn'?t|would) you\\b|\\byou (forgot|didn'?t|ignored|skipped|missed)\\b|\\bi (already )?told you\\b|\\bagain\\?|\\bwtf\\b|\\bseriously\\b|!!",
-  taskVerbs: "\\b(make|create|build|write|draft|add|update|fix|research|find|look up|plan|compare|organi[sz]e|set ?up|analy[sz]e|summari[sz]e|review|generate|turn|convert|change|edit|rewrite|remove|delete|move|import|ingest|prepare|track|calculate|design|outline|translate|clean ?up|sort|merge|split|audit|check)\\b",
+  taskVerbs: "\\b(make|create|build|write|draft|add|update|fix|research|find|look up|plan|compare|organi[sz]e|set ?up|analy[sz]e|summari[sz]e|review|generate|turn|convert|change|edit|rewrite|remove|delete|move|import|ingest|prepare|track|calculate|design|outline|translate|clean ?up|sort|merge|split|audit|check|run|train|retrain|tune|test|document|refactor|rename|upgrade|bump|migrate|restyle|deploy|release|publish|install|configure)\\b",
   overwriteWords: "\\b(overwrite|in place|edit (it|this|that|the (file|doc|output))|replace (it|the file)|fix (it|this|that|the) (file|doc|output|typo))\\b",
   // The user's OK for an outward action in this request (REQ: outward-gate). "email the supplier" alone asks for a draft;
   // "send it", "post it", "push" or "open a PR" is the OK.
@@ -325,6 +331,7 @@ export function userText(prompt) {
   }
   return out.join('\n');
 }
+export const deadTriggers = triggers => triggers.filter(t => !/\s/.test(String(t).trim()) && !keyWords(t).some(w => !GENERIC.has(w)));
 export function route(prompt, pbs) {
   const text = userText(prompt);
   if (OPINION.test(text)) return [];
@@ -339,9 +346,13 @@ export function route(prompt, pbs) {
     let score = 0, strong = false; const hits = [], weak = new Set();
     for (const t of pb.triggers) {
       const k = keyWords(t);
-      if (!k.some(w => !GENERIC.has(w))) continue;
+      // a phrase of common words ("fix it", "look up", "change how") counts only as that exact phrase; one common word
+      // alone never does. Lesson: "fix it" and "look up" were triggers that could never match anything.
+      const common = !k.some(w => !GENERIC.has(w));
+      if (common && !/\s/.test(t.trim())) continue;
       const exact = re(`(^|[^a-z0-9])${esc(t)}($|[^a-z0-9])`).test(low);
-      if (!exact && !(k.length >= 2 && k.every(w => words.has(w)))) continue;
+      if (common ? !exact : !exact && !(k.length >= 2 && k.every(w => words.has(w)))) continue;
+      if (common) { score += 1; hits.push(t); strong = true; continue; }
       score += exact ? 1 + t.split(' ').length / 10 : 0.5 + k.length / 10; hits.push(t);
       if (k.length >= 2 || !/\s/.test(t.trim())) strong = true; else k.forEach(w => weak.add(w));
     }
@@ -524,6 +535,31 @@ function deniedIds(entries) {
   return ids;
 }
 
+// Actions whose success an answer may claim, with the words of the claim. Each attempt's result is read from the
+// transcript: denied by a hook or the user, or failed.
+const CLAIMED = [
+  { kind: 'push', cmd: /\bgit\b[^;&|\n]*\bpush\b/i, says: /\bpushed\b/i },
+  { kind: 'commit', cmd: /\bgit\b[^;&|\n]*\bcommit\b/i, says: /\bcommitted\b/i },
+  { kind: 'publish', cmd: /\b(npm|pnpm|yarn)\s+publish\b|\bgh\s+release\s+create\b|\b(vercel|netlify)\b[^\n;&|]*--prod\b|\bfirebase\s+deploy\b|\bdocker\s+push\b|\btwine\s+upload\b|\bcargo\s+publish\b|\b(dart|flutter)\s+pub\s+publish\b|\b(poetry|uv)\s+publish\b|\bgem\s+push\b|\bfastlane\s+\w*(deliver|release|upload|beta)\b|\bhf\s+upload\b|\bhuggingface-cli\s+upload\b|\bdeploy\b/i, says: /\b(published|deployed|released|(is|it'?s) (now )?live)\b/i },
+  { kind: 'send', cmd: c => !!outwardCommand(c) && !/\bgit\b/.test(c), says: /\b(sent|emailed|posted|messaged)\b/i }
+];
+export function actionAttempts(entries) {
+  const res = new Map(), out = [];
+  for (const r of entries) { const c = r.type === 'user' && r.message?.content; if (Array.isArray(c)) for (const x of c) if (x?.type === 'tool_result') res.set(x.tool_use_id, x); }
+  for (const r of entries) {
+    const c = r.type === 'assistant' && r.message?.content;
+    if (!Array.isArray(c)) continue;
+    for (const x of c) {
+      const cmd = x?.type === 'tool_use' && typeof x.input?.command === 'string' ? x.input.command : '';
+      if (!cmd) continue;
+      for (const a of CLAIMED) if (typeof a.cmd === 'function' ? a.cmd(cmd) : a.cmd.test(cmd)) {
+        const rr = res.get(x.id), text = rr ? textOf(rr.content) : '';
+        out.push({ kind: a.kind, ok: !!rr && !rr.is_error && !/\b(error|fatal|rejected|denied|failed)\b/i.test(text.slice(0, 2000)) });
+      }
+    }
+  }
+  return out;
+}
 export function toolUses(entries) {
   const skip = deniedIds(entries), out = [];
   for (const r of entries) {
@@ -1746,7 +1782,7 @@ export function gitignoreProblems(cfg = config()) {
 // Lesson in advance: a check or skill that only causes friction makes the project worse, and nobody would notice.
 const FRICTION_WINDOW = 6, FRICTION_LIMIT = 3;
 const SAFEGUARDS = new Set(['check:no-secrets', 'check:no-ai-attribution', 'check:git-safety', 'check:commit-gate', 'check:approval-gate', 'check:browser-guard',
-  'check:scope-separate', 'check:outward-gate', 'check:protect-originals', 'check:injection-guard', 'check:no-overwrite', 'check:crash-visible', 'check:requirements-valid', 'check:hooks-tested',
+  'check:scope-separate', 'check:outward-gate', 'check:claim-checked', 'check:protect-originals', 'check:injection-guard', 'check:no-overwrite', 'check:crash-visible', 'check:requirements-valid', 'check:hooks-tested',
   'check:setup-interview', 'check:setup-complete', 'check:setup-gate', 'check:answer-traced', 'check:research-verified', 'check:research-ledger',
   'check:research-cited', 'check:security-report', 'check:security-code', 'check:security-config', 'check:security-publish', 'check:publish-gate', 'check:verification-report', 'check:finished-summary', 'check:forbidden-command',
   'skill:research', 'skill:security-review', 'skill:project-rule', 'runbook:project']);
@@ -2135,7 +2171,7 @@ export function pretoolDecision(data, cfg = config()) {
     // REQ: publish-gate. Publishing or deploying waits for a security review this turn (or one logged today in
     // docs/security.md): hard rule 15 says before, and a Stop check could only say it after the fact.
     // Lesson: a package went public before anyone looked at what it contained.
-    const pub = /\b(npm|pnpm|yarn)\s+publish\b|\bgh\s+release\s+create\b|\bgh\s+repo\s+(create\b[^\n;&|]*--public|edit\b[^\n;&|]*--visibility[= ]public)|\b(vercel|netlify)\b[^\n;&|]*--prod\b|\bfirebase\s+deploy\b|\bdocker\s+push\b|\btwine\s+upload\b|\bcargo\s+publish\b|\bvsce\s+publish\b|\bflyctl?\s+deploy\b|\bwrangler\s+(deploy|publish)\b/i.exec(cmd);
+    const pub = /\b(npm|pnpm|yarn)\s+publish\b|\bgh\s+release\s+create\b|\bgh\s+repo\s+(create\b[^\n;&|]*--public|edit\b[^\n;&|]*--visibility[= ]public)|\b(vercel|netlify)\b[^\n;&|]*--prod\b|\bfirebase\s+deploy\b|\bdocker\s+push\b|\btwine\s+upload\b|\bcargo\s+publish\b|\b(dart|flutter)\s+pub\s+publish\b|\b(poetry|uv)\s+publish\b|\bgem\s+push\b|\bfastlane\s+\w*(deliver|release|upload|beta)\b|\bhf\s+upload\b|\bhuggingface-cli\s+upload\b|\bvsce\s+publish\b|\bflyctl?\s+deploy\b|\bwrangler\s+(deploy|publish)\b/i.exec(cmd);
     if (pub && !isSuspended('check:publish-gate')) {
       const reviewed = toolUses(t().entries || []).some(u => (u.name === 'Skill' && /(^|:)security-review$/.test(String(u.input.skill || ''))) || (u.name === 'Read' && /skills[\\/]security-review[\\/]SKILL\.md$/i.test(String(u.input.file_path || ''))));
       const loggedToday = new RegExp(`^\\|\\s*${esc(today())}\\s*\\|`, 'm').test(read(abs('docs/security.md')));
@@ -2339,7 +2375,8 @@ export function coreChecks(x, cfg) {
   if (x.workTurn && x.prompt.trim() && !realRoute.length && !realPb.length && !realSkills.length && !pbChanged.length && !re(cfg.complaint).test(x.prompt))
     add('runbook-exists', 'This turn did real work but no runbook covers it and none was created or extended. Use the runbook-create skill: ' +
       'extend the closest runbook in docs/playbooks/ with this case, or create one (frontmatter with triggers, ## Steps, ## Done when) plus a check ' +
-      'in tools/hooks/requirements.json. Its skill and its DIRECTORY.md row are generated automatically. Say so in the answer.');
+      'in tools/hooks/requirements.json, a "blocked" and a "passes" scenario for it in tools/hooks/project-scenarios.mjs (then ' +
+      '`node tools/hooks/selfcheck.mjs --tags <tag>`), and its row in docs/checks/rule-enforcement.md. Its skill and its DIRECTORY.md row are generated automatically. Say so in the answer.');
   // REQ: skill-reuse. Before writing a new procedure, look for an existing skill that already does it (don't reinvent).
   // A new hand-written skill counts too. A procedure only this project can have says so in its frontmatter instead:
   // "reuse: none - project-specific: <why>" (docs/checks/runbook-standards.md). Lesson: a runbook for the project's own
@@ -2355,7 +2392,19 @@ export function coreChecks(x, cfg) {
   // REQ: worth-it. An addition must make the project better: a new skill, pack or dependency comes with its gain and its
   // cost, weighed. Lesson: "it fits" alone let additions in that made the project noisier or slower than before.
   const newSkills = list(cfg.skillsDir).filter(n => { const f = `${cfg.skillsDir}/${n}/SKILL.md`; return x.changed.includes(f) && bornThisTurn(f, x.since) && !/^generated:\s*true/m.test(read(abs(f))); });
-  const added = x.runs.filter(r => !r.error && /\b(packs\.mjs\s+install|skills\.mjs\s+(enable|add)|npm\s+(i|install)\s+(?!-)[^\s;&|]|pnpm\s+add\s|yarn\s+add\s|pip3?\s+install\s+(?!-r\b)[^\s;&|]|cargo\s+add\s|go\s+get\s)/.test(r.cmd)).map(r => r.cmd.slice(0, 60));
+  const added = x.runs.filter(r => !r.error && /\b(packs\.mjs\s+install|skills\.mjs\s+(enable|add)|npm\s+(i|install)\s+(-[DSE]\s+|--save(-dev)?\s+)?(?!-)[^\s;&|]|pnpm\s+add\s|yarn\s+add\s|pip3?\s+install\s+(?!-r\b|-e\b)[^\s;&|]|cargo\s+add\s|go\s+get\s|(flutter|dart)\s+pub\s+add\s|uv\s+add\s|poetry\s+add\s|bundle\s+add\s|gem\s+install\s|composer\s+require\s|dotnet\s+add\s+\S*\s*package\s)/.test(r.cmd)).map(r => r.cmd.slice(0, 60));
+  // a dependency typed straight into a manifest counts too (Lesson: editing Cargo.toml or pubspec.yaml skipped the weighing)
+  const DEP_LINE = { 'package.json': /^\s*"[@\w./-]+"\s*:\s*"[\^~>=<]?\d/, 'requirements.txt': /^\s*[A-Za-z][\w.-]*\s*([=<>~!]=?|$)/, 'Cargo.toml': /^\s*[\w-]+\s*=\s*("[\^~>=]?\d|\{)/,
+    'pubspec.yaml': /^\s+[\w-]+:\s*["']?[\^~>=]?\d/, 'pyproject.toml': /^\s*"[A-Za-z][\w.-]*\s*([=<>~!]=|>|<)/, 'go.mod': /^\s*(require\s+)?[\w.-]+\/[\w./-]+\s+v\d/, 'Gemfile': /^\s*gem\s+["']/ };
+  if (x.toolsKnown) for (const u of x.uses.filter(u => /^(Write|Edit|MultiEdit)$/.test(u.name))) {
+    const f = rel(u.input.file_path || ''), rx = DEP_LINE[f.split('/').pop()];
+    if (!rx) continue;
+    const newText = [u.input.content, u.input.new_string, ...(u.input.edits || []).map(e => e.new_string)].filter(Boolean).join('\n');
+    const oldText = [u.input.old_string, ...(u.input.edits || []).map(e => e.old_string)].filter(Boolean).join('\n');
+    const fresh = newText.split(/\r?\n/).filter(l => rx.test(l) && !oldText.includes(l.trim()));
+    // an edit adds what its new text has beyond its old; a whole-file write counts only for a manifest made this turn
+    if (fresh.length && (u.input.content == null || bornThisTurn(f, x.since))) added.push(`${f}: ${fresh[0].trim().slice(0, 40)}`);
+  }
   // the weighing may sit in any message of this turn (Lesson: every re-block demanded it again)
   if ((newSkills.length || added.length) && !/\bworth it\s*:\s*\S[^\n]*\//i.test(x.answer + '\n' + turnText(x.entries)))
     add('worth-it', `You added ${[...newSkills.map(n => `the ${n} skill`), ...added].slice(0, 4).join(', ')}. Say why it makes this project better and what it costs ` +
@@ -2412,7 +2461,11 @@ export function coreChecks(x, cfg) {
   // Facts written into the knowledge base are traced even when no research skill ran (an event, not a request).
   // Lesson: numbers typed into docs/knowledge outside the research skill were never checked against a source.
   const kbWritten = x.toolsKnown && x.uses.some(u => /^(Write|Edit|MultiEdit)$/.test(u.name) && inKb.test(rel(u.input.file_path || '')));
-  const traceAnswer = (knowledge && (researched || cited.length)) || ledgerRuns.length;
+  // A question about the project's own numbers ("how did we do last month") is traced too, in any project: its figures
+  // must come from something read this turn. Lesson: "1,240 croissants, $4,300, up 12%" was answered from nothing.
+  const dataQuestion = x.toolsKnown && /\b(how (much|many|did (we|i|it) do)|total|revenue|sales|profit|spend|spent|average|per (day|week|month)|last (week|month|quarter|year)|growth|grew|percent|numbers?|figures?|stats?|metrics?)\b/i.test(x.prompt)
+    && /[$€£]\s?\d|\d\s?%|\b\d{1,3}(,\d{3})+\b|\b\d{3,}\b/.test(x.answer.replace(/`[^`]*`|https?:\/\/\S+|\b[\w.-]+\/[\w./-]+/g, ''));
+  const traceAnswer = (knowledge && (researched || cited.length)) || ledgerRuns.length || dataQuestion;
   if (traceAnswer || kbWritten) {
     const ledgers = ledgerRuns.map(r => /claims\.mjs\s+check\s+"?([^"\s]+)/.exec(r.cmd)?.[1]).filter(Boolean);
     // Lesson: numbers the agent itself wrote into files earlier in the session were flagged as made up: what it wrote
@@ -2453,7 +2506,10 @@ export function coreChecks(x, cfg) {
   for (const p of pbChanged.filter(p => exists(p))) {
     const pb = x.pbs.find(b => b.file === p) || playbooks().find(b => b.file === p);
     if (pb && !pb.name.startsWith('_') && !runbookHasCheck(pb)) add('runbook-complete', `${p} has no check. Add an entry to tools/hooks/requirements.json with "when": {"playbookUsed": "${pb.name}"} ` +
-      'that tests its "Done when" list, or set "checks: core <tags>" / "checks: none - <reason>" in its frontmatter.');
+      'that tests its "Done when" list, or set "checks: core <tags>" / "checks: none - <reason>" in its frontmatter. ' +
+      // everything a new check needs, said at once, so it doesn't take one stop round per item (Lesson: it took all 3)
+      'A new check also needs, in this turn: a "blocked" and a "passes" scenario in tools/hooks/project-scenarios.mjs, ' +
+      '`node tools/hooks/selfcheck.mjs --tags <tag>` passing, and a row for the tag in docs/checks/rule-enforcement.md.');
   }
   // REQ: rule-request. "Always/never/remember/from now on" and complaints become enforced rules, not just promises.
   const complaint = x.prompt && re(cfg.complaint).test(x.prompt);
@@ -2533,6 +2589,17 @@ export function coreChecks(x, cfg) {
   if (cr.length) add('code-rules', cr.slice(0, 8).join('; ') + (cr.length > 8 ? `; +${cr.length - 8} more` : ''));
   // REQ: empty-answer
   if (x.workTurn && !x.answer.trim()) add('empty-answer', 'The turn did work but the final answer is empty. Tell the user what was done (and the Finished section).');
+  // REQ: claim-checked. An answer never says an action happened when its last attempt was denied or failed.
+  // Lesson: "git push" was denied, and the answer said "Pushed." without a word about it.
+  if (x.toolsKnown) {
+    const tries = actionAttempts(x.entries || []);
+    const claims = x.answer.split(/(?<=[.!?\n])\s+/).filter(s => !/\b(not|n't|couldn'?t|wasn'?t|didn'?t|denied|blocked|failed|refused|unable|waiting|needs? your|once you|draft)\b/i.test(s));
+    for (const a of CLAIMED) {
+      const mine = tries.filter(t => t.kind === a.kind);
+      if (mine.length && !mine[mine.length - 1].ok && claims.some(s => a.says.test(s)))
+        add('claim-checked', `The answer says it ${{ push: 'pushed', commit: 'committed', publish: 'published', send: 'sent' }[a.kind]} something, but the last ${a.kind} this turn was denied or failed. Say what happened, and what the user can do.`);
+    }
+  }
   // REQ: scope-separate (files changed this turn)
   const ppl = people(cfg);
   if (ppl.length) {
@@ -2729,6 +2796,8 @@ export const waitsForAgents = q => q.waitsForAgents ?? WAITS_FOR_AGENTS.has(q.ta
 
 // A failed test or build run: its output, beyond the exit code (a runner piped through another command exits 0).
 const FAILED_RUN = /^\s*(FAIL(ED)?\b|not ok\b)|\b[1-9]\d* (tests? )?(failed|failing|errors?)\b|Traceback \(most recent call last\)|AssertionError|\bERR!/m;
+// A run that failed because its tool or dependencies aren't installed (setup, not a bug in the code)
+const MISSING_TOOL = /is not recognized as (an internal|the name)|command not found|: not found\b|No such file or directory.*(node_modules|bin)|Cannot find module|No module named|ModuleNotFoundError|could not determine executable|not installed/i;
 // What this turn added to each changed file that the spec covers: the text the agent's own edits wrote (Write, Edit) when
 // the tool history shows them, else the whole file. Capped, so it stays cheap on a big turn. Returns "<file>: <match>".
 const ADDED_MAX_FILES = 300, ADDED_MAX_BYTES = 512 * 1024;
@@ -2775,7 +2844,9 @@ export function holds(c, x) {
     x.trigger = hit;
   }
   // ranFailing: a command matching this ran this turn and failed (an error exit or a failure line in its output)
-  if (c.ranFailing && x.toolsKnown && !(x.runs || []).some(rn => r(c.ranFailing).test(rn.cmd) && (rn.error || FAILED_RUN.test(rn.out || '')))) return false;
+  // (a run that failed only because a tool isn't installed is setup, not a bug: Lesson: "'tsc' is not recognized"
+  // demanded a root cause)
+  if (c.ranFailing && x.toolsKnown && !(x.runs || []).some(rn => r(c.ranFailing).test(rn.cmd) && (rn.error || FAILED_RUN.test(rn.out || '')) && !MISSING_TOOL.test(rn.out || ''))) return false;
   if (c.ranFailing && !x.toolsKnown) return false;
   // toolCount: { name: "<regex of tool names>", min: n } tool calls this turn
   if (c.toolCount && x.toolsKnown && (x.uses || []).filter(u => r(c.toolCount.name).test(u.name)).length < (c.toolCount.min || 1)) return false;
@@ -2803,7 +2874,7 @@ export function holds(c, x) {
     const last = runs[runs.length - 1];
     if (!last) { x.detail = `no run of /${spec.cmd}/ this turn`; return false; }
     const g = gateResult(last, spec);
-    if (!g.ok) { x.detail = `last run did not pass, ${g.why}: ${last.out.trim().split(/\r?\n/).slice(-3).join(' | ').slice(0, 300)}`; return false; }
+    if (!g.ok) { x.detail = `last run did not pass, ${g.why}: ${last.out.trim().split(/\r?\n/).slice(-3).join(' | ').slice(0, 300)}` + (MISSING_TOOL.test(last.out) ? '. The tool or its dependencies are not installed: install them first (npm ci, pip install -r requirements.txt, or the project\'s setup command), then run it again' : ''); return false; }
   }
   // runEach: the hook itself runs a validator on every changed file that matches (fails closed: a crash is a FAIL).
   if (c.runEach) {
@@ -2974,7 +3045,10 @@ export function stopDecision(data, cfg = config()) {
   // REQ: stop-reblock. Up to maxBlocksPerTurn blocks per turn, then let the session end so it can never loop.
   const open = m => !waived(m.tag, x.said, m.specific) && !isSuspended(`check:${m.tag}`);
   const found = [...coreChecks(x, cfg), ...declarativeChecks(x)].filter(open);
-  const missing = [...found, ...skillLearnCheck(x, cfg, found.map(m => m.tag)).filter(open)];
+  // one changelog line satisfies all three changelog checks, so they show as one step (Lesson: two steps for one line)
+  const logs = found.filter(m => /^(changelog|knowledge-changelog|app-changelog)$/.test(m.tag));
+  const found1 = logs.length > 1 ? found.filter(m => m === logs[0] || !logs.includes(m)) : found;
+  const missing = [...found1, ...skillLearnCheck(x, cfg, found.map(m => m.tag)).filter(open)];
   noteFriction(key, x, missing);
   const ended = (keep = false) => { writeState(TURN_END, { at: new Date().toISOString() }); if (!keep && !envOf('BENCH')) try { fs.unlinkSync(path.join(STATE, 'stop-details.md')); } catch { } }; // the next prompt starts a new turn
   if (nblocks >= cfg.maxBlocksPerTurn) {
@@ -3034,7 +3108,31 @@ const SHORT = {
   'security-publish': 'Run the security review: something was published',
   'debug-trigger': 'State the root cause of the failure that was fixed',
   'parallel-trigger': 'Check the sub-agents\' results together and report it',
-  'gui-flows': 'Rerun the saved click-through flows of the changed pages'
+  'gui-flows': 'Rerun the saved click-through flows of the changed pages',
+  // every check a pack or library skill ships, so no step reads as a fragment ("Behaviour changed", "Bugfix")
+  // Lesson: the app gates all showed as "Code changed", and several labels were half a sentence.
+  'app-test-pass': 'Run the tests until they pass', 'app-build-pass': 'Run the build until it passes', 'app-lint-pass': 'Run the linter until it passes',
+  'app-typecheck-pass': 'Run the type check until it passes', 'version-bump': 'Bump the version for this behaviour change',
+  'root-cause-stated': 'State the root cause of the bug', 'bugfix-regression-test': 'Add a test that failed before the fix',
+  'plan-saved': 'Save the plan in docs/plans/ and link it', 'research-ledger': 'Run the research ledger check until it passes',
+  'skill-finder-report': 'Report what the skill search found', 'skill-compared': 'Rewrite the imported skill in this project\'s words',
+  'data-change-trigger': 'Follow the data-change runbook: the data format changed', 'release-trigger': 'Follow the release runbook: a version went out',
+  'install-trigger': 'Follow the install-update runbook: the app was installed or updated', 'knowledge-source-trigger': 'Say where the new facts in the knowledge base came from',
+  'ingest-trigger': 'Register the new files in sources/ (ingest runbook)', 'deliverable-trigger': 'Follow the deliverable runbook for the file in outputs/',
+  'design-plan': 'Name the design direction you used', 'a11y-checked': 'Check accessibility and say what you found',
+  'architecture-recorded': 'Record the design decision and name its file', 'architecture-trigger': 'Record the design decision for the service or data model change',
+  'incident-trigger': 'Follow the incident runbook: something is down', 'legal-trigger': 'Follow the legal-review skill for the terms or contract',
+  'mcp-trigger': 'Check the MCP server code with its skill', 'data-computed-trigger': 'Compute the numbers with code and say how',
+  'decision-logged': 'Log the user\'s decision in docs/DECISIONS.md', 'redo-changes': 'Say what changed from the last answer',
+  'praise-captured': 'Write down what the user liked so it is repeated', 'qa-incident': 'Log what QA missed and how it was found',
+  'history-confidence': 'Open with the bottom line and how sure you are', 'user-research-counted': 'Give each theme its count and traced quotes',
+  'security-report': 'End with the security review table', 'claim-checked': 'Correct the answer: an action it reports did not happen',
+  'outward-gate': 'Ask before acting outside the project', 'scope-separate': 'Keep each person\'s data apart',
+  'perf-numbers': 'Give before and after numbers from the same measurement', 'data-backup': 'Name the backup, its restore test and the record counts',
+  'knowledge-changelog': 'Note the knowledge change in docs/CHANGELOG.md', 'knowledge-captured': 'Write the new fact or decision into the project',
+  'history-hashes': 'Back the history with commit hashes', 'teach-step': 'End with one question that has the user try the next step',
+  'marketing-sourced': 'Name the brand voice and source every claim', 'mcp-linted': 'Lint the MCP server\'s tool list',
+  'security-checklist': 'Give the security checklist table with evidence'
 };
 function writeDetails(missing, title) {
   if (envOf('BENCH')) return;
@@ -3054,7 +3152,11 @@ export function shortStep(m) {
   s = s.replace(/^[\w -]+ (skill|runbook|playbook)(,? (section|step) [\w.]+)?:\s*/i, '');
   s = (s.split(/(?<=[a-z0-9])[.:;](\s|$)/i)[0] || s).replace(/^(this|the) (turn|answer|request)[^,]*,\s*/i, '').trim();
   s = s.charAt(0).toUpperCase() + s.slice(1);
-  return s.length > 70 ? s.slice(0, s.lastIndexOf(' ', 67) > 20 ? s.lastIndexOf(' ', 67) : 67) + '...' : s || m.tag;
+  if (s.length <= 70) return s || m.tag;
+  // a long step ends at its first clause when that still says something ("Run the full checks on the combined result")
+  const clause = s.slice(0, 70).search(/,\s|\s(and|with|so|before|after|then)\s(?![\s\S]*,\s)/);
+  if (clause > 25) return s.slice(0, clause);
+  return s.slice(0, s.lastIndexOf(' ', 67) > 20 ? s.lastIndexOf(' ', 67) : 67) + '...';
 }
 
 // The host, from what its hooks documentation says it sends (checked 2026-10-18; anything else is unknown):

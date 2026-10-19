@@ -181,9 +181,9 @@
         ]
       },
       "require": {
-        "answerMatches": "^#{1,6}\\s*verification\\b(?=[\\s\\S]*\\bautomated\\b)(?=[\\s\\S]*(real app|manual|ran the app|in the app))(?=[\\s\\S]*\\breview\\b)(?=[\\s\\S]*(budget|foundation))(?=[\\s\\S]*(still weak|not verified|known issues|nothing weak))"
+        "answerMatches": "^(#{1,6}\\s*|\\*\\*)verification\\b(?=[\\s\\S]*\\bautomated\\b)(?=[\\s\\S]*(real app|manual|ran the app|in the app|ran it|by hand|real run|real data))(?=[\\s\\S]*\\breview\\b)(?=[\\s\\S]*(budget|foundation))(?=[\\s\\S]*(still weak|not verified|known issues|nothing weak))"
       },
-      "message": "Code changed: add a Verification section with Automated (commands and results), Real app (what was exercised, screenshot paths), Budgets (still within docs/foundation.md, with numbers when performance-relevant), Independent review (SHIP/FIX and the report path) and Still weak (docs/checks/qa-standards.md)."
+      "message": "Code changed: add a Verification section (a heading or a bold **Verification** line) with Automated (commands and results), Real app (what was exercised on a real run, screenshot paths), Budgets (still within docs/foundation.md, with numbers when performance-relevant), Independent review (SHIP/FIX and the report path) and Still weak (docs/checks/qa-standards.md). A part that doesn't apply to this change says so in one line with why."
     },
     {
       "tag": "review-verdict",
@@ -350,7 +350,16 @@
           "lib/**",
           "server/**",
           "packages/**"
-        ]
+        ],
+        "filesIgnore": [
+          "**/test/**",
+          "**/tests/**",
+          "**/__tests__/**",
+          "**/*.test.*",
+          "**/*.spec.*",
+          "**/*_test.*"
+        ],
+        "promptNotMatches": "\\b(refactor|rename|restructure|tidy|clean ?up|typo|comments?|format(ting)?|lint)\\b"
       },
       "require": {
         "filesChanged": [
@@ -427,7 +436,7 @@
       "forces": "release",
       "hint": "\\b(release|ship it|publish|tag (a|the) (release|version)|cut a version|deploy to prod\\w*)\\b",
       "when": {
-        "toolRan": "\\bgit\\s+tag\\s+(-[as]\\s+)?v?\\d|\\bgh\\s+release\\s+create\\b|\\b(npm|pnpm|yarn)\\s+(publish|version)\\b|\\bcargo\\s+publish\\b|\\btwine\\s+upload\\b|\\bvsce\\s+publish\\b"
+        "toolRan": "\\bgit\\s+tag\\s+(-[as]\\s+)?v?\\d|\\bgh\\s+release\\s+create\\b|\\b(npm|pnpm|yarn)\\s+(publish|version)\\b|\\bcargo\\s+publish\\b|\\b(dart|flutter)\\s+pub\\s+publish\\b|\\b(poetry|uv)\\s+publish\\b|\\bgem\\s+push\\b|\\bfastlane\\s+\\w*(deliver|release|upload|beta)\\b|\\bhf\\s+upload\\b|\\bhuggingface-cli\\s+upload\\b|\\btwine\\s+upload\\b|\\bvsce\\s+publish\\b"
       },
       "require": {
         "playbookUsed": "release"

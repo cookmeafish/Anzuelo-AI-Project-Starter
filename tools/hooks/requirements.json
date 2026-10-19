@@ -287,7 +287,7 @@
       "waiver": "specific",
       "hint": "\\b(publish|release it|go live|make it public|deploy to prod\\w*|push to production|npm publish|open.?source it)\\b",
       "when": {
-        "toolRan": "\\b(npm|pnpm|yarn)\\s+publish\\b|\\bgh\\s+release\\s+create\\b|\\bgh\\s+repo\\s+(create\\b[^\\n;&|]*--public|edit\\b[^\\n;&|]*--visibility[= ]public)|\\b(vercel|netlify)\\b[^\\n;&|]*--prod\\b|\\bfirebase\\s+deploy\\b|\\bdocker\\s+push\\b|\\btwine\\s+upload\\b|\\bcargo\\s+publish\\b|\\bvsce\\s+publish\\b|\\bflyctl?\\s+deploy\\b|\\bwrangler\\s+(deploy|publish)\\b"
+        "toolRan": "\\b(npm|pnpm|yarn)\\s+publish\\b|\\bgh\\s+release\\s+create\\b|\\bgh\\s+repo\\s+(create\\b[^\\n;&|]*--public|edit\\b[^\\n;&|]*--visibility[= ]public)|\\b(vercel|netlify)\\b[^\\n;&|]*--prod\\b|\\bfirebase\\s+deploy\\b|\\bdocker\\s+push\\b|\\btwine\\s+upload\\b|\\bcargo\\s+publish\\b|\\b(dart|flutter)\\s+pub\\s+publish\\b|\\b(poetry|uv)\\s+publish\\b|\\bgem\\s+push\\b|\\bfastlane\\s+\\w*(deliver|release|upload|beta)\\b|\\bhf\\s+upload\\b|\\bhuggingface-cli\\s+upload\\b|\\bvsce\\s+publish\\b|\\bflyctl?\\s+deploy\\b|\\bwrangler\\s+(deploy|publish)\\b"
       },
       "require": {
         "skillUsed": "security-review"
@@ -299,7 +299,7 @@
       "rule": "4",
       "forces": "debug",
       "when": {
-        "ranFailing": "\\b(npm|pnpm|yarn)\\s+(run\\s+)?(test|build)\\b|\\bnode\\s+--test\\b|\\bpytest\\b|\\bpython3?\\s+-m\\s+(pytest|unittest)\\b|\\bjest\\b|\\bvitest\\b|\\bmocha\\b|\\bcargo\\s+(test|build)\\b|\\bgo\\s+(test|build)\\b|\\bdotnet\\s+(test|build)\\b|\\bmvn\\s+\\w*\\s*test\\b|\\bgradlew?\\s+test\\b|\\btsc\\b|selfcheck\\.mjs|\\bmake\\s+test\\b",
+        "ranFailing": "\\b(npm|pnpm|yarn)\\s+(run\\s+)?(test|build)\\b|\\bnode\\s+--test\\b|\\bpytest\\b|\\bpython3?\\s+-m\\s+(pytest|unittest)\\b|\\bjest\\b|\\bvitest\\b|\\bmocha\\b|\\bcargo\\s+(test|build)\\b|\\bflutter\\s+(test|analyze|build)\\b|\\bdart\\s+(test|analyze)\\b|\\bswift\\s+(test|build)\\b|\\bgo\\s+(test|build)\\b|\\bdotnet\\s+(test|build)\\b|\\bmvn\\s+\\w*\\s*test\\b|\\bgradlew?\\s+test\\b|\\btsc\\b|selfcheck\\.mjs|\\bmake\\s+test\\b",
         "filesChanged": [
           "src/**",
           "app/**",

@@ -331,6 +331,11 @@ const STOP = [
     tools: [sk('compress-for-ai'), pb('project'), bash('node skills/compress-for-ai/scripts/protect-check.mjs .cache/brief.md .cache/brief.short.md', 'CHECK: PASS'), bash('node tools/audit.mjs')],
     files: { 'skills/debug/references.md': '# Debug references\nShort.', 'docs/CHANGELOG.md': 'x' }, answer: 'Skill: compress-for-ai. Playbook: project.md. Backup: .cache/compress-backup/x.' + FIN, expect: { block: false } },
   // additions are weighed: gain against cost
+  // Lesson: a dependency typed into Cargo.toml (or added with flutter pub add) skipped the weighing
+  { name: 'worth-it: a dependency typed into a manifest without weighing it: blocked', prompt: 'parse the csv with serde', tools: [{ name: 'Edit', input: { file_path: 'Cargo.toml', old_string: '[dependencies]\n', new_string: '[dependencies]\nserde = "1.0"\n' } }],
+    files: { 'Cargo.toml': '[package]\nname = "csvq"\n[dependencies]\nserde = "1.0"\n' }, answer: 'Added serde.', expect: { block: true, tags: ['worth-it'] } },
+  { name: 'worth-it: flutter pub add without weighing it: blocked', prompt: 'add a charts package', tools: [bash('flutter pub add fl_chart', 'Resolving dependencies... Changed 1 dependency!')],
+    answer: 'Added fl_chart.', expect: { block: true, tags: ['worth-it'] } },
   { name: 'worth-it: a dependency installed without weighing it: blocked', prompt: 'install a date library for the importer', tools: [bash('npm install dayjs', 'added 1 package')],
     answer: 'Installed dayjs.', expect: { block: true, tags: ['worth-it'] } },
   { name: 'worth-it: a dependency installed with its gain and cost: passes the check', prompt: 'install a date library for the importer', tools: [bash('npm install dayjs', 'added 1 package')],
@@ -637,6 +642,16 @@ STOP.push(
   { name: 'research-ledger: says verified but the ledger failed: blocked', edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), packs: (JSON.parse(s).packs || []).filter(p => p !== 'knowledge') }), 'tools/hooks/requirements.json': s => JSON.stringify({ ...JSON.parse(s), requirements: JSON.parse(s).requirements.filter(r => r.pack !== 'knowledge') }) }, prompt: 'is it true that standing desks hold 150 kg',
     tools: [sk('research'), { name: 'WebSearch', input: { query: 'desk load' }, result: 'Desk A: rated 150 kg' }, bash('node skills/research/scripts/claims.mjs check .cache/research/desk.md', 'ERROR S3: a forum source is a lead\nCLAIMS: FAIL (1 error(s))')],
     answer: 'Skill: research. Yes: 150 kg (https://a.example).\nVerified: 1 claims traced to 3 independent sources; 0 cut or marked not verified.', expect: { block: true, tags: ['research-ledger'] } },
+  // Lesson: "git push" was denied, and the answer still said "Pushed."
+  { name: 'claim-checked: the push was denied and the answer says pushed: blocked', prompt: 'push my work', tools: [{ name: 'Bash', input: { command: 'git push origin main' }, result: 'REQ: git-safety. This pushes to the protected branch "main"', denied: true }],
+    answer: 'Pushed. Everything is on GitHub now.', expect: { block: true, tags: ['claim-checked'] } },
+  { name: 'claim-checked: the push was denied and the answer says so: passes', prompt: 'push my work', tools: [{ name: 'Bash', input: { command: 'git push origin main' }, result: 'REQ: git-safety. This pushes to the protected branch "main"', denied: true }],
+    answer: 'The push to main was denied: main is protected. Say "push it to main" and I will.', expect: { not: ['claim-checked'] } },
+  // Lesson: "how did we do last month" was answered with figures from nothing, because no research skill ran
+  { name: 'answer-traced: figures for the project\'s own numbers, with no file read: blocked', prompt: 'how did we do last month', tools: [...many(1)],
+    answer: 'Great month: 1,240 croissants sold, $4,300 in sales, up 12%.', expect: { block: true, tags: ['answer-traced'] } },
+  { name: 'answer-traced: figures read from the sales file this turn: passes', prompt: 'how did we do last month', tools: [{ name: 'Read', input: { file_path: 'data/sales.csv' }, result: 'month,croissants,sales\n2026-09,1240,4300\n2026-08,1107,3840' }],
+    answer: 'September: 1,240 croissants and $4,300 in sales (August: 1107 and $3840).', expect: { not: ['answer-traced'] } },
   { name: 'answer-traced: a number found in nothing read this turn: blocked', edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), packs: (JSON.parse(s).packs || []).filter(p => p !== 'knowledge') }), 'tools/hooks/requirements.json': s => JSON.stringify({ ...JSON.parse(s), requirements: JSON.parse(s).requirements.filter(r => r.pack !== 'knowledge') }) }, prompt: 'is it true that standing desks hold 150 kg',
     tools: [sk('research'), { name: 'WebSearch', input: { query: 'desk load' }, result: 'Desk A: rated 150 kg' }, bash('node skills/research/scripts/claims.mjs check .cache/research/desk.md', 'CLAIMS: PASS - 1 claims')],
     answer: 'Skill: research. Yes: 150 kg, and they last 12 years.[1][2]\n\nSources:\n[1] https://a.example\n[2] https://b.example\nVerified: 1 claims traced to 3 independent sources; 0 cut or marked not verified.', expect: { block: true, tags: ['answer-traced'] } },
@@ -714,6 +729,9 @@ STOP.push(
     answer: 'Playbook: feature.md.\n' + VERIF + FIN, expect: { block: true, tags: ['code-rules'] } },
   // app pack
   { pack: 'app', name: 'feature done right: passes', prompt: 'add a feature to export reports as csv', tools: [pb('feature')], files: SPEC, answer: 'Playbook: feature.md.\n' + VERIF + FIN, expect: { block: false } },
+  // Lesson: a correct **Verification** block failed twice, because only a # heading counted
+  { pack: 'app', name: 'verification-report: a bold Verification line counts like a heading: passes', prompt: 'add a feature to export reports as csv', tools: [pb('feature')], files: SPEC,
+    answer: 'Playbook: feature.md.\n' + VERIF.replace(/^#{1,6}\s*Verification[^\n]*/m, '**Verification**') + FIN, expect: { not: ['verification-report'] } },
   { pack: 'app', name: 'feature without verification, review, spec or notes: blocked', prompt: 'add a feature to export reports as csv', tools: [pb('feature')], files: { 'src/export.js': 'export const a = 1;\n' },
     answer: 'Playbook: feature.md. Done.' + FIN, expect: { block: true, tags: ['verification-report', 'review-verdict', 'spec-written', 'release-notes'] } },
   { pack: 'app', name: 'bugfix without a regression test: blocked', prompt: 'the export is broken, fix it', tools: [pb('bugfix')], files: { 'src/export.js': 'export const a = 2;\n' },
@@ -758,7 +776,9 @@ STOP.push(
 // Found in a real project: each scenario below would have caught one of its reports.
 // the file's hash at the turn's start, as the prompt hook records it
 const snapOf = (...ps) => dir => {
+  // a whole snapshot, like the engine takes (a file missing from it counts as new); the named files with their hashes
   const files = {};
+  (function walk(d) { for (const e of fs.readdirSync(path.join(dir, d), { withFileTypes: true })) { const p = d ? `${d}/${e.name}` : e.name; if (/^(\.git|node_modules|tools\/hooks\/state|\.cache)$/.test(p)) continue; if (e.isDirectory()) walk(p); else { const s = fs.statSync(path.join(dir, p)); files[p] = [s.mtimeMs, s.size, null]; } } })('');
   for (const p of ps) { const f = path.join(dir, p), s = fs.statSync(f); files[p] = [s.mtimeMs, s.size, createHash('sha1').update(fs.readFileSync(f)).digest('hex')]; }
   write(dir, { 'tools/hooks/state/snapshot.json': JSON.stringify({ at: new Date().toISOString(), files }) });
 };
@@ -972,6 +992,9 @@ function runStop(s) {
     applyEdits(dir, s.edit, since - 3600_000);
     if (s.prep) s.prep(dir);
     const tp = transcript(dir, s, since);
+    // the fixture's transcript sits in the project (a real one lives outside it): it was there before the turn
+    const sp = path.join(dir, 'tools/hooks/state/snapshot.json');
+    if (fs.existsSync(sp)) { try { const j = JSON.parse(fs.readFileSync(sp, 'utf8')); j.files['transcript.jsonl'] = [0, 0, null]; fs.writeFileSync(sp, JSON.stringify(j)); } catch { } }
     if (s.blocks) write(dir, { 'tools/hooks/state/stop-blocks.json': JSON.stringify({ [`${tp}|${since}`]: s.blocks }) });
     if (s.failed) write(dir, { 'tools/hooks/state/stop-failed.json': JSON.stringify({ key: `${tp}|${since}`, tags: s.failed }) });
     write(dir, s.files);
@@ -1024,6 +1047,9 @@ STOP.push(
     files: { 'tools/chart-check.mjs': '// make every chart in the monthly report use the warm colour palette\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { not: ['no-verbatim-examples'] } },
   { pack: 'knowledge', name: 'answer-traced: a number typed into docs/knowledge outside research: blocked', prompt: 'note the desk price', tools: [{ name: 'Write', input: { file_path: 'docs/knowledge/desks.md', content: KNOW.replace('$300', '$345') } }],
     files: { 'docs/knowledge/desks.md': KNOW.replace('$300', '$345'), 'docs/CHANGELOG.md': 'x' }, answer: 'Noted.' + FIN, expect: { tags: ['answer-traced'] } },
+  // Lesson: a Flutter screen edit never asked for a screenshot (mobile screens were not GUI files)
+  { pack: 'gui', name: 'gui-review-loop: a Flutter screen changed with no screenshots: blocked', prompt: 'make the order button bigger', tools: [pb('gui')],
+    files: { 'lib/screens/order_screen.dart': 'class OrderScreen {}', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: gui.md. Bigger button.' + FIN, expect: { block: true, tags: ['gui-review-loop'] } },
   { pack: 'gui', name: 'gui-flows: a page with a saved flow, flow not rerun: blocked', prompt: 'make the dashboard page look cleaner', tools: [pb('gui'), bash('node tools/screenshot.mjs --url x', GUISHOT(0)), { name: 'Read', input: { file_path: SHOT } }],
     files: { 'site/index.html': '<h1>x</h1>', 'docs/checks/flows/index.json': '[{"click":"#go"}]', [SHOT]: 'png' }, mtimes: { 'site/index.html': -500 },
     answer: 'Playbook: gui.md\n## Visual review\n- Round 1: nothing found.\nVisual review: PASS after 1 rounds' + FIN, expect: { tags: ['gui-flows'] } },

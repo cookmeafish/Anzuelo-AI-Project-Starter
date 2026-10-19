@@ -11,7 +11,7 @@ import {
   ROOT, read, abs, exists, frontmatter, playbooks, skillProblems, playbookProblems, knowledgeProblems, config,
   loadRequirements, usage, hardenDue, menu, runbookHasCheck, generatedSkill, directoryBlock, staleKnowledge,
   setupProblems, upgradeProblems, bench, gitignoreProblems, writingProblems, aiAttributedCommits, BASE_REQUIREMENTS, routableSkills, skillHasCheck, curateDue,
-  FIT_FILE, fitProblems, fitRows, fitDecision, fitWhenOf, doneWhenItems, DONE_LABEL, findLibrary, secretHit, mirrorText, logRun, testInputsHash
+  FIT_FILE, fitProblems, fitRows, fitDecision, fitWhenOf, doneWhenItems, DONE_LABEL, findLibrary, secretHit, mirrorText, logRun, testInputsHash, deadTriggers
 } from './hooks/hooks.mjs';
 
 const cfg = config();
@@ -124,6 +124,8 @@ sweep('runbooks are well-formed, routed and checked', () => {
   for (const pb of pbs) for (const t of pb.triggers) (by[t] ||= []).push(pb.name);
   for (const [t, names] of Object.entries(by)) if (names.length > 1) warn.push(`trigger "${t}" is shared by ${names.join(', ')} (add a precedence line in DIRECTORY.md or make it specific)`);
   for (const pb of pbs) for (const t of pb.triggers) if (t.length < 4 && !/\s/.test(t) && !/^(qa|ui|gui|css|xss|fps|bug)$/.test(t)) warn.push(`${pb.file}: trigger "${t}" is very short and may match unrelated messages`);
+  // one common word ("looks", "fix") never routes: the router skips it. Lesson: the gui runbook's "looks" matched nothing.
+  for (const item of [...pbs, ...routableSkills(cfg)]) for (const t of deadTriggers(item.triggers || [])) warn.push(`${item.file}: trigger "${t}" is one common word, so it never routes: make it a phrase ("looks bad") or a specific word`);
   return { fail, warn, note: `${pbs.length} runbooks` };
 });
 
