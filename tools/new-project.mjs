@@ -522,6 +522,11 @@ if (flag('--add-pack')) {
 const existing = fs.existsSync(dest) ? fs.readdirSync(dest).filter(n => n !== '.git') : [];
 if (existing.length && !flag('--adopt')) console.log(`${dest} already has files: adding the starter around them. Nothing existing is overwritten.\n`);
 const hadInstructions = ['CLAUDE.md', 'AGENTS.md'].some(f => fs.existsSync(path.join(dest, f)));
+// The user's own rules are kept as they were, so setup can prove the merge lost none of them (setup-gate).
+if (hadInstructions && !dry) for (const f of ['CLAUDE.md', 'AGENTS.md']) if (fs.existsSync(path.join(dest, f)) && !fs.existsSync(path.join(dest, '.starter', 'original-rules', f))) {
+  fs.mkdirSync(path.join(dest, '.starter', 'original-rules'), { recursive: true });
+  fs.copyFileSync(path.join(dest, f), path.join(dest, '.starter', 'original-rules', f));
+}
 for (const f of files) {
   if (f === 'README.md' || f.startsWith('tools/starter/') && !/^tools\/starter\/(README\.project\.md|gitignore\.project)$/.test(f)) continue;
   if (f === 'tools/starter/README.project.md') { if (!existing.includes('README.md')) put(f, { as: 'README.md' }); else put(f, { as: 'README.starter.md' }); continue; }

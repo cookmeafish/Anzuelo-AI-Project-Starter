@@ -1408,6 +1408,25 @@ export function staleKnowledge(cfg = config()) {
 
 // ---------- setup gate (SETUP-PROMPT.md may only be deleted when this returns nothing) ----------
 const section = (text, name) => (new RegExp(`^##\\s+${esc(name)}[^\\n]*\\n([\\s\\S]*?)(?=^##\\s|(?![\\s\\S]))`, 'im').exec(text) || [, ''])[1];
+// Every rule the project had before the starter came (kept in .starter/original-rules/ on adoption) is still in the
+// merged AGENTS.md, in its own words or reworded, or is listed under "## Dropped rules" in docs/DECISIONS.md with why. A
+// rule counts as kept when most of its key words appear together in one paragraph or bullet of AGENTS.md. Lesson: a
+// merge silently lost two of the user's own rules.
+export function lostRules() {
+  const dir = '.starter/original-rules', out = [];
+  if (!exists(dir)) return out;
+  const keyWords = s => [...new Set(String(s).toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length >= 4))];
+  const paras = rulesText().toLowerCase().split(/\n\s*\n|\n(?=\s*(?:[-*]|\d+\.)\s)/), dropped = section(read(abs('docs/DECISIONS.md')), 'Dropped rules').toLowerCase();
+  for (const f of list(dir)) {
+    const rules = read(abs(`${dir}/${f}`)).split(/\r?\n/).map(l => l.replace(/^\s*(?:[-*]|\d+\.)\s+/, '').trim()).filter(l => l && !/^(#|```|<!--|\|)/.test(l) && keyWords(l).length >= 3);
+    for (const r of rules) {
+      const k = keyWords(r), need = Math.ceil(k.length * 0.6);
+      if (!paras.some(p => k.filter(w => p.includes(w)).length >= need) && k.filter(w => dropped.includes(w)).length < need)
+        out.push(`${f} rule "${r.slice(0, 80)}" is not in AGENTS.md: merge it back, or list it under "## Dropped rules" in docs/DECISIONS.md with why`);
+    }
+  }
+  return out.slice(0, 8);
+}
 export function setupProblems(cfg = config()) {
   const probs = [];
   const brief = read(abs('docs/BRIEF.md'));
@@ -1427,6 +1446,7 @@ export function setupProblems(cfg = config()) {
   if (/^- \(none yet\)\s*$/m.test(section(claude, "The user's standing preferences"))) probs.push('AGENTS.md: record the user\'s standing preferences as principles (or "- (none stated, YYYY-MM-DD)")');
   if (/Not bootstrapped yet/i.test(read(abs('docs/STATUS.md')))) probs.push('docs/STATUS.md: still says "Not bootstrapped yet"');
   for (const f of ['CLAUDE.starter.md', 'AGENTS.starter.md']) if (exists(f)) probs.push(`${f}: merge it into CLAUDE.md/AGENTS.md, then delete it`);
+  probs.push(...lostRules());
   if (!exists('tools/hooks/state/last-session.json')) probs.push('the hooks have never run in a live session here (open the project with your agent so its session start runs them, or run node tools/hooks/hooks.mjs begin "<a request>")');
   if (exists('CLAUDE.md') && read(abs('CLAUDE.md')) !== read(abs('AGENTS.md'))) probs.push('CLAUDE.md and AGENTS.md differ');
   const own = readJSON(path.join(HOOKS, 'config.json'), {});

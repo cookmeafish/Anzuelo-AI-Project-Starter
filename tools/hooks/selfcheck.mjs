@@ -1450,6 +1450,22 @@ if (!TAGS) { // the standalone checks run in a full run only
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
+{ // adoption: every rule the project had before is still in the merged AGENTS.md, reworded or not, or dropped with why
+  // Lesson: a merge silently lost two of the user's own rules
+  const dir = copyProject();
+  try {
+    fs.mkdirSync(path.join(dir, '.starter/original-rules'), { recursive: true });
+    fs.writeFileSync(path.join(dir, '.starter/original-rules/CLAUDE.md'), '# Rules\n- Never touch the billing module without asking.\n- Tests are written in pytest only.\n');
+    fs.appendFileSync(path.join(dir, 'AGENTS.md'), '\n- Tests use pytest only, never unittest.\n');
+    const H = JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href);
+    const lost = () => spawnSync(process.execPath, ['--input-type=module', '-e', `import { lostRules } from ${H}; console.log(lostRules().join('\\n'))`], { cwd: dir, encoding: 'utf8' }).stdout;
+    const before = lost();
+    fs.appendFileSync(path.join(dir, 'docs/DECISIONS.md'), '\n## Dropped rules\n- 2026-10-19: "never touch the billing module without asking": the billing module was removed.\n');
+    const after = lost();
+    report(/billing/.test(before) && !/pytest/.test(before) && !after.trim(), 'adoption: a rule lost in the merge is found; a reworded or dropped-with-reason rule passes', `${before.slice(0, 200)} | ${after.slice(0, 100)}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
 { // two sessions in one folder: each keeps its own turn record, so one's request never becomes the other's
   // Lesson: a second session's prompt replaced the first one's turn record, and the first was checked against it
   const dir = copyProject();

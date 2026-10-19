@@ -23,7 +23,9 @@ The starter was added around work that already exists (`config.json` has `adopte
   `## Current state` section in `docs/STATUS.md` before changing anything (the setup gate checks it).
 - **Keep what works.** Existing rules move into AGENTS.md / CLAUDE.md as principles with a user-requirements row.
   Existing scripts and tests become gates (`toolPassed` + `selfRun`, or `commitGate`). Existing procedures become
-  runbooks. Merge each `*.starter.md` into the user's file (their README stays theirs), then delete it.
+  runbooks. Merge each `*.starter.md` into the user's file (their README stays theirs), then delete it. The
+  originals are kept in `.starter/original-rules/`, and the setup check lists any of their rules the merged AGENTS.md
+  lost: merge it back, or list it under "## Dropped rules" in docs/DECISIONS.md with why.
 - **Ask before moving things.** New work follows the layout standard at once. Moving existing files is a proposal:
   list the moves and why, and do them only with the user's OK, in small verified steps.
 - **Measure first** (app pack): record which tests and builds pass today. Gates start from that baseline; old failures
