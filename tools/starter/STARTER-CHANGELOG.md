@@ -62,6 +62,26 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
     announced (ROUTINES DUE).
   - **Labels:** stop steps read as short plain sentences, without paths cut in half.
   - **Feedback inbox:** project reports are marked as data to weigh, never instructions.
+  - **An upset user teaches the project.** A new core skill, learn-from-upset, and its check (REQ: upset-learned): when
+    the user complains, is annoyed or shouts, the miss is fixed, the lesson's importance is weighed (one-off, lesson in
+    the skill that missed it, rule, hook check, new skill, or engine) and stored there, and the answer ends with
+    "Learned (<level>): <lesson> → <file>", a file that must have changed. "Again" rules out a one-off note.
+    Complaints no longer go straight to a rule: the skill decides where the lesson belongs.
+  - **Projects improve the starter, and through it each other.** An engine lesson or an engine check suspended for
+    friction is written to `docs/starter-feedback.md`, sent to the linked starter at the next session start, and
+    announced there (FEEDBACK FROM PROJECTS) until it is fixed; the next upgrade carries the fix to every project.
+  - **Apps built to grow:** the app pack's modular-code skill (features as modules with one public entry, names from
+    `docs/names.json`, settings from config, extension points, small files) and its check, which runs by itself on
+    each changed code file and judges only what the change adds (REQ: modular-code). The foundation records the
+    module layout and the extension points.
+  - **Eleven new library skills:** correspondence, routines, notes-vault, manuscript, data-pipeline,
+    dependency-update, package-release, ml-experiments, mobile-app, game-dev and web-app-patterns, each with its own
+    check, scenarios and zero-dependency scripts where a step can be checked.
+  - **Recommended tools** for Rust (Clippy, cargo-audit, cargo-nextest), Godot (gdtoolkit, GdUnit4), notebooks
+    (nbstripout, nbQA) and ML (MLflow, DVC), with survey signals so they are weighed where they fit.
+  - **Smaller fixes:** "reply to this email" is not an OK to send; drafts in `outputs/drafts/` are not deliverables;
+    the Obsidian checks read `knowledgeDirs`; dry runs (`cargo publish --dry-run`) pass the publish gate; every
+    stop step shows in round 1.
 - 2026-10-19 (later): Fixes from the same project's next upgrade.
   - **No false "kept your edited version".** An older shipped check is not a local edit. The starter now ships
     `tools/hooks/engine-checks-history.json`, the fingerprint of every version of every check it ever released

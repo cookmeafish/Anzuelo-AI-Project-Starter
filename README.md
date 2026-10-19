@@ -47,6 +47,8 @@ favors no vendor.
   (`node tools/recall.mjs` searches it all).
 - **Runs without questions if you want.** `"autonomy": "auto"` (or `--auto` when creating a project): the agent assumes
   and records answers instead of asking. Outward actions and third-party installs still need your OK.
+- **Apps built to grow.** The app pack's modular-code skill keeps each feature in its own module with one public
+  entry, settings in config and extension points for what will multiply; a check runs on every changed code file.
 - **Every name is a variable.** The project's name and every other name live in `docs/names.json`; a rename is one
   edit there. Docs and code refer to it, and a check catches names typed out anywhere else.
 - **Secure by default,** whatever the project is: a security baseline, a security-review skill, no secrets in
@@ -66,8 +68,9 @@ favors no vendor.
   | app | Building software | Specs, triple-check QA, gates, a security, speed and usability foundation, release safety |
   | gui | Anything people look at | The GUI runbook, the screenshot review loop and tool, a visual checklist; the frontend-design library skill fits it |
 
-- **A skill library** chosen per project: security hardening, backend patterns, frontend design, codebase maps,
-  repo setup, orchestration, MCP servers, user research and more. Every project also gets core skills for planning,
+- **A skill library** chosen per project: security hardening, backend patterns, frontend design, web app patterns,
+  mobile apps, games, ML experiments, data pipelines, dependency updates, package releases, codebase maps, repo setup,
+  orchestration, MCP servers, user research, correspondence, routines, notes vaults, manuscripts and more. Every project also gets core skills for planning,
   debugging, parallel sub-agents, research (facts from the project's files and the web), linked notes for Obsidian,
   session handoff, finding existing skills, security review and skill cleanup.
 - **Quality by default:** plain writing with no filler or em dashes, verified claims, a tidy folder layout, and
