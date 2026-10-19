@@ -1173,8 +1173,11 @@ export function writingProblems(text, cfg = config(), where = 'answer') {
   // for the checks, not the reader, and a short answer is never a wall of text. Code spans and file paths are not
   // words either. Lesson: a 2-line progress answer was sent back for plain writing: its first line had no final period,
   // so it ran into the markers line and the two were measured as one 47-word sentence.
-  const MARKERS = /^\s*(\*\*)?(playbook|skill|worth it)\s*:|^\s*(\*\*)?n\/a\(/i;
-  const prose = where === 'answer' ? lines.map(l => MARKERS.test(l) ? '' : l) : lines;
+  // The last line counts as the markers line whenever it holds a marker, whatever its label ("Footer: Playbook: x").
+  // Lesson: a two-sentence answer was flagged because its "Footer:" markers line was measured as prose.
+  const MARKERS = /^\s*(\*\*)?(playbook|skill|worth it|footer|markers)\s*:|^\s*(\*\*)?n\/a\(/i, HAS_MARKER = /\b(playbook|skill|worth it)\s*:|\bn\/a\(/i;
+  const lastLine = lines.findLastIndex(l => l.trim());
+  const prose = where === 'answer' ? lines.map((l, i) => MARKERS.test(l) || (i === lastLine && HAS_MARKER.test(l)) ? '' : l) : lines;
   const count = s => s.replace(/``/g, ' ').split(/\s+/).filter(w => w && !/^[(\["']*[\w.~-]*[\\/][^\s]*$/.test(w) && !/^[(\["']*[\w-]+\.(md|mjs|js|cjs|ts|tsx|json|py|ya?ml|html?|css|txt|csv)\b/i.test(w) && /\w/.test(w)).length;
   if (where === 'answer' && count(prose.join(' ')) < 40) return [...new Set(probs)];
   const paras = prose.map(l => /^\s*>\s*$/.test(l) ? '' : own(l) ? `\n${l}\n` : l).join('\n').split(/\n\s*\n/);
@@ -2062,9 +2065,11 @@ export function pretoolDecision(data, cfg = config()) {
         `(^|[\\s;&|(])(rm|del|erase|rmdir|rd|Remove-Item|ri|Clear-Content|truncate|shred|unlink)\\b[^;&|]*?(\\s|^)${P}`,
         `(^|[\\s;&|(])(mv|move|Move-Item|Rename-Item|ren)\\s+(-{1,2}\\S+\\s+)*${P}`,
         `(^|[^<>2&])>{1,2}\\s*${P}`,
-        `(^|[\\s;&|(])(Set-Content|Out-File|Add-Content|tee)\\b[^;&|]*?(\\s|^)${P}`,
-        `(^|[\\s;&|(])sed\\s+(-\\S*\\s+)*-i[^;&|]*?${P}`
+        `(^|[\\s;&|(])(Set-Content|Out-File|Add-Content|tee)\\b[^;&|]*?(\\s|^)${P}`
       ].map(b => re(b).test(cmd));
+      // sed -i edits only its file arguments, not its script. Lesson: adding the line "owns: sources/raids/**" to a
+      // runbook with sed was denied, because the folder's name was in the replacement text.
+      hits.push(sedInPlaceFiles(cmd).some(f => re(`^${P}`).test(f)));
       const bad = hits.some(Boolean);
       // A file this turn created (not in the turn-start snapshot, not in git) is not an original yet: a helper may delete
       // junk it just downloaded. Only a plain delete, and only when every file it names is new.
@@ -2075,6 +2080,31 @@ export function pretoolDecision(data, cfg = config()) {
     }
   }
   return null;
+}
+
+// The files each "sed -i" in a command edits: its words after the flags, minus the script (the first word, unless -e
+// or -f gave it). Quotes are removed, so a quoted path is still a file and a quoted script is never one.
+export function sedInPlaceFiles(cmd) {
+  const out = [], segs = [[]];
+  // split on ; | & and newlines outside quotes only (a script like s|a|b| keeps its bars)
+  for (const m of String(cmd).matchAll(/"((?:\\.|[^"\\])*)"|'([^']*)'|(&&|\|\||[;|&\n])|([^\s;|&"']+)/g))
+    if (m[3]) segs.push([]); else segs[segs.length - 1].push(m[1] ?? m[2] ?? m[4]);
+  for (const words of segs) {
+    const i = words.indexOf('sed');
+    if (i < 0) continue;
+    const rest = words.slice(i + 1);
+    if (!rest.some(w => /^-[^-]*i|^--in-place/.test(w))) continue;
+    let script = false; const files = [];
+    for (let k = 0; k < rest.length; k++) {
+      const w = rest[k];
+      if (/^-(e|f)$|^--(expression|file)$/.test(w)) { script = true; k++; continue; }
+      if (/^-/.test(w)) continue;
+      if (!script) { script = true; continue; }
+      files.push(w);
+    }
+    out.push(...files);
+  }
+  return out;
 }
 
 function cmdPretool(data) {

@@ -511,6 +511,8 @@ const PRETOOL = [
   { pack: 'knowledge', name: 'Remove-Item absolute path in sources: denied', tool: 'PowerShell', input: { command: 'Remove-Item -Force C:\\proj\\sources\\a.pdf' }, deny: true, tag: 'protect-originals' },
   { pack: 'knowledge', name: 'move a file out of sources/: denied', tool: 'Bash', input: { command: 'mv sources/a.pdf inbox/' }, deny: true, tag: 'protect-originals' },
   { pack: 'knowledge', name: 'redirect over a file in sources/: denied', tool: 'Bash', input: { command: 'echo hi > sources/a.md' }, deny: true, tag: 'protect-originals' },
+  { pack: 'knowledge', name: 'protect-originals: sed -i on a file in sources/: denied', tool: 'Bash', input: { command: "sed -i 's|a|b|' \"sources/my notes.md\"" }, deny: true, tag: 'protect-originals' },
+  { pack: 'knowledge', name: 'protect-originals: sed -i whose script only names sources/: allowed', tool: 'Bash', input: { command: "sed -i '/^summary:/a owns: sources/raids/**' docs/playbooks/raid-research.md" }, deny: false },
   { pack: 'knowledge', name: 'move inbox file INTO sources/: allowed', tool: 'Bash', input: { command: 'mv "inbox/scan.pdf" "sources/2026-10-17 scan.pdf"' }, deny: false },
   { pack: 'knowledge', name: 'rm in sources/ when the user asked to delete: allowed', tool: 'Bash', input: { command: 'rm sources/dup.pdf' }, prompt: 'delete the duplicate scan in sources', deny: false },
   { name: 'unrelated command: allowed', tool: 'Bash', input: { command: 'ls -la docs && node tools/audit.mjs' }, deny: false },
@@ -823,6 +825,10 @@ STOP.push(
   { name: 'plain-writing: a short progress answer with a markers line, paths and code is not a long sentence: passes', prompt: 'hello',
     answer: 'Progress: the merge now covers pack and library checks in tools/new-project.mjs and the trial sample passes; next I run the full checks with `node tools/audit.mjs`\n' +
       'Playbook: project.md · Skill: debug · N/A(status-handoff): a progress note mid-task, the handoff comes when the work ends · N/A(changelog): nothing finished yet', expect: { not: ['plain-writing'] } },
+  // Lesson: a two-sentence answer was flagged because its markers line carried a "Footer:" label
+  { name: 'plain-writing: a labeled markers line on the last line is not prose: passes', prompt: 'hello',
+    answer: 'The raid notes are current and the boss table matches the patch. Nothing else needed a change\n' +
+      'Footer: Playbook: raid-research.md (followed, no files changed this turn) · Skill: research (looked up the patch notes for the raid) · N/A(changelog): nothing changed · N/A(status-handoff): a quick answer', expect: { not: ['plain-writing'] } },
   { name: 'plain-writing: a long run-on sentence in a real answer: blocked', prompt: 'hello',
     answer: 'The desk we looked at last week is still the best pick for the room because it is sturdy and quiet and easy to adjust and it fits by the window and the price stayed the same and the shop can deliver it on Friday and they will also take the old one away for free if we ask them nicely before noon on the day.',
     expect: { tags: ['plain-writing'] } },

@@ -20,6 +20,11 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
   - **A runbook can own folders.** `owns: sources/raids/**` in a runbook's frontmatter: in a turn that follows it,
     another runbook's trigger skips files there, so research downloads don't call for ingest. In any other turn the
     trigger still fires.
+  - **`sed -i` is judged by the files it edits.** protect-originals denied a `sed -i` on a runbook because the script's
+    text named `sources/`. Only sed's file arguments count now; a `sed -i` on a file in an originals folder is still
+    denied.
+  - **A labeled markers line is not prose.** The last line counts as the markers line whenever it holds a marker
+    (`Footer: Playbook: ...`), so plain-writing no longer measures it as part of the answer.
   - The mirror-link self-test looks only at its own fixture's links, so a project's own runbooks (whose content the
     test base removes) no longer fail it.
 
