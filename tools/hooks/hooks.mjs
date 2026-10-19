@@ -333,7 +333,7 @@ const GENERIC = new Set(['fix', 'add', 'added', 'save', 'make', 'get', 'use', 'c
 const OPINION = /\b(do|did|would|will) you (think|reckon|believe|feel|agree|prefer|suggest|recommend)\b|\bwhat do you (think|reckon|make of|suggest|recommend)\b|\bin your (opinion|view)\b|\byour (honest )?(opinion|view|take|thoughts)\b|\bhow do you feel\b|\bbased on what (we|you|i) (have|know|discussed|did|said)\b/i;
 // Text the user pasted, and text that is the hooks' own output, are not the user's words: they never route or count as
 // a request. Lesson: a pasted audit line ("... 26 sweeps") was taken as a request for 26 sweeps.
-const HOOK_MARK = /^\s*(-\s+)?(ROUTE|SKILL|NO RUNBOOK|RULE REQUEST|RECALL|MENU CODE|MENU FLAG|SCOPE|SETUP IN PROGRESS|BOOTSTRAP NEEDED|LAST WORK TURN|INBOX|STALE KNOWLEDGE|PRAISE|THE USER SOUNDS|SUSPENDED|FRICTION ON|UNKNOWN MENU|SKILL HARDENING|SKILL CLEANUP|UPGRADE REVIEW|OPEN PLANS|MUST FOLLOW|AUTONOMY)\b/;
+const HOOK_MARK = /^\s*(-\s+)?(ROUTE|ROUTINES DUE|SKILL|NO RUNBOOK|RULE REQUEST|RECALL|MENU CODE|MENU FLAG|SCOPE|SETUP IN PROGRESS|BOOTSTRAP NEEDED|LAST WORK TURN|INBOX|STALE KNOWLEDGE|PRAISE|THE USER SOUNDS|SUSPENDED|FRICTION ON|UNKNOWN MENU|SKILL HARDENING|SKILL CLEANUP|UPGRADE REVIEW|OPEN PLANS|MUST FOLLOW|AUTONOMY)\b/;
 const HOOK_LINE = /^\s*(\[rules\]|\[project hooks|audit:\s*(PASS|FAIL)|selfcheck:|ablation:|TRIAL:\s*(PASS|FAIL)|CLAIMS:\s*(PASS|FAIL)|(PASS|FAIL|WARN)\s+\d+\.\s)/i;
 const HOOK_BLOCK = /^\s*(stop hook\b|almost done:)/i;
 // Messages from other sessions, sub-agents and the host are not the user's words, wherever they sit in a message: the
@@ -1624,9 +1624,32 @@ const FIT_SIGNALS = [
   { id: 'docs', count: s => s.files.filter(f => /\.(pdf|docx?|pptx?|xlsx|epub)$/i.test(f.p)).length, label: c => `${c} PDF or Office documents`, words: /\b(pdfs?|documents?|office|docx?|word|pptx?|slides|scans?|ocr|convert|text)\b/i, for: ['tool:markitdown', 'tool:pandoc', 'tool:tesseract ocr', 'pack:knowledge'] },
   { id: 'js', count: s => s.n.jsts && s.manifests.some(m => /package\.json$/.test(m)) ? s.n.jsts : 0, label: c => `${c} JavaScript or TypeScript files`, words: /\b(js|javascript|ts|typescript|node|npm|eslint|prettier|lint|linter|types?)\b/i, for: ['tool:biome', 'tool:typescript (tsc)'] }
 ];
+// What the brief and the setup answers say the work is: evidence too, so a skill whose files don't exist yet is still
+// weighed. Lesson: a bakery whose brief was all newsletters and supplier emails got "no direct signal" for marketing.
+const briefText = () => `${read(abs('docs/BRIEF.md'))}\n${section(read(abs('docs/DECISIONS.md')), 'Setup interview')}`.replace(/<!--[\s\S]*?-->/g, ' ');
+const BRIEF_SIGNALS = [
+  ['marketing', /\b(marketing|campaigns?|newsletters?|social media|instagram|brand|promotions?|ads?|seo)\b/i],
+  ['legal-review', /\b(contracts?|terms of (service|use)|privacy policy|gdpr|legal|compliance|lease|ndas?)\b/i],
+  ['user-research', /\b(user (interviews?|research|feedback)|customer (interviews?|feedback)|surveys?|usability|personas?)\b/i],
+  ['data-analysis', /\b(sales (figures|data|numbers)|spreadsheets?|statistics|kpis?|metrics|reports? on (sales|numbers))\b/i],
+  ['correspondence', /\b(emails?|letters?|suppliers?|landlord|replies|reply to (customers|clients)|correspondence)\b/i],
+  ['routines', /\b(every (day|morning|week|month|monday|tuesday|wednesday|thursday|friday)|weekly|monthly|daily|recurring|routine)\b/i],
+  ['manuscript', /\b(novel|book|chapters?|screenplay|script writing|memoir|manuscript|short stories)\b/i],
+  ['ml-experiments', /\b(machine learning|ml model|train(ing)? (a |the )?model|neural|classifier|datasets?|kaggle|pytorch|tensorflow|scikit)\b/i],
+  ['mobile-app', /\b(mobile app|android|ios|iphone|flutter|react native|swiftui|play store|app store)\b/i],
+  ['game-dev', /\b(game|godot|unity|unreal|sprites?|levels?|player character|steam|itch\.io)\b/i],
+  ['web-app-patterns', /\b(web app|website|react|vue|svelte|next\.?js|front.?end|dashboard)\b/i],
+  ['package-release', /\b(library|package|crate|npm package|pypi|publish(ed)? to|sdk|cli tool)\b/i],
+  ['data-pipeline', /\b(pipeline|etl|imports? (of|from)|exports? from|batch(es)?|ingest(ion)?)\b/i],
+  ['notes-vault', /\b(obsidian|vault|my notes|notes app|zettelkasten)\b/i],
+  ['dependency-update', /\b(dependenc(y|ies)|upgrade|outdated|vulnerab\w+|dependabot|renovate)\b/i]
+];
+for (const [skill, rx] of BRIEF_SIGNALS) FIT_SIGNALS.push({ id: `brief-${skill}`, count: () => { const m = rx.exec(fitBrief.text ??= briefText()); return m ? 1 : 0; },
+  label: () => `the brief or setup answers mention "${rx.exec(fitBrief.text ??= briefText())[0]}"`, words: new RegExp(`${rx.source}|\\bbrief\\b|\\banswers?\\b`, 'i'), for: [`skill:${skill}`] });
+const fitBrief = {};
 const fitKey = (kind, item) => `${kind}:${String(item).toLowerCase()}`;
 export function fitSignals(sv = projectSurvey()) {
-  const out = {};
+  const out = {}; fitBrief.text = undefined; // read the brief afresh on each call
   for (const sg of FIT_SIGNALS) { const c = sg.count(sv); if (!c) continue; for (const k of sg.for) (out[k] ||= []).push({ id: sg.id, label: sg.label(c, sv), words: sg.words }); }
   return out;
 }
@@ -1870,6 +1893,38 @@ export function bench(runs = 3) {
 }
 
 // ---------- SessionStart ----------
+// ---------- routines: recurring work in docs/routines.md (routines library skill) ----------
+// | Routine | Every | Runbook | Last run |, Every: day, week, month, weekday, monday..sunday, "N days" or "month day N".
+// Nothing runs between sessions, so a due routine is announced when one opens. Lesson: "every Monday I'll make the
+// order plan" was promised, and nothing ever made it happen.
+const DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+export function dueRoutines(text, now = today()) {
+  const day = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+  const t = day(now), out = [];
+  for (const l of String(text || '').split(/\r?\n/)) {
+    const c = l.split('|').map(s => s.trim());
+    if (c.length < 6 || /^-*$/.test(c[1]) || /^routine$/i.test(c[1])) continue;
+    const [name, every, runbook, last] = [c[1], c[2].toLowerCase(), c[3].replace(/`/g, ''), c[4]];
+    if (!/^(\d{4}-\d\d-\d\d|never)$/i.test(last)) continue;
+    let next;
+    if (/^never$/i.test(last)) next = t;
+    else {
+      const l0 = day(last), add = n => new Date(l0.getFullYear(), l0.getMonth(), l0.getDate() + n);
+      let m;
+      if (every === 'day') next = add(1);
+      else if (every === 'week') next = add(7);
+      else if (every === 'month') next = new Date(l0.getFullYear(), l0.getMonth() + 1, l0.getDate());
+      else if (every === 'weekday') { next = add(1); while ([0, 6].includes(next.getDay())) next = new Date(next.getFullYear(), next.getMonth(), next.getDate() + 1); }
+      else if (DAYS.includes(every)) { next = add(1); while (next.getDay() !== DAYS.indexOf(every)) next = new Date(next.getFullYear(), next.getMonth(), next.getDate() + 1); }
+      else if ((m = /^(\d+) days?$/.exec(every))) next = add(Number(m[1]));
+      else if ((m = /^month day (\d+)$/.exec(every))) { next = new Date(l0.getFullYear(), l0.getMonth(), Number(m[1])); if (next <= l0) next = new Date(l0.getFullYear(), l0.getMonth() + 1, Number(m[1])); }
+      else continue;
+    }
+    if (next <= t) out.push({ name, every, runbook, last });
+  }
+  return out;
+}
+
 function notices(cfg) {
   const out = [];
   const template = exists('.starter-template');
@@ -1885,6 +1940,8 @@ function notices(cfg) {
   if (stale.length) out.push(`STALE KNOWLEDGE: ${stale.slice(0, 5).map(s => `${s.file} (${s.why})`).join('; ')}${stale.length > 5 ? ` +${stale.length - 5} more` : ''}. Re-check before relying on them, or say they are stale.`);
   const inbox = list('inbox').filter(n => !/^readme\.md$/i.test(n) && !n.startsWith('.'));
   if (inbox.length) out.push(`INBOX: ${inbox.length} file(s) waiting in inbox/ (${inbox.slice(0, 5).join(', ')}${inbox.length > 5 ? ', ...' : ''}). Follow docs/playbooks/ingest.md when the user's request allows.`);
+  const rt = dueRoutines(read(abs('docs/routines.md')));
+  if (rt.length) out.push(`ROUTINES DUE: ${rt.map(r => `${r.name} (every ${r.every}, last run ${r.last}; ${r.runbook})`).join('; ')}. Tell the user in one line and offer to run them now; after one runs, set its "Last run" to today in docs/routines.md (routines skill).`);
   const due = hardenDue(playbooks(), usage(), cfg);
   if (due.length) out.push(`SKILL HARDENING DUE: ${due.map(p => p.file).join(', ')} (used ${cfg.promoteAfterUses}+ times). Use the skill-harden skill.`);
   const idle = template ? [] : curateDue(cfg, true);

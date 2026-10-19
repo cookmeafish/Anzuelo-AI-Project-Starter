@@ -48,6 +48,11 @@
       "`outputs/`",
       "Deliverables",
       "A new version is a new file (hook: no-overwrite)"
+    ],
+    [
+      "`data/`",
+      "Working data the project keeps current (price lists, counts, tables the user edits)",
+      "Edited freely; its origin is noted in docs/knowledge/SOURCES.md"
     ]
   ],
   "requirements": [

@@ -594,6 +594,8 @@ const PROMPT = [
   { name: 'unresolved checks from the last turn are announced', prompt: 'hello', setup: { 'tools/hooks/state/unresolved.json': JSON.stringify({ at: 'x', prompt: 'p', items: ['[finished-summary] m'] }) }, has: ['LAST WORK TURN ENDED WITH UNRESOLVED CHECKS'] },
   { name: 'skill-prune: a runbook nobody used for months is announced for cleanup', prompt: 'hello', session: true, removeMarker: true, setup: { 'docs/playbooks/meal-plan.md': NEWPB, 'tools/hooks/state/runbook-usage.json': JSON.stringify({ 'meal-plan': { uses: 1, last: '2020-01-01', seen: '2020-01-01' } }) }, has: ['SKILL CLEANUP DUE: meal-plan'] },
   { name: 'skill-prune: core skills and kept runbooks are never announced', prompt: 'hello', session: true, removeMarker: true, setup: { 'docs/playbooks/meal-plan.md': NEWPB.replace('checks:', 'keep: 2099-01-01 - seasonal' + String.fromCharCode(10) + 'checks:'), 'tools/hooks/state/runbook-usage.json': JSON.stringify({ 'meal-plan': { uses: 1, last: '2020-01-01' }, debug: { uses: 1, last: '2020-01-01' } }) }, hasNot: ['SKILL CLEANUP DUE'] },
+  // Lesson: "every Monday I'll make the order plan" was promised, and nothing ever made it happen
+  { name: 'routines: a routine past its day is announced at session start', prompt: 'hello', session: true, setup: { 'docs/routines.md': '# Routines\n| Routine | Every | Runbook | Last run |\n|---|---|---|---|\n| Order plan | week | docs/playbooks/plan.md | 2020-01-06 |\n| Fresh one | month | docs/playbooks/plan.md | 2999-01-01 |\n' }, has: ['ROUTINES DUE: Order plan'], hasNot: ['Fresh one'] },
   { pack: 'knowledge', name: 'stale knowledge is announced', prompt: 'hello', setup: { 'docs/knowledge/desks.md': '---\nnext_check: 2020-01-01\n---\n# x' }, has: ['STALE KNOWLEDGE'] },
   { pack: 'gui', name: 'GUI request routes to the gui runbook', prompt: 'make the dashboard look more modern', has: ['ROUTE: gui'] }
 ];
@@ -1411,6 +1413,18 @@ if (!TAGS) { // the standalone checks run in a full run only
     const tail = JSON.parse(spawnSync(process.execPath, ['--input-type=module', '-e', `import { FIT_WHEN_TAIL as T } from ${H}; console.log(JSON.stringify(['Recommend when: a team shares the repo, so it helps', 'later - when: 30 files', 'it helps; when: 30 files'].map(s => s.replace(T, '').trim())))`], { cwd: dir, encoding: 'utf8' }).stdout || '[]');
     report(added.length > 0 && /item\(s\) with no sign of need here/.test(sum) && sum.split(/\s+/).length < all.split(/\s+/).length / 2 && tail[0]?.startsWith('Recommend when:') && tail[1] === '' && tail[2] === 'it helps',
       'fit: what is already in the project starts as add, the summary stays short, and only a later-when tail is cut', `${added.length} add rows | ${sum.split(/\s+/).length} vs ${all.split(/\s+/).length} words | ${JSON.stringify(tail)}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+{ // fit: what the brief says the work is counts as evidence, so a skip of a fitting skill needs a reason
+  // Lesson: a bakery whose brief was all newsletters and supplier emails got "no direct signal" for marketing
+  const dir = copyProject();
+  try {
+    fs.writeFileSync(path.join(dir, 'docs/BRIEF.md'), '# Brief\nPosts and a monthly newsletter for the shop, plus questions about the lease.\n');
+    const H = JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href);
+    const s = JSON.parse(spawnSync(process.execPath, ['--input-type=module', '-e', `import { fitSignals } from ${H}; const s = fitSignals({ files: [], n: { visual: 0, tabular: 0, code: 0, notes: 0, python: 0, shell: 0, jsts: 0 }, manifests: [], big: [], git: null }); console.log(JSON.stringify(Object.fromEntries(Object.entries(s).map(([k, v]) => [k, v.map(x => x.label)]))))`], { cwd: dir, encoding: 'utf8' }).stdout || '{}');
+    report(/newsletter/.test((s['skill:marketing'] || []).join()) && /lease/.test((s['skill:legal-review'] || []).join()) && !s['skill:manuscript'],
+      'fit: the brief\'s words are evidence for the skills they call for', JSON.stringify(s).slice(0, 300));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 

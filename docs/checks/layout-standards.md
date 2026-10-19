@@ -24,6 +24,9 @@ Everything else goes in a folder. When in doubt, use a folder.
 
 ## Knowledge pack folders
 `docs/knowledge/` (facts by topic), `inbox/` (drop zone), `sources/` (originals), `outputs/` (deliverables).
+Working data the project keeps current (a price list, a stock count, a contact table the user edits) goes in
+`data/`, not `sources/`: originals in `sources/` are never edited, working files are. Keep the file a source came from
+in `sources/` and the edited working copy in `data/`, with its origin noted in `docs/knowledge/SOURCES.md`.
 
 ## App pack folders
 | Folder | What |
