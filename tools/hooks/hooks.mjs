@@ -1682,7 +1682,12 @@ const FIT_SIGNALS = [
   // Lesson: a vault with .obsidian/ and PDFs in its inbox got "no direct signal" for Obsidian, MarkItDown and OCR
   { id: 'obsidian', count: () => exists('.obsidian') ? 1 : 0, label: () => 'an Obsidian vault (.obsidian/)', words: /\b(obsidian|vault|notes?|graph|links?)\b/i, for: ['feature:obsidian vault', 'tool:obsidian', 'pack:knowledge'] },
   { id: 'docs', count: s => s.files.filter(f => /\.(pdf|docx?|pptx?|xlsx|epub)$/i.test(f.p)).length, label: c => `${c} PDF or Office documents`, words: /\b(pdfs?|documents?|office|docx?|word|pptx?|slides|scans?|ocr|convert|text)\b/i, for: ['tool:markitdown', 'tool:pandoc', 'tool:tesseract ocr', 'pack:knowledge'] },
-  { id: 'js', count: s => s.n.jsts && s.manifests.some(m => /package\.json$/.test(m)) ? s.n.jsts : 0, label: c => `${c} JavaScript or TypeScript files`, words: /\b(js|javascript|ts|typescript|node|npm|eslint|prettier|lint|linter|types?)\b/i, for: ['tool:biome', 'tool:typescript (tsc)'] }
+  { id: 'js', count: s => s.n.jsts && s.manifests.some(m => /package\.json$/.test(m)) ? s.n.jsts : 0, label: c => `${c} JavaScript or TypeScript files`, words: /\b(js|javascript|ts|typescript|node|npm|eslint|prettier|lint|linter|types?)\b/i, for: ['tool:biome', 'tool:typescript (tsc)'] },
+  // Lesson: a Rust CLI, a Godot game and an ML project got "no direct signal" for every tool of their own language
+  { id: 'rust', count: s => s.manifests.filter(m => /Cargo\.toml$/.test(m)).length, label: c => `${c} Rust crate(s) (Cargo.toml)`, words: /\b(rust|cargo|crates?|clippy|lint|tests?)\b/i, for: ['tool:clippy', 'tool:cargo-audit', 'tool:cargo-nextest', 'skill:dependency-update'] },
+  { id: 'godot', count: s => s.manifests.filter(m => /project\.godot$/.test(m)).length, label: () => 'a Godot project (project.godot)', words: /\b(godot|gdscript|game|lint|tests?)\b/i, for: ['tool:gdtoolkit', 'tool:gdunit4', 'skill:game-dev'] },
+  { id: 'flutter', count: s => s.manifests.filter(m => /pubspec\.yaml$/.test(m)).length, label: () => 'a Dart or Flutter package (pubspec.yaml)', words: /\b(flutter|dart|mobile|apps?|phones?)\b/i, for: ['skill:mobile-app', 'pack:gui'] },
+  { id: 'notebooks', count: s => s.files.filter(f => /\.ipynb$/i.test(f.p)).length, label: c => `${c} Jupyter notebook(s)`, words: /\b(notebooks?|jupyter|ipynb|outputs?|ml|experiments?)\b/i, for: ['tool:nbstripout', 'tool:nbqa', 'skill:ml-experiments'] }
 ];
 // What the brief and the setup answers say the work is: evidence too, so a skill whose files don't exist yet is still
 // weighed. Lesson: a bakery whose brief was all newsletters and supplier emails got "no direct signal" for marketing.

@@ -58,17 +58,28 @@ others are the skill side of a runbook in §1. What each does and when: its SKIL
 | codebase-map (library) | [codebase-map/SKILL.md](library/skills/codebase-map/SKILL.md), [codebase-map/SOURCE.md](library/skills/codebase-map/SOURCE.md), [codebase-map/references.md](library/skills/codebase-map/references.md) |
 | commit-archaeologist (library) | [commit-archaeologist/SKILL.md](library/skills/commit-archaeologist/SKILL.md), [commit-archaeologist/SOURCE.md](library/skills/commit-archaeologist/SOURCE.md), [commit-archaeologist/references.md](library/skills/commit-archaeologist/references.md) |
 | compress-for-ai (library) | [compress-for-ai/SKILL.md](library/skills/compress-for-ai/SKILL.md), [compress-for-ai/SOURCE.md](library/skills/compress-for-ai/SOURCE.md), [compress-for-ai/references.md](library/skills/compress-for-ai/references.md) |
+| correspondence (library) | [correspondence/SKILL.md](library/skills/correspondence/SKILL.md) |
 | data-analysis (library) | [data-analysis/SKILL.md](library/skills/data-analysis/SKILL.md), [data-analysis/SOURCE.md](library/skills/data-analysis/SOURCE.md), [data-analysis/references.md](library/skills/data-analysis/references.md) |
+| data-pipeline (library) | [data-pipeline/SKILL.md](library/skills/data-pipeline/SKILL.md) |
+| dependency-update (library) | [dependency-update/SKILL.md](library/skills/dependency-update/SKILL.md), [dependency-update/references.md](library/skills/dependency-update/references.md) |
 | frontend-design (library) | [frontend-design/SKILL.md](library/skills/frontend-design/SKILL.md), [frontend-design/SOURCE.md](library/skills/frontend-design/SOURCE.md), [frontend-design/references.md](library/skills/frontend-design/references.md), [frontend-design/templates.md](library/skills/frontend-design/templates.md) |
+| game-dev (library) | [game-dev/SKILL.md](library/skills/game-dev/SKILL.md), [game-dev/references.md](library/skills/game-dev/references.md) |
 | incident-response (library) | [incident-response/SKILL.md](library/skills/incident-response/SKILL.md), [incident-response/SOURCE.md](library/skills/incident-response/SOURCE.md), [incident-response/references.md](library/skills/incident-response/references.md) |
 | legal-review (library) | [legal-review/SKILL.md](library/skills/legal-review/SKILL.md), [legal-review/SOURCE.md](library/skills/legal-review/SOURCE.md), [legal-review/references.md](library/skills/legal-review/references.md) |
+| manuscript (library) | [manuscript/SKILL.md](library/skills/manuscript/SKILL.md) |
 | marketing (library) | [marketing/SKILL.md](library/skills/marketing/SKILL.md), [marketing/SOURCE.md](library/skills/marketing/SOURCE.md), [marketing/references.md](library/skills/marketing/references.md) |
 | mcp-builder (library) | [mcp-builder/SKILL.md](library/skills/mcp-builder/SKILL.md), [mcp-builder/SOURCE.md](library/skills/mcp-builder/SOURCE.md), [mcp-builder/references.md](library/skills/mcp-builder/references.md) |
+| ml-experiments (library) | [ml-experiments/SKILL.md](library/skills/ml-experiments/SKILL.md), [ml-experiments/references.md](library/skills/ml-experiments/references.md) |
+| mobile-app (library) | [mobile-app/SKILL.md](library/skills/mobile-app/SKILL.md), [mobile-app/references.md](library/skills/mobile-app/references.md) |
+| notes-vault (library) | [notes-vault/SKILL.md](library/skills/notes-vault/SKILL.md) |
 | orchestrate (library) | [orchestrate/SKILL.md](library/skills/orchestrate/SKILL.md), [orchestrate/SOURCE.md](library/skills/orchestrate/SOURCE.md), [orchestrate/references.md](library/skills/orchestrate/references.md) |
+| package-release (library) | [package-release/SKILL.md](library/skills/package-release/SKILL.md) |
 | repo-setup (library) | [repo-setup/SKILL.md](library/skills/repo-setup/SKILL.md), [repo-setup/SOURCE.md](library/skills/repo-setup/SOURCE.md), [repo-setup/references.md](library/skills/repo-setup/references.md) |
+| routines (library) | [routines/SKILL.md](library/skills/routines/SKILL.md) |
 | security-hardening (library) | [security-hardening/SKILL.md](library/skills/security-hardening/SKILL.md), [security-hardening/SOURCE.md](library/skills/security-hardening/SOURCE.md), [security-hardening/references.md](library/skills/security-hardening/references.md) |
 | teach (library) | [teach/SKILL.md](library/skills/teach/SKILL.md), [teach/references.md](library/skills/teach/references.md) |
 | user-research (library) | [user-research/SKILL.md](library/skills/user-research/SKILL.md), [user-research/SOURCE.md](library/skills/user-research/SOURCE.md), [user-research/references.md](library/skills/user-research/references.md) |
+| web-app-patterns (library) | [web-app-patterns/SKILL.md](library/skills/web-app-patterns/SKILL.md), [web-app-patterns/references.md](library/skills/web-app-patterns/references.md) |
 <!-- generated:end -->
 
 ## Precedence when several runbooks fit
