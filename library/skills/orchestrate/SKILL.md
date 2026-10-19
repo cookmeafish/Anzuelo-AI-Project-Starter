@@ -166,13 +166,13 @@ to free it, so it can still be resumed or asked about.
 5. Update `docs/STATUS.md` and `docs/CHANGELOG.md` (AGENTS.md rule 12), then report per task in the Finished section.
 
 ## Done when
-- [ ] Every task in the ledger is accepted, or escalated with the user told why.
-- [ ] The run stayed within its budget, or stopped and reported when the budget ran out.
-- [ ] Each accepted task passed the gate in step 5, checked by the coordinator, not only by the worker's report.
-- [ ] Shared-resource steps ran one at a time.
-- [ ] The combined result passes the full checks.
-- [ ] `node skills/orchestrate/scripts/ledger.mjs check <ledger>` reports no active task and nothing that needs action.
-- [ ] `docs/STATUS.md` and `docs/CHANGELOG.md` reflect the run, and only merged or user-approved workspaces were released.
+- [ ] Every task in the ledger is accepted, or escalated with the user told why (hook: ledger-checked).
+- [ ] The run stayed within its budget, or stopped and reported when the budget ran out (judgment: the budget is set per run).
+- [ ] Each accepted task passed the gate in step 5, checked by the coordinator, not only by the worker's report (judgment: whether the coordinator ran the gate shows only in the work).
+- [ ] Shared-resource steps ran one at a time (hook: ledger-checked).
+- [ ] The combined result passes the full checks (judgment: each project has its own full checks).
+- [ ] `node skills/orchestrate/scripts/ledger.mjs check <ledger>` reports no active task and nothing that needs action (hook: ledger-checked).
+- [ ] `docs/STATUS.md` and `docs/CHANGELOG.md` reflect the run, and only merged or user-approved workspaces were released (hook: status-handoff; judgment: the CHANGELOG line and which workspaces were released).
 
 ## Pitfalls
 - Tracking workers in your head: after a context loss the run forgets tasks. The ledger is the truth.

@@ -122,11 +122,10 @@ page, no external scripts. A PNG or a plotting library is fine when the user alr
    row count it ran on.
 
 ## Done when
-- [ ] New data was profiled and its grain stated (**A**), and quality problems listed with row counts (**B**).
-- [ ] Every number in the answer came from code run this turn, with a `How it was computed:` line (hook:
-      data-computed, when the skill is enabled; and research's answer-traced).
-- [ ] Charts have honest axes, titles, units, source and accessible colors (**E**).
-- [ ] The analysis was re-run from the original before sharing (**F**).
+- [ ] New data was profiled and its grain stated (**A**), and quality problems listed with row counts (**B**) (judgment: the grain and the quality problems need a reader).
+- [ ] Every number in the answer came from code run this turn, with a `How it was computed:` line (hook: data-computed).
+- [ ] Charts have honest axes, titles, units, source and accessible colors (**E**) (judgment: honest axes and colors need a human eye).
+- [ ] The analysis was re-run from the original before sharing (**F**) (judgment: no check sees the re-run yet).
 
 ## Pitfalls
 - Summarising a column the profiler typed as text: some values are not numbers, and they were silently dropped.

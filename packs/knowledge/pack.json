@@ -75,7 +75,7 @@
       "require": {
         "answerMatches": "docs/knowledge/|not (in|recorded in) the (knowledge base|project)|nothing recorded"
       },
-      "message": "Research skill, section A: cite the knowledge files the answer came from (docs/knowledge/...), or say plainly that the project has nothing recorded on it."
+      "message": "Research skill, section A: cite the knowledge files the answer came from by number, with a Sources: line for each ([1] docs/knowledge/...; answer format in skills/research/SKILL.md), or say plainly that the project has nothing recorded on it."
     },
     {
       "tag": "ingest-registered",

@@ -74,13 +74,12 @@ could break if this changes?" Don't edit code until asked (questions get answers
   next to the code) so the next person doesn't dig again.
 
 ## Done when
-- [ ] The target (repository, file, and lines or function) was pinned, and nothing outside it was searched.
-- [ ] The report opens with a bottom line and a `Confidence:` label of high, medium or low.
-- [ ] The origin, an oldest-first timeline, the companion files and the intent evidence are each backed by commit
-  hashes.
-- [ ] Facts from the history and inferences are labeled apart; blame ownership is not presented as authorship.
-- [ ] Ancestry warnings, shallow history and uncommitted edits, when present, are stated.
-- [ ] The report ends with change risks and one offered next step, and no code was changed.
+- [ ] The target (repository, file, and lines or function) was pinned, and nothing outside it was searched (judgment: the right target depends on the question).
+- [ ] The report opens with a bottom line and a `Confidence:` label of high, medium or low (hook: history-confidence).
+- [ ] The origin, an oldest-first timeline, the companion files and the intent evidence are each backed by commit hashes (hook: history-hashes sees hashes in the report; judgment: that each part has its own).
+- [ ] Facts from the history and inferences are labeled apart; blame ownership is not presented as authorship (judgment: telling facts from inferences needs a reader).
+- [ ] Ancestry warnings, shallow history and uncommitted edits, when present, are stated (judgment: only applies when the history shows them).
+- [ ] The report ends with change risks and one offered next step, and no code was changed (judgment: the risks and next step need a reader).
 
 ## Pitfalls
 - **Last toucher is not the author.** A reformat or rename makes blame point at whoever ran it. Compare the timeline

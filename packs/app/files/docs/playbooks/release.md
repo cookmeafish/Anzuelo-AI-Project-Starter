@@ -45,9 +45,9 @@ menu: A4
 
 ## Done when
 - [ ] Gates passed after the last change; release notes written; scan PASS (hook: release-ready, no-ai-attribution, commit-gate).
-- [ ] The release notes hold the rollback plan and its triggers, written before the deploy.
-- [ ] The user approved the outward step in this conversation.
-- [ ] For a live deploy, the answer gives the numbers watched after it went live.
+- [ ] The release notes hold the rollback plan and its triggers, written before the deploy (hook: release-rollback checks the answer names it; judgment: whether the plan is sound).
+- [ ] The user approved the outward step in this conversation (hook: git-safety for pushes to the protected branch; judgment: other outward steps).
+- [ ] For a live deploy, the answer gives the numbers watched after it went live (judgment: which numbers matter depends on the release).
 
 ## Pitfalls
 - Deciding when to roll back during the outage. Under pressure every bad sign looks temporary. Set the numbers first.

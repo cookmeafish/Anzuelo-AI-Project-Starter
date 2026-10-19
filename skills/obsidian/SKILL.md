@@ -40,8 +40,8 @@ the links first (they are recorded relations), then the suggestions, labeled as 
 
 ## Done when
 - [ ] Every new note links to a related note, or says under `## Related` why it stands alone (hook: note-linked).
-- [ ] Links are relative markdown links that resolve (audit: relative links resolve).
-- [ ] "What is related" answers separate recorded links from suggestions.
+- [ ] Links are relative markdown links that resolve (judgment: the audit's link sweep checks it, but no hook runs it for notes yet).
+- [ ] "What is related" answers separate recorded links from suggestions (judgment: telling recorded links from suggestions needs reading the answer).
 
 ## Pitfalls
 - `[[wikilinks]]`: Obsidian follows them but GitHub and most tools don't. Use markdown links.

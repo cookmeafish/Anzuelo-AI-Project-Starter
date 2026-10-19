@@ -34,7 +34,7 @@ or a developer spec, use its sections B, E and F.
 ## Done when
 - [ ] Fresh screenshots of the final state, taken after the last edit, all opened and looked at (hook: gui-review-loop).
 - [ ] "Visual review: PASS after N rounds" with a line per round; tool warnings fixed or explained (hook: gui-review-report, gui-warnings).
-- [ ] The main flow works when driven, not just when looked at.
+- [ ] The main flow works when driven, not just when looked at (judgment: which flow is the main one, and that it works, needs a person to drive it).
 
 ## Pitfalls
 - Declaring it done from the code alone. Layout bugs only show up in the picture.

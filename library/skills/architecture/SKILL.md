@@ -83,12 +83,12 @@ when it is.
 7. **Re-rank** when the list is revisited, and move paid items to a "Paid" section with the date.
 
 ## Done when
-- [ ] A: `docs/DECISIONS.md` has the new row with all five cells filled, at least two real options were compared, and
+- [ ] A: `docs/DECISIONS.md` has the new row with all five cells filled, at least two real options were compared (judgment: whether the options were real needs a reviewer), and
   the answer says who chose.
-- [ ] B: the design file has numbers, a diagram, the contracts, failure handling, assumptions and a revisit list, and
+- [ ] B: the design file has numbers, a diagram, the contracts, failure handling, assumptions and a revisit list (judgment: the quality of the design needs a reviewer), and
   its significant choices are recorded as in part A.
-- [ ] C: `docs/tech-debt.md` has a ranked table where every item names its evidence, and the top items have a plan.
-- [ ] The answer names the file written (`docs/DECISIONS.md`, the design file or `docs/tech-debt.md`).
+- [ ] C: `docs/tech-debt.md` has a ranked table where every item names its evidence, and the top items have a plan (judgment: whether the evidence and ranking hold needs a reviewer).
+- [ ] The answer names the file written (`docs/DECISIONS.md`, the design file or `docs/tech-debt.md`) (hook: architecture-recorded).
 
 ## Pitfalls
 - Designing before the numbers are known, then building for a scale that never comes, or one that is far too small.

@@ -100,15 +100,15 @@ never while it has uncommitted changes.
 - Gaps between the docs and what actually worked go in `docs/STATUS.md` as open questions, not into silent fixes.
 
 ## Done when
-- [ ] The toolchain matches the repo's pins, and dependencies came from the lock file.
-- [ ] Every env file is reported as kept, created from a template, or missing, and no secret was invented or committed.
-- [ ] If working copies were wanted: `git worktree list` shows each one on its branch, each with its env files and
+- [ ] The toolchain matches the repo's pins, and dependencies came from the lock file (judgment: the pins differ per repo).
+- [ ] Every env file is reported as kept, created from a template, or missing, and no secret was invented or committed (hook: no-secrets for commits; judgment: the env file report).
+- [ ] If working copies were wanted (judgment: only applies when copies were wanted): `git worktree list` shows each one on its branch, each with its env files and
       install, and every skipped or failed copy is reported.
-- [ ] Build passed, the full test suite ran, and the app started once and responded.
-- [ ] Baseline failures are written down with their errors.
-- [ ] One start file in the root calls `scripts/`, and the README points at it.
-- [ ] App gates are configured to the real commands (app pack).
-- [ ] `docs/STATUS.md` says what was set up, what is missing, and what is next.
+- [ ] Build passed, the full test suite ran, and the app started once and responded (judgment: build and start commands differ per repo).
+- [ ] Baseline failures are written down with their errors (judgment: which failures are baseline needs a reader).
+- [ ] One start file in the root calls `scripts/`, and the README points at it (judgment: the start file differs per repo).
+- [ ] App gates are configured to the real commands (app pack) (judgment: the real commands differ per repo).
+- [ ] `docs/STATUS.md` says what was set up, what is missing, and what is next (hook: setup-recorded).
 
 ## Pitfalls
 - Trusting the README over CI, then debugging a version mismatch as if it were a code bug.

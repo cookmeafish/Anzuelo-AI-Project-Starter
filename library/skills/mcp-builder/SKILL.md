@@ -99,15 +99,15 @@ and start it, the client config snippet, every environment variable, the permiss
 change, known rate limits, and the security notes (what it can reach, what it never does).
 
 ## Done when
-- [ ] Every tool maps to a listed job, with a verb name, a description that says when to use it, and typed, described
+- [ ] Every tool maps to a listed job (hook: mcp-linted; judgment: the fit to the jobs), with a verb name, a description that says when to use it, and typed, described
       inputs. The lint script reports no problems.
-- [ ] Destructive tools are annotated and described as destructive. Read-only is the default.
-- [ ] Long lists are paged, large results are cut with a note, and errors name the fix.
-- [ ] Secrets come only from the environment; inputs are validated; file access is confined; the app standards'
+- [ ] Destructive tools are annotated and described as destructive. Read-only is the default (judgment: which tools are destructive needs a reviewer).
+- [ ] Long lists are paged, large results are cut with a note, and errors name the fix (judgment: needs a code review).
+- [ ] Secrets come only from the environment; inputs are validated; file access is confined (judgment: needs a code review); the app standards'
       security items hold.
-- [ ] Tests pass after the last edit, every tool was called through an inspector, and the agent tasks were answered
+- [ ] Tests pass after the last edit (judgment: the inspector run and the agent tasks are checked by hand), every tool was called through an inspector, and the agent tasks were answered
       correctly.
-- [ ] The README covers setup, config, every tool and every environment variable. Sample data, if any, is labeled.
+- [ ] The README covers setup, config, every tool and every environment variable. Sample data, if any, is labeled (judgment: README completeness needs a reader).
 
 ## Pitfalls
 - Wrapping every endpoint one to one without asking whether the jobs need it. The model drowns in near-identical

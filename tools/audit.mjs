@@ -11,7 +11,7 @@ import {
   ROOT, read, abs, exists, frontmatter, playbooks, skillProblems, playbookProblems, knowledgeProblems, config,
   loadRequirements, usage, hardenDue, menu, runbookHasCheck, generatedSkill, directoryBlock, staleKnowledge,
   setupProblems, upgradeProblems, bench, gitignoreProblems, writingProblems, aiAttributedCommits, BASE_REQUIREMENTS, routableSkills, skillHasCheck, curateDue,
-  FIT_FILE, fitProblems, fitRows, fitDecision, fitWhenOf, doneWhenItems, DONE_LABEL
+  FIT_FILE, fitProblems, fitRows, fitDecision, fitWhenOf, doneWhenItems, DONE_LABEL, findLibrary
 } from './hooks/hooks.mjs';
 
 const cfg = config();
@@ -166,7 +166,11 @@ sweep('references point at real files, commands and skills', () => {
   const addPath = p => { provided.add(p); while (p.includes('/')) { p = p.slice(0, p.lastIndexOf('/')); provided.add(p); } };
   for (const p of Object.values(reg.packs || {})) for (const f of p.files || []) addPath(f);
   for (const f of walk('packs', p => /^packs\/[^/]+\/files\//.test(p))) addPath(f.replace(/^packs\/[^/]+\/files\//, ''));
-  const libNames = new Set([...(reg.library || []), ...(exists('library/skills') ? fs.readdirSync(abs('library/skills')) : [])]);
+  // optional skills a core skill may name ("the incident-response skill, when enabled"), from wherever the library is
+  // (Lesson: after setup removed library/, the debug skill's mention of incident-response failed this sweep)
+  const lib = findLibrary(); let catNames = [];
+  try { catNames = lib ? (JSON.parse(read(path.join(lib.dir, 'catalog.json'))).skills || []).map(e => e.name) : []; } catch { }
+  const libNames = new Set([...(reg.library || []), ...catNames, ...(exists('library/skills') ? fs.readdirSync(abs('library/skills')) : [])]);
   for (const n of libNames) addPath(`skills/${n}/SKILL.md`);
   for (const f of walk('library/skills', () => true)) addPath(f.replace(/^library\//, ''));
   // folders that work fills in, files tools create at runtime, and the starter folder's own files (tools/starter/)

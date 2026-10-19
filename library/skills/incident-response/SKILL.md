@@ -57,6 +57,8 @@ exact command, what it does and how to undo it.
 3. **Two audiences:** internal updates carry the detail; user-facing ones use plain words and no internal names.
 4. **The next-update time is a promise.** Keep it, even when the update is "no change yet".
 5. Status words, in order: investigating, identified, monitoring, resolved.
+6. Every answer during the incident has a `Root cause:` line: what and why once it is known, `Root cause: not found
+   yet` before that.
 
 ## 4. Fix the cause
 1. Once the harm is contained, follow the **debug** skill and the `bugfix` runbook: root cause with evidence, a failing
@@ -80,11 +82,11 @@ Write it in the incident file within a few days, for every level 1 or 2 incident
    step written into that runbook (AGENTS.md rule 2). Review it with the user.
 
 ## Done when
-- [ ] `docs/incidents/<file>.md` exists with the level, a timeline with times, and the impact.
-- [ ] The harm was stopped and the measurement confirms it. Each production action had the user's OK and is logged.
-- [ ] Updates were drafted at the promised pace, and nothing was sent without an OK.
-- [ ] The answer states `Root cause: <what and why>`, and a regression test covers it (debug skill, `bugfix` runbook).
-- [ ] Level 1 and 2: the post-mortem has impact numbers, the why-chain and actions with owner, date and type, and
+- [ ] `docs/incidents/<file>.md` exists with the level, a timeline with times, and the impact (hook: incident-logged).
+- [ ] The harm was stopped and the measurement confirms it. Each production action had the user's OK and is logged (judgment: whether the harm stopped needs the live measurement).
+- [ ] Updates were drafted at the promised pace, and nothing was sent without an OK (judgment: the pace and the OK are in the conversation).
+- [ ] The answer states `Root cause: <what and why>`, and a regression test covers it (debug skill, `bugfix` runbook) (hook: incident-root-cause for the line; judgment: the test is checked only when the bugfix runbook is followed).
+- [ ] Level 1 and 2: the post-mortem has impact numbers, the why-chain and actions with owner, date and type (judgment: only level 1 and 2 need it, and the level is a call), and
   `docs/lessons.md` has its row.
 
 ## Pitfalls

@@ -208,14 +208,14 @@ approved plan straight through without asking "shall I continue?". The rules bel
 Examples and the reasons behind each rule: [references.md](references.md), "Without check-ins".
 
 ## Done when
-- [ ] Open questions were settled before writing: asked one at a time, or written as assumptions (step 0). Any spike
+- [ ] Open questions were settled before writing (judgment: only the conversation shows what was open): asked one at a time, or written as assumptions (step 0). Any spike
   is deleted and its answer is in "Context".
-- [ ] The plan is saved and linked, and `node skills/plan/scripts/plan-tasks.mjs check` passes or each warning has a
+- [ ] The plan is saved and linked (hooks: plan-saved, plan-checked), and `node skills/plan/scripts/plan-tasks.mjs check` passes or each warning has a
   reason.
-- [ ] It has a status line, a "How to resume" line, "Context", the project's real check commands and a confidence score.
-- [ ] Every spec requirement maps to a task, and every task ends with a check that has an expected result.
-- [ ] The user has reviewed the plan, and the way to run it is agreed, before any work starts.
-- [ ] Once carried out: every box is ticked, every check passed, and the status line says `status: done` (or
+- [ ] It has a status line, a "How to resume" line, "Context", the project's real check commands and a confidence score (hook: plan-checked).
+- [ ] Every spec requirement maps to a task, and every task ends with a check that has an expected result (hook: plan-checked for the checks; judgment: whether every spec item is covered).
+- [ ] The user has reviewed the plan, and the way to run it is agreed, before any work starts (judgment: the review and the agreement happen in the conversation).
+- [ ] Once carried out (hook: plan-open announces it at each session start until closed; judgment: that every check passed): every box is ticked, every check passed, and the status line says `status: done` (or
   `status: dropped - <why>`).
 
 ## Pitfalls

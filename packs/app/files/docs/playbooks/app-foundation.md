@@ -41,4 +41,4 @@ wants the security, performance or usability baseline revisited. Run it before t
 
 ## Done when
 - [ ] `docs/foundation.md` has no `<...>` left and `status: set` (hook: foundation-set, and the setup gate).
-- [ ] The security tests, the budget script and the gates exist and pass. The answer lists each one with its result.
+- [ ] The security tests, the budget script and the gates exist and pass. The answer lists each one with its result (hook: foundation-set for the list; judgment: that each one passes).

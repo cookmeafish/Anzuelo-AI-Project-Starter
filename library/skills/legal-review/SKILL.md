@@ -150,13 +150,13 @@ In these cases the agent may still prepare a draft for the lawyer, marked `DRAFT
    action: only with the user's explicit OK.
 
 ## Done when
-- [ ] The answer starts with the "Not legal advice" line.
-- [ ] It says what it was judged against: the user's positions file or general norms.
-- [ ] Every lawyer trigger that applies is named, with a recommendation to involve a qualified lawyer.
-- [ ] Every law, deadline or threshold cited went through the research skill, with the jurisdiction named.
-- [ ] Redlines quote the current text and give replacement text ready to paste.
-- [ ] Sources checked and not checked are listed.
-- [ ] Nothing was sent, signed or submitted without the user's explicit OK.
+- [ ] The answer starts with the "Not legal advice" line (hook: legal-disclaimer).
+- [ ] It says what it was judged against: the user's positions file or general norms (judgment: no check reads this line yet).
+- [ ] Every lawyer trigger that applies is named, with a recommendation to involve a qualified lawyer (judgment: which lawyer triggers apply needs a reader).
+- [ ] Every law, deadline or threshold cited went through the research skill, with the jurisdiction named (judgment: which facts were cited needs a reader).
+- [ ] Redlines quote the current text and give replacement text ready to paste (judgment: redline quality needs a reader).
+- [ ] Sources checked and not checked are listed (judgment: no check reads the list yet).
+- [ ] Nothing was sent, signed or submitted without the user's explicit OK (judgment: the user's OK is in the conversation).
 
 ## Pitfalls
 - Sounding certain. A confident wrong answer about a contract can cost the user far more than "ask a lawyer".

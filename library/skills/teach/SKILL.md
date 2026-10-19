@@ -81,11 +81,10 @@ one.
 Why each step works, with sources: [references.md](references.md).
 
 ## Done when
-- [ ] The reply ends with a question for the user, or a `Learned:` line saying what they can now do (hook:
-      teach-step).
-- [ ] Each turn taught one piece and asked the user to do something with it.
-- [ ] Graded work was taught with a parallel example or feedback, not answered for them.
-- [ ] Every fact taught passes the research skill's section D.
+- [ ] The reply ends with a question for the user, or a `Learned:` line saying what they can now do (hook: teach-step).
+- [ ] Each turn taught one piece and asked the user to do something with it (judgment: the size of each piece needs a reader).
+- [ ] Graded work was taught with a parallel example or feedback, not answered for them (judgment: whether work is graded shows only in the conversation).
+- [ ] Every fact taught passes the research skill's section D (judgment: research section D runs only in knowledge projects or after web research).
 
 ## Pitfalls
 - Explaining everything in one long reply, then asking "Does that make sense?". That checks nothing. Ask them to

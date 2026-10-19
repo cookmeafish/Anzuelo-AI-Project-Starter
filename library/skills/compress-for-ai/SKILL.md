@@ -134,14 +134,14 @@ command. List skipped files with the reason.
 4. No opening line about what comes next, no closing recap, no offer of more help.
 
 ## Done when
-- [ ] The mode and level were named, and mode C was used only because the user asked for it.
-- [ ] Mode A: the plan ran, and every skipped file was named with its reason.
-- [ ] Mode A: no file in `sources/`, `outputs/`, a protected or versioned file, a generated file or a user-facing file
+- [ ] The mode and level were named, and mode C was used only because the user asked for it (judgment: no check reads the mode line yet).
+- [ ] Mode A: the plan ran, and every skipped file was named with its reason (judgment: whether every skip was named needs the plan output).
+- [ ] Mode A: no file in `sources/`, `outputs/`, a protected or versioned file, a generated file or a user-facing file (hook: compress-verified)
   was compressed, and a verified backup exists in `.cache/compress/<stamp>/`.
-- [ ] The protect check passed for every file compressed (`compress-guard.mjs check` for mode A,
+- [ ] The protect check passed for every file compressed (hook: compress-verified) (`compress-guard.mjs check` for mode A,
   `protect-check.mjs` for saved mode B notes), and every warning and note was reviewed.
-- [ ] Mode A: `node tools/writing-check.mjs` passes on each changed file, and `node tools/audit.mjs` passes.
-- [ ] The answer gives measured sizes, the backup folder and the restore command, and claims no unmeasured savings.
+- [ ] Mode A: `node tools/writing-check.mjs` passes on each changed file, and `node tools/audit.mjs` passes (hook: audit-run; judgment: no hook runs writing-check on AI-facing files yet).
+- [ ] The answer gives measured sizes, the backup folder and the restore command, and claims no unmeasured savings (judgment: whether a saving was measured needs the run output).
 
 ## Pitfalls
 - **A lost "not".** Dropping one negation inverts a rule and saves one word. The check counts them per paragraph.

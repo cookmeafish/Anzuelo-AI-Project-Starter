@@ -75,11 +75,10 @@ source. Facts about the market or the world that the study did not measure go th
 
 ## Done when
 - [ ] **A:** the plan names the decision it informs and the questions (hook: user-research-counted).
-- [ ] **C:** every theme has an "n of N" count and quotes traced to notes by participant ID (hook:
-      user-research-counted).
-- [ ] Observations are kept apart from interpretations, and the limits are stated.
-- [ ] No names or contact details in the findings. Nobody was contacted without the user's OK.
-- [ ] Every count and quote passes the research skill's section D.
+- [ ] **C:** every theme has an "n of N" count and quotes traced to notes by participant ID (hook: user-research-counted).
+- [ ] Observations are kept apart from interpretations, and the limits are stated (judgment: telling observation from interpretation needs a reader).
+- [ ] No names or contact details in the findings. Nobody was contacted without the user's OK (judgment: names and contact are in the conversation, not a pattern).
+- [ ] Every count and quote passes the research skill's section D (judgment: research section D runs only in knowledge projects or after web research).
 
 ## Pitfalls
 - Leading questions ("wouldn't it be easier if...?") and asking people to predict what they would use.

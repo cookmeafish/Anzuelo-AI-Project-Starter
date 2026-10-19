@@ -105,17 +105,17 @@ security-report). Then list what was not checked and why, any baseline row still
 apps, `docs/foundation.md`), and any risk the user must decide on.
 
 ## Done when
-- [ ] Scope, assets, attackers and entry points are written down, with the six questions asked at each entry point.
-- [ ] The pattern sweep, the dependency audit and (where available) a history secret scan were run, and every lead
+- [ ] Scope, assets, attackers and entry points are written down, with the six questions asked at each entry point (judgment: whether the threat model is complete needs a reviewer).
+- [ ] The pattern sweep, the dependency audit and (where available) a history secret scan were run (judgment: no check sees these runs yet), and every lead
   was read in context.
-- [ ] Every area has PASS, FAIL or N/A with evidence; no area is skipped silently.
-- [ ] The attacks in step 3 were tried for what is in scope, with results recorded.
-- [ ] Every FAIL is fixed with a test that failed before and passes now, or is reported as open with its severity
+- [ ] Every area has PASS, FAIL or N/A with evidence; no area is skipped silently (hook: security-report).
+- [ ] The attacks in step 3 were tried for what is in scope, with results recorded (judgment: which attacks fit the scope needs a reviewer).
+- [ ] Every FAIL is fixed with a test that failed before and passes now (judgment: severity and fix quality need a reviewer), or is reported as open with its severity
   and where it went (the security-hardening plan, or a risk the user accepted).
-- [ ] Any exposed secret was reported for revocation and rotation.
-- [ ] Automatic checks were added where a pattern can be caught by a tool.
-- [ ] Tests and checks pass after the last edit (app projects: `docs/checks/qa-standards.md`).
-- [ ] The review is logged in the Reviews table of `docs/security.md`.
+- [ ] Any exposed secret was reported for revocation and rotation (judgment: only a reviewer knows a secret was exposed).
+- [ ] Automatic checks were added where a pattern can be caught by a tool (judgment: which patterns a tool can catch needs a reviewer).
+- [ ] Tests and checks pass after the last edit (app projects: `docs/checks/qa-standards.md`) (judgment: each project has its own test commands).
+- [ ] The review is logged in the Reviews table of `docs/security.md` (hook: security-logged).
 
 ## Pitfalls
 - Checking that a user is signed in but not that the record is theirs. This is the most common real hole.

@@ -79,16 +79,16 @@ next to the starting ones: open findings per severity before and after, the patt
 after, and the tests added (every fixed hole, plus an unauthenticated and a wrong-user test for each protected route).
 
 ## Done when
-- [ ] The plan has a threat model, an inventory and a ranked fix list (severity, review area and stage per item),
+- [ ] The plan has a threat model, an inventory and a ranked fix list (severity, review area and stage per item) (hook: hardening-plan),
   saved in `docs/plans/`.
-- [ ] No critical or high finding is left open; each is fixed or an accepted risk the user signed off, in
+- [ ] No critical or high finding is left open (judgment: severity and sign-off need a reviewer); each is fixed or an accepted risk the user signed off, in
   `docs/DECISIONS.md`.
-- [ ] Every fixed issue has a regression test that failed before the fix and passes now.
-- [ ] Leaked secrets were rotated, not just removed from the code.
-- [ ] The dependency audit is clean or each remaining finding is an accepted risk with a reason.
-- [ ] A fresh security-review pass shows PASS or accepted risk for every item, with evidence, and the before and
+- [ ] Every fixed issue has a regression test that failed before the fix and passes now (judgment: no check sees each test fail before the fix).
+- [ ] Leaked secrets were rotated, not just removed from the code (judgment: rotation happens outside the project).
+- [ ] The dependency audit is clean or each remaining finding is an accepted risk with a reason (judgment: whether a risk is acceptable is a call).
+- [ ] A fresh security-review pass shows PASS or accepted risk for every item, with evidence (judgment: the review verdicts need a reviewer), and the before and
   after numbers are in the answer.
-- [ ] New automatic checks are in place for the fixed patterns, and `docs/security.md` and `docs/foundation.md` are
+- [ ] New automatic checks are in place for the fixed patterns (judgment: which patterns a tool can catch needs a reviewer), and `docs/security.md` and `docs/foundation.md` are
   current.
 
 ## Pitfalls

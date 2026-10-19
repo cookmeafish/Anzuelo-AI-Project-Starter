@@ -72,6 +72,10 @@ const splitList = s => String(s || '').split(',').map(x => x.trim().toLowerCase(
 const DEFAULTS = {
   workToolCalls: 15,          // a turn with this many tool calls counts as work even if no file changed
   maxBlocksPerTurn: 3,        // Lesson: a single block let a second miss slip through; unlimited blocks can loop
+  // How the Stop hook asks for the steps left. 'auto': the calm form (feedback for the agent plus a one-line note for the
+  // user) where the host is known to support it, the classic {"decision":"block"} everywhere else. 'feedback' or
+  // 'block' force one form (block is the fallback for a host that ignores the feedback form).
+  stopStyle: 'auto',
   promoteAfterUses: 3,        // a runbook followed this many times becomes a skill
   pruneAfterDays: 60,
   // 'ask': setup waits for the user's answers, and the upgrade review is decided with the user. 'auto': the agent assumes
@@ -338,7 +342,7 @@ export function expandMenu(prompt) {
 
 // ---------- transcript ----------
 const SKIP = ['Stop hook feedback', '<system-reminder>', '<task-notification>', 'Another Claude session', '<agent-message',
-  '[SYSTEM NOTIFICATION', 'Caveat: The messages below', '<local-command-stdout>', '<local-command-stderr>', '[Request interrupted'];
+  '[SYSTEM NOTIFICATION', 'Caveat: The messages below', 'Almost done:', 'Project rules not met yet', 'Stop hook error', '<local-command-stdout>', '<local-command-stderr>', '[Request interrupted'];
 const COMPACT = 'This session is being continued from a previous conversation';
 export const textOf = c => typeof c === 'string' ? c
   : Array.isArray(c) ? c.filter(x => x && x.type === 'text').map(x => x.text || '').join('\n') : '';
@@ -1386,22 +1390,43 @@ export function fitRows(text = read(abs(FIT_FILE))) {
   return rows;
 }
 export const fitDecision = d => (/^(add|skip|later)\b/i.exec(String(d).trim()) || [])[1]?.toLowerCase() || null;
-// "later - when: the code passes 30 files" → { metric: 'code', min: 31 }. null when the hooks can't measure it.
-const FIT_METRICS = [['commits', /commit/], ['visual', /\b(web|ui|html|css|screens?|pages?)\b/], ['tabular', /\bdata\b|csv|spreadsheet|xlsx/], ['python', /python/],
-  ['code', /\bcode\b|source files?/], ['notes', /\bnotes?\b|documents?/], ['scripts', /\bscripts?\b/], ['all', /\bfiles?\b/]];
+// "later - when: the code passes 30 files" → { metric: 'code', min: 31 }. The noun decides what is counted: "commits"
+// the git history, "code files" or "data files" a survey kind, "html files" files ending in .html, "raid files" files
+// whose path contains "raid". A condition the hooks can't read gets metric null: not measurable, the sweeps revisit it.
+// Lesson: "more than 6 raid files" was counted against every file in the project, so it read as met on day one.
+const FIT_KINDS = [['visual', /\b(web|ui|screens?|pages?)\b/], ['tabular', /\bdata\b|\bcsv\b|spreadsheets?|\bxlsx\b/], ['python', /\bpython\b/],
+  ['code', /\bcode\b|\bsource\b/], ['notes', /\bnotes?\b|\bdocuments?\b/], ['scripts', /\bscripts?\b/]];
+const FIT_EXTS = /^(html?|css|scss|js|mjs|cjs|ts|tsx|jsx|py|md|mdx|txt|csv|tsv|json|xml|ya?ml|xlsx?|pdf|docx?|png|jpe?g|gif|svg|sql|sqlite|db|ps1|sh|bat|go|rs|java|cs|rb|php)$/;
+const FIT_NOT_NOUN = /^(\d[\d,]*|a|an|the|any|more|than|first|new|over|above|beyond|of|its|our|all|some|few|many|several|passes|has|have|exceeds?)$/;
 export function fitWhen(text) {
   const m = /when:\s*(.+)$/i.exec(String(text || ''));
   if (!m) return null;
-  const w = m[1].toLowerCase(), metric = (FIT_METRICS.find(([, rx]) => rx.test(w)) || [])[0];
-  if (!metric) return { text: m[1].trim(), metric: null };
+  const w = m[1].toLowerCase(), out = { text: m[1].trim(), metric: null };
   const num = /(\d[\d,]*)/.exec(w);
   let min = num ? Number(num[1].replace(/,/g, '')) : /appear|exist|\bany\b|first|arrive|added|starts?/.test(w) ? 1 : null;
   if (min != null && num && /pass|over|more than|exceed|above|beyond/.test(w)) min += 1;
-  return { text: m[1].trim(), metric: min == null ? null : metric, min };
+  if (min == null) return out;
+  const kindIn = s => (FIT_KINDS.find(([, rx]) => rx.test(s)) || [])[0];
+  if (/\bcommits?\b/.test(w)) return { ...out, metric: 'commits', min };
+  const f = /([a-z0-9.+#_-]+)\s+files?\b/.exec(w);
+  if (f) {
+    const noun = f[1].replace(/^\./, '');
+    if (FIT_EXTS.test(noun)) return { ...out, metric: `.${noun} files`, ext: noun, min };
+    const kind = kindIn(noun);
+    if (kind) return { ...out, metric: kind, min };
+    if (FIT_NOT_NOUN.test(noun)) return { ...out, metric: kindIn(w) || 'all', min }; // "the code passes 30 files", "more than 30 files"
+    if (/^[a-z][a-z0-9_-]{2,}$/.test(noun)) return { ...out, metric: `files named *${noun}*`, word: noun, min };
+    return out;
+  }
+  const kind = kindIn(w);
+  return kind ? { ...out, metric: kind, min } : out;
 }
 // the condition sits in the Decision cell ("later - when: ...") or, failing that, in the Reason
 export const fitWhenOf = r => fitWhen(/when:/i.test(r.decision) ? r.decision : r.reason);
-const fitMetric = (sv, k) => k === 'commits' ? sv.git?.commits || 0 : sv.n[k] || 0;
+export const fitMetric = (sv, w) => w.metric === 'commits' ? sv.git?.commits || 0
+  : w.ext ? sv.files.filter(f => f.p.toLowerCase().endsWith(`.${w.ext}`)).length
+  : w.word ? sv.files.filter(f => f.p.toLowerCase().includes(w.word)).length
+  : sv.n[w.metric] || 0;
 const FIT_FILLER = new Set(['not', 'needed', 'need', 'needs', 'this', 'that', 'the', 'for', 'now', 'use', 'used', 'useful', 'maybe', 'later', 'really', 'any', 'project',
   'here', 'just', 'also', 'very', 'and', 'but', 'with', 'there', 'they', 'than', 'then', 'would', 'could', 'might', 'will', 'can', 'may', 'yet', 'all', 'one', 'thing',
   'things', 'stuff', 'time', 'moment', 'currently', 'right', 'applicable', 'relevant', 'required', 'necessary', 'unnecessary', 'nice', 'have', 'good', 'idea', 'skip', 'add']);
@@ -1448,7 +1473,7 @@ export function fitProblems(cfg = config(), { sv = null, text = null } = {}) {
     if (d === 'later') {
       const w = fitWhenOf(r);
       if (!w) probs.push(`${at}: later needs a condition: "later - when: <what has to happen>"`);
-      else if (w.metric && fitMetric(sv, w.metric) >= w.min) probs.push(`${at}: its condition is met now (when: ${w.text}; ${w.metric} is ${fitMetric(sv, w.metric)}): decide add or skip`);
+      else if (w.metric && fitMetric(sv, w) >= w.min) probs.push(`${at}: its condition is met now (when: ${w.text}; ${w.metric} is ${fitMetric(sv, w)}): decide add or skip`);
     }
   }
   return probs;
@@ -1462,10 +1487,10 @@ export function fitLaterNotice() {
   if (!due.length) return null;
   const sv = projectSurvey({ git: due.some(x => x.w.metric === 'commits') });
   const st = readJSON(path.join(STATE, 'fit-later.json'), { announced: [] });
-  const met = due.filter(x => fitMetric(sv, x.w.metric) >= x.w.min && !st.announced.includes(`${x.r.kind}:${x.r.item}|${x.w.text}`));
+  const met = due.filter(x => fitMetric(sv, x.w) >= x.w.min && !st.announced.includes(`${x.r.kind}:${x.r.item}|${x.w.text}`));
   if (!met.length) return null;
   if (!envOf('BENCH')) writeState('fit-later.json', { announced: [...st.announced, ...met.map(x => `${x.r.kind}:${x.r.item}|${x.w.text}`)].slice(-200) });
-  return `FIT: a "later" is due: ${met.map(x => `${x.r.item} (when: ${x.w.text}; ${x.w.metric} is now ${fitMetric(sv, x.w.metric)})`).join('; ')}. Decide each one now in ${FIT_FILE} (add or skip, with the reason), then node tools/fit.mjs check. Tell the user in one line only if it changes what they get.`;
+  return `FIT: a "later" is due: ${met.map(x => `${x.r.item} (when: ${x.w.text}; ${x.w.metric} is now ${fitMetric(sv, x.w)})`).join('; ')}. Decide each one now in ${FIT_FILE} (add or skip, with the reason), then node tools/fit.mjs check. Tell the user in one line only if it changes what they get.`;
 }
 
 // ---------- plans: bigger additions have a checklist that outlives the session (REQ: plan-required, plan-open) ----------
@@ -1575,6 +1600,7 @@ function notices(cfg) {
   const up = upgradeProblems(cfg);
   if (up.length) out.push(`UPGRADE REVIEW PENDING: the engine was upgraded and ${up.length} item(s) still need a decision (docs/DECISIONS.md "## Upgrade review"). ${cfg.autonomy === 'auto' ? 'Decide each one yourself by the same weighing and list the decisions in your answer:' : 'Go through them with the user before other work:'} adopt what makes this project better (Worth it: <gain> / <cost>), decline the rest with the reason.`);
   if (!template) { const fl = fitLaterNotice(); if (fl) out.push(fl); }
+  // REQ: plan-open. A plan with unticked steps is announced at every session start until it is done or dropped.
   const plans = openPlans();
   if (plans.length) out.push(`OPEN PLANS: ${plans.map(x => `${x.p} (${x.left} of ${x.left + x.done} steps left)`).join(', ')}. Before new work, tell the user and resume the plan (node skills/plan/scripts/plan-tasks.mjs status <plan>), or close it with "status: done" or "status: dropped - <why>".`);
   const susp = suspendedItems();
@@ -1605,7 +1631,7 @@ function cmdSession(data) {
   // announced here, so the first prompt doesn't repeat them; last turn's misses are announced once, then dropped
   writeState(SHOWN, { at: new Date().toISOString(), shown: n.map(noticeKey).filter(Boolean), session: true });
   if (n.some(x => x.startsWith('LAST WORK TURN')) && !envOf('BENCH')) { try { fs.unlinkSync(path.join(STATE, 'unresolved.json')); } catch { } }
-  process.stdout.write(parts.filter(Boolean).join('\n\n') + '\n');
+  contextOut('SessionStart', parts.filter(Boolean).join('\n\n') + '\n');
 }
 
 // ---------- UserPromptSubmit ----------
@@ -1691,7 +1717,7 @@ function cmdPrompt(data, { force = false } = {}) {
   if (cfg.promptDigest && !st.shown.includes('digest')) { out.push(DIGEST); st.shown.push('digest'); }
   if (hints.length) out.push('[project hooks: obey these]\n- ' + hints.join('\n- '));
   writeState(SHOWN, { at: st.at, shown: st.shown });
-  if (out.length) process.stdout.write(out.join('\n') + '\n');
+  if (out.length) contextOut('UserPromptSubmit', out.join('\n') + '\n');
 }
 
 // ---------- PreToolUse ----------
@@ -1856,7 +1882,7 @@ export function pretoolDecision(data, cfg = config()) {
         `(^|[\\s;&|(])sed\\s+(-\\S*\\s+)*-i[^;&|]*?${P}`
       ].find(b => re(b).test(cmd));
       if (bad && !re(cfg.deleteWords).test(req()))
-        return `REQ: protect-originals. This command could delete, move or overwrite files in ${d}/ (originals). Only do that when the user asked for it in this request; copying new files INTO ${d}/ is fine.`;
+        return `REQ: protect-originals. This command could delete, move or overwrite files in ${d}/ (originals). Only do that when the user asked for it in this request; copying new files INTO ${d}/ is fine. For exact duplicates, run node tools/dedupe.mjs (it keeps the oldest copy).`;
     }
   }
   return null;
@@ -1926,7 +1952,7 @@ export function coreChecks(x, cfg) {
   const unlabeled = x.changed.filter(p => /^(docs\/playbooks\/[^/_][^/]*\.md|(skills|library\/skills|packs\/[^/]+\/files\/skills)\/[^/]+\/SKILL\.md|packs\/[^/]+\/files\/docs\/playbooks\/[^/_][^/]*\.md)$/.test(p) && exists(p))
     .flatMap(p => doneWhenItems(read(abs(p))).filter(i => !DONE_LABEL.test(i)).map(i => `${p}: "${i.slice(0, 60)}"`));
   if (unlabeled.length)
-    add('done-when-labeled', `Every "Done when" item needs its proof: add a check and write "(hook: <tag>)", or write "(judgment: <why no check can tell>)". ` +
+    add('done-when-labeled', `Every "Done when" item needs its proof: add a check and write "(hook: <tag>)" (one or more tags: "(hook: a, b)"), or write "(judgment: <why no check can tell>)". ` +
       `Unlabeled: ${unlabeled.slice(0, 4).join('; ')}${unlabeled.length > 4 ? ` and ${unlabeled.length - 4} more` : ''}. Add the checks now; don't ask (hard rule 3).`);
   // REQ: plan-required. A bigger addition (many new files) has a checklist in docs/plans/, so nothing is left half done
   // and the next session or another agent can finish it. Setup has its own checklist (SETUP-PROMPT.md).
@@ -1973,7 +1999,7 @@ export function coreChecks(x, cfg) {
       const body = text.replace(/^---\n[\s\S]*?\n---\n/, '').split(/^#{1,6}\s*\**finished\b|^\**finished\**\s*$/im)[0];
       for (const line of body.split(/\r?\n/)) {
         if (/calculated|estimate|approx|not verified|my inference|rounded|^\s*verified\s*:/i.test(line)) continue;
-        const clean = line.replace(/^\s*((playbook|skill)s?\s*:\s*\S+\s*)+/i, ' ').replace(/https?:\/\/\S+|`[^`]*`|\b[\w.-]+\/[\w./-]+|\[S\d+(?:,\s*S\d+)*\]|\bS\d+\b/g, ' ').replace(/^\s*(\d+\.|-|\*)\s+/, '');
+        const clean = line.replace(/^\s*((playbook|skill)s?\s*:\s*\S+\s*)+/i, ' ').replace(/https?:\/\/\S+|`[^`]*`|\b[\w.-]+\/[\w./-]+|\[S\d+(?:,\s*S\d+)*\]|\bS\d+\b|\[\d+\]/g, ' ').replace(/^\s*(\d+\.|-|\*)\s+/, '');
         for (const m of clean.matchAll(/(?<![\w.])([$€£]?)(\d[\d,]*(?:\.\d+)?)(\s?%)?(?![\w])/g)) {
           const n = m[2].replace(/,(?=\d{3}\b)/g, '').replace(/[.,]$/, '');
           if (!m[1] && !m[3] && !n.includes('.') && n.length < 2) continue; // a single plain digit is a count, not a fact
@@ -2032,7 +2058,9 @@ export function coreChecks(x, cfg) {
         'write that check (requirements.json, or the project\'s own check script) and a test for it; or mark it "(judgment: <why no script can tell>)". If it was only for this one task, waive it with N/A(requirement-enforced): one-off.');
   }
   // REQ: question-no-file. A question gets an answer, not unrequested edits.
-  const question = /\?\s*$/.test(x.prompt.trim()) || /^\s*(what|why|how|which|who|where|when|should|is|are|can|could|would|do|does|did|will|any)\b/i.test(x.prompt);
+  // Lesson: a relayed instruction ("Add all six checks with tests now") that mentioned a question was judged a question.
+  const instructs = /(^|[.!:\n]\s*)(please\s+)?(add|fix|make|update|upgrade|run|move|create|write|build|remove|change|rename|install|enable|implement|apply)\b/i.test(x.prompt);
+  const question = !instructs && (/\?\s*$/.test(x.prompt.trim()) || /^\s*(what|why|how|which|who|where|when|should|is|are|can|could|would|do|does|did|will|any)\b/i.test(x.prompt));
   if (x.prompt && question && !re(cfg.changeWords).test(x.prompt)) {
     const unasked = x.changed.filter(p => !match(p, cfg.questionNoFileExempt));
     if (unasked.length && !/asked for:\s*["“]/i.test(x.answer))
@@ -2233,9 +2261,25 @@ export function touchedChecks(files) {
 // The checklist items under "## Done when" in a runbook or skill (REQ: done-when-labeled)
 export function doneWhenItems(text) {
   const sec = (/^##\s+Done when[^\n]*\n([\s\S]*?)(?=^##\s|(?![\s\S]))/m.exec(text) || [])[1] || '';
-  return sec.split(/\r?\n/).filter(l => /^\s*[-*] \[[ xX]\]/.test(l)).map(l => l.replace(/^\s*[-*] \[[ xX]\]\s*/, '').trim());
+  // an item's wrapped continuation lines (indented, until the next item, a blank line or a heading) belong to it,
+  // so a label at the end of a wrapped item counts. Lesson: labels on a wrapped item's last line were reported missing.
+  const items = [];
+  let cur = null;
+  for (const l of sec.split(/\r?\n/)) {
+    if (/^\s*[-*] \[[ xX]\]/.test(l)) { cur = l.replace(/^\s*[-*] \[[ xX]\]\s*/, '').trim(); items.push(cur); continue; }
+    if (cur !== null && /^\s+\S/.test(l) && !/^\s*[-*] /.test(l) && !/^\s*#/.test(l)) { items[items.length - 1] = cur = `${cur} ${l.trim()}`; continue; }
+    cur = null;
+  }
+  return items;
 }
-export const DONE_LABEL = /\bhooks?\s*:\s*`?[a-z][\w-]+|\bjudgment\b|\bjudgement\b/i;
+// one or more tags: "(hook: a)", "(hook: a, b)", "(hooks: a, b)"
+export const DONE_LABEL = /\bhooks?\s*:\s*`?[a-z][\w-]*(?:`?\s*,\s*`?[a-z][\w-]*)*|\bjudgment\b|\bjudgement\b/i;
+
+// The core skill checks on helpers' results wait for background helpers even when the project's own requirements.json
+// predates the "waitsForAgents" flag (an upgrade adds missing checks but never rewrites the project's existing ones).
+// Lesson: an upgraded project kept the old entries, so its merge and citation checks demanded results not there yet.
+const WAITS_FOR_AGENTS = new Set(['parallel-merged', 'research-cited']);
+export const waitsForAgents = q => q.waitsForAgents ?? WAITS_FOR_AGENTS.has(q.tag);
 
 export function holds(c, x) {
   const r = s => new RegExp(s, 'im');
@@ -2355,7 +2399,7 @@ ${turnText(x.entries)}`;
     if (!q || q.enabled === false) continue;
     // "waitsForAgents": a check on results that helpers launched in the background this turn will deliver later
     // Lesson: a turn that only started background agents was asked to merge and cite results that did not exist yet.
-    if (q.waitsForAgents && (x.uses || []).some(u => /^(Agent|Task)$/.test(u.name) && u.input?.run_in_background)) continue;
+    if (waitsForAgents(q) && (x.uses || []).some(u => /^(Agent|Task)$/.test(u.name) && u.input?.run_in_background)) continue;
     try {
       x.detail = '';
       // a requirement met by an earlier message of this turn stays met, so a re-block never forces the answer to repeat
@@ -2418,7 +2462,7 @@ export function stopDecision(data, cfg = config()) {
   if (nblocks >= cfg.maxBlocksPerTurn) {
     // REQ: unresolved-carryover. End quietly (no block), but don't let the miss vanish: the next prompt says it once,
     // in plain words. A check that waits on background helpers is not a miss: their results arrive later.
-    const waits = new Set(loadRequirements().reqs.filter(q => q?.waitsForAgents).map(q => q.tag));
+    const waits = new Set(loadRequirements().reqs.filter(q => q && waitsForAgents(q)).map(q => q.tag));
     const left = missing.filter(m => !waits.has(m.tag));
     if (left.length) writeState('unresolved.json', { at: new Date().toISOString(), prompt: x.prompt.slice(0, 160), items: left.map(m => shortStep(m)), tags: left.map(m => m.tag) });
     if (left.length) writeDetails(left, 'Left unresolved when the turn ended');
@@ -2435,9 +2479,10 @@ export function stopDecision(data, cfg = config()) {
   writeDetails(missing, `Steps left (round ${nblocks + 1} of ${cfg.maxBlocksPerTurn})`);
   return {
     decision: 'block',
+    steps: missing.map(m => shortStep(m)),
     // The user sees this in the terminal: a plain first line, one short plain line per step, and the check names once,
     // at the end. Lesson: whole messages with paths and regexes made a wall of text the user had to ask about.
-    reason: `Almost done: ${missing.length === 1 ? '1 step is' : `${missing.length} steps are`} left before this answer is complete (round ${nblocks + 1} of ${cfg.maxBlocksPerTurn}).\n` +
+    reason: `Almost done: ${missing.length === 1 ? '1 step is' : `${missing.length} steps are`} left before this answer is complete${cfg.maxBlocksPerTurn < 1000 ? ` (round ${nblocks + 1} of ${cfg.maxBlocksPerTurn})` : ''}.\n` +
       missing.map((m, i) => `${i + 1}. ${shortStep(m)}`).join('\n') +
       `\nFor the agent: full steps in \`node tools/hooks/hooks.mjs why\`; waive one that truly does not apply with N/A(<name>): <reason>. Names: ${missing.map(m => m.tag).join(', ')}.`
   };
@@ -2482,11 +2527,37 @@ export function shortStep(m) {
   return s.length > 70 ? s.slice(0, s.lastIndexOf(' ', 67) > 20 ? s.lastIndexOf(' ', 67) : 67) + '...' : s || m.tag;
 }
 
+// The host, from what its hooks documentation says it sends (checked 2026-10-18; anything else is unknown):
+// - Codex (developers.openai.com/codex/hooks): turn-scoped hook input carries "turn_id", a Codex-specific field.
+//   Its Stop hook has no non-error form: {"decision":"block","reason"} continues the turn with the reason as a new
+//   prompt, and "systemMessage" is surfaced to the user as a warning. Whether the reason is also shown is not documented.
+// - Claude Code (code.claude.com/docs/en/hooks): sets CLAUDE_PROJECT_DIR for every hook command. A Stop hook's
+//   hookSpecificOutput.additionalContext is non-error feedback that continues the turn (same loop protection), and
+//   additionalContext from SessionStart and UserPromptSubmit reaches the agent without appearing as a chat message.
+// - Any other host gets the classic forms every hook host understands: plain text, and {"decision":"block","reason"}.
+export function hookHost(data = {}, env = process.env) { return data.turn_id ? 'codex' : env.CLAUDE_PROJECT_DIR ? 'claude-code' : 'other'; }
+let HOST = 'other'; // set by the hook dispatcher; "begin" and "check" print plain text whatever the host
+export function stopOutput(d, cfg = config(), host = HOST) {
+  const style = cfg.stopStyle === 'feedback' || cfg.stopStyle === 'block' ? cfg.stopStyle : host === 'claude-code' ? 'feedback' : 'block';
+  const n = d.steps.length, name = names().STARTER_NAME || 'Project checks';
+  let line = `⚓ ${name}: ${n} step${n === 1 ? '' : 's'} left before done: ${d.steps.join('; ')}`.replace(/\s+/g, ' ');
+  if (line.length > 110) line = line.slice(0, line.lastIndexOf(' ', 107) > 30 ? line.lastIndexOf(' ', 107) : 107) + '...';
+  if (style === 'feedback') return { hookSpecificOutput: { hookEventName: 'Stop', additionalContext: d.reason }, systemMessage: line };
+  // Codex documents systemMessage next to a block, so its user gets the same short line; unknown hosts get the bare block
+  return host === 'codex' ? { decision: 'block', reason: d.reason, systemMessage: line } : { decision: 'block', reason: d.reason };
+}
+// Session and prompt notices: kept out of the visible chat where the host documents a way (Claude Code's
+// additionalContext); plain text elsewhere, which Codex documents as added to the agent's context.
+function contextOut(event, text) {
+  if (HOST === 'claude-code') process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: event, additionalContext: text } }));
+  else process.stdout.write(text);
+}
+
 function cmdStop(data) {
   syncAll();
-  writeState('last-stop-input.json', { ...data, at: new Date().toISOString() }); // diagnostics: what Claude Code sent
+  writeState('last-stop-input.json', { ...data, host: HOST, at: new Date().toISOString() }); // diagnostics: what the host sent
   const d = stopDecision(data);
-  if (d) process.stdout.write(JSON.stringify(d));
+  if (d) process.stdout.write(JSON.stringify(stopOutput(d)));
 }
 
 // ---------- manual mode, for agents without hooks ----------
@@ -2508,7 +2579,9 @@ function cmdCheck() {
   if (!readJSON(path.join(STATE, 'turn.json'), null)) { console.log('CHECK: no request recorded. Run: node tools/hooks/hooks.mjs begin "<the user\'s request>" first.'); process.exit(1); }
   const d = stopDecision({ transcript_path: '', last_assistant_message: answer }, { ...config(), maxBlocksPerTurn: 1e9 });
   if (!d) { console.log('CHECK: PASS'); process.exit(0); }
-  console.log('CHECK: FAIL\n' + (read(path.join(STATE, 'stop-details.md')).trim() || d.reason.replace(/^.*?\n/, ''))); // an agent without hooks gets the full steps
+  // the same short steps a hook host shows, then the full steps (an agent without hooks has no "why" round trip)
+  const full = read(path.join(STATE, 'stop-details.md')).trim();
+  console.log('CHECK: FAIL\n' + d.reason + (full ? `\n\nFull steps:\n${full.replace(/^# .*\n+/, '')}` : ''));
   process.exit(1);
 }
 
@@ -2538,6 +2611,7 @@ if (isMain) {
   }
   let data = {};
   try { data = JSON.parse(fs.readFileSync(0, 'utf8') || '{}'); } catch {}
+  HOST = hookHost(data);
   try {
     const fn = { session: cmdSession, prompt: cmdPrompt, pretool: cmdPretool, posttool: cmdPosttool, stop: cmdStop }[cmd];
     if (fn) fn(data);

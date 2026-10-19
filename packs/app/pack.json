@@ -237,6 +237,17 @@
       "message": "A release needs its notes in docs/releases/ and a clean attribution scan (node tools/hooks/git-guard.mjs scan) quoted in the answer."
     },
     {
+      "tag": "release-rollback",
+      "rule": "12",
+      "when": {
+        "playbookUsed": "release"
+      },
+      "require": {
+        "answerMatches": "roll ?-?back"
+      },
+      "message": "Release runbook: decide the rollback plan before the deploy (how to undo it, and the numbers that mean roll back now), put it in the release notes, and name it in the answer."
+    },
+    {
       "tag": "bugfix-regression-test",
       "rule": "4",
       "when": {

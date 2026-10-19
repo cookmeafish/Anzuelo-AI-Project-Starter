@@ -44,7 +44,19 @@ function base() {
   let linked = null; try { linked = JSON.parse(fs.readFileSync(at('tools/starter.local.json'), 'utf8')).path; } catch { }
   for (const d of ['packs', 'library']) for (const src of [at(`.starter/${d}`), linked && path.join(linked, d)].filter(Boolean))
     if (!fs.existsSync(at(d)) && fs.existsSync(src)) fs.cpSync(src, at(d), { recursive: true });
+  // the core skills' checks as this engine ships them, when the starter can be reached: an upgrade keeps a project's
+  // older entries, and the fixtures test the engine, not the project's copy of its checks
+  let shipped = [];
+  for (const src of [at('.starter/tools/hooks/requirements.json'), linked && path.join(linked, 'tools/hooks/requirements.json')].filter(Boolean)) {
+    try { shipped = JSON.parse(fs.readFileSync(src, 'utf8')).requirements || []; break; } catch { }
+  }
   for (const p of ['tools/starter.local.json', '.starter', '.starter-dev', 'README.starter.md', 'CLAUDE.starter.md', 'AGENTS.starter.md']) fs.rmSync(at(p), { recursive: true, force: true });
+  // The project's own progress would leak into fixtures that build their own: its fit checklist (decided rows, "later"
+  // conditions), its plans (OPEN PLANS) and its hook state. Lesson: inside a project mid-setup, the fit tests read the
+  // project's own checklist and the setup-gate test was denied by the project's unfinished setup.
+  fs.rmSync(at('docs/fit-checklist.md'), { force: true });
+  for (const n of (() => { try { return fs.readdirSync(at('docs/plans')); } catch { return []; } })()) if (!/^readme\.md$/i.test(n)) fs.rmSync(at(`docs/plans/${n}`), { recursive: true, force: true });
+  fs.rmSync(at('tools/hooks/state'), { recursive: true, force: true });
   if (!fs.existsSync(at('.starter-template'))) fs.writeFileSync(at('.starter-template'), 'test base\n');
   if (!fs.existsSync(at('SETUP-PROMPT.md'))) fs.writeFileSync(at('SETUP-PROMPT.md'), '# Setup prompt\n');
   const cfgPath = at('tools/hooks/config.json'), cfg0 = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
@@ -55,6 +67,8 @@ function base() {
   // the project's own code folders (packs.mjs configure app --code) go back to the defaults the fixtures use (src/...)
   // Lesson: a project whose code lives in another folder failed the app tests after configuring it.
   const CODE_DEFAULT = ['src/**', 'app/**', 'lib/**', 'server/**', 'packages/**'];
+  rq0.requirements = rq0.requirements.map(r => shipped.find(s => s.tag === r.tag && (s.when?.skillUsed || s.when?.playbookUsed === 'plan') && !s.pack) || r);
+  rq0.requirements.push(...shipped.filter(s => (s.when?.skillUsed || s.when?.playbookUsed === 'plan') && !s.pack && !rq0.requirements.some(r => r.tag === s.tag)));
   rq0.requirements = rq0.requirements.filter(r => !r.appGate).map(r => r.tag === 'version-bump' ? { ...r, enabled: false } : r)
     .map(r => r.codeGlobs && r.when?.filesChanged ? { ...r, when: { ...r.when, filesChanged: CODE_DEFAULT } } : r);
   fs.writeFileSync(rqPath, JSON.stringify(rq0, null, 2) + '\n');
@@ -111,8 +125,11 @@ function transcript(dir, s, since) {
   return file;
 }
 
-function run(dir, cmd, input) {
-  const r = spawnSync(process.execPath, [path.join(dir, 'tools', 'hooks', 'hooks.mjs'), cmd], { input: JSON.stringify(input), encoding: 'utf8', cwd: dir, env: { ...process.env, STARTER_MEMORY_DIR: path.join(dir, '.memtest') } });
+// The host is a fixture choice too: the hooks never see the real session's host variables unless a test sets them.
+function run(dir, cmd, input, host = {}) {
+  const env = { ...process.env, STARTER_MEMORY_DIR: path.join(dir, '.memtest') };
+  delete env.CLAUDE_PROJECT_DIR;
+  const r = spawnSync(process.execPath, [path.join(dir, 'tools', 'hooks', 'hooks.mjs'), cmd], { input: JSON.stringify(input), encoding: 'utf8', cwd: dir, env: { ...env, ...host } });
   return { out: r.stdout || '', err: r.stderr || '' };
 }
 
@@ -153,6 +170,21 @@ const STOP = [
   { pack: 'knowledge', name: 'quick KB question with few tools: no runbook needed', prompt: 'hey whats the price we found for desk x', tools: [{ name: 'Read', input: { file_path: 'docs/knowledge/desks.md' } }, ...many(2)], edit: { 'docs/knowledge/desks.md': () => KNOW }, answer: '$300 (docs/knowledge/desks.md)', expect: { block: false } },
   { name: 'unrouted work turn with no runbook created: blocked', prompt: 'build me a weekly cleaning rota for the flat', files: { 'docs/rota.md': 'rota' }, answer: 'Done.' + FIN,
     expect: { block: true, tags: ['runbook-exists'] } },
+  // the Stop hook's form per host: calm feedback where the host supports it (Claude Code sets CLAUDE_PROJECT_DIR for its
+  // hooks), the classic block for any other host (Codex, unknown), and stopStyle forces either
+  { name: 'stop form: a host that supports feedback gets it, with no "decision" and a one-line note for the user', prompt: 'build me a weekly cleaning rota for the flat', files: { 'docs/rota.md': 'rota' }, answer: 'Done.' + FIN,
+    host: { CLAUDE_PROJECT_DIR: '.' }, expect: { block: true, tags: ['runbook-exists'] },
+    after: (dir, reason, d) => (d && !('decision' in d) && d.hookSpecificOutput?.hookEventName === 'Stop' && /Names: [^\n]*runbook-exists/.test(d.hookSpecificOutput.additionalContext || '')
+      && typeof d.systemMessage === 'string' && !/\n/.test(d.systemMessage) && d.systemMessage.length <= 110 && /^⚓ \S[^:]*: \d+ steps? left before done: /.test(d.systemMessage)) || `got ${JSON.stringify(d).slice(0, 300)}` },
+  { name: 'stop form: Codex (its input has turn_id) gets the classic block with a one-line note for the user', prompt: 'build me a weekly cleaning rota for the flat', files: { 'docs/rota.md': 'rota' }, answer: 'Done.' + FIN,
+    hookInput: { turn_id: 'turn-1', model: 'gpt-x' }, expect: { block: true, tags: ['runbook-exists'] },
+    after: (dir, reason, d) => (d && d.decision === 'block' && /Names: [^\n]*runbook-exists/.test(d.reason || '') && !d.hookSpecificOutput && typeof d.systemMessage === 'string' && !/\n/.test(d.systemMessage) && d.systemMessage.length <= 110) || `got ${JSON.stringify(d).slice(0, 300)}` },
+  { name: 'stop form: an unknown host gets the bare classic block', prompt: 'build me a weekly cleaning rota for the flat', files: { 'docs/rota.md': 'rota' }, answer: 'Done.' + FIN,
+    expect: { block: true, tags: ['runbook-exists'] },
+    after: (dir, reason, d) => (d && d.decision === 'block' && /Names: [^\n]*runbook-exists/.test(d.reason || '') && !d.hookSpecificOutput && !d.systemMessage && !/Claude/.test(d.reason)) || `got ${JSON.stringify(d).slice(0, 300)}` },
+  { name: 'stop form: stopStyle "block" forces the classic block even where feedback is supported', prompt: 'build me a weekly cleaning rota for the flat', files: { 'docs/rota.md': 'rota' }, answer: 'Done.' + FIN,
+    host: { CLAUDE_PROJECT_DIR: '.' }, edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), stopStyle: 'block' }) }, expect: { block: true, tags: ['runbook-exists'] },
+    after: (dir, reason, d) => (d && d.decision === 'block' && !d.hookSpecificOutput) || `got ${JSON.stringify(d).slice(0, 300)}` },
   { name: 'unrouted work turn that creates + indexes a runbook: runbook-exists passes', prompt: 'build me a weekly meal plan for the family',
     files: { 'docs/playbooks/meal-plan.md': NEWPB, 'docs/CHANGELOG.md': 'x' },
     tools: [bash('node tools/audit.mjs')], answer: 'Playbook: meal-plan.md (created). Existing skills checked: installed skills and the official repo - none fit.' + FIN, expect: { block: false } },
@@ -164,7 +196,7 @@ const STOP = [
     expect: { block: true, tags: ['research-cited'] } },
   { pack: 'knowledge', name: 'research done right: passes', prompt: 'research the best standing desks under $500', tools: [sk('research'), bash('node tools/audit.mjs'), { name: 'Read', input: { file_path: 'docs/knowledge/desks.md' } }, ...many(14)],
     files: { 'docs/knowledge/desks.md': KNOW, 'docs/CHANGELOG.md': 'x', 'docs/STATUS.md': 'x' },
-    answer: 'Skill: research. Desk X, recorded in docs/knowledge/desks.md.\n\nSources:\n- https://example.com' + FIN, expect: { block: false } },
+    answer: 'Skill: research. Desk X is the pick, recorded in the knowledge base.[1]\n\nSources:\n[1] docs/knowledge/desks.md' + FIN, expect: { block: false } },
   { pack: 'knowledge', name: 'knowledge file without label/source/date: blocked', prompt: 'research desk prices', tools: [sk('research')],
     files: { 'docs/knowledge/desks.md': '# Desks\nDesk X is $300.', 'docs/CHANGELOG.md': 'x' },
     answer: 'Skill: research. Sources: https://a.com' + FIN, expect: { block: true, tags: ['knowledge-labels'] } },
@@ -282,6 +314,9 @@ const STOP = [
   { name: 'done-when-labeled: each item names its check or why only judgment can tell: passes that check', prompt: 'every raid answer must cite its raid file', tools: [pb('project'), bash('node tools/audit.mjs')],
     files: { 'docs/playbooks/raid-answer.md': '---\nname: raid-answer\nsummary: answer a raid question\ntriggers: raid question\n---\n# Playbook: raid answer\n## Steps\n1. Answer.\n## Done when\n- [ ] The answer cites the raid file (hook: raid-cited).\n- [ ] The tone fits a new player (judgment: no script can tell tone).\n', 'docs/CHANGELOG.md': 'x' },
     answer: 'Playbook: project.md. Added the citation rule.' + FIN, expect: { block: true, not: ['done-when-labeled'] } },
+  { name: 'done-when-labeled: a wrapped item labeled on its last line, and several tags in one label: passes that check', prompt: 'every raid answer must cite its raid file', tools: [pb('project'), bash('node tools/audit.mjs')],
+    files: { 'docs/playbooks/raid-answer.md': '---\nname: raid-answer\nsummary: answer a raid question\ntriggers: raid question\n---\n# Playbook: raid answer\n## Steps\n1. Answer.\n## Done when\n- [ ] The answer cites the raid file, and every number in it comes from that file or is\n      marked as calculated (hook: raid-cited).\n- [ ] It is named and summed up (hooks: playbook-named, finished-summary).\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Playbook: project.md. Added the citation rule.' + FIN, expect: { block: true, not: ['done-when-labeled'] } },
   // the project improves itself: no asking whether to add checks for what the user already asked for
   { name: 'self-improve: offering to add checks instead of adding them: blocked', prompt: 'are these requirements enforced', tools: [],
     answer: 'Two of them have no check yet.\n\n**Question for you:** should I add those checks now?', expect: { block: true, tags: ['self-improve'] } },
@@ -295,7 +330,15 @@ const STOP = [
   { name: 'incident-response: no incident file: blocked', prompt: 'the site is down for users', tools: [sk('incident-response')],
     answer: 'Skill: incident-response. Rolled back the last release with your OK; the site is up.', expect: { block: true, tags: ['incident-logged'] } },
   { name: 'incident-response: the incident file named: passes', prompt: 'the site is down for users', tools: [sk('incident-response')],
-    answer: 'Skill: incident-response. Rolled back with your OK; timeline in docs/incidents/2026-10-18-site-down.md.', expect: { block: false } },
+    answer: 'Skill: incident-response. Rolled back with your OK; timeline in docs/incidents/2026-10-18-site-down.md. Root cause: not found yet.', expect: { block: false } },
+  { name: 'incident-response: no Root cause line: blocked', prompt: 'the site is down for users', tools: [sk('incident-response')],
+    answer: 'Skill: incident-response. Rolled back with your OK; timeline in docs/incidents/2026-10-18-site-down.md.', expect: { block: true, tags: ['incident-root-cause'] } },
+  { name: 'incident-response: the Root cause line stated: passes', prompt: 'the site is down for users', tools: [sk('incident-response')],
+    answer: 'Skill: incident-response. Timeline in docs/incidents/2026-10-18-site-down.md. Root cause: a config push removed the database host.', expect: { block: false, not: ['incident-root-cause'] } },
+  { name: 'commit archaeology with no commit hashes: blocked', prompt: 'why does this code exist in src/cache.py lines 40-72?', tools: [sk('commit-archaeologist')],
+    answer: 'Skill: commit-archaeologist. Bottom line: it keeps the old return type for empty input. Confidence: medium. Origin: an early commit.', expect: { block: true, tags: ['history-hashes'] } },
+  { name: 'commit archaeology backed by commit hashes: passes', prompt: 'why does this code exist in src/cache.py lines 40-72?', tools: [sk('commit-archaeologist')],
+    answer: 'Skill: commit-archaeologist. Bottom line: it keeps the old return type for empty input. Confidence: high. Origin: 9f3e2d1 (2026-01-01); kept by c0ffee42.', expect: { block: false, not: ['history-hashes'] } },
   { name: 'data-analysis: numbers with no method: blocked', prompt: 'analyze this data in sales.csv', tools: [sk('data-analysis')],
     answer: 'Skill: data-analysis. Average order is 42.10 across 1,200 rows.', expect: { block: true, tags: ['data-computed'] } },
   { name: 'data-analysis: numbers with how they were computed: passes', prompt: 'analyze this data in sales.csv', tools: [sk('data-analysis')],
@@ -509,29 +552,52 @@ STOP.push(
     answer: 'Skill: debug. Root cause: the parser read the header twice.' + FIN, expect: { block: false } },
   { name: 'debug skill without a root cause: blocked', prompt: 'debug the failing test in the parser please', tools: [sk('debug'), ...many(15)], files: { 'docs/STATUS.md': 'x' },
     answer: 'Skill: debug. Fixed it.' + FIN, expect: { block: true, tags: ['debug-root-cause'] } },
+  { name: 'debug-test-added: code fixed without any test change: blocked', prompt: 'debug the failing test in the parser please', tools: [sk('debug'), ...many(15)], files: { 'src/parser.js': 'x', 'docs/STATUS.md': 'x', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Skill: debug. Root cause: the parser read the header twice.' + FIN, expect: { block: true, tags: ['debug-test-added'] } },
+  { name: 'debug-test-added: code fixed with a regression test: passes', prompt: 'debug the failing test in the parser please', tools: [sk('debug'), ...many(15)], files: { 'src/parser.js': 'x', 'tests/parser.test.js': 'x', 'docs/STATUS.md': 'x', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Skill: debug. Root cause: the parser read the header twice.' + FIN, expect: { not: ['debug-test-added'] } },
   { name: 'skill used but not named: blocked', prompt: 'debug the failing test in the parser please', tools: [sk('debug'), ...many(15)], files: { 'docs/STATUS.md': 'x' },
     answer: 'Root cause: the parser read the header twice.' + FIN, expect: { block: true, tags: ['playbook-named'] } },
   { name: 'parallel work without the combined check: blocked', prompt: 'split the work across several agents', tools: [sk('parallel-agents'), ...many(15)], files: { 'docs/STATUS.md': 'x' },
     answer: 'Skill: parallel-agents. All three agents finished.' + FIN, expect: { block: true, tags: ['parallel-merged'] } },
   { name: 'parallel work still running in the background: the merge check waits', prompt: 'split the work across several agents', tools: [sk('parallel-agents'), { name: 'Agent', input: { prompt: 'part one', run_in_background: true } }, { name: 'Write', input: { file_path: 'docs/STATUS.md', content: 'x' } }, ...many(15)], files: { 'docs/STATUS.md': 'x' },
     answer: 'Skill: parallel-agents. Three agents are running; I will check their results when they report.' + FIN, expect: { block: false } },
+  { name: 'parallel work in the background, with a project check written before "waitsForAgents" existed: still waits', prompt: 'split the work across several agents',
+    edit: { 'tools/hooks/requirements.json': s => JSON.stringify({ ...JSON.parse(s), requirements: JSON.parse(s).requirements.map(r => r.tag === 'parallel-merged' ? (({ waitsForAgents, ...rest }) => rest)(r) : r) }) },
+    tools: [sk('parallel-agents'), { name: 'Agent', input: { prompt: 'part one', run_in_background: true } }, { name: 'Write', input: { file_path: 'docs/STATUS.md', content: 'x' } }, ...many(15)], files: { 'docs/STATUS.md': 'x' },
+    answer: 'Skill: parallel-agents. Three agents are running; I will check their results when they report.' + FIN, expect: { block: false, not: ['parallel-merged'] } },
   { name: 'research without links: blocked', prompt: 'search the web for standing desk weight limits', tools: [sk('research')], answer: 'Skill: research. Most hold 100 kg.',
     expect: { block: true, tags: ['research-cited'] } },
+  { name: 'research-cited: a bare list of links with no numbers in the text: blocked', prompt: 'search the web for standing desk weight limits', tools: [sk('research')],
+    answer: 'Skill: research. Most hold 100 kg.\n\nSources:\nhttps://example.com/desks\nhttps://example.org/loads', expect: { block: true, tags: ['research-cited'] } },
+  { name: 'research-cited: [2] used in the text but missing from Sources: blocked', prompt: 'search the web for standing desk weight limits', tools: [sk('research')],
+    answer: 'Skill: research. Most hold 100 kg.[1] Some hold 150 kg.[2]\n\nSources:\n[1] https://example.com/desks', expect: { block: true, tags: ['research-cited'] } },
+  { name: 'research-cited: [1] and [2] each with a Sources line: passes', edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), packs: (JSON.parse(s).packs || []).filter(p => p !== 'knowledge') }), 'tools/hooks/requirements.json': s => JSON.stringify({ ...JSON.parse(s), requirements: JSON.parse(s).requirements.filter(r => r.pack !== 'knowledge') }) }, prompt: 'search the web for standing desk weight limits',
+    tools: [sk('research'), { name: 'WebFetch', input: { url: 'https://example.com/desks' }, result: 'Rated load: 100 kg.' }, { name: 'WebFetch', input: { url: 'https://example.org/loads' }, result: 'Heavy-duty models: 150 kg.' }],
+    answer: 'Skill: research. Quick lookup: most hold 100 kg.[1] Heavy-duty models hold 150 kg.[2]\n\nSources:\n[1] https://example.com/desks - Desk specs, 2026-10-17\n[2] https://example.org/loads', expect: { block: false, not: ['research-cited'] } },
   { name: 'quick lookup with its link: passes', edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), packs: (JSON.parse(s).packs || []).filter(p => p !== 'knowledge') }), 'tools/hooks/requirements.json': s => JSON.stringify({ ...JSON.parse(s), requirements: JSON.parse(s).requirements.filter(r => r.pack !== 'knowledge') }) }, prompt: 'search the web for standing desk weight limits', tools: [sk('research'), { name: 'WebFetch', input: { url: 'https://example.com/desks' }, result: 'Rated load: 100 kg.' }],
-    answer: 'Skill: research. Quick lookup: most hold 100 kg (https://example.com/desks, 2026-10-17).', expect: { block: false } },
+    answer: 'Skill: research. Quick lookup: most hold 100 kg.[1]\n\nSources:\n[1] https://example.com/desks - 2026-10-17', expect: { block: false } },
   { name: 'research-verified: web research with no ledger: blocked', prompt: 'is it true that standing desks hold 150 kg', tools: [sk('research'), { name: 'WebSearch', input: { query: 'desk load' }, result: 'Desk A: 150 kg' }],
     answer: 'Skill: research. Yes, 150 kg (https://a.example).', expect: { block: true, tags: ['research-verified'] } },
   { name: 'research-verified: a passing ledger and the Verified line: passes', edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), packs: (JSON.parse(s).packs || []).filter(p => p !== 'knowledge') }), 'tools/hooks/requirements.json': s => JSON.stringify({ ...JSON.parse(s), requirements: JSON.parse(s).requirements.filter(r => r.pack !== 'knowledge') }) }, prompt: 'is it true that standing desks hold 150 kg',
     tools: [sk('research'), { name: 'WebSearch', input: { query: 'desk load' }, result: 'Desk A: rated 150 kg' }, bash('node skills/research/scripts/claims.mjs check .cache/research/desk.md', 'CLAIMS: PASS - 1 claims')],
-    answer: 'Skill: research. Yes: 150 kg [S1, S2] (https://a.example).\nVerified: 1 claims traced to 3 independent sources; 0 cut or marked not verified.', expect: { block: false } },
+    answer: 'Skill: research. Yes: 150 kg.[1][2]\n\nSources:\n[1] https://a.example\n[2] https://b.example\nVerified: 1 claims traced to 3 independent sources; 0 cut or marked not verified.', expect: { block: false } },
   { name: 'research-ledger: says verified but the ledger failed: blocked', edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), packs: (JSON.parse(s).packs || []).filter(p => p !== 'knowledge') }), 'tools/hooks/requirements.json': s => JSON.stringify({ ...JSON.parse(s), requirements: JSON.parse(s).requirements.filter(r => r.pack !== 'knowledge') }) }, prompt: 'is it true that standing desks hold 150 kg',
     tools: [sk('research'), { name: 'WebSearch', input: { query: 'desk load' }, result: 'Desk A: rated 150 kg' }, bash('node skills/research/scripts/claims.mjs check .cache/research/desk.md', 'ERROR S3: a forum source is a lead\nCLAIMS: FAIL (1 error(s))')],
     answer: 'Skill: research. Yes: 150 kg (https://a.example).\nVerified: 1 claims traced to 3 independent sources; 0 cut or marked not verified.', expect: { block: true, tags: ['research-ledger'] } },
   { name: 'answer-traced: a number found in nothing read this turn: blocked', edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), packs: (JSON.parse(s).packs || []).filter(p => p !== 'knowledge') }), 'tools/hooks/requirements.json': s => JSON.stringify({ ...JSON.parse(s), requirements: JSON.parse(s).requirements.filter(r => r.pack !== 'knowledge') }) }, prompt: 'is it true that standing desks hold 150 kg',
     tools: [sk('research'), { name: 'WebSearch', input: { query: 'desk load' }, result: 'Desk A: rated 150 kg' }, bash('node skills/research/scripts/claims.mjs check .cache/research/desk.md', 'CLAIMS: PASS - 1 claims')],
-    answer: 'Skill: research. Yes: 150 kg, and they last 12 years [S1, S2] (https://a.example).\nVerified: 1 claims traced to 3 independent sources; 0 cut or marked not verified.', expect: { block: true, tags: ['answer-traced'] } },
+    answer: 'Skill: research. Yes: 150 kg, and they last 12 years.[1][2]\n\nSources:\n[1] https://a.example\n[2] https://b.example\nVerified: 1 claims traced to 3 independent sources; 0 cut or marked not verified.', expect: { block: true, tags: ['answer-traced'] } },
   { name: 'skill search without the report line: blocked', prompt: 'is there a skill for invoices', tools: [sk('skill-finder')], answer: 'Skill: skill-finder. Found one.',
     expect: { block: true, tags: ['skill-finder-report'] } },
+  { name: 'skill-compared: an adopted skill still shares wording with the original: blocked', prompt: 'is there a skill for invoices', tools: [sk('skill-finder'), bash('node tools/skills.mjs add acme/skills invoices', 'installed skills/invoices'),
+    bash('node tools/skills.mjs compare skills/invoices .cache/skill-original/invoices', 'COMPARE: 10 shared run(s) of 8+ words, 40% of our text. Rewrite each one in your own words.')],
+    files: { 'skills/invoices/SKILL.md': '---\nname: invoices\ndescription: Makes invoices. Use when asked for an invoice.\n---\n# Invoices\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Skill: skill-finder. Existing skills checked: installed skills - none; acme/skills - invoices fits.' + FIN, expect: { block: true, tags: ['skill-compared'] } },
+  { name: 'skill-compared: an adopted skill rewritten in our words: passes', prompt: 'is there a skill for invoices', tools: [sk('skill-finder'), bash('node tools/skills.mjs add acme/skills invoices', 'installed skills/invoices'),
+    bash('node tools/skills.mjs compare skills/invoices .cache/skill-original/invoices', 'COMPARE: 0 shared run(s) of 8+ words, 0% of our text. Original wording.')],
+    files: { 'skills/invoices/SKILL.md': '---\nname: invoices\ndescription: Makes invoices. Use when asked for an invoice.\n---\n# Invoices\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Skill: skill-finder. Existing skills checked: installed skills - none; acme/skills - invoices fits.' + FIN, expect: { not: ['skill-compared'] } },
   { name: 'plan saved but never checked: blocked', prompt: 'make a plan for the csv export', tools: [pb('plan')], files: { 'docs/plans/2026-10-17-export.md': '# Export: plan' },
     answer: 'Playbook: plan.md. Saved.' + FIN, expect: { block: true, tags: ['plan-checked'] } },
   { name: 'a new hand-written skill without triggers or a check: blocked', prompt: 'make a skill for meal planning', tools: [pb('project'), bash('node tools/audit.mjs')],
@@ -548,6 +614,12 @@ STOP.push(
     expect: { block: true, tags: ['design-plan'] } },
   { name: 'security review without the report table: blocked', prompt: 'do a security audit', tools: [sk('security-review')], answer: 'Skill: security-review. Looks secure.',
     expect: { block: true, tags: ['security-report'] } },
+  { name: 'security-logged: a full review not logged in docs/security.md: blocked', prompt: 'do a security audit', tools: [sk('security-review'), ...many(15)], files: { 'docs/STATUS.md': 'x', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Skill: security-review.\n\n| Area | Result | Evidence |\n|---|---|---|\n| Secrets | PASS | none in files |' + FIN, expect: { block: true, tags: ['security-logged'] } },
+  { name: 'security-logged: the review logged in docs/security.md: passes', prompt: 'do a security audit', tools: [sk('security-review'), ...many(15)], files: { 'docs/security.md': '# Security\n## Reviews\n| Date | Scope | Result |\n|---|---|---|\n| 2026-10-18 | all | PASS |\n', 'docs/STATUS.md': 'x', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Skill: security-review.\n\n| Area | Result | Evidence |\n|---|---|---|\n| Secrets | PASS | none in files |' + FIN, expect: { not: ['security-logged'] } },
+  { name: 'security-logged: a quick security question changes nothing: not asked to log', prompt: 'is it safe to keep the api key in an env var', tools: [sk('security-review')],
+    answer: 'Skill: security-review.\n\n| Area | Result | Evidence |\n|---|---|---|\n| Secrets | PASS | an env var keeps it out of files |', expect: { not: ['security-logged'] } },
   { name: 'hardening without a saved plan: blocked', prompt: 'harden the app', tools: [sk('security-hardening')], answer: 'Skill: security-hardening. Hardened.',
     expect: { block: true, tags: ['hardening-plan'] } },
   { name: 'server code changed without tests: blocked', prompt: 'add a rest api endpoint for orders', tools: [sk('backend-patterns')], files: { 'src/orders.js': 'export const list = () => [];\n', 'docs/CHANGELOG.md': 'x' },
@@ -600,6 +672,10 @@ STOP.push(
   { pack: 'app', name: 'security review without the item table: blocked', prompt: 'do a security review before we make it public', tools: [pb('security-review')], answer: 'Playbook: security-review.md. Looks secure.', expect: { block: true, tags: ['security-checklist'] } },
   { pack: 'app', name: 'install change without the test matrix: blocked', prompt: 'change the installer so it works offline', tools: [pb('install-update')], answer: 'Playbook: install-update.md. Done.', expect: { block: true, tags: ['install-matrix'] } },
   { pack: 'app', name: 'release without notes or attribution scan: blocked', prompt: 'prepare a release', tools: [pb('release')], answer: 'Playbook: release.md. Ready.', expect: { block: true, tags: ['release-ready'] } },
+  { pack: 'app', name: 'release-rollback: a release with no rollback plan named: blocked', prompt: 'prepare a release', tools: [pb('release')], files: { 'docs/releases/1.2.0.md': '# 1.2.0', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Playbook: release.md. Notes in docs/releases/1.2.0.md. no-ai-attribution: PASS.' + FIN, expect: { block: true, tags: ['release-rollback'] } },
+  { pack: 'app', name: 'release-rollback: the rollback plan and its trigger named: passes', prompt: 'prepare a release', tools: [pb('release')], files: { 'docs/releases/1.2.0.md': '# 1.2.0', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Playbook: release.md. Notes in docs/releases/1.2.0.md, with the rollback plan: redeploy 1.1.0 if errors pass 2%. no-ai-attribution: PASS.' + FIN, expect: { not: ['release-rollback'] } },
   { pack: 'app', name: 'foundation without the filled page: blocked', prompt: 'set up the app foundation from the ground up', tools: [pb('app-foundation')], answer: 'Playbook: app-foundation.md. Done.', expect: { block: true, tags: ['foundation-set'] } },
   { pack: 'app', name: 'foundation set and summarized: passes the foundation check', prompt: 'set up the app foundation from the ground up', tools: [pb('app-foundation'), bash('node tools/audit.mjs')], files: { 'docs/foundation.md': '---\nstatus: set 2026-10-17\n---\n# Foundation', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: app-foundation.md. Security: loopback only. Performance budgets: start in 2 s. Usability: plain words.' + FIN, expect: { block: false } },
   { pack: 'app', name: 'spec/notes changed without CHANGELOG: blocked', prompt: 'add a feature to export reports as csv', tools: [pb('feature')], files: { ...SPEC, 'docs/CHANGELOG.md': undefined }, answer: 'Playbook: feature.md.\n' + VERIF + FIN, expect: { block: true, tags: ['app-changelog'] } },
@@ -615,7 +691,7 @@ STOP.push(
   { pack: 'knowledge', name: 'answer-traced: a price the cited file does not have: blocked', prompt: 'what do we know about desk prices', tools: [sk('research'), { name: 'Read', input: { file_path: 'docs/knowledge/desks.md' }, result: KNOW }],
     edit: { 'docs/knowledge/desks.md': () => KNOW }, answer: 'Skill: research. Desk X costs $450 (docs/knowledge/desks.md).', expect: { block: true, tags: ['answer-traced'] } },
   { pack: 'knowledge', name: 'answer-traced: every fact from the file that was opened: passes', prompt: 'what do we know about desk prices', tools: [sk('research'), { name: 'Read', input: { file_path: 'docs/knowledge/desks.md' }, result: KNOW }],
-    edit: { 'docs/knowledge/desks.md': () => KNOW }, answer: 'Skill: research. Desk X costs $300 (docs/knowledge/desks.md), so two cost $600 (calculated: 2 x 300).', expect: { block: false } },
+    edit: { 'docs/knowledge/desks.md': () => KNOW }, answer: 'Skill: research. Desk X costs $300.[1] Two cost $600 (calculated: 2 x 300).\n\nSources:\n[1] docs/knowledge/desks.md', expect: { block: false } },
   { pack: 'knowledge', name: 'research-verified: web use in a knowledge project without the ledger: blocked', prompt: 'check the current price of desk x online', tools: [{ name: 'WebFetch', input: { url: 'https://a.example' }, result: 'Desk X: $310' }],
     answer: 'Desk X is $310 now (https://a.example, 2026-10-18).', expect: { block: true, tags: ['research-verified'] } },
   { pack: 'knowledge', name: 'ingest without registering sources: blocked', prompt: 'process the files in my inbox', tools: [pb('ingest')], files: { 'docs/knowledge/desks.md': KNOW, 'docs/CHANGELOG.md': 'x' },
@@ -693,7 +769,11 @@ STOP.push(
   { name: 'answer-traced: a number the agent wrote into a file earlier in the session: passes', edit: NO_KNOWLEDGE, prompt: 'is it true that standing desks hold 150 kg',
     before: [{ name: 'Write', input: { file_path: 'docs/desk-notes.md', content: 'Standing desks last 12 years.' } }],
     tools: [sk('research'), { name: 'WebSearch', input: { query: 'desk load' }, result: 'Desk A: rated 150 kg' }, bash('node skills/research/scripts/claims.mjs check .cache/research/desk.md', 'CLAIMS: PASS - 1 claims')],
-    answer: 'Skill: research. Yes: 150 kg, and they last 12 years [S1, S2] (https://a.example).\nVerified: 1 claims traced to 3 independent sources; 0 cut or marked not verified.', expect: { block: false, not: ['answer-traced'] } },
+    answer: 'Skill: research. Yes: 150 kg, and they last 12 years.[1][2]\n\nSources:\n[1] https://a.example\n[2] https://b.example\nVerified: 1 claims traced to 3 independent sources; 0 cut or marked not verified.', expect: { block: false, not: ['answer-traced'] } },
+  // citation numbers like [11] are not facts, so answer-traced never asks where they came from
+  { name: 'answer-traced: numbered citations [10]-[11] are not untraced numbers: passes', edit: NO_KNOWLEDGE, prompt: 'is it true that standing desks hold 150 kg',
+    tools: [sk('research'), { name: 'WebSearch', input: { query: 'desk load' }, result: 'Desk A: rated 150 kg' }, bash('node skills/research/scripts/claims.mjs check .cache/research/desk.md', 'CLAIMS: PASS - 1 claims')],
+    answer: 'Skill: research. Yes: 150 kg.[10]-[11]\n\nSources:\n[10] https://a.example\n[11] https://b.example\nVerified: 1 claims traced to 3 independent sources; 0 cut or marked not verified.', expect: { block: false, not: ['answer-traced'] } },
   // the writing rules' own fixed wordings are not copies of the user's words; rewording for a wording check is no runbook miss
   { name: 'no-verbatim-examples: a wording the writing standards require is not the user\'s words: passes', prompt: 'from now on ask me like this: question for you keep the old setting so the nightly job keeps working',
     tools: [pb('project'), bash('node tools/hooks/selfcheck.mjs'), bash('node tools/audit.mjs')],
@@ -818,12 +898,14 @@ function runStop(s) {
     if (s.failed) write(dir, { 'tools/hooks/state/stop-failed.json': JSON.stringify({ key: `${tp}|${since}`, tags: s.failed }) });
     write(dir, s.files);
     for (const [p, off] of Object.entries(s.mtimes || {})) { const t = (Date.now() + off) / 1000; fs.utimesSync(path.join(dir, p), t, t); }
-    const { out, err } = run(dir, 'stop', { transcript_path: tp, stop_hook_active: !!s.active, ...(s.last ? { last_assistant_message: s.last } : {}) });
+    const { out, err } = run(dir, 'stop', { transcript_path: tp, stop_hook_active: !!s.active, ...(s.last ? { last_assistant_message: s.last } : {}), ...(s.hookInput || {}) }, s.host);
     let d = null; try { d = out.trim() ? JSON.parse(out) : null; } catch { }
-    const after = s.after ? s.after(dir, d ? d.reason || '' : '') : true;
+    // either form asks for more work: the classic block, or the calm feedback form (stopStyle)
+    const reason = d ? d.reason || d.hookSpecificOutput?.additionalContext || '' : '';
+    const after = s.after ? s.after(dir, reason, d) : true;
     // the full steps behind the short message (hooks.mjs why)
     let details = ''; try { details = fs.readFileSync(path.join(dir, 'tools/hooks/state/stop-details.md'), 'utf8'); } catch { }
-    return { blocked: !!(d && d.decision === 'block'), reason: d ? d.reason : '', details, err, after };
+    return { blocked: !!(d && (d.decision === 'block' || d.hookSpecificOutput?.additionalContext)), reason, details, err, after };
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
@@ -833,7 +915,7 @@ const GOLDEN = [
   { name: 'research (knowledge pack)', prompt: 'research the best standing desks under $500',
     tools: [sk('research'), { name: 'WebSearch', input: { query: 'standing desk under 500 test' }, result: 'Desk X tested: best value' }, bash('node skills/research/scripts/claims.mjs check .cache/research/desks.md', 'CLAIMS: PASS - 1 claims')],
     files: { 'docs/knowledge/desks.md': KNOW, 'docs/CHANGELOG.md': 'x' },
-    answer: ['Skill: research.', 'Desk X is the best value [S1, S2].', 'Sources:\n- https://example.com', 'Verified: 1 claims traced to 3 independent sources; 0 cut or marked not verified.', FIN],
+    answer: ['Skill: research.', 'Desk X is the best value.[1]', 'Sources:\n[1] https://example.com','Verified: 1 claims traced to 3 independent sources; 0 cut or marked not verified.', FIN],
     optional: ['tools:1', 'answer:1'] },
   { pack: 'gui', name: 'GUI change (gui pack)', prompt: 'make the dashboard page look cleaner',
     tools: [pb('gui'), bash('node tools/screenshot.mjs --url x', GUISHOT(0)), { name: 'Read', input: { file_path: SHOT } }],
@@ -908,7 +990,8 @@ for (const s of STOP) {
   if (!applies(s)) { skipped++; if (process.env.SHOW_SKIPS) console.log('SKIP  stop: ' + s.name); continue; }
   const r = runStop(s);
   let why = '';
-  if (r.blocked !== s.expect.block) why = `expected ${s.expect.block ? 'BLOCK' : 'PASS'}, got ${r.blocked ? 'BLOCK: ' + r.reason : 'PASS'}${r.err ? ' stderr: ' + r.err.slice(0, 300) : ''}`;
+  // no "block" in expect: only the named tags matter (other checks may still block the fixture)
+  if (s.expect.block !== undefined && r.blocked !== s.expect.block) why = `expected ${s.expect.block ? 'BLOCK' : 'PASS'}, got ${r.blocked ? 'BLOCK: ' + r.reason : 'PASS'}${r.err ? ' stderr: ' + r.err.slice(0, 300) : ''}`;
   // the stop message lists the check names once, on its last line: "Names: a, b."
   const named = t => (/Names: ([^\n]*)\.\s*$/.exec(r.reason || '')?.[1] || '').split(', ').includes(t);
   for (const t of s.expect.tags || []) if (!named(t)) why ||= `missing tag [${t}] in: ${r.reason || '(no block)'}`;
@@ -963,6 +1046,14 @@ if (!TAGS) { // the standalone checks run in a full run only
   try {
     const { out } = run(dir, 'session', { source: 'startup' });
     report(out.includes('ROUTE every message') && out.includes('docs/STATUS.md'), 'session: injects checklist and STATUS', out.slice(0, 200));
+    // a host that documents a hidden context channel gets it; the text is the same
+    const cc = run(dir, 'session', { source: 'startup' }, { CLAUDE_PROJECT_DIR: dir }).out;
+    let j = null; try { j = JSON.parse(cc); } catch { }
+    const ctx = j?.hookSpecificOutput?.additionalContext || '';
+    const pr = run(dir, 'prompt', { prompt: 'make a plan for the csv export' }, { CLAUDE_PROJECT_DIR: dir }).out;
+    let jp = null; try { jp = JSON.parse(pr); } catch { }
+    report(j?.hookSpecificOutput?.hookEventName === 'SessionStart' && ctx.includes('ROUTE every message') && jp?.hookSpecificOutput?.hookEventName === 'UserPromptSubmit' && /ROUTE: plan/.test(jp.hookSpecificOutput.additionalContext || ''),
+      'session and prompt notices: sent as hidden context where the host supports it, plain text elsewhere', `${cc.slice(0, 200)} | ${pr.slice(0, 200)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
@@ -986,7 +1077,7 @@ if (!TAGS) { // the standalone checks run in a full run only
     const c1 = node('check', '--answer-file', path.join(dir, '.cache/answer.md'));
     write(dir, { '.cache/answer.md': 'Playbook: plan.md. Saved docs/plans/2026-10-17-export.md.' + FIN });
     const c2 = node('check', '--answer-file', path.join(dir, '.cache/answer.md'));
-    report(b.stdout.includes('ROUTE: plan') && c1.status === 1 && /CHECK: FAIL/.test(c1.stdout) && c2.status === 0 && /CHECK: PASS/.test(c2.stdout),
+    report(b.stdout.includes('ROUTE: plan') && c1.status === 1 && /CHECK: FAIL\nAlmost done: [^\n]*\n1\. [^\n]+/.test(c1.stdout) && /Names: [a-z]/.test(c1.stdout) && !/round 1 of/.test(c1.stdout) && /Full steps:/.test(c1.stdout) && !/Claude/.test(c1.stdout) && c2.status === 0 && /CHECK: PASS/.test(c2.stdout),
       'agent-neutral: begin routes, check fails an incomplete answer and passes a complete one', `begin: ${b.stdout.slice(0, 120)} | c1: ${c1.stdout.slice(0, 200)} | c2: ${c2.stdout.slice(0, 300)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
@@ -1142,6 +1233,22 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
+{ // protect-originals: exact duplicates in an originals folder can go (the oldest copy stays), nothing else
+  const dir = copyProject();
+  try {
+    const cfgPath = path.join(dir, 'tools/hooks/config.json'), c = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+    c.protectedOriginals = ['sources/**']; fs.writeFileSync(cfgPath, JSON.stringify(c, null, 2));
+    write(dir, { 'sources/a.jpg': 'same bytes', 'sources/b.txt': 'different', 'sources/sub/a-copy.jpg': 'same bytes' });
+    fs.utimesSync(path.join(dir, 'sources/a.jpg'), new Date(2026, 0, 1), new Date(2026, 0, 1));
+    const look = spawnSync(process.execPath, ['tools/dedupe.mjs'], { cwd: dir, encoding: 'utf8' }).stdout;
+    const keptBefore = fs.existsSync(path.join(dir, 'sources/sub/a-copy.jpg'));
+    spawnSync(process.execPath, ['tools/dedupe.mjs', '--apply'], { cwd: dir, encoding: 'utf8' });
+    const has = p => fs.existsSync(path.join(dir, p));
+    report(/1 exact duplicate/.test(look) && keptBefore && has('sources/a.jpg') && has('sources/b.txt') && !has('sources/sub/a-copy.jpg') && /removed exact duplicate sources\/sub\/a-copy\.jpg/.test(fs.readFileSync(path.join(dir, 'docs/CHANGELOG.md'), 'utf8')),
+      'protect-originals: dedupe lists first, then removes only exact duplicates, keeps the oldest and logs it', look.slice(0, 300));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
 { // plan-open: a plan with unticked steps is announced at the next session, for any agent, until it is done or dropped
   const dir = copyProject();
   try {
@@ -1206,6 +1313,27 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
     fitFill(dir); // the new data file is evidence for the data tools too: their reasons now answer it
     applyEdits(dir, { 'docs/DECISIONS.md': s => s.replace('- fit: 2 new candidates: ?', '- fit: 2 new candidates: decided') });
     report(/fit: 2 new candidates.*decide the new rows/.test(pending) && up().trim() === '[]', 'fit-checklist: the upgrade review waits until the new candidates pass the check', `${pending.slice(0, 200)} | ${up().slice(0, 200)}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+{ // fit-checklist: a "later - when:" condition counts what its noun names, and one the hooks can't read is not measured
+  const { fitWhen } = await import('./hooks.mjs');
+  const w = t => fitWhen(`later - when: ${t}`) || {};
+  const ok = w('more than 6 raid files').word === 'raid' && w('more than 6 raid files').min === 7 && w('more than 20 html files').ext === 'html'
+    && w('the project has 50 commits').metric === 'commits' && w('10 code files').metric === 'code' && w('the first data file appears').metric === 'tabular'
+    && w('more than 30 files').metric === 'all' && w('the team grows').metric === null && w('someone asks for it twice').metric === null;
+  const dir = copyProject();
+  try {
+    const fit = (...a) => spawnSync(process.execPath, ['tools/fit.mjs', ...a], { cwd: dir, encoding: 'utf8' });
+    const why = 'finding files by name only matters once the raid notes grow past a handful';
+    fitFill(dir, [{ item: 'fd', kind: 'tool', decision: 'later - when: more than 6 raid files', reason: why }]);
+    const few = fit('check').stdout;
+    write(dir, Object.fromEntries(Array.from({ length: 7 }, (_, i) => [`notes/raid-${i}.md`, `# Raid ${i}\n`])));
+    const many7 = fit('check').stdout;
+    fitFill(dir, [{ item: 'fd', kind: 'tool', decision: 'later - when: the team grows', reason: why }]);
+    const vague = fit('check').stdout;
+    report(ok && /FIT: PASS/.test(few) && /tool fd: its condition is met now \(when: more than 6 raid files; files named \*raid\* is 7\)/.test(many7) && /FIT: PASS/.test(vague),
+      'fit-checklist: a "later - when:" condition counts the files its noun names; one it cannot read is not measured', `${ok} | ${few.slice(-200)} | ${many7.slice(0, 300)} | ${vague.slice(-200)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 

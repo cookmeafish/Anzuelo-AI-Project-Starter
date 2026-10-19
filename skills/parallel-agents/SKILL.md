@@ -65,9 +65,9 @@ When they report back:
    parallel-merged).
 
 ## Done when
-- [ ] Every brief pointed at AGENTS.md and had scope, goal, facts, limits and a return format.
-- [ ] Every report was read and its status acted on.
-- [ ] The full checks passed on the combined result, after the last change.
+- [ ] Every brief pointed at AGENTS.md and had scope, goal, facts, limits and a return format (hook: subagent-brief for AGENTS.md; judgment: whether the rest of the brief is clear).
+- [ ] Every report was read and its status acted on (judgment: acting on each report needs reading it).
+- [ ] The full checks passed on the combined result, after the last change (hook: parallel-merged).
 
 ## Pitfalls
 - Splitting connected problems: the agents each patch a symptom of one shared cause.

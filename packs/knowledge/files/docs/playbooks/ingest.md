@@ -25,7 +25,8 @@ menu: K3
    raised. Then do the request that came with the files.
 
 ## Done when
-- [ ] `inbox/` holds only README.md; originals are in `sources/`, unchanged.
+- [ ] `inbox/` holds only README.md; originals are in `sources/`, unchanged (hook: protect-originals keeps them
+      unchanged; judgment: the INBOX session notice lists any file still in `inbox/`).
 - [ ] Facts are in docs/knowledge with labels, sources and dates; SOURCES.md is updated (hook: knowledge-labels).
 
 ## Pitfalls

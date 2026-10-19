@@ -29,7 +29,7 @@ const ENGINE = [
   '.githooks/commit-msg', '.githooks/pre-commit', '.githooks/pre-push',
   'docs/checks/session-checklist.md', 'docs/checks/finish-checklist.md', 'docs/checks/runbook-standards.md',
   'docs/checks/writing-standards.md', 'docs/checks/layout-standards.md', 'docs/recommended-tools.md', 'docs/checks/better-or-worse.md',
-  'docs/playbooks/_TEMPLATE.md', 'docs/playbooks/_fallback.md', 'HOW-TO-USE.md', 'tools/skills.mjs', 'tools/starter.mjs', 'tools/recall.mjs', 'tools/hooks/wire.mjs', 'tools/survey.mjs', 'tools/fit.mjs'
+  'docs/playbooks/_TEMPLATE.md', 'docs/playbooks/_fallback.md', 'HOW-TO-USE.md', 'tools/skills.mjs', 'tools/starter.mjs', 'tools/recall.mjs', 'tools/hooks/wire.mjs', 'tools/survey.mjs', 'tools/dedupe.mjs', 'tools/fit.mjs'
 ];
 // Added on upgrade only when missing: the project may have tuned them.
 const ENGINE_IF_MISSING = ['docs/playbooks/plan.md', 'docs/plans/README.md', 'docs/security.md', 'docs/names.json', 'docs/glossary.md'];
@@ -38,6 +38,8 @@ const ENGINE_IF_MISSING = ['docs/playbooks/plan.md', 'docs/plans/README.md', 'do
 // skill took over (the upgrade review offers to merge them; the project may have tuned them).
 const RETIRED_CORE = { 'web-search': { into: 'research', tags: ['search-cited'] } };
 const RETIRED_FILES = ['tools/hooks/test-hooks.mjs'];
+// Engine files that were renamed: references in the project's own docs move with them (paths only).
+const RENAMED_FILES = { 'tools/hooks/test-hooks.mjs': 'tools/hooks/selfcheck.mjs' };
 const MERGED_RUNBOOKS = { research: 'research', 'answer-question': 'research' };
 // Pack files that are engine too: refreshed on upgrade when the project has the pack.
 const PACK_ENGINE = { gui: ['tools/screenshot.mjs', 'docs/checks/visual-review.md', 'skills/gui-review-loop/'] };
@@ -109,7 +111,10 @@ function probe() {
   const a = spawnSync(process.execPath, [path.join(dest, 'tools', 'audit.mjs')], { cwd: dest, encoding: 'utf8', timeout: 600000 });
   const rows = [...(a.stdout || '').matchAll(/^(PASS|WARN|FAIL)\s+\d+\.\s+(.+?)(?:\s{2}\(.*)?$/gm)];
   const b = spawnSync(process.execPath, [path.join(dest, 'tools', 'hooks', 'hooks.mjs'), 'bench'], { cwd: dest, encoding: 'utf8', timeout: 120000, stdio: ['ignore', 'pipe', 'pipe'] });
-  return { failed: rows.filter(r => r[1] === 'FAIL').map(r => r[2].trim()), swept: rows.map(r => r[2].trim()),
+  // each failing sweep's own lines, so a rollback can say exactly what broke
+  const details = {}; let cur = null;
+  for (const l of (a.stdout || '').split(/\r?\n/)) { const m = /^(PASS|WARN|FAIL)\s+\d+\.\s+(.+?)(?:\s{2}\(.*)?$/.exec(l); if (m) cur = m[1] === 'FAIL' ? m[2].trim() : null; else if (cur && /^\s+- /.test(l)) (details[cur] ||= []).push(l.trim()); }
+  return { failed: rows.filter(r => r[1] === 'FAIL').map(r => r[2].trim()), swept: rows.map(r => r[2].trim()), details,
     speed: Object.fromEntries([...(b.stdout || '').matchAll(/\b(prompt|pretool|stop) (\d+) ms/g)].map(m => [m[1], +m[2]])) };
 }
 // A dry run prints a summary: how many files it would create or update per folder, every file that collides with one
@@ -201,7 +206,9 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   if (want.length) { log.push(`appended .gitignore (${want.join(', ')})`); if (!dry) fs.appendFileSync(gi, '\n# Project starter\n' + want.join('\n') + '\n'); }
   const lk = path.join(dest, 'tools', 'starter.local.json');
   if (!fs.existsSync(lk) && !dry) { fs.writeFileSync(lk, JSON.stringify({ path: STARTER }, null, 2) + '\n'); log.push('linked   tools/starter.local.json → this starter'); }
-  // the core skills' checks: added when the project lacks them, never changed when it has them
+  // the core skills' checks: added when the project lacks them, and refreshed when the starter's version changed, so a
+  // core skill and its check never disagree. A project keeps its own version by marking the entry "custom": true.
+  // Lesson: the research skill moved to numbered citations, but upgraded projects kept the old check for it.
   const rq = path.join(dest, 'tools', 'hooks', 'requirements.json');
   try {
     const mine = JSON.parse(fs.readFileSync(rq, 'utf8'));
@@ -210,8 +217,17 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
     const missing = skillChecks.filter(r => !mine.requirements.some(m => m.tag === r.tag));
     if (missing.length) {
       log.push(`added    checks ${missing.map(r => r.tag).join(', ')} to tools/hooks/requirements.json`);
-      if (!dry) { mine.requirements.push(...missing); fs.writeFileSync(rq, JSON.stringify(mine, null, 2) + '\n'); }
+      if (!dry) mine.requirements.push(...missing);
     }
+    const refreshed = [];
+    mine.requirements = mine.requirements.map(m => {
+      const s = skillChecks.find(r => r.tag === m.tag);
+      if (!s || m.custom || JSON.stringify({ ...m, enabled: undefined }) === JSON.stringify({ ...s, enabled: undefined })) return m;
+      refreshed.push(m.tag);
+      return { ...s, ...(m.enabled === false ? { enabled: false } : {}) }; // a check the project switched off stays off
+    });
+    if (refreshed.length) log.push(`updated  checks ${refreshed.join(', ')} in tools/hooks/requirements.json (the starter's newer version; mark an entry "custom": true to keep yours)`);
+    if (!dry && (missing.length || refreshed.length)) fs.writeFileSync(rq, JSON.stringify(mine, null, 2) + '\n');
     // pack checks whose patterns lost their backslashes in an older starter: take the corrected pattern
     let fixed = 0;
     for (const r of mine.requirements.filter(r => r.pack && /\[sS\]|root causes\*/.test(r.require?.answerMatches || ''))) {
@@ -254,6 +270,15 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
     fs.copyFileSync(at, b);
     fs.rmSync(at, { force: true });
   }
+  // A renamed engine file: the project's own docs that name it are pointed at the new name (a path swap, nothing else).
+  // Lesson: an upgrade retired test-hooks.mjs, the project's rules still named it, and the references sweep rolled it back.
+  const docs = []; (function walk(d) { for (const e of fs.existsSync(d) ? fs.readdirSync(d, { withFileTypes: true }) : []) { const p = path.join(d, e.name);
+    if (e.isDirectory()) { if (!/^(\.git|node_modules|\.cache|\.claude|\.codex|state)$/.test(e.name)) walk(p); } else if (/\.md$/i.test(e.name)) docs.push(p); } })(dest);
+  for (const p of docs) {
+    const text = fs.readFileSync(p, 'utf8'); let next = text;
+    for (const [from, to] of Object.entries(RENAMED_FILES)) next = next.split(from).join(to);
+    if (next !== text) { log.push(`updated  ${path.relative(dest, p).replace(/\\/g, '/')} (renamed engine file: ${Object.entries(RENAMED_FILES).filter(([f]) => text.includes(f)).map(([f, t]) => `${f} -> ${t}`).join(', ')})`); if (!dry) fs.writeFileSync(p, next); }
+  }
   log.push(...wire(dest, { dry })); // every agent's wiring, the git hooks and Obsidian (tools/hooks/wire.mjs)
   printLog();
   console.log(`\n${dry ? 'Dry run, nothing written: this is what an upgrade of' : 'Upgraded the engine in'} ${dest}${dry ? ' would change' : ''}. The project's own content (AGENTS.md / CLAUDE.md, requirements.json, config.json, runbooks, knowledge, code) was not touched. ${unchanged} engine file(s) were already current.${backedUp ? ` ${backedUp} replaced file(s) are backed up in .cache/upgrade-backup/${stamp}/.` : ''}`);
@@ -270,6 +295,7 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
     (function restore(d) { for (const n of fs.existsSync(d) ? fs.readdirSync(d) : []) { const p = path.join(d, n); if (fs.statSync(p).isDirectory()) restore(p); else if (n.endsWith('.orig')) { const to = path.join(dest, path.relative(backupDir, p).slice(0, -5)); fs.mkdirSync(path.dirname(to), { recursive: true }); fs.copyFileSync(p, to); } } })(backupDir);
     spawnSync(process.execPath, [path.join(dest, 'tools', 'hooks', 'hooks.mjs'), 'sync'], { cwd: dest, encoding: 'utf8' });
     console.error(`\nROLLED BACK: after the upgrade these checks failed that passed before: ${broke.join('; ')}. The project is as it was.\n` +
+      broke.map(b => (after.details?.[b] || []).slice(0, 8).map(l => `  ${b}: ${l}`).join('\n')).filter(Boolean).join('\n') + '\n' +
       `The new engine checks more or checks differently. Upgrade with --accept-findings to keep it anyway: each of these goes into the upgrade review, to fix.`);
     process.exit(1);
   }
@@ -277,8 +303,10 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   // new hard rules the project doesn't have yet (by their bold title), unless an earlier review decided them
   const decided = fs.existsSync(path.join(dest, 'docs', 'DECISIONS.md')) ? fs.readFileSync(path.join(dest, 'docs', 'DECISIONS.md'), 'utf8') : '';
   const titles = t => [...t.matchAll(/^\d+\. \*\*(.+?)\*\*/gm)].map(m => m[1].replace(/[.:]+$/, ''));
-  const mineRules = fs.existsSync(path.join(dest, 'CLAUDE.md')) ? fs.readFileSync(path.join(dest, 'CLAUDE.md'), 'utf8') : '';
-  for (const t of titles(fs.readFileSync(path.join(STARTER, 'CLAUDE.md'), 'utf8'))) if (!mineRules.includes(t) && !decided.includes(`- rule: ${t}:`)) items.push(`rule: ${t}`);
+  // Lesson: a fresh clone of the starter has no CLAUDE.md (it is made per machine), and reading it crashed the upgrade.
+  const rulesOf = d => ['AGENTS.md', 'CLAUDE.md'].map(n => path.join(d, n)).filter(p => fs.existsSync(p)).map(p => fs.readFileSync(p, 'utf8')).join('\n');
+  const mineRules = rulesOf(dest);
+  for (const t of titles(rulesOf(STARTER))) if (!mineRules.includes(t) && !decided.includes(`- rule: ${t}:`)) items.push(`rule: ${t}`);
   // the fit checklist gets a row for every new candidate (pack, library skill, tool, feature), decided by the AI
   const fitNew = spawnSync(process.execPath, [path.join(dest, 'tools', 'fit.mjs'), '--count-new'], { cwd: dest, encoding: 'utf8' });
   const fresh = Number((fitNew.stdout || '').trim()) || 0;

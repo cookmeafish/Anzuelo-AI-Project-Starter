@@ -59,10 +59,10 @@ a plain folder that any agent able to read SKILL.md files can use.
 versions of the bundle still line up.
 
 ## Done when
-- [ ] Every item in the notice is kept with a reason, merged, or retired with the user's OK.
-- [ ] No trigger was lost in a merge: the requests the old one caught still route.
-- [ ] Tests and audit pass.
-- [ ] A shared bundle passes `bundle-check.mjs` and the security-review skill, and leaves the machine only with
+- [ ] Every item in the notice is kept with a reason, merged, or retired with the user's OK (hook: skill-prune).
+- [ ] No trigger was lost in a merge: the requests the old one caught still route (judgment: which requests the old one caught needs a person to list).
+- [ ] Tests and audit pass (hooks: audit-run, hooks-tested).
+- [ ] A shared bundle passes `bundle-check.mjs` and the security-review skill (judgment: no check sees bundle-check run yet; the OK is in the conversation), and leaves the machine only with
       the user's OK.
 
 ## Scripts

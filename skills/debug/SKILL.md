@@ -115,10 +115,10 @@ checked, add sensible handling (a retry, a timeout, a clear error message), and 
 root cause" findings are unfinished investigations, so be sure before landing here.
 
 ## Done when
-- [ ] The answer states `Root cause: <what and why>`, with the evidence that shows it.
-- [ ] A test that failed before the fix now passes, and the rest of the suite still passes.
-- [ ] The original problem is gone where it was seen (the real app, the build, the script).
-- [ ] Layers that let bad data through now reject it, or the answer says why that wasn't needed.
+- [ ] The answer states `Root cause: <what and why>`, with the evidence that shows it (hook: debug-root-cause).
+- [ ] A test that failed before the fix now passes, and the rest of the suite still passes (hook: debug-test-added sees a test change with the code; judgment: that it failed before the fix).
+- [ ] The original problem is gone where it was seen (the real app, the build, the script) (judgment: where the problem showed differs per bug).
+- [ ] Layers that let bad data through now reject it, or the answer says why that wasn't needed (judgment: which layers matter depends on the data flow).
 
 ## Pitfalls
 - Fixing where the error surfaced because the true source is several calls away.

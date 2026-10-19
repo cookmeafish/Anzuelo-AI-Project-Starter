@@ -5,6 +5,22 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 (project-rule, runbook-create), because an upgrade never touches a project's own content.
 
 - 2026-10-18: Upgrades and additions can't make a project worse unseen.
+  - **A calm display when the checks ask for more, used where the agent's host documents it.** Claude Code (it sets
+    `CLAUDE_PROJECT_DIR` for its hooks) gets the steps as feedback for the agent instead of an error, plus one short
+    line for the user (an anchor, the starter's name, then `2 steps left before done: ...`), and the session and prompt
+    notices as hidden context. Codex (its hook input has `turn_id`) documents no non-error way to continue a turn, so
+    it keeps the classic block, with the same short line as its documented user message. Any other host gets the
+    classic block. `"stopStyle"` in `tools/hooks/config.json` is `auto` (the default), `feedback` or `block`. Agents
+    without hooks get the same short steps from `hooks.mjs check`, followed by the full ones. Not verified in a live
+    Codex session: whether Codex also shows the block's reason to the user.
+  - **Answers cite like a research assistant, and more "Done when" items are checked.** Research answers end each fact
+    with a numbered citation `[1]`, `[2]` and close with a `Sources:` list, one `[n] <link or project file>` line per
+    number (research-cited blocks a bare link list and a number with no line; answer-traced ignores citation numbers).
+    Longer research turns show short activity lines (`🔍 search: ...`, `📖 read: ...`). New checks: debug-test-added
+    (code fixed with the debug skill needs a test change, or an N/A when there is no test framework), security-logged
+    (a full security review is logged in `docs/security.md`), skill-compared (a third-party skill brought in passes
+    `skills.mjs compare`), incident-root-cause and history-hashes (library skills), release-rollback (app pack), and
+    plan-open now has its own tag. A "Done when" label may wrap over several lines and name several tags.
   - **The fit checklist: the AI decides every candidate, the user only sees a summary.** `node tools/fit.mjs` keeps
     `docs/fit-checklist.md` in each project: one row per pack, library skill, recommended tool and optional feature
     (Obsidian vault, git hooks, autonomy auto, recall and memory, plans), each decided add, skip or "later - when:
@@ -29,6 +45,12 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
     - Editing a runbook or skill is maintaining it, not following it. `skill-learn` asks for a lesson only when a
       followed runbook's or skill's own check failed earlier in the turn, never for a wording check.
     - Files changed by background helpers that are still running are not the main turn's changes.
+    - The self-tests pass inside a project mid-setup: their sandbox drops the project's own fit checklist, plans and
+      hook state, and uses the starter's current core skill checks when the starter can be reached. The merge and
+      citation checks wait for background helpers even in a project whose checks predate `"waitsForAgents"`.
+    - A fit "later - when:" condition counts what its noun names ("raid files" are files with "raid" in the path,
+      "html files" end in .html, "commits" is the git history); one it can't read is not measured, and the sweeps
+      revisit it.
     - A file rewritten byte for byte is not a change (the prompt hook keeps each file's hash at the turn's start), and
       build outputs (`buildOutputs` in config) are generated, not GUI changes.
     - Gates are judged by their own result: their pass line, or their exit code when run as their own command.

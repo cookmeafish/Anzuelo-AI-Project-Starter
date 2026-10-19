@@ -77,13 +77,13 @@ Never ship a third-party skill unchanged.
 6. Tell the user what the skill does, what makes it start (its description), and which runbook uses it.
 
 ## Done when
-- [ ] The answer has `Existing skills checked: <where> - <result>`.
-- [ ] Every file of the chosen skill was read, and its license and behavior were checked.
-- [ ] Nothing was installed without the user's OK.
-- [ ] An adopted skill is rewritten in the project's style, with LICENSE kept and SOURCE.md crediting the source.
-- [ ] `node tools/skills.mjs compare` printed `0 shared run(s)` for it.
-- [ ] The user was told what the skill does and when it starts.
-- [ ] Nothing fit: the reason is stated, and runbook-create continues with a new runbook.
+- [ ] The answer has `Existing skills checked: <where> - <result>` (hook: skill-finder-report).
+- [ ] Every file of the chosen skill was read, and its license and behavior were checked (judgment: vetting third-party code needs reading it).
+- [ ] Nothing was installed without the user's OK (judgment: the user's OK is in the conversation).
+- [ ] An adopted skill is rewritten in the project's style, with LICENSE kept and SOURCE.md crediting the source (hook: audit-run, through its credit sweep; judgment: the style).
+- [ ] `node tools/skills.mjs compare` printed `0 shared run(s)` for it (hook: skill-compared).
+- [ ] The user was told what the skill does and when it starts (judgment: whether the user was told needs reading the answer).
+- [ ] Nothing fit: the reason is stated, and runbook-create continues with a new runbook (hooks: skill-finder-report, runbook-exists).
 
 ## Pitfalls
 - Installing first and reading later. Vet on the web, then read again after install.

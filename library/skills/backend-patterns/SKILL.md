@@ -122,14 +122,14 @@ Keep three jobs apart, even when they live in one file in a small app:
    where the project has metrics.
 
 ## Done when
-- [ ] The change follows the project's existing patterns, or the answer explains why a new one was needed.
-- [ ] Input is validated at the edge, every operation checks authorization, and errors go through the central handler.
-- [ ] No query in a loop, every list is paged with a maximum, and every query and outbound call has a timeout.
-- [ ] Multi-step writes are in a transaction; retried writes are idempotent.
-- [ ] Every cache has an invalidation rule; every background job is durable, idempotent and has a retry limit.
-- [ ] Tests cover the service logic and at least one success and one failure per endpoint, and pass
+- [ ] The change follows the project's existing patterns, or the answer explains why a new one was needed (judgment: the project's patterns need a reviewer).
+- [ ] Input is validated at the edge, every operation checks authorization, and errors go through the central handler (judgment: needs a code review).
+- [ ] No query in a loop, every list is paged with a maximum, and every query and outbound call has a timeout (judgment: needs a code review).
+- [ ] Multi-step writes are in a transaction; retried writes are idempotent (judgment: needs a code review).
+- [ ] Every cache has an invalidation rule; every background job is durable, idempotent and has a retry limit (judgment: needs a code review).
+- [ ] Tests cover the service logic and at least one success and one failure per endpoint (hook: backend-tested), and pass
   (`docs/checks/qa-standards.md`).
-- [ ] Still within the budgets in `docs/foundation.md`; performance claims come with before and after numbers.
+- [ ] Still within the budgets in `docs/foundation.md`; performance claims come with before and after numbers (judgment: which budgets apply depends on the change).
 
 ## Pitfalls
 - Business rules in route handlers. They get copied into the next route and drift apart.

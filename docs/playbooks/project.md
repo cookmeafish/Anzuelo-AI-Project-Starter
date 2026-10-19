@@ -81,10 +81,10 @@ user's OK.
 
 ## Done when
 - [ ] Rule requests: AGENTS/CLAUDE + user-requirements + rule-enforcement + a check (or hook: N/A) + memory; tests and audit PASS (hook: rule-request, rule-memory, hooks-tested, audit-run).
-- [ ] The original miss behind a complaint is fixed, not just prevented.
+- [ ] The original miss behind a complaint is fixed, not just prevented (judgment: whether the miss itself is fixed needs a look at the result).
 - [ ] Skills added or removed: each one belongs to a runbook or has its own triggers and a check (hook: skill-complete).
-- [ ] Skills due for cleanup: each kept with a reason, merged, or retired with the user's OK (skill-curate).
-- [ ] CHANGELOG updated; Finished section.
+- [ ] Skills due for cleanup: each kept with a reason, merged, or retired with the user's OK (skill-curate; hook: skill-prune).
+- [ ] CHANGELOG updated; Finished section (hooks: changelog, finished-summary).
 
 ## Pitfalls
 - A rule written only in the docs gets forgotten. Every checkable rule needs a check.

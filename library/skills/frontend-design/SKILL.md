@@ -251,21 +251,21 @@ Use the handoff template. Ask for the tech stack if unknown, so notes fit it.
 ## Done when
 - [ ] The answer names the section used (`Frontend design: <letter>`) (hook: design-plan).
 - **A:**
-  - [ ] Subject, audience and main job are written down, confirmed if they were guessed.
-  - [ ] A design plan exists (direction, color, type, space, layout options, first view, motion, the one memorable
+  - [ ] Subject, audience and main job are written down, confirmed if they were guessed (judgment: whether a guess was confirmed shows only in the conversation).
+  - [ ] A design plan exists (judgment: whether the plan is real and revised needs a reader) (direction, color, type, space, layout options, first view, motion, the one memorable
         thing), and the generic parts were revised with a reason.
-  - [ ] All values live in tokens, with light and dark values, and contrast was checked for each text pair.
-  - [ ] Empty, loading, error and long-data states exist and say what to do next.
-  - [ ] The usability floor holds: keyboard, focus, labels, reduced motion, phone and desktop, zoom.
-  - [ ] The gui-review-loop ended with `Visual review: PASS after N rounds`.
-  - [ ] App projects: the "Design tokens" and "Design direction" rows in `docs/foundation.md` section 3 are filled.
-- [ ] **B:** findings point at specific elements with a reason and a severity, what works is named, and the top three
+  - [ ] All values live in tokens, with light and dark values, and contrast was checked for each text pair (judgment: no check reads the tokens or contrast yet).
+  - [ ] Empty, loading, error and long-data states exist and say what to do next (judgment: whether each state guides the user needs a human eye).
+  - [ ] The usability floor holds: keyboard, focus, labels, reduced motion, phone and desktop, zoom (judgment: needs a person to try keyboard, zoom and phone).
+  - [ ] The gui-review-loop ended with `Visual review: PASS after N rounds` (hooks: gui-review-loop, gui-review-report).
+  - [ ] App projects: the "Design tokens" and "Design direction" rows in `docs/foundation.md` section 3 are filled (judgment: only app projects have the rows).
+- [ ] **B:** findings point at specific elements with a reason and a severity (judgment: the quality of a critique needs a reader), what works is named, and the top three
       changes are ranked.
-- [ ] **C:** audit counts come from searching the code, not from estimates; new parts use existing tokens.
-- [ ] **D:** each element has a recommendation, alternatives and a reason; words match the rest of the product.
-- [ ] **E:** every finding cites a WCAG 2.2 criterion; contrast was measured, not judged by eye; what wasn't tested
+- [ ] **C:** audit counts come from searching the code, not from estimates; new parts use existing tokens (judgment: how the counts were found shows only in the work).
+- [ ] **D:** each element has a recommendation, alternatives and a reason; words match the rest of the product (judgment: whether the words match needs a reader).
+- [ ] **E:** every finding cites a WCAG 2.2 criterion (judgment: what was measured shows only in the work); contrast was measured, not judged by eye; what wasn't tested
       (for example a real screen reader) is said.
-- [ ] **F:** every state and edge case is covered, and every value is a token or flagged.
+- [ ] **F:** every state and edge case is covered, and every value is a token or flagged (judgment: full coverage needs a reviewer).
 
 ## Pitfalls
 - Starting with code and deciding the look along the way. The defaults win when nothing was decided.

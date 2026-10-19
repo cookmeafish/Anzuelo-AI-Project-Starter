@@ -29,8 +29,8 @@ quick question. Then just do it by its own runbook.
 
 ## Done when
 - [ ] The plan is saved in `docs/plans/` and linked in the answer (hook: plan-saved).
-- [ ] Every requirement in the spec maps to a task, and every task ends with a check.
-- [ ] A finished or abandoned plan carries `status: done` or `status: dropped - <why>`.
+- [ ] Every requirement in the spec maps to a task, and every task ends with a check (hook: plan-checked for the checks; judgment: whether every spec item is covered).
+- [ ] A finished or abandoned plan carries `status: done` or `status: dropped - <why>` (hook: plan-open announces it at each session start until closed; judgment: only the person running it knows it is finished or dropped).
 
 ## Pitfalls
 - A plan longer than the work it describes: it has written the work instead of deciding it.

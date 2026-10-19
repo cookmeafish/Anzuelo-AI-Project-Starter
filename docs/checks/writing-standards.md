@@ -67,7 +67,7 @@ word at the start of the block, which reads the same in every terminal.
 | Result | `**Done:**` (short answers) or a `**Finished**` section (real work, rule 7) | The outcome first, then the paths in `code`, then what was not done or not checked. |
 | Heads-up | `**Heads-up:**` | Something the user should know but does not need to act on: an assumption made, a side effect, a risk. |
 | Problem | `**Problem:**` | What failed, in one line. Then the likely cause, and what happens next or what the user can do. |
-| Working | nothing, plain text | One short line while a long task runs: "Checking the 3 hook files next." |
+| Working | nothing, plain text, or an activity line | One short line while a long task runs: "Checking the 3 hook files next." (see "Activity lines") |
 
 Rules:
 1. **Lead each block with its kind.** One kind per block. A warning inside a result paragraph gets missed, so give it
@@ -109,9 +109,32 @@ Or reply in your own words.
 A bare `Error: ENOENT` becomes: "**Problem:** `docs/BRIEF.md` is missing, so setup can't read the project's
 purpose. Run `node tools/new-project.mjs` again, or tell me what the project is for and I'll write it."
 
-Credits: the idea of giving each kind of output its own look comes from Nous Research's Hermes Agent (MIT), and the
-script conventions (important line last, `NO_COLOR`, suggest the next command) from the Command Line Interface
-Guidelines at clig.dev. Written here in our own words.
+### Answers with sources
+An answer built on facts (research, the knowledge base, a lookup) follows the research skill's answer format
+(`skills/research/SKILL.md`, "Answer format"). In short:
+1. The answer first, then at most one short context line, and only when it changes how to read the answer.
+2. Each fact ends with a numbered citation: `[1]`, `[2]`.
+3. The answer ends with `Sources:` and one line per number: `[1] https://...` or `[2] docs/knowledge/x.md`. Every
+   number points to a source read this turn.
+4. Nothing the user didn't ask for, and nothing they asked left out.
+
+### Activity lines
+During a longer research or multi-step turn, each step gets one short working line: an emoji, then a word for the
+step, a colon and what it acts on. Quick answers get none.
+
+| Step | Line |
+|---|---|
+| Web search | `🔍 search: <query>` |
+| Reading a page or file | `📖 read: <link or path>` |
+| Working out a number | `🧮 compute: <what>` |
+| Using a skill | `🧩 skill: <name>` |
+
+The emoji is decoration and the word carries the meaning ("Don't rely on color or emoji" above), so a terminal
+without emoji still reads "search:" or "read:". Never write an emoji alone.
+
+Credits: the idea of giving each kind of output its own look, the numbered sources and the activity lines come from
+Nous Research's Hermes Agent (MIT). The script conventions (important line last, `NO_COLOR`, suggest the next
+command) come from the Command Line Interface Guidelines at clig.dev. Written here in our own words.
 
 ## Before and after
 | Before | After |

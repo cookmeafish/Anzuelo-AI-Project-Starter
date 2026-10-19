@@ -26,6 +26,38 @@
       "message": "Debug skill: state the root cause in the answer (\"Root cause: <what and why>\") with the evidence that shows it, found before the fix."
     },
     {
+      "tag": "debug-test-added",
+      "rule": "4",
+      "when": {
+        "skillUsed": "debug",
+        "filesChanged": [
+          "src/**",
+          "app/**",
+          "lib/**",
+          "server/**",
+          "packages/**",
+          "**/*.mjs",
+          "**/*.py",
+          "**/*.ts",
+          "**/*.js"
+        ]
+      },
+      "require": {
+        "filesChanged": [
+          "**/*.test.*",
+          "**/*.spec.*",
+          "**/test/**",
+          "**/tests/**",
+          "**/__tests__/**",
+          "**/*_test.*",
+          "**/test_*.*",
+          "tools/hooks/selfcheck.mjs",
+          "tools/hooks/project-scenarios.mjs"
+        ]
+      },
+      "message": "Debug skill: code changed for the fix, but no test did. Add a test that fails without the fix and passes with it, and run the suite. If the project has no test framework, write \"N/A(debug-test-added): no test framework\" and say how the fix was checked instead."
+    },
+    {
       "tag": "parallel-merged",
       "rule": "4",
       "when": {
@@ -44,9 +76,10 @@
         "skillUsed": "research"
       },
       "require": {
-        "answerMatches": "https?://|docs/knowledge/|sources/|nothing (is )?recorded|not (in|recorded in) the project"
+        "answerMatches": "(?<!^[ \\t]*)\\[\\d+\\][\\s\\S]*^[ \\t]*\\**sources:?\\**[ \\t]*\\r?\\n(?:[ \\t]*[-*]?[ \\t]*\\[\\d+\\][ \\t]+(?:https?:\\/\\/\\S+|[\\w.-]+\\/\\S+)[^\\n]*(?:\\r?\\n|$))+|nothing (is )?recorded|not (in|recorded in) the project",
+        "answerNotMatches": "(?<!^[ \\t]*[-*]?[ \\t]*)\\[(\\d+)\\](?![\\s\\S]*^[ \\t]*[-*]?[ \\t]*\\[\\1\\][ \\t]+(?:https?:\\/\\/|[\\w.-]+\\/))"
       },
-      "message": "Research skill: every fact needs its source in the answer: the link of the page it was read on (with a date for anything that changes), or the project file it came from, or say plainly that nothing is recorded in the project.",
+      "message": "Research skill, answer format: end each fact with a numbered citation [1], [2], and end the answer with \"Sources:\" and one line per number, \"[n] <link or project file>\", each a source read this turn. Or say plainly that nothing is recorded in the project.",
       "waitsForAgents": true
     },
     {
@@ -76,6 +109,24 @@
       "message": "Skill-finder skill: report the search in the answer: \"Existing skills checked: <where> - <result>\"."
     },
     {
+      "tag": "skill-compared",
+      "rule": "2",
+      "when": {
+        "skillUsed": "skill-finder",
+        "toolRan": "skills\\.mjs\\s+add\\b",
+        "filesChanged": [
+          "skills/**"
+        ]
+      },
+      "require": {
+        "toolPassed": {
+          "cmd": "skills\\.mjs\\s+compare",
+          "pass": "\\b0 shared run"
+        }
+      },
+      "message": "Skill-finder skill: a third-party skill was brought in and changed. Check the wording is ours: node tools/skills.mjs compare skills/<skill> <the untouched copy> must print \"0 shared run(s)\". Rewrite every shared run it lists."
+    },
+    {
       "tag": "plan-checked",
       "rule": "2",
       "when": {
@@ -99,6 +150,20 @@
         "answerMatches": "\\|\\s*(PASS|FAIL|N/?A)\\b"
       },
       "message": "Security-review skill: end with the report table: every area PASS, FAIL or N/A with its evidence, and where each open FAIL went."
+    },
+    {
+      "tag": "security-logged",
+      "rule": "15",
+      "when": {
+        "skillUsed": "security-review",
+        "workTurn": true
+      },
+      "require": {
+        "filesChanged": [
+          "docs/security.md"
+        ]
+      },
+      "message": "Security-review skill: log the review in the Reviews table of docs/security.md (date, scope, result, open FAILs and where they went)."
     }
   ],
   "disabled": []

@@ -86,12 +86,11 @@ tool, or inferred (dynamic wiring). Keep it to what a newcomer needs; link to fi
 "Where things live" in `DIRECTORY.md` (outside the generated block).
 
 ## Done when
-- [ ] Entry points, modules with their dependencies, 3 to 5 traced flows, hot spots, and a "where to change what"
-  table are in `docs/codebase-map.md`.
-- [ ] Every flow hop and dependency was read in the code or produced by a tool, not guessed from names.
-- [ ] The map names its date, commit, tools used, and what is unknown or not mapped.
-- [ ] Generated, vendored and build output is excluded, and no tool index files were added to git.
-- [ ] `git status` shows nothing a tool added unasked; any server started for the map is stopped; no code left the
+- [ ] Entry points, modules with their dependencies, 3 to 5 traced flows, hot spots, and a "where to change what" table are in `docs/codebase-map.md` (hook: map-saved).
+- [ ] Every flow hop and dependency was read in the code or produced by a tool, not guessed from names (judgment: what was read and what was guessed shows only in the work).
+- [ ] The map names its date, commit, tools used, and what is unknown or not mapped (judgment: no check reads the map's header yet).
+- [ ] Generated, vendored and build output is excluded, and no tool index files were added to git (judgment: which folders are generated differs per project).
+- [ ] `git status` shows nothing a tool added unasked (judgment: what was asked for and what left the machine needs a reviewer); any server started for the map is stopped; no code left the
   machine without the user's OK.
 
 ## Pitfalls

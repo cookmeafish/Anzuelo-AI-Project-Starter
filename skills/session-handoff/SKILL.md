@@ -82,10 +82,10 @@ When a request uses a term you can't place (an abbreviation, a nickname, a proje
 5. A term that no longer applies is removed. Review the glossary before anything is shared or published.
 
 ## Done when
-- [ ] STATUS has today's date, true Now / Next / Blocked sections, and links to every open plan.
-- [ ] Each change this session has its CHANGELOG line.
-- [ ] Nothing was added to the to-dos, the tracker or a chat without the user's OK.
-- [ ] Every term the user had to explain is in `docs/glossary.md`.
+- [ ] STATUS has today's date, true Now / Next / Blocked sections, and links to every open plan (hook: status-handoff; judgment: whether the sections are true).
+- [ ] Each change this session has its CHANGELOG line (hook: changelog for project files; judgment: other changes).
+- [ ] Nothing was added to the to-dos, the tracker or a chat without the user's OK (judgment: the user's OK is in the conversation).
+- [ ] Every term the user had to explain is in `docs/glossary.md` (judgment: which terms needed explaining shows only in the conversation).
 
 ## Pitfalls
 - A STATUS that grows by appending. A new session reads only the top 40 lines, so old items hide the current ones.

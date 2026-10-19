@@ -19,18 +19,46 @@ One rule covers every situation: **every fact in the answer traces to a source r
 
 Then always **D** (did I make that up?), and in a knowledge project, **E** (record it).
 
+## Answer format (every situation, A to E)
+1. **The answer first.** No preamble, no restating the question, no filler. Answer everything asked and nothing more.
+2. **Numbered citations.** Each fact ends with `[1]`, `[2]`, placed after the punctuation. One number per source, in
+   order of first use. A source cited twice keeps its number.
+3. **One short context line, only when it changes how to read the answer** (a definition, a scope limit, a caveat). It
+   is cited too.
+4. **`Sources:` last**, one line per number: `[n] <link or project file>`, optionally followed by ` - <title>, <date>`.
+   The link or path comes right after the number and is clickable as written. Every number points to a source read
+   this turn, and every number used in the text has its line.
+5. After `Sources:`, only the Verified line (situation **C**) and the one-line markers (`Skill: research`).
+
+Shape (sample values):
+```
+Of the desks tested, three hold 100 kg or more:[1]
+1. Desk A - 120 kg
+2. Desk B - 110 kg
+3. Desk C - 100 kg
+These are the makers' rated loads. Only Desk A was load-tested independently.[2]
+
+Sources:
+[1] https://example.org/desk-specs
+[2] docs/knowledge/desks.md
+```
+
+**Activity lines** while a longer research turn runs: one short line per step, an emoji and then the words, never an
+emoji alone: `🔍 search: <query>`, `📖 read: <page or file>`, `🧮 compute: <what>`, `🧩 skill: research`. Skip them for
+a quick answer. Details in `docs/checks/writing-standards.md`, "Activity lines".
+
 ## A. From the project
 1. Find the files: the knowledge table in `DIRECTORY.md`, then search `docs/knowledge/`, `sources/`,
    `docs/DECISIONS.md` and `docs/STATUS.md` for the key terms.
 2. Open and read every file you will cite. Citing a file you didn't open this turn is blocked (REQ: answer-traced).
-3. Answer with the result first. Give each fact its file (`docs/knowledge/x.md`). Keep verified facts apart from
-   inferred, user-reported and unresolved ones.
+3. Answer in the answer format: each fact cites its file by number, and `Sources:` lists the paths
+   (`[1] docs/knowledge/x.md`). Keep verified facts apart from inferred, user-reported and unresolved ones.
 4. Flag stale facts (`volatile: yes` and older than 90 days), conflicts and gaps. Offer **C** instead of guessing.
 5. Nothing recorded: say "nothing recorded in the project", then offer **C**.
 
 ## B. A quick lookup
-Go to the official docs or other primary source, open the page, and use it. Put the link in the answer and start that
-line with `Quick lookup:`. Anything the user will rely on, anything to be recorded, and anything with high stakes is
+Go to the official docs or other primary source, open the page, and use it. Start the line with `Quick lookup:`, cite
+the page as `[1]`, and list it under `Sources:` (answer format). Anything the user will rely on, anything to be recorded, and anything with high stakes is
 **C**.
 
 ## C. Research and fact checks
@@ -66,9 +94,10 @@ Work in a ledger: `node skills/research/scripts/claims.mjs new "<question>"` cre
    Then write the verdict: the one answer the evidence supports, its confidence (high, medium, low), and what would
    change it.
 6. Run `node skills/research/scripts/claims.mjs check .cache/research/<slug>.md` and fix every ERROR.
-7. **Answer:** the verdict and its confidence first; then the key facts with source IDs (`[S1, S3]`); conflicts and
-   unknowns; Sources (ID, title, link, date, and how many were excluded and why); and last:
-   `Verified: <n> claims traced to <m> independent sources; <k> cut or marked not verified.`
+7. **Answer** in the answer format: the verdict and its confidence first; the key facts with numbered citations
+   (renumber the ledger's S-IDs as `[1]`, `[2]` in order of use); conflicts and unknowns only if there are any;
+   `Sources:` with one line per number; and last, with the excluded count if any:
+   `Verified: <n> claims traced to <m> independent sources; <k> cut or marked not verified; <e> excluded (<why>).`
 
 ## D. Did I make that up? (every situation)
 Before answering, read the draft sentence by sentence:
@@ -86,8 +115,10 @@ Record what was confirmed with the knowledge-capture skill: each fact with its l
 for anything that changes), the sources in `docs/knowledge/SOURCES.md`. A deliverable is next: `deliverable.md`.
 
 ## Done when
-- [ ] Every fact has its source in the answer: a link or a project file, or "nothing recorded in the project" (hook:
-      research-cited).
+- [ ] Every fact has a numbered citation, and `Sources:` has a `[n] <link or project file>` line for each number used,
+      or the answer says "nothing recorded in the project" (hook: research-cited).
+- [ ] The answer comes first, with no preamble or filler, answers everything asked and adds nothing unasked (judgment:
+      only a reader can tell what was asked and what is padding).
 - [ ] **C:** the ledger passes `claims.mjs check`, with at least three independent evidence sources or a
       `Sources limit:` line, and the answer ends with the Verified line (hooks: research-ledger, research-verified).
 - [ ] **D:** every number and cited file is traced (hook: answer-traced).
@@ -100,6 +131,7 @@ for anything that changes), the sources in `docs/knowledge/SOURCES.md`. A delive
 - Snippets and AI overviews treated as the page. Old pages for facts that change.
 - Scope mix-ups: another country, model year or version.
 - Stopping at the first answer that sounds right. Search for the opposite before deciding.
+- A bare list of links at the end with no numbers in the text: the reader can't tell which fact came from which page.
 
 The search tool part is inspired by "duckduckgo-search" in NousResearch/hermes-agent (MIT, see LICENSE). Details in
 [SOURCE.md](SOURCE.md). The rest is our own.

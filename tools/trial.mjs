@@ -114,8 +114,17 @@ for (const [name, s] of Object.entries(SAMPLES)) {
 
   // "does an upgrade keep my work, and a second upgrade change nothing?"
   write(dir, { 'docs/playbooks/my-own.md': '---\nname: my-own\nsummary: the project\'s own runbook\ntriggers: my own thing\nchecks: none - a sample runbook in the trial\n---\n# Playbook: my own\n## Steps\n1. Do it.\n## Done when\n- [ ] Done.\n' });
+  // an outdated core check is refreshed by the upgrade; one the project marked "custom" is kept as it is
+  const rqPath = path.join(dir, 'tools/hooks/requirements.json'), rq0 = JSON.parse(fs.readFileSync(rqPath, 'utf8'));
+  const cited = rq0.requirements.find(r => r.tag === 'research-cited'), rooted = rq0.requirements.find(r => r.tag === 'debug-root-cause');
+  if (cited) cited.require = { answerMatches: 'an old pattern' };
+  if (rooted) Object.assign(rooted, { custom: true, message: 'our own wording' });
+  fs.writeFileSync(rqPath, JSON.stringify(rq0, null, 2) + '\n');
   const mine = snapshot(dir);
   const u1 = starterRun(dir, '--upgrade', '--accept-findings');
+  const rq1 = JSON.parse(fs.readFileSync(rqPath, 'utf8')).requirements, starterRq = JSON.parse(fs.readFileSync(path.join(STARTER, 'tools/hooks/requirements.json'), 'utf8')).requirements;
+  if (cited) check(name, 'an upgrade refreshes an outdated core skill check', JSON.stringify(rq1.find(r => r.tag === 'research-cited')?.require) === JSON.stringify(starterRq.find(r => r.tag === 'research-cited')?.require));
+  if (rooted) check(name, 'an upgrade keeps a core check the project marked "custom"', rq1.find(r => r.tag === 'debug-root-cause')?.message === 'our own wording');
   check(name, 'an upgrade runs without an error', u1.status === 0, (u1.stderr || u1.stdout).slice(-400));
   const afterUp = snapshot(dir);
   check(name, "an upgrade keeps the project's own runbook", afterUp['docs/playbooks/my-own.md'] === mine['docs/playbooks/my-own.md']);
@@ -152,8 +161,13 @@ for (const [name, s] of Object.entries(SAMPLES)) {
 
 if (deep) {
   const dir = fs.readdirSync(WORK).map(n => path.join(WORK, n)).find(d => fs.existsSync(path.join(d, 'package.json')));
-  const t = node(['tools/hooks/selfcheck.mjs'], dir, 900000);
-  check('deep', "the engine's self-tests pass inside an adopted project", /ALL PASS/.test(t.stdout), t.stdout.split('\n').filter(l => /^FAIL/.test(l)).slice(0, 5).join(' | '));
+  // mid-setup, like a real project: SETUP-PROMPT.md still there, the fit checklist decided, autonomy on, a plan open.
+  // Lesson: the self-tests read the project's own checklist, plans and setup state instead of their sandbox.
+  const cfgP = path.join(dir, 'tools/hooks/config.json');
+  try { fs.writeFileSync(cfgP, JSON.stringify({ ...JSON.parse(fs.readFileSync(cfgP, 'utf8')), autonomy: 'auto' }, null, 2) + '\n'); } catch { }
+  write(dir, { 'docs/plans/2026-10-18-setup.md': '# Setup: plan\n- [x] interview\n- [ ] runbooks\n', 'tools/hooks/state/setup.json': '{"prompts":1}' });
+  const t = node(['tools/hooks/selfcheck.mjs'], dir, 1800000);
+  check('deep', "the engine's self-tests pass inside an adopted project mid-setup", fs.existsSync(path.join(dir, 'SETUP-PROMPT.md')) && /ALL PASS/.test(t.stdout), t.stdout.split('\n').filter(l => /^FAIL/.test(l)).slice(0, 5).join(' | '));
 }
 
 const bad = results.filter(r => !r.ok);
