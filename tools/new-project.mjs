@@ -102,7 +102,16 @@ const files = [];
 const today = localToday();
 // An existing project keeps its name: the one in its CLAUDE.md heading ("# <name>: START HERE").
 const ownHeading = (() => { try { return /^#\s+(.+?):\s*START HERE/m.exec(fs.readFileSync(path.join(dest, 'CLAUDE.md'), 'utf8'))?.[1].replace(/<!--[\s\S]*?-->/g, '').trim(); } catch { return ''; } })();
-const name = opt('--name') || (ownHeading && !ownHeading.includes('{{') ? ownHeading : '') || path.basename(dest);
+// Else the name the project already gives itself: its README's title, then its manifest. Lesson: an adopted project
+// called "Pipe Cleaner" in its README became "pipe" (the folder), a word that then matched code everywhere.
+const ownName = (() => {
+  const rd = p => { try { return fs.readFileSync(path.join(dest, p), 'utf8'); } catch { return ''; } };
+  const h1 = /^#\s+([^\n#<[]{2,60}?)\s*$/m.exec(rd('README.md'))?.[1].replace(/[*_`]/g, '').trim();
+  if (h1 && !/^(readme|about|introduction|overview)$/i.test(h1)) return h1;
+  return /^\s*name\s*=\s*["']([^"']+)["']/m.exec(rd('pyproject.toml'))?.[1] || /^\s*name\s*=\s*["']([^"']+)["']/m.exec(rd('Cargo.toml'))?.[1]
+    || (() => { try { return JSON.parse(rd('package.json')).name?.replace(/^@[^/]+\//, ''); } catch { return ''; } })() || '';
+})();
+const name = opt('--name') || (ownHeading && !ownHeading.includes('{{') ? ownHeading : '') || ownName || path.basename(dest);
 const fill = (text, json) => {
   const v = s => json ? JSON.stringify(s).slice(1, -1) : s;
   return text.replaceAll('{{PROJECT_NAME}}', v(name)).replaceAll('{{CREATED}}', today)

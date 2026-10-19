@@ -187,7 +187,9 @@ how it is released.
    freshness sweeps cover it too. Never move the user's notes to make them fit.
 9. `docs/STATUS.md` (Now / Next / Open questions), `docs/CHANGELOG.md` (a "set up" line).
 10. **Git**, if the folder is a repo or the user wants one: `git config core.hooksPath .githooks`, and confirm the git
-    identity is the user's own name and email.
+    identity is the user's own name and email. If wire said "kept your git hooks" (husky, lefthook, pre-commit or hooks
+    of the project's own), leave core.hooksPath alone: call `.githooks/pre-commit`, `commit-msg` and `pre-push` from the
+    project's hooks instead, so neither set is switched off.
 
 ## Phase 5: Verify everything is really there
 1. `node tools/hooks/selfcheck.mjs`: ALL PASS.

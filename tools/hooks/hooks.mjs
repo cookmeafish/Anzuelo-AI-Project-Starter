@@ -1537,17 +1537,19 @@ export function upgradeProblems(cfg = config()) {
 // ---------- survey: what is in the project (tools/survey.mjs, the fit checklist, the "later" notices) ----------
 // The project's own files, without the starter's files, dependencies and build output. Read-only.
 const SURVEY_SKIP = /^(\.git|node_modules|\.cache|\.claude|\.agents|\.gemini|\.codex|\.obsidian|\.starter|dist|build|out|target|bin|obj|venv|\.venv|__pycache__|coverage|packs|library)$/;
-export const SURVEY_STARTER = /^(AGENTS|CLAUDE|DIRECTORY|HOW-TO-USE|SETUP-PROMPT)\.md$|^(README|AGENTS|CLAUDE)\.starter\.md$|^skills\/|^tools\/hooks\/|^tools\/(audit|packs|skills|starter|new-project|writing-check|integrity-check|recall|survey|screenshot|fit|dedupe)\.mjs$|^tools\/starter\.local\.json$|^\.githooks\/|^docs\/(checks|playbooks|plans)\/|^docs\/(BRIEF|STATUS|CHANGELOG|DECISIONS|MENU|security|names\.json|foundation|lessons|fit-checklist|recommended-tools|glossary)(\.md)?$|^docs\/names\.json$/;
+export const SURVEY_STARTER = /^(AGENTS|CLAUDE|DIRECTORY|HOW-TO-USE|SETUP-PROMPT)\.md$|^(README|AGENTS|CLAUDE)\.starter\.md$|^skills\/|^tools\/hooks\/|^tools\/(audit|packs|skills|starter|new-project|writing-check|integrity-check|recall|survey|screenshot|fit|dedupe)\.mjs$|^tools\/starter\.local\.json$|^\.githooks\/|^docs\/(checks|playbooks|plans)\/|^docs\/(BRIEF|STATUS|CHANGELOG|DECISIONS|MENU|security|names\.json|foundation|lessons|fit-checklist|recommended-tools|glossary)(\.md)?$|^docs\/names\.json$|^docs\/(releases|specs)\/_TEMPLATE\.md$|^docs\/knowledge\/(README|SOURCES)\.md$|^(inbox|outputs|sources)\/README\.md$|^tools\/starter\/|^tools\/(packs-registry|starter\.local)\.json$|^docs\/feedback-inbox\//;
+// (the pack templates and the starter's own folders are not the project's notes. Lesson: a new project "had" 9 notes)
 export const SURVEY_KINDS = {
-  code: /\.(js|mjs|cjs|ts|tsx|jsx|py|rb|go|rs|java|kt|cs|cpp|c|h|swift|php|lua|gd|dart|scala|ex|exs)$/i,
+  code: /\.(js|mjs|cjs|ts|tsx|jsx|py|ipynb|rb|go|rs|java|kt|cs|cpp|c|h|swift|php|lua|gd|dart|scala|ex|exs|r|jl)$/i,
   visual: /\.(html?|css|scss|vue|svelte|jsx|tsx)$/i,
   data: /\.(json|csv|tsv|xlsx?|sqlite|db|parquet|xml|ya?ml)$/i,
   tabular: /\.(csv|tsv|xlsx?|sqlite|db|parquet)$/i,
   scripts: /\.(ps1|sh|bat|cmd)$/i,
   shell: /\.(sh|bash)$/i,
-  python: /\.py$/i,
+  python: /\.(py|ipynb)$/i,
   jsts: /\.(js|mjs|cjs|ts|tsx|jsx)$/i,
-  notes: /\.(md|mdx|txt|rst|org|docx?|pdf)$/i
+  // (a dependency list or licence is not a note. Lesson: requirements.txt counted as a document)
+  notes: /^(?!(.*\/)?(requirements[^/]*|constraints[^/]*|LICENSE|NOTICE|COPYING|CMakeLists|robots|third[_-]party[^/]*)\.txt$).*\.(md|mdx|txt|rst|org|docx?|pdf)$/i
 };
 export function projectSurvey({ git = true } = {}) {
   const files = [];
@@ -2180,6 +2182,11 @@ export function pretoolDecision(data, cfg = config()) {
       if (!asked) return `REQ: git-safety. "${destructive[0].trim()}" can destroy work and the user didn't ask for it in this request. Ask first.`;
       if (!fresh) return `REQ: git-safety. Before "${destructive[0].trim()}", back up every ref: mkdir -p ${cfg.backupDir} && git bundle create ${cfg.backupDir}/backup-$(date +%Y%m%d-%H%M%S).bundle --all`;
     }
+    // The git hooks are the last check for every agent: skipping or re-pointing them needs the user's own words.
+    // Lesson: a commit the pre-commit hook refused was retried with --no-verify.
+    const skipHooks = /\bgit\b[^;&|]*\b(commit|push|merge)\b[^;&|]*\s--no-verify\b|\bgit\b[^;&|]*\bcommit\b[^;&|]*\s-[a-zA-Z]*n[a-zA-Z]*\b|\bgit\s+-c\s+core\.hooksPath=|\bgit\s+config\b[^;&|]*\bcore\.hooksPath\s+(?!["']?\.githooks\b)\S|\bHUSKY=0\b/i.exec(cmd);
+    if (skipHooks && !/\b(no-?verify|skip (the )?(git )?hooks|bypass (the )?hooks|without (the )?hooks|hooks ?path|husky)\b/i.test(req()))
+      return `REQ: git-safety. "${skipHooks[0].trim().slice(0, 80)}" skips or re-points the git hooks (AI attribution, secrets and .gitignore checks). Fix what the hook reported instead; do this only when the user asks for it in their own words.`;
     const pushTo = /\bgit\b[^;&|]*\bpush\b([^;&|]*)/i.exec(cmd);
     if (pushTo) {
       const branchArg = cfg.protectedBranches.find(b => re(`(^|[\\s:/])${esc(b)}(\\s|$)`).test(pushTo[1]));

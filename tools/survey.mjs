@@ -8,7 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { ROOT, usageOf, projectSurvey } from './hooks/hooks.mjs';
+import { ROOT, usageOf, projectSurvey, SURVEY_KINDS } from './hooks/hooks.mjs';
 
 if (process.argv.includes('--help')) { console.log(usageOf(import.meta.url)); process.exit(0); }
 const sv = projectSurvey();
@@ -17,29 +17,44 @@ const exts = {};
 for (const f of files) { const x = (path.extname(f.p) || '(none)').toLowerCase(); exts[x] = (exts[x] || 0) + 1; }
 const heading = p => { try { return (/^#\s+(.+)$/m.exec(fs.readFileSync(path.join(ROOT, p), 'utf8').slice(0, 4000)) || [, ''])[1].trim(); } catch { return ''; } };
 // documents worth reading first: instructions for agents, readmes, then the largest notes
-const instructions = files.filter(f => /(^|\/)(\.cursorrules|\.windsurfrules|copilot-instructions\.md|GEMINI\.md|CONVENTIONS\.md)$|(^|\/)archive\/.*(AGENTS|CLAUDE)/i.test(f.p)).map(f => f.p);
+// (Lesson: .cursor/rules, .clinerules and .windsurf rules were missed, so their conventions were lost on adoption)
+const instructions = files.filter(f => /(^|\/)(\.cursorrules|\.windsurfrules|\.clinerules|copilot-instructions\.md|GEMINI\.md|CONVENTIONS\.md)$|(^|\/)(\.cursor|\.windsurf|\.clinerules|\.roo|\.github\/instructions)\/.+\.(md|mdc|txt)$|(^|\/)archive\/.*(AGENTS|CLAUDE)/i.test(f.p)).map(f => f.p);
 const readmes = files.filter(f => /(^|\/)readme(\.[a-z]+)?$/i.test(f.p)).map(f => f.p);
-const notes = files.filter(f => /\.(md|mdx|txt)$/i.test(f.p) && !readmes.includes(f.p)).sort((a, b) => b.size - a.size).slice(0, 12).map(f => ({ p: f.p, title: heading(f.p) }));
+const notes = files.filter(f => /\.(md|mdx|txt)$/i.test(f.p) && SURVEY_KINDS.notes.test(f.p) && !readmes.includes(f.p)).sort((a, b) => b.size - a.size).slice(0, 12).map(f => ({ p: f.p, title: heading(f.p) }));
 const scripts = {};
 for (const m of manifests.filter(p => p.endsWith('package.json'))) { try { Object.assign(scripts, JSON.parse(fs.readFileSync(path.join(ROOT, m), 'utf8')).scripts || {}); } catch { } }
 const git = spawnSync('git', ['log', '-n', '1', '--format=%cs'], { cwd: ROOT, encoding: 'utf8' });
+// (a repository with no commits yet is still a repository. Lesson: "git init" then the survey said "not a git repository")
+const isRepo = !!sv.git || fs.existsSync(path.join(ROOT, '.git'));
 const n = { code: sv.n.code, visual: sv.n.visual, data: sv.n.data, scripts: sv.n.scripts, notes: sv.n.notes, all: sv.n.all };
 // suggested answers: a starting point the agent checks against what it reads, never a verdict
 const software = n.code >= 5 || manifests.length > 0;
+// screens that are not web files: Flutter, XAML, QML, Godot scenes, Android layouts, iOS storyboards
+const readOf = p => { try { return fs.readFileSync(path.join(ROOT, p), 'utf8'); } catch { return ''; } };
+const appUi = files.filter(f => /\.(xaml|axaml|qml|tscn|storyboard|xib)$|(^|\/)res\/layout\/[^/]+\.xml$/i.test(f.p)).length
+  + (manifests.some(m => /pubspec\.yaml$/.test(m) && /\bflutter\s*:/.test(readOf(m))) ? files.filter(f => /\.dart$/i.test(f.p)).length : 0);
+const has = rx => manifests.some(m => rx.test(m)), testsPy = files.some(f => /(^|\/)(tests?\/|test_[^/]+\.py$|[^/]+_test\.py$)/.test(f.p));
+const toolCmds = [
+  ...(has(/(pyproject\.toml|requirements[^/]*\.txt)$/) && testsPy ? ['pytest'] : []),
+  ...(has(/Cargo\.toml$/) ? ['cargo build', 'cargo test'] : []),
+  ...(has(/go\.mod$/) ? ['go build ./...', 'go test ./...'] : []),
+  ...(has(/pubspec\.yaml$/) ? (manifests.some(m => /pubspec\.yaml$/.test(m) && /\bflutter\s*:/.test(readOf(m))) ? ['flutter analyze', 'flutter test'] : ['dart analyze', 'dart test']) : []),
+  ...(has(/\.(csproj|sln)$/) ? ['dotnet build', 'dotnet test'] : [])
+];
 const knowledge = n.notes + n.data >= Math.max(5, n.code);
 const suggest = {
   kind: software && knowledge ? 'both' : software ? 'software' : 'knowledge',
-  visual: n.visual > 0 ? `yes (${n.visual} web or UI files)` : 'no',
-  packs: [...(knowledge || !software ? ['knowledge'] : []), ...(software ? ['app'] : []), ...(n.visual > 0 ? ['gui'] : [])],
-  commands: Object.keys(scripts).filter(k => /^(test|build|lint|start|dev)$/.test(k)).map(k => `npm run ${k}`)
+  visual: n.visual + appUi > 0 ? `yes (${n.visual + appUi} web, app or game screen files)` : 'no',
+  packs: [...(knowledge || !software ? ['knowledge'] : []), ...(software ? ['app'] : []), ...(n.visual + appUi > 0 ? ['gui'] : [])],
+  commands: [...Object.keys(scripts).filter(k => /^(test|build|lint|start|dev)$/.test(k)).map(k => `npm run ${k}`), ...toolCmds]
 };
 const out = { files: n, extensions: Object.entries(exts).sort((a, b) => b[1] - a[1]).slice(0, 10), readmes, instructions, notes, manifests, scripts,
-  git: git.status === 0 ? { last: git.stdout.trim(), commits: sv.git?.commits || 0 } : null, big, suggest };
+  git: isRepo ? { last: git.status === 0 ? git.stdout.trim() : null, commits: sv.git?.commits || 0 } : null, big, suggest };
 
 if (process.argv.includes('--json')) { console.log(JSON.stringify(out, null, 2)); process.exit(0); }
 console.log(`Project survey (${n.all} files of its own: ${n.code} code, ${n.visual} web/UI, ${n.notes} notes or documents, ${n.data} data, ${n.scripts} scripts)`);
 console.log(`Most common file types: ${out.extensions.map(([x, c]) => `${x} ${c}`).join(', ') || 'none'}`);
-console.log(`Git: ${out.git ? `${out.git.commits} commits, last on ${out.git.last}` : 'not a git repository'}`);
+console.log(`Git: ${out.git ? (out.git.last ? `${out.git.commits} commits, last on ${out.git.last}` : 'a repository with no commits yet') : 'not a git repository'}`);
 if (readmes.length) console.log(`Read first: ${readmes.join(', ')}`);
 if (instructions.length) console.log(`Earlier AI instructions (keep what still applies): ${instructions.join(', ')}`);
 if (notes.length) console.log('Main notes and documents:\n' + notes.map(x => `  ${x.p}${x.title ? `: ${x.title}` : ''}`).join('\n'));
