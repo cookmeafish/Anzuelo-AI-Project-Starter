@@ -392,7 +392,7 @@ const STOP = [
     answer: 'Skill: commit-archaeologist. Bottom line: it keeps the old return type for empty input. Confidence: high. Origin: 9f3e2d1 (2026-01-01); kept by c0ffee42.', expect: { block: false, not: ['history-hashes'] } },
   { name: 'data-analysis: numbers with no method: blocked', prompt: 'analyze this data in sales.csv', tools: [sk('data-analysis')],
     answer: 'Skill: data-analysis. Average order is 42.10 across 1,200 rows.', expect: { block: true, tags: ['data-computed'] } },
-  { name: 'data-analysis: numbers with how they were computed: passes', prompt: 'analyze this data in sales.csv', tools: [sk('data-analysis')],
+  { name: 'data-analysis: numbers with how they were computed: passes', prompt: 'analyze this data in sales.csv', tools: [sk('data-analysis'), bash('node skills/data-analysis/scripts/profile.mjs sales.csv', 'rows 1200\namount: mean 42.10')],
     answer: 'Skill: data-analysis. Average order is 42.10.\nHow it was computed: profile.mjs on sales.csv, 1,200 rows.', expect: { block: false } },
   { name: 'legal-review: no disclaimer: blocked', prompt: 'review this nda for me', tools: [sk('legal-review')],
     answer: 'Skill: legal-review. The NDA is fine to sign.', expect: { block: true, tags: ['legal-disclaimer'] } },

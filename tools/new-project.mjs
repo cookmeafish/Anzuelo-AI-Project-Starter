@@ -179,6 +179,8 @@ function put(rel, { overwrite = false, as = rel } = {}) {
     // and its "## Project lessons" section (where skill-learn writes), and every replaced file is backed up first.
     const mine = fs.readFileSync(to, 'utf8');
     if (/^(skills\/[^/]+\/SKILL\.md|docs\/playbooks\/[^_/][^/]*\.md)$/.test(as)) text = mergeSkill(fs.readFileSync(from, 'utf8'), mine, rel);
+    // the merge gave back the project's file as it is: nothing to update (Lesson: a repeat upgrade listed these as "updated")
+    if (text != null && text === mine) { unchanged++; return false; }
     const backup = path.join(dest, '.cache', 'upgrade-backup', stamp, as + '.orig'); // .orig: never loaded or run as code
     if (!dry) { fs.mkdirSync(path.dirname(backup), { recursive: true }); fs.writeFileSync(backup, mine); }
     note = text && text !== fs.readFileSync(from, 'utf8') ? ' (kept the project\'s triggers and lessons)' : '';
@@ -470,6 +472,8 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   for (const tag of keptChecks) items.push(`check: ${tag}, kept your edited version; the starter's newer one differs (to take it, replace the entry with the one in tools/hooks/engine-checks.json)`);
   if (legacyScenarios.length) items.push(`scenarios: ${legacyScenarios.length} of this project's own test scenarios were in the retired test-hooks.mjs (${legacyScenarios.slice(0, 4).join('; ').replace(/: /g, ' - ')}${legacyScenarios.length > 4 ? '; ...' : ''}); move them into tools/hooks/project-scenarios.mjs from tools/hooks/legacy-scenarios.txt, then delete that file`);
   for (const [file, n] of movedLessons) items.push(`lessons: ${file} became an engine file, so ${n} line(s) this project added moved to its "## Project lessons" section (check they still read right there)`);
+  // a repeat upgrade that changed nothing has nothing to review (Lesson: it appended a review holding only "self-tests")
+  if (!items.length && !log.some(l => /^(updated|created|removed|renamed)\b/.test(l))) { console.log('\nUPGRADE REVIEW: nothing changed, so there is nothing new to decide.'); process.exit(0); }
   items.push('self-tests: node tools/hooks/selfcheck.mjs passes here');
   const dp = path.join(dest, 'docs', 'DECISIONS.md');
   fs.mkdirSync(path.dirname(dp), { recursive: true });

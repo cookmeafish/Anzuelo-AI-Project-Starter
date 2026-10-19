@@ -377,7 +377,8 @@ export function route(prompt, pbs) {
       if (common && !/\s/.test(t.trim())) continue;
       const exact = re(`(^|[^a-z0-9])${esc(t)}($|[^a-z0-9])`).test(low);
       if (common ? !exact : !exact && !(k.length >= 2 && k.every(w => words.has(w)))) continue;
-      if (common) { score += 1; hits.push(t); strong = true; continue; }
+      // ...and only backs up a real match: "can you fix it here" alone is no bug report
+      if (common) { score += 0.5; hits.push(t); continue; }
       score += exact ? 1 + t.split(' ').length / 10 : 0.5 + k.length / 10; hits.push(t);
       if (k.length >= 2 || !/\s/.test(t.trim())) strong = true; else k.forEach(w => weak.add(w));
     }
@@ -1026,6 +1027,9 @@ export function syncSkills(cfg = config()) {
     if (old && !/^generated:\s*true/m.test(old)) continue; // a hand-written skill already uses this name
     if (writeIfChanged(p, generatedSkill(pb))) changed.push(p);
   }
+  // a generated skill whose runbook is gone, or now names a skill of its own, is removed (it would route twice)
+  const own = new Set(playbooks().filter(pb => pb.skillName && !pb.fm.skill).map(pb => pb.skillName));
+  for (const n of list(cfg.skillsDir)) if (!own.has(n) && /^generated:\s*true/m.test(read(abs(`${cfg.skillsDir}/${n}/SKILL.md`)))) { fs.rmSync(abs(`${cfg.skillsDir}/${n}`), { recursive: true, force: true }); changed.push(`${cfg.skillsDir}/${n}/SKILL.md`); }
   // mirrors: exact copies where an agent discovers skills natively; each mirrored folder carries a marker
   const names = list(cfg.skillsDir).filter(n => exists(`${cfg.skillsDir}/${n}/SKILL.md`));
   for (const m of cfg.skillMirrors) {
@@ -1973,7 +1977,8 @@ export function dueRoutines(text, now = today()) {
       else if (every === 'weekday') { next = add(1); while ([0, 6].includes(next.getDay())) next = new Date(next.getFullYear(), next.getMonth(), next.getDate() + 1); }
       else if (DAYS.includes(every)) { next = add(1); while (next.getDay() !== DAYS.indexOf(every)) next = new Date(next.getFullYear(), next.getMonth(), next.getDate() + 1); }
       else if ((m = /^(\d+) days?$/.exec(every))) next = add(Number(m[1]));
-      else if ((m = /^month day (\d+)$/.exec(every))) { next = new Date(l0.getFullYear(), l0.getMonth(), Number(m[1])); if (next <= l0) next = new Date(l0.getFullYear(), l0.getMonth() + 1, Number(m[1])); }
+      // (day 31 in a 30-day month is its last day, never the 1st of the next)
+      else if ((m = /^month day (\d+)$/.exec(every))) { const on = (y, mo) => new Date(y, mo, Math.min(Number(m[1]), new Date(y, mo + 1, 0).getDate())); next = on(l0.getFullYear(), l0.getMonth()); if (next <= l0) next = on(l0.getFullYear(), l0.getMonth() + 1); }
       else continue;
     }
     if (next <= t) out.push({ name, every, runbook, last });
@@ -2337,11 +2342,6 @@ export function pretoolDecision(data, cfg = config()) {
       const loggedToday = new RegExp(`^\\|\\s*${esc(today())}\\s*\\|`, 'm').test(read(abs('docs/security.md')));
       if (!reviewed && !loggedToday) return `REQ: publish-gate. "${pub[0].trim()}" publishes or deploys. Run the security-review skill first (skills/security-review/SKILL.md) and log it in docs/security.md, then publish (hard rule 15). The user's OK to publish is needed too (rule 6).`;
     }
-    // REQ: outward-gate (commands). Rule 6: sending, posting, pushing and opening issues or PRs act outside the project,
-    // so they need the user's OK in this request. Lesson: a mail send, an API POST and "gh issue create" all ran unasked.
-    const out = outwardCommand(cmd);
-    if (out && !isSuspended('check:outward-gate') && !re(cfg.outwardOk).test(req()))
-      return `REQ: outward-gate. "${out.trim().slice(0, 80)}" acts outside the project (${outwardWhat(out)}). Rule 6: that needs the user's OK in this request. Draft it instead and ask, or run it once they say so.`;
     // REQ: no-secrets (reading and force-adding). Printing a secrets file puts it in the conversation; "git add -f" puts
     // an ignored one in the history. Lesson: "cat .env" and "git add -f .env" both ran without a word.
     const readsSecret = new RegExp(`(^|[\\s;&|(])(cat|type|Get-Content|gc|less|more|head|tail|bat|nl|strings|xxd|od|findstr|sed\\s+-n|awk)\\b[^;&|\\n]*${SECRET_IN_CMD.source}`, 'i');
@@ -2381,6 +2381,12 @@ export function pretoolDecision(data, cfg = config()) {
       const bad = aiAttributedCommits(cfg);
       if (bad.length) return `REQ: no-ai-attribution. Unpushed commits credit an AI agent: ${bad.slice(0, 5).join(', ')}. Reword them (message and author) before pushing. Ask the user first if rewriting history affects anyone else.`;
     }
+    // REQ: outward-gate (commands). Rule 6: sending, posting, pushing and opening issues or PRs act outside the project,
+    // so they need the user's OK in this request. Lesson: a mail send, an API POST and "gh issue create" all ran unasked.
+    // (after the attribution check, so a PR that credits an AI is told that first: an OK would not make it right)
+    const out = outwardCommand(cmd);
+    if (out && !isSuspended('check:outward-gate') && !re(cfg.outwardOk).test(req()))
+      return `REQ: outward-gate. "${out.trim().slice(0, 80)}" acts outside the project (${outwardWhat(out)}). Rule 6: that needs the user's OK in this request. Draft it instead and ask, or run it once they say so.`;
     // REQ: setup-interview. During setup nothing is installed before the user has answered, and the starter's
     // leftovers go only once everything that fits is in (REQ: setup-complete).
     if (exists('SETUP-PROMPT.md') && !exists('.starter-template')) {
@@ -2506,7 +2512,10 @@ export function coreChecks(x, cfg) {
   const skillDirs = [...new Set(x.changed.map(p => new RegExp(`^${esc(cfg.skillsDir)}/([^/]+)/`).exec(p)?.[1]).filter(Boolean))].map(n => `${cfg.skillsDir}/${n}`);
 
   // REQ: runbook-read. A routed task follows its runbook; Lesson: rules nobody re-reads are rules that get skipped.
-  if (x.workTurn && x.routed.length && !x.usedPb.length && !pbChanged.length)
+  // A skill the routed runbook itself sends the work to (bugfix: "with the debug skill") counts as following it.
+  // Lesson: "debug the failing import" routed to bugfix, and following the debug skill bugfix names was flagged.
+  const viaSkill = x.routed.some(pb => x.usedSkills.some(s => read(abs(pb.file)).includes(s.file)));
+  if (x.workTurn && x.routed.length && !x.usedPb.length && !pbChanged.length && !viaSkill)
     add('runbook-read', `This request matched ${x.routed.map(p => p.file).join(' / ')} but no runbook was opened this turn. ` +
       'Read it (or use its skill), check the work against every step, fix what was skipped, then finish.');
   // REQ: skill-read. A skill the request matched is opened and followed this turn, the same as a runbook.
@@ -2675,7 +2684,10 @@ export function coreChecks(x, cfg) {
       '`node tools/hooks/selfcheck.mjs --tags <tag>` passing, and a row for the tag in docs/checks/rule-enforcement.md.');
   }
   // REQ: rule-request. "Always/never/remember/from now on" and complaints become enforced rules, not just promises.
-  const complaint = x.prompt && re(cfg.complaint).test(x.prompt);
+  // A complaint about a miss is also settled by writing the lesson into the skill or runbook that missed it (skill-learn),
+  // since that is where the next run will read it. An explicit "always/never" still becomes a rule.
+  const lessonWritten = x.changed.some(p => x.usedSkills.some(s => p.startsWith(s.file.replace(/SKILL\.md$/, ''))) || x.usedPb.some(pb => p === pb.file));
+  const complaint = x.prompt && re(cfg.complaint).test(x.prompt) && !lessonWritten;
   if (x.prompt && (re(cfg.ruleRequest).test(x.prompt) || complaint)) {
     const need = [];
     // (the principle in the agent's own words, never the user's: hard rule 14)
