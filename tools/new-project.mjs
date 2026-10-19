@@ -11,7 +11,7 @@
 //     skill, finding and slowdown, each to adopt or decline with the user. The hooks hold work until it is decided.
 //   node tools/new-project.mjs "<folder>" --add-pack <name>   make a pack available in a project (then: packs.mjs install)
 //   node tools/new-project.mjs "<folder>" --add-skill <name>  copy a skill from the starter's library into a project's skills/
-//   add --dry-run to see what would happen; --dev allows a development copy (.starter-dev) for throwaway test projects
+//   add --dry-run to see what would happen (a summary; --verbose lists every file); --dev allows a development copy (.starter-dev) for throwaway test projects
 // The AI installs packs during setup (SETUP-PROMPT.md): it asks what the project is about and picks only what fits.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -29,7 +29,7 @@ const ENGINE = [
   '.githooks/commit-msg', '.githooks/pre-commit', '.githooks/pre-push',
   'docs/checks/session-checklist.md', 'docs/checks/finish-checklist.md', 'docs/checks/runbook-standards.md',
   'docs/checks/writing-standards.md', 'docs/checks/layout-standards.md', 'docs/recommended-tools.md', 'docs/checks/better-or-worse.md',
-  'docs/playbooks/_TEMPLATE.md', 'docs/playbooks/_fallback.md', 'HOW-TO-USE.md', 'tools/skills.mjs', 'tools/starter.mjs', 'tools/recall.mjs', 'tools/hooks/wire.mjs', 'tools/survey.mjs'
+  'docs/playbooks/_TEMPLATE.md', 'docs/playbooks/_fallback.md', 'HOW-TO-USE.md', 'tools/skills.mjs', 'tools/starter.mjs', 'tools/recall.mjs', 'tools/hooks/wire.mjs', 'tools/survey.mjs', 'tools/fit.mjs'
 ];
 // Added on upgrade only when missing: the project may have tuned them.
 const ENGINE_IF_MISSING = ['docs/playbooks/plan.md', 'docs/plans/README.md', 'docs/security.md', 'docs/names.json', 'docs/glossary.md'];
@@ -47,7 +47,7 @@ for (const s of CORE_SKILLS) (function walk(d) {
   for (const n of fs.readdirSync(at)) { const p = `${d}/${n}`; fs.statSync(path.join(STARTER, p)).isDirectory() ? walk(p) : ENGINE.push(p); }
 })(`skills/${s}`);
 // Never copied into a project: the starter's own files, personal or machine state, and generated output.
-const NEVER = new Set(['.git', 'node_modules', '.cache', 'state', '.starter-template', '.starter-dev', 'trial.mjs', '.private-terms', 'New Project.bat', 'settings.local.json', '.codex', 'starter.local.json', '.starter', '.obsidian']);
+const NEVER = new Set(['.git', 'node_modules', '.cache', 'state', '.starter-template', '.starter-dev', 'trial.mjs', '.private-terms', 'New Project.bat', 'settings.local.json', '.codex', 'starter.local.json', '.starter', '.obsidian', 'feedback-inbox', 'starter-feedback.md', 'fit-checklist.md']);
 const TEXT = /\.(md|mjs|js|json|txt)$/;
 
 const args = process.argv.slice(2);
@@ -63,7 +63,7 @@ const tracked = pattern => fs.existsSync(path.join(dest, '.git')) &&
   !!(spawnSync('git', ['ls-files', '-ci', `--exclude=${pattern}`], { cwd: dest, encoding: 'utf8' }).stdout || '').trim();
 // A development copy (marked by .starter-dev, ignored by git) never feeds real projects: half-finished changes would
 // reach them through every upgrade and every pack or skill they add. Projects use a stable copy (a clean clone).
-if (fs.existsSync(path.join(STARTER, '.starter-dev')) && !flag('--dev') && !process.env.KS_ALLOW_DEV) {
+if (fs.existsSync(path.join(STARTER, '.starter-dev')) && !flag('--dev') && !(process.env.STARTER_ALLOW_DEV ?? process.env.KS_ALLOW_DEV)) {
   console.error(`${STARTER} is a development copy of the starter (it has a .starter-dev file).
 Use a stable copy for real projects: git clone <the starter's repository> into its own folder and run its tools/new-project.mjs.
 To test this copy on a throwaway project, add --dev.`);
@@ -111,6 +111,22 @@ function probe() {
   const b = spawnSync(process.execPath, [path.join(dest, 'tools', 'hooks', 'hooks.mjs'), 'bench'], { cwd: dest, encoding: 'utf8', timeout: 120000, stdio: ['ignore', 'pipe', 'pipe'] });
   return { failed: rows.filter(r => r[1] === 'FAIL').map(r => r[2].trim()), swept: rows.map(r => r[2].trim()),
     speed: Object.fromEntries([...(b.stdout || '').matchAll(/\b(prompt|pretool|stop) (\d+) ms/g)].map(m => [m[1], +m[2]])) };
+}
+// A dry run prints a summary: how many files it would create or update per folder, every file that collides with one
+// already there, and the other steps. --verbose prints every line. Lesson: a dry run printed hundreds of file lines and
+// buried the few collisions that mattered.
+function printLog() {
+  if (!dry || flag('--verbose')) { console.log(log.join('\n')); return; }
+  const counts = {}, kept = [], other = [];
+  for (const l of log) {
+    const m = /^(created|updated)\s+(\S+)/.exec(l), k = /^kept\s+(\S+) \(exists\)/.exec(l);
+    if (m) { const top = m[2].includes('/') ? m[2].split('/')[0] + '/' : '(root)'; const c = counts[m[1]] ||= {}; c[top] = (c[top] || 0) + 1; }
+    else if (k) kept.push(k[1]);
+    else other.push(l);
+  }
+  const line = (verb, c) => { const n = Object.values(c || {}).reduce((a, b) => a + b, 0); return n ? `would ${verb} ${n} file(s): ${Object.entries(c).sort((a, b) => b[1] - a[1]).map(([d, x]) => `${d} ${x}`).join(', ')}` : ''; };
+  console.log([`Dry run summary (add --verbose for every file):`, line('create', counts.created), line('update', counts.updated),
+    kept.length ? `would collide with ${kept.length} existing file(s), kept as they are: ${kept.join(', ')}` : 'collisions: none', ...other].filter(Boolean).join('\n'));
 }
 function put(rel, { overwrite = false, as = rel } = {}) {
   const to = path.join(dest, as);
@@ -239,7 +255,7 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
     fs.rmSync(at, { force: true });
   }
   log.push(...wire(dest, { dry })); // every agent's wiring, the git hooks and Obsidian (tools/hooks/wire.mjs)
-  console.log(log.join('\n'));
+  printLog();
   console.log(`\n${dry ? 'Dry run, nothing written: this is what an upgrade of' : 'Upgraded the engine in'} ${dest}${dry ? ' would change' : ''}. The project's own content (AGENTS.md / CLAUDE.md, requirements.json, config.json, runbooks, knowledge, code) was not touched. ${unchanged} engine file(s) were already current.${backedUp ? ` ${backedUp} replaced file(s) are backed up in .cache/upgrade-backup/${stamp}/.` : ''}`);
   // regenerate the project's skills, mirrors and DIRECTORY.md with its new engine, so nothing is left stale
   if (!dry) { const r = spawnSync(process.execPath, [path.join(dest, 'tools', 'hooks', 'hooks.mjs'), 'sync'], { cwd: dest, encoding: 'utf8' }); console.log((r.stdout || r.stderr || '').trim()); }
@@ -263,12 +279,17 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   const titles = t => [...t.matchAll(/^\d+\. \*\*(.+?)\*\*/gm)].map(m => m[1].replace(/[.:]+$/, ''));
   const mineRules = fs.existsSync(path.join(dest, 'CLAUDE.md')) ? fs.readFileSync(path.join(dest, 'CLAUDE.md'), 'utf8') : '';
   for (const t of titles(fs.readFileSync(path.join(STARTER, 'CLAUDE.md'), 'utf8'))) if (!mineRules.includes(t) && !decided.includes(`- rule: ${t}:`)) items.push(`rule: ${t}`);
+  // the fit checklist gets a row for every new candidate (pack, library skill, tool, feature), decided by the AI
+  const fitNew = spawnSync(process.execPath, [path.join(dest, 'tools', 'fit.mjs'), '--count-new'], { cwd: dest, encoding: 'utf8' });
+  const fresh = Number((fitNew.stdout || '').trim()) || 0;
+  if (fitNew.status !== 0) console.log(`skipped  the fit checklist: ${(fitNew.stderr || '').split(/\r?\n/)[0]}`);
+  else if (fresh) items.push(`fit: ${fresh} new candidates`);
   // packs and library skills that fit the project's setup answers and were never enabled or declined
   const fit = spawnSync(process.execPath, ['--input-type=module', '-e', `import { fitGaps } from ${JSON.stringify(pathToFileURL(path.join(dest, 'tools', 'hooks', 'hooks.mjs')).href)}; console.log(JSON.stringify(fitGaps()));`], { cwd: dest, encoding: 'utf8' });
   try { items.push(...JSON.parse(fit.stdout)); } catch { log.push(`skipped  the fit check: ${(fit.stderr || '').split('\n')[0]}`); }
   // the project's own runbooks whose job an engine skill now does: merge what is special about them, then retire them
   for (const [rb, into] of Object.entries(MERGED_RUNBOOKS)) if (fs.existsSync(path.join(dest, 'docs', 'playbooks', `${rb}.md`)) && !decided.includes(`- merge: docs/playbooks/${rb}.md`)) items.push(`merge: docs/playbooks/${rb}.md into the ${into} skill`);
-  for (const s of after.failed.filter(s => !before.failed.includes(s))) items.push(`check: ${s.replace(/: /g, ', ')}`);
+  for (const s of after.failed.filter(s => !before.failed.includes(s) && !(fresh && /fit checklist/.test(s)))) items.push(`check: ${s.replace(/: /g, ', ')}`);
   for (const [ev, ms] of Object.entries(after.speed)) if (before.speed[ev] && ms > before.speed[ev] * 1.5 && ms - before.speed[ev] > 100) items.push(`speed: the ${ev} hook went from ${before.speed[ev]} to ${ms} ms`);
   items.push('self-tests: node tools/hooks/selfcheck.mjs passes here');
   const dp = path.join(dest, 'docs', 'DECISIONS.md');
@@ -363,7 +384,7 @@ if (flag('--git') && !dry && !fs.existsSync(path.join(dest, '.git'))) {
 }
 // every agent's wiring, the git hooks, Obsidian, and the generated files for this project (not the starter's)
 log.push(...wire(dest, { dry }));
-console.log(log.join('\n'));
+printLog();
 console.log(`\n${existing.length ? 'Added the starter to' : 'Created'} ${dest}${dry ? ' (dry run: nothing written)' : ''}.`);
 if (existing.length && hadInstructions) console.log('The folder already had CLAUDE.md / AGENTS.md: the starter versions are *.starter.md, and setup merges them (your rules are kept).');
 console.log('Next: open the folder with your AI agent and say "set up this project". It reads SETUP-PROMPT.md and does the rest.');

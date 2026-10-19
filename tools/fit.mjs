@@ -1,0 +1,125 @@
+#!/usr/bin/env node
+// The fit checklist: does this project need each pack, library skill, recommended tool and optional feature? The AI
+// fills it from the survey, the brief and the code, so the user doesn't go through it item by item. Zero dependencies.
+//   node tools/fit.mjs                  create or refresh docs/fit-checklist.md: new candidates as "?", decisions kept,
+//                                       items that no longer exist removed
+//   node tools/fit.mjs check            FIT: PASS or FIT: FAIL with each problem (exit 1 on FAIL)
+//   node tools/fit.mjs decide "<item>" add|skip|"later - when: <condition>" "<reason>"
+//                                       record one decision (add --kind pack|skill|tool|feature when a name is shared)
+//   node tools/fit.mjs decide --file <decisions.json>
+//                                       record many: [{ "item", "kind"?, "decision", "reason", "signal"? }]
+//   node tools/fit.mjs summary          the short line for the user: "Added: ... Skipped: ... (why). Later: ... (when)."
+//   node tools/fit.mjs --json           every row with what it is, whether it is in the project, and the survey's signals
+// Rules for each row (docs/checks/better-or-worse.md): add only what makes the project better, and it must really be
+// in the project; skip with a reason that answers any signal the survey found; later with "when: <condition>".
+import fs from 'node:fs';
+import path from 'node:path';
+import { ROOT, read, abs, config, usageOf, FIT_FILE, fitRows, fitCandidates, fitSignals, fitProblems, fitDecision, fitWhenOf, projectSurvey, flushEngineWrites } from './hooks/hooks.mjs';
+
+const args = process.argv.slice(2);
+const VALUED = ['--kind', '--file'];
+const pos = args.filter((a, i) => !a.startsWith('--') && !VALUED.includes(args[i - 1]));
+const cmd = args.includes('--json') ? 'json' : pos[0] || 'refresh';
+const opt = f => { const i = args.indexOf(f); return i >= 0 ? args[i + 1] : undefined; };
+if (args.includes('--help')) { console.log(usageOf(import.meta.url)); process.exit(0); }
+const cfg = config();
+const cell = s => String(s ?? '').replace(/\|/g, '/').replace(/\s+/g, ' ').trim();
+const key = (kind, item) => `${kind}:${String(item).toLowerCase()}`;
+
+const HEADER = `# Fit checklist
+
+<!-- Kept by node tools/fit.mjs; checked by node tools/fit.mjs check (setup, upgrades and the audit wait for FIT: PASS).
+The AI fills it from the survey (node tools/survey.mjs), docs/BRIEF.md and the code, not the user. One row per
+candidate. Decision: add, skip, or "later - when: <condition>" (the hooks watch conditions about file or commit counts).
+Reason: the concrete gain or cost for THIS project (docs/checks/better-or-worse.md; "Worth it: <gain> / <cost>" fits),
+at least 8 words. "add" must be true in the project. A "skip" of something the survey found evidence for must say why
+that evidence doesn't make it worth it. Signal lines starting with "survey:" are refreshed; write your own to keep it.
+Only choices that cost money, touch privacy or act outside the project go to the user, as one question with choices. -->
+`;
+
+function build(sv) {
+  const old = fitRows(read(abs(FIT_FILE)));
+  const byKey = new Map(old.map(r => [key(r.kind, r.item), r]));
+  const { candidates, known } = fitCandidates(cfg);
+  const signals = fitSignals(sv);
+  const rows = [], added = [], kept = new Set();
+  for (const c of candidates) {
+    const k = key(c.kind, c.item), was = byKey.get(k);
+    const auto = `survey: ${(signals[k] || []).map(s => s.label).join('; ') || 'no direct signal'}`;
+    if (was) kept.add(k); else added.push(c.item);
+    const signal = was && was.signal && !/^survey:/i.test(was.signal) && was.signal !== '?' ? was.signal : auto;
+    rows.push({ item: c.item, kind: c.kind, signal, decision: was ? was.decision : '?', reason: was ? was.reason : '' });
+  }
+  // packs and skills the starter can't list right now (it was removed): their decided rows stay
+  for (const r of old) if (!kept.has(key(r.kind, r.item)) && ['pack', 'skill'].includes(r.kind) && !known[r.kind]) { rows.push(r); kept.add(key(r.kind, r.item)); }
+  const removed = old.filter(r => !kept.has(key(r.kind, r.item))).map(r => r.item);
+  const text = HEADER + '\n| Item | Kind | Signal | Decision | Reason |\n|---|---|---|---|---|\n' + rows.map(r => `| ${cell(r.item)} | ${r.kind} | ${cell(r.signal)} | ${cell(r.decision) || '?'} | ${cell(r.reason)} |`).join('\n') + '\n';
+  return { rows, added, removed, text };
+}
+function save(text, engine = true) {
+  if (read(abs(FIT_FILE)) === text) return false;
+  fs.mkdirSync(path.dirname(abs(FIT_FILE)), { recursive: true });
+  fs.writeFileSync(abs(FIT_FILE), text);
+  if (engine) try { flushEngineWrites([FIT_FILE]); } catch { }
+  return true;
+}
+
+if (cmd === 'refresh') {
+  const b = build(projectSurvey());
+  const changed = save(b.text);
+  const open = b.rows.filter(r => !fitDecision(r.decision)).length;
+  if (args.includes('--count-new')) { console.log(b.added.length); process.exit(0); }
+  console.log(`fit: ${FIT_FILE} ${changed ? 'updated' : 'already current'} (${b.rows.length} candidates, ${b.added.length} new, ${b.removed.length} removed, ${open} to decide)`);
+  if (b.removed.length) console.log(`removed (no longer candidates): ${b.removed.join(', ')}`);
+  if (open) console.log('Next: decide each "?" row from the survey, the brief and the code (node tools/fit.mjs --json shows what each one is), then node tools/fit.mjs check.');
+  process.exit(0);
+}
+
+if (cmd === 'check') {
+  const probs = fitProblems(cfg);
+  for (const p of probs) console.log(`- ${p}`);
+  console.log(`FIT: ${probs.length ? 'FAIL' : 'PASS'}${probs.length ? ` (${probs.length} problem(s))` : ` (${fitRows().length} candidates decided)`}`);
+  process.exit(probs.length ? 1 : 0);
+}
+
+if (cmd === 'decide') {
+  let list = [];
+  if (opt('--file')) { try { list = JSON.parse(fs.readFileSync(path.resolve(opt('--file')), 'utf8')); } catch (e) { console.error(`fit: cannot read ${opt('--file')}: ${e.message}`); process.exit(2); } }
+  else {
+    const [, item, decision, ...reason] = pos;
+    if (!item || !decision) { console.log(usageOf(import.meta.url)); process.exit(2); }
+    list = [{ item, kind: opt('--kind'), decision, reason: reason.join(' ') }];
+  }
+  const b = build(projectSurvey()), bad = [];
+  for (const d of list) {
+    const hits = b.rows.filter(r => r.item.toLowerCase() === String(d.item).toLowerCase() && (!d.kind || r.kind === d.kind));
+    if (hits.length !== 1) { bad.push(`${d.item}: ${hits.length ? 'several rows have this name, add --kind' : 'no such candidate'}`); continue; }
+    Object.assign(hits[0], { decision: d.decision, reason: d.reason ?? hits[0].reason }, d.signal ? { signal: d.signal } : {});
+  }
+  const text = HEADER + '\n| Item | Kind | Signal | Decision | Reason |\n|---|---|---|---|---|\n' + b.rows.map(r => `| ${cell(r.item)} | ${r.kind} | ${cell(r.signal)} | ${cell(r.decision) || '?'} | ${cell(r.reason)} |`).join('\n') + '\n';
+  save(text, false);
+  for (const x of bad) console.error(`fit: ${x}`);
+  console.log(`fit: recorded ${list.length - bad.length} decision(s). Run node tools/fit.mjs check.`);
+  process.exit(bad.length ? 1 : 0);
+}
+
+if (cmd === 'summary') {
+  const rows = fitRows(), of = d => rows.filter(r => fitDecision(r.decision) === d);
+  const short = s => s.replace(/when:.*$/i, '').replace(/\s+/g, ' ').trim().replace(/[.;,]$/, '');
+  const add = of('add').map(r => r.item), skip = of('skip').map(r => `${r.item} (${short(r.reason)})`), later = of('later').map(r => `${r.item} (when: ${fitWhenOf(r)?.text || '?'})`);
+  console.log(`Added: ${add.join(', ') || 'nothing'}. Skipped: ${skip.join('; ') || 'nothing'}. Later: ${later.join('; ') || 'nothing'}.`);
+  process.exit(0);
+}
+
+if (cmd === 'json') {
+  const sv = projectSurvey(), signals = fitSignals(sv), rows = fitRows(), { candidates } = fitCandidates(cfg);
+  const byKey = new Map(rows.map(r => [key(r.kind, r.item), r]));
+  console.log(JSON.stringify(candidates.map(c => {
+    const r = byKey.get(key(c.kind, c.item)) || {};
+    return { item: c.item, kind: c.kind, what: c.what, present: !!c.present(cfg), how: c.how, signals: (signals[key(c.kind, c.item)] || []).map(s => s.label), decision: r.decision || '?', reason: r.reason || '' };
+  }), null, 2));
+  process.exit(0);
+}
+
+console.log(usageOf(import.meta.url));
+process.exit(2);

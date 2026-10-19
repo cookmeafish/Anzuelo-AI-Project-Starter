@@ -5,6 +5,7 @@
 # <Topic>: run ledger
 Goal: <one sentence>. Finished means: <checkable>.
 Plan: docs/plans/<file>.md. Started: <date>. Last round: <YYYY-MM-DD HH:MM>. Run: active | stopped.
+Run budget: <N> re-briefs, restarts and failed acceptance rounds (default: twice the tasks). Used: <n>.
 
 | Task | Owner (worker, workspace) | Resume handle | Depends on | Shared resource | Required steps | Steps reported | State | Nudges | Last seen | Evidence / notes |
 |---|---|---|---|---|---|---|---|---|---|---|

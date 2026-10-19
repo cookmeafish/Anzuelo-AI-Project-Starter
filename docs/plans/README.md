@@ -17,13 +17,16 @@ Right under the title, on a line of its own and without formatting:
 | `status: open` | Work in progress, or not started |
 | `status: done` | Every box ticked and every check passed |
 | `status: dropped - <why>` | Given up for good, with the reason |
+| `status: blocked - <reason>` | Still open, but stuck until the user decides. Has a `Tried:` note and an `Options:` note |
 
-A plan with unticked boxes and no `done` or `dropped` line is open. At the start of every session the hooks list open
+A plan with unticked boxes and no `done` or `dropped` line is open, blocked ones included. At the start of every session the hooks list open
 plans as OPEN PLANS, so they are resumed or closed instead of forgotten. A work turn that adds 5 or more new files
 needs a plan here (REQ: plan-required).
 
 ## Resuming a plan (any session, any agent)
-1. Read the plan's header, its "Context" section and every dated note.
+1. Read the plan's header, its "Context" section and every dated note. A blocked plan waits on the user: read its
+   `Tried:` and `Options:` notes, and work only on tasks that don't depend on the blocked one. Running a plan
+   without check-ins follows the plan skill, step 9.
 2. Find the first unticked box: `node skills/plan/scripts/plan-tasks.mjs next <plan>` prints it with the brief for its
    task. Without Node, read down the file to the first `- [ ]`.
 3. Trust the ticks. Never redo a ticked step, even if you don't remember it.

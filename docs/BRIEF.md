@@ -26,6 +26,10 @@ trusted. -->
 ## Constraints
 <!-- Budget, location or jurisdiction, deadlines, tools, platforms, privacy (what stays local), language, format. -->
 
+## Tools
+<!-- Each optional tool the project uses (docs/recommended-tools.md): name, version, how it was installed, and why.
+The fit checklist reads this list: a tool marked "add" there must appear here. -->
+
 ## Quality bar
 <!-- What a great result looks like: depth, length, tone, format, certainty, citations, testing. -->
 

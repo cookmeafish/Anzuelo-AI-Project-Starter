@@ -3,3 +3,9 @@ Inspired by the "writing-plans" skill in https://github.com/obra/superpowers (MI
 Also merged in: ideas from PRP Manager 1.3.0 by William Wong Garay, https://github.com/willywg/prp-manager (MIT License; see LICENSE-prp-manager). From it we took four habits. The plan carries the codebase context (files to copy, documentation sections, traps). Every check command comes from the project's own files instead of a guess. A confidence score comes before hand-over. Checks run after each task until they pass. We did not take its separate PRPs/ folder, numbered file names, per-project template step or pseudocode blocks: plans stay in docs/plans/, and the project's check commands are kept once in docs/plans/README.md. The status line, the resume instructions inside each plan and the `next` command in scripts/plan-tasks.mjs are our own.
 
 Edit freely; this is our version now.
+
+Also drawn on for running a plan without check-ins (SKILL.md step 9, references.md "Without check-ins", and the `status: blocked` line in scripts/plan-tasks.mjs), ideas only, in our own words, no text copied:
+- "executing-plans" in https://github.com/obra/superpowers (MIT License, copyright Jesse Vincent; see LICENSE): run an approved plan task by task and stop when blocked instead of guessing.
+- snarktank/ralph, https://github.com/snarktank/ralph (MIT License, copyright snarktank): a loop that picks one task at a time, marks it done only after its checks pass, and keeps progress in files so each fresh session can continue.
+- Anthropic's article "Effective harnesses for long-running agents", https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents: start every session the same way (read the progress notes, run the checks, fix what is broken first), work on one feature at a time, and never edit or remove tests to make them pass.
+The three-failure stop, the `Ruling:` line format, the `Tried:` / `Options:` notes and the blocked status are our own.

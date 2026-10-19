@@ -1,29 +1,37 @@
-Inspired by the caveman plugin in https://github.com/JuliusBrussee/caveman, found at `plugins/caveman/`. The main
-source is its "caveman-compress" skill. Ideas also came from its "caveman", "ultracave", "cavecrew" and
-"caveman-stats" skills and its three cavecrew agents. The repository uses the Apache License 2.0 for the whole
-repository (see LICENSE); older releases were MIT. The author is Julius Brussee. "Caveman" is his trademark, so our
-skill has a neutral name.
+Inspired by the caveman project by Julius Brussee, https://github.com/JuliusBrussee/caveman (checked 2026-10-18). The
+main sources are its "caveman-compress" skill (shortening memory files with a validator) and its "caveman" and
+"ultracave" skills (the terse reply voice at two strengths). Ideas also came from its "cavecrew" skill and agents
+(compact sub-agent reports), "megacave" and "caveman-stats".
+
+License: the whole repository is under the Apache License 2.0 from Caveman 3.0.0 on (its `LICENSING.md`); earlier
+releases were split between MIT and the Business Source License. Apache 2.0 allows commercial use, changes and
+redistribution, as long as the license and notices travel with the work. `LICENSE-caveman` is a verbatim copy of its
+license; `LICENSE` is the same text, kept under the name the project's tools expect. The upstream `NOTICE` reads, in
+the part that applies here: "Caveman. Copyright 2026 Julius Brussee." The rest of that notice covers code in its
+engine, browser and binaries, none of which is used here. "Caveman" is the author's trademark, so this skill has a
+neutral name and is not endorsed by him.
 
 What we changed:
-- All text is rewritten in our words and house style. The rules for what to cut, keep and never change are kept and
-  extended for this project: REQ tags, waivers, checklist items, triggers and tool-read tables.
-- The rewrite happens in the current agent session. The original sends the file to a model provider (a CLI, an API
-  or a local server) through its Python scripts. We dropped that, and with it the provider settings, file locks,
-  output caps and retry calls, because nothing needs to leave the session.
-- Its Python checker is replaced by our own Node script, `skills/compress-for-ai/scripts/compress-guard.mjs`. It plans
-  which files qualify, keeps verified backups in `.cache/compress/`, compares before and after, and restores.
-- New: the split between AI-facing and user-facing files, protected and generated files that are never touched, two
-  levels (tight and dense), checks for numbers, REQ tags, checklists, tables, negations and em dashes, and the project
-  checks after a rewrite.
-- Kept from its safeguards: refusing secret-looking files, empty files and invalid UTF-8; frontmatter and code kept
-  verbatim; no output that is not shorter; no wrapping fence or leaked commentary; repairs that fix only the listed
-  errors; restore after repeated failure.
-- The "caveman" answer voice became the terse-answers option, but in plain English, because our writing standards
-  require readable answers. Its rules for when to switch back to full sentences are kept.
-- The cavecrew idea became one paragraph on compact sub-agent reports.
-- The honest-numbers point of "caveman-stats" is kept: sizes are measured, savings are not claimed. Its session
-  statistics depend on that plugin's own hooks, so they are left out.
-- Left out: the Classical Chinese mode ("megacave"), because answers must stay plain readable English, and the plugin
-  manifest, icons and host settings, which only serve installing the original.
+- All text is rewritten in our words and house style. No sentence is copied (checked with `tools/skills.mjs compare`).
+- Three modes by situation: AI-facing files, text only agents read, and replies to the user only when the user opts
+  in. The original voice is on for chat by default; ours stays off, because the project's writing standards keep
+  user-facing text plain.
+- Three levels named light, full and ultra, mapped to where each is allowed. Sub-agent briefs are held at light
+  because research on compressed prompts (the CAVEWOMAN paper, cited in `references.md`) found worse answers.
+- The never-change list is extended for this project: file and folder names, `docs/names.json` names and name
+  markers, check tags and markers, headings that other files link to, list numbering, quotes, and conditions as well
+  as negations.
+- The rewrite happens in the current agent session. The original sends the file to a model provider through its
+  Python scripts. We dropped that, and with it the provider settings and retry calls.
+- Its Python validator is replaced by our own zero-dependency Node scripts: `scripts/protect-check.mjs` (every
+  protected token, negations per paragraph, for any text) and `scripts/compress-guard.mjs` (which files qualify,
+  verified backups in `.cache/compress/`, file-level checks, restore). The file check reuses the protect check.
+- Kept from its safeguards: refusing secret-looking files, frontmatter and code kept verbatim, no output that is not
+  shorter, no leaked commentary, repairs that fix only the listed errors, restore after repeated failure, and full
+  sentences for warnings, irreversible steps and questions.
+- The honest-numbers point is kept: sizes are measured, savings are not claimed. Its session statistics depend on
+  that plugin's hooks, so they are left out.
+- Left out: the Classical Chinese mode, because answers must stay plain readable English; the proxy, tool-output
+  shrinking, browser and cloud parts; and the plugin manifest and install files.
 
 Edit freely; this is our version now.

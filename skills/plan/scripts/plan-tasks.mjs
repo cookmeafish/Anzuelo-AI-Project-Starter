@@ -7,6 +7,7 @@
 //   node skills/plan/scripts/plan-tasks.mjs check <plan.md>     the self-review checks a script can do (prints RESULT: PASS / FAIL)
 //
 // A plan is closed by a line that starts with "status: done" or "status: dropped - <why>"; the hooks read the same line.
+// "status: blocked - <reason>" keeps it open but marks it stuck: it needs "Tried:" and "Options:" notes for the user.
 // Exit codes: 0 fine, 1 check failed or task not found, 2 usage problem.
 import fs from 'node:fs';
 
@@ -38,7 +39,9 @@ const boxes = t => {
 // The status line, as the hooks read it: the first line that starts with "status:".
 const statusLine = lines.find(l => /^status:/i.test(l))?.trim();
 const closed = !!statusLine && /^status:\s*(done|dropped)/i.test(statusLine);
-const datedNotes = () => lines.filter(l => /^\s*[-*]?\s*\**\d{4}-\d\d-\d\d\b/.test(l) && /decision|change|note|ruling/i.test(l)).length;
+const blocked = !!statusLine && /^status:\s*blocked\b/i.test(statusLine);
+const hasNote = word => lines.some(l => new RegExp(`(^|[\\s*_-])${word}:`, 'i').test(l));
+const datedNotes = () => lines.filter(l => /^\s*[-*]?\s*\**\d{4}-\d\d-\d\d\b/.test(l) && /decision|change|note|ruling|tried|options|assumed/i.test(l)).length;
 const section = name => {
   const i = header.findIndex(l => new RegExp(`^##\\s+${name}`, 'i').test(l));
   if (i < 0) return [];
@@ -59,6 +62,7 @@ if (cmd === 'status') {
   console.log(resume ? `\nResume at Task ${resume.n}: ${resume.name}` : '\nAll tasks ticked.');
   if (notes) console.log(`Dated notes in the plan: ${notes} (read them before continuing)`);
   if (closed) console.log(`Plan closed: ${statusLine}`);
+  if (blocked) console.log(`Plan blocked: ${statusLine}. Read its Tried: and Options: notes; continue only with tasks that don't depend on the blocked one.`);
   process.exit(0);
 }
 
@@ -78,6 +82,7 @@ if (cmd === 'next') {
       'then change the status line to "status: done".');
     process.exit(0);
   }
+  if (blocked) console.log(`Plan blocked: ${statusLine}. Read its Tried: and Options: notes; continue only with tasks that don't depend on the blocked one.`);
   const step = t.lines.find(l => /^\s*[-*]\s+\[ \]/.test(l));
   console.log(`Next: Task ${t.n}: ${t.name}${step ? `, step: ${step.replace(/^\s*[-*]\s+\[ \]\s*/, '')}` : ' (it has no checkbox steps yet)'}`);
   const notes = datedNotes();
@@ -103,6 +108,8 @@ if (!watch.length) fail.push('no "## Watch for" section (write "none found" only
 if (!tasks.length) fail.push('no "### Task N: <name>" headings');
 // What lets another session or agent pick the plan up. Warnings, so plans written before these lines still pass.
 if (!statusLine) warn.push('no status line: add "status: open" under the title (later "status: done" or "status: dropped - <why>")');
+if (blocked && !/^status:\s*blocked\s*-\s*\S/i.test(statusLine)) warn.push('blocked plan with no reason: write "status: blocked - <reason>"');
+if (blocked && (!hasNote('Tried') || !hasNote('Options'))) warn.push(`blocked plan has no ${['Tried', 'Options'].filter(w => !hasNote(w)).map(w => `"${w}:"`).join(' or ')} note: say what was attempted and the ways forward, with a recommendation`);
 if (!header.some(l => /^\*\*How to (resume|run)/i.test(l))) warn.push('no **How to resume:** line: say how another session or agent picks the plan up');
 // Every box ticked but never closed: the session-start hook would keep listing it as an OPEN PLAN.
 if (tasks.length && !closed && tasks.every(t => { const b = boxes(t); return b.total && b.done === b.total; }))

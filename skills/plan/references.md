@@ -21,7 +21,8 @@ runbook (feature, bugfix, research...) still applies to the work inside each tas
 ## Decide, don't stall
 Once the user has approved the plan and the way to run it, keep going from task to task without asking "shall I
 continue?". When the plan is unclear or wrong, make the call yourself and record it in the plan:
-`YYYY-MM-DD Decision (task N): <what you decided>, because <why>; if wrong, it costs <what>.`
+`YYYY-MM-DD Ruling (task N): <what you decided> - <why> - <cost if wrong>`. This is the one format for decisions in
+a plan; the orchestrate skill uses it too.
 
 Stop and ask only for:
 - something destructive or impossible to undo;
@@ -104,6 +105,47 @@ pair of eyes.
    again. A finding you decide not to fix gets a decision note.
 4. Small findings go to a "deferred" list in the answer for the user to decide on.
 
+## Without check-ins
+The plan skill's step 9 in detail. It applies when `"autonomy": "auto"` is set, or the user has said to keep going
+without asking. Nobody is watching each step, so the plan file and the checks have to do the watching.
+
+**Why each rule exists**
+- *Same start every session.* A new session has no memory of the last one. Reading the status line and the notes,
+  then running the checks, shows the real state before anything is built on top of it. If a check fails at the start,
+  the last session left something broken; fix that first, or every result after it is in doubt.
+- *Tick only after a matching run.* A ticked box tells the next session "never redo this". A box ticked on hope sends
+  the next session past a hole.
+- *Never move the goalposts.* Loosening a test, skipping a check or rewriting an expected result turns a failure into
+  a false pass. A plan that is truly wrong gets a dated note next to the old text, so the user sees both.
+- *Rulings in writing.* The user reads them afterwards to learn what was chosen for them, and to undo a bad call.
+- *Stop after 3 failures, or a session with no box ticked.* Past that point, retries mostly burn time and money. A
+  blocked plan with clear options costs the user a minute to unblock.
+
+**A ruling**
+```
+2026-10-18 Ruling (task 3): kept dates as UTC strings - the spec shows UTC in every example - if local time was
+meant, the display and two tests change.
+```
+
+**A blocked plan**
+```
+status: blocked - the payment sandbox rejects every test card since 2026-10-18
+...
+2026-10-18 Tried: three test cards from the provider's docs, a fresh sandbox key, and the request copied from their
+example. Each returns "card declined".
+2026-10-18 Options: (1) recommended: the user checks the sandbox account, likely a setting; (2) mock the provider in
+tests and come back to it; (3) drop card payments from this plan.
+```
+Then move to the next task that doesn't need the blocked one. When nothing independent is left, end the session with
+a report: what was ticked, what is blocked and why, the options, and every ruling so far.
+
+**Unblocking.** The user picks an option, or fixes the cause. Set the status line back to `status: open`, add a dated
+note with the choice, and resume with `plan-tasks.mjs next <plan>`.
+
+**Counting failures.** A failure is a run of the task's check that does not match the expected result after you
+changed something to fix it. Three in a row on the same task means blocked. Running the same command again without a
+change is not a new attempt.
+
 ## Stopping partway, or handing over
 The plan file is the hand-over. Before you stop (end of session, a limit reached, the user switching to another AI
 agent):
@@ -121,6 +163,6 @@ agent):
 4. Move it out of "Now" in `docs/STATUS.md` and add the CHANGELOG line.
 
 ## Finish
-In the answer, list every decision you made on the user's behalf (from the plan's dated notes), with the cost of
+In the answer, list every decision you made on the user's behalf (the plan's `Ruling:` lines), with the cost of
 each if it was the wrong call, plus all deferred findings. That list is how the user learns what you chose for them.
 Report the result in three lines: tasks done (N of N), checks run with their results, and the plan's status line.

@@ -17,6 +17,7 @@ choices" in [writing-standards.md](writing-standards.md).
 | Does a second upgrade change anything? | the trial (an upgrade must be repeatable) |
 | Did anything private from the starter leak in? | the trial and the publish-safety sweep |
 | Did a check start annoying the user? | friction-suspend (hard rule 18) |
+| Was every pack, library skill, recommended tool and optional feature weighed, and does each reason hold? | `node tools/fit.mjs check` (fit-checklist): no "?" left, no boilerplate reason, "add" is really in the project, a "skip" answers the survey's evidence, "later" has a "when:" condition |
 
 ## Questions that need judgment
 Ask yourself first. If you can't answer from the project, ask the user.
@@ -34,7 +35,10 @@ Ask yourself first. If you can't answer from the project, ask the user.
    understood, write down why.
 
 ## Asking the user when unsure
-Say what you would change and why, in one plain sentence, then give the choices:
+Most choices are yours: decide them, record the reason (for candidates, in `docs/fit-checklist.md`), and give the user
+a short summary they can override. Ask only about what is truly the user's: anything that costs money, touches
+privacy or acts outside the project. Then say what you would change and why, in one plain sentence, and give the
+choices:
 - **Add it:** what gets better and what it costs, for this project.
 - **Leave it out:** what stays as it is.
 - **Let the AI decide:** what you would pick and why.

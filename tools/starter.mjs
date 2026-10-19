@@ -6,9 +6,14 @@
 //                                                 git), so the project can grow later even without the starter folder
 //   node tools/starter.mjs remove                 remove the leftovers and forget the starter
 // Later:
-//   node tools/starter.mjs status                 the choice, the link, and what can still be added
+//   node tools/starter.mjs status                 the choice, the link, what can still be added, and how many commits the
+//                                                 linked starter is behind its git origin
 //   node tools/starter.mjs upgrade                refresh the engine from the linked starter (new-project.mjs --upgrade):
 //                                                 rolls back if a check that passed now fails, then lists what to review
+//   node tools/starter.mjs feedback "<text>"      note a lesson about the engine itself (hooks, checks, tools) in
+//                                                 docs/starter-feedback.md: one dated line, kept on upgrade
+//   node tools/starter.mjs report                 copy the lines not yet reported into the linked starter's
+//                                                 docs/feedback-inbox/<project>.md (appends; skipped without a link)
 // The starter always lives in its own folder, outside every project it creates. The link is a path on this machine,
 // so it is kept in tools/starter.local.json, which git ignores. On another machine, run "link <folder>" again.
 import fs from 'node:fs';
@@ -23,6 +28,12 @@ const readCfg = () => { try { return JSON.parse(fs.readFileSync(CONFIG, 'utf8'))
 const setMode = mode => { const c = readCfg(); c.starter = mode; fs.writeFileSync(CONFIG, JSON.stringify(c, null, 2) + '\n'); };
 const node = (...a) => spawnSync(process.execPath, a, { cwd: ROOT, encoding: 'utf8' });
 const leftovers = () => ['packs', 'library'].filter(d => fs.existsSync(at(d)));
+// Lessons about the engine found in this project travel back to the starter. Lesson: engine-level lessons stayed in
+// the project where they were found, so every other project hit them again.
+const FEEDBACK = 'docs/starter-feedback.md';
+const FEEDBACK_HEAD = '# Feedback for the starter\nLessons about the engine itself (hooks, checks, tools), one dated line each. Upgrades keep this file;\n`node tools/starter.mjs report` copies new lines to the linked starter.\n\n';
+const feedbackLines = () => { try { return fs.readFileSync(at(FEEDBACK), 'utf8').split(/\r?\n/).filter(l => /^- \d{4}-\d\d-\d\d: \S/.test(l)).map(l => l.trim()); } catch { return []; } };
+const reportedLines = () => { try { return new Set(JSON.parse(fs.readFileSync(at('tools', 'hooks', 'state', 'feedback-reported.json'), 'utf8'))); } catch { return new Set(); } };
 
 if (fs.existsSync(at('.starter-template'))) { console.error('This is the starter itself. These commands are for projects made from it.'); process.exit(1); }
 
@@ -54,7 +65,7 @@ if (cmd === 'link') {
     const dir = path.resolve(arg);
     if (!fs.existsSync(path.join(dir, 'tools', 'new-project.mjs'))) { console.error(`${dir} is not a starter folder (no tools/new-project.mjs).`); process.exit(1); }
     if (inside(ROOT, dir) || inside(dir, ROOT)) { console.error('The starter must live outside this project, in its own folder.'); process.exit(1); }
-    if (fs.existsSync(path.join(dir, '.starter-dev')) && !process.env.KS_ALLOW_DEV) { console.error(`${dir} is a development copy of the starter (.starter-dev). Link a stable copy instead, so unfinished changes never reach this project.`); process.exit(1); }
+    if (fs.existsSync(path.join(dir, '.starter-dev')) && !(process.env.STARTER_ALLOW_DEV ?? process.env.KS_ALLOW_DEV)) { console.error(`${dir} is a development copy of the starter (.starter-dev). Link a stable copy instead, so unfinished changes never reach this project.`); process.exit(1); }
     fs.writeFileSync(at(STARTER_LINK), JSON.stringify({ path: dir }, null, 2) + '\n');
   }
   const link = starterLink();
@@ -91,6 +102,40 @@ if (cmd === 'link') {
   console.log(`kept copy: ${fs.existsSync(at('.starter')) ? fs.readdirSync(at('.starter')).join(', ') || 'empty' : 'none'}`);
   if (leftovers().length) console.log(`still here from setup: ${leftovers().join(', ')}`);
   console.log(`packs and library skills come from: ${starterSources().map(s => s.kind).join(' → ')}`);
+  // how far the linked starter is behind its own origin (a quiet fetch; nothing is printed offline or outside git)
+  const link = starterLink();
+  if (link && fs.existsSync(path.join(link, '.git'))) {
+    const g = (...a) => spawnSync('git', a, { cwd: link, encoding: 'utf8', timeout: 15000 });
+    if (g('fetch', '--quiet').status === 0) {
+      const n = g('rev-list', '--count', 'HEAD..@{u}');
+      if (n.status === 0 && /^\d+$/.test(n.stdout.trim())) console.log(`linked starter: ${+n.stdout.trim() ? `${n.stdout.trim()} commit(s) behind its origin (git pull in ${link}, then node tools/starter.mjs upgrade)` : 'up to date with its origin'}`);
+    }
+  }
+  const fb = feedbackLines(), sent = reportedLines();
+  if (fb.length) console.log(`starter feedback: ${fb.length} line(s) in ${FEEDBACK}, ${fb.filter(l => !sent.has(l)).length} not reported yet (node tools/starter.mjs report)`);
+} else if (cmd === 'feedback') {
+  const text = process.argv.slice(3).join(' ').replace(/\s+/g, ' ').trim();
+  if (!text) { console.error('usage: node tools/starter.mjs feedback "<what the engine got wrong or should do>"'); process.exit(1); }
+  if (!fs.existsSync(at(FEEDBACK))) { fs.mkdirSync(path.dirname(at(FEEDBACK)), { recursive: true }); fs.writeFileSync(at(FEEDBACK), FEEDBACK_HEAD); }
+  const t = new Date(), day = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+  fs.appendFileSync(at(FEEDBACK), `${fs.readFileSync(at(FEEDBACK), 'utf8').endsWith('\n') ? '' : '\n'}- ${day}: ${text}\n`);
+  console.log(`noted in ${FEEDBACK}. Send it to the starter with: node tools/starter.mjs report`);
+} else if (cmd === 'report') {
+  const link = starterLink();
+  if (!link) { console.log('report: no starter is linked, nothing sent (node tools/starter.mjs link "<starter folder>" first).'); process.exit(0); }
+  const lines = feedbackLines();
+  const name = (() => { try { return JSON.parse(fs.readFileSync(at('docs', 'names.json'), 'utf8')).PROJECT_NAME; } catch { return ''; } })();
+  const slug = (name && !/\{\{/.test(name) ? name : path.basename(ROOT)).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'project';
+  const inbox = path.join(link, 'docs', 'feedback-inbox', `${slug}.md`);
+  const have = new Set(fs.existsSync(inbox) ? fs.readFileSync(inbox, 'utf8').split(/\r?\n/).map(l => l.replace(/\s*\(reviewed\b.*$/i, '').trim()) : []);
+  const sent = reportedLines(), fresh = lines.filter(l => !have.has(l) && !sent.has(l));
+  if (!fresh.length) { console.log(`report: nothing new (${lines.length} line(s) already in ${inbox}).`); process.exit(0); }
+  fs.mkdirSync(path.dirname(inbox), { recursive: true });
+  if (!fs.existsSync(inbox)) fs.writeFileSync(inbox, `# Feedback from ${slug}\nLessons about the engine from this project. Mark each line "(reviewed YYYY-MM-DD: <what was done>)" once handled.\n\n`);
+  fs.appendFileSync(inbox, `${fs.readFileSync(inbox, 'utf8').endsWith('\n') ? '' : '\n'}${fresh.join('\n')}\n`);
+  fs.mkdirSync(at('tools', 'hooks', 'state'), { recursive: true });
+  fs.writeFileSync(at('tools', 'hooks', 'state', 'feedback-reported.json'), JSON.stringify([...new Set([...reportedLines(), ...fresh])], null, 2) + '\n');
+  console.log(`report: sent ${fresh.length} line(s) to ${inbox}.`);
 } else {
   console.log(usageOf(import.meta.url));
   process.exit(1);

@@ -11,9 +11,10 @@ No hooks in your agent (anything but Claude Code or Codex)? Run `node tools/hook
 message>"` for every user message, and `node tools/hooks/hooks.mjs check --answer-file .cache/answer.md` before every
 answer. If the user only wants a quick answer first, answer it, then come back here.
 
-**The rule for every choice: give the project everything that fits it.** Every pack the answers call for is installed
-whole. Every library skill that fits those packs is enabled. Something that fits is left out only when the user says
-so, and the reason is recorded.
+**The rule for every choice: give the project everything that makes it better, and nothing that makes it worse.**
+Every pack the answers call for is installed whole. You decide every other candidate yourself in the fit checklist
+(Phase 3), each with a reason the check verifies, so the user is not asked about each one. The user sees a short
+summary and can override any decision.
 
 ## If this is an existing project
 The starter was added around work that already exists (`config.json` has `adopted`). Improve it without breaking it:
@@ -104,7 +105,7 @@ how it is released.
 - Sign-off: ...
 - Release: ...
 - Packs: ...             (added in Phase 3)
-- Library skills: enabled a, b; left out c (the user's reason)
+- Library skills: enabled a, b; left out c (the reason; every decision is in docs/fit-checklist.md)
 - Starter: link | keep | remove, because ...
 ```
 
@@ -122,10 +123,25 @@ how it is released.
    node tools/packs.mjs install <packs>
    node tools/packs.mjs configure app --test "<cmd>" --build "<cmd>" --code "<globs>" --version-file <file>   (app only)
    ```
-2. **Library skills:** `node tools/skills.mjs library` lists them with the pack each fits. Every skill that fits an
-   installed pack (or "any") is enabled unless the user declines it. Ask about all the fitting skills in one message, in
-   plain words (each skill's plain name, what it does, what they'll notice), with "Let the AI decide" as an option. Then `node tools/skills.mjs enable <names>`. Add the phrases people use for these jobs
-   to each skill's `triggers:` and check them with `node tools/hooks/selfcheck.mjs --route "..."`.
+2. **The fit checklist: you fill it, not the user.** `node tools/fit.mjs` writes `docs/fit-checklist.md` with one row
+   per candidate: every pack, every library skill, every tool in `docs/recommended-tools.md`, and the optional features
+   (Obsidian vault, git hooks, autonomy auto, recall and memory, plans). `node tools/fit.mjs --json` says what each one
+   is, whether it is already here, and what the survey found that bears on it. Decide every row from the survey, the
+   brief and the code:
+   - **add** when it makes this project better, then really add it (`node tools/skills.mjs enable <names>`, a pack,
+     a tool listed under "## Tools" in `docs/BRIEF.md`);
+   - **skip** when it adds nothing or costs more than it gives. If the survey found evidence for it (web files, data
+     files, a git repository, code), the reason must say why that evidence still doesn't make it worth it;
+   - **later - when: <condition>** when it pays off only once something happens ("when: the code passes 30 files").
+     The hooks announce a condition about file or commit counts once it is met; the sweeps revisit the rest.
+
+   Every reason names the concrete gain or cost for this project (`Worth it: <gain> / <cost>` fits), never "not
+   needed" or "maybe later". Record decisions with `node tools/fit.mjs decide "<item>" <decision> "<reason>"` or by
+   editing the table, until `node tools/fit.mjs check` prints `FIT: PASS`. **Ask the user only about choices that are
+   truly theirs:** anything that costs money, touches privacy or acts outside the project (an account, a paid service,
+   a tool that is not low-risk). Put those in ONE question with choices ("Questions with choices" in
+   writing-standards.md); until the answer, the row is "later - when: the user answers". Add the phrases people use for
+   each enabled skill's jobs to its `triggers:` and check them with `node tools/hooks/selfcheck.mjs --route "..."`.
 3. **The starter's leftovers:** ask the user, with a recommendation and "Let the AI decide" as an option:
 
    | Choice | What happens | Fits when |
@@ -137,13 +153,11 @@ how it is released.
    Run `node tools/starter.mjs link | keep | remove`. It refuses while anything that fits is still missing.
 4. **App pack:** run `docs/playbooks/app-foundation.md` with the user before Phase 4. It sets the performance budgets,
    the usability defaults and the app's security rows, and builds the scaffolding that enforces them.
-5. **Optional tools: guidance only, never a requirement.** [docs/recommended-tools.md](docs/recommended-tools.md)
-   lists tools a project may want (browser testing, image markup with Pillow, linters, secret scanners, data tools
-   and more), each with when to recommend it, when to skip it, pros, costs and license. Recommend only the ones that
-   make THIS project better ("Worth it: <gain> / <cost>"), as a question with choices, and install the newest
-   version with the official command, only with the user's OK (under `"autonomy": "auto"`, only tools marked
-   low-risk). Write each installed tool under "Tools" in `docs/BRIEF.md`, with how it was installed, so the next
-   session and any other agent can set it up again.
+5. **Optional tools** are rows of the fit checklist. [docs/recommended-tools.md](docs/recommended-tools.md) gives each
+   one's "Recommend when", "Skip when", costs and license. Install the newest version with the official command: a
+   low-risk tool you decided to add needs no question under `"autonomy": "auto"`, any other needs the user's OK (the
+   one question above). Write each installed tool under "## Tools" in `docs/BRIEF.md`, with its version and how it was
+   installed, so the next session and any other agent can set it up again (the check looks for it there).
 
 ## Phase 4: Build it
 1. `docs/BRIEF.md`: fill every section from the answers, as principles in your own words with the date and why. Set
@@ -175,12 +189,13 @@ how it is released.
 ## Phase 5: Verify everything is really there
 1. `node tools/hooks/selfcheck.mjs`: ALL PASS.
 2. `node tools/audit.mjs --setup`: PASS. It checks the interview, that the packs match the answers and are complete,
-   that every fitting library skill is enabled or declined with a reason, the brief, routing, placeholders, the
+   that every candidate in the fit checklist is decided with a reason that holds, the brief, routing, placeholders, the
    security baseline, pack purity, publish safety, and that the hooks ran live here.
 3. One dry run: take the most typical request, route it, and walk its runbook without changing anything. Report what
    would happen.
-4. Show the user a short summary: the focus, the packs and skills and why, what was left out and why, the runbooks
-   and menu codes, the rules and guards, and how to use the project ("just ask; codes are optional").
+4. Show the user a short summary: the focus, then one line from `node tools/fit.mjs summary` ("Added: x, y.
+   Skipped: z (why). Later: w (when).") with "say the word to change any of these", the runbooks and menu codes, the
+   rules and guards, and how to use the project ("just ask; codes are optional").
 
 ## Phase 6: Delete this file
 In the same turn as a passing `node tools/audit.mjs --setup`: `rm SETUP-PROMPT.md`, add a CHANGELOG line ("setup

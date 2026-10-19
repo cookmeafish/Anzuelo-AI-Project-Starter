@@ -8,11 +8,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 // The self-tests make throwaway projects from this copy on purpose, even when it is a development copy (.starter-dev).
-process.env.KS_ALLOW_DEV = '1';
+process.env.STARTER_ALLOW_DEV = '1';
 
 if (process.argv[2] === '--route') {
   const { promptHints } = await import('./hooks.mjs');
@@ -22,6 +23,9 @@ if (process.argv[2] === '--route') {
   process.exit(0);
 }
 
+// --tags a,b: only the scenarios that prove these checks. After a change to requirements.json or config.json the Stop
+// hook asks for these instead of the whole run (REQ: hooks-tested).
+const TAGS = (() => { const i = process.argv.indexOf('--tags'); const v = i > 0 ? process.argv[i + 1] : (process.argv.find(a => a.startsWith('--tags=')) || '').slice(7); return v ? v.split(',').map(s => s.trim()).filter(Boolean) : null; })();
 const SKIP_DIRS = new Set(['.git', 'node_modules', 'state', '.cache', '.private-terms']);
 let BASE = null;
 // The base: a copy of this project with every available pack installed and the generated files synced, so every
@@ -30,7 +34,7 @@ function base() {
   if (BASE) return BASE;
   BASE = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-base-'));
   fs.cpSync(ROOT, BASE, { recursive: true, filter: s => !SKIP_DIRS.has(path.basename(s)) });
-  const node = (...a) => spawnSync(process.execPath, a, { cwd: BASE, encoding: 'utf8', env: { ...process.env, KS_MEMORY_DIR: path.join(BASE, '.memtest') } });
+  const node = (...a) => spawnSync(process.execPath, a, { cwd: BASE, encoding: 'utf8', env: { ...process.env, STARTER_MEMORY_DIR: path.join(BASE, '.memtest') } });
   // Run from inside a finished project, the base starts from the same neutral state as the starter: no link to a
   // starter, no setup answers or app gates of the project's own, and a setup prompt marked as the template.
   // Lesson: fixtures read the real project's answers, gates and starter link, so the tests failed in every project.
@@ -79,6 +83,9 @@ function transcript(dir, s, since) {
   const rows = [];
   const iso = t => new Date(t).toISOString();
   rows.push({ type: 'user', timestamp: iso(since - 60_000), message: { role: 'user', content: 'an earlier message' } });
+  // tool calls from earlier turns of the session (before this turn's prompt)
+  for (const t of s.before || []) { const id = `toolu_${++idc}`; const input = { ...t.input }; if (input.file_path) input.file_path = path.join(dir, input.file_path);
+    rows.push({ type: 'assistant', message: { content: [{ type: 'tool_use', id, name: t.name, input }] } }, { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: id, content: t.result || 'ok' }] } }); }
   rows.push({ type: 'assistant', message: { content: [{ type: 'text', text: 'earlier answer' }] } });
   const prompt = s.compact ? 'This session is being continued from a previous conversation. Summary: user said always cite sources.' : s.prompt;
   rows.push({ type: 'user', timestamp: iso(since), isCompactSummary: !!s.compact, message: { role: 'user', content: s.promptContent || prompt } });
@@ -89,8 +96,9 @@ function transcript(dir, s, since) {
     const input = { ...t.input };
     if (input.file_path) input.file_path = path.join(dir, input.file_path);
     rows.push({ type: 'assistant', message: { content: [{ type: 'tool_use', id, name: t.name, input }] } });
-    rows.push({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: id, content: t.result || 'ok', is_error: !!t.denied }] } });
+    rows.push({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: id, content: t.result || 'ok', is_error: !!(t.denied || t.error) }] } });
   }
+  for (const r of s.rows || []) rows.push(r); // e.g. a task notification from a background helper
   for (const d of s.drafts || []) {
     rows.push({ type: 'assistant', message: { content: [{ type: 'text', text: d }] } });
     rows.push({ type: 'user', message: { content: 'Stop hook feedback: Project rules not met yet' } });
@@ -104,7 +112,7 @@ function transcript(dir, s, since) {
 }
 
 function run(dir, cmd, input) {
-  const r = spawnSync(process.execPath, [path.join(dir, 'tools', 'hooks', 'hooks.mjs'), cmd], { input: JSON.stringify(input), encoding: 'utf8', cwd: dir, env: { ...process.env, KS_MEMORY_DIR: path.join(dir, '.memtest') } });
+  const r = spawnSync(process.execPath, [path.join(dir, 'tools', 'hooks', 'hooks.mjs'), cmd], { input: JSON.stringify(input), encoding: 'utf8', cwd: dir, env: { ...process.env, STARTER_MEMORY_DIR: path.join(dir, '.memtest') } });
   return { out: r.stdout || '', err: r.stderr || '' };
 }
 
@@ -244,6 +252,14 @@ const STOP = [
     tools: [sk('compress-for-ai'), pb('project'), bash('node skills/compress-for-ai/scripts/compress-guard.mjs check .cache/compress/2026-10-17T10-00-00', 'CHECK: PASS'), bash('node tools/audit.mjs')],
     files: { 'skills/debug/references.md': '# Debug references\nShort.', 'docs/CHANGELOG.md': 'x' },
     answer: 'Skill: compress-for-ai. Playbook: project.md. skills/debug/references.md: 605 -> 472 bytes. Backup: .cache/compress/2026-10-17T10-00-00.' + FIN, expect: { block: false } },
+  { name: 'compress-verified: compressed with no protect check run: blocked', prompt: 'compress the skills so they use fewer tokens', tools: [sk('compress-for-ai'), pb('project'), bash('node tools/audit.mjs')],
+    files: { 'skills/debug/references.md': '# Debug references\nShort.', 'docs/CHANGELOG.md': 'x' }, answer: 'Skill: compress-for-ai. Playbook: project.md. Backup: .cache/compress-backup/x.' + FIN, expect: { block: true, tags: ['compress-verified'] } },
+  { name: 'compress-verified: the protect check ran on the backup and passed: passes', prompt: 'compress the skills so they use fewer tokens',
+    tools: [sk('compress-for-ai'), pb('project'), bash('node skills/compress-for-ai/scripts/compress-guard.mjs check .cache/compress-backup/x', 'CHECK: PASS'), bash('node tools/audit.mjs')],
+    files: { 'skills/debug/references.md': '# Debug references\nShort.', 'docs/CHANGELOG.md': 'x' }, answer: 'Skill: compress-for-ai. Playbook: project.md. Backup: .cache/compress-backup/x.' + FIN, expect: { block: false } },
+  { name: 'compress-verified: notes between agents checked with protect-check: passes', prompt: 'compress the skills so they use fewer tokens',
+    tools: [sk('compress-for-ai'), pb('project'), bash('node skills/compress-for-ai/scripts/protect-check.mjs .cache/brief.md .cache/brief.short.md', 'CHECK: PASS'), bash('node tools/audit.mjs')],
+    files: { 'skills/debug/references.md': '# Debug references\nShort.', 'docs/CHANGELOG.md': 'x' }, answer: 'Skill: compress-for-ai. Playbook: project.md. Backup: .cache/compress-backup/x.' + FIN, expect: { block: false } },
   // additions are weighed: gain against cost
   { name: 'worth-it: a dependency installed without weighing it: blocked', prompt: 'install a date library for the importer', tools: [bash('npm install dayjs', 'added 1 package')],
     answer: 'Installed dayjs.', expect: { block: true, tags: ['worth-it'] } },
@@ -321,14 +337,18 @@ const STOP = [
     files: { 'docs/guide.md': '# Guide\nHow to start.\n## Related\n- [Brief](BRIEF.md)', 'docs/CHANGELOG.md': 'x', 'docs/DECISIONS.md': '# Decisions\n## Upgrade review (2026-10-18)\n- skill: orchestrate: declined - this project never runs long multi-agent jobs\n- rule: Plain writing for everything the user reads: adopted - Worth it: clearer answers / none\n' },
     answer: 'Playbook: project.md. Added the guide.' + FIN, expect: { block: false } },
   // skills learn from misses
-  { name: 'skill followed, user complains, no lesson written: blocked', prompt: 'you forgot the logs, debug the failing import', tools: [sk('debug')], files: { 'notes/import.md': 'x', 'docs/CHANGELOG.md': 'x' },
-    answer: 'Skill: debug. Root cause: the date parser.' + FIN, expect: { block: true, tags: ['skill-learn'] } },
+  { name: 'skill-learn: the followed skill\'s own check failed earlier this turn, no lesson written: blocked', prompt: 'debug the failing import', tools: [sk('debug')], files: { 'notes/import.md': 'x', 'docs/CHANGELOG.md': 'x' },
+    active: true, blocks: 1, failed: ['debug-root-cause'], answer: 'Skill: debug. Root cause: the date parser.' + FIN, expect: { block: true, tags: ['skill-learn'] } },
+  { name: 'skill-learn: a complaint with no failed check of the skill demands no lesson: passes', prompt: 'you forgot the logs, debug the failing import', tools: [sk('debug')], files: { 'notes/import.md': 'x', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Skill: debug. Root cause: the date parser.' + FIN, expect: { block: false, not: ['skill-learn'] } },
+  { name: 'skill-learn: another check failed, not the followed skill\'s own: no lesson demanded', prompt: 'debug the failing import', tools: [sk('debug')], files: { 'notes/import.md': 'x', 'docs/CHANGELOG.md': 'x' },
+    active: true, blocks: 1, failed: ['finished-summary'], answer: 'Skill: debug. Root cause: the date parser.' + FIN, expect: { block: false, not: ['skill-learn'] } },
   { name: 'skill followed, user complains, lesson written into the skill: passes', prompt: 'you forgot the logs, debug the failing import', tools: [sk('debug'), pb('project'), bash('node tools/audit.mjs')],
     files: { 'notes/import.md': 'x', 'docs/CHANGELOG.md': 'x', 'skills/debug/references.md': '# refs\n- Pitfall: read the logs first.' },
     answer: 'Skill: debug. Playbook: project.md. Root cause: the date parser.' + FIN, expect: { block: false } },
   { name: 'skill followed after a blocked draft, not its fault: passes with a stated reason', prompt: 'debug the failing import', tools: [sk('debug')], drafts: ['Fixed it.'],
     files: { 'notes/import.md': 'x', 'docs/CHANGELOG.md': 'x' }, answer: 'Skill: debug. Root cause: the date parser.\nSkill lesson: none - the draft only lacked its summary.' + FIN, expect: { block: false } },
-  { name: 'skill followed after a blocked draft, no lesson: blocked', prompt: 'debug the failing import', tools: [sk('debug')], drafts: ['Fixed it.'],
+  { name: 'skill followed after a blocked draft, the skill\'s own check failed, no lesson: blocked', prompt: 'debug the failing import', tools: [sk('debug')], drafts: ['Fixed it.'], active: true, blocks: 1, failed: ['debug-root-cause', 'finished-summary'],
     files: { 'notes/import.md': 'x', 'docs/CHANGELOG.md': 'x' }, answer: 'Skill: debug. Root cause: the date parser.' + FIN, expect: { block: true, tags: ['skill-learn'] } },
   { name: 'GUI files changed in a project without the gui pack: blocked', prompt: 'add a small status page', files: { 'site/index.html': '<h1>x</h1>', 'docs/CHANGELOG.md': 'x' },
     edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), packs: ['knowledge'] }) }, answer: 'Playbook: plan.md' + FIN, expect: { block: true, tags: ['gui-pack'], not: ['gui-review-loop'] } },
@@ -423,8 +443,10 @@ const PRETOOL = [
     edit: { 'docs/DECISIONS.md': s => s + INTERVIEW('software', 'yes', 'app, gui', ''), 'tools/hooks/state/setup.json': () => '{"prompts":2}' }, deny: false },
   { name: 'setup: deleting SETUP-PROMPT.md while the answers call for a pack that is missing: denied', tool: 'Bash', input: { command: 'rm SETUP-PROMPT.md' }, removeMarker: true, tools: [bash('node tools/audit.mjs --setup')],
     edit: { ...SETUP_DONE, 'docs/DECISIONS.md': s => s + INTERVIEW('software', 'yes', 'core only', 'enabled none') + '- Starter: link\n' }, remove: ['packs', 'library'], deny: true, tag: 'setup-gate' },
+  { name: 'fit-checklist: deleting SETUP-PROMPT.md while a candidate is still undecided: denied', tool: 'Bash', input: { command: 'rm SETUP-PROMPT.md' }, removeMarker: true, edit: SETUP_DONE,
+    tools: [bash('node tools/audit.mjs --setup')], remove: ['packs', 'library'], prep: dir => fitFill(dir, [{ item: 'jq', decision: '?', reason: '' }]), deny: true, tag: 'setup-gate' },
   { name: 'deleting SETUP-PROMPT.md after a verified setup: allowed', tool: 'Bash', input: { command: 'rm SETUP-PROMPT.md' }, removeMarker: true, edit: SETUP_DONE,
-    tools: [bash('node tools/audit.mjs --setup')], remove: ['packs', 'library'], deny: false }
+    tools: [bash('node tools/audit.mjs --setup')], remove: ['packs', 'library'], prep: dir => fitFill(dir), deny: false }
 ];
 
 const PROMPT = [
@@ -469,7 +491,7 @@ STOP.push(
     answer: 'Root cause: the parser read the header twice.' + FIN, expect: { block: true, tags: ['playbook-named'] } },
   { name: 'parallel work without the combined check: blocked', prompt: 'split the work across several agents', tools: [sk('parallel-agents'), ...many(15)], files: { 'docs/STATUS.md': 'x' },
     answer: 'Skill: parallel-agents. All three agents finished.' + FIN, expect: { block: true, tags: ['parallel-merged'] } },
-  { name: 'parallel work still running in the background: the merge check waits', prompt: 'split the work across several agents', tools: [sk('parallel-agents'), { name: 'Agent', input: { prompt: 'part one', run_in_background: true } }, ...many(15)], files: { 'docs/STATUS.md': 'x' },
+  { name: 'parallel work still running in the background: the merge check waits', prompt: 'split the work across several agents', tools: [sk('parallel-agents'), { name: 'Agent', input: { prompt: 'part one', run_in_background: true } }, { name: 'Write', input: { file_path: 'docs/STATUS.md', content: 'x' } }, ...many(15)], files: { 'docs/STATUS.md': 'x' },
     answer: 'Skill: parallel-agents. Three agents are running; I will check their results when they report.' + FIN, expect: { block: false } },
   { name: 'research without links: blocked', prompt: 'search the web for standing desk weight limits', tools: [sk('research')], answer: 'Skill: research. Most hold 100 kg.',
     expect: { block: true, tags: ['research-cited'] } },
@@ -583,6 +605,100 @@ STOP.push(
     expect: { block: true, tags: ['no-ai-attribution'] } }
 );
 
+// Found in a real project: each scenario below would have caught one of its reports.
+// the file's hash at the turn's start, as the prompt hook records it
+const snapOf = (...ps) => dir => {
+  const files = {};
+  for (const p of ps) { const f = path.join(dir, p), s = fs.statSync(f); files[p] = [s.mtimeMs, s.size, createHash('sha1').update(fs.readFileSync(f)).digest('hex')]; }
+  write(dir, { 'tools/hooks/state/snapshot.json': JSON.stringify({ at: new Date().toISOString(), files }) });
+};
+// a check file as it was at the turn's start (the prompt hook keeps a copy), then changed during the turn
+const turnStart = (file, change) => dir => {
+  const p = path.join(dir, 'tools/hooks', file), was = fs.readFileSync(p, 'utf8');
+  write(dir, { [`tools/hooks/state/turn-start/${file}`]: was });
+  fs.writeFileSync(p, change(was));
+};
+const NEW_CHECK = s => JSON.stringify({ ...JSON.parse(s), requirements: [...JSON.parse(s).requirements, { tag: 'meal-ok', when: { playbookUsed: 'meal-plan' }, require: { answerMatches: 'meals planned' }, message: 'Say the meals are planned.' }] }, null, 2);
+const MEAL_CHECK = { ...withReqs({ tag: 'meal-ok', when: { playbookUsed: 'meal-plan' }, require: { answerMatches: 'meals planned' }, message: 'Say the meals are planned.' }), 'docs/playbooks/meal-plan.md': () => NEWPB };
+const BUILD_GATE = withReqs({ tag: 'build-gate', when: { filesChanged: ['data/**'] }, require: { toolPassed: { cmd: 'npm run build', pass: '' } }, message: 'Run the build.' });
+const SAID = withReqs({ tag: 'deploy-said', when: { promptMatches: '\\bdeploy now\\b' }, require: { answerMatches: 'deployed' }, message: 'Say it was deployed.' });
+const BG = { name: 'Agent', input: { prompt: 'Read AGENTS.md first and follow its rules. Write the export helpers.', run_in_background: true }, result: 'Async agent launched successfully.\nagentId: a1b2c3d4 (use it to check on the agent)' };
+const BG_DONE = { type: 'user', message: { role: 'user', content: '<task-notification>\n<task-id>a1b2c3d4</task-id>\n<status>completed</status>\n</task-notification>' } };
+const NO_KNOWLEDGE = { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), packs: (JSON.parse(s).packs || []).filter(p => p !== 'knowledge') }), 'tools/hooks/requirements.json': s => JSON.stringify({ ...JSON.parse(s), requirements: JSON.parse(s).requirements.filter(r => r.pack !== 'knowledge') }) };
+const QUOTED_LIST = '> Notes from the call:\n' + Array.from({ length: 6 }, (_, i) => `> - Point ${i + 1}: the desk should be sturdy, quiet and easy to adjust for both of us, and it should fit the room by the window.`).join('\n') + '\n>\n> End of the notes.';
+STOP.push(
+  // pasted text and the hooks' own output are not the user's request
+  { name: 'count-honored: a count inside pasted text is not a request: passes', prompt: 'what does this line mean?\n<pasted_content source="terminal">audit: PASS (26 sweeps, 0 failed, 0 warnings)</pasted_content>',
+    answer: 'Every check passed.', expect: { block: false, not: ['count-honored'] } },
+  { name: 'count-honored: a pasted hook line without tags is not a request: passes', prompt: 'what does this mean\naudit: FAIL (26 sweeps, 1 failed)', answer: 'One check failed.', expect: { block: false, not: ['count-honored'] } },
+  { name: 'promptMatches: a check never fires on pasted text: passes', prompt: 'what is this note?\n<pasted_content>deploy now</pasted_content>', edit: SAID, answer: 'A note from the release list.', expect: { block: false, not: ['deploy-said'] } },
+  { name: 'promptMatches: the same words typed by the user still count: blocked', prompt: 'deploy now', edit: SAID, answer: 'Starting.', expect: { block: true, tags: ['deploy-said'] } },
+  // the block cap ends the turn quietly; a check that waits on background helpers is not carried over as a miss
+  { name: 'block cap reached: a check that waits on background agents is not carried over', prompt: 'split the work across several agents', tools: [sk('parallel-agents')], files: { 'docs/rota.md': 'r' },
+    answer: 'Skill: parallel-agents. Done.', active: true, blocks: 3, expect: { block: false },
+    after: dir => { const u = fs.existsSync(path.join(dir, 'tools/hooks/state/unresolved.json')) ? fs.readFileSync(path.join(dir, 'tools/hooks/state/unresolved.json'), 'utf8') : ''; return (u.includes('finished-summary') && !u.includes('parallel-merged')) || `carried over: ${u.slice(0, 300)}`; } },
+  // editing a runbook is maintaining it, not following it
+  { name: 'maintaining a runbook (read, then edit) is not following it: its checks stay off', prompt: 'fix the typo in step one of that runbook', edit: MEAL_CHECK,
+    tools: [pb('project'), pb('meal-plan'), { name: 'Edit', input: { file_path: 'docs/playbooks/meal-plan.md', old_string: '1. a', new_string: '1. b' } }, bash('node tools/audit.mjs')],
+    files: { 'docs/playbooks/meal-plan.md': NEWPB.replace('1. a', '1. b'), 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md. Fixed the typo. Existing skills checked: none needed, an edit.' + FIN, expect: { block: false, not: ['meal-ok'] } },
+  { name: 'maintaining a runbook the answer names as followed: its checks apply: blocked', prompt: 'fix the typo in step one of that runbook', edit: MEAL_CHECK,
+    tools: [pb('project'), pb('meal-plan'), { name: 'Edit', input: { file_path: 'docs/playbooks/meal-plan.md', old_string: '1. a', new_string: '1. b' } }, bash('node tools/audit.mjs')],
+    files: { 'docs/playbooks/meal-plan.md': NEWPB.replace('1. a', '1. b'), 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md, Playbook: meal-plan.md. Fixed the typo. Existing skills checked: none needed, an edit.' + FIN, expect: { block: true, tags: ['meal-ok'] } },
+  // background helpers: their files are not this turn's changes while they run
+  { name: 'background agent still running: the files it changes are not this turn\'s: passes', prompt: 'start a helper on the export code', tools: [BG], files: { 'src/helper-made.js': 'x' },
+    answer: 'A helper is working on it.', expect: { block: false, not: ['finished-summary'] } },
+  { name: 'background agent reported back: the files count again: blocked', prompt: 'start a helper on the export code', tools: [BG], rows: [BG_DONE], files: { 'src/helper-made.js': 'x' },
+    answer: 'The helper finished.', expect: { block: true, tags: ['finished-summary'] } },
+  { name: 'background agent running: the main session\'s own Write still counts: blocked', prompt: 'start a helper on the export code', tools: [BG, { name: 'Write', input: { file_path: 'docs/main-notes.md', content: 'x' } }],
+    files: { 'docs/main-notes.md': 'x', 'src/helper-made.js': 'x' }, answer: 'Wrote the notes.', expect: { block: true, tags: ['finished-summary'] } },
+  // unchanged content and build outputs are not changes
+  { pack: 'gui', name: 'a byte-identical rewrite is not a change: no screenshots or Finished demanded', prompt: 'run the build', edit: { 'site/index.html': () => '<h1>x</h1>' }, prep: snapOf('site/index.html'),
+    files: { 'site/index.html': '<h1>x</h1>' }, answer: 'Built.', expect: { block: false, not: ['gui-review-loop', 'finished-summary'] } },
+  { pack: 'gui', name: 'build outputs are generated: a changed dist/ page is no GUI change', prompt: 'run the build', files: { 'dist/index.html': '<h1>x</h1>' }, answer: 'Built.',
+    expect: { block: false, not: ['gui-review-loop', 'finished-summary'] } },
+  { name: 'finished-summary: a config.json write by the engine itself is not a change: passes', prompt: 'hello', answer: 'Hi.',
+    prep: dir => { const p = path.join(dir, 'tools/hooks/config.json'); fs.writeFileSync(p, fs.readFileSync(p, 'utf8').replace('{', '{\n  "_note": "written by the engine",')); write(dir, { 'tools/hooks/state/engine-writes.json': JSON.stringify({ 'tools/hooks/config.json': fs.statSync(p).mtimeMs }) }); },
+    expect: { block: false, not: ['finished-summary', 'hooks-tested'] } },
+  // gates are judged by their own result
+  { name: 'gate with a pass line: judged by its own line, not by a later command in the same shell line: passes', prompt: 'add the new vendor data', edit: VALIDATOR,
+    tools: [pb('project'), { ...bash('python tools/validate.py data/v.json && npm test; echo done', 'RESULT: PASS\n1 test failed\ndone'), error: true }],
+    files: { 'data/v.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md' + FIN, expect: { block: false, not: ['data-valid'] } },
+  { name: 'gate with no pass pattern chained to other commands: run it alone: blocked', prompt: 'add the new vendor data', edit: BUILD_GATE, tools: [pb('project'), bash('npm run build && npm test; echo done', 'built\ndone')],
+    files: { 'data/v.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md' + FIN, expect: { block: true, tags: ['build-gate'], says: /its own command/ } },
+  { name: 'gate with no pass pattern run alone: its exit code decides: passes', prompt: 'add the new vendor data', edit: BUILD_GATE, tools: [pb('project'), bash('npm run build', 'built')],
+    files: { 'data/v.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md' + FIN, expect: { block: false } },
+  // numbers the agent wrote itself earlier in the session are not made up
+  { name: 'answer-traced: a number the agent wrote into a file earlier in the session: passes', edit: NO_KNOWLEDGE, prompt: 'is it true that standing desks hold 150 kg',
+    before: [{ name: 'Write', input: { file_path: 'docs/desk-notes.md', content: 'Standing desks last 12 years.' } }],
+    tools: [sk('research'), { name: 'WebSearch', input: { query: 'desk load' }, result: 'Desk A: rated 150 kg' }, bash('node skills/research/scripts/claims.mjs check .cache/research/desk.md', 'CLAIMS: PASS - 1 claims')],
+    answer: 'Skill: research. Yes: 150 kg, and they last 12 years [S1, S2] (https://a.example).\nVerified: 1 claims traced to 3 independent sources; 0 cut or marked not verified.', expect: { block: false, not: ['answer-traced'] } },
+  // the writing rules' own fixed wordings are not copies of the user's words; rewording for a wording check is no runbook miss
+  { name: 'no-verbatim-examples: a wording the writing standards require is not the user\'s words: passes', prompt: 'from now on ask me like this: question for you keep the old setting so the nightly job keeps working',
+    tools: [pb('project'), bash('node tools/hooks/selfcheck.mjs'), bash('node tools/audit.mjs')],
+    files: { ...MEM, 'CLAUDE.md': TWIN + '\n- Questions to the user use the fixed form, e.g. "Question for you: keep the old setting so the nightly job keeps working?" (2026-10-18).\n', 'docs/checks/user-requirements.md': 'row', 'tools/hooks/requirements.json': '{"requirements":[]}', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Playbook: project.md. hook: N/A judgment.' + FIN, expect: { block: false, not: ['no-verbatim-examples'] } },
+  { name: 'skill-learn: rewording for a wording check is not a miss of the followed skill: no lesson demanded', prompt: 'debug the failing import', tools: [sk('debug')], files: { 'notes/import.md': 'x', 'docs/CHANGELOG.md': 'x' },
+    active: true, blocks: 2, failed: ['no-verbatim-examples', 'plain-writing'], answer: 'Skill: debug. Root cause: the date parser.' + FIN, expect: { block: false, not: ['skill-learn'] } },
+  // the Stop message stays short for the user; the full steps are one command away
+  { name: 'stop message: one short line per step, the details in "hooks.mjs why"', prompt: 'build me a weekly cleaning rota', files: { 'docs/rota.md': 'r', 'tools/extra.mjs': 'export {};\n' }, answer: 'Done.',
+    expect: { block: true, tags: ['runbook-exists', 'finished-summary'] },
+    after: (dir, reason) => {
+      const why = spawnSync(process.execPath, ['tools/hooks/hooks.mjs', 'why'], { cwd: dir, encoding: 'utf8' }).stdout;
+      const r = reason.split('\n');
+      const long = r.filter(l => l.length > 100 && !l.startsWith('For the agent:'));
+      return (!long.length && /\[runbook-exists\]/.test(why) && /runbook-create/.test(why)) || `long lines: ${long.join(' | ').slice(0, 300)} | why: ${why.slice(0, 200)}`;
+    } },
+  // plain writing: a quoted list is a list
+  { name: 'plain-writing: a quoted list is not one long paragraph: passes', prompt: 'hello', answer: QUOTED_LIST, expect: { block: false, not: ['plain-writing'] } },
+  // the self-test a check-file change needs: none for tuning, the touched checks' scenarios for check logic
+  { name: 'hooks-tested: a namesIgnore glob in config.json needs no self-test: passes', prompt: 'ignore the vendor folder in the name check', tools: [pb('project'), bash('node tools/audit.mjs')],
+    prep: turnStart('config.json', s => JSON.stringify({ ...JSON.parse(s), namesIgnore: ['vendor/**'] }, null, 2)), files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.' + FIN, expect: { block: false, not: ['hooks-tested'] } },
+  { name: 'hooks-tested: a changed check needs its own scenarios (selfcheck --tags): blocked', prompt: 'add a check for meal plans', tools: [pb('project'), bash('node tools/audit.mjs')],
+    prep: turnStart('requirements.json', NEW_CHECK), files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.' + FIN, expect: { block: true, tags: ['hooks-tested'], says: /--tags meal-ok/ } },
+  { name: 'hooks-tested: the changed check\'s scenarios ran and passed: passes', prompt: 'add a check for meal plans', tools: [pb('project'), bash('node tools/audit.mjs'), bash('node tools/hooks/selfcheck.mjs --tags meal-ok', 'selfcheck: ALL PASS (2 passed, 0 failed)')],
+    prep: turnStart('requirements.json', NEW_CHECK), files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.' + FIN, expect: { block: false, not: ['hooks-tested'] } }
+);
+
 PRETOOL.push(
   { name: 'em dash written into a user-facing file: denied', tool: 'Write', input: { file_path: 'docs/guide.md', content: 'Step one \u2014 open it.' }, deny: true, tag: 'plain-writing' },
   { name: 'em dash in code (not user-facing): allowed', tool: 'Write', input: { file_path: 'src/a.js', content: '// a \u2014 b' }, deny: false },
@@ -615,13 +731,56 @@ PROMPT.push(
   { name: 'obsidian skill routes on its own', prompt: 'show me what is related to the desk notes in obsidian', has: ['SKILL: obsidian'] },
   { name: 'research skill routes on its own', prompt: 'search the web for standing desk reviews', has: ['SKILL: research'] },
   { name: 'a fact check routes to the research skill', prompt: 'fact check this claim about desk weight limits', has: ['SKILL: research'] },
-  { name: 'QA routes to the qa runbook', prompt: 'QA the export screen please', has: ['ROUTE: qa'] }
+  { name: 'QA routes to the qa runbook', prompt: 'QA the export screen please', has: ['ROUTE: qa'] },
+  // routing needs real evidence: generic words, opinion questions and pasted text never route
+  { pack: 'app', name: 'route: a generic phrase alone does not route ("fix it here")', prompt: 'can you fix it here', hasNot: ['ROUTE: bugfix'] },
+  { pack: 'app', name: 'route: a real bug report still routes', prompt: 'the export is broken, fix it', has: ['ROUTE: bugfix'] },
+  { name: 'route: "save tokens" in passing does not route to compress-for-ai', prompt: 'keep the answers short to save tokens', hasNot: ['SKILL: compress-for-ai'] },
+  { pack: 'knowledge', name: 'route: "i added" alone does not route to ingest', prompt: 'i added a line to the notes, does it read well', hasNot: ['ROUTE: ingest'] },
+  { name: 'route: a question asking the agent\'s opinion routes nowhere', prompt: 'do you think the standing desk is worth it?', hasNot: ['SKILL: research', 'ROUTE:', 'NO RUNBOOK'] },
+  { name: 'route: "based on what we have" is a meta question, not research', prompt: 'based on what we have, should we keep going this way?', hasNot: ['SKILL: research'] },
+  { name: 'pasted: text inside pasted_content does not route', prompt: 'what is this?\n<pasted_content source="x">make a plan for the csv export</pasted_content>', hasNot: ['ROUTE: plan'] },
+  { name: 'pasted: the hooks\' own output pasted back does not route', prompt: 'why did this show up?\nAlmost done: 1 step is left before this answer is complete (round 1 of 3).\n1. make a plan for the csv export\nFor the agent: a step that truly does not apply is waived. Names: plan-saved.\nROUTE: plan (matched: make a plan)', hasNot: ['ROUTE: plan'] }
 );
+
+// Tags proven by scenarios above whose names don't spell the tag. The audit requires every tag to appear in this file.
+const COVERS = {
+  'compaction-summary': 'compaction summary is not a request',
+  'queued-messages': 'queued mid-turn rule request is enforced',
+  'unresolved-carryover': 'unresolved checks are saved for the next prompt',
+  'notification-not-prompt': 'notification is not a prompt',
+  'rule-memory': 'rule request without memory',
+  'final-answer-source': 'last_assistant_message is used',
+  'stop-reblock': 'reblock cap',
+  'crash-visible': 'crash blocks once',
+  'interrupted-work': 'interrupted-work integrity check',
+  'agent-neutral': 'agent-neutral: begin routes',
+  'twin-sync': 'twin: editing AGENTS.md syncs',
+  'requirements-valid': 'broken requirements.json',
+  'runbook-read': 'never opened its runbook',
+  'playbook-named': 'did not name it',
+  'skill-valid': 'invalid skill frontmatter',
+  'playbook-format': 'missing triggers and sections'
+};
 
 let pass = 0, fail = 0;
 const PASSED = [];
 const report = (ok, name, why = '') => { if (ok) PASSED.push(name); ok ? pass++ : fail++; console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${ok ? '' : '  -> ' + why}`); };
 function applyEdits(dir, edits, when = Date.now() - 3600_000) { for (const [p, fn] of Object.entries(edits || {})) { const f = path.join(dir, p); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, fn(fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : '')); fs.utimesSync(f, when / 1000, when / 1000); } }
+// The fit checklist filled the way setup fills it: what is in the project is "add", the rest "skip", each with its own
+// reason that answers the survey's signals (node tools/fit.mjs --json). Extra decisions override single rows.
+function fitFill(dir, extra = []) {
+  const fit = (...a) => spawnSync(process.execPath, ['tools/fit.mjs', ...a], { cwd: dir, encoding: 'utf8' });
+  fit();
+  const rows = JSON.parse(fit('--json').stdout || '[]');
+  const list = rows.map(r => ({ item: r.item, kind: r.kind, decision: r.present ? 'add' : 'skip',
+    reason: r.present ? `Worth it: ${r.item} is already set up in this test copy and its checks keep running / a little upkeep`
+      : `${r.item} brings nothing this test fixture needs, so it would only add upkeep and reading time${r.signals.length ? `, even though it has ${r.signals.join(' and ')}` : ''}` }));
+  for (const e of extra) { const i = list.findIndex(x => x.item === e.item && (!e.kind || x.kind === e.kind)); if (i >= 0) list[i] = { ...list[i], ...e }; }
+  fs.writeFileSync(path.join(dir, '.cache-fit.json'), JSON.stringify(list));
+  fit('decide', '--file', path.join(dir, '.cache-fit.json'));
+  fs.rmSync(path.join(dir, '.cache-fit.json'), { force: true });
+}
 function write(dir, files) { for (const [p, c] of Object.entries(files || {})) { if (c === undefined) continue; const f = path.join(dir, p); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, c); } }
 
 // Runs one Stop scenario in a fresh copy and returns what the hook decided.
@@ -634,12 +793,15 @@ function runStop(s) {
     if (s.prep) s.prep(dir);
     const tp = transcript(dir, s, since);
     if (s.blocks) write(dir, { 'tools/hooks/state/stop-blocks.json': JSON.stringify({ [`${tp}|${since}`]: s.blocks }) });
+    if (s.failed) write(dir, { 'tools/hooks/state/stop-failed.json': JSON.stringify({ key: `${tp}|${since}`, tags: s.failed }) });
     write(dir, s.files);
     for (const [p, off] of Object.entries(s.mtimes || {})) { const t = (Date.now() + off) / 1000; fs.utimesSync(path.join(dir, p), t, t); }
     const { out, err } = run(dir, 'stop', { transcript_path: tp, stop_hook_active: !!s.active, ...(s.last ? { last_assistant_message: s.last } : {}) });
     let d = null; try { d = out.trim() ? JSON.parse(out) : null; } catch { }
-    const after = s.after ? s.after(dir) : true;
-    return { blocked: !!(d && d.decision === 'block'), reason: d ? d.reason : '', err, after };
+    const after = s.after ? s.after(dir, d ? d.reason || '' : '') : true;
+    // the full steps behind the short message (hooks.mjs why)
+    let details = ''; try { details = fs.readFileSync(path.join(dir, 'tools/hooks/state/stop-details.md'), 'utf8'); } catch { }
+    return { blocked: !!(d && d.decision === 'block'), reason: d ? d.reason : '', details, err, after };
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
@@ -711,6 +873,15 @@ if (fs.existsSync(OWN)) {
   STOP.push(...(own.stop || [])); PRETOOL.push(...(own.pretool || [])); PROMPT.push(...(own.prompt || []));
 }
 
+// With --tags, a scenario runs when it proves one of the tags: it expects the tag (or expects it absent), or its name
+// spells the tag (or the name COVERS gives for it). A tag no scenario proves at all is a FAIL: add one.
+const proves = s => TAGS.filter(t => (s.expect?.tags || []).includes(t) || (s.expect?.not || []).includes(t) || s.tag === t || s.name.includes(t) || (COVERS[t] && s.name.includes(COVERS[t])));
+if (TAGS) {
+  const all = [...STOP, ...PRETOOL, ...PROMPT];
+  for (const t of TAGS) if (!all.some(s => proves(s).includes(t))) report(false, `tags: a scenario proves ${t}`, `no scenario proves "${t}": add one to tools/hooks/project-scenarios.mjs (blocked when skipped, passes when followed)`);
+  for (const list of [STOP, PRETOOL, PROMPT]) { const keep = list.filter(s => proves(s).length); list.length = 0; list.push(...keep); }
+}
+
 for (const s of STOP) {
   if (!applies(s)) { skipped++; if (process.env.SHOW_SKIPS) console.log('SKIP  stop: ' + s.name); continue; }
   const r = runStop(s);
@@ -720,6 +891,7 @@ for (const s of STOP) {
   const named = t => (/Names: ([^\n]*)\.\s*$/.exec(r.reason || '')?.[1] || '').split(', ').includes(t);
   for (const t of s.expect.tags || []) if (!named(t)) why ||= `missing tag [${t}] in: ${r.reason || '(no block)'}`;
   for (const t of s.expect.not || []) if (named(t)) why ||= `unexpected tag [${t}]`;
+  if (s.expect.says && !s.expect.says.test(`${r.reason || ''}\n${r.details || ''}`)) why ||= `the message does not say ${s.expect.says}: ${r.reason || '(no block)'}`;
   if (!why && r.after !== true) why = r.after;
   report(!why, 'stop: ' + s.name, why);
 }
@@ -763,6 +935,7 @@ for (const s of PROMPT) {
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
+if (!TAGS) { // the standalone checks run in a full run only
 { // session hook output
   const dir = copyProject();
   try {
@@ -783,7 +956,7 @@ for (const s of PROMPT) {
 { // agent-neutral: an agent without hooks uses begin / check
   const dir = copyProject();
   try {
-    const node = (...a) => spawnSync(process.execPath, [path.join(dir, 'tools', 'hooks', 'hooks.mjs'), ...a], { cwd: dir, encoding: 'utf8', env: { ...process.env, KS_MEMORY_DIR: path.join(dir, '.memtest') } });
+    const node = (...a) => spawnSync(process.execPath, [path.join(dir, 'tools', 'hooks', 'hooks.mjs'), ...a], { cwd: dir, encoding: 'utf8', env: { ...process.env, STARTER_MEMORY_DIR: path.join(dir, '.memtest') } });
     // core runbook only (plan), so this holds in every project whatever packs it has
     const b = node('begin', 'make a plan for the csv export');
     write(dir, { 'docs/plans/2026-10-17-export.md': '# Export: plan' });
@@ -802,7 +975,7 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) {
   // a project after setup (no setup prompt), and one still in setup
   const mk = () => { const d = copyProject(); fs.rmSync(path.join(d, '.starter-template'), { force: true }); fs.rmSync(path.join(d, 'SETUP-PROMPT.md'), { force: true }); return d; };
   const inSetup = () => { const d = copyProject(); fs.rmSync(path.join(d, '.starter-template'), { force: true }); return d; };
-  const nodeIn = (d, ...a) => spawnSync(process.execPath, a, { cwd: d, encoding: 'utf8', env: { ...process.env, KS_MEMORY_DIR: path.join(d, '.memtest') } });
+  const nodeIn = (d, ...a) => spawnSync(process.execPath, a, { cwd: d, encoding: 'utf8', env: { ...process.env, STARTER_MEMORY_DIR: path.join(d, '.memtest') } });
   const has = (d, p) => fs.existsSync(path.join(d, p));
   const mode = d => JSON.parse(fs.readFileSync(path.join(d, 'tools/hooks/config.json'), 'utf8')).starter;
   const dirs = [];
@@ -853,6 +1026,35 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) {
     const before = nodeIn(s, 'tools/audit.mjs', '--setup').stdout;
     report(/ask the user what happens to the starter now/.test(before), 'starter: setup asks for the starter choice before it can finish', before.split('\n').filter(l => /starter|FAIL/.test(l)).join(' | ').slice(0, 400));
   } finally { for (const d of dirs) fs.rmSync(d, { recursive: true, force: true }); }
+  // engine lessons travel back: feedback in the project, report into the linked starter's inbox, the starter's audit warns
+  {
+    const p = mk(), fake = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-fake-')); let a = null;
+    try {
+      write(fake, { 'tools/new-project.mjs': '// a starter\n' });
+      fs.writeFileSync(path.join(p, 'tools/starter.local.json'), JSON.stringify({ path: fake }));
+      const f = nodeIn(p, 'tools/starter.mjs', 'feedback', 'the gate judged the whole command line');
+      const r1 = nodeIn(p, 'tools/starter.mjs', 'report'), r2 = nodeIn(p, 'tools/starter.mjs', 'report');
+      const inboxDir = path.join(fake, 'docs/feedback-inbox'), files = fs.existsSync(inboxDir) ? fs.readdirSync(inboxDir) : [];
+      const inbox = files.length ? fs.readFileSync(path.join(inboxDir, files[0]), 'utf8') : '';
+      const fb = fs.existsSync(path.join(p, 'docs/starter-feedback.md')) ? fs.readFileSync(path.join(p, 'docs/starter-feedback.md'), 'utf8') : '';
+      a = copyProject();
+      write(a, { 'docs/feedback-inbox/demo.md': '# Feedback from demo\n- 2026-10-18: one lesson\n- 2026-10-17: an old one (reviewed 2026-10-18: fixed)\n' });
+      const audit = nodeIn(a, 'tools/audit.mjs').stdout;
+      report(f.status === 0 && /^- \d{4}-\d\d-\d\d: the gate judged/m.test(fb) && (inbox.match(/the gate judged/g) || []).length === 1 && /nothing new/.test(r2.stdout) && /1 feedback line\(s\) from projects not reviewed/.test(audit),
+        'starter feedback: noted in the project, reported once to the linked starter, and the starter\'s audit warns until reviewed', `${f.stdout}${f.stderr} | ${r1.stdout}${r1.stderr} | ${r2.stdout} | ${audit.split('\n').filter(l => /feedback/.test(l)).join(' ')}`);
+    } finally { for (const d of [p, fake, a]) if (d) fs.rmSync(d, { recursive: true, force: true }); }
+  }
+  // a dry run prints a summary: counts per folder and the collisions; --verbose lists every file
+  {
+    const tgt = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-dry-'));
+    try {
+      write(tgt, { 'README.md': '# mine\n', 'notes/a.md': 'x' });
+      const s = spawnSync(process.execPath, [path.join(ROOT, 'tools/new-project.mjs'), tgt, '--adopt', '--dry-run', '--dev'], { encoding: 'utf8' }).stdout;
+      const v = spawnSync(process.execPath, [path.join(ROOT, 'tools/new-project.mjs'), tgt, '--adopt', '--dry-run', '--dev', '--verbose'], { encoding: 'utf8' }).stdout;
+      report(s.split('\n').length < 40 && /would create \d+ file\(s\)/.test(s) && v.split('\n').length > 100 && !fs.existsSync(path.join(tgt, 'AGENTS.md')),
+        'starter: new-project --dry-run prints a summary, --verbose every file', `${s.split('\n').length} lines: ${s.slice(0, 300)} | verbose ${v.split('\n').length} lines`);
+    } finally { fs.rmSync(tgt, { recursive: true, force: true }); }
+  }
   // the generator never puts a project inside the starter
   const g = spawnSync(process.execPath, [path.join(ROOT, 'tools/new-project.mjs'), path.join(ROOT, 'inside-test'), '--dry-run', '--dev'], { encoding: 'utf8' });
   report(g.status !== 0 && /must not be inside each other/.test(g.stderr) && !fs.existsSync(path.join(ROOT, 'inside-test')), 'starter: new-project refuses a project inside the starter', g.stderr.slice(0, 200));
@@ -927,6 +1129,61 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
     write(dir, { 'docs/plans/2026-10-18-export.md': '# Export: plan\nstatus: dropped - the user chose another approach\n- [x] helpers\n- [ ] wire it up\n' });
     const closed = session();
     report(/OPEN PLANS: docs\/plans\/2026-10-18-export\.md \(2 of 3 steps left\)/.test(open) && !/OPEN PLANS/.test(closed), 'plan-open: an unfinished plan is announced at the next session until it is done or dropped', open.slice(0, 300));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+{ // fit-checklist: every candidate decided by the AI, each reason checked against the project itself
+  const dir = copyProject();
+  try {
+    const fit = (...a) => spawnSync(process.execPath, ['tools/fit.mjs', ...a], { cwd: dir, encoding: 'utf8' });
+    const check = () => fit('check').stdout;
+    const decide = (item, decision, reason, kind) => fit('decide', item, decision, reason, ...(kind ? ['--kind', kind] : []));
+    fit();
+    const fresh = check();
+    fitFill(dir);
+    const filled = check();
+    report(/not decided yet/.test(fresh) && /FIT: FAIL/.test(fresh) && /FIT: PASS/.test(filled), 'fit-checklist: undecided rows fail, a setup-style filling passes', `${fresh.slice(-200)} | ${filled.slice(-300)}`);
+    // boilerplate reasons fail, whatever the decision
+    decide('jq', 'skip', 'not needed');
+    const boiler = check();
+    decide('jq', 'skip', 'no JSON files or API output here, and the agent reads the few config files directly');
+    report(/tool jq: "not needed" is boilerplate/.test(boiler) && /FIT: PASS/.test(check()), 'fit-checklist: a boilerplate reason fails, a concrete one passes', boiler.slice(0, 300));
+    // "add" must be true: a tool is listed under Tools in the brief, a skill is enabled
+    decide('jq', 'add', 'Worth it: the agent reads the JSON exports quickly / one small binary to keep current');
+    const notIn = check();
+    applyEdits(dir, { 'docs/BRIEF.md': s => s + '\n## Tools\n- jq 1.7, installed with winget, reads the JSON exports\n' });
+    const listed = check();
+    decide('orchestrate', 'skip', 'this test copy never runs long jobs across several helpers at once');
+    const skipOn = check();
+    decide('orchestrate', 'add', 'Worth it: orchestrate is already set up in this test copy and tracks long runs / a ledger file');
+    report(/tool jq: decided add, but it is not in the project/.test(notIn) && /FIT: PASS/.test(listed) && /skill orchestrate: decided skip, but it is in the project/.test(skipOn) && /FIT: PASS/.test(check()),
+      'fit-checklist: add must be true in the project, and skip must not contradict what is installed', `${notIn.slice(0, 200)} | ${listed.slice(-200)} | ${skipOn.slice(0, 200)}`);
+    // a skip that ignores the survey's evidence fails until the reason answers it
+    write(dir, { 'site/index.html': '<h1>Hi</h1>\n' });
+    const contra = check();
+    decide('Playwright', 'skip', 'the only web page is a static placeholder with no logic, so browser tests would cost more than they catch', 'tool');
+    decide('Playwright MCP', 'skip', 'one static web page needs no interactive browser checks, and the tool adds context to every session', 'tool');
+    report(/tool Playwright: the project has 1 web\/UI files: say why it still doesn't help/.test(contra) && /FIT: PASS/.test(check()), 'fit-checklist: a skip that contradicts a survey signal fails until the reason addresses it', contra.slice(0, 300));
+    // later needs a condition; a measurable one that is met fails the check and is announced once at session start
+    decide('fd', 'later', 'finding files by name only matters once the tree is much bigger than now');
+    const noWhen = check();
+    decide('fd', 'later - when: the code passes 100000 files', 'finding files by name only matters once the tree is much bigger than now');
+    const farOff = check();
+    decide('fd', 'later - when: the first data file appears', 'finding files by name only matters once the tree is much bigger than now');
+    const quiet = check();
+    fs.rmSync(path.join(dir, '.starter-template'), { force: true });
+    write(dir, { 'data/prices.csv': 'item,price\ndesk,300\n' });
+    const met = check();
+    const s1 = run(dir, 'session', { source: 'startup' }).out, s2 = run(dir, 'session', { source: 'startup' }).out;
+    report(/tool fd: later needs a condition/.test(noWhen) && /FIT: PASS/.test(farOff) && /FIT: PASS/.test(quiet) && /tool fd: its condition is met now/.test(met) && /FIT: a "later" is due: fd/.test(s1) && !/FIT: a "later" is due/.test(s2),
+      'fit-checklist: later needs a "when:" condition; one that is met fails the check and is announced once', `${noWhen.slice(0, 150)} | ${met.slice(0, 200)} | ${s1.slice(-400)}`);
+    // the upgrade review holds until the new candidates are decided
+    const up = () => spawnSync(process.execPath, ['--input-type=module', '-e', `import { upgradeProblems } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; console.log(JSON.stringify(upgradeProblems()));`], { cwd: dir, encoding: 'utf8' }).stdout;
+    applyEdits(dir, { 'docs/DECISIONS.md': s => s + '\n## Upgrade review (2026-10-18)\n- fit: 2 new candidates: ?\n' });
+    const pending = up();
+    fitFill(dir); // the new data file is evidence for the data tools too: their reasons now answer it
+    applyEdits(dir, { 'docs/DECISIONS.md': s => s.replace('- fit: 2 new candidates: ?', '- fit: 2 new candidates: decided') });
+    report(/fit: 2 new candidates.*decide the new rows/.test(pending) && up().trim() === '[]', 'fit-checklist: the upgrade review waits until the new candidates pass the check', `${pending.slice(0, 200)} | ${up().slice(0, 200)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
@@ -1014,26 +1271,72 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-// Tags proven by scenarios above whose names don't spell the tag. The audit requires every tag to appear in this file.
-const COVERS = {
-  'compaction-summary': 'compaction summary is not a request',
-  'queued-messages': 'queued mid-turn rule request is enforced',
-  'unresolved-carryover': 'unresolved checks are saved for the next prompt',
-  'notification-not-prompt': 'notification is not a prompt',
-  'rule-memory': 'rule request without memory',
-  'final-answer-source': 'last_assistant_message is used',
-  'stop-reblock': 'reblock cap',
-  'crash-visible': 'crash blocks once',
-  'interrupted-work': 'interrupted-work integrity check',
-  'agent-neutral': 'agent-neutral: begin routes',
-  'twin-sync': 'twin: editing AGENTS.md syncs',
-  'requirements-valid': 'broken requirements.json',
-  'runbook-read': 'never opened its runbook',
-  'playbook-named': 'did not name it',
-  'skill-valid': 'invalid skill frontmatter',
-  'playbook-format': 'missing triggers and sections'
-};
-for (const [tag, name] of Object.entries(COVERS)) if (hereSrc.includes(tag)) report(PASSED.some(n => n.includes(name)), `covers: ${tag} is proven by "${name}"`, 'no passing scenario with that name');
 
-console.log(`\nselfcheck: ${fail ? 'FAIL' : 'ALL PASS'} (${pass} passed, ${fail} failed${skipped ? `, ${skipped} skipped: packs not installed here` : ''})`);
+{ // notices once per turn: not repeated for a message typed mid-turn; last turn's misses once, then dropped
+  const dir = copyProject();
+  try {
+    fs.rmSync(path.join(dir, '.starter-template'), { force: true });
+    write(dir, { 'tools/hooks/state/unresolved.json': JSON.stringify({ at: 'x', prompt: 'p', items: ['[finished-summary] m'] }) });
+    const mid = path.join(dir, '.cache/mid.jsonl');
+    write(dir, { '.cache/mid.jsonl': [{ type: 'user', message: { role: 'user', content: 'hello there' } }, { type: 'assistant', message: { content: [{ type: 'tool_use', id: 't1', name: 'Grep', input: {} }] } }].map(r => JSON.stringify(r)).join('\n') + '\n' });
+    const first = run(dir, 'prompt', { prompt: 'hello there' }).out;
+    const again = run(dir, 'prompt', { prompt: 'and also this', transcript_path: mid }).out;
+    write(dir, { 'tools/hooks/state/turn-end.json': JSON.stringify({ at: new Date(Date.now() + 1000).toISOString() }) });
+    const next = run(dir, 'prompt', { prompt: 'next request' }).out;
+    const has = (o, ...xs) => xs.every(x => o.includes(x)), none = (o, ...xs) => xs.every(x => !o.includes(x));
+    report(has(first, '[rules]', 'SETUP IN PROGRESS', 'LAST WORK TURN') && none(again, '[rules]', 'SETUP IN PROGRESS', 'LAST WORK TURN') && has(next, '[rules]', 'SETUP IN PROGRESS') && none(next, 'LAST WORK TURN'),
+      'unresolved-carryover: notices once per turn, none for a mid-turn message, last turn\'s misses once', `first: ${first.slice(0, 150)} | again: ${again.slice(0, 150)} | next: ${next.slice(0, 150)}`);
+    // what the session start announced is not repeated by the first prompt
+    const d2 = copyProject(); fs.rmSync(path.join(d2, '.starter-template'), { force: true });
+    const ss = run(d2, 'session', { source: 'startup' }).out, p1 = run(d2, 'prompt', { prompt: 'hello' }).out;
+    fs.rmSync(d2, { recursive: true, force: true });
+    report(ss.includes('SETUP IN PROGRESS') && !p1.includes('SETUP IN PROGRESS') && p1.includes('[rules]'), 'unresolved-carryover: the first prompt does not repeat the session start\'s notices', `${p1.slice(0, 200)}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+{ // DIRECTORY.md: one short line per runbook and skill, with its link (the file is read in every session)
+  const rows = fs.readFileSync(path.join(B, 'DIRECTORY.md'), 'utf8').split(/\r?\n/).filter(l => l.startsWith('| ['));
+  const long = rows.filter(l => l.length > 240);
+  report(rows.length > 5 && !long.length, 'directory-current: DIRECTORY.md rows are one short line each', long.map(l => l.slice(0, 80)).join(' | '));
+}
+
+{ // sync: a file removed from a skill leaves its mirror too
+  const dir = copyProject();
+  try {
+    const sync = () => spawnSync(process.execPath, ['tools/hooks/hooks.mjs', 'sync'], { cwd: dir, encoding: 'utf8' });
+    write(dir, { 'skills/debug/extra-notes.md': 'x', 'skills/debug/old/a.md': 'x' }); sync();
+    const made = fs.existsSync(path.join(dir, '.claude/skills/debug/extra-notes.md')) && fs.existsSync(path.join(dir, '.claude/skills/debug/old/a.md'));
+    fs.rmSync(path.join(dir, 'skills/debug/extra-notes.md')); fs.rmSync(path.join(dir, 'skills/debug/old'), { recursive: true }); sync();
+    const gone = !fs.existsSync(path.join(dir, '.claude/skills/debug/extra-notes.md')) && !fs.existsSync(path.join(dir, '.claude/skills/debug/old')) && fs.existsSync(path.join(dir, '.claude/skills/debug/SKILL.md'));
+    report(made && gone, 'skill-mirror: sync deletes files removed from the skill folder', `made ${made}, gone ${gone}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+{ // rule-memory: the memory folder is agent-neutral; STARTER_ env names win, the old KS_ names still work
+  const dir = copyProject();
+  try {
+    const md = (env, cfg) => { if (cfg) applyEdits(dir, cfgEdit(cfg)); const e = { ...process.env }; for (const k of ['STARTER_MEMORY_DIR', 'KS_MEMORY_DIR', 'CLAUDE_PROJECT_DIR', 'CLAUDECODE']) delete e[k];
+      return spawnSync(process.execPath, ['--input-type=module', '-e', `import { memoryDir } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; console.log(memoryDir());`], { cwd: dir, encoding: 'utf8', env: { ...e, ...env } }).stdout.trim().replace(/\\/g, '/'); };
+    const local = md({}), claude = md({ CLAUDE_PROJECT_DIR: dir }), oldEnv = md({ KS_MEMORY_DIR: 'old-x' }), both = md({ KS_MEMORY_DIR: 'old-x', STARTER_MEMORY_DIR: 'new-x' }), set = md({}, { memoryDir: 'notes/memory' });
+    report(local.endsWith('tools/hooks/state/memory') && /\.claude\/projects\/.+\/memory$/.test(claude) && oldEnv === 'old-x' && both === 'new-x' && set.endsWith('notes/memory'),
+      'rule-memory: the memory folder follows the agent and config, STARTER_ env names win over the old KS_ ones', `${local} | ${claude} | ${oldEnv} | ${both} | ${set}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+if (INSTALLED.includes('app')) { // app gates: their own pass lines, from packs.mjs configure
+  const dir = copyProject();
+  try {
+    const r = spawnSync(process.execPath, ['tools/packs.mjs', 'configure', 'app', '--test', 'npm test', '--build', 'npm run build', '--build-pass', 'BUILD OK'], { cwd: dir, encoding: 'utf8' });
+    const reqs = JSON.parse(fs.readFileSync(path.join(dir, 'tools/hooks/requirements.json'), 'utf8')).requirements, gates = JSON.parse(fs.readFileSync(path.join(dir, 'tools/hooks/config.json'), 'utf8')).commitGate;
+    const b = reqs.find(q => q.tag === 'app-build-pass'), t = reqs.find(q => q.tag === 'app-test-pass');
+    report(r.status === 0 && b?.require.toolPassed.pass === 'BUILD OK' && t?.require.toolPassed.pass === '' && /its own command/.test(b?.message || '') && gates.some(g => g.app && g.pass === 'BUILD OK'),
+      'commit-gate: packs.mjs configure --build-pass sets the gate\'s own pass line', `${r.stdout}${r.stderr}`.slice(0, 300));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+}
+if (!TAGS) for (const [tag, name] of Object.entries(COVERS)) if (hereSrc.includes(tag)) report(PASSED.some(n => n.includes(name)), `covers: ${tag} is proven by "${name}"`, 'no passing scenario with that name');
+
+console.log(`\nselfcheck: ${fail ? 'FAIL' : 'ALL PASS'}${TAGS ? ` for ${TAGS.join(', ')}` : ''} (${pass} passed, ${fail} failed${skipped ? `, ${skipped} skipped: packs not installed here` : ''})`);
+// a full run is what the upgrade review asks for (REQ: upgrade-review)
+if (!TAGS) try { const d = new Date(); fs.mkdirSync(path.join(ROOT, 'tools/hooks/state'), { recursive: true }); fs.writeFileSync(path.join(ROOT, 'tools/hooks/state/selftest.json'), JSON.stringify({ at: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`, passed: !fail, count: pass })); } catch { }
 process.exit(fail ? 1 : 0);

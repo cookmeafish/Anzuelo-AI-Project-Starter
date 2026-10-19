@@ -39,7 +39,7 @@ If the request is unclear, show capacity first and ask which tasks to run (one q
 2. Take the tasks from the plan. Mark which ones depend on others and which use a shared resource (a port, a
    database, a device, an external account with rate limits).
 3. Create the **ledger** (template in references.md): one row per task with owner and workspace, resume handle,
-   required steps, steps reported, state, nudges, last seen, and evidence. Keep it in `.cache/orchestrate/` (ignored
+   required steps, steps reported, state, nudges, last seen, and evidence, plus the run budget (step 3). Keep it in `.cache/orchestrate/` (ignored
    by git) while the run is live. It is the coordinator's memory, not a deliverable. Never put task notes inside a
    worker's workspace, where they can end up in a commit.
 4. Write the ledger safely: write a temporary file next to it, then rename it over the old one, so a crash mid-write
@@ -101,6 +101,17 @@ nothing changes, and go back to short gaps as soon as anything happens or a work
 Leave a few minutes between re-briefs of the same worker. After 3 nudges (restarts and re-briefs) on the same task
 without progress, mark it **escalated** and tell the user what is blocking it.
 
+**A cap for the whole run.** At setup, write a run budget in the ledger: the most re-briefs, restarts and failed
+acceptance rounds the whole run may use (default: twice the number of tasks, unless the user names one). Count each
+against it. When it runs out, start no new rounds: finish what is running, mark the rest **escalated**, and report.
+The per-task limit stops one task from looping; the run cap stops many tasks from each looping a little, which costs
+as much.
+
+**Decisions on the user's behalf** (answering a worker's question, approving an unfamiliar prompt, settling a
+finding) go in the plan as one dated line in the plan skill's format:
+`YYYY-MM-DD Ruling (task N): <what> - <why> - <cost if wrong>` (skills/plan/references.md, "Decide, don't stall").
+List them all in the Finished section.
+
 **Read states, not totals.** A count of "active" workers includes ones waiting for your approval or an answer. If the
 count stays up but nothing moves, look at the states.
 
@@ -156,6 +167,7 @@ to free it, so it can still be resumed or asked about.
 
 ## Done when
 - [ ] Every task in the ledger is accepted, or escalated with the user told why.
+- [ ] The run stayed within its budget, or stopped and reported when the budget ran out.
 - [ ] Each accepted task passed the gate in step 5, checked by the coordinator, not only by the worker's report.
 - [ ] Shared-resource steps ran one at a time.
 - [ ] The combined result passes the full checks.
@@ -168,6 +180,7 @@ to free it, so it can still be resumed or asked about.
 - Counting the finish signal when it only appears inside the brief you sent.
 - Running shared-resource steps in parallel, so results corrupt each other and the failures look random.
 - Nudging a busy worker, nudging again during a rate-limit wait, or nudging forever instead of escalating after 3 tries.
+- No run budget, so a long run re-briefs its way through hours of cost with nothing accepted.
 - Re-sending the whole brief to a crashed worker instead of resuming it, so it starts over and loses its work.
 - Saying you will check back without setting anything that wakes you.
 - Approving every prompt automatically, including a destructive one outside the worker's workspace.
@@ -175,4 +188,5 @@ to free it, so it can still be resumed or asked about.
 - The coordinator doing tasks itself and losing the overview.
 - Releasing a workspace before its work is merged, or handing out the one that holds the coordinator's own tools.
 
-Inspired by "orchestrate" in Significant-Gravitas/AutoGPT (MIT, see LICENSE and [SOURCE.md](SOURCE.md)).
+Inspired by "orchestrate" in Significant-Gravitas/AutoGPT (MIT, see LICENSE and [SOURCE.md](SOURCE.md)). The run
+budget draws on ideas from snarktank/ralph (MIT) and Anthropic's article "Effective harnesses for long-running agents".

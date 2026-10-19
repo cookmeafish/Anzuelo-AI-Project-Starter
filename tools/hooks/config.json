@@ -1,5 +1,5 @@
 {
-  "_comment": "Tuning for tools/hooks/hooks.mjs. Anything left out uses the default in hooks.mjs (DEFAULTS). Regexes are case-insensitive strings.",
+  "_comment": "Tuning for tools/hooks/hooks.mjs. Anything left out uses the default in hooks.mjs (DEFAULTS). Regexes are case-insensitive strings. memoryDir: where rule notes go (empty: Claude Code's memory folder when Claude Code runs the hooks, else tools/hooks/state/memory/, which git ignores).",
   "workToolCalls": 15,
   "maxBlocksPerTurn": 3,
   "promoteAfterUses": 3,

@@ -1,7 +1,7 @@
 ---
 name: research
 description: Get facts right, from the project's own files or from the web. Every fact traces to a source read this turn, research uses several independent sources with sponsored and biased ones screened out and weighs them together into one verdict, and a check catches anything made up. Use when answering from the knowledge base, looking something up, researching, comparing or fact-checking, and for every web search.
-triggers: research, research online, look up, look into, look online, find out, compare, comparison, what are the options, best option, which is better, latest version, current version, up to date, is it true, is this true, is that real, verify this, verify the claim, fact check, fact-check, check online, search the web, web search, search online, google it, duckduckgo, find sources, what do we know, what do i know, what did we decide, what was decided, what is our policy, look in the project, according to, based on what we have, summarize what we know
+triggers: research, research online, look up, look into, look online, find out, compare, comparison, what are the options, best option, which is better, latest version, current version, up to date, is it true, is this true, is that real, verify this, verify the claim, fact check, fact-check, check online, search the web, web search, search online, google it, duckduckgo, find sources, what do we know, what do i know, what did we decide, what was decided, what is our policy, look in the project, according to, summarize what we know
 ---
 # Research: facts that are real
 

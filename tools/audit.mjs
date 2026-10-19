@@ -10,7 +10,8 @@ import { spawnSync } from 'node:child_process';
 import {
   ROOT, read, abs, exists, frontmatter, playbooks, skillProblems, playbookProblems, knowledgeProblems, config,
   loadRequirements, usage, hardenDue, menu, runbookHasCheck, generatedSkill, directoryBlock, staleKnowledge,
-  setupProblems, upgradeProblems, bench, gitignoreProblems, writingProblems, aiAttributedCommits, BASE_REQUIREMENTS, routableSkills, skillHasCheck, curateDue
+  setupProblems, upgradeProblems, bench, gitignoreProblems, writingProblems, aiAttributedCommits, BASE_REQUIREMENTS, routableSkills, skillHasCheck, curateDue,
+  FIT_FILE, fitProblems, fitRows, fitDecision, fitWhenOf
 } from './hooks/hooks.mjs';
 
 const cfg = config();
@@ -162,7 +163,7 @@ sweep('references point at real files, commands and skills', () => {
   for (const n of libNames) addPath(`skills/${n}/SKILL.md`);
   for (const f of walk('library/skills', () => true)) addPath(f.replace(/^library\//, ''));
   // folders that work fills in, files tools create at runtime, and the starter folder's own files (tools/starter/)
-  const RUNTIME = /^(outputs|inbox|sources|profiles|logs|src|app|lib|server|packages|data|site|\.cache|\.codex|\.claude|\.starter|tools\/hooks\/state|tools\/starter|docs\/(knowledge|plans|specs|releases|reviews|retired|incidents))(\/|$)|^tools\/(starter\.local|packs-registry)\.json$|^docs\/(codebase-map|tech-debt|glossary|legal-positions|brand-voice)\.md$/;
+  const RUNTIME = /^(outputs|inbox|sources|profiles|logs|src|app|lib|server|packages|data|site|\.cache|\.codex|\.claude|\.starter|tools\/hooks\/state|tools\/starter|docs\/(knowledge|plans|specs|releases|reviews|retired|incidents))(\/|$)|^tools\/(starter\.local|packs-registry)\.json$|^docs\/(codebase-map|tech-debt|glossary|legal-positions|brand-voice|fit-checklist)\.md$/;
   const real = p => { p = p.replace(/\/$/, ''); return exists(p) || provided.has(p) || RUNTIME.test(p); };
   const skillNames = new Set([...fs.readdirSync(abs(cfg.skillsDir)), ...libNames, ...[...provided].map(p => /^skills\/([^/]+)/.exec(p)?.[1]).filter(Boolean),
     ...pbs.map(p => p.name), ...[...provided].map(p => /^docs\/playbooks\/([^/_][^/]*)\.md$/.exec(p)?.[1]).filter(Boolean)]);
@@ -364,6 +365,17 @@ sweep('hooks stay fast', () => {
 
 sweep('upgrade reviewed', () => ({ warn: upgradeProblems(cfg) }));
 
+// REQ: fit-checklist. Every pack, library skill, recommended tool and optional feature is decided with a reason that holds.
+// The starter itself has no checklist (each project makes its own); during setup a gap is a warning, after it a failure.
+sweep('every candidate decided (fit checklist)', () => {
+  if (isTemplate) return exists(FIT_FILE) ? { warn: [`${FIT_FILE} is in the starter: each project makes its own with node tools/fit.mjs, so delete it here`] } : { note: 'each project keeps its own (node tools/fit.mjs)' };
+  const probs = fitProblems(cfg);
+  // a "later" the hooks can't measure is revisited here
+  const revisit = fitRows().filter(r => fitDecision(r.decision) === 'later' && !fitWhenOf(r)?.metric).map(r => `${r.item} (when: ${fitWhenOf(r)?.text || '?'})`);
+  const note = revisit.length ? `later, check whether it is time: ${revisit.join('; ')}` : '';
+  return exists('SETUP-PROMPT.md') ? { warn: probs, note } : { fail: probs, note };
+});
+
 // Notes nothing links to and that link nowhere are invisible in the graph and to the agent following links.
 if (exists('skills/obsidian/scripts/notes.mjs')) sweep('notes are connected (obsidian)', () => {
   const r = spawnSync(process.execPath, [abs('skills/obsidian/scripts/notes.mjs'), 'orphans', ...(isTemplate ? ['--all'] : [])], { cwd: ROOT, encoding: 'utf8' }); // the starter maps every file
@@ -390,6 +402,15 @@ sweep('project housekeeping', () => {
   return { fail, warn };
 });
 
+// The starter: lessons projects sent back (node tools/starter.mjs report) are read and acted on. An entry is reviewed
+// once its line says "(reviewed YYYY-MM-DD: <what was done>)".
+if (isTemplate && exists('docs/feedback-inbox')) sweep('project feedback reviewed', () => {
+  const open = [];
+  for (const f of fs.readdirSync(abs('docs/feedback-inbox')).filter(n => n.endsWith('.md')))
+    for (const l of read(abs(`docs/feedback-inbox/${f}`)).split(/\r?\n/)) if (/^- \d{4}-\d\d-\d\d: \S/.test(l) && !/\(reviewed\b/i.test(l)) open.push(`docs/feedback-inbox/${f}: ${l.slice(2, 110)}`);
+  return { warn: open.length ? [`${open.length} feedback line(s) from projects not reviewed yet: fix or decline each, then mark it "(reviewed YYYY-MM-DD: <what was done>)": ${open.slice(0, 5).join(' | ')}${open.length > 5 ? ' ...' : ''}`] : [] };
+});
+
 if (process.argv.includes('--setup')) sweep('setup is complete (SETUP-PROMPT.md may be deleted)', () => ({ fail: isTemplate ? [] : setupProblems(cfg), note: isTemplate ? 'the starter itself is never "set up"' : '' }));
 
 // --setup proves the hooks work in this project too; --full adds the ablation tests
@@ -411,10 +432,13 @@ if (process.argv.includes('--full') || process.argv.includes('--setup')) {
 }
 
 let failed = 0;
+// Status word in color only for a person at a terminal (writing-standards.md "In the terminal"); pipes get plain text.
+const COLOR = process.stdout.isTTY && !process.env.NO_COLOR;
+const paint = s => COLOR ? `\x1b[${{ PASS: 32, FAIL: 31, WARN: 33 }[s.trim()] || 0}m${s}\x1b[0m` : s;
 results.forEach((r, i) => {
   if (r.status === 'FAIL') failed++;
-  console.log(`${r.status.padEnd(4)}  ${String(i + 1).padStart(2)}. ${r.name}${r.note ? `  (${r.note})` : ''}`);
+  console.log(`${paint(r.status.padEnd(4))}  ${String(i + 1).padStart(2)}. ${r.name}${r.note ? `  (${r.note})` : ''}`);
   for (const l of r.lines) console.log(`        - ${l}`);
 });
-console.log(`\naudit: ${failed ? 'FAIL' : 'PASS'} (${results.length} sweeps, ${failed} failed, ${results.filter(r => r.status === 'WARN').length} warnings)`);
+console.log(`\naudit: ${paint(failed ? 'FAIL' : 'PASS')} (${results.length} sweeps, ${failed} failed, ${results.filter(r => r.status === 'WARN').length} warnings)`);
 process.exit(failed ? 1 : 0);

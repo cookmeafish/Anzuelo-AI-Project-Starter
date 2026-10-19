@@ -38,13 +38,17 @@ replaces only the engine files (hooks, tests, audit, tools, core skills and chec
 project's content. It can't make the project worse unseen:
 1. It audits and times the hooks before and after. A check that passed before and fails after rolls the whole upgrade
    back. `--accept-findings` keeps it and lists those checks to fix.
-2. It writes `## Upgrade review (date)` into `docs/DECISIONS.md`: every new hard rule, every pack or library skill that
-   fits the setup answers and was never decided, every new failing check, every hook that got much slower, and the
-   self-tests.
-3. Go through each line with the user. Adopt only what makes this project better (`adopted - Worth it: <gain> /
-   <cost>`, then really add it: rules through the project-rule skill), and decline the rest with the reason
-   (`declined - <why>`). Run `node tools/hooks/selfcheck.mjs` and write `passed`. The hooks hold work until every
-   line is decided (REQ: upgrade-review).
+2. It writes `## Upgrade review (date)` into `docs/DECISIONS.md`: every new hard rule, a pack the setup answers call
+   for that is missing, `fit: N new candidates` when `docs/fit-checklist.md` got new rows (new packs, library skills,
+   tools or features, added as `?`), every new failing check, every hook that got much slower, and the self-tests.
+3. **You decide; the user only sees a summary.** Decide the new fit rows yourself from the survey, the brief and the
+   code (add, skip, or `later - when: <condition>`, each with its reason) until `node tools/fit.mjs check` passes,
+   then write `decided` on the fit line. Ask the user only about what is truly theirs (money, privacy, outward
+   actions), in one question with choices. Adopt other lines only when they make this project better (`adopted -
+   Worth it: <gain> / <cost>`, then really add it: rules through the project-rule skill), and decline the rest with the
+   reason (`declined - <why>`). Run `node tools/hooks/selfcheck.mjs` and write `passed`. Tell the user in one line
+   (`node tools/fit.mjs summary`): "Added: x, y. Skipped: z (why). Later: w (when)." They can override any of it. The
+   hooks hold work until every line is decided (REQ: upgrade-review).
 
 ### §8 Add a pack (E7)
 `node tools/packs.mjs list` shows what can be added. Packs come from the kept copy in `.starter/` or the linked
@@ -59,7 +63,7 @@ asks the focus questions, picks the packs and library skills, and routes every t
 ### §10 Skills: add, enable, remove
 - **A library skill** (the starter's ready-made ones): `node tools/skills.mjs library` lists them (from `library/`
   during setup, then from the kept copy or the linked starter), and `node tools/skills.mjs enable <name>` adds one.
-  Its triggers and checks come with it.
+  Its triggers and checks come with it. Record the decision in `docs/fit-checklist.md` (`node tools/fit.mjs decide`).
 - **A skill from elsewhere:** the skill-finder skill (search, vet, bring in with `node tools/skills.mjs add`, rewrite
   in the project's style until `node tools/skills.mjs compare` finds no shared text).
 - **Remove one:** `node tools/skills.mjs disable <name>` removes a library skill and the checks it brought.

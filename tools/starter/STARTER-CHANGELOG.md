@@ -5,6 +5,52 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 (project-rule, runbook-create), because an upgrade never touches a project's own content.
 
 - 2026-10-18: Upgrades and additions can't make a project worse unseen.
+  - **The fit checklist: the AI decides every candidate, the user only sees a summary.** `node tools/fit.mjs` keeps
+    `docs/fit-checklist.md` in each project: one row per pack, library skill, recommended tool and optional feature
+    (Obsidian vault, git hooks, autonomy auto, recall and memory, plans), each decided add, skip or "later - when:
+    <condition>" with a reason. `node tools/fit.mjs check` (fit-checklist) fails a "?", a boilerplate or copied
+    reason, an "add" that is not really in the project, a "skip" that ignores what the survey found (web, data, git,
+    code, Python files and more), and a "later" without a condition or whose condition is already met. Setup, the
+    upgrade review ("fit: N new candidates") and the audit wait for FIT: PASS; the session start announces a measurable
+    "later" once it comes due. Setup no longer asks the user about each library skill: only choices that cost money,
+    touch privacy or act outside the project go to the user. `fit.mjs decide` and `fit.mjs summary` record decisions
+    and print "Added: ... Skipped: ... Later: ...". `tools/survey.mjs` now reads its counts from the engine
+    (`projectSurvey`).
+  - **compress-for-ai** shortens notes between helper agents and, on request, answers too; its check accepts
+    `protect-check.mjs <before> <after>` for agent notes.
+  - **Found in a real project, and fixed** (each has a self-test now):
+    - Routing needs real evidence: triggers made only of common words ("fix it", "i added") never route, a phrase with
+      one key word needs a second one, and questions asking the agent's opinion route nowhere.
+    - Pasted text (`<pasted_content>`) and the hooks' own output pasted back are not the request: they don't route and
+      don't count for counts, `qa-incident` or any `promptMatches` check.
+    - The prompt hook says each notice once per turn, not with every message typed mid-turn. Last turn's misses are
+      said once, then dropped. Checks marked `"waitsForAgents": true` are never carried over.
+    - After the last allowed block, Stop ends quietly and the misses carry over in plain words (checked, kept).
+    - Editing a runbook or skill is maintaining it, not following it. `skill-learn` asks for a lesson only when a
+      followed runbook's or skill's own check failed earlier in the turn, never for a wording check.
+    - Files changed by background helpers that are still running are not the main turn's changes.
+    - A file rewritten byte for byte is not a change (the prompt hook keeps each file's hash at the turn's start), and
+      build outputs (`buildOutputs` in config) are generated, not GUI changes.
+    - Gates are judged by their own result: their pass line, or their exit code when run as their own command.
+      `packs.mjs configure app` takes `--build-pass` and `--test-pass`.
+    - Numbers the agent wrote into files earlier in the session are not flagged as made up.
+    - A quoted list in Markdown is a list, not one long paragraph.
+    - A change to `requirements.json` or `config.json` needs only the scenarios of the checks it touched
+      (`selfcheck.mjs --tags a,b`), or none for tuning such as a `namesIgnore` glob. The full self-test is for hook code.
+    - `DIRECTORY.md` has one short line per runbook and skill; the descriptions live in each file.
+    - `new-project.mjs --dry-run` prints a summary and the collisions; `--verbose` lists every file.
+    - `hooks.mjs sync` deletes files from skill mirrors that are gone from the skill.
+    - Environment names use `STARTER_` (the old `KS_` names still work for one release).
+    - The memory folder for rule notes is agent-neutral: `memoryDir` in config, else Claude Code's folder when Claude
+      Code runs the hooks, else `tools/hooks/state/memory/` (ignored by git).
+    - Engine lessons travel back: `starter.mjs feedback "<text>"` and `starter.mjs report`; the starter's audit warns
+      about unreviewed lines in `docs/feedback-inbox/`; `starter.mjs status` says how far the starter is behind.
+    - The Finished section is asked for only when real work files changed, not engine state or a helper's files.
+    - Wordings the writing standards require word for word are not counted as copies of the user's words.
+    - The Stop message shows one short line per step; `node tools/hooks/hooks.mjs why` prints the full steps.
+  - **Messages show their kind in the terminal:** "In the terminal" in `docs/checks/writing-standards.md` gives
+    each block a bold lead word (`Question for you:`, `Done:`, `Heads-up:`, `Problem:`), keeps questions last and
+    lines short. `audit.mjs` and `trial.mjs` color PASS, FAIL and WARN at a terminal (plain when piped or `NO_COLOR`).
   - **Renamed Anzuelo** (Spanish for fishing hook, after the hooks that hold the agent to its work). "Roe" is also an
     AI agent company. The name lives only in `docs/names.json`.
   - **Upgrade guard:** an upgrade audits and times the project before and after. A check that passed before and fails

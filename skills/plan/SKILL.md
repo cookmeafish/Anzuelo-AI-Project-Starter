@@ -1,6 +1,6 @@
 ---
 name: plan
-description: Writes a step-by-step plan for multi-step work before starting it, as small tasks with exact files, interfaces, checks and expected results, plus the project context a newcomer needs and a confidence score, so any agent or sub-agent can carry it out without guessing, and then carries it out box by box. The plan is a checklist file in docs/plans/ that any later session or other AI agent can resume. Use when a spec or request needs several steps, touches several files, adds several new files, or will be handed to sub-agents, and when asked to carry out, resume or close an existing plan.
+description: Writes a step-by-step plan for multi-step work before starting it, as small tasks with exact files, interfaces, checks and expected results, plus the project context a newcomer needs and a confidence score, so any agent or sub-agent can carry it out without guessing, and then carries it out box by box. The plan is a checklist file in docs/plans/ that any later session or other AI agent can resume. Use when a spec or request needs several steps, touches several files, adds several new files, or will be handed to sub-agents, and when asked to carry out, resume or close an existing plan, including without check-ins when autonomy is auto or the user says keep going, don't ask me, run it all, work on your own, autonomous, or without my approval.
 ---
 # Plan before multi-step work
 
@@ -88,6 +88,7 @@ status: open
 **How to resume:** any session or agent: run `node skills/plan/scripts/plan-tasks.mjs next <this file>`, or find the
 first unticked box by hand. Read the dated notes first. Ticked boxes are done; never redo them. When every box is
 ticked and the checks pass, change the status line to `status: done`; to stop for good, `status: dropped - <why>`.
+A run that is stuck sets `status: blocked - <reason>` with `Tried:` and `Options:` notes; read those first.
 
 ## Context
 - `path/to/similar/feature`: the pattern to copy, and what to change in it.
@@ -182,6 +183,30 @@ Then do the work by its own runbook (feature, bugfix, research...), ticking the 
 The full procedure (each way of running it, resuming after a break, a plan that turns out wrong, the final review,
 closing the plan): [references.md](references.md).
 
+## 9. Running a plan without check-ins
+When `"autonomy": "auto"` is set, or the user says keep going, don't ask, run it all or work on your own, run the
+approved plan straight through without asking "shall I continue?". The rules below keep a long unattended run honest.
+1. **Start every session the same way.** Read the status line and the dated notes, run every command under "Checks
+   for this project", and fix anything broken before the next task. A broken start makes every later result suspect.
+2. **One task at a time.** Tick a box only after its check ran in this session and the output matched the expected
+   result.
+3. **Never move the goalposts.** Don't edit, skip or delete a test or check to make it pass, and don't change a task's
+   expected result. If the plan is wrong, leave the old text and add a dated note saying what changed and why.
+4. **Write each decision down** as one dated line in the plan:
+   `YYYY-MM-DD Ruling (task N): <what> - <why> - <cost if wrong>`. This is the plan's form of the `Assumed:` record in
+   AGENTS.md (Step 0, item 5); write one, not both.
+5. **Stop safely.** After the same task fails 3 times, or a whole session ticks no box, change the status line to
+   `status: blocked - <reason>` and add a `Tried:` note (what was attempted) and an `Options:` note (the ways forward,
+   with a recommendation). Move on to the next task that doesn't depend on it. If none is left, end with a report.
+   When the user unblocks it, set the line back to `status: open`.
+6. **Still stop and ask** for the cases in AGENTS.md Step 0, item 5: an outward action, installing third-party code,
+   anything irreversible or destructive, a security-sensitive change, or a plan so wrong that every path is a guess.
+7. **Finish with one review** of the whole result (references.md, "The final review"). Fix critical and important
+   findings in one pass, then list the deferred findings and every `Ruling:` line in the Finished section.
+
+`plan-tasks.mjs status` shows a blocked plan as blocked, and `check` warns when it has no `Tried:` or `Options:` note.
+Examples and the reasons behind each rule: [references.md](references.md), "Without check-ins".
+
 ## Done when
 - [ ] Open questions were settled before writing: asked one at a time, or written as assumptions (step 0). Any spike
   is deleted and its answer is in "Context".
@@ -204,10 +229,12 @@ closing the plan): [references.md](references.md).
 - Changing course during the work without a dated note in the plan, so nobody can tell later why the result differs.
 - Ticking boxes in a batch at the end. A reset in between loses the record, and the next agent redoes finished work.
 - A finished plan left without `status: done`, so every new session reports it as open.
+- An unattended run that "passes" by loosening a test or rewriting an expected result. The check then proves nothing.
+- An unattended run that retries the same failing task all night. Three failures means blocked, not try again.
 
 ## Scripts
-- `node skills/plan/scripts/plan-tasks.mjs status <plan>`: each task with its ticked steps, and the first one not
-  finished.
+- `node skills/plan/scripts/plan-tasks.mjs status <plan>`: each task with its ticked steps, the first one not
+  finished, and whether the plan is blocked.
 - `node skills/plan/scripts/plan-tasks.mjs next <plan>`: the first unticked step and the brief for its task, or how to
   close the plan when nothing is left.
 - `node skills/plan/scripts/plan-tasks.mjs task <plan> <N>`: the brief for one task (header, context, checks,
@@ -218,4 +245,5 @@ Inspired by "writing-plans" in obra/superpowers (MIT, see LICENSE) and by PRP Ma
 LICENSE-prp-manager). Details in [SOURCE.md](SOURCE.md).
 
 Credits: step 0 draws on ideas from "grill-me", "grilling" and "prototype" in mattpocock/skills (MIT) and
-"brainstorming" in obra/superpowers (MIT).
+"brainstorming" in obra/superpowers (MIT). Step 9 draws on ideas from "executing-plans" in obra/superpowers (MIT),
+snarktank/ralph (MIT) and Anthropic's article "Effective harnesses for long-running agents".

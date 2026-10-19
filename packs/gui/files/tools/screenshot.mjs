@@ -50,7 +50,8 @@ function killTree(child) {
 }
 
 function findChromium() {
-  if (process.env.KS_CHROMIUM && fs.existsSync(process.env.KS_CHROMIUM)) return process.env.KS_CHROMIUM;
+  const own = process.env.STARTER_CHROMIUM ?? process.env.KS_CHROMIUM; // KS_: the old name, still read for one release
+  if (own && fs.existsSync(own)) return own;
   const bases = [process.env.PLAYWRIGHT_BROWSERS_PATH, path.join(os.homedir(), 'AppData', 'Local', 'ms-playwright'),
     path.join(os.homedir(), 'Library', 'Caches', 'ms-playwright'), path.join(os.homedir(), '.cache', 'ms-playwright')].filter(Boolean);
   const exes = [
@@ -100,7 +101,7 @@ async function webShots(target) {
     process.exit(2);
   }
   if (/\\(Google|Microsoft)\\(Chrome|Edge)\\Application\\/i.test(exe)) { console.log('ERROR refusing to drive installed Chrome/Edge: ' + exe); process.exit(2); }
-  const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ks-shot-'));
+  const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-shot-'));
   const browser = spawn(exe, ['--headless', '--remote-debugging-port=0', `--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check',
     '--password-store=basic', '--use-mock-keychain', '--disable-sync', '--disable-extensions', '--disable-background-networking',
     '--disable-component-update', '--disable-features=Translate,MediaRouter,OptimizationHints', '--hide-scrollbars', '--mute-audio', 'about:blank'], { stdio: 'ignore' });
@@ -189,7 +190,7 @@ public class KsWin {
 }
 "@
 [KsWin]::SetProcessDPIAware() | Out-Null
-$p = Get-Process | Where-Object { $_.MainWindowHandle -ne 0 -and $_.MainWindowTitle -like ('*' + $env:KS_TITLE + '*') } | Select-Object -First 1
+$p = Get-Process | Where-Object { $_.MainWindowHandle -ne 0 -and $_.MainWindowTitle -like ('*' + $env:STARTER_TITLE + '*') } | Select-Object -First 1
 if (-not $p) { Write-Output 'NOWINDOW'; exit 3 }
 $h = $p.MainWindowHandle
 if ([KsWin]::IsIconic($h)) { [KsWin]::ShowWindow($h, 9) | Out-Null; Start-Sleep -Milliseconds 400 }
@@ -199,14 +200,14 @@ $bmp = New-Object System.Drawing.Bitmap $w, $hh
 $g = [System.Drawing.Graphics]::FromImage($bmp); $dc = $g.GetHdc()
 [KsWin]::PrintWindow($h, $dc, 2) | Out-Null
 $g.ReleaseHdc($dc); $g.Dispose()
-$bmp.Save($env:KS_OUT, [System.Drawing.Imaging.ImageFormat]::Png); $bmp.Dispose()
+$bmp.Save($env:STARTER_OUT, [System.Drawing.Imaging.ImageFormat]::Png); $bmp.Dispose()
 Write-Output ("OK " + $p.MainWindowTitle + " " + $w + "x" + $hh)
 `;
-  const psFile = path.join(os.tmpdir(), `ks-winshot-${process.pid}.ps1`);
+  const psFile = path.join(os.tmpdir(), `starter-winshot-${process.pid}.ps1`);
   fs.writeFileSync(psFile, ps);
   let out = '';
   for (let i = 0; i < 20; i++) {
-    const r = spawnSync('powershell', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', psFile], { encoding: 'utf8', env: { ...process.env, KS_TITLE: title, KS_OUT: file } });
+    const r = spawnSync('powershell', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', psFile], { encoding: 'utf8', env: { ...process.env, STARTER_TITLE: title, STARTER_OUT: file } });
     out = (r.stdout || '') + (r.stderr || '');
     if (/^OK /m.test(out)) break;
     if (!/NOWINDOW/.test(out)) break;

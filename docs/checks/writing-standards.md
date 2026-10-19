@@ -55,6 +55,64 @@ must let someone who is not technical choose well:
 | "commit-archaeologist: explains code from git history. Only useful once there is history." | "Why is this code here? (commit-archaeologist): reads the change history of a file to explain why code exists before you change it. Good here: the field guide will keep growing, and this stops old fixes from being undone by accident. Cost: none until used; it pays off after a few weeks of history." |
 | "Make this a local git repo?" | "Keep a history of every change? A local git repository saves every version on this computer, so any change can be undone. Nothing is uploaded to GitHub or anywhere else unless you ask later." |
 
+## In the terminal: show what kind of message it is
+Most answers are read in a terminal. The user should see at a glance whether a block asks them something, reports a
+result, warns them or says something broke. Agents write Markdown, and the terminal shows only part of it: bold, lists,
+inline code, code blocks and short tables come through, while colors and HTML do not. So the kind is shown with a bold
+word at the start of the block, which reads the same in every terminal.
+
+| Kind | Starts with | What follows |
+|---|---|---|
+| Question that needs an answer | `**Question for you:**` | What is being decided and why, then numbered options (see "Questions with choices"). The user replies with a number. |
+| Result | `**Done:**` (short answers) or a `**Finished**` section (real work, rule 7) | The outcome first, then the paths in `code`, then what was not done or not checked. |
+| Heads-up | `**Heads-up:**` | Something the user should know but does not need to act on: an assumption made, a side effect, a risk. |
+| Problem | `**Problem:**` | What failed, in one line. Then the likely cause, and what happens next or what the user can do. |
+| Working | nothing, plain text | One short line while a long task runs: "Checking the 3 hook files next." |
+
+Rules:
+1. **Lead each block with its kind.** One kind per block. A warning inside a result paragraph gets missed, so give it
+   its own `**Heads-up:**` line.
+2. **Questions go last, and never in the middle of a paragraph.** Anything that needs the user's answer sits at the
+   end, under `**Question for you:**`, so it is the last thing they read. A message asks one question.
+3. **Number the options** and mark the recommended one. Put the recommended option first, and say the user can also
+   reply in their own words.
+4. **Keep lines short.** Short paragraphs, lists and tables of 2 to 4 narrow columns. A wide table wraps into a mess
+   in a narrow window. Use a list instead.
+5. **Paths, commands and names of files go in `code`.** Commands the user should run go in a code block on their own.
+6. **Don't rely on color or emoji.** The bold word carries the meaning. Plain text survives every terminal, log and
+   screen reader.
+7. **The check markers go together on one final line** (rule 7), after the question if there is one.
+
+Scripts in `tools/` print plain text and can add color. They follow the same idea: the status word comes first on
+each line (`PASS`, `FAIL`, `WARN`, `added`, `kept`), the result line comes last (`audit: PASS (...)`), and a `Next:`
+line says what to run next. Color is only added when the output goes to a terminal and `NO_COLOR` is not set, so
+logs and other tools that read the output get plain text.
+
+Before (the question is buried, the warning hides in the middle, the files come last):
+```
+I updated the config and the tests pass, though I wasn't sure whether you wanted the old
+setting kept so I removed it, which might break the nightly job, should I put it back?
+Also I changed two files.
+```
+After:
+```
+**Done:** the config uses the new format and all 41 tests pass.
+Changed `config.json` and `tests/config.test.mjs`.
+
+**Heads-up:** I removed the old `retry` setting. The nightly job still reads it.
+
+**Question for you:** keep the old setting so the nightly job keeps working?
+1. Put it back (recommended): nothing else changes.
+2. Leave it out, and I update the nightly job too.
+Or reply in your own words.
+```
+A bare `Error: ENOENT` becomes: "**Problem:** `docs/BRIEF.md` is missing, so setup can't read the project's
+purpose. Run `node tools/new-project.mjs` again, or tell me what the project is for and I'll write it."
+
+Credits: the idea of giving each kind of output its own look comes from Nous Research's Hermes Agent (MIT), and the
+script conventions (important line last, `NO_COLOR`, suggest the next command) from the Command Line Interface
+Guidelines at clig.dev. Written here in our own words.
+
 ## Before and after
 | Before | After |
 |---|---|

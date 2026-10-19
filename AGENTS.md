@@ -22,8 +22,10 @@
    or 15+ tool calls).
 5. **An unclear request** gets ONE focused question, not a guess. Look up the user's shorthand in `docs/glossary.md`
    first, and add each new answer there (session-handoff skill). For small, reversible details, decide and say what
-   you assumed. With `"autonomy": "auto"` in `tools/hooks/config.json` the user wants no questions: decide, say what
-   you assumed, and keep going. Outward actions (rule 6) and installing third-party code still need an OK.
+   you assumed. With `"autonomy": "auto"` in `tools/hooks/config.json` the user wants no questions: decide, keep
+   going, and record each choice as `Assumed: <choice> - <why> - <cost if wrong>` in the open plan (or the answer if
+   there is no plan). Stop only for an outward action (rule 6), installing third-party code, anything irreversible or
+   destructive, a security-sensitive change, or a plan so wrong that every path is a guess.
 
 ## Hard rules (each has a check: docs/checks/rule-enforcement.md)
 1. **Route first. Runbooks are mandatory.** Open the matched runbook this turn, follow it in order, and name it.
@@ -45,10 +47,13 @@
    comments; buying, booking or subscribing; submitting forms; contacting people; publishing; pushing; deleting the
    user's data. Drafts are fine.
 7. **Plain writing for everything the user reads** ([writing-standards.md](docs/checks/writing-standards.md)). Lead
-   with the answer, use plain words, no filler, no em dashes, and format it to scan. Real work ends with a
+   with the answer, use plain words, no filler, no em dashes, and format it to scan. Start each block with what it is
+   (**Question for you:**, **Done:**, **Heads-up:**, **Problem:**) and put any question last (writing-standards.md, "In
+   the terminal"). Real work ends with a
    **Finished** section: what was done, the exact path of every file created or changed, and what was not done or
    verified. The markers the checks look for (`Playbook:`, `Skill:`, `Worth it:`, `N/A(...)`) go together on one short
-   last line, after the answer, so the user can skip them. The answer itself never uses check names.
+   last line, after the answer, so the user can skip them. The answer itself never uses check names. Shortening any
+   text keeps file paths, names, commands, code, numbers and every "not" exactly as they were (compress-for-ai).
 8. **The whole request, exactly.** Messages typed while you work are part of it. "Give me 5" means 5. A redo says what
    changed from the last answer.
 9. **GUI changes pass the screenshot loop** (gui pack, gui-review-loop skill). Shoot, look at every screenshot, fix,

@@ -4,7 +4,10 @@
 //   node tools/packs.mjs list                               every available pack, what it is for, installed or not
 //   node tools/packs.mjs install knowledge [app ...]        install packs (never overwrites an existing file)
 //   node tools/packs.mjs configure app --test "npm test" --build "npm run build" [--code "src/**,lib/**"] [--version-file package.json]
-//                                                           wire the app pack's gates to this project's real commands
+//                                       [--test-pass "<regex>"] [--build-pass "<regex>"]
+//                                                           wire the app pack's gates to this project's real commands. A
+//                                                           gate passes on its own pass line (--<gate>-pass) or, without
+//                                                           one, on its exit code when it runs as its own command
 //   node tools/packs.mjs prune                              after setup: delete the payloads of packs NOT installed
 //   node tools/packs.mjs status                             installed packs and whether the project still matches them
 import fs from 'node:fs';
@@ -114,12 +117,21 @@ function configureApp(argv) {
   const opt = k => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : undefined; };
   const cfg = rj(CONFIG, {});
   if (!(cfg.packs || []).includes('app')) { console.log('install the app pack first: node tools/packs.mjs install app'); process.exit(1); }
-  if (!['--test', '--build', '--lint', '--typecheck', '--run', '--code', '--version-file'].some(k => argv.includes(k))) {
-    console.log('usage: node tools/packs.mjs configure app --test "<cmd>" --build "<cmd>" [--lint "<cmd>"] [--typecheck "<cmd>"] [--run "<cmd>"] [--code "<globs>"] [--version-file <file>]'); process.exit(1);
+  if (!['--test', '--build', '--lint', '--typecheck', '--run', '--code', '--version-file', '--test-pass', '--build-pass', '--lint-pass', '--typecheck-pass'].some(k => argv.includes(k))) {
+    console.log('usage: node tools/packs.mjs configure app --test "<cmd>" --build "<cmd>" [--lint "<cmd>"] [--typecheck "<cmd>"] [--run "<cmd>"] [--code "<globs>"] [--version-file <file>] [--test-pass "<regex>"] [--build-pass "<regex>"] [--lint-pass "<regex>"] [--typecheck-pass "<regex>"]'); process.exit(1);
   }
   if (opt('--version-file') && !fs.existsSync(path.join(ROOT, opt('--version-file')))) console.log(`note: ${opt('--version-file')} does not exist yet; the version-bump check will ask for it once code changes.`);
   const app = cfg.app || {};
   for (const k of ['test', 'build', 'lint', 'typecheck', 'run']) if (opt('--' + k) !== undefined) app[k] = opt('--' + k);
+  // A gate's own pass line, so a gate run in one line with other commands is judged by its own result.
+  // Lesson: with no pass pattern, a later command's failure in the same line failed the build gate.
+  app.pass ||= {};
+  for (const k of ['test', 'build', 'lint', 'typecheck']) {
+    const v = opt(`--${k}-pass`);
+    if (v === undefined) continue;
+    try { new RegExp(v); } catch (e) { console.log(`--${k}-pass is not a valid regex (${e.message})`); process.exit(1); }
+    app.pass[k] = v;
+  }
   if (opt('--code')) app.code = opt('--code').split(',').map(s => s.trim()).filter(Boolean);
   if (opt('--version-file')) app.versionFile = opt('--version-file');
   app.code ||= ['src/**', 'app/**', 'lib/**', 'server/**', 'packages/**'];
@@ -127,19 +139,19 @@ function configureApp(argv) {
   const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   // gates: every configured command must have PASSED (exit 0) this turn before code is committed
   cfg.commitGate = (cfg.commitGate || []).filter(g => !g.app);
-  for (const k of ['test', 'build', 'lint', 'typecheck']) if (app[k]) cfg.commitGate.push({ app: true, cmd: escRe(app[k]), pass: '', when: app.code });
+  for (const k of ['test', 'build', 'lint', 'typecheck']) if (app[k]) cfg.commitGate.push({ app: true, cmd: escRe(app[k]), pass: app.pass[k] || '', when: app.code });
   wj(CONFIG, cfg);
   const reqs = rj(REQS, { requirements: [] });
   reqs.requirements = reqs.requirements.filter(r => !r.appGate);
   for (const k of ['test', 'build', 'lint', 'typecheck']) if (app[k]) reqs.requirements.push({
     tag: `app-${k}-pass`, pack: 'app', appGate: true, rule: '4',
-    when: { filesChanged: app.code }, require: { toolPassed: { cmd: escRe(app[k]), pass: '', selfRun: app[k] } },
-    message: `Code changed: run \`${app[k]}\` and get it passing (exit 0) after your last edit. Fix the code, never the test.`
+    when: { filesChanged: app.code }, require: { toolPassed: { cmd: escRe(app[k]), pass: app.pass[k] || '', selfRun: app[k] } },
+    message: `Code changed: run \`${app[k]}\` as its own command (not chained to other commands with && or ;) and get it passing after your last edit. Fix the code, never the test.`
   });
   if (app.versionFile) reqs.requirements = reqs.requirements.map(r => r.tag === 'version-bump' ? { ...r, enabled: true, when: { ...r.when, filesChanged: app.code }, require: { filesChanged: [app.versionFile] } } : r);
   for (const r of reqs.requirements) if (r.pack === 'app' && r.when?.filesChanged && r.codeGlobs) r.when.filesChanged = app.code;
   wj(REQS, reqs);
-  console.log(`configured app gates: ${['test', 'build', 'lint', 'typecheck'].filter(k => app[k]).map(k => `${k}="${app[k]}"`).join(', ') || '(none given)'}; code: ${app.code.join(', ')}`);
+  console.log(`configured app gates: ${['test', 'build', 'lint', 'typecheck'].filter(k => app[k]).map(k => `${k}="${app[k]}"${app.pass[k] ? ` (passes on /${app.pass[k]}/)` : ' (passes on its exit code)'}`).join(', ') || '(none given)'}; code: ${app.code.join(', ')}`);
   console.log('Next: node tools/hooks/selfcheck.mjs && node tools/audit.mjs');
 }
 

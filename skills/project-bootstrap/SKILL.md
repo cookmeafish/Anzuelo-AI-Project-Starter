@@ -13,8 +13,9 @@ runbook: docs/playbooks/project.md
      Update `docs/BRIEF.md` and the "## Setup interview" section of `docs/DECISIONS.md`, with the date.
    - Install what the new answers call for (project.md §8): knowledge work → `knowledge`, software → `app`, a visual
      interface → `gui`. Never add the app pack to a pure knowledge project.
-   - List the library skills (`node tools/skills.mjs library`). Enable each one that fits, or record the user's reason
-     for leaving it out in the Setup interview section.
+   - Decide every candidate yourself in the fit checklist (`node tools/fit.mjs`, then `node tools/fit.mjs check` until
+     FIT: PASS): each pack, library skill, tool and feature is added, skipped or left for later, with a reason. Show
+     the user the one-line summary (`node tools/fit.mjs summary`); ask only about money, privacy or outward actions.
    - Give every addition a `Worth it: <gain> / <cost>` line (REQ: worth-it).
    - Update `docs/security.md` if the sensitive data or the inputs changed.
    - Route every new typical request to a runbook with a check (runbook-create), and log the change in

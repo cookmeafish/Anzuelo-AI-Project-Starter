@@ -6,33 +6,34 @@ To change a row, edit the file it comes from. The prompt hook routes each messag
 
 <!-- generated:start: rebuilt by tools/hooks/hooks.mjs from runbook, skill, check and knowledge files. Edit those, not this block -->
 ## 1. When this happens or is asked → use this
-| When | Runbook (the procedure) | Skill | Checks | Menu |
-|---|---|---|---|---|
-| Plan multi-step work before starting it, as checkable tasks saved in docs/plans/. Says: make a plan, write a plan, plan this, plan it out, plan first, implementation plan | [plan.md](docs/playbooks/plan.md) | plan | plan-saved, plan-checked | E8 |
-| The project itself - new rules, complaints about misses, praise to repeat, sweeps, gaps, runbooks, skills, hooks, packs, status, engine upgrades. Says: clean up skills, prune skills, unused skills, retire a skill, show me the menu, menu codes | [project.md](docs/playbooks/project.md) | project | rule-request, rule-memory, hooks-tested, runbook-complete | E1, E2, E3, E4, E5, E6, E7, E9 |
-| Anything else | [_fallback.md](docs/playbooks/_fallback.md), then create a runbook | runbook-create | runbook-exists | |
+Open the runbook; its triggers and steps are in the file.
+
+| Runbook | When | Checks | Menu |
+|---|---|---|---|
+| [plan](docs/playbooks/plan.md) ([skill](skills/plan/SKILL.md)) | Plan multi-step work before starting it, as checkable tasks... | plan-saved, plan-checked | E8 |
+| [project](docs/playbooks/project.md) ([skill](skills/project/SKILL.md)) | The project itself - new rules, complaints about misses,... | rule-request, rule-memory, hooks-tested, runbook-complete | E1, E2, E3, E4, E5, E6, E7, E9 |
+| [_fallback](docs/playbooks/_fallback.md) | Anything else: do it, then create a runbook (runbook-create) | runbook-exists | |
 
 ## 2. Skills
 Skills marked "own route" are matched directly by what the request says (the prompt hook prints `SKILL:`); the
-others are the skill side of a runbook in §1.
+others are the skill side of a runbook in §1. What each does and when: its SKILL.md.
 
-| Skill | What it does and when | Route | Checks |
+| Skill | What it does | Route | Checks |
 |---|---|---|---|
-| [debug](skills/debug/SKILL.md) | Finds the root cause of a bug, failing test, broken build, wrong output or unexpected behavior before any fix, in four phases (investigate, compare, test one hypothesis, fix at the source with a faili... | own route. Says: debug, debugging, root cause, failing test, tests fail | debug-root-cause |
-| [obsidian](skills/obsidian/SKILL.md) | Keeps the project's notes linked to each other so Obsidian's graph shows what is related and what isn't, and the agent can follow the same links. Every note links to its related notes, orphans get con... | own route. Says: obsidian, open in obsidian, graph view, graph, backlinks | note-linked |
-| [parallel-agents](skills/parallel-agents/SKILL.md) | Splits work into independent parts and runs one sub-agent per part at the same time, each with a focused, self-contained brief, then checks and merges the results. Use when there are 2 or more tasks t... | own route. Says: in parallel, parallel agents, sub-agents, subagents, fan out | parallel-merged |
-| [plan](skills/plan/SKILL.md) | Writes a step-by-step plan for multi-step work before starting it, as small tasks with exact files, interfaces, checks and expected results, plus the project context a newcomer needs and a confidence ... | via [plan.md](docs/playbooks/plan.md) | see §1 |
-| [project](skills/project/SKILL.md) | The project itself - new rules, complaints about misses, praise to repeat, sweeps, gaps, runbooks, skills, hooks, packs, status, engine upgrades. Use when this runbook's situation comes up (docs/playb... | via [project.md](docs/playbooks/project.md) | see §1 |
-| [project-bootstrap](skills/project-bootstrap/SKILL.md) | Sets up or re-scopes a project made from the starter - interviews the user about what the project should focus on, installs everything that fits the answers (the knowledge, app and gui packs and the l... | via [project.md](docs/playbooks/project.md) | see §1 |
-| [project-rule](skills/project-rule/SKILL.md) | Turns a standing instruction, a complaint, or praise for something to repeat into an enforced project rule - AGENTS.md / CLAUDE.md, a dated user-requirements row, a check in tools/hooks/requirements.j... | via [project.md](docs/playbooks/project.md) | see §1 |
-| [project-sweeps](skills/project-sweeps/SKILL.md) | Runs the project's quality sweeps (tools/audit.mjs structure, routing, rules, skills, packs, publish safety, plus the hook self-tests and ablation tests), reports each result, fixes every failure, and... | via [project.md](docs/playbooks/project.md) | see §1 |
-| [research](skills/research/SKILL.md) | Get facts right, from the project's own files or from the web. Every fact traces to a source read this turn, research uses several independent sources with sponsored and biased ones screened out and w... | own route. Says: research, research online, look up, look into, look online | research-cited, research-ledger |
-| [runbook-create](skills/runbook-create/SKILL.md) | Creates a new runbook in docs/playbooks (or extends the closest one) plus the check that proves it was followed, so a new kind of task becomes a known procedure with its own generated skill and DIRECT... | via [project.md](docs/playbooks/project.md) | see §1 |
-| [security-review](skills/security-review/SKILL.md) | Reviews any project, a change or a whole app for security problems (secrets, private data and what is shared, untrusted files and web content, downloads and third-party skills, and for software also i... | own route. Says: security review, security audit, security check, is it secure, is it safe | security-report |
-| [session-handoff](skills/session-handoff/SKILL.md) | Keeps docs/STATUS.md (Now / Next / Open questions / Blocked) and docs/CHANGELOG.md current so a brand-new session or another AI agent can continue the work cold, tracks the to-dos and commitments the ... | via [project.md](docs/playbooks/project.md) | see §1 |
-| [skill-curate](skills/skill-curate/SKILL.md) | Keeps the project's skills and runbooks lean - reviews the ones nobody has used for a while and keeps each with a reason, merges it into a better one, or retires it with the user's OK - and packages a... | via [project.md](docs/playbooks/project.md) | see §1 |
-| [skill-finder](skills/skill-finder/SKILL.md) | Searches for an existing agent skill that already does a job before a new runbook or skill gets written (installed skills, official skill repos and plugin marketplaces, the open skills CLI and its dir... | own route. Says: find a skill, existing skill, existing skills, is there a skill, install a skill | skill-finder-report |
-| [skill-harden](skills/skill-harden/SKILL.md) | Hardens a much-used runbook and its skill - repeated steps become scripts in skills/<name>/scripts, judgment-only "Done when" items become checks, and pitfalls seen so far are written down - then mark... | via [project.md](docs/playbooks/project.md) | see §1 |
+| [debug](skills/debug/SKILL.md) | Finds the root cause of a bug, failing test, broken build, wrong... | own route | debug-root-cause |
+| [obsidian](skills/obsidian/SKILL.md) | Keeps the project's notes linked to each other so Obsidian's graph... | own route | note-linked |
+| [parallel-agents](skills/parallel-agents/SKILL.md) | Splits work into independent parts and runs one sub-agent per part... | own route | parallel-merged |
+| [plan](skills/plan/SKILL.md) | Writes a step-by-step plan for multi-step work before starting it,... | via [plan.md](docs/playbooks/plan.md) | see §1 |
+| [project-bootstrap](skills/project-bootstrap/SKILL.md) | Sets up or re-scopes a project made from the starter - interviews... | via [project.md](docs/playbooks/project.md) | see §1 |
+| [project-rule](skills/project-rule/SKILL.md) | Turns a standing instruction, a complaint, or praise for something... | via [project.md](docs/playbooks/project.md) | see §1 |
+| [project-sweeps](skills/project-sweeps/SKILL.md) | Runs the project's quality sweeps (tools/audit.mjs structure,... | via [project.md](docs/playbooks/project.md) | see §1 |
+| [research](skills/research/SKILL.md) | Get facts right, from the project's own files or from the web | own route | research-cited, research-ledger |
+| [runbook-create](skills/runbook-create/SKILL.md) | Creates a new runbook in docs/playbooks (or extends the closest... | via [project.md](docs/playbooks/project.md) | see §1 |
+| [security-review](skills/security-review/SKILL.md) | Reviews any project, a change or a whole app for security problems... | own route | security-report |
+| [session-handoff](skills/session-handoff/SKILL.md) | Keeps docs/STATUS.md (Now / Next / Open questions / Blocked) and... | via [project.md](docs/playbooks/project.md) | see §1 |
+| [skill-curate](skills/skill-curate/SKILL.md) | Keeps the project's skills and runbooks lean - reviews the ones... | via [project.md](docs/playbooks/project.md) | see §1 |
+| [skill-finder](skills/skill-finder/SKILL.md) | Searches for an existing agent skill that already does a job before... | own route | skill-finder-report |
+| [skill-harden](skills/skill-harden/SKILL.md) | Hardens a much-used runbook and its skill - repeated steps become... | via [project.md](docs/playbooks/project.md) | see §1 |
 
 ## 3. Checks and standards
 | File | What it is |

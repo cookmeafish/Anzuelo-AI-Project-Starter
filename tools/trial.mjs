@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 
 const STARTER = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const deep = process.argv.includes('--deep');
-const env = { ...process.env, KS_ALLOW_DEV: '1' };
+const env = { ...process.env, STARTER_ALLOW_DEV: '1' };
 const run = (cmd, args, cwd, timeout = 300000) => spawnSync(cmd, args, { cwd, encoding: 'utf8', env, timeout });
 const node = (args, cwd, timeout) => run(process.execPath, args, cwd, timeout);
 const git = (args, cwd) => run('git', args, cwd);
@@ -125,6 +125,29 @@ for (const [name, s] of Object.entries(SAMPLES)) {
   const prev = Object.fromEntries(Object.entries(afterUp).filter(([f]) => !/^(\.starter-backup[^/]*|docs\/DECISIONS\.md|docs\/CHANGELOG\.md)(\/|$)/.test(f)));
   const diff = [...new Set([...Object.keys(prev), ...Object.keys(again)])].filter(f => prev[f] !== again[f]);
   check(name, 'a second upgrade changes nothing', u2.status === 0 && !diff.length, diff.slice(0, 8).join(', '));
+
+  // "is everything that helps added, and nothing that doesn't?" The fit checklist starts undecided, and after the AI
+  // fills it the way setup does (no question to the user), it validates. Run last: setup changes the project's files.
+  if (s.files['package.json']) {
+    const fit = (...a) => node(['tools/fit.mjs', ...a], dir);
+    fit();
+    const open = fit('check');
+    const cp = path.join(dir, 'tools/hooks/config.json');
+    fs.writeFileSync(cp, JSON.stringify({ ...JSON.parse(fs.readFileSync(cp, 'utf8')), autonomy: 'auto' }, null, 2) + '\n');
+    const answers = ['Involvement: decide', 'Focus: the shop prices', 'Kind of work: software', 'Visual interface: no', 'Typical requests: see docs/BRIEF.md', 'Inputs: the code',
+      'People: one', 'Sensitive data: the API key in .env', 'Constraints: none', 'Quality bar: tested', 'Always/never: none'];
+    fs.appendFileSync(path.join(dir, 'docs/DECISIONS.md'), `\n## Setup interview (2026-10-18)\n${answers.map(a => `- ${a.replace(': ', ': assumed - ')}`).join('\n')}\n`);
+    const inst = node(['tools/packs.mjs', 'install', 'app'], dir);
+    const rows = JSON.parse(fit('--json').stdout || '[]');
+    const list = rows.map(r => r.item === 'ripgrep' ? { item: r.item, kind: r.kind, decision: 'later - when: the code passes 500 files', reason: 'the agent search tool is fast enough until the code grows much larger' }
+      : { item: r.item, kind: r.kind, decision: r.present ? 'add' : 'skip', reason: r.present ? `Worth it: ${r.item} is set up and its checks catch mistakes in the shop code / a little upkeep`
+        : `${r.item} adds nothing a small priced-items shop needs yet, so it would only cost upkeep${r.signals.length ? `, even with ${r.signals.join(' and ')}` : ''}` });
+    fs.writeFileSync(path.join(WORK, 'fit-decisions.json'), JSON.stringify(list));
+    fit('decide', '--file', path.join(WORK, 'fit-decisions.json'));
+    const done = fit('check'), sum = fit('summary');
+    check(name, 'the fit checklist starts undecided and validates after setup-style filling', /FIT: FAIL/.test(open.stdout) && inst.status === 0 && /FIT: PASS/.test(done.stdout) && /Added: [^.]*\bapp\b/.test(sum.stdout) && /Later: ripgrep \(when: the code passes 500 files\)/.test(sum.stdout),
+      `${open.stdout.slice(-120)} | ${inst.stderr.slice(0, 200)} | ${done.stdout.slice(0, 400)} | ${sum.stdout.slice(0, 200)}`);
+  }
 }
 
 if (deep) {
@@ -134,7 +157,10 @@ if (deep) {
 }
 
 const bad = results.filter(r => !r.ok);
-for (const r of bad) console.log(`FAIL  [${r.project}] ${r.promise}${r.detail ? `: ${r.detail.replace(/\s+/g, ' ').slice(0, 300)}` : ''}`);
-console.log(`\nTRIAL: ${bad.length ? 'FAIL' : 'PASS'} (${results.length - bad.length} of ${results.length} promises kept across ${Object.keys(SAMPLES).length} sample projects)`);
+// Status word in color only for a person at a terminal (writing-standards.md "In the terminal"); pipes get plain text.
+const COLOR = process.stdout.isTTY && !process.env.NO_COLOR;
+const paint = s => COLOR ? `\x1b[${s === 'PASS' ? 32 : 31}m${s}\x1b[0m` : s;
+for (const r of bad) console.log(`${paint('FAIL')}  [${r.project}] ${r.promise}${r.detail ? `: ${r.detail.replace(/\s+/g, ' ').slice(0, 300)}` : ''}`);
+console.log(`\nTRIAL: ${paint(bad.length ? 'FAIL' : 'PASS')} (${results.length - bad.length} of ${results.length} promises kept across ${Object.keys(SAMPLES).length} sample projects)`);
 if (!bad.length) fs.rmSync(WORK, { recursive: true, force: true }); else console.log(`Sample projects kept for a look: ${WORK}`);
 process.exit(bad.length ? 1 : 0);

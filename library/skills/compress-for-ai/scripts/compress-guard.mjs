@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Guard rails for shortening AI-facing text files: decides which files may be compressed, keeps byte-exact backups
-// in .cache/compress/, and proves afterwards that nothing load-bearing was lost.
+// in .cache/compress/, and proves afterwards that nothing load-bearing was lost (it runs protect-check.mjs on each file).
 //   node skills/compress-for-ai/scripts/compress-guard.mjs plan <file>...           which files may be compressed, and why not for the rest
 //   node skills/compress-for-ai/scripts/compress-guard.mjs backup <file>...         copy each file to .cache/compress/<stamp>/ and verify the copy
 //   node skills/compress-for-ai/scripts/compress-guard.mjs check <backup folder>    compare every backed-up file with its current version
@@ -10,6 +10,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { split, protectDiff } from './protect-check.mjs';
 
 const ROOT = process.cwd();
 const BACKUPS = '.cache/compress';
@@ -58,69 +59,17 @@ function classify(file) {
 }
 
 // ---------- what must survive ----------
-const FENCE = /^(\s*)(`{3,}|~{3,})(.*)$/;
-function split(text) {
-  // returns { fm, code: [blocks in order], prose: text with code and keep regions removed }
-  text = text.replace(/\r\n?/g, '\n');
-  const fmM = /^---\n[\s\S]*?\n---\n/.exec(text);
-  const fm = fmM ? fmM[0] : '';
-  const lines = text.slice(fm.length).split('\n');
-  const code = [], prose = [];
-  let inList = false, prevBlank = true;
-  for (let i = 0; i < lines.length; i++) {
-    const l = lines[i];
-    if (/^\s{0,3}<!--\s*keep\s*-->\s*$/i.test(l)) {
-      let j = i + 1; while (j < lines.length && !/^\s{0,3}<!--\s*\/keep\s*-->\s*$/i.test(lines[j])) j++;
-      if (j < lines.length) { code.push(lines.slice(i, j + 1).join('\n')); i = j; prevBlank = false; continue; }
-    }
-    const f = FENCE.exec(l);
-    if (f) {
-      let j = i + 1;
-      while (j < lines.length) { const c = FENCE.exec(lines[j]); if (c && c[2][0] === f[2][0] && c[2].length >= f[2].length && !c[3].trim()) break; j++; }
-      if (j < lines.length) { code.push(lines.slice(i, j + 1).join('\n')); i = j; prevBlank = false; continue; }
-    }
-    if (!l.trim()) { prevBlank = true; prose.push(l); continue; }
-    const indent = l.length - l.trimStart().length;
-    if (/^\s*([-*+]|\d+[.)])\s/.test(l)) inList = true; else if (indent === 0) inList = false;
-    if (!inList && prevBlank && /^( {4}|\t)/.test(l)) {
-      let j = i; const run = [];
-      while (j < lines.length && (/^( {4}|\t)/.test(lines[j]) || (!lines[j].trim() && j + 1 < lines.length && /^( {4}|\t)/.test(lines[j + 1])))) run.push(lines[j++]);
-      code.push(run.join('\n')); i = j - 1; prevBlank = false; continue;
-    }
-    prevBlank = false; prose.push(l);
-  }
-  return { fm, code, prose: prose.join('\n') };
-}
-const count = arr => arr.reduce((m, x) => m.set(x, (m.get(x) || 0) + 1), new Map());
-function lostAdded(a, b) {
-  const A = count(a), B = count(b), lost = [], added = [];
-  for (const [k, n] of A) if ((B.get(k) || 0) < n) lost.push(n - (B.get(k) || 0) > 1 ? `${k} (x${n - (B.get(k) || 0)})` : k);
-  for (const [k, n] of B) if ((A.get(k) || 0) < n) added.push(k);
-  return { lost, added };
-}
-const short = list => list.slice(0, 8).map(s => JSON.stringify(s.length > 60 ? s.slice(0, 60) + '...' : s)).join(', ') + (list.length > 8 ? `, and ${list.length - 8} more` : '');
-
-function tokens(text) {
+// The protected tokens (frontmatter, code, inline code, paths, URLs, links, commands, numbers, dates, versions,
+// identifiers, markers, quotes, headings, list numbering, tables, negations per paragraph) come from protect-check.mjs,
+// so the file check and the stand-alone check never disagree. This script adds the checks that only make sense for files.
+function shape(text) {
   const s = split(text);
-  const inline = [...s.prose.matchAll(/(?<!`)(`+)(?!`)([\s\S]+?)(?<!`)\1(?!`)/g)].map(m => m[2]);
-  const bare = s.prose.replace(/(?<!`)(`+)(?!`)([\s\S]+?)(?<!`)\1(?!`)/g, ' ');
-  const urls = [...bare.matchAll(/https?:\/\/[^\s)<>`"']+/g)].map(m => m[0].replace(/[.,;:]+$/, ''));
-  const links = [...bare.matchAll(/\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)].map(m => m[1]);
-  const noUrl = bare.replace(/https?:\/\/[^\s)<>`"']+/g, ' ').replace(/\]\([^)]*\)/g, ']');
-  const paths = [...noUrl.matchAll(/(?:\.{1,2}\/|[A-Za-z]:\\|~\/)[\w.\\/-]+|(?:[\w.-]+\/)+[\w-]+\.[A-Za-z0-9]{1,8}\b/g)].map(m => m[0].replace(/[.,;:]+$/, ''));
-  const headings = [...s.prose.matchAll(/^(#{1,6})\s+(.+?)\s*#*\s*$/gm)].map(m => ({ level: m[1].length, text: m[2] }));
-  const plainProse = noUrl.replace(/^\s*\d+[.)]\s/gm, ' ').replace(/^#{1,6}\s/gm, ' ');
-  const numbers = [...plainProse.matchAll(/(?<![\w.])\d[\d.,:/-]*\d%?|(?<![\w.])\d%?(?![\w])/g)].map(m => m[0]);
-  const tags = [...text.matchAll(/\bREQ:\s*[\w-]+|N\/A\([\w-]+\)/g)].map(m => m[0].replace(/\s+/g, ' '));
-  const boxes = (s.prose.match(/^\s*[-*+]\s+\[[ xX]\]/gm) || []).length;
-  const bullets = (s.prose.match(/^\s*([-*+]|\d+[.)])\s/gm) || []).length;
-  const negations = (noUrl.match(/\b(not|never|no|none|nothing|nobody|without|only|except|unless|cannot|can't|don't|doesn't|isn't|aren't|won't|shouldn't|mustn't|didn't)\b/gi) || []).length;
-  const tables = []; let cur = null;
-  for (const l of s.prose.split('\n')) {
-    if (/^\s*\|.*\|\s*$/.test(l)) { if (!cur) tables.push(cur = []); cur.push(l.split('|').length - 2); } else cur = null;
-  }
-  const words = (text.match(/\S+/g) || []).length;
-  return { s, inline, urls, links, paths, headings, numbers, tags, boxes, bullets, negations, tables, words };
+  return {
+    s,
+    boxes: (s.prose.match(/^\s*[-*+]\s+\[[ xX]\]/gm) || []).length,
+    bullets: (s.prose.match(/^\s*([-*+]|\d+[.)])\s/gm) || []).length,
+    words: (text.match(/\S+/g) || []).length,
+  };
 }
 
 function compare(beforeRaw, afterRaw, label) {
@@ -128,30 +77,12 @@ function compare(beforeRaw, afterRaw, label) {
   let after;
   try { after = new TextDecoder('utf-8', { fatal: true }).decode(afterRaw); } catch { return { errors: [`${label}: the new version is not valid UTF-8`], warnings, sizes: null }; }
   const before = beforeRaw.toString('utf8');
-  const A = tokens(before), B = tokens(after);
-  if (A.s.fm !== B.s.fm) errors.push('frontmatter changed (name, description, triggers and other keys must stay byte for byte)');
-  if (A.s.code.length !== B.s.code.length || A.s.code.some((c, i) => c !== B.s.code[i]))
-    errors.push(`code blocks or <!-- keep --> regions changed, moved or were removed (${A.s.code.length} before, ${B.s.code.length} after)`);
-  const diff = (name, a, b, addedIsError = false) => {
-    const { lost, added } = lostAdded(a, b);
-    if (lost.length) errors.push(`${name} lost: ${short(lost)}`);
-    if (added.length) (addedIsError ? errors : warnings).push(`${name} added: ${short(added)}`);
-  };
-  diff('inline code', A.inline, B.inline);
-  diff('URLs', A.urls, B.urls, true);
-  diff('link targets', A.links, B.links, true);
-  diff('paths', A.paths, B.paths);
-  diff('numbers', A.numbers, B.numbers);
-  diff('REQ tags and waivers', A.tags, B.tags, true);
-  const ht = h => h.map(x => x.text);
-  if (JSON.stringify(ht(A.headings)) !== JSON.stringify(ht(B.headings))) {
-    const { lost, added } = lostAdded(ht(A.headings), ht(B.headings));
-    errors.push(`headings changed (text, count or order; links to them would break). lost: ${short(lost) || 'none'}; added: ${short(added) || 'none'}`);
-  } else if (A.headings.some((h, i) => h.level !== B.headings[i].level)) warnings.push('heading levels changed');
+  const { problems, notes } = protectDiff(before, after);
+  errors.push(...problems.map(p => `protected: ${p}`));
+  warnings.push(...notes);
+  const A = shape(before), B = shape(after);
   if (A.boxes !== B.boxes) errors.push(`checklist items changed: ${A.boxes} before, ${B.boxes} after (each "Done when" item stays)`);
-  if (JSON.stringify(A.tables) !== JSON.stringify(B.tables)) errors.push(`table shape changed (rows per table and cells per row): ${JSON.stringify(A.tables)} before, ${JSON.stringify(B.tables)} after`);
   if (A.bullets && Math.abs(A.bullets - B.bullets) / A.bullets > 0.15) warnings.push(`list items: ${A.bullets} before, ${B.bullets} after (merged or dropped items: check none carried a separate fact)`);
-  if (B.negations < A.negations) warnings.push(`negations (not, never, no, only, except...): ${A.negations} before, ${B.negations} after. Check every rule still forbids what it forbade`);
   const em = t => (t.match(/—/g) || []).length;
   if (em(after) > em(before)) errors.push('em dashes added (writing standards)');
   const leak = /\b(here is the (compressed|shortened|rewritten)|i (have )?(compressed|shortened|rewrote)|compressed version|as an ai\b)/i;
