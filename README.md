@@ -56,8 +56,9 @@ favors no vendor.
   | gui | Anything people look at | The GUI runbook, the screenshot review loop and tool, a visual checklist; the frontend-design library skill fits it |
 
 - **A skill library** chosen per project: security hardening, backend patterns, frontend design, codebase maps,
-  repo setup, orchestration, MCP servers and more. Every project also gets core skills for planning, debugging,
-  parallel sub-agents, web search, finding existing skills, security review and skill cleanup.
+  repo setup, orchestration, MCP servers, user research and more. Every project also gets core skills for planning,
+  debugging, parallel sub-agents, research (facts from the project's files and the web), linked notes for Obsidian,
+  session handoff, finding existing skills, security review and skill cleanup.
 - **Quality by default:** plain writing with no filler or em dashes, verified claims, a tidy folder layout, and
   nothing in git that credits an AI agent.
 
@@ -112,9 +113,10 @@ Requires Node.js 18 or newer. No dependencies. The GUI screenshot tool uses Play
 ## Improving the starter itself
 Open this folder with an agent and work on it like any project. The hooks run here too. `.starter-template` keeps the
 setup prompt from triggering in this folder. Add a test for every new check, run `node tools/audit.mjs --full`, and
-record changes in [tools/starter/STARTER-CHANGELOG.md](tools/starter/STARTER-CHANGELOG.md). Before publishing, list any
-private words (names, project names) in `.private-terms`. That file is ignored by git, and the publish-safety sweep
-fails if any of them appear.
+record changes in [tools/starter/STARTER-CHANGELOG.md](tools/starter/STARTER-CHANGELOG.md). `node tools/trial.mjs`
+(starter only) proves on sample projects that making a new project, adopting a folder and upgrading never leave a
+project worse. Before publishing, list any private words (names, project names) in `.private-terms`. That file is
+ignored by git, and the publish-safety sweep fails if any of them appear.
 
 ## License
 MIT: use it, change it and sell what you build with it ([LICENSE](LICENSE)). Each skill folder keeps the license of the

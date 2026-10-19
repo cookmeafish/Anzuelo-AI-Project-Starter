@@ -1,8 +1,14 @@
-# App standards (data, security, UX, performance, AI features, docs)
+# App standards (changes, data, security, UX, performance, AI features, docs)
 
 Baselines for any application. Items marked (check) are enforced by `codeRules`, `commitGate` or requirements.json
 when configured. The rest are review items for the independent reviewer. The project-wide security baseline is
 `docs/security.md`; this app's own decisions are in `docs/foundation.md`.
+
+## Surgical changes
+- Before writing code, state the goal in one sentence and which files it touches.
+- Change only what the task needs. A diff line that doesn't serve the goal comes out.
+- Match the style around you: naming, formatting, error handling and patterns already in the file.
+- No drive-by refactors, renames or reformatting. Note them as a separate task for the user to approve.
 
 ## Data safety (persistent state)
 - **Saving needs a good load first.** If loading the data failed or came back incomplete, the save is blocked, so a

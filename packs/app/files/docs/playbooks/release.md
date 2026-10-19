@@ -1,7 +1,7 @@
 ---
 name: release
-summary: Ship a version - gates pass, version and release notes, the right branch, no AI attribution, nothing secret, user's OK for protected branches
-triggers: release, ship it, publish, deploy, cut a version, new version, push to main, push to master, merge to main, tag a release, make a build
+summary: Ship a version - gates pass, risky parts checked, rollback plan and triggers decided first, version and release notes, the right branch, no AI attribution, nothing secret, user's OK, then deploy and watch
+triggers: release, ship it, publish, deploy, cut a version, new version, push to main, push to master, merge to main, tag a release, make a build, deploy checklist, ready to deploy, before we deploy, rollback plan
 menu: A4
 ---
 # Playbook: release
@@ -11,20 +11,48 @@ menu: A4
 
 ## Steps
 1. **Gates:** all configured commands pass (test, build, lint, typecheck), plus the release gates in
-   `docs/foundation.md` section 4 and `install-update.md` when the app installs or updates itself. Run the
-   **security-review** skill on what changed since the last release (hard rule 15).
-2. **Release notes:** `docs/releases/<version>.md` collects the feature notes since the last release (what changed,
-   try it fast, try it for real).
-3. **Version** set as configured, and shown in the app if it shows one.
-4. **Git:**
+   `docs/foundation.md` section 4 and `install-update.md` when the app installs or updates itself. Every change in
+   the release was reviewed (the independent review, or `qa.md` §3). Run the **security-review** skill on what
+   changed since the last release (hard rule 15).
+2. **Risky parts,** each one that applies:
+   - **data migration:** run it on a copy with realistic data, time it, and have a way back (a down migration or a
+     backup to restore), following `data-change.md`;
+   - **feature flags:** each flag is set to its intended state in each environment;
+   - **breaking change** to an API, file format or setting that others rely on: list who uses it, and either keep
+     the old way working for a while or put the migration steps in the release notes.
+3. **Rollback plan, decided before the deploy:** how to undo it (the previous version, the exact command, and the
+   data restore if a migration ran), and the triggers that mean "roll back now", as numbers: an error rate, a key flow
+   failing, response times beyond the `docs/foundation.md` budgets. Write both into the release notes.
+4. **Release notes:** `docs/releases/<version>.md` collects the feature notes since the last release (what changed,
+   try it fast, try it for real) and the rollback plan.
+5. **Version** set as configured, and shown in the app if it shows one.
+6. **Git:**
    - `git status` is clean except the release;
    - the current branch is the right one;
    - no AI attribution in any commit to be pushed (`node tools/hooks/git-guard.mjs scan`);
    - no secrets (hook: no-secrets);
    - pushing to a protected branch needs the user to name it.
-5. **Build outputs:** no keys, debug flags or local paths inside them.
-6. **Ask** for the OK with a summary (version, notes, branch, what gets published). Then push, tag or publish.
+7. **Build outputs:** no keys, debug flags or local paths inside them.
+8. **Ask** for the OK with a summary (version, notes, branch, what gets published, the rollback triggers). Then push,
+   tag or publish.
+9. **Deploy and watch** (services and sites that go live):
+   - a staging or preview environment first, where one exists, with a quick run of the key flows;
+   - a gradual rollout when the host supports it;
+   - watch the error rate, response times and the key flows for at least 15 minutes after going live;
+   - a trigger is hit: roll back first, with the user's OK, then investigate (debug skill, and the
+     **incident-response** skill if users were hurt);
+   - afterwards: update `docs/CHANGELOG.md`, and draft any announcement for the user to send.
 
 ## Done when
-- [ ] Gates passed after the last change; release notes written; scan PASS (hook: release-notes, no-ai-attribution, commit-gate).
+- [ ] Gates passed after the last change; release notes written; scan PASS (hook: release-ready, no-ai-attribution, commit-gate).
+- [ ] The release notes hold the rollback plan and its triggers, written before the deploy.
 - [ ] The user approved the outward step in this conversation.
+- [ ] For a live deploy, the answer gives the numbers watched after it went live.
+
+## Pitfalls
+- Deciding when to roll back during the outage. Under pressure every bad sign looks temporary. Set the numbers first.
+- A migration tested only on an empty database, which then locks a large table in production for minutes.
+- Calling it done at "deploy succeeded". A deploy can succeed while the key flow is broken.
+
+Ideas in steps 2, 3 and 9 come from the deploy checklist in the engineering plugin of
+anthropics/knowledge-work-plugins (Apache-2.0).

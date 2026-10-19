@@ -1,7 +1,7 @@
 ---
 name: project
 summary: The project itself - new rules, complaints about misses, praise to repeat, sweeps, gaps, runbooks, skills, hooks, packs, status, engine upgrades
-triggers: clean up skills, prune skills, unused skills, retire a skill, show me the menu, menu codes, set up this project, enable a skill, remove a skill, library skills, update the project, update this project, from now on, new rule, make it a rule, remember, you forgot, i told you, why did you, i shouldn't have to, sweeps, sweep, audit, gaps, gap review, what's missing, runbook, runbooks, playbook, skill, skills, hook, hooks, add a pack, install a pack, packs, where are we, where were we, upgrade the engine, upgrade the starter
+triggers: clean up skills, prune skills, unused skills, retire a skill, show me the menu, menu codes, set up this project, enable a skill, remove a skill, library skills, update the project, update this project, from now on, new rule, make it a rule, remember to always, remember from now on, you forgot, i told you, why did you, i shouldn't have to, sweeps, sweep, audit the project, run the audit, gaps, gap review, what's missing, runbook, runbooks, playbook, project skills, the skills, harden a skill, harden the skill, the hooks, hook change, add a pack, install a pack, packs, where are we, where were we, what's next, status, to-do, remind me, handoff for the next session, what's on my plate, what am i waiting on, daily summary, standup update, share these skills, package skills, skill bundle, make a plugin, customize a plugin, upgrade the engine, upgrade the starter
 menu: E1
 checks: core: rule-request, rule-memory, hooks-tested, runbook-complete
 ---
@@ -11,32 +11,26 @@ checks: core: rule-request, rule-memory, hooks-tested, runbook-complete
 **After a complaint**, also fix the original miss by its own runbook. A new rule only prevents the next miss.
 
 ## Steps
-### §1 A rule, a complaint, or "keep doing this" (E2): the project-rule skill
-1. Write down what the user asked as a principle in your own words, with today's date and why it matters (never paste
-   their message or examples). Restate it as one testable rule. If it conflicts with an existing rule, ask which wins.
-2. Write it into AGENTS.md / CLAUDE.md (the hooks keep the twins identical), the runbooks and checks it touches, and a
-   "Pitfalls" line in the runbook where the miss happened.
-3. Add rows to `docs/checks/user-requirements.md` and `docs/checks/rule-enforcement.md`.
-4. Enforce it: an entry in `tools/hooks/requirements.json` plus a test scenario in `tools/hooks/test-hooks.mjs`, or
-   "hook: N/A <reason>" in the answer. Write a memory note (the hook prints where).
-5. Run `node tools/hooks/test-hooks.mjs` and `node tools/audit.mjs`. Both must PASS.
+### §1 A rule, a complaint, or "keep doing this" (E2)
+Follow the **project-rule** skill (`skills/project-rule/SKILL.md`).
 
-### §2 A new kind of task (no runbook): the runbook-create skill
-Follow `_fallback.md`. Leave a runbook plus a check behind. The skill and the DIRECTORY row are generated.
+### §2 A new kind of task (no runbook)
+Follow the **runbook-create** skill: `_fallback.md`, then a runbook plus a check. The skill and the DIRECTORY row are
+generated.
 
-### §3 Sweeps (E1): the project-sweeps skill
-Run `node tools/audit.mjs --full`. Report each sweep and fix every FAIL by fixing the project, never by weakening a test.
+### §3 Sweeps (E1)
+Follow the **project-sweeps** skill.
 
 ### §4 Gaps review (E3)
-Read BRIEF (typical requests), DIRECTORY, every runbook and `user-requirements.md`. List what the user could plausibly
-ask that no runbook or check covers, rank by likelihood × harm, and fix the top ones by §2, unless the user only asked
-for the list.
+Follow the **project-sweeps** skill, step 5.
 
-### §5 Harden skills (E4): the skill-harden skill
-For every runbook the hooks say is due (used 3+ times and not hardened yet).
+### §5 Harden skills (E4)
+Follow the **skill-harden** skill for every runbook the hooks say is due. Sharing skills as a bundle, or making or
+customizing a plugin, follows the **skill-curate** skill's §4.
 
-### §6 Status (E5): the session-handoff skill
-Answer from `docs/STATUS.md`. If it is stale, rebuild it from CHANGELOG, DECISIONS and recent files.
+### §6 Status, to-dos and handoff (E5)
+Follow the **session-handoff** skill: "where are we", "what's next", reminders and to-dos, a daily summary or
+standup update, a handoff for the next session, and `docs/glossary.md`.
 
 ### §7 Upgrade the engine (E6)
 `node tools/starter.mjs upgrade` (needs the starter linked; run it with `--dry-run` first to see the list). It
@@ -49,7 +43,7 @@ project's content. It can't make the project worse unseen:
    self-tests.
 3. Go through each line with the user. Adopt only what makes this project better (`adopted - Worth it: <gain> /
    <cost>`, then really add it: rules through the project-rule skill), and decline the rest with the reason
-   (`declined - <why>`). Run `node tools/hooks/test-hooks.mjs` and write `passed`. The hooks hold work until every
+   (`declined - <why>`). Run `node tools/hooks/selfcheck.mjs` and write `passed`. The hooks hold work until every
    line is decided (REQ: upgrade-review).
 
 ### §8 Add a pack (E7)

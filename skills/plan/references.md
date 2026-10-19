@@ -7,10 +7,13 @@ runbook (feature, bugfix, research...) still applies to the work inside each tas
 1. **Read the plan once, and the spec it names.** The spec is the authority; the plan is the argument for how to meet
    it. Where they disagree, the spec wins. If the spec can't be found, add a dated note to the plan saying so, and
    treat your own decisions as provisional.
-2. **Find your place.** Run `node skills/plan/scripts/plan-tasks.mjs status <plan>`. Ticked steps are done, even if
-   you don't remember doing them (after a break, a context reset or a hand-over). Trust the ticks, the dated notes
-   and the version history over your memory. Never redo a finished task.
-3. **Check the seams.** For each task that uses something an earlier task provides, compare the two "Uses / provides"
+2. **Find your place.** Run `node skills/plan/scripts/plan-tasks.mjs next <plan>` (or `status` for the whole list).
+   Ticked steps are done, even if you don't remember doing them (after a break, a context reset or a hand-over). Trust
+   the ticks, the dated notes and the version history over your memory. Never redo a finished task. A plan whose
+   status line says `done` or `dropped` is closed: don't resume it without the user's OK.
+3. **Fill gaps in the context.** Open the files and pages the plan's "Context" names. If a step needs something the
+   plan doesn't say and the project can answer it, look it up, then add a line to "Context" so the next reader has it.
+4. **Check the seams.** For each task that uses something an earlier task provides, compare the two "Uses / provides"
    lines: same names, same types, same files. Also check that each task agrees with itself (do its tests fit its code,
    and does it change only files that exist by then). Settle each mismatch now, by the spec, and write the decision
    as a dated note in the plan.
@@ -36,7 +39,10 @@ Stop and ask only for:
    - a bug in the code: use the debug skill. Never bend the code only so the output looks right;
    - a fault in the plan (it conflicts with the spec, two tasks disagree on an interface, a command can't work):
      make the smallest change that meets the spec and add a dated decision note.
-4. **A task is finished** only when every test it names ran in this session and you read the output, every expected
+4. **Run the cheap checks early.** The style or type check from "Checks for this project" runs after each file you
+   change, the task's tests after its last step. A failure gets fixed and the check run again until it passes; never
+   skip a check because the change "should work".
+5. **A task is finished** only when every test it names ran in this session and you read the output, every expected
    result was compared with a real one, the task's last full test run passed, and every change from the plan has a
    decision note. Then tick its boxes.
 
@@ -98,6 +104,23 @@ pair of eyes.
    again. A finding you decide not to fix gets a decision note.
 4. Small findings go to a "deferred" list in the answer for the user to decide on.
 
+## Stopping partway, or handing over
+The plan file is the hand-over. Before you stop (end of session, a limit reached, the user switching to another AI
+agent):
+1. Tick every box that is truly finished, and only those.
+2. Add a dated note for anything half done: what exists, what is missing, and the next command to run.
+3. Leave the status line at `status: open`. The next session's start hook lists the plan as OPEN, and any agent can
+   continue with `plan-tasks.mjs next <plan>` or, without Node, by reading down to the first unticked box.
+4. Add a line under "Now" in `docs/STATUS.md` linking the plan (session-handoff skill).
+
+## Closing the plan
+1. Run every command under "Checks for this project" and read the output. All pass.
+2. Re-read the plan's "Done when" and the spec, and confirm each item against the real result.
+3. Change the status line to `status: done`. A plan given up for good gets `status: dropped - <why>` instead, with
+   unticked boxes left as they are. Either line stops the hooks reporting it.
+4. Move it out of "Now" in `docs/STATUS.md` and add the CHANGELOG line.
+
 ## Finish
 In the answer, list every decision you made on the user's behalf (from the plan's dated notes), with the cost of
 each if it was the wrong call, plus all deferred findings. That list is how the user learns what you chose for them.
+Report the result in three lines: tasks done (N of N), checks run with their results, and the plan's status line.

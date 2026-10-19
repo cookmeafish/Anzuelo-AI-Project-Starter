@@ -16,18 +16,25 @@ or scripts, two parts that don't work together. Finish each phase before startin
 for a fix right now, a problem you don't fully understand, or a fix that already failed once. Simple bugs have root
 causes too, and the process is short for them.
 
+**Live users hurt right now?** Stop the harm first (the **incident-response** skill when enabled, or a rollback with
+the user's OK), then come back here. The mitigation is never the fix.
+
 ## Phase 1: Investigate
 1. **Read the error completely.** The whole message and stack trace, with the line numbers, paths and codes. Warnings
-   too. The answer is often written there.
+   too. The answer is often written there. When the user reports it, ask for the exact text pasted, not retold.
 2. **Reproduce it reliably.** Write down the exact steps. If it doesn't happen every time, gather more data. Don't
    guess.
-3. **Check what changed:** the diff, recent commits, new dependencies, config, environment, and how this machine
-   differs from one where it works.
-4. **Find where it breaks** when several parts are involved (UI → API → database, build → package → install): log
+3. **Pin down when and where:** when it started, and what is affected (every user or some, every input or certain
+   ones, one environment or all). Works in one place but not another: list every difference between the two
+   (versions, config, data, traffic, permissions).
+4. **Check what changed** around that start time: the diff, recent commits and merges that touched the failing path,
+   new dependencies, config, environment, and how this machine differs from one where it works. If log, metrics or
+   error-tracking tools are connected, read them from just before the start.
+5. **Find where it breaks** when several parts are involved (UI → API → database, build → package → install): log
    what goes into and out of each boundary, and whether each setting and environment value actually arrives there.
    Run once, see which boundary has bad data, then look only there ([references.md](references.md), boundary
    logging).
-5. **Trace the bad value back** to where it started ([references.md](references.md), root-cause tracing). Fix at the
+6. **Trace the bad value back** to where it started ([references.md](references.md), root-cause tracing). Fix at the
    source, not where it surfaced. A stray file or changed state that appears during a test run: find the test that
    causes it with `node skills/debug/scripts/find-polluter.mjs`.
 
@@ -123,4 +130,5 @@ root cause" findings are unfinished investigations, so be sure before landing he
 - `node skills/debug/scripts/find-polluter.mjs`: runs your test command once per test file and reports the first file
   that leaves a given file or folder behind. Never deletes anything. Its options are listed at the top of the file.
 
-Inspired by "systematic-debugging" in obra/superpowers (MIT, see LICENSE and [SOURCE.md](SOURCE.md)).
+Inspired by "systematic-debugging" in obra/superpowers (MIT, see LICENSE and [SOURCE.md](SOURCE.md)), with a few
+steps from the debug skill of anthropics/knowledge-work-plugins (Apache-2.0, see LICENSE-engineering-plugin).

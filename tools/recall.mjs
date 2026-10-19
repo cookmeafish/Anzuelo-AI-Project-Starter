@@ -2,8 +2,8 @@
 // How did we solve this before? Searches the project's memory, best match first. Read-only, zero dependencies.
 //   node tools/recall.mjs "<key words>" [--all]
 // Looks in the history of finished work turns (tools/hooks/state/history.jsonl, kept on this machine), then in
-// docs/CHANGELOG.md, docs/DECISIONS.md, docs/STATUS.md, docs/plans/ and docs/knowledge/. Shows the best history match
-// in full and the next ones in one line each; --all lists every match.
+// docs/CHANGELOG.md, docs/DECISIONS.md, docs/STATUS.md, docs/glossary.md, docs/plans/ and docs/knowledge/. Shows the
+// best history match in full and the next ones in one line each; --all lists every match.
 import fs from 'node:fs';
 import path from 'node:path';
 import { ROOT, read, usageOf, keyWords, recallMatches } from './hooks/hooks.mjs';
@@ -22,7 +22,7 @@ if (hits.length) {
 
 // the project's own records: lines that share the most key words with the question
 const want = new Set(keyWords(q).filter(w => w.length > 2));
-const files = ['docs/CHANGELOG.md', 'docs/DECISIONS.md', 'docs/STATUS.md'];
+const files = ['docs/CHANGELOG.md', 'docs/DECISIONS.md', 'docs/STATUS.md', 'docs/glossary.md'];
 for (const d of ['docs/plans', 'docs/knowledge']) {
   const walk = p => { let st; try { st = fs.statSync(path.join(ROOT, p)); } catch { return; } if (st.isDirectory()) for (const n of fs.readdirSync(path.join(ROOT, p))) walk(`${p}/${n}`); else if (p.endsWith('.md')) files.push(p); };
   walk(d);

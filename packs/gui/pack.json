@@ -1,4 +1,6 @@
 {
+  "good": "The project makes anything people look at: web pages, app screens, dashboards, HTML reports.",
+  "costs": "Each visual change is screenshotted and reviewed, which adds a few minutes per change.",
   "plain": "Screen checking",
   "does": "Takes screenshots of anything visual it builds, looks at them and fixes what looks wrong.",
   "outcome": "Pages and screens that look right on phone and desktop, in light and dark mode.",

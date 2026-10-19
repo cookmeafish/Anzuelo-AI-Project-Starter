@@ -1,0 +1,7 @@
+Our own skill, extended with ideas from two plugins in https://github.com/anthropics/knowledge-work-plugins (Apache License 2.0, copyright Anthropic; see LICENSE):
+- Productivity 1.3.1: "task-management" (a shared to-do file with sections for active, waiting and someday items, owner and due-date conventions, asking before adding commitments found in conversations), "update" (triaging stale and overdue items, comparing with an issue tracker), "start" (learning the user's shorthand from their own to-dos) and "memory-management" (a glossary of the user's terms, nicknames and codenames, looked up before asking).
+- Engineering 1.2.0, "standup" (a done / next / blocked update built from recent activity or the user's notes). The engineering folder has no license of its own, so the repository's Apache-2.0 license applies.
+
+What we changed: no separate TASKS.md, dashboard or memory folder. To-dos live in docs/STATUS.md, which every session already reads, with "Later" for someday items and "since" dates on blocked ones. The glossary is one short file, docs/glossary.md, holding roles only and no personal details. The hot-cache memory file, people and project profiles, and scans of the user's email, calendar and chat were left out: the project already has AGENTS.md preferences, tools/recall.mjs and its history for memory, and reading private messages is out of scope. The standup is a draft from CHANGELOG, git and STATUS, never posted without the user's OK. All text is our own.
+
+Edit freely; this is our version now.

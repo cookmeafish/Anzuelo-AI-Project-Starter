@@ -1,4 +1,6 @@
 {
+  "good": "The project builds software: apps, sites, tools, games or scripts that others run.",
+  "costs": "More checks before work is called done (tests, specs, budgets), so small changes take a little longer.",
   "plain": "Software toolkit",
   "does": "Adds specs, testing, quality checks, performance budgets and safe releases for building apps, sites or tools.",
   "outcome": "Software that is tested and checked before it is called done.",
@@ -257,7 +259,8 @@
       "tag": "qa-incident",
       "rule": "3",
       "when": {
-        "promptMatches": "\\bQA\\b"
+        "playbookUsed": "qa",
+        "promptMatches": "\\b(qa|tests?|checks?|checked) (failed|missed|didn'?t catch)|\\bslipped\\b|\\bdid(n'?t)? you (test|check)|\\bqa\\b[^\\n]*\\b(wrong|broken|still|again|missing|bug)"
       },
       "require": {
         "filesChanged": [
@@ -265,7 +268,7 @@
         ],
         "answerMatches": "what slipped[\\s\\S]*(process change|new check|hardened)"
       },
-      "message": "The user said QA, so QA failed: report What slipped, Why QA missed it, Fix, and Process change, and add a line to docs/lessons.md."
+      "message": "QA missed something the user found: report What slipped, Why QA missed it, Fix, and Process change, and add a line to docs/lessons.md."
     },
     {
       "tag": "qa-report",

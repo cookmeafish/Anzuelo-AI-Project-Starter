@@ -11,7 +11,7 @@
 //     skill, finding and slowdown, each to adopt or decline with the user. The hooks hold work until it is decided.
 //   node tools/new-project.mjs "<folder>" --add-pack <name>   make a pack available in a project (then: packs.mjs install)
 //   node tools/new-project.mjs "<folder>" --add-skill <name>  copy a skill from the starter's library into a project's skills/
-//   add --dry-run to see what would happen
+//   add --dry-run to see what would happen; --dev allows a development copy (.starter-dev) for throwaway test projects
 // The AI installs packs during setup (SETUP-PROMPT.md): it asks what the project is about and picks only what fits.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -24,19 +24,20 @@ const STARTER = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
 // Engine: generic machinery, replaced on --upgrade. Everything else is the project's own content.
 const ENGINE = [
-  'tools/hooks/hooks.mjs', 'tools/hooks/test-hooks.mjs', 'tools/hooks/git-guard.mjs', 'tools/audit.mjs', 'tools/packs.mjs',
+  'tools/hooks/hooks.mjs', 'tools/hooks/selfcheck.mjs', 'tools/hooks/git-guard.mjs', 'tools/audit.mjs', 'tools/packs.mjs',
   'tools/writing-check.mjs', 'tools/integrity-check.mjs',
   '.githooks/commit-msg', '.githooks/pre-commit', '.githooks/pre-push',
   'docs/checks/session-checklist.md', 'docs/checks/finish-checklist.md', 'docs/checks/runbook-standards.md',
-  'docs/checks/writing-standards.md', 'docs/checks/layout-standards.md',
+  'docs/checks/writing-standards.md', 'docs/checks/layout-standards.md', 'docs/recommended-tools.md', 'docs/checks/better-or-worse.md',
   'docs/playbooks/_TEMPLATE.md', 'docs/playbooks/_fallback.md', 'HOW-TO-USE.md', 'tools/skills.mjs', 'tools/starter.mjs', 'tools/recall.mjs', 'tools/hooks/wire.mjs', 'tools/survey.mjs'
 ];
 // Added on upgrade only when missing: the project may have tuned them.
-const ENGINE_IF_MISSING = ['docs/playbooks/plan.md', 'docs/plans/README.md', 'docs/security.md', 'docs/names.json'];
+const ENGINE_IF_MISSING = ['docs/playbooks/plan.md', 'docs/plans/README.md', 'docs/security.md', 'docs/names.json', 'docs/glossary.md'];
 // Core skills are engine too: an upgrade replaces each whole folder (SKILL.md, references, scripts, LICENSE, SOURCE).
 // Engine skills merged into another (the old folder and its checks go on upgrade), and pack runbooks whose job an engine
 // skill took over (the upgrade review offers to merge them; the project may have tuned them).
 const RETIRED_CORE = { 'web-search': { into: 'research', tags: ['search-cited'] } };
+const RETIRED_FILES = ['tools/hooks/test-hooks.mjs'];
 const MERGED_RUNBOOKS = { research: 'research', 'answer-question': 'research' };
 // Pack files that are engine too: refreshed on upgrade when the project has the pack.
 const PACK_ENGINE = { gui: ['tools/screenshot.mjs', 'docs/checks/visual-review.md', 'skills/gui-review-loop/'] };
@@ -46,7 +47,7 @@ for (const s of CORE_SKILLS) (function walk(d) {
   for (const n of fs.readdirSync(at)) { const p = `${d}/${n}`; fs.statSync(path.join(STARTER, p)).isDirectory() ? walk(p) : ENGINE.push(p); }
 })(`skills/${s}`);
 // Never copied into a project: the starter's own files, personal or machine state, and generated output.
-const NEVER = new Set(['.git', 'node_modules', '.cache', 'state', '.starter-template', '.private-terms', 'New Project.bat', 'settings.local.json', '.codex', 'starter.local.json', '.starter', '.obsidian']);
+const NEVER = new Set(['.git', 'node_modules', '.cache', 'state', '.starter-template', '.starter-dev', 'trial.mjs', '.private-terms', 'New Project.bat', 'settings.local.json', '.codex', 'starter.local.json', '.starter', '.obsidian']);
 const TEXT = /\.(md|mjs|js|json|txt)$/;
 
 const args = process.argv.slice(2);
@@ -56,6 +57,18 @@ const target = args.find((a, i) => !a.startsWith('--') && !['--name', '--desc', 
 const dry = flag('--dry-run');
 if (!target) { console.log(usageOf(import.meta.url)); process.exit(1); }
 const dest = path.resolve(target);
+// An ignore pattern that matches files the project already commits is never added: ignoring them would push the user
+// to untrack their own files (e.g. a CLAUDE.md they keep in git). Lesson: adopting such a project flagged its CLAUDE.md.
+const tracked = pattern => fs.existsSync(path.join(dest, '.git')) &&
+  !!(spawnSync('git', ['ls-files', '-ci', `--exclude=${pattern}`], { cwd: dest, encoding: 'utf8' }).stdout || '').trim();
+// A development copy (marked by .starter-dev, ignored by git) never feeds real projects: half-finished changes would
+// reach them through every upgrade and every pack or skill they add. Projects use a stable copy (a clean clone).
+if (fs.existsSync(path.join(STARTER, '.starter-dev')) && !flag('--dev') && !process.env.KS_ALLOW_DEV) {
+  console.error(`${STARTER} is a development copy of the starter (it has a .starter-dev file).
+Use a stable copy for real projects: git clone <the starter's repository> into its own folder and run its tools/new-project.mjs.
+To test this copy on a throwaway project, add --dev.`);
+  process.exit(1);
+}
 // The starter always stays in its own folder, outside every project it makes (and never the other way round).
 const within = (child, parent) => { const rel = path.relative(parent, child); return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel)); };
 if (within(dest, STARTER) || within(STARTER, dest)) {
@@ -168,7 +181,7 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   // ignore lines added since the project was made (the starter link, a kept copy), and the link itself if missing
   const gi = path.join(dest, '.gitignore');
   const have = fs.existsSync(gi) ? fs.readFileSync(gi, 'utf8').split(/\r?\n/) : [];
-  const want = fs.readFileSync(path.join(STARTER, 'tools', 'starter', 'gitignore.project'), 'utf8').split(/\r?\n/).filter(l => l && !l.startsWith('#') && !have.includes(l) && !['CLAUDE.md', '.claude/'].includes(l));
+  const want = fs.readFileSync(path.join(STARTER, 'tools', 'starter', 'gitignore.project'), 'utf8').split(/\r?\n/).filter(l => l && !l.startsWith('#') && !have.includes(l) && !['CLAUDE.md', '.claude/'].includes(l) && !tracked(l));
   if (want.length) { log.push(`appended .gitignore (${want.join(', ')})`); if (!dry) fs.appendFileSync(gi, '\n# Project starter\n' + want.join('\n') + '\n'); }
   const lk = path.join(dest, 'tools', 'starter.local.json');
   if (!fs.existsSync(lk) && !dry) { fs.writeFileSync(lk, JSON.stringify({ path: STARTER }, null, 2) + '\n'); log.push('linked   tools/starter.local.json → this starter'); }
@@ -213,6 +226,18 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
     try { const j = JSON.parse(fs.readFileSync(rq, 'utf8')); j.requirements = j.requirements.filter(r => !tags.includes(r.tag)); fs.writeFileSync(rq, JSON.stringify(j, null, 2) + '\n'); } catch { }
     if (fs.existsSync(ep)) fs.writeFileSync(ep, tags.reduce((t, tag) => t.replace(new RegExp(`,?\\s*\\b${tag}\\b`, 'g'), ''), fs.readFileSync(ep, 'utf8')));
   }
+  // Engine files renamed or gone: the old copy is backed up and removed, so nothing stale keeps running.
+  // test-hooks.mjs became selfcheck.mjs because "node --test" ran it as one of the project's own tests.
+  for (const old of RETIRED_FILES) {
+    const at = path.join(dest, old);
+    if (!fs.existsSync(at)) continue;
+    log.push(`retired  ${old} (renamed or replaced; old version in .cache/upgrade-backup/${stamp}/)`);
+    if (dry) continue;
+    const b = path.join(backupDir, old + '.orig');
+    fs.mkdirSync(path.dirname(b), { recursive: true });
+    fs.copyFileSync(at, b);
+    fs.rmSync(at, { force: true });
+  }
   log.push(...wire(dest, { dry })); // every agent's wiring, the git hooks and Obsidian (tools/hooks/wire.mjs)
   console.log(log.join('\n'));
   console.log(`\n${dry ? 'Dry run, nothing written: this is what an upgrade of' : 'Upgraded the engine in'} ${dest}${dry ? ' would change' : ''}. The project's own content (AGENTS.md / CLAUDE.md, requirements.json, config.json, runbooks, knowledge, code) was not touched. ${unchanged} engine file(s) were already current.${backedUp ? ` ${backedUp} replaced file(s) are backed up in .cache/upgrade-backup/${stamp}/.` : ''}`);
@@ -245,7 +270,7 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   for (const [rb, into] of Object.entries(MERGED_RUNBOOKS)) if (fs.existsSync(path.join(dest, 'docs', 'playbooks', `${rb}.md`)) && !decided.includes(`- merge: docs/playbooks/${rb}.md`)) items.push(`merge: docs/playbooks/${rb}.md into the ${into} skill`);
   for (const s of after.failed.filter(s => !before.failed.includes(s))) items.push(`check: ${s.replace(/: /g, ', ')}`);
   for (const [ev, ms] of Object.entries(after.speed)) if (before.speed[ev] && ms > before.speed[ev] * 1.5 && ms - before.speed[ev] > 100) items.push(`speed: the ${ev} hook went from ${before.speed[ev]} to ${ms} ms`);
-  items.push('self-tests: node tools/hooks/test-hooks.mjs passes here');
+  items.push('self-tests: node tools/hooks/selfcheck.mjs passes here');
   const dp = path.join(dest, 'docs', 'DECISIONS.md');
   fs.mkdirSync(path.dirname(dp), { recursive: true });
   // each pack and skill in plain words: what it does and what the user will notice
@@ -302,10 +327,13 @@ for (const f of files) {
   if (f === 'tools/starter/README.project.md') { if (!existing.includes('README.md')) put(f, { as: 'README.md' }); else put(f, { as: 'README.starter.md' }); continue; }
   if (f === 'tools/starter/gitignore.project') {
     const gi = path.join(dest, '.gitignore');
-    if (!fs.existsSync(gi)) put(f, { as: '.gitignore' });
+    const lines = fs.readFileSync(path.join(STARTER, f), 'utf8').split(/\r?\n/);
+    const keep = lines.filter(l => !l || l.startsWith('#') || !tracked(l));
+    if (keep.length < lines.length) log.push(`kept in git what the project already commits (${lines.filter(l => !keep.includes(l)).join(', ')}): not added to .gitignore`);
+    if (!fs.existsSync(gi)) { if (!dry) fs.writeFileSync(gi, keep.join('\n')); log.push('created  .gitignore'); }
     else {
       const have = fs.readFileSync(gi, 'utf8').split(/\r?\n/);
-      const add = fs.readFileSync(path.join(STARTER, f), 'utf8').split(/\r?\n/).filter(l => l && !l.startsWith('#') && !have.includes(l));
+      const add = keep.filter(l => l && !l.startsWith('#') && !have.includes(l));
       if (add.length) { log.push(`appended .gitignore (${add.length} lines)`); if (!dry) fs.appendFileSync(gi, '\n# Project starter\n' + add.join('\n') + '\n'); }
     }
     continue;
@@ -315,6 +343,7 @@ for (const f of files) {
   // merges them. Both get renamed, so the twin sync can't copy one over the user's file.
   if ((f === 'CLAUDE.md' || f === 'AGENTS.md') && hadInstructions) { put(f, { as: f.replace('.md', '.starter.md') }); continue; }
   if (f === 'CLAUDE.md' || f.startsWith('.claude/')) continue; // made for this machine by wire (tools/hooks/wire.mjs)
+  if (/^docs\/plans\/(?!README\.md$)/.test(f)) continue; // the starter's own development plans, not the project's
   put(f);
 }
 if (!dry) {

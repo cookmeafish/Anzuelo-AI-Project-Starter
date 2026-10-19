@@ -82,6 +82,7 @@ const DEFAULTS = {
   injectionIgnore: ['docs/security.md', 'skills/security-review/**', 'skills/research/references.md', 'skills/skill-finder/references.md', '.claude/skills/**'],
   // Files loaded at every session start: over this many characters together, the audit warns (consolidate them).
   alwaysLoadedMaxChars: 30000,
+  planNewFiles: 5,            // a work turn that creates this many new files needs a plan in docs/plans/ (REQ: plan-required)
   hookBudgetMs: 1000,         // a hook event slower than this (median, node start included) slows every turn: the audit fails         // a runbook or skill unused this long is reviewed: keep, merge or retire (skill-curate)
   harden: 'block',            // 'block' = harden a skill in the turn it becomes due; 'remind' = hint only
   skillsDir: 'skills',        // agent-neutral home of every skill (SKILL.md format)
@@ -95,7 +96,7 @@ const DEFAULTS = {
   guiIgnore: ['.cache/**', 'packs/**', 'library/**', '.starter/**', 'skills/**', 'node_modules/**', 'dist/**', 'build/**', 'docs/**', 'sources/**', 'inbox/**', '**/*.md', '**/__pycache__/**', 'tools/hooks/**'],
   // Files where a name from docs/names.json may be typed out: history, licenses and credits keep the names of their day,
   // toolchain manifests can't read another file, and the hook tests use made-up names as fixtures.
-  namesIgnore: ['**/CHANGELOG*.md', '**/STARTER-CHANGELOG.md', '**/LICENSE*', '**/SOURCE*', '**/*.lock', '**/package-lock.json', '**/package.json', '**/pyproject.toml', '**/Cargo.toml', 'tools/hooks/test-hooks.mjs', '.cache/**', 'tools/hooks/state/**', '.claude/skills/**'],
+  namesIgnore: ['**/CHANGELOG*.md', '**/STARTER-CHANGELOG.md', '**/LICENSE*', '**/SOURCE*', '**/*.lock', '**/package-lock.json', '**/package.json', '**/pyproject.toml', '**/Cargo.toml', 'tools/hooks/selfcheck.mjs', '.cache/**', 'tools/hooks/state/**', '.claude/skills/**'],
   guiShotDir: '.cache/gui-review',
   guiShotCommand: 'screenshot\\.mjs',
   guiMaxRounds: 10,
@@ -134,7 +135,7 @@ const DEFAULTS = {
   instructionBudgetKB: 60, // audit warns when AGENTS.md / CLAUDE.md grows past this; split detail into docs/
   // Root stays small (docs/checks/layout-standards.md): files allowed directly in the project root. Folders are fine.
   rootAllowed: ['README.md', 'HOW-TO-USE.md', 'AGENTS.md', 'CLAUDE.md', 'DIRECTORY.md', 'SETUP-PROMPT.md', 'LICENSE', 'LICENSE.md', 'LICENSE.txt',
-    '.gitignore', '.gitattributes', '.editorconfig', '.env.example', '.starter-template', '.private-terms', 'New Project.bat'],
+    '.gitignore', '.gitattributes', '.editorconfig', '.env.example', '.starter-template', '.starter-dev', '.private-terms', 'New Project.bat'],
   approvalPaths: [],       // taste-driven paths: committing them needs the user's OK in this request ("approve", "looks good", "commit it")
   // Docs and code capture the principle and the reason, never the user's literal examples (that also keeps personal
   // details out). A run of this many words copied from the user's messages into a file is flagged.
@@ -195,11 +196,15 @@ export function starterLink() {
   const j = readJSON(abs(STARTER_LINK), null);
   return j && j.path && fs.existsSync(path.join(j.path, 'tools', 'new-project.mjs')) ? path.resolve(j.path) : null;
 }
+let sourcesWarned = false;
 export function starterSources() {
   const out = [{ kind: 'project', dir: ROOT }];
   if (fs.existsSync(abs('.starter'))) out.push({ kind: 'kept copy', dir: abs('.starter') });
   const link = starterLink();
-  if (link) out.push({ kind: 'linked starter', dir: link });
+  // a development copy (.starter-dev) never feeds a real project: its unfinished changes would arrive with each pack or skill
+  if (link && fs.existsSync(path.join(link, '.starter-dev')) && !exists('.starter-dev') && !process.env.KS_ALLOW_DEV) {
+    if (!sourcesWarned) { sourcesWarned = true; console.error(`The linked starter (${link}) is a development copy. Link a stable copy: node tools/starter.mjs link "<stable starter folder>"`); }
+  } else if (link) out.push({ kind: 'linked starter', dir: link });
   return out;
 }
 // The first place that has a pack payload or library skill: { dir, kind } or null.
@@ -397,6 +402,11 @@ export function toolResults(entries) {
 
 // The answer the user will read: text after the last tool call. Lesson: a Stop-hook block starts a NEW answer, so
 // text from blocked drafts must not satisfy (or fail) the checks of the corrected answer.
+// Every piece of text the agent wrote this turn, across tool calls and earlier blocked answers.
+export function turnText(entries = []) {
+  return entries.filter(r => r.type === 'assistant' && Array.isArray(r.message?.content))
+    .flatMap(r => r.message.content.filter(x => x.type === 'text').map(x => x.text || '')).join('\n');
+}
 export function finalText(entries) {
   let texts = [];
   for (const r of entries) {
@@ -483,7 +493,11 @@ export function context(t, cfg, answerOverride) {
   if (!t.toolsKnown) usedPb = pbs.filter(pb => re(`\\b(playbook|runbook|skill)s?\\s*:\\s*\`?(docs/playbooks/|skills/)?${esc(pb.name)}(\\.md)?\\b`).test(answer));
   const skills = routableSkills(cfg);
   const routedSkills = route(menuInfo.expanded, skills).map(s => s.pb);
-  let usedSkills = skills.filter(s => skillsUsed.includes(s.name) || [s.file, ...cfg.skillMirrors.map(m => `${m}/${s.name}/SKILL.md`)].some(f => reads.has(f)));
+  // A skill only read (to explain it to the user) is not a skill used: reading counts when the request routed to it,
+  // the answer names it, or one of its scripts ran. Lesson: describing two skills made their checks demand their outputs.
+  const ranScript = n => cmds.some(c => new RegExp(`skills[\\\\/]${esc(n)}[\\\\/]scripts`).test(c));
+  let usedSkills = skills.filter(s => skillsUsed.includes(s.name) || ([s.file, ...cfg.skillMirrors.map(m => `${m}/${s.name}/SKILL.md`)].some(f => reads.has(f)) &&
+    (routedSkills.includes(s) || ranScript(s.name) || re(`\\bskills?\\s*:\\s*\`?(skills/)?${esc(s.name)}\\b`).test(answer))));
   if (!t.toolsKnown) usedSkills = skills.filter(s => re(`\\bskills?\\s*:\\s*\`?(skills/)?${esc(s.name)}\\b`).test(answer));
   return {
     ...t, uses, cmds, changed, work, pbs, routed, reads, skillsUsed, usedPb, routedSkills, usedSkills, runs: runsOf(t.entries),
@@ -660,7 +674,11 @@ export const NAMES_FILE = 'docs/names.json';
 const NAME_MARK = /<!--name:([A-Za-z0-9_]+)-->[\s\S]*?<!--\/name-->/g;
 export const names = () => Object.fromEntries(Object.entries(readJSON(abs(NAMES_FILE), {})).filter(([k, v]) => !k.startsWith('_') && typeof v === 'string'));
 // A name that is still a template placeholder ({{PROJECT_NAME}}) or too short to search for is not checked.
-const checkable = nm => Object.entries(nm).filter(([, v]) => v.trim().length >= 3 && !/\{\{|<!--/.test(v));
+// "_subjects": keys whose value is also a real-world thing the project's content talks about (a project named after a
+// game, a city or a product). Its mentions in content are the subject, not the project's name, so they are not flagged;
+// the markers still refill on a rename. Lesson: a project named after a game flagged every mention of the game.
+const subjects = () => new Set([].concat(readJSON(abs(NAMES_FILE), {})._subjects || []));
+const checkable = nm => { const sub = subjects(); return Object.entries(nm).filter(([k, v]) => !sub.has(k) && v.trim().length >= 3 && !/\{\{|<!--/.test(v)); };
 export const stampNames = (text, nm = names()) => text.replace(NAME_MARK, (m, k) => k in nm ? `<!--name:${k}-->${nm[k]}<!--/name-->` : m);
 // REQ: name-var. A changeable name typed out in a file: outside a marker in docs, or anywhere in code.
 export function nameProblems(file, text, nm = names(), cfg = config()) {
@@ -840,7 +858,7 @@ export function setupProblems(cfg = config()) {
   const typical = [...section(brief, 'Typical requests').replace(/<!--[\s\S]*?-->/g, '').matchAll(/^[ \t]*(?:\d+\.|-)[ \t]+(\S.+)$/gm)].map(m => m[1].trim());
   if (typical.length < 3) probs.push('docs/BRIEF.md: list at least 3 typical requests, each as a short, plain description of the kind of request');
   const pbs = playbooks(), sks = routableSkills(cfg);
-  for (const t of typical) if (!route(t, pbs).length && !route(t, sks).length) probs.push(`typical request "${t.slice(0, 70)}" routes to no runbook or skill: add its wording to a runbook's or skill's triggers (node tools/hooks/test-hooks.mjs --route "...")`);
+  for (const t of typical) if (!route(t, pbs).length && !route(t, sks).length) probs.push(`typical request "${t.slice(0, 70)}" routes to no runbook or skill: add its wording to a runbook's or skill's triggers (node tools/hooks/selfcheck.mjs --route "...")`);
   const claude = read(abs('CLAUDE.md'));
   if (/\{\{[A-Z_]+\}\}|<!-- One line on what/.test(claude)) probs.push('CLAUDE.md: replace the template placeholders (name, one-line purpose)');
   if (!names().PROJECT_NAME || /\{\{/.test(names().PROJECT_NAME)) probs.push(`${NAMES_FILE}: set PROJECT_NAME, and add every other name the project uses (products, brands, companies)`);
@@ -856,10 +874,11 @@ export function setupProblems(cfg = config()) {
   if ((own.packs || []).includes('app') && !(own.app && (own.app.test || own.app.build)))
     probs.push('wire the app gates: node tools/packs.mjs configure app --test "<cmd>" --build "<cmd>" --code "<globs>"');
   if ((own.packs || []).includes('app')) {
-    const f = read(abs('docs/foundation.md'));
+    // text in backticks is the page's own instruction about <...>, not a value still to fill
+    const f = read(abs('docs/foundation.md')).replace(/`[^`\n]*`/g, '');
     if (!/status:\s*set\b/i.test(f) || /<\.\.\.>|<e\.g\./.test(f)) probs.push('set the app foundation with the user (app-foundation runbook): docs/foundation.md still has <...> values or no "status: set"');
   }
-  const sec = read(abs('docs/security.md'));
+  const sec = read(abs('docs/security.md')).replace(/`[^`\n]*`/g, '');
   if (!/status:\s*set\b/i.test(sec) || /<\.\.\.>/.test(sec)) probs.push('set the security baseline with the user: docs/security.md still has <...> values or no "status: set"');
   if (own.adopted && !section(read(abs('docs/STATUS.md')), 'Current state').trim()) probs.push('docs/STATUS.md: add a "## Current state" section describing the existing project before setup changed it');
   probs.push(...setupCompleteness(cfg, { final: true }));
@@ -886,7 +905,8 @@ export const INTERVIEW_AFTER = ['Packs', 'Library skills', 'Starter']; // record
 export const INTERVIEW_APP = ['Commands', 'Branches', 'Sign-off', 'Release'];
 export function setupInterview() {
   const f = {};
-  for (const m of section(read(abs('docs/DECISIONS.md')), 'Setup interview').matchAll(/^\s*-\s*\*{0,2}([^:*\n]+?)\*{0,2}:\s*(.*)$/gm))
+  // name markers inside answers read as the name itself (Lesson: answers written with a marker stopped counting)
+  for (const m of section(read(abs('docs/DECISIONS.md')), 'Setup interview').replace(NAME_MARK, (x, k) => names()[k] || k).matchAll(/^\s*-\s*\*{0,2}([^:*\n]+?)\*{0,2}:\s*(.*)$/gm))
     f[m[1].trim().toLowerCase()] = m[2].trim().replace(/^assumed\s*[-:]\s*/i, ''); // autonomy auto: "assumed - <answer>"
   return f;
 }
@@ -968,9 +988,9 @@ export function upgradeProblems(cfg = config()) {
   const own = readJSON(path.join(HOOKS, 'config.json'), {}), claude = read(abs('CLAUDE.md'));
   for (const { kind, item, decision } of r.items) {
     const at = `"- ${kind}: ${item}"`;
-    if (kind === 'self-tests' && /^\?|^$/.test(decision)) { probs.push(`${at}: run node tools/hooks/test-hooks.mjs until it passes, then write "passed"`); continue; }
+    if (kind === 'self-tests' && /^\?|^$/.test(decision)) { probs.push(`${at}: run node tools/hooks/selfcheck.mjs until it passes, then write "passed"`); continue; }
     if (/^\?|^$/.test(decision)) { probs.push(`${at}: decide it${config().autonomy === 'auto' ? '' : ' with the user'} ("adopted - Worth it: <gain> / <cost>", "fixed - <how>" or "declined - <why>")`); continue; }
-    if (kind === 'self-tests') { const st = readJSON(path.join(STATE, 'selftest.json'), {}); if (!st.passed || (st.at || '') < r.date) probs.push(`${at}: run node tools/hooks/test-hooks.mjs until it passes`); continue; }
+    if (kind === 'self-tests') { const st = readJSON(path.join(STATE, 'selftest.json'), {}); if (!st.passed || (st.at || '') < r.date) probs.push(`${at}: run node tools/hooks/selfcheck.mjs until it passes`); continue; }
     if (/^declined\b/i.test(decision)) { if (decision.replace(/^declined\W*/i, '').length < 8) probs.push(`${at}: say why it was declined`); continue; }
     if (/^fixed\b/i.test(decision)) { if (decision.replace(/^fixed\W*/i, '').length < 8) probs.push(`${at}: say how it was fixed`); continue; }
     if (!/^adopted\b/i.test(decision)) { probs.push(`${at}: the decision must start with adopted, fixed or declined`); continue; }
@@ -981,6 +1001,16 @@ export function upgradeProblems(cfg = config()) {
     if (kind === 'rule' && !claude.includes(item)) probs.push(`${at}: adopted but CLAUDE.md has no rule "${item}" (project-rule skill)`);
   }
   return probs;
+}
+
+// ---------- plans: bigger additions have a checklist that outlives the session (REQ: plan-required, plan-open) ----------
+// A plan in docs/plans/ is open while it has unticked boxes and no "status: done" or "status: dropped - <why>" line.
+// Plans are plain markdown in the repository, so the next session, or another agent, picks up where this one stopped.
+export function openPlans() {
+  return list('docs/plans').filter(n => /\.md$/i.test(n) && !/^readme\.md$/i.test(n)).map(n => {
+    const p = `docs/plans/${n}`, t = read(abs(p));
+    return { p, left: (t.match(/^\s*[-*] \[ \]/gm) || []).length, done: (t.match(/^\s*[-*] \[[xX]\]/gm) || []).length, closed: /^status:\s*(done|dropped)/im.test(t) };
+  }).filter(x => x.left && !x.closed);
 }
 
 // ---------- .gitignore: ready before every push (REQ: gitignore-ready) ----------
@@ -1064,7 +1094,7 @@ function notices(cfg) {
   const template = exists('.starter-template');
   // REQ: unresolved-carryover. Lesson: after the block cap, a miss passed silently. It is announced until fixed.
   const un = readJSON(path.join(STATE, 'unresolved.json'), null);
-  if (un && un.items?.length) out.push(`LAST WORK TURN ENDED WITH UNRESOLVED CHECKS (${un.at}, request: "${un.prompt}"): ${un.items.join(' | ')}. Tell the user plainly, then fix them in this turn.`);
+  if (un && un.items?.length) out.push(`LAST WORK TURN ENDED WITH UNRESOLVED CHECKS (${un.at}, request: "${un.prompt}"): ${un.items.join(' | ')}. Fix the ones that still apply in this turn. Mention them to the user only where they change the answer, in plain words and without check names.`);
   if (!template && exists('SETUP-PROMPT.md'))
     out.push('SETUP IN PROGRESS: SETUP-PROMPT.md is still here. Follow it (it builds this project end to end). The hooks deny deleting it until node tools/audit.mjs --setup passes. If the user just wants a quick answer, answer it, then continue setup.');
   else if (!template && /status:\s*not bootstrapped/i.test(read(abs('docs/BRIEF.md'))))
@@ -1079,6 +1109,8 @@ function notices(cfg) {
   const idle = template ? [] : curateDue(cfg, true);
   const up = upgradeProblems(cfg);
   if (up.length) out.push(`UPGRADE REVIEW PENDING: the engine was upgraded and ${up.length} item(s) still need a decision (docs/DECISIONS.md "## Upgrade review"). ${cfg.autonomy === 'auto' ? 'Decide each one yourself by the same weighing and list the decisions in your answer:' : 'Go through them with the user before other work:'} adopt what makes this project better (Worth it: <gain> / <cost>), decline the rest with the reason.`);
+  const plans = openPlans();
+  if (plans.length) out.push(`OPEN PLANS: ${plans.map(x => `${x.p} (${x.left} of ${x.left + x.done} steps left)`).join(', ')}. Before new work, tell the user and resume the plan (node skills/plan/scripts/plan-tasks.mjs status <plan>), or close it with "status: done" or "status: dropped - <why>".`);
   const susp = suspendedItems();
   if (susp.length) out.push(`SUSPENDED FOR FRUSTRATING THE USER: ${susp.map(s => `${s.item} (${s.at}: ${s.why})`).join('; ')}. They don't route or block. Fix each one and restore it (node tools/hooks/hooks.mjs restore <item>), or retire it with the user's OK (skill-curate).`);
   if (idle.length) out.push(`SKILL CLEANUP DUE: ${idle.map(p => `${p.name} (unused ${p.days} days)`).join(', ')}. When the user's request allows, use the skill-curate skill: keep each one with a reason, merge it into another, or retire it with the user's OK.`);
@@ -1306,7 +1338,10 @@ export function pretoolDecision(data, cfg = config()) {
     // REQ: setup-interview. During setup nothing is installed before the user has answered, and the starter's
     // leftovers go only once everything that fits is in (REQ: setup-complete).
     if (exists('SETUP-PROMPT.md') && !exists('.starter-template')) {
-      const step = /\b(packs\.mjs\s+install|skills\.mjs\s+enable|starter\.mjs\s+(link|keep|remove))\b/.exec(cmd);
+      // only a real run counts: node <path>/<tool>.mjs <step>, outside heredoc text and quoted strings
+      // Lesson: a heredoc that only wrote "starter.mjs link" into a doc was blocked.
+      const ran = cmd.replace(/<<-?\s*(['"]?)(\w+)\1[\s\S]*?\n\2\b/g, '').replace(/echo\s+(["'])[\s\S]*?\1/g, '');
+      const step = /\bnode\s+(?:"[^"\n]*?|'[^'\n]*?|[^\s"']*?)(packs\.mjs["']?\s+install|skills\.mjs["']?\s+enable|starter\.mjs["']?\s+(link|keep|remove))\b/.exec(ran);
       if (step) {
         const probs = setupCompleteness(cfg, { final: /starter\.mjs/.test(step[1]), beforeStarter: true });
         if (probs.length) return `REQ: setup-${/starter\.mjs/.test(step[1]) ? 'complete' : 'interview'}. Not yet:\n- ${probs.join('\n- ')}`;
@@ -1401,9 +1436,16 @@ export function coreChecks(x, cfg) {
   // cost, weighed. Lesson: "it fits" alone let additions in that made the project noisier or slower than before.
   const newSkills = list(cfg.skillsDir).filter(n => { const f = `${cfg.skillsDir}/${n}/SKILL.md`; return x.changed.includes(f) && bornThisTurn(f, x.since) && !/^generated:\s*true/m.test(read(abs(f))); });
   const added = x.runs.filter(r => !r.error && /\b(packs\.mjs\s+install|skills\.mjs\s+(enable|add)|npm\s+(i|install)\s+(?!-)[^\s;&|]|pnpm\s+add\s|yarn\s+add\s|pip3?\s+install\s+(?!-r\b)[^\s;&|]|cargo\s+add\s|go\s+get\s)/.test(r.cmd)).map(r => r.cmd.slice(0, 60));
-  if ((newSkills.length || added.length) && !/\bworth it\s*:\s*\S[^\n]*\//i.test(x.answer))
+  // the weighing may sit in any message of this turn (Lesson: every re-block demanded it again)
+  if ((newSkills.length || added.length) && !/\bworth it\s*:\s*\S[^\n]*\//i.test(x.answer + '\n' + turnText(x.entries)))
     add('worth-it', `You added ${[...newSkills.map(n => `the ${n} skill`), ...added].slice(0, 4).join(', ')}. Say why it makes this project better and what it costs ` +
       '(noise, upkeep, speed, conflicts, risk, and whether its license lets a project that uses it be sold): "Worth it: <gain> / <cost>". If the cost is bigger, undo it and say why (hard rule 16).');
+  // REQ: plan-required. A bigger addition (many new files) has a checklist in docs/plans/, so nothing is left half done
+  // and the next session or another agent can finish it. Setup has its own checklist (SETUP-PROMPT.md).
+  const born = x.changed.filter(p => !match(p, cfg.notWork) && !/^(AGENTS\.md$|CLAUDE\.md$|docs\/checks\/|docs\/plans\/|\.cache\/|tools\/hooks\/state\/|\.memtest\/|\.claude\/|\.codex\/)/.test(p) && !GENERATED_WRITES.has(p) && exists(p) && bornThisTurn(p, x.since));
+  if (x.workTurn && born.length >= cfg.planNewFiles && !x.changed.some(p => /^docs\/plans\/.+\.md$/.test(p)) && !(exists('SETUP-PROMPT.md') && !exists('.starter-template')))
+    add('plan-required', `This turn added ${born.length} new files (${born.slice(0, 4).join(', ')}${born.length > 4 ? ', ...' : ''}) without a plan. Write or update one in docs/plans/ with the plan skill ` +
+      '(a checkbox per task, ticked as they finish), so nothing is left half done and the next session can continue it.');
   // REQ: note-linked. A new note links to what it relates to, so Obsidian's graph (and the agent) can see how the
   // project's knowledge connects. A note that truly stands alone says why under "## Related".
   // Notes: the knowledge base, docs/notes/, and free-standing notes in docs/. Release notes, specs and plans have their
@@ -1626,14 +1668,14 @@ export function coreChecks(x, cfg) {
     }
   }
   // REQ: hooks-tested. Core (not in requirements.json) so emptying requirements.json can't switch off its own guard.
-  if (x.changed.some(p => /^tools\/hooks\/(hooks\.mjs|requirements\.json|config\.json|test-hooks\.mjs)$/.test(p))) {
-    const tests = x.runs.filter(r => /test-hooks\.mjs/.test(r.cmd) && !/--route/.test(r.cmd));
+  if (x.changed.some(p => /^tools\/hooks\/(hooks\.mjs|requirements\.json|config\.json|selfcheck\.mjs)$/.test(p))) {
+    const tests = x.runs.filter(r => /selfcheck\.mjs/.test(r.cmd) && !/--route/.test(r.cmd));
     if (!x.toolsKnown) {
-      const res = spawnSync(process.execPath, [path.join(HOOKS, 'test-hooks.mjs')], { cwd: ROOT, encoding: 'utf8', timeout: 300000 });
-      if (!/ALL PASS/.test(res.stdout || '')) add('hooks-tested', `The hooks changed and node tools/hooks/test-hooks.mjs does not pass: ${(res.stdout || res.stderr || 'timed out').split(/\r?\n/).filter(l => /^FAIL/.test(l)).slice(0, 3).join(' | ')}`);
-    } else if (!tests.length) add('hooks-tested', 'The hooks or their config changed: run node tools/hooks/test-hooks.mjs and fix any FAIL (fix the hook, not the test) before finishing.');
+      const res = spawnSync(process.execPath, [path.join(HOOKS, 'selfcheck.mjs')], { cwd: ROOT, encoding: 'utf8', timeout: 300000 });
+      if (!/ALL PASS/.test(res.stdout || '')) add('hooks-tested', `The hooks changed and node tools/hooks/selfcheck.mjs does not pass: ${(res.stdout || res.stderr || 'timed out').split(/\r?\n/).filter(l => /^FAIL/.test(l)).slice(0, 3).join(' | ')}`);
+    } else if (!tests.length) add('hooks-tested', 'The hooks or their config changed: run node tools/hooks/selfcheck.mjs and fix any FAIL (fix the hook, not the test) before finishing.');
     else if (tests[tests.length - 1].out && !/ALL PASS/.test(tests[tests.length - 1].out))
-      add('hooks-tested', 'The last run of node tools/hooks/test-hooks.mjs did not print ALL PASS. Fix the failures (the hook, not the test) and run it again.');
+      add('hooks-tested', 'The last run of node tools/hooks/selfcheck.mjs did not print ALL PASS. Fix the failures (the hook, not the test) and run it again.');
   }
   // REQ: twin-sync
   if (!syncTwin()) add('twin-sync', 'CLAUDE.md and AGENTS.md differ and could not be synced automatically. Make them identical.');
@@ -1714,6 +1756,24 @@ export const BASE_REQUIREMENTS = [
     message: "The user wants this repeated: write down what exactly worked (as steps or a 'What works' line) in the runbook or skill it came from, or in the standing preferences." }
 ];
 
+// Developing the starter itself (a .starter-dev copy): the checks a software project gets from the app pack, mapped to
+// the starter's own layout, so the starter is held to what it asks of every project. They never ship: projects are
+// made without .starter-dev, and these are not part of requirements.json.
+const ENGINE_FILES = ['tools/**', 'packs/**', 'library/**', 'skills/**', '.githooks/**', 'AGENTS.md', 'SETUP-PROMPT.md', 'docs/checks/**', 'docs/playbooks/**'];
+export const DEV_REQUIREMENTS = [
+  { tag: 'dev-self-tests', rule: '12', when: { filesChanged: ['tools/**', 'packs/**', 'library/**', 'skills/**', '.githooks/**'] },
+    require: { toolPassed: { cmd: String.raw`selfcheck\.mjs`, pass: 'ALL PASS' } },
+    message: 'The starter\'s engine changed: run node tools/hooks/selfcheck.mjs until it prints "ALL PASS" (the app pack\'s gates, for the starter).' },
+  { tag: 'dev-changelog', rule: '12', when: { filesChanged: ENGINE_FILES }, require: { filesChanged: ['tools/starter/STARTER-CHANGELOG.md'] },
+    message: 'Projects learn what changed from tools/starter/STARTER-CHANGELOG.md: add what this turn changed to today\'s entry.' },
+  { tag: 'dev-new-project', rule: '12', when: { filesChanged: ['tools/new-project.mjs', 'tools/starter.mjs', 'tools/hooks/wire.mjs', 'tools/packs.mjs', 'tools/skills.mjs'] },
+    require: { toolPassed: { cmd: String.raw`trial\.mjs`, pass: 'TRIAL: PASS' } },
+    message: 'Making, linking or upgrading projects changed: run node tools/trial.mjs until it prints "TRIAL: PASS". It proves on sample projects that nothing gets worse (files, rules, secrets, tests, git hooks, speed, repeat upgrades).' },
+  { tag: 'dev-verification', rule: '4', when: { filesChanged: ['tools/*.mjs', 'tools/**/*.mjs', 'skills/**/*.mjs', 'library/**/*.mjs', 'packs/**/*.mjs'] },
+    require: { answerMatches: String.raw`\b(verif\w*|tests? (pass|ran)|ALL PASS|audit: PASS|checked by running)\b` },
+    message: 'Code changed: say how it was verified (the commands run and what they printed), like the app pack\'s verification report.' }
+];
+
 export function loadRequirements() {
   const raw = read(path.join(HOOKS, 'requirements.json'));
   let j;
@@ -1729,11 +1789,18 @@ export function declarativeChecks(x) {
   // REQ: requirements-valid. Lesson: a broken config silently turned every check off.
   if (error) return [{ tag: 'requirements-valid', msg: `tools/hooks/requirements.json does not parse (${error}); every project requirement is unenforced until it is fixed.` }];
   const out = [];
-  for (const q of reqs) {
+  const earlier = `${x.answer}
+${turnText(x.entries)}`;
+  for (const q of [...reqs, ...(exists('.starter-dev') ? DEV_REQUIREMENTS : [])]) {
     if (!q || q.enabled === false) continue;
+    // "waitsForAgents": a check on results that helpers launched in the background this turn will deliver later
+    // Lesson: a turn that only started background agents was asked to merge and cite results that did not exist yet.
+    if (q.waitsForAgents && (x.uses || []).some(u => /^(Agent|Task)$/.test(u.name) && u.input?.run_in_background)) continue;
     try {
       x.detail = '';
-      if (holds(q.when || {}, x) && !holds(q.require || {}, x)) out.push({ tag: q.tag, msg: (q.message || `Requirement ${q.tag} is not met.`) + (x.detail ? ` (${x.detail})` : '') });
+      // a requirement met by an earlier message of this turn stays met, so a re-block never forces the answer to repeat
+      // it (the Finished section still belongs to the final answer). Lesson: every re-block produced a near-copy.
+      if (holds(q.when || {}, x) && !holds(q.require || {}, x) && (q.tag === 'finished-summary' || !holds(q.require || {}, { ...x, answer: earlier }))) out.push({ tag: q.tag, msg: (q.message || `Requirement ${q.tag} is not met.`) + (x.detail ? ` (${x.detail})` : '') });
     } catch (e) { out.push({ tag: 'requirements-valid', msg: `requirements.json entry "${q.tag}" is invalid (${e.message}).` }); }
   }
   return out;
@@ -1797,8 +1864,11 @@ export function stopDecision(data, cfg = config()) {
   writeState('stop-blocks.json', { [key]: nblocks + 1 });
   return {
     decision: 'block',
-    reason: `Project rules not met yet (tools/hooks/hooks.mjs stop, block ${nblocks + 1}/${cfg.maxBlocksPerTurn}). Fix each item, then finish. ` +
-      'If one genuinely does not apply, write "N/A(<tag>): <reason>" in the answer.\n- ' + missing.map(m => `[${m.tag}] ${m.msg}`).join('\n- ')
+    // The user sees this too: a plain first line, then numbered steps, and the check names only once, at the end.
+    // Lesson: a wall of tags and regexes looked like an error to the user, who had to ask what it was.
+    reason: `Almost done: ${missing.length === 1 ? '1 step is' : `${missing.length} steps are`} left before this answer is complete (round ${nblocks + 1} of ${cfg.maxBlocksPerTurn}).\n` +
+      missing.map((m, i) => `${i + 1}. ${m.msg.replace(/\s*\(no run of \/[^)]*\/ this turn\)/, ' (it has not run yet this turn)')}`).join('\n') +
+      `\nFor the agent: a step that truly does not apply is waived with "N/A(<name>): <reason>" on the answer's last line. Names: ${missing.map(m => m.tag).join(', ')}.`
   };
 }
 
@@ -1864,7 +1934,7 @@ if (isMain) {
     // REQ: crash-visible. Lesson: a crashed Stop hook enforced NOTHING and nobody noticed. Block once so the bug is seen;
     // stop_hook_active lets the session end on the next stop, so a broken hook can't trap the session.
     if (cmd === 'stop' && !data.stop_hook_active)
-      process.stdout.write(JSON.stringify({ decision: 'block', reason: `tools/hooks/hooks.mjs stop CRASHED (${e && e.message}): no rule was checked. Fix the hook, run node tools/hooks/test-hooks.mjs, then finish.` }));
+      process.stdout.write(JSON.stringify({ decision: 'block', reason: `tools/hooks/hooks.mjs stop CRASHED (${e && e.message}): no rule was checked. Fix the hook, run node tools/hooks/selfcheck.mjs, then finish.` }));
   }
   process.exit(0);
 }

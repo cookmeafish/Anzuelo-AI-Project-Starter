@@ -1,7 +1,7 @@
 ---
 name: ingest
 summary: Process files the user provides - preserve originals in sources/, extract facts into docs/knowledge, register sources
-triggers: inbox, i dropped, i added, here's a file, here is a file, attached, i uploaded, new files, process these, import this, read this document, screenshot, export, spreadsheet
+triggers: inbox, i dropped, i added, here's a file, here is a file, attached, i uploaded, new files, process these, import this, read this document, here is a screenshot, this screenshot, here is an export, this export, exported file, spreadsheet
 trigger_regex: \.(pdf|docx?|xlsx?|csv|txt|png|jpe?g|json|md)\b
 menu: K3
 ---

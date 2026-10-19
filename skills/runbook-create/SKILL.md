@@ -40,12 +40,12 @@ Add at least one entry to `tools/hooks/requirements.json` that tests a "Done whe
 ```
 Other evidence: `answerMatches` (a required answer section), `toolPassed` (a validator that must PASS; add `selfRun`),
 `runEach` (the hook re-runs a validator on each changed file). If nothing can be checked, set
-`checks: none - <reason>` in the runbook. Add a test scenario for the tag in `tools/hooks/test-hooks.mjs` and a row in
+`checks: none - <reason>` in the runbook. Add a test scenario for the tag in `tools/hooks/selfcheck.mjs` and a row in
 `docs/checks/rule-enforcement.md`.
 
 ## 4. Route and verify
 - The skill (`skills/<name>/SKILL.md`) and the `DIRECTORY.md` row are generated. Run `node tools/hooks/hooks.mjs sync`.
 - Add a menu code in `docs/MENU.md` if the task will be common, and a precedence line in `DIRECTORY.md` if it overlaps
   another runbook.
-- Test the routing: `node tools/hooks/test-hooks.mjs --route "<the user's original message>"` must show the runbook.
-- Run `node tools/hooks/test-hooks.mjs` and `node tools/audit.mjs`. Add a CHANGELOG line. Name the runbook in the answer.
+- Test the routing: `node tools/hooks/selfcheck.mjs --route "<the user's original message>"` must show the runbook.
+- Run `node tools/hooks/selfcheck.mjs` and `node tools/audit.mjs`. Add a CHANGELOG line. Name the runbook in the answer.

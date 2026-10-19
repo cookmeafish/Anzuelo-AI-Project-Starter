@@ -2,15 +2,17 @@
 // Reads a plan written with the plan skill (docs/plans/YYYY-MM-DD-<topic>.md). Read-only: it never changes the plan.
 //
 //   node skills/plan/scripts/plan-tasks.mjs status <plan.md>    each task with its ticked steps, and where to resume
-//   node skills/plan/scripts/plan-tasks.mjs task <plan.md> <N>  the brief for task N: header, constraints, watch-for, the task
+//   node skills/plan/scripts/plan-tasks.mjs next <plan.md>      the first unticked step and its task's brief, or how to close the plan
+//   node skills/plan/scripts/plan-tasks.mjs task <plan.md> <N>  the brief for task N: header, context, checks, constraints, watch-for, the task
 //   node skills/plan/scripts/plan-tasks.mjs check <plan.md>     the self-review checks a script can do (prints RESULT: PASS / FAIL)
 //
+// A plan is closed by a line that starts with "status: done" or "status: dropped - <why>"; the hooks read the same line.
 // Exit codes: 0 fine, 1 check failed or task not found, 2 usage problem.
 import fs from 'node:fs';
 
 const [cmd, file, arg] = process.argv.slice(2);
-if (!['status', 'task', 'check'].includes(cmd) || !file) {
-  console.error('usage: node plan-tasks.mjs status|check <plan.md>  |  node plan-tasks.mjs task <plan.md> <N>');
+if (!['status', 'next', 'task', 'check'].includes(cmd) || !file) {
+  console.error('usage: node plan-tasks.mjs status|next|check <plan.md>  |  node plan-tasks.mjs task <plan.md> <N>');
   process.exit(2);
 }
 if (!fs.existsSync(file)) { console.error(`plan-tasks: ${file} not found`); process.exit(2); }
@@ -33,6 +35,10 @@ const boxes = t => {
   const all = t.lines.filter(l => /^\s*[-*]\s+\[[ xX]\]/.test(l));
   return { done: all.filter(l => /\[[xX]\]/.test(l)).length, total: all.length };
 };
+// The status line, as the hooks read it: the first line that starts with "status:".
+const statusLine = lines.find(l => /^status:/i.test(l))?.trim();
+const closed = !!statusLine && /^status:\s*(done|dropped)/i.test(statusLine);
+const datedNotes = () => lines.filter(l => /^\s*[-*]?\s*\**\d{4}-\d\d-\d\d\b/.test(l) && /decision|change|note|ruling/i.test(l)).length;
 const section = name => {
   const i = header.findIndex(l => new RegExp(`^##\\s+${name}`, 'i').test(l));
   if (i < 0) return [];
@@ -49,17 +55,42 @@ if (cmd === 'status') {
     if (!resume && state !== 'done') resume = t;
     console.log(`Task ${t.n}: ${t.name}  [${b.done}/${b.total}] ${state}`);
   }
-  const notes = lines.filter(l => /^\s*[-*]?\s*\**\d{4}-\d\d-\d\d\b/.test(l) && /decision|change|note|ruling/i.test(l)).length;
+  const notes = datedNotes();
   console.log(resume ? `\nResume at Task ${resume.n}: ${resume.name}` : '\nAll tasks ticked.');
   if (notes) console.log(`Dated notes in the plan: ${notes} (read them before continuing)`);
+  if (closed) console.log(`Plan closed: ${statusLine}`);
+  process.exit(0);
+}
+
+// The brief for one task: the plan's header lines and shared sections, then the task itself.
+const brief = t => {
+  const head = header.filter(l => /^#\s|^status:|^\*\*(Goal|Done when|Approach|Built with|Spec|Confidence|How to run|How to resume)/i.test(l));
+  return [...head, '', ...section('Context'), ...section('Checks'), ...section('Constraints'), ...section('Watch for'), ...t.lines]
+    .join('\n').replace(/\n{3,}/g, '\n\n').trim();
+};
+
+if (cmd === 'next') {
+  if (closed) { console.log(`Plan closed: ${statusLine}. Nothing to resume.`); process.exit(0); }
+  if (!tasks.length) { console.log('No "### Task N: <name>" headings found.'); process.exit(1); }
+  const t = tasks.find(x => { const b = boxes(x); return !b.total || b.done < b.total; });
+  if (!t) {
+    console.log('All steps ticked. Run every command under "## Checks for this project", re-read "Done when", ' +
+      'then change the status line to "status: done".');
+    process.exit(0);
+  }
+  const step = t.lines.find(l => /^\s*[-*]\s+\[ \]/.test(l));
+  console.log(`Next: Task ${t.n}: ${t.name}${step ? `, step: ${step.replace(/^\s*[-*]\s+\[ \]\s*/, '')}` : ' (it has no checkbox steps yet)'}`);
+  const notes = datedNotes();
+  if (notes) console.log(`Dated notes in the plan: ${notes} (read them before continuing)`);
+  console.log('Tick each box in the same edit that finishes it.\n');
+  console.log(brief(t));
   process.exit(0);
 }
 
 if (cmd === 'task') {
   const t = tasks.find(x => x.n === Number(arg));
   if (!t) { console.error(`plan-tasks: no Task ${arg} in ${file}`); process.exit(1); }
-  const head = header.filter(l => /^#\s|^\*\*(Goal|Approach|Built with|Spec|How to run)/i.test(l));
-  console.log([...head, '', ...section('Constraints'), ...section('Watch for'), ...t.lines].join('\n').replace(/\n{3,}/g, '\n\n').trim());
+  console.log(brief(t));
   process.exit(0);
 }
 
@@ -70,6 +101,17 @@ if (!section('Constraints').length) fail.push('no "## Constraints for every task
 const watch = section('Watch for');
 if (!watch.length) fail.push('no "## Watch for" section (write "none found" only after looking)');
 if (!tasks.length) fail.push('no "### Task N: <name>" headings');
+// What lets another session or agent pick the plan up. Warnings, so plans written before these lines still pass.
+if (!statusLine) warn.push('no status line: add "status: open" under the title (later "status: done" or "status: dropped - <why>")');
+if (!header.some(l => /^\*\*How to (resume|run)/i.test(l))) warn.push('no **How to resume:** line: say how another session or agent picks the plan up');
+// Every box ticked but never closed: the session-start hook would keep listing it as an OPEN PLAN.
+if (tasks.length && !closed && tasks.every(t => { const b = boxes(t); return b.total && b.done === b.total; }))
+  warn.push('every box is ticked but the plan is not closed: run the checks, then change the status line to "status: done" (or "status: dropped - <why>")');
+if (!section('Context').length) warn.push('no "## Context" section: the files to copy, the docs to read and the traps to avoid');
+if (!section('Checks').length) warn.push('no "## Checks for this project" section: the project\'s own check commands');
+const conf = header.find(l => /^\*\*Confidence/i.test(l));
+if (!conf) warn.push('no **Confidence:** line (N/10 that a newcomer finishes it in one pass, and the main risk)');
+else if (Number(/(\d+)\s*\/\s*10/.exec(conf)?.[1] ?? 10) < 7) warn.push('confidence below 7/10: add what is missing to "Context", or ask the user, before handing it over');
 tasks.forEach((t, i) => {
   const body = t.lines.join('\n');
   if (t.n !== i + 1) warn.push(`Task ${t.n}: tasks are not numbered 1, 2, 3... in order`);

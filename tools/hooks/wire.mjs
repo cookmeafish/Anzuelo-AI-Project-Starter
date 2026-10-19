@@ -42,9 +42,16 @@ export function wire(dir, { dry = false } = {}) {
   if (fs.existsSync(cp) && !fs.readFileSync(cp, 'utf8').includes('hooks.mjs')) log.push('kept     .codex/hooks.json (exists; add the hooks.mjs entries by hand)');
   else if (!fs.existsSync(cp) || fs.readFileSync(cp, 'utf8') !== codex) { log.push(`${fs.existsSync(cp) ? 'updated' : 'created'}  .codex/hooks.json (Codex)`); write(cp, codex); }
   // git checks commits and pushes for every agent and for manual git use
-  if (fs.existsSync(at('.git')) && (spawnSync('git', ['config', 'core.hooksPath'], { cwd: dir, encoding: 'utf8' }).stdout || '').trim() !== '.githooks') {
-    if (!dry) spawnSync('git', ['config', 'core.hooksPath', '.githooks'], { cwd: dir });
-    log.push('git      core.hooksPath = .githooks (commits and pushes are checked for AI attribution, secrets and .gitignore)');
+  // A project's own git hooks (another hooks folder, or real hooks in .git/hooks) are never switched off: pointing git at
+  // .githooks would silently disable them. Then the starter's checks are offered to chain in, not forced.
+  const hooksPath = fs.existsSync(at('.git')) ? (spawnSync('git', ['config', 'core.hooksPath'], { cwd: dir, encoding: 'utf8' }).stdout || '').trim() : null;
+  const ownHooks = hooksPath === '' && fs.existsSync(at('.git', 'hooks')) && fs.readdirSync(at('.git', 'hooks')).some(n => !n.endsWith('.sample'));
+  if (hooksPath !== null && hooksPath !== '.githooks') {
+    if (hooksPath || ownHooks) log.push(`kept     your git hooks (${hooksPath || '.git/hooks'}). To add the starter's checks (AI attribution, secrets, .gitignore), call .githooks/pre-commit, commit-msg and pre-push from yours.`);
+    else {
+      if (!dry) spawnSync('git', ['config', 'core.hooksPath', '.githooks'], { cwd: dir });
+      log.push('git      core.hooksPath = .githooks (commits and pushes are checked for AI attribution, secrets and .gitignore)');
+    }
   }
   // Obsidian (obsidian skill): new links are relative markdown links, which GitHub and every agent follow too
   if (!fs.existsSync(at('.obsidian'))) { write(at('.obsidian', 'app.json'), JSON.stringify({ useMarkdownLinks: true, newLinkFormat: 'relative', alwaysUpdateLinks: true }, null, 2) + '\n'); log.push('created  .obsidian/app.json (Obsidian: markdown links, relative paths)'); }

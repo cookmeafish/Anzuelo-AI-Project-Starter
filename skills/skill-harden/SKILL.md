@@ -25,11 +25,13 @@ what went wrong.
 5. Set `hardened: YYYY-MM-DD` in the runbook frontmatter. If it should never be hardened, set
    `harden: never - <reason>` instead.
 
-## 3. Global or project?
+## 3. Global?
 If the skill has nothing project-specific (no project paths, people or facts), it could help every project. **Ask the
 user** before copying it to the agent's global skills folder (outside this project). If they agree, make a generic copy
 there and keep the project copy. Note both in CHANGELOG.
 
+Sharing skills with another project, a person or another AI agent as a bundle is the **skill-curate** skill's §4.
+
 ## 4. Verify
-Run `node tools/hooks/hooks.mjs sync`, `node tools/hooks/test-hooks.mjs` and `node tools/audit.mjs`. Add a CHANGELOG
+Run `node tools/hooks/hooks.mjs sync`, `node tools/hooks/selfcheck.mjs` and `node tools/audit.mjs`. Add a CHANGELOG
 line.

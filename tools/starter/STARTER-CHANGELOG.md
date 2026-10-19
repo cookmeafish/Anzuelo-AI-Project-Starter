@@ -45,6 +45,45 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
     the AI decide everything, only the important questions, or everything. Every choice is offered in plain words
     (what it does, what you'll notice) with "Let the AI decide" as an option; packs and library skills carry that
     wording, and the audit requires it. The upgrade review uses the same wording.
+  - **Questions anyone can answer:** "Questions with choices" in `docs/checks/writing-standards.md`: plain names, what
+    each option does, why it is good or bad for THIS project (judged by where it is heading), every technical word
+    explained, numbers in everyday terms, one decision per question, and "Let the AI decide". Packs and library skills
+    carry "Good when" and "Costs" lines (the audit requires them). The app foundation is asked row by row.
+  - **Better or worse?** `docs/checks/better-or-worse.md` lists the questions to answer before adding anything, each
+    tied to the check that answers it. Hard rule 16 links it.
+  - **Trial (starter only):** `node tools/trial.mjs` builds sample projects (empty, notes and data, a node app with
+    git, its own rules, secrets and Husky hooks, a python app), runs new, adopt and two upgrades, and proves every
+    promise: no user file changed, rules kept, secrets ignored, the project's tests and git hooks still work, no
+    commit made, nothing private leaked, hooks within budget, a second upgrade changes nothing. `audit --full` runs it.
+  - **Found by the trial and in a real adoption, and fixed:**
+    - wiring switched off a project's own git hooks (Husky, or hooks in `.git/hooks`); they are now kept, and the
+      audit warns until they call ours;
+    - the audit failed adopted projects for rules files that setup merges later (now warnings until setup);
+    - the setup gate counted the instruction "Replace every `<...>`" as an unfilled value;
+    - app tests failed in projects whose code lives outside `src/`;
+    - four-part version numbers were flagged as IP addresses;
+    - a project named after its subject (a game) had every mention flagged: `"_subjects"` in `docs/names.json`;
+      setup answers written with a name marker stopped counting;
+    - writing "starter.mjs link" into a file with a heredoc was blocked as if it ran.
+  - **Development copies:** a `.starter-dev` file marks a copy being worked on. Projects can't be made from it or
+    linked to it (`--dev` for throwaway tests), so unfinished changes never reach real projects. In it, the app
+    pack's gates apply to the starter itself: self-tests, this changelog, the trial, and a verification line.
+  - **Plans that outlive the session:** a work turn that adds 5+ files needs a plan in `docs/plans/`
+    (plan-required); unfinished plans are announced at every session start, for any agent, until closed with
+    `status: done` or `status: dropped - <why>`. The plan skill gained context, checks per task, a confidence
+    score, "How to resume" and `plan-tasks.mjs next`. The starter's own plans never ship to projects.
+  - **Recommended tools:** `docs/recommended-tools.md` lists 47 optional tools (Playwright, status lines, linters,
+    secret scanners, Pillow for marking up screenshots, data tools and more), each with when to recommend it, when
+    to skip it, pros, costs, license and the official install command. Setup recommends only what improves the project.
+  - **New skills, merged from imported plugins (all rewritten in our words, credited, Apache-2.0 or MIT):**
+    - library: architecture (decisions, system design, tech debt), incident-response, data-analysis (with a
+      zero-install `profile.mjs`), legal-review (never legal advice), marketing;
+    - frontend-design now also critiques, keeps a design system, writes interface text, reviews accessibility
+      (WCAG 2.2 AA) and writes developer handoffs; research gained research with people (interviews, surveys);
+    - debug, plan (PRP-style context and checks), session-handoff (to-dos, standups, a glossary in
+      `docs/glossary.md`), skill-harden (share skills as a bundle, `bundle-check.mjs`), and the app pack's qa
+      (code review, test planning), release (deploy checklist, rollback) and feature (docs) runbooks;
+    - the knowledge pack's deliverable runbook gained a prose review.
   - **Commercial use:** every skill's license must allow commercial use without copyleft (audit), and the weighing
     in hard rule 16 includes the license. New library skill: teach (our own, original wording).
 

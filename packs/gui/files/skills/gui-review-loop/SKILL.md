@@ -6,7 +6,7 @@ runbook: docs/playbooks/gui.md
 # GUI review loop
 
 The Stop hook enforces this loop. It blocks until screenshots newer than your last GUI edit exist, every one of them
-has been opened with the Read tool, and the answer ends with a verdict. Any edit after a round makes that round stale,
+has been opened and looked at, and the answer ends with a verdict. Any edit after a round makes that round stale,
 so you must shoot again. That is the loop.
 
 ## Each round
@@ -19,9 +19,11 @@ so you must shoot again. That is the loop.
      (also `{"eval":"document.title"}` to check values)
    - A desktop window (Windows): `--window "<window title>" [--launch "<start command>"]`
    - The defaults are desktop 1400x900 and phone 390x844, each in light and dark. Use `--full` for long pages.
-2. **Look.** Open EVERY `SCREENSHOT:` path with the Read tool. Read the `WARN` lines too (sideways scroll, console
+2. **Look.** Open EVERY `SCREENSHOT:` image file to look at it. Read the `WARN` lines too (sideways scroll, console
    errors, broken images, blank page).
 3. **Judge** against `docs/checks/visual-review.md`. Write the round line: `Round N: <problems seen> → <fixes>`.
+   A screenshot can't show keyboard use or what a screen reader says. If the project enabled the frontend-design
+   skill, its section E (accessibility review) covers those, and section B is the deeper design critique.
 4. **Fix** every problem, then start the next round. Never declare PASS from memory of an earlier round.
 
 ## Ending

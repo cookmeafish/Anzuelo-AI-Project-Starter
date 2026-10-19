@@ -9,18 +9,13 @@ menu: A2
 **Use when:** something behaves wrongly. **Not when:** the behaviour is right but unwanted (`feature.md`).
 
 ## Steps
-Follow the **debug** skill (`skills/debug/SKILL.md`): root cause before any fix, one hypothesis at a time, and stop to
-rethink the design after 3 failed fixes. The steps below are its checkpoints.
-1. **Reproduce it** in an isolated instance, with exact steps, input and observed vs expected result. If it can't be
-   reproduced, say so and gather more evidence instead of guessing a fix.
-2. **Write a failing test** that captures it: a unit test for logic, or for UI a scripted run (`tools/screenshot.mjs --steps`, gui pack). Run it and
-   see it fail.
-3. **Find the root cause, not the symptom** (debug skill, phases 1 to 3). Write it as `Root cause: <what and why>`.
-4. **Fix it.** Run the new test (now passing) and the whole suite.
-5. **Look for siblings:** the same mistake elsewhere (search for the pattern), and fix or list them.
-6. **Triple check** as in `docs/checks/qa-standards.md`, scaled to the risk. A one-line logic fix still needs (1);
+1. **Find and fix the cause with the debug skill** (`skills/debug/SKILL.md`): reproduce it, find the root cause and
+   write it as `Root cause: <what and why>`, write a failing test (for UI, a scripted run with
+   `tools/screenshot.mjs --steps`, gui pack), fix at the source, then run the new test and the whole suite.
+2. **Look for siblings:** the same mistake elsewhere (search for the pattern), and fix or list them.
+3. **Triple check** as in `docs/checks/qa-standards.md`, scaled to the risk. A one-line logic fix still needs (1);
    anything visible needs (2).
-7. **Lesson:** if the bug escaped QA, add a line to `docs/lessons.md` and a check that would have caught it.
+4. **Lesson:** if the bug escaped QA, add a line to `docs/lessons.md` and a check that would have caught it.
 
 ## Done when
 - [ ] A regression test exists and passes (hook: bugfix-regression-test).

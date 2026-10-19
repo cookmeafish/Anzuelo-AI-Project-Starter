@@ -43,4 +43,6 @@ tools/hooks/state/selftest.json
 tools/hooks/state/names.json
 # Agent-specific files, made on each machine by node tools/hooks/wire.mjs (the rules live in AGENTS.md)
 CLAUDE.md
+.claude/settings.local.json
+.claude/skills/
 .claude/

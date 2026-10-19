@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Project sweeps: structure, routing, generated files, rules ↔ checks, skills, packs, publish safety, git hygiene.
 //   node tools/audit.mjs           structural sweeps
-//   node tools/audit.mjs --full    + the hook self-tests and ablation tests
+//   node tools/audit.mjs --full    + the hook self-tests and ablation tests (and, in the starter, the trial)
 //   node tools/audit.mjs --setup   + the hook self-tests and the setup gate (SETUP-PROMPT.md may be deleted only when this passes)
 // FAIL = fix before finishing. WARN = worth fixing. Fix the project, never weaken a sweep to make it pass.
 import fs from 'node:fs';
@@ -15,9 +15,14 @@ import {
 
 const cfg = config();
 const results = [];
+// An adopted project before setup keeps its own AGENTS.md / CLAUDE.md, with the starter's beside them as *.starter.md.
+// Until setup merges them, what depends on the merged rules file is setup's job, not a failure of the project.
+const MERGE_PENDING = exists('SETUP-PROMPT.md') && !exists('.starter-template') && ['AGENTS.starter.md', 'CLAUDE.starter.md'].some(exists);
+const AFTER_MERGE = /identical twins|every hard rule|relative links resolve|every REQ tag|rules map/i;
 const sweep = (name, fn) => {
   let out;
   try { out = fn() || {}; } catch (e) { out = { fail: [`sweep crashed: ${e.message}`] }; }
+  if (MERGE_PENDING && AFTER_MERGE.test(name) && out.fail?.length) out = { warn: [...out.fail.map(l => `${l} (setup merges the rules files: SETUP-PROMPT.md)`), ...(out.warn || [])] };
   const fail = out.fail || [], warn = out.warn || [];
   results.push({ name, status: fail.length ? 'FAIL' : warn.length ? 'WARN' : 'PASS', lines: [...fail, ...warn], note: out.note || '' });
 };
@@ -35,7 +40,7 @@ const walk = (d, pred, acc = [], skip = SKIPDIR) => {
 const isTemplate = exists('.starter-template');
 const pbs = playbooks();
 const hooksSrc = read(abs('tools/hooks/hooks.mjs'));
-const testsSrc = read(abs('tools/hooks/test-hooks.mjs'));
+const testsSrc = read(abs('tools/hooks/selfcheck.mjs')) + read(abs('tools/hooks/project-scenarios.mjs')); // the project's own scenarios count too
 const { reqs, fileReqs = [], error: reqError, disabled = [] } = loadRequirements();
 const baseTags = new Set(BASE_REQUIREMENTS.map(b => b.tag));
 // pack checks count as known even when the pack is not installed here (the starter keeps them in packs/*/pack.json)
@@ -64,7 +69,14 @@ sweep('hooks wired for every agent', () => {
   if (exists('.codex/hooks.json')) { try { const c = JSON.parse(read(abs('.codex/hooks.json'))); if (!JSON.stringify(c).includes('hooks.mjs')) fail.push('.codex/hooks.json does not run hooks.mjs'); } catch (e) { fail.push(`.codex/hooks.json does not parse: ${e.message}`); } }
   if (j.includeCoAuthoredBy !== false) warn.push('.claude/settings.json: set "includeCoAuthoredBy": false (no AI attribution)');
   for (const g of ['commit-msg', 'pre-push', 'pre-commit']) if (!exists(`.githooks/${g}`)) fail.push(`.githooks/${g} is missing`);
-  if (isRepo && (git('config', 'core.hooksPath').stdout || '').trim() !== '.githooks') fail.push('git hooks are not enabled: run node tools/hooks/wire.mjs');
+  const hp = isRepo ? (git('config', 'core.hooksPath').stdout || '').trim() : '.githooks';
+  if (hp !== '.githooks') {
+    // the project's own hooks are kept (wire.mjs); they pass when they call ours
+    const own = hp || '.git/hooks', calls = ['commit-msg', 'pre-push', 'pre-commit'].every(g => /\.githooks\//.test(read(abs(`${own}/${g}`)) || ''));
+    const real = hp || (exists('.git/hooks') && fs.readdirSync(abs('.git/hooks')).some(n => !n.endsWith('.sample')));
+    if (!real) fail.push('git hooks are not enabled: run node tools/hooks/wire.mjs');
+    else if (!calls) warn.push(`the project's own git hooks (${own}) don't call .githooks/commit-msg, pre-commit and pre-push, so git does not check AI attribution, secrets or .gitignore (the agent hooks still do)`);
+  }
   return { fail, warn };
 });
 
@@ -150,7 +162,7 @@ sweep('references point at real files, commands and skills', () => {
   for (const n of libNames) addPath(`skills/${n}/SKILL.md`);
   for (const f of walk('library/skills', () => true)) addPath(f.replace(/^library\//, ''));
   // folders that work fills in, files tools create at runtime, and the starter folder's own files (tools/starter/)
-  const RUNTIME = /^(outputs|inbox|sources|profiles|logs|src|app|lib|server|packages|data|site|\.cache|\.codex|\.claude|\.starter|tools\/hooks\/state|tools\/starter|docs\/(knowledge|plans|specs|releases|reviews|retired))(\/|$)|^tools\/(starter\.local|packs-registry)\.json$|^docs\/codebase-map\.md$/;
+  const RUNTIME = /^(outputs|inbox|sources|profiles|logs|src|app|lib|server|packages|data|site|\.cache|\.codex|\.claude|\.starter|tools\/hooks\/state|tools\/starter|docs\/(knowledge|plans|specs|releases|reviews|retired|incidents))(\/|$)|^tools\/(starter\.local|packs-registry)\.json$|^docs\/(codebase-map|tech-debt|glossary|legal-positions|brand-voice)\.md$/;
   const real = p => { p = p.replace(/\/$/, ''); return exists(p) || provided.has(p) || RUNTIME.test(p); };
   const skillNames = new Set([...fs.readdirSync(abs(cfg.skillsDir)), ...libNames, ...[...provided].map(p => /^skills\/([^/]+)/.exec(p)?.[1]).filter(Boolean),
     ...pbs.map(p => p.name), ...[...provided].map(p => /^docs\/playbooks\/([^/_][^/]*)\.md$/.exec(p)?.[1]).filter(Boolean)]);
@@ -201,12 +213,12 @@ if (exists('library')) sweep('skill library is valid, cataloged and credited', (
   for (const e of cat) {
     if (!dirs.includes(e.name)) fail.push(`catalog entry ${e.name} has no folder in library/skills`);
     // plain, does, outcome: setup offers every choice in plain words (what it does, what the user will notice)
-    for (const k of ['summary', 'for', 'ask', 'plain', 'does', 'outcome']) if (!e[k]) fail.push(`catalog entry ${e.name}: missing "${k}"`);
+    for (const k of ['summary', 'for', 'ask', 'plain', 'does', 'outcome', 'good', 'costs']) if (!e[k]) fail.push(`catalog entry ${e.name}: missing "${k}"`);
     if (e.for && !['any', 'app', 'knowledge', 'gui'].includes(e.for)) fail.push(`catalog entry ${e.name}: "for" must be any or a pack name (app, knowledge, gui)`);
   }
   for (const p of exists('packs') ? fs.readdirSync(abs('packs')).filter(n => exists(`packs/${n}/pack.json`)) : []) {
     let j = {}; try { j = JSON.parse(read(abs(`packs/${p}/pack.json`))); } catch { }
-    for (const k of ['plain', 'does', 'outcome']) if (!j[k]) fail.push(`packs/${p}/pack.json: missing "${k}" (setup offers it in plain words)`);
+    for (const k of ['plain', 'does', 'outcome', 'good', 'costs']) if (!j[k]) fail.push(`packs/${p}/pack.json: missing "${k}" (setup offers it in plain words)`);
   }
   return { fail, note: `${dirs.length} skills` };
 });
@@ -251,7 +263,7 @@ sweep('every REQ tag is enforced and tested', () => {
   for (const t of docTags) if (!knownTag(t) && t !== 'pack-purity') fail.push(`tag ${t} is named in docs/checks but enforced nowhere`);
   const enf = read(abs('docs/checks/rule-enforcement.md'));
   for (const t of reqTags) if (!enf.includes(t) && !reqs.find(r => r.tag === t)?.pack && !reqs.find(r => r.tag === t)?.appGate) fail.push(`requirements.json tag ${t} has no row in docs/checks/rule-enforcement.md`);
-  for (const t of [...coreTags, ...reqTags, ...packTags]) if (!testsSrc.includes(t) && !reqs.find(r => r.tag === t)?.appGate) fail.push(`tag ${t} has no test scenario in tools/hooks/test-hooks.mjs`);
+  for (const t of [...coreTags, ...reqTags, ...packTags]) if (!testsSrc.includes(t) && !reqs.find(r => r.tag === t)?.appGate) fail.push(`tag ${t} has no test scenario in tools/hooks/selfcheck.mjs`);
   return { fail, note: `${coreTags.size} core + ${reqTags.size} project tags` };
 });
 
@@ -290,7 +302,9 @@ sweep('publish safety (no personal or machine details)', () => {
     [/[A-Za-z0-9._%+-]+@(?!example\.(com|org)|users\.noreply\.github\.com)[A-Za-z0-9.-]+\.[a-z]{2,}/, 'an email address'],
     [/[A-Za-z]:[\\/]+Users[\\/]+(?!<|USER|you|\$|%)[A-Za-z0-9._-]+/i, 'a personal Windows path'],
     [/\/(home|Users)\/(?!<|user\b|you\b|\$)[a-z0-9._-]{2,}\//i, 'a personal home path'],
-    [/\b(?:\d{1,3}\.){3}\d{1,3}\b(?<!127\.0\.0\.1|0\.0\.0\.0)/, 'an IP address']
+    // first part 10 to 255, every part a real octet, and not a version ("v9.7.0.3", "version 12.1.0.4", "9.7.0.3")
+    // Lesson: four-part version numbers in a game's data were flagged as IP addresses.
+    [/(?<![\w.]|\bv|\bversions?[\s:=]{1,3}|\bbuild[\s:=]{1,3})(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}(?![\w.])(?<!127\.0\.0\.1)/i, 'an IP address']
   ];
   for (const f of all.filter(f => !ignored.has(f) && f !== '.private-terms')) {
     const text = read(abs(f));
@@ -382,12 +396,18 @@ if (process.argv.includes('--setup')) sweep('setup is complete (SETUP-PROMPT.md 
 if (process.argv.includes('--full') || process.argv.includes('--setup')) {
   for (const [name, args] of [['hook self-tests', []], ['ablation tests (every required step is load-bearing)', ['--ablation']]].slice(0, process.argv.includes('--full') ? 2 : 1)) {
     sweep(name, () => {
-      const r = spawnSync(process.execPath, [abs('tools/hooks/test-hooks.mjs'), ...args], { encoding: 'utf8', timeout: 900000 });
+      const r = spawnSync(process.execPath, [abs('tools/hooks/selfcheck.mjs'), ...args], { encoding: 'utf8', timeout: 900000 });
       const out = (r.stdout || '') + (r.stderr || '');
       const summary = out.trim().split(/\r?\n/).pop();
       return r.status === 0 ? { note: summary } : { fail: [summary, ...out.split(/\r?\n/).filter(l => l.startsWith('FAIL')).slice(0, 15)] };
     });
   }
+  // in the starter: the trial proves on sample projects that new, adopt and upgrade never make a project worse
+  if (process.argv.includes('--full') && exists('tools/trial.mjs')) sweep('trial: no project gets worse (sample projects)', () => {
+    const r = spawnSync(process.execPath, [abs('tools/trial.mjs')], { encoding: 'utf8', timeout: 900000 });
+    const out = (r.stdout || '') + (r.stderr || ''), summary = out.trim().split(/\r?\n/).filter(l => /^TRIAL:/.test(l)).pop() || 'no result';
+    return r.status === 0 ? { note: summary } : { fail: [summary, ...out.split(/\r?\n/).filter(l => l.startsWith('FAIL')).slice(0, 15)] };
+  });
 }
 
 let failed = 0;

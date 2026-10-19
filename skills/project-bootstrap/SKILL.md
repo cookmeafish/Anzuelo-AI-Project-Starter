@@ -19,10 +19,10 @@ runbook: docs/playbooks/project.md
    - Update `docs/security.md` if the sensitive data or the inputs changed.
    - Route every new typical request to a runbook with a check (runbook-create), and log the change in
      `docs/DECISIONS.md`.
-   - Run `node tools/hooks/test-hooks.mjs` and `node tools/audit.mjs`.
+   - Run `node tools/hooks/selfcheck.mjs` and `node tools/audit.mjs`.
 3. **Adopting a folder that already had files** (`*.starter.md` exist):
    - Merge the old CLAUDE.md / AGENTS.md rules into the starter's, as dated principles with the reason, each with a
      user-requirements row.
    - Keep the originals as `sources/YYYY-MM-DD original CLAUDE.md` (or in `docs/` without the knowledge pack).
-   - Write the merged text to BOTH AGENTS.md and CLAUDE.md, keeping the line that says they "are twins" (the hooks only
-     sync files that carry it), then delete the `*.starter.md` files.
+   - Write the merged text to BOTH AGENTS.md and CLAUDE.md, keeping the line that says to "keep the two identical"
+     (the hooks only sync files that carry it), then delete the `*.starter.md` files.

@@ -1,7 +1,7 @@
 ---
 name: security-hardening
 description: Runs a planned, staged hardening project on an existing app (threat model, inventory of what is exposed, fixes ranked by risk, then secrets, dependencies, input handling, authentication and authorization, transport, logging, and safe defaults), with a regression test for every fix and a verification pass at the end. Use after a security review (security-review skill) found problems, before making an app public or adding users, after an incident, or when the security baseline (docs/security.md plus the app rows in docs/foundation.md) is not met. This skill fixes; security-review finds.
-triggers: harden, hardening, security overhaul, fix the vulnerabilities, lock it down, make it secure, security fixes
+triggers: harden the app, harden the server, harden the api, harden the site, security hardening, security overhaul, fix the vulnerabilities, lock it down, make it secure, security fixes
 ---
 # Security hardening: fix by risk, prove every fix, keep it fixed
 

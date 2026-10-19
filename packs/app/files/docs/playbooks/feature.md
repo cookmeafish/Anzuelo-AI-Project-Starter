@@ -27,22 +27,47 @@ Library skills, when the project has them: **frontend-design** for screens, **ba
    Ask ONE question if a criterion can't be written without guessing.
 2. **Plan:** for work with several tasks, use the plan skill (`docs/plans/`). Otherwise plan in the spec: the
    smallest set of changes, one sentence per part, what must be preserved, and how each criterion will be verified.
-3. **Build** in small steps. Follow `docs/checks/app-standards.md` (data safety, security, UX). New logic gets tests,
-   including the edge cases from the spec.
+   A feature that adds a service, a data store or a new API, or crosses many modules, gets designed first (the
+   **architecture** skill, part B, when enabled). Pick its tests by `qa.md` §4.
+3. **Build test first, one thin slice at a time.** A slice is one behaviour carried through every layer it needs
+   (screen, logic, storage), small enough to finish and check on its own. For each slice:
+   - **Red:** a failing test first, for one acceptance criterion or edge case from the spec. Run it and see it fail
+     for the reason you expect (the same bar as the debug skill's Phase 4). A test that passes at once proves nothing.
+   - **Green:** the least code that makes it pass. Run it, then the rest of the suite.
+   - **Refactor:** tidy names and remove duplication while every test stays green. No new behaviour here.
+
+   Then the next slice. Follow `docs/checks/app-standards.md` (data safety, security, UX, surgical changes). Where an
+   automated test truly can't be written (pure layout, a one-off script), say so and use the closest check instead.
 4. **Triple check** (`docs/checks/qa-standards.md`):
    - (1) automated: tests, build, lint and checks pass after the last edit;
    - (2) the real app, isolated, every state touched (screens through the gui-review-loop);
    - (3) an independent review against the acceptance criteria until it says SHIP.
-5. **Release notes** in `docs/releases/<version or date>.md` (copy `docs/releases/_TEMPLATE.md`): what changed, how to
+5. **Docs that people rely on,** updated in the same change, each written for its reader with the most useful part
+   first:
+   - the README, when setup, configuration or the first steps change (a newcomer reaches a first success in minutes);
+   - the API reference, for each new or changed endpoint: a request and response example, sign-in, error codes,
+     limits and paging;
+   - any runbook or setup note that describes the old behaviour.
+
+   Link to a doc instead of copying it, and delete text that is no longer true.
+6. **Release notes** in `docs/releases/<version or date>.md` (copy `docs/releases/_TEMPLATE.md`): what changed, how to
    try it fast, and how to try it for real.
-6. **Version** bump as configured, then commit on the work branch. Where `approvalPaths` apply, show Before / Now and
+7. **Version** bump as configured, then commit on the work branch. Where `approvalPaths` apply, show Before / Now and
    get the user's OK first.
 
 ## Done when
 - [ ] A spec with numbered acceptance criteria exists and each criterion is PASS in the answer (hook: spec-written).
 - [ ] The Verification section covers automated, real app, independent review (SHIP) and still weak (hook: verification-report, review-verdict).
+- [ ] New behaviour was built test first: each slice's test was seen failing before its code, and the whole suite passes after the last edit.
 - [ ] Release notes written; version bumped as configured (hook: release-notes, version-bump).
+- [ ] Docs that described the old behaviour were updated, or the answer says none did.
 
 ## Pitfalls
 - Declaring done from the code or from one screenshot. Verify in the real app, every state.
 - Checking only the criterion from the latest complaint. Check them all.
+
+Ideas in steps 2 and 5 come from the system-design, testing-strategy and documentation skills of
+anthropics/knowledge-work-plugins (Apache-2.0).
+
+Credits: the test-first slices in step 3 draw on "tdd" in mattpocock/skills (MIT) and "test-driven-development" in
+obra/superpowers (MIT).

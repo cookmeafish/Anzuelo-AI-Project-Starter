@@ -1,7 +1,7 @@
 ---
 name: app-foundation
 summary: Set the app's foundation with the user before feature work - security baseline, performance budgets with numbers, usability and friendliness defaults, quality gates - then build the scaffolding that enforces them
-triggers: foundation, from the ground up, secure from the start, security baseline, performance budget, budgets, usability baseline, user friendly from the start, set up the app, new app, start the app, scaffold, architecture, tech stack
+triggers: foundation, from the ground up, secure from the start, security baseline, performance budget, budgets, usability baseline, user friendly from the start, set up the app, new app, start the app, scaffold
 menu: A0
 ---
 # Playbook: the app's foundation
@@ -13,7 +13,11 @@ wants the security, performance or usability baseline revisited. Run it before t
 1. **Read** `docs/BRIEF.md`, `docs/security.md` (the project-wide baseline; section 1 adds only app rows),
    `docs/checks/app-standards.md` and the existing code (if any).
 2. **Propose** a filled-in `docs/foundation.md`: a sensible default for every row, based on the brief and the stack,
-   each with a one-line reason. Ask the user to confirm or change it in ONE message. Use real numbers for the budgets.
+   each with a one-line reason. Use real numbers for the budgets. Ask the user to confirm or change it in ONE message,
+   following "Questions with choices" in `docs/checks/writing-standards.md`. First say in plain words what the
+   foundation is: "the app's ground rules for safety, speed and ease of use, which every later change is checked
+   against". Then list each default on its own line, with what it means in everyday terms and why it suits this
+   project: "Page size under 2 MB, so the guide opens in about a second on a phone". Offer "Let the AI decide".
 3. **Write** the confirmed values into `docs/foundation.md`, set `status: set YYYY-MM-DD`, and record the key choices
    in `docs/DECISIONS.md`.
 4. **Build the scaffolding that enforces it,** so the foundation holds without anyone remembering it:

@@ -17,7 +17,7 @@ runbook: docs/playbooks/project.md
    - Is every typical request in `docs/BRIEF.md` and every row of `docs/checks/user-requirements.md` routed to a
      runbook and enforced by a tag?
    - Does every runbook "Done when" item that could be checked have a check?
-   - Route the user's last ~10 real requests: `node tools/hooks/test-hooks.mjs --route "<request>"`. Any that match
+   - Route the user's last ~10 real requests: `node tools/hooks/selfcheck.mjs --route "<request>"`. Any that match
      nothing, or the wrong runbook, need triggers.
    - Which rules are judgment-only (`doc`)? Could any be checked now?
    - Rank gaps by likelihood × harm, and fix the top ones (runbook-create, project-rule) unless the user only wants

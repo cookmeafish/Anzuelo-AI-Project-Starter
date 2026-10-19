@@ -1,5 +1,5 @@
 {
-  "_comment": "Project checks, added to the baseline checks built into tools/hooks/hooks.mjs (BASE_REQUIREMENTS). An entry with a baseline tag overrides it; turning a baseline check off needs disabled: [{tag, reason}]. Each entry: when (all true) -> require (all must hold), else block with message. Conditions: promptMatches, promptNotMatches, answerMatches, answerNotMatches, minToolCalls, workTurn, filesChanged, allFilesChanged, toolRan, toolUsed, resultMatches, fileRead, playbookRouted, playbookUsed, skillUsed, toolPassed {cmd, pass, selfRun}, runEach {files, cmd}. Every tag needs a row in docs/checks/rule-enforcement.md and a test in tools/hooks/test-hooks.mjs.",
+  "_comment": "Project checks, added to the baseline checks built into tools/hooks/hooks.mjs (BASE_REQUIREMENTS). An entry with a baseline tag overrides it; turning a baseline check off needs disabled: [{tag, reason}]. Each entry: when (all true) -> require (all must hold), else block with message. Conditions: promptMatches, promptNotMatches, answerMatches, answerNotMatches, minToolCalls, workTurn, filesChanged, allFilesChanged, toolRan, toolUsed, resultMatches, fileRead, playbookRouted, playbookUsed, skillUsed, toolPassed {cmd, pass, selfRun}, runEach {files, cmd}. Every tag needs a row in docs/checks/rule-enforcement.md and a test in tools/hooks/selfcheck.mjs.",
   "requirements": [
     {
       "tag": "plan-saved",
@@ -34,7 +34,8 @@
       "require": {
         "answerMatches": "\\b(combined|merged|together|full (checks|suite|test))\\b"
       },
-      "message": "Parallel-agents skill: run the full checks on the combined result after the last change, and say in the answer what they showed, part by part."
+      "message": "Parallel-agents skill: run the full checks on the combined result after the last change, and say in the answer what they showed, part by part.",
+      "waitsForAgents": true
     },
     {
       "tag": "research-cited",
@@ -45,7 +46,8 @@
       "require": {
         "answerMatches": "https?://|docs/knowledge/|sources/|nothing (is )?recorded|not (in|recorded in) the project"
       },
-      "message": "Research skill: every fact needs its source in the answer: the link of the page it was read on (with a date for anything that changes), or the project file it came from, or say plainly that nothing is recorded in the project."
+      "message": "Research skill: every fact needs its source in the answer: the link of the page it was read on (with a date for anything that changes), or the project file it came from, or say plainly that nothing is recorded in the project.",
+      "waitsForAgents": true
     },
     {
       "tag": "research-ledger",

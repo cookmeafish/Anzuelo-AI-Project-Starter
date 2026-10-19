@@ -54,12 +54,12 @@ every recommendation below rests on it, not on the survey's guesses alone.
   The AI decides the rest the same way.
 - **Ask me everything.**
 
-**Every question you ask is in plain words:**
-- Each option says what it does and what the user will notice afterwards. Never offer a bare name ("orchestrate",
-  "app pack"): use the plain name and the "What it does" / "What you'll notice" lines from `packs.mjs list` and
-  `skills.mjs library`.
-- Every multiple-choice question also offers **"Let the AI decide"**, saying what it would pick and why, in one line.
-- Mark the recommended option, based on what you found.
+**Every question you ask follows "Questions with choices" in
+[writing-standards.md](docs/checks/writing-standards.md):** plain names, what each option does, why it is good and
+why it may be bad for THIS project, every technical word explained, and "Let the AI decide". Use the "What it does",
+"What you'll notice", "Good when" and "Costs" lines from `packs.mjs list` and `skills.mjs library`, rewritten for this
+project. Judge each option by where the project is heading, not only by what it is today: the starter prepares a
+project to grow (more code, more history, more people).
 
 **Answers the AI decided** (question 0 said so, the user picked "Let the AI decide", or `"autonomy": "auto"` in
 `tools/hooks/config.json`) are written as `- Key: assumed - <answer> (why)`. List them in your final answer so the user
@@ -115,7 +115,7 @@ how it is released.
    |---|---|---|
    | Kind of work: knowledge or both | `knowledge` | research, sources, evidence labels, ingest, deliverables |
    | Kind of work: software or both | `app` | specs, triple-check QA, gates, foundation, release safety |
-   | Visual interface: yes | `gui` | the GUI runbook, the screenshot review loop and tool, visual-review checklist, the frontend-design skill |
+   | Visual interface: yes | `gui` | the GUI runbook, the screenshot review loop and tool, visual-review checklist (the frontend-design library skill fits it and is offered in step 2) |
 
    Tell the user which packs and why, in one plain line each (what it does, what they'll notice), then run:
    ```
@@ -125,7 +125,7 @@ how it is released.
 2. **Library skills:** `node tools/skills.mjs library` lists them with the pack each fits. Every skill that fits an
    installed pack (or "any") is enabled unless the user declines it. Ask about all the fitting skills in one message, in
    plain words (each skill's plain name, what it does, what they'll notice), with "Let the AI decide" as an option. Then `node tools/skills.mjs enable <names>`. Add the phrases people use for these jobs
-   to each skill's `triggers:` and check them with `node tools/hooks/test-hooks.mjs --route "..."`.
+   to each skill's `triggers:` and check them with `node tools/hooks/selfcheck.mjs --route "..."`.
 3. **The starter's leftovers:** ask the user, with a recommendation and "Let the AI decide" as an option:
 
    | Choice | What happens | Fits when |
@@ -137,11 +137,20 @@ how it is released.
    Run `node tools/starter.mjs link | keep | remove`. It refuses while anything that fits is still missing.
 4. **App pack:** run `docs/playbooks/app-foundation.md` with the user before Phase 4. It sets the performance budgets,
    the usability defaults and the app's security rows, and builds the scaffolding that enforces them.
+5. **Optional tools: guidance only, never a requirement.** [docs/recommended-tools.md](docs/recommended-tools.md)
+   lists tools a project may want (browser testing, image markup with Pillow, linters, secret scanners, data tools
+   and more), each with when to recommend it, when to skip it, pros, costs and license. Recommend only the ones that
+   make THIS project better ("Worth it: <gain> / <cost>"), as a question with choices, and install the newest
+   version with the official command, only with the user's OK (under `"autonomy": "auto"`, only tools marked
+   low-risk). Write each installed tool under "Tools" in `docs/BRIEF.md`, with how it was installed, so the next
+   session and any other agent can set it up again.
 
 ## Phase 4: Build it
 1. `docs/BRIEF.md`: fill every section from the answers, as principles in your own words with the date and why. Set
    `status: bootstrapped YYYY-MM-DD`.
 2. `docs/names.json`: check `PROJECT_NAME`, and add every other name the project uses (products, brands, companies).
+   When the project is named after what it is about (a game, a city, a product), list that key in `"_subjects"`, so
+   the content's mentions of the subject are not flagged as the project's name.
    `AGENTS.md` / `CLAUDE.md`: replace `{{ONE_LINE}}`; the name heading fills itself from `docs/names.json`. Each
    always/never answer goes through the project-rule skill (a rule, a user-requirements row, and a check where one can
    be written). Record the rest under "standing preferences", or write `- (none stated, YYYY-MM-DD)`.
@@ -150,7 +159,7 @@ how it is released.
 4. **Runbooks for every typical request:** route each one to an existing runbook or skill by adding the user's wording
    to its `triggers`, or create a runbook with its check (runbook-create skill). Before writing one, look for an
    existing skill that does the job (skill-finder skill), read every file of it, and install third-party skills only
-   with the user's OK. Every request must show a ROUTE or SKILL in `node tools/hooks/test-hooks.mjs --route "<request>"`.
+   with the user's OK. Every request must show a ROUTE or SKILL in `node tools/hooks/selfcheck.mjs --route "<request>"`.
 5. **Guards** in `tools/hooks/config.json`, as the answers require: `protectedOriginals`, `noOverwrite`,
    `writeOnlyVia`, `protectedBranches`, `forbiddenCommands` (e.g. never stop the user's own app or port), `codeRules`,
    `commitGate`, `watchedInputs`, `approvalPaths` (sign-off), `userFacing`.
@@ -164,7 +173,7 @@ how it is released.
     identity is the user's own name and email.
 
 ## Phase 5: Verify everything is really there
-1. `node tools/hooks/test-hooks.mjs`: ALL PASS.
+1. `node tools/hooks/selfcheck.mjs`: ALL PASS.
 2. `node tools/audit.mjs --setup`: PASS. It checks the interview, that the packs match the answers and are complete,
    that every fitting library skill is enabled or declined with a reason, the brief, routing, placeholders, the
    security baseline, pack purity, publish safety, and that the hooks ran live here.

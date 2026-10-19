@@ -6,6 +6,8 @@ tools/hooks/state/
 .cache/
 # The local blocklist of private terms the publish-safety sweep checks (the list itself is private)
 .private-terms
+# Marks a development copy of the starter: real projects refuse to be made from it or linked to it
+.starter-dev
 # Agent-specific files, made on each machine by node tools/hooks/wire.mjs (the rules live in AGENTS.md)
 CLAUDE.md
 .claude/

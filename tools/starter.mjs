@@ -54,6 +54,7 @@ if (cmd === 'link') {
     const dir = path.resolve(arg);
     if (!fs.existsSync(path.join(dir, 'tools', 'new-project.mjs'))) { console.error(`${dir} is not a starter folder (no tools/new-project.mjs).`); process.exit(1); }
     if (inside(ROOT, dir) || inside(dir, ROOT)) { console.error('The starter must live outside this project, in its own folder.'); process.exit(1); }
+    if (fs.existsSync(path.join(dir, '.starter-dev')) && !process.env.KS_ALLOW_DEV) { console.error(`${dir} is a development copy of the starter (.starter-dev). Link a stable copy instead, so unfinished changes never reach this project.`); process.exit(1); }
     fs.writeFileSync(at(STARTER_LINK), JSON.stringify({ path: dir }, null, 2) + '\n');
   }
   const link = starterLink();

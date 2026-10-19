@@ -16,6 +16,7 @@ QA incident procedure (`docs/playbooks/qa.md` §1).
 3. **Independent review:** a fresh agent that did not write the change, given the user's intent and the acceptance
    criteria, read-only. It takes its own screenshots and runs, checks the maker's claims against reality, and writes
    a PASS/FAIL table plus a verdict, **SHIP** or **FIX**, to `.cache/reviews/<date>-<topic>.md`. FIX → fix → review again.
+   For code, the reviewer also reads the diff through the lenses in `docs/playbooks/qa.md` §3.
 
 ## The answer's Verification section (hook: verification-report)
 ```

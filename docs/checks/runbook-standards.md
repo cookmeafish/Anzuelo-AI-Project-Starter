@@ -36,7 +36,7 @@ library skill) is a procedure in its own right and follows the same rules:
 - `triggers:` in its frontmatter, so the prompt hook can route to it (`SKILL:` hint, REQ: skill-read);
 - a check that proves its "Done when": a requirements.json entry with `"when": {"skillUsed": "<name>"}`
   (REQ: skill-complete);
-- "Done when" and "Pitfalls" sections, and a test for its check in `tools/hooks/test-hooks.mjs`.
+- "Done when" and "Pitfalls" sections, and a test for its check in `tools/hooks/selfcheck.mjs`.
 
 ## Extend or create?
 Extend when the new task is a variant of an existing one (same goal, different inputs). Add a branch and the new
@@ -49,7 +49,7 @@ trigger phrases. Create when the goal, steps or "Done when" differ. Never leave 
   with `selfRun` so agents without tool history can still be checked), the hook re-running a validator on each
   changed file (`runEach`), or a required answer section (`answerMatches`).
 - `message` tells the agent exactly what to do.
-- Every new tag gets a test scenario in `tools/hooks/test-hooks.mjs` (skipped → blocked, followed → passes) and a
+- Every new tag gets a test scenario in `tools/hooks/selfcheck.mjs` (skipped → blocked, followed → passes) and a
   row in `docs/checks/rule-enforcement.md`.
 
 ## Hardening (skill-harden, due after 3 uses)

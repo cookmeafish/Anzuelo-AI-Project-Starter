@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Self-tests for tools/hooks/hooks.mjs. Each scenario runs the real hook in a throwaway copy of this project, with a
 // synthetic transcript, and checks that skipping a rule is blocked and following it passes.
-//   node tools/hooks/test-hooks.mjs              run every scenario
-//   node tools/hooks/test-hooks.mjs --route "…"  show which runbooks a message routes to, plus all prompt hints
+//   node tools/hooks/selfcheck.mjs              run every scenario
+//   node tools/hooks/selfcheck.mjs --route "…"  show which runbooks a message routes to, plus all prompt hints
 // Add a scenario for every new REQ tag (project-rule skill): one where the rule is skipped, one where it is followed.
 import fs from 'node:fs';
 import os from 'node:os';
@@ -11,6 +11,8 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+// The self-tests make throwaway projects from this copy on purpose, even when it is a development copy (.starter-dev).
+process.env.KS_ALLOW_DEV = '1';
 
 if (process.argv[2] === '--route') {
   const { promptHints } = await import('./hooks.mjs');
@@ -33,7 +35,12 @@ function base() {
   // starter, no setup answers or app gates of the project's own, and a setup prompt marked as the template.
   // Lesson: fixtures read the real project's answers, gates and starter link, so the tests failed in every project.
   const at = p => path.join(BASE, p);
-  for (const p of ['tools/starter.local.json', '.starter', 'README.starter.md', 'CLAUDE.starter.md', 'AGENTS.starter.md']) fs.rmSync(at(p), { recursive: true, force: true });
+  // a linked or kept starter still has the pack payloads and library: borrow them, so linking doesn't skip pack tests
+  // Lesson: after "starter.mjs link" removed packs/, more pack tests were skipped and coverage looked lost.
+  let linked = null; try { linked = JSON.parse(fs.readFileSync(at('tools/starter.local.json'), 'utf8')).path; } catch { }
+  for (const d of ['packs', 'library']) for (const src of [at(`.starter/${d}`), linked && path.join(linked, d)].filter(Boolean))
+    if (!fs.existsSync(at(d)) && fs.existsSync(src)) fs.cpSync(src, at(d), { recursive: true });
+  for (const p of ['tools/starter.local.json', '.starter', '.starter-dev', 'README.starter.md', 'CLAUDE.starter.md', 'AGENTS.starter.md']) fs.rmSync(at(p), { recursive: true, force: true });
   if (!fs.existsSync(at('.starter-template'))) fs.writeFileSync(at('.starter-template'), 'test base\n');
   if (!fs.existsSync(at('SETUP-PROMPT.md'))) fs.writeFileSync(at('SETUP-PROMPT.md'), '# Setup prompt\n');
   const cfgPath = at('tools/hooks/config.json'), cfg0 = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
@@ -41,7 +48,11 @@ function base() {
   cfg0.commitGate = (cfg0.commitGate || []).filter(g => !g.app);
   fs.writeFileSync(cfgPath, JSON.stringify(cfg0, null, 2) + '\n');
   const rqPath = at('tools/hooks/requirements.json'), rq0 = JSON.parse(fs.readFileSync(rqPath, 'utf8'));
-  rq0.requirements = rq0.requirements.filter(r => !r.appGate).map(r => r.tag === 'version-bump' ? { ...r, enabled: false } : r);
+  // the project's own code folders (packs.mjs configure app --code) go back to the defaults the fixtures use (src/...)
+  // Lesson: a project whose code lives in another folder failed the app tests after configuring it.
+  const CODE_DEFAULT = ['src/**', 'app/**', 'lib/**', 'server/**', 'packages/**'];
+  rq0.requirements = rq0.requirements.filter(r => !r.appGate).map(r => r.tag === 'version-bump' ? { ...r, enabled: false } : r)
+    .map(r => r.codeGlobs && r.when?.filesChanged ? { ...r, when: { ...r.when, filesChanged: CODE_DEFAULT } } : r);
   fs.writeFileSync(rqPath, JSON.stringify(rq0, null, 2) + '\n');
   // The project's own names would collide with fixture text: the base has only the template's placeholder.
   fs.writeFileSync(at('docs/names.json'), '{ "PROJECT_NAME": "{{PROJECT_NAME}}" }\n');
@@ -100,7 +111,7 @@ function run(dir, cmd, input) {
 const pb = n => ({ name: 'Read', input: { file_path: `docs/playbooks/${n}.md` } });
 const sk = n => ({ name: 'Read', input: { file_path: `skills/${n}/SKILL.md` } });
 // realistic output for the project's own validators, so checks that require a PASS see one
-const bash = (c, result) => ({ name: 'Bash', input: { command: c }, result: result ?? (/audit\.mjs/.test(c) ? 'audit: PASS (13 sweeps, 0 failed, 0 warnings)' : /test-hooks\.mjs/.test(c) ? 'test-hooks: ALL PASS (60 passed, 0 failed)' : 'ok') });
+const bash = (c, result) => ({ name: 'Bash', input: { command: c }, result: result ?? (/audit\.mjs/.test(c) ? 'audit: PASS (13 sweeps, 0 failed, 0 warnings)' : /selfcheck\.mjs/.test(c) ? 'selfcheck: ALL PASS (60 passed, 0 failed)' : 'ok') });
 const MEM = { '.memtest/rule.md': '---\nname: rule\n---\nrule' };
 const many = n => Array.from({ length: n }, (_, i) => ({ name: 'Grep', input: { pattern: 'x' + i } }));
 const FIN = '\n\n## Finished\n- Done. Files: docs/x.md';
@@ -159,7 +170,7 @@ const STOP = [
     answer: 'Skill: research. Sources: https://a.com' + FIN, expect: { block: true, tags: ['knowledge-changelog'] } },
   { name: 'rule request with nothing written: blocked', prompt: 'from now on always include a budget table in plans', answer: 'Got it, I will.',
     expect: { block: true, tags: ['rule-request'] } },
-  { name: 'rule request fully enforced: passes', prompt: 'from now on always include a budget table in plans', tools: [pb('project'), bash('node tools/hooks/test-hooks.mjs'), bash('node tools/audit.mjs')],
+  { name: 'rule request fully enforced: passes', prompt: 'from now on always include a budget table in plans', tools: [pb('project'), bash('node tools/hooks/selfcheck.mjs'), bash('node tools/audit.mjs')],
     files: { ...MEM, 'CLAUDE.md': TWIN, 'docs/checks/user-requirements.md': 'row', 'tools/hooks/requirements.json': '{"requirements":[]}', 'docs/CHANGELOG.md': 'x', 'docs/checks/rule-enforcement.md': 'row' },
     answer: 'Playbook: project.md. Rule added.' + FIN, expect: { block: false } },
   { name: 'rule request that cannot be checked, with hook: N/A: passes', prompt: 'remember that i like a friendly tone', tools: [pb('project'), bash('node tools/audit.mjs')],
@@ -214,10 +225,10 @@ const STOP = [
   { name: 'adopted folder with its own different CLAUDE.md/AGENTS.md: neither is overwritten', prompt: 'hello', answer: 'hi',
     edit: { 'CLAUDE.md': () => '# my old rules', 'AGENTS.md': () => '# my codex rules' }, expect: { block: false },
     after: dir => (fs.readFileSync(path.join(dir, 'CLAUDE.md'), 'utf8') === '# my old rules' && fs.readFileSync(path.join(dir, 'AGENTS.md'), 'utf8') === '# my codex rules') || 'a non-twin file was overwritten' },
-  { name: 'rule request without memory: blocked', prompt: 'from now on always include a budget table in plans', tools: [pb('project'), bash('node tools/hooks/test-hooks.mjs'), bash('node tools/audit.mjs')],
+  { name: 'rule request without memory: blocked', prompt: 'from now on always include a budget table in plans', tools: [pb('project'), bash('node tools/hooks/selfcheck.mjs'), bash('node tools/audit.mjs')],
     files: { 'CLAUDE.md': TWIN, 'docs/checks/user-requirements.md': 'row', 'tools/hooks/requirements.json': '{"requirements":[]}', 'docs/CHANGELOG.md': 'x' },
     answer: 'Playbook: project.md.' + FIN, expect: { block: true, tags: ['rule-request'] } },
-  { name: 'hook tests ran but FAILED: blocked', prompt: 'add a hook check for budget tables', tools: [pb('project'), bash('node tools/hooks/test-hooks.mjs', 'FAIL  x\ntest-hooks: FAIL (1 passed, 1 failed)'), bash('node tools/audit.mjs')],
+  { name: 'hook tests ran but FAILED: blocked', prompt: 'add a hook check for budget tables', tools: [pb('project'), bash('node tools/hooks/selfcheck.mjs', 'FAIL  x\nselfcheck: FAIL (1 passed, 1 failed)'), bash('node tools/audit.mjs')],
     files: { 'tools/hooks/requirements.json': '{"requirements":[]}', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.' + FIN, expect: { block: true, tags: ['hooks-tested'] } },
   { name: 'audit ran but FAILED: blocked', prompt: 'make a runbook for meal planning', tools: [pb('project'), bash('node tools/audit.mjs', 'FAIL   4. runbooks\naudit: FAIL (13 sweeps, 1 failed)')],
     files: { 'docs/playbooks/meal-plan.md': NEWPB, 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.' + FIN, expect: { block: true, tags: ['audit-run'] } },
@@ -238,11 +249,51 @@ const STOP = [
     answer: 'Installed dayjs.', expect: { block: true, tags: ['worth-it'] } },
   { name: 'worth-it: a dependency installed with its gain and cost: passes the check', prompt: 'install a date library for the importer', tools: [bash('npm install dayjs', 'added 1 package')],
     answer: 'Installed dayjs.\nWorth it: parses the three date formats we get / one small dependency to keep updated.', expect: { block: false } },
+  // library skills from the imported plugins prove their own outcome
+  { name: 'architecture: a decision with no file named: blocked', prompt: 'which database should we use for the app', tools: [sk('architecture')],
+    answer: 'Skill: architecture. Use Postgres for its transactions.', expect: { block: true, tags: ['architecture-recorded'] } },
+  { name: 'architecture: the decision recorded in DECISIONS.md: passes', prompt: 'which database should we use for the app', tools: [sk('architecture')],
+    answer: 'Skill: architecture. Use Postgres for its transactions; recorded in docs/DECISIONS.md with what would reopen it.', expect: { block: false } },
+  { name: 'incident-response: no incident file: blocked', prompt: 'the site is down for users', tools: [sk('incident-response')],
+    answer: 'Skill: incident-response. Rolled back the last release with your OK; the site is up.', expect: { block: true, tags: ['incident-logged'] } },
+  { name: 'incident-response: the incident file named: passes', prompt: 'the site is down for users', tools: [sk('incident-response')],
+    answer: 'Skill: incident-response. Rolled back with your OK; timeline in docs/incidents/2026-10-18-site-down.md.', expect: { block: false } },
+  { name: 'data-analysis: numbers with no method: blocked', prompt: 'analyze this data in sales.csv', tools: [sk('data-analysis')],
+    answer: 'Skill: data-analysis. Average order is 42.10 across 1,200 rows.', expect: { block: true, tags: ['data-computed'] } },
+  { name: 'data-analysis: numbers with how they were computed: passes', prompt: 'analyze this data in sales.csv', tools: [sk('data-analysis')],
+    answer: 'Skill: data-analysis. Average order is 42.10.\nHow it was computed: profile.mjs on sales.csv, 1,200 rows.', expect: { block: false } },
+  { name: 'legal-review: no disclaimer: blocked', prompt: 'review this nda for me', tools: [sk('legal-review')],
+    answer: 'Skill: legal-review. The NDA is fine to sign.', expect: { block: true, tags: ['legal-disclaimer'] } },
+  { name: 'legal-review: with the disclaimer: passes', prompt: 'review this nda for me', tools: [sk('legal-review')],
+    answer: 'Skill: legal-review. Not legal advice. Two clauses need changes; the term clause needs a lawyer.', expect: { block: false } },
+  { name: 'marketing: no source, placeholder or brand voice: blocked', prompt: 'check this copy against our brand voice', tools: [sk('marketing')],
+    answer: 'Skill: marketing. The copy reads well and is ready to post.', expect: { block: true, tags: ['marketing-sourced'] } },
+  { name: 'marketing: brand voice named and the unsourced claim left as a placeholder: passes', prompt: 'check this copy against our brand voice', tools: [sk('marketing')],
+    answer: 'Skill: marketing. Brand voice: the plain default (no brand-voice.md found). The savings claim has no source, so it now reads [stat needed: savings, source?].', expect: { block: false } },
+  { name: 'user-research: themes without counts: blocked', prompt: 'synthesize these interview notes', tools: [sk('user-research')],
+    answer: 'Skill: user-research. Most users found the save button hard to see.', expect: { block: true, tags: ['user-research-counted'] } },
+  { name: 'user-research: a study plan that names its decision: passes', prompt: 'write an interview guide for our users', tools: [sk('user-research')],
+    answer: 'Skill: user-research. Decision it informs: whether the save flow gets redesigned. The guide asks about the last time they saved their work.', expect: { block: false } },
   // teaching moves one step at a time
   { name: 'teach: a lecture with no question and no wrap-up: blocked', prompt: 'teach me how compound interest works', tools: [sk('teach')],
     answer: 'Skill: teach. Compound interest adds interest to the balance each period, so growth speeds up over time.', expect: { block: true, tags: ['teach-step'] } },
   { name: 'teach: one aid and one question: passes', prompt: 'teach me how compound interest works', tools: [sk('teach')],
     answer: 'Skill: teach. Picture a balance that earns interest, then earns interest on that interest too. If you start with 100 and earn 10% a year (estimate for the example), what is the balance after the first year?', expect: { block: false } },
+  // developing the starter (.starter-dev): the app pack's gates, mapped to the starter, hold it to what it asks of projects
+  { name: 'dev mode: an engine change with no self-tests, changelog or proof it works: blocked', prompt: 'tidy the packs tool', tools: [pb('project'), bash('node tools/audit.mjs')],
+    files: { '.starter-dev': 'dev copy\n', 'tools/extra-tool.mjs': 'export {};\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Playbook: project.md. Tidied it.' + FIN, expect: { block: true, tags: ['dev-self-tests', 'dev-changelog', 'dev-verification'] } },
+  { name: 'dev mode: without .starter-dev the dev checks stay off (projects never get them)', prompt: 'tidy the packs tool', tools: [pb('project'), bash('node tools/audit.mjs')],
+    files: { 'tools/extra-tool.mjs': 'export {};\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Playbook: project.md. Tidied it.\nN/A(verification-report): a test fixture.' + FIN, expect: { block: false } },
+  // bigger additions have a plan that outlives the session
+  { name: 'plan-required: five new files and no plan: blocked', prompt: 'add an export feature with its helpers', tools: [pb('project'), bash('node tools/audit.mjs')],
+    files: { 'src/export/a.mjs': 'x', 'src/export/b.mjs': 'x', 'src/export/c.mjs': 'x', 'src/export/d.mjs': 'x', 'src/export/e.mjs': 'x', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Playbook: project.md. Added the export.\nN/A(verification-report): a test fixture.' + FIN, expect: { block: true, tags: ['plan-required'] } },
+  { name: 'plan-required: five new files with their plan: passes the plan check', prompt: 'add an export feature with its helpers', tools: [pb('project'), bash('node tools/audit.mjs')],
+    files: { 'src/export/a.mjs': 'x', 'src/export/b.mjs': 'x', 'src/export/c.mjs': 'x', 'src/export/d.mjs': 'x', 'src/export/e.mjs': 'x', 'docs/CHANGELOG.md': 'x',
+      'docs/plans/2026-10-18-export.md': '# Export: plan\n- [x] helpers\n- [ ] wire it up\n' },
+    answer: 'Playbook: project.md. Added the export, plan in docs/plans/2026-10-18-export.md.\nN/A(verification-report): a test fixture.' + FIN, expect: { block: false } },
   // notes link to what they relate to (obsidian)
   { name: 'note-linked: a new note that links to nothing: blocked', prompt: 'write a note about desk cable management', tools: [pb('project'), bash('node tools/audit.mjs')],
     files: { 'docs/cables.md': '# Cables\nUse trays under the desk.', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md. Wrote the note.' + FIN, expect: { block: true, tags: ['note-linked'] } },
@@ -365,6 +416,7 @@ const PRETOOL = [
   { name: 'deleting SETUP-PROMPT.md in the starter template: denied', tool: 'Bash', input: { command: 'rm SETUP-PROMPT.md' }, deny: true, tag: 'setup-gate' },
   { name: 'deleting SETUP-PROMPT.md before setup is done: denied', tool: 'Bash', input: { command: 'rm SETUP-PROMPT.md' }, removeMarker: true, deny: true, tag: 'setup-gate' },
   { name: 'setup: installing a pack before the user answered the questions: denied', tool: 'Bash', input: { command: 'node tools/packs.mjs install app' }, removeMarker: true, deny: true, tag: 'setup-interview' },
+  { name: 'setup: a heredoc that only writes "starter.mjs link" into a doc: allowed', tool: 'Bash', input: { command: "cat > docs/notes.md <<'EOF'\nLater: node tools/starter.mjs link\nEOF" }, removeMarker: true, deny: false },
   { name: 'setup: enabling a skill with the interview recorded but no reply from the user yet: denied', tool: 'Bash', input: { command: 'node tools/skills.mjs enable orchestrate' }, removeMarker: true,
     edit: { 'docs/DECISIONS.md': s => s + INTERVIEW('software', 'yes', 'app, gui', '') }, deny: true, tag: 'setup-interview' },
   { name: 'setup: installing after the user answered and the interview is recorded: allowed', tool: 'Bash', input: { command: 'node tools/packs.mjs install app' }, removeMarker: true,
@@ -417,6 +469,8 @@ STOP.push(
     answer: 'Root cause: the parser read the header twice.' + FIN, expect: { block: true, tags: ['playbook-named'] } },
   { name: 'parallel work without the combined check: blocked', prompt: 'split the work across several agents', tools: [sk('parallel-agents'), ...many(15)], files: { 'docs/STATUS.md': 'x' },
     answer: 'Skill: parallel-agents. All three agents finished.' + FIN, expect: { block: true, tags: ['parallel-merged'] } },
+  { name: 'parallel work still running in the background: the merge check waits', prompt: 'split the work across several agents', tools: [sk('parallel-agents'), { name: 'Agent', input: { prompt: 'part one', run_in_background: true } }, ...many(15)], files: { 'docs/STATUS.md': 'x' },
+    answer: 'Skill: parallel-agents. Three agents are running; I will check their results when they report.' + FIN, expect: { block: false } },
   { name: 'research without links: blocked', prompt: 'search the web for standing desk weight limits', tools: [sk('research')], answer: 'Skill: research. Most hold 100 kg.',
     expect: { block: true, tags: ['research-cited'] } },
   { name: 'quick lookup with its link: passes', edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), packs: (JSON.parse(s).packs || []).filter(p => p !== 'knowledge') }), 'tools/hooks/requirements.json': s => JSON.stringify({ ...JSON.parse(s), requirements: JSON.parse(s).requirements.filter(r => r.pack !== 'knowledge') }) }, prompt: 'search the web for standing desk weight limits', tools: [sk('research'), { name: 'WebFetch', input: { url: 'https://example.com/desks' }, result: 'Rated load: 100 kg.' }],
@@ -442,7 +496,7 @@ STOP.push(
   { pack: 'knowledge', name: 'knowledge captured only in the answer: blocked', prompt: 'note that the shop closes at 6 on Sundays', tools: [sk('knowledge-capture')],
     answer: 'Skill: knowledge-capture. Noted: the shop closes at 6 on Sundays.', expect: { block: true, tags: ['knowledge-captured'] } },
   { name: 'a helper skill counts as its runbook', prompt: 'from now on always include a budget table in plans',
-    tools: [{ name: 'Read', input: { file_path: 'skills/project-rule/SKILL.md' } }, bash('node tools/hooks/test-hooks.mjs'), bash('node tools/audit.mjs')],
+    tools: [{ name: 'Read', input: { file_path: 'skills/project-rule/SKILL.md' } }, bash('node tools/hooks/selfcheck.mjs'), bash('node tools/audit.mjs')],
     files: { ...MEM, 'CLAUDE.md': TWIN, 'docs/checks/user-requirements.md': 'row', 'tools/hooks/requirements.json': '{"requirements":[]}', 'docs/CHANGELOG.md': 'x', 'docs/checks/rule-enforcement.md': 'row' },
     answer: 'Skill: project-rule. Rule added.' + FIN, expect: { block: false, not: ['runbook-read'] } },
   // library skills (enabled in the test base; a project runs the ones it enabled)
@@ -481,10 +535,10 @@ STOP.push(
     files: { 'docs/playbooks/meal-plan.md': NEWPB, 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md. Existing skills checked: installed skills - none fit.' + FIN, expect: { block: false },
     after: dir => (fs.existsSync(path.join(dir, 'skills/meal-plan/SKILL.md')) && fs.existsSync(path.join(dir, '.claude/skills/meal-plan/SKILL.md')) && fs.readFileSync(path.join(dir, 'DIRECTORY.md'), 'utf8').includes('meal-plan.md')) || 'skill, mirror or directory row not generated' },
   // verbatim examples
-  { name: 'a doc that copies the user\'s own words: blocked', prompt: 'never let the reports show the raw server error to my customers again please', tools: [pb('project'), bash('node tools/hooks/test-hooks.mjs'), bash('node tools/audit.mjs')],
+  { name: 'a doc that copies the user\'s own words: blocked', prompt: 'never let the reports show the raw server error to my customers again please', tools: [pb('project'), bash('node tools/hooks/selfcheck.mjs'), bash('node tools/audit.mjs')],
     files: { ...MEM, 'CLAUDE.md': TWIN + '\n- never let the reports show the raw server error to my customers again\n', 'docs/checks/user-requirements.md': 'row', 'tools/hooks/requirements.json': '{"requirements":[]}', 'docs/CHANGELOG.md': 'x' },
     answer: 'Playbook: project.md. hook: N/A judgment.' + FIN, expect: { block: true, tags: ['no-verbatim-examples'] } },
-  { name: 'the same rule written as a principle: passes', prompt: 'never let the reports show the raw server error to my customers again please', tools: [pb('project'), bash('node tools/hooks/test-hooks.mjs'), bash('node tools/audit.mjs')],
+  { name: 'the same rule written as a principle: passes', prompt: 'never let the reports show the raw server error to my customers again please', tools: [pb('project'), bash('node tools/hooks/selfcheck.mjs'), bash('node tools/audit.mjs')],
     files: { ...MEM, 'CLAUDE.md': TWIN + '\n- Errors shown to users are explained in plain words with a next step, never raw technical messages (2026-10-17).\n', 'docs/checks/user-requirements.md': 'row', 'tools/hooks/requirements.json': '{"requirements":[]}', 'docs/CHANGELOG.md': 'x' },
     answer: 'Playbook: project.md. hook: N/A judgment.' + FIN, expect: { block: false } },
   // project code rules
@@ -603,7 +657,7 @@ const GOLDEN = [
     answer: ['Playbook: gui.md', '## Visual review\n- Round 1: header overlapped on phone, fixed.\n- Round 2: nothing found.\nVisual review: PASS after 2 rounds', FIN],
     optional: ['tools:1', 'files:site/index.html'] },
   { name: 'standing rule (core)', prompt: 'from now on always include a budget table in plans',
-    tools: [pb('project'), bash('node tools/hooks/test-hooks.mjs'), bash('node tools/audit.mjs')],
+    tools: [pb('project'), bash('node tools/hooks/selfcheck.mjs'), bash('node tools/audit.mjs')],
     files: { ...MEM, 'CLAUDE.md': TWIN, 'docs/checks/user-requirements.md': 'row', 'tools/hooks/requirements.json': '{"requirements":[]}', 'docs/CHANGELOG.md': 'x', 'docs/checks/rule-enforcement.md': 'row' },
     answer: ['Playbook: project.md.', 'Rule added.', FIN], optional: ['answer:1', 'files:docs/checks/rule-enforcement.md'] },
   { name: 'feature (app pack)', prompt: 'add a feature to export reports as csv',
@@ -648,13 +702,24 @@ try { const d = new Date(); fs.mkdirSync(path.join(ROOT, 'tools/hooks/state'), {
 process.exit(fail ? 1 : 0);
 }
 
+// The project's own scenarios live in tools/hooks/project-scenarios.mjs, which upgrades never replace (this file is
+// engine code). It exports a function that gets the helpers and returns { stop, pretool, prompt } lists.
+// Lesson: scenarios a project added here were lost on the next upgrade.
+const OWN = path.join(ROOT, 'tools', 'hooks', 'project-scenarios.mjs');
+if (fs.existsSync(OWN)) {
+  const own = (await import(pathToFileURL(OWN).href)).default({ pb, sk, bash, FIN });
+  STOP.push(...(own.stop || [])); PRETOOL.push(...(own.pretool || [])); PROMPT.push(...(own.prompt || []));
+}
+
 for (const s of STOP) {
   if (!applies(s)) { skipped++; if (process.env.SHOW_SKIPS) console.log('SKIP  stop: ' + s.name); continue; }
   const r = runStop(s);
   let why = '';
   if (r.blocked !== s.expect.block) why = `expected ${s.expect.block ? 'BLOCK' : 'PASS'}, got ${r.blocked ? 'BLOCK: ' + r.reason : 'PASS'}${r.err ? ' stderr: ' + r.err.slice(0, 300) : ''}`;
-  for (const t of s.expect.tags || []) if (!r.reason.includes(`[${t}]`)) why ||= `missing tag [${t}] in: ${r.reason || '(no block)'}`;
-  for (const t of s.expect.not || []) if (r.reason.includes(`[${t}]`)) why ||= `unexpected tag [${t}]`;
+  // the stop message lists the check names once, on its last line: "Names: a, b."
+  const named = t => (/Names: ([^\n]*)\.\s*$/.exec(r.reason || '')?.[1] || '').split(', ').includes(t);
+  for (const t of s.expect.tags || []) if (!named(t)) why ||= `missing tag [${t}] in: ${r.reason || '(no block)'}`;
+  for (const t of s.expect.not || []) if (named(t)) why ||= `unexpected tag [${t}]`;
   if (!why && r.after !== true) why = r.after;
   report(!why, 'stop: ' + s.name, why);
 }
@@ -789,7 +854,7 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) {
     report(/ask the user what happens to the starter now/.test(before), 'starter: setup asks for the starter choice before it can finish', before.split('\n').filter(l => /starter|FAIL/.test(l)).join(' | ').slice(0, 400));
   } finally { for (const d of dirs) fs.rmSync(d, { recursive: true, force: true }); }
   // the generator never puts a project inside the starter
-  const g = spawnSync(process.execPath, [path.join(ROOT, 'tools/new-project.mjs'), path.join(ROOT, 'inside-test'), '--dry-run'], { encoding: 'utf8' });
+  const g = spawnSync(process.execPath, [path.join(ROOT, 'tools/new-project.mjs'), path.join(ROOT, 'inside-test'), '--dry-run', '--dev'], { encoding: 'utf8' });
   report(g.status !== 0 && /must not be inside each other/.test(g.stderr) && !fs.existsSync(path.join(ROOT, 'inside-test')), 'starter: new-project refuses a project inside the starter', g.stderr.slice(0, 200));
 }
 
@@ -825,7 +890,7 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) {
 if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in the starter only: it makes projects): an upgrade that breaks a passing check rolls back
   const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-upg-'));
   try {
-    const np = (...a) => spawnSync(process.execPath, [path.join(base(), 'tools/new-project.mjs'), proj, ...a], { encoding: 'utf8', timeout: 300000 });
+    const np = (...a) => spawnSync(process.execPath, [path.join(base(), 'tools/new-project.mjs'), proj, '--dev', ...a], { encoding: 'utf8', timeout: 300000 });
     np('--name', 'Upg');
     const oldAudit = "console.log('PASS  1. tools compile');\n";
     fs.writeFileSync(path.join(proj, 'tools/audit.mjs'), oldAudit);
@@ -850,6 +915,18 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
     const again = spawnSync(process.execPath, ['tools/hooks/wire.mjs'], { cwd: dir, encoding: 'utf8' }).stdout;
     report(r.status === 0 && same && settings && has('.codex/hooks.json') && has('.claude/skills/debug/SKILL.md') && /already connected/.test(again),
       'agent-neutral: wire makes every agent\'s files on a fresh clone, and a second run changes nothing', `${r.stdout}${r.stderr} | ${again}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+{ // plan-open: a plan with unticked steps is announced at the next session, for any agent, until it is done or dropped
+  const dir = copyProject();
+  try {
+    write(dir, { 'docs/plans/2026-10-18-export.md': '# Export: plan\n- [x] helpers\n- [ ] wire it up\n- [ ] test it\n' });
+    const session = () => spawnSync(process.execPath, ['tools/hooks/hooks.mjs', 'session'], { cwd: dir, encoding: 'utf8', input: '{}' }).stdout;
+    const open = session();
+    write(dir, { 'docs/plans/2026-10-18-export.md': '# Export: plan\nstatus: dropped - the user chose another approach\n- [x] helpers\n- [ ] wire it up\n' });
+    const closed = session();
+    report(/OPEN PLANS: docs\/plans\/2026-10-18-export\.md \(2 of 3 steps left\)/.test(open) && !/OPEN PLANS/.test(closed), 'plan-open: an unfinished plan is announced at the next session until it is done or dropped', open.slice(0, 300));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
@@ -958,5 +1035,5 @@ const COVERS = {
 };
 for (const [tag, name] of Object.entries(COVERS)) if (hereSrc.includes(tag)) report(PASSED.some(n => n.includes(name)), `covers: ${tag} is proven by "${name}"`, 'no passing scenario with that name');
 
-console.log(`\ntest-hooks: ${fail ? 'FAIL' : 'ALL PASS'} (${pass} passed, ${fail} failed${skipped ? `, ${skipped} skipped: packs not installed here` : ''})`);
+console.log(`\nselfcheck: ${fail ? 'FAIL' : 'ALL PASS'} (${pass} passed, ${fail} failed${skipped ? `, ${skipped} skipped: packs not installed here` : ''})`);
 process.exit(fail ? 1 : 0);

@@ -21,7 +21,7 @@ Go through it top to bottom. Items marked (hook: tag) are also checked automatic
 - [ ] Only files the user asked to change were changed (hook: question-no-file). Protected and versioned files respected (hook: protect-originals, no-overwrite).
 - [ ] Project-specific validators were run and PASSED, not just run (requirements.json `toolPassed` / `runEach`).
 - [ ] CHANGELOG updated; STATUS updated after substantial work; decisions logged (hook: changelog, status-handoff, decision-logged).
-- [ ] Structural change → `node tools/audit.mjs` PASS. Hook change → `node tools/hooks/test-hooks.mjs` ALL PASS (hook: audit-run, hooks-tested).
+- [ ] Structural change → `node tools/audit.mjs` PASS. Hook change → `node tools/hooks/selfcheck.mjs` ALL PASS (hook: audit-run, hooks-tested).
 - [ ] GUI change → screenshot loop done, with a verdict (hook: gui-pack, gui-review-loop, gui-review-report).
 - [ ] Commits credit only the user (hook: no-ai-attribution).
 - [ ] Before a push: `.gitignore` keeps secrets, local state, caches and private files out, and keeps everything the

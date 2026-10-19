@@ -1,6 +1,6 @@
 ---
 name: project-rule
-description: Turns a standing instruction, a complaint, or praise for something to repeat into an enforced project rule - AGENTS.md / CLAUDE.md, a dated user-requirements row, a check in tools/hooks/requirements.json, a test, a memory note, and the audit. Use whenever the user says always, never, remember, from now on, going forward, make it a rule, update the project, "I shouldn't have to tell you", "keep doing this", or complains that something was missed or done wrong.
+description: Turns a standing instruction, a complaint, or praise for something to repeat into an enforced project rule - AGENTS.md / CLAUDE.md, a dated user-requirements row, a check in tools/hooks/requirements.json, a test, a memory note, and the audit. Use whenever the user says always, never, remember to always, from now on, going forward, make it a rule, update the project, "I shouldn't have to tell you", "keep doing this", or complains that something was missed or done wrong.
 runbook: docs/playbooks/project.md
 ---
 # Make a rule stick
@@ -43,7 +43,7 @@ A rule that only lives in the docs gets forgotten. Here the docs say it and a ho
    `coreChecks()` or `pretoolDecision()` in `tools/hooks/hooks.mjs`, with a `// REQ: <tag>` comment. Pure judgment:
    write "hook: N/A <reason>" in the answer and mark the row `doc`. Keep `when` specific: a check that fires on
    unrelated turns teaches everyone to waive it.
-6. **Prove it.** Add a scenario to `tools/hooks/test-hooks.mjs`: skipped → blocked with the tag, followed → passes.
-   Run `node tools/hooks/test-hooks.mjs`, then `node tools/audit.mjs`. Both must PASS.
+6. **Prove it.** Add a scenario to `tools/hooks/selfcheck.mjs`: skipped → blocked with the tag, followed → passes.
+   Run `node tools/hooks/selfcheck.mjs`, then `node tools/audit.mjs`. Both must PASS.
 7. **Report** the rule in one line, where it lives, and how it is enforced (or why it can't be), with a Finished
    section and a CHANGELOG line.

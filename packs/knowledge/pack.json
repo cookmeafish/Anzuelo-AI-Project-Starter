@@ -1,4 +1,6 @@
 {
+  "good": "The project collects facts, research, notes or records you want to rely on later.",
+  "costs": "More structure: every fact needs a source and a date, so writing things down takes a little longer.",
   "plain": "Knowledge base",
   "does": "Keeps facts, research and notes in organized files, each with its source and date.",
   "outcome": "Answers come from your own recorded facts, and nothing has to be researched twice.",

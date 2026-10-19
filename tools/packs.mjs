@@ -140,7 +140,7 @@ function configureApp(argv) {
   for (const r of reqs.requirements) if (r.pack === 'app' && r.when?.filesChanged && r.codeGlobs) r.when.filesChanged = app.code;
   wj(REQS, reqs);
   console.log(`configured app gates: ${['test', 'build', 'lint', 'typecheck'].filter(k => app[k]).map(k => `${k}="${app[k]}"`).join(', ') || '(none given)'}; code: ${app.code.join(', ')}`);
-  console.log('Next: node tools/hooks/test-hooks.mjs && node tools/audit.mjs');
+  console.log('Next: node tools/hooks/selfcheck.mjs && node tools/audit.mjs');
 }
 
 function prune() {
@@ -158,7 +158,7 @@ if (isMain) {
   const [cmd, ...rest] = process.argv.slice(2);
   if (cmd === 'list' || !cmd) {
     const inst = installed();
-    for (const p of available()) console.log(`${inst.includes(p.name) ? '[installed]' : '[ ]        '} ${p.plain || p.title} (pack: ${p.name})${p.from === 'project' ? '' : ` (from the ${p.from})`}\n            What it does: ${p.does || p.title}\n            What you'll notice: ${p.outcome || '-'}\n            For: ${p.for}\n            Not for: ${p.notFor || '-'}`);
+    for (const p of available()) console.log(`${inst.includes(p.name) ? '[installed]' : '[ ]        '} ${p.plain || p.title} (pack: ${p.name})${p.from === 'project' ? '' : ` (from the ${p.from})`}\n            What it does: ${p.does || p.title}\n            What you'll notice: ${p.outcome || '-'}\n            Good when: ${p.good || '-'}\n            Costs: ${p.costs || '-'}\n            For: ${p.for}\n            Not for: ${p.notFor || '-'}`);
     if (!available().length) console.log(`(no pack payloads: the starter's leftovers were removed and no starter is linked) installed: ${inst.join(', ') || 'core only'}\nTo grow later: node tools/starter.mjs link "<starter folder>"`);
   } else if (cmd === 'install') install(rest.filter(a => !a.startsWith('--')));
   else if (cmd === 'configure' && rest[0] === 'app') configureApp(rest.slice(1));

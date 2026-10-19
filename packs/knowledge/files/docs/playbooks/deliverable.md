@@ -1,7 +1,7 @@
 ---
 name: deliverable
 summary: Produce a document the user will use or share (report, plan, brief, guide, checklist, draft) as a new versioned file in outputs/
-triggers: write me, write a, draft, make me a, create a, report, plan, brief, proposal, guide, checklist, cheat sheet, summary for, one-pager, email draft, letter, outline, document, save it, put it in a file
+triggers: write me, write a report, write a document, write up, draft, make me a, create a document, a report on, brief, proposal, guide, checklist, cheat sheet, summary for, one-pager, email draft, letter, outline, save it, put it in a file, export as, as a pdf, as a word document
 menu: K4
 ---
 # Playbook: make a deliverable
@@ -22,9 +22,22 @@ nobody asked for. If the user asks for a specific format (Word, PDF, slides, spr
    file (the hook denies it) unless the user explicitly asks for an in-place edit.
 4. **Check** it against the brief's quality bar: does it answer what was asked, for this audience, at this length? Read
    it once as the reader would.
-5. **Answer** with a two- or three-line summary of the document and its path. Mention the key assumptions and anything
+5. **Prose review.** Run `node tools/writing-check.mjs outputs/<name>.md`, then read it once more for what the check
+   can't see:
+   - [ ] The title says what the reader gets or can do, in their words, not an internal project name.
+   - [ ] The document does one job (explain, instruct or look up), and the first paragraph says what it covers.
+   - [ ] Every heading tells the reader what is under it. No bare "Overview", "Notes" or "Misc".
+   - [ ] Steps are commands addressed to the reader ("Open the form"), one action each.
+   - [ ] Vague amounts ("many", "often", "significantly", "fast") are replaced by the figure, or cut.
+   - [ ] No words that judge the reader's task for them ("easy", "simple", "just", "obviously").
+   - [ ] No paragraph opens by recapping the last one, and no stock framing that would fit any document.
+   - [ ] One idea stays in one sentence instead of being chopped into fragments.
+   - [ ] Every sentence reads clearly the first time at speaking pace. Rewrite any you had to read twice.
+   - [ ] Abbreviations are spelled out on first use, and link text names where the link goes (never "here").
+   - [ ] Examples and sample values are real or clearly marked as samples, and any steps or commands were tried.
+6. **Answer** with a two- or three-line summary of the document and its path. Mention the key assumptions and anything
    the user must fill in or verify.
-6. Drafts meant for other people (emails, letters, posts) stay drafts. Sending is the user's call (rule 6).
+7. Drafts meant for other people (emails, letters, posts) stay drafts. Sending is the user's call (rule 6).
 
 ## Done when
 - [ ] A new file in outputs/, with earlier versions untouched (hook: no-overwrite).
@@ -32,3 +45,6 @@ nobody asked for. If the user asks for a specific format (Word, PDF, slides, spr
 
 ## Pitfalls
 - Padding: process narration, restating the question, generic advice. Keep only what the reader needs.
+
+Credits: some prose review items were inspired by "writing-guidelines" in vercel-labs/agent-skills and its rules in
+vercel-labs/writing-guidelines (MIT License, Copyright (c) 2026 Vercel Labs); the wording is our own.

@@ -1,7 +1,7 @@
 ---
 name: research
 description: Get facts right, from the project's own files or from the web. Every fact traces to a source read this turn, research uses several independent sources with sponsored and biased ones screened out and weighs them together into one verdict, and a check catches anything made up. Use when answering from the knowledge base, looking something up, researching, comparing or fact-checking, and for every web search.
-triggers: research, research online, look up, look into, look online, find out, investigate, compare, comparison, what are the options, best option, which is better, latest, current, up to date, is it true, is this true, is that real, verify, fact check, fact-check, check online, search the web, web search, search online, google it, duckduckgo, find sources, what do we know, what do i know, remind me, what did we decide, what was, what is our, look in the project, according to, based on what we have, summarize what we know
+triggers: research, research online, look up, look into, look online, find out, compare, comparison, what are the options, best option, which is better, latest version, current version, up to date, is it true, is this true, is that real, verify this, verify the claim, fact check, fact-check, check online, search the web, web search, search online, google it, duckduckgo, find sources, what do we know, what do i know, what did we decide, what was decided, what is our policy, look in the project, according to, based on what we have, summarize what we know
 ---
 # Research: facts that are real
 
@@ -15,6 +15,7 @@ One rule covers every situation: **every fact in the answer traces to a source r
 | One quick fact for the work at hand, like a library's docs or a command's flags. Not in a knowledge project | **B** |
 | Research, comparisons, "is it true", anything the user will rely on or the project will record. Every web lookup in a knowledge project | **C** |
 | No built-in web search, or a second engine to cross-check | [search-tool.md](search-tool.md) |
+| Learning from people: interviews, surveys, usability tests, or turning their notes and feedback into findings | The **user-research** library skill (it uses **D** and **E** below) |
 
 Then always **D** (did I make that up?), and in a knowledge project, **E** (record it).
 
@@ -100,4 +101,5 @@ for anything that changes), the sources in `docs/knowledge/SOURCES.md`. A delive
 - Scope mix-ups: another country, model year or version.
 - Stopping at the first answer that sounds right. Search for the opposite before deciding.
 
-The search tool part is inspired by "duckduckgo-search" in NousResearch/hermes-agent (MIT, see LICENSE and [SOURCE.md](SOURCE.md)); the rest is our own.
+The search tool part is inspired by "duckduckgo-search" in NousResearch/hermes-agent (MIT, see LICENSE). Details in
+[SOURCE.md](SOURCE.md). The rest is our own.
