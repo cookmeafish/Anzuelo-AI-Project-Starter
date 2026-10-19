@@ -47,7 +47,9 @@ const toolCmds = [
   ...(has(/pubspec\.yaml$/) ? (manifests.some(m => /pubspec\.yaml$/.test(m) && /\bflutter\s*:/.test(readOf(m))) ? ['flutter analyze', 'flutter test'] : ['dart analyze', 'dart test']) : []),
   ...(has(/\.(csproj|sln)$/) ? ['dotnet build', 'dotnet test'] : [])
 ];
-const knowledge = n.notes + n.data >= Math.max(5, n.code);
+// notebooks next to data files mean analysis and results to keep, not only code
+// (Lesson: an ML project with a notebook and a dataset was suggested the app pack alone)
+const knowledge = n.notes + n.data >= Math.max(5, n.code) || (n.data > 0 && files.some(f => /\.ipynb$/i.test(f.p)));
 const suggest = {
   kind: software && knowledge ? 'both' : software ? 'software' : 'knowledge',
   visual: n.visual + appUi > 0 ? `yes (${n.visual + appUi} web, app or game screen files)` : 'no',

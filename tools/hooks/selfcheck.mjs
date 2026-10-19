@@ -476,19 +476,19 @@ const STOP = [
     files: { 'docs/guide.md': '# Guide\nHow to start.\n## Related\n- [Brief](BRIEF.md)', 'docs/CHANGELOG.md': 'x', 'docs/DECISIONS.md': '# Decisions\n## Upgrade review (2026-10-18)\n- skill: orchestrate: declined - this project never runs long multi-agent jobs\n- rule: Plain writing for everything the user reads: adopted - Worth it: clearer answers / none\n' },
     answer: 'Playbook: project.md. Added the guide.' + FIN, expect: { block: false } },
   // skills learn from misses
-  { name: 'skill-learn: the followed skill\'s own check failed earlier this turn, no lesson written: blocked', prompt: 'debug the failing import', tools: [sk('debug')], files: { 'notes/import.md': 'x', 'docs/CHANGELOG.md': 'x' },
+  { name: 'skill-learn: the followed skill\'s own check failed earlier this turn, no lesson written: blocked', prompt: 'debug the failing import', tools: [sk('debug')], files: { 'scratch-work/import.md': 'x', 'docs/CHANGELOG.md': 'x' },
     active: true, blocks: 1, failed: ['debug-root-cause'], answer: 'Skill: debug. Root cause: the date parser.' + FIN, expect: { block: true, tags: ['skill-learn'] } },
-  { name: 'skill-learn: a complaint with no failed check of the skill demands no lesson: passes', prompt: 'you forgot the logs, debug the failing import', tools: [sk('debug')], files: { 'notes/import.md': 'x', 'docs/CHANGELOG.md': 'x' },
+  { name: 'skill-learn: a complaint with no failed check of the skill demands no lesson: passes', prompt: 'you forgot the logs, debug the failing import', tools: [sk('debug')], files: { 'scratch-work/import.md': 'x', 'docs/CHANGELOG.md': 'x' },
     answer: 'Skill: debug. Root cause: the date parser.' + FIN, expect: { not: ['skill-learn'] } },
-  { name: 'skill-learn: another check failed, not the followed skill\'s own: no lesson demanded', prompt: 'debug the failing import', tools: [sk('debug')], files: { 'notes/import.md': 'x', 'docs/CHANGELOG.md': 'x' },
+  { name: 'skill-learn: another check failed, not the followed skill\'s own: no lesson demanded', prompt: 'debug the failing import', tools: [sk('debug')], files: { 'scratch-work/import.md': 'x', 'docs/CHANGELOG.md': 'x' },
     active: true, blocks: 1, failed: ['finished-summary'], answer: 'Skill: debug. Root cause: the date parser.' + FIN, expect: { block: false, not: ['skill-learn'] } },
   { name: 'skill followed, user complains, lesson written into the skill: passes', prompt: 'you forgot the logs, debug the failing import', tools: [sk('debug'), pb('project'), bash('node tools/audit.mjs')],
-    files: { 'notes/import.md': 'x', 'docs/CHANGELOG.md': 'x', 'skills/debug/references.md': '# refs\n- Pitfall: read the logs first.' },
+    files: { 'scratch-work/import.md': 'x', 'docs/CHANGELOG.md': 'x', 'skills/debug/references.md': '# refs\n- Pitfall: read the logs first.' },
     answer: 'Skill: debug. Playbook: project.md. Root cause: the date parser.\nLearned (lesson): read the logs before guessing → skills/debug/references.md' + FIN, expect: { block: false } },
   { name: 'skill followed after a blocked draft, not its fault: passes with a stated reason', prompt: 'debug the failing import', tools: [sk('debug')], drafts: ['Fixed it.'],
-    files: { 'notes/import.md': 'x', 'docs/CHANGELOG.md': 'x' }, answer: 'Skill: debug. Root cause: the date parser.\nSkill lesson: none - the draft only lacked its summary.' + FIN, expect: { block: false } },
+    files: { 'scratch-work/import.md': 'x', 'docs/CHANGELOG.md': 'x' }, answer: 'Skill: debug. Root cause: the date parser.\nSkill lesson: none - the draft only lacked its summary.' + FIN, expect: { block: false } },
   { name: 'skill followed after a blocked draft, the skill\'s own check failed, no lesson: blocked', prompt: 'debug the failing import', tools: [sk('debug')], drafts: ['Fixed it.'], active: true, blocks: 1, failed: ['debug-root-cause', 'finished-summary'],
-    files: { 'notes/import.md': 'x', 'docs/CHANGELOG.md': 'x' }, answer: 'Skill: debug. Root cause: the date parser.' + FIN, expect: { block: true, tags: ['skill-learn'] } },
+    files: { 'scratch-work/import.md': 'x', 'docs/CHANGELOG.md': 'x' }, answer: 'Skill: debug. Root cause: the date parser.' + FIN, expect: { block: true, tags: ['skill-learn'] } },
   { name: 'GUI files changed in a project without the gui pack: blocked', prompt: 'add a small status page', files: { 'site/index.html': '<h1>x</h1>', 'docs/CHANGELOG.md': 'x' },
     edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), packs: ['knowledge'] }) }, answer: 'Playbook: plan.md' + FIN, expect: { block: true, tags: ['gui-pack'], not: ['gui-review-loop'] } },
   { pack: 'gui', name: 'GUI changed, no screenshots: blocked', prompt: 'make the dashboard page look cleaner', tools: [pb('gui')], files: { 'site/index.html': '<h1>x</h1>', 'docs/CHANGELOG.md': 'x' },
@@ -933,7 +933,7 @@ STOP.push(
     tools: [pb('project'), bash('node tools/hooks/selfcheck.mjs'), bash('node tools/audit.mjs')],
     files: { ...MEM, 'CLAUDE.md': TWIN + '\n- Questions to the user use the fixed form, e.g. "Question for you: keep the old setting so the nightly job keeps working?" (2026-10-18).\n', 'docs/checks/user-requirements.md': 'row', 'tools/hooks/requirements.json': '{"requirements":[]}', 'docs/CHANGELOG.md': 'x' },
     answer: 'Playbook: project.md. hook: N/A judgment.' + FIN, expect: { block: false, not: ['no-verbatim-examples'] } },
-  { name: 'skill-learn: rewording for a wording check is not a miss of the followed skill: no lesson demanded', prompt: 'debug the failing import', tools: [sk('debug')], files: { 'notes/import.md': 'x', 'docs/CHANGELOG.md': 'x' },
+  { name: 'skill-learn: rewording for a wording check is not a miss of the followed skill: no lesson demanded', prompt: 'debug the failing import', tools: [sk('debug')], files: { 'scratch-work/import.md': 'x', 'docs/CHANGELOG.md': 'x' },
     active: true, blocks: 2, failed: ['no-verbatim-examples', 'plain-writing'], answer: 'Skill: debug. Root cause: the date parser.' + FIN, expect: { block: false, not: ['skill-learn'] } },
   // the Stop message stays short for the user; the full steps are one command away
   { name: 'stop message: one short line per step, the details in "hooks.mjs why"', prompt: 'build me a weekly cleaning rota', files: { 'docs/rota.md': 'r', 'tools/extra.mjs': 'export {};\n' }, answer: 'Done.',
@@ -1960,6 +1960,9 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
     const problems = () => spawnSync(process.execPath, ['--input-type=module', '-e', `import { gitignoreProblems } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; console.log(JSON.stringify(gitignoreProblems()));`], { cwd: dir, encoding: 'utf8' }).stdout;
     const good = fs.readFileSync(path.join(dir, '.gitignore'), 'utf8');
     g('init', '-q');
+    // a vault the project keeps in git owns its .obsidian settings, so the copy tracks them too
+    // (Lesson: in an adopted vault the starter's .gitignore "missed" .obsidian/app.json)
+    if ((spawnSync('git', ['ls-files', '.obsidian'], { cwd: ROOT, encoding: 'utf8' }).stdout || '').trim()) g('add', '-f', '.obsidian');
     fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n');
     const weak = problems();
     const push = spawnSync(process.execPath, ['tools/hooks/hooks.mjs', 'pretool'], { cwd: dir, encoding: 'utf8', input: JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'git push origin dev' } }) }).stdout;

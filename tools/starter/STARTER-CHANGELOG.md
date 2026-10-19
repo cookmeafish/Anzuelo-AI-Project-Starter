@@ -82,6 +82,9 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
   - **Smaller fixes:** "reply to this email" is not an OK to send; drafts in `outputs/drafts/` are not deliverables;
     the Obsidian checks read `knowledgeDirs`; dry runs (`cargo publish --dry-run`) pass the publish gate; every
     stop step shows in round 1.
+  - **Adopted vaults pass their own self-tests**: the tests no longer use a folder name a project's notes can claim, and
+    a vault that tracks `.obsidian/` keeps it tracked in the test copy. The survey suggests the knowledge pack too when
+    notebooks sit next to data. Monorepos set `--version-file "packages/*/package.json"` (SETUP-PROMPT says so).
 - 2026-10-19 (later): Fixes from the same project's next upgrade.
   - **No false "kept your edited version".** An older shipped check is not a local edit. The starter now ships
     `tools/hooks/engine-checks-history.json`, the fingerprint of every version of every check it ever released
