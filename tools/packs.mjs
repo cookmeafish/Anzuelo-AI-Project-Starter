@@ -13,7 +13,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { starterSources, findLibrary, setupCompleteness, usageOf } from './hooks/hooks.mjs';
+import { starterSources, findLibrary, setupCompleteness, usageOf, flushEngineWrites } from './hooks/hooks.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PACKS = path.join(ROOT, 'packs');
@@ -83,7 +83,7 @@ function install(names) {
   setupGate();
   const all = available();
   const cfg = rj(CONFIG, {});
-  const reqs = rj(REQS, { requirements: [] });
+  const reqs = rj(REQS, { requirements: [] }), copied = [];
   for (const n of names) {
     const p = all.find(x => x.name === n);
     if (!p) { console.log(`unknown pack "${n}". Available: ${all.map(x => x.name).join(', ') || '(none: payloads were pruned; reinstall from the starter)'}`); process.exit(1); }
@@ -92,6 +92,7 @@ function install(names) {
       if (fs.existsSync(to)) { console.log(`kept     ${f} (exists)`); continue; }
       fs.mkdirSync(path.dirname(to), { recursive: true });
       fs.copyFileSync(path.join(p.src, 'files', f), to);
+      copied.push(f.split(path.sep).join('/'));
       console.log(`added    ${f}`);
     }
     for (const [k, v] of Object.entries(p.config || {})) cfg[k] = Array.isArray(v) ? mergeArrays(cfg[k], v) : (cfg[k] ?? v);
@@ -106,6 +107,9 @@ function install(names) {
   wj(CONFIG, cfg);
   wj(REQS, reqs);
   wj(REGISTRY, registry());
+  // the starter's own files, copied as they are: not the agent's new work (no skill-reuse, note-linked or name-var on
+  // them). Lesson: installing the app pack asked to search for existing skills for the runbooks it had just copied.
+  try { flushEngineWrites(copied); } catch { }
   // a new pack can make library skills fit (gui → frontend-design): name them, so nothing that fits is missed
   const lib = findLibrary();
   const fits = lib ? rj(path.join(lib.dir, 'catalog.json'), { skills: [] }).skills.filter(e => names.includes(e.for) && !fs.existsSync(path.join(ROOT, 'skills', e.name, 'SKILL.md'))) : [];

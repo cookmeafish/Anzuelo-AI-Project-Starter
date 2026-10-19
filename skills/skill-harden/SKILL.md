@@ -33,5 +33,5 @@ there and keep the project copy. Note both in CHANGELOG.
 Sharing skills with another project, a person or another AI agent as a bundle is the **skill-curate** skill's §4.
 
 ## 4. Verify
-Run `node tools/hooks/hooks.mjs sync`, `node tools/hooks/selfcheck.mjs` and `node tools/audit.mjs`. Add a CHANGELOG
+Run `node tools/hooks/hooks.mjs sync`, `node tools/hooks/selfcheck.mjs --tags <its checks>` and `node tools/audit.mjs`. Add a CHANGELOG
 line.

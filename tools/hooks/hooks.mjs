@@ -115,7 +115,7 @@ const DEFAULTS = {
   guiIgnore: ['.cache/**', 'packs/**', 'library/**', '.starter/**', 'skills/**', 'node_modules/**', 'dist/**', 'build/**', 'docs/**', 'sources/**', 'inbox/**', '**/*.md', '**/__pycache__/**', 'tools/hooks/**'],
   // Files where a name from docs/names.json may be typed out: history, licenses and credits keep the names of their day,
   // toolchain manifests can't read another file, and the hook tests use made-up names as fixtures.
-  namesIgnore: ['**/CHANGELOG*.md', '**/STARTER-CHANGELOG.md', '**/LICENSE*', '**/SOURCE*', '**/*.lock', '**/package-lock.json', '**/package.json', '**/pyproject.toml', '**/Cargo.toml', 'tools/hooks/selfcheck.mjs', 'tools/hooks/project-scenarios.mjs', '.cache/**', 'tools/hooks/state/**', '.claude/skills/**', '.claude/settings*.json', '.codex/**', '.gemini/**', '.cursor/**', '.agents/**', '.obsidian/**'],
+  namesIgnore: ['**/CHANGELOG*.md', 'docs/DECISIONS.md', 'docs/fit-checklist.md', 'docs/releases/**', '**/STARTER-CHANGELOG.md', '**/LICENSE*', '**/SOURCE*', '**/*.lock', '**/package-lock.json', '**/package.json', '**/pyproject.toml', '**/Cargo.toml', 'tools/hooks/selfcheck.mjs', 'tools/hooks/project-scenarios.mjs', '.cache/**', 'tools/hooks/state/**', '.claude/skills/**', '.claude/settings*.json', '.codex/**', '.gemini/**', '.cursor/**', '.agents/**', '.obsidian/**'],
   guiShotDir: '.cache/gui-review',
   guiShotCommand: 'screenshot\\.mjs',
   guiMaxRounds: 10,
@@ -194,6 +194,9 @@ const DEFAULTS = {
   ruleRequest: "update (the|this|your|ur) project|from now on|going forward|\\bremember (to|that|this)\\b|\\bmandatory\\b|make (it|this|that) a (rule|requirement)|\\b(always|never) (do|make|use|check|include|ask|tell|run|add|keep|start|end|read|write|put|give|show|create|follow|save|delete|send)\\b|never .{0,40} again|don'?t ever|stop doing|i shouldn'?t have to (tell|remind)",
   // A complaint about a miss: like a rule request, it becomes an enforced rule (and the miss itself gets fixed).
   // Lesson: "you forgot the allergens again!!" got a frustration hint, but nothing made it a rule.
+  // A small touch-up: no runbook is needed when it changes at most 2 files (REQ: runbook-exists). Lesson: "fix the typo
+  // in the README" was told to create a runbook, its check and two scenarios.
+  trivial: "\\b(typos?|spelling|misspel\\w*|reword|rephrase|wording|punctuation|capitali[sz]\\w*|whitespace|indentation|formatting|broken link|dead link|fix the link)\\b|\\brename\\s+\\S+\\s+to\\b|\\bchange (the )?(text|title|label|heading|colou?r|date|year|number) (of |on |in |to |from )",
   complaint: "\\byou (forgot|didn'?t|did not|missed|skipped|ignored|left out|keep forgetting|never)\\b|\\b(i|we) (already )?told you\\b|\\bwhy (did|didn'?t|do|does) (you|it) (keep )?\\b|\\bagain\\s*[!?]|\\bnot again\\b|\\bkeeps? (happening|forgetting|missing)\\b",
   // (Lesson: "annoying", "ugh", "why do you keep" and "I keep telling you" were missed, so friction never counted them)
   frustration: "\\bwhy (did|didn'?t|would|do|does) (you|it)( keep)?\\b|\\byou (forgot|didn'?t|ignored|skipped|missed|keep)\\b|\\bi (already |keep )?(told|telling|said|asked) you\\b|\\bagain\\?|\\bwtf\\b|\\bseriously\\b|\\bugh+\\b|\\bannoying\\b|\\bso (frustrating|annoying)\\b|\\bstop (making|asking|doing) me\\b|\\bhow many times\\b|\\bfor the (last|third|nth) time\\b|!!",
@@ -342,8 +345,12 @@ export function userText(prompt) {
   return out.join('\n');
 }
 export const deadTriggers = triggers => triggers.filter(t => !/\s/.test(String(t).trim()) && !keyWords(t).some(w => !GENERIC.has(w)));
+// Quoted material is what the request is about, not the request: code fences, "> " quote lines and long quoted
+// passages don't route. Lesson: "reply to this customer: 'the app keeps crashing when I log in'" routed to bugfix.
+export const unquoted = s => String(s || '').replace(/```[\s\S]*?(```|$(?![\s\S]))/g, ' ').replace(/^\s*>.*$/gm, ' ')
+  .replace(/(["“'‘])([^"”'’\n]{40,})(["”'’])/g, ' ');
 export function route(prompt, pbs) {
-  const text = userText(prompt);
+  const text = unquoted(userText(prompt));
   if (OPINION.test(text)) return [];
   const low = ` ${text.toLowerCase()} `;
   const words = new Set(keyWords(low));
@@ -1706,6 +1713,9 @@ export function fitReasonProblem(reason) {
   if (/worth it\s*:/i.test(r) && !/worth it\s*:\s*\S[^/]*\/\s*\S/i.test(r)) return '"Worth it:" needs "<gain> / <cost>"';
   return '';
 }
+// The "later - when: <condition>" tail of a reason, cut before the reason is judged. Only a "when:" that starts the
+// text, follows "later" or follows punctuation counts. Lesson: "Recommend when: ..." quoted from the catalog was cut too.
+export const FIT_WHEN_TAIL = /(?:^|\blater\s*-?\s*|[-.;,(]\s*)when:.*$/i;
 // Every problem with the checklist, as "<kind> <item>: <what to do>". [] means FIT: PASS.
 export function fitProblems(cfg = config(), { sv = null, text = null } = {}) {
   if (text == null && !exists(FIT_FILE)) return [`${FIT_FILE} is missing: run node tools/fit.mjs, then decide every row`];
@@ -1727,7 +1737,7 @@ export function fitProblems(cfg = config(), { sv = null, text = null } = {}) {
     if (!c) { probs.push(`${at}: no longer a candidate: run node tools/fit.mjs`); continue; }
     if (!d) { probs.push(/^\?*$/.test(r.decision.trim()) ? `${at}: not decided yet (add, skip or "later - when: <condition>", with the reason)` : `${at}: the decision must be add, skip or later`); continue; }
     if (!r.signal || r.signal === '?') probs.push(`${at}: write what the survey, brief or code shows about it in Signal`);
-    const rp = fitReasonProblem(r.reason.replace(/when:.*$/i, '').trim() || r.reason);
+    const rp = fitReasonProblem(r.reason.replace(FIT_WHEN_TAIL, '').trim() || r.reason);
     if (rp) probs.push(`${at}: ${rp}`);
     else if (seen[r.reason.toLowerCase().replace(/\s+/g, ' ').trim()] > 2) probs.push(`${at}: the same reason is used for ${seen[r.reason.toLowerCase().replace(/\s+/g, ' ').trim()]} rows: write one that is about this item`);
     const on = !!c.present(cfg);
@@ -1900,7 +1910,7 @@ function cmdSession(data) {
 
 // ---------- UserPromptSubmit ----------
 // The user handing the work over: "without my input", "don't ask me", "keep going until it's finished", "go go go".
-const AUTONOMY_WORDS = /\bwithout (my|any) (input|approval|questions?|ok)\b|\bdon'?t (ask|bother) me\b|\bno (more )?questions\b|\bkeep going (until|till) (it'?s |you'?re |everything is )?(done|finished|complete)\b|\bgo,? go,? go\b|\bdon'?t stop (until|till|for)\b|\bdecide (everything|for me|yourself)\b/i;
+const AUTONOMY_WORDS = /\bwithout (my|any) (input|approval|questions?|ok)\b|\bdon'?t (ask|bother) me\b|\bno (more )?questions\b|\bkeep going (until|till) (it'?s |you'?re |everything is )?(done|finished|complete)\b|\bgo,? go,? go\b|\bdon'?t stop (until|till|for)\b|\bdecide (everything|for me|yourself)\b|\bdon'?t want to be (bothered|asked|interrupted)\b|\b(handle|do|figure out) (it|this|everything|all of it|the rest) (yourself|on your own|without me)\b|\bwithout checking (in )?with me\b|\bi('?m| am) (going )?(away|offline|out)\b[^\n]{0,40}\b(keep|carry on|continue)\b/i;
 export function promptHints(prompt, cfg = config(), withNotices = true) {
   if (!String(prompt || '').trim() || skipped(prompt)) return []; // REQ: notification-not-prompt
   const p = userText(prompt); // pasted text and the hooks' own output are not the request
@@ -1937,7 +1947,7 @@ export function promptHints(prompt, cfg = config(), withNotices = true) {
   const forced = new Map();
   for (const q of loadRequirements().reqs) {
     if (!q || q.enabled === false || !q.forces || !q.hint || isSuspended(`check:${q.tag}`)) continue;
-    let hit = null; try { hit = re(q.hint).exec(p); } catch { }
+    let hit = null; try { hit = re(q.hint).exec(unquoted(p)); } catch { }
     if (hit && !forced.has(q.forces)) forced.set(q.forces, { q, word: hit[0].trim() });
   }
   for (const [n, { q, word }] of forced) {
@@ -2387,7 +2397,8 @@ export function coreChecks(x, cfg) {
   const META_SKILLS = ['runbook-create', 'skill-finder'];
   const realPb = x.usedPb.filter(pb => !pb.name.startsWith('_')), realSkills = x.usedSkills.filter(s => !META_SKILLS.includes(s.name));
   const realRoute = x.routed.filter(pb => !pb.name.startsWith('_'));
-  if (x.workTurn && x.prompt.trim() && !realRoute.length && !realPb.length && !realSkills.length && !pbChanged.length && !re(cfg.complaint).test(x.prompt))
+  if (x.workTurn && x.prompt.trim() && !realRoute.length && !realPb.length && !realSkills.length && !pbChanged.length && !re(cfg.complaint).test(x.prompt)
+    && !(x.changed.length <= 2 && re(cfg.trivial).test(userText(x.prompt))))
     add('runbook-exists', 'This turn did real work but no runbook covers it and none was created or extended. Use the runbook-create skill: ' +
       'extend the closest runbook in docs/playbooks/ with this case, or create one (frontmatter with triggers, ## Steps, ## Done when) plus a check ' +
       'in tools/hooks/requirements.json, a "blocked" and a "passes" scenario for it in tools/hooks/project-scenarios.mjs (then ' +
@@ -2445,7 +2456,7 @@ export function coreChecks(x, cfg) {
   // Notes: the knowledge base, docs/notes/, and free-standing notes in docs/. Release notes, specs and plans have their
   // own structure, and the starter's own documents are linked from the rules.
   const newNotes = x.changed.filter(p => (/^docs\/(knowledge|notes)\/.+\.md$/i.test(p) || /^docs\/[^/]+\.md$/i.test(p)) &&
-    !/(^|\/)(CHANGELOG|STATUS|MENU|BRIEF|DECISIONS|README|SOURCES|INDEX|security|foundation)\.md$/i.test(p) && exists(p) && bornThisTurn(p, x.since));
+    !/(^|\/)(CHANGELOG|STATUS|MENU|BRIEF|DECISIONS|README|SOURCES|INDEX|security|foundation|fit-checklist|lessons|recommended-tools|user-requirements)\.md$/i.test(p) && exists(p) && bornThisTurn(p, x.since));
   const unlinked = newNotes.filter(p => { const t = read(abs(p)); return !/\]\([^)\s]+\.md(#[^)]*)?\)|\[\[[^\]]+\]\]/.test(t) && !(t.split(/^##\s+Related[^\n]*\n/m)[1] || '').trim(); });
   if (unlinked.length) add('note-linked', `New note${unlinked.length > 1 ? 's' : ''} ${unlinked.slice(0, 4).join(', ')} link${unlinked.length > 1 ? '' : 's'} to nothing. Link each to its related notes (in the text or under "## Related"; ` +
     'node skills/obsidian/scripts/notes.mjs suggest <note> finds candidates), or say under "## Related" why it stands alone (obsidian skill).');

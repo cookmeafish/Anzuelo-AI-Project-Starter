@@ -8,13 +8,14 @@
 //                                       record one decision (add --kind pack|skill|tool|feature when a name is shared)
 //   node tools/fit.mjs decide --file <decisions.json>
 //                                       record many: [{ "item", "kind"?, "decision", "reason", "signal"? }]
-//   node tools/fit.mjs summary          the short line for the user: "Added: ... Skipped: ... (why). Later: ... (when)."
+//   node tools/fit.mjs summary [--all]  the short line for the user: "Added: ... Skipped: ... (why). Later: ... (when)."
+//                                       (skips with no survey evidence are counted, not listed; --all lists them)
 //   node tools/fit.mjs --json           every row with what it is, whether it is in the project, and the survey's signals
 // Rules for each row (docs/checks/better-or-worse.md): add only what makes the project better, and it must really be
 // in the project; skip with a reason that answers any signal the survey found; later with "when: <condition>".
 import fs from 'node:fs';
 import path from 'node:path';
-import { ROOT, read, abs, config, usageOf, FIT_FILE, fitRows, fitCandidates, fitSignals, fitProblems, fitDecision, fitWhenOf, projectSurvey, flushEngineWrites } from './hooks/hooks.mjs';
+import { ROOT, read, abs, config, usageOf, FIT_FILE, fitRows, fitCandidates, fitSignals, fitProblems, fitDecision, fitWhenOf, FIT_WHEN_TAIL, projectSurvey, flushEngineWrites } from './hooks/hooks.mjs';
 
 const args = process.argv.slice(2);
 const VALUED = ['--kind', '--file'];
@@ -52,6 +53,13 @@ function build(sv) {
     // a code tool in a project with no code: decided "later" here, so the AI weighs only what can matter now
     if (!was && noCode) {
       rows.push({ item: c.item, kind: c.kind, signal: auto, decision: 'later - when: the first code file appears', reason: `${c.item} works on code, and this project has no code files yet, so it would only add setup and noise now` });
+      continue;
+    }
+    // already in the project (a pack setup installed, an enabled skill, a feature that is on): decided "add" here, with
+    // what it does as the reason; the AI can still change it. Lesson: installed packs and built-in features were "?" rows.
+    if (!was && c.kind !== 'tool' && c.present(cfg)) {
+      const does = String(c.what || '').split(/(?<=\.)\s/)[0].replace(/\s+/g, ' ').trim();
+      rows.push({ item: c.item, kind: c.kind, signal: `${auto}; already in the project`, decision: 'add', reason: `already in the project and kept (change it if it does not fit): ${does || 'part of how this project works'}` });
       continue;
     }
     rows.push({ item: c.item, kind: c.kind, signal, decision: was ? was.decision : '?', reason: was ? was.reason : '' });
@@ -111,9 +119,18 @@ if (cmd === 'decide') {
 
 if (cmd === 'summary') {
   const rows = fitRows(), of = d => rows.filter(r => fitDecision(r.decision) === d);
-  const short = s => s.replace(/when:.*$/i, '').replace(/\s+/g, ' ').trim().replace(/[.;,]$/, '');
-  const add = of('add').map(r => r.item), skip = of('skip').map(r => `${r.item} (${short(r.reason)})`), later = of('later').map(r => `${r.item} (when: ${fitWhenOf(r)?.text || '?'})`);
-  console.log(`Added: ${add.join(', ') || 'nothing'}. Skipped: ${skip.join('; ') || 'nothing'}. Later: ${later.join('; ') || 'nothing'}.`);
+  const short = s => s.replace(FIT_WHEN_TAIL, '').replace(/\s+/g, ' ').trim().replace(/[.;,]$/, '');
+  // Only skips the survey had evidence for carry their reason; the rest are counted. Lesson: a full list of skips with
+  // reasons was a 1,359-word wall the user had to scroll past. --all prints every skip with its reason.
+  const add = of('add').map(r => r.item), later = of('later'), skips = of('skip');
+  const noted = args.includes('--all') ? skips : skips.filter(r => r.signal && !/^survey:\s*(no direct signal|no code files yet)\s*$/i.test(r.signal));
+  const soon = later.filter(r => !/^the first code file appears$/i.test(fitWhenOf(r)?.text || ''));
+  const parts = [`Added: ${add.join(', ') || 'nothing'}.`];
+  if (noted.length) parts.push(`Skipped: ${noted.map(r => `${r.item} (${short(r.reason)})`).join('; ')}.`);
+  if (skips.length > noted.length) parts.push(`${noted.length ? 'Also skipped' : 'Skipped'} ${skips.length - noted.length} item(s) with no sign of need here.`);
+  if (soon.length) parts.push(`Later: ${soon.map(r => `${r.item} (when: ${fitWhenOf(r)?.text || '?'})`).join('; ')}.`);
+  if (later.length > soon.length) parts.push(`${later.length - soon.length} code tool(s) wait for the first code file.`);
+  console.log(`${parts.join(' ')} Every reason: ${FIT_FILE}.`);
   process.exit(0);
 }
 

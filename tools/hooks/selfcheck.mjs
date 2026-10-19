@@ -201,6 +201,9 @@ const STOP = [
   { name: 'unrouted work turn with no runbook created: blocked', prompt: 'build me a weekly cleaning rota for the flat', files: { 'docs/rota.md': 'rota' }, answer: 'Done.' + FIN,
     expect: { block: true, tags: ['runbook-exists'] } },
   // Lesson: following _fallback.md (as NO RUNBOOK says) counted as a runbook used, and no runbook was left behind
+  // Lesson: "fix the typo in the README" was told to create a runbook, a check and two scenarios
+  { name: 'runbook-exists: a typo fix in one file needs no runbook: passes', prompt: 'fix the typos in the rota note', files: { 'docs/rota.md': 'rota' }, answer: 'Fixed the typos.' + FIN,
+    expect: { not: ['runbook-exists'] } },
   { name: 'runbook-exists: _fallback followed but no runbook left behind: blocked', prompt: 'build me a weekly cleaning rota for the flat', tools: [pb('_fallback')], files: { 'docs/rota.md': 'rota' }, answer: 'Playbook: _fallback.md. Done.' + FIN,
     expect: { block: true, tags: ['runbook-exists'] } },
   // the Stop hook's form per host: calm feedback where the host supports it (Claude Code sets CLAUDE_PROJECT_DIR for its
@@ -1104,6 +1107,9 @@ PRETOOL.push(
 PROMPT.push(
   { name: 'event-hint: a request about sign-in names the security review before work starts', prompt: 'add a login page with passwords', has: ['MUST FOLLOW: security-review'] },
   { name: 'event-hint: an ordinary request gets no MUST FOLLOW', prompt: 'tidy up the readme wording', hasNot: ['MUST FOLLOW'] },
+  // Lesson: a customer's words quoted in a reply request routed as if the user had asked for them
+  { name: 'event-hint: a long quote in the request is what it is about, not the request', prompt: 'write a reply to this customer: "I cannot log in with my password since the update, please help me"', hasNot: ['MUST FOLLOW: security-review'] },
+  { name: 'autonomy-hint: "I don\'t want to be bothered" asks to set autonomy auto', prompt: 'I dont want to be bothered, handle the rest yourself', has: ['AUTONOMY'] },
   { name: 'autonomy-hint: "without my input" asks to set autonomy auto', prompt: 'go go go without my input until it is finished', has: ['AUTONOMY'] },
   { name: 'autonomy-hint: already auto, no hint', prompt: 'go go go without my input until it is finished', setupFn: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), autonomy: 'auto' }) }, hasNot: ['AUTONOMY'] }
 );
@@ -1383,6 +1389,17 @@ if (!TAGS) { // the standalone checks run in a full run only
     const row = n => rows.find(l => l.toLowerCase().startsWith(`| ${n} |`)) || '';
     report(r.status === 0 && sv === '0' && /later - when: the first code file appears/.test(row('ruff')) && /\| \? \|/.test(row('vale')),
       'fit: with no code files, code tools are decided "later" and prose tools stay open', `code files ${sv} | ${row('ruff').slice(0, 160)} | ${row('vale').slice(0, 120)}`);
+    // what is already in the project starts as "add"; the summary counts skips with no evidence instead of listing them;
+    // "Recommend when:" in a reason is judged, only a "later - when:" tail is cut
+    const added = rows.filter(l => /\| add \| already in the project and kept/.test(l));
+    const decisions = rows.filter(l => /\| \? \|/.test(l)).map(l => ({ item: l.split('|')[1].trim(), kind: l.split('|')[2].trim(), decision: 'skip', reason: `nothing in this notes project calls for ${l.split('|')[1].trim()}, so it would only add an install and upkeep` }));
+    fs.writeFileSync(path.join(dir, 'decisions.json'), JSON.stringify(decisions));
+    spawnSync(process.execPath, ['tools/fit.mjs', 'decide', '--file', 'decisions.json'], { cwd: dir, encoding: 'utf8' });
+    const sum = spawnSync(process.execPath, ['tools/fit.mjs', 'summary'], { cwd: dir, encoding: 'utf8' }).stdout;
+    const all = spawnSync(process.execPath, ['tools/fit.mjs', 'summary', '--all'], { cwd: dir, encoding: 'utf8' }).stdout;
+    const tail = JSON.parse(spawnSync(process.execPath, ['--input-type=module', '-e', `import { FIT_WHEN_TAIL as T } from ${H}; console.log(JSON.stringify(['Recommend when: a team shares the repo, so it helps', 'later - when: 30 files', 'it helps; when: 30 files'].map(s => s.replace(T, '').trim())))`], { cwd: dir, encoding: 'utf8' }).stdout || '[]');
+    report(added.length > 0 && /item\(s\) with no sign of need here/.test(sum) && sum.split(/\s+/).length < all.split(/\s+/).length / 2 && tail[0]?.startsWith('Recommend when:') && tail[1] === '' && tail[2] === 'it helps',
+      'fit: what is already in the project starts as add, the summary stays short, and only a later-when tail is cut', `${added.length} add rows | ${sum.split(/\s+/).length} vs ${all.split(/\s+/).length} words | ${JSON.stringify(tail)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 

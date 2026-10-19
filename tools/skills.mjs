@@ -15,7 +15,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { ROOT, config, syncAll, findLibrary, CORE_SKILLS, today, usageOf } from './hooks/hooks.mjs';
+import { ROOT, config, syncAll, findLibrary, CORE_SKILLS, today, usageOf, flushEngineWrites } from './hooks/hooks.mjs';
 
 const cfg = config();
 const dir = n => path.join(ROOT, cfg.skillsDir, n);
@@ -72,6 +72,8 @@ else if (cmd === 'recommended') {
     const from = path.join(findLibrary()?.dir || path.join(ROOT, 'library'), 'skills', n);
     if (!fs.existsSync(path.join(from, 'SKILL.md'))) { console.error(`no library skill "${n}". See: node tools/skills.mjs library`); process.exitCode = 1; continue; }
     fs.cpSync(from, dir(n), { recursive: true });
+    // copied from the library as it is: not the agent's own new skill (no skill-reuse or name-var on it)
+    try { const walk = d => fs.readdirSync(d, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(d, e.name)) : [path.relative(ROOT, path.join(d, e.name)).split(path.sep).join('/')]); flushEngineWrites(walk(dir(n))); } catch { }
     // its checks come with it: the skill routes by its own triggers and the Stop hook proves it was followed
     const reqs = (libraryCatalog().find(e => e.name === n) || {}).requirements || [];
     const added = setRequirements(reqs.map(r => ({ ...r, skill: n })), []);

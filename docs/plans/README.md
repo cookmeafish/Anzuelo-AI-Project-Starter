@@ -6,7 +6,8 @@ Written with the plan skill (`skills/plan/SKILL.md`).
 
 ## The files
 - One file per plan: `YYYY-MM-DD-<topic>.md`.
-- Each task has checkbox steps. A ticked box (`- [x]`) is done; an empty one (`- [ ]`) is not.
+- Each task is a `### Task N: <name>` heading (the form `plan-tasks.mjs` reads) with checkbox steps under it. A
+  ticked box (`- [x]`) is done; an empty one (`- [ ]`) is not.
 - Changes of course are dated notes inside the plan, so a later reader knows why the result differs from the plan.
 
 ## Open or closed: the status line

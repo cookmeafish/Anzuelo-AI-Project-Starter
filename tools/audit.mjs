@@ -124,7 +124,12 @@ sweep('runbooks are well-formed, routed and checked', () => {
   }
   const by = {};
   for (const pb of pbs) for (const t of pb.triggers) (by[t] ||= []).push(pb.name);
-  for (const [t, names] of Object.entries(by)) if (names.length > 1) warn.push(`trigger "${t}" is shared by ${names.join(', ')} (add a precedence line in DIRECTORY.md or make it specific)`);
+  // a trigger listed twice in one runbook is a typo there, not a clash between runbooks
+  for (const [t, names] of Object.entries(by)) {
+    const uniq = [...new Set(names)];
+    for (const n of uniq) if (names.filter(x => x === n).length > 1) warn.push(`trigger "${t}" is listed twice in runbook ${n} (remove one)`);
+    if (uniq.length > 1) warn.push(`trigger "${t}" is shared by ${uniq.join(', ')} (add a precedence line in DIRECTORY.md or make it specific)`);
+  }
   for (const pb of pbs) for (const t of pb.triggers) if (t.length < 4 && !/\s/.test(t) && !/^(qa|ui|gui|css|xss|fps|bug)$/.test(t)) warn.push(`${pb.file}: trigger "${t}" is very short and may match unrelated messages`);
   // one common word ("looks", "fix") never routes: the router skips it. Lesson: the gui runbook's "looks" matched nothing.
   for (const item of [...pbs, ...routableSkills(cfg)]) for (const t of deadTriggers(item.triggers || [])) warn.push(`${item.file}: trigger "${t}" is one common word, so it never routes: make it a phrase ("looks bad") or a specific word`);

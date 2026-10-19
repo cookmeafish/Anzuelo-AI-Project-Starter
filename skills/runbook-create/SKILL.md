@@ -48,4 +48,5 @@ Other evidence: `answerMatches` (a required answer section), `toolPassed` (a val
 - Add a menu code in `docs/MENU.md` if the task will be common, and a precedence line in `DIRECTORY.md` if it overlaps
   another runbook.
 - Test the routing: `node tools/hooks/selfcheck.mjs --route "<the user's original message>"` must show the runbook.
-- Run `node tools/hooks/selfcheck.mjs` and `node tools/audit.mjs`. Add a CHANGELOG line. Name the runbook in the answer.
+- Run `node tools/hooks/selfcheck.mjs --tags <its checks>` (only the scenarios for what changed; the Stop hook names the
+  tags) and `node tools/audit.mjs`. Add a CHANGELOG line. Name the runbook in the answer.
