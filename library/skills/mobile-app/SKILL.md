@@ -1,7 +1,7 @@
 ---
 name: mobile-app
 description: Builds and ships phone apps (Flutter, React Native and Expo, SwiftUI, Jetpack Compose) safely. Code changes are followed by the platform's analyzer and tests; screens are checked on an emulator or simulator at small and large phone sizes in light and dark mode; permissions are asked only when needed with a plain reason; offline and slow-network states are handled; the version and build number are bumped together; signing keys stay out of the repository; and store releases are prepared as drafts the user submits. Use when the project is a mobile app and the user asks for a screen, a mobile bug, a permission, push notifications, offline mode, an app icon or splash screen, an Android or iOS build, or a store release.
-triggers: mobile app, phone app, flutter, react native, expo app, swiftui, jetpack compose, android, ios, iphone app, android build, ios build, android emulator, ios simulator, apk, app bundle, testflight, play store, app store, app icon, splash screen, push notification, runtime permission, offline mode, keystore, build number
+triggers: mobile app, phone app, flutter, react native, expo app, swiftui, jetpack compose, android, ios, iphone app, android build, ios build, android emulator, ios simulator, apk, app bundle, testflight, play store, app store, app icon, splash screen, push notification, runtime permission, offline mode, keystore, build number, iphone build, android version
 ---
 # Mobile app: works on a real phone, ships as a draft
 

@@ -11,7 +11,7 @@ import {
   ROOT, read, abs, exists, frontmatter, playbooks, skillProblems, playbookProblems, knowledgeProblems, config,
   loadRequirements, usage, hardenDue, menu, runbookHasCheck, generatedSkill, directoryBlock, staleKnowledge,
   setupProblems, upgradeProblems, bench, gitignoreProblems, writingProblems, aiAttributedCommits, BASE_REQUIREMENTS, routableSkills, skillHasCheck, curateDue,
-  FIT_FILE, fitProblems, fitRows, fitDecision, fitWhenOf, doneWhenItems, DONE_LABEL, findLibrary, secretHit, mirrorText, logRun, testInputsHash, deadTriggers, rulesText
+  FIT_FILE, fitProblems, fitRows, fitDecision, fitWhenOf, doneWhenItems, DONE_LABEL, findLibrary, secretHit, mirrorText, logRun, testInputsHash, deadTriggers, rulesText, route
 } from './hooks/hooks.mjs';
 
 const cfg = config();
@@ -132,7 +132,15 @@ sweep('runbooks are well-formed, routed and checked', () => {
   }
   for (const pb of pbs) for (const t of pb.triggers) if (t.length < 4 && !/\s/.test(t) && !/^(qa|ui|gui|css|xss|fps|bug)$/.test(t)) warn.push(`${pb.file}: trigger "${t}" is very short and may match unrelated messages`);
   // one common word ("looks", "fix") never routes: the router skips it. Lesson: the gui runbook's "looks" matched nothing.
-  for (const item of [...pbs, ...routableSkills(cfg)]) for (const t of deadTriggers(item.triggers || [])) warn.push(`${item.file}: trigger "${t}" is one common word, so it never routes: make it a phrase ("looks bad") or a specific word`);
+  // Any other trigger that cannot route even when typed as the whole message ("fix it": common words, one key word) only
+  // backs up another match. Lesson: the sweep checked single words only, and such phrases sat unnoticed in triggers.
+  for (const item of [...pbs, ...routableSkills(cfg)]) {
+    if (item.fm.trigger_regex && !item.triggerRe && !pbs.includes(item)) fail.push(`${item.file}: trigger_regex does not compile`);
+    const dead = new Set(deadTriggers(item.triggers || []));
+    for (const t of dead) warn.push(`${item.file}: trigger "${t}" is one common word, so it never routes: make it a phrase ("looks bad") or a specific word`);
+    for (const t of (item.triggers || []).filter(t => !dead.has(t) && !route(t, [{ ...item, name: '', triggerRe: null }]).length)) // (unnamed: a suspension doesn't count here)
+      warn.push(`${item.file}: trigger "${t}" does not route even when typed alone (common words only back up another match): name the user's thing ("fix this") or use a specific word`);
+  }
   return { fail, warn, note: `${pbs.length} runbooks` };
 });
 
@@ -203,7 +211,9 @@ sweep('references point at real files, commands and skills', () => {
       if (pm && !real(pm[1])) fail.push(`${f}: \`${t}\` does not exist`);
       const cm = /^node\s+((?:tools|skills)\/[\w./-]+\.mjs)(?:\s+([a-z][\w-]*))?/.exec(t);
       if (cm && !real(cm[1])) fail.push(`${f}: \`${t}\`: ${cm[1]} does not exist`);
-      else if (cm && cm[2] && exists(cm[1])) { const src = read(abs(cm[1])); if (!src.includes(`'${cm[2]}'`) && !src.includes(`"${cm[2]}"`)) fail.push(`${f}: \`${t}\`: ${cm[1]} has no "${cm[2]}" command`); }
+      // the word after the script is a subcommand only when the script dispatches on one and the word is no path here
+      // (Lesson: `node .../continuity.mjs chapters outline.md` failed: "chapters" is a folder, the script has no commands)
+      else if (cm && cm[2] && exists(cm[1]) && !exists(cm[2])) { const src = read(abs(cm[1])); if (/argv\[2\]|\b(cmd|command|sub|mode)\s*===?\s*['"]/.test(src) && !src.includes(`'${cm[2]}'`) && !src.includes(`"${cm[2]}"`)) fail.push(`${f}: \`${t}\`: ${cm[1]} has no "${cm[2]}" command`); }
     }
     for (const m of text.matchAll(/\*\*([a-z][a-z0-9-]+)\*\* skill|\bthe ([a-z][a-z0-9]+(?:-[a-z0-9]+)+) skill\b/g))
       if (!skillNames.has(m[1] || m[2])) fail.push(`${f}: names the skill "${m[1] || m[2]}", which does not exist`);

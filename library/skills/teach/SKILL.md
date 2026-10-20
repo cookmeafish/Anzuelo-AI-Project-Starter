@@ -1,7 +1,7 @@
 ---
 name: teach
 description: Helps the user understand something well enough to explain it and do it on their own, instead of handing over the answer. It finds what the user already knows, teaches one small step at a time with examples, checks understanding with a question each turn, fades help as the user improves, makes quizzes, flashcards and study guides that make the user recall, keeps every fact sourced, and teaches rather than does graded work. Use when the user wants to learn, understand, practice or study a concept, method, topic or material, not for ordinary tasks, quick facts or opinions.
-triggers: teach me, explain how, explain why, help me understand, i want to learn, i want to understand, how does it work, why does it work, walk me through, i don't get it, i don't understand, quiz me, test me, flashcards, study guide, help me study, practice questions, exam prep, tutor me
+triggers: teach me, explain how, explain why, help me understand, i want to learn, i want to understand, how does it work, why does it work, walk me through, i don't get it, i don't understand, quiz me, test me on, flashcards, study guide, help me study, practice questions, exam prep, tutor me, teach, quiz, tutor, i dont get, dont understand
 ---
 # Teach: understanding the user can show
 

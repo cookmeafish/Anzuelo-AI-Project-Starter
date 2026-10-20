@@ -1,7 +1,7 @@
 ---
 name: routines
 description: Turns requests for recurring work ("every Monday", "each month", "every morning") into a routine the project really keeps - a runbook for the job, a row in docs/routines.md that the session hook announces when it is due, and a script that lists, checks and marks routines done - and says honestly what starts each run (a session being opened, or an operating system scheduler the user agrees to). Use when the user asks for something to happen regularly or on a schedule, asks which routines exist or are due, or a routine was just run.
-triggers: every monday, every tuesday, every wednesday, every thursday, every friday, every saturday, every sunday, every morning, every evening, every weekday, every week, every month, each week, each month, once a week, once a month, first of the month, run weekly, run daily, run monthly, recurring task, recurring job, on a schedule, remind me every, routines due, due routines, overdue routines, what routines, mark the routine done
+triggers: every monday, every tuesday, every wednesday, every thursday, every friday, every saturday, every sunday, every morning, every evening, every weekday, every week, every month, each week, each month, once a week, once a month, first of the month, run weekly, run daily, run monthly, recurring task, recurring job, on a schedule, remind me every, routines due, due routines, overdue routines, what routines, mark the routine done, this monthly, this weekly, this daily, a weekly thing, a monthly thing, a daily thing
 ---
 # Routines: recurring work that really recurs
 

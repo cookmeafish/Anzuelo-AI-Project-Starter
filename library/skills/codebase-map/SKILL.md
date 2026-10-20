@@ -1,7 +1,7 @@
 ---
 name: codebase-map
 description: Builds a map of an unfamiliar or large codebase (entry points, modules and how they depend on each other, functional areas, data flow, key call paths, hot spots from git history, and where to change what) with whatever tools are at hand, including two zero-install scripts for the import graph and git hot spots, and saves it to docs/codebase-map.md so later sessions start from the map instead of re-reading the code. Use when joining an existing project, before a change that crosses several modules (to see what it can break), when nobody can say where something lives, or when the saved map is older than the code.
-triggers: map the codebase, codebase map, architecture overview, find my way around, explain the code structure, dependency graph, how is this codebase organized
+triggers: map the codebase, codebase map, architecture overview, find my way around, explain the code structure, dependency graph, how is this codebase organized, tour of the code, where does the logic live
 ---
 # Codebase map: understand the code once, reuse it every session
 

@@ -1,7 +1,7 @@
 ---
 name: package-release
 description: Prepares a library or command-line tool for a package registry (npm, PyPI, crates.io, pub.dev, NuGet, RubyGems, Maven Central) the safe way. Decides the semantic version from what changed for users, writes the changelog entry, checks the public API for breaking changes, previews the package contents with a dry run, keeps the minimum supported language version honest, and publishes only with the user's OK. Use when a published package gets a new version, when the public API of a library changes, or when the user asks to publish a package, choose the version number, check for breaking changes, yank a release or see what goes into the package.
-triggers: publish the crate, publish to npm, publish to pypi, publish to crates.io, publish to pub.dev, publish to nuget, publish the package, publish the library, cargo publish, npm publish, twine upload, semver, semantic versioning, semver bump, breaking change, public api, changelog entry, yank a release, yank the version, dry run publish, package contents, what goes into the package, minimum supported version, msrv
+triggers: publish the crate, publish to npm, publish to pypi, publish to crates.io, publish to pub.dev, publish to nuget, publish the package, publish the library, cargo publish, npm publish, twine upload, semver, semantic versioning, semver bump, breaking change, public api, changelog entry, yank a release, yank the version, dry run publish, package contents, what goes into the package, minimum supported version, msrv, pypi, crates.io
 ---
 # Package release: the right version, the right contents
 

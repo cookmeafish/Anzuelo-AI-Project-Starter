@@ -1,7 +1,7 @@
 ---
 name: mcp-builder
 description: Designs, builds, tests and documents a Model Context Protocol (MCP) server in any language, so an AI agent can use a service or data source through well-named, well-described tools, resources and prompts. Covers deciding what to expose, tool and schema design, results and paging, errors, security, extending an existing server, testing with an inspector, a tool-definition lint and real agent tasks, and the README. Use when the user wants to connect an agent to an API, database, file set or app, build or extend an MCP server, add MCP tools, resources or prompts, or when an existing server's tools are confusing, unsafe or unreliable.
-triggers: mcp server, mcp tool, mcp, model context protocol, build an mcp
+triggers: mcp server, mcp tool, mcp, model context protocol, build an mcp, to claude as a tool, tool for claude
 ---
 # MCP builder: tools an agent can use well
 

@@ -1,7 +1,7 @@
 ---
 name: modular-code
 description: Keeps an app easy to grow and rename - features live in their own modules with one public entry each, names come from docs/names.json and settings from config files instead of being typed into the code, modules talk through small interfaces and registries so a new feature is added rather than wedged in, and files stay small enough to read. A script checks every changed code file. Use when starting an app, adding a feature, module, screen, service or integration, when a file or function grows large, when the user wants the app to be easy to extend, rename, white-label or reuse, or asks to refactor, split or restructure code.
-triggers: modular, make it modular, easy to extend, easy to expand, app expansion, extensible, plugin system, add a module, new module, split this file, file is too big, god file, refactor into modules, separation of concerns, white label, rebrand the app, rename the app, reusable component, decouple
+triggers: modular, make it modular, easy to extend, easy to expand, app expansion, extensible, plugin system, add a module, new module, split this file, file is too big, god file, refactor into modules, separation of concerns, white label, rebrand the app, rename the app, reusable component, decouple, add new providers
 checks: core modular-code, name-var
 ---
 # Modular code: built to grow and to be renamed

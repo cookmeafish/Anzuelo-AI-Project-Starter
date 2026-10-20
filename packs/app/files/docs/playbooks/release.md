@@ -1,7 +1,8 @@
 ---
 name: release
 summary: Ship a version - gates pass, risky parts checked, rollback plan and triggers decided first, version and release notes, the right branch, no AI attribution, nothing secret, user's OK, then deploy and watch
-triggers: release, ship it, publish, deploy, cut a version, new version, push to main, push to master, merge to main, tag a release, make a build, deploy checklist, ready to deploy, before we deploy, rollback plan
+triggers: release, ship it, publish, deploy, cut a version, new version, push to main, push to master, merge to main, tag a release, make a build, deploy checklist, ready to deploy, before we deploy, rollback plan, onto the app store
+trigger_regex: \b(ship|cut|tag)\s+v?\d+(\.\d+)*\b|\b(push|put|take) (it|this) live\b|\bgo(ing)? live\b
 menu: A4
 ---
 # Playbook: release

@@ -1,7 +1,7 @@
 ---
 name: data-pipeline
 description: Keeps a repeatable data pipeline trustworthy from raw input to reported number. Raw inputs stay untouched and logged, every input is checked against its schema before use (scripts/schema-check.mjs, nothing to install), a schema change is a recorded decision, runs are repeatable and write new outputs, and every reported total is reconciled against the raw data. Use when a project loads, cleans, transforms or totals files (CSV, TSV, JSON, exports, logs) again and again, on a schedule or per batch; when a new batch or export arrives for an existing pipeline; when a column, format or source changes; and when a pipeline total looks wrong. For a one-off question about a dataset use data-analysis.
-triggers: data pipeline, etl, etl job, import job, nightly import, new batch of data, raw data folder, rerun the pipeline, re-run the pipeline, backfill, schema check, check the schema, validate the input, input schema, schema drift, column renamed, new column in the export, export format changed, reconcile the totals, totals don't match, totals do not match
+triggers: data pipeline, etl, etl job, import job, nightly import, new batch of data, raw data folder, rerun the pipeline, re-run the pipeline, backfill, schema check, check the schema, validate the input, input schema, schema drift, column renamed, new column in the export, export format changed, reconcile the totals, totals don't match, totals do not match, totals don't add up
 ---
 # Data pipeline: from raw file to a number you can trace
 

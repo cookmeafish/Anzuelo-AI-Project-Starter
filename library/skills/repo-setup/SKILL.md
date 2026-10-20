@@ -1,7 +1,7 @@
 ---
 name: repo-setup
 description: Gets a freshly cloned or unfamiliar repository to install, build, run and pass its tests locally, for any language or stack. It reads the setup recipe the repo already has (CI config, manifests, lock files, env templates), installs the pinned toolchain and dependencies, creates local env files from templates without inventing secrets, records a test baseline, and writes the result down as one start file plus the app gates. Use when a project is cloned or adopted for the first time, when "it doesn't build on my machine", or before parallel work that needs several working copies.
-triggers: set up the repo, setup repo, clone and run, get it running, install dependencies, run it locally, fresh clone, worktree, worktrees
+triggers: set up the repo, setup repo, clone and run, get it running, install dependencies, run it locally, fresh clone, worktree, worktrees, just cloned
 ---
 # Repo setup: from clone to green, once
 

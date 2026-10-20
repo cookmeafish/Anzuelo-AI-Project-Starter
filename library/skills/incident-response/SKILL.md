@@ -1,7 +1,7 @@
 ---
 name: incident-response
 description: Runs a live-software incident from the first alert to a written post-mortem. It rates how bad it is, limits the harm first (roll back, switch off, block, fail over) with the user's OK, keeps a timeline as it goes, drafts updates for the people affected, fixes the root cause through the debug skill and the bugfix runbook, and writes a blameless post-mortem to docs/incidents whose actions become checks. Use when the live app or service is down, broken or slow for its users, an alert fires, data may be lost or exposed, or after an outage to write the post-mortem.
-triggers: incident, outage, production is down, prod is down, site is down, service is down, the app is down, alert fired, on call, on-call, sev1, sev 1, post-mortem, postmortem, incident report
+triggers: incident, outage, production is down, prod is down, site is down, service is down, the app is down, alert fired, on call, on-call, sev1, sev 1, post-mortem, postmortem, incident report, site's down, nobody can log in, no one can log in, broken for everyone, down for everyone, wont come back up, won't come back up, 500 errors
 ---
 # Incident response: stop the harm, then find the cause
 

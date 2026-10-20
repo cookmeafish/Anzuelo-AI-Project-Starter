@@ -34,7 +34,12 @@ for (const f of files) {
   try { text = fs.readFileSync(f, 'utf8'); } catch { probs.push(`${rel}: unreadable`); continue; }
   const ext = path.extname(f).toLowerCase();
   if (/^(<{7}|={7}|>{7})( |$)/m.test(text)) probs.push(`${rel}: unresolved merge markers`);
-  if (!text.trim() && /\.(json|js|mjs|cjs|ts|tsx|jsx|svg|html|css|md|py)$/.test(ext)) probs.push(`${rel}: empty file`);
+  // empty is broken only where it lost content, or where an empty file can't be valid; __init__.py and markers are
+  // empty on purpose (Lesson: a real project's empty __init__.py files were reported as broken after a resume)
+  if (!text.trim() && !/(^|\/)(__init__\.py|py\.typed|\.gitkeep|\.keep)$/.test(rel) && /\.(json|js|mjs|cjs|ts|tsx|jsx|svg|html|css|md|py)$/.test(ext)) {
+    const before = spawnSync('git', ['show', `HEAD:${rel}`], { cwd: ROOT, encoding: 'utf8' });
+    if ((before.status === 0 && before.stdout.trim()) || /\.(json|svg|html)$/.test(ext)) probs.push(`${rel}: empty file`);
+  }
   if (ext === '.json' && text.trim()) { try { JSON.parse(text.replace(/^﻿/, '')); } catch (e) { probs.push(`${rel}: invalid JSON (${e.message})`); } }
   if (/^\.(js|mjs|cjs)$/.test(ext) && jsChecked < 60) {
     jsChecked++;

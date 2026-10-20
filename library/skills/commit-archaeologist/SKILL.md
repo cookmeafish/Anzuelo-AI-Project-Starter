@@ -1,7 +1,7 @@
 ---
 name: commit-archaeologist
 description: Explains why a file, function or block of code exists by reading the local git history - the commit that brought it in, every later change, reverts and earlier attempts, files that keep changing with it, who shaped it, and the intent words in commit messages - and turns that evidence into a short report with a confidence label and the risks of changing it. Uses a read-only, zero-install script. Use when someone asks why code exists, who wrote it and why, what the history of a function is, or before a rewrite, refactor or removal of code that looks odd, temporary or unexplained.
-triggers: why does this code exist, why is this code here, why was this written, who wrote this and why, history of this function, history of this file, commit archaeology, code archaeology, before i rewrite this, is this deliberate, what could break if i change this
+triggers: why does this code exist, why is this code here, why was this written, who wrote this and why, history of this function, history of this file, commit archaeology, code archaeology, before i rewrite this, is this deliberate, what could break if i change this, deliberate or, a leftover, weird hack, this hack, this workaround
 ---
 # Commit archaeologist: find out why the code is there
 

@@ -1,7 +1,7 @@
 ---
 name: parallel-agents
 description: Splits work into independent parts and runs one sub-agent per part at the same time, each with a focused, self-contained brief, then checks and merges the results. Use when there are 2 or more tasks that share no files, state or order, such as unrelated failures, separate research questions, or reviews of different areas. Not for related problems or work that edits the same files.
-triggers: in parallel, parallel agents, sub-agents, subagents, fan out, split the work, at the same time, several agents, multiple agents
+triggers: in parallel, parallel agents, sub-agents, subagents, fan out, split the work, at the same time, several agents, multiple agents, parallel
 ---
 # Run independent work in parallel
 

@@ -1,7 +1,7 @@
 ---
 name: architecture
 description: Makes and records the big technical choices in software. (A) A decision is compared across real options and written as a row in docs/DECISIONS.md with a concrete "reopen if". (B) A new system or large feature is designed from numbers (load, data, latency, cost) to components, contracts and failure handling before anyone builds it. (C) Tech debt is collected from evidence, ranked, and paid down in small steps alongside feature work. Use when choosing between technologies or approaches, when designing a service, API, data model or major feature, or when asked what to refactor, about code health or tech debt.
-triggers: architecture decision, tech stack, choose the stack, app architecture, design decision, adr, choose between, which database, which framework, system design, design a system, design the service, how should we architect, data model design, service boundaries, tech debt, technical debt, what should we refactor, code health, refactoring priorities
+triggers: architecture decision, tech stack, choose the stack, app architecture, design decision, adr, choose between, which database, which framework, system design, design a system, design the service, how should we architect, data model design, service boundaries, tech debt, technical debt, what should we refactor, code health, refactoring priorities, postgres or, or mongo, which stack, pick the stack, split the backend, into services
 ---
 # Architecture: decide on purpose, design before building, pay debt on a schedule
 

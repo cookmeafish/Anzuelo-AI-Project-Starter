@@ -1,7 +1,8 @@
 ---
 name: feature
 summary: Build a new feature or change behaviour - spec with acceptance criteria, written plan, build, triple-check QA, independent review, release notes
-triggers: add a feature, new feature, build a, implement, make it so, i want the app to, add support for, change how, new screen, new mode, new option, new setting, feature request, refactor, rename, restructure, clean up the code, login, sign in, sign up, endpoint, rate limiting, add a column, new page, new field, new endpoint, add a button, add an option, add a setting, token expiry
+triggers: add a feature, new feature, build a, implement, make it so, i want the app to, add support for, change how, new screen, new mode, new option, new setting, feature request, refactor, rename the function, rename the variable, rename the app, restructure, clean up the code, login, sign in, sign up, endpoint, rate limiting, add a column, new page, new field, new endpoint, add a button, add an option, add a setting, token expiry
+trigger_regex: \b(let|allow) (users|people|customers|members|me)\b|\b(should|could) be able to\b|\ba way to\b|\b(it'?d|it would) be (nice|great|cool|good) if\b|\badd (a|an) (search|filter|sort|export|toggle|tab|field|button)\b|\bmake the app (remember|show|save|send|support|handle|keep|accept|let|do)\b
 menu: A1
 ---
 # Playbook: build a feature

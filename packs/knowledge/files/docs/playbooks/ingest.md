@@ -2,7 +2,7 @@
 name: ingest
 summary: Process files the user provides - preserve originals in sources/, extract facts into docs/knowledge, register sources
 triggers: inbox, i dropped, i added, here's a file, here is a file, attached, i uploaded, new files, process these, import this, read this document, here is a screenshot, this screenshot, here is an export, this export, exported file, spreadsheet
-trigger_regex: \.(pdf|docx?|xlsx?|csv|txt|png|jpe?g|json|md)\b
+trigger_regex: \.(pdf|docx?|xlsx?|csv|txt|png|jpe?g|json|md)\b|\b(here (are|is)|attach(ing|ed)|uploaded|came in|just (got|dropped|sent))\b[^.\n]{0,40}\b(statements?|invoices?|receipts?|scans?|photos?|pdfs?|files?|exports?|lists?|reports?)\b|\b(statements?|invoices?|receipts?|scans?|photos?|pdfs?|files?|exports?|lists?|reports?)\b[^.\n]{0,30}\bcame in\b|\bdropped (a|the|some) \w+ in\b
 menu: K3
 ---
 # Playbook: ingest files

@@ -170,7 +170,7 @@
       "rule": "15",
       "forces": "security-review",
       "waiver": "specific",
-      "hint": "\\b(log ?in|sign ?in|sign ?up|log ?out|passwords?|auth|authentication|authori[sz]ation|permissions?|user roles?|admin panel|session cookies?|cookies?|access tokens?|auth tokens?|api keys?|secrets?|credentials|cors|uploads?|endpoints?|webhooks?|api routes?|sql|query builder|shell commands?|eval|deserializ\\w*|encrypt\\w*|payments?|stripe|credit cards?|personal data|pii|gdpr)\\b|\\.env\\b",
+      "hint": "\\b((log|sign) ?in(?! (button|link)\\b[^.?!\\n]{0,20}\\b(text|label|font|colou?r|size|small|big|large|style|misaligned|position)\\b)|sign ?up|log ?out|passwords?|auth|authentication|authori[sz]ation|permissions?|roles|(user|admin|access|editor) roles?|admins?|admin (panel|page|area)|(session|auth|tracking|login) cookies?|set(ting)? (a |the )?cookies?|access tokens?|auth tokens?|api keys?|secrets?|credentials|cors|uploads?\\b(?! date)|endpoints?|webhooks?|api routes?|sql|query builder|shell commands?|eval|deserializ\\w*|encrypt\\w*|payments?|stripe|credit cards?|personal data|pii|gdpr|phone numbers?|mobile numbers?|(home|postal|street|billing|shipping|delivery|mailing|email|customer|user) address(es)?|addresses\\b(?! (the|this|that|it|a|an|issues?|bugs?|problems?|concerns?|feedback|comments?)\\b))\\b|\\.env\\b",
       "when": {
         "changedContentMatches": {
           "files": [
@@ -230,7 +230,7 @@
             "**/*_test.*",
             "**/test_*.*"
           ],
-          "pattern": "\\b(passw(or)?d|passwd|bcrypt|argon2|scrypt|pbkdf2|jsonwebtoken|jwt\\.(sign|verify|decode)|oauth2?|openid|saml|csrf|xsrf|set-cookie|document\\.cookie|cookie-?parser|express-session|login_required|requireAuth|isAuthenticated|authenticate|authorize|hasPermission|has_permission|checkPermission|isAdmin|is_admin|rbac|api[_-]?key|secret[_-]?key|client[_-]?secret|access[_-]?token|refresh[_-]?token|private[_-]?key|Access-Control-Allow-Origin|cors|multer|multipart\\/form-data|formidable|busboy|UploadFile|req\\.files?|request\\.files|child_process|execSync|execFile|spawnSync|subprocess|os\\.system|os\\.popen|eval|vm\\.runIn\\w+|pickle\\.loads?|yaml\\.load|unserialize|ObjectInputStream|Marshal\\.load|BinaryFormatter|createCipheriv|createDecipheriv|crypto\\.subtle|hashlib|paypal|braintree|payment_?intent|card_?number|cvv|iban|ssn|social_security|date_?of_?birth|dangerouslySetInnerHTML|v-html|mark_safe)\\b|\\bshell\\s*=\\s*True\\b|\\bnew Function\\s*\\(|\\b(exec|spawn)\\s*\\(|\\.innerHTML\\s*=|type\\s*=\\s*[\"']file[\"']|stripe\\.(charges|paymentIntents|checkout|customers)|@stripe\\/|\\b(app|router|server|api)\\.(get|post|put|patch|delete|all|use|listen)\\s*\\(|@(app|router|bp|blueprint)\\.(route|get|post|put|delete)\\b|@(Get|Post|Put|Delete|Request)Mapping\\b|\\bcreateServer\\s*\\(|\\bFastAPI\\s*\\(|\\bAPIRouter\\s*\\(|\\b(execute|query|raw)\\s*\\(\\s*(f[\"']|[\"'\\x60][^\"'\\x60\\n]*(\\$\\{|[\"'\\x60]\\s*\\+))"
+          "pattern": "\\b(passw(or)?d|passwd|bcrypt|argon2|scrypt|pbkdf2|jsonwebtoken|jwt\\.(sign|verify|decode)|oauth2?|openid|saml|csrf|xsrf|set-cookie|document\\.cookie|cookie-?parser|express-session|login_required|requireAuth|isAuthenticated|authenticate|authorize|hasPermission|has_permission|checkPermission|isAdmin|is_admin|rbac|api[_-]?key|secret[_-]?key|client[_-]?secret|access[_-]?token|refresh[_-]?token|private[_-]?key|Access-Control-Allow-Origin|cors|multer|multipart\\/form-data|formidable|busboy|UploadFile|req\\.files?|request\\.files|child_process|execSync|execFile|spawnSync|subprocess|os\\.system|os\\.popen|eval|vm\\.runIn\\w+|pickle\\.loads?|yaml\\.load|unserialize|ObjectInputStream|Marshal\\.load|BinaryFormatter|createCipheriv|createDecipheriv|crypto\\.subtle|hashlib|paypal|braintree|payment_?intent|card_?number|cvv|iban|ssn|social_security|date_?of_?birth|(phone|mobile|tel(ephone)?)_?(number|no)|e_?mail_?addr(ess)?|(street|home|postal|billing|shipping|mailing|delivery)_?address|address_?line_?[12]|postal_?code|zip_?code|dangerouslySetInnerHTML|v-html|mark_safe)\\b|\\bshell\\s*=\\s*True\\b|\\bnew Function\\s*\\(|\\b(exec|spawn)\\s*\\(|\\.innerHTML\\s*=|type\\s*=\\s*[\"'](file|email|tel)[\"']|\\bres\\.cookie\\s*\\(|\\bcookies\\.set\\s*\\(|stripe\\.(charges|paymentIntents|checkout|customers)|@stripe\\/|\\b(app|router|server|api)\\.(get|post|put|patch|delete|all|use|listen)\\s*\\(|@(app|router|bp|blueprint)\\.(route|get|post|put|delete)\\b|@(Get|Post|Put|Delete|Request)Mapping\\b|\\bcreateServer\\s*\\(|\\bFastAPI\\s*\\(|\\bAPIRouter\\s*\\(|\\b(execute|query|raw)\\s*\\(\\s*(f[\"']|[\"'\\x60][^\"'\\x60\\n]*(\\$\\{|[\"'\\x60]\\s*\\+))"
         }
       },
       "require": {
@@ -243,7 +243,7 @@
       "rule": "15",
       "forces": "security-review",
       "waiver": "specific",
-      "hint": "\\b(\\.env|environment variables?|docker\\w*|deploy\\w*|ci pipeline|github actions?|workflow file|nginx|hosting|firewall|terraform|kubernetes|k8s|firebase rules)\\b",
+      "hint": "(^|[^\\w.])\\.env\\b|\\b(env(ironment)? var(iable)?s?|(?<!\\bwhat( is|'s|s) )docker\\w*|deploy\\w*|ci (pipeline|workflow|job|config)s?|ci/cd|github actions?|workflow files?|nginx|hosting|host (it|this|the (app|site|api|server)) (on|at|with)|vps|firewall|terraform|kubernetes|k8s|firebase rules)\\b",
       "when": {
         "filesChanged": [
           ".env",
@@ -285,9 +285,17 @@
       "rule": "15",
       "forces": "security-review",
       "waiver": "specific",
-      "hint": "\\b(publish|release it|go live|make it public|deploy to prod\\w*|push to production|npm publish|open.?source it)\\b",
+      "hint": "\\b(release it|go(ing)? live|make (it|this|the (repo|repository|project|code|site|app)) public|deploy (it )?to prod\\w*|push (it )?to production|(npm|pnpm|yarn) publish|open.?source (it|this)|(share|put|post|upload) (it|this|the (repo|code|project|app)) (on|to) (github|gitlab|npm|pypi|the (web|internet))|(share|publish|put|post) (it|this|the (repo|repository|code|project|app)) (publicly|in public))\\b|\\bpublish\\b(?![^.?!\\n]{0,40}\\b(to|in|into) (the )?(outputs?|drafts?|docs)\\b)",
       "when": {
-        "toolRan": "^(?![^\\n]*--dry-run)[\\s\\S]*?(?:\\b(npm|pnpm|yarn)\\s+publish\\b|\\bgh\\s+release\\s+create\\b|\\bgh\\s+repo\\s+(create\\b[^\\n;&|]*--public|edit\\b[^\\n;&|]*--visibility[= ]public)|\\b(vercel|netlify)\\b[^\\n;&|]*--prod\\b|\\bfirebase\\s+deploy\\b|\\bdocker\\s+push\\b|\\btwine\\s+upload\\b|\\bcargo\\s+publish\\b|\\b(dart|flutter)\\s+pub\\s+publish\\b|\\b(poetry|uv)\\s+publish\\b|\\bgem\\s+push\\b|\\bfastlane\\s+\\w*(deliver|release|upload|beta)\\b|\\bhf\\s+upload\\b|\\bhuggingface-cli\\s+upload\\b|\\bvsce\\s+publish\\b|\\bflyctl?\\s+deploy\\b|\\bwrangler\\s+(deploy|publish)\\b)"
+        "anyOf": [
+          {
+            "toolRan": "^(?![^\\n]*--dry-run)[\\s\\S]*?(?:\\b(npm|pnpm|yarn)\\s+publish\\b|\\bgh\\s+release\\s+create\\b|\\bgh\\s+repo\\s+(create\\b[^\\n;&|]*--public|edit\\b[^\\n;&|]*--visibility[= ]public)|\\bgh\\s+api\\b[^\\n;&|]*\\b(private=false|visibility=public)\\b|\\b(vercel|netlify)\\b[^\\n;&|]*--prod\\b|\\bfirebase\\s+deploy\\b|\\bdocker\\s+push\\b|\\btwine\\s+upload\\b|\\bcargo\\s+publish\\b|\\b(dart|flutter)\\s+pub\\s+publish\\b|\\b(poetry|uv)\\s+publish\\b|\\bgem\\s+push\\b|\\bfastlane\\s+\\w*(deliver|release|upload|beta)\\b|\\bhf\\s+upload\\b|\\bhuggingface-cli\\s+upload\\b|\\bvsce\\s+publish\\b|\\bflyctl?\\s+deploy\\b|\\bwrangler\\s+(deploy|publish)\\b)"
+          },
+          {
+            "promptMatches": "\\b(release it|go(ing)? live|make (it|this|the (repo|repository|project|code|site|app)) public|deploy (it )?to prod\\w*|push (it )?to production|(npm|pnpm|yarn) publish|open.?source (it|this)|(share|put|post|upload) (it|this|the (repo|code|project|app)) (on|to) (github|gitlab|npm|pypi|the (web|internet))|(share|publish|put|post) (it|this|the (repo|repository|code|project|app)) (publicly|in public))\\b|\\bpublish\\b(?![^.?!\\n]{0,40}\\b(to|in|into) (the )?(outputs?|drafts?|docs)\\b)",
+            "workTurn": true
+          }
+        ]
       },
       "require": {
         "skillUsed": "security-review"

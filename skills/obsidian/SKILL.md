@@ -2,7 +2,7 @@
 name: obsidian
 description: Keeps the project's notes linked to each other so Obsidian's graph shows what is related and what isn't, and the agent can follow the same links. Every note links to its related notes, orphans get connected, likely relations are suggested from shared words, and a note opens in Obsidian with one command. Use when writing or reorganizing notes, when the user asks what is related to something, about Obsidian, the graph, backlinks or orphans.
 checks: core note-linked
-triggers: obsidian, open in obsidian, graph view, graph, backlinks, what is related, related notes, how is this connected, orphan notes, link the notes, cross reference, cross-reference, connect the notes
+triggers: obsidian, open in obsidian, graph view, notes graph, backlinks, what is related, related notes, how is this connected, orphan notes, link the notes, cross reference, cross-reference, connect the notes
 ---
 # Linked notes (Obsidian)
 

@@ -1,7 +1,8 @@
 ---
 name: data-change
 summary: Change how the app stores data (schema, format, location, migration) without ever losing the user's data - backup, migration, restore test
-triggers: migrate, migration, schema, data format, storage, database change, move the data, rename the data, change where data is saved, convert the data, upgrade the data
+triggers: migrate, migration, schema, data format, database change, move the data, rename the data, change where data is saved, convert the data, upgrade the data, data storage, storage format
+trigger_regex: \b(add|new|rename|drop|remove) (a |an |the )?(['"]?\w+['"]? )?(column|field|table)\b|\bstore (the )?([\w']+ ){1,3}(too|as well)\b|\b(how|where) (\w+ ){0,2}(is|are) (saved|stored)\b|\bnew format\b
 menu: A6
 ---
 # Playbook: change stored data safely

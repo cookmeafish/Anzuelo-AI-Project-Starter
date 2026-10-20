@@ -1,7 +1,7 @@
 ---
 name: app-foundation
 summary: Set the app's foundation with the user before feature work - security baseline, performance budgets with numbers, usability and friendliness defaults, quality gates - then build the scaffolding that enforces them
-triggers: foundation, from the ground up, secure from the start, security baseline, performance budget, budgets, usability baseline, user friendly from the start, set up the app, scaffold, new app from scratch, scaffold the app
+triggers: foundation, from the ground up, secure from the start, security baseline, performance budget, budgets, usability baseline, user friendly from the start, set up the app, new app from scratch, scaffold the app, start a new app, new web app, groundwork, from nothing
 menu: A0
 ---
 # Playbook: the app's foundation

@@ -1,7 +1,7 @@
 ---
 name: qa
 summary: QA - the user saying "QA" means QA failed (find the miss, fix it, harden the process); QA sweeps of the whole app with independent auditors; reviewing a change or pull request before merge; planning what to test; answering review comments and fixing failing CI
-triggers: qa, quality assurance, qa failed, did you test, did you check, test everything, bug sweep, sweeps of the app, audit the app, review the app, look for bugs, find bugs, is it broken, code review, review this pr, review the pr, review my changes, review the diff, review this change, before i merge, test plan, test strategy, how should we test, what tests do we need, address review comments, review comments, reviewer comments, fix the pr comments, ci is failing, ci failed, failing ci, fix ci, checks failing on the pr
+triggers: qa, quality assurance, qa failed, did you test, did you check, test everything, bug sweep, sweeps of the app, audit the app, review the app, look for bugs, find bugs, is it broken, code review, review this pr, review the pr, review my changes, review the diff, review this change, before i merge, test plan, test strategy, how should we test, what tests do we need, address review comments, review comments, reviewer comments, fix the pr comments, ci is failing, ci failed, failing ci, fix ci, checks failing on the pr, my pr, e2e test, end to end test, before launch, test this
 trigger_regex: \bQA\b
 menu: A3
 ---

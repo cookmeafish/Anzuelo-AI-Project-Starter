@@ -143,13 +143,26 @@
       "tag": "ingest-trigger",
       "rule": "4",
       "forces": "ingest",
-      "hint": "\\b(here'?s|attached|i (dropped|added|uploaded|saved)|new)\\b[^.\\n]{0,20}\\b(file|files|pdf|document|export|screenshot|spreadsheet|scan)s?\\b",
+      "hint": "\\b(here'?s|here (is|are)|attach(ed|ing)|(i|i've|i have|we|just) (just )?(dropped|uploaded|sent)|(?<!the )(uploaded|dropped))\\b[^.?!\\n]{0,30}\\b(files?|pdfs?|docs?|documents?|exports?|screenshots?|spreadsheets?|scans?|statements?|invoices?|receipts?|photos?|images?|pictures?|contracts?|csvs?|xlsx)\\b|\\b(came in|arrived)\\b[^.?!\\n]{0,30}\\b(process|ingest|file|go through)\\b|\\b(in|into|to) (the )?inbox\\b",
       "when": {
-        "filesChanged": [
-          "sources/**"
-        ],
-        "filesIgnore": [
-          "sources/README.md"
+        "anyOf": [
+          {
+            "filesChanged": [
+              "sources/**"
+            ],
+            "filesIgnore": [
+              "sources/README.md"
+            ]
+          },
+          {
+            "fileRead": [
+              "inbox/**"
+            ]
+          },
+          {
+            "promptMatches": "\\b(here'?s|here (is|are)|attach(ed|ing)|(i|i've|i have|we|just) (just )?(dropped|uploaded|sent)|(?<!the )(uploaded|dropped))\\b[^.?!\\n]{0,30}\\b(files?|pdfs?|docs?|documents?|exports?|spreadsheets?|scans?|statements?|invoices?|receipts?|photos?|images?|pictures?|contracts?|csvs?|xlsx)\\b|\\b(came in|arrived)\\b[^.?!\\n]{0,30}\\b(process|ingest|file|go through)\\b|\\b(in|into|to) (the )?inbox\\b",
+            "workTurn": true
+          }
         ]
       },
       "require": {

@@ -1,7 +1,8 @@
 ---
 name: security-review
 summary: Review the app's security baseline - local server lockdown, input to paths, HTML sanitizing, secrets, process spawning - with evidence per item
-triggers: security, secure, vulnerability, exploit, xss, csrf, injection, secrets, api keys, leak, safe to publish, before making it public
+triggers: security, vulnerability, exploit, xss, csrf, injection, secrets, api keys, leak, safe to publish, before making it public, is it secure, is this secure, make it secure, safe to put online, someone hack, hack into, hacked, leaking, admin page, api key
+trigger_regex: \bis (the|this|our|my) (\w+ ){0,3}(form|page|app|site|login|sign ?in|upload|endpoint|api|server|database|db|password|repo)s? (safe|secure)\b
 menu: A7
 skill: skills/security-review/SKILL.md
 ---

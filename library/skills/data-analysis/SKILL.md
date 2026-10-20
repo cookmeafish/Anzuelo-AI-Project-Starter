@@ -1,7 +1,7 @@
 ---
 name: data-analysis
 description: Works with tables of data (CSV, TSV, JSON, spreadsheets exported to CSV, SQLite or DuckDB files) from first look to a shareable result. Profiles a new dataset, checks its quality before trusting it, answers questions with numbers using sound statistics and stated uncertainty, queries with SQL when a database tool is installed, makes honest charts and static dashboards, and traces every number to the data before sharing. Use when the user hands over a data file, asks what is in a dataset, asks a question that needs counting, averaging, comparing or trends, or wants a chart, table or dashboard.
-triggers: analyze this data, analyse this data, data analysis, dataset, csv file, spreadsheet data, profile the data, explore the data, data quality, clean the data, statistics, average of, median, correlation, trend in, sql query, duckdb, sqlite, make a chart, chart of, plot the, data dashboard
+triggers: analyze this data, analyse this data, data analysis, dataset, csv file, spreadsheet data, profile the data, explore the data, data quality, clean the data, statistics, average of, median, correlation, trend in, sql query, duckdb, sqlite, make a chart, chart of, plot the, data dashboard, average, trends, any trends, crunch the numbers, sells best
 ---
 # Data analysis: numbers you can stand behind
 

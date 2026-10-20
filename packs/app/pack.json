@@ -271,7 +271,7 @@
       "rule": "3",
       "when": {
         "playbookUsed": "qa",
-        "promptMatches": "\\b(qa|tests?|checks?|checked) (failed|missed|didn'?t catch)|\\bslipped\\b|\\bdid(n'?t)? you (test|check)|\\bqa\\b[^\\n]*\\b(wrong|broken|still|again|missing|bug)"
+        "promptMatches": "\\b(qa|tests?|checks?|checked) (failed|missed|didn'?t catch)|\\bslip(ped|s|ping)?( through| past)?\\b|\\bdid(n'?t)? you (test|check)|\\bqa\\b[^\\n]*\\b(wrong|broken|still|again|missing|bug)"
       },
       "require": {
         "filesChanged": [
@@ -400,22 +400,38 @@
       "tag": "data-change-trigger",
       "rule": "4",
       "forces": "data-change",
-      "hint": "\\b(migrat\\w*|schema|database change|alter table|add (a |the )?column|rename (a |the )?(column|field|table)|change (where|how) (the )?data is (saved|stored))\\b",
+      "hint": "\\bmigrat\\w*\\b[^.?!\\n]{0,30}\\b(database|db|schema|tables?|postgres\\w*|mysql|sqlite|mongo\\w*|records|rows|columns?)\\b|\\b(db|database|data|schema) migrations?\\b|\\b(run|write|add|create) (a |the )?migrations?\\b|\\b(change|update|alter|edit|modify) (the )?(db |database |data )?schema\\b|\\bdatabase change\\b|\\balter table\\b|\\b(add|drop|remove|rename) (a |an |the )?(new )?(['\"]?\\w+['\"]? ){0,2}(column|field|table)s?\\b(?! (to|on|in|from) (the |this |a )?(form|page|screen|ui|dialog|report|layout)\\b| of contents)|\\bstore (the )?[\\w']+( \\w+){0,2} (too|as well)\\b|\\b(change|update) (where|how) (the )?(\\w+ )?(is|are) (saved|stored)\\b|\\b(old|existing) (records|rows|data) need\\w* convert\\w*|\\bconvert\\w* (the )?(old |existing )(records|rows|data)\\b",
       "when": {
-        "filesChanged": [
-          "**/migrations/**",
-          "**/migrate/**",
-          "**/*.sql",
-          "**/*.prisma",
-          "**/schema.*",
-          "**/alembic/**",
-          "**/db/schema*"
-        ],
-        "filesIgnore": [
-          "docs/**",
-          "**/*.md",
-          "skills/**",
-          ".claude/**"
+        "anyOf": [
+          {
+            "filesChanged": [
+              "**/migrations/**",
+              "**/migrate/**",
+              "**/*.sql",
+              "**/*.prisma",
+              "**/schema.*",
+              "**/alembic/**",
+              "**/db/schema*"
+            ],
+            "filesIgnore": [
+              "docs/**",
+              "**/*.md",
+              "skills/**",
+              ".claude/**"
+            ]
+          },
+          {
+            "promptMatches": "\\bmigrat\\w*\\b[^.?!\\n]{0,30}\\b(database|db|schema|tables?|postgres\\w*|mysql|sqlite|mongo\\w*|records|rows|columns?)\\b|\\b(db|database|data|schema) migrations?\\b|\\b(run|write|add|create) (a |the )?migrations?\\b|\\b(change|update|alter|edit|modify) (the )?(db |database |data )?schema\\b|\\bdatabase change\\b|\\balter table\\b|\\b(add|drop|remove|rename) (a |an |the )?(new )?(['\"]?\\w+['\"]? ){0,2}(column|field|table)s?\\b(?! (to|on|in|from) (the |this |a )?(form|page|screen|ui|dialog|report|layout)\\b| of contents)|\\bstore (the )?[\\w']+( \\w+){0,2} (too|as well)\\b|\\b(change|update) (where|how) (the )?(\\w+ )?(is|are) (saved|stored)\\b|\\b(old|existing) (records|rows|data) need\\w* convert\\w*|\\bconvert\\w* (the )?(old |existing )(records|rows|data)\\b",
+            "filesChanged": [
+              "**"
+            ],
+            "filesIgnore": [
+              "docs/**",
+              "**/*.md",
+              "skills/**",
+              ".claude/**"
+            ]
+          }
         ]
       },
       "require": {
@@ -434,7 +450,7 @@
       "tag": "release-trigger",
       "rule": "6",
       "forces": "release",
-      "hint": "\\b(release|ship it|publish|tag (a|the) (release|version)|cut a version|deploy to prod\\w*)\\b",
+      "hint": "\\b(ship|cut|tag)\\s+(it|v?\\d+(\\.\\d+)*)\\b|\\btag (a|the) (release|version)\\b|\\b(cut|put out|push out|roll out|make|do|prepare) (a |the )?(new )?(release|version)\\b|\\b(push|put|take) (it|this) live\\b|\\bgo(ing)? live\\b|\\bdeploy (it )?to prod\\w*|\\brelease (it|this|v?\\d+(\\.\\d+)*)\\b|\\b(npm|pnpm|yarn) publish\\b|\\bpublish\\b[^.?!\\n]{0,25}\\b(npm|pypi|crates\\.io|app store|play store|marketplace|registry)\\b|\\b(onto|on|to) the (app|play) store\\b",
       "when": {
         "toolRan": "^(?![^\\n]*--dry-run)[\\s\\S]*?(?:\\bgit\\s+tag\\s+(-[as]\\s+)?v?\\d|\\bgh\\s+release\\s+create\\b|\\b(npm|pnpm|yarn)\\s+(publish|version)\\b|\\bcargo\\s+publish\\b|\\b(dart|flutter)\\s+pub\\s+publish\\b|\\b(poetry|uv)\\s+publish\\b|\\bgem\\s+push\\b|\\bfastlane\\s+\\w*(deliver|release|upload|beta)\\b|\\bhf\\s+upload\\b|\\bhuggingface-cli\\s+upload\\b|\\btwine\\s+upload\\b|\\bvsce\\s+publish\\b)"
       },
@@ -447,7 +463,7 @@
       "tag": "install-trigger",
       "rule": "4",
       "forces": "install-update",
-      "hint": "\\b(installer|install script|setup script|launcher|shortcut|auto.?update|self.?update|updater|packaging|first run)\\b",
+      "hint": "\\b(installer|install script|setup script|launcher|shortcut|auto.?update|self.?update|updater|updates? itself|packaging|first run|start\\.(bat|cmd|command|sh)|double.?click)\\b",
       "when": {
         "filesChanged": [
           "**/install.*",

@@ -1,7 +1,7 @@
 ---
 name: ml-experiments
 description: Runs machine-learning work so results can be trusted and repeated. Every training or evaluation run is an experiment logged with its data version, code version, parameters, seed and scores; raw data is never edited; train, validation and test data never leak into each other; notebooks are committed without outputs or secrets; and the best model is picked from the log, not from memory. Use when the user asks to train, tune, evaluate or compare models, run an experiment, try hyperparameters, check for data leakage or overfitting, clean notebooks, or pick the best model.
-triggers: train the model, retrain the model, training run, run an experiment, ml experiment, machine learning model, try hyperparameters, tune hyperparameters, hyperparameter search, evaluate the model, model evaluation, compare the models, compare experiments, best model, model accuracy, f1 score, auc score, cross validation, train test split, data leakage, overfitting, clear notebook outputs, strip the notebook, experiment log
+triggers: train the model, retrain the model, training run, run an experiment, ml experiment, machine learning model, try hyperparameters, tune hyperparameters, hyperparameter search, evaluate the model, model evaluation, compare the models, compare experiments, best model, model accuracy, f1 score, auc score, cross validation, train test split, data leakage, overfitting, clear notebook outputs, strip the notebook, experiment log, learning rate, model overfitting
 ---
 # ML experiments: results you can repeat
 

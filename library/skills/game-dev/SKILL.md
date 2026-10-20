@@ -1,7 +1,7 @@
 ---
 name: game-dev
 description: Builds games that run the same on every machine and keep players' saves safe, Godot 4 first with notes for Unity and other engines. After scene or script changes the game is built, tested and exported headless with a preset, and the exported build is started once (a script ending in RESULT: PASS or FAIL); motion is time-based within a frame-time budget; input goes through named actions; save data carries a version and old saves still load; sprites stay on the project's grid (a PNG size check); and playtests leave notes. Use when the project is a game and the user asks to export or package it, add a mechanic or scene, fix a game bug, map controls, change save files, add sprites, or run a playtest.
-triggers: godot, gdscript, unity game, unreal engine, game dev, game development, export the game, game build, steam build, itch build, scene tree, tilemap, sprite, sprites, sprite sheet, sprite size, pixel art, input map, controller support, save game, save file version, playtest, playtest notes, frame time budget, delta time
+triggers: godot, gdscript, unity game, unreal engine, game dev, game development, export the game, game build, steam build, itch build, scene tree, tilemap, sprite, sprites, sprite sheet, sprite size, pixel art, input map, controller support, save game, save file version, playtest, playtest notes, frame time budget, delta time, feels floaty, floaty
 ---
 # Game dev: a build that starts, saves that load
 

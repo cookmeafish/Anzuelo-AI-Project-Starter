@@ -1,7 +1,7 @@
 ---
 name: backend-patterns
 description: Designs, builds or reviews server-side code in any language or framework (API endpoints, data access, business logic, errors, caching, background jobs, logging, access checks) using a small set of proven layering and data patterns, so the backend stays correct, fast and easy to change. Use when adding or changing an endpoint, a database query or schema, a cache, a queue or scheduled job, middleware, or error handling, and when a backend is slow, hard to test or keeps breaking in the same places.
-triggers: backend, api endpoint, rest api, graphql, database query, server code, caching, background job, n+1
+triggers: backend, api endpoint, rest api, graphql, database query, server code, caching, background job, n+1, cache the, on the server
 ---
 # Backend patterns: thin edges, clear layers, honest errors
 

@@ -170,7 +170,7 @@
       "rule": "15",
       "forces": "security-review",
       "waiver": "specific",
-      "hint": "\\b(log ?in|sign ?in|sign ?up|log ?out|passwords?|auth|authentication|authori[sz]ation|permissions?|user roles?|admin panel|session cookies?|cookies?|access tokens?|auth tokens?|api keys?|secrets?|credentials|cors|uploads?|endpoints?|webhooks?|api routes?|sql|query builder|shell commands?|eval|deserializ\\w*|encrypt\\w*|payments?|stripe|credit cards?|personal data|pii|gdpr)\\b|\\.env\\b",
+      "hint": "\\b((log|sign) ?in(?! (button|link)\\b[^.?!\\n]{0,20}\\b(text|label|font|colou?r|size|small|big|large|style|misaligned|position)\\b)|sign ?up|log ?out|passwords?|auth|authentication|authori[sz]ation|permissions?|roles|(user|admin|access|editor) roles?|admins?|admin (panel|page|area)|(session|auth|tracking|login) cookies?|set(ting)? (a |the )?cookies?|access tokens?|auth tokens?|api keys?|secrets?|credentials|cors|uploads?\\b(?! date)|endpoints?|webhooks?|api routes?|sql|query builder|shell commands?|eval|deserializ\\w*|encrypt\\w*|payments?|stripe|credit cards?|personal data|pii|gdpr|phone numbers?|mobile numbers?|(home|postal|street|billing|shipping|delivery|mailing|email|customer|user) address(es)?|addresses\\b(?! (the|this|that|it|a|an|issues?|bugs?|problems?|concerns?|feedback|comments?)\\b))\\b|\\.env\\b",
       "when": {
         "changedContentMatches": {
           "files": [
@@ -230,7 +230,7 @@
             "**/*_test.*",
             "**/test_*.*"
           ],
-          "pattern": "\\b(passw(or)?d|passwd|bcrypt|argon2|scrypt|pbkdf2|jsonwebtoken|jwt\\.(sign|verify|decode)|oauth2?|openid|saml|csrf|xsrf|set-cookie|document\\.cookie|cookie-?parser|express-session|login_required|requireAuth|isAuthenticated|authenticate|authorize|hasPermission|has_permission|checkPermission|isAdmin|is_admin|rbac|api[_-]?key|secret[_-]?key|client[_-]?secret|access[_-]?token|refresh[_-]?token|private[_-]?key|Access-Control-Allow-Origin|cors|multer|multipart\\/form-data|formidable|busboy|UploadFile|req\\.files?|request\\.files|child_process|execSync|execFile|spawnSync|subprocess|os\\.system|os\\.popen|eval|vm\\.runIn\\w+|pickle\\.loads?|yaml\\.load|unserialize|ObjectInputStream|Marshal\\.load|BinaryFormatter|createCipheriv|createDecipheriv|crypto\\.subtle|hashlib|paypal|braintree|payment_?intent|card_?number|cvv|iban|ssn|social_security|date_?of_?birth|dangerouslySetInnerHTML|v-html|mark_safe)\\b|\\bshell\\s*=\\s*True\\b|\\bnew Function\\s*\\(|\\b(exec|spawn)\\s*\\(|\\.innerHTML\\s*=|type\\s*=\\s*[\"']file[\"']|stripe\\.(charges|paymentIntents|checkout|customers)|@stripe\\/|\\b(app|router|server|api)\\.(get|post|put|patch|delete|all|use|listen)\\s*\\(|@(app|router|bp|blueprint)\\.(route|get|post|put|delete)\\b|@(Get|Post|Put|Delete|Request)Mapping\\b|\\bcreateServer\\s*\\(|\\bFastAPI\\s*\\(|\\bAPIRouter\\s*\\(|\\b(execute|query|raw)\\s*\\(\\s*(f[\"']|[\"'\\x60][^\"'\\x60\\n]*(\\$\\{|[\"'\\x60]\\s*\\+))"
+          "pattern": "\\b(passw(or)?d|passwd|bcrypt|argon2|scrypt|pbkdf2|jsonwebtoken|jwt\\.(sign|verify|decode)|oauth2?|openid|saml|csrf|xsrf|set-cookie|document\\.cookie|cookie-?parser|express-session|login_required|requireAuth|isAuthenticated|authenticate|authorize|hasPermission|has_permission|checkPermission|isAdmin|is_admin|rbac|api[_-]?key|secret[_-]?key|client[_-]?secret|access[_-]?token|refresh[_-]?token|private[_-]?key|Access-Control-Allow-Origin|cors|multer|multipart\\/form-data|formidable|busboy|UploadFile|req\\.files?|request\\.files|child_process|execSync|execFile|spawnSync|subprocess|os\\.system|os\\.popen|eval|vm\\.runIn\\w+|pickle\\.loads?|yaml\\.load|unserialize|ObjectInputStream|Marshal\\.load|BinaryFormatter|createCipheriv|createDecipheriv|crypto\\.subtle|hashlib|paypal|braintree|payment_?intent|card_?number|cvv|iban|ssn|social_security|date_?of_?birth|(phone|mobile|tel(ephone)?)_?(number|no)|e_?mail_?addr(ess)?|(street|home|postal|billing|shipping|mailing|delivery)_?address|address_?line_?[12]|postal_?code|zip_?code|dangerouslySetInnerHTML|v-html|mark_safe)\\b|\\bshell\\s*=\\s*True\\b|\\bnew Function\\s*\\(|\\b(exec|spawn)\\s*\\(|\\.innerHTML\\s*=|type\\s*=\\s*[\"'](file|email|tel)[\"']|\\bres\\.cookie\\s*\\(|\\bcookies\\.set\\s*\\(|stripe\\.(charges|paymentIntents|checkout|customers)|@stripe\\/|\\b(app|router|server|api)\\.(get|post|put|patch|delete|all|use|listen)\\s*\\(|@(app|router|bp|blueprint)\\.(route|get|post|put|delete)\\b|@(Get|Post|Put|Delete|Request)Mapping\\b|\\bcreateServer\\s*\\(|\\bFastAPI\\s*\\(|\\bAPIRouter\\s*\\(|\\b(execute|query|raw)\\s*\\(\\s*(f[\"']|[\"'\\x60][^\"'\\x60\\n]*(\\$\\{|[\"'\\x60]\\s*\\+))"
         }
       },
       "require": {
@@ -243,7 +243,7 @@
       "rule": "15",
       "forces": "security-review",
       "waiver": "specific",
-      "hint": "\\b(\\.env|environment variables?|docker\\w*|deploy\\w*|ci pipeline|github actions?|workflow file|nginx|hosting|firewall|terraform|kubernetes|k8s|firebase rules)\\b",
+      "hint": "(^|[^\\w.])\\.env\\b|\\b(env(ironment)? var(iable)?s?|(?<!\\bwhat( is|'s|s) )docker\\w*|deploy\\w*|ci (pipeline|workflow|job|config)s?|ci/cd|github actions?|workflow files?|nginx|hosting|host (it|this|the (app|site|api|server)) (on|at|with)|vps|firewall|terraform|kubernetes|k8s|firebase rules)\\b",
       "when": {
         "filesChanged": [
           ".env",
@@ -285,9 +285,17 @@
       "rule": "15",
       "forces": "security-review",
       "waiver": "specific",
-      "hint": "\\b(publish|release it|go live|make it public|deploy to prod\\w*|push to production|npm publish|open.?source it)\\b",
+      "hint": "\\b(release it|go(ing)? live|make (it|this|the (repo|repository|project|code|site|app)) public|deploy (it )?to prod\\w*|push (it )?to production|(npm|pnpm|yarn) publish|open.?source (it|this)|(share|put|post|upload) (it|this|the (repo|code|project|app)) (on|to) (github|gitlab|npm|pypi|the (web|internet))|(share|publish|put|post) (it|this|the (repo|repository|code|project|app)) (publicly|in public))\\b|\\bpublish\\b(?![^.?!\\n]{0,40}\\b(to|in|into) (the )?(outputs?|drafts?|docs)\\b)",
       "when": {
-        "toolRan": "^(?![^\\n]*--dry-run)[\\s\\S]*?(?:\\b(npm|pnpm|yarn)\\s+publish\\b|\\bgh\\s+release\\s+create\\b|\\bgh\\s+repo\\s+(create\\b[^\\n;&|]*--public|edit\\b[^\\n;&|]*--visibility[= ]public)|\\b(vercel|netlify)\\b[^\\n;&|]*--prod\\b|\\bfirebase\\s+deploy\\b|\\bdocker\\s+push\\b|\\btwine\\s+upload\\b|\\bcargo\\s+publish\\b|\\b(dart|flutter)\\s+pub\\s+publish\\b|\\b(poetry|uv)\\s+publish\\b|\\bgem\\s+push\\b|\\bfastlane\\s+\\w*(deliver|release|upload|beta)\\b|\\bhf\\s+upload\\b|\\bhuggingface-cli\\s+upload\\b|\\bvsce\\s+publish\\b|\\bflyctl?\\s+deploy\\b|\\bwrangler\\s+(deploy|publish)\\b)"
+        "anyOf": [
+          {
+            "toolRan": "^(?![^\\n]*--dry-run)[\\s\\S]*?(?:\\b(npm|pnpm|yarn)\\s+publish\\b|\\bgh\\s+release\\s+create\\b|\\bgh\\s+repo\\s+(create\\b[^\\n;&|]*--public|edit\\b[^\\n;&|]*--visibility[= ]public)|\\bgh\\s+api\\b[^\\n;&|]*\\b(private=false|visibility=public)\\b|\\b(vercel|netlify)\\b[^\\n;&|]*--prod\\b|\\bfirebase\\s+deploy\\b|\\bdocker\\s+push\\b|\\btwine\\s+upload\\b|\\bcargo\\s+publish\\b|\\b(dart|flutter)\\s+pub\\s+publish\\b|\\b(poetry|uv)\\s+publish\\b|\\bgem\\s+push\\b|\\bfastlane\\s+\\w*(deliver|release|upload|beta)\\b|\\bhf\\s+upload\\b|\\bhuggingface-cli\\s+upload\\b|\\bvsce\\s+publish\\b|\\bflyctl?\\s+deploy\\b|\\bwrangler\\s+(deploy|publish)\\b)"
+          },
+          {
+            "promptMatches": "\\b(release it|go(ing)? live|make (it|this|the (repo|repository|project|code|site|app)) public|deploy (it )?to prod\\w*|push (it )?to production|(npm|pnpm|yarn) publish|open.?source (it|this)|(share|put|post|upload) (it|this|the (repo|code|project|app)) (on|to) (github|gitlab|npm|pypi|the (web|internet))|(share|publish|put|post) (it|this|the (repo|repository|code|project|app)) (publicly|in public))\\b|\\bpublish\\b(?![^.?!\\n]{0,40}\\b(to|in|into) (the )?(outputs?|drafts?|docs)\\b)",
+            "workTurn": true
+          }
+        ]
       },
       "require": {
         "skillUsed": "security-review"
@@ -498,7 +506,7 @@
       "rule": "3",
       "when": {
         "playbookUsed": "qa",
-        "promptMatches": "\\b(qa|tests?|checks?|checked) (failed|missed|didn'?t catch)|\\bslipped\\b|\\bdid(n'?t)? you (test|check)|\\bqa\\b[^\\n]*\\b(wrong|broken|still|again|missing|bug)"
+        "promptMatches": "\\b(qa|tests?|checks?|checked) (failed|missed|didn'?t catch)|\\bslip(ped|s|ping)?( through| past)?\\b|\\bdid(n'?t)? you (test|check)|\\bqa\\b[^\\n]*\\b(wrong|broken|still|again|missing|bug)"
       },
       "require": {
         "filesChanged": [
@@ -636,22 +644,38 @@
       "tag": "data-change-trigger",
       "rule": "4",
       "forces": "data-change",
-      "hint": "\\b(migrat\\w*|schema|database change|alter table|add (a |the )?column|rename (a |the )?(column|field|table)|change (where|how) (the )?data is (saved|stored))\\b",
+      "hint": "\\bmigrat\\w*\\b[^.?!\\n]{0,30}\\b(database|db|schema|tables?|postgres\\w*|mysql|sqlite|mongo\\w*|records|rows|columns?)\\b|\\b(db|database|data|schema) migrations?\\b|\\b(run|write|add|create) (a |the )?migrations?\\b|\\b(change|update|alter|edit|modify) (the )?(db |database |data )?schema\\b|\\bdatabase change\\b|\\balter table\\b|\\b(add|drop|remove|rename) (a |an |the )?(new )?(['\"]?\\w+['\"]? ){0,2}(column|field|table)s?\\b(?! (to|on|in|from) (the |this |a )?(form|page|screen|ui|dialog|report|layout)\\b| of contents)|\\bstore (the )?[\\w']+( \\w+){0,2} (too|as well)\\b|\\b(change|update) (where|how) (the )?(\\w+ )?(is|are) (saved|stored)\\b|\\b(old|existing) (records|rows|data) need\\w* convert\\w*|\\bconvert\\w* (the )?(old |existing )(records|rows|data)\\b",
       "when": {
-        "filesChanged": [
-          "**/migrations/**",
-          "**/migrate/**",
-          "**/*.sql",
-          "**/*.prisma",
-          "**/schema.*",
-          "**/alembic/**",
-          "**/db/schema*"
-        ],
-        "filesIgnore": [
-          "docs/**",
-          "**/*.md",
-          "skills/**",
-          ".claude/**"
+        "anyOf": [
+          {
+            "filesChanged": [
+              "**/migrations/**",
+              "**/migrate/**",
+              "**/*.sql",
+              "**/*.prisma",
+              "**/schema.*",
+              "**/alembic/**",
+              "**/db/schema*"
+            ],
+            "filesIgnore": [
+              "docs/**",
+              "**/*.md",
+              "skills/**",
+              ".claude/**"
+            ]
+          },
+          {
+            "promptMatches": "\\bmigrat\\w*\\b[^.?!\\n]{0,30}\\b(database|db|schema|tables?|postgres\\w*|mysql|sqlite|mongo\\w*|records|rows|columns?)\\b|\\b(db|database|data|schema) migrations?\\b|\\b(run|write|add|create) (a |the )?migrations?\\b|\\b(change|update|alter|edit|modify) (the )?(db |database |data )?schema\\b|\\bdatabase change\\b|\\balter table\\b|\\b(add|drop|remove|rename) (a |an |the )?(new )?(['\"]?\\w+['\"]? ){0,2}(column|field|table)s?\\b(?! (to|on|in|from) (the |this |a )?(form|page|screen|ui|dialog|report|layout)\\b| of contents)|\\bstore (the )?[\\w']+( \\w+){0,2} (too|as well)\\b|\\b(change|update) (where|how) (the )?(\\w+ )?(is|are) (saved|stored)\\b|\\b(old|existing) (records|rows|data) need\\w* convert\\w*|\\bconvert\\w* (the )?(old |existing )(records|rows|data)\\b",
+            "filesChanged": [
+              "**"
+            ],
+            "filesIgnore": [
+              "docs/**",
+              "**/*.md",
+              "skills/**",
+              ".claude/**"
+            ]
+          }
         ]
       },
       "require": {
@@ -671,7 +695,7 @@
       "tag": "release-trigger",
       "rule": "6",
       "forces": "release",
-      "hint": "\\b(release|ship it|publish|tag (a|the) (release|version)|cut a version|deploy to prod\\w*)\\b",
+      "hint": "\\b(ship|cut|tag)\\s+(it|v?\\d+(\\.\\d+)*)\\b|\\btag (a|the) (release|version)\\b|\\b(cut|put out|push out|roll out|make|do|prepare) (a |the )?(new )?(release|version)\\b|\\b(push|put|take) (it|this) live\\b|\\bgo(ing)? live\\b|\\bdeploy (it )?to prod\\w*|\\brelease (it|this|v?\\d+(\\.\\d+)*)\\b|\\b(npm|pnpm|yarn) publish\\b|\\bpublish\\b[^.?!\\n]{0,25}\\b(npm|pypi|crates\\.io|app store|play store|marketplace|registry)\\b|\\b(onto|on|to) the (app|play) store\\b",
       "when": {
         "toolRan": "^(?![^\\n]*--dry-run)[\\s\\S]*?(?:\\bgit\\s+tag\\s+(-[as]\\s+)?v?\\d|\\bgh\\s+release\\s+create\\b|\\b(npm|pnpm|yarn)\\s+(publish|version)\\b|\\bcargo\\s+publish\\b|\\b(dart|flutter)\\s+pub\\s+publish\\b|\\b(poetry|uv)\\s+publish\\b|\\bgem\\s+push\\b|\\bfastlane\\s+\\w*(deliver|release|upload|beta)\\b|\\bhf\\s+upload\\b|\\bhuggingface-cli\\s+upload\\b|\\btwine\\s+upload\\b|\\bvsce\\s+publish\\b)"
       },
@@ -685,7 +709,7 @@
       "tag": "install-trigger",
       "rule": "4",
       "forces": "install-update",
-      "hint": "\\b(installer|install script|setup script|launcher|shortcut|auto.?update|self.?update|updater|packaging|first run)\\b",
+      "hint": "\\b(installer|install script|setup script|launcher|shortcut|auto.?update|self.?update|updater|updates? itself|packaging|first run|start\\.(bat|cmd|command|sh)|double.?click)\\b",
       "when": {
         "filesChanged": [
           "**/install.*",
@@ -855,13 +879,26 @@
       "tag": "ingest-trigger",
       "rule": "4",
       "forces": "ingest",
-      "hint": "\\b(here'?s|attached|i (dropped|added|uploaded|saved)|new)\\b[^.\\n]{0,20}\\b(file|files|pdf|document|export|screenshot|spreadsheet|scan)s?\\b",
+      "hint": "\\b(here'?s|here (is|are)|attach(ed|ing)|(i|i've|i have|we|just) (just )?(dropped|uploaded|sent)|(?<!the )(uploaded|dropped))\\b[^.?!\\n]{0,30}\\b(files?|pdfs?|docs?|documents?|exports?|screenshots?|spreadsheets?|scans?|statements?|invoices?|receipts?|photos?|images?|pictures?|contracts?|csvs?|xlsx)\\b|\\b(came in|arrived)\\b[^.?!\\n]{0,30}\\b(process|ingest|file|go through)\\b|\\b(in|into|to) (the )?inbox\\b",
       "when": {
-        "filesChanged": [
-          "sources/**"
-        ],
-        "filesIgnore": [
-          "sources/README.md"
+        "anyOf": [
+          {
+            "filesChanged": [
+              "sources/**"
+            ],
+            "filesIgnore": [
+              "sources/README.md"
+            ]
+          },
+          {
+            "fileRead": [
+              "inbox/**"
+            ]
+          },
+          {
+            "promptMatches": "\\b(here'?s|here (is|are)|attach(ed|ing)|(i|i've|i have|we|just) (just )?(dropped|uploaded|sent)|(?<!the )(uploaded|dropped))\\b[^.?!\\n]{0,30}\\b(files?|pdfs?|docs?|documents?|exports?|spreadsheets?|scans?|statements?|invoices?|receipts?|photos?|images?|pictures?|contracts?|csvs?|xlsx)\\b|\\b(came in|arrived)\\b[^.?!\\n]{0,30}\\b(process|ingest|file|go through)\\b|\\b(in|into|to) (the )?inbox\\b",
+            "workTurn": true
+          }
         ]
       },
       "require": {
@@ -1000,7 +1037,7 @@
     {
       "tag": "a11y-checked",
       "rule": "9",
-      "hint": "\\b(new|add|build|make|redesign|create)\\b[^.\\n]{0,40}\\b(page|screen|form|dashboard|component|dialog|menu|layout)\\b",
+      "hint": "\\b(new|add|build|make|redesign|create|need)\\b[^.?!\\n]{0,40}\\b(page|screen|form|dashboard|component|dialog|modal|popup|pop-up|menu|layout|sidebar|side panel|navbar|nav bar|toolbar|drawer)s?\\b(?! (break|count|number|limit|size)s?\\b)",
       "when": {
         "guiChanged": true
       },
@@ -1026,7 +1063,7 @@
     {
       "tag": "mcp-trigger",
       "rule": "4",
-      "hint": "\\bmcp\\b|model context protocol",
+      "hint": "\\bmcp\\b(?![^.?!\\n]{0,25}\\b(acronym|stands? for|mean)\\b)|model context protocol|\\b(expose|give|connect|plug)\\b[^.?!\\n]{0,40}\\b(claude|chatgpt|ai (assistants?|agents?)|llms?|agents?)\\b[^.?!\\n]{0,20}\\btools?\\b",
       "when": {
         "changedContentMatches": {
           "files": [
@@ -1194,9 +1231,21 @@
     {
       "tag": "architecture-trigger",
       "rule": "12",
-      "hint": "\\b(new service|microservices?|add (a |an )?(database|queue|cache|message broker|dependency|library|framework)|data model|schema|switch (to|from)|migrate (to|from)|replace \\w+ with)\\b",
+      "hint": "\\b(new service|microservices?|split\\b[^.?!\\n]{0,30}\\binto (micro)?services|add (a |an )?(\\w+ )?(database|db|queue|cache|message broker|dependency|library|framework|orm)|data model|(new|change the|redesign the) (db |database |data )?schema|schema (change|design|redesign)|switch (to|from) (\\w+ )?(postgres\\w*|mysql|sqlite|mongo\\w*|redis|react|vue|svelte|angular|next\\.?js|django|flask|rails|express|fastapi|graphql|typescript|firebase|supabase|prisma|aws|gcp|azure|a (new )?(framework|database|db|library|stack|backend))|migrate (to|from) \\w+|replace \\w+ with|use (an? )?\\w+ (for|as) (the |our )?(db|database|orm|backend|queue|cache|auth|state|storage|api|server|frontend)|pull in (?!the\\b|changes|latest|updates|main|master|upstream)\\w+|(pick|choose) (the |a )?(tech )?stack|\\w+ (or|vs\\.?|versus) (postgres\\w*|mysql|sqlite|mongo\\w*|redis|react|vue|svelte|angular|django|flask|rails|express|fastapi|firebase|supabase))\\b",
       "when": {
         "anyOf": [
+          {
+            "promptMatches": "\\b(new service|microservices?|split\\b[^.?!\\n]{0,30}\\binto (micro)?services|add (a |an )?(\\w+ )?(database|db|queue|cache|message broker|dependency|library|framework|orm)|data model|(new|change the|redesign the) (db |database |data )?schema|schema (change|design|redesign)|switch (to|from) (\\w+ )?(postgres\\w*|mysql|sqlite|mongo\\w*|redis|react|vue|svelte|angular|next\\.?js|django|flask|rails|express|fastapi|graphql|typescript|firebase|supabase|prisma|aws|gcp|azure|a (new )?(framework|database|db|library|stack|backend))|migrate (to|from) \\w+|use (an? )?\\w+ (for|as) (the |our )?(db|database|orm|backend|queue|cache|auth|state|storage|api|server|frontend)|pull in (?!the\\b|changes|latest|updates|main|master|upstream)\\w+|(pick|choose) (the |a )?(tech )?stack|\\w+ (or|vs\\.?|versus) (postgres\\w*|mysql|sqlite|mongo\\w*|redis|react|vue|svelte|angular|django|flask|rails|express|fastapi|firebase|supabase))\\b",
+            "filesChanged": [
+              "**"
+            ],
+            "filesIgnore": [
+              "docs/**",
+              "**/*.md",
+              "skills/**",
+              ".claude/**"
+            ]
+          },
           {
             "toolRan": "\\b(npm\\s+(i|install|add)\\s+(?!-)[^\\s;&|]|pnpm\\s+add\\s|yarn\\s+add\\s|pip3?\\s+install\\s+(?!-r\\b|-e\\b)[^\\s;&|]|uv\\s+add\\s|poetry\\s+add\\s|cargo\\s+add\\s|go\\s+get\\s|dotnet\\s+add\\s+package\\s|gem\\s+install\\s|composer\\s+require\\s)"
           },
@@ -1257,9 +1306,10 @@
     {
       "tag": "incident-trigger",
       "rule": "4",
-      "hint": "\\b(prod(uction)?|live site|the site|website|the app|server|service|api|checkout|login)\\b[^.?!\\n]{0,30}\\b(is|went|are|keeps going|has gone|is going)\\s+(down|offline|unreachable)\\b|\\b(outage|sev ?[12]\\b|p[01] incident|returning 5\\d\\d|5\\d\\d errors?)\\b|\\bdown for (everyone|all users|customers)\\b",
+      "hint": "\\b(prod(uction)?|live site|the site|website|the app|server|service|api|checkout|login)\\b[^.?!\\n]{0,30}\\b(is|went|are|keeps going|has gone|is going)\\s+(down|offline|unreachable)\\b|\\b(site|app|server|api|prod|website)('s| is)\\s+down\\b|\\b(nobody|no one|no-one) can (log ?in|sign ?in|access|pay|check ?out|order)\\b|\\b(broken|down|not working) for (everyone|everybody|all users|all customers|customers)\\b|\\b(server|site|app)\\b[^.?!\\n]{0,15}\\bcrash(ed|ing)\\b|\\boutage\\b(?!\\s+(notice|template|page|banner|plan|policy|drill))|\\b(sev ?[12]\\b|p[01] incident|returning 5\\d\\d|5\\d\\d errors?)\\b",
       "when": {
-        "promptMatches": "\\b(prod(uction)?|live site|the site|website|the app|server|service|api|checkout|login)\\b[^.?!\\n]{0,30}\\b(is|went|are|keeps going|has gone|is going)\\s+(down|offline|unreachable)\\b|\\b(outage|sev ?[12]\\b|p[01] incident|returning 5\\d\\d|5\\d\\d errors?)\\b|\\bdown for (everyone|all users|customers)\\b"
+        "promptMatches": "\\b(prod(uction)?|live site|the site|website|the app|server|service|api|checkout|login)\\b[^.?!\\n]{0,30}\\b(is|went|are|keeps going|has gone|is going)\\s+(down|offline|unreachable)\\b|\\b(site|app|server|api|prod|website)('s| is)\\s+down\\b|\\b(nobody|no one|no-one) can (log ?in|sign ?in|access|pay|check ?out|order)\\b|\\b(broken|down|not working) for (everyone|everybody|all users|all customers|customers)\\b|\\b(server|site|app)\\b[^.?!\\n]{0,15}\\bcrash(ed|ing)\\b|\\boutage\\b(?!\\s+(notice|template|page|banner|plan|policy|drill))|\\b(sev ?[12]\\b|p[01] incident|returning 5\\d\\d|5\\d\\d errors?)\\b",
+        "promptNotMatches": "\\b(what|how|why) (is|are|was|were|causes?|do(es)?|did|to (handle|prevent|avoid|write|plan|report))\\b[^.!\\n]{0,30}\\b(an |the )?outages?\\b(?![^.!\\n]{0,20}\\b(now|right now|today|again)\\b)|\\bwhat (is|are) (an |a )?(outage|sev ?[12]|p[01] incident)s?\\b"
       },
       "require": {
         "skillUsed": "incident-response"
@@ -1283,7 +1333,7 @@
     {
       "tag": "data-computed-trigger",
       "rule": "4",
-      "hint": "\\b(average|mean|median|total|sum|percent(age)?|growth|trend|how many|count)\\b[^\\n]{0,60}\\b(csv|spreadsheet|data|export|xlsx|table)\\b",
+      "hint": "\\b(average|mean|median|total|sum|percent(age)?|share|proportion|ratio|growth|trend|how many|count)\\b[^\\n]{0,60}\\b(csv|spreadsheet|data|dataset|export|xlsx|table|orders|sales|transactions|refunds?|refunded|revenue|rows|responses)\\b",
       "when": {
         "anyOf": [
           {
@@ -1325,25 +1375,43 @@
     {
       "tag": "legal-trigger",
       "rule": "4",
-      "hint": "\\b(privacy policy|terms of (service|use)|contracts?|agreements?|eula|gdpr|license terms|disclaimer)\\b",
+      "hint": "\\b(privacy (policy|notice)|cookie policy|terms (of (service|use)|and conditions)|t&cs?|contracts?|ndas?|non-disclosure|eula|gdpr|ccpa|licen[cs]e terms|disclaimer|(service|user|licen[cs]e|vendor|rental|lease|employment|partnership|freelance|consulting|purchase|sales|data processing|confidentiality|subscription|reseller|supplier|loan) agreements?|sign (the|this|an?) agreement|commercially|commercial (use|licen[cs]e)|copyright (infringement|claim|notice|issue)s?|is (it|this|that) legal|legally)\\b",
       "when": {
-        "filesChanged": [
-          "**/privacy-policy*",
-          "**/privacy_policy*",
-          "**/privacy.*",
-          "**/terms-of-*",
-          "**/terms_of_*",
-          "**/tos.*",
-          "**/eula*",
-          "**/contracts/**",
-          "**/*contract*.md",
-          "**/*agreement*.md"
-        ],
-        "filesIgnore": [
-          "skills/**",
-          "library/**",
-          "packs/**",
-          ".claude/**"
+        "anyOf": [
+          {
+            "filesChanged": [
+              "**/privacy-policy*",
+              "**/privacy_policy*",
+              "**/privacy.*",
+              "**/terms-of-*",
+              "**/terms_of_*",
+              "**/tos.*",
+              "**/eula*",
+              "**/contracts/**",
+              "**/*contract*.md",
+              "**/*agreement*.md",
+              "**/nda*",
+              "**/*-nda*",
+              "**/*_nda*",
+              "**/*non-disclosure*",
+              "**/terms*",
+              "**/*-terms*",
+              "**/*_terms*",
+              "**/*policy*"
+            ],
+            "filesIgnore": [
+              "skills/**",
+              "library/**",
+              "packs/**",
+              ".claude/**",
+              "docs/checks/**",
+              "docs/foundation.md"
+            ]
+          },
+          {
+            "promptMatches": "\\b(privacy (policy|notice)|cookie policy|terms (of (service|use)|and conditions)|t&cs?|contracts?|ndas?|non-disclosure|eula|gdpr|ccpa|licen[cs]e terms|disclaimer|(service|user|licen[cs]e|vendor|rental|lease|employment|partnership|freelance|consulting|purchase|sales|data processing|confidentiality|subscription|reseller|supplier|loan) agreements?|sign (the|this|an?) agreement|commercially|commercial (use|licen[cs]e)|copyright (infringement|claim|notice|issue)s?|is (it|this|that) legal|legally)\\b",
+            "workTurn": true
+          }
         ]
       },
       "require": {

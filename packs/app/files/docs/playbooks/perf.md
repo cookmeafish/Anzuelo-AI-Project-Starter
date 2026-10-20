@@ -1,7 +1,7 @@
 ---
 name: perf
 summary: Make something faster or smoother - measure before, change, measure after with the same tool, on the user's real conditions
-triggers: slow, laggy, choppy, stutter, performance, faster, speed up, optimize, freezes, takes too long, memory usage, fps, frame rate, load time
+triggers: slow, laggy, choppy, stutter, performance, faster, speed up, optimize, freezes, takes too long, memory usage, fps, frame rate, load time, takes forever, taking forever, janky, hangs, sluggish, so sluggish, so slow, lags, my ram, ram usage
 menu: A5
 ---
 # Playbook: performance

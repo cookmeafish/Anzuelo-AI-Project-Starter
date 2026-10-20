@@ -380,6 +380,14 @@ const STOP = [
   { name: 'worth-it: a dependency installed with its gain and cost: passes the check', prompt: 'install a date library for the importer', tools: [bash('npm install dayjs', 'added 1 package')],
     answer: 'Installed dayjs.\nWorth it: parses the three date formats we get / one small dependency to keep updated.', expect: { not: ['worth-it'] } },
   // a lasting requirement the user states is enforced in the same turn, without being asked
+  // Lesson: a requirement said in passing ("there needs to be ...", "keep in mind that every ...") started no learning
+  { name: 'requirement-enforced: a requirement said in passing, during work, with nothing enforcing it: blocked',
+    prompt: 'there needs to be role selection obvious to the player. also keep in mind that every phase has different roles and most do not repeat',
+    files: { 'docs/roles.md': '# Roles\n- Phase 1: tank, healer.\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Added a role picker to the page.' + FIN, expect: { block: true, tags: ['requirement-enforced'] } },
+  { name: 'requirement-enforced: "keep in mind" about the user\'s own day is no requirement: passes that check', prompt: "keep in mind I'm out tomorrow, write the onboarding notes",
+    files: { 'docs/onboarding.md': '# Onboarding\n- Step 1.\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Wrote the onboarding notes.' + FIN, expect: { not: ['requirement-enforced'] } },
+  { name: 'requirement-enforced: a requirement said in passing in a question turn: passes that check', prompt: 'there needs to be role selection obvious to the player, right?',
+    answer: 'Yes, a role picker would help.' + FIN, expect: { not: ['requirement-enforced'] } },
   { name: 'requirement-enforced: a requirement written only into a runbook: blocked', prompt: 'every raid picture must have a paired diagram', tools: [pb('project'), bash('node tools/audit.mjs')],
     files: { 'docs/playbooks/raid-research.md': '---\nname: raid-research\nsummary: research a raid\ntriggers: research a raid\nchecks: none - test\n---\n# Playbook: raid research\n## Steps\n1. Research.\n## Done when\n- [ ] Every picture has a paired diagram (hook: diagram-paired).\n', 'docs/CHANGELOG.md': 'x' },
     answer: 'Playbook: project.md. Added the requirement.' + FIN, expect: { block: true, tags: ['requirement-enforced'] } },
@@ -1059,13 +1067,78 @@ const COVERS = {
   'crash-visible': 'crash blocks once',
   'interrupted-work': 'interrupted-work integrity check',
   'agent-neutral': 'agent-neutral: begin routes',
-  'twin-sync': 'twin: editing AGENTS.md syncs',
+  'twin-sync': 'twin-sync: one twin lost its twin note',
   'requirements-valid': 'broken requirements.json',
   'runbook-read': 'never opened its runbook',
   'playbook-named': 'did not name it',
   'skill-valid': 'invalid skill frontmatter',
-  'playbook-format': 'missing triggers and sections'
+  'playbook-format': 'missing triggers and sections',
+  'app-test-pass': 'app-test-pass: code changed and the tests never ran',
+  'changelog': 'changelog: a check list changed without a CHANGELOG line',
+  'dev-new-project': 'dev-new-project: project making changed in a development copy without the trial',
+  'autonomy-recorded': 'autonomy-recorded: "don\'t ask me" left only in the answer',
+  'plan-open': 'plan-open: an open plan ignored during a work turn'
 };
+// Checks that had no scenario proving they block. Lesson: a trigger audit found four checks (the app test gate, the
+// CHANGELOG line, twin sync, dev-new-project) that no test ever saw block, so a broken condition would pass unnoticed.
+// The app test gate is left out of the sandbox (base() strips appGate checks: they run the project's own commands), so
+// its scenarios add it back the way packs.mjs configure writes it.
+const testGate = { prep: dir => {
+  spawnSync(process.execPath, ['tools/packs.mjs', 'configure', 'app', '--test', 'npm test'], { cwd: dir, encoding: 'utf8' });
+  const old = (Date.now() - 3600_000) / 1000; // configured before the turn, not part of it
+  for (const p of ['tools/hooks/config.json', 'tools/hooks/requirements.json']) fs.utimesSync(path.join(dir, p), old, old);
+} };
+const touch = (p, add) => dir => { const f = path.join(dir, p); fs.appendFileSync(f, add); };
+const WIRE = 'wire up the export button';
+const planAt = prompt => ({ edit: { 'docs/plans/2026-10-18-export.md': () => '# Export: plan\n- [x] helpers\n- [ ] wire it up\n- [ ] test it\n' }, prep: dir => run(dir, 'prompt', { prompt }) });
+const CARRY = { edit: { 'tools/hooks/state/unresolved.json': () => JSON.stringify({ at: new Date(Date.now() - 300_000).toISOString(), since: Date.now() - 600_000, prompt: 'add a line about screenshots to the finish checklist', items: ['[changelog] Add a dated line to docs/CHANGELOG.md'], tags: ['changelog'] }) },
+  prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'), mtimes: { 'docs/checks/finish-checklist.md': -480_000 } };
+STOP.push(
+  { pack: 'app', name: 'app-test-pass: code changed and the tests never ran: blocked', prompt: 'add a feature to export reports as csv', tools: [pb('feature')], files: SPEC, ...testGate,
+    answer: 'Playbook: feature.md.\n' + VERIF + FIN, expect: { block: true, tags: ['app-test-pass'] } },
+  { pack: 'app', name: 'app-test-pass: the tests ran and passed after the last edit: passes', prompt: 'add a feature to export reports as csv', tools: [pb('feature'), bash('npm test', 'Tests: 12 passed, 12 total')], files: SPEC, ...testGate,
+    answer: 'Playbook: feature.md.\n' + VERIF + FIN, expect: { block: false, not: ['app-test-pass'] } },
+  { name: 'changelog: a check list changed without a CHANGELOG line: blocked', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
+    answer: 'Playbook: project.md. Added the line.' + FIN, expect: { block: true, tags: ['changelog'] } },
+  { name: 'changelog: the same change with its CHANGELOG line: passes', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
+    files: { 'docs/CHANGELOG.md': '# Changelog\n- 2026-10-19: finish checklist asks for screenshots of changed screens\n' }, answer: 'Playbook: project.md. Added the line.' + FIN, expect: { not: ['changelog'] } },
+  { name: 'twin-sync: one twin lost its twin note, so the two can\'t be synced: blocked', prompt: 'fix the wording in the hooks section of the agents file', tools: [pb('project')],
+    files: { 'CLAUDE.md': TWIN, 'AGENTS.md': '# my own rules, rewritten\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md' + FIN, expect: { block: true, tags: ['twin-sync'] } },
+  { name: 'dev-new-project: project making changed in a development copy without the trial: blocked', prompt: 'make new projects skip the empty inbox folder', edit: { '.starter-dev': () => 'development copy\n' },
+    prep: touch('tools/new-project.mjs', '\n// skip the empty inbox folder\n'), files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { block: true, tags: ['dev-new-project'] } },
+  { name: 'dev-new-project: the trial ran and passed: passes', prompt: 'make new projects skip the empty inbox folder', edit: { '.starter-dev': () => 'development copy\n' },
+    prep: touch('tools/new-project.mjs', '\n// skip the empty inbox folder\n'), tools: [bash('node tools/trial.mjs', 'TRIAL: PASS (6 samples, nothing worse)')], files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { not: ['dev-new-project'] } },
+  { name: 'dev-new-project: outside a development copy it is never asked: passes', prompt: 'make new projects skip the empty inbox folder',
+    prep: touch('tools/new-project.mjs', '\n// skip the empty inbox folder\n'), files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { not: ['dev-new-project'] } },
+  // autonomy-recorded: "you decide / don't ask me" is a standing choice; it goes into config, not just this answer
+  { name: 'autonomy-recorded: "don\'t ask me" left only in the answer: blocked', prompt: "sort out the rota for next week, you decide, don't ask me anything",
+    files: { 'docs/rota.md': '# Rota\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done. Assumed: weekly shifts - the old rota used them - a redo if wrong.' + FIN, expect: { block: true, tags: ['autonomy-recorded'] } },
+  { name: 'autonomy-recorded: autonomy auto set in config this turn: passes', prompt: "sort out the rota for next week, you decide, don't ask me anything",
+    prep: dir => fs.writeFileSync(path.join(dir, 'tools/hooks/config.json'), JSON.stringify({ ...JSON.parse(fs.readFileSync(path.join(dir, 'tools/hooks/config.json'), 'utf8')), autonomy: 'auto' }, null, 2) + '\n'),
+    files: { 'docs/rota.md': '# Rota\n', 'docs/DECISIONS.md': '# Decisions\n- 2026-10-19: autonomy auto - the user asked not to be asked\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done. Assumed: weekly shifts - the old rota used them - a redo if wrong.' + FIN, expect: { not: ['autonomy-recorded'] } },
+  { name: 'autonomy-recorded: config already says auto: passes', prompt: "sort out the rota for next week, you decide, don't ask me anything", edit: cfgEdit({ autonomy: 'auto' }),
+    files: { 'docs/rota.md': '# Rota\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { not: ['autonomy-recorded'] } },
+  // plan-open: an open plan when the turn starts (the prompt hook records it), a work turn, and no plan file touched:
+  // stopped once to resume, tick or close it
+  { name: 'plan-open: an open plan ignored during a work turn: blocked', prompt: WIRE, ...planAt(WIRE),
+    files: { 'src/export.js': 'export const go = () => 1;\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Wired it up.' + FIN, expect: { block: true, tags: ['plan-open'] } },
+  { name: 'plan-open: the plan\'s step ticked this turn: passes', prompt: WIRE, ...planAt(WIRE),
+    files: { 'src/export.js': 'export const go = () => 1;\n', 'docs/plans/2026-10-18-export.md': '# Export: plan\n- [x] helpers\n- [x] wire it up\n- [ ] test it\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Wired it up.' + FIN, expect: { not: ['plan-open'] } },
+  { name: 'plan-open: a question turn is not held to the plan: passes', prompt: 'what does the export button do?', ...planAt('what does the export button do?'), answer: 'It saves the report as a CSV file.', expect: { not: ['plan-open'] } },
+  { name: 'plan-open: asked once, the next round lets it go: passes', prompt: WIRE, ...planAt(WIRE),
+    files: { 'src/export.js': 'export const go = () => 1;\n', 'docs/CHANGELOG.md': 'x' }, drafts: ['Wired it up.' + FIN], answer: 'Wired it up. The plan stays open for the test step.' + FIN, active: true, blocks: 1, failed: ['plan-open'], expect: { not: ['plan-open'] } },
+  // unresolved-carryover: a check the last work turn left failing (its tag saved in unresolved.json) runs again at the
+  // first Stop of the next work turn. Last turn changed the finish checklist 8 minutes ago and ended without a CHANGELOG
+  // line; this turn is other work.
+  { name: 'unresolved-carryover: last turn\'s missing CHANGELOG line is still missing: blocked', prompt: 'rename the export button label to Download', ...CARRY,
+    files: { 'src/export.js': 'export const label = "Download";\n' }, answer: 'Renamed.' + FIN, expect: { block: true, tags: ['unresolved-carryover'], says: /\[changelog\]/ } },
+  { name: 'unresolved-carryover: last turn\'s miss fixed this turn: passes', prompt: 'add the missing changelog line', ...CARRY,
+    files: { 'docs/CHANGELOG.md': '# Changelog\n- 2026-10-19: the finish checklist asks for screenshots\n' }, answer: 'Added the line.' + FIN, expect: { not: ['changelog', 'unresolved-carryover'] } }
+);
+// The trigger-cases check below (not a scenario): its tags, and the share of realistic requests that must set off their
+// trigger. The floor sits just under what the engine reaches, so a change that loses recall fails at once.
+const TRIGGER_TAGS = ['trigger-recall', 'trigger-quiet'];
+const TRIGGER_FLOOR = 0.95; // 2026-10-19: 351 of 355 (98.9%) with every pack and library skill installed
 
 let pass = 0, fail = 0;
 const PASSED = [];
@@ -1339,7 +1412,7 @@ const SHARD = (() => { const i = process.argv.indexOf('--shard'), m = /^(\d+)\/(
 const HELPER = !!SHARD;
 if (TAGS) {
   const all = [...STOP, ...PRETOOL, ...PROMPT];
-  for (const t of TAGS) if (!HELPER && !all.some(s => proves(s).includes(t))) report(false, `tags: a scenario proves ${t}`, `no scenario proves "${t}": add one to tools/hooks/project-scenarios.mjs (blocked when skipped, passes when followed)`);
+  for (const t of TAGS) if (!HELPER && !TRIGGER_TAGS.includes(t) && !all.some(s => proves(s).includes(t))) report(false, `tags: a scenario proves ${t}`, `no scenario proves "${t}": add one to tools/hooks/project-scenarios.mjs (blocked when skipped, passes when followed)`);
   for (const list of [STOP, PRETOOL, PROMPT]) { const keep = list.filter(s => proves(s).length); list.length = 0; list.push(...keep); }
 }
 
@@ -1412,6 +1485,75 @@ for (const s of PROMPT) {
 }
 
 if (HELPER) { console.log(`SHARD ${pass} ${fail} ${skipped}`); process.exit(0); } // a helper's share is done
+
+// trigger-recall / trigger-quiet: every message in tools/hooks/trigger-cases.mjs goes through the engine's prompt hints
+// (what --route shows) and, for "CHECK: <tag>", the check's own promptMatches. A near miss ("quiet") that sets off a
+// trigger whose Stop check blocks is a FAIL: it would stop a turn that did nothing wrong. Recall over every installed
+// target must stay at or above TRIGGER_FLOOR; the misses are listed so they can be fixed. Runs in a full run, or with
+// --tags trigger-recall / trigger-quiet. Lesson: an audit of 363 realistic requests found 53% set off nothing, and no
+// test noticed.
+if (!TAGS || TAGS.some(t => TRIGGER_TAGS.includes(t))) {
+  const file = path.join(B, 'tools/hooks/trigger-cases.mjs');
+  if (!fs.existsSync(file)) console.log('SKIP  trigger cases: tools/hooks/trigger-cases.mjs is not in this project');
+  else {
+    const t0 = Date.now(), dir = copyProject();
+    let restoreFs = () => { };
+    try {
+      const H = await import(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href);
+      const CASES = (await import(pathToFileURL(path.join(dir, 'tools/hooks/trigger-cases.mjs')).href)).default;
+      // the copy doesn't change while the cases run: its file reads are served from memory, so ~450 calls stay fast in a
+      // temp folder an antivirus scans on every read. Lesson: uncached, the block took 25 s on Windows.
+      const FS = ['readFileSync', 'readdirSync', 'existsSync', 'statSync'], orig = Object.fromEntries(FS.map(f => [f, fs[f]])), cache = new Map(), under = String(dir).toLowerCase();
+      for (const f of FS) fs[f] = function (p, ...a) {
+        const k = typeof p === 'string' && path.resolve(p).toLowerCase().startsWith(under) ? `${f}|${p}|${JSON.stringify(a)}` : null;
+        if (k == null) return orig[f].call(fs, p, ...a);
+        if (!cache.has(k)) { try { cache.set(k, { v: orig[f].call(fs, p, ...a) }); } catch (e) { cache.set(k, { e }); } }
+        const c = cache.get(k); if (c.e) throw c.e; return c.v;
+      };
+      restoreFs = () => { for (const f of FS) fs[f] = orig[f]; };
+      const cfg = H.config(), reqs = H.loadRequirements().reqs.filter(q => q && q.enabled !== false);
+      const has = p => fs.existsSync(path.join(dir, p));
+      const NOTICE = ['THE USER SOUNDS UPSET', 'RULE REQUEST', 'REQUIREMENT', 'PRAISE', 'AUTONOMY'];
+      // the hints whose Stop check blocks a turn that ignores them (upset-learned, rule-request, requirement-enforced,
+      // autonomy-recorded, each forced skill's check, each prompt-keyed check)
+      const BLOCKING = t => /^(MUST FOLLOW|CHECK): /.test(t) || ['THE USER SOUNDS UPSET', 'RULE REQUEST', 'REQUIREMENT', 'AUTONOMY'].includes(t);
+      const kind = t => (/^([A-Z ]+): /.exec(t) || [, t])[1], name = t => t.replace(/^[A-Z ]+: /, '');
+      // a target counts only where its runbook, skill or check is installed (like a scenario's pack:)
+      const installed = t => {
+        const k = kind(t), n = name(t);
+        if (k === 'ROUTE') return H.playbooks().some(p => p.name === n);
+        if (k === 'SKILL') return H.routableSkills(cfg).some(s => s.name === n);
+        if (k === 'MUST FOLLOW') return reqs.some(q => q.forces === n && q.hint) && (has(`${cfg.skillsDir}/${n}/SKILL.md`) || has(`docs/playbooks/${n}.md`));
+        if (k === 'CHECK') return reqs.some(q => q.tag === n && q.when?.promptMatches);
+        return NOTICE.includes(t);
+      };
+      const memo = new Map(), hintsOf = m => { if (!memo.has(m)) memo.set(m, H.promptHints(m, cfg, false)); return memo.get(m); };
+      const fires = (t, m) => {
+        if (kind(t) === 'CHECK') { const w = reqs.find(q => q.tag === name(t)).when; return H.holds({ promptMatches: w.promptMatches, promptNotMatches: w.promptNotMatches }, { prompt: H.userText(m) }); }
+        return hintsOf(m).some(h => h === t || h.startsWith(t + ' ') || h.startsWith(t + ':'));
+      };
+      const short = m => hintsOf(m).map(h => (/^(ROUTE|SKILL|MUST FOLLOW): [\w-]+/.exec(h) || /^[A-Z][A-Z ]+[A-Z]/.exec(h) || [h.slice(0, 40)])[0]).join(' | ') || '(nothing)';
+      let got = 0, total = 0, notHere = 0;
+      const rows = [], misses = [], loud = [], noisy = [];
+      for (const [t, c] of Object.entries(CASES)) {
+        if (!installed(t)) { notHere++; continue; }
+        const miss = (c.fire || []).filter(m => !fires(t, m));
+        got += c.fire.length - miss.length; total += c.fire.length;
+        rows.push(`${t} ${c.fire.length - miss.length}/${c.fire.length}`);
+        for (const m of miss) misses.push(`  MISS  [${t}] "${m}" -> ${short(m)}`);
+        for (const m of c.quiet || []) if (fires(t, m)) (BLOCKING(t) ? loud : noisy).push(`[${t}] "${m}" -> ${short(m)}`);
+      }
+      const recall = total ? got / total : 1;
+      console.log(`trigger recall per target: ${rows.join(', ')}`);
+      if (misses.length) console.log(misses.join('\n'));
+      if (noisy.length) console.log(`  near misses that set off a hint with no Stop check (not a failure):\n    ${noisy.join('\n    ')}`);
+      report(!loud.length, 'trigger-quiet: no near miss sets off a hint whose Stop check would block', loud.join(' || '));
+      report(recall >= TRIGGER_FLOOR, `trigger-recall: realistic requests set off their trigger at or above the ${100 * TRIGGER_FLOOR}% floor`,
+        `${got} of ${total} (${(100 * recall).toFixed(1)}%): fix the misses listed above (the trigger words in the runbook or skill frontmatter, or the check's regex)`);
+      console.log(`trigger recall: ${got} of ${total} (${(100 * recall).toFixed(1)}%), floor ${100 * TRIGGER_FLOOR}%${notHere ? `, ${notHere} targets not installed here` : ''}, ${Date.now() - t0} ms`);
+    } finally { restoreFs(); fs.rmSync(dir, { recursive: true, force: true }); }
+  }
+}
 if (!TAGS) { // the standalone checks run in a full run only
 { // --explain: every check that fires for a scenario at once, with its short label and what satisfies it
   const out = explain('unrouted work turn with no runbook created').join('\n'), none = explain('no such scenario xyz').join('\n');
@@ -1948,6 +2090,7 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
 }
 
 { // fit-checklist: a "later - when:" condition counts what its noun names, and one the hooks can't read is not measured
+  // (a noun no project uses: a raid project already had raid files, and the count was off. Lesson from a real project)
   const { fitWhen } = await import('./hooks.mjs');
   const w = t => fitWhen(`later - when: ${t}`) || {};
   const ok = w('more than 6 raid files').word === 'raid' && w('more than 6 raid files').min === 7 && w('more than 20 html files').ext === 'html'
@@ -1956,14 +2099,14 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
   const dir = copyProject();
   try {
     const fit = (...a) => spawnSync(process.execPath, ['tools/fit.mjs', ...a], { cwd: dir, encoding: 'utf8' });
-    const why = 'finding files by name only matters once the raid notes grow past a handful';
-    fitFill(dir, [{ item: 'fd', kind: 'tool', decision: 'later - when: more than 6 raid files', reason: why }]);
+    const why = 'finding files by name only matters once the quokka notes grow past a handful';
+    fitFill(dir, [{ item: 'fd', kind: 'tool', decision: 'later - when: more than 6 quokka files', reason: why }]);
     const few = fit('check').stdout;
-    write(dir, Object.fromEntries(Array.from({ length: 7 }, (_, i) => [`notes/raid-${i}.md`, `# Raid ${i}\n`])));
+    write(dir, Object.fromEntries(Array.from({ length: 7 }, (_, i) => [`notes/quokka-${i}.md`, `# Quokka ${i}\n`])));
     const many7 = fit('check').stdout;
     fitFill(dir, [{ item: 'fd', kind: 'tool', decision: 'later - when: the team grows', reason: why }]);
     const vague = fit('check').stdout;
-    report(ok && /FIT: PASS/.test(few) && /tool fd: its condition is met now \(when: more than 6 raid files; files named \*raid\* is 7\)/.test(many7) && /FIT: PASS/.test(vague),
+    report(ok && /FIT: PASS/.test(few) && /tool fd: its condition is met now \(when: more than 6 quokka files; files named \*quokka\* is 7\)/.test(many7) && /FIT: PASS/.test(vague),
       'fit-checklist: a "later - when:" condition counts the files its noun names; one it cannot read is not measured', `${ok} | ${few.slice(-200)} | ${many7.slice(0, 300)} | ${vague.slice(-200)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }

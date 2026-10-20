@@ -159,7 +159,9 @@ const DEFAULTS = {
   questionNoFileExempt: ['docs/knowledge/**', 'docs/STATUS.md', 'docs/CHANGELOG.md', 'docs/DECISIONS.md', 'docs/BRIEF.md', '.cache/**', 'tools/hooks/state/**',
     'docs/playbooks/**', 'skills/**', 'docs/checks/**', 'docs/plans/**', 'docs/glossary.md', 'tools/hooks/requirements.json', 'tools/hooks/project-scenarios.mjs', 'DIRECTORY.md', 'AGENTS.md', 'CLAUDE.md'],
   changeWords: "\\b(make|create|write|add|update|fix|change|edit|save|build|apply|implement|set ?up|delete|remove|rename|move|ingest|record|note|remember|go ahead|do it|yes|yep|sure|ok(ay)?|proceed|draft|generate|turn|convert|organi[sz]e|clean|refactor|improve|put|bump|raise|lower|increase|decrease|tweak|adjust|enable|disable|install|switch|replace|restyle|resize|translate|merge|split|commit|push|send|post|publish|deploy|release|run)\\b",
-  praise: "\\b(great job|good job|well done|nailed it|perfect|awesome|amazing|love (it|this|that)|exactly what i wanted|keep (doing|making) (this|that|these|it))\\b",
+  // (Lesson: "nice work" and "that's exactly it" were missed, while "not perfect yet" and "the perfect pizza" counted:
+  // "perfect" is praise only on its own, at the end of a clause, and not after "not")
+  praise: String.raw`\b(great job|good job|nice (work|job)|well done|nailed it|spot on|awesome|amazing|love (it|this|that)|exactly (it|what i wanted)|keep (doing|making) (this|that|these|it))\b|\bthat'?s (it|the one)\s*[!.]|\bthat is the one\b|(?<!\bnot )\bperfect\b(?=\s*([.!,]|$))`,
   // Git: nothing in a commit, push, PR or release may credit an AI agent. Everything is solely the user's.
   aiAttribution: "co-authored-by:[^\\n]*(claude|anthropic|openai|chatgpt|gpt-?\\d|codex|copilot|cursor|gemini|bard|llama|mistral|devin|aider|\\bai\\b|bot\\b)|generated (with|by) [^\\n]*(claude|chatgpt|gpt|codex|copilot|cursor|gemini|\\bai\\b)|noreply@anthropic\\.com|claude\\.(ai|com)/code|🤖|\\[bot\\]@|(written|made|created) (with|by) (claude|chatgpt|codex|copilot|cursor|gemini)",
   aiAuthor: "\\b(claude|anthropic|chatgpt|openai|codex|copilot|cursor|gemini|devin|aider)\\b|\\[bot\\]|noreply@(anthropic|openai)",
@@ -203,20 +205,33 @@ const DEFAULTS = {
     'at the end of the day', 'needless to say', 'without further ado', 'i hope you', 'in summary,', 'to summarize,', 'dive into', 'deep dive'],
   evidenceLabels: ['observed', 'user reported', 'source verified', 'document verified', 'measured', 'inferred', 'hypothesis', 'assumption', 'unresolved'],
   // a lasting requirement on the project's work (REQ: requirement-enforced); one-off instructions don't match
-  requirementWords: String.raw`\b(every|each|all|any) (\w+ ){0,3}(must|should|needs? to|has to|have to)\b|\b(must|should|needs? to|has to) (always|never|include|contain|cite|have|show)\b|\b(it'?s|this is|that'?s|make (it|this|that)) a requirement\b|\brequirements? (are|is)\b|\bmake sure (every|each|all|that every|that each)\b`,
-  ruleRequest: "update (the|this|your|ur) project|from now on|going forward|\\bremember (to|that|this)\\b|\\bmandatory\\b|make (it|this|that) a (rule|requirement)|\\b(always|never) (do|make|use|check|include|ask|tell|run|add|keep|start|end|read|write|put|give|show|create|follow|save|delete|send)\\b|never .{0,40} again|don'?t ever|stop doing|i shouldn'?t have to (tell|remind)",
+  // (Lesson: "every recipe needs a photo" and "reports without a chart are no good" were missed, and "this one report
+  // should have a chart", a one-off, counted; "all I need is" is no requirement)
+  requirementWords: String.raw`\b(every|each|all|any) (?!(i|we|you|they)\b)(\w+ ){0,3}(must|should|needs?|has to|have to|requires?)\b|\b(must|needs? to|has to) (always|never|include|contain|cite|have|show)\b|\b(it'?s|this is|that'?s|make (it|this|that)) a requirement\b|\brequirements? (are|is)\b|\bmake sure (every|each|all|that every|that each)\b|\bwithout (a|an|any|the) [\w ]{1,20}?(are|is|isn'?t|aren'?t) (no good|useless|not (ok|okay|acceptable|good enough))\b` +
+    // Plainer standing wishes ("there needs to be ...", "the menu has to ...", "keep in mind that every ...") count too,
+    // except as a one-off: "this one/this time" before it, a deadline or "first" after it, or a question.
+    // Lesson: "there needs to be role selection ... keep in mind that every phase has different roles" got no hint and no check.
+    String.raw`|(?<!\b(this one|this time|just this|for now)\b[^.?!\n]{0,30})(?:\bthere (needs|has) to be\b|\b(it|this|the \w+) (needs|has) to\b|\bshould (always|never|be|have|show)\b|\bmust (be|have|show|not)\b|\bmake sure (it|that|the|you)\b|\bi want (it|the \w+) to\b|\bkeep in mind that\b[^.?!\n]{0,40}\b(every|each|all|most|always|never)\b)(?![^.?!\n]{0,40}\b(by|before|until|today|tomorrow|tonight|asap|first|this time|for now|right now)\b|[^.!\n]*\?)`,
+  // (Lesson: "every time you finish", "stop adding", "no more em dashes", "in future" and "remember I prefer" were
+  // missed, while "remember that the supplier closes on mondays", a fact for the knowledge base, read as a rule;
+  // "the invoices must always show ..." is a requirement on the work, so "must always" is left to requirementWords)
+  ruleRequest: String.raw`update (the|this|your|ur) project|from now on|going forward|\bremember (to|this)\b|\bremember (that )?(i|we) (prefer|like|want|hate|don'?t|never|always|use)\b|\bremember (that )?(you|we) (should|must|always|never|need|have to)\b|\bmandatory\b|make (it|this|that) a (rule|requirement)|(?<!\b(must|should|has to|needs? to) )\b(always|never) (do|make|use|check|include|ask|tell|run|add|keep|start|end|read|write|put|give|show|create|follow|save|delete|send|cite|mention|format|name|link|test|commit|push|leave|remove|spell|reply|answer|label|date)\b|never .{0,40} again|don'?t ever|stop doing|i shouldn'?t have to (tell|remind)|\bevery time (you|we|i)\b|\bstop (adding|using|putting|making|writing|doing|including)\b|\bno more (?!than\b)\w+|\bin (the )?future\b`,
   // A complaint about a miss: the learn-from-upset skill fixes it and stores the lesson where it belongs (REQ: upset-learned).
   // Lesson: "you forgot the allergens again!!" got a frustration hint, but nothing made it a rule.
   // A small touch-up: no runbook is needed when it changes at most 2 files (REQ: runbook-exists). Lesson: "fix the typo
   // in the README" was told to create a runbook, its check and two scenarios.
   trivial: "\\b(typos?|spelling|misspel\\w*|reword|rephrase|wording|punctuation|capitali[sz]\\w*|whitespace|indentation|formatting|broken link|dead link|fix the link)\\b|\\brename\\s+\\S+\\s+to\\b|\\bchange (the )?(text|title|label|heading|colou?r|date|year|number) (of |on |in |to |from )",
-  complaint: "\\byou (forgot|didn'?t|did not|missed|skipped|ignored|left out|keep forgetting|never)\\b|\\b(i|we) (already )?told you\\b|\\bwhy (did|didn'?t) you\\b|\\bwhy (do|does) (you|it) keep\\b|\\bagain\\s*[!?]|\\bnot again\\b|\\bkeeps? (happening|forgetting|missing)\\b",
+  // (Lesson: "you did it AGAIN", "the totals are wrong again.", "I literally said no emojis" and "how hard is it to keep
+  // the footer" got no upset handling: a miss named with "again", a pointed "I said", an exasperated question)
+  complaint: "\\byou (forgot|didn'?t|did not|missed|skipped|ignored|left out|keep forgetting|never)\\b|\\b(i|we) (already )?told you\\b|\\bwhy (did|didn'?t) you\\b|\\bwhy (do|does) (you|it) keep\\b|\\bagain\\s*[!?]|\\bnot again\\b|\\bkeeps? (happening|forgetting|missing)\\b" +
+    String.raw`|\b(did|done|wrong|broke\w*|missing|forgot\w*|failed)\b[^.?!\n]{0,30}\bagain\b|\bi (literally|clearly|specifically|explicitly) (said|asked( you)?( for)?|told you)\b|\bi (just )?(said|told you)\b[^.?!\n]{0,20}\b(no|not|never|don'?t)\b|\bhow hard is it\b`,
   // The work falls short: a verdict on its quality, or a disappointed question about what it lacks. Upset too, and a
   // standing requirement on the work, so it is enforced with a check (REQ: upset-learned).
   // (Lesson: "really no pictures ... did you not find any" and "it's lackluster" got no upset handling at all)
-  letdown: "\\black ?lustre\\b|\\black ?luster\\b|\\bunderwhelming\\b|\\bdisappoint(ing|ed)\\b|\\bnot good enough\\b|\\bnot what i (asked|wanted|meant)\\b|\\bdid you (not|even)\\b|\\bdidn'?t you (find|check|look|see|read|try|add|test)\\b|\\byou (still )?(haven'?t|have not|couldn'?t|could not) (find|fix|add|get)\\b|\\breally no\\b|\\bstill (no|not|missing|broken|wrong|nothing)\\b|\\b(are|is) still missing\\b|\\?{3,}|\\bcome on\\b|\\b(this|it|that)(?:'s| is| looks| feels) (bad|wrong|broken|lacking|incomplete|half[- ]done|sloppy|thin|bare|basic)\\b|\\b(so|very|pretty) (bad|poor|thin|bare|basic|sloppy)\\b",
+  letdown: "\\black ?lustre\\b|\\black ?luster\\b|\\bunderwhelming\\b|\\bdisappoint(ing|ed)\\b|\\bnot good enough\\b|\\bnot what i (asked|wanted|meant)\\b|\\bdid you (not|even)\\b|\\bdidn'?t you (find|check|look|see|read|try|add|test)\\b|\\byou (still )?(haven'?t|have not|couldn'?t|could not) (find|fix|add|get)\\b|\\breally no\\b|\\bstill (no|not|missing|broken|wrong|nothing)\\b|\\b(are|is) still missing\\b|\\?{3,}|\\buseless\\b|\\bcome on\\b(?!\\s+(over|in|board|down|up|by)\\b)|\\b(this|it|that)(?:'s| is| looks| feels) (bad|wrong|broken|lacking|incomplete|half[- ]done|sloppy|thin|bare|basic)\\b|\\b(so|very|pretty) (bad|poor|thin|bare|basic|sloppy)\\b",
   // (Lesson: "annoying", "ugh", "why do you keep" and "I keep telling you" were missed, so friction never counted them)
-  frustration: "\\bwhy (did|didn'?t|would) you\\b|\\bwhy (do|does) (you|it) keep\\b|\\byou (forgot|didn'?t|ignored|skipped|missed)\\b|\\byou keep (\\w+ing|on)\\b|\\bi (already |keep )?(told|telling|said|asked) you\\b|\\bagain\\?|\\bwtf\\b|\\bseriously\\b|\\bugh+\\b|\\bannoying\\b|\\bso (frustrating|annoying)\\b|\\bstop (making|asking|doing) me\\b|\\bhow many times\\b|\\bfor the (last|third|nth) time\\b|!!",
+  // ("I asked you to ..., thanks" is a reminder with thanks, not frustration. Lesson: it read as upset; so did "come on over")
+  frustration: "\\bwhy (did|didn'?t|would) you\\b|\\bwhy (do|does) (you|it) keep\\b|\\byou (forgot|didn'?t|ignored|skipped|missed)\\b|\\byou keep (\\w+ing|on)\\b|\\bi (already |keep )?(told|telling|said|asked) you\\b(?![^.!?\\n]*\\b(thanks|thank you|cheers)\\b)|\\bagain\\?|\\bwtf\\b|\\bseriously\\b|\\bugh+\\b|\\bannoying\\b|\\bso (frustrating|annoying)\\b|\\bstop (making|asking|doing) me\\b|\\bhow many times\\b|\\bfor the (last|third|nth) time\\b|!!",
   taskVerbs: "\\b(make|create|build|write|draft|add|update|fix|research|find|look up|plan|compare|organi[sz]e|set ?up|analy[sz]e|summari[sz]e|review|generate|turn|convert|change|edit|rewrite|remove|delete|move|import|ingest|prepare|track|calculate|design|outline|translate|clean ?up|sort|merge|split|audit|check|run|train|retrain|tune|test|document|refactor|rename|upgrade|bump|migrate|restyle|deploy|release|publish|install|configure)\\b",
   overwriteWords: "\\b(overwrite|in place|edit (it|this|that|the (file|doc|output))|replace (it|the file)|fix (it|this|that|the) (file|doc|output|typo))\\b",
   // The user's OK for an outward action in this request (REQ: outward-gate). "email the supplier" alone asks for a draft;
@@ -313,7 +328,10 @@ export function routableSkills(cfg = config()) {
     if (/^generated:\s*true/m.test(text)) continue;
     const fm = frontmatter(text) || {};
     if (fm.runbook) continue; // part of a runbook's procedure ("runbook: docs/playbooks/x.md"): routed and checked through it
-    out.push({ name: n, file, fm, text, triggers: splitList(fm.triggers), triggerRe: null, skillName: n });
+    // a skill's "trigger_regex:" routes it the same as a runbook's. Lesson: skills could set one and it was never read.
+    let triggerRe = null;
+    try { if (fm.trigger_regex) triggerRe = re(fm.trigger_regex); } catch { }
+    out.push({ name: n, file, fm, text, triggers: splitList(fm.triggers), triggerRe, skillName: n });
   }
   return out;
 }
@@ -331,7 +349,10 @@ export function skillHasCheck(s) {
 const STOP = new Set(['a', 'an', 'the', 'this', 'that', 'these', 'to', 'of', 'for', 'in', 'on', 'at', 'my', 'me', 'it', 'its', 'is', 'are', 'be', 'do', 'does', 'did', 'and', 'or', 'with', 'from', 'by', 'i', 'we', 'our', 'you', 'your']);
 // Plural and past forms meet their base word: notes and noted are note, boxes is box, created is create, added is add.
 // Lesson: "-es" was cut from every word, so "notes" became "not", a common word, and "in my notes" could never route.
-const stem = w => w.length <= 4 || /(ss|us|is)$/.test(w) ? w
+// A four-letter word loses only a plural "s" ("bugs" is bug, "keys" is key), never "-ed" or "-ing" ("need", "ring" stay).
+// Lesson: words of four letters kept their "s", so "bugs", "keys", "logs" and "apps" never met their trigger.
+const stem = w => w.length <= 3 || /(ss|us|is)$/.test(w) ? w
+  : w.length === 4 ? (/s$/.test(w) ? w.slice(0, -1) : w)
   : /ies$/.test(w) ? w.slice(0, -3) + 'y'
   : /(s|x|z|ch|sh)es$/.test(w) ? w.slice(0, -2)
   : /s$/.test(w) ? w.slice(0, -1)
@@ -404,14 +425,21 @@ export function route(prompt, pbs) {
       const common = !k.some(w => !GENERIC.has(w));
       if (common && !/\s/.test(t.trim())) continue;
       const exact = re(`(^|[^a-z0-9])${esc(t)}($|[^a-z0-9])`).test(low);
-      if (common ? !exact : !exact && !(k.length >= 2 && k.every(w => words.has(w)))) continue;
-      // ...and only backs up a real match: "can you fix it here" alone is no bug report
-      if (common) { score += 0.5; hits.push(t); continue; }
+      // a one-word trigger also matches its plural or past form ("bug" in "two bugs"); a longer one needs its key words
+      if (common ? !exact : !exact && !(k.every(w => words.has(w)) && (k.length >= 2 || !/\s/.test(t.trim())))) continue;
+      // A whole phrase typed exactly ("not working", "fix this", "teach me", "ship it") is the request itself, unless it
+      // sits in a plain question with no request verb. Lesson: such triggers could only back up another match, so "the
+      // export is not working" and "teach me git branching" routed nowhere.
+      const phrase = exact && /\s/.test(t.trim()) && !askOnly;
+      // A phrase of common words routes alone only with two key words ("not working", "look up"), three words or more
+      // ("from now on", "where are we") or a pointer at the user's thing ("fix this"); otherwise it only backs up a real
+      // match: "can you fix it here" alone is no bug report
+      if (common) { score += 0.5; hits.push(t); if (phrase && (k.length >= 2 || t.trim().split(/\s+/).length >= 3 || /\b(my|our|this|these)\b/i.test(t))) strong = true; continue; }
       score += exact ? 1 + t.split(' ').length / 10 : 0.5 + k.length / 10; hits.push(t);
       // a phrase that points at the user's own thing ("my vault", "in my notes", "remember this"), typed exactly, is a
       // request on its own. Lesson: such triggers could never route, so "check the links in my vault" found nothing.
       const oneWord = k.length < 2 && !/\s/.test(t.trim());
-      if (k.length >= 2 || (oneWord && !askOnly) || (exact && /\b(my|our|this|these)\b/i.test(t))) strong = true; else k.forEach(w => weak.add(w));
+      if (k.length >= 2 || (oneWord && !askOnly) || phrase || (exact && /\b(my|our|this|these)\b/i.test(t))) strong = true; else k.forEach(w => weak.add(w));
     }
     if (pb.triggerRe && pb.triggerRe.test(low)) { score += 2; strong = true; hits.push('/' + pb.fm.trigger_regex + '/'); }
     if (score && (strong || weak.size >= 2)) scored.push({ pb, score, hits });
@@ -571,10 +599,11 @@ function fallbackTurn() {
 // What existed when the request arrived, so "new this turn" never depends on file creation times. Lesson: editors that
 // save by writing a fresh file made edited runbooks look new.
 // A message typed mid-turn adds to the request but keeps the turn's start (and what existed then).
+// (the plans still open when the request arrived too: REQ: plan-open)
 const recordTurn = (prompt, fresh = true) => {
   const old = fresh ? null : readJSON(stateFile('turn.json'), null);
   writeState('turn.json', old?.at ? { ...old, prompt: `${old.prompt || ''}\n${prompt}`.slice(-4000) }
-    : { at: new Date().toISOString(), prompt: String(prompt).slice(0, 4000), runbooks: list('docs/playbooks'), skills: list(config().skillsDir) });
+    : { at: new Date().toISOString(), prompt: String(prompt).slice(0, 4000), runbooks: list('docs/playbooks'), skills: list(config().skillsDir), openPlans: openPlans().map(x => x.p) });
 };
 
 // ---------- turns: a turn runs from the user's prompt until a Stop lets the answer end ----------
@@ -2071,9 +2100,10 @@ export function dueRoutines(text, now = today()) {
 function notices(cfg) {
   const out = [];
   const template = exists('.starter-template');
-  // REQ: unresolved-carryover. Lesson: after the block cap, a miss passed silently. It is announced until fixed.
+  // REQ: unresolved-carryover. Lesson: after the block cap, a miss passed silently. It is announced once, and the next
+  // work turn's Stop re-runs those checks (carryoverChecks), so it cannot just be read and forgotten.
   const un = readJSON(path.join(STATE, 'unresolved.json'), null);
-  if (un && un.items?.length) out.push(`LAST WORK TURN ENDED WITH UNRESOLVED CHECKS: ${un.items.join('; ')}. Fix what still applies (details: node tools/hooks/hooks.mjs why), and tell the user only where it changes the answer, in plain words.`);
+  if (un && un.items?.length && !un.announced) out.push(`LAST WORK TURN ENDED WITH UNRESOLVED CHECKS: ${un.items.join('; ')}. Fix what still applies (details: node tools/hooks/hooks.mjs why), and tell the user only where it changes the answer, in plain words.`);
   if (!template && exists('SETUP-PROMPT.md'))
     out.push('SETUP IN PROGRESS: SETUP-PROMPT.md is still here. Follow it (it builds this project end to end). The hooks deny deleting it until node tools/audit.mjs --setup passes. If the user just wants a quick answer, answer it, then continue setup.');
   else if (!template && /status:\s*not bootstrapped/i.test(read(abs('docs/BRIEF.md'))))
@@ -2133,13 +2163,15 @@ function cmdSession(data) {
   if (n.length) parts.push('--- notices ---\n- ' + n.join('\n- '));
   // announced here, so the first prompt doesn't repeat them; last turn's misses are announced once, then dropped
   writeState(SHOWN, { at: new Date().toISOString(), shown: n.map(noticeKey).filter(Boolean), session: true });
-  if (n.some(x => x.startsWith('LAST WORK TURN')) && !envOf('BENCH')) { try { fs.unlinkSync(path.join(STATE, 'unresolved.json')); } catch { } }
+  if (n.some(x => x.startsWith('LAST WORK TURN'))) unresolvedAnnounced();
   contextOut('SessionStart', parts.filter(Boolean).join('\n\n') + '\n');
 }
 
 // ---------- UserPromptSubmit ----------
 // The user handing the work over: "without my input", "don't ask me", "keep going until it's finished", "go go go".
-const AUTONOMY_WORDS = /\bwithout (my|any) (input|approval|questions?|ok)\b|\bdon'?t (ask|bother) me\b|\bno (more )?questions\b|\bkeep going (until|till) (it'?s |you'?re |everything is )?(done|finished|complete)\b|\bgo,? go,? go\b|\bdon'?t stop (until|till|for)\b|\bdecide (everything|for me|yourself)\b|\bdon'?t want to be (bothered|asked|interrupted)\b|\b(handle|do|figure out) (it|this|everything|all of it|the rest) (yourself|on your own|without me)\b|\bwithout checking (in )?with me\b|\bi('?m| am) (going )?(away|offline|out)\b[^\n]{0,40}\b(keep|carry on|continue)\b/i;
+// ("don't ask me for the api key again" is about one thing, not the whole job. Lesson: "you decide", "I trust you",
+// "no need to check with me" and "without stopping" were missed, and that one false alarm counted)
+const AUTONOMY_WORDS = /\byou decide\b|\bi trust you\b|\bno need to (ask|check with) me\b|\bwithout stopping\b|\bwithout (my|any) (input|approval|questions?|ok)\b|\bdon'?t (ask|bother) me\b(?!\s+(for|about)\b)|\bno (more )?questions\b|\bkeep going (until|till) (it'?s |you'?re |everything is )?(done|finished|complete)\b|\bgo,? go,? go\b|\bdon'?t stop (until|till|for)\b|\bdecide (everything|for me|yourself)\b|\bdon'?t want to be (bothered|asked|interrupted)\b|\b(handle|do|figure out) (it|this|everything|all of it|the rest) (yourself|on your own|without me)\b|\bwithout checking (in )?with me\b|\bi('?m| am) (going )?(away|offline|out)\b[^\n]{0,40}\b(keep|carry on|continue)\b/i;
 export function promptHints(prompt, cfg = config(), withNotices = true) {
   if (!String(prompt || '').trim() || skipped(prompt)) return []; // REQ: notification-not-prompt
   const p = userText(prompt); // pasted text and the hooks' own output are not the request
@@ -2204,7 +2236,8 @@ export function promptHints(prompt, cfg = config(), withNotices = true) {
       '"hook: N/A <reason>"), run the hook tests and the audit. If it is not actually a rule, write "N/A(rule-request): <why>". REQ: rule-request.');
   else if (re(cfg.requirementWords).test(p))
     hints.push('REQUIREMENT: the user stated a lasting requirement on the work. Enforce it this turn, without asking: a "Done when" item in its runbook or skill with ' +
-      '"(hook: <tag>)", the check and a test (or "(judgment: <why>)" when no script can tell). REQ: requirement-enforced.');
+      '"(hook: <tag>)", the check and a test (or "(judgment: <why>)" when no script can tell). If it was only for this one task, ' +
+      'say so with N/A(requirement-enforced): one-off. REQ: requirement-enforced.');
   const due = hardenDue(pbs, usage(), cfg);
   if (due.length && routed.some(r => due.includes(r.pb)))
     hints.push(`SKILL HARDENING DUE for ${routed.filter(r => due.includes(r.pb)).map(r => r.pb.file).join(', ')}: after the task, use the skill-harden skill.`);
@@ -2236,7 +2269,7 @@ function cmdPrompt(data, { force = false } = {}) {
   // each notice once per turn; last turn's misses once, then dropped (REQ: unresolved-carryover)
   const fresh = promptNotices(cfg).filter(n => !st.shown.includes(noticeKey(n)));
   for (const n of fresh) st.shown.push(noticeKey(n));
-  if (fresh.some(n => n.startsWith('LAST WORK TURN')) && !envOf('BENCH')) { try { fs.unlinkSync(path.join(STATE, 'unresolved.json')); } catch { } }
+  if (fresh.some(n => n.startsWith('LAST WORK TURN'))) unresolvedAnnounced();
   const hints = [...scoreFriction(userText(p), cfg), ...promptHints(p, cfg, false), ...fresh];
   const out = [];
   if (cfg.promptDigest && !st.shown.includes('digest')) { out.push(DIGEST); st.shown.push('digest'); }
@@ -2579,21 +2612,33 @@ function cmdPosttool(data) {
 export function eventHintAfterEdit(p, inp, cfg = config()) {
   if (!p || p.startsWith('..')) return null;
   const text = [inp.content, inp.new_string, inp.new_source, ...(inp.edits || []).map(e => e.new_string)].filter(v => typeof v === 'string').join('\n');
-  if (!text) return null;
+  if (!['content', 'new_string', 'new_source', 'edits'].some(k => k in inp)) return null; // not a write
   const turnAt = readJSON(stateFile('turn.json'), {}).at || '';
   const seen = readJSON(path.join(STATE, 'event-hints.json'), {});
   const shown = seen.at === turnAt ? seen.tags || [] : [];
   const out = [];
+  const kind = n => exists(`${cfg.skillsDir}/${n}/SKILL.md`) ? 'skill' : 'runbook';
   for (const q of loadRequirements().reqs) {
-    const spec = q?.when?.changedContentMatches;
-    if (!spec || !q.forces || q.enabled === false || shown.includes(q.tag) || isSuspended(`check:${q.tag}`)) continue;
-    const sp = typeof spec === 'string' ? { pattern: spec } : spec;
+    if (!q?.when || !q.forces || q.enabled === false || shown.includes(q.tag) || isSuspended(`check:${q.tag}`)) continue;
     if (q.when.filesIgnore && match(p, [].concat(q.when.filesIgnore))) continue;
-    if (!match(p, sp.files || ['**']) || match(p, sp.ignore || [])) continue;
-    let m = null; try { m = new RegExp(sp.pattern, 'im').exec(text); } catch { }
-    if (!m) continue;
+    const spec = q.when.changedContentMatches;
+    if (spec) {
+      const sp = typeof spec === 'string' ? { pattern: spec } : spec;
+      if (!text || !match(p, sp.files || ['**']) || match(p, sp.ignore || [])) continue;
+      let m = null; try { m = new RegExp(sp.pattern, 'im').exec(text); } catch { }
+      if (!m) continue;
+      shown.push(q.tag);
+      out.push(`MUST FOLLOW: ${q.forces}. ${p} now has "${m[0].trim().slice(0, 50)}", so the ${q.forces} ${kind(q.forces)} is mandatory this turn (REQ: ${q.tag}). Follow it before finishing, or waive it with N/A(${q.tag}): <the specific reason>.`);
+      continue;
+    }
+    // A trigger on the files themselves (sources/, outputs/, a migration, an installer) says so at the first such edit
+    // too, not only at the end of the turn. One tied to a runbook or skill being followed is that procedure's own step.
+    // Lesson: a file saved into outputs/ heard about the deliverable runbook only when Stop blocked the finished answer.
+    // (a files trigger may sit in one "anyOf" branch, with its own filesIgnore)
+    const onFiles = b => b && b.filesChanged && !b.playbookUsed && !b.skillUsed && match(p, [].concat(b.filesChanged)) && !(b.filesIgnore && match(p, [].concat(b.filesIgnore)));
+    if (q.when.playbookUsed || q.when.skillUsed || !(onFiles(q.when) || (q.when.anyOf || []).some(onFiles))) continue;
     shown.push(q.tag);
-    out.push(`MUST FOLLOW: ${q.forces}. ${p} now has "${m[0].trim().slice(0, 50)}", so the ${q.forces} ${exists(`${cfg.skillsDir}/${q.forces}/SKILL.md`) ? 'skill' : 'runbook'} is mandatory this turn (REQ: ${q.tag}). Follow it before finishing, or waive it with N/A(${q.tag}): <the specific reason>.`);
+    out.push(`MUST FOLLOW: ${q.forces}. This turn changed ${p}, so the ${q.forces} ${kind(q.forces)} is mandatory this turn (REQ: ${q.tag}). Follow it before finishing, or waive it with N/A(${q.tag}): <the specific reason>.`);
   }
   if (out.length) writeState('event-hints.json', { at: turnAt, tags: shown });
   return out.length ? '[project hooks: obey these]\n- ' + out.join('\n- ') : null;
@@ -2690,6 +2735,16 @@ export function coreChecks(x, cfg) {
   if (x.workTurn && born.length >= cfg.planNewFiles && !x.changed.some(p => /^docs\/plans\/.+\.md$/.test(p)) && !(exists('SETUP-PROMPT.md') && !exists('.starter-template')))
     add('plan-required', `This turn added ${born.length} new files (${born.slice(0, 4).join(', ')}${born.length > 4 ? ', ...' : ''}) without a plan. Write or update one in docs/plans/ with the plan skill ` +
       '(a checkbox per task, ticked as they finish), so nothing is left half done and the next session can continue it.');
+  // REQ: plan-open. A plan left open says "before new work, resume or close it": a work turn that started with one open
+  // either works on a plan (a docs/plans/ file changed, or plan-tasks.mjs ran) or is stopped once to say why not.
+  // Lesson: the OPEN PLANS notice said "before new work", nothing held the agent to it, and plans were left half done.
+  const snap = readJSON(stateFile('turn.json'), null);
+  const startPlans = snap && Date.parse(snap.at) >= (x.since || 0) - 5000 ? (snap.openPlans || []).filter(p => exists(p)) : [];
+  if (x.workTurn && startPlans.length && !x.failedBefore?.includes('plan-open') && !x.changed.some(p => /^docs\/plans\//.test(p))
+    && ![...x.cmds, ...(x.runs || []).map(r => r.cmd || '')].some(c => /plan-tasks\.mjs/.test(c)))
+    add('plan-open', `This turn started with ${startPlans.length > 1 ? 'open plans' : 'an open plan'} (${startPlans.slice(0, 3).join(', ')}) and did not touch ${startPlans.length > 1 ? 'them' : 'it'}. Tell the user, then resume it ` +
+      '(node skills/plan/scripts/plan-tasks.mjs status <plan>), tick what this work finished, or close it with "status: done" or "status: dropped - <why>". ' +
+      'If this request is unrelated and the plan stays open on purpose, write "N/A(plan-open): <why>".');
   // REQ: note-linked. A new note links to what it relates to, so Obsidian's graph (and the agent) can see how the
   // project's knowledge connects. A note that truly stands alone says why under "## Related".
   // Notes: the knowledge base, docs/notes/, and free-standing notes in docs/. Release notes, specs and plans have their
@@ -2797,6 +2852,12 @@ export function coreChecks(x, cfg) {
     }
     if (need.length) add('rule-request', 'The user set a standing rule. Not yet written into: ' + need.join('; ') + '. Use the project-rule skill.');
   }
+  // REQ: autonomy-recorded. "You decide, don't ask me" is a standing choice: it goes into config, where every later turn
+  // and every agent reads it, not just into this answer. Lesson: the AUTONOMY hint was shown, the agent stopped asking
+  // for one turn, and the next session asked again because nothing was recorded.
+  if (x.prompt && cfg.autonomy !== 'auto' && AUTONOMY_WORDS.test(x.prompt) && !x.changed.includes('tools/hooks/config.json'))
+    add('autonomy-recorded', 'The user handed the work over (no questions, decide yourself). Set "autonomy": "auto" in tools/hooks/config.json and record it in docs/DECISIONS.md ' +
+      '(date, the choice, why), so every later turn decides instead of asking. If the user meant only this one question, write "N/A(autonomy-recorded): <why>".');
   // REQ: upset-learned. An upset user gets the miss fixed AND a lesson stored where it stops the next one: the answer says
   // "Learned (<level>): <lesson> → <file>" and that file changed this turn. The learn-from-upset skill weighs the level.
   // Lesson: complaints were answered with an apology and a fix, and the same miss came back the next week.
@@ -2829,7 +2890,8 @@ export function coreChecks(x, cfg) {
   // enforced in the same turn, without being asked: a "Done when" item in its runbook or skill that names its check, the
   // check, and a test; or a "(judgment: <why>)" item when no script can tell. Lesson: the user stated requirements, the
   // agent only wrote them into a runbook, and nothing enforced them until the user asked whether they were enforced.
-  if (x.prompt && re(cfg.requirementWords).test(x.prompt) && !re(cfg.ruleRequest).test(x.prompt) && !isUpset(x.prompt, cfg)) {
+  // Only a work turn: a passing remark in a question turn is answered, not blocked.
+  if (x.workTurn && x.prompt && re(cfg.requirementWords).test(x.prompt) && !re(cfg.ruleRequest).test(x.prompt) && !isUpset(x.prompt, cfg)) {
     const checkAdded = x.changed.some(p => /^(tools\/hooks\/(requirements\.json|hooks\.mjs|project-scenarios\.mjs)|library\/catalog\.json|packs\/[^/]+\/pack\.json)$/.test(p) || /\.(mjs|py|js|ts)$/.test(p) && /check|guard|lint|validate/i.test(p));
     const tested = x.changed.some(p => /^tools\/hooks\/(selfcheck|project-scenarios)\.mjs$/.test(p) || /(^|\/)(tests?|__tests__)\/|\.(test|spec)\./.test(p)) || x.cmds.some(c => /selfcheck\.mjs|\btest\b/.test(c));
     const judged = x.changed.filter(p => /(^docs\/playbooks\/|SKILL\.md$)/.test(p) && exists(p)).some(p => doneWhenItems(read(abs(p))).some(i => /\bjudg(e)?ment\b/i.test(i)));
@@ -2847,10 +2909,13 @@ export function coreChecks(x, cfg) {
       add('question-no-file', `This was a question, but files changed (${unasked.slice(0, 5).join(', ')}). Questions get answers, not edits: ` +
         'undo the unrequested changes, or quote the words that asked for them ("Asked for: "...").');
   }
-  // REQ: count-honored. "Do 10 sweeps" means 10, reported as 10.
-  const NUM = { two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, twelve: 12, fifteen: 15, twenty: 20 };
-  for (const m of x.prompt.toLowerCase().matchAll(/\b(\d{1,3}|two|three|four|five|six|seven|eight|nine|ten|twelve|fifteen|twenty)\s+(?:more\s+)?(sweeps?|passes|checks|rounds|options|ideas|examples|alternatives|variations|versions|drafts|sources|questions|suggestions)\b/g)) {
-    const n = NUM[m[1]] || Number(m[1]);
+  // REQ: count-honored. "Do 10 sweeps" means 10, reported as 10. "A couple of ideas" is 2; "a few options, like 4" takes
+  // the number said just after. Lesson: both were asked for and never counted.
+  const NUM = { two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, twelve: 12, fifteen: 15, twenty: 20, 'a couple of': 2 };
+  const low = x.prompt.toLowerCase();
+  for (const m of low.matchAll(/\b(\d{1,3}|two|three|four|five|six|seven|eight|nine|ten|twelve|fifteen|twenty|a couple of|a few|several)\s+(?:more\s+)?(sweeps?|passes|checks|rounds|options|ideas|examples|alternatives|variations|versions|drafts|sources|questions|suggestions)\b/g)) {
+    const n = NUM[m[1]] || Number(m[1]) || Number(/^[^.?!\n]{0,20}?\b(\d{1,3})\b/.exec(low.slice(m.index + m[0].length))?.[1]);
+    if (!n) continue; // "a few" with no number after it: no count to honor
     const word = Object.keys(NUM).find(k => NUM[k] === n);
     if (n > 1 && !re(`\\b(${n}${word ? '|' + word : ''})\\b`).test(x.said))
       add('count-honored', `The user asked for ${n} ${m[2]}. Deliver exactly that many and say so with the number (e.g. "${n} ${m[2]}: ...").`);
@@ -3157,7 +3222,10 @@ export function holds(c, x) {
   if (c.toolRan && x.toolsKnown && !x.cmds.some(cmd => r(c.toolRan).test(cmd))) return false;
   if (c.toolUsed && x.toolsKnown && !x.uses.some(u => r(c.toolUsed).test(u.name))) return false;
   if (c.resultMatches && x.toolsKnown && !r(c.resultMatches).test(x.results)) return false;
-  if (c.fileRead && x.toolsKnown && ![...x.reads].some(p => match(p, globs(c.fileRead)))) return false;
+  // fileRead: filesIgnore applies, and a folder's README.md (what the folder is for) is no read of its contents unless
+  // named. Lesson: opening inbox/README.md counted as reading the inbox, and asked for the ingest runbook.
+  const readCounts = p => counted(p) && (!/(^|\/)README\.md$/i.test(p) || globs(c.fileRead).some(g => /readme/i.test(g)));
+  if (c.fileRead && x.toolsKnown && ![...x.reads].some(p => readCounts(p) && match(p, globs(c.fileRead)))) return false;
   if (c.playbookRouted && !x.routed.some(pb => pb.name === c.playbookRouted)) return false;
   if (c.playbookUsed && !x.usedPb.some(pb => pb.name === c.playbookUsed)) return false;
   if (c.skillUsed && !x.usedSkills.some(s => s.name === c.skillUsed) && !x.usedPb.some(pb => pb.skillName === c.skillUsed)) return false;
@@ -3213,14 +3281,18 @@ export const BASE_REQUIREMENTS = [
   { tag: 'self-improve', rule: '3', when: { answerMatches: String.raw`\b(should|shall|can|may) i\b[^\n?]{0,60}\b(add|create|write|set up|turn)\b[^\n?]{0,80}\b(checks?|runbooks?|tests?|skills?|hooks?|rules?)\b[^\n]*\?|\b(want|like) me to\b[^\n?]{0,60}\b(add|create|write|set up|turn)\b[^\n?]{0,80}\b(checks?|runbooks?|tests?|skills?|hooks?|rules?)\b[^\n]*\?` },
     require: { answerNotMatches: String.raw`\b(should|shall|can|may) i\b[^\n?]{0,60}\b(add|create|write|set up|turn)\b[^\n?]{0,80}\b(checks?|runbooks?|tests?|skills?|hooks?|rules?)\b[^\n]*\?|\b(want|like) me to\b[^\n?]{0,60}\b(add|create|write|set up|turn)\b[^\n?]{0,80}\b(checks?|runbooks?|tests?|skills?|hooks?|rules?)\b[^\n]*\?` },
     message: "Don't ask whether to add checks, runbooks, tests or skills for what the user already asked for: add them now, then say what you added (hard rule 3). Ask only about money, privacy or outward actions." },
-  { tag: 'decision-logged', rule: '12', when: { promptMatches: String.raw`\b(we|i)('ve| have)? decided\b|\blet'?s go with\b|\bfinal decision\b|\bi('m| am) going with\b|\bwe'?ll go with\b` },
+  // (Lesson: "ok we'll use stripe", "decided: postgres", "go with the blue one", "I pick the second design" and "fine,
+  // monthly billing it is" were decisions nobody logged)
+  { tag: 'decision-logged', rule: '12', when: { promptMatches: String.raw`\b(we|i)('ve| have)? decided\b|\bdecided\s*:|\blet'?s go with\b|\bfinal decision\b|\bi('m| am) going with\b|\b(we'?ll|we will|let'?s) (use|go with|pick|stick with)\b|(^|[.!,]\s*)(ok,?\s*)?go with\b|\bi('ll)? (pick|choose|chose) (the|option)\b|\b\w+ it is\s*[.!]?\s*$` },
     require: { filesChanged: ['docs/DECISIONS.md'] }, message: 'The user made a decision: record it in docs/DECISIONS.md (date, decision, why, what it rules out, what would reopen it).' },
   // (re-run / re-check count only for the last answer's work: "rerun the pipeline on the new batch" is a new run.
   // Lesson: a monthly pipeline run was asked to say what changed from the last answer)
-  { tag: 'redo-changes', rule: '8', when: { workTurn: true, promptMatches: String.raw`\b(redo|re-do|double.?check|try again|one more time|second look|re-?(run|check) (it|this|that|them|your (work|answer|check))\b|(do|check|look|go|run|try) (it |this |that |them )?(over |through )?again)\b` },
+  // (Lesson: "have another go at it" and "verify your answer" were redos that never said what changed)
+  { tag: 'redo-changes', rule: '8', when: { workTurn: true, promptMatches: String.raw`\b(redo|re-do|double.?check|try again|one more time|second look|another (go|try|look|pass)|verify (it|this|that|them|your (work|answer))|re-?(run|check) (it|this|that|them|your (work|answer|check))\b|(do|check|look|go|run|try) (it |this |that |them )?(over |through )?again)\b` },
     require: { answerMatches: 'what changed|changes from (the|my) (earlier|previous|last)|same result|nothing changed|no changes|differences from' },
     message: "This is a redo or re-check: add 'What changed from the earlier answer, and why' (old → new → reason for each change), or say 'same result' if nothing changed." },
-  { tag: 'praise-captured', rule: '3', when: { promptMatches: String.raw`\bkeep (doing|making) (this|that|these|it)\b|\b(do|make) (it|them) like this (every time|from now on)\b|\bthis is (exactly )?how i want\b` },
+  // (Lesson: "more like this please", "stick with this style" and "this format is great, use it from now on" were lost)
+  { tag: 'praise-captured', rule: '3', when: { promptMatches: String.raw`\bkeep (doing|making) (this|that|these|it)\b|\b(do|make) (it|them) like this (every time|from now on)\b|\bthis is (exactly )?how i want\b|\bmore like (this|that|these)\b|\bstick with (this|that|these)\b|\b(great|perfect|love|awesome)\b[^.!?\n]{0,30}\b(from now on|every time|going forward)\b` },
     require: { filesChanged: ['docs/playbooks/**', 'skills/**', 'CLAUDE.md', 'AGENTS.md', 'docs/checks/**'] },
     message: "The user wants this repeated: write down what exactly worked (as steps or a 'What works' line) in the runbook or skill it came from, or in the standing preferences." }
 ];
@@ -3288,7 +3360,10 @@ ${turnText(x.entries)}`;
       // doesn't count files there. Not followed, the trigger still fires. Lesson: a project's raid-research runbook saved
       // downloads into sources/raids/, and the ingest trigger asked for ingest on every one of them.
       const owned = q.forces ? (x.usedPb || []).filter(pb => pb.name !== q.forces && pb.fm?.owns).flatMap(pb => String(pb.fm.owns).split(',').map(s => s.trim()).filter(Boolean)) : [];
-      const when = owned.length && q.when ? { ...q.when, filesIgnore: [...[].concat(q.when.filesIgnore || []), ...owned] } : q.when;
+      // (each "anyOf" branch too: a branch judges its own files. Lesson: the ingest trigger moved its files into anyOf,
+      // and the owned folder counted again)
+      const ignoreOwned = w => w ? { ...w, filesIgnore: [...[].concat(w.filesIgnore || []), ...owned], ...(w.anyOf ? { anyOf: w.anyOf.map(ignoreOwned) } : {}) } : w;
+      const when = owned.length ? ignoreOwned(q.when) : q.when;
       // a requirement met by an earlier message of this turn stays met, so a re-block never forces the answer to repeat
       // it. A Finished section counts from any message after the last file change, since it still lists every change.
       // Lesson: every re-block produced a near-copy.
@@ -3333,6 +3408,37 @@ function recordUsage(x, key) {
   writeState('runbook-usage.json', u);
 }
 
+// REQ: unresolved-carryover. Checks left failing when the last work turn hit the block cap are announced once, then
+// re-run at the first Stop of the next work turn, against that turn's request and everything done since it began. Those
+// still failing block once more (each can be waived: N/A(<tag>) or N/A(unresolved-carryover)); then the record goes.
+// Lesson: the carry-over notice was shown once and deleted, so a miss past the cap was never fixed.
+function unresolvedAnnounced() {
+  const f = path.join(STATE, 'unresolved.json'), un = readJSON(f, null);
+  if (un && !envOf('BENCH')) writeState('unresolved.json', { ...un, announced: true });
+}
+function carryoverChecks(data, t, x, cfg) {
+  const un = readJSON(path.join(STATE, 'unresolved.json'), null);
+  if (!x.workTurn || data.stop_hook_active || !un?.tags?.length || envOf('BENCH')) return [];
+  if (un.since && x.since && un.since >= x.since) return []; // written by this turn itself
+  let t0 = null;
+  if (un.since && un.transcript && t.toolsKnown) {
+    const rows = codexRows(read(un.transcript).split(/\r?\n/).filter(l => l.trim()).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean));
+    const i = rows.findIndex(r => promptOf(r) !== null && (Date.parse(r.timestamp || '') || 0) >= un.since - 1000);
+    if (i >= 0) t0 = { ...t, since: un.since, entries: rows.slice(i + 1), prompt: un.request || un.prompt || '' };
+  }
+  // no transcript of that turn: judge it from the files and this turn's answer, with that turn's request
+  if (!t0) t0 = { ...t, since: un.since || t.since, prompt: un.request || un.prompt || '' };
+  let still = [];
+  try {
+    const x0 = { ...context(t0, cfg, data.last_assistant_message), failedBefore: [] };
+    const said = `${x0.said}\n${x.said}`;
+    still = [...coreChecks(x0, cfg), ...declarativeChecks(x0)].filter(m => un.tags.includes(m.tag) && !waived(m.tag, said, m.specific));
+  } catch { return []; }
+  if (!still.length) return [];
+  return [{ tag: 'unresolved-carryover', msg: `The last work turn ended with checks still failing, and they still fail now: ${[...new Set(still.map(m => `[${m.tag}] ${shortStep(m)}`))].join('; ')}. ` +
+    'Fix them in this turn (node tools/hooks/hooks.mjs why has the details), or waive one that no longer applies with N/A(<its name>): <reason>.' }];
+}
+
 export function stopDecision(data, cfg = config()) {
   const t = turn(data.transcript_path || '');
   if (!t) return null;
@@ -3351,7 +3457,7 @@ export function stopDecision(data, cfg = config()) {
   // one changelog line satisfies all three changelog checks, so they show as one step (Lesson: two steps for one line)
   const logs = found.filter(m => /^(changelog|knowledge-changelog|app-changelog)$/.test(m.tag));
   const found1 = logs.length > 1 ? found.filter(m => m === logs[0] || !logs.includes(m)) : found;
-  const missing = [...found1, ...skillLearnCheck(x, cfg, found.map(m => m.tag)).filter(open)];
+  const missing = [...found1, ...skillLearnCheck(x, cfg, found.map(m => m.tag)).filter(open), ...carryoverChecks(data, t, x, cfg).filter(open)];
   noteFriction(key, x, missing);
   const ended = (keep = false) => { writeState(TURN_END, { at: new Date().toISOString() }); if (!keep && !envOf('BENCH')) try { fs.unlinkSync(path.join(STATE, 'stop-details.md')); } catch { } }; // the next prompt starts a new turn
   if (nblocks >= cfg.maxBlocksPerTurn) {
@@ -3359,7 +3465,8 @@ export function stopDecision(data, cfg = config()) {
     // in plain words. A check that waits on background helpers is not a miss: their results arrive later.
     const waits = new Set(loadRequirements().reqs.filter(q => q && waitsForAgents(q)).map(q => q.tag));
     const left = missing.filter(m => !waits.has(m.tag));
-    if (left.length) writeState('unresolved.json', { at: new Date().toISOString(), prompt: x.prompt.slice(0, 160), items: left.map(m => shortStep(m)), tags: left.map(m => m.tag) });
+    if (left.length) writeState('unresolved.json', { at: new Date().toISOString(), prompt: x.prompt.slice(0, 160), items: left.map(m => shortStep(m)), tags: left.map(m => m.tag),
+      request: x.prompt.slice(0, 4000), since: x.since, transcript: data.transcript_path || '' });
     if (left.length) writeDetails(left, 'Left unresolved when the turn ended');
     recordUsage(x, key); ended(!!left.length); return null;
   }
@@ -3438,7 +3545,10 @@ const SHORT = {
   'marketing-sourced': 'Name the brand voice and source every claim', 'mcp-linted': 'Lint the MCP server\'s tool list',
   'security-checklist': 'Give the security checklist table with evidence',
   'skill-harden': 'Turn the runbook used 3 times into scripts and checks (skill-harden)', 'runbook-complete': 'Give the new runbook its check, test and rule-map row',
-  'plan-required': 'Write a plan first: this work adds many files'
+  'plan-required': 'Write a plan first: this work adds many files',
+  'plan-open': 'Resume or close the open plan, or say why it stays open',
+  'autonomy-recorded': 'Record "autonomy": "auto" in config and docs/DECISIONS.md',
+  'unresolved-carryover': 'Fix the checks the last turn left failing'
 };
 function writeDetails(missing, title) {
   if (envOf('BENCH')) return;

@@ -1,7 +1,7 @@
 ---
 name: notes-vault
 description: Makes a notes folder the user already keeps (an Obsidian vault or any folder of Markdown notes) the project's knowledge base without moving a single note. Registers the note folders in "knowledgeDirs" so the knowledge checks cover them, keeps one note per topic, gives each new fact its source and date inside the note, links new notes to related ones in the vault's own link style, and runs the link check after every change. Use when adopting a folder that already has notes, when the user keeps notes outside docs/knowledge, or talks about their vault or their notes folder.
-triggers: my vault, my notes, links in my vault, check my vault, my notes say, obsidian vault, notes vault, my notes folder, notes folder, from my notes, in my notes, use my notes, existing notes, update the note on, extend the note, markdown notes, adopt my notes, mis notas, en mis notas, nota nueva, mi bóveda
+triggers: my vault, my notes, links in my vault, check my vault, my notes say, obsidian vault, notes vault, my notes folder, notes folder, from my notes, in my notes, use my notes, existing notes, update the note on, extend the note, markdown notes, adopt my notes, my obsidian, mis notas, en mis notas, nota nueva, mi bóveda
 ---
 # Notes vault: the user's notes as the knowledge base
 
