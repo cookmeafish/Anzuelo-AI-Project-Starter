@@ -114,7 +114,9 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
     every ...") is enforced like any other.
   - **Found by live trials** (real sessions in scratch projects, complaining like a user): empty `__init__.py` files no
     longer count as broken after a resume, and the references sweep no longer reads a path argument after a script
-    as a subcommand.
+    as a subcommand. One project's agent, told a check fired for nothing, found the cause (an edited old note counted
+    as new because its creation time reset), fixed it with a test, and sent it back as starter feedback; that fix and
+    its test are now in the engine, so every project gets them.
 - 2026-10-19 (later): Fixes from the same project's next upgrade.
   - **No false "kept your edited version".** An older shipped check is not a local edit. The starter now ships
     `tools/hooks/engine-checks-history.json`, the fingerprint of every version of every check it ever released

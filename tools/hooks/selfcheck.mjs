@@ -468,6 +468,12 @@ const STOP = [
   // notes link to what they relate to (obsidian)
   { name: 'note-linked: a new note that links to nothing: blocked', prompt: 'write a note about desk cable management', tools: [pb('project'), bash('node tools/audit.mjs')],
     files: { 'docs/cables.md': '# Cables\nUse trays under the desk.', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md. Wrote the note.' + FIN, expect: { block: true, tags: ['note-linked'] } },
+  // an old note committed before the turn, edited this turn (its creation time reset by the save): not a new note.
+  // (This test came back from a project, written by its agent with the fix, through its starter feedback.)
+  { name: 'note-linked: a small fix in a note committed before the turn: passes', prompt: 'fix the spelling of trays in the cables note', tools: [pb('project'), bash('node tools/audit.mjs')],
+    prep: dir => { write(dir, { 'docs/cables.md': '# Cables\nUse trasy under the desk.' }); const g = (...a) => spawnSync('git', a, { cwd: dir, env: { ...process.env, GIT_AUTHOR_DATE: '2026-01-01T00:00:00Z', GIT_COMMITTER_DATE: '2026-01-01T00:00:00Z' } });
+      g('init', '-q'); g('add', '-A'); g('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--no-verify', '-m', 'old'); },
+    files: { 'docs/cables.md': '# Cables\nUse trays under the desk.', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md. Fixed the spelling.' + FIN, expect: { not: ['note-linked'] } },
   { name: 'note-linked: a new note with its related notes: passes', prompt: 'write a note about desk cable management', tools: [pb('project'), bash('node tools/audit.mjs')],
     files: { 'docs/cables.md': '# Cables\nUse trays under the desk.\n\n## Related\n- [Brief](BRIEF.md): what the project is for', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md. Wrote the note.' + FIN, expect: { block: false } },
   // kept files carry no hidden instructions

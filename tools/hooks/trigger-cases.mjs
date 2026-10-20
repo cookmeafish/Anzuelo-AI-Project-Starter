@@ -210,6 +210,7 @@ export default {
     'add a contracts tab to the dashboard'] },
   'SKILL: marketing': { fire: [
     'write an instagram post for the new menu',
+    'write a product description for the fern', // a live trial made a duplicate runbook when this found nothing
     'plan the launch campaign',
     'check this copy sounds like us',
     'write the newsletter for october',

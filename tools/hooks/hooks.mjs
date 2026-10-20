@@ -642,7 +642,24 @@ function bornThisTurn(file, since) {
   // a file the turn-start snapshot already had was not born this turn, whatever its creation time says
   const files = readJSON(stateFile('snapshot.json'), null);
   if (files?.files && Date.parse(files.at) >= (since || 0) - 5000 && files.files[file]) return false;
+  // a file in a commit made before the turn was not born this turn either: editors that save by writing a new file
+  // reset its creation time. Lesson (sent back by a project through its starter feedback): a one-word fix in an old
+  // note was checked as a new note that must link to others.
+  if (committedBefore(since).has(file)) return false;
   try { return fs.statSync(abs(file)).birthtimeMs > (since || 0) - 1000; } catch { return false; }
+}
+// the files of HEAD when HEAD was committed before the turn started (empty otherwise, or without git); read once
+function committedBefore(since) {
+  if (committedBefore.set) return committedBefore.set;
+  let set = new Set();
+  try {
+    if (exists('.git')) {
+      const at = Number((spawnSync('git', ['log', '-1', '--format=%ct'], { cwd: ROOT, encoding: 'utf8' }).stdout || '').trim()) * 1000;
+      if (at && at < (since || 0) - 1000)
+        set = new Set((spawnSync('git', ['ls-tree', '-r', '--name-only', 'HEAD'], { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 << 20 }).stdout || '').split(/\r?\n/).filter(Boolean));
+    }
+  } catch { }
+  return (committedBefore.set = set);
 }
 
 // tool_use ids a hook or the user denied: they never ran, so they count neither as work done nor as a breach.
@@ -2750,7 +2767,7 @@ export function coreChecks(x, cfg) {
   // Notes: the knowledge base, docs/notes/, and free-standing notes in docs/. Release notes, specs and plans have their
   // own structure, and the starter's own documents are linked from the rules.
   const newNotes = x.changed.filter(p => (/^docs\/(knowledge|notes)\/.+\.md$/i.test(p) || /^docs\/[^/]+\.md$/i.test(p)) &&
-    !/(^|\/)(CHANGELOG|STATUS|MENU|BRIEF|DECISIONS|README|SOURCES|INDEX|security|foundation|fit-checklist|lessons|recommended-tools|user-requirements)\.md$/i.test(p) && exists(p) && bornThisTurn(p, x.since));
+    !/(^|\/)(CHANGELOG|STATUS|MENU|BRIEF|DECISIONS|README|SOURCES|INDEX|security|foundation|fit-checklist|lessons|recommended-tools|user-requirements|starter-feedback)\.md$/i.test(p) && exists(p) && bornThisTurn(p, x.since));
   const unlinked = newNotes.filter(p => { const t = read(abs(p)); return !/\]\([^)\s]+\.md(#[^)]*)?\)|\[\[[^\]]+\]\]/.test(t) && !(t.split(/^##\s+Related[^\n]*\n/m)[1] || '').trim(); });
   if (unlinked.length) add('note-linked', `New note${unlinked.length > 1 ? 's' : ''} ${unlinked.slice(0, 4).join(', ')} link${unlinked.length > 1 ? '' : 's'} to nothing. Link each to its related notes (in the text or under "## Related"; ` +
     'node skills/obsidian/scripts/notes.mjs suggest <note> finds candidates), or say under "## Related" why it stands alone (obsidian skill).');
