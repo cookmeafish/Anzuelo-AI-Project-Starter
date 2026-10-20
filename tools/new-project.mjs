@@ -467,7 +467,11 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   // Never worse: a check that passed before and fails now rolls the whole upgrade back, unless the user accepts the
   // findings as work to do. New checks that fail and slower hooks go into the review, to fix or decide.
   const after = probe();
-  const broke = after.failed.filter(s => before.swept.includes(s) && !before.failed.includes(s));
+  // a sweep that now fails only because the new release brought new candidates to decide (new tools or skills in the
+  // fit checklist) is a finding for the upgrade review, not a break. Lesson: adding tools to the catalog rolled back a
+  // real project's upgrade, and would have rolled back every project's
+  const onlyNew = s => (after.details?.[s] || []).length > 0 && after.details[s].every(l => /not decided yet|candidate\(s\) are not in the checklist yet|fit\.mjs check still fails \(\d+ problem\(s\), first: [^)]*not decided yet/.test(l));
+  const broke = after.failed.filter(s => before.swept.includes(s) && !before.failed.includes(s) && !onlyNew(s));
   if (broke.length && !flag('--accept-findings')) {
     for (const f of created) fs.rmSync(path.join(dest, f), { force: true });
     for (const f of snapMissing) fs.rmSync(path.join(dest, f), { force: true });

@@ -2079,8 +2079,11 @@ export function fitProblems(cfg = config(), { sv = null, text = null } = {}) {
       if (!w) probs.push(`${at}: later needs a condition: "later - when: <what has to happen>"`);
       // a user who asked not to be asked will never give the OK a "later" waits for (Lesson: a photo tool deferred the
       // library that reads when a photo was taken, its whole purpose, "until the user OKs it", in an autonomy-auto project)
-      else if (cfg.autonomy === 'auto' && /\b(user|owner|you)\b[^.]*\b(oks?|okays?|approves?|agrees?|confirms?|answers?|signs? off|decides?|gives? the go)\b|\bwith the user\b|\buser'?s? (ok|approval|go-ahead)\b/i.test(w.text))
-        probs.push(`${at}: its condition waits for the user's OK, but this project runs with autonomy "auto" (the user asked not to be asked): decide add or skip now`);
+      // (a tool installed on the machine itself still needs the user's OK under "auto", AGENTS.md Step 0: then the reason
+      // says it is a machine install; anything installed into the project does not wait)
+      else if (cfg.autonomy === 'auto' && /\b(user|owner|you)\b[^.]*\b(oks?|okays?|approves?|agrees?|confirms?|answers?|signs? off|decides?|gives? the go)\b|\bwith the user\b|\buser'?s? (ok|approval|go-ahead)\b/i.test(w.text)
+        && !(r.kind === 'tool' && /\b(machine|system[- ]wide|globally|global install|on (the|this) computer|admin(istrator)?|Install-Module|winget|brew|apt)\b/i.test(`${r.reason} ${w.text}`)))
+        probs.push(`${at}: its condition waits for the user's OK, but this project runs with autonomy "auto" (the user asked not to be asked): decide add or skip now (a tool installed on the machine itself may wait: say so in the reason)`);
       else if (w.metric && fitMetric(sv, w) >= w.min) probs.push(`${at}: its condition is met now (when: ${w.text}; ${w.metric} is ${fitMetric(sv, w)}): decide add or skip`);
     }
   }

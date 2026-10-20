@@ -174,7 +174,13 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
     - a turn adding new files hears it needs a plan before the limit, not after (REQ: plan-required);
     - skill hardening waits for use in a second session; release notes are asked for only when shipped code changed;
     - web sources in an answer must have been opened this turn, not only listed by a search (REQ: answer-traced);
-    - adopting an Obsidian vault hides the engine's folders from the vault's search and graph.
+    - adopting an Obsidian vault hides the engine's folders from the vault's search and graph;
+    - the engine's self-tests run with the project's own checks off and the packs' checks as shipped, so a project's
+      own rules (a Spanish-only site, saved browser flows) no longer fail them;
+    - an upgrade is not rolled back when the only new failure is new candidates to decide: they go into its review
+      (Lesson: adding tools to the catalog rolled back a real project's upgrade);
+    - under autonomy "auto", a tool installed on the machine itself may still wait for the user's OK when the reason
+      says so; anything installed into the project does not wait.
   - **A deferred skill is decided again when the request is for it:** a library skill the fit checklist left for
     "later" (or skipped) is named when a request matches its triggers (Lesson: a sales project answered "what was our
     best week" without the data-analysis skill it had deferred for exactly that); data-analysis also routes everyday
