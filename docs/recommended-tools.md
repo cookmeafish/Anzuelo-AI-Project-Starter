@@ -1,20 +1,20 @@
 # Recommended tools
 
-A directory of optional tools the agent can recommend during setup. The starter never installs any of them itself.
-Licenses and install commands were checked on 2026-10-18 (see [Sources](#sources)).
+Optional tools the agent can recommend during setup. Each is a row of the fit checklist (`node tools/fit.mjs`). The
+starter never installs any of them itself. Licenses and install commands were checked on 2026-10-18 (see
+[Sources](#sources)).
 
 ## How to use this directory
-1. **Fit is not enough.** Recommend a tool only when it fits this project AND makes it better. A tool that could fit
-   but adds nothing is noise.
+1. **Fit is not enough.** Recommend a tool only when it fits this project AND makes it better.
 2. **Weigh it in one line:** `Worth it: <gain> / <cost>`. If the cost is bigger, don't recommend it, and say why.
 3. **Read "Skip when" first.** If any of it applies, skip the tool.
 4. **Install only with the user's OK.** Under `"autonomy": "auto"` the agent may install tools marked **low-risk**
-   without asking. Everything else still needs an OK.
+   without asking.
 5. **Install the newest version with the official command** in the table. If the command has changed, use the one on
    the official page and note it.
-6. **Record every installed tool** in `docs/BRIEF.md` under "Tools": name, version, how it was installed, and why.
-7. **Check the license for sold projects.** Every tool here allows commercial use. Copyleft (GPL, AGPL) is fine for a
-   standalone program the project only runs. It matters only if you ship or link its code.
+6. **Record every installed tool** in `docs/BRIEF.md` under "## Tools": name, version, how it was installed, and why.
+7. **Check the license for sold projects.** Every tool here allows commercial use. Copyleft (GPL, AGPL) matters only
+   if you ship or link its code, not for a standalone program the project only runs.
 
 **Low-risk** means: a project-local dev dependency or a read-only command-line tool, from an official package source,
 that changes no shell, git or agent settings, needs no account, and runs no server.

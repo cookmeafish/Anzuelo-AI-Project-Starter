@@ -21,5 +21,5 @@ question needs none of this.
 5. **Finish** with the finish checklist. Say in the answer that a runbook was created or extended, with its path.
 
 ## Done when
-- [ ] The task is done, or what blocked it is said plainly.
+- [ ] The task is done, or what blocked it is said plainly (judgment: only a look at the result tells).
 - [ ] A runbook covering this task exists, has a check, and is named in the answer (hook: runbook-exists, runbook-complete).

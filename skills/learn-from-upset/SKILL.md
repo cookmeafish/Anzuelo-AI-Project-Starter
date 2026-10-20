@@ -5,9 +5,8 @@ runbook: docs/playbooks/project.md
 ---
 # Learn from an upset user
 
-An upset user is the most valuable signal the project gets: something it does fell short of what was expected. A
-correction fixes this answer. Only a lesson stored in the right place fixes the next ones. The Stop hook checks both
-(hook: upset-learned).
+An upset user means something fell short. A correction fixes this answer; only a lesson stored in the right place
+fixes the next ones. The Stop hook checks both (hook: upset-learned).
 
 Say at the start: "Fixing it first, then making sure it doesn't happen again (learn-from-upset skill)."
 
@@ -21,21 +20,21 @@ Say at the start: "Fixing it first, then making sure it doesn't happen again (le
   (friction-suspend). This skill fixes the cause before it gets there.
 
 ## Steps
-1. **Fix the miss now.** Redo the work by the runbook or skill it belonged to. Don't argue, don't over-apologize,
-   don't promise: one plain sentence saying what went wrong, then the fix.
-2. **Find the cause, not the symptom.** Which step was missing, vague, or skipped? Which rule did the work break?
-   Was it something the project could never have known (a fact only the user had)? Write it as one sentence:
+1. **Fix the miss now.** Redo the work by the runbook or skill it belonged to. No arguing, over-apologizing or
+   promises: one plain sentence on what went wrong, then the fix.
+2. **Find the cause, not the symptom.** Which step was missing, vague or skipped? Which rule was broken? Or was it
+   something only the user knew? Write it as one sentence:
    "The <skill/runbook/check> did not <step>, so <what went wrong>."
 3. **Weigh how important it is.** Pick the lowest level that will reliably stop it happening again:
 
    | Level | When | Where it goes |
    |---|---|---|
-   | one-off | Truly a one-time slip that no procedure could have prevented, and it can't recur | `docs/lessons.md` (one dated line) |
+   | one-off | A one-time slip no procedure could have prevented, that can't recur | `docs/lessons.md` (one dated line) |
    | lesson | A step of a skill or runbook was missing, vague or out of order | That skill's `## Project lessons` / runbook's `## Pitfalls`, and the step itself fixed |
    | rule | A standing preference the project didn't know ("always", "never", a quality bar) | AGENTS.md + user-requirements row, through the project-rule skill |
    | check | It already happened before, it would be costly again, or a script can tell right from wrong | A check in `tools/hooks/requirements.json` (or a guard in `config.json`) with a blocked and a passing scenario, through project-rule step 5 |
    | skill | A whole kind of work had no procedure | A runbook and its check, through the runbook-create skill |
-   | engine | The starter's own hooks, checks or skills were wrong (a false alarm, a missing guard, a confusing message) | `node tools/starter.mjs feedback "<lesson>"` (it reaches the starter, and through its upgrades every project). In the starter itself: fix the engine and add a self-test |
+   | engine | The starter's own hooks, checks or skills were wrong (a false alarm, a missing guard, a confusing message) | `node tools/starter.mjs feedback "<lesson>"` (reaches the starter, and through its upgrades every project). In the starter itself: fix the engine and add a self-test |
 
    Go up a level when: the user says it happened before ("again"), the miss cost real work or money, it involves
    safety, privacy or something sent outside the project, or the same complaint is already in `docs/lessons.md`.

@@ -5,9 +5,9 @@ triggers: mcp server, mcp tool, mcp, model context protocol, build an mcp
 ---
 # MCP builder: tools an agent can use well
 
-An MCP server is an interface for a model, not for a programmer. The model sees only names, descriptions, schemas and
-results, and it chooses what to call from those alone. A good server is small, clearly named, safe by default, and
-returns exactly what the next step needs. Judge it by one thing: can an agent finish real tasks with it?
+An MCP server is an interface for a model, not a programmer. The model sees only names, descriptions, schemas and
+results, and chooses what to call from those alone. A good server is small, clearly named, safe by default, and
+returns what the next step needs. The test: can an agent finish real tasks with it?
 
 Read `docs/security.md` and `docs/foundation.md` first. The server is part of the app, so its security baseline,
 budgets and quality gates apply. Debugging a broken server: use the debug skill.
@@ -15,8 +15,8 @@ budgets and quality gates apply. Debugging a broken server: use the debug skill.
 ## 1. Decide what to build
 1. **List the jobs, not the endpoints.** Write the 3 to 10 things a user will ask the agent to do through this server
    ("find the overdue invoices", "summarize this ticket"). Build what was asked; don't invent extra features. When
-   the jobs are open-ended and the agent must combine steps freely, broader coverage of the underlying API can be the
-   better choice. Raise that trade-off with the user instead of guessing.
+   the jobs are open-ended and the agent must combine steps freely, broader coverage of the underlying API can be
+   better: raise that trade-off with the user instead of guessing.
 2. **Pick the primitive for each one:**
    - **Tool:** an action or a query the model decides to run (reads or changes something).
    - **Resource:** read-only data the client can load by URI (`scheme://path/{id}`), such as a config, a document
@@ -85,8 +85,9 @@ agents and saved prompts may depend on it.
 2. **Inspector:** run the server under the MCP Inspector or the SDK's test client. List tools, resources and prompts;
    call each one with good input, bad input and an empty result.
 3. **Lint the definitions:** save the `tools/list` result as JSON and run
-   `node skills/mcp-builder/scripts/lint-tools.mjs tools.json`. It flags missing descriptions, undescribed inputs, names
-   without a verb or prefix, and missing annotations.
+   `node skills/mcp-builder/scripts/lint-tools.mjs tools.json` (`--prefix <name>` to require a service prefix). It
+   flags missing or very short descriptions, undescribed or untyped inputs, names without a verb or shared prefix,
+   mixed name styles, duplicate names, and missing annotations. Fix and rerun until it prints `LINT: PASS`.
 4. **Real agent tasks:** connect the server to an agent and give it about 10 realistic, read-only questions that need
    several calls and have one checkable answer ([references.md](references.md), agent task questions). Solve each one
    yourself first. Watch which tools it picks, how many calls it needs, and where it stumbles, then fix names,
@@ -99,14 +100,11 @@ and start it, the client config snippet, every environment variable, the permiss
 change, known rate limits, and the security notes (what it can reach, what it never does).
 
 ## Done when
-- [ ] Every tool maps to a listed job (hook: mcp-linted; judgment: the fit to the jobs), with a verb name, a description that says when to use it, and typed, described
-      inputs. The lint script reports no problems.
+- [ ] Every tool maps to a listed job, with a verb name, a description that says when to use it, and typed, described inputs; the lint script reports no problems (hook: mcp-linted; judgment: the fit to the jobs).
 - [ ] Destructive tools are annotated and described as destructive. Read-only is the default (judgment: which tools are destructive needs a reviewer).
 - [ ] Long lists are paged, large results are cut with a note, and errors name the fix (judgment: needs a code review).
-- [ ] Secrets come only from the environment; inputs are validated; file access is confined (judgment: needs a code review); the app standards'
-      security items hold.
-- [ ] Tests pass after the last edit (judgment: the inspector run and the agent tasks are checked by hand), every tool was called through an inspector, and the agent tasks were answered
-      correctly.
+- [ ] Secrets come only from the environment, inputs are validated, file access is confined, and the app standards' security items hold (judgment: needs a code review).
+- [ ] Tests pass after the last edit, every tool was called through an inspector, and the agent tasks were answered correctly (judgment: the inspector run and the agent tasks are checked by hand).
 - [ ] The README covers setup, config, every tool and every environment variable. Sample data, if any, is labeled (judgment: README completeness needs a reader).
 - [ ] Followed unasked whenever the turn writes MCP server code, with the tool lint run (hook: mcp-trigger).
 

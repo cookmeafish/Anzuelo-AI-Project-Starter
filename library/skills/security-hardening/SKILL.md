@@ -5,18 +5,17 @@ triggers: harden the app, harden the server, harden the api, harden the site, se
 ---
 # Security hardening: fix by risk, prove every fix, keep it fixed
 
-A review lists problems. Hardening removes them in the order that cuts the most risk first, proves each fix with a
-test, and adds checks so the same class of problem can't come back. Treat it as a project with stages, not a pass of
-quick patches.
+A review lists problems. Hardening removes them, biggest risk first, proves each fix with a test, and adds checks so
+the same class of problem can't come back. It is a staged project, not a pass of quick patches.
 
 Say at the start: "Hardening plan first (security-hardening skill)." Save the plan to
-`docs/plans/YYYY-MM-DD-security-hardening.md` and keep it updated as stages finish.
+`docs/plans/YYYY-MM-DD-security-hardening.md` and update it as stages finish.
 
-**Inputs:** the baseline (`docs/security.md` for the whole project, `docs/foundation.md` section 1 for the app rows),
-the Security section of `docs/checks/app-standards.md`, and the latest security-review report (its table of areas
-with result, severity and evidence). No review yet, or older than the code? Run the **security-review** skill first
-(a core skill, present in every project). It finds; this skill fixes. Both use the same areas and the same severity scale, and each review area maps to one stage
-below ([references.md](references.md)).
+**Inputs:** the baseline (`docs/security.md` for the project, `docs/foundation.md` section 1 for the app rows), the
+Security section of `docs/checks/app-standards.md`, and the latest security-review report (areas with result,
+severity and evidence). No review yet, or older than the code? Run the **security-review** skill (a core skill) first.
+Both skills use the same areas and severity scale; each review area maps to one stage below
+([references.md](references.md)).
 
 ## 1. Threat model (short)
 Start from the review's threat model when there is one; fill gaps rather than redo it.
@@ -34,18 +33,18 @@ secrets, outbound calls, admin functions, auth flows, third-party dependencies. 
 large app. Each item gets an owner file and the boundary it sits on.
 
 ## 3. Rank the fixes
-Join the review findings and the inventory into one list. Score each on ease of attack, impact and reach, and give
-it a severity: critical, high, medium or low (scale in [references.md](references.md), the same as the review's).
-Order: critical, then high, then the rest; inside a level, cheap fixes first. Put the ranked list in the plan, one
-task per fix (plan skill format), each naming its review area and stage. Ask the user before any fix that changes
-behavior they rely on (logins, URLs, file locations, data formats). Record the starting numbers: open findings per
-severity, and the lead count from the pattern sweep (`skills/security-review/scripts/risky-patterns.mjs`).
+Merge the review findings and the inventory into one list. Score each on ease of attack, impact and reach, and give
+it a severity: critical, high, medium or low (scale in [references.md](references.md), same as the review's). Order:
+critical, then high, then the rest; within a level, cheap fixes first. Put the ranked list in the plan, one task per
+fix (plan skill format), each naming its review area and stage. Ask the user before any fix that changes behavior
+they rely on (logins, URLs, file locations, data formats). Record the starting numbers: open findings per severity,
+and the lead count from the pattern sweep (`skills/security-review/scripts/risky-patterns.mjs`).
 
 ## 4. Fix in stages
-Work one stage at a time. Each fix: a failing test that shows the hole, the fix at the source, the test passes, all
-other tests pass. Then look for the same pattern elsewhere and fix it there too. Checklists per stage are in
-[references.md](references.md). Stages that touch separate files can go to separate sub-agents at the same time
-(parallel-agents skill), each with its own failing tests, and a fresh agent checks every fix before it counts.
+One stage at a time. Each fix: a failing test that shows the hole, the fix at the source, that test and all others
+pass. Then search for the same pattern elsewhere and fix it too. Per-stage checklists: [references.md](references.md).
+Stages that touch separate files can go to parallel sub-agents (parallel-agents skill), each with its own failing
+tests; a fresh agent checks every fix before it counts.
 1. **Secrets:** out of code, logs, history and build output; rotate any that ever leaked; load from ignored files or
    a secret store.
 2. **Dependencies and updates:** audit with the stack's tool, upgrade or replace what is vulnerable or unmaintained,
@@ -73,23 +72,19 @@ other tests pass. Then look for the same pattern elsewhere and fix it there too.
 3. Record decisions and accepted risks (with the reason and who accepted them) in `docs/DECISIONS.md`.
 
 ## 6. Verify
-Run the security-review skill again against the hardened app, plus the attack tries from the plan against an
-isolated instance. Every earlier FAIL is now PASS with evidence, or an accepted risk on record. Report the numbers
-next to the starting ones: open findings per severity before and after, the pattern sweep lead count before and
-after, and the tests added (every fixed hole, plus an unauthenticated and a wrong-user test for each protected route).
+Run the security-review skill again on the hardened app, plus the plan's attack tries against an isolated instance.
+Every earlier FAIL is now PASS with evidence, or an accepted risk on record. Report before and after: open findings
+per severity, the pattern sweep lead count, and the tests added (every fixed hole, plus an unauthenticated and a
+wrong-user test for each protected route).
 
 ## Done when
-- [ ] The plan has a threat model, an inventory and a ranked fix list (severity, review area and stage per item) (hook: hardening-plan),
-  saved in `docs/plans/`.
-- [ ] No critical or high finding is left open (judgment: severity and sign-off need a reviewer); each is fixed or an accepted risk the user signed off, in
-  `docs/DECISIONS.md`.
+- [ ] The plan in `docs/plans/` has a threat model, an inventory and a ranked fix list (severity, review area and stage per item) (hook: hardening-plan).
+- [ ] No critical or high finding is left open: each is fixed, or an accepted risk the user signed off in `docs/DECISIONS.md` (judgment: severity and sign-off need a reviewer).
 - [ ] Every fixed issue has a regression test that failed before the fix and passes now (judgment: no check sees each test fail before the fix).
 - [ ] Leaked secrets were rotated, not just removed from the code (judgment: rotation happens outside the project).
 - [ ] The dependency audit is clean or each remaining finding is an accepted risk with a reason (judgment: whether a risk is acceptable is a call).
-- [ ] A fresh security-review pass shows PASS or accepted risk for every item, with evidence (judgment: the review verdicts need a reviewer), and the before and
-  after numbers are in the answer.
-- [ ] New automatic checks are in place for the fixed patterns (judgment: which patterns a tool can catch needs a reviewer), and `docs/security.md` and `docs/foundation.md` are
-  current.
+- [ ] A fresh security-review pass shows PASS or accepted risk for every item, with evidence, and the before and after numbers are in the answer (judgment: the review verdicts need a reviewer).
+- [ ] New automatic checks cover the fixed patterns, and `docs/security.md` and `docs/foundation.md` are current (judgment: which patterns a tool can catch needs a reviewer).
 
 ## Pitfalls
 - **Fixing in the order found** instead of by risk. The worst hole stays open while easy items get done.

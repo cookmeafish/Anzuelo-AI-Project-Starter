@@ -5,8 +5,8 @@ triggers: mobile app, phone app, flutter, react native, expo app, swiftui, jetpa
 ---
 # Mobile app: works on a real phone, ships as a draft
 
-A phone app fails in places a desktop window never shows: a small screen, a large system font, a refused permission,
-a train tunnel, a store review. This skill covers those, and leaves the submit button to the user.
+Phone apps fail where a desktop window never shows it: a small screen, a large system font, a refused permission, a
+train tunnel, a store review. This skill covers those and leaves the submit button to the user.
 
 Say at the start: "Working on the phone app (mobile-app skill)."
 
@@ -14,14 +14,14 @@ Say at the start: "Working on the phone app (mobile-app skill)."
 - **The feature or bug itself:** the app pack runbooks (`docs/playbooks/feature.md`, `docs/playbooks/bugfix.md`) and
   the debug skill. This skill adds the phone-specific steps.
 - **Screenshots and the review loop:** the gui-review-loop skill (gui pack). Its step 1 has the emulator and
-  simulator commands and the `.cache/gui-review/` folder the hooks look in. Do not repeat them here; follow it.
+  simulator screenshot commands and the `.cache/gui-review/` folder the hooks look in.
 - **Shipping:** `docs/playbooks/release.md` (gates, rollback, release notes, the user's OK). This skill adds the store
   parts.
 - **Slow screens, jank, battery:** `docs/playbooks/perf.md`.
 - **Keys and secrets:** `docs/security.md` and the security-review skill, before any build leaves the machine.
 
-`skills/mobile-app/scripts/app-version.mjs` shows the version and build number in every file that sets them and
-checks they moved together. Commands per platform are in [references.md](references.md).
+`skills/mobile-app/scripts/app-version.mjs` lists the version and build number in every file that sets them and
+checks they moved together. Per-platform commands: [references.md](references.md).
 
 ## Pick the situation
 | Situation | Do |
@@ -69,11 +69,11 @@ checks they moved together. Commands per platform are in [references.md](referen
    app calls.
 
 ## E. Version, build number and signing
-1. Bump the version and the build number together, in the one place the project keeps them (`pubspec.yaml`
+1. Bump the version and the build number together, wherever the project keeps them (`pubspec.yaml`
    `x.y.z+n`, `versionName` and `versionCode` in `build.gradle`, `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`
    in Xcode, `version` and `versionCode` or `buildNumber` in `app.json`). The build number only ever goes up.
 2. Check: `node skills/mobile-app/scripts/app-version.mjs . --against HEAD` (or an older tag). It fails when the
-   version changed without a higher build number, or when files disagree.
+   version changed without a higher build number, the build number went down, or files disagree on the version.
 3. Signing keys (`.jks`, `.keystore`, `.p12`, `.mobileprovision`, `key.properties`, App Store Connect API keys) stay
    outside the repository and are listed in `.gitignore`. Passwords come from environment variables or the CI secret
    store. If one was ever committed, tell the user: it must be replaced, not just deleted.
@@ -85,7 +85,7 @@ checks they moved together. Commands per platform are in [references.md](referen
 2. Prepare the store text as files the user can review: what is new, the description, screenshots from **B**, and the
    data-safety or privacy answers matching the permissions in **C**.
 3. Uploading to TestFlight, Play Console or any store, and submitting for review, are outward actions: only with the
-   user's OK in this conversation. Prefer leaving the release as a draft or internal test track for the user to send.
+   user's OK in this conversation. Prefer a draft or internal test track the user sends.
 
 ## Done when
 - [ ] After code changes, the platform's analyzer or tests ran this turn (hook: mobile-checked).

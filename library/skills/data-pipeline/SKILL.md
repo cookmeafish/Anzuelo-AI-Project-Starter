@@ -5,16 +5,16 @@ triggers: data pipeline, etl, etl job, import job, nightly import, new batch of 
 ---
 # Data pipeline: from raw file to a number you can trace
 
-A pipeline runs the same steps on new data again and again, so one silent mistake repeats on every run. Each section
-below closes one way a wrong number gets in without anyone noticing.
+A pipeline runs the same steps on every new batch, so one silent mistake repeats on every run. Each section closes
+one way a wrong number gets in unnoticed.
 
 Say at the start: "Running the data through the pipeline checks (data-pipeline skill)."
 
 ## What the other skills already cover
-- **Where the line is with data-analysis:** the data-analysis skill answers a question about a dataset once
-  (profile, quality, statistics, charts). This skill is for steps that run again on each new batch. A one-off look at
-  a pipeline's output is data-analysis; a step that will run next week belongs here. Use its profiler
-  (`node skills/data-analysis/scripts/profile.mjs <file>`, when enabled) to write a first schema from a sample.
+- **The line with data-analysis:** data-analysis answers a question about a dataset once (profile, quality,
+  statistics, charts); this skill is for steps that run again on each new batch. A one-off look at a pipeline's
+  output is data-analysis; a step that will run next week belongs here. Its profiler
+  (`node skills/data-analysis/scripts/profile.mjs <file>`, when enabled) helps write a first schema from a sample.
 - **Showing how each number was computed:** the data-analysis skill and its checks (data-computed,
   data-computed-trigger). This skill adds the reconciliation in **E**.
 - **A database schema or migration:** the data-change runbook (app pack): backup, migration, restore. This skill
@@ -24,7 +24,7 @@ Say at the start: "Running the data through the pipeline checks (data-pipeline s
 - **Personal data in the inputs:** the security-review skill.
 
 The check is `skills/data-pipeline/scripts/schema-check.mjs` (Node only, read-only). The schema format is in the
-usage comment at the top of the script.
+comment at the top of the script.
 
 ## Pick the situation
 | Situation | Do |
@@ -47,20 +47,23 @@ usage comment at the top of the script.
 
 ## B. Check the schema before use
 1. Write the schema once per source, next to the pipeline code (for example `data/schemas/orders.schema.json`):
-   the columns, their types (`string`, `integer`, `number`, `boolean`, `date`, `datetime`), which are required,
-   allowed values, ranges and patterns, and the values that mean "missing" in this source (`NA`, empty).
+   the columns, their types (`string`, `integer`, `number`, `boolean`, `date`, `datetime`), which are required or
+   optional, allowed values (`enum`), ranges (`min`, `max`) and patterns, whether extra columns are allowed
+   (`allowExtra`), a minimum row count (`minRows`), and the values that mean "missing" in this source (`missing`,
+   default only empty).
 2. Run it on every new input before any step reads it:
    ```
    node skills/data-pipeline/scripts/schema-check.mjs <input file> <schema file>
    ```
    It reads CSV, TSV (`--sep` for other separators), JSON arrays and JSON Lines, and prints each problem with its row
-   count and first rows, then `RESULT: PASS` or `RESULT: FAIL <why>` (exit code 1 on a fail).
-3. A fail stops the run. Never coerce a bad value silently to make the check pass. Either the input is wrong (ask the
-   source for a corrected export) or the schema changed (**C**).
+   count and first rows (`--max-examples N`, default 5), then `RESULT: PASS` or `RESULT: FAIL <why>` (exit code 1 on
+   a fail, 2 on a usage error).
+3. A fail stops the run. Never silently coerce a bad value to pass. Either the input is wrong (ask the source for a
+   corrected export) or the schema changed (**C**).
 4. Rows the pipeline rejects on purpose (a known bad record type) are counted and reported in each run's summary,
    never dropped without a count.
-5. To make the check automatic for this project, add a project check in `tools/hooks/requirements.json` with
-   `toolPassed` and `selfRun` on changes to the raw folder (runbook-create skill, "A good check").
+5. To make the check automatic, add a project check in `tools/hooks/requirements.json` with `toolPassed` and
+   `selfRun` on changes to the raw folder (`docs/checks/runbook-standards.md`, "A good check").
 
 ## C. A schema change is a decision
 A new, renamed or removed column, a changed type, unit, date format or code list:

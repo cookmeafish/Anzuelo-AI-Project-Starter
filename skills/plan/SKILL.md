@@ -4,18 +4,17 @@ description: Writes a step-by-step plan for multi-step work before starting it, 
 ---
 # Plan before multi-step work
 
-A plan is a record of decisions. Picture the reader as a capable stranger: they know the language and the tools, and
-they'll make good calls on anything left open. They can't read your mind, though. They don't know which files you
-chose, what things are called, which numbers came from the spec, or how to tell that a task is finished. Write those
-down. Leave out everything they would get right anyway.
+A plan is a record of decisions. Write for a capable stranger who knows the language and tools and makes good calls
+on anything left open, but can't read your mind: which files you chose, what things are called, which numbers came
+from the spec, how to tell a task is finished. Write those down; leave out what they would get right anyway.
 
 Three habits run through every plan: build only what the spec asks for, keep one copy of each piece of logic, and
 prove each step with a test before moving on.
 
 Open with "Planning first (plan skill)." Save the plan as `docs/plans/YYYY-MM-DD-<topic>.md` (hook: plan-saved), or
-where the user has asked plans to go. It stays a working document: tick each box as the work lands, and add a dated
-note when the plan changes. The file is the only memory that survives: a new session, a context reset or a different
-AI agent continues from the boxes, not from anyone's recollection ([how plans are kept](../../docs/plans/README.md)).
+where the user has asked plans to go. Tick each box as the work lands and add a dated note when the plan changes.
+The file is the only memory that survives: a new session, a context reset or another AI agent continues from the
+boxes ([how plans are kept](../../docs/plans/README.md)).
 
 ## 0. Settle the request before planning
 A plan built on a guess gets carried out faithfully, guess and all. When the request is vague or large, close the
@@ -38,18 +37,16 @@ Several unrelated parts get several plans. Each plan should end in something tha
 by itself. Plans that share nothing are candidates for the parallel-agents skill later.
 
 ## 2. Gather what the builder will need
-Collect it now, while you have the project open, so the builder doesn't have to rediscover it. It goes in the plan's
-"Context" and "Checks" sections.
+Collect it now so the builder doesn't rediscover it. It goes in the plan's "Context" and "Checks" sections.
 1. **Look for the nearest example.** Search the project for a feature that already does something similar, and for the
    tests that cover it. Note each file with one line on why it matters. Copying an existing pattern beats inventing one.
 2. **Collect the traps.** Rules in AGENTS.md and the docs the spec touches, library quirks, limits, versions. For an
    outside library or service, note the documentation page and the exact section, not just the site.
 3. **Find the real check commands.** Look in this order: the CI workflow, task-runner targets (Makefile and the like),
-   package scripts, then the README. Prefer the commands the project already declares: then the plan and the build
-   server test the same things. A kind of check the project lacks is left out, never made up. Projects without tests (documents, content,
-   config) use the checks they do have: a format or schema validator, a build, a link check,
-   `node tools/writing-check.mjs`, and a review against the plan's "Done when". Ask the user only when nothing in the
-   project names a command.
+   package scripts, then the README. Use the commands the project declares, so the plan and the build server test
+   the same things. A check the project lacks is left out, never made up. Projects without tests (documents, content,
+   config) use what they have: a format or schema validator, a build, a link check, `node tools/writing-check.mjs`,
+   and a review against the plan's "Done when". Ask the user only when nothing in the project names a command.
 4. **Reuse what earlier plans found.** `docs/plans/README.md` keeps the project's check commands under "Checks for
    this project". Copy them; if the list is empty or wrong, fix it there once.
 
@@ -150,8 +147,7 @@ The plan has gone wrong in one of two ways when:
 - **It does the work:** it is longer than the code would be. Strip the bodies back to signatures and assertions.
 
 ## 7. Check it against the spec
-Do this yourself, right after writing, with the spec open as if seeing it for the first time. Fix what you find
-directly in the plan; no second round is needed. `node skills/plan/scripts/plan-tasks.mjs check <plan>` catches the
+Do this yourself right after writing, with the spec open. Fix what you find directly in the plan. `node skills/plan/scripts/plan-tasks.mjs check <plan>` catches the
 mechanical part (missing sections, steps without a command, placeholders, no status line; hook: plan-checked).
 1. Every requirement maps to a task. Add a task for any orphan.
 2. Every step has one sensible reading, and none carries more than it needs.
@@ -185,7 +181,7 @@ closing the plan): [references.md](references.md).
 
 ## 9. Running a plan without check-ins
 When `"autonomy": "auto"` is set, or the user says keep going, don't ask, run it all or work on your own, run the
-approved plan straight through without asking "shall I continue?". The rules below keep a long unattended run honest.
+approved plan straight through without asking "shall I continue?". These rules keep an unattended run honest.
 1. **Start every session the same way.** Read the status line and the dated notes, run every command under "Checks
    for this project", and fix anything broken before the next task. A broken start makes every later result suspect.
 2. **One task at a time.** Tick a box only after its check ran in this session and the output matched the expected

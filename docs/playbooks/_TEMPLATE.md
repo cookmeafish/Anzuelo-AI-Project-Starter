@@ -22,8 +22,10 @@ checks:
 4. Run the finish checklist (`docs/checks/finish-checklist.md`).
 
 ## Done when
-- [ ] <Observable check. Add it to tools/hooks/requirements.json when it can be checked automatically.>
-- [ ] The answer names this playbook and ends with a Finished section.
+<!-- Every item ends with how it is proven: "(hook: <tag>)" for its check in tools/hooks/requirements.json, or
+"(judgment: <why no check can tell>)". -->
+- [ ] <Observable result> (hook: <tag>).
+- [ ] The answer names this playbook and ends with a Finished section (hook: playbook-named, finished-summary).
 
 ## Pitfalls
 <!-- Mistakes made before: date, what went wrong and why, in general terms. -->

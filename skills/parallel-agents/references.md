@@ -66,6 +66,6 @@ as the floor for anything that has to find its own way.
 - Don't forward one agent's full report to another. Pass only the facts the next one needs.
 
 ## When parts share a working copy
-Agents that change code in the same repository can still disturb each other through a shared build folder, lock
-files, a dev server port or a test database. If the tool supports it, give each one its own copy (a separate git
-worktree or a temp clone), and merge the changes afterward. Otherwise, run those parts one after another.
+Agents changing code in the same repository can still disturb each other through a shared build folder, lock files,
+a dev server port or a test database. If the tool supports it, give each its own copy (a git worktree or a temp
+clone) and merge afterward. Otherwise run those parts one after another.

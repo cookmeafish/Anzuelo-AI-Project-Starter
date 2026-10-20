@@ -5,20 +5,19 @@ triggers: backend, api endpoint, rest api, graphql, database query, server code,
 ---
 # Backend patterns: thin edges, clear layers, honest errors
 
-**Pick the simplest pattern that fits the current size of the app.** Every layer, cache and queue costs something to
-run and to understand. Add one when a real need shows up (a second caller, a measured slow path, a job that blocks a
+**Pick the simplest pattern that fits the app's current size.** Every layer, cache and queue costs something to run
+and understand. Add one when a real need shows up (a second caller, a measured slow path, a job that blocks a
 request), not in advance.
 
-These are principles for any stack. The examples name a few stacks only to show the shape; follow the patterns already
-in the project first.
+The patterns apply to any stack; the examples only show the shape. The project's existing patterns come first.
 
 ## 1. Before writing code
-1. **Read the existing backend.** Find how routes, data access, errors and config are already done, and follow that.
-   A second way of doing the same thing is a bug waiting to happen.
-2. **Write down the contract** for what you add or change: input, output, error cases, who may call it, and what data
-   it reads or writes. For a feature, this belongs in its spec (`feature.md` runbook).
+1. **Read the existing backend:** how routes, data access, errors and config are done, and follow that. A second way
+   of doing the same thing is a bug waiting to happen.
+2. **Write down the contract:** input, output, error cases, who may call it, what data it reads or writes. For a
+   feature it goes in the spec (`feature.md` runbook).
 3. **Check the baselines:** `docs/security.md`, `docs/foundation.md` (app security rows, performance budgets) and
-   `docs/checks/app-standards.md` (data safety, security, performance). New code must stay inside them.
+   `docs/checks/app-standards.md` (data safety, security, performance). New code stays inside them.
 4. **Several steps or files?** Write a plan first (plan skill).
 
 ## 2. Layers
@@ -32,8 +31,7 @@ Keep three jobs apart, even when they live in one file in a small app:
 
 - Pass dependencies in (a store, a clock, a client) instead of importing globals, so services can be tested with fakes.
 - The service talks to data access through a small interface (find one, find many with filters, create, update,
-  delete, plus the specific lookups it needs). Swapping the database, adding a cache or using an in-memory fake in tests
-  then touches one place.
+  delete, plus the lookups it needs), so swapping the database, adding a cache or faking it in tests touches one place.
 - Cross-cutting concerns (authentication, request ids, logging, rate limits, size caps) go in middleware or one shared
   wrapper, applied to every route by default. A route that opts out says why.
 
@@ -46,9 +44,9 @@ Keep three jobs apart, even when they live in one file in a small app:
    bad input, 401 not signed in, 403 not allowed, 404 not found (also for "exists but not yours"), 409 conflict, 429 too
    many requests, 500 our fault.
 4. **Validate at the edge with a schema** (allowlist of fields, types, lengths, ranges). Reject unknown fields on
-   writes. The service can then trust its input.
-5. **Make writes safe to retry:** clients and proxies retry. Use idempotency keys or natural unique constraints for
-   creates, and conditional updates (version or timestamp) where two writers can collide.
+   writes, so the service can trust its input.
+5. **Make writes safe to retry**, because clients and proxies retry: idempotency keys or natural unique constraints
+   for creates, conditional updates (version or timestamp) where two writers can collide.
 6. **Version or stay compatible.** Adding fields is fine; removing or renaming them breaks callers.
 7. **GraphQL or RPC instead of REST:** the same layers apply behind the resolvers. Cap query depth and cost, batch
    per-field lookups per request (a loader) so nested fields do not turn into N+1, and check access in the resolver
@@ -62,7 +60,7 @@ Keep three jobs apart, even when they live in one file in a small app:
 4. **Transactions around changes that must land together.** Keep them short, never wait on the network inside one, and
    let the database enforce what it can (unique, foreign keys, not null, checks). When the client library cannot hold a
    transaction open (some hosted or HTTP database APIs), put the multi-step write in one database function or stored
-   procedure and call that; make it raise on failure rather than return a "failed" value the caller may ignore.
+   procedure; make it raise on failure, not return a "failed" value the caller may ignore.
 5. **Schema changes are migrations**: versioned, reviewed, reversible or with a restore path, and tested on a copy of
    real-shaped data (`data-change.md` runbook).
 6. **Pool connections** and set timeouts on every query and outbound call.
@@ -81,12 +79,12 @@ Keep three jobs apart, even when they live in one file in a small app:
 ## 6. Caching
 1. **Measure first.** Cache only a path that is slow or expensive by numbers (`perf.md` runbook).
 2. **Cache-aside by default:** read the cache, on a miss read the source and store it with a time-to-live.
-3. **Every cache has an invalidation plan:** what write clears which key, and the longest stale time that is
-   acceptable. Keys include everything that changes the answer (user, tenant, locale, version).
-4. **Never cache per-user data under a shared key**, and never cache error results as if they were data.
+3. **Every cache has an invalidation plan:** which write clears which key, and the longest acceptable stale time. Keys
+   include everything that changes the answer (user, tenant, locale, version).
+4. **Never cache per-user data under a shared key**, and never cache errors as data.
 5. Use HTTP caching headers for public, read-only responses before building your own cache.
-6. **Put the cache in one place:** a caching wrapper with the same interface as the data access it wraps, so callers
-   do not know it is there and every write path through it can clear the right keys.
+6. **Put the cache in one place:** a wrapper with the same interface as the data access it wraps, so callers don't
+   know it is there and every write path through it clears the right keys.
 
 ## 7. Background work
 1. **Move slow or failure-prone work out of the request:** sending email, calling slow services, indexing, reports. The
@@ -105,13 +103,13 @@ Keep three jobs apart, even when they live in one file in a small app:
 1. **Authenticate once, in middleware.** Verify tokens or sessions with the library, never by hand: signature,
    expiry and audience, with the key read from config. A missing or invalid credential gets 401 and the handler never
    runs.
-2. **Authorize every operation on the server**, per resource: "is this caller allowed to do this to this record?"
-   Checking only "is signed in" lets any user read anyone's data.
+2. **Authorize every operation on the server**, per resource: "may this caller do this to this record?" Checking only
+   "is signed in" lets any user read anyone's data.
 3. **Roles map to permissions in one table** in code; routes ask for a permission, not a role name.
 4. **Rate-limit per caller at the edge**, by account when signed in and by address when not, tighter on sign-in and
    costly endpoints. Keep the counters in a shared store, the gateway or the platform's limiter (section 8), and answer
    429 with a hint of when to retry.
-5. For a full review of these and other risks, use the security-review skill (core, in every project).
+5. For a full review of these and other risks, use the security-review skill (in every project).
 
 ## 10. Logging and observability
 1. **Structured logs** (one JSON object or key=value line per event) with time, level, message, request id, method
@@ -127,8 +125,8 @@ Keep three jobs apart, even when they live in one file in a small app:
 - [ ] No query in a loop, every list is paged with a maximum, and every query and outbound call has a timeout (judgment: needs a code review).
 - [ ] Multi-step writes are in a transaction; retried writes are idempotent (judgment: needs a code review).
 - [ ] Every cache has an invalidation rule; every background job is durable, idempotent and has a retry limit (judgment: needs a code review).
-- [ ] Tests cover the service logic and at least one success and one failure per endpoint (hook: backend-tested), and pass
-  (`docs/checks/qa-standards.md`).
+- [ ] Tests cover the service logic and at least one success and one failure per endpoint, and pass
+  (`docs/checks/qa-standards.md`) (hook: backend-tested).
 - [ ] Still within the budgets in `docs/foundation.md`; performance claims come with before and after numbers (judgment: which budgets apply depends on the change).
 
 ## Pitfalls

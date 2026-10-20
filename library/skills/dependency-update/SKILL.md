@@ -5,15 +5,14 @@ triggers: add a dependency, add a package, install a package, add a library, rem
 ---
 # Dependency update: one proven change at a time
 
-A dependency is code someone else wrote that now runs with this project's permissions. An upgrade is done only when
-it is proven no worse than before. "It installed" is not proof.
+A dependency is someone else's code running with this project's permissions. An upgrade is done only when proven no
+worse than before. "It installed" is not proof.
 
 Say at the start: "Changing dependencies one at a time, with gates before and after (dependency-update skill)."
 
 ## What the other skills already cover
-- **Weighing a new dependency:** the engine's worth-it check (AGENTS.md rule 16) already requires
-  `Worth it: <gain> / <cost>` whenever a dependency is added, by command or by editing a manifest. This skill does not
-  add a second weighing; section **B** gives the facts that go into that line.
+- **Weighing a new dependency:** the engine's worth-it check (AGENTS.md rule 16) requires `Worth it: <gain> / <cost>`
+  whenever a dependency is added, by command or by editing a manifest. Section **B** gives the facts for that line.
 - **Recording the decision:** the architecture skill, when enabled, and its check on installs (architecture-trigger)
   accept a row in `docs/DECISIONS.md`. Step **E**6 writes that row.
 - **Facts from the web** (release dates, advisories, maintainer counts): the research skill. Cite what you read.
@@ -46,7 +45,7 @@ Commands per package manager are in [references.md](references.md).
 2. **License allows commercial use:** MIT, Apache-2.0, BSD, ISC, MPL-2.0, Unlicense and zlib are fine. GPL, AGPL,
    LGPL for static linking, "non-commercial" or no license: stop and ask the user.
 3. **Maintained:** last release date, open security issues, more than one maintainer, recent commits. Note what you
-   found; an abandoned package is a cost.
+   found; abandonment is a cost.
 4. **Known vulnerabilities** for the exact version you will install (audit commands in references.md, or the OSV
    database at osv.dev).
 5. **Weight:** how many transitive packages it brings and whether it runs install scripts.
@@ -55,8 +54,8 @@ Commands per package manager are in [references.md](references.md).
 
 ## C. Baseline before the change
 1. Start from a clean working tree (commit or stash first) so a rollback is one command.
-2. Run the project's gates and note each result line: tests, build, lint, type check, plus the security audit. With
-   the app pack these are the commands set by `node tools/packs.mjs configure app`.
+2. Run the project's gates and note each result line: tests, build, lint, type check (with the app pack, the
+   commands set by `node tools/packs.mjs configure app`), plus the security audit.
 3. For a framework or runtime upgrade, also note the timings you care about (build time, test time, startup).
 4. A gate that already fails is listed as "failing before", so it is not blamed on the change.
 

@@ -6,24 +6,24 @@ triggers: security review, security audit, security check, is it secure, is it s
 # Security review: evidence for every item
 
 **A review without evidence is an opinion.** Every area gets PASS, FAIL or N/A, and each one names its proof: the code
-path, a test, a request you sent, or a search you ran. "Looks fine" is not a result. When you are unsure, the area
-stays FAIL (or "not verified") until evidence says otherwise.
+path, a test, a request you sent, or a search you ran. "Looks fine" is not a result. Unsure means FAIL (or "not
+verified") until evidence says otherwise.
 
-Every project gets this skill, not only apps: a notes or research project still holds secrets, private data and
-untrusted files. Review a single change (what it touches) or the whole project. Run it at setup (the first review),
-before anything is shared, published or released (hard rule 15), and when the user asks.
+Every project gets this skill, not only apps: notes and research projects hold secrets, private data and untrusted
+files too. Review a single change (what it touches) or the whole project. Run it at setup (the first review), before
+anything is shared, published or released (hard rule 15), and when the user asks.
 
-**It is also mandatory, asked or not, when the work itself touches security.** That means code for sign-in, passwords,
-tokens, secrets, permissions, sessions, cookies, CORS, uploads, endpoints, shell or eval, query building, deserializing,
-crypto, payments or personal data. It also means `.env`, CI, Docker or hosting settings, or a publish or deploy
-command. The prompt hook says `MUST FOLLOW: security-review` when the request shows it coming, the edit hook says it
-the moment such code is written, and the Stop hook holds the answer until the review is done (or waived with
+**It is also mandatory, asked or not, when the work touches security.** That means code for sign-in, passwords,
+tokens, secrets, permissions, sessions, cookies, CORS, uploads, endpoints, shell or eval, query building,
+deserializing, crypto, payments or personal data. It also means `.env`, CI, Docker or hosting settings, or a publish
+or deploy command. The prompt hook
+says `MUST FOLLOW: security-review` when the request shows it coming, the edit hook says it when such code is
+written, and the Stop hook holds the answer until the review is done (or waived with
 `N/A(<check>): <the specific reason>`). Review only what changed, with the areas it touches.
 
-In app projects, the
-`security-review.md` runbook adds its own items on top. **This skill finds problems and fixes the few critical ones.
-The security-hardening library skill fixes a long list as a staged project.** Both use the same areas, severity scale
-and report table ([references.md](references.md)), so one's report is the other's input.
+In app projects, the `security-review.md` runbook adds its own items. **This skill finds problems and fixes the few
+critical ones; the security-hardening library skill fixes a long list as a staged project.** Both use the same areas,
+severity scale and report table ([references.md](references.md)), so one's report is the other's input.
 
 ## 1. Scope and threat model
 1. **Say what is in scope:** the change, a feature, or the whole project, and which parts are exposed: shared or

@@ -5,12 +5,12 @@ triggers: compress the skills, compress this file, compress the rules, compress 
 ---
 # Compress for AI: shorter text for agents, nothing lost
 
-Agents read the rules, skills and runbooks again and again, and they pass notes to each other. Every spare word costs
-context. This skill cuts that cost by changing the wording, never the content. Paths, names, commands, numbers and
-every "not" survive character for character, and a script proves it.
+Agents reread rules, skills and runbooks and pass notes to each other; every spare word costs context. This skill
+changes the wording, never the content. Paths, names, commands, numbers and every "not" survive character for
+character, and a script proves it.
 
 Say at the start: "Compressing (compress-for-ai skill, mode A, B or C, level light, full or ultra)." The rewrite
-happens in this session. Nothing is sent to another model or service.
+happens in this session; nothing is sent to another model or service.
 
 ## Never change, in any mode
 These are copied exactly, or the result fails:
@@ -22,7 +22,7 @@ These are copied exactly, or the result fails:
 - Headings (other files link to them), YAML frontmatter, table shape, and list numbering other text refers to.
 - Negations ("not", "never", "no", "without") and conditions ("only if", "unless", "except", "until").
 
-The full list and how each is detected is in [references.md](references.md), "What the protect check guards".
+Full list and detection: [references.md](references.md), "What the protect check guards".
 
 ## Pick the mode
 | Mode | What gets shortened | Allowed levels | Proof |
@@ -50,9 +50,9 @@ If a shorter version can be read two ways, use the longer one. A misread rule co
 ### Which files qualify
 | AI-facing: may be compressed | User-facing: stays plain English | Never touched |
 |---|---|---|
-| `AGENTS.md` or `CLAUDE.md` (one of the twins; the hooks copy it to the other) | `README.md`, `HOW-TO-USE.md`, `docs/BRIEF.md` | `sources/`, `outputs/`, `inbox/`, `profiles/` |
+| `AGENTS.md` or `CLAUDE.md` (one of the twins; the hooks copy it to the other) | `README.md`, `HOW-TO-USE.md`, `SETUP-PROMPT.md`, `docs/BRIEF.md`, `docs/MENU.md` | `sources/`, `outputs/`, `inbox/`, `profiles/` |
 | `skills/<name>/SKILL.md` and `references.md` (body only) | `docs/STATUS.md`, `docs/CHANGELOG.md`, `docs/DECISIONS.md` | Protected and versioned files from `tools/hooks/config.json` |
-| Runbooks in `docs/playbooks/` (their skills are generated from them) | `docs/knowledge/`, `docs/plans/`, reviews, releases | Generated files: `.claude/skills/`, `DIRECTORY.md`, `generated: true` skills |
+| Runbooks in `docs/playbooks/` (their skills are generated from them) | `docs/knowledge/`, `docs/plans/`, reviews, releases | Generated files: `.claude/skills/`, `.agents/`, `.codex/`, `DIRECTORY.md`, `generated: true` skills |
 | Prose in `docs/checks/` (tables stay as they are) | Answers, deliverables, HTML pages | `LICENSE`, `SOURCE.md`, code, config, data |
 | Memory notes and brief templates for agents | | Files whose names suggest secrets; backups in `.cache/` |
 
@@ -68,8 +68,8 @@ A user-facing file that is too long gets the writing standards: tighter plain En
 
 ### 2. Back up
 Run `node skills/compress-for-ai/scripts/compress-guard.mjs backup <files>`. It copies each file byte for byte to
-`.cache/compress/<stamp>/` with a `.orig` suffix (so no tool loads the copy as a live skill), checks each copy, and
-prints the folder. If it refuses or the copy check fails, stop: nothing has changed yet.
+`.cache/compress/<stamp>/` with a `.orig` suffix (so no tool loads it as a live skill), verifies each copy, and prints
+the folder. If it refuses or the copy check fails, stop: nothing has changed yet.
 
 ### 3. Rewrite the prose
 Work file by file; for a file over about 100 KB, one section at a time. The rules are in
@@ -100,9 +100,9 @@ Work file by file; for a file over about 100 KB, one section at a time. The rule
 4. Add a line to `docs/CHANGELOG.md`.
 
 ### 6. Report
-Lead with the result per file: bytes and words before and after, from the check output. Say these are size
-measurements: token or cost savings are not measured, so don't claim them. Give the backup folder and the restore
-command. List skipped files with the reason.
+Lead with the result per file: bytes and words before and after, from the check output. These are sizes; token and
+cost savings are not measured, so don't claim them. Give the backup folder and the restore command. List skipped
+files with the reason.
 
 ## Mode B: text only agents read
 1. **Briefs to a sub-agent stay at light.** A brief is the other model's input, and research on compressed input
@@ -114,7 +114,7 @@ command. List skipped files with the reason.
    `<note>.draft` in `.cache/compress/notes/`, shorten it, then run
    `node skills/compress-for-ai/scripts/protect-check.mjs <draft> <note>`. Fix every CHANGED line.
 4. **Text that is never saved** (a brief in a tool call): run the pre-send check below before sending.
-5. The coordinator's answer to the user follows mode C rules, which means plain English unless the user opted in.
+5. The coordinator's answer to the user follows mode C: plain English unless the user opted in.
 
 ## Mode C: terse replies (only when the user asks)
 1. **Turn on** only when the user asks for shorter, terser or "caveman" answers. Use light unless the user names full
@@ -136,10 +136,10 @@ command. List skipped files with the reason.
 ## Done when
 - [ ] The mode and level were named, and mode C was used only because the user asked for it (judgment: no check reads the mode line yet).
 - [ ] Mode A: the plan ran, and every skipped file was named with its reason (judgment: whether every skip was named needs the plan output).
-- [ ] Mode A: no file in `sources/`, `outputs/`, a protected or versioned file, a generated file or a user-facing file (hook: compress-verified)
-  was compressed, and a verified backup exists in `.cache/compress/<stamp>/`.
-- [ ] The protect check passed for every file compressed (hook: compress-verified) (`compress-guard.mjs check` for mode A,
-  `protect-check.mjs` for saved mode B notes), and every warning and note was reviewed.
+- [ ] Mode A: no file in `sources/`, `outputs/`, a protected or versioned file, a generated file or a user-facing file
+  was compressed, and a verified backup exists in `.cache/compress/<stamp>/` (hook: compress-verified).
+- [ ] The protect check passed for every file compressed (`compress-guard.mjs check` for mode A, `protect-check.mjs`
+  for saved mode B notes), and every warning and note was reviewed (hook: compress-verified).
 - [ ] Mode A: `node tools/writing-check.mjs` passes on each changed file, and `node tools/audit.mjs` passes (hook: audit-run; judgment: no hook runs writing-check on AI-facing files yet).
 - [ ] The answer gives measured sizes, the backup folder and the restore command, and claims no unmeasured savings (judgment: whether a saving was measured needs the run output).
 

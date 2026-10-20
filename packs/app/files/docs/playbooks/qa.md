@@ -9,13 +9,12 @@ menu: A3
 
 ## Steps
 ### §1 QA missed something (QA incident: "QA failed", "the tests missed it", "did you test this?", a bug in checked work)
-QA should already have happened, so this means something slipped through.
 1. **Find the miss:** what is wrong, and why QA didn't catch it (which of the three checks was skipped, too shallow,
    or measuring the wrong thing).
 2. **Fix it,** then re-run the full triple check (`docs/checks/qa-standards.md`), not just the one item.
 3. **Harden the process** so it can't slip again: a check in requirements.json, a codeRule, a test, a runbook step,
    or a line in qa-standards.md. Add a line to `docs/lessons.md`.
-4. **Report:** what slipped, why, the fix, and what changed in the process.
+4. **Report** under these labels: What slipped, Why QA missed it, Fix, Process change.
 
 ### §2 QA sweep of the app ("bug sweep", "audit the app")
 1. Split the app into areas. For each area, an independent auditor (a fresh agent with AGENTS.md, the area's specs and

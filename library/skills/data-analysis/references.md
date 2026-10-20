@@ -1,7 +1,7 @@
 # Data analysis: methods and reading
 
-Each row names a step in [SKILL.md](SKILL.md), the method behind it, and where to read more. Summaries are in our own
-words. Check the original before quoting it.
+Each row names a step in [SKILL.md](SKILL.md), the method behind it, and where to read more. Summaries are our own
+words; check the original before quoting it.
 
 ## Methods by step
 | Step in the skill | Method | Read more |

@@ -5,23 +5,23 @@ triggers: train the model, retrain the model, training run, run an experiment, m
 ---
 # ML experiments: results you can repeat
 
-A model score with no record of the data, code and seed behind it cannot be repeated, compared or trusted. This skill
-makes every run an experiment with a log row, keeps the test data honest, and picks winners from the log.
+A score with no record of its data, code and seed cannot be repeated, compared or trusted. Every run gets a log row,
+the test data stays untouched, and winners come from the log.
 
 Say at the start: "Running this as a logged experiment (ml-experiments skill)."
 
 ## What the other skills already cover
-- **Looking at a new dataset, data quality, charts:** the data-analysis skill (sections A, B and E), when enabled.
-  Profile the data with it before the first experiment.
-- **Numbers in the answer trace to output from this turn:** the research skill, section D. Scores come from runs made
-  or log rows read this turn.
+- **New dataset, data quality, charts:** the data-analysis skill (sections A, B and E), when enabled. Profile the
+  data with it before the first experiment.
+- **Numbers in the answer:** the research skill, section D. Scores come from runs made or log rows read this turn.
 - **A training script that crashes or gives odd results:** the debug skill.
-- **Keys and tokens:** `docs/security.md` and the security-review skill. Before a model or notebook is shared, run it.
+- **Keys and tokens:** `docs/security.md` and the security-review skill. Run the review before a model or notebook is
+  shared.
 - **Publishing a model or dataset** (a model hub, a paper, a demo): an outward action. Prepare it, then ask.
 
 Scripts (Node only, nothing to install): `skills/ml-experiments/scripts/exp-log.mjs` writes log rows and picks the
 best run; `skills/ml-experiments/scripts/nb-strip.mjs` clears notebook outputs and flags secrets.
-Commands per framework are in [references.md](references.md).
+Per-framework commands: [references.md](references.md).
 
 ## Pick the situation
 | Situation | Do |
@@ -33,19 +33,19 @@ Commands per framework are in [references.md](references.md).
 | A notebook is about to be committed or shared | **F** |
 
 ## A. Set up the experiment
-1. Name it and write the question it answers in one line: "Does adding the price history raise recall above 0.70?"
-   Say which result would change a decision.
-2. Agree the metric with the user, or take it from `docs/BRIEF.md`. Write it down before the first run, so the metric
-   is not chosen after seeing the scores.
-3. Keep raw data as it came: `data/raw/` is never edited (ask the user before touching it at all). Cleaning is a
-   script that reads `data/raw/` and writes `data/processed/`, so it can be run again.
+1. Name it and write its question in one line: "Does adding the price history raise recall above 0.70?" Say which
+   result would change a decision.
+2. Agree the metric with the user, or take it from `docs/BRIEF.md`. Write it down before the first run, so it is not
+   chosen after seeing the scores.
+3. Never edit `data/raw/` (ask the user before touching it at all). Cleaning is a script that reads `data/raw/` and
+   writes `data/processed/`, so it can be rerun.
 4. Fix every seed (Python `random`, NumPy, the framework, the data loader workers). Note anything that stays
    non-deterministic, such as some GPU kernels.
 5. Commit the code before runs worth keeping. A run on uncommitted code is logged as `+dirty`.
 
 ## B. Split once, and never peek
-1. Split into train, validation and test once, with a fixed seed, and save the split (row IDs or files), so every
-   experiment uses the same one.
+1. Split into train, validation and test once, with a fixed seed. Save the split (row IDs or files) so every
+   experiment uses it.
 2. Split by time when the model predicts the future (train on the past, test on later rows). Split by group when rows
    belong together (one patient, one user, one device): all of a group's rows go to one side.
 3. Fit every preprocessing step (scaling, encoding, imputing, feature selection, oversampling) on the training split
@@ -60,9 +60,9 @@ Commands per framework are in [references.md](references.md).
 2. Run the experiment. Score it on the agreed metric, with the spread across folds or seeds.
 3. Log it right away:
    `node skills/ml-experiments/scripts/exp-log.mjs add experiments/log.md --name <run> --data <data folder> --params "<k=v, ...>" --seed <n> --score "<metric>=<value>+-<spread>"`
-   It adds the date, a short hash of the data and the git commit. A run that is not logged did not happen.
-4. MLflow, Weights & Biases or DVC, when the project already uses one: log there as well, and keep the row in
-   `experiments/log.md` with the tracker's run ID in the notes, so the comparison works without the tracker.
+   It adds the date, a short hash of the data and the git commit. An unlogged run did not happen.
+4. If the project already uses MLflow, Weights & Biases or DVC, log there too, and keep the row in
+   `experiments/log.md` with the tracker's run ID in `--notes`, so comparing works without the tracker.
 5. Save the model file with the run name. Files over about 50 MB go to Git LFS or DVC, never straight into git.
    Ask before installing either.
 
@@ -87,7 +87,7 @@ training scores far above validation scores.
 ## F. Notebooks
 1. Before a commit or share: `node skills/ml-experiments/scripts/nb-strip.mjs --check <notebook or folder>`.
 2. On FAIL for outputs: `node skills/ml-experiments/scripts/nb-strip.mjs <notebook or folder>` clears outputs and
-   execution counts in place. The cell code is not touched. `nbstripout` or
+   execution counts (and widget state) in place. Cell code is not touched. `nbstripout` or
    `jupyter nbconvert --clear-output --inplace` do the same when installed.
 3. On FAIL for a secret: move the value to an environment variable or an ignored `.env` file, and tell the user the
    key may need replacing if it was ever committed or shared.

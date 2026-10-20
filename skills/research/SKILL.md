@@ -5,8 +5,8 @@ triggers: research, research online, look up, look into, look online, find out, 
 ---
 # Research: facts that are real
 
-One rule covers every situation: **every fact in the answer traces to a source read this turn.** Knowing something
-"from memory" doesn't count. Find it and cite it, or leave it out, or mark it "(not verified)".
+One rule covers every situation: **every fact in the answer traces to a source read this turn.** Memory doesn't
+count. Find it and cite it, leave it out, or mark it "(not verified)".
 
 ## Pick the situation
 | Situation | Do |
@@ -20,7 +20,7 @@ One rule covers every situation: **every fact in the answer traces to a source r
 Then always **D** (did I make that up?), and in a knowledge project, **E** (record it).
 
 ## Answer format (every situation, A to E)
-1. **The answer first.** No preamble, no restating the question, no filler. Answer everything asked and nothing more.
+1. **The answer first.** No preamble, restating or filler. Answer everything asked and nothing more.
 2. **Numbered citations.** Each fact ends with `[1]`, `[2]`, placed after the punctuation. One number per source, in
    order of first use. A source cited twice keeps its number.
 3. **One short context line, only when it changes how to read the answer** (a definition, a scope limit, a caveat). It
@@ -58,8 +58,8 @@ a quick answer. Details in `docs/checks/writing-standards.md`, "Activity lines".
 
 ## B. A quick lookup
 Go to the official docs or other primary source, open the page, and use it. Start the line with `Quick lookup:`, cite
-the page as `[1]`, and list it under `Sources:` (answer format). Anything the user will rely on, anything to be recorded, and anything with high stakes is
-**C**.
+the page as `[1]`, and list it under `Sources:` (answer format). Anything the user will rely on, will be recorded, or
+has high stakes is **C**.
 
 ## C. Research and fact checks
 Work in a ledger: `node skills/research/scripts/claims.mjs new "<question>" --slug <topic>` creates

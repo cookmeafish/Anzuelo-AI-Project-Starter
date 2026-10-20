@@ -12,7 +12,7 @@ the project runs with `"autonomy": "auto"` (dependency-update skill, section B).
 | bun | `bun add <pkg>@<range>` | `bun update <pkg>` | `bun remove <pkg>` | `bun install --frozen-lockfile` |
 | pip | add to `requirements.txt`, then `pip install -r requirements.txt` | change the pin, reinstall | delete the line, `pip uninstall <pkg>` | `pip install -r requirements.txt` |
 | uv | `uv add <pkg>` | `uv lock --upgrade-package <pkg>` then `uv sync` | `uv remove <pkg>` | `uv sync --frozen` |
-| poetry | `poetry add <pkg>@<range>` | `poetry update <pkg>` | `poetry remove <pkg>` | `poetry install --sync` |
+| poetry | `poetry add <pkg>@<range>` | `poetry update <pkg>` | `poetry remove <pkg>` | `poetry sync` (Poetry 2; 1.x: `poetry install --sync`) |
 | cargo | `cargo add <crate>@<range>` | `cargo update -p <crate> --precise <version>` | `cargo remove <crate>` | `cargo build --locked` |
 | go | `go get <module>@<version>` | `go get <module>@<version>` then `go mod tidy` | remove imports, `go mod tidy` | `go mod download` |
 | dotnet | `dotnet add package <Pkg> --version <v>` | same command with the new version | `dotnet remove package <Pkg>` | `dotnet restore --locked-mode` |

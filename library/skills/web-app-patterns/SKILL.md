@@ -6,8 +6,8 @@ triggers: react component, vue component, svelte component, state management, gl
 # Web app patterns: the code behind the screens
 
 Screens break in the same few ways: an old response overwrites a new one, a form loses what the user typed, state is
-copied in two places and drifts, or a key ends up in the bundle anyone can download. This skill is the short list of
-habits that prevent those, with a test or a scan to prove each change.
+copied in two places and drifts, or a key ends up in the bundle anyone can download. These habits prevent that, and a
+test or a scan proves each change.
 
 Say at the start: "Working on the client code (web-app-patterns skill)."
 
@@ -19,7 +19,7 @@ Say at the start: "Working on the client code (web-app-patterns skill)."
 - **A slow first load:** the perf runbook (app pack) owns the measuring; section **G** says what to change.
 - **A full security review:** the security-review skill. Section **H** covers only what reaches the browser.
 
-Framework commands and code shapes are in [references.md](references.md). The secrets scan is
+Framework commands and code shapes: [references.md](references.md). Secrets scan:
 `skills/web-app-patterns/scripts/client-secrets.mjs` (Node only, nothing to install).
 
 ## Pick the situation
@@ -100,8 +100,9 @@ Put state in the lowest place every reader can reach, and nowhere else:
 3. Each setting is read in one place, and the app stops with a clear message when a required one is missing.
 4. `.env` files stay out of git. `.env.example` lists the names with fake values (AGENTS.md rule 15).
 5. Run `node skills/web-app-patterns/scripts/client-secrets.mjs .` from the project root. It checks `.env` files,
-   source code that reads public variables, and the build output (`dist`, `build`, `out`, `.next/static`), and
-   prints `RESULT: PASS` or `RESULT: FAIL`. Build first so the shipped files are checked too. A WARN line is a public
+   source code that reads public variables, and the build output (`dist`, `build`, `out`, `.next/static`,
+   `.output/public`, `.svelte-kit/output/client`, `www`), and prints `RESULT: PASS` or `RESULT: FAIL`. Build first so
+   the shipped files are checked too. A WARN line is a public
    key-like variable: confirm it is meant to be public. Fix every FAIL before anything ships.
 6. A secret that already shipped is exposed: tell the user it must be rotated at its provider. Removing it from the
    code does not take it back.

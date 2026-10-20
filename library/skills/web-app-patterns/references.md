@@ -68,9 +68,11 @@ Query by role and visible text, the way a user finds things. Avoid test ids unle
 - a public variable named like a secret (`SECRET`, `PRIVATE`, `PASSWORD`, `SERVICE_ROLE`, `DATABASE_URL` and similar)
   in a `.env` file or read by source code;
 - a public variable, or a file in the build output, holding a known secret shape: payment secret keys, cloud access
-  key ids, code-host and chat tokens, AI provider keys, mail service keys, private key blocks, database URLs with a
-  password, and JWTs whose role is a service or admin role.
+  key ids, code-host and chat tokens, AI provider keys, mail service keys, Twilio token pairs, private key blocks,
+  database URLs with a password, and JWTs whose role is a service or admin role.
 
-It warns (no fail) on public variables named like a key or token, because many of those are public on purpose. It
-never prints a full value. It skips `node_modules` and `.git`, and files over 5 MB (`--max-mb` changes that).
-It cannot know every key format: a clean scan is evidence, not a guarantee.
+It warns (no fail) on public variables named like a key or token, because many are public on purpose. It never
+prints a full value. It skips files over 5 MB (`--max-mb` changes that) and these folders: `node_modules`, `.git`,
+`.cache`, `coverage`, `.turbo`, `.vercel`, `.netlify`, and the agent's own `skills`, `.claude`, `.agents`, `.codex`,
+`.gemini`, `packs` and `library` (they hold bad-code examples on purpose). It cannot know every key format: a clean
+scan is evidence, not a guarantee.

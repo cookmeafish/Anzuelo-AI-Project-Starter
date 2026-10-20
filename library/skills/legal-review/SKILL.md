@@ -5,9 +5,9 @@ triggers: review this contract, contract review, review the contract, redline, r
 ---
 # Legal review: careful paperwork, honest limits
 
-**This is not legal advice.** The agent is not a lawyer and cannot replace one. It reads documents carefully, compares
-them with positions the user has chosen, spots common traps, and drafts. A qualified lawyer decides anything that
-matters. Every result starts with this line:
+**This is not legal advice.** The agent is not a lawyer. It reads documents, compares them with the user's chosen
+positions, spots common traps, and drafts. A qualified lawyer decides anything that matters. Every result starts with
+this line:
 
 `Not legal advice: an organized first read for a qualified lawyer to check.`
 
@@ -37,15 +37,15 @@ Several can apply. A new vendor deal is often F, then A, then H.
    - Found: judge against it and say "Basis: your positions file".
    - Not found: offer to set one up, or use common commercial norms and say "Basis: general norms, not your
      positions". Never present general norms as the user's policy.
-4. **Laws are facts that change.** Deadlines, thresholds and which law applies go through the **research** skill
-   (section C, with the law text or the regulator as the primary source). The checklists in references.md are
-   starting points, not current law. Name the jurisdiction every time; the defaults lean on US and EU rules.
+4. **Laws change.** Deadlines, thresholds and which law applies go through the **research** skill (section C, with
+   the law text or the regulator as the primary source). The checklists in references.md are starting points, not
+   current law. Name the jurisdiction every time; the defaults lean on US and EU rules.
 5. **Optional connections.** If the project can reach the user's document storage, email, calendar, contract system,
-   CRM or e-signature tool, use it to find documents. Never depend on it: list the places you searched and the
-   places you could not reach.
+   CRM or e-signature tool, use it to find documents. Never depend on it: list the places searched and the places
+   out of reach.
 
 ## When a lawyer is needed (stop and say so)
-Stop the templated or routine path, name the reason, and recommend a qualified lawyer when any of these is true:
+Stop the routine path, name the reason, and recommend a qualified lawyer when any of these is true:
 - a lawsuit is filed or threatened, or a regulator, government body or the police is involved;
 - possible criminal exposure, a data breach, or a securities or board-level matter;
 - the reply would bind the user, waive a right, or admit fault;
@@ -55,12 +55,12 @@ Stop the templated or routine path, name the reason, and recommend a qualified l
 - the risk rating in **D** comes out high or critical;
 - the user is unsure and the stakes are real.
 
-In these cases the agent may still prepare a draft for the lawyer, marked `DRAFT FOR COUNSEL REVIEW`.
+The agent may still prepare a draft for the lawyer, marked `DRAFT FOR COUNSEL REVIEW`.
 
 ## A. Review a contract
-1. Name the contract type (software subscription, services, license, partnership, purchase). It decides which clauses
+1. Name the contract type (software subscription, services, license, partnership, purchase); it decides which clauses
    matter most.
-2. Go through each material clause with the clause checklist in references.md: liability cap, indemnity, IP
+2. Check each material clause against the clause checklist in references.md: liability cap, indemnity, IP
    ownership, data protection, confidentiality, warranties, term and termination, governing law and disputes,
    insurance, assignment, force majeure, payment. Note clauses that are missing, not only bad ones.
 3. Rate each clause:
@@ -147,7 +147,7 @@ In these cases the agent may still prepare a draft for the lawyer, marked `DRAFT
    exact legal entity names, dates right or left blank, signers with authority, internal approvals done, review done.
 2. Set the signers, the order (one after another or all at once) and who gets a copy.
 3. Any check fails: say what to fix first. Sending for signature, with or without an e-signature tool, is an outward
-   action: only with the user's explicit OK.
+   action: only with the user's explicit OK (AGENTS.md rule 6).
 
 ## Done when
 - [ ] The answer starts with the "Not legal advice" line (hook: legal-disclaimer).

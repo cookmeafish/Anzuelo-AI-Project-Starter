@@ -5,7 +5,7 @@ runbook: docs/playbooks/project.md
 ---
 # Make a rule stick
 
-A rule that only lives in the docs gets forgotten. Here the docs say it and a hook checks it.
+A rule that only lives in the docs gets forgotten. The docs state it and a hook checks it.
 
 ## Steps
 1. **Capture.** Write what the user asked as a principle in your own words, with today's date and why it matters.

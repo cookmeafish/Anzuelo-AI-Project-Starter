@@ -5,15 +5,15 @@ triggers: continuity check, check continuity, consistency check, does this match
 ---
 # Manuscript: a long work that stays consistent
 
-The author's words belong to the author. Long works break in small ways: an eye color changes, a week has eight days,
-a name gains an accent in chapter 12. This skill finds those problems and proposes fixes. It changes a chapter only
-when the author asks for that exact change.
+Long works break in small ways: an eye color changes, a week has eight days, a name gains an accent in chapter 12.
+This skill finds those problems and proposes fixes. The words are the author's: it changes a chapter only when the
+author asks for that exact change.
 
 Say at the start: "Working on the manuscript (manuscript skill)."
 
 ## What the other skills already cover
-- **Facts the book relies on** (history, places, science, law): the **research** skill. Every fact it confirms is
-  cited; this skill does not repeat its rules.
+- **Facts the book relies on** (history, places, science, law): the **research** skill, which cites every fact it
+  confirms.
 - **Character, place and timeline notes as linked notes:** the obsidian skill. Each character note links to the places
   and other characters it touches, so the graph shows who meets whom.
 - **Saving a report or plan as a file:** the **deliverable** runbook (knowledge pack). This skill says what goes in it.
@@ -43,7 +43,8 @@ Find what the project already has before making anything: search for folders suc
 2. Run the names script on the chapters checked and the ones before them:
    `node skills/manuscript/scripts/continuity.mjs <chapters folder> --style docs/knowledge/style-sheet.md`.
    It lists the names and capitalized terms per chapter and flags spellings that differ (accents, one or two
-   letters, a spelling the style sheet marks wrong). It cannot judge facts; steps 3 and 4 do that.
+   letters, a spelling the style sheet marks wrong), ending with `RESULT: PASS` or `RESULT: FAIL <count>`. `--min N`
+   lists only terms used at least N times. It cannot judge facts; steps 3 and 4 do that.
 3. List each fact the text states: names, ages, looks, family ties, jobs, places, distances, dates, days of the week,
    seasons, weather, injuries, objects someone carries, and who knows what at this point.
 4. Compare each one with the notes and with earlier chapters. Check the timeline arithmetic (ages against birth
@@ -53,7 +54,7 @@ Find what the project already has before making anything: search for folders suc
 6. When the note may be the outdated side, ask which is right. Update the note the author picks, with the date.
 
 ## B. Style sheet
-1. Keep the style sheet in the format the script reads: under `## Names`, one line per name, wrong spellings in
+1. Keep names in the format the script reads, under a `## Names` heading: one line per name, wrong spellings in
    brackets: `- Name (not: Variant, Other)`. A table with the name in the first column and wrong spellings in the
    second works too.
 2. Also record: spelling variety (for example US or UK), tense, point of view and whose, number style, invented words,

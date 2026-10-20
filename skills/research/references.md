@@ -41,8 +41,9 @@ What the check rejects:
 - forum, social, wiki, aggregator or AI pages used as evidence;
 - sponsored, affiliate, paid or press-release sources used as evidence, unless they are the owner's own primary source;
 - a claim citing a source that is not evidence, or with no quote or data;
-- `confirmed` without two different owners, `primary` without a primary source;
-- fewer than three evidence owners without a `Sources limit:` line.
+- `confirmed` without two different owners, `primary` without a primary (or project) source;
+- fewer than three evidence owners without a `Sources limit:` line;
+- no text under `## Verdict`.
 
 ## Red flags: sponsored, paid or biased
 - Words on the page: "sponsored", "partner content", "paid post", "#ad", "in collaboration with", "we may earn a

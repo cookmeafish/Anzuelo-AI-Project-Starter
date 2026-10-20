@@ -5,9 +5,8 @@ runbook: docs/playbooks/gui.md
 ---
 # GUI review loop
 
-The Stop hook enforces this loop. It blocks until screenshots newer than your last GUI edit exist, every one of them
-has been opened and looked at, and the answer ends with a verdict. Any edit after a round makes that round stale,
-so you must shoot again. That is the loop.
+The Stop hook enforces this loop. It blocks until screenshots newer than your last GUI edit exist, every one has
+been opened, and the answer gives a verdict. Any edit after a round makes that round stale: shoot again.
 
 ## Each round
 1. **Shoot** the final state of everything you touched:

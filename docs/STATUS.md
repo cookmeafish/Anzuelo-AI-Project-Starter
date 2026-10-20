@@ -1,6 +1,6 @@
 # Status
 
-Updated: {{CREATED}}. Keep it short. This is the first thing a new session reads, and only the top ~40 lines get injected.
+Updated: {{CREATED}}. Keep it short: a new session reads this first, and only the top 40 lines are injected.
 
 ## Now
 - Project created from <!--name:STARTER_NAME-->Anzuelo<!--/name-->, the project starter. Not bootstrapped yet.

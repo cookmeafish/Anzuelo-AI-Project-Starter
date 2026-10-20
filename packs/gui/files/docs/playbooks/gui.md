@@ -8,8 +8,8 @@ checks: core: gui-review-loop, gui-review-report, gui-warnings, gui-flows
 # Playbook: build or change a GUI
 
 **Use when:** anything a person will look at changes: app screens, web pages, dashboards, HTML deliverables, forms,
-styles. **The loop is mandatory.** The Stop hook (REQ: gui-review-loop, gui-review-report, gui-warnings) blocks the
-answer until fresh screenshots of the final state were taken AND looked at, and the answer gives a verdict.
+styles. **The loop is mandatory.** The Stop hook (REQ: gui-review-loop, gui-review-report, gui-warnings, gui-flows)
+blocks the answer until fresh screenshots of the final state were taken AND looked at, and the answer gives a verdict.
 
 ## Inputs
 - Who uses it and what they need to get done (docs/BRIEF.md). A first-time user should know what to do without help.

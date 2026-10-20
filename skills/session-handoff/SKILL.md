@@ -6,12 +6,12 @@ runbook: docs/playbooks/project.md
 # Session handoff
 
 Three files carry the work from one session, or one AI agent, to the next: `docs/STATUS.md` (where things stand),
-`docs/CHANGELOG.md` (what changed) and the open plans in `docs/plans/` (multi-step work, box by box). Keep them true
-and short, and a new session needs nothing else to continue.
+`docs/CHANGELOG.md` (what changed) and the open plans in `docs/plans/` (multi-step work, box by box). Kept true and
+short, they are all a new session needs.
 
 ## 1. Update `docs/STATUS.md`
-Only the top 40 lines reach a new session, so keep it tight. The hooks require it after a substantial work turn (15+
-tool calls, hook: status-handoff).
+Only the top 40 lines reach a new session. The hooks require an update after a work turn with 15+ tool calls (hook:
+status-handoff).
 ```markdown
 # Status
 Updated: YYYY-MM-DD.
@@ -28,7 +28,7 @@ Updated: YYYY-MM-DD.
 - Ideas and wishes with no date yet. This section sits last, below the 40 lines that are injected.
 ```
 - Replace what is no longer true; don't append forever. Finished items go to CHANGELOG, not STATUS.
-- Use links to files rather than repeating their contents.
+- Link files rather than repeating their contents.
 - Multi-step work lives in its plan. STATUS links it under "Now" and doesn't copy its boxes.
 
 ## 2. Update `docs/CHANGELOG.md`
@@ -75,7 +75,8 @@ When a request uses a term you can't place (an abbreviation, a nickname, a proje
 1. Look it up: AGENTS.md preferences, `docs/BRIEF.md`, `docs/glossary.md`, then `node tools/recall.mjs "<term>"`.
 2. Still unknown: ask once ("What does X mean here? I'll note it."), then record the answer.
 3. Record it as a row of the table in `docs/glossary.md` (create the file with that table if it is missing):
-   `| term | what it stands for | where it comes up, other names for it |`. Every other name for the same thing (short forms, nicknames, old names) goes in the same row, so any of them finds it.
+   `| term | what it stands for | where it comes up, other names for it |`. Other names for the same thing (short
+   forms, nicknames, old names) go in the same row, so any of them finds it.
 4. People: the name they go by and their role in the project, nothing more. No contact details, opinions or private
    facts (AGENTS.md rules 11, 14 and 15). Names of products, brands and companies that may change belong in
    `docs/names.json`, not here.

@@ -6,9 +6,9 @@ checks: core modular-code, name-var
 ---
 # Modular code: built to grow and to be renamed
 
-An app that works today but needs a rewrite to add the next feature, or a search-and-replace to change its name, was
-built in the wrong shape. This skill keeps the shape right from the first file. The check runs by itself on every
-changed code file (hook: modular-code), and names are checked everywhere (hook: name-var).
+An app that needs a rewrite to add the next feature, or a search-and-replace to change its name, was built in the
+wrong shape. This skill keeps the shape right from the first file. The check runs by itself on every changed code
+file (hook: modular-code), and names are checked everywhere (hook: name-var).
 
 Say at the start: "Keeping it modular (modular-code skill)."
 
@@ -35,30 +35,31 @@ Say at the start: "Keeping it modular (modular-code skill)."
    `switch` over types is the sign one is missing.
 5. **Nothing changeable is typed into the code.** Names and brand words come from `docs/names.json` (or a constants
    module made from it). URLs, hosts, ports, limits, feature flags and API versions come from config files or
-   environment variables, with defaults in one place. Secrets only from the environment or a secret store.
+   environment variables, with defaults in one place (the check fails a URL, host, IP address or port typed into
+   code). Secrets only from the environment or a secret store.
 6. **Data, logic and presentation apart.** Screens show, logic decides, data access stores. Business rules never live
    inside a click handler or an SQL string.
-7. **Small units.** A file over about 400 lines or a function over about 60 lines is doing several jobs: split it by
-   job. The check refuses making an oversized file bigger.
-8. **No reaching across.** A module never imports another module's private files, and two modules never import each
-   other. A shared need moves into a shared module both depend on.
+7. **Small units.** A file over 400 lines or a function over 60 lines is doing several jobs: split it by job. The
+   check fails a change that makes an oversized file longer, and warns when a function grows past 60 lines.
+8. **No reaching across.** A module never imports another module's private files (the check fails imports from
+   `internal/`, `private/` or `_private/`), and two modules never import each other. A shared need moves into a shared module both depend on.
 
 ## Steps
 ### A. Starting an app (with the app-foundation runbook)
 1. Pick the module layout for the stack (references: `docs/checks/layout-standards.md`): `src/features/<name>/` (web,
    Node), `lib/features/<name>/` (Flutter), a package per feature (Python), a crate or module per feature (Rust),
    one scene folder per feature (Godot).
-2. Make the config module and the names module first: one file each, read once at start. Record both paths in
-   `docs/foundation.md` under "Kind of app".
-3. Write down the extension points the app will need (what there will be "more of") in `docs/foundation.md`.
+2. Make the config module and the names module first: one file each, read once at start. Record both paths in the
+   Modules row of `docs/foundation.md` section 3.
+3. Write the extension points the app will need (what there will be "more of") in the same row.
 
 ### B. Adding a feature, screen, service or integration
 1. New folder for it, with its public entry. Import other features only through their entries.
 2. Outside services behind an interface; config values from the config module; names from the names module.
 3. If it is "one more of" something, register it in the existing registry. No registry yet and this is the second
    one: create the registry now and move the first one into it.
-4. Run `node skills/modular-code/scripts/modularity.mjs <changed files>` (the Stop hook runs it on each changed code
-   file anyway) and fix what it reports.
+4. Run `node skills/modular-code/scripts/modularity.mjs <changed files>` and fix what it reports (the Stop hook also
+   runs it on each changed code file).
 
 ### C. A file or module that grew too big
 1. List its jobs (one line each). Each job becomes its own file or module with a clear name.

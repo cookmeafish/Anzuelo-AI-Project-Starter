@@ -1,8 +1,8 @@
 # App standards (changes, data, security, UX, performance, AI features, docs)
 
-Baselines for any application. Items marked (check) are enforced by `codeRules`, `commitGate` or requirements.json
-when configured. The rest are review items for the independent reviewer. The project-wide security baseline is
-`docs/security.md`; this app's own decisions are in `docs/foundation.md`.
+Baselines for any application. Items marked (check) or (hook: x) are enforced by `codeRules`, `commitGate` or
+requirements.json; the rest are for the independent reviewer. Project-wide security baseline: `docs/security.md`.
+This app's own decisions: `docs/foundation.md`.
 
 ## Surgical changes
 - Before writing code, state the goal in one sentence and which files it touches.
@@ -11,8 +11,8 @@ when configured. The rest are review items for the independent reviewer. The pro
 - No drive-by refactors, renames or reformatting. Note them as a separate task for the user to approve.
 
 ## Data safety (persistent state)
-- **Saving needs a good load first.** If loading the data failed or came back incomplete, the save is blocked, so a
-  bad read can't overwrite good data. Receiving nothing is not an instruction to erase what is stored.
+- **Saving needs a good load first.** If the load failed or came back incomplete, block the save, so a bad read
+  can't overwrite good data. Receiving nothing is not an instruction to erase what is stored.
 - Whole-file writes are atomic: temp file, then rename. A file that won't parse is set aside (`*.corrupt-<date>`),
   never treated as empty. An unreachable store is an error, never "no data".
 - Saves send only what changed. Deletes are explicit, with tombstones where data syncs.
@@ -30,7 +30,9 @@ when configured. The rest are review items for the independent reviewer. The pro
   load a remote URL by itself.
 - Secrets live in ignored files (`.env*`), never in code, logs or commits (hook: no-secrets). Client-exposed env
   prefixes never carry keys the user would mind leaking.
-- Never run `.cmd` or `.bat` files through `execFile` without a shell. Every spawned process has an error handler.
+- Never run `.cmd` or `.bat` files through `execFile` without a shell (check). Every spawned process has an error
+  handler.
+- No `eval` on dynamic input; parse the data instead (check).
 
 ## UX and UI
 - Design tokens, not hardcoded colors. Readable contrast (WCAG AA) in every theme.

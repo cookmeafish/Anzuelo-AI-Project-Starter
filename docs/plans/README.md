@@ -1,8 +1,8 @@
 # Plans
 
-A plan is a checklist for work too big to finish, or to keep in mind, in one go. Each one is a plain markdown file
-here, so it outlives the session that wrote it and works with any AI agent, or a person, without special tools.
-Written with the plan skill (`skills/plan/SKILL.md`).
+A plan is a checklist for work too big to finish or keep in mind in one go. Each is a plain markdown file here, so it
+outlives the session that wrote it and works for any agent or person. Written with the plan skill
+(`skills/plan/SKILL.md`).
 
 ## The files
 - One file per plan: `YYYY-MM-DD-<topic>.md`.
@@ -20,9 +20,9 @@ Right under the title, on a line of its own and without formatting:
 | `status: dropped - <why>` | Given up for good, with the reason |
 | `status: blocked - <reason>` | Still open, but stuck until the user decides. Has a `Tried:` note and an `Options:` note |
 
-A plan with unticked boxes and no `done` or `dropped` line is open, blocked ones included. At the start of every session the hooks list open
-plans as OPEN PLANS, so they are resumed or closed instead of forgotten. A work turn that adds 5 or more new files
-needs a plan here (REQ: plan-required).
+A plan with unticked boxes and no `done` or `dropped` line is open, blocked ones included. At every session start the
+hooks list open plans as OPEN PLANS, so they are resumed or closed instead of forgotten. A work turn that adds 5 or
+more new files needs a plan here (REQ: plan-required).
 
 ## Resuming a plan (any session, any agent)
 1. Read the plan's header, its "Context" section and every dated note. A blocked plan waits on the user: read its

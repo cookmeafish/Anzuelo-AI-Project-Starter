@@ -118,5 +118,5 @@ large or paging is broken.
 ## The lint script
 `node skills/mcp-builder/scripts/lint-tools.mjs <tools.json> [--prefix name]` reads a saved `tools/list` result (the
 whole response, or just its `tools` array), checks each tool against the checklist rows that can be checked
-mechanically, and prints one line per problem. Exit 0 = clean, 1 = problems, 2 = bad usage or the file could not be
-read. It reads only the file you give it.
+mechanically, and prints one `PROBLEM` line per problem, then `LINT: PASS` or a count. Exit 0 = clean, 1 = problems,
+2 = bad usage or the file could not be read. It reads only the file you give it.

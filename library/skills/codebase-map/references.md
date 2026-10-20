@@ -27,9 +27,9 @@ Adjust to the stack. Run from the repo root. Leave out generated and vendored fo
   adds one file's imports and importers, the first step of a blast-radius check. It uses pattern matching, not a
   compiler: path aliases, dynamic imports and generated code show up as "unresolved" or not at all.
 - `node skills/codebase-map/scripts/hotspots.mjs [repo] [--since "1 year ago"] [--top N] [--json]`
-  Reads `git log` and prints the most changed files, the most fixed files (commit subjects that mention a fix or
-  bug), pairs of files that change together 3 or more times, and "big and busy" files ranked by changes times the
-  log of their size. Huge commits (over 50 files) are left out of the pairs.
+  Reads `git log` (merges skipped) and prints the most changed files, the most fixed files (commit subject mentions
+  fix, bug, hotfix, regression or revert), pairs of files that change together 3 or more times, and "big and busy"
+  files ranked by changes times the log of their line count. Commits over 50 files are left out of the pairs.
 
 ## Blast radius before a change
 1. Direct dependents: `import-graph.mjs --file <path>`, or the language's "find references", or
@@ -41,7 +41,7 @@ Adjust to the stack. Run from the repo root. Leave out generated and vendored fo
 
 ## Symbol view (for the few symbols that matter most)
 For each core symbol record: where it is defined (file and line), who calls it, what it calls, and which flows it
-is a step in. This is the quickest answer to "what is this and who cares about it".
+is a step in.
 
 ## Hot spots from git
 - Most changed files (last year): `git log --since=1.year --name-only --format= | sort | uniq -c | sort -rn | head -30`

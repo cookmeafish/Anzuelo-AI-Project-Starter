@@ -3,23 +3,23 @@
 Its hooks catch the agent whenever it skips a step, cuts a corner or makes something up.
 
 It works with any agent (Claude Code, Codex, Cursor, Copilot, Gemini and others). Each project enforces its own way
-of working with hooks and checks, so you never have to keep reminding the agent. The rules live in `AGENTS.md`, the
-shared standard; each agent's own files are made on your machine by `node tools/hooks/wire.mjs`, so the repository
-favors no vendor.
+of working with hooks and checks, so you don't have to keep reminding the agent. The rules live in `AGENTS.md`, the
+shared standard. `node tools/hooks/wire.mjs` makes each agent's own files on your machine, so the repository favors
+no vendor.
 
 > **For AI agents: you were pointed here to set up a project.** Do exactly this:
-> 1. Run `node "<this starter folder>/tools/new-project.mjs" "<the project folder>"`. It copies everything the
->    project needs, in the right structure. An empty folder becomes a new project. A folder with existing work is
->    adopted, and nothing existing is overwritten. A project made from this starter gets its engine upgraded. Add
->    `--dry-run` first to show the user what will happen.
+> 1. Run `node "<this starter folder>/tools/new-project.mjs" "<the project folder>"`. An empty folder becomes a new
+>    project. A folder with existing work is adopted, and nothing existing is overwritten. A project made from this
+>    starter gets its engine upgraded. Add `--dry-run` first to show the user what will happen.
 > 2. Never copy files by hand, and never put the project inside this folder.
-> 3. Continue in the project folder: open its [SETUP-PROMPT.md](SETUP-PROMPT.md) and follow it from Phase 1. (After an upgrade there
->    is no setup prompt: decide the upgrade review it wrote into `docs/DECISIONS.md`, asking the user only about money, privacy or outward actions.)
+> 3. Continue in the project folder: open its [SETUP-PROMPT.md](SETUP-PROMPT.md) and follow it from Phase 1. After an
+>    upgrade there is no setup prompt: decide the upgrade review it wrote into `docs/DECISIONS.md`, asking the user
+>    only about money, privacy or outward actions.
 
 ## What a project gets
 - **Setup that asks first, then gives the project everything that fits.** The agent asks about the project, records
-  your answers, and installs every pack and skill those answers call for. Nothing is installed before you answer,
-  and something that fits is left out only for a reason you agree with. Hooks enforce each step.
+  your answers, and installs every pack and skill they call for. Nothing is installed before you answer, and each
+  item left out has a recorded reason you can override. Hooks enforce each step.
 - **Every request is routed** to a runbook or skill, and the agent must follow it. `DIRECTORY.md` maps what to use
   when.
 - **It improves itself.**
@@ -28,36 +28,34 @@ favors no vendor.
   - A skill used often gets hardened with scripts.
   - Skills nobody uses get reviewed and retired, with your OK.
 - **"Always" and "never" become rules with automatic checks,** not promises.
-- **An upset user teaches the project.** When you are annoyed, the agent fixes the miss, decides how important the
-  lesson is, and stores it where it stops the next one (the skill that missed it, a rule, a check, or a new skill),
-  telling you where. Lessons about the engine itself go to the starter on their own, and its next upgrade fixes every
-  project.
-- **Only what makes it better.** Every added skill, pack or dependency comes with its gain and its cost, weighed.
-  Upgrades roll back if a passing check breaks, and the agent weighs each new item and tells you what it added or skipped (it asks only about money, privacy or outward actions). The hooks have a
-  speed budget the audit enforces.
-- **Only improvements, never friction.** A skill, runbook or check that keeps frustrating you is suspended
-  automatically and announced; safety and honesty checks stay, and get made less annoying instead. No check can stall
-  the work.
-- **Facts that are real.** One research skill for every situation: answers from the project's own files, quick
-  lookups, and full research across independent sources with sponsored and biased ones screened out. A check traces
-  every number in an answer to something read that turn and catches cited files that were never opened.
-- **Linked notes for Obsidian.** Notes link to what they relate to, so the graph shows how the project connects;
-  the folder opens as a vault with the right link settings. The starter itself is fully mapped.
+- **An upset user teaches the project.** When you are annoyed, the agent fixes the miss, weighs the lesson, and stores
+  it where it stops the next one (the skill that missed it, a rule, a check, or a new skill), telling you where.
+  Lessons about the engine itself go back to the starter, and its next upgrade fixes every project.
+- **Only what makes it better.** Every added skill, pack or dependency comes with its gain and cost, weighed.
+  Upgrades roll back if a passing check breaks. The agent weighs each new item and tells you what it added or skipped,
+  asking only about money, privacy or outward actions. The audit enforces a speed budget for the hooks.
+- **Only improvements, never friction.** A skill, runbook or check that keeps frustrating you is suspended and
+  announced. Safety and honesty checks stay, and get made less annoying instead. No check can stall the work.
+- **Facts that are real.** One research skill covers answers from the project's own files, quick lookups, and full
+  research across independent sources with sponsored and biased ones screened out. A check traces every number in an
+  answer to something read that turn and catches cited files that were never opened.
+- **Linked notes for Obsidian.** Notes link to what they relate to, so the graph shows how the project connects. The
+  folder opens as a vault with the right link settings.
 - **It remembers how it solved things.** A request like an earlier one starts from how that one was done
   (`node tools/recall.mjs` searches it all).
-- **Runs without questions if you want.** `"autonomy": "auto"` (or `--auto` when creating a project): the agent assumes
-  and records answers instead of asking. Outward actions and third-party installs still need your OK.
+- **Runs without questions if you want.** With `"autonomy": "auto"` (or `--auto` when creating a project) the agent
+  assumes and records answers instead of asking. Outward actions and third-party installs still need your OK.
 - **Apps built to grow.** The app pack's modular-code skill keeps each feature in its own module with one public
-  entry, settings in config and extension points for what will multiply; a check runs on every changed code file.
-- **Every name is a variable.** The project's name and every other name live in `docs/names.json`; a rename is one
-  edit there. Docs and code refer to it, and a check catches names typed out anywhere else.
+  entry, settings in config, and extension points for what will multiply. A check runs on every changed code file.
+- **Every name is a variable.** The project's name and every other name live in `docs/names.json`, so a rename is one
+  edit. A check catches names typed out anywhere else.
 - **Secure by default,** whatever the project is: a security baseline, a security-review skill, no secrets in
   commits or in the conversation, untrusted files treated as data, and the installed browser is never automated.
 - **Nothing leaves the project without your OK.** Sending mail, posting, opening issues or pull requests, pushing,
-  publishing and connected services that send or create things wait for your OK in the request. An answer that
+  publishing, and connected services that send or create things wait for your OK in the request. An answer that
   claims something happened when it was refused or failed is caught. Skipping the git hooks needs your own words.
-- **Recurring work that really recurs.** "Every Monday" becomes a routine in `docs/routines.md` with its runbook; a
-  due routine is announced when a session opens (routines library skill).
+- **Recurring work that really recurs.** "Every Monday" becomes a routine in `docs/routines.md` with its runbook, and
+  a due routine is announced when a session opens (routines library skill).
 - **Your notes stay where they are.** An existing vault or notes folder becomes the knowledge base in place
   (`"knowledgeDirs"` in `tools/hooks/config.json`).
 - **Packs that fit the project:**
@@ -70,9 +68,9 @@ favors no vendor.
 
 - **A skill library** chosen per project: security hardening, backend patterns, frontend design, web app patterns,
   mobile apps, games, ML experiments, data pipelines, dependency updates, package releases, codebase maps, repo setup,
-  orchestration, MCP servers, user research, correspondence, routines, notes vaults, manuscripts and more. Every project also gets core skills for planning,
-  debugging, parallel sub-agents, research (facts from the project's files and the web), linked notes for Obsidian,
-  session handoff, finding existing skills, security review and skill cleanup.
+  orchestration, MCP servers, user research, correspondence, routines, notes vaults, manuscripts and more.
+- **Core skills in every project:** planning, debugging, parallel sub-agents, research, linked notes, session handoff,
+  finding existing skills, security review, learning from misses, and skill hardening and cleanup.
 - **Quality by default:** plain writing with no filler or em dashes, verified claims, a tidy folder layout, and
   nothing in git that credits an AI agent.
 
@@ -90,8 +88,6 @@ favors no vendor.
 `"wireAgents"` in `tools/hooks/config.json` (for example `["codex"]`) limits the wiring to the agents you use. Two
 sessions can work in one folder at once: each keeps its own record of its turn.
 
-Once a project is set up, [HOW-TO-USE.md](HOW-TO-USE.md) explains the day-to-day.
-
 **The easy way:** open your project folder (new or existing) with your AI agent and say:
 **"Set up this project with the starter at `<this starter folder>`."** The agent follows the box above, then the
 setup prompt.
@@ -100,8 +96,10 @@ setup prompt.
 `node tools/new-project.mjs "<folder>" --name "<Name>" --git`. Then open the new folder with your agent and say
 **"set up this project"**.
 
-**The starter stays outside your projects.** The generator refuses to nest them either way. At the end of setup the
-agent asks what to do with the starter's leftovers:
+Once a project is set up, [HOW-TO-USE.md](HOW-TO-USE.md) explains the day-to-day.
+
+**The starter stays outside your projects.** The generator refuses to nest them. At the end of setup the agent asks
+what to do with the starter's leftovers:
 - **link** (recommended): the project remembers where the starter is, so packs, skills and upgrades can be added later;
 - **keep a copy** in `.starter/`, so it can grow even without the starter folder;
 - **remove** everything.
@@ -136,18 +134,20 @@ Requires Node.js 18 or newer. No dependencies. The GUI screenshot tool uses Play
 (`npx playwright install chromium-headless-shell`), never the installed browser.
 
 ## Improving the starter itself
-Open this folder with an agent and work on it like any project. The hooks run here too. `.starter-template` keeps the
-setup prompt from triggering in this folder. Add a test for every new check, run `node tools/audit.mjs --full`, and
-record changes in [tools/starter/STARTER-CHANGELOG.md](tools/starter/STARTER-CHANGELOG.md). The self-tests and the
-audit record their results in a run log (`tools/hooks/state/runs.jsonl`), so the Stop hook never reruns them;
-`node tools/hooks/hooks.mjs run "<command>"` records any other check the same way. `node tools/trial.mjs`
-(starter only) proves on sample projects that making a new project, adopting a folder and upgrading never leave a
-project worse (`--deep` also runs the self-tests inside a project mid-setup). A copy you are developing carries a
-`.starter-dev` file (ignored by git): projects are never made from it or linked to it (`--dev` for throwaway tests),
-and the app pack's gates apply to the starter itself there. Projects send engine lessons back with
-`node tools/starter.mjs feedback "<text>"` and `report`; they land in `docs/feedback-inbox/` here, and the audit
-warns until each is reviewed. Before publishing, list any private words (names, project names) in `.private-terms`. That file is
-ignored by git, and the publish-safety sweep fails if any of them appear.
+Open this folder with an agent and work on it like any project. The hooks run here too, and `.starter-template`
+keeps the setup prompt from triggering.
+- Add a test for every new check, run `node tools/audit.mjs --full`, and record changes in
+  [tools/starter/STARTER-CHANGELOG.md](tools/starter/STARTER-CHANGELOG.md).
+- The self-tests and the audit record their results in `tools/hooks/state/runs.jsonl`, so the Stop hook never reruns
+  them. `node tools/hooks/hooks.mjs run "<command>"` records any other check the same way.
+- `node tools/trial.mjs` (starter only) proves on sample projects that creating, adopting and upgrading never leave a
+  project worse. `--deep` also runs the self-tests inside a project mid-setup.
+- A development copy carries a `.starter-dev` file (ignored by git). Projects are never made from it or linked to it
+  (`--dev` allows throwaway tests), and the app pack's gates apply to the starter itself there.
+- Projects send engine lessons back with `node tools/starter.mjs feedback "<text>"` and `report`. They land in
+  `docs/feedback-inbox/` here, and the audit warns until each is reviewed.
+- Before publishing, list any private words (names, project names) in `.private-terms` (ignored by git). The
+  publish-safety sweep fails if any of them appear.
 
 ## License
 MIT: use it, change it and sell what you build with it ([LICENSE](LICENSE)). Each skill folder keeps the license of the

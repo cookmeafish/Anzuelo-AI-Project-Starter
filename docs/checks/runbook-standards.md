@@ -14,7 +14,8 @@ Every kind of task the project handles has three parts:
 - **Frontmatter:**
   - `name`
   - `summary`: one line
-  - `triggers`: short comma-separated phrases people use for this task (a few words each). Add new phrasings whenever a request was missed.
+  - `triggers`: short comma-separated phrases people use for this task. Add new phrasings whenever a request was
+    missed.
   - `trigger_regex`: optional
   - `menu`: optional code
   - `checks`: only when the checks are not in requirements.json, as `core: <tags>` or `none - <reason>`
@@ -31,7 +32,8 @@ Every kind of task the project handles has three parts:
 - **## Steps:** numbered, in order, each one checkable. Name the exact files, tools and commands. Branches go inline as
   sub-steps.
 - **## Done when:** observable results. Each one that can be checked becomes a requirements.json entry with
-  `"when": {"playbookUsed": "<name>"}`.
+  `"when": {"playbookUsed": "<name>"}`. Every item ends with `(hook: <tags>)` or `(judgment: <why no check can tell>)`
+  (REQ: done-when-labeled).
 - **## Pitfalls:** mistakes made before, dated, each as what went wrong and why, in general terms.
 - Short and scannable. Long reference material goes in `docs/checks/` or the skill's `references/` folder, linked.
 
@@ -42,7 +44,7 @@ library skill) is a procedure in its own right and follows the same rules:
 - `triggers:` in its frontmatter, so the prompt hook can route to it (`SKILL:` hint, REQ: skill-read);
 - a check that proves its "Done when": a requirements.json entry with `"when": {"skillUsed": "<name>"}`
   (REQ: skill-complete);
-- "Done when" and "Pitfalls" sections, and a test for its check in `tools/hooks/project-scenarios.mjs` (upgrades keep it; in the starter itself: `tools/hooks/selfcheck.mjs`).
+- "Done when" and "Pitfalls" sections, and a test for its check (see "A good check" below).
 
 ## Extend or create?
 Extend when the new task is a variant of an existing one (same goal, different inputs). Add a branch and the new
@@ -55,8 +57,9 @@ trigger phrases. Create when the goal, steps or "Done when" differ. Never leave 
   with `selfRun` so agents without tool history can still be checked), the hook re-running a validator on each
   changed file (`runEach`), or a required answer section (`answerMatches`).
 - `message` tells the agent exactly what to do.
-- Every new tag gets a test scenario in `tools/hooks/project-scenarios.mjs` (upgrades keep it; in the starter itself: `tools/hooks/selfcheck.mjs`) (skipped → blocked, followed → passes) and a
-  row in `docs/checks/rule-enforcement.md`.
+- Every new tag gets a test scenario (skipped → blocked, followed → passes) and a row in
+  `docs/checks/rule-enforcement.md`. Project tests go in `tools/hooks/project-scenarios.mjs`, which upgrades keep; the
+  starter's own go in `tools/hooks/selfcheck.mjs`.
 
 ## Event triggers: when what happened makes a runbook or skill mandatory
 Some procedures are needed because of what the work did, not what the request said: sign-in code needs the security

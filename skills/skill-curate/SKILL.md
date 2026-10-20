@@ -6,7 +6,7 @@ runbook: docs/playbooks/project.md
 # Curate skills and runbooks
 
 The project grows skills by itself (runbook-create after new work, skill-harden after 3 uses, skill-learn after a
-miss). Curating is the other half: a skill nobody uses costs reading time and can route requests the wrong way.
+miss). A skill nobody uses costs reading time and can route requests the wrong way, so unused ones get reviewed.
 
 ## 1. List what is due
 The SKILL CLEANUP DUE notice names each runbook or skill unused for `pruneAfterDays` days (default 60; override it
@@ -33,7 +33,7 @@ Run `node tools/hooks/selfcheck.mjs` and `node tools/audit.mjs`. Both must pass.
 ## 4. Share skills as a bundle
 When the user wants to hand skills to another project, a teammate or another AI agent, package them as a **bundle**:
 a plain folder that any agent able to read SKILL.md files can use.
-1. **Pick the set.** Only skills that work together and that the receiver will use. One sound skill beats five rough
+1. **Pick the set:** only skills that work together and that the receiver will use. One sound skill beats five rough
    ones.
 2. **Lay it out** in `.cache/bundles/<bundle-name>/` (lowercase words joined by hyphens):
    - `skills/<name>/` for each skill, copied whole (SKILL.md, `references`, `scripts`, LICENSE, SOURCE.md);

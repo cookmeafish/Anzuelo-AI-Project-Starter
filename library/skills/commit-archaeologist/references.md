@@ -17,10 +17,10 @@
 
 How it works: line mode uses `git log -L A,B:file`, function mode `git log -L :name:file` (git's function matcher
 for the file's language), file mode `git log --follow`. Blame runs with `-w` (whitespace ignored) and the repository's
-`.git-blame-ignore-revs` when present. The text-older check uses the pickaxe (`git log -S`); on huge repositories it
-can be slow, so `--no-pickaxe` turns it off. The script prints names, not emails.
+`.git-blame-ignore-revs` when present. The text-older check uses the pickaxe (`git log -S`), which can be slow on huge
+repositories; `--no-pickaxe` turns it off. The script prints names, not emails.
 
-An empty signal list means the messages give no reason. It does not mean there was none.
+An empty signal list means the messages give no reason, not that there was none.
 
 ## Plain git, when the script can't run
 - Line history with patches: `git log -L 40,72:src/cache.py`
@@ -32,7 +32,7 @@ An empty signal list means the messages give no reason. It does not mean there w
 - Reverts: `git log -i --grep=revert --oneline -- src/cache.py`
 
 ## Confidence rules
-The answer gets one label. Pick the lowest one whose conditions fit.
+One label per answer: the lowest whose conditions fit.
 
 | Label | When |
 |---|---|
@@ -41,8 +41,8 @@ The answer gets one label. Pick the lowest one whose conditions fit.
 | **Low** | Thin history, vague subjects, bulk rewrites, a lost trail (ancestry warning), or clues that disagree. |
 
 How to word it:
-- Fact: "The lines came in with `a1b2c3d` (2024-03-02)." "Blame gives 7 current lines to Sam."
-- Inference: "Sam probably wrote it to keep the old integer type (inferred from the companion test)." Label it.
+- Fact: "The lines came in with `a1b2c3d` (2024-03-02)." "Blame gives 7 current lines to <author>."
+- Inference: "<author> probably wrote it to keep the old integer type (inferred from the companion test)." Label it.
 - Unknown: "The history does not say why." Then name what would confirm it: the linked issue, the author, a test.
 
 What each kind of evidence can and cannot show:

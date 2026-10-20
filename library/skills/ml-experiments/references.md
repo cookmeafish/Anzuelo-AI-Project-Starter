@@ -4,7 +4,7 @@
 | Framework | Set this |
 |---|---|
 | Python, NumPy | `random.seed(s)`, `np.random.seed(s)` or `rng = np.random.default_rng(s)` |
-| scikit-learn | `random_state=s` on every splitter, model and `cross_val_score` fold object |
+| scikit-learn | `random_state=s` on every model and splitter, including the `cv=` splitter passed to `cross_val_score` |
 | PyTorch | `torch.manual_seed(s)`, `torch.use_deterministic_algorithms(True)`, `worker_init_fn` and a seeded `generator` in `DataLoader` |
 | TensorFlow / Keras | `tf.keras.utils.set_random_seed(s)`, `tf.config.experimental.enable_op_determinism()` |
 | XGBoost / LightGBM | `seed` or `random_state`, and `deterministic=True` (LightGBM) |

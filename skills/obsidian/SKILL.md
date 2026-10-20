@@ -6,14 +6,13 @@ triggers: obsidian, open in obsidian, graph view, graph, backlinks, what is rela
 ---
 # Linked notes (Obsidian)
 
-The project folder is an Obsidian vault as it is: open it with "Open folder as vault". Obsidian draws a line in the
-graph for every link between two notes, so the links are the relationships. The same links help the agent: from one
-note it can follow them to everything related.
+The project folder is an Obsidian vault as it is ("Open folder as vault"). Each link between two notes is a line in
+the graph, so links are the relationships, and the agent follows the same links to everything related.
 
 ## Links that work everywhere
-- Write ordinary relative markdown links, `[Desk prices](desk-prices.md)`, not `[[wikilinks]]`. Obsidian, GitHub, editors
-  and every agent all follow them. A new project's local `.obsidian/app.json` is already set to create links this
-  way (`useMarkdownLinks`, `newLinkFormat: relative`) and to update them when a note moves.
+- Write relative markdown links, `[Desk prices](desk-prices.md)`, not `[[wikilinks]]`. Obsidian, GitHub, editors and
+  agents all follow them. A new project's `.obsidian/app.json` already creates links this way (`useMarkdownLinks`,
+  `newLinkFormat: relative`) and updates them when a note moves.
 - Link a word where it appears in the text when the relation matters there. Put the rest in a `## Related` section at
   the end, one line each with what connects them: `- [Desk prices](desk-prices.md): the budget this choice must fit`.
 - Link both ways when both sides benefit. Obsidian shows backlinks anyway, but other readers only see written links.
@@ -33,8 +32,8 @@ the links first (they are recorded relations), then the suggestions, labeled as 
 ## Keeping the graph useful
 - `notes.mjs orphans`: notes with no links in or out. Connect each one, merge it into a related note, or leave it
   with the reason under `## Related`. The audit warns about orphans.
-- Don't link everything to everything. A link means "read this too when working on that". A graph where every node
-  touches every other shows nothing.
+- Don't link everything to everything. A link means "read this too when working on that"; a fully connected graph
+  shows nothing.
 - `notes.mjs open <note>` opens it in Obsidian (through the `obsidian://` link). It needs Obsidian installed and the
   folder opened as a vault once.
 

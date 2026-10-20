@@ -21,3 +21,4 @@
 | Offline | |
 | Already running / double launch | |
 | Folder with spaces or accents | |
+| Interrupted install | |

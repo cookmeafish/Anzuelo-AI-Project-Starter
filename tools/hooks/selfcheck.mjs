@@ -268,6 +268,14 @@ const STOP = [
     answer: 'Added the allergens to the menu.\nLearned (rule): every menu item lists its allergens → AGENTS.md' + FIN, expect: { block: true, tags: ['upset-learned'] } },
   { name: 'upset-learned: "again" with only a one-off note: blocked', prompt: 'you forgot to add the allergens again!!', files: { 'docs/menu.md': 'Croissant (gluten, milk)', 'docs/lessons.md': '- 2026-10-19: allergens missed' },
     answer: 'Added the allergens to the menu.\nLearned (one-off): allergens were missed → docs/lessons.md' + FIN, expect: { block: true, tags: ['upset-learned'] } },
+  // Lesson: complaints sent mid-turn as questions or verdicts ("really no pictures???", "it's lackluster") got no upset
+  // handling, and the check came only when the user asked whether anything forced it
+  { name: 'upset-learned: a mid-turn "the work falls short" complaint, fixed with a lesson but no check: blocked', prompt: 'make the raid page', queued: ['really no pictures for these encounters??? did you not find any'],
+    files: { 'docs/raid.md': '# Raid\n![boss](boss.png)', 'docs/lessons.md': '- 2026-10-19: pictures were missing' },
+    answer: 'Added pictures for every encounter.\nLearned (lesson): every encounter needs a picture → docs/lessons.md' + FIN, expect: { block: true, tags: ['upset-learned'] } },
+  { name: 'upset-learned: a "the work falls short" complaint enforced with a judgment item: passes that check', prompt: 'its lackluster in picture variety and accuracy',
+    files: { 'docs/raid.md': '# Raid\n![boss](boss.png)', 'docs/playbooks/raid.md': '---\nname: raid\nsummary: raid pages\ntriggers: raid page\nchecks: none - a test runbook\n---\n# Playbook: raid\n## Done when\n- [ ] Every encounter shows varied, accurate pictures (judgment: only a person can judge accuracy)\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Added varied pictures.\nLearned (rule): every encounter shows varied, accurate pictures → docs/playbooks/raid.md\nDone when item: "(judgment: only a person can judge accuracy)"' + FIN, expect: { not: ['upset-learned'] } },
   { name: 'upset-learned: an engine lesson kept in one project: blocked', removeMarker: true, prompt: 'ugh, that check fired for nothing again', files: { 'docs/lessons.md': '- 2026-10-19: the check misfires' },
     answer: 'Learned (engine): the check misfires on menus → docs/lessons.md' + FIN, expect: { block: true, tags: ['upset-learned'] } },
   { name: 'upset-learned: fixed, and the lesson written where it stops the next miss: passes', prompt: 'you forgot to add the allergens again!!', tools: [pb('project')],

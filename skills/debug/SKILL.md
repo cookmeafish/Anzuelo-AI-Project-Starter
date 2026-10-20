@@ -5,24 +5,23 @@ triggers: debug, debugging, root cause, failing test, tests fail, test failure, 
 ---
 # Debug: root cause first
 
-**No fix without a root cause.** A fix for the symptom hides the bug, and the next one shows up somewhere else. This
-process is faster than guessing, even for simple bugs and in a hurry, because guessing means doing it twice. Until
-Phase 1 is done, don't propose a fix at all. Following the "spirit" of the steps while skipping one is skipping it.
+**No fix without a root cause.** A symptom fix hides the bug and it comes back elsewhere. This is faster than
+guessing, even for simple bugs and in a hurry. Propose no fix until Phase 1 is done. Skipping a step "in spirit" is
+skipping it.
 
 Use it for any technical problem: failing tests, bugs, wrong output, slowness, build or install failures, broken hooks
-or scripts, two parts that don't work together. Finish each phase before starting the next.
+or scripts, parts that don't work together. Finish each phase before the next.
 
-**Most needed when it feels least needed:** a deadline, a fix that looks obvious, someone senior or in charge asking
-for a fix right now, a problem you don't fully understand, or a fix that already failed once. Simple bugs have root
-causes too, and the process is short for them.
+**Most needed when it feels least needed:** a deadline, an obvious-looking fix, someone senior wanting a fix now, a
+problem you don't fully understand, or a fix that already failed once.
 
 **Live users hurt right now?** Stop the harm first (the **incident-response** skill when enabled, or a rollback with
 the user's OK), then come back here. The mitigation is never the fix.
 
 ## Phase 1: Investigate
-1. **Read the error completely.** The whole message and stack trace, with the line numbers, paths and codes. Warnings
-   too. The answer is often written there. When the user reports it, ask for the exact text pasted, not retold.
-2. **Reproduce it reliably.** Write down the exact steps. If it doesn't happen every time, gather more data. Don't
+1. **Read the error completely:** the whole message and stack trace, line numbers, paths, codes and warnings. The
+   answer is often there. When the user reports it, ask for the exact text pasted, not retold.
+2. **Reproduce it reliably.** Write down the exact steps. If it doesn't happen every time, gather more data; don't
    guess.
 3. **Pin down when and where:** when it started, and what is affected (every user or some, every input or certain
    ones, one environment or all). Works in one place but not another: list every difference between the two
@@ -42,9 +41,8 @@ Leave Phase 1 when you can say what goes wrong and why, with evidence.
 
 ## Phase 2: Compare
 1. Find similar code in the project that works.
-2. When following a pattern or a reference, read all of it, not a skim. A pattern you only half read gets applied
-   wrongly.
-3. List every difference between working and broken, however small. Don't rule anything out as "can't matter".
+2. When following a pattern or reference, read all of it. A half-read pattern gets applied wrongly.
+3. List every difference between working and broken, however small. Rule nothing out as "can't matter".
 4. Note what it depends on: other parts, settings, config, environment, and the assumptions it makes.
 
 Leave Phase 2 with the list of differences.
@@ -53,7 +51,7 @@ Leave Phase 2 with the list of differences.
 1. Write it down: "I think X is the cause because Y." Be specific.
 2. Test it with the smallest possible change, one variable at a time.
 3. It held: go to Phase 4. It didn't: form a new hypothesis. Never stack another fix on top.
-4. If you don't understand something, say so plainly. Read more, or ask the user. Don't pretend.
+4. If you don't understand something, say so. Read more or ask the user.
 
 ## Phase 4: Fix
 1. **A failing test first:** the smallest reproduction, automated if possible, a one-off script if not. It must fail
@@ -111,8 +109,8 @@ The user's reactions are signals too:
 
 ## When there really is no code cause
 If careful investigation shows the cause is outside (timing, the environment, another service): write down what you
-checked, add sensible handling (a retry, a timeout, a clear error message), and add logging for next time. Most "no
-root cause" findings are unfinished investigations, so be sure before landing here.
+checked, add handling (a retry, a timeout, a clear error message) and logging for next time. Most "no root cause"
+findings are unfinished investigations, so be sure first.
 
 ## Done when
 - [ ] The answer states `Root cause: <what and why>`, with the evidence that shows it (hook: debug-root-cause).

@@ -5,9 +5,8 @@ triggers: incident, outage, production is down, prod is down, site is down, serv
 ---
 # Incident response: stop the harm, then find the cause
 
-**Users first.** While people are hurt, the fastest safe way to stop the harm comes before any search for the cause.
-Then the cause gets found and fixed properly, because a rollback is not a fix and the problem returns with the next
-release.
+**Users first.** While people are hurt, stopping the harm comes before finding the cause. Then find and fix the
+cause: a rollback is not a fix, and the problem returns with the next release.
 
 Say at the start: "Handling this as an incident (incident-response skill)."
 
@@ -16,8 +15,8 @@ A suspected breach or leaked key is an incident too, and also goes through the *
 rotate, not just delete).
 
 **Outward actions need the user's OK in this conversation** (AGENTS.md rule 6): status posts, emails to customers,
-paging people, and every change to production (rollback, deploy, config, data). In a hurry, keep the ask short: the
-exact command, what it does and how to undo it.
+paging people, and every change to production (rollback, deploy, config, data). Keep the ask short: the exact
+command, what it does and how to undo it.
 
 ## 1. Triage (the first minutes)
 1. **Open the incident file now:** `docs/incidents/YYYY-MM-DD-<topic>.md` ([references.md](references.md), incident
@@ -83,11 +82,10 @@ Write it in the incident file within a few days, for every level 1 or 2 incident
 
 ## Done when
 - [ ] `docs/incidents/<file>.md` exists with the level, a timeline with times, and the impact (hook: incident-logged).
-- [ ] The harm was stopped and the measurement confirms it. Each production action had the user's OK and is logged (judgment: whether the harm stopped needs the live measurement).
+- [ ] The measurement confirms the harm stopped. Each production action had the user's OK and is logged (judgment: whether the harm stopped needs the live measurement).
 - [ ] Updates were drafted at the promised pace, and nothing was sent without an OK (judgment: the pace and the OK are in the conversation).
 - [ ] The answer states `Root cause: <what and why>`, and a regression test covers it (debug skill, `bugfix` runbook) (hook: incident-root-cause for the line; judgment: the test is checked only when the bugfix runbook is followed).
-- [ ] Level 1 and 2: the post-mortem has impact numbers, the why-chain and actions with owner, date and type (judgment: only level 1 and 2 need it, and the level is a call), and
-  `docs/lessons.md` has its row.
+- [ ] Level 1 and 2: the post-mortem has impact numbers, the why-chain and actions with owner, date and type, and `docs/lessons.md` has its row (judgment: only level 1 and 2 need it, and the level is a call).
 - [ ] Followed whenever the user reports production down, even without naming this skill (hook: incident-trigger).
 
 ## Pitfalls

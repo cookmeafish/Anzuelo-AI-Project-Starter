@@ -5,8 +5,8 @@ triggers: brand voice, brand review, on brand, check this copy, style guide chec
 ---
 # Marketing: on-brand work with claims that hold up
 
-Good marketing here means two things: it sounds like the user's brand, and every claim in it is true and sourced. A
-draft that reads well but carries an invented statistic is a liability, not a draft.
+Marketing here sounds like the user's brand, and every claim in it is true and sourced. A draft with an invented
+statistic is a liability.
 
 Say at the start: "Working on this with the marketing skill."
 
@@ -79,7 +79,8 @@ They chain: D feeds B, B lists the pieces for C, and E checks what B promised.
    next ("Start the 14-day trial", not "Submit").
 3. Give 2 or 3 options for the headline or subject line, each with a different angle.
 4. Web pieces get SEO basics: a main search phrase, a title and meta description, and link ideas (section F checks).
-5. Follow the project's writing standards too: plain words, short paragraphs, no filler.
+5. Follow the project's writing standards (`docs/checks/writing-standards.md`): plain words, short paragraphs, no
+   filler.
 6. After the draft: the voice applied, any placeholders still to fill, and an offer to adapt it for another channel.
 
 ## C2. Draft an email sequence
@@ -142,8 +143,7 @@ They chain: D feeds B, B lists the pieces for C, and E checks what B promised.
 
 ## Done when
 - [ ] The brand voice used is named: the project's file, the user's guidance, or the plain default (hook: marketing-sourced).
-- [ ] Every statistic, result, benchmark and competitor fact has a source (hook: marketing-sourced), or is a visible placeholder or marked
-      "(estimate)". Competitor facts went through the research skill.
+- [ ] Every statistic, result, benchmark and competitor fact has a source, a visible placeholder or an "(estimate)" mark; competitor facts went through the research skill (hook: marketing-sourced).
 - [ ] Claim risks are flagged in their own list (judgment: no check reads the list yet).
 - [ ] Calculated numbers say so on their line, and hypotheses are labeled as hypotheses (judgment: which numbers are calculated needs a reader).
 - [ ] Nothing was published, posted, scheduled or sent without the user's explicit OK (judgment: the user's OK is in the conversation).

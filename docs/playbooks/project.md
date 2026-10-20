@@ -35,14 +35,16 @@ Follow the **session-handoff** skill: "where are we", "what's next", reminders a
 standup update, a handoff for the next session, and `docs/glossary.md`.
 
 ### §7 Upgrade the engine (E6)
-To get a newer release of the starter first, run `node tools/starter.mjs update`: it pulls the newest starter into the
-linked copy (stopping if that copy has local changes or is a development copy), then upgrades as below. Otherwise:
-`node tools/starter.mjs upgrade` (needs the starter linked; run it with `--dry-run` first to see the list). It
-replaces only the engine files (hooks, tests, audit, tools, core skills and checklists) and never touches this
-project's content. Files from installed packs and enabled library skills are refreshed only where this project never
-edited them (a skill keeps the triggers and lessons it added); an edited one is kept, and named in the review when the
-starter changed it since; files they gained that this project lacks are added. It can't make the project worse
-unseen:
+`node tools/starter.mjs update` pulls the newest starter into the linked copy (it stops if that copy has local
+changes or is a development copy), then upgrades as below. To upgrade from the linked copy as it is:
+`node tools/starter.mjs upgrade` (run it with `--dry-run` first to see the list). Either way:
+- Only engine files are replaced (hooks, tests, audit, tools, core skills, core runbooks and checklists). The
+  project's content is never touched, and an engine skill or runbook keeps the triggers and "## Project lessons" it
+  added.
+- Files from installed packs and enabled library skills are refreshed only where this project never edited them. An
+  edited one is kept, and named in the review when the starter changed it since. Files they gained are added.
+
+It can't make the project worse unseen:
 1. It audits and times the hooks before and after. A check that passed before and fails after rolls the whole upgrade
    back. `--accept-findings` keeps it and lists those checks to fix.
 2. It writes `## Upgrade review (date)` into `docs/DECISIONS.md`: every new hard rule, a pack the setup answers call
@@ -59,8 +61,8 @@ unseen:
    hooks hold work until every line is decided (REQ: upgrade-review).
 
 ### §8 Add a pack (E7)
-`node tools/packs.mjs list` shows what can be added. Packs come from the kept copy in `.starter/` or the linked
-starter folder (`node tools/starter.mjs status` shows which). Nothing available? Link the starter again:
+`node tools/packs.mjs list` shows what can be added, from the kept copy in `.starter/` or the linked starter
+(`node tools/starter.mjs status` shows which). Nothing available? Link the starter again:
 `node tools/starter.mjs link "<starter folder>"`. Install with `node tools/packs.mjs install <name>`, run the audit,
 and add the pack's typical requests to `docs/BRIEF.md`.
 
@@ -79,11 +81,11 @@ asks the focus questions, picks the packs and library skills, and routes every t
   (`"when": {"skillUsed": "<name>"}`). The audit and the Stop hook enforce it (REQ: skill-complete).
 
 ### §11 Skills improve and stay lean (E9): the skill-curate skill
-The project grows its own skills: a new kind of task leaves a runbook (§2), a runbook used 3 times gets hardened
-(§5), and a turn that followed a runbook or skill and still missed writes the lesson into it (REQ: skill-learn). In an engine skill the lesson goes under "## Project lessons", which upgrades keep.
-The other half is pruning: a runbook or skill unused for `pruneAfterDays` shows up as SKILL CLEANUP DUE, and the
-skill-curate skill keeps it with a reason, merges it, or retires it (`node tools/skills.mjs retire <name>`) with the
-user's OK.
+A new kind of task leaves a runbook (§2), a runbook used 3 times gets hardened (§5), and a turn that followed a
+runbook or skill and still missed writes the lesson into it (REQ: skill-learn). In an engine skill the lesson goes
+under "## Project lessons", which upgrades keep. A runbook or skill unused for `pruneAfterDays` (60) shows up as
+SKILL CLEANUP DUE, and the skill-curate skill keeps it with a reason, merges it, or retires it
+(`node tools/skills.mjs retire <name>`) with the user's OK.
 
 ### §12 Tools at a glance
 - `node tools/hooks/hooks.mjs why`: the full steps behind the last stop message. `restore <item>`: bring back a

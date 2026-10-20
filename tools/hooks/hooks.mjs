@@ -108,7 +108,7 @@ const DEFAULTS = {
   // Files loaded at every session start: over this many characters together, the audit warns (consolidate them).
   alwaysLoadedMaxChars: 30000,
   planNewFiles: 5,            // a work turn that creates this many new files needs a plan in docs/plans/ (REQ: plan-required)
-  hookBudgetMs: 1000,         // a hook event slower than this (median, node start included) slows every turn: the audit fails         // a runbook or skill unused this long is reviewed: keep, merge or retire (skill-curate)
+  hookBudgetMs: 1000,         // a hook event slower than this (median, node start included) slows every turn: the audit fails
   harden: 'block',            // 'block' = harden a skill in the turn it becomes due; 'remind' = hint only
   skillsDir: 'skills',        // agent-neutral home of every skill (SKILL.md format)
   skillMirrors: ['.claude/skills', '.agents/skills'], // generated copies where an agent discovers skills natively (Claude Code; Codex)
@@ -168,7 +168,8 @@ const DEFAULTS = {
   backupDir: '.cache/git-backups',
   // Secrets that must never be committed (key prefixes and private key blocks). Each prefix starts at a word boundary.
   // Lesson: a file name with "...isk-encounter-..." in it was flagged as a key, because "sk-" matched inside a word.
-  secretPatterns: ['(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{20,}', '(?<![A-Za-z0-9])sk-ant-[A-Za-z0-9_-]{20,}', '(?<![A-Za-z0-9])AIza[0-9A-Za-z_-]{30,}', '(?<![A-Za-z0-9])xai-[A-Za-z0-9]{20,}',
+  // (a path segment is no key: "/sk-acq-74e0b-..." in a download path was flagged. Lesson from a project's spec files)
+  secretPatterns: ['(?<![A-Za-z0-9/\\\\])sk-[A-Za-z0-9_-]{20,}', '(?<![A-Za-z0-9/\\\\])sk-ant-[A-Za-z0-9_-]{20,}', '(?<![A-Za-z0-9])AIza[0-9A-Za-z_-]{30,}', '(?<![A-Za-z0-9])xai-[A-Za-z0-9]{20,}',
     '(?<![A-Za-z0-9])gh[pousr]_[A-Za-z0-9]{30,}', '(?<![A-Za-z0-9])AKIA[0-9A-Z]{16}', '-----BEGIN [A-Z ]*PRIVATE KEY-----', '(?<![A-Za-z0-9])xox[baprs]-[A-Za-z0-9-]{10,}'],
   // Project-defined guards (filled by packs and setup): commands to deny, code patterns to flag, gates before commit.
   forbiddenCommands: [],   // [{ "pattern": "regex", "reason": "why" }]
@@ -210,6 +211,10 @@ const DEFAULTS = {
   // in the README" was told to create a runbook, its check and two scenarios.
   trivial: "\\b(typos?|spelling|misspel\\w*|reword|rephrase|wording|punctuation|capitali[sz]\\w*|whitespace|indentation|formatting|broken link|dead link|fix the link)\\b|\\brename\\s+\\S+\\s+to\\b|\\bchange (the )?(text|title|label|heading|colou?r|date|year|number) (of |on |in |to |from )",
   complaint: "\\byou (forgot|didn'?t|did not|missed|skipped|ignored|left out|keep forgetting|never)\\b|\\b(i|we) (already )?told you\\b|\\bwhy (did|didn'?t) you\\b|\\bwhy (do|does) (you|it) keep\\b|\\bagain\\s*[!?]|\\bnot again\\b|\\bkeeps? (happening|forgetting|missing)\\b",
+  // The work falls short: a verdict on its quality, or a disappointed question about what it lacks. Upset too, and a
+  // standing requirement on the work, so it is enforced with a check (REQ: upset-learned).
+  // (Lesson: "really no pictures ... did you not find any" and "it's lackluster" got no upset handling at all)
+  letdown: "\\black ?lustre\\b|\\black ?luster\\b|\\bunderwhelming\\b|\\bdisappoint(ing|ed)\\b|\\bnot good enough\\b|\\bnot what i (asked|wanted|meant)\\b|\\bdid you (not|even)\\b|\\bdidn'?t you (find|check|look|see|read|try|add|test)\\b|\\byou (still )?(haven'?t|have not|couldn'?t|could not) (find|fix|add|get)\\b|\\breally no\\b|\\bstill (no|not|missing|broken|wrong|nothing)\\b|\\b(are|is) still missing\\b|\\?{3,}|\\bcome on\\b|\\b(this|it|that)(?:'s| is| looks| feels) (bad|wrong|broken|lacking|incomplete|half[- ]done|sloppy|thin|bare|basic)\\b|\\b(so|very|pretty) (bad|poor|thin|bare|basic|sloppy)\\b",
   // (Lesson: "annoying", "ugh", "why do you keep" and "I keep telling you" were missed, so friction never counted them)
   frustration: "\\bwhy (did|didn'?t|would) you\\b|\\bwhy (do|does) (you|it) keep\\b|\\byou (forgot|didn'?t|ignored|skipped|missed)\\b|\\byou keep (\\w+ing|on)\\b|\\bi (already |keep )?(told|telling|said|asked) you\\b|\\bagain\\?|\\bwtf\\b|\\bseriously\\b|\\bugh+\\b|\\bannoying\\b|\\bso (frustrating|annoying)\\b|\\bstop (making|asking|doing) me\\b|\\bhow many times\\b|\\bfor the (last|third|nth) time\\b|!!",
   taskVerbs: "\\b(make|create|build|write|draft|add|update|fix|research|find|look up|plan|compare|organi[sz]e|set ?up|analy[sz]e|summari[sz]e|review|generate|turn|convert|change|edit|rewrite|remove|delete|move|import|ingest|prepare|track|calculate|design|outline|translate|clean ?up|sort|merge|split|audit|check|run|train|retrain|tune|test|document|refactor|rename|upgrade|bump|migrate|restyle|deploy|release|publish|install|configure)\\b",
@@ -1972,7 +1977,7 @@ function noteFriction(key, x, missing) {
 // The user is upset: a complaint about a miss, frustration words, or a message shouted in capitals.
 export function isUpset(prompt, cfg = config()) {
   const p = userText(prompt), letters = p.replace(/[^A-Za-z]/g, '');
-  return re(cfg.frustration).test(p) || re(cfg.complaint).test(p) || (letters.length > 20 && p.replace(/[^A-Z]/g, '').length / letters.length > 0.6);
+  return re(cfg.frustration).test(p) || re(cfg.complaint).test(p) || re(cfg.letdown).test(p) || (letters.length > 20 && p.replace(/[^A-Z]/g, '').length / letters.length > 0.6);
 }
 // A lesson about the engine itself, written where the starter collects it (docs/starter-feedback.md). The session
 // start reports new lines to the linked starter, and its upgrades bring the fix to every project. In the starter
@@ -2807,6 +2812,15 @@ export function coreChecks(x, cfg) {
       // "again" means it already happened: a one-off note is too weak for a repeat
       else if (/\bagain\b|\bkeeps?\b|\bevery time\b|\bstill\b|\balready told\b/i.test(x.prompt) && learned.every(l => l.level === 'one-off'))
         add('upset-learned', 'The user says this happened before, so a one-off note will not stop it: put the lesson in the skill or runbook that missed it, make it a rule, or add a check (learn-from-upset skill, step 3).');
+      // the work fell short ("lackluster", "really no pictures?"): that is a requirement on the work, so it gets a check
+      // (or a "(judgment: <why>)" Done when item where no script can tell), not just a note. Lesson: such complaints got
+      // a fix and an apology, and the check only came when the user asked whether anything forced it.
+      else if (re(cfg.letdown).test(x.prompt) && !learned.some(l => ['check', 'engine'].includes(l.level))
+        && !x.changed.some(p => /^(tools\/hooks\/(requirements\.json|hooks\.mjs|project-scenarios\.mjs)|library\/catalog\.json|packs\/[^/]+\/pack\.json)$/.test(p))
+        && !/\(judgment:\s*[^)]{8,}\)/i.test(x.said))
+        add('upset-learned', 'The user says the work falls short. That is a standing requirement on the work: enforce it so it cannot come back. Add a check ' +
+          '(tools/hooks/requirements.json, with a scenario in tools/hooks/project-scenarios.mjs) and a "Done when" item naming it in the runbook or skill that made the work, then write ' +
+          '"Learned (check): <lesson> → <file>". If no script can tell, add a "(judgment: <why>)" Done when item instead and quote it in the answer.');
       else if (learned.some(l => l.level === 'engine') && !exists('.starter-template') && !x.changed.includes('docs/starter-feedback.md'))
         add('upset-learned', 'An engine lesson reaches the starter, and through its upgrades every project, only from docs/starter-feedback.md: node tools/starter.mjs feedback "<lesson>".');
     }
@@ -3035,7 +3049,7 @@ export function skillLearnCheck(x, cfg, failingNow = []) {
 // { all } when there is no copy to compare with, { tags } otherwise (empty: no check logic changed), { error } when a
 // file does not parse. Wording (message, rule, notes) and tuning lists are not check logic.
 const CONFIG_TAGS = { changeWords: 'question-no-file', praise: 'praise-captured', aiAttribution: 'no-ai-attribution', aiAuthor: 'no-ai-attribution',
-  outwardOk: 'outward-gate', ruleRequest: 'rule-request', complaint: 'upset-learned', frustration: 'friction-suspend', taskVerbs: 'runbook-exists', overwriteWords: 'no-overwrite', deleteWords: 'protect-originals',
+  outwardOk: 'outward-gate', ruleRequest: 'rule-request', complaint: 'upset-learned', letdown: 'upset-learned', frustration: 'friction-suspend', taskVerbs: 'runbook-exists', overwriteWords: 'no-overwrite', deleteWords: 'protect-originals',
   commitGate: 'commit-gate', codeRules: 'code-rules', forbiddenCommands: 'forbidden-command', writeOnlyVia: 'write-only-via', wholeOutputTools: 'whole-output',
   secretPatterns: 'no-secrets', approvalPaths: 'approval-gate', protectedOriginals: 'protect-originals', noOverwrite: 'no-overwrite',
   watchedInputs: 'watched-inputs', guiFiles: 'gui-review-loop', scopesRoot: 'scope-separate' };

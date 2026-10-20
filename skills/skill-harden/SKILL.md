@@ -6,7 +6,7 @@ runbook: docs/playbooks/project.md
 # Harden a runbook and its skill
 
 A runbook used 3 times (`promoteAfterUses`) is stable enough to harden, so the next use is faster and depends less on
-the agent's memory or judgment.
+judgment. Engine runbooks are hardened in the starter, not in each project.
 
 ## 1. Review
 Read the runbook, its generated skill (`skills/<name>/SKILL.md`), its checks (tags in `DIRECTORY.md` §1) and the usage
@@ -33,5 +33,5 @@ there and keep the project copy. Note both in CHANGELOG.
 Sharing skills with another project, a person or another AI agent as a bundle is the **skill-curate** skill's §4.
 
 ## 4. Verify
-Run `node tools/hooks/hooks.mjs sync`, `node tools/hooks/selfcheck.mjs --tags <its checks>` and `node tools/audit.mjs`. Add a CHANGELOG
-line.
+Run `node tools/hooks/hooks.mjs sync`, `node tools/hooks/selfcheck.mjs --tags <its checks>` and
+`node tools/audit.mjs`. Add a CHANGELOG line.

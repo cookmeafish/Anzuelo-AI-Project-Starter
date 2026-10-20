@@ -15,7 +15,8 @@ add `Worth it: <gain> / <cost>` (REQ: worth-it). Never ship it unchanged.
 
 Write the runbook around it (the runbook keeps the routing and "Done when"; its `skill:` points at the skill). Report
 it in the answer: `Existing skills checked: <where you looked> - <what you found and used, or none fit>` (hook:
-skill-reuse).
+skill-reuse). A procedure only this project can have skips the search: put `reuse: none - project-specific: <why>`
+in its frontmatter.
 
 ## 1. Extend or create?
 Read `DIRECTORY.md` §1 and the frontmatter of every runbook in `docs/playbooks/`.

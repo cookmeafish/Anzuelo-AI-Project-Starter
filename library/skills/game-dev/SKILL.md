@@ -6,7 +6,7 @@ triggers: godot, gdscript, unity game, unreal engine, game dev, game development
 # Game dev: a build that starts, saves that load
 
 A game that runs in the editor can still crash as an exported build, stutter on a slower machine, or lose a player's
-save after an update. This skill checks each of those with a command, not a feeling.
+save after an update. This skill checks each with a command.
 
 Say at the start: "Working on the game (game-dev skill)."
 
@@ -33,14 +33,16 @@ commands are in [references.md](references.md).
 | A playtest, feedback from players | **G** |
 
 ## A. Build, test, export, start (Godot 4)
-1. The export preset must exist in `export_presets.cfg`. If it does not, ask the user to add it in the editor
-   (Project > Export): presets hold platform and signing choices, and the export templates for this Godot version
-   must be installed (Editor > Manage Export Templates). Installing templates is the user's call.
+1. The export preset must exist in `export_presets.cfg`. If not, ask the user to add it in the editor
+   (Project > Export): presets hold platform and signing choices. The export templates for this Godot version must be
+   installed (Editor > Manage Export Templates); installing them is the user's call.
 2. Run: `node skills/game-dev/scripts/export-smoke.mjs --preset "<preset>" --out builds/<target>/<Game>.<ext>`.
    - It checks the preset, runs `dotnet build` for C# projects, runs the tests, exports headless
-     (`godot --headless --export-release`), then starts the exported build once with `--headless --quit-after 300`.
+     (`godot --headless --export-release`, or `--export-debug` with `--debug`), then starts the exported build once
+     with `--headless --quit-after 300` (`--frames <n>` changes the count).
    - Tests: `--test "<command>"` (GUT or GdUnit4 commands are in references.md). C# projects default to `dotnet test`.
-   - `GODOT_BIN` names the Godot binary when it is not `godot` on the PATH.
+   - `--project <dir>` when `project.godot` is not in the current folder. `GODOT_BIN` names the Godot binary when it
+     is not `godot` on the PATH.
    - A target this machine cannot start (web, another OS): add `--no-smoke "<why>"` and say so in the answer.
 3. On `RESULT: FAIL <step>`, fix that step (debug skill) and run the whole script again. The smoke step also fails on
    `SCRIPT ERROR` or `Parse Error` in the output, because Godot can exit with 0 after a script error.
@@ -97,9 +99,9 @@ Same idea: build headless, run the tests, start the built game once, and fail on
 
 ## Done when
 - [ ] After scene, script or project changes, `export-smoke.mjs` or the engine's tests ran this turn (hook: game-smoke-ran).
-- [ ] The export script printed RESULT: PASS, or the failing step is named in the answer (judgment: a failure may be the honest result).
-- [ ] Motion and timers use delta, and physics runs in the fixed step (judgment: needs a reader).
-- [ ] A save format change bumped the version and added a migration with a test loading old saves (judgment: only save turns).
+- [ ] The export script printed RESULT: PASS, or the answer names the failing step (judgment: a failure may be the honest result).
+- [ ] Motion and timers use delta; physics runs in the fixed step (judgment: needs a reader).
+- [ ] A save format change bumped the version and added a migration, with a test loading old saves (judgment: only save turns).
 - [ ] Changed sprites passed `sprite-check.mjs` (judgment: only asset turns; a project can add a runEach check on its sprite folder).
 
 ## Pitfalls

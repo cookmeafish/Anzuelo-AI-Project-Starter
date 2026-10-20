@@ -1,8 +1,8 @@
 # Writing standards (everything the user reads)
 
-This covers answers, guides, reports, READMEs, docs, HTML pages and UI text. The Stop hook checks answers and every
-changed user-facing file (REQ: plain-writing). The pretool hook rejects em dashes before they are written. Check a file
-any time with `node tools/writing-check.mjs <file>`.
+Covers answers, guides, reports, READMEs, docs, HTML pages and UI text. The Stop hook checks answers and every changed
+user-facing file (REQ: plain-writing), and the pretool hook rejects em dashes before they are written. Check a file
+with `node tools/writing-check.mjs <file>`.
 
 ## Mechanically enforced
 - **No em dashes ("—")**, and no spaced en dashes (" – ") used as dashes. Use a period, comma, colon or parentheses.
@@ -10,7 +10,8 @@ any time with `node tools/writing-check.mjs <file>`.
   "feel free to", "in conclusion", "let me know if you have any questions", "seamlessly", "game-changer",
   "in today's fast-paced". The full list is `fluff` in `tools/hooks/hooks.mjs` DEFAULTS. A project can extend it in
   `tools/hooks/config.json`.
-- **No walls of text.** Paragraphs stay under 150 words and sentences under 45 words. Use lists and tables.
+- **No walls of text.** Paragraphs stay at or under 150 words and sentences at or under 45 words
+  (`maxParagraphWords`, `maxSentenceWords`). Use lists and tables. An answer under 40 words of prose is never too long.
 
 ## Judgment (finish checklist)
 - **Lead with the answer.** The result or decision comes in the first line, followed by the reasons. The process goes
@@ -56,10 +57,9 @@ must let someone who is not technical choose well:
 | "Make this a local git repo?" | "Keep a history of every change? A local git repository saves every version on this computer, so any change can be undone. Nothing is uploaded to GitHub or anywhere else unless you ask later." |
 
 ## In the terminal: show what kind of message it is
-Most answers are read in a terminal. The user should see at a glance whether a block asks them something, reports a
-result, warns them or says something broke. Agents write Markdown, and the terminal shows only part of it: bold, lists,
-inline code, code blocks and short tables come through, while colors and HTML do not. So the kind is shown with a bold
-word at the start of the block, which reads the same in every terminal.
+Most answers are read in a terminal, where bold, lists, inline code, code blocks and short tables come through but
+colors and HTML do not. So each block starts with a bold word that says what kind it is, and the user sees at a
+glance whether it asks, reports, warns or says something broke.
 
 | Kind | Starts with | What follows |
 |---|---|---|

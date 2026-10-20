@@ -5,9 +5,9 @@ triggers: frontend design, ui design, design the page, design the screen, design
 ---
 # Frontend design: decide on purpose, check honestly, hand over clearly
 
-**A design is a set of choices made for this subject and these users.** Defaults chosen because they came to mind
-first look like every other generated screen. Choices made from the subject look like they belong to it. Make the
-choices on purpose, write them down, check them against real criteria, and pass them on so nothing has to be guessed.
+**A design is a set of choices made for this subject and these users.** Defaults that came to mind first look like
+every other generated screen; choices drawn from the subject look like they belong to it. Make the choices on
+purpose, write them down, check them against real criteria, and hand them on so nothing has to be guessed.
 
 Works for any stack: web, desktop or mobile. The gui-review-loop skill proves any built result with screenshots, and
 the gui runbook (`docs/playbooks/gui.md`) wraps both.
@@ -26,12 +26,11 @@ Several can apply. A new screen (**A**) uses **D** for its words and ends with a
 can grow into a full **E** audit. Name the section you used in the answer: `Frontend design: A (design plan)`,
 `Frontend design: B (critique)`.
 
-All report formats are in [templates.md](templates.md). Craft detail is in [references.md](references.md).
+Report formats: [templates.md](templates.md). Craft detail: [references.md](references.md).
 
-**If the project connects to a design tool** (a Figma or similar connection), read frames, tokens and component
-properties from it instead of guessing from a picture. **If it connects to a tracker, wiki or feedback tool**, the
-same goes for tickets, style guides and user complaints. None of these is required: a screenshot, a file, a URL or a
-written description is enough to start.
+**If the project connects to a design tool** (Figma or similar), read frames, tokens and component properties from it
+instead of guessing from a picture. **If it connects to a tracker, wiki or feedback tool**, do the same for tickets,
+style guides and user complaints. None is required: a screenshot, file, URL or written description is enough.
 
 ## A. Design a new screen or page
 
@@ -42,15 +41,15 @@ written description is enough to start.
    audience and main job, and confirm it with the user (one question).
 2. **Gather the subject's world:** its materials, vocabulary, tools, places and habits. A tool for accountants and a
    game for children should not share a look. Distinctive choices come from here, not from taste in general.
-3. **Use real content.** Real labels, real data shapes, realistic lengths. Lorem ipsum hides the problems that real
-   content shows. When you must write the copy yourself, it gets the same care as the layout (section **D**):
-   generic copy makes a page feel as templated as generic styling does.
+3. **Use real content:** real labels, real data shapes, realistic lengths. Lorem ipsum hides the problems real
+   content shows. Copy you write yourself gets the same care as the layout (section **D**): generic copy feels as
+   templated as generic styling.
 4. **Respect what exists.** If the project already has tokens, components or a brand, extend them (section **C**).
    Don't start a second design system. If the user named a direction, follow it exactly, even if it is a common one.
 
 ### A2. Write a short design plan
-Before code, write a compact plan (in `docs/plans/` or the answer). Either way, the answer names it as the "design
-plan" and sums it up; the Stop check looks for that.
+Before code, write a compact plan (in `docs/plans/` or the answer). Either way, the answer calls it the "design plan"
+and sums it up; the Stop check looks for that.
 - **Direction:** one or two sentences on the feel and why it fits this subject and audience.
 - **Color:** 4 to 6 named roles (background, surface, text, muted text, accent, danger), each with a light and a dark
   value. Check contrast for every text and background pair now (WCAG AA: 4.5:1 for body text, 3:1 for large text and
@@ -68,9 +67,9 @@ plan" and sums it up; the Stop check looks for that.
 - **The one memorable thing:** a single place where the design takes a risk. Everything else stays quiet.
 
 ### A3. Challenge the plan
-1. For each part, ask: would I produce this same choice for any similar request? Sketch what you would make for a
-   neighboring request to find out. Where the two match, it is a default, not a decision. Replace it with something
-   drawn from A1, and say what changed and why. [references.md](references.md) lists the usual defaults.
+1. For each part, ask: would I make this same choice for any similar request? Sketch what you would make for a
+   neighboring request. Where the two match, it is a default, not a decision: replace it with something drawn from
+   A1, and say what changed and why. [references.md](references.md) lists the usual defaults.
 2. Where the user or the brief fixed a direction, keep it exactly, even if it is on that list. Their words win; the
    challenge applies only to the choices left open.
 3. Check the plan against the usability floor below. A striking design that fails it is not done.
@@ -98,9 +97,9 @@ plan" and sums it up; the Stop check looks for that.
    One source for each value.
 
 ### A5. Hand off to the review loop
-Run the gui-review-loop skill on every screen and state you touched: desktop and phone, light and dark, with the
-empty, loading and error states included. Look at the screenshots while you build too, not only at the end; a
-picture shows what reading the code hides. Judge against `docs/checks/visual-review.md` and the plan above. Fix and
+Run the gui-review-loop skill on every screen and state you touched: desktop and phone, light and dark, including the
+empty, loading and error states. Look at screenshots while you build, not only at the end; a picture shows what
+reading the code hides. Judge against `docs/checks/visual-review.md` and the plan above. Fix and
 repeat until a full round finds nothing. Update the plan if the build changed a decision.
 
 ### A6. Record the decisions
@@ -119,8 +118,8 @@ what was tried and dropped, so the next design pass starts from it instead of re
 The floor is built in, not announced: don't list it as a feature on the page. Section **E** is the full check.
 
 ## B. Critique an existing design
-The goal is a short list of changes that would help users most, each backed by a reason. Opinions without a reason
-are not feedback.
+The goal: a short list of the changes that would help users most, each with a reason. Opinions without a reason are
+not feedback.
 
 1. **Get the context first:** what it is, who it is for, the one job it must do, and how far along it is (rough
    idea, being refined, nearly final). Ask once if it is unknown. Ask whether to focus on one area.
@@ -174,7 +173,7 @@ trying to do, how they likely feel at that moment, the product's voice, and any 
 
 - **Plain and exact.** Say what you mean in the user's words. Name things by what the user knows, not by how the
   system is built. Describe what a thing does instead of selling it; clear beats clever.
-- **Short.** The fewest words that still carry the whole meaning. Cut every word that doesn't help.
+- **Short.** The fewest words that carry the whole meaning.
 - **One word for one thing** across the whole product. Consistent words are how people learn their way around.
 - **Sentence case, active voice, plain verbs,** a tone that fits the audience, one job per piece of text.
 
@@ -231,8 +230,8 @@ Frequent misses: unlabeled inputs, icon buttons with no name, focus lost after a
 landmarks, media that plays by itself, and time limits that can't be extended.
 
 ## F. Hand off to developers
-The developer builds exactly what the spec says and guesses the rest. Write the spec so there is nothing left to
-guess, and say why for any choice that isn't obvious.
+The developer builds exactly what the spec says and guesses the rest. Leave nothing to guess, and say why for any
+choice that isn't obvious.
 
 1. **Overview:** what the screen does and for whom, with a link to the design plan from **A**.
 2. **Layout:** grid, the widths where the layout changes, and what changes at each (phone, tablet, desktop).
@@ -252,19 +251,19 @@ Use the handoff template. Ask for the tech stack if unknown, so notes fit it.
 - [ ] The answer names the section used (`Frontend design: <letter>`) (hook: design-plan).
 - **A:**
   - [ ] Subject, audience and main job are written down, confirmed if they were guessed (judgment: whether a guess was confirmed shows only in the conversation).
-  - [ ] A design plan exists (judgment: whether the plan is real and revised needs a reader) (direction, color, type, space, layout options, first view, motion, the one memorable
-        thing), and the generic parts were revised with a reason.
+  - [ ] A design plan exists (direction, color, type, space, layout options, first view, motion, the one memorable
+        thing), and the generic parts were revised with a reason (judgment: whether the plan is real and revised needs a reader).
   - [ ] All values live in tokens, with light and dark values, and contrast was checked for each text pair (judgment: no check reads the tokens or contrast yet).
   - [ ] Empty, loading, error and long-data states exist and say what to do next (judgment: whether each state guides the user needs a human eye).
   - [ ] The usability floor holds: keyboard, focus, labels, reduced motion, phone and desktop, zoom (judgment: needs a person to try keyboard, zoom and phone).
   - [ ] The gui-review-loop ended with `Visual review: PASS after N rounds` (hooks: gui-review-loop, gui-review-report).
   - [ ] App projects: the "Design tokens" and "Design direction" rows in `docs/foundation.md` section 3 are filled (judgment: only app projects have the rows).
-- [ ] **B:** findings point at specific elements with a reason and a severity (judgment: the quality of a critique needs a reader), what works is named, and the top three
-      changes are ranked.
+- [ ] **B:** findings point at specific elements with a reason and a severity, what works is named, and the top three
+      changes are ranked (judgment: the quality of a critique needs a reader).
 - [ ] **C:** audit counts come from searching the code, not from estimates; new parts use existing tokens (judgment: how the counts were found shows only in the work).
 - [ ] **D:** each element has a recommendation, alternatives and a reason; words match the rest of the product (judgment: whether the words match needs a reader).
-- [ ] **E:** every finding cites a WCAG 2.2 criterion (judgment: what was measured shows only in the work); contrast was measured, not judged by eye; what wasn't tested
-      (for example a real screen reader) is said.
+- [ ] **E:** every finding cites a WCAG 2.2 criterion; contrast was measured, not judged by eye; what wasn't tested
+      (for example a real screen reader) is said (judgment: what was measured shows only in the work).
 - [ ] **F:** every state and edge case is covered, and every value is a token or flagged (judgment: full coverage needs a reviewer).
 - [ ] Whenever screens change, accessibility was checked and reported as "Accessibility: <what was checked> - PASS/FAIL" (hook: a11y-checked).
 

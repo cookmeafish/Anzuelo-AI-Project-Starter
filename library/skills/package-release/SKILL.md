@@ -5,9 +5,8 @@ triggers: publish the crate, publish to npm, publish to pypi, publish to crates.
 ---
 # Package release: the right version, the right contents
 
-People who depend on a package trust its version number to tell them whether an update can break their code, and
-trust its contents to hold only what it should. Both are hard to take back once published: registries keep old
-versions, and a yank does not remove what was downloaded.
+Users trust a package's version number to say whether an update can break their code, and its contents to hold only
+what they should. Neither can be taken back: registries keep old versions, and a yank does not remove downloads.
 
 Say at the start: "Preparing the package release (package-release skill)."
 
@@ -15,9 +14,9 @@ Say at the start: "Preparing the package release (package-release skill)."
 - **The release itself** (gates, release notes, rollback plan, branch, attribution scan, asking for the OK): the
   release runbook (app pack). Follow it alongside this skill; this skill adds the registry side.
 - **Publishing is gated by the engine:** the publish-gate denies `npm publish`, `cargo publish`, `twine upload`,
-  `dart pub publish` and the like until the security-review skill ran this turn (or one is logged today), and the
-  outward-gate holds outward actions until the user gives the OK in this conversation (AGENTS.md rule 6). Don't work
-  around either; run the review, then ask.
+  `dart pub publish` and the like (not with `--dry-run`) until the security-review skill ran this turn or one is
+  logged today in `docs/security.md`, and the outward-gate holds outward actions until the user gives the OK in this
+  conversation (AGENTS.md rule 6). Don't work around either; run the review, then ask.
 - **Adding or upgrading the package's own dependencies:** the dependency-update skill.
 - **A failing build or test on the minimum version:** the debug skill.
 
@@ -32,17 +31,17 @@ Say at the start: "Preparing the package release (package-release skill)."
 
 ## A. Decide the version from what users see
 1. List every change since the last tag: `git log --oneline <last-tag>..HEAD`, plus the merged pull requests.
-2. Sort each one by what a user of the package notices, not by how big the diff is:
+2. Sort each by what a user of the package notices, not by diff size:
    - **major:** a public item removed or renamed, a signature or default changed, behavior changed that callers
      relied on, the minimum supported language version raised, a supported platform dropped;
    - **minor:** a new public item, a new option with a safe default, a deprecation (still working);
    - **patch:** a bug fix, docs, internal changes, performance with the same results.
 3. Before 1.0.0 the convention is: breaking goes into minor, everything else into patch. Say which convention the
    project follows.
-4. Pre-releases get a suffix (`2.0.0-rc.1`, PEP 440 `2.0.0rc1`) and never the default tag on the registry.
+4. Pre-releases get a suffix (`2.0.0-rc.1`, PEP 440 `2.0.0rc1`) and never the registry's default tag.
 
 ## B. Check the public API for breaking changes
-Check it with a tool, don't guess:
+Use a tool, don't guess:
 | Ecosystem | Check |
 |---|---|
 | Rust | `cargo semver-checks` (optional tool) |
@@ -59,9 +58,8 @@ Every break found either moves the version to major or gets undone (keep the old
 1. Read the declared minimum: `rust-version` in `Cargo.toml`, `requires-python` in `pyproject.toml`, `engines` in
    `package.json`, `environment.sdk` in `pubspec.yaml`, `TargetFramework(s)` in the project file,
    `required_ruby_version` in the gemspec, `require.php` in `composer.json`.
-2. Run the tests on that minimum and on the latest (CI matrix or a local toolchain). A declared minimum nobody tests
-   is a guess.
-3. Raising it is a decision: a `docs/DECISIONS.md` row, and a changelog line under "Breaking" (or the project's
+2. Run the tests on that minimum and on the latest (CI matrix or a local toolchain). An untested minimum is a guess.
+3. Raising it is a decision: a `docs/DECISIONS.md` row and a changelog line under "Breaking" (or per the project's
    stated policy, if it treats it as minor).
 
 ## D. Preview the contents with a dry run
@@ -71,33 +69,33 @@ Build the package and read the file list before anything leaves the machine:
 | npm, pnpm, yarn | `npm pack --dry-run` (or `pnpm pack`, `yarn pack --dry-run`) | the "Tarball Contents" list |
 | Rust | `cargo package --list`, then `cargo package` to build it | the file list; the build proves it compiles alone |
 | Python | `python -m build` (or `uv build`, `poetry build`), then `twine check dist/*` | `tar -tzf dist/*.tar.gz` and `unzip -l dist/*.whl` |
-| Dart / Flutter | `dart pub publish --dry-run` (the publish-gate treats it as a publish: run the security review first) | the file tree and warnings |
+| Dart / Flutter | `dart pub publish --dry-run` | the file tree and warnings |
 | .NET | `dotnet pack -c Release` | the `.nupkg` is a zip: `unzip -l` it |
 | Ruby | `gem build *.gemspec` | `tar -xOf <gem> data.tar.gz \| tar -tz` |
 | Java / Kotlin | `./gradlew publishToMavenLocal` or `mvn package` | `jar tf` on the built jars |
 
-Check the list for: no secrets or `.env` files, no test fixtures with real data, no build caches or large unrelated
-files, the license file and README included, the entry points and type files that the manifest names present. Fix the
+Check the list: no secrets or `.env` files, no test fixtures with real data, no build caches or large unrelated
+files; the license, README, and the entry points and type files the manifest names are present. Fix the
 include/exclude rules (`files` in package.json, `.npmignore`, `include`/`exclude` in Cargo.toml, `MANIFEST.in` or
-the build backend's settings) and run the dry run again.
+the build backend's settings) and rerun the dry run.
 
 ## E. Changelog and version, together
-1. Add the entry under the new version in the project's changelog, written for users: what changed for them, grouped
-   as Breaking, Added, Fixed, Deprecated. Each breaking item says what to do instead.
-2. Set the version in the manifest in the same change. Keep every place that repeats it in step (a `__version__`,
-   a version constant, the docs).
+1. Add the changelog entry under the new version, written for users and grouped as Breaking, Added, Fixed,
+   Deprecated. Each breaking item says what to do instead.
+2. Set the version in the manifest in the same change, and every place that repeats it (`__version__`, a version
+   constant, the docs).
 3. Run the gates and the dry run again on the final state.
 4. Tag `vX.Y.Z` locally. Pushing the tag waits for **F**.
 
 ## F. Publish, only with the OK
 1. Run the security-review skill on what changed since the last release (the publish-gate needs it).
 2. Ask, in one message: package name, version, registry, the file count from **D**, and the tag. Wait for the OK.
-3. Publish with the registry's command, using a token from the environment or the registry's trusted publishing,
-   never a token in a file in the repository.
-4. After it succeeds, push the tag, and check the registry page shows the new version and its files.
+3. Publish with the registry's command, using a token from the environment or trusted publishing, never a token in a
+   repository file.
+4. After it succeeds, push the tag and check the registry page shows the new version and its files.
 
 ## G. A bad version is out
-1. Publish a fixed version first; that is what most users will pick up.
+1. Publish a fixed version first; most users will pick that up.
 2. Then deprecate or yank the bad one, with the user's OK: `npm deprecate <pkg>@<version> "<why>"`,
    `cargo yank --version <v>`, a yank on PyPI's web page, `dart pub` retract within 7 days, `dotnet nuget delete`
    (unlists). These are outward actions too.
@@ -112,8 +110,7 @@ the build backend's settings) and run the dry run again.
 
 ## Pitfalls
 - Judging the version by the size of the diff: a one-line default change can be major, a large refactor can be patch.
-- A package that worked from the repository but fails when installed, because a built file or type file was left out
-  of the package.
+- A package that works from the repository but fails when installed, because a built or type file was left out.
 - Publishing from a dirty tree, so the package holds files that are in no commit.
 - Raising the minimum language version in a patch release.
 - Pushing the tag before the publish succeeded, so the tag points at a version that does not exist on the registry.

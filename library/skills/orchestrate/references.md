@@ -18,10 +18,14 @@ Run budget: <N> re-briefs, restarts and failed acceptance rounds (default: twice
 - <task>: <what blocks it>, told the user <date>
 ```
 `node skills/orchestrate/scripts/ledger.mjs check <ledger>` reads this table and changes nothing. It lists the tasks that need you:
-- ready to check, waiting for approval or an answer, exited, stuck or stalled, or due for escalation;
-- active without an owner, or not seen for a while;
+- ready to check, waiting for approval or an answer, exited, stuck or stalled, or due for escalation (3 nudges);
+- an unknown state;
+- active without an owner, or last seen more than 30 minutes ago (`--stale-minutes <n>` to change);
 - accepted without evidence or with unreported steps;
 - two active tasks in one workspace, or on one shared resource.
+
+It exits 1 when anything needs action. `ledger.mjs fingerprint <output.txt> [--lines 20]` hashes a worker's last output
+lines, ignoring color codes.
 
 ## States
 | State | Meaning |
@@ -40,7 +44,7 @@ Run budget: <N> re-briefs, restarts and failed acceptance rounds (default: twice
 
 ## Workspace pool
 - A free workspace is a working copy parked on a spare branch with nothing else in it. `git worktree list` shows each
-  copy and its branch; the free ones are those on spare branches (name them in a pattern, such as `spare/<n>`).
+  copy and its branch; free ones are on spare branches (name them in a pattern, such as `spare/<n>`).
 - Busy workspaces are the ledger rows whose state is anything but released.
 - Starting a task: in the free workspace, create the task branch from the base (or switch to it if it exists).
 - Releasing (step 6), only after the work is merged or the user says so: close the worker; end any half-done rebase

@@ -9,16 +9,17 @@ skill: skills/plan/SKILL.md
 
 **Use when:** the user asks for a plan, the work needs several steps, several files or several sub-agents, a turn
 will add 5 or more new files, or an open plan is waiting to be resumed or closed. Also when the user wants the work
-run without check-ins (plan skill, step 9). **Not when:** a one-step change or a
-quick question. Then just do it by its own runbook.
+run without check-ins (plan skill, step 9). **Not when:** a one-step change or a quick question: do it by its own
+runbook.
 
 ## Inputs
 - The spec or request, earlier decisions (`docs/DECISIONS.md`) and preferences (AGENTS.md).
 - The files involved, the patterns already there, and the project's check commands (`docs/plans/README.md`).
 
 ## Steps
-1. Follow the **plan** skill (`skills/plan/SKILL.md`): check scope, settle open questions first (one question at a time, or a throwaway spike), gather the context and the check commands, map the
-   files, size the tasks, write the plan with its status line and "How to resume" line, review it and score it.
+1. Follow the **plan** skill (`skills/plan/SKILL.md`): check scope, settle open questions first (one question at a
+   time, or a throwaway spike), gather the context and the check commands, map the files, size the tasks, write the
+   plan with its status line and "How to resume" line, review it and score it.
 2. Save it to `docs/plans/YYYY-MM-DD-<topic>.md` ([how plans are kept](../plans/README.md)) and run
    `node skills/plan/scripts/plan-tasks.mjs check <plan>`.
 3. Link it and ask the user to review it before any work starts. Offer the two ways to run it (supervised task by

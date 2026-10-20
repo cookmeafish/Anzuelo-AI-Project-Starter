@@ -1,7 +1,7 @@
 # Architecture references
 
 ## Comparison table (part A)
-Fill one column per option. Keep the rows the same for every option, so they can be read across.
+One column per option, same rows for each, so they read across.
 
 | | Option 1: <name> | Option 2: <name> | Keep as is |
 |---|---|---|---|
@@ -13,8 +13,7 @@ Fill one column per option. Keep the rows the same for every option, so they can
 | Main risk | | | |
 | Recommendation | | | |
 
-Below the table, in a few lines: the trade-off that decided it, what gets easier, what gets harder, and the
-condition that would reopen it.
+Below the table: the deciding trade-off, what gets easier, what gets harder, and the condition that would reopen it.
 
 ## Decision row (part A)
 ```
@@ -22,7 +21,7 @@ condition that would reopen it.
 ```
 
 ## Design checklist (part B)
-Go through each line and write either a decision or "not needed, because...".
+For each line write a decision or "not needed, because...".
 
 | Area | Questions |
 |---|---|

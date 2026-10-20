@@ -1,9 +1,9 @@
 # Menu: optional short codes
 
 Codes are a shortcut, never a requirement: plain requests work the same. Type a code plus details, for example
-`E3 --brief`. A code means exactly its **Means** column, with every rule applied as if you had typed it in full. An
-unknown code or flag, or a flag that doesn't fit the code, gets a question instead of a guess. The hooks read this
-table, so editing a row changes what is enforced. Installed packs add their own codes.
+`E3 --brief`. A code means exactly its **Means** column, with every rule applied as if typed in full. An unknown code
+or flag, or a flag that doesn't fit the code, gets a question instead of a guess. The hooks read this table, so
+editing a row changes what is enforced. Installed packs add their own codes.
 
 ## Codes
 | Code | What | Runbook | Means (the full request) |

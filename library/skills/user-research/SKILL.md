@@ -6,8 +6,8 @@ triggers: user research, research plan, user interview, customer interview, inte
 # User research: findings that trace to what people said
 
 People are a source like any other, and the research skill's rule holds: **every finding traces to notes someone
-actually took.** A quote is word for word from a transcript or note, or it isn't a quote. Formats for the plan, the
-guide and the report are in [references.md](references.md).
+actually took.** A quote is word for word from a transcript or note, or it isn't a quote. Plan, guide and report
+formats: [references.md](references.md).
 
 **People's data is private.** Give each participant an ID (P1, P2) and keep names, contact details and recordings
 out of the findings, out of git unless the project says otherwise, and out of every web query. Get consent before
@@ -27,7 +27,7 @@ Then always the research skill's section **D** (did I make that up?), and in a k
 ## A. Plan the study
 1. **Write the decision it informs** and three to five questions the study must answer. A study with no decision
    behind it produces interesting notes and no change.
-2. **Pick the method that fits the question.** Sample sizes are common rules of thumb, not laws:
+2. **Pick the method that fits the question.** Sample sizes are rules of thumb:
 
    | Question | Method | People |
    |---|---|---|
@@ -69,9 +69,9 @@ of it before grouping anything.
 7. **Check it with the research skill's section D:** every count recounted from the notes, every quote matched
    character by character.
 
-Write the report with the synthesis format, recommendations first. If the project connects to a feedback tool,
-analytics or a research wiki, use them to add evidence or compare with earlier studies, and cite them like any
-source. Facts about the market or the world that the study did not measure go through the **research** skill.
+Write the report in the synthesis format, recommendations first. If the project connects to a feedback tool,
+analytics or a research wiki, use it for more evidence or to compare with earlier studies, and cite it like any
+source. Facts the study did not measure (the market, the world) go through the **research** skill.
 
 ## Done when
 - [ ] **A:** the plan names the decision it informs and the questions (hook: user-research-counted).

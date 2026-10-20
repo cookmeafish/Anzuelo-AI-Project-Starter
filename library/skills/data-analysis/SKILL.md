@@ -5,15 +5,15 @@ triggers: analyze this data, analyse this data, data analysis, dataset, csv file
 ---
 # Data analysis: numbers you can stand behind
 
-A wrong number looks exactly like a right one. This skill exists to make the difference visible: every figure in the
-answer comes from a computation run this turn on the actual data, and the reader can see how.
+A wrong number looks exactly like a right one. So every figure in the answer comes from a computation run this turn on
+the actual data, and the reader can see how.
 
 Say at the start: "Working through the data (data-analysis skill)."
 
 ## What the other skills already cover
 - **Tracing facts and numbers:** the research skill, section D, and its check (REQ: answer-traced). Every number in the
-  answer must appear in something read or computed this turn. This skill does not repeat those rules; it adds how to
-  produce numbers that pass them. Read `skills/research/SKILL.md` if you have not this session.
+  answer must appear in something read or computed this turn. This skill adds how to produce numbers that pass. Read
+  `skills/research/SKILL.md` if you have not this session.
 - **The written report or one-pager:** the deliverable runbook (knowledge pack). This skill produces the numbers and
   charts that go into it.
 - **Looks of a page or dashboard:** the frontend-design skill, when enabled.
@@ -34,10 +34,11 @@ Methods, formulas and reading are in [references.md](references.md). The profile
 
 ## A. Profile a new dataset
 1. Keep the original untouched. Work on a copy in `.cache/data/` or read it in place; never edit the source file.
-2. Run `node skills/data-analysis/scripts/profile.mjs <file>`. It reads CSV, TSV, JSON and JSON Lines and prints rows,
-   columns, duplicate rows, rows with the wrong number of fields, and per column: a type guess, missing and
-   placeholder-like values, distinct count, number ranges with mean, median and an outlier count, date ranges, and the
-   most common values. Excel files: export to CSV first, or ask the user to.
+2. Run `node skills/data-analysis/scripts/profile.mjs <file>` (`--sep ;` to force a separator, `--top N` for more
+   common values). It reads CSV, TSV, JSON and JSON Lines and prints rows, columns, duplicate rows, rows with the wrong
+   number of fields, and per column: a type guess, missing and placeholder-like values, distinct count, number ranges
+   with mean, median and an outlier count, date ranges, and the most common values. Excel files: export to CSV first,
+   or ask the user to.
 3. Write down the **grain**: what one row stands for (one order, one customer per day, one survey reply). Most wrong
    totals come from a wrong idea of the grain.
 4. Note what looks off before analysing anything: a column typed as text that should be numbers, an ID that repeats, a
@@ -45,7 +46,7 @@ Methods, formulas and reading are in [references.md](references.md). The profile
 5. Tell the user in a few lines: size, grain, the columns that matter for their question, and the problems found.
 
 ## B. Check quality before trusting it
-Go through these, and write each problem with how many rows it affects:
+Write each problem with how many rows it affects:
 - **Complete:** missing values in the columns the question needs. Placeholders such as `NA`, `0`, `999` or `unknown`
   standing in for missing. Gaps in a date series. Groups that should be there and are not.
 - **Unique:** duplicate rows, and duplicates of what should be a key.
@@ -66,8 +67,7 @@ data that might be real. A problem that changes the answer goes in the answer.
 2. **Compute with code, never in your head.** Use a Node script, SQL (**D**), or Python if already installed. Keep the
    script in `.cache/data/` so it can be re-run. Mental arithmetic and "about" figures are not traced numbers.
 3. **Pick the right summary:**
-   - Skewed values (money, durations, counts per user): give the median next to the mean; the gap tells the reader
-     about the skew.
+   - Skewed values (money, durations, counts per user): give the median next to the mean; the gap shows the skew.
    - Rates and shares: state the denominator ("12% of 3,400 orders"). Compute rates from raw counts, never by averaging
      averages from groups of different sizes.
    - Changes: compare equal, complete periods. Give the absolute change and the percentage.
@@ -84,9 +84,8 @@ data that might be real. A problem that changes the answer goes in the answer.
    median of `amount`, 3,212 rows, refunds excluded)".
 
 ## D. Query with SQL
-Check what is installed first (`duckdb --version`, `sqlite3 --version`). Both are optional; see
-`docs/recommended-tools.md` for what they cost and how to install them, and ask before installing anything. Without
-either, use a Node script.
+Check what is installed first (`duckdb --version`, `sqlite3 --version`). Both are optional (cost and install lines in
+`docs/recommended-tools.md`); ask before installing anything. Without either, use a Node script.
 - **DuckDB** queries CSV, JSON and Parquet files in place: `SELECT region, count(*) FROM 'data.csv' GROUP BY 1`.
 - **SQLite** for data that should live in one database file. sqlite-utils (optional) loads a CSV into it in one step.
 - Open source data read-only. Write query results to `.cache/data/`, not over the input.

@@ -78,7 +78,8 @@ if (styleFile) {
     const row = /^\s*\|([^|]+)\|([^|]*)\|?/.exec(line); // | Name | wrong spellings | ...
     const item = /^\s*[-*]\s+\**([^(:*\n]+?)\**\s*(?:\((?:not|never|avoid)\s*:?\s*([^)]+)\))?\s*(?:[:,].*)?$/i.exec(line);
     if (row && !/^[\s:-]+$/.test(row[1]) && !/^\s*(name|term|word)s?\s*$/i.test(row[1])) { name = row[1].trim(); bad = row[2].split(/[,;/]/); }
-    else if (item) { name = item[1].trim(); bad = (item[2] || '').split(/[,;/]/); }
+    // "- Tense: past" is a setting, not a name; "- **Mara Voss**: trader" and "- Mara Voss" are names
+    else if (item && !(!/^\s*[-*]\s+\*\*/.test(line) && /^\s*[-*]\s+[^(:*\n]+:/.test(line))) { name = item[1].trim(); bad = (item[2] || '').split(/[,;/]/); }
     if (!name || !/^\p{Lu}/u.test(name)) continue;
     keep.set(low(name), name);
     for (const b of bad.map(s => s.replace(/^\s*(not|never|avoid)\s*:?\s*/i, '').trim()).filter(Boolean)) if (low(b) !== low(name)) wrong.set(low(b), name);

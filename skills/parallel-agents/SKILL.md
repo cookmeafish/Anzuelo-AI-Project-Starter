@@ -6,8 +6,8 @@ triggers: in parallel, parallel agents, sub-agents, subagents, fan out, split th
 # Run independent work in parallel
 
 Unrelated problems handled one after another waste time, and one agent holding all of them loses focus. Give each
-independent part its own sub-agent, run them at once, and keep your own context for checking and merging. A
-sub-agent does not inherit your session: its brief gives it exactly what its part needs and nothing else.
+independent part its own sub-agent, run them at once, and keep your context for checking and merging. A sub-agent
+does not inherit your session: its brief gives it exactly what its part needs.
 
 ## 1. Is it really independent?
 First group the work by what it concerns: failures by the area or feature that breaks, research by question, reviews
@@ -47,12 +47,12 @@ are too broad ("fix all the tests"), missing context ("fix the race condition"),
 or vague about the result ("fix it"). A filled-in example is in [references.md](references.md).
 
 ## 3. Start them together
-Launch all the sub-agents in the same step, so they run at the same time. Launching one per step runs them in order.
-Keep to what the work needs. A handful of focused agents beats many overlapping ones.
-- Pick the model per part where your agent allows it: the cheapest one that can do the job well for mechanical work,
-  a stronger one for judgment. Say it explicitly, or every agent runs on the most expensive default.
-- While they run, do your own useful work. Don't poll in a tight loop. If one is silent far longer than the others,
-  check on it rather than waiting forever.
+Launch all the sub-agents in the same step so they run at the same time; one per step runs them in order. A handful
+of focused agents beats many overlapping ones.
+- Pick the model per part where your agent allows it: the cheapest capable one for mechanical work, a stronger one
+  for judgment. Say it explicitly, or every agent runs on the most expensive default.
+- While they run, do your own work. Don't poll in a tight loop. If one is silent far longer than the others, check
+  on it.
 
 ## 4. Check and merge
 When they report back:

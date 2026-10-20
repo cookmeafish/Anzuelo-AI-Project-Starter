@@ -1,11 +1,12 @@
 # QA standards ("done" means verified)
 
-QA runs on every change, without being asked. When the user says "QA" about something, QA already failed: run the
-QA incident procedure (`docs/playbooks/qa.md` §1).
+QA runs on every change, unasked. When the user says "QA" about delivered work, QA already failed: run the incident
+procedure (`docs/playbooks/qa.md` §1).
 
 ## The triple check (every change)
-1. **Automated:** tests, build, lint/typecheck and the project's own check scripts all pass, run AFTER the last edit
-   (hooks: app-<gate>-pass, set up by `node tools/packs.mjs configure app`, and commit-gate). A green run from before the last edit doesn't count.
+1. **Automated:** tests, build, lint/typecheck and the project's own check scripts pass, run AFTER the last edit
+   (hooks: app-<gate>-pass, set up by `node tools/packs.mjs configure app`, and commit-gate). An earlier green run
+   doesn't count.
 2. **The real thing:** run the app in an isolated instance (its own port and data, never the user's running one) and
    exercise what changed:
    - desktop and phone width, both themes, a couple of zoom levels;
@@ -31,8 +32,8 @@ QA incident procedure (`docs/playbooks/qa.md` §1).
 ## Judge it the way the user will see it
 - Check the exact screen and flow the user will open, not a close-up or a dev page.
 - Write PASS/FAIL for EVERY acceptance criterion and standing preference, never only the one from the latest complaint.
-- Metrics and automated checks gate the work, but they never prove quality. A change can pass every check and still be
-  wrong. When a fix doesn't change what the user sees, question the content, not just the pipeline.
+- Checks gate the work but never prove quality: a change can pass every check and still be wrong. When a fix doesn't
+  change what the user sees, question the content, not just the pipeline.
 - Before claiming a bug exists, reproduce it and show the evidence. Retract false findings openly.
 
 ## Subjective and taste-driven work (visuals, copy, game feel)
@@ -46,8 +47,7 @@ QA incident procedure (`docs/playbooks/qa.md` §1).
 
 ## Interrupted work (limit, crash, compaction)
 Before resuming: run `node tools/integrity-check.mjs` (files complete and well-formed), the tests, and a fresh
-screenshot. Re-read the request and the spec, because resumed work drifts toward finishing instead of toward what was
-asked.
+screenshot. Re-read the request and the spec: resumed work drifts toward finishing instead of toward what was asked.
 
 ## Every failure becomes a lesson
 One line in `docs/lessons.md` per rejected result or escaped bug: what happened → the rule or check it created. Add an

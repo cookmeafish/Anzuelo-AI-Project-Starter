@@ -1,8 +1,8 @@
 # How knowledge is written
 
-`docs/knowledge/` holds what the project knows: the long-term memory answers come from. Labels and rules are in
+`docs/knowledge/` holds what the project knows; answers come from here. Labels and rules:
 [../checks/evidence-standards.md](../checks/evidence-standards.md). The Stop hook (REQ: knowledge-labels) blocks a
-knowledge file that has no evidence label, no source, or no date.
+knowledge file with no evidence label, no source, or no date.
 
 ## One topic per file
 - Name files by topic, not by date: `pricing.md`, `vendor-acme.md`, `zoning-rules.md`. Use subfolders when a topic

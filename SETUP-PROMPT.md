@@ -9,12 +9,11 @@ enforce each gate:
 
 No hooks in your agent (anything but Claude Code or Codex)? Run `node tools/hooks/hooks.mjs begin "<the user's
 message>"` for every user message, and `node tools/hooks/hooks.mjs check --answer-file .cache/answer.md` before every
-answer. If the user only wants a quick answer first, answer it, then come back here.
+answer. If the user wants a quick answer first, give it, then come back here.
 
-**The rule for every choice: give the project everything that makes it better, and nothing that makes it worse.**
-Every pack the answers call for is installed whole. You decide every other candidate yourself in the fit checklist
-(Phase 3), each with a reason the check verifies, so the user is not asked about each one. The user sees a short
-summary and can override any decision.
+**The rule for every choice: add everything that makes the project better, and nothing that makes it worse.** Every
+pack the answers call for is installed whole. You decide every other candidate in the fit checklist (Phase 3), each
+with a reason the check verifies. The user sees a short summary and can override any decision.
 
 ## If this is an existing project
 The starter was added around work that already exists (`config.json` has `adopted`). Improve it without breaking it:
@@ -23,13 +22,13 @@ The starter was added around work that already exists (`config.json` has `adopte
   `## Current state` section in `docs/STATUS.md` before changing anything (the setup gate checks it).
 - **Keep what works.** Existing rules move into AGENTS.md / CLAUDE.md as principles with a user-requirements row.
   Existing scripts and tests become gates (`toolPassed` + `selfRun`, or `commitGate`). Existing procedures become
-  runbooks. Merge each `*.starter.md` into the user's file (their README stays theirs), then delete it. The
-  originals are kept in `.starter/original-rules/`, and the setup check lists any of their rules the merged AGENTS.md
-  lost: merge it back, or list it under "## Dropped rules" in docs/DECISIONS.md with why.
+  runbooks. Merge each `*.starter.md` into the user's file (their README stays theirs), then delete it. The originals
+  are kept in `.starter/original-rules/`, and the setup check lists any rule the merged AGENTS.md lost: merge it
+  back, or list it under "## Dropped rules" in docs/DECISIONS.md with why.
 - **Ask before moving things.** New work follows the layout standard at once. Moving existing files is a proposal:
   list the moves and why, and do them only with the user's OK, in small verified steps.
-- **Measure first** (app pack): record which tests and builds pass today. Gates start from that baseline; old failures
-  go into `docs/STATUS.md` as known issues.
+- **Measure first** (app pack): record which tests and builds pass today. Gates start from that baseline, and old
+  failures go into `docs/STATUS.md` as known issues.
 - **Fill baselines from reality:** `docs/security.md` and (app pack) `docs/foundation.md` record the current state.
   Gaps become follow-up items ranked by risk, not silent rewrites.
 - **Library skills:** `codebase-map` and `repo-setup` come first for an existing codebase.
@@ -42,9 +41,8 @@ Read `AGENTS.md`, `DIRECTORY.md`, `docs/checks/runbook-standards.md`, `docs/chec
 
 **Understand the project before asking anything.** Run `node tools/survey.mjs`. It lists the project's own files, the
 documents to read first, earlier AI instructions, code projects and large data files, with suggested starting answers.
-Read what it points to (the README, the main notes, the main code entry, any earlier AI instructions) until you can say
-in three plain sentences what the project is for, who uses it and what it contains. That summary opens Phase 2, and
-every recommendation below rests on it, not on the survey's guesses alone.
+Read what it points to until you can say in three plain sentences what the project is for, who uses it and what it
+contains. That summary opens Phase 2, and every recommendation rests on it, not on the survey's guesses alone.
 
 ## Phase 2: Ask the questions, and wait for the answers
 **Start with "What I found":** your three-sentence summary of the project, so the user can correct it first.
@@ -57,16 +55,15 @@ every recommendation below rests on it, not on the survey's guesses alone.
   The AI decides the rest the same way.
 - **Ask me everything.**
 
-**Every question you ask follows "Questions with choices" in
-[writing-standards.md](docs/checks/writing-standards.md):** plain names, what each option does, why it is good and
-why it may be bad for THIS project, every technical word explained, and "Let the AI decide". Use the "What it does",
-"What you'll notice", "Good when" and "Costs" lines from `packs.mjs list` and `skills.mjs library`, rewritten for this
-project. Judge each option by where the project is heading, not only by what it is today: the starter prepares a
-project to grow (more code, more history, more people).
+**Every question follows "Questions with choices" in [writing-standards.md](docs/checks/writing-standards.md):**
+plain names, what each option does, why it is good and why it may be bad for THIS project, every technical word
+explained, and "Let the AI decide". Use the "What it does", "What you'll notice", "Good when" and "Costs" lines from
+`packs.mjs list` and `skills.mjs library`, rewritten for this project. Judge each option by where the project is
+heading (more code, more history, more people), not only by what it is today.
 
 **Answers the AI decided** (question 0 said so, the user picked "Let the AI decide", or `"autonomy": "auto"` in
-`tools/hooks/config.json`) are written as `- Key: assumed - <answer> (why)`. List them in your final answer so the user
-can correct any, and go on without waiting.
+`tools/hooks/config.json`) are written as `- Key: assumed - <answer> - <why>`. List them in your final answer so the
+user can correct any, and go on without waiting.
 
 Ask in ONE message, grouped, with a multiple-choice tool if your agent has one. Skip only what the folder or the
 conversation already answers, and say what you inferred so the user can correct it.
@@ -93,7 +90,7 @@ how it is released.
 ## Setup interview (YYYY-MM-DD)
 - Involvement: decide | important only | everything
 - Focus: ...
-- Kind of work: knowledge | software | both  (then a few words)
+- Kind of work: knowledge | software | both | neither  (then a few words)
 - Visual interface: yes | no  (then what: app screens, web pages, HTML reports ...)
 - Typical requests: see docs/BRIEF.md
 - Inputs: ...
@@ -120,18 +117,19 @@ how it is released.
    | Kind of work: software or both | `app` | specs, triple-check QA, gates, foundation, release safety |
    | Visual interface: yes | `gui` | the GUI runbook, the screenshot review loop and tool, visual-review checklist (the frontend-design library skill fits it and is offered in step 2) |
 
-   Tell the user which packs and why, in one plain line each (what it does, what they'll notice), then run:
+   No pack fits: record "core only" and why in `docs/DECISIONS.md`. Otherwise tell the user which packs and why, in
+   one plain line each (what it does, what they'll notice), then run:
    ```
    node tools/packs.mjs install <packs>
    node tools/packs.mjs configure app --test "<cmd>" --build "<cmd>" --code "<globs>" --version-file <file>   (app only)
    ```
-   In a monorepo each package keeps its own version: pass a glob or a comma list (`--version-file "packages/*/package.json"`),
-   not one package's file, or a change to any other package is asked for a bump it cannot make.
+   In a monorepo pass a glob or a comma list (`--version-file "packages/*/package.json"`), not one package's file, or
+   a change to any other package is asked for a bump it cannot make.
 2. **The fit checklist: you fill it, not the user.** `node tools/fit.mjs` writes `docs/fit-checklist.md` with one row
    per candidate: every pack, every library skill, every tool in `docs/recommended-tools.md`, and the optional features
    (Obsidian vault, git hooks, autonomy auto, recall and memory, plans). `node tools/fit.mjs --json` says what each one
-   is, whether it is already here, and what the survey found that bears on it. Decide every row from the survey, the
-   brief and the code:
+   is, whether it is already here, and what the survey found about it. Decide every row from the survey, the brief and
+   the code:
    - **add** when it makes this project better, then really add it (`node tools/skills.mjs enable <names>`, a pack,
      a tool listed under "## Tools" in `docs/BRIEF.md`);
    - **skip** when it adds nothing or costs more than it gives. If the survey found evidence for it (web files, data
@@ -143,9 +141,9 @@ how it is released.
    needed" or "maybe later". Record decisions with `node tools/fit.mjs decide "<item>" <decision> "<reason>"` or by
    editing the table, until `node tools/fit.mjs check` prints `FIT: PASS`. **Ask the user only about choices that are
    truly theirs:** anything that costs money, touches privacy or acts outside the project (an account, a paid service,
-   a tool that is not low-risk). Put those in ONE question with choices ("Questions with choices" in
-   writing-standards.md); until the answer, the row is "later - when: the user answers". Add the phrases people use for
-   each enabled skill's jobs to its `triggers:` and check them with `node tools/hooks/selfcheck.mjs --route "..."`.
+   a tool that is not low-risk). Put those in ONE question with choices; until the answer, the row is
+   "later - when: the user answers". Add the phrases people use for each enabled skill's jobs to its `triggers:` and
+   check them with `node tools/hooks/selfcheck.mjs --route "..."`.
 3. **The starter's leftovers:** ask the user, with a recommendation and "Let the AI decide" as an option:
 
    | Choice | What happens | Fits when |
@@ -156,23 +154,22 @@ how it is released.
 
    Run `node tools/starter.mjs link | keep | remove`. It refuses while anything that fits is still missing.
 4. **App pack:** run `docs/playbooks/app-foundation.md` with the user before Phase 4. It sets the performance budgets,
-   the usability defaults and the app's security rows, and builds the scaffolding that enforces them.
-   It also shapes the app to grow (modular-code skill, section A): one module per feature with one public entry, a
-   config module, a names module that reads `docs/names.json`, and the extension points written into the foundation.
+   the usability defaults and the app's security rows, and builds the scaffolding that enforces them. It also shapes
+   the app to grow (modular-code skill, section A): one module per feature with one public entry, a config module, a
+   names module that reads `docs/names.json`, and the extension points written into the foundation.
 5. **Optional tools** are rows of the fit checklist. [docs/recommended-tools.md](docs/recommended-tools.md) gives each
-   one's "Recommend when", "Skip when", costs and license. Install the newest version with the official command: a
-   low-risk tool you decided to add needs no question under `"autonomy": "auto"`, any other needs the user's OK (the
-   one question above). Write each installed tool under "## Tools" in `docs/BRIEF.md`, with its version and how it was
-   installed, so the next session and any other agent can set it up again (the check looks for it there).
+   one's "Recommend when", "Skip when", costs and license. Install the newest version with the official command. Under
+   `"autonomy": "auto"` a low-risk tool needs no question; any other needs the user's OK (the one question above).
+   Write each installed tool under "## Tools" in `docs/BRIEF.md` with its version and how it was installed, so any
+   later session or agent can set it up again (the check looks for it there).
 
 ## Phase 4: Build it
 1. `docs/BRIEF.md`: fill every section from the answers, as principles in your own words with the date and why. Set
    `status: bootstrapped YYYY-MM-DD`.
 2. `docs/names.json`: check `PROJECT_NAME`, and add every other name the project uses (products, brands, companies,
-   the app's title, its company and support addresses). Every one of them is written only there, so a rename or a
-   white-label copy is one edit (hook: name-var).
-   When the project is named after what it is about (a game, a city, a product), list that key in `"_subjects"`, so
-   the content's mentions of the subject are not flagged as the project's name.
+   the app's title, its company and support addresses). Each is written only there, so a rename or a white-label copy
+   is one edit (hook: name-var). When the project is named after what it is about (a game, a city, a product), list
+   that key in `"_subjects"`, so mentions of the subject are not flagged as the project's name.
    `AGENTS.md` / `CLAUDE.md`: replace `{{ONE_LINE}}`; the name heading fills itself from `docs/names.json`. Each
    always/never answer goes through the project-rule skill (a rule, a user-requirements row, and a check where one can
    be written). Record the rest under "standing preferences", or write `- (none stated, YYYY-MM-DD)`.
@@ -194,10 +191,11 @@ how it is released.
    folder of notes the project already keeps (an Obsidian vault's notes, a wiki) stays where it is: add it to
    `"knowledgeDirs"` in `tools/hooks/config.json` (for example `["Notes"]`), so the knowledge checks, citations and
    freshness sweeps cover it too. Never move the user's notes to make them fit.
-9. `docs/STATUS.md` (Now / Next / Open questions), `docs/CHANGELOG.md` (a "set up" line).
+9. `docs/STATUS.md` (Now / Next / Open questions; remove "Not bootstrapped yet"), `docs/CHANGELOG.md` (a "set up"
+   line).
 10. **Git**, if the folder is a repo or the user wants one: `git config core.hooksPath .githooks`, and confirm the git
-    identity is the user's own name and email. If wire said "kept your git hooks" (husky, lefthook, pre-commit or hooks
-    of the project's own), leave core.hooksPath alone: call `.githooks/pre-commit`, `commit-msg` and `pre-push` from the
+    identity is the user's own name and email. If wire said "kept your git hooks" (husky, lefthook, pre-commit or the
+    project's own), leave core.hooksPath alone: call `.githooks/pre-commit`, `commit-msg` and `pre-push` from the
     project's hooks instead, so neither set is switched off.
 
 ## Phase 5: Verify everything is really there

@@ -3,10 +3,10 @@ status: not set
 ---
 # Security baseline
 
-Every project has one. Set it during setup with the user; after that, change it only with the user, and date the
-change. Replace every `<...>` with a real answer or "N/A - <reason>": the setup gate fails while any are left. The
-**security-review** skill checks the project against this page. App projects add their own rows in
-`docs/foundation.md`.
+Set it during setup with the user, and change it later only with the user, dated. Replace every `<...>` with a real
+answer or "N/A - <reason>": the setup gate fails while any are left, and also when every row of "What needs
+protecting" is N/A. The **security-review** skill checks the project against this page. App projects add their own
+rows in `docs/foundation.md`.
 
 ## What needs protecting, and from whom
 | Question | Answer for this project |

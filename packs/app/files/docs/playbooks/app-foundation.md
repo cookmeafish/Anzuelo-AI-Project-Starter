@@ -12,18 +12,20 @@ wants the security, performance or usability baseline revisited. Run it before t
 ## Steps
 1. **Read** `docs/BRIEF.md`, `docs/security.md` (the project-wide baseline; section 1 adds only app rows),
    `docs/checks/app-standards.md` and the existing code (if any).
-2. **Propose** a filled-in `docs/foundation.md`: a sensible default for every row, based on the brief and the stack,
-   each with a one-line reason. Use real numbers for the budgets. Ask the user to confirm or change it in ONE message,
-   following "Questions with choices" in `docs/checks/writing-standards.md`. First say in plain words what the
-   foundation is: "the app's ground rules for safety, speed and ease of use, which every later change is checked
-   against". Then list each default on its own line, with what it means in everyday terms and why it suits this
-   project: "Page size under 2 MB, so the guide opens in about a second on a phone". Offer "Let the AI decide".
+2. **Propose** a filled-in `docs/foundation.md`: a default for every row, based on the brief and the stack, each with
+   a one-line reason and real numbers for the budgets. Ask the user to confirm or change it in ONE message, following
+   "Questions with choices" in `docs/checks/writing-standards.md`:
+   - first say what the foundation is: "the app's ground rules for safety, speed and ease of use, which every later
+     change is checked against";
+   - then one line per default, in everyday terms, with why it suits this project: "Page size under 2 MB, so the
+     guide opens in about a second on a phone";
+   - offer "Let the AI decide".
 3. **Write** the confirmed values into `docs/foundation.md`, set `status: set YYYY-MM-DD`, and record the key choices
    in `docs/DECISIONS.md`.
-4. **Shape it to grow** with the **modular-code** skill, section A: the module layout for the stack, the config module
-   and the names module (read from `docs/names.json`) made first, and the extension points the app will need written
-   into `docs/foundation.md`.
-4. **Build the scaffolding that enforces it,** so the foundation holds without anyone remembering it:
+4. **Shape it to grow** with the **modular-code** skill, section A: pick the module layout for the stack, make the
+   config module and the names module (read from `docs/names.json`) first, and write the extension points into the
+   Modules row of `docs/foundation.md`.
+5. **Build the scaffolding that enforces it,** so the foundation holds without anyone remembering it:
    - **Security:**
      - `.gitignore` covers every secret file;
      - a local server binds to loopback and checks Host and Origin (with a test that a cross-origin request is refused);
@@ -40,7 +42,7 @@ wants the security, performance or usability baseline revisited. Run it before t
      instruction points at it.
    - **Gates:** `node tools/packs.mjs configure app --test "<cmd>" --build "<cmd>" --code "<globs>"` (add `--lint`,
      `--typecheck` and `--version-file` where they apply), plus `codeRules` for the project's own forbidden patterns.
-5. **Verify:** each new test and script runs and passes. Screens go through the gui-review-loop (gui pack).
+6. **Verify:** each new test and script runs and passes. Screens go through the gui-review-loop (gui pack).
 
 ## Done when
 - [ ] `docs/foundation.md` has no `<...>` left and `status: set` (hook: foundation-set, and the setup gate).

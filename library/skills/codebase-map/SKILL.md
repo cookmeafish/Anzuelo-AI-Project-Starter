@@ -6,17 +6,16 @@ triggers: map the codebase, codebase map, architecture overview, find my way aro
 # Codebase map: understand the code once, reuse it every session
 
 Reading a large codebase file by file costs the same every session and still misses how the parts connect. Build the
-map once, from evidence, save it, and keep it current. The map answers three questions: how does a request or a run
-flow through the code, which parts depend on which, and where do I change X.
+map once from evidence, save it, keep it current. It answers: how a request or run flows through the code, which
+parts depend on which, and where to change X.
 
 Say at the start: "Mapping the codebase (codebase-map skill)." If `docs/codebase-map.md` exists, read it first, check
 its date and commit against `git log`, and update only what changed.
 
 ## 1. Pick the tools
 Use the best tool available, in this order, and say which one was used:
-1. **A code-graph or code-intelligence tool**, if one is installed (a knowledge-graph indexer, an LSP server, a
-   language's own dependency tool). It gives symbols, call chains, clusters and impact queries directly. Optional,
-   never required.
+1. **A code-graph or code-intelligence tool**, if installed (a knowledge-graph indexer, an LSP server, a language's
+   own dependency tool): symbols, call chains, clusters and impact queries directly. Optional.
 2. **This skill's scripts** (Node, nothing to install, read-only, usage in [references.md](references.md)):
    `skills/codebase-map/scripts/import-graph.mjs` for the import graph, most-depended-on files, module cycles and a
    Mermaid diagram (JavaScript/TypeScript, Python, Go); `skills/codebase-map/scripts/hotspots.mjs` for git churn,
@@ -30,18 +29,17 @@ Rules for outside tools:
 - Don't install anything or start a server without the user's OK. Stop any server you started when done.
 - Run `git status` after an indexer runs. Some write their own agent instruction files, skills or config into the
   repo; remove what was not asked for, and never let one overwrite `AGENTS.md`, `CLAUDE.md` or `skills/`. Index
-  folders stay out of git. Remove them at the end unless the user wants to keep them.
-- Keep the code on the machine. Don't upload it to a web viewer, a hosted graph service or a model API, and don't
-  expose a local viewer to the internet, without the user's explicit OK.
-- Optional extras such as semantic or embedding search cost much more time on large repos. Skip them for a first
-  map.
+  folders stay out of git; remove them at the end unless the user wants them.
+- Keep the code on the machine. Without the user's explicit OK, don't upload it to a web viewer, hosted graph service
+  or model API, and don't expose a local viewer to the internet.
+- Skip semantic or embedding search for a first map; it costs much more time on large repos.
 
 ## 2. Size it up
-1. List the top-level folders and count files and lines per language. Note what is generated, vendored or built
-   output, and leave it out of the map.
-2. Read the README, the build and package files, the CI config and any architecture notes. Note the languages,
-   frameworks, and how to build, test and run it.
-3. For very large repos, map one area at a time (the part the current task touches first) and say which areas are
+1. List the top-level folders and count files and lines per language. Leave generated, vendored and build output
+   out of the map.
+2. Read the README, build and package files, CI config and any architecture notes. Note the languages, frameworks,
+   and how to build, test and run it.
+3. For very large repos, map one area at a time (the one the current task touches first) and say which areas are
    not mapped yet.
 
 ## 3. Find the entry points
@@ -52,8 +50,8 @@ jobs, queue consumers, UI roots, exported library APIs, test setup. Record file 
 1. Name each module or package in one line: its job, its main files, and its public surface.
 2. Draw who imports whom, from the actual imports, not from folder names. Flag cycles and modules that everything
    depends on.
-3. Note the boundaries: database, network calls, file system, other services, environment and config. That is where
-   bugs and security issues gather. For apps with an API, add a route map: each route, its handler, and the client
+3. Note the boundaries, where bugs and security issues gather: database, network calls, file system, other
+   services, environment and config. For apps with an API, add a route map: each route, its handler, and the client
    code that calls it.
 4. **Group into functional areas** by how tightly the code connects (files that import each other and change
    together), not only by folder. Name each area by what it does ("billing", "sign-in"). For a large repo, give each
@@ -66,8 +64,8 @@ and where it is stored. Read the code on each hop. Don't infer a call from a nam
 
 ## 6. Find the hot spots
 From git history: files changed most often, files that usually change together, recent large changes, and files with
-many authors or many fixes. Combine with size and complexity: a big file that changes often is where bugs and
-merge conflicts come from. Commands are in [references.md](references.md).
+many authors or many fixes. Combine with size and complexity: big files that change often breed bugs and merge
+conflicts. Commands in [references.md](references.md).
 
 ## 7. Write "where to change what"
 A short table of the changes people will actually make (add a route, a setting, a field, a screen, a job) and the
@@ -81,17 +79,17 @@ map the diff back to the flows it touches and run their tests. Commands in [refe
 ## 8. Save the map
 Write `docs/codebase-map.md` with: the date and commit it was built from, the tools used, the sections above, and an
 "Unknown / not verified" list. Mark each dependency or flow edge by how it is known: read in the code, reported by a
-tool, or inferred (dynamic wiring). Keep it to what a newcomer needs; link to files instead of quoting code. A diagram
-(text or Mermaid) helps for the module graph. So the next session finds it, add a row for `docs/codebase-map.md` to
-"Where things live" in `DIRECTORY.md` (outside the generated block).
+tool, or inferred (dynamic wiring). Keep it to what a newcomer needs; link to files instead of quoting code. Use a
+diagram (text or Mermaid) for the module graph. Add a row for `docs/codebase-map.md` to "Where things live" in
+`DIRECTORY.md` (outside the generated block) so the next session finds it.
 
 ## Done when
 - [ ] Entry points, modules with their dependencies, 3 to 5 traced flows, hot spots, and a "where to change what" table are in `docs/codebase-map.md` (hook: map-saved).
 - [ ] Every flow hop and dependency was read in the code or produced by a tool, not guessed from names (judgment: what was read and what was guessed shows only in the work).
 - [ ] The map names its date, commit, tools used, and what is unknown or not mapped (judgment: no check reads the map's header yet).
 - [ ] Generated, vendored and build output is excluded, and no tool index files were added to git (judgment: which folders are generated differs per project).
-- [ ] `git status` shows nothing a tool added unasked (judgment: what was asked for and what left the machine needs a reviewer); any server started for the map is stopped; no code left the
-  machine without the user's OK.
+- [ ] `git status` shows nothing a tool added unasked; any server started for the map is stopped; no code left the
+  machine without the user's OK (judgment: what was asked for and what left the machine needs a reviewer).
 
 ## Pitfalls
 - **Folder names lie.** A folder called `utils` can hold the core logic. Map from imports and calls.
@@ -100,9 +98,8 @@ tool, or inferred (dynamic wiring). Keep it to what a newcomer needs; link to fi
 - **Too much detail.** A map that lists every function is the code again. Stop at what answers "where" and "how it
   flows".
 - **Stale maps mislead.** Always record the commit, and refresh the parts whose files changed since.
-- **Graph tools and huge repos.** Visual graph viewers that load everything into the browser slow down past a few
-  thousand files and can crash on tens of thousands. Query the tool or narrow the scope instead of rendering
-  everything.
+- **Graph tools and huge repos.** Browser graph viewers slow down past a few thousand files and can crash on tens of
+  thousands. Query the tool or narrow the scope instead.
 - **Same name, different symbol.** Several functions or classes can share a name across files. Pin each one by file
   (and kind) before tracing or judging impact.
 - **Tools that write into the repo.** An indexer can add instruction files, skills or hooks of its own. Check

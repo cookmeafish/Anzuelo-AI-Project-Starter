@@ -1,8 +1,9 @@
 # Layout standards (where things go)
 
-Everything lives in a folder that says what it is. The root stays small: what a person opens first, plus (for apps)
-one file that starts the app. The Stop hook blocks new loose files in the root (REQ: root-tidy), and the audit flags
-existing ones. Allowed root files are `rootAllowed` in `tools/hooks/config.json`; packs and setup extend the list.
+Everything lives in a folder that says what it is. The root holds what a person opens first, plus (for apps) one
+file that starts the app. The Stop hook blocks new loose root files (REQ: root-tidy), and the audit flags existing
+ones. Allowed root files are `rootAllowed` (defaults in `tools/hooks/hooks.mjs`, extended in
+`tools/hooks/config.json` by packs and setup).
 
 ## The root
 | Kind | Files |
@@ -19,14 +20,14 @@ Everything else goes in a folder. When in doubt, use a folder.
 | `docs/` | Brief, status, decisions, changelog, menu, security baseline, `playbooks/` (runbooks), `checks/` (standards), `plans/` |
 | `skills/` | Skills, one folder each (`.claude/skills/` is a generated local mirror, not in git) |
 | `tools/` | Project tools and the hook engine (`tools/hooks/`) |
-| `library/` | The starter's optional skills, until setup enables the ones that fit and `tools/starter.mjs` clears the rest |
+| `packs/`, `library/` | The starter's packs and optional skills, until setup installs the ones that fit and `tools/starter.mjs` clears the rest |
 | `.cache/` | Scratch: screenshots, drafts, temporary output. Never committed |
 
 ## Knowledge pack folders
 `docs/knowledge/` (facts by topic), `inbox/` (drop zone), `sources/` (originals), `outputs/` (deliverables).
-Working data the project keeps current (a price list, a stock count, a contact table the user edits) goes in
-`data/`, not `sources/`: originals in `sources/` are never edited, working files are. Keep the file a source came from
-in `sources/` and the edited working copy in `data/`, with its origin noted in `docs/knowledge/SOURCES.md`.
+Originals in `sources/` are never edited. Working data the project keeps current (a price list, a stock count, a
+contact table the user edits) goes in `data/`. The original it came from stays in `sources/`, and its origin is
+noted in `docs/knowledge/SOURCES.md`.
 
 ## App pack folders
 | Folder | What |

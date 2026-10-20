@@ -3,9 +3,9 @@ status: not set
 ---
 # Foundation: secure, fast and friendly from the first line
 
-Set by the `app-foundation` runbook during setup, with the user, before any feature work. Every feature is built and
-verified against this page. Change it only with the user and date the change. Replace every `<...>` with a real value
-or "N/A - <reason>". The setup gate fails while any are left.
+Set with the user by the `app-foundation` runbook, before any feature work. Every feature is built and verified
+against this page. Change it only with the user, and date the change. Replace every `<...>` and `<e.g. ...>` with a
+real value or "N/A - <reason>", then set `status: set`. The setup gate fails until both are done.
 
 Kind of app: <...> (web, mobile, desktop, game, CLI, library, service, ML or data pipeline). Rows that
 don't fit the kind are "N/A - <reason>" (a CLI has no screens, a library has no first run, a pipeline has no clicks).
