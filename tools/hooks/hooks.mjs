@@ -2710,6 +2710,7 @@ export function publishNotice(p, inp) {
   if (!p || p.startsWith('..') || /^tools\/hooks\/state\/|^\.private-terms$/.test(p)) return null;
   const text = [inp.content, inp.new_string, inp.new_source, ...(inp.edits || []).map(e => e.new_string)].filter(v => typeof v === 'string').join('\n');
   const found = personalDetails(text);
+  // outside a git repository check-ignore fails (128), so every file counts as published, as in the audit's sweep
   if (!found.length || spawnSync('git', ['check-ignore', '-q', p], { cwd: ROOT }).status === 0) return null;
   return `PUBLISH SAFETY: ${p} now holds ${found.map(f => `${f.what} ("${f.hit.slice(0, 40)}")`).join(', ')}. The audit fails on it. Use a placeholder (name@example.com, <user>, <ip>). If the user asked for this exact value to be published, tell them the audit will flag it.`;
 }
@@ -3048,6 +3049,15 @@ export function coreChecks(x, cfg) {
   const loose = x.changed.filter(p => !p.includes('/') && !match(p, cfg.rootAllowed) && exists(p) && bornThisTurn(p, x.since));
   if (loose.length) add('root-tidy', `New files sit loose in the project root: ${loose.join(', ')}. Move each into the folder that fits ` +
     '(docs/checks/layout-standards.md), or add it to rootAllowed in tools/hooks/config.json if it really must live in the root (toolchain config, the one start file).');
+  // REQ: fit-checklist (after setup). New files can make a decided row's reason stale: a skip that the survey now
+  // contradicts (data files, web pages) or a "later - when:" that is now met. Only on a turn that added files, and only
+  // those two kinds of problem. Lesson: a new CSV left a "no data files" skip standing until the next audit failed.
+  if (exists(FIT_FILE) && !exists('SETUP-PROMPT.md') && !exists('.starter-template')
+    && x.changed.some(p => !match(p, cfg.notWork) && !/^docs\/|\.md$/i.test(p) && exists(p) && bornThisTurn(p, x.since))) {
+    const stale = fitProblems(cfg).filter(m => /: the project has .*say why it still doesn't help|its condition is met now/.test(m));
+    if (stale.length) add('fit-checklist', `Files added this turn change what ${FIT_FILE} was decided on: ${stale.slice(0, 3).join('; ')}. ` +
+      'Update those rows (decision and reason) until node tools/fit.mjs check passes.');
+  }
   // REQ: code-rules. Project-defined patterns that must not appear in changed code (filled by packs and setup).
   const cr = [];
   for (const rule of cfg.codeRules) {

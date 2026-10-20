@@ -135,6 +135,8 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
     "i added") are gone, and a self-test checks every shipped trigger (they warned in projects' audits only). In docs,
     the name check skips code spans, fenced blocks and paths, so a project named after its package can write
     `python -m <package>` as it is.
+  - **Fit checklist stays true after setup:** a turn that adds files which contradict a decided skip (a first CSV, a
+    first web page) or meet a "later - when:" condition is blocked until those rows are updated (REQ: fit-checklist).
 - 2026-10-19 (later): Fixes from the same project's next upgrade.
   - **No false "kept your edited version".** An older shipped check is not a local edit. The starter now ships
     `tools/hooks/engine-checks-history.json`, the fingerprint of every version of every check it ever released

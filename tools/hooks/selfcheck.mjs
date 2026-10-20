@@ -810,6 +810,13 @@ STOP.push(
   { name: 'new runbook without checking for existing skills: blocked', prompt: 'make a runbook for meal planning', tools: [pb('project'), bash('node tools/audit.mjs')],
     files: { 'docs/playbooks/meal-plan.md': NEWPB, 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.' + FIN, expect: { block: true, tags: ['skill-reuse'] } },
   { name: 'a loose new file in the project root: blocked', prompt: 'save my notes', files: { 'notes.txt': 'x' }, answer: 'Saved. N/A(runbook-exists): test.' + FIN, expect: { block: true, tags: ['root-tidy'] } },
+  // fit after setup: a new data file a "skip" never answered makes that reason stale (Lesson: caught only by the audit)
+  { name: 'fit-checklist: a turn adds a data file that a decided skip never answered: blocked', prompt: 'add the price list', removeMarker: true,
+    prep: dir => { fitFill(dir); fs.rmSync(path.join(dir, 'SETUP-PROMPT.md'), { force: true }); }, files: { 'data/prices.csv': 'item,price\ndesk,300\n' },
+    answer: 'Added. N/A(runbook-exists): test.' + FIN, expect: { block: true, tags: ['fit-checklist'] } },
+  { name: 'fit-checklist: a new data file the reasons already answer: passes', prompt: 'add the price list', removeMarker: true,
+    prep: dir => { write(dir, { 'data/old.csv': 'a\n1\n' }); fitFill(dir); fs.rmSync(path.join(dir, 'SETUP-PROMPT.md'), { force: true }); }, files: { 'data/prices.csv': 'item,price\ndesk,300\n' },
+    answer: 'Added. N/A(runbook-exists): test.' + FIN, expect: { not: ['fit-checklist'] } },
   // Lesson: in an adopted project, editing its own main.py asked to move it out of the root
   { name: 'root-tidy: editing a file that was already in the root: passes', prompt: 'save my notes',
     prep: dir => { write(dir, { 'notes.txt': 'x' }); run(dir, 'prompt', { prompt: 'save my notes' }); }, files: { 'notes.txt': 'x2' }, answer: 'Saved. N/A(runbook-exists): test.' + FIN, expect: { not: ['root-tidy'] } },
