@@ -1,7 +1,7 @@
 ---
 name: install-update
 summary: Change or verify how the app is installed, launched or updated - one entry file, idempotent steps, safe updates, a test matrix the user runs
-triggers: installer, install script, setup script, launcher, shortcut, auto update, self update, updater, first run, install fails, launch fails, packaging, update itself, start.bat, first time someone
+triggers: installer, one command, single command, new machine, fresh machine, new computer, fresh install, install script, setup script, launcher, shortcut, auto update, self update, updater, first run, install fails, launch fails, packaging, update itself, start.bat, first time someone
 menu: A8
 ---
 # Playbook: install, launch and update

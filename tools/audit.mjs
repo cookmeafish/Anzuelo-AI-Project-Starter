@@ -11,7 +11,7 @@ import {
   ROOT, read, abs, exists, frontmatter, playbooks, skillProblems, playbookProblems, knowledgeProblems, config,
   loadRequirements, usage, hardenDue, menu, runbookHasCheck, generatedSkill, directoryBlock, staleKnowledge,
   setupProblems, upgradeProblems, bench, gitignoreProblems, writingProblems, aiAttributedCommits, BASE_REQUIREMENTS, routableSkills, skillHasCheck, curateDue,
-  FIT_FILE, fitProblems, fitRows, fitDecision, fitWhenOf, doneWhenItems, DONE_LABEL, findLibrary, secretHit, mirrorText, logRun, testInputsHash, deadTriggers, rulesText, route
+  FIT_FILE, fitProblems, fitRows, fitDecision, fitWhenOf, doneWhenItems, DONE_LABEL, findLibrary, secretHit, mirrorText, logRun, testInputsHash, deadTriggers, rulesText, route, personalDetails
 } from './hooks/hooks.mjs';
 
 const cfg = config();
@@ -336,17 +336,9 @@ sweep('publish safety (no personal or machine details)', () => {
   if (isRepo) { const r = spawnSync('git', ['check-ignore', '--stdin'], { cwd: ROOT, input: all.join('\n'), encoding: 'utf8' }); for (const l of (r.stdout || '').split(/\r?\n/)) if (l) ignored.add(l.trim()); }
   else for (const f of all) if (/^\.private-terms$|^tools\/hooks\/state\//.test(f)) ignored.add(f);
   const terms = read(abs('.private-terms')).split(/\r?\n/).map(s => s.trim()).filter(s => s && !s.startsWith('#'));
-  const checks = [
-    [/[A-Za-z0-9._%+-]+@(?!example\.(com|org)|users\.noreply\.github\.com)[A-Za-z0-9.-]+\.[a-z]{2,}/, 'an email address'],
-    [/[A-Za-z]:[\\/]+Users[\\/]+(?!<|USER|you|\$|%)[A-Za-z0-9._-]+/i, 'a personal Windows path'],
-    [/\/(home|Users)\/(?!<|user\b|you\b|\$)[a-z0-9._-]{2,}\//i, 'a personal home path'],
-    // first part 10 to 255, every part a real octet, and not a version ("v9.7.0.3", "version 12.1.0.4", "9.7.0.3")
-    // Lesson: four-part version numbers in a game's data were flagged as IP addresses.
-    [/(?<![\w.]|\bv|\bversions?[\s:=]{1,3}|\bbuild[\s:=]{1,3})(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}(?![\w.])(?<!127\.0\.0\.1)/i, 'an IP address']
-  ];
   for (const f of all.filter(f => !ignored.has(f) && f !== '.private-terms')) {
     const text = read(abs(f));
-    for (const [rx, what] of checks) { const m = rx.exec(text); if (m && !/noreply@(anthropic|openai)\.com/.test(m[0])) fail.push(`${f}: ${what} ("${m[0].slice(0, 40)}")`); }
+    for (const { what, hit } of personalDetails(text)) fail.push(`${f}: ${what} ("${hit.slice(0, 40)}")`);
     for (const t of terms) if (text.toLowerCase().includes(t.toLowerCase())) fail.push(`${f}: contains a private term from .private-terms`);
     // Lesson: a fake key in a test fixture made every project's first full commit fail the secret check. Build such
     // strings at runtime instead of writing them out.

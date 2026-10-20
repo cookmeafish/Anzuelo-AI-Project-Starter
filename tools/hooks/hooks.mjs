@@ -266,6 +266,17 @@ export const secretRes = (cfg = config()) => [...new Set(cfg.secretPatterns)].ma
   try { return { s, rx: new RegExp(src) }; } catch { return null; }
 }).filter(Boolean);
 export const secretHit = (text, cfg = config()) => secretRes(cfg).find(p => p.rx.test(text))?.s;
+// Personal or machine details that must not be published (the audit's publish-safety sweep, and a notice at the edit).
+const PERSONAL = [
+  [/[A-Za-z0-9._%+-]+@(?!example\.(com|org)|users\.noreply\.github\.com)[A-Za-z0-9.-]+\.[a-z]{2,}/, 'an email address'],
+  [/[A-Za-z]:[\\/]+Users[\\/]+(?!<|USER|you|\$|%)[A-Za-z0-9._-]+/i, 'a personal Windows path'],
+  [/\/(home|Users)\/(?!<|user\b|you\b|\$)[a-z0-9._-]{2,}\//i, 'a personal home path'],
+  // first part 10 to 255, every part a real octet, and not a version ("v9.7.0.3", "version 12.1.0.4", "9.7.0.3")
+  // Lesson: four-part version numbers in a game's data were flagged as IP addresses.
+  [/(?<![\w.]|\bv|\bversions?[\s:=]{1,3}|\bbuild[\s:=]{1,3})(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}(?![\w.])(?<!127\.0\.0\.1)/i, 'an IP address']
+];
+export const personalDetails = text => PERSONAL.map(([rx, what]) => ({ what, hit: rx.exec(text)?.[0] }))
+  .filter(x => x.hit && !/noreply@(anthropic|openai)\.com/.test(x.hit));
 
 // ---------- project content ----------
 // The runbooks and routable skills are read several times per hook run; each is rebuilt only when a file in its
@@ -416,11 +427,21 @@ export const deadTriggers = triggers => triggers.filter(t => !/\s/.test(String(t
 // passages don't route. Lesson: "reply to this customer: 'the app keeps crashing when I log in'" routed to bugfix.
 export const unquoted = s => String(s || '').replace(/```[\s\S]*?(```|$(?![\s\S]))/g, ' ').replace(/^\s*>.*$/gm, ' ')
   .replace(/(["“'‘])([^"”'’\n]{40,})(["”'’])/g, ' ');
+// The fewest consecutive key words of the message that hold every key word of a trigger (Infinity if none).
+const keySpan = (seq, k) => {
+  let best = Infinity;
+  for (let i = 0; i < seq.length; i++) {
+    if (!k.includes(seq[i])) continue;
+    const need = new Set(k);
+    for (let j = i; j < seq.length && j - i < 40; j++) { need.delete(seq[j]); if (!need.size) { best = Math.min(best, j - i + 1); break; } }
+  }
+  return best;
+};
 export function route(prompt, pbs) {
   const text = unquoted(userText(prompt));
   if (OPINION.test(text)) return [];
   const low = ` ${text.toLowerCase()} `;
-  const words = new Set(keyWords(low));
+  const seq = keyWords(low), words = new Set(seq);
   const scored = [];
   const off = new Set(suspendedItems().map(s => s.item.replace(/^(skill|runbook):/, ''))); // REQ: friction-suspend
   for (const pb of pbs) {
@@ -437,7 +458,9 @@ export function route(prompt, pbs) {
       if (common && !/\s/.test(t.trim())) continue;
       const exact = re(`(^|[^a-z0-9])${esc(t)}($|[^a-z0-9])`).test(low);
       // a one-word trigger also matches its plural or past form ("bug" in "two bugs"); a longer one needs its key words
-      if (common ? !exact : !exact && !(k.every(w => words.has(w)) && (k.length >= 2 || !/\s/.test(t.trim())))) continue;
+      // ...and those key words close together: "make it so the app can be installed and started on a new machine" is
+      // no "start a new app" (Lesson: a live trial routed it to app-foundation)
+      if (common ? !exact : !exact && !(k.every(w => words.has(w)) && (k.length >= 2 ? keySpan(seq, k) <= k.length + 2 : !/\s/.test(t.trim())))) continue;
       // A whole phrase typed exactly ("not working", "fix this", "teach me", "ship it") is the request itself, unless it
       // sits in a plain question with no request verb. Lesson: such triggers could only back up another match, so "the
       // export is not working" and "teach me git branching" routed nowhere.
@@ -1265,7 +1288,11 @@ export function nameProblems(file, text, nm = names(), cfg = config()) {
   // code: only text people read (strings and comments) counts, never an identifier, module or import path
   let bare = text.replace(NAME_MARK, '');
   if (!doc) bare = bare.split(/\r?\n/).filter(l => !/^\s*(import|from|export\s+\*|use|require|package|module|#include|using)\b/.test(l)).join('\n');
-  const word = v => doc ? new RegExp(`(?<![\\w-])${esc(v)}(?![\\w-])`) : new RegExp(`(?<![\\w./\\\\-])${esc(v)}(?![\\w./\\\\(-])`);
+  // docs: a package folder or command is written as it is (`python -m pkg`, pkg/x.py), so code spans, fenced blocks
+  // and path-like text don't count. Lesson: a Python project named after its package flagged its own install steps,
+  // and a marker inside a path breaks on a rename.
+  else bare = bare.replace(/```[\s\S]*?```|`[^`\n]*`/g, '');
+  const word = v => doc ? new RegExp(`(?<![\\w./\\\\-])${esc(v)}(?![\\w-]|[./\\\\]\\w)`) : new RegExp(`(?<![\\w./\\\\-])${esc(v)}(?![\\w./\\\\(-])`);
   // one finding per typed name, even when several keys hold it (Lesson: PROJECT_NAME and a second key holding the same name gave two)
   const seen = new Set();
   return checkable(nm).filter(([, v]) => !/^[a-z]+$/.test(v) || v.length > 5).filter(([, v]) => word(v).test(bare) && !seen.has(v) && seen.add(v))
@@ -2673,7 +2700,18 @@ function cmdPosttool(data) {
   if (p === 'CLAUDE.md' || p === 'AGENTS.md') syncTwin();
   if (/^(docs\/(playbooks|checks|knowledge|MENU\.md)|skills\/|tools\/hooks\/requirements\.json)/.test(p)) syncAll();
   const h = eventHintAfterEdit(p, data.tool_input || {});
-  if (h) contextOut('PostToolUse', h + '\n');
+  const pub = publishNotice(p, data.tool_input || {});
+  if (h || pub) contextOut('PostToolUse', [h, pub].filter(Boolean).join('\n') + '\n');
+}
+// REQ: publish-safety (at the edit). A tracked file that now holds an email address, a personal path or an IP address
+// fails the audit's publish-safety sweep; say so while the text is fresh. Lesson: an email written into a plan doc
+// passed every Stop check and failed only the next audit.
+export function publishNotice(p, inp) {
+  if (!p || p.startsWith('..') || /^tools\/hooks\/state\/|^\.private-terms$/.test(p)) return null;
+  const text = [inp.content, inp.new_string, inp.new_source, ...(inp.edits || []).map(e => e.new_string)].filter(v => typeof v === 'string').join('\n');
+  const found = personalDetails(text);
+  if (!found.length || spawnSync('git', ['check-ignore', '-q', p], { cwd: ROOT }).status === 0) return null;
+  return `PUBLISH SAFETY: ${p} now holds ${found.map(f => `${f.what} ("${f.hit.slice(0, 40)}")`).join(', ')}. The audit fails on it. Use a placeholder (name@example.com, <user>, <ip>). If the user asked for this exact value to be published, tell them the audit will flag it.`;
 }
 // REQ: event-hint (after an edit). The moment an edit writes what an event trigger watches for (sign-in code, a secret,
 // a shell call), the agent hears which skill is now mandatory, once per trigger and turn, while it can still follow it.
@@ -2703,7 +2741,9 @@ export function eventHintAfterEdit(p, inp, cfg = config()) {
     // too, not only at the end of the turn. One tied to a runbook or skill being followed is that procedure's own step.
     // Lesson: a file saved into outputs/ heard about the deliverable runbook only when Stop blocked the finished answer.
     // (a files trigger may sit in one "anyOf" branch, with its own filesIgnore)
-    const onFiles = b => b && b.filesChanged && !b.playbookUsed && !b.skillUsed && match(p, [].concat(b.filesChanged)) && !(b.filesIgnore && match(p, [].concat(b.filesIgnore)));
+    // Lesson: a check that also needs a failing run (ranFailing) fired on every code edit; only a files-only condition
+    // is met by the edit itself.
+    const onFiles = b => b && b.filesChanged && Object.keys(b).every(k => k === 'filesChanged' || k === 'filesIgnore') && match(p, [].concat(b.filesChanged)) && !(b.filesIgnore && match(p, [].concat(b.filesIgnore)));
     if (q.when.playbookUsed || q.when.skillUsed || !(onFiles(q.when) || (q.when.anyOf || []).some(onFiles))) continue;
     shown.push(q.tag);
     out.push(`MUST FOLLOW: ${q.forces}. This turn changed ${p}, so the ${q.forces} ${kind(q.forces)} is mandatory this turn (REQ: ${q.tag}). Follow it before finishing, or waive it with N/A(${q.tag}): <the specific reason>.`);

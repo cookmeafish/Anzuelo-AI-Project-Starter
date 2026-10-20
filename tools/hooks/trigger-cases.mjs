@@ -39,6 +39,7 @@ export default {
     'the dashboard numbers are wrong',
     'how many screens does the app have?'] },
   'ROUTE: ingest': { fire: [
+    "I added a file to the inbox, have a look",
     'I put the supplier invoices in the inbox folder',
     "here are last month's bank statements",
     'just dropped a pdf in there, can you go through it',
@@ -48,6 +49,7 @@ export default {
     'where should I put files I want you to read?',
     'make the export save as a pdf'] },
   'ROUTE: install-update': { fire: [
+    "make it so the app can be installed and started with one command on a new machine",
     "the desktop shortcut doesn't open the app anymore",
     'make a one-click installer for windows',
     "the app should update itself when there's a new version",
@@ -132,7 +134,8 @@ export default {
     'bootstrap a new web app from nothing',
     "we're starting the app, lay the groundwork right"], quiet: [
     'what is the foundation of a good sourdough?',
-    'fix the scaffolding page typo'] },
+    'fix the scaffolding page typo',
+    'the new app version should start faster on my machine'] },
 
   // ---------- skills ----------
   'SKILL: debug': { fire: [
@@ -311,6 +314,7 @@ export default {
     'supervise the agents'], quiet: [
     'orchestrate the band rehearsal schedule'] },
   'SKILL: package-release': { fire: [
+    "prepare src/lib as an npm package other people can install",
     'publish the library to npm',
     'is this a breaking change?',
     'put it on pypi',

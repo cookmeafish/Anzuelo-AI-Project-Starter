@@ -1,7 +1,7 @@
 ---
 name: deliverable
 summary: Produce a document the user will use or share (report, plan, brief, guide, checklist, draft) as a new versioned file in outputs/
-triggers: write me, write a report, write a document, write up, draft, make me a, create a document, a report on, proposal, guide, checklist, cheat sheet, summary for, one-pager, email draft, a letter, letter to, outline, save it, put it in a file, export as, as a pdf, as a word document, write a post, instagram post, insta post, social post, social media post, newsletter, blog post, caption, flyer, menu card, handout, printable, to print, i can print, proper report, write up the meeting, pdf of, make a pdf, one page summary
+triggers: write a report, write a document, write up, draft, make me a, create a document, a report on, proposal, guide, checklist, cheat sheet, summary for, one-pager, email draft, a letter, letter to, outline, put it in a file, export as, as a pdf, as a word document, write a post, instagram post, insta post, social post, social media post, newsletter, blog post, caption, flyer, menu card, handout, printable, to print, i can print, proper report, write up the meeting, pdf of, make a pdf, one page summary
 menu: K4
 ---
 # Playbook: make a deliverable

@@ -1646,7 +1646,10 @@ if (!TAGS) { // the standalone checks run in a full run only
     const codeOk = np('src/App.tsx', "import { ShopBoard } from './ShopBoard';\nShopBoard.render();\n", nmB) === '0' && np('src/App.tsx', 'const title = "ShopBoard orders";\n', nmB) === '1'
       && np('src/clean.py', 'from pipe.clean import run\nprint("pipe")\n', { PROJECT_NAME: 'pipe' }) === '0' && np('tools/hooks/hooks.mjs', '"ShopBoard"', nmB) === (fs.existsSync(path.join(dir, '.starter-template')) ? '1' : '0')
       // two keys holding one name: one finding, not one per key
-      && np('docs/notes.md', 'ShopBoard is ready.\n', { PROJECT_NAME: 'ShopBoard', APP_NAME: 'ShopBoard' }) === '1';
+      && np('docs/notes.md', 'ShopBoard is ready.\n', { PROJECT_NAME: 'ShopBoard', APP_NAME: 'ShopBoard' }) === '1'
+      // a doc shows a package folder and command as they are (code spans, fences, paths); prose still counts
+      && np('README.md', 'Run `python -m photodate` or edit photodate/cli.py.\n```\npip install photodate\n```\n', { PROJECT_NAME: 'photodate' }) === '0'
+      && np('README.md', 'photodate sorts photos by date.\n', { PROJECT_NAME: 'photodate' }) === '1';
     report(allCovered && lab === 'Add a dated line to CHANGELOG.md for the knowledge change' && /^Record the confirmed findings/.test(lab2) && files.includes('docs/shared.md') && !files.includes('local-notes.md') && codeOk,
       'knowledgeDirs, labels, names: a vault folder gets the knowledge checks, labels read as sentences, ignored files and code identifiers are not name-checked', `${globs} | ${lab} | ${lab2} | ${files.slice(0, 200)} | code ${codeOk}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
@@ -1997,13 +2000,39 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
+{ // the triggers the starter ships in packs and library skills each route when typed alone (the project audit warns
+  // otherwise, so every project that installs them would carry the warning). Lesson: "fix it", "write me", "save it"
+  // and "build a" passed the starter's audit and warned in a project with the app and knowledge packs.
+  const at = p => path.join(ROOT, p), files = [];
+  for (const p of fs.existsSync(at('packs')) ? fs.readdirSync(at('packs')) : []) {
+    const d = at(`packs/${p}/files/docs/playbooks`);
+    if (fs.existsSync(d)) for (const f of fs.readdirSync(d)) if (f.endsWith('.md') && !f.startsWith('_')) files.push(`packs/${p}/files/docs/playbooks/${f}`);
+  }
+  for (const s of fs.existsSync(at('library/skills')) ? fs.readdirSync(at('library/skills')) : []) if (fs.existsSync(at(`library/skills/${s}/SKILL.md`))) files.push(`library/skills/${s}/SKILL.md`);
+  const { frontmatter, route, deadTriggers } = await import('./hooks.mjs');
+  const bad = [];
+  for (const f of files) {
+    const fm = frontmatter(fs.readFileSync(at(f), 'utf8')) || {};
+    const triggers = String(fm.triggers || '').split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
+    const dead = new Set(deadTriggers(triggers));
+    for (const t of triggers) if (dead.has(t) || !route(t, [{ name: '', fm, triggers, triggerRe: null }]).length) bad.push(`${f}: "${t}"`);
+  }
+  report(!files.length || !bad.length, 'shipped triggers: every pack runbook and library skill trigger routes when typed alone', bad.join('; '));
+}
+
 { // event-hint after an edit: writing sign-in code names the mandatory skill at once, once per turn
   const dir = copyProject();
   try {
     write(dir, { 'tools/hooks/state/turn.json': JSON.stringify({ at: new Date().toISOString(), prompt: 'make the form work' }) });
     const edit = content => run(dir, 'posttool', { tool_name: 'Write', tool_input: { file_path: path.join(dir, 'src/auth.js'), content } }).out;
     const first = edit('export const ok = (u, password) => bcrypt.compare(password, u.hash);'), again = edit('const hash = await bcrypt.hash(password, 12);'), plain = run(dir, 'posttool', { tool_name: 'Write', tool_input: { file_path: path.join(dir, 'src/sum.js'), content: 'export const sum = (a, b) => a + b;' } }).out;
-    report(/MUST FOLLOW: security-review/.test(first) && /security-code/.test(first) && !/MUST FOLLOW/.test(again) && !plain.trim(), 'event-hint: an edit that writes sign-in code names the security review at once, once per turn', `${first.slice(0, 200)} | ${again.slice(0, 100)} | ${plain.slice(0, 100)}`);
+    // a check that also needs a failing run (debug) is not met by the edit alone
+    const script = run(dir, 'posttool', { tool_name: 'Write', tool_input: { file_path: path.join(dir, 'scripts/start.sh'), content: 'node server.js\n' } }).out;
+    // an email written into a tracked doc is named at the edit, not first at the next audit; a placeholder is fine
+    const docEdit = content => run(dir, 'posttool', { tool_name: 'Write', tool_input: { file_path: path.join(dir, 'docs/plans/launch.md'), content } }).out;
+    const mail = docEdit(`Contact: ${['jo.smith', 'mailhost.net'].join('@')} for the launch.`), safe = docEdit('Contact: name@example.com for the launch.');
+    report(/PUBLISH SAFETY: docs\/plans\/launch\.md .*an email address/.test(mail) && !/PUBLISH SAFETY/.test(safe), 'publish-safety: an email written into a tracked doc is named at the edit; a placeholder is quiet', `${mail.slice(0, 200)} | ${safe.slice(0, 200)}`);
+    report(/MUST FOLLOW: security-review/.test(first) && /security-code/.test(first) && !/MUST FOLLOW/.test(again) && !plain.trim() && !/MUST FOLLOW: debug/.test(script), 'event-hint: an edit that writes sign-in code names the security review at once, once per turn; a plain code edit names no debug', `${first.slice(0, 200)} | ${again.slice(0, 100)} | ${plain.slice(0, 100)} | ${script.slice(0, 100)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 

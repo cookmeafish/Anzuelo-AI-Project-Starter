@@ -127,6 +127,14 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
     (~600 ms per prompt in a project with many images); an HTML page's tags are no longer counted as words by the
     writing check, and block elements end a sentence; self-tests no longer collide with a project's own runbooks,
     pages, Playwright or feedback inbox (fixtures use a made-up name, website projects pass).
+  - **From the trial reruns:** a plain code edit no longer prints "MUST FOLLOW: debug" (that check needs a failing
+    test or build first); an email address, personal path or IP address written into a tracked file is named at the
+    edit (PUBLISH SAFETY), not first at the next audit; triggers only route when their key words sit close together
+    ("one command on a new machine" reaches install-update, not app-foundation); "npm package" and "one command
+    install" wordings route. Pack triggers that could not route alone ("fix it", "build a", "write me", "save it",
+    "i added") are gone, and a self-test checks every shipped trigger (they warned in projects' audits only). In docs,
+    the name check skips code spans, fenced blocks and paths, so a project named after its package can write
+    `python -m <package>` as it is.
 - 2026-10-19 (later): Fixes from the same project's next upgrade.
   - **No false "kept your edited version".** An older shipped check is not a local edit. The starter now ships
     `tools/hooks/engine-checks-history.json`, the fingerprint of every version of every check it ever released
