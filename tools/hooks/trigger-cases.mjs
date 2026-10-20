@@ -352,6 +352,8 @@ export default {
     'run a usability test on the checkout'], quiet: [
     'research the best laptop'] },
   'SKILL: web-app-patterns': { fire: [
+    "where should the cart state live? it's passed through props everywhere", // found by a live trial
+    'move the cart state out of App.tsx into one place so every component reads the same cart',
     'the react component re-renders forever',
     'old search results show up after new ones',
     'add form validation to signup',
