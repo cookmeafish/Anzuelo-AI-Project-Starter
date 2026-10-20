@@ -88,6 +88,11 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
   - **Security review of the sweep:** feedback from projects (`docs/feedback-inbox/`) is ignored by the starter's git
     and the audit fails if it is ever committed, since it names the user's projects; the survey drops `__proto__`
     keys from a manifest's scripts.
+  - **Upgrades refresh pack and library files**: a file from an installed pack or an enabled library skill that the
+    project never edited takes the starter's newer version (a skill keeps its added triggers and lessons); an edited one
+    is kept and named in the review (`file:`) when the starter changed it since. Setup questions added since setup are
+    named too (`interview:`). A typed name held by several keys in `docs/names.json` is one finding, and a new
+    project's one-line placeholder no longer types the name out.
 - 2026-10-19 (later): Fixes from the same project's next upgrade.
   - **No false "kept your edited version".** An older shipped check is not a local edit. The starter now ships
     `tools/hooks/engine-checks-history.json`, the fingerprint of every version of every check it ever released

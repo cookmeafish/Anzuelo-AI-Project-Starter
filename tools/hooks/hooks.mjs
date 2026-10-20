@@ -1172,7 +1172,9 @@ export function nameProblems(file, text, nm = names(), cfg = config()) {
   let bare = text.replace(NAME_MARK, '');
   if (!doc) bare = bare.split(/\r?\n/).filter(l => !/^\s*(import|from|export\s+\*|use|require|package|module|#include|using)\b/.test(l)).join('\n');
   const word = v => doc ? new RegExp(`(?<![\\w-])${esc(v)}(?![\\w-])`) : new RegExp(`(?<![\\w./\\\\-])${esc(v)}(?![\\w./\\\\(-])`);
-  return checkable(nm).filter(([, v]) => !/^[a-z]+$/.test(v) || v.length > 5).filter(([, v]) => word(v).test(bare))
+  // one finding per typed name, even when several keys hold it (Lesson: PROJECT_NAME and a second key holding the same name gave two)
+  const seen = new Set();
+  return checkable(nm).filter(([, v]) => !/^[a-z]+$/.test(v) || v.length > 5).filter(([, v]) => word(v).test(bare) && !seen.has(v) && seen.add(v))
     .map(([k, v]) => `${file}: "${v}" is typed out; ${html && new RegExp(`<title>[^<]*${esc(v)}`, 'i').test(bare) ? `inside <title> or an attribute a marker would show: fill it from ${NAMES_FILE} when the page is built, or write N/A(name-var) with why`
       : doc ? `write <!--name:${k}-->${v}<!--/name-->` : `read it from ${NAMES_FILE} (key ${k})`}`);
 }

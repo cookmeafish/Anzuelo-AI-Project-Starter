@@ -1480,7 +1480,9 @@ if (!TAGS) { // the standalone checks run in a full run only
     const np = (f, t, nm) => js(`import { nameProblems } from ${H}; console.log(nameProblems(${JSON.stringify(f)}, ${JSON.stringify(t)}, ${JSON.stringify(nm)}).length)`);
     const nmB = { PROJECT_NAME: 'ShopBoard' };
     const codeOk = np('src/App.tsx', "import { ShopBoard } from './ShopBoard';\nShopBoard.render();\n", nmB) === '0' && np('src/App.tsx', 'const title = "ShopBoard orders";\n', nmB) === '1'
-      && np('src/clean.py', 'from pipe.clean import run\nprint("pipe")\n', { PROJECT_NAME: 'pipe' }) === '0' && np('tools/hooks/hooks.mjs', '"ShopBoard"', nmB) === (fs.existsSync(path.join(dir, '.starter-template')) ? '1' : '0');
+      && np('src/clean.py', 'from pipe.clean import run\nprint("pipe")\n', { PROJECT_NAME: 'pipe' }) === '0' && np('tools/hooks/hooks.mjs', '"ShopBoard"', nmB) === (fs.existsSync(path.join(dir, '.starter-template')) ? '1' : '0')
+      // two keys holding one name: one finding, not one per key
+      && np('docs/notes.md', 'ShopBoard is ready.\n', { PROJECT_NAME: 'ShopBoard', APP_NAME: 'ShopBoard' }) === '1';
     report(allCovered && lab === 'Add a dated line to CHANGELOG.md for the knowledge change' && /^Record the confirmed findings/.test(lab2) && files.includes('docs/shared.md') && !files.includes('local-notes.md') && codeOk,
       'knowledgeDirs, labels, names: a vault folder gets the knowledge checks, labels read as sentences, ignored files and code identifiers are not name-checked', `${globs} | ${lab} | ${lab2} | ${files.slice(0, 200)} | code ${codeOk}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }

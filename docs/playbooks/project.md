@@ -39,12 +39,15 @@ To get a newer release of the starter first, run `node tools/starter.mjs update`
 linked copy (stopping if that copy has local changes or is a development copy), then upgrades as below. Otherwise:
 `node tools/starter.mjs upgrade` (needs the starter linked; run it with `--dry-run` first to see the list). It
 replaces only the engine files (hooks, tests, audit, tools, core skills and checklists) and never touches this
-project's content. It can't make the project worse unseen:
+project's content. Files from installed packs and enabled library skills are refreshed only where this project never
+edited them (a skill keeps the triggers and lessons it added); an edited one is kept, and named in the review when the
+starter changed it since. It can't make the project worse unseen:
 1. It audits and times the hooks before and after. A check that passed before and fails after rolls the whole upgrade
    back. `--accept-findings` keeps it and lists those checks to fix.
 2. It writes `## Upgrade review (date)` into `docs/DECISIONS.md`: every new hard rule, a pack the setup answers call
    for that is missing, `fit: N new candidates` when `docs/fit-checklist.md` got new rows (new packs, library skills,
-   tools or features, added as `?`), every new failing check, every hook that got much slower, and the self-tests.
+   tools or features, added as `?`), every new failing check, every hook that got much slower, setup questions added since
+   setup (`interview:`), pack or library files kept because they were edited here (`file:`), and the self-tests.
 3. **You decide; the user only sees a summary.** Decide the new fit rows yourself from the survey, the brief and the
    code (add, skip, or `later - when: <condition>`, each with its reason) until `node tools/fit.mjs check` passes,
    then write `decided` on the fit line. Ask the user only about what is truly theirs (money, privacy, outward

@@ -158,6 +158,15 @@ for (const [name, s] of Object.entries(SAMPLES)) {
     fs.writeFileSync(path.join(dir, 'tools/hooks/requirements.json'), JSON.stringify(rq, null, 2) + '\n');
     const ep = path.join(dir, 'docs/checks/rule-enforcement.md');
     fs.writeFileSync(ep, fs.readFileSync(ep, 'utf8').split('\n').filter(l => !packTags.some(t => l.includes(t))).join('\n'));
+    // a pack skill as an older release shipped it (plus a trigger of the project's own), a pack file edited here, and an
+    // engine from before the "Involvement" question. Lesson: pack files were never refreshed, and a new setup question
+    // failed audit --setup with no word in the upgrade review.
+    const kc = 'skills/knowledge-capture/SKILL.md', first = git(['log', '--format=%H', '--reverse', '--', `packs/knowledge/files/${kc}`], STARTER).stdout.split('\n')[0];
+    fs.writeFileSync(path.join(dir, kc), git(['show', `${first}:packs/knowledge/files/${kc}`], STARTER).stdout.replace(/^triggers:(.*)$/m, 'triggers:$1, our trip tally'));
+    fs.appendFileSync(path.join(dir, 'docs/checks/evidence-standards.md'), '\n- Our own rule: two sources for every price.\n');
+    const dp = path.join(dir, 'docs/DECISIONS.md'), hp = path.join(dir, 'tools/hooks/hooks.mjs');
+    fs.writeFileSync(dp, fs.readFileSync(dp, 'utf8').replace(/^- Involvement:.*\n/m, ''));
+    fs.writeFileSync(hp, fs.readFileSync(hp, 'utf8').replace("export const INTERVIEW = ['Involvement', ", 'export const INTERVIEW = ['));
   }
   const mine = snapshot(dir);
   const u1 = starterRun(dir, '--upgrade', '--accept-findings');
@@ -180,6 +189,12 @@ for (const [name, s] of Object.entries(SAMPLES)) {
     const got = packTags.filter(t => rq1.some(r => r.tag === t && (r.pack === 'knowledge' || r.skill === 'frontend-design')));
     check(name, 'an upgrade adds the new checks of an installed pack and an enabled library skill, with their rows, and lists them in the review',
       got.length === 2 && packTags.every(t => ruleMap.includes(t) && new RegExp(`- check: ${t}, added from`).test(review)), `got ${got.join(', ')} | ${review.slice(-500)}`);
+    const kcNow = fs.readFileSync(path.join(dir, 'skills/knowledge-capture/SKILL.md'), 'utf8'), kcStarter = fs.readFileSync(path.join(STARTER, 'packs/knowledge/files/skills/knowledge-capture/SKILL.md'), 'utf8');
+    const trig = t => (/^triggers:\s*(.*)$/m.exec(t)?.[1] || '').split(',').map(s => s.trim());
+    check(name, "an upgrade refreshes a pack skill the project never edited, keeping the trigger it added, and keeps a pack file it edited",
+      trig(kcStarter).every(t => trig(kcNow).includes(t)) && trig(kcNow).includes('our trip tally') && fs.readFileSync(path.join(dir, 'docs/checks/evidence-standards.md'), 'utf8').includes('Our own rule: two sources for every price.'),
+      kcNow.slice(0, 300));
+    check(name, 'an upgrade names a setup question added since the project was set up', /- interview: Involvement \(new setup question/.test(review), review.slice(-500));
   }
   const afterUp = snapshot(dir);
   check(name, "an upgrade keeps the project's own runbook", afterUp['docs/playbooks/my-own.md'] === mine['docs/playbooks/my-own.md']);

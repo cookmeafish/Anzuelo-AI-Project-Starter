@@ -112,10 +112,11 @@ const ownName = (() => {
     || (() => { try { return JSON.parse(rd('package.json')).name?.replace(/^@[^/]+\//, ''); } catch { return ''; } })() || '';
 })();
 const name = opt('--name') || (ownHeading && !ownHeading.includes('{{') ? ownHeading : '') || ownName || path.basename(dest);
+// the placeholder names no project: a typed-out name there was flagged by name-var in every new project
 const fill = (text, json) => {
   const v = s => json ? JSON.stringify(s).slice(1, -1) : s;
   return text.replaceAll('{{PROJECT_NAME}}', v(name)).replaceAll('{{CREATED}}', today)
-    .replaceAll('{{ONE_LINE}}', v(opt('--desc') || `<!-- One line on what ${name} is for: filled in during setup. -->`));
+    .replaceAll('{{ONE_LINE}}', v(opt('--desc') || '<!-- One line on what this project is for: filled in during setup. -->'));
 };
 const log = [];
 const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
@@ -206,7 +207,7 @@ function shippedLines(rel) {
     for (const l of (git('show', `${c}:${rel}`).stdout || '').split(/\r?\n/)) set.add(l.trim());
   return (shippedLinesCache[rel] = set);
 }
-const movedLessons = [], legacyScenarios = [], untracked = [];
+const movedLessons = [], legacyScenarios = [], untracked = [], editedPayload = [];
 // every version of a file the starter shipped (from its git history), newest first
 function shippedTexts(rel) {
   const git = (...a) => spawnSync('git', a, { cwd: STARTER, encoding: 'utf8', maxBuffer: 64 << 20 });
@@ -256,6 +257,16 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   // the core checks this project got from its last upgrade, read before the engine files are replaced (3-way merge below)
   const prevShipped = (() => { try { return JSON.parse(fs.readFileSync(path.join(dest, 'tools', 'hooks', 'engine-checks.json'), 'utf8')).requirements || null; } catch { return null; } })();
   const keptChecks = [], addedChecks = [];
+  // the setup questions this project's engine asked, read before it is replaced: only questions added since are new
+  const prevHooks = (() => { try { return fs.readFileSync(path.join(dest, 'tools', 'hooks', 'hooks.mjs'), 'utf8').replace(/\r\n/g, '\n'); } catch { return ''; } })();
+  const prevQuestions = [...prevHooks.matchAll(/export const INTERVIEW\w* = \[([^\]]*)\]/g)].flatMap(m => [...m[1].matchAll(/'([^']+)'/g)].map(x => x[1]));
+  // the starter commit this project last took its engine from (its hooks.mjs as shipped then), or null when unknown
+  const gitAt = (c, rel) => spawnSync('git', ['show', `${c}:${rel}`], { cwd: STARTER, encoding: 'utf8', maxBuffer: 64 << 20 }).stdout || '';
+  const baseCommit = (() => {
+    for (const c of (spawnSync('git', ['log', '--format=%H', '--', 'tools/hooks/hooks.mjs'], { cwd: STARTER, encoding: 'utf8' }).stdout || '').split('\n').filter(Boolean))
+      if (gitAt(c, 'tools/hooks/hooks.mjs').replace(/\r\n/g, '\n') === prevHooks) return c;
+    return null;
+  })();
   if (!dry) for (const f of SNAP.filter(f => fs.existsSync(path.join(dest, f)))) { const b = path.join(backupDir, f + '.orig'); fs.mkdirSync(path.dirname(b), { recursive: true }); fs.copyFileSync(path.join(dest, f), b); }
   for (const f of ENGINE) if (fs.existsSync(path.join(STARTER, f))) put(f, { overwrite: true });
   for (const f of ENGINE_IF_MISSING) if (fs.existsSync(path.join(STARTER, f))) put(f);
@@ -273,6 +284,33 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
     const walk = d => fs.statSync(path.join(root, d)).isDirectory() ? fs.readdirSync(path.join(root, d)).flatMap(n => walk(`${d.replace(/\/$/, '')}/${n}`)) : [d];
     for (const f of list.filter(f => fs.existsSync(path.join(root, f))).flatMap(walk)) put(`packs/${pack}/files/${f}`, { overwrite: true, as: f });
   }
+  // The rest of each installed pack's files and of each enabled library skill: the installer copies them as they are,
+  // so one still equal to a version the starter shipped was never edited here and is refreshed (a skill or runbook keeps
+  // its added triggers and lessons); an edited one is kept and goes into the upgrade review.
+  // Lesson: knowledge-capture's new triggers never reached an upgraded project, and its route self-test failed.
+  const lf = t => t.replace(/\r\n/g, '\n');
+  const bodyOf = t => lf(t).replace(/^triggers:.*\n/m, '').replace(/^(hardened|harden|keep):.*\n/gm, '').replace(/^## Project lessons[^\n]*\n[\s\S]*?(?=^## |(?![\s\S]))/m, '').trimEnd();
+  const refreshPayload = (rel, as) => {
+    const to = path.join(dest, as);
+    if (!fs.existsSync(to)) return; // taken out here on purpose, or new in the starter (packs.mjs install adds it)
+    const mine = fs.readFileSync(to, 'utf8');
+    if (lf(mine) === lf(fs.readFileSync(path.join(STARTER, rel), 'utf8'))) { unchanged++; return; }
+    const skillLike = /(^|\/)SKILL\.md$|^docs\/playbooks\/[^_/][^/]*\.md$/.test(as);
+    if (shippedTexts(rel).some(t => skillLike ? bodyOf(t) === bodyOf(mine) : lf(t) === lf(mine))) put(rel, { overwrite: true, as });
+    // edited here: named in the review only when the starter changed the file since this project's last upgrade, so a
+    // filled-in foundation.md is not listed every time (unknown last upgrade: named, to be safe)
+    else if (baseCommit === null || lf(gitAt(baseCommit, rel)) !== lf(fs.readFileSync(path.join(STARTER, rel), 'utf8'))) editedPayload.push([as, rel]);
+  };
+  const filesUnder = (root, d = '') => fs.readdirSync(path.join(root, d), { withFileTypes: true }).flatMap(e => e.isDirectory() ? filesUnder(root, `${d}${e.name}/`) : [`${d}${e.name}`]);
+  for (const pack of pc.packs) {
+    const root = path.join(STARTER, 'packs', pack, 'files');
+    if (!fs.existsSync(root)) continue;
+    const engine = PACK_ENGINE[pack] || [];
+    for (const f of filesUnder(root).filter(f => !engine.some(e => f === e || (e.endsWith('/') && f.startsWith(e))))) refreshPayload(`packs/${pack}/files/${f}`, f);
+  }
+  const skillsDir = pc.skillsDir || 'skills', lib = path.join(STARTER, 'library', 'skills');
+  for (const sk of fs.existsSync(lib) ? fs.readdirSync(lib) : [])
+    if (fs.existsSync(path.join(dest, skillsDir, sk, 'SKILL.md'))) for (const f of filesUnder(path.join(lib, sk))) refreshPayload(`library/skills/${sk}/${f}`, `${skillsDir}/${sk}/${f}`);
   // ignore lines added since the project was made (the starter link, a kept copy), and the link itself if missing
   const gi = path.join(dest, '.gitignore');
   const have = fs.existsSync(gi) ? fs.readFileSync(gi, 'utf8').split(/\r?\n/) : [];
@@ -471,6 +509,11 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   for (const a of addedChecks) items.push(`check: ${a}; it now runs in this project's hooks (to switch it off, set its "enabled" to false)`);
   for (const tag of keptChecks) items.push(`check: ${tag}, kept your edited version; the starter's newer one differs (to take it, replace the entry with the one in tools/hooks/engine-checks.json)`);
   if (legacyScenarios.length) items.push(`scenarios: ${legacyScenarios.length} of this project's own test scenarios were in the retired test-hooks.mjs (${legacyScenarios.slice(0, 4).join('; ').replace(/: /g, ' - ')}${legacyScenarios.length > 4 ? '; ...' : ''}); move them into tools/hooks/project-scenarios.mjs from tools/hooks/legacy-scenarios.txt, then delete that file`);
+  for (const [as, rel] of editedPayload) items.push(`file: ${as}, edited in this project so kept; the starter's newer version differs (compare it with ${rel} in the starter and take what fits)`);
+  // setup questions added since this project's interview: the setup check would ask for them with no warning
+  // (Lesson: a new "Involvement" question failed audit --setup in an adopted project, and the review never named it)
+  const iv = spawnSync(process.execPath, ['--input-type=module', '-e', `import * as h from ${JSON.stringify(pathToFileURL(path.join(dest, 'tools', 'hooks', 'hooks.mjs')).href)}; const f = h.setupInterview(); console.log(JSON.stringify(Object.keys(f).length ? [...h.INTERVIEW, ...h.INTERVIEW_AFTER, ...(h.config().packs || []).includes('app') ? h.INTERVIEW_APP : []].filter(k => !(k.toLowerCase() in f) && !${JSON.stringify(prevQuestions)}.includes(k)) : []));`], { cwd: dest, encoding: 'utf8' });
+  try { const keys = JSON.parse(iv.stdout); if (keys.length && !decided.includes(`- interview: ${keys.join(', ')} (`)) items.push(`interview: ${keys.join(', ')} (new setup question${keys.length > 1 ? 's' : ''}; record each answer under "## Setup interview" in docs/DECISIONS.md, or the setup check asks for it)`); } catch { log.push(`skipped  the new setup questions: ${(iv.stderr || '').split('\n')[0]}`); }
   for (const [file, n] of movedLessons) items.push(`lessons: ${file} became an engine file, so ${n} line(s) this project added moved to its "## Project lessons" section (check they still read right there)`);
   // a repeat upgrade that changed nothing has nothing to review (Lesson: it appended a review holding only "self-tests")
   if (!items.length && !log.some(l => /^(updated|created|removed|renamed)\b/.test(l))) { console.log('\nUPGRADE REVIEW: nothing changed, so there is nothing new to decide.'); process.exit(0); }
