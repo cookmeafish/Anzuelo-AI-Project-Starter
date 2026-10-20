@@ -159,6 +159,22 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
     that block it; without git, publish safety skips the plain folders `.gitignore` lists; the self-test sandbox
     resets the project's scopes root, verbatim and filler lists, and its "Dropped rules"; the setup prompt covers
     projects with their own hooks.
+  - **From an independent review of 23 trial projects (190 findings):**
+    - the last message carries the answer: after a Stop round the agent ends with the whole answer again, in the
+      user's language, with the steps as a note after it;
+    - a complaint is checked against the files first and the answer says plainly whether it holds (REQ:
+      upset-learned blocks without that line); a learned check must fail a scenario that recreates the exact defect;
+    - a turn that waived its own test or build gate cannot say SHIP or "tests pass": it says NOT VERIFIED (REQ:
+      claim-checked); toolchains (Go, Rust, Flutter, Godot) and Go and PowerShell linters are fit candidates;
+    - autonomy "auto" no longer stops for the project's own dependencies installed into the project, and
+      security-sensitive parts use a maintained library, never hand-written code;
+    - a "later" that waits for the user's OK is rejected under autonomy "auto"; "already in the project" is no reason;
+      the engine's own `.obsidian/app.json` is not counted as the user's vault;
+    - setup does not do the user's first tasks and changes no product code, manifests or versions;
+    - a turn adding new files hears it needs a plan before the limit, not after (REQ: plan-required);
+    - skill hardening waits for use in a second session; release notes are asked for only when shipped code changed;
+    - web sources in an answer must have been opened this turn, not only listed by a search (REQ: answer-traced);
+    - adopting an Obsidian vault hides the engine's folders from the vault's search and graph.
   - **A deferred skill is decided again when the request is for it:** a library skill the fit checklist left for
     "later" (or skipped) is named when a request matches its triggers (Lesson: a sales project answered "what was our
     best week" without the data-analysis skill it had deferred for exactly that); data-analysis also routes everyday

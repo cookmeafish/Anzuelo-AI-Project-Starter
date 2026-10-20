@@ -195,8 +195,9 @@ approved plan straight through without asking "shall I continue?". These rules k
    `status: blocked - <reason>` and add a `Tried:` note (what was attempted) and an `Options:` note (the ways forward,
    with a recommendation). Move on to the next task that doesn't depend on it. If none is left, end with a report.
    When the user unblocks it, set the line back to `status: open`.
-6. **Still stop and ask** for the cases in AGENTS.md Step 0, item 5: an outward action, installing third-party code,
-   anything irreversible or destructive, a security-sensitive change, or a plan so wrong that every path is a guess.
+6. **Still stop and ask** for the cases in AGENTS.md Step 0, item 5: an outward action, installing software on the
+   machine or from an unknown source, anything irreversible or destructive, a security-sensitive change, or a plan
+   so wrong that every path is a guess. The project's own dependencies, installed into the project, are not one.
 7. **Finish with one review** of the whole result (references.md, "The final review"). Fix critical and important
    findings in one pass, then list the deferred findings and every `Ruling:` line in the Finished section.
 

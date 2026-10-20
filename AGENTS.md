@@ -24,8 +24,11 @@
    first, and add each new answer there (session-handoff skill). For small, reversible details, decide and say what
    you assumed. With `"autonomy": "auto"` in `tools/hooks/config.json` the user wants no questions: decide, keep
    going, and record each choice as `Assumed: <choice> - <why> - <cost if wrong>` in the open plan (or the answer if
-   there is no plan). Stop only for an outward action (rule 6), installing third-party code, anything irreversible or
-   destructive, a security-sensitive change, or a plan so wrong that every path is a guess.
+   there is no plan). Stop only for an outward action (rule 6), installing software on the machine or from an unknown
+   source, anything irreversible or destructive, a security-sensitive change, or a plan so wrong that every path is a
+   guess. Installing the project's own declared dependencies, or a widely used package from the official registry
+   into the project folder, is part of the work: do it, so the code runs and gets tested. Security-sensitive parts
+   (sessions, CSRF, password hashing, crypto, webhook signatures) use such a library, never hand-written code.
 
 ## Hard rules (each has a check: docs/checks/rule-enforcement.md)
 1. **Route first. Runbooks are mandatory.** Open the matched runbook this turn, follow it in order, and name it.

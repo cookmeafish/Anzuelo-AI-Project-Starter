@@ -25,6 +25,13 @@ The starter was added around work that already exists (`config.json` has `adopte
   runbooks. Merge each `*.starter.md` into the user's file (their README stays theirs), then delete it. The originals
   are kept in `.starter/original-rules/`, and the setup check lists any rule the merged AGENTS.md lost: merge it
   back, or list it under "## Dropped rules" in docs/DECISIONS.md with why.
+- **Setup does not do the user's first tasks.** Files waiting in `inbox/` stay there, and no report, feature or
+  deliverable is made before the user asks for it: setup builds the way the work will be done, then hands over.
+  (Lesson: a setup took in the week's export and wrote its summary, so the user's first two requests had nothing left.)
+- **Setup changes no product code.** The project's source, its manifests (package.json, pyproject.toml, go.mod and
+  similar) and its version numbers stay as they were: setup adds the engine, docs, checks and gates around them.
+  A bug or gap it finds goes on the backlog in `docs/STATUS.md`, to fix as normal work later. (Lesson: setups that
+  "tidied" an adopted project's code and bumped its versions changed the user's product before any request.)
 - **Ask before moving things.** New work follows the layout standard at once. Moving existing files is a proposal:
   list the moves and why, and do them only with the user's OK, in small verified steps.
 - **Measure first** (app pack): record which tests and builds pass today. Gates start from that baseline, and old

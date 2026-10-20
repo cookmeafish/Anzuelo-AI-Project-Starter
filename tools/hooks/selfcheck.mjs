@@ -280,12 +280,19 @@ const STOP = [
     answer: 'Added pictures for every encounter.\nLearned (lesson): every encounter needs a picture → docs/lessons.md' + FIN, expect: { block: true, tags: ['upset-learned'] } },
   { name: 'upset-learned: a "the work falls short" complaint enforced with a judgment item: passes that check', prompt: 'its lackluster in picture variety and accuracy',
     files: { 'docs/zorbl.md': '# Zorbl\n![boss](boss.png)', 'docs/playbooks/zorbl.md': '---\nname: zorbl\nsummary: zorbl pages\ntriggers: zorbl page\nchecks: none - a test runbook\n---\n# Playbook: zorbl\n## Done when\n- [ ] Every encounter shows varied, accurate pictures (judgment: only a person can judge accuracy)\n', 'docs/CHANGELOG.md': 'x' },
-    answer: 'Added varied pictures.\nLearned (rule): every encounter shows varied, accurate pictures → docs/playbooks/zorbl.md\nDone when item: "(judgment: only a person can judge accuracy)"' + FIN, expect: { not: ['upset-learned'] } },
+    answer: 'You\'re right: the pictures repeated. Added varied pictures.\nLearned (rule): every encounter shows varied, accurate pictures → docs/playbooks/zorbl.md\nDone when item: "(judgment: only a person can judge accuracy)"' + FIN, expect: { not: ['upset-learned'] } },
   { name: 'upset-learned: an engine lesson kept in one project: blocked', removeMarker: true, prompt: 'ugh, that check fired for nothing again', files: { 'docs/lessons.md': '- 2026-10-19: the check misfires' },
     answer: 'Learned (engine): the check misfires on menus → docs/lessons.md' + FIN, expect: { block: true, tags: ['upset-learned'] } },
   { name: 'upset-learned: fixed, and the lesson written where it stops the next miss: passes', prompt: 'you forgot to add the allergens again!!', tools: [pb('project')],
     files: { 'docs/menu.md': 'Croissant (gluten, milk)', 'docs/playbooks/menu.md': '---\nname: menu\nsummary: menus\ntriggers: menu card\nchecks: none - a test runbook\n---\n# Playbook: menu\n## Pitfalls\n- Every item lists its allergens.\n', 'docs/CHANGELOG.md': 'x' },
-    answer: 'Added the allergens to the menu. Playbook: project.md.\nLearned (lesson): every menu item lists its allergens, a step the menu runbook lacked → docs/playbooks/menu.md' + FIN, expect: { not: ['upset-learned', 'rule-request'] } },
+    answer: 'You\'re right: the croissant had no allergens. Added the allergens to the menu. Playbook: project.md.\nLearned (lesson): every menu item lists its allergens, a step the menu runbook lacked → docs/playbooks/menu.md' + FIN, expect: { not: ['upset-learned', 'rule-request'] } },
+  // Lesson: reviewers found complaints conceded and "fixed" without checking whether the thing was already there
+  { name: 'upset-learned: fixed and learned, but never said whether the complaint held: blocked', prompt: 'you forgot to add the allergens again!!', tools: [pb('project')],
+    files: { 'docs/menu.md': 'Croissant (gluten, milk)', 'docs/playbooks/menu.md': '---\nname: menu\nsummary: menus\ntriggers: menu card\nchecks: none - a test runbook\n---\n# Playbook: menu\n## Pitfalls\n- Every item lists its allergens.\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Added the allergens to the menu. Playbook: project.md.\nLearned (lesson): every menu item lists its allergens, a step the menu runbook lacked → docs/playbooks/menu.md' + FIN, expect: { tags: ['upset-learned'], says: /whether it holds/ } },
+  { name: 'upset-learned: a complaint that does not hold, said so with the evidence: passes that part', prompt: 'you forgot to add the allergens again!!', tools: [pb('project')],
+    files: { 'docs/playbooks/menu.md': '---\nname: menu\nsummary: menus\ntriggers: menu card\nchecks: none - a test runbook\n---\n# Playbook: menu\n## Pitfalls\n- Say where the allergens are when asked.\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'That isn\'t what happened: docs/menu.md already lists them (Croissant: gluten, milk). Playbook: project.md.\nLearned (lesson): point to where the allergens are listed when asked → docs/playbooks/menu.md' + FIN, expect: { not: ['upset-learned'] } },
   { name: 'upset-learned: upset about something outside the project, said so: passes', prompt: 'ugh the wifi died again, what was I saying', answer: 'You were planning the spring menu. N/A(upset-learned): the wifi is outside the project.',
     expect: { not: ['upset-learned'] } },
   { name: 'rule request fully enforced: passes', prompt: 'from now on always include a budget table in plans', tools: [pb('project'), bash('node tools/hooks/selfcheck.mjs'), bash('node tools/audit.mjs')],
@@ -318,6 +325,9 @@ const STOP = [
     answer: 'Playbook: project.md.' + FIN, expect: { block: true, tags: ['playbook-format'] } },
   { name: '3rd use of a runbook: skill hardening due, blocked', prompt: 'plan meals for the week', tools: [pb('meal-plan')], usage: { 'meal-plan': { uses: 2 } },
     edit: { 'docs/playbooks/meal-plan.md': () => NEWPB }, answer: 'Playbook: meal-plan.md. Meals planned.', expect: { block: true, tags: ['skill-harden'] } },
+  // Lesson: skills were hardened in the one session that made them, before any second real use
+  { name: '3rd use, all in one session: hardening not due yet: passes', prompt: 'plan meals for the week', tools: [pb('meal-plan')], usage: { 'meal-plan': { uses: 2, sessions: ['a1b2c3d4'] } },
+    edit: { 'docs/playbooks/meal-plan.md': () => NEWPB }, answer: 'Playbook: meal-plan.md. Meals planned.', expect: { not: ['skill-harden'] } },
   { name: '3rd use with harden: never: passes', prompt: 'plan meals for the week', tools: [pb('meal-plan')], usage: { 'meal-plan': { uses: 2 } },
     edit: { 'docs/playbooks/meal-plan.md': () => NEWPB.replace('checks: none - a test runbook', 'checks: none - a test runbook\nharden: never - changes every time') },
     answer: 'Playbook: meal-plan.md. Meals planned.', expect: { block: false } },
@@ -511,7 +521,7 @@ const STOP = [
     active: true, blocks: 1, failed: ['finished-summary'], answer: 'Skill: debug. Root cause: the date parser.' + FIN, expect: { block: false, not: ['skill-learn'] } },
   { name: 'skill followed, user complains, lesson written into the skill: passes', prompt: 'you forgot the logs, debug the failing import', tools: [sk('debug'), pb('project'), bash('node tools/audit.mjs')],
     files: { 'scratch-work/import.md': 'x', 'docs/CHANGELOG.md': 'x', 'skills/debug/references.md': '# refs\n- Pitfall: read the logs first.' },
-    answer: 'Skill: debug. Playbook: project.md. Root cause: the date parser.\nLearned (lesson): read the logs before guessing → skills/debug/references.md' + FIN, expect: { block: false } },
+    answer: 'You\'re right: I skipped the logs. Skill: debug. Playbook: project.md. Root cause: the date parser.\nLearned (lesson): read the logs before guessing → skills/debug/references.md' + FIN, expect: { block: false } },
   { name: 'skill followed after a blocked draft, not its fault: passes with a stated reason', prompt: 'debug the failing import', tools: [sk('debug')], drafts: ['Fixed it.'],
     files: { 'scratch-work/import.md': 'x', 'docs/CHANGELOG.md': 'x' }, answer: 'Skill: debug. Root cause: the date parser.\nSkill lesson: none - the draft only lacked its summary.' + FIN, expect: { block: false } },
   { name: 'skill followed after a blocked draft, the skill\'s own check failed, no lesson: blocked', prompt: 'debug the failing import', tools: [sk('debug')], drafts: ['Fixed it.'], active: true, blocks: 1, failed: ['debug-root-cause', 'finished-summary'],
@@ -719,7 +729,7 @@ STOP.push(
   { name: 'research-verified: web research with no ledger: blocked', prompt: 'is it true that standing desks hold 150 kg', tools: [sk('research'), { name: 'WebSearch', input: { query: 'desk load' }, result: 'Desk A: 150 kg' }],
     answer: 'Skill: research. Yes, 150 kg (https://a.example).', expect: { block: true, tags: ['research-verified'] } },
   { name: 'research-verified: a passing ledger and the Verified line: passes', edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), packs: (JSON.parse(s).packs || []).filter(p => p !== 'knowledge') }), 'tools/hooks/requirements.json': s => JSON.stringify({ ...JSON.parse(s), requirements: JSON.parse(s).requirements.filter(r => r.pack !== 'knowledge') }) }, prompt: 'is it true that standing desks hold 150 kg',
-    tools: [sk('research'), { name: 'WebSearch', input: { query: 'desk load' }, result: 'Desk A: rated 150 kg' }, bash('node skills/research/scripts/claims.mjs check .cache/research/desk.md', 'CLAIMS: PASS - 1 claims')],
+    tools: [sk('research'), { name: 'WebSearch', input: { query: 'desk load' }, result: 'Desk A: rated 150 kg' }, { name: 'WebFetch', input: { url: 'https://a.example' }, result: 'rated 150 kg' }, { name: 'WebFetch', input: { url: 'https://b.example' }, result: 'rated 150 kg' }, bash('node skills/research/scripts/claims.mjs check .cache/research/desk.md', 'CLAIMS: PASS - 1 claims')],
     answer: 'Skill: research. Yes: 150 kg.[1][2]\n\nSources:\n[1] https://a.example\n[2] https://b.example\nVerified: 1 claims traced to 3 independent sources; 0 cut or marked not verified.', expect: { block: false } },
   { name: 'research-ledger: says verified but the ledger failed: blocked', edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), packs: (JSON.parse(s).packs || []).filter(p => p !== 'knowledge') }), 'tools/hooks/requirements.json': s => JSON.stringify({ ...JSON.parse(s), requirements: JSON.parse(s).requirements.filter(r => r.pack !== 'knowledge') }) }, prompt: 'is it true that standing desks hold 150 kg',
     tools: [sk('research'), { name: 'WebSearch', input: { query: 'desk load' }, result: 'Desk A: rated 150 kg' }, bash('node skills/research/scripts/claims.mjs check .cache/research/desk.md', 'ERROR S3: a forum source is a lead\nCLAIMS: FAIL (1 error(s))')],
@@ -729,13 +739,28 @@ STOP.push(
     answer: 'Pushed. Everything is on GitHub now.', expect: { block: true, tags: ['claim-checked'] } },
   { name: 'claim-checked: the push was denied and the answer says so: passes', prompt: 'push my work', tools: [{ name: 'Bash', input: { command: 'git push origin main' }, result: 'REQ: git-safety. This pushes to the protected branch "main"', denied: true }],
     answer: 'The push to main was denied: main is protected. Say "push it to main" and I will.', expect: { not: ['claim-checked'] } },
+  // Lesson: with no toolchain nothing compiled, and the review still said "Verdict: SHIP"
+  { name: 'claim-checked: the tests were waived and the answer says it ships: blocked', prompt: 'add the endpoint',
+    answer: 'Added the endpoint. Verdict: SHIP. N/A(app-test-pass): Go is not installed on this machine.', expect: { tags: ['claim-checked'] } },
+  { name: 'claim-checked: the tests were waived and the answer says NOT VERIFIED: passes', prompt: 'add the endpoint',
+    answer: 'Added the endpoint. NOT VERIFIED: Go is not installed, so it was not compiled or tested; run go test ./... once it is. N/A(app-test-pass): Go is not installed on this machine.', expect: { not: ['claim-checked'] } },
   // Lesson: "how did we do last month" was answered with figures from nothing, because no research skill ran
+  // a web source cited in the answer was opened, not only listed by a search (Lesson: 2 of 3 cited studies were never
+  // opened, and the citation check passed)
+  { name: 'answer-traced: a web source cited that a search only listed: blocked', prompt: 'what do studies say about standing desks and back pain',
+    tools: [sk('research'), { name: 'WebSearch', input: { query: 'standing desk back pain study' }, result: 'Results: Study A https://example.org/study-a ; Study B https://example.org/study-b' },
+      { name: 'WebFetch', input: { url: 'https://example.org/study-a', prompt: 'findings' }, result: 'Study A: standing reduced reported back pain.' }],
+    answer: 'Standing breaks reduced reported back pain [1], and a second study agreed [2].\n\nSources:\n[1] https://example.org/study-a\n[2] https://example.org/study-b', expect: { tags: ['answer-traced'], says: /example\.org\/study-b/ } },
+  { name: 'answer-traced: every web source cited was opened: passes', prompt: 'what do studies say about standing desks and back pain',
+    tools: [sk('research'), { name: 'WebSearch', input: { query: 'standing desk back pain study' }, result: 'Results: Study A https://example.org/study-a' },
+      { name: 'WebFetch', input: { url: 'https://example.org/study-a', prompt: 'findings' }, result: 'Study A: standing reduced reported back pain.' }],
+    answer: 'Standing breaks reduced reported back pain [1].\n\nSources:\n[1] https://example.org/study-a', expect: { not: ['answer-traced'] } },
   { name: 'answer-traced: figures for the project\'s own numbers, with no file read: blocked', prompt: 'how did we do last month', tools: [...many(1)],
     answer: 'Great month: 1,240 croissants sold, $4,300 in sales, up 12%.', expect: { block: true, tags: ['answer-traced'] } },
   { name: 'answer-traced: figures read from the sales file this turn: passes', prompt: 'how did we do last month', tools: [{ name: 'Read', input: { file_path: 'data/sales.csv' }, result: 'month,croissants,sales\n2026-09,1240,4300\n2026-08,1107,3840' }],
     answer: 'September: 1,240 croissants and $4,300 in sales (August: 1107 and $3840).', expect: { not: ['answer-traced'] } },
   { name: 'answer-traced: a number found in nothing read this turn: blocked', edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), packs: (JSON.parse(s).packs || []).filter(p => p !== 'knowledge') }), 'tools/hooks/requirements.json': s => JSON.stringify({ ...JSON.parse(s), requirements: JSON.parse(s).requirements.filter(r => r.pack !== 'knowledge') }) }, prompt: 'is it true that standing desks hold 150 kg',
-    tools: [sk('research'), { name: 'WebSearch', input: { query: 'desk load' }, result: 'Desk A: rated 150 kg' }, bash('node skills/research/scripts/claims.mjs check .cache/research/desk.md', 'CLAIMS: PASS - 1 claims')],
+    tools: [sk('research'), { name: 'WebSearch', input: { query: 'desk load' }, result: 'Desk A: rated 150 kg' }, { name: 'WebFetch', input: { url: 'https://a.example' }, result: 'rated 150 kg' }, { name: 'WebFetch', input: { url: 'https://b.example' }, result: 'rated 150 kg' }, bash('node skills/research/scripts/claims.mjs check .cache/research/desk.md', 'CLAIMS: PASS - 1 claims')],
     answer: 'Skill: research. Yes: 150 kg, and they last 12 years.[1][2]\n\nSources:\n[1] https://a.example\n[2] https://b.example\nVerified: 1 claims traced to 3 independent sources; 0 cut or marked not verified.', expect: { block: true, tags: ['answer-traced'] } },
   { name: 'skill search without the report line: blocked', prompt: 'is there a skill for invoices', tools: [sk('skill-finder')], answer: 'Skill: skill-finder. Found one.',
     expect: { block: true, tags: ['skill-finder-report'] } },
@@ -983,11 +1008,11 @@ STOP.push(
   // numbers the agent wrote itself earlier in the session are not made up
   { name: 'answer-traced: a number the agent wrote into a file earlier in the session: passes', edit: NO_KNOWLEDGE, prompt: 'is it true that standing desks hold 150 kg',
     before: [{ name: 'Write', input: { file_path: 'docs/desk-notes.md', content: 'Standing desks last 12 years.' } }],
-    tools: [sk('research'), { name: 'WebSearch', input: { query: 'desk load' }, result: 'Desk A: rated 150 kg' }, bash('node skills/research/scripts/claims.mjs check .cache/research/desk.md', 'CLAIMS: PASS - 1 claims')],
+    tools: [sk('research'), { name: 'WebSearch', input: { query: 'desk load' }, result: 'Desk A: rated 150 kg' }, { name: 'WebFetch', input: { url: 'https://a.example' }, result: 'rated 150 kg' }, { name: 'WebFetch', input: { url: 'https://b.example' }, result: 'rated 150 kg' }, bash('node skills/research/scripts/claims.mjs check .cache/research/desk.md', 'CLAIMS: PASS - 1 claims')],
     answer: 'Skill: research. Yes: 150 kg, and they last 12 years.[1][2]\n\nSources:\n[1] https://a.example\n[2] https://b.example\nVerified: 1 claims traced to 3 independent sources; 0 cut or marked not verified.', expect: { block: false, not: ['answer-traced'] } },
   // citation numbers like [11] are not facts, so answer-traced never asks where they came from
   { name: 'answer-traced: numbered citations [10]-[11] are not untraced numbers: passes', edit: NO_KNOWLEDGE, prompt: 'is it true that standing desks hold 150 kg',
-    tools: [sk('research'), { name: 'WebSearch', input: { query: 'desk load' }, result: 'Desk A: rated 150 kg' }, bash('node skills/research/scripts/claims.mjs check .cache/research/desk.md', 'CLAIMS: PASS - 1 claims')],
+    tools: [sk('research'), { name: 'WebSearch', input: { query: 'desk load' }, result: 'Desk A: rated 150 kg' }, { name: 'WebFetch', input: { url: 'https://a.example' }, result: 'rated 150 kg' }, { name: 'WebFetch', input: { url: 'https://b.example' }, result: 'rated 150 kg' }, bash('node skills/research/scripts/claims.mjs check .cache/research/desk.md', 'CLAIMS: PASS - 1 claims')],
     answer: 'Skill: research. Yes: 150 kg.[10]-[11]\n\nSources:\n[10] https://a.example\n[11] https://b.example\nVerified: 1 claims traced to 3 independent sources; 0 cut or marked not verified.', expect: { block: false, not: ['answer-traced'] } },
   // the writing rules' own fixed wordings are not copies of the user's words; rewording for a wording check is no runbook miss
   { name: 'no-verbatim-examples: a wording the writing standards require is not the user\'s words: passes', prompt: 'from now on ask me like this: question for you keep the old setting so the nightly job keeps working',
@@ -1206,9 +1231,35 @@ function fitFill(dir, extra = []) {
 function write(dir, files) { for (const [p, c] of Object.entries(files || {})) { if (c === undefined) continue; const f = path.join(dir, p); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, c); } }
 
 // Runs one Stop scenario in a fresh copy and returns what the hook decided.
+// The project's own checks (not shipped by the engine, a pack or a library skill) are tested by its own scenarios; in
+// the engine's scenarios they are off, since the fixtures are not this project's work. Lesson: a Spanish blog's
+// "reader text is Spanish" check failed six engine fixtures written in English after an upgrade.
+let ENGINE_TAGS = null;
+const engineTags = () => ENGINE_TAGS ||= new Set([
+  ...(() => { try { return JSON.parse(fs.readFileSync(path.join(base(), 'tools/hooks/engine-checks.json'), 'utf8')).requirements.map(r => r.tag); } catch { return []; } })(),
+  ...(() => { try { return fs.readdirSync(path.join(base(), 'packs')).flatMap(p => { try { return JSON.parse(fs.readFileSync(path.join(base(), 'packs', p, 'pack.json'), 'utf8')).requirements.map(r => r.tag); } catch { return []; } }); } catch { return []; } })(),
+  ...(() => { try { return JSON.parse(fs.readFileSync(path.join(base(), 'library/catalog.json'), 'utf8')).skills.flatMap(e => (e.requirements || []).map(r => r.tag)); } catch { return []; } })()]);
+// ...and a pack's checks as the pack ships them, since the fixtures test the pack, not the project's own edited copy
+// (Lesson: a project had made verification-report accept Spanish, and the pack's scenario for the new wording failed)
+// ...and without the project's saved browser flows, which run against its own pages (Lesson: gui-flows in a fixture)
+let PACK_REQS = null;
+const packReqs = () => PACK_REQS ||= new Map((() => { try { return fs.readdirSync(path.join(base(), 'packs')).flatMap(p => { try { return JSON.parse(fs.readFileSync(path.join(base(), 'packs', p, 'pack.json'), 'utf8')).requirements.map(r => [r.tag, { ...r, pack: p }]); } catch { return []; } }); } catch { return []; } })());
+function ownChecksOff(dir) {
+  const rp = path.join(dir, 'tools/hooks/requirements.json');
+  if (!fs.existsSync(path.join(ROOT, '.starter-template'))) fs.rmSync(path.join(dir, 'docs/checks/flows'), { recursive: true, force: true });
+  try {
+    const rq = JSON.parse(fs.readFileSync(rp, 'utf8')), eng = engineTags(), shippedPack = packReqs();
+    if (!eng.size) return;
+    let n = 0; rq.requirements = rq.requirements.map(r => r && r.tag && !eng.has(r.tag) && r.enabled !== false ? (n++, { ...r, enabled: false }) : r)
+      .map(r => r && shippedPack.has(r.tag) && !r.appGate && r.pack && JSON.stringify(r.require) !== JSON.stringify(shippedPack.get(r.tag).require) ? (n++, { ...shippedPack.get(r.tag), when: r.codeGlobs ? { ...shippedPack.get(r.tag).when, filesChanged: r.when?.filesChanged } : shippedPack.get(r.tag).when, ...(r.enabled === false ? { enabled: false } : {}) }) : r);
+    // (its old times stay: the fixture's turn must not see the hooks' own check list as changed)
+    if (n) { const st = fs.statSync(rp); fs.writeFileSync(rp, JSON.stringify(rq, null, 2) + '\n'); fs.utimesSync(rp, st.atime, st.mtime); }
+  } catch { }
+}
 function runStop(s) {
   const dir = copyProject();
   try {
+    if (!s.own) ownChecksOff(dir);
     const since = Date.now() - 1000;
     if (s.usage) write(dir, { 'tools/hooks/state/runbook-usage.json': JSON.stringify(s.usage) });
     if (s.removeMarker) fs.rmSync(path.join(dir, '.starter-template'), { force: true }); // a project, not the starter
@@ -1403,7 +1454,8 @@ process.exit(fail ? 1 : 0);
 const OWN = path.join(ROOT, 'tools', 'hooks', 'project-scenarios.mjs');
 if (fs.existsSync(OWN)) {
   const own = (await import(pathToFileURL(OWN).href)).default({ pb, sk, bash, FIN });
-  STOP.push(...(own.stop || [])); PRETOOL.push(...(own.pretool || [])); PROMPT.push(...(own.prompt || []));
+  const mark = l => (l || []).map(s => ({ ...s, own: true }));
+  STOP.push(...mark(own.stop)); PRETOOL.push(...mark(own.pretool)); PROMPT.push(...mark(own.prompt));
 }
 
 // --explain "<scenario name or part of it>": every check that fires for the matching scenarios, at once, each with its
@@ -2093,6 +2145,30 @@ if (mineB()) { // a message from another session after the turn ended starts its
     const H = JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href);
     const t = JSON.parse(spawnSync(process.execPath, ['--input-type=module', '-e', `import { turn } from ${H}; const t = turn(${JSON.stringify(tp)}); console.log(JSON.stringify({ prompt: t.prompt, since: t.since }))`], { cwd: dir, encoding: 'utf8' }).stdout || '{}');
     report(t.prompt === '' && t.since === t0 + 1800_000, 'turns: a message from another session after the turn ended starts a turn with no user request', JSON.stringify(t));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+if (mineB()) { // wire: a vault the user had hides the engine's folders; the engine's own .obsidian is left as it is
+  // (Lesson: adopting a vault put 72 engine files among the user's notes; the survey took the engine's file for a vault)
+  const v = fs.mkdtempSync(path.join(os.tmpdir(), 'vault-')), e = fs.mkdtempSync(path.join(os.tmpdir(), 'novault-'));
+  try {
+    fs.mkdirSync(path.join(v, '.obsidian')); fs.writeFileSync(path.join(v, '.obsidian/app.json'), '{}\n');
+    const W = JSON.stringify(pathToFileURL(path.join(ROOT, 'tools/hooks/wire.mjs')).href);
+    for (const d of [v, e]) spawnSync(process.execPath, ['--input-type=module', '-e', `import { wire } from ${W}; wire(${JSON.stringify(d)});`], { encoding: 'utf8' });
+    const va = JSON.parse(fs.readFileSync(path.join(v, '.obsidian/app.json'), 'utf8')), ea = JSON.parse(fs.readFileSync(path.join(e, '.obsidian/app.json'), 'utf8'));
+    report((va.userIgnoreFilters || []).includes('tools/') && !ea.userIgnoreFilters && ea.useMarkdownLinks === true, 'wire: a vault the user had hides the engine folders; a new project keeps the engine settings only', `${JSON.stringify(va)} | ${JSON.stringify(ea)}`);
+  } finally { for (const d of [v, e]) fs.rmSync(d, { recursive: true, force: true }); }
+}
+
+if (mineB()) { // plan-required during the work: a turn adding new files hears it needs a plan before reaching the limit, once
+  // (Lesson: reviewers found plans written after the work, only to satisfy the Stop check)
+  const dir = copyProject();
+  try {
+    write(dir, { 'tools/hooks/state/turn.json': JSON.stringify({ at: new Date().toISOString(), prompt: 'build the export' }) });
+    const w = f => run(dir, 'posttool', { tool_name: 'Write', tool_input: { file_path: path.join(dir, f), content: 'export const x = 1;\n' } }).out;
+    const outs = ['src/a.js', 'src/b.js', 'src/c.js', 'src/d.js'].map(w);
+    const told = outs.findIndex(o => /PLAN: this turn has added/.test(o));
+    report(told === 2 && outs.filter(o => /PLAN:/.test(o)).length === 1, 'plan-required: a turn adding new files is told to write the plan first, once, before the limit', outs.map(o => o.slice(0, 80)).join(' | '));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 

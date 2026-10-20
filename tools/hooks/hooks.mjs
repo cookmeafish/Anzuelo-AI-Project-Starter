@@ -767,6 +767,24 @@ export function toolUses(entries) {
   return out;
 }
 
+// What was actually opened this turn: fetched pages, commands and their output, files read, helpers' reports; not a
+// search's list of results, and not the agent's own words. (REQ: answer-traced, web sources)
+export function openedText(entries) {
+  const names = new Map(), out = [];
+  for (const r of entries) {
+    const c = r.message?.content;
+    if (r.type === 'assistant' && Array.isArray(c)) for (const x of c) if (x?.type === 'tool_use') {
+      names.set(x.id, x.name);
+      if (/^(WebFetch|Bash|PowerShell)$/.test(x.name) || /^mcp__.*fetch/i.test(x.name)) out.push(JSON.stringify(x.input || {}));
+    }
+    if (r.type === 'user') {
+      if (typeof c === 'string') out.push(c);
+      else if (Array.isArray(c)) for (const x of c) if (x?.type === 'tool_result' && !/^(WebSearch|web_search)$/i.test(names.get(x.tool_use_id) || '')) out.push(textOf(x.content));
+    }
+    if (r.type === 'attachment') out.push(JSON.stringify(r.attachment || {}));
+  }
+  return out.join('\n');
+}
 export function toolResults(entries) {
   const out = [];
   for (const r of entries) {
@@ -1107,7 +1125,10 @@ export function curateDue(cfg = config(), record = false) {
 export function hardenDue(pbs, use, cfg, extra = new Set()) {
   // the engine's own runbooks are hardened in the starter, not in each project (Lesson: project.md came due after setup)
   return pbs.filter(pb => !pb.name.startsWith('_') && !(CORE_RUNBOOKS.includes(pb.name) && !exists('.starter-template')) && !pb.fm.hardened && !/^never/i.test(pb.fm.harden || '') &&
-    ((use[pb.name]?.uses || 0) + (extra.has(pb.name) ? 1 : 0)) >= cfg.promoteAfterUses);
+    ((use[pb.name]?.uses || 0) + (extra.has(pb.name) ? 1 : 0)) >= cfg.promoteAfterUses &&
+    // used in at least two sessions (older records without sessions count as such). Lesson: reviewers found skills
+    // hardened during the one session that made them, before any second real use
+    (!use[pb.name]?.sessions || use[pb.name].sessions.length >= 2));
 }
 
 // ---------- generated files: skills for runbooks, skill mirrors, the directory ----------
@@ -1221,6 +1242,7 @@ export function directoryBlock(cfg = config()) {
     '## 1. When this happens or is asked → use this', 'Open the runbook; its triggers and steps are in the file.', '', '| Runbook | When | Checks | Menu |', '|---|---|---|---|'];
   for (const pb of pbs) {
     const menuCode = Object.entries(codes).filter(([, r]) => r.playbook === `${pb.name}.md`).map(([c]) => c).join(', ');
+    // (the skill link stays: it is how the runbook's skill joins the notes graph)
     lines.push(`| [${pb.name}](docs/playbooks/${pb.name}.md)${pb.skillName && exists(`${cfg.skillsDir}/${pb.skillName}/SKILL.md`) ? ` ([skill](${cfg.skillsDir}/${pb.skillName}/SKILL.md))` : ''} | ${short(pb.fm.summary || firstHeading(pb.text))} | ${cell(checksFor(pb).join(', ')) || '(none)'} | ${menuCode} |`);
   }
   lines.push('| [_fallback](docs/playbooks/_fallback.md) | Anything else: do it, then create a runbook (runbook-create) | runbook-exists | |');
@@ -1803,6 +1825,7 @@ export const SURVEY_KINDS = {
   data: /\.(json|csv|tsv|xlsx?|sqlite|db|parquet|xml|ya?ml)$/i,
   tabular: /\.(csv|tsv|xlsx?|sqlite|db|parquet)$/i,
   scripts: /\.(ps1|sh|bat|cmd)$/i,
+  powershell: /\.(ps1|psm1)$/i,
   shell: /\.(sh|bash)$/i,
   python: /\.(py|ipynb)$/i,
   jsts: /\.(js|mjs|cjs|ts|tsx|jsx)$/i,
@@ -1863,13 +1886,19 @@ const FIT_SIGNALS = [
   { id: 'shell', count: s => s.n.shell, label: c => `${c} shell scripts`, words: /\b(shell|bash|sh|scripts?)\b/i, for: ['tool:shellcheck'] },
   { id: 'big', count: s => s.big.length, label: c => `${c} large files (over 5 MB)`, words: /\b(large|big|binary|binaries|lfs|size|media)\b/i, for: ['tool:git lfs'] },
   // Lesson: a vault with .obsidian/ and PDFs in its inbox got "no direct signal" for Obsidian, MarkItDown and OCR
-  { id: 'obsidian', count: () => exists('.obsidian') ? 1 : 0, label: () => 'an Obsidian vault (.obsidian/)', words: /\b(obsidian|vault|notes?|graph|links?)\b/i, for: ['feature:obsidian vault', 'tool:obsidian', 'pack:knowledge'] },
+  // (the engine itself writes .obsidian/app.json with three link settings: only more than that is the user's vault.
+  // Lesson: reviews found every project's survey counted the engine's own file as the user's Obsidian vault)
+  { id: 'obsidian', count: () => userVault() ? 1 : 0, label: () => 'an Obsidian vault (.obsidian/)', words: /\b(obsidian|vault|notes?|graph|links?)\b/i, for: ['feature:obsidian vault', 'tool:obsidian', 'pack:knowledge'] },
   { id: 'docs', count: s => s.files.filter(f => /\.(pdf|docx?|pptx?|xlsx|epub)$/i.test(f.p)).length, label: c => `${c} PDF or Office documents`, words: /\b(pdfs?|documents?|office|docx?|word|pptx?|slides|scans?|ocr|convert|text)\b/i, for: ['tool:markitdown', 'tool:pandoc', 'tool:tesseract ocr', 'pack:knowledge'] },
   { id: 'js', count: s => s.n.jsts && s.manifests.some(m => /package\.json$/.test(m)) ? s.n.jsts : 0, label: c => `${c} JavaScript or TypeScript files`, words: /\b(js|javascript|ts|typescript|node|npm|eslint|prettier|lint|linter|types?)\b/i, for: ['tool:biome', 'tool:typescript (tsc)'] },
   // Lesson: a Rust CLI, a Godot game and an ML project got "no direct signal" for every tool of their own language
-  { id: 'rust', count: s => s.manifests.filter(m => /Cargo\.toml$/.test(m)).length, label: c => `${c} Rust crate(s) (Cargo.toml)`, words: /\b(rust|cargo|crates?|clippy|lint|tests?)\b/i, for: ['tool:clippy', 'tool:cargo-audit', 'tool:cargo-nextest', 'skill:dependency-update'] },
-  { id: 'godot', count: s => s.manifests.filter(m => /project\.godot$/.test(m)).length, label: () => 'a Godot project (project.godot)', words: /\b(godot|gdscript|game|lint|tests?)\b/i, for: ['tool:gdtoolkit', 'tool:gdunit4', 'skill:game-dev'] },
-  { id: 'flutter', count: s => s.manifests.filter(m => /pubspec\.yaml$/.test(m)).length, label: () => 'a Dart or Flutter package (pubspec.yaml)', words: /\b(flutter|dart|mobile|apps?|phones?)\b/i, for: ['skill:mobile-app', 'pack:gui'] },
+  { id: 'rust', count: s => s.manifests.filter(m => /Cargo\.toml$/.test(m)).length, label: c => `${c} Rust crate(s) (Cargo.toml)`, words: /\b(rust|cargo|crates?|clippy|lint|tests?)\b/i, for: ['tool:rust toolchain', 'tool:clippy', 'tool:cargo-audit', 'tool:cargo-nextest', 'skill:dependency-update'] },
+  { id: 'godot', count: s => s.manifests.filter(m => /project\.godot$/.test(m)).length, label: () => 'a Godot project (project.godot)', words: /\b(godot|gdscript|game|lint|tests?)\b/i, for: ['tool:godot (headless)', 'tool:gdtoolkit', 'tool:gdunit4', 'skill:game-dev'] },
+  { id: 'flutter', count: s => s.manifests.filter(m => /pubspec\.yaml$/.test(m)).length, label: () => 'a Dart or Flutter package (pubspec.yaml)', words: /\b(flutter|dart|mobile|apps?|phones?)\b/i, for: ['tool:flutter sdk', 'skill:mobile-app', 'pack:gui'] },
+  // a toolchain the code needs is a candidate of its own: without it nothing compiles or runs (Lesson: reviewers found
+  // Go, Rust and Flutter projects whose code never ran, with no row that said so)
+  { id: 'go', count: s => s.manifests.filter(m => /go\.mod$/.test(m)).length, label: c => `${c} Go module(s) (go.mod)`, words: /\b(go|golang|lint|vet|tests?|vulnerab\w*)\b/i, for: ['tool:go toolchain', 'tool:golangci-lint', 'tool:govulncheck', 'skill:dependency-update'] },
+  { id: 'powershell', count: s => s.n.powershell, label: c => `${c} PowerShell script(s)`, words: /\b(powershell|ps1|scripts?|lint|tests?)\b/i, for: ['tool:psscriptanalyzer', 'tool:pester'] },
   { id: 'notebooks', count: s => s.files.filter(f => /\.ipynb$/i.test(f.p)).length, label: c => `${c} Jupyter notebook(s)`, words: /\b(notebooks?|jupyter|ipynb|outputs?|ml|experiments?)\b/i, for: ['tool:nbstripout', 'tool:nbqa', 'skill:ml-experiments'] }
 ];
 // What the brief and the setup answers say the work is: evidence too, so a skill whose files don't exist yet is still
@@ -1994,10 +2023,20 @@ const FIT_FILLER = new Set(['not', 'needed', 'need', 'needs', 'this', 'that', 't
   'things', 'stuff', 'time', 'moment', 'currently', 'right', 'applicable', 'relevant', 'required', 'necessary', 'unnecessary', 'nice', 'have', 'good', 'idea', 'skip', 'add']);
 const FIT_BOILER = /^(not needed|n ?a|no use|maybe later|later|not relevant|not applicable|none|nothing|not required|unnecessary|no need|skip|skipped|no|yes|useful|could be useful|nice to have|might help|not now|tbd|todo)$/;
 // What is wrong with a reason, or '' when it holds (docs/checks/better-or-worse.md: a concrete gain or cost).
+const userVault = () => {
+  if (!exists('.obsidian')) return false;
+  const files = list('.obsidian');
+  if (files.some(f => f !== 'app.json')) return true;
+  const app = readJSON(abs('.obsidian/app.json'), {});
+  return JSON.stringify(Object.keys(app).filter(k => k !== 'userIgnoreFilters').sort()) !== JSON.stringify(['alwaysUpdateLinks', 'newLinkFormat', 'useMarkdownLinks']);
+};
 export function fitReasonProblem(reason) {
   const r = String(reason || '').trim(), flat = r.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
   if (!r || r === '?') return 'no reason: say what it gains or costs for this project';
   if (FIT_BOILER.test(flat)) return `"${r}" is boilerplate: say what it gains or costs for this project`;
+  // being there already is no reason to keep it (Lesson: reviewers found packs and skills "already in the project and
+  // kept" only because the engine's own files looked like a signal)
+  if (/^(it is |it's |its )?already (in|part of|set up in|installed in) (the|this) project\b[^.]{0,30}$/.test(flat)) return `"${r}" says it is there, not why it helps: say what it gains or costs for this project`;
   const words = flat.split(' ').filter(Boolean);
   if (words.length < 8) return `the reason is too short (${words.length} words, at least 8): say what it gains or costs for this project`;
   if (words.filter(w => w.length >= 3 && !FIT_FILLER.has(w)).length < 4) return 'the reason is boilerplate: name the concrete gain or cost for this project';
@@ -2038,6 +2077,10 @@ export function fitProblems(cfg = config(), { sv = null, text = null } = {}) {
     if (d === 'later') {
       const w = fitWhenOf(r);
       if (!w) probs.push(`${at}: later needs a condition: "later - when: <what has to happen>"`);
+      // a user who asked not to be asked will never give the OK a "later" waits for (Lesson: a photo tool deferred the
+      // library that reads when a photo was taken, its whole purpose, "until the user OKs it", in an autonomy-auto project)
+      else if (cfg.autonomy === 'auto' && /\b(user|owner|you)\b[^.]*\b(oks?|okays?|approves?|agrees?|confirms?|answers?|signs? off|decides?|gives? the go)\b|\bwith the user\b|\buser'?s? (ok|approval|go-ahead)\b/i.test(w.text))
+        probs.push(`${at}: its condition waits for the user's OK, but this project runs with autonomy "auto" (the user asked not to be asked): decide add or skip now`);
       else if (w.metric && fitMetric(sv, w) >= w.min) probs.push(`${at}: its condition is met now (when: ${w.text}; ${w.metric} is ${fitMetric(sv, w)}): decide add or skip`);
     }
   }
@@ -2748,8 +2791,23 @@ function cmdPosttool(data) {
   if (p === 'CLAUDE.md' || p === 'AGENTS.md') syncTwin();
   if (/^(docs\/(playbooks|checks|knowledge|MENU\.md)|skills\/|tools\/hooks\/requirements\.json)/.test(p)) syncAll();
   const h = eventHintAfterEdit(p, data.tool_input || {});
-  const pub = publishNotice(p, data.tool_input || {});
-  if (h || pub) contextOut('PostToolUse', [h, pub].filter(Boolean).join('\n') + '\n');
+  const pub = publishNotice(p, data.tool_input || {}), plan = planNotice(p, data.tool_input || {});
+  if (h || pub || plan) contextOut('PostToolUse', [h, pub, plan].filter(Boolean).join('\n') + '\n');
+}
+// REQ: plan-required (during the work). A turn that keeps adding new files hears, before it reaches the limit, that it
+// needs a plan, so the plan comes before the work, not after. Lesson: reviewers found plans written once the work
+// was done, only to satisfy the Stop check.
+function planNotice(p, inp) {
+  if (!p || p.startsWith('..') || !('content' in inp) || (exists('SETUP-PROMPT.md') && !exists('.starter-template'))) return null;
+  const turnAt = readJSON(stateFile('turn.json'), {}).at || '';
+  const st = readJSON(path.join(STATE, 'plan-watch.json'), {});
+  const s = st.at === turnAt ? st : { at: turnAt, files: [], plan: false, told: false };
+  if (/^docs\/plans\/.+\.md$/.test(p)) s.plan = true;
+  else if (!/^(docs\/|\.cache\/|tools\/hooks\/state\/|skills\/[^/]+\/SKILL\.md$)/.test(p) && !readJSON(stateFile(SNAPSHOT), {}).files?.[p] && !s.files.includes(p)) s.files.push(p);
+  const due = !s.plan && !s.told && s.files.length >= Math.max(2, config().planNewFiles - 2);
+  if (due) s.told = true;
+  writeState('plan-watch.json', s);
+  return due ? `PLAN: this turn has added ${s.files.length} new files (${s.files.slice(0, 3).join(', ')}) and is heading past ${config().planNewFiles}. Write the plan in docs/plans/ now (plan skill), before the rest of the work, then tick it as you go. REQ: plan-required.` : null;
 }
 // REQ: publish-safety (at the edit). A tracked file that now holds an email address, a personal path or an IP address
 // fails the audit's publish-safety sweep; say so while the text is fresh. Lesson: an email written into a plan doc
@@ -2970,6 +3028,15 @@ export function coreChecks(x, cfg) {
     const written = x.uses.filter(u => /^(Write|Edit|MultiEdit)$/.test(u.name) && inKb.test(rel(u.input.file_path || '')))
       .flatMap(u => untraced([u.input.content, u.input.new_string, ...(u.input.edits || []).map(e => e.new_string)].filter(Boolean).join('\n')));
     const unopened = x.toolsKnown ? cited.filter(p => !x.reads.has(p) && !x.cmds.some(c => c.includes(p)) && !x.results.includes(p)) : [];
+    // the web links in the answer's sources were opened too: a link a search only listed was never read. Lesson: an
+    // answer cited 2 of 3 studies by links it never opened, and the citation check passed it
+    if (x.toolsKnown && (researched || knowledge)) {
+      const src = /^[ \t]*\**sources:?\**[ \t]*$([\s\S]*)/im.exec(x.answer)?.[1] || '';
+      // (a research ledger checked this turn counts: helpers record there what they read)
+      const opened = `${openedText(x.entries || [])}\n${ledgerRuns.map(r => read(abs(/claims\.mjs\s+check\s+"?([^"\s]+)/.exec(r.cmd)?.[1] || '.'))).join('\n')}`.replace(/\\\//g, '/');
+      const key = u => u.replace(/^https?:\/\/(www\.)?/i, '').replace(/[)\].,;>]+$/, '').replace(/\/$/, '');
+      for (const u of new Set((src.match(/https?:\/\/[^\s)>\]]+/g) || []).map(key))) if (!opened.includes(u)) unopened.push(u);
+    }
     if (fromAnswer.length || written.length || unopened.length)
       add('answer-traced', 'Did you make that up? ' + [fromAnswer.length && `The answer states ${fromAnswer.slice(0, 6).join(', ')}, found in nothing read this turn`,
         written.length && `the knowledge base got ${written.slice(0, 6).join(', ')}, found in nothing read this turn`,
@@ -3019,6 +3086,11 @@ export function coreChecks(x, cfg) {
   // "Learned (<level>): <lesson> → <file>" and that file changed this turn. The learn-from-upset skill weighs the level.
   // Lesson: complaints were answered with an apology and a fix, and the same miss came back the next week.
   if (x.prompt && isUpset(x.prompt, cfg)) {
+    // first, whether the complaint holds, checked against the files and said plainly. Lesson: reviewers of 23 trial
+    // projects found complaints conceded and "fixed" when the thing was already there (a test, a refund, a permission)
+    const VERDICT = /\b(you'?re right|you are right|partly right|partly[:,]|that (isn'?t|is not|wasn'?t|was not) what happened|that'?s not what happened|(the )?complaint:\s*(holds|partly|does(n'?t| not) hold)|(this|that|it) (was|is) (already|still) (there|in place|done)|already (there|in place|covered|handled|tested))/i;
+    if (!VERDICT.test(x.said)) add('upset-learned', 'Before fixing anything, check the complaint against the files and say plainly whether it holds, in the first line: ' +
+      '"You\'re right: ...", "Partly: <what was wrong>, <what was already there>", or "That isn\'t what happened: <evidence>" (learn-from-upset skill, step 0).');
     const learned = [...x.said.matchAll(/^[\s>*_-]*learned\s*\((one-off|lesson|rule|check|skill|engine)\)\s*:\s*(.+?)\s*(?:→|->)\s*`?([^`\s,;]+)/gim)]
       .map(m => ({ level: m[1].toLowerCase(), file: m[3].replace(/\\/g, '/').replace(/^\.\//, '').replace(/[.)]+$/, '') }));
     if (!learned.length) add('upset-learned', 'The user is upset about a miss. Fixing it is half the job: the project has to learn from it too. Use the learn-from-upset skill ' +
@@ -3119,6 +3191,15 @@ export function coreChecks(x, cfg) {
   if (cr.length) add('code-rules', cr.slice(0, 8).join('; ') + (cr.length > 8 ? `; +${cr.length - 8} more` : ''));
   // REQ: empty-answer
   if (x.workTurn && !x.answer.trim()) add('empty-answer', 'The turn did work but the final answer is empty. Tell the user what was done (and the Finished section).');
+  // REQ: claim-checked (verification). A turn that waived its own test or build gate (the code never ran) cannot say
+  // the work ships or passes: the verdict is NOT VERIFIED, with what would verify it. Lesson: two trial projects had no
+  // toolchain, so nothing compiled, and the review still said "Verdict: SHIP".
+  const waivedRun = [...x.said.matchAll(/N\/A\((app-test-pass|app-build-pass|app-lint-pass)\)/gi)].map(m => m[1]);
+  if (waivedRun.length) {
+    const shipClaims = x.answer.split(/(?<=[.!?\n])\s+/).filter(s => /\b(verdict:\s*ship|ship(ped)? it|ready to (ship|release)|all tests pass|tests (all )?pass(ed)?|build (passes|passed|succeeds))\b/i.test(s) && !/\b(not|n't|unverified|not verified|would|once|after)\b/i.test(s));
+    if (shipClaims.length && !/\bnot verified\b/i.test(x.answer))
+      add('claim-checked', `This turn waived ${[...new Set(waivedRun)].join(', ')}, so the code did not run, but the answer says "${shipClaims[0].trim().slice(0, 60)}". Say "NOT VERIFIED" instead, and what would verify it (the toolchain or command to run).`);
+  }
   // REQ: claim-checked. An answer never says an action happened when its last attempt was denied or failed.
   // Lesson: "git push" was denied, and the answer said "Pushed." without a word about it.
   if (x.toolsKnown) {
@@ -3571,7 +3652,9 @@ function recordUsage(x, key) {
   // kept (Lesson: an adopted project's publish-safety sweep found the user's folder path in it)
   const u = usage(), k = createHash('sha1').update(String(key)).digest('hex').slice(0, 16);
   if (u._last === key || u._last === k) return;
-  for (const n of new Set([...x.usedPb, ...x.usedSkills].map(p => p.name))) { const e = u[n] || { uses: 0 }; e.uses++; e.last = today(); u[n] = e; }
+  // the sessions it was used in, too (a short hash of the transcript): hardening waits for use in more than one
+  const ses = createHash('sha1').update(String(key).split('|')[0]).digest('hex').slice(0, 8);
+  for (const n of new Set([...x.usedPb, ...x.usedSkills].map(p => p.name))) { const e = u[n] || { uses: 0 }; e.uses++; e.last = today(); e.sessions = [...new Set([...(e.sessions || []), ses])].slice(-5); u[n] = e; }
   u._last = k;
   writeState('runbook-usage.json', u);
 }
@@ -3654,7 +3737,10 @@ export function stopDecision(data, cfg = config()) {
     // at the end. Lesson: whole messages with paths and regexes made a wall of text the user had to ask about.
     reason: `Almost done: ${missing.length === 1 ? '1 step is' : `${missing.length} steps are`} left before this answer is complete${cfg.maxBlocksPerTurn < 1000 ? ` (round ${nblocks + 1} of ${cfg.maxBlocksPerTurn})` : ''}.\n` +
       missing.map((m, i) => `${i + 1}. ${shortStep(m)}`).join('\n') +
-      `\nFor the agent: full steps in \`node tools/hooks/hooks.mjs why\`; waive one that truly does not apply with N/A(<name>): <reason>. Names: ${missing.map(m => m.tag).join(', ')}.`
+      // the user may see only the last message: it must still carry the answer, not just these steps. Lesson: reviews
+      // of trial sessions found the final message was "the checks pass now" while the explanation, letter or verdict
+      // the user asked for sat in an earlier message
+      `\nFor the agent: do these, then end with the whole answer to the user's request again, in the user's language (the result, the verdict, what they asked for), updated, with these steps as a short note after it; the last message is the one the user reads. Full steps: \`node tools/hooks/hooks.mjs why\`; waive one that truly does not apply with N/A(<name>): <reason>. Names: ${missing.map(m => m.tag).join(', ')}.`
   };
 }
 

@@ -82,6 +82,21 @@ export function wire(dir, { dry = false } = {}) {
     }
   }
   // Obsidian (obsidian skill): new links are relative markdown links, which GitHub and every agent follow too
+  // A vault the user already had keeps its notes in front: the engine's own folders are hidden from its search, graph
+  // and quick switcher (Obsidian's "Excluded files"), added to whatever the user excludes already.
+  // Lesson: adopting a vault put 72 engine files among the user's notes.
+  const op = at('.obsidian', 'app.json');
+  const ENGINE_APP = ['alwaysUpdateLinks', 'newLinkFormat', 'useMarkdownLinks'];
+  if (fs.existsSync(op)) {
+    try {
+      const app = JSON.parse(fs.readFileSync(op, 'utf8'));
+      const users = fs.readdirSync(at('.obsidian')).some(f => f !== 'app.json') || JSON.stringify(Object.keys(app).filter(k => k !== 'userIgnoreFilters').sort()) !== JSON.stringify(ENGINE_APP);
+      if (!users) throw 0;
+      const mine = ['tools/', 'skills/', '.claude/', '.agents/', '.codex/', '.gemini/', '.githooks/', '.starter/', 'docs/checks/', 'docs/playbooks/'];
+      const have = Array.isArray(app.userIgnoreFilters) ? app.userIgnoreFilters : [], add = mine.filter(m => !have.includes(m));
+      if (add.length) { log.push(`updated  .obsidian/app.json (the engine's folders hidden from the vault's search and graph: ${add.length})`); if (!dry) write(op, JSON.stringify({ ...app, userIgnoreFilters: [...have, ...add] }, null, 2) + '\n'); }
+    } catch { }
+  }
   if (!fs.existsSync(at('.obsidian'))) { write(at('.obsidian', 'app.json'), JSON.stringify({ useMarkdownLinks: true, newLinkFormat: 'relative', alwaysUpdateLinks: true }, null, 2) + '\n'); log.push('created  .obsidian/app.json (Obsidian: markdown links, relative paths)'); }
   // the generated skill mirrors and DIRECTORY.md
   if (!dry && fs.existsSync(at('tools', 'hooks', 'hooks.mjs'))) spawnSync(process.execPath, [at('tools', 'hooks', 'hooks.mjs'), 'sync'], { cwd: dir, encoding: 'utf8' });

@@ -213,14 +213,30 @@
       "tag": "release-notes",
       "rule": "12",
       "when": {
-        "playbookUsed": "feature"
+        "playbookUsed": "feature",
+        "filesChanged": [
+          "src/**",
+          "app/**",
+          "lib/**",
+          "server/**",
+          "packages/**"
+        ],
+        "filesIgnore": [
+          "**/test/**",
+          "**/tests/**",
+          "**/__tests__/**",
+          "**/*.test.*",
+          "**/*.spec.*",
+          "**/*_test.*"
+        ]
       },
       "require": {
         "filesChanged": [
           "docs/releases/**"
         ]
       },
-      "message": "Write release notes in docs/releases/ (what changed, try it fast, try it for real)."
+      "message": "Write release notes in docs/releases/ (what changed, try it fast, try it for real).",
+      "codeGlobs": true
     },
     {
       "tag": "release-ready",

@@ -20,7 +20,13 @@ Say at the start: "Fixing it first, then making sure it doesn't happen again (le
   (friction-suspend). This skill fixes the cause before it gets there.
 
 ## Steps
-1. **Fix the miss now.** Redo the work by the runbook or skill it belonged to. No arguing, over-apologizing or
+0. **Check the complaint against the files first.** Open what the user is upset about (the file, the output, the
+   commit) and see which parts of the complaint hold. Say it plainly in the first line of the answer: "You're right:
+   ...", "Partly: X was wrong, Y was already there (<path>)", or "That isn't what happened: <evidence>". A complaint
+   that doesn't hold still gets its principle written down if it is one the user wants kept, but never a fix for a
+   problem that isn't there.
+1. **Fix the miss now.** Redo the work by the runbook or skill it belonged to, and save the corrected result where
+   the old one was (a rewritten letter replaces the saved draft, not just the chat). No arguing, over-apologizing or
    promises: one plain sentence on what went wrong, then the fix.
 2. **Find the cause, not the symptom.** Which step was missing, vague or skipped? Which rule was broken? Or was it
    something only the user knew? Write it as one sentence:
@@ -41,14 +47,19 @@ Say at the start: "Fixing it first, then making sure it doesn't happen again (le
    Several levels can apply: a check usually comes with a lesson in the skill it guards.
 4. **Write it down there** in your own words, never the user's (hook: no-verbatim-examples). Each lesson says what
    to do, not only what went wrong, so the next run can follow it.
-5. **Prove it.** For a check: `node tools/hooks/selfcheck.mjs --tags <tag>` (blocked when skipped, passes when
-   followed). For a lesson or rule: re-read the step and confirm the corrected work now follows it.
+5. **Prove it.** For a check: its "blocked" scenario recreates the exact defect the user complained about (the card
+   with no time, the link never opened, the wrong total, the change missing from the changelog) and the check must
+   fail it; a near miss that still has the defect must fail too. Then `node tools/hooks/selfcheck.mjs --tags <tag>`
+   (blocked when skipped, passes when followed). A check that only looks for a word or a format lets the same miss
+   through: test the result itself. For a lesson or rule: re-read the step and confirm the corrected work now follows it.
 6. **Tell the user** in the answer, on its own line:
    `Learned (<level>): <the lesson in one sentence> → <file it went into>`.
    Several lessons: one line each. If the upset was about something outside the project (a service outage, the user's
    own day), say so instead: `N/A(upset-learned): <why there is nothing to learn>`.
 
 ## Done when
+- [ ] The answer opens with whether the complaint holds, in full, in part or not, with the evidence (judgment: the
+      user can tell at once what was actually wrong).
 - [ ] The miss is fixed and verified (judgment: the user can see the corrected result).
 - [ ] A `Learned (<level>): ... → <file>` line names a file that changed this turn (hook: upset-learned).
 - [ ] A lesson at level check has its scenarios and they pass (hook: hooks-tested).
@@ -61,3 +72,9 @@ Say at the start: "Fixing it first, then making sure it doesn't happen again (le
 - Writing a rule for a one-off, or a one-off note for something that already happened twice.
 - Copying the user's angry words into a rule. Write the principle.
 - Learning in the wrong place: a lesson about the engine buried in one project's notes never reaches the others.
+- Fixing a complaint without checking it. Reviews of trial sessions found agents "fixing" things that were already
+  right, and building rules around a letter whose corrected version was never saved.
+- A new check that overlaps one the project has: extend the existing check instead of adding a second one, and
+  prefer a check that tests the result over a list of forbidden words.
+- Waiving a check with N/A because another hook blocked the work. That is not "does not apply": say the work is
+  blocked, by what, and leave it for the user.

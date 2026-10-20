@@ -60,7 +60,8 @@ const coreTags = new Set([...hooksSrc.matchAll(/REQ: ([a-z0-9-]+)/g)].map(m => m
 const reqTags = new Set(fileReqs.map(r => r && r.tag).filter(Boolean));
 // An adopted project's own hook engine (config "externalHooks": ["tools/hooks/hooks.py"]) enforces its "REQ: <tag>"
 // checks itself, and tests them itself. Lesson: a deck project's 67 checks in its own hooks.py read as enforced nowhere.
-const extTags = new Set([].concat(cfg.externalHooks || []).flatMap(f => [...read(abs(f)).matchAll(/REQ: ([a-z0-9-]+)/g)].map(m => m[1])));
+// (a label may name several: "REQ: a + b", "REQ: a, b")
+const extTags = new Set([].concat(cfg.externalHooks || []).flatMap(f => [...read(abs(f)).matchAll(/REQ: ([a-z0-9-]+(?:\s*[+,&/]\s*[a-z0-9-]+)*)/g)].flatMap(m => m[1].split(/\s*[+,&/]\s*/))));
 const knownTag = t => coreTags.has(t) || reqTags.has(t) || packTags.has(t) || extTags.has(t);
 const skillNames = fs.existsSync(abs(cfg.skillsDir)) ? fs.readdirSync(abs(cfg.skillsDir)).filter(n => exists(`${cfg.skillsDir}/${n}/SKILL.md`)) : [];
 const git = (...a) => spawnSync('git', a, { cwd: ROOT, encoding: 'utf8' });
