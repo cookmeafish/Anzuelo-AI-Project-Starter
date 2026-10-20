@@ -94,7 +94,7 @@ if (cmd === 'link') {
 } else if (cmd === 'upgrade') {
   const link = starterLink();
   if (!link) { console.error('No starter is linked. Run: node tools/starter.mjs link "<starter folder>" first.'); process.exit(1); }
-  const r = spawnSync(process.execPath, [path.join(link, 'tools', 'new-project.mjs'), ROOT, '--upgrade', ...process.argv.slice(3).filter(a => ['--dry-run', '--accept-findings'].includes(a))], { encoding: 'utf8', stdio: 'inherit' });
+  const r = spawnSync(process.execPath, [path.join(link, 'tools', 'new-project.mjs'), ROOT, '--upgrade', ...process.argv.slice(3).filter(a => ['--dry-run', '--accept-findings', '--verbose'].includes(a))], { encoding: 'utf8', stdio: 'inherit' });
   process.exit(r.status ?? 1);
 } else if (cmd === 'update') {
   // Get the newest starter from where it came from (its git origin), then upgrade this project from it. The upgrade
@@ -105,7 +105,14 @@ if (cmd === 'link') {
   if (fs.existsSync(path.join(link, '.starter-dev'))) { console.error(`${link} is a development copy: projects update from a stable copy. Link one with: node tools/starter.mjs link "<stable starter folder>"`); process.exit(1); }
   if (!fs.existsSync(path.join(link, '.git'))) { console.error(`${link} is not a git clone, so it can't fetch updates. Replace it with a clone of the starter's repository, link that, and run update again.`); process.exit(1); }
   const g = (...a) => spawnSync('git', a, { cwd: link, encoding: 'utf8', timeout: 120000 });
-  if ((g('status', '--porcelain').stdout || '').trim()) { console.error(`${link} has local changes, so it is left alone. Commit or discard them there, then run update again.`); process.exit(1); }
+  // the blocking files are named, so it is clear what to commit, send back or discard (Lesson: a clone with a project's
+  // own engine fixes stopped update with no list)
+  const dirty = (g('status', '--porcelain').stdout || '').trim();
+  if (dirty) {
+    const files = dirty.split(/\r?\n/).slice(0, 15).map(l => '  ' + l.trim()).join('\n');
+    console.error(`${link} has local changes, so it is left alone:\n${files}\nIf they are fixes to the engine, send them back first (node tools/starter.mjs feedback "<what and why>", then report). Then, in that folder, run git stash (keeps them) or git checkout -- . (drops them), and run update again.`);
+    process.exit(1);
+  }
   const before = g('rev-parse', 'HEAD').stdout.trim();
   if (g('rev-parse', '--abbrev-ref', '@{u}').status !== 0) { console.error(`${link} has no remote to get updates from (no "origin" branch it follows). Clone the starter's repository instead, link that clone, and run update again.`); process.exit(1); }
   const pull = g('pull', '--ff-only', '--quiet');

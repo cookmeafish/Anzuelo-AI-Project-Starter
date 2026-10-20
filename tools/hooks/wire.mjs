@@ -47,7 +47,20 @@ export function wire(dir, { dry = false } = {}) {
   if (!on('codex')) { /* not wired for Codex on this project (wireAgents) */ }
   else if (fs.existsSync(cp) && !fs.readFileSync(cp, 'utf8').includes('hooks.mjs')) log.push('kept     .codex/hooks.json (exists; add the hooks.mjs entries by hand)');
   // Codex runs project hooks only after they are trusted, and asks again whenever the file changes.
-  else if (!fs.existsSync(cp) || fs.readFileSync(cp, 'utf8') !== codex) { log.push(`${fs.existsSync(cp) ? 'updated' : 'created'}  .codex/hooks.json (Codex: run /hooks in Codex once to trust them; it asks again after a change)`); write(cp, codex); }
+  else {
+    // the project's own hook commands in the file stay: only the engine's entries are replaced (Lesson: an adopted project
+    // with its own hook engine lost every one of its Codex hooks the second time wire ran)
+    let merged = codex;
+    if (fs.existsSync(cp)) { try {
+      const old = JSON.parse(fs.readFileSync(cp, 'utf8')), mine = JSON.parse(codex);
+      for (const [e, groups] of Object.entries(old.hooks || {})) {
+        const keep = groups.filter(g => !JSON.stringify(g).includes('hooks.mjs'));
+        if (keep.length) mine.hooks[e] = [...keep, ...(mine.hooks[e] || [])];
+      }
+      merged = JSON.stringify(mine, null, 2) + '\n';
+    } catch { } }
+    if (!fs.existsSync(cp) || fs.readFileSync(cp, 'utf8') !== merged) { log.push(`${fs.existsSync(cp) ? 'updated' : 'created'}  .codex/hooks.json (Codex: run /hooks in Codex once to trust them; it asks again after a change)`); write(cp, merged); }
+  }
   // Gemini CLI reads GEMINI.md unless told otherwise: point it at AGENTS.md (merged into any settings it has).
   // Its hooks are not wired: their input format isn't documented. A Gemini agent runs hooks.mjs begin / check by hand.
   const gp = at('.gemini', 'settings.json');

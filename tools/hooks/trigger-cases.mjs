@@ -176,6 +176,9 @@ export default {
     'the email field on the form is broken',
     'what email did the supplier send yesterday?'] },
   'SKILL: data-analysis': { fire: [
+    'what was our best week so far, and what drove it?',
+    'which product sold the most last month?',
+    'how did sales do compared to last week?',
     "what's the average order value in sales.csv",
     'make a chart of monthly signups',
     'look at the spreadsheet and tell me which product sells best',

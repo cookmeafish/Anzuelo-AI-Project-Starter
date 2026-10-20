@@ -31,6 +31,10 @@ The starter was added around work that already exists (`config.json` has `adopte
   failures go into `docs/STATUS.md` as known issues.
 - **Fill baselines from reality:** `docs/security.md` and (app pack) `docs/foundation.md` record the current state.
   Gaps become follow-up items ranked by risk, not silent rewrites.
+- **Its own hooks, if it has any:** list their files in `"externalHooks"` in `tools/hooks/config.json`, so the
+  `REQ: <tag>` checks they enforce count in the audit. If they look for changed files, make them skip
+  `tools/hooks/state/` (this engine writes there on every prompt). Keep `AGENTS.md` and `CLAUDE.md` saying they "are
+  twins" (keep the two identical) when you merge the project's rules into them.
 - **Library skills:** `codebase-map` and `repo-setup` come first for an existing codebase.
 - The final summary lists what was added, kept, moved (only if approved), and the improvement backlog.
 

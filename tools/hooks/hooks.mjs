@@ -82,6 +82,9 @@ export function frontmatter(text) {
   return o;
 }
 const splitList = s => String(s || '').split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
+// A runbook's or skill's triggers, minus the ones the project took out with "triggers_removed:" (upgrades keep both).
+// Lesson: a deck project narrowed the knowledge pack's "make me a" and "import this", and every upgrade put them back.
+export const triggersOf = fm => { const off = new Set(splitList(fm?.triggers_removed)); return splitList(fm?.triggers).filter(t => !off.has(t)); };
 
 // ---------- configuration ----------
 const DEFAULTS = {
@@ -246,6 +249,9 @@ export function config() {
   const c = readJSON(path.join(HOOKS, 'config.json'), {});
   const out = { ...DEFAULTS, ...c };
   for (const k of EXTENDS) if (Array.isArray(c[k])) out[k] = [...new Set([...DEFAULTS[k], ...c[k]])];
+  // words that are filler elsewhere but real terms in the project's subject (a card game's "delve" keyword). Lesson: an
+  // adopted deck project's docs and answers about Delve cards were flagged as filler
+  if (Array.isArray(c.fluffAllowed)) out.fluff = out.fluff.filter(f => !c.fluffAllowed.includes(f));
   // A skills folder the engine once generated (its skills carry a .mirror marker) stays a mirror, so it is refreshed,
   // pruned and protected like the configured ones. Lesson: .agents/skills was left out of skillMirrors, and its copy
   // of the plan skill kept a link that pointed one folder short.
@@ -269,7 +275,9 @@ export const secretHit = (text, cfg = config()) => secretRes(cfg).find(p => p.rx
 // Personal or machine details that must not be published (the audit's publish-safety sweep, and a notice at the edit).
 const PERSONAL = [
   [/[A-Za-z0-9._%+-]+@(?!example\.(com|org)|users\.noreply\.github\.com)[A-Za-z0-9.-]+\.[a-z]{2,}/, 'an email address'],
-  [/[A-Za-z]:[\\/]+Users[\\/]+(?!<|USER|you|\$|%)[A-Za-z0-9._-]+/i, 'a personal Windows path'],
+  // only placeholders are skipped (<user>, %USERNAME%, $USER, "you", USERNAME); a real account named "User" is personal
+  // too. Lesson: on a machine whose account is "User", every home path passed, since "USER" was skipped in any case
+  [/[A-Za-z]:[\\/]+Users[\\/]+(?!<|\$|%|USERNAME\b|you(r)?\b|Public\b|Default\b|All Users\b)[A-Za-z0-9._-]+/i, 'a personal Windows path'],
   [/\/(home|Users)\/(?!<|user\b|you\b|\$)[a-z0-9._-]{2,}\//i, 'a personal home path'],
   // first part 10 to 255, every part a real octet, and not a version ("v9.7.0.3", "version 12.1.0.4", "9.7.0.3")
   // Lesson: four-part version numbers in a game's data were flagged as IP addresses.
@@ -297,7 +305,7 @@ function playbooksRead() {
     const name = fm.name || f.replace(/\.md$/, '');
     // Every runbook has a skill: skills/<name>/ (generated) unless "skill:" points at a hand-written one.
     const skillName = name.startsWith('_') ? '' : (/(?:^|\/)skills\/([^/]+)\//.exec((fm.skill || '').replace(/\\/g, '/'))?.[1] || name);
-    out.push({ file, name, fm, text, triggers: splitList(fm.triggers), triggerRe, skillName });
+    out.push({ file, name, fm, text, triggers: triggersOf(fm), triggerRe, skillName });
   }
   return out;
 }
@@ -353,7 +361,7 @@ const routableSkillsRead = (skillsDir) => {
     // a skill's "trigger_regex:" routes it the same as a runbook's. Lesson: skills could set one and it was never read.
     let triggerRe = null;
     try { if (fm.trigger_regex) triggerRe = re(fm.trigger_regex); } catch { }
-    out.push({ name: n, file, fm, text, triggers: splitList(fm.triggers), triggerRe, skillName: n });
+    out.push({ name: n, file, fm, text, triggers: triggersOf(fm), triggerRe, skillName: n });
   }
   return out;
 }
@@ -2284,6 +2292,19 @@ function cmdSession(data) {
 // ("don't ask me for the api key again" is about one thing, not the whole job. Lesson: "you decide", "I trust you",
 // "no need to check with me" and "without stopping" were missed, and that one false alarm counted)
 const AUTONOMY_WORDS = /\byou decide\b|\bi trust you\b|\bno need to (ask|check with) me\b|\bwithout stopping\b|\bwithout (my|any) (input|approval|questions?|ok)\b|\bdon'?t (ask|bother) me\b(?!\s+(for|about)\b)|\bno (more )?questions\b|\bkeep going (until|till) (it'?s |you'?re |everything is )?(done|finished|complete)\b|\bgo,? go,? go\b|\bdon'?t stop (until|till|for)\b|\bdecide (everything|for me|yourself)\b|\bdon'?t want to be (bothered|asked|interrupted)\b|\b(handle|do|figure out) (it|this|everything|all of it|the rest) (yourself|on your own|without me)\b|\bwithout checking (in )?with me\b|\bi('?m| am) (going )?(away|offline|out)\b[^\n]{0,40}\b(keep|carry on|continue)\b/i;
+// Library skills the fit checklist left for later or skipped, whose own triggers the request matches.
+export function fitDueByRequest(text, cfg = config()) {
+  if (!exists(FIT_FILE)) return [];
+  const rows = fitRows().filter(r => r.kind === 'skill' && ['later', 'skip'].includes(fitDecision(r.decision)) && !exists(`${cfg.skillsDir}/${r.item}/SKILL.md`));
+  if (!rows.length) return [];
+  const lib = findLibrary();
+  if (!lib) return [];
+  const items = rows.map(r => {
+    const fm = frontmatter(read(path.join(lib.dir, 'skills', r.item, 'SKILL.md'))) || {};
+    return { name: r.item, fm, triggers: splitList(fm.triggers), triggerRe: null, row: r };
+  }).filter(x => x.triggers.length);
+  return route(text, items).map(({ pb, hits }) => ({ item: pb.name, hits, decision: pb.row.decision.slice(0, 120) }));
+}
 export function promptHints(prompt, cfg = config(), withNotices = true) {
   if (!String(prompt || '').trim() || skipped(prompt)) return []; // REQ: notification-not-prompt
   const p = userText(prompt); // pasted text and the hooks' own output are not the request
@@ -2316,6 +2337,12 @@ export function promptHints(prompt, cfg = config(), withNotices = true) {
   const sk = route(m.expanded, routableSkills(cfg)).filter(({ pb: s }) => !(s.name === 'knowledge-capture' && re(cfg.requirementWords).test(p)));
   for (const { pb: s, hits } of sk)
     hints.push(`SKILL: ${s.name} (matched: ${hits.join(', ')}). If this is the task: open ${s.file} THIS turn (or invoke the ${s.name} skill) and follow it, together with any runbook above. Name it in the answer ("Skill: ${s.name}"). REQ: skill-read.`);
+  // REQ: fit-checklist (at the request). A library skill the checklist left for later, or skipped, whose triggers this
+  // request matches: the request is the evidence a "later - when: the user asks ..." waited for, so decide it now.
+  // Lesson: a sales project left data-analysis for "when the user asks a sales question", and the question was then
+  // answered without it.
+  for (const d of fitDueByRequest(m.expanded, cfg))
+    hints.push(`FIT: this request is what the ${d.item} library skill is for (matched: ${d.hits.join(', ')}), and ${FIT_FILE} decided it "${d.decision}". Decide it again now: enable it (node tools/skills.mjs enable ${d.item}) and use it, or update its row with why it still does not help. REQ: fit-checklist.`);
   // REQ: event-hint. A check that makes a skill or runbook mandatory when something happens (an event trigger with
   // "forces") says so as soon as the request shows it is coming, so the work follows it from the start instead of being
   // stopped at the end. Lesson: a change to sign-in code was only reviewed when the user remembered to ask.
@@ -3540,10 +3567,12 @@ export function recallMatches(text, limit = 3) {
 function recordUsage(x, key) {
   recordHistory(x, key);
   if (!x.usedPb.length && !x.usedSkills.length) return;
-  const u = usage();
-  if (u._last === key) return;
+  // runbook-usage.json is committed: the key (transcript path + time) holds the user's home folder, so only its hash is
+  // kept (Lesson: an adopted project's publish-safety sweep found the user's folder path in it)
+  const u = usage(), k = createHash('sha1').update(String(key)).digest('hex').slice(0, 16);
+  if (u._last === key || u._last === k) return;
   for (const n of new Set([...x.usedPb, ...x.usedSkills].map(p => p.name))) { const e = u[n] || { uses: 0 }; e.uses++; e.last = today(); u[n] = e; }
-  u._last = key;
+  u._last = k;
   writeState('runbook-usage.json', u);
 }
 

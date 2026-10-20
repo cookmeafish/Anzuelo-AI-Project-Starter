@@ -149,6 +149,20 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
     text, so it routed to nothing; the words around the quotes count too). A message from another session after a
     turn ended starts a turn of its own, with no user request: a session driven by a peer for hours no longer re-checks
     work from the user's last prompt.
+  - **From a project adopted with its own hook engine** (a deck project): a project's own menu codes are not taken
+    for an uninstalled pack's; `wire` keeps the project's own Codex hook commands; `"fluffAllowed"` takes words off the
+    filler list (a game's real terms); an upgrade keeps an adopted project's `_fallback.md` lessons; runbook-usage
+    stores a hash, not a home-folder path; a Windows home path of an account named "User" is personal too (only
+    placeholders pass); `triggers_removed:` takes a starter trigger out of a runbook or skill for good, upgrades
+    included; `"externalHooks"` makes the `REQ: <tag>` checks of the project's own hooks count in the audit; a
+    runbook may name several menu codes; `starter.mjs upgrade` passes `--verbose`; `update` names the local changes
+    that block it; without git, publish safety skips the plain folders `.gitignore` lists; the self-test sandbox
+    resets the project's scopes root, verbatim and filler lists, and its "Dropped rules"; the setup prompt covers
+    projects with their own hooks.
+  - **A deferred skill is decided again when the request is for it:** a library skill the fit checklist left for
+    "later" (or skipped) is named when a request matches its triggers (Lesson: a sales project answered "what was our
+    best week" without the data-analysis skill it had deferred for exactly that); data-analysis also routes everyday
+    sales questions ("best week", "sold the most", "compared to last week").
   - **Self-test about a third faster:** the standalone tests are shared across the helper processes too, and up to 12
     run at once (about 10 to 6.5 minutes in the starter while other work ran).
 - 2026-10-19 (later): Fixes from the same project's next upgrade.

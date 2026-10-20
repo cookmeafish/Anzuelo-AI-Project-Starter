@@ -179,7 +179,9 @@ function put(rel, { overwrite = false, as = rel } = {}) {
     // An upgrade replaces engine files, but never loses what the project added: a core skill keeps its own triggers
     // and its "## Project lessons" section (where skill-learn writes), and every replaced file is backed up first.
     const mine = fs.readFileSync(to, 'utf8');
-    if (/^(skills\/[^/]+\/SKILL\.md|docs\/playbooks\/[^_/][^/]*\.md)$/.test(as)) text = mergeSkill(fs.readFileSync(from, 'utf8'), mine, rel);
+    // _fallback.md too: an adopted project keeps its own fallback steps under "## Project lessons" (Lesson: an upgrade
+    // replaced an adopted deck project's _fallback.md whole, dropping its deck rules; only _TEMPLATE.md has nothing to keep)
+    if (/^(skills\/[^/]+\/SKILL\.md|docs\/playbooks\/(?!_TEMPLATE\.md)[^/]+\.md)$/.test(as)) text = mergeSkill(fs.readFileSync(from, 'utf8'), mine, rel);
     // the merge gave back the project's file as it is: nothing to update (Lesson: a repeat upgrade listed these as "updated")
     if (text != null && text === mine) { unchanged++; return false; }
     const backup = path.join(dest, '.cache', 'upgrade-backup', stamp, as + '.orig'); // .orig: never loaded or run as code
@@ -227,7 +229,11 @@ function mergeSkill(theirs, mine, rel) {
     : out.replace(/^---\r?\n/, `---\ntriggers: ${extra.join(', ')}\n`);
   // the project's own marks in the frontmatter (skill-harden, skill-curate) stay, so a replaced runbook is not due again
   const fmOf = t => /^---\r?\n([\s\S]*?)\r?\n---/.exec(t)?.[1] || '';
-  const marks = fmOf(mine).split(/\r?\n/).filter(l => /^(hardened|harden|keep):/.test(l) && !new RegExp(`^${l.split(':')[0]}:`, 'm').test(fmOf(out)));
+  // ...and so do the starter triggers it took out ("triggers_removed:"): they leave the merged list too
+  // (Lesson: a deck project narrowed a pack's triggers, and the next upgrade put them back)
+  const removed = trig(mine.replace(/^triggers:.*$/m, '').replace(/^triggers_removed:/m, 'triggers:')).map(t => t.toLowerCase());
+  if (removed.length) out = out.replace(/^triggers:\s*(.*)$/m, (l, v) => `triggers: ${v.split(',').map(s => s.trim()).filter(t => t && !removed.includes(t.toLowerCase())).join(', ')}`);
+  const marks = fmOf(mine).split(/\r?\n/).filter(l => /^(hardened|harden|keep|triggers_removed):/.test(l) && !new RegExp(`^${l.split(':')[0]}:`, 'm').test(fmOf(out)));
   if (marks.length && /^---\r?\n/.test(out)) out = out.replace(/^(---\r?\n[\s\S]*?)(\r?\n---)/, (m, a, b) => `${a}\n${marks.join('\n')}${b}`);
   let lessons = /^## Project lessons[^\n]*\n[\s\S]*?(?=^## |(?![\s\S]))/m.exec(mine)?.[0];
   const pit = /^## Pitfalls[^\n]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(mine)?.[1] || '';

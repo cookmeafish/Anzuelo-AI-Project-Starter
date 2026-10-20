@@ -99,7 +99,11 @@ function base() {
   if (!fs.existsSync(at('SETUP-PROMPT.md'))) fs.writeFileSync(at('SETUP-PROMPT.md'), '# Setup prompt\n');
   const cfgPath = at('tools/hooks/config.json'), cfg0 = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
   // (protectedBranches too: a project that works on main sets it to [], and the push fixtures expect the defaults)
-  for (const k of ['app', 'starter', 'adopted', 'autonomy', 'suspended', 'protectedBranches']) delete cfg0[k];
+  // (and the project's own folder names and word lists, which the scope, verbatim and writing fixtures assume are the
+  // defaults. Lesson: an adopted deck project's "friends" scopes root and its verbatimAllowed broke seven fixtures)
+  for (const k of ['app', 'starter', 'adopted', 'autonomy', 'suspended', 'protectedBranches', 'scopesRoot', 'verbatimAllowed', 'fluffAllowed']) delete cfg0[k];
+  // a "## Dropped rules" section of the project's own adoption would be read in place of the fixture's
+  try { const dp = at('docs/DECISIONS.md'); fs.writeFileSync(dp, fs.readFileSync(dp, 'utf8').replace(/^## Dropped rules[^\n]*\n[\s\S]*?(?=^## |(?![\s\S]))/gm, '')); } catch { }
   cfg0.commitGate = (cfg0.commitGate || []).filter(g => !g.app);
   fs.writeFileSync(cfgPath, JSON.stringify(cfg0, null, 2) + '\n');
   const rqPath = at('tools/hooks/requirements.json'), rq0 = JSON.parse(fs.readFileSync(rqPath, 'utf8'));
@@ -644,6 +648,20 @@ const PROMPT = [
   { name: 'scope hint names the person (alias works)', prompt: 'update ali\'s budget', setupFn: PEOPLE, has: ['SCOPE: this request is about alice'] },
   { name: 'unresolved checks from the last turn are announced', prompt: 'hello', setup: { 'tools/hooks/state/unresolved.json': JSON.stringify({ at: 'x', prompt: 'p', items: ['[finished-summary] m'] }) }, has: ['LAST WORK TURN ENDED WITH UNRESOLVED CHECKS'] },
   // a trigger that is itself a question routes when typed as a question (Lesson: dead whenever the user typed "?")
+  // a library skill left for "later - when: the user asks ..." is named when the request is that ask (Lesson: a sales
+  // project answered "what was our best week" without the data-analysis skill it had deferred for exactly that)
+  { name: 'fit-checklist: a request a deferred library skill is for asks to decide it again', prompt: 'what was our best week so far, and what drove it?', removeMarker: true,
+    remove: ['skills/data-analysis/SKILL.md'], setup: { 'docs/fit-checklist.md': '| Item | Kind | Signal | Decision | Reason |\n|---|---|---|---|---|\n| data-analysis | skill | 3 data files | later - when: the user asks a sales question | the weekly script answers the usual questions |\n' },
+    has: ['FIT: this request is what the data-analysis library skill is for'] },
+  { name: 'fit-checklist: a request no deferred skill is for: no fit notice', prompt: 'tidy up the readme wording', removeMarker: true,
+    remove: ['skills/data-analysis/SKILL.md'], setup: { 'docs/fit-checklist.md': '| Item | Kind | Signal | Decision | Reason |\n|---|---|---|---|---|\n| data-analysis | skill | 3 data files | later - when: the user asks a sales question | the weekly script answers the usual questions |\n' },
+    hasNot: ['FIT: this request'] },
+  // a trigger the project took out stays out, whatever an upgrade brings back (Lesson: a deck project's narrowed pack
+  // triggers returned with every upgrade)
+  { name: 'routing: a trigger listed in triggers_removed does not route; the others still do', prompt: 'update the zorbl roster', removeMarker: true,
+    setup: { 'docs/playbooks/zorbl-plan.md': NEWPB.replace('name: meal-plan', 'name: zorbl-plan').replace('triggers: meal plan, plan meals', 'triggers_removed: zorbl plan\ntriggers: zorbl plan, plan zorbls') }, hasNot: ['ROUTE: zorbl-plan'] },
+  { name: 'routing: the triggers left after triggers_removed still route', prompt: 'can you plan zorbls for the week', removeMarker: true,
+    setup: { 'docs/playbooks/zorbl-plan.md': NEWPB.replace('name: meal-plan', 'name: zorbl-plan').replace('triggers: meal plan, plan meals', 'triggers_removed: zorbl plan\ntriggers: zorbl plan, plan zorbls') }, has: ['ROUTE: zorbl-plan'] },
   { name: 'routing: a question-word trigger routes with its question mark', prompt: 'How do I do the second zorbl phase?', removeMarker: true,
     setup: { 'docs/playbooks/zorbl-answer.md': NEWPB.replace('name: meal-plan', 'name: zorbl-answer').replace('triggers: meal plan, plan meals', 'triggers: how do i do, what do i do in') }, has: ['ROUTE: zorbl-answer'] },
   { name: 'skill-prune: a runbook nobody used for months is announced for cleanup', prompt: 'hello', session: true, removeMarker: true, setup: { 'docs/playbooks/meal-plan.md': NEWPB, 'tools/hooks/state/runbook-usage.json': JSON.stringify({ 'meal-plan': { uses: 1, last: '2020-01-01', seen: '2020-01-01' } }) }, has: ['SKILL CLEANUP DUE: meal-plan'] },
@@ -2089,7 +2107,10 @@ if (mineB()) { // event-hint after an edit: writing sign-in code names the manda
     // an email written into a tracked doc is named at the edit, not first at the next audit; a placeholder is fine
     const docEdit = content => run(dir, 'posttool', { tool_name: 'Write', tool_input: { file_path: path.join(dir, 'docs/plans/launch.md'), content } }).out;
     const mail = docEdit(`Contact: ${['jo.smith', 'mailhost.net'].join('@')} for the launch.`), safe = docEdit('Contact: name@example.com for the launch.');
-    report(/PUBLISH SAFETY: docs\/plans\/launch\.md .*an email address/.test(mail) && !/PUBLISH SAFETY/.test(safe), 'publish-safety: an email written into a tracked doc is named at the edit; a placeholder is quiet', `${mail.slice(0, 200)} | ${safe.slice(0, 200)}`);
+    // a real account named "User" is personal too; only placeholders pass (Lesson: such a machine's home paths all passed)
+    const home = docEdit(`Data lives in C:${'\\'}Users${'\\'}User${'\\'}Documents${'\\'}shop.`), ph = docEdit(`Data lives in C:${'\\'}Users${'\\'}<you>${'\\'}Documents and %USERPROFILE%.`);
+    report(/PUBLISH SAFETY: docs\/plans\/launch\.md .*an email address/.test(mail) && !/PUBLISH SAFETY/.test(safe) && /a personal Windows path/.test(home) && !/PUBLISH SAFETY/.test(ph),
+      'publish-safety: an email or a home path written into a tracked doc is named at the edit; placeholders are quiet', `${mail.slice(0, 200)} | ${safe.slice(0, 200)} | ${home.slice(0, 200)} | ${ph.slice(0, 200)}`);
     report(/MUST FOLLOW: security-review/.test(first) && /security-code/.test(first) && !/MUST FOLLOW/.test(again) && !plain.trim() && !/MUST FOLLOW: debug/.test(script), 'event-hint: an edit that writes sign-in code names the security review at once, once per turn; a plain code edit names no debug', `${first.slice(0, 200)} | ${again.slice(0, 100)} | ${plain.slice(0, 100)} | ${script.slice(0, 100)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }

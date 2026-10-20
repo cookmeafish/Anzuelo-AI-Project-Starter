@@ -41,7 +41,9 @@ Every kind of task the project handles has three parts:
 Most skills are the skill side of a runbook: generated from it, or a helper that names it with
 `runbook: docs/playbooks/<name>.md` in its frontmatter. A skill that stands on its own (debug, research, an enabled
 library skill) is a procedure in its own right and follows the same rules:
-- `triggers:` in its frontmatter, so the prompt hook can route to it (`SKILL:` hint, REQ: skill-read);
+- `triggers:` in its frontmatter, so the prompt hook can route to it (`SKILL:` hint, REQ: skill-read). To take a
+  starter trigger out of an engine or pack runbook or skill (one that steals this project's own requests), list it in
+  `triggers_removed:` in the same frontmatter: it no longer routes, and upgrades keep it out;
 - a check that proves its "Done when": a requirements.json entry with `"when": {"skillUsed": "<name>"}`
   (REQ: skill-complete);
 - "Done when" and "Pitfalls" sections, and a test for its check (see "A good check" below).

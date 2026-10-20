@@ -58,7 +58,10 @@ const packTags = new Set([...(() => { try { return fs.readdirSync(abs('packs'));
   ...(() => { try { return JSON.parse(read(abs('tools/hooks/engine-checks.json'))).requirements.map(r => r.tag); } catch { return []; } })()]);
 const coreTags = new Set([...hooksSrc.matchAll(/REQ: ([a-z0-9-]+)/g)].map(m => m[1]));
 const reqTags = new Set(fileReqs.map(r => r && r.tag).filter(Boolean));
-const knownTag = t => coreTags.has(t) || reqTags.has(t) || packTags.has(t);
+// An adopted project's own hook engine (config "externalHooks": ["tools/hooks/hooks.py"]) enforces its "REQ: <tag>"
+// checks itself, and tests them itself. Lesson: a deck project's 67 checks in its own hooks.py read as enforced nowhere.
+const extTags = new Set([].concat(cfg.externalHooks || []).flatMap(f => [...read(abs(f)).matchAll(/REQ: ([a-z0-9-]+)/g)].map(m => m[1])));
+const knownTag = t => coreTags.has(t) || reqTags.has(t) || packTags.has(t) || extTags.has(t);
 const skillNames = fs.existsSync(abs(cfg.skillsDir)) ? fs.readdirSync(abs(cfg.skillsDir)).filter(n => exists(`${cfg.skillsDir}/${n}/SKILL.md`)) : [];
 const git = (...a) => spawnSync('git', a, { cwd: ROOT, encoding: 'utf8' });
 const isRepo = exists('.git');
@@ -161,7 +164,8 @@ sweep('generated files are current (skills, mirrors, DIRECTORY.md)', () => {
 sweep('menu codes point at real runbooks', () => {
   const { codes } = menu(), fail = [], warn = [];
   for (const [c, r] of Object.entries(codes)) if (!exists(`docs/playbooks/${r.playbook}`)) fail.push(`${c} → docs/playbooks/${r.playbook} does not exist`);
-  for (const pb of pbs) if (pb.fm.menu && !codes[pb.fm.menu]) warn.push(`${pb.file}: menu ${pb.fm.menu} is not in docs/MENU.md`);
+  // a runbook may sit behind several codes ("menu: A1, A2, A3"). Lesson: a deck project's build runbook had seven
+  for (const pb of pbs) for (const c of String(pb.fm.menu || '').split(/[,\s]+/).filter(Boolean)) if (!codes[c]) warn.push(`${pb.file}: menu ${c} is not in docs/MENU.md`);
   return { fail, warn, note: `${Object.keys(codes).length} codes` };
 });
 
@@ -324,7 +328,10 @@ sweep('pack purity (nothing from packs this project did not choose)', () => {
   for (const [name, p] of Object.entries(reg.packs || {})) {
     if (installed.includes(name)) continue;
     for (const f of p.files || []) if (exists(f)) fail.push(`${f} belongs to the "${name}" pack, which is not installed`);
-    for (const c of p.menu || []) if (menu().codes[c]) fail.push(`menu code ${c} belongs to the "${name}" pack`);
+    // a code counts as the pack's only when its MENU row points at one of the pack's runbooks: a project's own code that
+    // happens to share the letter and number is the project's (Lesson: an adopted deck project's A1 to A7, routed to its
+    // own build runbook, failed as the uninstalled app pack's A1 to A8)
+    for (const c of p.menu || []) if (menu().codes[c] && (p.files || []).some(f => f.endsWith(`/${menu().codes[c].playbook}`))) fail.push(`menu code ${c} belongs to the "${name}" pack`);
   }
   return { fail, note: `installed: ${installed.join(', ') || 'core only'}` };
 });
@@ -334,7 +341,13 @@ sweep('publish safety (no personal or machine details)', () => {
   const ignored = new Set();
   const all = walk('', p => /\.(md|mdx|txt|json|mjs|cjs|js|ts|tsx|jsx|py|html?|css|ya?ml|bat|cmd|ps1|sh|toml|ini|cfg)$|(^|\/)\.(gitignore|gitattributes)$|^\.githooks\//.test(p), [], /^(\.git|node_modules|\.cache|\.starter|state)$/);
   if (isRepo) { const r = spawnSync('git', ['check-ignore', '--stdin'], { cwd: ROOT, input: all.join('\n'), encoding: 'utf8' }); for (const l of (r.stdout || '').split(/\r?\n/)) if (l) ignored.add(l.trim()); }
-  else for (const f of all) if (/^\.private-terms$|^tools\/hooks\/state\//.test(f)) ignored.add(f);
+  else {
+    // without git, the plain folder and file lines of .gitignore ("friends/", "/notes/*", "secret.txt") still count
+    // (Lesson: a project's ignored friends/ folder was checked as publishable until it ran git init)
+    const plain = read(abs('.gitignore')).split(/\r?\n/).map(l => l.trim()).filter(l => l && !l.startsWith('#') && !l.startsWith('!') && !/[?[]|\*(?!$)/.test(l.replace(/\/\*$/, '')))
+      .map(l => l.replace(/^\//, '').replace(/\/?\*$/, '/'));
+    for (const f of all) if (/^\.private-terms$|^tools\/hooks\/state\//.test(f) || plain.some(p => p.endsWith('/') ? f.startsWith(p) || f.includes('/' + p) : f === p || f.endsWith('/' + p))) ignored.add(f);
+  }
   const terms = read(abs('.private-terms')).split(/\r?\n/).map(s => s.trim()).filter(s => s && !s.startsWith('#'));
   for (const f of all.filter(f => !ignored.has(f) && f !== '.private-terms')) {
     const text = read(abs(f));
