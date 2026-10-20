@@ -467,7 +467,9 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
     for (const f of snapMissing) fs.rmSync(path.join(dest, f), { force: true });
     (function restore(d) { for (const n of fs.existsSync(d) ? fs.readdirSync(d) : []) { const p = path.join(d, n); if (fs.statSync(p).isDirectory()) restore(p); else if (n.endsWith('.orig')) { const to = path.join(dest, path.relative(backupDir, p).slice(0, -5)); fs.mkdirSync(path.dirname(to), { recursive: true }); fs.copyFileSync(p, to); } } })(backupDir);
     // the generated skills, mirrors and DIRECTORY.md were made by the new engine: the restored one makes them again
-    // (Lesson: a rollback left 46 generated files from the new engine for the user to put right)
+    // (Lesson: a rollback left 46 generated files from the new engine for the user to put right). The mirror stamps
+    // go first, so every mirror is compared by content (Lesson: a stamp from the new engine kept its skill's mirror).
+    fs.rmSync(path.join(dest, 'tools', 'hooks', 'state', 'mirror-stamps.json'), { force: true });
     sync();
     // every file the upgrade (or its sync) added goes, then the result is compared with the fingerprint taken before
     const now = fingerprint(dest);

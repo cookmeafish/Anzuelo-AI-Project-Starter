@@ -519,6 +519,8 @@ export const textOf = c => typeof c === 'string' ? c
   : Array.isArray(c) ? c.filter(x => x && x.type === 'text').map(x => x.text || '').join('\n') : '';
 const isToolResult = c => Array.isArray(c) && c.some(x => x && x.type === 'tool_result');
 const skipped = t => SKIP.some(s => String(t).trimStart().startsWith(s));
+const RELAYED_TURN = /^\s*(<cross-session-message\b|Another Claude session sent a message)/;
+const relayedTurn = r => r?.type === 'user' && !isToolResult(r.message?.content) && RELAYED_TURN.test(textOf(r.message?.content));
 
 // A real user prompt: text, or text + images. Not a tool result, notification, or meta entry.
 function promptOf(r) {
@@ -576,6 +578,10 @@ export function turn(transcript) {
   for (let i = rows.length - 1; i >= 0; i--) {
     const p = promptOf(rows[i]);
     if (p !== null) { start = i; prompt = p; break; }
+    // a message from another session that arrives on its own starts a turn of its own, with no request from the user.
+    // Lesson: a session driven by a peer's messages for hours kept one turn from the user's last prompt, so work long
+    // done (an upgrade's rebuilt page) was checked again on every reply.
+    if (relayedTurn(rows[i])) { start = i; prompt = ''; break; }
   }
   if (start < 0) return fallbackTurn();
   // REQ: compaction-summary. Lesson: after a compaction the turn starts with the SUMMARY, which quotes old requests;
@@ -1113,10 +1119,12 @@ const mirrorFresh = (src, dst) => {
     const st = stamps()[dst];
     // the source must have the very time it had when stamped: a restore can bring back an older time
     // (Lesson: after a rollback the restored skill's mirror kept the newer engine's copy)
-    return !!st && st.t === fs.statSync(abs(dst)).mtimeMs && st.s === fs.statSync(abs(src)).mtimeMs && st.t >= ENGINE_MTIME;
+    // ...and its size: a restore can also bring back other content under the stamped time (seen once in a trial)
+    const s = fs.statSync(abs(src));
+    return !!st && st.t === fs.statSync(abs(dst)).mtimeMs && st.s === s.mtimeMs && st.z === s.size && st.t >= ENGINE_MTIME;
   } catch { return false; }
 };
-const stampMirror = (dst, src) => { try { const now = new Date(); fs.utimesSync(abs(dst), now, now); stamps()[dst] = { t: fs.statSync(abs(dst)).mtimeMs, s: fs.statSync(abs(src)).mtimeMs }; STAMPS_DIRTY = true; } catch { } };
+const stampMirror = (dst, src) => { try { const now = new Date(); fs.utimesSync(abs(dst), now, now); const s = fs.statSync(abs(src)); stamps()[dst] = { t: fs.statSync(abs(dst)).mtimeMs, s: s.mtimeMs, z: s.size }; STAMPS_DIRTY = true; } catch { } };
 const saveStamps = () => { if (STAMPS_DIRTY) { writeState('mirror-stamps.json', MIRROR_STAMPS); STAMPS_DIRTY = false; } };
 const writeIfChanged = (p, text) => { if (read(abs(p)) === text) return false; fs.mkdirSync(path.dirname(abs(p)), { recursive: true }); fs.writeFileSync(abs(p), text); GENERATED_WRITES.add(p); return true; };
 const firstHeading = text => (/^#\s+(.+)$/m.exec(text || '') || [, ''])[1].replace(/^Playbook:\s*/i, '').trim();
@@ -1596,8 +1604,9 @@ export function setupProblems(cfg = config()) {
   const pbs = playbooks(), sks = routableSkills(cfg);
   // a request written in quotes ('"How do I ...?" → x.md') is routed as the words inside them: whole, a long quote
   // reads as pasted text and is skipped. Lesson: a project's 45-character quoted request routed to nothing.
-  const asTyped = t => /^["“']([^"”]+)["”']/.exec(t)?.[1] || t.replace(/\s*(→|->)\s*\S+\s*$/, '');
-  for (const t of typical) if (!route(asTyped(t), pbs).length && !route(asTyped(t), sks).length) probs.push(`typical request "${t.slice(0, 70)}" routes to no runbook or skill: add its wording to a runbook's or skill's triggers (node tools/hooks/selfcheck.mjs --route "...")`);
+  // The words around the quotes count too ('"Walk me through X" in the walkthrough app'): either form may route.
+  const forms = t => { const bare = t.replace(/\s*(→|->).*$/, ''); return [/^["“']([^"”]+)["”']/.exec(t)?.[1], bare, bare.replace(/["“”]/g, '')].filter(Boolean); };
+  for (const t of typical) if (!forms(t).some(f => route(f, pbs).length || route(f, sks).length)) probs.push(`typical request "${t.slice(0, 70)}" routes to no runbook or skill: add its wording to a runbook's or skill's triggers (node tools/hooks/selfcheck.mjs --route "...")`);
   const claude = rulesText();
   if (/\{\{[A-Z_]+\}\}|<!-- One line on what/.test(claude)) probs.push('AGENTS.md: replace the template placeholders (name, one-line purpose)');
   if (!names().PROJECT_NAME || /\{\{/.test(names().PROJECT_NAME)) probs.push(`${NAMES_FILE}: set PROJECT_NAME, and add every other name the project uses (products, brands, companies)`);
@@ -2365,6 +2374,8 @@ const DIGEST = '[rules] route→open runbook · no runbook→create one · alway
 function cmdPrompt(data, { force = false } = {}) {
   const cfg = config();
   const p = data.prompt || '';
+  // another session's message after the turn ended starts a turn with no user request: what existed now is its baseline
+  if (RELAYED_TURN.test(p)) { const st = turnNotices(force, data.transcript_path); if (st.fresh) { recordTurn('', true); takeSnapshot(cfg); writeState(SHOWN, { at: st.at, shown: st.shown }); } return; }
   if (!p.trim() || skipped(p)) return;
   const st = turnNotices(force, data.transcript_path);
   recordTurn(p, st.fresh);

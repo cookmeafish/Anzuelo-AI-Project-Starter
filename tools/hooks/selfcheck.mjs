@@ -1438,7 +1438,9 @@ function explain(query) {
 const proves = s => TAGS.filter(t => (s.expect?.tags || []).includes(t) || (s.expect?.not || []).includes(t) || s.tag === t || s.name.includes(t) || (COVERS[t] && s.name.includes(COVERS[t])));
 // The scenarios run in parallel: a run with many of them starts helper processes (--shard i/n), each with its own
 // sandbox, runs its own share and the standalone tests itself, then merges the helpers' results. Lesson: one scenario
-// at a time, the full self-test took over 12 minutes. SELFCHECK_SERIAL=1 runs them all here.
+// at a time, the full self-test took over 12 minutes. SELFCHECK_SERIAL=1 runs them all here. The standalone tests are
+// shared out too, and up to 12 processes run (each test copies the project, which disk speed limits, not the CPU).
+// Lesson: new projects' setups ran the 10-minute self-test several times, past an agent's single-command limit.
 const SHARD = (() => { const i = process.argv.indexOf('--shard'), m = /^(\d+)\/(\d+)$/.exec(i > 0 ? process.argv[i + 1] || '' : ''); return m ? { i: Number(m[1]), n: Number(m[2]) } : null; })();
 const HELPER = !!SHARD;
 if (TAGS) {
@@ -1447,7 +1449,7 @@ if (TAGS) {
   for (const list of [STOP, PRETOOL, PROMPT]) { const keep = list.filter(s => proves(s).length); list.length = 0; list.push(...keep); }
 }
 
-const SHARDS = HELPER ? SHARD.n : process.env.SELFCHECK_SERIAL ? 1 : Math.max(1, Math.min(6, os.cpus().length - 1, Math.ceil((STOP.length + PRETOOL.length + PROMPT.length) / 40)));
+const SHARDS = HELPER ? SHARD.n : process.env.SELFCHECK_SERIAL ? 1 : Math.max(1, Math.min(12, os.cpus().length - 1, Math.ceil((STOP.length + PRETOOL.length + PROMPT.length) / 40)));
 const MINE = HELPER ? SHARD.i : 0;
 let nth = 0; const mine = () => nth++ % SHARDS === MINE; // one counter across the three lists, so the shares even out
 const helpers = HELPER ? [] : Array.from({ length: SHARDS - 1 }, (_, k) => new Promise(done => {
@@ -1515,7 +1517,8 @@ for (const s of PROMPT) {
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-if (HELPER) { console.log(`SHARD ${pass} ${fail} ${skipped}`); process.exit(0); } // a helper's share is done
+// the standalone tests below are shared out like the scenarios: each process runs every SHARDS-th one
+let nb = 0; const mineB = () => nb++ % SHARDS === MINE;
 
 // trigger-recall / trigger-quiet: every message in tools/hooks/trigger-cases.mjs goes through the engine's prompt hints
 // (what --route shows) and, for "CHECK: <tag>", the check's own promptMatches. A near miss ("quiet") that sets off a
@@ -1523,7 +1526,7 @@ if (HELPER) { console.log(`SHARD ${pass} ${fail} ${skipped}`); process.exit(0); 
 // target must stay at or above TRIGGER_FLOOR; the misses are listed so they can be fixed. Runs in a full run, or with
 // --tags trigger-recall / trigger-quiet. Lesson: an audit of 363 realistic requests found 53% set off nothing, and no
 // test noticed.
-if (!TAGS || TAGS.some(t => TRIGGER_TAGS.includes(t))) {
+if (mineB() && (!TAGS || TAGS.some(t => TRIGGER_TAGS.includes(t)))) {
   const file = path.join(B, 'tools/hooks/trigger-cases.mjs');
   if (!fs.existsSync(file)) console.log('SKIP  trigger cases: tools/hooks/trigger-cases.mjs is not in this project');
   else {
@@ -1586,12 +1589,12 @@ if (!TAGS || TAGS.some(t => TRIGGER_TAGS.includes(t))) {
   }
 }
 if (!TAGS) { // the standalone checks run in a full run only
-{ // --explain: every check that fires for a scenario at once, with its short label and what satisfies it
+if (mineB()) { // --explain: every check that fires for a scenario at once, with its short label and what satisfies it
   const out = explain('unrouted work turn with no runbook created').join('\n'), none = explain('no such scenario xyz').join('\n');
   report(/- runbook-exists: Leave a runbook behind/.test(out) && /satisfy it: /.test(out) && /N\/A\(runbook-exists\)/.test(out) && /no scenario name contains/.test(none),
     'selfcheck --explain: lists every firing check with its label and what satisfies it', out.slice(0, 400));
 }
-{ // session hook output
+if (mineB()) { // session hook output
   const dir = copyProject();
   try {
     const { out } = run(dir, 'session', { source: 'startup' });
@@ -1607,7 +1610,7 @@ if (!TAGS) { // the standalone checks run in a full run only
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-{ // interrupted-work: after a resume, broken files edited before the interruption are reported
+if (mineB()) { // interrupted-work: after a resume, broken files edited before the interruption are reported
   const dir = copyProject();
   try {
     write(dir, { 'data/settings.json': '{ "a": 1,' });
@@ -1616,7 +1619,7 @@ if (!TAGS) { // the standalone checks run in a full run only
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-{ // agent-neutral: an agent without hooks uses begin / check
+if (mineB()) { // agent-neutral: an agent without hooks uses begin / check
   const dir = copyProject();
   try {
     const node = (...a) => spawnSync(process.execPath, [path.join(dir, 'tools', 'hooks', 'hooks.mjs'), ...a], { cwd: dir, encoding: 'utf8', env: { ...process.env, STARTER_MEMORY_DIR: path.join(dir, '.memtest') } });
@@ -1632,7 +1635,7 @@ if (!TAGS) { // the standalone checks run in a full run only
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-{ // walks never follow links: a workspace link that loops back into the repo can't hang a hook
+if (mineB()) { // walks never follow links: a workspace link that loops back into the repo can't hang a hook
   // Lesson: packages/shared/node_modules/@mono/web pointing back at packages/web made the prompt hook time out
   const dir = copyProject();
   try {
@@ -1645,7 +1648,7 @@ if (!TAGS) { // the standalone checks run in a full run only
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-{ // knowledgeDirs, fit, labels and names: what a notes-only project (an adopted vault) needs
+if (mineB()) { // knowledgeDirs, fit, labels and names: what a notes-only project (an adopted vault) needs
   const dir = copyProject();
   try {
     const imp = async () => import(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href + `?t=${Date.now()}`);
@@ -1677,7 +1680,7 @@ if (!TAGS) { // the standalone checks run in a full run only
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-{ // fit: in a project with no code, code tools are decided "later" by fit.mjs itself
+if (mineB()) { // fit: in a project with no code, code tools are decided "later" by fit.mjs itself
   // Lesson: a notes-only project had 63 code tools to decide one by one
   const dir = copyProject();
   try {
@@ -1704,7 +1707,7 @@ if (!TAGS) { // the standalone checks run in a full run only
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-{ // fit: what the brief says the work is counts as evidence, so a skip of a fitting skill needs a reason
+if (mineB()) { // fit: what the brief says the work is counts as evidence, so a skip of a fitting skill needs a reason
   // Lesson: a bakery whose brief was all newsletters and supplier emails got "no direct signal" for marketing
   const dir = copyProject();
   try {
@@ -1716,7 +1719,7 @@ if (!TAGS) { // the standalone checks run in a full run only
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-{ // Codex transcripts: its rollout lines are read like Claude Code's, so the tool history counts for Codex too
+if (mineB()) { // Codex transcripts: its rollout lines are read like Claude Code's, so the tool history counts for Codex too
   // Lesson: under Codex no tool call was ever seen, so a claim after a refused push passed
   const dir = copyProject();
   try {
@@ -1738,7 +1741,7 @@ if (!TAGS) { // the standalone checks run in a full run only
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-{ // adoption: every rule the project had before is still in the merged AGENTS.md, reworded or not, or dropped with why
+if (mineB()) { // adoption: every rule the project had before is still in the merged AGENTS.md, reworded or not, or dropped with why
   // Lesson: a merge silently lost two of the user's own rules
   const dir = copyProject();
   try {
@@ -1754,7 +1757,7 @@ if (!TAGS) { // the standalone checks run in a full run only
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-{ // globs and word stems: "**/name" means a file of that name in any folder; plurals and past forms meet their base word
+if (mineB()) { // globs and word stems: "**/name" means a file of that name in any folder; plurals and past forms meet their base word
   // Lesson: "**/schema.*" matched "sales.schema.json", and "notes" was cut to the common word "not"
   const H = JSON.stringify(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks.mjs')).href);
   const r = JSON.parse(spawnSync(process.execPath, ['--input-type=module', '-e', `import { match, keyWords } from ${H}; console.log(JSON.stringify({
@@ -1764,7 +1767,7 @@ if (!TAGS) { // the standalone checks run in a full run only
     'routing words: globs match whole folder names, and plural and past forms meet their base word', JSON.stringify(r));
 }
 
-{ // one project's lesson about the engine reaches the starter on its own, and the starter announces it
+if (mineB()) { // one project's lesson about the engine reaches the starter on its own, and the starter announces it
   // Lesson: a check one project found annoying was suspended there, and every other project kept the same problem
   const P = copyProject(), S = copyProject();
   try {
@@ -1783,7 +1786,7 @@ if (!TAGS) { // the standalone checks run in a full run only
   } finally { for (const d of [P, S]) fs.rmSync(d, { recursive: true, force: true }); }
 }
 
-{ // two sessions in one folder: each keeps its own turn record, so one's request never becomes the other's
+if (mineB()) { // two sessions in one folder: each keeps its own turn record, so one's request never becomes the other's
   // Lesson: a second session's prompt replaced the first one's turn record, and the first was checked against it
   const dir = copyProject();
   try {
@@ -1796,7 +1799,7 @@ if (!TAGS) { // the standalone checks run in a full run only
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-{ // hooks-tested without a transcript: the Stop hook never runs the self-tests itself; it reads the run log
+if (mineB()) { // hooks-tested without a transcript: the Stop hook never runs the self-tests itself; it reads the run log
   // Lesson: with no transcript, every stop ran the whole self-test (minutes) inside the hook.
   const dir = copyProject();
   try {
@@ -1816,7 +1819,7 @@ if (!TAGS) { // the standalone checks run in a full run only
 
 // the starter after setup: link, keep a copy, or remove; and never nested inside a project. These exercise the
 // starter's own commands against itself, so they run in the starter (a project made from it has nothing to link to).
-if (fs.existsSync(path.join(ROOT, '.starter-template'))) {
+if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) {
   // a project after setup (no setup prompt), and one still in setup
   const mk = () => { const d = copyProject(); fs.rmSync(path.join(d, '.starter-template'), { force: true }); fs.rmSync(path.join(d, 'SETUP-PROMPT.md'), { force: true }); return d; };
   const inSetup = () => { const d = copyProject(); fs.rmSync(path.join(d, '.starter-template'), { force: true }); return d; };
@@ -1909,7 +1912,7 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) {
   report(g.status !== 0 && /must not be inside each other/.test(g.stderr) && !fs.existsSync(path.join(ROOT, 'inside-test')), 'starter: new-project refuses a project inside the starter', g.stderr.slice(0, 200));
 }
 
-{ // check patterns keep their escapes. Lesson: a pattern written through a shell lost its backslashes ("[sS]*" for
+if (mineB()) { // check patterns keep their escapes. Lesson: a pattern written through a shell lost its backslashes ("[sS]*" for
   // "[\s\S]*") and could never match, so its runbook stayed blocked no matter what the answer said.
   const sources = ['tools/hooks/requirements.json', 'library/catalog.json', ...(fs.existsSync(path.join(ROOT, 'packs')) ? fs.readdirSync(path.join(ROOT, 'packs')).map(p => `packs/${p}/pack.json`) : [])];
   const bad = [];
@@ -1920,7 +1923,7 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) {
   report(!bad.length, 'requirements-valid: no check pattern lost its backslashes', bad.join(' | '));
 }
 
-{ // skill-curate: retiring a runbook takes its generated skill, checks and menu code with it; engine skills are refused
+if (mineB()) { // skill-curate: retiring a runbook takes its generated skill, checks and menu code with it; engine skills are refused
   const dir = copyProject();
   try {
     const nodeIn = (...a) => spawnSync(process.execPath, a, { cwd: dir, encoding: 'utf8' });
@@ -1938,7 +1941,7 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) {
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in the starter only: it makes projects): an upgrade that breaks a passing check rolls back
+if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in the starter only: it makes projects): an upgrade that breaks a passing check rolls back
   const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-upg-'));
   try {
     const np = (...a) => spawnSync(process.execPath, [path.join(base(), 'tools/new-project.mjs'), proj, '--dev', ...a], { encoding: 'utf8', timeout: 300000 });
@@ -1955,7 +1958,7 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
   } finally { fs.rmSync(proj, { recursive: true, force: true }); }
 }
 
-{ // agent-neutral: a fresh clone has no agent files; wire makes CLAUDE.md, Claude Code's and Codex's hooks, and the mirrors
+if (mineB()) { // agent-neutral: a fresh clone has no agent files; wire makes CLAUDE.md, Claude Code's and Codex's hooks, and the mirrors
   const dir = copyProject();
   try {
     for (const p of ['CLAUDE.md', '.claude', '.codex']) fs.rmSync(path.join(dir, p), { recursive: true, force: true });
@@ -1969,7 +1972,7 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-{ // protect-originals: exact duplicates in an originals folder can go (the oldest copy stays), nothing else
+if (mineB()) { // protect-originals: exact duplicates in an originals folder can go (the oldest copy stays), nothing else
   const dir = copyProject();
   try {
     const cfgPath = path.join(dir, 'tools/hooks/config.json'), c = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
@@ -1986,7 +1989,7 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-{ // protect-originals: dedupe keeps the copy the project refers to, never deletes a referenced one, skips busy folders
+if (mineB()) { // protect-originals: dedupe keeps the copy the project refers to, never deletes a referenced one, skips busy folders
   const dir = copyProject();
   try {
     const cfgPath = path.join(dir, 'tools/hooks/config.json'), c = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
@@ -2004,7 +2007,7 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-{ // no-secrets: a key prefix only counts at the start of a word
+if (mineB()) { // no-secrets: a key prefix only counts at the start of a word
   const dir = copyProject();
   try {
     const key = ['sk', 'A'.repeat(24)].join('-');
@@ -2014,7 +2017,7 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-{ // the research ledger: one per topic, so helpers on the same topic share it
+if (mineB()) { // the research ledger: one per topic, so helpers on the same topic share it
   const dir = copyProject();
   try {
     const c = (...a) => spawnSync(process.execPath, ['skills/research/scripts/claims.mjs', 'new', ...a], { cwd: dir, encoding: 'utf8' }).stdout;
@@ -2024,7 +2027,7 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-{ // the triggers the starter ships in packs and library skills each route when typed alone (the project audit warns
+if (mineB()) { // the triggers the starter ships in packs and library skills each route when typed alone (the project audit warns
   // otherwise, so every project that installs them would carry the warning). Lesson: "fix it", "write me", "save it"
   // and "build a" passed the starter's audit and warned in a project with the app and knowledge packs.
   const at = p => path.join(ROOT, p), files = [];
@@ -2044,20 +2047,38 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
   report(!files.length || !bad.length, 'shipped triggers: every pack runbook and library skill trigger routes when typed alone', bad.join('; '));
 }
 
-{ // setup: a typical request written in the template's quoted style is routed as the words in the quotes, and one that
+if (mineB()) { // setup: a typical request written in the template's quoted style is routed as the words in the quotes, and one that
   // really routes nowhere is still named (Lesson: a 45-character quoted request read as pasted text and routed to nothing)
   const dir = copyProject();
   try {
     applyEdits(dir, SETUP_DONE);
-    applyEdits(dir, { 'docs/BRIEF.md': s => s.replace(/## Typical requests\n[\s\S]*?\n## /, '## Typical requests\n1. "make a plan for moving the whole office to the new building" → plan\n2. "debug the failing import script that reads the vendor files"\n3. "search the web for standing desk reviews under 500 dollars" → research\n4. "zorbl the quindle with a frobnicated blarnday wibble"\n## ') });
+    applyEdits(dir, { 'docs/BRIEF.md': s => s.replace(/## Typical requests\n[\s\S]*?\n## /, '## Typical requests\n1. "make a plan for moving the whole office to the new building" → plan\n2. "debug the failing import script that reads the vendor files"\n3. "search the web for standing desk reviews under 500 dollars" → research\n4. "zorbl the quindle with a frobnicated blarnday wibble"\n5. "frobnicate the wibble" while I make a plan for the office move\n## ') });
     const H = JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href);
     const r = spawnSync(process.execPath, ['--input-type=module', '-e', `import { setupProblems } from ${H}; console.log(setupProblems().filter(p => /typical request/.test(p)).join(' | '))`], { cwd: dir, encoding: 'utf8' });
     const probs = (r.stdout || '').trim();
-    report(/zorbl the quindle/.test(probs) && !/make a plan|debug the failing|search the web/.test(probs), 'setup: quoted typical requests route by the words inside the quotes; one that routes nowhere is still named', `${probs.slice(0, 400)} ${(r.stderr || '').slice(0, 300)}`);
+    report(/zorbl the quindle/.test(probs) && !/make a plan|debug the failing|search the web|frobnicate the wibble/.test(probs), 'setup: quoted typical requests route by the words inside the quotes; one that routes nowhere is still named', `${probs.slice(0, 400)} ${(r.stderr || '').slice(0, 300)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-{ // event-hint after an edit: writing sign-in code names the mandatory skill at once, once per turn
+if (mineB()) { // a message from another session after the turn ended starts its own turn, with no request from the user
+  // (Lesson: a session driven by a peer for hours kept the user's old turn, and work long done was checked again)
+  const dir = copyProject();
+  try {
+    const iso = ms => new Date(ms).toISOString(), t0 = Date.now() - 3600_000, tp = path.join(dir, '.cache/t.jsonl');
+    fs.mkdirSync(path.dirname(tp), { recursive: true });
+    fs.writeFileSync(tp, [
+      { type: 'user', timestamp: iso(t0), message: { role: 'user', content: 'redesign the zorbl dashboard page' } },
+      { type: 'assistant', timestamp: iso(t0 + 60_000), message: { content: [{ type: 'text', text: 'Redesigned.' }] } },
+      { type: 'user', timestamp: iso(t0 + 1800_000), message: { role: 'user', content: '<cross-session-message from="peer">your build is pushed, please upgrade</cross-session-message>' } },
+      { type: 'assistant', timestamp: iso(t0 + 1800_500), message: { content: [{ type: 'text', text: 'Upgraded.' }] } }
+    ].map(r => JSON.stringify(r)).join('\n') + '\n');
+    const H = JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href);
+    const t = JSON.parse(spawnSync(process.execPath, ['--input-type=module', '-e', `import { turn } from ${H}; const t = turn(${JSON.stringify(tp)}); console.log(JSON.stringify({ prompt: t.prompt, since: t.since }))`], { cwd: dir, encoding: 'utf8' }).stdout || '{}');
+    report(t.prompt === '' && t.since === t0 + 1800_000, 'turns: a message from another session after the turn ended starts a turn with no user request', JSON.stringify(t));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+if (mineB()) { // event-hint after an edit: writing sign-in code names the mandatory skill at once, once per turn
   const dir = copyProject();
   try {
     write(dir, { 'tools/hooks/state/turn.json': JSON.stringify({ at: new Date().toISOString(), prompt: 'make the form work' }) });
@@ -2073,7 +2094,7 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-{ // autonomy-hint and the fit checklist: "autonomy auto" decided add passes once config says auto
+if (mineB()) { // autonomy-hint and the fit checklist: "autonomy auto" decided add passes once config says auto
   const dir = copyProject();
   try {
     fitFill(dir);
@@ -2087,7 +2108,7 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-{ // stop rounds: round 1 lists everything; a waiver and markers given once hold; later rounds add nothing new
+if (mineB()) { // stop rounds: round 1 lists everything; a waiver and markers given once hold; later rounds add nothing new
   const tagsOf = r => (/Names: ([^\n]*)\.\s*$/.exec(r.reason || '')?.[1] || '').split(', ').filter(Boolean);
   const s = { prompt: 'debug the failing test in the parser please', tools: [sk('debug'), ...many(15)], files: { 'docs/STATUS.md': 'x', 'src/parser.js': 'export const parse = s => s;', 'docs/CHANGELOG.md': 'x' } };
   const a1 = 'Skill: debug. Fixed it. N/A(debug-test-added): this fixture has no test framework yet. N/A(verification-report): a fixture with no app to run.' + FIN;
@@ -2099,7 +2120,7 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
     'stop rounds: round 1 lists every step, a waiver and markers from an earlier round hold, and later rounds bring nothing new', `round 1: ${t1} | round 2: ${t2} | round 3: ${t3}`);
 }
 
-{ // plan-open: a plan with unticked steps is announced at the next session, for any agent, until it is done or dropped
+if (mineB()) { // plan-open: a plan with unticked steps is announced at the next session, for any agent, until it is done or dropped
   const dir = copyProject();
   try {
     write(dir, { 'docs/plans/2026-10-18-export.md': '# Export: plan\n- [x] helpers\n- [ ] wire it up\n- [ ] test it\n' });
@@ -2111,7 +2132,7 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-{ // fit-checklist: every candidate decided by the AI, each reason checked against the project itself
+if (mineB()) { // fit-checklist: every candidate decided by the AI, each reason checked against the project itself
   const dir = copyProject();
   try {
     const fit = (...a) => spawnSync(process.execPath, ['tools/fit.mjs', ...a], { cwd: dir, encoding: 'utf8' });
@@ -2176,7 +2197,7 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-{ // plain-writing in a page: tags are markup, not words; a real wall of text is still found
+if (mineB()) { // plain-writing in a page: tags are markup, not words; a real wall of text is still found
   // (sent back by a project through its starter feedback: a normal recipe page read as one 293-word paragraph)
   const { writingProblems } = await import('./hooks.mjs');
   const page = '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>Apple pie</title>\n' +
@@ -2188,7 +2209,7 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
     'plain-writing: a page\'s tags are not words, and a real wall of text in a page is still flagged', `${a.slice(0, 2).join(' | ')} || ${b.slice(0, 2).join(' | ')}`);
 }
 
-{ // fit-checklist: a "later - when:" condition counts what its noun names, and one the hooks can't read is not measured
+if (mineB()) { // fit-checklist: a "later - when:" condition counts what its noun names, and one the hooks can't read is not measured
   // (a noun no project uses: a raid project already had raid files, and the count was off. Lesson from a real project)
   const { fitWhen } = await import('./hooks.mjs');
   const w = t => fitWhen(`later - when: ${t}`) || {};
@@ -2210,7 +2231,7 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-{ // gitignore-ready: a push waits until .gitignore keeps private files out and needed files in
+if (mineB()) { // gitignore-ready: a push waits until .gitignore keeps private files out and needed files in
   const dir = copyProject();
   try {
     const g = (...a) => spawnSync('git', a, { cwd: dir, encoding: 'utf8' });
@@ -2232,7 +2253,7 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-{ // recall-hint: a request like an earlier one starts from how that one was solved; tools/recall.mjs finds it too
+if (mineB()) { // recall-hint: a request like an earlier one starts from how that one was solved; tools/recall.mjs finds it too
   const dir = copyProject();
   try {
     fs.mkdirSync(path.join(dir, 'tools/hooks/state'), { recursive: true });
@@ -2245,7 +2266,7 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-{ // autonomy auto: setup assumes the answers instead of waiting for the user's reply
+if (mineB()) { // autonomy auto: setup assumes the answers instead of waiting for the user's reply
   const dir = copyProject();
   try {
     const run = () => spawnSync(process.execPath, ['--input-type=module', '-e', `import { setupCompleteness } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; console.log(JSON.stringify(setupCompleteness()));`], { cwd: dir, encoding: 'utf8' }).stdout;
@@ -2256,7 +2277,7 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-{ // friction-suspend: what frustrated the user in 3 of its last 6 turns is suspended; safeguards stay and get flagged
+if (mineB()) { // friction-suspend: what frustrated the user in 3 of its last 6 turns is suspended; safeguards stay and get flagged
   const dir = copyProject();
   try {
     const st = path.join(dir, 'tools/hooks/state');
@@ -2273,7 +2294,7 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-{ // name-var: a rename is one edit to docs/names.json; sync refills every marker in the docs
+if (mineB()) { // name-var: a rename is one edit to docs/names.json; sync refills every marker in the docs
   const dir = copyProject();
   try {
     const nodeIn = (...a) => spawnSync(process.execPath, a, { cwd: dir, encoding: 'utf8' });
@@ -2286,7 +2307,7 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-{ // crash visibility: a broken hook blocks once, then lets the session end
+if (mineB()) { // crash visibility: a broken hook blocks once, then lets the session end
   const dir = copyProject();
   try {
     const f = path.join(dir, 'tools', 'hooks', 'hooks.mjs');
@@ -2298,7 +2319,7 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
 }
 
 
-{ // notices once per turn: not repeated for a message typed mid-turn; last turn's misses once, then dropped
+if (mineB()) { // notices once per turn: not repeated for a message typed mid-turn; last turn's misses once, then dropped
   const dir = copyProject();
   try {
     fs.rmSync(path.join(dir, '.starter-template'), { force: true });
@@ -2320,13 +2341,13 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-{ // DIRECTORY.md: one short line per runbook and skill, with its link (the file is read in every session)
+if (mineB()) { // DIRECTORY.md: one short line per runbook and skill, with its link (the file is read in every session)
   const rows = fs.readFileSync(path.join(B, 'DIRECTORY.md'), 'utf8').split(/\r?\n/).filter(l => l.startsWith('| ['));
   const long = rows.filter(l => l.length > 240);
   report(rows.length > 5 && !long.length, 'directory-current: DIRECTORY.md rows are one short line each', long.map(l => l.slice(0, 80)).join(' | '));
 }
 
-{ // sync: a file removed from a skill leaves its mirror too
+if (mineB()) { // sync: a file removed from a skill leaves its mirror too
   const dir = copyProject();
   try {
     const sync = () => spawnSync(process.execPath, ['tools/hooks/hooks.mjs', 'sync'], { cwd: dir, encoding: 'utf8' });
@@ -2338,7 +2359,7 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-{ // skill-mirror: a mirror at another depth re-points relative links, so they resolve from the mirror to the same file
+if (mineB()) { // skill-mirror: a mirror at another depth re-points relative links, so they resolve from the mirror to the same file
   // Lesson: .agents/skills/plan/SKILL.md kept skills/plan/'s "../../docs/plans/README.md", which broke one folder deeper.
   const dir = copyProject();
   try {
@@ -2367,7 +2388,7 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-{ // rule-memory: the memory folder is agent-neutral; STARTER_ env names win, the old KS_ names still work
+if (mineB()) { // rule-memory: the memory folder is agent-neutral; STARTER_ env names win, the old KS_ names still work
   const dir = copyProject();
   try {
     const md = (env, cfg) => { if (cfg) applyEdits(dir, cfgEdit(cfg)); const e = { ...process.env }; for (const k of ['STARTER_MEMORY_DIR', 'KS_MEMORY_DIR', 'CLAUDE_PROJECT_DIR', 'CLAUDECODE']) delete e[k];
@@ -2378,7 +2399,7 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-if (INSTALLED.includes('app')) { // app gates: their own pass lines, from packs.mjs configure
+if (mineB() && INSTALLED.includes('app')) { // app gates: their own pass lines, from packs.mjs configure
   const dir = copyProject();
   try {
     const r = spawnSync(process.execPath, ['tools/packs.mjs', 'configure', 'app', '--test', 'npm test', '--build', 'npm run build', '--build-pass', 'BUILD OK'], { cwd: dir, encoding: 'utf8' });
@@ -2390,6 +2411,7 @@ if (INSTALLED.includes('app')) { // app gates: their own pass lines, from packs.
 }
 }
 // the helpers' results, as if this process had run them (their lines, their passes for the COVERS check below)
+if (HELPER) { console.log(`SHARD ${pass} ${fail} ${skipped}`); process.exit(0); } // a helper's share is done
 for (const [k, { out, code }] of (await Promise.all(helpers)).entries()) {
   const lines = out.split(/\r?\n/), done = lines.map(l => /^SHARD (\d+) (\d+) (\d+)$/.exec(l)).find(Boolean);
   for (const l of lines) { const m = /^(PASS|FAIL)  (.*?)(?:  -> .*)?$/.exec(l); if (!m) continue; console.log(l); if (m[1] === 'PASS') { pass++; PASSED.push(m[2]); } else fail++; }
