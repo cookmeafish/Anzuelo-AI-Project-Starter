@@ -1028,6 +1028,11 @@ PROMPT.push(
   { pack: 'knowledge', name: 'route: "i added" alone does not route to ingest', prompt: 'i added a line to the notes, does it read well', hasNot: ['ROUTE: ingest'] },
   // Lesson: "notes" was cut to "not", and a phrase about the user's own thing could never route on its own
   { pack: 'knowledge', name: 'route: a phrase about the user\'s own notes routes ("add this fact to my notes")', prompt: 'add this fact to my notes on composting', has: ['SKILL: knowledge-capture'] },
+  // Lesson: "guide" in a frustrated question routed to deliverable.md, and "tell the other terminal" asked for a runbook
+  { pack: 'knowledge', name: 'route: a one-word trigger inside a question with no request does not route', prompt: 'really no images found for these parts in any guide???', hasNot: ['ROUTE: deliverable'] },
+  { pack: 'knowledge', name: 'route: a one-word trigger with a request still routes', prompt: 'can you write a guide for the new members?', has: ['ROUTE: deliverable'] },
+  { name: 'route: passing a message to another session is not a new kind of task', prompt: 'tell the other terminal what you found in the logs', hasNot: ['NO RUNBOOK'] },
+  { name: 'route: a relay that also asks for work still gets NO RUNBOOK', prompt: 'tell the other terminal and then fix the export script', has: ['NO RUNBOOK'] },
   { name: 'route: a question asking the agent\'s opinion routes nowhere', prompt: 'do you think the standing desk is worth it?', hasNot: ['SKILL: research', 'ROUTE:', 'NO RUNBOOK'] },
   { name: 'route: "based on what we have" is a meta question, not research', prompt: 'based on what we have, should we keep going this way?', hasNot: ['SKILL: research'] },
   { name: 'pasted: text inside pasted_content does not route', prompt: 'what is this?\n<pasted_content source="x">make a plan for the csv export</pasted_content>', hasNot: ['ROUTE: plan'] },

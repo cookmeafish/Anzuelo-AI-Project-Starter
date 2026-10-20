@@ -346,6 +346,13 @@ const GENERIC = new Set(['fix', 'add', 'added', 'save', 'make', 'get', 'use', 'c
 // Questions that ask for the agent's own view, or talk about the conversation itself, are not a runbook's task.
 // Lesson: "do you think ..." and "based on what we have" routed to research and demanded sources for an opinion.
 const OPINION = /\b(do|did|would|will) you (think|reckon|believe|feel|agree|prefer|suggest|recommend)\b|\bwhat do you (think|reckon|make of|suggest|recommend)\b|\bin your (opinion|view)\b|\byour (honest )?(opinion|view|take|thoughts)\b|\bhow do you feel\b|\bbased on what (we|you|i) (have|know|discussed|did|said)\b/i;
+// Passing a message to another session or agent is not a new kind of task. Lesson: "tell the other terminal" got NO RUNBOOK.
+const RELAY = /\b(tell|ask|message|ping|notify|update|let)\b[^.?!\n]{0,40}\b(terminal|session|agent|window|instance|other claude)\b|\bpass (this|it|that|them) (on|along)\b|\brelay (this|it|that)\b/i;
+// ...unless it also asks for work ("tell the terminal, then fix the export")
+const isRelay = t => RELAY.test(t) && !/\b(and|then|also|but)\b[^.?!\n]{0,15}\b(fix|add|make|build|write|create|change|update|edit|remove|run)\b/i.test(t);
+// A question with no request to make something does not route on a one-word trigger alone ("guide" in "no images in
+// any guide???" is not a request to write one). Lesson: a frustrated question routed to deliverable.md.
+const MAKE_REQUEST = /\b(write|make|create|draft|build|prepare|produce|put together|turn [^.?!]{0,30} into|export|save|generate|compose|update|edit|fix|add)\b/i;
 // Text the user pasted, and text that is the hooks' own output, are not the user's words: they never route or count as
 // a request. Lesson: a pasted audit line ("... 26 sweeps") was taken as a request for 26 sweeps.
 const HOOK_MARK = /^\s*(-\s+)?(ROUTE|ROUTINES DUE|FEEDBACK FROM PROJECTS|SKILL|NO RUNBOOK|RULE REQUEST|RECALL|MENU CODE|MENU FLAG|SCOPE|SETUP IN PROGRESS|BOOTSTRAP NEEDED|LAST WORK TURN|INBOX|STALE KNOWLEDGE|PRAISE|THE USER SOUNDS|SUSPENDED|FRICTION ON|UNKNOWN MENU|SKILL HARDENING|SKILL CLEANUP|UPGRADE REVIEW|OPEN PLANS|MUST FOLLOW|AUTONOMY)\b/;
@@ -384,6 +391,7 @@ export function route(prompt, pbs) {
     // Evidence: a trigger with 2+ key words, or a one-word trigger, routes alone; a longer trigger that has a single
     // key word ("the hooks", "process these") needs a second distinct key word from another trigger.
     let score = 0, strong = false; const hits = [], weak = new Set();
+    const askOnly = /\?\s*$/.test(text.trim()) && !MAKE_REQUEST.test(text);
     for (const t of pb.triggers) {
       const k = keyWords(t);
       // a phrase of common words ("fix it", "look up", "change how") counts only as that exact phrase; one common word
@@ -397,7 +405,8 @@ export function route(prompt, pbs) {
       score += exact ? 1 + t.split(' ').length / 10 : 0.5 + k.length / 10; hits.push(t);
       // a phrase that points at the user's own thing ("my vault", "in my notes", "remember this"), typed exactly, is a
       // request on its own. Lesson: such triggers could never route, so "check the links in my vault" found nothing.
-      if (k.length >= 2 || !/\s/.test(t.trim()) || (exact && /\b(my|our|this|these)\b/i.test(t))) strong = true; else k.forEach(w => weak.add(w));
+      const oneWord = k.length < 2 && !/\s/.test(t.trim());
+      if (k.length >= 2 || (oneWord && !askOnly) || (exact && /\b(my|our|this|these)\b/i.test(t))) strong = true; else k.forEach(w => weak.add(w));
     }
     if (pb.triggerRe && pb.triggerRe.test(low)) { score += 2; strong = true; hits.push('/' + pb.fm.trigger_regex + '/'); }
     if (score && (strong || weak.size >= 2)) scored.push({ pb, score, hits });
@@ -2174,7 +2183,7 @@ export function promptHints(prompt, cfg = config(), withNotices = true) {
   if (cfg.autonomy !== 'auto' && AUTONOMY_WORDS.test(p))
     hints.push('AUTONOMY: the user wants the work done without their input. Set "autonomy": "auto" in tools/hooks/config.json and record it in docs/DECISIONS.md (date, the choice, why), ' +
       'then decide instead of asking and record each choice as "Assumed: <choice> - <why> - <cost if wrong>". Outward actions, third-party installs and anything irreversible still need an OK.');
-  const isTask = re(cfg.taskVerbs).test(p) && p.split(/\s+/).length >= 3 && !OPINION.test(p);
+  const isTask = re(cfg.taskVerbs).test(p) && p.split(/\s+/).length >= 3 && !OPINION.test(p) && !isRelay(unquoted(p));
   if (!routed.length && !sk.length && isTask)
     hints.push('NO RUNBOOK matches this request. If it is a task (not a quick question), follow docs/playbooks/_fallback.md: do it carefully, ' +
       'then EXTEND the closest runbook or CREATE a new one (runbook-create skill) and route it, in this same turn. The Stop hook blocks work ' +
@@ -2622,7 +2631,7 @@ export function coreChecks(x, cfg) {
   const META_SKILLS = ['runbook-create', 'skill-finder'];
   const realPb = x.usedPb.filter(pb => !pb.name.startsWith('_')), realSkills = x.usedSkills.filter(s => !META_SKILLS.includes(s.name));
   const realRoute = x.routed.filter(pb => !pb.name.startsWith('_'));
-  if (x.workTurn && x.prompt.trim() && !realRoute.length && !realPb.length && !realSkills.length && !pbChanged.length && !isUpset(x.prompt, cfg)
+  if (x.workTurn && x.prompt.trim() && !realRoute.length && !realPb.length && !realSkills.length && !pbChanged.length && !isUpset(x.prompt, cfg) && !isRelay(unquoted(userText(x.prompt)))
     && !(x.changed.length <= 2 && re(cfg.trivial).test(userText(x.prompt))))
     add('runbook-exists', 'This turn did real work but no runbook covers it and none was created or extended. Use the runbook-create skill: ' +
       'extend the closest runbook in docs/playbooks/ with this case, or create one (frontmatter with triggers, ## Steps, ## Done when) plus a check ' +

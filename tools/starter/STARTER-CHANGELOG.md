@@ -99,6 +99,9 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
     leads with `ROLLED BACK` instead of printing the change log it undid. The files an upgrade writes are recorded as
     the engine's, so the next Stop doesn't ask for a plan for them. The prompt hook reuses its check of a decided fit
     checklist until the checklist, config or brief changes (about 35 ms less per prompt after an upgrade).
+  - **Routing false alarms from real use**: a one-word trigger in a question that asks for nothing to be made no longer
+    routes on its own ("no images in any guide???" went to the deliverable runbook), and passing a message to another
+    session or terminal is not a new kind of task (no NO RUNBOOK, no runbook-exists), unless it also asks for work.
 - 2026-10-19 (later): Fixes from the same project's next upgrade.
   - **No false "kept your edited version".** An older shipped check is not a local edit. The starter now ships
     `tools/hooks/engine-checks-history.json`, the fingerprint of every version of every check it ever released
