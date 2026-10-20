@@ -292,7 +292,10 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   const bodyOf = t => lf(t).replace(/^triggers:.*\n/m, '').replace(/^(hardened|harden|keep):.*\n/gm, '').replace(/^## Project lessons[^\n]*\n[\s\S]*?(?=^## |(?![\s\S]))/m, '').trimEnd();
   const refreshPayload = (rel, as) => {
     const to = path.join(dest, as);
-    if (!fs.existsSync(to)) return; // taken out here on purpose, or new in the starter (packs.mjs install adds it)
+    // a file the pack or skill has and this project lacks comes too, as packs.mjs install would add it: a refreshed
+    // runbook or skill may now link to it (Lesson: frontend-design linked templates.md, and the app runbooks named the
+    // modular-code skill, but neither came, so the references sweep rolled the upgrade back)
+    if (!fs.existsSync(to)) { put(rel, { as }); return; }
     const mine = fs.readFileSync(to, 'utf8');
     if (lf(mine) === lf(fs.readFileSync(path.join(STARTER, rel), 'utf8'))) { unchanged++; return; }
     const skillLike = /(^|\/)SKILL\.md$|^docs\/playbooks\/[^_/][^/]*\.md$/.test(as);
@@ -450,11 +453,11 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
     }
   }
   log.push(...wire(dest, { dry })); // every agent's wiring, the git hooks and Obsidian (tools/hooks/wire.mjs)
-  printLog();
-  console.log(`\n${dry ? 'Dry run, nothing written: this is what an upgrade of' : 'Upgraded the engine in'} ${dest}${dry ? ' would change' : ''}. The project's own content (AGENTS.md / CLAUDE.md, requirements.json, config.json, its own runbooks, knowledge, code) was not touched, apart from the merged checks listed above. ${unchanged} engine file(s) were already current.${backedUp ? ` ${backedUp} replaced file(s) are backed up in .cache/upgrade-backup/${stamp}/.` : ''}`);
+  const done = () => { printLog(); console.log(`\n${dry ? 'Dry run, nothing written: this is what an upgrade of' : 'Upgraded the engine in'} ${dest}${dry ? ' would change' : ''}. The project's own content (AGENTS.md / CLAUDE.md, requirements.json, config.json, its own runbooks, knowledge, code) was not touched, apart from the merged checks listed above. ${unchanged} engine file(s) were already current.${backedUp ? ` ${backedUp} replaced file(s) are backed up in .cache/upgrade-backup/${stamp}/.` : ''}`); };
+  if (dry) { done(); console.log('\nAn upgrade also audits and times the project before and after, and writes an upgrade review (docs/DECISIONS.md).'); process.exit(0); }
   // regenerate the project's skills, mirrors and DIRECTORY.md with its new engine, so nothing is left stale
-  if (!dry) { const r = spawnSync(process.execPath, [path.join(dest, 'tools', 'hooks', 'hooks.mjs'), 'sync'], { cwd: dest, encoding: 'utf8' }); console.log((r.stdout || r.stderr || '').trim()); }
-  if (dry) { console.log('\nAn upgrade also audits and times the project before and after, and writes an upgrade review (docs/DECISIONS.md).'); process.exit(0); }
+  const sync = () => { const r = spawnSync(process.execPath, [path.join(dest, 'tools', 'hooks', 'hooks.mjs'), 'sync'], { cwd: dest, encoding: 'utf8' }); return (r.stdout || r.stderr || '').trim(); };
+  const synced = sync();
   // Never worse: a check that passed before and fails now rolls the whole upgrade back, unless the user accepts the
   // findings as work to do. New checks that fail and slower hooks go into the review, to fix or decide.
   const after = probe();
@@ -463,18 +466,23 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
     for (const f of created) fs.rmSync(path.join(dest, f), { force: true });
     for (const f of snapMissing) fs.rmSync(path.join(dest, f), { force: true });
     (function restore(d) { for (const n of fs.existsSync(d) ? fs.readdirSync(d) : []) { const p = path.join(d, n); if (fs.statSync(p).isDirectory()) restore(p); else if (n.endsWith('.orig')) { const to = path.join(dest, path.relative(backupDir, p).slice(0, -5)); fs.mkdirSync(path.dirname(to), { recursive: true }); fs.copyFileSync(p, to); } } })(backupDir);
+    // the generated skills, mirrors and DIRECTORY.md were made by the new engine: the restored one makes them again
+    // (Lesson: a rollback left 46 generated files from the new engine for the user to put right)
+    sync();
     // every file the upgrade (or its sync) added goes, then the result is compared with the fingerprint taken before
     const now = fingerprint(dest);
     for (const p of now.keys()) if (!print0.has(p)) fs.rmSync(path.join(dest, p), { force: true });
     (function prune(d) { for (const e of fs.existsSync(d) ? fs.readdirSync(d, { withFileTypes: true }) : []) { const p = path.join(d, e.name); if (e.isDirectory() && !e.isSymbolicLink() && !FP_SKIP.test(e.name)) { prune(p); const r = path.relative(dest, p).split(path.sep).join('/'); try { if (!print0.dirs.has(r) && !fs.readdirSync(p).length) fs.rmdirSync(p); } catch { } } } })(dest);
     if (untracked.length) spawnSync('git', ['add', '-f', '--', ...untracked.filter(f => fs.existsSync(path.join(dest, f)))], { cwd: dest }); // back into git, as before
     const after2 = fingerprint(dest), differ = [...print0].filter(([p, h]) => after2.get(p) !== h).map(([p]) => p);
-    console.error(`\nROLLED BACK: after the upgrade these checks failed that passed before: ${broke.join('; ')}. ` +
+    // the rollback leads, so a rolled-back run never reads as a success (the change log it undid is not printed)
+    console.error(`ROLLED BACK: the upgrade was undone (${log.filter(l => /^(updated|created)\b/.test(l)).length} file change(s) reverted). After it, these checks failed that passed before: ${broke.join('; ')}. ` +
       (differ.length ? `${differ.length} file(s) could not be put back exactly: ${differ.slice(0, 8).join(', ')} (copies in .cache/upgrade-backup/${stamp}/).\n` : 'The project is exactly as it was (every file checked).\n') +
       broke.map(b => (after.details?.[b] || []).slice(0, 8).map(l => `  ${b}: ${l}`).join('\n')).filter(Boolean).join('\n') + '\n' +
       `The new engine checks more or checks differently. Upgrade with --accept-findings to keep it anyway: each of these goes into the upgrade review, to fix.`);
     process.exit(1);
   }
+  done(); console.log(synced);
   const items = [];
   // new hard rules the project doesn't have yet (by their bold title), unless an earlier review decided them
   const decided = fs.existsSync(path.join(dest, 'docs', 'DECISIONS.md')) ? fs.readFileSync(path.join(dest, 'docs', 'DECISIONS.md'), 'utf8') : '';

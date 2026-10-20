@@ -41,7 +41,8 @@ linked copy (stopping if that copy has local changes or is a development copy), 
 replaces only the engine files (hooks, tests, audit, tools, core skills and checklists) and never touches this
 project's content. Files from installed packs and enabled library skills are refreshed only where this project never
 edited them (a skill keeps the triggers and lessons it added); an edited one is kept, and named in the review when the
-starter changed it since. It can't make the project worse unseen:
+starter changed it since; files they gained that this project lacks are added. It can't make the project worse
+unseen:
 1. It audits and times the hooks before and after. A check that passed before and fails after rolls the whole upgrade
    back. `--accept-findings` keeps it and lists those checks to fix.
 2. It writes `## Upgrade review (date)` into `docs/DECISIONS.md`: every new hard rule, a pack the setup answers call

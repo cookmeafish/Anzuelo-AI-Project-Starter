@@ -93,6 +93,10 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
     is kept and named in the review (`file:`) when the starter changed it since. Setup questions added since setup are
     named too (`interview:`). A typed name held by several keys in `docs/names.json` is one finding, and a new
     project's one-line placeholder no longer types the name out.
+  - **Refreshes bring what they link to, and rollbacks are exact again**: a file an installed pack or enabled skill
+    has and the project lacks comes with the upgrade (a refreshed skill linked `templates.md`, the app runbooks named
+    the modular-code skill). A rollback regenerates skills, mirrors and `DIRECTORY.md` with the restored engine, and
+    leads with `ROLLED BACK` instead of printing the change log it undid.
 - 2026-10-19 (later): Fixes from the same project's next upgrade.
   - **No false "kept your edited version".** An older shipped check is not a local edit. The starter now ships
     `tools/hooks/engine-checks-history.json`, the fingerprint of every version of every check it ever released

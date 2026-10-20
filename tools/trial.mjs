@@ -164,6 +164,8 @@ for (const [name, s] of Object.entries(SAMPLES)) {
     const kc = 'skills/knowledge-capture/SKILL.md', first = git(['log', '--format=%H', '--reverse', '--', `packs/knowledge/files/${kc}`], STARTER).stdout.split('\n')[0];
     fs.writeFileSync(path.join(dir, kc), git(['show', `${first}:packs/knowledge/files/${kc}`], STARTER).stdout.replace(/^triggers:(.*)$/m, 'triggers:$1, our trip tally'));
     fs.appendFileSync(path.join(dir, 'docs/checks/evidence-standards.md'), '\n- Our own rule: two sources for every price.\n');
+    // a file the enabled skill gained after this project got it (its SKILL.md links it)
+    fs.rmSync(path.join(dir, 'skills/frontend-design/templates.md'), { force: true });
     const dp = path.join(dir, 'docs/DECISIONS.md'), hp = path.join(dir, 'tools/hooks/hooks.mjs');
     fs.writeFileSync(dp, fs.readFileSync(dp, 'utf8').replace(/^- Involvement:.*\n/m, ''));
     fs.writeFileSync(hp, fs.readFileSync(hp, 'utf8').replace("export const INTERVIEW = ['Involvement', ", 'export const INTERVIEW = ['));
@@ -194,6 +196,7 @@ for (const [name, s] of Object.entries(SAMPLES)) {
     check(name, "an upgrade refreshes a pack skill the project never edited, keeping the trigger it added, and keeps a pack file it edited",
       trig(kcStarter).every(t => trig(kcNow).includes(t)) && trig(kcNow).includes('our trip tally') && fs.readFileSync(path.join(dir, 'docs/checks/evidence-standards.md'), 'utf8').includes('Our own rule: two sources for every price.'),
       kcNow.slice(0, 300));
+    check(name, 'an upgrade brings a file an enabled skill gained since, so its links resolve', fs.existsSync(path.join(dir, 'skills/frontend-design/templates.md')));
     check(name, 'an upgrade names a setup question added since the project was set up', /- interview: Involvement \(new setup question/.test(review), review.slice(-500));
   }
   const afterUp = snapshot(dir);
@@ -211,12 +214,18 @@ for (const [name, s] of Object.entries(SAMPLES)) {
   if (!noPrev) {
     const oldRef = '`node tools/hooks/' + 'test-hooks.mjs`'; // split, so the starter's own audit doesn't read it as a reference
     write(dir, { 'tools/hooks/test-hooks.mjs': '// an old engine file\n', 'docs/old-notes.md': `# Old notes\nRun ${oldRef} after hook changes.\n`, 'tools/my-tool.mjs': `// run ${oldRef} before this tool\n` });
+    // an enabled library skill as an older release shipped it, so the upgrade refreshes it and the sync rewrites its
+    // mirrors. Lesson: a rollback restored the skill but left the new engine's mirrors and generated runbook skills.
+    const fd = 'library/skills/frontend-design/SKILL.md', fdOld = git(['log', '--format=%H', '--reverse', '--', fd], STARTER).stdout.split('\n')[0];
+    if (packSample && fdOld) { fs.writeFileSync(path.join(dir, 'skills/frontend-design/SKILL.md'), git(['show', `${fdOld}:${fd}`], STARTER).stdout); node(['tools/hooks/hooks.mjs', 'sync'], dir); }
     const pre = snapshot(dir, /^(\.git|tools\/hooks\/state|\.cache)(\/|$)/);
     const u3 = starterRun(dir, '--upgrade');
     const post = snapshot(dir, /^(\.git|tools\/hooks\/state|\.cache)(\/|$)/);
     const moved = [...new Set([...Object.keys(pre), ...Object.keys(post)])].filter(f => pre[f] !== post[f]);
     check(name, 'an upgrade that breaks a passing check rolls back to exactly the project it was', u3.status === 1 && /ROLLED BACK/.test(u3.stderr) && /exactly as it was/.test(u3.stderr) && !moved.length,
       `status ${u3.status} | ${moved.slice(0, 6).join(', ')} | ${(u3.stderr || '').slice(0, 300)}`);
+    // a rolled-back run never reads as a success: no change log ahead of the notice
+    check(name, 'a rolled-back upgrade leads with ROLLED BACK and prints no change log', /^ROLLED BACK/.test(u3.stderr.trim()) && !/^(updated|created)\s/m.test(u3.stdout), u3.stdout.slice(0, 300));
     for (const f of ['tools/hooks/test-hooks.mjs', 'docs/old-notes.md', 'tools/my-tool.mjs']) fs.rmSync(path.join(dir, f), { force: true });
   }
 
