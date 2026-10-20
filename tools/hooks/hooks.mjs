@@ -1080,11 +1080,13 @@ const stamps = () => (MIRROR_STAMPS ||= readJSON(path.join(STATE, 'mirror-stamps
 const mirrorFresh = (src, dst) => {
   try {
     ENGINE_MTIME ||= fs.statSync(fileURLToPath(import.meta.url)).mtimeMs;
-    const t = fs.statSync(abs(dst)).mtimeMs;
-    return stamps()[dst] === t && t >= fs.statSync(abs(src)).mtimeMs && t >= ENGINE_MTIME;
+    const st = stamps()[dst];
+    // the source must have the very time it had when stamped: a restore can bring back an older time
+    // (Lesson: after a rollback the restored skill's mirror kept the newer engine's copy)
+    return !!st && st.t === fs.statSync(abs(dst)).mtimeMs && st.s === fs.statSync(abs(src)).mtimeMs && st.t >= ENGINE_MTIME;
   } catch { return false; }
 };
-const stampMirror = dst => { try { const now = new Date(); fs.utimesSync(abs(dst), now, now); stamps()[dst] = fs.statSync(abs(dst)).mtimeMs; STAMPS_DIRTY = true; } catch { } };
+const stampMirror = (dst, src) => { try { const now = new Date(); fs.utimesSync(abs(dst), now, now); stamps()[dst] = { t: fs.statSync(abs(dst)).mtimeMs, s: fs.statSync(abs(src)).mtimeMs }; STAMPS_DIRTY = true; } catch { } };
 const saveStamps = () => { if (STAMPS_DIRTY) { writeState('mirror-stamps.json', MIRROR_STAMPS); STAMPS_DIRTY = false; } };
 const writeIfChanged = (p, text) => { if (read(abs(p)) === text) return false; fs.mkdirSync(path.dirname(abs(p)), { recursive: true }); fs.writeFileSync(abs(p), text); GENERATED_WRITES.add(p); return true; };
 const firstHeading = text => (/^#\s+(.+)$/m.exec(text || '') || [, ''])[1].replace(/^Playbook:\s*/i, '').trim();
@@ -1143,7 +1145,7 @@ export function syncSkills(cfg = config()) {
           const dst = `${m}/${n}${d}/${f}`;
           writeIfChanged(dst, /\.md$/i.test(f) ? mirrorText(read(abs(src)), `${cfg.skillsDir}/${n}${d}`, `${m}/${n}${d}`, `${cfg.skillsDir}/${n}`) : read(abs(src)));
           // written or confirmed current: stamp it, so the next turn skips it (mirrors are outside change detection)
-          stampMirror(dst);
+          stampMirror(dst, src);
         } } };
       copy('');
       writeIfChanged(`${m}/${n}/.mirror`, `generated copy of ${cfg.skillsDir}/${n}/ - edit that folder, not this one\n`);
