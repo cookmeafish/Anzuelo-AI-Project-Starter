@@ -270,12 +270,12 @@ const STOP = [
     answer: 'Added the allergens to the menu.\nLearned (one-off): allergens were missed → docs/lessons.md' + FIN, expect: { block: true, tags: ['upset-learned'] } },
   // Lesson: complaints sent mid-turn as questions or verdicts ("really no pictures???", "it's lackluster") got no upset
   // handling, and the check came only when the user asked whether anything forced it
-  { name: 'upset-learned: a mid-turn "the work falls short" complaint, fixed with a lesson but no check: blocked', prompt: 'make the raid page', queued: ['really no pictures for these encounters??? did you not find any'],
-    files: { 'docs/raid.md': '# Raid\n![boss](boss.png)', 'docs/lessons.md': '- 2026-10-19: pictures were missing' },
+  { name: 'upset-learned: a mid-turn "the work falls short" complaint, fixed with a lesson but no check: blocked', prompt: 'make the zorbl page', queued: ['really no pictures for these encounters??? did you not find any'],
+    files: { 'docs/zorbl.md': '# Zorbl\n![boss](boss.png)', 'docs/lessons.md': '- 2026-10-19: pictures were missing' },
     answer: 'Added pictures for every encounter.\nLearned (lesson): every encounter needs a picture → docs/lessons.md' + FIN, expect: { block: true, tags: ['upset-learned'] } },
   { name: 'upset-learned: a "the work falls short" complaint enforced with a judgment item: passes that check', prompt: 'its lackluster in picture variety and accuracy',
-    files: { 'docs/raid.md': '# Raid\n![boss](boss.png)', 'docs/playbooks/raid.md': '---\nname: raid\nsummary: raid pages\ntriggers: raid page\nchecks: none - a test runbook\n---\n# Playbook: raid\n## Done when\n- [ ] Every encounter shows varied, accurate pictures (judgment: only a person can judge accuracy)\n', 'docs/CHANGELOG.md': 'x' },
-    answer: 'Added varied pictures.\nLearned (rule): every encounter shows varied, accurate pictures → docs/playbooks/raid.md\nDone when item: "(judgment: only a person can judge accuracy)"' + FIN, expect: { not: ['upset-learned'] } },
+    files: { 'docs/zorbl.md': '# Zorbl\n![boss](boss.png)', 'docs/playbooks/zorbl.md': '---\nname: zorbl\nsummary: zorbl pages\ntriggers: zorbl page\nchecks: none - a test runbook\n---\n# Playbook: zorbl\n## Done when\n- [ ] Every encounter shows varied, accurate pictures (judgment: only a person can judge accuracy)\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Added varied pictures.\nLearned (rule): every encounter shows varied, accurate pictures → docs/playbooks/zorbl.md\nDone when item: "(judgment: only a person can judge accuracy)"' + FIN, expect: { not: ['upset-learned'] } },
   { name: 'upset-learned: an engine lesson kept in one project: blocked', removeMarker: true, prompt: 'ugh, that check fired for nothing again', files: { 'docs/lessons.md': '- 2026-10-19: the check misfires' },
     answer: 'Learned (engine): the check misfires on menus → docs/lessons.md' + FIN, expect: { block: true, tags: ['upset-learned'] } },
   { name: 'upset-learned: fixed, and the lesson written where it stops the next miss: passes', prompt: 'you forgot to add the allergens again!!', tools: [pb('project')],
@@ -388,24 +388,24 @@ const STOP = [
     files: { 'docs/onboarding.md': '# Onboarding\n- Step 1.\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Wrote the onboarding notes.' + FIN, expect: { not: ['requirement-enforced'] } },
   { name: 'requirement-enforced: a requirement said in passing in a question turn: passes that check', prompt: 'there needs to be role selection obvious to the player, right?',
     answer: 'Yes, a role picker would help.' + FIN, expect: { not: ['requirement-enforced'] } },
-  { name: 'requirement-enforced: a requirement written only into a runbook: blocked', prompt: 'every raid picture must have a paired diagram', tools: [pb('project'), bash('node tools/audit.mjs')],
-    files: { 'docs/playbooks/raid-research.md': '---\nname: raid-research\nsummary: research a raid\ntriggers: research a raid\nchecks: none - test\n---\n# Playbook: raid research\n## Steps\n1. Research.\n## Done when\n- [ ] Every picture has a paired diagram (hook: diagram-paired).\n', 'docs/CHANGELOG.md': 'x' },
+  { name: 'requirement-enforced: a requirement written only into a runbook: blocked', prompt: 'every zorbl picture must have a paired diagram', tools: [pb('project'), bash('node tools/audit.mjs')],
+    files: { 'docs/playbooks/zorbl-research.md': '---\nname: zorbl-research\nsummary: research a zorbl\ntriggers: research a zorbl\nchecks: none - test\n---\n# Playbook: zorbl research\n## Steps\n1. Research.\n## Done when\n- [ ] Every picture has a paired diagram (hook: diagram-paired).\n', 'docs/CHANGELOG.md': 'x' },
     answer: 'Playbook: project.md. Added the requirement.' + FIN, expect: { block: true, tags: ['requirement-enforced'] } },
-  { name: 'requirement-enforced: the check and its test were added: passes that check', prompt: 'every raid picture must have a paired diagram', tools: [pb('project'), bash('node tools/audit.mjs'), bash('node tools/hooks/selfcheck.mjs --tags diagram-paired', 'selfcheck: ALL PASS (2 passed, 0 failed)')],
-    files: { 'docs/playbooks/raid-research.md': '---\nname: raid-research\nsummary: research a raid\ntriggers: research a raid\nchecks: none - test\n---\n# Playbook: raid research\n## Steps\n1. Research.\n## Done when\n- [ ] Every picture has a paired diagram (hook: diagram-paired).\n',
+  { name: 'requirement-enforced: the check and its test were added: passes that check', prompt: 'every zorbl picture must have a paired diagram', tools: [pb('project'), bash('node tools/audit.mjs'), bash('node tools/hooks/selfcheck.mjs --tags diagram-paired', 'selfcheck: ALL PASS (2 passed, 0 failed)')],
+    files: { 'docs/playbooks/zorbl-research.md': '---\nname: zorbl-research\nsummary: research a zorbl\ntriggers: research a zorbl\nchecks: none - test\n---\n# Playbook: zorbl research\n## Steps\n1. Research.\n## Done when\n- [ ] Every picture has a paired diagram (hook: diagram-paired).\n',
       'tools/hooks/project-scenarios.mjs': 'export default () => ({ stop: [] });\n', 'docs/CHANGELOG.md': 'x' },
     answer: 'Playbook: project.md. Added the requirement, its check and its test.' + FIN, expect: { block: true, not: ['requirement-enforced'] } },
-  { name: 'requirement-enforced: a one-off instruction is not a lasting requirement', prompt: 'fix the typo in the raid guide and make sure you run the tests', tools: [pb('project'), bash('node tools/audit.mjs')],
+  { name: 'requirement-enforced: a one-off instruction is not a lasting requirement', prompt: 'fix the typo in the zorbl guide and make sure you run the tests', tools: [pb('project'), bash('node tools/audit.mjs')],
     files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md. Fixed it.' + FIN, expect: { not: ['requirement-enforced'], block: false } },
   // a requirement written into a runbook says how it is proven, so none stays unenforced unnoticed
-  { name: 'done-when-labeled: a runbook changed with an item that names no check or judgment: blocked', prompt: 'every raid answer must cite its raid file', tools: [pb('project'), bash('node tools/audit.mjs')],
-    files: { 'docs/playbooks/raid-answer.md': '---\nname: raid-answer\nsummary: answer a raid question\ntriggers: raid question\n---\n# Playbook: raid answer\n## Steps\n1. Answer.\n## Done when\n- [ ] The answer cites the raid file.\n', 'docs/CHANGELOG.md': 'x' },
+  { name: 'done-when-labeled: a runbook changed with an item that names no check or judgment: blocked', prompt: 'every zorbl answer must cite its zorbl file', tools: [pb('project'), bash('node tools/audit.mjs')],
+    files: { 'docs/playbooks/zorbl-answer.md': '---\nname: zorbl-answer\nsummary: answer a zorbl question\ntriggers: zorbl question\n---\n# Playbook: zorbl answer\n## Steps\n1. Answer.\n## Done when\n- [ ] The answer cites the zorbl file.\n', 'docs/CHANGELOG.md': 'x' },
     answer: 'Playbook: project.md. Added the citation rule.' + FIN, expect: { block: true, tags: ['done-when-labeled'] } },
-  { name: 'done-when-labeled: each item names its check or why only judgment can tell: passes that check', prompt: 'every raid answer must cite its raid file', tools: [pb('project'), bash('node tools/audit.mjs')],
-    files: { 'docs/playbooks/raid-answer.md': '---\nname: raid-answer\nsummary: answer a raid question\ntriggers: raid question\n---\n# Playbook: raid answer\n## Steps\n1. Answer.\n## Done when\n- [ ] The answer cites the raid file (hook: raid-cited).\n- [ ] The tone fits a new player (judgment: no script can tell tone).\n', 'docs/CHANGELOG.md': 'x' },
+  { name: 'done-when-labeled: each item names its check or why only judgment can tell: passes that check', prompt: 'every zorbl answer must cite its zorbl file', tools: [pb('project'), bash('node tools/audit.mjs')],
+    files: { 'docs/playbooks/zorbl-answer.md': '---\nname: zorbl-answer\nsummary: answer a zorbl question\ntriggers: zorbl question\n---\n# Playbook: zorbl answer\n## Steps\n1. Answer.\n## Done when\n- [ ] The answer cites the zorbl file (hook: zorbl-cited).\n- [ ] The tone fits a new player (judgment: no script can tell tone).\n', 'docs/CHANGELOG.md': 'x' },
     answer: 'Playbook: project.md. Added the citation rule.' + FIN, expect: { block: true, not: ['done-when-labeled'] } },
-  { name: 'done-when-labeled: a wrapped item labeled on its last line, and several tags in one label: passes that check', prompt: 'every raid answer must cite its raid file', tools: [pb('project'), bash('node tools/audit.mjs')],
-    files: { 'docs/playbooks/raid-answer.md': '---\nname: raid-answer\nsummary: answer a raid question\ntriggers: raid question\n---\n# Playbook: raid answer\n## Steps\n1. Answer.\n## Done when\n- [ ] The answer cites the raid file, and every number in it comes from that file or is\n      marked as calculated (hook: raid-cited).\n- [ ] It is named and summed up (hooks: playbook-named, finished-summary).\n', 'docs/CHANGELOG.md': 'x' },
+  { name: 'done-when-labeled: a wrapped item labeled on its last line, and several tags in one label: passes that check', prompt: 'every zorbl answer must cite its zorbl file', tools: [pb('project'), bash('node tools/audit.mjs')],
+    files: { 'docs/playbooks/zorbl-answer.md': '---\nname: zorbl-answer\nsummary: answer a zorbl question\ntriggers: zorbl question\n---\n# Playbook: zorbl answer\n## Steps\n1. Answer.\n## Done when\n- [ ] The answer cites the zorbl file, and every number in it comes from that file or is\n      marked as calculated (hook: zorbl-cited).\n- [ ] It is named and summed up (hooks: playbook-named, finished-summary).\n', 'docs/CHANGELOG.md': 'x' },
     answer: 'Playbook: project.md. Added the citation rule.' + FIN, expect: { block: true, not: ['done-when-labeled'] } },
   // the project improves itself: no asking whether to add checks for what the user already asked for
   { name: 'self-improve: offering to add checks instead of adding them: blocked', prompt: 'are these requirements enforced', tools: [],
@@ -529,7 +529,10 @@ const STOP = [
     answer: 'Playbook: gui.md\n- Round 1: ok\nVisual review: PASS after 1 round' + FIN, expect: { block: true, tags: ['gui-warnings'] } },
   { pack: 'gui', name: 'GUI loop done right: passes', prompt: 'make the dashboard page look cleaner', tools: [pb('gui'), bash('node tools/screenshot.mjs --url x', GUISHOT(0)), { name: 'Read', input: { file_path: SHOT } }],
     files: { 'site/index.html': '<h1>x</h1>', [SHOT]: 'png', 'docs/CHANGELOG.md': 'x' }, mtimes: { 'site/index.html': -500 },
-    answer: 'Playbook: gui.md\n## Visual review\n- Round 1: header overlapped on phone, fixed.\n- Round 2: nothing found.\nVisual review: PASS after 2 rounds\nAccessibility: keyboard, focus and contrast checked - PASS' + FIN, expect: { block: false } },
+    // (only the GUI checks are this scenario's: in a website project its own test, build and flow checks rightly fire on
+    // site/index.html. Lesson sent back by a project.)
+    answer: 'Playbook: gui.md\n## Visual review\n- Round 1: header overlapped on phone, fixed.\n- Round 2: nothing found.\nVisual review: PASS after 2 rounds\nAccessibility: keyboard, focus and contrast checked - PASS' + FIN,
+    expect: { not: ['gui-review-loop', 'gui-review-report', 'gui-warnings', 'gui-pack', 'gui-flows', 'a11y-checked', 'runbook-read', 'playbook-named'] } },
   // honesty and answer checks
   { pack: 'knowledge', name: 'a question that changed files without being asked: blocked', prompt: 'what do you think of the plan?', files: { 'outputs/plan v2.md': 'x', 'docs/CHANGELOG.md': 'x' }, tools: [pb('deliverable')],
     answer: 'Playbook: deliverable.md. It is fine.' + FIN, expect: { block: true, tags: ['question-no-file'] } },
@@ -590,7 +593,7 @@ const PRETOOL = [
   { name: 'plain-writing: a Codex apply_patch that adds an em dash to a user-facing file: denied', tool: 'apply_patch', input: { command: '*** Begin Patch\n*** Add File: docs/notes.md\n+A note — with a dash\n*** End Patch' }, deny: true, tag: 'plain-writing' },
   { name: 'pretool: a plain Codex apply_patch: allowed', tool: 'apply_patch', input: { command: '*** Begin Patch\n*** Add File: docs/notes.md\n+A plain note.\n*** End Patch' }, deny: false },
   { pack: 'knowledge', name: 'protect-originals: sed -i on a file in sources/: denied', tool: 'Bash', input: { command: "sed -i 's|a|b|' \"sources/my notes.md\"" }, deny: true, tag: 'protect-originals' },
-  { pack: 'knowledge', name: 'protect-originals: sed -i whose script only names sources/: allowed', tool: 'Bash', input: { command: "sed -i '/^summary:/a owns: sources/raids/**' docs/playbooks/raid-research.md" }, deny: false },
+  { pack: 'knowledge', name: 'protect-originals: sed -i whose script only names sources/: allowed', tool: 'Bash', input: { command: "sed -i '/^summary:/a owns: sources/zorbls/**' docs/playbooks/zorbl-research.md" }, deny: false },
   { pack: 'knowledge', name: 'move inbox file INTO sources/: allowed', tool: 'Bash', input: { command: 'mv "inbox/scan.pdf" "sources/2026-10-17 scan.pdf"' }, deny: false },
   { pack: 'knowledge', name: 'rm in sources/ when the user asked to delete: allowed', tool: 'Bash', input: { command: 'rm sources/dup.pdf' }, prompt: 'delete the duplicate scan in sources', deny: false },
   { name: 'unrelated command: allowed', tool: 'Bash', input: { command: 'ls -la docs && node tools/audit.mjs' }, deny: false },
@@ -974,8 +977,8 @@ STOP.push(
       'Playbook: project.md · Skill: debug · N/A(status-handoff): a progress note mid-task, the handoff comes when the work ends · N/A(changelog): nothing finished yet', expect: { not: ['plain-writing'] } },
   // Lesson: a two-sentence answer was flagged because its markers line carried a "Footer:" label
   { name: 'plain-writing: a labeled markers line on the last line is not prose: passes', prompt: 'hello',
-    answer: 'The raid notes are current and the boss table matches the patch. Nothing else needed a change\n' +
-      'Footer: Playbook: raid-research.md (followed, no files changed this turn) · Skill: research (looked up the patch notes for the raid) · N/A(changelog): nothing changed · N/A(status-handoff): a quick answer', expect: { not: ['plain-writing'] } },
+    answer: 'The zorbl notes are current and the boss table matches the patch. Nothing else needed a change\n' +
+      'Footer: Playbook: zorbl-research.md (followed, no files changed this turn) · Skill: research (looked up the patch notes for the zorbl) · N/A(changelog): nothing changed · N/A(status-handoff): a quick answer', expect: { not: ['plain-writing'] } },
   { name: 'plain-writing: a long run-on sentence in a real answer: blocked', prompt: 'hello',
     answer: 'The desk we looked at last week is still the best pick for the room because it is sturdy and quiet and easy to adjust and it fits by the window and the price stayed the same and the shop can deliver it on Friday and they will also take the old one away for free if we ask them nicely before noon on the day.',
     expect: { tags: ['plain-writing'] } },
@@ -1270,8 +1273,8 @@ STOP.push(
   { pack: 'knowledge', name: 'ingest-trigger: a file moved into sources/ (old time, new since the turn began): blocked', prompt: 'keep this',
     prep: dir => run(dir, 'prompt', { prompt: 'keep this' }), files: { 'sources/2026-10-18 moved.pdf': 'pdf' }, mtimes: { 'sources/2026-10-18 moved.pdf': -7200_000 }, answer: 'Saved.' + FIN, expect: { tags: ['ingest-trigger'] } },
   // a runbook's "owns:" folders: its own downloads skip another runbook's trigger, but only in a turn that follows it
-  { pack: 'knowledge', name: 'ingest-trigger: a download into a folder the followed runbook owns: passes', prompt: 'research the raid', tools: [pb('raid-notes')], files: { 'docs/playbooks/raid-notes.md': '---\nname: raid-notes\nsummary: raid notes\ntriggers: raid notes\nowns: sources/raids/**\nchecks: none - a test runbook\n---\n# Playbook: raid notes\n', 'sources/raids/boss.html': 'page' }, answer: 'Saved.' + FIN, expect: { not: ['ingest-trigger'] } },
-  { pack: 'knowledge', name: 'ingest-trigger: the owned folder without its runbook followed: blocked', prompt: 'keep this', files: { 'docs/playbooks/raid-notes.md': '---\nname: raid-notes\nsummary: raid notes\ntriggers: raid notes\nowns: sources/raids/**\nchecks: none - a test runbook\n---\n# Playbook: raid notes\n', 'sources/raids/boss.html': 'page' }, answer: 'Saved.' + FIN, expect: { tags: ['ingest-trigger'] } },
+  { pack: 'knowledge', name: 'ingest-trigger: a download into a folder the followed runbook owns: passes', prompt: 'research the zorbl', tools: [pb('zorbl-notes')], files: { 'docs/playbooks/zorbl-notes.md': '---\nname: zorbl-notes\nsummary: zorbl notes\ntriggers: zorbl notes\nowns: sources/zorbls/**\nchecks: none - a test runbook\n---\n# Playbook: zorbl notes\n', 'sources/zorbls/boss.html': 'page' }, answer: 'Saved.' + FIN, expect: { not: ['ingest-trigger'] } },
+  { pack: 'knowledge', name: 'ingest-trigger: the owned folder without its runbook followed: blocked', prompt: 'keep this', files: { 'docs/playbooks/zorbl-notes.md': '---\nname: zorbl-notes\nsummary: zorbl notes\ntriggers: zorbl notes\nowns: sources/zorbls/**\nchecks: none - a test runbook\n---\n# Playbook: zorbl notes\n', 'sources/zorbls/boss.html': 'page' }, answer: 'Saved.' + FIN, expect: { tags: ['ingest-trigger'] } },
   { pack: 'knowledge', name: 'deliverable-trigger: an output written without the deliverable runbook: blocked', prompt: 'put it in a file', files: { 'outputs/report.md': '# Report\nShort.\n' }, answer: 'Saved.' + FIN, expect: { tags: ['deliverable-trigger'] } },
   { pack: 'knowledge', name: 'deliverable-trigger: the deliverable runbook followed: passes', prompt: 'put it in a file', tools: [pb('deliverable')], files: { 'outputs/report.md': '# Report\nShort.\n' }, answer: 'Playbook: deliverable.md. Saved.' + FIN, expect: { not: ['deliverable-trigger'] } },
   { pack: 'knowledge', name: 'knowledge-source-trigger: facts written without research or capture: blocked', prompt: 'tidy the desk note', files: { 'docs/knowledge/desks.md': KNOW, 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { tags: ['knowledge-source-trigger'] } },
@@ -1855,6 +1858,8 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) {
       const inbox = files.length ? fs.readFileSync(path.join(inboxDir, files[0]), 'utf8') : '';
       const fb = fs.existsSync(path.join(p, 'docs/starter-feedback.md')) ? fs.readFileSync(path.join(p, 'docs/starter-feedback.md'), 'utf8') : '';
       a = copyProject();
+      // the copy carries the starter's real inbox: only this test's file counts (Lesson: a project's real report made 3 lines)
+      fs.rmSync(path.join(a, 'docs/feedback-inbox'), { recursive: true, force: true });
       write(a, { 'docs/feedback-inbox/demo.md': '# Feedback from demo\n- 2026-10-18: one lesson\n- 2026-10-17: an old one (reviewed 2026-10-18: fixed)\n' });
       const audit = nodeIn(a, 'tools/audit.mjs').stdout;
       report(f.status === 0 && /^- \d{4}-\d\d-\d\d: the gate judged/m.test(fb) && (inbox.match(/the gate judged/g) || []).length === 1 && /nothing new/.test(r2.stdout) && /1 feedback line\(s\) from projects not reviewed/.test(audit),
@@ -2067,11 +2072,18 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
     report(/tool jq: decided add, but it is not in the project/.test(notIn) && /FIT: PASS/.test(listed) && /skill orchestrate: decided skip, but it is in the project/.test(skipOn) && /FIT: PASS/.test(check()),
       'fit-checklist: add must be true in the project, and skip must not contradict what is installed', `${notIn.slice(0, 200)} | ${listed.slice(-200)} | ${skipOn.slice(0, 200)}`);
     // a skip that ignores the survey's evidence fails until the reason answers it
+    // (a real website project has many pages and may have Playwright installed: the count is not fixed, a project
+    // that really has Playwright can't skip it, and the checklist goes back after. Lesson sent back by a project.)
+    const fitPath = path.join(dir, 'docs/fit-checklist.md'), fitBefore = fs.readFileSync(fitPath, 'utf8');
+    const pwPresent = /^\|\s*Playwright\s*\|\s*tool\s*\|[^|\n]*already in the project/m.test(fitBefore);
+    const hadPage = fs.existsSync(path.join(dir, 'site/index.html'));
     write(dir, { 'site/index.html': '<h1>Hi</h1>\n' });
     const contra = check();
     decide('Playwright', 'skip', 'the only web page is a static placeholder with no logic, so browser tests would cost more than they catch', 'tool');
     decide('Playwright MCP', 'skip', 'one static web page needs no interactive browser checks, and the tool adds context to every session', 'tool');
-    report(/tool Playwright: the project has 1 web\/UI files: say why it still doesn't help/.test(contra) && /FIT: PASS/.test(check()), 'fit-checklist: a skip that contradicts a survey signal fails until the reason addresses it', contra.slice(0, 300));
+    report(pwPresent || (/tool Playwright: the project has \d+ web\/UI files: say why it still doesn't help/.test(contra) && /FIT: PASS/.test(check())), 'fit-checklist: a skip that contradicts a survey signal fails until the reason addresses it', contra.slice(0, 300));
+    fs.writeFileSync(fitPath, fitBefore);
+    if (!hadPage) fs.rmSync(path.join(dir, 'site/index.html'), { force: true });
     // later needs a condition; a measurable one that is met fails the check and is announced once at session start
     decide('fd', 'later', 'finding files by name only matters once the tree is much bigger than now');
     const noWhen = check();
@@ -2093,6 +2105,18 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
     applyEdits(dir, { 'docs/DECISIONS.md': s => s.replace('- fit: 2 new candidates: ?', '- fit: 2 new candidates: decided') });
     report(/fit: 2 new candidates.*decide the new rows/.test(pending) && up().trim() === '[]', 'fit-checklist: the upgrade review waits until the new candidates pass the check', `${pending.slice(0, 200)} | ${up().slice(0, 200)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+{ // plain-writing in a page: tags are markup, not words; a real wall of text is still found
+  // (sent back by a project through its starter feedback: a normal recipe page read as one 293-word paragraph)
+  const { writingProblems } = await import('./hooks.mjs');
+  const page = '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>Apple pie</title>\n' +
+    '<link rel="stylesheet" href="../style.css">\n</head>\n<body>\n<main>\n<h1>Apple pie</h1>\n<ul class="ingredients">\n' + Array.from({ length: 12 }, (_, i) => `<li class="item"><span class="qty">${i + 1}</span> apples</li>`).join('\n') +
+    '\n</ul>\n<p>Bake for an hour.</p>\n</main>\n</body>\n</html>\n';
+  const wall = '<!doctype html>\n<html lang="en">\n<body>\n<p>' + 'Stir the pot and keep stirring it slowly while the sauce thickens and the onions soften in the pan '.repeat(8) + '</p>\n</body>\n</html>\n';
+  const a = writingProblems(page, undefined, 'site/apple-pie.html'), b = writingProblems(wall, undefined, 'site/stew.html');
+  report(!a.some(p => /long|paragraph|sentence/i.test(p)) && b.some(p => /long|paragraph|sentence/i.test(p)),
+    'plain-writing: a page\'s tags are not words, and a real wall of text in a page is still flagged', `${a.slice(0, 2).join(' | ')} || ${b.slice(0, 2).join(' | ')}`);
 }
 
 { // fit-checklist: a "later - when:" condition counts what its noun names, and one the hooks can't read is not measured

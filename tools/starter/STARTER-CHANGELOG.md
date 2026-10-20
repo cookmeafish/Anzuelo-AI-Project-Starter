@@ -121,6 +121,12 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
     hook from 290 to 240 ms in a project with all packs and library skills. Sync skips a skill mirror that still has
     the time it stamped (any other change is refreshed), runbooks and skills are read once per hook run unless a file
     changes, and `hooks.mjs bench` times the real path (with a transcript) instead of the no-hooks fallback.
+  - **From real projects' feedback** (a live project and a brand-new trial project sent these back): "roles" alone no
+    longer forces the security review (game roles; "user roles", "admin roles", RBAC still do); a stated requirement
+    no longer also suggests knowledge-capture; the "later - when:" fit notice measures once a day, not every prompt
+    (~600 ms per prompt in a project with many images); an HTML page's tags are no longer counted as words by the
+    writing check, and block elements end a sentence; self-tests no longer collide with a project's own runbooks,
+    pages, Playwright or feedback inbox (fixtures use a made-up name, website projects pass).
 - 2026-10-19 (later): Fixes from the same project's next upgrade.
   - **No false "kept your edited version".** An older shipped check is not a local edit. The starter now ships
     `tools/hooks/engine-checks-history.json`, the fingerprint of every version of every check it ever released

@@ -1442,8 +1442,13 @@ export function writingProblems(text, cfg = config(), where = 'answer') {
   let src = String(text || '');
   // In a page, only the text people read is writing: scripts, styles, comments and template literals are code.
   // Lesson: a page's inline script was measured as a 200-word "sentence".
+  // Tags are markup too, so a line holding only tags reads as blank and ends a paragraph. Lesson (sent back by a
+  // project through its starter feedback): a whole recipe page was measured as one 293-word paragraph.
   if (/\.html?$/i.test(where) || /^\s*<!doctype html|<html[\s>]/i.test(src))
-    src = src.replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, blank).replace(/<!--[\s\S]*?-->/g, blank).replace(/`[^`]*`/g, blank);
+    src = src.replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, blank).replace(/<!--[\s\S]*?-->/g, blank).replace(/`[^`]*`/g, blank)
+      // a block element starts its own item, like a Markdown list line, so list items don't run into one sentence
+      .replace(/<(li|dt|dd|tr|td|th|h[1-6]|p|div|section|article|header|footer|nav|main|ul|ol|table|br|figcaption)\b[^>]*>/gi, m => '- ' + ' '.repeat(Math.max(0, m.length - 2)))
+      .replace(/<[^>]*>/g, blank);
   const lines = src.replace(/```[\s\S]*?```/g, blank).replace(/`[^`\n]*`/g, '``').split(/\r?\n/);
   const at = i => where === 'answer' ? '' : `:${i + 1}`;
   lines.forEach((l, i) => {
@@ -1991,11 +1996,16 @@ export function fitLaterNotice() {
   if (!/\blater\b[^\n]*when:/i.test(text)) return null;
   const due = fitRows(text).filter(r => fitDecision(r.decision) === 'later').map(r => ({ r, w: fitWhenOf(r) })).filter(x => x.w?.metric);
   if (!due.length) return null;
-  const sv = projectSurvey({ git: due.some(x => x.w.metric === 'commits') });
+  // measured once a day, or when the checklist changes: the survey walks every file and runs git, and this runs on
+  // every prompt. Lesson: a project with many images spent ~600 ms per prompt here.
   const st = readJSON(path.join(STATE, 'fit-later.json'), { announced: [] });
+  const key = `${today()}|${(() => { try { return fs.statSync(abs(FIT_FILE)).mtimeMs; } catch { return 0; } })()}`;
+  if (st.checked === key) return null;
+  if (!envOf('BENCH')) writeState('fit-later.json', { ...st, checked: key });
+  const sv = projectSurvey({ git: due.some(x => x.w.metric === 'commits') });
   const met = due.filter(x => fitMetric(sv, x.w) >= x.w.min && !st.announced.includes(`${x.r.kind}:${x.r.item}|${x.w.text}`));
   if (!met.length) return null;
-  if (!envOf('BENCH')) writeState('fit-later.json', { announced: [...st.announced, ...met.map(x => `${x.r.kind}:${x.r.item}|${x.w.text}`)].slice(-200) });
+  if (!envOf('BENCH')) writeState('fit-later.json', { checked: key, announced: [...st.announced, ...met.map(x => `${x.r.kind}:${x.r.item}|${x.w.text}`)].slice(-200) });
   return `FIT: a "later" is due: ${met.map(x => `${x.r.item} (when: ${x.w.text}; ${x.w.metric} is now ${fitMetric(sv, x.w)})`).join('; ')}. Decide each one now in ${FIT_FILE} (add or skip, with the reason), then node tools/fit.mjs check. Tell the user in one line only if it changes what they get.`;
 }
 
@@ -2255,7 +2265,9 @@ export function promptHints(prompt, cfg = config(), withNotices = true) {
     hints.push(`ROUTE: ${pb.name} (matched: ${hits.join(', ')}). If this is the task: ${how}. Name it in the answer ("Playbook: ${pb.file.split('/').pop()}"). REQ: runbook-read.`);
   }
   if (routed.length > 1) hints.push('Several runbooks matched: pick by the precedence notes in DIRECTORY.md, or follow them in order if the request covers both.');
-  const sk = route(m.expanded, routableSkills(cfg));
+  // a lasting requirement ("keep in mind that every phase ...") is enforced through REQUIREMENT below, not stored as a
+  // fact. Lesson: a requirement said in passing also suggested knowledge-capture, which was noise.
+  const sk = route(m.expanded, routableSkills(cfg)).filter(({ pb: s }) => !(s.name === 'knowledge-capture' && re(cfg.requirementWords).test(p)));
   for (const { pb: s, hits } of sk)
     hints.push(`SKILL: ${s.name} (matched: ${hits.join(', ')}). If this is the task: open ${s.file} THIS turn (or invoke the ${s.name} skill) and follow it, together with any runbook above. Name it in the answer ("Skill: ${s.name}"). REQ: skill-read.`);
   // REQ: event-hint. A check that makes a skill or runbook mandatory when something happens (an event trigger with

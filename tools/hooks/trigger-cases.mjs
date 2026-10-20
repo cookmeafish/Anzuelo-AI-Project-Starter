@@ -198,6 +198,7 @@ export default {
     'fyi our vat number is GB123, save that',
     'note: the meeting moved to thursday',
     'keep in mind my coworker is allergic to nuts'], quiet: [
+    'there needs to be role selection obvious to the player, keep in mind that every phase has different roles', // a requirement: REQUIREMENT handles it
     'remember to run the tests',
     'what notes do we have on pricing?'] },
   'SKILL: legal-review': { fire: [
@@ -394,6 +395,7 @@ export default {
     'publish it on npm',
     "let's go live tonight",
     'share the repo publicly for everyone'], quiet: [
+    'every phase of the raid has different roles and most do not repeat', // game roles, not access control (a real project)
     'the sign in button text is too small',
     'write a blog post about baking cookies',
     'add an upload date column to the photos table',
