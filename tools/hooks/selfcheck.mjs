@@ -2162,7 +2162,9 @@ if (mineB()) { // fit-checklist: every candidate decided by the AI, each reason 
     // (a real website project has many pages and may have Playwright installed: the count is not fixed, a project
     // that really has Playwright can't skip it, and the checklist goes back after. Lesson sent back by a project.)
     const fitPath = path.join(dir, 'docs/fit-checklist.md'), fitBefore = fs.readFileSync(fitPath, 'utf8');
-    const pwPresent = /^\|\s*Playwright\s*\|\s*tool\s*\|[^|\n]*already in the project/m.test(fitBefore);
+    // present the way fit check decides it (Lesson: the row's wording never says so for tools, so a machine with
+    // Playwright's browser installed failed this test)
+    const pwPresent = (() => { try { return JSON.parse(fit('--json').stdout || '[]').some(r => r.kind === 'tool' && /^playwright$/i.test(r.item) && r.present); } catch { return false; } })();
     const hadPage = fs.existsSync(path.join(dir, 'site/index.html'));
     // the scenario sets its own contradicting skip: the project's row may be a valid "later" or an answered skip
     // (sent back by a website project)
