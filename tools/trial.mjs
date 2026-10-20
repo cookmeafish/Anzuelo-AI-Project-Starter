@@ -197,6 +197,9 @@ for (const [name, s] of Object.entries(SAMPLES)) {
       trig(kcStarter).every(t => trig(kcNow).includes(t)) && trig(kcNow).includes('our trip tally') && fs.readFileSync(path.join(dir, 'docs/checks/evidence-standards.md'), 'utf8').includes('Our own rule: two sources for every price.'),
       kcNow.slice(0, 300));
     check(name, 'an upgrade brings a file an enabled skill gained since, so its links resolve', fs.existsSync(path.join(dir, 'skills/frontend-design/templates.md')));
+    // what the upgrade wrote is the engine's, so the next Stop doesn't count it as the agent's new files (plan-required)
+    const ew = (() => { try { return JSON.parse(fs.readFileSync(path.join(dir, 'tools/hooks/state/engine-writes.json'), 'utf8')); } catch { return {}; } })();
+    check(name, "an upgrade records the files it wrote as the engine's, so they don't ask for a plan", ['skills/frontend-design/templates.md', 'skills/knowledge-capture/SKILL.md', 'tools/hooks/requirements.json'].every(f => ew[f]), Object.keys(ew).slice(0, 8).join(', '));
     check(name, 'an upgrade names a setup question added since the project was set up', /- interview: Involvement \(new setup question/.test(review), review.slice(-500));
   }
   const afterUp = snapshot(dir);

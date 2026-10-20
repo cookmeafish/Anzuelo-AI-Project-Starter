@@ -1613,7 +1613,14 @@ export function upgradeProblems(cfg = config()) {
     if (kind === 'self-tests' && /^\?|^$/.test(decision)) { probs.push(`${at}: run node tools/hooks/selfcheck.mjs until it passes, then write "passed"`); continue; }
     // the new candidates are decided in the fit checklist, by the AI, with the reasons there (REQ: fit-checklist)
     if (kind === 'fit') {
-      const fp = fitProblems(cfg);
+      // the prompt hook asks on every prompt: the full check (a survey and two git runs) is reused while the checklist,
+      // config and brief are unchanged, and redone daily (the audit always runs it in full)
+      // Lesson: after an upgrade the prompt hook went from 86 to 136 ms, nearly all of it this check
+      const mt = p => { try { return fs.statSync(abs(p)).mtimeMs; } catch { return 0; } };
+      const key = [FIT_FILE, 'tools/hooks/config.json', 'docs/BRIEF.md'].map(mt).join('|') + '|' + today();
+      const cached = readJSON(path.join(STATE, 'fit-check.json'), {});
+      const fp = /^\?|^$/.test(decision) ? [] : cached.key === key ? cached.probs || [] : fitProblems(cfg);
+      if (!/^\?|^$/.test(decision) && cached.key !== key) writeState('fit-check.json', { key, probs: fp.slice(0, 3) });
       if (/^\?|^$/.test(decision)) probs.push(`${at}: decide the new rows in ${FIT_FILE} until node tools/fit.mjs check passes, then write "decided"`);
       else if (fp.length) probs.push(`${at}: node tools/fit.mjs check still fails (${fp.length} problem(s), first: ${fp[0]})`);
       continue;

@@ -96,7 +96,9 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
   - **Refreshes bring what they link to, and rollbacks are exact again**: a file an installed pack or enabled skill
     has and the project lacks comes with the upgrade (a refreshed skill linked `templates.md`, the app runbooks named
     the modular-code skill). A rollback regenerates skills, mirrors and `DIRECTORY.md` with the restored engine, and
-    leads with `ROLLED BACK` instead of printing the change log it undid.
+    leads with `ROLLED BACK` instead of printing the change log it undid. The files an upgrade writes are recorded as
+    the engine's, so the next Stop doesn't ask for a plan for them. The prompt hook reuses its check of a decided fit
+    checklist until the checklist, config or brief changes (about 35 ms less per prompt after an upgrade).
 - 2026-10-19 (later): Fixes from the same project's next upgrade.
   - **No false "kept your edited version".** An older shipped check is not a local edit. The starter now ships
     `tools/hooks/engine-checks-history.json`, the fingerprint of every version of every check it ever released

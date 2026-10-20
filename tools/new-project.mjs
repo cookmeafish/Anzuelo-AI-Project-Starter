@@ -483,6 +483,10 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
     process.exit(1);
   }
   done(); console.log(synced);
+  // what the upgrade wrote is the engine's doing, not the agent's work in the next turn, as with the pack installer
+  // (Lesson: the files an upgrade added asked for a plan at the next Stop)
+  const wrote = [...log.map(l => /^(?:updated|created)\s+(\S+)/.exec(l)?.[1]).filter(Boolean), ...SNAP.filter(f => fs.existsSync(path.join(dest, f)))];
+  if (wrote.length) spawnSync(process.execPath, ['--input-type=module', '-e', `import { flushEngineWrites } from ${JSON.stringify(pathToFileURL(path.join(dest, 'tools', 'hooks', 'hooks.mjs')).href)}; flushEngineWrites(${JSON.stringify(wrote)});`], { cwd: dest, encoding: 'utf8' });
   const items = [];
   // new hard rules the project doesn't have yet (by their bold title), unless an earlier review decided them
   const decided = fs.existsSync(path.join(dest, 'docs', 'DECISIONS.md')) ? fs.readFileSync(path.join(dest, 'docs', 'DECISIONS.md'), 'utf8') : '';
