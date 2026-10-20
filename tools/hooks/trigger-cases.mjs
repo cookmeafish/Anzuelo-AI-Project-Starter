@@ -78,6 +78,7 @@ export default {
     "I'm going on holiday next week, plan around it",
     "we don't need a plan, just fix the typo"] },
   'ROUTE: project': { fire: [
+    "what's on my plate this week?",  // a question-word trigger, typed as a question
     'where did we leave off?',
     "what's left to do?",
     'do a full health check of the project setup',
@@ -149,6 +150,7 @@ export default {
     'add a debug log toggle to settings',
     'write tests for the parser'] },
   'SKILL: research': { fire: [
+    "what did we decide about the export format?",  // a question-word trigger, typed as a question
     'what is the best budget standing desk right now?',
     'is it true that coffee dehydrates you?',
     'how much does a used family car go for these days',

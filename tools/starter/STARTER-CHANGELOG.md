@@ -142,6 +142,11 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
     the manuscript names script reads only the style sheet's "## Names" section; a file name in a message routes to
     ingest only next to hand-over words ("here is", "attached", "I added"); `starter.mjs feedback` adds its line to
     the dated list, not below the links; two self-test fixtures no longer collide with real projects.
+  - **From a live project:** a trigger that is itself a question ("how do i do", "what do i do in") routes when the
+    user types the question mark; a runbook or skill an earlier turn snapshot already listed is never checked as new
+    (an edited runbook in a project without git was, when the turn started without a prompt hook); the setup gate
+    routes a typical request written in quotes by the words inside them (a quote of 40+ characters read as pasted
+    text, so it routed to nothing).
 - 2026-10-19 (later): Fixes from the same project's next upgrade.
   - **No false "kept your edited version".** An older shipped check is not a local edit. The starter now ships
     `tools/hooks/engine-checks-history.json`, the fingerprint of every version of every check it ever released

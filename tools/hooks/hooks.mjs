@@ -464,7 +464,9 @@ export function route(prompt, pbs) {
       // A whole phrase typed exactly ("not working", "fix this", "teach me", "ship it") is the request itself, unless it
       // sits in a plain question with no request verb. Lesson: such triggers could only back up another match, so "the
       // export is not working" and "teach me git branching" routed nowhere.
-      const phrase = exact && /\s/.test(t.trim()) && !askOnly;
+      // A trigger that is itself a question ("how do i do", "what's my role") is that question, "?" and all.
+      // Lesson: a project's question triggers routed only when the user left the question mark off.
+      const phrase = exact && /\s/.test(t.trim()) && (!askOnly || /^(how|what|what's|whats|where|which|who|why|when)\b/i.test(t.trim()));
       // A phrase of common words routes alone only with two key words ("not working", "look up"), three words or more
       // ("from now on", "where are we") or a pointer at the user's thing ("fix this"); otherwise it only backs up a real
       // match: "can you fix it here" alone is no bug report
@@ -672,10 +674,15 @@ const noticeKey = h => /^[A-Z][A-Z /-]{3,}?(?=[:(]|\s+for\b|$)/.exec(h)?.[0].tri
 function bornThisTurn(file, since) {
   const snap = readJSON(stateFile('turn.json'), null);
   const pb = /^docs\/playbooks\/([^/]+)$/.exec(file), sk = /^[^/]+\/([^/]+)\/SKILL\.md$/.exec(file);
-  if (snap && snap.runbooks && Date.parse(snap.at) >= (since || 0) - 5000 && (pb || sk)) return pb ? !snap.runbooks.includes(pb[1]) : !snap.skills.includes(sk[1]);
+  // a file an earlier snapshot already had existed before this turn, even when that snapshot is older than the turn
+  // (a turn started by a message that ran no prompt hook). Lesson: an edited runbook in a project without git was
+  // checked as new, from its creation time.
+  const had = snap && (pb ? (snap.runbooks || []).includes(pb[1]) : sk ? (snap.skills || []).includes(sk[1]) : false);
+  if (had) return false;
+  if (snap && snap.runbooks && Date.parse(snap.at) >= (since || 0) - 5000 && (pb || sk)) return true;
   // a file the turn-start snapshot already had was not born this turn, whatever its creation time says
   const files = readJSON(stateFile('snapshot.json'), null);
-  if (files?.files && Date.parse(files.at) >= (since || 0) - 5000 && files.files[file]) return false;
+  if (files?.files?.[file]) return false;
   // a file in a commit made before the turn was not born this turn either: editors that save by writing a new file
   // reset its creation time. Lesson (sent back by a project through its starter feedback): a one-word fix in an old
   // note was checked as a new note that must link to others.
@@ -1587,7 +1594,10 @@ export function setupProblems(cfg = config()) {
   const typical = [...section(brief, 'Typical requests').replace(/<!--[\s\S]*?-->/g, '').matchAll(/^[ \t]*(?:\d+\.|-)[ \t]+(\S.+)$/gm)].map(m => m[1].trim());
   if (typical.length < 3) probs.push('docs/BRIEF.md: list at least 3 typical requests, each as a short, plain description of the kind of request');
   const pbs = playbooks(), sks = routableSkills(cfg);
-  for (const t of typical) if (!route(t, pbs).length && !route(t, sks).length) probs.push(`typical request "${t.slice(0, 70)}" routes to no runbook or skill: add its wording to a runbook's or skill's triggers (node tools/hooks/selfcheck.mjs --route "...")`);
+  // a request written in quotes ('"How do I ...?" → x.md') is routed as the words inside them: whole, a long quote
+  // reads as pasted text and is skipped. Lesson: a project's 45-character quoted request routed to nothing.
+  const asTyped = t => /^["“']([^"”]+)["”']/.exec(t)?.[1] || t.replace(/\s*(→|->)\s*\S+\s*$/, '');
+  for (const t of typical) if (!route(asTyped(t), pbs).length && !route(asTyped(t), sks).length) probs.push(`typical request "${t.slice(0, 70)}" routes to no runbook or skill: add its wording to a runbook's or skill's triggers (node tools/hooks/selfcheck.mjs --route "...")`);
   const claude = rulesText();
   if (/\{\{[A-Z_]+\}\}|<!-- One line on what/.test(claude)) probs.push('AGENTS.md: replace the template placeholders (name, one-line purpose)');
   if (!names().PROJECT_NAME || /\{\{/.test(names().PROJECT_NAME)) probs.push(`${NAMES_FILE}: set PROJECT_NAME, and add every other name the project uses (products, brands, companies)`);

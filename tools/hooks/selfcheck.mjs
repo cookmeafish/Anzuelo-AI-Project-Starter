@@ -206,7 +206,8 @@ const INTERVIEW = (kind, visual, packs, library) => `\n## Setup interview (2026-
   '- Typical requests: see docs/BRIEF.md\n- Inputs: the user\'s notes\n- People: one\n- Sensitive data: none beyond prices\n- Constraints: none\n- Quality bar: short and sourced\n- Always/never: none\n' +
   '- Commands: npm test, npm run build\n- Branches: work on dev, never touch main\n- Sign-off: none\n- Release: none yet\n' + `- Packs: ${packs}\n- Library skills: ${library}\n`;
 const SEC_SET = '---\nstatus: set 2026-10-17\n---\n# Security baseline\n| Question | Answer |\n|---|---|\n| What is sensitive | prices only |\n';
-const SETUP_BRIEF ='---\nstatus: bootstrapped 2026-10-17\n---\n# Brief\n## Purpose\nTrack home office gear.\n## Who it serves\nThe user.\n## Scope\n- In scope: desks\n## Typical requests\n1. make a plan for the office move\n2. debug the failing import script\n3. search the web for desk reviews\n## Sources and inputs\nVendor sites.\n## Constraints\nBudget 500.\n## Quality bar\nShort, cited.\n';
+// one typical request in the template's quoted style, over 40 characters (Lesson: such a line routed to nothing)
+const SETUP_BRIEF ='---\nstatus: bootstrapped 2026-10-17\n---\n# Brief\n## Purpose\nTrack home office gear.\n## Who it serves\nThe user.\n## Scope\n- In scope: desks\n## Typical requests\n1. make a plan for the office move\n2. \"debug the failing import script that reads the vendor files\" → debug skill\n3. search the web for desk reviews\n## Sources and inputs\nVendor sites.\n## Constraints\nBudget 500.\n## Quality bar\nShort, cited.\n';
 const SETUP_CLAUDE = '# <!--name:PROJECT_NAME-->Desk project<!--/name-->\nCLAUDE.md and AGENTS.md are twins.\n## The user\'s standing preferences\n- short answers (2026-10-17)\n';
 const SETUP_DONE = { 'docs/BRIEF.md': () => SETUP_BRIEF, 'CLAUDE.md': () => SETUP_CLAUDE, 'AGENTS.md': () => SETUP_CLAUDE, 'docs/STATUS.md': () => '# Status\n## Now\n- set up', 'tools/hooks/state/last-session.json': () => '{}', 'docs/DECISIONS.md': s => s + INTERVIEW('neither, a test fixture', 'no', 'core only', 'enabled none; left out orchestrate (no long runs)') + '- Starter: link, so it can grow later\n',
   'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), packs: [], starter: 'link' }), 'docs/security.md': () => SEC_SET, 'tools/hooks/state/setup.json': () => '{"prompts":2}', 'docs/names.json': () => '{ "PROJECT_NAME": "Desk project" }' };
@@ -642,6 +643,9 @@ const PROMPT = [
   { name: 'praise hint', prompt: 'perfect, keep doing this', has: ['PRAISE'] },
   { name: 'scope hint names the person (alias works)', prompt: 'update ali\'s budget', setupFn: PEOPLE, has: ['SCOPE: this request is about alice'] },
   { name: 'unresolved checks from the last turn are announced', prompt: 'hello', setup: { 'tools/hooks/state/unresolved.json': JSON.stringify({ at: 'x', prompt: 'p', items: ['[finished-summary] m'] }) }, has: ['LAST WORK TURN ENDED WITH UNRESOLVED CHECKS'] },
+  // a trigger that is itself a question routes when typed as a question (Lesson: dead whenever the user typed "?")
+  { name: 'routing: a question-word trigger routes with its question mark', prompt: 'How do I do the second zorbl phase?', removeMarker: true,
+    setup: { 'docs/playbooks/zorbl-answer.md': NEWPB.replace('name: meal-plan', 'name: zorbl-answer').replace('triggers: meal plan, plan meals', 'triggers: how do i do, what do i do in') }, has: ['ROUTE: zorbl-answer'] },
   { name: 'skill-prune: a runbook nobody used for months is announced for cleanup', prompt: 'hello', session: true, removeMarker: true, setup: { 'docs/playbooks/meal-plan.md': NEWPB, 'tools/hooks/state/runbook-usage.json': JSON.stringify({ 'meal-plan': { uses: 1, last: '2020-01-01', seen: '2020-01-01' } }) }, has: ['SKILL CLEANUP DUE: meal-plan'] },
   { name: 'skill-prune: core skills and kept runbooks are never announced', prompt: 'hello', session: true, removeMarker: true, setup: { 'docs/playbooks/meal-plan.md': NEWPB.replace('checks:', 'keep: 2099-01-01 - seasonal' + String.fromCharCode(10) + 'checks:'), 'tools/hooks/state/runbook-usage.json': JSON.stringify({ 'meal-plan': { uses: 1, last: '2020-01-01' }, debug: { uses: 1, last: '2020-01-01' } }) }, hasNot: ['SKILL CLEANUP DUE'] },
   // Lesson: "every Monday I'll make the order plan" was promised, and nothing ever made it happen
@@ -809,6 +813,10 @@ STOP.push(
   { name: 'plan saved in docs/plans: passes', prompt: 'make a plan for the csv export', tools: [pb('plan'), bash('node skills/plan/scripts/plan-tasks.mjs check docs/plans/2026-10-17-export.md')], files: { 'docs/plans/2026-10-17-export.md': '# Export: plan' }, answer: 'Playbook: plan.md. Saved.' + FIN, expect: { block: false } },
   { name: 'new runbook without checking for existing skills: blocked', prompt: 'make a runbook for meal planning', tools: [pb('project'), bash('node tools/audit.mjs')],
     files: { 'docs/playbooks/meal-plan.md': NEWPB, 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.' + FIN, expect: { block: true, tags: ['skill-reuse'] } },
+  // Lesson: an edited runbook was checked as new when the turn snapshot was older than the turn (no prompt hook ran)
+  { name: 'skill-reuse: a runbook an older turn snapshot already had is not new: passes', prompt: 'add a pitfall to the meal planning runbook', tools: [pb('project'), bash('node tools/audit.mjs')],
+    prep: dir => write(dir, { 'tools/hooks/state/turn.json': JSON.stringify({ at: new Date(Date.now() - 7200_000).toISOString(), prompt: 'earlier', runbooks: [...fs.readdirSync(path.join(dir, 'docs/playbooks')), 'meal-plan.md'], skills: fs.readdirSync(path.join(dir, 'skills')) }) }),
+    files: { 'docs/playbooks/meal-plan.md': NEWPB, 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.' + FIN, expect: { not: ['skill-reuse'] } },
   { name: 'a loose new file in the project root: blocked', prompt: 'save my notes', files: { 'notes.txt': 'x' }, answer: 'Saved. N/A(runbook-exists): test.' + FIN, expect: { block: true, tags: ['root-tidy'] } },
   // fit after setup: a new data file a "skip" never answered makes that reason stale (Lesson: caught only by the audit)
   { name: 'fit-checklist: a turn adds a data file that a decided skip never answered: blocked', prompt: 'add the price list', removeMarker: true,
@@ -2036,6 +2044,19 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
   report(!files.length || !bad.length, 'shipped triggers: every pack runbook and library skill trigger routes when typed alone', bad.join('; '));
 }
 
+{ // setup: a typical request written in the template's quoted style is routed as the words in the quotes, and one that
+  // really routes nowhere is still named (Lesson: a 45-character quoted request read as pasted text and routed to nothing)
+  const dir = copyProject();
+  try {
+    applyEdits(dir, SETUP_DONE);
+    applyEdits(dir, { 'docs/BRIEF.md': s => s.replace(/## Typical requests\n[\s\S]*?\n## /, '## Typical requests\n1. "make a plan for moving the whole office to the new building" → plan\n2. "debug the failing import script that reads the vendor files"\n3. "search the web for standing desk reviews under 500 dollars" → research\n4. "zorbl the quindle with a frobnicated blarnday wibble"\n## ') });
+    const H = JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href);
+    const r = spawnSync(process.execPath, ['--input-type=module', '-e', `import { setupProblems } from ${H}; console.log(setupProblems().filter(p => /typical request/.test(p)).join(' | '))`], { cwd: dir, encoding: 'utf8' });
+    const probs = (r.stdout || '').trim();
+    report(/zorbl the quindle/.test(probs) && !/make a plan|debug the failing|search the web/.test(probs), 'setup: quoted typical requests route by the words inside the quotes; one that routes nowhere is still named', `${probs.slice(0, 400)} ${(r.stderr || '').slice(0, 300)}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
 { // event-hint after an edit: writing sign-in code names the mandatory skill at once, once per turn
   const dir = copyProject();
   try {
@@ -2122,6 +2143,9 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
     const fitPath = path.join(dir, 'docs/fit-checklist.md'), fitBefore = fs.readFileSync(fitPath, 'utf8');
     const pwPresent = /^\|\s*Playwright\s*\|\s*tool\s*\|[^|\n]*already in the project/m.test(fitBefore);
     const hadPage = fs.existsSync(path.join(dir, 'site/index.html'));
+    // the scenario sets its own contradicting skip: the project's row may be a valid "later" or an answered skip
+    // (sent back by a website project)
+    if (!pwPresent) decide('Playwright', 'skip', 'browser tests would cost more than they catch in this small test copy', 'tool');
     write(dir, { 'site/index.html': '<h1>Hi</h1>\n' });
     const contra = check();
     decide('Playwright', 'skip', 'the only web page is a static placeholder with no logic, so browser tests would cost more than they catch', 'tool');
