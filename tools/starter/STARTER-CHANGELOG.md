@@ -117,6 +117,10 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
     as a subcommand. One project's agent, told a check fired for nothing, found the cause (an edited old note counted
     as new because its creation time reset), fixed it with a test, and sent it back as starter feedback; that fix and
     its test are now in the engine, so every project gets them.
+  - **Hooks about twice as fast with every skill on**: the Stop hook went from about 780 to 360 ms and the prompt
+    hook from 290 to 240 ms in a project with all packs and library skills. Sync skips a skill mirror that still has
+    the time it stamped (any other change is refreshed), runbooks and skills are read once per hook run unless a file
+    changes, and `hooks.mjs bench` times the real path (with a transcript) instead of the no-hooks fallback.
 - 2026-10-19 (later): Fixes from the same project's next upgrade.
   - **No false "kept your edited version".** An older shipped check is not a local edit. The starter now ships
     `tools/hooks/engine-checks-history.json`, the fingerprint of every version of every check it ever released

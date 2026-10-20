@@ -268,7 +268,13 @@ export const secretRes = (cfg = config()) => [...new Set(cfg.secretPatterns)].ma
 export const secretHit = (text, cfg = config()) => secretRes(cfg).find(p => p.rx.test(text))?.s;
 
 // ---------- project content ----------
-export function playbooks() {
+// The runbooks and routable skills are read several times per hook run; each is rebuilt only when a file in its
+// folder changed (name, size or time), so an edit in the same process is still seen. Lesson: the prompt hook read
+// every runbook and skill three times per prompt.
+const folderKey = (dir, file = f => f) => { try { return list(dir).map(n => { const p = abs(`${dir}/${file(n)}`); try { const s = fs.statSync(p); return `${n}:${s.size}:${s.mtimeMs}`; } catch { return n; } }).join('|'); } catch { return ''; } };
+const memo = (id, key, build) => { const c = memo.c ||= new Map(); const k = key(); const hit = c.get(id); if (hit && hit.k === k) return hit.v; const v = build(); c.set(id, { k, v }); return v; };
+export function playbooks() { return memo('playbooks', () => folderKey('docs/playbooks'), playbooksRead); }
+function playbooksRead() {
   const out = [];
   for (const f of list('docs/playbooks')) {
     if (!f.endsWith('.md') || f === '_TEMPLATE.md') continue;
@@ -319,6 +325,11 @@ export function findLibrary() {
 // Hand-written skills that no runbook owns (core skills like debug, enabled library skills) route by their own
 // "triggers:" frontmatter, exactly like runbooks, and need a check of their own ("when": {"skillUsed": "<name>"}).
 export function routableSkills(cfg = config()) {
+  const dir = cfg.skillsDir;
+  return memo(`skills:${dir}`, () => `${folderKey(dir, n => `${n}/SKILL.md`)}#${folderKey('docs/playbooks')}`, () => routableSkillsRead(dir));
+}
+const routableSkillsRead = (skillsDir) => {
+  const cfg = { skillsDir };
   const owned = new Set(playbooks().map(pb => pb.skillName));
   const out = [];
   for (const n of list(cfg.skillsDir)) {
@@ -1060,6 +1071,21 @@ const GEN_START = '<!-- generated:start', GEN_END = '<!-- generated:end -->';
 // Files the hooks regenerated in this process: they are consequences of the agent's edits, not edits by the agent,
 // so change detection skips them (a pure question must not look like it changed DIRECTORY.md).
 export const GENERATED_WRITES = new Set();
+// A mirror file still carrying the exact time sync stamped on it, newer than its source and the engine, is what this
+// engine wrote from that source: no need to read both again. Anything that touched it since (a hand edit, a stale
+// copy) changed its time, so it is read and rewritten. Lesson: with every skill on, the Stop hook re-read hundreds of
+// mirror files each turn (~400 ms); a first try that trusted "newer than the source" left a stale mirror in place.
+let ENGINE_MTIME = 0, MIRROR_STAMPS = null, STAMPS_DIRTY = false;
+const stamps = () => (MIRROR_STAMPS ||= readJSON(path.join(STATE, 'mirror-stamps.json'), {}));
+const mirrorFresh = (src, dst) => {
+  try {
+    ENGINE_MTIME ||= fs.statSync(fileURLToPath(import.meta.url)).mtimeMs;
+    const t = fs.statSync(abs(dst)).mtimeMs;
+    return stamps()[dst] === t && t >= fs.statSync(abs(src)).mtimeMs && t >= ENGINE_MTIME;
+  } catch { return false; }
+};
+const stampMirror = dst => { try { const now = new Date(); fs.utimesSync(abs(dst), now, now); stamps()[dst] = fs.statSync(abs(dst)).mtimeMs; STAMPS_DIRTY = true; } catch { } };
+const saveStamps = () => { if (STAMPS_DIRTY) { writeState('mirror-stamps.json', MIRROR_STAMPS); STAMPS_DIRTY = false; } };
 const writeIfChanged = (p, text) => { if (read(abs(p)) === text) return false; fs.mkdirSync(path.dirname(abs(p)), { recursive: true }); fs.writeFileSync(abs(p), text); GENERATED_WRITES.add(p); return true; };
 const firstHeading = text => (/^#\s+(.+)$/m.exec(text || '') || [, ''])[1].replace(/^Playbook:\s*/i, '').trim();
 const doneWhen = text => (/^##\s+Done when[^\n]*\n([\s\S]*?)(?=^##\s|(?![\s\S]))/im.exec(text || '') || [, ''])[1].trim();
@@ -1112,8 +1138,13 @@ export function syncSkills(cfg = config()) {
   for (const m of cfg.skillMirrors) {
     for (const n of names) {
       const copy = d => { for (const f of list(`${cfg.skillsDir}/${n}${d}`)) { const src = `${cfg.skillsDir}/${n}${d}/${f}`; if (fs.statSync(abs(src)).isDirectory()) copy(`${d}/${f}`);
-        else if (/\.md$/i.test(f)) writeIfChanged(`${m}/${n}${d}/${f}`, mirrorText(read(abs(src)), `${cfg.skillsDir}/${n}${d}`, `${m}/${n}${d}`, `${cfg.skillsDir}/${n}`));
-        else writeIfChanged(`${m}/${n}${d}/${f}`, read(abs(src))); } };
+        else if (mirrorFresh(src, `${m}/${n}${d}/${f}`)) continue;
+        else {
+          const dst = `${m}/${n}${d}/${f}`;
+          writeIfChanged(dst, /\.md$/i.test(f) ? mirrorText(read(abs(src)), `${cfg.skillsDir}/${n}${d}`, `${m}/${n}${d}`, `${cfg.skillsDir}/${n}`) : read(abs(src)));
+          // written or confirmed current: stamp it, so the next turn skips it (mirrors are outside change detection)
+          stampMirror(dst);
+        } } };
       copy('');
       writeIfChanged(`${m}/${n}/.mirror`, `generated copy of ${cfg.skillsDir}/${n}/ - edit that folder, not this one\n`);
       // Lesson: files removed from a skill stayed in its mirror, so agents kept loading a script or reference that was gone.
@@ -1124,6 +1155,7 @@ export function syncSkills(cfg = config()) {
     }
     for (const n of list(m)) if (!names.includes(n) && exists(`${m}/${n}/.mirror`)) fs.rmSync(abs(`${m}/${n}`), { recursive: true, force: true });
   }
+  saveStamps();
   return changed;
 }
 
@@ -2070,13 +2102,18 @@ export function scoreFriction(prompt, cfg = config()) {
 // ---------- hook speed: every hook runs on every turn, so each one must stay fast ----------
 // node tools/hooks/hooks.mjs bench   times each hook event (median of 3 runs, without writing any hook state).
 export function bench(runs = 3) {
-  const sample = JSON.stringify({ prompt: 'what does the brief say', tool_name: 'Read', tool_input: { file_path: 'README.md' }, last_assistant_message: 'It says what the project is for.' });
+  // a one-turn transcript, as every real host sends: without one the Stop hook re-runs validators itself (the path for
+  // agents without hooks), and the bench timed that instead. Lesson: a project with every skill read 780 ms at Stop.
+  const tp = path.join(os.tmpdir(), `starter-bench-${process.pid}.jsonl`);
+  fs.writeFileSync(tp, JSON.stringify({ type: 'user', timestamp: new Date().toISOString(), message: { role: 'user', content: 'what does the brief say' } }) + '\n');
+  const sample = JSON.stringify({ prompt: 'what does the brief say', tool_name: 'Read', tool_input: { file_path: 'README.md' }, transcript_path: tp, last_assistant_message: 'It says what the project is for.' });
   const out = {};
   for (const ev of ['prompt', 'pretool', 'stop']) {
     const ms = [];
     for (let i = 0; i < runs; i++) { const t = Date.now(); spawnSync(process.execPath, [fileURLToPath(import.meta.url), ev], { cwd: ROOT, input: sample, stdio: ['pipe', 'ignore', 'ignore'], timeout: 30000, env: { ...process.env, STARTER_BENCH: '1' } }); ms.push(Date.now() - t); }
     out[ev] = ms.sort((a, b) => a - b)[Math.floor(runs / 2)];
   }
+  try { fs.unlinkSync(tp); } catch { }
   return out;
 }
 
