@@ -145,7 +145,13 @@ if (cmd === 'link') {
   if (!text) { console.error('usage: node tools/starter.mjs feedback "<what the engine got wrong or should do>"'); process.exit(1); }
   if (!fs.existsSync(at(FEEDBACK))) { fs.mkdirSync(path.dirname(at(FEEDBACK)), { recursive: true }); fs.writeFileSync(at(FEEDBACK), FEEDBACK_HEAD); }
   const t = new Date(), day = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
-  fs.appendFileSync(at(FEEDBACK), `${fs.readFileSync(at(FEEDBACK), 'utf8').endsWith('\n') ? '' : '\n'}- ${day}: ${text}\n`);
+  // the new line goes under the last dated one (or before the first "## " section), not below "## Related" at the end.
+  // Lesson: a project's lines landed under its link list.
+  const ls = fs.readFileSync(at(FEEDBACK), 'utf8').replace(/\n+$/, '').split('\n');
+  let i = ls.findLastIndex(l => /^- \d{4}-\d\d-\d\d: /.test(l)) + 1;
+  if (!i) { i = ls.findIndex((l, k) => k > 0 && /^## /.test(l)); if (i < 0) i = ls.length; else if (ls[i - 1] === '') i--; }
+  ls.splice(i, 0, `- ${day}: ${text}`);
+  fs.writeFileSync(at(FEEDBACK), ls.join('\n') + '\n');
   console.log(`noted in ${FEEDBACK}. Send it to the starter with: node tools/starter.mjs report`);
 } else if (cmd === 'report') {
   const link = starterLink();

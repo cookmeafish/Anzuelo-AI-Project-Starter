@@ -137,6 +137,11 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
     `python -m <package>` as it is.
   - **Fit checklist stays true after setup:** a turn that adds files which contradict a decided skip (a first CSV, a
     first web page) or meet a "later - when:" condition is blocked until those rows are updated (REQ: fit-checklist).
+  - **From new-project trials' feedback:** the app foundation asks who may do each destructive action (the owner only
+    until the user decides) and the security review checks it; the Verification report may be written in Spanish;
+    the manuscript names script reads only the style sheet's "## Names" section; a file name in a message routes to
+    ingest only next to hand-over words ("here is", "attached", "I added"); `starter.mjs feedback` adds its line to
+    the dated list, not below the links; two self-test fixtures no longer collide with real projects.
 - 2026-10-19 (later): Fixes from the same project's next upgrade.
   - **No false "kept your edited version".** An older shipped check is not a local edit. The starter now ships
     `tools/hooks/engine-checks-history.json`, the fingerprint of every version of every check it ever released

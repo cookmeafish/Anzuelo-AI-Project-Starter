@@ -73,7 +73,12 @@ const keep = new Map(), wrong = new Map(); // lower-case spelling -> the style s
 const styleFile = opt('--style');
 if (styleFile) {
   if (!fs.existsSync(styleFile)) { console.error(`style sheet not found: ${styleFile}`); process.exit(2); }
-  for (const line of fs.readFileSync(styleFile, 'utf8').split(/\r?\n/)) {
+  // a "## Names" heading limits the names to that section, so other tables and lists on the page are not read as
+  // names (Lesson: a style sheet's facts table and links were counted as names and wrong spellings)
+  const lines = fs.readFileSync(styleFile, 'utf8').split(/\r?\n/);
+  const start = lines.findIndex(l => /^##\s+names\b/i.test(l));
+  const end = start < 0 ? lines.length : lines.findIndex((l, i) => i > start && /^#{1,2}\s/.test(l));
+  for (const line of start < 0 ? lines : lines.slice(start + 1, end < 0 ? lines.length : end)) {
     let name = '', bad = [];
     const row = /^\s*\|([^|]+)\|([^|]*)\|?/.exec(line); // | Name | wrong spellings | ...
     const item = /^\s*[-*]\s+\**([^(:*\n]+?)\**\s*(?:\((?:not|never|avoid)\s*:?\s*([^)]+)\))?\s*(?:[:,].*)?$/i.exec(line);

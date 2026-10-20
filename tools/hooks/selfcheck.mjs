@@ -846,6 +846,9 @@ STOP.push(
   // Lesson: a correct **Verification** block failed twice, because only a # heading counted
   { pack: 'app', name: 'verification-report: a bold Verification line counts like a heading: passes', prompt: 'add a feature to export reports as csv', tools: [pb('feature')], files: SPEC,
     answer: 'Playbook: feature.md.\n' + VERIF.replace(/^#{1,6}\s*Verification[^\n]*/m, '**Verification**') + FIN, expect: { not: ['verification-report'] } },
+  // Lesson: a Spanish-speaking user's project was forced into English headings
+  { pack: 'app', name: 'verification-report: the report in Spanish counts: passes', prompt: 'add a feature to export reports as csv', tools: [pb('feature')], files: SPEC,
+    answer: 'Playbook: feature.md.\n## Verificación\n- Automático: npm test, 12 pasan.\n- App real: exporté un CSV a mano.\n- Límites: dentro de docs/foundation.md.\n- Revisión independiente: SHIP (docs/reviews/x.md).\n- Pendiente: nada débil.\n' + FIN, expect: { not: ['verification-report'] } },
   { pack: 'app', name: 'feature without verification, review, spec or notes: blocked', prompt: 'add a feature to export reports as csv', tools: [pb('feature')], files: { 'src/export.js': 'export const a = 1;\n' },
     answer: 'Playbook: feature.md. Done.' + FIN, expect: { block: true, tags: ['verification-report', 'review-verdict', 'spec-written', 'release-notes'] } },
   { pack: 'app', name: 'bugfix without a regression test: blocked', prompt: 'the export is broken, fix it', tools: [pb('bugfix')], files: { 'src/export.js': 'export const a = 2;\n' },
@@ -1388,7 +1391,11 @@ function explain(query) {
     out.push(`${kind}: ${s.name}`);
     if (!packOk(s)) { out.push(`  skipped here: the ${s.pack} pack is not installed in the test base`); continue; }
     if (kind === 'stop') {
-      const r = runStop({ ...s, blocks: undefined });
+      // a block with neither a reason nor details is a hook that did not finish (seen once under heavy load inside
+      // audit --setup): run it once more, and say what the hook printed if it happens again
+      let r = runStop({ ...s, blocks: undefined });
+      if (r.blocked && !r.reason.trim() && !r.details.trim()) r = runStop({ ...s, blocks: undefined });
+      if (r.blocked && !r.reason.trim() && !r.details.trim()) { out.push(`  blocked without a reason; hook stderr: ${r.err.slice(0, 300)}`); continue; }
       if (!r.blocked) { out.push('  nothing fires: the Stop hook passes this scenario'); continue; }
       const shorts = (r.reason.match(/^\d+\. .*$/gm) || []).map(l => l.replace(/^\d+\.\s*/, ''));
       const full = (r.details.match(/^\d+\. \[[^\]]+\] .*$/gm) || []).map(l => /^\d+\. \[([^\]]+)\] (.*)$/.exec(l));
@@ -1862,6 +1869,8 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) {
     try {
       write(fake, { 'tools/new-project.mjs': '// a starter\n' });
       fs.writeFileSync(path.join(p, 'tools/starter.local.json'), JSON.stringify({ path: fake }));
+      // a new line joins the dated list, not the link section under it
+      write(p, { 'docs/starter-feedback.md': '# Feedback for the starter\n\n- 2026-10-01: an older lesson\n\n## Related\n- [Status](STATUS.md)\n' });
       const f = nodeIn(p, 'tools/starter.mjs', 'feedback', 'the gate judged the whole command line');
       const r1 = nodeIn(p, 'tools/starter.mjs', 'report'), r2 = nodeIn(p, 'tools/starter.mjs', 'report');
       const inboxDir = path.join(fake, 'docs/feedback-inbox'), files = fs.existsSync(inboxDir) ? fs.readdirSync(inboxDir) : [];
@@ -1872,7 +1881,7 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) {
       fs.rmSync(path.join(a, 'docs/feedback-inbox'), { recursive: true, force: true });
       write(a, { 'docs/feedback-inbox/demo.md': '# Feedback from demo\n- 2026-10-18: one lesson\n- 2026-10-17: an old one (reviewed 2026-10-18: fixed)\n' });
       const audit = nodeIn(a, 'tools/audit.mjs').stdout;
-      report(f.status === 0 && /^- \d{4}-\d\d-\d\d: the gate judged/m.test(fb) && (inbox.match(/the gate judged/g) || []).length === 1 && /nothing new/.test(r2.stdout) && /1 feedback line\(s\) from projects not reviewed/.test(audit),
+      report(f.status === 0 && /^- 2026-10-01: an older lesson\n- \d{4}-\d\d-\d\d: the gate judged[^\n]*\n\n## Related/m.test(fb) && (inbox.match(/the gate judged/g) || []).length === 1 && /nothing new/.test(r2.stdout) && /1 feedback line\(s\) from projects not reviewed/.test(audit),
         'starter feedback: noted in the project, reported once to the linked starter, and the starter\'s audit warns until reviewed', `${f.stdout}${f.stderr} | ${r1.stdout}${r1.stderr} | ${r2.stdout} | ${audit.split('\n').filter(l => /feedback/.test(l)).join(' ')}`);
     } finally { for (const d of [p, fake, a]) if (d) fs.rmSync(d, { recursive: true, force: true }); }
   }
@@ -1974,14 +1983,14 @@ if (fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in
   try {
     const cfgPath = path.join(dir, 'tools/hooks/config.json'), c = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
     c.protectedOriginals = ['sources/**']; fs.writeFileSync(cfgPath, JSON.stringify(c, null, 2));
-    write(dir, { 'sources/IMG_0001.jpg': 'pic', 'sources/pics/desk-photo.jpg': 'pic', 'sources/x/one.png': 'two', 'sources/x/two.png': 'two',
+    write(dir, { 'sources/zorbl-0001.jpg': 'pic', 'sources/pics/desk-photo.jpg': 'pic', 'sources/x/one.png': 'two', 'sources/x/two.png': 'two',
       'docs/page.md': '![desk](../sources/pics/desk-photo.jpg)\n![a](one.png) ![b](two.png)\n', 'sources/busy/a.txt': 'z', 'sources/busy/b.txt': 'z' });
     const old = new Date(2026, 0, 1);
-    for (const p of ['sources/IMG_0001.jpg', 'sources/pics/desk-photo.jpg', 'sources/x/one.png', 'sources/x/two.png']) fs.utimesSync(path.join(dir, p), old, old);
+    for (const p of ['sources/zorbl-0001.jpg', 'sources/pics/desk-photo.jpg', 'sources/x/one.png', 'sources/x/two.png']) fs.utimesSync(path.join(dir, p), old, old);
     const out = spawnSync(process.execPath, ['tools/dedupe.mjs', '--apply'], { cwd: dir, encoding: 'utf8' }).stdout;
     const has = p => fs.existsSync(path.join(dir, p));
     const limited = spawnSync(process.execPath, ['tools/dedupe.mjs', '--path', 'sources/busy'], { cwd: dir, encoding: 'utf8' }).stdout;
-    report(has('sources/pics/desk-photo.jpg') && !has('sources/IMG_0001.jpg') && has('sources/x/one.png') && has('sources/x/two.png') && /both referenced: sources\/x\/one\.png and sources\/x\/two\.png/.test(out)
+    report(has('sources/pics/desk-photo.jpg') && !has('sources/zorbl-0001.jpg') && has('sources/x/one.png') && has('sources/x/two.png') && /both referenced: sources\/x\/one\.png and sources\/x\/two\.png/.test(out)
       && has('sources/busy/a.txt') && has('sources/busy/b.txt') && /skipped/.test(limited),
       'protect-originals: dedupe keeps the referenced copy, never deletes a referenced one, and skips a folder being written', out.slice(0, 400) + ' | ' + limited.slice(0, 200));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }

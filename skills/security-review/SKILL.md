@@ -59,7 +59,7 @@ severity scale and report table ([references.md](references.md)), so one's repor
 | Output and XSS | Is untrusted text rendered as HTML anywhere without a sanitizer? Is there a strict content security policy? |
 | Request forgery | Can another site or page trigger a state change with the user's cookies, or call a local server? |
 | Authentication | Are sessions and tokens issued, stored, expired and revoked with a vetted library? |
-| Authorization | Does every operation check, on the server, that this caller may do this to this record? |
+| Authorization | Does every operation check, on the server, that this caller may do this to this record? Is each destructive action (delete, change other people's data, money) limited to the role `docs/foundation.md` names, the owner only when it names none, with a test that another signed-in user is refused? |
 | Sensitive data | Do errors, logs, responses or analytics expose secrets, stack traces or more personal data than needed? |
 | Abuse limits | Are there rate limits, size caps and timeouts, stricter on sign-in and expensive operations? |
 | File handling | Are uploads checked for size, type and content, stored outside the web root, under generated names? |

@@ -39,6 +39,7 @@ export default {
     'the dashboard numbers are wrong',
     'how many screens does the app have?'] },
   'ROUTE: ingest': { fire: [
+    'here is the march statement, march-2026.pdf',
     "I added a file to the inbox, have a look",
     'I put the supplier invoices in the inbox folder',
     "here are last month's bank statements",
@@ -47,7 +48,8 @@ export default {
     'new price list from the vendor came in, pls process it',
     'uploaded the contract scan'], quiet: [
     'where should I put files I want you to read?',
-    'make the export save as a pdf'] },
+    'make the export save as a pdf',
+    'you got her eyes wrong again, characters.md says they are green'] },
   'ROUTE: install-update': { fire: [
     "make it so the app can be installed and started with one command on a new machine",
     "the desktop shortcut doesn't open the app anymore",
