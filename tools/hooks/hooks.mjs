@@ -502,7 +502,7 @@ const makesFile = pb => /\boutputs\//.test(String(pb.fm?.summary || ''));
 const MAKE_REQUEST = /\b(write|make|create|draft|build|prepare|produce|put together|turn [^.?!]{0,30} into|export|save|generate|compose|update|edit|fix|add)\b/i;
 // Text the user pasted, and text that is the hooks' own output, are not the user's words: they never route or count as
 // a request. Lesson: a pasted audit line ("... 26 sweeps") was taken as a request for 26 sweeps.
-const HOOK_MARK = /^\s*(-\s+)?(ROUTE|ALSO ROUTE|WEAK MATCH|CLOSEST RUNBOOK|ROUTINES DUE|FEEDBACK FROM PROJECTS|SKILL|NO RUNBOOK|RULE REQUEST|RECALL|MENU CODE|MENU FLAG|SCOPE|SETUP IN PROGRESS|BOOTSTRAP NEEDED|LAST WORK TURN|INBOX|STALE KNOWLEDGE|PRAISE|THE USER SOUNDS|SUSPENDED|FRICTION ON|UNKNOWN MENU|SKILL HARDENING|SKILL CLEANUP|UPGRADE REVIEW|OPEN PLANS|MUST FOLLOW|AUTONOMY)\b/;
+const HOOK_MARK = /^\s*(-\s+)?(ROUTE|ALSO ROUTE|WEAK MATCH|CLOSEST RUNBOOK|ROUTINES DUE|FEEDBACK FROM PROJECTS|SKILL|NO RUNBOOK|RULE REQUEST|RECALL|MENU CODE|MENU FLAG|SCOPE|SETUP IN PROGRESS|BOOTSTRAP NEEDED|LAST WORK TURN|INBOX|STALE KNOWLEDGE|PRAISE|THE USER SOUNDS|SUSPENDED|FRICTION ON|UNKNOWN MENU|SKILL HARDENING|SKILL CLEANUP|UPGRADE REVIEW|OPEN PLANS|MUST FOLLOW|AUTONOMY|CHECKS)\b/;
 const HOOK_LINE = /^\s*(\[rules\]|\[project hooks|audit:\s*(PASS|FAIL)|selfcheck:|ablation:|TRIAL:\s*(PASS|FAIL)|CLAIMS:\s*(PASS|FAIL)|(PASS|FAIL|WARN)\s+\d+\.\s)/i;
 const HOOK_BLOCK = /^\s*(stop hook\b|almost done:)/i;
 // Messages from other sessions, sub-agents and the host are not the user's words, wherever they sit in a message: the
@@ -739,12 +739,13 @@ export function turn(transcript) {
 // Background helpers (Agent/Task with run_in_background) launched in this or an earlier turn that have not reported
 // back yet. Their file changes are theirs, not this turn's. A launch is done once a task notification names its id
 // (or, when no id was printed, once any task notification arrived after it).
+const MOVED_BG = /moved to the background \(ID:?\s*([\w-]+)\)/i;
 function backgroundRunning(rows) {
-  const launches = [], results = new Map(), notes = [], stops = [];
+  const launches = [], results = new Map(), notes = [], stops = [], shells = [];
   rows.forEach((r, i) => {
     const c = r.message?.content;
     // helpers and background commands alike (Lesson: checks fired on files a still-running background sweep made)
-    if (r.type === 'assistant' && Array.isArray(c)) for (const x of c) if (x?.type === 'tool_use' && /^(Agent|Task|Bash|PowerShell)$/.test(x.name) && x.input?.run_in_background) launches.push({ id: x.id, i });
+    if (r.type === 'assistant' && Array.isArray(c)) for (const x of c) if (x?.type === 'tool_use' && /^(Agent|Task|Bash|PowerShell)$/.test(x.name)) (x.input?.run_in_background ? launches : shells).push({ id: x.id, i });
     if (r.type === 'user' && Array.isArray(c)) for (const x of c) if (x?.type === 'tool_result') { const tx = textOf(x.content); results.set(x.tool_use_id, tx); stops.push({ i, t: tx }); }
     const t = r.type === 'attachment' ? textOf(r.attachment?.prompt ?? r.attachment?.content ?? '') : r.type === 'user' ? textOf(c) : '';
     if (/<task-notification>/.test(t)) notes.push({ i, t });
@@ -752,9 +753,12 @@ function backgroundRunning(rows) {
   // A launch counts only when its result says it started (a refused launch never runs); it is done when a later notice
   // names it, or when it was stopped or killed (those send no notice). Lesson from a project's own hook: a killed job
   // was waited on forever, and a refused launch was counted as running.
+  // A foreground command that hit its timeout is moved to the background ("... was moved to the background (ID: x)"):
+  // a launch too. Lesson: Stop asked for steps while such a command still ran, since only run_in_background counted.
+  for (const s of shells) if (MOVED_BG.test(results.get(s.id) || '')) launches.push(s);
   return launches.filter(l => {
     const res = results.get(l.id) || '';
-    if (results.has(l.id) && !/launched|running in background|in the background|async agent|agentId/i.test(res)) return false;
+    if (results.has(l.id) && !/launched|running in background|in the background|moved to the background|async agent|agentId/i.test(res)) return false;
     const ids = [...res.matchAll(/\b(?:agent_?id|task_?id|ID)\s*[:=]\s*["']?([\w-]{4,})/gi)].map(m => m[1]);
     const later = notes.filter(n => n.i > l.i);
     if (ids.length && stops.some(s => s.i > l.i && ids.some(id => s.t.includes(id)) && /\b(stopped|killed|cancell?ed|terminated)\b/i.test(s.t))) return false;
@@ -1063,10 +1067,16 @@ function ownChanges(changed, t, cfg) {
     const written = new Set(uses.filter(u => /^(Write|Edit|MultiEdit|NotebookEdit)$/.test(u.name)).map(u => rel(u.input.file_path || u.input.notebook_path || '')));
     const cmds = uses.map(u => u.input.command).filter(c => typeof c === 'string').map(c => c.replace(/\\/g, '/'));
     const windows = shellWindows(t.entries);
+    // a file changed after a still-running job started may be that job's (a sweep making fixtures it deletes at its end),
+    // even while another command of the main session runs: it counts only when the session wrote or named it.
+    // Lesson: plan-required counted six fixture files a running background sweep made.
+    const running = new Set(t.bgRunning);
+    const jobStart = Math.min(...(t.entries || []).filter(r => r.type === 'assistant' && Array.isArray(r.message?.content) && r.message.content.some(c => c?.type === 'tool_use' && running.has(c.id)))
+      .map(r => Date.parse(r.timestamp || '') || 0));
     out = out.filter(p => {
       if (written.has(p) || cmds.some(c => c.includes(p))) return true;
-      let m = 0; try { m = fs.statSync(abs(p)).mtimeMs; } catch { }
-      return windows.some(w => m >= w.start - 1000 && m <= w.end + 2000);
+      let m = 0; try { m = fs.statSync(abs(p)).mtimeMs; } catch { return false; }
+      return m < (jobStart || Infinity) && windows.some(w => m >= w.start - 1000 && m <= w.end + 2000);
     });
   }
   return out;
@@ -1146,7 +1156,8 @@ export function runsOf(entries) {
   // Lesson: a passing background run never met its check, because the stub was read as the run's output.
   const notes = entries.filter(r => r.type === 'user').map(r => textOf(r.message?.content)).join('\n');
   for (const run of out) {
-    const id = /running in background with ID:?\s*([\w-]+)/i.exec(run.out)?.[1];
+    // (a foreground command past its timeout says "moved to the background (ID: x)": the same, once it ends)
+    const id = (/running in background with ID:?\s*([\w-]+)/i.exec(run.out) || MOVED_BG.exec(run.out))?.[1];
     if (!id) continue;
     const file = /written to:?\s*(\S+?\.output)\b/i.exec(run.out)?.[1];
     const note = new RegExp(`<task-id>${esc(id)}</task-id>[\\s\\S]*?</task-notification>`).exec(notes)?.[0] || '';
@@ -2686,6 +2697,15 @@ export function promptHints(prompt, cfg = config(), withNotices = true) {
     hints.push('REQUIREMENT: the user stated a lasting requirement on the work. Enforce it this turn, without asking: a "Done when" item in its runbook or skill with ' +
       '"(hook: <tag>)", the check and a test (or "(judgment: <why>)" when no script can tell). If it was only for this one task, ' +
       'say so with N/A(requirement-enforced): one-off. REQ: requirement-enforced.');
+  // REQ: check-preview. Work learns at the start which checks its Stop will hold it to, so the first pass does them all.
+  // Lesson: most Stop rounds told the agent what it could have known when the request arrived.
+  const flags = [[isUpset(p, cfg), 'upset-learned'], [re(cfg.ruleRequest).test(p) && !isUpset(p, cfg), 'rule-request'],
+    [!re(cfg.ruleRequest).test(p) && re(cfg.requirementWords).test(p), 'requirement-enforced'], [cfg.autonomy !== 'auto' && AUTONOMY_WORDS.test(p), 'autonomy-recorded']];
+  const working = flags.some(f => f[0]) || forced.size || ((isTask || TASK_ES.test(p)) && p.split(/\s+/).length >= 3 && !OPINION.test(p) && !isRelay(unquoted(p)) && (!/\?\s*$/.test(p.trim()) || routed.length || sk.length));
+  if (working) {
+    const line = checkPreview(routed.map(r => r.pb), sk.map(s => s.pb), [...forced.values()].map(f => f.q.tag), flags.filter(f => f[0]).map(f => f[1]), p, cfg);
+    if (line) hints.push(line);
+  }
   const due = hardenDue(pbs, usage(), cfg);
   if (due.length && routed.some(r => due.includes(r.pb)))
     hints.push(`SKILL HARDENING DUE for ${routed.filter(r => due.includes(r.pb)).map(r => r.pb.file).join(', ')}: after the task, use the skill-harden skill.`);
@@ -2699,6 +2719,27 @@ export function promptHints(prompt, cfg = config(), withNotices = true) {
   }
   if (withNotices) hints.push(...promptNotices(cfg));
   return hints;
+}
+// Spanish task verbs (imperative and "quiero que ..." forms), for the check preview: a request in Spanish is work too
+const TASK_ES = /\b(haz|hazme|crea|cr[eé]ame|construye|escribe|redacta|a[nñ]ade|agrega|actualiza|arregla|corrige|investiga|busca|planifica|compara|organiza|configura|analiza|resume|revisa|genera|convierte|cambia|edita|reescribe|elimina|borra|mueve|importa|prepara|calcula|dise[nñ]a|traduce|limpia|ordena|prueba|documenta|renombra|instala|publica|mejora)\b/i;
+// One short line: the checks this request's Stop will hold it to (the routed runbooks' and skills' own, the forced
+// ones, the core ones that apply), and what their fixes will set off, so nothing arrives one Stop round at a time.
+export function checkPreview(pbs, skills, forced, flagged, prompt, cfg = config()) {
+  const reqs = loadRequirements().reqs.filter(q => q && q.enabled !== false && q.tag);
+  const off = t => isSuspended(`check:${t}`);
+  // (a check keyed on the request's own words is known now too)
+  const keyed = reqs.filter(q => q.when?.promptMatches && (() => { try { return holds({ promptMatches: q.when.promptMatches, promptNotMatches: q.when.promptNotMatches }, { prompt: userText(prompt) }); } catch { return false; } })()).map(q => q.tag);
+  const tags = [...new Set([...pbs.flatMap(pb => ownChecks(pb, cfg)), ...skills.flatMap(s => ownChecks(s, cfg)), ...forced, ...flagged, ...keyed,
+    ...(pbs.length || skills.length ? ['playbook-named'] : ['runbook-exists']), 'finished-summary'])].filter(t => !off(t));
+  const steps = tags.map(tag => { const q = reqs.find(r => r.tag === tag); return { tag, fixes: q ? q.fixes || filesOfCond(q.require) : undefined }; });
+  const x0 = { prompt: String(prompt || ''), answer: '', said: '', changed: [], work: [], uses: [], cmds: [], runs: [], reads: new Set(), results: '', usedPb: pbs, usedSkills: skills,
+    routed: pbs, routedSkills: skills, toolsKnown: false, workTurn: true, entries: [] };
+  let then = [];
+  // (skill-learn comes only from a check that fails at Stop, so the preview does not promise it)
+  try { then = followOnSteps(x0, steps, cfg, m => !off(m.tag)).map(m => m.tag).filter(t => t !== 'skill-learn'); } catch { }
+  const also = ['changelog', 'audit-run'].filter(t => !tags.includes(t) && !then.includes(t) && !off(t));
+  return `CHECKS: this turn will be held to ${tags.join(', ')}${then.length ? `; their fixes set off ${then.join(', ')}` : ''}.` +
+    `${also.length ? ` Also ${also.join(' + ')} if it edits runbooks, skills, rules or checks,` : ' Also'} status-handoff after 15+ tool calls. Do them all in the first pass.`;
 }
 const promptNotices = cfg => notices(cfg).filter(x => /^(BOOTSTRAP|SETUP|INBOX|LAST WORK TURN|STALE)/.test(x));
 
@@ -3412,8 +3453,7 @@ export function coreChecks(x, cfg) {
     const VERDICT = /\b(you'?re right|you are right|partly right|partly[:,]|that (isn'?t|is not|wasn'?t|was not) what happened|that'?s not what happened|(the )?complaint:\s*(holds|partly|does(n'?t| not) hold)|(this|that|it) (was|is) (already|still) (there|in place|done)|already (there|in place|covered|handled|tested))/i;
     if (!VERDICT.test(x.said)) add('upset-learned', 'Before fixing anything, check the complaint against the files and say plainly whether it holds, in the first line: ' +
       '"You\'re right: ...", "Partly: <what was wrong>, <what was already there>", or "That isn\'t what happened: <evidence>" (learn-from-upset skill, step 0).');
-    const learned = [...x.said.matchAll(/^[\s>*_-]*learned\s*\((one-off|lesson|rule|check|skill|engine)\)\s*:\s*(.+?)\s*(?:→|->)\s*`?([^`\s,;]+)/gim)]
-      .map(m => ({ level: m[1].toLowerCase(), file: m[3].replace(/\\/g, '/').replace(/^\.\//, '').replace(/[.)]+$/, '') }));
+    const learned = learnedLines(x.said);
     if (!learned.length) add('upset-learned', 'The user is upset about a miss. Fixing it is half the job: the project has to learn from it too. Use the learn-from-upset skill ' +
       '(skills/learn-from-upset/SKILL.md): fix the miss, weigh how important the lesson is, write it where it belongs, and end with ' +
       '"Learned (<one-off|lesson|rule|check|skill|engine>): <lesson> → <file>". If there is truly nothing to learn (the cause was outside the project), write "N/A(upset-learned): <why>".');
@@ -3562,7 +3602,8 @@ export function coreChecks(x, cfg) {
   // a file the agent itself replaced with a command this turn (cp, mv, a script naming it) is its own change, not the
   // user's. Lesson: a collection file replaced on the user's request was flagged as updated by the user mid-turn.
   const inCmd = p => x.cmds.some(c => String(c).replace(/\\/g, '/').includes(p) || String(c).includes(p.split('/').pop()));
-  for (const p of x.changed.filter(p => match(p, cfg.watchedInputs) && !written.has(p) && !inCmd(p))) {
+  // (a path gone at Stop was a temporary file, made and removed this turn: Lesson: a sweep's deleted fixtures)
+  for (const p of x.changed.filter(p => match(p, cfg.watchedInputs) && !written.has(p) && !inCmd(p) && exists(p))) {
     let mt = 0; try { mt = fs.statSync(abs(p)).mtimeMs; } catch { }
     if (mt > (x.since || 0) + 1000 && !(x.said.includes(p.split('/').pop()) && /\b(updated|changed|new|refresh)/i.test(x.said)))
       add('watched-inputs', `${p} was updated while you worked. Re-run what depends on it and say in the answer what the new data changed (name the file).`);
@@ -3697,20 +3738,104 @@ export function skillLearnCheck(x, cfg, failingNow = []) {
   // Lesson: skill-learn fired in round 1 of ordinary turns and pushed "Skill lesson: none" filler into answers.
   // A runbook's own check failing right now is listed too, as "once it is fixed": every step shows in round 1, so a
   // later round never brings a new one. Lesson: the lesson step appeared only in round 2, one more round for the user.
-  const failing = new Set([...(x.failedBefore || []).filter(t => !failingNow.includes(t)), ...failingNow]);
+  // A check waived this turn (N/A(<tag>) or "hooks.mjs waive") did not apply: it is no miss of the runbook it belongs to.
+  // Lesson: a runbook matched by mistake had its check waived as a wrong route, and the next round still asked for a
+  // lesson to be written into that runbook.
+  const failing = new Set([...(x.failedBefore || []).filter(t => !failingNow.includes(t)), ...failingNow].filter(t => !waived(t, x.said)));
   const own = item => ownChecks(item, cfg);
   // Friction from a wording check (reworded to satisfy it) is the check's, not the runbook's: never a lesson to write.
   // Lesson: rewording twice for no-verbatim-examples made skill-learn demand a lesson from an innocent runbook.
   const WORDING = new Set(['no-verbatim-examples', 'plain-writing', 'playbook-named', 'finished-summary', 'empty-answer', 'count-honored']);
-  const failedOwn = [...x.usedPb, ...x.usedSkills].filter(item => own(item).some(tag => !WORDING.has(tag) && failing.has(tag)));
+  // A runbook or skill the agent says was the wrong one (its name or one of its checks on a line that says so) was only
+  // matched by mistake: nothing to learn there.
+  const misrouted = item => [item.name, item.skillName, ...own(item)].filter(Boolean).some(n => MISROUTED(n).test(x.said));
+  const failedOwn = [...x.usedPb, ...x.usedSkills].filter(item => !misrouted(item) && own(item).some(tag => !WORDING.has(tag) && failing.has(tag)));
   const followed = [...new Set(failedOwn.map(item => item.file.endsWith('SKILL.md') ? item.file.replace(/SKILL\.md$/, '') : item.file))];
   // setup meets each runbook's checks for the first time: that is setting it up, not a miss to learn from
   if (settingUp() || x.changed.includes('SETUP-PROMPT.md')) return [];
   if (x.workTurn && followed.length && !x.changed.some(p => followed.some(f => p === f || p.startsWith(f))) && !/skill lesson:\s*none\b.{8,}/i.test(x.said))
-    return [{ tag: 'skill-learn', msg: `This turn followed ${followed.join(', ')} and its own check failed this turn. Write the lesson into it (a step, a pitfall, or a check ` +
+    return [{ tag: 'skill-learn', fixes: followed.map(f => f.endsWith('/') ? `${f}SKILL.md` : f), msg: `This turn followed ${followed.join(', ')} and its own check failed this turn. Write the lesson into it (a step, a pitfall, or a check ` +
       'through the project-rule skill), so the next run gets it right. In an engine skill (one of the starter\'s core skills), put it under ' +
       '"## Project lessons" at the end, which upgrades keep. If it was not the runbook\'s fault, write "Skill lesson: none - <why>".' }];
   return [];
+}
+// A line that names a runbook, skill or check and says it was matched by mistake ("deliverable.md was the wrong
+// runbook", "N/A(deliverable-file): wrong route", "runbook equivocado").
+const MISROUTE_WORDS = String.raw`wrong(ly)?[ -]+(route|routed|runbook|playbook|skill|match(ed)?)|mis-?rout\w*|mis-?match\w*|(matched|routed) by mistake|did(n'?t| not) (apply|fit)|does(n'?t| not) (apply|fit)|not the right (runbook|playbook|skill)|(runbook|playbook|skill|ruta) equivocad[oa]|por error|no (aplica|aplicaba|corresponde)`;
+export const MISROUTED = n => new RegExp(`^[^\\n]*(?<![\\w-])${esc(n)}(\\.md)?(?![\\w-])[^\\n]*(${MISROUTE_WORDS})|^[^\\n]*(${MISROUTE_WORDS})[^\\n]*(?<![\\w-])${esc(n)}(\\.md)?(?![\\w-])`, 'im');
+
+// ---------- follow-on steps: what fixing a step will set off, named with it in the same round ----------
+// REQ: stop-follow-on. A step whose fix edits a runbook, a skill, the rules, the checks or a data file sets off the
+// checks on those files (the audit, the hook self-tests, the changelog, the data checks). They are named in the same
+// round as the step, so no later round brings a step the first could have named. Lesson: a round-1 fix (a lesson
+// written into a runbook) made the audit appear only in round 2.
+// The files a step's fix edits: a check in requirements.json names them in "fixes" (globs), or they are the files its
+// "require" asks to change; the core checks are listed here. RUNBOOK_SLOT stands for the runbook or skill the turn used.
+const RUNBOOK_SLOT = '<runbook>';
+const FIX_FILES = {
+  'rule-request': ['AGENTS.md', 'CLAUDE.md', 'docs/checks/user-requirements.md', 'tools/hooks/requirements.json'],
+  'requirement-enforced': [RUNBOOK_SLOT, 'tools/hooks/requirements.json', 'tools/hooks/project-scenarios.mjs'],
+  'runbook-exists': ['docs/playbooks/x.md', 'tools/hooks/requirements.json', 'tools/hooks/project-scenarios.mjs', 'docs/checks/rule-enforcement.md'],
+  'runbook-complete': ['tools/hooks/requirements.json', 'tools/hooks/project-scenarios.mjs', 'docs/checks/rule-enforcement.md'],
+  'skill-complete': ['tools/hooks/requirements.json'],
+  'done-when-labeled': ['tools/hooks/requirements.json'],
+  'upset-learned': [RUNBOOK_SLOT],
+  'praise-captured': [RUNBOOK_SLOT],
+  'autonomy-recorded': ['tools/hooks/config.json', 'docs/DECISIONS.md']
+};
+// a glob as one path it matches ("decks/**/*.txt" -> "decks/x/x.txt"), so the checks on it can be asked
+const sampleOf = g => String(g).replace(/\{([^,}]*)[^}]*\}/g, '$1').replace(/\*\*/g, 'x').replace(/[*?]/g, 'x');
+const filesOfCond = c => !c || typeof c !== 'object' ? [] : [...[].concat(c.filesChanged || []), ...(c.anyOf || []).flatMap(filesOfCond)];
+// "Learned (<level>): <lesson> → <file>" lines: the level and the file the lesson went into
+export const learnedLines = text => [...String(text || '').matchAll(/^[\s>*_-]*learned\s*\((one-off|lesson|rule|check|skill|engine)\)\s*:\s*(.+?)\s*(?:→|->)\s*`?([^`\s,;]+)/gim)]
+  .map(m => ({ level: m[1].toLowerCase(), file: m[3].replace(/\\/g, '/').replace(/^\.\//, '').replace(/[.)]+$/, '') }));
+export function fixFilesOf(m, x) {
+  const used = [...(x.usedPb || []), ...(x.usedSkills || [])].map(i => i.file);
+  // a lesson the answer already places ("Learned (rule): ... → CLAUDE.md") goes into that file
+  const named = m.tag === 'upset-learned' ? learnedLines(x.said).map(l => l.file) : [];
+  if (named.length) return [...new Set(named)];
+  const files = m.fixes ? [].concat(m.fixes) : (FIX_FILES[m.tag] || []).flatMap(f => f === RUNBOOK_SLOT ? (used.length ? used : ['docs/playbooks/x.md']) : [f]);
+  return [...new Set(files.map(sampleOf))];
+}
+// a check set off by files changing (not by what the files say, and not by running something on each file)
+const fileTriggered = w => { const s = JSON.stringify(w || {}); return s.includes('"filesChanged"') && !/"(changedContentMatches|runEach)"/.test(s); };
+export function followOnSteps(x, steps, cfg = config(), open = () => true) {
+  const reqs = [...loadRequirements().reqs, ...(exists('.starter-dev') ? DEV_REQUIREMENTS : [])].filter(q => q && q.enabled !== false && q.tag && fileTriggered(q.when));
+  const ok = (c, y) => { try { return holds(c || {}, { ...y }); } catch { return false; } };
+  const have = new Set(steps.map(m => m.tag)), out = [], queue = steps.map(m => ({ m, depth: 0 }));
+  const hookFile = /^tools\/hooks\/(hooks|selfcheck|wire)\.mjs$|^tools\/hooks\/requirements\.json$/;
+  while (queue.length) {
+    const { m, depth } = queue.shift();
+    const files = fixFilesOf(m, x).filter(p => !x.changed.includes(p));
+    if (!files.length || depth > 2) continue;
+    const x2 = { ...x, changed: [...x.changed, ...files], workTurn: true };
+    const found = [];
+    for (const q of reqs) {
+      if (have.has(q.tag) || (!x.toolsKnown && needsHistory(q.when)) || ok(q.when, x) || !ok(q.when, x2)) continue;
+      // already met (the changelog line is written) is no step; a run the check asks for is never met before the edit
+      const req = { ...(q.require || {}) }, run = req.toolPassed || req.runEach;
+      delete req.toolPassed; delete req.runEach;
+      if (!run && ok(req, { ...x2, answer: x.said })) continue;
+      found.push({ tag: q.tag, specific: q.waiver === 'specific', msg: q.message || `Requirement ${q.tag} is not met.`, fixes: q.fixes || filesOfCond(q.require) });
+    }
+    // the hook self-tests: a fix that edits the hook engine or the checks, in a turn that has not touched them yet
+    if (!have.has('hooks-tested') && files.some(p => hookFile.test(p)) && !x.changed.some(p => hookFile.test(p) || p === 'tools/hooks/config.json'))
+      found.push({ tag: 'hooks-tested', msg: 'The fix edits the hook engine or the checks: run node tools/hooks/selfcheck.mjs (or --tags <the new check>) until it prints ALL PASS.' });
+    // what the core checks will find in those files as they are now, once they count as changed: unlabeled "Done when"
+    // items, a runbook's or skill's format, and the writing of a user-facing file
+    const real = files.filter(p => exists(p));
+    const RUNBOOK_OR_SKILL = /^(docs\/playbooks\/[^/_][^/]*\.md|(skills|library\/skills|packs\/[^/]+\/files\/skills)\/[^/]+\/SKILL\.md|packs\/[^/]+\/files\/docs\/playbooks\/[^/_][^/]*\.md)$/;
+    const core = [
+      ['done-when-labeled', real.filter(p => RUNBOOK_OR_SKILL.test(p) && doneWhenItems(read(abs(p))).some(i => !DONE_LABEL.test(i))), 'Its "Done when" items need their proof: "(hook: <tag>)" or "(judgment: <why>)"'],
+      ['playbook-format', real.filter(p => /^docs\/playbooks\/[^/]+\.md$/.test(p) && !p.endsWith('_TEMPLATE.md') && playbookProblems(p).length), 'Fix the runbook\'s format'],
+      ['skill-valid', real.filter(p => new RegExp(`^${esc(cfg.skillsDir)}/[^/]+/SKILL\\.md$`).test(p) && skillProblems(p.replace(/\/SKILL\.md$/, '')).length), 'Fix the skill\'s format'],
+      ['plain-writing', real.filter(p => match(p, cfg.userFacing) && !match(p, cfg.userFacingIgnore) && writingProblems(read(abs(p)), cfg, p).length), 'Make the file\'s writing plain']];
+    for (const [tag, hit, what] of core) if (hit.length && !have.has(tag)) found.push({ tag, msg: `${what}: ${hit.slice(0, 3).join(', ')} (the core check reads the whole file once it changes).` });
+    // the lesson for a followed runbook whose own check is among the steps: a turn that becomes work by the fix gets it
+    if (!have.has('skill-learn')) { try { found.push(...skillLearnCheck(x2, cfg, steps.map(s => s.tag))); } catch { } }
+    for (const f of found.filter(open)) { have.add(f.tag); out.push({ ...f, followOn: true, after: m.tag, cause: files.slice(0, 3) }); queue.push({ m: f, depth: depth + 1 }); }
+  }
+  return out;
 }
 
 // Which checks a change to requirements.json / config.json touched, against the copies taken at the turn's start:
@@ -3979,7 +4104,7 @@ ${turnText(x.entries)}`;
       // a requirement met by an earlier message of this turn stays met, so a re-block never forces the answer to repeat
       // it. A Finished section counts from any message after the last file change, since it still lists every change.
       // Lesson: every re-block produced a near-copy.
-      if (holds(when || {}, x) && !holds(q.require || {}, x) && !holds(q.require || {}, { ...x, answer: q.tag === 'finished-summary' ? x.afterChange : earlier })) out.push({ tag: q.tag, specific: q.waiver === 'specific', msg: (q.message || `Requirement ${q.tag} is not met.`) + (x.trigger ? ` (seen in ${x.trigger})` : '') + (x.detail ? ` (${x.detail})` : '') });
+      if (holds(when || {}, x) && !holds(q.require || {}, x) && !holds(q.require || {}, { ...x, answer: q.tag === 'finished-summary' ? x.afterChange : earlier })) out.push({ tag: q.tag, specific: q.waiver === 'specific', fixes: q.fixes || filesOfCond(q.require), msg: (q.message || `Requirement ${q.tag} is not met.`) + (x.trigger ? ` (seen in ${x.trigger})` : '') + (x.detail ? ` (${x.detail})` : '') });
       if (TIMING) TIMING.push([`check ${q.tag}`, Math.round((performance.now() - t0) * 10) / 10]);
     } catch (e) { out.push({ tag: 'requirements-valid', msg: `requirements.json entry "${q.tag}" is invalid (${e.message}).` }); }
   }
@@ -4106,7 +4231,25 @@ export function stopDecision(data, cfg = config()) {
   const nblocks = data.stop_hook_active ? (st[key] || 0) : 0;
   // REQ: final-answer-source. When Stop fires, the final message is often not in the transcript yet, so a correct
   // answer kept failing "Finished"/"Playbook:" checks (found in live testing). The agent passes it directly.
-  const x = timed('context (what the turn did)', () => context(t, cfg, data.last_assistant_message));
+  let x = timed('context (what the turn did)', () => context(t, cfg, data.last_assistant_message));
+  // the checks that already blocked an answer earlier in this turn (skill-learn writes the lesson for a followed skill's own)
+  const failed = readJSON(stateFile('stop-failed.json'), {});
+  const sameTurn = data.stop_hook_active && failed.key === key;
+  // REQ: answer-resent. After a round that only asked for files to change, an answer that did not change may end with
+  // one short line ("Answer unchanged; done: ...") instead of the whole answer again: the checks then read the full
+  // answer of the earlier round with that line. Only when that round said so and a full answer was sent in it; else the
+  // whole answer is required. Lesson: each round re-sent the whole long answer, so the user read three near-copies.
+  // Lesson (kept): a last message of "the checks pass now" lost the answer, so the full answer is never optional when
+  // its content had to change or none was sent before in this turn.
+  const raw = typeof data.last_assistant_message === 'string' && data.last_assistant_message.trim() ? data.last_assistant_message : finalText(t.entries);
+  const isNote = isUnchangedNote(raw);
+  const prevFull = sameTurn ? String(failed.answer || '') : '';
+  let resend = null;
+  if (isNote && x.workTurn) {
+    if (prevFull.trim() && failed.shortOk) x = context(t, cfg, `${prevFull}\n\n${raw}`);
+    else resend = { tag: 'answer-resent', msg: prevFull.trim() ? `The last message says the answer is unchanged, but the last round asked for changes to the answer itself (${(failed.tags || []).join(', ')}). End with the whole answer again, updated.`
+      : 'The last message says the answer is unchanged, but no full answer was sent earlier in this turn. End with the whole answer to the user\'s request.' };
+  }
   // A short reply to a background task's notice, with no tool run since the notice, after this turn
   // already ended cleanly, is not new work: the checks stand as they were. Lesson: each acknowledgement of a finished
   // background job got the whole stop list again (Finished section, changelog, status).
@@ -4115,19 +4258,17 @@ export function stopDecision(data, cfg = config()) {
   const prevEnd = readJSON(stateFile(TURN_END), {});
   // (what it says is still checked for truth and privacy: an acknowledgement can't claim what didn't happen)
   const noticeAck = lastNote != null && prevEnd.key === key && prevEnd.clean && !rowsT.slice(lastNote).some(r => r.type === 'assistant' && Array.isArray(r.message?.content) && r.message.content.some(c => c?.type === 'tool_use'));
-  // the checks that already blocked an answer earlier in this turn (skill-learn writes the lesson for a followed skill's own)
-  const failed = readJSON(stateFile('stop-failed.json'), {});
-  x.failedBefore = data.stop_hook_active && failed.key === key ? failed.tags || [] : [];
+  x.failedBefore = sameTurn ? failed.tags || [] : [];
   // REQ: stop-reblock. Up to maxBlocksPerTurn blocks per turn, then let the session end so it can never loop.
   const open = m => !waived(m.tag, x.said, m.specific) && !isSuspended(`check:${m.tag}`);
-  const raw = [...timed('core checks (total)', () => coreChecks(x, cfg)), ...timed('requirements.json checks (total)', () => declarativeChecks(x))];
-  const found = raw.filter(open);
+  const checked = [...timed('core checks (total)', () => coreChecks(x, cfg)), ...timed('requirements.json checks (total)', () => declarativeChecks(x))];
+  const found = checked.filter(open);
   // the steps a waiver answered this turn, for the Stop log (hooks.mjs last)
-  const waivedTags = [...new Set(raw.filter(m => waived(m.tag, x.said, m.specific)).map(m => m.tag))];
+  const waivedTags = [...new Set(checked.filter(m => waived(m.tag, x.said, m.specific)).map(m => m.tag))];
   // one changelog line satisfies all three changelog checks, so they show as one step (Lesson: two steps for one line)
   const logs = found.filter(m => /^(changelog|knowledge-changelog|app-changelog)$/.test(m.tag));
   const found1 = logs.length > 1 ? found.filter(m => m === logs[0] || !logs.includes(m)) : found;
-  const all = [...found1, ...timed('skill-learn', () => skillLearnCheck(x, cfg, found.map(m => m.tag))).filter(open), ...timed('unresolved-carryover', () => carryoverChecks(data, t, x, cfg)).filter(open)];
+  const all = [...found1, ...timed('skill-learn', () => skillLearnCheck(x, cfg, found.map(m => m.tag))).filter(open), ...timed('unresolved-carryover', () => carryoverChecks(data, t, x, cfg)).filter(open), ...(resend ? [resend] : [])];
   const logged = (result, extra = {}) => logStop({ request: Number.isFinite(+x.since) && +x.since > 0 ? new Date(+x.since).toISOString() : '', round: nblocks + 1, result, waived: waivedTags, ...extra });
   // While helpers launched in the background have not reported back, the work is not finished: only truth and privacy
   // are checked now, and the whole list runs when their results arrive. Lesson: a turn waiting on three background
@@ -4160,23 +4301,45 @@ export function stopDecision(data, cfg = config()) {
     if (x.workTurn && !envOf('BENCH')) { try { fs.unlinkSync(path.join(STATE, 'unresolved.json')); } catch { } }
     ended(); return null;
   }
-  logged('blocked', { steps: missing.map(m => m.tag) });
+  // REQ: stop-follow-on. What the fixes will set off is named now, in this round, after the steps that cause it.
+  const follow = followOnSteps(x, missing, cfg, open);
+  const steps = [...missing, ...follow];
+  // REQ: answer-resent. A round whose every step is met by files or runs (none by the answer's own words) lets an
+  // unchanged answer end with one short line. The full answer sent in this round is kept, for the next round to read.
+  const shortOk = steps.every(fileFixable);
+  logged('blocked', { steps: steps.map(m => m.tag) });
   writeState('stop-blocks.json', { [key]: nblocks + 1 });
-  writeState('stop-failed.json', { key, tags: [...new Set([...x.failedBefore, ...missing.map(m => m.tag)])] });
+  writeState('stop-failed.json', { key, tags: [...new Set([...x.failedBefore, ...missing.map(m => m.tag)])], foreseen: [...new Set([...(sameTurn ? failed.foreseen || [] : []), ...follow.map(m => m.tag)])],
+    shortOk, answer: (isNote && prevFull.trim() ? prevFull : isNote ? '' : raw).slice(0, 40000) });
   // The full messages, with their details, go to a file the agent reads with "hooks.mjs why".
-  writeDetails(missing, `Steps left (round ${nblocks + 1} of ${cfg.maxBlocksPerTurn})`);
+  writeDetails(steps, `Steps left (round ${nblocks + 1} of ${cfg.maxBlocksPerTurn})`);
+  const line = m => m.followOn ? `Then: ${shortStep(m)}` : shortStep(m);
   return {
     decision: 'block',
-    steps: missing.map(m => shortStep(m)), tags: missing.map(m => m.tag), round: nblocks + 1,
+    steps: steps.map(line), tags: steps.map(m => m.tag), round: nblocks + 1,
     // The user sees this in the terminal: a plain first line, one short plain line per step, and the check names once,
     // at the end. Lesson: whole messages with paths and regexes made a wall of text the user had to ask about.
-    reason: `Almost done: ${missing.length === 1 ? '1 step is' : `${missing.length} steps are`} left before this answer is complete${cfg.maxBlocksPerTurn < 1000 ? ` (round ${nblocks + 1} of ${cfg.maxBlocksPerTurn})` : ''}.\n` +
-      missing.map((m, i) => `${i + 1}. ${shortStep(m)}`).join('\n') +
+    reason: `Almost done: ${steps.length === 1 ? '1 step is' : `${steps.length} steps are`} left before this answer is complete${cfg.maxBlocksPerTurn < 1000 ? ` (round ${nblocks + 1} of ${cfg.maxBlocksPerTurn})` : ''}.\n` +
+      steps.map((m, i) => `${i + 1}. ${line(m)}`).join('\n') +
       // the user may see only the last message: it must still carry the answer, not just these steps. Lesson: reviews
       // of trial sessions found the final message was "the checks pass now" while the explanation, letter or verdict
       // the user asked for sat in an earlier message
-      `\nFor the agent: do these, then end with the whole answer to the user's request again, in the user's language (the result, the verdict, what they asked for), updated, starting straight with it (no "here is the answer again", no note about these steps first), with these steps as a short note after it; the last message is the one the user reads.${cfg.autonomy === 'auto' ? ' The user asked not to be asked: where a step says "with the user", decide it yourself and record it as Assumed: <choice> - <why> - <cost if wrong>.' : ''} Full steps: \`node tools/hooks/hooks.mjs why\`; waive one that truly does not apply with \`node tools/hooks/hooks.mjs waive <name> "<reason>"\` (keeps check names out of the user's answer) or N/A(<name>): <reason>. Names: ${missing.map(m => m.tag).join(', ')}.`
+      `\nFor the agent: do these${follow.length ? ` (a "Then:" step is what a fix above sets off: ${[...new Set(follow.map(m => `${m.after} edits ${m.cause.join(', ')}`))].join('; ')}; do it in this round too)` : ''}, then ` +
+      `end with the whole answer to the user's request again, in the user's language (the result, the verdict, what they asked for), updated, starting straight with it (no "here is the answer again", no note about these steps first), with these steps as a short note after it; the last message is the one the user reads.` +
+      (shortOk ? ' Only if that answer is unchanged and these steps only changed files, end instead with one short line: "Answer unchanged; done: <each step, with the files it changed>" (in the user\'s language).' : '') +
+      `${cfg.autonomy === 'auto' ? ' The user asked not to be asked: where a step says "with the user", decide it yourself and record it as Assumed: <choice> - <why> - <cost if wrong>.' : ''} Full steps: \`node tools/hooks/hooks.mjs why\`; waive one that truly does not apply with \`node tools/hooks/hooks.mjs waive <name> "<reason>"\` (keeps check names out of the user's answer) or N/A(<name>): <reason>. Names: ${steps.map(m => m.tag).join(', ')}.`
   };
+}
+// "Answer unchanged; done: ..." as the whole last message (any language the checks know: English, Spanish)
+export const isUnchangedNote = text => { const s = String(text || '').trim(); return s.length > 0 && s.length <= 600 && /^\W{0,4}(answer unchanged|same answer as above|respuesta sin cambios|la respuesta no cambia|misma respuesta)\b/i.test(s); };
+// A step met by files or runs, not by words in the answer: an unchanged answer stays valid when only these were asked.
+const CORE_FILE_FIX = new Set(['hooks-tested', 'skill-learn', 'runbook-complete', 'skill-complete', 'done-when-labeled', 'playbook-format', 'skill-valid', 'knowledge-labels',
+  'name-var', 'root-tidy', 'directory-current', 'twin-sync', 'note-linked', 'injection-guard', 'code-rules', 'runbook-exists', 'rule-request', 'requirement-enforced', 'plan-required', 'autonomy-recorded']);
+const answerWords = c => !!c && typeof c === 'object' && (c.answerMatches != null || c.answerNotMatches != null || (c.anyOf || []).some(answerWords));
+function fileFixable(m) {
+  if (CORE_FILE_FIX.has(m.tag)) return true;
+  const q = loadRequirements().reqs.find(r => r && r.tag === m.tag) || DEV_REQUIREMENTS.find(r => r.tag === m.tag);
+  return !!q && !answerWords(q.require);
 }
 
 // One plain line per step (at most about 70 characters): hand-written for the common checks, else the first clause
@@ -4240,7 +4403,8 @@ const SHORT = {
   'install-vetted': 'Show the new tool was vetted: sources, free license, maintained',
   'plan-open': 'Resume or close the open plan, or say why it stays open',
   'autonomy-recorded': 'Record "autonomy": "auto" in config and docs/DECISIONS.md',
-  'unresolved-carryover': 'Fix the checks the last turn left failing'
+  'unresolved-carryover': 'Fix the checks the last turn left failing',
+  'answer-resent': 'End with the whole answer, not only a note that it is unchanged'
 };
 function writeDetails(missing, title) {
   if (envOf('BENCH')) return;

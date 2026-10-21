@@ -17,6 +17,18 @@ hooks:**, and an upgrade lists each one as its own review item.
     "bad" or common words) covering half of the request. Scenarios: `route-precision:`, `praise:`, `rule-request:`,
     `recall:`, `relayed turn:` and `manual path:`, in English and Spanish. `tools/trial.mjs` upgrades with
     `--no-selftest`: with the self-test run, each trial upgrade passed its 5-minute limit on a busy machine.
+  - **No drip-feed in Stop rounds** (field report 6, item 1). A round now also names what its own fixes will set off,
+    as "Then:" steps: the audit, hook self-tests and changelog after a lesson goes into a runbook, skill, rule or check,
+    a data check after a data file is written, and the format and writing checks a fixed file will meet
+    (REQ: stop-follow-on; a check in requirements.json can name the files its fix edits with `"fixes"`). Work requests
+    get one `CHECKS:` line at the prompt, in English or Spanish, naming the checks the turn will be held to
+    (REQ: check-preview). skill-learn no longer asks for a lesson in a runbook whose check was waived, or that the answer
+    calls the wrong one. After a round that only asked for file changes, an unchanged answer may end with one line,
+    "Answer unchanged; done: ..." (REQ: answer-resent); the full answer is still required when it had to change or was
+    never sent. A foreground command moved to the background after its timeout is waited on like a background launch,
+    judged by its output file and exit code, and files a running job makes do not count as the turn's.
+    **Breaking for project hooks:** the Stop reason can list "Then:" steps and their tags in "Names:", and the prompt
+    output can carry a `CHECKS:` line.
   - **Answers in the user's language:** Spanish labels ("Terminado", "Causa raíz:", "Aprendido (regla):", "Tienes
     razón", "En parte:") meet the checks that look for the English ones; `"labelAliases"` in config adds other
     languages. AGENTS.md rule 7: the block labels are in the user's language (adopt by hand).
