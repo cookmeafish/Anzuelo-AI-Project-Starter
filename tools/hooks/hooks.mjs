@@ -335,6 +335,22 @@ function playbooksRead() {
   return out;
 }
 
+// The runbook whose name, summary and triggers share the most content words with a request (word stems of 5 letters,
+// so "lands" meets "land" and "colors" meets "colored"), when at least two are shared. Generic runbooks are left out.
+const STOP_STEMS = new Set('about after again their there these those which while where would could should thing pleas thank with make have from this that want need help into more some just like what when your mine also very much'.split(' ').map(w => w.slice(0, 5)));
+export function closestRunbook(prompt) {
+  const stems = s => new Set((String(s).toLowerCase().match(/[a-z]{4,}/g) || []).map(w => w.slice(0, 5)).filter(w => !STOP_STEMS.has(w)));
+  const want = stems(prompt);
+  let best = null;
+  for (const pb of playbooks()) {
+    if (pb.name.startsWith('_') || /^(project|feature|bugfix|deliverable|qa|plan)$/.test(pb.name)) continue;
+    const have = stems(`${pb.name.replace(/-/g, ' ')} ${pb.fm.summary || ''} ${(pb.triggers || []).join(' ')}`);
+    const words = [...want].filter(w => have.has(w));
+    if (words.length >= 2 && (!best || words.length > best.words.length)) best = { file: pb.file, words };
+  }
+  return best;
+}
+
 // ---------- The starter, after setup ----------
 // At the end of setup the user chooses (tools/starter.mjs): link the project to the starter folder it came from, keep
 // a local copy of the unused packs and library skills in .starter/ (ignored by git), or remove the starter's leftovers.
@@ -651,17 +667,24 @@ export function turn(transcript) {
 // back yet. Their file changes are theirs, not this turn's. A launch is done once a task notification names its id
 // (or, when no id was printed, once any task notification arrived after it).
 function backgroundRunning(rows) {
-  const launches = [], results = new Map(), notes = [];
+  const launches = [], results = new Map(), notes = [], stops = [];
   rows.forEach((r, i) => {
     const c = r.message?.content;
-    if (r.type === 'assistant' && Array.isArray(c)) for (const x of c) if (x?.type === 'tool_use' && /^(Agent|Task)$/.test(x.name) && x.input?.run_in_background) launches.push({ id: x.id, i });
-    if (r.type === 'user' && Array.isArray(c)) for (const x of c) if (x?.type === 'tool_result') results.set(x.tool_use_id, textOf(x.content));
+    // helpers and background commands alike (Lesson: checks fired on files a still-running background sweep made)
+    if (r.type === 'assistant' && Array.isArray(c)) for (const x of c) if (x?.type === 'tool_use' && /^(Agent|Task|Bash|PowerShell)$/.test(x.name) && x.input?.run_in_background) launches.push({ id: x.id, i });
+    if (r.type === 'user' && Array.isArray(c)) for (const x of c) if (x?.type === 'tool_result') { const tx = textOf(x.content); results.set(x.tool_use_id, tx); stops.push({ i, t: tx }); }
     const t = r.type === 'attachment' ? textOf(r.attachment?.prompt ?? r.attachment?.content ?? '') : r.type === 'user' ? textOf(c) : '';
     if (/<task-notification>/.test(t)) notes.push({ i, t });
   });
+  // A launch counts only when its result says it started (a refused launch never runs); it is done when a later notice
+  // names it, or when it was stopped or killed (those send no notice). Lesson from a project's own hook: a killed job
+  // was waited on forever, and a refused launch was counted as running.
   return launches.filter(l => {
-    const ids = [...(results.get(l.id) || '').matchAll(/\b(?:agent_?id|task_?id|ID)\s*[:=]\s*["']?([\w-]{4,})/gi)].map(m => m[1]);
+    const res = results.get(l.id) || '';
+    if (results.has(l.id) && !/launched|running in background|in the background|async agent|agentId/i.test(res)) return false;
+    const ids = [...res.matchAll(/\b(?:agent_?id|task_?id|ID)\s*[:=]\s*["']?([\w-]{4,})/gi)].map(m => m[1]);
     const later = notes.filter(n => n.i > l.i);
+    if (ids.length && stops.some(s => s.i > l.i && ids.some(id => s.t.includes(id)) && /\b(stopped|killed|cancell?ed|terminated)\b/i.test(s.t))) return false;
     return ids.length ? !later.some(n => ids.some(id => n.t.includes(id))) : !later.length;
   }).map(l => l.id);
 }
@@ -1020,6 +1043,9 @@ export function loggedRuns(since) {
   let rows = []; try { rows = fs.readFileSync(path.join(STATE, RUN_LOG), 'utf8').split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean); } catch { }
   return rows.filter(r => Date.parse(r.at) >= (since || 0)).map(r => ({ cmd: r.cmd, out: r.out, error: r.error }));
 }
+// A command without its here-document bodies: a patch script whose text names a test file is not a run of that test.
+// Lesson: "python - <<'EOF' ... test_hooks.py ... EOF" was taken as the last run of the project's hook tests.
+export const cmdHead = c => String(c || '').replace(/<<-?\s*(['"]?)(\w+)\1[^\n]*\n[\s\S]*?\n\s*\2\b/g, '<<$2');
 export function runsOf(entries) {
   const byId = new Map(), out = [];
   for (const r of entries) {
@@ -1129,7 +1155,10 @@ export function context(t, cfg, answerOverride) {
   // Everything the agent wrote this turn (said), and what it wrote after its last change to a file (afterChange): a marker,
   // a waiver or a Finished section given once stays given, so a re-block never makes the answer repeat it.
   // Lesson: stop rounds alternated, each one asking again for what an earlier message of the turn already said.
-  const all = turnText(t.entries), said = inEnglish(`${answer}\n${all}`, cfg);
+  // a step waived with "node tools/hooks/hooks.mjs waive <name> <reason>" counts like N/A(<name>): <reason> in the
+  // answer, so the user's answer carries no check names. Lesson: waiver lines were noise in what the user read.
+  const waives = cmds.map(c => /hooks\.mjs["']?\s+waive\s+([a-z][\w-]*)\s+["']?([^"'\n]+)/i.exec(c)).filter(Boolean).map(m => `N/A(${m[1]}): ${m[2].trim()}`).join('\n');
+  const all = turnText(t.entries), said = inEnglish(`${answer}\n${all}\n${waives}`, cfg);
   return {
     ...t, uses, cmds, changed, work, pbs, routed, reads, skillsUsed, usedPb, routedSkills, usedSkills, runs: t.toolsKnown ? runsOf(t.entries) : loggedRuns(t.since),
     answer: inEnglish(answer, cfg), said, afterChange: inEnglish(`${textAfterLastChange(t.entries, changed.reduce((m, p) => { try { return Math.max(m, fs.statSync(abs(p)).mtimeMs); } catch { return m; } }, 0))}\n${answer}`, cfg), results: toolResults(t.entries),
@@ -2380,7 +2409,7 @@ function notices(cfg) {
   // REQ: unresolved-carryover. Lesson: after the block cap, a miss passed silently. It is announced once, and the next
   // work turn's Stop re-runs those checks (carryoverChecks), so it cannot just be read and forgotten.
   const un = readJSON(path.join(STATE, 'unresolved.json'), null);
-  if (un && un.items?.length && !un.announced) out.push(`LAST WORK TURN ENDED WITH UNRESOLVED CHECKS: ${un.items.join('; ')}. Fix what still applies (details: node tools/hooks/hooks.mjs why), and tell the user only where it changes the answer, in plain words.`);
+  if (un && un.items?.length && !un.announced) out.push(`LAST WORK TURN ENDED WITH UNRESOLVED CHECKS (${String(un.prompt || '').slice(0, 60)}...): ${un.items.join('; ')}. Only when this request continues that work: fix what still applies (details: node tools/hooks/hooks.mjs why). An unrelated request starts clean; don't mention them in its answer.`);
   if (!template && exists('SETUP-PROMPT.md'))
     out.push('SETUP IN PROGRESS: SETUP-PROMPT.md is still here. Follow it (it builds this project end to end). The hooks deny deleting it until node tools/audit.mjs --setup passes. If the user just wants a quick answer, answer it, then continue setup.');
   else if (!template && /status:\s*not bootstrapped/i.test(read(abs('docs/BRIEF.md'))))
@@ -2521,7 +2550,13 @@ export function promptHints(prompt, cfg = config(), withNotices = true) {
     hints.push('AUTONOMY: the user wants the work done without their input. Set "autonomy": "auto" in tools/hooks/config.json and record it in docs/DECISIONS.md (date, the choice, why), ' +
       'then decide instead of asking and record each choice as "Assumed: <choice> - <why> - <cost if wrong>". Outward actions, third-party installs and anything irreversible still need an OK.');
   const isTask = re(cfg.taskVerbs).test(p) && p.split(/\s+/).length >= 3 && !OPINION.test(p) && !isRelay(unquoted(p));
-  if (!routed.length && !sk.length && isTask)
+  // the closest runbook by the words of its name, summary and triggers, when no trigger phrase matched: different
+  // wording for a known job should reach that job's runbook. Lesson: "my deck has an issue with lands" got NO RUNBOOK
+  // though the deck-upgrade runbook fixes exactly that.
+  const near = !routed.length && !sk.length && isTask ? closestRunbook(p) : null;
+  if (near)
+    hints.push(`CLOSEST RUNBOOK: no trigger phrase matched, but ${near.file} looks like this job (shared words: ${near.words.join(', ')}). If it fits, open and follow it, and add this wording to its triggers (runbook-create skill) so it routes next time; if not, follow docs/playbooks/_fallback.md.`);
+  else if (!routed.length && !sk.length && isTask)
     hints.push('NO RUNBOOK matches this request. If it is a task (not a quick question), follow docs/playbooks/_fallback.md: do it carefully, ' +
       'then EXTEND the closest runbook or CREATE a new one (runbook-create skill) and route it, in this same turn. The Stop hook blocks work ' +
       'turns that end without one (REQ: runbook-exists).');
@@ -2819,7 +2854,7 @@ export function pretoolDecision(data, cfg = config()) {
         const runs = runsOf(t().entries);
         for (const g of cfg.commitGate) {
           if (g.when && !names.some(n => match(n, g.when))) continue;
-          const last = runs.filter(r => re(g.cmd).test(r.cmd)).pop();
+          const last = runs.filter(r => re(g.cmd).test(cmdHead(r.cmd))).pop();
           const res = last && gateResult(last, { pass: g.pass ?? '' });
           if (t().toolsKnown && (!last || !res.ok))
             // the gate shown as a command to run, not as its pattern, and its own && chain is the allowed form
@@ -3140,10 +3175,15 @@ export function coreChecks(x, cfg) {
   const ledgerRuns = x.runs.filter(r => /claims\.mjs\s+check\b/.test(r.cmd));
   const ledgerOk = ledgerRuns.length && /CLAIMS: PASS/.test(ledgerRuns[ledgerRuns.length - 1].out || '');
   const knowledge = (cfg.packs || []).includes('knowledge'), researched = x.usedSkills.some(s => s.name === 'research');
-  if (web && (knowledge || researched) && !(ledgerOk && /verified:\s*\d+\s+claims/i.test(x.said)) && !(!knowledge && /\bquick lookup:/i.test(x.said)))
+  // a search that found nothing has no claims to verify: it says what was searched, where, and when
+  // ("Searched: <what> - nothing found (<where>, 2026-10-20)"). Lesson: a "no proven list found" lookup was sent through
+  // the whole three-source ledger.
+  const nothingFound = /\bsearched:[^\n]*\b(nothing|no \w+( \w+)? found|not found|none found)\b[^\n]*\(\s*[^)\n]*\d{4}-\d\d-\d\d\s*\)/i.test(x.said);
+  if (web && (knowledge || researched) && !nothingFound && !(ledgerOk && /verified:\s*\d+\s+claims/i.test(x.said)) && !(!knowledge && /\bquick lookup:/i.test(x.said)))
     add('research-verified', `This turn used the web${knowledge ? ' in a knowledge project' : ''}. Follow the research skill, situation C: a ledger (node skills/research/scripts/claims.mjs new "<question>"), ` +
       'at least three independent sources with sponsored and biased ones screened out, claims.mjs check passing, and the answer ending with "Verified: <n> claims ..."' +
-      (knowledge ? '.' : '. A one-fact lookup for the work at hand instead says so: "Quick lookup:" with its link.'));
+      (knowledge ? '.' : '. A one-fact lookup for the work at hand instead says so: "Quick lookup:" with its link.') +
+      ' A search that found nothing says "Searched: <what> - nothing found (<where>, <date>)".');
   // REQ: answer-traced. "Did I make that up?": every number in a factual answer, and every number written into the
   // knowledge base, appears in something read this turn; every project file the answer cites was opened.
   // A cited file is a bare path, a markdown link's target or a path in backticks, so one with spaces counts too, in any
@@ -3395,7 +3435,10 @@ export function coreChecks(x, cfg) {
   }
   // REQ: watched-inputs. Data the user updates mid-turn changes the answer; say what it changed.
   const written = new Set(x.uses.filter(u => /^(Write|Edit|MultiEdit)$/.test(u.name)).map(u => rel(u.input.file_path || '')));
-  for (const p of x.changed.filter(p => match(p, cfg.watchedInputs) && !written.has(p))) {
+  // a file the agent itself replaced with a command this turn (cp, mv, a script naming it) is its own change, not the
+  // user's. Lesson: a collection file replaced on the user's request was flagged as updated by the user mid-turn.
+  const inCmd = p => x.cmds.some(c => String(c).replace(/\\/g, '/').includes(p) || String(c).includes(p.split('/').pop()));
+  for (const p of x.changed.filter(p => match(p, cfg.watchedInputs) && !written.has(p) && !inCmd(p))) {
     let mt = 0; try { mt = fs.statSync(abs(p)).mtimeMs; } catch { }
     if (mt > (x.since || 0) + 1000 && !(x.said.includes(p.split('/').pop()) && /\b(updated|changed|new|refresh)/i.test(x.said)))
       add('watched-inputs', `${p} was updated while you worked. Re-run what depends on it and say in the answer what the new data changed (name the file).`);
@@ -3657,7 +3700,7 @@ export function holds(c, x) {
   // toolPassed: the LAST run of a matching command printed its pass marker and no FAIL (it ran AND passed).
   if (c.toolPassed) {
     const spec = typeof c.toolPassed === 'string' ? { cmd: c.toolPassed } : c.toolPassed;
-    const runs = x.runs.filter(rn => r(spec.cmd).test(rn.cmd));
+    const runs = x.runs.filter(rn => r(spec.cmd).test(cmdHead(rn.cmd)));
     // no tool history (another agent, or no hooks): the run log holds what ran. With nothing logged, a quick validator
     // is run here (capped at 20 s); a slow one is left to the agent, with the command that records it.
     if (!x.toolsKnown && !runs.length && spec.selfRun) {
@@ -3850,10 +3893,21 @@ function unresolvedAnnounced() {
   const f = path.join(STATE, 'unresolved.json'), un = readJSON(f, null);
   if (un && !envOf('BENCH')) writeState('unresolved.json', { ...un, announced: true });
 }
+// Whether a new request continues an earlier one: a follow-up that points back ("that", "again", "still", "fix it"), or
+// at least two content words in common.
+const FOLLOW_UP = /\b(it|that|this|those|them|again|still|also|finish|continue|redo|fix (it|that|this)|same)\b/i;
+export function relatedRequest(old, now) {
+  const words = s => new Set(String(s).toLowerCase().match(/[a-zÀ-ɏ]{5,}/g) || []);
+  const a = words(old), shared = [...words(now)].filter(w => a.has(w) && !/^(about|after|again|could|would|should|their|there|these|those|which|while|where|please|thanks|project)$/.test(w));
+  return shared.length >= 2 || (String(now).split(/\s+/).length <= 12 && FOLLOW_UP.test(now));
+}
 function carryoverChecks(data, t, x, cfg) {
   const un = readJSON(path.join(STATE, 'unresolved.json'), null);
   if (!x.workTurn || data.stop_hook_active || !un?.tags?.length || envOf('BENCH')) return [];
   if (un.since && x.since && un.since >= x.since) return []; // written by this turn itself
+  // only a turn that continues that work inherits its open steps: an unrelated request starts clean.
+  // Lesson: old steps followed an unrelated request, and its answer got padded with waivers about the earlier task.
+  if (!relatedRequest(un.request || un.prompt || '', x.prompt)) return [];
   let t0 = null;
   if (un.since && un.transcript && t.toolsKnown) {
     const rows = codexRows(read(un.transcript).split(/\r?\n/).filter(l => l.trim()).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean));
@@ -3900,9 +3954,15 @@ export function stopDecision(data, cfg = config()) {
   const logs = found.filter(m => /^(changelog|knowledge-changelog|app-changelog)$/.test(m.tag));
   const found1 = logs.length > 1 ? found.filter(m => m === logs[0] || !logs.includes(m)) : found;
   const all = [...found1, ...skillLearnCheck(x, cfg, found.map(m => m.tag)).filter(open), ...carryoverChecks(data, t, x, cfg).filter(open)];
-  const missing = noticeAck ? all.filter(m => /^(claim-checked|scope-separate|answer-traced|no-secrets)$/.test(m.tag)) : all;
+  // While helpers launched in the background have not reported back, the work is not finished: only truth and privacy
+  // are checked now, and the whole list runs when their results arrive. Lesson: a turn waiting on three background
+  // helpers was blocked three times for a Finished section it could not write yet.
+  const waiting = t.toolsKnown && (t.bgRunning || []).length;
+  const SAFE = /^(claim-checked|scope-separate|answer-traced|no-secrets)$/;
+  const missing = noticeAck || waiting ? all.filter(m => SAFE.test(m.tag)) : all;
   noteFriction(key, x, missing);
   const ended = (keep = false) => { writeState(TURN_END, { at: new Date().toISOString(), key, clean: !keep }); if (!keep && !envOf('BENCH')) try { fs.unlinkSync(path.join(STATE, 'stop-details.md')); } catch { } }; // the next prompt starts a new turn
+  if (waiting && !missing.length) { writeState(TURN_END, { at: new Date().toISOString(), key, clean: false, pending: t.bgRunning.length }); return null; }
   if (nblocks >= cfg.maxBlocksPerTurn) {
     // REQ: unresolved-carryover. End quietly (no block), but don't let the miss vanish: the next prompt says it once,
     // in plain words. A check that waits on background helpers is not a miss: their results arrive later.
@@ -3924,7 +3984,7 @@ export function stopDecision(data, cfg = config()) {
   writeDetails(missing, `Steps left (round ${nblocks + 1} of ${cfg.maxBlocksPerTurn})`);
   return {
     decision: 'block',
-    steps: missing.map(m => shortStep(m)),
+    steps: missing.map(m => shortStep(m)), tags: missing.map(m => m.tag), round: nblocks + 1,
     // The user sees this in the terminal: a plain first line, one short plain line per step, and the check names once,
     // at the end. Lesson: whole messages with paths and regexes made a wall of text the user had to ask about.
     reason: `Almost done: ${missing.length === 1 ? '1 step is' : `${missing.length} steps are`} left before this answer is complete${cfg.maxBlocksPerTurn < 1000 ? ` (round ${nblocks + 1} of ${cfg.maxBlocksPerTurn})` : ''}.\n` +
@@ -3932,7 +3992,7 @@ export function stopDecision(data, cfg = config()) {
       // the user may see only the last message: it must still carry the answer, not just these steps. Lesson: reviews
       // of trial sessions found the final message was "the checks pass now" while the explanation, letter or verdict
       // the user asked for sat in an earlier message
-      `\nFor the agent: do these, then end with the whole answer to the user's request again, in the user's language (the result, the verdict, what they asked for), updated, starting straight with it (no "here is the answer again", no note about these steps first), with these steps as a short note after it; the last message is the one the user reads.${cfg.autonomy === 'auto' ? ' The user asked not to be asked: where a step says "with the user", decide it yourself and record it as Assumed: <choice> - <why> - <cost if wrong>.' : ''} Full steps: \`node tools/hooks/hooks.mjs why\`; waive one that truly does not apply with N/A(<name>): <reason>. Names: ${missing.map(m => m.tag).join(', ')}.`
+      `\nFor the agent: do these, then end with the whole answer to the user's request again, in the user's language (the result, the verdict, what they asked for), updated, starting straight with it (no "here is the answer again", no note about these steps first), with these steps as a short note after it; the last message is the one the user reads.${cfg.autonomy === 'auto' ? ' The user asked not to be asked: where a step says "with the user", decide it yourself and record it as Assumed: <choice> - <why> - <cost if wrong>.' : ''} Full steps: \`node tools/hooks/hooks.mjs why\`; waive one that truly does not apply with \`node tools/hooks/hooks.mjs waive <name> "<reason>"\` (keeps check names out of the user's answer) or N/A(<name>): <reason>. Names: ${missing.map(m => m.tag).join(', ')}.`
   };
 }
 
@@ -4034,11 +4094,25 @@ export function shortStep(m) {
 // - Any other host gets the classic forms every hook host understands: plain text, and {"decision":"block","reason"}.
 export function hookHost(data = {}, env = process.env) { return data.turn_id ? 'codex' : env.CLAUDE_PROJECT_DIR ? 'claude-code' : 'other'; }
 let HOST = 'other'; // set by the hook dispatcher; "begin" and "check" print plain text whatever the host
+// What the user sees when an answer is held back: a heading line, then each step on its own short line with an icon for
+// its kind, at most six, so it scans at a glance. The agent gets the full detail separately.
+// Lesson: one 110-character line cut the steps off mid-word, and a project's own hook printed a wall of rule text.
+const STEP_ICON = [
+  [/debug|root-cause|bugfix|regression/, '🐞'], [/test|build|lint|typecheck|gate|selfcheck|hooks-tested|audit/, '🧪'], [/runbook|playbook|skill|route/, '📖'],
+  [/finished|summary|changelog|status|handoff|empty-answer|plain|writing|verbatim/, '📝'], [/secur|secret|scope|privacy|outward|publish|injection|install/, '🔒'],
+  [/research|source|cited|traced|claim|fact/, '🔎'], [/gui|screenshot|visual|flow/, '🖼️'], [/plan/, '🗺️'], [/upset|learn|lesson|rule|requirement/, '💡'],
+];
+export function userLine(d, cfg = config()) {
+  const n = d.steps.length, name = names().STARTER_NAME || 'Project checks';
+  const icon = tag => (STEP_ICON.find(([r]) => r.test(tag || '')) || [, '🔹'])[1];
+  const tags = d.tags || [];
+  const shown = d.steps.slice(0, 6).map((s, i) => `   ${icon(tags[i])} ${s}`);
+  return [`⚓ ${name}: almost done, ${n} step${n === 1 ? '' : 's'} left${d.round ? ` (round ${d.round} of ${cfg.maxBlocksPerTurn})` : ''}`, ...shown,
+    ...(n > 6 ? [`   ➕ ${n - 6} more (node tools/hooks/hooks.mjs why)`] : [])].join('\n');
+}
 export function stopOutput(d, cfg = config(), host = HOST) {
   const style = cfg.stopStyle === 'feedback' || cfg.stopStyle === 'block' ? cfg.stopStyle : host === 'claude-code' ? 'feedback' : 'block';
-  const n = d.steps.length, name = names().STARTER_NAME || 'Project checks';
-  let line = `⚓ ${name}: ${n} step${n === 1 ? '' : 's'} left before done: ${d.steps.join('; ')}`.replace(/\s+/g, ' ');
-  if (line.length > 110) line = line.slice(0, line.lastIndexOf(' ', 107) > 30 ? line.lastIndexOf(' ', 107) : 107) + '...';
+  const line = userLine(d, cfg);
   if (style === 'feedback') return { hookSpecificOutput: { hookEventName: 'Stop', additionalContext: d.reason }, systemMessage: line };
   // Codex documents systemMessage next to a block, so its user gets the same short line; unknown hosts get the bare block
   return host === 'codex' ? { decision: 'block', reason: d.reason, systemMessage: line } : { decision: 'block', reason: d.reason };
@@ -4115,6 +4189,8 @@ if (isMain) {
   if (cmd === 'bench') { const b = bench(), budget = config().hookBudgetMs, slow = Object.entries(b).filter(([, v]) => v > budget); console.log(Object.entries(b).map(([k, v]) => `${k} ${v} ms`).join(', ') + ` (budget ${budget} ms)` + (slow.length ? `: TOO SLOW ${slow.map(([k]) => k).join(', ')}` : '')); process.exit(slow.length ? 1 : 0); }
   // the full text of the steps the Stop hook asked for (its message to the user stays short)
   // the session and prompt notices in full, when a host cut a long hook output down (fitOutput)
+  // waive a step that truly does not apply, out of the user's answer: the Stop hook reads it from this turn's commands
+  if (cmd === 'waive') { const [tag, ...why] = process.argv.slice(3); if (!tag || why.join(' ').trim().split(/\s+/).length < 3) { console.log('usage: node tools/hooks/hooks.mjs waive <name> "<the specific reason, a few words>"'); process.exit(2); } console.log(`waived for this turn: ${tag} (${why.join(' ').trim()})`); process.exit(0); }
   if (cmd === 'notices') { console.log(notices(config()).join('\n') || 'no notices.'); process.exit(0); }
   if (cmd === 'why') { const d = read(path.join(STATE, 'stop-details.md')).trim(); console.log(d || 'nothing pending: the last answer passed every check.'); process.exit(0); }
   // run a command and record its result in the run log, for agents whose tool history the hooks can't read

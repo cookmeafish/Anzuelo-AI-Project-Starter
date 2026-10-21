@@ -117,7 +117,9 @@ every few sessions or on request ──► project-sweeps (audit + gaps review) 
 
 - **Stop / check** blocks the answer until every core check and every check in `tools/hooks/requirements.json` passes.
   It blocks at most 3 times per turn, and anything still missing is announced at the next prompt. A check that truly
-  doesn't apply is waived by writing `N/A(<tag>): <reason>` in the answer. Never use a waiver to skip work that applies.
+  doesn't apply is waived with `node tools/hooks/hooks.mjs waive <tag> "<reason>"`, which keeps it out of the user's
+  answer (`N/A(<tag>): <reason>` in the answer works too). Never use a waiver to skip work that applies. While
+  background helpers or commands of this turn still run, only truth and privacy are checked; the rest waits for them.
 - **Before tool calls** the hooks deny: changes to protected files, overwrites of versioned files, edits of generated
   skill mirrors, em dashes in user-facing files, mixing people's data, automating the installed browser, secrets or AI
   attribution in git, risky git commands without a backup, the project's forbidden commands, and deleting

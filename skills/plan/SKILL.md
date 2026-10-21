@@ -1,6 +1,6 @@
 ---
 name: plan
-description: Writes a step-by-step plan for multi-step work before starting it, as small tasks with exact files, interfaces, checks and expected results, plus the project context a newcomer needs and a confidence score, so any agent or sub-agent can carry it out without guessing, and then carries it out box by box. The plan is a checklist file in docs/plans/ that any later session or other AI agent can resume. Use when a spec or request needs several steps, touches several files, adds several new files, or will be handed to sub-agents, and when asked to carry out, resume or close an existing plan, including without check-ins when autonomy is auto or the user says keep going, don't ask me, run it all, work on your own, autonomous, or without my approval.
+description: Writes a step-by-step plan for multi-step work before starting it, as small tasks with exact files, interfaces, checks and expected results, plus the project context a newcomer needs and a confidence score, so any agent or sub-agent can carry it out without guessing, and then carries it out box by box. The plan is a checklist file in docs/plans/ that any later session or other AI agent can resume. Use when a spec or request needs several steps, touches several files, adds several new files, or will be handed to sub-agents, and when asked to carry out, resume or close an existing plan, including without check-ins when autonomy is auto.
 ---
 # Plan before multi-step work
 

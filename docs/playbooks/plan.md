@@ -1,7 +1,7 @@
 ---
 name: plan
 summary: Plan multi-step work before starting it, as checkable tasks saved in docs/plans/
-triggers: make a plan, write a plan, plan this, plan it out, plan first, implementation plan, step by step plan, break this down, how should we build, resume the plan, continue the plan, carry out the plan, execute the plan, open plans, product requirements prompt, implementation blueprint, keep going, don't ask me, run it all, work on your own, autonomous, without my approval, plan the, sprint, roadmap, milestones, lay out the steps, into tasks
+triggers: make a plan, write a plan, plan this, plan it out, plan first, implementation plan, step by step plan, break this down, how should we build, resume the plan, continue the plan, carry out the plan, execute the plan, open plans, product requirements prompt, implementation blueprint, plan the, sprint, roadmap, milestones, lay out the steps, into tasks
 trigger_regex: \bwhat order (should|do|shall|can) we\b|\bin (what|which) order\b|\bmap out (how|what|the|a)\b|\bpick up where\b
 menu: E8
 skill: skills/plan/SKILL.md

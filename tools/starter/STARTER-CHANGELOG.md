@@ -18,6 +18,18 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
     about an outward action, an install, money, security or something irreversible (REQ: autonomy-decide), and stop
     steps that say "with the user" are decided and recorded as Assumed.
   - A stop round's repeated answer starts straight with the answer, not with notes about the fix.
+  - **Friendlier terminal:** when an answer is held back, the user sees a heading ("⚓ Anzuelo: almost done, 3 steps
+    left (round 1 of 3)") and one short line per step with an icon for its kind (🧪 tests, 📖 runbook, 📝 summary, 🔒
+    safety, 🔎 sources, 🐞 root cause...), at most six; the agent gets the details separately.
+  - **Waiting on background work:** while helpers or background commands of this turn still run, only truth and privacy
+    are checked; the full list runs when their results arrive (no more restarting rounds while waiting). A launch counts
+    only when it started, and a stopped or killed job is not waited on.
+  - **Field report 3 (live deck tasks):** steps can be waived with `node tools/hooks/hooks.mjs waive <name> "<reason>"`,
+    which keeps check names out of the user's answer; an unrelated request no longer inherits the last turn's open
+    steps; a request worded differently from a runbook's triggers gets "CLOSEST RUNBOOK: <file>" instead of NO RUNBOOK;
+    "Searched: <what> - nothing found (<where>, <date>)" answers a search that found nothing; "don't ask me" and other
+    autonomy phrases no longer route to the plan runbook; a here-document that names a test is not a run of it; a
+    watched input the agent itself replaced with a command is not reported as the user's mid-turn update.
   - **Hidden instructions are reported, not just ignored:** a file or page read this turn that carries instructions
     aimed at an AI ("note for AI assistants", "don't tell the user") makes the answer warn the user: where, what it
     asked, that none of it was done (REQ: injection-flagged). A live test with a forged supplier letter showed the agent
