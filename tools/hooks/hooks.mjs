@@ -386,8 +386,17 @@ export const secretRes = (cfg = config()) => [...new Set(cfg.secretPatterns)].ma
 }).filter(Boolean);
 export const secretHit = (text, cfg = config()) => secretRes(cfg).find(p => p.rx.test(text))?.s;
 // Personal or machine details that must not be published (the audit's publish-safety sweep, and a notice at the edit).
+// Addresses reserved for examples, documentation, private networks and special use are nobody's personal data: the
+// example domains and top-level names (RFC 2606, 6761), and the private, shared, loopback, link-local, documentation,
+// benchmark, multicast and reserved IPv4 ranges (RFC 1918, 6598, 3927, 5737, 2544, 5771, 1112), plus 0.0.0.0/8.
+// Lesson: a URL validator's blocked ranges ("100.64.0.0", "169.254.169.254") and a test address at "evil.example" were
+// flagged as personal data, and the agent rewrote readable ranges as byte tuples to quiet the notice.
+const RESERVED_IP = ip => { const [a, b, c] = ip.split('.').map(Number);
+  return a === 0 || a === 10 || a === 127 || a >= 224 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168)
+    || (a === 192 && b === 0 && (c === 0 || c === 2)) || (a === 198 && (b === 18 || b === 19)) || (a === 198 && b === 51 && c === 100) || (a === 203 && b === 0 && c === 113); };
+const RESERVED_MAIL = /@([\w.-]+\.)?(example\.(com|org|net)|[\w-]+\.(example|test|invalid|localhost))$/i;
 const PERSONAL = [
-  [/[A-Za-z0-9._%+-]+@(?!example\.(com|org)|users\.noreply\.github\.com)[A-Za-z0-9.-]+\.[a-z]{2,}/, 'an email address'],
+  [/[A-Za-z0-9._%+-]+@(?!example\.(com|org)|users\.noreply\.github\.com)[A-Za-z0-9.-]+\.[a-z]{2,}/, 'an email address', hit => !RESERVED_MAIL.test(hit)],
   // only placeholders are skipped (<user>, %USERNAME%, $USER, "you", USERNAME); a real account named "User" is personal
   // too. Lesson: on a machine whose account is "User", every home path passed, since "USER" was skipped in any case
   [/[A-Za-z]:[\\/]+Users[\\/]+(?!<|\$|%|USERNAME\b|you(r)?\b|Public\b|Default\b|All Users\b)[A-Za-z0-9._-]+/i, 'a personal Windows path'],
@@ -396,10 +405,11 @@ const PERSONAL = [
   [/(?<![A-Za-z]:)\/(home|Users)\/(?!<|user\/|you\/|Shared\/|\$)[A-Za-z0-9._-]{2,}\//, 'a personal home path'],
   // first part 10 to 255, every part a real octet, and not a version ("v9.7.0.3", "version 12.1.0.4", "9.7.0.3")
   // Lesson: four-part version numbers in a game's data were flagged as IP addresses.
-  [/(?<![\w.]|\bv|\bversions?[\s:=]{1,3}|\bbuild[\s:=]{1,3})(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}(?![\w.])(?<!127\.0\.0\.1)/i, 'an IP address']
+  [/(?<![\w.]|\bv|\bversions?[\s:=]{1,3}|\bbuild[\s:=]{1,3})(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}(?![\w.])(?<!127\.0\.0\.1)/i, 'an IP address', hit => !RESERVED_IP(hit)]
 ];
-export const personalDetails = text => PERSONAL.map(([rx, what]) => ({ what, hit: rx.exec(text)?.[0] }))
-  .filter(x => x.hit && !/noreply@(anthropic|openai)\.com/.test(x.hit));
+// the first match of each kind that is not a reserved one (keep)
+export const personalDetails = text => PERSONAL.map(([rx, what, keep = () => true]) => ({ what, hit: [...String(text).matchAll(new RegExp(rx.source, rx.flags.replace('g', '') + 'g'))].map(m => m[0]).find(h => keep(h) && !/noreply@(anthropic|openai)\.com/.test(h)) }))
+  .filter(x => x.hit);
 
 // ---------- project content ----------
 // The runbooks and routable skills are read several times per hook run; each is rebuilt only when a file in its
@@ -1021,12 +1031,24 @@ function deniedIds(entries) {
 
 // Actions whose success an answer may claim, with the words of the claim. Each attempt's result is read from the
 // transcript: denied by a hook or the user, or failed.
+// A git command is git run as a command (first word, or after ; & | or a subshell), with its options before the
+// subcommand; the words inside quotes and here-documents are text, not commands. Lesson: a script written with a
+// here-document whose prose said "git repository ... every commit" counted as a commit, and its refused run as a
+// denied commit, so an answer that said nothing was committed was told it claimed a commit.
+const gitRun = sub => c => new RegExp(`(^|[;&|(\\n]\\s*)git(\\s+-[cC]\\s+\\S+|\\s+--?[\\w-]+(=\\S+)?)*\\s+${sub}\\b`, 'i').test(cmdHead(c).replace(/"[^"\n]*"|'[^'\n]*'/g, '""'));
+// The claim words, in English and Spanish (a Spanish answer is checked too).
 const CLAIMED = [
-  { kind: 'push', cmd: /\bgit\b[^;&|\n]*\bpush\b/i, says: /\bpushed\b/i },
-  { kind: 'commit', cmd: /\bgit\b[^;&|\n]*\bcommit\b/i, says: /\bcommitted\b/i },
-  { kind: 'publish', cmd: /\b(npm|pnpm|yarn)\s+publish\b|\bgh\s+release\s+create\b|\b(vercel|netlify)\b[^\n;&|]*--prod\b|\bfirebase\s+deploy\b|\bdocker\s+push\b|\btwine\s+upload\b|\bcargo\s+publish\b|\b(dart|flutter)\s+pub\s+publish\b|\b(poetry|uv)\s+publish\b|\bgem\s+push\b|\bfastlane\s+\w*(deliver|release|upload|beta)\b|\bhf\s+upload\b|\bhuggingface-cli\s+upload\b|\bdeploy\b/i, says: /\b(published|deployed|released|(is|it'?s) (now )?live)\b/i },
-  { kind: 'send', cmd: c => !!outwardCommand(c) && !/\bgit\b/.test(c), says: /\b(sent|emailed|posted|messaged)\b/i }
+  { kind: 'push', cmd: gitRun('push'), says: /\bpushed\b|(?<!\p{L})(hice (el )?push|sub[ií] (los cambios|el c[oó]digo|la rama)|subid[oa]s? (a|al) (github|gitlab|remoto|origin))(?!\p{L})/iu },
+  { kind: 'commit', cmd: gitRun('commit'), says: /\bcommitted\b|(?<!\p{L})(hice (el |un )?commit|confirm[eé] los cambios|commite[ée])(?!\p{L})/iu },
+  { kind: 'publish', cmd: c => /\b(npm|pnpm|yarn)\s+publish\b|\bgh\s+release\s+create\b|\b(vercel|netlify)\b[^\n;&|]*--prod\b|\bfirebase\s+deploy\b|\bdocker\s+push\b|\btwine\s+upload\b|\bcargo\s+publish\b|\b(dart|flutter)\s+pub\s+publish\b|\b(poetry|uv)\s+publish\b|\bgem\s+push\b|\bfastlane\s+\w*(deliver|release|upload|beta)\b|\bhf\s+upload\b|\bhuggingface-cli\s+upload\b|\bdeploy\b/i.test(cmdHead(c).replace(/"[^"\n]*"|'[^'\n]*'/g, '""')),
+    says: /\b(published|deployed|released|(is|it'?s) (now )?live)\b|(?<!\p{L})(publicad[oa]s?|publiqu[eé]|desplegad[oa]s?|desplegu[eé]|(est[aá]|ya est[aá]) en (vivo|l[ií]nea|producci[oó]n))(?!\p{L})/iu },
+  { kind: 'send', cmd: c => !!outwardCommand(c) && !/\bgit\b/.test(c), says: /\b(sent|emailed|posted|messaged)\b|(?<!\p{L})(enviad[oa]s?|envi[eé]|mand[eé]|mandad[oa]s?)(?!\p{L})/iu }
 ];
+// A claim is a clause that says the action happened, not one that says it did not ("nothing was committed", "I haven't
+// pushed", "no se ha enviado", "todavía no lo publiqué") or that it waits. Judged per clause, so "Committed, no
+// problems" is still a claim. Lesson: "nothing was committed" read as a claim to have committed.
+const NOT_DONE = /\b(not|n't|nothing|never|no|none|neither|nor|couldn'?t|wasn'?t|didn'?t|haven'?t|hasn'?t|denied|blocked|failed|refused|unable|waiting|needs? your|once you|draft|yet)\b|(?<!\p{L})(no|nada|nunca|ning[uú]n[oa]?|sin|todav[ií]a|a[uú]n|pendiente|denegad[oa]|bloquead[oa]|fall[oó]|borrador|cuando (me )?(lo )?(apruebes|confirmes|digas))(?!\p{L})/iu;
+export const claimClauses = text => String(text || '').split(/(?<=[.!?\n])\s+/).flatMap(s => s.split(/[,;:]\s+|\s+(?:but|pero|and|y)\s+/i)).filter(s => s.trim() && !NOT_DONE.test(s));
 export function actionAttempts(entries) {
   const res = new Map(), out = [];
   for (const r of entries) { const c = r.type === 'user' && r.message?.content; if (Array.isArray(c)) for (const x of c) if (x?.type === 'tool_result') res.set(x.tool_use_id, x); }
@@ -1036,7 +1058,7 @@ export function actionAttempts(entries) {
     for (const x of c) {
       const cmd = x?.type === 'tool_use' && typeof x.input?.command === 'string' ? x.input.command : '';
       if (!cmd) continue;
-      for (const a of CLAIMED) if (typeof a.cmd === 'function' ? a.cmd(cmd) : a.cmd.test(cmd)) {
+      for (const a of CLAIMED) if (a.cmd(cmd)) {
         const rr = res.get(x.id), text = rr ? textOf(rr.content) : '';
         out.push({ kind: a.kind, ok: !!rr && !rr.is_error && !/\b(error|fatal|rejected|denied|failed)\b/i.test(text.slice(0, 2000)) });
       }
@@ -1746,11 +1768,33 @@ export function nameProblems(file, text, nm = names(), cfg = config()) {
   // and a marker inside a path breaks on a rename.
   else bare = bare.replace(/```[\s\S]*?```|`[^`\n]*`/g, '');
   const word = v => doc ? new RegExp(`(?<![\\w./\\\\-])${esc(v)}(?![\\w-]|[./\\\\]\\w)`) : new RegExp(`(?<![\\w./\\\\-])${esc(v)}(?![\\w./\\\\(-])`);
+  // in code, a name that is also the code's own package or command name is that identifier: the program name in a
+  // command-line parser ("prog") or its usage example must match the command people type, and a rename changes the
+  // package by hand anyway. Lesson: the check made a CLI drop its typed program name, and --help then showed
+  // "python.exe -m photodate" instead of the command the README teaches.
+  const ids = doc ? new Set() : codeIdentifiers();
   // one finding per typed name, even when several keys hold it (Lesson: PROJECT_NAME and a second key holding the same name gave two)
   const seen = new Set();
-  return checkable(nm).filter(([, v]) => !/^[a-z]+$/.test(v) || v.length > 5).filter(([, v]) => word(v).test(bare) && !seen.has(v) && seen.add(v))
+  return checkable(nm).filter(([, v]) => !/^[a-z]+$/.test(v) || v.length > 5).filter(([, v]) => !ids.has(v.toLowerCase().replace(/-/g, '_')))
+    .filter(([, v]) => word(v).test(bare) && !seen.has(v) && seen.add(v))
     .map(([k, v]) => `${file}: "${v}" is typed out; ${html && new RegExp(`<title>[^<]*${esc(v)}`, 'i').test(bare) ? `inside <title> or an attribute a marker would show: fill it from ${NAMES_FILE} when the page is built, or waive it: node tools/hooks/hooks.mjs waive name-var "<why>"`
       : doc ? `write <!--name:${k}-->${v}<!--/name-->` : `read it from ${NAMES_FILE} (key ${k})`}`);
+}
+// The code's own package, module and command names (lowercase, "-" as "_"): a folder at the root or in src/ that holds
+// code, and the name the package manifest gives (pyproject.toml, package.json, Cargo.toml, go.mod).
+let CODE_IDS = null;
+export function codeIdentifiers() {
+  if (CODE_IDS) return CODE_IDS;
+  const out = CODE_IDS = new Set(), add = s => { if (s) out.add(String(s).toLowerCase().replace(/^@[^/]+\//, '').replace(/-/g, '_')); };
+  const CODE = /\.(py|js|mjs|cjs|ts|tsx|go|rs|rb|java|kt|cs|php|dart|swift)$/i;
+  for (const d of ['', 'src']) for (const n of list(d || '.')) { const p = d ? `${d}/${n}` : n; try { if (!/^[._]/.test(n) && fs.statSync(abs(p)).isDirectory() && list(p).some(f => CODE.test(f))) add(n); } catch { } }
+  const py = read(abs('pyproject.toml')), pj = readJSON(abs('package.json'), {}), cargo = read(abs('Cargo.toml')), gomod = read(abs('go.mod'));
+  add(/^\[(?:project|tool\.poetry)\][^[]*?^name\s*=\s*["']([^"']+)/m.exec(py)?.[1]);
+  for (const s of (/^\[project\.scripts\]([^[]*)/m.exec(py)?.[1] || '').match(/^[\w.-]+(?=\s*=)/gm) || []) add(s);
+  add(pj.name); for (const s of Object.keys(typeof pj.bin === 'object' && pj.bin || {})) add(s);
+  add(/^\[package\][^[]*?^name\s*=\s*["']([^"']+)/m.exec(cargo)?.[1]);
+  add(/^module\s+(\S+)/m.exec(gomod)?.[1]?.split('/').pop());
+  return out;
 }
 const NAME_DOCS = /\.(md|mdx|txt|html?)$/i; // markers are refilled only in docs: code reads the file
 const NAME_FILES = /\.(md|mdx|txt|html?|js|mjs|cjs|jsx|ts|tsx|py|json|ya?ml|css|vue|svelte|toml|ini|sh|ps1|bat)$/i;
@@ -1863,6 +1907,54 @@ export function knowledgeProblems(file, cfg) {
   if (!/https?:\/\/|\bsources?\b|\buser reported\b|\bsources\//i.test(text)) probs.push(`${file}: no source (a URL, a "Source:" line, sources/<file>, or "user reported")`);
   if (!/\b20\d\d-\d\d-\d\d\b/.test(text)) probs.push(`${file}: no date (YYYY-MM-DD) for when the facts were checked`);
   return probs;
+}
+
+// The facts this turn wrote into the knowledge files come from the project's own files, each one labeled: a line with an
+// evidence label (or a row of a table with a label column) carries the label, a date and a source that is a file or
+// folder of this project that exists. A web link means research (sources read and cited), so it never counts here.
+// Returns the reason it does not hold, or '' when it does. (The knowledge pack's source trigger: "knowledgeFromFiles".)
+// Lesson: setup labeled each style-sheet fact "observed" with the chapter file and the date, and the check still held
+// the turn for two Stop rounds until the knowledge-capture skill was invoked as a ritual.
+const SRC_EXT = /^[\w.@-]+\.(md|txt|csv|tsv|json|ya?ml|pdf|docx?|xlsx?|pptx?|py|js|mjs|ts|go|rs|java|cs|html?|toml|ini|log|png|jpe?g|gif|svg)$/i;
+export function knowledgeFromFiles(x, cfg = config()) {
+  const files = x.changed.filter(p => /\.md$/i.test(p) && match(p, cfg.knowledgeDirs.map(d => `${d.replace(/\/+$/, '')}/**`)) && !/(^|\/)(README|SOURCES|INDEX)\.md$/i.test(p) && exists(p));
+  if (!files.length) return 'no knowledge file changed';
+  const edits = new Map();
+  if (x.toolsKnown) for (const u of x.uses || []) {
+    if (!/^(Write|Edit|MultiEdit)$/.test(u.name)) continue;
+    const f = rel(u.input.file_path || '');
+    edits.set(f, `${edits.get(f) || ''}\n${[u.input.content, u.input.new_string, ...(u.input.edits || []).map(e => e.new_string)].filter(v => typeof v === 'string').join('\n')}`);
+  }
+  const labelRe = new RegExp(`(?<![\\w-])(${cfg.evidenceLabels.map(esc).join('|')})(?![\\w-])`, 'i');
+  const cells = l => l.trim().replace(/^\||\|$/g, '').split('|').map(s => s.trim());
+  const sourceOk = s => {
+    const toks = String(s).replace(/[`*[\]()<>]/g, ' ').split(/[\s,;]+/).map(t => t.replace(/[.:]+$/, '')).filter(t => t && !/^20\d\d-\d\d-\d\d$/.test(t) && (t.includes('/') || SRC_EXT.test(t)));
+    return toks.length > 0 && toks.every(t => !/^https?:/i.test(t) && !t.startsWith('..') && exists(t.replace(/^\.\//, '').replace(/\/+$/, '')));
+  };
+  let judged = 0;
+  for (const f of files) {
+    const full = read(abs(f)), added = edits.has(f) ? edits.get(f) : full;
+    if (/https?:\/\//i.test(added)) return `${f}: a web link was added (that is research: sources read and cited this turn)`;
+    // the label, source and date columns of every table in the file whose header names a label column
+    const rows = new Map(), lines = full.split(/\r?\n/);
+    for (let i = 0; i + 1 < lines.length; i++) {
+      if (!/^\s*\|/.test(lines[i]) || !/^\s*\|?\s*:?-{2,}/.test(lines[i + 1])) continue;
+      const h = cells(lines[i]).map(s => s.toLowerCase()), li = h.findIndex(s => /label|evidence/.test(s));
+      if (li < 0) continue;
+      const si = h.findIndex(s => /source/.test(s));
+      for (let j = i + 2; j < lines.length && /^\s*\|/.test(lines[j]); j++) rows.set(lines[j].trim(), { li, si });
+    }
+    for (const l of added.split(/\r?\n/).map(s => s.trim()).filter(Boolean)) {
+      const row = rows.get(l);
+      if (!row && !labelRe.test(l)) continue;
+      judged++;
+      const c = row ? cells(l) : null;
+      if (!(row ? labelRe.test(c[row.li] || '') : true)) return `${f}: "${l.slice(0, 60)}" has no evidence label`;
+      if (!/\b20\d\d-\d\d-\d\d\b/.test(l)) return `${f}: "${l.slice(0, 60)}" has no date`;
+      if (!sourceOk(row && row.si >= 0 ? c[row.si] : l)) return `${f}: "${l.slice(0, 60)}" names no source file of this project that exists`;
+    }
+  }
+  return judged ? '' : 'no labeled fact was written';
 }
 
 // ---------- git: no AI attribution, ever ----------
@@ -2076,11 +2168,16 @@ export function setupTurn(x = {}) {
   if (snap.files?.['SETUP-PROMPT.md'] && x.since && Date.parse(snap.at) >= x.since - 5000) return true;
   return (x.cmds || []).some(c => /SETUP-PROMPT\.md/.test(c) && /(^|[\s;&|(])(rm|del|erase|unlink|Remove-Item|ri|git\s+rm)\s/i.test(c));
 }
+// The follow-up looks back past requests that name nobody (a question in between) to the latest one that named someone,
+// at most FOLLOW_BACK requests back. Lesson: "the letter sounds cold" came two requests after the letter for one tenant,
+// with a question about a lease clause in between, so the fix could not be saved in that tenant's folder.
+const FOLLOW_BACK = 3;
 export const peopleFor = (prompt, allPrompts, ppl) => {
   const named = peopleIn(prompt, ppl);
   if (named.length) return named;
-  const earlier = (allPrompts || []).filter(p => p && p.trim() !== String(prompt).trim());
-  return earlier.length ? peopleIn(earlier[earlier.length - 1], ppl) : [];
+  const earlier = (allPrompts || []).filter(p => p && p.trim() !== String(prompt).trim()).slice(-FOLLOW_BACK);
+  for (let i = earlier.length - 1; i >= 0; i--) { const n = peopleIn(earlier[i], ppl); if (n.length) return n; }
+  return [];
 };
 const pathsPeople = (s, cfg) => [...new Set([...String(s).replace(/\\/g, '/').matchAll(new RegExp(`(?:^|[\\s"'/=])${esc(cfg.scopesRoot)}/([^/\\s"']+)/`, 'gi'))].map(m => m[1]).filter(n => !/^[_.]/.test(n)))];
 
@@ -2643,7 +2740,10 @@ export function gitignoreProblems(cfg = config()) {
   if (leak.length) probs.push(`.gitignore does not cover: ${leak.join(', ')} (secrets, local state or caches would be pushed)`);
   const hidden = cfg.gitignoreMustKeep.filter(p => ignored.has(p) && exists(p));
   if (hidden.length) probs.push(`.gitignore hides files the project needs: ${hidden.join(', ')}`);
-  const tracked = (git(['ls-files', '-ci', '--exclude-standard']).stdout || '').split(/\r?\n/).filter(Boolean);
+  // (the same exception here: a tracked vault's .obsidian settings are meant to be committed, even where .gitignore
+  // lists .obsidian/ for other projects. Lesson: an adopted vault's setup failed on "already committed but meant to be
+  // ignored: .obsidian/app.json", and 20 minutes went into reruns of the self-test)
+  const tracked = (git(['ls-files', '-ci', '--exclude-standard']).stdout || '').split(/\r?\n/).filter(f => f && !(ownVault && f.startsWith('.obsidian/')));
   if (tracked.length) probs.push(`already committed but meant to be ignored: ${tracked.slice(0, 6).join(', ')}${tracked.length > 6 ? ' ...' : ''} (git rm --cached <file>, then commit)`);
   const secretish = (git(['ls-files']).stdout || '').split(/\r?\n/).filter(f => /(^|\/)\.env(\.(?!example$)[^/]+)?$|\.(pem|key|p12|pfx)$|(^|\/)id_(rsa|ed25519|ecdsa)$/i.test(f));
   if (secretish.length) probs.push(`committed files that look like secrets: ${secretish.slice(0, 6).join(', ')} (remove them from git and rotate the secrets)`);
@@ -3310,14 +3410,26 @@ function pretoolHits(data, cfg) {
   const req = () => t().prompt || '';
   const ppl = people(cfg);
   // REQ: scope-separate. A request about one person never touches another person's folder (reads included: privacy).
+  // A waiver logged this turn ("hooks.mjs waive scope-separate <why>") counts here as it does at Stop: it covers the
+  // people its reason names, or, when it names nobody, a call that touches one person. Lesson: an agent confirmed with a
+  // waiver that "the letter" was one tenant's, and the save into that tenant's folder was still denied twice.
+  const waivedFor = () => {
+    const cmds = [...toolUses(t().entries || []).map(u => typeof u.input?.command === 'string' ? u.input.command : ''), ...loggedRuns(t().since).map(r => r.cmd)];
+    const why = cmds.flatMap(c => [...String(c).matchAll(/hooks\.mjs["']?\s+waive\s+scope-separate\s+(?:"([^"\n]+)"|'([^'\n]+)'|([^"'\n&;|]+))/gi)]).map(m => m[1] || m[2] || m[3] || '');
+    return why.length ? { any: why.some(w => !peopleIn(w, ppl).length), people: why.flatMap(w => peopleIn(w, ppl)) } : null;
+  };
   const scopeCheck = (persons, writing) => {
     // setup creates everyone's folder at once; there is no one else's data yet
     if (!ppl.length || !persons.length || settingUp()) return null;
-    const named = peopleFor(req(), t().allPrompts, ppl);
+    let named = peopleFor(req(), t().allPrompts, ppl);
+    const w = persons.some(x => !named.includes(x)) && waivedFor();
+    if (w) named = [...new Set([...named, ...w.people, ...(w.any && persons.length === 1 ? persons : [])])];
     if (persons.length > 1 && !persons.every(x => named.includes(x)))
       return `REQ: scope-separate. This touches several people's folders (${persons.join(', ')}) at once. Work on one person per tool run, and only the people this request is about.`;
     const other = persons.find(x => named.length ? !named.includes(x) : writing && !re(cfg.ruleRequest).test(req()));
-    if (other) return `REQ: scope-separate. ${cfg.scopesRoot}/${other}/ belongs to ${other}, and this request is ${named.length ? `about ${named.join(', ')}` : 'not about them'}. Don't ${writing ? 'change' : 'read'} another person's data; ask if unsure.`;
+    // the denial says how to go on without asking the user: work in the right folder, or confirm with a waiver
+    if (other) return `REQ: scope-separate. ${cfg.scopesRoot}/${other}/ belongs to ${other}, and this request is ${named.length ? `about ${named.join(', ')}` : 'not about them'}. Don't ${writing ? 'change' : 'read'} another person's data. ` +
+      `If the request is about ${other} after all (a follow-up to earlier work on them), confirm it and retry: node tools/hooks/hooks.mjs waive scope-separate "<why this is ${other}'s>". Otherwise ${named.length ? `work only in ${named.map(n => `${cfg.scopesRoot}/${n}/`).join(', ')}` : 'leave that folder alone'}.`;
     return null;
   };
   // REQ: subagent-brief. A sub-agent only follows the rules it is shown: every brief points it at AGENTS.md.
@@ -3483,7 +3595,8 @@ function pretoolHits(data, cfg) {
       }
     }
     // REQ: scope-separate (commands)
-    const who = pathsPeople(cmd, cfg).filter(n => ppl.some(x => x.name === n));
+    // (a waiver's reason may name the folder it is about: the waive command reads and writes no one's data)
+    const who = /^\s*node\s+["']?(\.\/)?tools[\\/]hooks[\\/]hooks\.mjs["']?\s+waive\s/.test(cmd) && !/[;&|<>`]|\$\(/.test(cmd.replace(/"[^"\n]*"|'[^'\n]*'/g, '')) ? [] : pathsPeople(cmd, cfg).filter(n => ppl.some(x => x.name === n));
     if (who.length) { const writing = /(^|[\s;&|(])(rm|del|mv|move|cp|copy|Remove-Item|Move-Item|Copy-Item|Set-Content|Out-File|Add-Content|tee|sed\s+-i)\b|>/.test(cmd); add(scopeCheck(who, writing)); }
     // REQ: whole-output. Lesson: piping a lookup tool into head/grep hid the part that mattered.
     for (const tool of cfg.wholeOutputTools) {
@@ -4071,7 +4184,7 @@ export function coreChecks(x, cfg) {
   // Lesson: "git push" was denied, and the answer said "Pushed." without a word about it.
   if (x.toolsKnown) {
     const tries = actionAttempts(x.entries || []);
-    const claims = x.answer.split(/(?<=[.!?\n])\s+/).filter(s => !/\b(not|n't|couldn'?t|wasn'?t|didn'?t|denied|blocked|failed|refused|unable|waiting|needs? your|once you|draft)\b/i.test(s));
+    const claims = claimClauses(x.answer);
     for (const a of CLAIMED) {
       const mine = tries.filter(t => t.kind === a.kind);
       if (mine.length && !mine[mine.length - 1].ok && claims.some(s => a.says.test(s)))
@@ -4434,6 +4547,9 @@ export function holds(c, x) {
   if (c.anyOf && !c.anyOf.some(sub => (x.toolsKnown || !needsHistory(sub)) && holds(sub, x))) return false; // without history, only what can be judged counts
   // guiChanged: a screen file changed (the engine's guiFiles, without guiIgnore), as the screenshot loop sees it
   if (c.guiChanged && !(x.gui || []).length) return false;
+  // knowledgeFromFiles: every fact this turn wrote into the knowledge files is labeled, dated and sourced from this
+  // project's own files (knowledgeFromFiles above)
+  if (c.knowledgeFromFiles && knowledgeFromFiles(x)) return false;
   // changedContentMatches: what this turn added to the changed files matches. Event triggers: what the agent wrote,
   // not what the user asked, makes a skill mandatory (a change to sign-in code needs the security review).
   if (c.changedContentMatches) {
@@ -4621,13 +4737,26 @@ ${turnText(x.entries)}`;
       // a requirement met by an earlier message of this turn stays met, so a re-block never forces the answer to repeat
       // it. A Finished section counts from any message after the last file change, since it still lists every change.
       // Lesson: every re-block produced a near-copy.
-      if (holds(when || {}, x) && !holds(q.require || {}, x) && !holds(q.require || {}, { ...x, answer: q.tag === 'finished-summary' ? x.afterChange : earlier })) out.push({ tag: q.tag, specific: q.waiver === 'specific', fixes: q.fixes || filesOfCond(q.require), msg: (q.message || `Requirement ${q.tag} is not met.`) + (x.trigger ? ` (seen in ${x.trigger})` : '') + (x.detail ? ` (${x.detail})` : '') });
+      if (holds(when || {}, x) && !holds(q.require || {}, x) && !holds(q.require || {}, { ...x, answer: q.tag === 'finished-summary' ? x.afterChange : earlier }) && !(q.tag === 'version-bump' && bumpedThisSession(x, q.require?.filesChanged))) out.push({ tag: q.tag, specific: q.waiver === 'specific', fixes: q.fixes || filesOfCond(q.require), msg: (q.message || `Requirement ${q.tag} is not met.`) + (x.trigger ? ` (seen in ${x.trigger})` : '') + (x.detail ? ` (${x.detail})` : '') });
       if (TIMING) TIMING.push([`check ${q.tag}`, Math.round((performance.now() - t0) * 10) / 10]);
     } catch (e) { out.push({ tag: 'requirements-valid', msg: `requirements.json entry "${q.tag}" is invalid (${e.message}).` }); }
   }
   return out;
 }
 
+// version-bump: the version was already raised earlier in this session and nothing was released since (no tag, no
+// release, no publish), so this turn's change goes out in that same new version. Lesson: a README fix, a turn after
+// the feature that raised the version to 0.4.0, was made to cut 0.4.1 with its own release notes.
+const BUMP_CMD = /\b(npm|pnpm|yarn)\s+version\b|\b(poetry|hatch|uv)\s+version\b|\bcargo\s+set-version\b|\bbump(2version|version|-my-version)\b/i;
+export function bumpedThisSession(x, versionFiles) {
+  if (!x.toolsKnown || !x.sessionTools || !versionFiles) return false;
+  const inputs = String(x.sessionTools).split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+  const cmds = inputs.map(i => typeof i.command === 'string' ? i.command : '').filter(Boolean);
+  if (cmds.some(c => gitRun('tag')(c) || CLAIMED.find(a => a.kind === 'publish').cmd(c) || /\bgh\s+release\b/.test(c))) return false;
+  // (a write or edit of the version file that writes a version line; a read is no bump)
+  const wrote = i => [i.content, i.new_string, ...(i.edits || []).map(e => e?.new_string)].some(s => typeof s === 'string' && /\bversion\b/i.test(s));
+  return inputs.some(i => typeof i.file_path === 'string' && wrote(i) && match(rel(i.file_path), [].concat(versionFiles))) || cmds.some(c => BUMP_CMD.test(cmdHead(c)));
+}
 // A waiver holds for the whole turn: written once, in any message of it. A check marked "waiver": "specific" (a safeguard)
 // takes one only with a real reason of a few words. Lesson: a waiver in round 1 was asked for again in round 3.
 export const waived = (tag, text, specific = false) => re(specific ? `N/?A\\s*\\(\\s*${esc(tag)}\\s*\\)[ \\t]*:[ \\t]*\\S+([ \\t]+\\S+){3,}` :`N/?A\\s*\\(\\s*${esc(tag)}\\s*\\)|N/?A:\\s*${esc(tag)}\\b`).test(text || '');

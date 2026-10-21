@@ -1018,10 +1018,13 @@
           },
           {
             "playbookUsed": "ingest"
+          },
+          {
+            "knowledgeFromFiles": true
           }
         ]
       },
-      "message": "Facts were written into docs/knowledge: they come through the research skill (sources read this turn, cited), the knowledge-capture skill (what the user said) or the ingest runbook (a file they gave).",
+      "message": "Facts were written into docs/knowledge: they come through the research skill (sources read this turn, cited), the knowledge-capture skill (what the user said) or the ingest runbook (a file they gave). Facts read from this project's own files pass as they are when each one has its evidence label (observed, ...), the date, and the project file it came from as its source.",
       "pack": "knowledge"
     },
     {

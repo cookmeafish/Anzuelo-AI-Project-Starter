@@ -7,6 +7,26 @@ print, or to a command or setting a project's own hooks or scripts may rely on, 
 hooks:**, and an upgrade lists each one as its own review item.
 
 - 2026-10-21: Fewer retries and Stop rounds (field report from an adopted project).
+  - **Guards and false alarms (trials of 8 new projects, round 4):** a follow-up that names nobody ("make the letter
+    friendlier") keeps the person of the latest of the last 3 requests that named one, so a question in between no
+    longer cuts it off. A `waive scope-separate "<why>"` logged this turn now counts before tool calls too: it covers
+    the people its reason names (or, naming nobody, a call that touches one person), never several people at once, and
+    the waive command itself is not checked for the folder it names. The scope denial says how to go on without asking:
+    the waive command, or the folder to work in. The self-test runs a project's own scenarios against the project's own
+    checks: one expecting a block was looked up in the fixtures-only base, where those checks are off, and was skipped as
+    "packs not installed"; now it runs, and one that cannot run (no such check) FAILs with the reason. `claim-checked`
+    counts only git run as a command (not words in quotes or a here-document) and judges each clause, in English and
+    Spanish, so "nothing was committed" is not a claim. `knowledge-source-trigger` also passes when every fact written
+    is labeled, dated and sourced from a file of the project that exists (new condition `knowledgeFromFiles`; a web link
+    still needs research). The `.gitignore` check accepts a tracked vault's `.obsidian/` files in "already committed"
+    too. Publish safety skips reserved addresses (private, shared, link-local, documentation and special IPv4 ranges;
+    example domains and `.example`/`.test`/`.invalid`). `name-var` does not flag, in code, a name that is the code's own
+    package or command (a root or `src/` code folder, or the manifest's name), so a CLI keeps its program name.
+    `version-bump` is met when the version was raised earlier in the session and nothing was tagged, released or
+    published since. Scenarios: `scope-separate:`, `own-scenarios-run:`, `claim-checked:`, `knowledge-source-trigger:`,
+    `gitignore-ready:`, `publish-safety:`, `name-var:`, `version-bump:`.
+    **Breaking for project hooks:** the scope-separate denial text changed (it ends with the waive command and the
+    folder to work in instead of "ask if unsure"), and a project's own scenario that cannot run is now a FAIL.
   - **Checks fire on the right turn (trials of 8 new projects):** a runbook only opened (read, its skill not invoked)
     counts as followed only when the request routed to it, the answer names it, the turn changed files its own checks
     watch, or, outside setup, it is the one the agent picked for an unrouted work turn, so a setup dry run of

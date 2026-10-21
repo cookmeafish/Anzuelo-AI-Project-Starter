@@ -256,7 +256,11 @@ let idc = 0;
 function transcript(dir, s, since) {
   const rows = [];
   const iso = t => new Date(t).toISOString();
-  rows.push({ type: 'user', timestamp: iso(since - 60_000), message: { role: 'user', content: s.earlierPrompt || 'an earlier message' } });
+  // (earlierPrompt may list several earlier requests, oldest first, each with its own answer)
+  [].concat(s.earlierPrompt || 'an earlier message').forEach((p, i, all) => {
+    rows.push({ type: 'user', timestamp: iso(since - 60_000 * (all.length - i)), message: { role: 'user', content: p } });
+    if (i < all.length - 1) rows.push({ type: 'assistant', message: { content: [{ type: 'text', text: 'an earlier answer' }] } });
+  });
   // tool calls from earlier turns of the session (before this turn's prompt)
   for (const t of s.before || []) { const id = `toolu_${++idc}`; const input = { ...t.input }; if (input.file_path) input.file_path = path.join(dir, input.file_path);
     rows.push({ type: 'assistant', message: { content: [{ type: 'tool_use', id, name: t.name, input }] } }, { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: id, content: t.result || 'ok' }] } }); }
@@ -304,6 +308,8 @@ const MEM = { '.memtest/rule.md': '---\nname: rule\n---\nrule' };
 const many = n => Array.from({ length: n }, (_, i) => ({ name: 'Grep', input: { pattern: 'x' + i } }));
 const FIN = '\n\n## Finished\n- Done. Files: docs/x.md';
 const KNOW = '---\ntopic: Desks\nchecked: 2026-10-17\nvolatile: yes\n---\n# Desks\n| Fact | Label | Source | Date |\n|---|---|---|---|\n| Desk X costs $300 | source verified | https://example.com | 2026-10-17 |\n\n## Related\n- [Budget](budget.md): the limit this choice must fit\n';
+// a knowledge note whose one fact was read from a project file: its source, label and date
+const KNOW_LOCAL = (src, label, date) => `---\ntopic: Style\nchecked: 2026-10-21\nvolatile: no\n---\n# Style\n| Fact | Label | Source | Date |\n|---|---|---|---|\n| Narration is in the past tense | ${label} | ${src} | ${date} |\n\n## Related\n- [Desks](desks.md)\n`;
 const TWIN = '# changed twin\nCLAUDE.md and AGENTS.md are twins.\n';
 const NEWPB = '---\nname: meal-plan\nsummary: Plan meals\ntriggers: meal plan, plan meals\nchecks: none - a test runbook\n---\n# Playbook\n## Steps\n1. a\n## Done when\n- [ ] b (judgment: a test runbook)\n';
 
@@ -752,6 +758,24 @@ const PRETOOL = [
   { name: 'request naming nobody writes a person\'s file: denied', tool: 'Edit', input: { file_path: 'profiles/bob/notes.md' }, edit: PEOPLE, prompt: 'tidy up the notes', deny: true, tag: 'scope-separate' },
   { name: 'a follow-up naming nobody, after a request about bob, writes bob\'s file: allowed', tool: 'Write', input: { file_path: 'profiles/bob/letter-v2.md', content: 'x' }, edit: PEOPLE, earlierPrompt: 'write a letter to bob about the rent', prompt: 'that letter sounds like a robot, make it friendly', deny: false },
   { name: 'a follow-up naming nobody, after a request about bob, writes alice\'s file: denied', tool: 'Write', input: { file_path: 'profiles/alice/letter-v2.md', content: 'x' }, edit: PEOPLE, earlierPrompt: 'write a letter to bob about the rent', prompt: 'that letter sounds like a robot, make it friendly', deny: true, tag: 'scope-separate' },
+  // a follow-up keeps the person of the last request that named one, past a question in between; not further back
+  { name: 'scope-separate: a follow-up two requests after the letter for bob, a question in between, writes bob\'s file: allowed', tool: 'Write', input: { file_path: 'profiles/bob/letter-v2.md', content: 'x' }, edit: PEOPLE,
+    earlierPrompt: ['write a letter to bob about the rent', 'check this lease clause for problems'], prompt: 'the letter sounds like a robot, make it friendly', deny: false },
+  { name: 'scope-separate: a follow-up after the letter for bob and a question writes alice\'s file: denied', tool: 'Write', input: { file_path: 'profiles/alice/letter-v2.md', content: 'x' }, edit: PEOPLE,
+    earlierPrompt: ['write a letter to bob about the rent', 'check this lease clause for problems'], prompt: 'the letter sounds like a robot, make it friendly', deny: true, tag: 'scope-separate' },
+  { name: 'scope-separate: bob named four requests back no longer carries over: denied', tool: 'Write', input: { file_path: 'profiles/bob/letter-v2.md', content: 'x' }, edit: PEOPLE,
+    earlierPrompt: ['write a letter to bob about the rent', 'check this lease clause', 'what is a deposit scheme', 'list the boiler rules'], prompt: 'make the letter friendlier', deny: true, tag: 'scope-separate' },
+  // a waiver logged this turn counts before the tool call too, for the people it names (or the one person touched)
+  { name: 'scope-separate: a waiver naming bob lets the save into bob\'s folder through: allowed', tool: 'Write', input: { file_path: 'profiles/bob/letter-v2.md', content: 'x' }, edit: PEOPLE, prompt: 'tidy up the notes',
+    tools: [bash('node tools/hooks/hooks.mjs waive scope-separate "the only letter is bob\'s rent letter, saved in profiles/bob/"', 'waived for this turn: scope-separate')], deny: false },
+  { name: 'scope-separate: a waiver naming bob does not open alice\'s folder: denied', tool: 'Write', input: { file_path: 'profiles/alice/letter-v2.md', content: 'x' }, edit: PEOPLE, prompt: 'tidy up the notes',
+    tools: [bash('node tools/hooks/hooks.mjs waive scope-separate "the only letter is bob\'s rent letter, saved in profiles/bob/"', 'waived for this turn: scope-separate')], deny: true, tag: 'scope-separate' },
+  { name: 'scope-separate: a waiver that names nobody covers one person, never two at once: denied', tool: 'Bash', input: { command: 'cat profiles/alice/a.md profiles/bob/b.md' }, edit: PEOPLE, prompt: 'tidy up the notes',
+    tools: [bash('node tools/hooks/hooks.mjs waive scope-separate "the user means the letter drafted earlier"', 'waived for this turn: scope-separate')], deny: true, tag: 'scope-separate' },
+  { name: 'scope-separate: the denial says how to go on without asking (the waive command, the right folder): denied', tool: 'Write', input: { file_path: 'profiles/alice/letter-v2.md', content: 'x' }, edit: PEOPLE, prompt: 'update bob notes',
+    deny: true, tag: 'scope-separate', says: /waive scope-separate "<why this is alice's>"[\s\S]*work only in profiles\/bob\//i },
+  { name: 'scope-separate: the waive command itself may name the folder: allowed', tool: 'Bash', input: { command: 'node tools/hooks/hooks.mjs waive scope-separate "the letter is bob\'s, saved in profiles/bob/"' }, edit: PEOPLE, prompt: 'update alice notes', deny: false },
+  { name: 'scope-separate: a waive chained with a read of bob\'s file is still checked: denied', tool: 'Bash', input: { command: 'node tools/hooks/hooks.mjs waive scope-separate "it is fine" && cat profiles/bob/notes.md' }, edit: PEOPLE, prompt: 'update alice notes', deny: true, tag: 'scope-separate' },
   { name: 'setup creating each person\'s folder: allowed', tool: 'Write', input: { file_path: 'profiles/bob/PROFILE.md', content: '# Bob' }, edit: { ...PEOPLE, 'SETUP-PROMPT.md': () => '# Setup' }, prompt: 'set up this project. I rent out three flats', removeMarker: true, deny: false },
   // project-configured guards
   { name: 'whole-output tool piped into head: denied', tool: 'Bash', input: { command: 'python tools/lookup.py desks 2>&1 | head -5' }, edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), wholeOutputTools: ['tools/lookup.py'] }) }, deny: true, tag: 'whole-output' },
@@ -964,6 +988,23 @@ STOP.push(
     answer: 'Pushed. Everything is on GitHub now.', expect: { block: true, tags: ['claim-checked'] } },
   { name: 'claim-checked: the push was denied and the answer says so: passes', prompt: 'push my work', tools: [{ name: 'Bash', input: { command: 'git push origin main' }, result: 'REQ: git-safety. This pushes to the protected branch "main"', denied: true }],
     answer: 'The push to main was denied: main is protected. Say "push it to main" and I will.', expect: { not: ['claim-checked'] } },
+  // only git run as a command is a commit: a refused script whose here-document mentions "git ... commit" is none, and
+  // an answer saying nothing was committed claims nothing (English and Spanish)
+  { name: 'claim-checked: a refused script whose text mentions git and commit, and "nothing was committed": passes', prompt: 'set up this novel project',
+    tools: [{ name: 'Bash', input: { command: "cat > .cache/fit.mjs <<'EOF'\nconst why = 'the git repository holds a novel, and the secrets hook scans every commit';\nEOF\nnode .cache/fit.mjs" }, result: 'Contains brace with quote character (expansion obfuscation)', error: true }],
+    answer: 'Set up. Committing chapters also needs your OK, so nothing was committed. I haven\'t committed anything.', expect: { not: ['claim-checked'] } },
+  { name: 'claim-checked: a refused script whose here-document says "git ... commit" is no commit attempt: passes', prompt: 'tidy the notes',
+    tools: [{ name: 'Bash', input: { command: "cat > .cache/x.mjs <<'EOF'\n// the git hook checks each commit\nEOF\nnode .cache/x.mjs" }, result: 'refused', error: true }],
+    answer: 'Tidied. The notes were committed by you this morning, so I left git alone.', expect: { not: ['claim-checked'] } },
+  { name: 'claim-checked: the commit was denied and a Spanish answer says "no hice commit": passes', prompt: 'guarda los cambios en git',
+    tools: [{ name: 'Bash', input: { command: 'git -c user.name=x commit -m "capitulo 3"' }, result: 'REQ: no-ai-attribution. denied', denied: true }],
+    answer: 'Todavía no hice commit: el hook lo bloqueó. Dime si lo intento de nuevo.', expect: { not: ['claim-checked'] } },
+  { name: 'claim-checked: the commit was denied and the Spanish answer says "hice commit": blocked', prompt: 'guarda los cambios en git',
+    tools: [{ name: 'Bash', input: { command: 'cd repo && git -c user.name=x commit -m "capitulo 3"' }, result: 'REQ: no-ai-attribution. denied', denied: true }],
+    answer: 'Listo, hice commit de los cambios del capítulo 3.', expect: { block: true, tags: ['claim-checked'] } },
+  { name: 'claim-checked: the commit was denied and the answer says "Committed, no problems": blocked', prompt: 'commit my work',
+    tools: [{ name: 'Bash', input: { command: 'git commit -am "wip"' }, result: 'REQ: no-ai-attribution. denied', denied: true }],
+    answer: 'Committed, no problems.', expect: { block: true, tags: ['claim-checked'] } },
   // Lesson: with no toolchain nothing compiled, and the review still said "Verdict: SHIP"
   { name: 'claim-checked: the tests were waived and the answer says it ships: blocked', prompt: 'add the endpoint',
     answer: 'Added the endpoint. Verdict: SHIP. N/A(app-test-pass): Go is not installed on this machine.', expect: { tags: ['claim-checked'] } },
@@ -1145,6 +1186,13 @@ STOP.push(
   { pack: 'app', name: 'version bump required once configured: blocked', prompt: 'add a feature to export reports as csv', tools: [pb('feature')], files: SPEC,
     edit: { 'tools/hooks/requirements.json': s => { const j = JSON.parse(s); j.requirements.find(r => r.tag === 'version-bump').enabled = true; return JSON.stringify(j); } },
     answer: 'Playbook: feature.md.\n' + VERIF + FIN, expect: { block: true, tags: ['version-bump'] } },
+  // a version already raised earlier in this session, with nothing released since, covers this turn's change too
+  ...[['the version raised in an earlier turn of the session, nothing released since: passes', [], false],
+    ['the version raised earlier, then tagged and released: blocked', [bash('git tag v1.2.0')], true],
+    ['the version file only read earlier in the session: blocked', null, true]].map(([n, extra, block]) => ({ pack: 'app', name: `version-bump: ${n}`, prompt: 'add a feature to export reports as csv', tools: [pb('feature')], files: SPEC,
+    before: extra ? [{ name: 'Edit', input: { file_path: 'package.json', old_string: '"version": "1.1.0"', new_string: '"version": "1.2.0"' } }, ...extra] : [{ name: 'Read', input: { file_path: 'package.json' } }],
+    edit: { 'tools/hooks/requirements.json': s => { const j = JSON.parse(s); j.requirements.find(r => r.tag === 'version-bump').enabled = true; return JSON.stringify(j); } },
+    answer: 'Playbook: feature.md.\n' + VERIF + FIN, expect: block ? { tags: ['version-bump'] } : { not: ['version-bump'] } })),
   // knowledge pack
   { pack: 'knowledge', name: 'research that recorded nothing: blocked', prompt: 'research desk prices', tools: [sk('research'), bash('node skills/research/scripts/claims.mjs check .cache/research/desk.md', 'CLAIMS: PASS - 1 claims')], answer: 'Skill: research. Sources: https://a.com\nVerified: 1 claims traced to 3 independent sources; 0 cut or marked not verified.', expect: { block: true, tags: ['research-recorded'] } },
   { pack: 'knowledge', name: 'knowledge answer that cites nothing: blocked', prompt: 'what do we know about desk prices', tools: [sk('research'), ...many(15)], files: { 'docs/STATUS.md': 'x' },
@@ -1647,6 +1695,11 @@ STOP.push(
     files: { 'tools/hooks/project-scenarios.mjs': '// Deskmate fixtures\nexport default () => ({ stop: [] });\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { not: ['name-var'] } },
   { name: 'name-var: the package name in pyproject.toml and a "python -m" command: passes', prompt: 'package the photo tool', edit: { 'docs/names.json': () => '{ "PROJECT_NAME": "photodate" }' },
     files: { 'pyproject.toml': '[project]\nname = "photodate"\n', 'tools/run.ps1': 'python -m photodate --dry-run\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { not: ['name-var'] } },
+  // the name is also the code's own package: the program name a CLI shows is that command, not a typed project name
+  { name: 'name-var: a CLI names its own package as its program name ("prog"): passes', prompt: 'add a dry run option', edit: { 'docs/names.json': () => '{ "PROJECT_NAME": "photodate" }' },
+    files: { 'photodate/__init__.py': '', 'photodate/cli.py': 'import argparse\nparser = argparse.ArgumentParser(prog="photodate", epilog="Example: python -m photodate C:/Photos --dry-run")\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { not: ['name-var'] } },
+  { name: 'name-var: the name typed in code that is not the package\'s own name: blocked', prompt: 'add a dry run option', edit: { 'docs/names.json': () => '{ "PROJECT_NAME": "photodate" }' },
+    files: { 'src/renamer/__init__.py': '', 'src/renamer/cli.py': 'import argparse\nparser = argparse.ArgumentParser(description="photodate renames photos")\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { tags: ['name-var'] } },
   { name: 'no-verbatim-examples: engine files and relayed agent messages are not the user\'s words: passes', prompt: 'tidy up\n<agent-message from="helper">every chart in the monthly report should use the warm colour palette</agent-message>',
     files: { 'docs/notes-a.md': '# Notes\nevery chart in the monthly report should use the warm colour palette\n', 'tools/chart-check.mjs': '// make every chart in the monthly report use the warm colour palette\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { not: ['no-verbatim-examples'] } },
   { name: 'no-verbatim-examples: engine files are never scanned for the user\'s words: passes', prompt: 'please make every chart in the monthly report use the warm colour palette',
@@ -1696,6 +1749,15 @@ STOP.push(
   { pack: 'knowledge', name: 'deliverable-trigger: an output written without the deliverable runbook: blocked', prompt: 'put it in a file', files: { 'outputs/report.md': '# Report\nShort.\n' }, answer: 'Saved.' + FIN, expect: { tags: ['deliverable-trigger'] } },
   { pack: 'knowledge', name: 'deliverable-trigger: the deliverable runbook followed: passes', prompt: 'put it in a file', tools: [pb('deliverable')], files: { 'outputs/report.md': '# Report\nShort.\n' }, answer: 'Playbook: deliverable.md. Saved.' + FIN, expect: { not: ['deliverable-trigger'] } },
   { pack: 'knowledge', name: 'knowledge-source-trigger: facts written without research or capture: blocked', prompt: 'tidy the desk note', files: { 'docs/knowledge/desks.md': KNOW, 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { tags: ['knowledge-source-trigger'] } },
+  // facts read from the project's own files, each labeled, dated and sourced from a file that exists, need no skill ritual
+  { pack: 'knowledge', name: 'knowledge-source-trigger: facts labeled "observed" with the project file and date: passes', prompt: 'set up the style sheet from the chapters',
+    files: { 'chapters/01-forge.md': '# Forge\nAren held the hammer.\n', 'docs/knowledge/style.md': KNOW_LOCAL('chapters/01-forge.md', 'observed', '2026-10-21'), 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { not: ['knowledge-source-trigger'] } },
+  { pack: 'knowledge', name: 'knowledge-source-trigger: a labeled fact whose source file does not exist: blocked', prompt: 'set up the style sheet from the chapters',
+    files: { 'docs/knowledge/style.md': KNOW_LOCAL('chapters/09-missing.md', 'observed', '2026-10-21'), 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { tags: ['knowledge-source-trigger'] } },
+  { pack: 'knowledge', name: 'knowledge-source-trigger: a row with no evidence label: blocked', prompt: 'set up the style sheet from the chapters',
+    files: { 'chapters/01-forge.md': '# Forge\n', 'docs/knowledge/style.md': KNOW_LOCAL('chapters/01-forge.md', 'certain', '2026-10-21'), 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { tags: ['knowledge-source-trigger'] } },
+  { pack: 'knowledge', name: 'knowledge-source-trigger: a labeled fact without a date: blocked', prompt: 'set up the style sheet from the chapters',
+    files: { 'chapters/01-forge.md': '# Forge\n', 'docs/knowledge/style.md': KNOW_LOCAL('chapters/01-forge.md', 'observed', 'today'), 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { tags: ['knowledge-source-trigger'] } },
   { pack: 'knowledge', name: 'knowledge-source-trigger: through the research skill: passes', prompt: 'tidy the desk note', tools: [sk('research')], files: { 'docs/knowledge/desks.md': KNOW, 'docs/CHANGELOG.md': 'x' }, answer: 'Skill: research. Desk X costs $300.[1]\n\nSources:\n[1] docs/knowledge/desks.md' + FIN, expect: { not: ['knowledge-source-trigger'] } }
 );
 
@@ -2195,14 +2257,28 @@ process.on('exit', () => unregisterSuite());
 // A scenario for a pack this project doesn't have (it names a runbook or a check that isn't here) is skipped, so a
 // knowledge-only project still runs every test that applies to it. The starter installs every pack, so it runs all.
 const B = base();
-const hereSrc = fs.readFileSync(path.join(B, 'tools/hooks/hooks.mjs'), 'utf8') + fs.readFileSync(path.join(B, 'tools/hooks/requirements.json'), 'utf8');
+const srcIn = b => fs.readFileSync(path.join(b, 'tools/hooks/hooks.mjs'), 'utf8') + fs.readFileSync(path.join(b, 'tools/hooks/requirements.json'), 'utf8');
+const hereSrc = srcIn(B);
 const INSTALLED = (() => { try { return JSON.parse(fs.readFileSync(path.join(B, 'tools/hooks/config.json'), 'utf8')).packs || []; } catch { return []; } })();
 const packOk = s => !s.pack || INSTALLED.includes(s.pack);
 // the project's own scenarios run in a copy of the project as it is, the engine's in the fixtures-only base (base())
 const baseOf = s => base(!!s.own);
+// The checks a scenario's tags are looked up in: the base it runs in. The project's own checks are switched off in the
+// fixtures-only base, so its own scenarios look in the project's copy. Lesson: a project's "must block" scenario for its
+// own check was looked up in the fixtures-only base, did not find the check, and was skipped as "packs not installed".
+let HOST_SRC = null;
+const srcOf = s => s.own ? (HOST_SRC ??= srcIn(base(true))) : hereSrc;
+const tagKnown = (s, t) => SCENARIO_TAGS.has(t) || [`'${t}'`, `"${t}"`, `REQ: ${t}`].some(k => srcOf(s).includes(k));
 const applies = s => packOk(s) && (s.tools || []).every(t => t.name !== 'Read' || !/^docs\/playbooks\//.test(t.input.file_path) || fs.existsSync(path.join(baseOf(s), t.input.file_path)) || (s.files || {})[t.input.file_path] != null)
-  && (s.expect?.tags || []).every(t => SCENARIO_TAGS.has(t) || hereSrc.includes(`'${t}'`) || hereSrc.includes(`"${t}"`) || hereSrc.includes(`REQ: ${t}`))
-  && Object.keys(s.edit || {}).every(p => p !== 'tools/hooks/requirements.json' || !/version-bump/.test(String(s.edit[p])) || hereSrc.includes('"version-bump"'));
+  && (s.expect?.tags || []).every(t => tagKnown(s, t))
+  && Object.keys(s.edit || {}).every(p => p !== 'tools/hooks/requirements.json' || !/version-bump/.test(String(s.edit[p])) || srcOf(s).includes('"version-bump"'));
+// The project's own scenario is never skipped quietly: one that cannot run here is a FAIL that says why.
+const ownSkipWhy = s => {
+  const gone = (s.expect?.tags || []).filter(t => !tagKnown(s, t));
+  if (gone.length) return `no check named ${gone.join(', ')} in this project (tools/hooks/requirements.json or the engine): add the check, or fix the tag`;
+  if (!packOk(s)) return `the ${s.pack} pack is not installed`;
+  return 'it reads a runbook this project does not have';
+};
 let skipped = 0;
 
 if (process.argv[2] === '--ablation') {
@@ -2344,7 +2420,7 @@ const helpers = HELPER ? [] : Array.from({ length: SHARDS - 1 }, (_, k) => new P
 
 for (const s of STOP) {
   if (!mine()) continue;
-  if (!applies(s)) { skipped++; if (process.env.SHOW_SKIPS) console.log('SKIP  stop: ' + s.name); continue; }
+  if (!applies(s)) { if (s.own) { report(false, 'stop: ' + s.name, `could not run: ${ownSkipWhy(s)}`); continue; } skipped++; if (process.env.SHOW_SKIPS) console.log('SKIP  stop: ' + s.name); continue; }
   const r = runStop(s);
   let why = '';
   // no "block" in expect: only the named tags matter (other checks may still block the fixture)
@@ -2363,7 +2439,7 @@ for (const s of STOP) {
 
 for (const s of PRETOOL) {
   if (!mine()) continue;
-  if (!packOk(s)) { skipped++; continue; }
+  if (!packOk(s)) { if (s.own) { report(false, 'pretool: ' + s.name, `could not run: ${ownSkipWhy(s)}`); continue; } skipped++; continue; }
   const dir = copyProject(!!s.own);
   try {
     write(dir, s.setup);
@@ -2386,7 +2462,10 @@ for (const s of PRETOOL) {
 for (const s of PROMPT) {
   if (!mine()) continue;
   const routes = (s.has || []).map(h => /^ROUTE: ([\w-]+)$/.exec(h)?.[1]).filter(Boolean);
-  if (!packOk(s) || routes.some(r => !fs.existsSync(path.join(baseOf(s), 'docs/playbooks', r + '.md')) && !(s.setup || {})[`docs/playbooks/${r}.md`])) { skipped++; continue; }
+  if (!packOk(s) || routes.some(r => !fs.existsSync(path.join(baseOf(s), 'docs/playbooks', r + '.md')) && !(s.setup || {})[`docs/playbooks/${r}.md`])) {
+    if (s.own) { report(false, 'prompt: ' + s.name, `could not run: ${packOk(s) ? 'it expects a route to a runbook this project does not have' : ownSkipWhy(s)}`); continue; }
+    skipped++; continue;
+  }
   const dir = copyProject(!!s.own);
   try {
     write(dir, s.setup);
@@ -3289,6 +3368,32 @@ if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) { // host-fi
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
+if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) { // own-scenarios-run: a project's "must block" scenarios run against its own checks and fail loudly
+  // A made-up host project with two checks of its own on its letters: one that blocks a stiff letter (tone-good), one
+  // whose script passes everything (tone-weak), and a scenario for a check it does not have (tone-gone). Its self-test
+  // runs the "must block" scenarios against its own checks: the working check passes, the weak one and the missing one
+  // FAIL with the reason, and nothing is skipped. Lesson: these scenarios were skipped as "packs not installed here", so
+  // a check that never blocked passed the project's self-test.
+  const dir = copyProject();
+  try {
+    fs.rmSync(path.join(dir, '.starter-template'), { force: true });
+    const check = (tag, script) => ({ tag, rule: '7', when: { filesChanged: ['letters/**'] }, require: { runEach: { files: ['letters/*.md'], cmd: `node ${script} "{file}"`, pass: 'RESULT: PASS' } }, message: 'Letters are friendly and plain.' });
+    const stiff = n => `{ name: '${n}: a stiff letter: blocked', prompt: 'write the letter', files: { 'letters/a.md': 'Dear Sam,\\nyou must pay by Friday.\\n' }, answer: 'Saved letters/a.md.', expect: { tags: ['${n}'] } }`;
+    write(dir, { 'tools/starter.local.json': JSON.stringify({ path: ROOT }),
+      'tools/tone.mjs': "import fs from 'node:fs';\nconsole.log(/you must/i.test(fs.readFileSync(process.argv[2], 'utf8')) ? 'RESULT: FAIL' : 'RESULT: PASS');\n",
+      'tools/tone-weak.mjs': "console.log('RESULT: PASS');\n",
+      'tools/hooks/project-scenarios.mjs': `export default () => ({ stop: [${['tone-good', 'tone-weak', 'tone-gone'].map(stiff).join(', ')}], pretool: [], prompt: [] });\n` });
+    applyEdits(dir, { 'tools/hooks/requirements.json': s => { const j = JSON.parse(s); j.requirements.push(check('tone-good', 'tools/tone.mjs'), check('tone-weak', 'tools/tone-weak.mjs')); return JSON.stringify(j, null, 2); } });
+    spawnSync(process.execPath, ['tools/hooks/hooks.mjs', 'sync'], { cwd: dir, encoding: 'utf8' });
+    const r = spawnSync(process.execPath, [path.join(dir, 'tools/hooks/selfcheck.mjs'), '--tags', 'tone-good,tone-weak,tone-gone'], { cwd: dir, encoding: 'utf8', timeout: 600000 });
+    const out = r.stdout || '';
+    report(r.status === 1 && /^PASS {2}stop: tone-good: a stiff letter: blocked/m.test(out) && /^FAIL {2}stop: tone-weak: a stiff letter: blocked {2}-> missing tag \[tone-weak\]/m.test(out)
+      && /^FAIL {2}stop: tone-gone: a stiff letter: blocked {2}-> could not run: no check named tone-gone/m.test(out) && !/skipped: packs not installed/.test(out),
+      'own-scenarios-run: a project\'s "must block" scenarios run against its own checks; a check that does not block, or does not exist, FAILs the self-test',
+      `exit ${r.status}: ${out.split(/\r?\n/).filter(l => /^(PASS|FAIL|selfcheck)/.test(l)).join(' / ').slice(0, 900)} ${String(r.stderr || '').slice(-300)}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
 if (mineB()) { // upgrade-breaking: the review lists each "Breaking for project hooks" note new since the project's engine commit, when it has its own hooks
   const { changelogSince, breakingItems } = await import(pathToFileURL(path.join(B, 'tools/hooks/hooks.mjs')).href);
   const head = '# Changelog\n\nIntro: a **Breaking for project hooks:** mark in prose is not an entry.\n\n';
@@ -3857,6 +3962,18 @@ if (mineB()) { // plan-required during setup: app files the setup writes count, 
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
+if (mineB()) { // publish-safety: reserved addresses (documentation, private and special-use IP ranges, example domains) are nobody's personal data
+  const { personalDetails } = await import(pathToFileURL(path.join(B, 'tools/hooks/hooks.mjs')).href);
+  const quiet = ['blocked ranges: 10.0.0.0/8, 100.64.0.0/10, 169.254.169.254, 172.16.0.0/12, 192.168.1.10, 192.0.2.7, 198.51.100.4, 203.0.113.9, 198.18.0.1, 224.0.0.1, 255.255.255.0',
+    'test client: user@evil.example, admin@site.test, a@b.invalid, me@example.net'].map(t => personalDetails(t));
+  // (a public address and a real-looking email, built at run time so this file holds neither)
+  const pub = [93, 184, 216, 34].join('.'), mail = ['jo.smith', 'mailhost.net'].join('@');
+  const loud = personalDetails(`server ${pub}; ranges 10.0.0.0/8 and 192.0.2.0/24`), loudMail = personalDetails(`test user@evil.example, then ${mail}`);
+  report(quiet.every(q => !q.length) && loud.length === 1 && loud[0].hit === pub && loudMail.length === 1 && loudMail[0].hit === mail,
+    'publish-safety: documentation, private and special-use IP ranges and example domains are not personal data; a public address or a real email next to them still is',
+    JSON.stringify({ quiet, loud, loudMail }).slice(0, 600));
+}
+
 if (mineB()) { // event-hint after an edit: writing sign-in code names the mandatory skill at once, once per turn
   const dir = copyProject();
   try {
@@ -4016,6 +4133,26 @@ if (mineB()) { // fit-checklist: a "later - when:" condition counts what its nou
     const vague = fit('check').stdout;
     report(ok && /FIT: PASS/.test(few) && /tool fd: its condition is met now \(when: more than 6 quokka files; files named \*quokka\* is 7\)/.test(many7) && /FIT: PASS/.test(vague),
       'fit-checklist: a "later - when:" condition counts the files its noun names; one it cannot read is not measured', `${ok} | ${few.slice(-200)} | ${many7.slice(0, 300)} | ${vague.slice(-200)}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+if (mineB()) { // gitignore-ready: a vault kept in git owns its .obsidian settings, even where .gitignore lists .obsidian/
+  // The project .gitignore the starter ships lists .obsidian/. A vault whose settings are tracked passes; a private file
+  // committed next to them is still caught. Lesson: an adopted vault's setup self-test failed on its own .obsidian/app.json.
+  const dir = copyProject();
+  try {
+    const g = (...a) => spawnSync('git', a, { cwd: dir, encoding: 'utf8' });
+    const problems = () => spawnSync(process.execPath, ['--input-type=module', '-e', `import { gitignoreProblems } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; console.log(JSON.stringify(gitignoreProblems()));`], { cwd: dir, encoding: 'utf8' }).stdout;
+    g('init', '-q');
+    // (the base's own .gitignore, with .obsidian/ listed as the starter's project template lists it)
+    fs.appendFileSync(path.join(dir, '.gitignore'), '\n.obsidian/\n');
+    write(dir, { '.obsidian/app.json': '{}\n', '.obsidian/workspace.json': '{}\n' });
+    g('add', '-f', '.obsidian');
+    const vault = problems();
+    fs.writeFileSync(path.join(dir, '.private-terms'), 'secret-word\n'); g('add', '-f', '.private-terms');
+    const leak = problems();
+    report(vault.trim() === '[]' && /already committed but meant to be ignored: \.private-terms/.test(leak) && !/\.obsidian\//.test(leak),
+      'gitignore-ready: a vault\'s tracked .obsidian settings pass the starter\'s .gitignore; a committed private file next to them is still caught', `${vault.slice(0, 300)} | ${leak.slice(0, 300)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
