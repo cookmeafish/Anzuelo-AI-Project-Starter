@@ -58,6 +58,31 @@ hooks:**, and an upgrade lists each one as its own review item.
     `gate-redirect:`.
     **Breaking for project hooks:** the `CHECKS:` line can name a check as "If it changes <files>: <tag>", group tags
     as "<prefix>-(a, b)" and end its list with "+N more"; Stop log rows after a wait keep the request's round number.
+  - **Self-tests cost far less in projects (two setups were killed at 60 minutes):** in a project, a whole
+    `selfcheck.mjs` run reuses the engine's results when its stamp matches a full pass recorded on this machine (in
+    `~/.cache/project-starter/engine-passes.json`, shared by every project made from the same engine). The stamp hashes
+    every file of the fixtures-only base, the research claims script, whether git tracks `.obsidian`, the Node major
+    version, the platform and the day. The fixtures-only base now takes the project's rules and records (AGENTS.md,
+    brief, status, changelog, decisions, menu, checks docs, security, `.gitignore`, `project-scenarios.mjs`) from the
+    starter, leaves out the project's own tools, holds only the engine's core checks, and skips dependency folders at
+    any depth, so notes and setup steps no longer change it. With results reused, the project's own scenarios, the
+    check of its check patterns and every 40th engine scenario (a smoke set) still run: about 20 seconds instead of 4
+    to 20 minutes. `--full`, a changed engine file, or another Node major, platform or day runs everything; the first
+    line says which mode ran and why. Tool: `tools/hooks/selftest-cache.mjs`. Scenarios: `engine-cache:`.
+  - **One self-test run at a time per project:** a second whole run waits for the running one and prints its result; a
+    lock whose process is gone or that is 3 hours old is taken over. Helper processes follow the CPU count shared with
+    the other self-test runs on the machine (`os.loadavg` is always 0 on Windows), instead of 12 each. Scenarios:
+    `selftest-lock:`, `selftest-shards:`.
+  - **audit --setup:** a self-test run that times out (now after 45 minutes, not 15) or is killed is a warning that says
+    to run `selfcheck.mjs` alone, not a false FAIL; a crash still fails. Failing tests are named under the sweep and
+    again after the last line (`failing self-tests: ...`), and `selfcheck.mjs` repeats them after its summary. Its reuse
+    of an earlier pass ignores the setup interview, upgrade reviews and security review rows, and holds the same day
+    only. An audit that ran the self-tests counts for REQ: hooks-tested, so setup runs the suite once
+    (SETUP-PROMPT.md Phase 5, project runbook §12). Scenarios: `audit-selftests:`, `test-inputs:`, `hooks-tested:`.
+  - **Dependency folders are skipped:** the audit, the interrupted-work check, dedupe, skill retire, the survey and the
+    obsidian notes walk skip installed dependencies and virtual environments (any name: a `pyvenv.cfg`), tool caches
+    (`CACHEDIR.TAG`), and `target`, `vendor`, `out`, `bin`, `obj` next to the build file that makes them. Publish
+    safety still reads build output. Before, two setup audits walked a `.venv` for 19 minutes. Scenario: `bulk-dirs:`.
 
 - 2026-10-20 (re-check): Fixes from an independent review of six new trial projects (no serious findings left).
   - **Accurate prompt hints (field report 6):** one primary `ROUTE`; other specific matches show as `ALSO ROUTE`, and a

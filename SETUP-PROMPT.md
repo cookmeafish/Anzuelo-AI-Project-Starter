@@ -214,10 +214,15 @@ how it is released.
     project's hooks instead, so neither set is switched off.
 
 ## Phase 5: Verify everything is really there
-1. `node tools/hooks/selfcheck.mjs`: ALL PASS.
-2. `node tools/audit.mjs --setup`: PASS. It checks the interview, that the packs match the answers and are complete,
-   that every candidate in the fit checklist is decided with a reason that holds, the brief, routing, placeholders, the
-   security baseline, pack purity, publish safety, and that the hooks ran live here.
+1. `node tools/audit.mjs --setup`: PASS. Run it once, as the last step, and don't run `selfcheck.mjs` separately: the
+   audit runs the hook self-tests itself (after its quick sweeps pass) and names any failing test. It checks the
+   interview, that the packs match the answers and are complete, that every candidate in the fit checklist is decided
+   with a reason that holds, the brief, routing, placeholders, the security baseline, pack purity, publish safety, the
+   self-tests, and that the hooks ran live here. With an engine that already passed on this machine the self-tests
+   reuse that result and take under a minute; the first time they take 5 to 20 minutes. If your agent stops a command
+   after a time limit, start it in the background with its output in a file
+   (`node tools/audit.mjs --setup > .cache/audit.txt 2>&1`), wait for it to finish, then read the file. Never start a
+   second audit or self-test while one runs: it only waits for the first one.
 3. One dry run: take the most typical request, route it, and walk its runbook without changing anything. Report what
    would happen.
 4. Show the user a short summary: the focus, then one line from `node tools/fit.mjs summary` ("Added: x, y.

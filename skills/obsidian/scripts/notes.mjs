@@ -15,7 +15,10 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.
 // the starter's own records and templates are not notes: they are linked from the rules, not from each other.
 // Lesson: a new project's audit listed BRIEF, DECISIONS, security and the spec template as orphan notes.
 const NOT_NOTES = /^(docs\/(CHANGELOG|STATUS|MENU|BRIEF|DECISIONS|security|foundation|lessons|fit-checklist|recommended-tools|glossary)\.md|docs\/(specs|releases)\/_TEMPLATE\.md|docs\/(plans|knowledge)\/README\.md|docs\/knowledge\/SOURCES\.md|docs\/feedback-inbox\/|docs\/playbooks\/_|docs\/checks\/|DIRECTORY\.md|CLAUDE\.md|AGENTS\.md|SETUP-PROMPT\.md|HOW-TO-USE\.md)/;
-const SKIP = /^(\.git|node_modules|\.cache|\.claude|\.agents|\.codex|\.gemini|\.obsidian|\.starter|state)$/;
+// (installed dependencies and virtual environments too, any name: they hold a pyvenv.cfg. Lesson: the walk for embeds
+// read a Python project's whole .venv)
+const SKIP = /^(\.git|node_modules|\.cache|\.claude|\.agents|\.codex|\.gemini|\.obsidian|\.starter|state|\.venv|venv|__pycache__|\.tox|\.mypy_cache|\.pytest_cache|\.ruff_cache|\.gradle|\.next|\.turbo|site-packages)$/;
+const isVenv = p => fs.existsSync(path.join(ROOT, p, 'pyvenv.cfg'));
 const ALL = process.argv.includes('--all');
 // the project's own note folders ("knowledgeDirs" in tools/hooks/config.json, e.g. a vault in Notes/) are notes too.
 // Lesson: a vault in Notes/ reported every link resolving while its links were never read.
@@ -32,7 +35,7 @@ function notes(every = false) {
 const read = p => { try { return fs.readFileSync(path.join(ROOT, p), 'utf8'); } catch { return ''; } };
 // Every file of the project (attachments included), read once, for embeds of non-note files.
 let fileList = null;
-const files = () => fileList ??= (() => { const out = []; const walk = d => { for (const n of fs.readdirSync(path.join(ROOT, d || '.'))) { if (SKIP.test(n) || n === 'node_modules') continue; const p = d ? `${d}/${n}` : n; let st; try { st = fs.statSync(path.join(ROOT, p)); } catch { continue; } if (st.isDirectory()) walk(p); else out.push(p); } }; walk(''); return out; })();
+const files = () => fileList ??= (() => { const out = []; const walk = d => { for (const n of fs.readdirSync(path.join(ROOT, d || '.'))) { if (SKIP.test(n) || n === 'node_modules') continue; const p = d ? `${d}/${n}` : n; let st; try { st = fs.statSync(path.join(ROOT, p)); } catch { continue; } if (st.isDirectory()) { if (!isVenv(p)) walk(p); } else out.push(p); } }; walk(''); return out; })();
 // Links out of a note to other project files: relative markdown links and [[wikilinks]], resolved to project paths.
 function linksOf(p, all) {
   // code (fenced or inline) shows links as examples, it doesn't make them (Lesson: a skill's `[[wikilinks]]` advice

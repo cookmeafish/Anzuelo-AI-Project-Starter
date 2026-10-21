@@ -92,6 +92,12 @@ SKILL CLEANUP DUE, and the skill-curate skill keeps it with a reason, merges it,
   runbook, skill or check the friction rule suspended.
 - `node tools/hooks/selfcheck.mjs --tags a,b`: only the scenarios of the checks you changed. `--route "<request>"`:
   where a request routes. `--ablation`: every required step of a golden workflow is load-bearing.
+- `node tools/hooks/selfcheck.mjs`: the whole self-test. With an engine that already passed in full on this machine
+  today it reuses that result and runs only this project's own scenarios and checks plus a smoke set (under a minute);
+  its first line says which mode ran and why, and `--full` runs everything. A full run can take 5 to 20 minutes: if
+  your agent stops commands after a time limit, start it in the background with its output in a file
+  (`> .cache/selfcheck.txt 2>&1`) and wait for it. A second run started meanwhile waits for the first and prints its
+  result, so never start another. `node tools/audit.mjs --setup` runs the self-tests itself: run it alone, not both.
 - `node tools/fit.mjs` / `check` / `summary` / `decide "<item>" <add|skip|later> "<reason>"`: the add-or-skip checklist.
 - `node tools/starter.mjs feedback "<text>"`, then `report`: send a lesson about the engine back to the starter.
 - `node tools/dedupe.mjs` (then `--apply`): remove exact duplicates from originals folders, keeping the referenced copy.

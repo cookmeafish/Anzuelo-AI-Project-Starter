@@ -12,7 +12,7 @@ import {
   loadRequirements, usage, hardenDue, menu, runbookHasCheck, generatedSkill, directoryBlock, staleKnowledge,
   setupProblems, upgradeProblems, bench, gitignoreProblems, writingProblems, aiAttributedCommits, BASE_REQUIREMENTS, routableSkills, skillHasCheck, curateDue,
   FIT_FILE, fitProblems, fitRows, fitDecision, fitWhenOf, doneWhenItems, DONE_LABEL, findLibrary, secretHit, mirrorText, logRun, testInputsHash, deadTriggers, rulesText, route, personalDetails,
-  externalHookSizes, HOOK_OUTPUT_MAX, gitignoreTest
+  externalHookSizes, HOOK_OUTPUT_MAX, gitignoreTest, today, bulkDir
 } from './hooks/hooks.mjs';
 
 const cfg = config();
@@ -30,6 +30,8 @@ const sweep = (name, fn) => {
 };
 // (.agents, .codex and .gemini hold generated agent wiring and skill copies, like .claude: never the project's notes)
 const SKIPDIR = /^(\.git|node_modules|state|\.cache|\.starter|\.agents|\.codex|\.gemini|dist|build|__pycache__)$/;
+// Dependency folders and virtual environments are skipped by every walk (hooks.mjs bulkDir); build output too, except
+// in the sweeps with their own skip list (publish and browser safety), which still read what could be published.
 const walk = (d, pred, acc = [], skip = SKIPDIR) => {
   let names = []; try { names = fs.readdirSync(abs(d || '.')); } catch { return acc; }
   for (const n of names) {
@@ -37,6 +39,7 @@ const walk = (d, pred, acc = [], skip = SKIPDIR) => {
     if (skip.test(n)) continue;
     let s; try { s = fs.lstatSync(abs(p)); } catch { continue; }
     if (s.isSymbolicLink()) continue; // never follow a link (Lesson: a workspace link loop hung the audit)
+    if (s.isDirectory() && bulkDir(abs(d || '.'), n, skip === SKIPDIR ? 'all' : 'deps')) continue;
     if (s.isDirectory()) walk(p, pred, acc, skip); else if (pred(p)) acc.push(p);
   }
   return acc;
@@ -484,20 +487,36 @@ if (isTemplate && exists('docs/feedback-inbox')) sweep('project feedback reviewe
 if (process.argv.includes('--setup')) sweep('setup is complete (SETUP-PROMPT.md may be deleted)', () => ({ fail: isTemplate ? [] : setupProblems(cfg), note: isTemplate ? 'the starter itself is never "set up"' : '' }));
 
 // --setup proves the hooks work in this project too; --full adds the ablation tests
+const selfTestFailures = [];
 if (process.argv.includes('--full') || process.argv.includes('--setup')) {
-  for (const [name, args] of [['hook self-tests', []], ['ablation tests (every required step is load-bearing)', ['--ablation']]].slice(0, process.argv.includes('--full') ? 2 : 1)) {
+  // (audit --full asks the self-tests for every test too, not the engine results an earlier full pass left)
+  for (const [name, args] of [['hook self-tests', process.argv.includes('--full') ? ['--full'] : []], ['ablation tests (every required step is load-bearing)', ['--ablation']]].slice(0, process.argv.includes('--full') ? 2 : 1)) {
     sweep(name, () => {
       // --setup: the self-tests take minutes, so they wait until the quick sweeps pass, and a full pass from earlier counts
       // while nothing they test has changed since. --full always runs them. Lesson: each setup retry cost 11 minutes.
       if (!process.argv.includes('--full')) {
         if (results.some(r => r.status === 'FAIL')) return { warn: ['skipped until the failures above are fixed (the self-tests take minutes)'] };
         const st = (() => { try { return JSON.parse(read(abs('tools/hooks/state/selftest.json'))); } catch { return {}; } })();
-        if (st.passed && st.inputs && st.inputs === testInputsHash()) return { note: `passed earlier (${st.count} tests) and nothing they test has changed since` };
+        // (the same day only: the fixtures carry dates, so a pass from another day may not hold today)
+        if (st.passed && st.inputs && st.at === today() && st.inputs === testInputsHash()) return { note: `passed earlier today (${st.count} tests) and nothing they test has changed since` };
       }
-      const r = spawnSync(process.execPath, [abs('tools/hooks/selfcheck.mjs'), ...args], { encoding: 'utf8', timeout: 900000 });
+      // No short limit: with an unchanged engine the self-tests reuse its results and take well under a minute, and a full
+      // run under load can take 20 minutes. Only a run that hangs for 45 minutes is stopped. A run that was stopped or
+      // killed proves nothing either way: a warning that says how to get the answer, not a failure.
+      // Lesson: the 900 s limit fired under load, reported a false "FAIL hook self-tests", and forced a 15 to 24 minute
+      // rerun that pushed two setups past their 60-minute limit.
+      const limit = Number(process.env.STARTER_SELFTEST_TIMEOUT_MS) || 45 * 60_000;
+      const r = spawnSync(process.execPath, [abs('tools/hooks/selfcheck.mjs'), ...args], { encoding: 'utf8', timeout: limit, maxBuffer: 64 * 1024 * 1024 });
       const out = (r.stdout || '') + (r.stderr || '');
-      const summary = out.trim().split(/\r?\n/).pop();
-      return r.status === 0 ? { note: summary } : { fail: [summary, ...out.split(/\r?\n/).filter(l => l.startsWith('FAIL')).slice(0, 15)] };
+      const lines = out.split(/\r?\n/), summary = lines.filter(l => /^(selfcheck|ablation): (ALL PASS|FAIL)/.test(l)).pop();
+      if (r.error || r.signal || r.status === null) return { warn: [`${r.error?.code === 'ETIMEDOUT' ? `timed out after ${limit >= 60_000 ? `${Math.round(limit / 60_000)} minutes` : `${Math.round(limit / 1000)} s`}` : `stopped before it finished${r.signal ? ` (${r.signal})` : ''}`}; run node tools/hooks/selfcheck.mjs alone (in the background if it may take longer than your command limit), then this audit again`] };
+      // ended on its own without a result: it crashed, which a broken engine file does, so that is a failure
+      if (!summary) return { fail: [`the self-tests crashed (exit ${r.status}): ${lines.filter(Boolean).slice(-3).join(' | ').slice(0, 400)}`] };
+      if (r.status === 0) return { note: summary };
+      // the names of the failing tests, so no second run is needed to find them (also repeated after the audit's last line)
+      const failing = lines.filter(l => l.startsWith('FAIL')).map(l => l.replace(/^FAIL\s+/, ''));
+      selfTestFailures.push(...failing.map(l => l.replace(/\s+->.*$/, '')));
+      return { fail: [summary, ...failing.slice(0, 15).map(l => `FAIL ${l.slice(0, 400)}`), ...(failing.length > 15 ? [`and ${failing.length - 15} more (node tools/hooks/selfcheck.mjs lists them)`] : [])] };
     });
   }
   // in the starter: the trial proves on sample projects that new, adopt and upgrade never make a project worse
@@ -518,6 +537,8 @@ results.forEach((r, i) => {
   for (const l of r.lines) console.log(`        - ${l}`);
 });
 console.log(`\naudit: ${paint(failed ? 'FAIL' : 'PASS')} (${results.length} sweeps, ${failed} failed, ${results.filter(r => r.status === 'WARN').length} warnings)`);
+// Lesson: an agent cut the audit's output to its last lines, and the name of the failing self-test was lost.
+if (selfTestFailures.length) console.log(`failing self-tests: ${selfTestFailures.slice(0, 12).join(' | ')}${selfTestFailures.length > 12 ? ` | and ${selfTestFailures.length - 12} more` : ''}`);
 // recorded for agents whose tool history the hooks can't read (REQ: audit-run)
 logRun(`node tools/audit.mjs ${process.argv.slice(2).join(' ')}`.trim(), results.filter(r => r.status === 'FAIL').map(r => `FAIL ${r.name}`).concat(`audit: ${failed ? 'FAIL' : 'PASS'} (${results.length} sweeps, ${failed} failed)`).join('\n'), !!failed);
 process.exit(failed ? 1 : 0);
