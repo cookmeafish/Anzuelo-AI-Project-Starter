@@ -18,6 +18,9 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
     about an outward action, an install, money, security or something irreversible (REQ: autonomy-decide), and stop
     steps that say "with the user" are decided and recorded as Assumed.
   - A stop round's repeated answer starts straight with the answer, not with notes about the fix.
+  - **New tools are vetted before use:** a package or tool installed in a turn needs a `Vetted:` line (legitimate per
+    two or more independent sources, free with a license that allows the use, maintained and well regarded);
+    reinstalling the declared requirements is exempt (REQ: install-vetted). AGENTS.md step 0.5 says so (adopt by hand).
   - Correspondence skill: tone fits the relationship (warm for tenants and customers by default); a friendlier
     rewrite adds no new promises or motives; counts in the answer come from the saved draft.
 - 2026-10-19 (gap sweep): Fixes from simulating nine kinds of projects end to end (a notes vault, a bakery's office

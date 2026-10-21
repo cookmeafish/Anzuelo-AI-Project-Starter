@@ -3572,6 +3572,11 @@ export function holds(c, x) {
 // "disabled": [{ "tag": "...", "reason": "..." }] entry, which the audit reports.
 // REQ: finished-summary, REQ: changelog, REQ: status-handoff, REQ: audit-run, REQ: decision-logged, REQ: redo-changes, REQ: praise-captured
 export const BASE_REQUIREMENTS = [
+  // REQ: install-vetted. A new package or tool is vetted before it is used: legitimate per independent sources, truly free, maintained.
+  // Reinstalling the declared requirements (-r, -e ., npm install / npm ci) is not a new tool.
+  { tag: 'install-vetted', rule: '15', when: { toolRan: String.raw`\b(pip3?|python3?\s+-m\s+pip|uv\s+pip)\s+install\s+(?!(?:[^\n;&|]*\s)?(-r|--requirement|-e)\s)(?!--upgrade\s+pip\b)(-\S+\s+)*[A-Za-z]|\b(npm|pnpm|yarn)\s+(install|i|add)\s+(-\S+\s+)*[@A-Za-z]|\bInstall-Module\b|\bwinget\s+install\b|\bchoco\s+install\b|\bcargo\s+install\b|\bgo\s+install\b` },
+    require: { answerMatches: String.raw`[Vv]etted:[^\n]*[Ll]icen[cs]e` },
+    message: 'A tool or package was installed this turn. Show it was vetted first, in one line per tool: "Vetted: <tool> - legitimate per <2+ independent sources> - free, license <name> allows this use - maintained and well regarded (<evidence>)". A tool that fails any of these is removed again and not used.' },
   { tag: 'finished-summary', rule: '7', when: { filesChanged: ['**'] }, require: { answerMatches: String.raw`^\s*(#{1,6}\s*|\*\*)?finished\b` },
     message: "End the answer with a 'Finished' section: what was done, and the exact path of every file created or changed." },
   { tag: 'changelog', rule: '12', when: { filesChanged: ['CLAUDE.md', 'AGENTS.md', 'docs/playbooks/**', 'docs/checks/**', 'skills/**', 'tools/**'] }, require: { filesChanged: ['docs/CHANGELOG.md'] },
@@ -3860,6 +3865,7 @@ const SHORT = {
   'skill-harden': 'Turn the runbook used 3 times into scripts and checks (skill-harden)', 'runbook-complete': 'Give the new runbook its check, test and rule-map row',
   'plan-required': 'Write a plan first: this work adds many files',
   'autonomy-decide': 'Decide it yourself instead of asking: the user asked not to be asked',
+  'install-vetted': 'Show the new tool was vetted: sources, free license, maintained',
   'plan-open': 'Resume or close the open plan, or say why it stays open',
   'autonomy-recorded': 'Record "autonomy": "auto" in config and docs/DECISIONS.md',
   'unresolved-carryover': 'Fix the checks the last turn left failing'
