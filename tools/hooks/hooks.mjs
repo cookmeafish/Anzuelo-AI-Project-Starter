@@ -42,6 +42,23 @@ let SID = '';
 // but writes none of it: its Stop round count, turn end and logs stay the real Stop's. Lesson: the prompt hook told
 // hook-wired agents to self-check, and a check run there would otherwise reset the session's own Stop record.
 let DRY_STATE = false;
+// A hook run with a session id but no transcript to read (no path, no file, an empty file, or not a readable file) is
+// a hand run or a broken host, not a session's turn: it writes no per-session state, no snapshot and no Stop log line,
+// since nothing could be checked against them. Session start is the exception for a path whose file does not exist
+// yet: a new session's transcript may be written after its start hook, and the first prompt must not repeat its notices.
+// Lesson: a dry run with made-up session ids and an empty transcript file left 27 state files behind (a snapshot, a
+// turn record and the notices shown, for each id); only "no path at all" had been covered, and only for the snapshot.
+let NO_TRANSCRIPT = false;
+export function transcriptState(tp) {
+  if (!tp) return 'none';
+  let st; try { st = fs.statSync(String(tp)); } catch { return 'missing'; }
+  if (!st.isFile()) return 'unreadable';
+  if (!st.size) return 'empty';
+  // (the first bytes only: a real transcript can be many megabytes, and the hooks have a speed budget)
+  let fd = null;
+  try { fd = fs.openSync(String(tp), 'r'); const b = Buffer.alloc(Math.min(st.size, 4096)); const n = fs.readSync(fd, b, 0, b.length, 0); return /\S/.test(b.toString('utf8', 0, n)) ? 'ok' : 'empty'; }
+  catch { return 'unreadable'; } finally { if (fd !== null) try { fs.closeSync(fd); } catch { } }
+}
 // (the stop round count, the checks that failed earlier in the turn, hints shown, the plan nudge and the frustration
 // record are a turn's too. Lesson: a second session reset the first one's block count and lost its earlier failures.)
 const PER_SESSION = new Set(['turn.json', 'snapshot.json', 'turn-end.json', 'notices-shown.json', 'stop-blocks.json', 'stop-failed.json',
@@ -51,6 +68,7 @@ const stateName = n => SID && PER_SESSION.has(n) ? n.replace(/.json$/, `.${SID}.
 const stateFile = n => { const own = path.join(STATE, stateName(n)); return own !== path.join(STATE, n) && !fs.existsSync(own) ? path.join(STATE, n) : own; };
 function writeState(name, obj) {
   if (envOf('BENCH') || DRY_STATE) return; // hooks.mjs bench times the hooks without touching the session's state
+  if (NO_TRANSCRIPT && (PER_SESSION.has(name) || name === 'setup.json')) return;
   try { fs.mkdirSync(STATE, { recursive: true }); fs.writeFileSync(path.join(STATE, stateName(name)), JSON.stringify(obj, null, 2)); } catch {}
 }
 // State hygiene: the per-session files (turn.<session>.json, snapshot.<session>.json, ...) and the shared ones written
@@ -2797,7 +2815,8 @@ function cmdPrompt(data, { force = false } = {}) {
   // A hook run by hand with a made-up session id and no real transcript takes no snapshot (about 80 KB in a real
   // project). Lesson: a test run with session "x" left snapshot.x.json, turn.x.json and notices-shown.x.json behind.
   // (no session id at all is "begin", for agents without hooks, which needs the snapshot)
-  const snap = () => { if (!SID || (() => { try { return fs.statSync(String(data.transcript_path || '')).isFile(); } catch { return false; } })()) takeSnapshot(cfg); };
+  // (an empty or unreadable transcript counts as none: NO_TRANSCRIPT)
+  const snap = () => { if (!NO_TRANSCRIPT) takeSnapshot(cfg); };
   if (RELAYED_TURN.test(p)) { const st = turnNotices(force, data.transcript_path); if (st.fresh) { recordTurn('', true, data.transcript_path); snap(); writeState(SHOWN, { at: st.at, shown: st.shown }); } return; }
   if (!p.trim() || skipped(p)) return;
   const st = turnNotices(force, data.transcript_path);
@@ -4279,7 +4298,7 @@ function carryoverChecks(data, t, x, cfg) {
 // Stop rounds for a field report a project had to parse the transcript, and a first regex missed them.
 const STOP_LOG = 'stop-log.jsonl', STOP_LOG_KEEP = 200, STOP_LOG_MAX_BYTES = 64 * 1024;
 function logStop(entry) {
-  if (envOf('BENCH') || DRY_STATE) return;
+  if (envOf('BENCH') || DRY_STATE || NO_TRANSCRIPT) return;
   try {
     fs.mkdirSync(STATE, { recursive: true });
     const f = path.join(STATE, STOP_LOG);
@@ -4588,6 +4607,28 @@ export const CONTRACT = {
       removed: [{ event: 'session', text: 'INTERRUPTED WORK: RESULT', read: /INTERRUPTED WORK:\s*RESULT/ }] }
   ]
 };
+// What the starter's changelog (newText) says that its copy at the project's last upgrade (oldText) did not say yet:
+// the entries that are new or grew, and each "**Breaking for project hooks:**" note in them that the old copy lacked.
+// With no old copy (the starter has no git history, or the project's engine matches no commit), the entries dated on
+// or after `since` (the last upgrade review's date). Lesson: entries were picked by date alone, and an entry dated the
+// day before the project's last review (a re-check written later) was skipped, with its breaking notes.
+export function changelogSince(newText, oldText = null, since = '') {
+  const entries = t => String(t || '').replace(/\r\n/g, '\n').split(/\n(?=- \d{4}-\d\d-\d\d\b)/).filter(e => /^- \d{4}-\d\d-\d\d/.test(e)).map(e => e.replace(/\s+$/, ''));
+  const notes = es => es.flatMap(e => [...e.matchAll(/\*\*Breaking for project hooks:\*\*\s*([\s\S]*?)(?=\n\s*- |$)/g)].map(m => m[1].replace(/\s+/g, ' ').trim())).filter(Boolean);
+  const flat = e => e.replace(/\s+/g, ' ');
+  const oldEntries = oldText == null ? null : new Set(entries(oldText).map(flat));
+  const fresh = entries(newText).filter(e => oldEntries ? !oldEntries.has(flat(e)) : e.slice(2, 12) >= since);
+  const oldNotes = new Set(oldText == null ? [] : notes(entries(oldText)));
+  return { entries: fresh, breaking: [...new Set(notes(fresh))].filter(n => !oldNotes.has(n)) };
+}
+// The upgrade review's "breaking:" items from those notes: review items only when the project has hooks of its own
+// ("externalHooks"), and not one an earlier review listed already; without own hooks they are only shown. No ": "
+// inside an item, since the review's parser ends the item at the first one.
+export function breakingItems(notes, externalHooks, decided = '') {
+  const its = [...new Set(notes)].map(b => `breaking: ${String(b).replace(/: /g, ', ').slice(0, 300)}`);
+  if (![].concat(externalHooks || []).filter(Boolean).length) return { items: [], shown: its };
+  return { items: its.filter(it => !decided.includes(`- ${it.slice(0, 60)}`)), shown: [] };
+}
 // What a project's own hook files (config "externalHooks") read that the engine no longer prints, and how far behind the
 // contract version they were last checked against (config "hookContract") is. [] means they fit this engine.
 export function contractProblems(cfg = config()) {
@@ -4769,6 +4810,8 @@ if (isMain) {
   try { data = JSON.parse(fs.readFileSync(0, 'utf8') || '{}'); } catch {}
   HOST = hookHost(data);
   SID = String(data.session_id || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
+  // (see NO_TRANSCRIPT: at session start a path whose file is not written yet still counts as a transcript)
+  if (SID) { const ts = transcriptState(data.transcript_path); NO_TRANSCRIPT = ts !== 'ok' && !(cmd === 'session' && ts === 'missing'); }
   // old sessions' state files go after 7 days (pruneState), the unsuffixed ones too: what agents without hooks and older
   // releases left. Lesson: an 80 KB snapshot.json from before per-session files stayed for good.
   if (cmd === 'session' && !envOf('BENCH')) pruneState();

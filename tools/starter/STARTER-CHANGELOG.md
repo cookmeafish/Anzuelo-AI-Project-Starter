@@ -17,6 +17,25 @@ hooks:**, and an upgrade lists each one as its own review item.
     works in a hook-wired session too: it finds the request the prompt hook recorded for the session (or `--session
     <id>`), reads that session's transcript, and writes none of the session's Stop state (round count, turn end, logs).
     Before, it said "no request recorded" there. The turn record now keeps the transcript path.
+    **Breaking for project hooks:** a PreToolUse denial for a call that breaks several rules names them all, numbered,
+    in one `permissionDecisionReason`, and the prompt's `CHECKS:` line can end with "Self-check first: ...".
+  - **Self-tests pass in host projects (field report 7):** inside a project, the engine's scenarios run in a base made
+    from fixtures only: the project's own runbooks, hand-written skills, checks, config, hook files listed in
+    `"externalHooks"` and hook commands that are not the engine's are left out, and the engine's runbooks and skills are
+    as the starter ships them, without the triggers the project added. The project's own scenarios
+    (`project-scenarios.mjs`) still run in a copy of the project as it is. Before, a route test failed on a project's
+    own "the hooks" and starter-name triggers, and the hook-contract test counted the project's real hook file.
+    `selfcheck.mjs --fixture-base` shows what of the project each base holds. Scenario: `host-fixtures:`.
+  - **Upgrade review lists the breaking notes:** an upgrade compares the starter's changelog with its copy at the commit
+    the project's engine came from, so a note in an entry dated before the project's last review (a re-check written
+    later) is listed too. Before, entries were picked by date, and a project got none of the three notes. The notes are
+    review items when the project has `"externalHooks"`, and only shown otherwise. "What changed in the starter" now
+    shows `(re-check)` entries too. Scenario: `upgrade-breaking:`.
+  - **No session state without a transcript:** a hook run with a session id but no readable transcript (no path, a
+    missing file at a prompt or stop, an empty or blank file, or a folder) writes no per-session state, no snapshot and
+    no Stop log line. At session start, a path whose file does not exist yet still counts, since a new session's
+    transcript may be written after that hook. Before, a dry run with made-up ids and an empty transcript left 27 files.
+    Scenario: `state-no-transcript:`.
 
 - 2026-10-20 (re-check): Fixes from an independent review of six new trial projects (no serious findings left).
   - **Accurate prompt hints (field report 6):** one primary `ROUTE`; other specific matches show as `ALSO ROUTE`, and a

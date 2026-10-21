@@ -42,15 +42,25 @@ if (process.argv[2] === '--contract') {
 // hook asks for these instead of the whole run (REQ: hooks-tested).
 const TAGS = (() => { const i = process.argv.indexOf('--tags'); const v = i > 0 ? process.argv[i + 1] : (process.argv.find(a => a.startsWith('--tags=')) || '').slice(7); return v ? v.split(',').map(s => s.trim()).filter(Boolean) : null; })();
 const SKIP_DIRS = new Set(['.git', 'node_modules', 'state', '.cache', '.private-terms']);
-let BASE = null;
+// Two bases inside a project. The engine's scenarios run in one made from fixtures only: the project's own runbooks,
+// skills, checks, config and hook files ("externalHooks") are left out, and the engine's runbooks and skills are as the
+// starter ships them, without the triggers the project added. The project's own scenarios (project-scenarios.mjs) test
+// its own setup, so they run in a copy of the project as it is. In the starter both are the same.
+// Lesson: in an adopted deck project two engine scenarios failed only there: a route test's prompt hit the project's own
+// triggers on the engine's project runbook, and the hook-contract test counted the project's real hook file.
+const IS_STARTER = fs.existsSync(path.join(ROOT, '.starter-template'));
+let FIX_BASE = null, HOST_BASE = null;
+function base(host = false) {
+  if (host && !IS_STARTER) return HOST_BASE ||= buildBase(true);
+  return FIX_BASE ||= buildBase(false);
+}
 // Copies left by an earlier run that was killed before it could clean up: removed once they are 6 hours old, so a run
 // still going in another session keeps its own. Lesson: 136 stale copies piled up in the temp folder.
 try { for (const n of fs.readdirSync(os.tmpdir())) if (/^starter-(base|test|fake|dry|upg)-/.test(n)) { const p = path.join(os.tmpdir(), n); if (Date.now() - fs.statSync(p).mtimeMs > 6 * 3600_000) fs.rmSync(p, { recursive: true, force: true }); } } catch { }
 // The base: a copy of this project with every available pack installed and the generated files synced, so every
 // check can be exercised. Files are aged, so only what a scenario writes counts as changed this turn.
-function base() {
-  if (BASE) return BASE;
-  BASE = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-base-'));
+function buildBase(host) {
+  const BASE = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-base-'));
   // A project's build output, environments, engine caches and the folders its .gitignore lists are never test material:
   // left out of the copy, so each of the many test copies stays small. Lesson: in a large project the self-test took
   // twice as long, copying a venv and a game engine's import cache dozens of times.
@@ -84,6 +94,8 @@ function base() {
     const rules = [rd('AGENTS.starter.md'), rd('CLAUDE.starter.md'), rd('AGENTS.md'), rd('CLAUDE.md')].find(twin) || '# Project\nCLAUDE.md and AGENTS.md are twins.\n';
     for (const p of ['AGENTS.md', 'CLAUDE.md']) fs.writeFileSync(at(p), rules);
   }
+  // (the fixtures-only base needs the starter's own copies, so this runs while .starter is still here)
+  const shippedCfg = !host && !IS_STARTER ? fixturesOnly(at, [at('.starter'), linked].find(p => p && fs.existsSync(path.join(p, 'tools/hooks/hooks.mjs'))) || null) : null;
   for (const p of ['tools/starter.local.json', '.starter', '.starter-dev', 'README.starter.md', 'CLAUDE.starter.md', 'AGENTS.starter.md']) fs.rmSync(at(p), { recursive: true, force: true });
   // The project's own progress would leak into fixtures that build their own: its fit checklist (decided rows, "later"
   // conditions), its plans (OPEN PLANS) and its hook state. Lesson: inside a project mid-setup, the fit tests read the
@@ -109,7 +121,12 @@ function base() {
   fs.rmSync(at('tools/hooks/state'), { recursive: true, force: true });
   if (!fs.existsSync(at('.starter-template'))) fs.writeFileSync(at('.starter-template'), 'test base\n');
   if (!fs.existsSync(at('SETUP-PROMPT.md'))) fs.writeFileSync(at('SETUP-PROMPT.md'), '# Setup prompt\n');
-  const cfgPath = at('tools/hooks/config.json'), cfg0 = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+  const cfgPath = at('tools/hooks/config.json');
+  // the fixtures-only base: the starter's config as shipped, with the packs this base installs; without the starter at
+  // hand, the project's own minus its own hooks (the keys below go in both cases)
+  if (shippedCfg) { let packs = []; try { packs = JSON.parse(fs.readFileSync(cfgPath, 'utf8')).packs || []; } catch { } fs.writeFileSync(cfgPath, JSON.stringify({ ...shippedCfg, packs: [...new Set([...(shippedCfg.packs || []), ...packs])] }, null, 2) + '\n'); }
+  const cfg0 = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+  if (!host && !IS_STARTER) { delete cfg0.externalHooks; delete cfg0.hookContract; }
   // (protectedBranches too: a project that works on main sets it to [], and the push fixtures expect the defaults)
   // (and the project's own folder names and word lists, which the scope, verbatim and writing fixtures assume are the
   // defaults. Lesson: an adopted deck project's "friends" scopes root and its verbatimAllowed broke seven fixtures)
@@ -137,6 +154,8 @@ function base() {
   // every library skill too, with its checks, so each one is exercised (a project runs the ones it enabled)
   if (fs.existsSync(path.join(BASE, 'library', 'skills'))) node('tools/skills.mjs', 'enable', ...fs.readdirSync(path.join(BASE, 'library', 'skills')));
   node('tools/hooks/hooks.mjs', 'sync');
+  // the project's own checks and check flows are off in the fixtures-only base: they belong to its own scenarios
+  if (!host && !IS_STARTER) { checksOffIn(BASE, engineTagsIn(BASE), packReqsIn(BASE)); fs.rmSync(at('docs/checks/flows'), { recursive: true, force: true }); }
   fs.rmSync(path.join(BASE, 'tools', 'hooks', 'state'), { recursive: true, force: true });
   const old = (Date.now() - 3600_000) / 1000;
   const age = d => { for (const n of fs.readdirSync(d)) { const p = path.join(d, n); const s = fs.statSync(p); if (s.isDirectory()) age(p); else fs.utimesSync(p, old, old); } };
@@ -144,9 +163,47 @@ function base() {
   process.on('exit', () => { try { fs.rmSync(BASE, { recursive: true, force: true }); } catch { } });
   return BASE;
 }
-function copyProject() {
+// The fixtures-only base (see base()): every runbook and skill the starter (src) or a pack or the library ships is put
+// back as shipped, so triggers and lessons the project added are gone; the project's own runbooks and hand-written
+// skills are removed (their generated skills go with the next sync); the files in "externalHooks" and every hook
+// command that is not the engine's (.claude/settings.json, .codex/hooks.json) are removed, since a project's hook
+// command can name the real project's path. Returns the starter's config.json, or null when the starter is not at hand
+// (then only the project's runbooks go: its triggers on the engine's runbooks stay).
+function fixturesOnly(at, src) {
+  const ls = d => { try { return fs.readdirSync(d); } catch { return []; } };
+  const packs = ls(at('packs'));
+  const shipped = rel => [src && path.join(src, rel), ...packs.map(p => path.join(at('packs'), p, 'files', rel)), /^skills\//.test(rel) && path.join(at('library'), rel)].find(p => p && fs.existsSync(p)) || null;
+  const CORE_RB = /^(_TEMPLATE|_fallback|project|plan)\.md$/;
+  for (const n of ls(at('docs/playbooks')).filter(n => /\.md$/i.test(n))) {
+    const rel = `docs/playbooks/${n}`, from = shipped(rel);
+    if (from) fs.copyFileSync(from, at(rel));
+    else if (src || !CORE_RB.test(n)) fs.rmSync(at(rel), { force: true });
+  }
+  let core = []; try { core = JSON.parse(spawnSync(process.execPath, ['--input-type=module', '-e', `import { CORE_SKILLS } from ${JSON.stringify(pathToFileURL(at('tools/hooks/hooks.mjs')).href)}; console.log(JSON.stringify(CORE_SKILLS));`], { encoding: 'utf8' }).stdout); } catch { }
+  const removed = [];
+  for (const n of ls(at('skills'))) {
+    const rel = `skills/${n}`, md = (() => { try { return fs.readFileSync(at(`${rel}/SKILL.md`), 'utf8'); } catch { return ''; } })();
+    if (/^generated:\s*true/m.test(md)) continue;
+    const from = shipped(rel);
+    if (from) { fs.rmSync(at(rel), { recursive: true, force: true }); fs.cpSync(from, at(rel), { recursive: true }); }
+    else if (src || !core.includes(n)) { fs.rmSync(at(rel), { recursive: true, force: true }); removed.push(n); }
+  }
+  for (const m of ['.claude/skills', '.agents/skills']) for (const n of removed) fs.rmSync(at(`${m}/${n}`), { recursive: true, force: true });
+  let cfg = {}; try { cfg = JSON.parse(fs.readFileSync(at('tools/hooks/config.json'), 'utf8')); } catch { }
+  for (const f of [].concat(cfg.externalHooks || [])) fs.rmSync(at(f), { recursive: true, force: true });
+  for (const f of ['.claude/settings.json', '.codex/hooks.json']) {
+    let j; try { j = JSON.parse(fs.readFileSync(at(f), 'utf8')); } catch { continue; }
+    for (const [ev, groups] of Object.entries(j.hooks || {})) {
+      j.hooks[ev] = [].concat(groups || []).map(g => ({ ...g, hooks: [].concat(g?.hooks || []).filter(h => /hooks\.mjs/.test(String(h?.command || ''))) })).filter(g => g.hooks.length);
+      if (!j.hooks[ev].length) delete j.hooks[ev];
+    }
+    fs.writeFileSync(at(f), JSON.stringify(j, null, 2) + '\n');
+  }
+  try { return src ? JSON.parse(fs.readFileSync(path.join(src, 'tools/hooks/config.json'), 'utf8')) : null; } catch { return null; }
+}
+function copyProject(host = false) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-'));
-  fs.cpSync(base(), dir, { recursive: true, preserveTimestamps: true });
+  fs.cpSync(base(host), dir, { recursive: true, preserveTimestamps: true });
   return dir;
 }
 
@@ -1359,21 +1416,31 @@ function write(dir, files) { for (const [p, c] of Object.entries(files || {})) {
 // The project's own checks (not shipped by the engine, a pack or a library skill) are tested by its own scenarios; in
 // the engine's scenarios they are off, since the fixtures are not this project's work. Lesson: a Spanish blog's
 // "reader text is Spanish" check failed six engine fixtures written in English after an upgrade.
+// (the fixtures-only base already has them off; this also covers a scenario that edits requirements.json)
+function engineTagsIn(b) {
+  return new Set([
+    ...(() => { try { return JSON.parse(fs.readFileSync(path.join(b, 'tools/hooks/engine-checks.json'), 'utf8')).requirements.map(r => r.tag); } catch { return []; } })(),
+    ...(() => { try { return fs.readdirSync(path.join(b, 'packs')).flatMap(p => { try { return JSON.parse(fs.readFileSync(path.join(b, 'packs', p, 'pack.json'), 'utf8')).requirements.map(r => r.tag); } catch { return []; } }); } catch { return []; } })(),
+    ...(() => { try { return JSON.parse(fs.readFileSync(path.join(b, 'library/catalog.json'), 'utf8')).skills.flatMap(e => (e.requirements || []).map(r => r.tag)); } catch { return []; } })()]);
+}
 let ENGINE_TAGS = null;
-const engineTags = () => ENGINE_TAGS ||= new Set([
-  ...(() => { try { return JSON.parse(fs.readFileSync(path.join(base(), 'tools/hooks/engine-checks.json'), 'utf8')).requirements.map(r => r.tag); } catch { return []; } })(),
-  ...(() => { try { return fs.readdirSync(path.join(base(), 'packs')).flatMap(p => { try { return JSON.parse(fs.readFileSync(path.join(base(), 'packs', p, 'pack.json'), 'utf8')).requirements.map(r => r.tag); } catch { return []; } }); } catch { return []; } })(),
-  ...(() => { try { return JSON.parse(fs.readFileSync(path.join(base(), 'library/catalog.json'), 'utf8')).skills.flatMap(e => (e.requirements || []).map(r => r.tag)); } catch { return []; } })()]);
+const engineTags = () => ENGINE_TAGS ||= engineTagsIn(base());
 // ...and a pack's checks as the pack ships them, since the fixtures test the pack, not the project's own edited copy
 // (Lesson: a project had made verification-report accept Spanish, and the pack's scenario for the new wording failed)
 // ...and without the project's saved browser flows, which run against its own pages (Lesson: gui-flows in a fixture)
+function packReqsIn(b) {
+  return new Map((() => { try { return fs.readdirSync(path.join(b, 'packs')).flatMap(p => { try { return JSON.parse(fs.readFileSync(path.join(b, 'packs', p, 'pack.json'), 'utf8')).requirements.map(r => [r.tag, { ...r, pack: p }]); } catch { return []; } }); } catch { return []; } })());
+}
 let PACK_REQS = null;
-const packReqs = () => PACK_REQS ||= new Map((() => { try { return fs.readdirSync(path.join(base(), 'packs')).flatMap(p => { try { return JSON.parse(fs.readFileSync(path.join(base(), 'packs', p, 'pack.json'), 'utf8')).requirements.map(r => [r.tag, { ...r, pack: p }]); } catch { return []; } }); } catch { return []; } })());
+const packReqs = () => PACK_REQS ||= packReqsIn(base());
 function ownChecksOff(dir) {
-  const rp = path.join(dir, 'tools/hooks/requirements.json');
   if (!fs.existsSync(path.join(ROOT, '.starter-template'))) fs.rmSync(path.join(dir, 'docs/checks/flows'), { recursive: true, force: true });
+  checksOffIn(dir, engineTags(), packReqs());
+}
+function checksOffIn(dir, eng, shippedPack) {
+  const rp = path.join(dir, 'tools/hooks/requirements.json');
   try {
-    const rq = JSON.parse(fs.readFileSync(rp, 'utf8')), eng = engineTags(), shippedPack = packReqs();
+    const rq = JSON.parse(fs.readFileSync(rp, 'utf8'));
     if (!eng.size) return;
     let n = 0; rq.requirements = rq.requirements.map(r => r && r.tag && !eng.has(r.tag) && r.enabled !== false ? (n++, { ...r, enabled: false }) : r)
       .map(r => r && shippedPack.has(r.tag) && !r.appGate && r.pack && JSON.stringify(r.require) !== JSON.stringify(shippedPack.get(r.tag).require) ? (n++, { ...shippedPack.get(r.tag), when: r.codeGlobs ? { ...shippedPack.get(r.tag).when, filesChanged: r.when?.filesChanged } : shippedPack.get(r.tag).when, ...(r.enabled === false ? { enabled: false } : {}) }) : r);
@@ -1382,7 +1449,7 @@ function ownChecksOff(dir) {
   } catch { }
 }
 function runStop(s) {
-  const dir = copyProject();
+  const dir = copyProject(!!s.own);
   try {
     if (!s.own) ownChecksOff(dir);
     const since = Date.now() - 1000;
@@ -1741,13 +1808,30 @@ const GOLDEN = [
     optional: [...Array.from({ length: 15 }, (_, i) => `tools:${i + 1}`)] }
 ];
 
+// --fixture-base: build the base the engine's scenarios run in and the one this project's own scenarios run in, and
+// print, as JSON, what of the project is in each. The starter's self-test runs it in a made-up host project.
+if (process.argv.includes('--fixture-base')) {
+  const what = b => {
+    const ls = d => { try { return fs.readdirSync(path.join(b, d)).sort(); } catch { return []; } };
+    const rd = p => { try { return fs.readFileSync(path.join(b, p), 'utf8'); } catch { return ''; } };
+    let cfg = {}; try { cfg = JSON.parse(rd('tools/hooks/config.json')); } catch { }
+    let rq = []; try { rq = JSON.parse(rd('tools/hooks/requirements.json')).requirements || []; } catch { }
+    return { playbooks: ls('docs/playbooks'), skills: ls('skills'), projectTriggers: /^triggers:\s*(.*)$/m.exec(rd('docs/playbooks/project.md'))?.[1] || '',
+      externalHooks: cfg.externalHooks || null, hookFiles: ls('tools/hooks'), settings: rd('.claude/settings.json'), enabledChecks: rq.filter(r => r.enabled !== false).map(r => r.tag) };
+  };
+  console.log(JSON.stringify({ fixture: what(base()), host: what(base(true)) }));
+  process.exit(0);
+}
+
 // A scenario for a pack this project doesn't have (it names a runbook or a check that isn't here) is skipped, so a
 // knowledge-only project still runs every test that applies to it. The starter installs every pack, so it runs all.
 const B = base();
 const hereSrc = fs.readFileSync(path.join(B, 'tools/hooks/hooks.mjs'), 'utf8') + fs.readFileSync(path.join(B, 'tools/hooks/requirements.json'), 'utf8');
 const INSTALLED = (() => { try { return JSON.parse(fs.readFileSync(path.join(B, 'tools/hooks/config.json'), 'utf8')).packs || []; } catch { return []; } })();
 const packOk = s => !s.pack || INSTALLED.includes(s.pack);
-const applies = s => packOk(s) && (s.tools || []).every(t => t.name !== 'Read' || !/^docs\/playbooks\//.test(t.input.file_path) || fs.existsSync(path.join(B, t.input.file_path)) || (s.files || {})[t.input.file_path] != null)
+// the project's own scenarios run in a copy of the project as it is, the engine's in the fixtures-only base (base())
+const baseOf = s => base(!!s.own);
+const applies = s => packOk(s) && (s.tools || []).every(t => t.name !== 'Read' || !/^docs\/playbooks\//.test(t.input.file_path) || fs.existsSync(path.join(baseOf(s), t.input.file_path)) || (s.files || {})[t.input.file_path] != null)
   && (s.expect?.tags || []).every(t => SCENARIO_TAGS.has(t) || hereSrc.includes(`'${t}'`) || hereSrc.includes(`"${t}"`) || hereSrc.includes(`REQ: ${t}`))
   && Object.keys(s.edit || {}).every(p => p !== 'tools/hooks/requirements.json' || !/version-bump/.test(String(s.edit[p])) || hereSrc.includes('"version-bump"'));
 let skipped = 0;
@@ -1818,7 +1902,7 @@ function explain(query) {
       full.forEach((m, i) => out.push(`  - ${m[1]}: ${shorts[i] || ''}\n      satisfy it: ${m[2]}\n      or waive it if it truly does not apply: N/A(${m[1]}): <reason>`));
       if (!full.length) out.push(`  ${r.reason.replace(/\n/g, '\n  ')}`);
     } else if (kind === 'pretool') {
-      const dir = copyProject();
+      const dir = copyProject(!!s.own);
       try {
         write(dir, s.setup); applyEdits(dir, s.edit);
         const tp = transcript(dir, { prompt: s.prompt || 'do the thing', earlierPrompt: s.earlierPrompt, before: s.before, answer: null, tools: s.tools }, Date.now());
@@ -1829,7 +1913,7 @@ function explain(query) {
         out.push(/"permissionDecision":"deny"/.test(o) ? `  denied: ${why}` : `  allowed${why ? `: ${why}` : ''}`);
       } finally { fs.rmSync(dir, { recursive: true, force: true }); }
     } else {
-      const dir = copyProject();
+      const dir = copyProject(!!s.own);
       try { write(dir, s.setup); applyEdits(dir, s.setupFn); const pr = run(dir, 'prompt', { prompt: s.prompt }); out.push(pr.out.trim() ? `  hints:\n    ${pr.out.trim().replace(/\n/g, '\n    ')}` : '  no hints'); }
       finally { fs.rmSync(dir, { recursive: true, force: true }); }
     }
@@ -1887,7 +1971,7 @@ for (const s of STOP) {
 for (const s of PRETOOL) {
   if (!mine()) continue;
   if (!packOk(s)) { skipped++; continue; }
-  const dir = copyProject();
+  const dir = copyProject(!!s.own);
   try {
     write(dir, s.setup);
     applyEdits(dir, s.edit);
@@ -1909,8 +1993,8 @@ for (const s of PRETOOL) {
 for (const s of PROMPT) {
   if (!mine()) continue;
   const routes = (s.has || []).map(h => /^ROUTE: ([\w-]+)$/.exec(h)?.[1]).filter(Boolean);
-  if (!packOk(s) || routes.some(r => !fs.existsSync(path.join(B, 'docs/playbooks', r + '.md')) && !(s.setup || {})[`docs/playbooks/${r}.md`])) { skipped++; continue; }
-  const dir = copyProject();
+  if (!packOk(s) || routes.some(r => !fs.existsSync(path.join(baseOf(s), 'docs/playbooks', r + '.md')) && !(s.setup || {})[`docs/playbooks/${r}.md`])) { skipped++; continue; }
+  const dir = copyProject(!!s.own);
   try {
     write(dir, s.setup);
     applyEdits(dir, s.setupFn);
@@ -2401,8 +2485,10 @@ if (mineB()) { // two sessions in one folder: each keeps its own turn record, so
   // Lesson: a second session's prompt replaced the first one's turn record, and the first was checked against it
   const dir = copyProject();
   try {
-    // (a real session has a transcript; a hook run by hand with a made-up id has none and takes no snapshot)
-    const tps = Object.fromEntries(['aaa', 'bbb'].map(s => { const f = path.join(dir, `.cache/${s}.jsonl`); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, JSON.stringify({ type: 'user', message: { role: 'user', content: 'hi' } }) + '\n'); return [s, f]; }));
+    // (a real session has a transcript holding its request; a hook run by hand with a made-up id has none and keeps no
+    // session state at all: NO_TRANSCRIPT in hooks.mjs)
+    const asked = { aaa: 'write the menu for spring', bbb: 'fix the login page' }, at0 = new Date(Date.now() - 1000).toISOString();
+    const tps = Object.fromEntries(['aaa', 'bbb'].map(s => { const f = path.join(dir, `.cache/${s}.jsonl`); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, JSON.stringify({ type: 'user', timestamp: at0, message: { role: 'user', content: asked[s] } }) + '\n'); return [s, f]; }));
     run(dir, 'prompt', { prompt: 'write the menu for spring', session_id: 'aaa', transcript_path: tps.aaa });
     run(dir, 'prompt', { prompt: 'fix the login page', session_id: 'bbb', transcript_path: tps.bbb });
     run(dir, 'prompt', { prompt: 'try the hook by hand', session_id: 'madeup' });
@@ -2411,13 +2497,13 @@ if (mineB()) { // two sessions in one folder: each keeps its own turn record, so
     const a = st('turn.aaa.json'), b = st('turn.bbb.json');
     report(/spring/.test(a.prompt || '') && !/login/.test(a.prompt || '') && /login/.test(b.prompt || '') && !!st('snapshot.aaa.json').files,
       'sessions: two sessions in one folder keep separate turn records and snapshots', `${(a.prompt || '').slice(0, 60)} | ${(b.prompt || '').slice(0, 60)}`);
-    report(!fs.existsSync(path.join(dir, 'tools/hooks/state/snapshot.madeup.json')) && !fs.existsSync(path.join(dir, 'tools/hooks/state/snapshot.missing.json')) && /by hand/.test(st('turn.madeup.json').prompt || ''),
-      'state-hygiene: a hook run by hand with a made-up session id and no readable transcript writes no snapshot', fs.readdirSync(path.join(dir, 'tools/hooks/state')).join(', '));
+    report(!fs.readdirSync(path.join(dir, 'tools/hooks/state')).some(f => /\.(madeup|missing)\.json$/.test(f)) && !!st('turn.aaa.json').prompt,
+      'state-hygiene: a hook run by hand with a made-up session id and no readable transcript writes no snapshot or turn record', fs.readdirSync(path.join(dir, 'tools/hooks/state')).join(', '));
     // each session's stop rounds are its own: a block in one never resets or adds to the other's count
     write(dir, { 'docs/menu.md': '# Spring menu\n' });
-    run(dir, 'stop', { session_id: 'aaa', last_assistant_message: 'Wrote the menu.' });
-    run(dir, 'stop', { session_id: 'bbb', last_assistant_message: 'Fixed it.' });
-    run(dir, 'stop', { session_id: 'aaa', last_assistant_message: 'Wrote the menu.', stop_hook_active: true });
+    run(dir, 'stop', { session_id: 'aaa', transcript_path: tps.aaa, last_assistant_message: 'Wrote the menu.' });
+    run(dir, 'stop', { session_id: 'bbb', transcript_path: tps.bbb, last_assistant_message: 'Fixed it.' });
+    run(dir, 'stop', { session_id: 'aaa', transcript_path: tps.aaa, last_assistant_message: 'Wrote the menu.', stop_hook_active: true });
     const count = n => Object.values(st(n))[0] || 0;
     report(count('stop-blocks.aaa.json') === 2 && count('stop-blocks.bbb.json') === 1 && !fs.existsSync(path.join(dir, 'tools/hooks/state/stop-blocks.json')),
       'sessions: each session counts its own stop rounds', `aaa ${count('stop-blocks.aaa.json')}, bbb ${count('stop-blocks.bbb.json')}`);
@@ -2452,6 +2538,84 @@ if (mineB()) { // hook-contract: the version and shapes are printed, and a proje
       && behind.status === 1 && /gone\.py is listed in "externalHooks" but does not exist/.test(behind.stdout) && /last checked against contract 1.*What changed: 2 \(/.test(behind.stdout),
       'hook-contract: "contract" prints the version; selfcheck --contract names a project hook reading a field the engine no longer prints, and an older checked version',
       `json ${cj.version} | none ${none.status} ${none.stdout.trim()} | old ${old.status} ${old.stdout.slice(0, 200)} | fixed ${fixed.status} ${fixed.stdout.slice(0, 200)} | behind ${behind.status} ${behind.stdout.slice(0, 300)}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) { // host-fixtures (in the starter only: it makes a host project): the engine's scenarios see none of the host's own setup
+  // A made-up host project linked to this starter, with what an adopted project adds: its own runbook and skill with
+  // generic triggers, the starter's name and "the hooks" added to the project runbook's triggers, its own check, a hook
+  // file in "externalHooks" and a hook command naming it. Its self-test builds the fixtures-only base without any of
+  // them, and the base its own scenarios run in with all of them; the route tests that failed in such a project pass.
+  const dir = copyProject();
+  try {
+    fs.rmSync(path.join(dir, '.starter-template'), { force: true });
+    write(dir, { 'tools/starter.local.json': JSON.stringify({ path: ROOT }),
+      'docs/playbooks/deckfix.md': '---\nname: deckfix\nsummary: Fix a deck - swaps and mana\ntriggers: improve, upgrade, review, report, the hooks\n---\n# Deck fix\n1. Read the deck.\n',
+      'skills/deck-notes/SKILL.md': '---\nname: deck-notes\ndescription: Deck notes. Use when the user says anzuelo, the hooks or improve.\ntriggers: anzuelo, the hooks, improve\n---\n# Deck notes\n1. Add the line.\n',
+      'tools/hooks/hooks.py': 'import json\nROUTES = [(r"improve", "docs/playbooks/deckfix.md")]\nprint(json.dumps({"decision": "block", "reason": "deck rules"}))\n',
+      'tools/hooks/project-scenarios.mjs': 'export default () => ({ stop: [], pretool: [], prompt: [{ name: "route-precision: the project\'s own runbook routes in its own scenarios", prompt: "improve my deck", has: ["ROUTE: deckfix"] }] });\n' });
+    applyEdits(dir, { ...cfgEdit({ externalHooks: ['tools/hooks/hooks.py'], hookContract: 3 }),
+      'docs/playbooks/project.md': s => s.replace(/^triggers:\s*(.*)$/m, (l, v) => `triggers: ${v}, anzuelo, upgrade anzuelo, deck project`),
+      'tools/hooks/requirements.json': s => { const j = JSON.parse(s); j.requirements.push({ tag: 'deck-own-check', rule: '12', when: { filesChanged: ['tools/hooks/hooks.py'] }, require: { toolPassed: { cmd: 'test_hooks', pass: 'PASS' } }, message: 'Run the deck tests.' }); return JSON.stringify(j, null, 2); },
+      '.claude/settings.json': s => { const j = JSON.parse(s); j.hooks.UserPromptSubmit = [{ hooks: [{ type: 'command', command: `python "${dir.replace(/\\/g, '/')}/tools/hooks/hooks.py" prompt` }] }, ...(j.hooks.UserPromptSubmit || [])]; return JSON.stringify(j, null, 2); } });
+    spawnSync(process.execPath, ['tools/hooks/hooks.mjs', 'sync'], { cwd: dir, encoding: 'utf8' });
+    const sc = (...a) => spawnSync(process.execPath, [path.join(dir, 'tools/hooks/selfcheck.mjs'), ...a], { cwd: dir, encoding: 'utf8', timeout: 600000 });
+    let fb = {}; const fbr = sc('--fixture-base'); try { fb = JSON.parse(fbr.stdout); } catch { }
+    const fx = fb.fixture || {}, hb = fb.host || {};
+    const routes = sc('--tags', 'route-precision');
+    const shippedTrig = /^triggers:\s*(.*)$/m.exec(fs.readFileSync(path.join(ROOT, 'docs/playbooks/project.md'), 'utf8'))?.[1];
+    const fxOk = fx.projectTriggers === shippedTrig && !(fx.playbooks || ['deckfix.md']).includes('deckfix.md') && !(fx.skills || ['deck-notes']).some(n => /^deck/.test(n)) && fx.externalHooks === null
+      && !(fx.hookFiles || ['hooks.py']).includes('hooks.py') && fx.settings && !/hooks\.py/.test(fx.settings) && !(fx.enabledChecks || ['deck-own-check']).includes('deck-own-check');
+    // negative: the project's own scenarios still get all of it
+    const hostOk = (hb.playbooks || []).includes('deckfix.md') && (hb.skills || []).includes('deck-notes') && /anzuelo/.test(hb.projectTriggers || '') && JSON.stringify(hb.externalHooks) === '["tools/hooks/hooks.py"]'
+      && (hb.hookFiles || []).includes('hooks.py') && (hb.enabledChecks || []).includes('deck-own-check');
+    report(fxOk && hostOk && routes.status === 0 && /ALL PASS/.test(routes.stdout) && /PASS {2}prompt: route-precision: the project's own runbook routes in its own scenarios/.test(routes.stdout) && /PASS {2}prompt: route-precision: a generic word gives way to a specific match/.test(routes.stdout),
+      'host-fixtures: in a host project the engine\'s scenarios run without its own runbooks, skills, triggers, checks and hook files ("externalHooks"); its own scenarios keep them',
+      `fixture ${fxOk} ${JSON.stringify(fx).slice(0, 400)} | host ${hostOk} ${JSON.stringify(hb).slice(0, 300)} | ${fbr.stderr.slice(0, 200)} | routes ${routes.status} ${(routes.stdout.match(/^FAIL.*$/gm) || []).join(' / ').slice(0, 500)} ${routes.stdout.trim().split('\n').pop()}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+if (mineB()) { // upgrade-breaking: the review lists each "Breaking for project hooks" note new since the project's engine commit, when it has its own hooks
+  const { changelogSince, breakingItems } = await import(pathToFileURL(path.join(B, 'tools/hooks/hooks.mjs')).href);
+  const head = '# Changelog\n\nIntro: a **Breaking for project hooks:** mark in prose is not an entry.\n\n';
+  const OLD = head + '- 2026-10-21: Second.\n  - **Breaking for project hooks:** the stop note changed.\n\n- 2026-10-20: First.\n  - **Breaking for project hooks:** old note.\n';
+  // a newer entry, the 10-21 entry grown by a note, and a re-check entry dated before the project's last review
+  const NEW = head + '- 2026-10-22: Third.\n  - A plain change.\n\n- 2026-10-21: Second.\n  - **Breaking for project hooks:** the stop note changed.\n  - Denials: **Breaking for project hooks:** a denial can name\n    several rules.\n\n' +
+    '- 2026-10-20 (re-check): Later re-check.\n  - **Breaking for project hooks:** the reason lists "Then:" steps in Names: a new field.\n\n- 2026-10-20: First.\n  - **Breaking for project hooks:** old note.\n';
+  const got = changelogSince(NEW, OLD, '2026-10-21'), byDate = changelogSince(NEW, null, '2026-10-21'), same = changelogSince(OLD, OLD, '2026-10-21');
+  const own = breakingItems(got.breaking, ['tools/hooks/hooks.py'], ''), none = breakingItems(got.breaking, [], '');
+  const again = breakingItems(got.breaking, ['tools/hooks/hooks.py'], `## Upgrade review (2026-10-22)\n- ${own.items[0] || 'x'}: adopted\n`);
+  report(got.breaking.length === 2 && got.breaking.some(n => /"Then:" steps/.test(n)) && got.breaking.some(n => /^a denial can name several rules\.$/.test(n)) && !got.breaking.some(n => /old note|stop note/.test(n))
+    && got.entries.map(e => e.split('\n')[0]).join('|') === '- 2026-10-22: Third.|- 2026-10-21: Second.|- 2026-10-20 (re-check): Later re-check.'
+    && !byDate.breaking.some(n => /Then:/.test(n)) && same.breaking.length === 0 && same.entries.length === 0
+    && own.items.length === 2 && own.items.every(i => i.startsWith('breaking: ') && !i.slice(10).includes(': ')) && none.items.length === 0 && none.shown.length === 2 && again.items.length === 1,
+    'upgrade-breaking: notes new since the engine commit are listed (a re-check entry dated before the last review too), old ones are not; review items only with "externalHooks", once',
+    JSON.stringify({ got, byDate: byDate.breaking, same, own, none, again }).slice(0, 900));
+}
+
+if (mineB()) { // state-no-transcript: a hook run with a made-up session id and an empty or unreadable transcript writes no session state
+  const dir = copyProject();
+  try {
+    const stDir = path.join(dir, 'tools/hooks/state'), ls = () => { try { return fs.readdirSync(stDir); } catch { return []; } };
+    const logLen = () => { try { return fs.readFileSync(path.join(stDir, 'stop-log.jsonl'), 'utf8').length; } catch { return 0; } };
+    fs.mkdirSync(path.join(dir, '.cache/tp'), { recursive: true });
+    const empty = path.join(dir, '.cache/tp/empty.jsonl'); fs.writeFileSync(empty, '');
+    const blank = path.join(dir, '.cache/tp/blank.jsonl'); fs.writeFileSync(blank, '\n  \n');
+    const real = transcript(dir, { prompt: 'what does the brief say', answer: 'It says what the project is for.' }, Date.now() - 1000);
+    // session start, prompt and stop, as a host runs them; what each kind of transcript left behind
+    const turnWith = (sid, tp) => {
+      const before = new Set(ls()), log0 = logLen();
+      for (const [cmd, extra] of [['session', { source: 'startup' }], ['prompt', { prompt: 'what does the brief say' }], ['stop', { last_assistant_message: 'It says what the project is for.' }]])
+        run(dir, cmd, { session_id: sid, ...(tp !== undefined ? { transcript_path: tp } : {}), ...extra });
+      const added = ls().filter(f => !before.has(f));
+      return { own: added.filter(f => f.includes(sid)), snap: added.filter(f => /^snapshot|^turn-start/.test(f)), logged: logLen() > log0 };
+    };
+    const quiet = { empty: turnWith('madeUpEmpty', empty), blank: turnWith('madeUpBlank', blank), folder: turnWith('madeUpFolder', path.join(dir, '.cache/tp')), none: turnWith('madeUpNone') };
+    const realRun = turnWith('realSession1', real);
+    const ok = Object.values(quiet).every(r => !r.own.length && !r.snap.length && !r.logged)
+      && ['turn.realSession1.json', 'snapshot.realSession1.json', 'notices-shown.realSession1.json', 'turn-end.realSession1.json'].every(f => realRun.own.includes(f)) && realRun.logged;
+    report(ok, 'state-no-transcript: a made-up session id with an empty, blank or unreadable transcript (or none) writes no session state, snapshot or Stop log line; a real transcript still does',
+      JSON.stringify({ ...quiet, real: realRun }).slice(0, 700));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 

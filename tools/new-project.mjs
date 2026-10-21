@@ -18,7 +18,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { CORE_SKILLS, today as localToday, usageOf, isEngineCheck, shippedChecks, checkKey, ENGINE_CHECKS_HISTORY } from './hooks/hooks.mjs';
+import { CORE_SKILLS, today as localToday, usageOf, isEngineCheck, shippedChecks, checkKey, ENGINE_CHECKS_HISTORY, changelogSince, breakingItems } from './hooks/hooks.mjs';
 import { wire } from './hooks/wire.mjs';
 
 const STARTER = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -557,11 +557,18 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   // changes that can break a project's own hooks or scripts that read the engine's output, flagged in the changelog with
   // "Breaking for project hooks:", each its own item. Lesson: a new Stop output shape broke a project script that read
   // the old "reason" key, and the review never said the output had changed.
+  // What is new is what the starter's changelog says now and did not say at the commit this project's engine came from
+  // (baseCommit); only without that commit does the date of the last review decide. The notes are review items when the
+  // project has its own hooks ("externalHooks"); otherwise there is nothing of its own to check, and they are only shown.
+  // Lesson: entries were picked by date, so a re-check entry dated the day before the project's last review was skipped.
   const sinceLast = [...decided.matchAll(/^## Upgrade review \((\d{4}-\d\d-\d\d)\)/gm)].pop()?.[1] || '';
-  const brk = fs.readFileSync(path.join(STARTER, 'tools', 'starter', 'STARTER-CHANGELOG.md'), 'utf8').split(/\n(?=- \d{4}-\d\d-\d\d\b)/)
-    .filter(e => /^- \d{4}-\d\d-\d\d/.test(e) && e.slice(2, 12) >= sinceLast)
-    .flatMap(e => [...e.matchAll(/\*\*Breaking for project hooks:\*\*\s*([\s\S]*?)(?=\n\s*- |\n- |$)/g)].map(m => m[1].replace(/\s+/g, ' ').trim()));
-  for (const b of brk) { const it = `breaking: ${b.slice(0, 300)}`; if (!decided.includes(`- ${it.slice(0, 60)}`)) items.push(it); }
+  const CL = 'tools/starter/STARTER-CHANGELOG.md';
+  const oldLog = baseCommit ? gitAt(baseCommit, CL) || null : null;
+  const since = changelogSince(fs.readFileSync(path.join(STARTER, CL), 'utf8'), oldLog, sinceLast);
+  const extHooks = (() => { try { return JSON.parse(fs.readFileSync(cp, 'utf8')).externalHooks || []; } catch { return []; } })();
+  const brk = breakingItems(since.breaking, extHooks, decided);
+  items.push(...brk.items);
+  for (const it of brk.shown) console.log(`note     ${it} (this project lists no "externalHooks", so it has no hooks of its own to check)`);
   // the self-tests run here once: a pass is written in, so the review does not wait on a step the upgrade can do itself.
   // Lesson: every upgrade left "self-tests: ?" for the agent to run and record by hand.
   // (--no-selftest leaves it to the agent: the starter's own tests of the upgrade itself use it, to stay quick)
@@ -582,7 +589,9 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
     `"fixed - <how>" or "declined - <why>". Adopt only what makes this project better. -->\n` + items.map(i => { const [it, done] = i.split('||'); return `- ${it}: ${done || '?'}${plainOf(it)}`; }).join('\n') + '\n');
   // what changed in the starter since the last review, to explain the items
   const last = [...decided.matchAll(/^## Upgrade review \((\d{4}-\d\d-\d\d)\)/gm)].pop()?.[1] || '';
-  const news = fs.readFileSync(path.join(STARTER, 'tools', 'starter', 'STARTER-CHANGELOG.md'), 'utf8').split(/\n(?=- \d{4}-\d\d-\d\d:)/).filter(e => /^- (\d{4}-\d\d-\d\d)/.test(e) && e.slice(2, 12) > last);
+  // (the same entries as the breaking notes: new since this project's engine commit. Lesson: "- 2026-10-20 (re-check)"
+  // entries never showed here, as the date had to be followed by a colon)
+  const news = since.entries;
   // each failing sweep by name, and whether it is only new candidates to decide (expected) or a real regression
   // (Lesson: "0 failing before, 1 after" left a project guessing which check and whether to worry)
   const named = after.failed.map(s => `${s}${onlyNew(s) ? ' (expected: new candidates to decide in the review)' : before.failed.includes(s) ? ' (failed before too)' : ''}`);
