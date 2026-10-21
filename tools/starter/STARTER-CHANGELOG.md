@@ -37,7 +37,8 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
     frustration record are kept per session, so one session no longer resets or reads another's.
   - **Field report fixes from an adopted project:** a project scenario with an unknown key fails and names the known
     ones (it used to check nothing); the size sweep holds the starter to its own share (`starterLoadedMaxChars`) and a
-    project to its preferences (`alwaysLoadedOwnMaxChars`), with a 40000 ceiling for both files; `--password-store`
+    project to its preferences (`alwaysLoadedOwnMaxChars`), with ceilings for CLAUDE.md (30000, loaded every session) and DIRECTORY.md (25000, read when routing; counted
+    with CLAUDE.md only when @imported); an upgrade names each failing check and marks new candidates as expected; `--password-store`
     is not security code; modular-code skips `http://*` wildcards and lines marked `modular-ok: <reason>`; a file this
     session brought into a protected folder and nothing cites yet may be removed or renamed (protect-originals); the
     research ledger takes "display ads only" as an honest incentive, catches sellers and boosting services, counts one

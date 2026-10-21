@@ -556,7 +556,10 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   // what changed in the starter since the last review, to explain the items
   const last = [...decided.matchAll(/^## Upgrade review \((\d{4}-\d\d-\d\d)\)/gm)].pop()?.[1] || '';
   const news = fs.readFileSync(path.join(STARTER, 'tools', 'starter', 'STARTER-CHANGELOG.md'), 'utf8').split(/\n(?=- \d{4}-\d\d-\d\d:)/).filter(e => /^- (\d{4}-\d\d-\d\d)/.test(e) && e.slice(2, 12) > last);
-  console.log(`\nChecks: ${before.failed.length} failing before, ${after.failed.length} after. Hooks: ${Object.entries(after.speed).map(([k, v]) => `${k} ${before.speed[k] ?? '?'} → ${v} ms`).join(', ') || 'not timed'}.`);
+  // each failing sweep by name, and whether it is only new candidates to decide (expected) or a real regression
+  // (Lesson: "0 failing before, 1 after" left a project guessing which check and whether to worry)
+  const named = after.failed.map(s => `${s}${onlyNew(s) ? ' (expected: new candidates to decide in the review)' : before.failed.includes(s) ? ' (failed before too)' : ''}`);
+  console.log(`\nChecks: ${before.failed.length} failing before, ${after.failed.length} after${named.length ? `: ${named.join('; ')}` : ''}. Hooks: ${Object.entries(after.speed).map(([k, v]) => `${k} ${before.speed[k] ?? '?'} → ${v} ms`).join(', ') || 'not timed'}.`);
   console.log(`\nUPGRADE REVIEW: ${items.length} item(s) to decide with the user, in docs/DECISIONS.md "## Upgrade review (${today})":\n` + items.map(i => `  - ${i}`).join('\n'));
   if (news.length) console.log(`\nWhat changed in the starter since ${last || 'this project was made'} (tools/starter/STARTER-CHANGELOG.md):\n` + news.map(e => e.split('\n')[0]).join('\n'));
   process.exit(0);

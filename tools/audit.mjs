@@ -437,7 +437,11 @@ sweep('always-loaded files stay small', () => {
   const warn = [];
   if (isTemplate && total > cfg.starterLoadedMaxChars) warn.push(`the starter's own AGENTS.md and DIRECTORY.md are ${total} characters, over ${cfg.starterLoadedMaxChars}: every project starts with them, so trim the starter's text`);
   if (!isTemplate && prefs > cfg.alwaysLoadedOwnMaxChars) warn.push(`the standing preferences in AGENTS.md are ${prefs} characters, over ${cfg.alwaysLoadedOwnMaxChars}: merge repeated ones and move detail into the runbook or skill each one is about`);
-  if (!isTemplate && total > cfg.alwaysLoadedMaxChars) warn.push(`${sizes.map(([f, n]) => `${f} ${n}`).join(' + ')} = ${total} characters, over ${cfg.alwaysLoadedMaxChars}: merge repeated preferences and rules, and move detail into runbooks or skills`);
+  // CLAUDE.md is loaded at every session start; DIRECTORY.md is read when routing, unless CLAUDE.md @imports it.
+  // Each gets its own ceiling. Lesson: the sum of both was held to one limit though only one is loaded every time.
+  const [[, claude], [, dir]] = sizes, imported = /^@DIRECTORY\.md\b/m.test(read(abs('CLAUDE.md')));
+  if (!isTemplate && (imported ? total : claude) > cfg.alwaysLoadedMaxChars) warn.push(`${imported ? `CLAUDE.md ${claude} + DIRECTORY.md ${dir} (imported) = ${total}` : `CLAUDE.md is ${claude}`} characters, over ${cfg.alwaysLoadedMaxChars}: merge repeated preferences and rules, and move detail into runbooks or skills`);
+  if (!isTemplate && !imported && dir > cfg.directoryMaxChars) warn.push(`DIRECTORY.md is ${dir} characters, over ${cfg.directoryMaxChars}: retire unused runbooks and skills (skill-curate), or shorten their summaries`);
   return { warn, note: `${total} characters, preferences ${prefs}` };
 });
 

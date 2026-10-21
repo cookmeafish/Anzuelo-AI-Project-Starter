@@ -127,9 +127,11 @@ const DEFAULTS = {
   injectionIgnore: ['docs/security.md', 'skills/security-review/**', 'skills/research/references.md', 'skills/skill-finder/references.md', '.claude/skills/**'],
   // Files read at every session start. The starter's own rules and the generated map are a fixed cost the starter keeps
   // small (its own audit holds them under starterLoadedMaxChars); a project answers for its own part, the standing
-  // preferences (alwaysLoadedOwnMaxChars), and the total gets a ceiling (alwaysLoadedMaxChars).
+  // preferences (alwaysLoadedOwnMaxChars); CLAUDE.md, loaded every session, has a ceiling (alwaysLoadedMaxChars), and
+  // DIRECTORY.md, read when routing, its own (directoryMaxChars), unless CLAUDE.md @imports it.
   // Lesson: a project could not clear the warning: about 23k of the 30k was the starter's text before any preference.
-  alwaysLoadedMaxChars: 40000,
+  alwaysLoadedMaxChars: 30000,
+  directoryMaxChars: 25000,
   alwaysLoadedOwnMaxChars: 6000,
   starterLoadedMaxChars: 28000,
   knowledgeRows: 40,          // DIRECTORY.md lists up to this many knowledge notes one by one; more go one row per folder
