@@ -1044,6 +1044,49 @@ export function actionAttempts(entries) {
   }
   return out;
 }
+// REQ: claim-checked. Promises that a miss can't come back, and claims that a lesson was sent to the starter's makers.
+const NEVER_AGAIN = /\b(can(?:no|')?t|cannot|won'?t|will not|will never|doesn'?t|does not)\s+(happen|recur|come back|slip (?:through|by|past)|repeat)\b[^.\n]{0,25}\bagain\b|\bnow enforces (this|it)\b|\benforces (this|it) on its own\b|\b(stops?|prevents?|blocks?) (this|it|that) from (ever )?(happening|recurring|coming back)\b/i;
+const REPORTED = /\b(reported|sent|passed on|forwarded|submitted|filed)\b[^.\n]{0,40}\bto the (tool'?s |starter'?s |engine'?s )?(makers?|authors?|developers?|maintainers?|starter)\b|\b(the )?(makers?|developers?|maintainers?) (were|was|have been|has been) (told|notified|informed)\b|\b(report[eé]|reportad[oa]|envi[eé]|enviad[oa]|avis[eé])\b[^.\n]{0,40}\b(a los|al) (creador(es)?|autor(es)?|desarrollador(es)?|starter)\b/i;
+// REQ: check-proven. The project's own checks born this turn: a script named for checking, or a test file. Engine
+// files and scratch copies are not the project's checks.
+const CHECK_FILE = /(^|\/)[^/]*(check|guard|lint|valid|verif|enforce)[^/]*\.(mjs|cjs|js|ts|py|go|rs|rb|sh|ps1|cs|java|kt|php)$/i;
+const TEST_FILE = /(^|\/)(tests?|__tests__|spec)\/[^/]+\.(mjs|cjs|js|ts|py|go|rs|rb|cs|java|kt|php)$|[._-](test|spec)\.\w+$|(^|\/)test_[^/]+\.py$/i;
+const NOT_PROJECT_CHECK = /^(tools\/hooks\/|tools\/(audit|trial|fit|starter|skills|packs|recall|survey|dedupe|integrity-check|writing-check|new-project)\.mjs$|library\/|packs\/|\.cache\/)/;
+export function newProjectChecks(x) {
+  return (x.changed || []).filter(p => (CHECK_FILE.test(p) || TEST_FILE.test(p)) && !NOT_PROJECT_CHECK.test(p) && exists(p) && bornThisTurn(p, x.since));
+}
+// Whether a new check was proven: the answer's "Proven: fails on <bad>; passes on <good>, <good>" line (Spanish
+// "Probado: falla con ...; pasa con ..."), a run of the check that failed on the complained-about state (before the
+// turn changed any file that was already there, or after a command took the earlier version from git), and a run that
+// passed. Returns { checks, missing[] }: missing is empty when it is proven.
+// Lesson: checks written after a complaint passed the exact code complained about (tried only on made-up junk), or
+// failed ordinary words of the user's own language and legitimate letters (never run on a good sample).
+export function checkProof(x) {
+  const checks = newProjectChecks(x);
+  if (!checks.length) return { checks, missing: [] };
+  const missing = [];
+  const line = /^[^\n]*?\b(proven|probad[oa])\s*:([^\n]*)$/im.exec(x.answer || '')?.[2] || '';
+  const goods = (/\b(?:pass(?:es)? on|pasa (?:con|en|sobre))\s+([^\n]+)/i.exec(line)?.[1] || '').split(/\s*(?:[,;]|\band\b|\by\b)\s*/).filter(s => s.replace(/\W/g, '').length >= 3);
+  if (!line.trim()) missing.push('the answer has no "Proven: fails on <the complained-about sample>; passes on <good 1>, <good 2>" line');
+  else {
+    if (!/\b(fails? on|falla (con|en|sobre))\s+\S/i.test(line)) missing.push('the "Proven:" line does not name the complained-about sample it fails on');
+    if (goods.length < 2) missing.push('the "Proven:" line names fewer than 2 good samples it passes on');
+  }
+  const stems = checks.map(p => path.basename(p).replace(/\.[^.]+$/, '')).filter(s => s.length >= 4);
+  const tests = checks.some(p => TEST_FILE.test(p));
+  const runs = (x.runs || []).filter(r => typeof r.cmd === 'string' && !/selfcheck\.mjs|hooks\.mjs/.test(r.cmd)
+    && (stems.some(s => r.cmd.includes(s)) || (tests && /\b(test|tests|pytest|unittest|jest|vitest|mocha|rspec|phpunit)\b/i.test(r.cmd))));
+  const failed = r => r.error || /\b(FAIL(ED|S|URES?)?|not ok|MAL)\b|✖/.test(r.out || '');
+  const passed = r => /\b(PASS(ED|ES)?|OK|\d+ passed)\b|✔/.test(r.out || '') || (!r.error && !failed(r));
+  // the state the user complained about: nothing that was already there had been changed yet, or git gave the old version
+  const fixes = new Set((x.changed || []).filter(p => !checks.includes(p) && !/^(docs\/|tools\/hooks\/|\.cache\/)|(^|\/)(AGENTS|CLAUDE|SKILL)\.md$/.test(p) && !bornThisTurn(p, x.since)));
+  const all = x.runs || [];
+  const gitOld = i => all.slice(0, i + 1).some(r => /\bgit\s+(show|stash|archive|worktree|checkout|restore)\b/.test(String(r.cmd)));
+  const onOld = r => !(r.editedBefore || []).some(p => fixes.has(p)) || gitOld(all.indexOf(r));
+  if (!runs.some(r => failed(r) && onOld(r))) missing.push('no run of the check failed on the state the user complained about (run it before the fix, or on the earlier version: git show HEAD:<file> > .cache/before-<file>)');
+  if (!runs.some(passed)) missing.push('no run of the check passed');
+  return { checks, missing };
+}
 export function toolUses(entries) {
   const skip = deniedIds(entries), out = [];
   for (const r of entries) {
@@ -2031,6 +2074,12 @@ export const LABELS_ES = [
   [/\bpasa(n|ron)? (las|los) pruebas\b|\blas pruebas pasa(n|ron)\b/gi, 'tests pass'],
   [/\((regla)\)/gi, '(rule)'], [/\((comprobaci[oó]n|chequeo|control)\)/gi, '(check)'], [/\((lecci[oó]n)\)/gi, '(lesson)'],
   [/\((habilidad)\)/gi, '(skill)'], [/\((motor)\)/gi, '(engine)'], [/\((puntual)\)/gi, '(one-off)'],
+  // the reviewer's verdict, a "Checked:" line before agreeing, and the promise that a miss can't come back, in Spanish.
+  // Lesson: Spanish answers said "veredicto final SHIP", because only the English verdict met the review check.
+  [/\b(veredicto( final)?\W{0,4})?list[oa]s? para (publicar|entregar|salir|lanzar)\b|\bveredicto( final)?\W{0,4}(list[oa]|aprobad[oa])\b/gi, 'verdict: SHIP'],
+  [/\bveredicto( final)?\W{0,4}(corregir|hay que corregir|a corregir)\b/gi, 'verdict: FIX'],
+  [/^([\s>*_-]*)(comprobado|revis[eé])(\**\s*:)/gim, '$1Checked$3'],
+  [/\bno (vuelva|volver[aá]) a (pasar|ocurrir|suceder)\b|\bno se (repita|repetir[aá])\b/gi, "won't happen again"],
 ];
 export function inEnglish(text, cfg = config()) {
   const own = Object.entries(cfg.labelAliases || {}).map(([k, v]) => { try { return [new RegExp(k, 'gi'), v]; } catch { return null; } }).filter(Boolean);
@@ -2053,6 +2102,8 @@ export const isSpanish = text => { const s = String(text || '').slice(0, 2000); 
 export const LABELS_ES_HINT = 'Write the whole answer in Spanish, labels too; the checks accept them: "## Terminado" (Finished), "Causa raíz:", "Supuesto: <decisión> - <por qué> - <coste si me equivoco>", ' +
   '"Revisión visual: correcta tras N rondas", "Accesibilidad: <qué revisé> - correcta", "Revisión de seguridad: correcta, N áreas - tabla en docs/reviews/security-AAAA-MM-DD.md", ' +
   '"Aprendido (regla): <lección> → <archivo>", "Evaluado: <herramienta> ... licencia <nombre>", "Habilidades existentes revisadas:", "Cómo se calculó:", "Fuentes:", "No es asesoramiento legal", ' +
+  '"**Aviso:**" (Heads-up), "**Hecho:**", "**Problema:**", "**Pregunta para ti:**", "Revisión independiente: lista para publicar" (SHIP) or "veredicto: corregir" (FIX), "Comprobado: <qué abrí> - <qué mostraba>", ' +
+  '"Probado: falla con <muestra de la queja>; pasa con <buena 1>, <buena 2>", ' +
   '"Guía: <runbook>.md · Habilidad: <nombre> · Vale la pena: <ganancia> / <coste>".';
 
 // ---------- people / scopes ----------
@@ -2980,9 +3031,13 @@ export function promptHints(prompt, cfg = config(), withNotices = true, { relaye
       'turns that end without one (REQ: runbook-exists).'));
   // REQ: upset-learned. An upset user (a complaint, frustration, shouting) is the project's best signal: fix it, then learn.
   if (own && isUpset(p, cfg))
-    hints.push('THE USER SOUNDS UPSET about a miss. Use the learn-from-upset skill (skills/learn-from-upset/SKILL.md): fix the miss first by its runbook ' +
+    // (step 0 first: open what the complaint is about before agreeing. Lesson: "fix the miss first" led an agent to
+    // concede a complaint that was only partly true, before it had opened the file)
+    hints.push('THE USER SOUNDS UPSET about a miss. Use the learn-from-upset skill (skills/learn-from-upset/SKILL.md): first open what the complaint is about and say which parts hold ' +
+      '("Checked: <what you opened> - <what it showed>"), then fix the miss by its runbook ' +
       'and say plainly what went wrong (no arguing, no long apology), then weigh how important the lesson is (one-off, lesson in the skill that missed it, rule, ' +
-      'hook check, new skill, or engine feedback that reaches every project) and write it there. End with "Learned (<level>): <lesson> → <file>". REQ: upset-learned.');
+      'hook check, new skill, or engine feedback that reaches every project) and write it there. A new check must fail on what the user complained about and pass on 2 realistic good samples ' +
+      '("Proven: fails on ...; passes on ..., ..."). End with "Learned (<level>): <lesson> → <file>". REQ: upset-learned, check-proven.');
   // feedback or a message the user wants passed on to someone else carries that receiver's requirements, not this
   // project's ("give that feedback to the starter and mention to make sure it's fixed"). Lesson: such a relay got the
   // REQUIREMENT hint.
@@ -2991,10 +3046,12 @@ export function promptHints(prompt, cfg = config(), withNotices = true, { relaye
   else if (isRuleRequest(p, cfg) && !isUpset(p, cfg))
     hints.push('RULE REQUEST: the user is setting a standing rule. Use the project-rule skill: record the principle and why (in your own words, not theirs) with today\'s date, ' +
       'write the rule into CLAUDE.md, add a row to docs/checks/user-requirements.md, enforce it in tools/hooks/requirements.json (or say ' +
-      '"hook: N/A <reason>"), run the hook tests and the audit. If it is not actually a rule, waive it: node tools/hooks/hooks.mjs waive rule-request "<why>". REQ: rule-request.');
+      '"hook: N/A <reason>"), run the hook tests and the audit. A new check script or test must fail on a real bad sample and pass on 2 realistic good ones, one a valid edge case ' +
+      '("Proven: fails on ...; passes on ..., ..."). If it is not actually a rule, waive it: node tools/hooks/hooks.mjs waive rule-request "<why>". REQ: rule-request, check-proven.');
   else if (isRequirement(p, cfg))
     hints.push('REQUIREMENT: the user stated a lasting requirement on the work. Enforce it this turn, without asking: a "Done when" item in its runbook or skill with ' +
-      '"(hook: <tag>)", the check and a test (or "(judgment: <why>)" when no script can tell). If it was only for this one task, ' +
+      '"(hook: <tag>)", the check and a test (or "(judgment: <why>)" when no script can tell). The check must fail on a real bad sample and pass on 2 realistic good ones, ' +
+      'one a valid edge case ("Proven: fails on ...; passes on ..., ..."). If it was only for this one task, ' +
       'waive it: node tools/hooks/hooks.mjs waive requirement-enforced "one-off, only for this task". REQ: requirement-enforced.');
   // REQ: check-preview. Work learns at the start which checks its Stop will hold it to, so the first pass does them all.
   // Lesson: most Stop rounds told the agent what it could have known when the request arrived.
@@ -3937,6 +3994,13 @@ export function coreChecks(x, cfg) {
     const VERDICT = /\b(you'?re right|you are right|partly right|partly[:,]|that (isn'?t|is not|wasn'?t|was not) what happened|that'?s not what happened|(the )?complaint:\s*(holds|partly|does(n'?t| not) hold)|(this|that|it) (was|is) (already|still) (there|in place|done)|already (there|in place|covered|handled|tested))/i;
     if (!VERDICT.test(x.said)) add('upset-learned', 'Before fixing anything, check the complaint against the files and say plainly whether it holds, in the first line: ' +
       '"You\'re right: ...", "Partly: <what was wrong>, <what was already there>", or "That isn\'t what happened: <evidence>" (learn-from-upset skill, step 0).');
+    // A full "you're right" says what was looked at, so a complaint that is only partly true is not conceded from
+    // memory. Lesson: an agent agreed the README never described a new option, before opening it; it did describe it,
+    // and only the list of options was missing.
+    else if (/\b(you'?re right|you are right)\b/i.test(x.answer) && !/\b(partly|partially|in part|en parte|parcialmente)\b|that isn'?t what happened|already there/i.test(x.answer)
+      && !/^[\s>*_-]*(checked|comprobado|revis[eé])\**\s*:\**\s*\S.{8,}/im.test(x.answer))
+      add('upset-learned', 'The answer agrees with the whole complaint. Say what you checked before agreeing, on its own line: "Checked: <the file, output or commit you opened> - <what it showed>". ' +
+        'If part of the complaint was already right in the files, say "Partly: <what was wrong>, <what was already there>" instead (learn-from-upset skill, step 0).');
     const learned = learnedLines(x.said);
     if (!learned.length) add('upset-learned', 'The user is upset about a miss. Fixing it is half the job: the project has to learn from it too. Use the learn-from-upset skill ' +
       '(skills/learn-from-upset/SKILL.md): fix the miss, weigh how important the lesson is, write it where it belongs, and end with ' +
@@ -3973,6 +4037,21 @@ export function coreChecks(x, cfg) {
       add('requirement-enforced', 'The user stated a lasting requirement. Enforce it now, without asking: add it to the "Done when" of the runbook or skill it belongs to with "(hook: <tag>)", ' +
         'write that check (requirements.json, or the project\'s own check script) and a test for it; or mark it "(judgment: <why no script can tell>)". If it was only for this one task, waive it: node tools/hooks/hooks.mjs waive requirement-enforced "one-off, only for this task".');
   }
+  // REQ: check-proven. A check the project writes after a complaint, a rule or a requirement is proven before the answer
+  // leans on it: it fails on the state the user complained about (the version before the fix, from git, or the real
+  // text) and passes on at least 2 realistic good samples, one a valid edge case of the project's domain. The answer
+  // says so in one "Proven:" line and the run log shows both runs. Lesson: three trial projects shipped such checks:
+  // one passed the very code the user complained about (it was only tried on made-up junk), one failed ordinary words
+  // of the user's own language, and one banned words every legitimate late-rent letter needs.
+  // (a turn the agent itself treated as a lesson counts too: a complaint in words the prompt patterns miss, like "the
+  // letter sounds like a robot ... always", still ends with a "Learned (...)" line)
+  const ownTurn = x.prompt && (isUpset(x.prompt, cfg) || isRuleRequest(x.prompt, cfg) || isRequirement(x.prompt, cfg) || learnedLines(x.said).length > 0);
+  const proof = ownTurn ? checkProof(x) : { checks: [], missing: [] };
+  if (proof.missing.length)
+    add('check-proven', `The new check (${proof.checks.slice(0, 3).join(', ')}) is not proven yet: ${proof.missing.join('; ')}. ` +
+      'Run it on the state the user complained about (the version before this turn\'s fix, from git, or the real text) and see it FAIL; run it on at least 2 realistic good samples, ' +
+      'one a valid edge case of this project (words the user\'s language shares with a banned list, a legitimate text that must use a flagged term), and see them PASS. ' +
+      'Then say it on one line: "Proven: fails on <the complained-about sample>; passes on <good 1>, <good 2>". If it truly cannot run on samples, waive it: node tools/hooks/hooks.mjs waive check-proven "<why>".');
   // REQ: question-no-file. A question gets an answer, not unrequested edits.
   // Lesson: a relayed instruction ("Add all six checks with tests now") that mentioned a question was judged a question.
   const instructs = /(^|[.!:\n]\s*)(please\s+)?(add|fix|make|update|upgrade|run|move|create|write|build|remove|change|rename|install|enable|implement|apply)\b/i.test(x.prompt);
@@ -4078,6 +4157,23 @@ export function coreChecks(x, cfg) {
         add('claim-checked', `The answer says it ${{ push: 'pushed', commit: 'committed', publish: 'published', send: 'sent' }[a.kind]} something, but the last ${a.kind} this turn was denied or failed. Say what happened, and what the user can do.`);
     }
   }
+  // REQ: claim-checked. "It can't happen again" after a complaint or a rule is a claim about a check, so it needs the
+  // check's proof (check-proven): a run that failed on what the user complained about and runs that passed on good
+  // samples. Lesson: an answer said "the project now enforces this on its own" about a check that passed the very
+  // code the user had complained about.
+  const neverAgain = x.answer.split(/(?<=[.!?\n])\s+/).find(s => NEVER_AGAIN.test(s) && !/\b(make sure|making sure|to keep|try to|helps?|less likely)\b/i.test(s));
+  // (in the starter itself, an engine fix is proven by its new self-test scenarios)
+  if (ownTurn && neverAgain && (!proof.checks.length || proof.missing.length) && !(exists('.starter-template') && x.changed.includes('tools/hooks/selfcheck.mjs')))
+    add('claim-checked', `The answer promises it can't happen again ("${neverAgain.trim().slice(0, 70)}"), but ${proof.checks.length ? 'the new check is not proven yet (check-proven)' : 'no new check was shown failing on what the user complained about and passing on good samples'}. ` +
+      'Prove the check ("Proven: fails on <the complained-about sample>; passes on <good 1>, <good 2>"), or say what was put in place and what it does not catch, without the promise.');
+  // REQ: claim-checked. Engine feedback reaches the starter only through "node tools/starter.mjs report"; "feedback"
+  // only writes docs/starter-feedback.md. Lesson: an answer said an engine bug was "reported to the tool's makers" when
+  // the report command never ran.
+  const reportClaim = x.answer.split(/(?<=[.!?\n])\s+/).find(s => REPORTED.test(s) && !/\b(not|n'?t|no|nothing|never|will|once|when|until)\b/i.test(s.replace(REPORTED, '')));
+  const reportRan = (x.runs || []).some(r => /\bstarter\.mjs["']?\s+report\b/.test(String(r.cmd)) && /\breport: (sent|nothing new)\b/i.test(r.out || ''));
+  if (reportClaim && !reportRan)
+    add('claim-checked', `The answer says the lesson was reported ("${reportClaim.trim().slice(0, 70)}"), but node tools/starter.mjs report did not send it this turn. ` +
+      'Say "noted in docs/starter-feedback.md for the starter", or run node tools/starter.mjs report and say what it printed.');
   // REQ: scope-separate (files changed this turn)
   const ppl = people(cfg);
   if (ppl.length && !settingUp() && !x.changed.includes('SETUP-PROMPT.md')) {
@@ -4916,7 +5012,8 @@ const SHORT = {
   'decision-logged': 'Log the user\'s decision in docs/DECISIONS.md', 'redo-changes': 'Say what changed from the last answer',
   'praise-captured': 'Write down what the user liked so it is repeated', 'qa-incident': 'Log what QA missed and how it was found',
   'history-confidence': 'Open with the bottom line and how sure you are', 'user-research-counted': 'Give each theme its count and traced quotes',
-  'security-report': 'End with the security review table', 'claim-checked': 'Correct the answer: an action it reports did not happen',
+  'security-report': 'End with the security review table', 'claim-checked': 'Correct the answer: a claim in it is not backed by this turn',
+  'check-proven': 'Prove the new check fails on the complaint and passes good samples',
   'outward-gate': 'Ask before acting outside the project', 'scope-separate': 'Keep each person\'s data apart',
   'perf-numbers': 'Give before and after numbers from the same measurement', 'data-backup': 'Name the backup, its restore test and the record counts',
   'knowledge-changelog': 'Note the knowledge change in docs/CHANGELOG.md', 'knowledge-captured': 'Write the new fact or decision into the project',

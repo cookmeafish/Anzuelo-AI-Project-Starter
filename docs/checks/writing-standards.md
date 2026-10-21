@@ -72,6 +72,10 @@ glance whether it asks, reports, warns or says something broke.
 | Problem | `**Problem:**` | What failed, in one line. Then the likely cause, and what happens next or what the user can do. |
 | Working | nothing, plain text, or an activity line | One short line while a long task runs: "Checking the 3 hook files next." (see "Activity lines") |
 
+In another language, the labels are in that language too. Spanish: `**Pregunta para ti:**`, `**Hecho:**` or
+`## Terminado`, `**Aviso:**`, `**Problema:**`, and a review verdict as "lista para publicar" (SHIP) or "veredicto:
+corregir" (FIX). The checks read these forms.
+
 Rules:
 1. **Lead each block with its kind.** One kind per block. A warning inside a result paragraph gets missed, so give it
    its own `**Heads-up:**` line.

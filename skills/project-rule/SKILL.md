@@ -45,5 +45,10 @@ A rule that only lives in the docs gets forgotten. The docs state it and a hook 
    unrelated turns teaches everyone to waive it.
 6. **Prove it.** Add a scenario to `tools/hooks/project-scenarios.mjs` (upgrades keep it; in the starter itself: `tools/hooks/selfcheck.mjs`): skipped → blocked with the tag, followed → passes.
    Run `node tools/hooks/selfcheck.mjs --tags <the new tag>`, then `node tools/audit.mjs`. Both must PASS.
+   A check script or test is also run on real samples (hook: check-proven): it fails on the real bad case (what the
+   user complained about, or its earlier version: `git show HEAD:<file>`) and passes on at least 2 realistic good
+   samples, one a valid edge case of the project (a word the user's language shares with a banned list, a legitimate
+   text that must use a flagged term). Say it on one line: `Proven: fails on <bad>; passes on <good 1>, <good 2>`.
+   A check that bans words is the last resort: test the result itself where you can.
 7. **Report** the rule in one line, where it lives, and how it is enforced (or why it can't be), with a Finished
    section and a CHANGELOG line.

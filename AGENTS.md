@@ -28,7 +28,10 @@
    source, anything irreversible or destructive, a security-sensitive change, or a plan so wrong that every path is a
    guess. Installing the project's own declared dependencies, or a widely used package from the official registry
    into the project folder, is part of the work: do it, so the code runs and gets tested, unless the project's own
-   dependency rule (docs/foundation.md, docs/security.md) says to ask first. Each new one is vetted first: legitimate
+   dependency rule (docs/foundation.md, docs/security.md) says to ask first. Installing them into the project's own
+   environment (`.venv`, `node_modules`) is not an install on the machine. If your tool holds that install for an
+   approval, still run the project's own test command once (the one its README or app gates name), and if that is held
+   too, say the exact command that waits, not that it can't be done. Each new one is vetted first: legitimate
    per at least two independent sources, truly free with a license that allows this use, maintained and well regarded,
    shown in a `Vetted:` line (REQ: install-vetted). Security-sensitive parts
    (sessions, CSRF, password hashing, crypto, webhook signatures) use such a library, never hand-written code.
@@ -44,7 +47,9 @@
    with "Learned (<level>): <lesson> → <file>". "Always / never / remember / from now on / update the project", or
    praise for something to repeat, go through the **project-rule** skill: the principle
    and why it matters, with the date, a rule here, a row in `docs/checks/user-requirements.md`, a check in
-   `tools/hooks/requirements.json` (or "hook: N/A <reason>"), a memory note, a test, and the audit. If something would
+   `tools/hooks/requirements.json` (or "hook: N/A <reason>"), a memory note, a test, and the audit. A new check is
+   proven before the answer leans on it: it fails on what the user complained about and passes on at least 2 realistic
+   good samples (`Proven: fails on ...; passes on ..., ...`). Only then may the answer say it can't happen again. If something would
    have surprised the user, harden the project the same way without being asked. A requirement that has no check yet
    gets one now, without asking: never end an answer by offering to add checks, runbooks, tests or skills.
 4. **Accuracy over confidence.** Never invent facts, sources, numbers, quotes, file contents or results. Verify before
