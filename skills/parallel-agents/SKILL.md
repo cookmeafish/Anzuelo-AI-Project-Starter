@@ -38,7 +38,10 @@ Each brief carries:
 - **Approach hints**, when you have them: where to look first, and the tempting shortcut to avoid, named ("don't just
   raise the timeout; find out why it is slow").
 - **Limits:** what it must not touch ("change only the tests", "don't edit shared config", "no commits"), and no
-  sub-agents of its own.
+  sub-agents of its own. Read the brief once for contradictions: a file it may not touch can still be read; say
+  "read-only" rather than "don't open", if its data is needed.
+- **Today's date**, from the system (`date`), not from memory or an earlier brief: helpers judge "current" and "new"
+  by it.
 - **Return:** a status (done, done with concerns, needs information, blocked) and a short report: the cause found,
   what changed (file paths), what was verified, what is still open, and a `Friction:` line naming any tool, runbook or
   hook that slowed it or got in its way (or "none"). Long output goes in a file it names.
