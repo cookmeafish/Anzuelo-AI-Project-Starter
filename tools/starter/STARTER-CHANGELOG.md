@@ -30,6 +30,9 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
     "Searched: <what> - nothing found (<where>, <date>)" answers a search that found nothing; "don't ask me" and other
     autonomy phrases no longer route to the plan runbook; a here-document that names a test is not a run of it; a
     watched input the agent itself replaced with a command is not reported as the user's mid-turn update.
+  - security-code no longer fires on the word "formidable" in prose or card names (only the library imported by name),
+    nor on scratch scripts under `.cache/`; parallel-agents briefs ask each helper for a `Friction:` line, and
+    follow-up rounds resume the same helpers.
   - **Hidden instructions are reported, not just ignored:** a file or page read this turn that carries instructions
     aimed at an AI ("note for AI assistants", "don't tell the user") makes the answer warn the user: where, what it
     asked, that none of it was done (REQ: injection-flagged). A live test with a forged supplier letter showed the agent

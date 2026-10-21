@@ -40,7 +40,8 @@ Each brief carries:
 - **Limits:** what it must not touch ("change only the tests", "don't edit shared config", "no commits"), and no
   sub-agents of its own.
 - **Return:** a status (done, done with concerns, needs information, blocked) and a short report: the cause found,
-  what changed (file paths), what was verified, what is still open. Long output goes in a file it names.
+  what changed (file paths), what was verified, what is still open, and a `Friction:` line naming any tool, runbook or
+  hook that slowed it or got in its way (or "none"). Long output goes in a file it names.
 
 A good brief is focused (one area), self-contained (no "as discussed") and clear about what comes back. Weak briefs
 are too broad ("fix all the tests"), missing context ("fix the race condition"), unbounded (nothing stops a rewrite),
@@ -63,6 +64,9 @@ When they report back:
 4. Spot-check the changes yourself. Sub-agents make the same mistake the same way.
 5. Report in the Finished section, per part, and say what the full checks on the combined result showed (hook:
    parallel-merged).
+6. Act on each `Friction:` line: fix the project's own tool or runbook, and send an engine problem to the starter
+   (`node tools/starter.mjs feedback "<what, where>"`). Follow-up rounds on the same parts go to the same agents,
+   resumed with their context, not new ones: they already know the work.
 
 ## Done when
 - [ ] Every brief pointed at AGENTS.md and had scope, goal, facts, limits and a return format (hook: subagent-brief for AGENTS.md; judgment: whether the rest of the brief is clear).
