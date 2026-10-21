@@ -2919,7 +2919,8 @@ export function pretoolDecision(data, cfg = config()) {
       // that names it, is not its output. Lesson: "diff tools/x.py backup | head" and a feedback note naming x.py were denied.
       const runsTool = p => re(`^(?:\\w+=\\S*\\s+)*(?:(?:\\S*[\\\\/])?(?:python3?|py|node|bash|sh|pwsh|powershell|ruby|perl|deno|bun|tsx|uv\\s+run)(?:\\.exe)?\\s+(?:-\\S+\\s+)*)?["']?(?:\\.[\\\\/])?(?:\\S*[\\\\/])?${esc(tool.split('/').pop())}\\b`).test(p.trim());
       const { parts, ops } = shellParts(stripped);
-      const piped = parts.some((p, i) => runsTool(p) && p.includes(tool.split('/').pop()) && ops[i] === '|' && /^(head|tail|grep|egrep|rg|cut|sed|awk|findstr|Select-String|Select-Object|sort|uniq|less|more)\b/i.test(parts[i + 1] || ''));
+      // (a tool's --help is its usage text, not its results. Lesson: "candidates.py --help | head" was denied)
+      const piped = parts.some((p, i) => runsTool(p) && p.includes(tool.split('/').pop()) && !/(^|\s)(-h|--help|-\?|\/\?)(\s|$)/.test(p) && ops[i] === '|' && /^(head|tail|grep|egrep|rg|cut|sed|awk|findstr|Select-String|Select-Object|sort|uniq|less|more)\b/i.test(parts[i + 1] || ''));
       if (stripped.includes(tool) && piped)
         return `REQ: whole-output. Read the output of ${tool} whole: don't pipe it into a filter. Write it to a file in .cache/ and Read that if it is long.`;
     }
