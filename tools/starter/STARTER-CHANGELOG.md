@@ -89,6 +89,34 @@ hooks:**, and an upgrade lists each one as its own review item.
     reinstalling the declared requirements is exempt (REQ: install-vetted). AGENTS.md step 0.5 says so (adopt by hand).
   - Correspondence skill: tone fits the relationship (warm for tenants and customers by default); a friendlier
     rewrite adds no new promises or motives; counts in the answer come from the saved draft.
+  - **Re-check of an adopted deck project's reports (each item now has a test):**
+    - `wire` keeps a project's own Codex hook command even when it shares a group with the engine's, and leaves a
+      `.codex/hooks.json` that does not parse alone (it used to be replaced).
+    - The audit reads more ways to name several checks in a project's own hooks (`"externalHooks"`): "REQ: a and b",
+      "REQ: a + REQ: b", "REQ:a; b", and `_` for `-`.
+    - Publish safety: an account named "User" is personal in macOS and Git Bash form too (`/Users/User`,
+      `/c/Users/User`), and a Windows home path is named once, not twice. Without git, `.gitignore` is read the way git
+      reads it (`*.log`, `/notes/*.md`, `!keep.md`), not only its plain folder lines.
+    - Menu codes joined by `+`, `/` or `&` all expand, and an unknown code among the leading codes is asked about.
+    - `starter.mjs update` passes `--verbose` on like `upgrade` does. Local changes in the linked starter clone are
+      explained, and `update --keep-local` keeps them on top of the newest starter; if they clash, nothing is upgraded
+      and they stay in git's stash.
+    - `"researchCoveredBy"` in config: a regex for the line the project's own research rule asks for (sources and a
+      date). An answer with that line meets research-verified.
+    - The closest-runbook hint matches plurals to singular words ("lands" and "land").
+    - `hooks.mjs waive` works for agents without hooks too (check reads it from the run log). AGENTS.md rule 7 says to
+      waive with the command instead of writing `N/A(...)` into the answer (adopt by hand).
+    - A question that asks whether something did a good job no longer gets the PRAISE hint. Feedback the user wants
+      passed on to someone else no longer gets REQUIREMENT or RULE REQUEST.
+    - skill-learn no longer asks for a lesson from a runbook whose failed check was waived as not applying.
+    - Turn files older than two days are removed at session start, including the unsuffixed ones older releases left.
+      A question turn writes only under `tools/hooks/state/`: skill mirrors found current keep their file times (a
+      fresh clone's first session used to touch every mirror file).
+    - `starter.mjs report` recognizes a line it already sent after small edits (same date, mostly the same words), so
+      an edited line is not sent again; `status` counts the same way.
+    - The starter's trial upgrades its sample projects without running their self-tests (`--deep` still runs them).
+      Since upgrades run the self-tests themselves, a busy machine pushed them past the trial's time limit.
+    - Upgrades refresh a pack runbook whose only change is its `triggers_removed:` line, and keep the removal.
 - 2026-10-19 (gap sweep): Fixes from simulating nine kinds of projects end to end (a notes vault, a bakery's office
   work, a Godot game, a web app, a monorepo, an adopted Python pipeline, Flutter, Rust and ML projects, and upgrades).
   - **No more slow stops.** The self-tests and the audit write their results to a run log

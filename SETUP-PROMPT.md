@@ -42,7 +42,9 @@ The starter was added around work that already exists (`config.json` has `adopte
   `REQ: <tag>` checks they enforce count in the audit. If they look for changed files, make them skip
   `tools/hooks/state/` (this engine writes there on every prompt). Keep each hook's output under 9,000 characters
   with its most important line first: Claude Code shows a longer output only as a short preview. Test fixtures a hook
-  or test creates go in `"ignoreForChanges"`, so they don't count as the turn's work. Keep `AGENTS.md` and `CLAUDE.md` saying they "are
+  or test creates go in `"ignoreForChanges"`, so they don't count as the turn's work. If the project has its own rule
+  for web lookups (sources and a date on a fixed line), put a regex for that line in `"researchCoveredBy"`, so an
+  answer that follows it is not sent through the research ledger as well. Keep `AGENTS.md` and `CLAUDE.md` saying they "are
   twins" (keep the two identical) when you merge the project's rules into them.
 - **Library skills:** `codebase-map` and `repo-setup` come first for an existing codebase.
 - The final summary lists what was added, kept, moved (only if approved), and the improvement backlog.

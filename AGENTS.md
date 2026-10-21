@@ -61,8 +61,9 @@
    (**Question for you:**, **Done:**, **Heads-up:**, **Problem:**), in the user's language, and put any question last (writing-standards.md, "In
    the terminal"). Real work ends with a
    **Finished** section: what was done, the exact path of every file created or changed, and what was not done or
-   verified. The markers the checks look for (`Playbook:`, `Skill:`, `Worth it:`, `N/A(...)`) go together on one short
-   last line, after the answer, so the user can skip them. The answer itself never uses check names. Shortening any
+   verified. The markers the checks look for (`Playbook:`, `Skill:`, `Worth it:`) go together on one short last line,
+   after the answer, so the user can skip them. The answer itself never uses check names: a check that does not apply
+   is waived with `node tools/hooks/hooks.mjs waive <name> "<reason>"`, not with an `N/A(...)` line. Shortening any
    text keeps file paths, names, commands, code, numbers and every "not" exactly as they were (compress-for-ai).
 8. **The whole request, exactly.** Messages typed while you work are part of it. "Give me 5" means 5. A redo says what
    changed from the last answer.

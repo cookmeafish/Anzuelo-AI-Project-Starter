@@ -34,7 +34,8 @@ automatic fix. stop = blocks finishing. git = git hook. audit = fails the sweep.
 
 Some runbooks and skills are needed because of what the work did, whatever the request said. Each row names the
 trigger and the check that holds the answer until the runbook or skill was followed, or waived with
-`N/A(<check>): <reason>` (the security checks take only a specific reason). Library skill checks apply only when the
+`node tools/hooks/hooks.mjs waive <check> "<reason>"` (keeps check names out of the user's answer; `N/A(<check>):
+<reason>` in the answer works too; the security checks take only a specific reason). Library skill checks apply only when the
 skill is enabled; pack checks only when the pack is installed. The prompt hook prints `MUST FOLLOW: <name>` when the
 request shows the event coming, and the edit hook prints it the moment an edit writes what a trigger watches or changes
 a file a trigger watches (once per trigger and turn).
