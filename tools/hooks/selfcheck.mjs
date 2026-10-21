@@ -2348,7 +2348,7 @@ if (mineB() && SPEED) { // engine-cache in a project: full without a recorded pa
       && /^selfcheck mode: full, because --full asks for every test/.test(full) && /^selfcheck mode: full, because no full pass is recorded/.test(changed),
       'engine-cache: a project reuses a recorded engine pass despite new notes and own scenarios, still runs those scenarios and a smoke set, and runs everything with --full or a changed engine file',
       `first: ${first} | stamp ${stamp}${moved.length ? ` | base files that changed: ${moved.slice(0, 10).join(', ')}` : ''} | reused run exit ${reused.status}: ${out.split(/\r?\n/).filter(l => /^(selfcheck|FAIL|failing)/.test(l)).join(' / ').slice(0, 900)} ${String(reused.stderr || '').slice(-300)} | --full: ${full} | changed: ${changed}`);
-  } finally { fs.rmSync(dir, { recursive: true, force: true }); fs.rmSync(tmp, { recursive: true, force: true }); }
+  } finally { for (const d of [dir, tmp]) try { fs.rmSync(d, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); } catch { } }
 }
 if (mineB() && SPEED) { // selftest-lock: one whole run at a time; a second one waits and prints the first one's result; stale locks are taken over
   const dir = copyProject(), tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-'));
@@ -2357,16 +2357,25 @@ if (mineB() && SPEED) { // selftest-lock: one whole run at a time; a second one 
     const mineTaken = takeLock(lf, { cmd: 'a' }).taken, secondTaken = takeLock(lf, { cmd: 'b' }).taken; releaseLock(lf);
     fs.writeFileSync(lf, JSON.stringify({ pid: 2147483640, at: new Date().toISOString() })); const deadTaken = takeLock(lf, {}).taken; releaseLock(lf);
     fs.writeFileSync(lf, JSON.stringify({ pid: process.pid, at: new Date(Date.now() - 4 * 3600_000).toISOString() })); const oldTaken = takeLock(lf, {}).taken; releaseLock(lf);
-    // a live run in the copy (a child process holding the lock), whose result is written before it ends
-    const child = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 5000)'], { stdio: 'ignore' });
-    const now = Date.now();
-    write(dir, { 'tools/hooks/state/selftest.lock': JSON.stringify({ pid: child.pid, at: new Date(now).toISOString(), cmd: '' }),
-      'tools/hooks/state/selftest-last.json': JSON.stringify({ pid: child.pid, at: new Date(now + 1000).toISOString(), code: 1, mode: 'full', lines: ['FAIL  stop: a made-up failure  -> why', 'selfcheck: FAIL (1 passed, 1 failed)'] }) });
-    const r = nodeIn(dir, ['tools/hooks/selfcheck.mjs'], { STARTER_SELFTEST_RUNNING: path.join(tmp, 'running') }, 120_000);
-    report(mineTaken && !secondTaken && deadTaken && oldTaken && r.status === 1 && /waiting for it and reusing its result/.test(r.stdout) && /^FAIL {2}stop: a made-up failure/m.test(r.stdout) && /^selfcheck: FAIL \(1 passed, 1 failed\)/m.test(r.stdout) && !/^selfcheck mode:/m.test(r.stdout),
+    // a live run in the copy, held by this process (alive for the whole test, however slow the machine), with its
+    // result written; once the second run says it waits, the first one "ends" (its lock goes) and the second prints it
+    const now = Date.now(), lock = path.join(dir, 'tools/hooks/state/selftest.lock');
+    write(dir, { 'tools/hooks/state/selftest.lock': JSON.stringify({ pid: process.pid, at: new Date(now).toISOString(), cmd: '' }),
+      'tools/hooks/state/selftest-last.json': JSON.stringify({ pid: process.pid, at: new Date(now + 1000).toISOString(), code: 1, mode: 'full', lines: ['FAIL  stop: a made-up failure  -> why', 'selfcheck: FAIL (1 passed, 1 failed)'] }) });
+    const c = spawn(process.execPath, ['tools/hooks/selfcheck.mjs'], { cwd: dir, env: { ...process.env, STARTER_SELFTEST_RUNNING: path.join(tmp, 'running') } });
+    let out = '', code = null, ended = false;
+    c.stdout.on('data', d => { out += d; }); c.stderr.on('data', d => { out += d; });
+    const exited = new Promise(r => c.on('close', k => { code = k; ended = true; r(); }));
+    const t0 = Date.now();
+    while (!ended && !/waiting for it/.test(out) && !/^selfcheck mode:/m.test(out) && Date.now() - t0 < 120_000) await new Promise(r => setTimeout(r, 200));
+    if (/^selfcheck mode:/m.test(out)) c.kill(); // it did not wait: never let it run every test here
+    fs.rmSync(lock, { force: true });
+    await Promise.race([exited, new Promise(r => setTimeout(r, 60_000))]);
+    if (!ended) { c.kill(); await exited; }
+    report(mineTaken && !secondTaken && deadTaken && oldTaken && code === 1 && /waiting for it and reusing its result/.test(out) && /^FAIL {2}stop: a made-up failure/m.test(out) && /^selfcheck: FAIL \(1 passed, 1 failed\)/m.test(out) && !/^selfcheck mode:/m.test(out),
       'selftest-lock: a second run waits for the live one and prints its result; a lock whose process is gone or that is hours old is taken over',
-      JSON.stringify({ mineTaken, secondTaken, deadTaken, oldTaken, exit: r.status, out: r.stdout.slice(0, 600), err: r.stderr.slice(-300) }));
-  } finally { fs.rmSync(dir, { recursive: true, force: true }); fs.rmSync(tmp, { recursive: true, force: true }); }
+      JSON.stringify({ mineTaken, secondTaken, deadTaken, oldTaken, exit: code, out: out.slice(0, 600) }));
+  } finally { for (const d of [dir, tmp]) try { fs.rmSync(d, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); } catch { } }
 }
 if (mineB() && SPEED) { // selftest-shards: helpers scale with the CPUs and the self-test runs already going on this machine
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-'));
