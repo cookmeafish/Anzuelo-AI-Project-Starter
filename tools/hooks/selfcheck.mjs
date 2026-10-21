@@ -1448,6 +1448,73 @@ function checksOffIn(dir, eng, shippedPack) {
     if (n) { const st = fs.statSync(rp); fs.writeFileSync(rp, JSON.stringify(rq, null, 2) + '\n'); fs.utimesSync(rp, st.atime, st.mtime); }
   } catch { }
 }
+
+// Checks that fired at the wrong time or on the wrong kind of turn (field trials of new projects). Each fix has its
+// negative case: the true case still fires.
+const W = (f, content = 'x\n') => ({ name: 'Write', input: { file_path: f, content } });
+const SETUP_DONE_RM = { removeMarker: true, prep: dir => fs.rmSync(path.join(dir, 'SETUP-PROMPT.md'), { force: true }) };
+const RESUMED = { name: 'SendMessage', input: { to: 'a1b2c3d4', message: 'Fixed. Please review again.' }, result: '{"success":true,"message":"Resuming agent a1b2c3d4","resumedAgentId":"a1b2c3d4"}' };
+const CLI_ROW = { type: 'system', subtype: 'informational', entrypoint: 'cli', content: '' };
+STOP.push(
+  // runbook-look: opening a runbook to look at it is not following it (Lesson: a setup dry run read feature.md)
+  { pack: 'app', name: 'runbook-look: setup only opened feature.md for its dry run: the feature checks stay off', removeMarker: true, prompt: 'set up this project',
+    tools: [pb('project'), pb('feature')], files: { 'docs/BRIEF.md': 'x' }, answer: 'Playbook: project.md. Set up.' + FIN, expect: { not: ['review-verdict', 'spec-written'] } },
+  { pack: 'app', name: 'runbook-look: a question turn that opened feature.md: the feature checks stay off', prompt: 'what steps does that runbook list?',
+    tools: [pb('feature')], answer: 'A spec, a plan, the build, three checks, a review and release notes.', expect: { not: ['review-verdict', 'spec-written'] } },
+  { pack: 'app', name: 'runbook-look: setup that opened feature.md and built app code follows it: the review is still asked', removeMarker: true, prompt: 'set up this project',
+    tools: [pb('project'), pb('feature')], files: { 'src/app.js': 'x', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md. Set up.' + FIN, expect: { tags: ['review-verdict'] } },
+  { pack: 'app', name: 'runbook-look: feature.md opened for unrouted code work: the review is still asked', prompt: 'make the export include tags',
+    tools: [pb('feature')], files: { 'src/export.js': 'x', 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { block: true, tags: ['review-verdict'] } },
+  // root-tidy knows the files a language or tool needs in the root (Lesson: a Go main package was blocked)
+  { name: 'root-tidy: Go files beside go.mod are the toolchain layout: passes', prompt: 'add the links handler',
+    files: { 'go.mod': 'module example.com/links\n', 'main.go': 'package main\n', 'links.go': 'package main\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Added. N/A(runbook-exists): test.' + FIN, expect: { not: ['root-tidy'] } },
+  { name: 'root-tidy: toolchain files of several ecosystems in the root: passes', prompt: 'add the build files',
+    files: { 'Dockerfile.dev': 'FROM node\n', '.gitlab-ci.yml': 'x: 1\n', 'build.gradle.kts': '\n', 'CMakeLists.txt': '\n', 'pubspec.yaml': 'name: a\n', 'Cargo.toml': '[package]\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Added. N/A(runbook-exists): test.' + FIN, expect: { not: ['root-tidy'] } },
+  { name: 'root-tidy: a Go file with no go.mod in the root: blocked', prompt: 'add the links handler', files: { 'links.go': 'package main\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Added. N/A(runbook-exists): test.' + FIN, expect: { block: true, tags: ['root-tidy'] } },
+  // plan-required in the setup turn that deleted SETUP-PROMPT.md: only the app files it wrote itself count
+  { name: 'plan-required: a setup that wrote five app files itself has its plan asked: blocked', ...SETUP_DONE_RM, prompt: 'set up this project. It will be a small API',
+    tools: [...['src/a.py', 'src/b.py', 'src/c.py', 'src/d.py', 'tests/test_a.py'].map(f => W(f)), bash('rm SETUP-PROMPT.md')],
+    files: { 'src/a.py': 'x', 'src/b.py': 'x', 'src/c.py': 'x', 'src/d.py': 'x', 'tests/test_a.py': 'x' }, answer: 'Playbook: project.md. Set up.' + FIN, expect: { tags: ['plan-required'] } },
+  { name: 'plan-required: setup\'s own files (tools, docs, dot-folders) are not app work: passes', ...SETUP_DONE_RM, prompt: 'set up this project',
+    tools: [...['tools/check.mjs', 'tools/budget.py', '.github/workflows/ci.yml', 'docs/foundation.md', 'docs/reviews/security.md', 'NOTES.md'].map(f => W(f)), bash('rm SETUP-PROMPT.md')],
+    files: { 'tools/check.mjs': 'x', 'tools/budget.py': 'x', '.github/workflows/ci.yml': 'x', 'docs/foundation.md': 'x', 'docs/reviews/security.md': 'x', 'NOTES.md': 'x' },
+    answer: 'Playbook: project.md. Set up.' + FIN, expect: { not: ['plan-required'] } },
+  // debug-trigger: a root cause is for a problem the turn found or was told about, not for its own work in progress
+  { name: 'debug-trigger: a test the turn wrote first fails, then passes (feature work): no root cause asked', prompt: 'add a csv export',
+    tools: [W('src/export.test.js'), bash('npm test', 'not ok 1 exports rows\n1 failed'), W('src/export.js'), bash('npm test', 'ok 1 exports rows')],
+    files: { 'src/export.test.js': 'x', 'src/export.js': 'x', 'docs/CHANGELOG.md': 'x' }, answer: 'Added the export. N/A(runbook-exists): test.' + FIN, expect: { not: ['debug-trigger'] } },
+  { name: 'debug-trigger: a reported crash whose test the turn wrote first: blocked', prompt: 'the export crashes on empty rows',
+    tools: [W('src/export.test.js'), bash('npm test', 'not ok 1 empty rows\n1 failed'), W('src/export.js'), bash('npm test', 'ok 1 empty rows')],
+    files: { 'src/export.test.js': 'x', 'src/export.js': 'x', 'docs/CHANGELOG.md': 'x' }, answer: 'Fixed.' + FIN, expect: { block: true, tags: ['debug-trigger'] } },
+  { name: 'debug-trigger: the setup turn that deleted SETUP-PROMPT.md is still setup: no root cause asked', ...SETUP_DONE_RM, prompt: 'set up this project',
+    tools: [bash('npm test', 'not ok 1 parses empty rows\n1 failed'), bash('rm SETUP-PROMPT.md')], files: { 'src/parser.js': 'x', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Playbook: project.md. Set up.' + FIN, expect: { not: ['debug-trigger', 'skill-learn'] } },
+  // release checks need a release: the request asks for one, or a publish command ran (Lesson: setup only read release.md)
+  { pack: 'app', name: 'release-ready: release.md opened and named, nothing released: passes', prompt: 'tidy the workflow file', tools: [pb('release')],
+    files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: release.md. Tidied.' + FIN, expect: { not: ['release-ready', 'release-rollback'] } },
+  { pack: 'app', name: 'release-rollback: a version tagged with no rollback plan, the request unrouted: blocked', prompt: 'tidy the workflow file', tools: [pb('release'), bash('git tag v1.2.0')],
+    files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: release.md. Tagged v1.2.0.' + FIN, expect: { block: true, tags: ['release-rollback', 'release-ready'] } },
+  // a resumed reviewer is a running helper: the turn waits for it instead of spending its Stop rounds
+  { name: 'stop-wait: a resumed reviewer still running: the turn waits, no steps asked', prompt: 'add the rename command', tools: [RESUMED],
+    files: { 'src/rename.js': 'x' }, answer: 'Waiting for the reviewer.', expect: { block: false } },
+  { name: 'stop-wait: the resumed reviewer reported back: the steps are asked', prompt: 'add the rename command', tools: [RESUMED], rows: [BG_DONE],
+    files: { 'src/rename.js': 'x' }, answer: 'Waiting for the reviewer.', expect: { block: true, tags: ['finished-summary'] } },
+  // review-excuse: "no other reviewer" where sub-agents exist
+  { name: 'review-excuse: review skipped as "no other reviewer" where sub-agents exist: blocked', prompt: 'add an index page', rows: [CLI_ROW], files: { 'docs/CHANGELOG.md': 'x' },
+    answer: 'Added the index page.\n- Independent review: skipped, because this session has no other reviewer.' + FIN, expect: { block: true, tags: ['review-excuse'] } },
+  { name: 'review-excuse: the same excuse in Spanish: blocked', prompt: 'agrega una página de índice', rows: [CLI_ROW], files: { 'docs/CHANGELOG.md': 'x' },
+    answer: 'Hecho.\n- Revisión independiente: no se hizo, porque en esta sesión no hay otro revisor.' + FIN, expect: { block: true, tags: ['review-excuse'] } },
+  { name: 'review-excuse: the reviewer sub-agent said SHIP: passes', prompt: 'add an index page', rows: [CLI_ROW], files: { 'docs/CHANGELOG.md': 'x' },
+    answer: 'Added the index page.\n- Independent review: SHIP from a reviewer sub-agent (docs/reviews/index.md).' + FIN, expect: { not: ['review-excuse'] } },
+  { name: 'review-excuse: an agent with no sub-agents may say so: passes', prompt: 'add an index page', files: { 'docs/CHANGELOG.md': 'x' },
+    answer: 'Added the index page.\n- Independent review: skipped, because this session has no other reviewer.' + FIN, expect: { not: ['review-excuse'] } }
+);
+PROMPT.push(
+  { name: 'check-preview: work hears that a plan comes first once it adds many files', prompt: 'add a csv export to the app', has: ['CHECKS:', 'plan-required (a plan in docs/plans/ first)'] },
+  { name: 'check-preview: small talk hears nothing about plans', prompt: 'thanks, that looks great', hasNot: ['plan-required'] }
+);
 function runStop(s) {
   const dir = copyProject(!!s.own);
   try {
@@ -3125,6 +3192,20 @@ if (mineB()) { // plan-required during the work: a turn adding new files hears i
     const outs = ['src/a.js', 'src/b.js', 'src/c.js', 'src/d.js'].map(w);
     const told = outs.findIndex(o => /PLAN: this turn has added/.test(o));
     report(told === 2 && outs.filter(o => /PLAN:/.test(o)).length === 1, 'plan-required: a turn adding new files is told to write the plan first, once, before the limit', outs.map(o => o.slice(0, 80)).join(' | '));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+if (mineB()) { // plan-required during setup: app files the setup writes count, its own scaffolding does not
+  // (Lesson: a setup built a whole app with the plan notice silent, so the plan came after the code)
+  const dir = copyProject();
+  try {
+    fs.rmSync(path.join(dir, '.starter-template'), { force: true }); // a project mid-setup: SETUP-PROMPT.md is there
+    const w = (f, at) => { write(dir, { 'tools/hooks/state/turn.json': JSON.stringify({ at, prompt: 'set up this project' }) }); return run(dir, 'posttool', { tool_name: 'Write', tool_input: { file_path: path.join(dir, f), content: 'x = 1\n' } }).out; };
+    const t1 = new Date().toISOString(), t2 = new Date(Date.now() + 1000).toISOString();
+    const own = ['tools/check.mjs', 'tools/budget.py', '.github/workflows/ci.yml', 'docs/foundation.md', 'NOTES.md'].map(f => w(f, t1));
+    const app = ['pyproject.toml', 'src/app.py', 'src/db.py', 'src/auth.py'].map(f => w(f, t2));
+    const told = app.findIndex(o => /PLAN: this turn has added/.test(o));
+    report(own.every(o => !/PLAN:/.test(o)) && told === 2 && /spec/.test(app[2]), 'plan-required: setup hears the plan notice for app files it writes, not for its own scaffolding', [...own, ...app].map(o => o.slice(0, 60)).join(' | '));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 

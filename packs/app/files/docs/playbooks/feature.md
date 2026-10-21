@@ -44,7 +44,9 @@ skills, when the project has them: **frontend-design** for screens, **backend-pa
 4. **Triple check** (`docs/checks/qa-standards.md`):
    - (1) automated: tests, build, lint and checks pass after the last edit;
    - (2) the real app, isolated, every state touched (screens through the gui-review-loop);
-   - (3) an independent review against the acceptance criteria until it says SHIP.
+   - (3) an independent review against the acceptance criteria until it says SHIP. With no person at hand, the
+     reviewer is a sub-agent (the Agent or Task tool) with a read-only brief; "no other reviewer" is never a reason to
+     skip it (hook: review-excuse).
 5. **Docs that people rely on,** updated in the same change, each written for its reader with the most useful part
    first:
    - the README, when setup, configuration or the first steps change (a newcomer reaches a first success in minutes);

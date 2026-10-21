@@ -280,12 +280,8 @@ const DEFAULTS = {
   // Root stays small (docs/checks/layout-standards.md): files allowed directly in the project root. Folders are fine.
   rootAllowed: ['README.md', 'HOW-TO-USE.md', 'AGENTS.md', 'CLAUDE.md', 'DIRECTORY.md', 'SETUP-PROMPT.md', 'LICENSE', 'LICENSE.md', 'LICENSE.txt',
     '.gitignore', '.gitattributes', '.editorconfig', '.env.example', '.starter-template', '.starter-dev', '.private-terms', 'New Project.bat',
-    // toolchains that must sit in the root (Lesson: a Godot project's project.godot and *.csproj failed on its first turn)
-    'package.json', 'package-lock.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'yarn.lock', 'bun.lockb', 'tsconfig*.json', '*.config.js', '*.config.mjs', '*.config.cjs', '*.config.ts', '.npmrc', '.nvmrc',
-    '.prettierrc*', '.eslintrc*', 'biome.json', 'pyproject.toml', 'requirements*.txt', 'setup.py', 'setup.cfg', 'uv.lock', 'poetry.lock', 'Pipfile*', '.python-version',
-    'Cargo.toml', 'Cargo.lock', 'go.mod', 'go.sum', 'Gemfile*', 'composer.json', 'composer.lock', 'pubspec.yaml', 'pubspec.lock', 'analysis_options.yaml',
-    '*.csproj', '*.sln', '*.fsproj', 'global.json', 'Directory.Build.props', 'project.godot', '*.uproject', 'Makefile', 'justfile', 'Dockerfile', 'docker-compose*.y*ml',
-    '.dockerignore', 'Procfile', 'vercel.json', 'netlify.toml', 'mise.toml', '.tool-versions', 'CHANGELOG.md', 'CONTRIBUTING.md', 'SECURITY.md', 'CODE_OF_CONDUCT.md'],
+    'CHANGELOG.md', 'CONTRIBUTING.md', 'SECURITY.md', 'CODE_OF_CONDUCT.md'],
+  // (the files a language or tool needs in the root are ROOT_TOOLCHAINS below, by ecosystem)
   approvalPaths: [],       // taste-driven paths: committing them needs the user's OK in this request ("approve", "looks good", "commit it")
   // Docs and code capture the principle and the reason, never the user's literal examples (that also keeps personal
   // details out). A run of this many words copied from the user's messages into a file is flagged.
@@ -791,11 +787,14 @@ export function turn(transcript) {
 // (or, when no id was printed, once any task notification arrived after it).
 const MOVED_BG = /moved to the background \(ID:?\s*([\w-]+)\)/i;
 function backgroundRunning(rows) {
-  const launches = [], results = new Map(), notes = [], stops = [], shells = [];
+  const launches = [], results = new Map(), notes = [], stops = [], shells = [], resumes = [];
   rows.forEach((r, i) => {
     const c = r.message?.content;
     // helpers and background commands alike (Lesson: checks fired on files a still-running background sweep made)
     if (r.type === 'assistant' && Array.isArray(c)) for (const x of c) if (x?.type === 'tool_use' && /^(Agent|Task|Bash|PowerShell)$/.test(x.name)) (x.input?.run_in_background ? launches : shells).push({ id: x.id, i });
+    // a message that resumes a finished helper ("Resuming agent ...") starts it again: it runs until its next notice.
+    // Lesson: a turn waiting on a reviewer it had resumed spent all 3 Stop rounds on steps that needed the review's verdict.
+    if (r.type === 'assistant' && Array.isArray(c)) for (const x of c) if (x?.type === 'tool_use' && x.name === 'SendMessage') resumes.push({ id: x.id, i });
     if (r.type === 'user' && Array.isArray(c)) for (const x of c) if (x?.type === 'tool_result') { const tx = textOf(x.content); results.set(x.tool_use_id, tx); stops.push({ i, t: tx }); }
     const t = r.type === 'attachment' ? textOf(r.attachment?.prompt ?? r.attachment?.content ?? '') : r.type === 'user' ? textOf(c) : '';
     if (/<task-notification>/.test(t)) notes.push({ i, t });
@@ -806,7 +805,9 @@ function backgroundRunning(rows) {
   // A foreground command that hit its timeout is moved to the background ("... was moved to the background (ID: x)"):
   // a launch too. Lesson: Stop asked for steps while such a command still ran, since only run_in_background counted.
   for (const s of shells) if (MOVED_BG.test(results.get(s.id) || '')) launches.push(s);
+  for (const s of resumes) { const m = /\bresumedAgentId["']?\s*[:=]\s*["']?([\w-]{4,})/i.exec(results.get(s.id) || ''); if (m) launches.push({ ...s, agentId: m[1] }); }
   return launches.filter(l => {
+    if (l.agentId) return !notes.some(n => n.i > l.i && n.t.includes(l.agentId)) && !stops.some(s => s.i > l.i && s.t.includes(l.agentId) && /\b(stopped|killed|cancell?ed|terminated)\b/i.test(s.t));
     const res = results.get(l.id) || '';
     if (results.has(l.id) && !/launched|running in background|in the background|moved to the background|async agent|agentId/i.test(res)) return false;
     const ids = [...res.matchAll(/\b(?:agent_?id|task_?id|ID)\s*[:=]\s*["']?([\w-]{4,})/gi)].map(m => m[1]);
@@ -1191,12 +1192,15 @@ export function loggedRuns(since) {
 export const cmdHead = c => String(c || '').replace(/<<-?\s*(['"]?)(\w+)\1[^\n]*\n[\s\S]*?\n\s*\2\b/g, '<<$2');
 export function runsOf(entries) {
   const byId = new Map(), out = [];
+  // the files edited before each run (editedBefore), so a check can tell a failure the turn found from one it caused
+  const edited = [];
   for (const r of entries) {
     const c = r.message && r.message.content;
     if (!Array.isArray(c)) continue;
     for (const x of c) {
+      if (r.type === 'assistant' && x && x.type === 'tool_use' && /^(Write|Edit|MultiEdit|NotebookEdit)$/.test(x.name)) edited.push(rel(x.input?.file_path || x.input?.notebook_path || ''));
       if (r.type === 'assistant' && x && x.type === 'tool_use' && typeof x.input?.command === 'string') {
-        const run = { cmd: x.input.command, out: '', error: false }; byId.set(x.id, run); out.push(run);
+        const run = { cmd: x.input.command, out: '', error: false, editedBefore: edited.slice() }; byId.set(x.id, run); out.push(run);
       } else if (r.type === 'user' && x && x.type === 'tool_result' && byId.has(x.tool_use_id)) {
         const run = byId.get(x.tool_use_id); run.out = textOf(x.content); run.error = !!x.is_error;
       }
@@ -1283,9 +1287,21 @@ export function context(t, cfg, answerOverride) {
     ...uses.filter(u => typeof u.input.command === 'string').flatMap(u => shellTargets(u.input.command)).map(p => rel(p))];
   const maintained = (file, skill) => edited.some(p => p === file || (skill && p.startsWith(`${cfg.skillsDir}/${skill}/`)));
   const namesIt = n => re(`\\b(playbook|runbook|skill)s?\\s*:\\s*\`?(docs/playbooks/|skills/)?${esc(n)}(\\.md)?\\b`).test(answer);
+  // A runbook only opened (read, its skill not invoked) counts as followed when the request routed to it, the answer
+  // names it, the turn changed files its own checks watch, or, outside setup, it is the runbook the agent picked for a
+  // work turn that routed nowhere. Opening a runbook to look at it is not following it.
+  // Lesson: setup read feature.md for its routing dry run, built no feature, and Stop asked for a spec and a review.
+  const reqsNow = loadRequirements().reqs.filter(q => q && q.enabled !== false && q.when);
+  const watches = pb => reqsNow.filter(q => [q.when.playbookUsed, q.when.playbookRouted].includes(pb.name))
+    .flatMap(q => [q.when, ...(q.when.anyOf || [])].filter(w => w.filesChanged).map(w => ({ files: [].concat(w.filesChanged), ignore: [].concat(w.filesIgnore || []) })));
+  const didItsWork = pb => watches(pb).some(w => changed.some(p => match(p, w.files) && !match(p, w.ignore)));
+  const lookTurn = setupTurn({ changed, cmds, since: t.since }) || routed.some(pb => !pb.name.startsWith('_')) ||
+    !(work.length > 0 || (t.toolsKnown && uses.length >= cfg.workToolCalls));
+  const invoked = pb => skillsUsed.includes(pb.skillName) || helpers.some(([n, r]) => r === pb.file && skillsUsed.includes(n));
   let usedPb = pbs.filter(pb => (reads.has(pb.file) || (pb.skillName && skillOpened(pb.skillName)) ||
     helpers.some(([n, r]) => r === pb.file && skillOpened(n))) &&
-    (!maintained(pb.file, pb.skillName) || routed.includes(pb) || namesIt(pb.name) || skillsUsed.includes(pb.skillName)));
+    (!maintained(pb.file, pb.skillName) || routed.includes(pb) || namesIt(pb.name) || skillsUsed.includes(pb.skillName)) &&
+    (invoked(pb) || routed.includes(pb) || namesIt(pb.name) || didItsWork(pb) || !lookTurn));
   // Without tool history, the runbook the answer names ("Playbook: x.md" / "Skill: x") is taken as the one followed.
   if (!t.toolsKnown) usedPb = pbs.filter(pb => namesIt(pb.name));
   const skills = routableSkills(cfg);
@@ -1856,6 +1872,17 @@ export const peopleIn = (text, ppl) => ppl.filter(x => x.words.some(w => re(`(^|
 // A follow-up that names nobody ("that letter sounds cold") is about whoever the previous request named.
 // Lesson: a complaint about one tenant's letter could not save the fix in that tenant's folder.
 const settingUp = () => exists('SETUP-PROMPT.md') && !exists('.starter-template');
+// The whole setup turn is setup, also after its last step deleted SETUP-PROMPT.md: the file was there when the turn
+// began (the turn's snapshot), or a command of the turn removed it.
+// Lesson: setup ends by deleting SETUP-PROMPT.md, so the final Stop judged the setup turn as ordinary work: it asked for
+// the root cause of the setup's own audit slips, and for a plan only after the app was built.
+export function setupTurn(x = {}) {
+  if (settingUp() || (x.changed || []).includes('SETUP-PROMPT.md')) return true;
+  if (exists('.starter-template') || exists('SETUP-PROMPT.md')) return false;
+  const snap = readJSON(stateFile(SNAPSHOT), {});
+  if (snap.files?.['SETUP-PROMPT.md'] && x.since && Date.parse(snap.at) >= x.since - 5000) return true;
+  return (x.cmds || []).some(c => /SETUP-PROMPT\.md/.test(c) && /(^|[\s;&|(])(rm|del|erase|unlink|Remove-Item|ri|git\s+rm)\s/i.test(c));
+}
 export const peopleFor = (prompt, allPrompts, ppl) => {
   const named = peopleIn(prompt, ppl);
   if (named.length) return named;
@@ -2800,7 +2827,10 @@ export function checkPreview(pbs, skills, forced, flagged, prompt, cfg = config(
   // too: cmdCheck finds the session's request). Lesson: a work turn held to many checks met them one Stop round at a time.
   const many = tags.length > 2;
   return `CHECKS: this turn will be held to ${tags.join(', ')}${then.length ? `; their fixes set off ${then.join(', ')}` : ''}.` +
-    `${also.length ? ` Also ${also.join(' + ')} if it edits runbooks, skills, rules or checks,` : ' Also'} status-handoff after 15+ tool calls. Do them all in the first pass.` +
+    `${also.length ? ` Also ${also.join(' + ')} if it edits runbooks, skills, rules or checks,` : ' Also'} status-handoff after 15+ tool calls` +
+    // (a plan is due before the work once it adds many files: said now, not at Stop. Lesson: a plan written after the
+    // code said so itself, "written when the checks asked for it")
+    `${tags.includes('plan-required') || off('plan-required') ? '' : `, plan-required (a plan in docs/plans/ first) if it adds ${cfg.planNewFiles}+ new files`}. Do them all in the first pass.` +
     (many ? ' Self-check first: node tools/hooks/hooks.mjs check --answer-file <file with your answer>.' : '');
 }
 const promptNotices = cfg => notices(cfg).filter(x => /^(BOOTSTRAP|SETUP|INBOX|LAST WORK TURN|STALE)/.test(x));
@@ -3222,17 +3252,24 @@ function cmdPosttool(data) {
 // REQ: plan-required (during the work). A turn that keeps adding new files hears, before it reaches the limit, that it
 // needs a plan, so the plan comes before the work, not after. Lesson: reviewers found plans written once the work
 // was done, only to satisfy the Stop check.
-function planNotice(p, inp) {
-  if (!p || p.startsWith('..') || !('content' in inp) || (exists('SETUP-PROMPT.md') && !exists('.starter-template'))) return null;
+// What setup writes for itself (the starter's files, rules, packs, notes, dot-folders, root docs): not app work to plan.
+const SETUP_OWN = /^(\.[^/]*(\/|$)|(tools|skills|docs|library|packs|inbox|outputs|sources|profiles)\/|[^/]+\.md$)/;
+export function planNotice(p, inp) {
+  if (!p || p.startsWith('..') || !('content' in inp)) return null;
+  // Setup counts too, but only the app files it writes (Lesson: a setup built a whole app with the notice silent, so
+  // its plan, spec, review and release notes were all written after the code, when Stop asked)
+  const setup = exists('SETUP-PROMPT.md') && !exists('.starter-template');
   const turnAt = readJSON(stateFile('turn.json'), {}).at || '';
   const st = readJSON(stateFile('plan-watch.json'), {});
   const s = st.at === turnAt ? st : { at: turnAt, files: [], plan: false, told: false };
   if (/^docs\/plans\/.+\.md$/.test(p)) s.plan = true;
-  else if (!/^(docs\/|\.cache\/|tools\/hooks\/state\/|skills\/[^/]+\/SKILL\.md$)/.test(p) && !readJSON(stateFile(SNAPSHOT), {}).files?.[p] && !s.files.includes(p)) s.files.push(p);
+  else if (!/^(docs\/|\.cache\/|tools\/hooks\/state\/|skills\/[^/]+\/SKILL\.md$)/.test(p) && !(setup && SETUP_OWN.test(p)) && !readJSON(stateFile(SNAPSHOT), {}).files?.[p] && !s.files.includes(p)) s.files.push(p);
   const due = !s.plan && !s.told && s.files.length >= Math.max(2, config().planNewFiles - 2);
   if (due) s.told = true;
   writeState('plan-watch.json', s);
-  return due ? `PLAN: this turn has added ${s.files.length} new files (${s.files.slice(0, 3).join(', ')}) and is heading past ${config().planNewFiles}. Write the plan in docs/plans/ now (plan skill), before the rest of the work, then tick it as you go. REQ: plan-required.` : null;
+  // a feature's other records are due at Stop too: say so now, while they can still come first
+  const feature = exists('docs/playbooks/feature.md') ? ' If this is feature or app work (feature runbook), write its spec with acceptance criteria (docs/specs/) with the plan, and plan the independent review and the release notes: Stop checks them too.' : '';
+  return due ? `PLAN: this turn has added ${s.files.length} new files (${s.files.slice(0, 3).join(', ')}) and is heading past ${config().planNewFiles}. Write the plan in docs/plans/ now (plan skill), before the rest of the work, then tick it as you go.${feature} REQ: plan-required.` : null;
 }
 // REQ: publish-safety (at the edit). A tracked file that now holds an email address, a personal path or an IP address
 // fails the audit's publish-safety sweep; say so while the text is fresh. Lesson: an email written into a plan doc
@@ -3285,6 +3322,49 @@ export function eventHintAfterEdit(p, inp, cfg = config()) {
 }
 
 // ---------- Stop ----------
+// The files a language or tool needs in the project root, by ecosystem (REQ: root-tidy). "files" may always sit there:
+// their names say what they are. "sources" only when one of the ecosystem's "markers" is in the root too: Go's package
+// main sits next to go.mod, a .NET app's Program.cs next to its project file, Godot's icon next to project.godot.
+// Lesson: root-tidy blocked a Go service's new main-package files, and the agent loosened rootAllowed to get past it.
+export const ROOT_TOOLCHAINS = [
+  { name: 'Go', markers: ['go.mod', 'go.work'], files: ['go.mod', 'go.sum', 'go.work', 'go.work.sum', '.golangci.y*ml', '.golangci.toml', '.goreleaser.y*ml'], sources: ['*.go'] },
+  { name: 'Rust', files: ['Cargo.toml', 'Cargo.lock', 'rust-toolchain', 'rust-toolchain.toml', 'rustfmt.toml', '.rustfmt.toml', 'clippy.toml', 'deny.toml'], markers: ['Cargo.toml'], sources: ['build.rs'] },
+  { name: 'Python', markers: ['pyproject.toml', 'setup.py', 'requirements.txt', 'manage.py'], files: ['pyproject.toml', 'setup.py', 'setup.cfg', 'requirements*.txt', 'constraints*.txt', 'uv.lock', 'poetry.lock',
+    'Pipfile', 'Pipfile.lock', 'pdm.lock', '.python-version', 'tox.ini', 'noxfile.py', 'pytest.ini', 'mypy.ini', '.flake8', 'ruff.toml', '.ruff.toml', '.pylintrc', 'MANIFEST.in', 'environment.y*ml'],
+    sources: ['conftest.py', 'manage.py'] },
+  { name: 'Node and the web', markers: ['package.json', 'deno.json', 'deno.jsonc'], files: ['package.json', 'package-lock.json', 'npm-shrinkwrap.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'yarn.lock', '.yarnrc*',
+    'bun.lockb', 'bun.lock', 'bunfig.toml', 'deno.json', 'deno.jsonc', 'deno.lock', 'tsconfig*.json', 'jsconfig*.json', '*.config.js', '*.config.mjs', '*.config.cjs', '*.config.ts', '*.config.mts',
+    '.npmrc', '.npmignore', '.nvmrc', '.node-version', '.browserslistrc', '.babelrc*', '.prettierrc*', '.prettierignore', '.eslintrc*', '.eslintignore', '.stylelintrc*', 'biome.json', 'biome.jsonc',
+    'turbo.json', 'nx.json', 'lerna.json'], sources: ['index.html'] },
+  { name: 'Java and Kotlin (Gradle, Maven, sbt)', files: ['build.gradle', 'build.gradle.kts', 'settings.gradle', 'settings.gradle.kts', 'gradle.properties', 'gradlew', 'gradlew.bat', 'pom.xml', 'mvnw', 'mvnw.cmd', 'lombok.config', 'build.sbt'] },
+  { name: '.NET', markers: ['*.csproj', '*.fsproj', '*.vbproj'], files: ['*.csproj', '*.fsproj', '*.vbproj', '*.sln', '*.slnx', 'global.json', 'nuget.config', 'NuGet.Config', 'Directory.Build.props', 'Directory.Build.targets', 'Directory.Packages.props'],
+    sources: ['*.cs', '*.fs', '*.vb'] },
+  { name: 'Flutter and Dart', files: ['pubspec.yaml', 'pubspec.lock', 'analysis_options.yaml', '.metadata', 'l10n.yaml', 'build.yaml', 'devtools_options.yaml', 'dart_test.yaml'] },
+  { name: 'Godot', markers: ['project.godot'], files: ['project.godot', 'export_presets.cfg', 'default_bus_layout.tres', 'default_env.tres'], sources: ['icon.svg', 'icon.svg.import', 'icon.png', 'icon.png.import'] },
+  { name: 'Unreal', files: ['*.uproject'] },
+  { name: 'Ruby', files: ['Gemfile', 'Gemfile.lock', 'Rakefile', 'config.ru', '.ruby-version', '.rubocop.yml', '*.gemspec'] },
+  { name: 'PHP', files: ['composer.json', 'composer.lock', 'artisan', 'phpunit.xml', 'phpunit.xml.dist', 'phpstan.neon', 'phpstan.neon.dist', '.php-cs-fixer.php', '.php-cs-fixer.dist.php'] },
+  { name: 'Swift and Apple', files: ['Package.swift', 'Package.resolved', 'Podfile', 'Podfile.lock', 'Cartfile', 'Cartfile.resolved', '.swiftlint.yml', '.swift-version'] },
+  { name: 'C, C++ and Zig', files: ['CMakeLists.txt', 'CMakePresets.json', 'meson.build', 'meson_options.txt', 'conanfile.txt', 'conanfile.py', 'vcpkg.json', '.clang-format', '.clang-tidy', 'configure.ac', 'Makefile.am', 'build.zig', 'build.zig.zon'] },
+  { name: 'Other languages', files: ['mix.exs', 'mix.lock', '.formatter.exs', 'rebar.config', 'stack.yaml', 'cabal.project', '*.cabal', 'deps.edn', 'project.clj', 'Project.toml', 'Manifest.toml', 'DESCRIPTION', 'NAMESPACE', '*.Rproj', 'renv.lock'] },
+  { name: 'Build and task runners', files: ['Makefile', 'GNUmakefile', 'justfile', 'Justfile', 'Taskfile.y*ml', 'WORKSPACE', 'WORKSPACE.bazel', 'MODULE.bazel', 'BUILD.bazel', '.bazelrc', '.bazelversion',
+    'flake.nix', 'flake.lock', 'shell.nix', 'default.nix', 'devbox.json', 'mise.toml', '.mise.toml', '.tool-versions', '.envrc', 'Brewfile'] },
+  { name: 'Docker and deployment', files: ['Dockerfile', 'Dockerfile.*', '*.Dockerfile', 'Containerfile', '.dockerignore', 'docker-compose*.y*ml', 'compose.y*ml', 'compose.*.y*ml', 'docker-bake.hcl', 'Procfile',
+    'fly.toml', 'render.yaml', 'railway.json', 'railway.toml', 'nixpacks.toml', 'vercel.json', 'netlify.toml', 'wrangler.toml', 'wrangler.json', 'wrangler.jsonc', 'firebase.json', '.firebaserc',
+    'serverless.y*ml', 'skaffold.yaml', 'app.yaml', 'Chart.yaml', '*.tf', '.terraform.lock.hcl', '.terraform-version'] },
+  { name: 'CI and repository tools', files: ['.gitlab-ci.yml', '.travis.yml', 'azure-pipelines.yml', 'Jenkinsfile', 'bitbucket-pipelines.yml', 'appveyor.yml', '.appveyor.yml', 'cloudbuild.yaml', 'codecov.yml', '.codecov.yml',
+    'sonar-project.properties', 'renovate.json', 'renovate.json5', '.pre-commit-config.yaml', '.pre-commit-hooks.yaml', '.mailmap', '.gitmodules', 'CODEOWNERS', '.markdownlint*', '.yamllint*', '.commitlintrc*',
+    'commitlint.config.*', 'lefthook.yml', '.lintstagedrc*'] }
+];
+// "No reviewer available" as the reason a review was skipped (English and Spanish), on a line about the review
+const REVIEW_EXCUSE = /\b(no|without( an?)?|lacks? an?|there (is|was|are) no)\s+(other|second|separate|independent|available|another|extra)\s+(reviewers?|agents?|person|people|pair of eyes)\b|\bno (independent |second |other )?reviewer (is |was )?(available|here|in this session)|\bno one else\b[^.\n]{0,40}\b(review|available|session)|\bnobody (else )?(is |was )?(available|here)\b|\bno hay (otro|otra|ning[uú]n|un segundo|una segunda)\s+(revisor|revisora|agente|persona)\b|\bno hay nadie m[aá]s\b|\bsin (otro |un segundo )?revisor\b|\bno (hay|tengo) (qui[eé]n|a nadie) que (lo |la )?revise\b/i;
+// The ecosystem that lets this root file sit in the root, or null.
+export function rootToolchainFile(p) {
+  let root = null;
+  const has = globs => (root ||= list('').filter(n => { try { return walkStat(n).isFile(); } catch { return false; } })).some(n => n !== p && match(n, globs));
+  for (const t of ROOT_TOOLCHAINS) if (match(p, t.files) || (t.sources && match(p, t.sources) && has(t.markers || []))) return t.name;
+  return null;
+}
 export function coreChecks(x, cfg) {
   const lap = lapper('core '); // STARTER_TIMING: each group of core checks, named by its first and last check
   const miss = [];
@@ -3370,11 +3450,16 @@ export function coreChecks(x, cfg) {
     add('done-when-labeled', `Every "Done when" item needs its proof: add a check and write "(hook: <tag>)" (one or more tags: "(hook: a, b)"), or write "(judgment: <why no check can tell>)". ` +
       `Unlabeled: ${unlabeled.slice(0, 4).join('; ')}${unlabeled.length > 4 ? ` and ${unlabeled.length - 4} more` : ''}. Add the checks now; don't ask (hard rule 3).`);
   // REQ: plan-required. A bigger addition (many new files) has a checklist in docs/plans/, so nothing is left half done
-  // and the next session or another agent can finish it. Setup has its own checklist (SETUP-PROMPT.md).
+  // and the next session or another agent can finish it. Setup has its own checklist (SETUP-PROMPT.md) for the rest.
   // (the records a runbook itself asks for, like a spec, a review, release notes or a new runbook's skill, are not the
   // work being planned. Lesson: a feature's own spec, review and notes tipped it over the limit after the fact.)
-  const born = x.changed.filter(p => !match(p, cfg.notWork) && !/^(AGENTS\.md$|CLAUDE\.md$|docs\/checks\/|docs\/plans\/|docs\/(specs|releases|reviews|incidents|knowledge)\/|docs\/playbooks\/|skills\/[^/]+\/SKILL\.md$|\.cache\/|tools\/hooks\/state\/|\.memtest\/|\.claude\/|\.codex\/|\.agents\/)/.test(p) && !GENERATED_WRITES.has(p) && exists(p) && bornThisTurn(p, x.since));
-  if (x.workTurn && born.length >= cfg.planNewFiles && !x.changed.some(p => /^docs\/plans\/.+\.md$/.test(p)) && !settingUp() && !x.changed.includes('SETUP-PROMPT.md'))
+  const born0 = x.changed.filter(p => !match(p, cfg.notWork) && !/^(AGENTS\.md$|CLAUDE\.md$|docs\/checks\/|docs\/plans\/|docs\/(specs|releases|reviews|incidents|knowledge)\/|docs\/playbooks\/|skills\/[^/]+\/SKILL\.md$|\.cache\/|tools\/hooks\/state\/|\.memtest\/|\.claude\/|\.codex\/|\.agents\/)/.test(p) && !GENERATED_WRITES.has(p) && exists(p) && bornThisTurn(p, x.since));
+  // In setup only the app files the agent itself wrote count (the starter's own files, packs and scripts are the setup's
+  // checklist). Lesson: a setup that built a whole app got its plan demanded only after the work, when the final step
+  // deleted SETUP-PROMPT.md; the plan notice had stayed silent all through setup.
+  const wroteSelf = new Set((x.uses || []).filter(u => /^(Write|NotebookEdit)$/.test(u.name)).map(u => rel(u.input.file_path || u.input.notebook_path || '')));
+  const born = setupTurn(x) ? born0.filter(p => !SETUP_OWN.test(p) && wroteSelf.has(p)) : born0;
+  if (x.workTurn && born.length >= cfg.planNewFiles && !x.changed.some(p => /^docs\/plans\/.+\.md$/.test(p)))
     add('plan-required', `This turn added ${born.length} new files (${born.slice(0, 4).join(', ')}${born.length > 4 ? ', ...' : ''}) without a plan. Write or update one in docs/plans/ with the plan skill ` +
       '(a checkbox per task, ticked as they finish), so nothing is left half done and the next session can continue it.');
   // REQ: plan-open. A plan left open says "before new work, resume or close it": a work turn that started with one open
@@ -3610,12 +3695,21 @@ export function coreChecks(x, cfg) {
   const vb = verbatimHits(x, cfg);
   if (vb.length) add('no-verbatim-examples', `These files copy the user's own words: ${vb.slice(0, 5).join('; ')}. Rephrase each as the general principle ` +
     'and why it matters (what goes wrong, for whom), without the user\'s examples, names or details.');
-  // REQ: root-tidy. Everything goes in a folder that says what it is; the root holds only what people open first.
+  // REQ: root-tidy. Everything goes in a folder that says what it is; the root holds only what people open first, and
+  // what a language or tool needs there (ROOT_TOOLCHAINS).
   // Only files new this turn: a file that was already in the root is the project's own layout. Lesson: in an adopted
   // project, editing its main.py asked to move it out of the root.
-  const loose = x.changed.filter(p => !p.includes('/') && !match(p, cfg.rootAllowed) && exists(p) && bornThisTurn(p, x.since));
+  const loose = x.changed.filter(p => !p.includes('/') && !match(p, cfg.rootAllowed) && !rootToolchainFile(p) && exists(p) && bornThisTurn(p, x.since));
   if (loose.length) add('root-tidy', `New files sit loose in the project root: ${loose.join(', ')}. Move each into the folder that fits ` +
     '(docs/checks/layout-standards.md), or add it to rootAllowed in tools/hooks/config.json if it really must live in the root (toolchain config, the one start file).');
+  // REQ: review-excuse. "No other reviewer" is no reason to skip an independent review where sub-agents exist: a reviewer
+  // sub-agent is one. Lesson: a setup shipped a whole site unreviewed "because this session has no other reviewer", and
+  // the next turn of the same session started a reviewer sub-agent.
+  const subagents = cfg.subagents === true || (cfg.subagents !== false && ((x.entries || []).some(r => typeof r.entrypoint === 'string') || (x.uses || []).some(u => /^(Agent|Task)$/.test(u.name))));
+  const excuse = subagents && String(x.answer || '').split(/\r?\n/).find(l => /\breview|\brevis/i.test(l) && REVIEW_EXCUSE.test(l));
+  if (excuse) add('review-excuse', `The answer skips the independent review because no other reviewer is available ("${excuse.trim().slice(0, 80)}"). A reviewer sub-agent is one: ` +
+    'start it with the Agent (or Task) tool and a read-only brief (read AGENTS.md, the request or spec and the changed files; report SHIP or FIX with evidence), fix what it finds until SHIP, and report its verdict. ' +
+    'Only an agent that truly cannot start sub-agents may say so, with N/A(review-excuse): <why>.');
   // REQ: fit-checklist (after setup). New files can make a decided row's reason stale: a skip that the survey now
   // contradicts (data files, web pages) or a "later - when:" that is now met. Only on a turn that added files, and only
   // those two kinds of problem. Lesson: a new CSV left a "no data files" skip standing until the next audit failed.
@@ -3840,7 +3934,7 @@ export function skillLearnCheck(x, cfg, failingNow = []) {
   const failedOwn = [...x.usedPb, ...x.usedSkills].filter(item => !misrouted(item) && own(item).some(tag => !WORDING.has(tag) && failing.has(tag) && !waivedHere(tag)));
   const followed = [...new Set(failedOwn.map(item => item.file.endsWith('SKILL.md') ? item.file.replace(/SKILL\.md$/, '') : item.file))];
   // setup meets each runbook's checks for the first time: that is setting it up, not a miss to learn from
-  if (settingUp() || x.changed.includes('SETUP-PROMPT.md')) return [];
+  if (setupTurn(x)) return [];
   if (x.workTurn && followed.length && !x.changed.some(p => followed.some(f => p === f || p.startsWith(f))) && !/skill lesson:\s*none\b.{8,}/i.test(x.said))
     return [{ tag: 'skill-learn', fixes: followed.map(f => f.endsWith('/') ? `${f}SKILL.md` : f), msg: `This turn followed ${followed.join(', ')} and its own check failed this turn. Write the lesson into it (a step, a pitfall, or a check ` +
       'through the project-rule skill), so the next run gets it right. In an engine skill (one of the starter\'s core skills), put it under ' +
@@ -3977,6 +4071,11 @@ const WAITS_FOR_AGENTS = new Set(['parallel-merged', 'research-cited']);
 export const waitsForAgents = q => q.waitsForAgents ?? WAITS_FOR_AGENTS.has(q.tag);
 
 // A failed test or build run: its output, beyond the exit code (a runner piped through another command exits 0).
+// The request reports a problem to fix: it routes to the bugfix runbook or the debug skill, the user is upset, or it
+// names a fault (bug, error, crash, failing, broken, wrong, fix), in English or Spanish.
+const PROBLEM_WORDS = /\b(bugs?|broken|breaks?|crash(es|ed|ing)?|errors?|exceptions?|traceback|fail(s|ed|ing|ures?)?|doesn'?t work|does not work|not working|wrong|regression|fix(es)?|make (the )?(tests?|build) pass)\b|\b(falla|fallan|fallo|errores|roto|rota|no funciona|arregla|corrige)\b/i;
+export const reportsProblem = x => (x.routed || []).some(pb => pb.name === 'bugfix') || (x.routedSkills || []).some(s => s.name === 'debug') ||
+  isUpset(x.prompt || '') || PROBLEM_WORDS.test(userText(x.prompt || ''));
 const FAILED_RUN = /^\s*(FAIL(ED)?\b|not ok\b)|\b[1-9]\d* (tests? )?(failed|failing|errors?)\b|Traceback \(most recent call last\)|AssertionError|\bERR!/m;
 // A run that failed because its tool or dependencies aren't installed (setup, not a bug in the code)
 const MISSING_TOOL = /is not recognized as (an internal|the name)|command not found|: not found\b|No such file or directory.*(node_modules|bin)|Cannot find module|No module named|ModuleNotFoundError|could not determine executable|not installed/i;
@@ -4028,11 +4127,20 @@ export function holds(c, x) {
   // ranFailing: a command matching this ran this turn and failed (an error exit or a failure line in its output)
   // (a run that failed only because a tool isn't installed is setup, not a bug: Lesson: "'tsc' is not recognized"
   // demanded a root cause)
-  if (c.ranFailing && x.toolsKnown && !(x.runs || []).some(rn => r(c.ranFailing).test(rn.cmd) && (rn.error || FAILED_RUN.test(rn.out || '')) && !MISSING_TOOL.test(rn.out || ''))) return false;
+  // A failure counts as a problem to explain only when the request reports one (a bug, an error, a complaint), or when
+  // it was there before the turn touched the watched files: a failure the agent's own edits caused while building is
+  // its own work in progress (a test written first, a slip fixed on the way), not a fault with a root cause.
+  // Lesson: feature turns relabelled each review finding "Root cause", and setup explained its own audit slips.
+  if (c.ranFailing && x.toolsKnown) {
+    const fails = (x.runs || []).filter(rn => r(c.ranFailing).test(rn.cmd) && (rn.error || FAILED_RUN.test(rn.out || '')) && !MISSING_TOOL.test(rn.out || ''));
+    if (!fails.length) return false;
+    const watched = p => counted(p) && (!c.filesChanged || match(p, globs(c.filesChanged)));
+    if (!reportsProblem(x) && !fails.some(rn => !(rn.editedBefore || []).some(watched))) return false;
+  }
   if (c.ranFailing && !x.toolsKnown) return false;
   // setup builds everything from nothing: a test failing before its code exists is not a fault to debug.
   // Lesson: setup turns were asked for a "root cause" when nothing had gone wrong.
-  if (c.ranFailing && (settingUp() || x.changed.includes('SETUP-PROMPT.md'))) return false;
+  if (c.ranFailing && setupTurn(x)) return false;
   // toolCount: { name: "<regex of tool names>", min: n } tool calls this turn
   if (c.toolCount && x.toolsKnown && (x.uses || []).filter(u => r(c.toolCount.name).test(u.name)).length < (c.toolCount.min || 1)) return false;
   if (c.toolCount && !x.toolsKnown) return false;
@@ -4488,6 +4596,7 @@ const SHORT = {
   'security-checklist': 'Give the security checklist table with evidence',
   'skill-harden': 'Turn the runbook used 3 times into scripts and checks (skill-harden)', 'runbook-complete': 'Give the new runbook its check, test and rule-map row',
   'plan-required': 'Write a plan first: this work adds many files',
+  'review-excuse': 'Get the independent review from a reviewer sub-agent',
   'autonomy-decide': 'Decide it yourself instead of asking: the user asked not to be asked',
   'injection-flagged': 'Warn the user about hidden instructions in what was read',
   'install-vetted': 'Show the new tool was vetted: sources, free license, maintained',

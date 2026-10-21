@@ -3,14 +3,16 @@
 Everything lives in a folder that says what it is. The root holds what a person opens first, plus (for apps) one
 file that starts the app. The Stop hook blocks new loose root files (REQ: root-tidy), and the audit flags existing
 ones. Allowed root files are `rootAllowed` (defaults in `tools/hooks/hooks.mjs`, extended in
-`tools/hooks/config.json` by packs and setup).
+`tools/hooks/config.json` by packs and setup), plus what a language or tool needs in the root, listed by ecosystem in
+`ROOT_TOOLCHAINS` (`tools/hooks/hooks.mjs`).
 
 ## The root
 | Kind | Files |
 |---|---|
 | Read first | `README.md`, `HOW-TO-USE.md`, `AGENTS.md` (plus its local twin `CLAUDE.md`, not in git), `DIRECTORY.md`, `SETUP-PROMPT.md` (until setup is done), `LICENSE` |
 | Start the app (apps only) | ONE obvious start file, e.g. `Start <App>.bat` (Windows) and `start.sh` (macOS/Linux), or the toolchain's own (`npm start` via `package.json`). The README's first instruction points at it. |
-| Toolchain config that must sit in the root | `package.json` and its lock file, `pyproject.toml`, `requirements.txt`, `Cargo.toml`, `go.mod`, `tsconfig.json`, bundler config, `.gitignore`, `.gitattributes`, `.editorconfig`, `.env.example` |
+| Toolchain config that must sit in the root | `package.json` and its lock file, `pyproject.toml`, `requirements.txt`, `Cargo.toml`, `go.mod`, `tsconfig.json`, bundler config, `.gitignore`, `.gitattributes`, `.editorconfig`, `.env.example`, and the rest of `ROOT_TOOLCHAINS` (Go, Rust, Python, Node, Java and Gradle, .NET, Flutter, Godot, Docker, CI configs and more) |
+| Source files the toolchain wants in the root | Only next to their marker: `*.go` beside `go.mod` (a Go main package), `*.cs` beside a `.csproj`, `conftest.py` and `manage.py` beside `pyproject.toml`, `index.html` beside `package.json`, Godot's icon beside `project.godot` |
 
 Everything else goes in a folder. When in doubt, use a folder.
 
