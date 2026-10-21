@@ -7,6 +7,23 @@ print, or to a command or setting a project's own hooks or scripts may rely on, 
 hooks:**, and an upgrade lists each one as its own review item.
 
 - 2026-10-21: Fewer retries and Stop rounds (field report from an adopted project).
+  - **Checks fire on the right turn (trials of 8 new projects):** a runbook only opened (read, its skill not invoked)
+    counts as followed only when the request routed to it, the answer names it, the turn changed files its own checks
+    watch, or, outside setup, it is the one the agent picked for an unrouted work turn, so a setup dry run of
+    `feature.md` no longer asks for a spec and a review. The setup turn stays setup after its last step deletes
+    `SETUP-PROMPT.md` (`setupTurn`). `debug-trigger` asks for a root cause only when the request reports a problem or the
+    failure came before the turn edited the watched files, not for a test the agent wrote first or its own slips.
+    `release-ready` and `release-rollback` need a routed release request or a publish command. A helper resumed with
+    `SendMessage` counts as running, so Stop waits for it instead of spending its rounds. `root-tidy` reads a data list
+    of what each ecosystem needs in the root (`ROOT_TOOLCHAINS`: Go, Rust, Python, Node, Java and Gradle, .NET, Flutter,
+    Godot, Docker, CI and more), with source files such as `*.go` allowed only next to their marker (`go.mod`); the
+    toolchain entries left `rootAllowed`'s defaults. The plan notice also fires in setup for the app files it writes,
+    and mentions the feature's spec, review and release notes; the `CHECKS:` line names `plan-required`. New check
+    `review-excuse`: "no other reviewer" is no reason to skip an independent review where sub-agents exist.
+    Scenarios: `runbook-look:`, `root-tidy:`, `plan-required:`, `debug-trigger:`, `release-ready:`, `release-rollback:`,
+    `stop-wait:`, `review-excuse:`, `check-preview:`.
+    **Breaking for project hooks:** the `CHECKS:` line can name `plan-required`, and the default `rootAllowed` no longer
+    lists toolchain files (they are in `ROOT_TOOLCHAINS`).
   - **One complete denial before a tool call:** when one tool call breaks several rules (for example git-safety and
     no-ai-attribution in one commit, or plain-writing and no-overwrite in one write or `apply_patch`), the denial names
     them all, numbered, in one message, so the retry does not hit the next one. Every rule is weighed in one pass, so a

@@ -205,10 +205,12 @@
       "c359f17bfcf7"
     ],
     "release-ready": [
-      "4ef3d3f32dc6"
+      "4ef3d3f32dc6",
+      "e0bca545f75f"
     ],
     "release-rollback": [
-      "3fa00272685a"
+      "3fa00272685a",
+      "609c9c6d860b"
     ],
     "release-trigger": [
       "0b4eafe24756",
@@ -230,7 +232,8 @@
       "4ebae01e95cf"
     ],
     "review-verdict": [
-      "1e61aab987ae"
+      "1e61aab987ae",
+      "44c91c9380f7"
     ],
     "root-cause-stated": [
       "b23f0ba86bb8"

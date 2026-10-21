@@ -441,7 +441,7 @@
       "require": {
         "answerMatches": "\\bSHIP\\b"
       },
-      "message": "A feature needs an independent review that ends in SHIP (fix and re-review until it does). Quote the verdict and the report path.",
+      "message": "A feature needs an independent review that ends in SHIP (fix and re-review until it does). Quote the verdict and the report path. With no person to review, start a reviewer sub-agent (the Agent or Task tool) with a read-only brief: no other reviewer is no reason to skip it.",
       "pack": "app"
     },
     {
@@ -492,7 +492,15 @@
       "tag": "release-ready",
       "rule": "12",
       "when": {
-        "playbookUsed": "release"
+        "playbookUsed": "release",
+        "anyOf": [
+          {
+            "playbookRouted": "release"
+          },
+          {
+            "toolRan": "^(?![^\\n]*--dry-run)[\\s\\S]*?(?:\\bgit\\s+tag\\s+(-[as]\\s+)?v?\\d|\\bgit\\s+push\\b[^\\n]*\\s--tags\\b|\\bgh\\s+release\\s+create\\b|\\b(npm|pnpm|yarn)\\s+publish\\b|\\bcargo\\s+publish\\b|\\b(dart|flutter)\\s+pub\\s+publish\\b|\\b(poetry|uv)\\s+publish\\b|\\bgem\\s+push\\b|\\btwine\\s+upload\\b|\\bvsce\\s+publish\\b|\\bfastlane\\s+\\w*(deliver|release|upload|beta)\\b|\\bgh-pages\\b|\\b(vercel|netlify)\\b[^\\n]*\\b(deploy|--prod)\\b|\\b(firebase|wrangler|serverless|sam|cdk)\\s+deploy\\b|\\bfly(ctl)?\\s+deploy\\b|\\bdocker\\s+push\\b|\\bgcloud\\s+(app|run)\\s+deploy\\b|\\bhelm\\s+(upgrade|install)\\b|\\bterraform\\s+apply\\b)"
+          }
+        ]
       },
       "require": {
         "filesChanged": [
@@ -507,7 +515,15 @@
       "tag": "release-rollback",
       "rule": "12",
       "when": {
-        "playbookUsed": "release"
+        "playbookUsed": "release",
+        "anyOf": [
+          {
+            "playbookRouted": "release"
+          },
+          {
+            "toolRan": "^(?![^\\n]*--dry-run)[\\s\\S]*?(?:\\bgit\\s+tag\\s+(-[as]\\s+)?v?\\d|\\bgit\\s+push\\b[^\\n]*\\s--tags\\b|\\bgh\\s+release\\s+create\\b|\\b(npm|pnpm|yarn)\\s+publish\\b|\\bcargo\\s+publish\\b|\\b(dart|flutter)\\s+pub\\s+publish\\b|\\b(poetry|uv)\\s+publish\\b|\\bgem\\s+push\\b|\\btwine\\s+upload\\b|\\bvsce\\s+publish\\b|\\bfastlane\\s+\\w*(deliver|release|upload|beta)\\b|\\bgh-pages\\b|\\b(vercel|netlify)\\b[^\\n]*\\b(deploy|--prod)\\b|\\b(firebase|wrangler|serverless|sam|cdk)\\s+deploy\\b|\\bfly(ctl)?\\s+deploy\\b|\\bdocker\\s+push\\b|\\bgcloud\\s+(app|run)\\s+deploy\\b|\\bhelm\\s+(upgrade|install)\\b|\\bterraform\\s+apply\\b)"
+          }
+        ]
       },
       "require": {
         "answerMatches": "roll ?-?back"
