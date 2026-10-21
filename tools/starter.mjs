@@ -251,7 +251,9 @@ if (cmd === 'link') {
   if (!i) { i = ls.findIndex((l, k) => k > 0 && /^## /.test(l)); if (i < 0) i = ls.length; else if (ls[i - 1] === '') i--; }
   ls.splice(i, 0, `- ${day}: ${text}`);
   fs.writeFileSync(at(FEEDBACK), ls.join('\n') + '\n');
-  console.log(`noted in ${FEEDBACK}. Send it to the starter with: node tools/starter.mjs report`);
+  // Only "report" sends it, so the answer says "noted for the starter", never "reported to the makers" (REQ: claim-checked).
+  // Lesson: an answer said an engine bug was reported to the tool's makers when it was only written to this file.
+  console.log(`noted in ${FEEDBACK}. Nothing is sent yet: say "noted in ${FEEDBACK} for the starter". Send it with: node tools/starter.mjs report`);
 } else if (cmd === 'report') {
   const link = starterLink();
   if (!link) { console.log('report: no starter is linked, nothing sent (node tools/starter.mjs link "<starter folder>" first).'); process.exit(0); }

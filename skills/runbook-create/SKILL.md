@@ -44,6 +44,11 @@ Other evidence: `answerMatches` (a required answer section), `toolPassed` (a val
 `checks: none - <reason>` in the runbook. Add a test scenario for the tag in `tools/hooks/project-scenarios.mjs` (upgrades keep it; in the starter itself: `tools/hooks/selfcheck.mjs`) and a row in
 `docs/checks/rule-enforcement.md`.
 
+A validator script you write for the check is run on real samples before you rely on it: it fails on a real bad
+case and passes on at least 2 realistic good ones, one a valid edge case of the project. Made-up junk alone proves
+little: a check can fail every fixture and still pass the real miss, or block good work (hook: check-proven, when it
+answers a complaint or a rule).
+
 ## 4. Route and verify
 - The skill (`skills/<name>/SKILL.md`) and the `DIRECTORY.md` row are generated. Run `node tools/hooks/hooks.mjs sync`.
 - Add a menu code in `docs/MENU.md` if the task will be common, and a precedence line in `DIRECTORY.md` if it overlaps

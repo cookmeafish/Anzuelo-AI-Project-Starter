@@ -27,6 +27,24 @@ hooks:**, and an upgrade lists each one as its own review item.
     `gitignore-ready:`, `publish-safety:`, `name-var:`, `version-bump:`.
     **Breaking for project hooks:** the scope-separate denial text changed (it ends with the waive command and the
     folder to work in instead of "ask if unsure"), and a project's own scenario that cannot run is now a FAIL.
+  - **Checks written after a complaint are proven (round-4 trials):** new check `check-proven`. When a complaint,
+    rule or requirement turn (or one that ends with a `Learned (...)` line) adds a check script or test, Stop wants a
+    run of it that failed on the state the user complained about (before the turn changed a file that was already
+    there, or after a `git show`/`stash`/`archive` brought the earlier version back), a run that passed, and a line
+    `Proven: fails on <bad>; passes on <good 1>, <good 2>` (Spanish `Probado: falla con ...; pasa con ...`).
+    `claim-checked` now also catches "can't happen again" / "now enforces this on its own" / "no volverá a pasar"
+    without that proof, and "reported to the makers / developers / starter" without a `starter.mjs report` that sent
+    it; `starter.mjs feedback` says to word it "noted in docs/starter-feedback.md for the starter". `upset-learned`:
+    a full "You're right" needs a `Checked: <what you opened> - <what it showed>` line (Spanish `Comprobado:`), and
+    the upset hint now says to check before fixing. learn-from-upset step 0 and 5, project-rule step 6, runbook-create
+    §3 and the RULE REQUEST and REQUIREMENT hints say how to prove a check (2 realistic good
+    samples, one a valid edge case of the project). Spanish answers get "lista para publicar" / "veredicto: corregir"
+    for the review verdict and `**Aviso:**` for Heads-up (writing-standards.md, LABELS_ES). AGENTS.md step 0.5: when
+    the agent's tool holds the install of the project's own declared dependencies, the project's own test command
+    still runs once. Scenarios: `check-proven:`, `claim-checked:` (promise, reported), `upset-learned:`
+    (Checked line), `answer-language:`. Adopt by hand: AGENTS.md step 0.5.
+    **Breaking for project hooks:** `starter.mjs feedback` prints a longer line, the upset and rule hints are longer,
+    and a project's own scenarios whose answer says a full "You're right" need a `Checked:` line.
   - **Checks fire on the right turn (trials of 8 new projects):** a runbook only opened (read, its skill not invoked)
     counts as followed only when the request routed to it, the answer names it, the turn changed files its own checks
     watch, or, outside setup, it is the one the agent picked for an unrouted work turn, so a setup dry run of

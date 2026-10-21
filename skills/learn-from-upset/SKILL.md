@@ -8,7 +8,8 @@ runbook: docs/playbooks/project.md
 An upset user means something fell short. A correction fixes this answer; only a lesson stored in the right place
 fixes the next ones. The Stop hook checks both (hook: upset-learned).
 
-Say at the start: "Fixing it first, then making sure it doesn't happen again (learn-from-upset skill)."
+Say at the start: "Checking what happened first, then fixing it and making the project learn from it
+(learn-from-upset skill)."
 
 ## What the other skills already cover
 - **Writing a rule with its check, row and test:** the **project-rule** skill. This skill decides *whether* a rule is
@@ -20,11 +21,13 @@ Say at the start: "Fixing it first, then making sure it doesn't happen again (le
   (friction-suspend). This skill fixes the cause before it gets there.
 
 ## Steps
-0. **Check the complaint against the files first.** Open what the user is upset about (the file, the output, the
-   commit) and see which parts of the complaint hold. Say it plainly in the first line of the answer: "You're right:
-   ...", "Partly: X was wrong, Y was already there (<path>)", or "That isn't what happened: <evidence>". A complaint
-   that doesn't hold still gets its principle written down if it is one the user wants kept, but never a fix for a
-   problem that isn't there.
+0. **Check the complaint against the files first, before you agree.** Open what the user is upset about (the file,
+   the output, the commit, as it was before your fix: `git show HEAD:<file>`) and see which parts of the complaint
+   hold. Don't agree from memory: what you remember writing is not what the file says. Say it plainly in the first
+   line of the answer: "You're right: ...", "Partly: X was wrong, Y was already there (<path>)", or "That isn't what
+   happened: <evidence>". A full "You're right" adds what you looked at on its own line: `Checked: <file or output> -
+   <what it showed>` (Spanish: `Comprobado:`; hook: upset-learned). A complaint that doesn't hold still gets its
+   principle written down if it is one the user wants kept, but never a fix for a problem that isn't there.
 1. **Fix the miss now.** Redo the work by the runbook or skill it belonged to, and save the corrected result where
    the old one was (a rewritten letter replaces the saved draft, not just the chat). No arguing, over-apologizing or
    promises: one plain sentence on what went wrong, then the fix.
@@ -47,11 +50,21 @@ Say at the start: "Fixing it first, then making sure it doesn't happen again (le
    Several levels can apply: a check usually comes with a lesson in the skill it guards.
 4. **Write it down there** in your own words, never the user's (hook: no-verbatim-examples). Each lesson says what
    to do, not only what went wrong, so the next run can follow it.
-5. **Prove it.** For a check: its "blocked" scenario recreates the exact defect the user complained about (the card
-   with no time, the link never opened, the wrong total, the change missing from the changelog) and the check must
-   fail it; a near miss that still has the defect must fail too. Then `node tools/hooks/selfcheck.mjs --tags <tag>`
-   (blocked when skipped, passes when followed). A check that only looks for a word or a format lets the same miss
-   through: test the result itself. For a lesson or rule: re-read the step and confirm the corrected work now follows it.
+5. **Prove it.** A check written now (a script, a test, a requirements.json entry) is proven on real samples, not
+   only on made-up ones (hook: check-proven):
+   - **It fails on the exact state the user complained about:** run it before your fix, or on the earlier version
+     (`git show HEAD:<file> > .cache/before-<name>`), or on the real complained-about text. A check that passes there
+     would not have caught the miss: test the result itself, not that a function or a word exists.
+   - **It passes on at least 2 realistic good samples**, one of them a valid edge case of this project: the words the
+     user's language shares with a banned list ("once" and "he" are Spanish too), a legitimate text that must use a
+     flagged term (a late-rent letter has to say "arrears"), real input in a strange but valid shape.
+   - **Say it on one line:** `Proven: fails on <the complained-about sample>; passes on <good 1>, <good 2>` (Spanish:
+     `Probado: falla con ...; pasa con ...`). Only with this may the answer say it can't happen again (hook:
+     claim-checked). Without it, say what the check catches and what it does not.
+
+   Its hook scenarios still recreate the defect (blocked) and the corrected work (passes):
+   `node tools/hooks/selfcheck.mjs --tags <tag>`. For a lesson or rule: re-read the step and confirm the corrected
+   work now follows it.
 6. **Tell the user** in the answer, on its own line:
    `Learned (<level>): <the lesson in one sentence> → <file it went into>`, in the user's language (Spanish:
    `Aprendido (regla): ...`). Several lessons: one line each. If the upset was about something outside the project (a
@@ -64,6 +77,8 @@ Say at the start: "Fixing it first, then making sure it doesn't happen again (le
 - [ ] The miss is fixed and verified (judgment: the user can see the corrected result).
 - [ ] A `Learned (<level>): ... → <file>` line names a file that changed this turn (hook: upset-learned).
 - [ ] A lesson at level check has its scenarios and they pass (hook: hooks-tested).
+- [ ] A new check failed on the complained-about state and passed on 2 realistic good samples, said in a `Proven:`
+      line (hook: check-proven).
 - [ ] An engine lesson went to the starter (`docs/starter-feedback.md`), or into the engine itself in the starter
       (hook: upset-learned).
 
@@ -77,5 +92,9 @@ Say at the start: "Fixing it first, then making sure it doesn't happen again (le
   right, and building rules around a letter whose corrected version was never saved.
 - A new check that overlaps one the project has: extend the existing check instead of adding a second one, and
   prefer a check that tests the result over a list of forbidden words.
+- A check tried only on made-up bad cases. Trial projects shipped checks that passed the very code the user had
+  complained about, flagged ordinary words of the user's language, and banned words every legitimate letter needs.
+- "Reported to the makers" when the lesson was only noted: `starter.mjs feedback` writes `docs/starter-feedback.md`,
+  and only `node tools/starter.mjs report` sends it. Say "noted in docs/starter-feedback.md for the starter".
 - Waiving a check with N/A because another hook blocked the work. That is not "does not apply": say the work is
   blocked, by what, and leave it for the user.

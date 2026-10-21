@@ -307,6 +307,15 @@ const bash = (c, result) => ({ name: 'Bash', input: { command: c }, result: resu
 const MEM = { '.memtest/rule.md': '---\nname: rule\n---\nrule' };
 const many = n => Array.from({ length: n }, (_, i) => ({ name: 'Grep', input: { pattern: 'x' + i } }));
 const FIN = '\n\n## Finished\n- Done. Files: docs/x.md';
+// files the project had before the turn (in the turn-start snapshot), so a scenario can edit one as the turn's fix
+const preexisting = (...ps) => dir => {
+  const sp = path.join(dir, 'tools/hooks/state/snapshot.json');
+  let j = {}; try { j = JSON.parse(fs.readFileSync(sp, 'utf8')); } catch { }
+  j.files = { ...(j.files || {}) }; for (const p of ps) j.files[p] = [1, 1, 'x'];
+  if (!j.at) j.at = new Date(0).toISOString();
+  fs.mkdirSync(path.dirname(sp), { recursive: true }); fs.writeFileSync(sp, JSON.stringify(j));
+};
+const editTool = p => ({ name: 'Edit', input: { file_path: p, old_string: 'a', new_string: 'b' } });
 const KNOW = '---\ntopic: Desks\nchecked: 2026-10-17\nvolatile: yes\n---\n# Desks\n| Fact | Label | Source | Date |\n|---|---|---|---|\n| Desk X costs $300 | source verified | https://example.com | 2026-10-17 |\n\n## Related\n- [Budget](budget.md): the limit this choice must fit\n';
 // a knowledge note whose one fact was read from a project file: its source, label and date
 const KNOW_LOCAL = (src, label, date) => `---\ntopic: Style\nchecked: 2026-10-21\nvolatile: no\n---\n# Style\n| Fact | Label | Source | Date |\n|---|---|---|---|\n| Narration is in the past tense | ${label} | ${src} | ${date} |\n\n## Related\n- [Desks](desks.md)\n`;
@@ -403,12 +412,19 @@ const STOP = [
     answer: 'Added pictures for every encounter.\nLearned (lesson): every encounter needs a picture → docs/lessons.md' + FIN, expect: { block: true, tags: ['upset-learned'] } },
   { name: 'upset-learned: a "the work falls short" complaint enforced with a judgment item: passes that check', prompt: 'its lackluster in picture variety and accuracy',
     files: { 'docs/zorbl.md': '# Zorbl\n![boss](boss.png)', 'docs/playbooks/zorbl.md': '---\nname: zorbl\nsummary: zorbl pages\ntriggers: zorbl page\nchecks: none - a test runbook\n---\n# Playbook: zorbl\n## Done when\n- [ ] Every encounter shows varied, accurate pictures (judgment: only a person can judge accuracy)\n', 'docs/CHANGELOG.md': 'x' },
-    answer: 'You\'re right: the pictures repeated. Added varied pictures.\nLearned (rule): every encounter shows varied, accurate pictures → docs/playbooks/zorbl.md\nDone when item: "(judgment: only a person can judge accuracy)"' + FIN, expect: { not: ['upset-learned'] } },
+    answer: 'You\'re right: the pictures repeated.\nChecked: docs/zorbl.md - one boss picture used for every encounter.\nAdded varied pictures.\nLearned (rule): every encounter shows varied, accurate pictures → docs/playbooks/zorbl.md\nDone when item: "(judgment: only a person can judge accuracy)"' + FIN, expect: { not: ['upset-learned'] } },
   { name: 'upset-learned: an engine lesson kept in one project: blocked', removeMarker: true, prompt: 'ugh, that check fired for nothing again', files: { 'docs/lessons.md': '- 2026-10-19: the check misfires' },
     answer: 'Learned (engine): the check misfires on menus → docs/lessons.md' + FIN, expect: { block: true, tags: ['upset-learned'] } },
   { name: 'upset-learned: fixed, and the lesson written where it stops the next miss: passes', prompt: 'you forgot to add the allergens again!!', tools: [pb('project')],
     files: { 'docs/menu.md': 'Croissant (gluten, milk)', 'docs/playbooks/menu.md': '---\nname: menu\nsummary: menus\ntriggers: menu card\nchecks: none - a test runbook\n---\n# Playbook: menu\n## Pitfalls\n- Every item lists its allergens.\n', 'docs/CHANGELOG.md': 'x' },
-    answer: 'You\'re right: the croissant had no allergens. Added the allergens to the menu. Playbook: project.md.\nLearned (lesson): every menu item lists its allergens, a step the menu runbook lacked → docs/playbooks/menu.md' + FIN, expect: { not: ['upset-learned', 'rule-request'] } },
+    answer: 'You\'re right: the croissant had no allergens.\nChecked: docs/menu.md - the croissant line had no allergens.\nAdded the allergens to the menu. Playbook: project.md.\nLearned (lesson): every menu item lists its allergens, a step the menu runbook lacked → docs/playbooks/menu.md' + FIN, expect: { not: ['upset-learned', 'rule-request'] } },
+  // Lesson: an agent agreed that the README never described a new option before opening it; it did describe it
+  { name: 'upset-learned: agrees with the whole complaint without saying what was checked: blocked', prompt: 'you forgot to add the allergens again!!', tools: [pb('project')],
+    files: { 'docs/menu.md': 'Croissant (gluten, milk)', 'docs/playbooks/menu.md': '---\nname: menu\nsummary: menus\ntriggers: menu card\nchecks: none - a test runbook\n---\n# Playbook: menu\n## Pitfalls\n- Every item lists its allergens.\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'You\'re right: the croissant had no allergens. Added them. Playbook: project.md.\nLearned (lesson): every menu item lists its allergens, a step the menu runbook lacked → docs/playbooks/menu.md' + FIN, expect: { tags: ['upset-learned'], says: /Checked: <the file/ } },
+  { name: 'upset-learned: a Spanish "Tienes razón" with its "Comprobado:" line: passes that part', prompt: 'otra vez olvidaste los alérgenos!!', tools: [pb('project')],
+    files: { 'docs/menu.md': 'Croissant (gluten, leche)', 'docs/playbooks/menu.md': '---\nname: menu\nsummary: menus\ntriggers: menu card\nchecks: none - a test runbook\n---\n# Playbook: menu\n## Pitfalls\n- Cada plato lista sus alérgenos.\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Tienes razón: el croissant no tenía alérgenos.\nComprobado: docs/menu.md - la línea del croissant no los tenía.\nGuía: project.md.\nAprendido (lección): cada plato lista sus alérgenos → docs/playbooks/menu.md' + FIN, expect: { not: ['upset-learned'] } },
   // Lesson: reviewers found complaints conceded and "fixed" without checking whether the thing was already there
   { name: 'upset-learned: fixed and learned, but never said whether the complaint held: blocked', prompt: 'you forgot to add the allergens again!!', tools: [pb('project')],
     files: { 'docs/menu.md': 'Croissant (gluten, milk)', 'docs/playbooks/menu.md': '---\nname: menu\nsummary: menus\ntriggers: menu card\nchecks: none - a test runbook\n---\n# Playbook: menu\n## Pitfalls\n- Every item lists its allergens.\n', 'docs/CHANGELOG.md': 'x' },
@@ -647,7 +663,7 @@ const STOP = [
     active: true, blocks: 1, failed: ['finished-summary'], answer: 'Skill: debug. Root cause: the date parser.' + FIN, expect: { block: false, not: ['skill-learn'] } },
   { name: 'skill followed, user complains, lesson written into the skill: passes', prompt: 'you forgot the logs, debug the failing import', tools: [sk('debug'), pb('project'), bash('node tools/audit.mjs')],
     files: { 'scratch-work/import.md': 'x', 'docs/CHANGELOG.md': 'x', 'skills/debug/references.md': '# refs\n- Pitfall: read the logs first.' },
-    answer: 'You\'re right: I skipped the logs. Skill: debug. Playbook: project.md. Root cause: the date parser.\nLearned (lesson): read the logs before guessing → skills/debug/references.md' + FIN, expect: { block: false } },
+    answer: 'You\'re right: I skipped the logs.\nChecked: this session\'s commands - none opened the import log.\nSkill: debug. Playbook: project.md. Root cause: the date parser.\nLearned (lesson): read the logs before guessing → skills/debug/references.md' + FIN, expect: { block: false } },
   { name: 'skill followed after a blocked draft, not its fault: passes with a stated reason', prompt: 'debug the failing import', tools: [sk('debug')], drafts: ['Fixed it.'],
     files: { 'scratch-work/import.md': 'x', 'docs/CHANGELOG.md': 'x' }, answer: 'Skill: debug. Root cause: the date parser.\nSkill lesson: none - the draft only lacked its summary.' + FIN, expect: { block: false } },
   { name: 'skill followed after a blocked draft, the skill\'s own check failed, no lesson: blocked', prompt: 'debug the failing import', tools: [sk('debug')], drafts: ['Fixed it.'], active: true, blocks: 1, failed: ['debug-root-cause', 'finished-summary'],
@@ -1010,6 +1026,50 @@ STOP.push(
     answer: 'Added the endpoint. Verdict: SHIP. N/A(app-test-pass): Go is not installed on this machine.', expect: { tags: ['claim-checked'] } },
   { name: 'claim-checked: the tests were waived and the answer says NOT VERIFIED: passes', prompt: 'add the endpoint',
     answer: 'Added the endpoint. NOT VERIFIED: Go is not installed, so it was not compiled or tested; run go test ./... once it is. N/A(app-test-pass): Go is not installed on this machine.', expect: { not: ['claim-checked'] } },
+  // check-proven: a check written after a complaint fails on what the user complained about and passes on good samples.
+  // Lesson: a new input check failed only made-up junk, passed the very code the user complained about, and the answer
+  // said the project now enforced it on its own.
+  { name: 'check-proven: a new check tried only on made-up junk after the fix, and a promise: blocked', prompt: 'you forgot to validate the links again!!', prep: preexisting('links.go'),
+    files: { 'links.go': 'package main\nfunc validateURL(s string) bool { return strict(s) }\n', 'tools/input-check.mjs': '// fails a handler that skips validation\n', 'docs/CHANGELOG.md': 'x' },
+    tools: [editTool('links.go'), bash('node tools/input-check.mjs .cache/ic/h.go', 'h.go: reads input with no validate call\nRESULT: FAIL'), bash('node tools/input-check.mjs links.go', 'RESULT: PASS')],
+    answer: 'Partly: links were checked, but only the scheme. Fixed. The project now enforces this on its own.\nLearned (check): every input is validated → tools/input-check.mjs' + FIN,
+    expect: { tags: ['check-proven', 'claim-checked'], says: /failed on the state the user complained about/ } },
+  { name: 'check-proven: the check failed on the version from git and passed on 2 good samples: passes', prompt: 'you forgot to validate the links again!!', prep: preexisting('links.go'),
+    files: { 'links.go': 'package main\nfunc validateURL(s string) bool { return strict(s) }\n', 'tools/input-check.mjs': '// fails a handler that skips validation\n', 'docs/CHANGELOG.md': 'x' },
+    tools: [editTool('links.go'), bash('git show HEAD:links.go > .cache/before-links.go', 'ok'), bash('node tools/input-check.mjs .cache/before-links.go', 'before-links.go: javascript: URL accepted\nRESULT: FAIL'),
+      bash('node tools/input-check.mjs links.go .cache/good/idn-host.go', 'RESULT: PASS')],
+    answer: 'Partly: links were checked, but only the scheme. Fixed, and it can\'t happen again.\nProven: fails on links.go as it was before the fix; passes on links.go now, a handler with an international host and a port\nLearned (check): every input is validated → tools/input-check.mjs' + FIN,
+    expect: { not: ['check-proven', 'claim-checked'] } },
+  // Lesson: a tone check passed the one rewritten letter and was never tried on a legitimate late-rent letter
+  { name: 'check-proven: a "Proven:" line with only one good sample: blocked', prompt: 'the letter sounds like a robot and threatens them. letters to tenants are friendly and plain, always',
+    files: { 'tools/letter-check.mjs': '// tone check\n', 'drafts/rent-v2.md': 'Hi Sam', 'docs/CHANGELOG.md': 'x' },
+    tools: [bash('node tools/letter-check.mjs drafts/rent.md', 'legal wording\nRESULT: FAIL'), bash('node tools/letter-check.mjs drafts/rent-v2.md', 'RESULT: PASS')],
+    answer: 'You\'re right: it read like a warning.\nChecked: drafts/rent.md - it named the tribunal twice.\nProven: fails on the rent letter as it was; passes on the rewritten rent letter\nLearned (check): tenant letters pass a tone check → tools/letter-check.mjs' + FIN,
+    expect: { tags: ['check-proven'], says: /fewer than 2 good samples/ } },
+  { name: 'check-proven: Spanish, run before the fix, "Probado:" with 2 good samples, and the promise: passes', prompt: 'otra vez pusiste texto en inglés en la página. todo lo que vea el lector tiene que estar en español, siempre',
+    prep: preexisting('content/receta.md'), files: { 'scripts/check-language.mjs': '// idioma\n', 'content/receta.md': 'Solo para las pruebas', 'docs/CHANGELOG.md': 'x' },
+    tools: [bash('node scripts/check-language.mjs', 'MAL content/receta.md "tests"\nRESULT: FAIL'), editTool('content/receta.md'),
+      bash('node scripts/check-language.mjs content/receta.md .cache/muestras/torrijas.md .cache/muestras/menu.md', 'RESULT: PASS')],
+    answer: 'Tienes razón en parte: la receta de prueba decía "tests". La corregí para que no vuelva a pasar.\nProbado: falla con la receta de prueba de antes; pasa con una receta con "once rebanadas" y "he usado", y la receta del menú' + FIN,
+    expect: { not: ['check-proven', 'claim-checked'] } },
+  { name: 'check-proven: a test added in a plain feature request is not asked to be proven', prompt: 'add a csv export',
+    files: { 'src/export.js': 'export const csv = r => r.join(",");\n', 'tests/export.test.js': 'test("csv", () => {});\n', 'docs/CHANGELOG.md': 'x' },
+    tools: [bash('npm test', '1 passed')], answer: 'Added the export, so a missing column can\'t happen again.' + FIN, expect: { not: ['check-proven', 'claim-checked'] } },
+  { name: 'claim-checked: a Spanish promise after a complaint with no check behind it: blocked', prompt: 'otra vez pusiste texto en inglés!! ya te lo dije',
+    files: { 'docs/CHANGELOG.md': 'x', 'docs/checks/writing-standards.md': 'x' },
+    answer: 'En parte: la receta de prueba decía "tests". La corregí para que no vuelva a pasar.\nAprendido (regla): todo en español → docs/checks/writing-standards.md' + FIN,
+    expect: { tags: ['claim-checked'], says: /can't happen again/ } },
+  // Lesson: an answer said an engine bug was "reported to the tool's makers" when it was only noted in a local file
+  { name: 'claim-checked: "reported to the makers" with only the feedback note: blocked', prompt: 'set up the vault',
+    tools: [bash('node tools/starter.mjs feedback "gitignore check misses vaults"', 'noted in docs/starter-feedback.md. Nothing is sent yet.')], files: { 'docs/starter-feedback.md': '- 2026-10-21: x', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Set up. One engine test failed on a vault like yours: I fixed it and reported it to the tool\'s makers.' + FIN, expect: { tags: ['claim-checked'], says: /noted in docs\/starter-feedback\.md for the starter/ } },
+  { name: 'claim-checked: "reported to the makers" after the report command sent it: passes', prompt: 'set up the vault',
+    tools: [bash('node tools/starter.mjs feedback "gitignore check misses vaults"', 'noted'), bash('node tools/starter.mjs report', 'report: sent 1 line(s) to C:/starter/docs/feedback-inbox/vault.md.')],
+    files: { 'docs/starter-feedback.md': '- 2026-10-21: x', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Set up. One engine test failed on a vault like yours: I fixed it and reported it to the tool\'s makers.' + FIN, expect: { not: ['claim-checked'] } },
+  { name: 'claim-checked: "noted for the starter" is no report claim: passes', prompt: 'set up the vault',
+    tools: [bash('node tools/starter.mjs feedback "gitignore check misses vaults"', 'noted')], files: { 'docs/starter-feedback.md': '- 2026-10-21: x', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Set up. One engine test failed on a vault like yours: I fixed it and noted it in docs/starter-feedback.md for the starter.' + FIN, expect: { not: ['claim-checked'] } },
   // Lesson: "how did we do last month" was answered with figures from nothing, because no research skill ran
   // a web source cited in the answer was opened, not only listed by a search (Lesson: 2 of 3 cited studies were never
   // opened, and the citation check passed)
@@ -3034,8 +3094,8 @@ if (mineB()) {
     'security-report': 'Revisión de seguridad: correcta, 12 áreas - tabla en docs/reviews/security-2026-10-21.md',
     'security-checklist': 'Revisión de seguridad: correcta, 12 áreas - tabla en docs/reviews/security-2026-10-21.md',
     'foundation-set': 'Seguridad: 12 pruebas pasan. Presupuesto: correcto. Usabilidad: errores claros.',
-    'verification-report': '**Verificación**\n- Automática: npm test da 20 de 20.\n- Aplicación real: capturas.\n- Revisión independiente: SHIP.\n- Límites: 9 KB.\n- Lo más débil: nada pendiente.',
-    'review-verdict': 'Revisión independiente: SHIP.', 'release-ready': 'Atribución: limpia, sin coautores de IA.', 'release-rollback': 'Plan para deshacer: revertir el commit.',
+    'verification-report': '**Verificación**\n- Automática: npm test da 20 de 20.\n- Aplicación real: capturas.\n- Revisión independiente: lista para publicar.\n- Límites: 9 KB.\n- Lo más débil: nada pendiente.',
+    'review-verdict': 'Revisión independiente: lista para publicar.', 'release-ready': 'Atribución: limpia, sin coautores de IA.', 'release-rollback': 'Plan para deshacer: revertir el commit.',
     'qa-incident': 'Lo que se escapó: un caso vacío. Nueva comprobación: tests/vacio.test.js.', 'qa-report': 'Hallazgos: 2, corregidos.',
     'perf-numbers': 'Antes: 4,4 s por lote. Después: 0,04 s por lote.', 'data-backup': 'Copia de seguridad: data/app.db.bak. Restauración probada: 120 registros antes y 120 después.',
     'data-change-trigger': 'Copia de seguridad: data/app.db.bak. Restauración probada.', 'answer-cites': 'No está en el proyecto.',
@@ -3067,7 +3127,10 @@ if (mineB()) {
     ['upset-learned', /learned\s*\((rule)\)\s*:\s*.+→/i, 'Aprendido (regla): todo en español → docs/x.md'], ['upset-verdict', /you'?re right|partly[:,]|that isn'?t what happened|already there/i, 'Tienes razón en parte: ya estaba ahí.'],
     ['skill-reuse', /existing skills?\b[^\n]*(checked|searched)/i, 'Habilidades existentes revisadas: ninguna sirve.'], ['worth-it', /\bworth it\s*:\s*\S[^\n]*\//i, 'Vale la pena: respuestas más rápidas / un archivo.'],
     ['question-no-file', /asked for:\s*["“]/i, 'Lo que pediste: "agrega el índice"'], ['claim-checked', /\bnot verified\b/i, 'NO VERIFICADO: falta Go.'],
-    ['assumed', /^assumed:/im, 'Supuesto: el título - no me diste ninguno - una edición.']];
+    ['assumed', /^assumed:/im, 'Supuesto: el título - no me diste ninguno - una edición.'],
+    // (Lesson: a Spanish answer said "veredicto final SHIP"; the full "you're right" needs its "Checked:" line)
+    ['review-verdict-fix', /verdict:\s*FIX/, 'Revisión independiente, veredicto: corregir (dos fallos).'], ['upset-checked', /^checked\s*:/im, 'Comprobado: docs/menu.md - sin alérgenos.'],
+    ['claim-never-again', /won't happen again/i, 'La corregí para que no vuelva a pasar.']];
   for (const [tag, rx, s] of CORE) { if (!rx.test(h.inEnglish(s))) bad.push(`${tag}: the Spanish form "${s}" does not meet it`); if (rx.test(h.inEnglish(PLAIN))) bad.push(`${tag}: a Spanish answer without the label meets it`); }
   report(!bad.length, 'answer-language: every label a shipped check reads in the answer has a Spanish form that meets it, and the bare answer does not', bad.join('; '));
 }
