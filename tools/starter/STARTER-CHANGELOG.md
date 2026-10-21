@@ -30,6 +30,9 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
     "Searched: <what> - nothing found (<where>, <date>)" answers a search that found nothing; "don't ask me" and other
     autonomy phrases no longer route to the plan runbook; a here-document that names a test is not a run of it; a
     watched input the agent itself replaced with a command is not reported as the user's mid-turn update.
+  - A new session's first prompt reuses the newest snapshot any session left, instead of hashing the whole project
+    again (1.3 s to 0.18 s in a project with many pictures); the agent's copy of a Stop hold stays under 9,000
+    characters, with `hooks.mjs why` for the rest.
   - security-code no longer fires on the word "formidable" in prose or card names (only the library imported by name),
     nor on scratch scripts under `.cache/`; parallel-agents briefs ask each helper for a `Friction:` line, and
     follow-up rounds resume the same helpers.

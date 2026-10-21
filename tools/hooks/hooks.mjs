@@ -945,8 +945,17 @@ export function flushEngineWrites(extra = []) {
 // byte for byte, and the unchanged page demanded a screenshot review.
 const SNAPSHOT = 'snapshot.json', HASH_MAX = 2 * 1024 * 1024;
 const sha = p => { try { return createHash('sha1').update(fs.readFileSync(abs(p))).digest('hex'); } catch { return null; } };
+// The hashes to reuse: this session's last snapshot, else the newest one any session left (a file with the same mtime
+// and size has the same hash). Lesson: every new session's first prompt hashed the whole project again.
+function snapshotBase() {
+  const own = readJSON(path.join(STATE, stateName(SNAPSHOT)), null);
+  if (own?.files) return own.files;
+  let best = null, at = 0;
+  for (const n of list(path.relative(ROOT, STATE).replace(/\\/g, '/'))) if (/^snapshot(\.[\w-]+)?\.json$/.test(n)) { try { const m = fs.statSync(path.join(STATE, n)).mtimeMs; if (m > at) { at = m; best = n; } } catch { } }
+  return best ? readJSON(path.join(STATE, best), {}).files || {} : {};
+}
 export function takeSnapshot(cfg = config()) {
-  const old = readJSON(stateFile(SNAPSHOT), {}).files || {}, files = {}, ign = cfg.ignoreForChanges.map(globRe);
+  const old = snapshotBase(), files = {}, ign = cfg.ignoreForChanges.map(globRe);
   const walk = d => {
     for (const n of list(d)) {
       const p = d ? `${d}/${n}` : n;
@@ -4113,6 +4122,8 @@ export function userLine(d, cfg = config()) {
 export function stopOutput(d, cfg = config(), host = HOST) {
   const style = cfg.stopStyle === 'feedback' || cfg.stopStyle === 'block' ? cfg.stopStyle : host === 'claude-code' ? 'feedback' : 'block';
   const line = userLine(d, cfg);
+  // the agent's copy also stays within what the host shows it; the full steps are in "hooks.mjs why"
+  if (d.reason && d.reason.length > HOOK_OUTPUT_MAX) d = { ...d, reason: d.reason.slice(0, HOOK_OUTPUT_MAX - 200).replace(/\n[^\n]*$/, '') + '\n(cut to fit: node tools/hooks/hooks.mjs why prints every step in full)' };
   if (style === 'feedback') return { hookSpecificOutput: { hookEventName: 'Stop', additionalContext: d.reason }, systemMessage: line };
   // Codex documents systemMessage next to a block, so its user gets the same short line; unknown hosts get the bare block
   return host === 'codex' ? { decision: 'block', reason: d.reason, systemMessage: line } : { decision: 'block', reason: d.reason };
