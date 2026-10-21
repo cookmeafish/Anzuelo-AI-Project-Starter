@@ -17,12 +17,12 @@ hooks:**, and an upgrade lists each one as its own review item.
     it; `starter.mjs feedback` says to word it "noted in docs/starter-feedback.md for the starter". `upset-learned`:
     a full "You're right" needs a `Checked: <what you opened> - <what it showed>` line (Spanish `Comprobado:`), and
     the upset hint now says to check before fixing. learn-from-upset step 0 and 5, project-rule step 6, runbook-create
-    §3, the RULE REQUEST and REQUIREMENT hints and AGENTS.md rule 3 say how to prove a check (2 realistic good
+    §3 and the RULE REQUEST and REQUIREMENT hints say how to prove a check (2 realistic good
     samples, one a valid edge case of the project). Spanish answers get "lista para publicar" / "veredicto: corregir"
-    for the review verdict and `**Aviso:**` for Heads-up (writing-standards.md, LABELS_ES). AGENTS.md step 0.5: the
-    project's own declared requirements go into its own environment, and a held install still leaves the project's
-    test command to run once. Scenarios: `check-proven:`, `claim-checked:` (promise, reported), `upset-learned:`
-    (Checked line), `answer-language:`. Adopt by hand: AGENTS.md rule 3 and step 0.5.
+    for the review verdict and `**Aviso:**` for Heads-up (writing-standards.md, LABELS_ES). AGENTS.md step 0.5: when
+    the agent's tool holds the install of the project's own declared dependencies, the project's own test command
+    still runs once. Scenarios: `check-proven:`, `claim-checked:` (promise, reported), `upset-learned:`
+    (Checked line), `answer-language:`. Adopt by hand: AGENTS.md step 0.5.
     **Breaking for project hooks:** `starter.mjs feedback` prints a longer line, the upset and rule hints are longer,
     and a project's own scenarios whose answer says a full "You're right" need a `Checked:` line.
   - **Checks fire on the right turn (trials of 8 new projects):** a runbook only opened (read, its skill not invoked)
