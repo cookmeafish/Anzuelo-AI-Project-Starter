@@ -415,18 +415,36 @@ function playbooksRead() {
 // The runbook whose name, summary and triggers share the most content words with a request (word stems of 5 letters,
 // so "lands" meets "land" and "colors" meets "colored"), when at least two are shared. Generic runbooks are left out.
 const STOP_STEMS = new Set('about after again their there these those which while where would could should thing pleas thank with make have from this that want need help into more some just like what when your mine also very much'.split(' ').map(w => w.slice(0, 5)));
+// Text without its accents: "añade" is "anade", "línea" is "linea".
+export const fold = s => String(s).normalize('NFD').replace(/\p{M}/gu, '');
+// The runbooks every project has, for any kind of work: not a project's own subject.
+export const coreRunbook = n => String(n).startsWith('_') || /^(project|feature|bugfix|deliverable|qa|plan)$/.test(n);
+// Common Spanish words of a request, in English, so a Spanish request finds an English runbook by its words too.
+// Lesson: a Spanish request found nothing, while the same request in English found the closest runbook.
+const ES_EN = { mejor: 'best', mejores: 'best', peor: 'worse', mejora: 'better', mejorar: 'improve', jugada: 'play', jugadas: 'play', jugar: 'play',
+  juego: 'game', partida: 'game', turno: 'turn', mazo: 'deck', mazos: 'deck', baraja: 'deck', carta: 'card', cartas: 'card', tierra: 'land', tierras: 'land',
+  nota: 'note', notas: 'note', linea: 'line', archivo: 'file', archivos: 'file', informe: 'report', reporte: 'report', lista: 'list', precio: 'price',
+  precios: 'price', presupuesto: 'budget', pantalla: 'screen', boton: 'button', pagina: 'page', datos: 'data', factura: 'invoice', facturas: 'invoice',
+  cliente: 'customer', clientes: 'customer', correo: 'email', mensaje: 'message', prueba: 'test', pruebas: 'test', fallo: 'bug', regla: 'rule',
+  reglas: 'rule', construye: 'build', construir: 'build', crea: 'create', crear: 'create', busca: 'search', buscar: 'search', compara: 'compare',
+  comparar: 'compare', calidad: 'quality', nivel: 'tier', colores: 'color', color: 'color', semana: 'week', comida: 'meal', comidas: 'meal', receta: 'recipe' };
 export function closestRunbook(prompt) {
   // (a plural "s" goes first: "lands" was "lands" and "land" was "land", so the two never met)
-  const stems = s => new Set((String(s).toLowerCase().match(/[a-z]{4,}/g) || []).map(w => (w.length >= 5 ? w.replace(/s$/, '') : w).slice(0, 5)).filter(w => !STOP_STEMS.has(w)));
-  const want = stems(prompt);
+  const stems = (s, tr) => new Set((fold(String(s).toLowerCase()).match(/[a-z]{4,}/g) || []).map(w => tr && ES_EN[w] || w)
+    .map(w => (w.length >= 5 ? w.replace(/s$/, '') : w).slice(0, 5)).filter(w => !STOP_STEMS.has(w)));
+  const want = stems(prompt, true);
+  const all = playbooks().filter(pb => !coreRunbook(pb.name)).map(pb => ({ pb, named: stems(pb.name.replace(/-/g, ' ')), have: stems(`${pb.name.replace(/-/g, ' ')} ${pb.fm.summary || ''} ${(pb.triggers || []).join(' ')}`) }));
+  // a word that many runbooks share says less than one only this runbook has ("deck" in every deck runbook), and a word
+  // of the runbook's own name says the most. Lesson: a question about a play tied between a build runbook and the
+  // play-guide runbook on "best" and "deck", and the first one by name won.
+  const df = w => all.filter(a => a.have.has(w)).length || 1;
   let best = null;
-  for (const pb of playbooks()) {
-    if (pb.name.startsWith('_') || /^(project|feature|bugfix|deliverable|qa|plan)$/.test(pb.name)) continue;
-    const have = stems(`${pb.name.replace(/-/g, ' ')} ${pb.fm.summary || ''} ${(pb.triggers || []).join(' ')}`);
+  for (const { pb, named, have } of all) {
     const words = [...want].filter(w => have.has(w));
-    if (words.length >= 2 && (!best || words.length > best.words.length)) best = { file: pb.file, words };
+    const score = words.reduce((a, w) => a + (named.has(w) ? 2 : 1) / df(w), 0);
+    if (words.length >= 2 && (!best || score > best.score)) best = { file: pb.file, words, score };
   }
-  return best;
+  return best && { file: best.file, words: best.words };
 }
 
 // ---------- The starter, after setup ----------
@@ -495,7 +513,10 @@ export function skillHasCheck(s) {
 
 // Word match for multi-word triggers: every key word of the trigger appears in the message, in any order and with
 // simple endings ("why does this code exist" matches "explain why this code exists"). Exact phrases score higher.
-const STOP = new Set(['a', 'an', 'the', 'this', 'that', 'these', 'to', 'of', 'for', 'in', 'on', 'at', 'my', 'me', 'it', 'its', 'is', 'are', 'be', 'do', 'does', 'did', 'and', 'or', 'with', 'from', 'by', 'i', 'we', 'our', 'you', 'your']);
+// (Spanish articles, prepositions and possessives too. Lesson: "una" and "sus" counted as key words, so a Spanish
+// trigger needed them typed and a Spanish request matched on them)
+const STOP = new Set(['a', 'an', 'the', 'this', 'that', 'these', 'to', 'of', 'for', 'in', 'on', 'at', 'my', 'me', 'it', 'its', 'is', 'are', 'be', 'do', 'does', 'did', 'and', 'or', 'with', 'from', 'by', 'i', 'we', 'our', 'you', 'your',
+  'un', 'una', 'unos', 'unas', 'el', 'la', 'los', 'las', 'de', 'del', 'al', 'en', 'y', 'o', 'que', 'mi', 'mis', 'tu', 'tus', 'su', 'sus', 'por', 'para', 'con', 'lo', 'le', 'se', 'es']);
 // Plural and past forms meet their base word: notes and noted are note, boxes is box, created is create, added is add.
 // Lesson: "-es" was cut from every word, so "notes" became "not", a common word, and "in my notes" could never route.
 // A four-letter word loses only a plural "s" ("bugs" is bug, "keys" is key), never "-ed" or "-ing" ("need", "ring" stay).
@@ -509,7 +530,9 @@ const stem = w => w.length <= 3 || /(ss|us|is)$/.test(w) ? w
   : /ssed$/.test(w) ? w.slice(0, -2)
   : /([aiou]t|[vcsz]|[aeiou]g|[nr]g)ed$/.test(w) ? w.slice(0, -1)
   : /ed$/.test(w) ? w.slice(0, -2) : w;
-export const keyWords = s => String(s).toLowerCase().split(/[^a-z0-9]+/).filter(w => w && !STOP.has(w)).map(stem);
+// Accents are folded first ("añade" is "anade", "línea" is "linea"). Lesson: accented letters split Spanish words into
+// fragments ("a", "ade", "l", "nea"), so a Spanish request could never meet a trigger by its key words.
+export const keyWords = s => fold(String(s).toLowerCase()).split(/[^a-z0-9]+/).filter(w => w && !STOP.has(w)).map(stem);
 // Words too common to be evidence on their own. A trigger made only of these ("fix it", "i added", "look up") matches
 // ordinary sentences, so it never routes. Lesson: single generic words sent requests to the wrong runbook.
 const GENERIC = new Set(['fix', 'add', 'added', 'save', 'make', 'get', 'use', 'change', 'update', 'check', 'write', 'new', 'help', 'want', 'need',
@@ -517,7 +540,9 @@ const GENERIC = new Set(['fix', 'add', 'added', 'save', 'make', 'get', 'use', 'c
   'also', 'please', 'can', 'could', 'would', 'should', 'will', 'what', 'how', 'why', 'which', 'who', 'when', 'where', 'about', 'more', 'some', 'any',
   'all', 'one', 'up', 'out', 'so', 'not', 'no', 'yes', 'ok', 'like', 'have', 'has', 'had', 'was', 'were', 'if', 'then', 'but', 'very', 'really',
   'let', 'try', 'start', 'open', 'read', 'file', 'files', 'again', 'still', 'same', 'other', 'into', 'over', 'done', 'build', 'got', 'way', 'own',
-  's', 't', 'll', 're', 've', 'd', 'm', 'into', 'him', 'her', 'them', 'they', 'he', 'she', 'us', 'them', 'there', 'their', 'something', 'anything'].map(stem));
+  's', 't', 'll', 're', 've', 'd', 'm', 'into', 'him', 'her', 'them', 'they', 'he', 'she', 'us', 'them', 'there', 'their', 'something', 'anything',
+  // (the same common verbs in Spanish, without accents)
+  'anade', 'anadir', 'agrega', 'agregar', 'haz', 'hacer', 'pon', 'poner', 'cambia', 'cambiar', 'quiero', 'puedes', 'necesito'].map(stem));
 // Questions that ask for the agent's own view, or talk about the conversation itself, are not a runbook's task.
 // Lesson: "do you think ..." and "based on what we have" routed to research and demanded sources for an opinion.
 const OPINION = /\b(do|did|would|will) you (think|reckon|believe|feel|agree|prefer|suggest|recommend)\b|\bwhat do you (think|reckon|make of|suggest|recommend)\b|\bin your (opinion|view)\b|\byour (honest )?(opinion|view|take|thoughts)\b|\bhow do you feel\b|\bbased on what (we|you|i) (have|know|discussed|did|said)\b/i;
@@ -549,7 +574,7 @@ const makesFile = pb => /\boutputs\//.test(String(pb.fm?.summary || ''));
 const MAKE_REQUEST = /\b(write|make|create|draft|build|prepare|produce|put together|turn [^.?!]{0,30} into|export|save|generate|compose|update|edit|fix|add)\b/i;
 // Text the user pasted, and text that is the hooks' own output, are not the user's words: they never route or count as
 // a request. Lesson: a pasted audit line ("... 26 sweeps") was taken as a request for 26 sweeps.
-const HOOK_MARK = /^\s*(-\s+)?(ROUTE|ALSO ROUTE|WEAK MATCH|CLOSEST RUNBOOK|ROUTINES DUE|FEEDBACK FROM PROJECTS|SKILL|NO RUNBOOK|RULE REQUEST|RECALL|MENU CODE|MENU FLAG|SCOPE|SETUP IN PROGRESS|BOOTSTRAP NEEDED|LAST WORK TURN|INBOX|STALE KNOWLEDGE|PRAISE|THE USER SOUNDS|SUSPENDED|FRICTION ON|UNKNOWN MENU|SKILL HARDENING|SKILL CLEANUP|UPGRADE REVIEW|OPEN PLANS|MUST FOLLOW|AUTONOMY|CHECKS)\b/;
+const HOOK_MARK = /^\s*(-\s+)?(ROUTE|ALSO ROUTE|WEAK MATCH|CLOSEST RUNBOOK|ROUTINES DUE|FEEDBACK FROM PROJECTS|SKILL|NO RUNBOOK|RULE REQUEST|RECALL|MENU CODE|MENU FLAG|SCOPE|SETUP IN PROGRESS|BOOTSTRAP NEEDED|LAST WORK TURN|INBOX|STALE KNOWLEDGE|PRAISE|THE USER SOUNDS|SUSPENDED|FRICTION ON|UNKNOWN MENU|SKILL HARDENING|SKILL CLEANUP|UPGRADE REVIEW|OPEN PLANS|MUST FOLLOW|AUTONOMY|CHECKS|RELAYED)\b/;
 const HOOK_LINE = /^\s*(\[rules\]|\[project hooks|audit:\s*(PASS|FAIL)|selfcheck:|ablation:|TRIAL:\s*(PASS|FAIL)|CLAIMS:\s*(PASS|FAIL)|(PASS|FAIL|WARN)\s+\d+\.\s)/i;
 const HOOK_BLOCK = /^\s*(stop hook\b|almost done:)/i;
 // Messages from other sessions, sub-agents and the host are not the user's words, wherever they sit in a message: the
@@ -583,11 +608,29 @@ const keySpan = (seq, k) => {
   }
   return best;
 };
+// A word typed in capitals inside an ordinary sentence ("its NOTES", "the README") names a file, not the common word a
+// trigger means. Lesson: "add a line to its NOTES" (a deck's notes file) matched the knowledge base's "add a note".
+// (5 letters or more, so short acronyms like GUI, API or JSON still count; a message typed all in capitals is shouting)
+const FILE_CAPS = /\b[A-Z][A-Z0-9_]{4,}\b/g;
+const fileCapsOut = s => (String(s).match(/[A-Z]/g) || []).length < (String(s).match(/[a-z]/g) || []).length ? String(s).replace(FILE_CAPS, ' ') : String(s);
+// A request to edit a runbook or skill FILE, named as "the <name> playbook", "the <name> runbook", "the playbook for
+// <name>", "<name>.md" or "el playbook de <name>", right after an edit verb. It is maintenance of that file (the project
+// runbook), not the job the file describes. Lesson: "fix the <name> playbook so ..." routed to that playbook's own job,
+// because its name is one of its triggers. ("fix my deck with the <name> playbook" uses the file, so it is not an edit.)
+const EDIT_VERB = String.raw`(fix|edit|change|update|rewrite|improve|extend|amend|tweak|adjust|correct|add|remove|rename|shorten|reword|clean up|arregla\w*|edita\w*|cambia\w*|actualiza\w*|mejora\w*|corrige\w*|a[nñ]ade\w*|agrega\w*|quita\w*|modifica\w*|reescribe\w*)`;
+export function editsFileOf(text, name) {
+  const nm = esc(String(name).toLowerCase()).replace(/\\?-/g, '[- ]'), kind = String.raw`(play|run)books?|skills?`;
+  const art = String.raw`(?:(?:the|its|this|el|la|al|del|a|to|in|into|en)\s+)?`;
+  return re(String.raw`(^|[^\w])${EDIT_VERB}(?:\s+(?!(?:with|using|by|via|following|con|usando|seg[uú]n)\b)[\w'áéíóúñ-]+){0,5}?\s+${art}` +
+    String.raw`(?:${nm}[ -](?:${kind})|(?:${kind})\s+(?:for|of|de|del|para)\s+${art}${nm}|${nm}\.md)($|[^\w-])`).test(String(text).toLowerCase());
+}
+// A pointer at the user's own thing, in English or Spanish ("my vault", "this list", "mis notas")
+const POINTER = /(^|[^\wáéíóúñ])(my|our|this|these|mi|mis|nuestr[oa]s?|est[ea]s?)(?![\wáéíóúñ])/i;
 export function route(prompt, pbs) {
   const text = unquoted(userText(prompt));
   if (OPINION.test(text)) return [];
   const low = ` ${text.toLowerCase()} `;
-  const seq = keyWords(low), words = new Set(seq);
+  const seq = keyWords(fileCapsOut(text)), words = new Set(seq);
   const scored = [];
   const off = new Set(suspendedItems().map(s => s.item.replace(/^(skill|runbook):/, ''))); // REQ: friction-suspend
   for (const pb of pbs) {
@@ -603,6 +646,9 @@ export function route(prompt, pbs) {
       const common = !k.some(w => !GENERIC.has(w));
       if (common && !/\s/.test(t.trim())) continue;
       const exact = re(`(^|[^a-z0-9])${esc(t)}($|[^a-z0-9])`).test(low);
+      // a trigger that ends in a colon ("note:") is a label typed as it stands, not its word anywhere. Lesson: "note:"
+      // matched every message that mentioned notes.
+      if (/:\s*$/.test(t) && !exact) continue;
       // a one-word trigger also matches its plural or past form ("bug" in "two bugs"); a longer one needs its key words
       // ...and those key words close together: "make it so the app can be installed and started on a new machine" is
       // no "start a new app" (Lesson: a live trial routed it to app-foundation)
@@ -612,17 +658,18 @@ export function route(prompt, pbs) {
       // export is not working" and "teach me git branching" routed nowhere.
       // A trigger that is itself a question ("how do i do", "what's my role") is that question, "?" and all.
       // Lesson: a project's question triggers routed only when the user left the question mark off.
-      const phrase = exact && /\s/.test(t.trim()) && (!askOnly || /^(how|what|what's|whats|where|which|who|why|when)\b/i.test(t.trim()));
+      // (Spanish question words too: "qué dicen" lost its "qué" as a key word once Spanish small words were left out)
+      const phrase = exact && /\s/.test(t.trim()) && (!askOnly || /^(how|what|what's|whats|where|which|who|why|when|qu[eé]|cu[aá]l(es)?|c[oó]mo|d[oó]nde|qui[eé]n(es)?|por qu[eé]|cu[aá]ndo)(?![\wáéíóúñ])/i.test(t.trim()));
       // A phrase of common words routes alone only with two key words ("not working", "look up"), three words or more
       // ("from now on", "where are we") or a pointer at the user's thing ("fix this"); otherwise it only backs up a real
       // match: "can you fix it here" alone is no bug report
-      if (common) { score += 0.5; hits.push(t); specific = true; if (phrase && (k.length >= 2 || t.trim().split(/\s+/).length >= 3 || /\b(my|our|this|these)\b/i.test(t))) strong = true; continue; }
+      if (common) { score += 0.5; hits.push(t); specific = true; if (phrase && (k.length >= 2 || t.trim().split(/\s+/).length >= 3 || POINTER.test(t))) strong = true; continue; }
       score += exact ? 1 + t.split(' ').length / 10 : 0.5 + k.length / 10; hits.push(t);
       if (!(k.length < 2 && !/\s/.test(t.trim()) && WEAK.has(k[0]))) specific = true;
       // a phrase that points at the user's own thing ("my vault", "in my notes", "remember this"), typed exactly, is a
       // request on its own. Lesson: such triggers could never route, so "check the links in my vault" found nothing.
       const oneWord = k.length < 2 && !/\s/.test(t.trim());
-      if (k.length >= 2 || (oneWord && !askOnly) || phrase || (exact && /\b(my|our|this|these)\b/i.test(t))) strong = true; else k.forEach(w => weak.add(w));
+      if (k.length >= 2 || (oneWord && !askOnly) || phrase || (exact && POINTER.test(t))) strong = true; else k.forEach(w => weak.add(w));
     }
     if (pb.triggerRe && pb.triggerRe.test(low)) { score += 2; strong = true; specific = true; hits.push('/' + pb.fm.trigger_regex + '/'); }
     if (score && (strong || weak.size >= 2)) scored.push({ pb, score, hits, specific });
@@ -640,6 +687,18 @@ export function route(prompt, pbs) {
       e.specific = true; e.about = true;
     }
   }
+  // "fix the <name> playbook so ...": that file is edited, so its own job is not routed, and the project runbook (where
+  // runbooks and skills are maintained) comes first
+  const edits = pbs.filter(pb => !pb.name.startsWith('_') && editsFileOf(low, pb.name));
+  if (edits.length) {
+    const pj = pbs.find(pb => pb.file === 'docs/playbooks/project.md');
+    for (let i = scored.length - 1; i >= 0; i--) if (edits.includes(scored[i].pb) && scored[i].pb !== pj) scored.splice(i, 1);
+    if (pj && !off.has(pj.name)) {
+      let e = scored.find(s => s.pb === pj);
+      if (!e) scored.push(e = { pb: pj, score: 0, hits: [] });
+      e.score += 1.5; e.hits.push(`edits the ${edits.map(x => x.name).join(', ')} file`); e.specific = true; e.about = true;
+    }
+  }
   // Weak matches (only a generic word like "improve" or "report") give way to any specific match, and a message meant
   // for someone else routes neither on weak words nor to the runbook that makes a file for the user.
   const peer = toPeer(text, starter || starterName());
@@ -650,6 +709,33 @@ export function route(prompt, pbs) {
   const out = keep.sort((a, b) => (b.about ? 1 : 0) - (a.about ? 1 : 0) || b.score - a.score).slice(0, 3);
   out.weak = weak; out.dropped = scored.filter(s => !keep.includes(s) && !weak.includes(s));
   return out;
+}
+// The skills a request routes to. A skill matched only by a question about the best choice ("what is the best", "which
+// is better") gives way when the question is about the user's own thing ("my deck", "mi plan") and one of the project's
+// own runbooks covers it: that is answered from the project, not by web research. An explicit cue ("research", "look up",
+// "prices", "what do sources say") still routes. Lesson: "what's the best play in my deck?" got the research skill and
+// its source ledger checks.
+// A skill works on the project's own things, so a noun the request ties to something else ("its notes", "the deck's
+// notes", "sus notas") is not the skill's: that thing's own file, which the project's runbooks handle. A skill matched
+// only through such nouns (a trigger's other words being common ones like "add") is not routed. Lesson: "add a line to
+// its notes" (a deck's notes file) got the knowledge-capture skill on "add a note".
+const CHOICE_Q = /^(what( is|'s|s) the (best|options)|what are the options|which is (better|best)|which one is better|best option)$/i;
+const OWN_THING = /(^|[^\wáéíóúñ])(my|our|mine|mi|mis|nuestr[oa]s?)(?![\wáéíóúñ])/i;
+const OWNED = /(?:(?:^|[^\wáéíóúñ'])(?:its|his|her|their|sus?)|\b(?!(?:it|that|what|there|here|let|he|she|who|where)'s\b)[a-z]+'s)\s+([a-záéíóúñ]+)/gi;
+export function routeSkills(text, cfg = config(), routedPbs = null) {
+  const out = route(text, routableSkills(cfg));
+  if (!out.length) return out;
+  const t = unquoted(userText(text)), low = ` ${t.toLowerCase()} `;
+  const owned = new Set([...t.matchAll(OWNED)].flatMap(m => keyWords(m[1])));
+  const ownedHit = h => !re(`(^|[^a-z0-9])${esc(String(h))}($|[^a-z0-9])`).test(low) && (k => { const sp = k.filter(w => !GENERIC.has(w)); return k.length >= 2 && sp.length > 0 && sp.every(w => owned.has(w)); })(keyWords(h));
+  let choiceYields = false;
+  if (OWN_THING.test(t)) {
+    const pbsRouted = routedPbs || route(text, playbooks());
+    choiceYields = pbsRouted.some(r => !coreRunbook(r.pb.name)) || !!closestRunbook(t);
+  }
+  const kept = out.filter(s => !s.hits.every(h => ownedHit(h) || (choiceYields && CHOICE_Q.test(String(h).trim()))));
+  kept.weak = out.weak; kept.dropped = out.dropped;
+  return kept;
 }
 
 export function menu() {
@@ -1289,7 +1375,7 @@ export function context(t, cfg, answerOverride) {
   // Without tool history, the runbook the answer names ("Playbook: x.md" / "Skill: x") is taken as the one followed.
   if (!t.toolsKnown) usedPb = pbs.filter(pb => namesIt(pb.name));
   const skills = routableSkills(cfg);
-  const routedSkills = route(menuInfo.expanded, skills).map(s => s.pb);
+  const routedSkills = routeSkills(menuInfo.expanded, cfg, routedScores).map(s => s.pb);
   // A skill only read (to explain it to the user) is not a skill used: reading counts when the request routed to it,
   // the answer names it, or one of its scripts ran. Lesson: describing two skills made their checks demand their outputs.
   const ranScript = n => cmds.some(c => new RegExp(`skills[\\\\/]${esc(n)}[\\\\/]scripts`).test(c));
@@ -2666,14 +2752,25 @@ export function isPraise(p, cfg = config()) {
   }
   return false;
 }
-export function promptHints(prompt, cfg = config(), withNotices = true) {
-  if (!String(prompt || '').trim() || skipped(prompt)) return []; // REQ: notification-not-prompt
+// A message relayed from another session or agent, as the whole prompt: "<cross-session-message ...>BODY</...>",
+// "<agent-message ...>BODY</...>" or "Another Claude session sent a message: BODY". Its body ('' if it is not one).
+const RELAY_START = /^\s*(<(cross-session-message|agent-message)\b[^>]*>|Another Claude session sent a message\b[:.]?)/i;
+export function relayedBody(prompt) {
+  const s = String(prompt || ''), m = RELAY_START.exec(s);
+  if (!m) return '';
+  let body = s.slice(m[0].length);
+  if (m[2]) { const end = body.search(new RegExp(`</${m[2]}>`, 'i')); if (end >= 0) body = body.slice(0, end); }
+  return body.trim();
+}
+export function promptHints(prompt, cfg = config(), withNotices = true, { relayed = false } = {}) {
+  if (!String(prompt || '').trim() || (!relayed && skipped(prompt))) return []; // REQ: notification-not-prompt
   const p = userText(prompt); // pasted text and the hooks' own output are not the request
   const hints = [];
   // REQ: recall-hint. A request much like an earlier one starts from how that one was solved.
   const best = recallMatches(p, 3).find(r => r.share >= 0.5 && r.close);
   if (best) hints.push(`RECALL: on ${best.h.at} a similar request ("${best.h.prompt.slice(0, 90)}") was done${best.h.used.length ? ` with ${best.h.used.join(', ')}` : ''}${best.h.changed.length ? `, changing ${best.h.changed.slice(0, 4).join(', ')}` : ''}. Start from that; more: node tools/recall.mjs "<key words>".`);
-  const m = expandMenu(p);
+  // (menu codes and flags are the user's shorthand: in a relayed message they are the other session's text)
+  const m = relayed ? { known: [], unknown: [], kflags: [], uflags: [], expanded: p, codes: {}, flags: {} } : expandMenu(p);
   for (const c of m.known) {
     const r = m.codes[c];
     hints.push(`MENU CODE ${c} = "${r.means}". Runbook: docs/playbooks/${r.playbook}. Treat it exactly as if the user typed that in full; the rest of the message adds details.`);
@@ -2699,7 +2796,7 @@ export function promptHints(prompt, cfg = config(), withNotices = true) {
   if (weakOnes.length) hints.push(`WEAK MATCH, not routed: ${weakOnes.map(({ pb, hits }) => `${pb.name} (only "${hits.join('", "')}")`).join(', ')}. A generic word is no evidence; open one only if the request really is that job.`);
   // a lasting requirement ("keep in mind that every phase ...") is enforced through REQUIREMENT below, not stored as a
   // fact. Lesson: a requirement said in passing also suggested knowledge-capture, which was noise.
-  const sk = route(m.expanded, routableSkills(cfg)).filter(({ pb: s }) => !(s.name === 'knowledge-capture' && isRequirement(p, cfg)));
+  const sk = routeSkills(m.expanded, cfg, routed).filter(({ pb: s }) => !(s.name === 'knowledge-capture' && isRequirement(p, cfg)));
   for (const { pb: s, hits } of sk)
     hints.push(`SKILL: ${s.name} (matched: ${hits.join(', ')}). If this is the task: open ${s.file} THIS turn (or invoke the ${s.name} skill) and follow it, together with any runbook above. Name it in the answer ("Skill: ${s.name}"). REQ: skill-read.`);
   // REQ: fit-checklist (at the request). A library skill the checklist left for later, or skipped, whose triggers this
@@ -2723,10 +2820,16 @@ export function promptHints(prompt, cfg = config(), withNotices = true) {
     hints.push(`MUST FOLLOW: ${n} (the request mentions "${word.slice(0, 40)}"). Changes like this make ${file} mandatory this turn, even unasked: open it now and follow it from the start. The Stop hook checks it (REQ: ${q.tag}).`);
   }
   // REQ: autonomy-hint. "Don't ask me, keep going" is a standing choice: it goes into config, not just this turn.
-  if (cfg.autonomy !== 'auto' && AUTONOMY_WORDS.test(p))
+  // (what the user says about the user: autonomy, upset, rules, requirements, praise. A relayed message is another
+  // session's words, so none of them come from it; its routing and check preview do. Lesson: work relayed from another
+  // session got no preview at all, so its checks arrived one Stop round at a time.)
+  const own = !relayed;
+  if (own && cfg.autonomy !== 'auto' && AUTONOMY_WORDS.test(p))
     hints.push('AUTONOMY: the user wants the work done without their input. Set "autonomy": "auto" in tools/hooks/config.json and record it in docs/DECISIONS.md (date, the choice, why), ' +
       'then decide instead of asking and record each choice as "Assumed: <choice> - <why> - <cost if wrong>". Outward actions, third-party installs and anything irreversible still need an OK.');
-  const isTask = re(cfg.taskVerbs).test(p) && p.split(/\s+/).length >= 3 && !OPINION.test(p) && !isRelay(unquoted(p));
+  // (a Spanish request is a task too. Lesson: only English verbs counted, so a Spanish task never got NO RUNBOOK or the
+  // closest runbook)
+  const isTask = (re(cfg.taskVerbs).test(p) || isTaskEs(p)) && p.split(/\s+/).length >= 3 && !OPINION.test(p) && !isRelay(unquoted(p));
   // the closest runbook by the words of its name, summary and triggers, when no trigger phrase matched: different
   // wording for a known job should reach that job's runbook. Lesson: "my deck has an issue with lands" got NO RUNBOOK
   // though the deck-upgrade runbook fixes exactly that.
@@ -2735,10 +2838,10 @@ export function promptHints(prompt, cfg = config(), withNotices = true) {
     hints.push(`CLOSEST RUNBOOK: no trigger phrase matched, but ${near.file} looks like this job (shared words: ${near.words.join(', ')}). If it fits, open and follow it, and add this wording to its triggers (runbook-create skill) so it routes next time; if not, follow docs/playbooks/_fallback.md.`);
   else if (!routed.length && !sk.length && isTask)
     hints.push('NO RUNBOOK matches this request. If it is a task (not a quick question), follow docs/playbooks/_fallback.md: do it carefully, ' +
-      'then EXTEND the closest runbook or CREATE a new one (runbook-create skill) and route it, in this same turn. The Stop hook blocks work ' +
-      'turns that end without one (REQ: runbook-exists).');
+      'then EXTEND the closest runbook or CREATE a new one (runbook-create skill) and route it, in this same turn.' + (relayed ? '' : ' The Stop hook blocks work ' +
+      'turns that end without one (REQ: runbook-exists).'));
   // REQ: upset-learned. An upset user (a complaint, frustration, shouting) is the project's best signal: fix it, then learn.
-  if (isUpset(p, cfg))
+  if (own && isUpset(p, cfg))
     hints.push('THE USER SOUNDS UPSET about a miss. Use the learn-from-upset skill (skills/learn-from-upset/SKILL.md): fix the miss first by its runbook ' +
       'and say plainly what went wrong (no arguing, no long apology), then weigh how important the lesson is (one-off, lesson in the skill that missed it, rule, ' +
       'hook check, new skill, or engine feedback that reaches every project) and write it there. End with "Learned (<level>): <lesson> → <file>". REQ: upset-learned.');
@@ -2746,7 +2849,7 @@ export function promptHints(prompt, cfg = config(), withNotices = true) {
   // project's ("give that feedback to the starter and mention to make sure it's fixed"). Lesson: such a relay got the
   // REQUIREMENT hint.
   const passOn = /\b(give|send|pass|forward|report|relay)\b[^.?!\n]{0,30}\b(feedback|report|lessons?|notes?|findings|message)\b[^.?!\n]{0,30}\bto\b/i.test(unquoted(p));
-  if (passOn) { /* the receiver's rules, not this project's */ }
+  if (passOn || !own) { /* the receiver's rules, not this project's; a relayed message sets no rule here */ }
   else if (isRuleRequest(p, cfg) && !isUpset(p, cfg))
     hints.push('RULE REQUEST: the user is setting a standing rule. Use the project-rule skill: record the principle and why (in your own words, not theirs) with today\'s date, ' +
       'write the rule into CLAUDE.md, add a row to docs/checks/user-requirements.md, enforce it in tools/hooks/requirements.json (or say ' +
@@ -2757,17 +2860,17 @@ export function promptHints(prompt, cfg = config(), withNotices = true) {
       'say so with N/A(requirement-enforced): one-off. REQ: requirement-enforced.');
   // REQ: check-preview. Work learns at the start which checks its Stop will hold it to, so the first pass does them all.
   // Lesson: most Stop rounds told the agent what it could have known when the request arrived.
-  const flags = [[isUpset(p, cfg), 'upset-learned'], [re(cfg.ruleRequest).test(p) && !isUpset(p, cfg), 'rule-request'],
-    [!re(cfg.ruleRequest).test(p) && re(cfg.requirementWords).test(p), 'requirement-enforced'], [cfg.autonomy !== 'auto' && AUTONOMY_WORDS.test(p), 'autonomy-recorded']];
-  const working = flags.some(f => f[0]) || forced.size || ((isTask || TASK_ES.test(p)) && p.split(/\s+/).length >= 3 && !OPINION.test(p) && !isRelay(unquoted(p)) && (!/\?\s*$/.test(p.trim()) || routed.length || sk.length));
+  const flags = own ? [[isUpset(p, cfg), 'upset-learned'], [re(cfg.ruleRequest).test(p) && !isUpset(p, cfg), 'rule-request'],
+    [!re(cfg.ruleRequest).test(p) && re(cfg.requirementWords).test(p), 'requirement-enforced'], [cfg.autonomy !== 'auto' && AUTONOMY_WORDS.test(p), 'autonomy-recorded']] : [];
+  const working = flags.some(f => f[0]) || forced.size || (isTask && (!/\?\s*$/.test(p.trim()) || routed.length || sk.length));
   if (working) {
-    const line = checkPreview(routed.map(r => r.pb), sk.map(s => s.pb), [...forced.values()].map(f => f.q.tag), flags.filter(f => f[0]).map(f => f[1]), p, cfg);
+    const line = checkPreview(routed.map(r => r.pb), sk.map(s => s.pb), [...forced.values()].map(f => f.q.tag), flags.filter(f => f[0]).map(f => f[1]), p, cfg, { relayed });
     if (line) hints.push(line);
   }
   const due = hardenDue(pbs, usage(), cfg);
   if (due.length && routed.some(r => due.includes(r.pb)))
     hints.push(`SKILL HARDENING DUE for ${routed.filter(r => due.includes(r.pb)).map(r => r.pb.file).join(', ')}: after the task, use the skill-harden skill.`);
-  if (isPraise(p, cfg))
+  if (own && isPraise(p, cfg))
     hints.push('PRAISE: the user liked something. Work out what exactly worked and write it into the runbook or skill it came from ' +
       '(a "What works" line), so it repeats. "Keep doing this" is a standing rule (project-rule).');
   const ppl = people(cfg);
@@ -2778,17 +2881,28 @@ export function promptHints(prompt, cfg = config(), withNotices = true) {
   if (withNotices) hints.push(...promptNotices(cfg));
   return hints;
 }
-// Spanish task verbs (imperative and "quiero que ..." forms), for the check preview: a request in Spanish is work too
-const TASK_ES = /\b(haz|hazme|crea|cr[eé]ame|construye|escribe|redacta|a[nñ]ade|agrega|actualiza|arregla|corrige|investiga|busca|planifica|compara|organiza|configura|analiza|resume|revisa|genera|convierte|cambia|edita|reescribe|elimina|borra|mueve|importa|prepara|calcula|dise[nñ]a|traduce|limpia|ordena|prueba|documenta|renombra|instala|publica|mejora)\b/i;
+// Spanish task verbs, matched without accents: the command ("añade"), the infinitive ("¿puedes añadir ...?") and the
+// "quiero que añadas" form, each with an attached pronoun ("añádelo", "hazme"). A request in Spanish is work too.
+// Lesson: only the command form counted, so "¿puedes añadir una línea ...?" was no request at all.
+// (forms that are also English words, "prepares", "compares", "revises", are left out)
+const TASK_ES = /\b(haz|hacer|hagas|pon|poner|pongas|crea|crear|construye|construir|construyas|escribe|escribir|escribas|redacta|redactar|redactes|anade|anadir|anadas|agrega|agregar|agregues|actualiza|actualizar|actualices|arregla|arreglar|arregles|corrige|corregir|corrijas|investiga|investigar|investigues|busca|buscar|busques|planifica|planificar|compara|comparar|organiza|organizar|organices|configura|configurar|analiza|analizar|analices|resume|resumir|resumas|revisa|revisar|genera|generar|generes|convierte|convertir|conviertas|cambia|cambiar|cambies|edita|editar|edites|reescribe|reescribir|elimina|eliminar|elimines|borra|borrar|borres|mueve|mover|muevas|importa|importar|prepara|preparar|calcula|calcular|calcules|disena|disenar|traduce|traducir|traduzcas|limpia|limpiar|limpies|ordena|ordenar|prueba|probar|pruebes|documenta|documentar|renombra|renombrar|instala|instalar|instales|publica|publicar|publiques|mejora|mejorar|quita|quitar|quites|modifica|modificar|modifiques|anota|anotar|apunta|apuntar|guarda|guardar|registra|registrar)(me|te|lo|la|los|las|le|les|melo|mela|selo|sela)?\b/i;
+export const isTaskEs = s => TASK_ES.test(fold(s || ''));
+// Checks that only the user's own words set off at Stop (a rule, a requirement, an upset message, handing the work
+// over). A runbook that lists them (the project runbook's "rule-request") holds a turn to them only when those words are
+// there. Lesson: a request to edit a runbook was previewed with rule-request and rule-memory though no rule was said.
+const PROMPT_GATED = new Set(['rule-request', 'rule-memory', 'requirement-enforced', 'upset-learned', 'autonomy-recorded']);
 // One short line: the checks this request's Stop will hold it to (the routed runbooks' and skills' own, the forced
 // ones, the core ones that apply), and what their fixes will set off, so nothing arrives one Stop round at a time.
-export function checkPreview(pbs, skills, forced, flagged, prompt, cfg = config()) {
+// A relayed message's turn has no request of the user's at Stop, so checks keyed on the request (runbook-exists and
+// those with "promptMatches") are left out of its preview.
+export function checkPreview(pbs, skills, forced, flagged, prompt, cfg = config(), { relayed = false } = {}) {
   const reqs = loadRequirements().reqs.filter(q => q && q.enabled !== false && q.tag);
   const off = t => isSuspended(`check:${t}`);
   // (a check keyed on the request's own words is known now too)
-  const keyed = reqs.filter(q => q.when?.promptMatches && (() => { try { return holds({ promptMatches: q.when.promptMatches, promptNotMatches: q.when.promptNotMatches }, { prompt: userText(prompt) }); } catch { return false; } })()).map(q => q.tag);
-  const tags = [...new Set([...pbs.flatMap(pb => ownChecks(pb, cfg)), ...skills.flatMap(s => ownChecks(s, cfg)), ...forced, ...flagged, ...keyed,
-    ...(pbs.length || skills.length ? ['playbook-named'] : ['runbook-exists']), 'finished-summary'])].filter(t => !off(t));
+  const keyed = relayed ? [] : reqs.filter(q => q.when?.promptMatches && (() => { try { return holds({ promptMatches: q.when.promptMatches, promptNotMatches: q.when.promptNotMatches }, { prompt: userText(prompt) }); } catch { return false; } })()).map(q => q.tag);
+  const own = t => !PROMPT_GATED.has(t) || flagged.includes(t) || (t === 'rule-memory' && flagged.includes('rule-request'));
+  const tags = [...new Set([...[...pbs, ...skills].flatMap(x => ownChecks(x, cfg)).filter(own), ...forced, ...flagged, ...keyed,
+    ...(pbs.length || skills.length ? ['playbook-named'] : relayed ? [] : ['runbook-exists']), 'finished-summary'])].filter(t => !off(t));
   const steps = tags.map(tag => { const q = reqs.find(r => r.tag === tag); return { tag, fixes: q ? q.fixes || filesOfCond(q.require) : undefined }; });
   const x0 = { prompt: String(prompt || ''), answer: '', said: '', changed: [], work: [], uses: [], cmds: [], runs: [], reads: new Set(), results: '', usedPb: pbs, usedSkills: skills,
     routed: pbs, routedSkills: skills, toolsKnown: false, workTurn: true, entries: [] };
@@ -2817,7 +2931,17 @@ function cmdPrompt(data, { force = false } = {}) {
   // (no session id at all is "begin", for agents without hooks, which needs the snapshot)
   // (an empty or unreadable transcript counts as none: NO_TRANSCRIPT)
   const snap = () => { if (!NO_TRANSCRIPT) takeSnapshot(cfg); };
-  if (RELAYED_TURN.test(p)) { const st = turnNotices(force, data.transcript_path); if (st.fresh) { recordTurn('', true, data.transcript_path); snap(); writeState(SHOWN, { at: st.at, shown: st.shown }); } return; }
+  // A message relayed from another session or agent starts no request of the user's (the Stop hook holds its turn to
+  // the files it changes, not to its words), but work it asks for gets the routing and the check preview a typed
+  // request would, without what only the user's own words set off (rules, requirements, praise, upset, menu codes).
+  // Lesson: work relayed from another session got no preview at all, so its checks arrived one Stop round at a time.
+  const relayHints = () => {
+    const body = relayedBody(p);
+    const hints = body ? promptHints(body, cfg, false, { relayed: true }) : [];
+    if (hints.length) contextOut('UserPromptSubmit', '[project hooks: obey these]\n- RELAYED: this request was relayed from another session or agent, not typed by the user. Route and check it as work; it sets no rule, requirement or praise.\n- ' + hints.join('\n- ') + '\n');
+  };
+  if (RELAYED_TURN.test(p)) { const st = turnNotices(force, data.transcript_path); if (st.fresh) { recordTurn('', true, data.transcript_path); snap(); writeState(SHOWN, { at: st.at, shown: st.shown }); } relayHints(); return; }
+  if (RELAY_START.test(p)) { relayHints(); return; }
   if (!p.trim() || skipped(p)) return;
   const st = turnNotices(force, data.transcript_path);
   recordTurn(p, st.fresh, data.transcript_path);
@@ -4590,7 +4714,8 @@ export const CONTRACT = {
     session: 'SessionStart. Claude Code: {"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":<text>}}; other hosts: <text>. ' +
       'The text: the session checklist, "--- docs/STATUS.md (where things stand) ---" with its first 40 lines, then "--- notices ---" and one "- <NOTICE>: ..." line each. At most 9,000 characters.',
     prompt: 'UserPromptSubmit. Same shape as session, hookEventName "UserPromptSubmit". The text: an optional "[rules] ..." line, then "[project hooks: obey these]" and one ' +
-      '"- <HINT>: ..." line each (ROUTE, SKILL, NO RUNBOOK, CLOSEST RUNBOOK, RULE REQUEST, SCOPE, MENU CODE, ...). No output when there is nothing to say.',
+      '"- <HINT>: ..." line each (ROUTE, SKILL, NO RUNBOOK, CLOSEST RUNBOOK, RULE REQUEST, SCOPE, MENU CODE, ...). No output when there is nothing to say. ' +
+      'A message relayed from another session or agent that asks for work gets its hints too, after a first "- RELAYED: ..." line.',
     pretool: 'PreToolUse. Allowed: no output. Denied: {"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":<text>}}.',
     stop: 'Stop. Passed: no output. Steps left, with stopStyle "feedback" (or "auto", the default, under Claude Code): {"hookSpecificOutput":{"hookEventName":"Stop","additionalContext":<steps>},"systemMessage":<short lines for the user>}; ' +
       'otherwise Codex gets {"decision":"block","reason":<steps>,"systemMessage":<short lines>} and other hosts {"decision":"block","reason":<steps>}. ' +

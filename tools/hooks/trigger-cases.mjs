@@ -156,7 +156,8 @@ export default {
     'how much does a used family car go for these days',
     'dig up what other bakeries charge for custom cakes',
     'whats the current version of node',
-    'which of these two suppliers is cheaper?'], quiet: [
+    'which of these two suppliers is cheaper?',
+    'what do sources say about intermittent fasting?'], quiet: [
     'do you think we should keep this layout?',
     'compare is a reserved word in the old api, rename the function'] },
   'SKILL: teach': { fire: [
@@ -207,7 +208,10 @@ export default {
     'jot down that the wifi password changed',
     'fyi our vat number is GB123, save that',
     'note: the meeting moved to thursday',
-    'keep in mind my coworker is allergic to nuts'], quiet: [
+    'keep in mind my coworker is allergic to nuts',
+    'apunta que el proveedor cierra los lunes'], quiet: [
+    'add a line to its NOTES about the new layout', // another thing's notes file, not the knowledge base
+    'añade una línea a sus notas sobre el nuevo diseño',
     'there needs to be role selection obvious to the player, keep in mind that every phase has different roles', // a requirement: REQUIREMENT handles it
     'remember to run the tests',
     'what notes do we have on pricing?'] },
