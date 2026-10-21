@@ -18,6 +18,15 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
     about an outward action, an install, money, security or something irreversible (REQ: autonomy-decide), and stop
     steps that say "with the user" are decided and recorded as Assumed.
   - A stop round's repeated answer starts straight with the answer, not with notes about the fix.
+  - **Field report 2 from an adopted project (live tests):** the engine's session and prompt output is held under
+    9,000 characters with routing lines first (Claude Code shows longer output only as a preview), and
+    `hooks.mjs notices` prints the rest; SETUP-PROMPT says to keep the project's own hooks under that too and to list
+    test fixtures in `"ignoreForChanges"`; a background run counts by its output file and its exit code in the task
+    notice, not by the "running in background" stub; whole-output fires only when the tool itself runs (not on a diff
+    of its file or a note naming it); a decided "self-tests: passed" line stands in a fresh clone that has no local run
+    record; publish safety says to write agent hook commands with `$CLAUDE_PROJECT_DIR`; the resume notice reads
+    "RESUMED: the files edited before the interruption are intact"; a short reply to a background task's notice, after
+    the turn ended cleanly and with no tool run since, is checked only for truth and privacy, not the whole stop list.
   - **Big projects stay fast:** with 20,000 files and 3,000 notes the hooks took about 1 s per prompt and 4 s per stop;
     now 0.27 s and 0.37 s. Note frontmatter is cached by mtime (`tools/hooks/state/note-meta.json`), and DIRECTORY.md
     lists knowledge notes one by one only up to `"knowledgeRows"` (40), then one row per folder.

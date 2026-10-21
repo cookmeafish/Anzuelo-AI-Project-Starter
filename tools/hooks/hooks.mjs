@@ -1010,6 +1010,20 @@ export function runsOf(entries) {
       }
     }
   }
+  // A command started in the background answers with a stub ("running in background with ID ... Output is being
+  // written to: <file>"): its result is that file, and its exit code is in the later task notification.
+  // Lesson: a passing background run never met its check, because the stub was read as the run's output.
+  const notes = entries.filter(r => r.type === 'user').map(r => textOf(r.message?.content)).join('\n');
+  for (const run of out) {
+    const id = /running in background with ID:?\s*([\w-]+)/i.exec(run.out)?.[1];
+    if (!id) continue;
+    const file = /written to:?\s*(\S+?\.output)\b/i.exec(run.out)?.[1];
+    const note = new RegExp(`<task-id>${esc(id)}</task-id>[\\s\\S]*?</task-notification>`).exec(notes)?.[0] || '';
+    if (!note) { run.out = ''; run.pending = true; continue; }
+    try { const t = fs.readFileSync(file, 'utf8'); run.out = t.length > 200000 ? t.slice(-200000) : t; } catch { run.out = ''; }
+    const code = /exit code (\d+)/i.exec(note)?.[1];
+    run.error = /<status>(failed|killed|error)/i.test(note) || (code != null && code !== '0');
+  }
   return out;
 }
 
@@ -1872,7 +1886,10 @@ export function upgradeProblems(cfg = config()) {
       continue;
     }
     if (/^\?|^$/.test(decision)) { probs.push(`${at}: decide it${config().autonomy === 'auto' ? '' : ' with the user'} ("adopted - Worth it: <gain> / <cost>", "fixed - <how>" or "declined - <why>")`); continue; }
-    if (kind === 'self-tests') { const st = readJSON(path.join(STATE, 'selftest.json'), {}); if (!st.passed || (st.at || '') < r.date) probs.push(`${at}: run node tools/hooks/selfcheck.mjs until it passes`); continue; }
+    // the run record is machine state (not in git): a fresh clone or copy has none, and the decided line, written when
+    // the tests passed, stands. A record here that says they fail since then still counts.
+    // Lesson: a clone's first work turn was held until someone re-ran self-tests that had passed at the upgrade.
+    if (kind === 'self-tests') { const st = readJSON(path.join(STATE, 'selftest.json'), null); if (st && (!st.passed || (st.at || '') < r.date) && !/^passed\b/i.test(decision)) probs.push(`${at}: run node tools/hooks/selfcheck.mjs until it passes`); else if (st && !st.passed && (st.at || '') >= r.date) probs.push(`${at}: the self-tests fail here now: run node tools/hooks/selfcheck.mjs and fix them`); continue; }
     if (/^declined\b/i.test(decision)) { if (decision.replace(/^declined\W*/i, '').length < 8) probs.push(`${at}: say why it was declined`); continue; }
     if (/^fixed\b/i.test(decision)) { if (decision.replace(/^fixed\W*/i, '').length < 8) probs.push(`${at}: say how it was fixed`); continue; }
     if (!/^adopted\b/i.test(decision)) { probs.push(`${at}: the decision must start with adopted, fixed or declined`); continue; }
@@ -2394,7 +2411,9 @@ function cmdSession(data) {
   if (/resume|compact/i.test(data.source || '')) {
     const r = spawnSync(process.execPath, [path.join(ROOT, 'tools', 'integrity-check.mjs'), '--hours', '12'], { cwd: ROOT, encoding: 'utf8', timeout: 60000 });
     const out = (r.stdout || '').trim().split(/\r?\n/);
-    n.push(r.status === 0 ? `INTERRUPTED WORK: ${out.pop()}. Before continuing, re-read the request and the runbook, and check the work still matches what the user asked for.`
+    // said as what it means (Lesson: "INTERRUPTED WORK: RESULT: PASS (235 file(s) checked)" read like a failure)
+    const n0 = /(\d+)\s+file/.exec(out[out.length - 1] || '')?.[1];
+    n.push(r.status === 0 ? `RESUMED: the files edited before the interruption are intact${n0 ? ` (${n0} checked)` : ''}. Before continuing, re-read the request and the runbook, and check the work still matches what the user asked for.`
       : `INTERRUPTED WORK IS BROKEN: ${out.filter(l => l.startsWith('PROBLEM')).slice(0, 6).join(' | ')}. Fix these first, then re-read the request and the runbook.`);
   }
   if (n.length) parts.push('--- notices ---\n- ' + n.join('\n- '));
@@ -2829,7 +2848,12 @@ export function pretoolDecision(data, cfg = config()) {
     // REQ: whole-output. Lesson: piping a lookup tool into head/grep hid the part that mattered.
     for (const tool of cfg.wholeOutputTools) {
       const stripped = cmd.replace(/\s2>&1|\s2>\s*\/dev\/null|\s2>\$null/g, '');
-      if (stripped.includes(tool) && re(`${esc(tool)}[^|]*\\|\\s*(head|tail|grep|egrep|rg|cut|sed|awk|findstr|Select-String|Select-Object|sort|uniq|less|more)\\b`).test(stripped))
+      // only when the tool itself runs (first word, or after an interpreter): a diff of the tool's file, or a message
+      // that names it, is not its output. Lesson: "diff tools/x.py backup | head" and a feedback note naming x.py were denied.
+      const runsTool = p => re(`^(?:\\w+=\\S*\\s+)*(?:(?:\\S*[\\\\/])?(?:python3?|py|node|bash|sh|pwsh|powershell|ruby|perl|deno|bun|tsx|uv\\s+run)(?:\\.exe)?\\s+(?:-\\S+\\s+)*)?["']?(?:\\.[\\\\/])?(?:\\S*[\\\\/])?${esc(tool.split('/').pop())}\\b`).test(p.trim());
+      const { parts, ops } = shellParts(stripped);
+      const piped = parts.some((p, i) => runsTool(p) && p.includes(tool.split('/').pop()) && ops[i] === '|' && /^(head|tail|grep|egrep|rg|cut|sed|awk|findstr|Select-String|Select-Object|sort|uniq|less|more)\b/i.test(parts[i + 1] || ''));
+      if (stripped.includes(tool) && piped)
         return `REQ: whole-output. Read the output of ${tool} whole: don't pipe it into a filter. Write it to a file in .cache/ and Read that if it is long.`;
     }
     // Adding files INTO a protected folder is fine (ingest moves inbox -> sources); deleting, moving out of, or writing
@@ -3827,6 +3851,14 @@ export function stopDecision(data, cfg = config()) {
   // REQ: final-answer-source. When Stop fires, the final message is often not in the transcript yet, so a correct
   // answer kept failing "Finished"/"Playbook:" checks (found in live testing). The agent passes it directly.
   const x = context(t, cfg, data.last_assistant_message);
+  // A short reply to a background task's notice, with no tool run since the notice, after this turn
+  // already ended cleanly, is not new work: the checks stand as they were. Lesson: each acknowledgement of a finished
+  // background job got the whole stop list again (Finished section, changelog, status).
+  const rowsT = t.entries || [];
+  const lastNote = rowsT.map((r, i) => (r.type === 'user' && /<task-notification>/.test(textOf(r.message?.content))) || (r.type === 'attachment' && /<task-notification>/.test(textOf(r.attachment?.prompt ?? r.attachment?.content ?? ''))) ? i : -1).filter(i => i >= 0).pop();
+  const prevEnd = readJSON(stateFile(TURN_END), {});
+  // (what it says is still checked for truth and privacy: an acknowledgement can't claim what didn't happen)
+  const noticeAck = lastNote != null && prevEnd.key === key && prevEnd.clean && !rowsT.slice(lastNote).some(r => r.type === 'assistant' && Array.isArray(r.message?.content) && r.message.content.some(c => c?.type === 'tool_use'));
   // the checks that already blocked an answer earlier in this turn (skill-learn writes the lesson for a followed skill's own)
   const failed = readJSON(stateFile('stop-failed.json'), {});
   x.failedBefore = data.stop_hook_active && failed.key === key ? failed.tags || [] : [];
@@ -3836,9 +3868,10 @@ export function stopDecision(data, cfg = config()) {
   // one changelog line satisfies all three changelog checks, so they show as one step (Lesson: two steps for one line)
   const logs = found.filter(m => /^(changelog|knowledge-changelog|app-changelog)$/.test(m.tag));
   const found1 = logs.length > 1 ? found.filter(m => m === logs[0] || !logs.includes(m)) : found;
-  const missing = [...found1, ...skillLearnCheck(x, cfg, found.map(m => m.tag)).filter(open), ...carryoverChecks(data, t, x, cfg).filter(open)];
+  const all = [...found1, ...skillLearnCheck(x, cfg, found.map(m => m.tag)).filter(open), ...carryoverChecks(data, t, x, cfg).filter(open)];
+  const missing = noticeAck ? all.filter(m => /^(claim-checked|scope-separate|answer-traced|no-secrets)$/.test(m.tag)) : all;
   noteFriction(key, x, missing);
-  const ended = (keep = false) => { writeState(TURN_END, { at: new Date().toISOString() }); if (!keep && !envOf('BENCH')) try { fs.unlinkSync(path.join(STATE, 'stop-details.md')); } catch { } }; // the next prompt starts a new turn
+  const ended = (keep = false) => { writeState(TURN_END, { at: new Date().toISOString(), key, clean: !keep }); if (!keep && !envOf('BENCH')) try { fs.unlinkSync(path.join(STATE, 'stop-details.md')); } catch { } }; // the next prompt starts a new turn
   if (nblocks >= cfg.maxBlocksPerTurn) {
     // REQ: unresolved-carryover. End quietly (no block), but don't let the miss vanish: the next prompt says it once,
     // in plain words. A check that waits on background helpers is not a miss: their results arrive later.
@@ -3980,7 +4013,22 @@ export function stopOutput(d, cfg = config(), host = HOST) {
 }
 // Session and prompt notices: kept out of the visible chat where the host documents a way (Claude Code's
 // additionalContext); plain text elsewhere, which Codex documents as added to the agent's context.
+// A host shows a long hook output only as a short preview (Claude Code: past about 10,000 characters the agent gets
+// some 2,000 and a file it never opens), so the output stays under HOOK_OUTPUT_MAX: the routing lines first, then the
+// rest until the limit, and a pointer to the full text. Lesson: a project's routing hint at the end of a 13,000-character
+// output never reached the agent.
+const HOOK_OUTPUT_MAX = 9000;
+export function fitOutput(text, max = HOOK_OUTPUT_MAX) {
+  if (text.length <= max) return text;
+  const lines = text.split('\n'), first = l => /^(ROUTE|SKILL|NO RUNBOOK|RULE REQUEST|SCOPE|MENU CODE|FIT|SETUP|BOOTSTRAP|PLAN|UPGRADE REVIEW)\b/.test(l);
+  const ordered = [...lines.filter(first), ...lines.filter(l => !first(l))];
+  const tail = '\n(The rest of this hook output was cut to fit what the agent is shown: node tools/hooks/hooks.mjs notices prints the notices in full.)';
+  let out = '';
+  for (const l of ordered) { if (out.length + l.length + 1 > max - tail.length) break; out += (out ? '\n' : '') + l; }
+  return out + tail;
+}
 function contextOut(event, text) {
+  text = fitOutput(String(text));
   if (HOST === 'claude-code') process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: event, additionalContext: text } }));
   else process.stdout.write(text);
 }
@@ -4034,6 +4082,8 @@ if (isMain) {
   }
   if (cmd === 'bench') { const b = bench(), budget = config().hookBudgetMs, slow = Object.entries(b).filter(([, v]) => v > budget); console.log(Object.entries(b).map(([k, v]) => `${k} ${v} ms`).join(', ') + ` (budget ${budget} ms)` + (slow.length ? `: TOO SLOW ${slow.map(([k]) => k).join(', ')}` : '')); process.exit(slow.length ? 1 : 0); }
   // the full text of the steps the Stop hook asked for (its message to the user stays short)
+  // the session and prompt notices in full, when a host cut a long hook output down (fitOutput)
+  if (cmd === 'notices') { console.log(notices(config()).join('\n') || 'no notices.'); process.exit(0); }
   if (cmd === 'why') { const d = read(path.join(STATE, 'stop-details.md')).trim(); console.log(d || 'nothing pending: the last answer passed every check.'); process.exit(0); }
   // run a command and record its result in the run log, for agents whose tool history the hooks can't read
   if (cmd === 'run') {

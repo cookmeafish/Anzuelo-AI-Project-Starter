@@ -352,7 +352,10 @@ sweep('publish safety (no personal or machine details)', () => {
   const terms = read(abs('.private-terms')).split(/\r?\n/).map(s => s.trim()).filter(s => s && !s.startsWith('#'));
   for (const f of all.filter(f => !ignored.has(f) && f !== '.private-terms')) {
     const text = read(abs(f));
-    for (const { what, hit } of personalDetails(text)) fail.push(`${f}: ${what} ("${hit.slice(0, 40)}")`);
+    // agent wiring with a home path: say how to make it machine-neutral (Lesson: a project's own hook commands under
+    // C:/Users/<name> failed with no hint how to fix them)
+    const wiring = /(^|\/)\.(claude|codex|gemini)\/settings(\.local)?\.json$|(^|\/)\.codex\/hooks\.json$/.test(f);
+    for (const { what, hit } of personalDetails(text)) fail.push(`${f}: ${what} ("${hit.slice(0, 40)}")${wiring ? ': write hook commands relative to the project ("$CLAUDE_PROJECT_DIR/<path>" for Claude Code) so the wiring is the same on every machine and names no account' : ''}`);
     for (const t of terms) if (text.toLowerCase().includes(t.toLowerCase())) fail.push(`${f}: contains a private term from .private-terms`);
     // Lesson: a fake key in a test fixture made every project's first full commit fail the secret check. Build such
     // strings at runtime instead of writing them out.

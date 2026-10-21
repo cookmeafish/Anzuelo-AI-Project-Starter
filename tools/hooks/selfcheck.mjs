@@ -635,6 +635,9 @@ const PRETOOL = [
   { name: 'setup creating each person\'s folder: allowed', tool: 'Write', input: { file_path: 'profiles/bob/PROFILE.md', content: '# Bob' }, edit: { ...PEOPLE, 'SETUP-PROMPT.md': () => '# Setup' }, prompt: 'set up this project. I rent out three flats', removeMarker: true, deny: false },
   // project-configured guards
   { name: 'whole-output tool piped into head: denied', tool: 'Bash', input: { command: 'python tools/lookup.py desks 2>&1 | head -5' }, edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), wholeOutputTools: ['tools/lookup.py'] }) }, deny: true, tag: 'whole-output' },
+  { name: 'whole-output: the tool run directly and piped into grep: denied', tool: 'Bash', input: { command: './tools/lookup.py desks | grep oak' }, edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), wholeOutputTools: ['tools/lookup.py'] }) }, deny: true, tag: 'whole-output' },
+  { name: 'whole-output: a diff of the tool file piped into head: allowed', tool: 'Bash', input: { command: 'diff tools/lookup.py .cache/lookup.bak | head' }, edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), wholeOutputTools: ['tools/lookup.py'] }) }, deny: false },
+  { name: 'whole-output: a note that names the tool, piped into tail: allowed', tool: 'Bash', input: { command: 'node tools/starter.mjs feedback "tools/lookup.py hides rows" | tail -3' }, edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), wholeOutputTools: ['tools/lookup.py'] }) }, deny: false },
   { name: 'whole-output tool saved to a file: allowed', tool: 'Bash', input: { command: 'python tools/lookup.py desks > .cache/out.txt' }, edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), wholeOutputTools: ['tools/lookup.py'] }) }, deny: false },
   { name: 'write-only-via file edited directly: denied', tool: 'Write', input: { file_path: 'data/v.json' }, edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), writeOnlyVia: [{ glob: 'data/**/*.json', tool: 'tools/save.mjs' }] }) }, deny: true, tag: 'write-only-via' },
   // setup gate
@@ -1911,6 +1914,60 @@ if (mineB()) { // one project's lesson about the engine reaches the starter on i
     const steps = { suspended: /SUSPENDED check:plain-writing/.test(pr), feedback: /check:plain-writing was suspended in a project/.test(fb), reported: /check:plain-writing was suspended/.test(inbox), announced: /FEEDBACK FROM PROJECTS: \d+ engine lesson/.test(ss) };
     report(Object.values(steps).every(Boolean), 'self-improve: an engine check that annoys a project is reported to the starter and announced there', JSON.stringify(steps));
   } finally { for (const d of [P, S]) fs.rmSync(d, { recursive: true, force: true }); }
+}
+
+if (mineB()) { // a long hook output is cut to what the host shows the agent, with the routing lines first
+  // Lesson: a routing hint at the end of a 13,000-character output never reached the agent
+  const { fitOutput } = await import('./hooks.mjs');
+  const long = Array.from({ length: 300 }, (_, i) => `NOTICE ${i} ${'x'.repeat(40)}`).join('\n') + '\nROUTE: raid-answer (docs/playbooks/raid-answer.md)';
+  const o = fitOutput(long), short = fitOutput('ROUTE: x\nNOTICE y');
+  report(o.length <= 9000 && o.startsWith('ROUTE: raid-answer') && /hooks\.mjs notices/.test(o) && short === 'ROUTE: x\nNOTICE y',
+    'hook output: a long one is cut to fit, routing first, with a pointer to the rest; a short one is untouched', `${o.length} chars, starts ${o.slice(0, 40)}`);
+}
+
+if (mineB()) { // a short reply to a background task's notice, after the turn ended cleanly and with no tool since: no new stop list
+  // Lesson: each acknowledgement of a finished background job got the whole stop list again
+  const dir = copyProject();
+  try {
+    const since = Date.now() - 2000;
+    write(dir, { 'notes/a.md': 'hello\n', 'docs/CHANGELOG.md': '- 2026-10-20: note\n' });
+    const W1 = 'Wrote it. N/A(skill-read): a test. N/A(runbook-exists): a test.' + FIN;
+    const s = { prompt: 'put hello into notes/a.md', tools: [{ name: 'Write', input: { file_path: 'notes/a.md', content: 'hello\n' } }], answer: W1 };
+    const tp = transcript(dir, s, since);
+    const first = run(dir, 'stop', { transcript_path: tp, last_assistant_message: W1, session_id: 'nn' });
+    const note = { type: 'user', message: { role: 'user', content: '<task-notification>\n<task-id>bg1</task-id>\n<status>completed</status>\n</task-notification>' } };
+    const tp2 = transcript(dir, { ...s, rows: [{ type: 'assistant', message: { content: [{ type: 'text', text: W1 }] } }, note], answer: 'The background check finished: it passed. Should I add a check for this?' }, since);
+    // the background job wrote its own result file after the clean end
+    write(dir, { 'notes/bg-result.md': 'PASS\n' });
+    const ackIn = { transcript_path: tp2, last_assistant_message: 'The background check finished: it passed. Should I add a check for this?', session_id: 'nn' };
+    const ack = run(dir, 'stop', ackIn);
+    // control: the same reply without a clean end before it is judged in full
+    fs.rmSync(path.join(dir, 'tools/hooks/state/turn-end.nn.json'), { force: true });
+    const unended = run(dir, 'stop', ackIn);
+    // control: the same reply after a tool ran since the notice is judged in full
+    const tp3 = transcript(dir, { ...s, rows: [note, { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'tz', name: 'Write', input: { file_path: path.join(dir, 'notes/more.md'), content: 'x' } }] } }], answer: 'Added more.' }, since);
+    write(dir, { 'notes/more.md': 'x' });
+    const work = run(dir, 'stop', { transcript_path: tp3, last_assistant_message: 'Added more.', session_id: 'nn' });
+    const blocked = o => /"decision":\s*"block"/.test(o.out || '');
+    report(!blocked(first) && !blocked(ack) && blocked(unended) && blocked(work), 'notice replies: a short reply to a task notice after a clean end gets no new stop list; new work after it does',
+      `first ${blocked(first)}, ack ${blocked(ack)}, work ${blocked(work)}: ${(/Names: [^"]*/.exec(first.out) || [''])[0]} || ${(/Names: [^"]*/.exec(ack.out) || [''])[0]}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+if (mineB()) { // a background run is judged by its output file and its exit code in the task notification, not by its stub
+  // Lesson: a passing background run never met its check, because "running in background" was read as its output
+  const { runsOf } = await import('./hooks.mjs');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-bg-'));
+  try {
+    const outFile = path.join(dir, 'b1.output'); fs.writeFileSync(outFile, 'selfcheck: ALL PASS (10 passed)\n');
+    const stub = `Command running in background with ID: b1. Output is being written to: ${outFile}. You will be notified when it completes.`;
+    const use = { type: 'assistant', message: { content: [{ type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'node tools/hooks/selfcheck.mjs', run_in_background: true } }] } };
+    const res = { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 't1', content: stub }] } };
+    const note = code => ({ type: 'user', message: { role: 'user', content: `<task-notification>\n<task-id>b1</task-id>\n<status>${code ? 'failed' : 'completed'}</status>\n<summary>done (exit code ${code})</summary>\n</task-notification>` } });
+    const [done] = runsOf([use, res, note(0)]), [running] = runsOf([use, res]), [failed] = runsOf([use, res, note(1)]);
+    report(/ALL PASS/.test(done.out) && !done.error && running.pending && running.out === '' && failed.error,
+      'background runs: judged by their output file and exit code, and pending until the notification', JSON.stringify({ done, running, failed }).slice(0, 300));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
 if (mineB()) { // research ledger: honest ad labels pass, sellers fail, one media group is one owner, a lead-only claim is unverified
