@@ -7,6 +7,7 @@
 //   FAIL  a URL, host, IP address or port typed into code (it belongs in a config file or an environment variable)
 //   FAIL  an import that reaches into another module's private files (internal/, private/, _private/)
 //   WARN  a function that grew past --max-function lines; a relative import that climbs 3 or more folders
+// A line with the comment "modular-ok: <reason>" is a reviewed exception and is skipped.
 // Prints RESULT: PASS or RESULT: FAIL <why> (exit 1). Tests, config files, generated and engine files are skipped.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -38,10 +39,13 @@ for (const raw of files) {
   if (now.length > MAX_LINES && (!before || now.length > before.length))
     fails.push(`${f}: ${now.length} lines (over ${MAX_LINES}${before ? `, was ${before.length}` : ''}): split it by job instead of adding to it`);
   for (const { t, n } of added) {
+    // a line marked "modular-ok: <reason>" is a reviewed exception (a reason is required)
+    if (/\bmodular-ok:\s*\S/.test(t)) continue;
     const code = t.replace(/(^|\s)(\/\/|#)(?!!).*$/, '').trim();
     if (!code || /^\s*(\*|\/\*|"""|''')/.test(t)) continue;
-    // 2. changeable settings typed into code
-    const url = /(["'`])(https?:\/\/(?!localhost\b|127\.0\.0\.1\b|example\.(com|org)\b|schemas?\.|www\.w3\.org)[^"'`\s]+)\1/.exec(code);
+    // 2. changeable settings typed into code (a pattern with * is a wildcard, not an address:
+    // Lesson: 'http://*' in a request-blocking rule was flagged as a typed-in URL)
+    const url = /(["'`])(https?:\/\/(?!localhost\b|127\.0\.0\.1\b|example\.(com|org)\b|schemas?\.|www\.w3\.org)[^"'`\s*]+)\1/.exec(code);
     const ip = /(["'`])(\d{1,3}\.){3}\d{1,3}(:\d+)?\1/.exec(code);
     const port = /\b(port|PORT)\s*[:=]\s*\d{2,5}\b|listen\(\s*\d{2,5}\s*[,)]/.exec(code);
     if (url || ip || port) fails.push(`${f}:${n}: ${(url || ip || port)[0].slice(0, 60)} is typed into the code: read it from the config module or an environment variable (with its default in one place)`);

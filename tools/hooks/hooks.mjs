@@ -38,7 +38,10 @@ export const envOf = n => process.env[`STARTER_${n}`] ?? process.env[`KS_${n}`];
 // each other's request or changes. Without a session id (a manual begin/check) the shared files are used.
 // Lesson: a second session's prompt replaced the first one's turn record, and the first was checked against it.
 let SID = '';
-const PER_SESSION = new Set(['turn.json', 'snapshot.json', 'turn-end.json', 'notices-shown.json']);
+// (the stop round count, the checks that failed earlier in the turn, hints shown, the plan nudge and the frustration
+// record are a turn's too. Lesson: a second session reset the first one's block count and lost its earlier failures.)
+const PER_SESSION = new Set(['turn.json', 'snapshot.json', 'turn-end.json', 'notices-shown.json', 'stop-blocks.json', 'stop-failed.json',
+  'event-hints.json', 'plan-watch.json', 'friction-turn.json']);
 const stateName = n => SID && PER_SESSION.has(n) ? n.replace(/.json$/, `.${SID}.json`) : n;
 // a session's own file when it has one, else the shared one (written before sessions were told apart, or by a test)
 const stateFile = n => { const own = path.join(STATE, stateName(n)); return own !== path.join(STATE, n) && !fs.existsSync(own) ? path.join(STATE, n) : own; };
@@ -108,8 +111,13 @@ const DEFAULTS = {
   gitignoreMustKeep: ['README.md', 'AGENTS.md', '.gitignore', '.env.example', 'tools/hooks/wire.mjs', 'tools/hooks/hooks.mjs', 'tools/hooks/config.json', 'tools/hooks/requirements.json', 'tools/hooks/state/runbook-usage.json'],
   // Kept files that may discuss prompt injection itself (REQ: injection-guard).
   injectionIgnore: ['docs/security.md', 'skills/security-review/**', 'skills/research/references.md', 'skills/skill-finder/references.md', '.claude/skills/**'],
-  // Files loaded at every session start: over this many characters together, the audit warns (consolidate them).
-  alwaysLoadedMaxChars: 30000,
+  // Files read at every session start. The starter's own rules and the generated map are a fixed cost the starter keeps
+  // small (its own audit holds them under starterLoadedMaxChars); a project answers for its own part, the standing
+  // preferences (alwaysLoadedOwnMaxChars), and the total gets a ceiling (alwaysLoadedMaxChars).
+  // Lesson: a project could not clear the warning: about 23k of the 30k was the starter's text before any preference.
+  alwaysLoadedMaxChars: 40000,
+  alwaysLoadedOwnMaxChars: 6000,
+  starterLoadedMaxChars: 28000,
   planNewFiles: 5,            // a work turn that creates this many new files needs a plan in docs/plans/ (REQ: plan-required)
   hookBudgetMs: 1000,         // a hook event slower than this (median, node start included) slows every turn: the audit fails
   harden: 'block',            // 'block' = harden a skill in the turn it becomes due; 'remind' = hint only
@@ -614,7 +622,12 @@ export function turn(transcript) {
   const sessionWrites = rows.flatMap(r => r.type === 'assistant' && Array.isArray(r.message?.content) ? r.message.content : [])
     .filter(x => x && x.type === 'tool_use' && /^(Write|Edit|MultiEdit|NotebookEdit)$/.test(x.name))
     .map(x => [x.input?.content, x.input?.new_string, x.input?.new_source, ...(x.input?.edits || []).map(e => e.new_string)].filter(s => typeof s === 'string').join('\n')).join('\n');
-  return { since, entries, prompt: [prompt, ...queued].map(userText).filter(s => s.trim()).join('\n'), queued, toolsKnown: true, allPrompts, bgRunning: backgroundRunning(rows), sessionWrites };
+  // every tool input of the session (what it downloaded, wrote or moved) and when it began: a file this session made
+  // and nothing cites yet is still its own to remove or rename (REQ: protect-originals)
+  const sessionTools = rows.flatMap(r => r.type === 'assistant' && Array.isArray(r.message?.content) ? r.message.content : [])
+    .filter(x => x && x.type === 'tool_use').map(x => JSON.stringify(x.input || {})).join('\n');
+  const sessionStart = Date.parse(rows.find(r => r.timestamp)?.timestamp || '') || since;
+  return { since, entries, prompt: [prompt, ...queued].map(userText).filter(s => s.trim()).join('\n'), queued, toolsKnown: true, allPrompts, bgRunning: backgroundRunning(rows), sessionWrites, sessionTools, sessionStart };
 }
 
 // Background helpers (Agent/Task with run_in_background) launched in this or an earlier turn that have not reported
@@ -1017,7 +1030,7 @@ export function gateResult(run, spec = {}) {
   }
   if (alone) return run.error ? { ok: false, why: 'it exited with an error' } : { ok: true, why: '' };
   if (!run.error && ops.every(o => o === '&&')) return { ok: true, why: '' };
-  return { ok: false, why: 'it ran chained with other commands, so its own result is unknown. Run each gate as its own command' };
+  return { ok: false, why: 'it ran with other commands after ; or |, or a command in its && chain failed, so its own result is unknown. Run the gate exactly as written, on its own (a gate that is an && chain stays one)' };
 }
 
 export function context(t, cfg, answerOverride) {
@@ -2195,7 +2208,7 @@ export const suspendedItems = () => (readJSON(path.join(HOOKS, 'config.json'), {
 const isSuspended = item => suspendedItems().some(s => s.item === item);
 // Stop: what this turn used and which checks blocked it, merged across the turn's stops.
 function noteFriction(key, x, missing) {
-  const prev = readJSON(path.join(STATE, 'friction-turn.json'), {});
+  const prev = readJSON(stateFile('friction-turn.json'), {});
   const items = new Set([...(prev.key === key ? prev.items : []), ...x.usedPb.map(p => `runbook:${p.name}`), ...x.usedSkills.map(s => `skill:${s.name}`), ...missing.map(m => `check:${m.tag}`)]);
   writeState('friction-turn.json', { key, items: [...items] });
 }
@@ -2225,9 +2238,9 @@ export function noteEngineFeedback(text) {
   return true;
 }
 export function scoreFriction(prompt, cfg = config()) {
-  const last = readJSON(path.join(STATE, 'friction-turn.json'), null);
+  const last = readJSON(stateFile('friction-turn.json'), null);
   if (!last?.items?.length || envOf('BENCH')) return [];
-  try { fs.unlinkSync(path.join(STATE, 'friction-turn.json')); } catch { }
+  try { fs.unlinkSync(stateFile('friction-turn.json')); } catch { }
   const frustrated = isUpset(prompt, cfg), hist = readJSON(path.join(STATE, 'friction.json'), {}), out = [];
   for (const item of last.items) {
     const h = hist[item] = [...(hist[item] || []), frustrated ? 1 : 0].slice(-FRICTION_WINDOW);
@@ -2534,6 +2547,30 @@ export function deletesOnlyNewFiles(cmd, d) {
   }
   return true;
 }
+// A file in a protected folder that this session itself brought in (its name is in the session's own tool calls, it is
+// newer than the session, not in git) and that nothing cites yet (no note, catalog or source list names it) is not
+// evidence yet: the session may remove an off-topic download or fix a wrong file name.
+// Lesson: helpers could not remove off-topic downloads or rename maps saved under the wrong maker, minutes after
+// downloading them, because the download happened in an earlier turn.
+export function sessionOwnFiles(cmd, d, t) {
+  if (!t?.sessionTools) return false;
+  const paths = [...String(cmd).matchAll(new RegExp(`(["']?)((?:[^\\s"';|&]*[\\\\/])?${esc(d)}[\\\\/](?:[^"';|&\\n]+?))\\1(?=$|[\\s;|&])`, 'g'))].map(m => rel(m[2].replace(/\\/g, '/')));
+  const there = paths.filter(p => exists(p));
+  if (!there.length) return false;
+  const citing = [];
+  const walk = dir => { for (const n of list(dir)) { const p = `${dir}/${n}`; let s; try { s = walkStat(p); } catch { continue; } if (s.isDirectory()) walk(p); else if (/\.(md|json|ya?ml|csv|txt|html?)$/i.test(n)) citing.push(p); } };
+  walk('docs'); walk(d); if (exists('outputs')) walk('outputs');
+  for (const p of there) {
+    if (/[*?]/.test(p) || p.startsWith('..')) return false;
+    let s; try { s = fs.statSync(abs(p)); } catch { return false; }
+    if (s.isDirectory() || s.mtimeMs < (t.sessionStart || Infinity) - 5000) return false;
+    const base = p.split('/').pop();
+    if (!t.sessionTools.includes(base)) return false;
+    if (exists('.git') && spawnSync('git', ['ls-files', '--error-unmatch', p], { cwd: ROOT, encoding: 'utf8' }).status === 0) return false;
+    if (citing.some(c => c !== p && read(abs(c)).includes(base))) return false;
+  }
+  return true;
+}
 // Secrets files: .env and its variants (not .env.example), private keys. Reading one is fine when the user asked for
 // that file in this request ("check my .env").
 const SECRET_FILE = /(^|[\\/])(\.env(\.(?!example$|sample$|template$)[\w.-]+)?|[^\\/]+\.(pem|key|p12|pfx)|id_(rsa|ed25519|ecdsa))$/i;
@@ -2721,7 +2758,10 @@ export function pretoolDecision(data, cfg = config()) {
           const last = runs.filter(r => re(g.cmd).test(r.cmd)).pop();
           const res = last && gateResult(last, { pass: g.pass ?? '' });
           if (t().toolsKnown && (!last || !res.ok))
-            return `REQ: commit-gate. Before committing, run the gate /${g.cmd}/ as its own command (not chained with && or ;) and get a PASS this turn${last ? ` (the last run did not pass: ${res.why})` : ''}.`;
+            // the gate shown as a command to run, not as its pattern, and its own && chain is the allowed form
+            // (Lesson: "run it as its own command, not chained with &&" was shown for a gate that is itself an && chain)
+            return `REQ: commit-gate. Before committing, run this gate and get a PASS this turn: ${String(g.cmd).replace(/^\^|\$$/g, '').replace(/\\(.)/g, '$1')}` +
+              ` (exactly as written, its own && included; nothing else before or after it with ; or |)${last ? `. The last run did not pass: ${res.why}` : ''}.`;
         }
       }
     }
@@ -2788,6 +2828,8 @@ export function pretoolDecision(data, cfg = config()) {
       // junk it just downloaded. Only a plain delete, and only when every file it names is new.
       // Lesson: helpers could not remove a broken download and left it in the evidence folder.
       if (bad && hits[0] && !hits.slice(1).some(Boolean) && deletesOnlyNewFiles(cmd, d)) continue;
+      // a delete or rename of the session's own, still uncited downloads
+      if (bad && (hits[0] || hits[1]) && !hits.slice(2).some(Boolean) && sessionOwnFiles(cmd, d, t())) continue;
       if (bad && !re(cfg.deleteWords).test(req()))
         return `REQ: protect-originals. This command could delete, move or overwrite files in ${d}/ (originals). Only do that when the user asked for it in this request; copying new files INTO ${d}/ is fine. For exact duplicates, run node tools/dedupe.mjs (it keeps the oldest copy).`;
     }
@@ -2840,7 +2882,7 @@ function cmdPosttool(data) {
 function planNotice(p, inp) {
   if (!p || p.startsWith('..') || !('content' in inp) || (exists('SETUP-PROMPT.md') && !exists('.starter-template'))) return null;
   const turnAt = readJSON(stateFile('turn.json'), {}).at || '';
-  const st = readJSON(path.join(STATE, 'plan-watch.json'), {});
+  const st = readJSON(stateFile('plan-watch.json'), {});
   const s = st.at === turnAt ? st : { at: turnAt, files: [], plan: false, told: false };
   if (/^docs\/plans\/.+\.md$/.test(p)) s.plan = true;
   else if (!/^(docs\/|\.cache\/|tools\/hooks\/state\/|skills\/[^/]+\/SKILL\.md$)/.test(p) && !readJSON(stateFile(SNAPSHOT), {}).files?.[p] && !s.files.includes(p)) s.files.push(p);
@@ -2867,7 +2909,7 @@ export function eventHintAfterEdit(p, inp, cfg = config()) {
   const text = [inp.content, inp.new_string, inp.new_source, ...(inp.edits || []).map(e => e.new_string)].filter(v => typeof v === 'string').join('\n');
   if (!['content', 'new_string', 'new_source', 'edits'].some(k => k in inp)) return null; // not a write
   const turnAt = readJSON(stateFile('turn.json'), {}).at || '';
-  const seen = readJSON(path.join(STATE, 'event-hints.json'), {});
+  const seen = readJSON(stateFile('event-hints.json'), {});
   const shown = seen.at === turnAt ? seen.tags || [] : [];
   const out = [];
   const kind = n => exists(`${cfg.skillsDir}/${n}/SKILL.md`) ? 'skill' : 'runbook';
@@ -3758,13 +3800,13 @@ export function stopDecision(data, cfg = config()) {
   const t = turn(data.transcript_path || '');
   if (!t) return null;
   const key = `${data.transcript_path}|${t.since}`;
-  const st = readJSON(path.join(STATE, 'stop-blocks.json'), {});
+  const st = readJSON(stateFile('stop-blocks.json'), {});
   const nblocks = data.stop_hook_active ? (st[key] || 0) : 0;
   // REQ: final-answer-source. When Stop fires, the final message is often not in the transcript yet, so a correct
   // answer kept failing "Finished"/"Playbook:" checks (found in live testing). The agent passes it directly.
   const x = context(t, cfg, data.last_assistant_message);
   // the checks that already blocked an answer earlier in this turn (skill-learn writes the lesson for a followed skill's own)
-  const failed = readJSON(path.join(STATE, 'stop-failed.json'), {});
+  const failed = readJSON(stateFile('stop-failed.json'), {});
   x.failedBefore = data.stop_hook_active && failed.key === key ? failed.tags || [] : [];
   // REQ: stop-reblock. Up to maxBlocksPerTurn blocks per turn, then let the session end so it can never loop.
   const open = m => !waived(m.tag, x.said, m.specific) && !isSuspended(`check:${m.tag}`);
@@ -3991,7 +4033,7 @@ if (isMain) {
   HOST = hookHost(data);
   SID = String(data.session_id || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
   // old sessions' turn files go after two days
-  if (cmd === 'session' && SID) try { for (const n of fs.readdirSync(STATE)) if (/^(turn|snapshot|turn-end|notices-shown)\.[A-Za-z0-9_-]+\.json$/.test(n) && Date.now() - fs.statSync(path.join(STATE, n)).mtimeMs > 2 * 86400_000) fs.rmSync(path.join(STATE, n), { force: true }); } catch { }
+  if (cmd === 'session' && SID) try { for (const n of fs.readdirSync(STATE)) if (/^(turn|snapshot|turn-end|notices-shown|stop-blocks|stop-failed|event-hints|plan-watch|friction-turn)\.[A-Za-z0-9_-]+\.json$/.test(n) && Date.now() - fs.statSync(path.join(STATE, n)).mtimeMs > 2 * 86400_000) fs.rmSync(path.join(STATE, n), { force: true }); } catch { }
   try {
     const fn = { session: cmdSession, prompt: cmdPrompt, pretool: cmdPretool, posttool: cmdPosttool, stop: cmdStop }[cmd];
     if (fn) fn(data);

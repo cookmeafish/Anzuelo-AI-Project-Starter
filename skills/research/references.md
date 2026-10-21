@@ -29,10 +29,13 @@ scope: <place, version, date range, audience>
 
 Column values:
 - **Link:** a web address, or a project file (`docs/knowledge/x.md`, `sources/x.pdf`).
-- **Owner:** who publishes it (company, agency, outlet, person). Different pages of one owner are one source.
+- **Owner:** who publishes it (company, agency, outlet, person). Different pages of one owner are one source, and so
+  are outlets of one company: write the parent in brackets, `GameRant (Valnet)`. Well-known media groups (Valnet,
+  Future, Fandom, Gamurs, IGN Entertainment) are grouped by the check even without it.
 - **Type:** `primary`, `secondary`, `forum`, `social`, `wiki`, `aggregator`, `ai` or `project`.
 - **Incentive:** what the owner gains if you believe it: `none found`, `sells it`, `affiliate links`, `sponsored`,
-  `paid placement`, `press release`, `advocacy`, `competitor`. Never leave it empty: looking is the point.
+  `paid placement`, `press release`, `advocacy`, `competitor`. Never leave it empty: looking is the point. Write it
+  as it is: `display ads only, no sponsored content` is honest and passes (most free sites run ads).
 - **Use:** `evidence`, `lead only` or `excluded`.
 - **Status:** `confirmed`, `primary`, `single source`, `conflict` or `unverified`.
 
@@ -40,7 +43,8 @@ What the check rejects:
 - a source without a link, owner, type, incentive or use;
 - forum, social, wiki, aggregator or AI pages used as evidence;
 - sponsored, affiliate, paid or press-release sources used as evidence, unless they are the owner's own primary source;
-- a claim citing a source that is not evidence, or with no quote or data;
+- a claim citing a source that is not evidence, or with no quote or data (a claim only a lead backs is logged as
+  `unverified` and cites that lead);
 - `confirmed` without two different owners, `primary` without a primary (or project) source;
 - fewer than three evidence owners without a `Sources limit:` line;
 - no text under `## Verdict`.

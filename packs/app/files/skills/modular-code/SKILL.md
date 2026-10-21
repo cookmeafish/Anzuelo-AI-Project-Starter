@@ -74,6 +74,8 @@ Say at the start: "Keeping it modular (modular-code skill)."
 - [ ] Settings that differ between machines or deployments come from config, with one place for defaults (judgment).
 
 ## Pitfalls
+- Rewriting correct code just to get past the script. A line that truly must stay (a protocol constant, a fixed
+  provider endpoint) gets the comment `modular-ok: <reason>`, and the script skips it.
 - A "utils" or "helpers" file that everything imports: it becomes the new god file. Name shared modules by what they
   do (`money.ts`, `dates.py`).
 - Splitting by layer only (all controllers in one folder, all models in another) for a growing app: one feature then

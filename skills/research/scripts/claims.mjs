@@ -18,7 +18,29 @@ const TYPES = ['primary', 'secondary', 'forum', 'social', 'wiki', 'aggregator', 
 const NOT_EVIDENCE = ['forum', 'social', 'wiki', 'aggregator', 'ai'];
 const USES = ['evidence', 'lead only', 'excluded'];
 const STATUS = ['confirmed', 'primary', 'single source', 'conflict', 'unverified'];
-const PAID = /sponsor|affiliate|paid|advert|\bads?\b|#ad|press release|partner content|commission/i;
+const PAID = /sponsor|affiliate|paid|advert|\bads?\b|#ad|press release|partner content|commission|\bsells?\b|\bselling\b|boost(ing)?\s+service|carr(y|ies)\s+service/i;
+// Display ads on the page are how most free sites pay for themselves: an honest label, not a reason to reject the
+// source. So are stated absences ("no sponsorship"). Only sponsored or affiliate content, sellers and paid services count.
+// Lesson: "site ads only, no sponsored content" failed while "none found" passed, which taught agents the vaguer label.
+const NEUTRAL_AD = /\b(no|not|without|none)\s+(\w+\s+){0,2}(sponsor\w*|affiliate\w*|paid\s+\w+|advert\w*|ads?|commissions?|partner content)\b|\b(display|site|banner|page|sidebar)\s+(ads?|advertising)\b|\bads?[- ](only|supported|funded)\b|\b(runs?|shows?|has)\s+(display\s+)?(ads?|advertising)\b|\badvertising[- ](supported|funded)\b/gi;
+const paid = inc => PAID.test(String(inc).replace(NEUTRAL_AD, ''));
+// Outlets owned by the same company are one owner, not two independent sources. Write the parent in brackets
+// ("GameRant (Valnet)"); these well-known groups are recognized by name or site even without it.
+// Lesson: two sites of one media group counted as two independent sources.
+const GROUPS = {
+  valnet: ['game rant', 'gamerant', 'thegamer', 'cbr', 'screen rant', 'screenrant', 'collider', 'dualshockers', 'xda', 'android police', 'androidpolice', 'how-to geek', 'howtogeek', 'makeuseof'],
+  future: ['pc gamer', 'pcgamer', 'gamesradar', 'techradar', "tom's guide", 'tomsguide', "tom's hardware", 'tomshardware', 'windows central', 'windowscentral', 'android central', 'androidcentral'],
+  fandom: ['fandom', 'gamespot', 'metacritic', 'gamefaqs'],
+  gamurs: ['dot esports', 'dotesports', 'destructoid', 'the escapist', 'escapistmagazine', 'twinfinite', 'siliconera', 'prima games', 'primagames', 'pro game guides', 'progameguides', 'gamepur'],
+  'ign entertainment': ['ign', 'eurogamer', 'rock paper shotgun', 'rockpapershotgun', 'vg247'],
+};
+const ownerKey = (owner, link) => {
+  const o = String(owner).toLowerCase(), paren = /\(([^)]+)\)\s*$/.exec(o);
+  if (paren) return paren[1].trim();
+  const h = host(link).toLowerCase(), plain = o.replace(/[^a-z0-9' -]/g, ' ').trim();
+  for (const [g, names] of Object.entries(GROUPS)) if (names.some(n => plain === n || new RegExp(`(^|\\.)${n.replace(/[^a-z0-9]/g, '')}\\.`).test(h))) return g;
+  return o || h;
+};
 
 if (cmd === 'new' && arg) {
   // A short slug of the topic, so helpers researching the same thing share one ledger. Lesson: two agents with the same
@@ -58,7 +80,7 @@ function check(text) {
   for (const s of sources) {
     const id = col(s, 'id'), link = col(s, 'link') || col(s, 'url'), owner = col(s, 'owner'), type = col(s, 'type').toLowerCase();
     const inc = col(s, 'incentive'), use = col(s, 'use').toLowerCase(), at = id || link || '(a row)';
-    byId[id] = { link, owner: owner.toLowerCase(), type, use };
+    byId[id] = { link, owner: ownerKey(owner, link), type, use };
     if (!id) errors.push(`${at}: no ID`);
     if (!link) errors.push(`${at}: no link (a web address or a project file)`);
     if (!owner) errors.push(`${at}: no owner (who publishes it)`);
@@ -66,7 +88,7 @@ function check(text) {
     if (!inc) errors.push(`${at}: incentive is empty: look for what the owner gains (or write "none found")`);
     if (!USES.includes(use)) errors.push(`${at}: use "${use}" must be one of ${USES.join(', ')}`);
     if (use === 'evidence' && NOT_EVIDENCE.includes(type)) errors.push(`${at}: a ${type} source is a lead, not evidence: follow it to its source`);
-    if (use === 'evidence' && PAID.test(inc) && type !== 'primary') errors.push(`${at}: "${inc}" is paid or biased content: it can't be evidence`);
+    if (use === 'evidence' && paid(inc) && type !== 'primary') errors.push(`${at}: "${inc}" is paid or biased content: it can't be evidence`);
   }
   if (!claims.length) errors.push('no Claims table rows');
   for (const c of claims) {
@@ -77,13 +99,14 @@ function check(text) {
     if (status !== 'unverified' && !ids.length) errors.push(`${at}: no source IDs`);
     for (const id of ids) {
       if (!byId[id]) errors.push(`${at}: source ${id} is not in the Sources table`);
-      else if (byId[id].use !== 'evidence') errors.push(`${at}: source ${id} is ${byId[id].use}, not evidence`);
+      // a claim only a lead backs is logged as "unverified", citing that lead (Lesson: there was no way to record it)
+      else if (byId[id].use !== 'evidence' && !(status === 'unverified' && byId[id].use === 'lead only')) errors.push(`${at}: source ${id} is ${byId[id].use}, not evidence${byId[id].use === 'lead only' ? ' (a claim only a lead backs is "unverified")' : ''}`);
     }
     const ev = ids.map(id => byId[id]).filter(s => s && s.use === 'evidence');
     if (status === 'confirmed' && new Set(ev.map(s => s.owner)).size < 2) errors.push(`${at}: "confirmed" needs two evidence sources with different owners`);
     if (status === 'primary' && !ev.some(s => s.type === 'primary' || s.type === 'project')) errors.push(`${at}: "primary" needs a primary source`);
   }
-  const owners = new Set(Object.values(byId).filter(s => s.use === 'evidence').map(s => s.owner || host(s.link)));
+  const owners = new Set(Object.values(byId).filter(s => s.use === 'evidence').map(s => s.owner));
   const limit = /^\s*(<!--\s*)?sources limit:\s*(.{10,})$/im.exec(text);
   if (owners.size < 3 && !(limit && !limit[1])) errors.push(`only ${owners.size} independent evidence source(s): find at least 3, or add a "Sources limit: <why no more exist>" line`);
   if (!/^##\s+Verdict[^\n]*\n\s*\S/im.test(text)) errors.push('no verdict under "## Verdict"');

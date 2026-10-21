@@ -430,7 +430,12 @@ if (exists('skills/obsidian/scripts/notes.mjs')) sweep('notes are connected (obs
 // Every session starts by reading these: kept small, they cost little; grown unchecked, they crowd out the work.
 sweep('always-loaded files stay small', () => {
   const sizes = ['CLAUDE.md', 'DIRECTORY.md'].map(f => [f, read(abs(f)).length]), total = sizes.reduce((a, [, n]) => a + n, 0);
-  return { warn: total > cfg.alwaysLoadedMaxChars ? [`${sizes.map(([f, n]) => `${f} ${n}`).join(' + ')} = ${total} characters, over ${cfg.alwaysLoadedMaxChars}: merge repeated preferences and rules, and move detail into runbooks or skills`] : [], note: `${total} characters` };
+  const prefs = (/^## The user's standing preferences[^\n]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(read(abs('AGENTS.md'))) || [, ''])[1].length;
+  const warn = [];
+  if (isTemplate && total > cfg.starterLoadedMaxChars) warn.push(`the starter's own AGENTS.md and DIRECTORY.md are ${total} characters, over ${cfg.starterLoadedMaxChars}: every project starts with them, so trim the starter's text`);
+  if (!isTemplate && prefs > cfg.alwaysLoadedOwnMaxChars) warn.push(`the standing preferences in AGENTS.md are ${prefs} characters, over ${cfg.alwaysLoadedOwnMaxChars}: merge repeated ones and move detail into the runbook or skill each one is about`);
+  if (!isTemplate && total > cfg.alwaysLoadedMaxChars) warn.push(`${sizes.map(([f, n]) => `${f} ${n}`).join(' + ')} = ${total} characters, over ${cfg.alwaysLoadedMaxChars}: merge repeated preferences and rules, and move detail into runbooks or skills`);
+  return { warn, note: `${total} characters, preferences ${prefs}` };
 });
 
 sweep('project housekeeping', () => {

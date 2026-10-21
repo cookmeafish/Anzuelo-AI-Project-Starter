@@ -18,6 +18,16 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
     about an outward action, an install, money, security or something irreversible (REQ: autonomy-decide), and stop
     steps that say "with the user" are decided and recorded as Assumed.
   - A stop round's repeated answer starts straight with the answer, not with notes about the fix.
+  - **Two sessions in one project:** the stop round count, earlier failures, hints shown, the plan nudge and the
+    frustration record are kept per session, so one session no longer resets or reads another's.
+  - **Field report fixes from an adopted project:** a project scenario with an unknown key fails and names the known
+    ones (it used to check nothing); the size sweep holds the starter to its own share (`starterLoadedMaxChars`) and a
+    project to its preferences (`alwaysLoadedOwnMaxChars`), with a 40000 ceiling for both files; `--password-store`
+    is not security code; modular-code skips `http://*` wildcards and lines marked `modular-ok: <reason>`; a file this
+    session brought into a protected folder and nothing cites yet may be removed or renamed (protect-originals); the
+    research ledger takes "display ads only" as an honest incentive, catches sellers and boosting services, counts one
+    media group as one owner (`GameRant (Valnet)`, and known groups by name), and logs a lead-only claim as
+    `unverified`; the commit gate shows the command to run and says its own && chain is fine.
   - **New tools are vetted before use:** a package or tool installed in a turn needs a `Vetted:` line (legitimate per
     two or more independent sources, free with a license that allows the use, maintained and well regarded);
     reinstalling the declared requirements is exempt (REQ: install-vetted). AGENTS.md step 0.5 says so (adopt by hand).

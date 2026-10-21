@@ -599,6 +599,18 @@ const PRETOOL = [
   { pack: 'knowledge', name: 'overwrite a delivered output: denied', tool: 'Write', input: { file_path: 'outputs/plan.md' }, setup: { 'outputs/plan.md': 'v1' }, deny: true, tag: 'no-overwrite' },
   { pack: 'knowledge', name: 'overwrite an output when the user asked to edit in place: allowed', tool: 'Write', input: { file_path: 'outputs/plan.md' }, setup: { 'outputs/plan.md': 'v1' }, prompt: 'fix the typo in that file, edit it in place', deny: false },
   { pack: 'knowledge', name: 'new output version: allowed', tool: 'Write', input: { file_path: 'outputs/plan v2.md' }, setup: { 'outputs/plan.md': 'v1' }, deny: false },
+  // the session's own downloads that nothing cites yet may be removed or renamed, in a later turn too
+  { name: 'protect-originals: remove an uncited file this session downloaded earlier: allowed', tool: 'Bash', input: { command: 'rm sources/raids/promo1.jpg' },
+    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), protectedOriginals: ['sources/**'] }) }, setup: { 'sources/raids/promo1.jpg': 'x' },
+    before: [{ name: 'Bash', input: { command: 'curl -sL -o sources/raids/promo1.jpg https://img.example/p1.jpg' } }], deny: false },
+  { name: 'protect-originals: rename an uncited file this session downloaded earlier: allowed', tool: 'Bash', input: { command: 'mv sources/raids/map_wrong.webp sources/raids/map_right.webp' },
+    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), protectedOriginals: ['sources/**'] }) }, setup: { 'sources/raids/map_wrong.webp': 'x' },
+    before: [{ name: 'Bash', input: { command: 'curl -sL -o sources/raids/map_wrong.webp https://img.example/m.webp' } }], deny: false },
+  { name: 'protect-originals: remove a session download a note already cites: denied', tool: 'Bash', input: { command: 'rm sources/raids/promo1.jpg' },
+    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), protectedOriginals: ['sources/**'] }) }, setup: { 'sources/raids/promo1.jpg': 'x', 'docs/knowledge/raid.md': 'See sources/raids/promo1.jpg' },
+    before: [{ name: 'Bash', input: { command: 'curl -sL -o sources/raids/promo1.jpg https://img.example/p1.jpg' } }], deny: true, tag: 'protect-originals' },
+  { name: 'protect-originals: remove a file this session did not bring in: denied', tool: 'Bash', input: { command: 'rm sources/raids/promo1.jpg' },
+    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), protectedOriginals: ['sources/**'] }) }, setup: { 'sources/raids/promo1.jpg': 'x' }, deny: true, tag: 'protect-originals' },
   { pack: 'knowledge', name: 'rm in sources/: denied', tool: 'Bash', input: { command: 'rm -rf "sources/old.pdf"' }, deny: true, tag: 'protect-originals' },
   { pack: 'knowledge', name: 'Remove-Item absolute path in sources: denied', tool: 'PowerShell', input: { command: 'Remove-Item -Force C:\\proj\\sources\\a.pdf' }, deny: true, tag: 'protect-originals' },
   { pack: 'knowledge', name: 'move a file out of sources/: denied', tool: 'Bash', input: { command: 'mv sources/a.pdf inbox/' }, deny: true, tag: 'protect-originals' },
@@ -1027,7 +1039,7 @@ STOP.push(
     tools: [pb('project'), { ...bash('python tools/validate.py data/v.json && npm test; echo done', 'RESULT: PASS\n1 test failed\ndone'), error: true }],
     files: { 'data/v.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md' + FIN, expect: { block: false, not: ['data-valid'] } },
   { name: 'gate with no pass pattern chained to other commands: run it alone: blocked', prompt: 'add the new vendor data', edit: BUILD_GATE, tools: [pb('project'), bash('npm run build && npm test; echo done', 'built\ndone')],
-    files: { 'data/v.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md' + FIN, expect: { block: true, tags: ['build-gate'], says: /its own command/ } },
+    files: { 'data/v.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md' + FIN, expect: { block: true, tags: ['build-gate'], says: /on its own/ } },
   { name: 'gate with no pass pattern run alone: its exit code decides: passes', prompt: 'add the new vendor data', edit: BUILD_GATE, tools: [pb('project'), bash('npm run build', 'built')],
     files: { 'data/v.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md' + FIN, expect: { block: false } },
   // numbers the agent wrote itself earlier in the session are not made up
@@ -1482,6 +1494,17 @@ process.exit(fail ? 1 : 0);
 const OWN = path.join(ROOT, 'tools', 'hooks', 'project-scenarios.mjs');
 if (fs.existsSync(OWN)) {
   const own = (await import(pathToFileURL(OWN).href)).default({ pb, sk, bash, FIN });
+  // a key the runner does not know is a check that silently checks nothing: name it. The known keys are the ones the
+  // built-in scenarios of the same kind use. Lesson: a prompt scenario written with `not:` (the stop scenarios' key)
+  // instead of `hasNot:` passed while checking nothing.
+  const keysOf = (l, f = s => s) => new Set(l.flatMap(s => Object.keys(f(s) || {})));
+  for (const [kind, list, built] of [['stop', own.stop, STOP], ['pretool', own.pretool, PRETOOL], ['prompt', own.prompt, PROMPT]]) {
+    const known = keysOf(built), knownExpect = keysOf(built, s => s.expect);
+    for (const s of list || []) {
+      const bad = [...Object.keys(s).filter(k => !known.has(k)), ...Object.keys(s.expect || {}).filter(k => !knownExpect.has(k)).map(k => `expect.${k}`)];
+      if (bad.length) report(false, `project scenario keys: ${kind}: ${s.name}`, `unknown key(s) ${bad.join(', ')}; ${kind} scenarios use: ${[...known].sort().join(', ')}${knownExpect.size ? `; expect uses: ${[...knownExpect].sort().join(', ')}` : ''}`);
+    }
+  }
   const mark = l => (l || []).map(s => ({ ...s, own: true }));
   STOP.push(...mark(own.stop)); PRETOOL.push(...mark(own.pretool)); PROMPT.push(...mark(own.prompt));
 }
@@ -1511,7 +1534,7 @@ function explain(query) {
       const dir = copyProject();
       try {
         write(dir, s.setup); applyEdits(dir, s.edit);
-        const tp = transcript(dir, { prompt: s.prompt || 'do the thing', earlierPrompt: s.earlierPrompt, answer: null, tools: s.tools }, Date.now());
+        const tp = transcript(dir, { prompt: s.prompt || 'do the thing', earlierPrompt: s.earlierPrompt, before: s.before, answer: null, tools: s.tools }, Date.now());
         const input = { ...s.input }; if (input.file_path) input.file_path = path.join(dir, input.file_path);
         const { out: o } = run(dir, 'pretool', { tool_name: s.tool, tool_input: input, transcript_path: tp });
         let d = null; try { d = JSON.parse(o); } catch { }
@@ -1584,7 +1607,7 @@ for (const s of PRETOOL) {
     for (const r of s.remove || []) fs.rmSync(path.join(dir, r), { recursive: true, force: true });
     if (s.removeMarker) fs.rmSync(path.join(dir, '.starter-template'), { force: true });
     if (s.prep) s.prep(dir);
-    const tp = transcript(dir, { prompt: s.prompt || 'do the thing', earlierPrompt: s.earlierPrompt, answer: null, tools: s.tools }, Date.now());
+    const tp = transcript(dir, { prompt: s.prompt || 'do the thing', earlierPrompt: s.earlierPrompt, before: s.before, answer: null, tools: s.tools }, Date.now());
     const input = { ...s.input };
     if (input.file_path) input.file_path = path.join(dir, input.file_path);
     const { out, err } = run(dir, 'pretool', { tool_name: s.tool, tool_input: input, transcript_path: tp });
@@ -1884,6 +1907,22 @@ if (mineB()) { // one project's lesson about the engine reaches the starter on i
   } finally { for (const d of [P, S]) fs.rmSync(d, { recursive: true, force: true }); }
 }
 
+if (mineB()) { // research ledger: honest ad labels pass, sellers fail, one media group is one owner, a lead-only claim is unverified
+  // Lesson: "site ads only" failed while "none found" passed, and two sites of one company counted as independent
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-claims-'));
+  try {
+    const row = (id, link, owner, inc, use = 'evidence', type = 'secondary') => `| ${id} | ${link} | ${owner} | ${type} | ${inc} | 2026 | ${use} |`;
+    const ledger = (rows, claims) => `# Research: t\n\n## Sources\n| ID | Link | Owner | Type | Incentive | Date | Use |\n|---|---|---|---|---|---|---|\n${rows.join('\n')}\n\n## Claims\n| Claim | Sources | Quote or data | Status |\n|---|---|---|---|\n${claims.join('\n')}\n\nSources limit: a test with a small set of sources\n\n## Verdict\nok\n`;
+    const check = text => { const f = path.join(dir, 'l.md'); fs.writeFileSync(f, text); return spawnSync(process.execPath, [path.join(ROOT, 'skills/research/scripts/claims.mjs'), 'check', f], { encoding: 'utf8' }).stdout; };
+    const honest = check(ledger([row('S1', 'https://a.example/x', 'Alpha News', 'site ads only, no sponsored content found'), row('S2', 'https://b.example/y', 'Beta Media', 'none found (no sponsorship; the site runs display ads)')], ['| A | S1, S2 | "q" | confirmed |']));
+    const seller = check(ledger([row('S1', 'https://shop.example/boost', 'BoostShop', 'sells raid carries')], ['| A | S1 | "q" | single source |']));
+    const group = check(ledger([row('S1', 'https://gamerant.com/a', 'Game Rant', 'none found'), row('S2', 'https://www.thegamer.com/b', 'TheGamer', 'none found')], ['| A | S1, S2 | "q" | confirmed |']));
+    const lead = check(ledger([row('S1', 'https://a.example/x', 'Alpha News', 'none found'), row('S2', 'https://forum.example/t', 'Forum', 'none found', 'lead only', 'forum')], ['| A | S1 | "q" | single source |', '| B | S2 | "q" | unverified |']));
+    report(/CLAIMS: PASS/.test(honest) && /paid or biased/.test(seller) && /different owners/.test(group) && /CLAIMS: PASS/.test(lead),
+      'research ledger: honest ad labels pass, sellers fail, one media group is one owner, a lead-only claim is unverified', [honest, seller, group, lead].map(s => String(s).trim().split('\n').pop()).join(' | ').slice(0, 400));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
 if (mineB()) { // two sessions in one folder: each keeps its own turn record, so one's request never becomes the other's
   // Lesson: a second session's prompt replaced the first one's turn record, and the first was checked against it
   const dir = copyProject();
@@ -1894,6 +1933,14 @@ if (mineB()) { // two sessions in one folder: each keeps its own turn record, so
     const a = st('turn.aaa.json'), b = st('turn.bbb.json');
     report(/spring/.test(a.prompt || '') && !/login/.test(a.prompt || '') && /login/.test(b.prompt || '') && !!st('snapshot.aaa.json').files,
       'sessions: two sessions in one folder keep separate turn records and snapshots', `${(a.prompt || '').slice(0, 60)} | ${(b.prompt || '').slice(0, 60)}`);
+    // each session's stop rounds are its own: a block in one never resets or adds to the other's count
+    write(dir, { 'docs/menu.md': '# Spring menu\n' });
+    run(dir, 'stop', { session_id: 'aaa', last_assistant_message: 'Wrote the menu.' });
+    run(dir, 'stop', { session_id: 'bbb', last_assistant_message: 'Fixed it.' });
+    run(dir, 'stop', { session_id: 'aaa', last_assistant_message: 'Wrote the menu.', stop_hook_active: true });
+    const count = n => Object.values(st(n))[0] || 0;
+    report(count('stop-blocks.aaa.json') === 2 && count('stop-blocks.bbb.json') === 1 && !fs.existsSync(path.join(dir, 'tools/hooks/state/stop-blocks.json')),
+      'sessions: each session counts its own stop rounds', `aaa ${count('stop-blocks.aaa.json')}, bbb ${count('stop-blocks.bbb.json')}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
