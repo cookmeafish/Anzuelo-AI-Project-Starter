@@ -664,9 +664,10 @@ const PROMPT = [
   { pack: 'knowledge', name: 'routes a research request', prompt: 'can you research the best standing desks', has: ['ROUTE: research'] },
   { name: 'NO RUNBOOK hint for an unrouted task', prompt: 'build me a cleaning rota for the flat', has: ['NO RUNBOOK'] },
   { name: 'route: "don\'t ask me" is a working style, not a request for a plan', prompt: 'just do it and don\'t ask me questions, update the price list', hasNot: ['ROUTE: plan'] },
-  { name: 'closest runbook: other wording for a known job names that runbook instead of NO RUNBOOK', prompt: 'my deck has an issue with lands, sort out the mana base please',
-    setup: { 'docs/playbooks/deck-upgrade.md': '---\nname: deck-upgrade\nsummary: Upgrade a deck - fix its mana base, lands and curve from owned cards\ntriggers: upgrade my deck, improve my deck\n---\n# Deck upgrade\n1. Read the deck.\n' },
-    has: ['CLOSEST RUNBOOK: no trigger phrase matched, but docs/playbooks/deck-upgrade.md'], hasNot: ['NO RUNBOOK'] },
+  // (made-up words, so a project's own runbooks never match the fixture's request)
+  { name: 'closest runbook: other wording for a known job names that runbook instead of NO RUNBOOK', prompt: 'my zorbel has an issue with flimwraps, sort out the grobbles please',
+    setup: { 'docs/playbooks/zorbel-tune.md': '---\nname: zorbel-tune\nsummary: Tune a zorbel - fix its grobbles, flimwraps and quonks\ntriggers: tune my zorbel, improve my zorbel\n---\n# Zorbel tune\n1. Read the zorbel.\n' },
+    has: ['CLOSEST RUNBOOK: no trigger phrase matched, but docs/playbooks/zorbel-tune.md'], hasNot: ['NO RUNBOOK'] },
   { name: 'rule request hint', prompt: 'from now on always give prices in euros', has: ['RULE REQUEST'] },
   { name: 'word routing: key words in any order and with endings still route', prompt: 'please search for the latest version on the web', has: ['SKILL: research'] },
   { name: 'upset-learned: shouting in capitals sends the agent to the learn-from-upset skill', prompt: 'WHY DID YOU SKIP THE SOURCES AGAIN', has: ['THE USER SOUNDS UPSET', 'learn-from-upset'] },
@@ -1954,6 +1955,19 @@ if (mineB()) { // one project's lesson about the engine reaches the starter on i
     const steps = { suspended: /SUSPENDED check:plain-writing/.test(pr), feedback: /check:plain-writing was suspended in a project/.test(fb), reported: /check:plain-writing was suspended/.test(inbox), announced: /FEEDBACK FROM PROJECTS: \d+ engine lesson/.test(ss) };
     report(Object.values(steps).every(Boolean), 'self-improve: an engine check that annoys a project is reported to the starter and announced there', JSON.stringify(steps));
   } finally { for (const d of [P, S]) fs.rmSync(d, { recursive: true, force: true }); }
+}
+
+if (mineB()) { // "hooks.mjs jobs <transcript>": a project's own hook can ask how many background jobs still run
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-jobs-'));
+  try {
+    const launch = { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'j1', name: 'Agent', input: { prompt: 'x', run_in_background: true } }] } };
+    const res = { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'j1', content: 'Async agent launched successfully.\nagentId: abcd1234' }] } };
+    const note = { type: 'user', message: { role: 'user', content: '<task-notification>\n<task-id>abcd1234</task-id>\n<status>completed</status>\n</task-notification>' } };
+    const stop = { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'k9', content: 'Successfully stopped task: abcd1234' }] } };
+    const ask = rows => { const f = path.join(dir, 't.jsonl'); fs.writeFileSync(f, rows.map(r => JSON.stringify(r)).join('\n')); return JSON.parse(spawnSync(process.execPath, [path.join(ROOT, 'tools/hooks/hooks.mjs'), 'jobs', f], { encoding: 'utf8' }).stdout).running; };
+    const running = ask([launch, res]), done = ask([launch, res, note]), killed = ask([launch, res, stop]);
+    report(running === 1 && done === 0 && killed === 0, 'jobs command: counts a running background helper, not one that reported back or was stopped', `running ${running}, done ${done}, stopped ${killed}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
 if (mineB()) { // a patch script whose text names a test is not a run of it; a stopped background job is not waited on

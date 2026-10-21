@@ -30,6 +30,9 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
     "Searched: <what> - nothing found (<where>, <date>)" answers a search that found nothing; "don't ask me" and other
     autonomy phrases no longer route to the plan runbook; a here-document that names a test is not a run of it; a
     watched input the agent itself replaced with a command is not reported as the user's mid-turn update.
+  - `node tools/hooks/hooks.mjs jobs <transcript>` tells a project's own hooks how many background jobs still run, so
+    they can hold their checks the same way; the closest-runbook self-test uses made-up words, so a project's own
+    runbooks can't match it.
   - A new session's first prompt reuses the newest snapshot any session left, instead of hashing the whole project
     again (1.3 s to 0.18 s in a project with many pictures); the agent's copy of a Stop hold stays under 9,000
     characters, with `hooks.mjs why` for the rest.

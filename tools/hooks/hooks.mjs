@@ -4199,6 +4199,15 @@ if (isMain) {
   }
   if (cmd === 'bench') { const b = bench(), budget = config().hookBudgetMs, slow = Object.entries(b).filter(([, v]) => v > budget); console.log(Object.entries(b).map(([k, v]) => `${k} ${v} ms`).join(', ') + ` (budget ${budget} ms)` + (slow.length ? `: TOO SLOW ${slow.map(([k]) => k).join(', ')}` : '')); process.exit(slow.length ? 1 : 0); }
   // the full text of the steps the Stop hook asked for (its message to the user stays short)
+  // for a project's own hooks: how many background helpers or commands of this session are still running, so they can
+  // hold their own work checks the same way. Prints {"running": N, "ids": [...]}; exit 0.
+  // Usage: node tools/hooks/hooks.mjs jobs <transcript.jsonl>   (the hook input's transcript_path)
+  if (cmd === 'jobs') {
+    const f = process.argv[3] || '';
+    const rows = codexRows(read(f).split(/\r?\n/).filter(l => l.trim()).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean));
+    const ids = rows.length ? backgroundRunning(rows) : [];
+    console.log(JSON.stringify({ running: ids.length, ids })); process.exit(0);
+  }
   // the session and prompt notices in full, when a host cut a long hook output down (fitOutput)
   // waive a step that truly does not apply, out of the user's answer: the Stop hook reads it from this turn's commands
   if (cmd === 'waive') { const [tag, ...why] = process.argv.slice(3); if (!tag || why.join(' ').trim().split(/\s+/).length < 3) { console.log('usage: node tools/hooks/hooks.mjs waive <name> "<the specific reason, a few words>"'); process.exit(2); } console.log(`waived for this turn: ${tag} (${why.join(' ').trim()})`); process.exit(0); }
