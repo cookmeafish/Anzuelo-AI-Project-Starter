@@ -14,7 +14,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { ROOT, config, usageOf } from './hooks/hooks.mjs';
+import { ROOT, config, usageOf, bulkDir } from './hooks/hooks.mjs';
 
 const args = process.argv.slice(2);
 if (args.includes('--help')) { console.log(usageOf(import.meta.url)); process.exit(0); }
@@ -49,7 +49,7 @@ const texts = [];
   let ents; try { ents = fs.readdirSync(path.join(ROOT, d || '.'), { withFileTypes: true }); } catch { return; }
   for (const e of ents) {
     const p = d ? `${d}/${e.name}` : e.name;
-    if (e.isDirectory()) { if (!SKIP.test(e.name) && !dirs.some(x => p === x)) scan(p); continue; }
+    if (e.isDirectory()) { if (!SKIP.test(e.name) && !bulkDir(path.join(ROOT, d || '.'), e.name) && !dirs.some(x => p === x)) scan(p); continue; }
     // the engine's own code and docs name sample files, not the project's pictures
     if (!TEXT.test(e.name) || p === 'docs/CHANGELOG.md' || /^(tools\/hooks|skills|packs|library|\.githooks)\//.test(p) || /^tools\/(trial|new-project|dedupe)\.mjs$/.test(p)) continue;
     try { const s = fs.statSync(path.join(ROOT, p)); if (s.size < 2e6) texts.push({ p, t: fs.readFileSync(path.join(ROOT, p), 'utf8') }); } catch { }

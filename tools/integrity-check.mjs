@@ -17,12 +17,15 @@ const hi = args.indexOf('--hours');
 const hours = hi >= 0 ? Number(args[hi + 1]) : 24;
 const given = args.filter((a, i) => !a.startsWith('--') && args[i - 1] !== '--hours');
 const SKIP = /^(\.git|node_modules|\.cache|dist|build|\.claude|\.agents|\.gemini|tools[\\/]hooks[\\/]state)$/;
+// installed dependencies and virtual environments are not work that an interruption could have cut short (hooks.mjs
+// bulkDir). Lesson: a fresh .venv's files were reported at session start as having unresolved merge markers.
+const { bulkDir } = await import('./hooks/hooks.mjs').catch(() => ({ bulkDir: (d, n) => /^(\.venv|venv|__pycache__|site-packages)$/.test(n) }));
 
 const files = [];
 if (given.length) files.push(...given.map(f => path.resolve(f)));
 else {
   const since = Date.now() - hours * 3600_000;
-  const walk = d => { for (const n of fs.readdirSync(d)) { if (SKIP.test(n)) continue; const p = path.join(d, n); const s = fs.statSync(p); if (s.isDirectory()) walk(p); else if (s.mtimeMs > since) files.push(p); } };
+  const walk = d => { for (const n of fs.readdirSync(d)) { if (SKIP.test(n)) continue; const p = path.join(d, n); const s = fs.statSync(p); if (s.isDirectory()) { if (!bulkDir(d, n)) walk(p); } else if (s.mtimeMs > since) files.push(p); } };
   walk(ROOT);
 }
 

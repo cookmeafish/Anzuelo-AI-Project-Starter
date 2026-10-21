@@ -26,6 +26,23 @@ const list = d => { try { return fs.readdirSync(abs(d || '.')); } catch { return
 // A folder walk never follows a link or junction (it throws, and the walker skips the entry). Lesson: a workspace link
 // in packages/*/node_modules pointing back into the repo made the prompt hook loop past its timeout.
 const walkStat = p => { const s = fs.lstatSync(abs(p)); if (s.isSymbolicLink()) throw new Error('link'); return s; };
+// Folders that are never the project's own work: installed dependencies, virtual environments (any name: they hold a
+// pyvenv.cfg), tool caches (CACHEDIR.TAG), and, for kind "all", build output. "target", "vendor", "out", "bin" and "obj"
+// count only next to the build file that makes them, since a project may name a folder of its own that way.
+// Lesson: two setup audits walked a Python project's .venv for 19 minutes, and the session-start check reported merge
+// markers inside it.
+const DEP_DIRS = /^(node_modules|\.venv|venv|__pycache__|\.tox|\.nox|\.mypy_cache|\.pytest_cache|\.ruff_cache|\.gradle|\.dart_tool|\.terraform|\.next|\.nuxt|\.svelte-kit|\.turbo|\.parcel-cache|\.eggs|bower_components|jspm_packages|site-packages)$/;
+const BUILD_FILES = /^(Cargo\.toml|pom\.xml|build\.gradle(\.kts)?|settings\.gradle(\.kts)?|go\.mod|composer\.json|Gemfile|[^.]+\.(csproj|fsproj|vbproj|sln))$/;
+export function bulkDir(parentAbs, name, kind = 'all') {
+  if (DEP_DIRS.test(name)) return true;
+  const at = path.join(parentAbs, name);
+  if (fs.existsSync(path.join(at, 'pyvenv.cfg')) || fs.existsSync(path.join(at, 'CACHEDIR.TAG'))) return true;
+  if (/^vendor$/.test(name) && (fs.existsSync(path.join(at, 'modules.txt')) || fs.existsSync(path.join(at, 'autoload.php')))) return true;
+  if (kind !== 'all') return false;
+  if (/^(dist|build)$/.test(name)) return true;
+  if (!/^(target|vendor|out|bin|obj)$/.test(name)) return false;
+  try { return fs.readdirSync(parentAbs).some(n => BUILD_FILES.test(n)); } catch { return false; }
+}
 const esc = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const localDate = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 export const today = () => localDate(); // the user's calendar day, not UTC
@@ -1160,13 +1177,19 @@ function readsOf(uses) {
 }
 
 // Each shell run with its output, in order: lets checks require that a validator PASSED, not just that it ran.
-// Everything the self-tests depend on, as one hash: the engine and the project's checks, rules, runbooks, skills and
-// security log. A full self-test pass stays valid while it is unchanged (audit --setup reuses it).
+// Everything the self-tests read, as one hash: the engine, the project's checks, rules, runbooks and skills, and its
+// decisions and security log as the test copies keep them. A full self-test pass stays valid while it is unchanged
+// (audit --setup reuses it). The test copies drop the setup interview, upgrade reviews and dropped rules from
+// DECISIONS.md, the review rows from security.md, and use a placeholder names.json, so those parts don't count.
+// Lesson: the setup interview and the security review changed the hash at every setup step, so the reuse never applied.
 export function testInputsHash() {
-  const h = createHash('sha1'), add = p => { try { h.update(p + '\0'); h.update(fs.readFileSync(abs(p))); } catch { } };
+  const h = createHash('sha1'), addText = (p, t) => { h.update(p + '\0'); h.update(t); }, add = p => { try { addText(p, fs.readFileSync(abs(p))); } catch { } };
   const walk = (d, rx) => { for (const n of list(d).sort()) { const p = `${d}/${n}`; let s; try { s = walkStat(p); } catch { continue; } if (s.isDirectory()) { if (n !== 'state') walk(p, rx); } else if (rx.test(n) && n !== 'starter.local.json') add(p); } };
   walk('tools', /\.(mjs|json)$/); walk('docs/checks', /\.md$/); walk('docs/playbooks', /\.md$/); walk(config().skillsDir, /\.(md|mjs)$/);
-  for (const f of ['AGENTS.md', 'docs/security.md', 'docs/names.json', 'docs/DECISIONS.md']) add(f);
+  add('AGENTS.md');
+  const tidy = t => t.replace(/[ \t]+$/gm, '').replace(/\n{3,}/g, '\n\n').trim();
+  addText('docs/DECISIONS.md', tidy(read(abs('docs/DECISIONS.md')).replace(/^## (Setup interview|Upgrade review|Dropped rules)[^\n]*\n(?:(?!## )[^\n]*\n?)*/gm, '')));
+  addText('docs/security.md', tidy(read(abs('docs/security.md')).replace(/^\|\s*\d{4}-\d{2}-\d{2}\s*\|.*$/gm, '')));
   return h.digest('hex').slice(0, 16);
 }
 // The run log: commands with their results, for agents whose tool history can't be read. The audit and the self-tests
@@ -2124,7 +2147,7 @@ export function projectSurvey({ git = true } = {}) {
     let ents; try { ents = fs.readdirSync(path.join(ROOT, d || '.'), { withFileTypes: true }); } catch { return; }
     for (const e of ents) {
       const p = d ? `${d}/${e.name}` : e.name;
-      if (e.isDirectory()) { if (!SURVEY_SKIP.test(e.name)) walk(p); continue; }
+      if (e.isDirectory()) { if (!SURVEY_SKIP.test(e.name) && !bulkDir(path.join(ROOT, d || '.'), e.name, 'deps')) walk(p); continue; }
       if (SURVEY_STARTER.test(p) || files.length > 20000) continue;
       let size = 0; try { size = fs.statSync(path.join(ROOT, p)).size; } catch { }
       files.push({ p, size });
@@ -3799,10 +3822,13 @@ export function coreChecks(x, cfg) {
     else if (need.all || need.tags.length) {
       const how = need.all ? 'node tools/hooks/selfcheck.mjs' : `node tools/hooks/selfcheck.mjs --tags ${need.tags.join(',')}`;
       const covers = r => !/--route|--ablation/.test(r.cmd) && (!/--tags/.test(r.cmd) || (!need.all && need.tags.every(t => new RegExp(`--tags[= ]["']?[\\w,-]*\\b${esc(t)}\\b`).test(r.cmd))));
-      const tests = x.runs.filter(r => /selfcheck\.mjs/.test(r.cmd) && covers(r));
+      // an audit that ran the whole self-test (--setup, --full) counts as that run, so setup runs the suite once
+      // Lesson: setup ran the self-tests and then the audit, which ran them again, under load past the time limits.
+      const viaAudit = r => /\baudit\.mjs\b[^\n]*--(setup|full)\b/.test(cmdHead(r.cmd)) && /hook self-tests\s+\((selfcheck: (ALL PASS|FAIL)|passed earlier)|FAIL\s+\d+\. hook self-tests/.test(r.out || '');
+      const tests = x.runs.filter(r => (/selfcheck\.mjs/.test(r.cmd) && covers(r)) || viaAudit(r));
       // without a transcript, x.runs is the run log (the self-tests record themselves), so the same rule applies
       if (!tests.length) add('hooks-tested', `${need.all ? 'The hook logic changed' : `The checks ${need.tags.join(', ')} changed`}: run ${how} and fix any FAIL (fix the hook, not the test) before finishing.`);
-      else if (tests[tests.length - 1].out && !/ALL PASS/.test(tests[tests.length - 1].out))
+      else if (tests[tests.length - 1].out && !/ALL PASS|hook self-tests\s+\(passed earlier/.test(tests[tests.length - 1].out))
         add('hooks-tested', `The last run of ${how} did not print ALL PASS. Fix the failures (the hook, not the test) and run it again.`);
     }
   }

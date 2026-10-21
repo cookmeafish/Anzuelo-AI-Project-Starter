@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 // Self-tests for tools/hooks/hooks.mjs. Each scenario runs the real hook in a throwaway copy of this project, with a
 // synthetic transcript, and checks that skipping a rule is blocked and following it passes.
-//   node tools/hooks/selfcheck.mjs              run every scenario
+//   node tools/hooks/selfcheck.mjs              run every scenario (in a project, the engine's results are reused when
+//                                               this engine already passed in full here today: see the first line)
+//   node tools/hooks/selfcheck.mjs --full       run every scenario, never reusing the engine's results
+//   node tools/hooks/selfcheck.mjs --which-mode which mode a whole run would take, and why
 //   node tools/hooks/selfcheck.mjs --route "…"  show which runbooks a message routes to, plus all prompt hints
 //   node tools/hooks/selfcheck.mjs --explain "<scenario name>"  every check that fires for that scenario, with what satisfies it
 //   node tools/hooks/selfcheck.mjs --contract   the project's own hooks ("externalHooks") still read what the engine prints
@@ -12,6 +15,7 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { engineStamp, findPass, recordPass, localDay, SMOKE_EVERY, lockState, takeLock, releaseLock, otherSuites, registerSuite, shardCount } from './selftest-cache.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 // The self-tests make throwaway projects from this copy on purpose, even when it is a development copy (.starter-dev).
@@ -66,8 +70,12 @@ function buildBase(host) {
   // twice as long, copying a venv and a game engine's import cache dozens of times.
   const ignored = new Set((() => { try { return fs.readFileSync(path.join(ROOT, '.gitignore'), 'utf8').split(/\r?\n/).map(l => l.trim().replace(/^\/|\/$/g, '')).filter(l => l && !/[*!#?\[]/.test(l) && !l.includes('/')); } catch { return []; } })());
   const BULK = /^(venv|\.venv|__pycache__|dist|build|target|obj|coverage|\.godot|\.import|Library|Temp|\.gradle|\.dart_tool|\.next|\.turbo)$/;
+  // dependency folders and caches are skipped at any depth, and so is any virtual environment (it has a pyvenv.cfg)
+  // Lesson: a Python project's nested __pycache__ folders reached the fixtures-only base and changed its stamp.
+  const DEEP = /^(__pycache__|\.venv|venv|\.tox|\.nox|\.mypy_cache|\.pytest_cache|\.ruff_cache|\.gradle|\.dart_tool|\.next|\.nuxt|\.turbo|\.parcel-cache|site-packages|bower_components)$/;
   fs.cpSync(ROOT, BASE, { recursive: true, filter: s => { const n = path.basename(s), top = path.relative(ROOT, s).split(path.sep).length === 1;
     if (SKIP_DIRS.has(n)) return false;
+    if (DEEP.test(n) || fs.existsSync(path.join(s, 'pyvenv.cfg'))) { try { return !fs.statSync(s).isDirectory(); } catch { return true; } }
     if (!top || !(BULK.test(n) || (ignored.has(n) && !/^(tools|skills|docs|\.githooks|\.claude)$/.test(n)))) return true;
     try { return !fs.statSync(s).isDirectory(); } catch { return true; } } });
   const node = (...a) => spawnSync(process.execPath, a, { cwd: BASE, encoding: 'utf8', env: { ...process.env, STARTER_MEMORY_DIR: path.join(BASE, '.memtest') } });
@@ -124,7 +132,9 @@ function buildBase(host) {
   const cfgPath = at('tools/hooks/config.json');
   // the fixtures-only base: the starter's config as shipped, with the packs this base installs; without the starter at
   // hand, the project's own minus its own hooks (the keys below go in both cases)
-  if (shippedCfg) { let packs = []; try { packs = JSON.parse(fs.readFileSync(cfgPath, 'utf8')).packs || []; } catch { } fs.writeFileSync(cfgPath, JSON.stringify({ ...shippedCfg, packs: [...new Set([...(shippedCfg.packs || []), ...packs])] }, null, 2) + '\n'); }
+  // (the project's own packs only when their payloads are not here: every pack whose payload is here gets installed
+  // below anyway, so the project's list adds nothing but a stamp that differs from project to project)
+  if (shippedCfg) { let packs = []; try { packs = JSON.parse(fs.readFileSync(cfgPath, 'utf8')).packs || []; } catch { } packs = packs.filter(p => !fs.existsSync(at(`packs/${p}/pack.json`))); fs.writeFileSync(cfgPath, JSON.stringify({ ...shippedCfg, packs: [...new Set([...(shippedCfg.packs || []), ...packs])] }, null, 2) + '\n'); }
   const cfg0 = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
   if (!host && !IS_STARTER) { delete cfg0.externalHooks; delete cfg0.hookContract; }
   // (protectedBranches too: a project that works on main sets it to [], and the push fixtures expect the defaults)
@@ -199,7 +209,39 @@ function fixturesOnly(at, src) {
     }
     fs.writeFileSync(at(f), JSON.stringify(j, null, 2) + '\n');
   }
+  // The checks: the core ones as this engine ships them (its own engine-checks.json); the packs and library skills the
+  // base installs add theirs as shipped. The project's own checks and its edits of engine checks are not fixtures.
+  try {
+    const core = JSON.parse(fs.readFileSync(at('tools/hooks/engine-checks.json'), 'utf8')).requirements.filter(r => r && !r.pack && !r.skill);
+    if (core.length) fs.writeFileSync(at('tools/hooks/requirements.json'), JSON.stringify({ requirements: core }, null, 2) + '\n');
+  } catch { }
+  // The project's records and rule files as the starter ships them, and none of its own tools: the engine's scenarios
+  // must not change with the project's notes, so their result can be reused while the engine is the same
+  // (selftest-cache.mjs). Lesson: every setup step changed the brief, rules or changelog, and the full self-test ran again.
+  if (src) {
+    const RECORDS = ['AGENTS.md', 'README.md', 'DIRECTORY.md', 'HOW-TO-USE.md', 'SETUP-PROMPT.md', '.gitignore', 'docs/BRIEF.md', 'docs/STATUS.md', 'docs/CHANGELOG.md',
+      'docs/DECISIONS.md', 'docs/MENU.md', 'docs/security.md', 'docs/foundation.md', 'docs/glossary.md', 'docs/lessons.md', 'docs/recommended-tools.md', 'tools/hooks/project-scenarios.mjs'];
+    for (const rel of RECORDS) { const from = path.join(src, rel); if (fs.existsSync(from)) fs.copyFileSync(from, at(rel)); else fs.rmSync(at(rel), { force: true }); }
+    if (fs.existsSync(at('AGENTS.md'))) fs.copyFileSync(at('AGENTS.md'), at('CLAUDE.md'));
+    const packFile = rel => packs.map(p => path.join(at('packs'), p, 'files', rel)).find(p => fs.existsSync(p)) || null;
+    fs.mkdirSync(at('docs/checks'), { recursive: true });
+    for (const n of new Set([...ls(at('docs/checks')), ...ls(path.join(src, 'docs/checks'))])) {
+      const rel = `docs/checks/${n}`, from = [path.join(src, rel), packFile(rel)].find(p => p && fs.existsSync(p) && fs.statSync(p).isFile());
+      if (from) fs.copyFileSync(from, at(rel)); else if (!/^flows$/.test(n)) fs.rmSync(at(rel), { recursive: true, force: true });
+    }
+    const walkTools = rel => { for (const n of ls(at(rel))) { const r = `${rel}/${n}`; if (r === 'tools/hooks/state' || r === 'tools/starter.local.json') continue;
+      let s; try { s = fs.statSync(at(r)); } catch { continue; }
+      if (s.isDirectory()) walkTools(r); else if (!fs.existsSync(path.join(src, r)) && !packFile(r) && !/^tools\/packs-registry\.json$/.test(r)) fs.rmSync(at(r), { force: true }); } };
+    walkTools('tools');
+  }
   try { return src ? JSON.parse(fs.readFileSync(path.join(src, 'tools/hooks/config.json'), 'utf8')) : null; } catch { return null; }
+}
+// The engine stamp (selftest-cache.mjs): the fixtures-only base's files, plus what the engine's tests read from the real
+// project outside the base (the research skill's claims script, and whether git tracks .obsidian here).
+function engineStampHere() {
+  const rd = p => { try { return fs.readFileSync(path.join(ROOT, p), 'utf8'); } catch { return ''; } };
+  const obs = (spawnSync('git', ['ls-files', '.obsidian'], { cwd: ROOT, encoding: 'utf8' }).stdout || '').trim() ? 'tracked' : '';
+  return engineStamp(base(), [['claims.mjs', rd('skills/research/scripts/claims.mjs')], ['obsidian', obs]]);
 }
 function copyProject(host = false) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-'));
@@ -1229,7 +1271,19 @@ STOP.push(
   { name: 'hooks-tested: a changed check needs its own scenarios (selfcheck --tags): blocked', prompt: 'add a check for meal plans', tools: [pb('project'), bash('node tools/audit.mjs')],
     prep: turnStart('requirements.json', NEW_CHECK), files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.' + FIN, expect: { block: true, tags: ['hooks-tested'], says: /--tags meal-ok/ } },
   { name: 'hooks-tested: the changed check\'s scenarios ran and passed: passes', prompt: 'add a check for meal plans', tools: [pb('project'), bash('node tools/audit.mjs'), bash('node tools/hooks/selfcheck.mjs --tags meal-ok', 'selfcheck: ALL PASS (2 passed, 0 failed)')],
-    prep: turnStart('requirements.json', NEW_CHECK), files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.' + FIN, expect: { block: false, not: ['hooks-tested'] } }
+    prep: turnStart('requirements.json', NEW_CHECK), files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.' + FIN, expect: { block: false, not: ['hooks-tested'] } },
+  // an audit --setup that ran the whole self-test counts as that run, so setup runs the suite once; one whose self-tests
+  // failed counts as the last run too, so an earlier pass can't cover it
+  { name: 'hooks-tested: audit --setup ran the self-tests and they passed: passes', prompt: 'add a check for meal plans', tools: [pb('project'),
+    bash('node tools/audit.mjs --setup', 'PASS  30. hook self-tests  (selfcheck: ALL PASS (20 passed, 0 failed))\n\naudit: PASS (31 sweeps, 0 failed, 0 warnings)')],
+    prep: turnStart('requirements.json', NEW_CHECK), files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.' + FIN, expect: { not: ['hooks-tested'] } },
+  { name: 'hooks-tested: audit --setup whose self-tests failed, after an earlier pass: blocked', prompt: 'add a check for meal plans', tools: [pb('project'),
+    bash('node tools/hooks/selfcheck.mjs --tags meal-ok', 'selfcheck: ALL PASS (2 passed, 0 failed)'),
+    bash('node tools/audit.mjs --setup', 'FAIL  30. hook self-tests\n        - selfcheck: FAIL (19 passed, 1 failed)\n\naudit: FAIL (31 sweeps, 1 failed, 0 warnings)')],
+    prep: turnStart('requirements.json', NEW_CHECK), files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.' + FIN, expect: { block: true, tags: ['hooks-tested'] } },
+  { name: 'hooks-tested: an audit --setup whose self-tests timed out does not count: blocked', prompt: 'add a check for meal plans', tools: [pb('project'),
+    bash('node tools/audit.mjs --setup', 'WARN  30. hook self-tests\n        - timed out after 45 minutes; run node tools/hooks/selfcheck.mjs alone\n\naudit: PASS (31 sweeps, 0 failed, 1 warnings)')],
+    prep: turnStart('requirements.json', NEW_CHECK), files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.' + FIN, expect: { block: true, tags: ['hooks-tested'] } }
 );
 
 PRETOOL.push(
@@ -1393,8 +1447,8 @@ const TRIGGER_TAGS = ['trigger-recall', 'trigger-quiet'];
 const TRIGGER_FLOOR = 0.95; // 2026-10-19: 351 of 355 (98.9%) with every pack and library skill installed
 
 let pass = 0, fail = 0;
-const PASSED = [];
-const report = (ok, name, why = '') => { if (ok) PASSED.push(name); ok ? pass++ : fail++; console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${ok ? '' : '  -> ' + why}`); };
+const PASSED = [], FAILED = [], FAIL_LINES = [];
+const report = (ok, name, why = '') => { if (ok) PASSED.push(name); else { FAILED.push(name); FAIL_LINES.push(`FAIL  ${name}  -> ${why}`); } ok ? pass++ : fail++; console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${ok ? '' : '  -> ' + why}`); };
 function applyEdits(dir, edits, when = Date.now() - 3600_000) { for (const [p, fn] of Object.entries(edits || {})) { const f = path.join(dir, p); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, fn(fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : '')); fs.utimesSync(f, when / 1000, when / 1000); } }
 // The fit checklist filled the way setup fills it: what is in the project is "add", the rest "skip", each with its own
 // reason that answers the survey's signals (node tools/fit.mjs --json). Extra decisions override single rows.
@@ -1822,6 +1876,43 @@ if (process.argv.includes('--fixture-base')) {
   console.log(JSON.stringify({ fixture: what(base()), host: what(base(true)) }));
   process.exit(0);
 }
+// --fixture-manifest: every file of the fixtures-only base with its hash, and the engine stamp made from them (what the
+// engine-result cache keys on), so a stamp that changes when it should not can be traced to the file.
+if (process.argv.includes('--fixture-manifest')) {
+  const { manifest } = await import('./selftest-cache.mjs');
+  console.log(JSON.stringify({ stamp: engineStampHere(), files: Object.fromEntries(manifest(base())) }, null, 1));
+  process.exit(0);
+}
+
+// One whole run at a time per project (selftest-cache.mjs). A run started while another is going waits for it and
+// reuses its result, so an audit started next to a self-test, or a second try while the first still runs in the
+// background, costs nothing extra. A lock whose process is gone is taken over.
+// (--which-mode: print which mode a whole run would take, and why, then stop; it takes no lock)
+const PLAIN_RUN = !TAGS && !process.argv.includes('--shard') && !process.argv.includes('--ablation') && !process.argv.includes('--explain');
+const WHOLE_RUN = PLAIN_RUN && !process.argv.includes('--which-mode');
+const LOCK = path.join(ROOT, 'tools/hooks/state/selftest.lock'), LAST = path.join(ROOT, 'tools/hooks/state/selftest-last.json');
+if (WHOLE_RUN) {
+  let got = takeLock(LOCK, { cmd: process.argv.slice(2).join(' ') });
+  if (!got.taken) {
+    const h = got.holder, t0 = Date.now();
+    console.log(`selfcheck: another run of the self-tests (process ${h.pid}, started ${String(h.at).slice(11, 16)} UTC) is going in this project: waiting for it and reusing its result instead of running a second one`);
+    let st;
+    while ((st = lockState(LOCK)) && !st.stale && st.pid === h.pid) await new Promise(r => setTimeout(r, 2000));
+    const last = (() => { try { return JSON.parse(fs.readFileSync(LAST, 'utf8')); } catch { return null; } })();
+    if (last && last.pid === h.pid && Array.isArray(last.lines) && Date.parse(last.at) >= Date.parse(h.at) && (!process.argv.includes('--full') || last.mode === 'full')) {
+      console.log(`selfcheck: waited ${Math.round((Date.now() - t0) / 1000)} s; its result:`);
+      for (const l of last.lines) console.log(l);
+      process.exit(last.code ? 1 : 0);
+    }
+    console.log(`selfcheck: that run ended without a result (stopped or killed): running the self-tests here`);
+    got = takeLock(LOCK, { cmd: process.argv.slice(2).join(' ') });
+  }
+  process.on('exit', () => releaseLock(LOCK));
+  for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) try { process.on(sig, () => process.exit(130)); } catch { }
+}
+// every run counts toward the load other runs on this machine see (shardCount)
+const unregisterSuite = process.argv.includes('--shard') ? () => { } : registerSuite({ root: ROOT });
+process.on('exit', () => unregisterSuite());
 
 // A scenario for a pack this project doesn't have (it names a runbook or a check that isn't here) is skipped, so a
 // knowledge-only project still runs every test that applies to it. The starter installs every pack, so it runs all.
@@ -1937,15 +2028,39 @@ const SHARD = (() => { const i = process.argv.indexOf('--shard'), m = /^(\d+)\/(
 const HELPER = !!SHARD;
 if (TAGS) {
   const all = [...STOP, ...PRETOOL, ...PROMPT];
-  for (const t of TAGS) if (!HELPER && !TRIGGER_TAGS.includes(t) && !all.some(s => proves(s).includes(t))) report(false, `tags: a scenario proves ${t}`, `no scenario proves "${t}": add one to tools/hooks/project-scenarios.mjs (blocked when skipped, passes when followed)`);
+  for (const t of TAGS) if (!HELPER && !TRIGGER_TAGS.includes(t) && t !== 'selftest-speed' && !all.some(s => proves(s).includes(t))) report(false, `tags: a scenario proves ${t}`, `no scenario proves "${t}": add one to tools/hooks/project-scenarios.mjs (blocked when skipped, passes when followed)`);
   for (const list of [STOP, PRETOOL, PROMPT]) { const keep = list.filter(s => proves(s).length); list.length = 0; list.push(...keep); }
 }
 
-const SHARDS = HELPER ? SHARD.n : process.env.SELFCHECK_SERIAL ? 1 : Math.max(1, Math.min(12, os.cpus().length - 1, Math.ceil((STOP.length + PRETOOL.length + PROMPT.length) / 40)));
+// Engine results reused (selftest-cache.mjs). In a project, a whole run whose engine stamp matches a recorded full
+// pass runs only what depends on the project: its own scenarios, the check of its own check patterns, and a smoke set
+// of every SMOKE_EVERY-th engine scenario. --full, a changed engine file, another Node major version, another platform
+// or another day runs everything. The starter always runs everything.
+// Lesson: every new project ran the whole 730-test suite during setup, 2 or 3 times, for an engine nobody had changed.
+let STAMP = null, REUSED = null, MODE_WHY = '';
+if (HELPER) REUSED = process.argv.includes('--reuse-engine') ? {} : null;
+else if (!IS_STARTER && PLAIN_RUN) {
+  STAMP = engineStampHere();
+  if (process.argv.includes('--full')) MODE_WHY = '--full asks for every test';
+  else if ((REUSED = findPass(STAMP))) MODE_WHY = `this engine (stamp ${STAMP.slice(0, 8)}: its files, Node ${process.versions.node.split('.')[0]}, ${process.platform}, ${localDay()}) passed all ${REUSED.passed} engine tests at ${String(REUSED.at).slice(11, 16)} UTC`;
+  else MODE_WHY = `no full pass is recorded for this engine yet (stamp ${STAMP.slice(0, 8)}: its files, Node major, platform and today's date)`;
+}
+const REUSE = !!REUSED;
+const isEngine = s => !s.own;
+const SMOKE = new Set([...STOP, ...PRETOOL, ...PROMPT].filter(isEngine).filter((_, i) => i % SMOKE_EVERY === 0));
+let reusedCount = 0;
+if (REUSE) for (const list of [STOP, PRETOOL, PROMPT]) { const keep = list.filter(s => !isEngine(s) || SMOKE.has(s)); reusedCount += list.length - keep.length; list.length = 0; list.push(...keep); }
+if (!HELPER) console.log(TAGS ? `selfcheck mode: tags (${TAGS.join(', ')})` : IS_STARTER ? 'selfcheck mode: full (the starter always runs every test)'
+  : REUSE ? `selfcheck mode: engine results reused, because ${MODE_WHY}. Running the project's own scenarios and checks and ${SMOKE.size} engine smoke scenarios. node tools/hooks/selfcheck.mjs --full runs everything.`
+  : `selfcheck mode: full, because ${MODE_WHY || 'this run is not a whole run'}.${STAMP ? ' When every engine test passes, that is recorded, and the next run with this engine reuses it.' : ''}`);
+if (process.argv.includes('--which-mode')) process.exit(0);
+
+// helpers: as many as the machine has CPUs for, shared with the self-test runs already going on it (shardCount)
+const SHARDS = HELPER ? SHARD.n : process.env.SELFCHECK_SERIAL ? 1 : shardCount({ others: otherSuites(), tests: STOP.length + PRETOOL.length + PROMPT.length });
 const MINE = HELPER ? SHARD.i : 0;
 let nth = 0; const mine = () => nth++ % SHARDS === MINE; // one counter across the three lists, so the shares even out
 const helpers = HELPER ? [] : Array.from({ length: SHARDS - 1 }, (_, k) => new Promise(done => {
-  const c = spawn(process.execPath, [fileURLToPath(import.meta.url), '--shard', `${k + 1}/${SHARDS}`, ...(TAGS ? ['--tags', TAGS.join(',')] : [])], { cwd: process.cwd(), env: process.env });
+  const c = spawn(process.execPath, [fileURLToPath(import.meta.url), '--shard', `${k + 1}/${SHARDS}`, ...(TAGS ? ['--tags', TAGS.join(',')] : []), ...(REUSE ? ['--reuse-engine'] : [])], { cwd: process.cwd(), env: process.env });
   let out = ''; c.stdout.on('data', d => { out += d; }); c.stderr.on('data', d => { out += d; }); c.on('close', code => done({ out, code }));
 }));
 
@@ -2015,7 +2130,10 @@ for (const s of PROMPT) {
 }
 
 // the standalone tests below are shared out like the scenarios: each process runs every SHARDS-th one
-let nb = 0; const mineB = () => nb++ % SHARDS === MINE;
+// (mineB: an engine test, which reused engine results skip; mineP: one that reads the project itself, which always runs)
+let nb = 0; const nextB = () => nb++ % SHARDS === MINE;
+const mineB = () => nextB() && !REUSE, mineP = () => nextB();
+const PROJECT_TESTS = new Set(); // report names of the tests that depend on the project: never part of an engine pass
 
 // trigger-recall / trigger-quiet: every message in tools/hooks/trigger-cases.mjs goes through the engine's prompt hints
 // (what --route shows) and, for "CHECK: <tag>", the check's own promptMatches. A near miss ("quiet") that sets off a
@@ -2177,6 +2295,138 @@ if (mineB() && (!TAGS || TAGS.includes('check-preview'))) {
       `command: ${cmd || '(not in the preview)'} | exit ${c.status}: ${c.stdout.slice(0, 300)} | state written: ${wrote.join(', ') || 'none'}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
+// --- the cost of the self-tests in a project (tag selftest-speed): engine-result cache, one run at a time, helpers
+// scaled to the load, the audit's self-test sweep, the audit's reuse hash, and walks that skip dependency folders.
+const SPEED = !TAGS || TAGS.includes('selftest-speed');
+const nodeIn = (dir, args, env = {}, timeout = 300_000) => spawnSync(process.execPath, args, { cwd: dir, encoding: 'utf8', timeout, maxBuffer: 64 * 1024 * 1024, env: { ...process.env, STARTER_MEMORY_DIR: path.join(dir, '.memtest'), ...env } });
+if (mineB() && SPEED) { // engine-cache: the stamp follows the base's files, Node major, platform and day; a pass is found for its stamp only
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-'));
+  try {
+    write(dir, { 'a/x.txt': 'one', 'b.json': '{}', 'tools/hooks/state/s.json': '1' });
+    const at = (o = {}) => engineStamp(dir, o.extra || [], { day: '2026-10-21', node: '24.1.0', platform: 'win32', ...o });
+    const s1 = at(), sameMajor = at({ node: '24.9.0' });
+    write(dir, { 'tools/hooks/state/s.json': '2' }); const stateOnly = at();
+    write(dir, { 'a/x.txt': 'two' }); const changed = at(); write(dir, { 'a/x.txt': 'one' });
+    const others = [changed, at({ node: '22.3.0' }), at({ platform: 'linux' }), at({ day: '2026-10-22' }), at({ extra: [['claims', 'x']] })];
+    const cache = path.join(dir, 'tools/hooks/state/cache/passes.json'); // (hook state: outside what the stamp reads)
+    const rec = recordPass(s1, { passed: 5 }, cache);
+    report(sameMajor === s1 && stateOnly === s1 && at() === s1 && others.every(s => s !== s1) && new Set(others).size === others.length && rec && findPass(s1, cache)?.passed === 5 && !findPass(changed, cache),
+      'engine-cache: the stamp changes with an engine file, the Node major version, the platform, the day or an outside input, not with hook state; a pass is found for its own stamp only',
+      JSON.stringify({ s1, sameMajor, stateOnly, others, rec }));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+if (mineB() && SPEED) { // engine-cache in a project: full without a recorded pass, reused with one (project notes and own scenarios
+  // don't change the stamp, and the own scenarios still run), full again with --full or after an engine file changed
+  const dir = copyProject(), tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-'));
+  try {
+    fs.rmSync(path.join(dir, '.starter-template'), { force: true });
+    write(dir, { 'tools/starter.local.json': JSON.stringify({ path: ROOT }) });
+    const env = { STARTER_SELFTEST_CACHE: path.join(tmp, 'passes.json'), STARTER_SELFTEST_RUNNING: path.join(tmp, 'running') };
+    const mode = (...a) => { const r = nodeIn(dir, ['tools/hooks/selfcheck.mjs', '--which-mode', ...a], env); return (/^selfcheck mode: .*$/m.exec(r.stdout) || [`(no mode line) ${r.stdout.slice(-300)} ${r.stderr.slice(-300)}`])[0]; };
+    const first = mode();
+    const manifestNow = () => { try { return JSON.parse(nodeIn(dir, ['tools/hooks/selfcheck.mjs', '--fixture-manifest'], env).stdout); } catch { return { files: {} }; } };
+    const before = manifestNow(), stamp = before.stamp || '';
+    if (stamp) recordPass(stamp, { passed: 700 }, env.STARTER_SELFTEST_CACHE);
+    // the project's own notes and rules change, and it gets a scenario of its own that fails
+    for (const f of ['AGENTS.md', 'CLAUDE.md']) fs.appendFileSync(path.join(dir, f), '\n- short answers (2026-10-21)\n');
+    write(dir, { 'docs/STATUS.md': '# Status\n## Now\n- set up\n', 'tools/hooks/project-scenarios.mjs': "export default () => ({ stop: [], pretool: [], prompt: [{ name: 'own probe: runs with engine results reused', prompt: 'hello', has: ['NO-SUCH-HINT-IS-PRINTED'] }] });\n" });
+    // (the whole run only once the mode says reused: a miss would run every test)
+    const second = mode(), hit = /^selfcheck mode: engine results reused/.test(second);
+    const reused = hit ? nodeIn(dir, ['tools/hooks/selfcheck.mjs'], env, 600_000) : { status: null, stdout: second, stderr: '' }, out = reused.stdout || '';
+    // (on a miss, the base files whose hash moved)
+    const moved = hit ? [] : (a => [...new Set([...Object.keys(a.files), ...Object.keys(before.files)])].filter(k => a.files[k] !== before.files[k]))(manifestNow());
+    const full = mode('--full');
+    fs.appendFileSync(path.join(dir, 'tools/hooks/hooks.mjs'), '\n// an engine file changed\n');
+    const changed = mode();
+    report(/^selfcheck mode: full, because no full pass is recorded/.test(first) && !!stamp
+      && /^selfcheck mode: engine results reused, because this engine \(stamp [0-9a-f]{8}: its files, Node \d+, \w+, \d{4}-\d\d-\d\d\) passed all 700 engine tests/m.test(out)
+      && /^FAIL {2}prompt: own probe: runs with engine results reused/m.test(out) && /^PASS {2}(stop|pretool|prompt): /m.test(out) && reused.status === 1
+      && /engine scenarios and the engine's other tests reused/.test(out) && /^failing tests: prompt: own probe/m.test(out)
+      && /^selfcheck mode: full, because --full asks for every test/.test(full) && /^selfcheck mode: full, because no full pass is recorded/.test(changed),
+      'engine-cache: a project reuses a recorded engine pass despite new notes and own scenarios, still runs those scenarios and a smoke set, and runs everything with --full or a changed engine file',
+      `first: ${first} | stamp ${stamp}${moved.length ? ` | base files that changed: ${moved.slice(0, 10).join(', ')}` : ''} | reused run exit ${reused.status}: ${out.split(/\r?\n/).filter(l => /^(selfcheck|FAIL|failing)/.test(l)).join(' / ').slice(0, 900)} ${String(reused.stderr || '').slice(-300)} | --full: ${full} | changed: ${changed}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); fs.rmSync(tmp, { recursive: true, force: true }); }
+}
+if (mineB() && SPEED) { // selftest-lock: one whole run at a time; a second one waits and prints the first one's result; stale locks are taken over
+  const dir = copyProject(), tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-'));
+  try {
+    const lf = path.join(tmp, 'x.lock');
+    const mineTaken = takeLock(lf, { cmd: 'a' }).taken, secondTaken = takeLock(lf, { cmd: 'b' }).taken; releaseLock(lf);
+    fs.writeFileSync(lf, JSON.stringify({ pid: 2147483640, at: new Date().toISOString() })); const deadTaken = takeLock(lf, {}).taken; releaseLock(lf);
+    fs.writeFileSync(lf, JSON.stringify({ pid: process.pid, at: new Date(Date.now() - 4 * 3600_000).toISOString() })); const oldTaken = takeLock(lf, {}).taken; releaseLock(lf);
+    // a live run in the copy (a child process holding the lock), whose result is written before it ends
+    const child = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 5000)'], { stdio: 'ignore' });
+    const now = Date.now();
+    write(dir, { 'tools/hooks/state/selftest.lock': JSON.stringify({ pid: child.pid, at: new Date(now).toISOString(), cmd: '' }),
+      'tools/hooks/state/selftest-last.json': JSON.stringify({ pid: child.pid, at: new Date(now + 1000).toISOString(), code: 1, mode: 'full', lines: ['FAIL  stop: a made-up failure  -> why', 'selfcheck: FAIL (1 passed, 1 failed)'] }) });
+    const r = nodeIn(dir, ['tools/hooks/selfcheck.mjs'], { STARTER_SELFTEST_RUNNING: path.join(tmp, 'running') }, 120_000);
+    report(mineTaken && !secondTaken && deadTaken && oldTaken && r.status === 1 && /waiting for it and reusing its result/.test(r.stdout) && /^FAIL {2}stop: a made-up failure/m.test(r.stdout) && /^selfcheck: FAIL \(1 passed, 1 failed\)/m.test(r.stdout) && !/^selfcheck mode:/m.test(r.stdout),
+      'selftest-lock: a second run waits for the live one and prints its result; a lock whose process is gone or that is hours old is taken over',
+      JSON.stringify({ mineTaken, secondTaken, deadTaken, oldTaken, exit: r.status, out: r.stdout.slice(0, 600), err: r.stderr.slice(-300) }));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); fs.rmSync(tmp, { recursive: true, force: true }); }
+}
+if (mineB() && SPEED) { // selftest-shards: helpers scale with the CPUs and the self-test runs already going on this machine
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-'));
+  const child = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 20000)'], { stdio: 'ignore' });
+  try {
+    const n = shardCount({ cpus: 32, others: 0, tests: 700 }), busy = shardCount({ cpus: 32, others: 7, tests: 700 }), small = shardCount({ cpus: 4, others: 0, tests: 700 }), few = shardCount({ cpus: 32, others: 0, tests: 30 }), full = shardCount({ cpus: 2, others: 20, tests: 700 });
+    write(tmp, { [`${child.pid}.json`]: '{}', '2147483640.json': '{}', [`${process.pid}.json`]: '{}' });
+    const live = otherSuites(tmp), deadGone = !fs.existsSync(path.join(tmp, '2147483640.json'));
+    report(n === 12 && busy === 3 && small === 3 && few === 1 && full === 1 && live === 1 && deadGone,
+      'selftest-shards: helpers follow the CPU count and share it with the live self-test runs; a run whose process is gone is not counted',
+      JSON.stringify({ n, busy, small, few, full, live, deadGone }));
+  } finally { child.kill(); fs.rmSync(tmp, { recursive: true, force: true }); }
+}
+if (mineB() && SPEED) { // audit-selftests: a self-test run that timed out is a warning that says what to do; failing tests are named,
+  // also after the audit's last line; a crash (a broken engine file) is a failure
+  const dir = copyProject();
+  try {
+    const sc = path.join(dir, 'tools/hooks/selfcheck.mjs'), orig = fs.readFileSync(sc, 'utf8');
+    // (the stub keeps the real file's text as a comment: the audit reads it to see that every check has a scenario)
+    const audit = (stub, env = {}) => { fs.writeFileSync(sc, `${stub}/*\n${orig.replace(/\*\//g, '* /')}\n*/\n`); const r = nodeIn(dir, ['tools/audit.mjs', '--setup'], env, 120_000); return { code: r.status, out: r.stdout || '' }; };
+    const line = out => (/^(PASS|FAIL|WARN)\s+\d+\. hook self-tests.*(\n {8}- .*)*/m.exec(out) || ['(no self-test sweep)'])[0];
+    const hang = audit('setTimeout(() => {}, 600000);\n', { STARTER_SELFTEST_TIMEOUT_MS: '3000' });
+    const failing = audit("console.log('PASS  stop: one');\nconsole.log('FAIL  stop: alpha case  -> why');\nconsole.log('FAIL  prompt: beta case  -> why');\nconsole.log('\\nselfcheck: FAIL (1 passed, 2 failed)');\nprocess.exit(1);\n");
+    const crash = audit("throw new Error('engine file broken');\n");
+    fs.writeFileSync(sc, orig);
+    const last = out => out.trim().split(/\r?\n/).pop();
+    report(/^WARN\s+\d+\. hook self-tests/.test(line(hang.out)) && /timed out after 3 s; run node tools\/hooks\/selfcheck\.mjs alone/.test(line(hang.out))
+      && /^FAIL\s+\d+\. hook self-tests/.test(line(failing.out)) && /FAIL stop: alpha case/.test(line(failing.out)) && last(failing.out) === 'failing self-tests: stop: alpha case | prompt: beta case'
+      && /^FAIL\s+\d+\. hook self-tests/.test(line(crash.out)) && /crashed/.test(line(crash.out)),
+      'audit-selftests: a timed-out self-test run warns with what to run instead, failing tests are named after the last line too, and a crash still fails',
+      `other failures: ${hang.out.split(/\r?\n/).filter(l => /^FAIL/.test(l)).map(l => l + ' ' + (hang.out.split(l)[1] || '').split(/\n(?! {8})/)[0].slice(0, 300)).join(' / ')} | hang: ${line(hang.out)} | failing: ${line(failing.out)} / last: ${last(failing.out)} | crash: ${line(crash.out)}`.slice(0, 1500));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+if (mineB() && SPEED) { // test-inputs: the audit's reuse hash ignores what the test copies drop (setup interview, review rows), not rules or checks
+  const dir = copyProject();
+  try {
+    const h = () => nodeIn(dir, ['--input-type=module', '-e', `import { testInputsHash } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; console.log(testInputsHash());`]).stdout.trim();
+    const h0 = h();
+    fs.appendFileSync(path.join(dir, 'docs/DECISIONS.md'), '\n## Setup interview (2026-10-21)\n- Involvement: everything\n- Focus: desks\n');
+    fs.appendFileSync(path.join(dir, 'docs/security.md'), '\n| 2026-10-21 | sign-in | PASS |\n');
+    write(dir, { 'docs/STATUS.md': '# Status\n- set up today\n', 'docs/BRIEF.md': '# Brief\nchanged\n' });
+    const h1 = h();
+    fs.appendFileSync(path.join(dir, 'AGENTS.md'), '\n- a new rule\n'); const h2 = h();
+    write(dir, { 'tools/hooks/requirements.json': '{ "requirements": [] }\n' }); const h3 = h();
+    report(!!h0 && h1 === h0 && h2 !== h0 && h3 !== h2, 'test-inputs: the setup interview, security review rows, status and brief leave the reuse hash alone; rules and checks change it', JSON.stringify({ h0, h1, h2, h3 }));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+if (mineB() && SPEED) { // bulk-dirs: the audit and the interrupted-work check skip dependency folders and virtual environments (any
+  // name), but still read a project folder that only shares a name with one, and publish safety still reads build output
+  const dir = copyProject();
+  try {
+    const marker = '<'.repeat(7) + ' HEAD\nmine\n' + '='.repeat(7) + '\ntheirs\n' + '>'.repeat(7) + ' main\n', key = ['sk', 'B'.repeat(24)].join('-');
+    write(dir, { '.venv/pyvenv.cfg': 'home = x\n', '.venv/Lib/pkg/README.md': `[x](missing-a.md)\n${marker}`, '.venv/Lib/pkg/conf.py': `token = "${key}"\n`,
+      'pyenv/pyvenv.cfg': 'home = x\n', 'pyenv/notes.md': '[x](missing-b.md)\n', 'src/pkg/__pycache__/m.md': '[x](missing-c.md)\n',
+      'vendor/notes.md': '[x](missing-d.md)\n', 'notes/clash.md': marker, 'rs/Cargo.toml': '[package]\nname = "x"\n', 'rs/target/app.js': `const token = "${key}";\n`, 'rs/target/notes.md': '[x](missing-e.md)\n' });
+    const au = nodeIn(dir, ['tools/audit.mjs']).stdout || '', ic = nodeIn(dir, ['tools/integrity-check.mjs']).stdout || '';
+    report(!/missing-a|missing-b|missing-c|missing-e/.test(au) && /vendor\/notes\.md: broken link missing-d\.md/.test(au) && /rs\/target\/app\.js: looks like a secret/.test(au) && !/\.venv\/Lib\/pkg\/conf\.py/.test(au)
+      && /notes\/clash\.md: unresolved merge markers/.test(ic) && !/\.venv/.test(ic),
+      'bulk-dirs: virtual environments and dependency caches are skipped by the audit and the interrupted-work check; a project folder named like one, and build output for publish safety, are still read',
+      `audit: ${au.split(/\r?\n/).filter(l => /missing-|secret|venv/.test(l)).join(' / ').slice(0, 600)} | integrity: ${ic.split(/\r?\n/).filter(l => /PROBLEM/.test(l)).join(' / ').slice(0, 400)}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
 if (!TAGS) { // the standalone checks run in a full run only
 if (mineB()) { // --explain: every check that fires for a scenario at once, with its short label and what satisfies it
   const out = explain('unrouted work turn with no runbook created').join('\n'), none = explain('no such scenario xyz').join('\n');
@@ -2866,7 +3116,7 @@ if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) {
   report(g.status !== 0 && /must not be inside each other/.test(g.stderr) && !fs.existsSync(path.join(ROOT, 'inside-test')), 'starter: new-project refuses a project inside the starter', g.stderr.slice(0, 200));
 }
 
-if (mineB()) { // check patterns keep their escapes. Lesson: a pattern written through a shell lost its backslashes ("[sS]*" for
+if (mineP()) { // check patterns keep their escapes. Lesson: a pattern written through a shell lost its backslashes ("[sS]*" for
   // "[\s\S]*") and could never match, so its runbook stayed blocked no matter what the answer said.
   const sources = ['tools/hooks/requirements.json', 'library/catalog.json', ...(fs.existsSync(path.join(ROOT, 'packs')) ? fs.readdirSync(path.join(ROOT, 'packs')).map(p => `packs/${p}/pack.json`) : [])];
   const bad = [];
@@ -2874,6 +3124,7 @@ if (mineB()) { // check patterns keep their escapes. Lesson: a pattern written t
     const walk = (o, k) => { if (typeof o === 'string') { if (/Matches$|^(cmd|pass|toolRan|pattern)$/.test(k) && /\[sS\]|\[wW\]|\[dD\]|(^|[^\\])\b[bswd]\*/.test(o) && !/\\/.test(o)) bad.push(`${f} ${k}: ${o}`); } else if (o && typeof o === 'object') for (const [kk, v] of Object.entries(o)) walk(v, kk); };
     walk(JSON.parse(fs.readFileSync(path.join(ROOT, f), 'utf8')));
   }
+  PROJECT_TESTS.add('requirements-valid: no check pattern lost its backslashes');
   report(!bad.length, 'requirements-valid: no check pattern lost its backslashes', bad.join(' | '));
 }
 
@@ -3550,7 +3801,7 @@ if (mineB() && INSTALLED.includes('app')) { // app gates: their own pass lines, 
 if (HELPER) { console.log(`SHARD ${pass} ${fail} ${skipped}`); process.exit(0); } // a helper's share is done
 for (const [k, { out, code }] of (await Promise.all(helpers)).entries()) {
   const lines = out.split(/\r?\n/), done = lines.map(l => /^SHARD (\d+) (\d+) (\d+)$/.exec(l)).find(Boolean);
-  for (const l of lines) { const m = /^(PASS|FAIL)  (.*?)(?:  -> .*)?$/.exec(l); if (!m) continue; console.log(l); if (m[1] === 'PASS') { pass++; PASSED.push(m[2]); } else fail++; }
+  for (const l of lines) { const m = /^(PASS|FAIL)  (.*?)(?:  -> .*)?$/.exec(l); if (!m) continue; console.log(l); if (m[1] === 'PASS') { pass++; PASSED.push(m[2]); } else { fail++; FAILED.push(m[2]); FAIL_LINES.push(l); } }
   if (done) skipped += Number(done[3]); else report(false, `self-test helper ${k + 1} finished its share`, `exit ${code}: ${out.trim().split(/\r?\n/).slice(-5).join(' | ').slice(0, 500)}`);
 }
 // stop-budget: the Stop hook's own work on a realistic work turn stays within stopBudgetMs (500 ms), timed here after
@@ -3562,7 +3813,7 @@ const stopVerdict = (samples, budget) => {
   const slow = mid.parts.filter(([l]) => !/\(total\)$/.test(l)).sort((a, b) => b[1] - a[1]).slice(0, 3);
   return { ok: mid.total <= budget, total: mid.total, slow: slow.map(([l, ms]) => `${l} ${ms} ms`) };
 };
-if (!TAGS && !HELPER) {
+if (!TAGS && !HELPER && !REUSE) {
   const dir = copyProject();
   try {
     const budget = (() => { try { return JSON.parse(fs.readFileSync(path.join(dir, 'tools/hooks/config.json'), 'utf8')).stopBudgetMs; } catch { return null; } })() || 500;
@@ -3585,11 +3836,27 @@ if (!TAGS && !HELPER) {
       'stop-budget: over its budget the verdict names the 3 slowest checks', JSON.stringify(tight));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
-if (!TAGS) for (const [tag, name] of Object.entries(COVERS)) if (hereSrc.includes(tag)) report(PASSED.some(n => n.includes(name)), `covers: ${tag} is proven by "${name}"`, 'no passing scenario with that name');
+if (!TAGS && !REUSE) for (const [tag, name] of Object.entries(COVERS)) if (hereSrc.includes(tag)) report(PASSED.some(n => n.includes(name)), `covers: ${tag} is proven by "${name}"`, 'no passing scenario with that name');
 
-console.log(`\nselfcheck: ${fail ? 'FAIL' : 'ALL PASS'}${TAGS ? ` for ${TAGS.join(', ')}` : ''} (${pass} passed, ${fail} failed${skipped ? `, ${skipped} skipped: packs not installed here` : ''})`);
+// The engine's part of a full run: every test that does not read the project. A pass of all of them is recorded for
+// this stamp; a failure in the project's own part does not stop that, so fixing a project scenario never needs the
+// whole suite again.
+const OWN_NAMES = new Set([...STOP.filter(s => s.own).map(s => `stop: ${s.name}`), ...PRETOOL.filter(s => s.own).map(s => `pretool: ${s.name}`), ...PROMPT.filter(s => s.own).map(s => `prompt: ${s.name}`)]);
+const projectTest = n => OWN_NAMES.has(n) || PROJECT_TESTS.has(n) || /^(project scenario keys|tags): /.test(n);
+const engineFailed = FAILED.filter(n => !projectTest(n)), enginePassed = PASSED.filter(n => !projectTest(n)).length;
+let modeNote = '';
+if (REUSE) modeNote = `; ${reusedCount} engine scenarios and the engine's other tests reused from an earlier full pass of this engine${engineFailed.length ? `. An engine smoke test failed although this engine passed before: run node tools/hooks/selfcheck.mjs --full` : ''}`;
+else if (STAMP) modeNote = engineFailed.length ? '; full run, engine tests failed, so nothing was recorded for reuse'
+  : recordPass(STAMP, { passed: enginePassed, node: process.versions.node, platform: process.platform, day: localDay() }) ? `; full run, its ${enginePassed} engine passes recorded: the next run with this engine reuses them` : '; full run (the reuse cache could not be written)';
+const summary = `selfcheck: ${fail ? 'FAIL' : 'ALL PASS'}${TAGS ? ` for ${TAGS.join(', ')}` : ''} (${pass} passed, ${fail} failed${skipped ? `, ${skipped} skipped: packs not installed here` : ''}${modeNote})`;
+console.log(`\n${summary}`);
+// the failing tests' names again, after the summary, so a run whose output is cut to its last lines still names them
+if (FAILED.length && !HELPER) console.log(`failing tests: ${FAILED.slice(0, 12).join(' | ')}${FAILED.length > 12 ? ` | and ${FAILED.length - 12} more` : ''}`);
 // recorded for agents whose tool history the hooks can't read (REQ: hooks-tested)
 try { const { logRun } = await import('./hooks.mjs'); logRun(`node tools/hooks/selfcheck.mjs ${process.argv.slice(2).join(' ')}`.trim(), `selfcheck: ${fail ? 'FAIL' : 'ALL PASS'}${TAGS ? ` for ${TAGS.join(', ')}` : ''} (${pass} passed, ${fail} failed)`, !!fail); } catch { }
-// a full run is what the upgrade review asks for (REQ: upgrade-review)
-if (!TAGS) try { const d = new Date(); fs.mkdirSync(path.join(ROOT, 'tools/hooks/state'), { recursive: true }); fs.writeFileSync(path.join(ROOT, 'tools/hooks/state/selftest.json'), JSON.stringify({ at: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`, passed: !fail, count: pass, inputs: INPUTS0 })); } catch { }
+// a whole run is what the upgrade review asks for (REQ: upgrade-review); with engine results reused it counts too, since
+// the engine passed in full under the same stamp
+if (!TAGS) try { fs.mkdirSync(path.join(ROOT, 'tools/hooks/state'), { recursive: true }); fs.writeFileSync(path.join(ROOT, 'tools/hooks/state/selftest.json'), JSON.stringify({ at: localDay(), passed: !fail, count: pass, inputs: INPUTS0, mode: REUSE ? 'reused' : 'full' })); } catch { }
+// for a run that waited on this one (WHOLE_RUN): its result, to print as its own
+if (WHOLE_RUN) try { fs.writeFileSync(LAST, JSON.stringify({ pid: process.pid, at: new Date().toISOString(), code: fail ? 1 : 0, mode: REUSE ? 'reused' : 'full', lines: [...FAIL_LINES.slice(0, 40), summary] })); } catch { }
 process.exit(fail ? 1 : 0);
