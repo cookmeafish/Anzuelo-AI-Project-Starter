@@ -219,9 +219,12 @@ function fixturesOnly(at, src) {
   // must not change with the project's notes, so their result can be reused while the engine is the same
   // (selftest-cache.mjs). Lesson: every setup step changed the brief, rules or changelog, and the full self-test ran again.
   if (src) {
-    const RECORDS = ['AGENTS.md', 'README.md', 'DIRECTORY.md', 'HOW-TO-USE.md', 'SETUP-PROMPT.md', '.gitignore', 'docs/BRIEF.md', 'docs/STATUS.md', 'docs/CHANGELOG.md',
+    const RECORDS = ['AGENTS.md', 'DIRECTORY.md', 'HOW-TO-USE.md', 'SETUP-PROMPT.md', 'docs/BRIEF.md', 'docs/STATUS.md', 'docs/CHANGELOG.md',
       'docs/DECISIONS.md', 'docs/MENU.md', 'docs/security.md', 'docs/foundation.md', 'docs/glossary.md', 'docs/lessons.md', 'docs/recommended-tools.md', 'tools/hooks/project-scenarios.mjs'];
     for (const rel of RECORDS) { const from = path.join(src, rel); if (fs.existsSync(from)) fs.copyFileSync(from, at(rel)); else fs.rmSync(at(rel), { force: true }); }
+    // a project's README and .gitignore come from the starter's templates for projects (its own README links to files
+    // only the starter has); without them the project's own stay
+    for (const [rel, tpl] of [['README.md', 'tools/starter/README.project.md'], ['.gitignore', 'tools/starter/gitignore.project']]) if (fs.existsSync(path.join(src, tpl))) fs.copyFileSync(path.join(src, tpl), at(rel));
     if (fs.existsSync(at('AGENTS.md'))) fs.copyFileSync(at('AGENTS.md'), at('CLAUDE.md'));
     const packFile = rel => packs.map(p => path.join(at('packs'), p, 'files', rel)).find(p => fs.existsSync(p)) || null;
     fs.mkdirSync(at('docs/checks'), { recursive: true });
@@ -2382,9 +2385,11 @@ if (mineB() && SPEED) { // audit-selftests: a self-test run that timed out is a 
   const dir = copyProject();
   try {
     const sc = path.join(dir, 'tools/hooks/selfcheck.mjs'), orig = fs.readFileSync(sc, 'utf8');
+    // (the hook timing sweep would fail on a loaded machine and keep the self-test sweep from running at all)
+    applyEdits(dir, cfgEdit({ hookBudgetMs: 600000 }));
     // (the stub keeps the real file's text as a comment: the audit reads it to see that every check has a scenario)
     const audit = (stub, env = {}) => { fs.writeFileSync(sc, `${stub}/*\n${orig.replace(/\*\//g, '* /')}\n*/\n`); const r = nodeIn(dir, ['tools/audit.mjs', '--setup'], env, 120_000); return { code: r.status, out: r.stdout || '' }; };
-    const line = out => (/^(PASS|FAIL|WARN)\s+\d+\. hook self-tests.*(\n {8}- .*)*/m.exec(out) || ['(no self-test sweep)'])[0];
+    const line = out => (/^(PASS|FAIL|WARN)\s+\d+\. hook self-tests.*(\n {8}- .*)*/m.exec(out) || ['(no self-test sweep)'])[0].replace(/\n\s*/g, ' / ');
     const hang = audit('setTimeout(() => {}, 600000);\n', { STARTER_SELFTEST_TIMEOUT_MS: '3000' });
     const failing = audit("console.log('PASS  stop: one');\nconsole.log('FAIL  stop: alpha case  -> why');\nconsole.log('FAIL  prompt: beta case  -> why');\nconsole.log('\\nselfcheck: FAIL (1 passed, 2 failed)');\nprocess.exit(1);\n");
     const crash = audit("throw new Error('engine file broken');\n");
@@ -2394,7 +2399,7 @@ if (mineB() && SPEED) { // audit-selftests: a self-test run that timed out is a 
       && /^FAIL\s+\d+\. hook self-tests/.test(line(failing.out)) && /FAIL stop: alpha case/.test(line(failing.out)) && last(failing.out) === 'failing self-tests: stop: alpha case | prompt: beta case'
       && /^FAIL\s+\d+\. hook self-tests/.test(line(crash.out)) && /crashed/.test(line(crash.out)),
       'audit-selftests: a timed-out self-test run warns with what to run instead, failing tests are named after the last line too, and a crash still fails',
-      `other failures: ${hang.out.split(/\r?\n/).filter(l => /^FAIL/.test(l)).map(l => l + ' ' + (hang.out.split(l)[1] || '').split(/\n(?! {8})/)[0].slice(0, 300)).join(' / ')} | hang: ${line(hang.out)} | failing: ${line(failing.out)} / last: ${last(failing.out)} | crash: ${line(crash.out)}`.slice(0, 1500));
+      `other failures: ${hang.out.split(/\r?\n/).filter(l => /^FAIL/.test(l)).join(' / ').slice(0, 400)} | hang: ${line(hang.out)} | failing: ${line(failing.out)} / last: ${last(failing.out)} | crash: ${line(crash.out)}`.slice(0, 1500));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 if (mineB() && SPEED) { // test-inputs: the audit's reuse hash ignores what the test copies drop (setup interview, review rows), not rules or checks
