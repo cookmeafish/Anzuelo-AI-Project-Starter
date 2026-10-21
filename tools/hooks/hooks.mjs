@@ -3485,7 +3485,17 @@ export function coreChecks(x, cfg) {
   const named = x.changed.filter(p => p !== NAMES_FILE && NAME_FILES.test(p) && !GENERATED_WRITES.has(p) && exists(p));
   for (const p of named.filter(p => NAME_DOCS.test(p))) { const t = read(abs(p)); if (t.includes('<!--name:')) writeIfChanged(p, stampNames(t, nm)); }
   if (x.changed.includes(NAMES_FILE)) syncNames(cfg, { force: true });
-  const typed = named.flatMap(p => nameProblems(p, read(abs(p)), nm, cfg));
+  // only what this turn wrote: lines a file already had in git are not this turn's typing.
+  // Lesson: adding a link to an index flagged a name that was typed out years before in another line.
+  const newLines = p => {
+    const now = read(abs(p));
+    if (!exists('.git')) return now;
+    const old = spawnSync('git', ['show', `HEAD:${p}`], { cwd: ROOT, encoding: 'utf8' });
+    if (old.status !== 0) return now;
+    const have = new Map(); for (const l of old.stdout.split(/\r?\n/)) have.set(l, (have.get(l) || 0) + 1);
+    return now.split(/\r?\n/).filter(l => { const c = have.get(l) || 0; if (c) { have.set(l, c - 1); return false; } return true; }).join('\n');
+  };
+  const typed = named.flatMap(p => nameProblems(p, newLines(p), nm, cfg));
   if (typed.length)
     add('name-var', `Names are written once, in ${NAMES_FILE}, so they can be changed in one place. ${typed.slice(0, 4).join('; ')}${typed.length > 4 ? ` (+${typed.length - 4} more)` : ''}. ` +
       'Use the marker in docs and read the file in code, or write "N/A(name-var): <why this must stay typed out>".');
@@ -3969,7 +3979,12 @@ export function stopDecision(data, cfg = config()) {
   // helpers was blocked three times for a Finished section it could not write yet.
   const waiting = t.toolsKnown && (t.bgRunning || []).length;
   const SAFE = /^(claim-checked|scope-separate|answer-traced|no-secrets)$/;
-  const missing = noticeAck || waiting ? all.filter(m => SAFE.test(m.tag)) : all;
+  // In a later round, bookkeeping steps that only the fixing itself brought on (more tool calls, a file touched after
+  // the Finished section) are not new work: round 1 already listed what the answer needed. Lesson: steps trickled in one
+  // per round (name-var, then status-handoff, then finished-summary), each caused by fixing the one before.
+  const LATE = /^(status-handoff|finished-summary|changelog|knowledge-changelog|app-changelog)$/;
+  const settled = data.stop_hook_active ? all.filter(m => !(LATE.test(m.tag) && !x.failedBefore.includes(m.tag))) : all;
+  const missing = noticeAck || waiting ? all.filter(m => SAFE.test(m.tag)) : settled;
   noteFriction(key, x, missing);
   const ended = (keep = false) => { writeState(TURN_END, { at: new Date().toISOString(), key, clean: !keep }); if (!keep && !envOf('BENCH')) try { fs.unlinkSync(path.join(STATE, 'stop-details.md')); } catch { } }; // the next prompt starts a new turn
   if (waiting && !missing.length) { writeState(TURN_END, { at: new Date().toISOString(), key, clean: false, pending: t.bgRunning.length }); return null; }

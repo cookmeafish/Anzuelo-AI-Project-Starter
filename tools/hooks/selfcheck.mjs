@@ -771,6 +771,15 @@ STOP.push(
   { name: 'install-vetted: reinstalling declared requirements is not a new tool', prompt: 'set it up again', tools: [bash('python -m pip install -q -r requirements.txt', 'ok'), bash('npm ci', 'ok')],
     answer: 'Reinstalled.', expect: { not: ['install-vetted'] } },
   // a step waived with the waive command, so the user's answer carries no check names
+  // later rounds: bookkeeping brought on only by the fixing itself is not a new step
+  { name: 'later round: a status step caused only by the fix round\'s extra tool calls is not added', prompt: 'link the notes from the index', files: { 'docs/notes-index.md': 'x', 'docs/CHANGELOG.md': 'x' },
+    tools: many(16), drafts: ['Linked the notes.' + FIN], answer: 'Linked the notes.' + FIN, active: true, blocks: 1, failed: ['name-var'], expect: { not: ['status-handoff'] } },
+  { name: 'first round: the same status step is listed: blocked', prompt: 'link the notes from the index', files: { 'docs/notes-index.md': 'x', 'docs/CHANGELOG.md': 'x' },
+    tools: many(16), answer: 'Linked the notes.' + FIN, expect: { block: true, tags: ['status-handoff'] } },
+  // name-var looks only at lines this turn added
+  { name: 'name-var: a name typed in a line the file already had in git is not this turn\'s: not fired', prompt: 'link the notes from the index', edit: { 'docs/names.json': () => '{ "PROJECT_NAME": "Deskmate" }' },
+    prep: dir => { fs.mkdirSync(path.join(dir, 'docs'), { recursive: true }); fs.writeFileSync(path.join(dir, 'docs/notes-index.md'), '# Notes\nDeskmate keeps these notes.\n'); spawnSync('git', ['init', '-q'], { cwd: dir }); spawnSync('git', ['add', 'docs/notes-index.md'], { cwd: dir }); spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@e.invalid', 'commit', '-q', '--no-verify', '-m', 'x'], { cwd: dir }); },
+    files: { 'docs/notes-index.md': '# Notes\nDeskmate keeps these notes.\n- [a](a.md)\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Linked.' + FIN, expect: { not: ['name-var'] } },
   { name: 'waive command: a step waived by command, not in the answer: met', prompt: 'make a cleaning rota note', files: { 'notes/rota.md': 'x', 'docs/CHANGELOG.md': 'x' },
     tools: [bash('node tools/hooks/hooks.mjs waive finished-summary "the user asked for no summary today"', 'waived for this turn: finished-summary')],
     answer: 'The rota is in notes/rota.md.', expect: { not: ['finished-summary'] } },
@@ -1047,7 +1056,7 @@ STOP.push(
   { name: 'promptMatches: the same words typed by the user still count: blocked', prompt: 'deploy now', edit: SAID, answer: 'Starting.', expect: { block: true, tags: ['deploy-said'] } },
   // the block cap ends the turn quietly; a check that waits on background helpers is not carried over as a miss
   { name: 'block cap reached: a check that waits on background agents is not carried over', prompt: 'split the work across several agents', tools: [sk('parallel-agents')], files: { 'docs/rota.md': 'r' },
-    answer: 'Skill: parallel-agents. Done.', active: true, blocks: 3, expect: { block: false },
+    answer: 'Skill: parallel-agents. Done.', active: true, blocks: 3, failed: ['finished-summary'], expect: { block: false },
     after: dir => { const u = fs.existsSync(path.join(dir, 'tools/hooks/state/unresolved.json')) ? fs.readFileSync(path.join(dir, 'tools/hooks/state/unresolved.json'), 'utf8') : ''; return (u.includes('finished-summary') && !u.includes('parallel-merged')) || `carried over: ${u.slice(0, 300)}`; } },
   // editing a runbook is maintaining it, not following it
   { name: 'maintaining a runbook (read, then edit) is not following it: its checks stay off', prompt: 'fix the typo in step one of that runbook', edit: MEAL_CHECK,

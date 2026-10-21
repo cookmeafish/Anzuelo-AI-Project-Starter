@@ -30,6 +30,9 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
     "Searched: <what> - nothing found (<where>, <date>)" answers a search that found nothing; "don't ask me" and other
     autonomy phrases no longer route to the plan runbook; a here-document that names a test is not a run of it; a
     watched input the agent itself replaced with a command is not reported as the user's mid-turn update.
+  - **All steps in round 1:** a later round no longer adds bookkeeping steps that only the fixing brought on (more tool
+    calls for status-handoff, a file touched after the Finished section, a changelog line); name-var looks only at
+    lines this turn added, not names a file already had in git.
   - parallel-agents briefs carry today's date from the system and are read once for contradictions (a file marked
     off-limits whose data the helper needs is "read-only").
   - whole-output lets a tool's `--help` (or `-h`) through a filter: it is usage text, not results.
