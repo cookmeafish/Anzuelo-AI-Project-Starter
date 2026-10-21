@@ -1355,7 +1355,7 @@ function runStop(s) {
     const sp = path.join(dir, 'tools/hooks/state/snapshot.json');
     if (fs.existsSync(sp)) { try { const j = JSON.parse(fs.readFileSync(sp, 'utf8')); j.files['transcript.jsonl'] = [0, 0, null]; fs.writeFileSync(sp, JSON.stringify(j)); } catch { } }
     if (s.blocks) write(dir, { 'tools/hooks/state/stop-blocks.json': JSON.stringify({ [`${tp}|${since}`]: s.blocks }) });
-    if (s.failed) write(dir, { 'tools/hooks/state/stop-failed.json': JSON.stringify({ key: `${tp}|${since}`, tags: s.failed }) });
+    if (s.failed) write(dir, { 'tools/hooks/state/stop-failed.json': JSON.stringify({ key: `${tp}|${since}`, tags: s.failed, ...(s.failedExtra || {}) }) });
     write(dir, s.files);
     for (const [p, off] of Object.entries(s.mtimes || {})) { const t = (Date.now() + off) / 1000; fs.utimesSync(path.join(dir, p), t, t); }
     const { out, err } = run(dir, 'stop', { transcript_path: tp, stop_hook_active: !!s.active, ...(s.last ? { last_assistant_message: s.last } : {}), ...(s.hookInput || {}) }, s.host);
@@ -1466,6 +1466,112 @@ STOP.push(
   { pack: 'knowledge', name: 'deliverable-trigger: the deliverable runbook followed: passes', prompt: 'put it in a file', tools: [pb('deliverable')], files: { 'outputs/report.md': '# Report\nShort.\n' }, answer: 'Playbook: deliverable.md. Saved.' + FIN, expect: { not: ['deliverable-trigger'] } },
   { pack: 'knowledge', name: 'knowledge-source-trigger: facts written without research or capture: blocked', prompt: 'tidy the desk note', files: { 'docs/knowledge/desks.md': KNOW, 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { tags: ['knowledge-source-trigger'] } },
   { pack: 'knowledge', name: 'knowledge-source-trigger: through the research skill: passes', prompt: 'tidy the desk note', tools: [sk('research')], files: { 'docs/knowledge/desks.md': KNOW, 'docs/CHANGELOG.md': 'x' }, answer: 'Skill: research. Desk X costs $300.[1]\n\nSources:\n[1] docs/knowledge/desks.md' + FIN, expect: { not: ['knowledge-source-trigger'] } }
+);
+
+// Zero drip-feed. stop-follow-on: what a step's fix sets off (the audit after a runbook, skill or rules edit, the hook
+// self-tests after a checks edit, a data check after a data edit) is named in the same round as the step.
+// skill-learn: a runbook matched by mistake gets no lesson. answer-resent: an unchanged answer may end with one line.
+const MEAL_LESSON = NEWPB.replace('1. a\n', '1. a\n2. Say in the answer that the meals are planned.\n');
+const DECK_REQS = (() => {
+  const a = { tag: 'deck-updated', when: { promptMatches: '\\b(update the deck|actualiza el deck)\\b' }, require: { filesChanged: ['data/**'] }, message: 'Write the deck changes into data/.' };
+  const b = { tag: 'data-valid', when: { filesChanged: ['data/**'] }, require: { toolPassed: { cmd: 'validate', pass: 'RESULT: PASS' } }, message: 'Run the validator until it passes.' };
+  SCENARIO_TAGS.add(a.tag); SCENARIO_TAGS.add(b.tag);
+  return { 'tools/hooks/requirements.json': s => JSON.stringify({ requirements: [...JSON.parse(s).requirements, a, b] }) };
+})();
+// the runbooks and skills there at the turn start, as the prompt hook records them (a fixture's copies are all new)
+const KNOWN = dir => write(dir, { 'tools/hooks/state/turn.json': JSON.stringify({ at: new Date(Date.now() - 7200_000).toISOString(), prompt: 'earlier', runbooks: fs.readdirSync(path.join(dir, 'docs/playbooks')), skills: fs.readdirSync(path.join(dir, 'skills')) }) });
+const MEAL_TURN = { edit: MEAL_CHECK, prompt: 'plan meals for the week', tools: [pb('meal-plan')], prep: KNOWN };
+const DEBUG_OK = 'Skill: debug. Root cause: the date parser.' + FIN;
+const DEBUG_TURN = { prompt: 'debug the failing import', tools: [sk('debug')], prep: KNOWN, files: { 'scratch-work/import.md': 'x', 'docs/CHANGELOG.md': 'x' } };
+STOP.push(
+  { ...MEAL_TURN, name: 'stop-follow-on: a lesson for a runbook names the audit and the changelog in round 1', files: { 'notes/meals.md': 'x' }, answer: 'Playbook: meal-plan.md. Done.' + FIN,
+    expect: { block: true, tags: ['meal-ok', 'skill-learn', 'audit-run', 'changelog'], says: /Then: Run the project's health check/ } },
+  { ...MEAL_TURN, name: 'stop-follow-on: a changelog already written is not named again', files: { 'notes/meals.md': 'x', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: meal-plan.md. Done.' + FIN,
+    expect: { block: true, tags: ['skill-learn', 'audit-run'], not: ['changelog'] } },
+  { ...MEAL_TURN, name: 'stop-follow-on: a follow-on waived for this turn is not named', files: { 'notes/meals.md': 'x', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: meal-plan.md. Done.\nN/A(audit-run): the audit runs in CI for this project' + FIN,
+    expect: { block: true, tags: ['skill-learn'], not: ['audit-run'] } },
+  { name: 'stop-follow-on: a lesson for a skill names the audit and the changelog in round 1', prompt: 'debug the failing import', tools: [sk('debug')], files: { 'scratch-work/import.md': 'x' }, answer: 'Skill: debug. Fixed it.' + FIN,
+    expect: { block: true, tags: ['debug-root-cause', 'skill-learn', 'audit-run', 'changelog'] } },
+  { name: 'stop-follow-on: a new rule names the hook self-tests, the audit and the changelog in round 1', prompt: 'from now on always include a budget table in plans', tools: [pb('project')], answer: 'Playbook: project.md. Noted.',
+    expect: { block: true, tags: ['rule-request', 'hooks-tested', 'audit-run', 'changelog'] } },
+  { name: 'stop-follow-on: a lesson placed in CLAUDE.md names the audit in round 1', prompt: 'you forgot the changelog again, this is annoying', files: { 'docs/CHANGELOG.md': 'x' },
+    answer: 'You\'re right: the changelog line was missing.\nLearned (rule): every change gets its changelog line → CLAUDE.md' + FIN, expect: { block: true, tags: ['upset-learned', 'audit-run'] } },
+  { name: 'stop-follow-on: a deck step that writes data names its data check in round 1', edit: DECK_REQS, prompt: 'update the deck with the new cards', files: { 'notes/deck-notes.md': 'x' }, answer: 'Updated.' + FIN,
+    expect: { block: true, tags: ['deck-updated', 'data-valid'], says: /Then: Run the validator/ } },
+  { name: 'stop-follow-on: a Spanish deck request names its data check in round 1', edit: DECK_REQS, prompt: 'actualiza el deck con las cartas nuevas', files: { 'notes/deck-notes.md': 'x' }, answer: 'Listo.' + FIN,
+    expect: { block: true, tags: ['deck-updated', 'data-valid'] } },
+  // nothing real is silenced: the named step still holds round 2 until it is done
+  { ...MEAL_TURN, name: 'stop-follow-on: round 2 still holds the named audit when it did not run: blocked', files: { 'notes/meals.md': 'x', 'docs/playbooks/meal-plan.md': MEAL_LESSON },
+    active: true, blocks: 1, failed: ['meal-ok', 'skill-learn'], failedExtra: { foreseen: ['audit-run', 'changelog'] }, drafts: ['Playbook: meal-plan.md. Done.' + FIN],
+    answer: 'Playbook: meal-plan.md. The meals planned for the week are in notes/meals.md.' + FIN, expect: { block: true, tags: ['audit-run'], not: ['skill-learn'] } },
+  { ...MEAL_TURN, name: 'stop-follow-on: round 2 with the named audit run: passes', files: { 'notes/meals.md': 'x', 'docs/playbooks/meal-plan.md': MEAL_LESSON, 'docs/CHANGELOG.md': 'x' },
+    active: true, blocks: 1, failed: ['meal-ok', 'skill-learn'], drafts: ['Playbook: meal-plan.md. Done.' + FIN], later: [bash('node tools/audit.mjs')],
+    answer: 'Playbook: meal-plan.md. The meals planned for the week are in notes/meals.md.' + FIN, expect: { block: false } },
+  // skill-learn and a runbook matched by mistake
+  { ...MEAL_TURN, name: 'skill-learn: a runbook whose own check was waived as a wrong route gets no lesson', files: { 'notes/meals.md': 'x', 'docs/CHANGELOG.md': 'x' },
+    active: true, blocks: 1, failed: ['meal-ok'], drafts: ['Playbook: meal-plan.md. Done.' + FIN],
+    answer: 'Playbook: meal-plan.md. The shopping list is in notes/meals.md.\nN/A(meal-ok): wrong route, this was a shopping list' + FIN, expect: { not: ['skill-learn'] } },
+  { ...MEAL_TURN, name: 'skill-learn: a check waived by command as a wrong route gets no lesson', tools: [pb('meal-plan'), bash('node tools/hooks/hooks.mjs waive meal-ok "matched by mistake, a shopping list"', 'waived for this turn: meal-ok')],
+    files: { 'notes/meals.md': 'x', 'docs/CHANGELOG.md': 'x' }, active: true, blocks: 1, failed: ['meal-ok'], drafts: ['Playbook: meal-plan.md. Done.' + FIN],
+    answer: 'Playbook: meal-plan.md. The shopping list is in notes/meals.md.' + FIN, expect: { not: ['skill-learn'] } },
+  { ...MEAL_TURN, name: 'skill-learn: a runbook the answer calls the wrong one, in Spanish, gets no lesson', prompt: 'planifica las comidas de la semana', files: { 'notes/meals.md': 'x', 'docs/CHANGELOG.md': 'x' },
+    active: true, blocks: 1, failed: ['meal-ok'], drafts: ['Playbook: meal-plan.md. Hecho.' + FIN],
+    answer: 'Playbook: meal-plan.md. meals planned: notes/meals.md.\nmeal-plan.md era el runbook equivocado para esta petición.' + FIN, expect: { not: ['skill-learn'] } },
+  { ...MEAL_TURN, name: 'skill-learn: a followed runbook whose own check failed and is met now still gets its lesson: blocked', files: { 'notes/meals.md': 'x', 'docs/CHANGELOG.md': 'x' },
+    active: true, blocks: 1, failed: ['meal-ok'], drafts: ['Playbook: meal-plan.md. Done.' + FIN],
+    answer: 'Playbook: meal-plan.md. The meals planned for the week are in notes/meals.md.' + FIN, expect: { block: true, tags: ['skill-learn'] } },
+  { ...MEAL_TURN, name: 'skill-learn: a waiver of another check does not silence the lesson: blocked', files: { 'notes/meals.md': 'x', 'docs/CHANGELOG.md': 'x' },
+    active: true, blocks: 1, failed: ['meal-ok'], drafts: ['Playbook: meal-plan.md. Done.' + FIN],
+    answer: 'Playbook: meal-plan.md. The meals planned for the week are in notes/meals.md.\nN/A(plan-open): unrelated to the open plan' + FIN, expect: { block: true, tags: ['skill-learn'] } },
+  { ...MEAL_TURN, name: 'skill-learn: another runbook called the wrong one does not silence this one: blocked', files: { 'notes/meals.md': 'x', 'docs/CHANGELOG.md': 'x' },
+    active: true, blocks: 1, failed: ['meal-ok'], drafts: ['Playbook: meal-plan.md. Done.' + FIN],
+    answer: 'Playbook: meal-plan.md. The meals planned for the week are in notes/meals.md. plan.md did not apply here.' + FIN, expect: { block: true, tags: ['skill-learn'] } },
+  // answer-resent: one short line instead of the whole answer again, only when nothing in the answer had to change
+  { ...DEBUG_TURN, name: 'answer-resent: after a files-only round, an unchanged answer may end with one short line: passes', active: true, blocks: 1, failed: ['changelog'],
+    failedExtra: { shortOk: true, answer: DEBUG_OK }, drafts: [DEBUG_OK], answer: 'Answer unchanged; done: changelog (docs/CHANGELOG.md).', expect: { block: false } },
+  { ...DEBUG_TURN, name: 'answer-resent: the same short line in Spanish: passes', active: true, blocks: 1, failed: ['changelog'],
+    failedExtra: { shortOk: true, answer: DEBUG_OK }, drafts: [DEBUG_OK], answer: 'Respuesta sin cambios; hecho: changelog (docs/CHANGELOG.md).', expect: { block: false } },
+  { ...DEBUG_TURN, name: 'answer-resent: no full answer was sent earlier in this turn: blocked', active: true, blocks: 1, failed: ['changelog'],
+    failedExtra: { shortOk: true, answer: '' }, answer: 'Answer unchanged; done: changelog (docs/CHANGELOG.md).', expect: { block: true, tags: ['answer-resent'] } },
+  { ...DEBUG_TURN, name: 'answer-resent: a first answer that is only "answer unchanged": blocked', answer: 'Answer unchanged; done: changelog.', expect: { block: true, tags: ['answer-resent'] } },
+  { ...DEBUG_TURN, name: 'answer-resent: the last round asked for changes to the answer itself: blocked', active: true, blocks: 1, failed: ['debug-root-cause'],
+    failedExtra: { shortOk: false, answer: 'Skill: debug. Fixed.' + FIN }, drafts: ['Skill: debug. Fixed.' + FIN], answer: 'Answer unchanged; done: root cause.', expect: { block: true, tags: ['answer-resent'] } },
+  { ...DEBUG_TURN, name: 'answer-resent: the earlier full answer is still checked: a missing marker blocks', active: true, blocks: 1, failed: ['changelog'],
+    failedExtra: { shortOk: true, answer: 'Root cause: the date parser.' + FIN }, drafts: ['Root cause: the date parser.' + FIN], answer: 'Answer unchanged; done: changelog (docs/CHANGELOG.md).',
+    expect: { block: true, tags: ['playbook-named'], not: ['answer-resent'] } },
+  { ...DEBUG_TURN, name: 'answer-resent: a round of file steps offers the short line', tools: [sk('debug'), ...many(16)], answer: DEBUG_OK,
+    expect: { block: true, tags: ['status-handoff'], says: /Answer unchanged; done:/ } },
+  { ...DEBUG_TURN, name: 'answer-resent: a round that needs the answer changed does not offer the short line', answer: 'Skill: debug. Fixed it.' + FIN,
+    expect: { block: true, tags: ['debug-root-cause'] }, after: (dir, reason) => !/Answer unchanged/.test(reason) || `offered the short line: ${reason.slice(-400)}` }
+);
+// A foreground command past its timeout is moved to the background: it runs on, like a background launch, and its
+// result is its output file and the notice's exit code. Files a running job makes are not this turn's.
+const BG_OUT = n => path.join(os.tmpdir(), `bgmoved-${process.pid}-${n}.output`).replace(/\\/g, '/');
+const MOVED = (id, file) => `Command did not complete within its 120s timeout and was moved to the background (ID: ${id}). Output is being written to: ${file}`;
+const MOVED_DONE = (id, code) => ({ type: 'user', message: { role: 'user', content: `<task-notification>\n<task-id>${id}</task-id>\n<status>completed</status>\n<summary>Background command completed (exit code ${code})</summary>\n</task-notification>` } });
+const SIX = Object.fromEntries(Array.from({ length: 6 }, (_, i) => [`fixtures/zz-sweep-${i + 1}.txt`, 'x']));
+STOP.push(
+  { name: 'bg-moved: a foreground command moved to the background holds the Stop while it runs', prompt: 'run the full sweep over the notes', tools: [bash('node tools/sweep.mjs', MOVED('buj1w44ls', BG_OUT('a')))],
+    files: { 'docs/rota.md': 'r' }, answer: 'Started the sweep.', expect: { block: false },
+    after: dir => { let j = {}; try { j = JSON.parse(fs.readFileSync(path.join(dir, 'tools/hooks/state/turn-end.json'), 'utf8')); } catch { } return j.pending >= 1 || `not held: ${JSON.stringify(j)}`; } },
+  { name: 'bg-moved: after its notice, the run counts by its output file: passes', edit: VALIDATOR, prompt: 'validate the data files', prep: () => fs.writeFileSync(BG_OUT('b'), 'checked 3 files\nRESULT: PASS\n'),
+    tools: [bash('node tools/validate.mjs', MOVED('bv2a', BG_OUT('b')))], rows: [MOVED_DONE('bv2a', 0)], files: { 'data/a.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Validated.' + FIN, expect: { not: ['data-valid'] } },
+  { name: 'bg-moved: after its notice, a failing output fails the gate: blocked', edit: VALIDATOR, prompt: 'validate the data files', prep: () => fs.writeFileSync(BG_OUT('c'), 'checked 3 files\nRESULT: FAIL\n'),
+    tools: [bash('node tools/validate.mjs', MOVED('bv3a', BG_OUT('c')))], rows: [MOVED_DONE('bv3a', 1)], files: { 'data/a.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Validated.' + FIN, expect: { block: true, tags: ['data-valid'] } },
+  { name: 'bg-moved: plan-required does not count files a running job makes', prompt: 'run the full sweep over the notes', tools: [bash('node tools/sweep.mjs', MOVED('bz3a', BG_OUT('d')))],
+    files: SIX, answer: 'The sweep is running.', expect: { block: false, not: ['plan-required'] } },
+  { name: 'bg-moved: plan-required does not count files a finished job made and deleted', prompt: 'run the full sweep over the notes', tools: [bash('node tools/sweep.mjs', MOVED('bz4a', BG_OUT('e')))],
+    rows: [MOVED_DONE('bz4a', 0)], prep: dir => { for (const p of Object.keys(SIX)) { const f = path.join(dir, p); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, 'x'); fs.rmSync(f); } },
+    answer: 'The sweep finished.', expect: { not: ['plan-required', 'root-tidy', 'watched-inputs'] } }
+);
+// check-preview: work learns at the prompt which checks its Stop will hold it to
+PROMPT.push(
+  { name: 'check-preview: a routed request names its runbook\'s checks before work starts', prompt: 'make a plan for the csv export', has: ['CHECKS: this turn will be held to plan-saved', 'finished-summary', 'Do them all in the first pass'] },
+  { name: 'check-preview: a new rule names what its fixes set off', prompt: 'from now on always include a budget table in plans', has: ['CHECKS: this turn will be held to', 'rule-request', 'audit-run', 'changelog'] },
+  { name: 'check-preview: a Spanish request is previewed too', prompt: 'crea un plan para exportar los informes a csv', has: ['CHECKS: this turn will be held to', 'finished-summary'] },
+  { name: 'check-preview: a data check keyed on the request, and the data check its fix sets off', setupFn: DECK_REQS, prompt: 'update the deck with the new cards', has: ['CHECKS:', 'deck-updated', 'set off data-valid'] },
+  { name: 'check-preview: small talk gets no preview', prompt: 'thanks, that looks great', hasNot: ['CHECKS:'] },
+  { name: 'check-preview: a question gets no preview', prompt: 'what is the price of desk x?', hasNot: ['CHECKS:'] }
 );
 PRETOOL.push(
   { name: 'publish-gate: publishing before a security review: denied', tool: 'Bash', input: { command: 'npm publish' }, deny: true, tag: 'publish-gate' },
@@ -1768,6 +1874,78 @@ if (mineB() && (!TAGS || TAGS.some(t => TRIGGER_TAGS.includes(t)))) {
       console.log(`trigger recall: ${got} of ${total} (${(100 * recall).toFixed(1)}%), floor ${100 * TRIGGER_FLOOR}%${notHere ? `, ${notHere} targets not installed here` : ''}, ${Date.now() - t0} ms`);
     } finally { restoreFs(); fs.rmSync(dir, { recursive: true, force: true }); }
   }
+}
+// REQ: stop-follow-on (the guard). Fix rounds as an agent makes them: round 1 is judged, the fix it asks for is made
+// (a lesson in a runbook or a skill, a new rule in CLAUDE.md and the hook, a data file), and round 2 is judged on the same
+// turn. Every check round 2 shows must have been named in round 1, and once those are done the turn passes. With hooks
+// (Stop rounds) and without them (check --answer-file). Lesson: a round-1 fix set off the audit only in round 2.
+if (mineB() && (!TAGS || TAGS.includes('stop-follow-on'))) {
+  // (the first "Names:" line: without hooks, the full steps follow it)
+  const names = r => (/Names: ([^\n]*?)\.[ \t]*(\n|$)/.exec(r || '')?.[1] || '').split(', ').filter(Boolean);
+  const LINE = '\n- Plans show what the work costs before it starts, so spending is never a surprise (2026-10-21).\n';
+  const MEMORY = { '.memtest/plan-costs.md': () => '---\nname: plan-costs\n---\nPlans show costs.\n**Why:** no surprises.\n**How to apply:** a cost table in each plan.\n' };
+  const NA = '\nN/A(runbook-exists): a test fixture';
+  const CASES = [
+    { name: 'a lesson written into a runbook', ...MEAL_TURN, files: { 'notes/meals.md': 'x' }, answer: 'Playbook: meal-plan.md. Done.' + FIN,
+      fix: { edit: { 'docs/playbooks/meal-plan.md': () => MEAL_LESSON }, answer: 'Playbook: meal-plan.md. The meals planned for the week are in notes/meals.md.' + FIN },
+      last: { tools: [bash('node tools/audit.mjs')], edit: { 'docs/CHANGELOG.md': s => s + '\n- meal-plan: a lesson\n' } } },
+    { name: 'a lesson written into a skill', prompt: 'debug the failing import', tools: [sk('debug')], files: { 'scratch-work/import.md': 'x' }, answer: 'Skill: debug. Fixed it.' + FIN,
+      fix: { edit: { 'skills/debug/SKILL.md': s => s + '\n## Project lessons\n- State the cause with its evidence before the fix.\n' }, answer: DEBUG_OK },
+      last: { tools: [bash('node tools/audit.mjs')], edit: { 'docs/CHANGELOG.md': s => s + '\n- debug: a lesson\n' } } },
+    { name: 'a new rule written into CLAUDE.md and the hook', prompt: 'from now on always include a budget table in plans', tools: [pb('project')], answer: 'Playbook: project.md. Noted.',
+      fix: { edit: { 'CLAUDE.md': s => (s || fs.readFileSync(path.join(B, 'AGENTS.md'), 'utf8')) + LINE, 'docs/checks/user-requirements.md': s => s + '| 99 | 2026-10-21 | Plans show costs | 2 | judgment |\n',
+        'tools/hooks/hooks.mjs': s => s + '\n// plans show costs: judged by the plan skill\n', ...MEMORY }, answer: 'Playbook: project.md. The rule is in CLAUDE.md, in docs/checks/user-requirements.md and in the hook.' + FIN },
+      last: { tools: [bash('node tools/hooks/selfcheck.mjs'), bash('node tools/audit.mjs')], edit: { 'docs/CHANGELOG.md': s => s + '\n- rule: plans show costs\n' },
+        answer: 'Playbook: project.md. The rule is in CLAUDE.md, in docs/checks/user-requirements.md and in the hook. Skill lesson: none - a new rule is new work, not a miss of the runbook.' + FIN } },
+    { name: 'a deck step that writes data', edit: DECK_REQS, prompt: 'update the deck with the new cards', files: { 'notes/deck-notes.md': 'x' }, answer: 'Updated.' + NA + FIN,
+      fix: { edit: { 'data/deck.txt': () => '4 Island\n' }, answer: 'Updated data/deck.txt.' + NA + FIN }, last: { tools: [bash('node tools/validate.mjs', 'RESULT: PASS')] } },
+    { name: 'a Spanish deck request', edit: DECK_REQS, prompt: 'actualiza el deck con las cartas nuevas', files: { 'notes/deck-notes.md': 'x' }, answer: 'Listo.' + NA + FIN,
+      fix: { edit: { 'data/deck.txt': () => '4 Island\n' }, answer: 'Actualizado data/deck.txt.' + NA + FIN }, last: { tools: [bash('node tools/validate.mjs', 'RESULT: PASS')] } }
+  ];
+  for (const c of CASES) {
+    const dir = copyProject();
+    try {
+      ownChecksOff(dir);
+      const since = Date.now() - 1000;
+      applyEdits(dir, c.edit, since - 3600_000);
+      KNOWN(dir);
+      const tp = transcript(dir, c, since);
+      const sp = path.join(dir, 'tools/hooks/state/snapshot.json');
+      if (fs.existsSync(sp)) { try { const j = JSON.parse(fs.readFileSync(sp, 'utf8')); j.files['transcript.jsonl'] = [0, 0, null]; fs.writeFileSync(sp, JSON.stringify(j)); } catch { } }
+      write(dir, c.files);
+      const stop = active => { const { out } = run(dir, 'stop', { transcript_path: tp, stop_hook_active: active }); let d = null; try { d = out.trim() ? JSON.parse(out) : null; } catch { } return d ? d.reason || d.hookSpecificOutput?.additionalContext || '' : ''; };
+      const r1 = stop(false), n1 = names(r1);
+      applyEdits(dir, c.fix.edit, Date.now());
+      transcript(dir, { ...c, drafts: [c.answer], later: c.fix.tools || [], answer: c.fix.answer }, since);
+      const r2 = stop(true), n2 = names(r2), late = n2.filter(t => !n1.includes(t));
+      applyEdits(dir, c.last.edit, Date.now());
+      transcript(dir, { ...c, drafts: [c.answer, c.fix.answer], later: [...(c.fix.tools || []), ...(c.last.tools || [])], answer: c.last.answer || c.fix.answer }, since);
+      const r3 = stop(true);
+      report(n1.length && !late.length && !r3, `stop-follow-on guard: ${c.name}: round 2 shows nothing round 1 did not name, and the named steps finish the turn`,
+        !n1.length ? 'round 1 did not block' : late.length ? `round 2 brought ${late.join(', ')}, not named in round 1 (${n1.join(', ')})` : `still blocked after every named step: ${r3.slice(0, 400)}`);
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  }
+  // the same without hooks: check --answer-file, twice
+  const dir = copyProject();
+  try {
+    ownChecksOff(dir);
+    const node = (...a) => spawnSync(process.execPath, [path.join(dir, 'tools', 'hooks', 'hooks.mjs'), ...a], { cwd: dir, encoding: 'utf8', env: { ...process.env, STARTER_MEMORY_DIR: path.join(dir, '.memtest') } });
+    applyEdits(dir, MEAL_CHECK, Date.now() - 3600_000);
+    const b = node('begin', 'plan meals for the week');
+    const preview = (b.stdout.split('\n').find(l => /CHECKS: /.test(l)) || '');
+    const ans = t => { write(dir, { '.cache/answer.md': t }); return node('check', '--answer-file', path.join(dir, '.cache/answer.md')); };
+    write(dir, { 'notes/meals.md': 'x' });
+    const c1 = ans('Playbook: meal-plan.md. Done.' + FIN), n1 = names(c1.stdout);
+    const note = ans('Answer unchanged; done: the lesson.');
+    applyEdits(dir, { 'docs/playbooks/meal-plan.md': () => MEAL_LESSON }, Date.now());
+    fs.appendFileSync(path.join(dir, 'tools/hooks/state/runs.jsonl'), JSON.stringify({ at: new Date().toISOString(), cmd: 'node tools/audit.mjs', out: 'audit: PASS (13 sweeps, 0 failed, 0 warnings)', error: false }) + '\n');
+    const c2 = ans('Playbook: meal-plan.md. The meals planned for the week are in notes/meals.md.' + FIN), late = names(c2.stdout).filter(t => !n1.includes(t));
+    applyEdits(dir, { 'docs/CHANGELOG.md': s => s + '\n- meal-plan: a lesson\n' }, Date.now());
+    const c3 = ans('Playbook: meal-plan.md. The meals planned for the week are in notes/meals.md.' + FIN);
+    report(/meal-ok/.test(preview) && preview.length <= 400 && ['meal-ok', 'skill-learn', 'audit-run'].every(t => n1.includes(t)) && /answer-resent/.test(note.stdout) && !late.length && c3.status === 0,
+      'stop-follow-on guard: without hooks (check --answer-file): the preview names the checks, round 1 names what the fix sets off, a bare "answer unchanged" fails, and the named steps pass',
+      `preview(${preview.length}): ${preview.slice(0, 200)} | c1: ${n1.join(', ')} | note: ${note.stdout.slice(0, 150)} | late: ${late.join(', ')} | c3: ${c3.stdout.slice(0, 300)}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 if (!TAGS) { // the standalone checks run in a full run only
 if (mineB()) { // --explain: every check that fires for a scenario at once, with its short label and what satisfies it

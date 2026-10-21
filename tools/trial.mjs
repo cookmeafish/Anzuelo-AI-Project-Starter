@@ -38,7 +38,10 @@ function snapshot(dir, skip = /^(\.git|tools\/hooks\/state|\.cache)(\/|$)/) {
   return out;
 }
 const gitRepo = (dir, msg = 'initial') => { git(['init', '-q', '-b', 'main'], dir); git(['config', 'user.email', 'trial'], dir); git(['config', 'user.name', 'Trial'], dir); git(['add', '-A'], dir); git(['commit', '-q', '-m', msg], dir); };
-const starterRun = (dir, ...flags) => node([path.join(STARTER, 'tools', 'new-project.mjs'), dir, '--dev', ...flags], STARTER);
+// An upgrade runs the project's self-tests (about 10 minutes), past this harness's 5-minute limit per command, so the
+// trial's upgrades skip them: selfcheck.mjs runs on its own, and --deep runs it inside a sample project.
+// Lesson: every trial upgrade timed out and read as "an upgrade fails" after upgrades began running the self-tests.
+const starterRun = (dir, ...flags) => node([path.join(STARTER, 'tools', 'new-project.mjs'), dir, '--dev', ...flags, ...(flags.includes('--upgrade') ? ['--no-selftest'] : [])], STARTER);
 const ignored = (dir, p) => git(['check-ignore', '-q', '--no-index', p], dir).status === 0;
 
 // ---------- the sample projects ----------
