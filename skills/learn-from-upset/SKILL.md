@@ -53,9 +53,10 @@ Say at the start: "Fixing it first, then making sure it doesn't happen again (le
    (blocked when skipped, passes when followed). A check that only looks for a word or a format lets the same miss
    through: test the result itself. For a lesson or rule: re-read the step and confirm the corrected work now follows it.
 6. **Tell the user** in the answer, on its own line:
-   `Learned (<level>): <the lesson in one sentence> → <file it went into>`.
-   Several lessons: one line each. If the upset was about something outside the project (a service outage, the user's
-   own day), say so instead: `N/A(upset-learned): <why there is nothing to learn>`.
+   `Learned (<level>): <the lesson in one sentence> → <file it went into>`, in the user's language (Spanish:
+   `Aprendido (regla): ...`). Several lessons: one line each. If the upset was about something outside the project (a
+   service outage, the user's own day), say so in plain words and waive the check outside the answer:
+   `node tools/hooks/hooks.mjs waive upset-learned "<why there is nothing to learn>"`.
 
 ## Done when
 - [ ] The answer opens with whether the complaint holds, in full, in part or not, with the evidence (judgment: the

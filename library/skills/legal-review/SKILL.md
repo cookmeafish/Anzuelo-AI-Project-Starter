@@ -6,12 +6,15 @@ triggers: review this contract, contract review, review the contract, redline, r
 # Legal review: careful paperwork, honest limits
 
 **This is not legal advice.** The agent is not a lawyer. It reads documents, compares them with the user's chosen
-positions, spots common traps, and drafts. A qualified lawyer decides anything that matters. Every result starts with
-this line:
+positions, spots common traps, and drafts. A qualified lawyer decides anything that matters. A result that reads a
+legal document or says what the law allows ends with this line, once, in the user's language:
 
 `Not legal advice: an organized first read for a qualified lawyer to check.`
 
-Say at the start: "Working on this with the legal-review skill."
+It goes at the end, after the answer, never as a banner on top and never inside a letter, reply or other draft meant
+for someone else. A plain letter that only applies facts already settled (an amount, a date, a notice period the user
+gave) needs no review and no line. Lesson: the line headed a rent letter and an answer about a letter's tone, where it
+told the user nothing. Name the skill only on the answer's last markers line (`Skill: legal-review`), not in the text.
 
 ## Pick the situation
 | The user... | Section |
@@ -150,7 +153,7 @@ The agent may still prepare a draft for the lawyer, marked `DRAFT FOR COUNSEL RE
    action: only with the user's explicit OK (AGENTS.md rule 6).
 
 ## Done when
-- [ ] The answer starts with the "Not legal advice" line (hook: legal-disclaimer).
+- [ ] The answer ends with the "Not legal advice" line, once, and no draft for someone else carries it (hook: legal-disclaimer).
 - [ ] It says what it was judged against: the user's positions file or general norms (judgment: no check reads this line yet).
 - [ ] Every lawyer trigger that applies is named, with a recommendation to involve a qualified lawyer (judgment: which lawyer triggers apply needs a reader).
 - [ ] Every law, deadline or threshold cited went through the research skill, with the jurisdiction named (judgment: which facts were cited needs a reader).

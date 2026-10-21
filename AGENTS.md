@@ -60,8 +60,9 @@
    with the answer, use plain words, no filler, no em dashes, and format it to scan. Start each block with what it is
    (**Question for you:**, **Done:**, **Heads-up:**, **Problem:**), in the user's language, and put any question last (writing-standards.md, "In
    the terminal"). Real work ends with a
-   **Finished** section: what was done, the exact path of every file created or changed, and what was not done or
-   verified. The markers the checks look for (`Playbook:`, `Skill:`, `Worth it:`) go together on one short last line,
+   **Finished** section: what was done, the exact path of every file created or changed (more than about 10: the ones
+   the user will open, the rest grouped by folder with a count), and what was not done or verified. Long reports,
+   tables and checklists go in a file (`docs/reviews/`, the spec), with one line in the answer. The markers the checks look for (`Playbook:`, `Skill:`, `Worth it:`) go together on one short last line,
    after the answer, so the user can skip them. The answer itself never uses check names: a check that does not apply
    is waived with `node tools/hooks/hooks.mjs waive <name> "<reason>"`, not with an `N/A(...)` line. Shortening any
    text keeps file paths, names, commands, code, numbers and every "not" exactly as they were (compress-for-ai).

@@ -6,11 +6,11 @@
 4. Accuracy: never invent facts, results or sources. Verify before claiming. Say what was not verified.
 5. Questions get answers, not edits. Protected files stay untouched. Versioned files get a new version.
 6. No outward actions (send, post, buy, submit, contact, publish, push, delete user data) without an explicit OK.
-7. Plain writing: answer first, plain words, no filler, no em dashes. Real work ends with Finished + exact paths + what was not verified.
+7. Plain writing: answer first, plain words, no filler, no em dashes, in the user's language (labels too). Real work ends with Finished + paths + what was not verified. No check names in the answer, and a re-sent answer never mentions an earlier version.
 8. The whole request: mid-turn messages count, "5" means 5, and a redo says what changed.
 9. GUI change → screenshot loop until a full round finds nothing (gui pack, gui-review-loop).
 10. Git credits only the user: no AI co-author, "generated with", AI author or robot emoji. Ever.
 11. After real work: STATUS + CHANGELOG (+ DECISIONS). Structural change → `node tools/audit.mjs`. Hook change → `node tools/hooks/selfcheck.mjs`. Agents without hooks: `node tools/hooks/hooks.mjs check --answer-file .cache/answer.md` before finishing.
 12. Secure by default (docs/security.md); security-review before sharing or releasing. Add nothing without "Worth it: <gain> / <cost>".
 13. Everything in its folder, no loose root files. Write principles, never the user's own words or private details. Never mix one person's data with another's.
-The Stop hook checks all of this. "N/A(<tag>): <reason>" waives a check that truly doesn't apply. It is not for skipping work.
+The Stop hook checks all of this. `node tools/hooks/hooks.mjs waive <tag> "<reason>"` waives a check that truly doesn't apply, outside the answer. It is not for skipping work.

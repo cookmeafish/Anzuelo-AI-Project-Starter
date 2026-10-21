@@ -19,7 +19,7 @@ deserializing, crypto, payments or personal data. It also means `.env`, CI, Dock
 or deploy command. The prompt hook
 says `MUST FOLLOW: security-review` when the request shows it coming, the edit hook says it when such code is
 written, and the Stop hook holds the answer until the review is done (or waived with
-`N/A(<check>): <the specific reason>`). Review only what changed, with the areas it touches.
+`node tools/hooks/hooks.mjs waive <check> "<the specific reason>"`). Review only what changed, with the areas it touches.
 
 In app projects, the `security-review.md` runbook adds its own items. **This skill finds problems and fixes the few
 critical ones; the security-hardening library skill fixes a long list as a staged project.** Both use the same areas,
@@ -99,10 +99,12 @@ Write down each attempt and its result. A blocked attack is evidence for PASS.
    and the ranked list to the **security-hardening** skill (when enabled) as a staged project.
 
 ## 5. Report
-Write one table covering every area into `docs/reviews/security-YYYY-MM-DD.md`. The answer carries the whole table
-only when an area FAILed (fixed or open); when every area is PASS or N/A, the answer gives one line instead:
-`Security review: PASS, <n> areas (N/A: <which>) - table in docs/reviews/security-YYYY-MM-DD.md`. A small change does
-not need a wall of rows the user can't act on. The table, in this shape:
+Write one table covering every area into `docs/reviews/security-YYYY-MM-DD.md`. The answer never carries the table.
+It gives one line, `Security review: PASS, <n> areas (N/A: <which>) - table in docs/reviews/security-YYYY-MM-DD.md`,
+and under it one line per area that FAILed: `<area>: FAIL -> fixed (<what changed>)` or `<area>: FAIL -> open
+(<severity>, where it went)`. Lesson: a 27-row table in a setup answer buried the one row the user had to act on.
+Write the line in the user's language (Spanish: `Revisión de seguridad: correcta, <n> áreas - tabla en ...`,
+`FALLA -> corregido`, `FALLA -> abierto`). The table, in this shape:
 
 ```
 | Area | Result | Severity | Evidence |

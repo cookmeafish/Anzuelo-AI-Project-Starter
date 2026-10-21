@@ -16,5 +16,5 @@ the fixes and the report table all come from there. This runbook only adds the a
 2. Fix each FAIL by `bugfix.md`, so it gets a regression test.
 
 ## Done when
-- [ ] The skill's report table also covers every foundation and app-standards security item (hooks: security-report, security-checklist), each PASS, FAIL or N/A
-  with evidence.
+- [ ] The skill's report table in docs/reviews/ also covers every foundation and app-standards security item (hooks: security-report, security-checklist), each PASS, FAIL or N/A
+  with evidence. The answer gives its one summary line and one line per FAIL, not the table.
