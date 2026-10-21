@@ -7,6 +7,16 @@ print, or to a command or setting a project's own hooks or scripts may rely on, 
 hooks:**, and an upgrade lists each one as its own review item.
 
 - 2026-10-20 (re-check): Fixes from an independent review of six new trial projects (no serious findings left).
+  - **Accurate prompt hints (field report 6):** one primary `ROUTE`; other specific matches show as `ALSO ROUTE`, and a
+    runbook matched only by a generic word ("improve", "report", "review", "mejorar") shows as `WEAK MATCH, not routed`
+    when anything specific matched. A message that names the starter routes to `project.md` first. A message meant for
+    another session or the starter ("a report to <starter>", "tell the other session", "dile ...") never routes to the
+    runbook that makes a file in `outputs/` or on a generic word. `PRAISE` skips questions and "if/whether" clauses and
+    knows Spanish praise. `RULE REQUEST` and `REQUIREMENT` ignore what is passed on to someone else, and know Spanish
+    rules ("de ahora en adelante", "nunca más", "cada ... debe"). `RECALL` needs two shared subject words (not "good",
+    "bad" or common words) covering half of the request. Scenarios: `route-precision:`, `praise:`, `rule-request:`,
+    `recall:`, `relayed turn:` and `manual path:`, in English and Spanish. `tools/trial.mjs` upgrades with
+    `--no-selftest`: with the self-test run, each trial upgrade passed its 5-minute limit on a busy machine.
   - **Answers in the user's language:** Spanish labels ("Terminado", "Causa raíz:", "Aprendido (regla):", "Tienes
     razón", "En parte:") meet the checks that look for the English ones; `"labelAliases"` in config adds other
     languages. AGENTS.md rule 7: the block labels are in the user's language (adopt by hand).

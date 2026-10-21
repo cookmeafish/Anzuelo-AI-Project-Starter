@@ -38,7 +38,9 @@ function snapshot(dir, skip = /^(\.git|tools\/hooks\/state|\.cache)(\/|$)/) {
   return out;
 }
 const gitRepo = (dir, msg = 'initial') => { git(['init', '-q', '-b', 'main'], dir); git(['config', 'user.email', 'trial'], dir); git(['config', 'user.name', 'Trial'], dir); git(['add', '-A'], dir); git(['commit', '-q', '-m', msg], dir); };
-const starterRun = (dir, ...flags) => node([path.join(STARTER, 'tools', 'new-project.mjs'), dir, '--dev', ...flags], STARTER);
+// an upgrade here skips its own self-test run (--deep runs the self-tests in an adopted project). Lesson: since upgrades
+// run the self-tests, each trial upgrade took over the 5-minute limit on a busy machine and was killed mid-way.
+const starterRun = (dir, ...flags) => node([path.join(STARTER, 'tools', 'new-project.mjs'), dir, '--dev', ...flags, ...(flags.includes('--upgrade') ? ['--no-selftest'] : [])], STARTER);
 const ignored = (dir, p) => git(['check-ignore', '-q', '--no-index', p], dir).status === 0;
 
 // ---------- the sample projects ----------

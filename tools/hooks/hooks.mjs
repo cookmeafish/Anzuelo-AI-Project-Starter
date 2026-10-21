@@ -189,7 +189,9 @@ const DEFAULTS = {
   changeWords: "\\b(make|create|write|add|update|fix|change|edit|save|build|apply|implement|set ?up|delete|remove|rename|move|ingest|record|note|remember|go ahead|do it|yes|yep|sure|ok(ay)?|proceed|draft|generate|turn|convert|organi[sz]e|clean|refactor|improve|put|bump|raise|lower|increase|decrease|tweak|adjust|enable|disable|install|switch|replace|restyle|resize|translate|merge|split|commit|push|send|post|publish|deploy|release|run)\\b",
   // (Lesson: "nice work" and "that's exactly it" were missed, while "not perfect yet" and "the perfect pizza" counted:
   // "perfect" is praise only on its own, at the end of a clause, and not after "not")
-  praise: String.raw`\b(great job|good job|nice (work|job)|well done|nailed it|spot on|awesome|amazing|love (it|this|that)|exactly (it|what i wanted)|keep (doing|making) (this|that|these|it))\b|\bthat'?s (it|the one)\s*[!.]|\bthat is the one\b|(?<!\bnot )\bperfect\b(?=\s*([.!,]|$))`,
+  praise: String.raw`\b(great job|good job|nice (work|job)|well done|nailed it|spot on|awesome|amazing|love (it|this|that)|exactly (it|what i wanted)|keep (doing|making) (this|that|these|it))\b|\bthat'?s (it|the one)\s*[!.]|\bthat is the one\b|(?<!\bnot )\bperfect\b(?=\s*([.!,]|$))` +
+    // Spanish too (Lesson: "perfecto, sigue así" got no PRAISE hint)
+    String.raw`|(^|[^\wáéíóú])(buen trabajo|bien hecho|me encanta|excelente|genial|as[ií] me gusta|sigue as[ií]|sigue haci[eé]ndolo as[ií])(?![\wáéíóú])|(?<!\bno )\bperfecto\b(?=\s*([.!,]|$))`,
   // Git: nothing in a commit, push, PR or release may credit an AI agent. Everything is solely the user's.
   aiAttribution: "co-authored-by:[^\\n]*(claude|anthropic|openai|chatgpt|gpt-?\\d|codex|copilot|cursor|gemini|bard|llama|mistral|devin|aider|\\bai\\b|bot\\b)|generated (with|by) [^\\n]*(claude|chatgpt|gpt|codex|copilot|cursor|gemini|\\bai\\b)|noreply@anthropic\\.com|claude\\.(ai|com)/code|🤖|\\[bot\\]@|(written|made|created) (with|by) (claude|chatgpt|codex|copilot|cursor|gemini)",
   aiAuthor: "\\b(claude|anthropic|chatgpt|openai|codex|copilot|cursor|gemini|devin|aider)\\b|\\[bot\\]|noreply@(anthropic|openai)",
@@ -239,11 +241,16 @@ const DEFAULTS = {
     // Plainer standing wishes ("there needs to be ...", "the menu has to ...", "keep in mind that every ...") count too,
     // except as a one-off: "this one/this time" before it, a deadline or "first" after it, or a question.
     // Lesson: "there needs to be role selection ... keep in mind that every phase has different roles" got no hint and no check.
-    String.raw`|(?<!\b(this one|this time|just this|for now)\b[^.?!\n]{0,30})(?:\bthere (needs|has) to be\b|\b(it|this|the \w+) (needs|has) to\b|\bshould (always|never|be|have|show)\b|\bmust (be|have|show|not)\b|\bmake sure (it|that|the|you)\b|\bi want (it|the \w+) to\b|\bkeep in mind that\b[^.?!\n]{0,40}\b(every|each|all|most|always|never)\b)(?![^.?!\n]{0,40}\b(by|before|until|today|tomorrow|tonight|asap|first|this time|for now|right now)\b|[^.!\n]*\?)`,
+    String.raw`|(?<!\b(this one|this time|just this|for now)\b[^.?!\n]{0,30})(?:\bthere (needs|has) to be\b|\b(it|this|the \w+) (needs|has) to\b|\bshould (always|never|be|have|show)\b|\bmust (be|have|show|not)\b|\bmake sure (it|that|the|you)\b|\bi want (it|the \w+) to\b|\bkeep in mind that\b[^.?!\n]{0,40}\b(every|each|all|most|always|never)\b)(?![^.?!\n]{0,40}\b(by|before|until|today|tomorrow|tonight|asap|first|this time|for now|right now)\b|[^.!\n]*\?)` +
+    // Spanish: "cada informe debe ...", "todas las páginas tienen que ..."
+    String.raw`|\b(cada|todos los|todas las) (\w+ ){0,3}(debe|deben|tiene que|tienen que|necesita|necesitan)\b`,
   // (Lesson: "every time you finish", "stop adding", "no more em dashes", "in future" and "remember I prefer" were
   // missed, while "remember that the supplier closes on mondays", a fact for the knowledge base, read as a rule;
   // "the invoices must always show ..." is a requirement on the work, so "must always" is left to requirementWords)
-  ruleRequest: String.raw`update (the|this|your|ur) project|from now on|going forward|\bremember (to|this)\b|\bremember (that )?(i|we) (prefer|like|want|hate|don'?t|never|always|use)\b|\bremember (that )?(you|we) (should|must|always|never|need|have to)\b|\bmandatory\b|make (it|this|that) a (rule|requirement)|(?<!\b(must|should|has to|needs? to) )\b(always|never) (do|make|use|check|include|ask|tell|run|add|keep|start|end|read|write|put|give|show|create|follow|save|delete|send|cite|mention|format|name|link|test|commit|push|leave|remove|spell|reply|answer|label|date)\b|never .{0,40} again|don'?t ever|stop doing|i shouldn'?t have to (tell|remind)|\bevery time (you|we|i)\b|\bstop (adding|using|putting|making|writing|doing|including)\b|\bno more (?!than\b)\w+|\bin (the )?future\b`,
+  ruleRequest: String.raw`update (the|this|your|ur) project|from now on|going forward|\bremember (to|this)\b|\bremember (that )?(i|we) (prefer|like|want|hate|don'?t|never|always|use)\b|\bremember (that )?(you|we) (should|must|always|never|need|have to)\b|\bmandatory\b|make (it|this|that) a (rule|requirement)|(?<!\b(must|should|has to|needs? to) )\b(always|never) (do|make|use|check|include|ask|tell|run|add|keep|start|end|read|write|put|give|show|create|follow|save|delete|send|cite|mention|format|name|link|test|commit|push|leave|remove|spell|reply|answer|label|date)\b|never .{0,40} again|don'?t ever|stop doing|i shouldn'?t have to (tell|remind)|\bevery time (you|we|i)\b|\bstop (adding|using|putting|making|writing|doing|including)\b|\bno more (?!than\b)\w+|\bin (the )?future\b` +
+    // Spanish (Lesson: "de ahora en adelante ..." got no rule hint)
+    String.raw`|de ahora en adelante|a partir de ahora|\bdesde ahora\b|\ben (el )?futuro\b|\bno vuelvas a\b|\bnunca m[aá]s\b|\brecuerda (que )?(siempre|nunca)\b` +
+    String.raw`|\bsiempre (usa|haz|pon|incluye|cita|revisa|escribe|a[ñn]ade|agrega|responde|contesta|guarda|pregunta|prueba|comprueba)\b|\bnunca (uses|hagas|pongas|incluyas|escribas|a[ñn]adas|agregues|borres|env[ií]es|digas|cambies|toques)\b|\bcada vez que (hagas|termines|escribas|cambies|a[ñn]adas|empieces)\b`,
   // A complaint about a miss: the learn-from-upset skill fixes it and stores the lesson where it belongs (REQ: upset-learned).
   // Lesson: "you forgot the allergens again!!" got a frustration hint, but nothing made it a rule.
   // A small touch-up: no runbook is needed when it changes at most 2 files (REQ: runbook-exists). Lesson: "fix the typo
@@ -446,13 +453,32 @@ const OPINION = /\b(do|did|would|will) you (think|reckon|believe|feel|agree|pref
 // Passing a message to another session or agent is not a new kind of task. Lesson: "tell the other terminal" got NO RUNBOOK.
 const RELAY = /\b(tell|ask|message|ping|notify|update|let)\b[^.?!\n]{0,40}\b(terminal|session|agent|window|instance|other claude)\b|\bpass (this|it|that|them) (on|along)\b|\brelay (this|it|that)\b/i;
 // ...unless it also asks for work ("tell the terminal, then fix the export")
-const isRelay = t => RELAY.test(t) && !/\b(and|then|also|but)\b[^.?!\n]{0,15}\b(fix|add|make|build|write|create|change|update|edit|remove|run)\b/i.test(t);
+const isRelay = t => (RELAY.test(t) || toPeer(t)) && !/\b(and|then|also|but)\b[^.?!\n]{0,15}\b(fix|add|make|build|write|create|change|update|edit|remove|run)\b/i.test(t);
+// A message meant for someone else: another session, terminal or agent, or the starter itself ("a report to <starter>",
+// "dile a la otra sesión"). What it asks for is that message, not a file for the user in outputs/ and not the domain job
+// its words describe. Lesson: "write a report to <starter> on how to improve it" routed to the deliverable runbook
+// (outputs/) and to a deck runbook whose triggers had "improve".
+const PEER_NOUN = String.raw`(terminal|session|agent|window|instance|chat|sesi[oó]n|agente|ventana)`;
+const PEER = new RegExp(String.raw`\b(to|for|with|para|a|al|con)\s+(the\s+|la\s+|el\s+)?(other|another|otra|otro)\s+(\w+\s+)?${PEER_NOUN}` +
+  String.raw`|\b(to|for|para|a|al)\s+(the\s+|la\s+|el\s+)?\w+\s+${PEER_NOUN}s?\s+(coding|working|running|that|que)\b` +
+  String.raw`|(^|[^\wáéíóú])(dile|diles|p[ií]dele|p[ií]deles|av[ií]sale|av[ií]sales|cu[eé]ntale|menci[oó]nale|recu[eé]rdale)(?![\wáéíóú])`, 'i');
+// The starter's own name (docs/names.json STARTER_NAME), unless the project's content is about a real thing of that name.
+const starterName = () => { const n = names().STARTER_NAME; return n && n.trim().length >= 3 && !/\{\{/.test(n) && !subjects().has('STARTER_NAME') ? n.trim() : ''; };
+export const toPeer = (text, starter = starterName()) => RELAY.test(text) || PEER.test(text) ||
+  (!!starter && re(String.raw`\b(to|for|tell|ask|para|a|al)\s+(the\s+)?${esc(starter)}\b`).test(text));
+// Single words that name a generic action or kind of document, not a subject: as a runbook's only evidence they lose to
+// any specific match, and never route a message meant for someone else. Lesson: a deck runbook's "improve" won over the
+// project runbook on a request about the starter.
+const WEAK = new Set(['improve', 'improvement', 'better', 'upgrade', 'report', 'review', 'enhance', 'refine', 'polish', 'rework', 'redo', 'tweak',
+  'feedback', 'issue', 'problem', 'mejorar', 'mejora', 'informe', 'reporte', 'revisar', 'arreglar'].map(stem));
+// A runbook whose result is a file for the user in outputs/ (the deliverable runbook)
+const makesFile = pb => /\boutputs\//.test(String(pb.fm?.summary || ''));
 // A question with no request to make something does not route on a one-word trigger alone ("guide" in "no images in
 // any guide???" is not a request to write one). Lesson: a frustrated question routed to deliverable.md.
 const MAKE_REQUEST = /\b(write|make|create|draft|build|prepare|produce|put together|turn [^.?!]{0,30} into|export|save|generate|compose|update|edit|fix|add)\b/i;
 // Text the user pasted, and text that is the hooks' own output, are not the user's words: they never route or count as
 // a request. Lesson: a pasted audit line ("... 26 sweeps") was taken as a request for 26 sweeps.
-const HOOK_MARK = /^\s*(-\s+)?(ROUTE|ROUTINES DUE|FEEDBACK FROM PROJECTS|SKILL|NO RUNBOOK|RULE REQUEST|RECALL|MENU CODE|MENU FLAG|SCOPE|SETUP IN PROGRESS|BOOTSTRAP NEEDED|LAST WORK TURN|INBOX|STALE KNOWLEDGE|PRAISE|THE USER SOUNDS|SUSPENDED|FRICTION ON|UNKNOWN MENU|SKILL HARDENING|SKILL CLEANUP|UPGRADE REVIEW|OPEN PLANS|MUST FOLLOW|AUTONOMY)\b/;
+const HOOK_MARK = /^\s*(-\s+)?(ROUTE|ALSO ROUTE|WEAK MATCH|CLOSEST RUNBOOK|ROUTINES DUE|FEEDBACK FROM PROJECTS|SKILL|NO RUNBOOK|RULE REQUEST|RECALL|MENU CODE|MENU FLAG|SCOPE|SETUP IN PROGRESS|BOOTSTRAP NEEDED|LAST WORK TURN|INBOX|STALE KNOWLEDGE|PRAISE|THE USER SOUNDS|SUSPENDED|FRICTION ON|UNKNOWN MENU|SKILL HARDENING|SKILL CLEANUP|UPGRADE REVIEW|OPEN PLANS|MUST FOLLOW|AUTONOMY)\b/;
 const HOOK_LINE = /^\s*(\[rules\]|\[project hooks|audit:\s*(PASS|FAIL)|selfcheck:|ablation:|TRIAL:\s*(PASS|FAIL)|CLAIMS:\s*(PASS|FAIL)|(PASS|FAIL|WARN)\s+\d+\.\s)/i;
 const HOOK_BLOCK = /^\s*(stop hook\b|almost done:)/i;
 // Messages from other sessions, sub-agents and the host are not the user's words, wherever they sit in a message: the
@@ -497,7 +523,7 @@ export function route(prompt, pbs) {
     if (off.has(pb.name)) continue;
     // Evidence: a trigger with 2+ key words, or a one-word trigger, routes alone; a longer trigger that has a single
     // key word ("the hooks", "process these") needs a second distinct key word from another trigger.
-    let score = 0, strong = false; const hits = [], weak = new Set();
+    let score = 0, strong = false, specific = false; const hits = [], weak = new Set();
     const askOnly = /\?\s*$/.test(text.trim()) && !MAKE_REQUEST.test(text);
     for (const t of pb.triggers) {
       const k = keyWords(t);
@@ -519,17 +545,40 @@ export function route(prompt, pbs) {
       // A phrase of common words routes alone only with two key words ("not working", "look up"), three words or more
       // ("from now on", "where are we") or a pointer at the user's thing ("fix this"); otherwise it only backs up a real
       // match: "can you fix it here" alone is no bug report
-      if (common) { score += 0.5; hits.push(t); if (phrase && (k.length >= 2 || t.trim().split(/\s+/).length >= 3 || /\b(my|our|this|these)\b/i.test(t))) strong = true; continue; }
+      if (common) { score += 0.5; hits.push(t); specific = true; if (phrase && (k.length >= 2 || t.trim().split(/\s+/).length >= 3 || /\b(my|our|this|these)\b/i.test(t))) strong = true; continue; }
       score += exact ? 1 + t.split(' ').length / 10 : 0.5 + k.length / 10; hits.push(t);
+      if (!(k.length < 2 && !/\s/.test(t.trim()) && WEAK.has(k[0]))) specific = true;
       // a phrase that points at the user's own thing ("my vault", "in my notes", "remember this"), typed exactly, is a
       // request on its own. Lesson: such triggers could never route, so "check the links in my vault" found nothing.
       const oneWord = k.length < 2 && !/\s/.test(t.trim());
       if (k.length >= 2 || (oneWord && !askOnly) || phrase || (exact && /\b(my|our|this|these)\b/i.test(t))) strong = true; else k.forEach(w => weak.add(w));
     }
-    if (pb.triggerRe && pb.triggerRe.test(low)) { score += 2; strong = true; hits.push('/' + pb.fm.trigger_regex + '/'); }
-    if (score && (strong || weak.size >= 2)) scored.push({ pb, score, hits });
+    if (pb.triggerRe && pb.triggerRe.test(low)) { score += 2; strong = true; specific = true; hits.push('/' + pb.fm.trigger_regex + '/'); }
+    if (score && (strong || weak.size >= 2)) scored.push({ pb, score, hits, specific });
   }
-  return scored.sort((a, b) => b.score - a.score).slice(0, 3);
+  // A message that names the starter is about the project itself: the project runbook comes first, whatever else its
+  // words match. Lesson: "a report to <starter> on how to improve it" put a deck runbook and the deliverable runbook
+  // beside the project runbook, with "follow them in order".
+  const starter = pbs.some(pb => pb.file === 'docs/playbooks/project.md') ? starterName() : '';
+  if (starter && re(`(^|[^a-z0-9])${esc(starter.toLowerCase())}($|[^a-z0-9])`).test(low)) {
+    const pj = pbs.find(pb => pb.file === 'docs/playbooks/project.md');
+    if (!off.has(pj.name)) {
+      let e = scored.find(s => s.pb === pj);
+      if (!e) scored.push(e = { pb: pj, score: 0, hits: [] });
+      if (!e.hits.some(h => h.toLowerCase() === starter.toLowerCase())) { e.score += 1.5; e.hits.push(starter); }
+      e.specific = true; e.about = true;
+    }
+  }
+  // Weak matches (only a generic word like "improve" or "report") give way to any specific match, and a message meant
+  // for someone else routes neither on weak words nor to the runbook that makes a file for the user.
+  const peer = toPeer(text, starter || starterName());
+  let keep = peer ? scored.filter(s => s.specific && !makesFile(s.pb)) : scored;
+  const specific = keep.filter(s => s.specific);
+  const weak = specific.length ? keep.filter(s => !s.specific) : [];
+  if (specific.length) keep = specific;
+  const out = keep.sort((a, b) => (b.about ? 1 : 0) - (a.about ? 1 : 0) || b.score - a.score).slice(0, 3);
+  out.weak = weak; out.dropped = scored.filter(s => !keep.includes(s) && !weak.includes(s));
+  return out;
 }
 
 export function menu() {
@@ -2502,13 +2551,38 @@ export function fitDueByRequest(text, cfg = config()) {
   }).filter(x => x.triggers.length);
   return route(text, items).map(({ pb, hits }) => ({ item: pb.name, hits, decision: pb.row.decision.slice(0, 120) }));
 }
+// What the user asks to pass on to someone else is that one message's content, not a standing rule or requirement here.
+// "From now on always tell me ..." stays a rule: a relay verb right after always/never/from now on is kept.
+// Lesson: "give that feedback to <starter> and mention to do multiple tests to make sure it's fixed" fired REQUIREMENT.
+const RELAY_PART = /(^|[^\wáéíóú])(mention|tell|ask|remind|say|suggest|let (?:him|her|them|it) know|dile|diles|p[ií]dele|p[ií]deles|av[ií]sale|menci[oó]nale|menciona|recu[eé]rdale|sugi[eé]rele)(?![\wáéíóú])[^.!?\n]*/gi;
+export function ownWords(p) {
+  const s = String(p || '');
+  if (!toPeer(s) && !/\b(tell|ask|remind) (him|her|them)\b|\bmention (to|that)\b/i.test(s)) return s;
+  return s.replace(RELAY_PART, (m, lead, ...a) => {
+    const off = a[a.length - 2];
+    return /\b(always|never|from now on|going forward|siempre|nunca|de ahora en adelante|a partir de ahora)\s*$/i.test(s.slice(Math.max(0, off - 25), off + lead.length)) ? m : lead + ' ';
+  });
+}
+export const isRuleRequest = (p, cfg = config()) => re(cfg.ruleRequest).test(ownWords(p));
+export const isRequirement = (p, cfg = config()) => re(cfg.requirementWords).test(ownWords(p));
+// Praise is a statement. The same words in a question ("is it doing a good job?", "¿lo está haciendo bien?") or after
+// "if"/"whether" ask for a verdict. Lesson: PRAISE fired on "is it doing a good job or a bad job?".
+export function isPraise(p, cfg = config()) {
+  for (const c of String(p || '').split(/(?<=[.!?\n])/)) {
+    const s = c.trim();
+    if (!s || /\?\s*$/.test(s) || /^¿/.test(s) || /^(is|are|was|were|do|does|did|has|have|had|can|could|would|will|should|how|what|why|which|whether|am i|was it)\b/i.test(s)) continue;
+    const m = re(cfg.praise).exec(s);
+    if (m && !/\b(if|whether|unless|si)\b/i.test(s.slice(0, m.index))) return true;
+  }
+  return false;
+}
 export function promptHints(prompt, cfg = config(), withNotices = true) {
   if (!String(prompt || '').trim() || skipped(prompt)) return []; // REQ: notification-not-prompt
   const p = userText(prompt); // pasted text and the hooks' own output are not the request
   const hints = [];
   // REQ: recall-hint. A request much like an earlier one starts from how that one was solved.
-  const best = recallMatches(p, 1)[0];
-  if (best && best.share >= 0.5) hints.push(`RECALL: on ${best.h.at} a similar request ("${best.h.prompt.slice(0, 90)}") was done${best.h.used.length ? ` with ${best.h.used.join(', ')}` : ''}${best.h.changed.length ? `, changing ${best.h.changed.slice(0, 4).join(', ')}` : ''}. Start from that; more: node tools/recall.mjs "<key words>".`);
+  const best = recallMatches(p, 3).find(r => r.share >= 0.5 && r.close);
+  if (best) hints.push(`RECALL: on ${best.h.at} a similar request ("${best.h.prompt.slice(0, 90)}") was done${best.h.used.length ? ` with ${best.h.used.join(', ')}` : ''}${best.h.changed.length ? `, changing ${best.h.changed.slice(0, 4).join(', ')}` : ''}. Start from that; more: node tools/recall.mjs "<key words>".`);
   const m = expandMenu(p);
   for (const c of m.known) {
     const r = m.codes[c];
@@ -2524,14 +2598,18 @@ export function promptHints(prompt, cfg = config(), withNotices = true) {
     const pb = pbs.find(x => x.file.endsWith('/' + m.codes[c].playbook));
     if (pb && !routed.some(r => r.pb === pb)) routed.unshift({ pb, hits: [c] });
   }
-  for (const { pb, hits } of routed) {
+  // One primary ROUTE; other specific matches are named as secondary, and weak ones (a generic word only) are not routes.
+  // Lesson: three ROUTE lines and "follow them in order" sent the agent to two wrong runbooks.
+  routed.forEach(({ pb, hits }, i) => {
     const how = `open ${pb.file} THIS turn (or use the ${pb.skillName} skill, which points to it) and follow every step in order`;
-    hints.push(`ROUTE: ${pb.name} (matched: ${hits.join(', ')}). If this is the task: ${how}. Name it in the answer ("Playbook: ${pb.file.split('/').pop()}"). REQ: runbook-read.`);
-  }
-  if (routed.length > 1) hints.push('Several runbooks matched: pick by the precedence notes in DIRECTORY.md, or follow them in order if the request covers both.');
+    if (!i) hints.push(`ROUTE: ${pb.name} (matched: ${hits.join(', ')}). If this is the task: ${how}. Name it in the answer ("Playbook: ${pb.file.split('/').pop()}"). REQ: runbook-read.`);
+    else hints.push(`ALSO ROUTE: ${pb.name} (matched: ${hits.join(', ')}). Only if the request also covers this job: open ${pb.file} after the one above (precedence notes in DIRECTORY.md) and name it too.`);
+  });
+  const weakOnes = [...(routed.weak || [])];
+  if (weakOnes.length) hints.push(`WEAK MATCH, not routed: ${weakOnes.map(({ pb, hits }) => `${pb.name} (only "${hits.join('", "')}")`).join(', ')}. A generic word is no evidence; open one only if the request really is that job.`);
   // a lasting requirement ("keep in mind that every phase ...") is enforced through REQUIREMENT below, not stored as a
   // fact. Lesson: a requirement said in passing also suggested knowledge-capture, which was noise.
-  const sk = route(m.expanded, routableSkills(cfg)).filter(({ pb: s }) => !(s.name === 'knowledge-capture' && re(cfg.requirementWords).test(p)));
+  const sk = route(m.expanded, routableSkills(cfg)).filter(({ pb: s }) => !(s.name === 'knowledge-capture' && isRequirement(p, cfg)));
   for (const { pb: s, hits } of sk)
     hints.push(`SKILL: ${s.name} (matched: ${hits.join(', ')}). If this is the task: open ${s.file} THIS turn (or invoke the ${s.name} skill) and follow it, together with any runbook above. Name it in the answer ("Skill: ${s.name}"). REQ: skill-read.`);
   // REQ: fit-checklist (at the request). A library skill the checklist left for later, or skipped, whose triggers this
@@ -2574,18 +2652,18 @@ export function promptHints(prompt, cfg = config(), withNotices = true) {
     hints.push('THE USER SOUNDS UPSET about a miss. Use the learn-from-upset skill (skills/learn-from-upset/SKILL.md): fix the miss first by its runbook ' +
       'and say plainly what went wrong (no arguing, no long apology), then weigh how important the lesson is (one-off, lesson in the skill that missed it, rule, ' +
       'hook check, new skill, or engine feedback that reaches every project) and write it there. End with "Learned (<level>): <lesson> → <file>". REQ: upset-learned.');
-  if (re(cfg.ruleRequest).test(p) && !isUpset(p, cfg))
+  if (isRuleRequest(p, cfg) && !isUpset(p, cfg))
     hints.push('RULE REQUEST: the user is setting a standing rule. Use the project-rule skill: record the principle and why (in your own words, not theirs) with today\'s date, ' +
       'write the rule into CLAUDE.md, add a row to docs/checks/user-requirements.md, enforce it in tools/hooks/requirements.json (or say ' +
       '"hook: N/A <reason>"), run the hook tests and the audit. If it is not actually a rule, write "N/A(rule-request): <why>". REQ: rule-request.');
-  else if (re(cfg.requirementWords).test(p))
+  else if (isRequirement(p, cfg))
     hints.push('REQUIREMENT: the user stated a lasting requirement on the work. Enforce it this turn, without asking: a "Done when" item in its runbook or skill with ' +
       '"(hook: <tag>)", the check and a test (or "(judgment: <why>)" when no script can tell). If it was only for this one task, ' +
       'say so with N/A(requirement-enforced): one-off. REQ: requirement-enforced.');
   const due = hardenDue(pbs, usage(), cfg);
   if (due.length && routed.some(r => due.includes(r.pb)))
     hints.push(`SKILL HARDENING DUE for ${routed.filter(r => due.includes(r.pb)).map(r => r.pb.file).join(', ')}: after the task, use the skill-harden skill.`);
-  if (re(cfg.praise).test(p))
+  if (isPraise(p, cfg))
     hints.push('PRAISE: the user liked something. Work out what exactly worked and write it into the runbook or skill it came from ' +
       '(a "What works" line), so it repeats. "Keep doing this" is a standing rule (project-rule).');
   const ppl = people(cfg);
@@ -3268,7 +3346,7 @@ export function coreChecks(x, cfg) {
   }
   // REQ: rule-request. "Always/never/remember/from now on" becomes an enforced rule, not just a promise. (A complaint is
   // weighed by the learn-from-upset skill, which sends it here when a rule is the right home: REQ: upset-learned.)
-  if (x.prompt && re(cfg.ruleRequest).test(x.prompt)) {
+  if (x.prompt && isRuleRequest(x.prompt, cfg)) {
     const need = [];
     // (the principle in the agent's own words, never the user's: hard rule 14)
     if (!x.changed.includes('CLAUDE.md') && !x.changed.includes('AGENTS.md')) need.push('AGENTS.md (the rule as a principle in your own words, why it matters, and the date)');
@@ -3329,7 +3407,7 @@ export function coreChecks(x, cfg) {
   // check, and a test; or a "(judgment: <why>)" item when no script can tell. Lesson: the user stated requirements, the
   // agent only wrote them into a runbook, and nothing enforced them until the user asked whether they were enforced.
   // Only a work turn: a passing remark in a question turn is answered, not blocked.
-  if (x.workTurn && x.prompt && re(cfg.requirementWords).test(x.prompt) && !re(cfg.ruleRequest).test(x.prompt) && !isUpset(x.prompt, cfg)) {
+  if (x.workTurn && x.prompt && isRequirement(x.prompt, cfg) && !isRuleRequest(x.prompt, cfg) && !isUpset(x.prompt, cfg)) {
     const checkAdded = x.changed.some(p => /^(tools\/hooks\/(requirements\.json|hooks\.mjs|project-scenarios\.mjs)|library\/catalog\.json|packs\/[^/]+\/pack\.json)$/.test(p) || /\.(mjs|py|js|ts)$/.test(p) && /check|guard|lint|validate/i.test(p));
     const tested = x.changed.some(p => /^tools\/hooks\/(selfcheck|project-scenarios)\.mjs$/.test(p) || /(^|\/)(tests?|__tests__)\/|\.(test|spec)\./.test(p)) || x.cmds.some(c => /selfcheck\.mjs|\btest\b/.test(c));
     const judged = x.changed.filter(p => /(^docs\/playbooks\/|SKILL\.md$)/.test(p) && exists(p)).some(p => doneWhenItems(read(abs(p))).some(i => /\bjudg(e)?ment\b/i.test(i)));
@@ -3888,7 +3966,20 @@ export function recallMatches(text, limit = 3) {
   if (want.size < 2) return [];
   return read(HISTORY).split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean)
     .map(h => { const p = new Set(keyWords(h.prompt)), rest = new Set(keyWords(`${h.answer} ${h.used.join(' ')} ${h.changed.join(' ')}`)); let score = 0; for (const w of want) score += p.has(w) ? 2 : rest.has(w) ? 1 : 0; return { h, score, share: [...want].filter(w => p.has(w)).length / want.size }; })
-    .filter(r => r.score >= 4).sort((a, b) => b.score - a.score || (b.h.at > a.h.at ? 1 : -1)).slice(0, limit);
+    .filter(r => r.score >= 4).sort((a, b) => b.score - a.score || (b.h.at > a.h.at ? 1 : -1)).slice(0, limit)
+    .map(r => ({ ...r, close: recallClose(want, r.h) }));
+}
+// The RECALL hint needs a close match: at least two words that name the subject (not common words, not a verdict like
+// "good" or "bad", not Spanish small words) shared with the earlier request, covering half of the new one's.
+// Lesson: "is it doing a good job?" recalled an unrelated deck edit whose request said "good and bad".
+const RECALL_WEAK = new Set(['good', 'bad', 'job', 'great', 'nice', 'better', 'worse', 'best', 'worst', 'well', 'right', 'wrong', 'okay', 'fine',
+  'terrible', 'awful', 'poor', 'bien', 'mal', 'bueno', 'buena', 'malo', 'mala', 'trabajo', 'las', 'los', 'del', 'que', 'una', 'uno', 'unos', 'unas',
+  'para', 'por', 'con', 'est', 'esta', 'este', 'esto', 'eso', 'esa', 'ese', 'como', 'muy', 'pero', 'les', 'sus', 'mis', 'tus', 'hac', 'haciendo', 'hecho'].map(stem));
+function recallClose(want, h) {
+  const content = [...want].filter(w => !GENERIC.has(w) && !RECALL_WEAK.has(w));
+  const p = new Set(keyWords(h.prompt));
+  const shared = content.filter(w => p.has(w));
+  return shared.length >= 2 && shared.length / content.length >= 0.5;
 }
 
 function recordUsage(x, key) {
@@ -4153,7 +4244,7 @@ export function stopOutput(d, cfg = config(), host = HOST) {
 const HOOK_OUTPUT_MAX = 9000;
 export function fitOutput(text, max = HOOK_OUTPUT_MAX) {
   if (text.length <= max) return text;
-  const lines = text.split('\n'), first = l => /^(ROUTE|SKILL|NO RUNBOOK|RULE REQUEST|SCOPE|MENU CODE|FIT|SETUP|BOOTSTRAP|PLAN|UPGRADE REVIEW)\b/.test(l);
+  const lines = text.split('\n'), first = l => /^(ROUTE|ALSO ROUTE|SKILL|NO RUNBOOK|RULE REQUEST|SCOPE|MENU CODE|FIT|SETUP|BOOTSTRAP|PLAN|UPGRADE REVIEW)\b/.test(l);
   const ordered = [...lines.filter(first), ...lines.filter(l => !first(l))];
   const tail = '\n(The rest of this hook output was cut to fit what the agent is shown: node tools/hooks/hooks.mjs notices prints the notices in full.)';
   let out = '';

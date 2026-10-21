@@ -1489,6 +1489,66 @@ PROMPT.push(
   { name: 'autonomy-hint: already auto, no hint', prompt: 'go go go without my input until it is finished', setupFn: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), autonomy: 'auto' }) }, hasNot: ['AUTONOMY'] }
 );
 
+// Prompt hints must be accurate (a field report: a report meant for the starter routed to a domain runbook on "improve"
+// and to the deliverable runbook; PRAISE fired on a question; REQUIREMENT on a one-off message to pass on; RECALL on an
+// unrelated past request). The fixture's domain runbook has generic words ("improve", "report") among its triggers, and
+// its deliverable runbook makes files in outputs/. Made-up nouns, so a project's own runbooks never match.
+const HINT_FIX = {
+  'docs/playbooks/zorbel-tune.md': '---\nname: zorbel-tune\nsummary: Tune a zorbel - its grobbles and flimwraps\ntriggers: improve, report, review, mejorar, informe, tune my zorbel, zorbel grobbles\n---\n# Zorbel tune\n1. Read the zorbel.\n',
+  'docs/playbooks/deliverable.md': '---\nname: deliverable\nsummary: Produce a document the user will use or share as a new versioned file in outputs/\ntriggers: write a report, write up, a report on, escribe un informe, redacta un informe\n---\n# Deliverable\n1. Write it in outputs/.\n'
+};
+const STARTER_IS = { 'docs/names.json': s => JSON.stringify({ ...JSON.parse(s || '{}'), STARTER_NAME: 'Anzuelo', _subjects: [] }) };
+const hintRoute = (name, prompt, more) => ({ name: 'route-precision: ' + name, prompt, setup: HINT_FIX, setupFn: STARTER_IS, ...more });
+const NOT_DOMAIN = ['ROUTE: zorbel-tune', 'ROUTE: deliverable', 'Several runbooks matched'];
+const HIST = (prompt, changed) => ({ 'tools/hooks/state/history.jsonl': JSON.stringify({ key: 'k', at: '2026-10-01', prompt, used: [], changed, answer: 'Done.' }) + '\n' });
+PROMPT.push(
+  // a report or message for the starter or another session: one primary ROUTE (the project runbook when the starter is
+  // named), never the domain runbook on a generic word, never the deliverable runbook
+  hintRoute('a report to the starter on how to improve it routes to the project runbook only', 'Write a detailed report to anzuelo with recommendations on how to improve it', { routes: 1, has: ['ROUTE: project'], hasNot: NOT_DOMAIN }),
+  hintRoute('feedback to the starter with a review of the report step routes to the project runbook only', 'report to anzuelo how to improve the review of each report', { routes: 1, has: ['ROUTE: project'], hasNot: NOT_DOMAIN }),
+  hintRoute('a write-up for the other session is a message, not a deliverable', 'write up what you found and how to improve it for the other session', { routes: 0, hasNot: [...NOT_DOMAIN, 'NO RUNBOOK'] }),
+  hintRoute('telling another session to improve its report routes nowhere', 'tell the other session to improve its report', { routes: 0, hasNot: [...NOT_DOMAIN, 'NO RUNBOOK'] }),
+  hintRoute('Spanish: a report to the starter routes to the project runbook only', 'escribe un informe para anzuelo con recomendaciones para mejorar', { routes: 1, has: ['ROUTE: project'], hasNot: NOT_DOMAIN }),
+  hintRoute('Spanish: a message for the other session routes nowhere', 'dile a la otra sesión que escriba un informe para mejorar', { routes: 0, hasNot: [...NOT_DOMAIN, 'NO RUNBOOK'] }),
+  hintRoute('a generic word gives way to a specific match, named as weak', 'look at the hooks of anzuelo and improve them',{ routes: 1, has: ['ROUTE: project', 'WEAK MATCH, not routed: zorbel-tune'], hasNot: NOT_DOMAIN }),
+  // positive cases still route: a real deliverable, a domain job on its specific words, a generic word when it is all there is
+  hintRoute('a report for the user still routes to the deliverable runbook, with the domain runbook as secondary', 'write a report on the zorbel grobbles', { routes: 1, has: ['ROUTE: deliverable', 'ALSO ROUTE: zorbel-tune'] }),
+  hintRoute('a generic word alone still routes', 'improve my zorbel', { routes: 1, has: ['ROUTE: zorbel-tune'] }),
+  hintRoute('Spanish: a generic word alone still routes', 'quiero mejorar mi zorbel', { routes: 1, has: ['ROUTE: zorbel-tune'] }),
+  hintRoute('Spanish: a report for the user still routes to the deliverable runbook', 'escribe un informe sobre los grobbles', { routes: 1, has: ['ROUTE: deliverable'] }),
+  // PRAISE only on praise, never on a question about the work
+  ...['is it doing a good job or a bad job?', 'Is it doing a good job or bad job? Give feedback to the other session', 'did I do a good job on this?', 'tell me if it did a great job',
+    '¿lo está haciendo bien?', '¿está haciendo un buen trabajo o no?', '¿te parece perfecto?']
+    .map(p => ({ name: `praise: a question is not praise ("${p}")`, prompt: p, hasNot: ['PRAISE'] })),
+  ...['great job, keep doing this', 'well done!', 'perfect, that is exactly what i wanted', 'perfecto, sigue así', 'buen trabajo, me encanta']
+    .map(p => ({ name: `praise: real praise fires ("${p}")`, prompt: p, has: ['PRAISE'] })),
+  // REQUIREMENT / RULE REQUEST only on lasting rules, never on a one-off message to pass on
+  ...['give that feedback to anzuelo and mention to do multiple tests to make sure it is fixed for any situation', 'tell the MTG session to run more tests and make sure every test passes',
+    'tell the other session to always run more tests', 'dile que pruebe más y que se asegure de que funciona', 'dile a la otra sesión que de ahora en adelante pruebe siempre']
+    .map(p => ({ name: `rule-request: a one-off message to pass on is no rule ("${p.slice(0, 50)}")`, prompt: p, setupFn: STARTER_IS, hasNot: ['RULE REQUEST', 'REQUIREMENT'] })),
+  ...['from now on always give prices in euros', 'never use em dashes again', 'from now on always tell the other session when you finish', 'de ahora en adelante usa siempre euros', 'nunca más uses guiones largos']
+    .map(p => ({ name: `rule-request: a lasting rule fires ("${p.slice(0, 50)}")`, prompt: p, has: ['RULE REQUEST'] })),
+  ...['every invoice must show the tax number', 'cada factura debe mostrar el número de impuesto']
+    .map(p => ({ name: `requirement: a lasting requirement fires ("${p.slice(0, 50)}")`, prompt: p, has: ['REQUIREMENT'] })),
+  // a message relayed from another session is not the user's request: no hints at all, flags and route words included
+  ...['<cross-session-message from="other">Write a detailed report to anzuelo on how to improve it --contract</cross-session-message>',
+    '<cross-session-message from="other">from now on always make sure every test passes, K2 --brief</cross-session-message>',
+    'Another Claude session sent a message: write a report and improve the deck --contract --verbose',
+    '<cross-session-message from="other">escribe un informe para anzuelo; de ahora en adelante mejora siempre las pruebas --contract</cross-session-message>',
+    'Another Claude session sent a message: dile que pruebe más, cada informe debe tener pruebas']
+    .map(p => ({ name: `relayed turn: a peer message gets no hints ("${p.slice(0, 60)}")`, prompt: p, setup: HINT_FIX, setupFn: STARTER_IS, none: true,
+      hasNot: ['ROUTE', 'REQUIREMENT', 'RULE REQUEST', 'MENU CODE', 'MENU FLAG', 'UNKNOWN FLAG', 'PRAISE'] })),
+  // RECALL only above a similarity bar
+  { name: 'recall: a question about the work recalls no unrelated request that shared "good" and "bad"', prompt: 'is it doing a good or bad job?',
+    setup: HIST('tell the other chat everything good and bad, the mana in my zorbel deck is slow', ['decks/zorbel/list.txt']), hasNot: ['RECALL'] },
+  { name: 'recall: Spanish, a question about the work recalls nothing unrelated', prompt: '¿lo está haciendo bien o mal?',
+    setup: HIST('dime si el mazo lo está haciendo bien o mal con las tierras', ['decks/zorbel/list.txt']), hasNot: ['RECALL'] },
+  { name: 'recall: a close earlier request is recalled', prompt: 'export the invoices to csv again for the accountant',
+    setup: HIST('export the invoices to a csv file for the accountant', ['src/export.mjs']), has: ['RECALL: on 2026-10-01'] },
+  { name: 'recall: Spanish, a close earlier request is recalled', prompt: 'exporta otra vez las facturas a csv para el contador',
+    setup: HIST('exporta las facturas a un csv para el contador', ['src/export.mjs']), has: ['RECALL: on 2026-10-01'] }
+);
+
 // Golden workflows: done right they pass; with any one required step removed they must be blocked.
 // A step that can be removed without a block is a hole in the checks (fix the hook, never the test).
 const GOLDEN = [
@@ -1680,7 +1740,7 @@ for (const s of PRETOOL) {
 for (const s of PROMPT) {
   if (!mine()) continue;
   const routes = (s.has || []).map(h => /^ROUTE: ([\w-]+)$/.exec(h)?.[1]).filter(Boolean);
-  if (!packOk(s) || routes.some(r => !fs.existsSync(path.join(B, 'docs/playbooks', r + '.md')))) { skipped++; continue; }
+  if (!packOk(s) || routes.some(r => !fs.existsSync(path.join(B, 'docs/playbooks', r + '.md')) && !(s.setup || {})[`docs/playbooks/${r}.md`])) { skipped++; continue; }
   const dir = copyProject();
   try {
     write(dir, s.setup);
@@ -1694,6 +1754,9 @@ for (const s of PROMPT) {
     if (s.none && out.trim()) why = 'expected no output, got: ' + out.slice(0, 200);
     for (const h of s.hasNot || []) if (out.includes(h)) why ||= 'unexpected "' + h + '"';
     for (const h of s.has || []) if (!out.includes(h)) why ||= `missing "${h}" in: ${out.slice(0, 400) || '(empty)'} ${err.slice(0, 200)}`;
+    // routes: how many primary ROUTE lines (secondary ones say "ALSO ROUTE")
+    const primary = (out.match(/(?<!ALSO )\bROUTE: [\w-]+/g) || []).length;
+    if (s.routes !== undefined && primary !== s.routes) why ||= `expected ${s.routes} primary ROUTE line(s), got ${primary}: ${out.slice(0, 400)}`;
     report(!why, 'prompt: ' + s.name, why);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
@@ -2572,6 +2635,32 @@ if (mineB()) { // recall-hint: a request like an earlier one starts from how tha
     const r = spawnSync(process.execPath, ['tools/recall.mjs', 'invoice csv export'], { cwd: dir, encoding: 'utf8' });
     report(/RECALL: on 2026-10-01/.test(hint) && /src\/export\.mjs/.test(hint) && !/RECALL/.test(none) && /best match \(2026-10-01\)/.test(r.stdout),
       'recall-hint: a request like an earlier one gets how it was solved; an unrelated one gets nothing; recall.mjs finds it', `${hint.slice(0, 300)} | ${r.stdout.slice(0, 200)}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+if (mineB()) { // the manual path (agents without hooks): `hooks.mjs begin "<request>"` prints the same hints as the prompt hook
+  const dir = copyProject();
+  try {
+    write(dir, { ...HINT_FIX, ...HIST('export the invoices to a csv file for the accountant', ['src/export.mjs']) });
+    applyEdits(dir, STARTER_IS);
+    const kinds = s => [...new Set([...String(s).matchAll(/(?:^|\n|\\n)(?:- )?((?:ALSO )?ROUTE: [\w-]+|WEAK MATCH|PRAISE|RULE REQUEST|REQUIREMENT|RECALL)/g)].map(m => m[1]))].sort().join(' | ');
+    const want = {
+      'Write a detailed report to anzuelo with recommendations on how to improve it': 'ROUTE: project',
+      'escribe un informe para anzuelo con recomendaciones para mejorar': 'ROUTE: project',
+      'write a report on the zorbel grobbles': 'ALSO ROUTE: zorbel-tune | ROUTE: deliverable',
+      'great job, keep doing this': 'PRAISE', 'perfecto, sigue así': 'PRAISE',
+      'is it doing a good or bad job?': '', '¿lo está haciendo bien?': '',
+      'give that feedback to anzuelo and mention to do multiple tests to make sure it is fixed': 'ROUTE: project',
+      'from now on always give prices in euros': 'ROUTE: project | RULE REQUEST', 'de ahora en adelante usa siempre euros': 'RULE REQUEST',
+      'export the invoices to csv again for the accountant': 'RECALL'
+    };
+    const bad = [];
+    for (const [p, w] of Object.entries(want)) {
+      const begin = kinds(spawnSync(process.execPath, ['tools/hooks/hooks.mjs', 'begin', p], { cwd: dir, encoding: 'utf8' }).stdout);
+      const hook = kinds(run(dir, 'prompt', { prompt: p }).out);
+      if (begin !== w || hook !== w) bad.push(`"${p}": want [${w}], begin [${begin}], prompt hook [${hook}]`);
+    }
+    report(!bad.length, 'manual path: hooks.mjs begin prints the same ROUTE, PRAISE, RULE REQUEST, REQUIREMENT and RECALL hints as the prompt hook', bad.join(' || '));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
