@@ -24,10 +24,12 @@ procedure (`docs/playbooks/qa.md` §1).
 ## Verification
 - Automated: <commands> → <results>
 - Real app: <what was exercised, screenshot paths>
-- Budgets: <still within docs/foundation.md; numbers when performance-relevant>
+- Budgets: <only when the change can affect speed or size: still within docs/foundation.md, with numbers>
 - Independent review: <SHIP/FIX, file path>
 - Still weak: <what isn't verified or could still be wrong>
 ```
+The Finished section's "Not done or not checked" list counts as Still weak, so the answer says it once. Lesson: answers
+carried a "Speed: not affected" line for every change and listed the same gaps twice.
 
 ## Judge it the way the user will see it
 - Check the exact screen and flow the user will open, not a close-up or a dev page.

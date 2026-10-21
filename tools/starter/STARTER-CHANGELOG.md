@@ -123,6 +123,27 @@ hooks:**, and an upgrade lists each one as its own review item.
     **Breaking for project hooks:** the Stop reason's re-answer sentence changed (no "short note"), the short line is
     "Answer unchanged; also updated: ...", a Spanish request's Stop reason and prompt hints carry a Spanish label list,
     and hints say `node tools/hooks/hooks.mjs waive <tag> "<reason>"` where they said `N/A(<tag>): <reason>`.
+  - **The last message is the answer (judges of 8 more trial projects):**
+    - New check `watcher-left`: a turn whose background work is done does not end with a watcher (the Monitor tool)
+      still armed. Stop names it and asks the agent to stop it, or to say in the answer what it watches. A watcher on a
+      job that still runs is part of the wait, and one the answer names is kept. Before, a reviewer's watcher outlived
+      the review, expired after a clean end, and the reply to its notice became the result of a headless run.
+    - New check `notice-answer`: the answer a turn ends with is kept (`turn-end.json`, `answer`). In a headless run
+      (`claude -p`, the SDK), a reply to a background notice after that clean end must carry the whole answer again;
+      it is asked once and costs no round. Interactively a short reply is still fine.
+    - `review-verdict` and `spec-written` need a work turn, so a feature request that turns out to exist already gets
+      no spec, no review, and none of the doc edits they set off.
+    - Shorter answers: the security line is `Security review: PASS - details in docs/reviews/security-...md`, without
+      the count of areas and the N/A list; the evidence for a new package goes in `docs/DECISIONS.md` with one short
+      `Vetted:` line for all of them; the app pack's Verification section needs Budgets only when speed or size can
+      change, and the Finished section's "Not done or not checked" list counts as its Still weak part.
+    - Not changed, after checking the transcript: a turn that ends while its own background job runs (the "waiting"
+      end) still ends. Both the interactive host and `claude -p` deliver the job's notice and the full answer after it.
+      The "three identical audits at once" were one run and two launches the permission system refused; `audit
+      --setup` already shares the self-test lock, so a second run waits for the first and reuses its result.
+    Scenarios: `watcher-left:`, `notice-answer:`, `feature-noop:`, `answer-length:`.
+    **Breaking for project hooks:** the Stop hook can name `watcher-left` and `notice-answer`, `turn-end.json` has an
+    `answer` field, and `review-verdict`, `spec-written` and `verification-report` changed in the app pack.
 
 - 2026-10-20 (re-check): Fixes from an independent review of six new trial projects (no serious findings left).
   - **Accurate prompt hints (field report 6):** one primary `ROUTE`; other specific matches show as `ALSO ROUTE`, and a

@@ -427,16 +427,17 @@
         ]
       },
       "require": {
-        "answerMatches": "^(#{1,6}\\s*|\\*\\*)(verification|verificaci[oó]n)\\b(?=[\\s\\S]*\\b(automated|autom[aá]tic|automatizad))(?=[\\s\\S]*(real app|manual|ran the app|in the app|ran it|by hand|real run|real data|app real|aplicaci[oó]n real|a mano|datos reales))(?=[\\s\\S]*\\b(review|revisi[oó]n))(?=[\\s\\S]*(budget|foundation|presupuesto|l[ií]mites))(?=[\\s\\S]*(still weak|not verified|known issues|nothing weak|sin verificar|pendiente|d[eé]bil|problemas conocidos))"
+        "answerMatches": "^(#{1,6}\\s*|\\*\\*)(verification|verificaci[oó]n)\\b(?=[\\s\\S]*\\b(automated|autom[aá]tic|automatizad))(?=[\\s\\S]*(real app|manual|ran the app|in the app|ran it|by hand|real run|real data|app real|aplicaci[oó]n real|a mano|datos reales))(?=[\\s\\S]*\\b(review|revisi[oó]n))(?=[\\s\\S]*(still weak|not verified|not (done or )?checked|known issues|nothing weak|sin verificar|sin comprobar|pendiente|d[eé]bil|problemas conocidos))"
       },
-      "message": "Code changed: add a Verification section (a heading or a bold **Verification** line) with Automated (commands and results), Real app (what was exercised on a real run, screenshot paths), Budgets (still within docs/foundation.md, with numbers when performance-relevant), Independent review (SHIP/FIX and the report path) and Still weak (docs/checks/qa-standards.md). The headings may be in the language the user writes in (Spanish works). A part that doesn't apply to this change says so in one line with why.",
+      "message": "Code changed: add a Verification section (a heading or a bold **Verification** line) with Automated (commands and results), Real app (what was exercised on a real run, screenshot paths), Independent review (SHIP/FIX and the report path) and Still weak (docs/checks/qa-standards.md). Budgets only when the change can affect speed or size (still within docs/foundation.md, with numbers). The Finished section's \"Not done or not checked\" list counts as Still weak: don't repeat it. The headings may be in the language the user writes in (Spanish works). A part that doesn't apply to this change says so in one line with why.",
       "pack": "app"
     },
     {
       "tag": "review-verdict",
       "rule": "4",
       "when": {
-        "playbookUsed": "feature"
+        "playbookUsed": "feature",
+        "workTurn": true
       },
       "require": {
         "answerMatches": "\\bSHIP\\b"
@@ -448,7 +449,8 @@
       "tag": "spec-written",
       "rule": "4",
       "when": {
-        "playbookUsed": "feature"
+        "playbookUsed": "feature",
+        "workTurn": true
       },
       "require": {
         "filesChanged": [

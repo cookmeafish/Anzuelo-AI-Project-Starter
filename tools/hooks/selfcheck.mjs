@@ -1587,6 +1587,8 @@ function runStop(s) {
     if (fs.existsSync(sp)) { try { const j = JSON.parse(fs.readFileSync(sp, 'utf8')); j.files['transcript.jsonl'] = [0, 0, null]; fs.writeFileSync(sp, JSON.stringify(j)); } catch { } }
     if (s.blocks) write(dir, { 'tools/hooks/state/stop-blocks.json': JSON.stringify({ [`${tp}|${since}`]: s.blocks }) });
     if (s.failed) write(dir, { 'tools/hooks/state/stop-failed.json': JSON.stringify({ key: `${tp}|${since}`, tags: s.failed, ...(s.failedExtra || {}) }) });
+    // (turnEnd: this request already ended cleanly once, with this record, e.g. the answer it ended with)
+    if (s.turnEnd) write(dir, { 'tools/hooks/state/turn-end.json': JSON.stringify({ at: new Date().toISOString(), key: `${tp}|${since}`, clean: true, ...s.turnEnd }) });
     write(dir, s.files);
     for (const [p, off] of Object.entries(s.mtimes || {})) { const t = (Date.now() + off) / 1000; fs.utimesSync(path.join(dir, p), t, t); }
     const { out, err } = run(dir, 'stop', { transcript_path: tp, stop_hook_active: !!s.active, ...(s.last ? { last_assistant_message: s.last } : {}), ...(s.hookInput || {}) }, s.host);
@@ -1779,6 +1781,40 @@ STOP.push(
   { ...DEBUG_TURN, name: 'answer-resent: a round that needs the answer changed does not offer the short line', answer: 'Skill: debug. Fixed it.' + FIN,
     expect: { block: true, tags: ['debug-root-cause'] }, after: (dir, reason) => !/Answer unchanged/.test(reason) || `offered the short line: ${reason.slice(-400)}` }
 );
+// watcher-left: a watcher (the Monitor tool) still armed when the turn's own work is done is stopped, or named in the
+// answer when it runs on purpose. Lesson: a reviewer's watcher outlived the review and expired after a clean end, and
+// the reply to its notice became the last message of a headless run.
+const MON = (id, desc = 'independent review verdict', result) => ({ name: 'Monitor', input: { command: 'until grep -q "Verdict:" .cache/review.out; do sleep 10; done; echo done', description: desc, timeout_ms: 600000 },
+  result: result ?? `Monitor started (task ${id}, expires in 10m unless the source ends first; you get one notice at expiry). You will be notified on each event.` });
+const MON_NOTE = (id, event) => ({ type: 'user', message: { role: 'user', content: `<task-notification>\n<task-id>${id}</task-id>\n<summary>Monitor event: "independent review verdict"</summary>\n<event>${event}</event>\n</task-notification>` } });
+const BG_AGENT = { name: 'Agent', input: { prompt: 'review the change', run_in_background: true }, result: 'Async agent launched successfully.\nagentId: abcd1234' };
+const NOTICE_FULL = 'Yes: the reviewer read the change and approved it, with no must-fix problems.\nIt checked the input limits, the error messages and the tests.\nTwo small notes from it are in the review file, for later.';
+STOP.push(
+  { name: 'watcher-left: a watcher still armed after the work is done: blocked', prompt: 'is the review done?', tools: [MON('b2gqp0613')],
+    answer: 'Yes: the reviewer approved it.', expect: { block: true, tags: ['watcher-left'], says: /b2gqp0613/ } },
+  { name: 'watcher-left: a watcher that only reported an event is still armed: blocked', prompt: 'is the review done?', tools: [MON('b2gqp0614')], rows: [MON_NOTE('b2gqp0614', 'Verdict: SHIP')],
+    answer: 'Yes: the reviewer approved it.', expect: { block: true, tags: ['watcher-left'] } },
+  { name: 'watcher-left: a watcher that expired: passes', prompt: 'is the review done?', tools: [MON('b2gqp0615')], rows: [MON_NOTE('b2gqp0615', '[Monitor expired after 10m with no events delivered.]')],
+    answer: 'Yes: the reviewer approved it.', expect: { block: false, not: ['watcher-left'] } },
+  { name: 'watcher-left: a watcher the agent stopped: passes', prompt: 'is the review done?', tools: [MON('b2gqp0616'), { name: 'TaskStop', input: { task_id: 'b2gqp0616' }, result: 'Successfully stopped task: b2gqp0616' }],
+    answer: 'Yes: the reviewer approved it.', expect: { block: false, not: ['watcher-left'] } },
+  { name: 'watcher-left: a watcher the answer names as kept on purpose: passes', prompt: 'watch the deploy log and tell me when it ends', tools: [MON('b2gqp0617', 'deploy log end')],
+    answer: 'I left a watcher on the deploy log end (task b2gqp0617). It tells you when the deploy finishes.', expect: { block: false, not: ['watcher-left'] } },
+  { name: 'watcher-left: a watcher that never started is not armed: passes', prompt: 'is the review done?', tools: [MON('b2gqp0618', 'x', 'This command requires approval')],
+    answer: 'Yes: the reviewer approved it.', expect: { block: false, not: ['watcher-left'] } },
+  { name: 'watcher-left: a watcher on a background helper that still runs is part of the wait: passes', prompt: 'is the review done?', tools: [BG_AGENT, MON('b2gqp0619')],
+    answer: 'The reviewer is still working.', expect: { block: false, not: ['watcher-left'] } },
+  // notice-answer: after a clean end, a reply to a notice is the last message; headless, it must carry the answer again
+  { name: 'notice-answer: a headless short reply to a notice after a clean end: blocked', prompt: 'is the review done?',
+    rows: [{ type: 'system', entrypoint: 'sdk-cli', content: 'headless' }, { type: 'assistant', message: { content: [{ type: 'text', text: NOTICE_FULL }] } }, MON_NOTE('b2gqp0620', '[Monitor expired after 10m with no events delivered.]')],
+    turnEnd: { answer: NOTICE_FULL }, answer: 'Nothing has changed: that notice came from a watcher that timed out.', expect: { block: true, tags: ['notice-answer'] } },
+  { name: 'notice-answer: the same short reply in an interactive session: passes', prompt: 'is the review done?',
+    rows: [CLI_ROW, { type: 'assistant', message: { content: [{ type: 'text', text: NOTICE_FULL }] } }, MON_NOTE('b2gqp0621', '[Monitor expired after 10m with no events delivered.]')],
+    turnEnd: { answer: NOTICE_FULL }, answer: 'Nothing has changed: that notice came from a watcher that timed out.', expect: { block: false, not: ['notice-answer'] } },
+  { name: 'notice-answer: a headless reply that carries the whole answer again: passes', prompt: 'is the review done?',
+    rows: [{ type: 'system', entrypoint: 'sdk-cli', content: 'headless' }, { type: 'assistant', message: { content: [{ type: 'text', text: NOTICE_FULL }] } }, MON_NOTE('b2gqp0622', '[Monitor expired after 10m with no events delivered.]')],
+    turnEnd: { answer: NOTICE_FULL }, answer: NOTICE_FULL, expect: { block: false, not: ['notice-answer'] } }
+);
 // What the Stop hook and the hints make the agent write in the answer the user reads: no notes about earlier rounds, no
 // check names, the user's language for every label, and long reports in files with one line in the answer.
 // Lesson: trial answers carried "Note: this version ...", "N/A(app-lint-pass)", English labels for a Spanish user,
@@ -1847,7 +1883,37 @@ STOP.push(
     files: { 'docs/specs/export.md': '# Export\n1. The button exports a CSV - PASS\n', 'docs/CHANGELOG.md': 'x' },
     answer: 'Playbook: feature.md\nAcceptance criteria: 1 of 1 PASS - docs/specs/export.md' + FIN, expect: { not: ['spec-written'] } },
   { pack: 'app', name: 'answer-length: the count line without a spec file: blocked', prompt: 'add an export button', tools: [pb('feature')],
-    files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: feature.md\nAcceptance criteria: 1 of 1 PASS' + FIN, expect: { tags: ['spec-written'] } },
+    files: { 'src/export.js': 'export const a = 1;\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: feature.md\nAcceptance criteria: 1 of 1 PASS' + FIN, expect: { tags: ['spec-written'] } },
+  // The security line without the area count and N/A list, and one short Vetted line (Lesson: answers of about 5,000
+  // characters, with "PASS, 19 areas (N/A: ...)" and three 250-character vetting lines the user could not act on)
+  { pack: 'app', name: 'answer-length: the short security line (no area count) meets both security checks', prompt: 'is the login page secure', tools: [pb('security-review'), sk('security-review')],
+    files: { ...SEC_LOG, ...SEC_FILE, 'docs/CHANGELOG.md': 'x' },
+    answer: 'Playbook: security-review.md\nSecurity review: PASS - details in docs/reviews/security-2026-10-20.md' + FIN, expect: { not: ['security-checklist', 'security-report'] } },
+  { name: 'answer-length: the short Spanish security line meets the report check', prompt: 'haz que el formulario compruebe al usuario', tools: [sk('security-review')],
+    files: { ...AUTH, ...SEC_LOG, ...SEC_FILE, 'docs/CHANGELOG.md': 'x' },
+    answer: 'El formulario ya comprueba al usuario.\nRevisión de seguridad: correcta - detalles en docs/reviews/security-2026-10-20.md' + ES_FIN, expect: { not: ['security-report'] } },
+  { name: 'answer-length: the short security line with no review file written: blocked', prompt: 'make the form check the user', tools: [sk('security-review')],
+    files: { ...AUTH, ...SEC_LOG, 'docs/CHANGELOG.md': 'x' },
+    answer: 'The form checks the user now.\nSecurity review: PASS - details in docs/reviews/security-2026-10-20.md' + FIN, expect: { tags: ['security-report'] } },
+  { name: 'answer-length: one short Vetted line for all new packages meets install-vetted', prompt: 'make the image step faster', tools: [bash('python -m pip install -q pillow-simd tqdm', 'Successfully installed pillow-simd tqdm')],
+    answer: 'Installed a faster image library and a progress bar.\nVetted: pillow-simd 9.5 (license HPND), tqdm 4.67 (license MIT) - details in docs/DECISIONS.md', expect: { not: ['install-vetted'] } },
+  // The Verification section: Budgets only when speed or size can change, and the Finished section's "Not done or not
+  // checked" list is its Still weak part (Lesson: a "Speed: not affected" line on every change, and the gaps said twice)
+  { pack: 'app', name: 'answer-length: Verification without a budget line, its gaps in the Finished section: passes', prompt: 'add a feature to export reports as csv', tools: [pb('feature')], files: SPEC,
+    answer: 'Playbook: feature.md.\n## Verification\n- Automated: npm test → pass\n- Real app: exported a report, opened the file\n- Independent review: SHIP (.cache/reviews/export.md)\n\n## Finished\n- Done. Files: src/export.js\n\n**Not done or not checked:**\n- Very large reports.',
+    expect: { not: ['verification-report'] } },
+  { pack: 'app', name: 'answer-length: Verification that never says what is still unverified: blocked', prompt: 'add a feature to export reports as csv', tools: [pb('feature')], files: SPEC,
+    answer: 'Playbook: feature.md.\n## Verification\n- Automated: npm test → pass\n- Real app: exported a report, opened the file\n- Independent review: SHIP (.cache/reviews/export.md)\n\n## Finished\n- Done. Files: src/export.js',
+    expect: { tags: ['verification-report'] } },
+  // feature-noop: a feature request that turns out to exist already changes nothing, so it gets no spec or review.
+  // Lesson: such a turn was held for a spec and a review, and their follow-ons (a runbook lesson, two changelog lines,
+  // the open plan) gave a no-op answer two rounds of doc edits.
+  { pack: 'app', name: 'feature-noop: the feature already exists and nothing changed: no spec or review asked', prompt: 'add an endpoint that deletes a book from the inventory',
+    tools: [pb('feature'), { name: 'Grep', input: { pattern: 'delete' }, result: 'src/books.js:12: router.delete("/books/:id", removeBook)' }],
+    answer: 'The delete endpoint already exists: DELETE /books/<id> in src/books.js removes one book. I changed nothing.\n\nPlaybook: feature.md', expect: { block: false, not: ['review-verdict', 'spec-written', 'skill-learn'] } },
+  { pack: 'app', name: 'feature-noop: the same request that did build code: the spec and the review are asked', prompt: 'add an endpoint that deletes a book from the inventory',
+    tools: [pb('feature')], files: { 'src/books.js': 'export const removeBook = id => id;\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Added DELETE /books/<id>.\n\nPlaybook: feature.md' + FIN, expect: { block: true, tags: ['review-verdict', 'spec-written'] } },
   // the legal line: once, at the end, in the user's language
   { name: 'legal-disclaimer: one line at the end of a legal reading passes', prompt: 'check this lease clause for problems', tools: [sk('legal-review')],
     answer: 'The clause puts every repair on the tenant, which many places do not allow.\n\nNot legal advice: an organized first read for a qualified lawyer to check.\n\nSkill: legal-review', expect: { not: ['legal-disclaimer'] } },
@@ -3132,6 +3198,38 @@ if (mineB()) { // a long hook output is cut to what the host shows the agent, wi
   const o = fitOutput(long), short = fitOutput('ROUTE: x\nNOTICE y');
   report(o.length <= 9000 && o.startsWith('ROUTE: raid-answer') && /hooks\.mjs notices/.test(o) && short === 'ROUTE: x\nNOTICE y',
     'hook output: a long one is cut to fit, routing first, with a pointer to the rest; a short one is untouched', `${o.length} chars, starts ${o.slice(0, 40)}`);
+}
+
+if (mineB()) { // notice-answer: in a headless run, a reply to a notice after a clean end carries the whole answer again
+  // Lesson: a headless run's result was a three-line reply to a leftover watcher's notice, with none of the answer
+  const dir = copyProject();
+  try {
+    const since = Date.now() - 2000;
+    write(dir, { 'notes/a.md': 'hello\n', 'docs/CHANGELOG.md': '- 2026-10-20: note\n' });
+    const W1 = 'Wrote hello into notes/a.md and read it back: the file holds exactly that one line.\nNothing else in the notes folder changed.\nN/A(skill-read): a test. N/A(runbook-exists): a test.' + FIN;
+    const SDK = { type: 'system', entrypoint: 'sdk-cli', content: 'headless' };
+    const note = { type: 'user', message: { role: 'user', content: '<task-notification>\n<task-id>b2gqp0613</task-id>\n<summary>Monitor event: "review"</summary>\n<event>[Monitor expired after 10m with no events delivered.]</event>\n</task-notification>' } };
+    const SHORT_REPLY = 'Nothing has changed: that notice came from a watcher that timed out.';
+    const s = (rows, answer) => ({ prompt: 'put hello into notes/a.md', tools: [{ name: 'Write', input: { file_path: 'notes/a.md', content: 'hello\n' } }], rows, answer });
+    const stop = (sid, headless, answer, after, active = false) => {
+      const tp = transcript(dir, s([...(headless ? [SDK] : []), ...(after ? [{ type: 'assistant', message: { content: [{ type: 'text', text: W1 }] } }, note] : [])], answer), since);
+      return run(dir, 'stop', { transcript_path: tp, last_assistant_message: answer, session_id: sid, ...(active ? { stop_hook_active: true } : {}) });
+    };
+    const blocked = o => /"decision":\s*"block"/.test(o.out || '');
+    const names = o => (/Names: ([^"\\]*)/.exec(o.out || '') || ['', ''])[1];
+    // headless: the clean end keeps the answer; a short reply is asked once to carry it, a full one passes
+    const first = stop('na', true, W1, false);
+    const kept = (() => { try { return JSON.parse(fs.readFileSync(path.join(dir, 'tools/hooks/state/turn-end.na.json'), 'utf8')).answer || ''; } catch { return ''; } })();
+    const short = stop('na', true, SHORT_REPLY, true);
+    const again = stop('na', true, SHORT_REPLY, true, true);
+    const keptAfter = (() => { try { return JSON.parse(fs.readFileSync(path.join(dir, 'tools/hooks/state/turn-end.na.json'), 'utf8')).answer || ''; } catch { return ''; } })();
+    const full = stop('na', true, W1.replace('one line', 'single line'), true);
+    // interactive: the user already read the answer above the reply, so a short one is fine
+    const firstI = stop('ni', false, W1, false), shortI = stop('ni', false, SHORT_REPLY, true);
+    const ok = !blocked(first) && kept === W1 && blocked(short) && /^notice-answer\.?$/.test(names(short).trim()) && !blocked(again) && keptAfter === W1 && !blocked(full) && !blocked(firstI) && !blocked(shortI);
+    report(ok, 'notice-answer: a headless reply to a notice after a clean end is asked once to carry the whole answer; a full reply and an interactive short one pass',
+      `first ${blocked(first)} kept ${kept === W1}, short ${blocked(short)} [${names(short)}], again ${blocked(again)}, keptAfter ${keptAfter === W1}, full ${blocked(full)}, interactive ${blocked(firstI)}/${blocked(shortI)}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
 if (mineB()) { // a short reply to a background task's notice, after the turn ended cleanly and with no tool since: no new stop list

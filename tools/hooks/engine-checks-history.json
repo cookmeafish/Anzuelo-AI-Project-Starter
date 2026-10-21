@@ -233,7 +233,8 @@
     ],
     "review-verdict": [
       "1e61aab987ae",
-      "44c91c9380f7"
+      "44c91c9380f7",
+      "9b91c878fc29"
     ],
     "root-cause-stated": [
       "b23f0ba86bb8"
@@ -285,7 +286,8 @@
     ],
     "spec-written": [
       "f7373e0dd6ad",
-      "2411f670eed0"
+      "2411f670eed0",
+      "378bec1801d2"
     ],
     "teach-step": [
       "e85e3f72e3f0",
@@ -300,7 +302,8 @@
     "verification-report": [
       "406515ce3dc9",
       "04e5e22de051",
-      "2de240b35bbc"
+      "2de240b35bbc",
+      "1ddac7009843"
     ],
     "version-bump": [
       "0e1ccf4ecec0",

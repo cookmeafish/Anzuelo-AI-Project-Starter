@@ -882,7 +882,39 @@ export function turn(transcript) {
   const sessionTools = rows.flatMap(r => r.type === 'assistant' && Array.isArray(r.message?.content) ? r.message.content : [])
     .filter(x => x && x.type === 'tool_use').map(x => JSON.stringify(x.input || {})).join('\n');
   const sessionStart = Date.parse(rows.find(r => r.timestamp)?.timestamp || '') || since;
-  return { since, entries, prompt: [prompt, ...queued].map(userText).filter(s => s.trim()).join('\n'), queued, toolsKnown: true, allPrompts, bgRunning: backgroundRunning(rows), sessionWrites, sessionTools, sessionStart };
+  return { since, entries, prompt: [prompt, ...queued].map(userText).filter(s => s.trim()).join('\n'), queued, toolsKnown: true, allPrompts, bgRunning: backgroundRunning(rows), watchers: watchersArmed(rows), sessionWrites, sessionTools, sessionStart };
+}
+
+// Watchers the agent armed (the Monitor tool: "Monitor started (task <id>, expires in 10m ...)") that have not ended yet.
+// A watcher does no work of its own: it only waits for something and wakes the session when it sees it. One left armed
+// after the turn ends wakes the session later, and the agent's reply to that notice becomes the last message the user
+// reads. Lesson: a reviewer's watcher outlived the review, expired 7 minutes after a clean end, and "Nothing has
+// changed, that notice came from a leftover watcher" replaced the whole answer of a headless run.
+// It has ended when a notice names it with a final status or says it expired or its stream ended, or when the agent
+// stopped it (TaskStop, KillShell) by its id.
+const WATCHER_TOOL = /^Monitor$/;
+const WATCH_END = /<status>\s*(completed|stopped|failed|killed|cancell?ed)\s*<\/status>|\bMonitor expired\b|\bstream ended\b/i;
+export function watchersArmed(rows) {
+  const armed = new Map(), results = new Map();
+  rows.forEach(r => { const c = r.message?.content; if (r.type === 'user' && Array.isArray(c)) for (const x of c) if (x?.type === 'tool_result') results.set(x.tool_use_id, textOf(x.content)); });
+  rows.forEach(r => {
+    const c = r.message?.content;
+    if (r.type === 'assistant' && Array.isArray(c)) for (const x of c) {
+      if (x?.type !== 'tool_use') continue;
+      const res = results.get(x.id) || '';
+      if (WATCHER_TOOL.test(x.name)) {
+        // (a watcher that never started, refused or failed, is not armed)
+        const m = /\btask[ _]?(?:id)?\s*[:(]?\s*["']?([\w-]{4,})/i.exec(res);
+        if (m && /\b(started|armed|watching)\b/i.test(res)) armed.set(m[1], { id: m[1], toolUseId: x.id, desc: String(x.input?.description || '').slice(0, 80) });
+      } else if (/^(TaskStop|KillShell|KillBash)$/.test(x.name)) {
+        const s = JSON.stringify(x.input || {});
+        for (const id of [...armed.keys()]) if (s.includes(id)) armed.delete(id);
+      }
+    }
+    const t = r.type === 'attachment' ? textOf(r.attachment?.prompt ?? r.attachment?.content ?? '') : r.type === 'user' ? textOf(c) : '';
+    if (/<task-notification>/.test(t) && WATCH_END.test(t)) for (const [id, w] of [...armed]) if (t.includes(id) || t.includes(w.toolUseId)) armed.delete(id);
+  });
+  return [...armed.values()];
 }
 
 // Background helpers (Agent/Task with run_in_background) launched in this or an earlier turn that have not reported
@@ -2051,7 +2083,7 @@ const EN_WORDS = /\b(the|and|to|of|is|that|it|for|with|my|this|you|on|are|please
 export const isSpanish = text => { const s = String(text || '').slice(0, 2000); const es = (s.match(ES_WORDS) || []).length, en = (s.match(EN_WORDS) || []).length; return es >= 3 && es > en * 2; };
 // The labels the checks look for, as a Spanish answer writes them (the checks read both).
 export const LABELS_ES_HINT = 'Write the whole answer in Spanish, labels too; the checks accept them: "## Terminado" (Finished), "Causa raíz:", "Supuesto: <decisión> - <por qué> - <coste si me equivoco>", ' +
-  '"Revisión visual: correcta tras N rondas", "Accesibilidad: <qué revisé> - correcta", "Revisión de seguridad: correcta, N áreas - tabla en docs/reviews/security-AAAA-MM-DD.md", ' +
+  '"Revisión visual: correcta tras N rondas", "Accesibilidad: <qué revisé> - correcta", "Revisión de seguridad: correcta - detalles en docs/reviews/security-AAAA-MM-DD.md", ' +
   '"Aprendido (regla): <lección> → <archivo>", "Evaluado: <herramienta> ... licencia <nombre>", "Habilidades existentes revisadas:", "Cómo se calculó:", "Fuentes:", "No es asesoramiento legal", ' +
   '"Guía: <runbook>.md · Habilidad: <nombre> · Vale la pena: <ganancia> / <coste>".';
 
@@ -4515,9 +4547,11 @@ export function holds(c, x) {
 export const BASE_REQUIREMENTS = [
   // REQ: install-vetted. A new package or tool is vetted before it is used: legitimate per independent sources, truly free, maintained.
   // Reinstalling the declared requirements (-r, -e ., npm install / npm ci) is not a new tool.
+  // The evidence goes in docs/DECISIONS.md and the answer gets one short line for all of them. Lesson: three 250-character
+  // "Vetted:" lines (stars, release dates, sources) filled a setup answer with detail the user does not act on.
   { tag: 'install-vetted', rule: '15', when: { toolRan: String.raw`\b(pip3?|python3?\s+-m\s+pip|uv\s+pip)\s+install\s+(?!(?:[^\n;&|]*\s)?(-r|--requirement|-e)\s)(?!--upgrade\s+pip\b)(-\S+\s+)*[A-Za-z]|\b(npm|pnpm|yarn)\s+(install|i|add)\s+(-\S+\s+)*[@A-Za-z]|\bInstall-Module\b|\bwinget\s+install\b|\bchoco\s+install\b|\bcargo\s+install\b|\bgo\s+install\b` },
     require: { answerMatches: String.raw`[Vv]etted:[^\n]*[Ll]icen[cs]e` },
-    message: 'A tool or package was installed this turn. Show it was vetted first, in one line per tool: "Vetted: <tool> - legitimate per <2+ independent sources> - free, license <name> allows this use - maintained and well regarded (<evidence>)". A tool that fails any of these is removed again and not used.' },
+    message: 'A tool or package was installed this turn. Vet each one first: legitimate per 2+ independent sources, free with a license that allows this use, maintained and well regarded. Write that evidence in docs/DECISIONS.md, and give the user one short line for all of them: "Vetted: <tool> <version> (license <name>), <tool> <version> (license <name>) - details in docs/DECISIONS.md". A tool that fails any of these is removed again and not used.' },
   { tag: 'finished-summary', rule: '7', when: { filesChanged: ['**'] }, require: { answerMatches: String.raw`^\s*(#{1,6}\s*|\*\*)?finished\b` },
     // (Lesson: a setup answer listed about 40 files one by one, burying the few the user would open)
     message: "End the answer with a 'Finished' section: what was done, and the exact path of each file created or changed. With more than about 10, name the ones the user will open and group the rest by folder with a count (\"docs/playbooks/: 6 runbooks\")." },
@@ -4790,7 +4824,25 @@ export function stopDecision(data, cfg = config()) {
   // one changelog line satisfies all three changelog checks, so they show as one step (Lesson: two steps for one line)
   const logs = found.filter(m => /^(changelog|knowledge-changelog|app-changelog)$/.test(m.tag));
   const found1 = logs.length > 1 ? found.filter(m => m === logs[0] || !logs.includes(m)) : found;
-  const all = [...found1, ...timed('skill-learn', () => skillLearnCheck(x, cfg, found.map(m => m.tag))).filter(open), ...timed('unresolved-carryover', () => carryoverChecks(data, t, x, cfg)).filter(open), ...(resend ? [resend] : [])];
+  // A headless run (claude -p, the SDK) hands its caller only the last message.
+  const headless = (t.entries || []).some(r => /^sdk/.test(String(r.entrypoint || '')));
+  // REQ: watcher-left. A turn whose own work is done does not end with its watchers still armed: once the job a watcher
+  // waits for is over, it only wakes the session later, and the reply to its notice replaces the answer. A watcher the
+  // answer names (its id or what it watches) is kept on purpose. While a background job still runs, the watcher on it
+  // is part of the wait (see waiting below).
+  const leftWatchers = t.toolsKnown && !(t.bgRunning || []).length ? (t.watchers || []).filter(w => !raw.includes(w.id) && !(w.desc.length >= 8 && raw.toLowerCase().includes(w.desc.toLowerCase()))) : [];
+  const watcherStep = leftWatchers.length ? [{ tag: 'watcher-left', msg: `${leftWatchers.length > 1 ? 'Watchers you started are' : 'A watcher you started is'} still armed: ${leftWatchers.map(w => `${w.desc ? `"${w.desc}" ` : ''}(task ${w.id})`).join(', ')}. ` +
+    'A watcher left armed after the turn wakes the session later, and the reply to its notice becomes the last message the user reads. Stop it now (TaskStop with its id), then end with the whole answer. ' +
+    'If it must keep running on purpose, say in the answer what it watches and why.' }] : [];
+  // REQ: notice-answer. A reply to a background notice after a clean end replaces the answer as the last message. In a
+  // headless run that message is all the caller gets, so the reply carries the whole earlier answer again (kept at the
+  // clean end, TURN_END.answer). Asked once (not a counted round); interactively a short reply is fine, since the user
+  // already read the answer above it. Lesson: a headless run's result was a three-line reply to a leftover watcher's
+  // notice, with none of the answer.
+  const prevAnswer = String(prevEnd.answer || '');
+  const noticeResend = noticeAck && headless && prevAnswer.trim() && !data.stop_hook_active && !carriesAnswer(raw, prevAnswer)
+    ? [{ tag: 'notice-answer', msg: 'This run is headless (claude -p or the SDK): its caller gets only the last message, and this reply to a background notice is now that message, so the answer given before is lost. End with that whole answer again, as it was (updated only where the notice changed something), saying nothing about the notice.' }] : [];
+  const all = [...found1, ...timed('skill-learn', () => skillLearnCheck(x, cfg, found.map(m => m.tag))).filter(open), ...timed('unresolved-carryover', () => carryoverChecks(data, t, x, cfg)).filter(open), ...(resend ? [resend] : []), ...watcherStep.filter(open), ...noticeResend];
   const logged = (result, extra = {}) => logStop({ request: Number.isFinite(+x.since) && +x.since > 0 ? new Date(+x.since).toISOString() : '', round: nblocks + 1, result, waived: waivedTags, ...extra });
   // While helpers launched in the background have not reported back, the work is not finished: only truth and privacy
   // are checked now, and the whole list runs when their results arrive. Lesson: a turn waiting on three background
@@ -4802,15 +4854,25 @@ export function stopDecision(data, cfg = config()) {
   // per round (name-var, then status-handoff, then finished-summary), each caused by fixing the one before.
   const LATE = /^(status-handoff|finished-summary|changelog|knowledge-changelog|app-changelog)$/;
   const settled = data.stop_hook_active ? all.filter(m => !(LATE.test(m.tag) && !x.failedBefore.includes(m.tag))) : all;
-  const missing = noticeAck || waiting ? all.filter(m => SAFE.test(m.tag)) : settled;
+  // (a reply to a notice is still held to the watcher and headless-answer steps: they are about that reply itself)
+  const missing = waiting ? all.filter(m => SAFE.test(m.tag)) : noticeAck ? all.filter(m => SAFE.test(m.tag) || /^(watcher-left|notice-answer)$/.test(m.tag)) : settled;
   noteFriction(key, x, missing);
-  const ended = (keep = false) => { writeState(TURN_END, { at: new Date().toISOString(), key, clean: !keep }); if (!keep && !envOf('BENCH') && !DRY_STATE) try { fs.unlinkSync(path.join(STATE, 'stop-details.md')); } catch { } }; // the next prompt starts a new turn
+  // The answer the turn ended with is kept, for a later reply to a notice to carry again (REQ: notice-answer). A reply
+  // that did not carry it keeps the earlier one, and a short "Answer unchanged" line keeps the full answer it stands for.
+  const endAnswer = (noticeAck && prevAnswer.trim() && !carriesAnswer(raw, prevAnswer) ? prevAnswer : isNote && prevFull.trim() ? prevFull : raw).slice(0, 40000);
+  const ended = (keep = false) => { writeState(TURN_END, { at: new Date().toISOString(), key, clean: !keep, answer: endAnswer }); if (!keep && !envOf('BENCH') && !DRY_STATE) try { fs.unlinkSync(path.join(STATE, 'stop-details.md')); } catch { } }; // the next prompt starts a new turn
   if (waiting && !missing.length) { writeState(TURN_END, { at: new Date().toISOString(), key, clean: false, pending: t.bgRunning.length }); logged('waiting', { pending: t.bgRunning.length }); return null; }
+  // the headless re-send is asked once and costs no round, so a turn that used all its rounds still gets it
+  if (noticeResend.length && missing.every(m => m.tag === 'notice-answer')) {
+    logged('blocked', { steps: ['notice-answer'] });
+    return { decision: 'block', steps: [shortStep(noticeResend[0])], tags: ['notice-answer'], round: nblocks + 1,
+      reason: `Almost done: 1 step is left before this answer is complete.\n1. ${shortStep(noticeResend[0])}\nFor the agent: ${noticeResend[0].msg} Names: notice-answer.` };
+  }
   if (nblocks >= cfg.maxBlocksPerTurn) {
     // REQ: unresolved-carryover. End quietly (no block), but don't let the miss vanish: the next prompt says it once,
     // in plain words. A check that waits on background helpers is not a miss: their results arrive later.
     const waits = new Set(loadRequirements().reqs.filter(q => q && waitsForAgents(q)).map(q => q.tag));
-    const left = missing.filter(m => !waits.has(m.tag));
+    const left = missing.filter(m => !waits.has(m.tag) && m.tag !== 'notice-answer');
     if (left.length) writeState('unresolved.json', { at: new Date().toISOString(), prompt: x.prompt.slice(0, 160), items: left.map(m => shortStep(m)), tags: left.map(m => m.tag),
       request: x.prompt.slice(0, 4000), since: x.since, transcript: data.transcript_path || '' });
     if (left.length) writeDetails(left, 'Left unresolved when the turn ended');
@@ -4829,7 +4891,6 @@ export function stopDecision(data, cfg = config()) {
   // REQ: answer-resent. A round whose every step is met by files or runs (none by the answer's own words) lets an
   // unchanged answer end with one short line. The full answer sent in this round is kept, for the next round to read.
   // Not in a headless run (claude -p, the SDK): its caller gets only the last message, so it must be the whole answer.
-  const headless = (t.entries || []).some(r => /^sdk/.test(String(r.entrypoint || '')));
   const shortOk = !headless && steps.every(fileFixable);
   logged('blocked', { steps: steps.map(m => m.tag) });
   writeState('stop-blocks.json', { [key]: nblocks + 1 });
@@ -4861,7 +4922,17 @@ export function stopDecision(data, cfg = config()) {
 export const isUnchangedNote = text => { const s = String(text || '').trim(); return s.length > 0 && s.length <= 600 && /^\W{0,4}(answer unchanged|same answer as above|respuesta sin cambios|la respuesta no cambia|misma respuesta)\b/i.test(s); };
 // A step met by files or runs, not by words in the answer: an unchanged answer stays valid when only these were asked.
 const CORE_FILE_FIX = new Set(['hooks-tested', 'skill-learn', 'runbook-complete', 'skill-complete', 'done-when-labeled', 'playbook-format', 'skill-valid', 'knowledge-labels',
-  'name-var', 'root-tidy', 'directory-current', 'twin-sync', 'note-linked', 'injection-guard', 'code-rules', 'runbook-exists', 'rule-request', 'requirement-enforced', 'plan-required', 'autonomy-recorded']);
+  'name-var', 'root-tidy', 'directory-current', 'twin-sync', 'note-linked', 'injection-guard', 'code-rules', 'runbook-exists', 'rule-request', 'requirement-enforced', 'plan-required', 'autonomy-recorded',
+  'watcher-left']);
+// Does a reply carry the earlier answer (REQ: notice-answer)? Most of its length, or at least half of its lines, with
+// markdown and spacing ignored, so an answer re-sent with small updates counts and a short note does not.
+export function carriesAnswer(reply, prev) {
+  const norm = s => String(s || '').toLowerCase().replace(/[*_`#>|]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const r = norm(reply), p = norm(prev);
+  if (!p || r.length >= p.length * 0.6) return true;
+  const lines = String(prev).split(/\r?\n/).map(norm).filter(l => l.length >= 25);
+  return lines.length ? lines.filter(l => r.includes(l)).length / lines.length >= 0.5 : r.includes(p.slice(0, 60));
+}
 const answerWords = c => !!c && typeof c === 'object' && (c.answerMatches != null || c.answerNotMatches != null || (c.anyOf || []).some(answerWords));
 function fileFixable(m) {
   if (CORE_FILE_FIX.has(m.tag)) return true;
@@ -4893,6 +4964,8 @@ const SHORT = {
   'upset-learned': 'Learn from what upset the user, and say where the lesson went',
   'skill-learn': 'Write the lesson into the runbook or skill that missed it',
   'empty-answer': 'Tell the user what was done',
+  'watcher-left': 'Stop the watcher you left running, or say what it watches',
+  'notice-answer': 'Give the whole answer again: this reply is now the last message',
   'security-code': 'Run the security review: this turn wrote security-sensitive code',
   'security-config': 'Run the security review: secrets or deployment settings changed',
   'security-publish': 'Run the security review: something was published',
