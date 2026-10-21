@@ -778,7 +778,7 @@ STOP.push(
     tools: many(16), answer: 'Linked the notes.' + FIN, expect: { block: true, tags: ['status-handoff'] } },
   // name-var looks only at lines this turn added
   { name: 'name-var: a name typed in a line the file already had in git is not this turn\'s: not fired', prompt: 'link the notes from the index', edit: { 'docs/names.json': () => '{ "PROJECT_NAME": "Deskmate" }' },
-    prep: dir => { fs.mkdirSync(path.join(dir, 'docs'), { recursive: true }); fs.writeFileSync(path.join(dir, 'docs/notes-index.md'), '# Notes\nDeskmate keeps these notes.\n'); spawnSync('git', ['init', '-q'], { cwd: dir }); spawnSync('git', ['add', 'docs/notes-index.md'], { cwd: dir }); spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@e.invalid', 'commit', '-q', '--no-verify', '-m', 'x'], { cwd: dir }); },
+    prep: dir => { fs.mkdirSync(path.join(dir, 'docs'), { recursive: true }); fs.writeFileSync(path.join(dir, 'docs/notes-index.md'), '# Notes\nDeskmate keeps these notes.\n'); spawnSync('git', ['init', '-q'], { cwd: dir }); spawnSync('git', ['add', 'docs/notes-index.md'], { cwd: dir }); spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--no-verify', '-m', 'x'], { cwd: dir }); },
     files: { 'docs/notes-index.md': '# Notes\nDeskmate keeps these notes.\n- [a](a.md)\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Linked.' + FIN, expect: { not: ['name-var'] } },
   { name: 'waive command: a step waived by command, not in the answer: met', prompt: 'make a cleaning rota note', files: { 'notes/rota.md': 'x', 'docs/CHANGELOG.md': 'x' },
     tools: [bash('node tools/hooks/hooks.mjs waive finished-summary "the user asked for no summary today"', 'waived for this turn: finished-summary')],
