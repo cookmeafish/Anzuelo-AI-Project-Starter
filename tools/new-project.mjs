@@ -518,16 +518,22 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
     if (m && m !== body && oldB.some(o => o[t] === m) && !decided.includes(`- rule-changed: ${t}:`)) items.push(`rule-changed: ${t} (the starter's wording grew; compare AGENTS.md with the starter's and take what fits)`);
   }
   // the fit checklist gets a row for every new candidate (pack, library skill, tool, feature), decided by the AI
-  const fitNew = spawnSync(process.execPath, [path.join(dest, 'tools', 'fit.mjs'), '--count-new'], { cwd: dest, encoding: 'utf8' });
-  const fresh = Number((fitNew.stdout || '').trim()) || 0;
+  // (new candidates with no sign of need here are decided "skip" by fit.mjs itself: only the real decisions are items)
+  const fitNew = spawnSync(process.execPath, [path.join(dest, 'tools', 'fit.mjs'), '--count-new', '--auto-skip'], { cwd: dest, encoding: 'utf8' });
+  const fitOut = (fitNew.stdout || '').trim().split(/\r?\n/), fresh = Number(fitOut[0]) || 0;
+  const autoSkipped = (fitOut.find(l => /^auto-skipped: /.test(l)) || '').replace(/^auto-skipped: /, '');
   if (fitNew.status !== 0) console.log(`skipped  the fit checklist: ${(fitNew.stderr || '').split(/\r?\n/)[0]}`);
-  else if (fresh) items.push(`fit: ${fresh} new candidates`);
+  else { if (fresh) items.push(`fit: ${fresh} new candidates`); if (autoSkipped) console.log(`fit: decided "skip" for new candidates with no sign of need here (change a row in docs/fit-checklist.md if one fits): ${autoSkipped}`); }
   // packs and library skills that fit the project's setup answers and were never enabled or declined
   const fit = spawnSync(process.execPath, ['--input-type=module', '-e', `import { fitGaps } from ${JSON.stringify(pathToFileURL(path.join(dest, 'tools', 'hooks', 'hooks.mjs')).href)}; console.log(JSON.stringify(fitGaps()));`], { cwd: dest, encoding: 'utf8' });
   try { items.push(...JSON.parse(fit.stdout)); } catch { log.push(`skipped  the fit check: ${(fit.stderr || '').split('\n')[0]}`); }
   // the project's own runbooks whose job an engine skill now does: merge what is special about them, then retire them
   for (const [rb, into] of Object.entries(MERGED_RUNBOOKS)) if (fs.existsSync(path.join(dest, 'docs', 'playbooks', `${rb}.md`)) && !decided.includes(`- merge: docs/playbooks/${rb}.md`)) items.push(`merge: docs/playbooks/${rb}.md into the ${into} skill`);
-  for (const s of after.failed.filter(s => !before.failed.includes(s) && !(fresh && /fit checklist/.test(s)))) items.push(`check: ${s.replace(/: /g, ', ')}`);
+  for (const s of after.failed.filter(s => !before.failed.includes(s) && !((fresh || autoSkipped) && /fit checklist/.test(s)))) items.push(`check: ${s.replace(/: /g, ', ')}`);
+  // the project's own hooks ("externalHooks") against the new engine's output contract: a field they read that it no
+  // longer prints is its own item, before the user's next turn trips on it (node tools/hooks/selfcheck.mjs --contract)
+  const ctr = spawnSync(process.execPath, [path.join(dest, 'tools', 'hooks', 'selfcheck.mjs'), '--contract'], { cwd: dest, encoding: 'utf8', timeout: 60000 });
+  if (ctr.status === 1) for (const l of (ctr.stdout || '').split(/\r?\n/).filter(l => l.startsWith('- '))) { const it = `contract: ${l.slice(2).replace(/: /g, ', ').slice(0, 300)}`; if (!decided.includes(`- ${it.slice(0, 60)}`)) items.push(it); }
   for (const [ev, ms] of Object.entries(after.speed)) if (before.speed[ev] && ms > before.speed[ev] * 1.5 && ms - before.speed[ev] > 100) items.push(`speed: the ${ev} hook went from ${before.speed[ev]} to ${ms} ms`);
   // no ": " inside an item: the review's parser ends the item at the first one
   for (const a of addedChecks) items.push(`check: ${a}; it now runs in this project's hooks (to switch it off, set its "enabled" to false)`);
@@ -540,7 +546,12 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   try { const keys = JSON.parse(iv.stdout); if (keys.length && !decided.includes(`- interview: ${keys.join(', ')} (`)) items.push(`interview: ${keys.join(', ')} (new setup question${keys.length > 1 ? 's' : ''}; record each answer under "## Setup interview" in docs/DECISIONS.md, or the setup check asks for it)`); } catch { log.push(`skipped  the new setup questions: ${(iv.stderr || '').split('\n')[0]}`); }
   for (const [file, n] of movedLessons) items.push(`lessons: ${file} became an engine file, so ${n} line(s) this project added moved to its "## Project lessons" section (check they still read right there)`);
   // a repeat upgrade that changed nothing has nothing to review (Lesson: it appended a review holding only "self-tests")
-  if (!items.length && !log.some(l => /^(updated|created|removed|renamed)\b/.test(l))) { console.log('\nUPGRADE REVIEW: nothing changed, so there is nothing new to decide.'); process.exit(0); }
+  // the upgrade ends with one line: which starter commit, regressions, decisions left. Lesson: a project read a whole
+  // upgrade log to find out whether anything needed it.
+  const rev = (() => { const r = spawnSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: STARTER, encoding: 'utf8' }); return r.status === 0 && r.stdout.trim() ? r.stdout.trim() : 'from the starter copy'; })();
+  const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+  const summary = decisions => `\nUpgrade ${rev}: ${plural(broke.length, 'regression')}, ${plural(decisions, 'decision')} needed${autoSkipped ? `, ${plural(autoSkipped.split(', ').length, 'new fit row')} skipped automatically` : ''}.`;
+  if (!items.length && !log.some(l => /^(updated|created|removed|renamed)\b/.test(l))) { console.log('\nUPGRADE REVIEW: nothing changed, so there is nothing new to decide.'); console.log(summary(0)); process.exit(0); }
   // changes that can break a project's own hooks or scripts that read the engine's output, flagged in the changelog with
   // "Breaking for project hooks:", each its own item. Lesson: a new Stop output shape broke a project script that read
   // the old "reason" key, and the review never said the output had changed.
@@ -578,6 +589,7 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   console.log(open.length ? `\nUPGRADE REVIEW: ${open.length} item(s) to decide with the user, in docs/DECISIONS.md "## Upgrade review (${today})":\n` + open.map(i => `  - ${i}`).join('\n')
     : `\nUPGRADE REVIEW: nothing to decide (the self-tests ran here and passed: ${stLine.replace(/^selfcheck:\s*/, '')}).`);
   if (news.length) console.log(`\nWhat changed in the starter since ${last || 'this project was made'} (tools/starter/STARTER-CHANGELOG.md):\n` + news.map(e => e.split('\n')[0]).join('\n'));
+  console.log(summary(open.length));
   process.exit(0);
 }
 

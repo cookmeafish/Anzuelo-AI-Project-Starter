@@ -4,6 +4,7 @@
 //   node tools/hooks/selfcheck.mjs              run every scenario
 //   node tools/hooks/selfcheck.mjs --route "…"  show which runbooks a message routes to, plus all prompt hints
 //   node tools/hooks/selfcheck.mjs --explain "<scenario name>"  every check that fires for that scenario, with what satisfies it
+//   node tools/hooks/selfcheck.mjs --contract   the project's own hooks ("externalHooks") still read what the engine prints
 // Add a scenario for every new REQ tag (project-rule skill): one where the rule is skipped, one where it is followed.
 import fs from 'node:fs';
 import os from 'node:os';
@@ -24,6 +25,17 @@ if (process.argv[2] === '--route') {
   const hints = promptHints(msg);
   console.log(hints.length ? hints.map(h => '- ' + h).join('\n') : '(no hints: no runbook matched and it does not look like a task)');
   process.exit(0);
+}
+
+// --contract: the project's own hooks and scripts (config "externalHooks") against the engine's hook output contract
+// (node tools/hooks/hooks.mjs contract): a field or marker they read that the engine no longer prints, or a contract
+// version they were last checked against that is older. Exit 1 when one needs a look. Quick: no test copies.
+if (process.argv[2] === '--contract') {
+  const { contractProblems, CONTRACT, config } = await import('./hooks.mjs');
+  const cfg = config(), files = [].concat(cfg.externalHooks || []), probs = contractProblems(cfg);
+  for (const p of probs) console.log(`- ${p}`);
+  console.log(`CONTRACT: ${probs.length ? 'WARN' : 'PASS'} (engine contract ${CONTRACT.version}; ${files.length ? `${files.length} project hook file(s) checked${Number.isFinite(cfg.hookContract) ? `, last checked against ${cfg.hookContract}` : ''}` : 'no "externalHooks" in tools/hooks/config.json, nothing to check'})`);
+  process.exit(probs.length ? 1 : 0);
 }
 
 // --tags a,b: only the scenarios that prove these checks. After a change to requirements.json or config.json the Stop
@@ -2125,12 +2137,18 @@ if (mineB()) { // two sessions in one folder: each keeps its own turn record, so
   // Lesson: a second session's prompt replaced the first one's turn record, and the first was checked against it
   const dir = copyProject();
   try {
-    run(dir, 'prompt', { prompt: 'write the menu for spring', session_id: 'aaa' });
-    run(dir, 'prompt', { prompt: 'fix the login page', session_id: 'bbb' });
+    // (a real session has a transcript; a hook run by hand with a made-up id has none and takes no snapshot)
+    const tps = Object.fromEntries(['aaa', 'bbb'].map(s => { const f = path.join(dir, `.cache/${s}.jsonl`); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, JSON.stringify({ type: 'user', message: { role: 'user', content: 'hi' } }) + '\n'); return [s, f]; }));
+    run(dir, 'prompt', { prompt: 'write the menu for spring', session_id: 'aaa', transcript_path: tps.aaa });
+    run(dir, 'prompt', { prompt: 'fix the login page', session_id: 'bbb', transcript_path: tps.bbb });
+    run(dir, 'prompt', { prompt: 'try the hook by hand', session_id: 'madeup' });
+    run(dir, 'prompt', { prompt: 'try the hook by hand', session_id: 'missing', transcript_path: path.join(dir, 'no-such.jsonl') });
     const st = n => { try { return JSON.parse(fs.readFileSync(path.join(dir, 'tools/hooks/state', n), 'utf8')); } catch { return {}; } };
     const a = st('turn.aaa.json'), b = st('turn.bbb.json');
     report(/spring/.test(a.prompt || '') && !/login/.test(a.prompt || '') && /login/.test(b.prompt || '') && !!st('snapshot.aaa.json').files,
       'sessions: two sessions in one folder keep separate turn records and snapshots', `${(a.prompt || '').slice(0, 60)} | ${(b.prompt || '').slice(0, 60)}`);
+    report(!fs.existsSync(path.join(dir, 'tools/hooks/state/snapshot.madeup.json')) && !fs.existsSync(path.join(dir, 'tools/hooks/state/snapshot.missing.json')) && /by hand/.test(st('turn.madeup.json').prompt || ''),
+      'state-hygiene: a hook run by hand with a made-up session id and no readable transcript writes no snapshot', fs.readdirSync(path.join(dir, 'tools/hooks/state')).join(', '));
     // each session's stop rounds are its own: a block in one never resets or adds to the other's count
     write(dir, { 'docs/menu.md': '# Spring menu\n' });
     run(dir, 'stop', { session_id: 'aaa', last_assistant_message: 'Wrote the menu.' });
@@ -2140,6 +2158,163 @@ if (mineB()) { // two sessions in one folder: each keeps its own turn record, so
     report(count('stop-blocks.aaa.json') === 2 && count('stop-blocks.bbb.json') === 1 && !fs.existsSync(path.join(dir, 'tools/hooks/state/stop-blocks.json')),
       'sessions: each session counts its own stop rounds', `aaa ${count('stop-blocks.aaa.json')}, bbb ${count('stop-blocks.bbb.json')}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+if (mineB()) { // hook-contract: the version and shapes are printed, and a project's own hook that reads a field the engine no longer prints is named
+  const dir = copyProject();
+  try {
+    const nodeIn = (...a) => spawnSync(process.execPath, a, { cwd: dir, encoding: 'utf8' });
+    const H = await import(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href);
+    const cj = (() => { try { return JSON.parse(nodeIn('tools/hooks/hooks.mjs', 'contract', '--json').stdout); } catch { return {}; } })();
+    const human = nodeIn('tools/hooks/hooks.mjs', 'contract').stdout;
+    const contract = () => nodeIn('tools/hooks/selfcheck.mjs', '--contract');
+    const none = contract();
+    const setExt = (files, extra = {}) => applyEdits(dir, cfgEdit({ externalHooks: files, ...extra }));
+    // a project hook that runs the engine's Stop and reads the old "reason" key under Claude Code
+    write(dir, { 'tools/hooks/hooks.py': 'import json, subprocess\nout = json.loads(subprocess.run(["node", "tools/hooks/hooks.mjs", "stop"], capture_output=True, text=True).stdout or "{}")\nprint(out["reason"])\n' });
+    setExt(['tools/hooks/hooks.py']);
+    const old = contract();
+    // the same hook reading both shapes, and one that only writes its own "reason" (its own Stop output) are fine
+    write(dir, { 'tools/hooks/hooks.py': 'import json, subprocess\nout = json.loads(subprocess.run(["node", "tools/hooks/hooks.mjs", "stop"], capture_output=True, text=True).stdout or "{}")\nprint(out.get("hookSpecificOutput", {}).get("additionalContext") or out.get("reason"))\n',
+      'tools/hooks/own.py': 'import json\nprint(json.dumps({"decision": "block", "reason": "Run the deck checks."}))\n' });
+    setExt(['tools/hooks/hooks.py', 'tools/hooks/own.py']);
+    const fixed = contract();
+    setExt(['tools/hooks/hooks.py', 'tools/hooks/gone.py'], { hookContract: 1 });
+    const behind = contract();
+    report(cj.version === H.CONTRACT.version && cj.version >= 3 && cj.events?.stop && cj.history?.length === cj.version && new RegExp(`^hook output contract ${H.CONTRACT.version}\\b`).test(human)
+      && none.status === 0 && /CONTRACT: PASS .*nothing to check/.test(none.stdout)
+      && old.status === 1 && /hooks\.py reads "reason" from the engine's stop output/.test(old.stdout)
+      && fixed.status === 0 && /CONTRACT: PASS .*2 project hook file/.test(fixed.stdout)
+      && behind.status === 1 && /gone\.py is listed in "externalHooks" but does not exist/.test(behind.stdout) && /last checked against contract 1.*What changed: 2 \(/.test(behind.stdout),
+      'hook-contract: "contract" prints the version; selfcheck --contract names a project hook reading a field the engine no longer prints, and an older checked version',
+      `json ${cj.version} | none ${none.status} ${none.stdout.trim()} | old ${old.status} ${old.stdout.slice(0, 200)} | fixed ${fixed.status} ${fixed.stdout.slice(0, 200)} | behind ${behind.status} ${behind.stdout.slice(0, 300)}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+if (mineB()) { // context budget: the audit runs the project's own SessionStart/UserPromptSubmit hooks listed in "externalHooks" and warns over 9,000 characters
+  const dir = copyProject();
+  try {
+    write(dir, { 'tools/hooks/big.mjs': "process.stdout.write('x'.repeat(12000));\n", 'tools/hooks/small.mjs': "process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: 'ROUTE: deck' } }));\n",
+      'tools/hooks/unlisted.mjs': "process.stdout.write('y'.repeat(15000));\n",
+      '.claude/settings.json': JSON.stringify({ hooks: {
+        SessionStart: [{ hooks: [{ type: 'command', command: 'node "$CLAUDE_PROJECT_DIR/tools/hooks/hooks.mjs" session' }, { type: 'command', command: 'node "$CLAUDE_PROJECT_DIR/tools/hooks/big.mjs"' }] }],
+        UserPromptSubmit: [{ hooks: [{ type: 'command', command: 'node tools/hooks/small.mjs' }, { type: 'command', command: 'node tools/hooks/unlisted.mjs' }] }] } }) });
+    applyEdits(dir, cfgEdit({ externalHooks: ['tools/hooks/big.mjs', 'tools/hooks/small.mjs'] }));
+    const sizes = (() => { try { return JSON.parse(spawnSync(process.execPath, ['--input-type=module', '-e', `import { externalHookSizes } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; console.log(JSON.stringify(externalHookSizes()));`], { cwd: dir, encoding: 'utf8' }).stdout); } catch { return []; } })();
+    const big = sizes.find(s => s.file === 'tools/hooks/big.mjs'), small = sizes.find(s => s.file === 'tools/hooks/small.mjs');
+    const au = spawnSync(process.execPath, ['tools/audit.mjs'], { cwd: dir, encoding: 'utf8', timeout: 300000 }).stdout || '';
+    report(sizes.length === 2 && big?.chars === 12000 && big.event === 'SessionStart' && !big.error && small?.chars === 11 && !sizes.some(s => /unlisted|hooks\.mjs/.test(s.file))
+      && /the project hook tools\/hooks\/big\.mjs prints 12000 characters at SessionStart, over 9000/.test(au) && !/small\.mjs prints/.test(au),
+      'context-budget: the audit measures the project\'s own session and prompt hooks listed in externalHooks and warns over 9,000 characters', `${JSON.stringify(sizes).slice(0, 300)} | ${au.split('\n').filter(l => /project hook/.test(l)).join(' / ').slice(0, 300)}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+if (mineB()) { // shown: a project hook prints its checklist once a session; a compaction shows it again
+  const dir = copyProject();
+  try {
+    const shown = (...a) => spawnSync(process.execPath, ['tools/hooks/hooks.mjs', 'shown', ...a], { cwd: dir, encoding: 'utf8' }).status;
+    const first = shown('checklist', '--session', 's1'), again = shown('checklist', '--session', 's1'), other = shown('checklist', '--session', 's2'), otherKey = shown('deltas', '--session', 's1'), bad = shown('checklist');
+    run(dir, 'session', { source: 'compact', session_id: 's1' });
+    const afterCompact = shown('checklist', '--session', 's1'), s2kept = shown('checklist', '--session', 's2');
+    report(first === 1 && again === 0 && other === 1 && otherKey === 1 && bad === 2 && afterCompact === 1 && s2kept === 0,
+      'shown: "hooks.mjs shown <key> --session <id>" is 1 the first time and 0 after, per session and key; a compaction resets that session only',
+      `first ${first}, again ${again}, other session ${other}, other key ${otherKey}, no session ${bad}, after compact ${afterCompact}, s2 ${s2kept}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+if (mineB()) { // state-hygiene: per-session state older than 7 days goes at session start; prune --dry only lists it
+  const dir = copyProject();
+  try {
+    const S = p => path.join(dir, 'tools/hooks/state', p), old = (Date.now() - 10 * 86400_000) / 1000, recent = (Date.now() - 3 * 86400_000) / 1000;
+    write(dir, { 'tools/hooks/state/snapshot.old1.json': '{"files":{}}', 'tools/hooks/state/turn.old1.json': '{}', 'tools/hooks/state/turn.json': '{}', 'tools/hooks/state/ext-shown.old1.json': '{}',
+      'tools/hooks/state/turn.recent.json': '{}', 'tools/hooks/state/history.jsonl': '{}\n', 'tools/hooks/state/runbook-usage.json': '{}' });
+    for (const p of ['snapshot.old1.json', 'turn.old1.json', 'turn.json', 'ext-shown.old1.json', 'history.jsonl', 'runbook-usage.json']) fs.utimesSync(S(p), old, old);
+    fs.utimesSync(S('turn.recent.json'), recent, recent);
+    const dry = spawnSync(process.execPath, ['tools/hooks/hooks.mjs', 'prune', '--dry'], { cwd: dir, encoding: 'utf8' }).stdout;
+    const keptAfterDry = ['snapshot.old1.json', 'turn.old1.json', 'turn.json'].every(p => fs.existsSync(S(p)));
+    run(dir, 'session', { source: 'startup', session_id: 'now1' });
+    const gone = ['snapshot.old1.json', 'turn.old1.json', 'turn.json', 'ext-shown.old1.json'].filter(p => !fs.existsSync(S(p))), kept = ['turn.recent.json', 'history.jsonl', 'runbook-usage.json'].filter(p => fs.existsSync(S(p)));
+    const none = spawnSync(process.execPath, ['tools/hooks/hooks.mjs', 'prune'], { cwd: dir, encoding: 'utf8' }).stdout;
+    report(/would remove 4 state file\(s\) older than 7 days/.test(dry) && /snapshot\.old1\.json/.test(dry) && !/recent|history|usage/.test(dry) && keptAfterDry && gone.length === 4 && kept.length === 3 && /nothing to prune/.test(none),
+      'state-hygiene: session start prunes per-session and legacy state older than 7 days; prune --dry lists without removing', `${dry.trim()} | dry kept ${keptAfterDry} | gone ${gone.join(',')} | kept ${kept.join(',')} | ${none.trim()}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+if (mineB()) { // stop-log: "hooks.mjs last" shows each Stop decision (round, result, steps, waivers) from a capped log
+  const dir = copyProject();
+  try {
+    const nodeIn = (...a) => spawnSync(process.execPath, ['tools/hooks/hooks.mjs', ...a], { cwd: dir, encoding: 'utf8' });
+    const empty = nodeIn('last').stdout;
+    const since = Date.now() - 1000;
+    const tp = transcript(dir, { prompt: 'add a section about screenshots to the notes', tools: [{ name: 'Write', input: { file_path: 'docs/notes-screens.md' } }], answer: 'Added it.' }, since);
+    write(dir, { 'docs/notes-screens.md': '# Screens\nA section.\n' });
+    run(dir, 'stop', { transcript_path: tp, session_id: 'log1', last_assistant_message: 'Added it. N/A(plan-saved): a one-file note needs no plan' });
+    run(dir, 'stop', { transcript_path: tp, session_id: 'log1', stop_hook_active: true, last_assistant_message: 'Added it.' });
+    const rows = (() => { try { return JSON.parse(nodeIn('last', '5', '--json').stdout); } catch { return []; } })(), text = nodeIn('last', '5').stdout;
+    // the log stays capped
+    const logf = path.join(dir, 'tools/hooks/state/stop-log.jsonl');
+    fs.appendFileSync(logf, Array.from({ length: 1500 }, (_, i) => JSON.stringify({ at: new Date().toISOString(), round: 1, result: 'passed', steps: [], note: `filler ${i}` })).join('\n') + '\n');
+    run(dir, 'stop', { transcript_path: tp, session_id: 'log1', last_assistant_message: 'Added it.' });
+    const lines = fs.readFileSync(logf, 'utf8').split('\n').filter(Boolean).length;
+    report(/no Stop decisions logged yet/.test(empty) && rows.length === 2 && rows[0].result === 'blocked' && rows[0].round === 1 && rows[0].steps.length > 0 && rows[0].session === 'log1' && /^\d{4}-/.test(rows[0].request || '')
+      && rows[1].round === 2 && /round 1 {2}blocked: [a-z]/.test(text) && lines <= 201 && lines > 100,
+      'stop-log: "hooks.mjs last" lists each Stop decision with its round, result and steps, from a capped log', `${empty.trim()} | ${JSON.stringify(rows).slice(0, 300)} | ${text.slice(0, 200)} | ${lines} lines`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+if (mineB()) { // upgrade fit rows: new candidates with no sign of need are skipped on their own in an upgrade; setup still decides every row
+  const dir = copyProject();
+  try {
+    const fit = (...a) => spawnSync(process.execPath, ['tools/fit.mjs', ...a], { cwd: dir, encoding: 'utf8' });
+    write(dir, { 'src/convert.py': 'print("convert")\n' }); // a Python file: the Python tools have a signal, so they stay for a real decision
+    const setup = fit('--count-new', '--auto-skip').stdout.trim().split('\n'); // no checklist yet: setup decides each row itself
+    const fresh = fs.readFileSync(path.join(dir, 'docs/fit-checklist.md'), 'utf8');
+    fitFill(dir);
+    const rows = JSON.parse(fit('--json').stdout || '[]');
+    const pick = rows.find(r => ['pack', 'skill', 'tool'].includes(r.kind) && !r.present && !r.signals.length);
+    const sig = rows.find(r => ['pack', 'skill', 'tool'].includes(r.kind) && !r.present && r.signals.length);
+    const drop = names => { const f = path.join(dir, 'docs/fit-checklist.md'); fs.writeFileSync(f, fs.readFileSync(f, 'utf8').split('\n').filter(l => !names.some(n => l.startsWith(`| ${n} |`))).join('\n')); };
+    drop([pick?.item, sig?.item].filter(Boolean));
+    const plain = fit('--count-new').stdout.trim().split('\n');
+    drop([pick?.item, sig?.item].filter(Boolean));
+    const auto = fit('--count-new', '--auto-skip').stdout.trim().split('\n');
+    const after = fs.readFileSync(path.join(dir, 'docs/fit-checklist.md'), 'utf8');
+    const rowOf = n => after.split('\n').find(l => l.startsWith(`| ${n} |`)) || '';
+    const check = fit('decide', sig?.item || 'x', 'skip', `${sig?.item} would add upkeep for nothing this fixture does, even with ${(sig?.signals || []).join(' and ')}`);
+    report(!!pick && Number(setup[0]) > 1 && !setup.some(l => /^auto-skipped/.test(l)) && !/\| skip \| auto:/.test(fresh)
+      && !!sig && Number(plain[0]) === 2 && Number(auto[0]) === 1 && auto.includes(`auto-skipped: ${pick.item}`) && /\| skip \| auto: /.test(rowOf(pick.item)) && /\| \? \|/.test(rowOf(sig.item))
+      && check.status === 0 && fit('check').status === 0,
+      'upgrade-fit: an upgrade decides "skip" for new candidates with no sign of need, leaves ones with a signal to decide, and setup still decides every row',
+      `pick ${pick?.item}, sig ${sig?.item} | setup ${setup.join(' / ')} | plain ${plain.join(' / ')} | auto ${auto.join(' / ')} | ${rowOf(pick?.item)} | check ${fit('check').stdout.slice(-300)}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+if (mineB()) { // feedback-status: each report gets a status file the starter's author fills; a project's status counts its own
+  const dir = copyProject(), link = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-fake-'));
+  try {
+    const st = (...a) => spawnSync(process.execPath, ['tools/starter.mjs', 'feedback-status', ...a], { cwd: dir, encoding: 'utf8' });
+    const inbox = 'docs/feedback-inbox/demo.md', sf = path.join(dir, 'docs/feedback-inbox/demo.status.md');
+    write(dir, { [inbox]: '# Report\n### 1. Faster stops\ntext\n### 2. Fewer hints\ntext\n- 2026-10-20: a dated line (reviewed 2026-10-21: done)\n' });
+    const first = st(inbox), made = fs.existsSync(sf) ? fs.readFileSync(sf, 'utf8') : '';
+    const set1 = st(inbox, '--set', '#1', 'fixed in abc1234'), set2 = st(inbox, '--set', '#2', 'declined: the hints are already short');
+    const badSet = st(inbox, '--set', '#2', 'declined'), noItem = st(inbox, '--set', '#9', 'open');
+    fs.appendFileSync(path.join(dir, inbox), '### 3. A new item\n');
+    const third = st(inbox), kept = fs.readFileSync(sf, 'utf8');
+    fs.writeFileSync(sf, kept.replace('| fixed in abc1234 |', '| done |'));
+    const handBad = st(inbox);
+    report(first.status === 0 && /3 item\(s\): 0 fixed, 0 declined, 3 open/.test(first.stdout) && /\| 2026-10-20#1 \| a dated line \| open \|/.test(made)
+      && set1.status === 0 && set2.status === 0 && badSet.status === 1 && noItem.status === 1
+      && third.status === 0 && /4 item\(s\): 1 fixed, 1 declined, 2 open/.test(third.stdout) && /\| #1 \| Faster stops \| fixed in abc1234 \|/.test(kept) && /\| #3 \| A new item \| open \|/.test(kept)
+      && handBad.status === 1 && /status "done" is not valid/.test(handBad.stdout),
+      'feedback-status: a status file per report keeps each item open, fixed in <commit> or declined: why, adds new items as open and rejects other statuses',
+      `${first.stdout.trim()} | ${set1.stderr}${badSet.stderr} | ${third.stdout.trim()} | ${handBad.stdout.trim()}`);
+    // the project side: its status shows what the starter did with its reports
+    fs.rmSync(path.join(dir, '.starter-template'), { force: true });
+    write(dir, { 'docs/names.json': JSON.stringify({ PROJECT_NAME: 'Demo Proj' }), 'tools/starter.local.json': JSON.stringify({ path: link }) });
+    write(link, { 'tools/new-project.mjs': '// a starter folder\n', 'docs/feedback-inbox/demo-proj.status.md': '| Item | Reported | Status |\n|---|---|---|\n| #1 | a | fixed in abc1234 |\n| #2 | b | open |\n| #3 | c | declined: not for every project |\n' });
+    const ps = spawnSync(process.execPath, ['tools/starter.mjs', 'status'], { cwd: dir, encoding: 'utf8' }).stdout;
+    report(/your reports: 1 fixed, 1 declined, 1 open/.test(ps), 'feedback-status: a linked project\'s "starter.mjs status" counts its reports fixed, declined and open', ps.slice(-400));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); fs.rmSync(link, { recursive: true, force: true }); }
 }
 
 if (mineB()) { // hooks-tested without a transcript: the Stop hook never runs the self-tests itself; it reads the run log
@@ -2298,6 +2473,10 @@ if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade
     const ok = np('--upgrade', '--no-selftest'), review = fs.readFileSync(path.join(proj, 'docs/DECISIONS.md'), 'utf8');
     report(r.status !== 0 && /ROLLED BACK/.test(r.stderr) && restored && ok.status === 0 && /## Upgrade review \(/.test(review) && /- self-tests: .*: \?/.test(review),
       'upgrade-review: an upgrade that breaks a passing check rolls back; a clean one writes the review', `${r.status} ${r.stderr.slice(0, 200)} | restored ${restored} | ${ok.status} ${ok.stderr.slice(0, 200)}`);
+    // the last line says it all: which starter, regressions, decisions left (a rolled-back run has no such line)
+    const lastLine = (ok.stdout || '').trim().split(/\r?\n/).pop();
+    report(/^Upgrade \S+( the starter copy)?: 0 regressions, [1-9]\d* decisions? needed/.test(lastLine) && !/^Upgrade .*regressions?,/m.test(r.stdout || ''),
+      'upgrade-summary: a clean upgrade ends with one line naming the starter commit, the regressions and the decisions needed', `${lastLine} | rollback: ${(r.stdout || '').trim().split(/\r?\n/).pop()}`);
   } finally { fs.rmSync(proj, { recursive: true, force: true }); }
 }
 
@@ -2814,6 +2993,38 @@ for (const [k, { out, code }] of (await Promise.all(helpers)).entries()) {
   const lines = out.split(/\r?\n/), done = lines.map(l => /^SHARD (\d+) (\d+) (\d+)$/.exec(l)).find(Boolean);
   for (const l of lines) { const m = /^(PASS|FAIL)  (.*?)(?:  -> .*)?$/.exec(l); if (!m) continue; console.log(l); if (m[1] === 'PASS') { pass++; PASSED.push(m[2]); } else fail++; }
   if (done) skipped += Number(done[3]); else report(false, `self-test helper ${k + 1} finished its share`, `exit ${code}: ${out.trim().split(/\r?\n/).slice(-5).join(' | ').slice(0, 500)}`);
+}
+// stop-budget: the Stop hook's own work on a realistic work turn stays within stopBudgetMs (500 ms), timed here after
+// the helpers finished so no parallel run skews it, with STARTER_TIMING naming the slowest checks when it is over.
+// Lesson: engine Stop went from 40-200 ms to 594-720 ms over a few releases, and nothing noticed the creep.
+// (the fastest of 5 runs: what the hook itself costs; other work on a busy machine only ever adds to it)
+const stopVerdict = (samples, budget) => {
+  const mid = [...samples].sort((a, b) => a.total - b.total)[0];
+  const slow = mid.parts.filter(([l]) => !/\(total\)$/.test(l)).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  return { ok: mid.total <= budget, total: mid.total, slow: slow.map(([l, ms]) => `${l} ${ms} ms`) };
+};
+if (!TAGS && !HELPER) {
+  const dir = copyProject();
+  try {
+    const budget = (() => { try { return JSON.parse(fs.readFileSync(path.join(dir, 'tools/hooks/config.json'), 'utf8')).stopBudgetMs; } catch { return null; } })() || 500;
+    const since = Date.now() - 1000;
+    const tp = transcript(dir, { prompt: 'make a plan for the csv export and note it in the changelog', tools: [pb('plan'), { name: 'Write', input: { file_path: 'docs/plans/2026-10-21-export.md' } },
+      { name: 'Edit', input: { file_path: 'docs/CHANGELOG.md' } }, bash('node tools/audit.mjs'), ...many(6)], answer: null }, since);
+    write(dir, { 'docs/plans/2026-10-21-export.md': '# Export: plan\n- [ ] helpers\n- [ ] wire it up\n', 'docs/CHANGELOG.md': '# Changelog\n- 2026-10-21: planned the export\n' });
+    const samples = [];
+    for (let i = 0; i < 5; i++) {
+      const r = spawnSync(process.execPath, [path.join(dir, 'tools/hooks/hooks.mjs'), 'stop'], { cwd: dir, encoding: 'utf8', input: JSON.stringify({ transcript_path: tp, last_assistant_message: 'Playbook: plan.md. Saved the plan.' + FIN }),
+        env: { ...process.env, STARTER_TIMING: '1', STARTER_MEMORY_DIR: path.join(dir, '.memtest') } });
+      try { samples.push(JSON.parse(/STOP-TIMING (.*)/.exec(r.stderr || '')[1])); } catch { }
+    }
+    const v = samples.length ? stopVerdict(samples, budget) : null;
+    if (v) console.log(`stop timing: ${v.total} ms (fastest of ${samples.length}: ${samples.map(s => s.total).join(', ')}; budget ${budget} ms); slowest: ${v.slow.join(', ')}`);
+    report(!!v && v.ok, `stop-budget: the Stop hook stays within its ${budget} ms budget on a realistic work turn`, v ? `${v.total} ms, over budget; slowest: ${v.slow.join(', ')}` : 'no STOP-TIMING line from the hook (STARTER_TIMING=1)');
+    // and the verdict names the slowest checks when the budget is missed
+    const tight = v ? stopVerdict(samples, 1) : null;
+    report(!!tight && !tight.ok && tight.slow.length === 3 && tight.slow.every(s => /^[\w(][^]* \d+(\.\d)? ms$/.test(s)) && samples[0].parts.some(([l]) => /^check /.test(l)) && samples[0].parts.some(([l]) => /^core /.test(l)),
+      'stop-budget: over its budget the verdict names the 3 slowest checks', JSON.stringify(tight));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 if (!TAGS) for (const [tag, name] of Object.entries(COVERS)) if (hereSrc.includes(tag)) report(PASSED.some(n => n.includes(name)), `covers: ${tag} is proven by "${name}"`, 'no passing scenario with that name');
 

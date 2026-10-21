@@ -15,6 +15,10 @@
 //                                                 docs/starter-feedback.md: one dated line, kept on upgrade
 //   node tools/starter.mjs report                 copy the lines not yet reported into the linked starter's
 //                                                 docs/feedback-inbox/<project>.md (appends; skipped without a link)
+//   node tools/starter.mjs feedback-status <docs/feedback-inbox/name.md> [--set <item> "<status>"]
+//                                                 (in the starter) write or refresh <name>.status.md beside a report: each
+//                                                 item "open", "fixed in <commit>" or "declined: <why>"; lists the open
+//                                                 ones. A project's "status" then shows how many of its reports are fixed.
 // The starter always lives in its own folder, outside every project it creates. The link is a path on this machine,
 // so it is kept in tools/starter.local.json, which git ignores. On another machine, run "link <folder>" again.
 import fs from 'node:fs';
@@ -35,6 +39,63 @@ const FEEDBACK = 'docs/starter-feedback.md';
 const FEEDBACK_HEAD = '# Feedback for the starter\nLessons about the engine itself (hooks, checks, tools), one dated line each. Upgrades keep this file;\n`node tools/starter.mjs report` copies new lines to the linked starter.\n\n';
 const feedbackLines = () => { try { return fs.readFileSync(at(FEEDBACK), 'utf8').split(/\r?\n/).filter(l => /^- \d{4}-\d\d-\d\d: \S/.test(l)).map(l => l.trim()); } catch { return []; } };
 const reportedLines = () => { try { return new Set(JSON.parse(fs.readFileSync(at('tools', 'hooks', 'state', 'feedback-reported.json'), 'utf8'))); } catch { return new Set(); } };
+const projectSlug = () => {
+  const name = (() => { try { return JSON.parse(fs.readFileSync(at('docs', 'names.json'), 'utf8')).PROJECT_NAME; } catch { return ''; } })();
+  return (name && !/\{\{/.test(name) ? name : path.basename(ROOT)).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'project';
+};
+
+// The feedback loop, closed: a report in the starter's docs/feedback-inbox/ gets a sibling <name>.status.md with one row
+// per reported item ("### N. Title" headings, or dated "- YYYY-MM-DD: ..." lines) and its status: "open", "fixed in
+// <commit>" or "declined: <why>". The starter's author fills the status (by hand or with --set); the tool adds new items
+// as open, keeps every status, and lists what is still open. A project's "status" counts its own. Lesson: the inbox was
+// append-only, so a project could not tell which of its reports were fixed without re-testing or reading the code.
+const FEEDBACK_STATUS = /^(open|fixed in [0-9a-f]{7,40}\b.*|declined: \S+(\s+\S+)+)$/i;
+const statusFileOf = f => f.replace(/\.md$/i, '') + '.status.md';
+function feedbackItems(text) {
+  const items = [], perDay = {};
+  for (const l of String(text).split(/\r?\n/)) {
+    let m = /^#{2,4}\s+(\d+)\.\s+(.+?)\s*$/.exec(l);
+    if (m) { items.push({ id: `#${m[1]}`, what: m[2] }); continue; }
+    m = /^- (\d{4}-\d\d-\d\d): (.+)$/.exec(l);
+    if (m) { perDay[m[1]] = (perDay[m[1]] || 0) + 1; items.push({ id: `${m[1]}#${perDay[m[1]]}`, what: m[2].replace(/\s*\(reviewed\b[^)]*\)\s*$/i, '') }); }
+  }
+  return items;
+}
+function readFeedbackStatus(file) {
+  const rows = new Map();
+  for (const l of (fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '').split(/\r?\n/)) {
+    const c = l.split('|').map(s => s.trim());
+    if (c.length === 5 && c[1] && !/^(item|-+)$/i.test(c[1])) rows.set(c[1], c[3]);
+  }
+  return rows;
+}
+function feedbackStatusCount(rows) {
+  const st = [...rows.values()];
+  return { fixed: st.filter(s => /^fixed in /i.test(s)).length, declined: st.filter(s => /^declined:/i.test(s)).length, open: st.filter(s => /^open$/i.test(s)).length, bad: st.filter(s => !FEEDBACK_STATUS.test(s)).length };
+}
+if (process.argv[2] === 'feedback-status') {
+  // node tools/starter.mjs feedback-status <inbox file> [--set <item> "<status>"]
+  const args = process.argv.slice(3), si = args.indexOf('--set'), inbox = args.find((a, i) => !a.startsWith('--') && (si < 0 || (i !== si + 1 && i !== si + 2)));
+  if (!inbox || !fs.existsSync(path.resolve(inbox))) { console.error('usage: node tools/starter.mjs feedback-status <docs/feedback-inbox/name.md> [--set <item> "open" | "fixed in <commit>" | "declined: <why>"]'); process.exit(2); }
+  const file = path.resolve(inbox), out = statusFileOf(file), old = readFeedbackStatus(out);
+  const items = feedbackItems(fs.readFileSync(file, 'utf8'));
+  if (si >= 0) {
+    const [id, status = ''] = [args[si + 1], args[si + 2]];
+    if (!items.some(x => x.id === id)) { console.error(`feedback-status: no item "${id}" in ${inbox} (items: ${items.map(x => x.id).join(', ') || 'none'})`); process.exit(1); }
+    if (!FEEDBACK_STATUS.test(status.trim())) { console.error(`feedback-status: "${status}" is not a status: use "open", "fixed in <commit>" or "declined: <why, a few words>"`); process.exit(1); }
+    old.set(id, status.trim());
+  }
+  const cell = s => String(s).replace(/\|/g, '/').replace(/\s+/g, ' ').trim();
+  const rows = new Map(items.map(x => [x.id, old.get(x.id) || 'open']));
+  fs.writeFileSync(out, `# Feedback status: ${path.basename(file)}\n\n<!-- Kept by node tools/starter.mjs feedback-status. One row per reported item. The starter's author fills Status: ` +
+    `"open", "fixed in <commit>" or "declined: <why>". New items are added as open; every status is kept. -->\n\n| Item | Reported | Status |\n|---|---|---|\n` +
+    items.map(x => `| ${x.id} | ${cell(x.what).slice(0, 110)} | ${cell(rows.get(x.id))} |`).join('\n') + '\n');
+  const n = feedbackStatusCount(rows);
+  console.log(`feedback-status: ${path.relative(process.cwd(), out) || out} (${items.length} item(s): ${n.fixed} fixed, ${n.declined} declined, ${n.open} open${n.bad ? `, ${n.bad} with a status that is not "open", "fixed in <commit>" or "declined: <why>"` : ''})`);
+  const openOnes = items.filter(x => !/^(fixed in |declined:)/i.test(rows.get(x.id)));
+  if (openOnes.length) console.log('still open:\n' + openOnes.map(x => `  ${x.id} ${cell(x.what).slice(0, 90)}${/^open$/i.test(rows.get(x.id)) ? '' : `  (status "${rows.get(x.id)}" is not valid)`}`).join('\n'));
+  process.exit(n.bad ? 1 : 0);
+}
 
 if (fs.existsSync(at('.starter-template'))) { console.error('This is the starter itself. These commands are for projects made from it.'); process.exit(1); }
 
@@ -147,6 +208,13 @@ if (cmd === 'link') {
     console.log('this project: its engine is older than the linked starter (node tools/starter.mjs update, or upgrade)');
   const fb = feedbackLines(), sent = reportedLines();
   if (fb.length) console.log(`starter feedback: ${fb.length} line(s) in ${FEEDBACK}, ${fb.filter(l => !sent.has(l)).length} not reported yet (node tools/starter.mjs report)`);
+  // what the starter did with this project's reports (the starter's <name>.status.md files, kept by feedback-status)
+  const inboxDir = link && path.join(link, 'docs', 'feedback-inbox'), slug = projectSlug();
+  const stFiles = inboxDir && fs.existsSync(inboxDir) ? fs.readdirSync(inboxDir).filter(n => n.endsWith('.status.md') && n.startsWith(slug)) : [];
+  if (stFiles.length) {
+    const all = new Map(stFiles.flatMap(n => [...readFeedbackStatus(path.join(inboxDir, n))].map(([k, v]) => [`${n}|${k}`, v]))), c = feedbackStatusCount(all);
+    console.log(`your reports: ${c.fixed} fixed, ${c.declined} declined, ${all.size - c.fixed - c.declined} open (${stFiles.map(n => path.join(inboxDir, n)).join(', ')})`);
+  }
 } else if (cmd === 'feedback') {
   const text = process.argv.slice(3).join(' ').replace(/\s+/g, ' ').trim();
   if (!text) { console.error('usage: node tools/starter.mjs feedback "<what the engine got wrong or should do>"'); process.exit(1); }
@@ -164,8 +232,7 @@ if (cmd === 'link') {
   const link = starterLink();
   if (!link) { console.log('report: no starter is linked, nothing sent (node tools/starter.mjs link "<starter folder>" first).'); process.exit(0); }
   const lines = feedbackLines();
-  const name = (() => { try { return JSON.parse(fs.readFileSync(at('docs', 'names.json'), 'utf8')).PROJECT_NAME; } catch { return ''; } })();
-  const slug = (name && !/\{\{/.test(name) ? name : path.basename(ROOT)).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'project';
+  const slug = projectSlug();
   const inbox = path.join(link, 'docs', 'feedback-inbox', `${slug}.md`);
   const have = new Set(fs.existsSync(inbox) ? fs.readFileSync(inbox, 'utf8').split(/\r?\n/).map(l => l.replace(/\s*\(reviewed\b.*$/i, '').trim()) : []);
   const sent = reportedLines(), fresh = lines.filter(l => !have.has(l) && !sent.has(l));
