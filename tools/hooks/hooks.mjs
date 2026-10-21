@@ -3078,24 +3078,28 @@ export function checkPreview(pbs, skills, forced, flagged, prompt, cfg = config(
   const many = tags.length > 2;
   // (a plan is due before the work once it adds many files: said now, not at Stop. Lesson: a plan written after the
   // code said so itself, "written when the checks asked for it")
-  const planSoon = short => tags.includes('plan-required') || off('plan-required') ? '' : short ? `, plan-required if it adds ${cfg.planNewFiles}+ new files`
+  // (plan: 0 the whole clause, 1 its short form, 2 left out)
+  const planSoon = plan => tags.includes('plan-required') || off('plan-required') || plan >= 2 ? '' : plan ? `, plan-required if it adds ${cfg.planNewFiles}+ new files`
     : `, plan-required (a plan in docs/plans/ first) if it adds ${cfg.planNewFiles}+ new files`;
   // The line stays under PREVIEW_MAX characters: tags sharing a prefix are grouped ("research-(cited, ledger)"), then the
-  // file-checks list is cut, then the self-check gets its short form, then the last names give way to "+N more" (the
-  // self-check lists every one). Lesson: a line held to 10 checks ran to 509 characters, and hosts cut long hook output.
-  const build = (group, nIf, shortSelf, cut = 0) => {
+  // plan clause gets short and then goes (the plan notice still comes once the files pile up), then the file-checks list
+  // is cut, then the self-check gets its short form, then the last names give way to "+N more" (the self-check lists
+  // every one). Lesson: a line held to 10 checks ran to 509 characters, and hosts cut long hook output; the plan clause
+  // once pushed out the project's own "If it changes" checks, which a turn can't learn anywhere else.
+  const build = (group, nIf, shortSelf, cut = 0, plan = shortSelf ? 1 : 0) => {
     const list = ts => group ? groupTags(ts) : ts.join(', ');
     const keepThen = then.slice(0, Math.max(0, then.length - cut)), keepTags = tags.slice(0, Math.max(1, tags.length - Math.max(0, cut - then.length)));
     const more = tags.length + then.length - keepTags.length - keepThen.length;
     return `CHECKS: this turn will be held to ${list(keepTags)}${noRoute ? ' (playbook-named instead once it follows a runbook)' : ''}${keepThen.length ? `; their fixes set off ${list(keepThen)}` : ''}${more ? ` +${more} more` : ''}.` +
-      `${also.length ? ` Also ${also.join(' + ')} if it edits runbooks, skills, rules or checks,` : ' Also'} status-handoff after 15+ tool calls${planSoon(shortSelf)}.` +
+      `${also.length ? ` Also ${also.join(' + ')} if it edits runbooks, skills, rules or checks,` : ' Also'} status-handoff after 15+ tool calls${planSoon(plan)}.` +
       (nIf ? ` If it changes ${ifChanged.slice(0, nIf).join('; ')}.` : '') + ' Do them all in the first pass.' +
       (many ? ` Self-check first: node tools/hooks/hooks.mjs check --answer-file ${shortSelf ? '<file>' : '<file with your answer>'}.` : '');
   };
-  const tries = [[false, ifChanged.length, false], [true, ifChanged.length, false], [true, Math.min(1, ifChanged.length), false], [true, 0, false], [true, 0, true],
-    ...Array.from({ length: tags.length + then.length }, (_, i) => [true, 0, true, i + 1])];
+  const n = ifChanged.length;
+  const tries = [[false, n, false], [true, n, false], [true, n, false, 0, 1], [true, n, false, 0, 2], [true, n, true, 0, 2], [true, Math.min(1, n), true, 0, 2], [true, 0, true, 0, 2],
+    ...Array.from({ length: tags.length + then.length }, (_, i) => [true, 0, true, i + 1, 2])];
   for (const t of tries) { const line = build(...t); if (line.length <= PREVIEW_MAX) return line; }
-  return build(true, 0, true, tags.length + then.length);
+  return build(true, 0, true, tags.length + then.length, 2);
 }
 export const PREVIEW_MAX = 400;
 // Tags with the same first word (the first two of a longer tag), written once: "research-cited, research-ledger" ->
@@ -4019,7 +4023,7 @@ export function coreChecks(x, cfg) {
   const excuse = subagents && String(x.answer || '').split(/\r?\n/).find(l => /\breview|\brevis/i.test(l) && REVIEW_EXCUSE.test(l));
   if (excuse) add('review-excuse', `The answer skips the independent review because no other reviewer is available ("${excuse.trim().slice(0, 80)}"). A reviewer sub-agent is one: ` +
     'start it with the Agent (or Task) tool and a read-only brief (read AGENTS.md, the request or spec and the changed files; report SHIP or FIX with evidence), fix what it finds until SHIP, and report its verdict. ' +
-    'Only an agent that truly cannot start sub-agents may say so, with N/A(review-excuse): <why>.');
+    'Only an agent that truly cannot start sub-agents may say so: node tools/hooks/hooks.mjs waive review-excuse "<why>".');
   // REQ: fit-checklist (after setup). New files can make a decided row's reason stale: a skip that the survey now
   // contradicts (data files, web pages) or a "later - when:" that is now met. Only on a turn that added files, and only
   // those two kinds of problem. Lesson: a new CSV left a "no data files" skip standing until the next audit failed.
