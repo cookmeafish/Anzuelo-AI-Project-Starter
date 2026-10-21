@@ -38,6 +38,10 @@ export const envOf = n => process.env[`STARTER_${n}`] ?? process.env[`KS_${n}`];
 // each other's request or changes. Without a session id (a manual begin/check) the shared files are used.
 // Lesson: a second session's prompt replaced the first one's turn record, and the first was checked against it.
 let SID = '';
+// A self-check run inside a hook-wired session ("hooks.mjs check" from the agent's shell) reads that session's state
+// but writes none of it: its Stop round count, turn end and logs stay the real Stop's. Lesson: the prompt hook told
+// hook-wired agents to self-check, and a check run there would otherwise reset the session's own Stop record.
+let DRY_STATE = false;
 // (the stop round count, the checks that failed earlier in the turn, hints shown, the plan nudge and the frustration
 // record are a turn's too. Lesson: a second session reset the first one's block count and lost its earlier failures.)
 const PER_SESSION = new Set(['turn.json', 'snapshot.json', 'turn-end.json', 'notices-shown.json', 'stop-blocks.json', 'stop-failed.json',
@@ -46,7 +50,7 @@ const stateName = n => SID && PER_SESSION.has(n) ? n.replace(/.json$/, `.${SID}.
 // a session's own file when it has one, else the shared one (written before sessions were told apart, or by a test)
 const stateFile = n => { const own = path.join(STATE, stateName(n)); return own !== path.join(STATE, n) && !fs.existsSync(own) ? path.join(STATE, n) : own; };
 function writeState(name, obj) {
-  if (envOf('BENCH')) return; // hooks.mjs bench times the hooks without touching the session's state
+  if (envOf('BENCH') || DRY_STATE) return; // hooks.mjs bench times the hooks without touching the session's state
   try { fs.mkdirSync(STATE, { recursive: true }); fs.writeFileSync(path.join(STATE, stateName(name)), JSON.stringify(obj, null, 2)); } catch {}
 }
 // State hygiene: the per-session files (turn.<session>.json, snapshot.<session>.json, ...) and the shared ones written
@@ -808,10 +812,11 @@ function fallbackTurn() {
 // save by writing a fresh file made edited runbooks look new.
 // A message typed mid-turn adds to the request but keeps the turn's start (and what existed then).
 // (the plans still open when the request arrived too: REQ: plan-open)
-const recordTurn = (prompt, fresh = true) => {
+// (the transcript too, so "hooks.mjs check" run inside a hook-wired session sees the turn's tool calls)
+const recordTurn = (prompt, fresh = true, transcript = '') => {
   const old = fresh ? null : readJSON(stateFile('turn.json'), null);
   writeState('turn.json', old?.at ? { ...old, prompt: `${old.prompt || ''}\n${prompt}`.slice(-4000) }
-    : { at: new Date().toISOString(), prompt: String(prompt).slice(0, 4000), runbooks: list('docs/playbooks'), skills: list(config().skillsDir), openPlans: openPlans().map(x => x.p) });
+    : { at: new Date().toISOString(), prompt: String(prompt).slice(0, 4000), runbooks: list('docs/playbooks'), skills: list(config().skillsDir), openPlans: openPlans().map(x => x.p), ...(transcript ? { transcript: String(transcript) } : {}) });
 };
 
 // ---------- turns: a turn runs from the user's prompt until a Stop lets the answer end ----------
@@ -2773,8 +2778,12 @@ export function checkPreview(pbs, skills, forced, flagged, prompt, cfg = config(
   // (skill-learn comes only from a check that fails at Stop, so the preview does not promise it)
   try { then = followOnSteps(x0, steps, cfg, m => !off(m.tag)).map(m => m.tag).filter(t => t !== 'skill-learn'); } catch { }
   const also = ['changelog', 'audit-run'].filter(t => !tags.includes(t) && !then.includes(t) && !off(t));
+  // Held to more than 2 checks, the line offers a self-check before the final answer (it works in a hook-wired session
+  // too: cmdCheck finds the session's request). Lesson: a work turn held to many checks met them one Stop round at a time.
+  const many = tags.length > 2;
   return `CHECKS: this turn will be held to ${tags.join(', ')}${then.length ? `; their fixes set off ${then.join(', ')}` : ''}.` +
-    `${also.length ? ` Also ${also.join(' + ')} if it edits runbooks, skills, rules or checks,` : ' Also'} status-handoff after 15+ tool calls. Do them all in the first pass.`;
+    `${also.length ? ` Also ${also.join(' + ')} if it edits runbooks, skills, rules or checks,` : ' Also'} status-handoff after 15+ tool calls. Do them all in the first pass.` +
+    (many ? ' Self-check first: node tools/hooks/hooks.mjs check --answer-file <file with your answer>.' : '');
 }
 const promptNotices = cfg => notices(cfg).filter(x => /^(BOOTSTRAP|SETUP|INBOX|LAST WORK TURN|STALE)/.test(x));
 
@@ -2789,10 +2798,10 @@ function cmdPrompt(data, { force = false } = {}) {
   // project). Lesson: a test run with session "x" left snapshot.x.json, turn.x.json and notices-shown.x.json behind.
   // (no session id at all is "begin", for agents without hooks, which needs the snapshot)
   const snap = () => { if (!SID || (() => { try { return fs.statSync(String(data.transcript_path || '')).isFile(); } catch { return false; } })()) takeSnapshot(cfg); };
-  if (RELAYED_TURN.test(p)) { const st = turnNotices(force, data.transcript_path); if (st.fresh) { recordTurn('', true); snap(); writeState(SHOWN, { at: st.at, shown: st.shown }); } return; }
+  if (RELAYED_TURN.test(p)) { const st = turnNotices(force, data.transcript_path); if (st.fresh) { recordTurn('', true, data.transcript_path); snap(); writeState(SHOWN, { at: st.at, shown: st.shown }); } return; }
   if (!p.trim() || skipped(p)) return;
   const st = turnNotices(force, data.transcript_path);
-  recordTurn(p, st.fresh);
+  recordTurn(p, st.fresh, data.transcript_path);
   if (st.fresh) snap();
   // setup counts the user's messages: the interview answers must arrive in a message after the questions
   if (exists('SETUP-PROMPT.md') && !exists('.starter-template')) writeState('setup.json', { prompts: setupPrompts() + 1 });
@@ -2903,22 +2912,35 @@ export function patchFiles(patch) {
   }
   return out.map(f => ({ ...f, added: f.added.join('\n') }));
 }
+// One denial names every rule the tool call breaks: one rule gives its own message unchanged, two or more are numbered
+// in one message (at most PRETOOL_MAX, then a count of the rest). Every rule is weighed once in a single pass, so a
+// denial costs no more than an allowed call. Lesson: a call that broke two rules was denied for the first only, and
+// the retry was denied again for the second.
+const PRETOOL_MAX = 6;
 export function pretoolDecision(data, cfg = config()) {
+  const hits = pretoolHits(data, cfg);
+  if (hits.length < 2) return hits[0] || null;
+  const shown = hits.slice(0, PRETOOL_MAX), more = hits.length - shown.length;
+  return `This tool call breaks ${hits.length} rules. Fix all of them before trying again:\n` +
+    shown.map((h, i) => `${i + 1}. ${h}`).join('\n') + (more ? `\n(${more} more not shown.)` : '');
+}
+// Every rule the call breaks, in the order the checks run (each message once).
+function pretoolHits(data, cfg) {
+  const out = [], add = m => { if (m && !out.includes(m)) out.push(m); };
   if (data.tool_name === 'apply_patch' || (/^(Bash|shell)$/.test(data.tool_name || '') && /^\s*apply_patch\b/.test(data.tool_input?.command || ''))) {
     for (const f of patchFiles(data.tool_input?.command || data.tool_input?.patch || data.tool_input?.input || '')) {
       const sub = f.op === 'delete' ? { tool_name: 'Bash', tool_input: { command: `rm "${f.file}"` } }
         : { tool_name: f.op === 'add' ? 'Write' : 'Edit', tool_input: f.op === 'add' ? { file_path: f.file, content: f.added } : { file_path: f.file, old_string: '', new_string: f.added } };
-      const r = pretoolDecision({ ...data, ...sub }, cfg);
-      if (r) return r;
+      pretoolHits({ ...data, ...sub }, cfg).forEach(add);
     }
-    return null;
+    return out;
   }
   const name = data.tool_name || '', inp = data.tool_input || {};
   // REQ: outward-gate (MCP tools). A connected service's tool that sends, posts, creates or deletes acts outside the
   // project: it needs the user's OK in this request, like the commands below.
   if (/^mcp__/.test(name) && OUTWARD_MCP.test(name.replace(/^mcp__[^_]+(?:_[^_]+)*?__/, '')) && !isSuspended('check:outward-gate')) {
     const prompt = (turn(data.transcript_path || '') || {}).prompt || '';
-    if (!re(config().outwardOk).test(prompt)) return `REQ: outward-gate. ${name} acts outside the project (it sends, posts, creates or deletes something). Rule 6: that needs the user's OK in this request. Draft it and ask first.`;
+    if (!re(config().outwardOk).test(prompt)) add(`REQ: outward-gate. ${name} acts outside the project (it sends, posts, creates or deletes something). Rule 6: that needs the user's OK in this request. Draft it and ask first.`);
   }
   let _t;
   const t = () => (_t ??= turn(data.transcript_path || '') || { prompt: '', entries: [] });
@@ -2937,82 +2959,82 @@ export function pretoolDecision(data, cfg = config()) {
   };
   // REQ: subagent-brief. A sub-agent only follows the rules it is shown: every brief points it at AGENTS.md.
   if (/^(Agent|Task)$/.test(name) && cfg.subagentBrief && typeof inp.prompt === 'string' && inp.subagent_type !== 'fork' && !/AGENTS\.md|CLAUDE\.md/.test(inp.prompt) && !briefFileNamesRules(inp.prompt))
-    return 'REQ: subagent-brief. Sub-agents follow only what their brief says. Add to the prompt: "Read AGENTS.md first and follow its rules (plain writing, no invented facts, no AI attribution, the runbook for this task: docs/playbooks/<name>.md)." A prompt that names a brief file saying it works too. Then re-check its output yourself before reporting it.';
+    add('REQ: subagent-brief. Sub-agents follow only what their brief says. Add to the prompt: "Read AGENTS.md first and follow its rules (plain writing, no invented facts, no AI attribution, the runbook for this task: docs/playbooks/<name>.md)." A prompt that names a brief file saying it works too. Then re-check its output yourself before reporting it.');
   if (name === 'Read' && inp.file_path) {
     const who = personOf(rel(inp.file_path), cfg);
-    if (who) { const named = peopleFor(req(), t().allPrompts, ppl); if (named.length && !named.includes(who)) return scopeCheck([who], false); }
+    if (who) { const named = peopleFor(req(), t().allPrompts, ppl); if (named.length && !named.includes(who)) add(scopeCheck([who], false)); }
     // REQ: no-secrets (reading). A secrets file read into the conversation leaves the machine with it.
-    if (SECRET_FILE.test(rel(inp.file_path)) && !SECRET_ASKED.test(req())) return secretReadMsg(rel(inp.file_path));
-    return null;
+    if (SECRET_FILE.test(rel(inp.file_path)) && !SECRET_ASKED.test(req())) add(secretReadMsg(rel(inp.file_path)));
+    return out;
   }
   if (/^(Write|Edit|MultiEdit|NotebookEdit)$/.test(name)) {
     const target = inp.file_path || inp.notebook_path || '';
-    if (!target) return null;
+    if (!target) return out;
     const p = rel(target);
-    if (p.startsWith('..')) return null;
+    if (p.startsWith('..')) return out;
     const there = exists(p);
     const who = personOf(p, cfg);
-    if (who) { const s = scopeCheck([who], true); if (s) return s; }
+    if (who) add(scopeCheck([who], true));
     const incoming = [inp.content, inp.new_string, ...(inp.edits || []).map(e => e.new_string)].filter(s => typeof s === 'string').join('\n');
     // REQ: no-secrets (writing). A key typed into a tracked file is one commit from leaking. Ignored secret stores are fine.
     // Lesson: a live-looking key written into src/ was only caught at commit time.
     const key = !SECRET_FILE.test(p) && secretHit(incoming, cfg);
     if (key && spawnSync('git', ['check-ignore', '-q', p], { cwd: ROOT }).status !== 0)
-      return `REQ: no-secrets. This writes something that looks like a secret (pattern ${key}) into ${p}. Keep secrets in .env (ignored by git) and read them from the environment; a test uses an obviously fake value.`;
+      add(`REQ: no-secrets. This writes something that looks like a secret (pattern ${key}) into ${p}. Keep secrets in .env (ignored by git) and read them from the environment; a test uses an obviously fake value.`);
     // REQ: browser-guard. Automating the INSTALLED Chrome/Edge can trigger failed OS sign-ins that lock the user's account.
     if (!/\.md$/i.test(p) && !p.startsWith('tools/hooks/') && BROWSER_CODE.test(incoming))
-      return `REQ: browser-guard. ${p} would drive the installed Chrome/Edge (executablePath / channel / CHROME_BIN / chrome.exe). Use Playwright's bundled Chromium (no executablePath, no channel) and --mute-audio, like tools/screenshot.mjs.`;
+      add(`REQ: browser-guard. ${p} would drive the installed Chrome/Edge (executablePath / channel / CHROME_BIN / chrome.exe). Use Playwright's bundled Chromium (no executablePath, no channel) and --mute-audio, like tools/screenshot.mjs.`);
     // REQ: plain-writing (fast path): no em dashes go into anything the user reads.
     if (match(p, cfg.userFacing) && !match(p, cfg.userFacingIgnore) && /—/.test(incoming.replace(/```[\s\S]*?```/g, '').replace(/\.html?$/i.test(p) ? /<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>|`[^`]*`/gi : /$^/g, '')))
-      return `REQ: plain-writing. ${p} is user-facing and this text contains an em dash ("—"). Rewrite those spots with a period, comma, colon or parentheses (docs/checks/writing-standards.md).`;
+      add(`REQ: plain-writing. ${p} is user-facing and this text contains an em dash ("—"). Rewrite those spots with a period, comma, colon or parentheses (docs/checks/writing-standards.md).`);
     // REQ: write-only-via. Some files may only be written by the tool that validates them.
     const via = cfg.writeOnlyVia.find(v => match(p, [v.glob]));
-    if (via) return `REQ: write-only-via. ${p} may only be created or changed with ${via.tool} (it validates the content). Run that tool instead of editing the file directly.`;
+    if (via) add(`REQ: write-only-via. ${p} may only be created or changed with ${via.tool} (it validates the content). Run that tool instead of editing the file directly.`);
     // REQ: skill-mirror. Mirrors are generated copies; edits there would be overwritten.
     if (cfg.skillMirrors.some(m => p.startsWith(m + '/')))
-      return `REQ: skill-mirror. ${p} is a generated copy. Edit ${p.replace(new RegExp(`^(${cfg.skillMirrors.map(esc).join('|')})/`), cfg.skillsDir + '/')} instead; the hooks copy it here.`;
+      add(`REQ: skill-mirror. ${p} is a generated copy. Edit ${p.replace(new RegExp(`^(${cfg.skillMirrors.map(esc).join('|')})/`), cfg.skillsDir + '/')} instead; the hooks copy it here.`);
     // REQ: protect-originals. Originals are evidence: never changed, only added.
     if (there && match(p, cfg.protectedOriginals) && !/(^|\/)README\.md$/i.test(p))
-      return `REQ: protect-originals. ${p} is an original (protected: ${cfg.protectedOriginals.join(', ')}). Originals are never edited or overwritten. Put derived or corrected content in docs/ or outputs/ and link the original.`;
+      add(`REQ: protect-originals. ${p} is an original (protected: ${cfg.protectedOriginals.join(', ')}). Originals are never edited or overwritten. Put derived or corrected content in docs/ or outputs/ and link the original.`);
     // REQ: no-overwrite. Delivered outputs keep their history: a new version is a new file.
     if (there && match(p, cfg.noOverwrite) && !re(cfg.overwriteWords).test(req()))
-      return `REQ: no-overwrite. ${p} is a delivered output. Write the new version as a new file (e.g. "<name> v2.md") unless the user explicitly asks to change this file in place.`;
+      add(`REQ: no-overwrite. ${p} is a delivered output. Write the new version as a new file (e.g. "<name> v2.md") unless the user explicitly asks to change this file in place.`);
   }
   if (/^(Bash|PowerShell)$/.test(name) && typeof inp.command === 'string') {
     const cmd = inp.command;
     // REQ: browser-guard (commands)
     if (/(?<!chrome-win(64)?[\\/])(chrome|msedge)\.exe|\bstart\s+(chrome|msedge)\b|Start-Process\s+["']?(chrome|msedge)\b|google-chrome(-stable)?\b|CHROME_BIN=/i.test(cmd))
-      return 'REQ: browser-guard. Don\'t launch or automate the installed Chrome/Edge (it can lock the user\'s OS account). Use node tools/screenshot.mjs or Playwright\'s bundled Chromium.';
+      add('REQ: browser-guard. Don\'t launch or automate the installed Chrome/Edge (it can lock the user\'s OS account). Use node tools/screenshot.mjs or Playwright\'s bundled Chromium.');
     // REQ: shell-hygiene. In Git Bash "> nul" creates a real file named nul that Windows can barely delete.
     if (name === 'Bash' && /[12&]?>>?\s*nul\b/i.test(cmd))
-      return 'REQ: shell-hygiene. In Bash, "> nul" creates a file literally named "nul". Use > /dev/null instead.';
+      add('REQ: shell-hygiene. In Bash, "> nul" creates a file literally named "nul". Use > /dev/null instead.');
     // REQ: forbidden-command. Project-defined commands that must never run (e.g. killing the user's own app or port).
-    for (const f of cfg.forbiddenCommands) { try { if (re(f.pattern).test(cmd)) return `REQ: forbidden-command. ${f.reason || 'This command is forbidden in this project.'} (pattern: ${f.pattern})`; } catch { } }
+    for (const f of cfg.forbiddenCommands) { try { if (re(f.pattern).test(cmd)) add(`REQ: forbidden-command. ${f.reason || 'This command is forbidden in this project.'} (pattern: ${f.pattern})`); } catch { } }
     // REQ: git-safety. History rewrites and force operations need a fresh backup bundle and the user's explicit words.
     const destructive = /\bgit\b[^;&|]*\b(filter-repo|filter-branch|reset\s+--hard|clean\s+-[a-z]*f|branch\s+-D|push\b[^;&|]*(--force|-f\b|\+\w)|rebase\b[^;&|]*-i|reflog\s+expire|gc\s+--prune)/i.exec(cmd);
     if (destructive) {
       const fresh = list(cfg.backupDir).some(n => /\.bundle$/.test(n) && Date.now() - fs.statSync(abs(`${cfg.backupDir}/${n}`)).mtimeMs < 3600_000);
       const asked = re(`\\b(force|reset|rewrite|delete|drop|clean|filter|squash|rebase)\\b`).test(req());
-      if (!asked) return `REQ: git-safety. "${destructive[0].trim()}" can destroy work and the user didn't ask for it in this request. Ask first.`;
-      if (!fresh) return `REQ: git-safety. Before "${destructive[0].trim()}", back up every ref: mkdir -p ${cfg.backupDir} && git bundle create ${cfg.backupDir}/backup-$(date +%Y%m%d-%H%M%S).bundle --all`;
+      if (!asked) add(`REQ: git-safety. "${destructive[0].trim()}" can destroy work and the user didn't ask for it in this request. Ask first.`);
+      else if (!fresh) add(`REQ: git-safety. Before "${destructive[0].trim()}", back up every ref: mkdir -p ${cfg.backupDir} && git bundle create ${cfg.backupDir}/backup-$(date +%Y%m%d-%H%M%S).bundle --all`);
     }
     // The git hooks are the last check for every agent: skipping or re-pointing them needs the user's own words.
     // Lesson: a commit the pre-commit hook refused was retried with --no-verify.
     const skipHooks = /\bgit\b[^;&|]*\b(commit|push|merge)\b[^;&|]*\s--no-verify\b|\bgit\b[^;&|]*\bcommit\b[^;&|]*\s-[a-zA-Z]*n[a-zA-Z]*\b|\bgit\s+-c\s+core\.hooksPath=|\bgit\s+config\b[^;&|]*\bcore\.hooksPath\s+(?!["']?\.githooks\b)\S|\bHUSKY=0\b/i.exec(cmd);
     if (skipHooks && !/\b(no-?verify|skip (the )?(git )?hooks|bypass (the )?hooks|without (the )?hooks|hooks ?path|husky)\b/i.test(req()))
-      return `REQ: git-safety. "${skipHooks[0].trim().slice(0, 80)}" skips or re-points the git hooks (AI attribution, secrets and .gitignore checks). Fix what the hook reported instead; do this only when the user asks for it in their own words.`;
+      add(`REQ: git-safety. "${skipHooks[0].trim().slice(0, 80)}" skips or re-points the git hooks (AI attribution, secrets and .gitignore checks). Fix what the hook reported instead; do this only when the user asks for it in their own words.`);
     const pushTo = /\bgit\b[^;&|]*\bpush\b([^;&|]*)/i.exec(cmd);
     if (pushTo) {
       const branchArg = cfg.protectedBranches.find(b => re(`(^|[\\s:/])${esc(b)}(\\s|$)`).test(pushTo[1]));
       const current = !branchArg && /\bpush\b\s*($|origin\s*$|-u\s+origin\s*$)/i.test(pushTo[0]) ? (spawnSync('git', ['branch', '--show-current'], { cwd: ROOT, encoding: 'utf8' }).stdout || '').trim() : '';
       const target = branchArg || (cfg.protectedBranches.includes(current) ? current : '');
       if (target && !re(`\\b${esc(target)}\\b`).test(req()))
-        return `REQ: git-safety. This pushes to the protected branch "${target}", and the user didn't name it in this request. Push to the work branch, or ask first.`;
+        add(`REQ: git-safety. This pushes to the protected branch "${target}", and the user didn't name it in this request. Push to the work branch, or ask first.`);
     }
     // REQ: gitignore-ready. A push waits until .gitignore keeps everything private out and everything needed in.
     if (/\bgit\b[^;&|]*\bpush\b/i.test(cmd)) {
       const gi = gitignoreProblems(cfg);
-      if (gi.length) return `REQ: gitignore-ready. Fix .gitignore before pushing:\n- ${gi.join('\n- ')}`;
+      if (gi.length) add(`REQ: gitignore-ready. Fix .gitignore before pushing:\n- ${gi.join('\n- ')}`);
     }
     // REQ: publish-gate. Publishing or deploying waits for a security review this turn (or one logged today in
     // docs/security.md): hard rule 15 says before, and a Stop check could only say it after the fact.
@@ -3023,25 +3045,25 @@ export function pretoolDecision(data, cfg = config()) {
     if (pub && !/(^|\s)--dry-run\b/.test(cmd) && !isSuspended('check:publish-gate')) {
       const reviewed = toolUses(t().entries || []).some(u => (u.name === 'Skill' && /(^|:)security-review$/.test(String(u.input.skill || ''))) || (u.name === 'Read' && /skills[\\/]security-review[\\/]SKILL\.md$/i.test(String(u.input.file_path || ''))));
       const loggedToday = new RegExp(`^\\|\\s*${esc(today())}\\s*\\|`, 'm').test(read(abs('docs/security.md')));
-      if (!reviewed && !loggedToday) return `REQ: publish-gate. "${pub[0].trim()}" publishes or deploys. Run the security-review skill first (skills/security-review/SKILL.md) and log it in docs/security.md, then publish (hard rule 15). The user's OK to publish is needed too (rule 6).`;
+      if (!reviewed && !loggedToday) add(`REQ: publish-gate. "${pub[0].trim()}" publishes or deploys. Run the security-review skill first (skills/security-review/SKILL.md) and log it in docs/security.md, then publish (hard rule 15). The user's OK to publish is needed too (rule 6).`);
     }
     // REQ: no-secrets (reading and force-adding). Printing a secrets file puts it in the conversation; "git add -f" puts
     // an ignored one in the history. Lesson: "cat .env" and "git add -f .env" both ran without a word.
     const readsSecret = new RegExp(`(^|[\\s;&|(])(cat|type|Get-Content|gc|less|more|head|tail|bat|nl|strings|xxd|od|findstr|sed\\s+-n|awk)\\b[^;&|\\n]*${SECRET_IN_CMD.source}`, 'i');
-    if ((readsSecret.test(cmd) || /open\(\s*\\?["'][^"']*\.env\\?["']/.test(cmd)) && !SECRET_ASKED.test(req())) return secretReadMsg((SECRET_IN_CMD.exec(cmd) || [, , 'that file'])[2]);
+    if ((readsSecret.test(cmd) || /open\(\s*\\?["'][^"']*\.env\\?["']/.test(cmd)) && !SECRET_ASKED.test(req())) add(secretReadMsg((SECRET_IN_CMD.exec(cmd) || [, , 'that file'])[2]));
     if (/\bgit\s+add\b[^;&|\n]*(\s-f\b|--force)/i.test(cmd) && SECRET_IN_CMD.test(cmd))
-      return 'REQ: no-secrets. "git add -f" on a secrets file puts it into the history even though .gitignore keeps it out. Commit .env.example with empty values instead.';
+      add('REQ: no-secrets. "git add -f" on a secrets file puts it into the history even though .gitignore keeps it out. Commit .env.example with empty values instead.');
     // REQ: no-secrets. Nothing that looks like a key or private key gets committed.
     if (/\bgit\b[^;&|]*\b(commit|push)\b/i.test(cmd)) {
       const staged = spawnSync('git', ['diff', '--cached', '-U0'], { cwd: ROOT, encoding: 'utf8' }).stdout || '';
       const added = staged.split('\n').filter(l => l.startsWith('+') && !l.startsWith('+++')).join('\n');
       const hit = secretHit(added, cfg) || secretHit(cmd, cfg);
-      if (hit) return `REQ: no-secrets. The staged changes contain something that looks like a secret (pattern ${hit}). Unstage it, move it to an ignored file (.env), and make sure .gitignore covers it.`;
+      if (hit) add(`REQ: no-secrets. The staged changes contain something that looks like a secret (pattern ${hit}). Unstage it, move it to an ignored file (.env), and make sure .gitignore covers it.`);
       const names = /\bcommit\b/i.test(cmd) ? (spawnSync('git', ['diff', '--cached', '--name-only'], { cwd: ROOT, encoding: 'utf8' }).stdout || '').split(/\r?\n/).filter(Boolean) : [];
       // REQ: approval-gate. Taste-driven work is committed only after the user has seen it and said yes.
       const needOk = names.filter(n => match(n, cfg.approvalPaths));
       if (needOk.length && !/\b(approve[sd]?|looks good|lgtm|ship it|commit (it|this|them)|go ahead|that's good|perfect)\b/i.test(req()))
-        return `REQ: approval-gate. ${needOk.slice(0, 5).join(', ')} need the user's OK before commit. Show Before / Now and ask.`;
+        add(`REQ: approval-gate. ${needOk.slice(0, 5).join(', ')} need the user's OK before commit. Show Before / Now and ask.`);
       // REQ: commit-gate. Project gates (tests, build) must have PASSED this turn before a commit of the files they cover.
       if (/\bcommit\b/i.test(cmd) && cfg.commitGate.length) {
         const runs = runsOf(t().entries);
@@ -3049,30 +3071,32 @@ export function pretoolDecision(data, cfg = config()) {
           if (g.when && !names.some(n => match(n, g.when))) continue;
           const last = runs.filter(r => re(g.cmd).test(cmdHead(r.cmd))).pop();
           const res = last && gateResult(last, { pass: g.pass ?? '' });
-          if (t().toolsKnown && (!last || !res.ok))
+          if (t().toolsKnown && (!last || !res.ok)) {
             // the gate shown as a command to run, not as its pattern, and its own && chain is the allowed form
             // (Lesson: "run it as its own command, not chained with &&" was shown for a gate that is itself an && chain)
-            return `REQ: commit-gate. Before committing, run this gate and get a PASS this turn: ${String(g.cmd).replace(/^\^|\$$/g, '').replace(/\\(.)/g, '$1')}` +
-              ` (exactly as written, its own && included; nothing else before or after it with ; or |)${last ? `. The last run did not pass: ${res.why}` : ''}.`;
+            add(`REQ: commit-gate. Before committing, run this gate and get a PASS this turn: ${String(g.cmd).replace(/^\^|\$$/g, '').replace(/\\(.)/g, '$1')}` +
+              ` (exactly as written, its own && included; nothing else before or after it with ; or |)${last ? `. The last run did not pass: ${res.why}` : ''}.`);
+            break;
+          }
         }
       }
     }
     // REQ: no-ai-attribution. Commits, pushes, PRs, issues and releases are solely the user's: no AI co-author, trailer,
     // "generated with" line, AI author identity or robot emoji, from any agent.
     if (/\bgit\b[^;&|]*\bcommit\b|\bgh\s+(pr|issue|release)\s+(create|edit|comment|merge)\b|\bgit\b[^;&|]*\b(tag\s+-[am]|notes)\b/i.test(cmd) && re(cfg.aiAttribution).test(cmd))
-      return 'REQ: no-ai-attribution. This text credits an AI agent (co-author trailer, "generated with", AI email or robot emoji). Remove it: commits, PRs and releases are solely the user\'s.';
+      add('REQ: no-ai-attribution. This text credits an AI agent (co-author trailer, "generated with", AI email or robot emoji). Remove it: commits, PRs and releases are solely the user\'s.');
     if (/\bgit\b[^;&|]*\bcommit\b[^;&|]*--author[= ]["']?[^"']*/i.test(cmd) && re(cfg.aiAuthor).test(/--author[= ]["']?([^"']*)/i.exec(cmd)?.[1] || ''))
-      return 'REQ: no-ai-attribution. Don\'t set an AI as the commit author. Commits are authored by the user\'s own git identity.';
+      add('REQ: no-ai-attribution. Don\'t set an AI as the commit author. Commits are authored by the user\'s own git identity.');
     if (/\bgit\b[^;&|]*\bpush\b/i.test(cmd)) {
       const bad = aiAttributedCommits(cfg);
-      if (bad.length) return `REQ: no-ai-attribution. Unpushed commits credit an AI agent: ${bad.slice(0, 5).join(', ')}. Reword them (message and author) before pushing. Ask the user first if rewriting history affects anyone else.`;
+      if (bad.length) add(`REQ: no-ai-attribution. Unpushed commits credit an AI agent: ${bad.slice(0, 5).join(', ')}. Reword them (message and author) before pushing. Ask the user first if rewriting history affects anyone else.`);
     }
     // REQ: outward-gate (commands). Rule 6: sending, posting, pushing and opening issues or PRs act outside the project,
     // so they need the user's OK in this request. Lesson: a mail send, an API POST and "gh issue create" all ran unasked.
     // (after the attribution check, so a PR that credits an AI is told that first: an OK would not make it right)
-    const out = outwardCommand(cmd);
-    if (out && !isSuspended('check:outward-gate') && !re(cfg.outwardOk).test(req()))
-      return `REQ: outward-gate. "${out.trim().slice(0, 80)}" acts outside the project (${outwardWhat(out)}). Rule 6: that needs the user's OK in this request. Draft it instead and ask, or run it once they say so.`;
+    const outward = outwardCommand(cmd);
+    if (outward && !isSuspended('check:outward-gate') && !re(cfg.outwardOk).test(req()))
+      add(`REQ: outward-gate. "${outward.trim().slice(0, 80)}" acts outside the project (${outwardWhat(outward)}). Rule 6: that needs the user's OK in this request. Draft it instead and ask, or run it once they say so.`);
     // REQ: setup-interview. During setup nothing is installed before the user has answered, and the starter's
     // leftovers go only once everything that fits is in (REQ: setup-complete).
     if (exists('SETUP-PROMPT.md') && !exists('.starter-template')) {
@@ -3082,20 +3106,22 @@ export function pretoolDecision(data, cfg = config()) {
       const step = /\bnode\s+(?:"[^"\n]*?|'[^'\n]*?|[^\s"']*?)(packs\.mjs["']?\s+install|skills\.mjs["']?\s+enable|starter\.mjs["']?\s+(link|keep|remove))\b/.exec(ran);
       if (step) {
         const probs = setupCompleteness(cfg, { final: /starter\.mjs/.test(step[1]), beforeStarter: true });
-        if (probs.length) return `REQ: setup-${/starter\.mjs/.test(step[1]) ? 'complete' : 'interview'}. Not yet:\n- ${probs.join('\n- ')}`;
+        if (probs.length) add(`REQ: setup-${/starter\.mjs/.test(step[1]) ? 'complete' : 'interview'}. Not yet:\n- ${probs.join('\n- ')}`);
       }
     }
     // REQ: setup-gate. SETUP-PROMPT.md is deleted only when the project is really set up and verified.
     if (/(^|[\s;&|(])(rm|del|erase|Remove-Item|ri|unlink|mv|move|Move-Item|Rename-Item|ren|git\s+rm)\b[^;&|]*SETUP-PROMPT\.md/i.test(cmd)) {
-      if (exists('.starter-template')) return `REQ: setup-gate. This is the ${names().STARTER_NAME || 'project'} starter itself: SETUP-PROMPT.md stays here (new projects get a copy).`;
-      const probs = setupProblems(cfg);
-      const audited = runsOf(t().entries).some(r => /audit\.mjs/.test(r.cmd) && /--(full|setup)/.test(r.cmd) && /audit: PASS/.test(r.out));
-      if (!audited) probs.push('run node tools/audit.mjs --setup in this turn and get "audit: PASS"');
-      if (probs.length) return 'REQ: setup-gate. Setup is not finished, so SETUP-PROMPT.md stays:\n- ' + probs.join('\n- ');
+      if (exists('.starter-template')) add(`REQ: setup-gate. This is the ${names().STARTER_NAME || 'project'} starter itself: SETUP-PROMPT.md stays here (new projects get a copy).`);
+      else {
+        const probs = setupProblems(cfg);
+        const audited = runsOf(t().entries).some(r => /audit\.mjs/.test(r.cmd) && /--(full|setup)/.test(r.cmd) && /audit: PASS/.test(r.out));
+        if (!audited) probs.push('run node tools/audit.mjs --setup in this turn and get "audit: PASS"');
+        if (probs.length) add('REQ: setup-gate. Setup is not finished, so SETUP-PROMPT.md stays:\n- ' + probs.join('\n- '));
+      }
     }
     // REQ: scope-separate (commands)
     const who = pathsPeople(cmd, cfg).filter(n => ppl.some(x => x.name === n));
-    if (who.length) { const writing = /(^|[\s;&|(])(rm|del|mv|move|cp|copy|Remove-Item|Move-Item|Copy-Item|Set-Content|Out-File|Add-Content|tee|sed\s+-i)\b|>/.test(cmd); const s = scopeCheck(who, writing); if (s) return s; }
+    if (who.length) { const writing = /(^|[\s;&|(])(rm|del|mv|move|cp|copy|Remove-Item|Move-Item|Copy-Item|Set-Content|Out-File|Add-Content|tee|sed\s+-i)\b|>/.test(cmd); add(scopeCheck(who, writing)); }
     // REQ: whole-output. Lesson: piping a lookup tool into head/grep hid the part that mattered.
     for (const tool of cfg.wholeOutputTools) {
       const stripped = cmd.replace(/\s2>&1|\s2>\s*\/dev\/null|\s2>\$null/g, '');
@@ -3106,7 +3132,7 @@ export function pretoolDecision(data, cfg = config()) {
       // (a tool's --help is its usage text, not its results. Lesson: "candidates.py --help | head" was denied)
       const piped = parts.some((p, i) => runsTool(p) && p.includes(tool.split('/').pop()) && !/(^|\s)(-h|--help|-\?|\/\?)(\s|$)/.test(p) && ops[i] === '|' && /^(head|tail|grep|egrep|rg|cut|sed|awk|findstr|Select-String|Select-Object|sort|uniq|less|more)\b/i.test(parts[i + 1] || ''));
       if (stripped.includes(tool) && piped)
-        return `REQ: whole-output. Read the output of ${tool} whole: don't pipe it into a filter. Write it to a file in .cache/ and Read that if it is long.`;
+        add(`REQ: whole-output. Read the output of ${tool} whole: don't pipe it into a filter. Write it to a file in .cache/ and Read that if it is long.`);
     }
     // Adding files INTO a protected folder is fine (ingest moves inbox -> sources); deleting, moving out of, or writing
     // over files in it is not. A path may be relative, ./-prefixed, absolute, or quoted.
@@ -3129,10 +3155,10 @@ export function pretoolDecision(data, cfg = config()) {
       // a delete or rename of the session's own, still uncited downloads
       if (bad && (hits[0] || hits[1]) && !hits.slice(2).some(Boolean) && sessionOwnFiles(cmd, d, t())) continue;
       if (bad && !re(cfg.deleteWords).test(req()))
-        return `REQ: protect-originals. This command could delete, move or overwrite files in ${d}/ (originals). Only do that when the user asked for it in this request; copying new files INTO ${d}/ is fine. For exact duplicates, run node tools/dedupe.mjs (it keeps the oldest copy).`;
+        add(`REQ: protect-originals. This command could delete, move or overwrite files in ${d}/ (originals). Only do that when the user asked for it in this request; copying new files INTO ${d}/ is fine. For exact duplicates, run node tools/dedupe.mjs (it keeps the oldest copy).`);
     }
   }
-  return null;
+  return out;
 }
 
 // The files each "sed -i" in a command edits: its words after the flags, minus the script (the first word, unless -e
@@ -4163,7 +4189,7 @@ export const waived = (tag, text, specific = false) => re(specific ? `N/?A\\s*\\
 // changed, and the answer's opening. A new request like an old one gets a hint; node tools/recall.mjs searches it all.
 const HISTORY = path.join(STATE, 'history.jsonl'), HISTORY_MAX = 2000;
 function recordHistory(x, key) {
-  if (!x.workTurn || envOf('BENCH')) return;
+  if (!x.workTurn || envOf('BENCH') || DRY_STATE) return;
   const lines = read(HISTORY).split('\n').filter(Boolean);
   if (lines.length && lines[lines.length - 1].includes(JSON.stringify(key).slice(1, -1))) return;
   const answer = x.answer.split(/^#{1,6}\s*\**finished\b/im)[0].replace(/\s+/g, ' ').trim().slice(0, 400);
@@ -4253,7 +4279,7 @@ function carryoverChecks(data, t, x, cfg) {
 // Stop rounds for a field report a project had to parse the transcript, and a first regex missed them.
 const STOP_LOG = 'stop-log.jsonl', STOP_LOG_KEEP = 200, STOP_LOG_MAX_BYTES = 64 * 1024;
 function logStop(entry) {
-  if (envOf('BENCH')) return;
+  if (envOf('BENCH') || DRY_STATE) return;
   try {
     fs.mkdirSync(STATE, { recursive: true });
     const f = path.join(STATE, STOP_LOG);
@@ -4325,7 +4351,7 @@ export function stopDecision(data, cfg = config()) {
   const settled = data.stop_hook_active ? all.filter(m => !(LATE.test(m.tag) && !x.failedBefore.includes(m.tag))) : all;
   const missing = noticeAck || waiting ? all.filter(m => SAFE.test(m.tag)) : settled;
   noteFriction(key, x, missing);
-  const ended = (keep = false) => { writeState(TURN_END, { at: new Date().toISOString(), key, clean: !keep }); if (!keep && !envOf('BENCH')) try { fs.unlinkSync(path.join(STATE, 'stop-details.md')); } catch { } }; // the next prompt starts a new turn
+  const ended = (keep = false) => { writeState(TURN_END, { at: new Date().toISOString(), key, clean: !keep }); if (!keep && !envOf('BENCH') && !DRY_STATE) try { fs.unlinkSync(path.join(STATE, 'stop-details.md')); } catch { } }; // the next prompt starts a new turn
   if (waiting && !missing.length) { writeState(TURN_END, { at: new Date().toISOString(), key, clean: false, pending: t.bgRunning.length }); logged('waiting', { pending: t.bgRunning.length }); return null; }
   if (nblocks >= cfg.maxBlocksPerTurn) {
     // REQ: unresolved-carryover. End quietly (no block), but don't let the miss vanish: the next prompt says it once,
@@ -4341,7 +4367,7 @@ export function stopDecision(data, cfg = config()) {
   if (!missing.length) {
     logged('passed');
     recordUsage(x, key);
-    if (x.workTurn && !envOf('BENCH')) { try { fs.unlinkSync(path.join(STATE, 'unresolved.json')); } catch { } }
+    if (x.workTurn && !envOf('BENCH') && !DRY_STATE) { try { fs.unlinkSync(path.join(STATE, 'unresolved.json')); } catch { } }
     ended(); return null;
   }
   // REQ: stop-follow-on. What the fixes will set off is named now, in this round, after the steps that cause it.
@@ -4616,7 +4642,7 @@ function cmdStop(data) {
 
 // ---------- manual mode, for agents without hooks ----------
 // node tools/hooks/hooks.mjs begin "<the user's request>"    at the start of every request: records it, prints the rules + hints
-// node tools/hooks/hooks.mjs check [--answer-file <file>]   before finishing: runs every Stop check; exit 1 + the list if anything is missing
+// node tools/hooks/hooks.mjs check [--answer-file <file>] [--session <id>]   before finishing: runs every Stop check; exit 1 + the list if anything is missing
 function cmdBegin() {
   const req = process.argv.slice(3).join(' ').trim();
   if (!req) { console.log('usage: node tools/hooks/hooks.mjs begin "<the user\'s request>"'); process.exit(1); }
@@ -4625,13 +4651,33 @@ function cmdBegin() {
   cmdPrompt({ prompt: req }, { force: true });
   console.log('\nWhen the work is done: write your answer to .cache/answer.md and run node tools/hooks/hooks.mjs check --answer-file .cache/answer.md');
 }
+// The session whose prompt hook recorded the newest request, when that is newer than a manual "begin" ('' if none).
+function hookedSession() {
+  const mt = f => { try { return fs.statSync(path.join(STATE, f)).mtimeMs; } catch { return 0; } };
+  let names = []; try { names = fs.readdirSync(STATE); } catch { }
+  const best = names.map(f => /^turn\.([A-Za-z0-9_-]+)\.json$/.exec(f)).filter(Boolean)
+    .map(m => ({ sid: m[1], at: mt(m[0]) })).sort((a, b) => b.at - a.at)[0];
+  // (a day-old record is another session's past turn, not this one)
+  return best && best.at > mt('turn.json') && Date.now() - best.at < 24 * 3600_000 ? best.sid : '';
+}
 function cmdCheck() {
   syncAll();
   const i = process.argv.indexOf('--answer-file');
   if (i > 0 && !fs.existsSync(path.resolve(process.argv[i + 1] || ''))) { console.log(`CHECK: the answer file ${process.argv[i + 1] || '(none given)'} was not found. Write your answer there first.`); process.exit(1); }
   const answer = i > 0 ? read(path.resolve(process.argv[i + 1])) : '';
+  // Inside a hook-wired session the prompt hook recorded the request under the session's id: the newest such record
+  // (or --session <id>) is checked against that session's transcript, without touching its state (DRY_STATE).
+  // Lesson: the prompt hook's CHECKS line offered this self-check, and with hooks it found "no request recorded".
+  const si = process.argv.indexOf('--session');
+  const sid = String(si > 0 ? process.argv[si + 1] || '' : hookedSession()).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
+  let tp = '';
+  if (sid) {
+    SID = sid; DRY_STATE = true;
+    const rec = readJSON(stateFile('turn.json'), {});
+    if (rec.transcript && fs.existsSync(rec.transcript)) tp = rec.transcript;
+  }
   if (!readJSON(stateFile('turn.json'), null)) { console.log('CHECK: no request recorded. Run: node tools/hooks/hooks.mjs begin "<the user\'s request>" first.'); process.exit(1); }
-  const d = stopDecision({ transcript_path: '', last_assistant_message: answer }, { ...config(), maxBlocksPerTurn: 1e9 });
+  const d = stopDecision({ transcript_path: tp, last_assistant_message: answer }, { ...config(), maxBlocksPerTurn: 1e9 });
   if (!d) { console.log('CHECK: PASS'); process.exit(0); }
   // the same short steps a hook host shows, then the full steps (an agent without hooks has no "why" round trip)
   const full = read(path.join(STATE, 'stop-details.md')).trim();

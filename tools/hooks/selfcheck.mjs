@@ -1615,7 +1615,24 @@ PROMPT.push(
   { name: 'check-preview: a Spanish request is previewed too', prompt: 'crea un plan para exportar los informes a csv', has: ['CHECKS: this turn will be held to', 'finished-summary'] },
   { name: 'check-preview: a data check keyed on the request, and the data check its fix sets off', setupFn: DECK_REQS, prompt: 'update the deck with the new cards', has: ['CHECKS:', 'deck-updated', 'set off data-valid'] },
   { name: 'check-preview: small talk gets no preview', prompt: 'thanks, that looks great', hasNot: ['CHECKS:'] },
-  { name: 'check-preview: a question gets no preview', prompt: 'what is the price of desk x?', hasNot: ['CHECKS:'] }
+  { name: 'check-preview: a question gets no preview', prompt: 'what is the price of desk x?', hasNot: ['CHECKS:'] },
+  // held to more than 2 checks, the line offers the self-check; held to 2, it does not
+  { name: 'check-preview: more than 2 checks offer the self-check command', prompt: 'make a plan for the csv export', has: ['CHECKS: this turn will be held to plan-saved', 'Self-check first: node tools/hooks/hooks.mjs check --answer-file'] },
+  { name: 'check-preview: 2 checks give no self-check clause', prompt: 'rename the vendor files to use dates', has: ['CHECKS: this turn will be held to runbook-exists, finished-summary;'], hasNot: ['Self-check first'] }
+);
+// pretool-combined: one denial names every rule a tool call breaks (Lesson: the retry was denied again for the second)
+const NO_OVERWRITE_OUT = { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), noOverwrite: ['outputs/**'] }) };
+PRETOOL.push(
+  { name: 'pretool-combined: one Bash command breaking two rules names both', tool: 'Bash', input: { command: 'git commit --no-verify -m "fix" -m "Co-Authored-By: Claude <noreply@anthropic.com>"' },
+    deny: true, tags: ['git-safety', 'no-ai-attribution'], says: /^This tool call breaks 2 rules\. [^\n]*\n1\. REQ: git-safety\. [^\n]*\n2\. REQ: no-ai-attribution\. / },
+  { name: 'pretool-combined: one Write breaking two rules names both', tool: 'Write', input: { file_path: 'outputs/plan.md', content: 'The plan — revised.' }, setup: { 'outputs/plan.md': 'v1' }, edit: NO_OVERWRITE_OUT,
+    deny: true, tags: ['plain-writing', 'no-overwrite'], says: /^This tool call breaks 2 rules\.[^\n]*\n1\. REQ: plain-writing\.[\s\S]*\n2\. REQ: no-overwrite\./ },
+  { name: 'pretool-combined: one rule broken gives the same text as before', tool: 'Bash', input: { command: 'ls > nul' }, deny: true,
+    exact: 'REQ: shell-hygiene. In Bash, "> nul" creates a file literally named "nul". Use > /dev/null instead.' },
+  { name: 'pretool-combined: a call that breaks no rule stays allowed', tool: 'Write', input: { file_path: 'outputs/plan v2.md', content: 'The plan, revised.' }, setup: { 'outputs/plan.md': 'v1' }, edit: NO_OVERWRITE_OUT, deny: false },
+  { name: 'pretool-combined: an apply_patch breaking two rules in two files names both', tool: 'apply_patch', setup: { 'outputs/plan.md': 'v1' }, edit: NO_OVERWRITE_OUT,
+    input: { command: '*** Begin Patch\n*** Add File: docs/notes.md\n+A note — with a dash\n*** Update File: outputs/plan.md\n@@\n-v1\n+v2\n*** End Patch' },
+    deny: true, tags: ['plain-writing', 'no-overwrite'], says: /^This tool call breaks 2 rules\./ }
 );
 PRETOOL.push(
   { name: 'publish-gate: publishing before a security review: denied', tool: 'Bash', input: { command: 'npm publish' }, deny: true, tag: 'publish-gate' },
@@ -1882,8 +1899,10 @@ for (const s of PRETOOL) {
     if (input.file_path) input.file_path = path.join(dir, input.file_path);
     const { out, err } = run(dir, 'pretool', { tool_name: s.tool, tool_input: input, transcript_path: tp });
     const denied = /"permissionDecision":"deny"/.test(out);
-    const tagOk = !s.tag || out.includes(`REQ: ${s.tag}`);
-    report(denied === s.deny && tagOk, 'pretool: ' + s.name, denied !== s.deny ? `expected ${s.deny ? 'DENY' : 'ALLOW'}, got ${denied ? 'DENY ' + out : 'ALLOW'} ${err.slice(0, 200)}` : `denied, but not by REQ: ${s.tag}: ${out.slice(0, 200)}`);
+    // tags: every rule named in one denial; exact: the whole denial text; says: a pattern the denial must match
+    let reason = ''; try { reason = JSON.parse(out).hookSpecificOutput?.permissionDecisionReason || ''; } catch { }
+    const tagOk = (!s.tag || out.includes(`REQ: ${s.tag}`)) && (s.tags || []).every(t => reason.includes(`REQ: ${t}.`)) && (s.exact === undefined || reason === s.exact) && (!s.says || s.says.test(reason));
+    report(denied === s.deny && tagOk, 'pretool: ' + s.name, denied !== s.deny ? `expected ${s.deny ? 'DENY' : 'ALLOW'}, got ${denied ? 'DENY ' + out : 'ALLOW'} ${err.slice(0, 200)}` : `denied, but not as expected (${[s.tag, ...(s.tags || [])].filter(Boolean).join(', ')}${s.exact !== undefined ? ', exact text' : ''}${s.says ? ', ' + s.says : ''}): ${reason.slice(0, 600) || out.slice(0, 200)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
@@ -2052,6 +2071,26 @@ if (mineB() && (!TAGS || TAGS.includes('stop-follow-on'))) {
     report(/meal-ok/.test(preview) && preview.length <= 400 && ['meal-ok', 'skill-learn', 'audit-run'].every(t => n1.includes(t)) && /answer-resent/.test(note.stdout) && !late.length && c3.status === 0,
       'stop-follow-on guard: without hooks (check --answer-file): the preview names the checks, round 1 names what the fix sets off, a bare "answer unchanged" fails, and the named steps pass',
       `preview(${preview.length}): ${preview.slice(0, 200)} | c1: ${n1.join(', ')} | note: ${note.stdout.slice(0, 150)} | late: ${late.join(', ')} | c3: ${c3.stdout.slice(0, 300)}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+// check-preview: the self-check the CHECKS line advertises runs in a hook-wired session too (the prompt hook recorded
+// the request under the session's id), reads the session's transcript, and leaves the session's Stop state alone.
+// Lesson: the command was built for agents without hooks, and with hooks it said "no request recorded".
+if (mineB() && (!TAGS || TAGS.includes('check-preview'))) {
+  const dir = copyProject();
+  try {
+    const tp = path.join(dir, '.cache', 'session.jsonl'), prompt = 'make a plan for the csv export';
+    write(dir, { '.cache/session.jsonl': JSON.stringify({ type: 'user', timestamp: new Date().toISOString(), message: { role: 'user', content: prompt } }) + '\n' });
+    const pr = run(dir, 'prompt', { prompt, session_id: 'hooked1', transcript_path: tp }).out;
+    const cmd = (/node tools\/hooks\/hooks\.mjs check --answer-file <[^>]*>/.exec(pr) || [''])[0];
+    write(dir, { 'notes.md': 'x', '.cache/answer.md': 'Done.' });
+    const st = path.join(dir, 'tools/hooks/state'), touched = ['stop-blocks', 'stop-failed', 'turn-end', 'stop-log'];
+    const argv = cmd.replace(/^node /, '').replace(/<[^>]*>$/, '.cache/answer.md').split(' ');
+    const c = spawnSync(process.execPath, argv, { cwd: dir, encoding: 'utf8', env: { ...process.env, STARTER_MEMORY_DIR: path.join(dir, '.memtest') } });
+    const wrote = fs.readdirSync(st).filter(f => touched.some(t => f.startsWith(t)));
+    report(cmd && c.status === 1 && /CHECK: FAIL/.test(c.stdout) && /Finished/.test(c.stdout) && !wrote.length,
+      'check-preview: the advertised self-check runs in a hook-wired session, finds its request, and leaves its Stop state alone',
+      `command: ${cmd || '(not in the preview)'} | exit ${c.status}: ${c.stdout.slice(0, 300)} | state written: ${wrote.join(', ') || 'none'}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 if (!TAGS) { // the standalone checks run in a full run only

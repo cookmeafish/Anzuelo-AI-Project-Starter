@@ -6,6 +6,18 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-10-21: Fewer retries and Stop rounds (field report from an adopted project).
+  - **One complete denial before a tool call:** when one tool call breaks several rules (for example git-safety and
+    no-ai-attribution in one commit, or plain-writing and no-overwrite in one write or `apply_patch`), the denial names
+    them all, numbered, in one message, so the retry does not hit the next one. Every rule is weighed in one pass, so a
+    denial costs no more than an allowed call. One broken rule gives exactly the same text as before
+    (`tools/hooks/hooks.mjs`, `pretoolDecision`).
+  - **Self-check offered at the prompt:** a `CHECKS:` line naming more than 2 checks ends with
+    `Self-check first: node tools/hooks/hooks.mjs check --answer-file <file with your answer>.` The `check` command now
+    works in a hook-wired session too: it finds the request the prompt hook recorded for the session (or `--session
+    <id>`), reads that session's transcript, and writes none of the session's Stop state (round count, turn end, logs).
+    Before, it said "no request recorded" there. The turn record now keeps the transcript path.
+
 - 2026-10-20 (re-check): Fixes from an independent review of six new trial projects (no serious findings left).
   - **Accurate prompt hints (field report 6):** one primary `ROUTE`; other specific matches show as `ALSO ROUTE`, and a
     runbook matched only by a generic word ("improve", "report", "review", "mejorar") shows as `WEAK MATCH, not routed`
