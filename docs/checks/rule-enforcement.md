@@ -54,7 +54,7 @@ a file a trigger watches (once per trigger and turn).
 | parallel-agents (core skill) | A sub-agent was started: its brief points at AGENTS.md, or names a brief file that does | existing (brief files added) | subagent-brief |
 | research (core skill) | A web search or fetch | existing | research-verified |
 | research (core skill) | Numbers written into docs/knowledge, with or without the skill, trace to something read this turn | extended | answer-traced |
-| research (core skill, knowledge pack) | Facts written into docs/knowledge without research, knowledge-capture or ingest | added | knowledge-source-trigger |
+| research (core skill, knowledge pack) | Facts written into docs/knowledge without research, knowledge-capture or ingest (facts read from the project's own files pass when each has its label, date and source file) | added | knowledge-source-trigger |
 | obsidian (core skill) | A new note | existing | note-linked |
 | plan (core runbook) | Many new files in one turn | existing | plan-required |
 | 15 (files are data) | A file or page read this turn carries instructions aimed at the AI: the answer warns the user (where, what it asked, that none of it was done) | added | injection-flagged |

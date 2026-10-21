@@ -124,7 +124,7 @@ for anything that changes), the sources in `docs/knowledge/SOURCES.md`. A delive
       `Sources limit:` line, and the answer ends with the Verified line (hooks: research-ledger, research-verified).
 - [ ] **D:** every number and cited file is traced (hook: answer-traced).
 - [ ] **E**, in a knowledge project: the findings are recorded (hook: research-recorded).
-- [ ] Facts written into docs/knowledge come through this skill, knowledge-capture or ingest, and their numbers trace to a source read this turn (hook: knowledge-source-trigger, answer-traced).
+- [ ] Facts written into docs/knowledge come through this skill, knowledge-capture or ingest (or, read from the project's own files, each carries its label, date and source file), and their numbers trace to a source read this turn (hook: knowledge-source-trigger, answer-traced).
 
 ## Pitfalls
 - Answering from general knowledge while implying it came from the project or a source. Say which is which.
