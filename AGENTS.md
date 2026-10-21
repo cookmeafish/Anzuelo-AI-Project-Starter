@@ -27,7 +27,8 @@
    there is no plan). Stop only for an outward action (rule 6), installing software on the machine or from an unknown
    source, anything irreversible or destructive, a security-sensitive change, or a plan so wrong that every path is a
    guess. Installing the project's own declared dependencies, or a widely used package from the official registry
-   into the project folder, is part of the work: do it, so the code runs and gets tested. Security-sensitive parts
+   into the project folder, is part of the work: do it, so the code runs and gets tested, unless the project's own
+   dependency rule (docs/foundation.md, docs/security.md) says to ask first. Security-sensitive parts
    (sessions, CSRF, password hashing, crypto, webhook signatures) use such a library, never hand-written code.
 
 ## Hard rules (each has a check: docs/checks/rule-enforcement.md)

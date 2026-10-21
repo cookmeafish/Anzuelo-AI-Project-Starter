@@ -166,8 +166,10 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
       upset-learned blocks without that line); a learned check must fail a scenario that recreates the exact defect;
     - a turn that waived its own test or build gate cannot say SHIP or "tests pass": it says NOT VERIFIED (REQ:
       claim-checked); toolchains (Go, Rust, Flutter, Godot) and Go and PowerShell linters are fit candidates;
-    - autonomy "auto" no longer stops for the project's own dependencies installed into the project, and
-      security-sensitive parts use a maintained library, never hand-written code;
+    - autonomy "auto" no longer stops for the project's own dependencies installed into the project (unless the
+      project's own dependency rule in docs/foundation.md or docs/security.md says to ask first; adopt the new
+      wording only if that rule agrees), and security-sensitive parts use a maintained library, never hand-written
+      code;
     - a "later" that waits for the user's OK is rejected under autonomy "auto"; "already in the project" is no reason;
       the engine's own `.obsidian/app.json` is not counted as the user's vault;
     - setup does not do the user's first tasks and changes no product code, manifests or versions;
