@@ -2232,7 +2232,7 @@ if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade
     const r = np('--upgrade');
     const restored = fs.readFileSync(path.join(proj, 'tools/audit.mjs'), 'utf8') === oldAudit;
     fs.rmSync(path.join(proj, 'tools/broken.mjs'));
-    const ok = np('--upgrade'), review = fs.readFileSync(path.join(proj, 'docs/DECISIONS.md'), 'utf8');
+    const ok = np('--upgrade', '--no-selftest'), review = fs.readFileSync(path.join(proj, 'docs/DECISIONS.md'), 'utf8');
     report(r.status !== 0 && /ROLLED BACK/.test(r.stderr) && restored && ok.status === 0 && /## Upgrade review \(/.test(review) && /- self-tests: .*: \?/.test(review),
       'upgrade-review: an upgrade that breaks a passing check rolls back; a clean one writes the review', `${r.status} ${r.stderr.slice(0, 200)} | restored ${restored} | ${ok.status} ${ok.stderr.slice(0, 200)}`);
   } finally { fs.rmSync(proj, { recursive: true, force: true }); }

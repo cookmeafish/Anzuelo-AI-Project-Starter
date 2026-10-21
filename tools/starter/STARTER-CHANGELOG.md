@@ -2,7 +2,9 @@
 
 Changes to the starter itself. A project picks up engine changes with `node tools/starter.mjs upgrade` (or, from the
 starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook changes listed here are adopted by hand
-(project-rule, runbook-create), because an upgrade never touches a project's own content.
+(project-rule, runbook-create), because an upgrade never touches a project's own content. A change to what the hooks
+print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
+hooks:**, and an upgrade lists each one as its own review item.
 
 - 2026-10-20 (re-check): Fixes from an independent review of six new trial projects (no serious findings left).
   - **Answers in the user's language:** Spanish labels ("Terminado", "Causa raíz:", "Aprendido (regla):", "Tienes
@@ -30,6 +32,12 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
     "Searched: <what> - nothing found (<where>, <date>)" answers a search that found nothing; "don't ask me" and other
     autonomy phrases no longer route to the plan runbook; a here-document that names a test is not a run of it; a
     watched input the agent itself replaced with a command is not reported as the user's mid-turn update.
+  - **Breaking for project hooks:** the Stop note for the user (`systemMessage`) is now several lines (a heading, then
+    one line per step); the resume notice starts "RESUMED:" instead of "INTERRUPTED WORK:"; the unresolved notice
+    names the earlier request; `alwaysLoadedMaxChars` now applies to CLAUDE.md alone (30000) with `directoryMaxChars`
+    for DIRECTORY.md. A script that parses these needs updating.
+  - **Upgrades decide less by hand:** the upgrade runs the self-tests itself and writes "passed" into the review when
+    they pass; breaking changes since the last review are listed as their own items.
   - **All steps in round 1:** a later round no longer adds bookkeeping steps that only the fixing brought on (more tool
     calls for status-handoff, a file touched after the Finished section, a changelog line); name-var looks only at
     lines this turn added, not names a file already had in git.

@@ -541,7 +541,21 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   for (const [file, n] of movedLessons) items.push(`lessons: ${file} became an engine file, so ${n} line(s) this project added moved to its "## Project lessons" section (check they still read right there)`);
   // a repeat upgrade that changed nothing has nothing to review (Lesson: it appended a review holding only "self-tests")
   if (!items.length && !log.some(l => /^(updated|created|removed|renamed)\b/.test(l))) { console.log('\nUPGRADE REVIEW: nothing changed, so there is nothing new to decide.'); process.exit(0); }
-  items.push('self-tests: node tools/hooks/selfcheck.mjs passes here');
+  // changes that can break a project's own hooks or scripts that read the engine's output, flagged in the changelog with
+  // "Breaking for project hooks:", each its own item. Lesson: a new Stop output shape broke a project script that read
+  // the old "reason" key, and the review never said the output had changed.
+  const sinceLast = [...decided.matchAll(/^## Upgrade review \((\d{4}-\d\d-\d\d)\)/gm)].pop()?.[1] || '';
+  const brk = fs.readFileSync(path.join(STARTER, 'tools', 'starter', 'STARTER-CHANGELOG.md'), 'utf8').split(/\n(?=- \d{4}-\d\d-\d\d\b)/)
+    .filter(e => /^- \d{4}-\d\d-\d\d/.test(e) && e.slice(2, 12) >= sinceLast)
+    .flatMap(e => [...e.matchAll(/\*\*Breaking for project hooks:\*\*\s*([\s\S]*?)(?=\n\s*- |\n- |$)/g)].map(m => m[1].replace(/\s+/g, ' ').trim()));
+  for (const b of brk) { const it = `breaking: ${b.slice(0, 300)}`; if (!decided.includes(`- ${it.slice(0, 60)}`)) items.push(it); }
+  // the self-tests run here once: a pass is written in, so the review does not wait on a step the upgrade can do itself.
+  // Lesson: every upgrade left "self-tests: ?" for the agent to run and record by hand.
+  // (--no-selftest leaves it to the agent: the starter's own tests of the upgrade itself use it, to stay quick)
+  const st = process.argv.includes('--no-selftest') ? { status: 1, stdout: '' } : spawnSync(process.execPath, [path.join(dest, 'tools', 'hooks', 'selfcheck.mjs')], { cwd: dest, encoding: 'utf8', timeout: 900000 });
+  const stLine = ((st.stdout || '').match(/^selfcheck: .*$/m) || [''])[0];
+  const stPassed = st.status === 0 && /ALL PASS/.test(stLine);
+  items.push(stPassed ? `self-tests: node tools/hooks/selfcheck.mjs passes here||passed (${today}, run by the upgrade: ${stLine.replace(/^selfcheck:\s*/, '')})` : 'self-tests: node tools/hooks/selfcheck.mjs passes here');
   const dp = path.join(dest, 'docs', 'DECISIONS.md');
   fs.mkdirSync(path.dirname(dp), { recursive: true });
   // each pack and skill in plain words: what it does and what the user will notice
@@ -552,7 +566,7 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
     return e?.plain ? `\n  ${e.plain}: ${e.does} What you'll notice: ${e.outcome}` : '';
   };
   fs.appendFileSync(dp, `\n## Upgrade review (${today})\n<!-- Decide each line with the user, or let the AI decide (it writes why), replacing "?": "adopted - Worth it: <gain> / <cost>", ` +
-    `"fixed - <how>" or "declined - <why>". Adopt only what makes this project better. -->\n` + items.map(i => `- ${i}: ?${plainOf(i)}`).join('\n') + '\n');
+    `"fixed - <how>" or "declined - <why>". Adopt only what makes this project better. -->\n` + items.map(i => { const [it, done] = i.split('||'); return `- ${it}: ${done || '?'}${plainOf(it)}`; }).join('\n') + '\n');
   // what changed in the starter since the last review, to explain the items
   const last = [...decided.matchAll(/^## Upgrade review \((\d{4}-\d\d-\d\d)\)/gm)].pop()?.[1] || '';
   const news = fs.readFileSync(path.join(STARTER, 'tools', 'starter', 'STARTER-CHANGELOG.md'), 'utf8').split(/\n(?=- \d{4}-\d\d-\d\d:)/).filter(e => /^- (\d{4}-\d\d-\d\d)/.test(e) && e.slice(2, 12) > last);
@@ -560,7 +574,9 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   // (Lesson: "0 failing before, 1 after" left a project guessing which check and whether to worry)
   const named = after.failed.map(s => `${s}${onlyNew(s) ? ' (expected: new candidates to decide in the review)' : before.failed.includes(s) ? ' (failed before too)' : ''}`);
   console.log(`\nChecks: ${before.failed.length} failing before, ${after.failed.length} after${named.length ? `: ${named.join('; ')}` : ''}. Hooks: ${Object.entries(after.speed).map(([k, v]) => `${k} ${before.speed[k] ?? '?'} → ${v} ms`).join(', ') || 'not timed'}.`);
-  console.log(`\nUPGRADE REVIEW: ${items.length} item(s) to decide with the user, in docs/DECISIONS.md "## Upgrade review (${today})":\n` + items.map(i => `  - ${i}`).join('\n'));
+  const open = items.filter(i => !i.includes('||'));
+  console.log(open.length ? `\nUPGRADE REVIEW: ${open.length} item(s) to decide with the user, in docs/DECISIONS.md "## Upgrade review (${today})":\n` + open.map(i => `  - ${i}`).join('\n')
+    : `\nUPGRADE REVIEW: nothing to decide (the self-tests ran here and passed: ${stLine.replace(/^selfcheck:\s*/, '')}).`);
   if (news.length) console.log(`\nWhat changed in the starter since ${last || 'this project was made'} (tools/starter/STARTER-CHANGELOG.md):\n` + news.map(e => e.split('\n')[0]).join('\n'));
   process.exit(0);
 }
