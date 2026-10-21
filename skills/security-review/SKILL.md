@@ -99,7 +99,10 @@ Write down each attempt and its result. A blocked attack is evidence for PASS.
    and the ranked list to the **security-hardening** skill (when enabled) as a staged project.
 
 ## 5. Report
-End with one table covering every area, in this shape:
+Write one table covering every area into `docs/reviews/security-YYYY-MM-DD.md`. The answer carries the whole table
+only when an area FAILed (fixed or open); when every area is PASS or N/A, the answer gives one line instead:
+`Security review: PASS, <n> areas (N/A: <which>) - table in docs/reviews/security-YYYY-MM-DD.md`. A small change does
+not need a wall of rows the user can't act on. The table, in this shape:
 
 ```
 | Area | Result | Severity | Evidence |

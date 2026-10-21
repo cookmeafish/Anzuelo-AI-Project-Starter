@@ -18,6 +18,12 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
     about an outward action, an install, money, security or something irreversible (REQ: autonomy-decide), and stop
     steps that say "with the user" are decided and recorded as Assumed.
   - A stop round's repeated answer starts straight with the answer, not with notes about the fix.
+  - **Big projects stay fast:** with 20,000 files and 3,000 notes the hooks took about 1 s per prompt and 4 s per stop;
+    now 0.27 s and 0.37 s. Note frontmatter is cached by mtime (`tools/hooks/state/note-meta.json`), and DIRECTORY.md
+    lists knowledge notes one by one only up to `"knowledgeRows"` (40), then one row per folder.
+  - **Shorter answers:** a security review where every area passed is one line in the answer, with its table in
+    `docs/reviews/security-<date>.md` (the whole table only when something failed); the setup summary stays about 25
+    lines; writing-standards.md: process stays in files, the answer says the outcome.
   - **Two sessions in one project:** the stop round count, earlier failures, hints shown, the plan nudge and the
     frustration record are kept per session, so one session no longer resets or reads another's.
   - **Field report fixes from an adopted project:** a project scenario with an unknown key fails and names the known

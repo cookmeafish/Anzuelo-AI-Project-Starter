@@ -218,7 +218,9 @@ how it is released.
    would happen.
 4. Show the user a short summary: the focus, then one line from `node tools/fit.mjs summary` ("Added: x, y.
    Skipped: z (why). Later: w (when).") with "say the word to change any of these", the runbooks and menu codes, the
-   rules and guards, and how to use the project ("just ask; codes are optional").
+   rules and guards, and how to use the project ("just ask; codes are optional"). Keep it to what the user acts on,
+   about 25 lines: no security or checklist tables, no sweep numbers or check names. The security review is one line
+   (its table is in `docs/reviews/`), and everything else is in the files the Finished section lists.
 
 ## Phase 6: Delete this file
 In the same turn as a passing `node tools/audit.mjs --setup`: `rm SETUP-PROMPT.md`, add a CHANGELOG line ("setup

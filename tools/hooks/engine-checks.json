@@ -147,9 +147,20 @@
         "skillUsed": "security-review"
       },
       "require": {
-        "answerMatches": "\\|\\s*(PASS|FAIL|N/?A)\\b"
+        "anyOf": [
+          {
+            "answerMatches": "\\|\\s*(PASS|FAIL|N/?A)\\b"
+          },
+          {
+            "answerMatches": "security review:\\s*(all\\s+)?pass\\b[^\\n]*docs/reviews/security-",
+            "answerNotMatches": "\\bFAIL\\b",
+            "filesChanged": [
+              "docs/reviews/security-*.md"
+            ]
+          }
+        ]
       },
-      "message": "Security-review skill: end with the report table: every area PASS, FAIL or N/A with its evidence, and where each open FAIL went."
+      "message": "Security-review skill: write the report table (every area PASS, FAIL or N/A with its evidence, and where each open FAIL went) to docs/reviews/security-YYYY-MM-DD.md. Show the whole table in the answer when an area failed; when all pass, one line is enough: \"Security review: PASS, <n> areas (N/A: <which>) - table in docs/reviews/security-YYYY-MM-DD.md\"."
     },
     {
       "tag": "security-logged",

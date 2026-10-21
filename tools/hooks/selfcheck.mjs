@@ -1328,6 +1328,12 @@ const AUTH = { 'src/auth.js': 'export const check = (u, password) => bcrypt.comp
 const BIG = 'Pick the plan that fits the team and the budget we agreed on for this quarter and next. ';
 STOP.push(
   { name: 'security-code: sign-in code written without the security review: blocked', prompt: 'make the form check the user', files: { ...AUTH, 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { block: true, tags: ['security-code'], says: /src\/auth\.js/ } },
+  { name: 'security-report: all areas pass, one line in the answer and the table in its file: passes', prompt: 'make the form check the user', tools: [sk('security-review')],
+    files: { ...AUTH, ...SEC_LOG, 'docs/reviews/security-2026-10-20.md': SEC_TABLE, 'docs/CHANGELOG.md': 'x' },
+    answer: 'The form checks the user now.\nSecurity review: PASS, 12 areas (N/A: uploads) - table in docs/reviews/security-2026-10-20.md' + FIN, expect: { not: ['security-report'] } },
+  { name: 'security-report: one line, but an area failed: the table is needed', prompt: 'make the form check the user', tools: [sk('security-review')],
+    files: { ...AUTH, ...SEC_LOG, 'docs/reviews/security-2026-10-20.md': SEC_TABLE, 'docs/CHANGELOG.md': 'x' },
+    answer: 'The form checks the user now. One FAIL is open.\nSecurity review: PASS for the rest - table in docs/reviews/security-2026-10-20.md' + FIN, expect: { tags: ['security-report'] } },
   { name: 'security-code: the review followed and logged: passes', prompt: 'make the form check the user', tools: [sk('security-review')], files: { ...AUTH, ...SEC_LOG, 'docs/CHANGELOG.md': 'x' }, answer: SEC_TABLE + FIN, expect: { not: ['security-code', 'security-report', 'security-logged'] } },
   { name: 'security-code: a waiver needs a specific reason: blocked', prompt: 'make the form check the user', files: { ...AUTH, 'docs/CHANGELOG.md': 'x' }, answer: 'Done. N/A(security-code): no' + FIN, expect: { tags: ['security-code'] } },
   { name: 'security-code: a specific waiver holds: passes', prompt: 'make the form check the user', files: { ...AUTH, 'docs/CHANGELOG.md': 'x' }, answer: 'Done. N/A(security-code): the word is only a label in a sample screen, nothing checks it' + FIN, expect: { not: ['security-code'] } },

@@ -65,6 +65,20 @@ export function globRe(g) {
 }
 export const match = (p, globs) => [].concat(globs || []).some(g => globRe(g).test(p));
 
+// A note's frontmatter fields and first heading, cached by mtime and size in tools/hooks/state/note-meta.json, so the
+// hooks stat a knowledge base instead of reading it. Lesson: 3000 notes were read whole at every prompt and stop.
+let NOTE_META = null, noteMetaDirty = false;
+export function noteMeta(p) {
+  if (!NOTE_META) { NOTE_META = readJSON(path.join(STATE, 'note-meta.json'), {}); process.on('exit', () => { if (noteMetaDirty) try { fs.mkdirSync(STATE, { recursive: true }); fs.writeFileSync(path.join(STATE, 'note-meta.json'), JSON.stringify(NOTE_META)); } catch { } }); }
+  let s; try { s = fs.statSync(abs(p)); } catch { return {}; }
+  const c = NOTE_META[p];
+  if (c && c.m === s.mtimeMs && c.s === s.size) return c;
+  const text = read(abs(p)), fm = frontmatter(text) || {};
+  const e = { m: s.mtimeMs, s: s.size, topic: fm.topic || '', checked: fm.checked || '', next_check: fm.next_check || '', volatile: fm.volatile || '', heading: firstHeading(text) };
+  NOTE_META[p] = e; noteMetaDirty = true;
+  return e;
+}
+
 export function frontmatter(text) {
   const m = /^\uFEFF?---\r?\n([\s\S]*?)\r?\n---/.exec(text || '');
   if (!m) return null;
@@ -118,7 +132,8 @@ const DEFAULTS = {
   alwaysLoadedMaxChars: 40000,
   alwaysLoadedOwnMaxChars: 6000,
   starterLoadedMaxChars: 28000,
-  planNewFiles: 5,            // a work turn that creates this many new files needs a plan in docs/plans/ (REQ: plan-required)
+  knowledgeRows: 40,          // DIRECTORY.md lists up to this many knowledge notes one by one; more go one row per folder
+  planNewFiles: 5,           // a work turn that creates this many new files needs a plan in docs/plans/ (REQ: plan-required)
   hookBudgetMs: 1000,         // a hook event slower than this (median, node start included) slows every turn: the audit fails
   harden: 'block',            // 'block' = harden a skill in the turn it becomes due; 'remind' = hint only
   skillsDir: 'skills',        // agent-neutral home of every skill (SKILL.md format)
@@ -1281,7 +1296,14 @@ export function directoryBlock(cfg = config()) {
   if (exists('docs/knowledge') || ownDirs.length) {
     lines.push('', '## 4. Knowledge', '| File | Topic | Checked |', '|---|---|---|');
     if (!know.length && !ownDirs.length) lines.push('| (none yet) | | |');
-    for (const p of know.sort()) { const fm = frontmatter(read(abs(p))) || {}; lines.push(`| [${p.replace(/^docs\/knowledge\//, '')}](${p}) | ${cell(fm.topic || firstHeading(read(abs(p))))} | ${cell(fm.checked)} |`); }
+    // up to knowledgeRows notes get a row each; more are one row per folder, so a big knowledge base neither floods this
+    // always-read map nor makes every hook read thousands of files. Lesson: 3000 notes made the Stop hook take 4 s.
+    if (know.length <= cfg.knowledgeRows) for (const p of know.sort()) { const fm = noteMeta(p); lines.push(`| [${p.replace(/^docs\/knowledge\//, '')}](${p}) | ${cell(fm.topic || fm.heading)} | ${cell(fm.checked)} |`); }
+    else {
+      const by = new Map();
+      for (const p of know) { const top = p.replace(/^docs\/knowledge\//, '').split('/'); const k = top.length > 1 ? `docs/knowledge/${top[0]}` : 'docs/knowledge'; by.set(k, (by.get(k) || 0) + 1); }
+      for (const [d, n] of [...by].sort()) lines.push(`| [${d.replace(/^docs\/knowledge\/?/, '') || '(top level)'}/](${d}/) | ${n} notes | |`);
+    }
     for (const d of ownDirs) {
       const mine = []; const w = p0 => { for (const n of list(p0)) { const p = `${p0}/${n}`; try { if (walkStat(p).isDirectory()) w(p); else if (/\.md$/i.test(n)) mine.push(p); } catch { } } }; w(d);
       lines.push(`| [${d}/](${d.split('/').map(encodeURIComponent).join('/')}/) | the project's own notes (${mine.length} files) | |`);
@@ -1639,7 +1661,7 @@ export function staleKnowledge(cfg = config()) {
       let s; try { s = walkStat(p); } catch { continue; }
       if (s.isDirectory()) { walk(p); continue; }
       if (!/\.md$/i.test(n) || /^(README|SOURCES)\.md$/i.test(n)) continue;
-      const fm = frontmatter(read(abs(p))) || {};
+      const fm = noteMeta(p);
       if (fm.next_check && Date.parse(fm.next_check) <= now) out.push({ file: p, why: `next_check ${fm.next_check} has passed` });
       else if (/^y/i.test(fm.volatile || '') && fm.checked && (now - Date.parse(fm.checked)) / 864e5 > cfg.volatileMaxAgeDays)
         out.push({ file: p, why: `volatile, last checked ${fm.checked}` });

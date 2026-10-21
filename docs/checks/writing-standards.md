@@ -32,7 +32,10 @@ with `node tools/writing-check.mjs <file>`.
 - **Read it once at speaking pace.** Rewrite any sentence you had to read twice. Headings and link text say what
   they lead to. Paragraphs don't open by recapping the one before.
 - **Right length.** A chat answer is as short as it can be while staying complete. A guide covers what the reader needs
-  to act, and nothing more.
+  to act, and nothing more. Process stays in files, not in the answer: review tables, checklists, gate commands and
+  sweep results go in their report file, and the answer says the outcome in one line with the path ("Security
+  review: PASS, 12 areas - table in docs/reviews/..."). The whole table comes into the answer only when something
+  failed and the user must act on it. Lesson: a one-line README fix came back as 60 lines with a security table.
 
 ## Questions with choices
 Any question that offers the user choices (setup, upgrade reviews, packs, skills, tools, foundation defaults, git)
