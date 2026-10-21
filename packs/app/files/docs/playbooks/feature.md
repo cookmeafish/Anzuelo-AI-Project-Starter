@@ -59,7 +59,7 @@ skills, when the project has them: **frontend-design** for screens, **backend-pa
    get the user's OK first.
 
 ## Done when
-- [ ] A spec with numbered acceptance criteria exists and each criterion is PASS in the answer (hook: spec-written).
+- [ ] A spec with numbered acceptance criteria exists and each criterion is marked PASS in it; the answer gives the count in one line and names any that failed (hook: spec-written).
 - [ ] The Verification section covers automated, real app, independent review (SHIP) and still weak (hook: verification-report, review-verdict).
 - [ ] New behaviour was built test first: each slice's test was seen failing before its code, and the whole suite passes after the last edit (judgment: no check sees each test fail before its code).
 - [ ] Release notes written; version bumped as configured (hook: release-notes, version-bump).

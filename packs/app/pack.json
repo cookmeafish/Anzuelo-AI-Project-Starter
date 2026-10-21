@@ -165,7 +165,7 @@
         ],
         "answerMatches": "security[\\s\\S]*(budget|performance)[\\s\\S]*(usability|friendl)"
       },
-      "message": "Fill docs/foundation.md with the user (no <...> left, status: set) and list the security tests, budget script and gates you built, each with its result."
+      "message": "Fill docs/foundation.md with the user (no <...> left, status: set). In the answer, one line each for the security tests, the budget script and usability, with the result (\"Security: 12 tests pass. Budget: scripts/perf_check.py PASS. Usability: plain errors, --help.\"); the details stay in docs/foundation.md."
     },
     {
       "tag": "verification-report",
@@ -207,7 +207,7 @@
           "docs/specs/**"
         ]
       },
-      "message": "Write or update docs/specs/<feature>.md with numbered acceptance criteria and the plan, and mark each criterion PASS in the answer."
+      "message": "Write or update docs/specs/<feature>.md with numbered acceptance criteria and the plan, and mark each criterion PASS or FAIL there. The answer gives one line (\"Acceptance criteria: 15 of 15 PASS - docs/specs/<feature>.md\"), plus one line for each criterion that failed."
     },
     {
       "tag": "release-notes",
@@ -337,9 +337,19 @@
         "playbookUsed": "security-review"
       },
       "require": {
-        "answerMatches": "\\|[^\\n]*\\b(PASS|FAIL|N/A)\\b[^\\n]*\\|"
+        "anyOf": [
+          {
+            "answerMatches": "\\|[^\\n]*\\b(PASS|FAIL|N/A)\\b[^\\n]*\\|"
+          },
+          {
+            "answerMatches": "^(?=[\\s\\S]*security review:[^\\n]*docs/reviews/security-)(?=[\\s\\S]*(security review:\\s*(all\\s+)?pass\\b|^[^|\\n]*\\bFAIL\\s*(->|→)\\s*(fixed|open)\\b))",
+            "filesChanged": [
+              "docs/reviews/security-*.md"
+            ]
+          }
+        ]
       },
-      "message": "Give a table of every security item with PASS/FAIL/N/A and the evidence."
+      "message": "Add every foundation and app-standards security item to the review table in docs/reviews/security-YYYY-MM-DD.md, each PASS, FAIL or N/A with its evidence. The answer names that file in its one \"Security review:\" line (security-review skill), not the whole table."
     },
     {
       "tag": "install-matrix",

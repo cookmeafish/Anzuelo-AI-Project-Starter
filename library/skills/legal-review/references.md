@@ -57,7 +57,6 @@ Fallback: <what to accept if refused>
 
 **Contract review report:**
 ```
-Not legal advice: an organized first read for a qualified lawyer to check.
 Document: <name> | Parties and roles: <..> | Our side: <..> | Deadline: <..>
 Basis: your positions file | general norms, not your positions
 
@@ -67,6 +66,7 @@ Clause by clause: <clause> - OK | Negotiate | Escalate
 Negotiation order: must haves first, then trades
 Lawyer needed for: <triggers that apply, or "none found">
 Next steps
+Not legal advice: an organized first read for a qualified lawyer to check.
 ```
 
 ## NDA screen (section B)
@@ -120,7 +120,6 @@ Starting points to verify, never to quote as settled:
 
 **Compliance report:**
 ```
-Not legal advice: an organized first read for a qualified lawyer to check.
 Plan: <..> | Places: <..> | Personal data: <..>
 Verdict: go ahead | go ahead with conditions | needs a lawyer first
 Laws and policies: <law> - why it applies - what it asks [source]
@@ -128,6 +127,7 @@ Requirements: <#> <requirement> - met | not met | unknown - action
 Risks: <risk> - high | medium | low - how to reduce it
 Approvals: <who> - why - status
 Lawyer needed for: <..>
+Not legal advice: an organized first read for a qualified lawyer to check.
 ```
 
 **DPA checklist:**

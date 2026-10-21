@@ -36,6 +36,29 @@ hooks:**, and an upgrade lists each one as its own review item.
     no Stop log line. At session start, a path whose file does not exist yet still counts, since a new session's
     transcript may be written after that hook. Before, a dry run with made-up ids and an empty transcript left 27 files.
     Scenario: `state-no-transcript:`.
+  - **Less noise in the answer the user reads (judges of 8 trial projects):**
+    - The Stop hook's re-answer instruction no longer asks for "these steps as a short note after it". It now says the
+      user never saw the earlier version or the steps, so the answer says nothing about them (no "Note: this version
+      ...", no "the earlier answer ...", no check names). The short line for an unchanged answer is now "Answer
+      unchanged; also updated: <files>". Scenarios: `answer-noise:`.
+    - Every waiver in one command counts: `hooks.mjs waive a "..." && hooks.mjs waive b "..."` waived only `a`, so
+      agents wrote the rest into the answer as `N/A(...)` lines. Every hint, Stop message, shipped check message and
+      core skill that said "write N/A(<check>)" now gives the waive command. `N/A(<check>)` in an answer still works.
+      Scenarios: `waive command:`, `answer-noise:`.
+    - Spanish labels for every label a check reads (Finished, Root cause, Assumed, Visual review, Accessibility, the
+      security review line and its FAIL lines, Sources, Vetted and license, Playbook/Skill/Worth it markers, backup and
+      restore, rollback, before/after, confidence and more). A Spanish request gets a `LANGUAGE:` hint and, at Stop, the
+      Spanish forms of the labels; "Visual review: PASS after N round(s)". Scenarios: `answer-language:`.
+    - Long content goes to files: the security review answer is one line plus one line per FAIL (fixed or open), never
+      the table; the app pack's `security-checklist` accepts that line with the table in `docs/reviews/`;
+      `spec-written` asks for one count line, `foundation-set` one line each, a Finished section groups files by folder
+      past about 10, and a root cause is one or two sentences. Scenarios: `answer-length:`.
+    - The legal-review library skill puts "Not legal advice" once, at the end of a legal reading, never as a banner or
+      inside a draft for someone else, and no longer opens with "Working on this with the legal-review skill".
+      Scenarios: `legal-disclaimer:`.
+    **Breaking for project hooks:** the Stop reason's re-answer sentence changed (no "short note"), the short line is
+    "Answer unchanged; also updated: ...", a Spanish request's Stop reason and prompt hints carry a Spanish label list,
+    and hints say `node tools/hooks/hooks.mjs waive <tag> "<reason>"` where they said `N/A(<tag>): <reason>`.
 
 - 2026-10-20 (re-check): Fixes from an independent review of six new trial projects (no serious findings left).
   - **Accurate prompt hints (field report 6):** one primary `ROUTE`; other specific matches show as `ALSO ROUTE`, and a

@@ -1647,13 +1647,94 @@ STOP.push(
     failedExtra: { shortOk: true, answer: 'Root cause: the date parser.' + FIN }, drafts: ['Root cause: the date parser.' + FIN], answer: 'Answer unchanged; done: changelog (docs/CHANGELOG.md).',
     expect: { block: true, tags: ['playbook-named'], not: ['answer-resent'] } },
   { ...DEBUG_TURN, name: 'answer-resent: a round of file steps offers the short line', tools: [sk('debug'), ...many(16)], answer: DEBUG_OK,
-    expect: { block: true, tags: ['status-handoff'], says: /Answer unchanged; done:/ } },
+    expect: { block: true, tags: ['status-handoff'], says: /Answer unchanged; also updated:/ } },
   // a headless run (claude -p, the SDK) hands its caller only the last message, so that one is always the whole answer
   { ...DEBUG_TURN, name: 'answer-resent: a headless run is not offered the short line', tools: [sk('debug'), ...many(16)], answer: DEBUG_OK,
     rows: [{ type: 'system', entrypoint: 'sdk-cli', content: 'headless' }],
     expect: { block: true, tags: ['status-handoff'] }, after: (dir, reason) => !/Answer unchanged/.test(reason) || `offered the short line: ${reason.slice(-400)}` },
   { ...DEBUG_TURN, name: 'answer-resent: a round that needs the answer changed does not offer the short line', answer: 'Skill: debug. Fixed it.' + FIN,
     expect: { block: true, tags: ['debug-root-cause'] }, after: (dir, reason) => !/Answer unchanged/.test(reason) || `offered the short line: ${reason.slice(-400)}` }
+);
+// What the Stop hook and the hints make the agent write in the answer the user reads: no notes about earlier rounds, no
+// check names, the user's language for every label, and long reports in files with one line in the answer.
+// Lesson: trial answers carried "Note: this version ...", "N/A(app-lint-pass)", English labels for a Spanish user,
+// 27-row security tables, and a "Not legal advice" banner on a rent letter.
+const ES_FIN = '\n\n## Terminado\n- Hecho. Archivos: docs/x.md';
+const SEC_FILE = { 'docs/reviews/security-2026-10-20.md': SEC_TABLE };
+const WAIVE2 = 'node tools/hooks/hooks.mjs waive debug-root-cause "the import was never broken here" && node tools/hooks/hooks.mjs waive finished-summary "the user asked for no summary today"';
+STOP.push(
+  // the re-sent answer
+  { ...DEBUG_TURN, name: 'answer-noise: the re-answer instruction asks for no note about the steps or an earlier version', answer: 'Skill: debug. Fixed it.' + FIN,
+    expect: { block: true, tags: ['debug-root-cause'], says: /never saw the earlier version or these steps, so it says nothing about them/ },
+    after: (dir, reason) => !/short note|as a note after/i.test(reason) || `still asks for a note: ${reason.slice(-500)}` },
+  { ...DEBUG_TURN, name: 'answer-noise: a re-sent answer with no note about the earlier round passes', active: true, blocks: 1, failed: ['changelog'],
+    failedExtra: { shortOk: false, answer: DEBUG_OK }, drafts: [DEBUG_OK], answer: DEBUG_OK, expect: { block: false } },
+  { ...DEBUG_TURN, name: 'answer-noise: a re-sent answer still missing what the round asked for: blocked', active: true, blocks: 1, failed: ['changelog'],
+    failedExtra: { shortOk: false, answer: 'Fixed it.' + FIN }, drafts: ['Fixed it.' + FIN], answer: 'Root cause: the date parser.' + FIN, expect: { block: true, tags: ['playbook-named'] } },
+  // waivers stay out of the answer
+  { ...DEBUG_TURN, name: 'answer-noise: the Stop text steers waivers to the waive command, never to an N/A line in the answer', answer: 'Skill: debug. Fixed it.' + FIN,
+    expect: { block: true, tags: ['debug-root-cause'], says: /hooks\.mjs waive <name> "<reason>"[^\n]*never an N\/A line in the answer/ },
+    after: (dir, reason) => !/or N\/A\(<name>\)/.test(reason) || `still offers N/A lines: ${reason.slice(-400)}` },
+  { ...DEBUG_TURN, name: 'waive command: several waivers chained in one command all count', tools: [sk('debug'), bash(WAIVE2, 'waived for this turn: debug-root-cause\nwaived for this turn: finished-summary')],
+    answer: 'Skill: debug. The import was fine; nothing needed fixing.', expect: { not: ['debug-root-cause', 'finished-summary'] } },
+  { ...DEBUG_TURN, name: 'waive command: only the waived step is waived, the next one still holds: blocked', tools: [sk('debug'), bash(WAIVE2.split(' && ')[0], 'waived for this turn: debug-root-cause')],
+    answer: 'Skill: debug. The import was fine; nothing needed fixing.', expect: { block: true, tags: ['finished-summary'], not: ['debug-root-cause'] } },
+  { ...DEBUG_TURN, name: 'answer-noise: an N/A(<check>) line in the answer still waives it (compatibility)', answer: 'Skill: debug. The import was fine.\nN/A(debug-root-cause): the import was never broken here' + FIN,
+    expect: { not: ['debug-root-cause'] } },
+  // answer-language: the user's language for every label
+  { ...DEBUG_TURN, name: 'answer-language: a Spanish answer with Spanish labels meets the checks', prompt: 'depura la importación que falla en el script',
+    answer: 'Habilidad: debug. Causa raíz: el analizador de fechas no leía el año.' + ES_FIN, expect: { not: ['debug-root-cause', 'finished-summary', 'playbook-named'] } },
+  { ...DEBUG_TURN, name: 'answer-language: a Spanish answer without the root cause is still held, and told the Spanish labels: blocked', prompt: 'depura la importación que falla en el script',
+    answer: 'Habilidad: debug. Ya funciona.' + ES_FIN, expect: { block: true, tags: ['debug-root-cause'], says: /Causa raíz:/ } },
+  { ...DEBUG_TURN, name: 'answer-language: an English request gets no Spanish label list', answer: 'Skill: debug. Fixed it.' + FIN,
+    expect: { block: true, tags: ['debug-root-cause'] }, after: (dir, reason) => !/Causa raíz/.test(reason) || 'Spanish labels offered to an English request' },
+  { name: 'answer-language: the Spanish security review line meets the report check', prompt: 'haz que el formulario compruebe al usuario', tools: [sk('security-review')],
+    files: { ...AUTH, ...SEC_LOG, ...SEC_FILE, 'docs/CHANGELOG.md': 'x' },
+    answer: 'El formulario ya comprueba al usuario.\nRevisión de seguridad: correcta, 12 áreas (no aplica: subidas) - tabla en docs/reviews/security-2026-10-20.md' + ES_FIN, expect: { not: ['security-report'] } },
+  { name: 'answer-language: a Spanish security line with no result or table file: blocked', prompt: 'haz que el formulario compruebe al usuario', tools: [sk('security-review')],
+    files: { ...AUTH, ...SEC_LOG, 'docs/CHANGELOG.md': 'x' }, answer: 'El formulario ya comprueba al usuario.\nRevisión de seguridad: hecha.' + ES_FIN, expect: { tags: ['security-report'] } },
+  { pack: 'gui', name: 'answer-language: the Spanish visual review verdict meets the report check', prompt: 'haz que la página del panel se vea más limpia',
+    tools: [pb('gui'), bash('node tools/screenshot.mjs --url x', GUISHOT(0)), { name: 'Read', input: { file_path: SHOT } }], files: { 'site/index.html': '<h1>x</h1>', [SHOT]: 'png' }, mtimes: { 'site/index.html': -500 },
+    answer: 'Guía: gui.md\n## Revisión visual\n- Ronda 1: nada que corregir.\nRevisión visual: correcta tras 1 ronda\nAccesibilidad: teclado, foco y contraste - correcta.' + ES_FIN, expect: { not: ['gui-review-report', 'a11y-checked'] } },
+  { pack: 'gui', name: 'answer-language: a Spanish visual review with no verdict: blocked', prompt: 'haz que la página del panel se vea más limpia',
+    tools: [pb('gui'), bash('node tools/screenshot.mjs --url x', GUISHOT(0)), { name: 'Read', input: { file_path: SHOT } }], files: { 'site/index.html': '<h1>x</h1>', [SHOT]: 'png' }, mtimes: { 'site/index.html': -500 },
+    answer: 'Guía: gui.md\n## Revisión visual\n- Ronda 1: nada que corregir.' + ES_FIN, expect: { tags: ['gui-review-report'] } },
+  // answer-length: reports in files, one line in the answer
+  { name: 'answer-length: a fixed FAIL is one line under the security summary, not the whole table: passes', prompt: 'make the form check the user', tools: [sk('security-review')],
+    files: { ...AUTH, ...SEC_LOG, ...SEC_FILE, 'docs/CHANGELOG.md': 'x' },
+    answer: 'The form checks the user now.\nSecurity review: PASS, 12 areas (N/A: uploads) - table in docs/reviews/security-2026-10-20.md\nDependencies: FAIL -> fixed (pip upgraded, scan clean)' + FIN, expect: { not: ['security-report'] } },
+  { name: 'answer-length: the summary line without the review file written: blocked', prompt: 'make the form check the user', tools: [sk('security-review')],
+    files: { ...AUTH, ...SEC_LOG, 'docs/CHANGELOG.md': 'x' },
+    answer: 'The form checks the user now.\nSecurity review: PASS, 12 areas - table in docs/reviews/security-2026-10-20.md\nDependencies: FAIL -> fixed (pip upgraded)' + FIN, expect: { tags: ['security-report'] } },
+  { pack: 'app', name: 'answer-length: the app security checklist is met by the review file and its one line: passes', prompt: 'is the login page secure', tools: [pb('security-review'), sk('security-review')],
+    files: { ...SEC_LOG, ...SEC_FILE, 'docs/CHANGELOG.md': 'x' },
+    answer: 'Playbook: security-review.md\nSecurity review: PASS, 20 areas (N/A: uploads) - table in docs/reviews/security-2026-10-20.md' + FIN, expect: { not: ['security-checklist', 'security-report'] } },
+  { pack: 'app', name: 'answer-length: no table and no review file: the app security checklist still holds: blocked', prompt: 'is the login page secure', tools: [pb('security-review'), sk('security-review')],
+    files: { ...SEC_LOG, 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: security-review.md\nIt looks secure.' + FIN, expect: { tags: ['security-checklist'] } },
+  { pack: 'app', name: 'answer-length: one line each for security, budget and usability meets the foundation check', prompt: 'set up the app foundation', tools: [pb('app-foundation')],
+    files: { 'docs/foundation.md': '# Foundation\nstatus: set\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Playbook: app-foundation.md\nSecurity: 12 tests pass. Budget: scripts/perf_check.py PASS. Usability: plain errors and --help.' + FIN, expect: { not: ['foundation-set'] } },
+  { pack: 'app', name: 'answer-language: the same three lines in Spanish meet the foundation check', prompt: 'prepara la base de la aplicación', tools: [pb('app-foundation')],
+    files: { 'docs/foundation.md': '# Foundation\nstatus: set\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Guía: app-foundation.md\nSeguridad: 12 pruebas pasan. Presupuesto: scripts/perf_check.py correcto. Usabilidad: errores claros y --help.' + ES_FIN, expect: { not: ['foundation-set'] } },
+  { pack: 'app', name: 'answer-length: the foundation results left out of the answer: blocked', prompt: 'set up the app foundation', tools: [pb('app-foundation')],
+    files: { 'docs/foundation.md': '# Foundation\nstatus: set\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: app-foundation.md\nThe ground rules are set.' + FIN, expect: { tags: ['foundation-set'] } },
+  { pack: 'app', name: 'answer-length: the acceptance criteria as one count line, with the spec written: passes', prompt: 'add an export button', tools: [pb('feature')],
+    files: { 'docs/specs/export.md': '# Export\n1. The button exports a CSV - PASS\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Playbook: feature.md\nAcceptance criteria: 1 of 1 PASS - docs/specs/export.md' + FIN, expect: { not: ['spec-written'] } },
+  { pack: 'app', name: 'answer-length: the count line without a spec file: blocked', prompt: 'add an export button', tools: [pb('feature')],
+    files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: feature.md\nAcceptance criteria: 1 of 1 PASS' + FIN, expect: { tags: ['spec-written'] } },
+  // the legal line: once, at the end, in the user's language
+  { name: 'legal-disclaimer: one line at the end of a legal reading passes', prompt: 'check this lease clause for problems', tools: [sk('legal-review')],
+    answer: 'The clause puts every repair on the tenant, which many places do not allow.\n\nNot legal advice: an organized first read for a qualified lawyer to check.\n\nSkill: legal-review', expect: { not: ['legal-disclaimer'] } },
+  { name: 'answer-language: the legal line in Spanish passes', prompt: 'revisa esta cláusula del contrato de alquiler', tools: [sk('legal-review')],
+    answer: 'La cláusula carga todas las reparaciones al inquilino.\n\nNo es asesoramiento legal: una primera lectura para que la revise un abogado.\n\nHabilidad: legal-review', expect: { not: ['legal-disclaimer'] } },
+  { name: 'legal-disclaimer: a legal reading without the line: blocked', prompt: 'check this lease clause for problems', tools: [sk('legal-review')],
+    answer: 'The clause puts every repair on the tenant, which many places do not allow.\n\nSkill: legal-review', expect: { tags: ['legal-disclaimer'] } }
+);
+PROMPT.push(
+  { name: 'answer-language: a Spanish task gets the Spanish labels hint', prompt: 'agrega una página de índice con todas las recetas ordenadas por categoría', has: ['LANGUAGE: the user writes in Spanish', 'Causa raíz:'] },
+  { name: 'answer-language: an English task gets no language hint', prompt: 'add an index page with all the recipes sorted by category', hasNot: ['LANGUAGE:'] }
 );
 // A foreground command past its timeout is moved to the background: it runs on, like a background launch, and its
 // result is its output file and the notice's exit code. Files a running job makes are not this turn's.
@@ -1899,7 +1980,7 @@ function explain(query) {
       if (!r.blocked) { out.push('  nothing fires: the Stop hook passes this scenario'); continue; }
       const shorts = (r.reason.match(/^\d+\. .*$/gm) || []).map(l => l.replace(/^\d+\.\s*/, ''));
       const full = (r.details.match(/^\d+\. \[[^\]]+\] .*$/gm) || []).map(l => /^\d+\. \[([^\]]+)\] (.*)$/.exec(l));
-      full.forEach((m, i) => out.push(`  - ${m[1]}: ${shorts[i] || ''}\n      satisfy it: ${m[2]}\n      or waive it if it truly does not apply: N/A(${m[1]}): <reason>`));
+      full.forEach((m, i) => out.push(`  - ${m[1]}: ${shorts[i] || ''}\n      satisfy it: ${m[2]}\n      or waive it if it truly does not apply: node tools/hooks/hooks.mjs waive ${m[1]} "<reason>"`));
       if (!full.length) out.push(`  ${r.reason.replace(/\n/g, '\n  ')}`);
     } else if (kind === 'pretool') {
       const dir = copyProject(!!s.own);
@@ -2180,7 +2261,7 @@ if (mineB() && (!TAGS || TAGS.includes('check-preview'))) {
 if (!TAGS) { // the standalone checks run in a full run only
 if (mineB()) { // --explain: every check that fires for a scenario at once, with its short label and what satisfies it
   const out = explain('unrouted work turn with no runbook created').join('\n'), none = explain('no such scenario xyz').join('\n');
-  report(/- runbook-exists: Leave a runbook behind/.test(out) && /satisfy it: /.test(out) && /N\/A\(runbook-exists\)/.test(out) && /no scenario name contains/.test(none),
+  report(/- runbook-exists: Leave a runbook behind/.test(out) && /satisfy it: /.test(out) && /hooks\.mjs waive runbook-exists "<reason>"/.test(out) && /no scenario name contains/.test(none),
     'selfcheck --explain: lists every firing check with its label and what satisfies it', out.slice(0, 400));
 }
 if (mineB()) { // session hook output
@@ -2237,6 +2318,80 @@ if (mineB()) { // waive command for an agent without hooks: check reads the waiv
     report(/finished-summary/.test(c1.stdout) && /waived for this turn: finished-summary/.test(w.stdout) && !/finished-summary/.test(c2.stdout) && !/N\/A\(/.test(fs.readFileSync(path.join(dir, '.cache/answer.md'), 'utf8')),
       'waive command: an agent without hooks waives a step with the command, and check no longer asks for it', `c1: ${c1.stdout.slice(0, 300)} | w: ${w.stdout} | c2: ${c2.stdout.slice(0, 300)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+// answer-language: every label a shipped check reads in the answer has a Spanish form that meets it, and the same
+// Spanish answer without the label still fails. A new label without a Spanish sample here fails this test.
+if (mineB()) {
+  const h = await import(pathToFileURL(path.join(ROOT, 'tools', 'hooks', 'hooks.mjs')).href);
+  const ES = {
+    'root cause': 'Causa raíz: el analizador no leía el año.', 'research-cited': 'El total es 40 [1].\n\nFuentes:\n[1] exports/a.csv',
+    'research-ledger': 'Verificadas: 5 afirmaciones trazadas a 3 fuentes.', 'skill-finder-report': 'Habilidades existentes revisadas: la biblioteca - ninguna sirve.',
+    'security-report': 'Revisión de seguridad: correcta, 12 áreas - tabla en docs/reviews/security-2026-10-21.md',
+    'security-checklist': 'Revisión de seguridad: correcta, 12 áreas - tabla en docs/reviews/security-2026-10-21.md',
+    'foundation-set': 'Seguridad: 12 pruebas pasan. Presupuesto: correcto. Usabilidad: errores claros.',
+    'verification-report': '**Verificación**\n- Automática: npm test da 20 de 20.\n- Aplicación real: capturas.\n- Revisión independiente: SHIP.\n- Límites: 9 KB.\n- Lo más débil: nada pendiente.',
+    'review-verdict': 'Revisión independiente: SHIP.', 'release-ready': 'Atribución: limpia, sin coautores de IA.', 'release-rollback': 'Plan para deshacer: revertir el commit.',
+    'qa-incident': 'Lo que se escapó: un caso vacío. Nueva comprobación: tests/vacio.test.js.', 'qa-report': 'Hallazgos: 2, corregidos.',
+    'perf-numbers': 'Antes: 4,4 s por lote. Después: 0,04 s por lote.', 'data-backup': 'Copia de seguridad: data/app.db.bak. Restauración probada: 120 registros antes y 120 después.',
+    'data-change-trigger': 'Copia de seguridad: data/app.db.bak. Restauración probada.', 'answer-cites': 'No está en el proyecto.',
+    'design-plan': 'Dirección de diseño: cuaderno de recetas.', 'a11y-checked': 'Accesibilidad: teclado, foco y contraste - correcta.', 'history-confidence': 'Confianza: alta.',
+    'history-hashes': 'Viene del commit 7a0778a.', 'teach-step': '¿Puedes probar tú el siguiente paso?', 'architecture-recorded': 'Lo apunté en docs/DECISIONS.md.',
+    'incident-logged': 'Cronología en docs/incidents/2026-10-21-caida.md.', 'data-computed': 'Cómo se calculó: suma de las filas de exports/a.csv.',
+    'data-computed-trigger': 'Cómo se calculó: suma de las filas de exports/a.csv.', 'not legal advice': 'No es asesoramiento legal: una primera lectura para un abogado.',
+    'marketing-sourced': 'Fuente: el informe anual.', 'user-research-counted': '7 de 12 personas lo pidieron.', 'correspondence-draft-saved': 'No se ha enviado nada.',
+    'dependency-gates-compared': 'Antes/después: las pruebas pasan igual.', 'continuity-checked': 'Continuidad: Aren sigue siendo diestro.',
+    'parallel': 'Pasé las pruebas completas sobre el resultado combinado.', 'install-vetted': 'Evaluado: marked - legítimo según npm y GitHub - gratis, licencia MIT - mantenido.',
+    'finished-summary': '## Terminado\n- docs/x.md', 'redo-changes': 'Qué cambió: el total ahora cuenta las devoluciones.'
+  };
+  const sample = q => ES[q.tag] || (/root cause/.test(JSON.stringify(q.require)) ? ES['root cause'] : /not legal advice/.test(JSON.stringify(q.require)) ? ES['not legal advice'] : /^parallel-/.test(q.tag) ? ES.parallel : null);
+  const branches = c => c.anyOf ? c.anyOf.flatMap(branches) : c.answerMatches || c.answerNotMatches ? [{ answerMatches: c.answerMatches, answerNotMatches: c.answerNotMatches }] : [];
+  const shipped = [...JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/hooks/engine-checks.json'), 'utf8')).requirements, ...h.BASE_REQUIREMENTS];
+  const meets = (q, text) => branches(q.require || {}).some(b => h.holds(b, { answer: h.inEnglish(text), uses: [], changed: [] }));
+  const PLAIN = 'Hecho. Todo está listo y funciona.';
+  const bad = [];
+  for (const q of shipped) {
+    // only checks that need words in the answer (a check that only forbids words, like self-improve, has no label)
+    if (!q || !branches(q.require || {}).some(b => b.answerMatches)) continue;
+    const s = sample(q);
+    if (!s) { bad.push(`${q.tag}: no Spanish sample (add one to this test)`); continue; }
+    if (!meets(q, s)) bad.push(`${q.tag}: the Spanish form "${s.slice(0, 50)}" does not meet it`);
+    if (meets(q, PLAIN)) bad.push(`${q.tag}: a Spanish answer without the label meets it`);
+  }
+  // the core checks' own labels in hooks.mjs
+  const CORE = [['playbook-named', /\b(playbook|runbook|skill)s?\s*:/i, 'Guía: feature.md · Habilidad: debug'], ['gui-review-report', /visual review:\s*(pass|stopped)[\s\S]*\bround/i, 'Revisión visual: correcta tras 2 rondas'],
+    ['upset-learned', /learned\s*\((rule)\)\s*:\s*.+→/i, 'Aprendido (regla): todo en español → docs/x.md'], ['upset-verdict', /you'?re right|partly[:,]|that isn'?t what happened|already there/i, 'Tienes razón en parte: ya estaba ahí.'],
+    ['skill-reuse', /existing skills?\b[^\n]*(checked|searched)/i, 'Habilidades existentes revisadas: ninguna sirve.'], ['worth-it', /\bworth it\s*:\s*\S[^\n]*\//i, 'Vale la pena: respuestas más rápidas / un archivo.'],
+    ['question-no-file', /asked for:\s*["“]/i, 'Lo que pediste: "agrega el índice"'], ['claim-checked', /\bnot verified\b/i, 'NO VERIFICADO: falta Go.'],
+    ['assumed', /^assumed:/im, 'Supuesto: el título - no me diste ninguno - una edición.']];
+  for (const [tag, rx, s] of CORE) { if (!rx.test(h.inEnglish(s))) bad.push(`${tag}: the Spanish form "${s}" does not meet it`); if (rx.test(h.inEnglish(PLAIN))) bad.push(`${tag}: a Spanish answer without the label meets it`); }
+  report(!bad.length, 'answer-language: every label a shipped check reads in the answer has a Spanish form that meets it, and the bare answer does not', bad.join('; '));
+}
+
+// answer-noise: no engine text tells the agent to put a check name into the answer as an N/A(<check>) line; the waive
+// command keeps it out. Lesson: hints and Stop messages said "write N/A(<tag>): <why>", and answers carried the names.
+if (mineB()) {
+  const NA_ASK = /\b(write|with|say so with|waive it with|or)\s+[`"\\]*N\/A\(/i;
+  const offenders = [];
+  const scan = (label, text) => { for (const line of String(text).split('\n')) if (NA_ASK.test(line)) offenders.push(`${label}: ${line.trim().slice(0, 120)}`); };
+  scan('tools/hooks/hooks.mjs', fs.readFileSync(path.join(ROOT, 'tools/hooks/hooks.mjs'), 'utf8').split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n'));
+  const msgs = (f, list) => { try { for (const q of list(JSON.parse(fs.readFileSync(path.join(ROOT, f), 'utf8')))) scan(`${f} [${q.tag}]`, q.message || ''); } catch { } };
+  msgs('tools/hooks/requirements.json', j => j.requirements || []);
+  for (const p of (() => { try { return fs.readdirSync(path.join(ROOT, 'packs')); } catch { return []; } })()) msgs(`packs/${p}/pack.json`, j => j.requirements || []);
+  msgs('library/catalog.json', j => (j.skills || []).flatMap(e => e.requirements || []));
+  for (const f of ['docs/checks/session-checklist.md', 'skills/security-review/SKILL.md', 'skills/learn-from-upset/SKILL.md']) { try { scan(f, fs.readFileSync(path.join(ROOT, f), 'utf8')); } catch { } }
+  const caught = NA_ASK.test('If it is harmless, write "N/A(injection-flagged): <why>".') && !NA_ASK.test('waive it: node tools/hooks/hooks.mjs waive injection-flagged "<why>"');
+  report(!offenders.length && caught, 'answer-noise: no engine text tells the agent to write N/A(<check>) into the answer (and the scan catches one that does)', offenders.slice(0, 6).join(' | ') || 'the scan missed a sample');
+}
+
+// the "Not legal advice" line: once, at the end of a legal reading, never a banner on top
+if (mineB()) {
+  const lastInBlocks = t => [...String(t).matchAll(/```\n([\s\S]*?)```/g)].map(m => m[1].trim().split('\n')).filter(l => l.some(x => /not legal advice/i.test(x))).every(l => /not legal advice/i.test(l[l.length - 1]) && l.filter(x => /not legal advice/i.test(x)).length === 1);
+  const skill = (() => { try { return fs.readFileSync(path.join(ROOT, 'library/skills/legal-review/SKILL.md'), 'utf8'); } catch { return null; } })();
+  const refs = (() => { try { return fs.readFileSync(path.join(ROOT, 'library/skills/legal-review/references.md'), 'utf8'); } catch { return null; } })();
+  if (skill == null || refs == null) skipped++;
+  else report(!/starts with this line|say at the start/i.test(skill) && /ends with this line/i.test(skill) && lastInBlocks(refs) && !lastInBlocks('```\nNot legal advice: x\nPlan: y\n```\n'),
+    'legal-disclaimer: the legal-review skill puts its line once, at the end, and its templates follow (a banner on top is caught)', 'the skill or a template still puts the line first');
 }
 
 if (mineB()) { // walks never follow links: a workspace link that loops back into the repo can't hang a hook

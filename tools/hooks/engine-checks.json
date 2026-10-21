@@ -55,7 +55,7 @@
           "tools/hooks/project-scenarios.mjs"
         ]
       },
-      "message": "Debug skill: code changed for the fix, but no test did. Add a test that fails without the fix and passes with it, and run the suite. If the project has no test framework, write \"N/A(debug-test-added): no test framework\" and say how the fix was checked instead."
+      "message": "Debug skill: code changed for the fix, but no test did. Add a test that fails without the fix and passes with it, and run the suite. If the project has no test framework, waive it (node tools/hooks/hooks.mjs waive debug-test-added \"no test framework here\") and say how the fix was checked instead."
     },
     {
       "tag": "parallel-merged",
@@ -157,10 +157,16 @@
             "filesChanged": [
               "docs/reviews/security-*.md"
             ]
+          },
+          {
+            "answerMatches": "^(?=[\\s\\S]*security review:[^\\n]*docs/reviews/security-)(?=[\\s\\S]*^[^|\\n]*\\bFAIL\\s*(->|→)\\s*(fixed|open)\\b)",
+            "filesChanged": [
+              "docs/reviews/security-*.md"
+            ]
           }
         ]
       },
-      "message": "Security-review skill: write the report table (every area PASS, FAIL or N/A with its evidence, and where each open FAIL went) to docs/reviews/security-YYYY-MM-DD.md. Show the whole table in the answer when an area failed; when all pass, one line is enough: \"Security review: PASS, <n> areas (N/A: <which>) - table in docs/reviews/security-YYYY-MM-DD.md\"."
+      "message": "Security-review skill: write the report table (every area PASS, FAIL or N/A with its evidence, and where each open FAIL went) to docs/reviews/security-YYYY-MM-DD.md. The answer gets one line, not the table: \"Security review: PASS, <n> areas (N/A: <which>) - table in docs/reviews/security-YYYY-MM-DD.md\", and under it one line per area that failed: \"<area>: FAIL -> fixed (<what>)\" or \"<area>: FAIL -> open (<severity>, where it went)\". In the user's language (Spanish: \"Revisión de seguridad: correcta, <n> áreas - tabla en ...\", \"FALLA -> corregido\" or \"FALLA -> abierto\")."
     },
     {
       "tag": "security-logged",
@@ -248,7 +254,7 @@
       "require": {
         "skillUsed": "security-review"
       },
-      "message": "This turn wrote security-sensitive code (sign-in, passwords, tokens, secrets, permissions, sessions, cookies, CORS, uploads, endpoints, shell or eval, query building, deserializing, crypto, payments or personal data). Follow the security-review skill for what changed (its report table and the log line in docs/security.md), even though nobody asked. If the match is not security work, waive it with N/A(security-code): <the specific reason, e.g. \"the word is a CSS class name\">."
+      "message": "This turn wrote security-sensitive code (sign-in, passwords, tokens, secrets, permissions, sessions, cookies, CORS, uploads, endpoints, shell or eval, query building, deserializing, crypto, payments or personal data). Follow the security-review skill for what changed (its report table and the log line in docs/security.md), even though nobody asked. If the match is not security work, waive it: node tools/hooks/hooks.mjs waive security-code \"<the specific reason, e.g. the word is a CSS class name>\"."
     },
     {
       "tag": "security-config",
@@ -290,7 +296,7 @@
       "require": {
         "skillUsed": "security-review"
       },
-      "message": "This turn changed secrets, the build pipeline or deployment settings (.env, CI workflows, Docker, hosting, infrastructure). Follow the security-review skill for those areas (Secrets, Deployment, Build pipeline, Access to infrastructure), or waive it with N/A(security-config): <the specific reason>."
+      "message": "This turn changed secrets, the build pipeline or deployment settings (.env, CI workflows, Docker, hosting, infrastructure). Follow the security-review skill for those areas (Secrets, Deployment, Build pipeline, Access to infrastructure), or waive it: node tools/hooks/hooks.mjs waive security-config \"<the specific reason>\"."
     },
     {
       "tag": "security-publish",
@@ -367,7 +373,7 @@
           }
         ]
       },
-      "message": "A test or build failed this turn and code was changed after it: that is a fix, so the debug skill applies. Say what was wrong and why (\"Root cause: <what and why>\", with the evidence), found before the fix. A test written first to fail on purpose: \"Root cause: the feature did not exist yet\"."
+      "message": "A test or build failed this turn and code was changed after it: that is a fix, so the debug skill applies. Say what was wrong and why (\"Root cause: <what and why>\", with the evidence), found before the fix, in one or two sentences the user can follow. A test written first to fail on purpose: \"Root cause: the feature did not exist yet\"."
     },
     {
       "tag": "parallel-trigger",
@@ -404,7 +410,7 @@
         ],
         "answerMatches": "security[\\s\\S]*(budget|performance)[\\s\\S]*(usability|friendl)"
       },
-      "message": "Fill docs/foundation.md with the user (no <...> left, status: set) and list the security tests, budget script and gates you built, each with its result.",
+      "message": "Fill docs/foundation.md with the user (no <...> left, status: set). In the answer, one line each for the security tests, the budget script and usability, with the result (\"Security: 12 tests pass. Budget: scripts/perf_check.py PASS. Usability: plain errors, --help.\"); the details stay in docs/foundation.md.",
       "pack": "app"
     },
     {
@@ -449,7 +455,7 @@
           "docs/specs/**"
         ]
       },
-      "message": "Write or update docs/specs/<feature>.md with numbered acceptance criteria and the plan, and mark each criterion PASS in the answer.",
+      "message": "Write or update docs/specs/<feature>.md with numbered acceptance criteria and the plan, and mark each criterion PASS or FAIL there. The answer gives one line (\"Acceptance criteria: 15 of 15 PASS - docs/specs/<feature>.md\"), plus one line for each criterion that failed.",
       "pack": "app"
     },
     {
@@ -588,9 +594,19 @@
         "playbookUsed": "security-review"
       },
       "require": {
-        "answerMatches": "\\|[^\\n]*\\b(PASS|FAIL|N/A)\\b[^\\n]*\\|"
+        "anyOf": [
+          {
+            "answerMatches": "\\|[^\\n]*\\b(PASS|FAIL|N/A)\\b[^\\n]*\\|"
+          },
+          {
+            "answerMatches": "^(?=[\\s\\S]*security review:[^\\n]*docs/reviews/security-)(?=[\\s\\S]*(security review:\\s*(all\\s+)?pass\\b|^[^|\\n]*\\bFAIL\\s*(->|→)\\s*(fixed|open)\\b))",
+            "filesChanged": [
+              "docs/reviews/security-*.md"
+            ]
+          }
+        ]
       },
-      "message": "Give a table of every security item with PASS/FAIL/N/A and the evidence.",
+      "message": "Add every foundation and app-standards security item to the review table in docs/reviews/security-YYYY-MM-DD.md, each PASS, FAIL or N/A with its evidence. The answer names that file in its one \"Security review:\" line (security-review skill), not the whole table.",
       "pack": "app"
     },
     {
@@ -1072,7 +1088,7 @@
       "require": {
         "answerMatches": "accessib\\w*\\s*:[^\\n]*\\b(pass|fail|checked|ok|contrast|keyboard|labels?|focus|screen reader)\\b"
       },
-      "message": "Screens changed and this project uses the frontend-design skill: check accessibility (its section E: keyboard, focus, labels, contrast, screen reader names) and say what you found: \"Accessibility: <what was checked> - PASS/FAIL\".",
+      "message": "Screens changed and this project uses the frontend-design skill: check accessibility (its section E: keyboard, focus, labels, contrast, screen reader names) and say what you found in one line, in the user's language: \"Accessibility: <what was checked> - PASS/FAIL\" (Spanish: \"Accesibilidad: <qué revisé> - correcta\").",
       "forces": "frontend-design",
       "skill": "frontend-design"
     },
@@ -1217,7 +1233,7 @@
       "require": {
         "answerMatches": "\\b[0-9a-f]{7,40}\\b"
       },
-      "message": "Commit-archaeologist skill: back the origin, the timeline and the intent with the commit hashes they come from (short hashes are fine). If the code has no history yet, say so and write \"N/A(history-hashes): no commits touch it\".",
+      "message": "Commit-archaeologist skill: back the origin, the timeline and the intent with the commit hashes they come from (short hashes are fine). If the code has no history yet, say so and waive it: node tools/hooks/hooks.mjs waive history-hashes \"no commits touch it\".",
       "skill": "commit-archaeologist"
     },
     {
@@ -1397,7 +1413,7 @@
       "require": {
         "answerMatches": "not legal advice"
       },
-      "message": "Legal-review skill: say plainly that this is not legal advice, and list anything that needs a lawyer.",
+      "message": "Legal-review skill: end the answer with one line saying it is not legal advice (once, at the end, never inside a letter or draft meant for someone else), and list anything that needs a lawyer.",
       "skill": "legal-review"
     },
     {

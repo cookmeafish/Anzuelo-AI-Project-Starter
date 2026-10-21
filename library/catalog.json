@@ -131,7 +131,7 @@
           "require": {
             "answerMatches": "accessib\\w*\\s*:[^\\n]*\\b(pass|fail|checked|ok|contrast|keyboard|labels?|focus|screen reader)\\b"
           },
-          "message": "Screens changed and this project uses the frontend-design skill: check accessibility (its section E: keyboard, focus, labels, contrast, screen reader names) and say what you found: \"Accessibility: <what was checked> - PASS/FAIL\".",
+          "message": "Screens changed and this project uses the frontend-design skill: check accessibility (its section E: keyboard, focus, labels, contrast, screen reader names) and say what you found in one line, in the user's language: \"Accessibility: <what was checked> - PASS/FAIL\" (Spanish: \"Accesibilidad: <qué revisé> - correcta\").",
           "forces": "frontend-design"
         }
       ]
@@ -326,7 +326,7 @@
           "require": {
             "answerMatches": "\\b[0-9a-f]{7,40}\\b"
           },
-          "message": "Commit-archaeologist skill: back the origin, the timeline and the intent with the commit hashes they come from (short hashes are fine). If the code has no history yet, say so and write \"N/A(history-hashes): no commits touch it\"."
+          "message": "Commit-archaeologist skill: back the origin, the timeline and the intent with the commit hashes they come from (short hashes are fine). If the code has no history yet, say so and waive it: node tools/hooks/hooks.mjs waive history-hashes \"no commits touch it\"."
         }
       ]
     },
@@ -580,7 +580,7 @@
           "require": {
             "answerMatches": "not legal advice"
           },
-          "message": "Legal-review skill: say plainly that this is not legal advice, and list anything that needs a lawyer."
+          "message": "Legal-review skill: end the answer with one line saying it is not legal advice (once, at the end, never inside a letter or draft meant for someone else), and list anything that needs a lawyer."
         },
         {
           "tag": "legal-trigger",
