@@ -70,7 +70,9 @@ The checker is `skills/correspondence/scripts/draft-check.mjs` (Node only, read-
      For print, convert a copy with `pandoc <draft>.md -o <draft>.docx` when pandoc is installed, or use the docx skill.
    - **Text or chat message:** no subject, no letter greeting, two to four sentences, under 60 words.
    - **Official or form text:** the reference numbers first, plain statements, no emotion, the request at the end.
-4. Firm, never rude. No threats, no legal language, no blame on a named employee unless the user asked for it.
+4. Tone fits the relationship. Someone the user keeps dealing with (a tenant, a customer, a neighbour) gets a warm,
+   plain letter by default; firm is for a dispute or when the user asks. Never rude: no threats, no legal language,
+   no blame on a named employee unless the user asked for it.
 5. No secrets in the text: passwords, full card or account numbers, ID numbers. Use the last four digits when needed.
 
 ## E. Save and hand over
@@ -103,3 +105,6 @@ so and leave it to the user. Sending to anyone not named in the request needs it
 - A figure from memory or from an earlier chat that no file confirms. Placeholder it.
 - Matching the user's anger. The draft stays firm and factual; the user can add heat if they want it.
 - Overwriting the earlier draft when asked for changes. The user may prefer the first one.
+- A friendlier rewrite that adds motives, promises or offers the user never made ("I've kept it small", "happy to fix
+  anything"). A tone change keeps the facts; anything new is a placeholder or a question.
+- A count in the answer ("17 gaps to fill") guessed instead of counted in the saved draft.

@@ -1064,10 +1064,10 @@ export function context(t, cfg, answerOverride) {
   // Everything the agent wrote this turn (said), and what it wrote after its last change to a file (afterChange): a marker,
   // a waiver or a Finished section given once stays given, so a re-block never makes the answer repeat it.
   // Lesson: stop rounds alternated, each one asking again for what an earlier message of the turn already said.
-  const all = turnText(t.entries), said = `${answer}\n${all}`;
+  const all = turnText(t.entries), said = inEnglish(`${answer}\n${all}`, cfg);
   return {
     ...t, uses, cmds, changed, work, pbs, routed, reads, skillsUsed, usedPb, routedSkills, usedSkills, runs: t.toolsKnown ? runsOf(t.entries) : loggedRuns(t.since),
-    answer, said, afterChange: `${textAfterLastChange(t.entries, changed.reduce((m, p) => { try { return Math.max(m, fs.statSync(abs(p)).mtimeMs); } catch { return m; } }, 0))}\n${answer}`, results: toolResults(t.entries),
+    answer: inEnglish(answer, cfg), said, afterChange: inEnglish(`${textAfterLastChange(t.entries, changed.reduce((m, p) => { try { return Math.max(m, fs.statSync(abs(p)).mtimeMs); } catch { return m; } }, 0))}\n${answer}`, cfg), results: toolResults(t.entries),
     gui: changed.filter(p => match(p, cfg.guiFiles) && !match(p, cfg.guiIgnore) && exists(p)),
     workTurn: work.length > 0 || (t.toolsKnown && uses.length >= cfg.workToolCalls),
     // the turn went wrong somewhere: the stop hook already blocked an answer, or the user is complaining about a miss
@@ -1329,6 +1329,10 @@ export function nameProblems(file, text, nm = names(), cfg = config()) {
   if (file === NAMES_FILE || match(file, cfg.namesIgnore)) return [];
   // the engine's files belong to the starter, not the project (in the starter itself they are its own code)
   if (!exists('.starter-template') && match(file, VERBATIM_ENGINE)) return [];
+  // a package manifest names the package itself, which a rename must change by hand anyway
+  // (Lesson: pyproject.toml and "python -m photodate" were flagged in a project named after its package.)
+  if (/(^|\/)(pyproject\.toml|setup\.(cfg|py)|package(-lock)?\.json|Cargo\.(toml|lock)|go\.(mod|sum)|pubspec\.yaml|composer\.json|Gemfile|[^/]+\.gemspec|[^/]+\.csproj)$/i.test(file)) return [];
+  text = String(text).replace(/(\s-m\s+|\bpython3?\s+)[\w.]+/g, '$1');
   const doc = NAME_DOCS.test(file), html = /\.html?$/i.test(file);
   // code: only text people read (strings and comments) counts, never an identifier, module or import path
   let bare = text.replace(NAME_MARK, '');
@@ -1572,6 +1576,29 @@ export const memoryDir = (cfg = config()) => {
   return process.env.CLAUDE_PROJECT_DIR || process.env.CLAUDECODE || fs.existsSync(claude) ? claude : abs(LOCAL_MEMORY);
 };
 
+// ---------- answers in the user's language ----------
+// The checks look for English labels ("Root cause:", "Finished", "Learned (rule):"). An answer in another language
+// meets them with its own labels: each line that has one is added again with the English label, for the checks only.
+// Spanish is built in; "labelAliases" in config.json adds others ({"<regex>": "<English label>"}).
+// Lesson: a Spanish-speaking user got answers full of English labels, because only English ones passed the checks.
+const LABELS_ES = [
+  [/\b(terminado|finalizado|resumen final)\b/gi, 'Finished'], [/\bcausa (ra[ií]z|de fondo)\b/gi, 'Root cause'],
+  [/\brevisi[oó]n visual\b/gi, 'Visual review'], [/\bantes\s*\/\s*despu[eé]s\b/gi, 'Before/after'],
+  [/\b(aprendido|aprend[ií]|lecci[oó]n aprendida)\s*\(/gi, 'Learned ('], [/\bpregunta para (ti|usted)\b/gi, 'Question for you'],
+  [/\bvale la pena\s*:/gi, 'Worth it:'], [/\bqu[eé] cambi[oó]\b|\blo que cambi[oó]\b/gi, 'what changed'],
+  [/\bmismo resultado\b/gi, 'same result'], [/\btienes? raz[oó]n\b/gi, "you're right"], [/\ben parte\s*[:,]/gi, 'Partly:'],
+  [/\beso no (es|fue) lo que pas[oó]\b/gi, "that isn't what happened"], [/\bverificad[oa]s?\b/gi, 'verified'],
+  [/\bpasa(n|ron)? (las|los) pruebas\b|\blas pruebas pasa(n|ron)\b/gi, 'tests pass'], [/\bno verificado\b/gi, 'NOT VERIFIED'],
+  [/\((regla)\)/gi, '(rule)'], [/\((comprobaci[oó]n|chequeo|control)\)/gi, '(check)'], [/\((lecci[oó]n)\)/gi, '(lesson)'],
+  [/\((habilidad)\)/gi, '(skill)'], [/\((motor)\)/gi, '(engine)'], [/\((puntual)\)/gi, '(one-off)'],
+];
+export function inEnglish(text, cfg = config()) {
+  const own = Object.entries(cfg.labelAliases || {}).map(([k, v]) => { try { return [new RegExp(k, 'gi'), v]; } catch { return null; } }).filter(Boolean);
+  const lines = String(text).split('\n'), all = [...LABELS_ES, ...own];
+  const extra = lines.map(l => all.reduce((s, [r, v]) => s.replace(r, v), l)).filter((l, i) => l !== lines[i]);
+  return extra.length ? `${text}\n${extra.join('\n')}` : String(text);
+}
+
 // ---------- people / scopes ----------
 export function people(cfg = config()) {
   return list(cfg.scopesRoot).filter(n => !/^[_.]/.test(n) && !/\.md$/i.test(n)).filter(n => { try { return fs.statSync(abs(`${cfg.scopesRoot}/${n}`)).isDirectory(); } catch { return false; } })
@@ -1579,6 +1606,15 @@ export function people(cfg = config()) {
 }
 export const personOf = (p, cfg = config()) => { const m = new RegExp(`^${esc(cfg.scopesRoot)}/([^/]+)/`, 'i').exec(p); return m && !/^[_.]/.test(m[1]) ? m[1] : null; };
 export const peopleIn = (text, ppl) => ppl.filter(x => x.words.some(w => re(`(^|[^a-z0-9])${esc(w)}($|[^a-z0-9])`).test(String(text).toLowerCase()))).map(x => x.name);
+// A follow-up that names nobody ("that letter sounds cold") is about whoever the previous request named.
+// Lesson: a complaint about one tenant's letter could not save the fix in that tenant's folder.
+const settingUp = () => exists('SETUP-PROMPT.md') && !exists('.starter-template');
+export const peopleFor = (prompt, allPrompts, ppl) => {
+  const named = peopleIn(prompt, ppl);
+  if (named.length) return named;
+  const earlier = (allPrompts || []).filter(p => p && p.trim() !== String(prompt).trim());
+  return earlier.length ? peopleIn(earlier[earlier.length - 1], ppl) : [];
+};
 const pathsPeople = (s, cfg) => [...new Set([...String(s).replace(/\\/g, '/').matchAll(new RegExp(`(?:^|[\\s"'/=])${esc(cfg.scopesRoot)}/([^/\\s"']+)/`, 'gi'))].map(m => m[1]).filter(n => !/^[_.]/.test(n)))];
 
 // ---------- freshness ----------
@@ -2561,8 +2597,9 @@ export function pretoolDecision(data, cfg = config()) {
   const ppl = people(cfg);
   // REQ: scope-separate. A request about one person never touches another person's folder (reads included: privacy).
   const scopeCheck = (persons, writing) => {
-    if (!ppl.length || !persons.length) return null;
-    const named = peopleIn(req(), ppl);
+    // setup creates everyone's folder at once; there is no one else's data yet
+    if (!ppl.length || !persons.length || settingUp()) return null;
+    const named = peopleFor(req(), t().allPrompts, ppl);
     if (persons.length > 1 && !persons.every(x => named.includes(x)))
       return `REQ: scope-separate. This touches several people's folders (${persons.join(', ')}) at once. Work on one person per tool run, and only the people this request is about.`;
     const other = persons.find(x => named.length ? !named.includes(x) : writing && !re(cfg.ruleRequest).test(req()));
@@ -2574,7 +2611,7 @@ export function pretoolDecision(data, cfg = config()) {
     return 'REQ: subagent-brief. Sub-agents follow only what their brief says. Add to the prompt: "Read AGENTS.md first and follow its rules (plain writing, no invented facts, no AI attribution, the runbook for this task: docs/playbooks/<name>.md)." A prompt that names a brief file saying it works too. Then re-check its output yourself before reporting it.';
   if (name === 'Read' && inp.file_path) {
     const who = personOf(rel(inp.file_path), cfg);
-    if (who) { const named = peopleIn(req(), ppl); if (named.length && !named.includes(who)) return scopeCheck([who], false); }
+    if (who) { const named = peopleFor(req(), t().allPrompts, ppl); if (named.length && !named.includes(who)) return scopeCheck([who], false); }
     // REQ: no-secrets (reading). A secrets file read into the conversation leaves the machine with it.
     if (SECRET_FILE.test(rel(inp.file_path)) && !SECRET_ASKED.test(req())) return secretReadMsg(rel(inp.file_path));
     return null;
@@ -2950,7 +2987,7 @@ export function coreChecks(x, cfg) {
   // (the records a runbook itself asks for, like a spec, a review, release notes or a new runbook's skill, are not the
   // work being planned. Lesson: a feature's own spec, review and notes tipped it over the limit after the fact.)
   const born = x.changed.filter(p => !match(p, cfg.notWork) && !/^(AGENTS\.md$|CLAUDE\.md$|docs\/checks\/|docs\/plans\/|docs\/(specs|releases|reviews|incidents|knowledge)\/|docs\/playbooks\/|skills\/[^/]+\/SKILL\.md$|\.cache\/|tools\/hooks\/state\/|\.memtest\/|\.claude\/|\.codex\/|\.agents\/)/.test(p) && !GENERATED_WRITES.has(p) && exists(p) && bornThisTurn(p, x.since));
-  if (x.workTurn && born.length >= cfg.planNewFiles && !x.changed.some(p => /^docs\/plans\/.+\.md$/.test(p)) && !(exists('SETUP-PROMPT.md') && !exists('.starter-template')))
+  if (x.workTurn && born.length >= cfg.planNewFiles && !x.changed.some(p => /^docs\/plans\/.+\.md$/.test(p)) && !settingUp() && !x.changed.includes('SETUP-PROMPT.md'))
     add('plan-required', `This turn added ${born.length} new files (${born.slice(0, 4).join(', ')}${born.length > 4 ? ', ...' : ''}) without a plan. Write or update one in docs/plans/ with the plan skill ` +
       '(a checkbox per task, ticked as they finish), so nothing is left half done and the next session can continue it.');
   // REQ: plan-open. A plan left open says "before new work, resume or close it": a work turn that started with one open
@@ -3194,12 +3231,23 @@ export function coreChecks(x, cfg) {
   if (cr.length) add('code-rules', cr.slice(0, 8).join('; ') + (cr.length > 8 ? `; +${cr.length - 8} more` : ''));
   // REQ: empty-answer
   if (x.workTurn && !x.answer.trim()) add('empty-answer', 'The turn did work but the final answer is empty. Tell the user what was done (and the Finished section).');
+  // REQ: autonomy-decide. A user who asked not to be asked gets decisions, not a closing question, except for what
+  // AGENTS.md step 0.5 keeps for them (outward actions, installs, anything irreversible, security, money).
+  // Lesson: under autonomy auto an answer ended by asking whether to keep or archive deleted records.
+  if (cfg.autonomy === 'auto' && x.workTurn) {
+    const tail = x.answer.split(/^#{1,6}\s*\**finished\b/im)[0].trim().split(/\n\s*\n/).filter(b => !/^\s*(playbook|skill|n\/a\(|worth it)/i.test(b)).pop() || '';
+    if (/\?\s*\**\s*$/.test(tail) && !/\b(publish|push|send|deploy|release|install|irreversible|money|pay|buy|password|secret|security|legal)\w*|\b(delete|wipe|erase) (it|them|this|that|your|all|the \w+ now)\b/i.test(tail))
+      add('autonomy-decide', 'The user asked not to be asked (autonomy auto), and the answer ends with a question. Decide it yourself, do it, and record it as "Assumed: <choice> - <why> - <cost if wrong>". Ask only about outward actions, installs, money, security or something irreversible.');
+  }
   // REQ: claim-checked (verification). A turn that waived its own test or build gate (the code never ran) cannot say
   // the work ships or passes: the verdict is NOT VERIFIED, with what would verify it. Lesson: two trial projects had no
   // toolchain, so nothing compiled, and the review still said "Verdict: SHIP".
   const waivedRun = [...x.said.matchAll(/N\/A\((app-test-pass|app-build-pass|app-lint-pass)\)/gi)].map(m => m[1]);
   if (waivedRun.length) {
-    const shipClaims = x.answer.split(/(?<=[.!?\n])\s+/).filter(s => /\b(verdict:\s*ship|ship(ped)? it|ready to (ship|release)|all tests pass|tests (all )?pass(ed)?|build (passes|passed|succeeds))\b/i.test(s) && !/\b(not|n't|unverified|not verified|would|once|after)\b/i.test(s));
+    const shipClaims = x.answer.split(/(?<=[.!?\n])\s+/).filter(s => /\b(verdict:\s*ship|ship(ped)? it|ready to (ship|release)|all tests pass|tests (all )?pass(ed)?|build (passes|passed|succeeds))\b/i.test(s) && !/\b(not|n't|unverified|not verified|would|once|after)\b/i.test(s)
+      // the project's hook self-tests and audit really ran: a claim about them is not one about the app's code
+      // (Lesson: "hook self-tests pass, 2 of 2" was called false because the app's tests were waived.)
+      && !/\b(hook|self-?tests?|selfcheck|audit|scenarios?)\b/i.test(s));
     if (shipClaims.length && !/\bnot verified\b/i.test(x.answer))
       add('claim-checked', `This turn waived ${[...new Set(waivedRun)].join(', ')}, so the code did not run, but the answer says "${shipClaims[0].trim().slice(0, 60)}". Say "NOT VERIFIED" instead, and what would verify it (the toolchain or command to run).`);
   }
@@ -3216,8 +3264,8 @@ export function coreChecks(x, cfg) {
   }
   // REQ: scope-separate (files changed this turn)
   const ppl = people(cfg);
-  if (ppl.length) {
-    const named = peopleIn(x.prompt, ppl);
+  if (ppl.length && !settingUp() && !x.changed.includes('SETUP-PROMPT.md')) {
+    const named = peopleFor(x.prompt, x.allPrompts, ppl);
     const touched = [...new Set(x.changed.map(p => personOf(p, cfg)).filter(Boolean))];
     const wrong = touched.filter(n => named.length ? !named.includes(n) : !re(cfg.ruleRequest).test(x.prompt));
     if (wrong.length) add('scope-separate', `Files of ${wrong.join(', ')} changed, but this request is ${named.length ? `about ${named.join(', ')}` : 'not about them'}. Undo those changes or confirm with the user.`);
@@ -3306,7 +3354,10 @@ export function coreChecks(x, cfg) {
       // REQ: gui-warnings. Measured problems (sideways scroll, console errors, broken images) from the latest run are fixed or answered.
       const runs = x.results.split(/GUI-SHOT:/);
       const lastRun = runs.length > 1 ? runs[runs.length - 2].split(/NEXT: Read every screenshot/).pop() : '';
-      const w = [...lastRun.matchAll(/^WARN (.+)$/gm)].map(m => m[1]);
+      // the run's own summary says how many were its warnings; other tools' WARN lines in between are not
+      // (Lesson: an audit warning printed between two screenshot runs was counted as a screenshot warning.)
+      const counted = [...x.results.matchAll(/GUI-SHOT: \d+ screenshot\(s\), (\d+) warning/g)].pop();
+      const w = counted && +counted[1] ? [...lastRun.matchAll(/^WARN (.+)$/gm)].map(m => m[1]).slice(-counted[1]) : [];
       if (verdict && /pass/i.test(verdict[1]) && w.length && !/warn(ing)?s?\b[^\n]*(accepted|expected|not a problem|intentional|n\/a)/i.test(x.said))
         add('gui-warnings', `The latest screenshot run reported ${w.length} warning(s) (e.g. ${w[0].slice(0, 140)}). Fix them and re-shoot, or say in the answer why each is accepted ("warnings accepted: ...").`);
     }
@@ -3353,6 +3404,8 @@ export function skillLearnCheck(x, cfg, failingNow = []) {
   const WORDING = new Set(['no-verbatim-examples', 'plain-writing', 'playbook-named', 'finished-summary', 'empty-answer', 'count-honored']);
   const failedOwn = [...x.usedPb, ...x.usedSkills].filter(item => own(item).some(tag => !WORDING.has(tag) && failing.has(tag)));
   const followed = [...new Set(failedOwn.map(item => item.file.endsWith('SKILL.md') ? item.file.replace(/SKILL\.md$/, '') : item.file))];
+  // setup meets each runbook's checks for the first time: that is setting it up, not a miss to learn from
+  if (settingUp() || x.changed.includes('SETUP-PROMPT.md')) return [];
   if (x.workTurn && followed.length && !x.changed.some(p => followed.some(f => p === f || p.startsWith(f))) && !/skill lesson:\s*none\b.{8,}/i.test(x.said))
     return [{ tag: 'skill-learn', msg: `This turn followed ${followed.join(', ')} and its own check failed this turn. Write the lesson into it (a step, a pitfall, or a check ` +
       'through the project-rule skill), so the next run gets it right. In an engine skill (one of the starter\'s core skills), put it under ' +
@@ -3464,6 +3517,9 @@ export function holds(c, x) {
   // demanded a root cause)
   if (c.ranFailing && x.toolsKnown && !(x.runs || []).some(rn => r(c.ranFailing).test(rn.cmd) && (rn.error || FAILED_RUN.test(rn.out || '')) && !MISSING_TOOL.test(rn.out || ''))) return false;
   if (c.ranFailing && !x.toolsKnown) return false;
+  // setup builds everything from nothing: a test failing before its code exists is not a fault to debug.
+  // Lesson: setup turns were asked for a "root cause" when nothing had gone wrong.
+  if (c.ranFailing && (settingUp() || x.changed.includes('SETUP-PROMPT.md'))) return false;
   // toolCount: { name: "<regex of tool names>", min: n } tool calls this turn
   if (c.toolCount && x.toolsKnown && (x.uses || []).filter(u => r(c.toolCount.name).test(u.name)).length < (c.toolCount.min || 1)) return false;
   if (c.toolCount && !x.toolsKnown) return false;
@@ -3743,7 +3799,7 @@ export function stopDecision(data, cfg = config()) {
       // the user may see only the last message: it must still carry the answer, not just these steps. Lesson: reviews
       // of trial sessions found the final message was "the checks pass now" while the explanation, letter or verdict
       // the user asked for sat in an earlier message
-      `\nFor the agent: do these, then end with the whole answer to the user's request again, in the user's language (the result, the verdict, what they asked for), updated, with these steps as a short note after it; the last message is the one the user reads. Full steps: \`node tools/hooks/hooks.mjs why\`; waive one that truly does not apply with N/A(<name>): <reason>. Names: ${missing.map(m => m.tag).join(', ')}.`
+      `\nFor the agent: do these, then end with the whole answer to the user's request again, in the user's language (the result, the verdict, what they asked for), updated, starting straight with it (no "here is the answer again", no note about these steps first), with these steps as a short note after it; the last message is the one the user reads.${cfg.autonomy === 'auto' ? ' The user asked not to be asked: where a step says "with the user", decide it yourself and record it as Assumed: <choice> - <why> - <cost if wrong>.' : ''} Full steps: \`node tools/hooks/hooks.mjs why\`; waive one that truly does not apply with N/A(<name>): <reason>. Names: ${missing.map(m => m.tag).join(', ')}.`
   };
 }
 
@@ -3803,6 +3859,7 @@ const SHORT = {
   'security-checklist': 'Give the security checklist table with evidence',
   'skill-harden': 'Turn the runbook used 3 times into scripts and checks (skill-harden)', 'runbook-complete': 'Give the new runbook its check, test and rule-map row',
   'plan-required': 'Write a plan first: this work adds many files',
+  'autonomy-decide': 'Decide it yourself instead of asking: the user asked not to be asked',
   'plan-open': 'Resume or close the open plan, or say why it stays open',
   'autonomy-recorded': 'Record "autonomy": "auto" in config and docs/DECISIONS.md',
   'unresolved-carryover': 'Fix the checks the last turn left failing'

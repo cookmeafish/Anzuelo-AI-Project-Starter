@@ -142,7 +142,7 @@ let idc = 0;
 function transcript(dir, s, since) {
   const rows = [];
   const iso = t => new Date(t).toISOString();
-  rows.push({ type: 'user', timestamp: iso(since - 60_000), message: { role: 'user', content: 'an earlier message' } });
+  rows.push({ type: 'user', timestamp: iso(since - 60_000), message: { role: 'user', content: s.earlierPrompt || 'an earlier message' } });
   // tool calls from earlier turns of the session (before this turn's prompt)
   for (const t of s.before || []) { const id = `toolu_${++idc}`; const input = { ...t.input }; if (input.file_path) input.file_path = path.join(dir, input.file_path);
     rows.push({ type: 'assistant', message: { content: [{ type: 'tool_use', id, name: t.name, input }] } }, { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: id, content: t.result || 'ok' }] } }); }
@@ -618,6 +618,9 @@ const PRETOOL = [
   { name: 'request about alice writes alice\'s file: allowed', tool: 'Write', input: { file_path: 'profiles/alice/notes.md' }, edit: PEOPLE, prompt: 'update alice notes', deny: false },
   { name: 'one command touching two people: denied', tool: 'Bash', input: { command: 'cat profiles/alice/a.md profiles/bob/b.md' }, edit: PEOPLE, prompt: 'compare alice notes', deny: true, tag: 'scope-separate' },
   { name: 'request naming nobody writes a person\'s file: denied', tool: 'Edit', input: { file_path: 'profiles/bob/notes.md' }, edit: PEOPLE, prompt: 'tidy up the notes', deny: true, tag: 'scope-separate' },
+  { name: 'a follow-up naming nobody, after a request about bob, writes bob\'s file: allowed', tool: 'Write', input: { file_path: 'profiles/bob/letter-v2.md', content: 'x' }, edit: PEOPLE, earlierPrompt: 'write a letter to bob about the rent', prompt: 'that letter sounds like a robot, make it friendly', deny: false },
+  { name: 'a follow-up naming nobody, after a request about bob, writes alice\'s file: denied', tool: 'Write', input: { file_path: 'profiles/alice/letter-v2.md', content: 'x' }, edit: PEOPLE, earlierPrompt: 'write a letter to bob about the rent', prompt: 'that letter sounds like a robot, make it friendly', deny: true, tag: 'scope-separate' },
+  { name: 'setup creating each person\'s folder: allowed', tool: 'Write', input: { file_path: 'profiles/bob/PROFILE.md', content: '# Bob' }, edit: { ...PEOPLE, 'SETUP-PROMPT.md': () => '# Setup' }, prompt: 'set up this project. I rent out three flats', removeMarker: true, deny: false },
   // project-configured guards
   { name: 'whole-output tool piped into head: denied', tool: 'Bash', input: { command: 'python tools/lookup.py desks 2>&1 | head -5' }, edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), wholeOutputTools: ['tools/lookup.py'] }) }, deny: true, tag: 'whole-output' },
   { name: 'whole-output tool saved to a file: allowed', tool: 'Bash', input: { command: 'python tools/lookup.py desks > .cache/out.txt' }, edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), wholeOutputTools: ['tools/lookup.py'] }) }, deny: false },
@@ -735,6 +738,22 @@ STOP.push(
     tools: [sk('research'), { name: 'WebSearch', input: { query: 'desk load' }, result: 'Desk A: rated 150 kg' }, bash('node skills/research/scripts/claims.mjs check .cache/research/desk.md', 'ERROR S3: a forum source is a lead\nCLAIMS: FAIL (1 error(s))')],
     answer: 'Skill: research. Yes: 150 kg (https://a.example).\nVerified: 1 claims traced to 3 independent sources; 0 cut or marked not verified.', expect: { block: true, tags: ['research-ledger'] } },
   // Lesson: "git push" was denied, and the answer still said "Pushed."
+  { name: 'claim-checked: app tests waived, the answer says the hook self-tests pass: passes', prompt: 'add a stock endpoint', files: { 'docs/CHANGELOG.md': 'x' },
+    answer: 'Added it. NOT RUN: the app tests (no toolchain). The hook self-tests pass, 2 of 2.\nN/A(app-test-pass): no toolchain.' + FIN, expect: { not: ['claim-checked'] } },
+  // autonomy-decide: under autonomy auto, a work answer decides instead of ending with a question
+  { name: 'autonomy-decide: autonomy auto, the answer ends asking a design question: blocked', prompt: 'let owners delete their books', files: { 'notes/books.md': 'x', 'docs/CHANGELOG.md': 'x' },
+    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), autonomy: 'auto' }) },
+    answer: 'Owners can delete their own books now.\n\nShould deleted books be kept in an archive or removed for good?' + FIN, expect: { block: true, tags: ['autonomy-decide'] } },
+  { name: 'autonomy-decide: autonomy auto, the answer asks before publishing: passes', prompt: 'let owners delete their books', files: { 'notes/books.md': 'x', 'docs/CHANGELOG.md': 'x' },
+    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), autonomy: 'auto' }) },
+    answer: 'Owners can delete their own books now. Assumed: archive deleted books - nothing is lost - one table to clean later.\n\nShall I publish it to the live site?' + FIN, expect: { not: ['autonomy-decide'] } },
+  { name: 'autonomy-decide: without autonomy auto a closing question is fine', prompt: 'let owners delete their books', files: { 'notes/books.md': 'x', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Owners can delete their own books now.\n\nShould deleted books be kept in an archive or removed for good?' + FIN, expect: { not: ['autonomy-decide'] } },
+  // answers in the user's language meet the label checks with their own labels
+  { name: 'finished-summary: a Spanish "Terminado" section counts', prompt: 'añade la página de índice', files: { 'docs/CHANGELOG.md': 'x' },
+    answer: 'Listo, la página de índice agrupa las recetas.\n\n## Terminado\n- docs/CHANGELOG.md', expect: { not: ['finished-summary'] } },
+  { name: 'upset-learned: a Spanish verdict and Learned line count', prompt: 'otra vez pusiste texto en inglés, ya te lo dije', files: { 'docs/CHANGELOG.md': 'x', 'docs/checks/writing-standards.md': 'x' },
+    answer: 'En parte: las páginas están en español, mis respuestas no.\nAprendido (regla): las respuestas van en el idioma del usuario → docs/checks/writing-standards.md' + FIN, expect: { not: ['upset-learned'] } },
   { name: 'claim-checked: the push was denied and the answer says pushed: blocked', prompt: 'push my work', tools: [{ name: 'Bash', input: { command: 'git push origin main' }, result: 'REQ: git-safety. This pushes to the protected branch "main"', denied: true }],
     answer: 'Pushed. Everything is on GitHub now.', expect: { block: true, tags: ['claim-checked'] } },
   { name: 'claim-checked: the push was denied and the answer says so: passes', prompt: 'push my work', tools: [{ name: 'Bash', input: { command: 'git push origin main' }, result: 'REQ: git-safety. This pushes to the protected branch "main"', denied: true }],
@@ -1317,6 +1336,8 @@ STOP.push(
     answer: 'Done.' + FIN, expect: { not: ['plain-writing'] } },
   { name: 'name-var: tools/hooks/project-scenarios.mjs may use fixture names: passes', prompt: 'add a project scenario', edit: { 'docs/names.json': () => '{ "PROJECT_NAME": "Deskmate" }' },
     files: { 'tools/hooks/project-scenarios.mjs': '// Deskmate fixtures\nexport default () => ({ stop: [] });\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { not: ['name-var'] } },
+  { name: 'name-var: the package name in pyproject.toml and a "python -m" command: passes', prompt: 'package the photo tool', edit: { 'docs/names.json': () => '{ "PROJECT_NAME": "photodate" }' },
+    files: { 'pyproject.toml': '[project]\nname = "photodate"\n', 'tools/run.ps1': 'python -m photodate --dry-run\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { not: ['name-var'] } },
   { name: 'no-verbatim-examples: engine files and relayed agent messages are not the user\'s words: passes', prompt: 'tidy up\n<agent-message from="helper">every chart in the monthly report should use the warm colour palette</agent-message>',
     files: { 'docs/notes-a.md': '# Notes\nevery chart in the monthly report should use the warm colour palette\n', 'tools/chart-check.mjs': '// make every chart in the monthly report use the warm colour palette\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { not: ['no-verbatim-examples'] } },
   { name: 'no-verbatim-examples: engine files are never scanned for the user\'s words: passes', prompt: 'please make every chart in the monthly report use the warm colour palette',
@@ -1351,6 +1372,7 @@ STOP.push(
   { pack: 'app', name: 'data-change-trigger: a migration without backup and restore: blocked', prompt: 'add a column for notes', files: { 'db/migrations/002_notes.sql': 'ALTER TABLE t ADD notes TEXT;\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { tags: ['data-change-trigger'] } },
   { pack: 'app', name: 'data-change-trigger: backup and restore stated: passes', prompt: 'add a column for notes', files: { 'db/migrations/002_notes.sql': 'ALTER TABLE t ADD notes TEXT;\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done. Backup: copied app.db first. Restore: copy it back and roll back 002.' + FIN, expect: { not: ['data-change-trigger'] } },
   { pack: 'app', name: 'release-trigger: a version tagged without the release runbook: blocked', prompt: 'tag it', tools: [bash('git tag v1.2.0')], answer: 'Tagged.', expect: { tags: ['release-trigger'] } },
+  { pack: 'app', name: 'release-trigger: a local version bump without a tag is not a release', prompt: 'add the index page', tools: [bash('npm version 0.2.0 --no-git-tag-version', 'v0.2.0')], answer: 'Added it.', expect: { not: ['release-trigger'] } },
   { pack: 'app', name: 'release-trigger: the release runbook followed: passes', prompt: 'tag it', tools: [pb('release'), bash('git tag v1.2.0')], answer: 'Playbook: release.md. Tagged.', expect: { not: ['release-trigger'] } },
   { pack: 'app', name: 'install-trigger: the installer changed without its runbook: blocked', prompt: 'fix the shortcut', files: { 'scripts/install.ps1': 'Write-Output hi\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { tags: ['install-trigger'] } },
   { pack: 'app', name: 'install-trigger: the install-update runbook followed: passes', prompt: 'fix the shortcut', tools: [pb('install-update')], files: { 'scripts/install.ps1': 'Write-Output hi\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: install-update.md.' + FIN, expect: { not: ['install-trigger'] } },
@@ -1483,7 +1505,7 @@ function explain(query) {
       const dir = copyProject();
       try {
         write(dir, s.setup); applyEdits(dir, s.edit);
-        const tp = transcript(dir, { prompt: s.prompt || 'do the thing', answer: null, tools: s.tools }, Date.now());
+        const tp = transcript(dir, { prompt: s.prompt || 'do the thing', earlierPrompt: s.earlierPrompt, answer: null, tools: s.tools }, Date.now());
         const input = { ...s.input }; if (input.file_path) input.file_path = path.join(dir, input.file_path);
         const { out: o } = run(dir, 'pretool', { tool_name: s.tool, tool_input: input, transcript_path: tp });
         let d = null; try { d = JSON.parse(o); } catch { }
@@ -1556,7 +1578,7 @@ for (const s of PRETOOL) {
     for (const r of s.remove || []) fs.rmSync(path.join(dir, r), { recursive: true, force: true });
     if (s.removeMarker) fs.rmSync(path.join(dir, '.starter-template'), { force: true });
     if (s.prep) s.prep(dir);
-    const tp = transcript(dir, { prompt: s.prompt || 'do the thing', answer: null, tools: s.tools }, Date.now());
+    const tp = transcript(dir, { prompt: s.prompt || 'do the thing', earlierPrompt: s.earlierPrompt, answer: null, tools: s.tools }, Date.now());
     const input = { ...s.input };
     if (input.file_path) input.file_path = path.join(dir, input.file_path);
     const { out, err } = run(dir, 'pretool', { tool_name: s.tool, tool_input: input, transcript_path: tp });

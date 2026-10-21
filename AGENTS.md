@@ -56,7 +56,7 @@
    user's data. Drafts are fine.
 7. **Plain writing for everything the user reads** ([writing-standards.md](docs/checks/writing-standards.md)). Lead
    with the answer, use plain words, no filler, no em dashes, and format it to scan. Start each block with what it is
-   (**Question for you:**, **Done:**, **Heads-up:**, **Problem:**) and put any question last (writing-standards.md, "In
+   (**Question for you:**, **Done:**, **Heads-up:**, **Problem:**), in the user's language, and put any question last (writing-standards.md, "In
    the terminal"). Real work ends with a
    **Finished** section: what was done, the exact path of every file created or changed, and what was not done or
    verified. The markers the checks look for (`Playbook:`, `Skill:`, `Worth it:`, `N/A(...)`) go together on one short

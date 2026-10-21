@@ -4,6 +4,22 @@ Changes to the starter itself. A project picks up engine changes with `node tool
 starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook changes listed here are adopted by hand
 (project-rule, runbook-create), because an upgrade never touches a project's own content.
 
+- 2026-10-20 (re-check): Fixes from an independent review of six new trial projects (no serious findings left).
+  - **Answers in the user's language:** Spanish labels ("Terminado", "Causa raíz:", "Aprendido (regla):", "Tienes
+    razón", "En parte:") meet the checks that look for the English ones; `"labelAliases"` in config adds other
+    languages. AGENTS.md rule 7: the block labels are in the user's language (adopt by hand).
+  - **People's folders:** a follow-up that names nobody ("that letter sounds cold") is about the person the previous
+    request named, so its fix can be saved there; setup may create everyone's folder (REQ: scope-separate).
+  - **Fewer false alarms:** a local `npm version ... --no-git-tag-version` is not a release (release-trigger); setup
+    turns are not asked for a root cause, a skill lesson or a plan; the claim check no longer calls "hook self-tests
+    pass" false when the app's tests were waived; package manifests and `python -m <pkg>` are not typed-out names
+    (name-var); only the screenshot run's own warnings count (gui-warnings).
+  - **Under autonomy "auto"** a work answer that ends with a question gets "decide it yourself" unless the question is
+    about an outward action, an install, money, security or something irreversible (REQ: autonomy-decide), and stop
+    steps that say "with the user" are decided and recorded as Assumed.
+  - A stop round's repeated answer starts straight with the answer, not with notes about the fix.
+  - Correspondence skill: tone fits the relationship (warm for tenants and customers by default); a friendlier
+    rewrite adds no new promises or motives; counts in the answer come from the saved draft.
 - 2026-10-19 (gap sweep): Fixes from simulating nine kinds of projects end to end (a notes vault, a bakery's office
   work, a Godot game, a web app, a monorepo, an adopted Python pipeline, Flutter, Rust and ML projects, and upgrades).
   - **No more slow stops.** The self-tests and the audit write their results to a run log
