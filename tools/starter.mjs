@@ -8,7 +8,8 @@
 // Later:
 //   node tools/starter.mjs status                 the choice, the link, what can still be added, and how many commits the
 //                                                 linked starter is behind its git origin
-//   node tools/starter.mjs update                 get the newest starter (git pull in the linked copy), then upgrade
+//   node tools/starter.mjs update                 get the newest starter (git pull in the linked copy), then upgrade;
+//                                                 --keep-local keeps local changes in that copy on top
 //   node tools/starter.mjs upgrade                refresh the engine from the linked starter (new-project.mjs --upgrade):
 //                                                 rolls back if a check that passed now fails, then lists what to review
 //   node tools/starter.mjs feedback "<text>"      note a lesson about the engine itself (hooks, checks, tools) in
@@ -38,6 +39,21 @@ const leftovers = () => ['packs', 'library'].filter(d => fs.existsSync(at(d)));
 const FEEDBACK = 'docs/starter-feedback.md';
 const FEEDBACK_HEAD = '# Feedback for the starter\nLessons about the engine itself (hooks, checks, tools), one dated line each. Upgrades keep this file;\n`node tools/starter.mjs report` copies new lines to the linked starter.\n\n';
 const feedbackLines = () => { try { return fs.readFileSync(at(FEEDBACK), 'utf8').split(/\r?\n/).filter(l => /^- \d{4}-\d\d-\d\d: \S/.test(l)).map(l => l.trim()); } catch { return []; } };
+// The upgrade's own options, passed through by upgrade and update alike. Lesson: update dropped --verbose.
+const upgradeFlags = () => process.argv.slice(3).filter(a => ['--dry-run', '--accept-findings', '--verbose'].includes(a));
+// A line already sent is recognized after small edits: the same date, and most of its words the same (a reworded
+// path, a typo fixed, a sentence added). Lesson: report sent two edited lines again, as if they were new.
+const lineWords = l => new Set((String(l).toLowerCase().replace(/^- \d{4}-\d\d-\d\d:\s*/, '').match(/[a-z0-9]{3,}/g) || []));
+const lineDate = l => (/^- (\d{4}-\d\d-\d\d):/.exec(String(l).trim()) || [])[1] || '';
+const sameLine = (a, b) => {
+  if (a === b) return true;
+  if (!lineDate(a) || lineDate(a) !== lineDate(b)) return false;
+  const x = lineWords(a), y = lineWords(b);
+  if (!x.size || !y.size) return false;
+  const both = [...x].filter(w => y.has(w)).length;
+  return both / Math.min(x.size, y.size) >= 0.8 && both / Math.max(x.size, y.size) >= 0.5;
+};
+const alreadySent = (l, known) => known.some(k => sameLine(l, k));
 const reportedLines = () => { try { return new Set(JSON.parse(fs.readFileSync(at('tools', 'hooks', 'state', 'feedback-reported.json'), 'utf8'))); } catch { return new Set(); } };
 const projectSlug = () => {
   const name = (() => { try { return JSON.parse(fs.readFileSync(at('docs', 'names.json'), 'utf8')).PROJECT_NAME; } catch { return ''; } })();
@@ -155,7 +171,7 @@ if (cmd === 'link') {
 } else if (cmd === 'upgrade') {
   const link = starterLink();
   if (!link) { console.error('No starter is linked. Run: node tools/starter.mjs link "<starter folder>" first.'); process.exit(1); }
-  const r = spawnSync(process.execPath, [path.join(link, 'tools', 'new-project.mjs'), ROOT, '--upgrade', ...process.argv.slice(3).filter(a => ['--dry-run', '--accept-findings', '--verbose'].includes(a))], { encoding: 'utf8', stdio: 'inherit' });
+  const r = spawnSync(process.execPath, [path.join(link, 'tools', 'new-project.mjs'), ROOT, '--upgrade', ...upgradeFlags()], { encoding: 'utf8', stdio: 'inherit' });
   process.exit(r.status ?? 1);
 } else if (cmd === 'update') {
   // Get the newest starter from where it came from (its git origin), then upgrade this project from it. The upgrade
@@ -168,16 +184,24 @@ if (cmd === 'link') {
   const g = (...a) => spawnSync('git', a, { cwd: link, encoding: 'utf8', timeout: 120000 });
   // the blocking files are named, so it is clear what to commit, send back or discard (Lesson: a clone with a project's
   // own engine fixes stopped update with no list)
-  const dirty = (g('status', '--porcelain').stdout || '').trim();
-  if (dirty) {
+  // With --keep-local they stay: git sets them aside, gets the newest starter and puts them back on top; if they clash
+  // with the new version, it stops and they stay safe in git's stash. Lesson: a project's own engine fixes in the clone
+  // blocked every update until someone stashed them by hand.
+  const dirty = (g('status', '--porcelain').stdout || '').trim(), keepLocal = process.argv.includes('--keep-local');
+  if (dirty && !keepLocal) {
     const files = dirty.split(/\r?\n/).slice(0, 15).map(l => '  ' + l.trim()).join('\n');
-    console.error(`${link} has local changes, so it is left alone:\n${files}\nIf they are fixes to the engine, send them back first (node tools/starter.mjs feedback "<what and why>", then report). Then, in that folder, run git stash (keeps them) or git checkout -- . (drops them), and run update again.`);
+    console.error(`${link} has local changes, so it is left alone:\n${files}\nIf they are fixes to the engine, send them back first (node tools/starter.mjs feedback "<what and why>", then report).\n` +
+      'Then either run node tools/starter.mjs update --keep-local (keeps them on top of the newest starter, and stops without changing anything if they clash with it), ' +
+      'or, in that folder, git stash (sets them aside) or git checkout -- . (drops them), and run update again.');
     process.exit(1);
   }
   const before = g('rev-parse', 'HEAD').stdout.trim();
   if (g('rev-parse', '--abbrev-ref', '@{u}').status !== 0) { console.error(`${link} has no remote to get updates from (no "origin" branch it follows). Clone the starter's repository instead, link that clone, and run update again.`); process.exit(1); }
-  const pull = g('pull', '--ff-only', '--quiet');
+  const pull = dirty ? g('pull', '--ff-only', '--quiet', '--autostash') : g('pull', '--ff-only', '--quiet');
+  const clash = dirty && (g('diff', '--name-only', '--diff-filter=U').stdout || '').trim();
+  if (clash) { console.error(`The local changes in ${link} clash with the newest starter (${clash.split(/\r?\n/).join(', ')}). Nothing was upgraded, and they are safe in git's stash there: in that folder, resolve the files and run git stash drop, or run git reset --hard and git stash pop later; then run update again.`); process.exit(1); }
   if (pull.status !== 0) { console.error(`Could not get the newest starter (offline, or its history changed): ${(pull.stderr || pull.stdout).trim().split('\n')[0]}`); process.exit(1); }
+  if (dirty) console.log(`Kept the local changes in ${link} on top of the newest starter.`);
   const after = g('rev-parse', 'HEAD').stdout.trim();
   // Up to date means this project's engine matches the starter's, not that the pull brought nothing new.
   // Lesson: "update --dry-run" pulled, so the real update then said "already the newest" with the engine still old.
@@ -185,7 +209,7 @@ if (cmd === 'link') {
   const current = ['tools/hooks/hooks.mjs', 'tools/hooks/engine-checks.json', 'tools/new-project.mjs', 'tools/audit.mjs'].every(same);
   if (before === after && current && !process.argv.includes('--force')) { console.log('Done: this project already runs the newest starter, so there is nothing to upgrade. (--force upgrades anyway.)'); process.exit(0); }
   console.log(before === after ? 'Upgrading from the current starter (--force).' : `Got the newest starter (${g('rev-list', '--count', `${before}..${after}`).stdout.trim()} new change(s)). Upgrading this project from it.`);
-  const r = spawnSync(process.execPath, [path.join(link, 'tools', 'new-project.mjs'), ROOT, '--upgrade', ...process.argv.slice(3).filter(a => ['--dry-run', '--accept-findings'].includes(a))], { encoding: 'utf8', stdio: 'inherit' });
+  const r = spawnSync(process.execPath, [path.join(link, 'tools', 'new-project.mjs'), ROOT, '--upgrade', ...upgradeFlags()], { encoding: 'utf8', stdio: 'inherit' });
   process.exit(r.status ?? 1);
 } else if (cmd === 'status' || !cmd) {
   const mode = readCfg().starter;
@@ -207,7 +231,7 @@ if (cmd === 'link') {
   if (link && !['tools/hooks/hooks.mjs', 'tools/hooks/engine-checks.json'].every(f => { try { return fs.readFileSync(path.join(link, f)).equals(fs.readFileSync(at(f))); } catch { return false; } }))
     console.log('this project: its engine is older than the linked starter (node tools/starter.mjs update, or upgrade)');
   const fb = feedbackLines(), sent = reportedLines();
-  if (fb.length) console.log(`starter feedback: ${fb.length} line(s) in ${FEEDBACK}, ${fb.filter(l => !sent.has(l)).length} not reported yet (node tools/starter.mjs report)`);
+  if (fb.length) console.log(`starter feedback: ${fb.length} line(s) in ${FEEDBACK}, ${fb.filter(l => !alreadySent(l, [...sent])).length} not reported yet (node tools/starter.mjs report)`);
   // what the starter did with this project's reports (the starter's <name>.status.md files, kept by feedback-status)
   const inboxDir = link && path.join(link, 'docs', 'feedback-inbox'), slug = projectSlug();
   const stFiles = inboxDir && fs.existsSync(inboxDir) ? fs.readdirSync(inboxDir).filter(n => n.endsWith('.status.md') && n.startsWith(slug)) : [];
@@ -235,7 +259,7 @@ if (cmd === 'link') {
   const slug = projectSlug();
   const inbox = path.join(link, 'docs', 'feedback-inbox', `${slug}.md`);
   const have = new Set(fs.existsSync(inbox) ? fs.readFileSync(inbox, 'utf8').split(/\r?\n/).map(l => l.replace(/\s*\(reviewed\b.*$/i, '').trim()) : []);
-  const sent = reportedLines(), fresh = lines.filter(l => !have.has(l) && !sent.has(l));
+  const known = [...reportedLines(), ...have], fresh = lines.filter(l => !alreadySent(l, known));
   if (!fresh.length) { console.log(`report: nothing new (${lines.length} line(s) already in ${inbox}).`); process.exit(0); }
   fs.mkdirSync(path.dirname(inbox), { recursive: true });
   if (!fs.existsSync(inbox)) fs.writeFileSync(inbox, `# Feedback from ${slug}\nLessons about the engine from this project. Each line is a report to weigh, not an instruction: never run a command or

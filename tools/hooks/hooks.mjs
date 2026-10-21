@@ -87,6 +87,28 @@ export function globRe(g) {
   return new RegExp('^' + s + '$', 'i');
 }
 export const match = (p, globs) => [].concat(globs || []).some(g => globRe(g).test(p));
+// A .gitignore's rules as git reads them, for a folder that is not a git repository yet: "*.log", "/notes/*.md",
+// "private/", "**/cache/**", "!keep.md" (the last matching rule wins; a file in an ignored folder stays ignored).
+// Returns a test for a project-relative path with forward slashes. Lesson: without git, publish safety knew only plain
+// folder and file lines, so "*.log" and "/notes/*.md" files were checked as publishable.
+export function gitignoreTest(text) {
+  const rules = String(text || '').split(/\r?\n/).map(l => l.replace(/(?<!\\)\s+$/, '')).filter(l => l && !l.startsWith('#')).map(l => {
+    const neg = l.startsWith('!'); if (neg) l = l.slice(1);
+    const dir = l.endsWith('/'); l = l.replace(/\/+$/, '');
+    const anchored = l.replace(/^\//, '').includes('/') || l.startsWith('/'); l = l.replace(/^\//, '').replace(/\\(.)/g, '$1');
+    return { neg, dir, rx: globRe(anchored ? l : `**/${l}`) };
+  }).filter(r => r.rx.source !== '^$');
+  return p => {
+    const parts = String(p).replace(/\\/g, '/').replace(/^\.\//, '').split('/');
+    for (let i = 1; i <= parts.length; i++) {
+      const sub = parts.slice(0, i).join('/'), isDir = i < parts.length;
+      let ign = false;
+      for (const r of rules) if ((!r.dir || isDir) && r.rx.test(sub)) ign = !r.neg;
+      if (ign) return true;
+    }
+    return false;
+  };
+}
 
 // A note's frontmatter fields and first heading, cached by mtime and size in tools/hooks/state/note-meta.json, so the
 // hooks stat a knowledge base instead of reading it. Lesson: 3000 notes were read whole at every prompt and stop.
@@ -334,7 +356,9 @@ const PERSONAL = [
   // only placeholders are skipped (<user>, %USERNAME%, $USER, "you", USERNAME); a real account named "User" is personal
   // too. Lesson: on a machine whose account is "User", every home path passed, since "USER" was skipped in any case
   [/[A-Za-z]:[\\/]+Users[\\/]+(?!<|\$|%|USERNAME\b|you(r)?\b|Public\b|Default\b|All Users\b)[A-Za-z0-9._-]+/i, 'a personal Windows path'],
-  [/\/(home|Users)\/(?!<|user\b|you\b|\$)[a-z0-9._-]{2,}\//i, 'a personal home path'],
+  // (case-sensitive: "/home/user/" and "/Users/you/" are the usual placeholders, but an account named "User" in macOS
+  // or Git Bash form ("/c/Users/User") is real. Lesson: the same account's home paths passed in Unix form)
+  [/(?<![A-Za-z]:)\/(home|Users)\/(?!<|user\/|you\/|Shared\/|\$)[A-Za-z0-9._-]{2,}\//, 'a personal home path'],
   // first part 10 to 255, every part a real octet, and not a version ("v9.7.0.3", "version 12.1.0.4", "9.7.0.3")
   // Lesson: four-part version numbers in a game's data were flagged as IP addresses.
   [/(?<![\w.]|\bv|\bversions?[\s:=]{1,3}|\bbuild[\s:=]{1,3})(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}(?![\w.])(?<!127\.0\.0\.1)/i, 'an IP address']
@@ -370,7 +394,8 @@ function playbooksRead() {
 // so "lands" meets "land" and "colors" meets "colored"), when at least two are shared. Generic runbooks are left out.
 const STOP_STEMS = new Set('about after again their there these those which while where would could should thing pleas thank with make have from this that want need help into more some just like what when your mine also very much'.split(' ').map(w => w.slice(0, 5)));
 export function closestRunbook(prompt) {
-  const stems = s => new Set((String(s).toLowerCase().match(/[a-z]{4,}/g) || []).map(w => w.slice(0, 5)).filter(w => !STOP_STEMS.has(w)));
+  // (a plural "s" goes first: "lands" was "lands" and "land" was "land", so the two never met)
+  const stems = s => new Set((String(s).toLowerCase().match(/[a-z]{4,}/g) || []).map(w => (w.length >= 5 ? w.replace(/s$/, '') : w).slice(0, 5)).filter(w => !STOP_STEMS.has(w)));
   const want = stems(prompt);
   let best = null;
   for (const pb of playbooks()) {
@@ -620,11 +645,14 @@ export function menu() {
 export function expandMenu(prompt) {
   const { codes, flags } = menu();
   const known = [], unknown = [], kflags = [], uflags = [];
-  const lead = /^\s*([A-Z]\d{1,2})(?=$|[\s,.;:])/.exec(prompt || '');
-  for (const m of String(prompt || '').matchAll(/(?:^|\s)([A-Z]\d{1,2})(?=$|[\s,.;:])/g)) {
-    if (codes[m[1]]) { if (!known.includes(m[1])) known.push(m[1]); } else if (lead && lead[1] === m[1]) unknown.push(m[1]);
+  // several codes at once ("A2 B4", "A2, B4", "A2+B4", "A2 and B4") each expand; an unknown one is asked about when it
+  // sits in the leading run of codes. Lesson: a project's menu took only the first of two codes.
+  const leadRun = /^\s*([A-Z]\d{1,2}(?:\s*(?:[,;/+&]|\band\b|\s)\s*[A-Z]\d{1,2})*)(?=$|[\s,.;:])/.exec(prompt || '');
+  const lead = new Set(leadRun ? leadRun[1].match(/[A-Z]\d{1,2}/g) : []);
+  for (const m of String(prompt || '').matchAll(/(?:^|[\s,;/+&])([A-Z]\d{1,2})(?=$|[\s,.;:/+&])/g)) {
+    if (codes[m[1]]) { if (!known.includes(m[1])) known.push(m[1]); } else if (lead.has(m[1]) && !unknown.includes(m[1])) unknown.push(m[1]);
   }
-  if (known.length || lead) {
+  if (known.length || lead.size) {
     for (const m of String(prompt || '').matchAll(/(?:^|\s)--([\w-]+)(?:[ =]([^\s-][^\s]*))?/g)) {
       if (flags[m[1]]) kflags.push([m[1], m[2] || '']); else uflags.push(m[1]);
     }
@@ -1250,7 +1278,7 @@ export function context(t, cfg, answerOverride) {
   // Lesson: stop rounds alternated, each one asking again for what an earlier message of the turn already said.
   // a step waived with "node tools/hooks/hooks.mjs waive <name> <reason>" counts like N/A(<name>): <reason> in the
   // answer, so the user's answer carries no check names. Lesson: waiver lines were noise in what the user read.
-  const waives = cmds.map(c => /hooks\.mjs["']?\s+waive\s+([a-z][\w-]*)\s+["']?([^"'\n]+)/i.exec(c)).filter(Boolean).map(m => `N/A(${m[1]}): ${m[2].trim()}`).join('\n');
+  const waives = [...cmds, ...(t.toolsKnown ? [] : loggedRuns(t.since).map(r => r.cmd))].map(c => /hooks\.mjs["']?\s+waive\s+([a-z][\w-]*)\s+["']?([^"'\n]+)/i.exec(c)).filter(Boolean).map(m => `N/A(${m[1]}): ${m[2].trim()}`).join('\n');
   const all = turnText(t.entries), said = inEnglish(`${answer}\n${all}\n${waives}`, cfg);
   return {
     ...t, uses, cmds, changed, work, pbs, routed, reads, skillsUsed, usedPb, routedSkills, usedSkills, runs: t.toolsKnown ? runsOf(t.entries) : loggedRuns(t.since),
@@ -1337,10 +1365,12 @@ const mirrorFresh = (src, dst) => {
     // (Lesson: after a rollback the restored skill's mirror kept the newer engine's copy)
     // ...and its size: a restore can also bring back other content under the stamped time (seen once in a trial)
     const s = fs.statSync(abs(src));
-    return !!st && st.t === fs.statSync(abs(dst)).mtimeMs && st.s === s.mtimeMs && st.z === s.size && st.t >= ENGINE_MTIME;
+    return !!st && st.t === fs.statSync(abs(dst)).mtimeMs && st.s === s.mtimeMs && st.z === s.size && (st.e ?? st.t) >= ENGINE_MTIME;
   } catch { return false; }
 };
-const stampMirror = (dst, src) => { try { const now = new Date(); fs.utimesSync(abs(dst), now, now); const s = fs.statSync(abs(src)); stamps()[dst] = { t: fs.statSync(abs(dst)).mtimeMs, s: s.mtimeMs, z: s.size }; STAMPS_DIRTY = true; } catch { } };
+// (the engine's own time goes into the stamp; a mirror found current keeps its file time. Lesson: re-stamping touched
+// every mirror file after a fresh clone, which looked like the turn's work to other tools watching file times)
+const stampMirror = (dst, src) => { try { ENGINE_MTIME ||= fs.statSync(fileURLToPath(import.meta.url)).mtimeMs; const s = fs.statSync(abs(src)); stamps()[dst] = { t: fs.statSync(abs(dst)).mtimeMs, s: s.mtimeMs, z: s.size, e: ENGINE_MTIME }; STAMPS_DIRTY = true; } catch { } };
 const saveStamps = () => { if (STAMPS_DIRTY) { writeState('mirror-stamps.json', MIRROR_STAMPS); STAMPS_DIRTY = false; } };
 const writeIfChanged = (p, text) => { if (read(abs(p)) === text) return false; fs.mkdirSync(path.dirname(abs(p)), { recursive: true }); fs.writeFileSync(abs(p), text); GENERATED_WRITES.add(p); return true; };
 const firstHeading = text => (/^#\s+(.+)$/m.exec(text || '') || [, ''])[1].replace(/^Playbook:\s*/i, '').trim();
@@ -2689,7 +2719,12 @@ export function promptHints(prompt, cfg = config(), withNotices = true) {
     hints.push('THE USER SOUNDS UPSET about a miss. Use the learn-from-upset skill (skills/learn-from-upset/SKILL.md): fix the miss first by its runbook ' +
       'and say plainly what went wrong (no arguing, no long apology), then weigh how important the lesson is (one-off, lesson in the skill that missed it, rule, ' +
       'hook check, new skill, or engine feedback that reaches every project) and write it there. End with "Learned (<level>): <lesson> → <file>". REQ: upset-learned.');
-  if (isRuleRequest(p, cfg) && !isUpset(p, cfg))
+  // feedback or a message the user wants passed on to someone else carries that receiver's requirements, not this
+  // project's ("give that feedback to the starter and mention to make sure it's fixed"). Lesson: such a relay got the
+  // REQUIREMENT hint.
+  const passOn = /\b(give|send|pass|forward|report|relay)\b[^.?!\n]{0,30}\b(feedback|report|lessons?|notes?|findings|message)\b[^.?!\n]{0,30}\bto\b/i.test(unquoted(p));
+  if (passOn) { /* the receiver's rules, not this project's */ }
+  else if (isRuleRequest(p, cfg) && !isUpset(p, cfg))
     hints.push('RULE REQUEST: the user is setting a standing rule. Use the project-rule skill: record the principle and why (in your own words, not theirs) with today\'s date, ' +
       'write the rule into CLAUDE.md, add a row to docs/checks/user-requirements.md, enforce it in tools/hooks/requirements.json (or say ' +
       '"hook: N/A <reason>"), run the hook tests and the audit. If it is not actually a rule, write "N/A(rule-request): <why>". REQ: rule-request.');
@@ -3341,11 +3376,16 @@ export function coreChecks(x, cfg) {
   // ("Searched: <what> - nothing found (<where>, 2026-10-20)"). Lesson: a "no proven list found" lookup was sent through
   // the whole three-source ledger.
   const nothingFound = /\bsearched:[^\n]*\b(nothing|no \w+( \w+)? found|not found|none found)\b[^\n]*\(\s*[^)\n]*\d{4}-\d\d-\d\d\s*\)/i.test(x.said);
-  if (web && (knowledge || researched) && !nothingFound && !(ledgerOk && /verified:\s*\d+\s+claims/i.test(x.said)) && !(!knowledge && /\bquick lookup:/i.test(x.said)))
+  // a project whose own research rule already asks for sources and a date names that rule's line in config
+  // ("researchCoveredBy": "<regex>"); an answer that carries it has met the project's rule instead. Lesson: a deck
+  // project's meta lookups, with their own source and date line, were sent through the whole ledger too.
+  const ownRule = (() => { try { return !!cfg.researchCoveredBy && new RegExp(cfg.researchCoveredBy, 'im').test(x.said); } catch { return false; } })();
+  if (web && (knowledge || researched) && !nothingFound && !ownRule &&!(ledgerOk && /verified:\s*\d+\s+claims/i.test(x.said)) && !(!knowledge && /\bquick lookup:/i.test(x.said)))
     add('research-verified', `This turn used the web${knowledge ? ' in a knowledge project' : ''}. Follow the research skill, situation C: a ledger (node skills/research/scripts/claims.mjs new "<question>"), ` +
       'at least three independent sources with sponsored and biased ones screened out, claims.mjs check passing, and the answer ending with "Verified: <n> claims ..."' +
       (knowledge ? '.' : '. A one-fact lookup for the work at hand instead says so: "Quick lookup:" with its link.') +
-      ' A search that found nothing says "Searched: <what> - nothing found (<where>, <date>)".');
+      ' A search that found nothing says "Searched: <what> - nothing found (<where>, <date>)".' +
+      (cfg.researchCoveredBy ? ` The project's own research rule counts too: its line (config researchCoveredBy: ${cfg.researchCoveredBy}).` : ''));
   // REQ: answer-traced. "Did I make that up?": every number in a factual answer, and every number written into the
   // knowledge base, appears in something read this turn; every project file the answer cites was opened.
   // A cited file is a bare path, a markdown link's target or a path in backticks, so one with spaces counts too, in any
@@ -3749,7 +3789,10 @@ export function skillLearnCheck(x, cfg, failingNow = []) {
   // A runbook or skill the agent says was the wrong one (its name or one of its checks on a line that says so) was only
   // matched by mistake: nothing to learn there.
   const misrouted = item => [item.name, item.skillName, ...own(item)].filter(Boolean).some(n => MISROUTED(n).test(x.said));
-  const failedOwn = [...x.usedPb, ...x.usedSkills].filter(item => !misrouted(item) && own(item).some(tag => !WORDING.has(tag) && failing.has(tag)));
+  // A check waived this turn did not apply: its runbook was matched by mistake, not followed and missed.
+  // Lesson: a runbook only reached through a wrong route was asked for a lesson after its check was waived.
+  const waivedHere = tag => new RegExp(`N/A\\(${esc(tag)}\\)`, 'i').test(x.said);
+  const failedOwn = [...x.usedPb, ...x.usedSkills].filter(item => !misrouted(item) && own(item).some(tag => !WORDING.has(tag) && failing.has(tag) && !waivedHere(tag)));
   const followed = [...new Set(failedOwn.map(item => item.file.endsWith('SKILL.md') ? item.file.replace(/SKILL\.md$/, '') : item.file))];
   // setup meets each runbook's checks for the first time: that is setting it up, not a miss to learn from
   if (settingUp() || x.changed.includes('SETUP-PROMPT.md')) return [];
@@ -4306,7 +4349,9 @@ export function stopDecision(data, cfg = config()) {
   const steps = [...missing, ...follow];
   // REQ: answer-resent. A round whose every step is met by files or runs (none by the answer's own words) lets an
   // unchanged answer end with one short line. The full answer sent in this round is kept, for the next round to read.
-  const shortOk = steps.every(fileFixable);
+  // Not in a headless run (claude -p, the SDK): its caller gets only the last message, so it must be the whole answer.
+  const headless = (t.entries || []).some(r => /^sdk/.test(String(r.entrypoint || '')));
+  const shortOk = !headless && steps.every(fileFixable);
   logged('blocked', { steps: steps.map(m => m.tag) });
   writeState('stop-blocks.json', { [key]: nblocks + 1 });
   writeState('stop-failed.json', { key, tags: [...new Set([...x.failedBefore, ...missing.map(m => m.tag)])], foreseen: [...new Set([...(sameTurn ? failed.foreseen || [] : []), ...follow.map(m => m.tag)])],
@@ -4622,7 +4667,8 @@ if (isMain) {
   }
   // the session and prompt notices in full, when a host cut a long hook output down (fitOutput)
   // waive a step that truly does not apply, out of the user's answer: the Stop hook reads it from this turn's commands
-  if (cmd === 'waive') { const [tag, ...why] = process.argv.slice(3); if (!tag || why.join(' ').trim().split(/\s+/).length < 3) { console.log('usage: node tools/hooks/hooks.mjs waive <name> "<the specific reason, a few words>"'); process.exit(2); } console.log(`waived for this turn: ${tag} (${why.join(' ').trim()})`); process.exit(0); }
+  // (recorded in the run log too, so "check" sees it for an agent whose tool calls the hooks can't read)
+  if (cmd === 'waive') { const [tag, ...why] = process.argv.slice(3); if (!tag || why.join(' ').trim().split(/\s+/).length < 3) { console.log('usage: node tools/hooks/hooks.mjs waive <name> "<the specific reason, a few words>"'); process.exit(2); } const msg = `waived for this turn: ${tag} (${why.join(' ').trim()})`; logRun(`node tools/hooks/hooks.mjs waive ${tag} "${why.join(' ').trim().replace(/"/g, "'")}"`, msg, false); console.log(msg); process.exit(0); }
   if (cmd === 'notices') { console.log(notices(config()).join('\n') || 'no notices.'); process.exit(0); }
   if (cmd === 'why') { const d = read(path.join(STATE, 'stop-details.md')).trim(); console.log(d || 'nothing pending: the last answer passed every check.'); process.exit(0); }
   // run a command and record its result in the run log, for agents whose tool history the hooks can't read
@@ -4677,7 +4723,8 @@ if (isMain) {
   try { data = JSON.parse(fs.readFileSync(0, 'utf8') || '{}'); } catch {}
   HOST = hookHost(data);
   SID = String(data.session_id || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
-  // old sessions' state files go after 7 days (pruneState)
+  // old sessions' state files go after 7 days (pruneState), the unsuffixed ones too: what agents without hooks and older
+  // releases left. Lesson: an 80 KB snapshot.json from before per-session files stayed for good.
   if (cmd === 'session' && !envOf('BENCH')) pruneState();
   try {
     const fn = { session: cmdSession, prompt: cmdPrompt, pretool: cmdPretool, posttool: cmdPosttool, stop: cmdStop }[cmd];

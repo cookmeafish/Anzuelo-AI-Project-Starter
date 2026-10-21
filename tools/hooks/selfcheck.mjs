@@ -530,6 +530,9 @@ const STOP = [
   // skills learn from misses
   { name: 'skill-learn: the followed skill\'s own check failed earlier this turn, no lesson written: blocked', prompt: 'debug the failing import', tools: [sk('debug')], files: { 'scratch-work/import.md': 'x', 'docs/CHANGELOG.md': 'x' },
     active: true, blocks: 1, failed: ['debug-root-cause'], answer: 'Skill: debug. Root cause: the date parser.' + FIN, expect: { block: true, tags: ['skill-learn'] } },
+  { name: 'skill-learn: the skill\'s check that failed earlier was waived as not applying: no lesson demanded', prompt: 'debug the failing import', files: { 'scratch-work/import.md': 'x', 'docs/CHANGELOG.md': 'x' },
+    tools: [sk('debug'), bash('node tools/hooks/hooks.mjs waive debug-root-cause "wrong route, the import was never broken"', 'waived for this turn: debug-root-cause')],
+    active: true, blocks: 1, failed: ['debug-root-cause'], answer: 'Skill: debug. The import works; the file was simply not there yet.' + FIN, expect: { not: ['skill-learn'] } },
   { name: 'skill-learn: a complaint with no failed check of the skill demands no lesson: passes', prompt: 'you forgot the logs, debug the failing import', tools: [sk('debug')], files: { 'scratch-work/import.md': 'x', 'docs/CHANGELOG.md': 'x' },
     answer: 'Skill: debug. Root cause: the date parser.' + FIN, expect: { not: ['skill-learn'] } },
   { name: 'skill-learn: another check failed, not the followed skill\'s own: no lesson demanded', prompt: 'debug the failing import', tools: [sk('debug')], files: { 'scratch-work/import.md': 'x', 'docs/CHANGELOG.md': 'x' },
@@ -681,6 +684,13 @@ const PROMPT = [
   { name: 'closest runbook: other wording for a known job names that runbook instead of NO RUNBOOK', prompt: 'my zorbel has an issue with flimwraps, sort out the grobbles please',
     setup: { 'docs/playbooks/zorbel-tune.md': '---\nname: zorbel-tune\nsummary: Tune a zorbel - fix its grobbles, flimwraps and quonks\ntriggers: tune my zorbel, improve my zorbel\n---\n# Zorbel tune\n1. Read the zorbel.\n' },
     has: ['CLOSEST RUNBOOK: no trigger phrase matched, but docs/playbooks/zorbel-tune.md'], hasNot: ['NO RUNBOOK'] },
+  // other phrasings: plurals against singular four-letter words, words in another order (Lesson: "lands" never met "land")
+  { name: 'closest runbook: plural words meet the runbook\'s singular ones', prompt: 'please fix the flims and quons, they keep coming loose',
+    setup: { 'docs/playbooks/zorbel-tune.md': '---\nname: zorbel-tune\nsummary: Tune a zorbel - its flim, quon and grob\ntriggers: tune my zorbel, improve my zorbel\n---\n# Zorbel tune\n1. Read the zorbel.\n' },
+    has: ['CLOSEST RUNBOOK: no trigger phrase matched, but docs/playbooks/zorbel-tune.md'], hasNot: ['NO RUNBOOK'] },
+  { name: 'closest runbook: a request sharing one word or none still gets NO RUNBOOK', prompt: 'please fix the garden shed door, it keeps coming loose',
+    setup: { 'docs/playbooks/zorbel-tune.md': '---\nname: zorbel-tune\nsummary: Tune a zorbel - its flim, quon and grob\ntriggers: tune my zorbel, improve my zorbel\n---\n# Zorbel tune\n1. Read the zorbel.\n' },
+    has: ['NO RUNBOOK'], hasNot: ['CLOSEST RUNBOOK'] },
   { name: 'rule request hint', prompt: 'from now on always give prices in euros', has: ['RULE REQUEST'] },
   { name: 'word routing: key words in any order and with endings still route', prompt: 'please search for the latest version on the web', has: ['SKILL: research'] },
   { name: 'upset-learned: shouting in capitals sends the agent to the learn-from-upset skill', prompt: 'WHY DID YOU SKIP THE SOURCES AGAIN', has: ['THE USER SOUNDS UPSET', 'learn-from-upset'] },
@@ -688,6 +698,15 @@ const PROMPT = [
   { name: 'upset-learned: a plain why-question is not upset', prompt: 'why does the page take 2 seconds to load', hasNot: ['THE USER SOUNDS UPSET'] },
   { name: 'menu code expands', prompt: 'K2 standing desks under 500 --brief', has: ['MENU CODE K2', 'MENU FLAG --brief', 'ROUTE: research'] },
   { name: 'unknown menu code asks', prompt: 'Z9 do the thing', has: ['UNKNOWN MENU CODE Z9'] },
+  // Lessons: a question asking whether something did a good job got the PRAISE hint; feedback to pass on got REQUIREMENT
+  { name: 'praise hint: a question asking for a verdict is not praise', prompt: 'I saw the engine running. Is it doing a good job or a bad job? Tell me honestly', hasNot: ['PRAISE'] },
+  { name: 'praise hint: praise followed by a question is still praise', prompt: 'Great job! Can you also add the sideboard?', has: ['PRAISE'] },
+  { name: 'requirement hint: feedback to pass on to someone else is not a requirement here', prompt: 'Give that feedback to the starter and mention to do several tests to make sure it is fixed for any situation', hasNot: ['REQUIREMENT', 'RULE REQUEST'] },
+  { name: 'requirement hint: the same words as the user\'s own requirement still count', prompt: 'make sure every invoice has a due date', has: ['REQUIREMENT'] },
+  // Lesson: a project's menu took only the first of two codes
+  { name: 'menu codes: two codes in one message both expand', prompt: 'E1 E5', has: ['MENU CODE E1', 'MENU CODE E5'] },
+  { name: 'menu codes: codes joined by a comma or "and" both expand, an unknown one among them is asked about', prompt: 'E1, E5 and Z8 please', has: ['MENU CODE E1', 'MENU CODE E5', 'UNKNOWN MENU CODE Z8'] },
+  { name: 'menu codes: a code-like word inside a sentence is not asked about', prompt: 'the Z8 bus was late again today', hasNot: ['MENU CODE', 'UNKNOWN MENU CODE'] },
   { name: 'notification is not a prompt', prompt: '<task-notification>agent done</task-notification>', none: true },
   { pack: 'knowledge', name: 'inbox files are announced', prompt: 'hello', setup: { 'inbox/scan.pdf': 'x' }, has: ['INBOX: 1 file'] },
   { name: 'setup notice while SETUP-PROMPT.md is present (not the template)', prompt: 'hello', removeMarker: true, has: ['SETUP IN PROGRESS'] },
@@ -767,6 +786,15 @@ STOP.push(
     answer: 'Skill: research. Quick lookup: most hold 100 kg.[1]\n\nSources:\n[1] https://example.com/desks - 2026-10-17', expect: { block: false } },
   { name: 'research-verified: a search that found nothing, said with where and when: passes', prompt: 'is there a proven list for this deck', tools: [sk('research'), { name: 'WebSearch', input: { query: 'proven brawl list hei bai' }, result: 'no matching results' }],
     answer: 'Skill: research. Searched: a proven list for this deck - nothing found (MTGGoldfish, Moxfield, 17Lands, 2026-10-20).', expect: { not: ['research-verified'] } },
+  // a project's own research rule (its source-and-date line) can stand in for the ledger: "researchCoveredBy" in config
+  // Lesson: a deck project's meta lookups, which its own rule already checks, were sent through the whole ledger too
+  { name: 'research-verified: the project\'s own research rule line, named in config: passes', prompt: 'is there a proven list for this deck',
+    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), researchCoveredBy: '^Meta checked: .+\\d{4}-\\d\\d-\\d\\d' }) },
+    tools: [sk('research'), { name: 'WebSearch', input: { query: 'proven brawl list' }, result: 'One list: 52% over 40 games' }],
+    answer: 'Skill: research. One proven list exists, at 52% over 40 games.\nMeta checked: Moxfield, MTGGoldfish, 2026-10-20', expect: { not: ['research-verified'] } },
+  { name: 'research-verified: the same line without the config: blocked', prompt: 'is there a proven list for this deck',
+    tools: [sk('research'), { name: 'WebSearch', input: { query: 'proven brawl list' }, result: 'One list: 52% over 40 games' }],
+    answer: 'Skill: research. One proven list exists, at 52% over 40 games.\nMeta checked: Moxfield, MTGGoldfish, 2026-10-20', expect: { block: true, tags: ['research-verified'] } },
   { name: 'research-verified: web research with no ledger: blocked', prompt: 'is it true that standing desks hold 150 kg', tools: [sk('research'), { name: 'WebSearch', input: { query: 'desk load' }, result: 'Desk A: 150 kg' }],
     answer: 'Skill: research. Yes, 150 kg (https://a.example).', expect: { block: true, tags: ['research-verified'] } },
   { name: 'research-verified: a passing ledger and the Verified line: passes', edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), packs: (JSON.parse(s).packs || []).filter(p => p !== 'knowledge') }), 'tools/hooks/requirements.json': s => JSON.stringify({ ...JSON.parse(s), requirements: JSON.parse(s).requirements.filter(r => r.pack !== 'knowledge') }) }, prompt: 'is it true that standing desks hold 150 kg',
@@ -1553,6 +1581,10 @@ STOP.push(
     expect: { block: true, tags: ['playbook-named'], not: ['answer-resent'] } },
   { ...DEBUG_TURN, name: 'answer-resent: a round of file steps offers the short line', tools: [sk('debug'), ...many(16)], answer: DEBUG_OK,
     expect: { block: true, tags: ['status-handoff'], says: /Answer unchanged; done:/ } },
+  // a headless run (claude -p, the SDK) hands its caller only the last message, so that one is always the whole answer
+  { ...DEBUG_TURN, name: 'answer-resent: a headless run is not offered the short line', tools: [sk('debug'), ...many(16)], answer: DEBUG_OK,
+    rows: [{ type: 'system', entrypoint: 'sdk-cli', content: 'headless' }],
+    expect: { block: true, tags: ['status-handoff'] }, after: (dir, reason) => !/Answer unchanged/.test(reason) || `offered the short line: ${reason.slice(-400)}` },
   { ...DEBUG_TURN, name: 'answer-resent: a round that needs the answer changed does not offer the short line', answer: 'Skill: debug. Fixed it.' + FIN,
     expect: { block: true, tags: ['debug-root-cause'] }, after: (dir, reason) => !/Answer unchanged/.test(reason) || `offered the short line: ${reason.slice(-400)}` }
 );
@@ -2066,6 +2098,21 @@ if (mineB()) { // agent-neutral: an agent without hooks uses begin / check
     const c2 = node('check', '--answer-file', path.join(dir, '.cache/answer.md'));
     report(b.stdout.includes('ROUTE: plan') && c1.status === 1 && /CHECK: FAIL\nAlmost done: [^\n]*\n1\. [^\n]+/.test(c1.stdout) && /Names: [a-z]/.test(c1.stdout) && !/round 1 of/.test(c1.stdout) && /Full steps:/.test(c1.stdout) && !/Claude/.test(c1.stdout) && c2.status === 0 && /CHECK: PASS/.test(c2.stdout),
       'agent-neutral: begin routes, check fails an incomplete answer and passes a complete one', `begin: ${b.stdout.slice(0, 120)} | c1: ${c1.stdout.slice(0, 200)} | c2: ${c2.stdout.slice(0, 300)}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+if (mineB()) { // waive command for an agent without hooks: check reads the waiver from the run log, so the answer carries
+  // no check names. Lesson: N/A(<name>) lines were noise in what the user read, and the waive command reached only hooks.
+  const dir = copyProject();
+  try {
+    const node = (...a) => spawnSync(process.execPath, [path.join(dir, 'tools', 'hooks', 'hooks.mjs'), ...a], { cwd: dir, encoding: 'utf8', env: { ...process.env, STARTER_MEMORY_DIR: path.join(dir, '.memtest') } });
+    node('begin', 'make a plan for the csv export');
+    write(dir, { 'docs/plans/2026-10-17-export.md': '# Export: plan', '.cache/answer.md': 'Playbook: plan.md. Saved docs/plans/2026-10-17-export.md.' });
+    const c1 = node('check', '--answer-file', path.join(dir, '.cache/answer.md'));
+    const w = node('waive', 'finished-summary', 'the user asked for no summary today');
+    const c2 = node('check', '--answer-file', path.join(dir, '.cache/answer.md'));
+    report(/finished-summary/.test(c1.stdout) && /waived for this turn: finished-summary/.test(w.stdout) && !/finished-summary/.test(c2.stdout) && !/N\/A\(/.test(fs.readFileSync(path.join(dir, '.cache/answer.md'), 'utf8')),
+      'waive command: an agent without hooks waives a step with the command, and check no longer asks for it', `c1: ${c1.stdout.slice(0, 300)} | w: ${w.stdout} | c2: ${c2.stdout.slice(0, 300)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
@@ -2590,6 +2637,14 @@ if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) {
       const audit = nodeIn(a, 'tools/audit.mjs').stdout;
       report(f.status === 0 && /^- 2026-10-01: an older lesson\n- \d{4}-\d\d-\d\d: the gate judged[^\n]*\n\n## Related/m.test(fb) && (inbox.match(/the gate judged/g) || []).length === 1 && /nothing new/.test(r2.stdout) && /1 feedback line\(s\) from projects not reviewed/.test(audit),
         'starter feedback: noted in the project, reported once to the linked starter, and the starter\'s audit warns until reviewed', `${f.stdout}${f.stderr} | ${r1.stdout}${r1.stderr} | ${r2.stdout} | ${audit.split('\n').filter(l => /feedback/.test(l)).join(' ')}`);
+      // a sent line edited a little afterwards is not sent again; a new line on the same day is
+      // (Lesson: report sent two edited lines again, as if they were new)
+      const fbp = path.join(p, 'docs/starter-feedback.md');
+      fs.writeFileSync(fbp, fs.readFileSync(fbp, 'utf8').replace('the gate judged the whole command line', 'the commit gate judged the whole command line, not only its first command'));
+      nodeIn(p, 'tools/starter.mjs', 'feedback', 'upgrade review rows for packs that are not installed could be decided automatically');
+      const r3 = nodeIn(p, 'tools/starter.mjs', 'report'), inbox3 = files.length ? fs.readFileSync(path.join(inboxDir, files[0]), 'utf8') : '';
+      report(/sent 1 line/.test(r3.stdout) && (inbox3.match(/gate judged/g) || []).length === 1 && /packs that are not installed/.test(inbox3),
+        'starter feedback: a reported line edited afterwards is not sent again; a truly new line is', `${r3.stdout}${r3.stderr} | ${inbox3.slice(-400)}`);
     } finally { for (const d of [p, fake, a]) if (d) fs.rmSync(d, { recursive: true, force: true }); }
   }
   // a dry run prints a summary: counts per folder and the collisions; --verbose lists every file
@@ -2637,6 +2692,43 @@ if (mineB()) { // skill-curate: retiring a runbook takes its generated skill, ch
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
+if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) { // starter.mjs upgrade / update against a fake linked starter
+  // (its new-project.mjs only prints what it was given): the upgrade's options pass through both, and local changes in
+  // the linked clone block update with an explanation, or stay on top of the newest starter with --keep-local
+  // Lessons: update dropped --verbose; a clone holding a project's own engine fixes blocked every update.
+  const dirs = [];
+  try {
+    const mkd = n => { const d = fs.mkdtempSync(path.join(os.tmpdir(), `starter-fake-${n}-`)); dirs.push(d); return d; };
+    const origin = mkd('origin'), og = gitInit(origin);
+    write(origin, { 'tools/new-project.mjs': "console.log('UPGRADE ARGS ' + JSON.stringify(process.argv.slice(3)));\n", 'notes.md': 'one\n', 'local.md': 'base\n' });
+    og('add', '-A'); og('commit', '-q', '--no-verify', '-m', 'one');
+    const clone = path.join(mkd('clone'), 'starter');
+    spawnSync('git', ['clone', '-q', origin, clone], { encoding: 'utf8' });
+    const cg = (...a) => spawnSync('git', a, { cwd: clone, encoding: 'utf8' });
+    cg('config', 'user.name', 'Test User'); cg('config', 'user.email', 'test@example.com');
+    write(origin, { 'notes.md': 'one\ntwo\n' }); og('commit', '-q', '--no-verify', '-am', 'two');
+    const p = copyProject(); dirs.push(p);
+    fs.rmSync(path.join(p, '.starter-template'), { force: true });
+    write(p, { 'tools/starter.local.json': JSON.stringify({ path: clone }) });
+    const st = (...a) => spawnSync(process.execPath, ['tools/starter.mjs', ...a], { cwd: p, encoding: 'utf8' });
+    const args = r => (/UPGRADE ARGS (\[.*\])/.exec(r.stdout || '') || [])[1] || '';
+    const up = st('upgrade', '--dry-run', '--verbose');
+    write(clone, { 'local.md': 'mine\n' });
+    const blocked = st('update', '--dry-run', '--verbose');
+    const kept = st('update', '--keep-local', '--dry-run', '--verbose');
+    const rd = f => fs.readFileSync(path.join(clone, f), 'utf8').replace(/\r\n/g, '\n');
+    const keptOk = kept.status === 0 && /--verbose/.test(args(kept)) && /--dry-run/.test(args(kept)) && rd('local.md') === 'mine\n' && rd('notes.md') === 'one\ntwo\n';
+    // negative: local changes that clash with the newest starter stop the update and stay in git's stash
+    write(origin, { 'local.md': 'theirs\n' }); og('commit', '-q', '--no-verify', '-am', 'three');
+    const clash = st('update', '--keep-local', '--dry-run');
+    const stashed = /autostash/.test(cg('stash', 'list').stdout || '');
+    report(/--dry-run/.test(args(up)) && /--verbose/.test(args(up)) && blocked.status === 1 && /local\.md/.test(blocked.stderr) && /--keep-local/.test(blocked.stderr) && !args(blocked) && keptOk
+      && clash.status === 1 && /clash/.test(clash.stderr) && !args(clash) && stashed,
+      'starter: upgrade and update pass --dry-run and --verbose on; local changes in the starter clone are explained, kept with --keep-local, and a clash stops safely',
+      `up ${args(up)} | blocked ${blocked.status} ${blocked.stderr.slice(0, 200)} | kept ${kept.status} ${args(kept)} ${kept.stderr.slice(0, 200)} | clash ${clash.status} ${clash.stderr.slice(0, 200)} stashed ${stashed}`);
+  } finally { for (const d of dirs) fs.rmSync(d, { recursive: true, force: true }); }
+}
+
 if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade-review (in the starter only: it makes projects): an upgrade that breaks a passing check rolls back
   const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-upg-'));
   try {
@@ -2648,6 +2740,10 @@ if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade
     const r = np('--upgrade');
     const restored = fs.readFileSync(path.join(proj, 'tools/audit.mjs'), 'utf8') === oldAudit;
     fs.rmSync(path.join(proj, 'tools/broken.mjs'));
+    // a starter trigger the project took out with "triggers_removed:" stays out after the upgrade; one only deleted from
+    // the triggers line comes back (Lesson: a deck project's narrowed triggers returned with every upgrade)
+    const planPb = path.join(proj, 'docs/playbooks/plan.md');
+    fs.writeFileSync(planPb, fs.readFileSync(planPb, 'utf8').replace(/^triggers:\s*(.*)$/m, (l, v) => `triggers_removed: make a plan\ntriggers: ${v.split(',').map(s => s.trim()).filter(t => !['make a plan', 'break this down'].includes(t)).join(', ')}`));
     const ok = np('--upgrade', '--no-selftest'), review = fs.readFileSync(path.join(proj, 'docs/DECISIONS.md'), 'utf8');
     report(r.status !== 0 && /ROLLED BACK/.test(r.stderr) && restored && ok.status === 0 && /## Upgrade review \(/.test(review) && /- self-tests: .*: \?/.test(review),
       'upgrade-review: an upgrade that breaks a passing check rolls back; a clean one writes the review', `${r.status} ${r.stderr.slice(0, 200)} | restored ${restored} | ${ok.status} ${ok.stderr.slice(0, 200)}`);
@@ -2655,6 +2751,9 @@ if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade
     const lastLine = (ok.stdout || '').trim().split(/\r?\n/).pop();
     report(/^Upgrade \S+( the starter copy)?: 0 regressions, [1-9]\d* decisions? needed/.test(lastLine) && !/^Upgrade .*regressions?,/m.test(r.stdout || ''),
       'upgrade-summary: a clean upgrade ends with one line naming the starter commit, the regressions and the decisions needed', `${lastLine} | rollback: ${(r.stdout || '').trim().split(/\r?\n/).pop()}`);
+    const plan = fs.readFileSync(planPb, 'utf8'), trig = (/^triggers:\s*(.*)$/m.exec(plan)?.[1] || '').split(',').map(s => s.trim());
+    report(ok.status === 0 && /^triggers_removed: make a plan$/m.test(plan) && !trig.includes('make a plan') && trig.includes('break this down') && trig.includes('write a plan'),
+      'upgrade: a trigger in triggers_removed stays out of the upgraded runbook; a trigger only deleted comes back', plan.split('\n').slice(0, 8).join(' | ').slice(0, 500));
   } finally { fs.rmSync(proj, { recursive: true, force: true }); }
 }
 
@@ -2669,6 +2768,30 @@ if (mineB()) { // agent-neutral: a fresh clone has no agent files; wire makes CL
     const again = spawnSync(process.execPath, ['tools/hooks/wire.mjs'], { cwd: dir, encoding: 'utf8' }).stdout;
     report(r.status === 0 && same && settings && has('.codex/hooks.json') && has('.claude/skills/debug/SKILL.md') && /already connected/.test(again),
       'agent-neutral: wire makes every agent\'s files on a fresh clone, and a second run changes nothing', `${r.stdout}${r.stderr} | ${again}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+if (mineB()) { // agent-neutral: wire keeps a project's own Codex hook commands, also inside a group shared with the engine,
+  // and never replaces a .codex/hooks.json that does not parse. Lesson: an adopted project's own hooks were dropped.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-'));
+  try {
+    const { wire } = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/wire.mjs')).href);
+    write(dir, { 'tools/hooks/config.json': JSON.stringify({ wireAgents: ['codex'] }) });
+    const cp = path.join(dir, '.codex/hooks.json'), own = c => ({ type: 'command', command: c, timeout: 30 });
+    write(dir, { '.codex/hooks.json': JSON.stringify({ hooks: {
+      UserPromptSubmit: [{ hooks: [own('python tools/hooks/hooks.py prompt')] }, { hooks: [own('node "/old/tools/hooks/hooks.mjs" prompt')] }],
+      Stop: [{ hooks: [own('node "/old/tools/hooks/hooks.mjs" stop'), own('python tools/hooks/hooks.py stop')] }] } }) });
+    wire(dir); wire(dir);
+    const after = fs.readFileSync(cp, 'utf8'), j = JSON.parse(after), cmds = ev => (j.hooks[ev] || []).flatMap(g => g.hooks.map(h => h.command));
+    const kept = cmds('UserPromptSubmit').includes('python tools/hooks/hooks.py prompt') && cmds('Stop').includes('python tools/hooks/hooks.py stop');
+    const engineOnce = ['UserPromptSubmit', 'Stop', 'SessionStart'].every(ev => cmds(ev).filter(c => c.includes('hooks.mjs')).length === 1) && !after.includes('/old/');
+    // negative: a file that does not parse stays as it is, and wire says so
+    const broken = '{ "hooks": { "Stop": [ "node tools/hooks/hooks.mjs stop", }';
+    fs.writeFileSync(cp, broken);
+    let err = ''; try { wire(dir); } catch (e) { err = e.message; }
+    const untouched = fs.readFileSync(cp, 'utf8') === broken;
+    report(kept && engineOnce && /does not parse/.test(err) && untouched,
+      'agent-neutral: wire keeps the project\'s own Codex hooks (also in a group shared with the engine) and leaves a broken file alone', `kept ${kept}, engine once ${engineOnce}, err "${err}", untouched ${untouched} | ${after.slice(0, 400)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
@@ -2815,8 +2938,12 @@ if (mineB()) { // event-hint after an edit: writing sign-in code names the manda
     const mail = docEdit(`Contact: ${['jo.smith', 'mailhost.net'].join('@')} for the launch.`), safe = docEdit('Contact: name@example.com for the launch.');
     // a real account named "User" is personal too; only placeholders pass (Lesson: such a machine's home paths all passed)
     const home = docEdit(`Data lives in C:${'\\'}Users${'\\'}User${'\\'}Documents${'\\'}shop.`), ph = docEdit(`Data lives in C:${'\\'}Users${'\\'}<you>${'\\'}Documents and %USERPROFILE%.`);
-    report(/PUBLISH SAFETY: docs\/plans\/launch\.md .*an email address/.test(mail) && !/PUBLISH SAFETY/.test(safe) && /a personal Windows path/.test(home) && !/PUBLISH SAFETY/.test(ph),
-      'publish-safety: an email or a home path written into a tracked doc is named at the edit; placeholders are quiet', `${mail.slice(0, 200)} | ${safe.slice(0, 200)} | ${home.slice(0, 200)} | ${ph.slice(0, 200)}`);
+    // ...in Git Bash and macOS form too ("/c/Users/User", "/Users/User"); "/home/user/" stays a placeholder
+    const U = ['', 'Users', 'User', ''].join('/'); // built at run time, so this file names no account
+    const bash = docEdit(`Run it from /c${U}projects/shop/.`), mac = docEdit(`Data lives in ${U}Documents/shop.`), unixPh = docEdit('Data lives in /home/user/shop/ and /Users/you/shop/.');
+    report(/PUBLISH SAFETY: docs\/plans\/launch\.md .*an email address/.test(mail) && !/PUBLISH SAFETY/.test(safe) && /a personal Windows path/.test(home) && !/PUBLISH SAFETY/.test(ph)
+      && /a personal home path/.test(bash) && /a personal home path/.test(mac) && !/PUBLISH SAFETY/.test(unixPh),
+      'publish-safety: an email or a home path written into a tracked doc is named at the edit; placeholders are quiet', `${mail.slice(0, 200)} | ${safe.slice(0, 200)} | ${home.slice(0, 200)} | ${ph.slice(0, 200)} | ${bash.slice(0, 150)} | ${mac.slice(0, 150)} | ${unixPh.slice(0, 150)}`);
     report(/MUST FOLLOW: security-review/.test(first) && /security-code/.test(first) && !/MUST FOLLOW/.test(again) && !plain.trim() && !/MUST FOLLOW: debug/.test(script), 'event-hint: an edit that writes sign-in code names the security review at once, once per turn; a plain code edit names no debug', `${first.slice(0, 200)} | ${again.slice(0, 100)} | ${plain.slice(0, 100)} | ${script.slice(0, 100)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
@@ -3140,6 +3267,57 @@ if (mineB()) { // skill-mirror: a mirror at another depth re-points relative lin
     spawnSync(process.execPath, ['tools/hooks/hooks.mjs', 'sync'], { cwd: dir, encoding: 'utf8' });
     if (fs.readFileSync(path.join(dir, '.agents/skills/plan/SKILL.md'), 'utf8') === 'stale\n') bad.push('a mirror missing from skillMirrors was not refreshed');
     report(!bad.length, 'skill-mirror: a mirrored link resolves from the mirror (any depth), and the audit agrees', bad.join(' | '));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+if (mineB()) { // engine state: a question turn writes only under tools/hooks/state/, so a project's own hooks that skip that
+  // folder see no work from the engine. Lesson: an adopted project's own hooks took the engine's records for the turn's work.
+  const dir = copyProject();
+  try {
+    const files = () => { const out = {}; const walk = d => { for (const e of fs.readdirSync(path.join(dir, d), { withFileTypes: true })) { const p = d ? `${d}/${e.name}` : e.name;
+      if (/^(\.memtest|\.git)$/.test(p)) continue; if (e.isDirectory()) walk(p); else { const s = fs.statSync(path.join(dir, p)); out[p] = `${s.size}:${s.mtimeMs}`; } } }; walk(''); return out; };
+    // turn files older than the keep period go at a session's start, the unsuffixed ones of older releases too; fresh
+    // ones stay (Lesson: an 80 KB snapshot.json from before per-session files stayed for good)
+    write(dir, { 'tools/hooks/state/snapshot.json': '{}', 'tools/hooks/state/turn.zzold.json': '{}', 'tools/hooks/state/turn.json': '{}' });
+    const old = (Date.now() - 8 * 86400_000) / 1000;
+    for (const n of ['snapshot.json', 'turn.zzold.json']) fs.utimesSync(path.join(dir, 'tools/hooks/state', n), old, old);
+    const before = files();
+    run(dir, 'session', { session_id: 'zz1', source: 'startup' });
+    const st = n => fs.existsSync(path.join(dir, 'tools/hooks/state', n)), pruned = !st('snapshot.json') && !st('turn.zzold.json') && st('turn.json');
+    run(dir, 'prompt', { session_id: 'zz1', prompt: 'what does the export button do?' });
+    run(dir, 'stop', { session_id: 'zz1', transcript_path: '', last_assistant_message: 'It saves the report as a CSV file.' });
+    const after = files(), changed = Object.keys(after).filter(p => after[p] !== before[p]);
+    const outside = changed.filter(p => !p.startsWith('tools/hooks/state/')), inside = changed.filter(p => p.startsWith('tools/hooks/state/'));
+    report(!outside.length && inside.length > 0, 'engine state: a question turn writes only under tools/hooks/state/ (which other hooks skip)', `outside: ${outside.join(', ')} | inside: ${inside.length}`);
+    report(pruned, 'engine state: a session start removes turn files older than 7 days, unsuffixed ones included, and keeps fresh ones', `pruned ${pruned}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+if (mineB()) { // the audit in an adopted project with its own hooks, outside git: its own tags count as enforced, .gitignore
+  // is read the way git reads it, and agent wiring with a home path says how to make it machine-neutral
+  const dir = copyProject();
+  try {
+    const at = p => path.join(dir, p);
+    applyEdits(dir, { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), externalHooks: ['tools/own/hooks.py'] }) });
+    // Lesson: a deck project's own checks, labelled "REQ: a + b, c / d" and the like, read as enforced nowhere
+    write(dir, { 'tools/own/hooks.py': '# REQ: zz-alpha + zz-beta, zz-gamma / zz-delta and zz-epsilon\n# REQ: zz-eta + REQ: zz-theta; zz_iota\n' });
+    fs.appendFileSync(at('docs/checks/rule-enforcement.md'), '\n| Own | The project\'s own hooks | tools/own/hooks.py | own checks | zz-alpha, zz-beta, zz-gamma, zz-delta, zz-epsilon, zz-eta, zz-theta, zz-iota |\n| Own | Not enforced anywhere | - | - | zz-omega |\n');
+    // Lesson: without git, "*.log" and "/notes/*.md" files were checked as publishable
+    const mail = `Contact ${['jo.smith', 'mailhost.net'].join('@')}.\n`;
+    fs.writeFileSync(at('.gitignore'), '*.zzlog\n/zznotes/*.md\n!zznotes/keep.md\nzzprivate/\n');
+    write(dir, { 'run.zzlog': mail, 'zznotes/a.md': mail, 'zzprivate/b.md': mail, 'zznotes/keep.md': mail });
+    // Lesson: a project's own hook commands under a home folder failed publish safety with no hint how to fix them
+    write(dir, { '.claude/settings.json': JSON.stringify({ hooks: { Stop: [{ hooks: [{ type: 'command', command: `python C:/${'Users'}/User/proj/tools/own/hooks.py stop` }] }] } }),
+      '.codex/hooks.json': JSON.stringify({ hooks: { Stop: [{ hooks: [{ type: 'command', command: 'python "$CLAUDE_PROJECT_DIR/tools/own/hooks.py" stop' }] }] } }) });
+    fs.rmSync(at('.git'), { recursive: true, force: true });
+    const out = spawnSync(process.execPath, ['tools/audit.mjs'], { cwd: dir, encoding: 'utf8' }).stdout;
+    const nowhere = [...out.matchAll(/tag (zz-[a-z]+) is named in docs\/checks but enforced nowhere/g)].map(m => m[1]);
+    report(nowhere.join(',') === 'zz-omega', 'audit: an adopted project\'s own hook tags ("REQ: a + b, c / d", "a and b", "REQ: a + REQ: b") count as enforced; an unlabelled one does not', `enforced nowhere: ${nowhere.join(', ')}`);
+    const flagged = f => new RegExp(`${f.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}: an email address`).test(out);
+    report(!flagged('run.zzlog') && !flagged('zznotes/a.md') && !flagged('zzprivate/b.md') && flagged('zznotes/keep.md'),
+      'publish-safety: without git, .gitignore patterns ("*.log", "/notes/*.md", "folder/") are skipped, a "!" exception is still checked', out.split('\n').filter(l => /zz/.test(l)).join(' | ').slice(0, 500));
+    report(/\.claude\/settings\.json: a personal Windows path[^\n]*\$CLAUDE_PROJECT_DIR/.test(out) && !/\.codex\/hooks\.json: /.test(out),
+      'publish-safety: a hook command under a home folder names the machine-neutral fix; a project-relative one passes', out.split('\n').filter(l => /settings\.json|hooks\.json/.test(l)).join(' | ').slice(0, 500));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 

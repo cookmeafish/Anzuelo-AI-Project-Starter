@@ -108,4 +108,5 @@ SKILL CLEANUP DUE, and the skill-curate skill keeps it with a reason, merges it,
 ## Pitfalls
 - A rule written only in the docs gets forgotten. Every checkable rule needs a check.
 - Write down the user's actual complaint, not a stricter rule than they said. An over-strict rule creates new misses.
-- Waivers (`N/A(tag)`) are for checks that don't apply, never for skipping work that does.
+- Waivers (`node tools/hooks/hooks.mjs waive <tag> "<reason>"`, or `N/A(tag)` in the answer) are for checks that
+  don't apply, never for skipping work that does.

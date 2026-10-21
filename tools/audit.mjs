@@ -12,7 +12,7 @@ import {
   loadRequirements, usage, hardenDue, menu, runbookHasCheck, generatedSkill, directoryBlock, staleKnowledge,
   setupProblems, upgradeProblems, bench, gitignoreProblems, writingProblems, aiAttributedCommits, BASE_REQUIREMENTS, routableSkills, skillHasCheck, curateDue,
   FIT_FILE, fitProblems, fitRows, fitDecision, fitWhenOf, doneWhenItems, DONE_LABEL, findLibrary, secretHit, mirrorText, logRun, testInputsHash, deadTriggers, rulesText, route, personalDetails,
-  externalHookSizes, HOOK_OUTPUT_MAX
+  externalHookSizes, HOOK_OUTPUT_MAX, gitignoreTest
 } from './hooks/hooks.mjs';
 
 const cfg = config();
@@ -61,8 +61,11 @@ const coreTags = new Set([...hooksSrc.matchAll(/REQ: ([a-z0-9-]+)/g)].map(m => m
 const reqTags = new Set(fileReqs.map(r => r && r.tag).filter(Boolean));
 // An adopted project's own hook engine (config "externalHooks": ["tools/hooks/hooks.py"]) enforces its "REQ: <tag>"
 // checks itself, and tests them itself. Lesson: a deck project's 67 checks in its own hooks.py read as enforced nowhere.
-// (a label may name several: "REQ: a + b", "REQ: a, b")
-const extTags = new Set([].concat(cfg.externalHooks || []).flatMap(f => [...read(abs(f)).matchAll(/REQ: ([a-z0-9-]+(?:\s*[+,&/]\s*[a-z0-9-]+)*)/g)].flatMap(m => m[1].split(/\s*[+,&/]\s*/))));
+// (a label may name several: "REQ: a + b, c / d", "REQ: a and b", "REQ: a + REQ: b", "REQ:a; b"; tags are matched in
+// lower case, with "_" read as "-")
+const EXT_SEP = /\s*(?:[+,&/;|]|\band\b|\bor\b)\s*(?:REQ:\s*)?/i;
+const extTags = new Set([].concat(cfg.externalHooks || []).flatMap(f => [...read(abs(f)).matchAll(new RegExp(`\\bREQ:\\s*([a-z0-9][\\w-]*(?:${EXT_SEP.source}[a-z0-9][\\w-]*)*)`, 'gi'))]
+  .flatMap(m => m[1].split(EXT_SEP).map(t => t.toLowerCase().replace(/_/g, '-')))));
 const knownTag = t => coreTags.has(t) || reqTags.has(t) || packTags.has(t) || extTags.has(t);
 const skillNames = fs.existsSync(abs(cfg.skillsDir)) ? fs.readdirSync(abs(cfg.skillsDir)).filter(n => exists(`${cfg.skillsDir}/${n}/SKILL.md`)) : [];
 const git = (...a) => spawnSync('git', a, { cwd: ROOT, encoding: 'utf8' });
@@ -344,11 +347,11 @@ sweep('publish safety (no personal or machine details)', () => {
   const all = walk('', p => /\.(md|mdx|txt|json|mjs|cjs|js|ts|tsx|jsx|py|html?|css|ya?ml|bat|cmd|ps1|sh|toml|ini|cfg)$|(^|\/)\.(gitignore|gitattributes)$|^\.githooks\//.test(p), [], /^(\.git|node_modules|\.cache|\.starter|state)$/);
   if (isRepo) { const r = spawnSync('git', ['check-ignore', '--stdin'], { cwd: ROOT, input: all.join('\n'), encoding: 'utf8' }); for (const l of (r.stdout || '').split(/\r?\n/)) if (l) ignored.add(l.trim()); }
   else {
-    // without git, the plain folder and file lines of .gitignore ("friends/", "/notes/*", "secret.txt") still count
-    // (Lesson: a project's ignored friends/ folder was checked as publishable until it ran git init)
-    const plain = read(abs('.gitignore')).split(/\r?\n/).map(l => l.trim()).filter(l => l && !l.startsWith('#') && !l.startsWith('!') && !/[?[]|\*(?!$)/.test(l.replace(/\/\*$/, '')))
-      .map(l => l.replace(/^\//, '').replace(/\/?\*$/, '/'));
-    for (const f of all) if (/^\.private-terms$|^tools\/hooks\/state\//.test(f) || plain.some(p => p.endsWith('/') ? f.startsWith(p) || f.includes('/' + p) : f === p || f.endsWith('/' + p))) ignored.add(f);
+    // without git, the root .gitignore still counts, read the way git reads it ("friends/", "/notes/*.md", "*.log",
+    // "!keep.md"). Lesson: a project's ignored friends/ folder, then its "*.log" files, were checked as publishable until
+    // it ran git init
+    const isIgnored = gitignoreTest(read(abs('.gitignore')));
+    for (const f of all) if (/^\.private-terms$|^tools\/hooks\/state\//.test(f) || isIgnored(f)) ignored.add(f);
   }
   const terms = read(abs('.private-terms')).split(/\r?\n/).map(s => s.trim()).filter(s => s && !s.startsWith('#'));
   for (const f of all.filter(f => !ignored.has(f) && f !== '.private-terms')) {

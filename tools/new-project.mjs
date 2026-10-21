@@ -295,7 +295,9 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   // its added triggers and lessons); an edited one is kept and goes into the upgrade review.
   // Lesson: knowledge-capture's new triggers never reached an upgraded project, and its route self-test failed.
   const lf = t => t.replace(/\r\n/g, '\n');
-  const bodyOf = t => lf(t).replace(/^triggers:.*\n/m, '').replace(/^(hardened|harden|keep):.*\n/gm, '').replace(/^## Project lessons[^\n]*\n[\s\S]*?(?=^## |(?![\s\S]))/m, '').trimEnd();
+  // (a "triggers_removed:" line is the project's trigger choice, like its triggers: the file is still refreshed, and the
+  // merge keeps the removal. Lesson: a pack runbook whose triggers a project narrowed was never refreshed again)
+  const bodyOf = t => lf(t).replace(/^triggers:.*\n/m, '').replace(/^(hardened|harden|keep|triggers_removed):.*\n/gm, '').replace(/^## Project lessons[^\n]*\n[\s\S]*?(?=^## |(?![\s\S]))/m, '').trimEnd();
   const refreshPayload = (rel, as) => {
     const to = path.join(dest, as);
     // a file the pack or skill has and this project lacks comes too, as packs.mjs install would add it: a refreshed
