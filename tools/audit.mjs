@@ -11,7 +11,8 @@ import {
   ROOT, read, abs, exists, frontmatter, playbooks, skillProblems, playbookProblems, knowledgeProblems, config,
   loadRequirements, usage, hardenDue, menu, runbookHasCheck, generatedSkill, directoryBlock, staleKnowledge,
   setupProblems, upgradeProblems, bench, gitignoreProblems, writingProblems, aiAttributedCommits, BASE_REQUIREMENTS, routableSkills, skillHasCheck, curateDue,
-  FIT_FILE, fitProblems, fitRows, fitDecision, fitWhenOf, doneWhenItems, DONE_LABEL, findLibrary, secretHit, mirrorText, logRun, testInputsHash, deadTriggers, rulesText, route, personalDetails
+  FIT_FILE, fitProblems, fitRows, fitDecision, fitWhenOf, doneWhenItems, DONE_LABEL, findLibrary, secretHit, mirrorText, logRun, testInputsHash, deadTriggers, rulesText, route, personalDetails,
+  externalHookSizes, HOOK_OUTPUT_MAX
 } from './hooks/hooks.mjs';
 
 const cfg = config();
@@ -442,7 +443,14 @@ sweep('always-loaded files stay small', () => {
   const [[, claude], [, dir]] = sizes, imported = /^@DIRECTORY\.md\b/m.test(read(abs('CLAUDE.md')));
   if (!isTemplate && (imported ? total : claude) > cfg.alwaysLoadedMaxChars) warn.push(`${imported ? `CLAUDE.md ${claude} + DIRECTORY.md ${dir} (imported) = ${total}` : `CLAUDE.md is ${claude}`} characters, over ${cfg.alwaysLoadedMaxChars}: merge repeated preferences and rules, and move detail into runbooks or skills`);
   if (!isTemplate && !imported && dir > cfg.directoryMaxChars) warn.push(`DIRECTORY.md is ${dir} characters, over ${cfg.directoryMaxChars}: retire unused runbooks and skills (skill-curate), or shorten their summaries`);
-  return { warn, note: `${total} characters, preferences ${prefs}` };
+  // the project's own SessionStart / UserPromptSubmit hooks (config "externalHooks") reach the agent next to the engine's:
+  // each is run once with a sample input and held to what a host shows in full
+  const ext = externalHookSizes(cfg);
+  for (const h of ext) {
+    if (h.error) warn.push(`the project hook ${h.file} (${h.event}) could not be measured: ${h.error}`);
+    else if (h.chars > HOOK_OUTPUT_MAX) warn.push(`the project hook ${h.file} prints ${h.chars} characters at ${h.event}, over ${HOOK_OUTPUT_MAX}: a host shows a longer hook output only as a short preview, so its end is lost. Print a long checklist once a session (node tools/hooks/hooks.mjs shown <key> --session <id>) and only what changed after that`);
+  }
+  return { warn, note: `${total} characters, preferences ${prefs}${ext.length ? `; project hooks: ${ext.map(h => `${h.file} ${h.event} ${h.error ? '?' : h.chars}`).join(', ')}` : ''}` };
 });
 
 sweep('project housekeeping', () => {

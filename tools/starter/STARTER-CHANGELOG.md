@@ -89,6 +89,35 @@ hooks:**, and an upgrade lists each one as its own review item.
     reinstalling the declared requirements is exempt (REQ: install-vetted). AGENTS.md step 0.5 says so (adopt by hand).
   - Correspondence skill: tone fits the relationship (warm for tenants and customers by default); a friendlier
     rewrite adds no new promises or motives; counts in the answer come from the saved draft.
+  - **A versioned hook output contract (field report 6):** `node tools/hooks/hooks.mjs contract` prints what each hook
+    event prints (session, prompt, pretool, stop, and the commands for project hooks) with its version, now 3, and
+    its history; `CONTRACT` is exported. `node tools/hooks/selfcheck.mjs --contract` checks the files in
+    `"externalHooks"`: one that reads the Stop `reason` without `additionalContext`, or looks for a marker the engine no
+    longer prints, is named, and so is a `"hookContract"` in config older than the engine's. An upgrade lists each
+    finding as a `contract:` review item. No output shape changed in this release, so the contract stays at 3.
+  - **Context budget across engines:** the always-loaded sweep also runs the project's own SessionStart and
+    UserPromptSubmit hooks from `.claude/settings.json` (only those whose file is in `"externalHooks"`, once each with
+    a sample input, 20 s timeout) and warns when one prints over 9,000 characters. `node tools/hooks/hooks.mjs shown
+    <key> --session <id>` lets a project hook print a long checklist once: exit 1 the first time (recorded), 0 after;
+    a compaction resets it for that session.
+  - **State hygiene:** every per-session state file, and the shared ones from before sessions were told apart, goes
+    after 7 days at session start (was some kinds after 2 days); `node tools/hooks/hooks.mjs prune --dry` lists what
+    would go. A hook run by hand with a made-up session id and no readable transcript takes no snapshot.
+  - **Stop decisions are inspectable:** the Stop hook appends each decision to a capped
+    `tools/hooks/state/stop-log.jsonl`; `node tools/hooks/hooks.mjs last [N] [--json]` prints the last N with time,
+    request start, round, passed / blocked / waiting / ended-unresolved, the steps and the waivers.
+  - **A Stop timing budget:** with `STARTER_TIMING=1` the Stop hook prints `STOP-TIMING {json}` on stderr with each
+    phase, each group of core checks and each requirements.json check timed; the self-tests time Stop on a realistic
+    work turn after the parallel runs finish (the fastest of 5 runs, node start not counted) and fail over
+    `"stopBudgetMs"` (500 ms), naming the 3 slowest. The trial's sample upgrades skip the full self-tests
+    (`--no-selftest`; `--deep` still runs them), so a sample's upgrade no longer passes its 5-minute limit.
+  - **Cheaper upgrades:** new fit candidates (packs, skills, tools) that are not in the project and have no sign of
+    need are decided "skip" with an `auto:` reason (`fit.mjs --auto-skip`, used only by upgrades), so only the real
+    decisions are left; the upgrade ends with one line: `Upgrade <commit>: 0 regressions, 2 decisions needed.`
+  - **Feedback status:** in the starter, `node tools/starter.mjs feedback-status docs/feedback-inbox/<name>.md`
+    writes or refreshes `<name>.status.md` with one row per reported item (`### N.` headings or dated lines): "open",
+    "fixed in <commit>" or "declined: <why>" (`--set <item> "<status>"`), keeps every status, adds new items as open
+    and lists the open ones; a linked project's `starter.mjs status` prints "your reports: N fixed, M declined, K open".
 - 2026-10-19 (gap sweep): Fixes from simulating nine kinds of projects end to end (a notes vault, a bakery's office
   work, a Godot game, a web app, a monorepo, an adopted Python pipeline, Flutter, Rust and ML projects, and upgrades).
   - **No more slow stops.** The self-tests and the audit write their results to a run log

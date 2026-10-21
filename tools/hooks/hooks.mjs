@@ -41,7 +41,7 @@ let SID = '';
 // (the stop round count, the checks that failed earlier in the turn, hints shown, the plan nudge and the frustration
 // record are a turn's too. Lesson: a second session reset the first one's block count and lost its earlier failures.)
 const PER_SESSION = new Set(['turn.json', 'snapshot.json', 'turn-end.json', 'notices-shown.json', 'stop-blocks.json', 'stop-failed.json',
-  'event-hints.json', 'plan-watch.json', 'friction-turn.json']);
+  'event-hints.json', 'plan-watch.json', 'friction-turn.json', 'ext-shown.json']);
 const stateName = n => SID && PER_SESSION.has(n) ? n.replace(/.json$/, `.${SID}.json`) : n;
 // a session's own file when it has one, else the shared one (written before sessions were told apart, or by a test)
 const stateFile = n => { const own = path.join(STATE, stateName(n)); return own !== path.join(STATE, n) && !fs.existsSync(own) ? path.join(STATE, n) : own; };
@@ -49,6 +49,29 @@ function writeState(name, obj) {
   if (envOf('BENCH')) return; // hooks.mjs bench times the hooks without touching the session's state
   try { fs.mkdirSync(STATE, { recursive: true }); fs.writeFileSync(path.join(STATE, stateName(name)), JSON.stringify(obj, null, 2)); } catch {}
 }
+// State hygiene: the per-session files (turn.<session>.json, snapshot.<session>.json, ...) and the shared ones written
+// before sessions were told apart go once they are 7 days old, at session start or with "hooks.mjs prune" (--dry lists
+// them). Lesson: one project had 33 state files and 336 KB after two days (a snapshot is about 80 KB per session), and
+// shared files from before per-session ones lingered; only some kinds were pruned, after 2 days.
+export const STATE_KEEP_DAYS = 7;
+const SESSION_STATE = new RegExp(`^(${[...PER_SESSION].map(n => esc(n.replace(/\.json$/, ''))).join('|')})(\\.[A-Za-z0-9_-]+)?\\.json$`);
+export function pruneState({ dry = false, days = STATE_KEEP_DAYS, now = Date.now() } = {}) {
+  const out = [];
+  let names = []; try { names = fs.readdirSync(STATE); } catch { return out; }
+  for (const n of names) {
+    if (!SESSION_STATE.test(n)) continue;
+    let s; try { s = fs.statSync(path.join(STATE, n)); } catch { continue; }
+    if (!s.isFile() || now - s.mtimeMs <= days * 86400_000) continue;
+    out.push({ name: n, bytes: s.size, days: Math.floor((now - s.mtimeMs) / 86400_000) });
+    if (!dry) try { fs.rmSync(path.join(STATE, n), { force: true }); } catch { }
+  }
+  return out;
+}
+// Stop timing, behind STARTER_TIMING=1: each phase and check is timed, and the Stop hook prints "STOP-TIMING {json}" on
+// stderr (the self-tests hold Stop to its budget with it). Off, it costs nothing.
+const TIMING = envOf('TIMING') ? [] : null;
+const timed = (label, fn) => { if (!TIMING) return fn(); const t = performance.now(); try { return fn(); } finally { TIMING.push([label, Math.round((performance.now() - t) * 10) / 10]); } };
+const lapper = prefix => { if (!TIMING) return () => { }; let t = performance.now(); return label => { const n = performance.now(); TIMING.push([`${prefix}${label}`, Math.round((n - t) * 10) / 10]); t = n; }; };
 
 export function globRe(g) {
   let s = '';
@@ -137,6 +160,7 @@ const DEFAULTS = {
   knowledgeRows: 40,          // DIRECTORY.md lists up to this many knowledge notes one by one; more go one row per folder
   planNewFiles: 5,           // a work turn that creates this many new files needs a plan in docs/plans/ (REQ: plan-required)
   hookBudgetMs: 1000,         // a hook event slower than this (median, node start included) slows every turn: the audit fails
+  stopBudgetMs: 500,          // the Stop hook's own work on a realistic work turn (node start not included): the self-tests fail over it
   harden: 'block',            // 'block' = harden a skill in the turn it becomes due; 'remind' = hint only
   skillsDir: 'skills',        // agent-neutral home of every skill (SKILL.md format)
   skillMirrors: ['.claude/skills', '.agents/skills'], // generated copies where an agent discovers skills natively (Claude Code; Codex)
@@ -2457,6 +2481,8 @@ function cmdSession(data) {
   const cfg = config();
   syncAll(cfg);
   writeState('last-session.json', { at: new Date().toISOString(), source: data.source || '' });
+  // after a compaction the agent no longer has what project hooks showed it once ("hooks.mjs shown"): they show it again
+  if (SID && /compact/i.test(data.source || '') && !envOf('BENCH')) try { fs.rmSync(path.join(STATE, stateName('ext-shown.json')), { force: true }); } catch { }
   // Engine lessons go to the linked starter on their own (a file in that folder on this machine, nothing leaves it), so
   // the starter's next release fixes them for every project. Lesson: lessons waited in one project for a "report" nobody ran.
   if (!exists('.starter-template') && exists('tools/starter.local.json') && !envOf('BENCH')) {
@@ -2605,11 +2631,15 @@ function cmdPrompt(data, { force = false } = {}) {
   const cfg = config();
   const p = data.prompt || '';
   // another session's message after the turn ended starts a turn with no user request: what existed now is its baseline
-  if (RELAYED_TURN.test(p)) { const st = turnNotices(force, data.transcript_path); if (st.fresh) { recordTurn('', true); takeSnapshot(cfg); writeState(SHOWN, { at: st.at, shown: st.shown }); } return; }
+  // A hook run by hand with a made-up session id and no real transcript takes no snapshot (about 80 KB in a real
+  // project). Lesson: a test run with session "x" left snapshot.x.json, turn.x.json and notices-shown.x.json behind.
+  // (no session id at all is "begin", for agents without hooks, which needs the snapshot)
+  const snap = () => { if (!SID || (() => { try { return fs.statSync(String(data.transcript_path || '')).isFile(); } catch { return false; } })()) takeSnapshot(cfg); };
+  if (RELAYED_TURN.test(p)) { const st = turnNotices(force, data.transcript_path); if (st.fresh) { recordTurn('', true); snap(); writeState(SHOWN, { at: st.at, shown: st.shown }); } return; }
   if (!p.trim() || skipped(p)) return;
   const st = turnNotices(force, data.transcript_path);
   recordTurn(p, st.fresh);
-  if (st.fresh) takeSnapshot(cfg);
+  if (st.fresh) snap();
   // setup counts the user's messages: the interview answers must arrive in a message after the questions
   if (exists('SETUP-PROMPT.md') && !exists('.starter-template')) writeState('setup.json', { prompts: setupPrompts() + 1 });
   // each notice once per turn; last turn's misses once, then dropped (REQ: unresolved-carryover)
@@ -3057,6 +3087,7 @@ export function eventHintAfterEdit(p, inp, cfg = config()) {
 
 // ---------- Stop ----------
 export function coreChecks(x, cfg) {
+  const lap = lapper('core '); // STARTER_TIMING: each group of core checks, named by its first and last check
   const miss = [];
   const add = (tag, msg) => miss.push({ tag, msg });
   const pbChanged = x.changed.filter(p => /^docs\/playbooks\/[^/]+\.md$/.test(p) && !p.endsWith('_TEMPLATE.md'));
@@ -3110,6 +3141,7 @@ export function coreChecks(x, cfg) {
       'marketplaces, the agent\'s installed skills, reputable community collections). Reuse or adapt it when it fits, after reading every file it ' +
       'contains, and install third-party skills only with the user\'s OK. Say what you found: "Existing skills checked: <where> - <result>". ' +
       'A procedure only this project can have needs no search: put "reuse: none - project-specific: <why>" in its frontmatter.');
+  lap('runbook-read .. skill-reuse');
   // REQ: worth-it. An addition must make the project better: a new skill, pack or dependency comes with its gain and its
   // cost, weighed. Lesson: "it fits" alone let additions in that made the project noisier or slower than before.
   const newSkills = list(cfg.skillsDir).filter(n => { const f = `${cfg.skillsDir}/${n}/SKILL.md`; return x.changed.includes(f) && bornThisTurn(f, x.since) && !/^generated:\s*true/m.test(read(abs(f))); });
@@ -3156,6 +3188,7 @@ export function coreChecks(x, cfg) {
     add('plan-open', `This turn started with ${startPlans.length > 1 ? 'open plans' : 'an open plan'} (${startPlans.slice(0, 3).join(', ')}) and did not touch ${startPlans.length > 1 ? 'them' : 'it'}. Tell the user, then resume it ` +
       '(node skills/plan/scripts/plan-tasks.mjs status <plan>), tick what this work finished, or close it with "status: done" or "status: dropped - <why>". ' +
       'If this request is unrelated and the plan stays open on purpose, write "N/A(plan-open): <why>".');
+  lap('worth-it .. plan-open');
   // REQ: note-linked. A new note links to what it relates to, so Obsidian's graph (and the agent) can see how the
   // project's knowledge connects. A note that truly stands alone says why under "## Related".
   // Notes: the knowledge base, docs/notes/, and free-standing notes in docs/. Release notes, specs and plans have their
@@ -3252,6 +3285,7 @@ export function coreChecks(x, cfg) {
         unopened.length && `the answer cites ${unopened.slice(0, 4).join(', ')} without opening it`].filter(Boolean).join('; ') +
         '. Open the source and quote it, cut the claim, or mark the line "(not verified)", "(calculated: ...)" or "(estimate)". Research skill, section D.');
   }
+  lap('note-linked .. answer-traced');
   // REQ: upgrade-review. After an engine upgrade, every new rule, pack, skill and finding is weighed and decided.
   // It blocks once a day, then only the session notice reminds: a pending review must never stall the user's own work.
   const up = x.workTurn && readJSON(path.join(STATE, 'upgrade-nag.json'), {}).at !== today() ? upgradeProblems(cfg) : [];
@@ -3358,6 +3392,7 @@ export function coreChecks(x, cfg) {
     if (n > 1 && !re(`\\b(${n}${word ? '|' + word : ''})\\b`).test(x.said))
       add('count-honored', `The user asked for ${n} ${m[2]}. Deliver exactly that many and say so with the number (e.g. "${n} ${m[2]}: ...").`);
   }
+  lap('upgrade-review .. count-honored');
   // REQ: plain-writing. The answer and every user-facing file changed this turn: straight to the point, no filler, no em dashes.
   const wp = [...writingProblems(x.answer, cfg, 'answer'),
     ...x.changed.filter(p => match(p, cfg.userFacing) && !match(p, cfg.userFacingIgnore) && exists(p)).flatMap(p => writingProblems(read(abs(p)), cfg, p))];
@@ -3398,6 +3433,7 @@ export function coreChecks(x, cfg) {
     }
   }
   if (cr.length) add('code-rules', cr.slice(0, 8).join('; ') + (cr.length > 8 ? `; +${cr.length - 8} more` : ''));
+  lap('plain-writing .. code-rules');
   // REQ: empty-answer
   if (x.workTurn && !x.answer.trim()) add('empty-answer', 'The turn did work but the final answer is empty. Tell the user what was done (and the Finished section).');
   // REQ: autonomy-decide. A user who asked not to be asked gets decisions, not a closing question, except for what
@@ -3459,6 +3495,7 @@ export function coreChecks(x, cfg) {
     if ((x.answer.includes(s.file) || x.answer.includes(base)) && !x.changed.includes(s.file) && !/\bstale|out of date|re-?check|as of\b/i.test(x.said))
       add('stale-cited', `The answer relies on ${s.file}, which is stale (${s.why}). Re-check it now (and update its date) or tell the user it may be out of date.`);
   }
+  lap('empty-answer .. stale-cited');
   // REQ: directory-current. DIRECTORY.md is the map every agent reads first; its generated block must exist and be current.
   const dir = read(abs('DIRECTORY.md'));
   if (!dir.includes(GEN_START) || !dir.includes(GEN_END)) add('directory-current', 'DIRECTORY.md lost its generated block (<!-- generated:start ... <!-- generated:end -->). Restore the markers; the hooks refill it.');
@@ -3499,6 +3536,7 @@ export function coreChecks(x, cfg) {
   if (typed.length)
     add('name-var', `Names are written once, in ${NAMES_FILE}, so they can be changed in one place. ${typed.slice(0, 4).join('; ')}${typed.length > 4 ? ` (+${typed.length - 4} more)` : ''}. ` +
       'Use the marker in docs and read the file in code, or write "N/A(name-var): <why this must stay typed out>".');
+  lap('directory-current .. name-var');
   // REQ: gui-review-loop. A changed GUI is screenshotted and looked at AFTER its last edit, so every fix round is re-shot
   // and re-checked; the loop ends only when a full round finds nothing (or at guiMaxRounds, with what is left).
   const gui = x.changed.filter(p => match(p, cfg.guiFiles) && !match(p, cfg.guiIgnore) && exists(p));
@@ -3544,6 +3582,7 @@ export function coreChecks(x, cfg) {
         add('gui-warnings', `The latest screenshot run reported ${w.length} warning(s) (e.g. ${w[0].slice(0, 140)}). Fix them and re-shoot, or say in the answer why each is accepted ("warnings accepted: ...").`);
     }
   }
+  lap('gui-review-loop .. gui-warnings');
   // REQ: hooks-tested. Core (not in requirements.json) so emptying requirements.json can't switch off its own guard.
   // The full self-test is for a change to hook logic (hooks.mjs, selfcheck.mjs, wire.mjs). A change to requirements.json
   // or config.json is validated and needs only the scenarios of the checks it touched (selfcheck.mjs --tags a,b), or
@@ -3565,6 +3604,7 @@ export function coreChecks(x, cfg) {
   }
   // REQ: twin-sync
   if (!syncTwin()) add('twin-sync', 'CLAUDE.md and AGENTS.md differ and could not be synced automatically. Make them identical.');
+  lap('hooks-tested .. twin-sync');
   return miss;
 }
 
@@ -3848,6 +3888,7 @@ ${turnText(x.entries)}`;
     // Lesson: with no history, "a publish command ran" read as true and asked a plain planning turn for a security review.
     if (!x.toolsKnown && needsHistory(q.when)) continue;
     try {
+      const t0 = TIMING ? performance.now() : 0;
       x.detail = ''; x.trigger = '';
       // A runbook followed this turn owns the folders in its "owns:" frontmatter: another runbook's trigger ("forces")
       // doesn't count files there. Not followed, the trigger still fires. Lesson: a project's raid-research runbook saved
@@ -3861,6 +3902,7 @@ ${turnText(x.entries)}`;
       // it. A Finished section counts from any message after the last file change, since it still lists every change.
       // Lesson: every re-block produced a near-copy.
       if (holds(when || {}, x) && !holds(q.require || {}, x) && !holds(q.require || {}, { ...x, answer: q.tag === 'finished-summary' ? x.afterChange : earlier })) out.push({ tag: q.tag, specific: q.waiver === 'specific', msg: (q.message || `Requirement ${q.tag} is not met.`) + (x.trigger ? ` (seen in ${x.trigger})` : '') + (x.detail ? ` (${x.detail})` : '') });
+      if (TIMING) TIMING.push([`check ${q.tag}`, Math.round((performance.now() - t0) * 10) / 10]);
     } catch (e) { out.push({ tag: 'requirements-valid', msg: `requirements.json entry "${q.tag}" is invalid (${e.message}).` }); }
   }
   return out;
@@ -3947,15 +3989,33 @@ function carryoverChecks(data, t, x, cfg) {
     'Fix them in this turn (node tools/hooks/hooks.mjs why has the details), or waive one that no longer applies with N/A(<its name>): <reason>.' }];
 }
 
+// The Stop log: one line per Stop decision (time, session, when the request started, round, passed / blocked / waiting /
+// ended-unresolved, the steps asked for, the steps waived), capped, read with "hooks.mjs last [N]". Lesson: to count
+// Stop rounds for a field report a project had to parse the transcript, and a first regex missed them.
+const STOP_LOG = 'stop-log.jsonl', STOP_LOG_KEEP = 200, STOP_LOG_MAX_BYTES = 64 * 1024;
+function logStop(entry) {
+  if (envOf('BENCH')) return;
+  try {
+    fs.mkdirSync(STATE, { recursive: true });
+    const f = path.join(STATE, STOP_LOG);
+    fs.appendFileSync(f, JSON.stringify({ at: new Date().toISOString(), session: SID || '', ...entry }) + '\n');
+    if (fs.statSync(f).size > STOP_LOG_MAX_BYTES) fs.writeFileSync(f, read(f).split('\n').filter(Boolean).slice(-STOP_LOG_KEEP).join('\n') + '\n');
+  } catch { }
+}
+export const stopLog = (n = 10) => read(path.join(STATE, STOP_LOG)).split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean).slice(-Math.max(1, n));
+const clock = iso => { const d = new Date(iso); return Number.isNaN(+d) ? '?' : `${localDate(d)} ${d.toTimeString().slice(0, 8)}`; };
+export const stopLogLine = e => `${clock(e.at)}  request ${e.request ? clock(e.request).slice(11) : '?'}  round ${e.round ?? '?'}  ${e.result}` +
+  `${(e.steps || []).length ? `: ${e.steps.join(', ')}` : ''}${(e.waived || []).length ? `  (waived: ${e.waived.join(', ')})` : ''}${e.pending ? `  (${e.pending} background job(s) running)` : ''}${e.session ? `  [${e.session.slice(0, 8)}]` : ''}`;
+
 export function stopDecision(data, cfg = config()) {
-  const t = turn(data.transcript_path || '');
+  const t = timed('turn (read the transcript)', () => turn(data.transcript_path || ''));
   if (!t) return null;
   const key = `${data.transcript_path}|${t.since}`;
   const st = readJSON(stateFile('stop-blocks.json'), {});
   const nblocks = data.stop_hook_active ? (st[key] || 0) : 0;
   // REQ: final-answer-source. When Stop fires, the final message is often not in the transcript yet, so a correct
   // answer kept failing "Finished"/"Playbook:" checks (found in live testing). The agent passes it directly.
-  const x = context(t, cfg, data.last_assistant_message);
+  const x = timed('context (what the turn did)', () => context(t, cfg, data.last_assistant_message));
   // A short reply to a background task's notice, with no tool run since the notice, after this turn
   // already ended cleanly, is not new work: the checks stand as they were. Lesson: each acknowledgement of a finished
   // background job got the whole stop list again (Finished section, changelog, status).
@@ -3969,11 +4029,15 @@ export function stopDecision(data, cfg = config()) {
   x.failedBefore = data.stop_hook_active && failed.key === key ? failed.tags || [] : [];
   // REQ: stop-reblock. Up to maxBlocksPerTurn blocks per turn, then let the session end so it can never loop.
   const open = m => !waived(m.tag, x.said, m.specific) && !isSuspended(`check:${m.tag}`);
-  const found = [...coreChecks(x, cfg), ...declarativeChecks(x)].filter(open);
+  const raw = [...timed('core checks (total)', () => coreChecks(x, cfg)), ...timed('requirements.json checks (total)', () => declarativeChecks(x))];
+  const found = raw.filter(open);
+  // the steps a waiver answered this turn, for the Stop log (hooks.mjs last)
+  const waivedTags = [...new Set(raw.filter(m => waived(m.tag, x.said, m.specific)).map(m => m.tag))];
   // one changelog line satisfies all three changelog checks, so they show as one step (Lesson: two steps for one line)
   const logs = found.filter(m => /^(changelog|knowledge-changelog|app-changelog)$/.test(m.tag));
   const found1 = logs.length > 1 ? found.filter(m => m === logs[0] || !logs.includes(m)) : found;
-  const all = [...found1, ...skillLearnCheck(x, cfg, found.map(m => m.tag)).filter(open), ...carryoverChecks(data, t, x, cfg).filter(open)];
+  const all = [...found1, ...timed('skill-learn', () => skillLearnCheck(x, cfg, found.map(m => m.tag))).filter(open), ...timed('unresolved-carryover', () => carryoverChecks(data, t, x, cfg)).filter(open)];
+  const logged = (result, extra = {}) => logStop({ request: Number.isFinite(+x.since) && +x.since > 0 ? new Date(+x.since).toISOString() : '', round: nblocks + 1, result, waived: waivedTags, ...extra });
   // While helpers launched in the background have not reported back, the work is not finished: only truth and privacy
   // are checked now, and the whole list runs when their results arrive. Lesson: a turn waiting on three background
   // helpers was blocked three times for a Finished section it could not write yet.
@@ -3987,7 +4051,7 @@ export function stopDecision(data, cfg = config()) {
   const missing = noticeAck || waiting ? all.filter(m => SAFE.test(m.tag)) : settled;
   noteFriction(key, x, missing);
   const ended = (keep = false) => { writeState(TURN_END, { at: new Date().toISOString(), key, clean: !keep }); if (!keep && !envOf('BENCH')) try { fs.unlinkSync(path.join(STATE, 'stop-details.md')); } catch { } }; // the next prompt starts a new turn
-  if (waiting && !missing.length) { writeState(TURN_END, { at: new Date().toISOString(), key, clean: false, pending: t.bgRunning.length }); return null; }
+  if (waiting && !missing.length) { writeState(TURN_END, { at: new Date().toISOString(), key, clean: false, pending: t.bgRunning.length }); logged('waiting', { pending: t.bgRunning.length }); return null; }
   if (nblocks >= cfg.maxBlocksPerTurn) {
     // REQ: unresolved-carryover. End quietly (no block), but don't let the miss vanish: the next prompt says it once,
     // in plain words. A check that waits on background helpers is not a miss: their results arrive later.
@@ -3996,13 +4060,16 @@ export function stopDecision(data, cfg = config()) {
     if (left.length) writeState('unresolved.json', { at: new Date().toISOString(), prompt: x.prompt.slice(0, 160), items: left.map(m => shortStep(m)), tags: left.map(m => m.tag),
       request: x.prompt.slice(0, 4000), since: x.since, transcript: data.transcript_path || '' });
     if (left.length) writeDetails(left, 'Left unresolved when the turn ended');
+    logged(left.length ? 'ended-unresolved' : 'passed', { steps: left.map(m => m.tag) });
     recordUsage(x, key); ended(!!left.length); return null;
   }
   if (!missing.length) {
+    logged('passed');
     recordUsage(x, key);
     if (x.workTurn && !envOf('BENCH')) { try { fs.unlinkSync(path.join(STATE, 'unresolved.json')); } catch { } }
     ended(); return null;
   }
+  logged('blocked', { steps: missing.map(m => m.tag) });
   writeState('stop-blocks.json', { [key]: nblocks + 1 });
   writeState('stop-failed.json', { key, tags: [...new Set([...x.failedBefore, ...missing.map(m => m.tag)])] });
   // The full messages, with their details, go to a file the agent reads with "hooks.mjs why".
@@ -4150,7 +4217,7 @@ export function stopOutput(d, cfg = config(), host = HOST) {
 // some 2,000 and a file it never opens), so the output stays under HOOK_OUTPUT_MAX: the routing lines first, then the
 // rest until the limit, and a pointer to the full text. Lesson: a project's routing hint at the end of a 13,000-character
 // output never reached the agent.
-const HOOK_OUTPUT_MAX = 9000;
+export const HOOK_OUTPUT_MAX = 9000;
 export function fitOutput(text, max = HOOK_OUTPUT_MAX) {
   if (text.length <= max) return text;
   const lines = text.split('\n'), first = l => /^(ROUTE|SKILL|NO RUNBOOK|RULE REQUEST|SCOPE|MENU CODE|FIT|SETUP|BOOTSTRAP|PLAN|UPGRADE REVIEW)\b/.test(l);
@@ -4166,11 +4233,85 @@ function contextOut(event, text) {
   else process.stdout.write(text);
 }
 
+// ---------- the hook output contract ----------
+// What each hook event prints, for a project's own hooks and scripts that read it (config "externalHooks"). The version
+// goes up whenever a shape or a marker below changes, with a "**Breaking for project hooks:**" line in the starter's
+// changelog. "node tools/hooks/hooks.mjs contract" prints it; "node tools/hooks/selfcheck.mjs --contract" checks the
+// project's files against it. Lesson: twice an upgrade changed what the engine prints (the Stop "reason" moved to
+// hookSpecificOutput.additionalContext) and a project's own script broke on it with no warning.
+export const CONTRACT = {
+  version: 3,
+  events: {
+    session: 'SessionStart. Claude Code: {"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":<text>}}; other hosts: <text>. ' +
+      'The text: the session checklist, "--- docs/STATUS.md (where things stand) ---" with its first 40 lines, then "--- notices ---" and one "- <NOTICE>: ..." line each. At most 9,000 characters.',
+    prompt: 'UserPromptSubmit. Same shape as session, hookEventName "UserPromptSubmit". The text: an optional "[rules] ..." line, then "[project hooks: obey these]" and one ' +
+      '"- <HINT>: ..." line each (ROUTE, SKILL, NO RUNBOOK, CLOSEST RUNBOOK, RULE REQUEST, SCOPE, MENU CODE, ...). No output when there is nothing to say.',
+    pretool: 'PreToolUse. Allowed: no output. Denied: {"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":<text>}}.',
+    stop: 'Stop. Passed: no output. Steps left, with stopStyle "feedback" (or "auto", the default, under Claude Code): {"hookSpecificOutput":{"hookEventName":"Stop","additionalContext":<steps>},"systemMessage":<short lines for the user>}; ' +
+      'otherwise Codex gets {"decision":"block","reason":<steps>,"systemMessage":<short lines>} and other hosts {"decision":"block","reason":<steps>}. ' +
+      'The steps end with "Names: <tag>, <tag>.". A crashed hook: {"decision":"block","reason":"tools/hooks/hooks.mjs stop CRASHED ..."} on every host. ' +
+      'Read the decision from "hooks.mjs last --json" rather than parsing this text.',
+    commands: 'For project hooks: "jobs <transcript>" prints {"running":N,"ids":[...]}; "shown <key> --session <id>" exits 0 when <key> was already shown in that session, ' +
+      'else records it and exits 1; "last [N] --json" prints the last N Stop decisions [{"at","session","request","round","result","steps","waived"}]; "contract --json" prints this.'
+  },
+  history: [
+    { version: 1, date: 'before 2026-10-18', change: 'Stop prints {"decision":"block","reason"} on every host; session and prompt notices are plain text.' },
+    { version: 2, date: '2026-10-18', change: 'Claude Code: Stop prints hookSpecificOutput.additionalContext and systemMessage instead of decision and reason; session and prompt notices are hookSpecificOutput.additionalContext.',
+      removed: [{ event: 'stop', field: 'reason', host: 'claude-code', read: /\[\s*['"]reason['"]\s*\]|\.get\(\s*['"]reason['"]|\.reason\b/, unless: /additionalContext/ }] },
+    { version: 3, date: '2026-10-20', change: 'systemMessage is several lines (a heading, then one line per step); the resume notice starts "RESUMED:" instead of "INTERRUPTED WORK:"; the unresolved notice names the earlier request.',
+      removed: [{ event: 'session', text: 'INTERRUPTED WORK: RESULT', read: /INTERRUPTED WORK:\s*RESULT/ }] }
+  ]
+};
+// What a project's own hook files (config "externalHooks") read that the engine no longer prints, and how far behind the
+// contract version they were last checked against (config "hookContract") is. [] means they fit this engine.
+export function contractProblems(cfg = config()) {
+  const files = [].concat(cfg.externalHooks || []), probs = [];
+  for (const f of files) {
+    if (!exists(f)) { probs.push(`${f} is listed in "externalHooks" but does not exist`); continue; }
+    const text = read(abs(f));
+    for (const h of CONTRACT.history) for (const r of h.removed || []) {
+      if (!r.read.test(text) || (r.unless && r.unless.test(text))) continue;
+      probs.push(r.field ? `${f} reads "${r.field}" from the engine's ${r.event} output, which ${r.host ? `under ${r.host === 'claude-code' ? 'Claude Code' : r.host} ` : ''}it no longer prints since contract ${h.version} (${h.change}) Read hookSpecificOutput.additionalContext too, or the decision from "node tools/hooks/hooks.mjs last --json".`
+        : `${f} looks for "${r.text}" in the engine's ${r.event} output, which it no longer prints since contract ${h.version} (${h.change})`);
+    }
+  }
+  const seen = cfg.hookContract;
+  if (files.length && Number.isFinite(seen) && seen < CONTRACT.version)
+    probs.push(`the project hooks were last checked against contract ${seen}, and this engine prints contract ${CONTRACT.version}. What changed: ${CONTRACT.history.filter(h => h.version > seen).map(h => `${h.version} (${h.date}): ${h.change}`).join(' ')} Check ${files.join(', ')}, then set "hookContract": ${CONTRACT.version} in tools/hooks/config.json.`);
+  if (files.length && Number.isFinite(seen) && seen > CONTRACT.version) probs.push(`"hookContract" is ${seen}, newer than this engine's contract ${CONTRACT.version}: the engine is older than the one the project hooks were written for (node tools/starter.mjs upgrade)`);
+  return probs;
+}
+// How much a project's own SessionStart and UserPromptSubmit hooks print (.claude/settings.json, commands that are not
+// this engine's and that name a file in config "externalHooks"), each run once with a sample input. Both outputs reach
+// the agent at the same time as the engine's, so the audit holds each to HOOK_OUTPUT_MAX. Lesson: a project hook's
+// 13,178-character prompt output was cut to a short preview and its routing hint never reached the agent.
+export function externalHookSizes(cfg = config(), { timeout = 20000 } = {}) {
+  const ext = [].concat(cfg.externalHooks || []).map(f => rel(f));
+  if (!ext.length) return [];
+  const hooks = readJSON(abs('.claude/settings.json'), {}).hooks || {}, out = [], root = ROOT.replace(/\\/g, '/');
+  for (const ev of ['SessionStart', 'UserPromptSubmit']) for (const grp of [].concat(hooks[ev] || [])) for (const h of [].concat(grp?.hooks || [])) {
+    const cmd = String(h?.command || '');
+    if (!cmd || /hooks\.mjs/.test(cmd)) continue;
+    const file = ext.find(f => cmd.replace(/\\/g, '/').includes(f));
+    if (!file) continue;
+    const line = cmd.replace(/\$\{CLAUDE_PROJECT_DIR\}|\$CLAUDE_PROJECT_DIR|%CLAUDE_PROJECT_DIR%/g, root);
+    const input = JSON.stringify({ session_id: 'audit-size-sample', hook_event_name: ev, cwd: ROOT, transcript_path: '', source: 'startup', prompt: 'what does the brief say' });
+    const t = Date.now();
+    const r = spawnSync(line, { shell: true, cwd: ROOT, input, encoding: 'utf8', timeout, maxBuffer: 16 << 20, env: { ...process.env, CLAUDE_PROJECT_DIR: ROOT } });
+    let text = r.stdout || ''; try { const j = JSON.parse(text); if (typeof j?.hookSpecificOutput?.additionalContext === 'string') text = j.hookSpecificOutput.additionalContext; } catch { }
+    out.push({ event: ev, file, command: cmd, chars: text.length, ms: Date.now() - t,
+      error: r.error ? (r.error.code === 'ETIMEDOUT' ? `timed out after ${Math.round(timeout / 1000)} s` : r.error.message) : r.status ? `exit ${r.status}` : '' });
+  }
+  return out;
+}
+
 function cmdStop(data) {
-  syncAll();
+  const t0 = performance.now();
+  timed('sync (generated files)', () => syncAll());
   writeState('last-stop-input.json', { ...data, host: HOST, at: new Date().toISOString() }); // diagnostics: what the host sent
   const d = stopDecision(data);
   if (d) process.stdout.write(JSON.stringify(stopOutput(d)));
+  if (TIMING) process.stderr.write(`STOP-TIMING ${JSON.stringify({ total: Math.round(performance.now() - t0), parts: TIMING })}\n`);
 }
 
 // ---------- manual mode, for agents without hooks ----------
@@ -4239,8 +4380,41 @@ if (isMain) {
     process.exit(r.status ?? 1);
   }
   if (cmd === 'sync') { const ok = syncAll(); console.log(ok ? 'sync: skills, mirrors, DIRECTORY.md and the CLAUDE.md/AGENTS.md twin are current' : 'sync: FAILED'); process.exit(ok ? 0 : 1); }
+  // the hook output contract: its version and what each event prints (--json for scripts)
+  if (cmd === 'contract') {
+    if (process.argv.includes('--json')) { console.log(JSON.stringify(CONTRACT, (k, v) => v instanceof RegExp ? String(v) : v, 2)); process.exit(0); }
+    console.log(`hook output contract ${CONTRACT.version}\n` + Object.entries(CONTRACT.events).map(([k, v]) => `- ${k}: ${v}`).join('\n') +
+      '\nHistory:\n' + CONTRACT.history.map(h => `- ${h.version} (${h.date}): ${h.change}`).join('\n') + '\nCheck a project\'s own hooks against it: node tools/hooks/selfcheck.mjs --contract');
+    process.exit(0);
+  }
+  // for a project's own hooks: print something once per session. Exit 0 = already shown (print only what changed),
+  // exit 1 = not shown yet, recorded now (print it in full). A compaction clears it, since the agent lost what it saw.
+  if (cmd === 'shown') {
+    const key = process.argv[3] || '', i = process.argv.indexOf('--session'), sid = String(i > 0 ? process.argv[i + 1] || '' : '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
+    if (!key || key.startsWith('--') || !sid) { console.log('usage: node tools/hooks/hooks.mjs shown <key> --session <session id>   (exit 0: already shown in that session; exit 1: not yet, recorded now)'); process.exit(2); }
+    SID = sid;
+    const seen = readJSON(path.join(STATE, stateName('ext-shown.json')), {});
+    if (seen[key]) { console.log(`shown: ${key} (${seen[key]})`); process.exit(0); }
+    writeState('ext-shown.json', { ...seen, [key]: new Date().toISOString() });
+    console.log(`not shown yet: ${key} (recorded now)`); process.exit(1);
+  }
+  // the last N Stop decisions (default 10): time, request start, round, result, steps, waivers
+  if (cmd === 'last') {
+    const n = Number(process.argv.slice(3).find(a => /^\d+$/.test(a)) || 10), rows = stopLog(n);
+    if (process.argv.includes('--json')) { console.log(JSON.stringify(rows, null, 2)); process.exit(0); }
+    console.log(rows.length ? rows.map(stopLogLine).join('\n') : 'no Stop decisions logged yet (tools/hooks/state/stop-log.jsonl)'); process.exit(0);
+  }
+  // state hygiene: per-session state files older than 7 days go (--dry only lists them)
+  if (cmd === 'prune') {
+    const dry = process.argv.includes('--dry') || process.argv.includes('--dry-run'), gone = pruneState({ dry });
+    const kb = Math.round(gone.reduce((a, g) => a + g.bytes, 0) / 1024);
+    console.log(gone.length ? `${dry ? 'would remove' : 'removed'} ${gone.length} state file(s) older than ${STATE_KEEP_DAYS} days (${kb} KB):\n` + gone.map(g => `  ${g.name} (${g.days} days, ${Math.round(g.bytes / 1024)} KB)`).join('\n')
+      : `nothing to prune: no per-session state file is older than ${STATE_KEEP_DAYS} days`);
+    process.exit(0);
+  }
   if (!['session', 'prompt', 'pretool', 'posttool', 'stop'].includes(cmd)) {
     console.log('usage: node tools/hooks/hooks.mjs begin "<the user\'s request>" | check --answer-file <file> | run "<command>" | why | sync | bench | restore <item>\n' +
+      '       node tools/hooks/hooks.mjs last [N] [--json] | prune [--dry] | contract [--json] | shown <key> --session <id> | jobs <transcript>\n' +
       '       node tools/hooks/hooks.mjs session | prompt | pretool | posttool | stop   (hook events: JSON on stdin, run by the agent)');
     process.exit(1);
   }
@@ -4248,8 +4422,8 @@ if (isMain) {
   try { data = JSON.parse(fs.readFileSync(0, 'utf8') || '{}'); } catch {}
   HOST = hookHost(data);
   SID = String(data.session_id || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
-  // old sessions' turn files go after two days
-  if (cmd === 'session' && SID) try { for (const n of fs.readdirSync(STATE)) if (/^(turn|snapshot|turn-end|notices-shown|stop-blocks|stop-failed|event-hints|plan-watch|friction-turn)\.[A-Za-z0-9_-]+\.json$/.test(n) && Date.now() - fs.statSync(path.join(STATE, n)).mtimeMs > 2 * 86400_000) fs.rmSync(path.join(STATE, n), { force: true }); } catch { }
+  // old sessions' state files go after 7 days (pruneState)
+  if (cmd === 'session' && !envOf('BENCH')) pruneState();
   try {
     const fn = { session: cmdSession, prompt: cmdPrompt, pretool: cmdPretool, posttool: cmdPosttool, stop: cmdStop }[cmd];
     if (fn) fn(data);

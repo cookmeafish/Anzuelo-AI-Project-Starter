@@ -3,6 +3,8 @@
 // fills it from the survey, the brief and the code, so the user doesn't go through it item by item. Zero dependencies.
 //   node tools/fit.mjs                  create or refresh docs/fit-checklist.md: new candidates as "?", decisions kept,
 //                                       items that no longer exist removed
+//   node tools/fit.mjs --auto-skip      the same, and new packs, skills and tools with no sign of need here are decided
+//                                       "skip" (an upgrade uses it, so only the real decisions are left)
 //   node tools/fit.mjs check            FIT: PASS or FIT: FAIL with each problem (exit 1 on FAIL)
 //   node tools/fit.mjs decide "<item>" add|skip|"later - when: <condition>" "<reason>"
 //                                       record one decision (add --kind pack|skill|tool|feature when a name is shared)
@@ -24,7 +26,8 @@ const cmd = args.includes('--json') ? 'json' : pos[0] || 'refresh';
 const opt = f => { const i = args.indexOf(f); return i >= 0 ? args[i + 1] : undefined; };
 if (args.includes('--help')) { console.log(usageOf(import.meta.url)); process.exit(0); }
 const cfg = config();
-const cell = s => String(s ?? '').replace(/\|/g, '/').replace(/\s+/g, ' ').trim();
+const AUTO_SKIP = args.includes('--auto-skip');
+const cell =s => String(s ?? '').replace(/\|/g, '/').replace(/\s+/g, ' ').trim();
 const key = (kind, item) => `${kind}:${String(item).toLowerCase()}`;
 
 const HEADER = `# Fit checklist
@@ -53,7 +56,7 @@ function build(sv) {
   const byKey = new Map(old.map(r => [key(r.kind, r.item), r]));
   const { candidates, known } = fitCandidates(cfg);
   const signals = fitSignals(sv);
-  const rows = [], added = [], kept = new Set();
+  const rows = [], added = [], kept = new Set(), autoSkipped = [];
   for (const c of candidates) {
     const k = key(c.kind, c.item), was = byKey.get(k);
     const noCode = c.codeOnly && !(sv.n?.code) && !(signals[k] || []).length;
@@ -85,13 +88,22 @@ function build(sv) {
       rows.push({ item: c.item, kind: c.kind, signal: auto, decision: 'add', reason: `already in the project and kept (change it if it does not fit): ${does || 'part of how this project works'}` });
       continue;
     }
+    // --auto-skip (an upgrade of a project whose checklist is already decided): a new pack, skill or tool that is not in
+    // the project and that the survey, brief and code give no sign of need for changes nothing here, so it is skipped
+    // with that reason and only the real decisions are left. Lesson: each upgrade cost minutes of deciding rows that
+    // could only be "skip".
+    if (!was && AUTO_SKIP && old.length && ['pack', 'skill', 'tool'].includes(c.kind) && !(signals[k] || []).length && !c.present(cfg)) {
+      rows.push({ item: c.item, kind: c.kind, signal: auto, decision: 'skip', reason: `auto: ${c.item} is not in this project and the survey found no sign that it needs it, so adding it now would only bring setup and upkeep (change this row if it fits)` });
+      autoSkipped.push(c.item);
+      continue;
+    }
     rows.push({ item: c.item, kind: c.kind, signal, decision: was ? was.decision : '?', reason: was ? was.reason : '' });
   }
   // packs and skills the starter can't list right now (it was removed): their decided rows stay
   for (const r of old) if (!kept.has(key(r.kind, r.item)) && ['pack', 'skill'].includes(r.kind) && !known[r.kind]) { rows.push(r); kept.add(key(r.kind, r.item)); }
   const removed = old.filter(r => !kept.has(key(r.kind, r.item))).map(r => r.item);
   const text = HEADER + '\n| Item | Kind | Signal | Decision | Reason |\n|---|---|---|---|---|\n' + rows.map(r => `| ${cell(r.item)} | ${r.kind} | ${cell(r.signal)} | ${cell(r.decision) || '?'} | ${cell(r.reason)} |`).join('\n') + '\n';
-  return { rows, added, removed, text };
+  return { rows, added, removed, text, autoSkipped };
 }
 function save(text, engine = true) {
   if (read(abs(FIT_FILE)) === text) return false;
@@ -105,7 +117,8 @@ if (cmd === 'refresh') {
   const b = build(projectSurvey());
   const changed = save(b.text);
   const open = b.rows.filter(r => !fitDecision(r.decision)).length;
-  if (args.includes('--count-new')) { console.log(b.added.length); process.exit(0); }
+  // the new rows still to decide (first line), then the ones --auto-skip decided
+  if (args.includes('--count-new')) { console.log(b.added.length - b.autoSkipped.length); if (b.autoSkipped.length) console.log(`auto-skipped: ${b.autoSkipped.join(', ')}`); process.exit(0); }
   console.log(`fit: ${FIT_FILE} ${changed ? 'updated' : 'already current'} (${b.rows.length} candidates, ${b.added.length} new, ${b.removed.length} removed, ${open} to decide)`);
   if (b.removed.length) console.log(`removed (no longer candidates): ${b.removed.join(', ')}`);
   if (open) console.log('Next: decide each "?" row from the survey, the brief and the code (node tools/fit.mjs --json shows what each one is), then node tools/fit.mjs check.');
