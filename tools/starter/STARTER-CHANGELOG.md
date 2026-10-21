@@ -29,6 +29,22 @@ hooks:**, and an upgrade lists each one as its own review item.
     "bad" or common words) covering half of the request. Scenarios: `route-precision:`, `praise:`, `rule-request:`,
     `recall:`, `relayed turn:` and `manual path:`, in English and Spanish. `tools/trial.mjs` upgrades with
     `--no-selftest`: with the self-test run, each trial upgrade passed its 5-minute limit on a busy machine.
+  - **Prompt hints that fit the request (field report 7, items 3 to 6).** A best-choice question ("what is the best",
+    "which is better") about the user's own thing ("my", "mi") that one of the project's own runbooks covers no longer
+    routes to research; "research", "look up", "current prices" and "what do sources say" still do. A skill is not
+    routed on a noun that belongs to something else ("its notes", "sus notas") or on a word typed in capitals as a file
+    name ("its NOTES"), and a trigger ending in a colon ("note:") matches only as typed. Spanish requests route like
+    English ones: accents are folded before matching, Spanish small words are left out, Spanish question words and
+    pointers count, Spanish infinitives and "quiero que añadas" forms are work, and the closest runbook knows common
+    Spanish words. The closest runbook now prefers a word only it has, or one in its own name. "Fix the <name>
+    playbook so ...", or "arregla el playbook de <name>", edits that file: it routes to `project.md`, not to that
+    runbook's job. The `CHECKS:` line lists rule-request and rule-memory only when the request states a rule.
+    **Breaking for project hooks:** a message relayed from another session or agent (`<cross-session-message>`,
+    `<agent-message>`, "Another Claude session sent a message") that asks for work now gets the prompt hints a typed
+    request gets, after a first `- RELAYED: ...` line, and without rules, requirements, praise, upset, autonomy or menu
+    codes. Its preview leaves out checks keyed on the request, which its Stop does not hold it to. Scenarios:
+    `own-question:`, `runbook-edit:` and `relay-preview:`, in English and Spanish, in a host-like fixture with its own
+    runbooks, skills and an `externalHooks` file.
   - **No drip-feed in Stop rounds** (field report 6, item 1). A round now also names what its own fixes will set off,
     as "Then:" steps: the audit, hook self-tests and changelog after a lesson goes into a runbook, skill, rule or check,
     a data check after a data file is written, and the format and writing checks a fixed file will meet

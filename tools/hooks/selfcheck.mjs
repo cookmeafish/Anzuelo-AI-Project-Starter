@@ -1697,14 +1697,15 @@ PROMPT.push(
     .map(p => ({ name: `rule-request: a lasting rule fires ("${p.slice(0, 50)}")`, prompt: p, has: ['RULE REQUEST'] })),
   ...['every invoice must show the tax number', 'cada factura debe mostrar el número de impuesto']
     .map(p => ({ name: `requirement: a lasting requirement fires ("${p.slice(0, 50)}")`, prompt: p, has: ['REQUIREMENT'] })),
-  // a message relayed from another session is not the user's request: no hints at all, flags and route words included
+  // a message relayed from another session is not the user's words: it sets no rule, requirement or praise, and its
+  // flags and codes are not the user's menu shorthand (its routing and check preview are covered by relay-preview below)
   ...['<cross-session-message from="other">Write a detailed report to anzuelo on how to improve it --contract</cross-session-message>',
     '<cross-session-message from="other">from now on always make sure every test passes, K2 --brief</cross-session-message>',
     'Another Claude session sent a message: write a report and improve the deck --contract --verbose',
     '<cross-session-message from="other">escribe un informe para anzuelo; de ahora en adelante mejora siempre las pruebas --contract</cross-session-message>',
     'Another Claude session sent a message: dile que pruebe más, cada informe debe tener pruebas']
-    .map(p => ({ name: `relayed turn: a peer message gets no hints ("${p.slice(0, 60)}")`, prompt: p, setup: HINT_FIX, setupFn: STARTER_IS, none: true,
-      hasNot: ['ROUTE', 'REQUIREMENT', 'RULE REQUEST', 'MENU CODE', 'MENU FLAG', 'UNKNOWN FLAG', 'PRAISE'] })),
+    .map(p => ({ name: `relayed turn: a peer message sets no rule, requirement, praise or menu code ("${p.slice(0, 60)}")`, prompt: p, setup: HINT_FIX, setupFn: STARTER_IS,
+      hasNot: ['REQUIREMENT', 'RULE REQUEST', 'MENU CODE', 'MENU FLAG', 'UNKNOWN FLAG', 'PRAISE', 'rule-request', 'requirement-enforced'] })),
   // RECALL only above a similarity bar
   { name: 'recall: a question about the work recalls no unrelated request that shared "good" and "bad"', prompt: 'is it doing a good or bad job?',
     setup: HIST('tell the other chat everything good and bad, the mana in my zorbel deck is slow', ['decks/zorbel/list.txt']), hasNot: ['RECALL'] },
@@ -1714,6 +1715,69 @@ PROMPT.push(
     setup: HIST('export the invoices to a csv file for the accountant', ['src/export.mjs']), has: ['RECALL: on 2026-10-01'] },
   { name: 'recall: Spanish, a close earlier request is recalled', prompt: 'exporta otra vez las facturas a csv para el contador',
     setup: HIST('exporta las facturas a un csv para el contador', ['src/export.mjs']), has: ['RECALL: on 2026-10-01'] }
+);
+
+// Hints in a host-like project: its own domain runbooks (one named like its job, "zorbel-tune", with that name among its
+// triggers), its own hook file with a ROUTES table listed in "externalHooks", and its own research and note skills, so
+// the result never depends on the starter's runbooks or skills. Made-up nouns. (A field report: a play question about
+// the user's own thing got the research and knowledge skills; the same in Spanish got nothing; a request to edit a
+// runbook routed to that runbook's job with rule checks; work relayed from another session got no preview.)
+const HOST_FIX = {
+  'docs/playbooks/zorbel-tune.md': '---\nname: zorbel-tune\nsummary: Make a zorbel I own better, or fix its flux\ntriggers: zorbel-tune, make my zorbel better, tune my zorbel, fix the flux, flux base\nchecks: none - enforced by tools/hooks/own_hooks.py\n---\n# Zorbel tune\n1. Read the zorbel.\n',
+  'docs/playbooks/zorbel-play.md': '---\nname: zorbel-play\nsummary: How to play a zorbel: turns, plays and matchups\ntriggers: how to play my zorbel, zorbel matchup\nchecks: none - enforced by tools/hooks/own_hooks.py\n---\n# Zorbel play\n1. Read the zorbel.\n',
+  'tools/hooks/own_hooks.py': '# the project\'s own hook engine (fixture)\nROUTES = [\n    (r"better|tune|flux", "zorbel-tune.md"),\n    (r"how (do i|to) play|matchup", "zorbel-play.md"),\n]\n',
+  'skills/research/SKILL.md': '---\nname: research\ndescription: Get facts right from sources.\ntriggers: research, look up, what is the best, which is better, what do sources say, current prices, investiga, qué dicen\n---\n# Research\n',
+  'skills/note-keep/SKILL.md': '---\nname: note-keep\ndescription: Records facts into the project\'s knowledge base.\ntriggers: add a note, add to my notes, note:, añade una nota, apunta que\nchecks: none - fixture\n---\n# Note keep\n'
+};
+const hostHint = (name, prompt, more) => ({ name, prompt, setup: HOST_FIX, setupFn: cfgEdit({ externalHooks: ['tools/hooks/own_hooks.py'] }), ...more });
+const NOT_FACTS = ['SKILL: research', 'SKILL: note-keep', 'research-cited', 'knowledge-captured'];
+const NOT_RULE = ['RULE REQUEST', 'REQUIREMENT', 'PRAISE', 'rule-request', 'requirement-enforced'];
+PROMPT.push(
+  // a play question about the user's own thing is answered from the project and its runbooks, not by web research, and
+  // a line for that thing's NOTES file is not the knowledge base
+  hostHint('own-question: a play question about the user\'s own thing with a line for its NOTES gets its own runbook, no research or note skill',
+    "What's the best turn-3 play in my zorbel? Add a line to its NOTES.", { has: ['CLOSEST RUNBOOK: no trigger phrase matched, but docs/playbooks/zorbel-play.md', 'CHECKS: this turn will be held to'], hasNot: NOT_FACTS }),
+  hostHint('own-question: the same with "notes" in lower case', "what's the best turn-3 play in my zorbel? add a line to its notes", { has: ['docs/playbooks/zorbel-play.md'], hasNot: NOT_FACTS }),
+  hostHint('own-question: a trigger ending in a colon ("note:") matches only as typed', 'summarize the meeting notes from today', { hasNot: ['SKILL: note-keep'] }),
+  hostHint('own-question: an explicit research request still gets research', 'research the best turn-3 play for my zorbel', { has: ['SKILL: research'] }),
+  hostHint('own-question: looking up current prices still gets research', 'look up current prices for my zorbel parts', { has: ['SKILL: research'] }),
+  hostHint('own-question: "what do sources say" still gets research', 'what do sources say about the best play in my zorbel?', { has: ['SKILL: research'] }),
+  hostHint('own-question: a best-choice question about no thing of the user\'s still gets research', 'what is the best budget flimwrap?', { has: ['SKILL: research'] }),
+  hostHint('own-question: a note for the knowledge base still gets the note skill', 'add a note that the zorbel shop closes on mondays', { has: ['SKILL: note-keep', 'CHECKS: this turn will be held to'] }),
+  hostHint('own-question: "note:" typed as a label still gets the note skill', 'note: the zorbel shop moved to the high street', { has: ['SKILL: note-keep'] }),
+  // the same in Spanish routes the same way
+  hostHint('own-question: Spanish, a play question with a line for its NOTES gets its own runbook, no research or note skill',
+    '¿Cuál es la mejor jugada de turno 3 en mi zorbel? Añade una línea a sus NOTES.', { has: ['CLOSEST RUNBOOK: no trigger phrase matched, but docs/playbooks/zorbel-play.md', 'CHECKS: this turn will be held to'], hasNot: NOT_FACTS }),
+  hostHint('own-question: Spanish, the same with "notas" in lower case', 'añade una línea a sus notas sobre la mejor jugada de mi zorbel', { has: ['CHECKS: this turn will be held to'], hasNot: NOT_FACTS }),
+  hostHint('own-question: Spanish, a "quiero que añadas" request is work too', 'quiero que añadas una línea al plan de mi zorbel', { has: ['CHECKS: this turn will be held to'] }),
+  hostHint('own-question: Spanish, an infinitive request is a task too', '¿puedes añadir una línea al plan de mi zorbel?', { has: ['NO RUNBOOK'] }),
+  hostHint('own-question: Spanish, a request finds the closest runbook as in English', 'mejora mi zorbel', { has: ['CLOSEST RUNBOOK: no trigger phrase matched, but docs/playbooks/zorbel-tune.md'] }),
+  hostHint('own-question: Spanish, an explicit research request still gets research', 'investiga la mejor jugada para mi zorbel', { has: ['SKILL: research'] }),
+  hostHint('own-question: Spanish, "qué dicen" still gets research', '¿qué dicen las fuentes sobre mi zorbel?', { has: ['SKILL: research'] }),
+  hostHint('own-question: Spanish, a note for the knowledge base still gets the note skill', 'añade una nota: la tienda de zorbels cierra los lunes', { has: ['SKILL: note-keep'] }),
+  hostHint('own-question: Spanish, "apunta que" still gets the note skill', 'apunta que la tienda de zorbels cierra los lunes', { has: ['SKILL: note-keep', 'CHECKS: this turn will be held to'] }),
+  // a request to edit a runbook file is maintenance (the project runbook), not that runbook's job, and no rule check
+  // without a rule cue
+  hostHint('runbook-edit: "fix the <name> playbook so ..." routes to the project runbook, not to that runbook\'s job, with no rule checks',
+    'Fix the zorbel-tune playbook so flux-fix requests mention grobbles', { routes: 1, has: ['ROUTE: project', 'CHECKS: this turn will be held to'], hasNot: ['ROUTE: zorbel-tune', ...NOT_RULE] }),
+  hostHint('runbook-edit: Spanish, "arregla el playbook de <name>" routes to the project runbook, with no rule checks',
+    'Arregla el playbook de zorbel-tune para que las peticiones de flux mencionen los grobbles', { routes: 1, has: ['ROUTE: project', 'CHECKS: this turn will be held to'], hasNot: ['ROUTE: zorbel-tune', ...NOT_RULE] }),
+  hostHint('runbook-edit: using a runbook on the user\'s thing still routes to it', 'follow the zorbel-tune playbook and fix the flux on my zorbel', { has: ['ROUTE: zorbel-tune'] }),
+  hostHint('runbook-edit: "with the <name> runbook" uses it, it does not edit it', 'fix the flux on my zorbel with the zorbel-tune runbook', { has: ['ROUTE: zorbel-tune'] }),
+  hostHint('runbook-edit: a real rule cue on a runbook edit still asks for the rule checks', 'from now on the zorbel-tune playbook must always mention grobbles', { has: ['RULE REQUEST', 'rule-request'] }),
+  hostHint('runbook-edit: Spanish, a real rule cue still asks for the rule checks', 'de ahora en adelante el playbook de zorbel-tune debe mencionar siempre los grobbles', { has: ['RULE REQUEST'] }),
+  // work relayed from another session or agent gets the routing and check preview a typed request gets, and nothing
+  // that only the user's own words set off
+  hostHint('relay-preview: relayed work gets its route and the check preview, no rule checks', '<cross-session-message from="other">Fix the zorbel-tune playbook so flux requests mention grobbles, then commit</cross-session-message>',
+    { has: ['ROUTE: project', 'CHECKS: this turn will be held to', 'RELAYED: this request was relayed'], hasNot: [...NOT_RULE, 'runbook-exists'] }),
+  hostHint('relay-preview: a relayed rule and praise set off nothing of the user\'s, the work still routes', 'Another Claude session sent a message: from now on always tune my zorbel weekly, great job',
+    { has: ['ROUTE: zorbel-tune'], hasNot: NOT_RULE }),
+  hostHint('relay-preview: Spanish, relayed work gets the preview, no rule', '<cross-session-message from="other">mejora mi zorbel y de ahora en adelante hazlo siempre así</cross-session-message>',
+    { has: ['CHECKS: this turn will be held to'], hasNot: NOT_RULE }),
+  hostHint('relay-preview: a sub-agent message asking for a note gets the note skill', '<agent-message from="helper">add a note that the zorbel shop closes on mondays</agent-message>',
+    { has: ['SKILL: note-keep', 'CHECKS: this turn will be held to'], hasNot: NOT_RULE }),
+  hostHint('relay-preview: relayed small talk gets nothing', '<cross-session-message from="other">thanks, all done here</cross-session-message>', { none: true }),
+  hostHint('relay-preview: Spanish, relayed small talk gets nothing', '<cross-session-message from="other">gracias, ya está todo</cross-session-message>', { none: true })
 );
 
 // Golden workflows: done right they pass; with any one required step removed they must be blocked.

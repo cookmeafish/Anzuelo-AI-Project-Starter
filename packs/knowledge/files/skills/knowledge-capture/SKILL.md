@@ -1,7 +1,7 @@
 ---
 name: knowledge-capture
 description: Records facts, findings, preferences and decisions into the project's knowledge base (docs/knowledge, SOURCES.md, DECISIONS.md, BRIEF.md) with evidence labels, sources and dates, extending existing topic files instead of duplicating them. Use after research or ingesting files, whenever the user states a fact or preference worth keeping, or when the user says "remember this", "note that", "save this", or "add this to the project".
-triggers: note that, write this down, add this to the knowledge base, save this fact, record this, keep track of this, for future reference, remember this, remember that, add a note, note down, jot down, add to my notes, save a note, fyi, keep in mind, note:
+triggers: note that, write this down, add this to the knowledge base, save this fact, record this, keep track of this, for future reference, remember this, remember that, add a note, note down, jot down, add to my notes, save a note, fyi, keep in mind, note:, anota que, apunta que, apunta esto, toma nota, añade una nota, guarda este dato
 ---
 # Capture knowledge
 
