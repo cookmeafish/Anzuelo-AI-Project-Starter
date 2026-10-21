@@ -1675,6 +1675,38 @@ STOP.push(
     rows: [MOVED_DONE('bz4a', 0)], prep: dir => { for (const p of Object.keys(SIX)) { const f = path.join(dir, p); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, 'x'); fs.rmSync(f); } },
     answer: 'The sweep finished.', expect: { not: ['plan-required', 'root-tidy', 'watched-inputs'] } }
 );
+// A field turn (a runbook fix, its sweeps run in the background): the moved command's own notice says it "will be stopped"
+// after a time limit, which made it count as stopped while it ran, so round 1 asked for the sweeps' results. Then the
+// audit ran inside a background job with its output sent into a log file, and the gate read the job's own output.
+const MOVED_FULL = (id, file) => `${MOVED(id, file)}. You will be notified when it completes. If it is still running after 10m in the background, it will be stopped and you will be notified. To check interim output, use Read on that file path.`;
+const BG_JOB = (id, cmd, file) => ({ name: 'Bash', input: { command: cmd, run_in_background: true }, result: `Command running in background with ID: ${id}. Output is being written to: ${file}. You will be notified when it completes.` });
+const AUDIT_JOB = 'node tools/hooks/hooks.mjs sync && (node tools/audit.mjs > .cache/sweep-audit.txt 2>&1; echo "audit exit $?" >> .cache/sweep-audit.txt) & wait';
+const RULES_EDIT = { 'docs/checks/house-style.md': '# House style\nShort lines.\n', 'docs/CHANGELOG.md': 'x' };
+STOP.push(
+  { name: 'bg-moved: a moved command whose notice says it "will be stopped" after a time limit still holds the Stop while it runs', prompt: 'run the full sweep over the notes',
+    tools: [bash('node tools/sweep.mjs', MOVED_FULL('bq1a', BG_OUT('f')))], files: { 'docs/rota.md': 'r' }, answer: 'Started the sweep.', expect: { block: false },
+    after: dir => { let j = {}; try { j = JSON.parse(fs.readFileSync(path.join(dir, 'tools/hooks/state/turn-end.json'), 'utf8')); } catch { } return j.pending >= 1 || `not held: ${JSON.stringify(j)}`; } },
+  { name: 'bg-moved: a moved command stopped by the agent no longer holds the Stop: blocked', prompt: 'run the full sweep over the notes',
+    tools: [bash('node tools/sweep.mjs', MOVED_FULL('bq2a', BG_OUT('g'))), { name: 'TaskStop', input: { task_id: 'bq2a' }, result: '{"message":"Successfully stopped task: bq2a (node tools/sweep.mjs)"}' }],
+    files: { 'docs/rota.md': 'r' }, answer: 'Started the sweep.', expect: { block: true, tags: ['finished-summary'] } },
+  { name: 'gate-redirect: an audit run into a log file by a finished background job counts by that file: passes', prompt: 'add a house style note to the checks',
+    prep: () => fs.writeFileSync(BG_OUT('h'), 'sync: skills, mirrors, DIRECTORY.md and the CLAUDE.md/AGENTS.md twin are current\n'), tools: [BG_JOB('bh1', AUDIT_JOB, BG_OUT('h'))], rows: [MOVED_DONE('bh1', 0)],
+    files: { ...RULES_EDIT, '.cache/sweep-audit.txt': 'PASS   1. rules twin\naudit: PASS (28 sweeps, 0 failed, 2 warnings)\naudit exit 0\n' }, answer: 'Added the note.' + FIN, expect: { not: ['audit-run'] } },
+  { name: 'gate-redirect: the same log file with a failing audit is blocked, with the log\'s lines as the evidence', prompt: 'add a house style note to the checks',
+    prep: () => fs.writeFileSync(BG_OUT('i'), 'sync: skills, mirrors, DIRECTORY.md and the CLAUDE.md/AGENTS.md twin are current\n'), tools: [BG_JOB('bi1', AUDIT_JOB, BG_OUT('i'))], rows: [MOVED_DONE('bi1', 0)],
+    files: { ...RULES_EDIT, '.cache/sweep-audit.txt': 'FAIL   2. hooks wired for every agent\naudit: FAIL (28 sweeps, 1 failed, 2 warnings)\naudit exit 1\n' }, answer: 'Added the note.' + FIN,
+    expect: { block: true, tags: ['audit-run'], says: /hooks wired for every agent/ } },
+  { name: 'gate-redirect: a log file older than the turn is not this run\'s output: blocked', prompt: 'add a house style note to the checks',
+    prep: () => fs.writeFileSync(BG_OUT('j'), 'sync: current\n'), tools: [BG_JOB('bj1', AUDIT_JOB, BG_OUT('j'))], rows: [MOVED_DONE('bj1', 0)],
+    files: { ...RULES_EDIT, '.cache/sweep-audit.txt': 'audit: PASS (28 sweeps, 0 failed, 0 warnings)\n' }, mtimes: { '.cache/sweep-audit.txt': -3 * 3600_000 }, answer: 'Added the note.' + FIN,
+    expect: { block: true, tags: ['audit-run'] } },
+  { name: 'gate-redirect: a foreground run into a file counts by the file, not by what the next command printed: passes', edit: VALIDATOR, prompt: 'validate the data files',
+    tools: [bash('node tools/validate.mjs > .cache/validate.txt 2>&1; echo checked', 'checked')],
+    files: { 'data/a.json': '{}', 'docs/CHANGELOG.md': 'x', '.cache/validate.txt': 'checked 3 files\nRESULT: PASS\n' }, answer: 'Validated.' + FIN, expect: { not: ['data-valid'] } },
+  { name: 'gate-redirect: a foreground run into a file that says FAIL: blocked', edit: VALIDATOR, prompt: 'validate the data files',
+    tools: [bash('node tools/validate.mjs > .cache/validate.txt 2>&1; echo checked', 'checked')],
+    files: { 'data/a.json': '{}', 'docs/CHANGELOG.md': 'x', '.cache/validate.txt': 'checked 3 files\nRESULT: FAIL\n' }, answer: 'Validated.' + FIN, expect: { block: true, tags: ['data-valid'] } }
+);
 // check-preview: work learns at the prompt which checks its Stop will hold it to
 PROMPT.push(
   { name: 'check-preview: a routed request names its runbook\'s checks before work starts', prompt: 'make a plan for the csv export', has: ['CHECKS: this turn will be held to plan-saved', 'finished-summary', 'Do them all in the first pass'] },
@@ -1685,7 +1717,7 @@ PROMPT.push(
   { name: 'check-preview: a question gets no preview', prompt: 'what is the price of desk x?', hasNot: ['CHECKS:'] },
   // held to more than 2 checks, the line offers the self-check; held to 2, it does not
   { name: 'check-preview: more than 2 checks offer the self-check command', prompt: 'make a plan for the csv export', has: ['CHECKS: this turn will be held to plan-saved', 'Self-check first: node tools/hooks/hooks.mjs check --answer-file'] },
-  { name: 'check-preview: 2 checks give no self-check clause', prompt: 'rename the vendor files to use dates', has: ['CHECKS: this turn will be held to runbook-exists, finished-summary;'], hasNot: ['Self-check first'] }
+  { name: 'check-preview: 2 checks give no self-check clause', prompt: 'rename the vendor files to use dates', has: ['CHECKS: this turn will be held to runbook-exists, finished-summary (playbook-named instead once it follows a runbook);'], hasNot: ['Self-check first'] }
 );
 // pretool-combined: one denial names every rule a tool call breaks (Lesson: the retry was denied again for the second)
 const NO_OVERWRITE_OUT = { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), noOverwrite: ['outputs/**'] }) };
@@ -1845,6 +1877,37 @@ PROMPT.push(
     { has: ['SKILL: note-keep', 'CHECKS: this turn will be held to'], hasNot: NOT_RULE }),
   hostHint('relay-preview: relayed small talk gets nothing', '<cross-session-message from="other">thanks, all done here</cross-session-message>', { none: true }),
   hostHint('relay-preview: Spanish, relayed small talk gets nothing', '<cross-session-message from="other">gracias, ya está todo</cross-session-message>', { none: true })
+);
+
+// The host's own checks in its requirements.json: its sweeps after a change to its runbooks or rules, and its rules'
+// self-test after a change to its hook file (a field report: the preview of a runbook fix left out the project's own
+// sweeps check and the writing check, and named the hook self-tests and runbook-complete, which never fired).
+const HOST_SWEEPS = { tag: 'zorbel-sweeps-after-change', when: { filesChanged: ['docs/playbooks/zorbel-tune.md', 'docs/playbooks/zorbel-play.md', 'tools/hooks/own_hooks.py', 'tools/zorbel_sweeps.py'] },
+  require: { toolPassed: { cmd: String.raw`zorbel_sweeps\.py`, pass: 'RESULT: PASS' } }, message: 'A zorbel runbook or the zorbel rules changed: run python tools/zorbel_sweeps.py until RESULT: PASS.' };
+const HOST_SELFTEST = { tag: 'zorbel-hooks-selftest', when: { filesChanged: ['tools/hooks/own_hooks.py'] },
+  require: { toolPassed: { cmd: String.raw`test_own_hooks\.py`, pass: 'RESULT: PASS' } }, message: 'The zorbel rules changed: run python tools/hooks/test_own_hooks.py until RESULT: PASS.' };
+SCENARIO_TAGS.add(HOST_SWEEPS.tag); SCENARIO_TAGS.add(HOST_SELFTEST.tag);
+const HOST_REQS = { 'tools/hooks/requirements.json': s => JSON.stringify({ requirements: [...JSON.parse(s).requirements, HOST_SWEEPS, HOST_SELFTEST] }) };
+const HOST_SETUP = { ...cfgEdit({ externalHooks: ['tools/hooks/own_hooks.py'] }), ...HOST_REQS };
+const hostChecks = (name, prompt, more) => ({ ...hostHint(name, prompt, more), setupFn: HOST_SETUP });
+const CANT_FIRE = ['hooks-tested', 'runbook-complete', 'zorbel-hooks-selftest', 'If it changes'];
+PROMPT.push(
+  // a request that names the runbook to fix: the project's own check on that file and the writing check are held now,
+  // and the checks that edit can't set off are left out
+  hostChecks('check-preview: a runbook fix names the project\'s own check on that runbook and the writing check, not checks it can\'t set off',
+    'Fix the zorbel-tune playbook so flux-fix requests mention grobbles', { has: ['CHECKS: this turn will be held to', 'zorbel-sweeps-after-change', 'plain-writing', 'audit-run', 'status-handoff'], hasNot: CANT_FIRE }),
+  hostChecks('check-preview: Spanish, a runbook fix names the same checks',
+    'Arregla el playbook de zorbel-tune para que las peticiones de flux mencionen los grobbles', { has: ['CHECKS: this turn will be held to', 'zorbel-sweeps-after-change', 'plain-writing', 'audit-run', 'status-handoff'], hasNot: CANT_FIRE }),
+  // naming no file: the project's own file checks are named with the files that set them off, and no writing check
+  hostChecks('check-preview: a request that names no file lists the project\'s own file checks as "if it changes"',
+    'make my zorbel better', { has: ['CHECKS: this turn will be held to', 'If it changes docs/playbooks/zorbel-tune.md', ': zorbel-sweeps-after-change'], hasNot: ['plain-writing'] }),
+  // a request in Spanish (or any language) is previewed like English, with status-handoff
+  hostChecks('check-preview: Spanish, a play question with a line for its NOTES gets the CHECKS line with status-handoff',
+    '¿Cuál es la mejor jugada de turno 3 en mi zorbel? Añade una línea a sus NOTES (reglas generales).', { has: ['CHECKS: this turn will be held to', 'status-handoff after 15+ tool calls'], hasNot: ['plain-writing', ...NOT_FACTS] }),
+  hostChecks('check-preview: the same play question in English gets the same CHECKS line',
+    "What's the best turn-3 play in my zorbel? Add a line to its NOTES (rules of thumb).", { has: ['CHECKS: this turn will be held to', 'status-handoff after 15+ tool calls'], hasNot: ['plain-writing', ...NOT_FACTS] }),
+  hostChecks('check-preview: Spanish, a question with no task gets no CHECKS line', '¿Cuál es la mejor jugada de turno 3 en mi zorbel?', { hasNot: ['CHECKS:'] }),
+  hostChecks('check-preview: a question with no task gets no CHECKS line', "What's the best turn-3 play in my zorbel?", { hasNot: ['CHECKS:'] })
 );
 
 // Golden workflows: done right they pass; with any one required step removed they must be blocked.
@@ -2070,7 +2133,8 @@ for (const s of PROMPT) {
     let why = '';
     if (s.none && out.trim()) why = 'expected no output, got: ' + out.slice(0, 200);
     for (const h of s.hasNot || []) if (out.includes(h)) why ||= 'unexpected "' + h + '"';
-    for (const h of s.has || []) if (!out.includes(h)) why ||= `missing "${h}" in: ${out.slice(0, 400) || '(empty)'} ${err.slice(0, 200)}`;
+    // (the CHECKS line, when there is one, is shown whole: it comes after the rules digest)
+    for (const h of s.has || []) if (!out.includes(h)) why ||= `missing "${h}" in: ${out.slice(0, 400) || '(empty)'}${/CHECKS: /.test(out) && !out.slice(0, 400).includes('CHECKS: ') ? ` ... ${/CHECKS: .*/.exec(out)[0]}` : ''} ${err.slice(0, 200)}`;
     // routes: how many primary ROUTE lines (secondary ones say "ALSO ROUTE")
     const primary = (out.match(/(?<!ALSO )\bROUTE: [\w-]+/g) || []).length;
     if (s.routes !== undefined && primary !== s.routes) why ||= `expected ${s.routes} primary ROUTE line(s), got ${primary}: ${out.slice(0, 400)}`;
@@ -2221,6 +2285,43 @@ if (mineB() && (!TAGS || TAGS.includes('stop-follow-on'))) {
       `preview(${preview.length}): ${preview.slice(0, 200)} | c1: ${n1.join(', ')} | note: ${note.stdout.slice(0, 150)} | late: ${late.join(', ')} | c3: ${c3.stdout.slice(0, 300)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
+// stop-reblock: blocks count per request. A Stop that only waits for a background job adds no block and keeps the count,
+// and the Stop after the job's notice goes on from it, so the cap ends a long turn; "hooks.mjs last" shows the rounds.
+// A new request starts at round 1. Lesson: each wait reset the count (1 blocked, 2 waiting, 1 waiting x3, 1 blocked).
+if (mineB() && (!TAGS || TAGS.includes('stop-reblock'))) {
+  for (const lang of ['en', 'es']) {
+    const dir = copyProject();
+    try {
+      ownChecksOff(dir);
+      const P = lang === 'es' ? ['ordena las notas del turno', 'ahora ordena la lista de la compra'] : ['tidy the rota notes', 'now tidy the shopping list'];
+      const t0 = Date.now() - 600_000, iso = t => new Date(t).toISOString(), tp = path.join(dir, 'transcript.jsonl');
+      const rows = [{ type: 'user', timestamp: iso(t0), message: { role: 'user', content: P[0] } }];
+      let k = 0;
+      const say = text => rows.push({ type: 'assistant', timestamp: iso(t0 + ++k * 1000), message: { content: [{ type: 'text', text }] } });
+      const launch = id => { const u = `toolu_rb${id}`; rows.push({ type: 'assistant', timestamp: iso(t0 + ++k * 1000), message: { content: [{ type: 'tool_use', id: u, name: 'Bash', input: { command: 'node tools/sweep.mjs', run_in_background: true } }] } },
+        { type: 'user', timestamp: iso(t0 + ++k * 1000), message: { content: [{ type: 'tool_result', tool_use_id: u, content: `Command running in background with ID: ${id}. Output is being written to: ${BG_OUT(id)}` }] } }); };
+      const notice = id => rows.push({ type: 'user', timestamp: iso(t0 + ++k * 1000), message: { role: 'user', content: `<task-notification>\n<task-id>${id}</task-id>\n<status>completed</status>\n<summary>done (exit code 0)</summary>\n</task-notification>` } });
+      const save = () => { fs.writeFileSync(tp, rows.map(r => JSON.stringify(r)).join('\n') + '\n'); fs.utimesSync(tp, (t0 - 3600_000) / 1000, (t0 - 3600_000) / 1000); };
+      const sp = path.join(dir, 'tools/hooks/state/snapshot.json');
+      if (fs.existsSync(sp)) { try { const j = JSON.parse(fs.readFileSync(sp, 'utf8')); j.files['transcript.jsonl'] = [0, 0, null]; fs.writeFileSync(sp, JSON.stringify(j)); } catch { } }
+      write(dir, { 'docs/rota.md': 'r' });
+      const stop = active => { save(); const { out } = run(dir, 'stop', { transcript_path: tp, stop_hook_active: active }); let d = null; try { d = out.trim() ? JSON.parse(out) : null; } catch { } return d ? d.reason || d.hookSpecificOutput?.additionalContext || 'blocked' : ''; };
+      say('Done.'); stop(false);                              // 1 blocked (no Finished section)
+      launch('rbj1'); say('Running the sweep.'); stop(true);   // waiting
+      notice('rbj1'); say('Done.'); const r2 = stop(false);     // the notice wakes the session: 2 blocked
+      launch('rbj2'); say('Running it again.'); stop(true);    // waiting
+      notice('rbj2'); say('Done.'); stop(false);                // 3 blocked
+      say('Done.'); const r4 = stop(true);                      // the cap: the turn ends
+      rows.push({ type: 'user', timestamp: iso(t0 + ++k * 1000), message: { role: 'user', content: P[1] } }); say('Done.'); const r5 = stop(false); // a new request: round 1
+      const log = fs.readFileSync(path.join(dir, 'tools/hooks/state/stop-log.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l)).map(e => `${e.round} ${e.result}`);
+      const want = ['1 blocked', '2 waiting', '2 blocked', '3 waiting', '3 blocked', '4 ended-unresolved', '1 blocked'];
+      const last = spawnSync(process.execPath, [path.join(dir, 'tools/hooks/hooks.mjs'), 'last', '10'], { cwd: dir, encoding: 'utf8' }).stdout;
+      report(JSON.stringify(log) === JSON.stringify(want) && /round 2 of 3/.test(r2) && !r4 && /round 1 of 3/.test(r5) && /round 2\s+waiting/.test(last) && /round 3\s+blocked/.test(last),
+        `stop-reblock: ${lang === 'es' ? 'Spanish, ' : ''}blocks count per request across waits for background jobs, the cap ends the turn, and a new request starts at round 1`,
+        `log: ${log.join(' / ')} (want ${want.join(' / ')}) | round 2 said: ${(/round \d of \d/.exec(r2) || ['none'])[0]} | after the cap: ${r4.slice(0, 80) || 'ended'} | new request: ${(/round \d of \d/.exec(r5) || ['none'])[0]} | last: ${last.replace(/\n/g, ' / ').slice(0, 300)}`);
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  }
+}
 // check-preview: the self-check the CHECKS line advertises runs in a hook-wired session too (the prompt hook recorded
 // the request under the session's id), reads the session's transcript, and leaves the session's Stop state alone.
 // Lesson: the command was built for agents without hooks, and with hooks it said "no request recorded".
@@ -2240,6 +2341,69 @@ if (mineB() && (!TAGS || TAGS.includes('check-preview'))) {
       'check-preview: the advertised self-check runs in a hook-wired session, finds its request, and leaves its Stop state alone',
       `command: ${cmd || '(not in the preview)'} | exit ${c.status}: ${c.stdout.slice(0, 300)} | state written: ${wrote.join(', ') || 'none'}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+// check-preview (the guard): a replay of field turns in the host fixture. The prompt hook's CHECKS line is read, the turn
+// is made as an agent makes it (the edit asked for, a long turn, an answer without its markers), and Stop's round 1 is
+// judged: every check it names is in the line (nothing arrives unannounced), and the line names none of the checks
+// that turn could not set off. EN and ES. Lesson: a runbook fix was held to the project's own sweeps check and the
+// writing check, which the line never named, while the line named the hook self-tests and runbook-complete.
+const previewOf = out => { let t = out; try { t = JSON.parse(out).hookSpecificOutput?.additionalContext ?? out; } catch { } return (/CHECKS: [^\n]*/.exec(t) || [''])[0].replace(/([a-z][a-z0-9-]*)-\(([^)]*)\)/g, (m, a, b) => b.split(', ').map(x => `${a}-${x}`).join(', ')); };
+if (mineB() && (!TAGS || TAGS.includes('check-preview'))) {
+  const names = r => (/Names: ([^\n]*?)\.[ \t]*(\n|$)/.exec(r || '')?.[1] || '').split(', ').filter(Boolean).filter(t => !/^(skill-learn|answer-resent|unresolved-carryover)$/.test(t));
+  const FIX = s => s + '2. For a flux fix, check the grobbles first — they set the flux.\n';
+  const NOTES = { 'zorbels/mine/NOTES.md': s => s + '- Turn 3: play the grobble.\n' };
+  const CASES = [
+    { name: 'a runbook fix', prompt: 'Fix the zorbel-tune playbook so flux-fix requests mention grobbles', tools: [pb('project'), pb('zorbel-tune')], edit: { 'docs/playbooks/zorbel-tune.md': FIX },
+      answer: 'The runbook mentions grobbles now.', must: ['zorbel-sweeps-after-change', 'plain-writing'], never: ['hooks-tested', 'runbook-complete', 'zorbel-hooks-selftest'] },
+    { name: 'a runbook fix, in Spanish', prompt: 'Arregla el playbook de zorbel-tune para que las peticiones de flux mencionen los grobbles', tools: [pb('project'), pb('zorbel-tune')], edit: { 'docs/playbooks/zorbel-tune.md': FIX },
+      answer: 'El runbook ya menciona los grobbles.', must: ['zorbel-sweeps-after-change', 'plain-writing'], never: ['hooks-tested', 'runbook-complete', 'zorbel-hooks-selftest'] },
+    { name: 'a long play question with a line for its NOTES', prompt: "What's the best turn-3 play in my zorbel? Add a line to its NOTES (rules of thumb).", tools: [pb('zorbel-play'), ...many(16)], edit: NOTES,
+      answer: 'Play the grobble on turn 3.', must: ['status-handoff'], never: ['plain-writing', 'zorbel-sweeps-after-change'] },
+    { name: 'a long play question with a line for its NOTES, in Spanish', prompt: '¿Cuál es la mejor jugada de turno 3 en mi zorbel? Añade una línea a sus NOTES (reglas generales).', tools: [pb('zorbel-play'), ...many(16)], edit: NOTES,
+      answer: 'Juega el grobble en el turno 3.', must: ['status-handoff'], never: ['plain-writing', 'zorbel-sweeps-after-change'] },
+    // negative: the request names no file, and its work changes a zorbel runbook anyway: the line named that check as
+    // "if it changes" (a request that edits nothing gets no such check held)
+    { name: 'a request that names no file, whose work changes a zorbel runbook', prompt: 'make my zorbel better', tools: [pb('zorbel-tune')], edit: { 'docs/playbooks/zorbel-tune.md': s => s + '2. Check the grobbles.\n' },
+      answer: 'Your zorbel is better.', must: ['zorbel-sweeps-after-change'], never: ['plain-writing'] }
+  ];
+  for (const c of CASES) {
+    const dir = copyProject();
+    try {
+      write(dir, HOST_FIX);
+      applyEdits(dir, HOST_SETUP, Date.now() - 7200_000);
+      const preview = previewOf(run(dir, 'prompt', { prompt: c.prompt }).out);
+      const since = Date.now() - 1000;
+      applyEdits(dir, c.edit, Date.now());
+      const tp = transcript(dir, c, since);
+      const sp = path.join(dir, 'tools/hooks/state/snapshot.json');
+      if (fs.existsSync(sp)) { try { const j = JSON.parse(fs.readFileSync(sp, 'utf8')); j.files['transcript.jsonl'] = [0, 0, null]; fs.writeFileSync(sp, JSON.stringify(j)); } catch { } }
+      const { out } = run(dir, 'stop', { transcript_path: tp, stop_hook_active: false });
+      let d = null; try { d = out.trim() ? JSON.parse(out) : null; } catch { }
+      const r1 = names(d ? d.reason || d.hookSpecificOutput?.additionalContext || '' : '');
+      const has = (t, line = preview) => new RegExp(`(^|[^\\w-])${t}($|[^\\w-])`).test(line);
+      // (a check named as "if it changes <files>" is said to fire only on those files: it is no claim about this turn)
+      const held = preview.replace(/ If it changes .*?(?= Do them all)/, '');
+      const unnamed = r1.filter(t => !has(t)), wrong = c.never.filter(t => has(t, held)), notHeld = c.must.filter(t => !r1.includes(t));
+      report(preview && r1.length && !unnamed.length && !wrong.length && !notHeld.length, `check-preview guard: ${c.name}: Stop's round 1 holds only what the CHECKS line named, and the line names nothing that turn can't set off`,
+        `round 1: ${r1.join(', ') || '(no block)'}${unnamed.length ? ` | not in the line: ${unnamed.join(', ')}` : ''}${wrong.length ? ` | named but can't fire: ${wrong.join(', ')}` : ''}${notHeld.length ? ` | the replay did not set off: ${notHeld.join(', ')}` : ''} | line(${preview.length}): ${preview}`);
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  }
+  // the line stays short: a runbook held to many checks groups them, then gives the rest as "+N more"; a short line is
+  // left as it is
+  const LONGREQS = Array.from({ length: 12 }, (_, i) => ({ tag: `meal-plan-portion-check-${i + 1}`, when: { playbookUsed: 'meal-plan' }, require: { answerMatches: `portion ${i + 1}` }, message: 'x' }));
+  const lines = [];
+  for (const reqs of [LONGREQS, []]) {
+    const dir = copyProject();
+    try {
+      applyEdits(dir, MEAL_CHECK, Date.now() - 7200_000);
+      applyEdits(dir, { 'tools/hooks/requirements.json': s => JSON.stringify({ requirements: [...JSON.parse(s).requirements, ...reqs] }) }, Date.now() - 7200_000);
+      let t = run(dir, 'prompt', { prompt: 'plan meals for the week' }).out; try { t = JSON.parse(t).hookSpecificOutput?.additionalContext ?? t; } catch { }
+      lines.push((/CHECKS: [^\n]*/.exec(t) || [''])[0]);
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  }
+  const [long, short] = lines;
+  report(long.length > 0 && long.length <= 400 && /meal-plan-portion-check-\(/.test(long) && /node tools\/hooks\/hooks\.mjs check --answer-file </.test(long) && /meal-ok/.test(short) && !/ more\b|-\(/.test(short),
+    'check-preview guard: a line held to many checks stays within 400 characters (grouped, the rest as "+N more"), and a short line is left whole', `long(${long.length}): ${long} | short(${short.length}): ${short}`);
 }
 if (!TAGS) { // the standalone checks run in a full run only
 if (mineB()) { // --explain: every check that fires for a scenario at once, with its short label and what satisfies it

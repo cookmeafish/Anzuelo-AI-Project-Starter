@@ -36,6 +36,28 @@ hooks:**, and an upgrade lists each one as its own review item.
     no Stop log line. At session start, a path whose file does not exist yet still counts, since a new session's
     transcript may be written after that hook. Before, a dry run with made-up ids and an empty transcript left 27 files.
     Scenario: `state-no-transcript:`.
+  - **The CHECKS line predicts Stop (field report 7, part 2):** a request that names the file to edit ("fix the
+    <name> playbook", "arregla el playbook de <name>", or a path after an edit verb) is previewed with that edit made:
+    the checks it sets off are held now, the project's own `requirements.json` checks included, with the writing and
+    format checks the file meets, and the runbook's checks that edit can't set off (the hook self-tests,
+    runbook-complete) are left out. A request that names no file lists the project's own file checks as "If it changes
+    <files>: <tag>", and an edit to a routed runbook adds the format checks its file fails now. With nothing routed, the
+    line says playbook-named replaces runbook-exists once a runbook is followed. The line stays within 400 characters
+    (tags with one prefix are grouped, "research-(cited, ledger)", then the rest become "+N more"). On 255 real blocked
+    requests, precision went from 17.6% to 17.9% and recall from 25.7% to 28.3% (most misses are checks set off by
+    what the work did, not by the request); on the replayed field turns, from 51.6% / 61.5% to 70.3% / 100%.
+    Scenarios: `check-preview:`, `check-preview guard:`.
+  - **Block rounds count per request:** a Stop that only waits for background jobs adds no block, and the Stop after a
+    job's notice goes on from the same count, so the 3-block cap ends a long turn and `hooks.mjs last` shows the real
+    rounds. Before, every wait reset the count to round 1. A new request still starts at round 1. Scenario:
+    `stop-reblock:`.
+  - **Background jobs and gate runs read right:** a command moved to the background is waited on although its notice
+    says it "will be stopped" after a time limit (that sentence made it count as stopped, so round 1 asked for results
+    still being made). A gate run whose output went into a file (`node tools/audit.mjs > .cache/audit.txt`) is judged by
+    that file when it was written this turn, not by what the other commands printed. Scenarios: `bg-moved:`,
+    `gate-redirect:`.
+    **Breaking for project hooks:** the `CHECKS:` line can name a check as "If it changes <files>: <tag>", group tags
+    as "<prefix>-(a, b)" and end its list with "+N more"; Stop log rows after a wait keep the request's round number.
 
 - 2026-10-20 (re-check): Fixes from an independent review of six new trial projects (no serious findings left).
   - **Accurate prompt hints (field report 6):** one primary `ROUTE`; other specific matches show as `ALSO ROUTE`, and a

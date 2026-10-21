@@ -882,7 +882,7 @@ function backgroundRunning(rows) {
     const c = r.message?.content;
     // helpers and background commands alike (Lesson: checks fired on files a still-running background sweep made)
     if (r.type === 'assistant' && Array.isArray(c)) for (const x of c) if (x?.type === 'tool_use' && /^(Agent|Task|Bash|PowerShell)$/.test(x.name)) (x.input?.run_in_background ? launches : shells).push({ id: x.id, i });
-    if (r.type === 'user' && Array.isArray(c)) for (const x of c) if (x?.type === 'tool_result') { const tx = textOf(x.content); results.set(x.tool_use_id, tx); stops.push({ i, t: tx }); }
+    if (r.type === 'user' && Array.isArray(c)) for (const x of c) if (x?.type === 'tool_result') { const tx = textOf(x.content); results.set(x.tool_use_id, tx); stops.push({ i, t: tx, id: x.tool_use_id }); }
     const t = r.type === 'attachment' ? textOf(r.attachment?.prompt ?? r.attachment?.content ?? '') : r.type === 'user' ? textOf(c) : '';
     if (/<task-notification>/.test(t)) notes.push({ i, t });
   });
@@ -897,7 +897,9 @@ function backgroundRunning(rows) {
     if (results.has(l.id) && !/launched|running in background|in the background|moved to the background|async agent|agentId/i.test(res)) return false;
     const ids = [...res.matchAll(/\b(?:agent_?id|task_?id|ID)\s*[:=]\s*["']?([\w-]{4,})/gi)].map(m => m[1]);
     const later = notes.filter(n => n.i > l.i);
-    if (ids.length && stops.some(s => s.i > l.i && ids.some(id => s.t.includes(id)) && /\b(stopped|killed|cancell?ed|terminated)\b/i.test(s.t))) return false;
+    // (the launch's own result is not a stop: a command moved to the background says it "will be stopped" after a time
+    // limit. Lesson: that sentence made a running sweep count as stopped, so Stop asked for its results while it ran.)
+    if (ids.length && stops.some(s => s.i > l.i && s.id !== l.id && ids.some(id => s.t.includes(id)) && /\b(stopped|killed|cancell?ed|terminated)\b/i.test(s.t))) return false;
     return ids.length ? !later.some(n => ids.some(id => n.t.includes(id))) : !later.length;
   }).map(l => l.id);
 }
@@ -1327,6 +1329,31 @@ export function shellParts(cmd) {
 // (a later command in the same line can't fail it). No pass pattern (""): the exit code decides, but only when it is the
 // gate's own: the command ran alone, or in a chain of && that all succeeded. Lesson: "build && tests; echo" failed the
 // build gate because a later command failed.
+// A gate run whose output went into a file ("node tools/audit.mjs > .cache/audit.txt 2>&1") is judged by that file, when
+// it was written after the run started: the command's own output then holds only what the other commands printed.
+// Returns the run as the gate saw it ({ cmd: that part, out: the file }), or null. A relative file is read from the
+// folder the command changed into ("cd <dir> && ..."), else from the project.
+// Lesson: a background job ran the audit into a log file, and the audit gate read the job's own output ("sync: ...
+// current") as the audit's, so a passing audit could never count and a failing one was reported with the wrong lines.
+export function redirectedRun(run, cmdRe, since = 0) {
+  const { parts } = shellParts(run.cmd);
+  let dir = ROOT;
+  for (const p of parts) {
+    const cd = /^\(?\s*(?:cd|Set-Location|pushd)\s+(?:\/d\s+)?("[^"]+"|'[^']+'|\S+)\s*$/i.exec(p);
+    if (cd) { const d = cd[1].replace(/^["']|["']$/g, ''); dir = path.resolve(dir, /^\/[a-z]\//i.test(d) ? `${d[1]}:${d.slice(2)}` : d); continue; }
+    if (!cmdRe.test(cmdHead(p))) continue;
+    const m = /(?:^|\s)(?<![2&])1?>>?\s*("[^"]+"|'[^']+'|[^\s;&|)]+)/.exec(p);
+    if (!m || /^&\d$/.test(m[1])) return null;
+    const f = path.resolve(dir, m[1].replace(/^["']|["']$/g, ''));
+    try {
+      const st = fs.statSync(f);
+      if (st.mtimeMs < (since || 0) - 2000) return null;
+      const t = fs.readFileSync(f, 'utf8');
+      return { cmd: p.replace(/^\(\s*/, '').replace(m[0], ' ').trim(), out: t.length > 200000 ? t.slice(-200000) : t, error: false, file: rel(f) };
+    } catch { return null; }
+  }
+  return null;
+}
 export function gateResult(run, spec = {}) {
   const pass = spec.pass ?? '\\bPASS', { parts, ops } = shellParts(run.cmd), alone = parts.length <= 1;
   if (pass) {
@@ -2901,21 +2928,95 @@ export function checkPreview(pbs, skills, forced, flagged, prompt, cfg = config(
   // (a check keyed on the request's own words is known now too)
   const keyed = relayed ? [] : reqs.filter(q => q.when?.promptMatches && (() => { try { return holds({ promptMatches: q.when.promptMatches, promptNotMatches: q.when.promptNotMatches }, { prompt: userText(prompt) }); } catch { return false; } })()).map(q => q.tag);
   const own = t => !PROMPT_GATED.has(t) || flagged.includes(t) || (t === 'rule-memory' && flagged.includes('rule-request'));
-  const tags = [...new Set([...[...pbs, ...skills].flatMap(x => ownChecks(x, cfg)).filter(own), ...forced, ...flagged, ...keyed,
-    ...(pbs.length || skills.length ? ['playbook-named'] : relayed ? [] : ['runbook-exists']), 'finished-summary'])].filter(t => !off(t));
-  const steps = tags.map(tag => { const q = reqs.find(r => r.tag === tag); return { tag, fixes: q ? q.fixes || filesOfCond(q.require) : undefined }; });
   const x0 = { prompt: String(prompt || ''), answer: '', said: '', changed: [], work: [], uses: [], cmds: [], runs: [], reads: new Set(), results: '', usedPb: pbs, usedSkills: skills,
     routed: pbs, routedSkills: skills, toolsKnown: false, workTurn: true, entries: [] };
+  // The files the request names to edit count as changed already: the checks those edits set off (the project's own
+  // checks on those files too) are held now, with the writing check a user-facing file meets, and the runbook's checks
+  // that those edits can't set off are left out. Lesson: a request to fix one runbook was previewed without the
+  // project's own check on that runbook and the writing check, but with the hook self-tests and runbook-complete,
+  // which that edit could not set off; Stop then held it to 2 checks the line never named.
+  const edits = namedEdits(prompt, cfg);
+  let direct = [];
+  if (edits.length) {
+    try { direct = followOnSteps(x0, [{ tag: '(the named edit)', fixes: edits }], cfg, m => !off(m.tag)).map(m => m.tag).filter(t => t !== 'skill-learn'); } catch { }
+    if (edits.some(p => match(p, cfg.userFacing) && !match(p, cfg.userFacingIgnore)) && !off('plain-writing')) direct.push('plain-writing');
+  }
+  const needsCheck = edits.some(p => { const pb = playbooks().find(b => b.file === p); return pb && !pb.name.startsWith('_') && !runbookHasCheck(pb); });
+  const cannot = new Set(!edits.length ? [] : [...(needsCheck ? [] : ['runbook-complete']),
+    ...(needsCheck || flagged.length || edits.some(p => /^tools\/hooks\//.test(p)) ? [] : ['hooks-tested'])]);
+  const tags = [...new Set([...[...pbs, ...skills].flatMap(x => ownChecks(x, cfg)).filter(own).filter(t => !cannot.has(t)), ...forced, ...flagged, ...keyed, ...direct,
+    ...(pbs.length || skills.length ? ['playbook-named'] : relayed ? [] : ['runbook-exists']), 'finished-summary'])].filter(t => !off(t));
+  const steps = tags.map(tag => { const q = reqs.find(r => r.tag === tag); return { tag, fixes: q ? q.fixes || filesOfCond(q.require) : undefined }; });
   let then = [];
   // (skill-learn comes only from a check that fails at Stop, so the preview does not promise it)
-  try { then = followOnSteps(x0, steps, cfg, m => !off(m.tag)).map(m => m.tag).filter(t => t !== 'skill-learn'); } catch { }
-  const also = ['changelog', 'audit-run'].filter(t => !tags.includes(t) && !then.includes(t) && !off(t));
+  try { then = followOnSteps({ ...x0, changed: edits }, steps, cfg, m => !off(m.tag)).map(m => m.tag).filter(t => t !== 'skill-learn' && !tags.includes(t)); } catch { }
+  // (an edit to a routed runbook also meets the format checks its file fails now)
+  let fmt = [];
+  if (!edits.length && pbs.length) try { fmt = followOnSteps(x0, [{ tag: '(a runbook edit)', fixes: pbs.map(pb => pb.file) }], cfg, m => !off(m.tag)).map(m => m.tag).filter(t => /^(done-when-labeled|playbook-format|skill-valid|plain-writing)$/.test(t)); } catch { }
+  const also = edits.length ? [] : ['changelog', 'audit-run', ...fmt].filter(t => !tags.includes(t) && !then.includes(t) && !off(t));
+  // nothing routed: following a runbook after all trades runbook-exists for playbook-named at Stop
+  const noRoute = tags.includes('runbook-exists');
+  // A request that names no file: the project's own checks set off by changing files (its requirements.json, not the
+  // engine's) are named with the files that set them off, so a change to those files is not a surprise at Stop.
+  const shipped = new Set([...BASE_REQUIREMENTS.map(q => q.tag), ...readJSON(abs(ENGINE_CHECKS), { requirements: [] }).requirements.map(q => q?.tag)]);
+  const fileOnly = w => !!w && [].concat(w.filesChanged || []).length > 0 && Object.keys(w).every(k => /^(filesChanged|filesIgnore|workTurn)$/.test(k));
+  const ifChanged = edits.length ? [] : reqs.filter(q => !shipped.has(q.tag) && fileOnly(q.when) && !tags.includes(q.tag) && !then.includes(q.tag) && !off(q.tag))
+    .slice(0, 3).map(q => `${globSummary(q.when.filesChanged)}: ${q.tag}`);
   // Held to more than 2 checks, the line offers a self-check before the final answer (it works in a hook-wired session
   // too: cmdCheck finds the session's request). Lesson: a work turn held to many checks met them one Stop round at a time.
   const many = tags.length > 2;
-  return `CHECKS: this turn will be held to ${tags.join(', ')}${then.length ? `; their fixes set off ${then.join(', ')}` : ''}.` +
-    `${also.length ? ` Also ${also.join(' + ')} if it edits runbooks, skills, rules or checks,` : ' Also'} status-handoff after 15+ tool calls. Do them all in the first pass.` +
-    (many ? ' Self-check first: node tools/hooks/hooks.mjs check --answer-file <file with your answer>.' : '');
+  // The line stays under PREVIEW_MAX characters: tags sharing a prefix are grouped ("research-(cited, ledger)"), then the
+  // file-checks list is cut, then the self-check gets its short form, then the last names give way to "+N more" (the
+  // self-check lists every one). Lesson: a line held to 10 checks ran to 509 characters, and hosts cut long hook output.
+  const build = (group, nIf, shortSelf, cut = 0) => {
+    const list = ts => group ? groupTags(ts) : ts.join(', ');
+    const keepThen = then.slice(0, Math.max(0, then.length - cut)), keepTags = tags.slice(0, Math.max(1, tags.length - Math.max(0, cut - then.length)));
+    const more = tags.length + then.length - keepTags.length - keepThen.length;
+    return `CHECKS: this turn will be held to ${list(keepTags)}${noRoute ? ' (playbook-named instead once it follows a runbook)' : ''}${keepThen.length ? `; their fixes set off ${list(keepThen)}` : ''}${more ? ` +${more} more` : ''}.` +
+      `${also.length ? ` Also ${also.join(' + ')} if it edits runbooks, skills, rules or checks,` : ' Also'} status-handoff after 15+ tool calls.` +
+      (nIf ? ` If it changes ${ifChanged.slice(0, nIf).join('; ')}.` : '') + ' Do them all in the first pass.' +
+      (many ? ` Self-check first: node tools/hooks/hooks.mjs check --answer-file ${shortSelf ? '<file>' : '<file with your answer>'}.` : '');
+  };
+  const tries = [[false, ifChanged.length, false], [true, ifChanged.length, false], [true, Math.min(1, ifChanged.length), false], [true, 0, false], [true, 0, true],
+    ...Array.from({ length: tags.length + then.length }, (_, i) => [true, 0, true, i + 1])];
+  for (const t of tries) { const line = build(...t); if (line.length <= PREVIEW_MAX) return line; }
+  return build(true, 0, true, tags.length + then.length);
+}
+export const PREVIEW_MAX = 400;
+// Tags with the same first word (the first two of a longer tag), written once: "research-cited, research-ledger" ->
+// "research-(cited, ledger)", "meal-plan-a-1, meal-plan-a-2" -> "meal-plan-a-(1, 2)"
+export function groupTags(tags) {
+  const by = new Map();
+  for (const t of tags) { const w = t.split('-'), k = w.slice(0, w.length > 2 ? 2 : 1).join('-'); by.set(k, [...(by.get(k) || []), t]); }
+  return [...by.values()].map(g => {
+    if (g.length < 2) return g[0];
+    const parts = g.map(t => t.split('-'));
+    let n = 0; while (parts.every(p => p.length > n + 1 && p[n] === parts[0][n])) n++;
+    return `${parts[0].slice(0, n).join('-')}-(${parts.map(p => p.slice(n).join('-')).join(', ')})`;
+  }).join(', ');
+}
+// Globs written short, by folder: up to 2 in a folder are listed, more become "<folder>/*"; at most 4 parts.
+export function globSummary(globs) {
+  const dirs = new Map();
+  for (const g of [].concat(globs || [])) { const d = g.includes('/') ? g.slice(0, g.lastIndexOf('/')) : ''; dirs.set(d, [...(dirs.get(d) || []), g]); }
+  const parts = [...dirs].flatMap(([d, l]) => l.length > 2 ? [`${d ? `${d}/` : ''}*`] : l);
+  return parts.length > 4 ? `${parts.slice(0, 4).join(', ')} +${parts.length - 4} more` : parts.join(', ');
+}
+// The files a request names to edit: a runbook or skill named with an edit verb ("fix the <name> playbook", "arregla el
+// playbook de <name>"), and a file path typed right after an edit verb ("update docs/STATUS.md").
+const MAKE_VERB = String.raw`(create|write|make|crea\w*|escribe\w*)`;
+export function namedEdits(prompt, cfg = config()) {
+  const text = unquoted(userText(relayedBody(prompt) || prompt)), low = text.toLowerCase(), out = [];
+  const pbs = playbooks();
+  for (const pb of pbs) if (!pb.name.startsWith('_') && editsFileOf(low, pb.name)) out.push(pb.file);
+  const owned = new Set(pbs.map(pb => pb.skillName));
+  for (const n of list(cfg.skillsDir)) if (!owned.has(n) && exists(`${cfg.skillsDir}/${n}/SKILL.md`) && editsFileOf(low, n)) out.push(`${cfg.skillsDir}/${n}/SKILL.md`);
+  const verb = re(String.raw`(^|[^\w])(${EDIT_VERB}|${MAKE_VERB})\b[^.?!\n]{0,60}$`);
+  for (const m of text.matchAll(/(^|[\s"'`(])((?:[\w.-]+[\\/])+[\w.-]+\.[A-Za-z0-9]{1,5}|[\w-]+\.(?:md|json|mjs|js|ts|py|csv|html|txt|yml|yaml))(?=$|[\s"'`),;:!?]|\.(?:\s|$))/g)) {
+    const p = m[2].replace(/\\/g, '/').replace(/^\.\//, '');
+    if (!/^[a-z]+:/i.test(p) && verb.test(text.slice(0, m.index + m[1].length))) out.push(p);
+  }
+  return [...new Set(out)];
 }
 const promptNotices = cfg => notices(cfg).filter(x => /^(BOOTSTRAP|SETUP|INBOX|LAST WORK TURN|STALE)/.test(x));
 
@@ -4183,8 +4284,10 @@ export function holds(c, x) {
       if (res.error?.code === 'ETIMEDOUT' || res.signal) { x.detail = `run it and let the hooks see the result: node tools/hooks/hooks.mjs run "${spec.selfRun}"`; return false; }
       runs.push({ cmd: spec.selfRun, out: (res.stdout || '') + (res.stderr || ''), error: res.status !== 0 });
     } else if (!x.toolsKnown && !runs.length) return true; // can't verify and can't re-run: don't block on missing evidence
-    const last = runs[runs.length - 1];
-    if (!last) { x.detail = `no run of /${spec.cmd}/ this turn`; return false; }
+    const lastRun = runs[runs.length - 1];
+    if (!lastRun) { x.detail = `no run of /${spec.cmd}/ this turn`; return false; }
+    // (its output sent into a file is read from that file: see redirectedRun)
+    const last = (x.toolsKnown && redirectedRun(lastRun, r(spec.cmd), x.since)) || lastRun;
     const g = gateResult(last, spec);
     if (!g.ok) { x.detail = `last run did not pass, ${g.why}: ${last.out.trim().split(/\r?\n/).slice(-3).join(' | ').slice(0, 300)}` + (MISSING_TOOL.test(last.out) ? '. The tool or its dependencies are not installed: install them first (npm ci, pip install -r requirements.txt, or the project\'s setup command), then run it again' : ''); return false; }
   }
@@ -4440,13 +4543,19 @@ export function stopDecision(data, cfg = config()) {
   if (!t) return null;
   const key = `${data.transcript_path}|${t.since}`;
   const st = readJSON(stateFile('stop-blocks.json'), {});
-  const nblocks = data.stop_hook_active ? (st[key] || 0) : 0;
+  // Blocks count per request (the key is the request's start, which task notices don't move): a Stop that follows a
+  // "waiting" row or an earlier end of this same request keeps the count, and a waiting row adds nothing to it.
+  // Lesson: the count was read only right after a block (stop_hook_active), so each wait for a background job reset it
+  // to round 1, and the cap of 3 blocks never ended a long turn (1 blocked, 2 waiting, 1 waiting x3, 1 blocked).
+  const prevEnd = readJSON(stateFile(TURN_END), {});
+  const sameRequest = !!data.stop_hook_active || prevEnd.key === key;
+  const nblocks = sameRequest ? (st[key] || 0) : 0;
   // REQ: final-answer-source. When Stop fires, the final message is often not in the transcript yet, so a correct
   // answer kept failing "Finished"/"Playbook:" checks (found in live testing). The agent passes it directly.
   let x = timed('context (what the turn did)', () => context(t, cfg, data.last_assistant_message));
   // the checks that already blocked an answer earlier in this turn (skill-learn writes the lesson for a followed skill's own)
   const failed = readJSON(stateFile('stop-failed.json'), {});
-  const sameTurn = data.stop_hook_active && failed.key === key;
+  const sameTurn = sameRequest && failed.key === key;
   // REQ: answer-resent. After a round that only asked for files to change, an answer that did not change may end with
   // one short line ("Answer unchanged; done: ...") instead of the whole answer again: the checks then read the full
   // answer of the earlier round with that line. Only when that round said so and a full answer was sent in it; else the
@@ -4467,7 +4576,6 @@ export function stopDecision(data, cfg = config()) {
   // background job got the whole stop list again (Finished section, changelog, status).
   const rowsT = t.entries || [];
   const lastNote = rowsT.map((r, i) => (r.type === 'user' && /<task-notification>/.test(textOf(r.message?.content))) || (r.type === 'attachment' && /<task-notification>/.test(textOf(r.attachment?.prompt ?? r.attachment?.content ?? ''))) ? i : -1).filter(i => i >= 0).pop();
-  const prevEnd = readJSON(stateFile(TURN_END), {});
   // (what it says is still checked for truth and privacy: an acknowledgement can't claim what didn't happen)
   const noticeAck = lastNote != null && prevEnd.key === key && prevEnd.clean && !rowsT.slice(lastNote).some(r => r.type === 'assistant' && Array.isArray(r.message?.content) && r.message.content.some(c => c?.type === 'tool_use'));
   x.failedBefore = sameTurn ? failed.tags || [] : [];
