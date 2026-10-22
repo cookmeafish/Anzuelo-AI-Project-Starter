@@ -30,12 +30,13 @@ or a developer spec, use its sections B, E and F.
 4. **Test behaviour, not just looks:** drive the main flow with `--steps` (type, click, check the result with `eval`).
    Save a flow worth repeating as `docs/checks/flows/<page>.json`; from then on every change to that page reruns it
    (`node tools/screenshot.mjs --flows --pages <page>`). Syntax-check the scripts you changed.
-5. **Answer** with a "Visual review" section: one line per round (what you saw, what you fixed), then
-   `Visual review: PASS after N rounds`. Tell the user how to see it (restart the app, or open the file).
+5. **Answer** with one line: `Visual review: PASS after N rounds - <what the rounds fixed>`. That line can be the
+   only place the rounds appear; don't list them and then repeat the count. Tell the user how to see it (restart the
+   app, or open the file).
 
 ## Done when
 - [ ] Fresh screenshots of the final state, taken after the last edit, all opened and looked at (hook: gui-review-loop).
-- [ ] "Visual review: PASS after N rounds" with a line per round; tool warnings fixed or explained (hook: gui-review-report, gui-warnings).
+- [ ] "Visual review: PASS after N rounds" in one line; tool warnings fixed or explained (hook: gui-review-report, gui-warnings).
 - [ ] The main flow works when driven, not just when looked at (judgment: which flow is the main one, and that it works, needs a person to drive it).
 - [ ] Every saved flow of a changed page (docs/checks/flows/<page>.json) was rerun in the last round (hook: gui-flows).
 

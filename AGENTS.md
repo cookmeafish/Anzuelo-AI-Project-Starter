@@ -23,8 +23,8 @@
 5. **An unclear request** gets ONE focused question, not a guess. Look up the user's shorthand in `docs/glossary.md`
    first, and add each new answer there (session-handoff skill). For small, reversible details, decide and say what
    you assumed. With `"autonomy": "auto"` in `tools/hooks/config.json` the user wants no questions: decide, keep
-   going, and record each choice as `Assumed: <choice> - <why> - <cost if wrong>` in the open plan (or the answer if
-   there is no plan). Stop only for an outward action (rule 6), installing software on the machine or from an unknown
+   going, and record each choice as `Assumed: <choice> - <why> - <cost if wrong>` in the open plan (with no plan, in the
+   answer, where a plain sentence that says the same is enough). Stop only for an outward action (rule 6), installing software on the machine or from an unknown
    source, anything irreversible or destructive, a security-sensitive change, or a plan so wrong that every path is a
    guess. Installing the project's own declared dependencies, or a widely used package from the official registry
    into the project folder, is part of the work: do it, so the code runs and gets tested, unless the project's own
@@ -61,8 +61,9 @@
    with the answer, use plain words, no filler, no em dashes, and format it to scan. Start each block with what it is
    (**Question for you:**, **Done:**, **Heads-up:**, **Problem:**), in the user's language, and put any question last (writing-standards.md, "In
    the terminal"). Real work ends with a
-   **Finished** section: what was done, the exact path of every file created or changed (more than about 10: the ones
-   the user will open, the rest grouped by folder with a count), and what was not done or verified. Long reports,
+   **Finished** section: what was done, the exact path of every file the user will open or care about (more than
+   about 10: the rest grouped by folder with a count; the project's own records, like STATUS, CHANGELOG, plans and
+   rule files, are just "plus the usual records"), and what was not done or verified. Long reports,
    tables and checklists go in a file (`docs/reviews/`, the spec), with one line in the answer. The markers the checks look for (`Playbook:`, `Skill:`, `Worth it:`) go together on one short last line,
    after the answer, so the user can skip them. The answer itself never uses check names: a check that does not apply
    is waived with `node tools/hooks/hooks.mjs waive <name> "<reason>"`, not with an `N/A(...)` line. Shortening any
