@@ -1101,6 +1101,20 @@ function turnNotices(force, tp) {
   return fresh ? { at: new Date().toISOString(), shown: shown?.session ? shown.shown || [] : [], fresh: true } : { at: shown.at, shown: shown.shown || [], fresh: false };
 }
 const noticeKey = h => /^[A-Z][A-Z /-]{3,}?(?=[:(]|\s+for\b|$)/.exec(h)?.[0].trim() || '';
+// A runbook or skill the starter ships: a core one, a pack's (tools/packs-registry.json lists each pack's files) or a
+// library skill. Installing a pack or enabling a skill this turn creates the file, but it is not a new procedure, and
+// editing it is not writing one. Lesson: the skill-reuse check asked for a search of skill marketplaces for the app
+// pack's own runbooks and an enabled library skill, and agents had to waive it during setup.
+function shippedByStarter(file, cfg = config()) {
+  const reg = readJSON(path.join(ROOT, 'tools', 'packs-registry.json'), {});
+  if (Object.values(reg.packs || {}).some(p => (p.files || []).includes(file))) return true;
+  // (before the payloads are pruned, the registry may not exist yet: the pack payloads themselves say it)
+  for (const s of starterSources()) for (const p of (() => { try { return fs.readdirSync(path.join(s.dir, 'packs')); } catch { return []; } })()) if (fs.existsSync(path.join(s.dir, 'packs', p, 'files', file))) return true;
+  const sk = new RegExp(`^${esc(cfg.skillsDir)}/([^/]+)/SKILL\\.md$`).exec(file);
+  const lib = sk && findLibrary();
+  if (sk && ([].concat(reg.library || []).includes(sk[1]) || CORE_SKILLS.includes(sk[1]) || (lib && fs.existsSync(path.join(lib.dir, 'skills', sk[1], 'SKILL.md'))))) return true;
+  return /^docs\/playbooks\/(_TEMPLATE|_fallback|project|plan)\.md$/.test(file);
+}
 function bornThisTurn(file, since) {
   const snap = readJSON(stateFile('turn.json'), null);
   const pb = /^docs\/playbooks\/([^/]+)$/.exec(file), sk = /^[^/]+\/([^/]+)\/SKILL\.md$/.exec(file);
@@ -2481,6 +2495,30 @@ export function packsFor(f) {
   return want;
 }
 export const setupPrompts = () => readJSON(path.join(STATE, 'setup.json'), {}).prompts || 0;
+// The setup interview's "People" answer: 'one', 'several' (people whose data must stay apart, each with a profile) or
+// null (can't tell, so nothing is demanded). The leading word decides ("one", "me", "several", a number); the words after
+// it only describe. People who are only roles or app accounts ("staff are accounts in the app", "no per-person data")
+// are not separate people. A plain list of names ("Ana, Luis and Marta") is several.
+// Lesson: any comma in the answer read as "several people", so "Me (owner), plus maybe a helper later" and "one - the
+// owner; the staff are app accounts, sharing one inventory" demanded profiles, and agents reworded their answers to get past.
+const ONE_LEAD = /^(one|1|single|solo|alone|just (me|one|myself|the owner)|only (me|one|myself|the owner)|a single|an? (individual|single)|uno|una|s[oó]lo yo|individual|personal)\b/;
+const ME_LEAD = /^(me|myself|i|yo|the owner|the user|the author)\b/;
+const SEVERAL_LEAD = /^(several|multiple|many|two|three|four|five|six|seven|eight|nine|ten|[2-9]|\d{2,}|varias|varios|dos|tres|cuatro|cinco|each\b|per[- ]person)\b/;
+const NOT_SEPARATE = /\bno (per[- ]person|separate|individual|personal) (data|profiles?|records?|files?)\b|\bno profiles\b|\bnot (separate|distinct) (people|persons|users|profiles|data owners)\b|\b(roles?|accounts?|users?) (in|inside|of|within) the (app|application|database|service|system|site)\b|\bapp (users|accounts)\b|\bshar(e|es|ed|ing) (one|a single|the same) (inventory|account|database|data|record|list|vault|set)\b|\bsin perfiles\b/;
+export function peopleAnswer(raw) {
+  const t = String(raw || '').toLowerCase().replace(/^\s*(assumed|answered|decided|inferred|guessed)\s*[-:]\s*/, '').trim();
+  if (!t || unanswered(t)) return null;
+  if (ONE_LEAD.test(t)) return 'one';
+  if (NOT_SEPARATE.test(t)) return 'one';
+  if (SEVERAL_LEAD.test(t)) return 'several';
+  // a list of people: two or more short items, each a name or "me"/"my partner", split by commas, "and", "&", "+", "y"
+  const lead = t.split(/\s[-–]\s|[;(:.]/)[0];
+  const items = lead.split(/,|\s+(?:and|&|\+|y|plus)\s+/).map(s => s.trim()).filter(Boolean);
+  if (items.length >= 2 && items.every(s => s.split(/\s+/).length <= 3 && !/\b(maybe|later|perhaps|possibly|eventually|occasional|tal vez|quiz[aá]s)\b/.test(s))) return 'several';
+  // "me (owner), plus maybe a helper later": one owner with qualifiers
+  if (ME_LEAD.test(t)) return 'one';
+  return null;
+}
 // REQ: setup-complete. A project gets everything that fits it: every pack its answers call for (whole), and every
 // library skill that fits those packs, unless the user declined it with a reason. stage 'install' = before installing.
 export function setupCompleteness(cfg = config(), { final = false, beforeStarter = false } = {}) {
@@ -2507,7 +2545,7 @@ export function setupCompleteness(cfg = config(), { final = false, beforeStarter
   // every file each installed pack owns is really here (nothing dropped on the way)
   const reg = readJSON(path.join(ROOT, 'tools', 'packs-registry.json'), { packs: {} }).packs;
   for (const p of packs) { const gone = (reg[p]?.files || []).filter(x => !exists(x)); if (gone.length) probs.push(`the ${p} pack is incomplete, missing: ${gone.slice(0, 5).join(', ')}${gone.length > 5 ? ', ...' : ''} (node tools/packs.mjs install ${p})`); }
-  if (/^several|^\d|,/i.test(f['people'] || '') && list(cfg.scopesRoot).filter(n => exists(`${cfg.scopesRoot}/${n}/PROFILE.md`)).length < 2)
+  if (peopleAnswer(f['people']) === 'several' && list(cfg.scopesRoot).filter(n => exists(`${cfg.scopesRoot}/${n}/PROFILE.md`)).length < 2)
     probs.push(`several people: create ${cfg.scopesRoot}/<name>/PROFILE.md for each, so their data stays separate`);
   if (own.starter && f.starter && !new RegExp(`^${own.starter}\\b`, 'i').test(f.starter)) probs.push(`Setup interview "Starter" says "${f.starter.slice(0, 30)}" but the project is set to ${own.starter}`);
   // library: every skill that fits is enabled, or left out with the reason (in this line or in the fit checklist)
@@ -4037,7 +4075,7 @@ export function coreChecks(x, cfg) {
   // data layout was blocked until a marketplace search that could never find it.
   const projectOnly = p => /^none\s*-\s*project-specific\s*:\s*\S+(\s+\S+){2,}/i.test((frontmatter(read(abs(p))) || {}).reuse || '');
   const created = [...pbChanged.filter(p => exists(p) && bornThisTurn(p, x.since)),
-    ...x.changed.filter(p => new RegExp(`^${esc(cfg.skillsDir)}/[^/]+/SKILL\\.md$`).test(p) && exists(p) && bornThisTurn(p, x.since) && !/^generated:\s*true/m.test(read(abs(p))))].filter(p => !projectOnly(p));
+    ...x.changed.filter(p => new RegExp(`^${esc(cfg.skillsDir)}/[^/]+/SKILL\\.md$`).test(p) && exists(p) && bornThisTurn(p, x.since) && !/^generated:\s*true/m.test(read(abs(p))))].filter(p => !projectOnly(p) && !shippedByStarter(p, cfg));
   if (created.length && !/existing skills?\b[^\n]*(checked|searched|looked|none|found|reused|installed|adapted)/i.test(x.said))
     add('skill-reuse', `New runbook or skill ${created.join(', ')}: first look for an existing skill that already does this (official skill repos and plugin ` +
       'marketplaces, the agent\'s installed skills, reputable community collections). Reuse or adapt it when it fits, after reading every file it ' +

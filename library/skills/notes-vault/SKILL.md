@@ -41,6 +41,11 @@ change. Helper: `skills/notes-vault/scripts/vault.mjs` (Node only, read-only).
    record the answer in `docs/glossary.md`.
 4. Run the scan again. It must end with `RESULT: PASS`.
 5. Never copy the notes into `docs/knowledge/`. Two homes for the same facts drift apart.
+6. In an Obsidian vault, the starter's own files stay out of the user's search and graph: `.obsidian/app.json`
+   "userIgnoreFilters" (Obsidian's "Excluded files") lists the engine's folders, rule files, `docs/`, `inbox/`,
+   `outputs/` and `sources/`, after the user's own entries. `node tools/hooks/wire.mjs` adds what is missing and
+   changes no other setting; run it when engine files show up among the notes. Never edit other `.obsidian/` files.
+   Lesson: an adopted vault showed AGENTS.md, DIRECTORY.md, docs/ and more among the user's notes.
 
 ## B. One note per topic
 1. Search before writing: `node skills/notes-vault/scripts/vault.mjs find "<topic>"`. It matches titles, `aliases:` in
@@ -64,7 +69,12 @@ change. Helper: `skills/notes-vault/scripts/vault.mjs` (Node only, read-only).
    relations.
 2. Use the vault's link style from the scan: `[[Note]]` for wikilinks, relative Markdown links otherwise. Don't convert
    existing links.
-3. A new note links to at least one related note, and the closest one links back.
+3. A new note links to at least one related note, and every note it links to gets a link back where the relation
+   makes sense from that side too (a "Related" line), not only the closest one. The same holds for a link added to an
+   existing note. `node skills/notes-vault/scripts/vault.mjs backlinks "<note>"` lists every linked note that doesn't
+   link back; the hook runs it on each changed note (vault-backlinks). A link back that truly doesn't belong (a
+   source or an index the user keeps by hand) is waived with the reason.
+   Lesson: a new note linked to two notes and only the closest got a link back; the user noticed the missing one.
 4. After any note changed, run `node skills/obsidian/scripts/notes.mjs check --all` (`--all` also reads note folders
    outside `docs/` that are not registered yet). Fix every broken link this turn caused. Report older broken links and
    leave them unless the user asks.
@@ -81,6 +91,7 @@ in a shared note. Keep health, money and family details out of any shared or pub
 ## Done when
 - [ ] Every note folder is in `knowledgeDirs` and `vault.mjs scan` ends with `RESULT: PASS` (judgment: the folder list needs the user's view on what is private).
 - [ ] The link check ran after notes changed (hook: vault-links-checked).
+- [ ] Every note a changed note newly links to links back, or the waiver says why not (hook: vault-backlinks).
 - [ ] Every new fact has a source and a date in the note's own style (judgment: a script can't tell a fact line from prose).
 - [ ] No note was moved, renamed or merged without the user's OK (judgment: a rename can be legitimate).
 

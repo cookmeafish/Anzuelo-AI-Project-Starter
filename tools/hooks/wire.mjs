@@ -103,7 +103,21 @@ export function wire(dir, { dry = false } = {}) {
       const app = JSON.parse(fs.readFileSync(op, 'utf8'));
       const users = fs.readdirSync(at('.obsidian')).some(f => f !== 'app.json') || JSON.stringify(Object.keys(app).filter(k => k !== 'userIgnoreFilters').sort()) !== JSON.stringify(ENGINE_APP);
       if (!users) throw 0;
-      const mine = ['tools/', 'skills/', '.claude/', '.agents/', '.codex/', '.gemini/', '.githooks/', '.starter/', 'docs/checks/', 'docs/playbooks/'];
+      let mine = ['tools/', 'skills/', '.claude/', '.agents/', '.codex/', '.gemini/', '.githooks/', '.starter/', 'docs/checks/', 'docs/playbooks/'];
+      // A vault that was there before the starter came (.starter/original-files.txt lists its .obsidian/) also hides the
+      // engine's records, rule files and work folders, so the vault shows only the user's notes. Anything the user
+      // already had under one of those names stays visible; for docs/, then only the engine's own docs are hidden.
+      // Lesson: an adopted vault showed AGENTS.md, CLAUDE.md, DIRECTORY.md, HOW-TO-USE.md, README.md, docs/, inbox/,
+      // outputs/ and sources/ among the user's notes, and they topped its search and related-note suggestions.
+      const orig = (() => { try { return fs.readFileSync(at('.starter', 'original-files.txt'), 'utf8').split(/\r?\n/).filter(Boolean); } catch { return []; } })();
+      if (orig.some(f => f.startsWith('.obsidian/'))) {
+        const users = e => orig.some(f => e.endsWith('/') ? f.startsWith(e) : f === e);
+        const ROOT_FILES = ['AGENTS.md', 'CLAUDE.md', 'DIRECTORY.md', 'HOW-TO-USE.md', 'README.md', 'SETUP-PROMPT.md', 'AGENTS.starter.md', 'CLAUDE.starter.md', 'README.starter.md'];
+        const DOCS = ['docs/plans/', 'docs/reviews/', 'docs/specs/', 'docs/releases/', 'docs/knowledge/', 'docs/feedback-inbox/', 'docs/BRIEF.md', 'docs/STATUS.md', 'docs/CHANGELOG.md',
+          'docs/DECISIONS.md', 'docs/MENU.md', 'docs/security.md', 'docs/foundation.md', 'docs/glossary.md', 'docs/lessons.md', 'docs/recommended-tools.md', 'docs/fit-checklist.md', 'docs/starter-feedback.md', 'docs/names.json'];
+        const more = [...ROOT_FILES, ...(users('docs/') ? DOCS : ['docs/']), 'inbox/', 'outputs/', 'sources/'];
+        mine = [...mine.filter(m => !(users('docs/') ? false : /^docs\//.test(m))), ...more].filter(m => !users(m));
+      }
       const have = Array.isArray(app.userIgnoreFilters) ? app.userIgnoreFilters : [], add = mine.filter(m => !have.includes(m));
       if (add.length) { log.push(`updated  .obsidian/app.json (the engine's folders hidden from the vault's search and graph: ${add.length})`); if (!dry) write(op, JSON.stringify({ ...app, userIgnoreFilters: [...have, ...add] }, null, 2) + '\n'); }
     } catch { }

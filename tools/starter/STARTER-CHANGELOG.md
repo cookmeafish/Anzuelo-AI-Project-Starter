@@ -25,6 +25,23 @@ hooks:**, and an upgrade lists each one as its own review item.
     Adopt by hand: SETUP-PROMPT.md phase 5 (a new project gets it). **Breaking for project hooks:** the PreToolUse
     matcher in `.claude/settings.json` changes on the next wire, and a project's own hook that reads `turn.json` no
     longer sees a wakeup's prompt as the request.
+  - **Setup costs less and its gates read answers right (trials of 8 new projects, round 5):** in a project, the
+    engine's self-test base now has every file under `docs/` as the starter or a pack ships it, and none of the
+    project's own (its plans index, reviews, specs, feedback). A line in `docs/plans/README.md` naming the project's own
+    script failed the audit that one self-test runs in that base, nothing was recorded for reuse, and two setups reran
+    the 10-minute self-test up to five times; those files also no longer change the engine stamp, so later runs reuse
+    the first pass. That self-test (`audit-selftests`) runs the self-test sweep even when another sweep fails in its
+    copy (`STARTER_AUDIT_SELFTESTS=always`). A failed run in a project now says whose failure it is: a project test
+    (fix it here), an engine test after the project changed an engine file (the files are named), or the engine as
+    shipped (report it with `starter.mjs feedback`; the audit warns instead of failing, so setup can finish). The setup
+    gate's People answer is read by its leading word: "Me (owner), plus maybe a helper later" or "one - the staff are
+    app accounts, sharing one inventory" is one person, while a list of names or a count is several; a comma alone no
+    longer asks for profiles. `skill-reuse` skips runbooks and skills the starter ships (core, a pack's, a library
+    skill), also when the install ran this turn. In a vault the user had before the starter, `wire.mjs` also hides the
+    rule files, `docs/`, `inbox/`, `outputs/` and `sources/` from Obsidian (merged after the user's own exclusions, no
+    other setting touched, the user's own files of those names still shown). notes-vault: every note a note newly links
+    to gets a link back where it makes sense; new `vault.mjs backlinks` and check `vault-backlinks` (the hook runs it on
+    each changed note).
   - **Guards and false alarms (trials of 8 new projects, round 4):** a follow-up that names nobody ("make the letter
     friendlier") keeps the person of the latest of the last 3 requests that named one, so a question in between no
     longer cuts it off. A `waive scope-separate "<why>"` logged this turn now counts before tool calls too: it covers

@@ -89,7 +89,7 @@ a file a trigger watches (once per trigger and turn).
 | manuscript (library) | the manuscript skill was used | added | continuity-checked |
 | ml-experiments (library) | a model was trained or evaluated in a turn that used the skill | added | experiment-logged |
 | mobile-app (library) | app code changed in a turn that used the skill | added | mobile-checked |
-| notes-vault (library) | a note changed while the notes-vault skill was used | added | vault-links-checked |
+| notes-vault (library) | a note changed while the notes-vault skill was used: the link check ran, and every note a changed note newly links to links back | added | vault-links-checked, vault-backlinks |
 | package-release (library) | The skill was used and a version file or changelog changed: a package dry run ran this turn | added | package-dry-run |
 | routines (library) | docs/routines.md changed | added | routines-checked |
 | web-app-patterns (library) | client code (.tsx, .jsx, .vue, .svelte, src/) changed while following the skill | added | client-verified |
