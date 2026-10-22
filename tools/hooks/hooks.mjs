@@ -1301,6 +1301,61 @@ function removedLines(entries, fixes) {
   }
   return [...out];
 }
+// REQ: setup-gate (permissions). docs/foundation.md's "Who may do what" row gives each destructive or sensitive
+// action (delete, money, settings, other people's data) to the owner until the user decides. A role the agent made up
+// gets none of them on its own say, not even under autonomy "auto" (security-sensitive: AGENTS.md step 0.5). A grant to
+// anyone else stands only with the user's decision on record ("the user decided 2026-10-21").
+// Lesson: three rounds of a bookshop API setup invented a delete-capable "manager" role, the security review passed it,
+// and the user complained each time that someone other than the owner could delete.
+const DESTRUCTIVE = /\b(delet\w*|remov\w*|destroy\w*|eras\w*|wip(e|es|ing)\b|purg\w*|refund\w*|pay(ment|ments|outs?)?\b|charg(e|es|ing)\b|money|billing|settings?|permissions?|roles?\b[^.;]{0,20}\b(assign|grant|change)\w*|other (people|users)'?s? data|borrar|eliminar)/i;
+const ACTOR = /\b(manager|admin\w*|staff|editor|member|moderator|employee|user|clerk|operator|supervisor|any (signed[- ]in|logged[- ]in|authenticated) \w+|anyone|everyone|all (users|staff|accounts)|role)s?\b/i;
+const USER_DECIDED = /\b(the )?(user|owner|client) (decided|chose|confirmed|asked for|approved|granted)\b|\bdecided by the (user|owner)\b|\bel usuario (decidi[oó]|eligi[oó]|confirm[oó])\b/i;
+export function grantProblems(text) {
+  const row = String(text || '').split(/\r?\n/).find(l => /^\|\s*who may do what/i.test(l));
+  if (!row) return [];
+  const value = row.split('|').filter(s => s.trim()).pop() || '';
+  if (/^\s*(<\.\.\.>|n\/?a\b)/i.test(value) || USER_DECIDED.test(value)) return [];
+  // (test names and other parentheses are evidence, not grants; "staff cannot delete" denies, it does not grant)
+  const clauses = value.replace(/`([^`]*)`/g, '$1').replace(/\([^)]*\)/g, ' ').split(/;|\.\s+|<br\s*\/?>/i);
+  const bad = clauses.filter(c => DESTRUCTIVE.test(c) && ACTOR.test(c.replace(/\bowner(['’]s)?( account| role)?\b/gi, ' ')) && !/\b(cannot|can'?t|never|not|no|refused|denied|only the owner|owner only)\b/i.test(c));
+  return bad.length ? [`docs/foundation.md "Who may do what" gives a destructive or sensitive action to someone other than the owner ("${bad[0].trim().slice(0, 80)}") without the user's decision: until the user decides, the owner only. Set it to the owner and ask the user, or record the user's own decision in the row ("the user decided <date>")`] : [];
+}
+// The files git's last commit holds (none without git or a commit).
+function headFiles() {
+  if (!exists('.git')) return [];
+  try { return (spawnSync('git', ['ls-tree', '-r', '-z', '--name-only', 'HEAD'], { cwd: ROOT, encoding: 'utf8', timeout: 5000 }).stdout || '').split('\0').filter(Boolean); } catch { return []; }
+}
+// The paths a run of a check names after the check itself ("node tools/x.mjs a.md drafts/*.md" -> a.md, drafts/*.md).
+// None: it ran on its own default scope (its whole folder, the built site, npm test).
+const argPaths = (cmd, stems) => {
+  const w = wordsOf(cmdHead(String(cmd || '')));
+  const i = w.findIndex(t => stems.some(s => t.includes(s)));
+  return (i < 0 ? [] : w.slice(i + 1)).filter(t => !/^-/.test(t) && !/^(&&|\|\||;|\||>|2>&1)$/.test(t) && /[\\/*]|\.\w{1,6}$/.test(t)).map(pathKey);
+};
+// A run covers a file when it ran on its whole default scope, named the file, or named its folder or a glob matching it.
+const runCovers = (r, p, stems) => {
+  const a = argPaths(r.cmd, stems);
+  if (!a.length) return true;
+  return a.some(t => { const k = t.replace(/\/\*\*?(\/\*[^/]*)?$/, '').replace(/\/$/, ''); return p === k || p.startsWith(k + '/') || (/\*/.test(t) && match(p, [t])); });
+};
+// REQ: check-proven (every governed file). The files a new blocking check governs, as git's last commit has them: what
+// tools/hooks/requirements.json runs it on (the file globs of each entry that names it), or, when its entry names no
+// files, the folders and file types it was run on. null when nothing in requirements.json runs it: not a blocking check.
+// Lesson: two hand-picked good samples were not enough. A Spanish-only check flagged "total", "error" and "menu", and a
+// tenant-tone check blocked any letter to a flat in a building named "... Court"; both had passed 2 good samples.
+export function governedFiles(check, runs, stems) {
+  const reqs = loadRequirements().reqs.filter(q => q && q.enabled !== false && JSON.stringify(q).includes(check));
+  if (!reqs.length) return null;
+  const globsOf = c => !c || typeof c !== 'object' ? [] : [...[].concat(c.filesChanged || []), ...[].concat(c.runEach?.files || []), ...(c.anyOf || []).flatMap(globsOf)];
+  const ignoreOf = c => !c || typeof c !== 'object' ? [] : [...[].concat(c.filesIgnore || []), ...(c.anyOf || []).flatMap(ignoreOf)];
+  let globs = reqs.flatMap(q => [...globsOf(q.when), ...globsOf(q.require)]);
+  const ignore = reqs.flatMap(q => [...ignoreOf(q.when), ...ignoreOf(q.require)]);
+  const listed = headFiles();
+  if (!globs.length) globs = [...new Set(runs.flatMap(r => argPaths(r.cmd, stems)).filter(p => listed.includes(p))
+    .map(p => `${p.includes('/') ? p.slice(0, p.lastIndexOf('/') + 1) : ''}*${path.extname(p)}`))];
+  if (!globs.length) return [];
+  return listed.filter(p => match(p, globs) && !match(p, ignore) && p !== check && !NOT_PROJECT_CHECK.test(p));
+}
 // Whether a new check was proven: the answer's "Proven: fails on <bad>; passes on <good>, <good>" line (Spanish
 // "Probado: falla con ...; pasa con ..."), a run of the check that failed on the complained-about state (before the
 // turn changed any file that was already there, or after a command took the earlier version from git), and a run that
@@ -1314,12 +1369,18 @@ export function checkProof(x) {
   const checks = newProjectChecks(x);
   if (!checks.length) return { checks, missing: [] };
   const missing = [];
-  const line = /^[^\n]*?\b(proven|probad[oa])\s*:([^\n]*)$/im.exec(x.answer || '')?.[2] || '';
+  // (the line may sit in the turn's notes file, or in a footer with other markers: "Proven: ... · Learned (...): ...")
+  const line = (/^[^\n]*?\b(proven|probad[oa])\s*:([^\n]*)$/im.exec(`${x.answer || ''}\n${x.notes || ''}`)?.[2] || '').split(/\s+·\s+(?=[\p{L} ()-]{2,30}:)/u)[0];
   const goods = (/\b(?:pass(?:es)? on|pasa (?:con|en|sobre))\s+([^\n]+)/i.exec(line)?.[1] || '').split(/\s*(?:[,;]|\band\b|\by\b)\s*/).filter(s => s.replace(/\W/g, '').length >= 3);
-  if (!line.trim()) missing.push('the answer has no "Proven: fails on <the complained-about sample>; passes on <good 1>, <good 2>" line');
+  if (!line.trim()) missing.push(`no "Proven: fails on <the complained-about sample>; passes on <good 1>, <good 2>, and an edge case: <...>" line (in ${NOTES_FILE} or the answer)`);
   else {
     if (!/\b(fails? on|falla (con|en|sobre))\s+\S/i.test(line)) missing.push('the "Proven:" line does not name the complained-about sample it fails on');
     if (goods.length < 2) missing.push('the "Proven:" line names fewer than 2 good samples it passes on');
+    // An edge case made from the project's own words, where word lists misfire: a name or an address (a flat in "Rose
+    // Court"), a heading or label ("Tiempo total"), a word the user's language shares with a banned list, quoted text.
+    // Lesson: the edge cases agents tried were the skill's own examples, copied, so the project's real vocabulary never
+    // met the check.
+    if (!EDGE_CASE.test(line)) missing.push('the "Proven:" line names no edge case made from this project\'s own words ("an edge case: <a real address, heading, product or person\'s name, a word the user\'s language shares with the flagged list, or quoted text>")');
   }
   // a test file's name without its test affix ("idioma.test" -> "idioma") also names the script it tests
   const stems = [...new Set(checks.map(p => path.basename(p).replace(/\.[^.]+$/, '')).flatMap(s => [s, s.replace(/^test_|[._-](test|spec)$/i, '')]))].filter(s => s.length >= 4);
@@ -1355,14 +1416,30 @@ export function checkProof(x) {
   if (notFound) for (const r of x.entries || []) { const c = r.type === 'assistant' && r.message?.content; if (Array.isArray(c)) for (const u of c) if (u?.type === 'tool_use' && u.name === 'Write' && u.input?.file_path) written.add(pathKey(u.input.file_path)); }
   const onSample = r => notFound && wordsOf(cmdHead(r.cmd)).some(w => /[\\/.]/.test(w) && written.has(pathKey(w)) && !checks.includes(pathKey(w)));
   const onOld = r => !(r.editedBefore || []).some(p => fixes.has(p)) || gitOld(all.indexOf(r)) || oldRuns.has(r) || onSample(r);
-  if (!runs.some(r => failed(r) && onOld(r))) missing.push('no run of the check failed on the state the user complained about');
+  // A complaint the answer showed does not hold has no complained-about state: a failing run on a sample of what the
+  // rule forbids proves the check then. Lesson: a check written for a rule kept after a disproved complaint was blocked
+  // twice for a "failing run on the earlier state" that could not exist, and was waived.
+  const disproved = COMPLAINT_DOESNT_HOLD.test(`${x.answer || ''}\n${x.said || ''}`);
+  if (!runs.some(r => failed(r) && (onOld(r) || disproved))) missing.push('no run of the check failed on the state the user complained about');
   if (!runs.some(passed)) missing.push('no run of the check passed');
+  // Every existing file a blocking check governs (from git's last commit), apart from the ones complained about, passes
+  // it: a run on all of them, and the count in the "Proven:" line.
+  const complained = new Set(runs.filter(r => failed(r) && onOld(r)).flatMap(r => argPaths(r.cmd, stems)));
+  const scripts = checks.filter(p => !TEST_FILE.test(p));
+  const need = [...new Set(scripts.flatMap(c => governedFiles(c, runs, stems) || []))].filter(p => !complained.has(p) && !fixes.has(p));
+  const uncovered = need.filter(p => !runs.some(r => passed(r) && runCovers(r, p, stems)));
+  if (uncovered.length) missing.push(`no passing run covers ${uncovered.length} of the ${need.length} existing file(s) it governs (${uncovered.slice(0, 4).join(', ')}${uncovered.length > 4 ? ', ...' : ''}): run it on all of them (the folder, a glob, or with no file to check its whole scope)`);
+  else if (need.length && line.trim() && !/\b(all|every|both|tod[oa]s|ambos|ambas|cada)\b[^;\n]{0,30}?\b\d+\b|\b\d+\s+(of|de)\s+\d+\b/i.test(line))
+    missing.push(`the "Proven:" line does not say it passes on all ${need.length} existing file(s) it governs ("passes on all ${need.length} existing ...")`);
   // what was seen, so the message says what counted and what did not (and the agent need not guess a waiver reason)
   // (without a leading "cd <project> &&", which filled the 70 characters. Lesson: every run read only as "cd" and the start of the project's path)
   const shown = c => shellParts(cmdHead(c)).parts.filter(p => !/^\(?\s*(cd|Set-Location|pushd)\s/i.test(p)).join(' ; ') || cmdHead(c);
   const seen = runs.slice(-4).map(r => `"${shown(r.cmd).replace(/\s+/g, ' ').slice(0, 70)}" ${failed(r) ? (onOld(r) ? (onSample(r) ? 'FAIL on a sample of the problem' : 'FAIL on the earlier state') : 'FAIL, but after the fix and not on a saved copy') : 'PASS'}`);
-  return { checks, missing, seen, stems };
+  return { checks, missing, seen, stems, need };
 }
+const EDGE_CASE = /\bedge[- ]cases?\b|\bcasos? (l[ií]mite|extremo|borde|dif[ií]cil)\b|\btricky\b/i;
+// The answer showed the complaint does not hold ("Checked: ... - the complaint doesn't hold: ...").
+export const COMPLAINT_DOESNT_HOLD = /\b(the )?complaint(:\s*|\s+)does(n'?t| not) hold\b|\bthat (isn'?t|is not|wasn'?t|was not) what happened\b|\bthat'?s not what happened\b/i;
 export function toolUses(entries) {
   const skip = deniedIds(entries), out = [];
   for (const r of entries) {
@@ -1798,6 +1875,23 @@ export function gateResult(run, spec = {}) {
   return { ok: false, why: 'it ran with other commands after ; or |, or a command in its && chain failed, so its own result is unknown. Run the gate exactly as written, on its own (a gate that is an && chain stays one)' };
 }
 
+// REQ: turn-notes. The lines the checks read but the user can't act on (Playbook:, Skill:, Worth it:, Proven:,
+// Learned (...)) go into one notes file, written this turn, instead of the answer. Any agent can write it, with or
+// without hooks, and the checks read it like the answer. The same lines in the answer still count.
+// Lesson: reviewers of 8 trial projects found answers ending in routing and check bookkeeping ("Probado: ...",
+// "Learned (check): ... → tools/x.mjs", "Playbook: ... · Worth it: ...") that a shop owner or a landlord can't use.
+export const NOTES_FILE = '.cache/turn-notes.md';
+// What a new check (a script or test written after a complaint, a rule or a requirement) is proven on (REQ: check-proven).
+const PROVEN_HINT = 'A new check script or test must fail on what the user complained about (or a real bad sample), pass on every existing file it governs ' +
+  '(all of them, from the last commit) and on realistic good samples, one an edge case made from this project\'s own words (a real name or address, a heading, ' +
+  `a word the user's language shares with a flagged list, quoted text). One line in ${NOTES_FILE}: "Proven: fails on ...; passes on all <N> existing ..., ..., and an edge case: ...".`;
+export function turnNotes(since) {
+  try {
+    const st = fs.statSync(abs(NOTES_FILE));
+    if (since && st.mtimeMs < since - 1000) return ''; // an earlier turn's notes
+    return read(abs(NOTES_FILE));
+  } catch { return ''; }
+}
 export function context(t, cfg, answerOverride) {
   const uses = toolUses(t.entries);
   const cmds = uses.map(u => u.input.command).filter(c => typeof c === 'string');
@@ -1825,7 +1919,9 @@ export function context(t, cfg, answerOverride) {
   const edited = [...uses.filter(u => /^(Write|Edit|MultiEdit|NotebookEdit)$/.test(u.name)).map(u => rel(u.input.file_path || u.input.notebook_path || '')),
     ...uses.filter(u => typeof u.input.command === 'string').flatMap(u => shellTargets(u.input.command)).map(p => rel(p))];
   const maintained = (file, skill) => edited.some(p => p === file || (skill && p.startsWith(`${cfg.skillsDir}/${skill}/`)));
-  const answerEn = inEnglish(answer, cfg); // "Guía: x.md" / "Habilidad: x" name a runbook or skill too
+  // the turn's bookkeeping lines (Playbook, Skill, Worth it, Proven, Learned), kept out of the answer in the notes file
+  const notes = inEnglish(turnNotes(t.since), cfg);
+  const answerEn = `${inEnglish(answer, cfg)}\n${notes}`; // "Guía: x.md" / "Habilidad: x" name a runbook or skill too
   const namesIt = n => re(`\\b(playbook|runbook|skill)s?\\s*:\\s*\`?(docs/playbooks/|skills/)?${esc(n)}(\\.md)?\\b`).test(answerEn);
   // A runbook only opened (read, its skill not invoked) counts as followed when the request routed to it, the answer
   // names it, the turn changed files its own checks watch, or, outside setup, it is the runbook the agent picked for a
@@ -1858,10 +1954,15 @@ export function context(t, cfg, answerOverride) {
   // still asked for the review because the skill had been "maintained".
   const carriedOut = n => !!n && ((ranScript(n) && !edited.some(p => p.startsWith(`${cfg.skillsDir}/${n}/scripts/`))) ||
     (reportOf(n).length > 0 && changed.some(p => match(p, reportOf(n)))));
+  // In setup, a runbook the setup itself wrote this turn is being made, not followed: the setup request ("a summary each
+  // week") routes to it, but routing alone does not make it used. Running it, invoking it or naming it still counts.
+  // Lesson: a sales project's setup wrote its weekly-summary runbook, and its own check asked for this week's summary
+  // file, which setup was right not to make; the agent had to waive it.
+  const routedPb = pb => routed.includes(pb) && !(setup && maintained(pb.file, pb.skillName));
   let usedPb = pbs.filter(pb => (reads.has(pb.file) || (pb.skillName && skillOpened(pb.skillName)) ||
     helpers.some(([n, r]) => r === pb.file && skillOpened(n))) &&
-    (!maintained(pb.file, pb.skillName) || routed.includes(pb) || namesIt(pb.name) || skillsUsed.includes(pb.skillName) || carriedOut(pb.skillName)) &&
-    (invoked(pb) || routed.includes(pb) || namesIt(pb.name) || didItsWork(pb) || carriedOut(pb.skillName) || !lookTurn));
+    (!maintained(pb.file, pb.skillName) || routedPb(pb) || namesIt(pb.name) || skillsUsed.includes(pb.skillName) || carriedOut(pb.skillName)) &&
+    (invoked(pb) || routedPb(pb) || namesIt(pb.name) || didItsWork(pb) || carriedOut(pb.skillName) || !lookTurn));
   // Without tool history, the runbook the answer names ("Playbook: x.md" / "Skill: x") is taken as the one followed.
   if (!t.toolsKnown) usedPb = pbs.filter(pb => namesIt(pb.name));
   const skills = routableSkills(cfg);
@@ -1881,9 +1982,9 @@ export function context(t, cfg, answerOverride) {
   // carry over".
   const waives = [...cmds, ...(t.toolsKnown ? [] : loggedRuns(t.since).map(r => r.cmd))].flatMap(c => [...String(c).matchAll(/hooks\.mjs["']?\s+waive\s+([a-z][\w-]*)\s+(?:"([^"\n]+)"|'([^'\n]+)'|([^"'\n&;|]+))/gi)])
     .map(m => `N/A(${m[1]}): ${(m[2] || m[3] || m[4] || '').trim()}`).join('\n');
-  const all = turnText(t.entries), said = inEnglish(`${answer}\n${all}\n${waives}`, cfg);
+  const all = turnText(t.entries), said = `${inEnglish(`${answer}\n${all}\n${waives}`, cfg)}\n${notes}`;
   return {
-    ...t, uses, cmds, changed, work, pbs, routed, reads, skillsUsed, usedPb, routedSkills, usedSkills, runs: t.toolsKnown ? runsOf(t.entries) : loggedRuns(t.since),
+    ...t, uses, cmds, changed, work, pbs, routed, reads, skillsUsed, usedPb, routedSkills, usedSkills, notes, runs: t.toolsKnown ? runsOf(t.entries) : loggedRuns(t.since),
     answer: inEnglish(answer, cfg), said, afterChange: inEnglish(`${textAfterLastChange(t.entries, changed.reduce((m, p) => { try { return Math.max(m, fs.statSync(abs(p)).mtimeMs); } catch { return m; } }, 0))}\n${answer}`, cfg), results: toolResults(t.entries),
     gui: changed.filter(p => match(p, cfg.guiFiles) && !match(p, cfg.guiIgnore) && exists(p)),
     workTurn: work.length > 0 || (t.toolsKnown && uses.length >= cfg.workToolCalls),
@@ -2546,7 +2647,7 @@ export const LABELS_ES = [
   [/\bqu[eé] cambi[oó](?![\wáéíóúñ])|\blo que cambi[oó](?![\wáéíóúñ])/gi, 'what changed'],
   [/\bmismo resultado\b/gi, 'same result'], [/\btienes? raz[oó]n\b/gi, "you're right"], [/\ben parte\s*[:,]/gi, 'Partly:'],
   // ("no verificado" before "verificado", or it read "no verified". Lesson: a Spanish "NO VERIFICADO" never counted.)
-  [/\beso no (es|fue) lo que pas[oó](?![\wáéíóúñ])/gi, "that isn't what happened"], [/\bno verificad[oa]s?\b|\bsin verificar\b/gi, 'NOT VERIFIED'], [/\bverificad[oa]s?\b/gi, 'verified'],
+  [/\beso no (es|fue) lo que pas[oó](?![\wáéíóúñ])/gi, "that isn't what happened"], [/\b(la )?queja no (se sostiene|es cierta|se confirma)(?![\wáéíóúñ])/gi, "the complaint doesn't hold"], [/\bno verificad[oa]s?\b|\bsin verificar\b/gi, 'NOT VERIFIED'], [/\bverificad[oa]s?\b/gi, 'verified'],
   [/\bpasa(n|ron)? (las|los) pruebas\b|\blas pruebas pasa(n|ron)\b/gi, 'tests pass'],
   [/\((regla)\)/gi, '(rule)'], [/\((comprobaci[oó]n|chequeo|control)\)/gi, '(check)'], [/\((lecci[oó]n)\)/gi, '(lesson)'],
   [/\((habilidad)\)/gi, '(skill)'], [/\((motor)\)/gi, '(engine)'], [/\((puntual)\)/gi, '(one-off)'],
@@ -2717,6 +2818,7 @@ export function setupProblems(cfg = config()) {
     // text in backticks is the page's own instruction about <...>, not a value still to fill
     const f = read(abs('docs/foundation.md')).replace(/`[^`\n]*`/g, '');
     if (!/status:\s*set\b/i.test(f) || /<\.\.\.>|<e\.g\./.test(f)) probs.push('set the app foundation with the user (app-foundation runbook): docs/foundation.md still has <...> values or no "status: set"');
+    probs.push(...grantProblems(read(abs('docs/foundation.md'))));
   }
   const sec = read(abs('docs/security.md')).replace(/`[^`\n]*`/g, '');
   if (!/status:\s*set\b/i.test(sec) || /<\.\.\.>/.test(sec)) probs.push('set the security baseline with the user: docs/security.md still has <...> values or no "status: set"');
@@ -3506,7 +3608,7 @@ export function promptHints(prompt, cfg = config(), withNotices = true, { relaye
   // Lesson: three ROUTE lines and "follow them in order" sent the agent to two wrong runbooks.
   routed.forEach(({ pb, hits }, i) => {
     const how = `open ${pb.file} THIS turn (or use the ${pb.skillName} skill, which points to it) and follow every step in order`;
-    if (!i) hints.push(`ROUTE: ${pb.name} (matched: ${hits.join(', ')}). If this is the task: ${how}. Name it in the answer ("Playbook: ${pb.file.split('/').pop()}"). REQ: runbook-read.`);
+    if (!i) hints.push(`ROUTE: ${pb.name} (matched: ${hits.join(', ')}). If this is the task: ${how}. Name it in ${NOTES_FILE} ("Playbook: ${pb.file.split('/').pop()}"), not in the answer. REQ: runbook-read.`);
     else hints.push(`ALSO ROUTE: ${pb.name} (matched: ${hits.join(', ')}). Only if the request also covers this job: open ${pb.file} after the one above (precedence notes in DIRECTORY.md) and name it too.`);
   });
   const weakOnes = [...(routed.weak || [])];
@@ -3515,7 +3617,7 @@ export function promptHints(prompt, cfg = config(), withNotices = true, { relaye
   // fact. Lesson: a requirement said in passing also suggested knowledge-capture, which was noise.
   const sk = routeSkills(m.expanded, cfg, routed).filter(({ pb: s }) => !(s.name === 'knowledge-capture' && isRequirement(p, cfg)));
   for (const { pb: s, hits } of sk)
-    hints.push(`SKILL: ${s.name} (matched: ${hits.join(', ')}). If this is the task: open ${s.file} THIS turn (or invoke the ${s.name} skill) and follow it, together with any runbook above. Name it in the answer ("Skill: ${s.name}"). REQ: skill-read.`);
+    hints.push(`SKILL: ${s.name} (matched: ${hits.join(', ')}). If this is the task: open ${s.file} THIS turn (or invoke the ${s.name} skill) and follow it, together with any runbook above. Name it in ${NOTES_FILE} ("Skill: ${s.name}"). REQ: skill-read.`);
   // REQ: fit-checklist (at the request). A library skill the checklist left for later, or skipped, whose triggers this
   // request matches: the request is the evidence a "later - when: the user asks ..." waited for, so decide it now.
   // Lesson: a sales project left data-analysis for "when the user asks a sales question", and the question was then
@@ -3565,11 +3667,13 @@ export function promptHints(prompt, cfg = config(), withNotices = true, { relaye
   if (own && isUpset(p, cfg))
     // (step 0 first: open what the complaint is about before agreeing. Lesson: "fix the miss first" led an agent to
     // concede a complaint that was only partly true, before it had opened the file)
-    hints.push('THE USER SOUNDS UPSET about a miss. Use the learn-from-upset skill (skills/learn-from-upset/SKILL.md): first open what the complaint is about and say which parts hold ' +
-      '("Checked: <what you opened> - <what it showed>"), then fix the miss by its runbook ' +
+    // (each part of a complaint is checked on its own. Lesson: "it sounds like a robot and threatens them" was conceded
+    // whole, though the letter was cold but had no threatening word)
+    hints.push('THE USER SOUNDS UPSET about a miss. Use the learn-from-upset skill (skills/learn-from-upset/SKILL.md): first open what the complaint is about, before agreeing to anything, ' +
+      'and check each part of it on its own ("Checked: <what you opened> - <what it showed>", one per part: which held, which did not), then fix the miss by its runbook ' +
       'and say plainly what went wrong (no arguing, no long apology), then weigh how important the lesson is (one-off, lesson in the skill that missed it, rule, ' +
-      'hook check, new skill, or engine feedback that reaches every project) and write it there. A new check must fail on what the user complained about and pass on 2 realistic good samples ' +
-      '("Proven: fails on ...; passes on ..., ..."). End with "Learned (<level>): <lesson> → <file>". REQ: upset-learned, check-proven.');
+      `hook check, new skill, or engine feedback that reaches every project) and write it there. ${PROVEN_HINT} ` +
+      `Put "Learned (<level>): <lesson> → <file>" (or "Learned (none): the complaint didn't hold - <evidence>") in ${NOTES_FILE}, and tell the user in one plain sentence what changes. REQ: upset-learned, check-proven.`);
   // feedback or a message the user wants passed on to someone else carries that receiver's requirements, not this
   // project's ("give that feedback to the starter and mention to make sure it's fixed"). Lesson: such a relay got the
   // REQUIREMENT hint.
@@ -3578,12 +3682,10 @@ export function promptHints(prompt, cfg = config(), withNotices = true, { relaye
   else if (isRuleRequest(p, cfg) && !isUpset(p, cfg))
     hints.push('RULE REQUEST: the user is setting a standing rule. Use the project-rule skill: record the principle and why (in your own words, not theirs) with today\'s date, ' +
       'write the rule into CLAUDE.md, add a row to docs/checks/user-requirements.md, enforce it in tools/hooks/requirements.json (or say ' +
-      '"hook: N/A <reason>"), run the hook tests and the audit. A new check script or test must fail on a real bad sample and pass on 2 realistic good ones, one a valid edge case ' +
-      '("Proven: fails on ...; passes on ..., ..."). If it is not actually a rule, waive it: node tools/hooks/hooks.mjs waive rule-request "<why>". REQ: rule-request, check-proven.');
+      `"hook: N/A <reason>"), run the hook tests and the audit. ${PROVEN_HINT} If it is not actually a rule, waive it: node tools/hooks/hooks.mjs waive rule-request "<why>". REQ: rule-request, check-proven.`);
   else if (isRequirement(p, cfg))
     hints.push('REQUIREMENT: the user stated a lasting requirement on the work. Enforce it this turn, without asking: a "Done when" item in its runbook or skill with ' +
-      '"(hook: <tag>)", the check and a test (or "(judgment: <why>)" when no script can tell). The check must fail on a real bad sample and pass on 2 realistic good ones, ' +
-      'one a valid edge case ("Proven: fails on ...; passes on ..., ..."). If it was only for this one task, ' +
+      `"(hook: <tag>)", the check and a test (or "(judgment: <why>)" when no script can tell). ${PROVEN_HINT} If it was only for this one task, ` +
       'waive it: node tools/hooks/hooks.mjs waive requirement-enforced "one-off, only for this task". REQ: requirement-enforced.');
   // REQ: check-preview. Work learns at the start which checks its Stop will hold it to, so the first pass does them all.
   // Lesson: most Stop rounds told the agent what it could have known when the request arrived.
@@ -4323,8 +4425,8 @@ export function coreChecks(x, cfg) {
       `Open ${x.routedSkills[0].file} (or invoke the skill), check the work against its steps and "Done when", fix what was skipped, then finish.`);
   // REQ: playbook-named
   if (x.workTurn && (x.usedPb.length || x.usedSkills.length) && !/\b(playbook|runbook|skill)s?\s*:/i.test(x.said))
-    add('playbook-named', x.usedPb.length ? `Name the runbook you followed in the answer, e.g. "Playbook: ${x.usedPb[0].file.split('/').pop()}".`
-      : `Name the skill you followed in the answer, e.g. "Skill: ${x.usedSkills[0].name}".`);
+    add('playbook-named', x.usedPb.length ? `Name the runbook you followed in ${NOTES_FILE} (not in the answer), e.g. "Playbook: ${x.usedPb[0].file.split('/').pop()}".`
+      : `Name the skill you followed in ${NOTES_FILE} (not in the answer), e.g. "Skill: ${x.usedSkills[0].name}".`);
   // REQ: skill-complete. A hand-written skill no runbook owns routes by its own triggers and has its own check.
   for (const s of routableSkills(cfg).filter(s => x.changed.includes(s.file))) {
     if (!s.triggers.length) add('skill-complete', `${s.file} has no "triggers:" line in its frontmatter, so nothing routes to it. Add the short phrases people use for this job.`);
@@ -4377,9 +4479,9 @@ export function coreChecks(x, cfg) {
   // the weighing may sit in any message of this turn (Lesson: every re-block demanded it again)
   // A plain sentence with the gain and the cost counts as much as the "Worth it: <gain> / <cost>" marker.
   // Lesson: setup answers carried stiff "Worth it: ... / cost: ..." lines in place of a sentence that said the same.
-  if ((newSkills.length || added.length) && !WORTH_IT.test(inEnglish(x.answer + '\n' + turnText(x.entries), cfg)))
+  if ((newSkills.length || added.length) && !WORTH_IT.test(inEnglish(x.answer + '\n' + turnText(x.entries), cfg) + '\n' + (x.notes || '')))
     add('worth-it', `You added ${[...newSkills.map(n => `the ${n} skill`), ...added].slice(0, 4).join(', ')}. Say why it makes this project better and what it costs ` +
-      '(noise, upkeep, speed, conflicts, risk, and whether its license lets a project that uses it be sold): "Worth it: <gain> / <cost>". If the cost is bigger, undo it and say why (hard rule 16).');
+      `(noise, upkeep, speed, conflicts, risk, and whether its license lets a project that uses it be sold): "Worth it: <gain> / <cost>" in ${NOTES_FILE}, or a plain sentence in the answer. If the cost is bigger, undo it and say why (hard rule 16).`);
   // REQ: done-when-labeled. Every "Done when" item in a runbook or skill changed this turn says how it is proven: the
   // check that enforces it ("hook: <tag>") or why only judgment can ("judgment: <why>"). Lesson: the user's requirements
   // were written into a runbook as plain items, nothing enforced them, and the agent moved on until the user asked.
@@ -4475,9 +4577,14 @@ export function coreChecks(x, cfg) {
   const traceAnswer = (knowledge && (researched || cited.length)) || ledgerRuns.length || dataQuestion;
   if (traceAnswer || kbWritten) {
     const ledgers = ledgerRuns.map(r => /claims\.mjs\s+check\s+"?([^"\s]+)/.exec(r.cmd)?.[1]).filter(Boolean);
+    // A file the agent wrote this turn is a valid source for what it wrote (citing it is not citing something unread),
+    // but not for outside facts: its own text never traces the facts written into it.
+    // Lesson: an answer cited a knowledge note the agent had written 26 seconds earlier from pages it had just fetched,
+    // and Stop said it cited the note "without opening it".
+    const wroteNow = new Set(x.uses.filter(u => /^(Write|Edit|MultiEdit)$/.test(u.name)).map(u => rel(u.input.file_path || '')));
     // Lesson: numbers the agent itself wrote into files earlier in the session were flagged as made up: what it wrote
     // (its Write/Edit inputs, this session) is part of what it knows, like what it read.
-    const corpus = [x.results, x.prompt, x.allPrompts?.join('\n'), today(), ...ledgers.map(p => read(abs(p))), ...cited.map(p => read(abs(p)))].join('\n').replace(/(\d),(?=\d{3}\b)/g, '$1');
+    const corpus = [x.results, x.prompt, x.allPrompts?.join('\n'), today(), ...ledgers.map(p => read(abs(p))), ...cited.filter(p => !wroteNow.has(p)).map(p => read(abs(p)))].join('\n').replace(/(\d),(?=\d{3}\b)/g, '$1');
     const ownWrites = String(x.sessionWrites || '').replace(/(\d),(?=\d{3}\b)/g, '$1');
     const untraced = (text, own = '') => {
       const out = [];
@@ -4494,10 +4601,31 @@ export function coreChecks(x, cfg) {
       }
       return [...new Set(out)];
     };
-    const fromAnswer = traceAnswer ? untraced(x.answer, ownWrites) : []; // what goes into the knowledge base itself must trace to a source
+    // A figure worked out from two traced figures of the same answer (their sum, their difference, or the change between
+    // them in percent) is traced too. Lesson: "692 ... That's 213 more than week 41 (479)" was flagged as made up, and
+    // the forced second pass only wedged a source sentence into the middle of the paragraph.
+    const computed = (text, list) => {
+      if (!list.length) return list;
+      const num = s => Number(String(s).replace(/[$€£%\s,]/g, ''));
+      const all = [...new Set([...text.replace(/(\d),(?=\d{3}\b)/g, '$1').matchAll(/(?<![\w.])\d+(?:\.\d+)?(?![\w])/g)].map(m => m[0]))].filter(n => !list.some(u => num(u) === Number(n)));
+      // (a single digit is a count or a list number, not a figure: it explains nothing)
+      const known = all.map(Number).filter(n => Number.isFinite(n) && (n >= 10 || !Number.isInteger(n)));
+      const near = (a, b) => Math.abs(a - b) <= Math.max(0.051, Math.abs(b) * 0.0005);
+      return list.filter(u => {
+        const n = num(u);
+        if (!Number.isFinite(n)) return true;
+        for (const a of known) for (const b of known) {
+          if (a === b) continue;
+          if (near(n, a - b) || near(n, a + b)) return false;
+          if (/%/.test(u) && (near(n, ((a - b) / b) * 100) || near(n, Math.round(((a - b) / b) * 1000) / 10))) return false;
+        }
+        return true;
+      });
+    };
+    const fromAnswer = traceAnswer ? computed(x.answer, untraced(x.answer, ownWrites)) : []; // what goes into the knowledge base itself must trace to a source
     const written = x.uses.filter(u => /^(Write|Edit|MultiEdit)$/.test(u.name) && inKb.test(rel(u.input.file_path || '')))
       .flatMap(u => untraced([u.input.content, u.input.new_string, ...(u.input.edits || []).map(e => e.new_string)].filter(Boolean).join('\n')));
-    const unopened = x.toolsKnown ? cited.filter(p => !x.reads.has(p) && !x.cmds.some(c => c.includes(p)) && !x.results.includes(p)) : [];
+    const unopened = x.toolsKnown ? cited.filter(p => !x.reads.has(p) && !wroteNow.has(p) && !x.cmds.some(c => c.includes(p)) && !x.results.includes(p)) : [];
     // the web links in the answer's sources were opened too: a link a search only listed was never read. Lesson: an
     // answer cited 2 of 3 studies by links it never opened, and the citation check passed it
     if (x.toolsKnown && (researched || knowledge)) {
@@ -4537,7 +4665,14 @@ export function coreChecks(x, cfg) {
     if (!x.changed.includes('docs/checks/user-requirements.md')) need.push('docs/checks/user-requirements.md (words -> rule -> REQ tag)');
     // (a commit gate, forbidden command or protected path in config.json enforces a rule too. Lesson: a "dotnet format
     // before commit" rule, made a commit gate, was told to write a false "hook: N/A")
-    if (!x.changed.some(p => /^tools\/hooks\/(requirements\.json|hooks\.mjs|config\.json)$/.test(p)) && !/hook:\s*n\/a/i.test(x.said))
+    // An existing check that already runs what this turn changed enforces the rule too: a test or check script that
+    // requirements.json runs, extended with the new case, or an existing check named ("hook: <its tag>"). Lesson: a
+    // "never a percentage against zero" rule was added as test cases to the test an existing check runs, and Stop still
+    // asked for a check, so a second one running the same test was added.
+    const tagsNow = new Set(loadRequirements().reqs.map(q => q && q.tag).filter(Boolean));
+    const runsNow = requirementScripts();
+    const existing = x.changed.some(p => runsNow.has(p) && (TEST_FILE.test(p) || CHECK_FILE.test(p))) || [...x.said.matchAll(/\bhook:\s*([a-z][\w-]+)/gi)].some(m => tagsNow.has(m[1]));
+    if (!x.changed.some(p => /^tools\/hooks\/(requirements\.json|hooks\.mjs|config\.json)$/.test(p)) && !/hook:\s*n\/a/i.test(x.said) && !existing)
       need.push('tools/hooks/requirements.json (a check) or tools/hooks/config.json (a commit gate, forbidden command or protected path), or "hook: N/A <reason>" in the answer if it cannot be checked');
     // REQ: rule-memory. The rule also goes into memory, so it survives even outside this project's docs.
     if (cfg.memoryOnRuleRequest) {
@@ -4573,13 +4708,21 @@ export function coreChecks(x, cfg) {
     // and only the list of options was missing.
     else if (/\b(you'?re right|you are right)\b/i.test(x.answer) && !/\b(partly|partially|in part|en parte|parcialmente)\b|that isn'?t what happened|already there/i.test(x.answer)
       && !/^[\s>*_-]*(checked|comprobado|revis[eé])\**\s*:\**\s*\S.{8,}/im.test(x.answer))
-      add('upset-learned', 'The answer agrees with the whole complaint. Say what you checked before agreeing, on its own line: "Checked: <the file, output or commit you opened> - <what it showed>". ' +
+      add('upset-learned', 'The answer agrees with the whole complaint. Check each part of it on its own and say what you checked before agreeing, on its own line: "Checked: <the file, output or commit you opened> - <what it showed>", for every part. ' +
         'If part of the complaint was already right in the files, say "Partly: <what was wrong>, <what was already there>" instead (learn-from-upset skill, step 0).');
     const learned = learnedLines(x.said);
-    if (!learned.length) add('upset-learned', 'The user is upset about a miss. Fixing it is half the job: the project has to learn from it too. Use the learn-from-upset skill ' +
-      '(skills/learn-from-upset/SKILL.md): fix the miss, weigh how important the lesson is, write it where it belongs, and end with ' +
-      '"Learned (<one-off|lesson|rule|check|skill|engine>): <lesson> → <file>". If there is truly nothing to learn (the cause was outside the project), waive it: node tools/hooks/hooks.mjs waive upset-learned "<why>".');
-    else {
+    // A complaint the answer showed does not hold has no miss to learn from: "Learned (none): the complaint didn't
+    // hold - <evidence>" ends it. Lesson: after a disproved complaint, Stop still asked for a lesson, and the agent added
+    // a duplicate check and a made-up "project lesson" about its own process.
+    const none = LEARNED_NONE.test(x.said);
+    if (!learned.length && none && !COMPLAINT_DOESNT_HOLD.test(x.said))
+      add('upset-learned', '"Learned (none)" is only for a complaint the answer showed does not hold, with "Checked: <what you opened> - the complaint doesn\'t hold: <evidence>". ' +
+        `Otherwise write where the lesson went: "Learned (<one-off|lesson|rule|check|skill|engine>): <lesson> → <file>" in ${NOTES_FILE}.`);
+    else if (!learned.length && !none) add('upset-learned', 'The user is upset about a miss. Fixing it is half the job: the project has to learn from it too. Use the learn-from-upset skill ' +
+      `(skills/learn-from-upset/SKILL.md): fix the miss, weigh how important the lesson is, write it where it belongs, and put ` +
+      `"Learned (<one-off|lesson|rule|check|skill|engine>): <lesson> → <file>" in ${NOTES_FILE}, with one plain sentence in the answer on what changes. ` +
+      'When the complaint did not hold, "Learned (none): the complaint didn\'t hold - <evidence>". If the cause was outside the project, waive it: node tools/hooks/hooks.mjs waive upset-learned "<why>".');
+    else if (learned.length) {
       const notChanged = learned.filter(l => !x.changed.includes(l.file));
       if (notChanged.length) add('upset-learned', `The lesson must be written into the file the answer names, this turn: ${notChanged.map(l => l.file).join(', ')} did not change. Write it there, or name the file it went into.`);
       // "again" means it already happened: a one-off note is too weak for a repeat
@@ -4629,8 +4772,8 @@ export function coreChecks(x, cfg) {
       `Missing: ${proof.missing.join('; ')}. ` +
       'A failing run counts when it ran before the fix, on a copy saved before the fix (cp or copy), on the version from git (git show HEAD:<file> > .cache/before-<file>), or on a sample file holding the text the fix took out. ' +
       'If the problem the user named is not in the project at all, say so plainly in the answer ("I couldn\'t find <it> in <where I looked>"): then a failing run on a sample of that problem written this turn counts. ' +
-      'Good samples: at least 2 realistic ones that PASS, one a valid edge case of this project (words the user\'s language shares with a banned list, a legitimate text that must use a flagged term). ' +
-      'The answer says it on one line: "Proven: fails on <the complained-about sample>; passes on <good 1>, <good 2>". If it truly cannot run on samples, waive it with the true reason: node tools/hooks/hooks.mjs waive check-proven "<why>".');
+      `Good samples: ${proof.need?.length ? `every existing file it governs (${proof.need.length}, from the last commit), plus ` : ''}at least 2 realistic ones that PASS, one an edge case made from this project's own words (a real name or address, a heading or label, a word the user's language shares with a flagged list, quoted text, a legitimate text that must use a flagged term). ` +
+      `Say it on one line in ${NOTES_FILE} (not in the answer): "Proven: fails on <the complained-about sample>; passes on ${proof.need?.length ? `all ${proof.need.length} existing <files>, ` : ''}<good 1>, and an edge case: <what it holds>". If it truly cannot run on samples, waive it with the true reason: node tools/hooks/hooks.mjs waive check-proven "<why>".`);
   // REQ: question-no-file. A question gets an answer, not unrequested edits.
   // Lesson: a relayed instruction ("Add all six checks with tests now") that mentioned a question was judged a question.
   const instructs = /(^|[.!:\n]\s*)(please\s+)?(add|fix|make|update|upgrade|run|move|create|write|build|remove|change|rename|install|enable|implement|apply)\b/i.test(x.prompt);
@@ -4746,7 +4889,7 @@ export function coreChecks(x, cfg) {
   // (in the starter itself, an engine fix is proven by its new self-test scenarios)
   if (ownTurn && neverAgain && (!proof.checks.length || proof.missing.length) && !(exists('.starter-template') && x.changed.includes('tools/hooks/selfcheck.mjs')))
     add('claim-checked', `The answer promises it can't happen again ("${neverAgain.trim().slice(0, 70)}"), but ${proof.checks.length ? 'the new check is not proven yet (check-proven)' : 'no new check was shown failing on what the user complained about and passing on good samples'}. ` +
-      'Prove the check ("Proven: fails on <the complained-about sample>; passes on <good 1>, <good 2>"), or say what was put in place and what it does not catch, without the promise.');
+      `Prove the check (in ${NOTES_FILE}: "Proven: fails on <the complained-about sample>; passes on <good 1>, <good 2>, and an edge case: <...>"), or say what was put in place and what it does not catch, without the promise.`);
   // REQ: claim-checked. Engine feedback reaches the starter only through "node tools/starter.mjs report"; "feedback"
   // only writes docs/starter-feedback.md. Lesson: an answer said an engine bug was "reported to the tool's makers" when
   // the report command never ran.
@@ -4935,7 +5078,11 @@ export function skillLearnCheck(x, cfg, failingNow = []) {
   // A check waived this turn (N/A(<tag>) or "hooks.mjs waive") did not apply: it is no miss of the runbook it belongs to.
   // Lesson: a runbook matched by mistake had its check waived as a wrong route, and the next round still asked for a
   // lesson to be written into that runbook.
-  const failing = new Set([...(x.failedBefore || []).filter(t => !failingNow.includes(t)), ...failingNow].filter(t => !waived(t, x.said)));
+  // A complaint the answer showed does not hold ("Learned (none): ...") was no miss of the runbook that handled it: the
+  // checks the complaint itself set off are not a lesson for it. Lesson: after a disproved complaint, Stop asked to
+  // write a lesson into the project runbook, and the agent wrote one about its own process although nothing was missed.
+  const disproved = COMPLAINT_DOESNT_HOLD.test(x.said || '') && LEARNED_NONE.test(x.said || '');
+  const failing = new Set([...(x.failedBefore || []).filter(t => !failingNow.includes(t)), ...failingNow].filter(t => !waived(t, x.said) && !(disproved && PROMPT_GATED.has(t))));
   const own = item => ownChecks(item, cfg);
   // Friction from a wording check (reworded to satisfy it) is the check's, not the runbook's: never a lesson to write.
   // Lesson: rewording twice for no-verbatim-examples made skill-learn demand a lesson from an innocent runbook.
@@ -4984,6 +5131,8 @@ const FIX_FILES = {
 const sampleOf = g => String(g).replace(/\{([^,}]*)[^}]*\}/g, '$1').replace(/\*\*/g, 'x').replace(/[*?]/g, 'x');
 const filesOfCond = c => !c || typeof c !== 'object' ? [] : [...[].concat(c.filesChanged || []), ...(c.anyOf || []).flatMap(filesOfCond)];
 // "Learned (<level>): <lesson> → <file>" lines: the level and the file the lesson went into
+// "Learned (none): the complaint didn't hold - <evidence>": nothing to learn (Spanish "Aprendido (nada): ...")
+export const LEARNED_NONE = /^[\s>*_-]*learned\s*\((none|nothing|ninguno|ninguna|nada)\)\s*:\s*\S.{8,}/im;
 export const learnedLines = text => [...String(text || '').matchAll(/^[\s>*_-]*learned\s*\((one-off|lesson|rule|check|skill|engine)\)\s*:\s*(.+?)\s*(?:→|->)\s*`?([^`\s,;]+)/gim)]
   .map(m => ({ level: m[1].toLowerCase(), file: m[3].replace(/\\/g, '/').replace(/^\.\//, '').replace(/[.)]+$/, '') }));
 export function fixFilesOf(m, x) {
@@ -5149,7 +5298,9 @@ export function citesOpened(x) {
   const named = [...a.matchAll(/(?<![\w/.-])(?:[\w.-]+\/)+[\w.-]*\w\.\w{1,5}\b|`([^`\n]+\.\w{1,5})`|\]\(<?([^)>\s]+)>?\)/g)]
     .map(m => (m[1] || m[2] || m[0]).replace(/\\/g, '/').replace(/^\.\//, '').replace(/[.,;:)]+$/, ''));
   const files = [...new Set(named)].filter(p => !/^https?:/i.test(p) && !NOT_A_SOURCE.test(p) && !(x.changed || []).includes(p));
-  const opened = p => x.toolsKnown ? (x.reads?.has(p) || (x.cmds || []).some(cmd => cmd.replace(/\\/g, '/').includes(p))) : exists(p);
+  // (a path a command printed in its output was opened by it: a script that builds the names in a loop prints them.
+  // Lesson: totals computed by a script over three exports, named in the answer, counted as uncited.)
+  const opened = p => x.toolsKnown ? (x.reads?.has(p) || (x.cmds || []).some(cmd => cmd.replace(/\\/g, '/').includes(p)) || String(x.results || '').replace(/\\/g, '/').includes(p)) : exists(p);
   if (files.some(opened)) return true;
   const urls = (a.match(/https?:\/\/[^\s)>\]]+/g) || []).map(u => u.replace(/^https?:\/\/(www\.)?/i, '').replace(/[)\].,;>]+$/, '').replace(/\/$/, ''));
   if (!urls.length) return false;
@@ -5701,7 +5852,7 @@ const SHORT = {
   'finished-summary': 'End with a Finished section that lists every changed file',
   changelog: 'Note the change in docs/CHANGELOG.md',
   'audit-run': "Run the project's health check until it passes",
-  'playbook-named': 'Name the runbook or skill you followed in the answer',
+  'playbook-named': 'Name the runbook or skill you followed in the turn notes',
   'rule-request': "Write the user's new rule down everywhere it belongs",
   'requirement-enforced': "Make the user's new requirement enforced (a check and its test)",
   'done-when-labeled': 'Say how each "Done when" item is proven (its check, or why judgment)',
@@ -5960,7 +6111,7 @@ function cmdBegin() {
   const st = readJSON(path.join(STATE, 'last-session.json'), {});
   if (!st.at || Date.now() - Date.parse(st.at) > 6 * 3600_000) cmdSession({ source: 'begin' });
   cmdPrompt({ prompt: req }, { force: true });
-  console.log('\nWhen the work is done: write your answer to .cache/answer.md and run node tools/hooks/hooks.mjs check --answer-file .cache/answer.md');
+  console.log(`\nWhen the work is done: write your answer to .cache/answer.md, the lines the checks read (Playbook:, Skill:, Worth it:, Proven:, Learned (...)) to ${NOTES_FILE}, and run node tools/hooks/hooks.mjs check --answer-file .cache/answer.md`);
 }
 // The session whose prompt hook recorded the newest request, when that is newer than a manual "begin" ('' if none).
 function hookedSession() {

@@ -35,17 +35,22 @@ Copy `docs/playbooks/_TEMPLATE.md` to `docs/playbooks/<kebab-name>.md` (standard
 ## 3. Write its check (mandatory)
 Add at least one entry to `tools/hooks/requirements.json` that tests a "Done when" item:
 ```json
-{ "tag": "<name>-done", "rule": "2", "when": { "playbookUsed": "<name>" },
+{ "tag": "<name>-done", "rule": "2", "when": { "playbookUsed": "<name>", "toolRan": "<the command that makes the result>" },
   "require": { "filesChanged": ["<where the result lands>"] },
   "message": "What to do so this passes." }
 ```
 Other evidence: `answerMatches` (a required answer section), `toolPassed` (a validator that must PASS; add `selfRun`),
-`runEach` (the hook re-runs a validator on each changed file). If nothing can be checked, set
+`runEach` (the hook re-runs a validator on each changed file). Make `when` fire on the work itself, not on the
+runbook being opened: a check that asks for a result file applies when the script that makes it ran (`toolRan`) or
+its inputs changed (`filesChanged`), so a request that reuses a result already made (this week's summary exists), a
+related request (an email about the summary) and the setup turn that writes the runbook pass without a waiver. Lesson:
+a "summary saved" check on `playbookUsed` needed waivers in setup and on a partner email. If nothing can be checked, set
 `checks: none - <reason>` in the runbook. Add test scenarios for the tag in `tools/hooks/project-scenarios.mjs` (upgrades keep it; in the starter itself: `tools/hooks/selfcheck.mjs`), one blocked and one realistic good sample that passes (hook: check-sampled), and a row in
 `docs/checks/rule-enforcement.md`.
 
 A validator script you write for the check is run on real samples before you rely on it: it fails on a real bad
-case and passes on at least 2 realistic good ones, one a valid edge case of the project. Made-up junk alone proves
+case and passes on every existing file it governs (from the last commit) and on realistic good samples, one an edge
+case made from the project's own words (names, addresses, headings, quoted text). Made-up junk alone proves
 little: a check can fail every fixture and still pass the real miss, or block good work (hook: check-proven, when it
 answers a complaint or a rule).
 

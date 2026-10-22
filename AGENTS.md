@@ -12,7 +12,7 @@
    them. If your agent has no hooks, run `node tools/hooks/hooks.mjs begin "<the request>"` first. It prints the same
    hints.
 2. **Find the runbook** in [DIRECTORY.md](DIRECTORY.md) §1. Open `docs/playbooks/<name>.md` (or its skill in
-   `skills/<name>/`) THIS turn, follow every step in order, and name it in the answer: `Playbook: <name>.md`. Skills
+   `skills/<name>/`) THIS turn, follow every step in order, and name it in the turn notes: `Playbook: <name>.md`. Skills
    with their own route (§2: debug, research, obsidian, parallel-agents, skill-finder, security-review and any
    enabled library skill) work the same way: open `skills/<name>/SKILL.md`, follow it alongside any runbook, and name
    it: `Skill: <name>`. This project's skills come before global skills that do the same job.
@@ -41,8 +41,8 @@
    following a runbook or skill writes the lesson into it. Ones nobody uses get reviewed and retired (skill-curate).
 3. **Standing instructions become enforced rules, and an upset user teaches the project.** When the user is upset or
    complains, the **learn-from-upset** skill fixes the miss, weighs how important the lesson is, and stores it where it
-   stops the next one (the skill that missed it, a rule, a check, a new skill, or the starter for every project), ending
-   with "Learned (<level>): <lesson> → <file>". "Always / never / remember / from now on / update the project", or
+   stops the next one (the skill that missed it, a rule, a check, a new skill, or the starter for every project), with
+   "Learned (<level>): <lesson> → <file>" in the turn notes (rule 7). "Always / never / remember / from now on / update the project", or
    praise for something to repeat, go through the **project-rule** skill: the principle
    and why it matters, with the date, a rule here, a row in `docs/checks/user-requirements.md`, a check in
    `tools/hooks/requirements.json` (or "hook: N/A <reason>"), a memory note, a test, and the audit. If something would
@@ -64,8 +64,9 @@
    **Finished** section: what was done, the exact path of every file the user will open or care about (more than
    about 10: the rest grouped by folder with a count; the project's own records, like STATUS, CHANGELOG, plans and
    rule files, are just "plus the usual records"), and what was not done or verified. Long reports,
-   tables and checklists go in a file (`docs/reviews/`, the spec), with one line in the answer. The markers the checks look for (`Playbook:`, `Skill:`, `Worth it:`) go together on one short last line,
-   after the answer, so the user can skip them. The answer itself never uses check names: a check that does not apply
+   tables and checklists go in a file (`docs/reviews/`, the spec), with one line in the answer. Lines only the checks
+   need (`Playbook:`, `Skill:`, `Worth it:`, `Proven:`, `Learned (...)`) go in the turn notes, `.cache/turn-notes.md`,
+   not the answer. The answer itself never uses check names: a check that does not apply
    is waived with `node tools/hooks/hooks.mjs waive <name> "<reason>"`, not with an `N/A(...)` line. Shortening any
    text keeps file paths, names, commands, code, numbers and every "not" exactly as they were (compress-for-ai).
 8. **The whole request, exactly.** Messages typed while you work are part of it. "Give me 5" means 5. A redo says what

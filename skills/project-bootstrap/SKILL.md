@@ -16,7 +16,7 @@ runbook: docs/playbooks/project.md
    - Decide every candidate yourself in the fit checklist (`node tools/fit.mjs`, then `node tools/fit.mjs check` until
      FIT: PASS): each pack, library skill, tool and feature is added, skipped or left for later, with a reason. Show
      the user the one-line summary (`node tools/fit.mjs summary`); ask only about money, privacy or outward actions.
-   - Give every addition a `Worth it: <gain> / <cost>` line (REQ: worth-it).
+   - Give every addition a `Worth it: <gain> / <cost>` line in `.cache/turn-notes.md`, not the answer (REQ: worth-it).
    - Update `docs/security.md` if the sensitive data or the inputs changed.
    - Route every new typical request to a runbook with a check (runbook-create), and log the change in
      `docs/DECISIONS.md`.

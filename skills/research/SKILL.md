@@ -28,7 +28,8 @@ Then always **D** (did I make that up?), and in a knowledge project, **E** (reco
 4. **`Sources:` last**, one line per number: `[n] <link or project file>`, optionally followed by ` - <title>, <date>`.
    The link or path comes right after the number and is clickable as written. Every number points to a source read
    this turn, and every number used in the text has its line.
-5. After `Sources:`, only the Verified line (situation **C**) and the one-line markers (`Skill: research`).
+5. After `Sources:`, only the Verified line (situation **C**). The markers (`Skill: research`) go into
+   `.cache/turn-notes.md`, not the answer.
 
 Shape (sample values):
 ```

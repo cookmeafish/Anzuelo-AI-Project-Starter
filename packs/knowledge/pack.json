@@ -196,7 +196,9 @@
           "outputs/**"
         ],
         "filesIgnore": [
-          "outputs/drafts/**"
+          "outputs/drafts/**",
+          "outputs/README.md",
+          "outputs/**/.gitkeep"
         ]
       },
       "require": {
