@@ -7,6 +7,24 @@ print, or to a command or setting a project's own hooks or scripts may rely on, 
 hooks:**, and an upgrade lists each one as its own review item.
 
 - 2026-10-21: Fewer retries and Stop rounds (field report from an adopted project).
+  - **Nothing left scheduled after the answer (trials of 8 new projects, round 5):** new check `wakeup-left`. A wakeup
+    or cron job the session scheduled for itself (ScheduleWakeup, CronCreate, and any later tool whose name says wake,
+    cron, schedule, timer, remind or alarm and that is given a prompt to send back) and still pending once the turn's
+    work is done is cancelled (ScheduleWakeup with `stop: true`, CronDelete with its id), or, interactively, the answer
+    says what it will do. A headless run (claude -p, the SDK) does not end while one is pending, so there it must be
+    cancelled unless the request asked for a reminder, a loop or a schedule; and while a background job of the session
+    runs, a headless fallback wakeup is refused before the call (the job's notice wakes the session by itself). Cloud
+    routines (RemoteTrigger) and connected services' tools are not counted. A setup had left a "just in case" wakeup
+    pending, and the run was killed at its 60-minute limit with no answer. New rule `self-sent-prompt`: a wakeup's or
+    cron job's own prompt is not the user's, so it starts no turn, takes no new turn-start snapshot and counts as no
+    setup answer; files changed before it still count (Stop had asked again for the status and changelog lines written
+    before a wakeup fired). A wakeup firing after a clean end is a notice like a task's (`notice-answer`). The Claude
+    Code PreToolUse matcher now includes the scheduling tools. SETUP-PROMPT.md phase 5, the project runbook and the
+    orchestrate skill say a background job's end wakes the agent by itself, with no timer needed, and that timers are
+    cancelled when the work is done. Scenarios: `wakeup-left:`, `self-sent-prompt:`, `notice-answer:` (wakeup).
+    Adopt by hand: SETUP-PROMPT.md phase 5 (a new project gets it). **Breaking for project hooks:** the PreToolUse
+    matcher in `.claude/settings.json` changes on the next wire, and a project's own hook that reads `turn.json` no
+    longer sees a wakeup's prompt as the request.
   - **Guards and false alarms (trials of 8 new projects, round 4):** a follow-up that names nobody ("make the letter
     friendlier") keeps the person of the latest of the last 3 requests that named one, so a question in between no
     longer cuts it off. A `waive scope-separate "<why>"` logged this turn now counts before tool calls too: it covers

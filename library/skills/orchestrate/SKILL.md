@@ -69,7 +69,9 @@ If the request is unclear, show capacity first and ask which tasks to run (one q
 
 ## 3. Check in, in a real loop
 A promise to "check every few minutes" does nothing without a trigger. Use a timer, a background wait or a scheduled
-check that wakes you, and set the next one each time. Start with gaps of a few minutes, lengthen them while nothing
+check that wakes you, and set the next one each time. A worker or command your agent runs in the background already
+wakes you when it ends: it needs no extra timer. When the work is accepted, cancel every timer and scheduled check you
+set (a headless run does not end while one is pending). Start with gaps of a few minutes, lengthen them while nothing
 changes, and shorten them again as soon as anything happens or a worker waits for you. Each round:
 1. Read the task list **from the ledger**, not memory, and look at every active worker. Run
    `node skills/orchestrate/scripts/ledger.mjs check <ledger>` for the rows that need action.

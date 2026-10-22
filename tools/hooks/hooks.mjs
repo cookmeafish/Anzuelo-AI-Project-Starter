@@ -79,7 +79,7 @@ export function transcriptState(tp) {
 // (the stop round count, the checks that failed earlier in the turn, hints shown, the plan nudge and the frustration
 // record are a turn's too. Lesson: a second session reset the first one's block count and lost its earlier failures.)
 const PER_SESSION = new Set(['turn.json', 'snapshot.json', 'turn-end.json', 'notices-shown.json', 'stop-blocks.json', 'stop-failed.json',
-  'event-hints.json', 'plan-watch.json', 'friction-turn.json', 'ext-shown.json']);
+  'event-hints.json', 'plan-watch.json', 'friction-turn.json', 'ext-shown.json', 'wakeups.json']);
 const stateName = n => SID && PER_SESSION.has(n) ? n.replace(/.json$/, `.${SID}.json`) : n;
 // a session's own file when it has one, else the shared one (written before sessions were told apart, or by a test)
 const stateFile = n => { const own = path.join(STATE, stateName(n)); return own !== path.join(STATE, n) && !fs.existsSync(own) ? path.join(STATE, n) : own; };
@@ -804,8 +804,10 @@ const RELAYED_TURN = /^\s*(<cross-session-message\b|Another Claude session sent 
 const relayedTurn = r => r?.type === 'user' && !isToolResult(r.message?.content) && RELAYED_TURN.test(textOf(r.message?.content));
 
 // A real user prompt: text, or text + images. Not a tool result, notification, or meta entry.
+// (a message the session sent itself, a wakeup's prompt or a task notice, is no prompt either, however the host marks
+// it: it starts no turn, so the request keeps its start and the files changed before it still count. See cmdPrompt.)
 function promptOf(r) {
-  if (!r || r.type !== 'user' || r.isMeta) return null;
+  if (!r || r.type !== 'user' || r.isMeta || selfSent(r)) return null;
   const c = r.message && r.message.content;
   if (c == null || isToolResult(c)) return null;
   const t = textOf(c);
@@ -892,7 +894,7 @@ export function turn(transcript) {
   const sessionTools = rows.flatMap(r => r.type === 'assistant' && Array.isArray(r.message?.content) ? r.message.content : [])
     .filter(x => x && x.type === 'tool_use').map(x => JSON.stringify(x.input || {})).join('\n');
   const sessionStart = Date.parse(rows.find(r => r.timestamp)?.timestamp || '') || since;
-  return { since, entries, prompt: [prompt, ...queued].map(userText).filter(s => s.trim()).join('\n'), queued, toolsKnown: true, allPrompts, bgRunning: backgroundRunning(rows), watchers: watchersArmed(rows), sessionWrites, sessionTools, sessionStart };
+  return { since, entries, prompt: [prompt, ...queued].map(userText).filter(s => s.trim()).join('\n'), queued, toolsKnown: true, allPrompts, bgRunning: backgroundRunning(rows), watchers: watchersArmed(rows), wakeups: wakeupsPending(rows), sessionWrites, sessionTools, sessionStart };
 }
 
 // Watchers the agent armed (the Monitor tool: "Monitor started (task <id>, expires in 10m ...)") that have not ended yet.
@@ -926,6 +928,66 @@ export function watchersArmed(rows) {
   });
   return [...armed.values()];
 }
+
+// Wakeups the agent scheduled for itself that have not fired or been cancelled: ScheduleWakeup, CronCreate, and any
+// later tool that sends a prompt back into this session at a later time (a name with wake, cron, schedule, timer,
+// remind or alarm in it, and a "prompt" to send). Like a watcher, one left pending after the answer re-invokes the
+// session later. A headless run (claude -p, the SDK) does not even end while one is pending: its caller waits until the
+// run's time limit kills it, and gets no answer at all.
+// Lesson: a setup scheduled a "just in case" 20-minute wakeup while its audit ran in the background, wrote the whole
+// answer, and the headless run was killed at its 60-minute limit with the wakeup still pending: the user got nothing.
+// Not counted: cloud routines (RemoteTrigger) and connected services' tools (mcp__...), which run elsewhere and keep
+// nothing here alive. A wakeup has ended when its prompt came back (it fired), when its time is past (one-time only),
+// or when it was cancelled: ScheduleWakeup with stop: true, or a delete or cancel tool given its id (CronDelete).
+const WAKE_KNOWN = { ScheduleWakeup: { kind: 'wakeup', cancel: 'call ScheduleWakeup with stop: true' }, CronCreate: { kind: 'cron', cancel: 'call CronDelete with its id' } };
+const WAKE_TOOL = /wake|cron|schedul|timer|remind|alarm/i, WAKE_NOT = /^mcp__|list|delete|cancel|stop|get|read|remove|clear|remote|trigger/i;
+const WAKE_CANCEL = /delete|cancel|stop|remove|clear/i;
+export const isWakeTool = (name, input = {}) => !!name && !(input?.stop || input?.cancel) &&
+  (WAKE_KNOWN[name] ? true : WAKE_TOOL.test(name) && !WAKE_NOT.test(name) && typeof input?.prompt === 'string');
+// the request asks for a reminder, a loop or a schedule: a wakeup it leaves is the work itself
+export const WAKE_ASK = /(^|\s)\/loop\b|\b(remind me|wake me|every \d+\s*(s|secs?|seconds?|m|mins?|minutes?|h|hours?|days?)\b|on a schedule|schedul(e|ed|ing)\b|cron\b|recu[eé]rdame|av[ií]same|cada \d+\s*(min|minutos?|horas?|segundos?|d[ií]as?)\b)/i;
+const wakeFamily = n => String(n).replace(/Create|Delete|Cancel|Stop|Remove|Clear|Add|Set|Schedule|Unschedule/g, '');
+export function wakeupsPending(rows, now = Date.now()) {
+  const pending = [], results = new Map();
+  rows.forEach(r => { const c = r.message?.content; if (r.type === 'user' && Array.isArray(c)) for (const x of c) if (x?.type === 'tool_result') results.set(x.tool_use_id, { text: textOf(x.content) || String(typeof x.content === 'string' ? x.content : ''), err: !!x.is_error, extra: r.toolUseResult }); });
+  rows.forEach((r, i) => {
+    const c = r.message?.content, ts = Date.parse(r.timestamp || '') || 0;
+    if (r.type === 'assistant' && Array.isArray(c)) for (const x of c) {
+      if (x?.type !== 'tool_use') continue;
+      const input = x.input || {}, res = results.get(x.id), known = WAKE_KNOWN[x.name];
+      if (isWakeTool(x.name, input)) {
+        // (a call that was refused or failed scheduled nothing)
+        if (!res || res.err || /\b(error|denied|refused|failed|invalid|not (allowed|available|scheduled))\b/i.test(res.text)) continue;
+        // one wakeup at a time: a new ScheduleWakeup replaces the one before it
+        if (known?.kind === 'wakeup') for (let k = pending.length - 1; k >= 0; k--) if (pending[k].tool === x.name) pending.splice(k, 1);
+        const id = /\bid\b\W{0,3}([\w-]{4,})/i.exec(res.text)?.[1] || (typeof res.extra?.id === 'string' ? res.extra.id : '');
+        const delay = Number(input.delaySeconds ?? input.delay_seconds ?? /\bin (\d+)\s*s\b/.exec(res.text)?.[1] ?? NaN);
+        const at = Number(res.extra?.scheduledFor) || (ts && delay > 0 ? ts + delay * 1000 : 0);
+        const recurring = known?.kind === 'cron' ? input.recurring !== false : !known && !at;
+        pending.push({ tool: x.name, id, prompt: String(input.prompt || ''), at, recurring, i, cancel: known?.cancel || 'cancel it with the tool that deletes or cancels it, given its id' });
+      } else if (known && (input.stop || input.cancel)) {
+        for (let k = pending.length - 1; k >= 0; k--) if (pending[k].tool === x.name) pending.splice(k, 1);
+      } else if (WAKE_CANCEL.test(x.name) && res && !res.err) {
+        const s = JSON.stringify(input);
+        for (let k = pending.length - 1; k >= 0; k--) {
+          const p = pending[k];
+          if (p.id ? s.includes(p.id) : wakeFamily(p.tool) && wakeFamily(p.tool) === wakeFamily(x.name)) pending.splice(k, 1);
+        }
+      }
+    }
+    // it fired: its prompt came back as a message (Claude Code adds it as a meta user row)
+    if (r.type === 'user' && !isToolResult(c)) {
+      const t = textOf(c).trim();
+      if (t) for (let k = pending.length - 1; k >= 0; k--) if (pending[k].i < i && !pending[k].recurring && t === pending[k].prompt.trim()) pending.splice(k, 1);
+    }
+  });
+  // a one-time wakeup whose time is past has fired (its prompt may not be in the transcript yet)
+  return pending.filter(p => p.recurring || !p.at || now < p.at + 60_000).map(({ i, ...p }) => p);
+}
+// A message the session sent itself (a wakeup's or a cron job's prompt) or a background task's notice: not the user's.
+// Claude Code marks them (isMeta, turnOrigin "scheduled", promptSource "system", origin.kind "task-notification").
+const selfSent = r => !!r && r.type === 'user' && !isToolResult(r.message?.content) &&
+  (r.isMeta || r.turnOrigin === 'scheduled' || r.promptSource === 'system' || r.origin?.kind === 'task-notification');
 
 // Background helpers (Agent/Task with run_in_background) launched in this or an earlier turn that have not reported
 // back yet. Their file changes are theirs, not this turn's. A launch is done once a task notification names its id
@@ -1006,6 +1068,31 @@ function transcriptMidTurn(tp) {
     return Array.isArray(c) && c.some(x => x && (x.type === 'tool_use' || x.type === 'tool_result'));
   } catch { return null; } finally { if (fd !== undefined) try { fs.closeSync(fd); } catch { } }
 }
+// Is this prompt one the session sent itself (REQ: self-sent-prompt)? The transcript's newest message with the same text
+// says so when the host marks it (selfSent); else a prompt that a wakeup tool of this session was given (recorded
+// before the call, or seen in the transcript's tail) is one.
+function selfSentPrompt(p, tp) {
+  const norm = s => String(s || '').trim();
+  const want = norm(p);
+  if (!want) return false;
+  let rows = [];
+  if (tp) {
+    let fd;
+    try {
+      fd = fs.openSync(tp, 'r');
+      const size = fs.fstatSync(fd).size, n = Math.min(size, 2 * 1024 * 1024), buf = Buffer.alloc(n);
+      fs.readSync(fd, buf, 0, n, size - n);
+      rows = buf.toString('utf8').split(/\r?\n/).slice(size > n ? 1 : 0).filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+    } catch { } finally { if (fd !== undefined) try { fs.closeSync(fd); } catch { } }
+  }
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const r = rows[i];
+    if (r.type === 'user' && !isToolResult(r.message?.content) && norm(textOf(r.message?.content)) === want) { if (selfSent(r)) return true; break; }
+  }
+  if ((readJSON(stateFile(WAKE_STATE), {}).prompts || []).includes(want)) return true;
+  return rows.some(r => r.type === 'assistant' && Array.isArray(r.message?.content) && r.message.content.some(x => x?.type === 'tool_use' && isWakeTool(x.name, x.input) && norm(x.input?.prompt) === want));
+}
+const WAKE_STATE = 'wakeups.json';
 function turnNotices(force, tp) {
   const shown = readJSON(stateFile(SHOWN), null), end = readJSON(stateFile(TURN_END), {});
   const mid = force ? false : transcriptMidTurn(tp);
@@ -3352,6 +3439,11 @@ function cmdPrompt(data, { force = false } = {}) {
   if (RELAYED_TURN.test(p)) { const st = turnNotices(force, data.transcript_path); if (st.fresh) { recordTurn('', true, data.transcript_path); snap(); writeState(SHOWN, { at: st.at, shown: st.shown }); } relayHints(); return; }
   if (RELAY_START.test(p)) { relayHints(); return; }
   if (!p.trim() || skipped(p)) return;
+  // REQ: self-sent-prompt. A prompt the session scheduled for itself (a wakeup or cron job firing) is not a request of
+  // the user's: it starts no turn, takes no new snapshot and counts as no setup answer, so the request keeps its start
+  // and what changed before it. Lesson: a wakeup that fired mid-setup re-took the turn-start snapshot, and Stop then
+  // asked again for the status and changelog lines the turn had written before it.
+  if (selfSentPrompt(p, data.transcript_path)) return;
   const st = turnNotices(force, data.transcript_path);
   recordTurn(p, st.fresh, data.transcript_path);
   if (st.fresh) snap();
@@ -3497,6 +3589,21 @@ function pretoolHits(data, cfg) {
   let _t;
   const t = () => (_t ??= turn(data.transcript_path || '') || { prompt: '', entries: [] });
   const req = () => t().prompt || '';
+  // REQ: wakeup-left (before the call). Its prompt is noted, so the prompt hook knows it when it fires (REQ:
+  // self-sent-prompt). In a headless run (claude -p, the SDK) a wakeup while a background job of the session still runs
+  // is refused: the job's notice re-invokes the session by itself, and a fallback wakeup left pending after the answer
+  // keeps the run from ending until its time limit kills it, with no answer for the caller. Not when the request asks
+  // for a reminder, a loop or a schedule. Lesson: a headless setup scheduled two "fallback" wakeups while its audit ran
+  // in the background, and the second one outlived the answer, so the run was killed at 60 minutes with nothing returned.
+  if (isWakeTool(name, inp)) {
+    if (typeof inp.prompt === 'string' && inp.prompt.trim()) {
+      const w = readJSON(stateFile(WAKE_STATE), {});
+      writeState(WAKE_STATE, { prompts: [...new Set([...(w.prompts || []), inp.prompt.trim().slice(0, 2000)])].slice(-20) });
+    }
+    const tt = t();
+    if ((tt.entries || []).some(r => /^sdk/.test(String(r.entrypoint || ''))) && (tt.bgRunning || []).length && !WAKE_ASK.test(req()) && !isSuspended('check:wakeup-left'))
+      add(`REQ: wakeup-left. This run is headless (claude -p or the SDK), and a background job of this session still runs: its notice wakes you by itself when it ends, so no fallback wakeup is needed. A wakeup still pending after your answer keeps the run from ending until its time limit stops it, and the caller then gets no answer. End this turn with a short status instead; you are re-invoked when the job ends.`);
+  }
   const ppl = people(cfg);
   // REQ: scope-separate. A request about one person never touches another person's folder (reads included: privacy).
   // A waiver logged this turn ("hooks.mjs waive scope-separate <why>") counts here as it does at Stop: it covers the
@@ -5036,7 +5143,8 @@ export function stopDecision(data, cfg = config()) {
   // already ended cleanly, is not new work: the checks stand as they were. Lesson: each acknowledgement of a finished
   // background job got the whole stop list again (Finished section, changelog, status).
   const rowsT = t.entries || [];
-  const lastNote = rowsT.map((r, i) => (r.type === 'user' && /<task-notification>/.test(textOf(r.message?.content))) || (r.type === 'attachment' && /<task-notification>/.test(textOf(r.attachment?.prompt ?? r.attachment?.content ?? ''))) ? i : -1).filter(i => i >= 0).pop();
+  // (a wakeup's or cron job's prompt firing after the end is such a notice too: REQ: self-sent-prompt)
+  const lastNote = rowsT.map((r, i) => (r.type === 'user' && (/<task-notification>/.test(textOf(r.message?.content)) || selfSent(r))) || (r.type === 'attachment' && /<task-notification>/.test(textOf(r.attachment?.prompt ?? r.attachment?.content ?? ''))) ? i : -1).filter(i => i >= 0).pop();
   // (what it says is still checked for truth and privacy: an acknowledgement can't claim what didn't happen)
   const noticeAck = lastNote != null && prevEnd.key === key && prevEnd.clean && !rowsT.slice(lastNote).some(r => r.type === 'assistant' && Array.isArray(r.message?.content) && r.message.content.some(c => c?.type === 'tool_use'));
   x.failedBefore = sameTurn ? failed.tags || [] : [];
@@ -5059,6 +5167,18 @@ export function stopDecision(data, cfg = config()) {
   const watcherStep = leftWatchers.length ? [{ tag: 'watcher-left', msg: `${leftWatchers.length > 1 ? 'Watchers you started are' : 'A watcher you started is'} still armed: ${leftWatchers.map(w => `${w.desc ? `"${w.desc}" ` : ''}(task ${w.id})`).join(', ')}. ` +
     'A watcher left armed after the turn wakes the session later, and the reply to its notice becomes the last message the user reads. Stop it now (TaskStop with its id), then end with the whole answer. ' +
     'If it must keep running on purpose, say in the answer what it watches and why.' }] : [];
+  // REQ: wakeup-left. The same for a wakeup or cron job the session scheduled for itself (wakeupsPending): once the
+  // turn's own work is done, it is cancelled, or the answer says what it will do and when. In a headless run saying so
+  // is not enough: the run does not end while it is pending, so the caller gets nothing until the time limit kills it.
+  // It must be cancelled, unless the request asked for a reminder, a loop or a schedule.
+  const wantsWake = WAKE_ASK.test(x.prompt || '');
+  const WAKE_SAID = /\b(wake-?ups?|reminders?|cron|scheduled|recurring|recordatorios?|programad[oa]s?)\b/i;
+  const leftWakes = t.toolsKnown && !(t.bgRunning || []).length ? (t.wakeups || []).filter(w => headless && !wantsWake ? true : !((w.id && raw.includes(w.id)) || WAKE_SAID.test(raw))) : [];
+  const hhmm = ms => { const d = new Date(ms); return Number.isNaN(+d) ? '' : d.toTimeString().slice(0, 5); };
+  const wakeStep = leftWakes.length ? [{ tag: 'wakeup-left', msg: `${leftWakes.length > 1 ? `${leftWakes.length} wakeups you scheduled are` : 'A wakeup you scheduled is'} still pending: ` +
+    leftWakes.map(w => `"${w.prompt.replace(/\s+/g, ' ').slice(0, 70)}" (${w.tool}${w.id ? ` ${w.id}` : ''}${w.at ? `, due ${hhmm(w.at)}` : w.recurring ? ', recurring' : ''}; to cancel: ${w.cancel})`).join(', ') + '. ' +
+    (headless && !wantsWake ? 'This run is headless (claude -p or the SDK): it does not end while a wakeup is pending, so its caller waits until the time limit stops the run and gets no answer at all. Cancel it now, then end with the whole answer. Background jobs and helpers wake you by themselves when they end; they need no fallback wakeup.'
+      : 'It re-invokes the session later, and the reply to it becomes the last message the user reads. Cancel it now, then end with the whole answer. If it must stay on purpose, say in the answer what it will do and when.') }] : [];
   // REQ: notice-answer. A reply to a background notice after a clean end replaces the answer as the last message. In a
   // headless run that message is all the caller gets, so the reply carries the whole earlier answer again (kept at the
   // clean end, TURN_END.answer). Asked once (not a counted round); interactively a short reply is fine, since the user
@@ -5067,7 +5187,7 @@ export function stopDecision(data, cfg = config()) {
   const prevAnswer = String(prevEnd.answer || '');
   const noticeResend = noticeAck && headless && prevAnswer.trim() && !data.stop_hook_active && !carriesAnswer(raw, prevAnswer)
     ? [{ tag: 'notice-answer', msg: 'This run is headless (claude -p or the SDK): its caller gets only the last message, and this reply to a background notice is now that message, so the answer given before is lost. End with that whole answer again, as it was (updated only where the notice changed something), saying nothing about the notice.' }] : [];
-  const all = [...found1, ...timed('skill-learn', () => skillLearnCheck(x, cfg, found.map(m => m.tag))).filter(open), ...timed('unresolved-carryover', () => carryoverChecks(data, t, x, cfg)).filter(open), ...(resend ? [resend] : []), ...watcherStep.filter(open), ...noticeResend];
+  const all = [...found1, ...timed('skill-learn', () => skillLearnCheck(x, cfg, found.map(m => m.tag))).filter(open), ...timed('unresolved-carryover', () => carryoverChecks(data, t, x, cfg)).filter(open), ...(resend ? [resend] : []), ...watcherStep.filter(open), ...wakeStep.filter(open), ...noticeResend];
   const logged = (result, extra = {}) => logStop({ request: Number.isFinite(+x.since) && +x.since > 0 ? new Date(+x.since).toISOString() : '', round: nblocks + 1, result, waived: waivedTags, ...extra });
   // While helpers launched in the background have not reported back, the work is not finished: only truth and privacy
   // are checked now, and the whole list runs when their results arrive. Lesson: a turn waiting on three background
@@ -5080,7 +5200,7 @@ export function stopDecision(data, cfg = config()) {
   const LATE = /^(status-handoff|finished-summary|changelog|knowledge-changelog|app-changelog)$/;
   const settled = data.stop_hook_active ? all.filter(m => !(LATE.test(m.tag) && !x.failedBefore.includes(m.tag))) : all;
   // (a reply to a notice is still held to the watcher and headless-answer steps: they are about that reply itself)
-  const missing = waiting ? all.filter(m => SAFE.test(m.tag)) : noticeAck ? all.filter(m => SAFE.test(m.tag) || /^(watcher-left|notice-answer)$/.test(m.tag)) : settled;
+  const missing = waiting ? all.filter(m => SAFE.test(m.tag)) : noticeAck ? all.filter(m => SAFE.test(m.tag) || /^(watcher-left|wakeup-left|notice-answer)$/.test(m.tag)) : settled;
   noteFriction(key, x, missing);
   // The answer the turn ended with is kept, for a later reply to a notice to carry again (REQ: notice-answer). A reply
   // that did not carry it keeps the earlier one, and a short "Answer unchanged" line keeps the full answer it stands for.
@@ -5148,7 +5268,7 @@ export const isUnchangedNote = text => { const s = String(text || '').trim(); re
 // A step met by files or runs, not by words in the answer: an unchanged answer stays valid when only these were asked.
 const CORE_FILE_FIX = new Set(['hooks-tested', 'skill-learn', 'runbook-complete', 'skill-complete', 'done-when-labeled', 'playbook-format', 'skill-valid', 'knowledge-labels',
   'name-var', 'root-tidy', 'directory-current', 'twin-sync', 'note-linked', 'injection-guard', 'code-rules', 'runbook-exists', 'rule-request', 'requirement-enforced', 'plan-required', 'autonomy-recorded',
-  'watcher-left']);
+  'watcher-left', 'wakeup-left']);
 // Does a reply carry the earlier answer (REQ: notice-answer)? Most of its length, or at least half of its lines, with
 // markdown and spacing ignored, so an answer re-sent with small updates counts and a short note does not.
 export function carriesAnswer(reply, prev) {
@@ -5190,6 +5310,7 @@ const SHORT = {
   'skill-learn': 'Write the lesson into the runbook or skill that missed it',
   'empty-answer': 'Tell the user what was done',
   'watcher-left': 'Stop the watcher you left running, or say what it watches',
+  'wakeup-left': 'Cancel the wakeup you left scheduled',
   'notice-answer': 'Give the whole answer again: this reply is now the last message',
   'security-code': 'Run the security review: this turn wrote security-sensitive code',
   'security-config': 'Run the security review: secrets or deployment settings changed',

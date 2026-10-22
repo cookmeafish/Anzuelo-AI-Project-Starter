@@ -28,7 +28,9 @@ export function wire(dir, { dry = false } = {}) {
   if (on('claude') && fs.existsSync(sp)) { try { mine = JSON.parse(fs.readFileSync(sp, 'utf8')); } catch (e) { throw new Error(`${sp} does not parse (${e.message}); fix it, then run wire again`); } }
   // Claude Code expands $CLAUDE_PROJECT_DIR itself, so its wiring is the same on every machine
   const cc = (cmd, timeout, extra = {}) => [{ ...extra, hooks: [{ type: 'command', command: `node "$CLAUDE_PROJECT_DIR/tools/hooks/hooks.mjs" ${cmd}`, timeout }] }];
-  const theirs = { hooks: { SessionStart: cc('session', 60), UserPromptSubmit: cc('prompt', 30), PreToolUse: cc('pretool', 30, { matcher: 'Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell|Read|Agent|Task|mcp__.*' }),
+  // (the tools that schedule a prompt back into the session, too: their prompt is noted, and a headless run gets no
+  // fallback wakeup. Lesson: a wakeup left pending kept a headless run alive until its time limit killed it.)
+  const theirs = { hooks: { SessionStart: cc('session', 60), UserPromptSubmit: cc('prompt', 30), PreToolUse: cc('pretool', 30, { matcher: 'Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell|Read|Agent|Task|mcp__.*|ScheduleWakeup|CronCreate|.*(Wake|Schedule|Remind|Alarm|Timer).*' }),
     PostToolUse: cc('posttool', 30, { matcher: 'Write|Edit|MultiEdit' }), Stop: cc('stop', 300) } };
   const before = JSON.stringify(mine);
   mine.includeCoAuthoredBy = false;

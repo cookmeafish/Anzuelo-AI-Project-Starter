@@ -1937,6 +1937,48 @@ STOP.push(
     rows: [{ type: 'system', entrypoint: 'sdk-cli', content: 'headless' }, { type: 'assistant', message: { content: [{ type: 'text', text: NOTICE_FULL }] } }, MON_NOTE('b2gqp0622', '[Monitor expired after 10m with no events delivered.]')],
     turnEnd: { answer: NOTICE_FULL }, answer: NOTICE_FULL, expect: { block: false, not: ['notice-answer'] } }
 );
+// wakeup-left: a wakeup or cron job the session scheduled for itself, still pending when the turn's own work is done, is
+// cancelled, or (interactive only) explained in the answer. Lesson: a headless setup left a "just in case" 20-minute
+// wakeup pending after its answer, and the run was killed at its 60-minute limit with no answer for the caller.
+const WAKE_P = 'Check the background audit result and finish setup.';
+const WAKE = (prompt = WAKE_P, result = 'Next wakeup scheduled for 17:39:00 (in 1254s). The harness re-invokes you when the wakeup fires or a task-notification arrives.') =>
+  ({ name: 'ScheduleWakeup', input: { delaySeconds: 1200, reason: 'Fallback in case the audit never notifies', prompt, noop: true }, result });
+const SDK_ROW = { type: 'system', entrypoint: 'sdk-cli', content: 'headless' };
+STOP.push(
+  { name: 'wakeup-left: a fallback wakeup still pending after the work is done: blocked', prompt: 'is the review done?', tools: [WAKE()],
+    answer: 'Yes: the reviewer approved it.', expect: { block: true, tags: ['wakeup-left'], says: /ScheduleWakeup with stop: true/ } },
+  { name: 'wakeup-left: a wakeup the agent cancelled: passes', prompt: 'is the review done?', tools: [WAKE(), { name: 'ScheduleWakeup', input: { stop: true }, result: 'Loop stopped. No further wakeups will fire.' }],
+    answer: 'Yes: the reviewer approved it.', expect: { block: false, not: ['wakeup-left'] } },
+  { name: 'wakeup-left: a wakeup that already fired: passes', prompt: 'is the review done?', tools: [WAKE()],
+    rows: [{ type: 'user', isMeta: true, turnOrigin: 'scheduled', message: { role: 'user', content: WAKE_P } }],
+    answer: 'Yes: the reviewer approved it.', expect: { block: false, not: ['wakeup-left'] } },
+  { name: 'wakeup-left: a wakeup that was refused never armed: passes', prompt: 'is the review done?', tools: [{ ...WAKE(), error: true, result: 'Error: ScheduleWakeup is not available outside /loop' }],
+    answer: 'Yes: the reviewer approved it.', expect: { block: false, not: ['wakeup-left'] } },
+  { name: 'wakeup-left: interactive, the answer says what the wakeup will do: passes', prompt: 'is the deploy done?', tools: [WAKE('Check the deploy status page again.')],
+    answer: 'Not yet: the deploy is still rolling out. I scheduled a wakeup in 20 minutes to check the status page again.', expect: { block: false, not: ['wakeup-left'] } },
+  { name: 'wakeup-left: headless, explaining it is not enough: blocked', prompt: 'is the deploy done?', tools: [WAKE('Check the deploy status page again.')], rows: [SDK_ROW],
+    answer: 'Not yet. I scheduled a wakeup in 20 minutes to check the status page again.', expect: { block: true, tags: ['wakeup-left'], says: /headless[\s\S]*gets no answer at all/ } },
+  { name: 'wakeup-left: headless, the user asked for the reminder: passes', prompt: 'remind me in 20 minutes to check the deploy', tools: [WAKE('Remind the user to check the deploy.')], rows: [SDK_ROW],
+    answer: 'Done: a reminder (a scheduled wakeup) fires in 20 minutes.', expect: { block: false, not: ['wakeup-left'] } },
+  { name: 'wakeup-left: a recurring cron job left behind: blocked', prompt: 'is the review done?', tools: [{ name: 'CronCreate', input: { cron: '*/7 * * * *', prompt: 'check the review' }, result: 'Scheduled recurring job id cr8a91f2 (next run 17:07).' }],
+    answer: 'Yes: the reviewer approved it.', expect: { block: true, tags: ['wakeup-left'], says: /CronDelete[\s\S]*cr8a91f2|cr8a91f2[\s\S]*CronDelete/ } },
+  { name: 'wakeup-left: a cron job deleted by its id: passes', prompt: 'is the review done?', tools: [{ name: 'CronCreate', input: { cron: '*/7 * * * *', prompt: 'check the review' }, result: 'Scheduled recurring job id cr8a91f3 (next run 17:07).' },
+    { name: 'CronDelete', input: { id: 'cr8a91f3' }, result: 'Cancelled job cr8a91f3.' }],
+    answer: 'Yes: the reviewer approved it.', expect: { block: false, not: ['wakeup-left'] } },
+  { name: 'wakeup-left: a future tool that sends a prompt back later counts too: blocked', prompt: 'is the review done?', tools: [{ name: 'SetReminder', input: { prompt: 'check the review', minutes: 30 }, result: 'Reminder set.' }],
+    answer: 'Yes: the reviewer approved it.', expect: { block: true, tags: ['wakeup-left'] } },
+  { name: 'wakeup-left: a cloud routine runs elsewhere and keeps nothing alive: passes', prompt: 'is the review done?', tools: [{ name: 'RemoteTrigger', input: { action: 'create', body: { prompt: 'check the review' } }, result: '{"id":"trg_1"}' }],
+    answer: 'Yes: the reviewer approved it.', expect: { block: false, not: ['wakeup-left'] } },
+  { name: 'wakeup-left: while a background helper still runs, the wakeup is part of the wait: passes', prompt: 'is the review done?', tools: [BG_AGENT, WAKE()],
+    answer: 'The reviewer is still working.', expect: { block: false, not: ['wakeup-left'] } },
+  // a wakeup firing after a clean end is a notice like a task's: headless, the short reply to it must carry the answer
+  { name: 'notice-answer: a headless short reply to a wakeup that fired after a clean end: blocked', prompt: 'is the review done?',
+    rows: [SDK_ROW, { type: 'assistant', message: { content: [{ type: 'text', text: NOTICE_FULL }] } }, { type: 'user', isMeta: true, turnOrigin: 'scheduled', message: { role: 'user', content: WAKE_P } }],
+    turnEnd: { answer: NOTICE_FULL }, answer: 'The audit already finished; nothing more to do.', expect: { block: true, tags: ['notice-answer'] } },
+  { name: 'notice-answer: the same reply to a wakeup in an interactive session: passes', prompt: 'is the review done?',
+    rows: [CLI_ROW, { type: 'assistant', message: { content: [{ type: 'text', text: NOTICE_FULL }] } }, { type: 'user', isMeta: true, turnOrigin: 'scheduled', message: { role: 'user', content: WAKE_P } }],
+    turnEnd: { answer: NOTICE_FULL }, answer: 'The audit already finished; nothing more to do.', expect: { block: false, not: ['notice-answer'] } }
+);
 // What the Stop hook and the hints make the agent write in the answer the user reads: no notes about earlier rounds, no
 // check names, the user's language for every label, and long reports in files with one line in the answer.
 // Lesson: trial answers carried "Note: this version ...", "N/A(app-lint-pass)", English labels for a Spanish user,
@@ -3371,6 +3413,64 @@ if (mineB()) { // notice-answer: in a headless run, a reply to a notice after a 
     const ok = !blocked(first) && kept === W1 && blocked(short) && /^notice-answer\.?$/.test(names(short).trim()) && !blocked(again) && keptAfter === W1 && !blocked(full) && !blocked(firstI) && !blocked(shortI);
     report(ok, 'notice-answer: a headless reply to a notice after a clean end is asked once to carry the whole answer; a full reply and an interactive short one pass',
       `first ${blocked(first)} kept ${kept === W1}, short ${blocked(short)} [${names(short)}], again ${blocked(again)}, keptAfter ${keptAfter === W1}, full ${blocked(full)}, interactive ${blocked(firstI)}/${blocked(shortI)}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+if (mineB()) { // self-sent-prompt: a wakeup's own prompt firing mid-turn starts no new turn and takes no new snapshot
+  // Lesson: a wakeup that fired mid-setup re-took the turn-start snapshot, and Stop asked again for the status and
+  // changelog lines the turn had written before it
+  const dir = copyProject();
+  try {
+    const tp = path.join(dir, 'transcript.jsonl'), SID = 'wk1';
+    const at = Date.now() - 600_000, iso = d => new Date(at + d).toISOString();
+    const rows = [{ type: 'user', timestamp: iso(0), entrypoint: 'sdk-cli', message: { role: 'user', content: 'set up this project' } }];
+    const save = () => { fs.writeFileSync(tp, rows.map(r => JSON.stringify(r)).join('\n') + '\n'); fs.utimesSync(tp, (at - 3600_000) / 1000, (at - 3600_000) / 1000); };
+    const turnRec = () => { try { return JSON.parse(fs.readFileSync(path.join(dir, `tools/hooks/state/turn.${SID}.json`), 'utf8')); } catch { return {}; } };
+    const snapAt = () => { try { return JSON.parse(fs.readFileSync(path.join(dir, `tools/hooks/state/snapshot.${SID}.json`), 'utf8')).at; } catch { return ''; } };
+    save(); run(dir, 'prompt', { prompt: 'set up this project', session_id: SID, transcript_path: tp });
+    const first = turnRec(), firstSnap = snapAt();
+    // the turn schedules a fallback wakeup, ends while waiting, and the wakeup fires (a meta row with its prompt)
+    rows.push({ type: 'assistant', timestamp: iso(1000), message: { content: [{ type: 'tool_use', id: 'w1', name: 'ScheduleWakeup', input: { delaySeconds: 600, prompt: WAKE_P } }] } },
+      { type: 'user', timestamp: iso(1100), message: { content: [{ type: 'tool_result', tool_use_id: 'w1', content: 'Next wakeup scheduled (in 600s).' }] } },
+      { type: 'assistant', timestamp: iso(1200), message: { content: [{ type: 'text', text: 'Still waiting for the audit.' }] } },
+      { type: 'user', timestamp: iso(2000), isMeta: true, turnOrigin: 'scheduled', promptSource: 'system', message: { role: 'user', content: WAKE_P } });
+    save(); run(dir, 'prompt', { prompt: WAKE_P, session_id: SID, transcript_path: tp });
+    const afterWake = turnRec(), wakeSnap = snapAt();
+    // a host that does not mark the row: the prompt is still the session's own, since its wakeup was given that text
+    rows[rows.length - 1] = { type: 'user', timestamp: iso(2000), message: { role: 'user', content: WAKE_P } };
+    save(); run(dir, 'prompt', { prompt: WAKE_P, session_id: SID, transcript_path: tp });
+    const unmarked = turnRec();
+    // control: a request the user typed after the end starts a new turn
+    rows.push({ type: 'assistant', timestamp: iso(2100), message: { content: [{ type: 'text', text: 'Still waiting.' }] } },
+      { type: 'user', timestamp: iso(3000), message: { role: 'user', content: 'now write the first recipe' } });
+    save(); run(dir, 'prompt', { prompt: 'now write the first recipe', session_id: SID, transcript_path: tp });
+    const typed = turnRec();
+    const ok = first.at && afterWake.at === first.at && afterWake.prompt === first.prompt && wakeSnap === firstSnap && unmarked.at === first.at && typed.at !== first.at && /first recipe/.test(typed.prompt || '');
+    report(!!ok, 'self-sent-prompt: a wakeup firing mid-turn keeps the request, its start and its snapshot, marked or not; a prompt the user types starts a new turn',
+      `first ${first.at}, after wake ${afterWake.at} (${String(afterWake.prompt).slice(0, 40)}), snapshot kept ${wakeSnap === firstSnap}, unmarked ${unmarked.at}, typed ${typed.at} (${String(typed.prompt).slice(0, 40)})`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+if (mineB()) { // wakeup-left before the call: a headless run gets no fallback wakeup while a background job runs
+  // Lesson: a headless setup scheduled "fallback" wakeups while its audit ran in the background, and one outlived the
+  // answer, so the run was killed at its time limit with nothing returned
+  const dir = copyProject();
+  try {
+    const mk = (headless, prompt, bg) => {
+      const e = headless ? { entrypoint: 'sdk-cli' } : { entrypoint: 'cli' };
+      const rows = [{ type: 'user', ...e, message: { role: 'user', content: prompt } }];
+      if (bg) rows.push({ type: 'assistant', ...e, message: { content: [{ type: 'tool_use', id: 'b1', name: 'Bash', input: { command: 'node tools/audit.mjs --setup > .cache/audit.txt 2>&1', run_in_background: true } }] } },
+        { type: 'user', ...e, message: { content: [{ type: 'tool_result', tool_use_id: 'b1', content: 'Command running in background with ID: bq1. Output is being written to: x.output' }] } });
+      const tp = path.join(dir, `t-${headless}-${bg}-${prompt.length}.jsonl`);
+      fs.writeFileSync(tp, rows.map(r => JSON.stringify(r)).join('\n') + '\n');
+      return run(dir, 'pretool', { tool_name: 'ScheduleWakeup', tool_input: WAKE().input, transcript_path: tp, session_id: 'pw1' }).out;
+    };
+    const denied = o => /"permissionDecision":"deny"/.test(o) && /REQ: wakeup-left/.test(o);
+    const hb = mk(true, 'set up this project', true), ib = mk(false, 'set up this project', true), hn = mk(true, 'set up this project', false), ha = mk(true, 'set up the project and remind me every 30 minutes how the audit is going', true);
+    let noted = []; try { noted = JSON.parse(fs.readFileSync(path.join(dir, 'tools/hooks/state/wakeups.pw1.json'), 'utf8')).prompts || []; } catch { }
+    report(denied(hb) && !denied(ib) && !denied(hn) && !denied(ha) && noted.includes(WAKE_P),
+      'wakeup-left: headless with a background job running, a fallback wakeup is refused; interactive, with no job, or asked for, it is allowed; its prompt is noted',
+      `headless+bg ${denied(hb)}, interactive ${denied(ib)}, no job ${denied(hn)}, asked ${denied(ha)}, noted ${noted.length}: ${hb.slice(0, 200)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
