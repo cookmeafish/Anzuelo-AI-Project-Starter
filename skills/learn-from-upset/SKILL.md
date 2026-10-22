@@ -23,9 +23,15 @@ Say at the start: "Checking what happened first, then fixing it and making the p
 ## Steps
 0. **Check the complaint against the files first, before you agree.** Open what the user is upset about as the user
    saw it: the last commit or what was delivered (`git log -- <file>`, then `git show HEAD:<file>`), not only the
-   working copy. See which parts of the complaint hold. Don't agree from memory: what you remember writing is not
-   what the file says. Never say that git has no earlier version, or that nothing is committed, without running
-   `git log` first. Say it plainly at the start of the answer: "You're right: ...", "Partly: X was wrong, Y was
+   working copy. Don't agree from memory: what you remember writing is not what the file says, and don't write "You're
+   right" anywhere, even in a progress note, before the file is open. Never say that git has no earlier version, or
+   that nothing is committed, without running `git log` first.
+   **Split the complaint into its parts and check each one on its own.** "It sounds like a robot and threatens them"
+   is two claims: cold wording and a threat. Look for each in the file: the letter can be cold and still have no
+   threatening word. Concede only the parts that hold, and say plainly which part did not, with what you found (one
+   `Checked:` line per part, or "Partly: ..."). Lesson: a cold rent letter was conceded as "threatening" too, and the
+   lesson stored said so, though the letter had no threatening wording.
+   Say it plainly at the start of the answer: "You're right: ...", "Partly: X was wrong, Y was
    already there (<path>)", or, when it doesn't hold, the plain fact and what you checked: `Checked: <what you
    opened> - the complaint doesn't hold: <evidence>`, with no concession. A lead in your own words ("The note is
    linked both ways.") is fine next to that line. A full "You're right" also adds `Checked: <file or output> - <what
@@ -61,30 +67,48 @@ Say at the start: "Checking what happened first, then fixing it and making the p
      fix (`cp <file> .cache/before/`), on the earlier version (`git show HEAD:<file> > .cache/before-<name>`), or on
      the real complained-about text. Any of these counts. A check that passes there would not have caught the miss:
      test the result itself, not that a function or a word exists.
-   - **It passes on at least 2 realistic good samples**, one of them a valid edge case of this project: the words the
-     user's language shares with a banned list ("once" and "he" are Spanish too), a legitimate text that must use a
-     flagged term (a late-rent letter has to say "arrears"), real input in a strange but valid shape.
-   - **Say it on one line:** `Proven: fails on <the complained-about sample>; passes on <good 1>, <good 2>` (Spanish:
-     `Probado: falla con ...; pasa con ...`). Only with this may the answer say it can't happen again (hook:
-     claim-checked). Without it, say what the check catches and what it does not.
+   - **It passes on every existing file it governs**, apart from the one complained about: all the posts, letters,
+     notes or source files its scope covers, as the last commit has them (its `requirements.json` "when" and "require"
+     globs, or the folder and file type it runs on). Run it on all of them at once (the folder, a glob, or with no
+     file so it checks its whole scope). A check that blocks real work it has never seen is worse than none.
+   - **It passes on realistic good samples, one an edge case made from this project's own words.** Build it from the
+     project's real vocabulary, not from the examples in this skill: its addresses, headings and labels, product,
+     place and people's names, and the text it really writes. Word lists misfire on these traps:
+     - proper nouns and addresses that contain a flagged word (a building called "... Court" in a tenant letter);
+     - words the user's language shares with the flagged list (an "English word" list that holds words Spanish uses
+       too, like a label "Tiempo total" or a "Menú" link);
+     - quoted text, titles and names of things, which keep their own words;
+     - a legitimate text that must use a flagged term (a firm letter the user asked for, a late-rent letter that has
+       to say "arrears").
+     A rule with an exception ("firm wording when asked") needs that exception in the check, or the answer must not
+     promise it.
+   - **Say it on one line in `.cache/turn-notes.md`:** `Proven: fails on <the complained-about sample>; passes on
+     all <N> existing <files>, <good 1>, and an edge case: <what it holds>` (Spanish: `Probado: falla con ...; pasa
+     con los <N> ... existentes, ... y un caso límite: ...`). Only with this may the answer say it can't happen again
+     (hook: claim-checked). Without it, say what the check catches and what it does not.
 
    Its hook scenarios still recreate the defect (blocked) and the corrected work (passes):
    `node tools/hooks/selfcheck.mjs --tags <tag>`. For a lesson or rule: re-read the step and confirm the corrected
    work now follows it.
-6. **Tell the user** in the answer, on its own line:
-   `Learned (<level>): <the lesson in one sentence> → <file it went into>`, in the user's language (Spanish:
-   `Aprendido (regla): ...`). Several lessons: one line each. If the upset was about something outside the project (a
-   service outage, the user's own day), say so in plain words and waive the check outside the answer:
-   `node tools/hooks/hooks.mjs waive upset-learned "<why there is nothing to learn>"`.
+6. **Tell the user** in one plain sentence what changes from now on ("Every letter to a tenant is now checked for
+   tone before it is saved"). The bookkeeping line goes into `.cache/turn-notes.md`, not the answer:
+   `Learned (<level>): <the lesson in one sentence> → <file it went into>` (several lessons: one line each). When the
+   complaint did not hold there is nothing to learn: `Learned (none): the complaint didn't hold - <evidence>`, and no
+   made-up lesson or extra check (a principle the user wants kept still goes through project-rule). If the upset was
+   about something outside the project (a service outage, the user's own day), say so in plain words and waive the
+   check outside the answer: `node tools/hooks/hooks.mjs waive upset-learned "<why there is nothing to learn>"`.
 
 ## Done when
 - [ ] The answer opens with whether the complaint holds, in full, in part or not, with the evidence (judgment: the
       user can tell at once what was actually wrong).
 - [ ] The miss is fixed and verified (judgment: the user can see the corrected result).
-- [ ] A `Learned (<level>): ... → <file>` line names a file that changed this turn (hook: upset-learned).
+- [ ] Each part of the complaint was checked on its own, and the answer says which parts held (judgment: whether a
+      complaint has several parts needs a reader).
+- [ ] A `Learned (<level>): ... → <file>` line in `.cache/turn-notes.md` names a file that changed this turn, or
+      `Learned (none): ...` for a complaint that did not hold (hook: upset-learned).
 - [ ] A lesson at level check has its scenarios and they pass (hook: hooks-tested).
-- [ ] A new check failed on the complained-about state and passed on 2 realistic good samples, said in a `Proven:`
-      line (hook: check-proven).
+- [ ] A new check failed on the complained-about state, passed on every existing file it governs and on good samples
+      with an edge case from the project's own words, said in a `Proven:` line (hook: check-proven).
 - [ ] An engine lesson went to the starter (`docs/starter-feedback.md`), or into the engine itself in the starter
       (hook: upset-learned).
 
@@ -103,6 +127,9 @@ Say at the start: "Checking what happened first, then fixing it and making the p
   prefer a check that tests the result over a list of forbidden words.
 - A check tried only on made-up bad cases. Trial projects shipped checks that passed the very code the user had
   complained about, flagged ordinary words of the user's language, and banned words every legitimate letter needs.
+- An edge case copied from this skill's examples instead of made from the project's words. A language check passed
+  the skill's own example words and still flagged the site's real labels; a tone check passed four hand-made letters
+  and blocked a warm letter to a flat whose building name held a "legal" word.
 - "Reported to the makers" when the lesson was only noted: `starter.mjs feedback` writes `docs/starter-feedback.md`,
   and only `node tools/starter.mjs report` sends it. Say "noted in docs/starter-feedback.md for the starter".
 - Waiving a check with N/A because another hook blocked the work. That is not "does not apply": say the work is

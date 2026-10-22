@@ -92,7 +92,9 @@ Rules:
 5. **Paths, commands and names of files go in `code`.** Commands the user should run go in a code block on their own.
 6. **Don't rely on color or emoji.** The bold word carries the meaning. Plain text survives every terminal, log and
    screen reader.
-7. **The check markers go together on one final line** (rule 7), after the question if there is one.
+7. **The check markers stay out of the answer** (rule 7): `Playbook:`, `Skill:`, `Worth it:`, `Proven:` and
+   `Learned (...)` go into `.cache/turn-notes.md`, one per line. The answer says in plain words what changed for the
+   user.
 
 Scripts in `tools/` print plain text and can add color. They follow the same idea: the status word comes first on
 each line (`PASS`, `FAIL`, `WARN`, `added`, `kept`), the result line comes last (`audit: PASS (...)`), and a `Next:`

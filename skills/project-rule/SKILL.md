@@ -46,9 +46,16 @@ A rule that only lives in the docs gets forgotten. The docs state it and a hook 
 6. **Prove it.** Add scenarios to `tools/hooks/project-scenarios.mjs` (upgrades keep it; in the starter itself: `tools/hooks/selfcheck.mjs`): skipped → blocked with the tag, and a realistic good sample → passes (`expect: { not: ['<tag>'] }`; for a no-overwrite guard, a plain request to change an existing guarded file, `deny: false`) (hook: check-sampled).
    Run `node tools/hooks/selfcheck.mjs --tags <the new tag>`, then `node tools/audit.mjs`. Both must PASS.
    A check script or test is also run on real samples (hook: check-proven): it fails on the real bad case (what the
-   user complained about, or its earlier version: `git show HEAD:<file>`) and passes on at least 2 realistic good
-   samples, one a valid edge case of the project (a word the user's language shares with a banned list, a legitimate
-   text that must use a flagged term). Say it on one line: `Proven: fails on <bad>; passes on <good 1>, <good 2>`.
-   A check that bans words is the last resort: test the result itself where you can.
+   user complained about, or its earlier version: `git show HEAD:<file>`), passes on **every existing file it
+   governs** (all the posts, letters, notes or source files its "when"/"require" globs cover, as the last commit has
+   them, in one run over the folder, a glob or its whole scope), and passes on realistic good samples, one **an edge
+   case made from the project's own words**: its real addresses, headings, labels and names, words the user's language
+   shares with a flagged list, quoted text, a legitimate text that must use a flagged term. Two hand-picked samples
+   are not enough: trial checks that passed them still blocked real labels and a warm letter to a flat whose address
+   held a flagged word. Say it on one line in `.cache/turn-notes.md`: `Proven: fails on <bad>; passes on all <N>
+   existing <files>, <good 1>, and an edge case: <what it holds>`.
+   A check that bans words is the last resort: test the result itself where you can. Describe the rule exactly as
+   the check enforces it: an exception you tell the user about ("firm wording when you ask for it") must be in the
+   check too, or not promised.
 7. **Report** the rule in one line, where it lives, and how it is enforced (or why it can't be), with a Finished
    section and a CHANGELOG line.

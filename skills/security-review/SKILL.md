@@ -59,7 +59,7 @@ severity scale and report table ([references.md](references.md)), so one's repor
 | Output and XSS | Is untrusted text rendered as HTML anywhere without a sanitizer? Is there a strict content security policy? |
 | Request forgery | Can another site or page trigger a state change with the user's cookies, or call a local server? |
 | Authentication | Are sessions and tokens issued, stored, expired and revoked with a vetted library? |
-| Authorization | Does every operation check, on the server, that this caller may do this to this record? Is each destructive action (delete, change other people's data, money) limited to the role `docs/foundation.md` names, the owner only when it names none, with a test that another signed-in user is refused? |
+| Authorization | Does every operation check, on the server, that this caller may do this to this record? Is each destructive or sensitive action (delete, change other people's data, money, settings) limited to the owner, or to a role the user named and granted it, with a test that another signed-in user is refused? A role or right the agent chose itself (a "manager" who may delete, written into `docs/foundation.md` during setup) is not the user's decision: FAIL -> open until the user decides. |
 | Sensitive data | Do errors, logs, responses or analytics expose secrets, stack traces or more personal data than needed? |
 | Abuse limits | Are there rate limits, size caps and timeouts, stricter on sign-in and expensive operations? |
 | File handling | Are uploads checked for size, type and content, stored outside the web root, under generated names? |
@@ -141,6 +141,11 @@ apps, `docs/foundation.md`), and any risk the user must decide on.
 
 ## Pitfalls
 - Checking that a user is signed in but not that the record is theirs. This is the most common real hole.
+- Passing a permission because `docs/foundation.md` lists it, when the agent wrote that row itself. Check each grant
+  against what the user said or decided: a role the user didn't name gets no destructive rights, and any right the
+  user didn't grant is FAIL -> open (a question for the user), even under "autonomy": "auto". Lesson: setups of the
+  same API invented a delete-capable role three rounds in a row, the review passed it, and the user complained each
+  time that someone other than the owner could delete.
 - Validating in the browser only. Every check that matters runs on the server.
 - Deleting a leaked secret from the code and calling it fixed. It is still in history and in whoever copied it; revoke it.
 - Blocklists ("strip `<script>`") instead of allowlists and proper escaping.

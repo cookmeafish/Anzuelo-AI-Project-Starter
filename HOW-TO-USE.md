@@ -10,7 +10,7 @@ You don't need to read anything else.
 
 ## Good to know
 - **If it gets something wrong, tell it.** It fixes the mistake, stores the lesson where it stops the next one (the
-  skill that missed it, a rule, an automatic check), and says where in a "Learned:" line. Lessons about the starter
+  skill that missed it, a rule, an automatic check), and tells you in plain words what changes. Lessons about the starter
   itself reach your other projects too.
 - **Want something done the same way every time?** Say "from now on, always ...". It becomes a rule.
 - **Short codes are optional.** Say "show me the menu" to see them.

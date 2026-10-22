@@ -21,7 +21,12 @@ wants the security, performance or usability baseline revisited. Run it before t
      guide opens in about a second on a phone";
    - offer "Let the AI decide".
 3. **Write** the confirmed values into `docs/foundation.md`, set `status: set YYYY-MM-DD`, and record the key choices
-   in `docs/DECISIONS.md`.
+   in `docs/DECISIONS.md`. **Who may do what** gives every destructive or sensitive action (delete, money, settings,
+   other people's data) to the owner, unless the user named the role and granted it. Don't invent roles that carry
+   such rights ("a manager may delete"), not even under `"autonomy": "auto"`: a permission is a security decision, so
+   write "the owner only until you decide" and ask (or list it as an open question). A grant the user made is
+   recorded in the row ("the user decided YYYY-MM-DD"). The setup gate refuses any other grant. Lesson: three setups
+   of the same API made up a "manager" role that could delete, and the user complained each time.
 4. **Shape it to grow** with the **modular-code** skill, section A: pick the module layout for the stack, make the
    config module and the names module (read from `docs/names.json`) first, and write the extension points into the
    Modules row of `docs/foundation.md`.
@@ -46,4 +51,5 @@ wants the security, performance or usability baseline revisited. Run it before t
 
 ## Done when
 - [ ] `docs/foundation.md` has no `<...>` left and `status: set` (hook: foundation-set, and the setup gate).
+- [ ] Destructive and sensitive actions belong to the owner, or to a role the user granted them, recorded in the row (hook: setup-gate).
 - [ ] The security tests, the budget script and the gates exist and pass. The answer lists each one with its result (hook: foundation-set for the list; judgment: that each one passes).

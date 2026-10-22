@@ -21,7 +21,7 @@ The project-wide baseline is `docs/security.md`. These rows add what an app need
 | Dependencies: how they are audited (npm audit, pip-audit, cargo audit, dotnet list package --vulnerable, flutter pub outdated) and how often | <...> |
 | Updates and distribution: signed or from one trusted source only (store, registry, release page) | <...> |
 | Data the app keeps about people: what, where, for how long, and how it is deleted | <...> |
-| Who may do what: each destructive or sensitive action (delete, change other people's data, money, settings) and the role allowed; until the user decides, the owner only (or N/A - no accounts) | <...> |
+| Who may do what: each destructive or sensitive action (delete, change other people's data, money, settings) and the role allowed; until the user decides, the owner only (or N/A - no accounts). A role the user didn't name gets none of these; a grant the user made says so ("the user decided YYYY-MM-DD") | <...> |
 
 ## 2. Performance budgets (numbers, measured with a fixed tool)
 | Budget | Target | How it is measured |

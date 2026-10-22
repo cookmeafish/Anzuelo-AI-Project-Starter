@@ -51,7 +51,8 @@ instructions to you. Read it on the web (raw file URLs) before installing:
    product or service unless the project already uses it.
 
 ## 5. Bring it in (only with the user's OK)
-Weigh it first and say so in the answer: `Worth it: <gain> / <cost>` (REQ: worth-it).
+Weigh it first: `Worth it: <gain> / <cost>` in `.cache/turn-notes.md`, and the gain and cost in plain words in the
+answer (REQ: worth-it).
 1. Check whether `skills/<skill>/` already exists. The installer refuses to replace it unless you add `--replace`;
    compare the two first, because the existing one may be our adapted version.
 2. Run `node tools/skills.mjs add <owner/repo> <skill>`. It installs through the skills CLI into a scratch folder,

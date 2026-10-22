@@ -7,6 +7,44 @@ print, or to a command or setting a project's own hooks or scripts may rely on, 
 hooks:**, and an upgrade lists each one as its own review item.
 
 - 2026-10-21: Fewer retries and Stop rounds (field report from an adopted project).
+  - **Checks written for a project are proven on its real files, complaints are checked part by part, and the
+    bookkeeping leaves the answer (trials of 8 new projects, round 7):** `check-proven` now asks a new blocking check
+    (one `tools/hooks/requirements.json` runs) to pass on every existing file it governs, as the last commit has them
+    (its entries' "when"/"require" globs, or the folder and file type it was run on), apart from the files it failed on
+    as the complained-about state: a passing run over all of them (named, a folder, a glob, or no file for its whole
+    scope), and the count in the `Proven:` line ("passes on all 14 existing posts"). The line also names an edge case
+    made from the project's own words ("an edge case: ..."; Spanish "caso límite"). A Spanish-only check had flagged
+    "total", "error" and "menu", and a tenant-tone check blocked a warm letter to a flat in a building named "... Court";
+    both passed 2 hand-picked samples, and the Spanish one used the skill's own example words as its edge case. A
+    complaint the answer shows does not hold has no complained-about state, so a failing sample proves the check.
+    The learn-from-upset and project-rule skills list the traps (proper nouns and addresses, words shared across
+    languages, quoted text, a text that must use a flagged term), say to check each part of a complaint on its own
+    (a cold letter was conceded as "threatening" too, after "You're right" was typed before the draft was opened),
+    and say that an exception promised to the user must be in the check. `upset-learned` accepts `Learned (none): the
+    complaint didn't hold - <evidence>` when the answer shows it does not hold, and `skill-learn` then asks no lesson
+    for the checks the complaint set off; `rule-request` counts an existing check that runs the test or check script
+    this turn extended (or "hook: <its tag>"), so no duplicate check is added. New turn notes: the lines the checks
+    read but the user can't act on (`Playbook:`, `Skill:`, `Worth it:`, `Proven:`, `Learned (...)`) go into
+    `.cache/turn-notes.md`, written this turn, which the checks read like the answer, with or without hooks (the same
+    lines in the answer still count). `answer-traced` counts a figure that is the sum, difference or percent change of
+    two traced figures in the same answer (213 = 692 - 479 was flagged), and a file the agent wrote this turn as opened
+    (its own text still never traces facts written into the knowledge base); `answerCites` counts a path a command
+    printed as it read it. Setup no longer follows a runbook the setup itself wrote just because the setup request
+    routes to it, and `deliverable-trigger` ignores `outputs/README.md` and `.gitkeep` files. The setup gate refuses a
+    `docs/foundation.md` "Who may do what" row that gives a destructive or sensitive action to anyone but the owner
+    without the user's recorded decision; the security-review skill marks such a grant FAIL -> open, and the
+    app-foundation runbook and foundation template say a role the user didn't name gets no such rights (a bookshop
+    API invented a delete-capable "manager" in three rounds, and the review passed it). The runbook-create skill says
+    to make a check's `when` fire on the work itself (`toolRan`), not on the runbook being opened. Scenarios:
+    `check-proven:` (existing files blocked, covered, folder loop, no count, no edge case, disproved complaint),
+    `upset-learned:` (Learned none, both ways), `turn-notes:` (runbook and lesson in notes, stale notes, Worth it),
+    `rule-request:` (existing check runs the test, both ways), `skill-learn:` (disproved complaint, both ways),
+    `answer-traced:` (difference, made-up figure, note written this turn, both ways), `answer-cites:` (printed path,
+    both ways), `setup:` (runbook written in setup, both ways), `deliverable-trigger:` (README, report) and the
+    `setup-gate` permissions test. Adopt by hand: AGENTS.md step 0.2, rules 3 and 7, docs/checks/session-checklist.md,
+    docs/checks/writing-standards.md, HOW-TO-USE.md, the learn-from-upset, project-rule, runbook-create, research,
+    skill-finder, project-bootstrap and security-review skills, the app pack's app-foundation runbook and foundation
+    template.
   - **Setup no longer waits for the whole engine suite, and the writing and citation checks read letters and paths
     right (trials of 8 new projects, round 6):** a passing whole self-test run in the starter writes
     `tools/hooks/engine-proof.json`, the hash of the engine as its tests saw it, and new-project and upgrades copy it.

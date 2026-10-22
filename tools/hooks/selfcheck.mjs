@@ -1101,7 +1101,7 @@ STOP.push(
     files: { 'links.go': 'package main\nfunc validateURL(s string) bool { return strict(s) }\n', 'tools/input-check.mjs': '// fails a handler that skips validation\n', 'docs/CHANGELOG.md': 'x' },
     tools: [editTool('links.go'), bash('git show HEAD:links.go > .cache/before-links.go', 'ok'), bash('node tools/input-check.mjs .cache/before-links.go', 'before-links.go: javascript: URL accepted\nRESULT: FAIL'),
       bash('node tools/input-check.mjs links.go .cache/good/idn-host.go', 'RESULT: PASS')],
-    answer: 'Partly: links were checked, but only the scheme. Fixed, and it can\'t happen again.\nProven: fails on links.go as it was before the fix; passes on links.go now, a handler with an international host and a port\nLearned (check): every input is validated → tools/input-check.mjs' + FIN,
+    answer: 'Partly: links were checked, but only the scheme. Fixed, and it can\'t happen again.\nProven: fails on links.go as it was before the fix; passes on links.go now and an edge case: a handler with an international host and a port\nLearned (check): every input is validated → tools/input-check.mjs' + FIN,
     expect: { not: ['check-proven', 'claim-checked'] } },
   // Lesson: a tone check passed the one rewritten letter and was never tried on a legitimate late-rent letter
   { name: 'check-proven: a "Proven:" line with only one good sample: blocked', prompt: 'the letter sounds like a robot and threatens them. letters to tenants are friendly and plain, always',
@@ -1113,7 +1113,7 @@ STOP.push(
     prep: preexisting('content/receta.md'), files: { 'scripts/check-language.mjs': '// idioma\n', 'content/receta.md': 'Solo para las pruebas', 'docs/CHANGELOG.md': 'x' },
     tools: [bash('node scripts/check-language.mjs', 'MAL content/receta.md "tests"\nRESULT: FAIL'), editTool('content/receta.md'),
       bash('node scripts/check-language.mjs content/receta.md .cache/muestras/torrijas.md .cache/muestras/menu.md', 'RESULT: PASS')],
-    answer: 'Tienes razón en parte: la receta de prueba decía "tests". La corregí para que no vuelva a pasar.\nProbado: falla con la receta de prueba de antes; pasa con una receta con "once rebanadas" y "he usado", y la receta del menú' + FIN,
+    answer: 'Tienes razón en parte: la receta de prueba decía "tests". La corregí para que no vuelva a pasar.\nProbado: falla con la receta de prueba de antes; pasa con la receta del menú y un caso límite: una receta con "once rebanadas" y "he usado"' + FIN,
     expect: { not: ['check-proven', 'claim-checked'] } },
   // Lesson: agents saved the files with cp before the fix, ran the new check on that copy after the fix (FAIL) and on
   // the fixed file (PASS), and were blocked until they waived the check, once with a false reason.
@@ -1121,17 +1121,17 @@ STOP.push(
     files: { 'links.go': 'package main\nfunc validateURL(s string) bool { return strict(s) }\n', 'tools/input-check.mjs': '// fails a handler that skips validation\n', 'docs/CHANGELOG.md': 'x' },
     tools: [bash('mkdir -p .cache/before && cp links.go links_test.go .cache/before/', ''), editTool('links.go'), bash('node tools/input-check.mjs .cache/before/links.go', '.cache/before/links.go: javascript: URL accepted\nRESULT: FAIL'),
       bash('cp .cache/before/links.go .cache/before-links.go && node tools/input-check.mjs .cache/before-links.go', 'RESULT: FAIL'), bash('node tools/input-check.mjs links.go .cache/good/idn-host.go', 'RESULT: PASS')],
-    answer: 'Partly: links were checked, but only the scheme. Fixed.\nProven: fails on links.go as it was before the fix; passes on links.go now, a handler with an international host\nLearned (check): every input is validated → tools/input-check.mjs' + FIN,
+    answer: 'Partly: links were checked, but only the scheme. Fixed.\nProven: fails on links.go as it was before the fix; passes on links.go now and an edge case: a handler with an international host\nLearned (check): every input is validated → tools/input-check.mjs' + FIN,
     expect: { not: ['check-proven'] } },
   { name: 'check-proven: a PowerShell Copy-Item copy made before the fix counts too: passes', prompt: 'you forgot to validate the links again!!', prep: preexisting('links.go'),
     files: { 'links.go': 'package main\nfunc validateURL(s string) bool { return strict(s) }\n', 'tools/input-check.mjs': '// fails a handler that skips validation\n', 'docs/CHANGELOG.md': 'x' },
     tools: [bash('Copy-Item links.go -Destination .cache\\links-before.go'), editTool('links.go'), bash('node tools/input-check.mjs .cache\\links-before.go', 'RESULT: FAIL'), bash('node tools/input-check.mjs links.go .cache/good/idn-host.go', 'RESULT: PASS')],
-    answer: 'Partly: links were checked, but only the scheme. Fixed.\nProven: fails on links.go as it was before the fix; passes on links.go now, a handler with an international host\nLearned (check): every input is validated → tools/input-check.mjs' + FIN,
+    answer: 'Partly: links were checked, but only the scheme. Fixed.\nProven: fails on links.go as it was before the fix; passes on links.go now and an edge case: a handler with an international host\nLearned (check): every input is validated → tools/input-check.mjs' + FIN,
     expect: { not: ['check-proven'] } },
   { name: 'check-proven: a copy made after the fix is no earlier state, and the message says what it saw: blocked', prompt: 'you forgot to validate the links again!!', prep: preexisting('links.go'),
     files: { 'links.go': 'package main\nfunc validateURL(s string) bool { return strict(s) }\n', 'tools/input-check.mjs': '// fails a handler that skips validation\n', 'docs/CHANGELOG.md': 'x' },
     tools: [editTool('links.go'), bash('cp links.go .cache/before-links.go'), bash('node tools/input-check.mjs .cache/before-links.go', 'RESULT: FAIL'), bash('node tools/input-check.mjs links.go .cache/good/idn-host.go', 'RESULT: PASS')],
-    answer: 'Partly: links were checked, but only the scheme. Fixed.\nProven: fails on links.go as it was before the fix; passes on links.go now, a handler with an international host\nLearned (check): every input is validated → tools/input-check.mjs' + FIN,
+    answer: 'Partly: links were checked, but only the scheme. Fixed.\nProven: fails on links.go as it was before the fix; passes on links.go now and an edge case: a handler with an international host\nLearned (check): every input is validated → tools/input-check.mjs' + FIN,
     expect: { tags: ['check-proven'], says: /FAIL, but after the fix and not on a saved copy/ } },
   // Lesson: a check named in the user's language was not seen as one, so only its test file had to be proven, and the
   // failing run of the script itself on the old page never counted.
@@ -1140,14 +1140,14 @@ STOP.push(
       j.requirements.push({ tag: 'lector-espanol', rule: 'standing preference', when: { filesChanged: ['nada/**'] }, require: { toolPassed: 'node tools/revisar-idioma.mjs' }, message: 'Todo en español.' }); fs.writeFileSync(f, JSON.stringify(j, null, 2)); },
     files: { 'tools/revisar-idioma.mjs': '// idioma\n', 'tests/idioma.test.mjs': 'test("x", () => {});\n', 'src/aviso.njk': 'Borrador: todavía no se publica', 'docs/CHANGELOG.md': 'x' },
     tools: [bash('node tools/revisar-idioma.mjs', 'FAIL src/aviso.njk: palabras en inglés: true\nRESULT: FAIL'), editTool('src/aviso.njk'), bash('node tools/revisar-idioma.mjs', 'RESULT: PASS'), bash('node --test tests/idioma.test.mjs', '✔ x\nℹ pass 3')],
-    answer: 'Tienes razón en parte: el aviso de borrador decía "true".\nProbado: falla con el aviso anterior; pasa con el aviso nuevo y con un texto con "once" y "he"\nAprendido (comprobación): todo lo que ve el lector va en español → tools/revisar-idioma.mjs\n\n## Terminado\n- Hecho. Archivos: docs/x.md',
+    answer: 'Tienes razón en parte: el aviso de borrador decía "true".\nProbado: falla con el aviso anterior; pasa con el aviso nuevo y un caso límite: un texto con "once" y "he"\nAprendido (comprobación): todo lo que ve el lector va en español → tools/revisar-idioma.mjs\n\n## Terminado\n- Hecho. Archivos: docs/x.md',
     expect: { not: ['check-proven'] } },
   { name: 'check-proven: the same Spanish-named check, run only after the fix, is counted as the check: blocked', prompt: 'otra vez pusiste texto en inglés en la página. todo lo que vea el lector tiene que estar en español, siempre',
     prep: dir => { preexisting('src/aviso.njk')(dir); const f = path.join(dir, 'tools/hooks/requirements.json'), j = JSON.parse(fs.readFileSync(f, 'utf8'));
       j.requirements.push({ tag: 'lector-espanol', rule: 'standing preference', when: { filesChanged: ['nada/**'] }, require: { toolPassed: 'node tools/revisar-idioma.mjs' }, message: 'Todo en español.' }); fs.writeFileSync(f, JSON.stringify(j, null, 2)); },
     files: { 'tools/revisar-idioma.mjs': '// idioma\n', 'tests/idioma.test.mjs': 'test("x", () => {});\n', 'src/aviso.njk': 'Borrador: todavía no se publica', 'docs/CHANGELOG.md': 'x' },
     tools: [editTool('src/aviso.njk'), bash('node tools/revisar-idioma.mjs src/aviso.njk', 'RESULT: FAIL'), bash('node tools/revisar-idioma.mjs', 'RESULT: PASS')],
-    answer: 'Tienes razón en parte: el aviso de borrador decía "true".\nProbado: falla con el aviso anterior; pasa con el aviso nuevo y con un texto con "once" y "he"\nAprendido (comprobación): todo lo que ve el lector va en español → tools/revisar-idioma.mjs\n\n## Terminado\n- Hecho. Archivos: docs/x.md',
+    answer: 'Tienes razón en parte: el aviso de borrador decía "true".\nProbado: falla con el aviso anterior; pasa con el aviso nuevo y un caso límite: un texto con "once" y "he"\nAprendido (comprobación): todo lo que ve el lector va en español → tools/revisar-idioma.mjs\n\n## Terminado\n- Hecho. Archivos: docs/x.md',
     expect: { tags: ['check-proven'], says: /tools\/revisar-idioma\.mjs[\s\S]*FAIL, but after the fix/ } },
   // a sample file holding the text the fix took out is the complained-about text
   { name: 'check-proven: a sample written with the text the fix took out fails, good samples pass: passes', prompt: 'otra vez pusiste texto en inglés en la página!! todo en español',
@@ -1155,14 +1155,14 @@ STOP.push(
     tools: [{ name: 'Edit', input: { file_path: 'src/aviso.njk', old_string: 'Borrador: no se publica hasta quitar «borrador: true».', new_string: 'Borrador: todavía no se publica.' } },
       { name: 'Write', input: { file_path: '.cache/antes.html', content: '<p class="aviso">Borrador: no se publica hasta quitar «borrador: true».</p>\n' } },
       bash('node tools/check-aviso.mjs .cache/antes.html', 'RESULT: FAIL'), bash('node tools/check-aviso.mjs src/aviso.njk .cache/buena.html', 'RESULT: PASS')],
-    answer: 'Tienes razón en parte: el aviso decía "true".\nProbado: falla con el aviso anterior; pasa con el aviso nuevo y con un texto con "once" y "he"\n\n## Terminado\n- Hecho. Archivos: docs/x.md',
+    answer: 'Tienes razón en parte: el aviso decía "true".\nProbado: falla con el aviso anterior; pasa con el aviso nuevo y un caso límite: un texto con "once" y "he"\n\n## Terminado\n- Hecho. Archivos: docs/x.md',
     expect: { not: ['check-proven'] } },
   { name: 'check-proven: a made-up sample that is not the text the fix took out: blocked', prompt: 'otra vez pusiste texto en inglés en la página!! todo en español',
     prep: preexisting('src/aviso.njk'), files: { 'tools/check-aviso.mjs': '// idioma\n', 'src/aviso.njk': 'Borrador: todavía no se publica', 'docs/CHANGELOG.md': 'x' },
     tools: [{ name: 'Edit', input: { file_path: 'src/aviso.njk', old_string: 'Borrador: no se publica hasta quitar «borrador: true».', new_string: 'Borrador: todavía no se publica.' } },
       { name: 'Write', input: { file_path: '.cache/antes.html', content: '<p>Click here to read more</p>\n' } },
       bash('node tools/check-aviso.mjs .cache/antes.html', 'RESULT: FAIL'), bash('node tools/check-aviso.mjs src/aviso.njk .cache/buena.html', 'RESULT: PASS')],
-    answer: 'Tienes razón en parte: el aviso decía "true".\nProbado: falla con el aviso anterior; pasa con el aviso nuevo y con un texto con "once" y "he"\n\n## Terminado\n- Hecho. Archivos: docs/x.md',
+    answer: 'Tienes razón en parte: el aviso decía "true".\nProbado: falla con el aviso anterior; pasa con el aviso nuevo y un caso límite: un texto con "once" y "he"\n\n## Terminado\n- Hecho. Archivos: docs/x.md',
     expect: { tags: ['check-proven'] } },
   // claim-checked (git): "nothing is committed" about the saved version, while git has commits
   { name: 'claim-checked: "the version in git lacks it, nothing is committed" while git has the file: blocked', prompt: 'ugh, you forgot to put the new option in the README',
@@ -2302,6 +2302,122 @@ STOP.push(
   { pack: 'knowledge', name: 'answer-cites: a path in backticks that was never opened this turn: blocked', prompt: 'what was our best week so far',
     tools: [sk('research')], files: SALES, mtimes: { 'exports/2026-W42.csv': -5000 },
     answer: 'Week 42 was the best week: mugs made 300 and bowls 242 (from `exports/2026-W42.csv`).', expect: { tags: ['answer-cites'] } },
+);
+// Trials of 8 new projects, round 7: checks a project writes, complaints, and the bookkeeping kept out of the answer.
+// check-proven: a new blocking check passes every existing file it governs (from the last commit) and names an edge case
+// made from the project's own words. Lesson: a Spanish-only check flagged "total" and "error", and a tone check blocked
+// a warm letter to a flat in "Rose Court"; both had passed 2 hand-picked good samples.
+const TONE_REQ = dir => {
+  const g = gitInit(dir);
+  write(dir, { 'drafts/a.md': 'Dear Sam,\nThanks for everything.\nAna\n', 'drafts/b.md': 'Dear Lee,\nBest wishes,\nAna\n', 'drafts/c.md': 'Re: rent\nThe rent goes up.\nLandlord\n' });
+  g('add', 'drafts'); g('commit', '-q', '--no-verify', '-m', 'drafts');
+  const f = path.join(dir, 'tools/hooks/requirements.json'), j = JSON.parse(fs.readFileSync(f, 'utf8'));
+  j.requirements.push({ tag: 'tenant-tone', rule: '7', when: { filesChanged: ['drafts/**'] }, require: { runEach: { files: ['drafts/**'], cmd: 'node tools/tone-check.mjs "{file}"', pass: 'RESULT: PASS' } }, message: 'Letters to tenants are friendly.' });
+  fs.writeFileSync(f, JSON.stringify(j, null, 2));
+};
+const OLD_DRAFTS = { 'drafts/a.md': -7_200_000, 'drafts/b.md': -7_200_000, 'drafts/c.md': -7_200_000 };
+const TONE_FILES = { 'tools/tone-check.mjs': '// tone\n', 'drafts/c-v2.md': 'Dear Kim,\nI hope you are well.\nBest wishes,\nAna\n', 'docs/CHANGELOG.md': 'x' };
+const TONE_RUNS = [bash('node tools/tone-check.mjs drafts/c.md', 'drafts/c.md: a Re: line, signed by role\nRESULT: FAIL'), bash('node tools/tone-check.mjs drafts/c-v2.md .cache/edge-rose-court.md', 'RESULT: PASS')];
+const TONE_ANSWER = 'Partly: the letter was cold, but it had no threatening words.\nChecked: drafts/c.md - a "Re:" line and a "Landlord" sign-off; no legal or demanding wording.\nEvery letter to a tenant is now checked for tone before it is saved.' + FIN;
+const NOTES = t => ({ '.cache/turn-notes.md': t });
+const WEEKLY_REQ = { tag: 'weekly-report-saved', rule: '5', when: { playbookUsed: 'weekly-report' }, require: { filesChanged: ['outputs/reports/**'] }, message: 'Save the weekly report.' };
+const WEEKLY_PB = '---\nname: weekly-report\nsummary: Make the weekly report for the partner\ntriggers: weekly report, report for my partner\nreuse: none - project-specific: our own report\n---\n# Playbook: weekly report\n## Steps\n1. Run the report script.\n## Done when\n- [ ] The report is saved (hook: weekly-report-saved)\n';
+STOP.push(
+  { name: 'check-proven: a new blocking check never run on the existing files it governs: blocked, and the message names them', prompt: 'the letter sounds cold again!! letters to tenants are friendly, always',
+    prep: TONE_REQ, mtimes: OLD_DRAFTS, tools: TONE_RUNS,
+    files: { ...TONE_FILES, ...NOTES('Proven: fails on drafts/c.md; passes on the new letter and an edge case: a letter to Flat 2, Rose Court\nLearned (check): tenant letters pass a tone check → tools/tone-check.mjs\n') },
+    answer: TONE_ANSWER, expect: { tags: ['check-proven'], says: /no passing run covers 2 of the 2 existing file\(s\) it governs \(drafts\/a\.md, drafts\/b\.md\)/ } },
+  { name: 'check-proven: run on all the existing files it governs, with the count and an edge case in the notes: passes', prompt: 'the letter sounds cold again!! letters to tenants are friendly, always',
+    prep: TONE_REQ, mtimes: OLD_DRAFTS, tools: [...TONE_RUNS, bash('node tools/tone-check.mjs drafts/a.md drafts/b.md', 'RESULT: PASS (2 drafts)')],
+    files: { ...TONE_FILES, ...NOTES('Proven: fails on drafts/c.md; passes on all 2 existing drafts, the new letter, and an edge case: a letter to Flat 2, Rose Court\nLearned (check): tenant letters pass a tone check → tools/tone-check.mjs\n') },
+    answer: TONE_ANSWER, expect: { not: ['check-proven', 'upset-learned'] } },
+  { name: 'check-proven: a run over the folder covers every draft in it: passes that part', prompt: 'the letter sounds cold again!! letters to tenants are friendly, always',
+    prep: TONE_REQ, mtimes: OLD_DRAFTS, tools: [...TONE_RUNS, bash('for f in drafts/a.md drafts/b.md; do node tools/tone-check.mjs "$f"; done', 'RESULT: PASS\nRESULT: PASS')],
+    files: { ...TONE_FILES, ...NOTES('Proven: fails on drafts/c.md; passes on all 2 existing drafts, the new letter, and an edge case: a letter to Flat 2, Rose Court\n') },
+    answer: TONE_ANSWER, expect: { not: ['check-proven'] } },
+  { name: 'check-proven: the existing files covered but no count in the "Proven:" line: blocked', prompt: 'the letter sounds cold again!! letters to tenants are friendly, always',
+    prep: TONE_REQ, mtimes: OLD_DRAFTS, tools: [...TONE_RUNS, bash('node tools/tone-check.mjs drafts/a.md drafts/b.md', 'RESULT: PASS')],
+    files: { ...TONE_FILES, ...NOTES('Proven: fails on drafts/c.md; passes on the old drafts, the new letter, and an edge case: a letter to Flat 2, Rose Court\n') },
+    answer: TONE_ANSWER, expect: { tags: ['check-proven'], says: /passes on all 2 existing/ } },
+  { name: 'check-proven: good samples with no edge case from the project\'s own words: blocked', prompt: 'the letter sounds cold again!! letters to tenants are friendly, always',
+    prep: TONE_REQ, mtimes: OLD_DRAFTS, tools: [...TONE_RUNS, bash('node tools/tone-check.mjs drafts/a.md drafts/b.md', 'RESULT: PASS')],
+    files: { ...TONE_FILES, ...NOTES('Proven: fails on drafts/c.md; passes on all 2 existing drafts, the new letter, a late-rent letter\n') },
+    answer: TONE_ANSWER, expect: { tags: ['check-proven'], says: /names no edge case made from this project's own words/ } },
+  // a complaint the answer showed does not hold has no complained-about state: a failing sample proves the check
+  { name: 'check-proven: a disproved complaint, the rule kept and its check failing on a sample: passes', prompt: 'otra vez pusiste texto en inglés en la página!! todo en español',
+    prep: preexisting('src/aviso.njk'), files: { 'tools/check-aviso.mjs': '// idioma\n', 'docs/CHANGELOG.md': 'x', ...NOTES('Probado: falla con una página de muestra con "Skip to content"; pasa con la portada, el índice y un caso límite: "Tiempo total: 30 minutos"\nAprendido (nada): la queja no se sostiene - ninguna página tiene texto en inglés\n') },
+    tools: [bash('node tools/check-aviso.mjs .cache/muestra-ingles.html', 'RESULT: FAIL'), bash('node tools/check-aviso.mjs _site/index.html _site/indice/index.html .cache/caso.html', 'RESULT: PASS')],
+    answer: 'Revisé todas las páginas: ninguna tiene texto en inglés.\nComprobado: _site/*.html - la queja no se sostiene: todo el texto está en español.' + '\n\n## Terminado\n- Hecho. Archivos: docs/x.md', expect: { not: ['check-proven', 'upset-learned'] } },
+  // upset-learned: a complaint that does not hold needs no made-up lesson
+  { name: 'upset-learned: "Learned (none)" after the answer showed the complaint does not hold: passes', prompt: 'you forgot to add the allergens again!!', tools: [pb('project')],
+    files: { 'docs/CHANGELOG.md': 'x', ...NOTES('Playbook: project.md\nLearned (none): the complaint didn\'t hold - docs/menu.md lists the allergens of every item\n') },
+    answer: 'Every item on the menu lists its allergens.\nChecked: docs/menu.md and its last commit - the complaint doesn\'t hold: the croissant line says gluten, milk.' + FIN, expect: { not: ['upset-learned', 'playbook-named'] } },
+  { name: 'upset-learned: "Learned (none)" for a complaint the answer agreed with: blocked', prompt: 'you forgot to add the allergens again!!', tools: [pb('project')],
+    files: { 'docs/menu.md': 'Croissant (gluten, milk)', 'docs/CHANGELOG.md': 'x', ...NOTES('Playbook: project.md\nLearned (none): nothing to learn here, it was a slip\n') },
+    answer: 'You\'re right: the croissant had no allergens.\nChecked: docs/menu.md - the croissant line had none. Added them.' + FIN, expect: { tags: ['upset-learned'], says: /only for a complaint the answer showed does not hold/ } },
+  // turn-notes: the lines the checks read live in .cache/turn-notes.md, written this turn; last turn's notes don't count
+  { name: 'turn-notes: the runbook named and the lesson placed only in the notes file: passes', prompt: 'you forgot to add the allergens again!!', tools: [pb('project')],
+    files: { 'docs/menu.md': 'Croissant (gluten, milk)', 'docs/playbooks/menu.md': '# Menu\n- every item lists its allergens\n', 'docs/CHANGELOG.md': 'x', ...NOTES('Playbook: project.md\nLearned (lesson): every menu item lists its allergens → docs/playbooks/menu.md\n') },
+    answer: 'You\'re right: the croissant had no allergens.\nChecked: docs/menu.md - the croissant line had none.\nAdded them, and the menu steps now say to list allergens for every item.' + FIN, expect: { not: ['upset-learned', 'playbook-named'] } },
+  { name: 'turn-notes: notes left from an earlier turn do not count: blocked', prompt: 'you forgot to add the allergens again!!', tools: [pb('project')],
+    files: { 'docs/menu.md': 'Croissant (gluten, milk)', 'docs/playbooks/menu.md': '# Menu\n', 'docs/CHANGELOG.md': 'x', ...NOTES('Playbook: project.md\nLearned (lesson): every menu item lists its allergens → docs/playbooks/menu.md\n') },
+    mtimes: { '.cache/turn-notes.md': -3_600_000 },
+    answer: 'You\'re right: the croissant had no allergens.\nChecked: docs/menu.md - the croissant line had none. Added them.' + FIN, expect: { tags: ['upset-learned', 'playbook-named'] } },
+  { name: 'turn-notes: "Worth it" in the notes file weighs an addition: passes', prompt: 'install a date library for the importer', tools: [bash('npm install dayjs', 'added 1 package')],
+    files: NOTES('Worth it: parses the three date formats we get / one small dependency to keep updated\n'), answer: 'Installed dayjs.', expect: { not: ['worth-it'] } },
+  // rule-request: an existing check that runs the test this turn extended enforces the new rule. Lesson: a second check
+  // running the same test was added only to satisfy Stop.
+  { name: 'rule-request: the rule added as cases to a test an existing check runs: passes that part', prompt: 'a percentage against zero is meaningless, never do that',
+    prep: preexisting('tools/summary.test.mjs'),
+    edit: withReqs({ tag: 'summary-tested', rule: '4', when: { filesChanged: ['tools/summary.mjs'] }, require: { toolPassed: { cmd: 'summary\\.test\\.mjs', pass: 'RESULT: PASS', selfRun: 'node tools/summary.test.mjs' } }, message: 'Run the summary test.' }),
+    tools: [pb('project'), editTool('tools/summary.test.mjs'), bash('node tools/summary.test.mjs', 'RESULT: PASS')],
+    files: { ...MEM, 'CLAUDE.md': TWIN, 'docs/checks/user-requirements.md': 'row', 'tools/summary.test.mjs': '// zero cases\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'A change from zero is never a percentage now; the summary test covers it.' + FIN, expect: { not: ['rule-request'] } },
+  { name: 'rule-request: the same test changed, but no check runs it: blocked', prompt: 'a percentage against zero is meaningless, never do that',
+    prep: preexisting('tools/summary.test.mjs'), tools: [pb('project'), editTool('tools/summary.test.mjs'), bash('node tools/summary.test.mjs', 'RESULT: PASS')],
+    files: { ...MEM, 'CLAUDE.md': TWIN, 'docs/checks/user-requirements.md': 'row', 'tools/summary.test.mjs': '// zero cases\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'A change from zero is never a percentage now; the summary test covers it.' + FIN, expect: { tags: ['rule-request'] } },
+  // skill-learn: after a disproved complaint, the checks the complaint set off are no lesson for the runbook
+  { name: 'skill-learn: a disproved complaint with "Learned (none)": no lesson demanded', prompt: 'you forgot the allergens again!! from now on every item lists them',
+    tools: [pb('project')], active: true, blocks: 1, failed: ['rule-request'],
+    files: { ...MEM, 'CLAUDE.md': TWIN, 'docs/checks/user-requirements.md': 'row', 'docs/CHANGELOG.md': 'x', ...NOTES('Playbook: project.md\nhook: N/A an answer in chat has no file to check\nLearned (none): the complaint didn\'t hold - docs/menu.md lists them\n') },
+    answer: 'Every item lists its allergens.\nChecked: docs/menu.md - the complaint doesn\'t hold: each line names them. The rule is written down anyway.' + FIN, expect: { not: ['skill-learn'] } },
+  { name: 'skill-learn: the same turn with a real lesson owed: demanded', prompt: 'you forgot the allergens again!! from now on every item lists them',
+    tools: [pb('project')], active: true, blocks: 1, failed: ['rule-request'],
+    files: { ...MEM, 'CLAUDE.md': TWIN, 'docs/checks/user-requirements.md': 'row', 'docs/CHANGELOG.md': 'x', ...NOTES('Playbook: project.md\nhook: N/A an answer in chat has no file to check\nLearned (rule): every item lists its allergens → CLAUDE.md\n') },
+    answer: 'You\'re right: two items had none.\nChecked: docs/menu.md - two lines had no allergens. Added them.' + FIN, expect: { tags: ['skill-learn'] } },
+  // answer-traced: a figure worked out from two traced figures in the same answer is traced; a made-up one is not
+  { name: 'answer-traced: a difference of two figures read this turn: passes', prompt: 'how did we do last month', tools: [{ name: 'Read', input: { file_path: 'data/sales.csv' }, result: 'month,sales\n2026-09,4300\n2026-08,3840' }],
+    answer: 'September sales were 4300, which is 460 more than August (3840).', expect: { not: ['answer-traced'] } },
+  { name: 'answer-traced: a figure that is no sum, difference or change of the read ones: blocked', prompt: 'how did we do last month', tools: [{ name: 'Read', input: { file_path: 'data/sales.csv' }, result: 'month,sales\n2026-09,4300\n2026-08,3840' }],
+    answer: 'September sales were 4300, which is 520 more than August (3840).', expect: { tags: ['answer-traced'], says: /520/ } },
+  // a file the agent wrote this turn is a source for what it wrote, not for outside facts
+  { pack: 'knowledge', name: 'answer-traced: citing a knowledge note written this turn from a page just fetched: passes', prompt: 'what do we know about desk prices',
+    tools: [sk('research'), { name: 'WebFetch', input: { url: 'https://example.com' }, result: KNOW }, W('docs/knowledge/desks.md', KNOW)], files: { 'docs/knowledge/desks.md': KNOW, 'docs/CHANGELOG.md': 'x' },
+    answer: 'Desk X costs $300 (from docs/knowledge/desks.md, taken from https://example.com).', expect: { not: ['answer-traced'] } },
+  { pack: 'knowledge', name: 'answer-traced: a note written this turn with a price no page had: blocked', prompt: 'what do we know about desk prices',
+    tools: [sk('research'), { name: 'WebFetch', input: { url: 'https://example.com' }, result: KNOW }, W('docs/knowledge/desks.md', KNOW.replace('$300', '$345'))], files: { 'docs/knowledge/desks.md': KNOW.replace('$300', '$345'), 'docs/CHANGELOG.md': 'x' },
+    answer: 'Desk X costs $345 (from docs/knowledge/desks.md).', expect: { tags: ['answer-traced'], says: /\$345/ } },
+  // answer-cites: a path a script printed while reading it was opened by that script
+  { pack: 'knowledge', name: 'answer-cites: a path the script printed as it read it: passes', prompt: 'what was our best week so far',
+    tools: [sk('research'), bash('node -e "for (const w of [42]) console.log(\'exports/2026-W\' + w + \'.csv\', 692)"', 'exports/2026-W42.csv 692')], files: SALES, mtimes: { 'exports/2026-W42.csv': -5000 },
+    answer: 'Week 42 was the best week, with 692 (computed on `exports/2026-W42.csv`).', expect: { not: ['answer-cites', 'research-cited'] } },
+  { pack: 'knowledge', name: 'answer-cites: the same path never opened or printed: blocked', prompt: 'what was our best week so far',
+    tools: [sk('research'), bash('node -e "console.log(692)"', '692')], files: SALES, mtimes: { 'exports/2026-W42.csv': -5000 },
+    answer: 'Week 42 was the best week, with 692 (computed on `exports/2026-W42.csv`).', expect: { tags: ['answer-cites'] } },
+  // setup writes a runbook the setup request routes to: writing it is not following it
+  { name: 'setup: a runbook setup wrote, routed by the setup request, is not followed yet: its checks wait', prompt: 'set up this project. I want a weekly report for my partner every monday',
+    removeMarker: true, edit: { 'SETUP-PROMPT.md': () => '# Setup\n', ...withReqs(WEEKLY_REQ) },
+    tools: [W('docs/playbooks/weekly-report.md', WEEKLY_PB), { name: 'Read', input: { file_path: 'docs/playbooks/weekly-report.md' } }],
+    files: { 'docs/playbooks/weekly-report.md': WEEKLY_PB, 'docs/CHANGELOG.md': 'x' }, answer: 'Set up.' + FIN, expect: { not: ['weekly-report-saved'] } },
+  { name: 'setup: the same runbook followed in a later turn: its checks apply', prompt: 'make the weekly report for my partner',
+    edit: withReqs(WEEKLY_REQ),
+    tools: [{ name: 'Read', input: { file_path: 'docs/playbooks/weekly-report.md' } }], files: { 'docs/playbooks/weekly-report.md': WEEKLY_PB, 'docs/CHANGELOG.md': 'x' }, mtimes: { 'docs/playbooks/weekly-report.md': -7_200_000 },
+    answer: 'Made it.' + FIN, expect: { tags: ['weekly-report-saved'] } },
+  { pack: 'knowledge', name: 'deliverable-trigger: the knowledge pack\'s own outputs/README.md is no deliverable: not fired', prompt: 'add a readme to the outputs folder',
+    files: { 'outputs/README.md': '# Outputs\nFinished documents go here.\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Added it.' + FIN, expect: { not: ['deliverable-trigger'] } },
+  { pack: 'knowledge', name: 'deliverable-trigger: a report written to outputs/ is a deliverable: fired', prompt: 'write the report',
+    files: { 'outputs/report-v1.md': '# Report\nSales rose.\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Wrote it.' + FIN, expect: { tags: ['deliverable-trigger'] } },
 );
 // Warmth in a letter is not filler (Lesson: the writing check flagged "I hope you" in a tenant letter, the agent cut its
 // only warm line, and the user said the letter sounded like a robot)
@@ -4924,6 +5040,20 @@ if (mineB()) { // fit-checklist: every candidate decided by the AI, each reason 
     applyEdits(dir, { 'docs/DECISIONS.md': s => s.replace('- fit: 2 new candidates: ?', '- fit: 2 new candidates: decided') });
     report(/fit: 2 new candidates.*decide the new rows/.test(pending) && up().trim() === '[]', 'fit-checklist: the upgrade review waits until the new candidates pass the check', `${pending.slice(0, 200)} | ${up().slice(0, 200)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+if (mineB()) { // setup-gate (permissions): a destructive right goes to the owner until the user decides. Lesson: three setups
+  // of the same API invented a delete-capable "manager" role, the security review passed it, and the user complained
+  const { grantProblems } = await import('./hooks.mjs');
+  const row = v => `| Area | Decision |\n|---|---|\n| Who may do what: each destructive action and the role allowed | ${v} |\n`;
+  const invented = grantProblems(row('Deleting a book: `manager` role only (test: `test_staff_cannot_delete`). Adding books: any signed-in staff member'));
+  const anyone = grantProblems(row('Refunds: any staff member'));
+  const owner = grantProblems(row('Deleting a book: the owner account only; staff add and change books'));
+  const decided = grantProblems(row('Deleting a book: the manager role (the user decided 2026-10-21)'));
+  const denied = grantProblems(row('Deleting: owner only; staff cannot delete'));
+  const none = grantProblems(row('N/A - no accounts'));
+  report(invented.length === 1 && /manager role only/.test(invented[0]) && anyone.length === 1 && !owner.length && !decided.length && !denied.length && !none.length,
+    'setup-gate: a destructive right given to a role the user never granted is refused; the owner, the user\'s own decision and N/A pass', JSON.stringify({ invented, anyone, owner, decided, denied, none }).slice(0, 900));
 }
 
 if (mineB()) { // plain-writing in a page: tags are markup, not words; a real wall of text is still found
