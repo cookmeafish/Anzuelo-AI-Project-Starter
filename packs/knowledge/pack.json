@@ -110,10 +110,11 @@
       },
       "require": {
         "filesChanged": [
-          "outputs/**"
+          "outputs/**",
+          "profiles/*/outputs/**"
         ]
       },
-      "message": "Save the deliverable as a new file in outputs/ (a new version is a new file) and give its path."
+      "message": "Save the deliverable as a new file in outputs/ (profiles/<name>/outputs/ when it is about one person) and give its path. A new version is a new file."
     },
     {
       "tag": "knowledge-changelog",

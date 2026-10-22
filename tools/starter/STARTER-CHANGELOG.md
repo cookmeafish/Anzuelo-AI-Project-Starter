@@ -7,6 +7,28 @@ print, or to a command or setting a project's own hooks or scripts may rely on, 
 hooks:**, and an upgrade lists each one as its own review item.
 
 - 2026-10-21: Fewer retries and Stop rounds (field report from an adopted project).
+  - **Setup no longer waits for the whole engine suite, and the writing and citation checks read letters and paths
+    right (trials of 8 new projects, round 6):** a passing whole self-test run in the starter writes
+    `tools/hooks/engine-proof.json`, the hash of the engine as its tests saw it, and new-project and upgrades copy it.
+    In a project whose engine hashes the same (no engine file changed, and a linked starter that proved the same
+    engine), the self-tests reuse that run and add only the project's own scenarios and checks and a smoke set: one
+    scenario per check family, the ones that touch the platform (git, wiring, links, background jobs, shell
+    validators) and every 40th. A fresh project's `audit.mjs --setup` went from 300 s to about 100 s on the same
+    machine; setups had waited 12 to 16 minutes under load. `--full` and `--deep` (and `trial.mjs --deep`) run
+    everything, and the starter always does. SETUP-PROMPT.md phase 5 now says to run the setup audit in the
+    foreground and wait for it in the same turn. The writing check keeps courtesy ("I hope you", "feel free to") in a
+    letter, email or message: a draft in a drafts, letters, emails or messages folder, or the lines from a greeting to
+    a sign-off (new `courtesy` setting; writing-standards.md says warmth in a letter is not filler), after a tenant
+    letter lost its only warm line and the user called it robotic. `answerCites` read a path in backticks with its
+    backticks, so "(from `exports/2026-W42.csv`)" never counted although the message offered that form; fixed, and a
+    new test makes every example a check's message quotes meet that check. Setup false alarms: a skill only read
+    during setup is not a skill used (no draft asked of the correspondence skill), `scope-separate` skips the setup
+    turn also when it ends by deleting SETUP-PROMPT.md, a command the tool refused never counts as a run of a gate,
+    `hooks-tested` counts the self-tests' own record of a pass after the last change (a run inside `audit --setup`
+    with its output in a file) and no longer takes a grep of selfcheck.mjs for a run, and `deliverable-file` accepts
+    `profiles/<name>/outputs/`. Scenarios: `answer-cites:` (backticks), `plain-writing:` (letters), `deliverable-file:`,
+    `setup-turn:`, `audit-run:` (refused), `hooks-tested:` (record, grep), `message-example`, `engine-proof`. Adopt by
+    hand: SETUP-PROMPT.md phase 5 (a new project gets it).
   - **Nothing left scheduled after the answer (trials of 8 new projects, round 5):** new check `wakeup-left`. A wakeup
     or cron job the session scheduled for itself (ScheduleWakeup, CronCreate, and any later tool whose name says wake,
     cron, schedule, timer, remind or alarm and that is given a prompt to send back) and still pending once the turn's

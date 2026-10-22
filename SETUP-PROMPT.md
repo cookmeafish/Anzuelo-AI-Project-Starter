@@ -218,11 +218,13 @@ how it is released.
    audit runs the hook self-tests itself (after its quick sweeps pass) and names any failing test. It checks the
    interview, that the packs match the answers and are complete, that every candidate in the fit checklist is decided
    with a reason that holds, the brief, routing, placeholders, the security baseline, pack purity, publish safety, the
-   self-tests, and that the hooks ran live here. With an engine that already passed on this machine the self-tests
-   reuse that result and take under a minute; the first time they take 5 to 20 minutes. If your agent stops a command
-   after a time limit, start it in the background with its output in a file
-   (`node tools/audit.mjs --setup > .cache/audit.txt 2>&1`), wait for it to finish, then read the file. Your agent
-   tells you when a background command ends, so set no timer or wakeup for it, and cancel any you set before you
+   self-tests, and that the hooks ran live here. The engine files are the ones the starter shipped and proved, so the
+   self-tests run only this project's own scenarios and a smoke set, about 1 to 2 minutes: run the audit in the
+   foreground (allow your command up to 10 minutes) and wait for it in this turn; don't end the turn while it runs.
+   Only if you changed an engine file does the first run take 5 to 20 minutes (the audit's self-test line says
+   whether the engine's results were reused). Then, if your agent stops a command after a time limit, start it in the background with its output
+   in a file (`node tools/audit.mjs --setup > .cache/audit.txt 2>&1`), wait for it to finish, then read the file. Your
+   agent tells you when a background command ends, so set no timer or wakeup for it, and cancel any you set before you
    answer: one left pending keeps a headless run from ending. Never start a
    second audit or self-test while one runs: it only waits for the first one.
 3. One dry run: take the most typical request, route it, and walk its runbook without changing anything. Report what

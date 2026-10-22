@@ -10,6 +10,10 @@ with `node tools/writing-check.mjs <file>`.
   "feel free to", "in conclusion", "let me know if you have any questions", "seamlessly", "game-changer",
   "in today's fast-paced". The full list is `fluff` in `tools/hooks/hooks.mjs` DEFAULTS. A project can extend it in
   `tools/hooks/config.json`.
+- **Warmth in a letter is not filler.** A letter, email or message to another person keeps its courtesy ("I hope you
+  are well", "feel free to call", thanks and good wishes): the filler rule skips the phrases in `courtesy` inside one.
+  A draft in a `drafts/`, `letters/`, `emails/` or `messages/` folder counts as one, and so does any text from a greeting
+  ("Dear Sam,") to a sign-off ("Kind regards,"). Cutting the only friendly line makes a letter sound cold.
 - **No walls of text.** Paragraphs stay at or under 150 words and sentences at or under 45 words
   (`maxParagraphWords`, `maxSentenceWords`). Use lists and tables. An answer under 40 words of prose is never too long.
 

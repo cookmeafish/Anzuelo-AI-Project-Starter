@@ -106,5 +106,6 @@ so and leave it to the user. Sending to anyone not named in the request needs it
 - Matching the user's anger. The draft stays firm and factual; the user can add heat if they want it.
 - Overwriting the earlier draft when asked for changes. The user may prefer the first one.
 - A friendlier rewrite that adds motives, promises or offers the user never made ("I've kept it small", "happy to fix
-  anything"). A tone change keeps the facts; anything new is a placeholder or a question.
+  anything"). A tone change keeps the facts; anything new is a placeholder or a question. Thanks and good wishes
+  ("I hope you are well") promise nothing: keep them, and the writing check does not count them as filler in a letter.
 - A count in the answer ("17 gaps to fill") guessed instead of counted in the saved draft.

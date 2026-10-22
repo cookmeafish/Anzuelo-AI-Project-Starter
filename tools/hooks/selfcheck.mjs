@@ -2,8 +2,9 @@
 // Self-tests for tools/hooks/hooks.mjs. Each scenario runs the real hook in a throwaway copy of this project, with a
 // synthetic transcript, and checks that skipping a rule is blocked and following it passes.
 //   node tools/hooks/selfcheck.mjs              run every scenario (in a project, the engine's results are reused when
-//                                               this engine already passed in full here today: see the first line)
-//   node tools/hooks/selfcheck.mjs --full       run every scenario, never reusing the engine's results
+//                                               this engine already passed in full here today, or is the one the
+//                                               starter shipped and proved: see the first line)
+//   node tools/hooks/selfcheck.mjs --full       run every scenario, never reusing the engine's results (--deep: the same)
 //   node tools/hooks/selfcheck.mjs --which-mode which mode a whole run would take, and why
 //   node tools/hooks/selfcheck.mjs --route "…"  show which runbooks a message routes to, plus all prompt hints
 //   node tools/hooks/selfcheck.mjs --explain "<scenario name>"  every check that fires for that scenario, with what satisfies it
@@ -15,13 +16,14 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { engineStamp, findPass, recordPass, localDay, SMOKE_EVERY, lockState, takeLock, releaseLock, otherSuites, registerSuite, shardCount, failureCause } from './selftest-cache.mjs';
+import { engineStamp, findPass, recordPass, localDay, SMOKE_EVERY, lockState, takeLock, releaseLock, otherSuites, registerSuite, shardCount, failureCause, proofHash, readProof, writeProof, PROOF_FILE } from './selftest-cache.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 // The self-tests make throwaway projects from this copy on purpose, even when it is a development copy (.starter-dev).
 process.env.STARTER_ALLOW_DEV = '1';
 // what the tests depend on, as the run starts (audit --setup reuses a full pass while it is unchanged)
 const INPUTS0 = await (async () => { try { return (await import('./hooks.mjs')).testInputsHash(); } catch { return null; } })();
+const CORE_SKILLS = await (async () => { try { return (await import('./hooks.mjs')).CORE_SKILLS || []; } catch { return []; } })();
 
 if (process.argv[2] === '--route') {
   const { promptHints } = await import('./hooks.mjs');
@@ -55,6 +57,7 @@ const SKIP_DIRS = new Set(['.git', 'node_modules', 'state', '.cache', '.private-
 const IS_STARTER = fs.existsSync(path.join(ROOT, '.starter-template'));
 let FIX_BASE = null, HOST_BASE = null;
 const ENGINE_CHANGED = []; // engine files this project changed (fixturesOnly), for failureCause
+let SRC_PROOF = null; // the proof of the starter the base borrows from (linked or kept), when there is one
 function base(host = false) {
   if (host && !IS_STARTER) return HOST_BASE ||= buildBase(true);
   return FIX_BASE ||= buildBase(false);
@@ -104,7 +107,9 @@ function buildBase(host) {
     for (const p of ['AGENTS.md', 'CLAUDE.md']) fs.writeFileSync(at(p), rules);
   }
   // (the fixtures-only base needs the starter's own copies, so this runs while .starter is still here)
-  const shippedCfg = !host && !IS_STARTER ? fixturesOnly(at, [at('.starter'), linked].find(p => p && fs.existsSync(path.join(p, 'tools/hooks/hooks.mjs'))) || null) : null;
+  const srcDir = [at('.starter'), linked].find(p => p && fs.existsSync(path.join(p, 'tools/hooks/hooks.mjs'))) || null;
+  if (!host) SRC_PROOF = srcDir ? readProof(srcDir) : null;
+  const shippedCfg = !host && !IS_STARTER ? fixturesOnly(at, srcDir) : null;
   for (const p of ['tools/starter.local.json', '.starter', '.starter-dev', 'README.starter.md', 'CLAUDE.starter.md', 'AGENTS.starter.md']) fs.rmSync(at(p), { recursive: true, force: true });
   // The project's own progress would leak into fixtures that build their own: its fit checklist (decided rows, "later"
   // conditions), its plans (OPEN PLANS) and its hook state. Lesson: inside a project mid-setup, the fit tests read the
@@ -168,6 +173,9 @@ function buildBase(host) {
   // the project's own checks and check flows are off in the fixtures-only base: they belong to its own scenarios
   if (!host && !IS_STARTER) { checksOffIn(BASE, engineTagsIn(BASE), packReqsIn(BASE)); fs.rmSync(at('docs/checks/flows'), { recursive: true, force: true }); }
   fs.rmSync(path.join(BASE, 'tools', 'hooks', 'state'), { recursive: true, force: true });
+  // the starter's proof is a result, not test material: the test projects made from the base reuse nothing unless a
+  // test writes one on purpose (engine-proof)
+  fs.rmSync(path.join(BASE, PROOF_FILE), { force: true });
   const old = (Date.now() - 3600_000) / 1000;
   const age = d => { for (const n of fs.readdirSync(d)) { const p = path.join(d, n); const s = fs.statSync(p); if (s.isDirectory()) age(p); else fs.utimesSync(p, old, old); } };
   age(BASE);
@@ -255,7 +263,7 @@ function fixturesOnly(at, src) {
     const walkDiff = rel => { for (const n of ls(at(rel))) { const r = `${rel}/${n}`; let s; try { s = fs.statSync(at(r)); } catch { continue; }
       if (s.isDirectory()) { if (r !== 'tools/hooks/state') walkDiff(r); continue; }
       // (the project's own settings and checks are meant to differ, and the base resets them anyway)
-      if (/^tools\/(hooks\/(config|requirements)\.json|hooks\/project-scenarios\.mjs|packs-registry\.json|starter\.local\.json)$/.test(r)) continue;
+      if (/^tools\/(hooks\/(config|requirements|engine-proof)\.json|hooks\/project-scenarios\.mjs|packs-registry\.json|starter\.local\.json)$/.test(r)) continue;
       const theirs = norm(path.join(src, r)); if (theirs !== null && theirs !== norm(at(r))) ENGINE_CHANGED.push(r); } };
     walkDiff('tools'); walkDiff('.githooks');
   }
@@ -2186,6 +2194,67 @@ STOP.push(
     tools: [sk('research'), { name: 'Read', input: { file_path: 'exports/2026-W42.csv' }, result: SALES['exports/2026-W42.csv'] }, W('docs/knowledge/sales.md', '# Sales\nmugs 300\n')],
     files: { ...SALES, 'docs/knowledge/sales.md': '---\nsource: exports/2026-W42.csv\ndate: 2026-10-21\n---\n# Sales\nmugs 300\n' }, mtimes: { 'exports/2026-W42.csv': -5000 },
     answer: 'Mugs made 300, from docs/knowledge/sales.md.', expect: { tags: ['answer-cites'] } },
+  // the path in backticks, as answers show paths (Lesson: "(from `exports/2026-W42.csv`)" was blocked twice, then rewritten
+  // with footnotes, though the message said plain words were enough)
+  { pack: 'knowledge', name: 'answer-cites: "(from `exports/2026-W42.csv`)" in backticks, opened this turn: passes', prompt: 'what was our best week so far',
+    tools: [sk('research'), { name: 'Read', input: { file_path: 'exports/2026-W42.csv' }, result: SALES['exports/2026-W42.csv'] }], files: SALES, mtimes: { 'exports/2026-W42.csv': -5000 },
+    answer: 'Week 42 was the best week: mugs made 300 and bowls 242 (from `exports/2026-W42.csv`).', expect: { not: ['answer-cites', 'research-cited'] } },
+  { pack: 'knowledge', name: 'answer-cites: a path in backticks that was never opened this turn: blocked', prompt: 'what was our best week so far',
+    tools: [sk('research')], files: SALES, mtimes: { 'exports/2026-W42.csv': -5000 },
+    answer: 'Week 42 was the best week: mugs made 300 and bowls 242 (from `exports/2026-W42.csv`).', expect: { tags: ['answer-cites'] } },
+);
+// Warmth in a letter is not filler (Lesson: the writing check flagged "I hope you" in a tenant letter, the agent cut its
+// only warm line, and the user said the letter sounded like a robot)
+const LETTER = 'To: the tenant of flat 2 (letter)\n\nDear Sam,\n\nThe rent goes up by 3% from 1 January.\n\nThank you for looking after the flat. I hope you are happy there and plan to stay.\n\nKind regards,\n\nAna\n';
+// hooks-tested reads the self-tests' own record: a whole run that passed after the last change counts however it was
+// started (Lesson: setup's audit had just passed the self-tests into .cache/audit.txt, and Stop asked for them again)
+const ENGINE_EDIT = dir => fs.appendFileSync(path.join(dir, 'tools/hooks/wire.mjs'), '\n// a change to the hook logic\n');
+const SELFTEST_RECORD = passed => dir => {
+  ENGINE_EDIT(dir);
+  const h = spawnSync(process.execPath, ['--input-type=module', '-e', `import { testInputsHash } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; console.log(testInputsHash());`], { cwd: dir, encoding: 'utf8' }).stdout.trim();
+  write(dir, { 'tools/hooks/state/selftest.json': JSON.stringify({ at: localDay(), passed, count: 40, inputs: h, mode: 'reused' }) });
+};
+const REFUSED = 'This Bash command contains multiple operations. The following part requires approval: rm SETUP-PROMPT.md';
+const CLOSE_SETUP = 'rm SETUP-PROMPT.md && node -e "require(\'fs\').appendFileSync(\'docs/CHANGELOG.md\', \'- setup complete: node tools/audit.mjs --setup passed\')"';
+STOP.push(
+  { name: 'plain-writing: warmth in a letter draft is not filler: passes', prompt: 'write a letter to the tenant about the rent', files: { 'outputs/drafts/2026-10-21-tenant-rent.md': LETTER, 'docs/CHANGELOG.md': 'x' },
+    answer: 'The letter is saved in outputs/drafts/2026-10-21-tenant-rent.md. It was not sent.' + FIN, expect: { not: ['plain-writing'] } },
+  { name: 'plain-writing: a letter shown in the answer keeps its warm line: passes', prompt: 'write a letter to the tenant about the rent',
+    answer: 'Here is the letter. It was not sent.\n\n' + LETTER.split('\n\n').slice(1).join('\n\n'), expect: { not: ['plain-writing'] } },
+  { name: 'plain-writing: "I hope you" in a guide is still filler: blocked', prompt: 'write a guide to the rent rules', files: { 'outputs/rent-guide.md': '# Rent guide\n\nI hope you find this guide useful. Rent is due on the 1st.\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'The guide is in outputs/rent-guide.md.' + FIN, expect: { tags: ['plain-writing'] } },
+  // a deliverable about one person goes in that person's outputs folder (Lesson: a per-flat letter was blocked for not being in outputs/)
+  { pack: 'knowledge', name: 'deliverable-file: saved in the person\'s profiles/<name>/outputs/: passes', prompt: 'write a rent reminder for alice', edit: PEOPLE, tools: [pb('deliverable')],
+    files: { 'profiles/alice/outputs/2026-10-21-rent-reminder.md': '# Rent reminder\n\nRent is due on the 1st.\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: deliverable.md. Saved in profiles/alice/outputs/2026-10-21-rent-reminder.md.' + FIN, expect: { not: ['deliverable-file'] } },
+  { pack: 'knowledge', name: 'deliverable-file: saved in the person\'s notes, not an outputs folder: blocked', prompt: 'write a rent reminder for alice', edit: PEOPLE, tools: [pb('deliverable')],
+    files: { 'profiles/alice/notes.md': '# Rent reminder\n\nRent is due on the 1st.\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: deliverable.md. Saved in profiles/alice/notes.md.' + FIN, expect: { tags: ['deliverable-file'] } },
+  // setup reads skills to configure them: routing alone doesn't make them used (Lesson: a landlord setup read the
+  // correspondence skill, wrote no letter, and Stop asked for the saved draft)
+  { name: 'setup-turn: a skill only read during setup asks for none of its outputs: passes', prompt: 'set up this project. I rent out three flats and write letters to tenants', removeMarker: true,
+    tools: [sk('correspondence')], answer: 'Setup is under way.', expect: { not: ['correspondence-draft-saved'] } },
+  { name: 'setup-turn: the same skill read for a letter outside setup still needs the draft: blocked', prompt: 'write a letter to the tenant about the rent',
+    tools: [sk('correspondence')], answer: 'Here is the letter. It was not sent.', expect: { tags: ['correspondence-draft-saved'] } },
+  // setup makes everyone's folder, also in the turn that ends by deleting SETUP-PROMPT.md (Lesson: a landlord setup was
+  // told the flats' files changed though the request was not about them)
+  { name: 'setup-turn: setup that made each person\'s folder and deleted SETUP-PROMPT.md: passes', prompt: 'set up this project. I rent out two flats', removeMarker: true, edit: PEOPLE,
+    prep: dir => fs.rmSync(path.join(dir, 'SETUP-PROMPT.md'), { force: true }), tools: [bash('rm SETUP-PROMPT.md', '')],
+    files: { 'profiles/alice/PROFILE.md': '# Alice\n', 'profiles/bob/PROFILE.md': '# Bob\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Setup is done.' + FIN, expect: { not: ['scope-separate'] } },
+  { name: 'setup-turn: outside setup, a request about nobody that changed two people\'s folders: blocked', prompt: 'tidy the notes', edit: PEOPLE,
+    files: { 'profiles/alice/PROFILE.md': '# Alice\n', 'profiles/bob/PROFILE.md': '# Bob\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Tidied.' + FIN, expect: { tags: ['scope-separate'] } },
+  // a refused command never ran: no run of the audit (Lesson: a refused command whose script only mentioned
+  // "audit.mjs --setup" was taken as the last audit run, and Stop asked for the audit that had just passed)
+  { name: 'audit-run: a refused command that mentions the audit is no run of it: passes', prompt: 'add a menu code for the weekly summary', tools: [pb('project'),
+    bash('node tools/audit.mjs', 'audit: PASS (29 sweeps, 0 failed, 0 warnings)'), { name: 'Bash', input: { command: CLOSE_SETUP }, result: REFUSED, denied: true }],
+    files: { 'docs/MENU.md': '# Menu\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md. Added the code.' + FIN, expect: { not: ['audit-run'] } },
+  { name: 'audit-run: a later command that ran and mentions the audit, and failed, is the last run: blocked', prompt: 'add a menu code for the weekly summary', tools: [pb('project'),
+    bash('node tools/audit.mjs', 'audit: PASS (29 sweeps, 0 failed, 0 warnings)'), { name: 'Bash', input: { command: 'node tools/audit.mjs --setup' }, result: 'audit: FAIL (31 sweeps, 1 failed, 0 warnings)', error: true }],
+    files: { 'docs/MENU.md': '# Menu\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md. Added the code.' + FIN, expect: { tags: ['audit-run'] } },
+  { name: 'hooks-tested: the self-tests\' own record of a pass after the change counts, however they ran: passes', prompt: 'fix the wiring step', tools: [pb('project'),
+    bash('node tools/audit.mjs --setup > .cache/audit.txt 2>&1', ''), bash('grep -n "wire" tools/hooks/selfcheck.mjs', '12: wire')],
+    prep: SELFTEST_RECORD(true), files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md. Fixed.' + FIN, expect: { not: ['hooks-tested'] } },
+  { name: 'hooks-tested: a grep of selfcheck.mjs is no run, and a failed record counts for nothing: blocked', prompt: 'fix the wiring step', tools: [pb('project'),
+    bash('grep -n "wire" tools/hooks/selfcheck.mjs', '12: wire')],
+    prep: SELFTEST_RECORD(false), files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md. Fixed.' + FIN, expect: { tags: ['hooks-tested'], says: /The hook logic changed: run node tools\/hooks\/selfcheck\.mjs/ } },
 );
 // no-overwrite: a request that names the guarded file and asks for a change edits it; other requests still get a new
 // version (Lesson: a chapter guard denied "make the ending of chapter 2 sadder" and pushed a "v2" copy)
@@ -2500,6 +2569,11 @@ if (process.argv.includes('--fixture-manifest')) {
   console.log(JSON.stringify({ stamp: engineStampHere(), files: Object.fromEntries(manifest(base())) }, null, 1));
   process.exit(0);
 }
+// --proof-hash: the hash of the engine as the tests see it (selftest-cache.mjs proofHash), and the proof on file
+if (process.argv.includes('--proof-hash')) {
+  console.log(JSON.stringify({ hash: proofHash(base(), CORE_SKILLS), proof: readProof(ROOT), changed: ENGINE_CHANGED, linkedProof: SRC_PROOF }));
+  process.exit(0);
+}
 
 // One whole run at a time per project (selftest-cache.mjs). A run started while another is going waits for it and
 // reuses its result, so an audit started next to a self-test, or a second try while the first still runs in the
@@ -2668,17 +2742,42 @@ if (TAGS) {
 // of every SMOKE_EVERY-th engine scenario. --full, a changed engine file, another Node major version, another platform
 // or another day runs everything. The starter always runs everything.
 // Lesson: every new project ran the whole 730-test suite during setup, 2 or 3 times, for an engine nobody had changed.
+// A project whose engine is the one the starter shipped (selftest-cache.mjs PROOF_FILE) reuses the starter's own full
+// run too, with no pass on this machine needed: its fixtures base hashes the same as the starter's did, no engine file
+// differs from the linked starter's, and that starter (when linked) proved the same engine.
 let STAMP = null, REUSED = null, MODE_WHY = '';
+const ALL_ASKED = ['--full', '--deep'].find(a => process.argv.includes(a));
+const shippedProof = () => {
+  const proof = readProof(ROOT);
+  if (!proof || ENGINE_CHANGED.length || (SRC_PROOF && SRC_PROOF.engine !== proof.engine)) return null;
+  return proofHash(base(), CORE_SKILLS) === proof.engine ? { passed: proof.tests, shipped: true } : null;
+};
 if (HELPER) REUSED = process.argv.includes('--reuse-engine') ? {} : null;
 else if (!IS_STARTER && PLAIN_RUN) {
   STAMP = engineStampHere();
-  if (process.argv.includes('--full')) MODE_WHY = '--full asks for every test';
+  if (ALL_ASKED) MODE_WHY = `${ALL_ASKED} asks for every test`;
   else if ((REUSED = findPass(STAMP))) MODE_WHY = `this engine (stamp ${STAMP.slice(0, 8)}: its files, Node ${process.versions.node.split('.')[0]}, ${process.platform}, ${localDay()}) passed all ${REUSED.passed} engine tests at ${String(REUSED.at).slice(11, 16)} UTC`;
-  else MODE_WHY = `no full pass is recorded for this engine yet (stamp ${STAMP.slice(0, 8)}: its files, Node major, platform and today's date)`;
+  else if ((REUSED = shippedProof())) MODE_WHY = `this engine is the one the starter shipped, byte for byte (${PROOF_FILE}), and the starter's own full run passed all ${REUSED.passed} of its tests on it`;
+  else MODE_WHY = `no full pass is recorded for this engine yet (stamp ${STAMP.slice(0, 8)}: its files, Node major, platform and today's date)${readProof(ROOT) ? `, and it is not the engine the starter proved${ENGINE_CHANGED.length ? ` (changed here: ${ENGINE_CHANGED.slice(0, 5).join(', ')})` : ''}` : ''}`;
 }
 const REUSE = !!REUSED;
 const isEngine = s => !s.own;
-const SMOKE = new Set([...STOP, ...PRETOOL, ...PROMPT].filter(isEngine).filter((_, i) => i % SMOKE_EVERY === 0));
+// The smoke set, run when the engine's results are reused: one scenario per check family (the first that expects each
+// check to block or deny, and one per kind of prompt hint), every scenario that exercises the platform (git, shell
+// commands the hooks run, paths, the agents' wiring, background jobs), and every SMOKE_EVERY-th scenario for the passes.
+// It proves this machine and this Node run the engine, in about a minute.
+const PLATFORM = /\b(git|wire|wired|symlink|windows|backslash|powershell|background|line endings?|crlf|validator|runEach|json-valid|data-valid)\b/i;
+// (a family: the checks that share a tag's first word, such as security-code, security-report and security-config)
+const familyOf = s => { const t = s.tag || (s.tags || [])[0] || (s.expect?.tags || [])[0]; return t ? String(t).split('-')[0] : s.has ? `prompt ${String(s.has[0] || '').split(/[:\s]/)[0]}` : null; };
+const SMOKE = (() => {
+  const out = new Set(), fams = new Set(), all = [...STOP, ...PRETOOL, ...PROMPT].filter(isEngine);
+  all.forEach((s, i) => {
+    const f = familyOf(s);
+    if (f && !fams.has(f)) { fams.add(f); out.add(s); }
+    if (PLATFORM.test(s.name) || i % SMOKE_EVERY === 0) out.add(s);
+  });
+  return out;
+})();
 let reusedCount = 0;
 if (REUSE) for (const list of [STOP, PRETOOL, PROMPT]) { const keep = list.filter(s => !isEngine(s) || SMOKE.has(s)); reusedCount += list.length - keep.length; list.length = 0; list.push(...keep); }
 if (!HELPER) console.log(TAGS ? `selfcheck mode: tags (${TAGS.join(', ')})` : IS_STARTER ? 'selfcheck mode: full (the starter always runs every test)'
@@ -2768,6 +2867,9 @@ for (const s of PROMPT) {
 // (mineB: an engine test, which reused engine results skip; mineP: one that reads the project itself, which always runs)
 let nb = 0; const nextB = () => nb++ % SHARDS === MINE;
 const mineB = () => nextB() && !REUSE, mineP = () => nextB();
+// mineS: an engine test that exercises the platform (links in the file system, the agents' wiring), so it is part of
+// the smoke set and runs with reused engine results too
+const mineS = mineP;
 const PROJECT_TESTS = new Set(); // report names of the tests that depend on the project: never part of an engine pass
 
 // trigger-recall / trigger-quiet: every message in tools/hooks/trigger-cases.mjs goes through the engine's prompt hints
@@ -3055,6 +3157,8 @@ if (mineB() && SPEED) { // engine-cache in a project: full without a recorded pa
   const dir = copyProject(), tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-'));
   try {
     fs.rmSync(path.join(dir, '.starter-template'), { force: true });
+    // (without the starter's proof: this test is about passes recorded on this machine; engine-proof tests the proof)
+    fs.rmSync(path.join(dir, PROOF_FILE), { force: true });
     write(dir, { 'tools/starter.local.json': JSON.stringify({ path: ROOT }) });
     const env = { STARTER_SELFTEST_CACHE: path.join(tmp, 'passes.json'), STARTER_SELFTEST_RUNNING: path.join(tmp, 'running') };
     const mode = (...a) => { const r = nodeIn(dir, ['tools/hooks/selfcheck.mjs', '--which-mode', ...a], env); return (/^selfcheck mode: .*$/m.exec(r.stdout) || [`(no mode line) ${r.stdout.slice(-300)} ${r.stderr.slice(-300)}`])[0]; };
@@ -3081,6 +3185,41 @@ if (mineB() && SPEED) { // engine-cache in a project: full without a recorded pa
       'engine-cache: a project reuses a recorded engine pass despite new notes and own scenarios, still runs those scenarios and a smoke set, and runs everything with --full or a changed engine file',
       `first: ${first} | stamp ${stamp}${moved.length ? ` | base files that changed: ${moved.slice(0, 10).join(', ')}` : ''} | reused run exit ${reused.status}: ${out.split(/\r?\n/).filter(l => /^(selfcheck|FAIL|failing)/.test(l)).join(' / ').slice(0, 900)} ${String(reused.stderr || '').slice(-300)} | --full: ${full} | changed: ${changed}`);
   } finally { for (const d of [dir, tmp]) try { fs.rmSync(d, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); } catch { } }
+}
+if (mineB() && SPEED) { // engine-proof: a project whose engine is the one the starter proved reuses the starter's full run,
+  // with no pass on this machine; --full, --deep, a changed engine file, or a linked starter with another engine runs
+  // everything, and the starter itself always runs everything. Lesson: every new project's setup waited 5 to 16 minutes
+  // for the first full run of an engine the starter had already passed.
+  const dir = copyProject(), other = copyProject(), tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-'));
+  try {
+    const env = { STARTER_SELFTEST_CACHE: path.join(tmp, 'passes.json'), STARTER_SELFTEST_RUNNING: path.join(tmp, 'running') };
+    const mode = (d, ...a) => { const r = nodeIn(d, ['tools/hooks/selfcheck.mjs', '--which-mode', ...a], env); return (/^selfcheck mode: .*$/m.exec(r.stdout) || [`(no mode line) ${r.stdout.slice(-300)} ${r.stderr.slice(-300)}`])[0]; };
+    const hashOf = d => { try { return JSON.parse(nodeIn(d, ['tools/hooks/selfcheck.mjs', '--proof-hash'], env).stdout).hash; } catch { return null; } };
+    const h = hashOf(dir);
+    write(dir, { [PROOF_FILE]: JSON.stringify({ engine: h, tests: 900 }) });
+    const starter = mode(dir); // still the starter (it has .starter-template)
+    fs.rmSync(path.join(dir, '.starter-template'), { force: true });
+    const shipped = mode(dir), full = mode(dir, '--full'), deep = mode(dir, '--deep');
+    // linked to a starter that proved another engine
+    write(other, { [PROOF_FILE]: JSON.stringify({ engine: '0'.repeat(24), tests: 900 }) });
+    write(dir, { 'tools/starter.local.json': JSON.stringify({ path: other }) });
+    const linkedOther = mode(dir);
+    write(other, { [PROOF_FILE]: JSON.stringify({ engine: h, tests: 900 }) });
+    const linkedSame = mode(dir);
+    fs.appendFileSync(path.join(dir, 'tools/fit.mjs'), '\n// an engine file changed\n');
+    const changed = mode(dir);
+    // the proof file is written only when it changes
+    const pf = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-')); fs.mkdirSync(path.join(pf, 'tools/hooks'), { recursive: true });
+    const writes = [writeProof(pf, 'abc', 5), writeProof(pf, 'abc', 5), writeProof(pf, 'abc', 6)];
+    fs.rmSync(pf, { recursive: true, force: true });
+    report(!!h && /^selfcheck mode: full \(the starter always runs every test\)/.test(starter)
+      && /^selfcheck mode: engine results reused, because this engine is the one the starter shipped, byte for byte .*passed all 900/.test(shipped) && /engine smoke scenarios/.test(shipped)
+      && /^selfcheck mode: full, because --full asks for every test/.test(full) && /^selfcheck mode: full, because --deep asks for every test/.test(deep)
+      && /^selfcheck mode: full, because .*not the engine the starter proved/.test(linkedOther) && /^selfcheck mode: engine results reused, because this engine is the one the starter shipped/.test(linkedSame)
+      && /^selfcheck mode: full, because .*not the engine the starter proved \(changed here: tools\/fit\.mjs\)/.test(changed) && writes.join() === 'true,false,true',
+      'engine-proof: a project with the engine the starter proved reuses its run (smoke set only); --full, --deep, a changed engine file or a linked starter that proved another engine run everything; the starter always runs everything',
+      JSON.stringify({ h, starter, shipped, full, deep, linkedOther, linkedSame, changed, writes }).slice(0, 2000));
+  } finally { for (const d of [dir, other, tmp]) try { fs.rmSync(d, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); } catch { } }
 }
 if (mineB() && SPEED) { // selftest-lock: one whole run at a time; a second one waits and prints the first one's result; stale locks are taken over
   const dir = copyProject(), tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-'));
@@ -3392,6 +3531,49 @@ if (mineB()) {
   report(!bad.length, 'answer-language: every label a shipped check reads in the answer has a Spanish form that meets it, and the bare answer does not', bad.join('; '));
 }
 
+// message-example: a check's own message never asks for something its require rejects. Every example the message gives
+// in double quotes, as an answer would carry it (placeholders filled in, "..." as the path the message names, every file
+// path it names opened this turn), meets the check: written as it is and with each path in backticks, the way answers
+// show paths. A bare answer meets none of these checks. Quotes that are only a part of an answer, not one on its own
+// (a heading, a verdict word, one line of a list), are listed in PARTS with why.
+// Lesson: research-cited said "from exports/2026-W42.csv" was enough; the agent wrote "(from `exports/2026-W42.csv`)",
+// the backticks broke the match, and the answer was blocked twice and rewritten with footnotes.
+if (mineB()) {
+  const h = await import(pathToFileURL(path.join(ROOT, 'tools', 'hooks', 'hooks.mjs')).href);
+  const branches = c => c.anyOf ? c.anyOf.flatMap(branches) : c.answerMatches || c.answerNotMatches || c.answerCites ? [{ answerMatches: c.answerMatches, answerNotMatches: c.answerNotMatches, answerCites: c.answerCites }] : [];
+  const PARTS = {
+    'research-cited': ['Sources:'], // the heading of the numbered list
+    'security-report': ['passed', 'Security review: 1 open - details in ...', '<area>: FAIL -> open (<severity>, where it went)', 'FALLA -> corregido', 'FALLA -> abierto'], // words, and the short form's parts
+    'verification-report': ['Not done or not checked'], // the Finished list it may stand in for
+    'history-hashes': ['no commits touch it'], // a waiver's reason, not an answer
+    'finished-summary': ['docs/playbooks/: 6 runbooks'] // one line of the list
+  };
+  const PATH = /(?<![\w/.-])(?:[\w.-]+\/)+[\w.-]*\w\.\w{1,5}\b/g;
+  const fill = (e, msg) => e.replace(/<letter>/gi, 'A').replace(/<[^>\n]+>/g, 'the parser').replace(/\bn of N\b/g, '3 of 12')
+    .replace(/\.\.\./g, () => ((msg.match(PATH) || [])[0] || 'the totals')).replace(/YYYY-MM-DD/g, '2026-10-21');
+  const meets = (q, text) => {
+    const paths = text.match(PATH) || [];
+    const x = { answer: h.inEnglish(text), uses: [], changed: [], cmds: [], entries: [], toolsKnown: true, reads: new Set(paths) };
+    return branches(q.require || {}).some(b => h.holds(b, x));
+  };
+  const shipped = [...JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/hooks/engine-checks.json'), 'utf8')).requirements, ...h.BASE_REQUIREMENTS];
+  const bad = []; let tried = 0;
+  for (const q of shipped) {
+    if (!q || !branches(q.require || {}).some(b => b.answerMatches || b.answerCites)) continue;
+    const msg = String(q.message || '');
+    for (const [, e] of msg.matchAll(/"([^"\n]{3,200})"/g)) {
+      if ((PARTS[q.tag] || []).includes(e)) continue;
+      const s = fill(e, msg); tried++;
+      if (!meets(q, s)) bad.push(`${q.tag}: its message's example "${e}" does not meet it`);
+      else if (PATH.test(s) && !meets(q, s.replace(PATH, p => `(from \`${p}\`)`))) bad.push(`${q.tag}: its message's example "${e}" fails with the path in backticks`);
+      PATH.lastIndex = 0;
+    }
+    if (meets(q, 'Done. Everything is in place.')) bad.push(`${q.tag}: a bare answer meets it`);
+  }
+  for (const [tag, list] of Object.entries(PARTS)) { const q = shipped.find(r => r && r.tag === tag); for (const e of list) if (!q || !String(q.message || '').includes(`"${e}"`)) bad.push(`${tag}: PARTS lists "${e}", which its message no longer quotes: remove it`); }
+  report(!bad.length && tried >= 20, 'message-example: every answer example a check\'s message quotes meets that check (also with paths in backticks), and a bare answer does not', bad.join('; ') || `only ${tried} examples found`);
+}
+
 // answer-noise: no engine text tells the agent to put a check name into the answer as an N/A(<check>) line; the waive
 // command keeps it out. Lesson: hints and Stop messages said "write N/A(<tag>): <why>", and answers carried the names.
 if (mineB()) {
@@ -3418,7 +3600,7 @@ if (mineB()) {
     'legal-disclaimer: the legal-review skill puts its line once, at the end, and its templates follow (a banner on top is caught)', 'the skill or a template still puts the line first');
 }
 
-if (mineB()) { // walks never follow links: a workspace link that loops back into the repo can't hang a hook
+if (mineS()) { // walks never follow links: a workspace link that loops back into the repo can't hang a hook
   // Lesson: packages/shared/node_modules/@mono/web pointing back at packages/web made the prompt hook time out
   const dir = copyProject();
   try {
@@ -4276,7 +4458,7 @@ if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade
   } finally { fs.rmSync(proj, { recursive: true, force: true }); }
 }
 
-if (mineB()) { // agent-neutral: a fresh clone has no agent files; wire makes CLAUDE.md, Claude Code's and Codex's hooks, and the mirrors
+if (mineS()) { // agent-neutral: a fresh clone has no agent files; wire makes CLAUDE.md, Claude Code's and Codex's hooks, and the mirrors
   const dir = copyProject();
   try {
     for (const p of ['CLAUDE.md', '.claude', '.codex']) fs.rmSync(path.join(dir, p), { recursive: true, force: true });
@@ -4977,7 +5159,7 @@ const OWN_NAMES = new Set([...STOP.filter(s => s.own).map(s => `stop: ${s.name}`
 const projectTest = n => OWN_NAMES.has(n) || PROJECT_TESTS.has(n) || /^(project scenario keys|tags): /.test(n);
 const engineFailed = FAILED.filter(n => !projectTest(n)), enginePassed = PASSED.filter(n => !projectTest(n)).length;
 let modeNote = '';
-if (REUSE) modeNote = `; ${reusedCount} engine scenarios and the engine's other tests reused from an earlier full pass of this engine${engineFailed.length ? `. An engine smoke test failed although this engine passed before: run node tools/hooks/selfcheck.mjs --full` : ''}`;
+if (REUSE) modeNote = `; ${reusedCount} engine scenarios and the engine's other tests reused from ${REUSED.shipped ? "the starter's own full run of this engine" : 'an earlier full pass of this engine'}${engineFailed.length ? `. An engine smoke test failed although this engine passed before: run node tools/hooks/selfcheck.mjs --full` : ''}`;
 else if (STAMP) modeNote = engineFailed.length ? '; full run, engine tests failed, so nothing was recorded for reuse'
   : recordPass(STAMP, { passed: enginePassed, node: process.versions.node, platform: process.platform, day: localDay() }) ? `; full run, its ${enginePassed} engine passes recorded: the next run with this engine reuses them` : '; full run (the reuse cache could not be written)';
 const summary = `selfcheck: ${fail ? 'FAIL' : 'ALL PASS'}${TAGS ? ` for ${TAGS.join(', ')}` : ''} (${pass} passed, ${fail} failed${skipped ? `, ${skipped} skipped: packs not installed here` : ''}${modeNote})`;
@@ -4993,4 +5175,7 @@ try { const { logRun } = await import('./hooks.mjs'); logRun(`node tools/hooks/s
 if (!TAGS) try { fs.mkdirSync(path.join(ROOT, 'tools/hooks/state'), { recursive: true }); fs.writeFileSync(path.join(ROOT, 'tools/hooks/state/selftest.json'), JSON.stringify({ at: localDay(), passed: !fail, count: pass, inputs: INPUTS0, mode: REUSE ? 'reused' : 'full' })); } catch { }
 // for a run that waited on this one (WHOLE_RUN): its result, to print as its own
 if (WHOLE_RUN) try { fs.writeFileSync(LAST, JSON.stringify({ pid: process.pid, at: new Date().toISOString(), code: fail ? 1 : 0, mode: REUSE ? 'reused' : 'full', lines: [...FAIL_LINES.slice(0, 40), summary] })); } catch { }
+// In the starter, a whole run where every test passed proves this engine for the projects made from it (PROOF_FILE,
+// hashed from the base the tests ran in, as the run started). A project made from it, or upgraded to it, reuses it.
+if (IS_STARTER && WHOLE_RUN && !fail) try { if (writeProof(ROOT, proofHash(B, CORE_SKILLS), pass)) console.log(`proof: ${PROOF_FILE} now names this engine (${pass} tests passed)`); } catch (e) { console.log(`proof: ${PROOF_FILE} could not be written (${e.message})`); }
 process.exit(fail ? 1 : 0);

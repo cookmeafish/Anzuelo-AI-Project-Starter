@@ -57,6 +57,40 @@ export function recordPass(stamp, info, file = cacheFile()) {
 // a temp folder that can't be written) which the stamp cannot see.
 export const SMOKE_EVERY = 40;
 
+// --- the starter's own proof ------------------------------------------------------------------------------------------
+// The starter runs every engine test on itself, and a whole run that passes writes PROOF_FILE: a hash of the engine as
+// the tests saw it (proofHash of its fixtures base). new-project copies that file with the engine. In a project whose
+// fixtures base hashes the same, byte for byte, that run already proved the engine, so the project's run needs only its
+// own scenarios and checks and a smoke set that proves this machine and Node run it. A changed engine file, a linked
+// starter with another engine, --full or --deep runs everything. The starter itself always runs everything.
+// Lesson: every new project's setup waited 5 to 16 minutes for the first full run of about 980 engine tests on an
+// engine the starter had already passed, because the result cache only knew passes made on that machine.
+export const PROOF_FILE = 'tools/hooks/engine-proof.json';
+// What the proof covers, in a fixtures base: the engine's code, checks, core runbooks and checklists, the core skills,
+// every pack and library payload, and the settings the fixtures run with (without the pack list, which only decides
+// which scenarios apply). The project's own content never reaches the base, and the hash leaves it out anyway.
+const PROOF_PATHS = /^(tools\/hooks\/(hooks|selfcheck|selftest-cache|trigger-cases|git-guard|wire)\.mjs|tools\/hooks\/engine-checks\.json|tools\/(audit|packs|writing-check|integrity-check|skills|starter|recall|survey|dedupe|fit)\.mjs|\.githooks\/[^/]+|docs\/checks\/(session-checklist|finish-checklist|runbook-standards|writing-standards|layout-standards|better-or-worse)\.md|docs\/playbooks\/(_TEMPLATE|_fallback|project|plan)\.md|packs\/.+|library\/.+)$/;
+export function proofHash(baseDir, coreSkills = []) {
+  const h = createHash('sha256');
+  const core = new RegExp(`^skills\\/(${coreSkills.map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') || '(?!)'})\\/`);
+  // (text is compared with its line endings made the same, so a checkout with CRLF proves the same engine)
+  const text = p => { const b = fs.readFileSync(p); return /\.(mjs|js|json|md|txt|html?|css|ya?ml|py|sh)$|^[^.]+$/i.test(path.basename(p)) ? Buffer.from(b.toString('utf8').replace(/\r\n/g, '\n')) : b; };
+  for (const [r] of manifest(baseDir)) if (PROOF_PATHS.test(r) || core.test(r)) { h.update(`${r}\0`); try { h.update(text(path.join(baseDir, r))); } catch { } h.update('\n'); }
+  let cfg = {}; try { cfg = JSON.parse(fs.readFileSync(path.join(baseDir, 'tools/hooks/config.json'), 'utf8')); } catch { }
+  for (const k of ['packs', 'externalHooks', 'hookContract', '_comment']) delete cfg[k];
+  const canon = v => Array.isArray(v) ? v.map(canon) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map(k => [k, canon(v[k])])) : v;
+  h.update(`config\0${JSON.stringify(canon(cfg))}`);
+  return h.digest('hex').slice(0, 24);
+}
+export function readProof(dir) { try { const j = JSON.parse(fs.readFileSync(path.join(dir, PROOF_FILE), 'utf8')); return j && typeof j.engine === 'string' ? j : null; } catch { return null; } }
+// written only when it changes, so a passing run on an unchanged engine leaves the file as it was
+export function writeProof(dir, engine, tests) {
+  const now = readProof(dir);
+  if (now && now.engine === engine && now.tests === tests) return false;
+  fs.writeFileSync(path.join(dir, PROOF_FILE), JSON.stringify({ _comment: 'Written by tools/hooks/selfcheck.mjs in the starter when every test passes: the hash of the engine those tests ran on. A project whose engine hashes the same reuses that result (tools/hooks/selftest-cache.mjs). Do not edit.', engine, tests }, null, 2) + '\n');
+  return true;
+}
+
 // --- who has to fix a failing test ------------------------------------------------------------------------------------
 // In a project, a failed run says plainly whose failure each one is. The project's own scenarios and checks are fixed
 // here. The engine's run in a copy that has only the starter's files, so the project's notes, runbooks and tools cannot

@@ -314,6 +314,11 @@ const DEFAULTS = {
     'rest assured', "in today's", 'fast-paced', 'tapestry', 'game-changer', 'game changer', 'seamlessly', 'unlock the power', 'elevate your', 'embark on',
     'navigate the complexities', 'a testament to', 'plays a crucial role', 'plays a vital role', 'plays a pivotal role', 'in the realm of',
     'at the end of the day', 'needless to say', 'without further ado', 'i hope you', 'in summary,', 'to summarize,', 'dive into', 'deep dive'],
+  // Filler phrases that are courtesy in a letter, email or message to another person: not flagged inside one (a draft in
+  // a drafts, letters, emails or messages folder, or the lines from a greeting to a sign-off). Warmth there is the point.
+  // Lesson: the writing check flagged "I hope you" in a tenant letter, the agent cut its only warm line, and the user
+  // said the letter sounded like a robot.
+  courtesy: ['i hope you', 'i hope this helps', 'hope this helps', 'feel free to', 'let me know if you have any', "i'd be happy to", 'i would be happy to', 'rest assured'],
   evidenceLabels: ['observed', 'user reported', 'source verified', 'document verified', 'measured', 'inferred', 'hypothesis', 'assumption', 'unresolved'],
   // a lasting requirement on the project's work (REQ: requirement-enforced); one-off instructions don't match
   // (Lesson: "every recipe needs a photo" and "reports without a chart are no good" were missed, and "this one report
@@ -1473,7 +1478,7 @@ function readsOf(uses) {
 // Lesson: the setup interview and the security review changed the hash at every setup step, so the reuse never applied.
 export function testInputsHash() {
   const h = createHash('sha1'), addText = (p, t) => { h.update(p + '\0'); h.update(t); }, add = p => { try { addText(p, fs.readFileSync(abs(p))); } catch { } };
-  const walk = (d, rx) => { for (const n of list(d).sort()) { const p = `${d}/${n}`; let s; try { s = walkStat(p); } catch { continue; } if (s.isDirectory()) { if (n !== 'state') walk(p, rx); } else if (rx.test(n) && n !== 'starter.local.json') add(p); } };
+  const walk = (d, rx) => { for (const n of list(d).sort()) { const p = `${d}/${n}`; let s; try { s = walkStat(p); } catch { continue; } if (s.isDirectory()) { if (n !== 'state') walk(p, rx); } else if (rx.test(n) && n !== 'starter.local.json' && n !== 'engine-proof.json') add(p); } }; // (the proof is a result of the tests, not an input)
   walk('tools', /\.(mjs|json)$/); walk('docs/checks', /\.md$/); walk('docs/playbooks', /\.md$/); walk(config().skillsDir, /\.(md|mjs)$/);
   add('AGENTS.md');
   const tidy = t => t.replace(/[ \t]+$/gm, '').replace(/\n{3,}/g, '\n\n').trim();
@@ -1501,6 +1506,14 @@ export function loggedRuns(since) {
 // A command without its here-document bodies: a patch script whose text names a test file is not a run of that test.
 // Lesson: "python - <<'EOF' ... test_hooks.py ... EOF" was taken as the last run of the project's hook tests.
 export const cmdHead = c => String(c || '').replace(/<<-?\s*(['"]?)(\w+)\1[^\n]*\n[\s\S]*?\n\s*\2\b/g, '<<$2');
+// A command the agent's tool refused before it started (a permission prompt, a hook's denial) never ran: it is no run of
+// any gate, passing or failing. Lesson: a refused command whose inline script only mentioned "audit.mjs --setup" was
+// taken as the last audit run, so Stop asked for the audit that had just passed.
+const NEVER_RAN = /^\s*(PreToolUse:\w+ hook (error|denied)|This (Bash |PowerShell )?command (contains multiple operations|requires approval)|Commands? that [^\n]{0,80}require[s]? (explicit )?approval|Permission to use \w+ (has been )?denied|The user doesn'?t want to (proceed|take this action)|Claude requested permissions)/i;
+export const neverRan = run => !!run && !!run.error && NEVER_RAN.test(String(run.out || ''));
+// A real run of a node script (node, then the script's path): a grep or an editor opening the file is not a run of it.
+// Lesson: "grep -n ... tools/hooks/selfcheck.mjs" was taken as the last self-test run, which "did not print ALL PASS".
+export const runsScript = (cmd, name) => new RegExp(`(^|[\\s;&|(])node(\\.exe)?["']?\\s+(--\\S+\\s+)*["']?[^\\s"';&|]*${esc(name)}\\b`).test(cmdHead(cmd));
 export function runsOf(entries) {
   const byId = new Map(), out = [];
   // the files edited before each run (editedBefore), so a check can tell a failure the turn found from one it caused
@@ -1632,8 +1645,14 @@ export function context(t, cfg, answerOverride) {
   const watches = pb => reqsNow.filter(q => [q.when.playbookUsed, q.when.playbookRouted].includes(pb.name))
     .flatMap(q => [q.when, ...(q.when.anyOf || [])].filter(w => w.filesChanged).map(w => ({ files: [].concat(w.filesChanged), ignore: [].concat(w.filesIgnore || []) })));
   const didItsWork = pb => watches(pb).some(w => changed.some(p => match(p, w.files) && !match(p, w.ignore)));
-  const lookTurn = setupTurn({ changed, cmds, since: t.since }) || routed.some(pb => !pb.name.startsWith('_')) ||
+  const setup = setupTurn({ changed, cmds, since: t.since });
+  const lookTurn = setup || routed.some(pb => !pb.name.startsWith('_')) ||
     !(work.length > 0 || (t.toolsKnown && uses.length >= cfg.workToolCalls));
+  // In setup, the request describes the project's future work ("letters to tenants"), so it routes to skills the setup
+  // only reads to configure them: there, routing alone does not make a skill read this turn a skill used. Invoking it,
+  // running its scripts, writing its report or naming it still counts.
+  // Lesson: a landlord setup read the correspondence skill, wrote no letter, and Stop asked for the saved draft.
+  const routedHere = s => routedSkills.includes(s) && !setup;
   const invoked = pb => skillsUsed.includes(pb.skillName) || helpers.some(([n, r]) => r === pb.file && skillsUsed.includes(n));
   // A skill opened and then really carried out counts as followed, whether or not the Skill tool invoked it: one of its
   // scripts ran (its sweep), or the turn wrote a dated report its own checks ask for (a file pattern such as
@@ -1655,7 +1674,7 @@ export function context(t, cfg, answerOverride) {
   // A skill only read (to explain it to the user) is not a skill used: reading counts when the request routed to it,
   // the answer names it, or one of its scripts ran. Lesson: describing two skills made their checks demand their outputs.
   let usedSkills = skills.filter(s => skillsUsed.includes(s.name) || ([s.file, ...cfg.skillMirrors.map(m => `${m}/${s.name}/SKILL.md`)].some(f => reads.has(f)) &&
-    (routedSkills.includes(s) || carriedOut(s.name) || re(`\\bskills?\\s*:\\s*\`?(skills/)?${esc(s.name)}\\b`).test(answerEn))));
+    (routedHere(s) || carriedOut(s.name) || re(`\\bskills?\\s*:\\s*\`?(skills/)?${esc(s.name)}\\b`).test(answerEn))));
   if (!t.toolsKnown) usedSkills = skills.filter(s => re(`\\bskills?\\s*:\\s*\`?(skills/)?${esc(s.name)}\\b`).test(answerEn));
   // Everything the agent wrote this turn (said), and what it wrote after its last change to a file (afterChange): a marker,
   // a waiver or a Finished section given once stays given, so a re-block never makes the answer repeat it.
@@ -2193,6 +2212,25 @@ export function verbatimHits(x, cfg = config()) {
 const BROWSER_CODE = /executablePath\s*[:=]|channel\s*:\s*['"](chrome|msedge|chrome-beta|msedge-beta)['"]|CHROME_BIN|(?<!chrome-win(64)?[\\/])(chrome|msedge)\.exe|Google[\\/]+Chrome[\\/]+Application|Microsoft[\\/]+Edge[\\/]+Application/i;
 
 // ---------- plain writing ----------
+// The lines of a letter, email or message to another person, where courtesy (cfg.courtesy) is warmth, not filler: the
+// whole file when it is a draft in a drafts, letters, correspondence, emails or messages folder (the correspondence skill
+// saves to outputs/drafts/), else each block from a greeting line ("Dear Sam,", "Hi Ana", "Hola Marta:") to the next
+// sign-off line ("Kind regards,", "Thanks,", "Un saludo,"). A doc or an answer with neither keeps every filler rule.
+const LETTER_DIR = /(^|\/)(drafts?|letters?|correspondence|e-?mails?|messages?)\//i;
+const GREETING = /^\s*(\*\*)?(dear|hi|hello|hey|good (morning|afternoon|evening)|greetings|hola|estimad[oa]s?|querid[oa]s?|buen[oa]s (d[ií]as|tardes|noches))\b(\[[^\]\n]*\]|[^\n.!?[]){0,60}[,:!]?(\*\*)?\s*$/i;
+const SIGN_OFF = /^\s*(\*\*)?((kind|best|warm|warmest|many|with)\s+(regards|wishes|thanks)|regards|best|yours( sincerely| faithfully| truly)?|sincerely|thanks( again)?|thank you|cheers|all the best|love|take care|saludos|un saludo|un abrazo|atentamente|cordialmente|gracias)\b(\[[^\]\n]*\]|[^\n.!?[]){0,25}[,.!]?(\*\*)?\s*$/i;
+export function letterLines(lines, where = 'answer') {
+  const out = new Set();
+  if (where !== 'answer' && where !== 'text' && LETTER_DIR.test(String(where).replace(/\\/g, '/'))) { lines.forEach((_, i) => out.add(i)); return out; }
+  for (let i = 0; i < lines.length; i++) {
+    if (!GREETING.test(lines[i])) continue;
+    const end = lines.findIndex((l, j) => j > i && SIGN_OFF.test(l));
+    if (end < 0) continue;
+    for (let j = i; j <= end; j++) out.add(j);
+    i = end;
+  }
+  return out;
+}
 // Problems a reader would notice: em dashes, filler phrases, walls of text, run-on sentences. Code and quotes are skipped.
 export function writingProblems(text, cfg = config(), where = 'answer') {
   const probs = [];
@@ -2209,12 +2247,14 @@ export function writingProblems(text, cfg = config(), where = 'answer') {
       .replace(/<[^>]*>/g, blank);
   const lines = src.replace(/```[\s\S]*?```/g, blank).replace(/`[^`\n]*`/g, '``').split(/\r?\n/);
   const at = i => where === 'answer' ? '' : `:${i + 1}`;
+  // courtesy phrases (cfg.courtesy) are warmth, not filler, in a letter, email or message to another person
+  const letter = letterLines(lines, where);
   lines.forEach((l, i) => {
     if (/^\s*>/.test(l)) return; // quoted text is the user's or a source's words
     if (/—/.test(l)) probs.push(`${where}${at(i)}: em dash ("—"). Use a period, comma, colon or parentheses instead`);
     else if (/\s–\s/.test(l)) probs.push(`${where}${at(i)}: en dash used as a dash (" – "). Use a period, comma or colon instead`);
     const low = l.toLowerCase().replace(/["“][^"”]*["”]/g, '');
-    for (const f of cfg.fluff) if (low.includes(f)) probs.push(`${where}${at(i)}: filler "${f}". Cut it or say the actual point`);
+    for (const f of cfg.fluff) if (low.includes(f) && !(letter.has(i) && (cfg.courtesy || []).includes(f))) probs.push(`${where}${at(i)}: filler "${f}". Cut it or say the actual point`);
   });
   // A blank quote line (">") ends a paragraph, and each quoted list item stands on its own. Lesson: a multi-line
   // blockquote with list items was counted as one long paragraph.
@@ -4488,7 +4528,10 @@ export function coreChecks(x, cfg) {
       'Say "noted in docs/starter-feedback.md for the starter", or run node tools/starter.mjs report and say what it printed.');
   // REQ: scope-separate (files changed this turn)
   const ppl = people(cfg);
-  if (ppl.length && !settingUp() && !x.changed.includes('SETUP-PROMPT.md')) {
+  // (not in the setup turn, which makes everyone's folder on purpose, also when it ends by deleting SETUP-PROMPT.md.
+  // Lesson: a landlord setup that made one folder per flat and then deleted the setup prompt was told the flats' files
+  // changed though the request was not about them.)
+  if (ppl.length && !setupTurn(x)) {
     const named = peopleFor(x.prompt, x.allPrompts, ppl);
     const touched = [...new Set(x.changed.map(p => personOf(p, cfg)).filter(Boolean))];
     const wrong = touched.filter(n => named.length ? !named.includes(n) : !re(cfg.ruleRequest).test(x.prompt));
@@ -4619,10 +4662,15 @@ export function coreChecks(x, cfg) {
       // an audit that ran the whole self-test (--setup, --full) counts as that run, so setup runs the suite once
       // Lesson: setup ran the self-tests and then the audit, which ran them again, under load past the time limits.
       const viaAudit = r => /\baudit\.mjs\b[^\n]*--(setup|full)\b/.test(cmdHead(r.cmd)) && /hook self-tests\s+\((selfcheck: (ALL PASS|FAIL)|passed earlier)|FAIL\s+\d+\. hook self-tests/.test(r.out || '');
-      const tests = x.runs.filter(r => (/selfcheck\.mjs/.test(r.cmd) && covers(r)) || viaAudit(r));
+      const tests = x.runs.filter(r => !neverRan(r) && ((runsScript(r.cmd, 'selfcheck.mjs') && covers(r)) || viaAudit(r)));
+      // A whole run that passed after the last change counts however it was started: the self-tests record their result
+      // (tools/hooks/state/selftest.json, with the hash of everything they test), so a pass inside "audit.mjs --setup"
+      // whose output went to a file, or a background run, is seen. Lesson: setup's audit had just run and passed the
+      // self-tests, and Stop still asked for them, because its output went into .cache/audit.txt.
+      const passedSince = () => { try { const f = path.join(STATE, 'selftest.json'), st = readJSON(f, {}); return need.all && st.passed === true && !!st.inputs && fs.statSync(f).mtimeMs >= (x.since || 0) - 2000 && st.inputs === testInputsHash(); } catch { return false; } };
       // without a transcript, x.runs is the run log (the self-tests record themselves), so the same rule applies
-      if (!tests.length) add('hooks-tested', `${need.all ? 'The hook logic changed' : `The checks ${need.tags.join(', ')} changed`}: run ${how} and fix any FAIL (fix the hook, not the test) before finishing.`);
-      else if (tests[tests.length - 1].out && !/ALL PASS|hook self-tests\s+\(passed earlier/.test(tests[tests.length - 1].out))
+      if (!tests.length) { if (!passedSince()) add('hooks-tested', `${need.all ? 'The hook logic changed' : `The checks ${need.tags.join(', ')} changed`}: run ${how} and fix any FAIL (fix the hook, not the test) before finishing.`); }
+      else if (tests[tests.length - 1].out && !/ALL PASS|hook self-tests\s+\(passed earlier/.test(tests[tests.length - 1].out) && !passedSince())
         add('hooks-tested', `The last run of ${how} did not print ALL PASS. Fix the failures (the hook, not the test) and run it again.`);
     }
   }
@@ -4854,8 +4902,11 @@ export function asksToChange(p, prompt) {
 const NOT_A_SOURCE = /^(AGENTS|CLAUDE|DIRECTORY|README)\.md$|^(docs\/(playbooks|checks)|skills|tools|\.claude|\.codex|\.cache)\//;
 export function citesOpened(x) {
   const a = String(x.answer || '');
+  // (group 1 is a path in backticks, group 2 a link target. Lesson: the groups were read one off, so "(from
+  // `exports/2026-W42.csv`)" kept its backticks and matched no opened file; an answer that did what the message asked
+  // was blocked twice, then rewritten with footnotes.)
   const named = [...a.matchAll(/(?<![\w/.-])(?:[\w.-]+\/)+[\w.-]*\w\.\w{1,5}\b|`([^`\n]+\.\w{1,5})`|\]\(<?([^)>\s]+)>?\)/g)]
-    .map(m => (m[2] || m[3] || m[0]).replace(/\\/g, '/').replace(/^\.\//, '').replace(/[.,;:)]+$/, ''));
+    .map(m => (m[1] || m[2] || m[0]).replace(/\\/g, '/').replace(/^\.\//, '').replace(/[.,;:)]+$/, ''));
   const files = [...new Set(named)].filter(p => !/^https?:/i.test(p) && !NOT_A_SOURCE.test(p) && !(x.changed || []).includes(p));
   const opened = p => x.toolsKnown ? (x.reads?.has(p) || (x.cmds || []).some(cmd => cmd.replace(/\\/g, '/').includes(p))) : exists(p);
   if (files.some(opened)) return true;
@@ -4928,7 +4979,7 @@ export function holds(c, x) {
   // toolPassed: the LAST run of a matching command printed its pass marker and no FAIL (it ran AND passed).
   if (c.toolPassed) {
     const spec = typeof c.toolPassed === 'string' ? { cmd: c.toolPassed } : c.toolPassed;
-    const runs = x.runs.filter(rn => r(spec.cmd).test(cmdHead(rn.cmd)));
+    const runs = x.runs.filter(rn => r(spec.cmd).test(cmdHead(rn.cmd)) && !neverRan(rn));
     // no tool history (another agent, or no hooks): the run log holds what ran. With nothing logged, a quick validator
     // is run here (capped at 20 s); a slow one is left to the agent, with the command that records it.
     if (!x.toolsKnown && !runs.length && spec.selfRun) {

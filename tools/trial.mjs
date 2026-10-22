@@ -287,7 +287,8 @@ if (deep) {
     reason: r.present ? `Worth it: ${r.item} is set up in this project and keeps its checks running / a little upkeep` : `${r.item} adds nothing this sample project needs, so it would only cost upkeep${r.signals.length ? `, even with ${r.signals.join(' and ')}` : ''}` }));
   fs.writeFileSync(path.join(WORK, 'deep-fit.json'), JSON.stringify(fitRows));
   node(['tools/fit.mjs', 'decide', '--file', path.join(WORK, 'deep-fit.json')], dir);
-  const t = node(['tools/hooks/selfcheck.mjs'], dir, 1800000);
+  // (--full: --deep is for the whole engine suite in a real project, not the starter's proof of it)
+  const t = node(['tools/hooks/selfcheck.mjs', '--full'], dir, 1800000);
   check('deep', "the engine's self-tests pass inside an adopted project mid-setup", fs.existsSync(path.join(dir, 'SETUP-PROMPT.md')) && /ALL PASS/.test(t.stdout), t.stdout.split('\n').filter(l => /^FAIL/.test(l)).slice(0, 5).join(' | '));
 }
 
