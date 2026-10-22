@@ -6,8 +6,10 @@
 // Markdown links), the folders to leave out (attachments, templates), and whether "knowledgeDirs" in
 // tools/hooks/config.json already registers it. It prints the knowledgeDirs line to add, and RESULT: PASS when every
 // note folder is registered, RESULT: FAIL <folders> otherwise. It never moves, renames or writes a note.
+//   node skills/notes-vault/scripts/vault.mjs backlinks <note>... [--root <dir>]  every note these newly link to links back
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const args = process.argv.slice(2);
@@ -90,4 +92,37 @@ if (cmd === 'scan') {
   hits.sort((a, b) => b.score - a.score);
   console.log(hits.length ? hits.slice(0, 10).map(h => `${h.p}  (${h.why.join(', ')})`).join('\n') : `no note on "${topic}" yet`);
   if (hits[0]?.score >= 8) console.log(`\nExtend ${hits[0].p} instead of starting a new note.`);
+} else if (cmd === 'backlinks') {
+  // Every note a note newly links to links back to it, so the link shows from both sides (Obsidian's graph, an agent
+  // following links). "Newly": the links the last commit's version of the note did not have; a note git does not
+  // know yet (or a folder without git) counts all its links. Only links to notes in note folders count, not links to
+  // sources, attachments or the starter's own files. RESULT: PASS, or RESULT: FAIL with each note missing its link back.
+  // Lesson: a new note linked to two notes and only one got a link back; the user noticed.
+  const files = rest.length ? rest : usage();
+  const folders = [...new Set([...registered(), ...noteFolders().map(f => f.dir)])];
+  const inNotes = r => folders.some(d => r === d || r.startsWith(d + '/'));
+  const all = folders.flatMap(d => fs.existsSync(path.join(ROOT, d)) ? mdFiles(path.join(ROOT, d)).map(rel) : []);
+  const byName = new Map(); for (const r of all) { const k = path.basename(r, '.md').toLowerCase(); if (!byName.has(k)) byName.set(k, r); }
+  // the notes a text links to: [[Name]], [[Name|label]], [[Name#heading]], [[Folder/Name]], and Markdown links to .md files
+  const targets = (text, from) => {
+    const out = new Set();
+    for (const m of text.matchAll(/\[\[([^\]|#]+)(?:[#|][^\]]*)?\]\]/g)) { const n = m[1].trim().replace(/\.md$/i, ''); const hit = all.find(r => r.toLowerCase() === `${n.toLowerCase()}.md`) || byName.get(path.basename(n).toLowerCase()); if (hit) out.add(hit); }
+    for (const m of text.matchAll(/\]\(<?([^)>]+?\.md)(?:#[^)]*)?>?\)/gi)) { if (/^[a-z]+:/i.test(m[1])) continue; let p = m[1]; try { p = decodeURIComponent(p); } catch { } const r = rel(path.resolve(path.dirname(path.join(ROOT, from)), p)); if (all.includes(r)) out.add(r); }
+    out.delete(from); return out;
+  };
+  // the note as the last commit had it ('' when git has no such note, or there is no git)
+  const before = r => { const g = spawnSync('git', ['show', `HEAD:${r}`], { cwd: ROOT, encoding: 'utf8' }); return g.status === 0 ? g.stdout : ''; };
+  const missing = [];
+  let checked = 0;
+  for (const f of files) {
+    const r = rel(path.resolve(ROOT, f));
+    if (!/\.md$/i.test(r) || !inNotes(r) || !fs.existsSync(path.join(ROOT, r))) continue;
+    checked++;
+    const now = targets(read(path.join(ROOT, r)), r), had = targets(before(r), r);
+    for (const t of now) if (!had.has(t) && !targets(read(path.join(ROOT, t)), t).has(r)) missing.push(`${t} does not link back to ${r}`);
+  }
+  if (!checked) { console.log('No notes to check (only notes in note folders count).\nRESULT: PASS'); process.exit(0); }
+  console.log(missing.length ? `${missing.map(m => `- ${m}`).join('\n')}\nAdd a link back where it makes sense (a "Related" line in that note). If one truly does not belong, say why in the answer.\nRESULT: FAIL ${missing.length} link(s) back missing`
+    : 'Every note these link to links back.\nRESULT: PASS');
+  process.exit(missing.length ? 1 : 0);
 } else usage();

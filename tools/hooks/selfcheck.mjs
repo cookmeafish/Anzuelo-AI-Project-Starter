@@ -15,7 +15,7 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { engineStamp, findPass, recordPass, localDay, SMOKE_EVERY, lockState, takeLock, releaseLock, otherSuites, registerSuite, shardCount } from './selftest-cache.mjs';
+import { engineStamp, findPass, recordPass, localDay, SMOKE_EVERY, lockState, takeLock, releaseLock, otherSuites, registerSuite, shardCount, failureCause } from './selftest-cache.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 // The self-tests make throwaway projects from this copy on purpose, even when it is a development copy (.starter-dev).
@@ -54,6 +54,7 @@ const SKIP_DIRS = new Set(['.git', 'node_modules', 'state', '.cache', '.private-
 // triggers on the engine's project runbook, and the hook-contract test counted the project's real hook file.
 const IS_STARTER = fs.existsSync(path.join(ROOT, '.starter-template'));
 let FIX_BASE = null, HOST_BASE = null;
+const ENGINE_CHANGED = []; // engine files this project changed (fixturesOnly), for failureCause
 function base(host = false) {
   if (host && !IS_STARTER) return HOST_BASE ||= buildBase(true);
   return FIX_BASE ||= buildBase(false);
@@ -232,10 +233,31 @@ function fixturesOnly(at, src) {
       const rel = `docs/checks/${n}`, from = [path.join(src, rel), packFile(rel)].find(p => p && fs.existsSync(p) && fs.statSync(p).isFile());
       if (from) fs.copyFileSync(from, at(rel)); else if (!/^flows$/.test(n)) fs.rmSync(at(rel), { recursive: true, force: true });
     }
+    // Every other file under docs/ as the starter or a pack ships it, and none of the project's own (its plans index,
+    // reviews, specs, feedback): they name the project's own runbooks and tools, which the base does not have, so the
+    // reference sweep of an audit run in the base failed, and every edit to them changed the engine stamp.
+    // Lesson: two setups spent 20 to 34 minutes rerunning the 10-minute self-test for one line in docs/plans/README.md
+    // that named the project's own script in code formatting.
+    const walkDocs = rel => { for (const n of ls(at(rel))) { const r = `${rel}/${n}`;
+      if (/^docs\/(playbooks|checks|names\.json$)/.test(r)) continue;
+      let s; try { s = fs.statSync(at(r)); } catch { continue; }
+      if (s.isDirectory()) { walkDocs(r); if (!ls(at(r)).length) fs.rmSync(at(r), { recursive: true, force: true }); continue; }
+      const from = [path.join(src, r), packFile(r)].find(p => p && fs.existsSync(p) && fs.statSync(p).isFile());
+      if (from) fs.copyFileSync(from, at(r)); else fs.rmSync(at(r), { force: true }); } };
+    walkDocs('docs');
     const walkTools = rel => { for (const n of ls(at(rel))) { const r = `${rel}/${n}`; if (r === 'tools/hooks/state' || r === 'tools/starter.local.json') continue;
       let s; try { s = fs.statSync(at(r)); } catch { continue; }
       if (s.isDirectory()) walkTools(r); else if (!fs.existsSync(path.join(src, r)) && !packFile(r) && !/^tools\/packs-registry\.json$/.test(r)) fs.rmSync(at(r), { force: true }); } };
     walkTools('tools');
+    // the engine files this project changed (the starter's own tools whose text here differs): the one way the project
+    // can still make an engine test fail, named when one does (failureCause)
+    const norm = p => { try { return fs.readFileSync(p, 'utf8').replace(/\r\n/g, '\n'); } catch { return null; } };
+    const walkDiff = rel => { for (const n of ls(at(rel))) { const r = `${rel}/${n}`; let s; try { s = fs.statSync(at(r)); } catch { continue; }
+      if (s.isDirectory()) { if (r !== 'tools/hooks/state') walkDiff(r); continue; }
+      // (the project's own settings and checks are meant to differ, and the base resets them anyway)
+      if (/^tools\/(hooks\/(config|requirements)\.json|hooks\/project-scenarios\.mjs|packs-registry\.json|starter\.local\.json)$/.test(r)) continue;
+      const theirs = norm(path.join(src, r)); if (theirs !== null && theirs !== norm(at(r))) ENGINE_CHANGED.push(r); } };
+    walkDiff('tools'); walkDiff('.githooks');
   }
   try { return src ? JSON.parse(fs.readFileSync(path.join(src, 'tools/hooks/config.json'), 'utf8')) : null; } catch { return null; }
 }
@@ -1164,6 +1186,13 @@ STOP.push(
   { name: 'mobile screen changed, then analyzed and tested: passes', prompt: 'add a settings screen to the flutter app', tools: [sk('mobile-app'), bash('flutter analyze', 'No issues found!'), bash('flutter test', 'All tests passed!')], files: { 'lib/settings_screen.dart': 'x' }, answer: 'Skill: mobile-app. Added the settings screen; flutter analyze and flutter test pass.' + FIN, expect: { not: ['mobile-checked'] } },
   // notes-vault (library)
   { name: 'notes-vault: a note changed without the link check: blocked', prompt: 'update the note on sleep in my vault with the new study', tools: [sk('notes-vault')], files: { 'Notes/Sleep.md': '# Sleep\n- Adults need 7 to 9 hours (sources/sleep-study.pdf, checked 2026-10-19)\n\n## Related\n- [Caffeine](Caffeine.md): affects sleep\n' }, answer: 'Skill: notes-vault. Added the finding to Notes/Sleep.md with its source and date.' + FIN, expect: { block: true, tags: ['vault-links-checked'] } },
+  // Lesson: a new note linked to two notes and only the closest got a link back; the user noticed the missing one
+  ...[['a new note links to two notes and only one links back: blocked', '# Sourdough starter\nFeed it daily.\n', { block: true, tags: ['vault-backlinks'], says: /Sourdough starter\.md/ }],
+    ['a new note links to two notes and both link back: passes', '# Sourdough starter\nFeed it daily.\n\n## Related\n- [[Autolyse]]\n', { not: ['vault-backlinks'] }]].map(([n, starter, expect]) => ({
+    name: `notes-vault: ${n}`, prompt: 'add a note on autolyse to my vault', tools: [sk('notes-vault'), bash('node skills/obsidian/scripts/notes.mjs check --all', 'NOTES: every link resolves')],
+    edit: { 'Baking/Hydration.md': () => '# Hydration\nWater per flour.\n', 'Baking/Sourdough starter.md': () => '# Sourdough starter\nFeed it daily.\n', 'Garden/Tomatoes.md': () => '# Tomatoes\nSee [[Hydration]].\n' },
+    files: { 'Baking/Autolyse.md': '# Autolyse\nRest flour and water before the [[Sourdough starter]] goes in. See [[Hydration]].\n', 'Baking/Hydration.md': '# Hydration\nWater per flour.\n\n## Related\n- [[Autolyse]]\n', 'Baking/Sourdough starter.md': starter },
+    answer: 'Skill: notes-vault. Added Baking/Autolyse.md and linked it. Every link resolves.' + FIN, expect })),
   { name: 'notes-vault: a note changed and the link check ran: passes', prompt: 'update the note on sleep in my vault with the new study', tools: [sk('notes-vault'), bash('node skills/obsidian/scripts/notes.mjs check --all', 'NOTES: every link resolves')], files: { 'Notes/Sleep.md': '# Sleep\n- Adults need 7 to 9 hours (sources/sleep-study.pdf, checked 2026-10-19)\n\n## Related\n- [Caffeine](Caffeine.md): affects sleep\n' }, answer: 'Skill: notes-vault. Added the finding to Notes/Sleep.md with its source and date. Every link resolves.' + FIN, expect: { not: ['vault-links-checked'] } },
   // package-release (library)
   { name: 'package version set without a dry run: blocked', prompt: 'publish the crate to crates.io', tools: [sk('package-release')], files: { 'Cargo.toml': '[package]\nname = "x"\nversion = "0.3.0"\n', 'CHANGELOG.md': '## 0.3.0' }, answer: 'Skill: package-release. Version set to 0.3.0.', expect: { block: true, tags: ['package-dry-run'] } },
@@ -1186,6 +1215,13 @@ STOP.push(
   { name: 'skill-reuse: a runbook an older turn snapshot already had is not new: passes', prompt: 'add a pitfall to the meal planning runbook', tools: [pb('project'), bash('node tools/audit.mjs')],
     prep: dir => write(dir, { 'tools/hooks/state/turn.json': JSON.stringify({ at: new Date(Date.now() - 7200_000).toISOString(), prompt: 'earlier', runbooks: [...fs.readdirSync(path.join(dir, 'docs/playbooks')), 'meal-plan.md'], skills: fs.readdirSync(path.join(dir, 'skills')) }) }),
     files: { 'docs/playbooks/meal-plan.md': NEWPB, 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.' + FIN, expect: { not: ['skill-reuse'] } },
+  // Lesson: a pack installed and a library skill enabled during setup made their shipped runbooks and skills "new", and
+  // the agent had to waive skill-reuse. The turn-start snapshot here has neither, as when the install ran this turn.
+  ...[['a pack\'s runbook and a library skill installed this turn are not new: passes', { 'docs/playbooks/ingest.md': '---\nname: ingest\nsummary: x\ntriggers: inbox\n---\n# Ingest\n- a new pitfall\n', 'skills/notes-vault/SKILL.md': '---\nname: notes-vault\ndescription: x. Use for notes.\ntriggers: my vault\n---\n# Notes vault\n- a new pitfall\n' }, { not: ['skill-reuse'] }],
+    ['a hand-written runbook made in the same turn is still new: blocked', { 'docs/playbooks/ingest.md': '---\nname: ingest\nsummary: x\ntriggers: inbox\n---\n# Ingest\n', 'docs/playbooks/meal-plan.md': NEWPB }, { tags: ['skill-reuse'], says: /meal-plan\.md/ }]].map(([n, files, expect]) => ({
+    pack: 'knowledge', name: `skill-reuse: ${n}`, prompt: 'set up this project for my notes', tools: [pb('project'), bash('node tools/audit.mjs')],
+    prep: dir => write(dir, { 'tools/hooks/state/turn.json': JSON.stringify({ at: new Date().toISOString(), prompt: 'set up this project for my notes', runbooks: fs.readdirSync(path.join(dir, 'docs/playbooks')).filter(n => n !== 'ingest.md'), skills: fs.readdirSync(path.join(dir, 'skills')).filter(n => n !== 'notes-vault') }) }),
+    files: { ...files, 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md. Worth it: x / y.' + FIN, expect })),
   { name: 'a loose new file in the project root: blocked', prompt: 'save my notes', files: { 'notes.txt': 'x' }, answer: 'Saved. N/A(runbook-exists): test.' + FIN, expect: { block: true, tags: ['root-tidy'] } },
   // fit after setup: a new data file a "skip" never answered makes that reason stale (Lesson: caught only by the audit)
   { name: 'fit-checklist: a turn adds a data file that a decided skip never answered: blocked', prompt: 'add the price list', removeMarker: true,
@@ -2978,7 +3014,7 @@ if (mineB() && SPEED) { // audit-selftests: a self-test run that timed out is a 
     // (the hook timing sweep would fail on a loaded machine and keep the self-test sweep from running at all)
     applyEdits(dir, cfgEdit({ hookBudgetMs: 600000 }));
     // (the stub keeps the real file's text as a comment: the audit reads it to see that every check has a scenario)
-    const audit = (stub, env = {}) => { fs.writeFileSync(sc, `${stub}/*\n${orig.replace(/\*\//g, '* /')}\n*/\n`); const r = nodeIn(dir, ['tools/audit.mjs', '--setup'], env, 120_000); return { code: r.status, out: r.stdout || '' }; };
+    const audit = (stub, env = {}) => { fs.writeFileSync(sc, `${stub}/*\n${orig.replace(/\*\//g, '* /')}\n*/\n`); const r = nodeIn(dir, ['tools/audit.mjs', '--setup'], { STARTER_AUDIT_SELFTESTS: 'always', ...env }, 120_000); return { code: r.status, out: r.stdout || '' }; };
     const line = out => (/^(PASS|FAIL|WARN)\s+\d+\. hook self-tests.*(\n {8}- .*)*/m.exec(out) || ['(no self-test sweep)'])[0].replace(/\n\s*/g, ' / ');
     const hang = audit('setTimeout(() => {}, 600000);\n', { STARTER_SELFTEST_TIMEOUT_MS: '3000' });
     const failing = audit("console.log('PASS  stop: one');\nconsole.log('FAIL  stop: alpha case  -> why');\nconsole.log('FAIL  prompt: beta case  -> why');\nconsole.log('\\nselfcheck: FAIL (1 passed, 2 failed)');\nprocess.exit(1);\n");
@@ -2990,6 +3026,94 @@ if (mineB() && SPEED) { // audit-selftests: a self-test run that timed out is a 
       && /^FAIL\s+\d+\. hook self-tests/.test(line(crash.out)) && /crashed/.test(line(crash.out)),
       'audit-selftests: a timed-out self-test run warns with what to run instead, failing tests are named after the last line too, and a crash still fails',
       `other failures: ${hang.out.split(/\r?\n/).filter(l => /^FAIL/.test(l)).join(' / ').slice(0, 400)} | hang: ${line(hang.out)} | failing: ${line(failing.out)} / last: ${last(failing.out)} | crash: ${line(crash.out)}`.slice(0, 1500));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+if (mineB() && SPEED && IS_STARTER) { // fixtures-only: a project's own docs (plans index, reviews) and tools never reach the engine's
+  // base, so they can't fail an engine test or change the engine stamp; an engine file the project changed still does
+  // (in the starter only: the test copy links to this folder as its starter, which inside a project is the project)
+  // Lesson: a line in docs/plans/README.md naming the project's own script failed the audit run in the base, and two
+  // setups reran the 10-minute self-test up to five times to find it.
+  const dir = copyProject(), tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-'));
+  try {
+    fs.rmSync(path.join(dir, '.starter-template'), { force: true });
+    write(dir, { 'tools/starter.local.json': JSON.stringify({ path: ROOT }) });
+    const env = { STARTER_SELFTEST_CACHE: path.join(tmp, 'passes.json'), STARTER_SELFTEST_RUNNING: path.join(tmp, 'running') };
+    const manifestNow = () => { try { return JSON.parse(nodeIn(dir, ['tools/hooks/selfcheck.mjs', '--fixture-manifest'], env).stdout); } catch { return { files: {} }; } };
+    // (the names are built here: written out whole in code formatting, this file's own reference sweep would flag them)
+    const tick = '`', ownTool = ['tools', 'check-recipe.mjs'].join('/'), ownPb = ['docs', 'playbooks', 'receta.md'].join('/');
+    write(dir, { [ownTool]: 'console.log("RESULT: PASS");\n', [ownPb]: '---\nname: receta\nsummary: x\ntriggers: receta\n---\n# Receta\n',
+      'docs/reviews/security-2026-10-21.md': `# Review\n- ${tick}node ${ownTool}${tick} and ${tick}${ownPb}${tick} checked\n` });
+    fs.appendFileSync(path.join(dir, 'docs/plans/README.md'), `\n- Recipes: ${tick}node ${ownTool}${tick}\n`);
+    const m1 = manifestNow();
+    fs.appendFileSync(path.join(dir, 'docs/plans/README.md'), `- Build: ${tick}node ${ownTool} --all${tick}\n`);
+    write(dir, { 'docs/reviews/security-2026-10-22.md': '# Review\n- again\n' });
+    const m2 = manifestNow();
+    fs.appendFileSync(path.join(dir, 'tools/hooks/hooks.mjs'), '\n// an engine file changed\n');
+    const m3 = manifestNow();
+    const sha = p => createHash('sha1').update(fs.readFileSync(path.join(ROOT, p))).digest('hex');
+    const leaked = Object.keys(m1.files).filter(k => /check-recipe|receta|docs\/reviews\//.test(k));
+    report(!!m1.stamp && !leaked.length && m1.files['docs/plans/README.md'] === sha('docs/plans/README.md') && m2.stamp === m1.stamp && !!m3.stamp && m3.stamp !== m1.stamp,
+      'fixtures-only: the project\'s own plans index, reviews, runbooks and tools stay out of the engine\'s base and its stamp; a changed engine file still changes the stamp',
+      JSON.stringify({ s1: m1.stamp, s2: m2.stamp, s3: m3.stamp, leaked, plansIndex: m1.files['docs/plans/README.md'] === sha('docs/plans/README.md') }));
+  } finally { for (const d of [dir, tmp]) try { fs.rmSync(d, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); } catch { } }
+}
+if (mineB()) { // failure-cause: a failed run in a project says whose failure each one is
+  const eng = failureCause({ engineFailed: ['stop: a'] }), chg = failureCause({ engineFailed: ['stop: a'], changed: ['tools/hooks/hooks.mjs'] });
+  const own = failureCause({ projectFailed: ['stop: own case'] }), none = failureCause({});
+  report(eng.length === 1 && /^engine tests failed \(caused by the engine, not by this project\)/.test(eng[0]) && /starter\.mjs feedback/.test(eng[0])
+    && chg.length === 1 && /^engine tests failed \(caused by this project's changes to engine files, fixable here\)/.test(chg[0]) && /tools\/hooks\/hooks\.mjs/.test(chg[0])
+    && own.length === 1 && /^project tests failed \(caused by this project, fix them here/.test(own[0]) && !none.length,
+    'failure-cause: an engine failure says it is the engine\'s (report it) unless the project changed an engine file (named, fixable here); a project test failure says to fix it here; a pass says nothing',
+    JSON.stringify({ eng, chg, own, none }).slice(0, 900));
+}
+if (mineB() && SPEED) { // failure-cause in the audit: in a project, a failure of the engine as shipped is a warning to report it, so setup
+  // can finish; a project test failure, or an engine failure after the project changed an engine file, still fails
+  const dir = copyProject();
+  try {
+    fs.rmSync(path.join(dir, '.starter-template'), { force: true });
+    applyEdits(dir, cfgEdit({ hookBudgetMs: 600000 }));
+    const sc = path.join(dir, 'tools/hooks/selfcheck.mjs'), orig = fs.readFileSync(sc, 'utf8');
+    const line = out => (/^(PASS|FAIL|WARN)\s+\d+\. hook self-tests.*(\n {8}- .*)*/m.exec(out) || ['(no self-test sweep)'])[0].replace(/\n\s*/g, ' / ');
+    const audit = cause => { fs.writeFileSync(sc, `console.log('FAIL  stop: alpha case  -> why');\nconsole.log('\\nselfcheck: FAIL (1 passed, 1 failed)');\nconsole.log(${JSON.stringify(cause)});\nprocess.exit(1);\n/*\n${orig.replace(/\*\//g, '* /')}\n*/\n`);
+      return line(nodeIn(dir, ['tools/audit.mjs', '--setup'], { STARTER_AUDIT_SELFTESTS: 'always' }, 120_000).stdout || ''); };
+    const engine = audit(failureCause({ engineFailed: ['stop: alpha case'] })[0]);
+    const project = audit(failureCause({ projectFailed: ['stop: alpha case'] })[0]);
+    const changed = audit(failureCause({ engineFailed: ['stop: alpha case'], changed: ['tools/hooks/hooks.mjs'] })[0]);
+    fs.writeFileSync(sc, orig);
+    report(/^WARN\s+\d+\. hook self-tests.*caused by the engine, not by this project/.test(engine) && /FAIL stop: alpha case/.test(engine)
+      && /^FAIL\s+\d+\. hook self-tests.*project tests failed \(caused by this project/.test(project) && /^FAIL\s+\d+\. hook self-tests.*changes to engine files/.test(changed),
+      'failure-cause: in a project the audit warns (report it) for an engine failure as shipped, and fails for a project test or a changed engine file',
+      `engine: ${engine} | project: ${project} | changed: ${changed}`.slice(0, 1500));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+if (mineB()) { // setup-complete people: one owner with qualifiers, or staff who are only app accounts, is one person; a list of
+  // real people or a count is several. Lesson: any comma read as "several people" and demanded profiles, and agents
+  // reworded their answers without commas to get past.
+  const dir = copyProject();
+  try {
+    fs.rmSync(path.join(dir, '.starter-template'), { force: true });
+    const cases = [
+      ['Me (owner), plus maybe a helper later', 'one'],
+      ['one - the project is run by the shop owner; the three staff are users of the app, stored as accounts in its database and sharing one inventory, so there is no per-person project data to keep apart in profiles/', 'one'],
+      ['answered - several staff accounts in one app, sharing one inventory (no per-person data to keep apart, so no profiles/)', 'one'],
+      ['assumed - one - a single owner; family members appear only as recipe authors', 'one'],
+      ['one (the user owns the site; a recipe may credit a relative by first name)', 'one'],
+      ['just me, and a bookkeeper who only reads the reports', 'one'],
+      ['Ana, Luis and Marta', 'several'],
+      ['me and my partner', 'several'],
+      ['3 (flat-1, flat-2, flat-3)', 'several'],
+      ['several - each flat has its own tenants, whose data stays in its own folder', 'several'],
+      ['assumed - several (one folder per flat in profiles/, so tenants\' data stays apart)', 'several']];
+    const href = JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href);
+    const got = JSON.parse(nodeIn(dir, ['--input-type=module', '-e', `import { peopleAnswer } from ${href}; console.log(JSON.stringify(${JSON.stringify(cases.map(c => c[0]))}.map(peopleAnswer)));`]).stdout || '[]');
+    const wrong = cases.filter((c, i) => got[i] !== c[1]).map(c => `${c[0].slice(0, 50)} -> ${got[cases.indexOf(c)]}`);
+    // the gate itself: the qualified single owner passes, a list of people without profiles is asked for them
+    const gate = people => { applyEdits(dir, { 'docs/DECISIONS.md': s => withoutInterview(s) + INTERVIEW('neither, a test fixture', 'no', 'core only', 'enabled none').replace('- People: one', `- People: ${people}`) });
+      return nodeIn(dir, ['--input-type=module', '-e', `import { setupCompleteness } from ${href}; console.log(setupCompleteness(undefined, { final: true }).join('\\n'));`]).stdout || ''; };
+    const single = gate(cases[0][0]), list = gate('Ana, Luis and Marta');
+    report(!wrong.length && !/several people/.test(single) && /several people: create profiles\/<name>\/PROFILE\.md/.test(list),
+      'setup-complete people: a single owner with qualifiers or staff who are app accounts is one person (no profiles asked); a list of names or a count is several',
+      `${wrong.join(' | ')} | single: ${single.slice(0, 200)} | list: ${list.slice(0, 200)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 if (mineB() && SPEED) { // test-inputs: the audit's reuse hash ignores what the test copies drop (setup interview, review rows), not rules or checks
@@ -4096,6 +4220,27 @@ if (mineB()) { // wire: a vault the user had hides the engine's folders; the eng
     report((va.userIgnoreFilters || []).includes('tools/') && !ea.userIgnoreFilters && ea.useMarkdownLinks === true, 'wire: a vault the user had hides the engine folders; a new project keeps the engine settings only', `${JSON.stringify(va)} | ${JSON.stringify(ea)}`);
   } finally { for (const d of [v, e]) fs.rmSync(d, { recursive: true, force: true }); }
 }
+if (mineB()) { // wire: an adopted vault also hides the engine's records, rule files and work folders, merged with the user's own
+  // exclusions, every other setting untouched, and the user's own files of those names still shown
+  // (Lesson: an adopted vault showed AGENTS.md, DIRECTORY.md, docs/, inbox/ and more among the user's notes)
+  const v = fs.mkdtempSync(path.join(os.tmpdir(), 'vault-')), old = fs.mkdtempSync(path.join(os.tmpdir(), 'vault-'));
+  try {
+    const APP = { userIgnoreFilters: ['Archive/'], attachmentFolderPath: 'Attachments', showLineNumber: true };
+    for (const d of [v, old]) write(d, { '.obsidian/app.json': JSON.stringify(APP, null, 2) + '\n', '.obsidian/appearance.json': '{"theme":"obsidian"}\n', 'Baking/Hydration.md': '# Hydration\n', 'README.md': '# My vault\n' });
+    // new-project's list of what the folder had before the starter (old: a vault adopted before that list existed)
+    write(v, { '.starter/original-files.txt': '.obsidian/app.json\n.obsidian/appearance.json\nBaking/Hydration.md\nREADME.md\n' });
+    const W = JSON.stringify(pathToFileURL(path.join(ROOT, 'tools/hooks/wire.mjs')).href);
+    for (const d of [v, old]) spawnSync(process.execPath, ['--input-type=module', '-e', `import { wire } from ${W}; wire(${JSON.stringify(d)}); wire(${JSON.stringify(d)});`], { encoding: 'utf8' });
+    const va = JSON.parse(fs.readFileSync(path.join(v, '.obsidian/app.json'), 'utf8')), oa = JSON.parse(fs.readFileSync(path.join(old, '.obsidian/app.json'), 'utf8'));
+    const f = va.userIgnoreFilters || [];
+    const hidden = ['AGENTS.md', 'CLAUDE.md', 'DIRECTORY.md', 'HOW-TO-USE.md', 'docs/', 'inbox/', 'outputs/', 'sources/', 'tools/', 'skills/'].every(x => f.includes(x));
+    report(hidden && f[0] === 'Archive/' && !f.includes('README.md') && new Set(f).size === f.length && va.attachmentFolderPath === 'Attachments' && va.showLineNumber === true
+      && fs.readFileSync(path.join(v, '.obsidian/appearance.json'), 'utf8') === '{"theme":"obsidian"}\n'
+      && (oa.userIgnoreFilters || []).includes('tools/') && !(oa.userIgnoreFilters || []).includes('docs/') && oa.attachmentFolderPath === 'Attachments',
+      'wire: an adopted vault hides the engine\'s rule files, docs and work folders too, after the user\'s own exclusions and once, keeps every other setting, and still shows the user\'s own README; without the list of the user\'s files only the engine folders are hidden',
+      `${JSON.stringify(va)} | ${JSON.stringify(oa)}`.slice(0, 900));
+  } finally { for (const d of [v, old]) fs.rmSync(d, { recursive: true, force: true }); }
+}
 
 if (mineB()) { // plan-required during the work: a turn adding new files hears it needs a plan before reaching the limit, once
   // (Lesson: reviewers found plans written after the work, only to satisfy the Stop check)
@@ -4628,6 +4773,8 @@ const summary = `selfcheck: ${fail ? 'FAIL' : 'ALL PASS'}${TAGS ? ` for ${TAGS.j
 console.log(`\n${summary}`);
 // the failing tests' names again, after the summary, so a run whose output is cut to its last lines still names them
 if (FAILED.length && !HELPER) console.log(`failing tests: ${FAILED.slice(0, 12).join(' | ')}${FAILED.length > 12 ? ` | and ${FAILED.length - 12} more` : ''}`);
+// in a project: whose failure each one is (selftest-cache.mjs failureCause)
+if (FAILED.length && !HELPER && !IS_STARTER) for (const l of failureCause({ engineFailed, projectFailed: FAILED.filter(projectTest), changed: ENGINE_CHANGED })) console.log(l);
 // recorded for agents whose tool history the hooks can't read (REQ: hooks-tested)
 try { const { logRun } = await import('./hooks.mjs'); logRun(`node tools/hooks/selfcheck.mjs ${process.argv.slice(2).join(' ')}`.trim(), `selfcheck: ${fail ? 'FAIL' : 'ALL PASS'}${TAGS ? ` for ${TAGS.join(', ')}` : ''} (${pass} passed, ${fail} failed)`, !!fail); } catch { }
 // a whole run is what the upgrade review asks for (REQ: upgrade-review); with engine results reused it counts too, since

@@ -57,7 +57,22 @@ export function recordPass(stamp, info, file = cacheFile()) {
 // a temp folder that can't be written) which the stamp cannot see.
 export const SMOKE_EVERY = 40;
 
-// --- one suite at a time per project ----------------------------------------------------------------------------------
+// --- who has to fix a failing test ------------------------------------------------------------------------------------
+// In a project, a failed run says plainly whose failure each one is. The project's own scenarios and checks are fixed
+// here. The engine's run in a copy that has only the starter's files, so the project's notes, runbooks and tools cannot
+// cause them: either the project changed an engine file (named), or the engine as shipped fails on this machine, which is
+// reported to the starter instead of chased with reruns.
+// Lesson: agents reworded their own notes and reran the 10-minute self-test up to five times for an engine test failure.
+export function failureCause({ engineFailed = [], projectFailed = [], changed = [] } = {}) {
+  const out = [], few = l => `${l.slice(0, 5).join(' | ')}${l.length > 5 ? ` | and ${l.length - 5} more` : ''}`;
+  if (projectFailed.length) out.push(`project tests failed (caused by this project, fix them here: its own scenarios in tools/hooks/project-scenarios.mjs and its checks in tools/hooks/requirements.json): ${few(projectFailed)}`);
+  if (engineFailed.length) out.push(changed.length
+    ? `engine tests failed (caused by this project's changes to engine files, fixable here): they run in a copy with only the starter's files, and these engine files differ from the starter's: ${few(changed)}. Fix or restore them; this project's notes, runbooks and tools are not in that copy, so rewording them changes nothing: ${few(engineFailed)}`
+    : `engine tests failed (caused by the engine, not by this project): they run in a copy with only the starter's files, so nothing in this project can fix them and a rerun gives the same result. Report it once with node tools/starter.mjs feedback "<test name>: <its why>", say so in the answer, and go on: ${few(engineFailed)}`);
+  return out;
+}
+
+// --- one suite at a time per project----------------------------------------------------------------------------------
 // A second run while one is going waits for it and reuses its result, instead of doubling the load. A lock whose
 // process is gone, or that is older than LOCK_MAX_MS, is stale and taken over.
 // Lesson: agents started a second audit or self-test while the first was still running in the background.

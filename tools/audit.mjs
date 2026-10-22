@@ -495,7 +495,10 @@ if (process.argv.includes('--full') || process.argv.includes('--setup')) {
       // --setup: the self-tests take minutes, so they wait until the quick sweeps pass, and a full pass from earlier counts
       // while nothing they test has changed since. --full always runs them. Lesson: each setup retry cost 11 minutes.
       if (!process.argv.includes('--full')) {
-        if (results.some(r => r.status === 'FAIL')) return { warn: ['skipped until the failures above are fixed (the self-tests take minutes)'] };
+        // (STARTER_AUDIT_SELFTESTS=always: the self-test sweep runs anyway. Its own scenario sets it, so a quick sweep
+        // failing in the test copy can't hide what that scenario checks. Lesson: in two projects that scenario failed
+        // only because the copy's reference sweep failed, and the agents chased it for 20 to 34 minutes.)
+        if (results.some(r => r.status === 'FAIL') && process.env.STARTER_AUDIT_SELFTESTS !== 'always') return { warn: ['skipped until the failures above are fixed (the self-tests take minutes)'] };
         const st = (() => { try { return JSON.parse(read(abs('tools/hooks/state/selftest.json'))); } catch { return {}; } })();
         // (the same day only: the fixtures carry dates, so a pass from another day may not hold today)
         if (st.passed && st.inputs && st.at === today() && st.inputs === testInputsHash()) return { note: `passed earlier today (${st.count} tests) and nothing they test has changed since` };
@@ -515,8 +518,15 @@ if (process.argv.includes('--full') || process.argv.includes('--setup')) {
       if (r.status === 0) return { note: summary };
       // the names of the failing tests, so no second run is needed to find them (also repeated after the audit's last line)
       const failing = lines.filter(l => l.startsWith('FAIL')).map(l => l.replace(/^FAIL\s+/, ''));
+      // whose failure it is (selftest-cache.mjs failureCause), first, so the agent knows where the fix belongs
+      const cause = lines.filter(l => /^(engine|project) tests failed \(/.test(l));
+      const body = [summary, ...cause, ...failing.slice(0, 15).map(l => `FAIL ${l.slice(0, 400)}`), ...(failing.length > 15 ? [`and ${failing.length - 15} more (node tools/hooks/selfcheck.mjs lists them)`] : [])];
+      // In a project, a failure of the engine as shipped is the starter's to fix: nothing here can change it, so it does
+      // not hold up the project (a warning that says to report it). Lesson: setups could not finish, and reran the
+      // self-test again and again, for an engine test the project had no part in.
+      if (!isTemplate && cause.length === 1 && /^engine tests failed \(caused by the engine, not by this project\)/.test(cause[0])) return { warn: body };
       selfTestFailures.push(...failing.map(l => l.replace(/\s+->.*$/, '')));
-      return { fail: [summary, ...failing.slice(0, 15).map(l => `FAIL ${l.slice(0, 400)}`), ...(failing.length > 15 ? [`and ${failing.length - 15} more (node tools/hooks/selfcheck.mjs lists them)`] : [])] };
+      return { fail: body };
     });
   }
   // in the starter: the trial proves on sample projects that new, adopt and upgrade never make a project worse

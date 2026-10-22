@@ -1026,6 +1026,40 @@
             "toolRan": "notes\\.mjs\\s+check"
           },
           "message": "Notes-vault skill: notes changed, so run the link check: node skills/obsidian/scripts/notes.mjs check --all (note folders outside docs/ are read only with --all). Fix every broken link this turn caused and report the ones that were already there."
+        },
+        {
+          "tag": "vault-backlinks",
+          "rule": "12",
+          "when": {
+            "skillUsed": "notes-vault",
+            "filesChanged": [
+              "**/*.md"
+            ],
+            "filesIgnore": [
+              "docs/STATUS.md",
+              "docs/CHANGELOG.md",
+              "docs/DECISIONS.md",
+              "docs/glossary.md",
+              "docs/plans/**",
+              "outputs/**",
+              "skills/**",
+              "library/**",
+              "packs/**",
+              ".claude/**",
+              ".agents/**",
+              ".codex/**"
+            ]
+          },
+          "require": {
+            "runEach": {
+              "files": [
+                "**/*.md"
+              ],
+              "cmd": "node skills/notes-vault/scripts/vault.mjs backlinks \"{file}\"",
+              "pass": "RESULT: PASS"
+            }
+          },
+          "message": "Notes-vault skill: a note now links to a note that does not link back. Add the link back in that note (a \"Related\" line) where it makes sense; the hook runs node skills/notes-vault/scripts/vault.mjs backlinks on each changed note. If a link back truly does not belong, waive it with the reason: node tools/hooks/hooks.mjs waive vault-backlinks \"<why>\"."
         }
       ]
     },
