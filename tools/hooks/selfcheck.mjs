@@ -2231,6 +2231,83 @@ STOP.push(
   { name: 'legal-disclaimer: a legal reading without the line: blocked', prompt: 'check this lease clause for problems', tools: [sk('legal-review')],
     answer: 'The clause puts every repair on the tenant, which many places do not allow.\n\nSkill: legal-review', expect: { tags: ['legal-disclaimer'] } }
 );
+// Runs the permission system refused, gates that can't run, and how Stop reads commands (trial round v7). Each fix has
+// its negative case: the true case still fires.
+const REFUSE = (c, out = 'This command requires approval') => ({ ...bash(c, out), error: true });
+const NOT_VER = '\nNOT VERIFIED: the tests - npm test needs an approval this session could not give.';
+const GATE_FEATURE = { pack: 'app', prompt: 'add a feature to export reports as csv', files: SPEC, ...testGate };
+STOP.push(
+  // gate-refused: a gate whose command the permission system refused asks once for the honest line, which then meets it
+  { ...GATE_FEATURE, name: 'app-test-pass: the test command was refused (approval): round 1 asks for the NOT VERIFIED line, not another run', tools: [pb('feature'), REFUSE('npm test')],
+    answer: 'Playbook: feature.md.\n' + VERIF + FIN, expect: { block: true, tags: ['app-test-pass'], says: /NOT VERIFIED[\s\S]*Don't run it again this turn/ } },
+  { ...GATE_FEATURE, name: 'app-test-pass: the test command was refused and the answer says NOT VERIFIED: passes', tools: [pb('feature'), REFUSE('npm test')],
+    answer: 'Playbook: feature.md.\n' + VERIF + NOT_VER + FIN, expect: { not: ['app-test-pass'] } },
+  { ...GATE_FEATURE, name: 'app-test-pass: refused, and the answer says plainly the tests never ran: passes', tools: [pb('feature'), REFUSE('npm test')],
+    answer: 'Playbook: feature.md. The tests are written, but none has run yet: npm test waits for an approval.\n' + VERIF + FIN, expect: { not: ['app-test-pass'] } },
+  { ...GATE_FEATURE, name: 'app-test-pass: refused only for its form (several commands in one line): still asks to run it on its own', tools: [pb('feature'), REFUSE('npm test; git status', 'This Bash command contains multiple operations. The following part requires approval: git status')],
+    answer: 'Playbook: feature.md.\n' + VERIF + NOT_VER + FIN, expect: { block: true, tags: ['app-test-pass'], says: /on its own/ } },
+  { ...GATE_FEATURE, name: 'app-test-pass: the tool is not installed ("not recognized") and the answer says NOT VERIFIED: passes', tools: [pb('feature'), { ...bash('npm test', "'npm' is not recognized as an internal or external command"), error: true }],
+    answer: 'Playbook: feature.md.\n' + VERIF + NOT_VER + FIN, expect: { not: ['app-test-pass'] } },
+  { ...GATE_FEATURE, name: 'app-test-pass: a missing module with no install tried: still asks to install and run it', tools: [pb('feature'), { ...bash('npm test', "Error: Cannot find module 'jest'"), error: true }],
+    answer: 'Playbook: feature.md.\n' + VERIF + NOT_VER + FIN, expect: { block: true, tags: ['app-test-pass'], says: /install them first/ } },
+  { ...GATE_FEATURE, name: 'app-test-pass: a missing module whose install was refused, and NOT VERIFIED: passes', tools: [pb('feature'), REFUSE('npm ci'), { ...bash('npm test', "Error: Cannot find module 'jest'"), error: true }],
+    answer: 'Playbook: feature.md.\n' + VERIF + NOT_VER + FIN, expect: { not: ['app-test-pass'] } },
+  { ...GATE_FEATURE, name: 'app-test-pass: refused, then a real run that failed: the failure stands', tools: [pb('feature'), REFUSE('npm test'), { ...bash('npm test', 'not ok 1 rows\n1 failed'), error: true }],
+    answer: 'Playbook: feature.md.\n' + VERIF + NOT_VER + FIN, expect: { block: true, tags: ['app-test-pass'] } },
+  // gate-chain: a gate in a longer line counts where its own result shows
+  { ...GATE_FEATURE, name: 'app-test-pass: run in a line, followed by && echo whose text printed: passes', tools: [pb('feature'), bash('git diff --stat | tail -1; npm test && echo TESTS-OK; git status --short', ' 2 files changed\nTests: 12 passed\nTESTS-OK\n M src/export.js')],
+    answer: 'Playbook: feature.md.\n' + VERIF + FIN, expect: { not: ['app-test-pass'] } },
+  { ...GATE_FEATURE, name: 'app-test-pass: run last in a line after ";", joined by &&, the line succeeded: passes', tools: [pb('feature'), bash('git status --short; npm test && git diff --stat', 'Tests: 12 passed\n 1 file changed')],
+    answer: 'Playbook: feature.md.\n' + VERIF + FIN, expect: { not: ['app-test-pass'] } },
+  { ...GATE_FEATURE, name: 'app-test-pass: run with "; echo" after it: its own result is unknown, blocked', tools: [pb('feature'), bash('npm test; echo TESTS-DONE', 'not ok 1 rows\nTESTS-DONE')],
+    answer: 'Playbook: feature.md.\n' + VERIF + FIN, expect: { block: true, tags: ['app-test-pass'] } },
+  { ...GATE_FEATURE, name: 'app-test-pass: after a ||, an echo can print although the tests never ran: blocked', tools: [pb('feature'), bash('git pull || npm test && echo TESTS-OK', 'Already up to date.\nTESTS-OK')],
+    answer: 'Playbook: feature.md.\n' + VERIF + FIN, expect: { block: true, tags: ['app-test-pass'] } },
+  // debug-refused: a refused test run is no failure
+  { name: 'debug-trigger: a reported crash whose test run was refused (approval): no root cause asked', prompt: 'the export crashes on empty rows',
+    tools: [W('src/export.test.js'), REFUSE('npm test'), W('src/export.js')],
+    files: { 'src/export.test.js': 'x', 'src/export.js': 'x', 'docs/CHANGELOG.md': 'x' }, answer: 'Fixed. NOT VERIFIED: the tests - npm test needs an approval.' + FIN, expect: { not: ['debug-trigger'] } },
+  // waive-not-run: a waiver whose reason names a project check's script is no run of that check
+  { name: 'toolPassed: the validator passed, then a waiver named it: still passes', prompt: 'add the new vendor data', edit: VALIDATOR,
+    tools: [pb('project'), bash('python tools/validate.py data/v.json', 'RESULT: PASS'), bash('node tools/hooks/hooks.mjs waive spec-written "data only; tools/validate.py already passed"', 'waived for this turn: spec-written (data only; tools/validate.py already passed)')],
+    files: { 'data/v.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md' + FIN, expect: { not: ['data-valid'] } },
+  { name: 'toolPassed: only a waiver named the validator, it never ran: blocked', prompt: 'add the new vendor data', edit: VALIDATOR,
+    tools: [pb('project'), bash('node tools/hooks/hooks.mjs waive spec-written "data only; tools/validate.py covers it"', 'waived for this turn: spec-written (data only; tools/validate.py covers it)')],
+    files: { 'data/v.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md' + FIN, expect: { block: true, tags: ['data-valid'] } },
+  // hooks-tested: the self-test command refused outright asks for the honest line too
+  { name: 'hooks-tested: the self-tests were refused (approval) and the answer says NOT VERIFIED: passes', prompt: 'add a check for meal plans', tools: [pb('project'), bash('node tools/audit.mjs'), REFUSE('node tools/hooks/selfcheck.mjs --tags meal-ok')],
+    prep: turnStart('requirements.json', NEW_CHECK), files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.\nNOT VERIFIED: the hook self-tests - the command needs an approval this session could not give.' + FIN, expect: { not: ['hooks-tested'] } },
+  { name: 'hooks-tested: the self-tests were refused and the answer is silent about it: asks for the NOT VERIFIED line', prompt: 'add a check for meal plans', tools: [pb('project'), bash('node tools/audit.mjs'), REFUSE('node tools/hooks/selfcheck.mjs --tags meal-ok')],
+    prep: turnStart('requirements.json', NEW_CHECK), files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.' + FIN, expect: { block: true, tags: ['hooks-tested'], says: /NOT VERIFIED/ } },
+  // review-maintained: maintaining the security-review skill in the same turn does not undo carrying it out
+  { pack: 'app', name: 'review-evidence: the skill\'s triggers edited, then its sweep run and report written: security-code passes', prompt: 'add a feature to export reports as csv',
+    tools: [sk('security-review'), editTool('skills/security-review/SKILL.md'), editTool('docs/playbooks/security-review.md'), bash('node skills/security-review/scripts/risky-patterns.mjs src', 'scanned 1 file(s) under src; 0 lead(s) to check by hand.')],
+    files: { ...AUTH, ...SEC_LOG, 'docs/reviews/security-2026-10-20.md': '# Security review\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'The form checks the user now. The security review passed - details in docs/reviews/security-2026-10-20.md' + FIN, expect: { not: ['security-code'] } },
+  { pack: 'app', name: 'review-evidence: the skill\'s script edited and then run, no report: security-code still blocks', prompt: 'add a feature to export reports as csv',
+    tools: [sk('security-review'), editTool('skills/security-review/scripts/risky-patterns.mjs'), bash('node skills/security-review/scripts/risky-patterns.mjs src', 'scanned 1 file(s) under src; 0 lead(s) to check by hand.')],
+    files: { ...AUTH, 'docs/CHANGELOG.md': 'x' }, answer: 'The form checks the user now.' + FIN, expect: { block: true, tags: ['security-code'] } },
+  // check-proven: the problem the user named is not in the project, the answer says so, and a written sample of it fails
+  { name: 'check-proven: the problem is not in the project, the answer says so, a written sample fails and real pages pass: passes', prompt: 'otra vez pusiste texto en inglés en la página!! todo en español',
+    prep: preexisting('src/aviso.njk', 'tests/build.mjs'), files: { 'tools/check-aviso.mjs': '// idioma\n', 'src/aviso.njk': 'Borrador: todavía no se publica', 'tests/build.mjs': 'x', 'docs/CHANGELOG.md': 'x' },
+    tools: [editTool('tests/build.mjs'), { name: 'Write', input: { file_path: '.cache/muestras/ingles.html', content: '<a href="#c">Skip to content</a>\n' } },
+      { ...bash('cd "/c/x" && node tools/check-aviso.mjs .cache/muestras/ingles.html', 'FAIL .cache/muestras/ingles.html: skip, content\nRESULT: FAIL'), error: true }, bash('node tools/check-aviso.mjs src/aviso.njk _site/index.html', 'RESULT: PASS')],
+    answer: 'No encontré texto en inglés en ninguna página del blog. Aun así, una comprobación nueva lo impide desde ahora.\nProbado: falla con una página con "Skip to content"; pasa con src/aviso.njk y _site/index.html\n\n## Terminado\n- Hecho. Archivos: docs/x.md',
+    expect: { not: ['check-proven'] } },
+  { name: 'check-proven: a written sample fails after the fix, but the answer does not say the problem was missing: blocked, and the runs read plainly', prompt: 'otra vez pusiste texto en inglés en la página!! todo en español',
+    prep: preexisting('src/aviso.njk', 'tests/build.mjs'), files: { 'tools/check-aviso.mjs': '// idioma\n', 'src/aviso.njk': 'Borrador: todavía no se publica', 'tests/build.mjs': 'x', 'docs/CHANGELOG.md': 'x' },
+    tools: [editTool('tests/build.mjs'), { name: 'Write', input: { file_path: '.cache/muestras/ingles.html', content: '<a href="#c">Skip to content</a>\n' } },
+      { ...bash('cd "/c/x" && node tools/check-aviso.mjs .cache/muestras/ingles.html', 'FAIL .cache/muestras/ingles.html: skip, content\nRESULT: FAIL'), error: true }, bash('node tools/check-aviso.mjs src/aviso.njk _site/index.html', 'RESULT: PASS')],
+    answer: 'Corregí la página. Una comprobación nueva lo impide desde ahora.\nProbado: falla con una página con "Skip to content"; pasa con src/aviso.njk y _site/index.html\n\n## Terminado\n- Hecho. Archivos: docs/x.md',
+    expect: { tags: ['check-proven'], says: /"node tools\/check-aviso\.mjs \.cache\/muestras\/ingles\.html" FAIL, but after the fix/ } },
+  // label-format (a Stop scenario too): the visual-review line in bold inside a list meets the check
+  { pack: 'gui', name: 'gui-review-report: "**Revisión visual:** correcta tras 2 rondas" as a bold list item meets the check', prompt: 'haz que la página del panel se vea más limpia',
+    tools: [pb('gui'), bash('node tools/screenshot.mjs --url x', GUISHOT(0)), { name: 'Read', input: { file_path: SHOT } }], files: { 'site/index.html': '<h1>x</h1>', [SHOT]: 'png' }, mtimes: { 'site/index.html': -500 },
+    answer: 'Guía: gui.md\n**Verificación**\n- **Revisión visual:** correcta tras 2 rondas; la primera arregló el contraste del botón.\n- **Accesibilidad:** teclado, foco y contraste - correcta.' + ES_FIN, expect: { not: ['gui-review-report'] } },
+  { pack: 'gui', name: 'gui-review-report: a bold "Revisión visual" list item with no verdict still asks for the line', prompt: 'haz que la página del panel se vea más limpia',
+    tools: [pb('gui'), bash('node tools/screenshot.mjs --url x', GUISHOT(0)), { name: 'Read', input: { file_path: SHOT } }], files: { 'site/index.html': '<h1>x</h1>', [SHOT]: 'png' }, mtimes: { 'site/index.html': -500 },
+    answer: 'Guía: gui.md\n- **Revisión visual** pendiente de otra ronda.\n- **Accesibilidad:** teclado, foco y contraste - correcta.' + ES_FIN, expect: { tags: ['gui-review-report'] } }
+);
 PROMPT.push(
   { name: 'answer-language: a Spanish task gets the Spanish labels hint', prompt: 'agrega una página de índice con todas las recetas ordenadas por categoría', has: ['LANGUAGE: the user writes in Spanish', 'Causa raíz:'] },
   { name: 'answer-language: an English task gets no language hint', prompt: 'add an index page with all the recipes sorted by category', hasNot: ['LANGUAGE:'] }
@@ -3654,6 +3731,36 @@ if (mineB()) {
     ['claim-never-again', /won't happen again/i, 'La corregí para que no vuelva a pasar.']];
   for (const [tag, rx, s] of CORE) { if (!rx.test(h.inEnglish(s))) bad.push(`${tag}: the Spanish form "${s}" does not meet it`); if (rx.test(h.inEnglish(PLAIN))) bad.push(`${tag}: a Spanish answer without the label meets it`); }
   report(!bad.length, 'answer-language: every label a shipped check reads in the answer has a Spanish form that meets it, and the bare answer does not', bad.join('; '));
+  // label-format: every label a check reads meets it however Markdown dresses it: **Label:**, **Label**:, *Label:*,
+  // __Label:__, each also as a list item. A list item with no label is not made into one ("- Finished the import" is no
+  // Finished section). Lesson: "**Revisión visual:** correcta tras 5 rondas" was blocked four times, and the agent moved
+  // the line out of its bullet list to get past the check.
+  const STYLES = [l => `**${l}:**`, l => `**${l}**:`, l => `*${l}:*`, l => `__${l}:__`];
+  const dress = (text, st, item) => text.split('\n').map(line => {
+    const m = /^(\s*)([^\s*_#|`[-][^:\n*_|`]{0,59}?):(\s+|$)(.*)$/.exec(line);
+    return m ? `${m[1]}${item ? '- ' : ''}${st(m[2])} ${m[4]}`.trimEnd() : line;
+  }).join('\n');
+  const EN_CORE = [['gui-review-report', /visual review:\s*(pass|stopped)[\s\S]*\bround/i, 'Visual review: PASS after 2 rounds - the header no longer overlaps'],
+    ['assumed', /^assumed:/im, 'Assumed: the title - none was given - one edit'], ['upset-checked', /^checked\s*:/im, 'Checked: docs/menu.md - no allergens listed'],
+    ['upset-learned', /learned\s*\((rule)\)\s*:\s*.+→/i, 'Learned (rule): every page is in Spanish → docs/x.md'], ['claim-checked', /\bnot verified\b/i, 'NOT VERIFIED: the tests - Go is not installed']];
+  const fbad = []; let dressed = 0;
+  for (const st of STYLES) for (const item of [false, true]) {
+    for (const q of shipped) {
+      if (!q || !branches(q.require || {}).some(b => b.answerMatches)) continue;
+      const s = sample(q); if (!s || !/^[^\n:]{1,60}:\s/m.test(s)) continue;
+      const d = dress(s, st, item); dressed++;
+      if (!meets(q, d)) fbad.push(`${q.tag}: "${d.slice(0, 50)}" does not meet it`);
+    }
+    for (const [tag, rx, s] of [...CORE, ...EN_CORE]) {
+      if (!/:\s/.test(s)) continue;
+      const d = dress(s, st, item); dressed++;
+      if (!rx.test(h.inEnglish(d))) fbad.push(`${tag}: "${d.slice(0, 50)}" does not meet it`);
+    }
+  }
+  if (h.holds({ answerMatches: String.raw`^\s*(#{1,6}\s*|\*\*)?finished\b` }, { answer: h.inEnglish('- Finished the import\n- **Visual review** is next'), uses: [], changed: [] })) fbad.push('a list item without a label met finished-summary');
+  if (/visual review:\s*(pass|stopped)/i.test(h.inEnglish('- **Visual review** is next: the header'))) fbad.push('a bold word followed later by a colon read as a visual-review label');
+  if (h.plainLabel('- https://example.com/a') !== '- https://example.com/a' || h.plainLabel('- 10:30 standup') !== '- 10:30 standup') fbad.push('a link or a time in a list item was read as a label');
+  report(!fbad.length && dressed >= 80, 'label-format: every label a check reads meets it in bold, italic or __bold__ and as a list item; a list item without a label stays one', fbad.join('; ') || `only ${dressed} dressed samples`);
 }
 
 // message-example: a check's own message never asks for something its require rejects. Every example the message gives
@@ -5231,7 +5338,7 @@ if (mineB() && INSTALLED.includes('app')) { // app gates: their own pass lines, 
     const r = spawnSync(process.execPath, ['tools/packs.mjs', 'configure', 'app', '--test', 'npm test', '--build', 'npm run build', '--build-pass', 'BUILD OK'], { cwd: dir, encoding: 'utf8' });
     const reqs = JSON.parse(fs.readFileSync(path.join(dir, 'tools/hooks/requirements.json'), 'utf8')).requirements, gates = JSON.parse(fs.readFileSync(path.join(dir, 'tools/hooks/config.json'), 'utf8')).commitGate;
     const b = reqs.find(q => q.tag === 'app-build-pass'), t = reqs.find(q => q.tag === 'app-test-pass');
-    report(r.status === 0 && b?.require.toolPassed.pass === 'BUILD OK' && t?.require.toolPassed.pass === '' && /its own command/.test(b?.message || '') && gates.some(g => g.app && g.pass === 'BUILD OK'),
+    report(r.status === 0 && b?.require.toolPassed.pass === 'BUILD OK' && t?.require.toolPassed.pass === '' && /its own result shows/.test(b?.message || '') && /NOT VERIFIED/.test(b?.message || '') && gates.some(g => g.app && g.pass === 'BUILD OK'),
       'commit-gate: packs.mjs configure --build-pass sets the gate\'s own pass line', `${r.stdout}${r.stderr}`.slice(0, 300));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }

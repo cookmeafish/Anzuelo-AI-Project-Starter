@@ -1307,6 +1307,9 @@ function removedLines(entries, fixes) {
 // passed. Returns { checks, missing[] }: missing is empty when it is proven.
 // Lesson: checks written after a complaint passed the exact code complained about (tried only on made-up junk), or
 // failed ordinary words of the user's own language and legitimate letters (never run on a good sample).
+// The answer says the problem the user named is not in the project: "I couldn't find any English on the pages",
+// "No encontré texto en inglés".
+const NOT_FOUND = /\b(could ?n[o']t|could not|did ?n[o']t|did not|can'?t|cannot) (find|reproduce|see|spot)\b|\bnot reproduc\w*|\b(found|finds|shows?) (no|nothing|none)\b|\bnothing (was )?found\b|(?<!\p{L})(no (encontr[eé]|hall[eé]|vi|veo|aparece)|no (pude|he podido|logr[eé]) (encontrar|reproducir|ver|hallar)|no (hay|había) (ningún |ninguna )?rastro)(?!\p{L})/iu;
 export function checkProof(x) {
   const checks = newProjectChecks(x);
   if (!checks.length) return { checks, missing: [] };
@@ -1343,11 +1346,21 @@ export function checkProof(x) {
   const namesSaved = r => { for (const cp of savedCopies(r.cmd)) if (cp.git || !(r.editedBefore || []).some(p => fixes.has(p)) || cp.srcs.some(s => isSaved(pathKey(s)))) saved.push(pathKey(cp.dest));
     return wordsOf(cmdHead(r.cmd)).some(w => /[\\/.]/.test(w) && isSaved(pathKey(w))); };
   const oldRuns = new Set(all.filter(namesSaved));
-  const onOld = r => !(r.editedBefore || []).some(p => fixes.has(p)) || gitOld(all.indexOf(r)) || oldRuns.has(r);
+  // The problem the user named is not in the project at all, and the answer says so: the earlier state can't fail, so a
+  // sample of that problem written this turn stands for it. Lesson: a user said there was English on the Spanish blog;
+  // the agent found none, proved its new check on a written English page (FAIL) and on real pages (PASS), and was
+  // blocked twice and waived the check, because only copies of the earlier state counted.
+  const notFound = NOT_FOUND.test(String(x.answer || ''));
+  const written = new Set();
+  if (notFound) for (const r of x.entries || []) { const c = r.type === 'assistant' && r.message?.content; if (Array.isArray(c)) for (const u of c) if (u?.type === 'tool_use' && u.name === 'Write' && u.input?.file_path) written.add(pathKey(u.input.file_path)); }
+  const onSample = r => notFound && wordsOf(cmdHead(r.cmd)).some(w => /[\\/.]/.test(w) && written.has(pathKey(w)) && !checks.includes(pathKey(w)));
+  const onOld = r => !(r.editedBefore || []).some(p => fixes.has(p)) || gitOld(all.indexOf(r)) || oldRuns.has(r) || onSample(r);
   if (!runs.some(r => failed(r) && onOld(r))) missing.push('no run of the check failed on the state the user complained about');
   if (!runs.some(passed)) missing.push('no run of the check passed');
   // what was seen, so the message says what counted and what did not (and the agent need not guess a waiver reason)
-  const seen = runs.slice(-4).map(r => `"${cmdHead(r.cmd).replace(/\s+/g, ' ').slice(0, 70)}" ${failed(r) ? (onOld(r) ? 'FAIL on the earlier state' : 'FAIL, but after the fix and not on a saved copy') : 'PASS'}`);
+  // (without a leading "cd <project> &&", which filled the 70 characters. Lesson: every run read only as "cd" and the start of the project's path)
+  const shown = c => shellParts(cmdHead(c)).parts.filter(p => !/^\(?\s*(cd|Set-Location|pushd)\s/i.test(p)).join(' ; ') || cmdHead(c);
+  const seen = runs.slice(-4).map(r => `"${shown(r.cmd).replace(/\s+/g, ' ').slice(0, 70)}" ${failed(r) ? (onOld(r) ? (onSample(r) ? 'FAIL on a sample of the problem' : 'FAIL on the earlier state') : 'FAIL, but after the fix and not on a saved copy') : 'PASS'}`);
   return { checks, missing, seen, stems };
 }
 export function toolUses(entries) {
@@ -1610,8 +1623,69 @@ export const cmdHead = c => String(c || '').replace(/<<-?\s*(['"]?)(\w+)\1[^\n]*
 // A command the agent's tool refused before it started (a permission prompt, a hook's denial) never ran: it is no run of
 // any gate, passing or failing. Lesson: a refused command whose inline script only mentioned "audit.mjs --setup" was
 // taken as the last audit run, so Stop asked for the audit that had just passed.
-const NEVER_RAN = /^\s*(PreToolUse:\w+ hook (error|denied)|This (Bash |PowerShell )?command (contains multiple operations|requires approval)|Commands? that [^\n]{0,80}require[s]? (explicit )?approval|Permission to use \w+ (has been )?denied|The user doesn'?t want to (proceed|take this action)|Claude requested permissions)/i;
+// (the tool's own refusals of a line it can't check count too. Lesson: "go version" refused as "malformed syntax ...
+// the command line is too long" read as a run that failed)
+const NEVER_RAN = /^\s*(PreToolUse:\w+ hook (error|denied)|This (Bash |PowerShell )?command (contains multiple operations|requires approval)|Commands? that [^\n]{0,80}require[s]? (explicit )?approval|Permission to use \w+ (has been )?denied|The user doesn'?t want to (proceed|take this action)|Claude requested permissions|Command contains malformed syntax that cannot be parsed|A variable in this command can'?t be checked before it runs|Contains [^\n]{0,60}\(expansion obfuscation\)|cd in '[^'\n]*' was blocked)/i;
 export const neverRan = run => !!run && !!run.error && NEVER_RAN.test(String(run.out || ''));
+// A refusal of the command itself (an approval nobody can give in this session, or the user said no), as against a
+// refusal of its form (several commands in one line, a cd with a redirect, a line too long, a variable the tool can't
+// check), which the same command run on its own gets past, and a hook's denial, which says what to fix.
+const FORM_REFUSED = /contains multiple operations|change directories and write via output redirection|malformed syntax|can'?t be checked before it runs|command line is too long|obfuscation|^\s*PreToolUse:/i;
+export const refusedOutright = run => neverRan(run) && !FORM_REFUSED.test(String(run.out || '').slice(0, 400));
+// A gate that can't run here: its last attempt was refused outright, or its tool is missing (the program itself, or a
+// dependency whose install this turn was refused or failed). Returns '' (it can run), 'refused' or 'missing'.
+// Lesson: Go's commands and pytest's install needed an approval nobody could give; Stop asked three rounds in a row to
+// run the tests, the agent retried the refused command each time, and each turn showed the same answer three times.
+const NO_PROGRAM = /is not recognized as (an internal|the name)|command not found|: not found\b|executable file not found/i;
+const INSTALL_CMD = /\b(pip3?|python3?(\.exe)?\s+-m\s+pip|uv\s+pip|uv)\s+(install|sync)\b|\b(npm|pnpm|yarn)\s+(ci|install|i|add)\b|\b(poetry|bundle|composer)\s+install\b|\bgo\s+(mod\s+download|install|get)\b|\bcargo\s+(fetch|install)\b|\b(winget|choco|brew|apt(-get)?)\s+install\b/i;
+// The program a command starts ("go" in "go vet ./...", "npm" in "npm run build"; a path's last part).
+// A general interpreter's script says nothing about another script ("python -m pytest" refused is no refusal of
+// "python tools/check.py"), so it has no program here, except a module it runs ("pytest" in ".venv/Scripts/python -m
+// pytest -q").
+const INTERPRETER = /^(python\d*(\.\d+)?|py|node|bash|sh|pwsh|powershell|cmd)$/;
+const programOf = cmd => {
+  const w = (shellParts(cmdHead(cmd)).parts.find(p => !/^\(?\s*(cd|Set-Location|pushd)\s/i.test(p)) || '').trim().split(/\s+/).map(s => s.replace(/^["'(]+|["']+$/g, ''));
+  const p = (w[0] || '').split(/[\\/]/).pop().replace(/\.exe$/i, '').toLowerCase();
+  return INTERPRETER.test(p) ? (w[1] === '-m' && /^[\w.-]+$/.test(w[2] || '') ? w[2].toLowerCase() : '') : p;
+};
+export function cantRun(attempts, allRuns = [], gateCmd = '') {
+  const last = attempts[attempts.length - 1];
+  // never tried, but its program was refused outright or missing this turn, and never ran: "go build" after "go test"
+  // was refused, or the gate's own form after "python -m pytest" found no pytest and its install was refused
+  if (!last) {
+    // (a line refused for its form says nothing about the program)
+    const prog = programOf(gateCmd), same = prog ? allRuns.filter(r => programOf(r.cmd) === prog && (!neverRan(r) || refusedOutright(r))) : [];
+    return same.length && gateCmd ? cantRun(same, allRuns) : '';
+  }
+  if (refusedOutright(last)) return 'refused';
+  if (neverRan(last)) return '';
+  const out = String(last.out || '');
+  if (!MISSING_TOOL.test(out)) return '';
+  if (NO_PROGRAM.test(out)) return 'missing';
+  return allRuns.some(r => INSTALL_CMD.test(cmdHead(r.cmd)) && (refusedOutright(r) || (r.error && !neverRan(r)))) ? 'missing' : '';
+}
+// The answer says honestly that this did not run: a "NOT VERIFIED: <what> - <why>" line, or a sentence that names the
+// tests, build or command and says it did not run.
+const NOT_RUN_SAID = /\b(not (been |yet )?(run|ran|compiled|built|tested|verified|checked)|n'?t (been )?(run|ran|compiled|built|tested)|nothing (has been |was |got )?(run|compiled|built|tested)|never (ran|run|compiled|built)|none (of them )?(has|have) (been )?run|could ?n[o']t (run|be run)|can'?t (run|be run)|requires? (an )?approval|needs? (your |an )?approval|wait(s|ed|ing)? for (an |your )?approval|(is|are)n'?t installed|not installed)\b/i;
+export function saysNotRun(text, cmd = '') {
+  const t = String(text || '');
+  if (/\bnot verified\b|\bunverified\b/i.test(t)) return true;
+  // (the program: "pytest" in ".venv/Scripts/python -m pytest -q", "go" in "go test ./...", "audit" in "node tools/audit.mjs")
+  const prog = String(cmd).split(/\s+/).filter(w => !/^-/.test(w)).map(w => w.replace(/^["']|["']$/g, '').split(/[\\/]/).pop().replace(/\.(exe|cmd|bat|ps1|mjs|cjs|js|py)$/i, ''))
+    .find(w => /^[A-Za-z][\w-]*$/.test(w) && !/^(python3?|py|node|npx|bash|sh|cmd|pwsh|uv|run)$/i.test(w)) || '';
+  const what = new RegExp(`\\b(tests?|build|compil\\w*|lint\\w*|vet|type ?check\\w*|audit|self-?tests?|checks?|code${prog ? `|${esc(prog)}` : ''})\\b`, 'i');
+  return t.split(/(?<=[.!?\n])\s+/).some(s => what.test(s) && NOT_RUN_SAID.test(s));
+}
+// What a gate that can't run asks for instead: one honest line, in round 1, never the same refused command again.
+export function cantRunStep(kind, cmd) {
+  const why = kind === 'refused' ? `the permission system refused \`${cmd}\` this turn (it needs an approval nobody can give here)` : `\`${cmd}\` can't run here: its tool or a dependency is not installed, and installing it was refused or failed`;
+  return { detail: `${why}. Don't run it again this turn. Say so once in the answer instead: "NOT VERIFIED: <what did not run> - <why it couldn't run>", and claim nothing it would have shown`,
+    short: `Say what was NOT VERIFIED and why: ${String(cmd).slice(0, 28)} ${kind === 'refused' ? 'was refused' : 'can\'t run here'}` };
+}
+// A command that only talks to the engine (a waiver, "why", "last"), with nothing else in it: no run of any project
+// check, whatever its text names. Lesson: a project check's command pattern matched a waiver's reason that named the
+// check's script, so the waiver became the check's "last run", which had no pass line.
+export const engineNote = cmd => shellParts(cmdHead(cmd)).parts.every(p => /^\(?\s*(cd|Set-Location|pushd)\s/i.test(p) || /hooks\.mjs["']?\s+(waive|why|last|unwaive)\b/.test(p));
 // A real run of a node script (node, then the script's path): a grep or an editor opening the file is not a run of it.
 // Lesson: "grep -n ... tools/hooks/selfcheck.mjs" was taken as the last self-test run, which "did not print ALL PASS".
 export const runsScript = (cmd, name) => new RegExp(`(^|[\\s;&|(])node(\\.exe)?["']?\\s+(--\\S+\\s+)*["']?[^\\s"';&|]*${esc(name)}\\b`).test(cmdHead(cmd));
@@ -1706,6 +1780,21 @@ export function gateResult(run, spec = {}) {
   }
   if (alone) return run.error ? { ok: false, why: 'it exited with an error' } : { ok: true, why: '' };
   if (!run.error && ops.every(o => o === '&&')) return { ok: true, why: '' };
+  // A gate inside a longer line has its own exit status where the line shows it: every part after it is joined by &&
+  // and the line succeeded, or an "echo <text>" later in its && chain printed that text (it runs only if the gate
+  // passed). Not after a || in its part of the line, which can skip the gate. Lesson: "tests | tail; compileall && echo
+  // BUILD-OK; git status" printed BUILD-OK, and Stop still asked for the build to be run on its own.
+  const i = spec.cmd ? parts.findIndex(p => re(spec.cmd, 'i').test(cmdHead(p))) : -1;
+  if (i >= 0) {
+    const start = ops.slice(0, i).reduce((s, o, k) => (o === ';' || o === '&' ? k + 1 : s), 0);
+    if (!ops.slice(start, i).includes('||')) {
+      if (!run.error && ops.slice(i).every(o => o === '&&') && ops.slice(start, i).every(o => o === '&&' || o === '|')) return { ok: true, why: '' };
+      for (let k = i + 1; k < parts.length && ops[k - 1] === '&&'; k++) {
+        const said = /^(?:echo|Write-Output|Write-Host|printf)\s+(?:-\w+\s+)*(["']?)([^"'\n]*?)\1\s*$/i.exec(parts[k])?.[2]?.trim() || '';
+        if (said.length >= 3 && /[A-Za-z]/.test(said) && !/[$%`]/.test(said) && String(run.out || '').includes(said)) return { ok: true, why: '' };
+      }
+    }
+  }
   return { ok: false, why: 'it ran with other commands after ; or |, or a command in its && chain failed, so its own result is unknown. Run the gate exactly as written, on its own (a gate that is an && chain stays one)' };
 }
 
@@ -1763,10 +1852,15 @@ export function context(t, cfg, answerOverride) {
   const ranScript = n => cmds.some(c => new RegExp(`skills[\\\\/]${esc(n)}[\\\\/]scripts`).test(c));
   const reqFiles = c => !c || typeof c !== 'object' ? [] : [...[].concat(c.filesChanged || []), ...(c.anyOf || []).flatMap(reqFiles)];
   const reportOf = n => reqsNow.filter(q => q.when.skillUsed === n).flatMap(q => reqFiles(q.require)).filter(g => g.includes('*'));
-  const carriedOut = n => !!n && !maintained(`${cfg.skillsDir}/${n}/SKILL.md`, n) && (ranScript(n) || (reportOf(n).length > 0 && changed.some(p => match(p, reportOf(n)))));
+  // Maintaining the skill in the same turn does not undo carrying it out: its dated report written this turn always
+  // counts, and its script run counts unless the turn edited that script (then the run may be the edit's own test).
+  // Lesson: setup added trigger words to the security-review skill, then ran its sweep and wrote its report, and Stop
+  // still asked for the review because the skill had been "maintained".
+  const carriedOut = n => !!n && ((ranScript(n) && !edited.some(p => p.startsWith(`${cfg.skillsDir}/${n}/scripts/`))) ||
+    (reportOf(n).length > 0 && changed.some(p => match(p, reportOf(n)))));
   let usedPb = pbs.filter(pb => (reads.has(pb.file) || (pb.skillName && skillOpened(pb.skillName)) ||
     helpers.some(([n, r]) => r === pb.file && skillOpened(n))) &&
-    (!maintained(pb.file, pb.skillName) || routed.includes(pb) || namesIt(pb.name) || skillsUsed.includes(pb.skillName)) &&
+    (!maintained(pb.file, pb.skillName) || routed.includes(pb) || namesIt(pb.name) || skillsUsed.includes(pb.skillName) || carriedOut(pb.skillName)) &&
     (invoked(pb) || routed.includes(pb) || namesIt(pb.name) || didItsWork(pb) || carriedOut(pb.skillName) || !lookTurn));
   // Without tool history, the runbook the answer names ("Playbook: x.md" / "Skill: x") is taken as the one followed.
   if (!t.toolsKnown) usedPb = pbs.filter(pb => namesIt(pb.name));
@@ -2465,10 +2559,26 @@ export const LABELS_ES = [
 ];
 // REQ: worth-it. The weighing of an addition: the marker, or a plain sentence that names the gain and the cost.
 export const WORTH_IT = /\bworth it\s*:\s*\S[^\n]*\/|\bworth (it|adding|having|the cost)\b[^\n]{0,200}\b(cost|costs|price|downside|trade-?off)\b|\b(cost|costs|downside)\b[^\n]{0,200}\bworth (it|adding|having)\b/i;
+// A label line as the checks read it: without Markdown emphasis around the label ("**Label:**", "**Label**:",
+// "*Label:*", "__Label:__") and without the list marker or quote in front of it ("- **Label:** ..."), so every check
+// that reads a label meets it however the answer formats it. Only a line whose start is a short label followed by a
+// colon is touched: "- Finished the import" stays a list item.
+// Lesson: "**Revisión visual:** correcta tras 5 rondas" was blocked four times although the line was there, and the
+// agent moved it out of its bullet list to get past the check.
+const EM = String.raw`(?:\*\*|__|\*|_)`;
+const LABEL_LINE = new RegExp(String.raw`^(\s*)(?:>\s*)*(?:(?:[-+•]|\*(?=\s)|\d{1,2}[.)])\s+)?(${EM})?([^\s*_:|\x60#][^\n:*_|\x60]{0,59}?)\s*(?:\2\s*:|:\s*\2)(?=[\s*_]|$)(?:\s*${EM}(?=\s|$))?\s*`);
+export function plainLabel(line) {
+  const m = LABEL_LINE.exec(line);
+  if (!m || !(m[2] || /^\s*(?:>\s*)*(?:[-+•*]|\d{1,2}[.)])\s/.test(line))) return line;
+  return `${m[1]}${m[3].trim()}: ${line.slice(m[0].length)}`.replace(/\s+$/, '');
+}
+// The English copies of the label lines follow the answer after this line, so a check that reads where the answer
+// itself ends (a closing question) can cut them off.
+export const EN_COPIES = '\n<!-- labels as the checks read them -->\n';
 export function inEnglish(text, cfg = config()) {
   const own = Object.entries(cfg.labelAliases || {}).map(([k, v]) => { try { return [new RegExp(k, 'gi'), v]; } catch { return null; } }).filter(Boolean);
   const lines = String(text).split('\n'), all = [...LABELS_ES, ...own];
-  const mapped = lines.map(l => all.reduce((s, [r, v]) => s.replace(r, v), l));
+  const mapped = lines.map(l => all.reduce((s, [r, v]) => s.replace(r, v), plainLabel(l)));
   // a "Fuentes:" heading is read with the numbered list under it, so the list comes along with its English copy
   const extra = [];
   mapped.forEach((l, i) => {
@@ -2476,7 +2586,7 @@ export function inEnglish(text, cfg = config()) {
     extra.push(l);
     if (/^\s*\**sources:?\**\s*$/i.test(l)) for (let j = i + 1; j < lines.length && /^\s*[-*]?\s*\[\d+\]/.test(lines[j]); j++) extra.push(lines[j]);
   });
-  return extra.length ? `${text}\n${extra.join('\n')}` : String(text);
+  return extra.length ? `${text}${EN_COPIES}${extra.join('\n')}` : String(text);
 }
 // A request written in Spanish (a few common Spanish words, few English ones): its answer and labels are in Spanish.
 const ES_WORDS = /(?<![\p{L}])(el|la|los|las|de|del|en|un|y|es|se|al|lo|que|para|con|por|una|est[aá]|esta|este|mi|tu|todo|pero|como|tiene|quiero|hay|desde|sobre|cada|otra|vez)(?![\p{L}])/giu;
@@ -4518,6 +4628,7 @@ export function coreChecks(x, cfg) {
       `Seen this turn: ${proof.seen.length ? proof.seen.join('; ') : `no run of it (a run counts when its command names the check: ${proof.stems.slice(0, 4).join(', ')})`}. ` +
       `Missing: ${proof.missing.join('; ')}. ` +
       'A failing run counts when it ran before the fix, on a copy saved before the fix (cp or copy), on the version from git (git show HEAD:<file> > .cache/before-<file>), or on a sample file holding the text the fix took out. ' +
+      'If the problem the user named is not in the project at all, say so plainly in the answer ("I couldn\'t find <it> in <where I looked>"): then a failing run on a sample of that problem written this turn counts. ' +
       'Good samples: at least 2 realistic ones that PASS, one a valid edge case of this project (words the user\'s language shares with a banned list, a legitimate text that must use a flagged term). ' +
       'The answer says it on one line: "Proven: fails on <the complained-about sample>; passes on <good 1>, <good 2>". If it truly cannot run on samples, waive it with the true reason: node tools/hooks/hooks.mjs waive check-proven "<why>".');
   // REQ: question-no-file. A question gets an answer, not unrequested edits.
@@ -4543,7 +4654,7 @@ export function coreChecks(x, cfg) {
   }
   lap('upgrade-review .. count-honored');
   // REQ: plain-writing. The answer and every user-facing file changed this turn: straight to the point, no filler, no em dashes.
-  const wp = [...writingProblems(x.answer, cfg, 'answer'),
+  const wp = [...writingProblems(x.answer.split(EN_COPIES)[0], cfg, 'answer'), // (the answer as written, not the label copies)
     ...x.changed.filter(p => match(p, cfg.userFacing) && !match(p, cfg.userFacingIgnore) && exists(p)).flatMap(p => writingProblems(read(abs(p)), cfg, p))];
   if (wp.length) add('plain-writing', `Make it plain and direct (docs/checks/writing-standards.md): ${wp.slice(0, 8).join('; ')}${wp.length > 8 ? `; +${wp.length - 8} more (node tools/writing-check.mjs <file>)` : ''}.`);
   // REQ: no-ai-attribution (commits made this turn, including ones written in an editor the pretool hook can't see)
@@ -4598,7 +4709,7 @@ export function coreChecks(x, cfg) {
   // AGENTS.md step 0.5 keeps for them (outward actions, installs, anything irreversible, security, money).
   // Lesson: under autonomy auto an answer ended by asking whether to keep or archive deleted records.
   if (cfg.autonomy === 'auto' && x.workTurn) {
-    const tail = x.answer.split(/^#{1,6}\s*\**finished\b/im)[0].trim().split(/\n\s*\n/).filter(b => !/^\s*(playbook|skill|n\/a\(|worth it)/i.test(b)).pop() || '';
+    const tail = x.answer.split(EN_COPIES)[0].split(/^#{1,6}\s*\**finished\b/im)[0].trim().split(/\n\s*\n/).filter(b => !/^\s*(playbook|skill|n\/a\(|worth it)/i.test(b)).pop() || '';
     if (/\?\s*\**\s*$/.test(tail) && !/\b(publish|push|send|deploy|release|install|irreversible|money|pay|buy|password|secret|security|legal)\w*|\b(delete|wipe|erase) (it|them|this|that|your|all|the \w+ now)\b/i.test(tail))
       add('autonomy-decide', `The user asked not to be asked (autonomy auto), and the answer ends with a question. Decide it yourself, do it, and record it as ${assumedHint(isSpanish(x.prompt))}. Ask only about outward actions, installs, money, security or something irreversible.`);
   }
@@ -4795,7 +4906,11 @@ export function coreChecks(x, cfg) {
       // self-tests, and Stop still asked for them, because its output went into .cache/audit.txt.
       const passedSince = () => { try { const f = path.join(STATE, 'selftest.json'), st = readJSON(f, {}); return need.all && st.passed === true && !!st.inputs && fs.statSync(f).mtimeMs >= (x.since || 0) - 2000 && st.inputs === testInputsHash(); } catch { return false; } };
       // without a transcript, x.runs is the run log (the self-tests record themselves), so the same rule applies
-      if (!tests.length) { if (!passedSince()) add('hooks-tested', `${need.all ? 'The hook logic changed' : `The checks ${need.tags.join(', ')} changed`}: run ${how} and fix any FAIL (fix the hook, not the test) before finishing.`); }
+      // (its last try refused outright: the honest line instead, the same as a project gate. See cantRun.)
+      const tries = x.runs.filter(r => runsScript(r.cmd, 'selfcheck.mjs') && covers(r) && !engineNote(r.cmd));
+      const refused = x.toolsKnown && !passedSince() && tries.length && refusedOutright(tries[tries.length - 1]);
+      if (refused) { if (!saysNotRun(x.said, 'selfcheck')) { const s = cantRunStep('refused', how); miss.push({ tag: 'hooks-tested', msg: `${s.detail}.`, short: s.short }); } }
+      else if (!tests.length) { if (!passedSince()) add('hooks-tested',`${need.all ? 'The hook logic changed' : `The checks ${need.tags.join(', ')} changed`}: run ${how} and fix any FAIL (fix the hook, not the test) before finishing.`); }
       else if (tests[tests.length - 1].out && !/ALL PASS|hook self-tests\s+\(passed earlier/.test(tests[tests.length - 1].out) && !passedSince())
         add('hooks-tested', `The last run of ${how} did not print ALL PASS. Fix the failures (the hook, not the test) and run it again.`);
     }
@@ -5082,7 +5197,10 @@ export function holds(c, x) {
     // tooling in progress, never a failure the user saw. Lesson: after a complaint, an answer got a "Root cause"
     // paragraph about a new check's scenario that first ran in an empty test folder.)
     const ownChecks = rn => /selfcheck\.mjs/.test(rn.cmd) && (rn.editedBefore || []).some(p => /^tools\/hooks\/(requirements\.json|project-scenarios\.mjs)$/.test(p));
-    const fails = (x.runs || []).filter(rn => r(c.ranFailing).test(rn.cmd) && (rn.error || FAILED_RUN.test(rn.out || '')) && !MISSING_TOOL.test(rn.out || '') && !ownChecks(rn));
+    // (a command refused before it started never ran, so it never failed, and a waiver only talks to the engine.
+    // Lesson: Go's "This command requires approval" counted as a failed test, and a feature answer had to carry
+    // "Root cause: the feature did not exist yet")
+    const fails = (x.runs || []).filter(rn => r(c.ranFailing).test(rn.cmd) && !neverRan(rn) && !engineNote(rn.cmd) && (rn.error || FAILED_RUN.test(rn.out || '')) && !MISSING_TOOL.test(rn.out || '') && !ownChecks(rn));
     if (!fails.length) return false;
     const watched = p => counted(p) && (!c.filesChanged || match(p, globs(c.filesChanged)));
     if (!reportsProblem(x) && !fails.some(rn => !(rn.editedBefore || []).some(watched))) return false;
@@ -5096,7 +5214,7 @@ export function holds(c, x) {
   if (c.toolCount && !x.toolsKnown) return false;
   if (c.allFilesChanged && !globs(c.allFilesChanged).every(g => x.changed.some(p => match(p, [g])))) return false;
   // tool-history conditions can't be judged without a transcript; they then neither trigger nor block
-  if (c.toolRan && x.toolsKnown && !x.cmds.some(cmd => r(c.toolRan).test(cmd))) return false;
+  if (c.toolRan && x.toolsKnown && !x.cmds.some(cmd => r(c.toolRan).test(cmd) && !engineNote(cmd))) return false;
   if (c.toolUsed && x.toolsKnown && !x.uses.some(u => r(c.toolUsed).test(u.name))) return false;
   if (c.resultMatches && x.toolsKnown && !r(c.resultMatches).test(x.results)) return false;
   // fileRead: filesIgnore applies, and a folder's README.md (what the folder is for) is no read of its contents unless
@@ -5109,7 +5227,8 @@ export function holds(c, x) {
   // toolPassed: the LAST run of a matching command printed its pass marker and no FAIL (it ran AND passed).
   if (c.toolPassed) {
     const spec = typeof c.toolPassed === 'string' ? { cmd: c.toolPassed } : c.toolPassed;
-    const runs = x.runs.filter(rn => r(spec.cmd).test(cmdHead(rn.cmd)) && !neverRan(rn));
+    const attempts = x.runs.filter(rn => r(spec.cmd).test(cmdHead(rn.cmd)) && !engineNote(rn.cmd));
+    const runs = attempts.filter(rn => !neverRan(rn));
     // no tool history (another agent, or no hooks): the run log holds what ran. With nothing logged, a quick validator
     // is run here (capped at 20 s); a slow one is left to the agent, with the command that records it.
     if (!x.toolsKnown && !runs.length && spec.selfRun) {
@@ -5118,11 +5237,17 @@ export function holds(c, x) {
       runs.push({ cmd: spec.selfRun, out: (res.stdout || '') + (res.stderr || ''), error: res.status !== 0 });
     } else if (!x.toolsKnown && !runs.length) return true; // can't verify and can't re-run: don't block on missing evidence
     const lastRun = runs[runs.length - 1];
-    if (!lastRun) { x.detail = `no run of /${spec.cmd}/ this turn`; return false; }
+    // A gate that can't run here (refused outright, or its tool missing) asks once for an honest line instead, and
+    // that line meets it, so no later round asks for the same refused command again (cantRun above).
+    const lastTry = attempts[attempts.length - 1];
+    const blocked = x.toolsKnown ? cantRun(lastTry && lastTry === lastRun ? [redirectedRun(lastRun, r(spec.cmd), x.since) || lastRun] : attempts, x.runs, spec.selfRun || '') : '';
+    const unverified = () => { if (saysNotRun(x.answer, spec.selfRun || spec.cmd)) return true; const s = cantRunStep(blocked, spec.selfRun || spec.cmd); x.override = s.detail; x.short = s.short; return false; };
+    if (!lastRun) { if (blocked) return unverified(); const form = attempts.find(neverRan); x.detail = form ? `its only runs this turn were refused for their form ("${String(form.out).trim().slice(0, 90)}"): run it on its own, as one plain command` : `no run of /${spec.cmd}/ this turn`; return false; }
     // (its output sent into a file is read from that file: see redirectedRun)
     const last = (x.toolsKnown && redirectedRun(lastRun, r(spec.cmd), x.since)) || lastRun;
     const g = gateResult(last, spec);
-    if (!g.ok) { x.detail = `last run did not pass, ${g.why}: ${last.out.trim().split(/\r?\n/).slice(-3).join(' | ').slice(0, 300)}` + (MISSING_TOOL.test(last.out) ? '. The tool or its dependencies are not installed: install them first (npm ci, pip install -r requirements.txt, or the project\'s setup command), then run it again' : ''); return false; }
+    if (!g.ok && blocked) return unverified();
+    if (!g.ok) { x.detail =`last run did not pass, ${g.why}: ${last.out.trim().split(/\r?\n/).slice(-3).join(' | ').slice(0, 300)}` + (MISSING_TOOL.test(last.out) ? '. The tool or its dependencies are not installed: install them first (npm ci, pip install -r requirements.txt, or the project\'s setup command), then run it again. If the install is refused or fails, don\'t retry: say "NOT VERIFIED: <what did not run> - <why>" in the answer' : ''); return false; }
   }
   // runEach: the hook itself runs a validator on every changed file that matches (fails closed: a crash is a FAIL).
   if (c.runEach) {
@@ -5244,7 +5369,7 @@ ${turnText(x.entries)}`;
     if (!x.toolsKnown && needsHistory(q.when)) continue;
     try {
       const t0 = TIMING ? performance.now() : 0;
-      x.detail = ''; x.trigger = '';
+      x.detail = ''; x.trigger = ''; x.override = ''; x.short = '';
       // A runbook followed this turn owns the folders in its "owns:" frontmatter: another runbook's trigger ("forces")
       // doesn't count files there. Not followed, the trigger still fires. Lesson: a project's raid-research runbook saved
       // downloads into sources/raids/, and the ingest trigger asked for ingest on every one of them.
@@ -5256,7 +5381,9 @@ ${turnText(x.entries)}`;
       // a requirement met by an earlier message of this turn stays met, so a re-block never forces the answer to repeat
       // it. A Finished section counts from any message after the last file change, since it still lists every change.
       // Lesson: every re-block produced a near-copy.
-      if (holds(when || {}, x) && !holds(q.require || {}, x) && !holds(q.require || {}, { ...x, answer: q.tag === 'finished-summary' ? x.afterChange : earlier }) && !(q.tag === 'version-bump' && bumpedThisSession(x, q.require?.filesChanged))) out.push({ tag: q.tag, specific: q.waiver === 'specific', fixes: q.fixes || filesOfCond(q.require), msg: (q.message || `Requirement ${q.tag} is not met.`) + (x.trigger ? ` (seen in ${x.trigger})` : '') + (x.detail ? ` (${x.detail})` : '') });
+      if (holds(when || {}, x) && !holds(q.require || {}, x) && !holds(q.require || {}, { ...x, answer: q.tag === 'finished-summary' ? x.afterChange : earlier }) && !(q.tag === 'version-bump' && bumpedThisSession(x, q.require?.filesChanged))) out.push({ tag: q.tag, specific: q.waiver === 'specific', fixes: q.fixes || filesOfCond(q.require), ...(x.short ? { short: x.short } : {}),
+        // (a gate that can't run here asks for the honest line instead of its usual "run it until it passes")
+        msg: x.override ? `${x.override}.` : (q.message || `Requirement ${q.tag} is not met.`) + (x.trigger ? ` (seen in ${x.trigger})` : '') + (x.detail ? ` (${x.detail})` : '') });
       if (TIMING) TIMING.push([`check ${q.tag}`, Math.round((performance.now() - t0) * 10) / 10]);
     } catch (e) { out.push({ tag: 'requirements-valid', msg: `requirements.json entry "${q.tag}" is invalid (${e.message}).` }); }
   }
@@ -5288,7 +5415,7 @@ function recordHistory(x, key) {
   if (!x.workTurn || envOf('BENCH') || DRY_STATE) return;
   const lines = read(HISTORY).split('\n').filter(Boolean);
   if (lines.length && lines[lines.length - 1].includes(JSON.stringify(key).slice(1, -1))) return;
-  const answer = x.answer.split(/^#{1,6}\s*\**finished\b/im)[0].replace(/\s+/g, ' ').trim().slice(0, 400);
+  const answer = x.answer.split(EN_COPIES)[0].split(/^#{1,6}\s*\**finished\b/im)[0].replace(/\s+/g, ' ').trim().slice(0, 400);
   lines.push(JSON.stringify({ key, at: today(), prompt: x.prompt.replace(/\s+/g, ' ').slice(0, 300), used: [...x.usedPb, ...x.usedSkills].map(p => p.name), changed: x.changed.slice(0, 12), answer }));
   try { fs.mkdirSync(STATE, { recursive: true }); fs.writeFileSync(HISTORY, lines.slice(-HISTORY_MAX).join('\n') + '\n'); } catch { }
 }
@@ -5562,6 +5689,7 @@ export function carriesAnswer(reply, prev) {
 }
 const answerWords = c => !!c && typeof c === 'object' && (c.answerMatches != null || c.answerNotMatches != null || c.answerCites != null || (c.anyOf || []).some(answerWords));
 function fileFixable(m) {
+  if (m.short) return false; // (it asks for a line in the answer this time)
   if (CORE_FILE_FIX.has(m.tag)) return true;
   const q = loadRequirements().reqs.find(r => r && r.tag === m.tag) || DEV_REQUIREMENTS.find(r => r.tag === m.tag);
   return !!q && !answerWords(q.require);
@@ -5644,6 +5772,7 @@ function writeDetails(missing, title) {
   } catch { }
 }
 export function shortStep(m) {
+  if (m.short) return m.short; // a step that asks for something else this time (a gate that can't run: the honest line)
   if (SHORT[m.tag]) return SHORT[m.tag];
   // A path becomes its last part ("docs/knowledge/SOURCES.md" → SOURCES.md), so the sentence still reads; code, quotes
   // and asides go. Lesson: removing paths whole left "Add a dated line to for the knowledge" and "files changed .".

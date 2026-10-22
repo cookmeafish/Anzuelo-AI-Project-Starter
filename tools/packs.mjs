@@ -151,7 +151,9 @@ function configureApp(argv) {
   for (const k of ['test', 'build', 'lint', 'typecheck']) if (app[k]) reqs.requirements.push({
     tag: `app-${k}-pass`, pack: 'app', appGate: true, rule: '4',
     when: { filesChanged: app.code }, require: { toolPassed: { cmd: escRe(app[k]), pass: app.pass[k] || '', selfRun: app[k] } },
-    message: `Code changed: run \`${app[k]}\` as its own command (not chained to other commands with && or ;) and get it passing after your last edit. Fix the code, never the test.`
+    // (a chain counts where its own result shows: "a && b", or "b && echo OK" in a longer line. Lesson: "tests | tail;
+    // build && echo BUILD-OK" passed and was asked for again, and the message's "own command" read as the only way)
+    message: `Code changed: run \`${app[k]}\` and get it passing after your last edit (on its own, or joined with && so its own result shows). Fix the code, never the test. If it can't run here (the command is refused, or its tool is not installed), say "NOT VERIFIED: <what> - <why>" in the answer instead of retrying.`
   });
   if (app.versionFile) reqs.requirements = reqs.requirements.map(r => r.tag === 'version-bump' ? { ...r, enabled: true, when: { ...r.when, filesChanged: app.code }, require: { filesChanged: String(app.versionFile).split(',').map(s => s.trim()).filter(Boolean) } } : r);
   for (const r of reqs.requirements) if (r.pack === 'app' && r.when?.filesChanged && r.codeGlobs) r.when.filesChanged = app.code;

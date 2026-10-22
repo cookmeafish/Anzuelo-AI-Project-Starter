@@ -7,6 +7,30 @@ print, or to a command or setting a project's own hooks or scripts may rely on, 
 hooks:**, and an upgrade lists each one as its own review item.
 
 - 2026-10-21: Fewer retries and Stop rounds (field report from an adopted project).
+  - **Gates that can't run ask once for an honest line, and Stop reads labels and command lines as written (trials of
+    8 new projects, round 7):** a test, build or lint gate (and the audit and hook self-tests) whose last try the
+    permission system refused outright, or whose tool is missing (the program, or a dependency whose install was
+    refused or failed), now asks in round 1 for "NOT VERIFIED: <what> - <why it couldn't run>" instead of another run,
+    and that line, or a sentence saying the tests never ran, meets it. A gate never tried counts as refused when its
+    program ("go", or the module in "python -m pytest") was refused this turn and never ran. Two Go and Flask turns had
+    spent Stop rounds 2 and 3 re-asking for refused commands, so each showed the same answer three times. A command
+    refused for its form (several commands in one line, a cd with a redirect) still asks for a plain rerun. A refused
+    run is no failed test, so `debug-trigger` no longer forces "Root cause: the feature did not exist yet" into a
+    feature answer, and the tool's own "malformed syntax" refusals count as never run. Every label a check reads now
+    meets it in **bold**, *italic*, __bold__ and as a list item (`inEnglish` adds a plain copy of each label line,
+    after a marker that the writing and closing-question checks cut off): "**Revisión visual:** correcta tras 5
+    rondas" had been blocked four times and pushed out of its list. A gate run inside a longer line counts where its own
+    result shows: the rest of its line joined by && and the line passed, or an `echo <text>` after it in its && chain
+    printed that text ("tests | tail; build && echo BUILD-OK" was asked for again). A waiver command is no run of any
+    project check, so a check whose pattern names a script no longer reads a waiver's reason as its last run.
+    `check-proven` counts a failing run on a sample written this turn when the answer says the problem the user named
+    is not in the project ("No encontré texto en inglés"), and its message shows runs without their leading "cd ... &&".
+    A security review carried out (its report written, or its sweep run without editing the sweep) counts even when the
+    same turn edited the skill's triggers. **Breaking for project hooks:** a refused gate's Stop step reads "Say what
+    was NOT VERIFIED and why", and new app gates' messages no longer say "as its own command". Scenarios:
+    `app-test-pass:` (refused, form, missing tool, install refused, chains), `debug-trigger:` (refused), `toolPassed:`
+    (waiver), `hooks-tested:` (refused), `review-evidence:` (maintained), `check-proven:` (not found),
+    `gui-review-report:` (bold list item), `label-format`.
   - **Setup no longer waits for the whole engine suite, and the writing and citation checks read letters and paths
     right (trials of 8 new projects, round 6):** a passing whole self-test run in the starter writes
     `tools/hooks/engine-proof.json`, the hash of the engine as its tests saw it, and new-project and upgrades copy it.
