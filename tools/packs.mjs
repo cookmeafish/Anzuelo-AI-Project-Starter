@@ -48,7 +48,8 @@ export function available() {
 // What every pack owns, kept after prune so the audit can still prove a project holds nothing from other packs.
 export function registry() {
   const reg = rj(REGISTRY, { packs: {} });
-  for (const p of available()) reg.packs[p.name] = { title: p.title, for: p.for, files: p.files, tags: (p.requirements || []).map(r => r.tag), menu: (p.menu || []).map(r => (/^\|\s*([A-Z]\d+)/.exec(r) || [])[1]).filter(Boolean) };
+  // (and its guard globs, so the audit can tell a pack's guard from one the project added: REQ: check-sampled)
+  for (const p of available()) reg.packs[p.name] = { title: p.title, for: p.for, files: p.files, tags: (p.requirements || []).map(r => r.tag), menu: (p.menu || []).map(r => (/^\|\s*([A-Z]\d+)/.exec(r) || [])[1]).filter(Boolean), noOverwrite: p.config?.noOverwrite || [] };
   // the library's skill names, so docs may name a skill the project could still enable
   const lib = findLibrary();
   if (lib) reg.library = [...new Set([...(reg.library || []), ...fs.readdirSync(path.join(lib.dir, 'skills'))])].sort();

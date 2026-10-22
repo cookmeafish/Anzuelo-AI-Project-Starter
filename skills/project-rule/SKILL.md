@@ -43,7 +43,7 @@ A rule that only lives in the docs gets forgotten. The docs state it and a hook 
    `coreChecks()` or `pretoolDecision()` in `tools/hooks/hooks.mjs`, with a `// REQ: <tag>` comment. Pure judgment:
    write "hook: N/A <reason>" in the answer and mark the row `doc`. Keep `when` specific: a check that fires on
    unrelated turns teaches everyone to waive it.
-6. **Prove it.** Add a scenario to `tools/hooks/project-scenarios.mjs` (upgrades keep it; in the starter itself: `tools/hooks/selfcheck.mjs`): skipped → blocked with the tag, followed → passes.
+6. **Prove it.** Add scenarios to `tools/hooks/project-scenarios.mjs` (upgrades keep it; in the starter itself: `tools/hooks/selfcheck.mjs`): skipped → blocked with the tag, and a realistic good sample → passes (`expect: { not: ['<tag>'] }`; for a no-overwrite guard, a plain request to change an existing guarded file, `deny: false`) (hook: check-sampled).
    Run `node tools/hooks/selfcheck.mjs --tags <the new tag>`, then `node tools/audit.mjs`. Both must PASS.
    A check script or test is also run on real samples (hook: check-proven): it fails on the real bad case (what the
    user complained about, or its earlier version: `git show HEAD:<file>`) and passes on at least 2 realistic good
