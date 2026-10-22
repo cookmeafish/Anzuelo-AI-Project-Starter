@@ -17,7 +17,7 @@
 // in the project; skip with a reason that answers any signal the survey found; later with "when: <condition>".
 import fs from 'node:fs';
 import path from 'node:path';
-import { ROOT, read, abs, config, usageOf, FIT_FILE, fitRows, fitCandidates, fitSignals, fitProblems, fitDecision, fitWhenOf, FIT_WHEN_TAIL, projectSurvey, flushEngineWrites } from './hooks/hooks.mjs';
+import { ROOT, read, abs, config, usageOf, FIT_FILE, fitRows, fitCandidates, fitSignals, fitProblems, fitBoilerplate, fitDecision, fitWhenOf, FIT_WHEN_TAIL, projectSurvey, flushEngineWrites } from './hooks/hooks.mjs';
 
 const args = process.argv.slice(2);
 const VALUED = ['--kind', '--file'];
@@ -36,7 +36,8 @@ const HEADER = `# Fit checklist
 The AI fills it from the survey (node tools/survey.mjs), docs/BRIEF.md and the code, not the user. One row per
 candidate. Decision: add, skip, or "later - when: <condition>" (the hooks watch conditions about file or commit counts).
 Reason: the concrete gain or cost for THIS project (docs/checks/better-or-worse.md; "Worth it: <gain> / <cost>" fits),
-at least 8 words. "add" must be true in the project. A "skip" of something the survey found evidence for must say why
+naming something about the item (a short one is fine: "Not a game: a terminal photo renamer."), never one tail glued onto
+many rows. "add" must be true in the project. A "skip" of something the survey found evidence for must say why
 that evidence doesn't make it worth it. Signal lines starting with "survey:" are refreshed; write your own to keep it.
 Only choices that cost money, touch privacy or act outside the project go to the user, as one question with choices. -->
 `;
@@ -128,6 +129,7 @@ if (cmd === 'refresh') {
 if (cmd === 'check') {
   const probs = fitProblems(cfg);
   for (const p of probs) console.log(`- ${p}`);
+  for (const n of fitBoilerplate()) console.log(`note: ${n}`);
   console.log(`FIT: ${probs.length ? 'FAIL' : 'PASS'}${probs.length ? ` (${probs.length} problem(s))` : ` (${fitRows().length} candidates decided)`}`);
   process.exit(probs.length ? 1 : 0);
 }
@@ -150,6 +152,7 @@ if (cmd === 'decide') {
   save(text, false);
   for (const x of bad) console.error(`fit: ${x}`);
   console.log(`fit: recorded ${list.length - bad.length} decision(s). Run node tools/fit.mjs check.`);
+  for (const n of fitBoilerplate(text)) console.log(`note: ${n}`);
   process.exit(bad.length ? 1 : 0);
 }
 

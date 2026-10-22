@@ -182,7 +182,8 @@
       "25336b8c5c2c"
     ],
     "parallel-trigger": [
-      "8bb16970bbc6"
+      "8bb16970bbc6",
+      "c55b6093ec08"
     ],
     "perf-numbers": [
       "fd2da49a0739"
@@ -259,7 +260,8 @@
       "e03cef28145a",
       "df038394c3f5",
       "145e144bdc4f",
-      "86487307f48a"
+      "86487307f48a",
+      "fd0d680bacc4"
     ],
     "security-config": [
       "d9de339b2500",
@@ -281,7 +283,8 @@
       "1660d0c4ce4a",
       "854317f31fe4",
       "fc1eb7ed9221",
-      "6c53a41daeb9"
+      "6c53a41daeb9",
+      "a85001f30a27"
     ],
     "setup-recorded": [
       "f35d5fed3854"

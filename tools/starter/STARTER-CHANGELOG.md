@@ -7,6 +7,38 @@ print, or to a command or setting a project's own hooks or scripts may rely on, 
 hooks:**, and an upgrade lists each one as its own review item.
 
 - 2026-10-21: Fewer retries and Stop rounds (field report from an adopted project).
+  - **Guards let the agent fix its own fresh drafts, and existing checks stop false alarms (trials of 8 new projects,
+    round 8):** the no-overwrite and protect-originals guards let an edit through to a file the turn itself created
+    (missing from the turn-start snapshot and from git, or created by the agent's own Write this turn): two agents had
+    been denied the fix of a draft written seconds earlier, one shipped a stiff line and one got past the guard with
+    rm and Write. Deleting or moving away a delivered output that was there at the turn start (rm, del, Remove-Item,
+    mv, a wildcard or its folder) is now denied like writing over it, unless the request names it; an original named
+    by a pattern alone ("**/*.pdf") gets the same. `upset-learned` accepts a disproved complaint in plain words with
+    "Learned (none)" in the notes ("none of them makes him left-handed", "nothing was missing", "no encontré ...") and
+    the notes' own "didn't hold", which it had missed, so no "the complaint doesn't hold:" pasted into every bullet;
+    its step no longer sets off "Then:" changelog and audit steps in a turn that changed no file. `check-proven` judges
+    every "Proven:"/"Probado:" line, notes first, reads a label's text from the list items under it, and its message
+    gives the line filled in from the runs it saw: a Spanish answer's own "**Probado:**" heading had hidden the full
+    notes line for 3 rounds. `security-code` no longer reads a RegExp `.exec(` or a Python `re` call as code
+    execution (bare exec, eval, child_process, subprocess and os.system still fire). The fit checklist drops the
+    8-word minimum: a short reason that names something about the item passes ("Not a game: a terminal photo
+    renamer."), and `fit.mjs check`/`decide` note 5 or more reasons that end with the same tail (an agent had glued
+    one 11-word tail onto 31 rows). `no-verbatim-examples` lets docs/BRIEF.md, docs/STATUS.md and README.md describe
+    the project in the sentence where the user said what it is ("It is my Obsidian vault of notes on ..."); a sample
+    sentence is still caught. App gates read a run written with the project's full path, quotes or ".exe" as the
+    gate, and no longer read `packs.mjs configure app --test "<gate>"` as a run, so a refused test run gets the
+    one honest line in round 1 (a Flask setup was asked to run refused tests 3 rounds); "none of the tests have run"
+    counts as that line. `security-report` accepts open items said plainly ("two items are open, both in
+    docs/STATUS.md") with the report file named. `claim-checked` (git) no longer reads "git has no name or email set"
+    as a claim about history, the research skill's question triggers ("what are the options") need their question
+    word first, so "add a --dry-run option that only prints what would be renamed" stays a feature, and
+    `parallel-trigger` counts only sub-agents that ran at the same time, not reviews run one after another.
+    **Breaking for project hooks:** `toolCount` in requirements.json takes `"overlap": true`; the upset-learned and
+    check-proven messages changed their wording. Scenarios: `no-overwrite:` (own draft, rm, Remove-Item, named),
+    `protect-originals:` (pattern, own file), `upset-learned:` (plain words, Spanish), `stop-follow-on:` (no file
+    changed), `check-proven:` (Probado label), `security-code:` (regex exec), `fit-reasons`, `no-verbatim-examples:`
+    (brief), `app-test-pass:` (configure line, full path), `security-report:` (plain open items), `claim-checked:`
+    (git identity), `route:` (option), `parallel-trigger:` (one after another).
   - **Gates that can't run ask once for an honest line, and Stop reads labels and command lines as written (trials of
     8 new projects, round 7):** a test, build or lint gate (and the audit and hook self-tests) whose last try the
     permission system refused outright, or whose tool is missing (the program, or a dependency whose install was

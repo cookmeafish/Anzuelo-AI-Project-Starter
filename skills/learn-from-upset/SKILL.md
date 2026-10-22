@@ -32,9 +32,10 @@ Say at the start: "Checking what happened first, then fixing it and making the p
    `Checked:` line per part, or "Partly: ..."). Lesson: a cold rent letter was conceded as "threatening" too, and the
    lesson stored said so, though the letter had no threatening wording.
    Say it plainly at the start of the answer: "You're right: ...", "Partly: X was wrong, Y was
-   already there (<path>)", or, when it doesn't hold, the plain fact and what you checked: `Checked: <what you
-   opened> - the complaint doesn't hold: <evidence>`, with no concession. A lead in your own words ("The note is
-   linked both ways.") is fine next to that line. A full "You're right" also adds `Checked: <file or output> - <what
+   already there (<path>)", or, when it doesn't hold, the plain fact and what you checked, in your own words and with
+   no concession ("I checked the note and its last commit: it is linked both ways."), with `Checked: <what you
+   opened> - <what it showed>` lines if that helps. Say once that it doesn't hold, never as a phrase pasted into every
+   bullet; the turn notes get `Learned (none): the complaint didn't hold - <evidence>`. A full "You're right" also adds `Checked: <file or output> - <what
    it showed>` on its own line (Spanish: `Comprobado:`; hook: upset-learned). "Partly" is only for the thing the user
    complained about: don't look for some other fault to concede, and never blame files the user doesn't see (the
    project's engine notes, hook files, `docs/starter-feedback.md`). A complaint that doesn't hold still gets its

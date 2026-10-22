@@ -303,6 +303,8 @@ function transcript(dir, s, since) {
     const id = `toolu_${++idc}`;
     const input = { ...t.input };
     if (input.file_path) input.file_path = path.join(dir, input.file_path);
+    // (a command may name the fixture's own folder, as agents write absolute paths: "<DIR>" stands for it)
+    if (typeof input.command === 'string') input.command = input.command.split('<DIR>').join(dir.replace(/\\/g, '/'));
     rows.push({ type: 'assistant', message: { content: [{ type: 'tool_use', id, name: t.name, input }] } });
     rows.push({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: id, content: t.result || 'ok', is_error: !!(t.denied || t.error) }] } });
   }
@@ -471,7 +473,7 @@ const STOP = [
   { name: 'upset-learned: the same natural lead with no Checked line: blocked, and the message offers the no-concession form', prompt: 'you forgot to add the allergens again!!', tools: [pb('project')],
     files: { 'docs/playbooks/menu.md': '---\nname: menu\nsummary: menus\ntriggers: menu card\nchecks: none - a test runbook\n---\n# Playbook: menu\n## Pitfalls\n- Say where the allergens are when asked.\n', 'docs/CHANGELOG.md': 'x' },
     answer: 'The croissant lists its allergens in every file here. Playbook: project.md.\nLearned (lesson): point to where the allergens are listed when asked → docs/playbooks/menu.md' + FIN,
-    expect: { tags: ['upset-learned'], says: /the complaint doesn't hold: <evidence>" with no concession[\s\S]*never blame files the user doesn't see/ } },
+    expect: { tags: ['upset-learned'], says: /in your own words and with no concession \("Checked: <what you opened> - <what it showed>"\)[\s\S]*never blame files the user doesn't see/ } },
   // Lesson: after a complaint, an answer got a "Root cause" paragraph about its own new check's scenario that first ran
   // in an empty test folder: the agent's tooling in progress, not a failure the user saw.
   { name: 'debug-trigger: after a complaint, the new check\'s own scenario failed while being written: no root cause asked', prompt: 'you keep making Aren left-handed!! he is right-handed',
@@ -1175,6 +1177,15 @@ STOP.push(
     files: { 'docs/CHANGELOG.md': 'x' },
     answer: 'Partly: the README had the example but no options list.\nChecked: README.md and git show HEAD:README.md - both had the example.\nNot done: nothing is committed yet.' + FIN,
     expect: { not: ['claim-checked'] } },
+  // (Lesson: a true sentence about git's missing name and email was read as "git has no earlier version")
+  { name: 'claim-checked: "git has no name or email set ... the earlier commits" is about identity, not history: passes that part', prompt: 'check the readme for the dry-run line',
+    prep: dir => { const g = gitInit(dir); write(dir, { 'README.md': 'x\n' }); g('add', 'README.md'); g('commit', '-q', '--no-verify', '-m', 'readme'); },
+    files: { 'docs/CHANGELOG.md': 'x' },
+    answer: 'Set up.\nHeads-up: Git has no name or email set for you here, and the earlier commits use a placeholder author.' + FIN, expect: { not: ['claim-checked'] } },
+  { name: 'claim-checked: "git holds no copy of the earlier readme" while git has commits: blocked', prompt: 'check the readme for the dry-run line',
+    prep: dir => { const g = gitInit(dir); write(dir, { 'README.md': 'x\n' }); g('add', 'README.md'); g('commit', '-q', '--no-verify', '-m', 'readme'); },
+    files: { 'docs/CHANGELOG.md': 'x' },
+    answer: 'Checked.\nGit holds no copy of the earlier readme, so I could not compare.' + FIN, expect: { tags: ['claim-checked'] } },
   { name: 'claim-checked: "no earlier version in git" in a folder without git is not contradicted: passes that part', prompt: 'ugh, you forgot to put the new option in the README',
     files: { 'docs/CHANGELOG.md': 'x' },
     answer: 'Partly: the README had the example but no options list.\nChecked: README.md - it had the example. There is no earlier version in git: nothing is committed yet.' + FIN,
@@ -1591,6 +1602,9 @@ PROMPT.push(
   { name: 'debug skill routes on its own', prompt: 'the build fails with a stack trace, please debug it', has: ['SKILL: debug'] },
   { name: 'obsidian skill routes on its own', prompt: 'show me what is related to the desk notes in obsidian', has: ['SKILL: obsidian'] },
   { name: 'research skill routes on its own', prompt: 'search the web for standing desk reviews', has: ['SKILL: research'] },
+  // (Lesson: "add a --dry-run option that only prints what would be renamed" matched "what are the options")
+  { name: 'route: a feature naming an "option" with a later "what" is not the question "what are the options"', prompt: 'add a --dry-run option that only prints what would be renamed', hasNot: ['SKILL: research'] },
+  { name: 'route: "what are the best options for backups" still routes to research', prompt: 'what are the best options for backing up the photos?', has: ['SKILL: research'] },
   { name: 'a fact check routes to the research skill', prompt: 'fact check this claim about desk weight limits', has: ['SKILL: research'] },
   { name: 'QA routes to the qa runbook', prompt: 'QA the export screen please', has: ['ROUTE: qa'] },
   // routing needs real evidence: generic words, opinion questions and pasted text never route
@@ -1856,6 +1870,12 @@ const SEC_TABLE = 'Skill: security-review.\n\n| Area | Result | Evidence |\n|---
 const SEC_LOG = { 'docs/security.md': '# Security\n## Reviews\n| Date | Scope | Result |\n|---|---|---|\n| 2026-10-18 | sign-in | PASS |\n' };
 const AUTH = { 'src/auth.js': 'export const check = (u, password) => bcrypt.compare(password, u.hash);\n' };
 const BIG = 'Pick the plan that fits the team and the budget we agreed on for this quarter and next. ';
+// two sub-agents started in one message, so both run before either answers
+const PAR_AGENTS = [
+  { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'toolu_par_a', name: 'Agent', input: { prompt: 'Read AGENTS.md first. Review module a.' } }] } },
+  { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'toolu_par_b', name: 'Agent', input: { prompt: 'Read AGENTS.md first. Review module b.' } }] } },
+  { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'toolu_par_a', content: 'module a: fine' }] } },
+  { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'toolu_par_b', content: 'module b: fine' }] } }];
 STOP.push(
   { name: 'security-code: sign-in code written without the security review: blocked', prompt: 'make the form check the user', files: { ...AUTH, 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { block: true, tags: ['security-code'], says: /src\/auth\.js/ } },
   { name: 'security-report: all areas pass, one line in the answer and the table in its file: passes', prompt: 'make the form check the user', tools: [sk('security-review')],
@@ -1864,10 +1884,24 @@ STOP.push(
   { name: 'security-report: one line, but an area failed: the table is needed', prompt: 'make the form check the user', tools: [sk('security-review')],
     files: { ...AUTH, ...SEC_LOG, 'docs/reviews/security-2026-10-20.md': SEC_TABLE, 'docs/CHANGELOG.md': 'x' },
     answer: 'The form checks the user now. One FAIL is open.\nSecurity review: PASS for the rest - table in docs/reviews/security-2026-10-20.md' + FIN, expect: { tags: ['security-report'] } },
+  // (Lesson: a plain "two items are open" section, each with its risk and where it went, was asked for again 3 rounds)
+  { name: 'security-report: open items said plainly, how many, each with its risk and where they went: passes', prompt: 'make the form check the user', tools: [sk('security-review')],
+    files: { ...AUTH, ...SEC_LOG, 'docs/reviews/security-2026-10-20.md': SEC_TABLE, 'docs/CHANGELOG.md': 'x' },
+    answer: 'The form checks the user now.\n\n## Security review\nNo serious problem was found in the code, but two items are open. Both are in `docs/STATUS.md`, and the full review is in `docs/reviews/security-2026-10-20.md`.\n- **Packages (low risk):** no pinned versions yet.\n- **Other computers (medium risk):** HTTPS first.' + FIN, expect: { not: ['security-report'] } },
+  { name: 'security-report: open items said plainly, but no report file named: blocked', prompt: 'make the form check the user', tools: [sk('security-review')],
+    files: { ...AUTH, ...SEC_LOG, 'docs/reviews/security-2026-10-20.md': SEC_TABLE, 'docs/CHANGELOG.md': 'x' },
+    answer: 'The form checks the user now.\n\n## Security review\nNo serious problem was found, but two items are open: package pinning and HTTPS.' + FIN, expect: { tags: ['security-report'] } },
   { name: 'security-code: a card named "Formidable Speaker" in a data script is not upload code: not fired', prompt: 'score the deck cards',
     files: { 'src/score.js': 'const cards = ["Formidable Speaker", "Sythis"];\nexport const score = c => cards.indexOf(c);\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Scored.' + FIN, expect: { not: ['security-code'] } },
   { name: 'security-code: the formidable upload library imported: fired', prompt: 'accept uploads',
     files: { 'src/upload.js': 'const formidable = require("formidable");\nexport const parse = req => formidable().parse(req);\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { tags: ['security-code'] } },
+  // (Lesson: a word-list checker's RegExp .exec( call made two turns of a static blog run the security review)
+  { name: 'security-code: a JS regex .exec( call and a Python re call are not code execution: not fired', prompt: 'check the pages for English words',
+    files: { 'tools/check-words.mjs': 'const WORD = /\\b[a-z]+\\b/g;\nlet m; while ((m = WORD.exec(text))) seen.push(m[0]);\n', 'tools/words.py': 'import re\nfor m in re.finditer(r"\\w+", text):\n    print(re.fullmatch(r"[a-z]+", m.group(0)))\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Checked.' + FIN, expect: { not: ['security-code'] } },
+  { name: 'security-code: a real exec, child_process call or os.system still fires', prompt: 'run the converter',
+    files: { 'src/convert.mjs': 'import cp from "node:util";\nexport const go = f => cp.exec(`magick ${f} out.png`);\n', 'src/run.py': 'def go(f):\n    exec(open(f).read())\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Done.' + FIN, expect: { tags: ['security-code'] } },
   { name: 'security-code: a scratch script under .cache/ is not project code: not fired', prompt: 'check the worklist',
     files: { '.cache/verdicts.js': 'const password = process.argv[2];\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Checked.' + FIN, expect: { not: ['security-code'] } },
   { name: 'security-code: the review followed and logged: passes', prompt: 'make the form check the user', tools: [sk('security-review')], files: { ...AUTH, ...SEC_LOG, 'docs/CHANGELOG.md': 'x' }, answer: SEC_TABLE + FIN, expect: { not: ['security-code', 'security-report', 'security-logged'] } },
@@ -1884,8 +1918,10 @@ STOP.push(
   { name: 'security-publish: the review came first: passes', prompt: 'ship the package', tools: [sk('security-review'), bash('npm publish', 'published')], answer: SEC_TABLE, expect: { not: ['security-publish'] } },
   { name: 'debug-trigger: a failing test fixed with no root cause: blocked', prompt: 'make the parser handle empty rows', tools: [bash('npm test', 'not ok 1 parses empty rows\n1 failed')], files: { 'src/parser.js': 'x', 'docs/CHANGELOG.md': 'x' }, answer: 'Fixed.' + FIN, expect: { block: true, tags: ['debug-trigger'] } },
   { name: 'debug-trigger: the root cause stated: passes', prompt: 'make the parser handle empty rows', tools: [bash('npm test', 'not ok 1 parses empty rows\n1 failed')], files: { 'src/parser.js': 'x', 'docs/CHANGELOG.md': 'x' }, answer: 'Root cause: empty rows had no cells, so the split returned nothing.' + FIN, expect: { not: ['debug-trigger'] } },
-  { name: 'parallel-trigger: two sub-agents and no combined check: blocked', prompt: 'review the two modules', tools: [{ name: 'Agent', input: { prompt: 'Read AGENTS.md first. Review module a.' } }, { name: 'Agent', input: { prompt: 'Read AGENTS.md first. Review module b.' } }], answer: 'Both reviewed.', expect: { block: true, tags: ['parallel-trigger'] } },
-  { name: 'parallel-trigger: the combined result checked: passes', prompt: 'review the two modules', tools: [{ name: 'Agent', input: { prompt: 'Read AGENTS.md first. Review module a.' } }, { name: 'Agent', input: { prompt: 'Read AGENTS.md first. Review module b.' } }], answer: 'Ran the full checks on the combined result: both modules pass.', expect: { not: ['parallel-trigger'] } },
+  { name: 'parallel-trigger: two sub-agents run at the same time and no combined check: blocked', prompt: 'review the two modules', rows: PAR_AGENTS, answer: 'Both reviewed.', expect: { block: true, tags: ['parallel-trigger'] } },
+  { name: 'parallel-trigger: the combined result checked: passes', prompt: 'review the two modules', rows: PAR_AGENTS, answer: 'Ran the full checks on the combined result: both modules pass.', expect: { not: ['parallel-trigger'] } },
+  // (Lesson: three reviews run one after another were asked to be merged as parallel work, and the check was waived)
+  { name: 'parallel-trigger: three sub-agents run one after another (each waits for the last) are not parallel work: not fired', prompt: 'add a --dry-run option', tools: [{ name: 'Agent', input: { prompt: 'Read AGENTS.md first. Review the change.' }, result: 'SHIP with 2 fixes' }, { name: 'Agent', input: { prompt: 'Read AGENTS.md first. Re-review the fixes.' }, result: 'SHIP' }, { name: 'Agent', input: { prompt: 'Read AGENTS.md first. Final re-review.' }, result: 'SHIP' }], answer: 'Added the option. The review says SHIP.', expect: { not: ['parallel-trigger'] } },
   { name: 'skill-reuse: a new hand-written skill without a search: blocked', prompt: 'make a skill for our budget sheet', files: { 'skills/budget-sheet/SKILL.md': '---\nname: budget-sheet\ndescription: Reads the budget sheet. Use for budget questions.\ntriggers: budget sheet\nchecks: none - a test skill\n---\n# Budget sheet\n## Done when\n- [ ] read (judgment: test)\n', 'docs/CHANGELOG.md': 'x' },
     tools: [pb('project'), bash('node tools/audit.mjs')], answer: 'Playbook: project.md. Worth it: faster budget answers / one file.' + FIN, expect: { tags: ['skill-reuse'] } },
   { name: 'skill-reuse: a project-specific waiver in the frontmatter: passes', prompt: 'make a skill for our budget sheet', files: { 'skills/budget-sheet/SKILL.md': '---\nname: budget-sheet\ndescription: Reads the budget sheet. Use for budget questions.\ntriggers: budget sheet\nreuse: none - project-specific: reads our own sheet layout and column names\nchecks: none - a test skill\n---\n# Budget sheet\n## Done when\n- [ ] read (judgment: test)\n', 'docs/CHANGELOG.md': 'x' },
@@ -1905,6 +1941,16 @@ STOP.push(
     files: { 'src/renamer/__init__.py': '', 'src/renamer/cli.py': 'import argparse\nparser = argparse.ArgumentParser(description="photodate renames photos")\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { tags: ['name-var'] } },
   { name: 'no-verbatim-examples: engine files and relayed agent messages are not the user\'s words: passes', prompt: 'tidy up\n<agent-message from="helper">every chart in the monthly report should use the warm colour palette</agent-message>',
     files: { 'docs/notes-a.md': '# Notes\nevery chart in the monthly report should use the warm colour palette\n', 'tools/chart-check.mjs': '// make every chart in the monthly report use the warm colour palette\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { not: ['no-verbatim-examples'] } },
+  // (Lesson: a vault's brief was blocked for naming the vault's subject in the user's words, and was made vaguer)
+  { name: 'no-verbatim-examples: the brief and status describe the project in the user\'s words: passes', prompt: 'set up this project. It is my Obsidian vault of notes on baking and gardening; I want help keeping it tidy.',
+    files: { 'docs/BRIEF.md': '# Brief\n## Purpose\nA personal Obsidian vault of notes on baking and gardening, kept tidy and easy to search.\n', 'docs/STATUS.md': '# Status\n- An Obsidian vault of notes on baking and gardening: 3 notes.\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Done.' + FIN, expect: { not: ['no-verbatim-examples'] } },
+  { name: 'no-verbatim-examples: a sample sentence from the request copied into the brief is still caught', prompt: 'set up this project. It is my blog of family recipes. For example a post starts like this: grandma always soaked the chickpeas overnight in salted water',
+    files: { 'docs/BRIEF.md': '# Brief\n## Purpose\nA blog of family recipes. Posts open like: grandma always soaked the chickpeas overnight in salted water.\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Done.' + FIN, expect: { tags: ['no-verbatim-examples'] } },
+  { name: 'no-verbatim-examples: the project\'s description copied into another doc is still caught', prompt: 'set up this project. It is my Obsidian vault of notes on baking and gardening; I want help keeping it tidy.',
+    files: { 'docs/playbooks/notes-tidy.md': '# Tidy\nUse for an Obsidian vault of notes on baking and gardening.\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Done.' + FIN, expect: { tags: ['no-verbatim-examples'] } },
   { name: 'no-verbatim-examples: engine files are never scanned for the user\'s words: passes', prompt: 'please make every chart in the monthly report use the warm colour palette',
     files: { 'tools/chart-check.mjs': '// make every chart in the monthly report use the warm colour palette\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { not: ['no-verbatim-examples'] } },
   { pack: 'knowledge', name: 'answer-traced: a number typed into docs/knowledge outside research: blocked', prompt: 'note the desk price', tools: [{ name: 'Write', input: { file_path: 'docs/knowledge/desks.md', content: KNOW.replace('$300', '$345') } }],
@@ -1992,6 +2038,11 @@ STOP.push(
     expect: { block: true, tags: ['rule-request', 'hooks-tested', 'audit-run', 'changelog'] } },
   { name: 'stop-follow-on: a lesson placed in CLAUDE.md names the audit in round 1', prompt: 'you forgot the changelog again, this is annoying', files: { 'docs/CHANGELOG.md': 'x' },
     answer: 'You\'re right: the changelog line was missing.\nLearned (rule): every change gets its changelog line → CLAUDE.md' + FIN, expect: { block: true, tags: ['upset-learned', 'audit-run'] } },
+  // (Lesson: a false complaint checked with nothing changed got "Then:" changelog and audit steps, waived as "no file changed")
+  { name: 'stop-follow-on: an upset turn that changed no file names no changelog or audit after upset-learned', prompt: 'you keep making Aren left-handed!! he is right-handed', tools: [pb('project')],
+    files: { '.cache/turn-notes.md': 'Playbook: project.md\nLearned (none): no lesson\n' }, answer: 'Sorry, I will watch his hands.' + FIN, expect: { block: true, tags: ['upset-learned'], not: ['changelog', 'audit-run'] } },
+  { ...MEAL_TURN, name: 'stop-follow-on: an upset turn that changed a file still names the runbook lesson\'s audit and changelog', prompt: 'ugh, you forgot the meal plan again!! plan meals for the week', files: { 'notes/meals.md': 'x' },
+    answer: 'Playbook: meal-plan.md. You\'re right: the plan was missing. Done.' + FIN, expect: { block: true, tags: ['upset-learned', 'audit-run', 'changelog'] } },
   { name: 'stop-follow-on: a deck step that writes data names its data check in round 1', edit: DECK_REQS, prompt: 'update the deck with the new cards', files: { 'notes/deck-notes.md': 'x' }, answer: 'Updated.' + FIN,
     expect: { block: true, tags: ['deck-updated', 'data-valid'], says: /Then: Run the validator/ } },
   { name: 'stop-follow-on: a Spanish deck request names its data check in round 1', edit: DECK_REQS, prompt: 'actualiza el deck con las cartas nuevas', files: { 'notes/deck-notes.md': 'x' }, answer: 'Listo.' + FIN,
@@ -2236,6 +2287,11 @@ STOP.push(
 const REFUSE = (c, out = 'This command requires approval') => ({ ...bash(c, out), error: true });
 const NOT_VER = '\nNOT VERIFIED: the tests - npm test needs an approval this session could not give.';
 const GATE_FEATURE = { pack: 'app', prompt: 'add a feature to export reports as csv', files: SPEC, ...testGate };
+const PY_GATE = dir => {
+  spawnSync(process.execPath, ['tools/packs.mjs', 'configure', 'app', '--test', '.venv/Scripts/python -m pytest -q', '--test-pass', '\\d+ passed'], { cwd: dir, encoding: 'utf8' });
+  const old = (Date.now() - 3600_000) / 1000;
+  for (const p of ['tools/hooks/config.json', 'tools/hooks/requirements.json']) fs.utimesSync(path.join(dir, p), old, old);
+};
 STOP.push(
   // gate-refused: a gate whose command the permission system refused asks once for the honest line, which then meets it
   { ...GATE_FEATURE, name: 'app-test-pass: the test command was refused (approval): round 1 asks for the NOT VERIFIED line, not another run', tools: [pb('feature'), REFUSE('npm test')],
@@ -2252,6 +2308,18 @@ STOP.push(
     answer: 'Playbook: feature.md.\n' + VERIF + NOT_VER + FIN, expect: { block: true, tags: ['app-test-pass'], says: /install them first/ } },
   { ...GATE_FEATURE, name: 'app-test-pass: a missing module whose install was refused, and NOT VERIFIED: passes', tools: [pb('feature'), REFUSE('npm ci'), { ...bash('npm test', "Error: Cannot find module 'jest'"), error: true }],
     answer: 'Playbook: feature.md.\n' + VERIF + NOT_VER + FIN, expect: { not: ['app-test-pass'] } },
+  // (Lesson: a Flask setup's "configure --test <gate>" line was read as the last test run, and the refused real run,
+  // written with the full path to python.exe, as no run, so the refused gate was asked for in all 3 rounds)
+  { ...GATE_FEATURE, name: 'app-test-pass: the gate named in a configure line, then refused as "<project>/.venv/Scripts/python.exe": the honest line meets it', prep: PY_GATE,
+    tools: [pb('feature'), bash('node tools/packs.mjs configure app --test ".venv/Scripts/python -m pytest -q" --test-pass "\\d+ passed"', 'configured app gates: test=".venv/Scripts/python -m pytest -q"'),
+      REFUSE('"<DIR>/.venv/Scripts/python.exe" -m pytest -q "<DIR>/tests"')],
+    answer: 'Playbook: feature.md. It is written, but none of the tests have run: my tool would not let me run them.\n' + VERIF + FIN, expect: { not: ['app-test-pass'] } },
+  { ...GATE_FEATURE, name: 'app-test-pass: the gate named only in a configure line, never run: still asks for a run', prep: PY_GATE,
+    tools: [pb('feature'), bash('node tools/packs.mjs configure app --test ".venv/Scripts/python -m pytest -q" --test-pass "\\d+ passed"', 'configured app gates: test=".venv/Scripts/python -m pytest -q"')],
+    answer: 'Playbook: feature.md. Done.\n' + VERIF + FIN, expect: { block: true, tags: ['app-test-pass'], says: /^(?![\s\S]*configured app gates)/ } },
+  { ...GATE_FEATURE, name: 'app-test-pass: the gate run with its full path and passing: passes', prep: PY_GATE,
+    tools: [pb('feature'), bash('"<DIR>/.venv/Scripts/python.exe" -m pytest -q "<DIR>/tests"', '12 passed in 0.4s')],
+    answer: 'Playbook: feature.md. Done.\n' + VERIF + FIN, expect: { not: ['app-test-pass'] } },
   { ...GATE_FEATURE, name: 'app-test-pass: refused, then a real run that failed: the failure stands', tools: [pb('feature'), REFUSE('npm test'), { ...bash('npm test', 'not ok 1 rows\n1 failed'), error: true }],
     answer: 'Playbook: feature.md.\n' + VERIF + NOT_VER + FIN, expect: { block: true, tags: ['app-test-pass'] } },
   // gate-chain: a gate in a longer line counts where its own result shows
@@ -2420,6 +2488,16 @@ STOP.push(
     prep: TONE_REQ, mtimes: OLD_DRAFTS, tools: [...TONE_RUNS, bash('node tools/tone-check.mjs drafts/a.md drafts/b.md', 'RESULT: PASS')],
     files: { ...TONE_FILES, ...NOTES('Proven: fails on drafts/c.md; passes on all 2 existing drafts, the new letter, a late-rent letter\n') },
     answer: TONE_ANSWER, expect: { tags: ['check-proven'], says: /names no edge case made from this project's own words/ } },
+  // (Lesson: the answer's own "**Probado:**" label, its text in sub-items, hid the full line in the notes for 3 rounds)
+  { name: 'check-proven: a "**Probado:**" label in the answer with its text in sub-items does not hide the full notes line: passes', prompt: 'the letter sounds cold again!! letters to tenants are friendly, always',
+    prep: TONE_REQ, mtimes: OLD_DRAFTS, tools: [...TONE_RUNS, bash('node tools/tone-check.mjs drafts/a.md drafts/b.md', 'RESULT: PASS (2 drafts)')],
+    files: { ...TONE_FILES, ...NOTES('Proven: fails on drafts/c.md; passes on all 2 existing drafts, the new letter, and an edge case: a letter to Flat 2, Rose Court\nLearned (check): tenant letters pass a tone check → tools/tone-check.mjs\n') },
+    answer: TONE_ANSWER.replace(FIN, '') + '\n\n## Verificación\n- **Probado:**\n  - **Falla** con la carta de antes.\n  - **Pasa** con las cartas guardadas.' + FIN, expect: { not: ['check-proven'] } },
+  { name: 'check-proven: a "**Probado:**" label alone, with no full line anywhere: blocked, and the message gives the line filled in from the runs', prompt: 'the letter sounds cold again!! letters to tenants are friendly, always',
+    prep: TONE_REQ, mtimes: OLD_DRAFTS, tools: [...TONE_RUNS, bash('node tools/tone-check.mjs drafts/a.md drafts/b.md', 'RESULT: PASS (2 drafts)')],
+    files: { ...TONE_FILES, ...NOTES('Learned (check): tenant letters pass a tone check → tools/tone-check.mjs\n') },
+    answer: TONE_ANSWER.replace(FIN, '') + '\n\n## Verificación\n- **Probado:**\n  - **Falla** con la carta de antes.' + FIN,
+    expect: { tags: ['check-proven'], says: /that line is: "Proven: fails on drafts\/c\.md; passes on all 2 existing files it governs, drafts\/c-v2\.md, \.cache\/edge-rose-court\.md, drafts\/a\.md[^"]*, and an edge case: </ } },
   // a complaint the answer showed does not hold has no complained-about state: a failing sample proves the check
   { name: 'check-proven: a disproved complaint, the rule kept and its check failing on a sample: passes', prompt: 'otra vez pusiste texto en inglés en la página!! todo en español',
     prep: preexisting('src/aviso.njk'), files: { 'tools/check-aviso.mjs': '// idioma\n', 'docs/CHANGELOG.md': 'x', ...NOTES('Probado: falla con una página de muestra con "Skip to content"; pasa con la portada, el índice y un caso límite: "Tiempo total: 30 minutos"\nAprendido (nada): la queja no se sostiene - ninguna página tiene texto en inglés\n') },
@@ -2431,7 +2509,17 @@ STOP.push(
     answer: 'Every item on the menu lists its allergens.\nChecked: docs/menu.md and its last commit - the complaint doesn\'t hold: the croissant line says gluten, milk.' + FIN, expect: { not: ['upset-learned', 'playbook-named'] } },
   { name: 'upset-learned: "Learned (none)" for a complaint the answer agreed with: blocked', prompt: 'you forgot to add the allergens again!!', tools: [pb('project')],
     files: { 'docs/menu.md': 'Croissant (gluten, milk)', 'docs/CHANGELOG.md': 'x', ...NOTES('Playbook: project.md\nLearned (none): nothing to learn here, it was a slip\n') },
-    answer: 'You\'re right: the croissant had no allergens.\nChecked: docs/menu.md - the croissant line had none. Added them.' + FIN, expect: { tags: ['upset-learned'], says: /only for a complaint the answer showed does not hold/ } },
+    answer: 'You\'re right: the croissant had no allergens.\nChecked: docs/menu.md - the croissant line had none. Added them.' + FIN, expect: { tags: ['upset-learned'], says: /only for a complaint that did not hold/ } },
+  // (Lesson: the notes' own "didn't hold" did not count, and agents pasted "the complaint doesn't hold:" into every bullet)
+  { name: 'upset-learned: a disproved complaint in plain words, "didn\'t hold" in the notes, no fixed phrase in the answer: passes', prompt: 'you keep making Aren left-handed!! he is right-handed, it is in characters.md', tools: [pb('project')],
+    files: { ...NOTES('Playbook: project.md\nLearned (none): the complaint didn\'t hold - characters.md, chapter 1 and the outline all give Aren as right-handed\n') },
+    answer: 'I checked every file, and none of them makes Aren left-handed. They all say he\'s right-handed.\n\n- `characters.md`: right-handed, with a scar over his left eye.\n- `chapters/01-forge.md`: he lifts the hammer in his right hand.\n\nSo I changed nothing.' + FIN, expect: { not: ['upset-learned'] } },
+  { name: 'upset-learned: plain Spanish "no encontré" with "Learned (none)" in the notes: passes', prompt: '¡¡otra vez hay texto en inglés en el blog!!', tools: [pb('project')],
+    files: { ...NOTES('Playbook: project.md\nLearned (none): revisé las 14 páginas del sitio\n') },
+    answer: 'Revisé las 14 páginas del sitio y no encontré ningún texto en inglés.\n\n## Terminado\n- Hecho. Archivos: _site/index.html', expect: { not: ['upset-learned'] } },
+  { name: 'upset-learned: "Learned (none)" with no verdict at all in the answer or notes: blocked', prompt: 'you keep making Aren left-handed!! he is right-handed, it is in characters.md', tools: [pb('project')],
+    files: { ...NOTES('Playbook: project.md\nLearned (none): no lesson this time\n') },
+    answer: 'Sorry about that. I will be careful with his hands from now on.' + FIN, expect: { tags: ['upset-learned'] } },
   // turn-notes: the lines the checks read live in .cache/turn-notes.md, written this turn; last turn's notes don't count
   { name: 'turn-notes: the runbook named and the lesson placed only in the notes file: passes', prompt: 'you forgot to add the allergens again!!', tools: [pb('project')],
     files: { 'docs/menu.md': 'Croissant (gluten, milk)', 'docs/playbooks/menu.md': '# Menu\n- every item lists its allergens\n', 'docs/CHANGELOG.md': 'x', ...NOTES('Playbook: project.md\nLearned (lesson): every menu item lists its allergens → docs/playbooks/menu.md\n') },
@@ -2650,6 +2738,28 @@ PRETOOL.push(
     prep: dir => write(dir, { 'tools/hooks/state/turn.json': JSON.stringify({ at: new Date(Date.now() - 2000).toISOString() }), 'tools/hooks/state/snapshot.json': JSON.stringify({ at: new Date(Date.now() - 2000).toISOString(), files: {} }) }), deny: false },
   { pack: 'knowledge', name: 'protect-originals: deleting a file that was there at the turn start: denied', tool: 'Bash', input: { command: 'rm "sources/junk download.tmp"' }, setup: { 'sources/junk download.tmp': 'x' },
     prep: dir => write(dir, { 'tools/hooks/state/turn.json': JSON.stringify({ at: new Date(Date.now() - 2000).toISOString() }), 'tools/hooks/state/snapshot.json': JSON.stringify({ at: new Date(Date.now() - 2000).toISOString(), files: { 'sources/junk download.tmp': [1, 1, 'x'] } }) }), deny: true, tag: 'protect-originals' }
+);
+// no-overwrite and protect-originals: a file this turn created is the turn's own draft, and deleting a file that was
+// there at the turn start is the same as writing over it (Lesson: a guard denied the fix of a draft written seconds
+// earlier in the same turn, and the agent got past it with rm and Write)
+const TURN_SNAP = files => dir => write(dir, { 'tools/hooks/state/turn.json': JSON.stringify({ at: new Date(Date.now() - 2000).toISOString() }), 'tools/hooks/state/snapshot.json': JSON.stringify({ at: new Date(Date.now() - 2000).toISOString(), files }) });
+const OUTLINE = { 'outputs/outline.md': '# Outline\nQuestions for you.\n' };
+const OUTLINE_EDIT = { file_path: 'outputs/outline.md', old_string: 'Questions for you.', new_string: 'Working assumptions.' };
+PRETOOL.push(
+  { pack: 'knowledge', name: 'no-overwrite: fixing a draft this turn created (not in the turn-start snapshot): allowed', tool: 'Edit', input: OUTLINE_EDIT, setup: OUTLINE, prep: TURN_SNAP({}), prompt: 'write a one-page outline for the next chapter', deny: false },
+  { pack: 'knowledge', name: 'no-overwrite: editing an output that was there at the turn start: denied', tool: 'Edit', input: OUTLINE_EDIT, setup: OUTLINE, prep: TURN_SNAP({ 'outputs/outline.md': [1, 1, 'x'] }), prompt: 'write a one-page outline for the next chapter', deny: true, tag: 'no-overwrite' },
+  { pack: 'knowledge', name: 'no-overwrite: no snapshot, but this turn\'s Write created the draft: allowed', tool: 'Edit', input: OUTLINE_EDIT, setup: OUTLINE, prompt: 'draft a rent increase letter',
+    tools: [{ name: 'Write', input: { file_path: 'outputs/outline.md', content: 'x' }, result: 'File created successfully at: outputs/outline.md' }], deny: false },
+  { pack: 'knowledge', name: 'no-overwrite: no snapshot, and this turn\'s Write overwrote an existing output: the edit is denied', tool: 'Edit', input: OUTLINE_EDIT, setup: OUTLINE, prompt: 'draft a rent increase letter',
+    tools: [{ name: 'Write', input: { file_path: 'outputs/outline.md', content: 'x' }, result: 'The file outputs/outline.md has been updated successfully.' }], deny: true, tag: 'no-overwrite' },
+  { pack: 'knowledge', name: 'no-overwrite: rm of an output that was there at the turn start: denied', tool: 'Bash', input: { command: 'git status --short outputs; rm "outputs/outline.md" && echo removed' }, setup: OUTLINE, prep: TURN_SNAP({ 'outputs/outline.md': [1, 1, 'x'] }), prompt: 'how many beats does the outline have?', deny: true, tag: 'no-overwrite', says: /deletes or moves outputs\/outline\.md/ },
+  { pack: 'knowledge', name: 'no-overwrite: Remove-Item of a whole outputs folder with older outputs: denied', tool: 'PowerShell', input: { command: 'Remove-Item -Recurse -Force outputs' }, setup: OUTLINE, prep: TURN_SNAP({ 'outputs/outline.md': [1, 1, 'x'] }), prompt: 'tidy the project', deny: true, tag: 'no-overwrite' },
+  { pack: 'knowledge', name: 'no-overwrite: rm of a draft this turn created: allowed', tool: 'Bash', input: { command: 'rm outputs/outline.md' }, setup: OUTLINE, prep: TURN_SNAP({}), prompt: 'write a one-page outline for the next chapter', deny: false },
+  { pack: 'knowledge', name: 'no-overwrite: deleting an older output the request names: allowed', tool: 'Bash', input: { command: 'rm outputs/outline.md' }, setup: OUTLINE, prep: TURN_SNAP({ 'outputs/outline.md': [1, 1, 'x'] }), prompt: 'delete the old outline, I no longer need it', deny: false },
+  { pack: 'knowledge', name: 'protect-originals: rm of an original named by a pattern alone (**/*.pdf), there at the turn start: denied', tool: 'Bash', input: { command: 'rm lease.pdf' }, setup: { 'lease.pdf': 'x' },
+    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), protectedOriginals: ['**/*.pdf'] }) }, prep: TURN_SNAP({ 'lease.pdf': [1, 1, 'x'] }), prompt: 'summarize the lease', deny: true, tag: 'protect-originals' },
+  { pack: 'knowledge', name: 'protect-originals: editing a file this turn saved into sources/: allowed', tool: 'Edit', input: { file_path: 'sources/notes.md', old_string: 'a', new_string: 'b' }, setup: { 'sources/notes.md': 'a' }, prep: TURN_SNAP({}), prompt: 'save the article', deny: false },
+  { pack: 'knowledge', name: 'protect-originals: editing an original that was there at the turn start: denied', tool: 'Edit', input: { file_path: 'sources/notes.md', old_string: 'a', new_string: 'b' }, setup: { 'sources/notes.md': 'a' }, prep: TURN_SNAP({ 'sources/notes.md': [1, 1, 'x'] }), prompt: 'save the article', deny: true, tag: 'protect-originals' }
 );
 PROMPT.push(
   { name: 'event-hint: a request about sign-in names the security review before work starts', prompt: 'add a login page with passwords', has: ['MUST FOLLOW: security-review'] },
@@ -3990,6 +4100,27 @@ if (mineB()) { // knowledgeDirs, fit, labels and names: what a notes-only projec
       && np('README.md', 'photodate sorts photos by date.\n', { PROJECT_NAME: 'photodate' }) === '1';
     report(allCovered && lab === 'Add a dated line to CHANGELOG.md for the knowledge change' && /^Record the confirmed findings/.test(lab2) && files.includes('docs/shared.md') && !files.includes('local-notes.md') && codeOk,
       'knowledgeDirs, labels, names: a vault folder gets the knowledge checks, labels read as sentences, ignored files and code identifiers are not name-checked', `${globs} | ${lab} | ${lab2} | ${files.slice(0, 200)} | code ${codeOk}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+if (mineB()) { // fit-reasons: a short reason that names the item passes, one that names nothing fails, and a tail glued
+  // onto many rows is noted (Lesson: an 8-word minimum made an agent glue one 11-word tail onto 31 short reasons)
+  const dir = copyProject();
+  try {
+    fitFill(dir);
+    const fit = (...a) => spawnSync(process.execPath, ['tools/fit.mjs', ...a], { cwd: dir, encoding: 'utf8' });
+    // (recommended tools are candidates in every project, whatever packs and library skills it has)
+    const ok = (fit('decide', 'yq', 'skip', 'No YAML files: a terminal photo renamer.'), fit('check'));
+    const bad = (fit('decide', 'yq', 'skip', 'Not needed for us now.'), fit('check'));
+    const TAIL = ' in this photo renaming tool, so adding it would only cost upkeep';
+    const glued = [['yq', 'No YAML files'], ['jq', 'No JSON handled'], ['fd', 'No big file trees'], ['bat', 'No terminal file reading'], ['delta', 'No diffs reviewed']]
+      .map(([item, why]) => ({ item, decision: 'skip', reason: why + TAIL }));
+    fs.writeFileSync(path.join(dir, '.cache-glued.json'), JSON.stringify(glued));
+    const dec = fit('decide', '--file', path.join(dir, '.cache-glued.json')), noted = fit('check');
+    const NOTE = /note: 5 reasons end with the same 12 words \("\.\.\.in this photo renaming tool/;
+    report(/FIT: PASS/.test(ok.stdout) && /FIT: FAIL/.test(bad.stdout) && /yq: the reason \(5 words\) says nothing about yq/.test(bad.stdout)
+      && NOTE.test(dec.stdout) && /FIT: PASS/.test(noted.stdout) && NOTE.test(noted.stdout),
+      'fit-reasons: a short reason naming the item passes, an empty one fails, and one tail glued onto 5 rows is noted without failing', `ok: ${ok.stdout.slice(0, 400)} | bad: ${bad.stdout.slice(0, 400)} | decide: ${dec.stdout.slice(0, 400)} ${dec.stderr.slice(0, 200)} | check: ${noted.stdout.slice(0, 400)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 

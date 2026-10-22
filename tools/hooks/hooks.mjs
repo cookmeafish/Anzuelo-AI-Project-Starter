@@ -636,6 +636,14 @@ const keySpan = (seq, k) => {
   }
   return best;
 };
+// A trigger's key words in its own order, close together: the first, then each next one within 3 words of the last.
+const QUESTION_LED = /^(how|what|what's|whats|where|which|who|why|when|qu[eé]|cu[aá]l(es)?|c[oó]mo|d[oó]nde|qui[eé]n(es)?|por qu[eé]|cu[aá]ndo)(?![\wáéíóúñ])/i;
+const keyOrdered = (seq, k) => seq.some((w, i) => {
+  if (w !== k[0]) return false;
+  let at = i;
+  for (const n of k.slice(1)) { const j = seq.slice(at + 1, at + 4).indexOf(n); if (j < 0) return false; at += j + 1; }
+  return true;
+});
 // A word typed in capitals inside an ordinary sentence ("its NOTES", "the README") names a file, not the common word a
 // trigger means. Lesson: "add a line to its NOTES" (a deck's notes file) matched the knowledge base's "add a note".
 // (5 letters or more, so short acronyms like GUI, API or JSON still count; a message typed all in capitals is shouting)
@@ -681,6 +689,10 @@ export function route(prompt, pbs) {
       // ...and those key words close together: "make it so the app can be installed and started on a new machine" is
       // no "start a new app" (Lesson: a live trial routed it to app-foundation)
       if (common ? !exact : !exact && !(k.every(w => words.has(w)) && (k.length >= 2 ? keySpan(seq, k) <= k.length + 2 : !/\s/.test(t.trim())))) continue;
+      // A trigger led by a question word ("what are the options", "which is better") asks that question: its question
+      // word comes first in the message too, before the rest of its key words. Lesson: "add a --dry-run option that
+      // only prints what would be renamed" matched "what are the options" and sent a feature to the research skill.
+      if (!exact && k.length >= 2 && QUESTION_LED.test(t.trim()) && !keyOrdered(seq, k)) continue;
       // A whole phrase typed exactly ("not working", "fix this", "teach me", "ship it") is the request itself, unless it
       // sits in a plain question with no request verb. Lesson: such triggers could only back up another match, so "the
       // export is not working" and "teach me git branching" routed nowhere.
@@ -1210,7 +1222,7 @@ const REPORTED = /\b(reported|sent|passed on|forwarded|submitted|filed)\b[^.\n]{
 // REQ: claim-checked (git). A claim that git holds nothing, or no earlier version of a file: "nothing is committed yet",
 // "never committed", "not in git", "no earlier version in git" (Spanish too). It counts only when the sentence is
 // about the saved or earlier version, not "nothing from this turn is committed yet".
-export const NOT_IN_GIT = /\b(never (been |was |were )?committed|nothing (is |was |has been |had been )?(yet )?committed|(is|was|are|were) (still )?not (yet )?committed|(isn'?t|wasn'?t|aren'?t|weren'?t|hasn'?t been|haven'?t been) (yet )?committed|not (yet )?(in|saved in|stored in) git|(isn'?t|wasn'?t|aren'?t) (yet )?(in|saved in|stored in) git|no (earlier|previous|older|old|committed) versions?|git (holds|has|keeps) (no|nothing)\b|no commits? (yet|so far))|(?<!\p{L})(nunca (se )?(confirm[oó]|guard[oó] en git|hizo commit|se subi[oó] a git)|no (est[aá]|estaba|est[aá]n) en git|no hay (ning[uú]n )?commit|no hay (una )?versi[oó]n anterior)(?!\p{L})/iu;
+export const NOT_IN_GIT = /\b(never (been |was |were )?committed|nothing (is |was |has been |had been )?(yet )?committed|(is|was|are|were) (still )?not (yet )?committed|(isn'?t|wasn'?t|aren'?t|weren'?t|hasn'?t been|haven'?t been) (yet )?committed|not (yet )?(in|saved in|stored in) git|(isn'?t|wasn'?t|aren'?t) (yet )?(in|saved in|stored in) git|no (earlier|previous|older|old|committed) versions?|git (holds|has|keeps) (nothing\b|no ([\w-]+ ){0,2}(versions?|commits?|history|cop(y|ies)|records?|trace)\b)|no commits? (yet|so far))|(?<!\p{L})(nunca (se )?(confirm[oó]|guard[oó] en git|hizo commit|se subi[oó] a git)|no (est[aá]|estaba|est[aá]n) en git|no hay (ning[uú]n )?commit|no hay (una )?versi[oó]n anterior)(?!\p{L})/iu;
 const ABOUT_SAVED = /\b(version|saved|stored|earlier|previous|older|history|in git)\b|(?<!\p{L})(versi[oó]n|guardad[oa]|historial|anterior|en git)(?!\p{L})/iu;
 // What git holds: the last commit, and the last commit of each named file ('' when git never had it). null outside a
 // repository or before the first commit.
@@ -1370,18 +1382,38 @@ export function checkProof(x) {
   if (!checks.length) return { checks, missing: [] };
   const missing = [];
   // (the line may sit in the turn's notes file, or in a footer with other markers: "Proven: ... · Learned (...): ...")
-  const line = (/^[^\n]*?\b(proven|probad[oa])\s*:([^\n]*)$/im.exec(`${x.answer || ''}\n${x.notes || ''}`)?.[2] || '').split(/\s+·\s+(?=[\p{L} ()-]{2,30}:)/u)[0];
-  const goods = (/\b(?:pass(?:es)? on|pasa (?:con|en|sobre))\s+([^\n]+)/i.exec(line)?.[1] || '').split(/\s*(?:[,;]|\band\b|\by\b)\s*/).filter(s => s.replace(/\W/g, '').length >= 3);
-  if (!line.trim()) missing.push(`no "Proven: fails on <the complained-about sample>; passes on <good 1>, <good 2>, and an edge case: <...>" line (in ${NOTES_FILE} or the answer)`);
-  else {
-    if (!/\b(fails? on|falla (con|en|sobre))\s+\S/i.test(line)) missing.push('the "Proven:" line does not name the complained-about sample it fails on');
-    if (goods.length < 2) missing.push('the "Proven:" line names fewer than 2 good samples it passes on');
+  // Every "Proven:"/"Probado:" line counts, the notes first, and the most complete one is judged. A label whose text
+  // sits in the list items under it ("- **Probado:**" then "  - **Falla** con ...") reads them as its text.
+  // Lesson: a Spanish answer's own "**Probado:**" heading, with its text in sub-items, was read as an empty proof line
+  // and hid the full "Proven:" line in the notes; check-proven blocked all 3 rounds of a proven check.
+  const candidates = [];
+  for (const src of [x.notes || '', x.answer || '']) {
+    const ls = String(src).split(/\r?\n/);
+    ls.forEach((l, i) => {
+      const m = /^([ \t]*)[^\n]*?\b(proven|probad[oa])\b[*_]*\s*:([^\n]*)$/i.exec(l);
+      if (!m) return;
+      let text = m[3];
+      if (text.replace(/[\s*_`]/g, '').length < 8) for (let j = i + 1; j < ls.length && /^\s+[-*+]\s|^\s{2,}\S/.test(ls[j]) && ls[j].search(/\S/) > m[1].length; j++) text += ' ' + ls[j].trim().replace(/^[-*+]\s+/, '');
+      candidates.push(text.replace(/[*_`]+/g, '').split(/\s+·\s+(?=[\p{L} ()-]{2,30}:)/u)[0]);
+    });
+  }
+  const lineProblems = line => {
+    const out = [];
+    const goods = (/\b(?:pass(?:es)? on|pasa (?:con|en|sobre))\s+([^\n]+)/i.exec(line)?.[1] || '').split(/\s*(?:[,;]|\band\b|\by\b)\s*/).filter(s => s.replace(/\W/g, '').length >= 3);
+    if (!/\b(fails? on|falla (con|en|sobre))\s+\S/i.test(line)) out.push('the "Proven:" line does not name the complained-about sample it fails on');
+    if (goods.length < 2) out.push('the "Proven:" line names fewer than 2 good samples it passes on');
     // An edge case made from the project's own words, where word lists misfire: a name or an address (a flat in "Rose
     // Court"), a heading or label ("Tiempo total"), a word the user's language shares with a banned list, quoted text.
     // Lesson: the edge cases agents tried were the skill's own examples, copied, so the project's real vocabulary never
     // met the check.
-    if (!EDGE_CASE.test(line)) missing.push('the "Proven:" line names no edge case made from this project\'s own words ("an edge case: <a real address, heading, product or person\'s name, a word the user\'s language shares with the flagged list, or quoted text>")');
-  }
+    if (!EDGE_CASE.test(line)) out.push('the "Proven:" line names no edge case made from this project\'s own words ("an edge case: <a real address, heading, product or person\'s name, a word the user\'s language shares with the flagged list, or quoted text>")');
+    return out;
+  };
+  const judged = candidates.filter(c => c.trim()).map(c => ({ c, p: lineProblems(c) }));
+  const best = judged.reduce((a, b) => (b.p.length < a.p.length ? b : a), judged[0] || { c: '', p: [] });
+  const line = best.c;
+  if (!line.trim()) missing.push(`no "Proven: fails on <the complained-about sample>; passes on <good 1>, <good 2>, and an edge case: <...>" line (in ${NOTES_FILE} or the answer)`);
+  else missing.push(...best.p);
   // a test file's name without its test affix ("idioma.test" -> "idioma") also names the script it tests
   const stems = [...new Set(checks.map(p => path.basename(p).replace(/\.[^.]+$/, '')).flatMap(s => [s, s.replace(/^test_|[._-](test|spec)$/i, '')]))].filter(s => s.length >= 4);
   const tests = checks.some(p => TEST_FILE.test(p));
@@ -1419,7 +1451,7 @@ export function checkProof(x) {
   // A complaint the answer showed does not hold has no complained-about state: a failing run on a sample of what the
   // rule forbids proves the check then. Lesson: a check written for a rule kept after a disproved complaint was blocked
   // twice for a "failing run on the earlier state" that could not exist, and was waived.
-  const disproved = COMPLAINT_DOESNT_HOLD.test(`${x.answer || ''}\n${x.said || ''}`);
+  const disproved = complaintDisproved(`${x.answer || ''}\n${x.said || ''}`, x.answer || '');
   if (!runs.some(r => failed(r) && (onOld(r) || disproved))) missing.push('no run of the check failed on the state the user complained about');
   if (!runs.some(passed)) missing.push('no run of the check passed');
   // Every existing file a blocking check governs (from git's last commit), apart from the ones complained about, passes
@@ -1435,11 +1467,34 @@ export function checkProof(x) {
   // (without a leading "cd <project> &&", which filled the 70 characters. Lesson: every run read only as "cd" and the start of the project's path)
   const shown = c => shellParts(cmdHead(c)).parts.filter(p => !/^\(?\s*(cd|Set-Location|pushd)\s/i.test(p)).join(' ; ') || cmdHead(c);
   const seen = runs.slice(-4).map(r => `"${shown(r.cmd).replace(/\s+/g, ' ').slice(0, 70)}" ${failed(r) ? (onOld(r) ? (onSample(r) ? 'FAIL on a sample of the problem' : 'FAIL on the earlier state') : 'FAIL, but after the fix and not on a saved copy') : 'PASS'}`);
-  return { checks, missing, seen, stems, need };
+  // The line to write, filled in with the runs the engine saw, so the next round can meet it by copying it: only the
+  // edge case is left to the agent when its own line had none. Lesson: a check proven in every way was blocked for 3
+  // rounds by a message that said only which part of a fixed line was missing.
+  const argsOf = rs => [...new Set(rs.flatMap(r => { const a = argPaths(r.cmd, stems); return a.length ? a : ['its whole default scope']; }))].slice(0, 4);
+  const bad = argsOf(runs.filter(r => failed(r) && (onOld(r) || disproved)));
+  const good = argsOf(runs.filter(r => passed(r) && !failed(r))).filter(p => !bad.includes(p));
+  const edge = /\b(?:edge[- ]cases?|casos? l[ií]mite)\s*:?\s*([^;\n]+)/i.exec(line)?.[1]?.trim();
+  const example = `Proven: fails on ${bad.join(', ') || '<the complained-about sample>'}; passes on ${need.length ? `all ${need.length} existing files it governs, ` : ''}` +
+    `${good.length ? good.join(', ') : '<good 1>, <good 2>'}${good.length + (need.length ? 1 : 0) < 2 ? ', <one more realistic good sample>' : ''}, and an edge case: ${edge || '<this project\'s own words it holds: a real name, heading or label, or a word shared with the flagged list>'}`;
+  return { checks, missing, seen, stems, need, example };
 }
 const EDGE_CASE = /\bedge[- ]cases?\b|\bcasos? (l[ií]mite|extremo|borde|dif[ií]cil)\b|\btricky\b/i;
-// The answer showed the complaint does not hold ("Checked: ... - the complaint doesn't hold: ...").
-export const COMPLAINT_DOESNT_HOLD = /\b(the )?complaint(:\s*|\s+)does(n'?t| not) hold\b|\bthat (isn'?t|is not|wasn'?t|was not) what happened\b|\bthat'?s not what happened\b/i;
+// The answer showed the complaint does not hold ("Checked: ... - the complaint doesn't hold: ...", or "didn't hold",
+// the form the hook's own messages suggest for the "Learned (none)" line).
+export const COMPLAINT_DOESNT_HOLD = /\b(the )?complaint(:\s*|\s+)(does|did|has)(n'?t| not) hold\b|\bthat (isn'?t|is not|wasn'?t|was not) what happened\b|\bthat'?s not what happened\b/i;
+// The same verdict in the agent's own words: what it looked at was not wrong ("none of them makes him left-handed",
+// "nothing was missing", "the README already documents it", "I checked ... and found no ...", "no encontré ...").
+const NOT_WRONG = /\bnone of (them|these|those|the \w+)\b[^.\n]{0,80}\b(says?|shows?|makes?|has|have|is|are|uses?|contains?|gives?|calls?|mentions?)\b|\b(no|not a single|not one) (file|line|page|chapter|note|place|commit|row|entry)s?\b[^.\n]{0,40}\b(was|is|were|are)\s+(wrong|missing|broken|incorrect)\b|\bnothing (was|is|had been) (wrong|missing|broken|left out|incorrect)\b|\b(already|still) (says|documents|lists|has|shows|covers|there|in place|correct)\b|(?<!\p{L})(ning[uú]n[oa]? (archivo|fichero|cap[ií]tulo|p[aá]gina|nota|l[ií]nea)\b[^.\n]{0,60}\b(dice|muestra|tiene|usa)|nada (faltaba|estaba mal)|ya (lo )?(dice|documenta|recoge|incluye))(?!\p{L})/iu;
+// A disproved complaint: the fixed phrase, or a "Learned (none): ..." line (in the answer or the turn notes) next to a
+// verdict in plain words, as long as the answer does not concede the whole complaint. Lesson: two agents that had
+// checked a false complaint properly were made to paste "the complaint doesn't hold:" into three bullets of the reply
+// to an upset author, because their notes said "didn't hold" and their answers said it in their own words.
+export function complaintDisproved(said, answer = said) {
+  if (COMPLAINT_DOESNT_HOLD.test(said)) return true;
+  if (!LEARNED_NONE.test(said)) return false;
+  if (/\b(you'?re right|you are right)\b/i.test(answer) && !/\b(partly|partially|in part)\b/i.test(answer)) return false;
+  return NOT_FOUND.test(said) || NOT_WRONG.test(said);
+}
 export function toolUses(entries) {
   const skip = deniedIds(entries), out = [];
   for (const r of entries) {
@@ -1743,7 +1798,7 @@ export function cantRun(attempts, allRuns = [], gateCmd = '') {
 }
 // The answer says honestly that this did not run: a "NOT VERIFIED: <what> - <why>" line, or a sentence that names the
 // tests, build or command and says it did not run.
-const NOT_RUN_SAID = /\b(not (been |yet )?(run|ran|compiled|built|tested|verified|checked)|n'?t (been )?(run|ran|compiled|built|tested)|nothing (has been |was |got )?(run|compiled|built|tested)|never (ran|run|compiled|built)|none (of them )?(has|have) (been )?run|could ?n[o']t (run|be run)|can'?t (run|be run)|requires? (an )?approval|needs? (your |an )?approval|wait(s|ed|ing)? for (an |your )?approval|(is|are)n'?t installed|not installed)\b/i;
+const NOT_RUN_SAID = /\b(not (been |yet )?(run|ran|compiled|built|tested|verified|checked)|n'?t (been )?(run|ran|compiled|built|tested)|nothing (has been |was |got )?(run|compiled|built|tested)|never (ran|run|compiled|built)|none (of (them|the \w+) )?(has|have) (been )?(run|ran)|could ?n[o']t (run|be run)|can'?t (run|be run)|requires? (an )?approval|needs? (your |an )?approval|wait(s|ed|ing)? for (an |your )?approval|(is|are)n'?t installed|not installed)\b/i;
 export function saysNotRun(text, cmd = '') {
   const t = String(text || '');
   if (/\bnot verified\b|\bunverified\b/i.test(t)) return true;
@@ -1758,6 +1813,19 @@ export function cantRunStep(kind, cmd) {
   const why = kind === 'refused' ? `the permission system refused \`${cmd}\` this turn (it needs an approval nobody can give here)` : `\`${cmd}\` can't run here: its tool or a dependency is not installed, and installing it was refused or failed`;
   return { detail: `${why}. Don't run it again this turn. Say so once in the answer instead: "NOT VERIFIED: <what did not run> - <why it couldn't run>", and claim nothing it would have shown`,
     short: `Say what was NOT VERIFIED and why: ${String(cmd).slice(0, 28)} ${kind === 'refused' ? 'was refused' : 'can\'t run here'}` };
+}
+// A command as a gate's pattern reads it: the project's own folder dropped from its paths, quotes around a single path
+// taken off and ".exe" cut, so "C:/.../proj/.venv/Scripts/python.exe" -m pytest is the gate ".venv/Scripts/python -m
+// pytest"; and an option's quoted value blanked, so a command that only names the gate (packs.mjs configure app --test
+// "<the gate>") is no run of it. (A shell's own -c / -Command / /c text is the command it runs, and stays.)
+// Lesson: in a Flask setup the configure command was read as the last test run, and the refused real run, written
+// with the full path to python.exe, was not read as a run at all, so the refused gate was asked for 3 rounds.
+export function gateText(cmd) {
+  const root = ROOT.replace(/\\/g, '/').replace(/\/+$/, '');
+  let s = cmdHead(cmd).replace(/"([^"\s]*)"|'([^'\s]*)'/g, (m, a, b) => a ?? b);
+  s = s.replace(/[^\s"']+/g, w => { const f = w.replace(/\\/g, '/'); return f.toLowerCase().startsWith(root.toLowerCase() + '/') ? f.slice(root.length + 1) : w; });
+  s = s.replace(/(\w)\.exe\b/gi, '$1');
+  return s.replace(/(\s--?(?!c\b|lc\b|command\b)[A-Za-z][\w-]*(?:=|\s+))("[^"\n]*\s[^"\n]*"|'[^'\n]*\s[^'\n]*')/gi, (m, flag) => `${flag}""`);
 }
 // A command that only talks to the engine (a waiver, "why", "last"), with nothing else in it: no run of any project
 // check, whatever its text names. Lesson: a project check's command pattern matched a waiver's reason that named the
@@ -2489,6 +2557,19 @@ export function verbatimHits(x, cfg = config()) {
   const std = ` ${words(read(abs('docs/checks/writing-standards.md'))).join(' ')} `;
   for (const g of [...grams.keys()]) if (std.includes(` ${g} `)) grams.delete(g);
   if (!grams.size) return [];
+  // The sentence in which the user says what the project is ("It is my Obsidian vault of notes on baking and
+  // gardening", "Será un blog de recetas de mi abuela") names its subject: the brief, the status and the readme exist to
+  // say that, so its words are no copied example there. Quoted text inside it still counts, and so does every other
+  // sentence. Lesson: a vault's brief was blocked for describing the vault in the user's words, and the agent made the
+  // project's own description vaguer ("notes on two hobby subjects") to get past the check.
+  const ABOUT = /\b(it|this|the project|this project|my project|this repo)\s*(is|will be|'s)\s+(my|a|an|our|the|for)\b|\b(it|this)\s+(holds|has|keeps)\s+my\b|(?<!\p{L})(ser[aá]|es)\s+(un|una|mi|mis|nuestr[oa]s?)(?!\p{L})/iu;
+  const subject = new Set();
+  for (const p of x.allPrompts) for (const s of String(p).split(/(?<=[.!?;:])\s+|\n+/)) {
+    if (!ABOUT.test(s)) continue;
+    const w = words(s.replace(/["“][^"”]*["”]|'[^'\n]{12,}'/g, ' '));
+    for (let i = 0; i + n <= w.length; i++) subject.add(w.slice(i, i + n).join(' '));
+  }
+  const DESCRIBES = /^(docs\/(BRIEF|STATUS)\.md|README\.md)$/i;
   const hits = [];
   // Engine files are the starter's words, not the user's: never scanned (an upgrade rewrites them mid-session), and
   // neither are generated skills. Lesson: right after an upgrade, tools/audit.mjs and hooks.mjs were flagged.
@@ -2498,7 +2579,7 @@ export function verbatimHits(x, cfg = config()) {
     const w = words(read(abs(f)).replace(/```template[\s\S]*?```/g, ' ').replace(/^\s*(>\s*)?[-*]?\s*template:.*$/gim, ' '));
     for (let i = 0; i + n <= w.length; i++) {
       const g = w.slice(i, i + n).join(' ');
-      if (grams.has(g)) { hits.push(`${f} ("${g}...")`); break; }
+      if (grams.has(g) && !(DESCRIBES.test(f) && subject.has(g))) { hits.push(`${f} ("${g}...")`); break; }
     }
   }
   return hits;
@@ -2930,7 +3011,8 @@ export function setupCompleteness(cfg = config(), { final = false, beforeStarter
   if (lib) {
     const line = f['library skills'] || '';
     const [on, off = ''] = line.split(/\bleft out\b/i);
-    const fitOut = new Set(fitRows().filter(r => r.kind === 'skill' && /^(skip|later)$/.test(fitDecision(r.decision) || '') && !fitReasonProblem(r.reason)).map(r => r.item));
+    const fitC = new Map(fitCandidates(cfg).candidates.map(c => [fitKey(c.kind, c.item), c]));
+    const fitOut = new Set(fitRows().filter(r => r.kind === 'skill' && /^(skip|later)$/.test(fitDecision(r.decision) || '') && !fitReasonProblem(r.reason, fitC.get(fitKey(r.kind, r.item)))).map(r => r.item));
     for (const e of readJSON(path.join(lib.dir, 'catalog.json'), { skills: [] }).skills) {
       const enabled = exists(`${cfg.skillsDir}/${e.name}/SKILL.md`);
       const fits = e.for === 'any' || packs.includes(e.for);
@@ -3218,7 +3300,26 @@ const userVault = () => {
   const app = readJSON(abs('.obsidian/app.json'), {});
   return JSON.stringify(Object.keys(app).filter(k => k !== 'userIgnoreFilters').sort()) !== JSON.stringify(['alwaysUpdateLinks', 'newLinkFormat', 'useMarkdownLinks']);
 };
-export function fitReasonProblem(reason) {
+// The words of a text that can tie a reason to its item: 4+ letters, not filler or words every candidate uses, cut to
+// their first 5 letters ("games" and "game-dev" meet at "game"; "marketed" and "marketing" at "marke").
+const FIT_GENERIC = new Set([...FIT_FILLER, 'when', 'recommend', 'good', 'your', 'with', 'from', 'into', 'each', 'every', 'other', 'more', 'only', 'already', 'adds',
+  'code', 'file', 'files', 'tool', 'tools', 'user', 'users', 'projects', 'makes', 'keeps', 'checks', 'check', 'what', 'which', 'where', 'about', 'their', 'them',
+  'after', 'before', 'first', 'helps', 'help', 'does', 'over', 'none', 'nothing', 'work', 'works', 'runs', 'built', 'build', 'builds', 'gain', 'cost', 'costs', 'upkeep']);
+const fitStems = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').split(/[^a-z0-9]+/).filter(w => w.length >= 4 && !FIT_GENERIC.has(w)).map(w => w.slice(0, 5));
+// A reason names something about its item: the item's name, or a word of what the item is or is for ("Not a game." for
+// game-dev, "No YAML files." for yq).
+export function fitReasonNamesItem(reason, c) {
+  if (!c) return false;
+  const r = String(reason || '').toLowerCase();
+  if (String(c.item || '').toLowerCase().split(/[^a-z0-9.+-]+/).filter(w => w.length >= 2).some(w => new RegExp(`(^|[^a-z0-9])${esc(w)}([^a-z0-9]|$)`).test(r))) return true;
+  const own = new Set([...fitStems(c.item), ...fitStems(c.what)]);
+  return fitStems(r).some(w => own.has(w));
+}
+// A reason is judged on what it says, not on its length: a short reason that names something about the item stands
+// ("Not a game: a terminal photo renamer."), and a reason of 8 words or more stands as before. Lesson: the old 8-word
+// minimum made an agent glue the same 11-word tail onto 31 short reasons, which left the checklist the user was sent
+// to with 31 ungrammatical copies of one sentence.
+export function fitReasonProblem(reason, c = null) {
   const r = String(reason || '').trim(), flat = r.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
   if (!r || r === '?') return 'no reason: say what it gains or costs for this project';
   if (FIT_BOILER.test(flat)) return `"${r}" is boilerplate: say what it gains or costs for this project`;
@@ -3226,8 +3327,12 @@ export function fitReasonProblem(reason) {
   // kept" only because the engine's own files looked like a signal)
   if (/^(it is |it's |its )?already (in|part of|set up in|installed in) (the|this) project\b[^.]{0,30}$/.test(flat)) return `"${r}" says it is there, not why it helps: say what it gains or costs for this project`;
   const words = flat.split(' ').filter(Boolean);
-  if (words.length < 8) return `the reason is too short (${words.length} words, at least 8): say what it gains or costs for this project`;
-  if (words.filter(w => w.length >= 3 && !FIT_FILLER.has(w)).length < 4) return 'the reason is boilerplate: name the concrete gain or cost for this project';
+  // (the item's own name is no content: "Not needed: game-dev." says nothing, "Not a game." does)
+  const item = String(c?.item || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  const content = (item ? ` ${flat} `.split(` ${item} `).join(' ') : flat).split(' ').filter(w => w.length >= 3 && !FIT_FILLER.has(w));
+  if (words.length < 8 && !(words.length >= 3 && content.length && fitReasonNamesItem(r, c)))
+    return `the reason (${words.length} words) says nothing about ${c?.item || 'this item'} or what it would do here: name what it is for and why this project does or doesn't need that (a short reason is fine when it does)`;
+  if (words.length >= 8 && words.filter(w => w.length >= 3 && !FIT_FILLER.has(w)).length < 4) return 'the reason is boilerplate: name the concrete gain or cost for this project';
   if (/worth it\s*:/i.test(r) && !/worth it\s*:\s*\S[^/]*\/\s*\S/i.test(r)) return '"Worth it:" needs "<gain> / <cost>"';
   return '';
 }
@@ -3255,7 +3360,7 @@ export function fitProblems(cfg = config(), { sv = null, text = null } = {}) {
     if (!c) { probs.push(`${at}: no longer a candidate: run node tools/fit.mjs`); continue; }
     if (!d) { probs.push(/^\?*$/.test(r.decision.trim()) ? `${at}: not decided yet (add, skip or "later - when: <condition>", with the reason)` : `${at}: the decision must be add, skip or later`); continue; }
     if (!r.signal || r.signal === '?') probs.push(`${at}: write what the survey, brief or code shows about it in Signal`);
-    const rp = fitReasonProblem(r.reason.replace(FIT_WHEN_TAIL, '').trim() || r.reason);
+    const rp = fitReasonProblem(r.reason.replace(FIT_WHEN_TAIL, '').trim() || r.reason, c);
     if (rp) probs.push(`${at}: ${rp}`);
     else if (seen[r.reason.toLowerCase().replace(/\s+/g, ' ').trim()] > 2) probs.push(`${at}: the same reason is used for ${seen[r.reason.toLowerCase().replace(/\s+/g, ' ').trim()]} rows: write one that is about this item`);
     const on = !!c.present(cfg);
@@ -3276,6 +3381,33 @@ export function fitProblems(cfg = config(), { sv = null, text = null } = {}) {
     }
   }
   return probs;
+}
+// Notes, not failures: 5 or more reasons that end with the same words (the item's own name aside), where that shared
+// tail is most of each reason. It reads as padding to the user the checklist is shown to; a short reason that names the
+// item is enough. Rows the engine wrote itself are left out. Not a failure, so checklists already decided this way keep
+// passing. Lesson: 31 reasons in one checklist ended with "...in this photo renaming tool, so adding it would only cost
+// upkeep", glued on by a script to reach a word minimum.
+const FIT_GENERATED = /^auto: |\bworks on (code|[\w ]+ files), and this project has (no code files yet|none yet)|^already in the project and kept \(change it if it does not fit\)/i;
+export function fitBoilerplate(text = null) {
+  const rows = fitRows(text ?? (exists(FIT_FILE) ? read(abs(FIT_FILE)) : '')), groups = new Map();
+  for (const r of rows) {
+    if (!fitDecision(r.decision) || !r.reason || FIT_GENERATED.test(r.reason)) continue;
+    const w = r.reason.toLowerCase().split(String(r.item).toLowerCase()).join(' § ').replace(/[^a-z0-9§\s]/g, ' ').split(/\s+/).filter(Boolean);
+    if (w.length < 6) continue;
+    const k = w.slice(-6).join(' ');
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push({ r, w });
+  }
+  const notes = [];
+  for (const g of groups.values()) {
+    if (g.length < 5) continue;
+    let n = 6; while (g.every(x => x.w.length > n) && g.every(x => x.w[x.w.length - 1 - n] === g[0].w[g[0].w.length - 1 - n])) n++;
+    const share = g.map(x => n / x.w.length).sort((a, b) => a - b)[g.length >> 1];
+    if (share < 0.5) continue;
+    notes.push(`${g.length} reasons end with the same ${n} words ("...${g[0].w.slice(-n).join(' ')}"): ${g.slice(0, 4).map(x => x.r.item).join(', ')}${g.length > 4 ? ', ...' : ''}. ` +
+      'A short reason that names the item is enough ("Not a game: a terminal photo renamer."): drop the shared tail, or say what is particular to each item');
+  }
+  return notes;
 }
 // Session start: a "later" whose measurable condition is now met is announced once (state: fit-later.json).
 export function fitLaterNotice() {
@@ -3931,6 +4063,66 @@ export function sessionOwnFiles(cmd, d, t) {
   }
   return true;
 }
+// A file this turn created is the turn's own draft, not yet a delivered output or an original: it is missing from the
+// turn-start snapshot (taken at the turn's first prompt, and the path is not one the snapshot skips) and git does not
+// track it, or the agent's own Write created it this turn ("File created successfully"). Lesson: the no-overwrite guard
+// denied the fix of an outline and of a letter the agent had written seconds earlier in the same turn; one stiff line
+// shipped, and the other agent deleted its draft with rm and wrote it again to get past the guard.
+export function madeThisTurn(p, t, cfg = config()) {
+  if (p.startsWith('..')) return false;
+  const tracked = () => exists('.git') && spawnSync('git', ['ls-files', '--error-unmatch', p], { cwd: ROOT, encoding: 'utf8' }).status === 0;
+  const snap = readJSON(stateFile(SNAPSHOT), null), turnAt = Date.parse(readJSON(stateFile('turn.json'), {}).at || '');
+  const ign = (cfg.ignoreForChanges || []).map(globRe), parts = p.split('/');
+  const skipped = parts.some((_, i) => { const q = parts.slice(0, i + 1).join('/'); return ign.some(r => r.test(q) || r.test(q + '/')); });
+  if (snap?.files && turnAt && Date.parse(snap.at) >= turnAt - 5000 && !skipped) return !snap.files[p] && !tracked();
+  const entries = t?.entries || [], ids = new Set();
+  for (const r of entries) { const c = r.message?.content; if (r.type === 'assistant' && Array.isArray(c)) for (const x of c) if (x?.type === 'tool_use' && x.name === 'Write' && rel(x.input?.file_path || '') === p) ids.add(x.id); }
+  if (!ids.size) return false;
+  for (const r of entries) { const c = r.message?.content; if (r.type === 'user' && Array.isArray(c)) for (const x of c) if (x?.type === 'tool_result' && ids.has(x.tool_use_id) && !x.is_error && /^File created successfully\b/.test(textOf(x.content).trim())) return !tracked(); }
+  return false;
+}
+// The files a command deletes or moves away, as they exist now: the file arguments of rm, del, erase, unlink, rmdir,
+// git rm and Remove-Item (ri), and the sources of mv, move, git mv, Move-Item and Rename-Item (ren). Quotes are removed
+// and flags skipped; a wildcard or a folder stands for the files in it.
+// With globs, only files they match are listed, folders none of them can reach are not entered, and at most 20000
+// entries are visited, so "rm -rf node_modules" costs the hook nothing.
+export function removedPaths(cmd, globs = null) {
+  const segs = [[]], args = [];
+  for (const m of String(cmd).matchAll(/"((?:\\.|[^"\\])*)"|'([^']*)'|(&&|\|\||[;|&\n])|([^\s;|&"']+)/g))
+    if (m[3]) segs.push([]); else segs[segs.length - 1].push(m[1] ?? m[2] ?? m[4]);
+  const RM = /^(rm|del|erase|unlink|rmdir|rd|remove-item|ri)$/i, MV = /^(mv|move|move-item|mi|rename-item|ren)$/i;
+  for (let words of segs) {
+    while (words.length && /^(sudo|command|\w+=\S*)$/.test(words[0])) words = words.slice(1);
+    if (/^git$/i.test(words[0] || '') && /^(rm|mv)$/i.test(words[1] || '')) words = words.slice(1);
+    const verb = words[0] || '';
+    if (!RM.test(verb) && !MV.test(verb)) continue;
+    // (PowerShell's -Destination and -NewName name the target, not a file that goes away)
+    const a = [];
+    for (let i = 1; i < words.length; i++) { if (/^-(destination|newname)$/i.test(words[i])) { i++; continue; } if (!/^-/.test(words[i]) && !/^\/[a-z]$/i.test(words[i])) a.push(words[i]); }
+    args.push(...(MV.test(verb) ? a.slice(0, -1) : a));
+  }
+  const files = [], gl = globs ? [].concat(globs) : null;
+  const want = q => !gl || match(q, gl);
+  const statics = gl && gl.map(g => g.split(/[*?{[]/)[0]);
+  const reach = dir => !statics || statics.some(s => (s === '' && !/(^|\/)(node_modules|\.git|\.venv|venv|dist|build|target)$/.test(dir)) || s.startsWith(dir + '/') || `${dir}/`.startsWith(s.replace(/[^/]*$/, '')) && s.replace(/[^/]*$/, '') !== '');
+  let visited = 0;
+  // (a wildcard without ** only reaches as deep as its own folders)
+  const walk = (d, keep = () => true, depth = Infinity) => {
+    if (d && !reach(d)) return;
+    for (const n of list(d)) {
+      if (++visited > 20000) return;
+      const q = d ? `${d}/${n}` : n; let s; try { s = walkStat(q); } catch { continue; }
+      if (s.isDirectory()) { if ((d || n !== '.git') && q.split('/').length < depth) walk(q, keep, depth); } else if (keep(q) && want(q)) files.push(q);
+    }
+  };
+  for (const p of args.map(x => rel(x.replace(/\\/g, '/')))) {
+    if (p.startsWith('..')) continue;
+    if (/[*?]/.test(p)) { const r = globRe(p); walk(p.replace(/(^|\/)[^/]*[*?].*$/, ''), q => r.test(q), p.includes('**') ? Infinity : p.split('/').length); continue; }
+    let s; try { s = fs.statSync(abs(p)); } catch { continue; }
+    if (s.isDirectory()) walk(p); else if (want(p)) files.push(p);
+  }
+  return [...new Set(files)];
+}
 // Secrets files: .env and its variants (not .env.example), private keys. Reading one is fine when the user asked for
 // that file in this request ("check my .env").
 const SECRET_FILE = /(^|[\\/])(\.env(\.(?!example$|sample$|template$)[\w.-]+)?|[^\\/]+\.(pem|key|p12|pfx)|id_(rsa|ed25519|ecdsa))$/i;
@@ -4058,7 +4250,8 @@ function pretoolHits(data, cfg) {
     if (!target) return out;
     const p = rel(target);
     if (p.startsWith('..')) return out;
-    const there = exists(p);
+    // (a file this turn created is the turn's own draft: fixing it overwrites no delivered output and no original)
+    const there = exists(p) && !((match(p, cfg.noOverwrite) || match(p, cfg.protectedOriginals)) && madeThisTurn(p, t(), cfg));
     const who = personOf(p, cfg);
     if (who) add(scopeCheck([who], true));
     const incoming = [inp.content, inp.new_string, ...(inp.edits || []).map(e => e.new_string)].filter(s => typeof s === 'string').join('\n');
@@ -4244,6 +4437,22 @@ function pretoolHits(data, cfg) {
       if (bad && (hits[0] || hits[1]) && !hits.slice(2).some(Boolean) && sessionOwnFiles(cmd, d, t())) continue;
       if (bad && !re(cfg.deleteWords).test(req()))
         add(`REQ: protect-originals. This command could delete, move or overwrite files in ${d}/ (originals). Only do that when the user asked for it in this request; copying new files INTO ${d}/ is fine. For exact duplicates, run node tools/dedupe.mjs (it keeps the oldest copy).`);
+    }
+    // Deleting or moving away a delivered output or an original that was there when the turn began is the same as
+    // writing over it: rm and then Write would get past the guards on edits. Files this turn created stay free.
+    // Lesson: an agent the no-overwrite guard denied removed the file with rm and wrote it again.
+    if ((cfg.noOverwrite.length || cfg.protectedOriginals.length) && /(^|[\s;&|(])(rm|del|erase|unlink|rmdir|rd|Remove-Item|ri|mv|move|Move-Item|mi|Rename-Item|ren)\b/i.test(cmd)) {
+      const gone = removedPaths(cmd, [...cfg.noOverwrite, ...cfg.protectedOriginals]).filter(p => !madeThisTurn(p, t(), cfg));
+      // (an originals folder is checked above, with its own exceptions; this covers originals named by a pattern alone,
+      // such as "**/*.pdf")
+      const dirs = cfg.protectedOriginals.map(g => g.replace(/\/?\*\*.*$/, '')).filter(Boolean);
+      const orig = gone.filter(p => match(p, cfg.protectedOriginals) && !dirs.some(d => p.startsWith(d + '/')) && !/(^|\/)README\.md$/i.test(p));
+      if (orig.length && !re(cfg.deleteWords).test(req()))
+        add(`REQ: protect-originals. This command deletes or moves ${orig.slice(0, 3).join(', ')}${orig.length > 3 ? ` and ${orig.length - 3} more` : ''}, an original that was there before this turn. Originals are never removed unless the user asked for it in this request. Put derived or corrected content in docs/ or outputs/ and link the original.`);
+      const outs = gone.filter(p => match(p, cfg.noOverwrite) && !re(cfg.overwriteWords).test(req()) && !asksToChange(p, req()));
+      if (outs.length)
+        add(`REQ: no-overwrite. This command deletes or moves ${outs.slice(0, 3).join(', ')}${outs.length > 3 ? ` and ${outs.length - 3} more` : ''}, a delivered output that was there before this turn, and the request does not name it as a file to change or delete. ` +
+          'Removing it and writing it again is the same as writing over it. If the user asked for a new version, write it as a new file (e.g. "<name> v2.md"); if they asked to change or delete this file, in words the hook did not catch, ask them in one line to confirm.');
     }
   }
   return out;
@@ -4699,9 +4908,9 @@ export function coreChecks(x, cfg) {
     // the plain fact was rewritten by the Stop hook into a blunt "That isn't what happened:" for an upset user.
     const VERDICT = /\b(you'?re right|you are right|partly right|partly[:,]|that (isn'?t|is not|wasn'?t|was not) what happened|that'?s not what happened|(the )?complaint(:\s*|\s+)(holds|partly|does(n'?t| not) hold)|(this|that|it) (was|is) (already|still) (there|in place|done)|already (there|in place|covered|handled|tested))/i;
     const CHECKED_LINE = /^[\s>*_-]*(checked)\**\s*:\**\s*\S.{8,}/im;
-    if (!VERDICT.test(x.said) && !CHECKED_LINE.test(x.said)) add('upset-learned', 'Before fixing anything, check the complaint against the files and say plainly whether it holds, at the start: ' +
+    if (!VERDICT.test(x.said) && !CHECKED_LINE.test(x.said) && !complaintDisproved(x.said, x.answer)) add('upset-learned', 'Before fixing anything, check the complaint against the files and say plainly whether it holds, at the start: ' +
       '"You\'re right: ...", "Partly: <what was wrong>, <what was already there>" (only when part of what the user complained about was wrong), or, when it does not hold, ' +
-      '"Checked: <what you opened> - the complaint doesn\'t hold: <evidence>" with no concession. A lead in your own words works with that Checked line. ' +
+      'what you opened and what it showed, in your own words and with no concession ("Checked: <what you opened> - <what it showed>"). ' +
       'Don\'t look for some other fault to concede, and never blame files the user doesn\'t see, like the project\'s own engine notes (learn-from-upset skill, step 0).');
     // A full "you're right" says what was looked at, so a complaint that is only partly true is not conceded from
     // memory. Lesson: an agent agreed the README never described a new option, before opening it; it did describe it,
@@ -4715,8 +4924,9 @@ export function coreChecks(x, cfg) {
     // hold - <evidence>" ends it. Lesson: after a disproved complaint, Stop still asked for a lesson, and the agent added
     // a duplicate check and a made-up "project lesson" about its own process.
     const none = LEARNED_NONE.test(x.said);
-    if (!learned.length && none && !COMPLAINT_DOESNT_HOLD.test(x.said))
-      add('upset-learned', '"Learned (none)" is only for a complaint the answer showed does not hold, with "Checked: <what you opened> - the complaint doesn\'t hold: <evidence>". ' +
+    if (!learned.length && none && !complaintDisproved(x.said, x.answer))
+      add('upset-learned', '"Learned (none)" is only for a complaint that did not hold. Say so once, in your own words and the user\'s language, in the answer or in that line ' +
+        `("Learned (none): the complaint didn't hold - <what you opened and what it showed>"), not in every bullet. ` +
         `Otherwise write where the lesson went: "Learned (<one-off|lesson|rule|check|skill|engine>): <lesson> → <file>" in ${NOTES_FILE}.`);
     else if (!learned.length && !none) add('upset-learned', 'The user is upset about a miss. Fixing it is half the job: the project has to learn from it too. Use the learn-from-upset skill ' +
       `(skills/learn-from-upset/SKILL.md): fix the miss, weigh how important the lesson is, write it where it belongs, and put ` +
@@ -4773,7 +4983,7 @@ export function coreChecks(x, cfg) {
       'A failing run counts when it ran before the fix, on a copy saved before the fix (cp or copy), on the version from git (git show HEAD:<file> > .cache/before-<file>), or on a sample file holding the text the fix took out. ' +
       'If the problem the user named is not in the project at all, say so plainly in the answer ("I couldn\'t find <it> in <where I looked>"): then a failing run on a sample of that problem written this turn counts. ' +
       `Good samples: ${proof.need?.length ? `every existing file it governs (${proof.need.length}, from the last commit), plus ` : ''}at least 2 realistic ones that PASS, one an edge case made from this project's own words (a real name or address, a heading or label, a word the user's language shares with a flagged list, quoted text, a legitimate text that must use a flagged term). ` +
-      `Say it on one line in ${NOTES_FILE} (not in the answer): "Proven: fails on <the complained-about sample>; passes on ${proof.need?.length ? `all ${proof.need.length} existing <files>, ` : ''}<good 1>, and an edge case: <what it holds>". If it truly cannot run on samples, waive it with the true reason: node tools/hooks/hooks.mjs waive check-proven "<why>".`);
+      `Say it on one line in ${NOTES_FILE} (not in the answer); from the runs seen, that line is: "${proof.example}". If it truly cannot run on samples, waive it with the true reason: node tools/hooks/hooks.mjs waive check-proven "<why>".`);
   // REQ: question-no-file. A question gets an answer, not unrequested edits.
   // Lesson: a relayed instruction ("Add all six checks with tests now") that mentioned a question was judged a question.
   const instructs = /(^|[.!:\n]\s*)(please\s+)?(add|fix|make|update|upgrade|run|move|create|write|build|remove|change|rename|install|enable|implement|apply)\b/i.test(x.prompt);
@@ -5081,7 +5291,7 @@ export function skillLearnCheck(x, cfg, failingNow = []) {
   // A complaint the answer showed does not hold ("Learned (none): ...") was no miss of the runbook that handled it: the
   // checks the complaint itself set off are not a lesson for it. Lesson: after a disproved complaint, Stop asked to
   // write a lesson into the project runbook, and the agent wrote one about its own process although nothing was missed.
-  const disproved = COMPLAINT_DOESNT_HOLD.test(x.said || '') && LEARNED_NONE.test(x.said || '');
+  const disproved = complaintDisproved(x.said || '', x.answer || '') && LEARNED_NONE.test(x.said || '');
   const failing = new Set([...(x.failedBefore || []).filter(t => !failingNow.includes(t)), ...failingNow].filter(t => !waived(t, x.said) && !(disproved && PROMPT_GATED.has(t))));
   const own = item => ownChecks(item, cfg);
   // Friction from a wording check (reworded to satisfy it) is the check's, not the runbook's: never a lesson to write.
@@ -5140,6 +5350,11 @@ export function fixFilesOf(m, x) {
   // a lesson the answer already places ("Learned (rule): ... → CLAUDE.md") goes into that file
   const named = m.tag === 'upset-learned' ? learnedLines(x.said).map(l => l.file) : [];
   if (named.length) return [...new Set(named)];
+  // An upset-learned step met by words alone edits no file: the verdict on the complaint, or "Learned (none)" for one
+  // that did not hold. In a turn that changed no file, a complaint may well not hold, so its fix is not assumed to edit
+  // a runbook either. Lesson: after a false complaint was checked and nothing changed, Stop named "Then: Note the
+  // change in docs/CHANGELOG.md" and "Then: Run the project's health check", and both were waived as "no file changed".
+  if (m.tag === 'upset-learned' && (!(x.changed || []).length || LEARNED_NONE.test(x.said || '') || /^("Learned \(none\)"|Before fixing anything|The answer agrees)/.test(m.msg || ''))) return [];
   const files = m.fixes ? [].concat(m.fixes) : (FIX_FILES[m.tag] || []).flatMap(f => f === RUNBOOK_SLOT ? (used.length ? used : ['docs/playbooks/x.md']) : [f]);
   return [...new Set(files.map(sampleOf))];
 }
@@ -5360,8 +5575,9 @@ export function holds(c, x) {
   // setup builds everything from nothing: a test failing before its code exists is not a fault to debug.
   // Lesson: setup turns were asked for a "root cause" when nothing had gone wrong.
   if (c.ranFailing && setupTurn(x)) return false;
-  // toolCount: { name: "<regex of tool names>", min: n } tool calls this turn
-  if (c.toolCount && x.toolsKnown && (x.uses || []).filter(u => r(c.toolCount.name).test(u.name)).length < (c.toolCount.min || 1)) return false;
+  // toolCount: { name: "<regex of tool names>", min: n } tool calls this turn; with "overlap": true, n of them running
+  // at the same time (see overlappingCalls)
+  if (c.toolCount && x.toolsKnown && (c.toolCount.overlap ? overlappingCalls(x.entries || [], r(c.toolCount.name)) : (x.uses || []).filter(u => r(c.toolCount.name).test(u.name)).length) < (c.toolCount.min || 1)) return false;
   if (c.toolCount && !x.toolsKnown) return false;
   if (c.allFilesChanged && !globs(c.allFilesChanged).every(g => x.changed.some(p => match(p, [g])))) return false;
   // tool-history conditions can't be judged without a transcript; they then neither trigger nor block
@@ -5378,7 +5594,7 @@ export function holds(c, x) {
   // toolPassed: the LAST run of a matching command printed its pass marker and no FAIL (it ran AND passed).
   if (c.toolPassed) {
     const spec = typeof c.toolPassed === 'string' ? { cmd: c.toolPassed } : c.toolPassed;
-    const attempts = x.runs.filter(rn => r(spec.cmd).test(cmdHead(rn.cmd)) && !engineNote(rn.cmd));
+    const attempts = x.runs.filter(rn => r(spec.cmd).test(gateText(rn.cmd)) && !engineNote(rn.cmd));
     const runs = attempts.filter(rn => !neverRan(rn));
     // no tool history (another agent, or no hooks): the run log holds what ran. With nothing logged, a quick validator
     // is run here (capped at 20 s); a slow one is left to the agent, with the command that records it.
@@ -5501,6 +5717,31 @@ function withKnowledgeDirs(reqs) {
   return reqs.map(r => r && typeof r === 'object' ? { ...r, when: fix(r.when), require: fix(r.require) } : r);
 }
 
+// The most calls of the named tools running at the same time this turn: a call runs from its start until its result,
+// or, when it was started in the background, until the notice that it ended (or to the end of the turn). Calls refused
+// before they started never ran. Lesson: three reviews run one after another, each waiting for the last, were taken
+// for parallel work whose results had to be merged, and the check was waived after blocking twice.
+export function overlappingCalls(entries, nameRx) {
+  const skip = deniedIds(entries), open = new Map(); let most = 0;
+  for (const row of entries) {
+    const c = row.message?.content;
+    if (row.type === 'assistant' && Array.isArray(c)) for (const u of c) {
+      if (u?.type !== 'tool_use' || !nameRx.test(u.name) || skip.has(u.id)) continue;
+      open.set(u.id, { bg: !!u.input?.run_in_background });
+      most = Math.max(most, open.size);
+    }
+    if (row.type === 'user' && Array.isArray(c)) for (const x of c) {
+      if (x?.type !== 'tool_result' || !open.has(x.tool_use_id)) continue;
+      const t = textOf(x.content);
+      // (a background start answers at once; it keeps running until its notice)
+      if (open.get(x.tool_use_id).bg || /\b(running in (the )?background|async agent launched|launched in the background)\b/i.test(t)) open.get(x.tool_use_id).bg = true;
+      else open.delete(x.tool_use_id);
+    }
+    const text = row.type === 'user' ? textOf(row.message?.content) : row.type === 'attachment' ? JSON.stringify(row.attachment || {}) : '';
+    if (/<task-notification>/.test(text)) for (const [id, o] of open) if (o.bg && /<status>\s*(completed|failed|killed|stopped)/i.test(text) && open.size) { open.delete(id); break; }
+  }
+  return most;
+}
 const HISTORY_KEYS = ['toolRan', 'toolUsed', 'resultMatches', 'fileRead', 'ranFailing', 'toolCount'];
 const needsHistory = c => !!c && (HISTORY_KEYS.some(k => c[k]) || (c.anyOf || []).every(needsHistory) && (c.anyOf || []).length > 0);
 export function declarativeChecks(x) {

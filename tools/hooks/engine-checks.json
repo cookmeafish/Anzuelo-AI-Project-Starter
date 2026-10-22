@@ -179,10 +179,17 @@
             "filesChanged": [
               "docs/reviews/security-*.md"
             ]
+          },
+          {
+            "answerMatches": "^(?=[\\s\\S]*security review(?:(?!\\n[ \\t]*\\n)[\\s\\S]){0,500}?docs/reviews/security-)(?=[\\s\\S]*security review(?:(?!\\n[ \\t]*\\n)[\\s\\S]){0,300}?\\b(\\d+|one|two|three|four|five|six|an?)\\s+(?:[\\w-]+\\s+){0,2}(items?|problems?|issues?|findings?|risks?|points?|gaps?)\\s+(?:are|is|remain|stay|left)\\s+(?:still\\s+)?open\\b)",
+            "answerNotMatches": "security review\\W{0,6}(all\\s+)?pass(ed|es)?\\b(?!\\s+after\\b)",
+            "filesChanged": [
+              "docs/reviews/security-*.md"
+            ]
           }
         ]
       },
-      "message": "Security-review skill: write the report table (every area PASS, FAIL or N/A with its evidence, and where each open FAIL went) to docs/reviews/security-YYYY-MM-DD.md. The answer gets one plain sentence near the end, not the table, whose words match the result and name the file: nothing failed, \"The security review passed - details in docs/reviews/security-YYYY-MM-DD.md\"; everything that failed is fixed, \"The security review found 2 problems and I fixed both: <what> - details in ...\"; something is still open, say what and where it went, never \"passed\" (or the short form: \"Security review: 1 open - details in ...\" with one \"<area>: FAIL -> open (<severity>, where it went)\" line each). In the user's language (Spanish: \"La revisión de seguridad salió bien - detalles en ...\", \"FALLA -> corregido\", \"FALLA -> abierto\")."
+      "message": "Security-review skill: write the report table (every area PASS, FAIL or N/A with its evidence, and where each open FAIL went) to docs/reviews/security-YYYY-MM-DD.md. The answer gets one plain sentence near the end, not the table, whose words match the result and name the file: nothing failed, \"The security review passed - details in docs/reviews/security-YYYY-MM-DD.md\"; everything that failed is fixed, \"The security review found 2 problems and I fixed both: <what> - details in ...\"; something is still open, say how many items are open, what each one is and where it went, never \"passed\" (\"The security review found no serious problem, but two items are open, both in docs/STATUS.md - details in ...\", or the short form: \"Security review: 1 open - details in ...\" with one \"<area>: FAIL -> open (<severity>, where it went)\" line each). In the user's language (Spanish: \"La revisión de seguridad salió bien - detalles en ...\", \"FALLA -> corregido\", \"FALLA -> abierto\")."
     },
     {
       "tag": "security-logged",
@@ -264,7 +271,7 @@
             "**/*_test.*",
             "**/test_*.*"
           ],
-          "pattern": "\\b((?<!--)passw(or)?d(?!-store)|passwd|bcrypt|argon2|scrypt|pbkdf2|jsonwebtoken|jwt\\.(sign|verify|decode)|oauth2?|openid|saml|csrf|xsrf|set-cookie|document\\.cookie|cookie-?parser|express-session|login_required|requireAuth|isAuthenticated|authenticate|authorize|hasPermission|has_permission|checkPermission|isAdmin|is_admin|rbac|api[_-]?key|secret[_-]?key|client[_-]?secret|access[_-]?token|refresh[_-]?token|private[_-]?key|Access-Control-Allow-Origin|cors|multer|multipart\\/form-data|(?<=['\"])formidable(?=['\"])|busboy|UploadFile|req\\.files?|request\\.files|child_process|execSync|execFile|spawnSync|subprocess|os\\.system|os\\.popen|eval|vm\\.runIn\\w+|pickle\\.loads?|yaml\\.load|unserialize|ObjectInputStream|Marshal\\.load|BinaryFormatter|createCipheriv|createDecipheriv|crypto\\.subtle|hashlib|paypal|braintree|payment_?intent|card_?number|cvv|iban|ssn|social_security|date_?of_?birth|(phone|mobile|tel(ephone)?)_?(number|no)|e_?mail_?addr(ess)?|(street|home|postal|billing|shipping|mailing|delivery)_?address|address_?line_?[12]|postal_?code|zip_?code|dangerouslySetInnerHTML|v-html|mark_safe)\\b|\\bshell\\s*=\\s*True\\b|\\bnew Function\\s*\\(|\\b(exec|spawn)\\s*\\(|\\.innerHTML\\s*=|type\\s*=\\s*[\"'](file|email|tel)[\"']|\\bres\\.cookie\\s*\\(|\\bcookies\\.set\\s*\\(|stripe\\.(charges|paymentIntents|checkout|customers)|@stripe\\/|\\b(app|router|server|api)\\.(get|post|put|patch|delete|all|use|listen)\\s*\\(|@(app|router|bp|blueprint)\\.(route|get|post|put|delete)\\b|@(Get|Post|Put|Delete|Request)Mapping\\b|\\bcreateServer\\s*\\(|\\bFastAPI\\s*\\(|\\bAPIRouter\\s*\\(|\\b(execute|query|raw)\\s*\\(\\s*(f[\"']|[\"'\\x60][^\"'\\x60\\n]*(\\$\\{|[\"'\\x60]\\s*\\+))"
+          "pattern": "\\b((?<!--)passw(or)?d(?!-store)|passwd|bcrypt|argon2|scrypt|pbkdf2|jsonwebtoken|jwt\\.(sign|verify|decode)|oauth2?|openid|saml|csrf|xsrf|set-cookie|document\\.cookie|cookie-?parser|express-session|login_required|requireAuth|isAuthenticated|authenticate|authorize|hasPermission|has_permission|checkPermission|isAdmin|is_admin|rbac|api[_-]?key|secret[_-]?key|client[_-]?secret|access[_-]?token|refresh[_-]?token|private[_-]?key|Access-Control-Allow-Origin|cors|multer|multipart\\/form-data|(?<=['\"])formidable(?=['\"])|busboy|UploadFile|req\\.files?|request\\.files|child_process|execSync|execFile|spawnSync|subprocess|os\\.system|os\\.popen|eval|vm\\.runIn\\w+|pickle\\.loads?|yaml\\.load|unserialize|ObjectInputStream|Marshal\\.load|BinaryFormatter|createCipheriv|createDecipheriv|crypto\\.subtle|hashlib|paypal|braintree|payment_?intent|card_?number|cvv|iban|ssn|social_security|date_?of_?birth|(phone|mobile|tel(ephone)?)_?(number|no)|e_?mail_?addr(ess)?|(street|home|postal|billing|shipping|mailing|delivery)_?address|address_?line_?[12]|postal_?code|zip_?code|dangerouslySetInnerHTML|v-html|mark_safe)\\b|\\bshell\\s*=\\s*True\\b|\\bnew Function\\s*\\(|(?<![.\\w$])(exec|spawn)\\s*\\(|\\b(child_?process|childProcess|cp|proc|Bun|Deno)\\.(exec|spawn|run)\\w*\\s*\\(|\\.innerHTML\\s*=|type\\s*=\\s*[\"'](file|email|tel)[\"']|\\bres\\.cookie\\s*\\(|\\bcookies\\.set\\s*\\(|stripe\\.(charges|paymentIntents|checkout|customers)|@stripe\\/|\\b(app|router|server|api)\\.(get|post|put|patch|delete|all|use|listen)\\s*\\(|@(app|router|bp|blueprint)\\.(route|get|post|put|delete)\\b|@(Get|Post|Put|Delete|Request)Mapping\\b|\\bcreateServer\\s*\\(|\\bFastAPI\\s*\\(|\\bAPIRouter\\s*\\(|\\b(execute|query|raw)\\s*\\(\\s*(f[\"']|[\"'\\x60][^\"'\\x60\\n]*(\\$\\{|[\"'\\x60]\\s*\\+))"
         }
       },
       "require": {
@@ -399,7 +406,8 @@
       "when": {
         "toolCount": {
           "name": "^(Agent|Task)$",
-          "min": 2
+          "min": 2,
+          "overlap": true
         }
       },
       "require": {
