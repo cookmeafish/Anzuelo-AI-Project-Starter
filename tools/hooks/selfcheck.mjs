@@ -3671,7 +3671,7 @@ if (mineB()) {
     'security-report': ['passed', 'Security review: 1 open - details in ...', '<area>: FAIL -> open (<severity>, where it went)', 'FALLA -> corregido', 'FALLA -> abierto'], // words, and the short form's parts
     'verification-report': ['Not done or not checked'], // the Finished list it may stand in for
     'history-hashes': ['no commits touch it'], // a waiver's reason, not an answer
-    'finished-summary': ['docs/playbooks/: 6 runbooks'] // one line of the list
+    'finished-summary': ['docs/playbooks/: 6 runbooks', 'plus the usual records'] // lines of the list
   };
   const PATH = /(?<![\w/.-])(?:[\w.-]+\/)+[\w.-]*\w\.\w{1,5}\b/g;
   const fill = (e, msg) => e.replace(/<letter>/gi, 'A').replace(/<[^>\n]+>/g, 'the parser').replace(/\bn of N\b/g, '3 of 12')
