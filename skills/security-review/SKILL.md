@@ -100,13 +100,18 @@ Write down each attempt and its result. A blocked attack is evidence for PASS.
 
 ## 5. Report
 Write one table covering every area into `docs/reviews/security-YYYY-MM-DD.md`. The answer never carries the table.
-It gives one line, `Security review: PASS - details in docs/reviews/security-YYYY-MM-DD.md`,
-and under it one line per area that FAILed: `<area>: FAIL -> fixed (<what changed>)` or `<area>: FAIL -> open
-(<severity>, where it went)`. Lesson: a 27-row table in a setup answer buried the one row the user had to act on.
-The count of areas and the list of N/A ones stay in the file. Lesson: "PASS, 19 areas (N/A: file handling, money,
-...)" told the user nothing they could act on.
-Write the line in the user's language (Spanish: `Revisión de seguridad: correcta - detalles en ...`,
-`FALLA -> corregido`, `FALLA -> abierto`). The table, in this shape:
+It gives one plain sentence near the end that names the result and the file, and its words match the result:
+- nothing failed: "The security review passed - details in docs/reviews/security-YYYY-MM-DD.md" (or the short
+  `Security review: PASS - details in ...`);
+- something failed and all of it is fixed: "The security review found 2 problems and I fixed both: <what> - details
+  in ..." (or `Security review: PASS after fixes - details in ...` with one `<area>: FAIL -> fixed (<what>)` line each);
+- something is still open: say so and where it went, never "PASS" (`Security review: 1 open - details in ...` with
+  `<area>: FAIL -> open (<severity>, where it went)`).
+Lesson: "Security review: PASS" sat on top of two "FAIL -> open" lines, and the user could not tell what held.
+Lesson: a 27-row table in a setup answer buried the one row the user had to act on. The count of areas and the list
+of N/A ones stay in the file.
+Write it in the user's language (Spanish: "La revisión de seguridad salió bien - detalles en ...", `FALLA ->
+corregido`, `FALLA -> abierto`). The table, in this shape:
 
 ```
 | Area | Result | Severity | Evidence |

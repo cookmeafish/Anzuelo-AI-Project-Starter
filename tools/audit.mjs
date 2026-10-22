@@ -317,6 +317,40 @@ sweep('every REQ tag is enforced and tested', () => {
   return { fail, warn, note: `${coreTags.size} core + ${reqTags.size} project tags` };
 });
 
+// REQ: check-sampled. A blocking check the project adds (a requirements.json entry, or a no-overwrite guard in
+// config.json) passes at least one realistic good sample in tools/hooks/project-scenarios.mjs: a stop scenario that
+// expects it not to fire ("not": ["<tag>"]), or an allowed edit of an existing guarded file (deny: false). Only checks
+// new since the last commit are held; without that commit to compare with, it is a warning.
+// Lesson: a novel's hand check blocked normal prose and its chapter guard denied plain requests to change a chapter;
+// their tests only showed them blocking.
+let ownScenarios = null;
+try { const f = abs('tools/hooks/project-scenarios.mjs'); if (fs.existsSync(f)) ownScenarios = (await import(`file:///${f.replace(/\\/g, '/').replace(/^\//, '')}`)).default({ pb: n => ({ name: 'Read', input: { file_path: `docs/playbooks/${n}.md` } }), sk: n => ({ name: 'Read', input: { file_path: `skills/${n}/SKILL.md` } }), bash: c => ({ name: 'Bash', input: { command: c } }), FIN: '' }); } catch { ownScenarios = null; }
+sweep('new checks pass a good sample', () => {
+  const fail = [], warn = [];
+  const atHead = f => { const r = spawnSync('git', ['show', `HEAD:${f}`], { cwd: ROOT, encoding: 'utf8' }); return r.status === 0 ? r.stdout : null; };
+  const shipped = new Set([...packTags, ...baseTags]);
+  const headReqs = atHead('tools/hooks/requirements.json'), headCfg = atHead('tools/hooks/config.json');
+  const headTags = (() => { try { return new Set(JSON.parse(headReqs).requirements.map(r => r && r.tag)); } catch { return null; } })();
+  const headGlobs = (() => { try { const c = JSON.parse(headCfg); return { globs: new Set(c.noOverwrite || []), words: c.overwriteWords }; } catch { return null; } })();
+  const own = fileReqs.filter(r => r && r.tag && r.enabled !== false && !shipped.has(r.tag) && !r.pack && !r.skill);
+  const st = (ownScenarios && ownScenarios.stop) || [], pt = (ownScenarios && ownScenarios.pretool) || [];
+  const passes = t => st.some(s => (s.expect?.not || []).includes(t) || (s.expect?.block === false && String(s.name).includes(t)));
+  const say = (isNew, line) => (isNew === null ? warn : isNew ? fail : null)?.push(line);
+  for (const r of own) if (!passes(r.tag)) say(headTags ? !headTags.has(r.tag) : null, `${r.tag}: no scenario shows it passing a realistic good sample (add one to tools/hooks/project-scenarios.mjs with expect: { not: ['${r.tag}'] })`);
+  const globMatch = (p, g) => new RegExp(`^${g.split('**').map(s => s.split('*').map(x => x.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('[^/]*')).join('.*')}$`).test(p);
+  const allowedEdit = g => pt.some(s => s.deny === false && typeof s.input?.file_path === 'string' && globMatch(s.input.file_path, g) && Object.keys(s.setup || {}).includes(s.input.file_path));
+  const wordsChanged = headGlobs && cfg.overwriteWords !== undefined && headGlobs.words !== cfg.overwriteWords;
+  // (a pack's own guards, like the knowledge pack's outputs/**, are the engine's, not the project's)
+  const packGuards = new Set([...(() => { try { return fs.readdirSync(abs('packs')).flatMap(n => { try { return JSON.parse(read(abs(`packs/${n}/pack.json`))).config?.noOverwrite || []; } catch { return []; } }); } catch { return []; } })(),
+    ...Object.values((() => { try { return JSON.parse(read(abs('tools/packs-registry.json'))).packs; } catch { return {}; } })()).flatMap(p => p.noOverwrite || [])]);
+  for (const g of [].concat(cfg.noOverwrite || [])) {
+    if (packGuards.has(g) && !wordsChanged) continue;
+    const isNew = headGlobs ? (!headGlobs.globs.has(g) || wordsChanged) : null;
+    if (!allowedEdit(g)) say(isNew, `no-overwrite guard "${g}": no scenario shows a plain request to change an existing file there being allowed (a pretool scenario with setup: { '<file>': '...' }, input.file_path '<file>' and deny: false)`);
+  }
+  return { fail, warn, note: `${own.length} own checks` };
+});
+
 if (exists('docs/knowledge')) sweep('knowledge files are labeled, sourced, dated', () => {
   const fail = [], warn = [];
   const files = walk('docs/knowledge', p => p.endsWith('.md') && !/(^|\/)(README|SOURCES)\.md$/i.test(p));

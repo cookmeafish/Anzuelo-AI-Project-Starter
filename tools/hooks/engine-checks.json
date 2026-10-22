@@ -76,10 +76,18 @@
         "skillUsed": "research"
       },
       "require": {
-        "answerMatches": "(?<!^[ \\t]*)\\[\\d+\\][\\s\\S]*^[ \\t]*\\**sources:?\\**[ \\t]*\\r?\\n(?:[ \\t]*[-*]?[ \\t]*\\[\\d+\\][ \\t]+(?:https?:\\/\\/\\S+|[\\w.-]+\\/\\S+|<[^>\\n]+>|\\[[^\\]\\n]+\\]\\([^)\\n]+\\)|[\\w.-]+\\.\\w{1,5}\\b)[^\\n]*(?:\\r?\\n|$))+|nothing (is )?recorded|not (in|recorded in) the project",
-        "answerNotMatches": "(?<!^[ \\t]*[-*]?[ \\t]*)\\[(\\d+)\\](?![\\s\\S]*^[ \\t]*[-*]?[ \\t]*\\[\\1\\][ \\t]+(?:https?:\\/\\/|[\\w.-]+\\/|<|\\[[^\\]\\n]+\\]\\(|[\\w.-]+\\.\\w{1,5}\\b))"
+        "anyOf": [
+          {
+            "answerMatches": "(?<!^[ \\t]*)\\[\\d+\\][\\s\\S]*^[ \\t]*\\**sources:?\\**[ \\t]*\\r?\\n(?:[ \\t]*[-*]?[ \\t]*\\[\\d+\\][ \\t]+(?:https?:\\/\\/\\S+|[\\w.-]+\\/\\S+|<[^>\\n]+>|\\[[^\\]\\n]+\\]\\([^)\\n]+\\)|[\\w.-]+\\.\\w{1,5}\\b)[^\\n]*(?:\\r?\\n|$))+|nothing (is )?recorded|not (in|recorded in) the project",
+            "answerNotMatches": "(?<!^[ \\t]*[-*]?[ \\t]*)\\[(\\d+)\\](?![\\s\\S]*^[ \\t]*[-*]?[ \\t]*\\[\\1\\][ \\t]+(?:https?:\\/\\/|[\\w.-]+\\/|<|\\[[^\\]\\n]+\\]\\(|[\\w.-]+\\.\\w{1,5}\\b))"
+          },
+          {
+            "answerCites": true,
+            "answerNotMatches": "(?<!^[ \\t]*[-*]?[ \\t]*)\\[(\\d+)\\](?![\\s\\S]*^[ \\t]*[-*]?[ \\t]*\\[\\1\\][ \\t]+(?:https?:\\/\\/|[\\w.-]+\\/|<|\\[[^\\]\\n]+\\]\\(|[\\w.-]+\\.\\w{1,5}\\b))"
+          }
+        ]
       },
-      "message": "Answers from research cite their sources: end each fact with a numbered citation [1], [2], and end the answer with \"Sources:\" and one line per number, \"[n] <link or project file>\" (a markdown link [title](link) works too), each a source read this turn. Or say plainly that nothing is recorded in the project.",
+      "message": "Answers from research say where each fact comes from. Plain words are enough for a project file: \"from exports/2026-W42.csv\", a file opened this turn (a file you wrote this turn is not a source). Web facts get their links (numbered [1], [2] with a \"Sources:\" list at the end works too), each a page opened this turn. Or say plainly that nothing is recorded in the project.",
       "waitsForAgents": true
     },
     {
@@ -152,21 +160,29 @@
             "answerMatches": "\\|\\s*(PASS|FAIL|N/?A)\\b"
           },
           {
-            "answerMatches": "security review:\\s*(all\\s+)?pass\\b[^\\n]*docs/reviews/security-",
-            "answerNotMatches": "\\bFAIL\\b",
+            "answerMatches": "security review\\W{0,6}(all\\s+)?(pass(ed|es)?|clean|found nothing|found no (problems|issues))\\b(?:(?!\\n[ \\t]*\\n)[\\s\\S]){0,400}?docs/reviews/security-",
+            "answerNotMatches": "\\bFAIL\\s*(->|→)|[:|]\\s*\\**FAIL\\b|^[ \\t]*[-*]?[ \\t]*\\**FAIL\\b|\\bFAILs\\b|\\b(open|one|two|three|\\d+)\\s+FAILs?\\b|\\bFAIL(ed)?\\s+(is|are|was|were)\\s+(open|left)\\b",
             "filesChanged": [
               "docs/reviews/security-*.md"
             ]
           },
           {
-            "answerMatches": "^(?=[\\s\\S]*security review:[^\\n]*docs/reviews/security-)(?=[\\s\\S]*^[^|\\n]*\\bFAIL\\s*(->|→)\\s*(fixed|open)\\b)",
+            "answerMatches": "^(?=[\\s\\S]*security review(?:(?!\\n[ \\t]*\\n)[\\s\\S]){0,400}?docs/reviews/security-)(?=[\\s\\S]*^[^|\\n]*\\bFAIL\\s*(->|→)\\s*(fixed|open)\\b)",
+            "answerNotMatches": "security review\\W{0,6}(all\\s+)?pass(ed|es)?\\b(?!\\s+after\\b)|^(?=[\\s\\S]*\\bFAIL\\s*(->|→)\\s*open\\b)[\\s\\S]*security review\\W{0,6}(all\\s+)?pass",
+            "filesChanged": [
+              "docs/reviews/security-*.md"
+            ]
+          },
+          {
+            "answerMatches": "security review[^\\n]{0,80}\\b(found|caught)\\b[^\\n]{0,160}\\bfixed\\b(?:(?!\\n[ \\t]*\\n)[\\s\\S]){0,400}?docs/reviews/security-",
+            "answerNotMatches": "\\bFAIL\\s*(->|→)\\s*open\\b",
             "filesChanged": [
               "docs/reviews/security-*.md"
             ]
           }
         ]
       },
-      "message": "Security-review skill: write the report table (every area PASS, FAIL or N/A with its evidence, and where each open FAIL went) to docs/reviews/security-YYYY-MM-DD.md. The answer gets one line, not the table: \"Security review: PASS, <n> areas (N/A: <which>) - table in docs/reviews/security-YYYY-MM-DD.md\", and under it one line per area that failed: \"<area>: FAIL -> fixed (<what>)\" or \"<area>: FAIL -> open (<severity>, where it went)\". In the user's language (Spanish: \"Revisión de seguridad: correcta, <n> áreas - tabla en ...\", \"FALLA -> corregido\" or \"FALLA -> abierto\")."
+      "message": "Security-review skill: write the report table (every area PASS, FAIL or N/A with its evidence, and where each open FAIL went) to docs/reviews/security-YYYY-MM-DD.md. The answer gets one plain sentence near the end, not the table, whose words match the result and name the file: nothing failed, \"The security review passed - details in docs/reviews/security-YYYY-MM-DD.md\"; everything that failed is fixed, \"The security review found 2 problems and I fixed both: <what> - details in ...\"; something is still open, say what and where it went, never \"passed\" (or the short form: \"Security review: 1 open - details in ...\" with one \"<area>: FAIL -> open (<severity>, where it went)\" line each). In the user's language (Spanish: \"La revisión de seguridad salió bien - detalles en ...\", \"FALLA -> corregido\", \"FALLA -> abierto\")."
     },
     {
       "tag": "security-logged",
@@ -408,9 +424,9 @@
         "filesChanged": [
           "docs/foundation.md"
         ],
-        "answerMatches": "security[\\s\\S]*(budget|performance)[\\s\\S]*(usability|friendl)"
+        "answerMatches": "security[\\s\\S]*(budget|performance|speed|size limit)[\\s\\S]*(usability|friendl|easy to use|ease of use)"
       },
-      "message": "Fill docs/foundation.md with the user (no <...> left, status: set). In the answer, one line each for the security tests, the budget script and usability, with the result (\"Security: 12 tests pass. Budget: scripts/perf_check.py PASS. Usability: plain errors, --help.\"); the details stay in docs/foundation.md.",
+      "message": "Fill docs/foundation.md with the user (no <...> left, status: set). In the answer, one line each for the security tests, the budget script and usability, with the result (\"Security: 12 tests pass. Budget: scripts/perf_check.py PASS. Usability: plain errors, --help.\"); the details stay in docs/foundation.md. Plain sentences in the user's language work too (Spanish: \"Seguridad: ... Rendimiento: ... Facilidad de uso: ...\").",
       "pack": "app"
     },
     {
@@ -427,7 +443,7 @@
         ]
       },
       "require": {
-        "answerMatches": "^(#{1,6}\\s*|\\*\\*)(verification|verificaci[oó]n)\\b(?=[\\s\\S]*\\b(automated|autom[aá]tic|automatizad))(?=[\\s\\S]*(real app|manual|ran the app|in the app|ran it|by hand|real run|real data|app real|aplicaci[oó]n real|a mano|datos reales))(?=[\\s\\S]*\\b(review|revisi[oó]n))(?=[\\s\\S]*(still weak|not verified|not (done or )?checked|known issues|nothing weak|sin verificar|sin comprobar|pendiente|d[eé]bil|problemas conocidos))"
+        "answerMatches": "^(#{1,6}\\s*|\\*\\*)(verification|verificaci[oó]n)\\b(?=[\\s\\S]*\\b(automated|tests?\\b|autom[aá]tic|automatizad|pruebas\\b))(?=[\\s\\S]*(real (app|site|run|data)|live site|manual|ran the (app|site|tool)|in the (app|browser)|ran it|tried it|by hand|(app|aplicaci[oó]n|sitio|web|p[aá]gina|programa|herramienta|servidor) (real|funcionando|en marcha)|en el navegador|lo prob[eé]|prob[eé] (el|la|los|las|a mano)\\b|a mano|datos reales))(?=[\\s\\S]*\\b(review|revisi[oó]n))(?=[\\s\\S]*(still weak|not verified|not (done or )?checked|known issues|nothing weak|sin verificar|sin comprobar|pendiente|d[eé]bil|problemas conocidos))"
       },
       "message": "Code changed: add a Verification section (a heading or a bold **Verification** line) with Automated (commands and results), Real app (what was exercised on a real run, screenshot paths), Independent review (SHIP/FIX and the report path) and Still weak (docs/checks/qa-standards.md). Budgets only when the change can affect speed or size (still within docs/foundation.md, with numbers). The Finished section's \"Not done or not checked\" list counts as Still weak: don't repeat it. The headings may be in the language the user writes in (Spanish works). A part that doesn't apply to this change says so in one line with why.",
       "pack": "app"
@@ -617,14 +633,14 @@
             "answerMatches": "\\|[^\\n]*\\b(PASS|FAIL|N/A)\\b[^\\n]*\\|"
           },
           {
-            "answerMatches": "^(?=[\\s\\S]*security review:[^\\n]*docs/reviews/security-)(?=[\\s\\S]*(security review:\\s*(all\\s+)?pass\\b|^[^|\\n]*\\bFAIL\\s*(->|→)\\s*(fixed|open)\\b))",
+            "answerMatches": "security review(?:(?!\\n[ \\t]*\\n)[\\s\\S]){0,400}?docs/reviews/security-",
             "filesChanged": [
               "docs/reviews/security-*.md"
             ]
           }
         ]
       },
-      "message": "Add every foundation and app-standards security item to the review table in docs/reviews/security-YYYY-MM-DD.md, each PASS, FAIL or N/A with its evidence. The answer names that file in its one \"Security review:\" line (security-review skill), not the whole table.",
+      "message": "Add every foundation and app-standards security item to the review table in docs/reviews/security-YYYY-MM-DD.md, each PASS, FAIL or N/A with its evidence. The answer names that file in its one sentence about the security review (security-review skill), not the whole table.",
       "pack": "app"
     },
     {
@@ -871,9 +887,16 @@
         "answerNotMatches": "verified:\\s*\\d+\\s+claims"
       },
       "require": {
-        "answerMatches": "docs/knowledge/|^[ \\t]*[-*]?[ \\t]*\\[\\d+\\][ \\t]+(?:https?:\\/\\/|<https?:|\\[[^\\]\\n]+\\]\\(https?:)|not (in|recorded in) the (knowledge base|project)|nothing recorded"
+        "anyOf": [
+          {
+            "answerCites": true
+          },
+          {
+            "answerMatches": "^[ \\t]*[-*]?[ \\t]*\\[\\d+\\][ \\t]+(?:https?:\\/\\/|<https?:|\\[[^\\]\\n]+\\]\\(https?:)|not (in|recorded in) the (knowledge base|project)|nothing recorded"
+          }
+        ]
       },
-      "message": "Answer from what the project knows: cite the knowledge files the answer came from by number, with a Sources: line for each ([1] docs/knowledge/...; web sources are fine for what the project doesn't have), or say plainly that the project has nothing recorded on it.",
+      "message": "Answer from what the project knows, and say in plain words which file each fact came from: \"from docs/knowledge/x.md\" or \"from exports/2026-W42.csv\", a file opened this turn (a note you wrote this turn is not a source; cite what it came from). Web sources are fine for what the project doesn't have. Or say plainly that the project has nothing recorded on it.",
       "pack": "knowledge"
     },
     {

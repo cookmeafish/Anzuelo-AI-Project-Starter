@@ -1101,6 +1101,8 @@ export function actionAttempts(entries) {
 // REQ: claim-checked. Promises that a miss can't come back, and claims that a lesson was sent to the starter's makers.
 const NEVER_AGAIN = /\b(can(?:no|')?t|cannot|won'?t|will not|will never|doesn'?t|does not)\s+(happen|recur|come back|slip (?:through|by|past)|repeat)\b[^.\n]{0,25}\bagain\b|\bnow enforces (this|it)\b|\benforces (this|it) on its own\b|\b(stops?|prevents?|blocks?) (this|it|that) from (ever )?(happening|recurring|coming back)\b/i;
 const REPORTED = /\b(reported|sent|passed on|forwarded|submitted|filed)\b[^.\n]{0,40}\bto the (tool'?s |starter'?s |engine'?s )?(makers?|authors?|developers?|maintainers?|starter)\b|\b(the )?(makers?|developers?|maintainers?) (were|was|have been|has been) (told|notified|informed)\b|\b(report[eé]|reportad[oa]|envi[eé]|enviad[oa]|avis[eé])\b[^.\n]{0,40}\b(a los|al) (creador(es)?|autor(es)?|desarrollador(es)?|starter)\b/i;
+// (REQ: check-sampled, the light version for every new blocking check, outside complaint and rule turns too, lives in
+// tools/audit.mjs: each check the project adds passes a realistic good sample in its own scenarios.)
 // REQ: check-proven. The project's own checks born this turn: a script named for checking, or a test file. Engine
 // files and scratch copies are not the project's checks.
 const CHECK_FILE = /(^|\/)[^/]*(check|guard|lint|valid|verif|enforce)[^/]*\.(mjs|cjs|js|ts|py|go|rs|rb|sh|ps1|cs|java|kt|php)$/i;
@@ -1532,19 +1534,27 @@ export function context(t, cfg, answerOverride) {
   const lookTurn = setupTurn({ changed, cmds, since: t.since }) || routed.some(pb => !pb.name.startsWith('_')) ||
     !(work.length > 0 || (t.toolsKnown && uses.length >= cfg.workToolCalls));
   const invoked = pb => skillsUsed.includes(pb.skillName) || helpers.some(([n, r]) => r === pb.file && skillsUsed.includes(n));
+  // A skill opened and then really carried out counts as followed, whether or not the Skill tool invoked it: one of its
+  // scripts ran (its sweep), or the turn wrote a dated report its own checks ask for (a file pattern such as
+  // docs/reviews/security-*.md, not a standing file like docs/security.md, which setup fills for other reasons).
+  // Lesson: the security review was read, its pattern sweep run and its report written, but the check counted the review
+  // only through the Skill tool, so Stop asked for it again and the answer opened with a paragraph about the review.
+  const ranScript = n => cmds.some(c => new RegExp(`skills[\\\\/]${esc(n)}[\\\\/]scripts`).test(c));
+  const reqFiles = c => !c || typeof c !== 'object' ? [] : [...[].concat(c.filesChanged || []), ...(c.anyOf || []).flatMap(reqFiles)];
+  const reportOf = n => reqsNow.filter(q => q.when.skillUsed === n).flatMap(q => reqFiles(q.require)).filter(g => g.includes('*'));
+  const carriedOut = n => !!n && !maintained(`${cfg.skillsDir}/${n}/SKILL.md`, n) && (ranScript(n) || (reportOf(n).length > 0 && changed.some(p => match(p, reportOf(n)))));
   let usedPb = pbs.filter(pb => (reads.has(pb.file) || (pb.skillName && skillOpened(pb.skillName)) ||
     helpers.some(([n, r]) => r === pb.file && skillOpened(n))) &&
     (!maintained(pb.file, pb.skillName) || routed.includes(pb) || namesIt(pb.name) || skillsUsed.includes(pb.skillName)) &&
-    (invoked(pb) || routed.includes(pb) || namesIt(pb.name) || didItsWork(pb) || !lookTurn));
+    (invoked(pb) || routed.includes(pb) || namesIt(pb.name) || didItsWork(pb) || carriedOut(pb.skillName) || !lookTurn));
   // Without tool history, the runbook the answer names ("Playbook: x.md" / "Skill: x") is taken as the one followed.
   if (!t.toolsKnown) usedPb = pbs.filter(pb => namesIt(pb.name));
   const skills = routableSkills(cfg);
   const routedSkills = routeSkills(menuInfo.expanded, cfg, routedScores).map(s => s.pb);
   // A skill only read (to explain it to the user) is not a skill used: reading counts when the request routed to it,
   // the answer names it, or one of its scripts ran. Lesson: describing two skills made their checks demand their outputs.
-  const ranScript = n => cmds.some(c => new RegExp(`skills[\\\\/]${esc(n)}[\\\\/]scripts`).test(c));
   let usedSkills = skills.filter(s => skillsUsed.includes(s.name) || ([s.file, ...cfg.skillMirrors.map(m => `${m}/${s.name}/SKILL.md`)].some(f => reads.has(f)) &&
-    (routedSkills.includes(s) || (ranScript(s.name) && !maintained(s.file, s.name)) || re(`\\bskills?\\s*:\\s*\`?(skills/)?${esc(s.name)}\\b`).test(answerEn))));
+    (routedSkills.includes(s) || carriedOut(s.name) || re(`\\bskills?\\s*:\\s*\`?(skills/)?${esc(s.name)}\\b`).test(answerEn))));
   if (!t.toolsKnown) usedSkills = skills.filter(s => re(`\\bskills?\\s*:\\s*\`?(skills/)?${esc(s.name)}\\b`).test(answerEn));
   // Everything the agent wrote this turn (said), and what it wrote after its last change to a file (afterChange): a marker,
   // a waiver or a Finished section given once stays given, so a re-block never makes the answer repeat it.
@@ -2164,14 +2174,19 @@ export const LABELS_ES = [
   [/\baccesibilidad\b/gi, 'Accessibility'], [/(accessibility\**\s*:[^\n]*?)\b(correct[ao]|aprobad[ao]|pasa|bien)\b/gi, '$1pass'],
   [/\bcontraste\b/gi, 'contrast'], [/\bteclado\b/gi, 'keyboard'], [/\bfoco\b/gi, 'focus'], [/\betiquetas?\b/gi, 'labels'], [/\blector(es)? de pantalla\b/gi, 'screen reader'],
   [/\brevisi[oó]n de seguridad\b/gi, 'Security review'], [/(security review\**\s*:\s*\**)(pasa|correct[ao]|aprobad[ao]|sin fallos|todo bien|ok)\b/gi, '$1PASS'],
+  // (the plain sentence too: "La revisión de seguridad salió bien", "... encontró un problema y lo corregí". Lesson: only
+  // the "Security review: PASS" marker passed, so plain sentences were rewritten into stiff status lines)
+  [/(security review\W{0,6})(sali[oó] bien|pas[oó]|super[oó]|aprobad[ao]|sin (problemas|fallos)|no encontr[oó] (nada|problemas|fallos)|todo bien)(?![\wáéíóúñ])/gi, '$1PASS'],
+  [/(security review[^\n]*?)\bencontr[oó](?![\wáéíóúñ])/gi, '$1found'], [/(security review[^\n]*?)\b(correg[ií]\w*|arregl[eéoó]\w*)/gi, '$1fixed'],
   [/(\d+)\s+[aá]reas\b/gi, '$1 areas'], [/\|\s*(PASA|CORRECTO|APROBADO)\s*(?=\|)/g, '| PASS '], [/\|\s*NO APLICA\s*(?=\|)/g, '| N/A '],
   [/\bfall[ao]\s*(->|→)\s*(corregid[ao]|arreglad[ao])\b/gi, 'FAIL -> fixed'], [/\bfall[ao]\s*(->|→)\s*(abiert[ao]|pendiente)\b/gi, 'FAIL -> open'], [/\|\s*FALL[AO]\b/g, '| FAIL'],
   [/\b(copias? de seguridad|respaldo)\b/gi, 'backup'], [/\brestaur\w*/gi, 'restore'],
-  [/\bseguridad\b/gi, 'security'], [/\b(presupuestos?|l[ií]mites de (rendimiento|velocidad))\b/gi, 'budget'], [/\brendimiento\b/gi, 'performance'], [/\b(usabilidad|facilidad de uso)\b/gi, 'usability'],
+  [/\bseguridad\b/gi, 'security'], [/\b(presupuestos?|l[ií]mites? de (rendimiento|velocidad|tama[nñ]o|peso))\b/gi, 'budget'], [/\b(rendimiento|velocidad|rapidez)\b/gi, 'performance'],
+  [/\b(usabilidad|facilidad de uso|f[aá]cil de usar|sencill[oa] de usar|amigable)(?![\wáéíóúñ])/gi, 'usability'],
   [/^(\s*[-*]?\s*(?:\*\*)?)(supuesto|asumido|asum[ií]|decid[ií])(\**)\s*:/gim, '$1Assumed$3:'],
   [/\b(evaluad[oa]|examinad[oa]|investigad[oa])\s*:/gi, 'Vetted:'], [/\blicencia\b/gi, 'license'],
   [/\bhabilidades( existentes)? (revisadas|buscadas|comprobadas)\s*:/gi, 'Existing skills checked:'],
-  [/\b(gu[ií]a|procedimiento)\s*:/gi, 'Playbook:'], [/\bhabilidad\s*:/gi, 'Skill:'], [/\b(vale|merece) la pena\s*:/gi, 'Worth it:'],
+  [/\b(gu[ií]a|procedimiento)\s*:/gi, 'Playbook:'], [/\bhabilidad\s*:/gi, 'Skill:'], [/\b(vale|merece) la pena\s*:/gi, 'Worth it:'], [/\b(vale|merece) la pena\b/gi, 'worth it'], [/\b(cost[eo]s?|cuestan?)(?![\wáéíóúñ])/gi, 'cost'],
   [/^(\s*\**)fuentes(\**\s*:?\s*\**)\s*$/gim, '$1Sources$2'], [/\bnada registrado\b/gi, 'nothing recorded'], [/\bno est[aá] (registrado )?en el proyecto\b/gi, 'not in the project'],
   [/\bfuentes?\b/gi, 'source'], [/\bvoz de (la )?marca\b/gi, 'brand voice'],
   [/\b(\d+)\s+(afirmaciones|datos|hechos)\b/gi, '$1 claims'], [/\b(busqu[eé]|buscado)\s*:/gi, 'searched:'], [/(searched:[^\n]*?)\b(nada|ning[uú]n resultado)\b/gi, '$1nothing'],
@@ -2187,6 +2202,7 @@ export const LABELS_ES = [
   [/\bconfianza\W{0,4}alta\b/gi, 'confidence: high'], [/\bconfianza\W{0,4}media\b/gi, 'confidence: medium'], [/\bconfianza\W{0,4}baja\b/gi, 'confidence: low'],
   [/\baprend(ido|iste|imos)\s*:/gi, 'learned:'], [/\b(\d+) de (\d+)\b/g, '$1 of $2'], [/\bdecisi[oó]n que (informa|apoya)\b/gi, 'decision it informs'],
   [/^([ \t>*_-]*)continuidad([*_]*\s*:)/gim, '$1Continuity$2'], [/\b(combinad[oa]s?|en conjunto|juntos|fusionad[oa]s?)\b/gi, 'combined'],
+  [/\b(todas las (pruebas|comprobaciones)|(pruebas|comprobaciones) completas|suite completa)\b/gi, 'full checks'],
   [/\b(lo que )?(pediste|pedido|petici[oó]n)\s*:/gi, 'Asked for:'], [/\blecci[oó]n (de la habilidad|del skill|para la habilidad)\s*:\s*ninguna\b/gi, 'skill lesson: none'],
   [/\b(desactualizad[oa]s?|a fecha de)\b/gi, 'as of'], [/\b(avisos?|advertencias?)\b([^\n]*)\baceptad[oa]s?\b/gi, 'warnings$2accepted'],
   [/\bya (estaba|est[aá]) (ah[ií]|hech[oa]|puest[oa])(?![\wáéíóúñ])/gi, 'already there'], [/\b(sin cambios|ning[uú]n cambio|nada cambi[oó])(?![\wáéíóúñ])/gi, 'no changes'],
@@ -2205,6 +2221,8 @@ export const LABELS_ES = [
   [/^([\s>*_-]*)(comprobado|revis[eé])(\**\s*:)/gim, '$1Checked$3'],
   [/\bno (vuelva|volver[aá]) a (pasar|ocurrir|suceder)\b|\bno se (repita|repetir[aá])\b/gi, "won't happen again"],
 ];
+// REQ: worth-it. The weighing of an addition: the marker, or a plain sentence that names the gain and the cost.
+export const WORTH_IT = /\bworth it\s*:\s*\S[^\n]*\/|\bworth (it|adding|having|the cost)\b[^\n]{0,200}\b(cost|costs|price|downside|trade-?off)\b|\b(cost|costs|downside)\b[^\n]{0,200}\bworth (it|adding|having)\b/i;
 export function inEnglish(text, cfg = config()) {
   const own = Object.entries(cfg.labelAliases || {}).map(([k, v]) => { try { return [new RegExp(k, 'gi'), v]; } catch { return null; } }).filter(Boolean);
   const lines = String(text).split('\n'), all = [...LABELS_ES, ...own];
@@ -2224,7 +2242,8 @@ const EN_WORDS = /\b(the|and|to|of|is|that|it|for|with|my|this|you|on|are|please
 export const isSpanish = text => { const s = String(text || '').slice(0, 2000); const es = (s.match(ES_WORDS) || []).length, en = (s.match(EN_WORDS) || []).length; return es >= 3 && es > en * 2; };
 // The labels the checks look for, as a Spanish answer writes them (the checks read both).
 export const LABELS_ES_HINT = 'Write the whole answer in Spanish, labels too; the checks accept them: "## Terminado" (Finished), "Causa raíz:", "Supuesto: <decisión> - <por qué> - <coste si me equivoco>", ' +
-  '"Revisión visual: correcta tras N rondas", "Accesibilidad: <qué revisé> - correcta", "Revisión de seguridad: correcta - detalles en docs/reviews/security-AAAA-MM-DD.md", ' +
+  '"Revisión visual: correcta tras N rondas", "Accesibilidad: <qué revisé> - correcta", "La revisión de seguridad salió bien - detalles en docs/reviews/security-AAAA-MM-DD.md", ' +
+  '"Seguridad: ... Rendimiento: ... Facilidad de uso: ..." (the app foundation), "## Verificación" with "Pruebas automáticas:", "Sitio real:" (or "Lo probé a mano:"), "Revisión independiente:", "Puntos débiles:", ' +
   '"Aprendido (regla): <lección> → <archivo>", "Evaluado: <herramienta> ... licencia <nombre>", "Habilidades existentes revisadas:", "Cómo se calculó:", "Fuentes:", "No es asesoramiento legal", ' +
   '"**Aviso:**" (Heads-up), "**Hecho:**", "**Problema:**", "**Pregunta para ti:**", "Revisión independiente: lista para publicar" (SHIP) or "veredicto: corregir" (FIX), "Comprobado: <qué abrí> - <qué mostraba>", ' +
   '"Probado: falla con <muestra de la queja>; pasa con <buena 1>, <buena 2>", ' +
@@ -3561,8 +3580,9 @@ function pretoolHits(data, cfg) {
     if (there && match(p, cfg.protectedOriginals) && !/(^|\/)README\.md$/i.test(p))
       add(`REQ: protect-originals. ${p} is an original (protected: ${cfg.protectedOriginals.join(', ')}). Originals are never edited or overwritten. Put derived or corrected content in docs/ or outputs/ and link the original.`);
     // REQ: no-overwrite. Delivered outputs keep their history: a new version is a new file.
-    if (there && match(p, cfg.noOverwrite) && !re(cfg.overwriteWords).test(req()))
-      add(`REQ: no-overwrite. ${p} is a delivered output. Write the new version as a new file (e.g. "<name> v2.md") unless the user explicitly asks to change this file in place.`);
+    if (there && match(p, cfg.noOverwrite) && !re(cfg.overwriteWords).test(req()) && !asksToChange(p, req()))
+      add(`REQ: no-overwrite. ${p} is a delivered output, and the request does not name it as the file to change. If the user asked for a new version, write it as a new file (e.g. "<name> v2.md"). ` +
+        'If they did ask to change this file, in words the hook did not catch, make no copy: ask them in one line to confirm the change to this file.');
   }
   if (/^(Bash|PowerShell)$/.test(name) && typeof inp.command === 'string') {
     const cmd = inp.command;
@@ -3954,7 +3974,9 @@ export function coreChecks(x, cfg) {
     if (fresh.length && (u.input.content == null || bornThisTurn(f, x.since))) added.push(`${f}: ${fresh[0].trim().slice(0, 40)}`);
   }
   // the weighing may sit in any message of this turn (Lesson: every re-block demanded it again)
-  if ((newSkills.length || added.length) && !/\bworth it\s*:\s*\S[^\n]*\//i.test(x.answer + '\n' + turnText(x.entries)))
+  // A plain sentence with the gain and the cost counts as much as the "Worth it: <gain> / <cost>" marker.
+  // Lesson: setup answers carried stiff "Worth it: ... / cost: ..." lines in place of a sentence that said the same.
+  if ((newSkills.length || added.length) && !WORTH_IT.test(inEnglish(x.answer + '\n' + turnText(x.entries), cfg)))
     add('worth-it', `You added ${[...newSkills.map(n => `the ${n} skill`), ...added].slice(0, 4).join(', ')}. Say why it makes this project better and what it costs ` +
       '(noise, upkeep, speed, conflicts, risk, and whether its license lets a project that uses it be sold): "Worth it: <gain> / <cost>". If the cost is bigger, undo it and say why (hard rule 16).');
   // REQ: done-when-labeled. Every "Done when" item in a runbook or skill changed this turn says how it is proven: the
@@ -4659,6 +4681,45 @@ function addedContentHit(x, spec, counted = () => true) {
   }
   return null;
 }
+// REQ: no-overwrite. The request asks to change this very file: it asks for a change, not for a new version or a copy,
+// and it names the file: its path or name, a distinctive word of its name ("forge" for chapters/01-forge.md), or its
+// folder's noun with its number ("chapter 1", "capítulo 1"). Lesson: a novel's chapter guard denied "make the ending of
+// chapter 2 sadder" and "polish chapter 1", and its message told the agent to write a "v2" copy of the chapter.
+const CHANGE_ASK = /\b(change|edit|fix|correct|polish|tighten|rewrite|revise|reword|tweak|update|improve|shorten|lengthen|expand|trim|cut|swap|replace|rename|remove|delete|add|adjust|redo|rework|make(?!\s+(a|an|another|new|copy|a copy|me a)\b)|cambi\w*|edit\w*|corrig\w*|arregl\w*|pul\w*|reescrib\w*|mejor\w*|ajust\w*|acort\w*|alarg\w*|quit\w*|añad\w*|agreg\w*|haz(?!\s+(un|una|otr[oa]))|hazlo)\b/i;
+const NEW_COPY = /\b(new (version|file|copy)|another version|a copy|copy of|v\d+\b|nueva versi[oó]n|otra versi[oó]n|una copia|copia de)\b/i;
+const FOLDER_NOUN = { chapters: '(chapter|ch\\.?|cap[ií]tulo|cap\\.?)', capitulos: '(cap[ií]tulo|chapter|cap\\.?)' };
+export function asksToChange(p, prompt) {
+  const ask = String(prompt || '');
+  if (!CHANGE_ASK.test(ask) || NEW_COPY.test(ask)) return false;
+  const file = p.split('/').pop(), base = file.replace(/\.[^.]+$/, ''), dir = p.split('/').slice(-2, -1)[0] || '';
+  const said = s => new RegExp(`(?<![\\w\\u00C0-\\u024F])${esc(s)}(?![\\w\\u00C0-\\u024F])`, 'i').test(ask);
+  if (said(p) || said(file) || said(base)) return true;
+  const COMMON = /^(file|draft|final|copy|version|notes?|chapter|part|section|untitled|document|output|outputs|summary|report|index|readme)$/i;
+  if (base.split(/[^A-Za-zÀ-ɏ]+/).filter(w => w.length >= 4 && !COMMON.test(w)).some(said)) return true;
+  const n = /^0*(\d+)/.exec(base)?.[1] || /(?:^|[^a-z])(?:ch|chapter|part|cap)[-_ ]?0*(\d+)/i.exec(base)?.[1];
+  if (!n || !dir) return false;
+  const noun = FOLDER_NOUN[dir.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')] || esc(dir.replace(/e?s$/i, ''));
+  return new RegExp(`\\b${noun}s?\\s*(n[oº.]?\\s*|#\\s*)?0*${n}\\b`, 'i').test(ask);
+}
+// answerCites: the answer says where its facts come from in plain words ("from exports/2026-W42.csv"): it names a
+// project file opened this turn that the agent did not write this turn, or a web page opened this turn. Rules, runbooks,
+// skills and engine files are not sources. Without tool history, a named file that exists counts.
+// Lesson: a sales answer was made to carry academic [1]-[4] footnotes, one citing a notes file the agent had written
+// itself, although "from the week 42 export" named the real source.
+const NOT_A_SOURCE = /^(AGENTS|CLAUDE|DIRECTORY|README)\.md$|^(docs\/(playbooks|checks)|skills|tools|\.claude|\.codex|\.cache)\//;
+export function citesOpened(x) {
+  const a = String(x.answer || '');
+  const named = [...a.matchAll(/(?<![\w/.-])(?:[\w.-]+\/)+[\w.-]*\w\.\w{1,5}\b|`([^`\n]+\.\w{1,5})`|\]\(<?([^)>\s]+)>?\)/g)]
+    .map(m => (m[2] || m[3] || m[0]).replace(/\\/g, '/').replace(/^\.\//, '').replace(/[.,;:)]+$/, ''));
+  const files = [...new Set(named)].filter(p => !/^https?:/i.test(p) && !NOT_A_SOURCE.test(p) && !(x.changed || []).includes(p));
+  const opened = p => x.toolsKnown ? (x.reads?.has(p) || (x.cmds || []).some(cmd => cmd.replace(/\\/g, '/').includes(p))) : exists(p);
+  if (files.some(opened)) return true;
+  const urls = (a.match(/https?:\/\/[^\s)>\]]+/g) || []).map(u => u.replace(/^https?:\/\/(www\.)?/i, '').replace(/[)\].,;>]+$/, '').replace(/\/$/, ''));
+  if (!urls.length) return false;
+  if (!x.toolsKnown) return true;
+  const seen = openedText(x.entries || []).replace(/\\\//g, '/');
+  return urls.some(u => seen.includes(u));
+}
 export function holds(c, x) {
   const r = s => new RegExp(s, 'im');
   const globs = v => [].concat(v);
@@ -4666,6 +4727,7 @@ export function holds(c, x) {
   if (c.promptNotMatches && r(c.promptNotMatches).test(x.prompt)) return false;
   if (c.answerMatches && !r(c.answerMatches).test(x.answer)) return false;
   if (c.answerNotMatches && r(c.answerNotMatches).test(x.answer)) return false;
+  if (c.answerCites && !citesOpened(x)) return false;
   if (c.minToolCalls && x.uses.length < c.minToolCalls) return false;
   if (c.workTurn && !x.workTurn) return false;
   // filesIgnore narrows filesChanged and changedContentMatches: those files never count
@@ -5158,7 +5220,7 @@ export function carriesAnswer(reply, prev) {
   const lines = String(prev).split(/\r?\n/).map(norm).filter(l => l.length >= 25);
   return lines.length ? lines.filter(l => r.includes(l)).length / lines.length >= 0.5 : r.includes(p.slice(0, 60));
 }
-const answerWords = c => !!c && typeof c === 'object' && (c.answerMatches != null || c.answerNotMatches != null || (c.anyOf || []).some(answerWords));
+const answerWords = c => !!c && typeof c === 'object' && (c.answerMatches != null || c.answerNotMatches != null || c.answerCites != null || (c.anyOf || []).some(answerWords));
 function fileFixable(m) {
   if (CORE_FILE_FIX.has(m.tag)) return true;
   const q = loadRequirements().reqs.find(r => r && r.tag === m.tag) || DEV_REQUIREMENTS.find(r => r.tag === m.tag);

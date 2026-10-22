@@ -383,7 +383,8 @@ const STOP = [
   { pack: 'knowledge', name: 'research without sources: blocked', prompt: 'research the best standing desks under $500', tools: [sk('research'), ...many(15)], answer: 'Skill: research. Desk X is best.',
     expect: { block: true, tags: ['research-cited'] } },
   { pack: 'knowledge', name: 'research done right: passes', prompt: 'research the best standing desks under $500', tools: [sk('research'), bash('node tools/audit.mjs'), { name: 'Read', input: { file_path: 'docs/knowledge/desks.md' } }, ...many(14)],
-    files: { 'docs/knowledge/desks.md': KNOW, 'docs/CHANGELOG.md': 'x', 'docs/STATUS.md': 'x' },
+    // (the knowledge file was recorded in an earlier turn: a note written this turn is no source, REQ: answer-cites)
+    files: { 'docs/knowledge/desks.md': KNOW, 'docs/CHANGELOG.md': 'x', 'docs/STATUS.md': 'x' }, mtimes: { 'docs/knowledge/desks.md': -3600_000 },
     answer: 'Skill: research. Desk X is the pick, recorded in the knowledge base.[1]\n\nSources:\n[1] docs/knowledge/desks.md' + FIN, expect: { block: false } },
   { pack: 'knowledge', name: 'knowledge file without label/source/date: blocked', prompt: 'research desk prices', tools: [sk('research')],
     files: { 'docs/knowledge/desks.md': '# Desks\nDesk X is $300.', 'docs/CHANGELOG.md': 'x' },
@@ -1984,7 +1985,7 @@ STOP.push(
   // answer-length: reports in files, one line in the answer
   { name: 'answer-length: a fixed FAIL is one line under the security summary, not the whole table: passes', prompt: 'make the form check the user', tools: [sk('security-review')],
     files: { ...AUTH, ...SEC_LOG, ...SEC_FILE, 'docs/CHANGELOG.md': 'x' },
-    answer: 'The form checks the user now.\nSecurity review: PASS, 12 areas (N/A: uploads) - table in docs/reviews/security-2026-10-20.md\nDependencies: FAIL -> fixed (pip upgraded, scan clean)' + FIN, expect: { not: ['security-report'] } },
+    answer: 'The form checks the user now.\nSecurity review: PASS after fixes - table in docs/reviews/security-2026-10-20.md\nDependencies: FAIL -> fixed (pip upgraded, scan clean)' + FIN, expect: { not: ['security-report'] } },
   { name: 'answer-length: the summary line without the review file written: blocked', prompt: 'make the form check the user', tools: [sk('security-review')],
     files: { ...AUTH, ...SEC_LOG, 'docs/CHANGELOG.md': 'x' },
     answer: 'The form checks the user now.\nSecurity review: PASS, 12 areas - table in docs/reviews/security-2026-10-20.md\nDependencies: FAIL -> fixed (pip upgraded)' + FIN, expect: { tags: ['security-report'] } },
@@ -2047,6 +2048,78 @@ STOP.push(
 PROMPT.push(
   { name: 'answer-language: a Spanish task gets the Spanish labels hint', prompt: 'agrega una página de índice con todas las recetas ordenadas por categoría', has: ['LANGUAGE: the user writes in Spanish', 'Causa raíz:'] },
   { name: 'answer-language: an English task gets no language hint', prompt: 'add an index page with all the recipes sorted by category', hasNot: ['LANGUAGE:'] }
+);
+// Stop false alarms and stiff wording (trial round v5). Each fix has its negative case: the true case still fires.
+const SWEEP = bash('node skills/security-review/scripts/risky-patterns.mjs src', 'scanned 1 file(s) under src; 0 lead(s) to check by hand.');
+const SALES = { 'exports/2026-W42.csv': 'product,qty,revenue\nmugs,20,300\nbowls,11,242\n' };
+STOP.push(
+  // review-evidence: the security review read and carried out (its sweep ran, its report written) counts without the
+  // Skill tool (Lesson: Stop asked for the review three times after it was done, and the answer opened with it)
+  { pack: 'app', name: 'review-evidence: the security review read, its sweep run and its report written, no Skill tool: security-code passes', prompt: 'add a feature to export reports as csv',
+    tools: [pb('security-review'), sk('security-review'), SWEEP], files: { ...AUTH, ...SEC_LOG, ...SEC_FILE, 'docs/CHANGELOG.md': 'x' },
+    answer: 'The form checks the user now. The security review passed - details in docs/reviews/security-2026-10-20.md' + FIN, expect: { not: ['security-code', 'security-report'] } },
+  { pack: 'app', name: 'review-evidence: the review read and its report written, no sweep: security-code passes', prompt: 'add a feature to export reports as csv',
+    tools: [sk('security-review')], files: { ...AUTH, ...SEC_LOG, ...SEC_FILE, 'docs/CHANGELOG.md': 'x' },
+    answer: 'The form checks the user now. The security review passed - details in docs/reviews/security-2026-10-20.md' + FIN, expect: { not: ['security-code'] } },
+  { pack: 'app', name: 'review-evidence: the review only opened, nothing carried out: security-code still blocks', prompt: 'add a feature to export reports as csv',
+    tools: [pb('security-review'), sk('security-review')], files: { ...AUTH, 'docs/CHANGELOG.md': 'x' },
+    answer: 'The form checks the user now.' + FIN, expect: { block: true, tags: ['security-code'] } },
+  // security-line: "fail" as an ordinary word is no FAIL; the summary's words match the result; a plain sentence counts
+  { name: 'security-line: an ordinary "will fail" in a heads-up is not a FAIL: passes', prompt: 'make the form check the user', tools: [sk('security-review')],
+    files: { ...AUTH, ...SEC_LOG, ...SEC_FILE, 'docs/CHANGELOG.md': 'x' },
+    answer: 'The form checks the user now.\n\nHeads-up: your next commit will fail until git has your name.\n\nSecurity review: PASS - details in docs/reviews/security-2026-10-20.md' + FIN, expect: { not: ['security-report'] } },
+  { name: 'security-line: a plain sentence that it passed, with the file: passes', prompt: 'make the form check the user', tools: [sk('security-review')],
+    files: { ...AUTH, ...SEC_LOG, ...SEC_FILE, 'docs/CHANGELOG.md': 'x' },
+    answer: 'The form checks the user now.\n\nThe security review passed; nothing failed. Details are in docs/reviews/security-2026-10-20.md.' + FIN, expect: { not: ['security-report'] } },
+  { name: 'security-line: a plain sentence that it found a problem and fixed it: passes', prompt: 'make the form check the user', tools: [sk('security-review')],
+    files: { ...AUTH, ...SEC_LOG, ...SEC_FILE, 'docs/CHANGELOG.md': 'x' },
+    answer: 'The form checks the user now.\n\nThe security review found one problem and I fixed it: the reader now ignores formulas. Details are in docs/reviews/security-2026-10-20.md.' + FIN, expect: { not: ['security-report'] } },
+  { name: 'security-line: "PASS" on top of open FAIL lines: blocked', prompt: 'make the form check the user', tools: [sk('security-review')],
+    files: { ...AUTH, ...SEC_LOG, ...SEC_FILE, 'docs/CHANGELOG.md': 'x' },
+    answer: 'The form checks the user now.\nSecurity review: PASS - details in docs/reviews/security-2026-10-20.md\nInput validation: FAIL -> open (medium, docs/STATUS.md)\nSensitive data: FAIL -> open (low, docs/STATUS.md)' + FIN, expect: { block: true, tags: ['security-report'] } },
+  { name: 'security-line: the open FAILs under a summary that says so: passes', prompt: 'make the form check the user', tools: [sk('security-review')],
+    files: { ...AUTH, ...SEC_LOG, ...SEC_FILE, 'docs/CHANGELOG.md': 'x' },
+    answer: 'The form checks the user now.\nSecurity review: 2 open - details in docs/reviews/security-2026-10-20.md\nInput validation: FAIL -> open (medium, docs/STATUS.md)\nSensitive data: FAIL -> open (low, docs/STATUS.md)' + FIN, expect: { not: ['security-report'] } },
+  { name: 'security-line: a Spanish plain sentence: passes', prompt: 'haz que el formulario compruebe al usuario', tools: [sk('security-review')],
+    files: { ...AUTH, ...SEC_LOG, ...SEC_FILE, 'docs/CHANGELOG.md': 'x' },
+    answer: 'El formulario ya comprueba al usuario.\n\nLa revisión de seguridad salió bien - detalles en docs/reviews/security-2026-10-20.md' + ES_FIN, expect: { not: ['security-report'] } },
+  // foundation and verification in the user's own words (Lesson: a Spanish setup answer carried "(security,
+  // performance budget, usability)", and "## Verificación" with "Sitio real" was rejected twice)
+  { pack: 'app', name: 'answer-language: the foundation in plain Spanish words (rendimiento, fácil de usar): passes', prompt: 'prepara la base de la aplicación', tools: [pb('app-foundation')],
+    files: { 'docs/foundation.md': '# Foundation\nstatus: set\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Guía: app-foundation.md\nLa seguridad tiene 3 pruebas que pasan. El rendimiento queda bajo 50 KB por página. Es fácil de usar: errores claros en español.' + ES_FIN, expect: { not: ['foundation-set'] } },
+  { pack: 'app', name: 'answer-language: a Spanish Verification section with "Pruebas" and "Sitio real": passes', prompt: 'agrega un índice de recetas por categoría', tools: [pb('feature')], files: SPEC,
+    answer: 'Guía: feature.md\n\n## Verificación\n- Pruebas: npm test, pasan las 20.\n- Sitio real: probé el salto a una categoría con el servidor de vista previa.\n- Revisión independiente: lista para publicar.\n- Puntos débiles: dos categorías casi iguales comparten destino.' + ES_FIN,
+    expect: { not: ['verification-report'] } },
+  { pack: 'app', name: 'answer-language: a Spanish Verification section with no real run: blocked', prompt: 'agrega un índice de recetas por categoría', tools: [pb('feature')], files: SPEC,
+    answer: 'Guía: feature.md\n\n## Verificación\n- Pruebas: npm test, pasan las 20.\n- Revisión independiente: lista para publicar.\n- Puntos débiles: ninguno.' + ES_FIN,
+    expect: { tags: ['verification-report'] } },
+  // worth-it in a plain sentence (Lesson: setup answers carried "Worth it: ... / cost: ..." lines)
+  { name: 'worth-it: a plain sentence with the gain and the cost: passes', prompt: 'install a date library for the importer', tools: [bash('npm install dayjs', 'added 1 package')],
+    answer: 'Added dayjs. It is worth it because dates parse the same everywhere, and the cost is one small package (MIT).\nVetted: dayjs 1.11 (license MIT) - details in docs/DECISIONS.md', expect: { not: ['worth-it'] } },
+  { name: 'worth-it: a sentence with no cost named: blocked', prompt: 'install a date library for the importer', tools: [bash('npm install dayjs', 'added 1 package')],
+    answer: 'Added dayjs. It is worth it because dates parse the same everywhere.\nVetted: dayjs 1.11 (license MIT) - details in docs/DECISIONS.md', expect: { tags: ['worth-it'] } },
+  // plain citations: "from <file>" names the source; a file written this turn is not one (Lesson: academic [1]-[4]
+  // footnotes, one citing the agent's own notes file)
+  { pack: 'knowledge', name: 'answer-cites: "from exports/2026-W42.csv", opened this turn: passes', prompt: 'what was our best week so far',
+    tools: [sk('research'), { name: 'Read', input: { file_path: 'exports/2026-W42.csv' }, result: SALES['exports/2026-W42.csv'] }], files: SALES, mtimes: { 'exports/2026-W42.csv': -5000 },
+    answer: 'Week 42 was the best week, from exports/2026-W42.csv: mugs made 300 and bowls 242.', expect: { not: ['answer-cites', 'research-cited'] } },
+  { pack: 'knowledge', name: 'answer-cites: citing only a note written this turn: blocked', prompt: 'what was our best week so far',
+    tools: [sk('research'), { name: 'Read', input: { file_path: 'exports/2026-W42.csv' }, result: SALES['exports/2026-W42.csv'] }, W('docs/knowledge/sales.md', '# Sales\nmugs 300\n')],
+    files: { ...SALES, 'docs/knowledge/sales.md': '---\nsource: exports/2026-W42.csv\ndate: 2026-10-21\n---\n# Sales\nmugs 300\n' }, mtimes: { 'exports/2026-W42.csv': -5000 },
+    answer: 'Mugs made 300, from docs/knowledge/sales.md.', expect: { tags: ['answer-cites'] } },
+);
+// no-overwrite: a request that names the guarded file and asks for a change edits it; other requests still get a new
+// version (Lesson: a chapter guard denied "make the ending of chapter 2 sadder" and pushed a "v2" copy)
+const CHAPTER_GUARD = { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), noOverwrite: ['chapters/**'] }) };
+const CH2 = { 'chapters/02-road.md': 'The road was long.\n' };
+const CH2_EDIT = { file_path: 'chapters/02-road.md', old_string: 'long', new_string: 'endless' };
+PRETOOL.push(
+  { name: 'no-overwrite: "make the ending of chapter 2 sadder" edits chapter 2: allowed', tool: 'Edit', input: CH2_EDIT, setup: CH2, edit: CHAPTER_GUARD, prompt: 'make the ending of chapter 2 sadder', deny: false },
+  { name: 'no-overwrite: "polish the road chapter" names it by its title word: allowed', tool: 'Edit', input: CH2_EDIT, setup: CH2, edit: CHAPTER_GUARD, prompt: 'polish the road chapter', deny: false },
+  { name: 'no-overwrite: a change asked for chapter 1 does not open chapter 2: denied', tool: 'Edit', input: CH2_EDIT, setup: CH2, edit: CHAPTER_GUARD, prompt: 'make the ending of chapter 1 sadder', deny: true, tag: 'no-overwrite', says: /ask them in one line/ },
+  { name: 'no-overwrite: a new version of chapter 2 asked for: the edit is denied', tool: 'Edit', input: CH2_EDIT, setup: CH2, edit: CHAPTER_GUARD, prompt: 'write a new version of chapter 2 with a sadder ending', deny: true, tag: 'no-overwrite' },
+  { name: 'no-overwrite: summarizing the chapters: denied', tool: 'Edit', input: CH2_EDIT, setup: CH2, edit: CHAPTER_GUARD, prompt: 'summarize chapter 2', deny: true, tag: 'no-overwrite' },
 );
 // A foreground command past its timeout is moved to the background: it runs on, like a background launch, and its
 // result is its output file and the notice's exit code. Files a running job makes are not this turn's.
@@ -3109,11 +3182,24 @@ if (mineB()) {
     'finished-summary': '## Terminado\n- docs/x.md', 'redo-changes': 'Qué cambió: el total ahora cuenta las devoluciones.'
   };
   const sample = q => ES[q.tag] || (/root cause/.test(JSON.stringify(q.require)) ? ES['root cause'] : /not legal advice/.test(JSON.stringify(q.require)) ? ES['not legal advice'] : /^parallel-/.test(q.tag) ? ES.parallel : null);
-  const branches = c => c.anyOf ? c.anyOf.flatMap(branches) : c.answerMatches || c.answerNotMatches ? [{ answerMatches: c.answerMatches, answerNotMatches: c.answerNotMatches }] : [];
+  // (a branch met by a cited file read this turn, "answerCites", keeps that condition: a bare answer cites nothing)
+  const branches = c => c.anyOf ? c.anyOf.flatMap(branches) : c.answerMatches || c.answerNotMatches || c.answerCites ? [{ answerMatches: c.answerMatches, answerNotMatches: c.answerNotMatches, answerCites: c.answerCites }] : [];
   const shipped = [...JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/hooks/engine-checks.json'), 'utf8')).requirements, ...h.BASE_REQUIREMENTS];
   const meets = (q, text) => branches(q.require || {}).some(b => h.holds(b, { answer: h.inEnglish(text), uses: [], changed: [] }));
   const PLAIN = 'Hecho. Todo está listo y funciona.';
   const bad = [];
+  // A check that accepts a list of words (4 or more plain-word choices in one group, like "real (app|site|run|data)")
+  // needs at least 2 Spanish samples here, worded differently, and each must meet it. Lesson: "## Verificación" with
+  // "Pruebas" and "Sitio real" was rejected twice, though the label test passed with its one sample.
+  const MORE = {
+    'verification-report': '## Verificación\n- Pruebas: npm test, pasan las 20.\n- Sitio real: probé el salto a una categoría.\n- Revisión independiente: lista para publicar.\n- Puntos débiles: dos categorías casi iguales.',
+    'foundation-set': 'La seguridad tiene 3 pruebas que pasan. El rendimiento queda bajo 50 KB. Es fácil de usar: errores claros.',
+    'security-report': 'La revisión de seguridad salió bien - detalles en docs/reviews/security-2026-10-21.md',
+    'security-checklist': 'La revisión de seguridad salió bien - detalles en docs/reviews/security-2026-10-21.md',
+    'parallel': 'Corrí todas las pruebas sobre el resultado.', 'qa-report': 'Hecho en 2 rondas.', 'release-ready': 'Atribución: ninguna línea de IA.',
+    'a11y-checked': 'Accesibilidad: revisé el teclado y el contraste de cada pantalla.',
+  };
+  const wordList = p => [...String(p || '').matchAll(/\(([^()]+)\)/g)].some(m => m[1].split('|').filter(a => /^[a-z][a-z ]*[a-z]$/i.test(a)).length >= 4);
   for (const q of shipped) {
     // only checks that need words in the answer (a check that only forbids words, like self-improve, has no label)
     if (!q || !branches(q.require || {}).some(b => b.answerMatches)) continue;
@@ -3121,6 +3207,11 @@ if (mineB()) {
     if (!s) { bad.push(`${q.tag}: no Spanish sample (add one to this test)`); continue; }
     if (!meets(q, s)) bad.push(`${q.tag}: the Spanish form "${s.slice(0, 50)}" does not meet it`);
     if (meets(q, PLAIN)) bad.push(`${q.tag}: a Spanish answer without the label meets it`);
+    if (branches(q.require || {}).some(b => wordList(b.answerMatches))) {
+      const more = MORE[q.tag] || (/^parallel-/.test(q.tag) ? MORE.parallel : null);
+      if (!more) bad.push(`${q.tag}: its answer pattern accepts a list of words; add a second, differently worded Spanish sample to MORE in this test`);
+      else if (!meets(q, more)) bad.push(`${q.tag}: the second Spanish form "${more.slice(0, 50)}" does not meet it`);
+    }
   }
   // the core checks' own labels in hooks.mjs
   const CORE = [['playbook-named', /\b(playbook|runbook|skill)s?\s*:/i, 'Guía: feature.md · Habilidad: debug'], ['gui-review-report', /visual review:\s*(pass|stopped)[\s\S]*\bround/i, 'Revisión visual: correcta tras 2 rondas'],
@@ -3552,6 +3643,26 @@ if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) { // own-sce
       && /^FAIL {2}stop: tone-gone: a stiff letter: blocked {2}-> could not run: no check named tone-gone/m.test(out) && !/skipped: packs not installed/.test(out),
       'own-scenarios-run: a project\'s "must block" scenarios run against its own checks; a check that does not block, or does not exist, FAILs the self-test',
       `exit ${r.status}: ${out.split(/\r?\n/).filter(l => /^(PASS|FAIL|selfcheck)/.test(l)).join(' / ').slice(0, 900)} ${String(r.stderr || '').slice(-300)}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+if (mineB()) { // check-sampled: a check or no-overwrite guard added since the last commit needs a scenario where a good sample passes
+  // Lesson: a novel's hand check blocked normal prose and its chapter guard denied plain requests to change a chapter;
+  // their tests only showed them blocking. The audit now asks each new one for a realistic good sample that passes.
+  const dir = copyProject();
+  try {
+    const git = (...a) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', ...a], { cwd: dir, encoding: 'utf8' });
+    git('init', '-q'); git('add', '-A'); git('commit', '-q', '-m', 'base');
+    const audit = () => { const r = spawnSync(process.execPath, ['tools/audit.mjs'], { cwd: dir, encoding: 'utf8', timeout: 300000 }); const m = /^(PASS|FAIL|WARN) +\d+\. new checks pass a good sample[^\n]*(?:\n {6,}- [^\n]*)*/m.exec(r.stdout || ''); return m ? m[0] : `not found: ${(r.stdout || '').slice(-300)} ${(r.stderr || '').slice(-300)}`; };
+    const check = { tag: 'hand-match', rule: '4', when: { filesChanged: ['chapters/**'] }, require: { answerMatches: 'checked the hands' }, message: 'Check the hands.' };
+    applyEdits(dir, { 'tools/hooks/requirements.json': s => { const j = JSON.parse(s); j.requirements.push(check); return JSON.stringify(j, null, 2); },
+      'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), noOverwrite: ['chapters/**'] }, null, 2) });
+    write(dir, { 'tools/hooks/project-scenarios.mjs': "export default () => ({ stop: [{ name: 'hand-match: a chapter changed without the check: blocked', prompt: 'edit chapter 1', files: { 'chapters/01.md': 'x' }, answer: 'Done.', expect: { tags: ['hand-match'] } }], pretool: [], prompt: [] });\n" });
+    const before = audit();
+    write(dir, { 'tools/hooks/project-scenarios.mjs': "export default () => ({ stop: [{ name: 'hand-match: blocked', prompt: 'edit chapter 1', files: { 'chapters/01.md': 'x' }, answer: 'Done.', expect: { tags: ['hand-match'] } }, { name: 'hand-match: normal prose passes', prompt: 'edit chapter 1', files: { 'chapters/01.md': 'x' }, answer: 'Done, I checked the hands.', expect: { not: ['hand-match'] } }], pretool: [{ name: 'chapters: the author asks to change chapter 1: allowed', tool: 'Edit', input: { file_path: 'chapters/01-forge.md' }, setup: { 'chapters/01-forge.md': 'x' }, prompt: 'polish chapter 1', deny: false }], prompt: [] });\n" });
+    const after = audit();
+    report(/^FAIL/.test(before) && /hand-match: no scenario/.test(before) && /no-overwrite guard "chapters\/\*\*"/.test(before) && /^PASS/.test(after),
+      'check-sampled: a new check and a new no-overwrite guard each need a scenario where a realistic good sample passes; with them, the sweep passes', `before: ${before.slice(0, 400)} | after: ${after.slice(0, 300)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 

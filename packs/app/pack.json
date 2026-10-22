@@ -163,9 +163,9 @@
         "filesChanged": [
           "docs/foundation.md"
         ],
-        "answerMatches": "security[\\s\\S]*(budget|performance)[\\s\\S]*(usability|friendl)"
+        "answerMatches": "security[\\s\\S]*(budget|performance|speed|size limit)[\\s\\S]*(usability|friendl|easy to use|ease of use)"
       },
-      "message": "Fill docs/foundation.md with the user (no <...> left, status: set). In the answer, one line each for the security tests, the budget script and usability, with the result (\"Security: 12 tests pass. Budget: scripts/perf_check.py PASS. Usability: plain errors, --help.\"); the details stay in docs/foundation.md."
+      "message": "Fill docs/foundation.md with the user (no <...> left, status: set). In the answer, one line each for the security tests, the budget script and usability, with the result (\"Security: 12 tests pass. Budget: scripts/perf_check.py PASS. Usability: plain errors, --help.\"); the details stay in docs/foundation.md. Plain sentences in the user's language work too (Spanish: \"Seguridad: ... Rendimiento: ... Facilidad de uso: ...\")."
     },
     {
       "tag": "verification-report",
@@ -181,7 +181,7 @@
         ]
       },
       "require": {
-        "answerMatches": "^(#{1,6}\\s*|\\*\\*)(verification|verificaci[oó]n)\\b(?=[\\s\\S]*\\b(automated|autom[aá]tic|automatizad))(?=[\\s\\S]*(real app|manual|ran the app|in the app|ran it|by hand|real run|real data|app real|aplicaci[oó]n real|a mano|datos reales))(?=[\\s\\S]*\\b(review|revisi[oó]n))(?=[\\s\\S]*(still weak|not verified|not (done or )?checked|known issues|nothing weak|sin verificar|sin comprobar|pendiente|d[eé]bil|problemas conocidos))"
+        "answerMatches": "^(#{1,6}\\s*|\\*\\*)(verification|verificaci[oó]n)\\b(?=[\\s\\S]*\\b(automated|tests?\\b|autom[aá]tic|automatizad|pruebas\\b))(?=[\\s\\S]*(real (app|site|run|data)|live site|manual|ran the (app|site|tool)|in the (app|browser)|ran it|tried it|by hand|(app|aplicaci[oó]n|sitio|web|p[aá]gina|programa|herramienta|servidor) (real|funcionando|en marcha)|en el navegador|lo prob[eé]|prob[eé] (el|la|los|las|a mano)\\b|a mano|datos reales))(?=[\\s\\S]*\\b(review|revisi[oó]n))(?=[\\s\\S]*(still weak|not verified|not (done or )?checked|known issues|nothing weak|sin verificar|sin comprobar|pendiente|d[eé]bil|problemas conocidos))"
       },
       "message": "Code changed: add a Verification section (a heading or a bold **Verification** line) with Automated (commands and results), Real app (what was exercised on a real run, screenshot paths), Independent review (SHIP/FIX and the report path) and Still weak (docs/checks/qa-standards.md). Budgets only when the change can affect speed or size (still within docs/foundation.md, with numbers). The Finished section's \"Not done or not checked\" list counts as Still weak: don't repeat it. The headings may be in the language the user writes in (Spanish works). A part that doesn't apply to this change says so in one line with why."
     },
@@ -360,14 +360,14 @@
             "answerMatches": "\\|[^\\n]*\\b(PASS|FAIL|N/A)\\b[^\\n]*\\|"
           },
           {
-            "answerMatches": "^(?=[\\s\\S]*security review:[^\\n]*docs/reviews/security-)(?=[\\s\\S]*(security review:\\s*(all\\s+)?pass\\b|^[^|\\n]*\\bFAIL\\s*(->|→)\\s*(fixed|open)\\b))",
+            "answerMatches": "security review(?:(?!\\n[ \\t]*\\n)[\\s\\S]){0,400}?docs/reviews/security-",
             "filesChanged": [
               "docs/reviews/security-*.md"
             ]
           }
         ]
       },
-      "message": "Add every foundation and app-standards security item to the review table in docs/reviews/security-YYYY-MM-DD.md, each PASS, FAIL or N/A with its evidence. The answer names that file in its one \"Security review:\" line (security-review skill), not the whole table."
+      "message": "Add every foundation and app-standards security item to the review table in docs/reviews/security-YYYY-MM-DD.md, each PASS, FAIL or N/A with its evidence. The answer names that file in its one sentence about the security review (security-review skill), not the whole table."
     },
     {
       "tag": "install-matrix",

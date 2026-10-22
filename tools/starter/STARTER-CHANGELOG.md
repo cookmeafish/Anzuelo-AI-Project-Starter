@@ -7,6 +7,26 @@ print, or to a command or setting a project's own hooks or scripts may rely on, 
 hooks:**, and an upgrade lists each one as its own review item.
 
 - 2026-10-21: Fewer retries and Stop rounds (field report from an adopted project).
+  - **Stop false alarms and stiff wording (trials of 8 new projects, round 5):** a skill opened and carried out counts
+    as followed without the Skill tool: one of its scripts ran, or the turn wrote the dated report its own checks ask
+    for (the security review's sweep, or docs/reviews/security-*.md), also when a pack's runbook owns the skill. The
+    security line: "fail" as an ordinary word no longer counts as a FAIL (only status tokens do), a plain sentence that
+    names the result and the file passes ("The security review passed - details in ...", "found one problem and I
+    fixed it"), and "PASS" may not sit on top of open FAIL lines ("PASS after fixes" only when every FAIL is fixed).
+    `worth-it` accepts a plain sentence with the gain and the cost. Citations: new condition `answerCites` (a plain
+    "from exports/x.csv" naming a project file opened this turn and not written this turn, or a web page opened this
+    turn), used by `research-cited` and `answer-cites`, so footnotes are no longer required and a note written this turn
+    is no source. Spanish: plain forms for the security sentence, the foundation words ("rendimiento", "fácil de usar")
+    and the Verification parts ("Pruebas", "Sitio real", "Lo probé"); the answer-language test now also asks a second,
+    differently worded Spanish sample for every check that accepts a list of words. `no-overwrite` allows a change when
+    the request names the file (its name, a word of its name, or "chapter 2" for chapters/02-x.md) and asks for a
+    change, not a new version; its denial no longer pushes a "v2" copy when the user may have meant this file. New audit
+    sweep `check-sampled`: each check or no-overwrite guard added since the last commit needs a project scenario where a
+    realistic good sample passes (a warning without a commit to compare with). Scenarios: `review-evidence:`,
+    `security-line:`, `answer-language:`, `worth-it:`, `answer-cites:`, `no-overwrite:`, `check-sampled:`.
+    **Breaking for project hooks:** the no-overwrite denial text changed, the security-report message asks for a plain
+    sentence, `research-cited` and `answer-cites` take `anyOf` branches, and `tools/packs-registry.json` entries gain
+    `noOverwrite`.
   - **Guards and false alarms (trials of 8 new projects, round 4):** a follow-up that names nobody ("make the letter
     friendlier") keeps the person of the latest of the last 3 requests that named one, so a question in between no
     longer cuts it off. A `waive scope-separate "<why>"` logged this turn now counts before tool calls too: it covers

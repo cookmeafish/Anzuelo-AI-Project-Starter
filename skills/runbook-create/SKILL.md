@@ -41,7 +41,7 @@ Add at least one entry to `tools/hooks/requirements.json` that tests a "Done whe
 ```
 Other evidence: `answerMatches` (a required answer section), `toolPassed` (a validator that must PASS; add `selfRun`),
 `runEach` (the hook re-runs a validator on each changed file). If nothing can be checked, set
-`checks: none - <reason>` in the runbook. Add a test scenario for the tag in `tools/hooks/project-scenarios.mjs` (upgrades keep it; in the starter itself: `tools/hooks/selfcheck.mjs`) and a row in
+`checks: none - <reason>` in the runbook. Add test scenarios for the tag in `tools/hooks/project-scenarios.mjs` (upgrades keep it; in the starter itself: `tools/hooks/selfcheck.mjs`), one blocked and one realistic good sample that passes (hook: check-sampled), and a row in
 `docs/checks/rule-enforcement.md`.
 
 A validator script you write for the check is run on real samples before you rely on it: it fails on a real bad
