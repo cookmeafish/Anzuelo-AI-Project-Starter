@@ -2292,7 +2292,7 @@ STOP.push(
     prep: preexisting('src/aviso.njk', 'tests/build.mjs'), files: { 'tools/check-aviso.mjs': '// idioma\n', 'src/aviso.njk': 'Borrador: todavía no se publica', 'tests/build.mjs': 'x', 'docs/CHANGELOG.md': 'x' },
     tools: [editTool('tests/build.mjs'), { name: 'Write', input: { file_path: '.cache/muestras/ingles.html', content: '<a href="#c">Skip to content</a>\n' } },
       { ...bash('cd "/c/x" && node tools/check-aviso.mjs .cache/muestras/ingles.html', 'FAIL .cache/muestras/ingles.html: skip, content\nRESULT: FAIL'), error: true }, bash('node tools/check-aviso.mjs src/aviso.njk _site/index.html', 'RESULT: PASS')],
-    answer: 'No encontré texto en inglés en ninguna página del blog. Aun así, una comprobación nueva lo impide desde ahora.\nProbado: falla con una página con "Skip to content"; pasa con src/aviso.njk y _site/index.html\n\n## Terminado\n- Hecho. Archivos: docs/x.md',
+    answer: 'No encontré texto en inglés en ninguna página del blog. Aun así, una comprobación nueva lo impide desde ahora.\nProbado: falla con una página con "Skip to content"; pasa con src/aviso.njk, _site/index.html y un caso límite: "Menú: total y error de horno" (palabras que el inglés comparte)\n\n## Terminado\n- Hecho. Archivos: docs/x.md',
     expect: { not: ['check-proven'] } },
   { name: 'check-proven: a written sample fails after the fix, but the answer does not say the problem was missing: blocked, and the runs read plainly', prompt: 'otra vez pusiste texto en inglés en la página!! todo en español',
     prep: preexisting('src/aviso.njk', 'tests/build.mjs'), files: { 'tools/check-aviso.mjs': '// idioma\n', 'src/aviso.njk': 'Borrador: todavía no se publica', 'tests/build.mjs': 'x', 'docs/CHANGELOG.md': 'x' },
