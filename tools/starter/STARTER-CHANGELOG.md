@@ -7,6 +7,30 @@ print, or to a command or setting a project's own hooks or scripts may rely on, 
 hooks:**, and an upgrade lists each one as its own review item.
 
 - 2026-10-21: Fewer retries and Stop rounds (field report from an adopted project).
+  - **Honest proofs count, and complaints are answered without a forced concession (trials of 8 new projects, round
+    6):** `check-proven` counts a failing run on a copy saved before the fix (`cp`, `copy`, `Copy-Item`, or a copy of
+    such a copy), on a version from git (`git show <rev>:<file> > <copy>`), or on a sample file holding text the fix
+    took out, besides a run before the fix. A script that `tools/hooks/requirements.json` runs is a check whatever its
+    name (a check named in the user's language was missed), and a test file's name without its test affix names its
+    script. Its message now says which runs it saw (FAIL on the earlier state, FAIL after the fix, PASS) and what is
+    missing. Three agents had proved their check and were blocked until they waived it, once with a false reason. The
+    `waive` command refuses a reason that says git has no earlier version (or nothing is committed) while git has
+    commits of that file. `claim-checked` flags such a sentence in the answer too, when it is about the saved or
+    earlier version ("the version in git lacks it, because nothing is committed yet"); "nothing is committed yet"
+    about this turn's own work is fine. `upset-learned` accepts a lead in the agent's own words with a `Checked: <what
+    you opened> - the complaint doesn't hold: <evidence>` line, so a false complaint gets no forced "That isn't what
+    happened:" and no "Partly"; the learn-from-upset skill says to check the version the user saw (the last commit),
+    to concede only what the user complained about, and never to blame files the user doesn't see. `debug-trigger` no
+    longer asks for a root cause when the only failure was a hook self-test of the project's own new check, run after
+    editing it. Smaller rewrites: a waived test gate no longer flags a condition ("stays blocked until the tests
+    pass"), and asks for one NOT VERIFIED line for the whole answer; the Finished section needs no list of the
+    project's records ("plus the usual records"); the autonomy hints ask for a plain "I assumed ... because ..."
+    sentence in the answer (the form line stays for plans); and one `Visual review: PASS after N rounds - ...` line may
+    be the only place the rounds appear (the gui pack's runbook says so too). Scenarios: `check-proven:` (cp,
+    Copy-Item, copy after the fix, Spanish-named script, sample text), `claim-checked:` (git claim, condition, one NOT
+    VERIFIED line), `upset-learned:` (natural lead), `debug-trigger:` (own self-test), `finished-summary:`,
+    `gui-review-report:`, the `waive command` and `answer-language` (Assumed hint) tests. Adopt by hand: AGENTS.md
+    step 0.5 and rule 7, the learn-from-upset skill step 0 and 5, the gui runbook step 5.
   - **Nothing left scheduled after the answer (trials of 8 new projects, round 5):** new check `wakeup-left`. A wakeup
     or cron job the session scheduled for itself (ScheduleWakeup, CronCreate, and any later tool whose name says wake,
     cron, schedule, timer, remind or alarm and that is given a prompt to send back) and still pending once the turn's

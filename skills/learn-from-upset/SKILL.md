@@ -21,12 +21,17 @@ Say at the start: "Checking what happened first, then fixing it and making the p
   (friction-suspend). This skill fixes the cause before it gets there.
 
 ## Steps
-0. **Check the complaint against the files first, before you agree.** Open what the user is upset about (the file,
-   the output, the commit, as it was before your fix: `git show HEAD:<file>`) and see which parts of the complaint
-   hold. Don't agree from memory: what you remember writing is not what the file says. Say it plainly in the first
-   line of the answer: "You're right: ...", "Partly: X was wrong, Y was already there (<path>)", or "That isn't what
-   happened: <evidence>". A full "You're right" adds what you looked at on its own line: `Checked: <file or output> -
-   <what it showed>` (Spanish: `Comprobado:`; hook: upset-learned). A complaint that doesn't hold still gets its
+0. **Check the complaint against the files first, before you agree.** Open what the user is upset about as the user
+   saw it: the last commit or what was delivered (`git log -- <file>`, then `git show HEAD:<file>`), not only the
+   working copy. See which parts of the complaint hold. Don't agree from memory: what you remember writing is not
+   what the file says. Never say that git has no earlier version, or that nothing is committed, without running
+   `git log` first. Say it plainly at the start of the answer: "You're right: ...", "Partly: X was wrong, Y was
+   already there (<path>)", or, when it doesn't hold, the plain fact and what you checked: `Checked: <what you
+   opened> - the complaint doesn't hold: <evidence>`, with no concession. A lead in your own words ("The note is
+   linked both ways.") is fine next to that line. A full "You're right" also adds `Checked: <file or output> - <what
+   it showed>` on its own line (Spanish: `Comprobado:`; hook: upset-learned). "Partly" is only for the thing the user
+   complained about: don't look for some other fault to concede, and never blame files the user doesn't see (the
+   project's engine notes, hook files, `docs/starter-feedback.md`). A complaint that doesn't hold still gets its
    principle written down if it is one the user wants kept, but never a fix for a problem that isn't there.
 1. **Fix the miss now.** Redo the work by the runbook or skill it belonged to, and save the corrected result where
    the old one was (a rewritten letter replaces the saved draft, not just the chat). No arguing, over-apologizing or
@@ -52,9 +57,10 @@ Say at the start: "Checking what happened first, then fixing it and making the p
    to do, not only what went wrong, so the next run can follow it.
 5. **Prove it.** A check written now (a script, a test, a requirements.json entry) is proven on real samples, not
    only on made-up ones (hook: check-proven):
-   - **It fails on the exact state the user complained about:** run it before your fix, or on the earlier version
-     (`git show HEAD:<file> > .cache/before-<name>`), or on the real complained-about text. A check that passes there
-     would not have caught the miss: test the result itself, not that a function or a word exists.
+   - **It fails on the exact state the user complained about:** run it before your fix, on a copy saved before the
+     fix (`cp <file> .cache/before/`), on the earlier version (`git show HEAD:<file> > .cache/before-<name>`), or on
+     the real complained-about text. Any of these counts. A check that passes there would not have caught the miss:
+     test the result itself, not that a function or a word exists.
    - **It passes on at least 2 realistic good samples**, one of them a valid edge case of this project: the words the
      user's language shares with a banned list ("once" and "he" are Spanish too), a legitimate text that must use a
      flagged term (a late-rent letter has to say "arrears"), real input in a strange but valid shape.
@@ -90,6 +96,9 @@ Say at the start: "Checking what happened first, then fixing it and making the p
 - Learning in the wrong place: a lesson about the engine buried in one project's notes never reaches the others.
 - Fixing a complaint without checking it. Reviews of trial sessions found agents "fixing" things that were already
   right, and building rules around a letter whose corrected version was never saved.
+- Conceding a false complaint. An agent found the user's note linked both ways, still opened with "Partly right",
+  and blamed an internal file the user never sees. Another said the README "in git" lacked an option, because
+  nothing was committed, while the last commit had it: it had checked only the working copy.
 - A new check that overlaps one the project has: extend the existing check instead of adding a second one, and
   prefer a check that tests the result over a list of forbidden words.
 - A check tried only on made-up bad cases. Trial projects shipped checks that passed the very code the user had

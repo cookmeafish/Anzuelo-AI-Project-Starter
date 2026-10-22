@@ -1202,6 +1202,38 @@ export function actionAttempts(entries) {
 // REQ: claim-checked. Promises that a miss can't come back, and claims that a lesson was sent to the starter's makers.
 const NEVER_AGAIN = /\b(can(?:no|')?t|cannot|won'?t|will not|will never|doesn'?t|does not)\s+(happen|recur|come back|slip (?:through|by|past)|repeat)\b[^.\n]{0,25}\bagain\b|\bnow enforces (this|it)\b|\benforces (this|it) on its own\b|\b(stops?|prevents?|blocks?) (this|it|that) from (ever )?(happening|recurring|coming back)\b/i;
 const REPORTED = /\b(reported|sent|passed on|forwarded|submitted|filed)\b[^.\n]{0,40}\bto the (tool'?s |starter'?s |engine'?s )?(makers?|authors?|developers?|maintainers?|starter)\b|\b(the )?(makers?|developers?|maintainers?) (were|was|have been|has been) (told|notified|informed)\b|\b(report[eé]|reportad[oa]|envi[eé]|enviad[oa]|avis[eé])\b[^.\n]{0,40}\b(a los|al) (creador(es)?|autor(es)?|desarrollador(es)?|starter)\b/i;
+// REQ: claim-checked (git). A claim that git holds nothing, or no earlier version of a file: "nothing is committed yet",
+// "never committed", "not in git", "no earlier version in git" (Spanish too). It counts only when the sentence is
+// about the saved or earlier version, not "nothing from this turn is committed yet".
+export const NOT_IN_GIT = /\b(never (been |was |were )?committed|nothing (is |was |has been |had been )?(yet )?committed|(is|was|are|were) (still )?not (yet )?committed|(isn'?t|wasn'?t|aren'?t|weren'?t|hasn'?t been|haven'?t been) (yet )?committed|not (yet )?(in|saved in|stored in) git|(isn'?t|wasn'?t|aren'?t) (yet )?(in|saved in|stored in) git|no (earlier|previous|older|old|committed) versions?|git (holds|has|keeps) (no|nothing)\b|no commits? (yet|so far))|(?<!\p{L})(nunca (se )?(confirm[oó]|guard[oó] en git|hizo commit|se subi[oó] a git)|no (est[aá]|estaba|est[aá]n) en git|no hay (ning[uú]n )?commit|no hay (una )?versi[oó]n anterior)(?!\p{L})/iu;
+const ABOUT_SAVED = /\b(version|saved|stored|earlier|previous|older|history|in git)\b|(?<!\p{L})(versi[oó]n|guardad[oa]|historial|anterior|en git)(?!\p{L})/iu;
+// What git holds: the last commit, and the last commit of each named file ('' when git never had it). null outside a
+// repository or before the first commit.
+export function gitHolds(paths = []) {
+  if (!exists('.git')) return null;
+  const g = a => { try { return (spawnSync('git', a, { cwd: ROOT, encoding: 'utf8', timeout: 5000 }).stdout || '').trim(); } catch { return ''; } };
+  const head = g(['log', '-1', '--format=%h %s']);
+  if (!head) return null;
+  const files = {};
+  for (const p of paths.slice(0, 6)) files[p] = g(['log', '-1', '--format=%h', '--', p]);
+  return { head, files };
+}
+// The file paths a sentence names (backticked or path-like), as project paths.
+const namedPaths = s => [...new Set([...String(s).matchAll(/`([^`\s]+\.[\w]{1,6})`|(?<![\w/.-])((?:[\w.-]+\/)*[\w-]+\.[a-z]{1,6})(?![\w/])/gi)].map(m => pathKey(m[1] || m[2])))]
+  .filter(p => p.includes('/') || exists(p) || /\.(md|txt|py|js|mjs|cjs|ts|tsx|go|rs|json|html|njk|css|ya?ml|toml|rb|sh|java|kt|cs|php|csv)$/i.test(p));
+// A git claim the repository contradicts: the sentence, and what git holds. A sentence that names only files git never
+// had is true. Lesson: an answer said "the version saved in git doesn't mention the option, because nothing is committed
+// yet", while the last commit had it; the agent had looked only at the working copy.
+export function gitClaimContradicted(answer) {
+  // (judged per clause: the files a waiver reason lists as samples are not the file it says git never had)
+  const s = String(answer || '').split(/(?<=[.!?\n])\s+|;\s+/).find(t => NOT_IN_GIT.test(t) && ABOUT_SAVED.test(t.replace(NOT_IN_GIT, '')) && !/\b(if|whether|unless)\b/i.test(t));
+  if (!s) return null;
+  const paths = namedPaths(s), git = gitHolds(paths);
+  if (!git) return null;
+  const had = paths.filter(p => git.files[p]);
+  if (paths.length && !had.length) return null;
+  return { sentence: s.trim(), head: git.head, had: had.map(p => `${p} (${git.files[p]})`) };
+}
 // (REQ: check-sampled, the light version for every new blocking check, outside complaint and rule turns too, lives in
 // tools/audit.mjs: each check the project adds passes a realistic good sample in its own scenarios.)
 // REQ: check-proven. The project's own checks born this turn: a script named for checking, or a test file. Engine
@@ -1209,8 +1241,60 @@ const REPORTED = /\b(reported|sent|passed on|forwarded|submitted|filed)\b[^.\n]{
 const CHECK_FILE = /(^|\/)[^/]*(check|guard|lint|valid|verif|enforce)[^/]*\.(mjs|cjs|js|ts|py|go|rs|rb|sh|ps1|cs|java|kt|php)$/i;
 const TEST_FILE = /(^|\/)(tests?|__tests__|spec)\/[^/]+\.(mjs|cjs|js|ts|py|go|rs|rb|cs|java|kt|php)$|[._-](test|spec)\.\w+$|(^|\/)test_[^/]+\.py$/i;
 const NOT_PROJECT_CHECK = /^(tools\/hooks\/|tools\/(audit|trial|fit|starter|skills|packs|recall|survey|dedupe|integrity-check|writing-check|new-project)\.mjs$|library\/|packs\/|\.cache\/)/;
+// A script that tools/hooks/requirements.json runs is a check whatever its name. Lesson: a check named in the user's
+// language ("revisar-idioma.mjs") was not seen as one, so only its test file was asked to be proven, and the failing
+// run of the script itself on the old page never counted.
+const SCRIPT_PATH = /(?:^|[\s"'`(=])((?:[\w.-]+\/)+[\w.-]+\.(?:mjs|cjs|js|ts|py|go|rs|rb|sh|ps1))\b/g;
+function requirementScripts() {
+  const out = new Set();
+  for (const m of read(abs('tools/hooks/requirements.json')).matchAll(SCRIPT_PATH)) out.add(m[1].replace(/^\.\//, ''));
+  return out;
+}
 export function newProjectChecks(x) {
-  return (x.changed || []).filter(p => (CHECK_FILE.test(p) || TEST_FILE.test(p)) && !NOT_PROJECT_CHECK.test(p) && exists(p) && bornThisTurn(p, x.since));
+  const registered = requirementScripts();
+  return (x.changed || []).filter(p => (CHECK_FILE.test(p) || TEST_FILE.test(p) || registered.has(p)) && !NOT_PROJECT_CHECK.test(p) && exists(p) && bornThisTurn(p, x.since));
+}
+// The copies a command saves: { dest, srcs, git } for each cp / copy / Copy-Item part, and for each "git show
+// <rev>:<file> > <dest>" (git: the copy came from git, so it holds an earlier version whenever it was made).
+const wordsOf = s => (String(s).match(/"[^"]*"|'[^']*'|\S+/g) || []).map(w => w.replace(/^["']|["']$/g, ''));
+const pathKey = s => rel(String(s || '').replace(/\\/g, '/')).replace(/\/+$/, '');
+export function savedCopies(cmd) {
+  const out = [];
+  for (const part of shellParts(cmdHead(cmd)).parts) {
+    const w = wordsOf(part.replace(/^\(\s*/, ''));
+    const verb = (w[0] || '').toLowerCase();
+    if (/^(cp|copy|copy-item|cpi)$/.test(verb)) {
+      let dest = null; const args = [];
+      for (let i = 1; i < w.length; i++) {
+        if (/^-destination$/i.test(w[i])) { dest = w[++i]; continue; }
+        if (/^-(literal)?path$/i.test(w[i])) { args.push(w[++i]); continue; }
+        if (/^-/.test(w[i]) || /^\/[a-z]$/i.test(w[i])) continue;
+        args.push(w[i]);
+      }
+      if (!dest) dest = args.pop();
+      if (dest && args.length) out.push({ dest, srcs: args, git: false });
+    } else if (verb === 'git' && /\b(show|cat-file)\b/.test(part)) {
+      const dest = /(?:^|\s)>\s*("[^"]+"|'[^']+'|[^\s;&|]+)/.exec(part)?.[1];
+      if (dest) out.push({ dest: dest.replace(/^["']|["']$/g, ''), srcs: [], git: true });
+    }
+  }
+  return out;
+}
+// Lines the turn's edits took out of a file that was already there: the text the user complained about.
+function removedLines(entries, fixes) {
+  const out = new Set();
+  for (const r of entries || []) {
+    const c = r.type === 'assistant' && r.message?.content;
+    if (!Array.isArray(c)) continue;
+    for (const u of c) {
+      if (u?.type !== 'tool_use' || !/^(Edit|MultiEdit)$/.test(u.name) || !fixes.has(rel(u.input?.file_path || ''))) continue;
+      for (const e of u.input.edits || [u.input]) {
+        const keep = String(e?.new_string || '');
+        for (const l of String(e?.old_string || '').split('\n').map(s => s.trim())) if (l.length >= 12 && !keep.includes(l)) out.add(l);
+      }
+    }
+  }
+  return [...out];
 }
 // Whether a new check was proven: the answer's "Proven: fails on <bad>; passes on <good>, <good>" line (Spanish
 // "Probado: falla con ...; pasa con ..."), a run of the check that failed on the complained-about state (before the
@@ -1229,7 +1313,8 @@ export function checkProof(x) {
     if (!/\b(fails? on|falla (con|en|sobre))\s+\S/i.test(line)) missing.push('the "Proven:" line does not name the complained-about sample it fails on');
     if (goods.length < 2) missing.push('the "Proven:" line names fewer than 2 good samples it passes on');
   }
-  const stems = checks.map(p => path.basename(p).replace(/\.[^.]+$/, '')).filter(s => s.length >= 4);
+  // a test file's name without its test affix ("idioma.test" -> "idioma") also names the script it tests
+  const stems = [...new Set(checks.map(p => path.basename(p).replace(/\.[^.]+$/, '')).flatMap(s => [s, s.replace(/^test_|[._-](test|spec)$/i, '')]))].filter(s => s.length >= 4);
   const tests = checks.some(p => TEST_FILE.test(p));
   const runs = (x.runs || []).filter(r => typeof r.cmd === 'string' && !/selfcheck\.mjs|hooks\.mjs/.test(r.cmd)
     && (stems.some(s => r.cmd.includes(s)) || (tests && /\b(test|tests|pytest|unittest|jest|vitest|mocha|rspec|phpunit)\b/i.test(r.cmd))));
@@ -1239,10 +1324,26 @@ export function checkProof(x) {
   const fixes = new Set((x.changed || []).filter(p => !checks.includes(p) && !/^(docs\/|tools\/hooks\/|\.cache\/)|(^|\/)(AGENTS|CLAUDE|SKILL)\.md$/.test(p) && !bornThisTurn(p, x.since)));
   const all = x.runs || [];
   const gitOld = i => all.slice(0, i + 1).some(r => /\bgit\s+(show|stash|archive|worktree|checkout|restore)\b/.test(String(r.cmd)));
-  const onOld = r => !(r.editedBefore || []).some(p => fixes.has(p)) || gitOld(all.indexOf(r));
-  if (!runs.some(r => failed(r) && onOld(r))) missing.push('no run of the check failed on the state the user complained about (run it before the fix, or on the earlier version: git show HEAD:<file> > .cache/before-<file>)');
+  // Saved copies of the earlier state: a copy made before the turn edited any file it fixes, a copy from git, a copy of
+  // such a copy, and a sample file written with text the fix took out. A run that names one ran on the earlier state.
+  // Lesson: agents saved the files with cp before the fix, ran the new check on that copy after the fix (FAIL) and on
+  // the fixed file (PASS), and were still blocked until they waived the check, once with a false reason.
+  const saved = [];
+  const isSaved = p => saved.some(s => p === s || p.startsWith(s + '/'));
+  const removed = removedLines(x.entries, fixes);
+  for (const r of x.entries || []) {
+    const c = r.type === 'assistant' && r.message?.content;
+    if (Array.isArray(c)) for (const u of c) if (u?.type === 'tool_use' && u.name === 'Write' && removed.some(l => String(u.input?.content || '').includes(l))) saved.push(pathKey(u.input.file_path));
+  }
+  const namesSaved = r => { for (const cp of savedCopies(r.cmd)) if (cp.git || !(r.editedBefore || []).some(p => fixes.has(p)) || cp.srcs.some(s => isSaved(pathKey(s)))) saved.push(pathKey(cp.dest));
+    return wordsOf(cmdHead(r.cmd)).some(w => /[\\/.]/.test(w) && isSaved(pathKey(w))); };
+  const oldRuns = new Set(all.filter(namesSaved));
+  const onOld = r => !(r.editedBefore || []).some(p => fixes.has(p)) || gitOld(all.indexOf(r)) || oldRuns.has(r);
+  if (!runs.some(r => failed(r) && onOld(r))) missing.push('no run of the check failed on the state the user complained about');
   if (!runs.some(passed)) missing.push('no run of the check passed');
-  return { checks, missing };
+  // what was seen, so the message says what counted and what did not (and the agent need not guess a waiver reason)
+  const seen = runs.slice(-4).map(r => `"${cmdHead(r.cmd).replace(/\s+/g, ' ').slice(0, 70)}" ${failed(r) ? (onOld(r) ? 'FAIL on the earlier state' : 'FAIL, but after the fix and not on a saved copy') : 'PASS'}`);
+  return { checks, missing, seen, stems };
 }
 export function toolUses(entries) {
   const skip = deniedIds(entries), out = [];
@@ -2342,8 +2443,13 @@ const ES_WORDS = /(?<![\p{L}])(el|la|los|las|de|del|en|un|y|es|se|al|lo|que|para
 const EN_WORDS = /\b(the|and|to|of|is|that|it|for|with|my|this|you|on|are|please|what|from|have|be)\b/gi;
 export const isSpanish = text => { const s = String(text || '').slice(0, 2000); const es = (s.match(ES_WORDS) || []).length, en = (s.match(EN_WORDS) || []).length; return es >= 3 && es > en * 2; };
 // The labels the checks look for, as a Spanish answer writes them (the checks read both).
-export const LABELS_ES_HINT = 'Write the whole answer in Spanish, labels too; the checks accept them: "## Terminado" (Finished), "Causa raíz:", "Supuesto: <decisión> - <por qué> - <coste si me equivoco>", ' +
-  '"Revisión visual: correcta tras N rondas", "Accesibilidad: <qué revisé> - correcta", "La revisión de seguridad salió bien - detalles en docs/reviews/security-AAAA-MM-DD.md", ' +
+// A choice made for a user who asked not to be asked: in the answer a plain sentence; the form line is for plans.
+// Lesson: Spanish answers read like forms ("Supuesto: X - por qué - coste") because every hint quoted the plan's form.
+export const assumedHint = es => es
+  ? 'a plain sentence in the answer, like "Supuse <decisión> porque <por qué>; si no es así, <lo que cuesta cambiarlo>" (in a plan: "Supuesto: <decisión> - <por qué> - <coste si me equivoco>")'
+  : 'a plain sentence in the answer, like "I assumed <choice> because <why>; if that\'s wrong, <what it costs to change>" (in a plan: "Assumed: <choice> - <why> - <cost if wrong>")';
+export const LABELS_ES_HINT = 'Write the whole answer in Spanish, labels too; the checks accept them: "## Terminado" (Finished), "Causa raíz:", ' +
+  '"Revisión visual: correcta tras N rondas" (one line can be the only place the rounds appear), "Accesibilidad: <qué revisé> - correcta", "La revisión de seguridad salió bien - detalles en docs/reviews/security-AAAA-MM-DD.md", ' +
   '"Seguridad: ... Rendimiento: ... Facilidad de uso: ..." (the app foundation), "## Verificación" with "Pruebas automáticas:", "Sitio real:" (or "Lo probé a mano:"), "Revisión independiente:", "Puntos débiles:", ' +
   '"Aprendido (regla): <lección> → <archivo>", "Evaluado: <herramienta> ... licencia <nombre>", "Habilidades existentes revisadas:", "Cómo se calculó:", "Fuentes:", "No es asesoramiento legal", ' +
   '"**Aviso:**" (Heads-up), "**Hecho:**", "**Problema:**", "**Pregunta para ti:**", "Revisión independiente: lista para publicar" (SHIP) or "veredicto: corregir" (FIX), "Comprobado: <qué abrí> - <qué mostraba>", ' +
@@ -3287,7 +3393,7 @@ export function promptHints(prompt, cfg = config(), withNotices = true, { relaye
   const own = !relayed;
   if (own && cfg.autonomy !== 'auto' && AUTONOMY_WORDS.test(p))
     hints.push('AUTONOMY: the user wants the work done without their input. Set "autonomy": "auto" in tools/hooks/config.json and record it in docs/DECISIONS.md (date, the choice, why), ' +
-      `then decide instead of asking and record each choice as "${isSpanish(p) ? 'Supuesto: <decisión> - <por qué> - <coste si me equivoco>' : 'Assumed: <choice> - <why> - <cost if wrong>'}". Outward actions, third-party installs and anything irreversible still need an OK.`);
+      `then decide instead of asking and record each choice as ${assumedHint(isSpanish(p))}. Outward actions, third-party installs and anything irreversible still need an OK.`);
   // REQ: answer-language. A Spanish request gets its labels in Spanish from the start, not only after a Stop round.
   // Lesson: a Spanish-speaking user's answers carried "Assumed:", "Root cause:" and "## Finished", because every hint
   // quoted the English label.
@@ -4303,9 +4409,15 @@ export function coreChecks(x, cfg) {
   if (x.prompt && isUpset(x.prompt, cfg)) {
     // first, whether the complaint holds, checked against the files and said plainly. Lesson: reviewers of 23 trial
     // projects found complaints conceded and "fixed" when the thing was already there (a test, a refund, a permission)
-    const VERDICT = /\b(you'?re right|you are right|partly right|partly[:,]|that (isn'?t|is not|wasn'?t|was not) what happened|that'?s not what happened|(the )?complaint:\s*(holds|partly|does(n'?t| not) hold)|(this|that|it) (was|is) (already|still) (there|in place|done)|already (there|in place|covered|handled|tested))/i;
-    if (!VERDICT.test(x.said)) add('upset-learned', 'Before fixing anything, check the complaint against the files and say plainly whether it holds, in the first line: ' +
-      '"You\'re right: ...", "Partly: <what was wrong>, <what was already there>", or "That isn\'t what happened: <evidence>" (learn-from-upset skill, step 0).');
+    // A "Checked: <what was opened> - <what it showed>" line is a verdict in the agent's own words too, so a natural lead
+    // ("Aren is right-handed in every file here.") stands. Lesson: an answer that had checked every file and led with
+    // the plain fact was rewritten by the Stop hook into a blunt "That isn't what happened:" for an upset user.
+    const VERDICT = /\b(you'?re right|you are right|partly right|partly[:,]|that (isn'?t|is not|wasn'?t|was not) what happened|that'?s not what happened|(the )?complaint(:\s*|\s+)(holds|partly|does(n'?t| not) hold)|(this|that|it) (was|is) (already|still) (there|in place|done)|already (there|in place|covered|handled|tested))/i;
+    const CHECKED_LINE = /^[\s>*_-]*(checked)\**\s*:\**\s*\S.{8,}/im;
+    if (!VERDICT.test(x.said) && !CHECKED_LINE.test(x.said)) add('upset-learned', 'Before fixing anything, check the complaint against the files and say plainly whether it holds, at the start: ' +
+      '"You\'re right: ...", "Partly: <what was wrong>, <what was already there>" (only when part of what the user complained about was wrong), or, when it does not hold, ' +
+      '"Checked: <what you opened> - the complaint doesn\'t hold: <evidence>" with no concession. A lead in your own words works with that Checked line. ' +
+      'Don\'t look for some other fault to concede, and never blame files the user doesn\'t see, like the project\'s own engine notes (learn-from-upset skill, step 0).');
     // A full "you're right" says what was looked at, so a complaint that is only partly true is not conceded from
     // memory. Lesson: an agent agreed the README never described a new option, before opening it; it did describe it,
     // and only the list of options was missing.
@@ -4359,11 +4471,15 @@ export function coreChecks(x, cfg) {
   // letter sounds like a robot ... always", still ends with a "Learned (...)" line)
   const ownTurn = x.prompt && (isUpset(x.prompt, cfg) || isRuleRequest(x.prompt, cfg) || isRequirement(x.prompt, cfg) || learnedLines(x.said).length > 0);
   const proof = ownTurn ? checkProof(x) : { checks: [], missing: [] };
+  // The message says what it saw and what is missing, plainly. Lesson: a message that only said what to do led an agent
+  // that had done it to waive the check with an invented reason ("never committed", when git had the file).
   if (proof.missing.length)
-    add('check-proven', `The new check (${proof.checks.slice(0, 3).join(', ')}) is not proven yet: ${proof.missing.join('; ')}. ` +
-      'Run it on the state the user complained about (the version before this turn\'s fix, from git, or the real text) and see it FAIL; run it on at least 2 realistic good samples, ' +
-      'one a valid edge case of this project (words the user\'s language shares with a banned list, a legitimate text that must use a flagged term), and see them PASS. ' +
-      'Then say it on one line: "Proven: fails on <the complained-about sample>; passes on <good 1>, <good 2>". If it truly cannot run on samples, waive it: node tools/hooks/hooks.mjs waive check-proven "<why>".');
+    add('check-proven', `The new check (${proof.checks.slice(0, 3).join(', ')}) is not proven yet. ` +
+      `Seen this turn: ${proof.seen.length ? proof.seen.join('; ') : `no run of it (a run counts when its command names the check: ${proof.stems.slice(0, 4).join(', ')})`}. ` +
+      `Missing: ${proof.missing.join('; ')}. ` +
+      'A failing run counts when it ran before the fix, on a copy saved before the fix (cp or copy), on the version from git (git show HEAD:<file> > .cache/before-<file>), or on a sample file holding the text the fix took out. ' +
+      'Good samples: at least 2 realistic ones that PASS, one a valid edge case of this project (words the user\'s language shares with a banned list, a legitimate text that must use a flagged term). ' +
+      'The answer says it on one line: "Proven: fails on <the complained-about sample>; passes on <good 1>, <good 2>". If it truly cannot run on samples, waive it with the true reason: node tools/hooks/hooks.mjs waive check-proven "<why>".');
   // REQ: question-no-file. A question gets an answer, not unrequested edits.
   // Lesson: a relayed instruction ("Add all six checks with tests now") that mentioned a question was judged a question.
   const instructs = /(^|[.!:\n]\s*)(please\s+)?(add|fix|make|update|upgrade|run|move|create|write|build|remove|change|rename|install|enable|implement|apply)\b/i.test(x.prompt);
@@ -4444,19 +4560,21 @@ export function coreChecks(x, cfg) {
   if (cfg.autonomy === 'auto' && x.workTurn) {
     const tail = x.answer.split(/^#{1,6}\s*\**finished\b/im)[0].trim().split(/\n\s*\n/).filter(b => !/^\s*(playbook|skill|n\/a\(|worth it)/i.test(b)).pop() || '';
     if (/\?\s*\**\s*$/.test(tail) && !/\b(publish|push|send|deploy|release|install|irreversible|money|pay|buy|password|secret|security|legal)\w*|\b(delete|wipe|erase) (it|them|this|that|your|all|the \w+ now)\b/i.test(tail))
-      add('autonomy-decide', 'The user asked not to be asked (autonomy auto), and the answer ends with a question. Decide it yourself, do it, and record it as "Assumed: <choice> - <why> - <cost if wrong>". Ask only about outward actions, installs, money, security or something irreversible.');
+      add('autonomy-decide', `The user asked not to be asked (autonomy auto), and the answer ends with a question. Decide it yourself, do it, and record it as ${assumedHint(isSpanish(x.prompt))}. Ask only about outward actions, installs, money, security or something irreversible.`);
   }
   // REQ: claim-checked (verification). A turn that waived its own test or build gate (the code never ran) cannot say
   // the work ships or passes: the verdict is NOT VERIFIED, with what would verify it. Lesson: two trial projects had no
   // toolchain, so nothing compiled, and the review still said "Verdict: SHIP".
   const waivedRun = [...x.said.matchAll(/N\/A\((app-test-pass|app-build-pass|app-lint-pass)\)/gi)].map(m => m[1]);
   if (waivedRun.length) {
-    const shipClaims = x.answer.split(/(?<=[.!?\n])\s+/).filter(s => /\b(verdict:\s*ship|ship(ped)? it|ready to (ship|release)|all tests pass|tests (all )?pass(ed)?|build (passes|passed|succeeds))\b/i.test(s) && !/\b(not|n't|unverified|not verified|would|once|after)\b/i.test(s)
+    // (a condition is no claim: "the plan stays blocked until the tests pass". Lesson: that true sentence was flagged,
+    // and the fix put three capitalised NOT VERIFIED labels in the answer.)
+    const shipClaims = x.answer.split(/(?<=[.!?\n])\s+/).filter(s => /\b(verdict:\s*ship|ship(ped)? it|ready to (ship|release)|all tests pass|tests (all )?pass(ed)?|build (passes|passed|succeeds))\b/i.test(s) && !/\b(not|n't|unverified|not verified|would|once|after|until|unless|whether|if)\b/i.test(s)
       // the project's hook self-tests and audit really ran: a claim about them is not one about the app's code
       // (Lesson: "hook self-tests pass, 2 of 2" was called false because the app's tests were waived.)
       && !/\b(hook|self-?tests?|selfcheck|audit|scenarios?)\b/i.test(s));
     if (shipClaims.length && !/\bnot verified\b/i.test(x.answer))
-      add('claim-checked', `This turn waived ${[...new Set(waivedRun)].join(', ')}, so the code did not run, but the answer says "${shipClaims[0].trim().slice(0, 60)}". Say "NOT VERIFIED" instead, and what would verify it (the toolchain or command to run).`);
+      add('claim-checked', `This turn waived ${[...new Set(waivedRun)].join(', ')}, so the code did not run, but the answer says "${shipClaims[0].trim().slice(0, 60)}". Take that claim out and say once, in one line for the whole answer, "NOT VERIFIED: <what did not run> - <the command or toolchain that would verify it>". One such line is enough; don't repeat the label.`);
   }
   // REQ: claim-checked. An answer never says an action happened when its last attempt was denied or failed.
   // Lesson: "git push" was denied, and the answer said "Pushed." without a word about it.
@@ -4486,6 +4604,12 @@ export function coreChecks(x, cfg) {
   if (reportClaim && !reportRan)
     add('claim-checked', `The answer says the lesson was reported ("${reportClaim.trim().slice(0, 70)}"), but node tools/starter.mjs report did not send it this turn. ` +
       'Say "noted in docs/starter-feedback.md for the starter", or run node tools/starter.mjs report and say what it printed.');
+  // REQ: claim-checked (git). "Nothing is committed" or "git has no earlier version" while git has commits (of that
+  // file, when one is named). The version the user saw is the last commit or what was delivered, not the working copy.
+  const gitClaim = gitClaimContradicted(x.answer);
+  if (gitClaim)
+    add('claim-checked', `The answer says git holds no earlier version ("${gitClaim.sentence.slice(0, 90)}"), but git has commits (last: ${gitClaim.head})${gitClaim.had.length ? `, including ${gitClaim.had.join(', ')}` : ''}. ` +
+      'Open the version the user saw (git log -- <file>, then git show HEAD:<file>) and say what it shows, or leave the claim out.');
   // REQ: scope-separate (files changed this turn)
   const ppl = people(cfg);
   if (ppl.length && !settingUp() && !x.changed.includes('SETUP-PROMPT.md')) {
@@ -4582,8 +4706,10 @@ export function coreChecks(x, cfg) {
       // REQ: gui-review-report
       const verdict = /visual review:\s*(pass|stopped)/i.exec(x.afterChange);
       if (!verdict || !/\bround/i.test(x.afterChange))
-        add('gui-review-report', 'Add a "Visual review" section: one line per round (what you saw, what you fixed), ending with "Visual review: PASS after N round(s)" ' +
-          `(a full round found nothing) or, only after ${cfg.guiMaxRounds} rounds, "Visual review: STOPPED after N rounds - remaining: ...". ` +
+        // (one line may be the only place the rounds appear. Lesson: answers listed the rounds, then repeated "Visual
+        // review: PASS after 5 rounds" right under them.)
+        add('gui-review-report', 'Say how the visual review went in one line: "Visual review: PASS after N round(s) - <what the rounds fixed>" ' +
+          `(a full round found nothing) or, only after ${cfg.guiMaxRounds} rounds, "Visual review: STOPPED after N rounds - remaining: ...". That line can be the only place the rounds appear; a list of rounds is optional. ` +
           'Write it in the user\'s language (Spanish: "Revisión visual: correcta tras N rondas" / "detenida tras N rondas").');
       // REQ: gui-flows. A page with a saved flow (docs/checks/flows/<page>.json) gets that flow rerun when it changes, so a
       // fix can't quietly break a click path checked earlier. Lesson: flows driven once were never driven again.
@@ -4901,7 +5027,11 @@ export function holds(c, x) {
   // its own work in progress (a test written first, a slip fixed on the way), not a fault with a root cause.
   // Lesson: feature turns relabelled each review finding "Root cause", and setup explained its own audit slips.
   if (c.ranFailing && x.toolsKnown) {
-    const fails = (x.runs || []).filter(rn => r(c.ranFailing).test(rn.cmd) && (rn.error || FAILED_RUN.test(rn.out || '')) && !MISSING_TOOL.test(rn.out || ''));
+    // (a hook self-test that failed after this turn edited the project's own checks or scenarios is the agent's own
+    // tooling in progress, never a failure the user saw. Lesson: after a complaint, an answer got a "Root cause"
+    // paragraph about a new check's scenario that first ran in an empty test folder.)
+    const ownChecks = rn => /selfcheck\.mjs/.test(rn.cmd) && (rn.editedBefore || []).some(p => /^tools\/hooks\/(requirements\.json|project-scenarios\.mjs)$/.test(p));
+    const fails = (x.runs || []).filter(rn => r(c.ranFailing).test(rn.cmd) && (rn.error || FAILED_RUN.test(rn.out || '')) && !MISSING_TOOL.test(rn.out || '') && !ownChecks(rn));
     if (!fails.length) return false;
     const watched = p => counted(p) && (!c.filesChanged || match(p, globs(c.filesChanged)));
     if (!reportsProblem(x) && !fails.some(rn => !(rn.editedBefore || []).some(watched))) return false;
@@ -4973,7 +5103,8 @@ export const BASE_REQUIREMENTS = [
     message: 'A tool or package was installed this turn. Vet each one first: legitimate per 2+ independent sources, free with a license that allows this use, maintained and well regarded. Write that evidence in docs/DECISIONS.md, and give the user one short line for all of them: "Vetted: <tool> <version> (license <name>), <tool> <version> (license <name>) - details in docs/DECISIONS.md". A tool that fails any of these is removed again and not used.' },
   { tag: 'finished-summary', rule: '7', when: { filesChanged: ['**'] }, require: { answerMatches: String.raw`^\s*(#{1,6}\s*|\*\*)?finished\b` },
     // (Lesson: a setup answer listed about 40 files one by one, burying the few the user would open)
-    message: "End the answer with a 'Finished' section: what was done, and the exact path of each file created or changed. With more than about 10, name the ones the user will open and group the rest by folder with a count (\"docs/playbooks/: 6 runbooks\")." },
+    // (Lesson: complaint answers listed STATUS, CHANGELOG, plans and rule files one by one around a one-line fix.)
+    message: "End the answer with a 'Finished' section: what was done, and the exact path of each file the user will open or care about. With more than about 10, group the rest by folder with a count (\"docs/playbooks/: 6 runbooks\"). The project's own records (docs/STATUS.md, docs/CHANGELOG.md, docs/DECISIONS.md, plans, specs, reviews, the rule and check files) need no list: \"plus the usual records\" is enough." },
   { tag: 'changelog', rule: '12', when: { filesChanged: ['CLAUDE.md', 'AGENTS.md', 'docs/playbooks/**', 'docs/checks/**', 'skills/**', 'tools/**'] }, require: { filesChanged: ['docs/CHANGELOG.md'] },
     message: 'Add a dated line to docs/CHANGELOG.md for what changed in the project (rules, runbooks, checks, skills, tools).' },
   { tag: 'status-handoff', rule: '12', when: { workTurn: true, minToolCalls: 15 }, require: { filesChanged: ['docs/STATUS.md'] },
@@ -5360,7 +5491,7 @@ export function stopDecision(data, cfg = config()) {
       `end with the whole answer to the user's request again, in the user's language (the result, the verdict, what they asked for), updated, written as if it were the first: the user never saw the earlier version or these steps, so it says nothing about them (no "here is the answer again", no "Note: this version ...", no "the earlier answer ...", no check names or waivers); the last message is the one the user reads.` +
       (shortOk ? ' Only if that answer is unchanged and these steps only changed files, end instead with one short line: "Answer unchanged; also updated: <the files, in plain words>" (in the user\'s language).' : '') +
       (isSpanish(x.prompt) ? ` ${LABELS_ES_HINT}` : '') +
-      `${cfg.autonomy === 'auto' ? ` The user asked not to be asked: where a step says "with the user", decide it yourself and record it as ${isSpanish(x.prompt) ? 'Supuesto: <decisión> - <por qué> - <coste si me equivoco>' : 'Assumed: <choice> - <why> - <cost if wrong>'}.` : ''} Full steps: \`node tools/hooks/hooks.mjs why\`. A step that truly does not apply: \`node tools/hooks/hooks.mjs waive <name> "<reason>"\` (one waive per step, chained with && if you like), never an N/A line in the answer: the user doesn't know the check names. Names: ${steps.map(m => m.tag).join(', ')}.`
+      `${cfg.autonomy === 'auto' ? ` The user asked not to be asked: where a step says "with the user", decide it yourself and record it as ${assumedHint(isSpanish(x.prompt))}.` : ''} Full steps: \`node tools/hooks/hooks.mjs why\`. A step that truly does not apply: \`node tools/hooks/hooks.mjs waive <name> "<reason>"\` (one waive per step, chained with && if you like), never an N/A line in the answer: the user doesn't know the check names. Names: ${steps.map(m => m.tag).join(', ')}.`
   };
 }
 // "Answer unchanged; done: ..." as the whole last message (any language the checks know: English, Spanish)
@@ -5714,7 +5845,12 @@ if (isMain) {
   // the session and prompt notices in full, when a host cut a long hook output down (fitOutput)
   // waive a step that truly does not apply, out of the user's answer: the Stop hook reads it from this turn's commands
   // (recorded in the run log too, so "check" sees it for an agent whose tool calls the hooks can't read)
-  if (cmd === 'waive') { const [tag, ...why] = process.argv.slice(3); if (!tag || why.join(' ').trim().split(/\s+/).length < 3) { console.log('usage: node tools/hooks/hooks.mjs waive <name> "<the specific reason, a few words>"'); process.exit(2); } const msg = `waived for this turn: ${tag} (${why.join(' ').trim()})`; logRun(`node tools/hooks/hooks.mjs waive ${tag} "${why.join(' ').trim().replace(/"/g, "'")}"`, msg, false); console.log(msg); process.exit(0); }
+  if (cmd === 'waive') { const [tag, ...why] = process.argv.slice(3); if (!tag || why.join(' ').trim().split(/\s+/).length < 3) { console.log('usage: node tools/hooks/hooks.mjs waive <name> "<the specific reason, a few words>"'); process.exit(2); }
+    // A reason that says git has no earlier version is checked against git. Lesson: check-proven was waived with "the
+    // template was never committed, so git holds no earlier version", while the last commit had the template.
+    const gitClaim = gitClaimContradicted(why.join(' '));
+    if (gitClaim) { console.log(`not waived: the reason says git has no earlier version, but git has commits (last: ${gitClaim.head})${gitClaim.had.length ? `, including ${gitClaim.had.join(', ')}` : ''}. Check with git log -- <file> and git show HEAD:<file>, then give the true reason (or name the file git never had).`); process.exit(2); }
+    const msg = `waived for this turn: ${tag} (${why.join(' ').trim()})`; logRun(`node tools/hooks/hooks.mjs waive ${tag} "${why.join(' ').trim().replace(/"/g, "'")}"`, msg, false); console.log(msg); process.exit(0); }
   if (cmd === 'notices') { console.log(notices(config()).join('\n') || 'no notices.'); process.exit(0); }
   if (cmd === 'why') { const d = read(path.join(STATE, 'stop-details.md')).trim(); console.log(d || 'nothing pending: the last answer passed every check.'); process.exit(0); }
   // run a command and record its result in the run log, for agents whose tool history the hooks can't read
