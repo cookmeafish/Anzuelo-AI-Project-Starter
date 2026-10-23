@@ -23,6 +23,8 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.
 process.env.STARTER_ALLOW_DEV = '1';
 // (sample projects commit from this process: the engine-bypassed git gate is for real sessions, not test copies)
 process.env.ANZUELO_SESSION_GATE = 'off';
+// (nor is the session that runs the tests theirs: "begin" in a sample would record it, with its whole transcript)
+delete process.env.CLAUDE_CODE_SESSION_ID; delete process.env.CLAUDECODE;
 // what the tests depend on, as the run starts (audit --setup reuses a full pass while it is unchanged)
 const INPUTS0 = await (async () => { try { return (await import('./hooks.mjs')).testInputsHash(); } catch { return null; } })();
 const CORE_SKILLS = await (async () => { try { return (await import('./hooks.mjs')).CORE_SKILLS || []; } catch { return []; } })();
@@ -2113,6 +2115,7 @@ const DECK_REQS = (() => {
 const KNOWN = dir => write(dir, { 'tools/hooks/state/turn.json': JSON.stringify({ at: new Date(Date.now() - 7200_000).toISOString(), prompt: 'earlier', runbooks: fs.readdirSync(path.join(dir, 'docs/playbooks')), skills: fs.readdirSync(path.join(dir, 'skills')) }) });
 const MEAL_TURN = { edit: MEAL_CHECK, prompt: 'plan meals for the week', tools: [pb('meal-plan')], prep: KNOWN };
 const DEBUG_OK = 'Skill: debug. Root cause: the date parser.' + FIN;
+const DEBUG_NA = 'Skill: debug. Root cause: the date parser. N/A(verification-report): a fixture with no app to run.' + FIN;
 const DEBUG_TURN = { prompt: 'debug the failing import', tools: [sk('debug')], prep: KNOWN, files: { 'scratch-work/import.md': 'x', 'docs/CHANGELOG.md': 'x' } };
 STOP.push(
   { ...MEAL_TURN, name: 'stop-follow-on: a lesson for a runbook names the audit and the changelog in round 1', files: { 'notes/meals.md': 'x' }, answer: 'Playbook: meal-plan.md. Done.' + FIN,
@@ -3617,11 +3620,13 @@ if (mineB() && (!TAGS || TAGS.includes('stop-follow-on'))) {
   const MEMORY = { '.memtest/plan-costs.md': () => '---\nname: plan-costs\n---\nPlans show costs.\n**Why:** no surprises.\n**How to apply:** a cost table in each plan.\n' };
   const NA = '\nN/A(runbook-exists): a test fixture';
   const CASES = [
-    { name: 'a lesson written into a runbook', ...MEAL_TURN, files: { 'notes/meals.md': 'x' }, answer: 'Playbook: meal-plan.md. Done.' + FIN,
-      fix: { edit: { 'docs/playbooks/meal-plan.md': () => MEAL_LESSON }, answer: 'Playbook: meal-plan.md. The meals planned for the week are in notes/meals.md.' + FIN },
+    // (checks on the work, not the answer's wording: a wording check asks for no lesson, see skill-learn)
+    { name: 'a lesson written into a runbook', ...MEAL_TURN, edit: { ...MEAL_CHECK, ...withReqs({ tag: 'meal-file', when: { playbookUsed: 'meal-plan' }, require: { filesChanged: ['plans/meals-*.md'] }, message: 'Save the week\'s plan in plans/meals-<week>.md.' }) },
+      files: { 'notes/meals.md': 'x' }, answer: 'Playbook: meal-plan.md. The meals planned for the week are in notes/meals.md.' + FIN,
+      fix: { edit: { 'docs/playbooks/meal-plan.md': () => MEAL_LESSON, 'plans/meals-week43.md': () => '# Meals\n- Monday: soup\n' }, answer: 'Playbook: meal-plan.md. The meals planned for the week are in plans/meals-week43.md.' + FIN },
       last: { tools: [bash('node tools/audit.mjs')], edit: { 'docs/CHANGELOG.md': s => s + '\n- meal-plan: a lesson\n' } } },
-    { name: 'a lesson written into a skill', prompt: 'debug the failing import', tools: [sk('debug')], files: { 'scratch-work/import.md': 'x' }, answer: 'Skill: debug. Fixed it.' + FIN,
-      fix: { edit: { 'skills/debug/SKILL.md': s => s + '\n## Project lessons\n- State the cause with its evidence before the fix.\n' }, answer: DEBUG_OK },
+    { name: 'a lesson written into a skill', prompt: 'debug the failing import', tools: [sk('debug')], files: { 'scratch-work/import.md': 'x', 'src/import.mjs': 'export const x = 1;\n' }, answer: DEBUG_NA,
+      fix: { edit: { 'skills/debug/SKILL.md': s => s + '\n## Project lessons\n- Add the failing test before the fix.\n', 'tests/import.test.mjs': () => 'import "../src/import.mjs";\n' }, answer: DEBUG_NA },
       last: { tools: [bash('node tools/audit.mjs')], edit: { 'docs/CHANGELOG.md': s => s + '\n- debug: a lesson\n' } } },
     { name: 'a new rule written into CLAUDE.md and the hook', prompt: 'from now on always include a budget table in plans', tools: [pb('project')], answer: 'Playbook: project.md. Noted.',
       fix: { edit: { 'CLAUDE.md': s => (s || fs.readFileSync(path.join(B, 'AGENTS.md'), 'utf8')) + LINE, 'docs/checks/user-requirements.md': s => s + '| 99 | 2026-10-21 | Plans show costs | 2 | judgment |\n',
@@ -3653,7 +3658,7 @@ if (mineB() && (!TAGS || TAGS.includes('stop-follow-on'))) {
       transcript(dir, { ...c, drafts: [c.answer, c.fix.answer], later: [...(c.fix.tools || []), ...(c.last.tools || [])], answer: c.last.answer || c.fix.answer }, since);
       const r3 = stop(true);
       report(n1.length && !late.length && !r3, `stop-follow-on guard: ${c.name}: round 2 shows nothing round 1 did not name, and the named steps finish the turn`,
-        !n1.length ? 'round 1 did not block' : late.length ? `round 2 brought ${late.join(', ')}, not named in round 1 (${n1.join(', ')})` : `still blocked after every named step: ${r3.slice(0, 400)}`);
+        !n1.length ? 'round 1 did not block' : late.length ? `round 2 brought ${late.join(', ')}, not named in round 1 (${n1.join(', ')})` : `still blocked after every named step: ${r3.slice(0, 900)}`);
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   }
   // the same without hooks: check --answer-file, twice
@@ -3661,19 +3666,19 @@ if (mineB() && (!TAGS || TAGS.includes('stop-follow-on'))) {
   try {
     ownChecksOff(dir);
     const node = (...a) => spawnSync(process.execPath, [path.join(dir, 'tools', 'hooks', 'hooks.mjs'), ...a], { cwd: dir, encoding: 'utf8', env: { ...process.env, STARTER_MEMORY_DIR: path.join(dir, '.memtest') } });
-    applyEdits(dir, MEAL_CHECK, Date.now() - 3600_000);
+    applyEdits(dir, { ...MEAL_CHECK, ...withReqs({ tag: 'meal-file', when: { playbookUsed: 'meal-plan' }, require: { filesChanged: ['plans/meals-*.md'] }, message: 'Save the plan for the week in plans/meals-<week>.md.' }) }, Date.now() - 3600_000);
     const b = node('begin', 'plan meals for the week');
     const preview = (b.stdout.split('\n').find(l => /CHECKS: /.test(l)) || '');
     const ans = t => { write(dir, { '.cache/answer.md': t }); return node('check', '--answer-file', path.join(dir, '.cache/answer.md')); };
     write(dir, { 'notes/meals.md': 'x' });
-    const c1 = ans('Playbook: meal-plan.md. Done.' + FIN), n1 = names(c1.stdout);
+    const c1 = ans('Playbook: meal-plan.md. The meals planned for the week are in notes/meals.md.' + FIN), n1 = names(c1.stdout);
     const note = ans('Answer unchanged; done: the lesson.');
-    applyEdits(dir, { 'docs/playbooks/meal-plan.md': () => MEAL_LESSON }, Date.now());
+    applyEdits(dir, { 'docs/playbooks/meal-plan.md': () => MEAL_LESSON, 'plans/meals-week43.md': () => '# Meals\n- Monday: soup\n' }, Date.now());
     fs.appendFileSync(path.join(dir, 'tools/hooks/state/runs.jsonl'), JSON.stringify({ at: new Date().toISOString(), cmd: 'node tools/audit.mjs', out: 'audit: PASS (13 sweeps, 0 failed, 0 warnings)', error: false }) + '\n');
     const c2 = ans('Playbook: meal-plan.md. The meals planned for the week are in notes/meals.md.' + FIN), late = names(c2.stdout).filter(t => !n1.includes(t));
     applyEdits(dir, { 'docs/CHANGELOG.md': s => s + '\n- meal-plan: a lesson\n' }, Date.now());
     const c3 = ans('Playbook: meal-plan.md. The meals planned for the week are in notes/meals.md.' + FIN);
-    report(/meal-ok/.test(preview) && preview.length <= 400 && ['meal-ok', 'skill-learn', 'audit-run'].every(t => n1.includes(t)) && /answer-resent/.test(note.stdout) && !late.length && c3.status === 0,
+    report(/meal-file/.test(preview) && preview.length <= 400 && ['meal-file', 'skill-learn', 'audit-run'].every(t => n1.includes(t)) && /answer-resent/.test(note.stdout) && !late.length && c3.status === 0,
       'stop-follow-on guard: without hooks (check --answer-file): the preview names the checks, round 1 names what the fix sets off, a bare "answer unchanged" fails, and the named steps pass',
       `preview(${preview.length}): ${preview.slice(0, 200)} | c1: ${n1.join(', ')} | note: ${note.stdout.slice(0, 150)} | late: ${late.join(', ')} | c3: ${c3.stdout.slice(0, 300)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
@@ -5620,7 +5625,7 @@ if (mineB()) { // stop rounds: round 1 lists everything; a waiver and markers gi
   const a2 = 'Root cause: the parser read the header twice.';
   const r2 = runStop({ ...s, drafts: [a1], answer: a2, active: true, blocks: 1, failed: t1 }), t2 = tagsOf(r2);
   const r3 = runStop({ ...s, drafts: [a1, a2], answer: 'Skill lesson: none - the root cause was found, only not written down yet.', active: true, blocks: 2, failed: [...t1, ...t2] }), t3 = tagsOf(r3);
-  report(t1.includes('debug-root-cause') && t1.includes('skill-learn') && ![...t1, ...t2, ...t3].some(t => ['debug-test-added', 'verification-report'].includes(t)) && t2.every(t => t1.includes(t)) && !t2.includes('debug-root-cause') && !t2.includes('playbook-named') && !t2.includes('finished-summary') && !r3.blocked,
+  report(t1.includes('debug-root-cause') && !t1.includes('skill-learn') && ![...t1, ...t2, ...t3].some(t => ['debug-test-added', 'verification-report'].includes(t)) && t2.every(t => t1.includes(t)) && !t2.includes('debug-root-cause') && !t2.includes('playbook-named') && !t2.includes('finished-summary') && !r3.blocked,
     'stop rounds: round 1 lists every step, a waiver and markers from an earlier round hold, and later rounds bring nothing new', `round 1: ${t1} | round 2: ${t2} | round 3: ${t3}`);
 }
 
@@ -5818,7 +5823,8 @@ if (mineB()) { // the manual path (agents without hooks): `hooks.mjs begin "<req
       'write a report on the zorbel grobbles': 'ALSO ROUTE: zorbel-tune | ROUTE: deliverable',
       'great job, keep doing this': 'PRAISE', 'perfecto, sigue así': 'PRAISE',
       'is it doing a good or bad job?': '', '¿lo está haciendo bien?': '',
-      'give that feedback to anzuelo and mention to do multiple tests to make sure it is fixed': 'ROUTE: project',
+      // (in the starter, "multiple tests to make sure it is fixed" is also its improvement loop)
+      'give that feedback to anzuelo and mention to do multiple tests to make sure it is fixed': fs.existsSync(path.join(dir, 'tools/starter/runbooks/improvement-loop.md')) ? 'ALSO ROUTE: improvement-loop | ROUTE: project' : 'ROUTE: project',
       'from now on always give prices in euros': 'ROUTE: project | RULE REQUEST', 'de ahora en adelante usa siempre euros': 'RULE REQUEST',
       'export the invoices to csv again for the accountant': 'RECALL'
     };

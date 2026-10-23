@@ -4073,7 +4073,9 @@ export function promptHints(prompt, cfg = config(), withNotices = true, { relaye
   const pbs = routablePlaybooks();
   const routed = route(m.expanded, pbs, { relayed });
   // (in the starter, another session's message is a project's report on the engine when nothing else fits it)
-  const fieldReport = relayed && !routed.length && pbs.find(pb => pb.name === 'field-report' && pb.file.startsWith('tools/starter/'));
+  // (one that reports something: small talk such as "thanks, all done here" starts nothing)
+  const reports = /\b(bugs?|fail\w*|wrong|issues?|problems?|feedback|report\w*|broke\w*|false|errors?|crash\w*|blocked|regress\w*|noisy|BAD)\b/.test(p);
+  const fieldReport = relayed && reports && !routed.length && pbs.find(pb => pb.name === 'field-report' && pb.file.startsWith('tools/starter/'));
   if (fieldReport) routed.push({ pb: fieldReport, hits: ['a message from another session'] });
   for (const c of m.known) {
     const pb = pbs.find(x => x.file.endsWith('/' + m.codes[c].playbook));

@@ -1,7 +1,7 @@
 ---
 name: field-report
 summary: Handle a real project's report on the engine - replay the evidence, fix the cause with a test, ship, reply
-triggers: field report, feedback-inbox, starter feedback, report from the project, another claude session, cross-session-message, false alarm, false hint, live bug, came out of the, terminal, upgrade and report, retest
+triggers: field report, feedback-inbox, starter feedback, report from the project, another claude session, cross-session-message, false alarm, false hint, live bug, came out of the, upgrade and report, retest
 ---
 # Field report (starter only)
 
