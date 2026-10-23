@@ -12,6 +12,13 @@ hooks:**, and an upgrade lists each one as its own review item.
     adding a block each time (a project had 9 such blocks in a row). The host's "[Cross-session idle notice]" and
     "[Cross-session delivery notice]" messages get no hints, like task notifications. Scenarios:
     `upgrade-review-block`, `relay-preview:` (notices).
+  - **Field report from an upgraded project:** a version number as the text to write ("change the raid notes file to
+    say v2") no longer reads as a request for a new copy, so no-overwrite lets the edit through; "save it as v2" still
+    asks for a new file. The audit's no-overwrite hint says which requests the guard lets through. `claim-checked` judges
+    a commit, push, publish or send by the tool's own error lines (`error:`, `fatal:`, `[rejected]`, a denial), not by
+    any such word in the output: a commit followed by `git log --oneline -1`, whose subject held "denied", and git's
+    CRLF warnings, had been read as a failed commit. An upgrade names each check that newly fails in its last line
+    and lists it as a review item. Scenarios: `no-overwrite:` (v2), `claim-checked:` (commit output).
   - **Guards let the agent fix its own fresh drafts, and existing checks stop false alarms (trials of 8 new projects,
     round 8):** the no-overwrite and protect-originals guards let an edit through to a file the turn itself created
     (missing from the turn-start snapshot and from git, or created by the agent's own Write this turn): two agents had

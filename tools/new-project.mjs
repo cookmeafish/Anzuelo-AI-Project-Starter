@@ -555,7 +555,12 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   // upgrade log to find out whether anything needed it.
   const rev = (() => { const r = spawnSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: STARTER, encoding: 'utf8' }); return r.status === 0 && r.stdout.trim() ? r.stdout.trim() : 'from the starter copy'; })();
   const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
-  const summary = decisions => `\nUpgrade ${rev}: ${plural(broke.length, 'regression')}, ${plural(decisions, 'decision')} needed${autoSkipped ? `, ${plural(autoSkipped.split(', ').length, 'new fit row')} skipped automatically` : ''}.`;
+  // a check failing now that did not fail before, and is no regression (it is new, or only new rows to decide), is named
+  // in the last line and is a review item. Lesson: a project read "0 failing before, 1 after" and found which sweep only
+  // by running the audit itself.
+  const newFails = after.failed.filter(s => !before.failed.includes(s) && !broke.includes(s));
+  for (const s of newFails.filter(s => !onlyNew(s))) items.push(`audit: "${s.replace(/: /g, ' - ')}" fails after the upgrade (a new or changed check; node tools/audit.mjs shows what it wants)`);
+  const summary = decisions => `\nUpgrade ${rev}: ${plural(broke.length, 'regression')}, ${plural(decisions, 'decision')} needed${newFails.length ? `, newly failing: ${newFails.join('; ')}` : ''}${autoSkipped ? `, ${plural(autoSkipped.split(', ').length, 'new fit row')} skipped automatically` : ''}.`;
   if (!items.length && !log.some(l => /^(updated|created|removed|renamed)\b/.test(l))) { console.log('\nUPGRADE REVIEW: nothing changed, so there is nothing new to decide.'); console.log(summary(0)); process.exit(0); }
   // changes that can break a project's own hooks or scripts that read the engine's output, flagged in the changelog with
   // "Breaking for project hooks:", each its own item. Lesson: a new Stop output shape broke a project script that read

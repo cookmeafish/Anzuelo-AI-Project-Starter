@@ -346,7 +346,9 @@ sweep('new checks pass a good sample', () => {
   for (const g of [].concat(cfg.noOverwrite || [])) {
     if (packGuards.has(g) && !wordsChanged) continue;
     const isNew = headGlobs ? (!headGlobs.globs.has(g) || wordsChanged) : null;
-    if (!allowedEdit(g)) say(isNew, `no-overwrite guard "${g}": no scenario shows a plain request to change an existing file there being allowed (a pretool scenario with setup: { '<file>': '...' }, input.file_path '<file>' and deny: false)`);
+    // (the hint says what the guard lets through, so the scenario it asks for can pass. Lesson: "change the raid notes
+    // file to say v2" was written as asked and denied, as "v2" read as a request for a new copy)
+    if (!allowedEdit(g)) say(isNew, `no-overwrite guard "${g}": no scenario shows a plain request to change an existing file there being allowed (a pretool scenario with setup: { '<file>': '...' }, input.file_path '<file>', deny: false, and a prompt that names the file with an edit verb, e.g. "change <the file's name> so it says ...", or uses a phrase of "overwriteWords" such as "overwrite" or "fix the typo"; a version number asked for as a copy, "save it as v2", is a new file)`);
   }
   return { fail, warn, note: `${own.length} own checks` };
 });

@@ -1201,6 +1201,10 @@ const CLAIMED = [
 // problems" is still a claim. Lesson: "nothing was committed" read as a claim to have committed.
 const NOT_DONE = /\b(not|n't|nothing|never|no|none|neither|nor|couldn'?t|wasn'?t|didn'?t|haven'?t|hasn'?t|denied|blocked|failed|refused|unable|waiting|needs? your|once you|draft|yet)\b|(?<!\p{L})(no|nada|nunca|ning[uú]n[oa]?|sin|todav[ií]a|a[uú]n|pendiente|denegad[oa]|bloquead[oa]|fall[oó]|borrador|cuando (me )?(lo )?(apruebes|confirmes|digas))(?!\p{L})/iu;
 export const claimClauses = text => String(text || '').split(/(?<=[.!?\n])\s+/).flatMap(s => s.split(/[,;:]\s+|\s+(?:but|pero|and|y)\s+/i)).filter(s => s.trim() && !NOT_DONE.test(s));
+// How a commit, push, publish or send says it failed: the tool's own error lines, not any such word in its output (a
+// "git log" after it prints commit subjects, and git's CRLF notes are warnings). Lesson: a commit that went through
+// was called failed because the command ended with "git log --oneline -1", whose subject held the word "denied".
+const ACTION_FAILED = /^\s*(error|fatal)\b|^\s*npm (ERR!|error)|!\s*\[(rejected|remote rejected)\]|\b(permission|access) (to \S+ )?(is )?denied\b|\bfailed to (push|publish|send|commit)\b|\bnothing (added )?to commit\b|requires approval|was denied by the user|^\s*E[A-Z]+:/im;
 export function actionAttempts(entries) {
   const res = new Map(), out = [];
   for (const r of entries) { const c = r.type === 'user' && r.message?.content; if (Array.isArray(c)) for (const x of c) if (x?.type === 'tool_result') res.set(x.tool_use_id, x); }
@@ -1212,7 +1216,7 @@ export function actionAttempts(entries) {
       if (!cmd) continue;
       for (const a of CLAIMED) if (a.cmd(cmd)) {
         const rr = res.get(x.id), text = rr ? textOf(rr.content) : '';
-        out.push({ kind: a.kind, ok: !!rr && !rr.is_error && !/\b(error|fatal|rejected|denied|failed)\b/i.test(text.slice(0, 2000)) });
+        out.push({ kind: a.kind, ok: !!rr && !rr.is_error && !ACTION_FAILED.test(text.slice(0, 4000)) });
       }
     }
   }
@@ -5721,7 +5725,9 @@ function addedContentHit(x, spec, counted = () => true) {
 // folder's noun with its number ("chapter 1", "capítulo 1"). Lesson: a novel's chapter guard denied "make the ending of
 // chapter 2 sadder" and "polish chapter 1", and its message told the agent to write a "v2" copy of the chapter.
 const CHANGE_ASK = /\b(change|edit|fix|correct|polish|tighten|rewrite|revise|reword|tweak|update|improve|shorten|lengthen|expand|trim|cut|swap|replace|rename|remove|delete|add|adjust|redo|rework|make(?!\s+(a|an|another|new|copy|a copy|me a)\b)|cambi\w*|edit\w*|corrig\w*|arregl\w*|pul\w*|reescrib\w*|mejor\w*|ajust\w*|acort\w*|alarg\w*|quit\w*|añad\w*|agreg\w*|haz(?!\s+(un|una|otr[oa]))|hazlo)\b/i;
-const NEW_COPY = /\b(new (version|file|copy)|another version|a copy|copy of|v\d+\b|nueva versi[oó]n|otra versi[oó]n|una copia|copia de)\b/i;
+// (a version number asks for a new copy only as one: "save it as v2", "make a v2", "v2 of it", "como v2", not as the
+// text to write. Lesson: "change the raid notes file to say v2" was read as a request for a new copy and denied)
+const NEW_COPY = /\b(new (version|file|copy)|another version|a copy|copy of|(?:as|a|into|como|una?)\s+v\d+\b|v\d+\s+(?:of|copy|file|de|copia)\b|nueva versi[oó]n|otra versi[oó]n|una copia|copia de)\b/i;
 const FOLDER_NOUN = { chapters: '(chapter|ch\\.?|cap[ií]tulo|cap\\.?)', capitulos: '(cap[ií]tulo|chapter|cap\\.?)' };
 export function asksToChange(p, prompt) {
   const ask = String(prompt || '');
