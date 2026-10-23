@@ -39,7 +39,8 @@ A rule that only lives in the docs gets forgotten. The docs state it and a hook 
    - playbookRouted / playbookUsed / skillUsed
 
    Rules that block an action belong in `tools/hooks/config.json`: `forbiddenCommands`, `codeRules`, `commitGate`,
-   `protectedOriginals`, `noOverwrite`, `writeOnlyVia`, `protectedBranches`. Logic beyond these goes into
+   `protectedOriginals`, `noOverwrite`, `newVersionOnly` (every version a new file, always), `writeOnlyVia`,
+   `protectedBranches`. Logic beyond these goes into
    `coreChecks()` or `pretoolDecision()` in `tools/hooks/hooks.mjs`, with a `// REQ: <tag>` comment. Pure judgment:
    write "hook: N/A <reason>" in the answer and mark the row `doc`. Keep `when` specific: a check that fires on
    unrelated turns teaches everyone to waive it.

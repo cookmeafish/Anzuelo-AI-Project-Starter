@@ -227,6 +227,10 @@ const DEFAULTS = {
   skillMirrors: ['.claude/skills', '.agents/skills'], // generated copies where an agent discovers skills natively (Claude Code; Codex)
   protectedOriginals: [],     // globs of originals that are never changed (packs and setup fill this)
   noOverwrite: [],            // globs of delivered files: a new version is a new file
+  // globs where every version is a new file, always: no request words let an edit or delete through (only a file this
+  // turn created). Lesson: a deck project never changes a deck file in place, and the audit asked it for a scenario
+  // where a plain request does.
+  newVersionOnly: [],
   // (plus every plain folder the root .gitignore names, like dist/ or target/: see config())
   ignoreForChanges: ['.git/**', 'node_modules/**', '**/node_modules/**', '**/.venv/**', '**/venv/**', '**/.next/**', '**/.turbo/**', '**/.gradle/**', 'tools/hooks/state/**', '.obsidian/**', '.claude/skills/**', '.agents/skills/**', '**/__pycache__/**', '.cache/**', '.starter/**', '**/.DS_Store', '**/Thumbs.db', '**/~$*'],
   notWork: ['docs/STATUS.md', 'docs/CHANGELOG.md'],
@@ -3263,7 +3267,10 @@ export function upgradeProblems(cfg = config()) {
     if (kind === 'self-tests') { const st = readJSON(path.join(STATE, 'selftest.json'), null); if (st && (!st.passed || (st.at || '') < r.date) && !/^passed\b/i.test(decision)) probs.push(`${at}: run node tools/hooks/selfcheck.mjs until it passes`); else if (st && !st.passed && (st.at || '') >= r.date) probs.push(`${at}: the self-tests fail here now: run node tools/hooks/selfcheck.mjs and fix them`); continue; }
     if (/^declined\b/i.test(decision)) { if (decision.replace(/^declined\W*/i, '').length < 8) probs.push(`${at}: say why it was declined`); continue; }
     if (/^fixed\b/i.test(decision)) { if (decision.replace(/^fixed\W*/i, '').length < 8) probs.push(`${at}: say how it was fixed`); continue; }
-    if (!/^adopted\b/i.test(decision)) { probs.push(`${at}: the decision must start with adopted, fixed or declined`); continue; }
+    // "later - when: <condition>" defers an item to a named moment, as fit rows may (Lesson: a project's "later - when:
+    // next GUI change" was rejected here though the fit checklist takes it)
+    if (/^later\b/i.test(decision)) { if (!/^later\W+when\s*:\s*\S.{3,}/i.test(decision)) probs.push(`${at}: "later" needs "later - when: <the moment it is decided>"`); continue; }
+    if (!/^adopted\b/i.test(decision)) { probs.push(`${at}: the decision must start with adopted, fixed, declined or "later - when: <moment>"`); continue; }
     if (!/worth it\s*:\s*\S[^/]*\/\s*\S/i.test(decision)) probs.push(`${at}: adopted needs "Worth it: <gain> / <cost>"`);
     if (kind === 'pack' && !(own.packs || []).includes(item)) probs.push(`${at}: adopted but not installed (node tools/packs.mjs install ${item})`);
     if (kind === 'skill' && !exists(`${cfg.skillsDir}/${item}/SKILL.md`)) probs.push(`${at}: adopted but not enabled (node tools/skills.mjs enable ${item})`);
@@ -4451,7 +4458,7 @@ function pretoolHits(data, cfg) {
     const p = rel(target);
     if (p.startsWith('..')) return out;
     // (a file this turn created is the turn's own draft: fixing it overwrites no delivered output and no original)
-    const there = exists(p) && !((match(p, cfg.noOverwrite) || match(p, cfg.protectedOriginals)) && madeThisTurn(p, t(), cfg));
+    const there = exists(p) && !((match(p, cfg.noOverwrite) || match(p, cfg.newVersionOnly || []) || match(p, cfg.protectedOriginals)) && madeThisTurn(p, t(), cfg));
     const who = personOf(p, cfg);
     if (who) add(scopeCheck([who], true));
     const incoming = [inp.content, inp.new_string, ...(inp.edits || []).map(e => e.new_string)].filter(s => typeof s === 'string').join('\n');
@@ -4476,7 +4483,9 @@ function pretoolHits(data, cfg) {
     if (there && match(p, cfg.protectedOriginals) && !/(^|\/)README\.md$/i.test(p))
       add(`REQ: protect-originals. ${p} is an original (protected: ${cfg.protectedOriginals.join(', ')}). Originals are never edited or overwritten. Put derived or corrected content in docs/ or outputs/ and link the original.`);
     // REQ: no-overwrite. Delivered outputs keep their history: a new version is a new file.
-    if (there && match(p, cfg.noOverwrite) && !re(cfg.overwriteWords).test(req()) && !asksToChange(p, req()))
+    if (there && match(p, cfg.newVersionOnly || []))
+      add(`REQ: no-overwrite. ${p} is kept as written: in this project every version is a new file (newVersionOnly). Write the change as a new file (e.g. "<name> v2${path.extname(p)}") and leave this one as it is.`);
+    else if (there && match(p, cfg.noOverwrite) && !re(cfg.overwriteWords).test(req()) && !asksToChange(p, req()))
       add(`REQ: no-overwrite. ${p} is a delivered output, and the request does not name it as the file to change. If the user asked for a new version, write it as a new file (e.g. "<name> v2.md"). ` +
         'If they did ask to change this file, in words the hook did not catch, make no copy: ask them in one line to confirm the change to this file.');
   }
@@ -4641,15 +4650,16 @@ function pretoolHits(data, cfg) {
     // Deleting or moving away a delivered output or an original that was there when the turn began is the same as
     // writing over it: rm and then Write would get past the guards on edits. Files this turn created stay free.
     // Lesson: an agent the no-overwrite guard denied removed the file with rm and wrote it again.
-    if ((cfg.noOverwrite.length || cfg.protectedOriginals.length) && /(^|[\s;&|(])(rm|del|erase|unlink|rmdir|rd|Remove-Item|ri|mv|move|Move-Item|mi|Rename-Item|ren)\b/i.test(cmd)) {
-      const gone = removedPaths(cmd, [...cfg.noOverwrite, ...cfg.protectedOriginals]).filter(p => !madeThisTurn(p, t(), cfg));
+    const strict = cfg.newVersionOnly || [];
+    if ((cfg.noOverwrite.length || strict.length || cfg.protectedOriginals.length) && /(^|[\s;&|(])(rm|del|erase|unlink|rmdir|rd|Remove-Item|ri|mv|move|Move-Item|mi|Rename-Item|ren)\b/i.test(cmd)) {
+      const gone = removedPaths(cmd, [...cfg.noOverwrite, ...strict, ...cfg.protectedOriginals]).filter(p => !madeThisTurn(p, t(), cfg));
       // (an originals folder is checked above, with its own exceptions; this covers originals named by a pattern alone,
       // such as "**/*.pdf")
       const dirs = cfg.protectedOriginals.map(g => g.replace(/\/?\*\*.*$/, '')).filter(Boolean);
       const orig = gone.filter(p => match(p, cfg.protectedOriginals) && !dirs.some(d => p.startsWith(d + '/')) && !/(^|\/)README\.md$/i.test(p));
       if (orig.length && !re(cfg.deleteWords).test(req()))
         add(`REQ: protect-originals. This command deletes or moves ${orig.slice(0, 3).join(', ')}${orig.length > 3 ? ` and ${orig.length - 3} more` : ''}, an original that was there before this turn. Originals are never removed unless the user asked for it in this request. Put derived or corrected content in docs/ or outputs/ and link the original.`);
-      const outs = gone.filter(p => match(p, cfg.noOverwrite) && !re(cfg.overwriteWords).test(req()) && !asksToChange(p, req()));
+      const outs = gone.filter(p => match(p, strict) || (match(p, cfg.noOverwrite) && !re(cfg.overwriteWords).test(req()) && !asksToChange(p, req())));
       if (outs.length)
         add(`REQ: no-overwrite. This command deletes or moves ${outs.slice(0, 3).join(', ')}${outs.length > 3 ? ` and ${outs.length - 3} more` : ''}, a delivered output that was there before this turn, and the request does not name it as a file to change or delete. ` +
           'Removing it and writing it again is the same as writing over it. If the user asked for a new version, write it as a new file (e.g. "<name> v2.md"); if they asked to change or delete this file, in words the hook did not catch, ask them in one line to confirm.');
@@ -5079,7 +5089,12 @@ export function coreChecks(x, cfg) {
   lap('note-linked .. answer-traced');
   // REQ: upgrade-review. After an engine upgrade, every new rule, pack, skill and finding is weighed and decided.
   // It blocks once a day, then only the session notice reminds: a pending review must never stall the user's own work.
-  const up = x.workTurn && readJSON(path.join(STATE, 'upgrade-nag.json'), {}).at !== today() ? upgradeProblems(cfg) : [];
+  // It blocks only a turn about the project itself (routed to the project runbook, or one that changed the decisions
+  // file, the engine or its rules); on the user's own work the notice reminds. Lesson: a deck question was held on the
+  // review and became a 45-minute maintenance turn.
+  const aboutProject = (x.routed || []).some(pb => pb.file === 'docs/playbooks/project.md') ||
+    x.changed.some(p => p === 'docs/DECISIONS.md' || /^(tools\/|AGENTS\.md$|CLAUDE\.md$|docs\/playbooks\/project\.md$)/.test(p));
+  const up = x.workTurn && aboutProject && readJSON(path.join(STATE, 'upgrade-nag.json'), {}).at !== today() ? upgradeProblems(cfg) : [];
   if (up.length) writeState('upgrade-nag.json', { at: today() });
   if (up.length) add('upgrade-review', `The last upgrade is not reviewed yet (docs/DECISIONS.md "## Upgrade review"). ${up.slice(0, 4).join('; ')}${up.length > 4 ? ` (+${up.length - 4} more)` : ''}. Weigh each one with the user: what it makes better, what it costs.`);
   // REQ: runbook-complete. Every runbook has a check that proves it was followed (or says why none can exist).
@@ -5330,7 +5345,10 @@ export function coreChecks(x, cfg) {
   // only writes docs/starter-feedback.md. Lesson: an answer said an engine bug was "reported to the tool's makers" when
   // the report command never ran.
   const reportClaim = x.answer.split(/(?<=[.!?\n])\s+/).find(s => REPORTED.test(s) && !/\b(not|n'?t|no|nothing|never|will|once|when|until)\b/i.test(s.replace(REPORTED, '')));
-  const reportRan = (x.runs || []).some(r => /\bstarter\.mjs["']?\s+report\b/.test(String(r.cmd)) && /\breport: (sent|nothing new)\b/i.test(r.out || ''));
+  // (a message sent to the starter's session this request reaches the starter too. Lesson: a report sent with
+  // SendMessage was called unsent because the report command did not run)
+  const sentToStarter = (x.entries || []).some(r => r.type === 'assistant' && Array.isArray(r.message?.content) && r.message.content.some(c => c?.type === 'tool_use' && c.name === 'SendMessage' && String(c.input?.message || '').trim()));
+  const reportRan = sentToStarter || (x.runs || []).some(r => /\bstarter\.mjs["']?\s+report\b/.test(String(r.cmd)) && /\breport: (sent|nothing new)\b/i.test(r.out || ''));
   if (reportClaim && !reportRan)
     add('claim-checked', `The answer says the lesson was reported ("${reportClaim.trim().slice(0, 70)}"), but node tools/starter.mjs report did not send it this turn. ` +
       'Say "noted in docs/starter-feedback.md for the starter", or run node tools/starter.mjs report and say what it printed.');
@@ -5662,7 +5680,7 @@ export function followOnSteps(x, steps, cfg = config(), open = () => true) {
 const CONFIG_TAGS = { changeWords: 'question-no-file', praise: 'praise-captured', aiAttribution: 'no-ai-attribution', aiAuthor: 'no-ai-attribution',
   outwardOk: 'outward-gate', ruleRequest: 'rule-request', complaint: 'upset-learned', letdown: 'upset-learned', frustration: 'friction-suspend', taskVerbs: 'runbook-exists', overwriteWords: 'no-overwrite', deleteWords: 'protect-originals',
   commitGate: 'commit-gate', codeRules: 'code-rules', forbiddenCommands: 'forbidden-command', writeOnlyVia: 'write-only-via', wholeOutputTools: 'whole-output',
-  secretPatterns: 'no-secrets', approvalPaths: 'approval-gate', protectedOriginals: 'protect-originals', noOverwrite: 'no-overwrite',
+  secretPatterns: 'no-secrets', approvalPaths: 'approval-gate', protectedOriginals: 'protect-originals', noOverwrite: 'no-overwrite', newVersionOnly: 'no-overwrite',
   watchedInputs: 'watched-inputs', guiFiles: 'gui-review-loop', scopesRoot: 'scope-separate' };
 export function touchedChecks(files) {
   const tags = new Set();
@@ -6480,6 +6498,8 @@ function fileFixable(m) {
 // of the message without paths, patterns or check names.
 const SHORT = {
   'finished-summary': 'End with a Finished section that lists every changed file',
+  // (the long message quotes the open lines; cut short it read "not reviewed yet.: the decision must start")
+  'upgrade-review': 'Decide the open lines of the last upgrade review in DECISIONS.md (adopted, fixed, declined, or later - when: <moment>)',
   changelog: 'Note the change in docs/CHANGELOG.md',
   'audit-run': "Run the project's health check until it passes",
   'playbook-named': 'Name the runbook or skill you followed in the turn notes',

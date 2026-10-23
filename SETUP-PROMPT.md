@@ -194,7 +194,8 @@ how it is released.
    to its `triggers`, or create a runbook with its check (runbook-create skill). Before writing one, look for an
    existing skill that does the job (skill-finder skill), read every file of it, and install third-party skills only
    with the user's OK. Every request must show a ROUTE or SKILL in `node tools/hooks/selfcheck.mjs --route "<request>"`.
-5. **Guards** in `tools/hooks/config.json`, as the answers require: `protectedOriginals`, `noOverwrite`,
+5. **Guards** in `tools/hooks/config.json`, as the answers require: `protectedOriginals`, `noOverwrite` (or
+   `newVersionOnly` where a file is never changed in place, whatever the user says),
    `writeOnlyVia`, `protectedBranches` (from the Branches answer: a user who works directly on main or master doesn't
    want it protected), `forbiddenCommands` (e.g. never stop the user's own app or port), `codeRules`,
    `commitGate`, `watchedInputs`, `approvalPaths` (sign-off), `userFacing`.

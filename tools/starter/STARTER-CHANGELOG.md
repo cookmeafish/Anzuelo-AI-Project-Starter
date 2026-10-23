@@ -23,6 +23,17 @@ hooks:**, and an upgrade lists each one as its own review item.
     describe or cite work), and a starter upgrade (`starter.mjs update`, "upgrade the engine") routes to the project
     runbook first. A report of fixes had routed to bugfix, a deliverable and two library skills on the words it quoted.
     Scenarios: `relay-route-text`, `relayed turn:` (report of fixes).
+  - **Field report 8 (deck project), first part:** an unfinished upgrade review holds only a turn about the project
+    itself (routed to the project runbook, or one that changed `docs/DECISIONS.md`, the engine or its rules); on the
+    user's own work the session notice reminds. A deck question had become a 45-minute maintenance turn. A review line
+    may say "later - when: <moment>", as fit rows may, and the cut-short Stop line no longer reads "not reviewed
+    yet.: the decision". New config `newVersionOnly`: globs where every version is a new file whatever the request
+    says (only a file this turn created can be fixed), with no "plain request allowed" scenario asked by the audit. A
+    message sent to the starter's session this request (SendMessage) counts as reporting to it. Scenarios:
+    `upgrade-review:` (own work, later), `no-overwrite:` (newVersionOnly), `claim-checked:` (reported by message).
+    **Breaking for project hooks:** bookkeeping lines (`Playbook:`, `Skill:`, `Worth it:`, `Proven:`, `Learned`) may
+    be in `.cache/turn-notes.md` written this turn instead of the answer; a project hook that asks for them in the
+    answer should also accept that file. The upgrade-review Stop step no longer fires on the user's own work turns.
   - **Guards let the agent fix its own fresh drafts, and existing checks stop false alarms (trials of 8 new projects,
     round 8):** the no-overwrite and protect-originals guards let an edit through to a file the turn itself created
     (missing from the turn-start snapshot and from git, or created by the agent's own Write this turn): two agents had
