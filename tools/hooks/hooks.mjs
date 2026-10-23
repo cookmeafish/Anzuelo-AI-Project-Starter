@@ -5491,8 +5491,16 @@ export function coreChecks(x, cfg) {
   // AGENTS.md step 0.5 keeps for them (outward actions, installs, anything irreversible, security, money).
   // Lesson: under autonomy auto an answer ended by asking whether to keep or archive deleted records.
   if (cfg.autonomy === 'auto' && x.workTurn) {
-    const tail = x.answer.split(EN_COPIES)[0].split(/^#{1,6}\s*\**finished\b/im)[0].trim().split(/\n\s*\n/).filter(b => !/^\s*(playbook|skill|n\/a\(|worth it)/i.test(b)).pop() || '';
-    if (/\?\s*\**\s*$/.test(tail) && !/\b(publish|push|send|deploy|release|install|irreversible|money|pay|buy|password|secret|security|legal)\w*|\b(delete|wipe|erase) (it|them|this|that|your|all|the \w+ now)\b/i.test(tail))
+    const body = x.answer.split(EN_COPIES)[0].split(/^#{1,6}\s*\**finished\b/im)[0].trim();
+    const tail = body.split(/\n\s*\n/).filter(b => !/^\s*(playbook|skill|n\/a\(|worth it)/i.test(b)).pop() || '';
+    // (a labeled question, or a closing "reply with a number", asks too; what it is about is the question itself, not
+    // the options under it. Lesson, trial round 9: "Question for you: who should be able to delete a book?" with four
+    // options and "Reply with a number" stalled a turn the user had said to decide, and an option's mention of a leaked
+    // password would have exempted it anyway)
+    const labeled = /\*\*\s*(question for you|pregunta para ti)\s*:?\s*\*\*\s*:?\s*([^\n]*)/i.exec(body);
+    const asks = /\?\s*\**\s*$/.test(tail) || !!labeled || /^\W*(reply|answer|tell me|choose|pick|let me know|responde|dime|elige)\b[^\n]*$/im.test(tail.split('\n').pop() || '');
+    const about = labeled ? `${labeled[2]} ${tail.split('\n').pop()}` : tail;
+    if (asks && !/\b(publish|push|send|deploy|release|install|irreversible|money|pay|buy|password|secret|security|legal)\w*|\b(delete|wipe|erase) (it|them|this|that|your|all|the \w+ now)\b/i.test(about))
       add('autonomy-decide', `The user asked not to be asked (autonomy auto), and the answer ends with a question. Decide it yourself, do it, and record it as ${assumedHint(isSpanish(x.prompt))}. Ask only about outward actions, installs, money, security or something irreversible.`);
   }
   // REQ: claim-checked (verification). A turn that waived its own test or build gate (the code never ran) cannot say

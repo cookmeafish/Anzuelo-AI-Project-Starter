@@ -1078,6 +1078,15 @@ STOP.push(
   { name: 'autonomy-decide: autonomy auto, the answer asks before publishing: passes', prompt: 'let owners delete their books', files: { 'notes/books.md': 'x', 'docs/CHANGELOG.md': 'x' },
     edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), autonomy: 'auto' }) },
     answer: 'Owners can delete their own books now. Assumed: archive deleted books - nothing is lost - one table to clean later.\n\nShall I publish it to the live site?' + FIN, expect: { not: ['autonomy-decide'] } },
+  // (Lesson, trial round 9: a labeled question with numbered options and "Reply with a number" stalled a turn the user
+  // had said to decide, and an option's mention of a leaked password would have exempted it)
+  { name: 'autonomy-decide: autonomy auto, a labeled question with options and "reply with a number": blocked', prompt: 'let staff delete books', files: { 'notes/books.md': 'x', 'docs/CHANGELOG.md': 'x' },
+    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), autonomy: 'auto' }) },
+    answer: 'Nothing is built yet.\n\n**Question for you:** who should be able to delete a book?\n1. Any signed-in staff member. The catch: an account whose password leaked can delete too.\n2. Only the staff you name.\n\nReply with a number.' + FIN,
+    expect: { block: true, tags: ['autonomy-decide'] } },
+  { name: 'autonomy-decide: autonomy auto, a labeled question about a deploy: passes', prompt: 'let staff delete books', files: { 'notes/books.md': 'x', 'docs/CHANGELOG.md': 'x' },
+    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), autonomy: 'auto' }) },
+    answer: 'Staff can delete books now; I assumed only named staff can, because it is the narrower permission.\n\n**Question for you:** shall I deploy it to the shop server now?' + FIN, expect: { not: ['autonomy-decide'] } },
   { name: 'autonomy-decide: without autonomy auto a closing question is fine', prompt: 'let owners delete their books', files: { 'notes/books.md': 'x', 'docs/CHANGELOG.md': 'x' },
     answer: 'Owners can delete their own books now.\n\nShould deleted books be kept in an archive or removed for good?' + FIN, expect: { not: ['autonomy-decide'] } },
   // answers in the user's language meet the label checks with their own labels

@@ -12,7 +12,8 @@ checks:
 
 ## Inputs
 - What to gather first (files, facts from docs/knowledge, the user's constraints from docs/BRIEF.md).
-- What to ask the user ONLY if it is missing and matters (one focused question).
+- What to ask the user ONLY if it is missing and matters (one focused question; with `"autonomy": "auto"`, the safest choice
+  instead, recorded as an `Assumed:` line).
 
 ## Steps
 1. <First step: exact files, tools and commands.>

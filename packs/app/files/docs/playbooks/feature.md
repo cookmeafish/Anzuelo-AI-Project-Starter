@@ -27,7 +27,9 @@ skills, when the project has them: **frontend-design** for screens, **backend-pa
    - out of scope, edge cases, data touched;
    - for taste-driven work, a gold-standard example and anti-examples.
 
-   Ask ONE question if a criterion can't be written without guessing.
+   Ask ONE question if a criterion can't be written without guessing. With `"autonomy": "auto"` (the user asked not to
+   be asked) don't ask: take the safest choice (the narrower permission, the reversible change), write it into the spec
+   as `Assumed: <choice> - <why> - <cost if wrong>`, build it, and name it in the answer.
 2. **Plan:** for work with several tasks, use the plan skill (`docs/plans/`). Otherwise plan in the spec: the
    smallest set of changes, one sentence per part, what must be preserved, and how each criterion will be verified.
    A feature that adds a service, a data store or a new API, or crosses many modules, gets designed first (the
