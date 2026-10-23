@@ -20,6 +20,9 @@ export const GROUPS = [
   ['b', [['np-photo-cli'], ['np-blog-es', 'a Spanish-speaking user; answers should be in Spanish']]],
   ['c', [['np-landlord', 'a landlord: tenant letters, lease checks'], ['np-weekly-sales', 'weekly sales numbers from spreadsheets']]],
   ['d', [['np-vault', 'a personal notes vault'], ['np-novel', "a novelist's manuscript project"]]],
+  // (the wider set, for rounds that run more than the standard eight: a group is written only when its projects ran)
+  ['e', [['np-discord-bot', 'a small Node chat bot'], ['np-research', 'research and notes, no code']]],
+  ['f', [['np-client-portal', 'a web app with client logins'], ['np-ts-lib', 'a TypeScript library to publish on npm']]],
 ];
 
 export const prompt = (round, projects, out) => `You are an independent, strict reviewer of AI-agent work. Two test projects were each made from a project starter called Anzuelo and then used by an AI agent (Claude Code) for several turns, as a real user would. Judge whether the agent did a genuinely good job for the user in each turn, and whether the starter's rules and hooks helped or got in the way.
