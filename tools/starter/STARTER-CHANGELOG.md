@@ -80,6 +80,18 @@ hooks:**, and an upgrade lists each one as its own review item.
       answer that says a change only makes projects better needs a compare.mjs NOT WORSE verdict that turn
       (`claim-checked`). Stop blocks are counted from the trial records: the first round's judges had not counted
       them. Scenarios: `improvement-loop`, `claim-checked:` (improvement claims).
+    - **Efficiency** (measured on round 8: hook text grew from about 4,500 to 5,600 characters per turn since the
+      baseline, while turns got about twice as fast and slightly cheaper):
+      - A helper launched without the brief line gets it added in front of its prompt (the host's `updatedInput`)
+        instead of a denial: each denial cost a full extra round that resent the whole prompt. The user's permission
+        settings still decide the call. Scenarios: `sub-agent brief` (added in place).
+      - The `[rules]` digest is left out of the prompts of a session whose start gave the whole session checklist
+        (about 230 characters a turn). Scenario: `prompt-digest`.
+      - The Stop block's closing paragraph is about half as long (it came with every block and was two thirds of all
+        Stop text).
+      - The improvement loop measures efficiency: each trial turn records the hook text, denied tool calls and Stop
+        blocks it cost; compare.mjs calls a round WORSE for a costlier work turn or setup, more denials or more hook
+        text per turn; the judges report waste with no benefit as area "efficiency". Scenario: `improvement-loop`.
     - Spanish debugging requests get the debug skill ("depura", "por qué falla", "las pruebas fallan", "causa raíz",
       "no compila"), and "depura" counts as a Spanish task. Scenarios: `route:` (Spanish debug).
     **Breaking for project hooks:** bookkeeping lines (`Playbook:`, `Skill:`, `Worth it:`, `Proven:`, `Learned`) may

@@ -22,7 +22,10 @@ stop at the usage limit, so check that a headless session runs (`claude -p "ok"`
 4. **Verdict.** `node tools/starter/trials/compare.mjs <name> --record` compares the round with each project's
    baseline (its first recorded round) and with the previous round, and keeps it in `tools/starter/trials/rounds.json`
    (committed). WORSE means any of: more high findings; more than 3 more medium findings; median setup more than
-   1.25x slower; more failed or timed-out turns; a share of Stop-blocked turns 15 points higher.
+   1.25x slower; more failed or timed-out turns; a share of Stop-blocked turns 15 points higher. And, for efficiency
+   (the user pays for every step and waits through every pause): cost per work turn or median setup cost more than
+   1.3x; more than 0.25 more denied tool calls per turn (each one a full extra round); more than 1.2x the hook text
+   per turn. The judges also report waste with no benefit as area "efficiency", counted on its own.
 5. **Feedback to fixes.** Read every high and medium finding (and lows that repeat across projects). For each one the
    starter caused or could prevent: confirm it in the transcript first, fix the cause in the engine (not the
    symptom), add a self-test that fails without the fix, and add a line to `tools/starter/STARTER-CHANGELOG.md`.
@@ -46,5 +49,7 @@ stop at the usage limit, so check that a headless session runs (`claude -p "ok"`
 - Judge counts swing by about 3 mediums between rounds from judge noise alone: compare highs, failed turns, setup
   minutes and blocked turns first.
 - Count Stop blocks from the trial records, not the judges: early judges did not count them.
+- Engine text is paid on every turn: before adding a hint, notice or Stop line, see whether a shorter one, one per
+  session, or none would do. A denial the engine could fix itself (the host's updatedInput) should be fixed in place.
 - A round's projects live in the temp folder (`anzuelo-new/<id>-<round>`); a name used once cannot be reused.
 - Never edit the frozen copy, and never judge a round with an agent that wrote its fixes.

@@ -123,9 +123,20 @@ async function one(id) {
       .map(c => c.name === 'Skill' ? `skill:${c.input?.skill || ''}` : String(c.input?.file_path || '').replace(/\\/g, '/'))
       .map(p => (/(docs\/playbooks\/[^/]+\.md|skills\/[^/]+\/SKILL\.md|SETUP-PROMPT\.md)$/.exec(p) || [])[1] || (p.startsWith('skill:') ? p : '')).filter(Boolean))];
     const blockTags = [...new Set(rows.map(text).filter(x => /Almost done:/.test(x)).flatMap(x => (/Names: ([\w ,-]+)/.exec(x) || [, ''])[1].split(/,\s*/)).map(s => s.trim()).filter(Boolean))];
+    // what the starter's own hooks cost this turn: text they put into the conversation, tool calls they denied (each a
+    // full extra round), and Stop blocks (each another round)
+    const overhead = { hookChars: 0, denials: 0, stopBlocks: 0 };
+    for (const r of rows) {
+      const a = r.attachment;
+      if (r.type === 'attachment' && a && (a.hookEvent || /hook/i.test(a.type || ''))) overhead.hookChars += (Array.isArray(a.content) ? a.content.join('') : typeof a.content === 'string' ? a.content : '').length;
+      const c = r.message?.content;
+      const said = v => typeof v === 'string' ? v : Array.isArray(v) ? v.map(y => y?.text || '').join('') : '';
+      if (r.type === 'user' && Array.isArray(c)) for (const x of c) if (x?.type === 'tool_result' && /^PreToolUse:\S+ hook error: /.test(said(x.content))) overhead.denials++;
+      if (/Almost done:/.test(text(r)) && r.type !== 'assistant') overhead.stopBlocks++;
+    }
     const changed = g('diff', '--name-status', before, after).stdout.trim().split('\n').filter(Boolean);
     const reqDiff = g('diff', before, after, '--', 'tools/hooks/requirements.json').stdout;
-    turns.push({ ...t, answer: t.answer.slice(0, 2500), opened, blockTags, changed: changed.length, changedFiles: changed.slice(0, 60),
+    turns.push({ ...t, answer: t.answer.slice(0, 2500), opened, blockTags, overhead, changed: changed.length, changedFiles: changed.slice(0, 60),
       newChecks: [...reqDiff.matchAll(/^\+\s*"tag":\s*"([^"]+)"/gm)].map(m => m[1]),
       learned: [...new Set(rows.flatMap(r => r.type === 'assistant' ? (r.message?.content || []).filter(c => c.type === 'text').flatMap(c => c.text.match(/Learned \([a-z-]+\):[^\n]*/g) || []) : []))].map(s => s.slice(0, 200)),
       waivers: (t.answer.match(/N\/?A\s*\([\w-]+\)\s*:[^\n·]*/g) || []), state: state() });

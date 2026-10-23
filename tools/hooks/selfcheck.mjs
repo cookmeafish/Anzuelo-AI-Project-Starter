@@ -1638,7 +1638,10 @@ PRETOOL.push(
   { name: 'commit gate passed this turn: allowed', tool: 'Bash', input: { command: 'git commit -m "feature"' }, edit: cfgEdit({ commitGate: [{ cmd: 'npm test', pass: '', when: ['src/**'] }] }), prep: dir => stage(dir, { 'src/a.js': 'x' }), tools: [bash('npm test', '5 passed')], deny: false },
   { name: 'taste-driven files committed without the user\'s OK: denied', tool: 'Bash', input: { command: 'git commit -m "new art"' }, prompt: 'commit the new art', edit: cfgEdit({ approvalPaths: ['art/**'] }), prep: dir => stage(dir, { 'art/hero.svg': '<svg></svg>' }), deny: true, tag: 'approval-gate' },
   { name: 'taste-driven files committed after the user\'s OK: allowed', tool: 'Bash', input: { command: 'git commit -m "new art"' }, prompt: 'looks good, commit it', edit: cfgEdit({ approvalPaths: ['art/**'] }), prep: dir => stage(dir, { 'art/hero.svg': '<svg></svg>' }), deny: false },
-  { name: 'sub-agent brief without the rules: denied', tool: 'Agent', input: { prompt: 'Review the export feature.', subagent_type: 'general-purpose' }, deny: true, tag: 'subagent-brief' },
+  // (the brief line is put in front of the prompt, not denied: a denial cost a full extra round that resent the prompt)
+  { name: 'sub-agent brief without the rules: the line is added in place, not denied', tool: 'Agent', input: { prompt: 'Review the export feature.', subagent_type: 'general-purpose' }, deny: false,
+    rewrites: { prompt: /^Read AGENTS\.md first and follow its rules[^\n]*\n\nReview the export feature\.$/, subagent_type: /^general-purpose$/ } },
+  { name: 'sub-agent brief that already names AGENTS.md: left as it is', tool: 'Agent', input: { prompt: 'Read AGENTS.md first. Review the export feature.', subagent_type: 'general-purpose' }, deny: false },
   { name: 'sub-agent brief pointing at AGENTS.md: allowed', tool: 'Agent', input: { prompt: 'Read AGENTS.md first and follow its rules. Review the export feature.', subagent_type: 'general-purpose' }, deny: false },
   { name: 'editing a generated skill mirror: denied', tool: 'Edit', input: { file_path: '.claude/skills/project-rule/SKILL.md' }, deny: true, tag: 'skill-mirror' }
 );
@@ -2879,7 +2882,8 @@ PRETOOL.push(
   { name: 'publish-gate: a dry run publishes nothing: allowed', tool: 'Bash', input: { command: 'cargo publish --dry-run' }, prompt: 'check what the crate would contain', deny: false },
   { name: 'publish-gate: publishing after the review this turn: allowed', tool: 'Bash', input: { command: 'npm publish' }, tools: [sk('security-review')], deny: false },
   { name: 'subagent-brief: a prompt naming a brief file that points at AGENTS.md: allowed', tool: 'Agent', input: { prompt: 'Your brief is .cache/briefs/export.md. Do what it says.', subagent_type: 'general-purpose' }, setup: { '.cache/briefs/export.md': 'Read AGENTS.md first and follow its rules.\nReview the export.' }, deny: false },
-  { name: 'subagent-brief: a brief file without the rules: denied', tool: 'Agent', input: { prompt: 'Your brief is .cache/briefs/export.md. Do what it says.', subagent_type: 'general-purpose' }, setup: { '.cache/briefs/export.md': 'Review the export.' }, deny: true, tag: 'subagent-brief' },
+  { name: 'subagent-brief: a brief file without the rules: the line is added in place', tool: 'Agent', input: { prompt: 'Your brief is .cache/briefs/export.md. Do what it says.', subagent_type: 'general-purpose' }, setup: { '.cache/briefs/export.md': 'Review the export.' }, deny: false,
+    rewrites: { prompt: /^Read AGENTS\.md first[^\n]*\n\nYour brief is \.cache\/briefs\/export\.md\. Do what it says\.$/ } },
   { pack: 'knowledge', name: 'protect-originals: deleting a file this turn created: allowed', tool: 'Bash', input: { command: 'rm "sources/junk download.tmp"' }, setup: { 'sources/junk download.tmp': 'x' },
     prep: dir => write(dir, { 'tools/hooks/state/turn.json': JSON.stringify({ at: new Date(Date.now() - 2000).toISOString() }), 'tools/hooks/state/snapshot.json': JSON.stringify({ at: new Date(Date.now() - 2000).toISOString(), files: {} }) }), deny: false },
   { pack: 'knowledge', name: 'protect-originals: deleting a file that was there at the turn start: denied', tool: 'Bash', input: { command: 'rm "sources/junk download.tmp"' }, setup: { 'sources/junk download.tmp': 'x' },
@@ -3414,6 +3418,10 @@ for (const s of PRETOOL) {
     // tags: every rule named in one denial; exact: the whole denial text; says: a pattern the denial must match
     let reason = ''; try { reason = JSON.parse(out).hookSpecificOutput?.permissionDecisionReason || ''; } catch { }
     const tagOk = (!s.tag || out.includes(`REQ: ${s.tag}`)) && (s.tags || []).every(t => reason.includes(`REQ: ${t}.`)) && (s.exact === undefined || reason === s.exact) && (!s.says || s.says.test(reason));
+    // rewrites: the call goes ahead with its input changed in place (updatedInput), checked field by field
+    let upd = null; try { upd = JSON.parse(out).hookSpecificOutput?.updatedInput || null; } catch { }
+    const rewriteOk = s.rewrites ? !!upd && Object.entries(s.rewrites).every(([k, re]) => re.test(String(upd[k] ?? ''))) : !upd || s.deny;
+    if (!rewriteOk) { report(false, 'pretool: ' + s.name, s.rewrites ? `expected the input rewritten, got ${out.slice(0, 300) || 'no output'}` : `input rewritten unexpectedly: ${JSON.stringify(upd).slice(0, 200)}`); continue; }
     report(denied === s.deny && tagOk, 'pretool: ' + s.name, denied !== s.deny ? `expected ${s.deny ? 'DENY' : 'ALLOW'}, got ${denied ? 'DENY ' + out : 'ALLOW'} ${err.slice(0, 200)}` : `denied, but not as expected (${[s.tag, ...(s.tags || [])].filter(Boolean).join(', ')}${s.exact !== undefined ? ', exact text' : ''}${s.says ? ', ' + s.says : ''}): ${reason.slice(0, 600) || out.slice(0, 200)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
@@ -4807,11 +4815,21 @@ if (mineB() && fs.existsSync(path.join(ROOT, 'tools/starter/trials/compare.mjs')
   const failed = c.verdict({ round: 'v3', projects: { a: P(19, 2, 0, 3, 1), b: P(18, 1, 0, 2) } }, hist);
   const newProj = c.verdict({ round: 'v3', projects: { a: P(19, 2, 0, 3), z: P(10, 1, 0, 0) } }, hist);
   const first = c.verdict({ round: 'v1', projects: { a: P(30, 3, 0, 3) } }, { rounds: [] });
+  // efficiency: cost per work turn, denied tool calls and hook text per turn (only where both rounds measured them)
+  const E = (cost, denials, hookChars) => c.projectStats({ turns: [0, 1, 2].map(i => ({ min: i ? 5 : 20, cost: i ? cost : 4, blockTags: [], error: '', overhead: { hookChars, denials, stopBlocks: 0 } })) }, judged(0, 2));
+  const eh = { rounds: [{ round: 'e1', projects: { a: E(8, 1, 4000), b: E(8, 1, 4000) } }] };
+  const effSame = c.verdict({ round: 'e2', projects: { a: E(9, 1, 4400), b: E(8, 1, 4400) } }, eh);
+  const costly = c.verdict({ round: 'e2', projects: { a: E(12, 1, 4000), b: E(12, 1, 4000) } }, eh);
+  const denied = c.verdict({ round: 'e2', projects: { a: E(8, 2, 4000), b: E(8, 2, 4000) } }, eh);
+  const wordy = c.verdict({ round: 'e2', projects: { a: E(8, 1, 6000), b: E(8, 1, 6000) } }, eh);
+  const effFind = c.projectStats(rec(20, 1), { findings: [{ severity: 'medium', area: 'efficiency', starter: 'a hook' }, { severity: 'medium', area: 'task', starter: 'none' }] });
   report(same.ok && !same.first && !high.ok && /high findings/.test(high.worse.join()) && !slow.ok && /setup median/.test(slow.worse.join())
     && !blocky.ok && /blocked at Stop/.test(blocky.worse.join()) && !failed.ok && /failed or timed-out/.test(failed.worse.join())
-    && newProj.ok && newProj.base.now.projects === 1 && first.first,
-    'improvement-loop: a round is NOT WORSE within the noise; one more high finding, a slower setup, more blocked turns or a failed turn make it WORSE; a project new to the round has no baseline yet; the first round is the baseline',
-    JSON.stringify({ same: same.worse, high: high.worse, slow: slow.worse, blocky: blocky.worse, failed: failed.worse, newProj: newProj.worse }).slice(0, 900));
+    && newProj.ok && newProj.base.now.projects === 1 && first.first
+    && effSame.ok && !costly.ok && /cost per work turn/.test(costly.worse.join()) && !denied.ok && /denied tool calls/.test(denied.worse.join())
+    && !wordy.ok && /hook text/.test(wordy.worse.join()) && same.now.denialsPerTurn === null && effFind.medium === 1 && effFind.effMedium === 1,
+    'improvement-loop: a round is NOT WORSE within the noise; one more high finding, a slower setup, more blocked turns, a failed turn, a costlier work turn, more denied tool calls or more hook text per turn make it WORSE; unmeasured efficiency is not compared; efficiency findings are counted on their own; a project new to the round has no baseline yet; the first round is the baseline',
+    JSON.stringify({ same: same.worse, high: high.worse, slow: slow.worse, blocky: blocky.worse, failed: failed.worse, newProj: newProj.worse, effSame: effSame.worse, costly: costly.worse, denied: denied.worse, wordy: wordy.worse }).slice(0, 1200));
 }
 if (mineB()) { // relay-request-text: only the sentences of a relayed message that ask for something route; a bare "upgrade"
   // is the engine's. Lesson: a report of fixes routed to a refresh runbook on "had changed since then", and "Upgrade when
@@ -5826,6 +5844,16 @@ if (mineB()) { // notices once per turn: not repeated for a message typed mid-tu
     const ss = run(d2, 'session', { source: 'startup' }).out, p1 = run(d2, 'prompt', { prompt: 'hello' }).out;
     fs.rmSync(d2, { recursive: true, force: true });
     report(ss.includes('SETUP IN PROGRESS') && !p1.includes('SETUP IN PROGRESS') && p1.includes('[rules]'), 'unresolved-carryover: the first prompt does not repeat the session start\'s notices', `${p1.slice(0, 200)}`);
+    // the rules digest is left out in a session whose start gave the whole session checklist; without one it stays
+    // (Lesson: the digest came with every prompt, about 230 characters a turn the session already had)
+    const d3 = copyProject(); fs.rmSync(path.join(d3, '.starter-template'), { force: true });
+    const tp3 = transcript(d3, { prompt: 'hello' }, Date.now() - 1000);
+    const ss3 = run(d3, 'session', { session_id: 'ck1', transcript_path: tp3, source: 'startup' }).out;
+    const withStart = run(d3, 'prompt', { session_id: 'ck1', transcript_path: tp3, prompt: 'add a csv export' }).out;
+    const noStart = run(d3, 'prompt', { session_id: 'ck2', transcript_path: tp3, prompt: 'add a csv export' }).out;
+    fs.rmSync(d3, { recursive: true, force: true });
+    report(/Session checklist/.test(ss3) && !withStart.includes('[rules]') && noStart.includes('[rules]'),
+      'prompt-digest: a session whose start gave the session checklist gets no rules digest on its prompts; one with no session start still does', `with start: ${withStart.slice(0, 150)} | no start: ${noStart.slice(0, 150)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 

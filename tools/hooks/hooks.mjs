@@ -79,7 +79,7 @@ export function transcriptState(tp) {
 // (the stop round count, the checks that failed earlier in the turn, hints shown, the plan nudge and the frustration
 // record are a turn's too. Lesson: a second session reset the first one's block count and lost its earlier failures.)
 const PER_SESSION = new Set(['turn.json', 'snapshot.json', 'turn-end.json', 'notices-shown.json', 'stop-blocks.json', 'stop-failed.json',
-  'event-hints.json', 'plan-watch.json', 'friction-turn.json', 'ext-shown.json', 'wakeups.json']);
+  'event-hints.json', 'plan-watch.json', 'friction-turn.json', 'ext-shown.json', 'wakeups.json', 'checklist.json']);
 const stateName = n => SID && PER_SESSION.has(n) ? n.replace(/.json$/, `.${SID}.json`) : n;
 // a session's own file when it has one, else the shared one (written before sessions were told apart, or by a test)
 const stateFile = n => { const own = path.join(STATE, stateName(n)); return own !== path.join(STATE, n) && !fs.existsSync(own) ? path.join(STATE, n) : own; };
@@ -3894,6 +3894,8 @@ function cmdSession(data) {
     if (lines.some(l => !sent.has(l))) spawnSync(process.execPath, [path.join(ROOT, 'tools', 'starter.mjs'), 'report'], { cwd: ROOT, encoding: 'utf8', timeout: 20000 });
   }
   const parts = [read(abs('docs/checks/session-checklist.md')).trim()];
+  // (the prompt's rules digest says the same in short: this session has the whole checklist, so the prompts skip it)
+  if (SID && parts[0]) writeState('checklist.json', { at: new Date().toISOString() });
   const status = read(abs('docs/STATUS.md')).split(/\r?\n/).slice(0, 40).join('\n').trim();
   if (status) parts.push('--- docs/STATUS.md (where things stand) ---\n' + status);
   const n = notices(cfg);
@@ -4299,7 +4301,10 @@ function cmdPrompt(data, { force = false } = {}) {
   if (fresh.some(n => n.startsWith('LAST WORK TURN'))) unresolvedAnnounced();
   const hints = [...scoreFriction(userText(p), cfg), ...promptHints(p, cfg, false), ...fresh];
   const out = [];
-  if (cfg.promptDigest && !st.shown.includes('digest')) { out.push(DIGEST); st.shown.push('digest'); }
+  // (not in a session whose start gave the whole session checklist: it says all of this. Lesson: the digest came with
+  // every prompt, about 230 characters a turn that repeated what the session already had)
+  const checklisted = SID && fs.existsSync(path.join(STATE, stateName('checklist.json')));
+  if (cfg.promptDigest && !checklisted && !st.shown.includes('digest')) { out.push(DIGEST); st.shown.push('digest'); }
   if (hints.length) out.push('[project hooks: obey these]\n- ' + hints.join('\n- '));
   writeState(SHOWN, { at: st.at, shown: st.shown });
   if (out.length) contextOut('UserPromptSubmit', out.join('\n') + '\n');
@@ -4804,8 +4809,22 @@ export function sedInPlaceFiles(cmd) {
 }
 
 function cmdPretool(data) {
-  const r = pretoolDecision(data);
+  // REQ: subagent-brief, met in place: the brief line goes in front of the prompt (the host's updatedInput), so the
+  // call is not denied and sent again. The user's permission settings still decide the call. Lesson: every helper
+  // launched without the line cost a denial and a full extra round that resent its whole prompt (4 in one trial round).
+  const brief = briefLine(data);
+  const d = brief ? { ...data, tool_input: { ...data.tool_input, prompt: brief } } : data;
+  const r = pretoolDecision(d);
   if (r) deny(r);
+  else if (brief) process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: d.tool_input } }));
+}
+export const BRIEF_LINE = 'Read AGENTS.md first and follow its rules (plain writing, no invented facts, no AI attribution, and the runbook for this task if one is named below).';
+// the prompt with the brief line in front, for a helper launch that lacks it (null when it needs none)
+export function briefLine(data, cfg = config()) {
+  const inp = data.tool_input || {};
+  if (!/^(Agent|Task)$/.test(data.tool_name || '') || !cfg.subagentBrief || typeof inp.prompt !== 'string' || inp.subagent_type === 'fork') return null;
+  if (/AGENTS\.md|CLAUDE\.md/.test(inp.prompt) || briefFileNamesRules(inp.prompt)) return null;
+  return `${BRIEF_LINE}\n\n${inp.prompt}`;
 }
 
 // ---------- PostToolUse ----------
@@ -6609,10 +6628,11 @@ export function stopDecision(data, cfg = config()) {
       `\nFor the agent: do these${follow.length ? ` (a "Then:" step is what a fix above sets off: ${[...new Set(follow.map(m => `${m.after} edits ${m.cause.join(', ')}`))].join('; ')}; do it in this round too)` : ''}, then ` +
       // Lesson: "with these steps as a short note after it" put lines like "Note: this version moves the citations" and
       // "Note: the earlier answer didn't use the exact wording" into answers about a version the user never saw.
-      `end with the whole answer to the user's request again, in the user's language (the result, the verdict, what they asked for), updated, written as if it were the first: the user never saw the earlier version or these steps, so it says nothing about them (no "here is the answer again", no "Note: this version ...", no "the earlier answer ...", no check names or waivers); the last message is the one the user reads.` +
-      (shortOk ? ' Only if that answer is unchanged and these steps only changed files, end instead with one short line: "Answer unchanged; also updated: <the files, in plain words>" (in the user\'s language).' : '') +
+      // (kept short: it comes with every block. Lesson: at about 1,000 characters it was two thirds of all Stop text)
+      `end with the whole answer again, in the user's language, updated: the user never saw the earlier version or these steps, so it says nothing about them (no "here it is again", no notes on versions, no check names).` +
+      (shortOk ? ' If that answer is unchanged and the steps only changed files, end instead with: "Answer unchanged; also updated: <the files, in plain words>".' : '') +
       (isSpanish(x.prompt) ? ` ${labelsEsHint(steps.map(m => m.tag).join(' '))}` : '') +
-      `${cfg.autonomy === 'auto' ? ` The user asked not to be asked: where a step says "with the user", decide it yourself and record it as ${assumedHint(isSpanish(x.prompt))}.` : ''} Full steps: \`node tools/hooks/hooks.mjs why\`. A step that truly does not apply: \`node tools/hooks/hooks.mjs waive <name> "<reason>"\` (one waive per step, chained with && if you like), never an N/A line in the answer: the user doesn't know the check names. Names: ${steps.map(m => m.tag).join(', ')}.`
+      `${cfg.autonomy === 'auto' ? ` The user asked not to be asked: where a step says "with the user", decide it and record it as ${assumedHint(isSpanish(x.prompt))}.` : ''} Full steps: \`node tools/hooks/hooks.mjs why\`. A step that does not apply: \`node tools/hooks/hooks.mjs waive <name> "<reason>"\`, never an N/A line in the answer. Names: ${steps.map(m => m.tag).join(', ')}.`
   };
 }
 // "Answer unchanged; done: ..." as the whole last message (any language the checks know: English, Spanish)

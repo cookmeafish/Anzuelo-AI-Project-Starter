@@ -7,6 +7,13 @@
       "date": "2026-10-23",
       "projects": {
         "np-blog-es": {
+          "setupCost": 12.036741800000003,
+          "workCost": 40.888982999999996,
+          "workTurns": 2,
+          "workMin": 17.5,
+          "hookChars": 14007,
+          "denials": 1,
+          "stopBlocks": 21,
           "high": 0,
           "medium": 2,
           "low": 5,
@@ -19,6 +26,13 @@
           "errors": 0
         },
         "np-flask-api": {
+          "setupCost": 5.439924800000003,
+          "workCost": 12.988199600000005,
+          "workTurns": 2,
+          "workMin": 3.5,
+          "hookChars": 15406,
+          "denials": 3,
+          "stopBlocks": 12,
           "high": 0,
           "medium": 4,
           "low": 4,
@@ -31,6 +45,13 @@
           "errors": 0
         },
         "np-go-service": {
+          "setupCost": 3.5209157999999996,
+          "workCost": 16.946303800000003,
+          "workTurns": 2,
+          "workMin": 21.6,
+          "hookChars": 17326,
+          "denials": 2,
+          "stopBlocks": 17,
           "high": 0,
           "medium": 2,
           "low": 6,
@@ -43,6 +64,13 @@
           "errors": 0
         },
         "np-landlord": {
+          "setupCost": 4.3750022,
+          "workCost": 18.2701444,
+          "workTurns": 3,
+          "workMin": 19.3,
+          "hookChars": 15824,
+          "denials": 4,
+          "stopBlocks": 15,
           "high": 0,
           "medium": 4,
           "low": 6,
@@ -55,6 +83,13 @@
           "errors": 0
         },
         "np-photo-cli": {
+          "setupCost": 3.8574505999999995,
+          "workCost": 15.5514628,
+          "workTurns": 2,
+          "workMin": 16.6,
+          "hookChars": 17304,
+          "denials": 3,
+          "stopBlocks": 18,
           "high": 0,
           "medium": 1,
           "low": 7,
@@ -67,6 +102,13 @@
           "errors": 0
         },
         "np-weekly-sales": {
+          "setupCost": 5.004177999999998,
+          "workCost": 25.37519319999999,
+          "workTurns": 4,
+          "workMin": 8.5,
+          "hookChars": 16744,
+          "denials": 2,
+          "stopBlocks": 12,
           "high": 0,
           "medium": 1,
           "low": 5,
@@ -81,6 +123,11 @@
       },
       "verdict": "first",
       "totals": {
+        "costPerWorkTurn": 8.67,
+        "setupCostMedian": 4.689590099999998,
+        "minPerWorkTurn": 5.8,
+        "denialsPerTurn": 0.71,
+        "hookCharsPerTurn": 4601,
         "projects": 6,
         "high": 0,
         "medium": 14,
@@ -98,6 +145,13 @@
       "date": "2026-10-23",
       "projects": {
         "np-blog-es": {
+          "setupCost": 9.798529900000002,
+          "workCost": 29.644709400000004,
+          "workTurns": 2,
+          "workMin": 10.8,
+          "hookChars": 16827,
+          "denials": 3,
+          "stopBlocks": 15,
           "high": 0,
           "medium": 2,
           "low": 5,
@@ -110,6 +164,13 @@
           "errors": 0
         },
         "np-flask-api": {
+          "setupCost": 10.311965400000002,
+          "workCost": 25.652190200000007,
+          "workTurns": 2,
+          "workMin": 10,
+          "hookChars": 16292,
+          "denials": 2,
+          "stopBlocks": 16,
           "high": 0,
           "medium": 4,
           "low": 8,
@@ -122,6 +183,13 @@
           "errors": 0
         },
         "np-go-service": {
+          "setupCost": 2.6347358000000005,
+          "workCost": 17.56975140000001,
+          "workTurns": 2,
+          "workMin": 29.799999999999997,
+          "hookChars": 20400,
+          "denials": 3,
+          "stopBlocks": 18,
           "high": 0,
           "medium": 4,
           "low": 3,
@@ -134,6 +202,13 @@
           "errors": 0
         },
         "np-landlord": {
+          "setupCost": null,
+          "workCost": 3.1759850000000003,
+          "workTurns": 3,
+          "workMin": 4.9,
+          "hookChars": null,
+          "denials": null,
+          "stopBlocks": null,
           "high": 1,
           "medium": 3,
           "low": 4,
@@ -146,6 +221,13 @@
           "errors": 1
         },
         "np-novel": {
+          "setupCost": 2.750308,
+          "workCost": 8.034677199999997,
+          "workTurns": 2,
+          "workMin": 23.200000000000003,
+          "hookChars": 12335,
+          "denials": 2,
+          "stopBlocks": 12,
           "high": 0,
           "medium": 2,
           "low": 3,
@@ -158,6 +240,13 @@
           "errors": 0
         },
         "np-photo-cli": {
+          "setupCost": 4.556012000000002,
+          "workCost": 22.658554799999997,
+          "workTurns": 2,
+          "workMin": 21.1,
+          "hookChars": 25718,
+          "denials": 2,
+          "stopBlocks": 27,
           "high": 0,
           "medium": 3,
           "low": 4,
@@ -170,6 +259,13 @@
           "errors": 0
         },
         "np-vault": {
+          "setupCost": 5.170287000000001,
+          "workCost": 18.806608400000005,
+          "workTurns": 3,
+          "workMin": 5.2,
+          "hookChars": 18301,
+          "denials": 5,
+          "stopBlocks": 15,
           "high": 0,
           "medium": 2,
           "low": 4,
@@ -182,6 +278,13 @@
           "errors": 0
         },
         "np-weekly-sales": {
+          "setupCost": null,
+          "workCost": 4.7125879999999984,
+          "workTurns": 4,
+          "workMin": 12.100000000000001,
+          "hookChars": null,
+          "denials": null,
+          "stopBlocks": null,
           "high": 1,
           "medium": 1,
           "low": 4,
@@ -196,6 +299,11 @@
       },
       "verdict": "worse",
       "totals": {
+        "costPerWorkTurn": 6.51,
+        "setupCostMedian": 4.863149500000001,
+        "minPerWorkTurn": 5.86,
+        "denialsPerTurn": 0.89,
+        "hookCharsPerTurn": 5783,
         "projects": 8,
         "high": 2,
         "medium": 21,
@@ -213,6 +321,13 @@
       "date": "2026-10-23",
       "projects": {
         "np-blog-es": {
+          "setupCost": 9.284834400000001,
+          "workCost": 31.457958799999993,
+          "workTurns": 2,
+          "workMin": 14.7,
+          "hookChars": 26203,
+          "denials": 4,
+          "stopBlocks": 22,
           "high": 1,
           "medium": 2,
           "low": 3,
@@ -225,6 +340,13 @@
           "errors": 0
         },
         "np-flask-api": {
+          "setupCost": 7.009060599999998,
+          "workCost": 19.6807444,
+          "workTurns": 2,
+          "workMin": 13.2,
+          "hookChars": 21866,
+          "denials": 5,
+          "stopBlocks": 18,
           "high": 0,
           "medium": 2,
           "low": 5,
@@ -237,6 +359,13 @@
           "errors": 0
         },
         "np-go-service": {
+          "setupCost": 4.500784800000001,
+          "workCost": 19.22401,
+          "workTurns": 2,
+          "workMin": 24.2,
+          "hookChars": 18852,
+          "denials": 2,
+          "stopBlocks": 12,
           "high": 2,
           "medium": 2,
           "low": 3,
@@ -249,6 +378,13 @@
           "errors": 0
         },
         "np-landlord": {
+          "setupCost": 5.424155,
+          "workCost": 25.81915469999999,
+          "workTurns": 3,
+          "workMin": 9.9,
+          "hookChars": 24480,
+          "denials": 7,
+          "stopBlocks": 15,
           "high": 1,
           "medium": 3,
           "low": 4,
@@ -261,6 +397,13 @@
           "errors": 0
         },
         "np-novel": {
+          "setupCost": 4.4555798000000015,
+          "workCost": 10.229696200000003,
+          "workTurns": 2,
+          "workMin": 1.7,
+          "hookChars": 17119,
+          "denials": 5,
+          "stopBlocks": 12,
           "high": 0,
           "medium": 2,
           "low": 4,
@@ -273,6 +416,13 @@
           "errors": 0
         },
         "np-photo-cli": {
+          "setupCost": 3.9035174000000006,
+          "workCost": 17.461181599999996,
+          "workTurns": 2,
+          "workMin": 11.5,
+          "hookChars": 17115,
+          "denials": 2,
+          "stopBlocks": 9,
           "high": 0,
           "medium": 2,
           "low": 5,
@@ -285,6 +435,13 @@
           "errors": 0
         },
         "np-vault": {
+          "setupCost": 4.609709999999999,
+          "workCost": 17.5631572,
+          "workTurns": 3,
+          "workMin": 4.7,
+          "hookChars": 16236,
+          "denials": 2,
+          "stopBlocks": 9,
           "high": 0,
           "medium": 3,
           "low": 5,
@@ -297,6 +454,13 @@
           "errors": 0
         },
         "np-weekly-sales": {
+          "setupCost": 6.4919616,
+          "workCost": 32.063472999999995,
+          "workTurns": 4,
+          "workMin": 6.9,
+          "hookChars": 23437,
+          "denials": 1,
+          "stopBlocks": 18,
           "high": 0,
           "medium": 0,
           "low": 4,
@@ -311,6 +475,11 @@
       },
       "verdict": "worse",
       "totals": {
+        "costPerWorkTurn": 8.67,
+        "setupCostMedian": 5.016932499999999,
+        "minPerWorkTurn": 4.34,
+        "denialsPerTurn": 1,
+        "hookCharsPerTurn": 5904,
         "projects": 8,
         "high": 4,
         "medium": 16,
@@ -328,6 +497,13 @@
       "date": "2026-10-23",
       "projects": {
         "np-blog-es": {
+          "setupCost": null,
+          "workCost": 11.207042999999999,
+          "workTurns": 2,
+          "workMin": 14.7,
+          "hookChars": null,
+          "denials": null,
+          "stopBlocks": null,
           "high": 1,
           "medium": 2,
           "low": 3,
@@ -340,6 +516,13 @@
           "errors": 1
         },
         "np-flask-api": {
+          "setupCost": 11.852266199999997,
+          "workCost": 31.014259199999998,
+          "workTurns": 2,
+          "workMin": 11.4,
+          "hookChars": 22565,
+          "denials": 5,
+          "stopBlocks": 17,
           "high": 0,
           "medium": 3,
           "low": 5,
@@ -352,6 +535,13 @@
           "errors": 0
         },
         "np-go-service": {
+          "setupCost": 3.7362219999999984,
+          "workCost": 17.48323299999999,
+          "workTurns": 2,
+          "workMin": 16,
+          "hookChars": 20033,
+          "denials": 5,
+          "stopBlocks": 12,
           "high": 0,
           "medium": 2,
           "low": 6,
@@ -364,6 +554,13 @@
           "errors": 0
         },
         "np-landlord": {
+          "setupCost": 4.581449200000001,
+          "workCost": 17.449273800000007,
+          "workTurns": 3,
+          "workMin": 4.199999999999999,
+          "hookChars": 20374,
+          "denials": 3,
+          "stopBlocks": 15,
           "high": 0,
           "medium": 2,
           "low": 5,
@@ -376,6 +573,13 @@
           "errors": 0
         },
         "np-novel": {
+          "setupCost": 3.6935119999999997,
+          "workCost": 8.959716799999997,
+          "workTurns": 2,
+          "workMin": 3.3000000000000003,
+          "hookChars": 15397,
+          "denials": 2,
+          "stopBlocks": 9,
           "high": 0,
           "medium": 2,
           "low": 4,
@@ -388,6 +592,13 @@
           "errors": 0
         },
         "np-photo-cli": {
+          "setupCost": 6.137895800000002,
+          "workCost": 21.62535180000001,
+          "workTurns": 2,
+          "workMin": 11.5,
+          "hookChars": 19053,
+          "denials": 6,
+          "stopBlocks": 15,
           "high": 0,
           "medium": 4,
           "low": 4,
@@ -400,6 +611,13 @@
           "errors": 0
         },
         "np-vault": {
+          "setupCost": 3.8925474000000015,
+          "workCost": 14.691543200000002,
+          "workTurns": 3,
+          "workMin": 3.7,
+          "hookChars": 16923,
+          "denials": 4,
+          "stopBlocks": 12,
           "high": 0,
           "medium": 3,
           "low": 4,
@@ -412,6 +630,13 @@
           "errors": 0
         },
         "np-weekly-sales": {
+          "setupCost": 4.956380199999996,
+          "workCost": 25.36523099999998,
+          "workTurns": 4,
+          "workMin": 4.7,
+          "hookChars": 19588,
+          "denials": 2,
+          "stopBlocks": 9,
           "high": 0,
           "medium": 0,
           "low": 6,
@@ -426,6 +651,11 @@
       },
       "verdict": "worse",
       "totals": {
+        "costPerWorkTurn": 7.39,
+        "setupCostMedian": 4.581449200000001,
+        "minPerWorkTurn": 3.48,
+        "denialsPerTurn": 1.08,
+        "hookCharsPerTurn": 5357,
         "projects": 8,
         "high": 1,
         "medium": 18,
@@ -443,6 +673,13 @@
       "date": "2026-10-23",
       "projects": {
         "np-blog-es": {
+          "setupCost": 10.641253299999997,
+          "workCost": 32.85668979999999,
+          "workTurns": 2,
+          "workMin": 15,
+          "hookChars": 27650,
+          "denials": 3,
+          "stopBlocks": 18,
           "high": 0,
           "medium": 3,
           "low": 4,
@@ -455,6 +692,13 @@
           "errors": 0
         },
         "np-flask-api": {
+          "setupCost": 6.955625200000003,
+          "workCost": 19.521610200000012,
+          "workTurns": 2,
+          "workMin": 10.8,
+          "hookChars": 19552,
+          "denials": 4,
+          "stopBlocks": 12,
           "high": 0,
           "medium": 4,
           "low": 5,
@@ -467,6 +711,13 @@
           "errors": 0
         },
         "np-go-service": {
+          "setupCost": 4.241015000000003,
+          "workCost": 21.592264200000002,
+          "workTurns": 2,
+          "workMin": 19.299999999999997,
+          "hookChars": 18283,
+          "denials": 3,
+          "stopBlocks": 15,
           "high": 0,
           "medium": 3,
           "low": 6,
@@ -479,6 +730,13 @@
           "errors": 0
         },
         "np-landlord": {
+          "setupCost": 5.201622800000001,
+          "workCost": 21.5983322,
+          "workTurns": 3,
+          "workMin": 7.1,
+          "hookChars": 24918,
+          "denials": 4,
+          "stopBlocks": 15,
           "high": 0,
           "medium": 1,
           "low": 9,
@@ -491,6 +749,13 @@
           "errors": 0
         },
         "np-novel": {
+          "setupCost": 3.409535400000001,
+          "workCost": 8.776792600000002,
+          "workTurns": 2,
+          "workMin": 4.2,
+          "hookChars": 15230,
+          "denials": 3,
+          "stopBlocks": 6,
           "high": 0,
           "medium": 2,
           "low": 5,
@@ -503,6 +768,13 @@
           "errors": 0
         },
         "np-photo-cli": {
+          "setupCost": 4.916002400000002,
+          "workCost": 17.67500340000001,
+          "workTurns": 2,
+          "workMin": 7.5,
+          "hookChars": 20221,
+          "denials": 3,
+          "stopBlocks": 12,
           "high": 0,
           "medium": 2,
           "low": 4,
@@ -515,6 +787,13 @@
           "errors": 0
         },
         "np-vault": {
+          "setupCost": 3.4699880000000007,
+          "workCost": 14.100244200000002,
+          "workTurns": 3,
+          "workMin": 5.5,
+          "hookChars": 15921,
+          "denials": 2,
+          "stopBlocks": 9,
           "high": 0,
           "medium": 2,
           "low": 7,
@@ -527,6 +806,13 @@
           "errors": 0
         },
         "np-weekly-sales": {
+          "setupCost": 5.4807882,
+          "workCost": 27.489357,
+          "workTurns": 4,
+          "workMin": 6.300000000000001,
+          "hookChars": 21339,
+          "denials": 3,
+          "stopBlocks": 19,
           "high": 0,
           "medium": 1,
           "low": 4,
@@ -539,8 +825,13 @@
           "errors": 0
         }
       },
-      "verdict": "not worse",
+      "verdict": "worse",
       "totals": {
+        "costPerWorkTurn": 8.18,
+        "setupCostMedian": 5.058812600000001,
+        "minPerWorkTurn": 3.79,
+        "denialsPerTurn": 0.89,
+        "hookCharsPerTurn": 5826,
         "projects": 8,
         "high": 0,
         "medium": 18,
@@ -558,6 +849,13 @@
       "date": "2026-10-23",
       "projects": {
         "np-blog-es": {
+          "setupCost": 12.426566000000001,
+          "workCost": 35.086046200000006,
+          "workTurns": 2,
+          "workMin": 11,
+          "hookChars": 32009,
+          "denials": 4,
+          "stopBlocks": 21,
           "high": 0,
           "medium": 4,
           "low": 4,
@@ -570,6 +868,13 @@
           "errors": 0
         },
         "np-flask-api": {
+          "setupCost": 9.603740000000002,
+          "workCost": 26.0916232,
+          "workTurns": 2,
+          "workMin": 14,
+          "hookChars": 21323,
+          "denials": 5,
+          "stopBlocks": 15,
           "high": 0,
           "medium": 4,
           "low": 4,
@@ -582,6 +887,13 @@
           "errors": 0
         },
         "np-go-service": {
+          "setupCost": 2.8783745999999995,
+          "workCost": 17.210194799999993,
+          "workTurns": 2,
+          "workMin": 19.3,
+          "hookChars": 23972,
+          "denials": 3,
+          "stopBlocks": 16,
           "high": 0,
           "medium": 4,
           "low": 5,
@@ -594,6 +906,13 @@
           "errors": 0
         },
         "np-landlord": {
+          "setupCost": 5.111849599999998,
+          "workCost": 19.34323519999999,
+          "workTurns": 3,
+          "workMin": 5.2,
+          "hookChars": 19176,
+          "denials": 1,
+          "stopBlocks": 3,
           "high": 0,
           "medium": 4,
           "low": 4,
@@ -606,6 +925,13 @@
           "errors": 0
         },
         "np-novel": {
+          "setupCost": 3.4389499999999993,
+          "workCost": 7.8500261999999985,
+          "workTurns": 2,
+          "workMin": 1.3,
+          "hookChars": 13608,
+          "denials": 3,
+          "stopBlocks": 3,
           "high": 0,
           "medium": 1,
           "low": 4,
@@ -618,6 +944,13 @@
           "errors": 0
         },
         "np-photo-cli": {
+          "setupCost": 4.7253226,
+          "workCost": 16.0169784,
+          "workTurns": 2,
+          "workMin": 9,
+          "hookChars": 17732,
+          "denials": 1,
+          "stopBlocks": 9,
           "high": 0,
           "medium": 1,
           "low": 7,
@@ -630,6 +963,13 @@
           "errors": 0
         },
         "np-vault": {
+          "setupCost": 3.1875366000000005,
+          "workCost": 11.442863400000002,
+          "workTurns": 3,
+          "workMin": 1.8,
+          "hookChars": 12237,
+          "denials": 2,
+          "stopBlocks": 3,
           "high": 0,
           "medium": 0,
           "low": 5,
@@ -642,6 +982,13 @@
           "errors": 0
         },
         "np-weekly-sales": {
+          "setupCost": 4.700210800000001,
+          "workCost": 24.295074600000007,
+          "workTurns": 4,
+          "workMin": 5.4,
+          "hookChars": 23278,
+          "denials": 1,
+          "stopBlocks": 9,
           "high": 0,
           "medium": 0,
           "low": 4,
@@ -654,8 +1001,13 @@
           "errors": 0
         }
       },
-      "verdict": "not worse",
+      "verdict": "worse",
       "totals": {
+        "costPerWorkTurn": 7.87,
+        "setupCostMedian": 4.7127667,
+        "minPerWorkTurn": 3.35,
+        "denialsPerTurn": 0.71,
+        "hookCharsPerTurn": 5833,
         "projects": 8,
         "high": 0,
         "medium": 18,
@@ -673,6 +1025,13 @@
       "date": "2026-10-23",
       "projects": {
         "np-blog-es": {
+          "setupCost": 12.294430899999996,
+          "workCost": 41.43635479999999,
+          "workTurns": 2,
+          "workMin": 19.3,
+          "hookChars": 30225,
+          "denials": 2,
+          "stopBlocks": 18,
           "high": 0,
           "medium": 1,
           "low": 6,
@@ -685,6 +1044,13 @@
           "errors": 0
         },
         "np-flask-api": {
+          "setupCost": 7.1494634999999995,
+          "workCost": 18.806112199999998,
+          "workTurns": 2,
+          "workMin": 8.600000000000001,
+          "hookChars": 24065,
+          "denials": 3,
+          "stopBlocks": 16,
           "high": 1,
           "medium": 1,
           "low": 6,
@@ -697,6 +1063,13 @@
           "errors": 0
         },
         "np-go-service": {
+          "setupCost": 3.0363727999999996,
+          "workCost": 14.309807,
+          "workTurns": 2,
+          "workMin": 12.7,
+          "hookChars": 17138,
+          "denials": 5,
+          "stopBlocks": 9,
           "high": 0,
           "medium": 2,
           "low": 6,
@@ -709,6 +1082,13 @@
           "errors": 0
         },
         "np-landlord": {
+          "setupCost": 4.900915599999999,
+          "workCost": 19.450750000000003,
+          "workTurns": 3,
+          "workMin": 5.300000000000001,
+          "hookChars": 21563,
+          "denials": 2,
+          "stopBlocks": 9,
           "high": 0,
           "medium": 2,
           "low": 6,
@@ -721,6 +1101,13 @@
           "errors": 0
         },
         "np-novel": {
+          "setupCost": 3.0242328000000014,
+          "workCost": 7.503433600000003,
+          "workTurns": 2,
+          "workMin": 2.3,
+          "hookChars": 15368,
+          "denials": 3,
+          "stopBlocks": 6,
           "high": 0,
           "medium": 3,
           "low": 2,
@@ -733,6 +1120,13 @@
           "errors": 0
         },
         "np-photo-cli": {
+          "setupCost": 4.8514662,
+          "workCost": 18.8935956,
+          "workTurns": 2,
+          "workMin": 10.5,
+          "hookChars": 21440,
+          "denials": 5,
+          "stopBlocks": 15,
           "high": 0,
           "medium": 1,
           "low": 5,
@@ -745,6 +1139,13 @@
           "errors": 0
         },
         "np-vault": {
+          "setupCost": 3.9950022000000005,
+          "workCost": 13.936222000000004,
+          "workTurns": 3,
+          "workMin": 1.2999999999999998,
+          "hookChars": 13252,
+          "denials": 1,
+          "stopBlocks": 3,
           "high": 1,
           "medium": 1,
           "low": 2,
@@ -757,6 +1158,13 @@
           "errors": 0
         },
         "np-weekly-sales": {
+          "setupCost": 5.4248346000000005,
+          "workCost": 26.868308000000006,
+          "workTurns": 4,
+          "workMin": 4.2,
+          "hookChars": 14325,
+          "denials": 1,
+          "stopBlocks": 0,
           "high": 0,
           "medium": 1,
           "low": 3,
@@ -771,6 +1179,11 @@
       },
       "verdict": "worse",
       "totals": {
+        "costPerWorkTurn": 8.06,
+        "setupCostMedian": 4.876190899999999,
+        "minPerWorkTurn": 3.21,
+        "denialsPerTurn": 0.79,
+        "hookCharsPerTurn": 5621,
         "projects": 8,
         "high": 2,
         "medium": 12,
