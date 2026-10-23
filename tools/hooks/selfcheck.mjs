@@ -2996,6 +2996,21 @@ PROMPT.push(
   { name: 'route: a Spanish debug request gets the debug skill', prompt: 'depura el fallo de la importación: el script falla con fechas vacías', has: ['SKILL: debug'] },
   { name: 'route: "las pruebas fallan ... por qué falla" gets the debug skill', prompt: 'las pruebas fallan desde ayer, ¿por qué falla el import?', has: ['SKILL: debug'] },
   { name: 'route: "falla" in another sense gets no debug skill', prompt: 'la tienda falla en abrir los domingos, apúntalo', hasNot: ['SKILL: debug'] },
+  // the starter's own maintainer runbooks route in the starter only (Lesson: "do multiple tests ... make sure nothing gets
+  // worse", asked again and again, never became a procedure, because the starter's own work had no runbook for it)
+  ...(() => {
+    const own = n => { try { return fs.readFileSync(path.join(ROOT, 'tools/starter/runbooks', n), 'utf8'); } catch { return null; } };
+    const rb = { 'tools/starter/runbooks/improvement-loop.md': own('improvement-loop.md'), 'tools/starter/runbooks/field-report.md': own('field-report.md') };
+    if (!rb['tools/starter/runbooks/improvement-loop.md'] || !rb['tools/starter/runbooks/field-report.md']) return [];
+    return [
+      { name: 'starter-runbooks: in the starter, "test it many times so nothing gets worse" routes to the improvement loop', setup: rb,
+        prompt: 'do multiple tests with yourself to make sure that only improvements happen and nothing gets worse', has: ['ROUTE: improvement-loop (', 'open tools/starter/runbooks/improvement-loop.md THIS turn and follow'] },
+      { name: 'starter-runbooks: in the starter, a report from another session routes to the field-report runbook', setup: rb,
+        prompt: '<cross-session-message from="deck-project">Field report 9 is in the inbox. Please replay the turn.</cross-session-message>', has: ['ROUTE: field-report ('] },
+      { name: 'starter-runbooks: a project never routes to the starter\'s own runbooks', setup: rb, removeMarker: true,
+        prompt: 'do multiple tests with yourself to make sure that only improvements happen and nothing gets worse', hasNot: ['improvement-loop', 'field-report'] },
+    ];
+  })(),
   // a "note:" label in a relayed message is the sender's aside; typed by the user it is still the capture shorthand
   { name: 'relayed turn: a "Separate note:" aside in a relayed message sets off no note capture',
     prompt: '<cross-session-message from="other">Both are fixed. Separate note: your usage file changed in your own session. Upgrade when convenient: node tools/starter.mjs update.</cross-session-message>',
@@ -4801,7 +4816,7 @@ if (mineB()) { // relay-route-text: a relayed message routes on its own words; q
     'relay-route-text: quoted text, code spans and commands leave a relayed message\'s routing words; a starter upgrade command stays as "upgrade the starter"; its own words stay', JSON.stringify({ a, b }));
 }
 if (mineB() && fs.existsSync(path.join(ROOT, 'tools/starter/trials/compare.mjs'))) { // improvement-loop: the verdict rules of a trial round
-  // (tools/starter/IMPROVEMENT-LOOP.md). Lesson: the first baseline's judges did not count Stop rounds, which made it look
+  // (tools/starter/runbooks/improvement-loop.md). Lesson: the first baseline's judges did not count Stop rounds, which made it look
   // block-free and every later round "worse"; blocks are counted from the trial records.
   const c = await import(pathToFileURL(path.join(ROOT, 'tools/starter/trials/compare.mjs')).href);
   const rec = (setup, blocked, turns = 3, errors = 0) => ({ turns: Array.from({ length: turns }, (_, i) => ({ min: i ? 5 : setup, blockTags: i < blocked ? ['x'] : [], error: i < errors ? 'ETIMEDOUT' : '' })) });

@@ -426,19 +426,29 @@ export const personalDetails = text => PERSONAL.map(([rx, what, keep = () => tru
 // every runbook and skill three times per prompt.
 const folderKey = (dir, file = f => f) => { try { return list(dir).map(n => { const p = abs(`${dir}/${file(n)}`); try { const s = fs.statSync(p); return `${n}:${s.size}:${s.mtimeMs}`; } catch { return n; } }).join('|'); } catch { return ''; } };
 const memo = (id, key, build) => { const c = memo.c ||= new Map(); const k = key(); const hit = c.get(id); if (hit && hit.k === k) return hit.v; const v = build(); c.set(id, { k, v }); return v; };
-export function playbooks() { return memo('playbooks', () => folderKey('docs/playbooks'), playbooksRead); }
-function playbooksRead() {
+export function playbooks() { return memo('playbooks', () => folderKey('docs/playbooks'), () => playbooksRead()); }
+// The starter's own maintainer runbooks (tools/starter/runbooks/): routed and held to, like any runbook, only in the
+// starter itself; never copied into a project and never made into a skill. Lesson: the starter's own development had
+// no runbook for "test it many times until nothing is worse", so a request the user repeated was never made a procedure.
+export function starterRunbooks() {
+  if (!exists('.starter-template')) return [];
+  return memo('starterRunbooks', () => folderKey('tools/starter/runbooks'), () => playbooksRead('tools/starter/runbooks'));
+}
+export const routablePlaybooks = () => [...playbooks(), ...starterRunbooks()];
+function playbooksRead(dir = 'docs/playbooks') {
   const out = [];
-  for (const f of list('docs/playbooks')) {
+  const own = dir === 'docs/playbooks';
+  for (const f of list(dir)) {
     if (!f.endsWith('.md') || f === '_TEMPLATE.md') continue;
-    const file = `docs/playbooks/${f}`;
+    const file = `${dir}/${f}`;
     const text = read(abs(file));
     const fm = frontmatter(text) || {};
     let triggerRe = null;
     try { if (fm.trigger_regex) triggerRe = re(fm.trigger_regex); } catch {}
     const name = fm.name || f.replace(/\.md$/, '');
     // Every runbook has a skill: skills/<name>/ (generated) unless "skill:" points at a hand-written one.
-    const skillName = name.startsWith('_') ? '' : (/(?:^|\/)skills\/([^/]+)\//.exec((fm.skill || '').replace(/\\/g, '/'))?.[1] || name);
+    // (a starter runbook has none)
+    const skillName = name.startsWith('_') || !own ? '' : (/(?:^|\/)skills\/([^/]+)\//.exec((fm.skill || '').replace(/\\/g, '/'))?.[1] || name);
     out.push({ file, name, fm, text, triggers: triggersOf(fm), triggerRe, skillName });
   }
   return out;
@@ -2194,7 +2204,7 @@ export function context(t, cfg, answerOverride) {
   const cmds = uses.map(u => u.input.command).filter(c => typeof c === 'string');
   const changed = ownChanges(changedFiles(t.since, cfg), t, cfg);
   const work = changed.filter(p => !match(p, cfg.notWork));
-  const pbs = playbooks();
+  const pbs = routablePlaybooks();
   const menuInfo = expandMenu(t.prompt);
   const routedScores = route(menuInfo.expanded, pbs);
   const routed = routedScores.map(s => s.pb);
@@ -4021,8 +4031,11 @@ export function promptHints(prompt, cfg = config(), withNotices = true, { relaye
   if (m.unknown.length) hints.push(`UNKNOWN MENU CODE ${m.unknown.join(', ')}: not in docs/MENU.md. Ask which one was meant; don't guess.`);
   if (m.uflags.length) hints.push(`UNKNOWN FLAG ${m.uflags.map(f => '--' + f).join(', ')}: not in docs/MENU.md. Ask; don't guess.`);
 
-  const pbs = playbooks();
+  const pbs = routablePlaybooks();
   const routed = route(m.expanded, pbs, { relayed });
+  // (in the starter, another session's message is a project's report on the engine when nothing else fits it)
+  const fieldReport = relayed && !routed.length && pbs.find(pb => pb.name === 'field-report' && pb.file.startsWith('tools/starter/'));
+  if (fieldReport) routed.push({ pb: fieldReport, hits: ['a message from another session'] });
   for (const c of m.known) {
     const pb = pbs.find(x => x.file.endsWith('/' + m.codes[c].playbook));
     if (pb && !routed.some(r => r.pb === pb)) routed.unshift({ pb, hits: [c] });
@@ -4030,7 +4043,7 @@ export function promptHints(prompt, cfg = config(), withNotices = true, { relaye
   // One primary ROUTE; other specific matches are named as secondary, and weak ones (a generic word only) are not routes.
   // Lesson: three ROUTE lines and "follow them in order" sent the agent to two wrong runbooks.
   routed.forEach(({ pb, hits }, i) => {
-    const how = `open ${pb.file} THIS turn (or use the ${pb.skillName} skill, which points to it) and follow every step in order`;
+    const how = `open ${pb.file} THIS turn${pb.skillName ? ` (or use the ${pb.skillName} skill, which points to it)` : ''} and follow every step in order`;
     if (!i) hints.push(`ROUTE: ${pb.name} (matched: ${hits.join(', ')}). If this is the task: ${how}. Name it in ${NOTES_FILE} ("Playbook: ${pb.file.split('/').pop()}"), not in the answer. REQ: runbook-read.`);
     else hints.push(`ALSO ROUTE: ${pb.name} (matched: ${hits.join(', ')}). Only if the request also covers this job: open ${pb.file} after the one above (precedence notes in DIRECTORY.md) and name it too.`);
   });
@@ -5484,13 +5497,13 @@ export function coreChecks(x, cfg) {
       'Say "noted in docs/starter-feedback.md for the starter", or run node tools/starter.mjs report and say what it printed.');
   // REQ: claim-checked (the starter's improvement loop). In the starter, "only improvements" or "not worse" for new
   // projects is a judged trial round's verdict: compare.mjs ran this turn and printed NOT WORSE. Lesson: engine changes
-  // were called improvements on self-tests alone, before any round had judged them (tools/starter/IMPROVEMENT-LOOP.md).
+  // were called improvements on self-tests alone, before any round had judged them (tools/starter/runbooks/improvement-loop.md).
   if (exists('.starter-template') && exists('tools/starter/trials/compare.mjs')) {
     const better = x.answer.split(/(?<=[.!?\n])\s+/).find(s => IMPROVE_CLAIM.test(s) && !/\b(not yet|until|once|whether|if|still to|unverified|not verified|can'?t say)\b/i.test(s));
     const judged = (x.runs || []).some(r => /trials[\\/]compare\.mjs/.test(String(r.cmd)) && /^VERDICT: NOT WORSE\b/m.test(r.out || ''));
     if (better && !judged)
       add('claim-checked', `The answer says the change only makes projects better ("${better.trim().slice(0, 70)}"), but no judged trial round said so this turn. ` +
-        'Run node tools/starter/trials/compare.mjs <round> and give its verdict, or say what was tested and that the judged round is still to come (tools/starter/IMPROVEMENT-LOOP.md).');
+        'Run node tools/starter/trials/compare.mjs <round> and give its verdict, or say what was tested and that the judged round is still to come (tools/starter/runbooks/improvement-loop.md).');
   }
   // REQ: claim-checked (git). "Nothing is committed" or "git has no earlier version" while git has commits (of that
   // file, when one is named). The version the user saw is the last commit or what was delivered, not the working copy.

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Starter-only. The blind judges of a trial round (tools/starter/IMPROVEMENT-LOOP.md): the same prompt every round, so
+// Starter-only. The blind judges of a trial round (tools/starter/runbooks/improvement-loop.md): the same prompt every round, so
 // rounds compare. Each judge reviews two trial projects and writes its findings as JSON for compare.mjs.
 //   node tools/starter/trials/judge.mjs <round>          write one prompt per judge to .cache/trials/judge/<round>-<k>.prompt.md
 //   node tools/starter/trials/judge.mjs dump <record>    a trial record, turn by turn (for the judges)

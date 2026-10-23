@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Starter-only. New-project trials for the improvement loop (tools/starter/IMPROVEMENT-LOOP.md): each trial makes a
+// Starter-only. New-project trials for the improvement loop (tools/starter/runbooks/improvement-loop.md): each trial makes a
 // brand-new project with tools/new-project.mjs (an empty folder, or one with the project's own files), has a real
 // headless Claude Code session set it up, then gives it real work and a complaint, turn by turn. The record of every
 // turn (answer, files changed, runbooks opened, Stop blocks, minutes) is what the blind judges read.

@@ -1,3 +1,8 @@
+---
+name: improvement-loop
+summary: Prove a starter change makes new projects better and never worse - trial rounds, blind judges, verdict, fix, repeat
+triggers: only improvements, only improve, not worse, nothing worse, make anything worse, makes it worse, multiple tests, test it multiple times, test with yourself, tests with yourself, new projects in your scratchpad, trial round, run the trials, judge the round, feedback loop, loop the feedback, give yourself feedback, efficiency, more efficient, use more tokens, wasted tokens, pause or stop
+---
 # Improvement loop (starter only)
 
 How the starter proves a change makes new projects better and never worse: real new projects, real headless agent

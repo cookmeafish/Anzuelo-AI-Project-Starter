@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Starter-only. The verdict of a trial round (tools/starter/IMPROVEMENT-LOOP.md): its judged findings, setup minutes,
+// Starter-only. The verdict of a trial round (tools/starter/runbooks/improvement-loop.md): its judged findings, setup minutes,
 // Stop blocks and failed turns against each project's baseline (its first recorded round) and against the previous
 // round, over the same projects. "NOT WORSE" only when neither comparison is worse by these rules:
 //   more high findings; more than MEDIUM_NOISE more medium findings (judges differ by about 3 between rounds);
@@ -132,7 +132,7 @@ if (fileURLToPath(import.meta.url) === path.resolve(process.argv[1] || '')) {
     round.verdict = v.first ? 'first' : v.ok ? 'not worse' : 'worse';
     round.totals = v.now;
     history.rounds = [...(history.rounds || []).filter(r => r.round !== name), round];
-    const note = 'Written by tools/starter/trials/compare.mjs --record: each judged trial round of the improvement loop (tools/starter/IMPROVEMENT-LOOP.md). Each project\'s first round is its baseline.';
+    const note = 'Written by tools/starter/trials/compare.mjs --record: each judged trial round of the improvement loop (tools/starter/runbooks/improvement-loop.md). Each project\'s first round is its baseline.';
     fs.writeFileSync(HISTORY, JSON.stringify({ _comment: note, rounds: history.rounds }, null, 2) + '\n');
     console.log(`recorded in ${path.relative(process.cwd(), HISTORY) || HISTORY}`);
   }

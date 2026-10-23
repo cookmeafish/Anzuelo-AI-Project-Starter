@@ -363,13 +363,13 @@ if (exists('docs/knowledge')) sweep('knowledge files are labeled, sourced, dated
 
 sweep('skills due for hardening', () => ({ warn: hardenDue(pbs, usage(), cfg).map(p => `${p.file} used ${usage()[p.name]?.uses} times: run the skill-harden skill`) }));
 sweep('skills due for cleanup', () => ({ warn: isTemplate ? [] : curateDue(cfg).map(p => `${p.file} unused for ${p.days} days: keep it with a reason, merge it, or retire it (skill-curate skill)`) }));
-// The starter only: an engine change is called better once a judged trial round says so (tools/starter/IMPROVEMENT-LOOP.md).
+// The starter only: an engine change is called better once a judged trial round says so (tools/starter/runbooks/improvement-loop.md).
 // Lesson: rounds were run and judged by hand from scratch files, and nothing said when the engine had moved on since.
 if (isTemplate && exists('tools/starter/trials/compare.mjs')) sweep('improvement loop is current', () => {
   let last = null; try { last = JSON.parse(read('tools/starter/trials/rounds.json')).rounds.at(-1); } catch { }
-  if (!last) return { warn: ['no judged trial round yet: run the improvement loop (tools/starter/IMPROVEMENT-LOOP.md)'] };
+  if (!last) return { warn: ['no judged trial round yet: run the improvement loop (tools/starter/runbooks/improvement-loop.md)'] };
   const warn = [];
-  if (last.verdict === 'worse') warn.push(`the last judged round (${last.round}) was WORSE: fix its findings, then run the next round (tools/starter/IMPROVEMENT-LOOP.md)`);
+  if (last.verdict === 'worse') warn.push(`the last judged round (${last.round}) was WORSE: fix its findings, then run the next round (tools/starter/runbooks/improvement-loop.md)`);
   if (last.engine) {
     const d = git('diff', '--name-only', last.engine, 'HEAD', '--', 'tools', 'skills', 'docs/checks', 'docs/playbooks', 'packs', 'library', '.githooks');
     const moved = d.status === 0 ? d.stdout.split('\n').filter(f => f && !f.startsWith('tools/starter/') && f !== 'tools/hooks/engine-proof.json') : [];

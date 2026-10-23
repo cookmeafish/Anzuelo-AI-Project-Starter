@@ -1,5 +1,5 @@
 {
-  "_comment": "Written by tools/starter/trials/compare.mjs --record: each judged trial round of the improvement loop (tools/starter/IMPROVEMENT-LOOP.md). Each project's first round is its baseline.",
+  "_comment": "Written by tools/starter/trials/compare.mjs --record: each judged trial round of the improvement loop (tools/starter/runbooks/improvement-loop.md). Each project's first round is its baseline.",
   "rounds": [
     {
       "round": "v2",

@@ -72,7 +72,7 @@ hooks:**, and an upgrade lists each one as its own review item.
     - A `run_in_background` gate run counts by its output file once its notice arrives, also when the host records
       the notice as a queued attachment rather than a user message. A passing hooks self-test had been read as empty
       output and blocked the turn. Scenarios: `bg-moved:` (queued attachment).
-    - **The starter's improvement loop** (starter only; new projects get none of it): `tools/starter/IMPROVEMENT-LOOP.md`
+    - **The starter's improvement loop** (starter only; new projects get none of it): `tools/starter/runbooks/improvement-loop.md`
       with `tools/starter/trials/` (`run.mjs` runs a round of eight real new projects on a frozen copy, `judge.mjs`
       writes the blind judges' prompts, `compare.mjs` gives the verdict against each project's baseline and the
       previous round and keeps the history in `rounds.json`, rounds v2 to v8 included). The audit sweep "improvement
