@@ -3984,8 +3984,9 @@ export const relayRouteText = s => String(s || '')
 // "please replay it"), or asks ("can you", "I need you to", "por favor"). The rest reports or explains, and routes
 // nothing. Lesson: "STATUS.md had changed since then" in a report of fixes routed to the refresh runbook.
 export function relayRequestText(s, cfg = config()) {
-  const lead = String.raw`^(?:[\s\-*>\d.)]*(?:hey|ok(?:ay)?|now|also|next|then|so|and|y|ahora|tambi[eé]n|luego)\b[,\s]*)*(?:please\s+|por favor,?\s+)?`;
-  const starts = re(`${lead}(?:${cfg.taskVerbs})`), asks = /\b(can|could|would) you\b|\bplease\b|\bi (need|want) you to\b|\bpor favor\b|\b(puedes|podr[ií]as|necesito que)\b/i;
+  const lead = String.raw`^(?:[\s\-*>\d.)]*(?:hey|ok(?:ay)?|now|also|next|then|so|and|y|ahora|tambi[eé]n|luego|from now on|always|never|de ahora en adelante|siempre|nunca)\b[,\s]*)*(?:please\s+|por favor,?\s+)?`;
+  const startsEn = re(`${lead}(?:${cfg.taskVerbs})`), startsEs = new RegExp(`${lead}(?:${TASK_ES.source})`, 'i');
+  const starts = { test: x => startsEn.test(x) || startsEs.test(fold(x)) }, asks = /\b(can|could|would) you\b|\bplease\b|\bi (need|want) you to\b|\bpor favor\b|\b(puedes|podr[ií]as|necesito que)\b/i;
   // (a bare "upgrade" from another session, with no object, is the engine's: "Upgrade when convenient" had routed to a
   // deck project's own upgrade runbook)
   const bare = /^(?:please\s+)?(?:upgrade|update|actualiza)\s*(?=$|[.!,]|\s+(?:when|once|now|again|after|before|at|if|whenever|cuando|ahora)\b)/i;
