@@ -893,13 +893,27 @@ export function codexRows(rows) {
   return out;
 }
 
-export function turn(transcript) {
-  let rows = [];
-  for (const line of read(transcript).split(/\r?\n/)) {
-    if (!line.trim()) continue;
-    try { rows.push(JSON.parse(line)); } catch {}
+// The transcript's last part, from a line start: a window that grows until it holds the current turn's prompt (or the
+// whole file). Lesson: a long session's 568 MB transcript was over the largest string a file can be read into, so every
+// hook silently lost the session's tool history; and every hook call parsed the whole file.
+export const TAIL_START = 48 << 20, TAIL_MAX = 384 << 20;
+export function transcriptRows(transcript, hasStart = rows => rows.some(r => promptOf(r) !== null || relayedTurn(r))) {
+  let size = 0; try { size = fs.statSync(String(transcript)).size; } catch { return []; }
+  for (let win = Math.min(size, TAIL_START); ; win = Math.min(size, win * 2, TAIL_MAX)) {
+    let text = '';
+    try {
+      const fd = fs.openSync(String(transcript), 'r');
+      try { const b = Buffer.alloc(win); fs.readSync(fd, b, 0, win, size - win); text = b.toString('utf8'); } finally { fs.closeSync(fd); }
+    } catch { return []; }
+    const lines = text.split(/\r?\n/);
+    if (win < size) lines.shift(); // (the first line may be cut)
+    const rows = [];
+    for (const line of lines) { if (!line.trim()) continue; try { rows.push(JSON.parse(line)); } catch { } }
+    if (win >= size || win >= TAIL_MAX || hasStart(rows)) return rows;
   }
-  rows = codexRows(rows);
+}
+export function turn(transcript) {
+  let rows = codexRows(transcriptRows(transcript));
   let start = -1, prompt = '';
   for (let i = rows.length - 1; i >= 0; i--) {
     const p = promptOf(rows[i]);
@@ -4843,13 +4857,8 @@ export function overlapNotice(data) {
   const t = turn(data.transcript_path);
   if (!t?.bgRunning?.length) return null;
   const byId = new Map();
-  try {
-    for (const l of fs.readFileSync(String(data.transcript_path), 'utf8').split('\n')) {
-      if (!l.includes('"tool_use"')) continue;
-      let r; try { r = JSON.parse(l); } catch { continue; }
-      for (const x of Array.isArray(r.message?.content) ? r.message.content : []) if (x?.type === 'tool_use' && typeof x.input?.command === 'string') byId.set(x.id, x.input.command);
-    }
-  } catch { return null; }
+  for (const r of transcriptRows(data.transcript_path))
+    for (const x of Array.isArray(r.message?.content) ? r.message.content : []) if (x?.type === 'tool_use' && typeof x.input?.command === 'string') byId.set(x.id, x.input.command);
   const busy = t.bgRunning.map(id => byId.get(id)).filter(c => c && CHECK_RUN.test(c));
   if (!busy.length) return null;
   return `Heads-up: ${busy.length === 1 ? 'a test or sweep run is' : `${busy.length} test or sweep runs are`} still running in the background (${busy.map(c => `"${c.replace(/\s+/g, ' ').trim().slice(0, 80)}"`).join(', ')}). Two at once can see each other's temporary files and fail falsely: wait for its notice before reading this run's failures as real, or run this one after it.`;
@@ -6968,9 +6977,18 @@ function cmdStop(data) {
 function cmdBegin() {
   const req = process.argv.slice(3).join(' ').trim();
   if (!req) { console.log('usage: node tools/hooks/hooks.mjs begin "<the user\'s request>"'); process.exit(1); }
+  // (from a Claude Code session started in another folder: the request is recorded for that session, with its
+  // transcript, so "check" sees the turn's real tool calls and the git hooks know the session went through the engine)
+  const envSid = String(process.env.CLAUDE_CODE_SESSION_ID || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
+  let tp = '';
+  if (envSid) {
+    SID = envSid;
+    const root = path.join(os.homedir(), '.claude', 'projects');
+    try { for (const d of fs.readdirSync(root)) { const f = path.join(root, d, `${envSid}.jsonl`); if (fs.existsSync(f)) { tp = f; break; } } } catch { }
+  }
   const st = readJSON(path.join(STATE, 'last-session.json'), {});
   if (!st.at || Date.now() - Date.parse(st.at) > 6 * 3600_000) cmdSession({ source: 'begin' });
-  cmdPrompt({ prompt: req }, { force: true });
+  cmdPrompt({ prompt: req, ...(tp ? { transcript_path: tp } : {}) }, { force: true });
   console.log(`\nWhen the work is done: write your answer to .cache/answer.md, the lines the checks read (Playbook:, Skill:, Worth it:, Proven:, Learned (...)) to ${NOTES_FILE}, and run node tools/hooks/hooks.mjs check --answer-file .cache/answer.md`);
 }
 // The session whose prompt hook recorded the newest request, when that is newer than a manual "begin" ('' if none).

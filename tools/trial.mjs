@@ -294,6 +294,8 @@ if (deep) {
 
 const bad = results.filter(r => !r.ok);
 // Status word in color only for a person at a terminal (writing-standards.md "In the terminal"); pipes get plain text.
+// (sample projects commit from this process: the engine-bypassed git gate is for real sessions, not test copies)
+process.env.ANZUELO_SESSION_GATE = 'off';
 const COLOR = process.stdout.isTTY && !process.env.NO_COLOR;
 const paint = s => COLOR ? `\x1b[${s === 'PASS' ? 32 : 31}m${s}\x1b[0m` : s;
 for (const r of bad) console.log(`${paint('FAIL')}  [${r.project}] ${r.promise}${r.detail ? `: ${r.detail.replace(/\s+/g, ' ').slice(0, 300)}` : ''}`);

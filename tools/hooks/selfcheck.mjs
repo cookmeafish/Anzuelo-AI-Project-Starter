@@ -21,6 +21,8 @@ import { engineStamp, findPass, recordPass, localDay, SMOKE_EVERY, lockState, ta
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 // The self-tests make throwaway projects from this copy on purpose, even when it is a development copy (.starter-dev).
 process.env.STARTER_ALLOW_DEV = '1';
+// (sample projects commit from this process: the engine-bypassed git gate is for real sessions, not test copies)
+process.env.ANZUELO_SESSION_GATE = 'off';
 // what the tests depend on, as the run starts (audit --setup reuses a full pass while it is unchanged)
 const INPUTS0 = await (async () => { try { return (await import('./hooks.mjs')).testInputsHash(); } catch { return null; } })();
 const CORE_SKILLS = await (async () => { try { return (await import('./hooks.mjs')).CORE_SKILLS || []; } catch { return []; } })();

@@ -27,7 +27,21 @@ if (mode === 'commit-msg') {
   }
   process.exit(0);
 }
+// REQ: engine-bypassed. A commit or push from a Claude Code session that this project's hooks never saw: the session was
+// started in another folder, so none of the project's rules ran on its work. Claude Code marks its shells (CLAUDECODE,
+// CLAUDE_CODE_SESSION_ID); a person committing by hand is never asked. Test harnesses turn it off for their sample
+// projects (ANZUELO_SESSION_GATE=off). Lesson: the starter's own engine work was done for days from a session started
+// in a parent folder, and none of its runbooks, checks or lessons applied to it.
+function unseenSession() {
+  const sid = String(process.env.CLAUDE_CODE_SESSION_ID || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
+  if (process.env.CLAUDECODE !== '1' || !sid || process.env.ANZUELO_SESSION_GATE === 'off') return null;
+  return fs.existsSync(new URL(`./state/turn.${sid}.json`, import.meta.url)) ? null : sid;
+}
+const UNSEEN = (what, sid) => `${what} rejected (engine-bypassed): this comes from a Claude Code session (${sid.slice(0, 8)}) that this project's hooks have never seen: it was started in another folder, so none of the project's rules, runbooks or checks ran on its work.\n` +
+  `Run node tools/hooks/hooks.mjs begin "<the user's request>" in this project first (it records the request for this session and prints the routing and checks), and node tools/hooks/hooks.mjs check --answer-file .cache/answer.md before answering. Or start the session in this project's folder.`;
+
 if (mode === 'pre-commit') {
+  { const sid = unseenSession(); if (sid) { console.error(UNSEEN('commit', sid)); process.exit(1); } }
   // REQ: no-secrets and stray files, enforced by git itself for every agent and for manual commits
   const { spawnSync } = await import('node:child_process');
   const git = (...a) => spawnSync('git', a, { encoding: 'utf8' }).stdout || '';
@@ -39,6 +53,7 @@ if (mode === 'pre-commit') {
   process.exit(0);
 }
 if (mode === 'pre-push' || mode === 'scan') {
+  if (mode === 'pre-push') { const sid = unseenSession(); if (sid) { console.error(UNSEEN('push', sid)); process.exit(1); } }
   const bad = aiAttributedCommits(cfg);
   if (bad.length) {
     console.error(`${mode === 'scan' ? 'found' : 'push rejected'} (no-ai-attribution): unpushed commits credit an AI agent:`);

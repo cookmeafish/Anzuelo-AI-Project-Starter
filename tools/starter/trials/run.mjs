@@ -126,13 +126,18 @@ async function one(id) {
     // what the starter's own hooks cost this turn: text they put into the conversation, tool calls they denied (each a
     // full extra round), and Stop blocks (each another round)
     const overhead = { hookChars: 0, denials: 0, stopBlocks: 0 };
+    // (only the hook_additional_context rows: the text that enters the agent's context. A host records one Stop block in
+    // several rows, a success row repeating the same text among them; counting them all doubled both numbers)
     for (const r of rows) {
       const a = r.attachment;
-      if (r.type === 'attachment' && a && (a.hookEvent || /hook/i.test(a.type || ''))) overhead.hookChars += (Array.isArray(a.content) ? a.content.join('') : typeof a.content === 'string' ? a.content : '').length;
+      if (r.type === 'attachment' && a?.type === 'hook_additional_context') {
+        const body = Array.isArray(a.content) ? a.content.join('') : typeof a.content === 'string' ? a.content : '';
+        overhead.hookChars += body.length;
+        if (a.hookEvent === 'Stop' && /Almost done:/.test(body)) overhead.stopBlocks++;
+      }
       const c = r.message?.content;
       const said = v => typeof v === 'string' ? v : Array.isArray(v) ? v.map(y => y?.text || '').join('') : '';
       if (r.type === 'user' && Array.isArray(c)) for (const x of c) if (x?.type === 'tool_result' && /^PreToolUse:\S+ hook error: /.test(said(x.content))) overhead.denials++;
-      if (/Almost done:/.test(text(r)) && r.type !== 'assistant') overhead.stopBlocks++;
     }
     const changed = g('diff', '--name-status', before, after).stdout.trim().split('\n').filter(Boolean);
     const reqDiff = g('diff', before, after, '--', 'tools/hooks/requirements.json').stdout;
