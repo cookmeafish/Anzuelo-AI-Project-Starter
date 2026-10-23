@@ -3930,9 +3930,13 @@ function cmdSession(data) {
     const sent = new Set(readJSON(path.join(STATE, 'feedback-reported.json'), []));
     if (lines.some(l => !sent.has(l))) spawnSync(process.execPath, [path.join(ROOT, 'tools', 'starter.mjs'), 'report'], { cwd: ROOT, encoding: 'utf8', timeout: 20000 });
   }
-  const parts = [read(abs('docs/checks/session-checklist.md')).trim()];
+  // A resumed session that was already shown the checklist still has it in its conversation: one line instead.
+  // (Lesson, trial rounds 4 to 9: every resumed turn got the 2,300-character checklist again, the largest part of the
+  // hook text per turn, which rose a quarter above the first round's)
+  const seen = SID && /resume/i.test(data.source || '') && fs.existsSync(path.join(STATE, stateName('checklist.json')));
+  const parts = [seen ? 'Session checklist: as shown at this session\'s start (full rules in AGENTS.md / CLAUDE.md).' : read(abs('docs/checks/session-checklist.md')).trim()];
   // (the prompt's rules digest says the same in short: this session has the whole checklist, so the prompts skip it)
-  if (SID && parts[0]) writeState('checklist.json', { at: new Date().toISOString() });
+  if (SID && parts[0] && !seen) writeState('checklist.json', { at: new Date().toISOString() });
   const status = read(abs('docs/STATUS.md')).split(/\r?\n/).slice(0, 40).join('\n').trim();
   if (status) parts.push('--- docs/STATUS.md (where things stand) ---\n' + status);
   const n = notices(cfg);

@@ -3387,7 +3387,7 @@ const proves = s => TAGS.filter(t => (s.expect?.tags || []).includes(t) || (s.ex
 const SHARD = (() => { const i = process.argv.indexOf('--shard'), m = /^(\d+)\/(\d+)$/.exec(i > 0 ? process.argv[i + 1] || '' : ''); return m ? { i: Number(m[1]), n: Number(m[2]) } : null; })();
 const HELPER = !!SHARD;
 // tags a standalone test proves (it runs with --tags <tag>, outside the full-run-only block)
-const STANDALONE_TAGS = ['engine-bypassed', 'transcript-tail', 'instructions-run', 'answer-traced', 'stop-follow-on', 'stop-reblock', 'check-preview'];
+const STANDALONE_TAGS = ['session-checklist', 'engine-bypassed', 'transcript-tail', 'instructions-run', 'answer-traced', 'stop-follow-on', 'stop-reblock', 'check-preview'];
 if (TAGS) {
   const all = [...STOP, ...PRETOOL, ...PROMPT];
   for (const t of TAGS) if (!HELPER && !TRIGGER_TAGS.includes(t) && !STANDALONE_TAGS.includes(t) && t !== 'selftest-speed' && !all.some(s => proves(s).includes(t))) report(false, `tags: a scenario proves ${t}`, `no scenario proves "${t}": add one to tools/hooks/project-scenarios.mjs (blocked when skipped, passes when followed)`);
@@ -6033,6 +6033,19 @@ if (mineB() && INSTALLED.includes('app')) { // app gates: their own pass lines, 
 }
 // standalone tests that can also be asked for by tag (--tags <tag>): outside the full-run-only block above.
 // Lesson: they sat inside it, so their "--tags" gates never ran and a fast run could not prove them.
+if (mineB() && (!TAGS || TAGS.includes('session-checklist'))) { // session-checklist: a resumed session that was shown the
+  // checklist gets one line; a new session, another session's resume and a compaction get it whole
+  // (Lesson, trial rounds 4 to 9: every resumed turn got the 2,300-character checklist again)
+  const dir = copyProject();
+  try {
+    const ses = (sid, source) => spawnSync(process.execPath, [path.join(dir, 'tools/hooks/hooks.mjs'), 'session'], { cwd: dir, encoding: 'utf8', input: JSON.stringify({ session_id: sid, source, transcript_path: path.join(dir, '.cache', `${sid}.jsonl`) }) }).stdout;
+    const full = s => /^# Session checklist/m.test(s) && /\b1\. ROUTE/.test(s);
+    const first = ses('sesA', 'startup'), resumed = ses('sesA', 'resume'), other = ses('sesB', 'resume'), compacted = ses('sesA', 'compact');
+    report(full(first) && !full(resumed) && /as shown at this session's start/.test(resumed) && /docs\/STATUS\.md/.test(resumed) && full(other) && full(compacted),
+      'session-checklist: a resumed session already shown the checklist gets one line (STATUS and notices stay); a new session, another session\'s resume and a compaction get it whole',
+      JSON.stringify({ first: first.length, resumed: resumed.slice(0, 120), other: other.length, compacted: compacted.length }));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
 if (mineB() && (!TAGS || TAGS.includes('engine-bypassed'))) { // engine-bypassed: a commit or push from a Claude Code session the project's hooks never saw is refused;
   // once "begin" (or the prompt hook) recorded the session it goes through; a person's commit and a test harness never
   // meet it. Lesson: the starter's own engine work ran for days in a session started in a parent folder, under none

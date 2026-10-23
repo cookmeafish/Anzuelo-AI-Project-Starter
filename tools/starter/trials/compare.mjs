@@ -50,7 +50,7 @@ export function totals(projects, ids) {
     denialsPerTurn: mTurns ? r2(m.reduce((a, p) => a + p.denials, 0) / mTurns) : null, hookCharsPerTurn: mTurns ? Math.round(m.reduce((a, p) => a + p.hookChars, 0) / mTurns) : null,
     effHigh: sum('effHigh'), effMedium: sum('effMedium'),
     projects: ps.length, high: sum('high'), medium: sum('medium'), low: sum('low'), starterHigh: sum('starterHigh'), starterMedium: sum('starterMedium'),
-    errors: sum('errors'), blockedShare: turns ? Math.round(sum('blocked') / turns * 100) / 100 : 0, setupMedian: median(ps.map(p => p.setupMin)) };
+    errors: sum('errors'), blockedShare: turns ? Math.round(sum('blocked') / turns * 100) / 100 : 0, setupMedian: (x => x == null ? null : Math.round(x * 10) / 10)(median(ps.map(p => p.setupMin))) };
 }
 // What makes "now" worse than "then" (both totals over the same projects)
 export function worseThan(now, then, label) {
