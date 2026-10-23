@@ -5520,64 +5520,6 @@ if (mineB()) { // plan-required during setup: app files the setup writes count, 
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-if (mineB() && (!TAGS || TAGS.includes('engine-bypassed'))) { // engine-bypassed: a commit or push from a Claude Code session the project's hooks never saw is refused;
-  // once "begin" (or the prompt hook) recorded the session it goes through; a person's commit and a test harness never
-  // meet it. Lesson: the starter's own engine work ran for days in a session started in a parent folder, under none
-  // of its rules.
-  const dir = copyProject();
-  try {
-    const git = (...a) => spawnSync('git', a, { cwd: dir, encoding: 'utf8' });
-    git('init', '-q'); write(dir, { 'notes/a.md': 'a' }); git('add', 'notes/a.md');
-    const guard = (env, mode = 'pre-commit') => {
-      const e = { ...process.env, ...env }; for (const [k, v] of Object.entries(env)) if (v === null) delete e[k];
-      const r = spawnSync(process.execPath, [path.join(dir, 'tools/hooks/git-guard.mjs'), mode], { cwd: dir, encoding: 'utf8', env: e });
-      return { code: r.status, err: r.stderr || '' };
-    };
-    const CC = { CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: 'sessUnseen1', ANZUELO_SESSION_GATE: null };
-    const unseen = guard(CC), unseenPush = guard(CC, 'pre-push');
-    const person = guard({ CLAUDECODE: null, CLAUDE_CODE_SESSION_ID: null, ANZUELO_SESSION_GATE: null });
-    const harness = guard({ ...CC, ANZUELO_SESSION_GATE: 'off' });
-    // "begin" from that session records it (the session id comes from the environment)
-    spawnSync(process.execPath, [path.join(dir, 'tools/hooks/hooks.mjs'), 'begin', 'tidy the notes'], { cwd: dir, encoding: 'utf8', env: { ...process.env, CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: 'sessUnseen1' } });
-    const recorded = fs.existsSync(path.join(dir, 'tools/hooks/state/turn.sessUnseen1.json')), seen = guard(CC);
-    report(unseen.code === 1 && /engine-bypassed/.test(unseen.err) && /hooks\.mjs begin/.test(unseen.err) && unseenPush.code === 1
-      && person.code === 0 && harness.code === 0 && recorded && seen.code === 0,
-      'engine-bypassed: a commit or push from a Claude Code session the hooks never saw is refused with the way through; after begin records the session it passes; a person\'s commit and a test harness never meet it',
-      JSON.stringify({ unseen: unseen.code, push: unseenPush.code, person: person.code, harness: harness.code, recorded, seen: seen.code, err: unseen.err.slice(0, 200) }));
-  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
-}
-if (mineB() && (!TAGS || TAGS.includes('transcript-tail'))) { // transcript-tail: a transcript is read from its end in a window that grows until it holds the turn's prompt
-  // (Lesson: a 568 MB transcript was over the largest string a file can be read into, and every hook lost the history)
-  const h = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks.mjs')).href);
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-')), f = path.join(tmp, 't.jsonl');
-  try {
-    const pad = Array.from({ length: 400 }, (_, i) => JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: `step ${i} ${'x'.repeat(200)}` }] } }));
-    const rows = [JSON.stringify({ type: 'user', message: { role: 'user', content: 'an old request' } }), ...pad.slice(0, 200),
-      JSON.stringify({ type: 'user', timestamp: new Date().toISOString(), message: { role: 'user', content: 'sort the notes by date' } }), ...pad.slice(200)];
-    fs.writeFileSync(f, rows.join('\n') + '\n');
-    const small = h.transcriptRows(f, undefined, 1024);
-    const hasPrompt = small.some(r => r.message?.content === 'sort the notes by date');
-    const whole = h.transcriptRows(f, () => false, 1024);
-    const t = h.turn(f);
-    report(hasPrompt && small.length < rows.length && small.every(r => r && typeof r === 'object') && whole.length === rows.length && /sort the notes by date/.test(t.prompt) && t.entries.length === 200,
-      'transcript-tail: a small window grows until it holds the turn\'s prompt (a cut first line is skipped), grows to the whole file when needed, and turn() reads the same turn',
-      JSON.stringify({ hasPrompt, small: small.length, whole: whole.length, total: rows.length, prompt: t.prompt, entries: t.entries.length }));
-  } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
-}
-if (mineB() && (!TAGS || TAGS.includes('instructions-run'))) { // instructions-run at the edit: a .ps1 that only PowerShell 7 runs is named at once
-  // (Lesson: a setup script's "Out-File -Encoding utf8NoBOM" failed under the "powershell" (5.1) the answer named)
-  const dir = copyProject();
-  try {
-    write(dir, { 'tools/hooks/state/turn.json': JSON.stringify({ at: new Date().toISOString(), prompt: 'set up the api' }) });
-    const ps = (f, content) => run(dir, 'posttool', { tool_name: 'Write', tool_input: { file_path: path.join(dir, f), content } }).out;
-    const bad = ps('scripts/setup.ps1', '"KEY=$k" | Out-File -Encoding utf8NoBOM .env\n$v = $a ?? 3\nnpm ci && npm test\n');
-    const ok = ps('scripts/start.ps1', '# runs with ?? in a comment\n$x = Get-Item a | ? { $_.Length -gt 1 }\nWrite-Host "build && test"\nif ($a) { 1 } else { 2 }\nOut-File -Encoding utf8 .env\n');
-    const seven = ps('scripts/new.ps1', '#Requires -Version 7\n$v = $a ?? 3\n'), sh = ps('scripts/start.sh', 'npm ci && npm test\n');
-    report(/POWERSHELL 5\.1: scripts\/setup\.ps1 uses -Encoding utf8NoBOM\/utf8BOM, the \?\? operator, the && or \|\| pipeline chains/.test(bad) && !/POWERSHELL 5\.1/.test(ok + seven + sh),
-      'instructions-run: a .ps1 using utf8NoBOM, ?? or && is named at the edit for PowerShell 5.1; 5.1-safe code, text in strings and comments, a #Requires -Version 7 script and a .sh stay quiet',
-      `${bad.slice(0, 200)} | ${ok.slice(0, 100)} | ${seven.slice(0, 100)} | ${sh.slice(0, 100)}`);
-  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
-}
 if (mineB()) { // status-handoff: the edit that finds the turn past 15 tool calls, with docs/STATUS.md unchanged, says so once
   // (Lesson: agents skipped STATUS.md in 3 of 6 turns although the CHECKS line had named it, at the end of a long line)
   const dir = copyProject();
@@ -5596,19 +5538,6 @@ if (mineB()) { // status-handoff: the edit that finds the turn past 15 tool call
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-if (mineB() && (!TAGS || TAGS.includes('answer-traced'))) { // cited claims: an inference cited to a file that does not hold it is caught, a fair reading is not
-  const { citedClaimGaps } = await import(pathToFileURL(path.join(B, 'tools/hooks/hooks.mjs')).href);
-  const files = { 'characters.md': '# Characters\n- Aren Vale: smith, right-handed, scar over the left eye.\n', 'chapters/02-road.md': '# The road\nIlka rode north with the letter.\n' };
-  const rd = p => files[p] || '';
-  const doc = l => ({ text: `${l}\n\n[1] characters.md\n[2] chapters/02-road.md\n`, where: 'outputs/o.md' });
-  const caught = ['- Scar: left eye, so a blind or weaker side is on the left [1].', '- His scar draws a stranger\'s notice, which is useful later if people remember him by it [1].'].map(l => citedClaimGaps([doc(l)], rd).length);
-  const fair = ['- Aren is a right-handed smith with a scar over his left eye [1].', '- He follows the same road Ilka took [2], on the slow horse, two days behind her.', '- He is right-handed: hammer, sword or reins in the right hand [1].',
-    '- Ilka went north [2], and he lifts the hammer, so it finds no problem [1].', '- My guess: the scar leaves a blind side on his left [1].', '- Inferido: el lado izquierdo sería su punto débil [1].'].map(l => citedClaimGaps([doc(l)], rd).length);
-  const answer = citedClaimGaps([{ text: 'From `characters.md`: Aren is right-handed, so he fights best with a spear on horseback at night.', where: 'the answer' }], rd).length;
-  report(caught.every(n => n === 1) && fair.every(n => n === 0) && answer === 1,
-    'answer-traced: a claim cited to a file must share its key words with it (an inference after "so" or ":" counts on its own); a fair reading, a marker cited mid-sentence and a "my guess:" line pass',
-    JSON.stringify({ caught, fair, answer }));
-}
 
 if (mineB()) { // publish-safety: reserved addresses (documentation, private and special-use IP ranges, example domains) are nobody's personal data
   const { personalDetails } = await import(pathToFileURL(path.join(B, 'tools/hooks/hooks.mjs')).href);
@@ -6083,6 +6012,79 @@ if (mineB() && INSTALLED.includes('app')) { // app gates: their own pass lines, 
       'commit-gate: packs.mjs configure --build-pass sets the gate\'s own pass line', `${r.stdout}${r.stderr}`.slice(0, 300));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
+}
+// standalone tests that can also be asked for by tag (--tags <tag>): outside the full-run-only block above.
+// Lesson: they sat inside it, so their "--tags" gates never ran and a fast run could not prove them.
+if (mineB() && (!TAGS || TAGS.includes('engine-bypassed'))) { // engine-bypassed: a commit or push from a Claude Code session the project's hooks never saw is refused;
+  // once "begin" (or the prompt hook) recorded the session it goes through; a person's commit and a test harness never
+  // meet it. Lesson: the starter's own engine work ran for days in a session started in a parent folder, under none
+  // of its rules.
+  const dir = copyProject();
+  try {
+    const git = (...a) => spawnSync('git', a, { cwd: dir, encoding: 'utf8' });
+    git('init', '-q'); write(dir, { 'notes/a.md': 'a' }); git('add', 'notes/a.md');
+    const guard = (env, mode = 'pre-commit') => {
+      const e = { ...process.env, ...env }; for (const [k, v] of Object.entries(env)) if (v === null) delete e[k];
+      const r = spawnSync(process.execPath, [path.join(dir, 'tools/hooks/git-guard.mjs'), mode], { cwd: dir, encoding: 'utf8', env: e });
+      return { code: r.status, err: r.stderr || '' };
+    };
+    const CC = { CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: 'sessUnseen1', ANZUELO_SESSION_GATE: null };
+    const unseen = guard(CC), unseenPush = guard(CC, 'pre-push');
+    const person = guard({ CLAUDECODE: null, CLAUDE_CODE_SESSION_ID: null, ANZUELO_SESSION_GATE: null });
+    const harness = guard({ ...CC, ANZUELO_SESSION_GATE: 'off' });
+    // "begin" from that session records it (the session id comes from the environment)
+    spawnSync(process.execPath, [path.join(dir, 'tools/hooks/hooks.mjs'), 'begin', 'tidy the notes'], { cwd: dir, encoding: 'utf8', env: { ...process.env, CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: 'sessUnseen1' } });
+    const recorded = fs.existsSync(path.join(dir, 'tools/hooks/state/turn.sessUnseen1.json')), seen = guard(CC);
+    report(unseen.code === 1 && /engine-bypassed/.test(unseen.err) && /hooks\.mjs begin/.test(unseen.err) && unseenPush.code === 1
+      && person.code === 0 && harness.code === 0 && recorded && seen.code === 0,
+      'engine-bypassed: a commit or push from a Claude Code session the hooks never saw is refused with the way through; after begin records the session it passes; a person\'s commit and a test harness never meet it',
+      JSON.stringify({ unseen: unseen.code, push: unseenPush.code, person: person.code, harness: harness.code, recorded, seen: seen.code, err: unseen.err.slice(0, 200) }));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+if (mineB() && (!TAGS || TAGS.includes('transcript-tail'))) { // transcript-tail: a transcript is read from its end in a window that grows until it holds the turn's prompt
+  // (Lesson: a 568 MB transcript was over the largest string a file can be read into, and every hook lost the history)
+  const h = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks.mjs')).href);
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-')), f = path.join(tmp, 't.jsonl');
+  try {
+    const pad = Array.from({ length: 400 }, (_, i) => JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: `step ${i} ${'x'.repeat(200)}` }] } }));
+    const rows = [JSON.stringify({ type: 'user', message: { role: 'user', content: 'an old request' } }), ...pad.slice(0, 200),
+      JSON.stringify({ type: 'user', timestamp: new Date().toISOString(), message: { role: 'user', content: 'sort the notes by date' } }), ...pad.slice(200)];
+    fs.writeFileSync(f, rows.join('\n') + '\n');
+    const small = h.transcriptRows(f, undefined, 1024);
+    const hasPrompt = small.some(r => r.message?.content === 'sort the notes by date');
+    const whole = h.transcriptRows(f, () => false, 1024);
+    const t = h.turn(f);
+    report(hasPrompt && small.length < rows.length && small.every(r => r && typeof r === 'object') && whole.length === rows.length && /sort the notes by date/.test(t.prompt) && t.entries.length === 200,
+      'transcript-tail: a small window grows until it holds the turn\'s prompt (a cut first line is skipped), grows to the whole file when needed, and turn() reads the same turn',
+      JSON.stringify({ hasPrompt, small: small.length, whole: whole.length, total: rows.length, prompt: t.prompt, entries: t.entries.length }));
+  } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+}
+if (mineB() && (!TAGS || TAGS.includes('instructions-run'))) { // instructions-run at the edit: a .ps1 that only PowerShell 7 runs is named at once
+  // (Lesson: a setup script's "Out-File -Encoding utf8NoBOM" failed under the "powershell" (5.1) the answer named)
+  const dir = copyProject();
+  try {
+    write(dir, { 'tools/hooks/state/turn.json': JSON.stringify({ at: new Date().toISOString(), prompt: 'set up the api' }) });
+    const ps = (f, content) => run(dir, 'posttool', { tool_name: 'Write', tool_input: { file_path: path.join(dir, f), content } }).out;
+    const bad = ps('scripts/setup.ps1', '"KEY=$k" | Out-File -Encoding utf8NoBOM .env\n$v = $a ?? 3\nnpm ci && npm test\n');
+    const ok = ps('scripts/start.ps1', '# runs with ?? in a comment\n$x = Get-Item a | ? { $_.Length -gt 1 }\nWrite-Host "build && test"\nif ($a) { 1 } else { 2 }\nOut-File -Encoding utf8 .env\n');
+    const seven = ps('scripts/new.ps1', '#Requires -Version 7\n$v = $a ?? 3\n'), sh = ps('scripts/start.sh', 'npm ci && npm test\n');
+    report(/POWERSHELL 5\.1: scripts\/setup\.ps1 uses -Encoding utf8NoBOM\/utf8BOM, the \?\? operator, the && or \|\| pipeline chains/.test(bad) && !/POWERSHELL 5\.1/.test(ok + seven + sh),
+      'instructions-run: a .ps1 using utf8NoBOM, ?? or && is named at the edit for PowerShell 5.1; 5.1-safe code, text in strings and comments, a #Requires -Version 7 script and a .sh stay quiet',
+      `${bad.slice(0, 200)} | ${ok.slice(0, 100)} | ${seven.slice(0, 100)} | ${sh.slice(0, 100)}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+if (mineB() && (!TAGS || TAGS.includes('answer-traced'))) { // cited claims: an inference cited to a file that does not hold it is caught, a fair reading is not
+  const { citedClaimGaps } = await import(pathToFileURL(path.join(B, 'tools/hooks/hooks.mjs')).href);
+  const files = { 'characters.md': '# Characters\n- Aren Vale: smith, right-handed, scar over the left eye.\n', 'chapters/02-road.md': '# The road\nIlka rode north with the letter.\n' };
+  const rd = p => files[p] || '';
+  const doc = l => ({ text: `${l}\n\n[1] characters.md\n[2] chapters/02-road.md\n`, where: 'outputs/o.md' });
+  const caught = ['- Scar: left eye, so a blind or weaker side is on the left [1].', '- His scar draws a stranger\'s notice, which is useful later if people remember him by it [1].'].map(l => citedClaimGaps([doc(l)], rd).length);
+  const fair = ['- Aren is a right-handed smith with a scar over his left eye [1].', '- He follows the same road Ilka took [2], on the slow horse, two days behind her.', '- He is right-handed: hammer, sword or reins in the right hand [1].',
+    '- Ilka went north [2], and he lifts the hammer, so it finds no problem [1].', '- My guess: the scar leaves a blind side on his left [1].', '- Inferido: el lado izquierdo sería su punto débil [1].'].map(l => citedClaimGaps([doc(l)], rd).length);
+  const answer = citedClaimGaps([{ text: 'From `characters.md`: Aren is right-handed, so he fights best with a spear on horseback at night.', where: 'the answer' }], rd).length;
+  report(caught.every(n => n === 1) && fair.every(n => n === 0) && answer === 1,
+    'answer-traced: a claim cited to a file must share its key words with it (an inference after "so" or ":" counts on its own); a fair reading, a marker cited mid-sentence and a "my guess:" line pass',
+    JSON.stringify({ caught, fair, answer }));
 }
 // the helpers' results, as if this process had run them (their lines, their passes for the COVERS check below)
 if (HELPER) { console.log(`SHARD ${pass} ${fail} ${skipped}`); process.exit(0); } // a helper's share is done
