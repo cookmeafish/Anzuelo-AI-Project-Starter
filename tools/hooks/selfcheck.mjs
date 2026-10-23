@@ -2808,6 +2808,16 @@ STOP.push(
   { name: 'hooks-tested: the self-tests\' own record of a pass after the change counts, however they ran: passes', prompt: 'fix the wiring step', tools: [pb('project'),
     bash('node tools/audit.mjs --setup > .cache/audit.txt 2>&1', ''), bash('grep -n "wire" tools/hooks/selfcheck.mjs', '12: wire')],
     prep: SELFTEST_RECORD(true), files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md. Fixed.' + FIN, expect: { not: ['hooks-tested'] } },
+  // (a whole pass covers a changed check's scenarios too. Lesson, trial round 9: setup's audit ran the whole suite with
+  // its output cut by grep, and Stop still asked for the changed checks' scenarios)
+  { name: 'hooks-tested: a changed check, and the self-tests\' record of a whole pass after it: passes', prompt: 'add a check for meal plans', tools: [pb('project'),
+    bash('node tools/audit.mjs --setup 2>&1 | grep -E "FAIL|WARN"', 'WARN 21. git hygiene')],
+    prep: dir => {
+      turnStart('requirements.json', NEW_CHECK)(dir);
+      const h = spawnSync(process.execPath, ['--input-type=module', '-e', `import { testInputsHash } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; console.log(testInputsHash());`], { cwd: dir, encoding: 'utf8' }).stdout.trim();
+      write(dir, { 'tools/hooks/state/selftest.json': JSON.stringify({ at: localDay(), passed: true, count: 40, inputs: h, mode: 'full' }) });
+    },
+    files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md. Added the meal check.' + FIN, expect: { not: ['hooks-tested'] } },
   { name: 'hooks-tested: a grep of selfcheck.mjs is no run, and a failed record counts for nothing: blocked', prompt: 'fix the wiring step', tools: [pb('project'),
     bash('grep -n "wire" tools/hooks/selfcheck.mjs', '12: wire')],
     prep: SELFTEST_RECORD(false), files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md. Fixed.' + FIN, expect: { tags: ['hooks-tested'], says: /The hook logic changed: run node tools\/hooks\/selfcheck\.mjs/ } },

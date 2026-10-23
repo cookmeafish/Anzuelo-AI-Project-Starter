@@ -5743,7 +5743,9 @@ export function coreChecks(x, cfg) {
       // (tools/hooks/state/selftest.json, with the hash of everything they test), so a pass inside "audit.mjs --setup"
       // whose output went to a file, or a background run, is seen. Lesson: setup's audit had just run and passed the
       // self-tests, and Stop still asked for them, because its output went into .cache/audit.txt.
-      const passedSince = () => { try { const f = path.join(STATE, 'selftest.json'), st = readJSON(f, {}); return need.all && st.passed === true && !!st.inputs && fs.statSync(f).mtimeMs >= (x.since || 0) - 2000 && st.inputs === testInputsHash(); } catch { return false; } };
+      const passedSince = () => { try { const f = path.join(STATE, 'selftest.json'), st = readJSON(f, {}); return st.passed === true && !!st.inputs && fs.statSync(f).mtimeMs >= (x.since || 0) - 2000 && st.inputs === testInputsHash(); } catch { return false; } };
+      // (a whole pass covers the scenarios of any changed check too. Lesson, trial round 9: setup's audit ran the whole
+      // suite with its output cut by grep, and Stop still asked for the changed checks' scenarios: a second run)
       // without a transcript, x.runs is the run log (the self-tests record themselves), so the same rule applies
       // (its last try refused outright: the honest line instead, the same as a project gate. See cantRun.)
       const tries = x.runs.filter(r => runsScript(r.cmd, 'selfcheck.mjs') && covers(r) && !engineNote(r.cmd));
