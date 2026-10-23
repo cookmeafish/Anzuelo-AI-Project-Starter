@@ -821,6 +821,13 @@ const PRETOOL = [
     before: [{ name: 'Bash', input: { command: 'curl -sL -o sources/raids/promo1.jpg https://img.example/p1.jpg' } }], deny: true, tag: 'protect-originals' },
   { name: 'protect-originals: remove a file this session did not bring in: denied', tool: 'Bash', input: { command: 'rm sources/raids/promo1.jpg' },
     edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), protectedOriginals: ['sources/**'] }) }, setup: { 'sources/raids/promo1.jpg': 'x' }, deny: true, tag: 'protect-originals' },
+  // a cd to a folder outside the project moves the parts after it out (a scratch copy has the same folder names)
+  { name: 'protect-originals: rm of sources/ after a cd into a scratch copy outside the project: allowed', tool: 'Bash', input: { command: `cd "${os.tmpdir().replace(/\\/g, '/')}/scratch-copy"; rm -rf sources/raids/promo*` },
+    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), protectedOriginals: ['sources/**'] }) }, setup: { 'sources/raids/promo1.jpg': 'x' }, deny: false },
+  { name: 'protect-originals: the same rm after a cd into a folder of the project: denied', tool: 'Bash', input: { command: 'cd docs && cd .. && rm -rf sources/raids/promo*' },
+    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), protectedOriginals: ['sources/**'] }) }, setup: { 'sources/raids/promo1.jpg': 'x' }, deny: true, tag: 'protect-originals' },
+  { name: 'protect-originals: an rm that names the project by its absolute path after a cd outside it: denied', tool: 'Bash', input: { command: `cd "${os.tmpdir().replace(/\\/g, '/')}"; rm -rf "<DIR>/sources/raids/promo1.jpg"` },
+    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), protectedOriginals: ['sources/**'] }) }, setup: { 'sources/raids/promo1.jpg': 'x' }, deny: true, tag: 'protect-originals' },
   { pack: 'knowledge', name: 'rm in sources/: denied', tool: 'Bash', input: { command: 'rm -rf "sources/old.pdf"' }, deny: true, tag: 'protect-originals' },
   { pack: 'knowledge', name: 'Remove-Item absolute path in sources: denied', tool: 'PowerShell', input: { command: 'Remove-Item -Force C:\\proj\\sources\\a.pdf' }, deny: true, tag: 'protect-originals' },
   { pack: 'knowledge', name: 'move a file out of sources/: denied', tool: 'Bash', input: { command: 'mv sources/a.pdf inbox/' }, deny: true, tag: 'protect-originals' },
@@ -2487,8 +2494,10 @@ STOP.push(
     answer: 'The outline is in `outputs/chapter-03-outline.md`.' + FIN, expect: { not: ['answer-traced'] } }
 );
 PROMPT.push(
-  { name: 'answer-language: a Spanish task gets the Spanish labels hint', prompt: 'agrega una página de índice con todas las recetas ordenadas por categoría', has: ['LANGUAGE: the user writes in Spanish', 'Causa raíz:'] },
-  { name: 'answer-language: an English task gets no language hint', prompt: 'add an index page with all the recipes sorted by category', hasNot: ['LANGUAGE:'] }
+  // (only the labels of the checks the turn is held to. Lesson: the hint ran to about 1,400 characters, mostly labels of
+  // packs the project did not have)
+  { name: 'answer-language: a Spanish task gets the Spanish labels hint, with only its own checks\' labels', prompt: 'agrega una página de índice con todas las recetas ordenadas por categoría',
+    has: ['LANGUAGE: the user writes in Spanish', '"## Terminado"', '"**Hecho:**"'], hasNot: ['Causa raíz:', 'No es asesoramiento legal', 'Facilidad de uso'] },  { name: 'answer-language: an English task gets no language hint', prompt: 'add an index page with all the recipes sorted by category', hasNot: ['LANGUAGE:'] }
 );
 // Stop false alarms and stiff wording (trial round v5). Each fix has its negative case: the true case still fires.
 const SWEEP = bash('node skills/security-review/scripts/risky-patterns.mjs src', 'scanned 1 file(s) under src; 0 lead(s) to check by hand.');
@@ -2818,6 +2827,12 @@ PROMPT.push(
   { name: 'check-preview: a Spanish request is previewed too', prompt: 'crea un plan para exportar los informes a csv', has: ['CHECKS: this turn will be held to', 'finished-summary'] },
   { name: 'check-preview: a data check keyed on the request, and the data check its fix sets off', setupFn: DECK_REQS, prompt: 'update the deck with the new cards', has: ['CHECKS:', 'deck-updated', 'set off data-valid'] },
   { name: 'check-preview: small talk gets no preview', prompt: 'thanks, that looks great', hasNot: ['CHECKS:'] },
+  // a project whose own hooks route: the runbook they name counts (the engine cannot see their hint)
+  { name: 'check-preview: with the project\'s own hooks, runbook-exists says a runbook they name counts', prompt: 'tidy up the brawl deck notes and sort them by mana value',
+    setupFn: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), externalHooks: ['tools/hooks/hooks.py'] }) },
+    has: ['runbook-exists', "playbook-named instead once it follows a runbook, such as one the project's own hooks name"] },
+  { name: 'check-preview: without them, runbook-exists says nothing about the project\'s hooks', prompt: 'tidy up the brawl deck notes and sort them by mana value',
+    has: ['runbook-exists'], hasNot: ["project's own hooks name"] },
   { name: 'check-preview: a question gets no preview', prompt: 'what is the price of desk x?', hasNot: ['CHECKS:'] },
   // held to more than 2 checks, the line offers the self-check; held to 2, it does not
   { name: 'check-preview: more than 2 checks offer the self-check command', prompt: 'make a plan for the csv export', has: ['CHECKS: this turn will be held to plan-saved', 'Self-check first: node tools/hooks/hooks.mjs check --answer-file'] },
@@ -3367,6 +3382,8 @@ for (const s of PRETOOL) {
     const tp = transcript(dir, { prompt: s.prompt || 'do the thing', earlierPrompt: s.earlierPrompt, before: s.before, answer: null, tools: s.tools }, Date.now());
     const input = { ...s.input };
     if (input.file_path) input.file_path = path.join(dir, input.file_path);
+    // ("<DIR>" in a command stands for the fixture's own folder, as in a transcript's tool calls)
+    if (typeof input.command === 'string') input.command = input.command.split('<DIR>').join(dir.replace(/\\/g, '/'));
     const { out, err } = run(dir, 'pretool', { tool_name: s.tool, tool_input: input, transcript_path: tp });
     const denied = /"permissionDecision":"deny"/.test(out);
     // tags: every rule named in one denial; exact: the whole denial text; says: a pattern the denial must match
@@ -3766,6 +3783,32 @@ if (mineB() && SPEED) { // engine-proof: a project whose engine is the one the s
       JSON.stringify({ h, starter, shipped, full, deep, linkedOther, linkedSame, staleTool, changed, writes }).slice(0, 2000));
   } finally { for (const d of [dir, other, tmp]) try { fs.rmSync(d, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); } catch { } }
 }
+if (mineB()) { // routing-only: a runbook whose only change this turn is its triggers line sets off no project check on changed
+  // runbooks; a changed step still does. Lesson: a deck question taught a runbook its Spanish wording, and the project's
+  // sweeps for changed runbooks held the turn for 30 minutes.
+  const SWEEP = { tag: 'runbook-sweeps', when: { filesChanged: ['docs/playbooks/*.md'] }, require: { toolPassed: { cmd: 'sweeps', pass: 'RESULT: PASS' } }, message: 'Run the runbook sweeps.' };
+  SCENARIO_TAGS.add(SWEEP.tag);
+  const RB = 'docs/playbooks/zz-guide.md', TEXT = '---\nname: zz-guide\nsummary: How to play a deck\ntriggers: how to play, mulligan guide\n---\n# zz guide\n\n## Steps\n1. Read the deck notes.\n';
+  const P = 'cuál es la mejor jugada en mi mazo';
+  const once = change => {
+    const dir = copyProject();
+    try {
+      ownChecksOff(dir);
+      applyEdits(dir, { 'tools/hooks/requirements.json': s => JSON.stringify({ requirements: [...JSON.parse(s).requirements, SWEEP] }), [RB]: () => TEXT }, Date.now() - 3600_000);
+      const since = Date.now() - 1000;
+      let tp = transcript(dir, { prompt: P }, since);
+      run(dir, 'prompt', { session_id: 'routing1', transcript_path: tp, prompt: P });
+      fs.writeFileSync(path.join(dir, RB), change(TEXT));
+      tp = transcript(dir, { prompt: P, tools: [editTool(RB)], answer: 'La mejor jugada es sacrificar un peón al entrar.' + FIN }, since);
+      return run(dir, 'stop', { session_id: 'routing1', transcript_path: tp }).out;
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  };
+  const triggersOnly = once(t => t.replace('mulligan guide', 'mulligan guide, mejor jugada'));
+  const stepChanged = once(t => t.replace('1. Read the deck notes.', '1. Read the deck notes and the matchups.'));
+  report(!/runbook-sweeps|Run the runbook sweeps/.test(triggersOnly) && /runbook-sweeps|Run the runbook sweeps/.test(stepChanged),
+    'routing-only: a runbook whose only change is its triggers line sets off no project check on changed runbooks; a changed step still does',
+    `triggers only: ${triggersOnly.slice(0, 400)} | step changed: ${stepChanged.slice(0, 400)}`);
+}
 if (mineB() && SPEED) { // selftest-lock: one whole run at a time; a second one waits and prints the first one's result; stale locks are taken over
   const dir = copyProject(), tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-'));
   try {
@@ -4030,6 +4073,11 @@ if (mineB()) { // answer-language: a choice made for a user who asked not to be 
   report(/Supuse <decisión> porque/.test(es) && /in a plan: "Supuesto:/.test(es) && /I assumed <choice> because/.test(en) && /in a plan: "Assumed:/.test(en)
     && !/"Supuesto: <decisión>/.test(h.LABELS_ES_HINT) && /only place the rounds appear/.test(h.LABELS_ES_HINT),
     'answer-language: the Assumed hint asks for a plain sentence (the form only in plans), and the Spanish label hint lets one visual-review line stand', `es: ${es} | en: ${en}`);
+  // only the labels of the checks this turn is held to
+  const dbg = h.labelsEsHint('CHECKS: this turn will be held to debug-root-cause, finished-summary.'), plain = h.labelsEsHint('');
+  report(/Causa raíz:/.test(dbg) && !/asesoramiento legal|Facilidad de uso/.test(dbg) && !/Causa raíz:/.test(plain) && /## Terminado/.test(plain) && /\*\*Hecho:\*\*/.test(plain)
+    && plain.length < 400 && h.LABELS_ES_HINT.length > 1000,
+    'answer-language: the Spanish label hint lists only the labels of the checks named (root cause for a debug turn; the finish and block labels always)', `debug: ${dbg} | plain: ${plain}`);
 }
 
 // answer-language: every label a shipped check reads in the answer has a Spanish form that meets it, and the same
@@ -4756,9 +4804,17 @@ if (mineB()) { // state-no-transcript: a hook run with a made-up session id and 
     };
     const quiet = { empty: turnWith('madeUpEmpty', empty), blank: turnWith('madeUpBlank', blank), folder: turnWith('madeUpFolder', path.join(dir, '.cache/tp')), none: turnWith('madeUpNone') };
     const realRun = turnWith('realSession1', real);
+    // a headless run's first prompt: the host's own transcript (named after the session) is still empty, and the turn
+    // still keeps its record and snapshot
+    const headlessTp = path.join(dir, '.cache/tp/headless1.jsonl'); fs.writeFileSync(headlessTp, '');
+    const hb = new Set(ls());
+    run(dir, 'session', { session_id: 'headless1', transcript_path: headlessTp, source: 'startup' });
+    run(dir, 'prompt', { session_id: 'headless1', transcript_path: headlessTp, prompt: 'what does the brief say' });
+    const headless = ls().filter(f => !hb.has(f));
     const ok = Object.values(quiet).every(r => !r.own.length && !r.snap.length && !r.logged)
-      && ['turn.realSession1.json', 'snapshot.realSession1.json', 'notices-shown.realSession1.json', 'turn-end.realSession1.json'].every(f => realRun.own.includes(f)) && realRun.logged;
-    report(ok, 'state-no-transcript: a made-up session id with an empty, blank or unreadable transcript (or none) writes no session state, snapshot or Stop log line; a real transcript still does',
+      && ['turn.realSession1.json', 'snapshot.realSession1.json', 'notices-shown.realSession1.json', 'turn-end.realSession1.json'].every(f => realRun.own.includes(f)) && realRun.logged
+      && ['turn.headless1.json', 'snapshot.headless1.json'].every(f => headless.includes(f));
+    report(ok, 'state-no-transcript: a made-up session id with an empty, blank or unreadable transcript (or none) writes no session state, snapshot or Stop log line; a real transcript still does, also a headless first prompt whose host-named transcript is still empty',
       JSON.stringify({ ...quiet, real: realRun }).slice(0, 700));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
@@ -5320,6 +5376,23 @@ if (mineB() && (!TAGS || TAGS.includes('instructions-run'))) { // instructions-r
     report(/POWERSHELL 5\.1: scripts\/setup\.ps1 uses -Encoding utf8NoBOM\/utf8BOM, the \?\? operator, the && or \|\| pipeline chains/.test(bad) && !/POWERSHELL 5\.1/.test(ok + seven + sh),
       'instructions-run: a .ps1 using utf8NoBOM, ?? or && is named at the edit for PowerShell 5.1; 5.1-safe code, text in strings and comments, a #Requires -Version 7 script and a .sh stay quiet',
       `${bad.slice(0, 200)} | ${ok.slice(0, 100)} | ${seven.slice(0, 100)} | ${sh.slice(0, 100)}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+if (mineB()) { // status-handoff: the edit that finds the turn past 15 tool calls, with docs/STATUS.md unchanged, says so once
+  // (Lesson: agents skipped STATUS.md in 3 of 6 turns although the CHECKS line had named it, at the end of a long line)
+  const dir = copyProject();
+  try {
+    const tp = path.join(dir, '.cache/t.jsonl'); fs.mkdirSync(path.dirname(tp), { recursive: true });
+    const old = (Date.now() - 3600_000) / 1000; fs.utimesSync(path.join(dir, 'docs/STATUS.md'), old, old);
+    fs.writeFileSync(tp, '{"type":"user","message":{"content":"an earlier request"}}\n' + '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read"}]}}\n'.repeat(20));
+    write(dir, { 'tools/hooks/state/turn.json': JSON.stringify({ at: new Date(Date.now() - 1000).toISOString(), prompt: 'fix the import', transcript: tp, tpOff: fs.statSync(tp).size }) });
+    const edit = () => run(dir, 'posttool', { tool_name: 'Edit', transcript_path: tp, tool_input: { file_path: path.join(dir, 'src/import.js') } }).out;
+    const calls = n => fs.appendFileSync(tp, '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash"}]}}\n'.repeat(n));
+    calls(5); const short = edit();
+    calls(10); const long = edit(), again = edit();
+    report(!/docs\/STATUS\.md/.test(short) && /Before you answer: this turn is past 15 tool calls, so update docs\/STATUS\.md/.test(long) && !/docs\/STATUS\.md/.test(again),
+      'status-handoff: the edit that finds the turn past 15 tool calls (earlier turns not counted) names docs/STATUS.md once',
+      `short: ${short.slice(0, 200)} | long: ${long.slice(0, 200)} | again: ${again.slice(0, 200)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 

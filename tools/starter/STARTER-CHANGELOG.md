@@ -41,6 +41,21 @@ hooks:**, and an upgrade lists each one as its own review item.
     dependency-update skill. `selfcheck.mjs --route` routes a relayed message the way the prompt hook does. A "note:"
     label in a relayed message ("Separate note: ...") is the sender's aside and sets off no note capture; typed by
     the user it still does. Scenarios: `route:` (done reports), `relayed turn:` (fixes, note label).
+  - **Field report 8 (deck project, headless turns):**
+    - A runbook or skill whose only change is its `triggers:` line (new routing words, the same procedure) sets off
+      no `filesChanged` check. The turn-start snapshot keeps a hash of each one without that line; git is the
+      fallback. A deck question had taught a runbook its Spanish wording, and the project's sweeps for changed
+      runbooks held the turn for 30 minutes. Scenario: `routing-only`.
+    - A headless run's first prompt keeps its turn record and snapshot while the host's transcript (named after the
+      session) is still empty, so Stop no longer falls back to an older shared one. Scenario: `state-no-transcript`.
+    - The edit that finds a turn past 15 tool calls, with `docs/STATUS.md` unchanged, says once: "Before you answer:
+      ... update docs/STATUS.md". Agents had skipped it in 3 of 6 turns. Scenario: `status-handoff`.
+    - `protect-originals` reads only the parts of a command that run in the project: after a `cd` (chdir,
+      Set-Location, pushd) to a folder outside it, `rm -rf decks/...` in a scratch copy is allowed, unless the
+      project is named by its absolute path. Scenarios: `protect-originals:` (cd).
+    - The Spanish label hint lists only the labels of the checks this turn is held to (about 300 characters on a
+      plain question, not 1,200). With the project's own hooks (`externalHooks`), the CHECKS line says a runbook
+      they name counts for runbook-exists. Scenarios: `answer-language:`, `check-preview:` (own hooks).
     **Breaking for project hooks:** bookkeeping lines (`Playbook:`, `Skill:`, `Worth it:`, `Proven:`, `Learned`) may
     be in `.cache/turn-notes.md` written this turn instead of the answer; a project hook that asks for them in the
     answer should also accept that file. The upgrade-review Stop step no longer fires on the user's own work turns.

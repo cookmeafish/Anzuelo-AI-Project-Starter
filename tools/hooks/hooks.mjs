@@ -1072,8 +1072,28 @@ function fallbackTurn() {
 const recordTurn = (prompt, fresh = true, transcript = '') => {
   const old = fresh ? null : readJSON(stateFile('turn.json'), null);
   writeState('turn.json', old?.at ? { ...old, prompt: `${old.prompt || ''}\n${prompt}`.slice(-4000) }
-    : { at: new Date().toISOString(), prompt: String(prompt).slice(0, 4000), runbooks: list('docs/playbooks'), skills: list(config().skillsDir), openPlans: openPlans().map(x => x.p), ...(transcript ? { transcript: String(transcript) } : {}) });
+    : { at: new Date().toISOString(), prompt: String(prompt).slice(0, 4000), runbooks: list('docs/playbooks'), skills: list(config().skillsDir), openPlans: openPlans().map(x => x.p), ...(transcript ? { transcript: String(transcript), tpOff: sizeOf(transcript) } : {}) });
 };
+const sizeOf = f => { try { return fs.statSync(String(f)).size; } catch { return 0; } };
+// REQ: status-handoff. Said once, at the edit that finds the turn past the tool-call count, while docs/STATUS.md is
+// unchanged: the turn could not know at its start that it would get that long. Lesson: agents skipped the STATUS.md
+// step in 3 of 6 turns although the CHECKS line had named it, at the end of a long line.
+export function handoffNotice(p, data) {
+  if (p === 'docs/STATUS.md' || !exists('docs/STATUS.md') || isSuspended('check:status-handoff')) return null;
+  const t = readJSON(stateFile('turn.json'), null), tp = data.transcript_path || t?.transcript;
+  if (!t?.at || t.handoffShown || !tp) return null;
+  const q = [...BASE_REQUIREMENTS].find(r => r.tag === 'status-handoff'), min = q?.when?.minToolCalls || 15;
+  let calls = 0;
+  try {
+    const fd = fs.openSync(String(tp), 'r'), off = Math.min(t.tpOff || 0, sizeOf(tp)), len = sizeOf(tp) - off;
+    try { const b = Buffer.alloc(Math.min(len, 32 << 20)); fs.readSync(fd, b, 0, b.length, off); calls = (b.toString('utf8').match(/"type":"tool_use"/g) || []).length; } finally { fs.closeSync(fd); }
+  } catch { return null; }
+  // (the edit that runs this hook may not be in the transcript yet)
+  if (calls + 1 < min) return null;
+  try { if (fs.statSync(abs('docs/STATUS.md')).mtimeMs > Date.parse(t.at)) return null; } catch { return null; }
+  writeState('turn.json', { ...t, handoffShown: true });
+  return `Before you answer: this turn is past ${min} tool calls, so update docs/STATUS.md (where things stand, what is next) in this pass.`;
+}
 
 // ---------- turns: a turn runs from the user's prompt until a Stop lets the answer end ----------
 // Notices go out once per turn, not with every message. Lesson: the rules line, setup notice and last turn's misses
@@ -1787,6 +1807,9 @@ export function flushEngineWrites(extra = []) {
 // byte for byte, and the unchanged page demanded a screenshot review.
 const SNAPSHOT = 'snapshot.json', HASH_MAX = 2 * 1024 * 1024;
 const sha = p => { try { return createHash('sha1').update(fs.readFileSync(abs(p))).digest('hex'); } catch { return null; } };
+// a runbook or skill without its triggers line, so a change of routing words alone can be told apart (routingOnlyEdits)
+const ROUTED_DOC = /^docs\/playbooks\/[^/]+\.md$|(^|\/)SKILL\.md$/;
+const bodySha = p => { try { return createHash('sha1').update(fs.readFileSync(abs(p), 'utf8').replace(/\r\n/g, '\n').replace(/^triggers:.*$/m, '')).digest('hex'); } catch { return null; } };
 // The hashes to reuse: this session's last snapshot, else the newest one any session left (a file with the same mtime
 // and size has the same hash). Lesson: every new session's first prompt hashed the whole project again.
 function snapshotBase() {
@@ -1805,7 +1828,8 @@ export function takeSnapshot(cfg = config()) {
       let s; try { s = walkStat(p); } catch { continue; }
       if (s.isDirectory()) { walk(p); continue; }
       const o = old[p];
-      files[p] = o && o[0] === s.mtimeMs && o[1] === s.size ? o : [s.mtimeMs, s.size, s.size <= HASH_MAX ? sha(p) : null];
+      const routed = ROUTED_DOC.test(p);
+      files[p] = o && o[0] === s.mtimeMs && o[1] === s.size && (!routed || o[3]) ? o : [s.mtimeMs, s.size, s.size <= HASH_MAX ? sha(p) : null, ...(routed ? [bodySha(p)] : [])];
     }
   };
   walk('');
@@ -2971,15 +2995,34 @@ export const isSpanish = text => { const s = String(text || '').slice(0, 2000); 
 export const assumedHint = es => es
   ? 'a plain sentence in the answer, like "Supuse <decisión> porque <por qué>; si no es así, <lo que cuesta cambiarlo>" (in a plan: "Supuesto: <decisión> - <por qué> - <coste si me equivoco>")'
   : 'a plain sentence in the answer, like "I assumed <choice> because <why>; if that\'s wrong, <what it costs to change>" (in a plan: "Assumed: <choice> - <why> - <cost if wrong>")';
-export const LABELS_ES_HINT = 'Write the whole answer in Spanish, labels too; the checks accept them: "## Terminado" (Finished), "Causa raíz:", ' +
-  '"Revisión visual: correcta tras N rondas" (one line can be the only place the rounds appear), "Accesibilidad: <qué revisé> - correcta", "La revisión de seguridad salió bien - detalles en docs/reviews/security-AAAA-MM-DD.md", ' +
+// Each label with the checks that read it (null: every turn). Only the labels of the checks this turn is held to are
+// listed. Lesson: the hint ran to about 1,400 characters, mostly labels of packs the project did not have.
+const ES_LABELS = [
+  [null, '"## Terminado" (Finished)'],
+  [/root-cause/, '"Causa raíz:"'],
+  [/gui|visual|screen/, '"Revisión visual: correcta tras N rondas" (one line can be the only place the rounds appear)'],
+  [/a11y/, '"Accesibilidad: <qué revisé> - correcta"'],
+  [/security-/, '"La revisión de seguridad salió bien - detalles en docs/reviews/security-AAAA-MM-DD.md"'],
+  [/foundation/, '"Seguridad: ... Rendimiento: ... Facilidad de uso: ..." (the app foundation)'],
   // (Lesson: this hint offered "Lo probé a mano:", and an answer said a check was done by hand when a script had driven
   // the browser)
-  '"Seguridad: ... Rendimiento: ... Facilidad de uso: ..." (the app foundation), "## Verificación" with "Pruebas automáticas:", "Sitio real:" (saying how: "con un navegador automatizado" when a script drove it; "a mano" only for what a person did), "Revisión independiente:", "Puntos débiles:", ' +
-  '"Aprendido (regla): <lección> → <archivo>", "Evaluado: <herramienta> ... licencia <nombre>", "Habilidades existentes revisadas:", "Cómo se calculó:", "Fuentes:", "No es asesoramiento legal", ' +
-  '"**Aviso:**" (Heads-up), "**Hecho:**", "**Problema:**", "**Pregunta para ti:**", "Revisión independiente: lista para publicar" (SHIP) or "veredicto: corregir" (FIX), "Comprobado: <qué abrí> - <qué mostraba>", ' +
-  '"Probado: falla con <muestra de la queja>; pasa con <buena 1>, <buena 2>", ' +
-  '"Guía: <runbook>.md · Habilidad: <nombre> · Vale la pena: <ganancia> / <coste>".';
+  [/verification|release-ready|client-verified|qa-/, '"## Verificación" with "Pruebas automáticas:", "Sitio real:" (saying how: "con un navegador automatizado" when a script drove it; "a mano" only for what a person did), "Revisión independiente:", "Puntos débiles:"'],
+  [/upset|self-improve|skill-learn/, '"Aprendido (regla): <lección> → <archivo>"'],
+  [/install/, '"Evaluado: <herramienta> ... licencia <nombre>"'],
+  [/skill-finder|skill-compared/, '"Habilidades existentes revisadas:"'],
+  [/data-computed/, '"Cómo se calculó:"'],
+  [/research|answer-cites|sourced/, '"Fuentes:"'],
+  [/legal/, '"No es asesoramiento legal"'],
+  [null, '"**Aviso:**" (Heads-up), "**Hecho:**", "**Problema:**", "**Pregunta para ti:**"'],
+  [/review-verdict|release-/, '"Revisión independiente: lista para publicar" (SHIP) or "veredicto: corregir" (FIX)'],
+  [/claim-checked/, '"Comprobado: <qué abrí> - <qué mostraba>"'],
+  [/check-proven|claim-checked/, '"Probado: falla con <muestra de la queja>; pasa con <buena 1>, <buena 2>"'],
+  [null, '"Guía: <runbook>.md · Habilidad: <nombre> · Vale la pena: <ganancia> / <coste>"'],
+];
+// scope: the text naming this turn's checks (the CHECKS line, the steps left); without it, every label
+export const labelsEsHint = (scope = null) => 'Write the whole answer in Spanish, labels too; the checks accept them: ' +
+  ES_LABELS.filter(([r]) => !r || scope == null || r.test(scope)).map(([, l]) => l).join(', ') + '.';
+export const LABELS_ES_HINT = labelsEsHint();
 
 // ---------- people / scopes ----------
 export function people(cfg = config()) {
@@ -3999,7 +4042,8 @@ export function promptHints(prompt, cfg = config(), withNotices = true, { relaye
   // REQ: answer-language. A Spanish request gets its labels in Spanish from the start, not only after a Stop round.
   // Lesson: a Spanish-speaking user's answers carried "Assumed:", "Root cause:" and "## Finished", because every hint
   // quoted the English label.
-  if (isSpanish(p) && (isTaskEs(p) || re(cfg.taskVerbs).test(p))) hints.push(`LANGUAGE: the user writes in Spanish. ${LABELS_ES_HINT}`);
+  // (its labels are filled in once the CHECKS line below names this turn's checks)
+  const esAt = isSpanish(p) && (isTaskEs(p) || re(cfg.taskVerbs).test(p)) ? hints.push('LANGUAGE') - 1 : -1;
   // (a Spanish request is a task too. Lesson: only English verbs counted, so a Spanish task never got NO RUNBOOK or the
   // closest runbook)
   const isTask = (re(cfg.taskVerbs).test(p) || isTaskEs(p)) && p.split(/\s+/).length >= 3 && !OPINION.test(p) && !isRelay(unquoted(p));
@@ -4045,7 +4089,9 @@ export function promptHints(prompt, cfg = config(), withNotices = true, { relaye
   if (working) {
     const line = checkPreview(routed.map(r => r.pb), sk.map(s => s.pb), [...forced.values()].map(f => f.q.tag), flags.filter(f => f[0]).map(f => f[1]), p, cfg, { relayed });
     if (line) hints.push(line);
+    if (esAt >= 0) hints[esAt] = `LANGUAGE: the user writes in Spanish. ${labelsEsHint(line || '')}`;
   }
+  if (esAt >= 0 && hints[esAt] === 'LANGUAGE') hints[esAt] = `LANGUAGE: the user writes in Spanish. ${labelsEsHint('')}`;
   const due = hardenDue(pbs, usage(), cfg);
   if (due.length && routed.some(r => due.includes(r.pb)))
     hints.push(`SKILL HARDENING DUE for ${routed.filter(r => due.includes(r.pb)).map(r => r.pb.file).join(', ')}: after the task, use the skill-harden skill.`);
@@ -4108,6 +4154,9 @@ export function checkPreview(pbs, skills, forced, flagged, prompt, cfg = config(
   const also = edits.length ? [] : ['changelog', 'audit-run', ...fmt].filter(t => !tags.includes(t) && !then.includes(t) && !off(t));
   // nothing routed: following a runbook after all trades runbook-exists for playbook-named at Stop
   const noRoute = tags.includes('runbook-exists');
+  // (a project whose own hooks route, config externalHooks: the engine cannot see their hint, which comes at the same
+  // time. Lesson: a deck question was told it needed a new runbook while the project's hook had named one)
+  const extRoutes = [].concat(cfg.externalHooks || []).length > 0;
   // A request that names no file: the project's own checks set off by changing files (its requirements.json, not the
   // engine's) are named with the files that set them off, so a change to those files is not a surprise at Stop.
   const shipped = new Set([...BASE_REQUIREMENTS.map(q => q.tag), ...readJSON(abs(ENGINE_CHECKS), { requirements: [] }).requirements.map(q => q?.tag)]);
@@ -4131,7 +4180,7 @@ export function checkPreview(pbs, skills, forced, flagged, prompt, cfg = config(
     const list = ts => group ? groupTags(ts) : ts.join(', ');
     const keepThen = then.slice(0, Math.max(0, then.length - cut)), keepTags = tags.slice(0, Math.max(1, tags.length - Math.max(0, cut - then.length)));
     const more = tags.length + then.length - keepTags.length - keepThen.length;
-    return `CHECKS: this turn will be held to ${list(keepTags)}${noRoute ? ' (playbook-named instead once it follows a runbook)' : ''}${keepThen.length ? `; their fixes set off ${list(keepThen)}` : ''}${more ? ` +${more} more` : ''}.` +
+    return `CHECKS: this turn will be held to ${list(keepTags)}${noRoute ? ` (playbook-named instead once it follows a runbook${extRoutes ? ", such as one the project's own hooks name" : ''})` : ''}${keepThen.length ? `; their fixes set off ${list(keepThen)}` : ''}${more ? ` +${more} more` : ''}.` +
       `${also.length ? ` Also ${also.join(' + ')} if it edits runbooks, skills, rules or checks,` : ' Also'} status-handoff after 15+ tool calls${planSoon(plan)}.` +
       (nIf ? ` If it changes ${ifChanged.slice(0, nIf).join('; ')}.` : '') + ' Do them all in the first pass.' +
       (many ? ` Self-check first: node tools/hooks/hooks.mjs check --answer-file ${shortSelf ? '<file>' : '<file with your answer>'}.` : '');
@@ -4393,6 +4442,23 @@ export function pretoolDecision(data, cfg = config()) {
   return `This tool call breaks ${hits.length} rules. Fix all of them before trying again:\n` +
     shown.map((h, i) => `${i + 1}. ${h}`).join('\n') + (more ? `\n(${more} more not shown.)` : '');
 }
+// The parts of a command that run inside the project: a "cd" (chdir, Set-Location, pushd) to a folder outside it moves
+// the parts after it out, unless they name the project by its absolute path. A command starts in the project (a
+// cwd the host reports is not trusted to switch a guard off). Lesson: "cd <a scratch copy>; rm -rf decks/x" was denied as a delete of the
+// project's own decks.
+export function inProjectParts(cmd, cwd = ROOT) {
+  const unix = s => process.platform === 'win32' ? s.replace(/^\/([a-z])(?=\/|$)/i, '$1:') : s;
+  const norm = s => s.replace(/\\/g, '/').toLowerCase();
+  const roots = [norm(ROOT), norm(ROOT).replace(/^([a-z]):/, (_, d) => `/${d}`)];
+  let at = path.resolve(unix(String(cwd || ROOT))); const keep = [];
+  for (const seg of String(cmd).split(/\s*(?:&&|\|\||;|\r?\n)\s*/)) {
+    const m = /^(?:cd|chdir|Set-Location|sl|pushd)(?:\s+\/d)?\s+(?:-(?:Path|LiteralPath)\s+)?(["']?)([^"';&|]+?)\1\s*$/i.exec(seg.trim());
+    if (m) { at = path.resolve(at, unix(m[2].trim().replace(/^~(?=[\\/]|$)/, os.homedir()))); continue; }
+    const r = path.relative(ROOT, at);
+    if ((!r.startsWith('..') && !path.isAbsolute(r)) || roots.some(x => norm(seg).includes(x))) keep.push(seg);
+  }
+  return keep.join('; ');
+}
 // Every rule the call breaks, in the order the checks run (each message once).
 function pretoolHits(data, cfg) {
   const out = [], add = m => { if (m && !out.includes(m)) out.push(m); };
@@ -4636,8 +4702,11 @@ function pretoolHits(data, cfg) {
         add(`REQ: whole-output. Read the output of ${tool} whole: don't pipe it into a filter. Write it to a file in .cache/ and Read that if it is long.`);
     }
     // Adding files INTO a protected folder is fine (ingest moves inbox -> sources); deleting, moving out of, or writing
-    // over files in it is not. A path may be relative, ./-prefixed, absolute, or quoted.
-    for (const d of cfg.protectedOriginals.map(g => g.replace(/\/?\*\*.*$/, '')).filter(Boolean)) {
+    // over files in it is not. A path may be relative, ./-prefixed, absolute, or quoted. Only the parts that run in the
+    // project count (inProjectParts).
+    const here = cfg.protectedOriginals.length ? inProjectParts(cmd) : cmd;
+    for (const d of here.trim() ? cfg.protectedOriginals.map(g => g.replace(/\/?\*\*.*$/, '')).filter(Boolean) : []) {
+      const cmd = here;
       const P = `["']?(?:[^\\s"';|&]*[\\\\/])?${esc(d)}(?:[\\\\/]|["'\\s;|&]|$)`;
       const hits = [
         `(^|[\\s;&|(])(rm|del|erase|rmdir|rd|Remove-Item|ri|Clear-Content|truncate|shred|unlink)\\b[^;&|]*?(\\s|^)${P}`,
@@ -4716,7 +4785,8 @@ function cmdPosttool(data) {
   if (/^(docs\/(playbooks|checks|knowledge|MENU\.md)|skills\/|tools\/hooks\/requirements\.json)/.test(p)) syncAll();
   const h = eventHintAfterEdit(p, data.tool_input || {});
   const pub = publishNotice(p, data.tool_input || {}), plan = planNotice(p, data.tool_input || {}), ps = ps51Notice(p, data.tool_input || {});
-  if (h || pub || plan || ps) contextOut('PostToolUse', [h, pub, plan, ps].filter(Boolean).join('\n') + '\n');
+  const hand = handoffNotice(p, data);
+  if (h || pub || plan || ps || hand) contextOut('PostToolUse', [h, pub, plan, ps, hand].filter(Boolean).join('\n') + '\n');
 }
 // A PowerShell script that uses what only PowerShell 7 (pwsh) has: "powershell", the one every Windows has, is 5.1 and
 // stops on it. Named at the edit, so the script or the instruction gets fixed before the user runs it (REQ:
@@ -5939,6 +6009,28 @@ export function figureProblems(x) {
   }
   return out;
 }
+// Runbooks and skills this turn changed only in their "triggers:" line, against the last commit made before the turn
+// (no git, a later commit, or any other changed line: none). Lesson: a deck question taught a runbook its Spanish
+// wording, and the project's sweeps for changed runbooks then held the turn for 30 minutes.
+export function routingOnlyEdits(x) {
+  if (x._routingOnly) return x._routingOnly;
+  const out = new Set();
+  const cands = (x.changed || []).filter(p => ROUTED_DOC.test(p));
+  // the turn-start snapshot first (it works without git): the same text once the triggers line is left out
+  // (the text itself changed: a file named as one the turn will edit, as the CHECKS preview does, is not one yet)
+  const snap = readJSON(stateFile(SNAPSHOT), {}), fresh = !!x.since && snap.files && Date.parse(snap.at) >= x.since - 5000;
+  for (const p of cands) { const o = fresh && snap.files[p]; if (o?.[3] && sha(p) !== o[2] && bodySha(p) === o[3]) out.add(p); }
+  if (cands.length && committedBefore(x.since).size) {
+    for (const p of cands.filter(p => !out.has(p) && !(fresh && snap.files[p]?.[3]))) {
+      if (!committedBefore(x.since).has(p)) continue;
+      const d = spawnSync('git', ['diff', '--no-color', '-U0', 'HEAD', '--', p], { cwd: ROOT, encoding: 'utf8' });
+      if (d.status !== 0) continue;
+      const lines = d.stdout.split(/\r?\n/).filter(l => /^[+-]/.test(l) && !/^(\+\+\+|---) /.test(l));
+      if (lines.length && lines.every(l => /^[+-]triggers:/.test(l))) out.add(p);
+    }
+  }
+  return (x._routingOnly = out);
+}
 export function holds(c, x) {
   const r = s => new RegExp(s, 'im');
   const globs = v => [].concat(v);
@@ -5951,7 +6043,8 @@ export function holds(c, x) {
   if (c.minToolCalls && x.uses.length < c.minToolCalls) return false;
   if (c.workTurn && !x.workTurn) return false;
   // filesIgnore narrows filesChanged and changedContentMatches: those files never count
-  const counted = p => !c.filesIgnore || !match(p, globs(c.filesIgnore));
+  // (nor does a runbook or skill whose only change is its triggers line: new routing words, the same procedure)
+  const counted = p => (!c.filesIgnore || !match(p, globs(c.filesIgnore))) && !routingOnlyEdits(x).has(p);
   if (c.filesChanged && !x.changed.some(p => counted(p) && match(p, globs(c.filesChanged)))) return false;
   // anyOf: at least one of these condition sets holds (each one is judged like a whole "when" or "require")
   if (c.anyOf && !c.anyOf.some(sub => (x.toolsKnown || !needsHistory(sub)) && holds(sub, x))) return false; // without history, only what can be judged counts
@@ -6478,7 +6571,7 @@ export function stopDecision(data, cfg = config()) {
       // "Note: the earlier answer didn't use the exact wording" into answers about a version the user never saw.
       `end with the whole answer to the user's request again, in the user's language (the result, the verdict, what they asked for), updated, written as if it were the first: the user never saw the earlier version or these steps, so it says nothing about them (no "here is the answer again", no "Note: this version ...", no "the earlier answer ...", no check names or waivers); the last message is the one the user reads.` +
       (shortOk ? ' Only if that answer is unchanged and these steps only changed files, end instead with one short line: "Answer unchanged; also updated: <the files, in plain words>" (in the user\'s language).' : '') +
-      (isSpanish(x.prompt) ? ` ${LABELS_ES_HINT}` : '') +
+      (isSpanish(x.prompt) ? ` ${labelsEsHint(steps.map(m => m.tag).join(' '))}` : '') +
       `${cfg.autonomy === 'auto' ? ` The user asked not to be asked: where a step says "with the user", decide it yourself and record it as ${assumedHint(isSpanish(x.prompt))}.` : ''} Full steps: \`node tools/hooks/hooks.mjs why\`. A step that truly does not apply: \`node tools/hooks/hooks.mjs waive <name> "<reason>"\` (one waive per step, chained with && if you like), never an N/A line in the answer: the user doesn't know the check names. Names: ${steps.map(m => m.tag).join(', ')}.`
   };
 }
@@ -6908,7 +7001,11 @@ if (isMain) {
   HOST = hookHost(data);
   SID = String(data.session_id || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
   // (see NO_TRANSCRIPT: at session start a path whose file is not written yet still counts as a transcript)
-  if (SID) { const ts = transcriptState(data.transcript_path); NO_TRANSCRIPT = ts !== 'ok' && !(cmd === 'session' && ts === 'missing'); }
+  // (the host's own transcript, named after the session, counts while it is still missing or empty: a headless run's
+  // first prompt comes before it is written. Lesson: such a turn kept no turn record or snapshot, so Stop compared with an
+  // older snapshot and held a deck question to the deck sweeps for runbooks an earlier turn had changed)
+  const hostNamed = !!SID && path.basename(String(data.transcript_path || '')).toLowerCase() === `${SID}.jsonl`.toLowerCase();
+  if (SID) { const ts = transcriptState(data.transcript_path); NO_TRANSCRIPT = ts !== 'ok' && !(cmd === 'session' && ts === 'missing') && !(hostNamed && (ts === 'missing' || ts === 'empty')); }
   // old sessions' state files go after 7 days (pruneState), the unsuffixed ones too: what agents without hooks and older
   // releases left. Lesson: an 80 KB snapshot.json from before per-session files stayed for good.
   if (cmd === 'session' && !envOf('BENCH')) pruneState();
