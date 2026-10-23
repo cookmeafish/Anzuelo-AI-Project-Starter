@@ -96,6 +96,25 @@ hooks:**, and an upgrade lists each one as its own review item.
       (`improvement-loop`, `field-report`) route like any runbook, only in the starter, and are never copied into a
       project or made into skills. Another session's message routes to `field-report` when nothing else fits. The
       user had asked for repeated testing several times before it became a procedure. Scenarios: `starter-runbooks:`.
+    - **Round 9 judges' findings fixed:**
+      - A program held for the user's approval is not run another way (a node, python or shell one-liner): the
+        call is denied with the honest "NOT VERIFIED" line to write instead. A Go project had run `go test` through
+        node's spawnSync after it was held. Scenarios: `permission-respected:`.
+      - skill-learn asks for no lesson when the failing check is one the answer's text alone meets (a report table,
+        a verification line). A missing table had "lessons" about rewording answers written into a security runbook.
+        Scenario: `skill-learn: only an answer-text check`.
+      - Under autonomy auto, the feature runbook decides (safest choice, an `Assumed:` line) instead of asking; a
+        labeled "Question for you:" or a closing "reply with a number" counts as asking, and an option's mention of a
+        password no longer exempts it. A Flask turn built nothing and waited on a four-option question. Scenarios:
+        `autonomy-decide:`.
+      - Turning the project's git hooks on and reading the setting back is no longer denied as re-pointing them
+        (two setups were). Scenarios: `git-safety: turning the project's git hooks on`.
+      - The visual review line passes in the user's own Spanish ("está bien después de 2 rondas", "correcta a la
+        primera") and in English "on the first try"; Spanish users are asked for Spanish progress updates too.
+      - A passing self-check says to send the checked text as it stands: answers that passed were shortened when sent
+        and blocked at the end, so the whole answer went out twice.
+      - The feature review waits for the reviewer's verdict in the same turn, instead of ending with "I'll finish
+        once it comes back".
     - **Sessions that bypass the engine are caught** (found by running the engine on the starter's own work): a
       commit or push from a Claude Code session that this project's hooks never saw (it was started in another
       folder) is refused, with the way through (`git-guard`, both hooks). `hooks.mjs begin` from such a session records
