@@ -1068,7 +1068,10 @@ function backgroundRunning(rows) {
   // was waited on forever, and a refused launch was counted as running.
   // A foreground command that hit its timeout is moved to the background ("... was moved to the background (ID: x)"):
   // a launch too. Lesson: Stop asked for steps while such a command still ran, since only run_in_background counted.
-  for (const s of shells) if (MOVED_BG.test(results.get(s.id) || '')) launches.push(s);
+  // (a helper the host runs in the background by itself says so in its result: "Async agent launched ... agentId: x".
+  // Lesson, a field report: three helpers launched that way were not waited on, and Stop asked twice for their merged
+  // results while they still ran)
+  for (const s of shells) if (MOVED_BG.test(results.get(s.id) || '') || /\basync agent launched\b/i.test(results.get(s.id) || '')) launches.push(s);
   for (const s of resumes) { const m = /\bresumedAgentId["']?\s*[:=]\s*["']?([\w-]{4,})/i.exec(results.get(s.id) || ''); if (m) launches.push({ ...s, agentId: m[1] }); }
   return launches.filter(l => {
     if (l.agentId) return !notes.some(n => n.i > l.i && n.t.includes(l.agentId)) && !stops.some(s => s.i > l.i && s.t.includes(l.agentId) && /\b(stopped|killed|cancell?ed|terminated)\b/i.test(s.t));

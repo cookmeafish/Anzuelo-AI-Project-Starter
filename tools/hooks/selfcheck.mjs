@@ -995,6 +995,11 @@ STOP.push(
     answer: 'Skill: parallel-agents. All three agents finished.' + FIN, expect: { block: true, tags: ['parallel-merged'] } },
   { name: 'parallel work still running in the background: the merge check waits', prompt: 'split the work across several agents', tools: [sk('parallel-agents'), { name: 'Agent', input: { prompt: 'part one', run_in_background: true } }, { name: 'Write', input: { file_path: 'docs/STATUS.md', content: 'x' } }, ...many(15)], files: { 'docs/STATUS.md': 'x' },
     answer: 'Skill: parallel-agents. Three agents are running; I will check their results when they report.' + FIN, expect: { block: false } },
+  // (helpers the host runs in the background by itself, with no run_in_background flag. Lesson, a field report: three
+  // such helpers were not waited on, and parallel-trigger blocked twice for results that could not exist yet)
+  { name: 'parallel-trigger: helpers launched async without the background flag are waited on', prompt: 'check these three decks with separate agents',
+    tools: [1, 2, 3].map(n => ({ name: 'Agent', input: { prompt: `Read AGENTS.md first and follow its rules. Check deck ${n}.` }, result: `Async agent launched successfully.\nagentId: a${n}b2c3d4e5 (use SendMessage to continue)` })),
+    answer: 'Three agents are checking the decks; I will report when they are back.' + FIN, expect: { not: ['parallel-trigger', 'parallel-merged'] } },
   { name: 'parallel work in the background, with a project check written before "waitsForAgents" existed: still waits', prompt: 'split the work across several agents',
     edit: { 'tools/hooks/requirements.json': s => JSON.stringify({ ...JSON.parse(s), requirements: JSON.parse(s).requirements.map(r => r.tag === 'parallel-merged' ? (({ waitsForAgents, ...rest }) => rest)(r) : r) }) },
     tools: [sk('parallel-agents'), { name: 'Agent', input: { prompt: 'part one', run_in_background: true } }, { name: 'Write', input: { file_path: 'docs/STATUS.md', content: 'x' } }, ...many(15)], files: { 'docs/STATUS.md': 'x' },

@@ -108,6 +108,10 @@ hooks:**, and an upgrade lists each one as its own review item.
       scenarios too (setup ran them twice); a whole note folder in a skill's check (`Baking/**`) no longer makes
       writing a note count as that skill's report (a dictated note set off research and citation checks).
     - **selfcheck**: standalone tests gated by tag now run with `--tags` (they sat inside the full-run-only block).
+    - **Helpers the host runs in the background by itself are waited on** (field report): an Agent call with no
+      background flag whose result says "Async agent launched" counts as running until its notice arrives, so
+      parallel-trigger no longer asks for merged results that cannot exist yet. Scenario: `parallel-trigger: helpers
+      launched async`. Tests and trials also clear the outer Claude Code session from their environment.
     - **Round 9 judges' findings fixed:**
       - A program held for the user's approval is not run another way (a node, python or shell one-liner): the
         call is denied with the honest "NOT VERIFIED" line to write instead. A Go project had run `go test` through
