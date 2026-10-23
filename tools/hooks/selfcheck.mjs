@@ -4166,6 +4166,12 @@ if (mineB()) { // answer-language: a choice made for a user who asked not to be 
   report(/Causa raíz:/.test(dbg) && !/asesoramiento legal|Facilidad de uso/.test(dbg) && !/Causa raíz:/.test(plain) && /## Terminado/.test(plain) && /\*\*Hecho:\*\*/.test(plain)
     && plain.length < 400 && h.LABELS_ES_HINT.length > 1000,
     'answer-language: the Spanish label hint lists only the labels of the checks named (root cause for a debug turn; the finish and block labels always)', `debug: ${dbg} | plain: ${plain}`);
+  // the visual review line in the user's own words (Lesson, trial round 9: "está bien después de 2 rondas" and "correcta a
+  // la primera" were refused and rewritten into the template's words)
+  const vr = t => { const s = h.inEnglish(t); return /visual review:\s*(pass|stopped)/i.test(s) && /\bround|\bfirst (try|round|pass|attempt)\b/i.test(s); };
+  report(vr('**Revisión visual:** está bien después de 2 rondas') && vr('- **Revisión visual:** correcta a la primera') && vr('Revisión visual: quedó correcta tras 3 rondas')
+    && vr('Visual review: PASS on the first try') && !vr('Revisión visual: pendiente'),
+    'answer-language: the visual review line passes in the user\'s own words ("está bien después de 2 rondas", "correcta a la primera", "PASS on the first try")', '');
 }
 
 // answer-language: every label a shipped check reads in the answer has a Spanish form that meets it, and the same

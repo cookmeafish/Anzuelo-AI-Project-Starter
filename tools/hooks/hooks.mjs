@@ -2948,7 +2948,10 @@ export const memoryDir = (cfg = config()) => {
 export const LABELS_ES = [
   [/^(\s*(?:#{1,6}\s*|\*\*)?)(hecho|listo)(\**)\s*$/gim, '$1Finished$3'],
   [/\b(terminado|finalizado|resumen final)\b/gi, 'Finished'], [/\bcausa (ra[ií]z|de fondo)\b/gi, 'Root cause'],
-  [/\brevisi[oó]n visual\b/gi, 'Visual review'], [/(visual review\**\s*:\s*\**)(correct[ao]|aprobad[ao]|pasa|superad[ao]|sin problemas|bien|ok)\b/gi, '$1PASS'],
+  [/\brevisi[oó]n visual\b/gi, 'Visual review'], [/(visual review\**\s*:\s*\**)(?:(?:est[aá]|qued[oó]|sali[oó]|es)\s+)?(correct[ao]|aprobad[ao]|pasa|superad[ao]|sin problemas|bien|ok)\b/gi, '$1PASS'],
+  // ("está bien", "quedó correcta"; the first time is one round. Lesson, trial round 9: "está bien después de 2 rondas"
+  // and "correcta a la primera" were refused and rewritten into the template's words)
+  [/\b(a la primera|al primer intento|en el primer intento|en la primera (ronda|vuelta))(?![\wáéíóúñ])/gi, 'after 1 round'], [/\b(despu[eé]s de|tras)\s+(\d+)\s+(rondas?|vueltas?)\b/gi, 'after $2 rounds'],
   [/(visual review\**\s*:\s*\**)(detenid[ao]|parad[ao]|interrumpid[ao])\b/gi, '$1STOPPED'], [/\b(rondas?|vueltas?)\b/gi, 'rounds'],
   [/\baccesibilidad\b/gi, 'Accessibility'], [/(accessibility\**\s*:[^\n]*?)\b(correct[ao]|aprobad[ao]|pasa|bien)\b/gi, '$1pass'],
   [/\bcontraste\b/gi, 'contrast'], [/\bteclado\b/gi, 'keyboard'], [/\bfoco\b/gi, 'focus'], [/\betiquetas?\b/gi, 'labels'], [/\blector(es)? de pantalla\b/gi, 'screen reader'],
@@ -3066,7 +3069,7 @@ const ES_LABELS = [
   [null, '"Guía: <runbook>.md · Habilidad: <nombre> · Vale la pena: <ganancia> / <coste>"'],
 ];
 // scope: the text naming this turn's checks (the CHECKS line, the steps left); without it, every label
-export const labelsEsHint = (scope = null) => 'Write the whole answer in Spanish, labels too; the checks accept them: ' +
+export const labelsEsHint = (scope = null) => 'Write in Spanish: the whole answer, its labels and your progress updates while you work; the checks accept these labels: ' +
   ES_LABELS.filter(([r]) => !r || scope == null || r.test(scope)).map(([, l]) => l).join(', ') + '.';
 export const LABELS_ES_HINT = labelsEsHint();
 
@@ -5695,7 +5698,7 @@ export function coreChecks(x, cfg) {
       if (unread.length) add('gui-review-loop', `Look at every screenshot of the latest round (open the image) before judging it${x.toolsKnown ? '' : ', and list each file name in the Visual review section'}: ${unread.slice(0, 8).join(', ')}${unread.length > 8 ? ` (+${unread.length - 8} more)` : ''}.`);
       // REQ: gui-review-report
       const verdict = /visual review:\s*(pass|stopped)/i.exec(x.afterChange);
-      if (!verdict || !/\bround/i.test(x.afterChange))
+      if (!verdict || !/\bround|\bfirst (try|round|pass|attempt)\b/i.test(x.afterChange))
         // (one line may be the only place the rounds appear. Lesson: answers listed the rounds, then repeated "Visual
         // review: PASS after 5 rounds" right under them.)
         add('gui-review-report', 'Say how the visual review went in one line: "Visual review: PASS after N round(s) - <what the rounds fixed>" ' +
