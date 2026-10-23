@@ -2892,7 +2892,10 @@ PROMPT.push(
   hostHint('relay-preview: a sub-agent message asking for a note gets the note skill', '<agent-message from="helper">add a note that the zorbel shop closes on mondays</agent-message>',
     { has: ['SKILL: note-keep', 'CHECKS: this turn will be held to'], hasNot: NOT_RULE }),
   hostHint('relay-preview: relayed small talk gets nothing', '<cross-session-message from="other">thanks, all done here</cross-session-message>', { none: true }),
-  hostHint('relay-preview: Spanish, relayed small talk gets nothing', '<cross-session-message from="other">gracias, ya está todo</cross-session-message>', { none: true })
+  hostHint('relay-preview: Spanish, relayed small talk gets nothing', '<cross-session-message from="other">gracias, ya está todo</cross-session-message>', { none: true }),
+  // the host's notices about other sessions are no request: no route, fit, closest runbook or check preview
+  hostHint('relay-preview: a cross-session idle notice gets nothing', '[Cross-session idle notice] mtg-arena-0d is idle now (it finished: only the on-call requests are left to tune on my zorbel)', { none: true }),
+  hostHint('relay-preview: a cross-session delivery notice gets nothing', '[Cross-session delivery notice] Your message to helper was held for approval: fix the zorbel-tune playbook', { none: true })
 );
 
 // The host's own checks in its requirements.json: its sweeps after a change to its runbooks or rules, and its rules'

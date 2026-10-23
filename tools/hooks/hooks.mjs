@@ -810,8 +810,10 @@ export function expandMenu(prompt) {
 }
 
 // ---------- transcript ----------
+// (the host's own notices about other sessions are no request either. Lesson: "[Cross-session idle notice] ... is idle
+// now" got a FIT hint, a closest runbook and a CHECKS line as if the user had typed it)
 const SKIP = ['Stop hook feedback', '<system-reminder>', '<task-notification>', 'Another Claude session', '<agent-message', '<cross-session-message',
-  '[SYSTEM NOTIFICATION', 'Caveat: The messages below', 'Almost done:', 'Project rules not met yet', 'Stop hook error', '<local-command-stdout>', '<local-command-stderr>', '[Request interrupted'];
+  '[Cross-session idle notice]', '[Cross-session delivery notice]', '[SYSTEM NOTIFICATION', 'Caveat: The messages below', 'Almost done:', 'Project rules not met yet', 'Stop hook error', '<local-command-stdout>', '<local-command-stderr>', '[Request interrupted'];
 const COMPACT = 'This session is being continued from a previous conversation';
 export const textOf = c => typeof c === 'string' ? c
   : Array.isArray(c) ? c.filter(x => x && x.type === 'text').map(x => x.text || '').join('\n') : '';
