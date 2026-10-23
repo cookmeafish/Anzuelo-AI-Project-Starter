@@ -3922,7 +3922,10 @@ const asRoute = c => STARTER_UPGRADE.test(c) ? ' upgrade the starter ' : ' ';
 const DONE_REPORT = /\b(?:and|been|is|are|was|were|already|now|all|got)\s+(?:pushed|released|published|deployed|merged|tagged|shipped)\b|\b(?:pushed|released|published|deployed|merged|shipped)\s*:/gi;
 export const relayRouteText = s => String(s || '')
   .replace(/```[\s\S]*?(```|$(?![\s\S]))/g, asRoute).replace(/`[^`\n]*`/g, asRoute)
-  .replace(/["“][^"”\n]*["”]/g, ' ').replace(CMD_LINE, asRoute).replace(DONE_REPORT, ' ').replace(/\s{2,}/g, ' ').trim();
+  .replace(/["“][^"”\n]*["”]/g, ' ').replace(CMD_LINE, asRoute).replace(DONE_REPORT, ' ')
+  // (a "note:" label is the sender's aside, not the user's shorthand for "save this". Lesson: "Separate note: your
+  // state file ..." set off the note-capture skill)
+  .replace(/\b(?:(?:side|separate|small|quick|one|a|another|final|last)\s+)?(?:notes?|nota|aviso)\s*:/gi, ' ').replace(/\s{2,}/g, ' ').trim();
 // The user's own message routes on its words too: a command it names (in backticks or as a command line) and work it
 // reports as done are no request for that work; what it quotes stays (a user quotes the thing they mean). Lesson:
 // "upgrade with node tools/starter.mjs update" set off the dependency-update skill on "upgrade node".

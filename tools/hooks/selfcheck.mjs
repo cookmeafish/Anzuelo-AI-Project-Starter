@@ -2952,6 +2952,10 @@ PROMPT.push(
     prompt: 'Both of your latest findings are fixed and pushed: GitHub main 754ac35. Upgrade with node tools/starter.mjs update.',
     has: ['ROUTE: project'], hasNot: ['ROUTE: release', 'release-'] },
   { pack: 'app', name: 'route: "push to main and tag the release" still routes to release', prompt: 'push to main and tag the release v1.2', has: ['release'] },
+  // a "note:" label in a relayed message is the sender's aside; typed by the user it is still the capture shorthand
+  { name: 'relayed turn: a "Separate note:" aside in a relayed message sets off no note capture',
+    prompt: '<cross-session-message from="other">Both are fixed. Separate note: your usage file changed in your own session. Upgrade when convenient: node tools/starter.mjs update.</cross-session-message>',
+    setup: HINT_FIX, setupFn: STARTER_IS, has: ['ROUTE: project'], hasNot: ['SKILL: knowledge-capture'] },
   // RECALL only above a similarity bar
   { name: 'recall: a question about the work recalls no unrelated request that shared "good" and "bad"', prompt: 'is it doing a good or bad job?',
     setup: HIST('tell the other chat everything good and bad, the mana in my zorbel deck is slow', ['decks/zorbel/list.txt']), hasNot: ['RECALL'] },

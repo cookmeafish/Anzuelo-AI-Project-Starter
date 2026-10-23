@@ -38,8 +38,9 @@ hooks:**, and an upgrade lists each one as its own review item.
     Routing: a command the user names (in backticks or as a command line) and work reported as done ("fixed and
     pushed:", "already released") no longer route, in typed and relayed messages alike: "fixed and pushed: GitHub
     main" had added the release runbook and its checks, and "upgrade with node tools/starter.mjs update" the
-    dependency-update skill. `selfcheck.mjs --route` routes a relayed message the way the prompt hook does. Scenarios:
-    `route:` (done reports), `relayed turn:`.
+    dependency-update skill. `selfcheck.mjs --route` routes a relayed message the way the prompt hook does. A "note:"
+    label in a relayed message ("Separate note: ...") is the sender's aside and sets off no note capture; typed by
+    the user it still does. Scenarios: `route:` (done reports), `relayed turn:` (fixes, note label).
     **Breaking for project hooks:** bookkeeping lines (`Playbook:`, `Skill:`, `Worth it:`, `Proven:`, `Learned`) may
     be in `.cache/turn-notes.md` written this turn instead of the answer; a project hook that asks for them in the
     answer should also accept that file. The upgrade-review Stop step no longer fires on the user's own work turns.
