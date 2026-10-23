@@ -69,7 +69,7 @@ export const PROOF_FILE = 'tools/hooks/engine-proof.json';
 // What the proof covers, in a fixtures base: the engine's code, checks, core runbooks and checklists, the core skills,
 // every pack and library payload, and the settings the fixtures run with (without the pack list, which only decides
 // which scenarios apply). The project's own content never reaches the base, and the hash leaves it out anyway.
-const PROOF_PATHS = /^(tools\/hooks\/(hooks|selfcheck|selftest-cache|trigger-cases|git-guard|wire)\.mjs|tools\/hooks\/engine-checks\.json|tools\/(audit|packs|writing-check|integrity-check|skills|starter|recall|survey|dedupe|fit)\.mjs|\.githooks\/[^/]+|docs\/checks\/(session-checklist|finish-checklist|runbook-standards|writing-standards|layout-standards|better-or-worse)\.md|docs\/playbooks\/(_TEMPLATE|_fallback|project|plan)\.md|packs\/.+|library\/.+)$/;
+export const PROOF_PATHS = /^(tools\/hooks\/(hooks|selfcheck|selftest-cache|trigger-cases|git-guard|wire)\.mjs|tools\/hooks\/engine-checks\.json|tools\/(audit|packs|writing-check|integrity-check|skills|starter|recall|survey|dedupe|fit)\.mjs|\.githooks\/[^/]+|docs\/checks\/(session-checklist|finish-checklist|runbook-standards|writing-standards|layout-standards|better-or-worse)\.md|docs\/playbooks\/(_TEMPLATE|_fallback|project|plan)\.md|packs\/.+|library\/.+)$/;
 export function proofHash(baseDir, coreSkills = []) {
   const h = createHash('sha256');
   const core = new RegExp(`^skills\\/(${coreSkills.map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') || '(?!)'})\\/`);

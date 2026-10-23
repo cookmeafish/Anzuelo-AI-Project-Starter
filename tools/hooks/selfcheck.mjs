@@ -16,7 +16,7 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { engineStamp, findPass, recordPass, localDay, SMOKE_EVERY, lockState, takeLock, releaseLock, otherSuites, registerSuite, shardCount, failureCause, proofHash, readProof, writeProof, PROOF_FILE } from './selftest-cache.mjs';
+import { engineStamp, findPass, recordPass, localDay, SMOKE_EVERY, lockState, takeLock, releaseLock, otherSuites, registerSuite, shardCount, failureCause, proofHash, readProof, writeProof, PROOF_FILE, PROOF_PATHS } from './selftest-cache.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 // The self-tests make throwaway projects from this copy on purpose, even when it is a development copy (.starter-dev).
@@ -264,6 +264,10 @@ function fixturesOnly(at, src) {
       if (s.isDirectory()) { if (r !== 'tools/hooks/state') walkDiff(r); continue; }
       // (the project's own settings and checks are meant to differ, and the base resets them anyway)
       if (/^tools\/(hooks\/(config|requirements|engine-proof)\.json|hooks\/project-scenarios\.mjs|packs-registry\.json|starter\.local\.json)$/.test(r)) continue;
+      // (only what the proof covers: a starter tool an upgrade never refreshes here, such as tools/new-project.mjs, is
+      // not the engine. Lesson: every upgraded project counted its old new-project.mjs as a changed engine file, so the
+      // starter's proof never applied and its first self-test run after the upgrade took over 10 minutes)
+      if (!PROOF_PATHS.test(r) && !r.startsWith('.githooks/')) continue;
       const theirs = norm(path.join(src, r)); if (theirs !== null && theirs !== norm(at(r))) ENGINE_CHANGED.push(r); } };
     walkDiff('tools'); walkDiff('.githooks');
   }
@@ -3731,6 +3735,9 @@ if (mineB() && SPEED) { // engine-proof: a project whose engine is the one the s
     const linkedOther = mode(dir);
     write(other, { [PROOF_FILE]: JSON.stringify({ engine: h, tests: 900 }) });
     const linkedSame = mode(dir);
+    // a starter tool an upgrade never refreshes here (an old tools/new-project.mjs) is not the engine
+    fs.appendFileSync(path.join(dir, 'tools/new-project.mjs'), '\n// an older copy left by the first setup\n');
+    const staleTool = mode(dir);
     fs.appendFileSync(path.join(dir, 'tools/fit.mjs'), '\n// an engine file changed\n');
     const changed = mode(dir);
     // the proof file is written only when it changes
@@ -3741,9 +3748,10 @@ if (mineB() && SPEED) { // engine-proof: a project whose engine is the one the s
       && /^selfcheck mode: engine results reused, because this engine is the one the starter shipped, byte for byte .*passed all 900/.test(shipped) && /engine smoke scenarios/.test(shipped)
       && /^selfcheck mode: full, because --full asks for every test/.test(full) && /^selfcheck mode: full, because --deep asks for every test/.test(deep)
       && /^selfcheck mode: full, because .*not the engine the starter proved/.test(linkedOther) && /^selfcheck mode: engine results reused, because this engine is the one the starter shipped/.test(linkedSame)
+      && /^selfcheck mode: engine results reused, because this engine is the one the starter shipped/.test(staleTool)
       && /^selfcheck mode: full, because .*not the engine the starter proved \(changed here: tools\/fit\.mjs\)/.test(changed) && writes.join() === 'true,false,true',
-      'engine-proof: a project with the engine the starter proved reuses its run (smoke set only); --full, --deep, a changed engine file or a linked starter that proved another engine run everything; the starter always runs everything',
-      JSON.stringify({ h, starter, shipped, full, deep, linkedOther, linkedSame, changed, writes }).slice(0, 2000));
+      'engine-proof: a project with the engine the starter proved reuses its run (smoke set only), also with an old copy of a starter tool upgrades leave alone; --full, --deep, a changed engine file or a linked starter that proved another engine run everything; the starter always runs everything',
+      JSON.stringify({ h, starter, shipped, full, deep, linkedOther, linkedSame, staleTool, changed, writes }).slice(0, 2000));
   } finally { for (const d of [dir, other, tmp]) try { fs.rmSync(d, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); } catch { } }
 }
 if (mineB() && SPEED) { // selftest-lock: one whole run at a time; a second one waits and prints the first one's result; stale locks are taken over

@@ -31,6 +31,10 @@ hooks:**, and an upgrade lists each one as its own review item.
     says (only a file this turn created can be fixed), with no "plain request allowed" scenario asked by the audit. A
     message sent to the starter's session this request (SendMessage) counts as reporting to it. Scenarios:
     `upgrade-review:` (own work, later), `no-overwrite:` (newVersionOnly), `claim-checked:` (reported by message).
+    An upgraded project now reuses the starter's proven engine run: the "changed engine file" test counted the
+    project's old `tools/new-project.mjs`, a starter tool upgrades never refresh, so every upgraded project ran all
+    1,100 engine tests (over 10 minutes) on its first self-test run. Only what the proof covers counts now.
+    Scenario: `engine-proof` (an old starter tool).
     **Breaking for project hooks:** bookkeeping lines (`Playbook:`, `Skill:`, `Worth it:`, `Proven:`, `Learned`) may
     be in `.cache/turn-notes.md` written this turn instead of the answer; a project hook that asks for them in the
     answer should also accept that file. The upgrade-review Stop step no longer fires on the user's own work turns.
