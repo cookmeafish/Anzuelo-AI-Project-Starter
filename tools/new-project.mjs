@@ -18,7 +18,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { CORE_SKILLS, today as localToday, usageOf, isEngineCheck, shippedChecks, checkKey, ENGINE_CHECKS_HISTORY, changelogSince, breakingItems } from './hooks/hooks.mjs';
+import { CORE_SKILLS, today as localToday, usageOf, isEngineCheck, shippedChecks, checkKey, ENGINE_CHECKS_HISTORY, changelogSince, breakingItems, withReviewBlock } from './hooks/hooks.mjs';
 import { wire } from './hooks/wire.mjs';
 
 const STARTER = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -588,8 +588,10 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
       : kind === 'pack' && fs.existsSync(path.join(STARTER, 'packs', name || '', 'pack.json')) ? JSON.parse(fs.readFileSync(path.join(STARTER, 'packs', name, 'pack.json'), 'utf8')) : null;
     return e?.plain ? `\n  ${e.plain}: ${e.does} What you'll notice: ${e.outcome}` : '';
   };
-  fs.appendFileSync(dp, `\n## Upgrade review (${today})\n<!-- Decide each line with the user, or let the AI decide (it writes why), replacing "?": "adopted - Worth it: <gain> / <cost>", ` +
-    `"fixed - <how>" or "declined - <why>". Adopt only what makes this project better. -->\n` + items.map(i => { const [it, done] = i.split('||'); return `- ${it}: ${done || '?'}${plainOf(it)}`; }).join('\n') + '\n');
+  const block = `\n## Upgrade review (${today})\n<!-- Decide each line with the user, or let the AI decide (it writes why), replacing "?": "adopted - Worth it: <gain> / <cost>", ` +
+    `"fixed - <how>" or "declined - <why>". Adopt only what makes this project better. -->\n` + items.map(i => { const [it, done] = i.split('||'); return `- ${it}: ${done || '?'}${plainOf(it)}`; }).join('\n') + '\n';
+  // (nothing to decide: the last review that also held only the self-tests is updated in place, not repeated)
+  fs.writeFileSync(dp, withReviewBlock(fs.existsSync(dp) ? fs.readFileSync(dp, 'utf8') : '', block, items.length === 1 && stPassed));
   // what changed in the starter since the last review, to explain the items
   const last = [...decided.matchAll(/^## Upgrade review \((\d{4}-\d\d-\d\d)\)/gm)].pop()?.[1] || '';
   // (the same entries as the breaking notes: new since this project's engine commit. Lesson: "- 2026-10-20 (re-check)"

@@ -6271,6 +6271,15 @@ export const CONTRACT = {
       removed: [{ event: 'session', text: 'INTERRUPTED WORK: RESULT', read: /INTERRUPTED WORK:\s*RESULT/ }] }
   ]
 };
+// The decisions file with an upgrade's review block added. A review with nothing to decide (only the self-tests line,
+// passed) replaces the last review in place when that one was also only the self-tests line; anything else is added.
+// Lesson: a project's DECISIONS.md, which the user reads, held 9 review blocks in a row that each said only "self-tests
+// passed".
+const SELF_ONLY_REVIEW = /\n## Upgrade review \(\d{4}-\d\d-\d\d\)\n<!--[^\n]*-->\n- self-tests: [^\n]*: passed [^\n]*\n?$/;
+export function withReviewBlock(text, block, onlySelfTests) {
+  const cur = String(text || '');
+  return onlySelfTests && SELF_ONLY_REVIEW.test(cur) ? cur.replace(SELF_ONLY_REVIEW, block) : cur + block;
+}
 // What the starter's changelog (newText) says that its copy at the project's last upgrade (oldText) did not say yet:
 // the entries that are new or grew, and each "**Breaking for project hooks:**" note in them that the old copy lacked.
 // With no old copy (the starter has no git history, or the project's engine matches no commit), the entries dated on

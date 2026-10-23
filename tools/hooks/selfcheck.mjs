@@ -4572,6 +4572,23 @@ if (mineB()) { // upgrade-breaking: the review lists each "Breaking for project 
     JSON.stringify({ got, byDate: byDate.breaking, same, own, none, again }).slice(0, 900));
 }
 
+if (mineB()) { // upgrade-review-block: a review with nothing to decide updates a last review that also held only the self-tests
+  const { withReviewBlock } = await import(pathToFileURL(path.join(B, 'tools/hooks/hooks.mjs')).href);
+  const NOTE = '<!-- Decide each line with the user. -->';
+  const rev = (d, line) => `\n## Upgrade review (${d})\n${NOTE}\n- ${line}\n`;
+  const self = d => rev(d, `self-tests: node tools/hooks/selfcheck.mjs passes here: passed (${d}, run by the upgrade: ALL PASS (10 passed))`);
+  const base = '# Decisions\n\n- 2026-10-01: picked SQLite.\n';
+  const once = withReviewBlock(base + self('2026-10-20'), self('2026-10-21'), true);
+  const twice = withReviewBlock(once, self('2026-10-22'), true);
+  // negatives: a review with something to decide is added; a last review with a decision in it is kept, the next added
+  const decide = withReviewBlock(base + self('2026-10-20'), rev('2026-10-21', 'pack: gui: ?'), false);
+  const kept = withReviewBlock(base + rev('2026-10-20', 'pack: gui: adopted - Worth it: screenshots / one more step'), self('2026-10-21'), true);
+  const count = s => (s.match(/^## Upgrade review/gm) || []).length;
+  report(count(twice) === 1 && /2026-10-22, run by the upgrade/.test(twice) && twice.startsWith(base) && count(decide) === 2 && count(kept) === 2 && /pack: gui: adopted/.test(kept),
+    'upgrade-review-block: an upgrade with only passed self-tests updates a last review that held only those in place; a review to decide, or after one with decisions, is added',
+    JSON.stringify({ once: count(once), twice: count(twice), decide: count(decide), kept: count(kept) }));
+}
+
 if (mineB()) { // state-no-transcript: a hook run with a made-up session id and an empty or unreadable transcript writes no session state
   const dir = copyProject();
   try {

@@ -7,6 +7,11 @@ print, or to a command or setting a project's own hooks or scripts may rely on, 
 hooks:**, and an upgrade lists each one as its own review item.
 
 - 2026-10-21: Fewer retries and Stop rounds (field report from an adopted project).
+  - **Quieter decisions file and notices:** an upgrade with nothing to decide (only the self-tests, which passed)
+    updates the last review in `docs/DECISIONS.md` in place when that one also held only the self-tests, instead of
+    adding a block each time (a project had 9 such blocks in a row). The host's "[Cross-session idle notice]" and
+    "[Cross-session delivery notice]" messages get no hints, like task notifications. Scenarios:
+    `upgrade-review-block`, `relay-preview:` (notices).
   - **Guards let the agent fix its own fresh drafts, and existing checks stop false alarms (trials of 8 new projects,
     round 8):** the no-overwrite and protect-originals guards let an edit through to a file the turn itself created
     (missing from the turn-start snapshot and from git, or created by the agent's own Write this turn): two agents had
