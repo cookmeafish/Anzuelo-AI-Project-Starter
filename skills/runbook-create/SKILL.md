@@ -26,7 +26,9 @@ Read `DIRECTORY.md` §1 and the frontmatter of every runbook in `docs/playbooks/
 
 ## 2. Write the runbook
 Copy `docs/playbooks/_TEMPLATE.md` to `docs/playbooks/<kebab-name>.md` (standards: `docs/checks/runbook-standards.md`).
-- `triggers`: the phrases the user actually used (copy them from the conversation) plus 3 to 8 likely variants.
+- `triggers`: the phrases the user actually used (copy them from the conversation) plus 3 to 8 likely variants. Only
+  words whose meaning you checked (`docs/glossary.md`, the project's sources): a trigger built on a misread word routes
+  the wrong job every time.
   Lowercase, comma-separated. Avoid single common words that would match everything.
 - `## Steps`: the steps that worked in this conversation, in order, with exact files, tools and commands.
 - `## Done when`: observable results.

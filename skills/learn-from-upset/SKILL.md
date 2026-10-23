@@ -42,7 +42,9 @@ Say at the start: "Checking what happened first, then fixing it and making the p
    principle written down if it is one the user wants kept, but never a fix for a problem that isn't there.
 1. **Fix the miss now.** Redo the work by the runbook or skill it belonged to, and save the corrected result where
    the old one was (a rewritten letter replaces the saved draft, not just the chat). No arguing, over-apologizing or
-   promises: one plain sentence on what went wrong, then the fix.
+   promises: one plain sentence on what went wrong, then the fix. If the miss was a misreading of the request, undo
+   everything built on it this turn or before (routes, triggers, runbook steps, files, rules): list them from the
+   changelog and git, and remove each one.
 2. **Find the cause, not the symptom.** Which step was missing, vague or skipped? Which rule was broken? Or was it
    something only the user knew? Write it as one sentence:
    "The <skill/runbook/check> did not <step>, so <what went wrong>."

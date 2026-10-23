@@ -96,6 +96,18 @@ hooks:**, and an upgrade lists each one as its own review item.
       (`improvement-loop`, `field-report`) route like any runbook, only in the starter, and are never copied into a
       project or made into skills. Another session's message routes to `field-report` when nothing else fits. The
       user had asked for repeated testing several times before it became a procedure. Scenarios: `starter-runbooks:`.
+    - **Less hook text per turn**: a resumed session that was already shown the session checklist gets one line
+      instead of the whole checklist again (2,300 characters on every resumed turn, the largest part of the hook
+      text, which had risen a quarter above the first round's). New sessions and compactions still get it whole.
+      Scenario: `session-checklist`.
+    - **Field report (MTG, df95418):** the user's language comes from their own words, not a pasted list or block (an
+      English question with a pasted Spanish deck list got Spanish hints); `starter.mjs feedback --help` prints the
+      usage instead of saving "--help" (`feedback-usage`); the fallback runbook and runbook-create check an unfamiliar
+      key word before building a runbook or trigger around it; learn-from-upset undoes what a misreading created.
+    - **More round 9 findings fixed:** a recorded whole self-test pass after a change counts for the changed checks'
+      scenarios too (setup ran them twice); a whole note folder in a skill's check (`Baking/**`) no longer makes
+      writing a note count as that skill's report (a dictated note set off research and citation checks).
+    - **selfcheck**: standalone tests gated by tag now run with `--tags` (they sat inside the full-run-only block).
     - **Round 9 judges' findings fixed:**
       - A program held for the user's approval is not run another way (a node, python or shell one-liner): the
         call is denied with the honest "NOT VERIFIED" line to write instead. A Go project had run `go test` through
