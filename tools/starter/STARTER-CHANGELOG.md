@@ -56,6 +56,13 @@ hooks:**, and an upgrade lists each one as its own review item.
     - The Spanish label hint lists only the labels of the checks this turn is held to (about 300 characters on a
       plain question, not 1,200). With the project's own hooks (`externalHooks`), the CHECKS line says a runbook
       they name counts for runbook-exists. Scenarios: `answer-language:`, `check-preview:` (own hooks).
+    - A session's first prompt always starts a new turn (only its session start showed anything yet, or nothing of
+      its own was recorded), and a continued turn extends only the session's own record. A headless first prompt had
+      been taken for the middle of a turn and extended the shared record setup left three days earlier, so its turn
+      "began" then and the STATUS.md reminder never came. A compaction's session start still continues the turn.
+      Scenario: `state-no-transcript` (a new turn).
+    - Words joined by a hyphen in a trigger are a phrase: "on-call" (whose "on" is a small word) no longer matches
+      "tool calls". Scenario: `route:` (hyphenated trigger).
     **Breaking for project hooks:** bookkeeping lines (`Playbook:`, `Skill:`, `Worth it:`, `Proven:`, `Learned`) may
     be in `.cache/turn-notes.md` written this turn instead of the answer; a project hook that asks for them in the
     answer should also accept that file. The upgrade-review Stop step no longer fires on the user's own work turns.

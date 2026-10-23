@@ -705,7 +705,10 @@ export function route(prompt, pbs) {
       // A trigger that is itself a question ("how do i do", "what's my role") is that question, "?" and all.
       // Lesson: a project's question triggers routed only when the user left the question mark off.
       // (Spanish question words too: "qué dicen" lost its "qué" as a key word once Spanish small words were left out)
-      const phrase = exact && /\s/.test(t.trim()) && (!askOnly || /^(how|what|what's|whats|where|which|who|why|when|qu[eé]|cu[aá]l(es)?|c[oó]mo|d[oó]nde|qui[eé]n(es)?|por qu[eé]|cu[aá]ndo)(?![\wáéíóúñ])/i.test(t.trim()));
+      // (words joined by a hyphen are a phrase too: "on-call" is not the word "call". Lesson: "15 tool calls" in a relayed
+      // report suggested the incident-response skill)
+      const multi = /\s|[a-z0-9]-[a-z0-9]/i.test(t.trim());
+      const phrase = exact && multi && (!askOnly || /^(how|what|what's|whats|where|which|who|why|when|qu[eé]|cu[aá]l(es)?|c[oó]mo|d[oó]nde|qui[eé]n(es)?|por qu[eé]|cu[aá]ndo)(?![\wáéíóúñ])/i.test(t.trim()));
       // A phrase of common words routes alone only with two key words ("not working", "look up"), three words or more
       // ("from now on", "where are we") or a pointer at the user's thing ("fix this"); otherwise it only backs up a real
       // match: "can you fix it here" alone is no bug report
@@ -714,7 +717,7 @@ export function route(prompt, pbs) {
       if (!(k.length < 2 && !/\s/.test(t.trim()) && WEAK.has(k[0]))) specific = true;
       // a phrase that points at the user's own thing ("my vault", "in my notes", "remember this"), typed exactly, is a
       // request on its own. Lesson: such triggers could never route, so "check the links in my vault" found nothing.
-      const oneWord = k.length < 2 && !/\s/.test(t.trim());
+      const oneWord = k.length < 2 && !multi;
       if (k.length >= 2 || (oneWord && !askOnly) || phrase || (exact && POINTER.test(t))) strong = true; else k.forEach(w => weak.add(w));
     }
     if (pb.triggerRe && pb.triggerRe.test(low)) { score += 2; strong = true; specific = true; hits.push('/' + pb.fm.trigger_regex + '/'); }
@@ -1070,7 +1073,8 @@ function fallbackTurn() {
 // (the plans still open when the request arrived too: REQ: plan-open)
 // (the transcript too, so "hooks.mjs check" run inside a hook-wired session sees the turn's tool calls)
 const recordTurn = (prompt, fresh = true, transcript = '') => {
-  const old = fresh ? null : readJSON(stateFile('turn.json'), null);
+  // (a continued turn is this session's own: another run's record is never extended)
+  const old = fresh ? null : readJSON(path.join(STATE, stateName('turn.json')), null);
   writeState('turn.json', old?.at ? { ...old, prompt: `${old.prompt || ''}\n${prompt}`.slice(-4000) }
     : { at: new Date().toISOString(), prompt: String(prompt).slice(0, 4000), runbooks: list('docs/playbooks'), skills: list(config().skillsDir), openPlans: openPlans().map(x => x.p), ...(transcript ? { transcript: String(transcript), tpOff: sizeOf(transcript) } : {}) });
 };
@@ -1144,7 +1148,11 @@ const WAKE_STATE = 'wakeups.json';
 function turnNotices(force, tp) {
   const shown = readJSON(stateFile(SHOWN), null), end = readJSON(stateFile(TURN_END), {});
   const mid = force ? false : transcriptMidTurn(tp);
-  const fresh = force || !shown?.at || Date.parse(end.at || 0) >= Date.parse(shown.at) || mid === false || (mid === null && Date.now() - Date.parse(shown.at) > 6 * 3600_000);
+  // a session's first prompt starts a turn: nothing of its own shown yet, or only what its session start showed. Lesson:
+  // a headless run's first prompt (its transcript still empty) was taken for the middle of a turn, from a record another
+  // run left, and its turn "began" three days earlier
+  const first = !!SID && ((shown?.session && !shown.compact) || !fs.existsSync(path.join(STATE, stateName(SHOWN))));
+  const fresh = force || first || !shown?.at || Date.parse(end.at || 0) >= Date.parse(shown.at) || mid === false || (mid === null && Date.now() - Date.parse(shown.at) > 6 * 3600_000);
   // what the session start just announced is not repeated by the first prompt after it
   return fresh ? { at: new Date().toISOString(), shown: shown?.session ? shown.shown || [] : [], fresh: true } : { at: shown.at, shown: shown.shown || [], fresh: false };
 }
@@ -3894,7 +3902,8 @@ function cmdSession(data) {
   }
   if (n.length) parts.push('--- notices ---\n- ' + n.join('\n- '));
   // announced here, so the first prompt doesn't repeat them; last turn's misses are announced once, then dropped
-  writeState(SHOWN, { at: new Date().toISOString(), shown: n.map(noticeKey).filter(Boolean), session: true });
+  // (a compaction comes in the middle of a turn: the next message is not a new one for that)
+  writeState(SHOWN, { at: new Date().toISOString(), shown: n.map(noticeKey).filter(Boolean), session: true, ...(/compact/i.test(data.source || '') ? { compact: true } : {}) });
   if (n.some(x => x.startsWith('LAST WORK TURN'))) unresolvedAnnounced();
   contextOut('SessionStart', parts.filter(Boolean).join('\n\n') + '\n');
 }

@@ -4767,6 +4767,16 @@ if (mineB()) { // relay-route-text: a relayed message routes on its own words; q
     && /fix the crash in the export when the file is empty/.test(b) && !/git log/.test(b),
     'relay-route-text: quoted text, code spans and commands leave a relayed message\'s routing words; a starter upgrade command stays as "upgrade the starter"; its own words stay', JSON.stringify({ a, b }));
 }
+if (mineB()) { // route: words joined by a hyphen are a phrase. Lesson: "15 tool calls" in a relayed report matched the
+  // "on-call" trigger, whose "on" is a small word, and suggested the incident-response skill
+  const { route } = await import(pathToFileURL(path.join(B, 'tools/hooks/hooks.mjs')).href);
+  const ir = { name: 'incident-response', file: 'skills/incident-response/SKILL.md', fm: {}, triggers: ['outage', 'on call', 'on-call', 'site is down'], triggerRe: null };
+  const names = t => route(t, [ir]).map(r => r.pb.name).join();
+  const stray = names('the turn passed 15 tool calls before the status file was updated'), typed = names('I was on-call last night and the checkout broke, help');
+  const spaced = names('who is on call this week'), down = names('the site is down again');
+  report(!stray && typed === 'incident-response' && spaced === 'incident-response' && down === 'incident-response',
+    'route: a hyphenated trigger ("on-call") is a phrase: "tool calls" does not match it; "on-call" and "on call" typed still do', JSON.stringify({ stray, typed, spaced, down }));
+}
 
 if (mineB()) { // upgrade-review-block: a review with nothing to decide updates a last review that also held only the self-tests
   const { withReviewBlock } = await import(pathToFileURL(path.join(B, 'tools/hooks/hooks.mjs')).href);
@@ -4805,17 +4815,25 @@ if (mineB()) { // state-no-transcript: a hook run with a made-up session id and 
     const quiet = { empty: turnWith('madeUpEmpty', empty), blank: turnWith('madeUpBlank', blank), folder: turnWith('madeUpFolder', path.join(dir, '.cache/tp')), none: turnWith('madeUpNone') };
     const realRun = turnWith('realSession1', real);
     // a headless run's first prompt: the host's own transcript (named after the session) is still empty, and the turn
-    // still keeps its record and snapshot
+    // still keeps its record and snapshot, as a new turn (not the shared record another run left days ago)
+    write(dir, { 'tools/hooks/state/turn.json': JSON.stringify({ at: new Date(Date.now() - 3 * 86400_000).toISOString(), prompt: 'set up the project' }),
+      'tools/hooks/state/notices-shown.json': JSON.stringify({ at: new Date(Date.now() - 600_000).toISOString(), shown: [] }) });
     const headlessTp = path.join(dir, '.cache/tp/headless1.jsonl'); fs.writeFileSync(headlessTp, '');
     const hb = new Set(ls());
     run(dir, 'session', { session_id: 'headless1', transcript_path: headlessTp, source: 'startup' });
     run(dir, 'prompt', { session_id: 'headless1', transcript_path: headlessTp, prompt: 'what does the brief say' });
     const headless = ls().filter(f => !hb.has(f));
+    let hTurn = {}; try { hTurn = JSON.parse(fs.readFileSync(path.join(stDir, 'turn.headless1.json'), 'utf8')); } catch { }
+    // a session with no session start of its own (none ran, as in some hosts) starts its turn the same way
+    const bareTp = path.join(dir, '.cache/tp/bare1.jsonl'); fs.writeFileSync(bareTp, '');
+    run(dir, 'prompt', { session_id: 'bare1', transcript_path: bareTp, prompt: 'what does the brief say' });
+    let bTurn = {}; try { bTurn = JSON.parse(fs.readFileSync(path.join(stDir, 'turn.bare1.json'), 'utf8')); } catch { }
+    const newTurn = r => Date.now() - Date.parse(r.at || 0) < 600_000 && !/set up the project/.test(r.prompt || '') && /what does the brief say/.test(r.prompt || '');
     const ok = Object.values(quiet).every(r => !r.own.length && !r.snap.length && !r.logged)
       && ['turn.realSession1.json', 'snapshot.realSession1.json', 'notices-shown.realSession1.json', 'turn-end.realSession1.json'].every(f => realRun.own.includes(f)) && realRun.logged
-      && ['turn.headless1.json', 'snapshot.headless1.json'].every(f => headless.includes(f));
-    report(ok, 'state-no-transcript: a made-up session id with an empty, blank or unreadable transcript (or none) writes no session state, snapshot or Stop log line; a real transcript still does, also a headless first prompt whose host-named transcript is still empty',
-      JSON.stringify({ ...quiet, real: realRun }).slice(0, 700));
+      && ['turn.headless1.json', 'snapshot.headless1.json'].every(f => headless.includes(f)) && newTurn(hTurn) && newTurn(bTurn);
+    report(ok, 'state-no-transcript: a made-up session id with an empty, blank or unreadable transcript (or none) writes no session state, snapshot or Stop log line; a real transcript still does, also a headless first prompt whose host-named transcript is still empty, which starts a new turn',
+      JSON.stringify({ ...quiet, real: realRun, headless, hTurn: { at: hTurn.at, prompt: hTurn.prompt }, bTurn: { at: bTurn.at, prompt: bTurn.prompt } }).slice(0, 900));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
