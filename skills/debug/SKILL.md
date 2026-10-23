@@ -1,7 +1,7 @@
 ---
 name: debug
 description: Finds the root cause of a bug, failing test, broken build, wrong output or unexpected behavior before any fix, in four phases (investigate, compare, test one hypothesis, fix at the source with a failing test first), and stops to rethink the design after 3 failed fixes. Use for any technical problem, especially under time pressure, when a quick fix looks obvious, or when an earlier fix didn't work.
-triggers: debug, debugging, root cause, failing test, tests fail, test failure, build fails, build failed, stack trace, exception, flaky, keeps failing, why does it fail, why is it failing, tests are red, red tests, keeps breaking, works on my machine, figure out why, typeerror
+triggers: debug, debugging, root cause, failing test, tests fail, test failure, build fails, build failed, stack trace, exception, flaky, keeps failing, why does it fail, why is it failing, tests are red, red tests, keeps breaking, works on my machine, figure out why, typeerror, depura, depurar, depuralo, causa raiz, causa raíz, por qué falla, por que falla, sigue fallando, falla la prueba, fallan las pruebas, las pruebas fallan, no compila, el build falla, traza de pila, excepción
 ---
 # Debug: root cause first
 

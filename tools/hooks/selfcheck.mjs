@@ -2771,6 +2771,7 @@ PRETOOL.push(
 // A foreground command past its timeout is moved to the background: it runs on, like a background launch, and its
 // result is its output file and the notice's exit code. Files a running job makes are not this turn's.
 const BG_OUT = n => path.join(os.tmpdir(), `bgmoved-${process.pid}-${n}.output`).replace(/\\/g, '/');
+const BG_JOB = (id, cmd, file) => ({ name: 'Bash', input: { command: cmd, run_in_background: true }, result: `Command running in background with ID: ${id}. Output is being written to: ${file}. You will be notified when it completes.` });
 const MOVED = (id, file) => `Command did not complete within its 120s timeout and was moved to the background (ID: ${id}). Output is being written to: ${file}`;
 const MOVED_DONE = (id, code) => ({ type: 'user', message: { role: 'user', content: `<task-notification>\n<task-id>${id}</task-id>\n<status>completed</status>\n<summary>Background command completed (exit code ${code})</summary>\n</task-notification>` } });
 const SIX = Object.fromEntries(Array.from({ length: 6 }, (_, i) => [`fixtures/zz-sweep-${i + 1}.txt`, 'x']));
@@ -2780,6 +2781,15 @@ STOP.push(
     after: dir => { let j = {}; try { j = JSON.parse(fs.readFileSync(path.join(dir, 'tools/hooks/state/turn-end.json'), 'utf8')); } catch { } return j.pending >= 1 || `not held: ${JSON.stringify(j)}`; } },
   { name: 'bg-moved: after its notice, the run counts by its output file: passes', edit: VALIDATOR, prompt: 'validate the data files', prep: () => fs.writeFileSync(BG_OUT('b'), 'checked 3 files\nRESULT: PASS\n'),
     tools: [bash('node tools/validate.mjs', MOVED('bv2a', BG_OUT('b')))], rows: [MOVED_DONE('bv2a', 0)], files: { 'data/a.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Validated.' + FIN, expect: { not: ['data-valid'] } },
+  // (the notice as a queued attachment, as a host records one that arrives while the turn runs)
+  { name: 'bg-moved: a run_in_background gate whose notice is a queued attachment counts by its output file: passes', edit: VALIDATOR, prompt: 'validate the data files',
+    prep: () => fs.writeFileSync(BG_OUT('k'), 'checked 3 files\nRESULT: PASS\n'), tools: [BG_JOB('bk1', 'node tools/validate.mjs', BG_OUT('k'))],
+    rows: [{ type: 'attachment', attachment: { type: 'queued_command', prompt: MOVED_DONE('bk1', 0).message.content } }],
+    files: { 'data/a.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Validated.' + FIN, expect: { not: ['data-valid'] } },
+  { name: 'bg-moved: the same with a failing output file: blocked', edit: VALIDATOR, prompt: 'validate the data files',
+    prep: () => fs.writeFileSync(BG_OUT('l'), 'checked 3 files\nRESULT: FAIL\n'), tools: [BG_JOB('bl1', 'node tools/validate.mjs', BG_OUT('l'))],
+    rows: [{ type: 'attachment', attachment: { type: 'queued_command', prompt: MOVED_DONE('bl1', 1).message.content } }],
+    files: { 'data/a.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Validated.' + FIN, expect: { block: true, tags: ['data-valid'] } },
   { name: 'bg-moved: after its notice, a failing output fails the gate: blocked', edit: VALIDATOR, prompt: 'validate the data files', prep: () => fs.writeFileSync(BG_OUT('c'), 'checked 3 files\nRESULT: FAIL\n'),
     tools: [bash('node tools/validate.mjs', MOVED('bv3a', BG_OUT('c')))], rows: [MOVED_DONE('bv3a', 1)], files: { 'data/a.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Validated.' + FIN, expect: { block: true, tags: ['data-valid'] } },
   { name: 'bg-moved: plan-required does not count files a running job makes', prompt: 'run the full sweep over the notes', tools: [bash('node tools/sweep.mjs', MOVED('bz3a', BG_OUT('d')))],
@@ -2792,7 +2802,6 @@ STOP.push(
 // after a time limit, which made it count as stopped while it ran, so round 1 asked for the sweeps' results. Then the
 // audit ran inside a background job with its output sent into a log file, and the gate read the job's own output.
 const MOVED_FULL = (id, file) => `${MOVED(id, file)}. You will be notified when it completes. If it is still running after 10m in the background, it will be stopped and you will be notified. To check interim output, use Read on that file path.`;
-const BG_JOB = (id, cmd, file) => ({ name: 'Bash', input: { command: cmd, run_in_background: true }, result: `Command running in background with ID: ${id}. Output is being written to: ${file}. You will be notified when it completes.` });
 const AUDIT_JOB = 'node tools/hooks/hooks.mjs sync && (node tools/audit.mjs > .cache/sweep-audit.txt 2>&1; echo "audit exit $?" >> .cache/sweep-audit.txt) & wait';
 const RULES_EDIT = { 'docs/checks/house-style.md': '# House style\nShort lines.\n', 'docs/CHANGELOG.md': 'x' };
 STOP.push(
@@ -2967,6 +2976,10 @@ PROMPT.push(
     prompt: 'Both of your latest findings are fixed and pushed: GitHub main 754ac35. Upgrade with node tools/starter.mjs update.',
     has: ['ROUTE: project'], hasNot: ['ROUTE: release', 'release-'] },
   { pack: 'app', name: 'route: "push to main and tag the release" still routes to release', prompt: 'push to main and tag the release v1.2', has: ['release'] },
+  // Spanish debugging requests get the debug skill; "falla" in other senses does not
+  { name: 'route: a Spanish debug request gets the debug skill', prompt: 'depura el fallo de la importación: el script falla con fechas vacías', has: ['SKILL: debug'] },
+  { name: 'route: "las pruebas fallan ... por qué falla" gets the debug skill', prompt: 'las pruebas fallan desde ayer, ¿por qué falla el import?', has: ['SKILL: debug'] },
+  { name: 'route: "falla" in another sense gets no debug skill', prompt: 'la tienda falla en abrir los domingos, apúntalo', hasNot: ['SKILL: debug'] },
   // a "note:" label in a relayed message is the sender's aside; typed by the user it is still the capture shorthand
   { name: 'relayed turn: a "Separate note:" aside in a relayed message sets off no note capture',
     prompt: '<cross-session-message from="other">Both are fixed. Separate note: your usage file changed in your own session. Upgrade when convenient: node tools/starter.mjs update.</cross-session-message>',

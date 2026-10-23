@@ -69,6 +69,11 @@ hooks:**, and an upgrade lists each one as its own review item.
       skill). A bare "upgrade when ..." in it is the starter upgrade. A report of fixes had routed to a refresh
       runbook on "had changed since then", and named skills and "checked against a copy" brought two FIT hints.
       Scenario: `relay-request-text`.
+    - A `run_in_background` gate run counts by its output file once its notice arrives, also when the host records
+      the notice as a queued attachment rather than a user message. A passing hooks self-test had been read as empty
+      output and blocked the turn. Scenarios: `bg-moved:` (queued attachment).
+    - Spanish debugging requests get the debug skill ("depura", "por qué falla", "las pruebas fallan", "causa raíz",
+      "no compila"), and "depura" counts as a Spanish task. Scenarios: `route:` (Spanish debug).
     **Breaking for project hooks:** bookkeeping lines (`Playbook:`, `Skill:`, `Worth it:`, `Proven:`, `Learned`) may
     be in `.cache/turn-notes.md` written this turn instead of the answer; a project hook that asks for them in the
     answer should also accept that file. The upgrade-review Stop step no longer fires on the user's own work turns.
