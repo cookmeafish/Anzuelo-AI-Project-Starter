@@ -11,6 +11,9 @@ engine, the project's own hooks, or the agent. New projects never get this file.
 
 ## Steps
 
+0. **Work under the engine.** Run `node tools/hooks/hooks.mjs begin "<the request>"` in the starter first (a session
+   started elsewhere gets no hooks), follow its hints, and `check` before answering. What the engine gets wrong on
+   this very work is a report of its own: add it to `tools/starter/dogfood-log.md` and handle it like this one.
 1. **Read the whole report** and list each item as its own line: what happened, which engine commit, which session.
 2. **Replay before fixing.** For each item, find the session transcript (`~/.claude/projects/*/<session>.jsonl`) or
    the project's state files, and confirm the cause from what happened (tool calls, timestamps, hook output), not
@@ -29,6 +32,7 @@ engine, the project's own hooks, or the agent. New projects never get this file.
 
 ## Done when
 
+- [ ] This session's work went through the starter's own engine: `node tools/hooks/hooks.mjs begin "<request>"` recorded it, or its hooks did (hook: engine-bypassed)
 - [ ] Every item of the report has a confirmed cause (judgment: from its transcript or state files)
 - [ ] Each engine cause has a fix with a self-test that fails without it (hook: hooks-tested)
 - [ ] The full chain passed and was pushed with the user as the only author (hook: claim-checked)

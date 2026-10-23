@@ -15,6 +15,8 @@ stop at the usage limit, so check that a headless session runs (`claude -p "ok"`
 
 ## Steps
 
+0. **Work under the engine.** `node tools/hooks/hooks.mjs begin "<the request>"` in the starter first; what it gets wrong
+   on this work goes in `tools/starter/dogfood-log.md` (the inside view, alongside the trial rounds' outside view).
 1. **Green first.** Everything committed; `node tools/hooks/selfcheck.mjs`, `node tools/trial.mjs` and
    `node tools/audit.mjs` pass, each gated on its exit code (never `| tail`).
 2. **Run the round on a frozen copy.** `node tools/starter/trials/run.mjs --round <name> --freeze` (names go up:
@@ -43,6 +45,7 @@ stop at the usage limit, so check that a headless session runs (`claude -p "ok"`
 
 ## Done when
 
+- [ ] This session's work went through the starter's own engine: `node tools/hooks/hooks.mjs begin "<request>"` recorded it, or its hooks did (hook: engine-bypassed)
 - [ ] The last round's verdict is NOT WORSE in `tools/starter/trials/rounds.json` (hook: claim-checked, improvement
       claims need a compare.mjs run this turn)
 - [ ] No engine file changed since the last judged round, or the next round is running (hook: audit sweep "improvement

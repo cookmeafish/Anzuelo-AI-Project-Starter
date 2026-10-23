@@ -897,9 +897,9 @@ export function codexRows(rows) {
 // whole file). Lesson: a long session's 568 MB transcript was over the largest string a file can be read into, so every
 // hook silently lost the session's tool history; and every hook call parsed the whole file.
 export const TAIL_START = 48 << 20, TAIL_MAX = 384 << 20;
-export function transcriptRows(transcript, hasStart = rows => rows.some(r => promptOf(r) !== null || relayedTurn(r))) {
+export function transcriptRows(transcript, hasStart = rows => rows.some(r => promptOf(r) !== null || relayedTurn(r)), first = TAIL_START) {
   let size = 0; try { size = fs.statSync(String(transcript)).size; } catch { return []; }
-  for (let win = Math.min(size, TAIL_START); ; win = Math.min(size, win * 2, TAIL_MAX)) {
+  for (let win = Math.min(size, first); ; win = Math.min(size, win * 2, TAIL_MAX)) {
     let text = '';
     try {
       const fd = fs.openSync(String(transcript), 'r');

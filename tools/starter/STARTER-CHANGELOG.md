@@ -96,6 +96,17 @@ hooks:**, and an upgrade lists each one as its own review item.
       (`improvement-loop`, `field-report`) route like any runbook, only in the starter, and are never copied into a
       project or made into skills. Another session's message routes to `field-report` when nothing else fits. The
       user had asked for repeated testing several times before it became a procedure. Scenarios: `starter-runbooks:`.
+    - **Sessions that bypass the engine are caught** (found by running the engine on the starter's own work): a
+      commit or push from a Claude Code session that this project's hooks never saw (it was started in another
+      folder) is refused, with the way through (`git-guard`, both hooks). `hooks.mjs begin` from such a session records
+      the request under that session, with its transcript, so `check` sees the turn's real tool calls. A person's
+      commit never meets it; test harnesses turn it off (`ANZUELO_SESSION_GATE=off`). Scenario: `engine-bypassed`.
+    - **Long sessions keep their history**: hooks read a transcript from its end, in a window that grows until it
+      holds the turn's prompt. A 568 MB transcript had been over the largest string a file can be read into, so every
+      hook silently lost the session's tool calls, and every hook call parsed the whole file. Scenario:
+      `transcript-tail`.
+    - The starter keeps a dogfood log (`tools/starter/dogfood-log.md`): what its engine gets wrong while governing
+      its own development, handled like a field report.
     - A test, check or sweep run that starts while another one still runs in the background gets a heads-up with the
       call (a notice, not a denial): two at once can see each other's temporary files and fail falsely (a field
       report: a sweep failed twice that way, and passed alone). Scenarios: `overlap:`.

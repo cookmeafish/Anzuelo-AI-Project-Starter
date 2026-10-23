@@ -4828,6 +4828,50 @@ if (mineB()) { // relay-route-text: a relayed message routes on its own words; q
     && /fix the crash in the export when the file is empty/.test(b) && !/git log/.test(b),
     'relay-route-text: quoted text, code spans and commands leave a relayed message\'s routing words; a starter upgrade command stays as "upgrade the starter"; its own words stay', JSON.stringify({ a, b }));
 }
+if (mineB()) { // engine-bypassed: a commit or push from a Claude Code session the project's hooks never saw is refused;
+  // once "begin" (or the prompt hook) recorded the session it goes through; a person's commit and a test harness never
+  // meet it. Lesson: the starter's own engine work ran for days in a session started in a parent folder, under none
+  // of its rules.
+  const dir = copyProject();
+  try {
+    const git = (...a) => spawnSync('git', a, { cwd: dir, encoding: 'utf8' });
+    git('init', '-q'); write(dir, { 'notes/a.md': 'a' }); git('add', 'notes/a.md');
+    const guard = (env, mode = 'pre-commit') => {
+      const e = { ...process.env, ...env }; for (const [k, v] of Object.entries(env)) if (v === null) delete e[k];
+      const r = spawnSync(process.execPath, [path.join(dir, 'tools/hooks/git-guard.mjs'), mode], { cwd: dir, encoding: 'utf8', env: e });
+      return { code: r.status, err: r.stderr || '' };
+    };
+    const CC = { CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: 'sessUnseen1', ANZUELO_SESSION_GATE: null };
+    const unseen = guard(CC), unseenPush = guard(CC, 'pre-push');
+    const person = guard({ CLAUDECODE: null, CLAUDE_CODE_SESSION_ID: null, ANZUELO_SESSION_GATE: null });
+    const harness = guard({ ...CC, ANZUELO_SESSION_GATE: 'off' });
+    // "begin" from that session records it (the session id comes from the environment)
+    spawnSync(process.execPath, [path.join(dir, 'tools/hooks/hooks.mjs'), 'begin', 'tidy the notes'], { cwd: dir, encoding: 'utf8', env: { ...process.env, CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: 'sessUnseen1' } });
+    const recorded = fs.existsSync(path.join(dir, 'tools/hooks/state/turn.sessUnseen1.json')), seen = guard(CC);
+    report(unseen.code === 1 && /engine-bypassed/.test(unseen.err) && /hooks\.mjs begin/.test(unseen.err) && unseenPush.code === 1
+      && person.code === 0 && harness.code === 0 && recorded && seen.code === 0,
+      'engine-bypassed: a commit or push from a Claude Code session the hooks never saw is refused with the way through; after begin records the session it passes; a person\'s commit and a test harness never meet it',
+      JSON.stringify({ unseen: unseen.code, push: unseenPush.code, person: person.code, harness: harness.code, recorded, seen: seen.code, err: unseen.err.slice(0, 200) }));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+if (mineB()) { // transcript-tail: a transcript is read from its end in a window that grows until it holds the turn's prompt
+  // (Lesson: a 568 MB transcript was over the largest string a file can be read into, and every hook lost the history)
+  const h = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks.mjs')).href);
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-')), f = path.join(tmp, 't.jsonl');
+  try {
+    const pad = Array.from({ length: 400 }, (_, i) => JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: `step ${i} ${'x'.repeat(200)}` }] } }));
+    const rows = [JSON.stringify({ type: 'user', message: { role: 'user', content: 'an old request' } }), ...pad.slice(0, 200),
+      JSON.stringify({ type: 'user', timestamp: new Date().toISOString(), message: { role: 'user', content: 'sort the notes by date' } }), ...pad.slice(200)];
+    fs.writeFileSync(f, rows.join('\n') + '\n');
+    const small = h.transcriptRows(f, undefined, 1024);
+    const hasPrompt = small.some(r => r.message?.content === 'sort the notes by date');
+    const whole = h.transcriptRows(f, () => false, 1024);
+    const t = h.turn(f);
+    report(hasPrompt && small.length < rows.length && small.every(r => r && typeof r === 'object') && whole.length === rows.length && /sort the notes by date/.test(t.prompt) && t.entries.length === 200,
+      'transcript-tail: a small window grows until it holds the turn\'s prompt (a cut first line is skipped), grows to the whole file when needed, and turn() reads the same turn',
+      JSON.stringify({ hasPrompt, small: small.length, whole: whole.length, total: rows.length, prompt: t.prompt, entries: t.entries.length }));
+  } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+}
 if (mineB() && fs.existsSync(path.join(ROOT, 'tools/starter/trials/compare.mjs'))) { // improvement-loop: the verdict rules of a trial round
   // (tools/starter/runbooks/improvement-loop.md). Lesson: the first baseline's judges did not count Stop rounds, which made it look
   // block-free and every later round "worse"; blocks are counted from the trial records.
