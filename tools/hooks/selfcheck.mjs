@@ -1628,6 +1628,10 @@ PRETOOL.push(
   // Lesson: a commit the pre-commit hook refused was retried with --no-verify
   { name: 'git-safety: a commit that skips the git hooks: denied', tool: 'Bash', input: { command: 'git commit --no-verify -m "wip"' }, prompt: 'commit my work', deny: true, tag: 'git-safety' },
   { name: 'git-safety: git hooks re-pointed elsewhere: denied', tool: 'Bash', input: { command: 'git config core.hooksPath /dev/null' }, prompt: 'commit my work', deny: true, tag: 'git-safety' },
+  // (Lesson, trial round 9: turning the hooks on, then reading the setting back, was denied: the "&&" after the read was
+  // taken for a new value)
+  { name: 'git-safety: turning the project\'s git hooks on and reading the setting back: allowed', tool: 'Bash', input: { command: 'git config core.hooksPath .githooks && git config core.hooksPath && git config user.name' }, prompt: 'set up this project', deny: false },
+  { name: 'git-safety: re-pointing the hooks after reading them: denied', tool: 'Bash', input: { command: 'git config core.hooksPath; git config core.hooksPath .husky-off' }, prompt: 'commit my work', deny: true, tag: 'git-safety' },
   { name: 'git-safety: skipping the hooks when the user asks for it: allowed', tool: 'Bash', input: { command: 'git commit --no-verify -m "wip"' }, prompt: 'commit it with --no-verify, the hook is broken', deny: false },
   { name: 'git-safety: an ordinary commit with an n in its message: allowed', tool: 'Bash', input: { command: 'git commit -am "new menu"' }, prompt: 'commit my work', deny: false },
   { name: 'push to main when the user named it: allowed', tool: 'Bash', input: { command: 'git push origin main' }, prompt: 'push it to main', deny: false },

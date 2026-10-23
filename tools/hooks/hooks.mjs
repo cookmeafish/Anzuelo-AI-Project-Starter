@@ -4661,7 +4661,9 @@ function pretoolHits(data, cfg) {
     }
     // The git hooks are the last check for every agent: skipping or re-pointing them needs the user's own words.
     // Lesson: a commit the pre-commit hook refused was retried with --no-verify.
-    const skipHooks = /\bgit\b[^;&|]*\b(commit|push|merge)\b[^;&|]*\s--no-verify\b|\bgit\b[^;&|]*\bcommit\b[^;&|]*\s-[a-zA-Z]*n[a-zA-Z]*\b|\bgit\s+-c\s+core\.hooksPath=|\bgit\s+config\b[^;&|]*\bcore\.hooksPath\s+(?!["']?\.githooks\b)\S|\bHUSKY=0\b/i.exec(cmd);
+    // (reading the setting, "git config core.hooksPath && ...", sets nothing. Lesson, trial round 9: the operator after it
+    // was read as a new value, and two setups that had just turned the hooks on were denied)
+    const skipHooks = /\bgit\b[^;&|]*\b(commit|push|merge)\b[^;&|]*\s--no-verify\b|\bgit\b[^;&|]*\bcommit\b[^;&|]*\s-[a-zA-Z]*n[a-zA-Z]*\b|\bgit\s+-c\s+core\.hooksPath=|\bgit\s+config\b[^;&|]*\bcore\.hooksPath[ \t]+(?!["']?\.githooks\b)[^\s;&|]|\bHUSKY=0\b/i.exec(cmd);
     if (skipHooks && !/\b(no-?verify|skip (the )?(git )?hooks|bypass (the )?hooks|without (the )?hooks|hooks ?path|husky)\b/i.test(req()))
       add(`REQ: git-safety. "${skipHooks[0].trim().slice(0, 80)}" skips or re-points the git hooks (AI attribution, secrets and .gitignore checks). Fix what the hook reported instead; do this only when the user asks for it in their own words.`);
     const pushTo = /\bgit\b[^;&|]*\bpush\b([^;&|]*)/i.exec(cmd);
