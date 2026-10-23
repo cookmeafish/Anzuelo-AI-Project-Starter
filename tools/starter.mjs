@@ -241,7 +241,8 @@ if (cmd === 'link') {
   }
 } else if (cmd === 'feedback') {
   const text = process.argv.slice(3).join(' ').replace(/\s+/g, ' ').trim();
-  if (!text) { console.error('usage: node tools/starter.mjs feedback "<what the engine got wrong or should do>"'); process.exit(1); }
+  // (a line that is only flags, such as --help, asks for the usage. Lesson, a field report: "feedback --help" was saved as feedback)
+  if (!text || /^(-{1,2}[\w-]+\s*)+$/.test(text)) { console.error('usage: node tools/starter.mjs feedback "<what the engine got wrong or should do>"'); process.exit(text && /^(-h|--help)$/.test(text) ? 0 : 1); }
   if (!fs.existsSync(at(FEEDBACK))) { fs.mkdirSync(path.dirname(at(FEEDBACK)), { recursive: true }); fs.writeFileSync(at(FEEDBACK), FEEDBACK_HEAD); }
   const t = new Date(), day = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
   // the new line goes under the last dated one (or before the first "## " section), not below "## Related" at the end.

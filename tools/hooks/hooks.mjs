@@ -3039,7 +3039,15 @@ export function inEnglish(text, cfg = config()) {
 // A request written in Spanish (a few common Spanish words, few English ones): its answer and labels are in Spanish.
 const ES_WORDS = /(?<![\p{L}])(el|la|los|las|de|del|en|un|y|es|se|al|lo|que|para|con|por|una|est[aá]|esta|este|mi|tu|todo|pero|como|tiene|quiero|hay|desde|sobre|cada|otra|vez)(?![\p{L}])/giu;
 const EN_WORDS = /\b(the|and|to|of|is|that|it|for|with|my|this|you|on|are|please|what|from|have|be)\b/gi;
-export const isSpanish = text => { const s = String(text || '').slice(0, 2000); const es = (s.match(ES_WORDS) || []).length, en = (s.match(EN_WORDS) || []).length; return es >= 3 && es > en * 2; };
+// Only the user's own words count: pasted blocks, code blocks and list lines ("1 Hei Bai, espíritu del bosque (NEO) 12")
+// are what they pasted, not the language they write in; a message that is nothing else is read whole.
+// Lesson (a field report): an English sentence with a pasted Spanish deck list got "the user writes in Spanish".
+const writtenWords = text => String(text || '').replace(/<pasted_content\b[^>]*>[\s\S]*?<\/pasted_content>/gi, ' ').replace(/<pasted_content\b[^>]*\/>/gi, ' ')
+  .replace(/```[\s\S]*?```/g, ' ').split(/\r?\n/).filter(l => !/^\s*(\d+x?\s|[-*•]\s*\d+x?\s|\|)/i.test(l)).join('\n');
+export const isSpanish = text => {
+  const own = writtenWords(text), s = (own.trim().length >= 12 ? own : String(text || '')).slice(0, 2000);
+  const es = (s.match(ES_WORDS) || []).length, en = (s.match(EN_WORDS) || []).length; return es >= 3 && es > en * 2;
+};
 // The labels the checks look for, as a Spanish answer writes them (the checks read both).
 // A choice made for a user who asked not to be asked: in the answer a plain sentence; the form line is for plans.
 // Lesson: Spanish answers read like forms ("Supuesto: X - por qué - coste") because every hint quoted the plan's form.

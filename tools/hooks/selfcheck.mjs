@@ -3387,7 +3387,7 @@ const proves = s => TAGS.filter(t => (s.expect?.tags || []).includes(t) || (s.ex
 const SHARD = (() => { const i = process.argv.indexOf('--shard'), m = /^(\d+)\/(\d+)$/.exec(i > 0 ? process.argv[i + 1] || '' : ''); return m ? { i: Number(m[1]), n: Number(m[2]) } : null; })();
 const HELPER = !!SHARD;
 // tags a standalone test proves (it runs with --tags <tag>, outside the full-run-only block)
-const STANDALONE_TAGS = ['session-checklist', 'engine-bypassed', 'transcript-tail', 'instructions-run', 'answer-traced', 'stop-follow-on', 'stop-reblock', 'check-preview'];
+const STANDALONE_TAGS = ['feedback-usage', 'session-checklist', 'engine-bypassed', 'transcript-tail', 'instructions-run', 'answer-traced', 'stop-follow-on', 'stop-reblock', 'check-preview'];
 if (TAGS) {
   const all = [...STOP, ...PRETOOL, ...PROMPT];
   for (const t of TAGS) if (!HELPER && !TRIGGER_TAGS.includes(t) && !STANDALONE_TAGS.includes(t) && t !== 'selftest-speed' && !all.some(s => proves(s).includes(t))) report(false, `tags: a scenario proves ${t}`, `no scenario proves "${t}": add one to tools/hooks/project-scenarios.mjs (blocked when skipped, passes when followed)`);
@@ -4192,6 +4192,12 @@ if (mineB()) { // answer-language: a choice made for a user who asked not to be 
   report(vr('**Revisión visual:** está bien después de 2 rondas') && vr('- **Revisión visual:** correcta a la primera') && vr('Revisión visual: quedó correcta tras 3 rondas')
     && vr('Visual review: PASS on the first try') && !vr('Revisión visual: pendiente'),
     'answer-language: the visual review line passes in the user\'s own words ("está bien después de 2 rondas", "correcta a la primera", "PASS on the first try")', '');
+  // the language is the user's own words, not what they pasted (Lesson, a field report: an English question with a pasted
+  // Spanish deck list got "the user writes in Spanish")
+  const deck = '1 Hei Bai, espíritu del bosque (NEO) 12\n1 Santuario de la grulla (NEO) 1\n1 Altar de los dioses (NEO) 2\n1 Conjuro de la luz del sol (M21) 3';
+  const langs = [h.isSpanish(`best alters for heibai? here is my deck\n${deck}`), h.isSpanish(`<pasted_content id="p1">${deck} y la casa es de mi tío</pasted_content>\nwhat should I cut from this deck?`),
+    h.isSpanish('quiero que el mazo tenga más altares para la estrategia de Hei Bai'), h.isSpanish(deck)];
+  report(JSON.stringify(langs) === '[false,false,true,true]', 'answer-language: the user\'s language comes from their own words, not a pasted list or block (a message that is only a paste is read whole)', JSON.stringify(langs));
 }
 
 // answer-language: every label a shipped check reads in the answer has a Spanish form that meets it, and the same
@@ -6033,6 +6039,18 @@ if (mineB() && INSTALLED.includes('app')) { // app gates: their own pass lines, 
 }
 // standalone tests that can also be asked for by tag (--tags <tag>): outside the full-run-only block above.
 // Lesson: they sat inside it, so their "--tags" gates never ran and a fast run could not prove them.
+if (mineP() && (!TAGS || TAGS.includes('feedback-usage'))) { // feedback-usage: "starter.mjs feedback --help" prints the usage and
+  // saves nothing (Lesson, a field report: "--help" was saved as a feedback line)
+  const dir = copyProject();
+  try {
+    fs.rmSync(path.join(dir, '.starter-template'), { force: true }); // (as a project made from the starter)
+    const fb = (...a) => spawnSync(process.execPath, [path.join(dir, 'tools/starter.mjs'), 'feedback', ...a], { cwd: dir, encoding: 'utf8' });
+    const help = fb('--help'), flags = fb('--x', '--y'), real = fb('the -h flag is ignored by sync');
+    const fbFile = path.join(dir, 'docs/starter-feedback.md'), lines = (fs.existsSync(fbFile) ? fs.readFileSync(fbFile, 'utf8') : '').split('\n').filter(l => /^- \d{4}-\d\d-\d\d: /.test(l));
+    report(help.status === 0 && /usage:/.test(help.stderr) && flags.status === 1 && real.status === 0 && lines.length === 1 && /-h flag is ignored/.test(lines[0]),
+      'feedback-usage: "feedback --help" prints the usage, a line of flags is refused, and only real text is saved', JSON.stringify({ help: help.status, flags: flags.status, real: real.status, lines, err: (real.stderr || '').slice(0, 300) }));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
 if (mineB() && (!TAGS || TAGS.includes('session-checklist'))) { // session-checklist: a resumed session that was shown the
   // checklist gets one line; a new session, another session's resume and a compaction get it whole
   // (Lesson, trial rounds 4 to 9: every resumed turn got the 2,300-character checklist again)
