@@ -1,7 +1,7 @@
 ---
 name: legal-review
-description: Helps with everyday legal paperwork and questions without pretending to be a lawyer. It reviews contracts clause by clause against the user's own positions, screens NDAs, checks a plan against privacy and other rules, rates legal risk, drafts replies to common legal requests, checks what is signed with a vendor, prepares legal briefs and meeting notes, and checks a document is ready to sign. Every result is marked as not legal advice and says plainly when a qualified lawyer is needed. Use when the user shares a contract, NDA, DPA or terms, asks if something is compliant or risky, needs a legal reply drafted, or is about to sign.
-triggers: review this contract, contract review, review the contract, redline, redlines, nda, review this nda, non-disclosure, compliance check, is this compliant, is this legal, gdpr, ccpa, privacy law, dpa, data processing agreement, data subject request, legal risk, risk assessment, legal hold, litigation hold, subpoena, vendor agreement, vendor check, what have we signed, legal brief, legal briefing, legal meeting prep, ready to sign, send for signature, signing checklist, terms and conditions, terms of service, gdpr compliant, use it commercially, use commercially
+description: Helps with everyday legal paperwork and questions without pretending to be a lawyer. It reviews contracts clause by clause against the user's own positions, screens NDAs, checks a plan against privacy and other rules, rates legal risk, drafts replies to common legal requests, checks what is signed with a vendor, prepares legal briefs and meeting notes, and checks a document is ready to sign. Every result is marked as not legal advice and says plainly when a qualified lawyer is needed. Use when the user shares a contract, NDA, DPA or terms, asks if something is compliant or risky, needs a legal reply drafted, wants a letter with legal effect (a rent increase, a notice, an eviction, deposit deductions, a dismissal), or is about to sign.
+triggers: review this contract, contract review, review the contract, redline, redlines, nda, review this nda, non-disclosure, compliance check, is this compliant, is this legal, gdpr, ccpa, privacy law, dpa, data processing agreement, data subject request, legal risk, risk assessment, legal hold, litigation hold, subpoena, vendor agreement, vendor check, what have we signed, legal brief, legal briefing, legal meeting prep, ready to sign, send for signature, signing checklist, terms and conditions, terms of service, gdpr compliant, use it commercially, use commercially, rent increase, raise the rent, notice to quit, eviction, security deposit, terminate the lease, termination letter, dismissal letter, notice period, subida del alquiler, aumento del alquiler, desahucio, fianza, preaviso, carta de despido
 ---
 # Legal review: careful paperwork, honest limits
 
@@ -27,6 +27,7 @@ told the user nothing. Name the skill only on the answer's last markers line (`S
 | asks what is already signed with a company, or what is missing or expiring | **F** |
 | wants a daily legal summary, a topic brief, an incident brief or prep for a meeting | **G** |
 | says a document is final and ready to sign | **H** |
+| wants a letter or notice that changes a legal relationship: a rent increase, a notice to end a tenancy or a job, an eviction, deposit deductions, a dismissal | **I** |
 
 Several can apply. A new vendor deal is often F, then A, then H.
 
@@ -152,6 +153,17 @@ The agent may still prepare a draft for the lawyer, marked `DRAFT FOR COUNSEL RE
 3. Any check fails: say what to fix first. Sending for signature, with or without an e-signature tool, is an outward
    action: only with the user's explicit OK (AGENTS.md rule 6).
 
+## I. A letter with legal effect
+A letter that raises the rent, ends a tenancy or a job, keeps part of a deposit or starts an eviction often only
+works in a set form: a required notice or form, a notice period, a way of serving it, limits on timing.
+1. Check how it must be done where the user is, with the jurisdiction named (research skill, section C, with the law
+   text or the regulator as the primary source). Unchecked: say so once in the answer, with what to check.
+2. The draft keeps a pointer to what it relies on: the clause in the agreement, or the official form to send with
+   it. A later rewrite (for tone, for length) never drops that pointer.
+3. The letter itself stays plain and carries no "Not legal advice" line (the answer does, once, at its end).
+Lesson: a rent increase letter was written as if the letter alone put the increase into effect; the law was never
+checked, and a friendlier rewrite removed the only line that pointed to the official notice.
+
 ## Done when
 - [ ] The answer ends with the "Not legal advice" line, once, and no draft for someone else carries it (hook: legal-disclaimer).
 - [ ] It says what it was judged against: the user's positions file or general norms (judgment: no check reads this line yet).
@@ -160,7 +172,7 @@ The agent may still prepare a draft for the lawyer, marked `DRAFT FOR COUNSEL RE
 - [ ] Redlines quote the current text and give replacement text ready to paste (judgment: redline quality needs a reader).
 - [ ] Sources checked and not checked are listed (judgment: no check reads the list yet).
 - [ ] Nothing was sent, signed or submitted without the user's explicit OK (judgment: the user's OK is in the conversation).
-- [ ] Followed unasked whenever the turn writes a privacy policy, terms or a contract (hook: legal-trigger).
+- [ ] Followed unasked whenever the turn writes a privacy policy, terms or a contract, or the request is a step with legal effect (rent increase, notice, eviction, deposit, dismissal) (hook: legal-trigger).
 
 ## Pitfalls
 - Sounding certain. A confident wrong answer about a contract can cost the user far more than "ask a lawyer".

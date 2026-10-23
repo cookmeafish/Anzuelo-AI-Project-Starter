@@ -113,7 +113,10 @@ page, no external scripts. A PNG or a plotting library is fine when the user alr
 1. **Re-run from scratch:** the profile, the cleaning steps and the analysis script, from the original file. The
    numbers must come out the same.
 2. **Trace every number** in the answer, chart or file to a line of output from this turn. A number with no output
-   behind it is removed or marked "(not verified)" (research skill, section D).
+   behind it is computed with the script, removed, or marked "(not verified)" (research skill, section D). A figure
+   worked out in your head ("without that product, the week made ...") goes into the script too: a sum written in
+   the answer must give the figure it stands for. Lesson: a hand-worked weekly total that left out one product passed,
+   because a "How it was computed" line named a script that never printed it.
 3. **Cross-check one or two figures another way:** a different query, a hand count on a small filter, parts adding up
    to the total.
 4. **State the limits:** data source and date, rows excluded and why, assumptions, and what would change the answer.
@@ -122,7 +125,7 @@ page, no external scripts. A PNG or a plotting library is fine when the user alr
 
 ## Done when
 - [ ] New data was profiled and its grain stated (**A**), and quality problems listed with row counts (**B**) (judgment: the grain and the quality problems need a reader).
-- [ ] Every number in the answer came from code run this turn, with a `How it was computed:` line (hook: data-computed).
+- [ ] Every number in the answer came from code run this turn (it is in that run's output, or follows from the answer's other figures), with a `How it was computed:` line (hook: data-computed).
 - [ ] Charts have honest axes, titles, units, source and accessible colors (**E**) (judgment: honest axes and colors need a human eye).
 - [ ] The analysis was re-run from the original before sharing (**F**) (judgment: no check sees the re-run yet).
 - [ ] Numbers computed from data files say how they were computed, even unasked (hook: data-computed-trigger).

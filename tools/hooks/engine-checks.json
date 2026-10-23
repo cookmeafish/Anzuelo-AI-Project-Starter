@@ -1424,9 +1424,10 @@
         "skillUsed": "data-analysis"
       },
       "require": {
-        "answerMatches": "how it was computed:|\\(calculated:"
+        "answerMatches": "how it was computed:|\\(calculated:",
+        "answerFiguresComputed": true
       },
-      "message": "Data-analysis skill: compute every number with code run this turn (profile.mjs, a script, or a query), and say how in a 'How it was computed:' line naming the script or query and the row count. Numbers with no output behind them are removed or marked not verified.",
+      "message": "Data-analysis skill: compute every number with code run this turn (profile.mjs, a script, or a query), and say how in a 'How it was computed:' line naming the script or query and the row count. Each figure in the answer must appear in what that run printed, or follow from the answer's other figures; a sum you work out must give the figure it stands for. Numbers with no output behind them are computed with the script, removed, or marked not verified.",
       "skill": "data-analysis"
     },
     {
@@ -1453,9 +1454,10 @@
         "answerMatches": "\\b\\d[\\d,]*(\\.\\d+)?\\s*(%|percent)|\\b(average|mean|median|total|sum|count|rate|growth)\\b[^\\n]{0,40}\\d"
       },
       "require": {
-        "answerMatches": "how it was computed:|\\(calculated:"
+        "answerMatches": "how it was computed:|\\(calculated:",
+        "answerFiguresComputed": true
       },
-      "message": "The answer gives numbers computed from data files: follow the data-analysis skill and show how each was computed (\"How it was computed: ...\" or \"(calculated: ...)\").",
+      "message": "The answer gives numbers computed from data files: follow the data-analysis skill and show how each was computed (\"How it was computed: ...\" or \"(calculated: ...)\"). Each figure must appear in what the script or query printed this turn, or follow from the answer's other figures.",
       "forces": "data-analysis",
       "skill": "data-analysis"
     },
@@ -1474,7 +1476,7 @@
     {
       "tag": "legal-trigger",
       "rule": "4",
-      "hint": "\\b(privacy (policy|notice)|cookie policy|terms (of (service|use)|and conditions)|t&cs?|contracts?|ndas?|non-disclosure|eula|gdpr|ccpa|licen[cs]e terms|disclaimer|(service|user|licen[cs]e|vendor|rental|lease|employment|partnership|freelance|consulting|purchase|sales|data processing|confidentiality|subscription|reseller|supplier|loan) agreements?|sign (the|this|an?) agreement|commercially|commercial (use|licen[cs]e)|copyright (infringement|claim|notice|issue)s?|is (it|this|that) legal|legally)\\b",
+      "hint": "\\b(privacy (policy|notice)|cookie policy|terms (of (service|use)|and conditions)|t&cs?|contracts?|ndas?|non-disclosure|eula|gdpr|ccpa|licen[cs]e terms|disclaimer|(service|user|licen[cs]e|vendor|rental|lease|employment|partnership|freelance|consulting|purchase|sales|data processing|confidentiality|subscription|reseller|supplier|loan) agreements?|sign (the|this|an?) agreement|commercially|commercial (use|licen[cs]e)|copyright (infringement|claim|notice|issue)s?|is (it|this|that) legal|legally|rent (increase|rise|hike|review|arrears)s?|(raise|raising|increase|increasing|put up|putting up|hike|hiking) (the |their |his |her |my |our )?rent|evict(ion|ing|ed|s)?|notice (to quit|of (termination|eviction|rent increase|intent(ion)? to \\w+|dismissal|resignation|non-renewal|breach|default|possession))|(eviction|termination|dismissal|resignation|possession|section \\d+) notice|notice period|how much notice|(serve|served|serving|give|giving|gave|hand in|handed in) (\\w+ ){0,2}notice(?! *(banner|bar|box|component|message|toast|popup|pop-up|area|text|icon|style|card))|(security|tenancy|rental|damage) deposits?|(return|keep|withhold|deduct|deducting|deductions from) (the |their |a |his |her )?deposit|terminat(e|ing|ion of) (the |a |their |his |her |my |our |this )?(contract|lease|tenancy|employment|agreement|job)|(unfair |wrongful |constructive )?dismissal|redundan(t|cy|cies)|severance|disciplinary (letter|hearing|meeting|action)|final written warning|(fire|firing|sack|sacking|lay off|laying off|let go of) (an? |the |my |our |this )?(employee|worker|staff member|member of staff)|(aumento|subida|incremento) del? (la )?(renta|alquiler)|(subir|aumentar|incrementar) (el |la )?(alquiler|renta)|desahuci\\w*|desalojo|fianza|dep[oó]sito de (garant[ií]a|seguridad)|preaviso|carta de (despido|preaviso|renuncia)|despidos?|finiquito|rescindir|rescisi[oó]n|(terminaci[oó]n|resoluci[oó]n|fin) del? (contrato|arrendamiento|alquiler))\\b",
       "when": {
         "anyOf": [
           {
@@ -1508,7 +1510,7 @@
             ]
           },
           {
-            "promptMatches": "\\b(privacy (policy|notice)|cookie policy|terms (of (service|use)|and conditions)|t&cs?|contracts?|ndas?|non-disclosure|eula|gdpr|ccpa|licen[cs]e terms|disclaimer|(service|user|licen[cs]e|vendor|rental|lease|employment|partnership|freelance|consulting|purchase|sales|data processing|confidentiality|subscription|reseller|supplier|loan) agreements?|sign (the|this|an?) agreement|commercially|commercial (use|licen[cs]e)|copyright (infringement|claim|notice|issue)s?|is (it|this|that) legal|legally)\\b",
+            "promptMatches": "\\b(privacy (policy|notice)|cookie policy|terms (of (service|use)|and conditions)|t&cs?|contracts?|ndas?|non-disclosure|eula|gdpr|ccpa|licen[cs]e terms|disclaimer|(service|user|licen[cs]e|vendor|rental|lease|employment|partnership|freelance|consulting|purchase|sales|data processing|confidentiality|subscription|reseller|supplier|loan) agreements?|sign (the|this|an?) agreement|commercially|commercial (use|licen[cs]e)|copyright (infringement|claim|notice|issue)s?|is (it|this|that) legal|legally|rent (increase|rise|hike|review|arrears)s?|(raise|raising|increase|increasing|put up|putting up|hike|hiking) (the |their |his |her |my |our )?rent|evict(ion|ing|ed|s)?|notice (to quit|of (termination|eviction|rent increase|intent(ion)? to \\w+|dismissal|resignation|non-renewal|breach|default|possession))|(eviction|termination|dismissal|resignation|possession|section \\d+) notice|notice period|how much notice|(serve|served|serving|give|giving|gave|hand in|handed in) (\\w+ ){0,2}notice(?! *(banner|bar|box|component|message|toast|popup|pop-up|area|text|icon|style|card))|(security|tenancy|rental|damage) deposits?|(return|keep|withhold|deduct|deducting|deductions from) (the |their |a |his |her )?deposit|terminat(e|ing|ion of) (the |a |their |his |her |my |our |this )?(contract|lease|tenancy|employment|agreement|job)|(unfair |wrongful |constructive )?dismissal|redundan(t|cy|cies)|severance|disciplinary (letter|hearing|meeting|action)|final written warning|(fire|firing|sack|sacking|lay off|laying off|let go of) (an? |the |my |our |this )?(employee|worker|staff member|member of staff)|(aumento|subida|incremento) del? (la )?(renta|alquiler)|(subir|aumentar|incrementar) (el |la )?(alquiler|renta)|desahuci\\w*|desalojo|fianza|dep[oó]sito de (garant[ií]a|seguridad)|preaviso|carta de (despido|preaviso|renuncia)|despidos?|finiquito|rescindir|rescisi[oó]n|(terminaci[oó]n|resoluci[oó]n|fin) del? (contrato|arrendamiento|alquiler))\\b",
             "workTurn": true
           }
         ]
@@ -1523,7 +1525,7 @@
           }
         ]
       },
-      "message": "This turn wrote a privacy policy, terms or a contract: follow the legal-review skill and say plainly that it is not legal advice.",
+      "message": "This turn wrote a privacy policy, terms or a contract, or a step with legal effect (a rent increase, a notice, an eviction, a deposit, a dismissal): follow the legal-review skill (for a letter that changes a legal relationship, check how it must be served and keep the pointer to the required form or clause in the draft) and say plainly that it is not legal advice.",
       "forces": "legal-review",
       "skill": "legal-review"
     },

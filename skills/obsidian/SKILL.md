@@ -22,7 +22,8 @@ the graph, so links are the relationships, and the agent follows the same links 
 1. Before writing, find what it relates to: `node skills/obsidian/scripts/notes.mjs suggest <note>` lists notes that
    share the most key words and aren't linked yet. Read the likely ones; link only real relations.
 2. Add the links (in the text, or under `## Related`). A new note must link to at least one other note (hook:
-   note-linked); a note that is truly on its own says why under `## Related`.
+   note-linked, for notes in `docs/knowledge`, `docs/notes`, `docs/` and every folder in `"knowledgeDirs"`); a note
+   that is truly on its own says why under `## Related`.
 3. Moved or renamed a note: `notes.mjs check` lists links that no longer resolve (the audit fails on them too).
 
 ## Answering "what is related to X?"
