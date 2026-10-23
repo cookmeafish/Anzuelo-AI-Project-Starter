@@ -3917,9 +3917,16 @@ export function relayedBody(prompt) {
 // (a command, by its shape: "go to the store" or "a node in the graph" is prose)
 const CMD_LINE = /\b(?:node\s+[\w./\\-]+\.[cm]?[jt]s\b|(?:npm|pnpm|yarn)\s+(?:run|install|i|test|ci|publish)\b|npx\s+\S+|git\s+(?:add|commit|push|pull|fetch|log|status|diff|show|checkout|switch|merge|rebase|tag|stash|reset|clone|init)\b|python3?\s+(?:-m\s+\S+|[\w./\\-]+\.py\b)|py\s+(?:-m\s+\S+|[\w./\\-]+\.py\b)|pip3?\s+install\b|(?:pwsh|powershell)(?:\.exe)?\s+(?:-\w+|[\w./\\-]+\.ps1\b)|go\s+(?:build|test|run|vet|mod|get|install)\b|cargo\s+(?:build|test|run|install|publish)\b|dotnet\s+(?:build|test|run|publish)\b|(?:bash|sh)\s+[\w./\\-]+\.sh\b)(?:[^\n;.]|\.(?=\S))*/gi;
 const asRoute = c => STARTER_UPGRADE.test(c) ? ' upgrade the starter ' : ' ';
+// Work reported as done ("fixed and pushed:", "already released") is no request for that work. Lesson: "fixed and
+// pushed: GitHub main" routed to the release runbook and held the turn to its release checks.
+const DONE_REPORT = /\b(?:and|been|is|are|was|were|already|now|all|got)\s+(?:pushed|released|published|deployed|merged|tagged|shipped)\b|\b(?:pushed|released|published|deployed|merged|shipped)\s*:/gi;
 export const relayRouteText = s => String(s || '')
   .replace(/```[\s\S]*?(```|$(?![\s\S]))/g, asRoute).replace(/`[^`\n]*`/g, asRoute)
-  .replace(/["“][^"”\n]*["”]/g, ' ').replace(CMD_LINE, asRoute).replace(/\s{2,}/g, ' ').trim();
+  .replace(/["“][^"”\n]*["”]/g, ' ').replace(CMD_LINE, asRoute).replace(DONE_REPORT, ' ').replace(/\s{2,}/g, ' ').trim();
+// The user's own message routes on its words too: a command it names (in backticks or as a command line) and work it
+// reports as done are no request for that work; what it quotes stays (a user quotes the thing they mean). Lesson:
+// "upgrade with node tools/starter.mjs update" set off the dependency-update skill on "upgrade node".
+export const typedRouteText = s => String(s || '').replace(/`[^`\n]*`/g, asRoute).replace(CMD_LINE, asRoute).replace(DONE_REPORT, ' ').replace(/\s{2,}/g, ' ').trim();
 export function promptHints(prompt, cfg = config(), withNotices = true, { relayed = false } = {}) {
   if (!String(prompt || '').trim() || (!relayed && skipped(prompt))) return []; // REQ: notification-not-prompt
   const p = userText(prompt); // pasted text and the hooks' own output are not the request
@@ -3929,6 +3936,7 @@ export function promptHints(prompt, cfg = config(), withNotices = true, { relaye
   if (best) hints.push(`RECALL: on ${best.h.at} a similar request ("${best.h.prompt.slice(0, 90)}") was done${best.h.used.length ? ` with ${best.h.used.join(', ')}` : ''}${best.h.changed.length ? `, changing ${best.h.changed.slice(0, 4).join(', ')}` : ''}. Start from that; more: node tools/recall.mjs "<key words>".`);
   // (menu codes and flags are the user's shorthand: in a relayed message they are the other session's text)
   const m = relayed ? { known: [], unknown: [], kflags: [], uflags: [], expanded: relayRouteText(p), codes: {}, flags: {} } : expandMenu(p);
+  if (!relayed) m.expanded = typedRouteText(m.expanded);
   for (const c of m.known) {
     const r = m.codes[c];
     hints.push(`MENU CODE ${c} = "${r.means}". Runbook: docs/playbooks/${r.playbook}. Treat it exactly as if the user typed that in full; the rest of the message adds details.`);

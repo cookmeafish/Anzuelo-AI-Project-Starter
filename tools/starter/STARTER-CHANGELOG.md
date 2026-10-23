@@ -35,6 +35,11 @@ hooks:**, and an upgrade lists each one as its own review item.
     project's old `tools/new-project.mjs`, a starter tool upgrades never refresh, so every upgraded project ran all
     1,100 engine tests (over 10 minutes) on its first self-test run. Only what the proof covers counts now.
     Scenario: `engine-proof` (an old starter tool).
+    Routing: a command the user names (in backticks or as a command line) and work reported as done ("fixed and
+    pushed:", "already released") no longer route, in typed and relayed messages alike: "fixed and pushed: GitHub
+    main" had added the release runbook and its checks, and "upgrade with node tools/starter.mjs update" the
+    dependency-update skill. `selfcheck.mjs --route` routes a relayed message the way the prompt hook does. Scenarios:
+    `route:` (done reports), `relayed turn:`.
     **Breaking for project hooks:** bookkeeping lines (`Playbook:`, `Skill:`, `Worth it:`, `Proven:`, `Learned`) may
     be in `.cache/turn-notes.md` written this turn instead of the answer; a project hook that asks for them in the
     answer should also accept that file. The upgrade-review Stop step no longer fires on the user's own work turns.

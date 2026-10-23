@@ -26,9 +26,12 @@ const INPUTS0 = await (async () => { try { return (await import('./hooks.mjs')).
 const CORE_SKILLS = await (async () => { try { return (await import('./hooks.mjs')).CORE_SKILLS || []; } catch { return []; } })();
 
 if (process.argv[2] === '--route') {
-  const { promptHints } = await import('./hooks.mjs');
+  const { promptHints, relayedBody, config } = await import('./hooks.mjs');
   const msg = process.argv.slice(3).join(' ');
-  const hints = promptHints(msg);
+  // a relayed message is routed the way the prompt hook routes it (its body, as relayed). Lesson: --route printed
+  // "no hints" for a relayed upgrade request the hook itself routed to the project runbook.
+  const body = relayedBody(msg);
+  const hints = body ? promptHints(body, config(), false, { relayed: true }) : promptHints(msg);
   console.log(hints.length ? hints.map(h => '- ' + h).join('\n') : '(no hints: no runbook matched and it does not look like a task)');
   process.exit(0);
 }
@@ -2944,6 +2947,11 @@ PROMPT.push(
   { name: 'relayed turn: a report of fixes that ends "upgrade again with node tools/starter.mjs update" routes to the project runbook first',
     prompt: '<cross-session-message from="other">All 3 are fixed and pushed. The old check read "the commit failed" as an error. Tests: "claim-checked: a commit that went through ... passes". Upgrade again with node tools/starter.mjs update.</cross-session-message>',
     setup: HINT_FIX, setupFn: STARTER_IS, has: ['ROUTE: project'], hasNot: ['FIT:'] },
+  // work reported as done is no request for it; the same words as a request still route
+  { pack: 'app', name: 'route: "fixed and pushed: GitHub main" with a starter upgrade routes to the project runbook, not to release',
+    prompt: 'Both of your latest findings are fixed and pushed: GitHub main 754ac35. Upgrade with node tools/starter.mjs update.',
+    has: ['ROUTE: project'], hasNot: ['ROUTE: release', 'release-'] },
+  { pack: 'app', name: 'route: "push to main and tag the release" still routes to release', prompt: 'push to main and tag the release v1.2', has: ['release'] },
   // RECALL only above a similarity bar
   { name: 'recall: a question about the work recalls no unrelated request that shared "good" and "bad"', prompt: 'is it doing a good or bad job?',
     setup: HIST('tell the other chat everything good and bad, the mana in my zorbel deck is slow', ['decks/zorbel/list.txt']), hasNot: ['RECALL'] },
