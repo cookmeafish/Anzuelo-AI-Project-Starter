@@ -7,6 +7,34 @@ print, or to a command or setting a project's own hooks or scripts may rely on, 
 hooks:**, and an upgrade lists each one as its own review item.
 
 - 2026-10-21: Fewer retries and Stop rounds (field report from an adopted project).
+  - **What the answer tells the user to do or believe is backed by this turn (trials of 8 new projects, round 8):**
+    new core check `instructions-run`. A script, launcher or command the answer tells the user to run, double-click or
+    open ("run", "double-click", "ejecuta", "doble clic"), that this turn made or changed (a `.ps1`, `.bat`, `.cmd`,
+    `.sh` or `.py`, an npm script, a make target), ran here the way the user is told to and worked, or the answer names
+    it in "NOT VERIFIED: <what> - <why>"; a refused run asks once for that line. "powershell" is Windows PowerShell
+    5.1, so a pwsh run does not count for it. A setup answer had said to run `powershell ... scripts\setup.ps1`, never
+    run, whose `Out-File -Encoding utf8NoBOM` 5.1 rejects, so `.env` was never made. A `.ps1` written with what only
+    PowerShell 7 has (`-Encoding utf8NoBOM`, `??`, `?.`, the ternary, `&&` and `||`) is named at the edit, and
+    writing-standards, the install-update and app-foundation runbooks list the 5.1 pitfalls. `claim-checked` now holds
+    "already enforced" claims ("checked automatically", "can't get through", "se comprueba sola") to a check that runs
+    on its own over the files the claim is about and, in complaint turns, was shown failing on the case this turn
+    (its scenarios passing, or "Proven: fails on ..." with a failing run); a vault answer had promised that about notes
+    no check read. `note-linked` covers the folders in `"knowledgeDirs"` (templates and attachments aside), so the
+    obsidian skill's "(hook: note-linked)" holds for a vault. `claim-checked` also flags a test "done by hand" (the
+    Spanish labels hint had offered "Lo probé a mano:" for an automated browser run). A gate refused while its program
+    is not installed (a PATH scan) says so, and an answer that blames approval for it is asked for the true reason; the
+    app gates' message says to check. The library `data-computed` checks (new requirement key `answerFiguresComputed`)
+    ask that each figure appears in what a run printed or follows from the answer's other figures, that the script
+    the "How it was computed" line names ran, that "(calculated: ...)" arithmetic is right, and that a list of worked
+    sums gives the figures it stands for (a "315" for 315 + 125 had passed). `answer-traced` flags a claim cited to a
+    project file (`[n]` footnotes, "from <file>") in the answer, notes or `outputs/` when under a third of its key words
+    are in that file (an inference after "so" or ":" is judged on its own); "my guess:" or "inferido:" marks it.
+    Measured on the round 6 to 8 transcripts: 147 cited claims, 5 flags (3 true, 2 borderline); 8 launcher instructions,
+    6 flags, all launchers never run nor marked; 8 "How it was computed" answers, 1 flag (the real error). The legal
+    triggers cover rent increases, notices, evictions, deposits, dismissals and terminations in English and Spanish,
+    and a "notice banner" stays quiet; the legal-review skill gains a section for letters with legal effect.
+    Scenarios: `instructions-run:` (12), `claim-checked:` (enforced, by hand), `note-linked:` (vault), `app-test-pass:`
+    (not installed), `data-computed:` (sums, figures, calculated), `answer-traced:` (cited claims), trigger cases.
   - **Gates that can't run ask once for an honest line, and Stop reads labels and command lines as written (trials of
     8 new projects, round 7):** a test, build or lint gate (and the audit and hook self-tests) whose last try the
     permission system refused outright, or whose tool is missing (the program, or a dependency whose install was

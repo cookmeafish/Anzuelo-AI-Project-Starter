@@ -35,8 +35,9 @@ change. Helper: `skills/notes-vault/scripts/vault.mjs` (Node only, read-only).
    Markdown notes it shows the note count, link style, subfolders to leave out (attachments, templates, dot folders)
    and whether it is registered, then prints the `knowledgeDirs` value to use.
 2. Add the note folders to `"knowledgeDirs"` in `tools/hooks/config.json`, e.g. `"knowledgeDirs": ["Notes", "Journal"]`.
-   The list extends the default (`docs/knowledge`); don't repeat it. The knowledge checks, citations and stale-fact
-   sweeps then cover these folders, and `DIRECTORY.md` lists them.
+   The list extends the default (`docs/knowledge`); don't repeat it. The knowledge checks, citations, stale-fact
+   sweeps and the new-note link check (note-linked, on every turn) then cover these folders, and `DIRECTORY.md` lists
+   them. A folder left out of the list is checked by none of them.
 3. Leave out what is not knowledge: private journals, templates, attachments, an archive. Ask once when unsure and
    record the answer in `docs/glossary.md`.
 4. Run the scan again. It must end with `RESULT: PASS`.

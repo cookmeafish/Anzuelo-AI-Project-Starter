@@ -44,10 +44,13 @@ wants the security, performance or usability baseline revisited. Run it before t
      check if the stack allows it.
    - **Layout and the start file:** organize the code into folders (docs/checks/layout-standards.md) and create ONE
      obvious start file in the root (e.g. `Start <App>.bat` plus `start.sh`) that calls `scripts/`. The README's first
-     instruction points at it.
+     instruction points at it. A PowerShell script the user runs with `powershell` works in Windows PowerShell 5.1
+     (the pitfalls are in `docs/playbooks/install-update.md`, Rules), or the instruction says `pwsh`.
    - **Gates:** `node tools/packs.mjs configure app --test "<cmd>" --build "<cmd>" --code "<globs>"` (add `--lint`,
      `--typecheck` and `--version-file` where they apply), plus `codeRules` for the project's own forbidden patterns.
-6. **Verify:** each new test and script runs and passes. Screens go through the gui-review-loop (gui pack).
+6. **Verify:** each new test and script runs and passes. Every step the answer gives the user (a setup script, the
+   start file) ran here the way the user is told to, or the answer says "NOT VERIFIED: <what> - <why>" for it (hook:
+   instructions-run). Screens go through the gui-review-loop (gui pack).
 
 ## Done when
 - [ ] `docs/foundation.md` has no `<...>` left and `status: set` (hook: foundation-set, and the setup gate).

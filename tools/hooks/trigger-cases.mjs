@@ -483,8 +483,23 @@ export default {
     'check this contract',
     'terms of service for the app',
     'can I use this font commercially?',
-    'draft an NDA for the freelancer'], quiet: [
-    'an agreement on the meeting time'] },
+    'draft an NDA for the freelancer',
+    // steps with legal effect for a landlord, an employer or a party to a contract (Lesson: a rent increase letter was
+    // never routed to the legal skill, and a rewrite dropped the only pointer to the official notice)
+    'write a letter to the tenant announcing a rent increase of 3% from January',
+    'we need to raise the rent on flat 1',
+    'draft an eviction letter',
+    'how much notice do I have to give my tenant',
+    'can I keep the deposit for the stained carpet?',
+    'write a dismissal letter for an employee',
+    'escribe una carta al inquilino anunciando una subida del alquiler',
+    'carta de preaviso para terminar el contrato',
+    'devuelve la fianza al inquilino'], quiet: [
+    'an agreement on the meeting time',
+    'show a notice banner on the home page',
+    'give the users a notice banner when they log in',
+    'I noticed the deposit button is broken',
+    'escribe una despedida para el blog'] },
 
   // ---------- notices ----------
   'THE USER SOUNDS UPSET': { fire: [

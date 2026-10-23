@@ -90,6 +90,10 @@ Rules:
 4. **Keep lines short.** Short paragraphs, lists and tables of 2 to 4 narrow columns. A wide table wraps into a mess
    in a narrow window. Use a list instead.
 5. **Paths, commands and names of files go in `code`.** Commands the user should run go in a code block on their own.
+   A command the user is told to run was run here first, the same way, or is marked "NOT VERIFIED: <what> - <why>".
+   On Windows, `powershell` starts Windows PowerShell 5.1: a script written for PowerShell 7 is run with `pwsh`
+   (5.1 has no `-Encoding utf8NoBOM`, no `??` or `?.` operators, no ternary, no `&&` or `||` between commands).
+   Lesson: a first step "run it with powershell" failed on a line only PowerShell 7 understands.
 6. **Don't rely on color or emoji.** The bold word carries the meaning. Plain text survives every terminal, log and
    screen reader.
 7. **The check markers stay out of the answer** (rule 7): `Playbook:`, `Skill:`, `Worth it:`, `Proven:` and

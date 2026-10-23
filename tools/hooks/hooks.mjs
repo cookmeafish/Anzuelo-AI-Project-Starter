@@ -1239,6 +1239,148 @@ export function gitClaimContradicted(answer) {
   if (paths.length && !had.length) return null;
   return { sentence: s.trim(), head: git.head, had: had.map(p => `${p} (${git.files[p]})`) };
 }
+// REQ: instructions-run. What the answer tells the user to run, double-click or open, when this turn made or changed
+// it (a setup script, a launcher, an npm script, a make target): the turn ran it the way the user is told to and it
+// worked, or the answer names it in a "NOT VERIFIED: <what> - <why>" line. "powershell" starts Windows PowerShell 5.1,
+// so a run under pwsh is no run of a "powershell ..." instruction.
+// Lesson: an answer's first step was "powershell -ExecutionPolicy Bypass -File scripts\setup.ps1". The script was never
+// run; it used "Out-File -Encoding utf8NoBOM", which 5.1 rejects, so .env was never made and every later step failed.
+const RUN_WORDS = /\b(run|running|double[- ]?click|open|start|launch|execute|type|paste)\b|(?<!\p{L})(ejecut[aeo]\w*|corr[ae]|correr|haz doble ?clic|doble ?clic|abr[ae]|abrir|lanz[ae]|inici[ae]|escrib[ae]|pega)(?!\p{L})/iu;
+const LAUNCHER = /[\w.\\/~:-]*[\w-]\.(?:ps1|bat|cmd|sh|command|py|mjs|cjs|js|ts|rb|pl)\b/gi;
+const EXECUTOR = /^(powershell(\.exe)?|pwsh(\.exe)?|cmd(\.exe)?|bash|sh|zsh|node(\.exe)?|python\d*(\.\d+)?(\.exe)?|py|call|start|&|\.|source|ruby|perl|deno|bun|tsx|ts-node|-file|\/c|\/k|-c|-command)$/i;
+// (the verb is read outside code and file names: "start" in `start.bat` is no instruction)
+const runSaid = l => RUN_WORDS.test(String(l).replace(/`[^`\n]*`/g, ' ').replace(/[\w.\\/~:-]*[\w-]\.[A-Za-z]{1,8}\b/g, ' '));
+// The launchers an answer tells the user to run that this turn created or changed: { id, base, npm, make, ps51, said }.
+export function instructedLaunchers(answer, changed) {
+  // (the whole answer: some put everything under "## Finished". A list of files, "Start and setup: `start.bat`,
+  // `scripts/setup.ps1`", tells the user to run nothing)
+  const fileList = l => { const rest = l.replace(/^[^`:\n]{0,40}:/, ''), spans = rest.match(/`[^`\n]+`/g) || [];
+    return spans.length >= 2 && !runSaid(rest.replace(/\([^)\n]*\)/g, ' ')); };
+  const body = String(answer || '').split(/\r?\n/).filter(l => !fileList(l)).join('\n');
+  const ch = (changed || []).map(p => String(p).replace(/\\/g, '/'));
+  const lower = ch.map(p => p.toLowerCase());
+  const pkg = ch.some(p => /(^|\/)package\.json$/i.test(p)), mk = ch.some(p => /(^|\/)(GNU)?makefile$/i.test(p));
+  const out = new Map();
+  let fence = false, fenceRun = false, prev = '';
+  for (const line of body.split(/\r?\n/)) {
+    if (/^\s*```/.test(line)) { fence = !fence; fenceRun = fence && (runSaid(prev) || /:\s*$/.test(prev)); continue; }
+    if (!fence && line.trim()) prev = line;
+    const said = fence ? (fenceRun ? line : '') : (runSaid(line) ? line : '');
+    if (!said.trim()) continue;
+    // the code span that holds it, when there is one: the exact command the user is told to type
+    const spans = [...said.matchAll(/`([^`\n]+)`/g)].map(m => m[1]);
+    const cmdOf = tok => spans.find(s => s.includes(tok)) || said.trim();
+    for (const m of said.matchAll(LAUNCHER)) {
+      const tok = m[0].replace(/\\/g, '/').replace(/^\.\//, '').replace(/^["'(]+/, '').toLowerCase();
+      if (/^https?:|:\/\//.test(tok)) continue;
+      const i = lower.findIndex(p => p === tok || p.endsWith('/' + tok) || (!tok.includes('/') && p.split('/').pop() === tok));
+      if (i < 0) continue;
+      const cmd = cmdOf(m[0]);
+      out.set(ch[i], { id: ch[i], base: ch[i].split('/').pop(), ps51: /(^|[\s"'&])powershell(\.exe)?\b/i.test(cmd) && !/\bpwsh\b/i.test(cmd), said: cmd });
+    }
+    if (pkg) for (const m of said.matchAll(/\b(?:npm|pnpm|yarn)\s+(?:run(?:-script)?\s+)?([\w:.-]+)/gi)) {
+      if (/^(install|i|ci|add|remove|uninstall|update|init|exec|x|create|-\S*)$/i.test(m[1])) continue;
+      out.set(`npm:${m[1]}`, { id: `npm run ${m[1]}`, base: m[1], npm: m[1], said: cmdOf(m[0]) });
+    }
+    if (mk) for (const m of said.matchAll(/\bmake\s+([\w.-]+)/g)) out.set(`make:${m[1]}`, { id: `make ${m[1]}`, base: m[1], make: m[1], said: cmdOf(m[0]) });
+  }
+  return [...out.values()];
+}
+// A command that runs the launcher (not one that only reads, greps, lints or syntax-checks it). For a "powershell ..."
+// instruction, only a run under powershell (5.1) counts.
+export function runsLauncher(cmd, t) {
+  return shellParts(cmdHead(cmd)).parts.some(part => {
+    if (t.npm) return new RegExp(`\\b(npm|pnpm|yarn)(\\.cmd)?\\s+(run(-script)?\\s+)?${esc(t.npm)}\\b`, 'i').test(part);
+    if (t.make) return new RegExp(`\\bmake\\s+(-\\S+\\s+)*${esc(t.make)}\\b`).test(part);
+    const w = wordsOf(part.replace(/^\(\s*/, ''));
+    const i = w.findIndex(x => x.replace(/\\/g, '/').split('/').pop().toLowerCase() === t.base.toLowerCase());
+    if (i < 0) return false;
+    const before = w.slice(0, i);
+    if (before.some(x => /^(--check|-n|--syntax-check|-NoExecute)$/i.test(x))) return false;
+    if (t.ps51 && !before.some(x => /^powershell(\.exe)?$/i.test(x.split(/[\\/]/).pop()))) return false;
+    // the word that starts it comes right before it, past flags and their values ("-ExecutionPolicy Bypass -File"):
+    // a name inside a node -e script or an echo is no run. Lesson: a "node -e" edit of a file that named start.cmd
+    // counted as running start.cmd.
+    let j = i - 1;
+    while (j >= 0 && (/^[-/]/.test(w[j]) || (j > 0 && /^-(ExecutionPolicy|ep|WindowStyle|Version)$/i.test(w[j - 1])))) j--;
+    return j < 0 || EXECUTOR.test(w[j].split(/[\\/]/).pop());
+  });
+}
+const LAUNCH_FAILED = /Cannot validate argument|is not recognized as|Traceback \(most recent call last\)|\bParserError\b|FullyQualifiedErrorId|\bnpm ERR!|^\s*Error:|^make: \*\*\*/m;
+const NOT_RUN_LINE = /\bnot verified\b|\bunverified\b|\b(not|n'?t|never) (been |yet )?(run|ran|tried|tested|executed|started|launched)\b|\buntested\b|(?<!\p{L})(sin (verificar|probar|ejecutar)|no (lo |la )?(he |hemos )?(ejecutad|probad|verificad)\w*|no verificad\w*)(?!\p{L})/iu;
+// Each launcher the answer sends the user to that neither ran well this turn nor is named as not verified:
+// [{ ...launcher, refused, failed }].
+export function launcherGaps(x) {
+  const ls = instructedLaunchers(x.answer, x.changed);
+  if (!ls.length) return [];
+  const lines = String(x.answer || '').split(/(?<=[.!?])\s+|\r?\n/);
+  const names = t => new RegExp(`(?<![\\w-])${esc(t.base.replace(/\.[^.]+$/, ''))}(?![\\w-])`, 'i');
+  return ls.flatMap(t => {
+    const runs = (x.runs || []).filter(r => runsLauncher(r.cmd, t));
+    const ok = runs.some(r => !neverRan(r) && !r.error && !LAUNCH_FAILED.test(String(r.out || '')));
+    if (ok || lines.some(l => NOT_RUN_LINE.test(l) && (names(t).test(l) || l.includes(t.id)))) return [];
+    return [{ ...t, refused: runs.length > 0 && runs.every(r => refusedOutright(r)), failed: runs.some(r => !neverRan(r)) }];
+  });
+}
+// REQ: claim-checked (enforced). "This is checked automatically", "an unlinked note can't get through", "it is
+// enforced" (Spanish too) is a claim about a check: one that runs on its own (not only when a skill or runbook is used)
+// and whose scope holds the files the claim is about, shown failing on the case this turn.
+// Lesson: an answer told the user their rule was already checked automatically, so an unlinked new note "can't get
+// through". The note check never looked at the vault's own folders, and the vault check ran only with its skill.
+export const ENFORCED = /\b(is|are|gets?|will be|now) (already )?(checked|enforced|blocked|caught|validated|rejected) (automatically|on (its|their) own|by (a|the|its) (hook|check)s?)\b|\b(checked|enforced|caught|blocked|rejected) automatically\b|\bautomatically (checked|enforced|caught|blocked|rejected)\b|\b(can(no|')?t|cannot|won'?t|will not) (get|slip|go) (through|past|by)\b|\b(is|are) (already )?enforced\b|\bthe (hooks?|checks?) (already )?(enforces?|blocks?|catch(es)?) (this|it|that|them)\b|(?<!\p{L})(se (comprueba|verifica|revisa|bloquea)n? (sol[oa]s?|autom[aá]ticamente)|ya no (puede|pueden|podr[aá]n?) (pasar|colarse)|no (puede|pueden|podr[aá]n?) (pasar|colarse)|(est[aá]|queda) (ya )?(garantizad|forzad|bloquead)[oa])(?!\p{L})/iu;
+// The answer's sentences that speak to the user: one per sentence or line, without the markers lines the checks read
+// ("Playbook:", "Skill:", "Worth it:", "Learned (...)", "Proven:", Spanish too) or HTML comments.
+const claimSentences = answer => String(answer || '').replace(/<!--[\s\S]*?-->/g, ' ').split(/(?<=[.!?])\s+|\r?\n/)
+  .filter(s => !/^[\s>*_-]*(playbook|skill|worth it|learned|proven|gu[ií]a|habilidad|vale la pena|aprendido|probado)s?\b[^:\n]{0,20}:/i.test(s));
+export function enforcedClaim(answer) {
+  const all = new RegExp(ENFORCED.source, 'giu');
+  return claimSentences(answer).find(s => ENFORCED.test(s) && !/\b(not|n'?t|never|no longer|if|unless|whether|would|could|might|how)\b|(?<!\p{L})(si|no|nunca)(?!\p{L})/iu.test(s.replace(all, ' '))) || '';
+}
+// A sentence in which the agent says it tested a page or app by hand (not one that asks the user to, nor a negation).
+const BY_HAND = /\b(by hand|manually|hand-tested)\b|(?<!\p{L})(a mano|manualmente)(?!\p{L})/iu;
+const UI_TEST = /\b(test(ed|ing)?|tried|clicked|clicking|browser|page|screen|mobile|desktop)\b|(?<!\p{L})(prob[eé]|probad[oa]|navegador|p[aá]gina|clic|m[oó]vil|escritorio|pantalla)(?!\p{L})/iu;
+export function byHandClaim(answer) {
+  // (a label line, "Lo probé a mano:", is read with the line after it)
+  const lines = claimSentences(answer), at = i => /:\**\s*$/.test(lines[i]) ? `${lines[i]} ${lines[i + 1] || ''}` : lines[i];
+  return lines.map((_, i) => at(i)).find(s => BY_HAND.test(s) && UI_TEST.test(s)
+    && !/\b(you|your|the user|not|n't|never|nothing|should|could|can)\b|(?<!\p{L})(t[uú]|usted|puedes|prueba t[uú]|pru[eé]balo|no|nunca|nada)(?!\p{L})/iu.test(s.replace(BY_HAND, ' '))) || '';
+}
+// The checks that run on their own when a file changes, with their file scope: the project's validators
+// (requirements.json entries that run something or match changed content, with no skill, runbook or prompt condition)
+// and the engine's note check (the knowledge folders, docs/notes, notes in docs/).
+export function autoScopes(cfg) {
+  const out = [{ tag: 'note-linked', globs: [...noteDirs(cfg).map(d => `${d}/**/*.md`), 'docs/notes/**/*.md', 'docs/*.md'], ignore: [] }];
+  const manual = w => !!w && typeof w === 'object' && ['skillUsed', 'playbookUsed', 'playbookRouted', 'promptMatches', 'answerMatches'].some(k => w[k] != null);
+  const globsOf = c => !c || typeof c !== 'object' ? [] : [...[].concat(c.filesChanged || []), ...[].concat(c.runEach?.files || [])];
+  for (const q of loadRequirements().reqs) {
+    if (!q || q.enabled === false || !q.when || manual(q.when)) continue;
+    const req = q.require || {};
+    if (!(req.runEach || req.toolPassed || q.when.changedContentMatches)) continue;
+    const globs = [...globsOf(q.when), ...globsOf(req)];
+    if (globs.length) out.push({ tag: q.tag, globs, ignore: [].concat(q.when.filesIgnore || []) });
+  }
+  return out;
+}
+// The note folders: the knowledge base and every folder in "knowledgeDirs" (a vault's own folders).
+export const noteDirs = cfg => [...new Set(['docs/knowledge', ...[].concat(cfg.knowledgeDirs || [])].map(d => String(d).replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+$/, '')).filter(Boolean))];
+// What an enforcement claim lacks: the files it is about that no automatic check covers, and whether a run this turn
+// proved a covering check (its scenarios passing, or a "Proven: fails on <sample>" line with a run that failed).
+// The files a claim is about: the ones its sentence names, and in a complaint turn (wide) also the ones the answer
+// names and the turn changed. (A setup answer's "Rules, each checked automatically" is about the engine's guards, not
+// about every file setup wrote. Lesson: judged on all of them, it flagged a true list of guarded rules.)
+export function enforcementGaps(x, cfg, sentence, wide = true) {
+  const scopes = autoScopes(cfg);
+  const about = [...new Set(wide ? [...namedPaths(sentence), ...namedPaths(String(x.answer || '')), ...(x.changed || [])] : namedPaths(sentence))]
+    .filter(p => exists(p) && !NOT_A_SOURCE.test(p) && !/^(docs\/(CHANGELOG|STATUS|DECISIONS|MENU|BRIEF|glossary)\.md|docs\/(plans|reviews|specs|releases)\/|\.cache\/|tools\/|\.githooks\/)/.test(p));
+  const covering = scopes.filter(s => about.some(p => match(p, s.globs) && !match(p, s.ignore)));
+  const uncovered = about.filter(p => !scopes.some(s => match(p, s.globs) && !match(p, s.ignore)));
+  const tags = (covering.length ? covering : scopes).map(s => s.tag);
+  const runs = x.runs || [];
+  const scenariosPassed = runs.some(r => /selfcheck\.mjs/.test(r.cmd) && /ALL PASS/.test(r.out || '') && tags.some(t => new RegExp(`--tags[ =]["']?[\\w,-]*\\b${esc(t)}\\b`).test(r.cmd)));
+  const proofLine = /^[^\n]*\b(proven|probad[oa])\s*:[^\n]*\b(fails? on|falla (con|en|sobre))\s+\S/im.test(`${x.answer || ''}\n${x.notes || ''}`);
+  const failedRun = runs.some(r => !neverRan(r) && !/^\s*node\s+\S*hooks\.mjs["']?\s+(waive|why|last)\b/.test(cmdHead(r.cmd)) && (r.error || /\bFAIL(ED|S)?\b|\bnot ok\b/.test(r.out || '') || tags.some(t => String(r.out || '').includes(`[${t}]`))));
+  return { sentence, about, uncovered, proven: scenariosPassed || (proofLine && failedRun) };
+}
 // (REQ: check-sampled, the light version for every new blocking check, outside complaint and rule turns too, lives in
 // tools/audit.mjs: each check the project adds passes a realistic good sample in its own scenarios.)
 // REQ: check-proven. The project's own checks born this turn: a script named for checking, or a test file. Engine
@@ -1754,11 +1896,45 @@ export function saysNotRun(text, cmd = '') {
   return t.split(/(?<=[.!?\n])\s+/).some(s => what.test(s) && NOT_RUN_SAID.test(s));
 }
 // What a gate that can't run asks for instead: one honest line, in round 1, never the same refused command again.
+// A refused command's program may not be installed at all: then the honest reason is "not installed", not "needs your
+// approval", which would send the user to approve a command that can only fail.
+// Lesson: every answer of a Go project said the Go commands only needed the user's approval; Go was not installed.
 export function cantRunStep(kind, cmd) {
-  const why = kind === 'refused' ? `the permission system refused \`${cmd}\` this turn (it needs an approval nobody can give here)` : `\`${cmd}\` can't run here: its tool or a dependency is not installed, and installing it was refused or failed`;
-  return { detail: `${why}. Don't run it again this turn. Say so once in the answer instead: "NOT VERIFIED: <what did not run> - <why it couldn't run>", and claim nothing it would have shown`,
-    short: `Say what was NOT VERIFIED and why: ${String(cmd).slice(0, 28)} ${kind === 'refused' ? 'was refused' : 'can\'t run here'}` };
+  const prog = missingProgram(cmd);
+  const why = kind === 'refused' && prog ? `\`${prog}\` is not installed on this machine (not found on PATH), so \`${cmd}\` can't run here; the permission system refused it too`
+    : kind === 'refused' ? `the permission system refused \`${cmd}\` this turn (\`${programOf(cmd) || String(cmd).split(/\s+/)[0]}\` is installed; the command needs an approval nobody can give here)`
+    : `\`${cmd}\` can't run here: its tool or a dependency is not installed, and installing it was refused or failed`;
+  return { detail: `${why}. Don't run it again this turn. Say so once in the answer instead: "NOT VERIFIED: <what did not run> - <why it couldn't run>"${prog ? ` with the true reason: ${prog} is not installed (not "it needs your approval")` : ''}, and claim nothing it would have shown`,
+    short: `Say what was NOT VERIFIED and why: ${String(cmd).slice(0, 28)} ${prog ? `(${prog} is not installed)` : kind === 'refused' ? 'was refused' : 'can\'t run here'}` };
 }
+// Whether a program is on this machine: a scan of PATH (with PATHEXT on Windows, and Git's own tool folders next to
+// git.exe). true, false, or null when it can't be told (no plain program name).
+export function onPath(prog) {
+  if (!/^[\w.+-]+$/.test(String(prog || ''))) return null;
+  const win = process.platform === 'win32';
+  const exts = win ? ['', ...String(process.env.PATHEXT || '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean).map(e => e.toLowerCase())] : [''];
+  const dirs = String(process.env.PATH || '').split(path.delimiter).filter(Boolean);
+  const has = d => exts.some(e => { try { return fs.statSync(path.join(d, prog + e)).isFile(); } catch { return false; } });
+  if (dirs.some(has)) return true;
+  if (win) for (const d of dirs) if (['git.exe', 'git.cmd'].some(g => { try { return fs.statSync(path.join(d, g)).isFile(); } catch { return false; } })) {
+    const top = path.resolve(d, '..');
+    if ([path.join(top, 'usr', 'bin'), path.join(top, 'mingw64', 'bin'), path.join(top, 'bin')].some(has)) return true;
+  }
+  return false;
+}
+// The program of a command that is not installed here ('' when it is, or can't be told).
+// Only a bare program name is looked up: a path ("./.venv/Scripts/python") or a module run by an interpreter
+// ("python -m pytest", installed inside the interpreter) is not on PATH by design.
+export function missingProgram(cmd) {
+  const w = (shellParts(cmdHead(cmd)).parts.find(p => !/^\(?\s*(cd|Set-Location|pushd)\s/i.test(p)) || '').trim().split(/\s+/)[0] || '';
+  const prog = w.replace(/^["'(&]+|["']+$/g, '').replace(/\.exe$/i, '');
+  if (!prog || /[\\/]/.test(prog) || INTERPRETER.test(prog.toLowerCase())) return '';
+  return onPath(prog) === false ? prog : '';
+}
+// The answer gives approval as the reason a command didn't run, and never says its program is not installed.
+const APPROVAL_REASON = /\bapprov\w*|(?<!\p{L})aprob\w*|autoriz\w*|permiso(?!\p{L})/iu;
+const NOT_INSTALLED_SAID = /\b(not|isn'?t|aren'?t) installed\b|\bnot on (the |your )?path\b|\bno \w+ (toolchain|install\w*)\b|(?<!\p{L})no (est[aá]n?|viene) instalad\w*|sin instalar(?!\p{L})/iu;
+export const blamesApproval = (answer, prog) => !!prog && APPROVAL_REASON.test(String(answer || '')) && !NOT_INSTALLED_SAID.test(String(answer || ''));
 // A command that only talks to the engine (a waiver, "why", "last"), with nothing else in it: no run of any project
 // check, whatever its text names. Lesson: a project check's command pattern matched a waiver's reason that named the
 // check's script, so the waiver became the check's "last run", which had no pass line.
@@ -2701,7 +2877,9 @@ export const assumedHint = es => es
   : 'a plain sentence in the answer, like "I assumed <choice> because <why>; if that\'s wrong, <what it costs to change>" (in a plan: "Assumed: <choice> - <why> - <cost if wrong>")';
 export const LABELS_ES_HINT = 'Write the whole answer in Spanish, labels too; the checks accept them: "## Terminado" (Finished), "Causa raíz:", ' +
   '"Revisión visual: correcta tras N rondas" (one line can be the only place the rounds appear), "Accesibilidad: <qué revisé> - correcta", "La revisión de seguridad salió bien - detalles en docs/reviews/security-AAAA-MM-DD.md", ' +
-  '"Seguridad: ... Rendimiento: ... Facilidad de uso: ..." (the app foundation), "## Verificación" with "Pruebas automáticas:", "Sitio real:" (or "Lo probé a mano:"), "Revisión independiente:", "Puntos débiles:", ' +
+  // (Lesson: this hint offered "Lo probé a mano:", and an answer said a check was done by hand when a script had driven
+  // the browser)
+  '"Seguridad: ... Rendimiento: ... Facilidad de uso: ..." (the app foundation), "## Verificación" with "Pruebas automáticas:", "Sitio real:" (saying how: "con un navegador automatizado" when a script drove it; "a mano" only for what a person did), "Revisión independiente:", "Puntos débiles:", ' +
   '"Aprendido (regla): <lección> → <archivo>", "Evaluado: <herramienta> ... licencia <nombre>", "Habilidades existentes revisadas:", "Cómo se calculó:", "Fuentes:", "No es asesoramiento legal", ' +
   '"**Aviso:**" (Heads-up), "**Hecho:**", "**Problema:**", "**Pregunta para ti:**", "Revisión independiente: lista para publicar" (SHIP) or "veredicto: corregir" (FIX), "Comprobado: <qué abrí> - <qué mostraba>", ' +
   '"Probado: falla con <muestra de la queja>; pasa con <buena 1>, <buena 2>", ' +
@@ -3344,7 +3522,7 @@ const FRICTION_WINDOW = 6, FRICTION_LIMIT = 3;
 const SAFEGUARDS = new Set(['check:no-secrets', 'check:no-ai-attribution', 'check:git-safety', 'check:commit-gate', 'check:approval-gate', 'check:browser-guard',
   'check:scope-separate', 'check:outward-gate', 'check:claim-checked', 'check:protect-originals', 'check:injection-guard', 'check:no-overwrite', 'check:crash-visible', 'check:requirements-valid', 'check:hooks-tested',
   'check:setup-interview', 'check:setup-complete', 'check:setup-gate', 'check:answer-traced', 'check:research-verified', 'check:research-ledger',
-  'check:research-cited', 'check:security-report', 'check:security-code', 'check:security-config', 'check:security-publish', 'check:publish-gate', 'check:verification-report', 'check:finished-summary', 'check:forbidden-command',
+  'check:research-cited', 'check:security-report', 'check:security-code', 'check:security-config', 'check:security-publish', 'check:publish-gate', 'check:verification-report', 'check:finished-summary', 'check:forbidden-command', 'check:instructions-run',
   'skill:research', 'skill:security-review', 'skill:project-rule', 'runbook:project', 'check:upset-learned', 'skill:learn-from-upset']);
 export const suspendedItems = () => (readJSON(path.join(HOOKS, 'config.json'), {}).suspended || []).filter(s => s && s.item);
 const isSuspended = item => suspendedItems().some(s => s.item === item);
@@ -4285,8 +4463,24 @@ function cmdPosttool(data) {
   if (p === 'CLAUDE.md' || p === 'AGENTS.md') syncTwin();
   if (/^(docs\/(playbooks|checks|knowledge|MENU\.md)|skills\/|tools\/hooks\/requirements\.json)/.test(p)) syncAll();
   const h = eventHintAfterEdit(p, data.tool_input || {});
-  const pub = publishNotice(p, data.tool_input || {}), plan = planNotice(p, data.tool_input || {});
-  if (h || pub || plan) contextOut('PostToolUse', [h, pub, plan].filter(Boolean).join('\n') + '\n');
+  const pub = publishNotice(p, data.tool_input || {}), plan = planNotice(p, data.tool_input || {}), ps = ps51Notice(p, data.tool_input || {});
+  if (h || pub || plan || ps) contextOut('PostToolUse', [h, pub, plan, ps].filter(Boolean).join('\n') + '\n');
+}
+// A PowerShell script that uses what only PowerShell 7 (pwsh) has: "powershell", the one every Windows has, is 5.1 and
+// stops on it. Named at the edit, so the script or the instruction gets fixed before the user runs it (REQ:
+// instructions-run). Lesson: a setup script's "Out-File -Encoding utf8NoBOM" failed under the "powershell" the answer
+// told the user to use, so the next steps looped on a missing .env.
+const PS7_ONLY = [[/-Encoding\s+['"]?utf8(NoBOM|BOM)\b/i, '-Encoding utf8NoBOM/utf8BOM'], [/\?\?=?/, 'the ?? operator'], [/\$\w+\?\.\w|\)\?\.\w|\?\.\[/, 'the ?. operator'],
+  [/\s\?\s[^:\n]+\s:\s/, 'the ternary a ? b : c'], [/(?<![<>&|])(&&|\|\|)(?![&|])/, 'the && or || pipeline chains']];
+export function ps51Notice(p, inp) {
+  if (!/\.ps1$/i.test(p || '')) return null;
+  const code = [inp.content, inp.new_string, ...(inp.edits || []).map(e => e.new_string)].filter(Boolean).join('\n')
+    .split(/\r?\n/).filter(l => !/^\s*#/.test(l)).join('\n');
+  // (operators inside strings are text; the encoding name may be quoted)
+  const text = code.replace(/'[^'\n]*'|"(?:[^"\n`]|`.)*"/g, '""');
+  const hits = PS7_ONLY.filter(([r], i) => r.test(i ? text : code)).map(([, n]) => n);
+  if (/^\s*#requires\s+-version\s+[67]/im.test(String(inp.content || '')) || !hits.length) return null;
+  return `POWERSHELL 5.1: ${p} uses ${hits.join(', ')}, which only PowerShell 7 (pwsh) has. "powershell" (5.1, on every Windows) stops on it. Use what 5.1 has (Out-File -Encoding ascii, or [IO.File]::WriteAllText(path, text) for UTF-8 without a BOM; if/else instead of ?? and the ternary; separate lines or "if ($?)" instead of && and ||), or tell the user to run it with "pwsh" and add "#Requires -Version 7" at its top. Then run it the way the user is told to (REQ: instructions-run).`;
 }
 // REQ: plan-required (during the work). A turn that keeps adding new files hears, before it reaches the limit, that it
 // needs a plan, so the plan comes before the work, not after. Lesson: reviewers found plans written once the work
@@ -4518,7 +4712,12 @@ export function coreChecks(x, cfg) {
   // project's knowledge connects. A note that truly stands alone says why under "## Related".
   // Notes: the knowledge base, docs/notes/, and free-standing notes in docs/. Release notes, specs and plans have their
   // own structure, and the starter's own documents are linked from the rules.
-  const newNotes = x.changed.filter(p => (/^docs\/(knowledge|notes)\/.+\.md$/i.test(p) || /^docs\/[^/]+\.md$/i.test(p)) &&
+  // The folders in "knowledgeDirs" (a vault's own note folders) are notes too, apart from their templates and
+  // attachments. Lesson: an answer said an unlinked new note "can't get through", but notes in a vault's own folders
+  // (Baking/, Garden/) were never checked.
+  const kDirs = noteDirs(cfg).filter(d => !/^docs\/knowledge$/i.test(d));
+  const inVault = p => /\.md$/i.test(p) && kDirs.some(d => p.toLowerCase().startsWith(d.toLowerCase() + '/')) && !/(^|\/)(_?templates?|attachments?|\.obsidian|\.trash)\//i.test(p);
+  const newNotes = x.changed.filter(p => (/^docs\/(knowledge|notes)\/.+\.md$/i.test(p) || /^docs\/[^/]+\.md$/i.test(p) || inVault(p)) &&
     !/(^|\/)(CHANGELOG|STATUS|MENU|BRIEF|DECISIONS|README|SOURCES|INDEX|security|foundation|fit-checklist|lessons|recommended-tools|user-requirements|starter-feedback)\.md$/i.test(p) && exists(p) && bornThisTurn(p, x.since));
   const unlinked = newNotes.filter(p => { const t = read(abs(p)); return !/\]\([^)\s]+\.md(#[^)]*)?\)|\[\[[^\]]+\]\]/.test(t) && !(t.split(/^##\s+Related[^\n]*\n/m)[1] || '').trim(); });
   if (unlinked.length) add('note-linked', `New note${unlinked.length > 1 ? 's' : ''} ${unlinked.slice(0, 4).join(', ')} link${unlinked.length > 1 ? '' : 's'} to nothing. Link each to its related notes (in the text or under "## Related"; ` +
@@ -4641,6 +4840,11 @@ export function coreChecks(x, cfg) {
         unopened.length && `the answer cites ${unopened.slice(0, 4).join(', ')} without opening it`].filter(Boolean).join('; ') +
         '. Open the source and quote it, cut the claim, or mark the line "(not verified)", "(calculated: ...)" or "(estimate)". Research skill, section D.');
   }
+  // REQ: answer-traced (cited claims). A claim cited to a project file shares its key words with it (citedClaimGaps).
+  const weakCites = citedClaimGaps([{ text: x.answer, where: 'the answer' }, ...x.changed.filter(p => citedFile(p, cfg) && exists(p)).map(p => ({ text: read(abs(p)), where: p }))]);
+  if (weakCites.length)
+    add('answer-traced', `${weakCites.slice(0, 3).map(w => `${w.where} cites ${w.file} for "${w.claim}", but the file says nothing like it (no ${w.missing.slice(0, 3).join(', ')})`).join('; ')}. ` +
+      'Quote what the file does say, or mark the line as your own inference ("my guess: ...", "inferido: ...") and keep the citation for the part the file holds.');
   lap('note-linked .. answer-traced');
   // REQ: upgrade-review. After an engine upgrade, every new rule, pack, skill and finding is weighed and decided.
   // It blocks once a day, then only the session notice reminds: a pending review must never stall the user's own work.
@@ -4904,6 +5108,37 @@ export function coreChecks(x, cfg) {
   if (gitClaim)
     add('claim-checked', `The answer says git holds no earlier version ("${gitClaim.sentence.slice(0, 90)}"), but git has commits (last: ${gitClaim.head})${gitClaim.had.length ? `, including ${gitClaim.had.join(', ')}` : ''}. ` +
       'Open the version the user saw (git log -- <file>, then git show HEAD:<file>) and say what it shows, or leave the claim out.');
+  // REQ: claim-checked (enforced). An answer that says something is already checked or blocked automatically names a
+  // check that covers it and proves it this turn (enforcementGaps). Judged in complaint and rule turns (also one whose
+  // complaint the answer found does not hold: "Learned (none)"), and in any turn where the files the claim is about
+  // have no automatic check at all.
+  const enforced = !neverAgain ? enforcedClaim(x.answer) : '';
+  if (enforced && !(exists('.starter-template') && x.changed.includes('tools/hooks/selfcheck.mjs'))) {
+    const complaint = !!(ownTurn || LEARNED_NONE.test(x.said)), g = enforcementGaps(x, cfg, enforced, complaint);
+    if (g.uncovered.length || (complaint && !g.proven))
+      add('claim-checked', `The answer says this is enforced ("${enforced.trim().slice(0, 80)}"), but ` +
+        [g.uncovered.length && `no check that runs on its own covers ${g.uncovered.slice(0, 3).join(', ')} (a check that runs only when a skill or runbook is used does not count; tools/hooks/requirements.json and the knowledgeDirs in tools/hooks/config.json set what is covered)`,
+          !g.proven && `nothing this turn showed the check failing on the case: run its scenarios (node tools/hooks/selfcheck.mjs --tags <check>), or run it on a sample of what it should stop and write "Proven: fails on <sample>" in ${NOTES_FILE}`].filter(Boolean).join('; and ') +
+        '. Or say plainly what is checked and what is not, without the promise; add the missing check if the rule needs one.');
+  }
+  // REQ: claim-checked (by hand). The agent tests nothing by hand: a page it clicked through was driven by a script or
+  // a browser tool. "Tested by hand" tells the user a person checked it. Lesson: an answer said "Lo probé a mano" (I
+  // tested it by hand) about an automated browser run, because an engine hint offered that label.
+  const handClaim = byHandClaim(x.answer);
+  if (handClaim)
+    add('claim-checked', `The answer says a test was done by hand ("${handClaim.trim().slice(0, 80)}"), but nobody here tests by hand: say how it ran ("with an automated browser", "con un navegador automatizado", and the tool), or that it is for the user to try.`);
+  // REQ: instructions-run. A script, launcher or command the answer tells the user to run, made or changed this turn,
+  // ran here and worked, or the answer says it is not verified (launcherGaps).
+  if (x.toolsKnown) {
+    const gaps = launcherGaps(x);
+    if (gaps.length) {
+      const list = gaps.slice(0, 3).map(g => `\`${g.said.slice(0, 80)}\``).join(', ');
+      const ps = gaps.some(g => g.ps51) ? ' "powershell" starts Windows PowerShell 5.1, not pwsh: run it with powershell, or tell the user "pwsh" (5.1 has no -Encoding utf8NoBOM, no ?? or ?. operators, no ternary, no && or ||).' : '';
+      add('instructions-run', gaps.every(g => g.refused)
+        ? `The answer tells the user to run ${list}, which this turn wrote, and running it here was refused. Don't run it again this turn. Say it once in the answer: "NOT VERIFIED: <what> - <why it couldn't run>", naming it.${ps}`
+        : `The answer tells the user to run ${list}, which this turn wrote or changed, but ${gaps.some(g => g.failed) ? 'its run here failed' : 'it never ran here'}. Run it this turn exactly as the user is told to (one that starts a server: in the background, stopped once it answers) and fix what fails, or say in the answer "NOT VERIFIED: <what> - <why>", naming it.${ps}`);
+    }
+  }
   // REQ: scope-separate (files changed this turn)
   const ppl = people(cfg);
   // (not in the setup turn, which makes everyone's folder on purpose, also when it ends by deleting SETUP-PROMPT.md.
@@ -5308,6 +5543,134 @@ export function citesOpened(x) {
   const seen = openedText(x.entries || []).replace(/\\\//g, '/');
   return urls.some(u => seen.includes(u));
 }
+// REQ: answer-traced (cited claims). A claim cited to a project file ("[1]" with "[1] characters.md", or "from
+// docs/knowledge/x.md") shares its key words with that file: at least half of the content words and numbers of each
+// part of the claim (an inference joined with "so", "therefore", ";" or ":" is a part of its own) appear in the file.
+// Otherwise the claim is the agent's own inference and says so ("my guess:", "inferido:"). Checked in the answer and in
+// the notes and drafts this turn wrote. Lesson: an outline cited characters.md for "a blind or weaker side is on the
+// left", where the file only said "scar over the left eye".
+const CITE_STOP = new Set(('the and for with that this from into over under after before about their there them they then than what when where which while were have has had been being would could should will shall must also only just more most some such each every other another very much many even still well here your yours ours mine his her its our not but any all both either neither nor because since until unless does did done make made like same able upon onto onto via per les las los una uno unos unas del con por para como pero sus esta este esto estos estas ese esa eso esos esas aquel que qui cual cuales cuando donde porque sobre entre hasta desde tiene tienen tenia era eran fue son ser estar está están muy más menos tambien también solo sólo cada otro otra otros otras todo toda todos todas nada algo alguien' +
+  // (words about the file itself, not about what it says: "it links to your note", "the note says")
+  ' note notes file files link links linked says said mentions mentioned lists listed page pages section line lines text shows shown written record records recorded knowledge base project folder source sources nota notas archivo enlace enlaces dice fuente fuentes').split(' '));
+const CITE_OWN = /\b(my (guess|inference|reading|suggestion)|inferred|(an )?inference|i assume|assumed)\b|(?<!\p{L})(inferid[oa]|mi suposici[oó]n|supongo|suposici[oó]n)(?!\p{L})/iu;
+const stemOf = w => w.length > 5 ? w.replace(/(ingly|ations?|ments?|ness|ings?|edly|iones|ción|mente|ers?|est|ies|ed|es|ly|s)$/, '') : w.replace(/s$/, '');
+// The files whose citations are judged: notes (the knowledge folders, docs/notes) and drafts in outputs/.
+export const citedFile = (p, cfg) => /\.md$/i.test(p) && (/^(docs\/notes|outputs)\//i.test(p) || noteDirs(cfg || {}).some(d => p.toLowerCase().startsWith(d.toLowerCase() + '/')));
+export function citedClaimGaps(texts, readFile = p => (exists(p) ? read(abs(p)) : '')) {
+  const out = [];
+  for (const { text, where } of texts) {
+    const t = String(text || '');
+    const refs = {};
+    for (const m of t.matchAll(/^\s*\[(\d+)\]:?\s+(.+)$/gm)) {
+      const p = (/`([^`]+\.\w{1,6})`|\]\(<?([^)>\s]+)>?\)|((?:[\w.-]+\/)*[\w. -]*[\w-]\.\w{1,6})/.exec(m[2]) || []).slice(1).find(Boolean);
+      if (p && !/^https?:/i.test(p)) refs[m[1]] = p.replace(/\\/g, '/').replace(/^\.\//, '').trim();
+    }
+    const body = t.replace(/^\s*\[(\d+)\]:?\s+.+$/gm, '').replace(/^---\n[\s\S]*?\n---\n/, '');
+    for (const s of body.split(/(?<=[.!?])\s+|\r?\n/)) {
+      if (CITE_OWN.test(s)) continue;
+      // a "[n]" marker (or a run of them, "[1][3]", read together) cites the text before it, back to the previous
+      // marker or the start of the sentence
+      const cites = [];
+      let from = 0;
+      for (const m of s.matchAll(/(?:\[\d+\][\s,]*)+/g)) {
+        const fs_ = [...m[0].matchAll(/\[(\d+)\]/g)].map(n => refs[n[1]]).filter(Boolean);
+        if (fs_.length) cites.push([fs_, s.slice(from, m.index)]);
+        from = m.index + m[0].length;
+      }
+      // ("from <file>" names where a fact came from; "started from", "built from", "copied from" say where a file came from)
+      for (const m of s.matchAll(/\b(?:from|according to|per|seg[uú]n|source:|fuente:)\s+`?((?:[\w.-]+\/)*[\w.-]+\.(?:md|txt|csv|json))`?/gi))
+        if (!/\b(start|began|built|made|copied|taken|moved|imported|loaded|generated|created|pulled|came|comes|read|merged|split)\w*\b[^.]{0,40}$/i.test(s.slice(0, m.index))) cites.push([[m[1]], s]);
+      const seen = new Set();
+      for (const [fl, text] of cites) {
+        // (a data file holds figures a script computes from, not sentences: its words say nothing about a claim)
+        const files = fl.filter(f => /\.(md|markdown|txt)$/i.test(f)), f = files.join(' + ');
+        if (!files.length || seen.has(f + text)) continue; seen.add(f + text);
+        const src = files.map(readFile).join('\n').toLowerCase();
+        if (!src.trim()) continue;
+        const claim = text.replace(/\[\d+\]|`[^`]*`|\b(?:from|according to|per|seg[uú]n)\s+\S+\.\w{1,5}\b|\([^)]*\.\w{1,5}\)|\*\*[^*]+\*\*|\b\d{4}-\d\d-\d\d\b/gi, ' ');
+        for (const part of claim.split(/\b(?:so|therefore|thus|hence|which means|meaning|that means)\b|[;:]|(?<!\p{L})(?:as[ií] que|por lo tanto|o sea)(?!\p{L})/iu)) {
+          const words = [...new Set((part.toLowerCase().match(/[a-záéíóúñü]{4,}|\d{2,}/g) || []).filter(w => !CITE_STOP.has(w)))];
+          // (a part of fewer than 3 content words is a label or a verdict, "Point of view:", "so it finds no problem")
+          if (words.length < 3) continue;
+          const found = words.filter(w => /^\d+$/.test(w) ? new RegExp(`(?<!\\d)${w}(?!\\d)`).test(src) : src.includes(stemOf(w)));
+          // (a third, not a half: measured on 147 real cited claims of three trial rounds, a half also flagged a fair
+          // elaboration, "right-handed: hammer, sword or reins in the right hand"; a third still catches every
+          // inference passed off as the file's)
+          if (found.length * 3 < words.length) { out.push({ where, file: f, claim: part.trim().slice(0, 100), missing: words.filter(w => !found.includes(w)).slice(0, 5) }); break; }
+        }
+      }
+    }
+  }
+  return out;
+}
+// answerFiguresComputed: a "How it was computed" line is not enough; the figures must come from the computation.
+// Each figure in the answer appears in what this turn's tools printed or read, or follows from the answer's other
+// figures (their sum, difference, product, ratio, share or change in percent); the script the line names ran this
+// turn; and a sum the answer works out ("315 + 125") gives the figure it stands for. Single digits, years and dates are
+// left out. Returns the problems, [] when it holds.
+// Lesson: an answer said week 40 without bowls made 315 (it made 440: 315 + 125, as its own "How it was computed" line
+// listed), and that line pointed to a script that never printed the figure.
+const FIG = /(?<![\w.])([$€£]?)(\d[\d,]*(?:\.\d+)?)(\s?%)?(?![\w])/g;
+const figNum = s => Number(String(s).replace(/[$€£%\s]/g, '').replace(/,(?=\d{3}\b)/g, ''));
+export function figureProblems(x) {
+  const out = [];
+  const body = String(x.answer || '').replace(/^---\n[\s\S]*?\n---\n/, '').split(/^#{1,6}\s*\**(?:finished|terminado)\b|^\**(?:finished|terminado)\**\s*$/im)[0];
+  const how = /^.*\b(how it was computed|c[oó]mo se calcul[oó])\s*:.*$/im.exec(body)?.[0] || '';
+  // the script the line names ran this turn
+  const script = /[\w.\\/-]*[\w-]\.(?:mjs|cjs|js|ts|py|r|sql|sh|ps1)\b/i.exec(how.replace(/`/g, ' '))?.[0];
+  if (script && x.toolsKnown) {
+    const base = script.replace(/\\/g, '/').split('/').pop().toLowerCase();
+    if (!(x.runs || []).some(r => !neverRan(r) && cmdHead(r.cmd).replace(/\\/g, '/').toLowerCase().includes(base))) out.push(`the "How it was computed" line names ${script}, which did not run this turn`);
+  }
+  const clean = l => l.replace(/https?:\/\/\S+|`[^`]*`|\b[\w.-]+\/[\w./-]+|\b\d{4}-\d\d-\d\d\b|\b\d{1,2}[/:]\d{2}([/:]\d{2,4})?\b|\b[Ww]\d{1,2}\b|\[\d+\]/g, ' ').replace(/^\s*(\d+\.|-|\*)\s+/, '');
+  // A figure followed by its worked arithmetic, "42.5 (calculated: (40 + 45) / 2)", is checked by doing the arithmetic;
+  // a "(calculated: ...)" in words leaves its line to the reader.
+  const calc = [];
+  for (const l of body.split(/\r?\n/)) for (const m of l.matchAll(/(?<![\w.])([$€£]?\d[\d,]*(?:\.\d+)?)\s?%?(?:\s+[^\d\s()]+){0,4}\s*\((?:calculated|calculado)\s*:\s*([^()]*(?:\([^()]*\)[^()]*)*)\)/gi)) {
+    const expr = m[2].replace(/(\d),(?=\d{3}\b)/g, '$1').replace(/×/g, '*').replace(/÷/g, '/');
+    if (!/^[\d\s.+\-*/()]+$/.test(expr)) continue;
+    let v; try { v = Function(`"use strict"; return (${expr});`)(); } catch { continue; }
+    const want = figNum(m[1]), dec = (m[1].split('.')[1] || '').length;
+    if (Number.isFinite(v) && Math.abs(v - want) > 0.5 * 10 ** -dec + 1e-9) out.push(`"${m[0].trim().slice(0, 60)}" does not add up (the arithmetic gives ${+v.toFixed(4)})`);
+    calc.push(m[1]);
+  }
+  const lines = body.split(/\r?\n/).filter(l => !/\b(estimate|approx|not verified|my (guess|inference)|rounded|inferid[oa]|estimad[oa])\b/i.test(l) && l !== how
+    && !(/\((calculated|calculado)\s*:/i.test(l) && !calc.some(c => l.includes(c))));
+  const figs = [];
+  for (const l of lines) for (const m of clean(l).matchAll(FIG)) {
+    const n = figNum(m[0]);
+    if (!Number.isFinite(n) || (!m[1] && !m[3] && Number.isInteger(n) && (n < 10 || (n >= 1900 && n <= 2099 && !m[2].includes(','))))) continue;
+    figs.push({ s: m[0].trim(), n, pct: !!m[3], dec: (m[2].split('.')[1] || '').length });
+  }
+  // what the turn's tools printed or read, and the request itself
+  const corpus = `${x.results || ''}\n${(x.runs || []).map(r => r.out || '').join('\n')}\n${x.prompt || ''}`.replace(/(\d),(?=\d{3}\b)/g, '$1');
+  const inCorpus = f => new RegExp(`(?<![\\d.])${esc(String(f.n))}(?![\\d])`).test(corpus) || (f.dec && new RegExp(`(?<![\\d.])${esc(f.n.toFixed(f.dec))}(?![\\d])`).test(corpus));
+  const close = (f, v) => Math.abs(f.n - v) <= (f.dec || f.pct ? 0.5 * 10 ** -f.dec + 1e-9 : (Number.isInteger(v) ? 0 : 0.5));
+  // (worked out in two steps at most: "up 88 (154 to 242), 41% of the 213 gain" takes 88 from 242 - 154 first)
+  let known = [...new Set(figs.filter(inCorpus).map(f => f.n))];
+  const derived = f => known.some(a => known.some(b => a !== b && (close(f, a + b) || close(f, a - b) || close(f, a * b) || (b && (close(f, a / b) || (f.pct && (close(f, (a / b) * 100) || close(f, ((a - b) / b) * 100))))))));
+  for (let i = 0; i < 2; i++) known = [...new Set([...known, ...figs.filter(f => !f.pct && !known.includes(f.n) && derived(f)).map(f => f.n)])];
+  const bad = [...new Set(figs.filter(f => !inCorpus(f) && !derived(f) && !calc.some(c => figNum(c) === f.n)).map(f => f.s))];
+  if (bad.length) out.push(`${bad.slice(0, 6).join(', ')} ${bad.length > 1 ? 'appear' : 'appears'} in no output of this turn and ${bad.length > 1 ? 'do' : 'does'} not follow from the answer's other figures`);
+  // a sum the answer works out gives the figure it stands for: "a + b = c" adds up, and in a list of sums, the
+  // sentence that gives most of their results gives them all
+  // (a number is "1,240" or "15.5"; the comma after "150, 225" is the list's)
+  const N = String.raw`\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?`;
+  const sumsIn = t => [...t.matchAll(new RegExp(String.raw`(?<![\w.,])(${N})((?:\s*\+\s*(?:${N}))+)(\s*=\s*(${N}))?(?![\w])`, 'g'))]
+    .map(m => ({ s: m[0].trim(), v: [m[1], ...m[2].split('+').slice(1)].reduce((a, b) => a + figNum(b), 0), eq: m[4] != null ? figNum(m[4]) : null }));
+  const sents = body.split(/(?<=[.!?])\s+|\r?\n/);
+  for (const s of sents) {
+    const sums = sumsIn(s.replace(/`/g, ''));
+    for (const q of sums) if (q.eq != null && Math.abs(q.eq - q.v) > 1e-6) out.push(`"${q.s}" does not add up (it makes ${+q.v.toFixed(4)})`);
+    const open = sums.filter(q => q.eq == null);
+    if (open.length < 2) continue;
+    const has = (t, v) => new RegExp(`(?<![\\d.])${esc(String(+v.toFixed(4)))}(?![\\d])`).test(t.replace(/(\d),(?=\d{3}\b)/g, '$1'));
+    const best = sents.filter(t => t !== s && !sumsIn(t).length).map(t => ({ t, k: open.filter(q => has(t, q.v)).length })).sort((a, b) => b.k - a.k)[0];
+    if (best && best.k >= 2 && best.k * 2 >= open.length) for (const q of open.filter(q => !has(best.t, q.v)))
+      out.push(`the answer works out ${q.s} = ${+q.v.toFixed(4)}, but the sentence with the other results ("${best.t.trim().slice(0, 90)}") does not give ${+q.v.toFixed(4)}`);
+  }
+  return out;
+}
 export function holds(c, x) {
   const r = s => new RegExp(s, 'im');
   const globs = v => [].concat(v);
@@ -5316,6 +5679,7 @@ export function holds(c, x) {
   if (c.answerMatches && !r(c.answerMatches).test(x.answer)) return false;
   if (c.answerNotMatches && r(c.answerNotMatches).test(x.answer)) return false;
   if (c.answerCites && !citesOpened(x)) return false;
+  if (c.answerFiguresComputed && x.toolsKnown) { const p = figureProblems(x); if (p.length) { x.detail = `${p.join('; ')}. Compute each figure with the script (or fix the script so it prints it), run it, and give the figures it prints`; return false; } }
   if (c.minToolCalls && x.uses.length < c.minToolCalls) return false;
   if (c.workTurn && !x.workTurn) return false;
   // filesIgnore narrows filesChanged and changedContentMatches: those files never count
@@ -5392,7 +5756,8 @@ export function holds(c, x) {
     // that line meets it, so no later round asks for the same refused command again (cantRun above).
     const lastTry = attempts[attempts.length - 1];
     const blocked = x.toolsKnown ? cantRun(lastTry && lastTry === lastRun ? [redirectedRun(lastRun, r(spec.cmd), x.since) || lastRun] : attempts, x.runs, spec.selfRun || '') : '';
-    const unverified = () => { if (saysNotRun(x.answer, spec.selfRun || spec.cmd)) return true; const s = cantRunStep(blocked, spec.selfRun || spec.cmd); x.override = s.detail; x.short = s.short; return false; };
+    // (the honest line gives the true reason: a program that is not installed is no matter of approval)
+    const unverified = () => { const how = spec.selfRun || spec.cmd; if (saysNotRun(x.answer, how) && !blamesApproval(x.answer, missingProgram(how))) return true; const s = cantRunStep(blocked, how); x.override = s.detail; x.short = s.short; return false; };
     if (!lastRun) { if (blocked) return unverified(); const form = attempts.find(neverRan); x.detail = form ? `its only runs this turn were refused for their form ("${String(form.out).trim().slice(0, 90)}"): run it on its own, as one plain command` : `no run of /${spec.cmd}/ this turn`; return false; }
     // (its output sent into a file is read from that file: see redirectedRun)
     const last = (x.toolsKnown && redirectedRun(lastRun, r(spec.cmd), x.since)) || lastRun;
@@ -5838,7 +6203,7 @@ export function carriesAnswer(reply, prev) {
   const lines = String(prev).split(/\r?\n/).map(norm).filter(l => l.length >= 25);
   return lines.length ? lines.filter(l => r.includes(l)).length / lines.length >= 0.5 : r.includes(p.slice(0, 60));
 }
-const answerWords = c => !!c && typeof c === 'object' && (c.answerMatches != null || c.answerNotMatches != null || c.answerCites != null || (c.anyOf || []).some(answerWords));
+const answerWords = c => !!c && typeof c === 'object' && (c.answerMatches != null || c.answerNotMatches != null || c.answerCites != null || c.answerFiguresComputed != null || (c.anyOf || []).some(answerWords));
 function fileFixable(m) {
   if (m.short) return false; // (it asks for a line in the answer this time)
   if (CORE_FILE_FIX.has(m.tag)) return true;
@@ -5898,6 +6263,7 @@ const SHORT = {
   'history-confidence': 'Open with the bottom line and how sure you are', 'user-research-counted': 'Give each theme its count and traced quotes',
   'security-report': 'End with the security review table', 'claim-checked': 'Correct the answer: a claim in it is not backed by this turn',
   'check-proven': 'Prove the new check fails on the complaint and passes good samples',
+  'instructions-run': 'Run what you tell the user to run, or say it is NOT VERIFIED',
   'outward-gate': 'Ask before acting outside the project', 'scope-separate': 'Keep each person\'s data apart',
   'perf-numbers': 'Give before and after numbers from the same measurement', 'data-backup': 'Name the backup, its restore test and the record counts',
   'knowledge-changelog': 'Note the knowledge change in docs/CHANGELOG.md', 'knowledge-captured': 'Write the new fact or decision into the project',
