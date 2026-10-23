@@ -4767,6 +4767,17 @@ if (mineB()) { // relay-route-text: a relayed message routes on its own words; q
     && /fix the crash in the export when the file is empty/.test(b) && !/git log/.test(b),
     'relay-route-text: quoted text, code spans and commands leave a relayed message\'s routing words; a starter upgrade command stays as "upgrade the starter"; its own words stay', JSON.stringify({ a, b }));
 }
+if (mineB()) { // relay-request-text: only the sentences of a relayed message that ask for something route; a bare "upgrade"
+  // is the engine's. Lesson: a report of fixes routed to a refresh runbook on "had changed since then", and "Upgrade when
+  // convenient" to a deck project's own upgrade runbook
+  const { relayRequestText } = await import(pathToFileURL(path.join(B, 'tools/hooks/hooks.mjs')).href);
+  const report1 = relayRequestText('Both items are fixed. STATUS.md had changed since then, so the reminder stayed quiet. Checked against a copy of your checklist. Upgrade when convenient.');
+  const asks = relayRequestText('Field report 9 is in. Please replay session abc. Also make me a brawl deck for Jace. Can you look at the sweeps?');
+  const deck = relayRequestText('Upgrade the Jace deck with the new set cards.');
+  report(report1 === 'upgrade the starter.' && /replay session abc/.test(asks) && /make me a brawl deck/.test(asks) && /look at the sweeps/.test(asks) && !/Field report 9/.test(asks)
+    && /Upgrade the Jace deck/.test(deck) && !/starter/.test(deck),
+    'relay-request-text: a relayed message routes on the sentences that ask for something; reports and explanations route nothing; a bare "upgrade when ..." is the starter upgrade, "upgrade the deck" stays', JSON.stringify({ report1, asks, deck }));
+}
 if (mineB()) { // route: words joined by a hyphen are a phrase. Lesson: "15 tool calls" in a relayed report matched the
   // "on-call" trigger, whose "on" is a small word, and suggested the incident-response skill
   const { route } = await import(pathToFileURL(path.join(B, 'tools/hooks/hooks.mjs')).href);

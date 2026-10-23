@@ -63,6 +63,12 @@ hooks:**, and an upgrade lists each one as its own review item.
       Scenario: `state-no-transcript` (a new turn).
     - Words joined by a hyphen in a trigger are a phrase: "on-call" (whose "on" is a small word) no longer matches
       "tool calls". Scenario: `route:` (hyphenated trigger).
+    - A relayed message routes only on its sentences that ask for something (one that starts with a task verb, or
+      "please", "can you", "I need you to", "por favor"); reports and explanations route nothing, a phrase of common
+      words in it never does, and it gets no FIT hint (another session's report is no evidence the user needs a
+      skill). A bare "upgrade when ..." in it is the starter upgrade. A report of fixes had routed to a refresh
+      runbook on "had changed since then", and named skills and "checked against a copy" brought two FIT hints.
+      Scenario: `relay-request-text`.
     **Breaking for project hooks:** bookkeeping lines (`Playbook:`, `Skill:`, `Worth it:`, `Proven:`, `Learned`) may
     be in `.cache/turn-notes.md` written this turn instead of the answer; a project hook that asks for them in the
     answer should also accept that file. The upgrade-review Stop step no longer fires on the user's own work turns.

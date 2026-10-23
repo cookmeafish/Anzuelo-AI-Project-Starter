@@ -668,7 +668,7 @@ export function editsFileOf(text, name) {
 }
 // A pointer at the user's own thing, in English or Spanish ("my vault", "this list", "mis notas")
 const POINTER = /(^|[^\wáéíóúñ])(my|our|this|these|mi|mis|nuestr[oa]s?|est[ea]s?)(?![\wáéíóúñ])/i;
-export function route(prompt, pbs) {
+export function route(prompt, pbs, { relayed = false } = {}) {
   const text = unquoted(userText(prompt));
   if (OPINION.test(text)) return [];
   const low = ` ${text.toLowerCase()} `;
@@ -712,6 +712,8 @@ export function route(prompt, pbs) {
       // A phrase of common words routes alone only with two key words ("not working", "look up"), three words or more
       // ("from now on", "where are we") or a pointer at the user's thing ("fix this"); otherwise it only backs up a real
       // match: "can you fix it here" alone is no bug report
+      // (a relayed message is another session's report: a phrase of common words in it, "since then", is no request)
+      if (common && relayed) continue;
       if (common) { score += 0.5; hits.push(t); specific = true; if (phrase && (k.length >= 2 || t.trim().split(/\s+/).length >= 3 || POINTER.test(t))) strong = true; continue; }
       score += exact ? 1 + t.split(' ').length / 10 : 0.5 + k.length / 10; hits.push(t);
       if (!(k.length < 2 && !/\s/.test(t.trim()) && WEAK.has(k[0]))) specific = true;
@@ -774,8 +776,8 @@ export function route(prompt, pbs) {
 const CHOICE_Q = /^(what( is|'s|s) the (best|options)|what are the options|which is (better|best)|which one is better|best option)$/i;
 const OWN_THING = /(^|[^\wáéíóúñ])(my|our|mine|mi|mis|nuestr[oa]s?)(?![\wáéíóúñ])/i;
 const OWNED = /(?:(?:^|[^\wáéíóúñ'])(?:its|his|her|their|sus?)|\b(?!(?:it|that|what|there|here|let|he|she|who|where)'s\b)[a-z]+'s)\s+([a-záéíóúñ]+)/gi;
-export function routeSkills(text, cfg = config(), routedPbs = null) {
-  const out = route(text, routableSkills(cfg));
+export function routeSkills(text, cfg = config(), routedPbs = null, { relayed = false } = {}) {
+  const out = route(text, routableSkills(cfg), { relayed });
   if (!out.length) return out;
   const t = unquoted(userText(text)), low = ` ${t.toLowerCase()} `;
   const owned = new Set([...t.matchAll(OWNED)].flatMap(m => keyWords(m[1])));
@@ -3978,6 +3980,18 @@ export const relayRouteText = s => String(s || '')
   // (a "note:" label is the sender's aside, not the user's shorthand for "save this". Lesson: "Separate note: your
   // state file ..." set off the skill that records notes)
   .replace(/\b(?:(?:side|separate|small|quick|one|a|another|final|last)\s+)?(?:notes?|nota|aviso)\s*:/gi, ' ').replace(/\s{2,}/g, ' ').trim();
+// The sentences of a relayed message that ask for something: one that starts with a task verb ("make me a deck",
+// "please replay it"), or asks ("can you", "I need you to", "por favor"). The rest reports or explains, and routes
+// nothing. Lesson: "STATUS.md had changed since then" in a report of fixes routed to the refresh runbook.
+export function relayRequestText(s, cfg = config()) {
+  const lead = String.raw`^(?:[\s\-*>\d.)]*(?:hey|ok(?:ay)?|now|also|next|then|so|and|y|ahora|tambi[eé]n|luego)\b[,\s]*)*(?:please\s+|por favor,?\s+)?`;
+  const starts = re(`${lead}(?:${cfg.taskVerbs})`), asks = /\b(can|could|would) you\b|\bplease\b|\bi (need|want) you to\b|\bpor favor\b|\b(puedes|podr[ií]as|necesito que)\b/i;
+  // (a bare "upgrade" from another session, with no object, is the engine's: "Upgrade when convenient" had routed to a
+  // deck project's own upgrade runbook)
+  const bare = /^(?:please\s+)?(?:upgrade|update|actualiza)\s*(?=$|[.!,]|\s+(?:when|once|now|again|after|before|at|if|whenever|cuando|ahora)\b)/i;
+  return String(s || '').split(/(?<=[.!?])\s+|\r?\n/).map(x => bare.test(x.trim()) ? 'upgrade the starter.' : x)
+    .filter(x => starts.test(x.trim()) || asks.test(x) || /upgrade the starter/.test(x)).join(' ').trim();
+}
 // The user's own message routes on its words too: a command it names (in backticks or as a command line) and work it
 // reports as done are no request for that work; what it quotes stays (a user quotes the thing they mean). Lesson:
 // "upgrade with node tools/starter.mjs update" set off the dependency-update skill on "upgrade node".
@@ -3990,7 +4004,7 @@ export function promptHints(prompt, cfg = config(), withNotices = true, { relaye
   const best = recallMatches(p, 3).find(r => r.share >= 0.5 && r.close);
   if (best) hints.push(`RECALL: on ${best.h.at} a similar request ("${best.h.prompt.slice(0, 90)}") was done${best.h.used.length ? ` with ${best.h.used.join(', ')}` : ''}${best.h.changed.length ? `, changing ${best.h.changed.slice(0, 4).join(', ')}` : ''}. Start from that; more: node tools/recall.mjs "<key words>".`);
   // (menu codes and flags are the user's shorthand: in a relayed message they are the other session's text)
-  const m = relayed ? { known: [], unknown: [], kflags: [], uflags: [], expanded: relayRouteText(p), codes: {}, flags: {} } : expandMenu(p);
+  const m = relayed ? { known: [], unknown: [], kflags: [], uflags: [], expanded: relayRequestText(relayRouteText(p), cfg), codes: {}, flags: {} } : expandMenu(p);
   if (!relayed) m.expanded = typedRouteText(m.expanded);
   for (const c of m.known) {
     const r = m.codes[c];
@@ -4001,7 +4015,7 @@ export function promptHints(prompt, cfg = config(), withNotices = true, { relaye
   if (m.uflags.length) hints.push(`UNKNOWN FLAG ${m.uflags.map(f => '--' + f).join(', ')}: not in docs/MENU.md. Ask; don't guess.`);
 
   const pbs = playbooks();
-  const routed = route(m.expanded, pbs);
+  const routed = route(m.expanded, pbs, { relayed });
   for (const c of m.known) {
     const pb = pbs.find(x => x.file.endsWith('/' + m.codes[c].playbook));
     if (pb && !routed.some(r => r.pb === pb)) routed.unshift({ pb, hits: [c] });
@@ -4017,14 +4031,16 @@ export function promptHints(prompt, cfg = config(), withNotices = true, { relaye
   if (weakOnes.length) hints.push(`WEAK MATCH, not routed: ${weakOnes.map(({ pb, hits }) => `${pb.name} (only "${hits.join('", "')}")`).join(', ')}. A generic word is no evidence; open one only if the request really is that job.`);
   // a lasting requirement ("keep in mind that every phase ...") is enforced through REQUIREMENT below, not stored as a
   // fact. Lesson: a requirement said in passing also suggested knowledge-capture, which was noise.
-  const sk = routeSkills(m.expanded, cfg, routed).filter(({ pb: s }) => !(s.name === 'knowledge-capture' && isRequirement(p, cfg)));
+  const sk = routeSkills(m.expanded, cfg, routed, { relayed }).filter(({ pb: s }) => !(s.name === 'knowledge-capture' && isRequirement(p, cfg)));
   for (const { pb: s, hits } of sk)
     hints.push(`SKILL: ${s.name} (matched: ${hits.join(', ')}). If this is the task: open ${s.file} THIS turn (or invoke the ${s.name} skill) and follow it, together with any runbook above. Name it in ${NOTES_FILE} ("Skill: ${s.name}"). REQ: skill-read.`);
   // REQ: fit-checklist (at the request). A library skill the checklist left for later, or skipped, whose triggers this
   // request matches: the request is the evidence a "later - when: the user asks ..." waited for, so decide it now.
   // Lesson: a sales project left data-analysis for "when the user asks a sales question", and the question was then
   // answered without it.
-  for (const d of fitDueByRequest(m.expanded, cfg))
+  // (not for a relayed message: another session's report is no evidence that the user needs a skill. Lesson: a report
+  // that named a skill and said "checked against a copy" brought two FIT hints)
+  for (const d of relayed ? [] : fitDueByRequest(m.expanded, cfg))
     hints.push(`FIT: this request is what the ${d.item} library skill is for (matched: ${d.hits.join(', ')}), and ${FIT_FILE} decided it "${d.decision}". Decide it again now: enable it (node tools/skills.mjs enable ${d.item}) and use it, or update its row with why it still does not help. REQ: fit-checklist.`);
   // REQ: event-hint. A check that makes a skill or runbook mandatory when something happens (an event trigger with
   // "forces") says so as soon as the request shows it is coming, so the work follows it from the start instead of being
