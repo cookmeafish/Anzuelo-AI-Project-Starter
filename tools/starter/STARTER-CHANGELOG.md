@@ -92,6 +92,13 @@ hooks:**, and an upgrade lists each one as its own review item.
       - The improvement loop measures efficiency: each trial turn records the hook text, denied tool calls and Stop
         blocks it cost; compare.mjs calls a round WORSE for a costlier work turn or setup, more denials or more hook
         text per turn; the judges report waste with no benefit as area "efficiency". Scenario: `improvement-loop`.
+    - **The starter improves its own development**: maintainer runbooks in `tools/starter/runbooks/`
+      (`improvement-loop`, `field-report`) route like any runbook, only in the starter, and are never copied into a
+      project or made into skills. Another session's message routes to `field-report` when nothing else fits. The
+      user had asked for repeated testing several times before it became a procedure. Scenarios: `starter-runbooks:`.
+    - A test, check or sweep run that starts while another one still runs in the background gets a heads-up with the
+      call (a notice, not a denial): two at once can see each other's temporary files and fail falsely (a field
+      report: a sweep failed twice that way, and passed alone). Scenarios: `overlap:`.
     - Spanish debugging requests get the debug skill ("depura", "por qué falla", "las pruebas fallan", "causa raíz",
       "no compila"), and "depura" counts as a Spanish task. Scenarios: `route:` (Spanish debug).
     **Breaking for project hooks:** bookkeeping lines (`Playbook:`, `Skill:`, `Worth it:`, `Proven:`, `Learned`) may

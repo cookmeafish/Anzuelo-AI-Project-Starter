@@ -355,6 +355,10 @@ const preexisting = (...ps) => dir => {
   fs.mkdirSync(path.dirname(sp), { recursive: true }); fs.writeFileSync(sp, JSON.stringify(j));
 };
 const editTool = p => ({ name: 'Edit', input: { file_path: p, old_string: 'a', new_string: 'b' } });
+const BG_OUT = n => path.join(os.tmpdir(), `bgmoved-${process.pid}-${n}.output`).replace(/\\/g, '/');
+const BG_JOB = (id, cmd, file) => ({ name: 'Bash', input: { command: cmd, run_in_background: true }, result: `Command running in background with ID: ${id}. Output is being written to: ${file}. You will be notified when it completes.` });
+const MOVED = (id, file) => `Command did not complete within its 120s timeout and was moved to the background (ID: ${id}). Output is being written to: ${file}`;
+const MOVED_DONE = (id, code) => ({ type: 'user', message: { role: 'user', content: `<task-notification>\n<task-id>${id}</task-id>\n<status>completed</status>\n<summary>Background command completed (exit code ${code})</summary>\n</task-notification>` } });
 const KNOW = '---\ntopic: Desks\nchecked: 2026-10-17\nvolatile: yes\n---\n# Desks\n| Fact | Label | Source | Date |\n|---|---|---|---|\n| Desk X costs $300 | source verified | https://example.com | 2026-10-17 |\n\n## Related\n- [Budget](budget.md): the limit this choice must fit\n';
 // a knowledge note whose one fact was read from a project file: its source, label and date
 const KNOW_LOCAL = (src, label, date) => `---\ntopic: Style\nchecked: 2026-10-21\nvolatile: no\n---\n# Style\n| Fact | Label | Source | Date |\n|---|---|---|---|\n| Narration is in the past tense | ${label} | ${src} | ${date} |\n\n## Related\n- [Desks](desks.md)\n`;
@@ -1641,6 +1645,14 @@ PRETOOL.push(
   // (the brief line is put in front of the prompt, not denied: a denial cost a full extra round that resent the prompt)
   { name: 'sub-agent brief without the rules: the line is added in place, not denied', tool: 'Agent', input: { prompt: 'Review the export feature.', subagent_type: 'general-purpose' }, deny: false,
     rewrites: { prompt: /^Read AGENTS\.md first and follow its rules[^\n]*\n\nReview the export feature\.$/, subagent_type: /^general-purpose$/ } },
+  // a test or sweep run started while another one still runs in the background: a notice with the call, not a denial
+  // (Lesson, a field report: a sweep started during another sweep's background run read its temporary decks and failed)
+  { name: 'overlap: a sweep started while another sweep runs in the background gets a heads-up, and still runs', tool: 'Bash', input: { command: 'python tools/app_sweeps.py' },
+    tools: [BG_JOB('bs1', 'python tools/process_sweeps.py > .cache/ps.txt 2>&1', BG_OUT('s1'))], deny: false, context: /^Heads-up: a test or sweep run is still running in the background \("python tools\/process_sweeps\.py/ },
+  { name: 'overlap: after the background sweep\'s notice, no heads-up', tool: 'Bash', input: { command: 'python tools/app_sweeps.py' },
+    tools: [BG_JOB('bs2', 'python tools/process_sweeps.py > .cache/ps.txt 2>&1', BG_OUT('s2'))], rows: [MOVED_DONE('bs2', 0)], deny: false, noContext: true },
+  { name: 'overlap: a command that runs no tests, while a sweep runs, gets no heads-up', tool: 'Bash', input: { command: 'git status --short' },
+    tools: [BG_JOB('bs3', 'python tools/process_sweeps.py > .cache/ps.txt 2>&1', BG_OUT('s3'))], deny: false, noContext: true },
   { name: 'sub-agent brief that already names AGENTS.md: left as it is', tool: 'Agent', input: { prompt: 'Read AGENTS.md first. Review the export feature.', subagent_type: 'general-purpose' }, deny: false },
   { name: 'sub-agent brief pointing at AGENTS.md: allowed', tool: 'Agent', input: { prompt: 'Read AGENTS.md first and follow its rules. Review the export feature.', subagent_type: 'general-purpose' }, deny: false },
   { name: 'editing a generated skill mirror: denied', tool: 'Edit', input: { file_path: '.claude/skills/project-rule/SKILL.md' }, deny: true, tag: 'skill-mirror' }
@@ -2785,10 +2797,6 @@ PRETOOL.push(
 );
 // A foreground command past its timeout is moved to the background: it runs on, like a background launch, and its
 // result is its output file and the notice's exit code. Files a running job makes are not this turn's.
-const BG_OUT = n => path.join(os.tmpdir(), `bgmoved-${process.pid}-${n}.output`).replace(/\\/g, '/');
-const BG_JOB = (id, cmd, file) => ({ name: 'Bash', input: { command: cmd, run_in_background: true }, result: `Command running in background with ID: ${id}. Output is being written to: ${file}. You will be notified when it completes.` });
-const MOVED = (id, file) => `Command did not complete within its 120s timeout and was moved to the background (ID: ${id}). Output is being written to: ${file}`;
-const MOVED_DONE = (id, code) => ({ type: 'user', message: { role: 'user', content: `<task-notification>\n<task-id>${id}</task-id>\n<status>completed</status>\n<summary>Background command completed (exit code ${code})</summary>\n</task-notification>` } });
 const SIX = Object.fromEntries(Array.from({ length: 6 }, (_, i) => [`fixtures/zz-sweep-${i + 1}.txt`, 'x']));
 STOP.push(
   { name: 'bg-moved: a foreground command moved to the background holds the Stop while it runs', prompt: 'run the full sweep over the notes', tools: [bash('node tools/sweep.mjs', MOVED('buj1w44ls', BG_OUT('a')))],
@@ -3301,7 +3309,7 @@ function explain(query) {
       const dir = copyProject(!!s.own);
       try {
         write(dir, s.setup); applyEdits(dir, s.edit);
-        const tp = transcript(dir, { prompt: s.prompt || 'do the thing', earlierPrompt: s.earlierPrompt, before: s.before, answer: null, tools: s.tools }, Date.now());
+        const tp = transcript(dir, { prompt: s.prompt || 'do the thing', earlierPrompt: s.earlierPrompt, before: s.before, answer: null, tools: s.tools, rows: s.rows }, Date.now());
         const input = { ...s.input }; if (input.file_path) input.file_path = path.join(dir, input.file_path);
         const { out: o } = run(dir, 'pretool', { tool_name: s.tool, tool_input: input, transcript_path: tp });
         let d = null; try { d = JSON.parse(o); } catch { }
@@ -3423,7 +3431,7 @@ for (const s of PRETOOL) {
     for (const r of s.remove || []) fs.rmSync(path.join(dir, r), { recursive: true, force: true });
     if (s.removeMarker) fs.rmSync(path.join(dir, '.starter-template'), { force: true });
     if (s.prep) s.prep(dir);
-    const tp = transcript(dir, { prompt: s.prompt || 'do the thing', earlierPrompt: s.earlierPrompt, before: s.before, answer: null, tools: s.tools }, Date.now());
+    const tp = transcript(dir, { prompt: s.prompt || 'do the thing', earlierPrompt: s.earlierPrompt, before: s.before, answer: null, tools: s.tools, rows: s.rows }, Date.now());
     const input = { ...s.input };
     if (input.file_path) input.file_path = path.join(dir, input.file_path);
     // ("<DIR>" in a command stands for the fixture's own folder, as in a transcript's tool calls)
@@ -3436,6 +3444,9 @@ for (const s of PRETOOL) {
     // rewrites: the call goes ahead with its input changed in place (updatedInput), checked field by field
     let upd = null; try { upd = JSON.parse(out).hookSpecificOutput?.updatedInput || null; } catch { }
     const rewriteOk = s.rewrites ? !!upd && Object.entries(s.rewrites).every(([k, re]) => re.test(String(upd[k] ?? ''))) : !upd || s.deny;
+    // context: a notice said along with an allowed call (additionalContext); noContext: none is said
+    let ctx = ''; try { ctx = JSON.parse(out).hookSpecificOutput?.additionalContext || ''; } catch { }
+    if ((s.context && !s.context.test(ctx)) || (s.noContext && ctx)) { report(false, 'pretool: ' + s.name, s.context ? `expected a notice matching ${s.context}, got "${ctx.slice(0, 200)}"` : `unexpected notice: ${ctx.slice(0, 200)}`); continue; }
     if (!rewriteOk) { report(false, 'pretool: ' + s.name, s.rewrites ? `expected the input rewritten, got ${out.slice(0, 300) || 'no output'}` : `input rewritten unexpectedly: ${JSON.stringify(upd).slice(0, 200)}`); continue; }
     report(denied === s.deny && tagOk, 'pretool: ' + s.name, denied !== s.deny ? `expected ${s.deny ? 'DENY' : 'ALLOW'}, got ${denied ? 'DENY ' + out : 'ALLOW'} ${err.slice(0, 200)}` : `denied, but not as expected (${[s.tag, ...(s.tags || [])].filter(Boolean).join(', ')}${s.exact !== undefined ? ', exact text' : ''}${s.says ? ', ' + s.says : ''}): ${reason.slice(0, 600) || out.slice(0, 200)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }

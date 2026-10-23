@@ -4828,8 +4828,31 @@ function cmdPretool(data) {
   const brief = briefLine(data);
   const d = brief ? { ...data, tool_input: { ...data.tool_input, prompt: brief } } : data;
   const r = pretoolDecision(d);
-  if (r) deny(r);
-  else if (brief) process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: d.tool_input } }));
+  if (r) { deny(r); return; }
+  const overlap = overlapNotice(data);
+  if (brief || overlap) process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', ...(brief ? { updatedInput: d.tool_input } : {}), ...(overlap ? { additionalContext: overlap } : {}) } }));
+}
+// A test, check or sweep run that starts while another one still runs in the background: said along with the call (a
+// notice, not a denial, which would cost a round). Two such runs can see each other's temporary files and fail falsely.
+// Lesson (a field report): a sweep started while another sweep's background run was still making its temporary decks
+// failed twice, and only a rerun on its own passed.
+export const CHECK_RUN = /\b(pytest|unittest|npm (run )?test|npx (jest|vitest|playwright)|go test|cargo test|dotnet test|mvn test|gradle test|selfcheck|audit|trial|sweeps?|validate|lint)\b|\b\w*(test|sweep|check|audit)\w*\.(py|mjs|js|ps1|sh)\b/i;
+export function overlapNotice(data) {
+  const cmd = data.tool_input?.command;
+  if (!/^(Bash|PowerShell)$/.test(data.tool_name || '') || typeof cmd !== 'string' || !CHECK_RUN.test(cmd) || !data.transcript_path) return null;
+  const t = turn(data.transcript_path);
+  if (!t?.bgRunning?.length) return null;
+  const byId = new Map();
+  try {
+    for (const l of fs.readFileSync(String(data.transcript_path), 'utf8').split('\n')) {
+      if (!l.includes('"tool_use"')) continue;
+      let r; try { r = JSON.parse(l); } catch { continue; }
+      for (const x of Array.isArray(r.message?.content) ? r.message.content : []) if (x?.type === 'tool_use' && typeof x.input?.command === 'string') byId.set(x.id, x.input.command);
+    }
+  } catch { return null; }
+  const busy = t.bgRunning.map(id => byId.get(id)).filter(c => c && CHECK_RUN.test(c));
+  if (!busy.length) return null;
+  return `Heads-up: ${busy.length === 1 ? 'a test or sweep run is' : `${busy.length} test or sweep runs are`} still running in the background (${busy.map(c => `"${c.replace(/\s+/g, ' ').trim().slice(0, 80)}"`).join(', ')}). Two at once can see each other's temporary files and fail falsely: wait for its notice before reading this run's failures as real, or run this one after it.`;
 }
 export const BRIEF_LINE = 'Read AGENTS.md first and follow its rules (plain writing, no invented facts, no AI attribution, and the runbook for this task if one is named below).';
 // the prompt with the brief line in front, for a helper launch that lacks it (null when it needs none)
