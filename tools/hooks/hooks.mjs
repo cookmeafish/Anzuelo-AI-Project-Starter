@@ -7051,7 +7051,9 @@ function cmdCheck() {
   }
   if (!readJSON(stateFile('turn.json'), null)) { console.log('CHECK: no request recorded. Run: node tools/hooks/hooks.mjs begin "<the user\'s request>" first.'); process.exit(1); }
   const d = stopDecision({ transcript_path: tp, last_assistant_message: answer }, { ...config(), maxBlocksPerTurn: 1e9 });
-  if (!d) { console.log('CHECK: PASS'); process.exit(0); }
+  // (send it as it stands. Lesson, trial round 9: answers passed this check, were then shortened or reworded when sent,
+  // and the end-of-turn check blocked them, so the whole long answer went out twice)
+  if (!d) { console.log(`CHECK: PASS${i > 0 ? ' - send this text as your answer as it stands; a shortened or reworded answer is checked again at the end' : ''}`); process.exit(0); }
   // the same short steps a hook host shows, then the full steps (an agent without hooks has no "why" round trip)
   const full = read(path.join(STATE, 'stop-details.md')).trim();
   console.log('CHECK: FAIL\n' + d.reason + (full ? `\n\nFull steps:\n${full.replace(/^# .*\n+/, '')}` : ''));

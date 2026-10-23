@@ -4118,7 +4118,7 @@ if (mineB()) { // agent-neutral: an agent without hooks uses begin / check
     const c1 = node('check', '--answer-file', path.join(dir, '.cache/answer.md'));
     write(dir, { '.cache/answer.md': 'Playbook: plan.md. Saved docs/plans/2026-10-17-export.md.' + FIN });
     const c2 = node('check', '--answer-file', path.join(dir, '.cache/answer.md'));
-    report(b.stdout.includes('ROUTE: plan') && c1.status === 1 && /CHECK: FAIL\nAlmost done: [^\n]*\n1\. [^\n]+/.test(c1.stdout) && /Names: [a-z]/.test(c1.stdout) && !/round 1 of/.test(c1.stdout) && /Full steps:/.test(c1.stdout) && !/Claude/.test(c1.stdout) && c2.status === 0 && /CHECK: PASS/.test(c2.stdout),
+    report(b.stdout.includes('ROUTE: plan') && c1.status === 1 && /CHECK: FAIL\nAlmost done: [^\n]*\n1\. [^\n]+/.test(c1.stdout) && /Names: [a-z]/.test(c1.stdout) && !/round 1 of/.test(c1.stdout) && /Full steps:/.test(c1.stdout) && !/Claude/.test(c1.stdout) && c2.status === 0 && /CHECK: PASS - send this text as your answer as it stands/.test(c2.stdout),
       'agent-neutral: begin routes, check fails an incomplete answer and passes a complete one', `begin: ${b.stdout.slice(0, 120)} | c1: ${c1.stdout.slice(0, 200)} | c2: ${c2.stdout.slice(0, 300)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
