@@ -2276,7 +2276,9 @@ export function context(t, cfg, answerOverride) {
   // only through the Skill tool, so Stop asked for it again and the answer opened with a paragraph about the review.
   const ranScript = n => cmds.some(c => new RegExp(`skills[\\\\/]${esc(n)}[\\\\/]scripts`).test(c));
   const reqFiles = c => !c || typeof c !== 'object' ? [] : [...[].concat(c.filesChanged || []), ...(c.anyOf || []).flatMap(reqFiles)];
-  const reportOf = n => reqsNow.filter(q => q.when.skillUsed === n).flatMap(q => reqFiles(q.require)).filter(g => g.includes('*'));
+  // (a file shape, not a whole folder: "Baking/**" is where notes live, not a report. Lesson, trial round 9: setup added the
+  // vault's note folders to the research check, so writing a dictated note counted as research and its citation checks fired)
+  const reportOf = n => reqsNow.filter(q => q.when.skillUsed === n).flatMap(q => reqFiles(q.require)).filter(g => g.includes('*') && !/(^|\/)\*\*?$/.test(g));
   // Maintaining the skill in the same turn does not undo carrying it out: its dated report written this turn always
   // counts, and its script run counts unless the turn edited that script (then the run may be the edit's own test).
   // Lesson: setup added trigger words to the security-review skill, then ran its sweep and wrote its report, and Stop

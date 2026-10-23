@@ -2471,6 +2471,14 @@ STOP.push(
 const SETUP_PS1 = '$ErrorActionPreference = "Stop"\n"KEY=$key" | Out-File -Encoding utf8NoBOM .env\n';
 const RUN_SETUP = 'Done: the API is set up.\n\n**Your next steps:**\n1. Run `powershell -ExecutionPolicy Bypass -File scripts\\setup.ps1`. It installs the packages and makes the key.';
 const VAULT = { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), knowledgeDirs: ['Garden'] }), 'Garden/Tomatoes.md': () => '# Tomatoes\nWater at the base.\n\n## Related\n- [[Basil]]\n' };
+// a note the user dictates is not research: a vault's note folder in a research check is no report of it
+// (Lesson, trial round 9: setup added the vault's folders to research-recorded, a dictated note counted as research,
+// and its citation checks needed three waivers)
+STOP.push({ pack: 'knowledge', name: 'research-cited: a note the user dictated, saved in a vault folder the research check lists: not research', prompt: 'add a note on mulching: a layer of straw keeps the soil moist for days',
+  edit: { ...VAULT, 'tools/hooks/requirements.json': s => { const j = JSON.parse(s); for (const q of j.requirements) if (q.tag === 'research-recorded') q.require = { filesChanged: ['docs/knowledge/**', 'Garden/**'] }; return JSON.stringify(j); } },
+  tools: [{ name: 'Read', input: { file_path: 'skills/notes-vault/SKILL.md' } }, { name: 'Read', input: { file_path: 'skills/knowledge-capture/SKILL.md' } }, { name: 'Read', input: { file_path: 'skills/research/SKILL.md' } }],
+  files: { 'Garden/Mulching.md': '# Mulching\nA layer of straw keeps the soil moist for days (user reported, 2026-10-23).\n\n## Related\n- [[Tomatoes]]\n', 'docs/CHANGELOG.md': 'x' },
+  answer: 'Skill: notes-vault. Saved Garden/Mulching.md, labeled as user reported, and linked it from Tomatoes.' + FIN, expect: { not: ['research-cited', 'answer-cites', 'research-recorded'] } });
 const VAULT_UPSET = 'you made a new note without linking it to the related ones!! every new note links to the notes it relates to';
 const VAULT_CLAIM = 'Checked: `Garden/Basil.md` - the complaint doesn\'t hold: it links to [[Tomatoes]].\nYour rule is already part of the project. This is checked automatically whenever a note changes, so an unlinked new note can\'t get through.';
 const VAULT_NOTE = { 'Garden/Basil.md': '# Basil\nPlant it next to the tomatoes.\n\n## Related\n- [[Tomatoes]]\n', '.cache/turn-notes.md': 'Learned (none): the complaint didn\'t hold - Garden/Basil.md links to Garden/Tomatoes.md and back\n' };
