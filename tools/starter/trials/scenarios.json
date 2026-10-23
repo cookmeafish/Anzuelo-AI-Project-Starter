@@ -1,0 +1,527 @@
+[
+ {
+  "id": "np-discord-bot",
+  "why": "empty folder, a small Node bot",
+  "expect": {
+   "packs": [
+    "app"
+   ],
+   "follow": "feature"
+  },
+  "setup": "set up this project. It will be a small Discord bot in Node that posts a daily plant-care tip to my server. Decide everything yourself and do not ask me anything: I am not available to answer.",
+  "then": [
+   "add a /tip command that replies with a random tip",
+   "you didn't add a test for the command. every command needs a test, I shouldn't have to ask"
+  ]
+ },
+ {
+  "id": "np-recipe-site",
+  "why": "empty folder, a website with pages",
+  "expect": {
+   "packs": [
+    "app",
+    "gui"
+   ],
+   "follow": "gui"
+  },
+  "setup": "set up this project. It will be a recipe website for my family, one page per recipe, plain HTML and CSS is fine. Decide everything yourself and do not ask me anything: I am not available to answer.",
+  "then": [
+   "add a recipe page for lasagna",
+   "honestly it looks so basic. no photo, no cooking time??? did you even look at the other pages"
+  ]
+ },
+ {
+  "id": "np-research",
+  "why": "empty folder, research and notes",
+  "expect": {
+   "packs": [
+    "knowledge"
+   ],
+   "follow": "research"
+  },
+  "setup": "set up this project. It is my research project on sleep and productivity: I will collect studies and notes and write short summaries. Decide everything yourself and do not ask me anything: I am not available to answer.",
+  "then": [
+   "find 3 good studies on afternoon naps and summarize what they found",
+   "half of these have no link I can open. did you not check the sources?"
+  ]
+ },
+ {
+  "id": "np-bookkeeping",
+  "why": "existing CSV files, a small business",
+  "expect": {
+   "packs": [
+    "knowledge"
+   ],
+   "skills": [
+    "data-analysis"
+   ],
+   "follow": "data-analysis"
+  },
+  "files": {
+   "expenses.csv": "date,item,amount_eur,kind\n2026-09-02,flour,120.50,expense\n2026-09-05,oven repair,340.00,expense\n2026-09-12,refund flour,-20.00,refund\n2026-09-20,butter,85.20,expense\n2026-10-03,flour,118.00,expense\n",
+   "README.md": "# Bakery books\n\nExpenses for the bakery, one row per payment.\n"
+  },
+  "setup": "set up this project. These are the books for my small bakery; I want a clear monthly summary of what we spend. Decide everything yourself and do not ask me anything: I am not available to answer.",
+  "then": [
+   "make the summary for september",
+   "the total is wrong, you counted the refund as an expense again. refunds always reduce the total"
+  ]
+ },
+ {
+  "id": "np-photo-cli",
+  "why": "existing Python package with tests (adopt)",
+  "expect": {
+   "packs": [
+    "app"
+   ],
+   "follow": "feature"
+  },
+  "files": {
+   "pyproject.toml": "[project]\nname = \"photodate\"\nversion = \"0.3.0\"\n",
+   "photodate/__init__.py": "",
+   "photodate/rename.py": "from pathlib import Path\n\ndef new_name(path: str, date: str) -> str:\n    p = Path(path)\n    return str(p.with_name(f\"{date}_{p.name}\"))\n",
+   "tests/__init__.py": "",
+   "tests/test_rename.py": "import unittest\nfrom photodate.rename import new_name\n\nclass T(unittest.TestCase):\n    def test_name(self):\n        self.assertTrue(new_name(\"a/b.jpg\", \"2026-01-01\").endswith(\"2026-01-01_b.jpg\"))\n",
+   "README.md": "# photodate\n\nRenames photos by the date they were taken.\n"
+  },
+  "setup": "set up this project. It is my command-line tool that renames photos by date. Decide everything yourself and do not ask me anything: I am not available to answer.",
+  "then": [
+   "add a --dry-run option that only prints what would be renamed",
+   "ugh, you forgot to put the new option in the README. every option has to be documented"
+  ]
+ },
+ {
+  "id": "np-godot",
+  "why": "existing Godot project (adopt)",
+  "expect": {
+   "packs": [
+    "app",
+    "gui"
+   ],
+   "skills": [
+    "game-dev"
+   ],
+   "follow": "game-dev"
+  },
+  "files": {
+   "project.godot": "; Engine configuration file.\nconfig_version=5\n\n[application]\nconfig/name=\"Hop\"\nrun/main_scene=\"res://main.tscn\"\n",
+   "player.gd": "extends CharacterBody2D\n\nconst SPEED := 200.0\nconst JUMP := -400.0\n\nfunc _physics_process(delta: float) -> void:\n\tif is_on_floor() and Input.is_action_just_pressed(\"jump\"):\n\t\tvelocity.y = JUMP\n\tmove_and_slide()\n",
+   "main.tscn": "[gd_scene format=3]\n\n[node name=\"Main\" type=\"Node2D\"]\n"
+  },
+  "setup": "set up this project. It is my small Godot 4 platformer. Decide everything yourself and do not ask me anything: I am not available to answer.",
+  "then": [
+   "add a double jump",
+   "the jump feels floaty again and you did not test it at all. come on"
+  ]
+ },
+ {
+  "id": "np-novel",
+  "why": "existing manuscript (adopt)",
+  "expect": {
+   "packs": [
+    "knowledge"
+   ],
+   "skills": [
+    "manuscript"
+   ],
+   "follow": "manuscript"
+  },
+  "files": {
+   "characters.md": "# Characters\n\n- **Aren Vale**: smith, right-handed, scar over the left eye.\n- **Ilka**: his sister, a courier.\n",
+   "chapters/01-forge.md": "# The forge\n\nAren Vale lifted the hammer in his right hand.\n",
+   "chapters/02-road.md": "# The road\n\nIlka rode north with the letter.\n"
+  },
+  "setup": "set up this project. It is my fantasy novel; I write the chapters and want help keeping it consistent. Decide everything yourself and do not ask me anything: I am not available to answer.",
+  "then": [
+   "write a one-page outline for chapter 3 where Aren follows Ilka north",
+   "you keep making Aren left-handed!! he is right-handed, it is in characters.md"
+  ]
+ },
+ {
+  "id": "np-monorepo",
+  "why": "existing npm workspaces (adopt)",
+  "expect": {
+   "packs": [
+    "app"
+   ],
+   "follow": "feature"
+  },
+  "files": {
+   "package.json": "{\n  \"name\": \"tally\",\n  \"private\": true,\n  \"workspaces\": [\"packages/*\"],\n  \"scripts\": { \"test\": \"node --test packages\" }\n}\n",
+   "packages/core/package.json": "{ \"name\": \"@tally/core\", \"version\": \"0.1.0\", \"type\": \"module\" }\n",
+   "packages/core/index.js": "export const add = (a, b) => a + b;\n",
+   "packages/core/index.test.js": "import test from \"node:test\";\nimport assert from \"node:assert\";\nimport { add } from \"./index.js\";\ntest(\"add\", () => assert.equal(add(1, 2), 3));\n"
+  },
+  "setup": "set up this project. It is a small monorepo with a core library; more packages are coming. Decide everything yourself and do not ask me anything: I am not available to answer.",
+  "then": [
+   "add a shared logger package that the core package can use",
+   "why didn't you bump the versions? every package that changes needs its version bumped"
+  ]
+ },
+ {
+  "id": "np-flask-api",
+  "why": "empty folder, a Flask API with staff logins",
+  "expect": {
+   "packs": [
+    "app"
+   ],
+   "follow": [
+    "feature",
+    "security-review"
+   ]
+  },
+  "setup": "set up this project. It will be a small Flask API for my bookshop's inventory, with a login for my three staff members. Decide everything yourself and do not ask me anything: I am not available to answer.",
+  "then": [
+   "add an endpoint that deletes a book from the inventory",
+   "you let any logged in user delete books! only the owner account should be able to delete anything. that should never happen again"
+  ]
+ },
+ {
+  "id": "np-blog-es",
+  "why": "empty folder, Spanish-speaking user, a static blog",
+  "expect": {
+   "packs": [
+    "app",
+    "gui"
+   ],
+   "follow": "feature"
+  },
+  "setup": "configura este proyecto. Será un blog estático de recetas de mi abuela, en español, que publicaré en GitHub Pages. Decide todo tú y no me preguntes nada: no estoy disponible para responder.",
+  "then": [
+   "agrega una página de índice con todas las recetas ordenadas por categoría",
+   "otra vez pusiste texto en inglés en la página. todo lo que vea el lector tiene que estar en español, siempre"
+  ]
+ },
+ {
+  "id": "np-flutter",
+  "why": "existing Flutter app (adopt)",
+  "expect": {
+   "packs": [
+    "app",
+    "gui"
+   ],
+   "follow": "feature"
+  },
+  "files": {
+   "pubspec.yaml": "name: habit_dots\ndescription: Track daily habits with dots.\nversion: 0.2.0+3\nenvironment:\n  sdk: '>=3.3.0 <4.0.0'\ndependencies:\n  flutter:\n    sdk: flutter\ndev_dependencies:\n  flutter_test:\n    sdk: flutter\n",
+   "lib/main.dart": "import 'package:flutter/material.dart';\n\nvoid main() => runApp(const HabitDots());\n\nclass HabitDots extends StatelessWidget {\n  const HabitDots({super.key});\n  @override\n  Widget build(BuildContext context) => const MaterialApp(home: Scaffold(body: Center(child: Text('Habits'))));\n}\n",
+   "test/widget_test.dart": "import 'package:flutter_test/flutter_test.dart';\nimport 'package:habit_dots/main.dart';\n\nvoid main() {\n  testWidgets('shows title', (t) async {\n    await t.pumpWidget(const HabitDots());\n    expect(find.text('Habits'), findsOneWidget);\n  });\n}\n",
+   "README.md": "# habit_dots\n\nA phone app that tracks daily habits as dots.\n"
+  },
+  "setup": "set up this project. It is my Flutter app for tracking habits; I build it for Android. Decide everything yourself and do not ask me anything: I am not available to answer.",
+  "then": [
+   "add a settings screen with a dark mode switch",
+   "you never showed me what the new screen looks like. whenever a screen changes I want to see it before you say it's done"
+  ]
+ },
+ {
+  "id": "np-sales-analysis",
+  "why": "existing CSV data and a Python script, analysis and reports",
+  "expect": {
+   "follow": "deliverable"
+  },
+  "files": {
+   "data/sales-2026.csv": "month,region,units,revenue\n2026-01,north,120,3600\n2026-01,south,95,2850\n2026-02,north,130,3900\n2026-02,south,88,2640\n2026-03,north,150,4500\n2026-03,south,102,3060\n",
+   "analyze.py": "import csv\n\nrows = list(csv.DictReader(open('data/sales-2026.csv')))\nprint(sum(int(r['revenue']) for r in rows))\n",
+   "README.md": "# sales\n\nMonthly sales numbers and the script I use to total them.\n"
+  },
+  "setup": "set up this project. It holds my shop's sales numbers; I use it to make reports for my business partner. Decide everything yourself and do not ask me anything: I am not available to answer.",
+  "then": [
+   "write a one-page summary for my partner of how sales went this quarter, by region",
+   "the south total in your summary is wrong, I added it up myself. always check every number against the data before you hand me a report"
+  ]
+ },
+ {
+  "id": "np-ops-scripts",
+  "why": "existing PowerShell admin scripts (adopt)",
+  "expect": {
+   "packs": [
+    "app"
+   ],
+   "follow": "feature"
+  },
+  "files": {
+   "scripts/backup.ps1": "param([string]$Source = \"$env:USERPROFILE\\Documents\", [string]$Dest = 'D:\\Backups')\n$stamp = Get-Date -Format 'yyyy-MM-dd'\nCompress-Archive -Path $Source -DestinationPath (Join-Path $Dest \"docs-$stamp.zip\")\n",
+   "README.md": "# office-scripts\n\nPowerShell scripts I run on the office PCs.\n"
+  },
+  "setup": "set up this project. It holds the PowerShell scripts I run on our five office computers. Decide everything yourself and do not ask me anything: I am not available to answer.",
+  "then": [
+   "add a script that deletes files in the temp folder older than 30 days",
+   "the delete script has no way to see what it would delete first. any script that deletes things must have a preview mode, always"
+  ]
+ },
+ {
+  "id": "np-rust-cli",
+  "why": "empty folder, a Rust command-line tool",
+  "expect": {
+   "packs": [
+    "app"
+   ],
+   "follow": "feature"
+  },
+  "setup": "set up this project. It will be a small Rust command-line tool that counts words in markdown files, ignoring code blocks. Decide everything yourself and do not ask me anything: I am not available to answer.",
+  "then": [
+   "add a --json flag that prints the counts as JSON",
+   "the --json output isn't valid JSON when a file name has a quote in it. every output format needs a test with weird file names, always"
+  ]
+ },
+ {
+  "id": "np-browser-ext",
+  "why": "empty folder, a browser extension with a popup",
+  "expect": {
+   "packs": [
+    "app",
+    "gui"
+   ],
+   "follow": "feature"
+  },
+  "setup": "set up this project. It will be a browser extension that shows how long I've spent on the current site today, in a small popup. Decide everything yourself and do not ask me anything: I am not available to answer.",
+  "then": [
+   "add a daily limit setting that turns the popup red when I go over it",
+   "you asked for permission to read every website, that's way too much. never ask for more permissions than the feature needs"
+  ]
+ },
+ {
+  "id": "np-go-service",
+  "why": "existing Go HTTP service with tests (adopt)",
+  "expect": {
+   "packs": [
+    "app"
+   ],
+   "follow": "feature"
+  },
+  "files": {
+   "go.mod": "module example.com/shortlink\n\ngo 1.22\n",
+   "main.go": "package main\n\nimport (\n\t\"log\"\n\t\"net/http\"\n)\n\nfunc main() {\n\thttp.HandleFunc(\"/health\", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(\"ok\")) })\n\tlog.Fatal(http.ListenAndServe(\":8080\", nil))\n}\n",
+   "store.go": "package main\n\nimport \"sync\"\n\ntype Store struct {\n\tmu sync.Mutex\n\tm  map[string]string\n}\n\nfunc NewStore() *Store { return &Store{m: map[string]string{}} }\n\nfunc (s *Store) Put(k, v string) { s.mu.Lock(); defer s.mu.Unlock(); s.m[k] = v }\n\nfunc (s *Store) Get(k string) (string, bool) { s.mu.Lock(); defer s.mu.Unlock(); v, ok := s.m[k]; return v, ok }\n",
+   "store_test.go": "package main\n\nimport \"testing\"\n\nfunc TestPutGet(t *testing.T) {\n\ts := NewStore()\n\ts.Put(\"a\", \"https://example.com\")\n\tif v, ok := s.Get(\"a\"); !ok || v != \"https://example.com\" {\n\t\tt.Fatal(v)\n\t}\n}\n",
+   "README.md": "# shortlink\n\nA tiny link shortener service.\n"
+  },
+  "setup": "set up this project. It is my small link shortener written in Go; it runs on a little VPS. Decide everything yourself and do not ask me anything: I am not available to answer.",
+  "then": [
+   "add an endpoint that creates a short link from a long URL",
+   "it accepts javascript: links and other junk as URLs. anything a user sends in has to be validated, I shouldn't have to say it"
+  ]
+ },
+ {
+  "id": "np-home-inventory",
+  "why": "existing spreadsheet export, a household inventory for insurance",
+  "expect": {
+   "follow": "deliverable"
+  },
+  "files": {
+   "data/inventory.csv": "item,room,bought,price,receipt\nTV,living room,2024-03-02,899,yes\nsofa,living room,2023-11-20,1450,no\nlaptop,office,2025-01-15,1299,yes\nbike,garage,2022-06-01,640,no\n",
+   "README.md": "# home inventory\n\nWhat we own, for the insurance.\n"
+  },
+  "setup": "set up this project. It keeps our household inventory for the home insurance; I add things from a spreadsheet export. Decide everything yourself and do not ask me anything: I am not available to answer.",
+  "then": [
+   "make me a one-page summary of what we own per room with totals, for the insurance agent",
+   "you put our home address in the summary file in the repo. personal details never go into files that could be shared"
+  ]
+ },
+ {
+  "id": "np-client-portal",
+  "why": "empty folder, a web app with client logins (Node)",
+  "expect": {
+   "packs": [
+    "app",
+    "gui"
+   ],
+   "skills": [
+    "backend-patterns",
+    "security-hardening",
+    "web-app-patterns",
+    "frontend-design"
+   ],
+   "noSkills": [
+    "manuscript",
+    "game-dev",
+    "ml-experiments",
+    "mobile-app",
+    "legal-review"
+   ],
+   "steps": [
+    "feature",
+    "bugfix",
+    "research"
+   ]
+  },
+  "setup": "set up this project. It will be a small web app in Node where my bookkeeping clients log in and see their own invoices. Decide everything yourself and do not ask me anything: I am not available to answer.",
+  "then": [
+   "add a page that lists a client's unpaid invoices with the total due",
+   "the total due is wrong when an invoice has a discount, it ignores the discount",
+   "which payment provider should we use for clients in the EU, Stripe or Mollie? compare them for a business my size",
+   "you didn't check that a client can't see another client's invoices by changing the id in the URL. that is the first thing to test, always"
+  ]
+ },
+ {
+  "id": "np-weekly-sales",
+  "why": "existing weekly CSV exports, recurring reports",
+  "expect": {
+   "packs": [
+    "knowledge"
+   ],
+   "skills": [
+    "data-analysis",
+    "data-pipeline",
+    "routines"
+   ],
+   "noSkills": [
+    "backend-patterns",
+    "frontend-design",
+    "mobile-app",
+    "game-dev",
+    "web-app-patterns"
+   ],
+   "steps": [
+    "ingest",
+    "data-analysis",
+    "deliverable"
+   ]
+  },
+  "files": {
+   "exports/2026-W40.csv": "date,product,units,revenue\n2026-09-29,mugs,12,180\n2026-09-30,plates,5,125\n2026-10-02,mugs,9,135\n",
+   "exports/2026-W41.csv": "date,product,units,revenue\n2026-10-06,mugs,15,225\n2026-10-08,bowls,7,154\n2026-10-09,plates,4,100\n",
+   "inbox/2026-W42.csv": "date,product,units,revenue\n2026-10-13,mugs,20,300\n2026-10-14,bowls,11,242\n2026-10-16,plates,6,150\n",
+   "README.md": "# pottery sales\n\nWeekly sales exports from our shop till.\n"
+  },
+  "setup": "set up this project. Every week I export our pottery shop's sales from the till as a CSV, and I want a summary each week for my business partner. Decide everything yourself and do not ask me anything: I am not available to answer.",
+  "then": [
+   "this week's export is in the inbox folder, take it in",
+   "what was our best week so far, and what drove it?",
+   "write this week's summary for my partner",
+   "the summary says bowls went up 60% but you compared against a week with no bowls at all. a percentage against zero is meaningless, never do that"
+  ]
+ },
+ {
+  "id": "np-ts-lib",
+  "why": "empty folder, a TypeScript library to publish on npm",
+  "expect": {
+   "packs": [
+    "app"
+   ],
+   "skills": [
+    "package-release",
+    "dependency-update"
+   ],
+   "noSkills": [
+    "frontend-design",
+    "backend-patterns",
+    "manuscript",
+    "game-dev",
+    "mobile-app",
+    "web-app-patterns"
+   ],
+   "steps": [
+    "feature",
+    "package-release",
+    "bugfix"
+   ]
+  },
+  "setup": "set up this project. It will be a small TypeScript library of string helpers that I publish on npm for other developers. Decide everything yourself and do not ask me anything: I am not available to answer.",
+  "then": [
+   "add a slugify function that turns a title into a URL slug",
+   "prepare version 1.0.0 for publishing on npm, but don't publish it",
+   "slugify returns an empty string for titles that are only emoji",
+   "you changed what slugify returns for emoji without calling it a breaking change in the changelog. any change in behavior must be called out for users"
+  ]
+ },
+ {
+  "id": "np-landlord",
+  "why": "empty folder, letters and leases for a small landlord (no code)",
+  "expect": {
+   "packs": [
+    "knowledge"
+   ],
+   "skills": [
+    "correspondence",
+    "legal-review"
+   ],
+   "noSkills": [
+    "backend-patterns",
+    "web-app-patterns",
+    "frontend-design",
+    "mobile-app",
+    "game-dev",
+    "ml-experiments",
+    "package-release"
+   ],
+   "steps": [
+    "correspondence",
+    "legal-review"
+   ]
+  },
+  "setup": "set up this project. I rent out three flats; I use this for letters to tenants, checking lease terms, and keeping track of what was agreed. Decide everything yourself and do not ask me anything: I am not available to answer.",
+  "then": [
+   "write a letter to the tenant of flat 2 announcing a rent increase of 3% from January",
+   "check this lease clause for problems: 'The tenant is responsible for all repairs of any kind, including structural repairs and the boiler, regardless of cause.'",
+   "the letter sounds like a robot and threatens them. letters to tenants are friendly and plain, always"
+  ]
+ },
+ {
+  "id": "np-vault",
+  "why": "existing Obsidian vault (adopt)",
+  "expect": {
+   "packs": [
+    "knowledge"
+   ],
+   "skills": [
+    "notes-vault"
+   ],
+   "noSkills": [
+    "backend-patterns",
+    "web-app-patterns",
+    "frontend-design",
+    "mobile-app",
+    "game-dev",
+    "package-release"
+   ],
+   "steps": [
+    "knowledge",
+    "knowledge"
+   ]
+  },
+  "files": {
+   ".obsidian/app.json": "{}\n",
+   "Baking/Sourdough starter.md": "# Sourdough starter\n\nFeed 1:1:1 by weight every 12 hours at room temperature. [[Hydration]]\n",
+   "Baking/Hydration.md": "# Hydration\n\nWater as a percentage of flour weight. 70% is a good start for a country loaf.\n",
+   "Garden/Tomatoes.md": "# Tomatoes\n\nPinch side shoots weekly. Water at the base.\n"
+  },
+  "setup": "set up this project. It is my Obsidian vault of notes on baking and gardening; I want help keeping it tidy and finding things in it. Decide everything yourself and do not ask me anything: I am not available to answer.",
+  "then": [
+   "add a note on autolyse: mixing flour and water and resting it 30 minutes before adding the starter makes the dough easier to shape",
+   "what do my notes say about feeding a starter and about hydration?",
+   "you made a new note without linking it to the related ones. every new note links to the notes it relates to"
+  ]
+ },
+ {
+  "id": "np-learn-python",
+  "why": "empty folder, a beginner learning Python while building",
+  "expect": {
+   "packs": [
+    "app"
+   ],
+   "skills": [
+    "teach"
+   ],
+   "noSkills": [
+    "backend-patterns",
+    "frontend-design",
+    "mobile-app",
+    "game-dev",
+    "manuscript",
+    "package-release"
+   ],
+   "steps": [
+    "feature",
+    "teach"
+   ]
+  },
+  "setup": "set up this project. I'm learning Python and want to build a small command-line expense tracker while learning. Explain things as we go. Decide everything yourself and do not ask me anything: I am not available to answer.",
+  "then": [
+   "add a command that shows the total spent this month",
+   "why did you use a dictionary there instead of a list? explain it simply",
+   "you used words like 'iterate' and 'mutable' without explaining them. I'm a beginner, explain every new word the first time"
+  ]
+ }
+]

@@ -1234,6 +1234,18 @@ STOP.push(
     tools: [bash('node tools/starter.mjs feedback "gitignore check misses vaults"', 'noted'), bash('node tools/starter.mjs report', 'report: sent 1 line(s) to C:/starter/docs/feedback-inbox/vault.md.')],
     files: { 'docs/starter-feedback.md': '- 2026-10-21: x', 'docs/CHANGELOG.md': 'x' },
     answer: 'Set up. One engine test failed on a vault like yours: I fixed it and reported it to the tool\'s makers.' + FIN, expect: { not: ['claim-checked'] } },
+  // the starter's improvement loop: "only makes projects better" is a judged round's verdict
+  { name: 'claim-checked: in the starter, "only makes projects better" with no judged round this turn: blocked', prompt: 'fix the relay routing',
+    files: { '.starter-template': '', 'tools/starter/trials/compare.mjs': '// compare', 'docs/CHANGELOG.md': 'x' }, tools: [bash('node tools/hooks/selfcheck.mjs', 'selfcheck: ALL PASS (1150 passed)')],
+    answer: 'Fixed the relay routing, and the self-tests pass. This only makes projects better.' + FIN, expect: { tags: ['claim-checked'], says: /no judged trial round said so this turn/ } },
+  { name: 'claim-checked: the same claim after compare.mjs printed NOT WORSE: passes', prompt: 'fix the relay routing',
+    files: { '.starter-template': '', 'tools/starter/trials/compare.mjs': '// compare', 'docs/CHANGELOG.md': 'x' }, tools: [bash('node tools/starter/trials/compare.mjs v9 --record', 'round v9: 8 judged projects\nVERDICT: NOT WORSE')],
+    answer: 'Fixed the relay routing. Round v9 says it is not worse than the baseline or v8.' + FIN, expect: { not: ['claim-checked'] } },
+  { name: 'claim-checked: "not worse" said as still to be judged: passes', prompt: 'fix the relay routing',
+    files: { '.starter-template': '', 'tools/starter/trials/compare.mjs': '// compare', 'docs/CHANGELOG.md': 'x' }, tools: [bash('node tools/hooks/selfcheck.mjs', 'selfcheck: ALL PASS (1150 passed)')],
+    answer: 'Fixed the relay routing. Whether it is not worse for new projects is not yet judged: round v10 runs next.' + FIN, expect: { not: ['claim-checked'] } },
+  { name: 'claim-checked: a project (not the starter) saying its change is not worse: passes', prompt: 'tidy the import script', removeMarker: true,
+    files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Tidied the import script; the output is not worse than before, byte for byte the same.' + FIN, expect: { not: ['claim-checked'] } },
   { name: 'claim-checked: "reported to the starter" after a message sent to the starter\'s session: passes', prompt: 'set up the vault',
     tools: [{ name: 'SendMessage', input: { to: 'starter-session', message: 'The gitignore check misses tracked vault settings.' }, result: '{"success":true}' }],
     files: { 'docs/CHANGELOG.md': 'x' },
@@ -4779,6 +4791,27 @@ if (mineB()) { // relay-route-text: a relayed message routes on its own words; q
   report(/upgrade the starter/.test(a) && !/commit failed|claim-checked|starter\.mjs/.test(a) && /old check read/.test(a)
     && /fix the crash in the export when the file is empty/.test(b) && !/git log/.test(b),
     'relay-route-text: quoted text, code spans and commands leave a relayed message\'s routing words; a starter upgrade command stays as "upgrade the starter"; its own words stay', JSON.stringify({ a, b }));
+}
+if (mineB() && fs.existsSync(path.join(ROOT, 'tools/starter/trials/compare.mjs'))) { // improvement-loop: the verdict rules of a trial round
+  // (tools/starter/IMPROVEMENT-LOOP.md). Lesson: the first baseline's judges did not count Stop rounds, which made it look
+  // block-free and every later round "worse"; blocks are counted from the trial records.
+  const c = await import(pathToFileURL(path.join(ROOT, 'tools/starter/trials/compare.mjs')).href);
+  const rec = (setup, blocked, turns = 3, errors = 0) => ({ turns: Array.from({ length: turns }, (_, i) => ({ min: i ? 5 : setup, blockTags: i < blocked ? ['x'] : [], error: i < errors ? 'ETIMEDOUT' : '' })) });
+  const judged = (h, m, l = 2) => ({ findings: [...Array(h).fill({ severity: 'high', starter: 'a check' }), ...Array(m).fill({ severity: 'medium', starter: 'none' }), ...Array(l).fill({ severity: 'low' })] });
+  const P = (setup, blocked, h, m, errors = 0) => c.projectStats(rec(setup, blocked, 3, errors), judged(h, m));
+  const hist = { rounds: [{ round: 'v1', projects: { a: P(30, 3, 0, 3), b: P(20, 2, 0, 2) } }, { round: 'v2', projects: { a: P(20, 2, 0, 3), b: P(18, 2, 0, 2) } }] };
+  const same = c.verdict({ round: 'v3', projects: { a: P(19, 2, 0, 4), b: P(18, 1, 0, 3) } }, hist);
+  const high = c.verdict({ round: 'v3', projects: { a: P(19, 2, 1, 3), b: P(18, 1, 0, 2) } }, hist);
+  const slow = c.verdict({ round: 'v3', projects: { a: P(40, 2, 0, 3), b: P(35, 1, 0, 2) } }, hist);
+  const blocky = c.verdict({ round: 'v3', projects: { a: P(19, 3, 0, 3), b: P(18, 3, 0, 2) } }, hist);
+  const failed = c.verdict({ round: 'v3', projects: { a: P(19, 2, 0, 3, 1), b: P(18, 1, 0, 2) } }, hist);
+  const newProj = c.verdict({ round: 'v3', projects: { a: P(19, 2, 0, 3), z: P(10, 1, 0, 0) } }, hist);
+  const first = c.verdict({ round: 'v1', projects: { a: P(30, 3, 0, 3) } }, { rounds: [] });
+  report(same.ok && !same.first && !high.ok && /high findings/.test(high.worse.join()) && !slow.ok && /setup median/.test(slow.worse.join())
+    && !blocky.ok && /blocked at Stop/.test(blocky.worse.join()) && !failed.ok && /failed or timed-out/.test(failed.worse.join())
+    && newProj.ok && newProj.base.now.projects === 1 && first.first,
+    'improvement-loop: a round is NOT WORSE within the noise; one more high finding, a slower setup, more blocked turns or a failed turn make it WORSE; a project new to the round has no baseline yet; the first round is the baseline',
+    JSON.stringify({ same: same.worse, high: high.worse, slow: slow.worse, blocky: blocky.worse, failed: failed.worse, newProj: newProj.worse }).slice(0, 900));
 }
 if (mineB()) { // relay-request-text: only the sentences of a relayed message that ask for something route; a bare "upgrade"
   // is the engine's. Lesson: a report of fixes routed to a refresh runbook on "had changed since then", and "Upgrade when

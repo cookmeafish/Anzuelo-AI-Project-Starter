@@ -72,6 +72,14 @@ hooks:**, and an upgrade lists each one as its own review item.
     - A `run_in_background` gate run counts by its output file once its notice arrives, also when the host records
       the notice as a queued attachment rather than a user message. A passing hooks self-test had been read as empty
       output and blocked the turn. Scenarios: `bg-moved:` (queued attachment).
+    - **The starter's improvement loop** (starter only; new projects get none of it): `tools/starter/IMPROVEMENT-LOOP.md`
+      with `tools/starter/trials/` (`run.mjs` runs a round of eight real new projects on a frozen copy, `judge.mjs`
+      writes the blind judges' prompts, `compare.mjs` gives the verdict against each project's baseline and the
+      previous round and keeps the history in `rounds.json`, rounds v2 to v8 included). The audit sweep "improvement
+      loop is current" warns when the last judged round was worse or the engine changed since it; in the starter, an
+      answer that says a change only makes projects better needs a compare.mjs NOT WORSE verdict that turn
+      (`claim-checked`). Stop blocks are counted from the trial records: the first round's judges had not counted
+      them. Scenarios: `improvement-loop`, `claim-checked:` (improvement claims).
     - Spanish debugging requests get the debug skill ("depura", "por qué falla", "las pruebas fallan", "causa raíz",
       "no compila"), and "depura" counts as a Spanish task. Scenarios: `route:` (Spanish debug).
     **Breaking for project hooks:** bookkeeping lines (`Playbook:`, `Skill:`, `Worth it:`, `Proven:`, `Learned`) may

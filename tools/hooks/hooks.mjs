@@ -1263,6 +1263,8 @@ export function actionAttempts(entries) {
 }
 // REQ: claim-checked. Promises that a miss can't come back, and claims that a lesson was sent to the starter's makers.
 const NEVER_AGAIN = /\b(can(?:no|')?t|cannot|won'?t|will not|will never|doesn'?t|does not)\s+(happen|recur|come back|slip (?:through|by|past)|repeat)\b[^.\n]{0,25}\bagain\b|\bnow enforces (this|it)\b|\benforces (this|it) on its own\b|\b(stops?|prevents?|blocks?) (this|it|that) from (ever )?(happening|recurring|coming back)\b/i;
+// a claim that a change only makes projects better: "only improvements", "not worse", "makes projects better"
+const IMPROVE_CLAIM = /\bonly (makes? (it|things|projects?|the projects?) )?(better|improve(s|ments?)?)\b|\b(isn'?t|is not|aren'?t|are not|never|nothing|no) (any |made |got )?worse\b|\bnot (any )?worse\b|\b(makes?|made) (new |every )?(projects?|it) (only )?better\b|\bsolo mejora|\bno (lo |la )?empeora/i;
 const REPORTED = /\b(reported|sent|passed on|forwarded|submitted|filed)\b[^.\n]{0,40}\bto the (tool'?s |starter'?s |engine'?s )?(makers?|authors?|developers?|maintainers?|starter)\b|\b(the )?(makers?|developers?|maintainers?) (were|was|have been|has been) (told|notified|informed)\b|\b(report[eé]|reportad[oa]|envi[eé]|enviad[oa]|avis[eé])\b[^.\n]{0,40}\b(a los|al) (creador(es)?|autor(es)?|desarrollador(es)?|starter)\b/i;
 // REQ: claim-checked (git). A claim that git holds nothing, or no earlier version of a file: "nothing is committed yet",
 // "never committed", "not in git", "no earlier version in git" (Spanish too). It counts only when the sentence is
@@ -5461,6 +5463,16 @@ export function coreChecks(x, cfg) {
   if (reportClaim && !reportRan)
     add('claim-checked', `The answer says the lesson was reported ("${reportClaim.trim().slice(0, 70)}"), but node tools/starter.mjs report did not send it this turn. ` +
       'Say "noted in docs/starter-feedback.md for the starter", or run node tools/starter.mjs report and say what it printed.');
+  // REQ: claim-checked (the starter's improvement loop). In the starter, "only improvements" or "not worse" for new
+  // projects is a judged trial round's verdict: compare.mjs ran this turn and printed NOT WORSE. Lesson: engine changes
+  // were called improvements on self-tests alone, before any round had judged them (tools/starter/IMPROVEMENT-LOOP.md).
+  if (exists('.starter-template') && exists('tools/starter/trials/compare.mjs')) {
+    const better = x.answer.split(/(?<=[.!?\n])\s+/).find(s => IMPROVE_CLAIM.test(s) && !/\b(not yet|until|once|whether|if|still to|unverified|not verified|can'?t say)\b/i.test(s));
+    const judged = (x.runs || []).some(r => /trials[\\/]compare\.mjs/.test(String(r.cmd)) && /^VERDICT: NOT WORSE\b/m.test(r.out || ''));
+    if (better && !judged)
+      add('claim-checked', `The answer says the change only makes projects better ("${better.trim().slice(0, 70)}"), but no judged trial round said so this turn. ` +
+        'Run node tools/starter/trials/compare.mjs <round> and give its verdict, or say what was tested and that the judged round is still to come (tools/starter/IMPROVEMENT-LOOP.md).');
+  }
   // REQ: claim-checked (git). "Nothing is committed" or "git has no earlier version" while git has commits (of that
   // file, when one is named). The version the user saw is the last commit or what was delivered, not the working copy.
   const gitClaim = gitClaimContradicted(x.answer);
