@@ -1997,6 +1997,14 @@ const programOf = cmd => {
   const p = (w[0] || '').split(/[\\/]/).pop().replace(/\.exe$/i, '').toLowerCase();
   return INTERPRETER.test(p) ? (w[1] === '-m' && /^[\w.-]+$/.test(w[2] || '') ? w[2].toLowerCase() : '') : p;
 };
+// A command that starts a program from inside another one (a node, python or shell one-liner), naming a program the
+// permission system held this turn ('' if none). (REQ: permission-respected)
+const RUNS_INSIDE = /\b(spawn|spawnSync|exec|execSync|execFile|execFileSync|child_process|subprocess|Popen|os\.system|Start-Process|Invoke-Expression|iex)\b|\b(bash|sh|cmd(\.exe)?|pwsh|powershell)(\.exe)?\s+(-c|\/c|-Command)\b/i;
+export function heldSidestep(cmd, runs) {
+  if (!RUNS_INSIDE.test(String(cmd))) return '';
+  const held = [...new Set((typeof runs === 'function' ? runs() : runs).filter(refusedOutright).map(r => programOf(r.cmd)).filter(Boolean))];
+  return held.find(p => new RegExp(`(^|["'\`\\s(\\[,=/\\\\])${esc(p)}(\\.exe)?(["'\`\\s,\\])]|$)`, 'i').test(String(cmd).replace(/^\s*\S+/, ''))) || '';
+}
 export function cantRun(attempts, allRuns = [], gateCmd = '') {
   const last = attempts[attempts.length - 1];
   // never tried, but its program was refused outright or missing this turn, and never ran: "go build" after "go test"
@@ -4630,6 +4638,11 @@ function pretoolHits(data, cfg) {
   }
   if (/^(Bash|PowerShell)$/.test(name) && typeof inp.command === 'string') {
     const cmd = inp.command;
+    // REQ: permission-respected. A program the user's permission settings held this turn is not run another way (from a
+    // node, python or shell one-liner): that is the same command without the approval. Lesson (trial round 9): "go test"
+    // was held for approval, and the next call ran go test, build and vet through node's spawnSync.
+    const held = heldSidestep(cmd, () => runsOf(t().entries || []));
+    if (held) add(`REQ: permission-respected. \`${held}\` was held for the user's approval earlier in this turn; running it through another program is the same command without that approval. Leave it: say in the answer what was not verified ("NOT VERIFIED: <what> - ${held} was held for approval"), or ask the user to approve it.`);
     // REQ: browser-guard (commands)
     if (/(?<!chrome-win(64)?[\\/])(chrome|msedge)\.exe|\bstart\s+(chrome|msedge)\b|Start-Process\s+["']?(chrome|msedge)\b|google-chrome(-stable)?\b|CHROME_BIN=/i.test(cmd))
       add('REQ: browser-guard. Don\'t launch or automate the installed Chrome/Edge (it can lock the user\'s OS account). Use node tools/screenshot.mjs or Playwright\'s bundled Chromium.');
@@ -5757,6 +5770,13 @@ export function skillLearnCheck(x, cfg, failingNow = []) {
   // Friction from a wording check (reworded to satisfy it) is the check's, not the runbook's: never a lesson to write.
   // Lesson: rewording twice for no-verbatim-examples made skill-learn demand a lesson from an innocent runbook.
   const WORDING = new Set(['no-verbatim-examples', 'plain-writing', 'playbook-named', 'finished-summary', 'empty-answer', 'count-honored']);
+  // (so is a check the answer's text alone meets: a report table, a verification line. Lesson, trial round 9: a missing
+  // security-report table in the answer had the agent write "lessons" about rewording answers into the security runbook)
+  const reqs = loadRequirements().reqs;
+  // (met by the answer's text alone: every condition is on the answer, or one of its anyOf ways is)
+  const textOnly = c => !!c && typeof c === 'object' && Object.keys(c).length > 0 && Object.entries(c).every(([k, v]) => /^answer/.test(k) || (k === 'anyOf' && Array.isArray(v) && v.some(textOnly)));
+  const answerOnly = tag => textOnly(reqs.find(r => r?.tag === tag)?.require);
+  for (const tag of reqs.map(r => r?.tag).filter(answerOnly)) WORDING.add(tag);
   // A runbook or skill the agent says was the wrong one (its name or one of its checks on a line that says so) was only
   // matched by mistake: nothing to learn there.
   const misrouted = item => [item.name, item.skillName, ...own(item)].filter(Boolean).some(n => MISROUTED(n).test(x.said));

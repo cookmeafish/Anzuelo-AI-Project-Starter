@@ -727,7 +727,11 @@ const STOP = [
     answer: 'Playbook: project.md. Added the guide.' + FIN, expect: { block: true, tags: ['upgrade-review'], says: /"later" needs "later - when/ } },
   // skills learn from misses
   { name: 'skill-learn: the followed skill\'s own check failed earlier this turn, no lesson written: blocked', prompt: 'debug the failing import', tools: [sk('debug')], files: { 'scratch-work/import.md': 'x', 'docs/CHANGELOG.md': 'x' },
-    active: true, blocks: 1, failed: ['debug-root-cause'], answer: 'Skill: debug. Root cause: the date parser.' + FIN, expect: { block: true, tags: ['skill-learn'] } },
+    active: true, blocks: 1, failed: ['debug-test-added'], answer: 'Skill: debug. Root cause: the date parser.' + FIN, expect: { block: true, tags: ['skill-learn'] } },
+  // a check the answer's text alone meets (a report line, the root cause sentence) is no lesson for the skill
+  // (Lesson, trial round 9: a missing table in the answer had lessons about rewording written into the security runbook)
+  { name: 'skill-learn: only an answer-text check of the skill failed earlier: no lesson demanded', prompt: 'debug the failing import', tools: [sk('debug')], files: { 'scratch-work/import.md': 'x', 'docs/CHANGELOG.md': 'x' },
+    active: true, blocks: 1, failed: ['debug-root-cause'], answer: 'Skill: debug. Root cause: the date parser.' + FIN, expect: { not: ['skill-learn'] } },
   { name: 'skill-learn: the skill\'s check that failed earlier was waived as not applying: no lesson demanded', prompt: 'debug the failing import', files: { 'scratch-work/import.md': 'x', 'docs/CHANGELOG.md': 'x' },
     tools: [sk('debug'), bash('node tools/hooks/hooks.mjs waive debug-root-cause "wrong route, the import was never broken"', 'waived for this turn: debug-root-cause')],
     active: true, blocks: 1, failed: ['debug-root-cause'], answer: 'Skill: debug. The import works; the file was simply not there yet.' + FIN, expect: { not: ['skill-learn'] } },
@@ -740,7 +744,7 @@ const STOP = [
     answer: 'You\'re right: I skipped the logs.\nChecked: this session\'s commands - none opened the import log.\nSkill: debug. Playbook: project.md. Root cause: the date parser.\nLearned (lesson): read the logs before guessing → skills/debug/references.md' + FIN, expect: { block: false } },
   { name: 'skill followed after a blocked draft, not its fault: passes with a stated reason', prompt: 'debug the failing import', tools: [sk('debug')], drafts: ['Fixed it.'],
     files: { 'scratch-work/import.md': 'x', 'docs/CHANGELOG.md': 'x' }, answer: 'Skill: debug. Root cause: the date parser.\nSkill lesson: none - the draft only lacked its summary.' + FIN, expect: { block: false } },
-  { name: 'skill followed after a blocked draft, the skill\'s own check failed, no lesson: blocked', prompt: 'debug the failing import', tools: [sk('debug')], drafts: ['Fixed it.'], active: true, blocks: 1, failed: ['debug-root-cause', 'finished-summary'],
+  { name: 'skill followed after a blocked draft, the skill\'s own check failed, no lesson: blocked', prompt: 'debug the failing import', tools: [sk('debug')], drafts: ['Fixed it.'], active: true, blocks: 1, failed: ['debug-test-added', 'finished-summary'],
     files: { 'scratch-work/import.md': 'x', 'docs/CHANGELOG.md': 'x' }, answer: 'Skill: debug. Root cause: the date parser.' + FIN, expect: { block: true, tags: ['skill-learn'] } },
   { name: 'GUI files changed in a project without the gui pack: blocked', prompt: 'add a small status page', files: { 'site/index.html': '<h1>x</h1>', 'docs/CHANGELOG.md': 'x' },
     edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), packs: ['knowledge'] }) }, answer: 'Playbook: plan.md' + FIN, expect: { block: true, tags: ['gui-pack'], not: ['gui-review-loop'] } },
@@ -1647,6 +1651,16 @@ PRETOOL.push(
   // (the brief line is put in front of the prompt, not denied: a denial cost a full extra round that resent the prompt)
   { name: 'sub-agent brief without the rules: the line is added in place, not denied', tool: 'Agent', input: { prompt: 'Review the export feature.', subagent_type: 'general-purpose' }, deny: false,
     rewrites: { prompt: /^Read AGENTS\.md first and follow its rules[^\n]*\n\nReview the export feature\.$/, subagent_type: /^general-purpose$/ } },
+  // a program held for the user's approval is not run another way (Lesson, trial round 9: "go test" was held, and the
+  // next call ran it through node's spawnSync)
+  { name: 'permission-respected: a held program run through a node one-liner: denied', tool: 'Bash', input: { command: `node -e "const {spawnSync}=require('child_process');spawnSync('go',['test','./...'],{stdio:'inherit'})"` },
+    tools: [{ name: 'Bash', input: { command: 'go test ./...' }, result: 'This command requires approval', denied: true }], deny: true, tag: 'permission-respected' },
+  { name: 'permission-respected: the same through bash -c: denied', tool: 'Bash', input: { command: 'bash -c "go vet ./..."' },
+    tools: [{ name: 'Bash', input: { command: 'go test ./...' }, result: 'This command requires approval', denied: true }], deny: true, tag: 'permission-respected' },
+  { name: 'permission-respected: a one-liner running another program: allowed', tool: 'Bash', input: { command: `node -e "require('child_process').spawnSync('git',['status'])"` },
+    tools: [{ name: 'Bash', input: { command: 'go test ./...' }, result: 'This command requires approval', denied: true }], deny: false },
+  { name: 'permission-respected: a missing program (not held) tried another way: allowed', tool: 'Bash', input: { command: `node -e "require('child_process').spawnSync('go',['version'])"` },
+    tools: [{ name: 'Bash', input: { command: 'go test ./...' }, result: "/usr/bin/bash: line 1: go: command not found", error: true }], deny: false },
   // a test or sweep run started while another one still runs in the background: a notice with the call, not a denial
   // (Lesson, a field report: a sweep started during another sweep's background run read its temporary decks and failed)
   { name: 'overlap: a sweep started while another sweep runs in the background gets a heads-up, and still runs', tool: 'Bash', input: { command: 'python tools/app_sweeps.py' },
@@ -2094,8 +2108,8 @@ STOP.push(
     expect: { block: true, tags: ['skill-learn', 'audit-run'], not: ['changelog'] } },
   { ...MEAL_TURN, name: 'stop-follow-on: a follow-on waived for this turn is not named', files: { 'notes/meals.md': 'x', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: meal-plan.md. Done.\nN/A(audit-run): the audit runs in CI for this project' + FIN,
     expect: { block: true, tags: ['skill-learn'], not: ['audit-run'] } },
-  { name: 'stop-follow-on: a lesson for a skill names the audit and the changelog in round 1', prompt: 'debug the failing import', tools: [sk('debug')], files: { 'scratch-work/import.md': 'x' }, answer: 'Skill: debug. Fixed it.' + FIN,
-    expect: { block: true, tags: ['debug-root-cause', 'skill-learn', 'audit-run', 'changelog'] } },
+  { name: 'stop-follow-on: a lesson for a skill names the audit and the changelog in round 1', prompt: 'debug the failing import', tools: [sk('debug')], files: { 'scratch-work/import.md': 'x', 'src/import.mjs': 'export const x = 1;\n' }, answer: 'Skill: debug. Fixed it.' + FIN,
+    expect: { block: true, tags: ['debug-test-added', 'skill-learn', 'audit-run', 'changelog'] } },
   { name: 'stop-follow-on: a new rule names the hook self-tests, the audit and the changelog in round 1', prompt: 'from now on always include a budget table in plans', tools: [pb('project')], answer: 'Playbook: project.md. Noted.',
     expect: { block: true, tags: ['rule-request', 'hooks-tested', 'audit-run', 'changelog'] } },
   { name: 'stop-follow-on: a lesson placed in CLAUDE.md names the audit in round 1', prompt: 'you forgot the changelog again, this is annoying', files: { 'docs/CHANGELOG.md': 'x' },
