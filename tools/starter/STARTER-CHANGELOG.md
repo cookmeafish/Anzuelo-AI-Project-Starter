@@ -19,6 +19,10 @@ hooks:**, and an upgrade lists each one as its own review item.
     any such word in the output: a commit followed by `git log --oneline -1`, whose subject held "denied", and git's
     CRLF warnings, had been read as a failed commit. An upgrade names each check that newly fails in its last line
     and lists it as a review item. Scenarios: `no-overwrite:` (v2), `claim-checked:` (commit output).
+    A relayed message routes on its own words: quoted text, code in backticks and command lines are left out (they
+    describe or cite work), and a starter upgrade (`starter.mjs update`, "upgrade the engine") routes to the project
+    runbook first. A report of fixes had routed to bugfix, a deliverable and two library skills on the words it quoted.
+    Scenarios: `relay-route-text`, `relayed turn:` (report of fixes).
   - **Guards let the agent fix its own fresh drafts, and existing checks stop false alarms (trials of 8 new projects,
     round 8):** the no-overwrite and protect-originals guards let an edit through to a file the turn itself created
     (missing from the turn-start snapshot and from git, or created by the agent's own Write this turn): two agents had

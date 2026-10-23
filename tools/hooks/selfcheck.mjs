@@ -2916,6 +2916,11 @@ PROMPT.push(
     'Another Claude session sent a message: dile que pruebe más, cada informe debe tener pruebas']
     .map(p => ({ name: `relayed turn: a peer message sets no rule, requirement, praise or menu code ("${p.slice(0, 60)}")`, prompt: p, setup: HINT_FIX, setupFn: STARTER_IS,
       hasNot: ['REQUIREMENT', 'RULE REQUEST', 'MENU CODE', 'MENU FLAG', 'UNKNOWN FLAG', 'PRAISE', 'rule-request', 'requirement-enforced'] })),
+  // a relayed report of fixes routes on its own words, not on what it quotes or runs, and a starter upgrade goes to
+  // the project runbook first
+  { name: 'relayed turn: a report of fixes that ends "upgrade again with node tools/starter.mjs update" routes to the project runbook first',
+    prompt: '<cross-session-message from="other">All 3 are fixed and pushed. The old check read "the commit failed" as an error. Tests: "claim-checked: a commit that went through ... passes". Upgrade again with node tools/starter.mjs update.</cross-session-message>',
+    setup: HINT_FIX, setupFn: STARTER_IS, has: ['ROUTE: project'], hasNot: ['FIT:'] },
   // RECALL only above a similarity bar
   { name: 'recall: a question about the work recalls no unrelated request that shared "good" and "bad"', prompt: 'is it doing a good or bad job?',
     setup: HIST('tell the other chat everything good and bad, the mana in my zorbel deck is slow', ['decks/zorbel/list.txt']), hasNot: ['RECALL'] },
@@ -4665,6 +4670,15 @@ if (mineB()) { // upgrade-breaking: the review lists each "Breaking for project 
     && own.items.length === 2 && own.items.every(i => i.startsWith('breaking: ') && !i.slice(10).includes(': ')) && none.items.length === 0 && none.shown.length === 2 && again.items.length === 1,
     'upgrade-breaking: notes new since the engine commit are listed (a re-check entry dated before the last review too), old ones are not; review items only with "externalHooks", once',
     JSON.stringify({ got, byDate: byDate.breaking, same, own, none, again }).slice(0, 900));
+}
+
+if (mineB()) { // relay-route-text: a relayed message routes on its own words; quotes, code and commands are left out, a starter upgrade kept
+  const { relayRouteText } = await import(pathToFileURL(path.join(B, 'tools/hooks/hooks.mjs')).href);
+  const a = relayRouteText('Fixed: the old check read "the commit failed" as an error. Tests: `claim-checked: it passes`. Upgrade again with node tools/starter.mjs update. My notes say the outline is fine.');
+  const b = relayRouteText('Please run `git log --oneline` and then fix the crash in the export when the file is empty.');
+  report(/upgrade the starter/.test(a) && !/commit failed|claim-checked|starter\.mjs/.test(a) && /old check read/.test(a)
+    && /fix the crash in the export when the file is empty/.test(b) && !/git log/.test(b),
+    'relay-route-text: quoted text, code spans and commands leave a relayed message\'s routing words; a starter upgrade command stays as "upgrade the starter"; its own words stay', JSON.stringify({ a, b }));
 }
 
 if (mineB()) { // upgrade-review-block: a review with nothing to decide updates a last review that also held only the self-tests

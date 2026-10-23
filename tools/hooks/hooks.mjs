@@ -586,6 +586,8 @@ const PEER_NOUN = String.raw`(terminal|session|agent|window|instance|chat|sesi[o
 const PEER = new RegExp(String.raw`\b(to|for|with|para|a|al|con)\s+(the\s+|la\s+|el\s+)?(other|another|otra|otro)\s+(\w+\s+)?${PEER_NOUN}` +
   String.raw`|\b(to|for|para|a|al)\s+(the\s+|la\s+|el\s+)?\w+\s+${PEER_NOUN}s?\s+(coding|working|running|that|que)\b` +
   String.raw`|(^|[^\wáéíóú])(dile|diles|p[ií]dele|p[ií]deles|av[ií]sale|av[ií]sales|cu[eé]ntale|menci[oó]nale|recu[eé]rdale)(?![\wáéíóú])`, 'i');
+// An upgrade of this project's engine from its starter: the starter command, or "upgrade/update the engine/starter".
+const STARTER_UPGRADE = /\bstarter\.mjs\s+(update|upgrade)\b|\b(upgrade|update)\s+(the\s+|this\s+|your\s+)?(engine|starter)\b|\bactualiza\w*\s+(el\s+)?(motor|starter)\b/i;
 // The starter's own name (docs/names.json STARTER_NAME), unless the project's content is about a real thing of that name.
 const starterName = () => { const n = names().STARTER_NAME; return n && n.trim().length >= 3 && !/\{\{/.test(n) && !subjects().has('STARTER_NAME') ? n.trim() : ''; };
 export const toPeer = (text, starter = starterName()) => RELAY.test(text) || PEER.test(text) ||
@@ -717,13 +719,16 @@ export function route(prompt, pbs) {
   // A message that names the starter is about the project itself: the project runbook comes first, whatever else its
   // words match. Lesson: "a report to <starter> on how to improve it" put a deck runbook and the deliverable runbook
   // beside the project runbook, with "follow them in order".
-  const starter = pbs.some(pb => pb.file === 'docs/playbooks/project.md') ? starterName() : '';
-  if (starter && re(`(^|[^a-z0-9])${esc(starter.toLowerCase())}($|[^a-z0-9])`).test(low)) {
-    const pj = pbs.find(pb => pb.file === 'docs/playbooks/project.md');
+  // (so is an upgrade of the engine from the starter. Lesson: "upgrade again with node tools/starter.mjs update" routed
+  // to the bugfix runbook on the words of the fixes it described)
+  const hasPj = pbs.some(pb => pb.file === 'docs/playbooks/project.md'), starter = hasPj ? starterName() : '';
+  const upgrade = hasPj && STARTER_UPGRADE.test(low);
+  if ((starter && re(`(^|[^a-z0-9])${esc(starter.toLowerCase())}($|[^a-z0-9])`).test(low)) || upgrade) {
+    const pj = pbs.find(pb => pb.file === 'docs/playbooks/project.md'), tag = starter && !upgrade ? starter : 'starter upgrade';
     if (!off.has(pj.name)) {
       let e = scored.find(s => s.pb === pj);
       if (!e) scored.push(e = { pb: pj, score: 0, hits: [] });
-      if (!e.hits.some(h => h.toLowerCase() === starter.toLowerCase())) { e.score += 1.5; e.hits.push(starter); }
+      if (!e.hits.some(h => h.toLowerCase() === tag.toLowerCase())) { e.score += 1.5; e.hits.push(tag); }
       e.specific = true; e.about = true;
     }
   }
@@ -3897,6 +3902,17 @@ export function relayedBody(prompt) {
   if (m[2]) { const end = body.search(new RegExp(`</${m[2]}>`, 'i')); if (end >= 0) body = body.slice(0, end); }
   return body.trim();
 }
+// What of a relayed message routes: its own words, not what it quotes or runs. Quoted text, code in backticks and
+// command lines describe or cite work (a test's name, the old behaviour, a command to run), so they are left out; a
+// starter upgrade command is kept as "upgrade the starter". Lesson: a message reporting fixes ("the old check read it as
+// a failure", test names in quotes, "node tools/starter.mjs update") routed to the bugfix runbook, a deliverable and
+// two library skills, while its job was a starter upgrade.
+// (a command, by its shape: "go to the store" or "a node in the graph" is prose)
+const CMD_LINE = /\b(?:node\s+[\w./\\-]+\.[cm]?[jt]s\b|(?:npm|pnpm|yarn)\s+(?:run|install|i|test|ci|publish)\b|npx\s+\S+|git\s+(?:add|commit|push|pull|fetch|log|status|diff|show|checkout|switch|merge|rebase|tag|stash|reset|clone|init)\b|python3?\s+(?:-m\s+\S+|[\w./\\-]+\.py\b)|py\s+(?:-m\s+\S+|[\w./\\-]+\.py\b)|pip3?\s+install\b|(?:pwsh|powershell)(?:\.exe)?\s+(?:-\w+|[\w./\\-]+\.ps1\b)|go\s+(?:build|test|run|vet|mod|get|install)\b|cargo\s+(?:build|test|run|install|publish)\b|dotnet\s+(?:build|test|run|publish)\b|(?:bash|sh)\s+[\w./\\-]+\.sh\b)(?:[^\n;.]|\.(?=\S))*/gi;
+const asRoute = c => STARTER_UPGRADE.test(c) ? ' upgrade the starter ' : ' ';
+export const relayRouteText = s => String(s || '')
+  .replace(/```[\s\S]*?(```|$(?![\s\S]))/g, asRoute).replace(/`[^`\n]*`/g, asRoute)
+  .replace(/["“][^"”\n]*["”]/g, ' ').replace(CMD_LINE, asRoute).replace(/\s{2,}/g, ' ').trim();
 export function promptHints(prompt, cfg = config(), withNotices = true, { relayed = false } = {}) {
   if (!String(prompt || '').trim() || (!relayed && skipped(prompt))) return []; // REQ: notification-not-prompt
   const p = userText(prompt); // pasted text and the hooks' own output are not the request
@@ -3905,7 +3921,7 @@ export function promptHints(prompt, cfg = config(), withNotices = true, { relaye
   const best = recallMatches(p, 3).find(r => r.share >= 0.5 && r.close);
   if (best) hints.push(`RECALL: on ${best.h.at} a similar request ("${best.h.prompt.slice(0, 90)}") was done${best.h.used.length ? ` with ${best.h.used.join(', ')}` : ''}${best.h.changed.length ? `, changing ${best.h.changed.slice(0, 4).join(', ')}` : ''}. Start from that; more: node tools/recall.mjs "<key words>".`);
   // (menu codes and flags are the user's shorthand: in a relayed message they are the other session's text)
-  const m = relayed ? { known: [], unknown: [], kflags: [], uflags: [], expanded: p, codes: {}, flags: {} } : expandMenu(p);
+  const m = relayed ? { known: [], unknown: [], kflags: [], uflags: [], expanded: relayRouteText(p), codes: {}, flags: {} } : expandMenu(p);
   for (const c of m.known) {
     const r = m.codes[c];
     hints.push(`MENU CODE ${c} = "${r.means}". Runbook: docs/playbooks/${r.playbook}. Treat it exactly as if the user typed that in full; the rest of the message adds details.`);
@@ -3972,7 +3988,7 @@ export function promptHints(prompt, cfg = config(), withNotices = true, { relaye
   // the closest runbook by the words of its name, summary and triggers, when no trigger phrase matched: different
   // wording for a known job should reach that job's runbook. Lesson: "my deck has an issue with lands" got NO RUNBOOK
   // though the deck-upgrade runbook fixes exactly that.
-  const near = !routed.length && !sk.length && isTask ? closestRunbook(p) : null;
+  const near = !routed.length && !sk.length && isTask ? closestRunbook(relayed ? m.expanded : p) : null;
   if (near)
     hints.push(`CLOSEST RUNBOOK: no trigger phrase matched, but ${near.file} looks like this job (shared words: ${near.words.join(', ')}). If it fits, open and follow it, and add this wording to its triggers (runbook-create skill) so it routes next time; if not, follow docs/playbooks/_fallback.md.`);
   else if (!routed.length && !sk.length && isTask)
