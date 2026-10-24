@@ -127,6 +127,14 @@ hooks:**, and an upgrade lists each one as its own review item.
       scripts and the perf runbook time the real command end to end, not an inner function; trial records count
       waivers given with the waive command. Scenarios: `correspondence: "hasn't been sent"`, `outward-gate: a heredoc`,
       `starter: refuses to link to a starter in the temp folder`.
+    - **More round 12 findings fixed:** the security summary's "no open FAIL" test is case-sensitive (a check pattern
+      may start with `(?c)`), so "rolled back if the smoke test fails" is no open FAIL; a heredoc that only writes
+      "npm publish" into a file is no publish; a question that only asks ("which payment provider should we use?")
+      makes no skill mandatory, so a research turn is not held to the security review; the screenshot check takes a
+      later run's copy of the same shot as the one to look at, so it no longer asks for an older run's folder; an edit
+      to the generated `engine-checks.json` says where its source is. Scenarios: `security-report: the plain word
+      "fails"`, `publish-gate: a heredoc`, `event-hint: a question that only asks`, `gui-review-loop: two runs`,
+      `generated-file`.
     - **Helpers on an old scope are named when the user changes it** (field report): a message from the user that
       arrives while helpers launched before it still run gets a one-time heads-up with the next call, naming them, to
       stop the ones it makes obsolete before new work. Three helpers had judged a free-only deck after the user allowed

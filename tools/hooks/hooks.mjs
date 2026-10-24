@@ -4149,8 +4149,10 @@ export function promptHints(prompt, cfg = config(), withNotices = true, { relaye
   // REQ: event-hint. A check that makes a skill or runbook mandatory when something happens (an event trigger with
   // "forces") says so as soon as the request shows it is coming, so the work follows it from the start instead of being
   // stopped at the end. Lesson: a change to sign-in code was only reviewed when the user remembered to ask.
+  // (not for a request that only asks: it changes nothing. Lesson, trial round 12: "which payment provider should we use,
+  // Stripe or Mollie?" made the security review mandatory on a research turn with no code)
   const forced = new Map();
-  for (const q of loadRequirements().reqs) {
+  for (const q of askingOnly(p, cfg) ? [] : loadRequirements().reqs) {
     if (!q || q.enabled === false || !q.forces || !q.hint || isSuspended(`check:${q.tag}`)) continue;
     let hit = null; try { hit = re(q.hint).exec(unquoted(p)); } catch { }
     if (hit && !forced.has(q.forces)) forced.set(q.forces, { q, word: hit[0].trim() });
@@ -4749,7 +4751,9 @@ function pretoolHits(data, cfg) {
     // REQ: publish-gate. Publishing or deploying waits for a security review this turn (or one logged today in
     // docs/security.md): hard rule 15 says before, and a Stop check could only say it after the fact.
     // Lesson: a package went public before anyone looked at what it contained.
-    const pub = /\b(npm|pnpm|yarn)\s+publish\b|\bgh\s+release\s+create\b|\bgh\s+repo\s+(create\b[^\n;&|]*--public|edit\b[^\n;&|]*--visibility[= ]public)|\b(vercel|netlify)\b[^\n;&|]*--prod\b|\bfirebase\s+deploy\b|\bdocker\s+push\b|\btwine\s+upload\b|\bcargo\s+publish\b|\b(dart|flutter)\s+pub\s+publish\b|\b(poetry|uv)\s+publish\b|\bgem\s+push\b|\bfastlane\s+\w*(deliver|release|upload|beta)\b|\bhf\s+upload\b|\bhuggingface-cli\s+upload\b|\bvsce\s+publish\b|\bflyctl?\s+deploy\b|\bwrangler\s+(deploy|publish)\b/i.exec(cmd);
+    const pub = /\b(npm|pnpm|yarn)\s+publish\b|\bgh\s+release\s+create\b|\bgh\s+repo\s+(create\b[^\n;&|]*--public|edit\b[^\n;&|]*--visibility[= ]public)|\b(vercel|netlify)\b[^\n;&|]*--prod\b|\bfirebase\s+deploy\b|\bdocker\s+push\b|\btwine\s+upload\b|\bcargo\s+publish\b|\b(dart|flutter)\s+pub\s+publish\b|\b(poetry|uv)\s+publish\b|\bgem\s+push\b|\bfastlane\s+\w*(deliver|release|upload|beta)\b|\bhf\s+upload\b|\bhuggingface-cli\s+upload\b|\bvsce\s+publish\b|\bflyctl?\s+deploy\b|\bwrangler\s+(deploy|publish)\b/i.exec(cmdHead(cmd));
+    // (a heredoc that only writes "npm publish" into a file runs nothing. Lesson, trial round 12: a release notes draft
+    // written with cat <<EOF was refused until a security review)
     // a dry run publishes nothing: it is how the package-release skill previews the contents (Lesson: "cargo publish
     // --dry-run" was refused until a security review, so the preview that the review needs could not run)
     if (pub && !/(^|\s)--dry-run\b/.test(cmd) && !isSuspended('check:publish-gate')) {
@@ -4986,6 +4990,14 @@ export function briefLine(data, cfg = config()) {
   return `${BRIEF_LINE}\n\n${inp.prompt}`;
 }
 
+// A request that only asks: a question with no instruction and no change word. Lesson: a relayed instruction ("Add all
+// six checks with tests now") that mentioned a question was judged a question.
+export function askingOnly(p, cfg) {
+  const instructs = /(^|[.!:\n]\s*)(please\s+)?(add|fix|make|update|upgrade|run|move|create|write|build|remove|change|rename|install|enable|implement|apply)\b/i.test(p);
+  const question = !instructs && (/\?\s*$/.test(p.trim()) || /^\s*(what|why|how|which|who|where|when|should|is|are|can|could|would|do|does|did|will|any)\b/i.test(p));
+  return question && !re(cfg.changeWords).test(p);
+}
+
 // ---------- PostToolUse ----------
 function cmdPosttool(data) {
   const p = rel((data.tool_input || {}).file_path || '');
@@ -4993,8 +5005,16 @@ function cmdPosttool(data) {
   if (/^(docs\/(playbooks|checks|knowledge|MENU\.md)|skills\/|tools\/hooks\/requirements\.json)/.test(p)) syncAll();
   const h = eventHintAfterEdit(p, data.tool_input || {});
   const pub = publishNotice(p, data.tool_input || {}), plan = planNotice(p, data.tool_input || {}), ps = ps51Notice(p, data.tool_input || {});
-  const hand = handoffNotice(p, data);
-  if (h || pub || plan || ps || hand) contextOut('PostToolUse', [h, pub, plan, ps, hand].filter(Boolean).join('\n') + '\n');
+  const hand = handoffNotice(p, data), gen = generatedNotice(p);
+  if (h || pub || plan || ps || hand || gen) contextOut('PostToolUse', [h, pub, plan, ps, hand, gen].filter(Boolean).join('\n') + '\n');
+}
+// The shipped-checks files are written by sync (in the starter) or by an upgrade (in a project): an edit there is lost.
+// Lesson (dogfood): a regex fixed in the starter's engine-checks.json was reverted by the next sync, and the trial failed.
+export function generatedNotice(p) {
+  if (p !== ENGINE_CHECKS && p !== ENGINE_CHECKS_HISTORY) return null;
+  return exists('.starter-template')
+    ? `GENERATED FILE: ${p} is rebuilt by sync from tools/hooks/requirements.json, packs/*/pack.json and library/catalog.json; this edit will be overwritten. Make the change in the source file instead.`
+    : `GENERATED FILE: ${p} is an engine file that the next upgrade replaces. To change a check in this project, edit tools/hooks/requirements.json.`;
 }
 // A PowerShell script that uses what only PowerShell 7 (pwsh) has: "powershell", the one every Windows has, is 5.1 and
 // stops on it. Named at the edit, so the script or the instruction gets fixed before the user runs it (REQ:
@@ -5545,10 +5565,7 @@ export function coreChecks(x, cfg) {
       `Good samples: ${proof.need?.length ? `every existing file it governs (${proof.need.length}, from the last commit), plus ` : ''}at least 2 realistic ones that PASS, one an edge case made from this project's own words (a real name or address, a heading or label, a word the user's language shares with a flagged list, quoted text, a legitimate text that must use a flagged term). ` +
       `Say it on one line in ${NOTES_FILE} (not in the answer); from the runs seen, that line is: "${proof.example}". If it truly cannot run on samples, waive it with the true reason: node tools/hooks/hooks.mjs waive check-proven "<why>".`);
   // REQ: question-no-file. A question gets an answer, not unrequested edits.
-  // Lesson: a relayed instruction ("Add all six checks with tests now") that mentioned a question was judged a question.
-  const instructs = /(^|[.!:\n]\s*)(please\s+)?(add|fix|make|update|upgrade|run|move|create|write|build|remove|change|rename|install|enable|implement|apply)\b/i.test(x.prompt);
-  const question = !instructs && (/\?\s*$/.test(x.prompt.trim()) || /^\s*(what|why|how|which|who|where|when|should|is|are|can|could|would|do|does|did|will|any)\b/i.test(x.prompt));
-  if (x.prompt && question && !re(cfg.changeWords).test(x.prompt)) {
+  if (x.prompt && askingOnly(x.prompt, cfg)) {
     const unasked = x.changed.filter(p => !match(p, cfg.questionNoFileExempt));
     if (unasked.length && !/asked for:\s*["“]/i.test(x.said))
       add('question-no-file', `This was a question, but files changed (${unasked.slice(0, 5).join(', ')}). Questions get answers, not edits: ` +
@@ -5812,7 +5829,10 @@ export function coreChecks(x, cfg) {
     const shots = [];
     const walkShots = d => { for (const n of list(d)) { const p = `${d}/${n}`; let s; try { s = walkStat(p); } catch { continue; } if (s.isDirectory()) walkShots(p); else if (/\.png$/i.test(n) && s.mtimeMs > (x.since || 0) - 1000) shots.push({ p, t: s.mtimeMs }); } };
     walkShots(cfg.guiShotDir);
-    const fresh = shots.filter(s => s.t >= lastEdit).map(s => s.p);
+    // the same shot taken again by a later run (same file name) replaces the earlier one: all show the same files.
+    // Lesson, trial round 12: the hook asked to look at an older run's folder as "the latest round" while a newer one existed.
+    const seenName = new Set();
+    const fresh = shots.filter(s => s.t >= lastEdit).sort((a, b) => b.t - a.t).filter(s => { const n = s.p.split('/').pop(); return !seenName.has(n) && seenName.add(n); }).map(s => s.p);
     const files = gui.slice(0, 5).join(', ') + (gui.length > 5 ? ', ...' : '');
     if (!fresh.length)
       add('gui-review-loop', `GUI files changed (${files}) and ${shots.length ? 'were edited again after the last screenshots, so this round has not been checked' : 'no screenshots were taken'}. ` +
@@ -6296,8 +6316,12 @@ export function routingOnlyEdits(x) {
   }
   return (x._routingOnly = out);
 }
+// A check's pattern: case-insensitive, unless it starts with "(?c)", for patterns about a status word written in capitals
+// ("FAIL", "PASS"). Lesson (trial round 12): security-report's "no open FAIL" read "the rollback fails" as a FAIL, and the
+// agent reworded a correct sentence to get past it.
+export const checkRe = (s, flags = 'im') => String(s).startsWith('(?c)') ? new RegExp(String(s).slice(4), flags.replace('i', '')) : new RegExp(s, flags);
 export function holds(c, x) {
-  const r = s => new RegExp(s, 'im');
+  const r = s => checkRe(s);
   const globs = v => [].concat(v);
   if (c.promptMatches && !r(c.promptMatches).test(x.prompt)) return false;
   if (c.promptNotMatches && r(c.promptNotMatches).test(x.prompt)) return false;

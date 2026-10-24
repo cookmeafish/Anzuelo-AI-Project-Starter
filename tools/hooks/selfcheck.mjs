@@ -770,6 +770,13 @@ const STOP = [
     // site/index.html. Lesson sent back by a project.)
     answer: 'Playbook: gui.md\n## Visual review\n- Round 1: header overlapped on phone, fixed.\n- Round 2: nothing found.\nVisual review: PASS after 2 rounds\nAccessibility: keyboard, focus and contrast checked - PASS' + FIN,
     expect: { not: ['gui-review-loop', 'gui-review-report', 'gui-warnings', 'gui-pack', 'gui-flows', 'a11y-checked', 'runbook-read', 'playbook-named'] } },
+  // Lesson, trial round 12: an older run's folder was asked for as "the latest round" while a newer run took the same shots
+  { pack: 'gui', name: 'gui-review-loop: two runs after the last edit, the newer one looked at: passes', prompt: 'make the dashboard page look cleaner', tools: [pb('gui'), bash('node tools/screenshot.mjs --url x', GUISHOT(0)), { name: 'Read', input: { file_path: SHOT.replace('/r1/', '/r2/') } }],
+    files: { 'site/index.html': '<h1>x</h1>', [SHOT]: 'png', [SHOT.replace('/r1/', '/r2/')]: 'png', 'docs/CHANGELOG.md': 'x' }, mtimes: { 'site/index.html': -500, [SHOT]: -300 },
+    answer: 'Playbook: gui.md\nVisual review: PASS after 1 round' + FIN, expect: { not: ['gui-review-loop'] } },
+  { pack: 'gui', name: 'gui-review-loop: two runs after the last edit, only the older one looked at: blocked', prompt: 'make the dashboard page look cleaner', tools: [pb('gui'), bash('node tools/screenshot.mjs --url x', GUISHOT(0)), { name: 'Read', input: { file_path: SHOT } }],
+    files: { 'site/index.html': '<h1>x</h1>', [SHOT]: 'png', [SHOT.replace('/r1/', '/r2/')]: 'png', 'docs/CHANGELOG.md': 'x' }, mtimes: { 'site/index.html': -500, [SHOT]: -300 },
+    answer: 'Playbook: gui.md\nVisual review: PASS after 1 round' + FIN, expect: { tags: ['gui-review-loop'] } },
   // honesty and answer checks
   { pack: 'knowledge', name: 'a question that changed files without being asked: blocked', prompt: 'what do you think of the plan?', files: { 'outputs/plan v2.md': 'x', 'docs/CHANGELOG.md': 'x' }, tools: [pb('deliverable')],
     answer: 'Playbook: deliverable.md. It is fine.' + FIN, expect: { block: true, tags: ['question-no-file'] } },
@@ -2027,6 +2034,12 @@ STOP.push(
   { name: 'security-report: one line, but an area failed: the table is needed', prompt: 'make the form check the user', tools: [sk('security-review')],
     files: { ...AUTH, ...SEC_LOG, 'docs/reviews/security-2026-10-20.md': SEC_TABLE, 'docs/CHANGELOG.md': 'x' },
     answer: 'The form checks the user now. One FAIL is open.\nSecurity review: PASS for the rest - table in docs/reviews/security-2026-10-20.md' + FIN, expect: { tags: ['security-report'] } },
+  { name: 'security-report: the plain word "fails" in prose is not a FAIL status: passes', prompt: 'make the form check the user', tools: [sk('security-review')],
+    files: { ...AUTH, ...SEC_LOG, 'docs/reviews/security-2026-10-20.md': SEC_TABLE, 'docs/CHANGELOG.md': 'x' },
+    answer: 'The form checks the user now; the release is rolled back if the smoke test fails.\nSecurity review: PASS, 12 areas (N/A: uploads) - table in docs/reviews/security-2026-10-20.md' + FIN, expect: { not: ['security-report'] } },
+  { name: 'security-report: a "- FAIL:" line next to "passed": the table is needed', prompt: 'make the form check the user', tools: [sk('security-review')],
+    files: { ...AUTH, ...SEC_LOG, 'docs/reviews/security-2026-10-20.md': SEC_TABLE, 'docs/CHANGELOG.md': 'x' },
+    answer: 'The form checks the user now.\n- FAIL: input check -> open\nSecurity review passed - table in docs/reviews/security-2026-10-20.md' + FIN, expect: { tags: ['security-report'] } },
   // (Lesson: a plain "two items are open" section, each with its risk and where it went, was asked for again 3 rounds)
   { name: 'security-report: open items said plainly, how many, each with its risk and where they went: passes', prompt: 'make the form check the user', tools: [sk('security-review')],
     files: { ...AUTH, ...SEC_LOG, 'docs/reviews/security-2026-10-20.md': SEC_TABLE, 'docs/CHANGELOG.md': 'x' },
@@ -2996,6 +3009,8 @@ PRETOOL.push(
   { name: 'publish-gate: publishing before a security review: denied', tool: 'Bash', input: { command: 'npm publish' }, deny: true, tag: 'publish-gate' },
   // Lesson: "cargo publish --dry-run" was refused, so the preview a release needs could not run
   { name: 'publish-gate: a dry run publishes nothing: allowed', tool: 'Bash', input: { command: 'cargo publish --dry-run' }, prompt: 'check what the crate would contain', deny: false },
+  { name: 'publish-gate: a heredoc that only writes "npm publish" into a file: allowed', tool: 'Bash', input: { command: "cat > docs/release.md <<'EOF'\n1. Run npm publish after the review\nEOF" }, prompt: 'write the release steps', deny: false },
+  { name: 'publish-gate: a real publish after a heredoc: denied', tool: 'Bash', input: { command: "cat > notes.md <<'EOF'\nv1\nEOF\nnpm publish" }, deny: true, tag: 'publish-gate' },
   { name: 'publish-gate: publishing after the review this turn: allowed', tool: 'Bash', input: { command: 'npm publish' }, tools: [sk('security-review')], deny: false },
   { name: 'subagent-brief: a prompt naming a brief file that points at AGENTS.md: allowed', tool: 'Agent', input: { prompt: 'Your brief is .cache/briefs/export.md. Do what it says.', subagent_type: 'general-purpose' }, setup: { '.cache/briefs/export.md': 'Read AGENTS.md first and follow its rules.\nReview the export.' }, deny: false },
   { name: 'subagent-brief: a brief file without the rules: the line is added in place', tool: 'Agent', input: { prompt: 'Your brief is .cache/briefs/export.md. Do what it says.', subagent_type: 'general-purpose' }, setup: { '.cache/briefs/export.md': 'Review the export.' }, deny: false,
@@ -3041,6 +3056,9 @@ PRETOOL.push(
 PROMPT.push(
   { name: 'event-hint: a request about sign-in names the security review before work starts', prompt: 'add a login page with passwords', has: ['MUST FOLLOW: security-review'] },
   { name: 'event-hint: an ordinary request gets no MUST FOLLOW', prompt: 'tidy up the readme wording', hasNot: ['MUST FOLLOW'] },
+  // Lesson, trial round 12: a research question about payment providers made the security review mandatory with no code
+  { name: 'event-hint: a question that only asks (no change) gets no MUST FOLLOW', prompt: 'which payment provider should we use for clients in the EU, Stripe or Mollie? compare them for a business my size', hasNot: ['MUST FOLLOW'] },
+  { name: 'event-hint: a question that asks for a change still does', prompt: 'can you add a Stripe payment page?', has: ['MUST FOLLOW: security-review'] },
   // Lesson: a customer's words quoted in a reply request routed as if the user had asked for them
   { name: 'event-hint: a long quote in the request is what it is about, not the request', prompt: 'write a reply to this customer: "I cannot log in with my password since the update, please help me"', hasNot: ['MUST FOLLOW: security-review'] },
   { name: 'autonomy-hint: "I don\'t want to be bothered" asks to set autonomy auto', prompt: 'I dont want to be bothered, handle the rest yourself', has: ['AUTONOMY'] },
@@ -5609,6 +5627,19 @@ if (mineB()) { // plan-required during the work: a turn adding new files hears i
     const outs = ['src/a.js', 'src/b.js', 'src/c.js', 'src/d.js'].map(w);
     const told = outs.findIndex(o => /PLAN: this turn has added/.test(o));
     report(told === 2 && outs.filter(o => /PLAN:/.test(o)).length === 1, 'plan-required: a turn adding new files is told to write the plan first, once, before the limit', outs.map(o => o.slice(0, 80)).join(' | '));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+if (mineB()) { // generated files: an edit to the shipped-checks files names their source (Lesson, dogfood: a starter fix
+  // made in engine-checks.json was reverted by sync)
+  const dir = copyProject();
+  try {
+    const e = f => run(dir, 'posttool', { tool_name: 'Edit', tool_input: { file_path: path.join(dir, f), old_string: 'a', new_string: 'b' } }).out;
+    const starter = e('tools/hooks/engine-checks.json'), other = e('tools/hooks/requirements.json');
+    fs.rmSync(path.join(dir, '.starter-template'), { force: true });
+    const project = e('tools/hooks/engine-checks.json');
+    report(/GENERATED FILE: .*rebuilt by sync from tools\/hooks\/requirements\.json/.test(starter) && /GENERATED FILE: .*next upgrade replaces/.test(project) && !/GENERATED FILE/.test(other),
+      'generated-file: an edit to engine-checks.json names its source (starter: requirements, packs, library; project: requirements.json)', [starter, project, other].map(o => o.slice(0, 80)).join(' | '));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 

@@ -161,7 +161,7 @@
           },
           {
             "answerMatches": "security review\\W{0,6}(all\\s+)?(pass(ed|es)?|clean|found nothing|found no (problems|issues))\\b(?:(?!\\n[ \\t]*\\n)[\\s\\S]){0,400}?docs/reviews/security-",
-            "answerNotMatches": "\\bFAIL\\s*(->|→)|[:|]\\s*\\**FAIL\\b|^[ \\t]*[-*]?[ \\t]*\\**FAIL\\b|\\bFAILs\\b|\\b(open|one|two|three|\\d+)\\s+FAILs?\\b|\\bFAIL(ed)?\\s+(is|are|was|were)\\s+(open|left)\\b",
+            "answerNotMatches": "(?c)\\bFAIL\\s*(->|→)|[:|]\\s*\\**FAIL\\b|^[ \\t]*[-*]?[ \\t]*\\**FAIL\\b|\\bFAILs\\b|\\b(open|one|two|three|\\d+)\\s+FAILs?\\b|\\bFAIL(ed)?\\s+(is|are|was|were)\\s+(open|left)\\b",
             "filesChanged": [
               "docs/reviews/security-*.md"
             ]

@@ -12,7 +12,7 @@ import {
   loadRequirements, usage, hardenDue, menu, runbookHasCheck, generatedSkill, directoryBlock, staleKnowledge,
   setupProblems, upgradeProblems, bench, gitignoreProblems, writingProblems, aiAttributedCommits, BASE_REQUIREMENTS, routableSkills, skillHasCheck, curateDue,
   FIT_FILE, fitProblems, fitRows, fitDecision, fitWhenOf, doneWhenItems, DONE_LABEL, findLibrary, secretHit, mirrorText, logRun, testInputsHash, deadTriggers, rulesText, route, personalDetails,
-  externalHookSizes, HOOK_OUTPUT_MAX, gitignoreTest, today, bulkDir
+  externalHookSizes, HOOK_OUTPUT_MAX, gitignoreTest, today, bulkDir, checkRe
 } from './hooks/hooks.mjs';
 
 const cfg = config();
@@ -117,7 +117,7 @@ sweep('requirements.json is valid', () => {
     if (!r.message) fail.push(`${r.tag}: no message (tell the agent what to do)`);
     if (!r.require || !Object.keys(r.require).length) fail.push(`${r.tag}: empty require`);
     if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(JSON.stringify(r).replace(/\\u00[01][0-9a-f]/gi, m => String.fromCharCode(parseInt(m.slice(2), 16))))) fail.push(`${r.tag}: contains a control character (a regex "\\b" written as a backspace?)`);
-    for (const part of [r.when || {}, r.require || {}]) for (const k of regexKeys) if (part[k]) { try { new RegExp(part[k], 'im'); } catch (e) { fail.push(`${r.tag}: bad regex in ${k}: ${e.message}`); } }
+    for (const part of [r.when || {}, r.require || {}]) for (const k of regexKeys) if (part[k]) { try { checkRe(part[k]); } catch (e) { fail.push(`${r.tag}: bad regex in ${k}: ${e.message}`); } }
     if (part2(r)) fail.push(`${r.tag}: toolPassed.cmd regex invalid`);
     if (coreTags.has(r.tag) && !baseTags.has(r.tag)) fail.push(`${r.tag}: tag is also a core check in hooks.mjs (use another tag)`);
     if (r.pack && !installed.includes(r.pack) && !isTemplate) fail.push(`${r.tag}: belongs to pack "${r.pack}", which is not installed (pack purity)`);
