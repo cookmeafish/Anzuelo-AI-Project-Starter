@@ -8,7 +8,9 @@ menu: A5
 
 ## Steps
 1. **Measure before**, with a fixed, repeatable tool or script, on conditions that match the user's: their screen,
-   refresh rate, data size, device. Write the numbers down.
+   refresh rate, data size, device. Write the numbers down. Measure what the user waits for, end to end (the real
+   command on real-sized input, a real page load), not an inner function: a PASS on part of the path says nothing
+   about the rest.
 2. **Find the real cost** (profile; don't guess). If smoothing the pipeline doesn't change what the user sees,
    question the content itself.
 3. **Change one thing at a time.** Follow the performance rules in `docs/checks/app-standards.md`.

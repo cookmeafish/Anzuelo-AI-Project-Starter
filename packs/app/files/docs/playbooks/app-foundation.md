@@ -38,7 +38,9 @@ wants the security, performance or usability baseline revisited. Run it before t
      - the dependency audit command recorded in section 4.
    - **Performance:** a small, repeatable measurement script for the section 2 budgets (prints the numbers and
      `RESULT: PASS`/`FAIL` against the targets), wired into `tools/hooks/requirements.json` with `toolPassed` + `selfRun`
-     for `perf.md` and `release.md`.
+     for `perf.md` and `release.md`. It times what the user waits for: the real command, page or request end to end
+     (a folder of sample files, a real page load), not one inner function on data in memory. Until the real path exists,
+     say which part it times; extend it in the turn that builds the real path.
    - **Usability:** a design-token file (colours, spacing, type) with both themes, shared components for the empty,
      loading and error states and for confirm/undo, and an i18n layer if the app will be translated. Add a contrast
      check if the stack allows it.

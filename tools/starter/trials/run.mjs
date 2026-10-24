@@ -152,7 +152,11 @@ async function one(id) {
     turns.push({ ...t, answer: t.answer.slice(0, 2500), opened, blockTags, overhead, changed: changed.length, changedFiles: changed.slice(0, 60),
       newChecks: [...reqDiff.matchAll(/^\+\s*"tag":\s*"([^"]+)"/gm)].map(m => m[1]),
       learned: [...new Set(rows.flatMap(r => r.type === 'assistant' ? (r.message?.content || []).filter(c => c.type === 'text').flatMap(c => c.text.match(/Learned \([a-z-]+\):[^\n]*/g) || []) : []))].map(s => s.slice(0, 200)),
-      waivers: (t.answer.match(/N\/?A\s*\([\w-]+\)\s*:[^\n·]*/g) || []), state: state() });
+      // (waivers given with the waive command count too. Lesson, round v12: the record showed none where the project's
+      // stop log had eight)
+      waivers: [...(t.answer.match(/N\/?A\s*\([\w-]+\)\s*:[^\n·]*/g) || []), ...rows.flatMap(r => r.type === 'assistant' && Array.isArray(r.message?.content) ? r.message.content : [])
+        .filter(c => c?.type === 'tool_use' && typeof c.input?.command === 'string').flatMap(c => [...c.input.command.matchAll(/hooks\.mjs["']?\s+waive\s+([a-z][\w-]*)\s+(?:"([^"\n]{0,160})"|'([^'\n]{0,160})')/gi)].map(m => `waive(${m[1]}): ${m[2] || m[3] || ''}`))],
+      state: state() });
   }
   // (a trial the usage limit stopped at its first turn has no state: Lesson, round v11's last four crashed here)
   const st = { packs: [], library: [], ...(turns[0]?.state || {}) };

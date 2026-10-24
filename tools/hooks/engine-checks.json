@@ -1564,7 +1564,7 @@
           "outputs/drafts/**",
           "profiles/*/outputs/drafts/**"
         ],
-        "answerMatches": "\\bnot (been |yet )?sent\\b|\\bnothing (was|has been) sent\\b|\\bno se ha enviado\\b|\\bno (lo |la )?(he|hemos) enviado\\b|\\bsin enviar\\b"
+        "answerMatches": "\\bnot (been |yet )?sent\\b|\\b(has|have|had|is|was|were)(n'?t| not) (been |yet )?sent\\b|\\bunsent\\b|\\bnothing (was|has been) sent\\b|\\bno se ha enviado\\b|\\bno (lo |la )?(he|hemos) enviado\\b|\\bsin enviar\\b"
       },
       "message": "Correspondence skill: save the draft as a new file in outputs/drafts/ (YYYY-MM-DD-<recipient>-<topic>.md), show it in the answer, and say plainly that it was not sent, with what the user must check before sending (placeholders, worked-out figures, tone).",
       "skill": "correspondence"

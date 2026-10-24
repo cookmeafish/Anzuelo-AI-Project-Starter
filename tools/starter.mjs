@@ -24,6 +24,7 @@
 // so it is kept in tools/starter.local.json, which git ignores. On another machine, run "link <folder>" again.
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { ROOT, STARTER_LINK, starterLink, starterSources, syncAll, setupCompleteness, usageOf } from './hooks/hooks.mjs';
 import { registry } from './packs.mjs';
@@ -143,6 +144,9 @@ if (cmd === 'link') {
     const dir = path.resolve(arg);
     if (!fs.existsSync(path.join(dir, 'tools', 'new-project.mjs'))) { console.error(`${dir} is not a starter folder (no tools/new-project.mjs).`); process.exit(1); }
     if (inside(ROOT, dir) || inside(dir, ROOT)) { console.error('The starter must live outside this project, in its own folder.'); process.exit(1); }
+    // (a starter in the temp folder disappears when temp is cleaned, and linking removes this project's own packs/ and
+    // library/. Lesson, trial round 12: a vault linked to a starter in Temp and lost the tools its answer promised for later)
+    if (inside(dir, os.tmpdir()) && !process.env.STARTER_ALLOW_TEMP) { console.error(`${dir} is in the temp folder, which gets cleaned: linking to it would leave this project without packs/ and library/. Keep a copy instead: node tools/starter.mjs keep (or link to a starter in a lasting folder).`); process.exit(1); }
     if (fs.existsSync(path.join(dir, '.starter-dev')) && !(process.env.STARTER_ALLOW_DEV ?? process.env.KS_ALLOW_DEV)) { console.error(`${dir} is a development copy of the starter (.starter-dev). Link a stable copy instead, so unfinished changes never reach this project.`); process.exit(1); }
     fs.writeFileSync(at(STARTER_LINK), JSON.stringify({ path: dir }, null, 2) + '\n');
   }

@@ -3,5 +3,5 @@
 // selfcheck.mjs: a check skipped → blocked with its tag, followed → passes.
 //   stop:    { name, prompt, tools: [pb('x'), sk('y'), bash('cmd')], files: { 'path': 'content' }, answer, expect: { block, tags } }
 //   pretool: { name, tool, input, deny, tag }
-//   prompt:  { name, prompt, says }
+//   prompt:  { name, prompt, has: ['ROUTE: x'], hasNot: ['NO RUNBOOK'] }   (has and hasNot are lists of strings)
 export default ({ pb, sk, bash, FIN }) => ({ stop: [], pretool: [], prompt: [] });

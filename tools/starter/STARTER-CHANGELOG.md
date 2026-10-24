@@ -108,6 +108,13 @@ hooks:**, and an upgrade lists each one as its own review item.
       scenarios too (setup ran them twice); a whole note folder in a skill's check (`Baking/**`) no longer makes
       writing a note count as that skill's report (a dictated note set off research and citation checks).
     - **selfcheck**: standalone tests gated by tag now run with `--tags` (they sat inside the full-run-only block).
+    - **Round 12 findings fixed:** "hasn't been sent" counts as saying a draft was not sent (the user got an answer
+      twice); the project-scenarios template shows `has: [...]` (it said `says`), and a string where a list belongs no
+      longer crashes the self-tests; `starter.mjs link` refuses a starter in the temp folder and points to `keep`;
+      text a heredoc writes into a file is no outward command ("git push" in a decision note was blocked); budget
+      scripts and the perf runbook time the real command end to end, not an inner function; trial records count
+      waivers given with the waive command. Scenarios: `correspondence: "hasn't been sent"`, `outward-gate: a heredoc`,
+      `starter: refuses to link to a starter in the temp folder`.
     - **Helpers on an old scope are named when the user changes it** (field report): a message from the user that
       arrives while helpers launched before it still run gets a one-time heads-up with the next call, naming them, to
       stop the ones it makes obsolete before new work. Three helpers had judged a free-only deck after the user allowed

@@ -4526,7 +4526,9 @@ const secretReadMsg = f => `REQ: no-secrets. Reading ${f} would put its secrets 
 // comments and reviews, and any git push. Returns the matched text, or null.
 const OUTWARD_MCP = /(^|_)(send|post|reply|publish|tweet|email|mail|message|comment|submit|invite|share|upload|delete|remove|create_(issue|pull|pr|comment|event|page|post|message|release))/i;
 export function outwardCommand(cmd) {
-  const c = String(cmd || '');
+  // (text a heredoc writes into a file is not a command that runs. Lesson, trial round 12: a DECISIONS.md entry saying
+  // "git push to GitHub, then a workflow deploys" was blocked as a push)
+  const c = String(cmd || '').replace(/<<-?\s*(['"]?)(\w+)\1[\s\S]*?\n\2\b/g, '');
   const pats = [
     /\bSend-MailMessage\b[^\n;&|]*/i, /\b(sendmail|mailx|msmtp|swaks)\b[^\n;&|]*/i, /(^|[\s;&|(])mail\s+-s\b[^\n;&|]*/i,
     /\bgh\s+(issue|pr)\s+(create|comment|close|reopen|merge|edit|review|ready)\b[^\n;&|]*/i, /\bgh\s+api\b[^\n;&|]*(-X|--method)\s*(POST|PUT|PATCH|DELETE)\b[^\n;&|]*/i,
