@@ -1707,6 +1707,12 @@ PRETOOL.push(
     tools: [BG_JOB('bs2', 'python tools/process_sweeps.py > .cache/ps.txt 2>&1', BG_OUT('s2'))], rows: [MOVED_DONE('bs2', 0)], deny: false, noContext: true },
   { name: 'overlap: a command that runs no tests, while a sweep runs, gets no heads-up', tool: 'Bash', input: { command: 'git status --short' },
     tools: [BG_JOB('bs3', 'python tools/process_sweeps.py > .cache/ps.txt 2>&1', BG_OUT('s3'))], deny: false, noContext: true },
+  // a message from the user while helpers launched before it still run: name them, once (Lesson, a field report: three
+  // helpers judged a free-only deck after the user allowed wildcards, and their 447,423 tokens were thrown away)
+  ...[['while a helper launched before it runs gets a heads-up to stop the obsolete ones', [{ type: 'attachment', attachment: { type: 'queued_command', prompt: 'you can use wildcards now' } }], { context: /stop the ones it makes obsolete \(TaskStop\)/ }],
+    ['after the helper reported back gets no heads-up', [{ type: 'user', message: { role: 'user', content: '<task-notification><task-id>a7c1d2e3f4</task-id><status>completed</status></task-notification>' } }, { type: 'attachment', attachment: { type: 'queued_command', prompt: 'you can use wildcards now' } }], { noContext: true }],
+    ['with no new message from the user gets no heads-up', [], { noContext: true }]].map(([what, rows, want]) => ({ name: `scope-change: a user message ${what}`, tool: 'Bash', input: { command: 'ls docs' },
+      tools: [{ name: 'Agent', input: { prompt: 'Read AGENTS.md first. Judge the free-only deck.', description: 'judge free deck' }, result: 'Async agent launched successfully.\nagentId: a7c1d2e3f4 (use SendMessage to continue)' }], rows, deny: false, ...want })),
   { name: 'sub-agent brief that already names AGENTS.md: left as it is', tool: 'Agent', input: { prompt: 'Read AGENTS.md first. Review the export feature.', subagent_type: 'general-purpose' }, deny: false },
   { name: 'sub-agent brief pointing at AGENTS.md: allowed', tool: 'Agent', input: { prompt: 'Read AGENTS.md first and follow its rules. Review the export feature.', subagent_type: 'general-purpose' }, deny: false },
   { name: 'editing a generated skill mirror: denied', tool: 'Edit', input: { file_path: '.claude/skills/project-rule/SKILL.md' }, deny: true, tag: 'skill-mirror' }

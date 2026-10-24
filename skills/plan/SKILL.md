@@ -70,6 +70,12 @@ Inside a task, every step does one thing and says how you'll know it worked. For
 the test, a run that fails, the code, a run that passes, then the record. Every task ends with a step that runs one
 of the project's checks by its exact command.
 
+**Order for cost.** The expensive, repeated steps (review or judging rounds, helper fan-outs, full test or sweep runs,
+builds) run once, on the final inputs. Research, decisions and anything else that can change those inputs come first.
+Never judge, then research, then judge again: the first pass is thrown away. Before a fan-out of several helpers or
+rounds, write its size in the plan ("3 judging rounds x 40 cards, about N helpers"), and when the user changes the
+scope mid-way, stop the helpers working on the old one before starting new work.
+
 ## 5. Write it
 ```markdown
 # <Topic>: plan

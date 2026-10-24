@@ -108,6 +108,12 @@ hooks:**, and an upgrade lists each one as its own review item.
       scenarios too (setup ran them twice); a whole note folder in a skill's check (`Baking/**`) no longer makes
       writing a note count as that skill's report (a dictated note set off research and citation checks).
     - **selfcheck**: standalone tests gated by tag now run with `--tags` (they sat inside the full-run-only block).
+    - **Helpers on an old scope are named when the user changes it** (field report): a message from the user that
+      arrives while helpers launched before it still run gets a one-time heads-up with the next call, naming them, to
+      stop the ones it makes obsolete before new work. Three helpers had judged a free-only deck after the user allowed
+      wildcards, and 447,423 tokens were thrown away. The plan skill now orders work for cost: expensive repeated steps
+      (judging rounds, fan-outs, full runs) run once on the final inputs, research first, a fan-out's size is written
+      in the plan. Scenarios: `scope-change:`.
     - **Round 11 findings fixed:** the setup gate counts the interview answers written by the same command that
       installs (it had denied that very command); when the audit's self-tests fail only on the project's own tests, it
       names the targeted `selfcheck.mjs --tags` rerun and says to run the audit once at the end (setups reran a 2 to 5

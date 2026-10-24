@@ -79,7 +79,7 @@ export function transcriptState(tp) {
 // (the stop round count, the checks that failed earlier in the turn, hints shown, the plan nudge and the frustration
 // record are a turn's too. Lesson: a second session reset the first one's block count and lost its earlier failures.)
 const PER_SESSION = new Set(['turn.json', 'snapshot.json', 'turn-end.json', 'notices-shown.json', 'stop-blocks.json', 'stop-failed.json',
-  'event-hints.json', 'plan-watch.json', 'friction-turn.json', 'ext-shown.json', 'wakeups.json', 'checklist.json']);
+  'event-hints.json', 'plan-watch.json', 'friction-turn.json', 'ext-shown.json', 'wakeups.json', 'checklist.json', 'scope-shown.json']);
 const stateName = n => SID && PER_SESSION.has(n) ? n.replace(/.json$/, `.${SID}.json`) : n;
 // a session's own file when it has one, else the shared one (written before sessions were told apart, or by a test)
 const stateFile = n => { const own = path.join(STATE, stateName(n)); return own !== path.join(STATE, n) && !fs.existsSync(own) ? path.join(STATE, n) : own; };
@@ -4919,8 +4919,8 @@ function cmdPretool(data) {
   const d = brief ? { ...data, tool_input: { ...data.tool_input, prompt: brief } } : data;
   const r = pretoolDecision(d);
   if (r) { deny(r); return; }
-  const overlap = overlapNotice(data);
-  if (brief || overlap) process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', ...(brief ? { updatedInput: d.tool_input } : {}), ...(overlap ? { additionalContext: overlap } : {}) } }));
+  const notes = [overlapNotice(data), (() => { try { return scopeNotice(data); } catch { return null; } })()].filter(Boolean).join('\n');
+  if (brief || notes) process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', ...(brief ? { updatedInput: d.tool_input } : {}), ...(notes ? { additionalContext: notes } : {}) } }));
 }
 // A test, check or sweep run that starts while another one still runs in the background: said along with the call (a
 // notice, not a denial, which would cost a round). Two such runs can see each other's temporary files and fail falsely.
@@ -4938,6 +4938,33 @@ export function overlapNotice(data) {
   const busy = t.bgRunning.map(id => byId.get(id)).filter(c => c && CHECK_RUN.test(c));
   if (!busy.length) return null;
   return `Heads-up: ${busy.length === 1 ? 'a test or sweep run is' : `${busy.length} test or sweep runs are`} still running in the background (${busy.map(c => `"${c.replace(/\s+/g, ' ').trim().slice(0, 80)}"`).join(', ')}). Two at once can see each other's temporary files and fail falsely: wait for its notice before reading this run's failures as real, or run this one after it.`;
+}
+// A message from the user that arrived while helpers launched before it still run: once per message, with the next call,
+// name them, so the ones the message makes obsolete are stopped before new work (a notice, never a denial).
+// Lesson (a field report): the user allowed wildcards while three helpers were judging a free-only deck; they ran on,
+// and their 447,423 tokens were thrown away.
+export function scopeNotice(data) {
+  if (!data.transcript_path) return null;
+  const t = turn(data.transcript_path);
+  if (!t?.bgRunning?.length) return null;
+  const rows = transcriptRows(data.transcript_path), at = new Map(), what = new Map();
+  rows.forEach((r, i) => { for (const x of Array.isArray(r.message?.content) ? r.message.content : []) if (x?.type === 'tool_use' && /^(Agent|Task)$/.test(x.name)) { at.set(x.id, i); what.set(x.id, String(x.input?.description || x.input?.prompt || '').replace(/\s+/g, ' ').trim().slice(0, 60)); } });
+  const helpers = t.bgRunning.filter(id => at.has(id));
+  if (!helpers.length) return null;
+  const first = Math.min(...helpers.map(id => at.get(id)));
+  // the user's own words after that launch: a message typed mid-turn (queued) or a new prompt, not a notice or a relay
+  let msg = '';
+  rows.forEach((r, i) => {
+    if (i <= first) return;
+    const q = r.type === 'attachment' && r.attachment?.type === 'queued_command' ? textOf(r.attachment.prompt ?? r.attachment.content ?? '') : '';
+    const p = q || (r.type === 'user' && typeof r.message?.content === 'string' && !selfSent(r) ? r.message.content : '');
+    if (p && !/<(task-notification|cross-session-message|agent-message|system-reminder)\b/.test(p) && userText(p).trim()) msg = userText(p).trim();
+  });
+  if (!msg) return null;
+  const key = createHash('sha1').update(msg).digest('hex').slice(0, 12), seen = readJSON(stateFile('scope-shown.json'), {});
+  if (seen[key]) return null;
+  writeState('scope-shown.json', { ...seen, [key]: new Date().toISOString() });
+  return `Heads-up: the user wrote a new message while ${helpers.length === 1 ? 'a helper launched before it is' : `${helpers.length} helpers launched before it are`} still running (${helpers.map(id => `"${what.get(id)}"`).join(', ')}). If the message changes the task, the scope or the budget, stop the ones it makes obsolete (TaskStop) before new work; work done for the old scope is thrown away.`;
 }
 export const BRIEF_LINE = 'Read AGENTS.md first and follow its rules (plain writing, no invented facts, no AI attribution, and the runbook for this task if one is named below).';
 // the prompt with the brief line in front, for a helper launch that lacks it (null when it needs none)
