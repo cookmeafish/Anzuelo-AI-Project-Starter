@@ -154,7 +154,8 @@ async function one(id) {
       learned: [...new Set(rows.flatMap(r => r.type === 'assistant' ? (r.message?.content || []).filter(c => c.type === 'text').flatMap(c => c.text.match(/Learned \([a-z-]+\):[^\n]*/g) || []) : []))].map(s => s.slice(0, 200)),
       waivers: (t.answer.match(/N\/?A\s*\([\w-]+\)\s*:[^\n·]*/g) || []), state: state() });
   }
-  const st = turns[0]?.state || {};
+  // (a trial the usage limit stopped at its first turn has no state: Lesson, round v11's last four crashed here)
+  const st = { packs: [], library: [], ...(turns[0]?.state || {}) };
   const want = sc.expect || {};
   const out = { id: sc.id, why: sc.why, dir, made: madeOk, madeOut: (made.stdout || made.stderr || '').slice(-800), turns, ...(limited ? { void: `usage limit: ${limited}` } : {}),
     verdict: {
