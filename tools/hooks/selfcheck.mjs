@@ -1292,6 +1292,14 @@ STOP.push(
     answer: 'Standing breaks reduced reported back pain [1].\n\nSources:\n[1] https://example.org/study-a', expect: { not: ['answer-traced'] } },
   { name: 'answer-traced: figures for the project\'s own numbers, with no file read: blocked', prompt: 'how did we do last month', tools: [...many(1)],
     answer: 'Great month: 1,240 croissants sold, $4,300 in sales, up 12%.', expect: { block: true, tags: ['answer-traced'] } },
+  // rounded forms and totals of figures from tool output are traced (Lesson, a field report: a token-use answer was
+  // blocked three rounds for "238,000" from 238166, a sum of usage lines, and "103 million" from 103383574)
+  { name: 'answer-traced: rounded forms and a total of the tool output\'s figures: passes', prompt: 'how many tokens did the job take in total',
+    tools: [{ name: 'Bash', input: { command: 'node tools/usage.mjs' }, result: 'agent a: 412300\nagent b: 538391\noutput 238166\ncache read 103383574' }],
+    answer: 'The job used about 238,000 output tokens. The two agents used 950,691 in all, and cache reads came to 103 million.', expect: { not: ['answer-traced'] } },
+  { name: 'answer-traced: a round figure that no tool output rounds to is still flagged', prompt: 'how many tokens did the job take in total',
+    tools: [{ name: 'Bash', input: { command: 'node tools/usage.mjs' }, result: 'output 238166' }],
+    answer: 'The job used about 500,000 output tokens.', expect: { block: true, tags: ['answer-traced'] } },
   { name: 'answer-traced: figures read from the sales file this turn: passes', prompt: 'how did we do last month', tools: [{ name: 'Read', input: { file_path: 'data/sales.csv' }, result: 'month,croissants,sales\n2026-09,1240,4300\n2026-08,1107,3840' }],
     answer: 'September: 1,240 croissants and $4,300 in sales (August: 1107 and $3840).', expect: { not: ['answer-traced'] } },
   { name: 'answer-traced: a number found in nothing read this turn: blocked', edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), packs: (JSON.parse(s).packs || []).filter(p => p !== 'knowledge') }), 'tools/hooks/requirements.json': s => JSON.stringify({ ...JSON.parse(s), requirements: JSON.parse(s).requirements.filter(r => r.pack !== 'knowledge') }) }, prompt: 'is it true that standing desks hold 150 kg',

@@ -1787,14 +1787,15 @@ export function outsideReads(entries, cfg = config()) {
   }
   return out.join('\n');
 }
-export function toolResults(entries) {
+export function toolResultsList(entries) {
   const out = [];
   for (const r of entries) {
     const c = r.type === 'user' && r.message && r.message.content;
     if (Array.isArray(c)) for (const x of c) if (x && x.type === 'tool_result') out.push(textOf(x.content));
   }
-  return out.join('\n');
+  return out;
 }
+export const toolResults = entries => toolResultsList(entries).join('\n');
 
 // The answer the user will read: text after the last tool call. Lesson: a Stop-hook block starts a NEW answer, so
 // text from blocked drafts must not satisfy (or fail) the checks of the corrected answer.
@@ -2346,7 +2347,7 @@ export function context(t, cfg, answerOverride) {
   const all = turnText(t.entries), said = `${inEnglish(`${answer}\n${all}\n${waives}`, cfg)}\n${notes}`;
   return {
     ...t, uses, cmds, changed, work, pbs, routed, reads, skillsUsed, usedPb, routedSkills, usedSkills, notes, runs: t.toolsKnown ? runsOf(t.entries) : loggedRuns(t.since),
-    answer: inEnglish(answer, cfg), said, afterChange: inEnglish(`${textAfterLastChange(t.entries, changed.reduce((m, p) => { try { return Math.max(m, fs.statSync(abs(p)).mtimeMs); } catch { return m; } }, 0))}\n${answer}`, cfg), results: toolResults(t.entries),
+    answer: inEnglish(answer, cfg), said, afterChange: inEnglish(`${textAfterLastChange(t.entries, changed.reduce((m, p) => { try { return Math.max(m, fs.statSync(abs(p)).mtimeMs); } catch { return m; } }, 0))}\n${answer}`, cfg), results: toolResults(t.entries), resultsList: toolResultsList(t.entries),
     gui: changed.filter(p => match(p, cfg.guiFiles) && !match(p, cfg.guiIgnore) && exists(p)),
     workTurn: work.length > 0 || (t.toolsKnown && uses.length >= cfg.workToolCalls),
     // the turn went wrong somewhere: the stop hook already blocked an answer, or the user is complaining about a miss
@@ -5265,6 +5266,25 @@ export function coreChecks(x, cfg) {
     // (its Write/Edit inputs, this session) is part of what it knows, like what it read.
     const corpus = [x.results, x.prompt, x.allPrompts?.join('\n'), today(), ...ledgers.map(p => read(abs(p))), ...cited.filter(p => !wroteNow.has(p)).map(p => read(abs(p)))].join('\n').replace(/(\d),(?=\d{3}\b)/g, '$1');
     const ownWrites = String(x.sessionWrites || '').replace(/(\d),(?=\d{3}\b)/g, '$1');
+    // A rounded form of a traced figure is traced ("238,000" or "238 thousand" for 238166, "103 million" for 103383574),
+    // and so is the total of the figures in one tool result (a sum of usage lines). Lesson (a field report): an answer
+    // about token use was blocked three rounds in a row for figures it had only rounded or added up from tool output.
+    const figures = [...new Set([...`${corpus}\n${ownWrites}`.matchAll(/(?<![\w.])\d+(?:\.\d+)?(?![\w])/g)].map(m => Number(m[0])))].filter(n => n >= 10).slice(0, 20000);
+    // (the total of any run of figures in a row in one result: the usage lines of some agents, not all of them)
+    const sums = new Set((x.resultsList || []).map(r => [...String(r).replace(/(\d),(?=\d{3}\b)/g, '$1').matchAll(/(?<![\w.])\d+(?![\w.])/g)].map(m => Number(m[0])).filter(n => n >= 10))
+      .filter(ns => ns.length >= 2 && ns.length <= 200).flatMap(ns => ns.flatMap((_, i) => { let t = ns[i]; return ns.slice(i + 1).map(n => (t += n)); })));
+    const MULT = { thousand: 1e3, k: 1e3, million: 1e6, m: 1e6, mn: 1e6, billion: 1e9, bn: 1e9, b: 1e9, mil: 1e3, millones: 1e6, mill: 1e6 };
+    const roundedOf = (n, after) => {
+      const mult = MULT[(/^\s*(thousand|million|billion|millones|mil|mill|mn|bn|[kmb])\b/i.exec(after)?.[1] || '').toLowerCase()] || 1;
+      const v = Number(n) * mult;
+      if (!Number.isFinite(v) || v < 10) return false;
+      if (sums.has(v)) return true;
+      // the precision the answer gives: its last significant digit (238000: thousands; 103 million: millions; 1.5k: hundreds)
+      const dec = (String(n).split('.')[1] || '').length, sig = String(n).replace('.', '').replace(/0+$/, '');
+      const step = mult === 1 && !dec ? 10 ** (String(n).length - sig.length) : mult / 10 ** dec;
+      if (step < 10) return false;
+      return figures.some(c => Math.abs(c - v) <= step / 2 && c !== v);
+    };
     const untraced = (text, own = '') => {
       const out = [];
       const body = text.replace(/^---\n[\s\S]*?\n---\n/, '').split(/^#{1,6}\s*\**finished\b|^\**finished\**\s*$/im)[0];
@@ -5275,7 +5295,7 @@ export function coreChecks(x, cfg) {
           const n = m[2].replace(/,(?=\d{3}\b)/g, '').replace(/[.,]$/, '');
           if (!m[1] && !m[3] && !n.includes('.') && n.length < 2) continue; // a single plain digit is a count, not a fact
           const at = new RegExp(`(?<![\\d.])${esc(n)}(?![\\d])`);
-          if (!at.test(corpus) && !at.test(own)) out.push(m[0].trim());
+          if (!at.test(corpus) && !at.test(own) && !roundedOf(n, clean.slice(m.index + m[0].length))) out.push(m[0].trim());
         }
       }
       return [...new Set(out)];
