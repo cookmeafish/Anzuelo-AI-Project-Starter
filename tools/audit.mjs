@@ -575,6 +575,12 @@ if (process.argv.includes('--full') || process.argv.includes('--setup')) {
       // not hold up the project (a warning that says to report it). Lesson: setups could not finish, and reran the
       // self-test again and again, for an engine test the project had no part in.
       if (!isTemplate && cause.length === 1 && /^engine tests failed \(caused by the engine, not by this project\)/.test(cause[0])) return { warn: body };
+      // While fixing, only the failing tests need rerunning: by their checks' names, in seconds; the whole audit once at
+      // the end. Lesson (trial round 11): setups reran this audit 3 or 4 times at 2 to 5 minutes each, for failures in
+      // their own new scenarios that a targeted run finds in about 24 seconds.
+      const tags = [...new Set(failing.map(l => /^(?:stop|prompt|pretool|posttool):\s*([a-z][\w-]*)\s*:/.exec(l)?.[1]).filter(Boolean))];
+      if (tags.length && failing.every(l => /^(?:stop|prompt|pretool|posttool):\s*[a-z][\w-]*\s*:/.test(l)))
+        body.push(`While fixing: rerun only these with node tools/hooks/selfcheck.mjs --tags ${tags.join(',')} (seconds), and this audit once when they pass.`);
       selfTestFailures.push(...failing.map(l => l.replace(/\s+->.*$/, '')));
       return { fail: body };
     });

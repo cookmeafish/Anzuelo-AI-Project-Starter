@@ -851,7 +851,9 @@ const ROUTE_ES = [
   [/\b(publica|publicar|despliega|desplegar)\b/gi, 'publish'], [/\b(escribe|redacta|escribir|redactar)\b/gi, 'write'], [/\b(resume|resumir|resumen)\b/gi, 'summary'],
   [/\b(nuev[oa]s?)\b/gi, 'new'], [/\bp[aá]ginas?\b/gi, 'page'], [/\bbot[oó]n(es)?\b/gi, 'button'], [/\bcolumnas?\b/gi, 'column'], [/\bcampos?\b/gi, 'field'],
   [/\bpantallas?\b/gi, 'screen'], [/\binicio de sesi[oó]n\b/gi, 'login'], [/\bopci[oó]n(es)?\b/gi, 'option'], [/\bfunci[oó]n(es)?\b/gi, 'feature'], [/\b[ií]ndice\b/gi, 'index'],
-  [/\b(error|errores|fallo|fallos)\b/gi, 'bug'], [/\bpruebas?\b/gi, 'tests'], [/\bseguridad\b/gi, 'security'], [/\b(informe|reporte)s?\b/gi, 'report'], [/\bcartas?\b/gi, 'letter'],
+  [/\b(error|errores|fallo|fallos)\b/gi, 'bug'], [/\bpruebas?\b/gi, 'tests'], [/\bseguridad\b/gi, 'security'], [/\b(informe|reporte)s?\b/gi, 'report'],
+  // (no word with two common senses: "carta" is a letter and a playing card. Lesson: "actualiza el deck con las cartas
+  // nuevas" routed to a project's letter runbook)
   [/\bnotas?\b/gi, 'note'], [/\b(plan|planes)\b/gi, 'plan'], [/\b(dise[nñ]o)\b/gi, 'design'], [/\b(datos)\b/gi, 'data'], [/\b(regla)s?\b/gi, 'rule'],
   [/\b(una?|el|la|los|las)\b/gi, 'a'], [/\b(siempre)\b/gi, 'always'], [/\b(nunca)\b/gi, 'never'],
 ];
@@ -4798,7 +4800,12 @@ function pretoolHits(data, cfg) {
       const ran = cmd.replace(/<<-?\s*(['"]?)(\w+)\1[\s\S]*?\n\2\b/g, '').replace(/echo\s+(["'])[\s\S]*?\1/g, '');
       const step = /\bnode\s+(?:"[^"\n]*?|'[^'\n]*?|[^\s"']*?)(packs\.mjs["']?\s+install|skills\.mjs["']?\s+enable|starter\.mjs["']?\s+(link|keep|remove))\b/.exec(ran);
       if (step) {
-        const probs = setupCompleteness(cfg, { final: /starter\.mjs/.test(step[1]), beforeStarter: true });
+        // (answers this same command writes count: it records the interview, then installs. Lesson, trial rounds 10 and 11:
+        // the command that wrote the "## Setup interview" answers and installed the pack was denied for those answers)
+        const writes = /setup interview/i.test(cmd) ? new Set([...cmd.matchAll(/^\s*-\s*\*{0,2}([^:*\n]+?)\*{0,2}:\s*\S/gm)].map(m => m[1].trim().toLowerCase())) : new Set();
+        const LIST = /^docs\/DECISIONS\.md "## Setup interview": (?:record the user's answer for|decide and record) (.+?)(?: yourself)?\s*\("/;
+        const covered = p => { const m = LIST.exec(p); return !!m && m[1].split(/,\s*/).every(k => writes.has(k.trim().toLowerCase())); };
+        const probs = setupCompleteness(cfg, { final: /starter\.mjs/.test(step[1]), beforeStarter: true }).filter(p => !covered(p));
         if (probs.length) add(`REQ: setup-${/starter\.mjs/.test(step[1]) ? 'complete' : 'interview'}. Not yet:\n- ${probs.join('\n- ')}`);
       }
     }

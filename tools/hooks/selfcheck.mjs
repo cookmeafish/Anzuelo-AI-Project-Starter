@@ -892,6 +892,12 @@ const PRETOOL = [
   { name: 'deleting SETUP-PROMPT.md in the starter template: denied', tool: 'Bash', input: { command: 'rm SETUP-PROMPT.md' }, deny: true, tag: 'setup-gate' },
   { name: 'deleting SETUP-PROMPT.md before setup is done: denied', tool: 'Bash', input: { command: 'rm SETUP-PROMPT.md' }, removeMarker: true, deny: true, tag: 'setup-gate' },
   { name: 'setup: installing a pack before the user answered the questions: denied', tool: 'Bash', input: { command: 'node tools/packs.mjs install app' }, removeMarker: true, deny: true, tag: 'setup-interview' },
+  // (a command that records the answers and then installs: the answers it writes count. Lesson, trial rounds 10 and 11:
+  // the command writing the interview was denied for the very answers it was writing)
+  { name: 'setup-interview: one command that writes every answer, then installs: allowed', tool: 'Bash', removeMarker: true, edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), autonomy: 'auto' }) },
+    input: { command: "cat >> docs/DECISIONS.md <<'X'\n## Setup interview\n- Involvement: auto\n- Focus: blog\n- Kind of work: software\n- Visual interface: yes\n- Typical requests: pages\n- Inputs: recipes\n- People: one\n- Sensitive data: none\n- Constraints: none\n- Quality bar: normal\n- Always/never: Spanish\nX\nnode tools/packs.mjs install app gui" }, deny: false },
+  { name: 'setup-interview: one command that writes only some answers, then installs: still denied', tool: 'Bash', removeMarker: true, edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), autonomy: 'auto' }) },
+    input: { command: "cat >> docs/DECISIONS.md <<'X'\n## Setup interview\n- Involvement: auto\n- Focus: blog\nX\nnode tools/packs.mjs install app" }, deny: true, tag: 'setup-interview' },
   { name: 'setup: a heredoc that only writes "starter.mjs link" into a doc: allowed', tool: 'Bash', input: { command: "cat > docs/notes.md <<'EOF'\nLater: node tools/starter.mjs link\nEOF" }, removeMarker: true, deny: false },
   { name: 'setup: enabling a skill with the interview recorded but no reply from the user yet: denied', tool: 'Bash', input: { command: 'node tools/skills.mjs enable orchestrate' }, removeMarker: true,
     edit: { 'docs/DECISIONS.md': s => s + INTERVIEW('software', 'yes', 'app, gui', '') }, deny: true, tag: 'setup-interview' },
