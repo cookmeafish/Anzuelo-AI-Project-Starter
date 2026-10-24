@@ -2992,6 +2992,12 @@ PROMPT.push(
   { name: 'event-hint: a long quote in the request is what it is about, not the request', prompt: 'write a reply to this customer: "I cannot log in with my password since the update, please help me"', hasNot: ['MUST FOLLOW: security-review'] },
   { name: 'autonomy-hint: "I don\'t want to be bothered" asks to set autonomy auto', prompt: 'I dont want to be bothered, handle the rest yourself', has: ['AUTONOMY'] },
   { name: 'autonomy-hint: "without my input" asks to set autonomy auto', prompt: 'go go go without my input until it is finished', has: ['AUTONOMY'] },
+  // (Spanish, and the plain English "do not ask me": Lesson, trial round 10: a Spanish setup request that said "decide
+  // todo tú y no me preguntes nada" got no AUTONOMY hint and no route, so the setup gate asked it questions)
+  { name: 'autonomy-hint: a Spanish setup request that says not to ask routes to the project runbook and gets AUTONOMY', prompt: 'configura este proyecto. Será un blog de recetas. Decide todo tú y no me preguntes nada: no estoy disponible para responder.', has: ['AUTONOMY', 'ROUTE: project'] },
+  { name: 'autonomy-hint: "do not ask me anything" asks to set autonomy auto', prompt: 'build the export page and do not ask me anything, I am not available to answer', has: ['AUTONOMY'] },
+  { pack: 'app', name: 'route: a Spanish request routes like its English wording ("agrega una página de índice")', prompt: 'agrega una página de índice con todas las recetas ordenadas por categoría', has: ['ROUTE: feature'] },
+  { pack: 'app', name: 'route: "add an index page" routes to the feature runbook', prompt: 'add an index page with all the recipes sorted by category', has: ['ROUTE: feature'] },
   { name: 'autonomy-hint: already auto, no hint', prompt: 'go go go without my input until it is finished', setupFn: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), autonomy: 'auto' }) }, hasNot: ['AUTONOMY'] }
 );
 
@@ -3395,7 +3401,7 @@ const proves = s => TAGS.filter(t => (s.expect?.tags || []).includes(t) || (s.ex
 const SHARD = (() => { const i = process.argv.indexOf('--shard'), m = /^(\d+)\/(\d+)$/.exec(i > 0 ? process.argv[i + 1] || '' : ''); return m ? { i: Number(m[1]), n: Number(m[2]) } : null; })();
 const HELPER = !!SHARD;
 // tags a standalone test proves (it runs with --tags <tag>, outside the full-run-only block)
-const STANDALONE_TAGS = ['feedback-usage', 'session-checklist', 'engine-bypassed', 'transcript-tail', 'instructions-run', 'answer-traced', 'stop-follow-on', 'stop-reblock', 'check-preview'];
+const STANDALONE_TAGS = ['upset-es', 'feedback-usage', 'session-checklist', 'engine-bypassed', 'transcript-tail', 'instructions-run', 'answer-traced', 'stop-follow-on', 'stop-reblock', 'check-preview'];
 if (TAGS) {
   const all = [...STOP, ...PRETOOL, ...PROMPT];
   for (const t of TAGS) if (!HELPER && !TRIGGER_TAGS.includes(t) && !STANDALONE_TAGS.includes(t) && t !== 'selftest-speed' && !all.some(s => proves(s).includes(t))) report(false, `tags: a scenario proves ${t}`, `no scenario proves "${t}": add one to tools/hooks/project-scenarios.mjs (blocked when skipped, passes when followed)`);
@@ -6050,6 +6056,22 @@ if (mineB() && INSTALLED.includes('app')) { // app gates: their own pass lines, 
 }
 // standalone tests that can also be asked for by tag (--tags <tag>): outside the full-run-only block above.
 // Lesson: they sat inside it, so their "--tags" gates never ran and a fast run could not prove them.
+if (mineB() && (!TAGS || TAGS.includes('upset-es'))) { // upset-es: complaints and "..., always" requirements in English and
+  // Spanish (Lesson, trial round 10: "otra vez pusiste texto en inglés ... tiene que estar en español, siempre" set off
+  // neither the upset handling nor a rule request, and neither did its English twin)
+  const h = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks.mjs')).href), cfg = h.config();
+  const cases = [
+    ['otra vez pusiste texto en inglés en la página. todo lo que vea el lector tiene que estar en español, siempre', true, true],
+    ['again you put english text on the page. everything the reader sees has to be in spanish, always', true, true],
+    ['ya te dije que las fechas van en formato europeo', true, false],
+    ['the export works again, thanks', false, false], ['otra vez gracias, quedó perfecto', false, false],
+  ];
+  const got = cases.map(([t]) => [h.isUpset(t, cfg), h.isRuleRequest(t, cfg)]);
+  report(cases.every(([, u, r], i) => got[i][0] === u && got[i][1] === r), 'upset-es: complaints and "..., always" requirements are caught in English and Spanish; thanks and praise are not',
+    JSON.stringify(got));
+  const en = h.routeEnglish('configura este proyecto y agrega una página de índice');
+  report(/set up this project/.test(en) && /add a page/.test(en) && /index/.test(en), 'upset-es: a Spanish request is routed with its task words in English (routing only)', en);
+}
 if (mineP() && (!TAGS || TAGS.includes('feedback-usage'))) { // feedback-usage: "starter.mjs feedback --help" prints the usage and
   // saves nothing (Lesson, a field report: "--help" was saved as a feedback line)
   const dir = copyProject();

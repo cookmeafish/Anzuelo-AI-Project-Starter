@@ -340,7 +340,10 @@ const DEFAULTS = {
   ruleRequest: String.raw`update (the|this|your|ur) project|from now on|going forward|\bremember (to|this)\b|\bremember (that )?(i|we) (prefer|like|want|hate|don'?t|never|always|use)\b|\bremember (that )?(you|we) (should|must|always|never|need|have to)\b|\bmandatory\b|make (it|this|that) a (rule|requirement)|(?<!\b(must|should|has to|needs? to) )\b(always|never) (do|make|use|check|include|ask|tell|run|add|keep|start|end|read|write|put|give|show|create|follow|save|delete|send|cite|mention|format|name|link|test|commit|push|leave|remove|spell|reply|answer|label|date)\b|never .{0,40} again|don'?t ever|stop doing|i shouldn'?t have to (tell|remind)|\bevery time (you|we|i)\b|\bstop (adding|using|putting|making|writing|doing|including)\b|\bno more (?!than\b)\w+|\bin (the )?future\b` +
     // Spanish (Lesson: "de ahora en adelante ..." got no rule hint)
     String.raw`|de ahora en adelante|a partir de ahora|\bdesde ahora\b|\ben (el )?futuro\b|\bno vuelvas a\b|\bnunca m[aá]s\b|\brecuerda (que )?(siempre|nunca)\b` +
-    String.raw`|\bsiempre (usa|haz|pon|incluye|cita|revisa|escribe|a[ñn]ade|agrega|responde|contesta|guarda|pregunta|prueba|comprueba)\b|\bnunca (uses|hagas|pongas|incluyas|escribas|a[ñn]adas|agregues|borres|env[ií]es|digas|cambies|toques)\b|\bcada vez que (hagas|termines|escribas|cambies|a[ñn]adas|empieces)\b`,
+    String.raw`|\bsiempre (usa|haz|pon|incluye|cita|revisa|escribe|a[ñn]ade|agrega|responde|contesta|guarda|pregunta|prueba|comprueba)\b|\bnunca (uses|hagas|pongas|incluyas|escribas|a[ñn]adas|agregues|borres|env[ií]es|digas|cambies|toques)\b|\bcada vez que (hagas|termines|escribas|cambies|a[ñn]adas|empieces)\b` +
+    // (a requirement that ends in "always": "everything the reader sees has to be in Spanish, always". Lesson, trial
+    // round 10: its Spanish form set off no rule request)
+    String.raw`|\b(must|has to|have to|needs? to)\b[^.!?\n]{0,80},\s*always\b|\btiene(n)? que\b[^.!?\n]{0,80},\s*siempre\b`,
   // A complaint about a miss: the learn-from-upset skill fixes it and stores the lesson where it belongs (REQ: upset-learned).
   // Lesson: "you forgot the allergens again!!" got a frustration hint, but nothing made it a rule.
   // A small touch-up: no runbook is needed when it changes at most 2 files (REQ: runbook-exists). Lesson: "fix the typo
@@ -349,7 +352,11 @@ const DEFAULTS = {
   // (Lesson: "you did it AGAIN", "the totals are wrong again.", "I literally said no emojis" and "how hard is it to keep
   // the footer" got no upset handling: a miss named with "again", a pointed "I said", an exasperated question)
   complaint: "\\byou (forgot|didn'?t|did not|missed|skipped|ignored|left out|keep forgetting|never)\\b|\\b(i|we) (already )?told you\\b|\\bwhy (did|didn'?t) you\\b|\\bwhy (do|does) (you|it) keep\\b|\\bagain\\s*[!?]|\\bnot again\\b|\\bkeeps? (happening|forgetting|missing)\\b" +
-    String.raw`|\b(did|done|wrong|broke\w*|missing|forgot\w*|failed)\b[^.?!\n]{0,30}\bagain\b|\bi (literally|clearly|specifically|explicitly) (said|asked( you)?( for)?|told you)\b|\bi (just )?(said|told you)\b[^.?!\n]{0,20}\b(no|not|never|don'?t)\b|\bhow hard is it\b`,
+    String.raw`|\b(did|done|wrong|broke\w*|missing|forgot\w*|failed)\b[^.?!\n]{0,30}\bagain\b|\bi (literally|clearly|specifically|explicitly) (said|asked( you)?( for)?|told you)\b|\bi (just )?(said|told you)\b[^.?!\n]{0,20}\b(no|not|never|don'?t)\b|\bhow hard is it\b` +
+    // ("again you put ..." and the Spanish forms. Lesson, trial round 10: "otra vez pusiste texto en inglés" got no upset
+    // handling, and neither would its English twin)
+    String.raw`|\bagain,? you (put|did|left|forgot|made|added|wrote|used|broke)\b|\botra vez (pusiste|hiciste|olvidaste|dejaste|metiste|usaste|escribiste|rompiste)\b|\bde nuevo (pusiste|hiciste|olvidaste|dejaste)\b` +
+    String.raw`|\b(olvidaste|se te olvid\w+)\b|\b(ya )?te (lo )?dije\b|\bpor qu[eé] (no )?(hiciste|pusiste|cambiaste|borraste|olvidaste)`,
   // The work falls short: a verdict on its quality, or a disappointed question about what it lacks. Upset too, and a
   // standing requirement on the work, so it is enforced with a check (REQ: upset-learned).
   // (Lesson: "really no pictures ... did you not find any" and "it's lackluster" got no upset handling at all)
@@ -829,9 +836,29 @@ export function expandMenu(prompt) {
       if (flags[m[1]]) kflags.push([m[1], m[2] || '']); else uflags.push(m[1]);
     }
   }
-  const expanded = [prompt, ...known.map(c => codes[c].means), ...kflags.map(([f]) => flags[f])].join('\n');
+  const expanded = [prompt, ...known.map(c => codes[c].means), ...kflags.map(([f]) => flags[f]), ...(isSpanish(prompt) ? [routeEnglish(prompt)] : [])].join('\n');
   return { known, unknown, kflags, uflags, expanded, codes, flags };
 }
+// A Spanish request routes like its English wording: its common task words in English, added for routing only (as
+// LABELS_ES does for the answer's labels), so runbooks need no Spanish triggers of their own. Phrases come before the
+// words in them. Lesson (trial round 10): "configura este proyecto" and "agrega una página de índice" got NO RUNBOOK,
+// while the English requests routed to the project and feature runbooks.
+const ROUTE_ES = [
+  [/\b(configura|prepara|monta|inicializa)r? (este|el|mi) proyecto\b/gi, 'set up this project'], [/\b(de ahora en adelante|a partir de ahora|desde ahora)\b/gi, 'from now on'],
+  [/\bnueva regla\b/gi, 'new rule'], [/\bte (lo )?dije\b/gi, 'i told you'], [/\b(olvidaste|se te olvid[oó])\b/gi, 'you forgot'], [/\bpor qu[eé] (lo )?hiciste\b/gi, 'why did you'],
+  [/\b(agrega|añade|agregar|añadir|incluye|pon)\b/gi, 'add'], [/\b(arregla|corrige|repara|arreglar|corregir)\b/gi, 'fix'], [/\b(crea|crear|haz|hacer)\b/gi, 'make'],
+  [/\b(cambia|cambiar|modifica)\b/gi, 'change'], [/\b(quita|elimina|borra|quitar|eliminar|borrar)\b/gi, 'remove'], [/\b(revisa|revisar|revisión)\b/gi, 'review'],
+  [/\b(publica|publicar|despliega|desplegar)\b/gi, 'publish'], [/\b(escribe|redacta|escribir|redactar)\b/gi, 'write'], [/\b(resume|resumir|resumen)\b/gi, 'summary'],
+  [/\b(nuev[oa]s?)\b/gi, 'new'], [/\bp[aá]ginas?\b/gi, 'page'], [/\bbot[oó]n(es)?\b/gi, 'button'], [/\bcolumnas?\b/gi, 'column'], [/\bcampos?\b/gi, 'field'],
+  [/\bpantallas?\b/gi, 'screen'], [/\binicio de sesi[oó]n\b/gi, 'login'], [/\bopci[oó]n(es)?\b/gi, 'option'], [/\bfunci[oó]n(es)?\b/gi, 'feature'], [/\b[ií]ndice\b/gi, 'index'],
+  [/\b(error|errores|fallo|fallos)\b/gi, 'bug'], [/\bpruebas?\b/gi, 'tests'], [/\bseguridad\b/gi, 'security'], [/\b(informe|reporte)s?\b/gi, 'report'], [/\bcartas?\b/gi, 'letter'],
+  [/\bnotas?\b/gi, 'note'], [/\b(plan|planes)\b/gi, 'plan'], [/\b(dise[nñ]o)\b/gi, 'design'], [/\b(datos)\b/gi, 'data'], [/\b(regla)s?\b/gi, 'rule'],
+  [/\b(una?|el|la|los|las)\b/gi, 'a'], [/\b(siempre)\b/gi, 'always'], [/\b(nunca)\b/gi, 'never'],
+];
+// (\b with letters such as á, í, ñ: a boundary between a letter of any alphabet and anything else)
+const UB = String.raw`(?:(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])|(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_]))`;
+const ROUTE_ES_U = ROUTE_ES.map(([r, v]) => [new RegExp(r.source.replaceAll(String.raw`\b`, UB), 'giu'), v]);
+export const routeEnglish = text => ROUTE_ES_U.reduce((s, [r, v]) => s.replace(r, v), String(text || ''));
 
 // ---------- transcript ----------
 // (the host's own notices about other sessions are no request either. Lesson: "[Cross-session idle notice] ... is idle
@@ -3972,7 +3999,7 @@ function cmdSession(data) {
 // The user handing the work over: "without my input", "don't ask me", "keep going until it's finished", "go go go".
 // ("don't ask me for the api key again" is about one thing, not the whole job. Lesson: "you decide", "I trust you",
 // "no need to check with me" and "without stopping" were missed, and that one false alarm counted)
-const AUTONOMY_WORDS = /\byou decide\b|\bi trust you\b|\bno need to (ask|check with) me\b|\bwithout stopping\b|\bwithout (my|any) (input|approval|questions?|ok)\b|\bdon'?t (ask|bother) me\b(?!\s+(for|about)\b)|\bno (more )?questions\b|\bkeep going (until|till) (it'?s |you'?re |everything is )?(done|finished|complete)\b|\bgo,? go,? go\b|\bdon'?t stop (until|till|for)\b|\bdecide (everything|for me|yourself)\b|\bdon'?t want to be (bothered|asked|interrupted)\b|\b(handle|do|figure out) (it|this|everything|all of it|the rest) (yourself|on your own|without me)\b|\bwithout checking (in )?with me\b|\bi('?m| am) (going )?(away|offline|out)\b[^\n]{0,40}\b(keep|carry on|continue)\b/i;
+const AUTONOMY_WORDS = /\byou decide\b|\bi trust you\b|\bno need to (ask|check with) me\b|\bwithout stopping\b|\bwithout (my|any) (input|approval|questions?|ok)\b|\bdon'?t (ask|bother) me\b(?!\s+(for|about)\b)|\bno (more )?questions\b|\bkeep going (until|till) (it'?s |you'?re |everything is )?(done|finished|complete)\b|\bgo,? go,? go\b|\bdon'?t stop (until|till|for)\b|\bdecide (everything|for me|yourself)\b|\bdon'?t want to be (bothered|asked|interrupted)\b|\b(handle|do|figure out) (it|this|everything|all of it|the rest) (yourself|on your own|without me)\b|\bwithout checking (in )?with me\b|\bi('?m| am) (going )?(away|offline|out)\b[^\n]{0,40}\b(keep|carry on|continue)\b|\bdo not (ask|bother) me\b(?!\s+(for|about)\b)|\b(not|won'?t be) (available|around) to (answer|reply|respond)\b|(?<![\p{L}])(decide (todo )?t[uú]|t[uú] decides|no me preguntes|sin preguntarme|no estoy disponible|no me molestes|sigue hasta (que )?(termines|acabes)|no pares hasta)(?![\p{L}])/iu;
 // Library skills the fit checklist left for later or skipped, whose own triggers the request matches.
 export function fitDueByRequest(text, cfg = config()) {
   if (!exists(FIT_FILE)) return [];

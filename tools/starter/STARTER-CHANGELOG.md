@@ -108,6 +108,16 @@ hooks:**, and an upgrade lists each one as its own review item.
       scenarios too (setup ran them twice); a whole note folder in a skill's check (`Baking/**`) no longer makes
       writing a note count as that skill's report (a dictated note set off research and citation checks).
     - **selfcheck**: standalone tests gated by tag now run with `--tags` (they sat inside the full-run-only block).
+    - **Spanish requests route like English ones**: a Spanish request is routed with its common task words in English
+      added (routing only, the way answer labels already work), so runbooks need no Spanish triggers. "configura este
+      proyecto" routes to the project runbook, and "agrega una página de índice" to the feature runbook. The autonomy
+      hint knows Spanish ("decide todo tú", "no me preguntes nada") and the plain English "do not ask me". Spanish
+      complaints and "..., always" requirements (in both languages) set off the upset handling and the rule request.
+      "add an index page" now routes to the feature runbook too. A Spanish setup request had got no route and no
+      autonomy hint, so the setup gate asked it questions the user had said not to ask. Scenarios: `upset-es`,
+      `autonomy-hint: a Spanish setup request`, `route: a Spanish request routes like its English wording`.
+    - **Trials**: the account's usage limit voids a trial; the round stops, and compare and judge skip void records
+      (round v10 had sent all its turns into the limit and had them judged).
     - **Helpers the host runs in the background by itself are waited on** (field report): an Agent call with no
       background flag whose result says "Async agent launched" counts as running until its notice arrives, so
       parallel-trigger no longer asks for merged results that cannot exist yet. Scenario: `parallel-trigger: helpers
