@@ -14,6 +14,10 @@ menu: A2
    write it as `Root cause: <what and why>`, write a failing test (for UI, a scripted run with
    `tools/screenshot.mjs --steps`, gui pack), fix at the source, then run the new test and the whole suite.
 2. **Look for siblings:** the same mistake elsewhere (search for the pattern), and fix or list them.
+   Anything else whose output changes with the fix (another function, a default, an edge case) is a change in
+   behaviour: name it in the answer and the changelog as a change, not only as the fix, and keep it out unless it is
+   needed. <!-- Lesson, trial round 15: an emoji fix also changed what truncate returned, shipped as "Breaking: None"
+   in 1.0.0, and the user found it. -->
 3. **Triple check** as in `docs/checks/qa-standards.md`, scaled to the risk. A one-line logic fix still needs (1);
    anything visible needs (2).
 4. **Lesson:** if the bug escaped QA, add a line to `docs/lessons.md` and a check that would have caught it.

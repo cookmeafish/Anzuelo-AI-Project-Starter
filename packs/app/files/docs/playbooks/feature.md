@@ -69,6 +69,7 @@ skills, when the project has them: **frontend-design** for screens, **backend-pa
 - [ ] New behaviour was built test first: each slice's test was seen failing before its code, and the whole suite passes after the last edit (judgment: no check sees each test fail before its code).
 - [ ] Release notes written; version bumped as configured (hook: release-notes, version-bump).
 - [ ] Docs that described the old behaviour were updated, or the answer says none did (judgment: which docs described the old behaviour needs reading them).
+- [ ] Every new option, flag, setting or command the user can type is in the README or the user docs with what it does, and in `--help` for a CLI (judgment: what counts as user-facing needs reading the change). <!-- Lesson, trial round 15: --dry-run shipped without a README entry, and the user had to complain. -->
 
 ## Pitfalls
 - Declaring done from the code or from one screenshot. Verify in the real app, every state.

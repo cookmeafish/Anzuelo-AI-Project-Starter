@@ -13,7 +13,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { starterSources, findLibrary, setupCompleteness, usageOf, flushEngineWrites, TEST_GLOBS } from './hooks/hooks.mjs';
+import { starterSources, findLibrary, setupCompleteness, usageOf, flushEngineWrites, TEST_GLOBS, onPath } from './hooks/hooks.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PACKS = path.join(ROOT, 'packs');
@@ -167,6 +167,13 @@ function configureApp(argv) {
   else reqs.requirements = reqs.requirements.map(r => r.tag === 'version-bump' ? { ...r, enabled: false } : r);
   for (const r of reqs.requirements) if (r.pack === 'app' && r.when?.filesChanged && r.codeGlobs) r.when.filesChanged = app.code;
   wj(REQS, reqs);
+  // a gate whose program is not on this machine can never pass here: said now, so setup tells the user and no turn
+  // blames a permission prompt. Lesson, trial round 15: Go was not installed, and the answers said Go "was blocked by a
+  // permission prompt" in every turn
+  for (const k of ['test', 'build', 'lint', 'typecheck']) {
+    const prog = /^\s*(?:\.\/)?([\w.+-]+)/.exec(app[k] || '')?.[1];
+    if (prog && !/^(npm|npx|node|pnpm|yarn)$/.test(prog) && onPath(prog) === false) console.log(`warning: ${prog} (the ${k} gate's program) is not installed on this machine. Tell the user, and until it is installed each turn says "NOT VERIFIED: ${k} - ${prog} is not installed".`);
+  }
   console.log(`configured app gates: ${['test', 'build', 'lint', 'typecheck'].filter(k => app[k]).map(k => `${k}="${app[k]}"${app.pass[k] ? ` (passes on /${app.pass[k]}/)` : ' (passes on its exit code)'}`).join(', ') || '(none given)'}; code: ${app.code.join(', ')}`);
   console.log('Next: node tools/hooks/selfcheck.mjs && node tools/audit.mjs');
 }

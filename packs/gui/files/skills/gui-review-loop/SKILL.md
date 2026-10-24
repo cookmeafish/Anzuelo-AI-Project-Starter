@@ -32,6 +32,13 @@ been opened, and the answer gives a verdict. Any edit after a round makes that r
    A screenshot can't show keyboard use or what a screen reader says. If the project enabled the frontend-design
    skill, its section E (accessibility review) covers those, and section B is the deeper design critique.
 4. **Fix** every problem, then start the next round. Never declare PASS from memory of an earlier round.
+   A fix round shoots again only what the fix could change: the pages and states it touched, at all four looks (a
+   change to a shared stylesheet, layout or component touches every page that uses it). Pages a fix could not reach
+   keep their last round's verdict. <!-- Lesson, trial rounds 14 and 15: every round re-shot and re-read the whole
+   flow, 292 image reads over three turns, six rounds for one new page. -->
+   A preview server you start yourself listens on 127.0.0.1 only, and is stopped before the answer (`--launch` does
+   both). <!-- Lesson, trial round 15: an `eleventy --serve` left running on all network addresses stayed reachable
+   from the network, and its old pages were what the user later saw on port 8080. -->
 
 ## Ending
 - **PASS:** a full round found nothing and printed no WARN (or each WARN is explained: "warnings accepted: ..."). Write

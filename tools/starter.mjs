@@ -147,6 +147,9 @@ if (cmd === 'link') {
     // (a starter in the temp folder disappears when temp is cleaned, and linking removes this project's own packs/ and
     // library/. Lesson, trial round 12: a vault linked to a starter in Temp and lost the tools its answer promised for later)
     if (inside(dir, os.tmpdir()) && !process.env.STARTER_ALLOW_TEMP) { console.error(`${dir} is in the temp folder, which gets cleaned: linking to it would leave this project without packs/ and library/. Keep a copy instead: node tools/starter.mjs keep (or link to a starter in a lasting folder).`); process.exit(1); }
+    // (allowed anyway, it is still said, so the answer and DECISIONS.md don't call the link lasting. Lesson, trial
+    // rounds 14 and 15: setups linked to a starter in the temp folder recorded "the starter folder stays on this machine")
+    if (inside(dir, os.tmpdir())) console.log(`warning: ${dir} is in the temp folder, which gets cleaned. The link works now, but "add it later" depends on that folder surviving; say so to the user.`);
     if (fs.existsSync(path.join(dir, '.starter-dev')) && !(process.env.STARTER_ALLOW_DEV ?? process.env.KS_ALLOW_DEV)) { console.error(`${dir} is a development copy of the starter (.starter-dev). Link a stable copy instead, so unfinished changes never reach this project.`); process.exit(1); }
     fs.writeFileSync(at(STARTER_LINK), JSON.stringify({ path: dir }, null, 2) + '\n');
   }

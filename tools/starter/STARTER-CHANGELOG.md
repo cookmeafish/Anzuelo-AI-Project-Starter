@@ -154,6 +154,25 @@ hooks:**, and an upgrade lists each one as its own review item.
       attribution checks alike; "git -C <dir> push" and "bash -c '...'" still count. A relayed message makes no skill
       mandatory at all (a line starting "Publish gate:" did); the Stop checks still hold what the turn changes or runs.
       Scenarios: `outward-gate: "git stash push`, `outward-gate: a feedback line`, `relayed turn: a line that starts`.
+- 2026-10-24: Round 15 findings fixed (verdict WORSE on mediums: 20, v14 12; no high; setup median 14.4 min).
+  - **The self-test keeps a project's own copy of an enabled library skill** in the base its own scenarios run in, so
+    triggers it added still route there (three rounds lost setup minutes to this); the engine's fixtures keep the
+    shipped copies. Checked on round 15's novel project with its workaround removed.
+  - **Citation checks:** an English copy of a label line carries no citation markers, so "**Done:** ... [1]" above the
+    Sources list no longer fails research-cited (it had sent agents into the engine's code twice); a fetch answered by a
+    redirect, an error or a block counts as no read of that link. Scenarios: `research-cited: a bold "**Done:**" line`,
+    `answer-traced: a link whose only fetch got a redirect back`.
+  - **Inline script code is no command:** `node -e` / `python -c` code that only holds "npm test" or a summary command
+    as text (on one line or several) meets no gate and sets off no check. Scenario: `app-test-pass: a multi-line node -e`.
+  - **A passed draft is judged on its own**, as the pre-check judged it, so a check on every figure no longer reads
+    numbers from the turn's progress notes.
+  - **Fewer false alarms and less ceremony:** protect-originals means the folder at the project root, not a "sources"
+    folder nested in test fixtures; the fit checklist decides code tools "later" when the only code is a helper script
+    under tools/ or scripts/; `packs.mjs configure app` warns when a gate's program is not installed; `starter.mjs link`
+    warns about a starter in the temp folder even when allowed. Scenarios: `protect-originals: a "sources" folder nested
+    elsewhere`, `fit: with no code files (a helper script under tools/ is none)`.
+  - **Runbooks:** a gui fix round re-shoots only what the fix could change, and a preview server listens on 127.0.0.1
+    and is stopped; a bugfix names any other behaviour change as a change; a feature documents every new option.
 - 2026-10-24: Round 14 findings fixed (verdict NOT WORSE: setup median 13 min, v13 20.7; mediums 12, v13 13; one high).
   - **The app test gate watches test files** (the high): a changed test file anywhere asks for the test run, also in
     projects configured before (the engine widens their gate when it checks). A node:test file under tools/ had broken

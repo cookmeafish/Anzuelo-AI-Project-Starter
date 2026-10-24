@@ -175,7 +175,16 @@ function buildBase(host) {
   fs.writeFileSync(at('docs/DECISIONS.md'), withoutInterview(fs.readFileSync(at('docs/DECISIONS.md'), 'utf8')));
   if (fs.existsSync(path.join(BASE, 'packs'))) node('tools/packs.mjs', 'install', ...fs.readdirSync(path.join(BASE, 'packs')));
   // every library skill too, with its checks, so each one is exercised (a project runs the ones it enabled)
-  if (fs.existsSync(path.join(BASE, 'library', 'skills'))) node('tools/skills.mjs', 'enable', ...fs.readdirSync(path.join(BASE, 'library', 'skills')));
+  // (the project's own base keeps the project's copy of each skill it already enabled: its scenarios test its edits,
+  // such as triggers it added. Lesson, trial rounds 13 to 15: enabling them again as shipped wiped a novel project's
+  // manuscript triggers, its routing scenarios failed, and each setup lost minutes to the engine's mistake)
+  const libSkills = fs.existsSync(path.join(BASE, 'library', 'skills')) ? fs.readdirSync(path.join(BASE, 'library', 'skills')) : [];
+  const ownSkills = host ? libSkills.filter(n => fs.existsSync(at(`skills/${n}/SKILL.md`))) : [];
+  const keepDir = ownSkills.length ? fs.mkdtempSync(path.join(os.tmpdir(), 'starter-base-own-')) : null;
+  for (const n of ownSkills) fs.cpSync(at(`skills/${n}`), path.join(keepDir, n), { recursive: true });
+  if (libSkills.length) node('tools/skills.mjs', 'enable', ...libSkills);
+  for (const n of ownSkills) { fs.rmSync(at(`skills/${n}`), { recursive: true, force: true }); fs.cpSync(path.join(keepDir, n), at(`skills/${n}`), { recursive: true }); }
+  if (keepDir) fs.rmSync(keepDir, { recursive: true, force: true });
   node('tools/hooks/hooks.mjs', 'sync');
   // the project's own checks and check flows are off in the fixtures-only base: they belong to its own scenarios
   if (!host && !IS_STARTER) { checksOffIn(BASE, engineTagsIn(BASE), packReqsIn(BASE)); fs.rmSync(at('docs/checks/flows'), { recursive: true, force: true }); }
@@ -889,7 +898,9 @@ const PRETOOL = [
   { name: 'protect-originals: an rm that names the project by its absolute path after a cd outside it: denied', tool: 'Bash', input: { command: `cd "${os.tmpdir().replace(/\\/g, '/')}"; rm -rf "<DIR>/sources/raids/promo1.jpg"` },
     edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), protectedOriginals: ['sources/**'] }) }, setup: { 'sources/raids/promo1.jpg': 'x' }, deny: true, tag: 'protect-originals' },
   { pack: 'knowledge', name: 'rm in sources/: denied', tool: 'Bash', input: { command: 'rm -rf "sources/old.pdf"' }, deny: true, tag: 'protect-originals' },
-  { pack: 'knowledge', name: 'Remove-Item absolute path in sources: denied', tool: 'PowerShell', input: { command: 'Remove-Item -Force C:\\proj\\sources\\a.pdf' }, deny: true, tag: 'protect-originals' },
+  { pack: 'knowledge', name: 'Remove-Item absolute path in sources: denied', tool: 'PowerShell', input: { command: 'Remove-Item -Force <DIR>/sources/a.pdf' }, deny: true, tag: 'protect-originals' },
+  // (Lesson, trial round 15: test fixtures built under .cache/.../sources were denied as originals)
+  { pack: 'knowledge', name: 'protect-originals: a "sources" folder nested elsewhere (test fixtures under .cache) is not the originals: allowed', tool: 'Bash', input: { command: 'rm -rf .cache/agtest/case1/sources' }, prompt: 'set up this project', deny: false },
   { pack: 'knowledge', name: 'move a file out of sources/: denied', tool: 'Bash', input: { command: 'mv sources/a.pdf inbox/' }, deny: true, tag: 'protect-originals' },
   { pack: 'knowledge', name: 'redirect over a file in sources/: denied', tool: 'Bash', input: { command: 'echo hi > sources/a.md' }, deny: true, tag: 'protect-originals' },
   // Codex edits with apply_patch: every file in the patch gets the file guards (Lesson: an apply_patch passed them all)
@@ -1076,6 +1087,9 @@ STOP.push(
     answer: 'Skill: research. Most hold 100 kg.[1] Some hold 150 kg.[2]\n\nSources:\n[1] https://example.com/desks', expect: { block: true, tags: ['research-cited'] },
     // (it says which: Lesson, trial round 13, the general message alone cost six check runs and a read of the engine)
     after: (dir, reason) => /marker \[2\] has no/.test(fs.readFileSync(path.join(dir, 'tools/hooks/state/stop-details.md'), 'utf8')) || 'no reason named for [2]' },
+  // (Lesson, trial rounds 13 to 15: a bold label line with a marker was copied after the Sources list and failed)
+  { name: 'research-cited: a bold "**Done:**" line with markers, sources listed below: passes', prompt: 'search the web for standing desk weight limits', tools: [sk('research'), { name: 'WebFetch', input: { url: 'https://example.com/desks' }, result: 'Rated load: 100 kg.' }],
+    answer: 'Skill: research.\n\n**Done:** most desks hold 100 kg.[1]\n\nSources:\n[1] https://example.com/desks', expect: { not: ['research-cited'] } },
   { name: 'research-cited: unnumbered links nothing opened: the unopened link is named', prompt: 'search the web for standing desk weight limits', tools: [sk('research')],
     answer: 'Skill: research. Most hold 100 kg.\n\nSources:\nhttps://example.com/desks', expect: { block: true, tags: ['research-cited'] },
     after: (dir) => /no link it gives was opened this turn \(https:\/\/example\.com\/desks\)/.test(fs.readFileSync(path.join(dir, 'tools/hooks/state/stop-details.md'), 'utf8')) || 'the unopened link was not named' },
@@ -1352,6 +1366,10 @@ STOP.push(
     tools: [sk('research'), { name: 'WebSearch', input: { query: 'standing desk back pain study' }, result: 'Results: Study A https://example.org/study-a ; Study B https://example.org/study-b' },
       { name: 'WebFetch', input: { url: 'https://example.org/study-a', prompt: 'findings' }, result: 'Study A: standing reduced reported back pain.' }],
     answer: 'Standing breaks reduced reported back pain [1], and a second study agreed [2].\n\nSources:\n[1] https://example.org/study-a\n[2] https://example.org/study-b', expect: { tags: ['answer-traced'], says: /example\.org\/study-b/ } },
+  // (Lesson, trial round 15: doi.org links fetched once and answered only by a redirect counted as read)
+  { name: 'answer-traced: a link whose only fetch got a redirect back was not read: blocked', prompt: 'what do studies say about naps and memory',
+    tools: [sk('research'), { name: 'WebFetch', input: { url: 'https://doi.org/10.1038/nn864', prompt: 'findings' }, result: 'REDIRECT DETECTED: The URL redirects to a different host.\nRedirect URL: https://www.nature.com/articles/nn864' }],
+    answer: 'A nap restored performance [1].\n\nSources:\n[1] https://doi.org/10.1038/nn864', expect: { tags: ['answer-traced'], says: /doi\.org\/10\.1038\/nn864/ } },
   { name: 'answer-traced: every web source cited was opened: passes', prompt: 'what do studies say about standing desks and back pain',
     tools: [sk('research'), { name: 'WebSearch', input: { query: 'standing desk back pain study' }, result: 'Results: Study A https://example.org/study-a' },
       { name: 'WebFetch', input: { url: 'https://example.org/study-a', prompt: 'findings' }, result: 'Study A: standing reduced reported back pain.' }],
@@ -1868,6 +1886,10 @@ const WIRE = 'wire up the export button';
 const planAt = prompt => ({ edit: { 'docs/plans/2026-10-18-export.md': () => '# Export: plan\n- [x] helpers\n- [ ] wire it up\n- [ ] test it\n' }, prep: dir => run(dir, 'prompt', { prompt }) });
 const CARRY = { edit: { 'tools/hooks/state/unresolved.json': () => JSON.stringify({ at: new Date(Date.now() - 300_000).toISOString(), since: Date.now() - 600_000, prompt: 'add a line about screenshots to the finish checklist', items: ['[changelog] Add a dated line to docs/CHANGELOG.md'], tags: ['changelog'] }) },
   prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'), mtimes: { 'docs/checks/finish-checklist.md': -480_000 } };
+// (Lesson, trial rounds 14 and 15: a node -e script that only wrote "npm test" into a doc counted as the test run)
+STOP.push({ pack: 'app', name: 'app-test-pass: a multi-line node -e script that only writes "npm test" into a doc is no test run: blocked', prompt: 'add a feature to export reports as csv',
+  tools: [pb('feature'), bash('node -e "\nrequire(\'fs\').writeFileSync(\'docs/run.md\', \'Run npm test first\')\n"', ''), bash('echo Tests: 12 passed', 'Tests: 12 passed')], files: SPEC, prep: dir => { spawnSync(process.execPath, ['tools/packs.mjs', 'configure', 'app', '--test', 'npm test'], { cwd: dir, encoding: 'utf8' }); const old = (Date.now() - 3600_000) / 1000; for (const p of ['tools/hooks/config.json', 'tools/hooks/requirements.json']) fs.utimesSync(path.join(dir, p), old, old); },
+  answer: 'Playbook: feature.md.\n' + VERIF + FIN, expect: { block: true, tags: ['app-test-pass'] } });
 // a gate written before it watched test files (only the code folders), as older projects have it
 const oldTestGate = { prep: dir => {
   testGate.prep(dir);
@@ -4659,8 +4681,14 @@ if (mineB()) { // fit: in a project with no code, code tools are decided "later"
     const r = spawnSync(process.execPath, ['tools/fit.mjs'], { cwd: dir, encoding: 'utf8' });
     const rows = fs.readFileSync(path.join(dir, 'docs/fit-checklist.md'), 'utf8').split('\n');
     const row = n => rows.find(l => l.toLowerCase().startsWith(`| ${n} |`)) || '';
-    report(r.status === 0 && sv === '0' && /later - when: the first code file appears/.test(row('ruff')) && /\| \? \|/.test(row('vale')),
-      'fit: with no code files, code tools are decided "later" and prose tools stay open', `code files ${sv} | ${row('ruff').slice(0, 160)} | ${row('vale').slice(0, 120)}`);
+    // (a helper script under tools/ is no project code: Lesson, trial round 14, one validator opened 33 tool decisions)
+    const first = row('ruff');
+    fs.rmSync(path.join(dir, 'docs/fit-checklist.md'), { force: true });
+    fs.writeFileSync(path.join(dir, 'tools/check-notes.mjs'), 'console.log("RESULT: PASS");\n');
+    spawnSync(process.execPath, ['tools/fit.mjs'], { cwd: dir, encoding: 'utf8' });
+    const helper = (fs.readFileSync(path.join(dir, 'docs/fit-checklist.md'), 'utf8').split('\n').find(l => l.toLowerCase().startsWith('| ruff |')) || '');
+    report(r.status === 0 && sv === '0' && /later - when: the first code file appears/.test(first) && /\| \? \|/.test(row('vale')) && /later - when: the first code file appears/.test(helper),
+      'fit: with no code files (a helper script under tools/ is none), code tools are decided "later" and prose tools stay open', `code files ${sv} | ${first.slice(0, 160)} | ${row('vale').slice(0, 120)} | helper: ${helper.slice(0, 120)}`);
     // what is already in the project starts as "add"; the summary counts skips with no evidence instead of listing them;
     // "Recommend when:" in a reason is judged, only a "later - when:" tail is cut
     const added = rows.filter(l => /\| add \| already in the project and kept/.test(l));
@@ -6314,6 +6342,9 @@ if (mineB() && INSTALLED.includes('app') && (!TAGS || TAGS.includes('version-bum
     const gomod = cfgApp(['--test', 'go test ./...', '--version-file', 'go.mod']), afterGo = vb()?.enabled;
     const on = cfgApp(['--test', 'go test ./...', '--version-file', 'VERSION']), onNow = vb()?.enabled;
     const off = cfgApp(['--test', 'go test ./...', '--version-file', 'none']), offNow = vb()?.enabled;
+    // (a gate whose program is missing is named at configure: Lesson, trial round 15, "blocked by a permission prompt")
+    const missing = cfgApp(['--test', 'zzgo-not-installed test ./...']);
+    if (!/warning: zzgo-not-installed \(the test gate's program\) is not installed/.test(missing.stdout)) report(false, 'app gates: configure warns when a gate\'s program is not installed', missing.stdout.slice(0, 300));
     report(gomod.status === 1 && /holds no version number/.test(gomod.stdout) && afterGo !== true && on.status === 0 && onNow === true && off.status === 0 && offNow === false,
       'version-bump: configure refuses a file that holds no version (go.mod), and --version-file none turns the check off', `${gomod.stdout} | ${afterGo} ${onNow} ${offNow}`.slice(0, 300));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }

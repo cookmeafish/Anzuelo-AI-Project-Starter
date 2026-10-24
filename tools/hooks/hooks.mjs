@@ -1771,17 +1771,25 @@ export function toolUses(entries) {
 
 // What was actually opened this turn: fetched pages, commands and their output, files read, helpers' reports; not a
 // search's list of results, and not the agent's own words. (REQ: answer-traced, web sources)
-export function openedText(entries) {
-  const names = new Map(), out = [];
+// A fetch that got no page back: a redirect notice, an error, a block or cookie wall.
+const NO_PAGE = /^\s*(REDIRECT DETECTED|.{0,80}\b(redirect(s|ed)? to|moved (permanently|temporarily))\b|(request failed|error|failed to fetch)\b|.{0,60}\b(status( code)?|HTTP)\s*(30[1-8]|4\d\d|5\d\d)\b|.{0,80}\b(access denied|forbidden|not found|just a moment|enable (cookies|javascript)|captcha)\b)/i;
+// pagesOnly: a fetch's own address counts only when its reply was a page, not a redirect or an error. Lesson, trial
+// round 15: doi.org links fetched once, each answered only by a redirect, counted as read, and the user could not open them.
+export function openedText(entries, { pagesOnly = false } = {}) {
+  const names = new Map(), inputs = new Map(), out = [];
   for (const r of entries) {
     const c = r.message?.content;
     if (r.type === 'assistant' && Array.isArray(c)) for (const x of c) if (x?.type === 'tool_use') {
       names.set(x.id, x.name);
-      if (/^(WebFetch|Bash|PowerShell)$/.test(x.name) || /^mcp__.*fetch/i.test(x.name)) out.push(JSON.stringify(x.input || {}));
+      if (/^(WebFetch|Bash|PowerShell)$/.test(x.name) || /^mcp__.*fetch/i.test(x.name)) { if (pagesOnly && /^WebFetch$|fetch/i.test(x.name)) inputs.set(x.id, JSON.stringify(x.input || {})); else out.push(JSON.stringify(x.input || {})); }
     }
     if (r.type === 'user') {
       if (typeof c === 'string') out.push(c);
-      else if (Array.isArray(c)) for (const x of c) if (x?.type === 'tool_result' && !/^(WebSearch|web_search)$/i.test(names.get(x.tool_use_id) || '')) out.push(textOf(x.content));
+      else if (Array.isArray(c)) for (const x of c) if (x?.type === 'tool_result' && !/^(WebSearch|web_search)$/i.test(names.get(x.tool_use_id) || '')) {
+        const t = textOf(x.content);
+        if (inputs.has(x.tool_use_id) && !x.is_error && !NO_PAGE.test(t)) out.push(inputs.get(x.tool_use_id));
+        out.push(t);
+      }
     }
     if (r.type === 'attachment') out.push(JSON.stringify(r.attachment || {}));
   }
@@ -2109,9 +2117,14 @@ export function cantRunStep(kind, cmd) {
 // "<the gate>") is no run of it. (A shell's own -c / -Command / /c text is the command it runs, and stays.)
 // Lesson: in a Flask setup the configure command was read as the last test run, and the refused real run, written
 // with the full path to python.exe, was not read as a run at all, so the refused gate was asked for 3 rounds.
+// Inline script code that only holds a command as text runs nothing: "node -e" writing a doc that says "npm test", on
+// one line or several. Code that starts a process (execSync, spawn, subprocess, system) is kept. Lesson, trial rounds 14
+// and 15: such scripts counted as test and summary runs, so gates were wrongly met or asked for the real run again.
+export const inlineCodeOut = c => String(c || '').replace(/(\b(?:node|deno|bun)(?:\.exe)?\s+(?:-e|--eval|-p|--print)|\b(?:python3?|py)(?:\.exe)?\s+-c)\s+("(?:[^"\\]|\\.)*"|'[^']*')/gi,
+  (m, head, code) => /\b(execSync|execFileSync|spawnSync|spawn|exec|execFile|fork|subprocess|os\.system|system|Popen)\s*\(/.test(code) ? m : `${head} ""`);
 export function gateText(cmd) {
   const root = ROOT.replace(/\\/g, '/').replace(/\/+$/, '');
-  let s = cmdHead(cmd).replace(/"([^"\s]*)"|'([^'\s]*)'/g, (m, a, b) => a ?? b);
+  let s = inlineCodeOut(cmdHead(cmd)).replace(/"([^"\s]*)"|'([^'\s]*)'/g, (m, a, b) => a ?? b);
   s = s.replace(/[^\s"']+/g, w => { const f = w.replace(/\\/g, '/'); return f.toLowerCase().startsWith(root.toLowerCase() + '/') ? f.slice(root.length + 1) : w; });
   s = s.replace(/(\w)\.exe\b/gi, '$1');
   // a package manager pointed at this project's own folder is the plain command ("npm --prefix <project> test" is
@@ -3096,9 +3109,11 @@ export function inEnglish(text, cfg = config()) {
   const mapped = lines.map(l => all.reduce((s, [r, v]) => s.replace(r, v), plainLabel(l)));
   // a "Fuentes:" heading is read with the numbered list under it, so the list comes along with its English copy
   const extra = [];
+  // (a copy carries no citation markers: placed after the Sources list, "[1]" there would have no source line after it.
+  // Lesson, trial rounds 13 to 15: a "**Done:** ... [1]" line's copy failed research-cited on a correctly cited answer)
   mapped.forEach((l, i) => {
     if (l === lines[i]) return;
-    extra.push(l);
+    extra.push(/^\s*\**(sources|fuentes):?\**\s*$/i.test(l) ? l : l.replace(/\s*\[\d+\]/g, ''));
     if (/^\s*\**sources:?\**\s*$/i.test(l)) for (let j = i + 1; j < lines.length && /^\s*[-*]?\s*\[\d+\]/.test(lines[j]); j++) extra.push(lines[j]);
   });
   return extra.length ? `${text}${EN_COPIES}${extra.join('\n')}` : String(text);
@@ -4901,10 +4916,14 @@ function pretoolHits(data, cfg) {
     // Adding files INTO a protected folder is fine (ingest moves inbox -> sources); deleting, moving out of, or writing
     // over files in it is not. A path may be relative, ./-prefixed, absolute, or quoted. Only the parts that run in the
     // project count (inProjectParts).
-    const here = cfg.protectedOriginals.length ? inProjectParts(cmd) : cmd;
+    // (the folder itself, from the project root: "./sources" or "<project>/sources", not a "sources" folder nested
+    // elsewhere, such as test fixtures under .cache/; inline script code is no command. Lesson, trial round 15: a setup
+    // building fixtures in .cache/agtest/.../sources was denied twice)
+    const here = cfg.protectedOriginals.length ? inProjectParts(inlineCodeOut(cmd)) : cmd;
+    const rootP = [...new Set([ROOT, ROOT.replace(/\\/g, '/')])].map(r => esc(r.replace(/[\\/]+$/, ''))).join('|');
     for (const d of here.trim() ? cfg.protectedOriginals.map(g => g.replace(/\/?\*\*.*$/, '')).filter(Boolean) : []) {
       const cmd = here;
-      const P = `["']?(?:[^\\s"';|&]*[\\\\/])?${esc(d)}(?:[\\\\/]|["'\\s;|&]|$)`;
+      const P = `["']?(?:\\.[\\\\/]|(?:${rootP})[\\\\/])?${esc(d)}(?:[\\\\/]|["'\\s;|&]|$)`;
       const hits = [
         `(^|[\\s;&|(])(rm|del|erase|rmdir|rd|Remove-Item|ri|Clear-Content|truncate|shred|unlink)\\b[^;&|]*?(\\s|^)${P}`,
         `(^|[\\s;&|(])(mv|move|Move-Item|Rename-Item|ren)\\s+(-{1,2}\\S+\\s+)*${P}`,
@@ -5447,7 +5466,7 @@ export function coreChecks(x, cfg) {
     if (x.toolsKnown && (researched || knowledge)) {
       const src = /^[ \t]*\**sources:?\**[ \t]*$([\s\S]*)/im.exec(x.answer)?.[1] || '';
       // (a research ledger checked this turn counts: helpers record there what they read)
-      const opened = `${openedText(x.entries || [])}\n${ledgerRuns.map(r => read(abs(/claims\.mjs\s+check\s+"?([^"\s]+)/.exec(r.cmd)?.[1] || '.'))).join('\n')}`.replace(/\\\//g, '/');
+      const opened = `${openedText(x.entries || [], { pagesOnly: true })}\n${ledgerRuns.map(r => read(abs(/claims\.mjs\s+check\s+"?([^"\s]+)/.exec(r.cmd)?.[1] || '.'))).join('\n')}`.replace(/\\\//g, '/');
       const key = u => u.replace(/^https?:\/\/(www\.)?/i, '').replace(/[)\].,;>]+$/, '').replace(/\/$/, '');
       // An article's DOI link counts as opened when that DOI was read by any route (an API query, a mirror, the
       // publisher's page): the reader gets the page a person can open. A data address (an API, a JSON feed) in the
@@ -6449,7 +6468,7 @@ export function holds(c, x) {
   if (c.toolCount && !x.toolsKnown) return false;
   if (c.allFilesChanged && !globs(c.allFilesChanged).every(g => x.changed.some(p => match(p, [g])))) return false;
   // tool-history conditions can't be judged without a transcript; they then neither trigger nor block
-  if (c.toolRan && x.toolsKnown && !x.cmds.some(cmd => r(c.toolRan).test(cmd) && !engineNote(cmd))) return false;
+  if (c.toolRan && x.toolsKnown && !x.cmds.some(cmd => r(c.toolRan).test(inlineCodeOut(cmd)) && !engineNote(cmd))) return false;
   if (c.toolUsed && x.toolsKnown && !x.uses.some(u => r(c.toolUsed).test(u.name))) return false;
   if (c.resultMatches && x.toolsKnown && !r(c.resultMatches).test(x.results)) return false;
   // fileRead: filesIgnore applies, and a folder's README.md (what the folder is for) is no read of its contents unless
@@ -6640,9 +6659,13 @@ export function declarativeChecks(x) {
   // (a draft that passed "hooks.mjs check --answer-file" this turn counts as an earlier message: the answer sent after
   // it may word the same content its own way. Lesson, trial round 14: four Stop rounds came right after a passing
   // pre-check, only to put labels such as "Reconciled:" or "Independent review: SHIP" back, each re-sending the answer)
+  // (each draft is judged on its own, as the pre-check judged it: merged with the turn's other messages, a check on all
+  // the figures read numbers from progress notes too. Lesson, trial round 15: a passed draft with "How it was computed:"
+  // still left a Stop round over the reworded line)
+  const passed = passedDrafts(x.entries || []).filter(d => carriesAnswer(x.answer, d));
   const earlier = `${x.answer}
 ${turnText(x.entries)}
-${passedDrafts(x.entries || []).filter(d => carriesAnswer(x.answer, d)).join('\n')}`;
+${passed.join('\n')}`;
   for (const q of [...reqs, ...(exists('.starter-dev') ? DEV_REQUIREMENTS : [])]) {
     if (!q || q.enabled === false) continue;
     // "waitsForAgents": a check on results that helpers launched in the background this turn will deliver later
@@ -6667,7 +6690,7 @@ ${passedDrafts(x.entries || []).filter(d => carriesAnswer(x.answer, d)).join('\n
       // a requirement met by an earlier message of this turn stays met, so a re-block never forces the answer to repeat
       // it. A Finished section counts from any message after the last file change, since it still lists every change.
       // Lesson: every re-block produced a near-copy.
-      if (holds(when || {}, x) && !holds(q.require || {}, x) && !holds(q.require || {}, { ...x, answer: q.tag === 'finished-summary' ? x.afterChange : earlier }) && !(q.tag === 'version-bump' && bumpedThisSession(x, q.require?.filesChanged))) out.push({ tag: q.tag, specific: q.waiver === 'specific', fixes: q.fixes || filesOfCond(q.require), ...(x.short ? { short: x.short } : {}),
+      if (holds(when || {}, x) && !holds(q.require || {}, x) && !holds(q.require || {}, { ...x, answer: q.tag === 'finished-summary' ? x.afterChange : earlier }) && !passed.some(d => holds(q.require || {}, { ...x, answer: d })) && !(q.tag === 'version-bump' && bumpedThisSession(x, q.require?.filesChanged))) out.push({ tag: q.tag, specific: q.waiver === 'specific', fixes: q.fixes || filesOfCond(q.require), ...(x.short ? { short: x.short } : {}),
         // (a gate that can't run here asks for the honest line instead of its usual "run it until it passes")
         // (a citation check says what in the answer did not count, whichever of its forms failed: citeWhy)
         msg: x.override ? `${x.override}.` : (q.message || `Requirement ${q.tag} is not met.`) + (x.trigger ? ` (seen in ${x.trigger})` : '') + ((d => d ? ` (${d})` : '')(x.detail || (usesCites(q.require) ? citeWhy(x) : ''))) });

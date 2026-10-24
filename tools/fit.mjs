@@ -52,6 +52,11 @@ const LANG_TOOLS = [
   [/^typescript \(tsc\)$/i, 'ts|tsx|js|mjs', 'TypeScript or JavaScript'],
   [/^shellcheck$/i, 'sh', 'shell script']
 ];
+// Code files of the project's own work, not its helper scripts: a project whose only code is a check script under tools/
+// or scripts/ has no code for linters, type checkers and test runners to be decided on. Lesson, trial round 14: one small
+// validator script in a research project and a landlord's desk opened 33 coding-tool decisions each.
+const HELPER_DIRS = /^(tools|scripts|skills|library|packs|\.claude|\.codex|\.githooks|\.github|\.cache)\//;
+const appCode = sv => sv.n?.code ? (sv.files || []).some(f => /\.(m?[jt]sx?|cjs|py|go|rs|rb|java|kt|cs|php|swift|dart|gd|c|cc|cpp|h|hpp|lua|ex|exs|scala|vue|svelte)$/i.test(f.p) && !HELPER_DIRS.test(f.p)) : false;
 function build(sv) {
   const old = fitRows(read(abs(FIT_FILE)));
   const byKey = new Map(old.map(r => [key(r.kind, r.item), r]));
@@ -60,7 +65,7 @@ function build(sv) {
   const rows = [], added = [], kept = new Set(), autoSkipped = [];
   for (const c of candidates) {
     const k = key(c.kind, c.item), was = byKey.get(k);
-    const noCode = c.codeOnly && !(sv.n?.code) && !(signals[k] || []).length;
+    const noCode = c.codeOnly && !appCode(sv) && !(signals[k] || []).length;
     const here = c.kind !== 'tool' && !!c.present(cfg);
     // a tool for one language in a project with no file of that language (decided "later" below, for new rows)
     const langOf = c.kind === 'tool' && !(signals[k] || []).length && LANG_TOOLS.find(([rx]) => rx.test(c.item));
