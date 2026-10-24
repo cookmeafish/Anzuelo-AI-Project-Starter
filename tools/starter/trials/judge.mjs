@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { isVoid } from './compare.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const TRIALS = process.env.ANZUELO_TRIALS_DIR || path.join(HERE, '..', '..', '..', '.cache', 'trials');
@@ -63,7 +64,9 @@ if (cmd === 'dump') {
   const ids = info.ids || GROUPS.flatMap(([, ps]) => ps.map(p => p[0]));
   fs.mkdirSync(dir, { recursive: true });
   for (const [k, ps] of GROUPS) {
-    const mine = ps.filter(([id]) => ids.includes(id));
+    // (a void trial, stopped by the account's usage limit, has nothing to judge. Lesson: round v10's six judges each
+    // reviewed two projects that never ran)
+    const mine = ps.filter(([id]) => ids.includes(id) && !isVoid((() => { try { return JSON.parse(fs.readFileSync(path.join(TRIALS, `results-${round}`, `${id}.json`), 'utf8')); } catch { return null; } })()));
     if (!mine.length) continue;
     const list = mine.map(([id, note]) => `- ${id}: ${path.join(os.tmpdir(), 'anzuelo-new', `${id}-${round}`)}${note ? ` (${note})` : ''}`).join('\n');
     const f = path.join(dir, `${round}-${k}.prompt.md`);

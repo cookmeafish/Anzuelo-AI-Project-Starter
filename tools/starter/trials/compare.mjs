@@ -23,6 +23,9 @@ const HISTORY = process.env.ANZUELO_ROUNDS_FILE || path.join(HERE, 'rounds.json'
 export const MEDIUM_NOISE = 3, SLOWER = 1.25, BLOCKED_NOISE = 0.15, COSTLIER = 1.3, DENIAL_NOISE = 0.25, HOOK_TEXT = 1.2;
 
 // One project's numbers from its trial record and its judged findings.
+// A trial the account's usage limit stopped: marked by run.mjs, or (older records) a turn whose whole answer is the limit
+const LIMIT_ANSWER = /\b(hit your (session|usage|weekly) limit|usage limit (reached|exceeded))\b/i;
+export const isVoid = r => !!r?.void || (r?.turns || []).some(t => LIMIT_ANSWER.test(t.answer || '') && String(t.answer || '').trim().length < 300);
 export function projectStats(record, judged) {
   const turns = record?.turns || [];
   // (efficiency findings are counted on their own: rounds judged before the judges looked for them still compare)
@@ -108,8 +111,10 @@ if (fileURLToPath(import.meta.url) === path.resolve(process.argv[1] || '')) {
   let judgeFiles = []; try { judgeFiles = fs.readdirSync(judgeDir).filter(f => f.startsWith(`${name}-`) && f.endsWith('.json')); } catch { }
   for (const f of judgeFiles) for (const p of [].concat(readJSON(path.join(judgeDir, f)) || [])) if (p?.project) judged[p.project] = p;
   let recs = []; try { recs = fs.readdirSync(resDir).filter(f => f.endsWith('.json')); } catch { }
-  const projects = {}, unjudged = [];
-  for (const f of recs) { const r = readJSON(path.join(resDir, f)); if (!r?.id) continue; if (!judged[r.id]) { unjudged.push(r.id); continue; } projects[r.id] = projectStats(r, judged[r.id]); }
+  const projects = {}, unjudged = [], voided = [];
+  // a void trial (the account's usage limit answered its turns) is no result, judged or not (Lesson: round v10)
+  for (const f of recs) { const r = readJSON(path.join(resDir, f)); if (!r?.id) continue; if (isVoid(r)) { voided.push(r.id); continue; } if (!judged[r.id]) { unjudged.push(r.id); continue; } projects[r.id] = projectStats(r, judged[r.id]); }
+  if (voided.length) console.log(`void (usage limit, not results): ${voided.join(', ')}`);
   if (!Object.keys(projects).length) { console.log(`compare: no judged trial records for round ${name} (records in ${resDir}: ${recs.length}; judge files: ${judgeFiles.length}). Run the round and its judges first.`); process.exit(2); }
   const history = readJSON(HISTORY) || { rounds: [] };
   const round = { round: name, engine: opt('--engine') || info.engine || '', date: (info.started || new Date().toISOString()).slice(0, 10), projects };

@@ -59,5 +59,8 @@ stop at the usage limit, so check that a headless session runs (`claude -p "ok"`
 - Count Stop blocks from the trial records, not the judges: early judges did not count them.
 - Engine text is paid on every turn: before adding a hint, notice or Stop line, see whether a shorter one, one per
   session, or none would do. A denial the engine could fix itself (the host's updatedInput) should be fixed in place.
+- The account's usage limit voids a trial: `run.mjs` stops the project and the round at the first turn the limit
+  answers (exit 3, `"void"` in the record), and `compare.mjs` and `judge.mjs` skip void records. Rerun the void
+  projects under a new round name after the reset; never judge them.
 - A round's projects live in the temp folder (`anzuelo-new/<id>-<round>`); a name used once cannot be reused.
 - Never edit the frozen copy, and never judge a round with an agent that wrote its fixes.

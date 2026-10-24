@@ -23,6 +23,8 @@ const SC = JSON.parse(fs.readFileSync(path.join(HERE, process.env.TRIAL_SCENARIO
 // spreadsheets, a notes vault, a manuscript). The same set every round, so rounds compare.
 export const STANDARD = ['np-flask-api', 'np-go-service', 'np-photo-cli', 'np-blog-es', 'np-landlord', 'np-weekly-sales', 'np-vault', 'np-novel'];
 const PARALLEL = 4;
+// the account's usage or session limit, as the host answers a turn it never started
+const USAGE_LIMIT = /\b(hit your (session|usage|weekly) limit|usage limit (reached|exceeded)|session limit · resets|rate limit reached)\b/i;
 
 const arg = process.argv[2];
 if (arg === '--list') { for (const s of SC) console.log(`${STANDARD.includes(s.id) ? '*' : ' '} ${s.id} - ${s.why}`); process.exit(0); }
@@ -52,12 +54,14 @@ async function round() {
   console.log(`round ${name}: engine ${engine}, ${list.length} trials, ${PARALLEL} at a time`);
   const env = { ...process.env, TRIAL_STARTER: starter, TRIAL_RUN: `-${name}` };
   const queue = [...list];
+  let stopped = '';
   const worker = async () => {
     for (let id; (id = queue.shift());) {
       const log = fs.openSync(path.join(TRIALS, `log-${name}-${id}.txt`), 'w');
       const code = await new Promise(res => spawn(process.execPath, [fileURLToPath(import.meta.url), id], { env, stdio: ['ignore', log, log] }).on('close', res));
       fs.closeSync(log);
       console.log(`${id} exit=${code}`);
+      if (code === 3 && !stopped) { stopped = id; queue.length = 0; console.log(`usage limit hit (${id}): no more trials start; rerun the void ones under a new round name after the reset`); }
     }
   };
   await Promise.all(Array.from({ length: Math.min(PARALLEL, list.length) }, worker));
@@ -108,7 +112,7 @@ async function one(id) {
       checks: (readJ('tools/hooks/requirements.json').requirements || []).length,
     };
   };
-  const turns = []; let sid = null, seen = 0, seenSid = null;
+  const turns = []; let sid = null, seen = 0, seenSid = null, limited = '';
   const all = [sc.setup, ...[].concat(sc.then || [])];
   for (const [i, p0] of all.entries()) {
     // a turn may be { prompt, files, newSession }: new files dropped in first (as the user would), or a new session
@@ -116,6 +120,10 @@ async function one(id) {
     if (typeof p0 === 'object') { for (const [f, t] of Object.entries(p0.files || {})) { fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true }); fs.writeFileSync(path.join(dir, f), t); } if (p0.newSession) sid = null; }
     const before = commit(`before turn ${i + 1}`);
     const t = turn(p, sid); sid = t.sid;
+    // the account's usage limit: the turn never reached the model, so the trial is void (not a result) and stops here.
+    // Lesson: round v10 sent all 44 turns of 12 projects into the limit, recorded them as results, and had them judged.
+    // (also a turn the limit cut off part way: its answer is then only the limit message)
+    if (USAGE_LIMIT.test(t.answer) && t.answer.trim().length < 300) { limited = t.answer.slice(0, 200); break; }
     const after = commit(`after turn ${i + 1}`);
     const allRows = rowsOf(sid); if (sid !== seenSid) { seen = 0; seenSid = sid; }
     const rows = allRows.slice(seen); seen = allRows.length; // this turn only
@@ -148,7 +156,7 @@ async function one(id) {
   }
   const st = turns[0]?.state || {};
   const want = sc.expect || {};
-  const out = { id: sc.id, why: sc.why, dir, made: madeOk, madeOut: (made.stdout || made.stderr || '').slice(-800), turns,
+  const out = { id: sc.id, why: sc.why, dir, made: madeOk, madeOut: (made.stdout || made.stderr || '').slice(-800), turns, ...(limited ? { void: `usage limit: ${limited}` } : {}),
     verdict: {
       setupDone: !st.setupPromptLeft && /PASS/.test(st.audit || ''),
       packsRight: want.packs ? want.packs.every(p => st.packs.includes(p)) && st.packs.every(p => want.packs.includes(p)) : null,
@@ -162,5 +170,6 @@ async function one(id) {
   const resDir = path.join(TRIALS, 'results' + RUN);
   fs.mkdirSync(resDir, { recursive: true });
   fs.writeFileSync(path.join(resDir, `${sc.id}.json`), JSON.stringify(out, null, 2));
+  if (limited) { console.log(`${sc.id}: VOID - ${out.void}`); process.exit(3); }
   console.log(`${sc.id}: made ${madeOk} | setup ${out.verdict.setupDone} (${st.audit}; prompt left ${st.setupPromptLeft}) | packs ${JSON.stringify(st.packs)} right=${out.verdict.packsRight} | steps ${out.verdict.steps ? out.verdict.steps.map(x => x.ok ? 1 : 0).join('') : '-'} | followed ${out.verdict.taskFollowed} | learned ${out.verdict.learned} | ${turns.map(t => `${t.min}m${t.error ? ' ERR ' + t.error.slice(0, 60) : ''}`).join(', ')}`);
 }
