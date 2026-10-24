@@ -108,6 +108,13 @@ hooks:**, and an upgrade lists each one as its own review item.
       scenarios too (setup ran them twice); a whole note folder in a skill's check (`Baking/**`) no longer makes
       writing a note count as that skill's report (a dictated note set off research and citation checks).
     - **selfcheck**: standalone tests gated by tag now run with `--tags` (they sat inside the full-run-only block).
+    - **Round 11 findings fixed:** the setup gate counts the interview answers written by the same command that
+      installs (it had denied that very command); when the audit's self-tests fail only on the project's own tests, it
+      names the targeted `selfcheck.mjs --tags` rerun and says to run the audit once at the end (setups reran a 2 to 5
+      minute audit 3 or 4 times); the verification report accepts plain wording ("Tests", "Against the real tool");
+      `npm --prefix <the project> test` counts as `npm test`; answer-traced accepts rounded forms of traced figures and
+      totals of figures in one tool result (field report). Scenarios: `setup-interview: one command`,
+      `verification-report: plain wording`, `app-test-pass: npm --prefix`, `answer-traced: rounded forms`.
     - **Spanish requests route like English ones**: a Spanish request is routed with its common task words in English
       added (routing only, the way answer labels already work), so runbooks need no Spanish triggers. "configura este
       proyecto" routes to the project runbook, and "agrega una página de índice" to the feature runbook. The autonomy

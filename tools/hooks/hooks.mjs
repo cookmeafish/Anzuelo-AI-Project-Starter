@@ -2089,6 +2089,10 @@ export function gateText(cmd) {
   let s = cmdHead(cmd).replace(/"([^"\s]*)"|'([^'\s]*)'/g, (m, a, b) => a ?? b);
   s = s.replace(/[^\s"']+/g, w => { const f = w.replace(/\\/g, '/'); return f.toLowerCase().startsWith(root.toLowerCase() + '/') ? f.slice(root.length + 1) : w; });
   s = s.replace(/(\w)\.exe\b/gi, '$1');
+  // a package manager pointed at this project's own folder is the plain command ("npm --prefix <project> test" is
+  // "npm test"). Lesson (trial round 11): Stop asked again for tests and a build that had passed that way.
+  const here = d => { const p = String(d || '').replace(/^["']|["']$/g, '').replace(/\\/g, '/').replace(/\/+$/, ''); return !p || p === '.' || p.toLowerCase() === root.toLowerCase(); };
+  s = s.replace(/\b(npm|pnpm|yarn)(\s+)(?:--prefix[= ]|-C\s+|--cwd[= ]|--dir[= ])("[^"]*"|'[^']*'|\S+)\s+/gi, (m, pm, sp, d) => here(d) ? `${pm}${sp}` : m);
   return s.replace(/(\s--?(?!c\b|lc\b|command\b)[A-Za-z][\w-]*(?:=|\s+))("[^"\n]*\s[^"\n]*"|'[^'\n]*\s[^'\n]*')/gi, (m, flag) => `${flag}""`);
 }
 // Whether a program is on this machine: a scan of PATH (with PATHEXT on Windows, and Git's own tool folders next to

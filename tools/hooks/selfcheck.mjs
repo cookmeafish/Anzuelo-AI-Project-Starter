@@ -1460,6 +1460,10 @@ STOP.push(
   // Lesson: a correct **Verification** block failed twice, because only a # heading counted
   { pack: 'app', name: 'verification-report: a bold Verification line counts like a heading: passes', prompt: 'add a feature to export reports as csv', tools: [pb('feature')], files: SPEC,
     answer: 'Playbook: feature.md.\n' + VERIF.replace(/^#{1,6}\s*Verification[^\n]*/m, '**Verification**') + FIN, expect: { not: ['verification-report'] } },
+  // plain words count (Lesson, trial round 11: "Tests" and "Against the real tool" were blocked and the jargon labels
+  // forced back in)
+  { pack: 'app', name: 'verification-report: plain wording ("Tests", "Against the real tool") counts: passes', prompt: 'add a feature to export reports as csv', tools: [pb('feature')], files: SPEC,
+    answer: 'Playbook: feature.md.\n**Verification**\n- Tests: 18 pass (npm test).\n- Against the real tool: exported a CSV from a folder of 5 sample files.\n- Review: the reviewer said SHIP (docs/reviews/x.md).\n- Still weak: nothing weak found.\n' + FIN, expect: { not: ['verification-report'] } },
   // Lesson: a Spanish-speaking user's project was forced into English headings
   { pack: 'app', name: 'verification-report: the report in Spanish counts: passes', prompt: 'add a feature to export reports as csv', tools: [pb('feature')], files: SPEC,
     answer: 'Playbook: feature.md.\n## Verificación\n- Automático: npm test, 12 pasan.\n- App real: exporté un CSV a mano.\n- Límites: dentro de docs/foundation.md.\n- Revisión independiente: SHIP (docs/reviews/x.md).\n- Pendiente: nada débil.\n' + FIN, expect: { not: ['verification-report'] } },
@@ -1778,6 +1782,12 @@ STOP.push(
     answer: 'Playbook: feature.md.\n' + VERIF + FIN, expect: { block: true, tags: ['app-test-pass'] } },
   { pack: 'app', name: 'app-test-pass: the tests ran and passed after the last edit: passes', prompt: 'add a feature to export reports as csv', tools: [pb('feature'), bash('npm test', 'Tests: 12 passed, 12 total')], files: SPEC, ...testGate,
     answer: 'Playbook: feature.md.\n' + VERIF + FIN, expect: { block: false, not: ['app-test-pass'] } },
+  // (npm pointed at the project's own folder is the same command. Lesson, trial round 11: "npm --prefix <project> test"
+  // passed and Stop asked for the tests again)
+  { pack: 'app', name: 'app-test-pass: npm --prefix <the project> test passed: passes', prompt: 'add a feature to export reports as csv', tools: [pb('feature'), bash('npm --prefix . test', 'Tests: 12 passed, 12 total')], files: SPEC, ...testGate,
+    answer: 'Playbook: feature.md.\n' + VERIF + FIN, expect: { block: false, not: ['app-test-pass'] } },
+  { pack: 'app', name: 'app-test-pass: npm --prefix <a subfolder> test is another package: still blocked', prompt: 'add a feature to export reports as csv', tools: [pb('feature'), bash('npm --prefix tools/site test', 'Tests: 3 passed, 3 total')], files: SPEC, ...testGate,
+    answer: 'Playbook: feature.md.\n' + VERIF + FIN, expect: { block: true, tags: ['app-test-pass'] } },
   { name: 'changelog: a check list changed without a CHANGELOG line: blocked', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
     answer: 'Playbook: project.md. Added the line.' + FIN, expect: { block: true, tags: ['changelog'] } },
   { name: 'changelog: the same change with its CHANGELOG line: passes', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
