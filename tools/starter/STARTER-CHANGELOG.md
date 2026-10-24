@@ -154,6 +154,11 @@ hooks:**, and an upgrade lists each one as its own review item.
       attribution checks alike; "git -C <dir> push" and "bash -c '...'" still count. A relayed message makes no skill
       mandatory at all (a line starting "Publish gate:" did); the Stop checks still hold what the turn changes or runs.
       Scenarios: `outward-gate: "git stash push`, `outward-gate: a feedback line`, `relayed turn: a line that starts`.
+- 2026-10-24: An upgrade keeps the sections a project added to an engine runbook or skill (field report). A heading no
+  release shipped, with its text, moves under "## Project lessons" one level down, and the upgrade review names it
+  ("sections: ... the section "<heading>" this project added moved ..."). A deck project's "### §11b Performance" in
+  project.md had been dropped while the upgrade said only "kept the project's triggers and lessons". Trial check: "an
+  upgrade keeps a section the project added to an engine runbook".
 - 2026-10-24: Round 13 findings fixed (verdict WORSE on setup time: median 20.7 min, v12 15.7; mediums 13, v12 15).
   - **Faster self-tests:** each scenario runner reuses one copy of the fixture base and puts back only what the
     scenario touched, instead of copying the whole base per scenario (a tag run went from 37 s to 23 s; the full

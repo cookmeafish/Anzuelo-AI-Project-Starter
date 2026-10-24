@@ -137,7 +137,9 @@ for (const [name, s] of Object.entries(SAMPLES)) {
   const pmPath = path.join(dir, 'docs/playbooks/project.md');
   const pmOld = fs.readFileSync(path.join(STARTER, 'docs/playbooks/project.md'), 'utf8').replace(/\s*\([^)]*\b(hooks?|judgment)\b[^)]*\)/g, '')
     .replace(/^triggers:\s*(.*)$/m, 'triggers: $1, our quarterly tidy-up').replace(/^---\r?\n/, '---\nhardened: 2026-10-01\n')
-    .replace(/^## Pitfalls[^\n]*\n/m, m => m + '- Our own pitfall: run the sweeps before a release.\n') + '\n## Project lessons\n- Keep the menu to one screen.\n';
+    .replace(/^## Pitfalls[^\n]*\n/m, m => m + '- Our own pitfall: run the sweeps before a release.\n')
+    // a numbered section of its own (Lesson, field report: "### §11b Performance" vanished in an upgrade)
+    .replace(/^### §12 /m, '### §11b Performance\n- Time the deck build after every change.\n\n### §12 ') + '\n## Project lessons\n- Keep the menu to one screen.\n';
   // an older shipped version of a core check, from the starter's history, with no earlier engine-checks.json: never edited
   // here, so the upgrade refreshes it instead of keeping it as "custom". Lesson: older pack checks were all kept as edits.
   const firstRq = (() => { const g = git(['log', '--format=%H', '--reverse', '--', 'tools/hooks/requirements.json'], STARTER).stdout.split('\n')[0]; try { return JSON.parse(git(['show', `${g}:tools/hooks/requirements.json`], STARTER).stdout).requirements; } catch { return []; } })();
@@ -183,6 +185,8 @@ for (const [name, s] of Object.entries(SAMPLES)) {
   if (oldShipped) check(name, 'with no earlier shipped copy, an upgrade still refreshes a check equal to an older shipped version', !rq1.find(r => r.tag === oldShipped.tag)?.custom && !new RegExp(`- check: ${oldShipped.tag}, kept`).test(review), oldShipped.tag);
   check(name, "an upgrade moves a pitfall the project wrote into an engine runbook to its Project lessons, and lists it in the review",
     /^## Project lessons[\s\S]*Our own pitfall: run the sweeps/m.test(fs.readFileSync(pmPath, 'utf8')) && /- lessons: docs\/playbooks\/project\.md became an engine file/.test(review), review.slice(-400));
+  check(name, 'an upgrade keeps a section the project added to an engine runbook, under its Project lessons, and lists it in the review',
+    /^## Project lessons[\s\S]*^### §11b Performance\n- Time the deck build after every change\./m.test(fs.readFileSync(pmPath, 'utf8')) && /- sections: docs\/playbooks\/project\.md is an engine file, so the section "§11b Performance"/.test(review), review.slice(-400));
   check(name, 'an upgrade runs without an error', u1.status === 0, (u1.stderr || u1.stdout).slice(-400));
   const pmNew = fs.readFileSync(pmPath, 'utf8'), dw = (/^## Done when[^\n]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(pmNew)?.[1] || '').split('\n').filter(l => /^\s*- \[[ x]\]/.test(l));
   check(name, "an upgrade refreshes the engine's project runbook (every Done when item labeled) and keeps its trigger, lessons and hardened mark",

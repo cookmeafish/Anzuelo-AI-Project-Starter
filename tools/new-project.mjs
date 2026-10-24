@@ -212,7 +212,7 @@ function shippedLines(rel) {
     for (const l of (git('show', `${c}:${rel}`).stdout || '').split(/\r?\n/)) set.add(l.trim());
   return (shippedLinesCache[rel] = set);
 }
-const movedLessons = [], legacyScenarios = [], untracked = [], editedPayload = [];
+const movedLessons = [], movedSections = [], legacyScenarios = [], untracked = [], editedPayload = [];
 // every version of a file the starter shipped (from its git history), newest first
 function shippedTexts(rel) {
   const git = (...a) => spawnSync('git', a, { cwd: STARTER, encoding: 'utf8', maxBuffer: 64 << 20 });
@@ -245,6 +245,22 @@ function mergeSkill(theirs, mine, rel) {
   if (added.length) {
     lessons = (lessons ? lessons.replace(/\s*$/, '\n') : '## Project lessons\n') + added.join('\n') + '\n';
     movedLessons.push([rel, added.length]);
+  }
+  // A section the project added (a heading no release shipped, with its text) moves under "## Project lessons", one
+  // level down, and the upgrade names it. Lesson, field report: a deck project's "### §11b Performance" in project.md
+  // was dropped by an upgrade that said only "kept the project's triggers and lessons".
+  const body = mine.replace(/^## Project lessons[^\n]*\n[\s\S]*?(?=^## |(?![\s\S]))/m, '');
+  const heads = [...body.matchAll(/^(#{2,4})[ \t]+(.+)$/gm)];
+  let skipTo = -1;
+  for (const [i, h] of heads.entries()) {
+    if (h.index < skipTo || known.has(h[0].trim())) continue;
+    const level = h[1].length, next = heads.slice(i + 1).find(n => n[1].length <= level);
+    const block = body.slice(h.index, next ? next.index : body.length).replace(/\s*$/, '');
+    skipTo = next ? next.index : body.length;
+    if ((lessons || '').includes(h[2].trim())) continue;
+    const down = block.replace(/^(#{2,5})(?=[ \t])/gm, m => level === 2 ? `${m}#` : m);
+    lessons = (lessons ? lessons.replace(/\s*$/, '\n') : '## Project lessons\n') + '\n' + down + '\n';
+    movedSections.push([rel, h[2].trim()]);
   }
   // the heading itself, not a mention of it in the text (Lesson: project.md names the section in a sentence, and the lessons were dropped)
   if (lessons && !/^## Project lessons/m.test(out)) out = out.replace(/\s*$/, '\n\n') + lessons.replace(/\s*$/, '\n');
@@ -549,6 +565,7 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   // (Lesson: a new "Involvement" question failed audit --setup in an adopted project, and the review never named it)
   const iv = spawnSync(process.execPath, ['--input-type=module', '-e', `import * as h from ${JSON.stringify(pathToFileURL(path.join(dest, 'tools', 'hooks', 'hooks.mjs')).href)}; const f = h.setupInterview(); console.log(JSON.stringify(Object.keys(f).length ? [...h.INTERVIEW, ...h.INTERVIEW_AFTER, ...(h.config().packs || []).includes('app') ? h.INTERVIEW_APP : []].filter(k => !(k.toLowerCase() in f) && !${JSON.stringify(prevQuestions)}.includes(k)) : []));`], { cwd: dest, encoding: 'utf8' });
   try { const keys = JSON.parse(iv.stdout); if (keys.length && !decided.includes(`- interview: ${keys.join(', ')} (`)) items.push(`interview: ${keys.join(', ')} (new setup question${keys.length > 1 ? 's' : ''}; record each answer under "## Setup interview" in docs/DECISIONS.md, or the setup check asks for it)`); } catch { log.push(`skipped  the new setup questions: ${(iv.stderr || '').split('\n')[0]}`); }
+  for (const [file, h] of movedSections) items.push(`sections: ${file} is an engine file, so the section "${h}" this project added moved to its "## Project lessons" section (check it still reads right there)`);
   for (const [file, n] of movedLessons) items.push(`lessons: ${file} became an engine file, so ${n} line(s) this project added moved to its "## Project lessons" section (check they still read right there)`);
   // a repeat upgrade that changed nothing has nothing to review (Lesson: it appended a review holding only "self-tests")
   // the upgrade ends with one line: which starter commit, regressions, decisions left. Lesson: a project read a whole
