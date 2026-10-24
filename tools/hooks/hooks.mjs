@@ -2045,7 +2045,12 @@ export function cantRun(attempts, allRuns = [], gateCmd = '') {
   if (!last) {
     // (a line refused for its form says nothing about the program)
     const prog = programOf(gateCmd), same = prog ? allRuns.filter(r => programOf(r.cmd) === prog && (!neverRan(r) || refusedOutright(r))) : [];
-    return same.length && gateCmd ? cantRun(same, allRuns) : '';
+    if (same.length && gateCmd) return cantRun(same, allRuns);
+    // its program (the command's own first word, not a module run by an interpreter) is not on this machine at all: no
+    // attempt is needed to know it can't run. Lesson (trial round 12): later turns ran "go test" again and again, each
+    // refused, to show a tool everyone already knew was missing.
+    const head = cmdHead(gateCmd).trim().split(/\s+/)[0]?.replace(/^["']|["']$/g, '').split(/[\\/]/).pop().replace(/\.exe$/i, '').toLowerCase();
+    return prog && head === prog && onPath(prog) === false ? 'missing' : '';
   }
   if (refusedOutright(last)) return 'refused';
   if (neverRan(last)) return '';
@@ -2074,6 +2079,7 @@ export function cantRunStep(kind, cmd) {
   const prog = missingProgram(cmd);
   const why = kind === 'refused' && prog ? `\`${prog}\` is not installed on this machine (not found on PATH), so \`${cmd}\` can't run here; the permission system refused it too`
     : kind === 'refused' ? `the permission system refused \`${cmd}\` this turn (\`${programOf(cmd) || String(cmd).split(/\s+/)[0]}\` is installed; the command needs an approval nobody can give here)`
+    : prog ? `\`${prog}\` is not installed on this machine (not found on PATH), so \`${cmd}\` can't run here`
     : `\`${cmd}\` can't run here: its tool or a dependency is not installed, and installing it was refused or failed`;
   return { detail: `${why}. Don't run it again this turn. Say so once in the answer instead: "NOT VERIFIED: <what did not run> - <why it couldn't run>"${prog ? ` with the true reason: ${prog} is not installed (not "it needs your approval")` : ''}, and claim nothing it would have shown`,
     short: `Say what was NOT VERIFIED and why: ${String(cmd).slice(0, 28)} ${prog ? `(${prog} is not installed)` : kind === 'refused' ? 'was refused' : 'can\'t run here'}` };
@@ -4700,7 +4706,10 @@ function pretoolHits(data, cfg) {
     // node, python or shell one-liner): that is the same command without the approval. Lesson (trial round 9): "go test"
     // was held for approval, and the next call ran go test, build and vet through node's spawnSync.
     const held = heldSidestep(cmd, () => runsOf(t().entries || []));
-    if (held) add(`REQ: permission-respected. \`${held}\` was held for the user's approval earlier in this turn; running it through another program is the same command without that approval. Leave it: say in the answer what was not verified ("NOT VERIFIED: <what> - ${held} was held for approval"), or ask the user to approve it.`);
+    // (whether the program is there at all, so the answer gives the true reason. Lesson, trial round 12: the agent could
+    // not check, told the user Go only needed approval, and Go was not installed)
+    const there = held && onPath(held);
+    if (held) add(`REQ: permission-respected. \`${held}\` was held for the user's approval earlier in this turn; running it through another program is the same command without that approval. ${there === false ? `It is also not installed here: \`${held}\` is not on PATH. Say so in the answer ("NOT VERIFIED: <what> - ${held} is not installed on this machine"), not that it only needs approval.` : `Leave it: say in the answer what was not verified ("NOT VERIFIED: <what> - ${held} was held for approval"), or ask the user to approve it.`}`);
     // REQ: browser-guard (commands)
     if (/(?<!chrome-win(64)?[\\/])(chrome|msedge)\.exe|\bstart\s+(chrome|msedge)\b|Start-Process\s+["']?(chrome|msedge)\b|google-chrome(-stable)?\b|CHROME_BIN=/i.test(cmd))
       add('REQ: browser-guard. Don\'t launch or automate the installed Chrome/Edge (it can lock the user\'s OS account). Use node tools/screenshot.mjs or Playwright\'s bundled Chromium.');

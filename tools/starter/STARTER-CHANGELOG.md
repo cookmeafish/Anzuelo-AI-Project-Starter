@@ -108,6 +108,11 @@ hooks:**, and an upgrade lists each one as its own review item.
       scenarios too (setup ran them twice); a whole note folder in a skill's check (`Baking/**`) no longer makes
       writing a note count as that skill's report (a dictated note set off research and citation checks).
     - **selfcheck**: standalone tests gated by tag now run with `--tags` (they sat inside the full-run-only block).
+    - **Missing tools are named, not retried** (round 12): a held program run another way is denied with whether it is
+      installed at all ("not on PATH: say it is not installed, not that it only needs approval"); a gate whose program
+      is not on this machine asks only for the NOT VERIFIED line, with no refused attempt needed first. The Go answers had
+      said Go only needed approval, and later turns ran `go test` again and again. Scenarios: `permission-respected: a
+      held program that is not installed`, `app-test-pass: a gate whose program is not installed, never tried`.
     - **Round 12 findings fixed:** "hasn't been sent" counts as saying a draft was not sent (the user got an answer
       twice); the project-scenarios template shows `has: [...]` (it said `says`), and a string where a list belongs no
       longer crashes the self-tests; `starter.mjs link` refuses a starter in the temp folder and points to `keep`;
