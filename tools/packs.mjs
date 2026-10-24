@@ -125,7 +125,12 @@ function configureApp(argv) {
   if (!['--test', '--build', '--lint', '--typecheck', '--run', '--code', '--version-file', '--test-pass', '--build-pass', '--lint-pass', '--typecheck-pass'].some(k => argv.includes(k))) {
     console.log('usage: node tools/packs.mjs configure app --test "<cmd>" --build "<cmd>" [--lint "<cmd>"] [--typecheck "<cmd>"] [--run "<cmd>"] [--code "<globs>"] [--version-file <file>] [--test-pass "<regex>"] [--build-pass "<regex>"] [--lint-pass "<regex>"] [--typecheck-pass "<regex>"]'); process.exit(1);
   }
-  if (opt('--version-file') && !/[*,]/.test(opt('--version-file')) && !fs.existsSync(path.join(ROOT, opt('--version-file')))) console.log(`note: ${opt('--version-file')} does not exist yet; the version-bump check will ask for it once code changes.`);
+  // (a file that holds no version can't be bumped: "none" is the way to say the project has no version file. Lesson,
+  // trial round 13: a Go service set go.mod, decided on git tags instead, and version-bump still fired every code turn)
+  if (/(^|[\\/,])(go\.(mod|sum)|requirements[\w.-]*\.txt|Gemfile|Pipfile|package-lock\.json|yarn\.lock|pnpm-lock\.yaml)$/i.test(String(opt('--version-file') || '').trim())) {
+    console.log(`${opt('--version-file')} holds no version number to raise. Name the file that does (package.json, pyproject.toml, Cargo.toml, a VERSION file), or --version-file none if releases are named by git tags.`); process.exit(1);
+  }
+  if (opt('--version-file') && opt('--version-file') !== 'none' && !/[*,]/.test(opt('--version-file')) && !fs.existsSync(path.join(ROOT, opt('--version-file')))) console.log(`note: ${opt('--version-file')} does not exist yet; the version-bump check will ask for it once code changes.`);
   const app = cfg.app || {};
   for (const k of ['test', 'build', 'lint', 'typecheck', 'run']) if (opt('--' + k) !== undefined) app[k] = opt('--' + k);
   // A gate's own pass line, so a gate run in one line with other commands is judged by its own result.
@@ -138,7 +143,7 @@ function configureApp(argv) {
     app.pass[k] = v;
   }
   if (opt('--code')) app.code = opt('--code').split(',').map(s => s.trim()).filter(Boolean);
-  if (opt('--version-file')) app.versionFile = opt('--version-file');
+  if (opt('--version-file') === 'none') delete app.versionFile; else if (opt('--version-file')) app.versionFile = opt('--version-file');
   app.code ||= ['src/**', 'app/**', 'lib/**', 'server/**', 'packages/**'];
   cfg.app = app;
   const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -158,6 +163,7 @@ function configureApp(argv) {
     message: `Code changed: run \`${app[k]}\` and get it passing after your last edit (on its own, or joined with && so its own result shows). Fix the code, never the test. If it can't run here (the command is refused, or its tool is not installed), say "NOT VERIFIED: <what> - <why>" in the answer instead of retrying, with the true reason: check first whether the tool is installed (where <tool>, or Get-Command <tool>) and say "not installed" or "needs your approval".`
   });
   if (app.versionFile) reqs.requirements = reqs.requirements.map(r => r.tag === 'version-bump' ? { ...r, enabled: true, when: { ...r.when, filesChanged: app.code }, require: { filesChanged: String(app.versionFile).split(',').map(s => s.trim()).filter(Boolean) } } : r);
+  else reqs.requirements = reqs.requirements.map(r => r.tag === 'version-bump' ? { ...r, enabled: false } : r);
   for (const r of reqs.requirements) if (r.pack === 'app' && r.when?.filesChanged && r.codeGlobs) r.when.filesChanged = app.code;
   wj(REQS, reqs);
   console.log(`configured app gates: ${['test', 'build', 'lint', 'typecheck'].filter(k => app[k]).map(k => `${k}="${app[k]}"${app.pass[k] ? ` (passes on /${app.pass[k]}/)` : ' (passes on its exit code)'}`).join(', ') || '(none given)'}; code: ${app.code.join(', ')}`);

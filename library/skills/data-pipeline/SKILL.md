@@ -26,6 +26,13 @@ Say at the start: "Running the data through the pipeline checks (data-pipeline s
 The check is `skills/data-pipeline/scripts/schema-check.mjs` (Node only, read-only). The schema format is in the
 comment at the top of the script.
 
+When the project's own pipeline script checks its inputs itself (it stops on a missing column or a bad row and
+prints a pass line), register it in the same turn you write it: in `tools/hooks/requirements.json`, make
+`pipeline-schema-checked`'s `require` an `anyOf` of `{"toolRan": "schema-check\\.mjs"}` and
+`{"toolPassed": {"cmd": "<script name>", "pass": "<its pass line>"}}`, with a scenario. Otherwise each new batch is
+held for a check that already ran. <!-- Lesson, trial round 13: a weekly sales script validated its CSVs, the first
+batch was held anyway, and the fix took three self-test runs. -->
+
 ## Pick the situation
 | Situation | Do |
 |---|---|

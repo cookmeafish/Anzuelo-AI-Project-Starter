@@ -66,13 +66,20 @@ The checker is `skills/correspondence/scripts/draft-check.mjs` (Node only, read-
 3. Format by channel:
    - **Email:** a `Subject:` line that states the point ("Order 2041: 2 sacks missing"), greeting, short paragraphs,
      sign-off. Under 150 words unless the matter needs more.
-   - **Letter:** sender and recipient address blocks, date, reference line, greeting, body, sign-off with the full name.
+   - **Letter:** sender and recipient address blocks, date, greeting, body, sign-off with the full name. A reference
+     line ("Re: ...") only for an official body or a dispute; a letter to someone the user keeps dealing with opens
+     with the news in the user's own words, not "I am writing to let you know".
      For print, convert a copy with `pandoc <draft>.md -o <draft>.docx` when pandoc is installed, or use the docx skill.
    - **Text or chat message:** no subject, no letter greeting, two to four sentences, under 60 words.
    - **Official or form text:** the reference numbers first, plain statements, no emotion, the request at the end.
 4. Tone fits the relationship. Someone the user keeps dealing with (a tenant, a customer, a neighbour) gets a warm,
    plain letter by default; firm is for a dispute or when the user asks. Never rude: no threats, no legal language,
-   no blame on a named employee unless the user asked for it.
+   no blame on a named employee unless the user asked for it. Where a clause or law must be named, say it plainly
+   ("as our lease allows, with the two months' notice it asks for"), not "This increase is made under clause 4.2".
+   <!-- Lesson, trial round 13: a rent letter to a long-time tenant came out with a bold "Re:" line, "I am writing to
+   let you know" and "made under [clause]", and the user called it cold. -->
+   A tone check the user asks for afterwards flags phrases, not single common words: "fine" or "you must" alone also
+   appear in friendly letters ("that's fine by me"), so test it on a warm letter before relying on it.
 5. No secrets in the text: passwords, full card or account numbers, ID numbers. Use the last four digits when needed.
 
 ## E. Save and hand over

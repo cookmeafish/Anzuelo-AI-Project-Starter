@@ -485,7 +485,7 @@
             "skillUsed": "incident-response"
           },
           "require": {
-            "answerMatches": "root cause\\s*:"
+            "answerMatches": "(root cause|\\bcause|why it (happened|broke|failed)|causa( ra[ií]z)?|por qu[eé] (pas[oó]|fall[oó]))\\s*:"
           },
           "message": "Incident-response skill: say where the cause stands in a \"Root cause: <what and why>\" line, or \"Root cause: not found yet\" while the harm is still being stopped."
         },

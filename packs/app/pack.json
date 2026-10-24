@@ -436,7 +436,7 @@
         "playbookUsed": "bugfix"
       },
       "require": {
-        "answerMatches": "root cause\\s*:"
+        "answerMatches": "(root cause|\\bcause|why it (happened|broke|failed)|causa( ra[ií]z)?|por qu[eé] (pas[oó]|fall[oó]))\\s*:"
       },
       "message": "Bugfix: state the root cause in the answer (\"Root cause: <what and why>\"), found before the fix (debug skill), not a description of the symptom."
     },

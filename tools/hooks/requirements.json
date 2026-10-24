@@ -21,7 +21,7 @@
         "skillUsed": "debug"
       },
       "require": {
-        "answerMatches": "root cause\\s*:"
+        "answerMatches": "(root cause|\\bcause|why it (happened|broke|failed)|causa( ra[ií]z)?|por qu[eé] (pas[oó]|fall[oó]))\\s*:"
       },
       "message": "Debug skill: state the root cause in the answer (\"Root cause: <what and why>\") with the evidence that shows it, found before the fix."
     },
@@ -392,7 +392,7 @@
             "playbookUsed": "bugfix"
           },
           {
-            "answerMatches": "root cause\\s*:"
+            "answerMatches": "(root cause|\\bcause|why it (happened|broke|failed)|causa( ra[ií]z)?|por qu[eé] (pas[oó]|fall[oó]))\\s*:"
           }
         ]
       },

@@ -154,6 +154,29 @@ hooks:**, and an upgrade lists each one as its own review item.
       attribution checks alike; "git -C <dir> push" and "bash -c '...'" still count. A relayed message makes no skill
       mandatory at all (a line starting "Publish gate:" did); the Stop checks still hold what the turn changes or runs.
       Scenarios: `outward-gate: "git stash push`, `outward-gate: a feedback line`, `relayed turn: a line that starts`.
+- 2026-10-24: Round 13 findings fixed (verdict WORSE on setup time: median 20.7 min, v12 15.7; mediums 13, v12 15).
+  - **Faster self-tests:** each scenario runner reuses one copy of the fixture base and puts back only what the
+    scenario touched, instead of copying the whole base per scenario (a tag run went from 37 s to 23 s; the full
+    starter run passes all 1,243 tests). `SELFCHECK_FRESH=1` copies afresh.
+  - **Setup gate reads a redirected audit:** `audit.mjs --setup > file` counts when the file says "audit: PASS"; three
+    setups had run the 1.5 to 3 minute audit again for the gate. Scenarios: `setup-gate: a passing audit whose output
+    went into a file`.
+  - **A false "checked automatically" in a complaint turn is caught again:** "you made a new note without linking it"
+    is a complaint and "every new note links to ..." a standing rule, so the claim is held to a covering check.
+    Scenario: `claim-checked: "you made a new note without linking it"`.
+  - **Fewer false alarms:** "Why it happened:", "Cause:" and Spanish "Causa:" state a root cause; reading feature.md
+    for setup's dry run arms none of its checks, even when setup built the app; `packs.mjs configure app` refuses a
+    version file that holds no version (go.mod) and takes `--version-file none`; the decisions record may describe the
+    project in the user's words. Scenarios: `debug-root-cause: "Why it happened:"`, `runbook-look: setup that opened
+    feature.md for its dry run and built the app`, `version-bump: configure refuses`, `no-verbatim-examples: the
+    decisions record`.
+  - **research-cited says why:** a marker with no Sources line, a link nothing opened, a file written this turn, or the
+    numbered form it needs. Scenarios: `research-cited: [2] used in the text`, `research-cited: unnumbered links`.
+  - **Stop text:** the re-send instruction no longer claims the user never saw the earlier version (in a terminal they
+    do); it says the last message may be the only one read.
+  - **Library:** correspondence letters to people the user keeps dealing with have no "Re:" line or "I am writing to"
+    opener, name a clause in plain words, and a tone check is tested on a warm letter; data-pipeline registers a
+    project script that validates its own inputs as meeting `pipeline-schema-checked`.
     - **Helpers on an old scope are named when the user changes it** (field report): a message from the user that
       arrives while helpers launched before it still run gets a one-time heads-up with the next call, naming them, to
       stop the ones it makes obsolete before new work. Three helpers had judged a free-only deck after the user allowed

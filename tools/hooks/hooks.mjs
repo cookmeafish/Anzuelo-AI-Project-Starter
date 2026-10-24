@@ -327,7 +327,9 @@ const DEFAULTS = {
   // a lasting requirement on the project's work (REQ: requirement-enforced); one-off instructions don't match
   // (Lesson: "every recipe needs a photo" and "reports without a chart are no good" were missed, and "this one report
   // should have a chart", a one-off, counted; "all I need is" is no requirement)
-  requirementWords: String.raw`\b(every|each|all|any) (?!(i|we|you|they)\b)(\w+ ){0,3}(must|should|needs?|has to|have to|requires?)\b|\b(must|needs? to|has to) (always|never|include|contain|cite|have|show)\b|\b(it'?s|this is|that'?s|make (it|this|that)) a requirement\b|\brequirements? (are|is)\b|\bmake sure (every|each|all|that every|that each)\b|\bwithout (a|an|any|the) [\w ]{1,20}?(are|is|isn'?t|aren'?t) (no good|useless|not (ok|okay|acceptable|good enough))\b` +
+  // (also a rule said in the present tense, at the start of a sentence: "every new note links to the notes it relates
+  // to". Lesson, trial round 13: it was no requirement, so nothing saved or enforced it)
+  requirementWords: String.raw`\b(every|each|all|any) (?!(i|we|you|they)\b)(\w+ ){0,3}(must|should|needs?|has to|have to|requires?)\b|(^|[.!?]\s+)(every|each) (new )?\w+ (links|cites|includes|has|shows|gets|uses|lists|names|starts|ends) (to|with|a|an|the|its|at)\b|\b(must|needs? to|has to) (always|never|include|contain|cite|have|show)\b|\b(it'?s|this is|that'?s|make (it|this|that)) a requirement\b|\brequirements? (are|is)\b|\bmake sure (every|each|all|that every|that each)\b|\bwithout (a|an|any|the) [\w ]{1,20}?(are|is|isn'?t|aren'?t) (no good|useless|not (ok|okay|acceptable|good enough))\b` +
     // Plainer standing wishes ("there needs to be ...", "the menu has to ...", "keep in mind that every ...") count too,
     // except as a one-off: "this one/this time" before it, a deadline or "first" after it, or a question.
     // Lesson: "there needs to be role selection ... keep in mind that every phase has different roles" got no hint and no check.
@@ -352,6 +354,9 @@ const DEFAULTS = {
   // (Lesson: "you did it AGAIN", "the totals are wrong again.", "I literally said no emojis" and "how hard is it to keep
   // the footer" got no upset handling: a miss named with "again", a pointed "I said", an exasperated question)
   complaint: "\\byou (forgot|didn'?t|did not|missed|skipped|ignored|left out|keep forgetting|never)\\b|\\b(i|we) (already )?told you\\b|\\bwhy (did|didn'?t) you\\b|\\bwhy (do|does) (you|it) keep\\b|\\bagain\\s*[!?]|\\bnot again\\b|\\bkeeps? (happening|forgetting|missing)\\b" +
+    // ("you made a new note without linking it". Lesson, trial round 13: that complaint went unseen, so an answer's
+    // false "checked automatically" was judged without it)
+    String.raw`|\byou (made|wrote|added|created|put|sent|saved|built|changed|left)\b[^.?!\n]{1,40}\bwithout\b` +
     String.raw`|\b(did|done|wrong|broke\w*|missing|forgot\w*|failed)\b[^.?!\n]{0,30}\bagain\b|\bi (literally|clearly|specifically|explicitly) (said|asked( you)?( for)?|told you)\b|\bi (just )?(said|told you)\b[^.?!\n]{0,20}\b(no|not|never|don'?t)\b|\bhow hard is it\b` +
     // ("again you put ..." and the Spanish forms. Lesson, trial round 10: "otra vez pusiste texto en inglés" got no upset
     // handling, and neither would its English twin)
@@ -2345,7 +2350,10 @@ export function context(t, cfg, answerOverride) {
   let usedPb = pbs.filter(pb => (reads.has(pb.file) || (pb.skillName && skillOpened(pb.skillName)) ||
     helpers.some(([n, r]) => r === pb.file && skillOpened(n))) &&
     (!maintained(pb.file, pb.skillName) || routedPb(pb) || namesIt(pb.name) || skillsUsed.includes(pb.skillName) || carriedOut(pb.skillName)) &&
-    (invoked(pb) || routedPb(pb) || namesIt(pb.name) || didItsWork(pb) || carriedOut(pb.skillName) || !lookTurn));
+    // (in setup a runbook only read is the dry run's walk-through: the app code setup builds is foundation work, under
+    // its own runbook. Lesson, trial round 13: reading feature.md for the dry run set off its review, spec and
+    // release-notes checks in a setup that built the app, all three waived)
+    (invoked(pb) || routedPb(pb) || namesIt(pb.name) || carriedOut(pb.skillName) || (!setup && (didItsWork(pb) || !lookTurn))));
   // Without tool history, the runbook the answer names ("Playbook: x.md" / "Skill: x") is taken as the one followed.
   if (!t.toolsKnown) usedPb = pbs.filter(pb => namesIt(pb.name));
   const skills = routableSkills(cfg);
@@ -2884,7 +2892,9 @@ export function verbatimHits(x, cfg = config()) {
     const w = words(s.replace(/["“][^"”]*["”]|'[^'\n]{12,}'/g, ' '));
     for (let i = 0; i + n <= w.length; i++) subject.add(w.slice(i, i + n).join(' '));
   }
-  const DESCRIBES = /^(docs\/(BRIEF|STATUS)\.md|README\.md)$/i;
+  // (and the decisions record, whose setup interview keeps what the user said the project is. Lesson, trial round 13:
+  // a vault's interview record was flagged for the user's description of the vault)
+  const DESCRIBES = /^(docs\/(BRIEF|STATUS|DECISIONS)\.md|README\.md)$/i;
   const hits = [];
   // Engine files are the starter's words, not the user's: never scanned (an upgrade rewrites them mid-session), and
   // neither are generated skills. Lesson: right after an upgrade, tools/audit.mjs and hooks.mjs were flagged.
@@ -4855,7 +4865,9 @@ function pretoolHits(data, cfg) {
       if (exists('.starter-template')) add(`REQ: setup-gate. This is the ${names().STARTER_NAME || 'project'} starter itself: SETUP-PROMPT.md stays here (new projects get a copy).`);
       else {
         const probs = setupProblems(cfg);
-        const audited = runsOf(t().entries).some(r => /audit\.mjs/.test(r.cmd) && /--(full|setup)/.test(r.cmd) && /audit: PASS/.test(r.out));
+        // (an audit whose output went into a file is read from that file. Lesson, trial round 13: in three setups a
+        // passing audit sent to a file was run again, 1.5 to 3 minutes each, before the gate let the file go)
+        const audited = runsOf(t().entries).some(r => /audit\.mjs/.test(r.cmd) && /--(full|setup)/.test(r.cmd) && /audit: PASS/.test((redirectedRun(r, /audit\.mjs/, t().since || 0) || r).out));
         if (!audited) probs.push('run node tools/audit.mjs --setup in this turn and get "audit: PASS"');
         if (probs.length) add('REQ: setup-gate. Setup is not finished, so SETUP-PROMPT.md stays:\n- ' + probs.join('\n- '));
       }
@@ -6191,6 +6203,25 @@ export function citesOpened(x) {
   const seen = openedText(x.entries || []).replace(/\\\//g, '/');
   return urls.some(u => seen.includes(u));
 }
+// Why the answer's citations don't count, in words the agent can act on: the links and files it names that nothing
+// opened this turn, files it wrote itself, numbered markers with no source line. Lesson, trial round 13: research-cited
+// failed six times with only its general message, and the agent read the engine's code to find out why.
+const usesCites = c => !!c && typeof c === 'object' && (!!c.answerCites || (c.anyOf || []).some(usesCites));
+export function citeWhy(x) {
+  const a = String(x.answer || ''), out = [];
+  const lonely = [...new Set([...a.matchAll(/(?<!^[ \t]*[-*]?[ \t]*)\[(\d+)\]/gm)].map(m => m[1]))].filter(n => !new RegExp(`^[ \\t]*[-*]?[ \\t]*\\[${n}\\][ \\t]+\\S`, 'm').test(a));
+  if (lonely.length) out.push(`marker${lonely.length > 1 ? 's' : ''} ${lonely.map(n => `[${n}]`).join(', ')} ha${lonely.length > 1 ? 've' : 's'} no "[n] <link or file>" line in the Sources list`);
+  const urls = (a.match(/https?:\/\/[^\s)>\]]+/g) || []).map(u => u.replace(/[)\].,;>]+$/, ''));
+  const seen = x.toolsKnown ? openedText(x.entries || []).replace(/\\\//g, '/') : '';
+  const key = u => u.replace(/^https?:\/\/(www\.)?/i, '').replace(/\/$/, '');
+  const unread = x.toolsKnown ? urls.filter(u => !seen.includes(key(u))) : [];
+  if (unread.length) out.push(`no link it gives was opened this turn (${unread.slice(0, 3).join(', ')}${unread.length > 3 ? ', ...' : ''}): open one with WebFetch, or cite the page that was opened`);
+  const own = (x.changed || []).filter(p => a.includes(p) && !NOT_A_SOURCE.test(p));
+  if (own.length) out.push(`${own.slice(0, 3).join(', ')} ${own.length > 1 ? 'were' : 'was'} written this turn, so ${own.length > 1 ? 'they are' : 'it is'} no source: cite what ${own.length > 1 ? 'they came' : 'it came'} from`);
+  if (!urls.length && !out.length) out.push('it names no file opened this turn and no link');
+  if (!out.length) out.push('the links need numbers: a [n] after each fact, and a "Sources:" line followed by one "[n] <link>" line per number');
+  return out.join('; ');
+}
 // REQ: answer-traced (cited claims). A claim cited to a project file ("[1]" with "[1] characters.md", or "from
 // docs/knowledge/x.md") shares its key words with that file: at least half of the content words and numbers of each
 // part of the claim (an inference joined with "so", "therefore", ";" or ":" is a part of its own) appear in the file.
@@ -6352,7 +6383,7 @@ export function holds(c, x) {
   if (c.promptNotMatches && r(c.promptNotMatches).test(x.prompt)) return false;
   if (c.answerMatches && !r(c.answerMatches).test(x.answer)) return false;
   if (c.answerNotMatches && r(c.answerNotMatches).test(x.answer)) return false;
-  if (c.answerCites && !citesOpened(x)) return false;
+  if (c.answerCites && !citesOpened(x)) { x.detail = citeWhy(x); return false; }
   if (c.answerFiguresComputed && x.toolsKnown) { const p = figureProblems(x); if (p.length) { x.detail = `${p.join('; ')}. Compute each figure with the script (or fix the script so it prints it), run it, and give the figures it prints`; return false; } }
   if (c.minToolCalls && x.uses.length < c.minToolCalls) return false;
   if (c.workTurn && !x.workTurn) return false;
@@ -6600,7 +6631,8 @@ ${turnText(x.entries)}`;
       // Lesson: every re-block produced a near-copy.
       if (holds(when || {}, x) && !holds(q.require || {}, x) && !holds(q.require || {}, { ...x, answer: q.tag === 'finished-summary' ? x.afterChange : earlier }) && !(q.tag === 'version-bump' && bumpedThisSession(x, q.require?.filesChanged))) out.push({ tag: q.tag, specific: q.waiver === 'specific', fixes: q.fixes || filesOfCond(q.require), ...(x.short ? { short: x.short } : {}),
         // (a gate that can't run here asks for the honest line instead of its usual "run it until it passes")
-        msg: x.override ? `${x.override}.` : (q.message || `Requirement ${q.tag} is not met.`) + (x.trigger ? ` (seen in ${x.trigger})` : '') + (x.detail ? ` (${x.detail})` : '') });
+        // (a citation check says what in the answer did not count, whichever of its forms failed: citeWhy)
+        msg: x.override ? `${x.override}.` : (q.message || `Requirement ${q.tag} is not met.`) + (x.trigger ? ` (seen in ${x.trigger})` : '') + ((d => d ? ` (${d})` : '')(x.detail || (usesCites(q.require) ? citeWhy(x) : ''))) });
       if (TIMING) TIMING.push([`check ${q.tag}`, Math.round((performance.now() - t0) * 10) / 10]);
     } catch (e) { out.push({ tag: 'requirements-valid', msg: `requirements.json entry "${q.tag}" is invalid (${e.message}).` }); }
   }
@@ -6898,7 +6930,8 @@ export function stopDecision(data, cfg = config()) {
       // Lesson: "with these steps as a short note after it" put lines like "Note: this version moves the citations" and
       // "Note: the earlier answer didn't use the exact wording" into answers about a version the user never saw.
       // (kept short: it comes with every block. Lesson: at about 1,000 characters it was two thirds of all Stop text)
-      `end with the whole answer again, in the user's language, updated: the user never saw the earlier version or these steps, so it says nothing about them (no "here it is again", no notes on versions, no check names).` +
+      // (Lesson, trial round 13: "the user never saw the earlier version" is untrue in a terminal, where both show)
+      `end with the whole answer again, in the user's language, updated: it may be the only message the user reads, so it stands alone and says nothing about these steps (no "here it is again", no notes on versions, no check names).` +
       (shortOk ? ' If that answer is unchanged and the steps only changed files, end instead with: "Answer unchanged; also updated: <the files, in plain words>".' : '') +
       (!headless && !shortOk && raw.length > 1200 ? ' If only a sentence or two must change, end instead with: Corrected: "<its exact old text>" -> "<new text>", one line each.' : '') +
       (isSpanish(x.prompt) ? ` ${labelsEsHint(steps.map(m => m.tag).join(' '))}` : '') +

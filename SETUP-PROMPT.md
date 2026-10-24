@@ -139,7 +139,8 @@ how it is released.
    node tools/packs.mjs configure app --test "<cmd>" --build "<cmd>" --code "<globs>" --version-file <file>   (app only)
    ```
    In a monorepo pass a glob or a comma list (`--version-file "packages/*/package.json"`), not one package's file, or
-   a change to any other package is asked for a bump it cannot make.
+   a change to any other package is asked for a bump it cannot make. With no file that holds the version (a Go
+   module, releases named by git tags) pass `--version-file none`.
 2. **The fit checklist: you fill it, not the user.** `node tools/fit.mjs` writes `docs/fit-checklist.md` with one row
    per candidate: every pack, every library skill, every tool in `docs/recommended-tools.md`, and the optional features
    (Obsidian vault, git hooks, autonomy auto, recall and memory, plans). `node tools/fit.mjs --json` says what each one
