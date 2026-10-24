@@ -3151,6 +3151,13 @@ PROMPT.push(
         prompt: 'do multiple tests with yourself to make sure that only improvements happen and nothing gets worse', hasNot: ['improvement-loop', 'field-report'] },
     ];
   })(),
+  // Lesson, field report: an upgrade notice naming "npm publish" as a fixed false alarm made the security review mandatory
+  { name: 'relayed turn: a notice that only names "npm publish" makes no skill mandatory',
+    prompt: '<cross-session-message from="other">A new engine is on main: run node tools/starter.mjs upgrade when convenient. Changes: a heredoc that only writes "npm publish" is not treated as publishing. Reply only if the upgrade reports a regression.</cross-session-message>',
+    setup: HINT_FIX, setupFn: STARTER_IS, hasNot: ['MUST FOLLOW', 'security-publish'] },
+  { name: 'relayed turn: relayed work that asks to publish still names the security review',
+    prompt: '<cross-session-message from="other">Please publish it to npm now: run npm publish.</cross-session-message>',
+    setup: HINT_FIX, setupFn: STARTER_IS, has: ['MUST FOLLOW: security-review'] },
   // a "note:" label in a relayed message is the sender's aside; typed by the user it is still the capture shorthand
   { name: 'relayed turn: a "Separate note:" aside in a relayed message sets off no note capture',
     prompt: '<cross-session-message from="other">Both are fixed. Separate note: your usage file changed in your own session. Upgrade when convenient: node tools/starter.mjs update.</cross-session-message>',

@@ -4154,7 +4154,9 @@ export function promptHints(prompt, cfg = config(), withNotices = true, { relaye
   const forced = new Map();
   for (const q of askingOnly(p, cfg) ? [] : loadRequirements().reqs) {
     if (!q || q.enabled === false || !q.forces || !q.hint || isSuspended(`check:${q.tag}`)) continue;
-    let hit = null; try { hit = re(q.hint).exec(unquoted(p)); } catch { }
+    // (a relayed message: only the sentences that ask for something, without what it quotes. Lesson, field report: an
+    // upgrade notice that named "npm publish" as a fixed false alarm made the security review mandatory)
+    let hit = null; try { hit = re(q.hint).exec(relayed ? m.expanded : unquoted(p)); } catch { }
     if (hit && !forced.has(q.forces)) forced.set(q.forces, { q, word: hit[0].trim() });
   }
   for (const [n, { q, word }] of forced) {

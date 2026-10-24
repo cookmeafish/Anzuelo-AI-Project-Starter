@@ -135,6 +135,10 @@ hooks:**, and an upgrade lists each one as its own review item.
       to the generated `engine-checks.json` says where its source is. Scenarios: `security-report: the plain word
       "fails"`, `publish-gate: a heredoc`, `event-hint: a question that only asks`, `gui-review-loop: two runs`,
       `generated-file`.
+    - **A relayed message makes a skill mandatory only by what it asks** (field report): the sentences of another
+      session's message that ask for something are matched, not the commands it names or quotes. An upgrade notice that
+      named "npm publish" as a fixed false alarm had made the security review mandatory. Scenarios: `relayed turn: a
+      notice that only names "npm publish"`.
     - **Helpers on an old scope are named when the user changes it** (field report): a message from the user that
       arrives while helpers launched before it still run gets a one-time heads-up with the next call, naming them, to
       stop the ones it makes obsolete before new work. Three helpers had judged a free-only deck after the user allowed
