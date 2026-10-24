@@ -464,9 +464,21 @@
         "workTurn": true
       },
       "require": {
-        "answerMatches": "\\bSHIP\\b"
+        "anyOf": [
+          {
+            "answerMatches": "\\bSHIP\\b"
+          },
+          {
+            "changedContentMatches": {
+              "files": [
+                "docs/reviews/**"
+              ],
+              "pattern": "(?c)^[\\W_]*([Vv]erdict|VERDICT|[Rr]esult|[Dd]ecision)\\b[^\\n]{0,20}?\\b(SHIP|APPROVED?)\\b"
+            }
+          }
+        ]
       },
-      "message": "A feature needs an independent review that ends in SHIP (fix and re-review until it does). Quote the verdict and the report path. With no person to review, start a reviewer sub-agent (the Agent or Task tool) with a read-only brief: no other reviewer is no reason to skip it.",
+      "message": "A feature needs an independent review that ends in SHIP (fix and re-review until it does). Save the report in docs/reviews/ with its verdict line (\"Verdict: SHIP\"), or quote the verdict and the report path in the answer. With no person to review, start a reviewer sub-agent (the Agent or Task tool) with a read-only brief: no other reviewer is no reason to skip it.",
       "pack": "app"
     },
     {

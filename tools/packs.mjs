@@ -13,7 +13,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { starterSources, findLibrary, setupCompleteness, usageOf, flushEngineWrites } from './hooks/hooks.mjs';
+import { starterSources, findLibrary, setupCompleteness, usageOf, flushEngineWrites, TEST_GLOBS } from './hooks/hooks.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PACKS = path.join(ROOT, 'packs');
@@ -153,9 +153,10 @@ function configureApp(argv) {
   wj(CONFIG, cfg);
   const reqs = rj(REQS, { requirements: [] });
   reqs.requirements = reqs.requirements.filter(r => !r.appGate);
+  // (the test gate also watches test files anywhere: a new test can break the suite without touching the code)
   for (const k of ['test', 'build', 'lint', 'typecheck']) if (app[k]) reqs.requirements.push({
     tag: `app-${k}-pass`, pack: 'app', appGate: true, rule: '4',
-    when: { filesChanged: app.code }, require: { toolPassed: { cmd: escRe(app[k]), pass: app.pass[k] || '', selfRun: app[k] } },
+    when: { filesChanged: k === 'test' ? [...new Set([...app.code, ...TEST_GLOBS])] : app.code }, require: { toolPassed: { cmd: escRe(app[k]), pass: app.pass[k] || '', selfRun: app[k] } },
     // (a chain counts where its own result shows: "a && b", or "b && echo OK" in a longer line. Lesson: "tests | tail;
     // build && echo BUILD-OK" passed and was asked for again, and the message's "own command" read as the only way)
     // (the reason it couldn't run is checked, not guessed. Lesson: a Go project's answers all said the commands only

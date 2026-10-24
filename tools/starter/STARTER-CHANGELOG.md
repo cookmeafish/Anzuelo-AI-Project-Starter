@@ -154,7 +154,20 @@ hooks:**, and an upgrade lists each one as its own review item.
       attribution checks alike; "git -C <dir> push" and "bash -c '...'" still count. A relayed message makes no skill
       mandatory at all (a line starting "Publish gate:" did); the Stop checks still hold what the turn changes or runs.
       Scenarios: `outward-gate: "git stash push`, `outward-gate: a feedback line`, `relayed turn: a line that starts`.
-- 2026-10-24: An upgrade keeps the sections a project added to an engine runbook or skill (field report). A heading no
+- 2026-10-24: Round 14 findings fixed (verdict NOT WORSE: setup median 13 min, v13 20.7; mediums 12, v13 13; one high).
+  - **The app test gate watches test files** (the high): a changed test file anywhere asks for the test run, also in
+    projects configured before (the engine widens their gate when it checks). A node:test file under tools/ had broken
+    `npm test`, and so `npm publish`, with nothing asking for a run. Scenario: `app-test-pass: only a test file changed`.
+  - **A draft that passed `hooks.mjs check` counts:** when the sent answer rewords it (and still carries most of it), the
+    labels in the checked draft count, so a Stop round no longer exists only to put "Reconciled:" or "SHIP" back.
+    Scenarios: `answer-resent: a draft that passed the pre-check`.
+  - **review-verdict reads the report:** a review in docs/reviews/ changed this turn whose verdict line says SHIP or
+    APPROVE(D) meets it; check patterns on changed content take the `(?c)` prefix too. Scenarios: `review-verdict: the
+    review report changed this turn`.
+  - **Fewer false alarms:** a Grep run on the cited file counts as opening it (answer-traced); a Python decorator or a
+    file name after an @ is no email address and the public resolvers tests use (8.8.8.8, 1.1.1.1) are no personal IP;
+    generated folders committed to git (`_site/`, `.next/`, `__pycache__/`, not `dist/`) are named by gitignore-ready.
+ A heading no
   release shipped, with its text, moves under "## Project lessons" one level down, and the upgrade review names it
   ("sections: ... the section "<heading>" this project added moved ..."). A deck project's "### §11b Performance" in
   project.md had been dropped while the upgrade said only "kept the project's triggers and lessons". Trial check: "an

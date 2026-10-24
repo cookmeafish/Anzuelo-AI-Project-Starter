@@ -416,8 +416,13 @@ const RESERVED_IP = ip => { const [a, b, c] = ip.split('.').map(Number);
   return a === 0 || a === 10 || a === 127 || a >= 224 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168)
     || (a === 192 && b === 0 && (c === 0 || c === 2)) || (a === 198 && (b === 18 || b === 19)) || (a === 198 && b === 51 && c === 100) || (a === 203 && b === 0 && c === 113); };
 const RESERVED_MAIL = /@([\w.-]+\.)?(example\.(com|org|net)|[\w-]+\.(example|test|invalid|localhost))$/i;
+const CODE_END = /\.(route|get|post|put|patch|delete|head|options|before_request|after_request|errorhandler|command|group|fixture|mark|property|setter|getter|cache|lru_cache|wraps|py|js|mjs|cjs|ts|tsx|jsx|json|html?|css|scss|png|jpe?g|gif|svg|webp|ico|md|txt|ya?ml|toml|ini|cfg|lock|map|min|spec)$/i;
+// public resolvers that tests use as "some outside address" (Google, Cloudflare, Quad9, OpenDNS): nobody's machine
+const PUBLIC_TEST_IP = new Set(['8.8.8.8', '8.8.4.4', '1.1.1.1', '1.0.0.1', '9.9.9.9', '149.112.112.112', '208.67.222.222', '208.67.220.220']);
 const PERSONAL = [
-  [/[A-Za-z0-9._%+-]+@(?!example\.(com|org)|users\.noreply\.github\.com)[A-Za-z0-9.-]+\.[a-z]{2,}/, 'an email address', hit => !RESERVED_MAIL.test(hit)],
+  // (a name ending in a code word or file type is code, not mail: "x@bp.route", "a@app.get", "logo@2x.png". Lesson,
+  // trial round 14: a Flask decorator quoted in a test string was flagged as an email address)
+  [/[A-Za-z0-9._%+-]+@(?!example\.(com|org)|users\.noreply\.github\.com)[A-Za-z0-9.-]+\.[a-z]{2,}/, 'an email address', hit => !RESERVED_MAIL.test(hit) && !CODE_END.test(hit)],
   // only placeholders are skipped (<user>, %USERNAME%, $USER, "you", USERNAME); a real account named "User" is personal
   // too. Lesson: on a machine whose account is "User", every home path passed, since "USER" was skipped in any case
   [/[A-Za-z]:[\\/]+Users[\\/]+(?!<|\$|%|USERNAME\b|you(r)?\b|Public\b|Default\b|All Users\b)[A-Za-z0-9._-]+/i, 'a personal Windows path'],
@@ -426,7 +431,7 @@ const PERSONAL = [
   [/(?<![A-Za-z]:)\/(home|Users)\/(?!<|user\/|you\/|Shared\/|\$)[A-Za-z0-9._-]{2,}\//, 'a personal home path'],
   // first part 10 to 255, every part a real octet, and not a version ("v9.7.0.3", "version 12.1.0.4", "9.7.0.3")
   // Lesson: four-part version numbers in a game's data were flagged as IP addresses.
-  [/(?<![\w.]|\bv|\bversions?[\s:=]{1,3}|\bbuild[\s:=]{1,3})(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}(?![\w.])(?<!127\.0\.0\.1)/i, 'an IP address', hit => !RESERVED_IP(hit)]
+  [/(?<![\w.]|\bv|\bversions?[\s:=]{1,3}|\bbuild[\s:=]{1,3})(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}(?![\w.])(?<!127\.0\.0\.1)/i, 'an IP address', hit => !RESERVED_IP(hit) && !PUBLIC_TEST_IP.has(hit)]
 ];
 // the first match of each kind that is not a reserved one (keep)
 export const personalDetails = text => PERSONAL.map(([rx, what, keep = () => true]) => ({ what, hit: [...String(text).matchAll(new RegExp(rx.source, rx.flags.replace('g', '') + 'g'))].map(m => m[0]).find(h => keep(h) && !/noreply@(anthropic|openai)\.com/.test(h)) }))
@@ -3822,7 +3827,12 @@ export function gitignoreProblems(cfg = config()) {
   // ignored: .obsidian/app.json", and 20 minutes went into reruns of the self-test)
   const tracked = (git(['ls-files', '-ci', '--exclude-standard']).stdout || '').split(/\r?\n/).filter(f => f && !(ownVault && f.startsWith('.obsidian/')));
   if (tracked.length) probs.push(`already committed but meant to be ignored: ${tracked.slice(0, 6).join(', ')}${tracked.length > 6 ? ' ...' : ''} (git rm --cached <file>, then commit)`);
-  const secretish = (git(['ls-files']).stdout || '').split(/\r?\n/).filter(f => /(^|\/)\.env(\.(?!example$)[^/]+)?$|\.(pem|key|p12|pfx)$|(^|\/)id_(rsa|ed25519|ecdsa)$/i.test(f));
+  // generated folders no project commits on purpose (dist/ and build/ are left out: some sites publish from them).
+  // Lesson, trial round 13/14: an Eleventy blog's _site/ went into git, and the Pages workflow builds it anyway
+  const lsAll = (git(['ls-files']).stdout || '').split(/\r?\n/);
+  const built = [...new Set(lsAll.map(f => /^(?:.*\/)?(_site|\.next|\.nuxt|\.svelte-kit|\.astro|__pycache__|\.pytest_cache|node_modules|\.parcel-cache|\.turbo)\//.exec(f)?.[0]).filter(Boolean))];
+  if (built.length) probs.push(`generated folders are committed: ${built.slice(0, 4).join(', ')} (add them to .gitignore, then git rm -r --cached <folder> and commit)`);
+  const secretish = lsAll.filter(f => /(^|\/)\.env(\.(?!example$)[^/]+)?$|\.(pem|key|p12|pfx)$|(^|\/)id_(rsa|ed25519|ecdsa)$/i.test(f));
   if (secretish.length) probs.push(`committed files that look like secrets: ${secretish.slice(0, 6).join(', ')} (remove them from git and rotate the secrets)`);
   return probs;
 }
@@ -5117,7 +5127,7 @@ export function eventHintAfterEdit(p, inp, cfg = config()) {
     if (spec) {
       const sp = typeof spec === 'string' ? { pattern: spec } : spec;
       if (!text || !match(p, sp.files || ['**']) || match(p, sp.ignore || [])) continue;
-      let m = null; try { m = new RegExp(sp.pattern, 'im').exec(text); } catch { }
+      let m = null; try { m = checkRe(sp.pattern, 'im').exec(text); } catch { }
       if (!m) continue;
       shown.push(q.tag);
       out.push(`MUST FOLLOW: ${q.forces}. ${p} now has "${m[0].trim().slice(0, 50)}", so the ${q.forces} ${kind(q.forces)} is mandatory this turn (REQ: ${q.tag}). Follow it before finishing, or waive it: node tools/hooks/hooks.mjs waive ${q.tag} "<the specific reason>".`);
@@ -5428,7 +5438,10 @@ export function coreChecks(x, cfg) {
     const written = x.uses.filter(u => /^(Write|Edit|MultiEdit)$/.test(u.name) && inKb.test(rel(u.input.file_path || '')))
       .flatMap(u => untraced([u.input.content, u.input.new_string, ...(u.input.edits || []).map(e => e.new_string)].filter(Boolean).join('\n')));
     const machine = [];
-    const unopened = x.toolsKnown ? cited.filter(p => !x.reads.has(p) && !wroteNow.has(p) && !x.cmds.some(c => c.includes(p)) && !x.results.includes(p)) : [];
+    // (a Grep run on the file itself read it: its output holds the lines without the file's name. Lesson, trial round 14:
+    // a quote found that way was "not opened", and the agent read the file four more times)
+    const grepped = p => x.uses.some(u => u.name === 'Grep' && rel(String(u.input?.path || '')) === p);
+    const unopened = x.toolsKnown ? cited.filter(p => !x.reads.has(p) && !wroteNow.has(p) && !x.cmds.some(c => c.includes(p)) && !x.results.includes(p) && !grepped(p)) : [];
     // the web links in the answer's sources were opened too: a link a search only listed was never read. Lesson: an
     // answer cited 2 of 3 studies by links it never opened, and the citation check passed it
     if (x.toolsKnown && (researched || knowledge)) {
@@ -6140,7 +6153,7 @@ const MISSING_TOOL = /is not recognized as (an internal|the name)|command not fo
 // the tool history shows them, else the whole file. Capped, so it stays cheap on a big turn. Returns "<file>: <match>".
 const ADDED_MAX_FILES = 300, ADDED_MAX_BYTES = 512 * 1024;
 function addedContentHit(x, spec, counted = () => true) {
-  let rx; try { rx = new RegExp(spec.pattern, 'im'); } catch { return null; }
+  let rx; try { rx = checkRe(spec.pattern, 'im'); } catch { return null; }
   const edits = new Map();
   if (x.toolsKnown) for (const u of x.uses || []) {
     if (!/^(Write|Edit|MultiEdit|NotebookEdit)$/.test(u.name)) continue;
@@ -6598,6 +6611,25 @@ export function overlappingCalls(entries, nameRx) {
   }
   return most;
 }
+// Test files anywhere: a change to one asks for the app's test gate even when no code folder changed. Lesson, trial
+// round 14: a node:test file under tools/ made vitest fail, so npm test and npm publish broke, and nothing asked for a run.
+export const TEST_GLOBS = ['**/*.test.*', '**/*.spec.*', '**/test/**', '**/tests/**', '**/__tests__/**', '**/*_test.*', '**/test_*.*', 'vitest.config.*', 'jest.config.*', 'pytest.ini', 'conftest.py'];
+// The answer drafts that "hooks.mjs check --answer-file <f>" passed this turn: the text last written to <f> before each
+// passing run.
+export function passedDrafts(entries) {
+  const wrote = new Map(), pending = new Map(), out = [];
+  for (const r of entries) {
+    const c = r.message?.content;
+    if (!Array.isArray(c)) continue;
+    for (const u of c) {
+      if (u?.type === 'tool_use' && /^(Write)$/.test(u.name) && typeof u.input?.content === 'string') wrote.set(rel(String(u.input.file_path || '')), u.input.content);
+      const f = u?.type === 'tool_use' && /^(Bash|PowerShell)$/.test(u.name) && /hooks\.mjs["']?\s+check\b[^\n]*--answer-file\s+["']?([^"'\s;&|]+)/.exec(String(u.input?.command || ''));
+      if (f) pending.set(u.id, wrote.get(rel(f[1])) ?? read(abs(f[1])));
+      if (u?.type === 'tool_result' && pending.has(u.tool_use_id) && /^CHECK: PASS/m.test(textOf(u.content))) out.push(pending.get(u.tool_use_id));
+    }
+  }
+  return out.filter(Boolean);
+}
 const HISTORY_KEYS = ['toolRan', 'toolUsed', 'resultMatches', 'fileRead', 'ranFailing', 'toolCount'];
 const needsHistory = c => !!c && (HISTORY_KEYS.some(k => c[k]) || (c.anyOf || []).every(needsHistory) && (c.anyOf || []).length > 0);
 export function declarativeChecks(x) {
@@ -6605,8 +6637,12 @@ export function declarativeChecks(x) {
   // REQ: requirements-valid. Lesson: a broken config silently turned every check off.
   if (error) return [{ tag: 'requirements-valid', msg: `tools/hooks/requirements.json does not parse (${error}); every project requirement is unenforced until it is fixed.` }];
   const out = [];
+  // (a draft that passed "hooks.mjs check --answer-file" this turn counts as an earlier message: the answer sent after
+  // it may word the same content its own way. Lesson, trial round 14: four Stop rounds came right after a passing
+  // pre-check, only to put labels such as "Reconciled:" or "Independent review: SHIP" back, each re-sending the answer)
   const earlier = `${x.answer}
-${turnText(x.entries)}`;
+${turnText(x.entries)}
+${passedDrafts(x.entries || []).filter(d => carriesAnswer(x.answer, d)).join('\n')}`;
   for (const q of [...reqs, ...(exists('.starter-dev') ? DEV_REQUIREMENTS : [])]) {
     if (!q || q.enabled === false) continue;
     // "waitsForAgents": a check on results that helpers launched in the background this turn will deliver later
@@ -6625,7 +6661,9 @@ ${turnText(x.entries)}`;
       // (each "anyOf" branch too: a branch judges its own files. Lesson: the ingest trigger moved its files into anyOf,
       // and the owned folder counted again)
       const ignoreOwned = w => w ? { ...w, filesIgnore: [...[].concat(w.filesIgnore || []), ...owned], ...(w.anyOf ? { anyOf: w.anyOf.map(ignoreOwned) } : {}) } : w;
-      const when = owned.length ? ignoreOwned(q.when) : q.when;
+      const when0 = owned.length ? ignoreOwned(q.when) : q.when;
+      // (the app test gate also watches test files, in projects configured before it did: see TEST_GLOBS)
+      const when = q.appGate && q.tag === 'app-test-pass' && Array.isArray(when0?.filesChanged) ? { ...when0, filesChanged: [...new Set([...when0.filesChanged, ...TEST_GLOBS])] } : when0;
       // a requirement met by an earlier message of this turn stays met, so a re-block never forces the answer to repeat
       // it. A Finished section counts from any message after the last file change, since it still lists every change.
       // Lesson: every re-block produced a near-copy.

@@ -1570,6 +1570,9 @@ STOP.push(
     answer: 'Skill: research. Desks cost money.' + FIN, expect: { block: true, tags: ['answer-cites'] } },
   { pack: 'knowledge', name: 'answer-traced: citing a knowledge file never opened: blocked', prompt: 'what do we know about desk prices', tools: [sk('research')],
     answer: 'Skill: research. Desk X costs $300 (docs/knowledge/desks.md).', expect: { block: true, tags: ['answer-traced'] } },
+  // (Lesson, trial round 14: a quote found with a Grep on the file itself was "not opened")
+  { pack: 'knowledge', name: 'answer-traced: a knowledge file searched with Grep on that file counts as opened: passes', prompt: 'what do we know about desk prices', tools: [sk('research'), { name: 'Grep', input: { pattern: 'Desk X', path: 'docs/knowledge/desks.md', output_mode: 'content' }, result: KNOW }],
+    edit: { 'docs/knowledge/desks.md': () => KNOW }, answer: 'Skill: research. Desk X costs $300 (docs/knowledge/desks.md).', expect: { not: ['answer-traced'] } },
   { pack: 'knowledge', name: 'answer-traced: a price the cited file does not have: blocked', prompt: 'what do we know about desk prices', tools: [sk('research'), { name: 'Read', input: { file_path: 'docs/knowledge/desks.md' }, result: KNOW }],
     edit: { 'docs/knowledge/desks.md': () => KNOW }, answer: 'Skill: research. Desk X costs $450 (docs/knowledge/desks.md).', expect: { block: true, tags: ['answer-traced'] } },
   { pack: 'knowledge', name: 'answer-traced: every fact from the file that was opened: passes', prompt: 'what do we know about desk prices', tools: [sk('research'), { name: 'Read', input: { file_path: 'docs/knowledge/desks.md' }, result: KNOW }],
@@ -1865,7 +1868,17 @@ const WIRE = 'wire up the export button';
 const planAt = prompt => ({ edit: { 'docs/plans/2026-10-18-export.md': () => '# Export: plan\n- [x] helpers\n- [ ] wire it up\n- [ ] test it\n' }, prep: dir => run(dir, 'prompt', { prompt }) });
 const CARRY = { edit: { 'tools/hooks/state/unresolved.json': () => JSON.stringify({ at: new Date(Date.now() - 300_000).toISOString(), since: Date.now() - 600_000, prompt: 'add a line about screenshots to the finish checklist', items: ['[changelog] Add a dated line to docs/CHANGELOG.md'], tags: ['changelog'] }) },
   prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'), mtimes: { 'docs/checks/finish-checklist.md': -480_000 } };
+// a gate written before it watched test files (only the code folders), as older projects have it
+const oldTestGate = { prep: dir => {
+  testGate.prep(dir);
+  const f = path.join(dir, 'tools/hooks/requirements.json'), j = JSON.parse(fs.readFileSync(f, 'utf8'));
+  for (const q of j.requirements) if (q.tag === 'app-test-pass') q.when.filesChanged = q.when.filesChanged.filter(g => !/test|spec|conftest|pytest/.test(g));
+  fs.writeFileSync(f, JSON.stringify(j, null, 2)); const old = (Date.now() - 3600_000) / 1000; fs.utimesSync(f, old, old);
+} };
 STOP.push(
+  // Lesson, trial round 14: a new test file outside src/ broke npm test, and nothing asked for a run
+  { pack: 'app', name: 'app-test-pass: only a test file changed, in a project whose gate predates test files: the tests are still asked', prompt: 'add a check for the changelog', tools: [{ name: 'Write', input: { file_path: 'tools/changelog-check.test.mjs', content: 'import test from "node:test";\n' } }],
+    files: { 'tools/changelog-check.test.mjs': 'import test from "node:test";\n', 'docs/CHANGELOG.md': 'x' }, ...oldTestGate, answer: 'Added the check.' + FIN, expect: { block: true, tags: ['app-test-pass'] } },
   { pack: 'app', name: 'app-test-pass: code changed and the tests never ran: blocked', prompt: 'add a feature to export reports as csv', tools: [pb('feature')], files: SPEC, ...testGate,
     answer: 'Playbook: feature.md.\n' + VERIF + FIN, expect: { block: true, tags: ['app-test-pass'] } },
   { pack: 'app', name: 'app-test-pass: the tests ran and passed after the last edit: passes', prompt: 'add a feature to export reports as csv', tools: [pb('feature'), bash('npm test', 'Tests: 12 passed, 12 total')], files: SPEC, ...testGate,
@@ -1996,6 +2009,11 @@ STOP.push(
     tools: [pb('project'), pb('feature')], files: { 'src/app.js': 'x', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.\nPlaybook: feature.md. Set up.' + FIN, expect: { tags: ['review-verdict'] } },
   { pack: 'app', name: 'runbook-look: feature.md opened for unrouted code work: the review is still asked', prompt: 'make the export include tags',
     tools: [pb('feature')], files: { 'src/export.js': 'x', 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { block: true, tags: ['review-verdict'] } },
+  // (Lesson, trial round 14: the reviewer's report said SHIP, and a Stop round only turned "approved" into "SHIP")
+  { pack: 'app', name: 'review-verdict: the review report changed this turn says "Verdict: SHIP": the answer need not repeat it', prompt: 'make the export include tags',
+    tools: [pb('feature')], files: { 'src/export.js': 'x', 'docs/reviews/2026-10-24-export.md': '# Review: export tags\nVerdict: SHIP\n- No blocking issues.\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done; the reviewer approved it.' + FIN, expect: { not: ['review-verdict'] } },
+  { pack: 'app', name: 'review-verdict: a report whose verdict is "not ready to ship" does not count', prompt: 'make the export include tags',
+    tools: [pb('feature')], files: { 'src/export.js': 'x', 'docs/reviews/2026-10-24-export.md': '# Review: export tags\nVerdict: CHANGES NEEDED - not ready to ship\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { tags: ['review-verdict'] } },
   // root-tidy knows the files a language or tool needs in the root (Lesson: a Go main package was blocked)
   { name: 'root-tidy: Go files beside go.mod are the toolchain layout: passes', prompt: 'add the links handler',
     files: { 'go.mod': 'module example.com/links\n', 'main.go': 'package main\n', 'links.go': 'package main\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Added. N/A(runbook-exists): test.' + FIN, expect: { not: ['root-tidy'] } },
@@ -2305,6 +2323,13 @@ STOP.push(
   { ...DEBUG_TURN, name: 'answer-resent: a first answer that is only "answer unchanged": blocked', answer: 'Answer unchanged; done: changelog.', expect: { block: true, tags: ['answer-resent'] } },
   { ...DEBUG_TURN, name: 'answer-resent: the last round asked for changes to the answer itself: blocked', active: true, blocks: 1, failed: ['debug-root-cause'],
     failedExtra: { shortOk: false, answer: 'Skill: debug. Fixed.' + FIN }, drafts: ['Skill: debug. Fixed.' + FIN], answer: 'Answer unchanged; done: root cause.', expect: { block: true, tags: ['answer-resent'] } },
+  // Lesson, trial round 14: Stop rounds right after a passing pre-check, only to put a label back into a reworded answer
+  { ...DEBUG_TURN, name: 'answer-resent: a draft that passed the pre-check counts, when the sent answer rewords it: passes',
+    tools: [sk('debug'), { name: 'Write', input: { file_path: '.cache/answer.md', content: 'Skill: debug. Root cause: the date parser read 03/04 as March.' + FIN } }, bash('node tools/hooks/hooks.mjs check --answer-file .cache/answer.md', 'CHECK: PASS - send this text as your answer as it stands')],
+    answer: 'Skill: debug. The date parser read 03/04 as March; that broke it.' + FIN, expect: { not: ['debug-root-cause'] } },
+  { ...DEBUG_TURN, name: 'answer-resent: a draft whose pre-check failed does not count: blocked',
+    tools: [sk('debug'), { name: 'Write', input: { file_path: '.cache/answer.md', content: 'Skill: debug. Root cause: the date parser read 03/04 as March.' + FIN } }, bash('node tools/hooks/hooks.mjs check --answer-file .cache/answer.md', 'CHECK: FAIL\nAlmost done: 1 step')],
+    answer: 'Skill: debug. The date parser read 03/04 as March; that broke it.' + FIN, expect: { block: true, tags: ['debug-root-cause'] } },
   // Lesson, trial round 13: "Why it happened:" said the cause, but only "Root cause:" passed, so the answer went out twice
   { ...DEBUG_TURN, name: 'debug-root-cause: "Why it happened:" states the cause too: passes', answer: 'Skill: debug. Why it happened: the date parser read 03/04 as March.' + FIN, expect: { not: ['debug-root-cause'] } },
   { ...DEBUG_TURN, name: 'debug-root-cause: Spanish "Causa:" states the cause too: passes', prompt: 'depura la importación que falla', answer: 'Skill: debug. Causa: el lector de fechas leía 03/04 como marzo.' + FIN, expect: { not: ['debug-root-cause'] } },
@@ -5795,7 +5820,9 @@ if (mineB()) { // status-handoff: the edit that finds the turn past 15 tool call
 if (mineB()) { // publish-safety: reserved addresses (documentation, private and special-use IP ranges, example domains) are nobody's personal data
   const { personalDetails } = await import(pathToFileURL(path.join(B, 'tools/hooks/hooks.mjs')).href);
   const quiet = ['blocked ranges: 10.0.0.0/8, 100.64.0.0/10, 169.254.169.254, 172.16.0.0/12, 192.168.1.10, 192.0.2.7, 198.51.100.4, 203.0.113.9, 198.18.0.1, 224.0.0.1, 255.255.255.0',
-    'test client: user@evil.example, admin@site.test, a@b.invalid, me@example.net'].map(t => personalDetails(t));
+    'test client: user@evil.example, admin@site.test, a@b.invalid, me@example.net',
+    // (Lesson, trial round 14: a Flask decorator in a test string and a public resolver used as "an outside address")
+    'code: "x@bp.route", "a@app.get", logo@2x.png; outside address in a test: 8.8.8.8, 1.1.1.1'].map(t => personalDetails(t));
   // (a public address and a real-looking email, built at run time so this file holds neither)
   const pub = [93, 184, 216, 34].join('.'), mail = ['jo.smith', 'mailhost.net'].join('@');
   const loud = personalDetails(`server ${pub}; ranges 10.0.0.0/8 and 192.0.2.0/24`), loudMail = personalDetails(`test user@evil.example, then ${mail}`);
@@ -6017,8 +6044,14 @@ if (mineB()) { // gitignore-ready: a push waits until .gitignore keeps private f
     const ok = problems();
     fs.writeFileSync(path.join(dir, '.private-terms'), 'secret-word\n'); g('add', '-f', '.private-terms');
     const tracked = problems();
-    report(/does not cover: \.env/.test(weak) && /gitignore-ready/.test(push) && ok.trim() === '[]' && /already committed but meant to be ignored: \.private-terms/.test(tracked),
-      'gitignore-ready: a weak .gitignore blocks the push, the starter\'s passes, a committed private file is caught', `${weak.slice(0, 200)} | ${push.slice(0, 150)} | ${ok} | ${tracked.slice(0, 200)}`);
+    // (Lesson, trial round 14: a blog's generated _site/ was committed; dist/ may be published on purpose)
+    fs.mkdirSync(path.join(dir, '_site'), { recursive: true }); fs.writeFileSync(path.join(dir, '_site/index.html'), '<h1>x</h1>\n');
+    fs.mkdirSync(path.join(dir, 'dist'), { recursive: true }); fs.writeFileSync(path.join(dir, 'dist/app.js'), 'x\n');
+    g('add', '-f', '_site/index.html', 'dist/app.js');
+    const site = problems();
+    report(/does not cover: \.env/.test(weak) && /gitignore-ready/.test(push) && ok.trim() === '[]' && /already committed but meant to be ignored: \.private-terms/.test(tracked)
+      && /generated folders are committed: _site\/[^"]*"/.test(site) && !/generated folders are committed:[^"]*dist\//.test(site),
+      'gitignore-ready: a weak .gitignore blocks the push, the starter\'s passes, a committed private file and a committed _site/ are caught (dist/ is not)', `${weak.slice(0, 200)} | ${push.slice(0, 150)} | ${ok} | ${tracked.slice(0, 200)} | ${site.slice(0, 200)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
@@ -6262,7 +6295,9 @@ if (mineB() && INSTALLED.includes('app')) { // app gates: their own pass lines, 
     const r = spawnSync(process.execPath, ['tools/packs.mjs', 'configure', 'app', '--test', 'npm test', '--build', 'npm run build', '--build-pass', 'BUILD OK'], { cwd: dir, encoding: 'utf8' });
     const reqs = JSON.parse(fs.readFileSync(path.join(dir, 'tools/hooks/requirements.json'), 'utf8')).requirements, gates = JSON.parse(fs.readFileSync(path.join(dir, 'tools/hooks/config.json'), 'utf8')).commitGate;
     const b = reqs.find(q => q.tag === 'app-build-pass'), t = reqs.find(q => q.tag === 'app-test-pass');
-    report(r.status === 0 && b?.require.toolPassed.pass === 'BUILD OK' && t?.require.toolPassed.pass === '' && /its own result shows/.test(b?.message || '') && /NOT VERIFIED/.test(b?.message || '') && gates.some(g => g.app && g.pass === 'BUILD OK'),
+    // (the test gate watches test files too, the build gate only the code. Lesson, trial round 14: a new test file broke npm test unasked)
+    report(r.status === 0 && b?.require.toolPassed.pass === 'BUILD OK' && t?.require.toolPassed.pass === '' && /its own result shows/.test(b?.message || '') && /NOT VERIFIED/.test(b?.message || '') && gates.some(g => g.app && g.pass === 'BUILD OK')
+      && t.when.filesChanged.includes('**/*.test.*') && !b.when.filesChanged.includes('**/*.test.*'),
       'commit-gate: packs.mjs configure --build-pass sets the gate\'s own pass line', `${r.stdout}${r.stderr}`.slice(0, 300));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
