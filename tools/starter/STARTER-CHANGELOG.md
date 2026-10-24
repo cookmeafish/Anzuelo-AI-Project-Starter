@@ -139,6 +139,16 @@ hooks:**, and an upgrade lists each one as its own review item.
       session's message that ask for something are matched, not the commands it names or quotes. An upgrade notice that
       named "npm publish" as a fixed false alarm had made the security review mandatory. Scenarios: `relayed turn: a
       notice that only names "npm publish"`.
+    - **Field report from a deck project (4566b73):** the publish gate ignores a quoted argument such as a waive reason
+      ("bash -c '...'" still counts); after a round that needs a sentence or two of the answer changed, the answer may
+      end with `Corrected: "<old>" -> "<new>"` lines, checked on the earlier answer with them applied, instead of the
+      whole answer again; a "(judgment: why)" Done when item in any changed runbook file, plain bullet or checkbox,
+      meets requirement-enforced; in a relayed message one trigger word alone suggests no skill, and RECALL skips
+      relayed messages and time words ("what took so long" recalled a clone request); a short "is it done?" gets a
+      STATUS QUESTION hint to lead with the status; `node tools/hooks/hooks.mjs cost [--last N]` prints each recent
+      request's minutes, tool calls, tokens (fresh, cache read, cache write, output) and helper tokens. Scenarios:
+      `publish-gate: a waive reason`, `answer-resent: a sentence fix`, `requirement-enforced: a "(judgment: why)"`,
+      `relayed turn: one status word`, `recall: "what took so long"`, `status-first:`, `cost:`.
     - **Helpers on an old scope are named when the user changes it** (field report): a message from the user that
       arrives while helpers launched before it still run gets a one-time heads-up with the next call, naming them, to
       stop the ones it makes obsolete before new work. Three helpers had judged a free-only deck after the user allowed

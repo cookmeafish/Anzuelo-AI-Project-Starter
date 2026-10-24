@@ -89,7 +89,8 @@ SKILL CLEANUP DUE, and the skill-curate skill keeps it with a reason, merges it,
 
 ### §12 Tools at a glance
 - `node tools/hooks/hooks.mjs why`: the full steps behind the last stop message. `restore <item>`: bring back a
-  runbook, skill or check the friction rule suspended.
+  runbook, skill or check the friction rule suspended. `cost [--last N]`: time, tool calls and tokens (helpers'
+  too) of the last requests, for "how long / how much did that take?".
 - `node tools/hooks/selfcheck.mjs --tags a,b`: only the scenarios of the checks you changed. `--route "<request>"`:
   where a request routes. `--ablation`: every required step of a golden workflow is load-bearing.
 - `node tools/hooks/selfcheck.mjs`: the whole self-test. With the engine files the starter shipped and proved

@@ -618,6 +618,10 @@ const STOP = [
     files: { 'docs/playbooks/zorbl-research.md': '---\nname: zorbl-research\nsummary: research a zorbl\ntriggers: research a zorbl\nchecks: none - test\n---\n# Playbook: zorbl research\n## Steps\n1. Research.\n## Done when\n- [ ] Every picture has a paired diagram (hook: diagram-paired).\n',
       'tools/hooks/project-scenarios.mjs': 'export default () => ({ stop: [] });\n', 'docs/CHANGELOG.md': 'x' },
     answer: 'Playbook: project.md. Added the requirement, its check and its test.' + FIN, expect: { block: true, not: ['requirement-enforced'] } },
+  // Lesson, field report: a "(judgment: why)" item written as the hint said still needed a waive
+  { name: 'requirement-enforced: a "(judgment: why)" Done when item in a runbook outside docs/playbooks, plain bullet: passes that check', prompt: 'every zorbl plan must order its helpers for cost', tools: [pb('project'), bash('node tools/audit.mjs')],
+    files: { 'runbooks/zorbl-plan.md': '# zorbl plan\n## Steps\n1. Plan.\n## Done when\n- Helpers are ordered for cost (judgment: only a reader can tell whether the order is cheapest).\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Playbook: project.md. Added the requirement.' + FIN, expect: { not: ['requirement-enforced'] } },
   { name: 'requirement-enforced: a one-off instruction is not a lasting requirement', prompt: 'fix the typo in the zorbl guide and make sure you run the tests', tools: [pb('project'), bash('node tools/audit.mjs')],
     files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md. Fixed it.' + FIN, expect: { not: ['requirement-enforced'], block: false } },
   // a requirement written into a runbook says how it is proven, so none stays unenforced unnoticed
@@ -2240,6 +2244,13 @@ STOP.push(
   { ...DEBUG_TURN, name: 'answer-resent: a first answer that is only "answer unchanged": blocked', answer: 'Answer unchanged; done: changelog.', expect: { block: true, tags: ['answer-resent'] } },
   { ...DEBUG_TURN, name: 'answer-resent: the last round asked for changes to the answer itself: blocked', active: true, blocks: 1, failed: ['debug-root-cause'],
     failedExtra: { shortOk: false, answer: 'Skill: debug. Fixed.' + FIN }, drafts: ['Skill: debug. Fixed.' + FIN], answer: 'Answer unchanged; done: root cause.', expect: { block: true, tags: ['answer-resent'] } },
+  // Lesson, field report: one untraced number cost a 40-line re-send each round
+  { ...DEBUG_TURN, name: 'answer-resent: a sentence fix may end with a Corrected: line, checked on the corrected answer: passes', active: true, blocks: 1, failed: ['debug-root-cause'],
+    failedExtra: { shortOk: false, answer: 'Skill: debug. Fixed it.' + FIN }, drafts: ['Skill: debug. Fixed it.' + FIN], answer: 'Corrected: "Fixed it." -> "Root cause: the date parser."', expect: { block: false } },
+  { ...DEBUG_TURN, name: 'answer-resent: a Corrected: line whose old text the answer does not hold: blocked', active: true, blocks: 1, failed: ['debug-root-cause'],
+    failedExtra: { shortOk: false, answer: 'Skill: debug. Fixed it.' + FIN }, drafts: ['Skill: debug. Fixed it.' + FIN], answer: 'Corrected: "Fixed this." -> "Root cause: the date parser."', expect: { block: true, tags: ['answer-resent'] } },
+  { ...DEBUG_TURN, name: 'answer-resent: a Corrected: line that leaves the answer still wrong: blocked', active: true, blocks: 1, failed: ['debug-root-cause'],
+    failedExtra: { shortOk: false, answer: 'Skill: debug. Fixed it.' + FIN }, drafts: ['Skill: debug. Fixed it.' + FIN], answer: 'Corrected: "Fixed it." -> "Fixed it now."', expect: { block: true, tags: ['debug-root-cause'], not: ['answer-resent'] } },
   { ...DEBUG_TURN, name: 'answer-resent: the earlier full answer is still checked: a missing marker blocks', active: true, blocks: 1, failed: ['changelog'],
     failedExtra: { shortOk: true, answer: 'Root cause: the date parser.' + FIN }, drafts: ['Root cause: the date parser.' + FIN], answer: 'Answer unchanged; done: changelog (docs/CHANGELOG.md).',
     expect: { block: true, tags: ['playbook-named'], not: ['answer-resent'] } },
@@ -3010,6 +3021,8 @@ PRETOOL.push(
   // Lesson: "cargo publish --dry-run" was refused, so the preview a release needs could not run
   { name: 'publish-gate: a dry run publishes nothing: allowed', tool: 'Bash', input: { command: 'cargo publish --dry-run' }, prompt: 'check what the crate would contain', deny: false },
   { name: 'publish-gate: a heredoc that only writes "npm publish" into a file: allowed', tool: 'Bash', input: { command: "cat > docs/release.md <<'EOF'\n1. Run npm publish after the review\nEOF" }, prompt: 'write the release steps', deny: false },
+  { name: 'publish-gate: a waive reason that names "npm publish": allowed', tool: 'Bash', input: { command: 'node tools/hooks/hooks.mjs waive security-publish "nothing ran npm publish this turn"' }, prompt: 'waive it', deny: false },
+  { name: 'publish-gate: bash -c runs what it quotes: denied', tool: 'Bash', input: { command: "bash -c 'npm publish'" }, deny: true, tag: 'publish-gate' },
   { name: 'publish-gate: a real publish after a heredoc: denied', tool: 'Bash', input: { command: "cat > notes.md <<'EOF'\nv1\nEOF\nnpm publish" }, deny: true, tag: 'publish-gate' },
   { name: 'publish-gate: publishing after the review this turn: allowed', tool: 'Bash', input: { command: 'npm publish' }, tools: [sk('security-review')], deny: false },
   { name: 'subagent-brief: a prompt naming a brief file that points at AGENTS.md: allowed', tool: 'Agent', input: { prompt: 'Your brief is .cache/briefs/export.md. Do what it says.', subagent_type: 'general-purpose' }, setup: { '.cache/briefs/export.md': 'Read AGENTS.md first and follow its rules.\nReview the export.' }, deny: false },
@@ -3162,11 +3175,20 @@ PROMPT.push(
   { name: 'relayed turn: a "Separate note:" aside in a relayed message sets off no note capture',
     prompt: '<cross-session-message from="other">Both are fixed. Separate note: your usage file changed in your own session. Upgrade when convenient: node tools/starter.mjs update.</cross-session-message>',
     setup: HINT_FIX, setupFn: STARTER_IS, has: ['ROUTE: project'], hasNot: ['SKILL: knowledge-capture'] },
+  // status-first (Lesson, field report: "is it done?" got a long account first, and the user was upset)
+  { name: 'status-first: "is it done?" asks for the status first', prompt: 'is it done?', has: ['STATUS QUESTION'] },
+  { name: 'status-first: Spanish "¿ya terminó?" asks for the status first', prompt: '¿ya terminó?', has: ['STATUS QUESTION'] },
+  { name: 'status-first: a request that starts like a question is no status question', prompt: 'is it possible to add a dark mode to the settings page and keep the old colors as an option?', hasNot: ['STATUS QUESTION'] },
   // RECALL only above a similarity bar
   { name: 'recall: a question about the work recalls no unrelated request that shared "good" and "bad"', prompt: 'is it doing a good or bad job?',
     setup: HIST('tell the other chat everything good and bad, the mana in my zorbel deck is slow', ['decks/zorbel/list.txt']), hasNot: ['RECALL'] },
   { name: 'recall: Spanish, a question about the work recalls nothing unrelated', prompt: '¿lo está haciendo bien o mal?',
     setup: HIST('dime si el mazo lo está haciendo bien o mal con las tierras', ['decks/zorbel/list.txt']), hasNot: ['RECALL'] },
+  // Lesson, field report: a cost question recalled an unrelated clone request; a status word in a relay suggested a skill
+  { name: 'recall: "what took so long" recalls no unrelated request about a long clone', prompt: 'what took so long?',
+    setup: HIST('clone the 20 repos, it took so long last time', ['tools/clone.mjs']), hasNot: ['RECALL'] },
+  { name: 'relayed turn: one status word that is a skill trigger suggests no skill', prompt: '<cross-session-message from="other">Status: the three judges ran in parallel and all passed. No reply needed.</cross-session-message>',
+    hasNot: ['SKILL: parallel-agents', 'RECALL'] },
   { name: 'recall: a close earlier request is recalled', prompt: 'export the invoices to csv again for the accountant',
     setup: HIST('export the invoices to a csv file for the accountant', ['src/export.mjs']), has: ['RECALL: on 2026-10-01'] },
   { name: 'recall: Spanish, a close earlier request is recalled', prompt: 'exporta otra vez las facturas a csv para el contador',
@@ -5647,6 +5669,25 @@ if (mineB()) { // generated files: an edit to the shipped-checks files names the
     const project = e('tools/hooks/engine-checks.json');
     report(/GENERATED FILE: .*rebuilt by sync from tools\/hooks\/requirements\.json/.test(starter) && /GENERATED FILE: .*next upgrade replaces/.test(project) && !/GENERATED FILE/.test(other),
       'generated-file: an edit to engine-checks.json names its source (starter: requirements, packs, library; project: requirements.json)', [starter, project, other].map(o => o.slice(0, 80)).join(' | '));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+if (mineB()) { // cost: tokens, time, tool calls and helper tokens per request, from the transcripts (Lesson, field report:
+  // the user asked what a job cost and the agent parsed the transcript by hand)
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cost-'));
+  try {
+    const tp = path.join(dir, 's1.jsonl'), at = s => `2026-10-01T10:${String(s).padStart(2, '0')}:00.000Z`;
+    const u = (id, s, tools = 0) => ({ type: 'assistant', timestamp: at(s), message: { id, content: [{ type: 'text', text: 'x' }, ...Array(tools).fill({ type: 'tool_use', name: 'Bash', input: {} })], usage: { input_tokens: 10, cache_read_input_tokens: 1000, cache_creation_input_tokens: 100, output_tokens: 50 } } });
+    const rows = [{ type: 'user', timestamp: at(0), message: { content: 'build the export' } }, u('m1', 1, 2), u('m1', 1), u('m2', 3, 1),
+      { type: 'user', timestamp: at(5), isCompactSummary: true, message: { content: 'This session is being continued from a previous conversation' } }, u('m3', 6),
+      { type: 'user', timestamp: at(10), message: { content: 'what took so long?' } }, u('m4', 12)];
+    fs.writeFileSync(tp, rows.map(r => JSON.stringify(r)).join('\n') + '\n');
+    fs.mkdirSync(path.join(dir, 's1', 'subagents'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 's1', 'subagents', 'agent-a.jsonl'), JSON.stringify(u('h1', 2)) + '\n');
+    const [a, b] = (await import('./hooks.mjs')).costOf(tp, 5);
+    report(a && b && a.prompt === 'build the export' && a.tools === 3 && a.read === 3000 && a.out === 150 && a.end - a.at === 6 * 60000 && a.helpers === 1 && a.helperTokens === 1160
+      && b.prompt === 'what took so long?' && b.read === 1000 && b.helpers === 0,
+      'cost: per request, a streamed message counted once, a compaction summary continues its request, helper tokens go to the request they started in', JSON.stringify([a, b]).slice(0, 400));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 

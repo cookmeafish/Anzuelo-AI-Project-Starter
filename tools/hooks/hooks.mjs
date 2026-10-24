@@ -625,7 +625,7 @@ const makesFile = pb => /\boutputs\//.test(String(pb.fm?.summary || ''));
 const MAKE_REQUEST = /\b(write|make|create|draft|build|prepare|produce|put together|turn [^.?!]{0,30} into|export|save|generate|compose|update|edit|fix|add)\b/i;
 // Text the user pasted, and text that is the hooks' own output, are not the user's words: they never route or count as
 // a request. Lesson: a pasted audit line ("... 26 sweeps") was taken as a request for 26 sweeps.
-const HOOK_MARK = /^\s*(-\s+)?(ROUTE|ALSO ROUTE|WEAK MATCH|CLOSEST RUNBOOK|ROUTINES DUE|FEEDBACK FROM PROJECTS|SKILL|NO RUNBOOK|RULE REQUEST|RECALL|MENU CODE|MENU FLAG|SCOPE|SETUP IN PROGRESS|BOOTSTRAP NEEDED|LAST WORK TURN|INBOX|STALE KNOWLEDGE|PRAISE|THE USER SOUNDS|SUSPENDED|FRICTION ON|UNKNOWN MENU|SKILL HARDENING|SKILL CLEANUP|UPGRADE REVIEW|OPEN PLANS|MUST FOLLOW|AUTONOMY|CHECKS|RELAYED)\b/;
+const HOOK_MARK = /^\s*(-\s+)?(ROUTE|ALSO ROUTE|WEAK MATCH|CLOSEST RUNBOOK|ROUTINES DUE|FEEDBACK FROM PROJECTS|SKILL|NO RUNBOOK|RULE REQUEST|RECALL|MENU CODE|MENU FLAG|SCOPE|SETUP IN PROGRESS|BOOTSTRAP NEEDED|LAST WORK TURN|INBOX|STALE KNOWLEDGE|PRAISE|THE USER SOUNDS|SUSPENDED|FRICTION ON|UNKNOWN MENU|SKILL HARDENING|SKILL CLEANUP|UPGRADE REVIEW|OPEN PLANS|MUST FOLLOW|AUTONOMY|CHECKS|RELAYED|STATUS QUESTION)\b/;
 const HOOK_LINE = /^\s*(\[rules\]|\[project hooks|audit:\s*(PASS|FAIL)|selfcheck:|ablation:|TRIAL:\s*(PASS|FAIL)|CLAIMS:\s*(PASS|FAIL)|(PASS|FAIL|WARN)\s+\d+\.\s)/i;
 const HOOK_BLOCK = /^\s*(stop hook\b|almost done:)/i;
 // Messages from other sessions, sub-agents and the host are not the user's words, wherever they sit in a message: the
@@ -736,8 +736,10 @@ export function route(prompt, pbs, { relayed = false } = {}) {
       if (!(k.length < 2 && !/\s/.test(t.trim()) && WEAK.has(k[0]))) specific = true;
       // a phrase that points at the user's own thing ("my vault", "in my notes", "remember this"), typed exactly, is a
       // request on its own. Lesson: such triggers could never route, so "check the links in my vault" found nothing.
+      // (in a relayed message one word alone is weak: another session's status names things in passing. Lesson, field
+      // report: "parallel" in a status message suggested the parallel-agents skill)
       const oneWord = k.length < 2 && !multi;
-      if (k.length >= 2 || (oneWord && !askOnly) || phrase || (exact && POINTER.test(t))) strong = true; else k.forEach(w => weak.add(w));
+      if (k.length >= 2 || (oneWord && !askOnly && !relayed) || phrase || (exact && POINTER.test(t))) strong = true; else k.forEach(w => weak.add(w));
     }
     if (pb.triggerRe && pb.triggerRe.test(low)) { score += 2; strong = true; specific = true; hits.push('/' + pb.fm.trigger_regex + '/'); }
     if (score && (strong || weak.size >= 2)) scored.push({ pb, score, hits, specific });
@@ -4095,12 +4097,15 @@ export function relayRequestText(s, cfg = config()) {
 // reports as done are no request for that work; what it quotes stays (a user quotes the thing they mean). Lesson:
 // "upgrade with node tools/starter.mjs update" set off the dependency-update skill on "upgrade node".
 export const typedRouteText = s => String(s || '').replace(/`[^`\n]*`/g, asRoute).replace(CMD_LINE, asRoute).replace(DONE_REPORT, ' ').replace(/\s{2,}/g, ' ').trim();
+// A short question about whether the work is done (English, Spanish), under 80 characters.
+const STATUS_ASK = /^(?=.{1,80}$)(?:(?:so|ok(?:ay)?|and|well|hey)[,\s]+)?(?:is|are|was) (?:it|that|this|everything|the \w+|they|we) (?:done|finished|ready|working|complete|still running)\b|^(?=.{1,80}$)(?:did|has|have) (?:it|that|this|the \w+|they|you) (?:finish(?:ed)?|complete(?:d)?|work(?:ed)?|pass(?:ed)?|end(?:ed)?)\b|^(?=.{1,80}$)(?:how(?:'s| is) it going|any (?:news|progress|update)|status\??$|where are we)|^(?=.{1,80}$)¿?\s*(?:ya )?(?:termin(?:ó|aste|aron)|acab(?:ó|aste|aron)|est[aá] (?:listo|lista|hecho|terminado))/i;
 export function promptHints(prompt, cfg = config(), withNotices = true, { relayed = false } = {}) {
   if (!String(prompt || '').trim() || (!relayed && skipped(prompt))) return []; // REQ: notification-not-prompt
   const p = userText(prompt); // pasted text and the hooks' own output are not the request
   const hints = [];
   // REQ: recall-hint. A request much like an earlier one starts from how that one was solved.
-  const best = recallMatches(p, 3).find(r => r.share >= 0.5 && r.close);
+  // (not for a relayed message: another session's report is no request of the user's to recall)
+  const best = !relayed && recallMatches(p, 3).find(r => r.share >= 0.5 && r.close);
   if (best) hints.push(`RECALL: on ${best.h.at} a similar request ("${best.h.prompt.slice(0, 90)}") was done${best.h.used.length ? ` with ${best.h.used.join(', ')}` : ''}${best.h.changed.length ? `, changing ${best.h.changed.slice(0, 4).join(', ')}` : ''}. Start from that; more: node tools/recall.mjs "<key words>".`);
   // (menu codes and flags are the user's shorthand: in a relayed message they are the other session's text)
   const m = relayed ? { known: [], unknown: [], kflags: [], uflags: [], expanded: relayRequestText(relayRouteText(p), cfg), codes: {}, flags: {} } : expandMenu(p);
@@ -4172,6 +4177,10 @@ export function promptHints(prompt, cfg = config(), withNotices = true, { relaye
   if (own && cfg.autonomy !== 'auto' && AUTONOMY_WORDS.test(p))
     hints.push('AUTONOMY: the user wants the work done without their input. Set "autonomy": "auto" in tools/hooks/config.json and record it in docs/DECISIONS.md (date, the choice, why), ' +
       `then decide instead of asking and record each choice as ${assumedHint(isSpanish(p))}. Outward actions, third-party installs and anything irreversible still need an OK.`);
+  // REQ: status-first. A short "is it done?" gets the status in its first line. Lesson, field report: a user who asked
+  // whether a job was done got a long account first, and was upset.
+  if (own && STATUS_ASK.test(p.trim()))
+    hints.push('STATUS QUESTION: start with the status in one line (yes, no or not yet, and what is left or how long), then any detail.');
   // REQ: answer-language. A Spanish request gets its labels in Spanish from the start, not only after a Stop round.
   // Lesson: a Spanish-speaking user's answers carried "Assumed:", "Root cause:" and "## Finished", because every hint
   // quoted the English label.
@@ -4753,9 +4762,10 @@ function pretoolHits(data, cfg) {
     // REQ: publish-gate. Publishing or deploying waits for a security review this turn (or one logged today in
     // docs/security.md): hard rule 15 says before, and a Stop check could only say it after the fact.
     // Lesson: a package went public before anyone looked at what it contained.
-    const pub = /\b(npm|pnpm|yarn)\s+publish\b|\bgh\s+release\s+create\b|\bgh\s+repo\s+(create\b[^\n;&|]*--public|edit\b[^\n;&|]*--visibility[= ]public)|\b(vercel|netlify)\b[^\n;&|]*--prod\b|\bfirebase\s+deploy\b|\bdocker\s+push\b|\btwine\s+upload\b|\bcargo\s+publish\b|\b(dart|flutter)\s+pub\s+publish\b|\b(poetry|uv)\s+publish\b|\bgem\s+push\b|\bfastlane\s+\w*(deliver|release|upload|beta)\b|\bhf\s+upload\b|\bhuggingface-cli\s+upload\b|\bvsce\s+publish\b|\bflyctl?\s+deploy\b|\bwrangler\s+(deploy|publish)\b/i.exec(cmdHead(cmd));
-    // (a heredoc that only writes "npm publish" into a file runs nothing. Lesson, trial round 12: a release notes draft
-    // written with cat <<EOF was refused until a security review)
+    const pub = /\b(npm|pnpm|yarn)\s+publish\b|\bgh\s+release\s+create\b|\bgh\s+repo\s+(create\b[^\n;&|]*--public|edit\b[^\n;&|]*--visibility[= ]public)|\b(vercel|netlify)\b[^\n;&|]*--prod\b|\bfirebase\s+deploy\b|\bdocker\s+push\b|\btwine\s+upload\b|\bcargo\s+publish\b|\b(dart|flutter)\s+pub\s+publish\b|\b(poetry|uv)\s+publish\b|\bgem\s+push\b|\bfastlane\s+\w*(deliver|release|upload|beta)\b|\bhf\s+upload\b|\bhuggingface-cli\s+upload\b|\bvsce\s+publish\b|\bflyctl?\s+deploy\b|\bwrangler\s+(deploy|publish)\b/i.exec(cmdHead(cmd).replace(/(?<!(?:-c|eval)\s+)("[^"\n]*"|'[^'\n]*')/g, '""'));
+    // (a heredoc that only writes "npm publish" into a file runs nothing, nor does a quoted argument such as a waive
+    // reason; "bash -c '...'" still runs what it quotes. Lessons: trial round 12, a release notes draft written with
+    // cat <<EOF was refused until a security review; field report, a waive reason naming the command was refused)
     // a dry run publishes nothing: it is how the package-release skill previews the contents (Lesson: "cargo publish
     // --dry-run" was refused until a security review, so the preview that the review needs could not run)
     if (pub && !/(^|\s)--dry-run\b/.test(cmd) && !isSuspended('check:publish-gate')) {
@@ -5541,7 +5551,10 @@ export function coreChecks(x, cfg) {
   if (x.workTurn && x.prompt && isRequirement(x.prompt, cfg) && !isRuleRequest(x.prompt, cfg) && !isUpset(x.prompt, cfg)) {
     const checkAdded = x.changed.some(p => /^(tools\/hooks\/(requirements\.json|hooks\.mjs|project-scenarios\.mjs)|library\/catalog\.json|packs\/[^/]+\/pack\.json)$/.test(p) || /\.(mjs|py|js|ts)$/.test(p) && /check|guard|lint|validate/i.test(p));
     const tested = x.changed.some(p => /^tools\/hooks\/(selfcheck|project-scenarios)\.mjs$/.test(p) || /(^|\/)(tests?|__tests__)\/|\.(test|spec)\./.test(p)) || x.cmds.some(c => /selfcheck\.mjs|\btest\b/.test(c));
-    const judged = x.changed.filter(p => /(^docs\/playbooks\/|SKILL\.md$)/.test(p) && exists(p)).some(p => doneWhenItems(read(abs(p))).some(i => /\bjudg(e)?ment\b/i.test(i)));
+    // (any runbook or skill file changed this turn: a project keeps its runbooks where it likes. Lesson, field report:
+    // a "(judgment: why)" Done when item, written as the hint said, still needed a waive)
+    // (the section's text, so a plain "- item" counts as well as a checkbox)
+    const judged = x.changed.filter(p => /\.md$/i.test(p) && exists(p)).some(p => /\(judg(e)?ment:\s*[^)]{8,}\)/i.test((/^##\s+Done when[^\n]*\n([\s\S]*?)(?=^##\s|(?![\s\S]))/m.exec(read(abs(p))) || [])[1] || ''));
     if (!(checkAdded && tested) && !judged)
       add('requirement-enforced', 'The user stated a lasting requirement. Enforce it now, without asking: add it to the "Done when" of the runbook or skill it belongs to with "(hook: <tag>)", ' +
         'write that check (requirements.json, or the project\'s own check script) and a test for it; or mark it "(judgment: <why no script can tell>)". If it was only for this one task, waive it: node tools/hooks/hooks.mjs waive requirement-enforced "one-off, only for this task".');
@@ -6625,7 +6638,9 @@ export function recallMatches(text, limit = 3) {
 // The RECALL hint needs a close match: at least two words that name the subject (not common words, not a verdict like
 // "good" or "bad", not Spanish small words) shared with the earlier request, covering half of the new one's.
 // Lesson: "is it doing a good job?" recalled an unrelated deck edit whose request said "good and bad".
+// (time and effort words too. Lesson, field report: "what took so long" recalled an unrelated git-clone request)
 const RECALL_WEAK = new Set(['good', 'bad', 'job', 'great', 'nice', 'better', 'worse', 'best', 'worst', 'well', 'right', 'wrong', 'okay', 'fine',
+  'took', 'take', 'takes', 'taking', 'long', 'longer', 'time', 'slow', 'fast', 'quick', 'much', 'many', 'tokens', 'cost', 'done', 'finished', 'still',
   'terrible', 'awful', 'poor', 'bien', 'mal', 'bueno', 'buena', 'malo', 'mala', 'trabajo', 'las', 'los', 'del', 'que', 'una', 'uno', 'unos', 'unas',
   'para', 'por', 'con', 'est', 'esta', 'este', 'esto', 'eso', 'esa', 'ese', 'como', 'muy', 'pero', 'les', 'sus', 'mis', 'tus', 'hac', 'haciendo', 'hecho'].map(stem));
 function recallClose(want, h) {
@@ -6736,11 +6751,23 @@ export function stopDecision(data, cfg = config()) {
   const raw = typeof data.last_assistant_message === 'string' && data.last_assistant_message.trim() ? data.last_assistant_message : finalText(t.entries);
   const isNote = isUnchangedNote(raw);
   const prevFull = sameTurn ? String(failed.answer || '') : '';
-  let resend = null;
+  // the full answer a short last message stands for (the earlier one, or the earlier one with its sentences corrected)
+  let resend = null, full = null;
   if (isNote && x.workTurn) {
-    if (prevFull.trim() && failed.shortOk) x = context(t, cfg, `${prevFull}\n\n${raw}`);
+    if (prevFull.trim() && failed.shortOk) { x = context(t, cfg, `${prevFull}\n\n${raw}`); full = prevFull; }
     else resend = { tag: 'answer-resent', msg: prevFull.trim() ? `The last message says the answer is unchanged, but the last round asked for changes to the answer itself (${(failed.tags || []).join(', ')}). End with the whole answer again, updated.`
       : 'The last message says the answer is unchanged, but no full answer was sent earlier in this turn. End with the whole answer to the user\'s request.' };
+  }
+  // A fix of a sentence or two may end with 'Corrected: "<old>" -> "<new>"' lines: the checks read the earlier answer
+  // with those replaced. Not in a headless run, whose caller gets only the last message. Lesson, field report: one
+  // untraced number cost a 40-line re-send, each round.
+  const fixes = correctionsOf(raw);
+  if (fixes && x.workTurn) {
+    const sdk = (t.entries || []).some(r => /^sdk/.test(String(r.entrypoint || '')));
+    const lost = fixes.filter(f => !prevFull.includes(f.old));
+    if (prevFull.trim() && !sdk && !lost.length) { full = fixes.reduce((s, f) => s.replace(f.old, f.new), prevFull); x = context(t, cfg, full); }
+    else resend = { tag: 'answer-resent', msg: !prevFull.trim() || sdk ? 'The last message is only a correction, but there is no full answer earlier in this turn to apply it to (or this run returns only its last message). End with the whole answer, corrected.'
+      : `The correction quotes text the earlier answer does not hold word for word (${lost.map(f => `"${f.old.slice(0, 60)}"`).join(', ')}). Quote it exactly, or end with the whole answer again, corrected.` };
   }
   // A short reply to a background task's notice, with no tool run since the notice, after this turn
   // already ended cleanly, is not new work: the checks stand as they were. Lesson: each acknowledgement of a finished
@@ -6807,7 +6834,7 @@ export function stopDecision(data, cfg = config()) {
   noteFriction(key, x, missing);
   // The answer the turn ended with is kept, for a later reply to a notice to carry again (REQ: notice-answer). A reply
   // that did not carry it keeps the earlier one, and a short "Answer unchanged" line keeps the full answer it stands for.
-  const endAnswer = (noticeAck && prevAnswer.trim() && !carriesAnswer(raw, prevAnswer) ? prevAnswer : isNote && prevFull.trim() ? prevFull : raw).slice(0, 40000);
+  const endAnswer = (noticeAck && prevAnswer.trim() && !carriesAnswer(raw, prevAnswer) ? prevAnswer : full ?? raw).slice(0, 40000);
   const ended = (keep = false) => { writeState(TURN_END, { at: new Date().toISOString(), key, clean: !keep, answer: endAnswer }); if (!keep && !envOf('BENCH') && !DRY_STATE) try { fs.unlinkSync(path.join(STATE, 'stop-details.md')); } catch { } }; // the next prompt starts a new turn
   if (waiting && !missing.length) { writeState(TURN_END, { at: new Date().toISOString(), key, clean: false, pending: t.bgRunning.length }); logged('waiting', { pending: t.bgRunning.length }); return null; }
   // the headless re-send is asked once and costs no round, so a turn that used all its rounds still gets it
@@ -6843,7 +6870,7 @@ export function stopDecision(data, cfg = config()) {
   logged('blocked', { steps: steps.map(m => m.tag) });
   writeState('stop-blocks.json', { [key]: nblocks + 1 });
   writeState('stop-failed.json', { key, tags: [...new Set([...x.failedBefore, ...missing.map(m => m.tag)])], foreseen: [...new Set([...(sameTurn ? failed.foreseen || [] : []), ...follow.map(m => m.tag)])],
-    shortOk, answer: (isNote && prevFull.trim() ? prevFull : isNote ? '' : raw).slice(0, 40000) });
+    shortOk, answer: (full ?? (isNote || fixes ? '' : raw)).slice(0, 40000) });
   // The full messages, with their details, go to a file the agent reads with "hooks.mjs why".
   writeDetails(steps, `Steps left (round ${nblocks + 1} of ${cfg.maxBlocksPerTurn})${isSpanish(x.prompt) ? `\n\n${LABELS_ES_HINT}` : ''}`);
   const line = m => m.followOn ? `Then: ${shortStep(m)}` : shortStep(m);
@@ -6863,11 +6890,20 @@ export function stopDecision(data, cfg = config()) {
       // (kept short: it comes with every block. Lesson: at about 1,000 characters it was two thirds of all Stop text)
       `end with the whole answer again, in the user's language, updated: the user never saw the earlier version or these steps, so it says nothing about them (no "here it is again", no notes on versions, no check names).` +
       (shortOk ? ' If that answer is unchanged and the steps only changed files, end instead with: "Answer unchanged; also updated: <the files, in plain words>".' : '') +
+      (!headless && !shortOk && raw.length > 1200 ? ' If only a sentence or two must change, end instead with: Corrected: "<its exact old text>" -> "<new text>", one line each.' : '') +
       (isSpanish(x.prompt) ? ` ${labelsEsHint(steps.map(m => m.tag).join(' '))}` : '') +
       `${cfg.autonomy === 'auto' ? ` The user asked not to be asked: where a step says "with the user", decide it and record it as ${assumedHint(isSpanish(x.prompt))}.` : ''} Full steps: \`node tools/hooks/hooks.mjs why\`. A step that does not apply: \`node tools/hooks/hooks.mjs waive <name> "<reason>"\`, never an N/A line in the answer. Names: ${steps.map(m => m.tag).join(', ')}.`
   };
 }
 // "Answer unchanged; done: ..." as the whole last message (any language the checks know: English, Spanish)
+// 'Corrected: "<old>" -> "<new>"', one per line ("Corregido:" too; straight or curly quotes, -> or →), as the whole last
+// message: the corrections, or null.
+export function correctionsOf(text) {
+  const s = String(text || '').trim();
+  if (s.length > 2000 || !/^\W{0,4}(corrected|correction|corregido|correcci[oó]n)\s*:/i.test(s)) return null;
+  const out = [...s.matchAll(/["“]([^"”\n]+)["”]\s*(?:->|→)\s*["“]([^"”\n]*)["”]/g)].map(m => ({ old: m[1], new: m[2] }));
+  return out.length ? out : null;
+}
 export const isUnchangedNote = text => { const s = String(text || '').trim(); return s.length > 0 && s.length <= 600 && /^\W{0,4}(answer unchanged|same answer as above|respuesta sin cambios|la respuesta no cambia|misma respuesta)\b/i.test(s); };
 // A step met by files or runs, not by words in the answer: an unchanged answer stays valid when only these were asked.
 const CORE_FILE_FIX = new Set(['hooks-tested', 'skill-learn', 'runbook-complete', 'skill-complete', 'done-when-labeled', 'playbook-format', 'skill-valid', 'knowledge-labels',
@@ -7214,12 +7250,85 @@ function cmdCheck() {
   process.exit(1);
 }
 
+// node tools/hooks/hooks.mjs cost [--last N] [--session <id>] [--transcript <file>]
+// What each recent request cost: wall time, tool calls, tokens (fresh input, cache read, cache write, output) and the
+// helper agents' tokens. Read from the session's transcript and its helpers' transcripts, line by line (a transcript can
+// be larger than one string). Lesson, field report: the user asked how many tokens and how long a job took, and the
+// agent had to parse the transcript by hand.
+function eachLine(file, fn) {
+  let fd; try { fd = fs.openSync(file, 'r'); } catch { return; }
+  const buf = Buffer.alloc(8 << 20); let rest = '', n;
+  try {
+    while ((n = fs.readSync(fd, buf, 0, buf.length, null)) > 0) {
+      const lines = (rest + buf.toString('utf8', 0, n)).split('\n'); rest = lines.pop();
+      for (const l of lines) fn(l);
+    }
+    if (rest) fn(rest);
+  } finally { fs.closeSync(fd); }
+}
+export function costOf(transcript, last = 5) {
+  const reqs = [], seen = new Set();
+  const add = (r, u) => { for (const k of ['in', 'read', 'write', 'out']) r[k] += u[k]; };
+  const usage = m => ({ in: m.usage.input_tokens || 0, read: m.usage.cache_read_input_tokens || 0, write: m.usage.cache_creation_input_tokens || 0, out: m.usage.output_tokens || 0 });
+  eachLine(transcript, l => {
+    if (!/"type":"(user|assistant)"/.test(l)) return;
+    let r; try { r = JSON.parse(l); } catch { return; }
+    // (a compaction summary continues the request it summarizes)
+    if (r.isSidechain || r.isCompactSummary) return;
+    const at = Date.parse(r.timestamp || '') || 0;
+    const p = promptOf(r);
+    const relay = p === null && relayedTurn(r) ? `relayed from ${(/from-name="([^"]*)"/.exec(textOf(r.message?.content)) || [, 'another session'])[1]}` : null;
+    if (p !== null || relay) { reqs.push({ at, end: at, prompt: (p ?? relay).replace(/\s+/g, ' ').trim(), tools: 0, in: 0, read: 0, write: 0, out: 0, helpers: 0, helperTokens: 0 }); return; }
+    const cur = reqs[reqs.length - 1]; if (!cur) return;
+    if (at) cur.end = Math.max(cur.end, at);
+    const m = r.message;
+    if (r.type !== 'assistant' || !m) return;
+    if (Array.isArray(m.content)) cur.tools += m.content.filter(c => c.type === 'tool_use').length;
+    // a streamed message repeats its usage on each of its rows: counted once per message id
+    if (m.usage && !(m.id && seen.has(m.id))) { if (m.id) seen.add(m.id); add(cur, usage(m)); }
+  });
+  // helper agents: one transcript each beside the session's, counted in the request they started in
+  const dir = path.join(transcript.replace(/\.jsonl$/, ''), 'subagents');
+  let files = []; try { files = fs.readdirSync(dir).filter(f => f.endsWith('.jsonl')); } catch { }
+  for (const f of files) {
+    let start = 0, tokens = 0, end = 0; const ids = new Set();
+    eachLine(path.join(dir, f), l => {
+      if (!/"usage"/.test(l)) return;
+      let r; try { r = JSON.parse(l); } catch { return; }
+      const at = Date.parse(r.timestamp || '') || 0; if (at && !start) start = at; if (at) end = Math.max(end, at);
+      const m = r.message; if (!m?.usage || (m.id && ids.has(m.id))) return; if (m.id) ids.add(m.id);
+      const u = usage(m); tokens += u.in + u.read + u.write + u.out;
+    });
+    const owner = [...reqs].reverse().find(q => q.at <= start);
+    if (owner) { owner.helpers++; owner.helperTokens += tokens; owner.end = Math.max(owner.end, end); }
+  }
+  return reqs.slice(-last);
+}
+function cmdCost() {
+  const arg = k => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] || '' : ''; };
+  const last = Math.max(1, +arg('--last') || 5);
+  let tp = arg('--transcript');
+  if (!tp) {
+    const sid = String(arg('--session') || process.env.CLAUDE_CODE_SESSION_ID || hookedSession()).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
+    if (sid) { SID = sid; const root = path.join(os.homedir(), '.claude', 'projects'); try { for (const d of fs.readdirSync(root)) { const f = path.join(root, d, `${sid}.jsonl`); if (fs.existsSync(f)) { tp = f; break; } } } catch { } }
+    if (!tp) tp = readJSON(stateFile('turn.json'), {}).transcript || '';
+  }
+  if (!tp || !fs.existsSync(tp)) { console.log('cost: no transcript found. Pass --session <id> or --transcript <file>.'); process.exit(1); }
+  const k = n => n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : String(n);
+  const rows = costOf(tp, last);
+  if (!rows.length) { console.log('cost: no requests in this transcript.'); process.exit(0); }
+  console.log('| Started | Minutes | Tool calls | Fresh in | Cache read | Cache write | Out | Helpers (tokens) | Request |\n|---|---|---|---|---|---|---|---|---|');
+  for (const r of rows) console.log(`| ${new Date(r.at).toISOString().slice(0, 16).replace('T', ' ')} | ${((r.end - r.at) / 60000).toFixed(1)} | ${r.tools} | ${k(r.in)} | ${k(r.read)} | ${k(r.write)} | ${k(r.out)} | ${r.helpers ? `${r.helpers} (${k(r.helperTokens)})` : '0'} | ${r.prompt.slice(0, 60).replace(/\|/g, '/')} |`);
+  process.exit(0);
+}
+
 // ---------- main ----------
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
   const cmd = process.argv[2] || '';
   if (cmd === 'begin') { cmdBegin(); process.exit(0); }
   if (cmd === 'check') cmdCheck();
+  if (cmd === 'cost') cmdCost();
   if (cmd === 'restore') {
     const item = process.argv[3] || '', own = readJSON(path.join(HOOKS, 'config.json'), {});
     if (!(own.suspended || []).some(s => s.item === item)) { console.log(`not suspended: ${item || '(none given)'}. Suspended: ${(own.suspended || []).map(s => s.item).join(', ') || 'nothing'}`); process.exit(1); }
