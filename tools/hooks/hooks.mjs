@@ -5373,6 +5373,7 @@ export function coreChecks(x, cfg) {
     const fromAnswer = traceAnswer ? computed(x.answer, untraced(x.answer, ownWrites)) : []; // what goes into the knowledge base itself must trace to a source
     const written = x.uses.filter(u => /^(Write|Edit|MultiEdit)$/.test(u.name) && inKb.test(rel(u.input.file_path || '')))
       .flatMap(u => untraced([u.input.content, u.input.new_string, ...(u.input.edits || []).map(e => e.new_string)].filter(Boolean).join('\n')));
+    const machine = [];
     const unopened = x.toolsKnown ? cited.filter(p => !x.reads.has(p) && !wroteNow.has(p) && !x.cmds.some(c => c.includes(p)) && !x.results.includes(p)) : [];
     // the web links in the answer's sources were opened too: a link a search only listed was never read. Lesson: an
     // answer cited 2 of 3 studies by links it never opened, and the citation check passed it
@@ -5381,12 +5382,22 @@ export function coreChecks(x, cfg) {
       // (a research ledger checked this turn counts: helpers record there what they read)
       const opened = `${openedText(x.entries || [])}\n${ledgerRuns.map(r => read(abs(/claims\.mjs\s+check\s+"?([^"\s]+)/.exec(r.cmd)?.[1] || '.'))).join('\n')}`.replace(/\\\//g, '/');
       const key = u => u.replace(/^https?:\/\/(www\.)?/i, '').replace(/[)\].,;>]+$/, '').replace(/\/$/, '');
-      for (const u of new Set((src.match(/https?:\/\/[^\s)>\]]+/g) || []).map(key))) if (!opened.includes(u)) unopened.push(u);
+      // An article's DOI link counts as opened when that DOI was read by any route (an API query, a mirror, the
+      // publisher's page): the reader gets the page a person can open. A data address (an API, a JSON feed) in the
+      // sources is no page a person can open. Lesson (trial round 12): to pass this check an agent replaced working
+      // doi.org links with the API addresses it had fetched, and the user found half the links would not open.
+      const lowOpened = opened.toLowerCase(), decoded = (() => { try { return decodeURIComponent(lowOpened); } catch { return lowOpened; } })();
+      for (const u of new Set((src.match(/https?:\/\/[^\s)>\]]+/g) || []).map(key))) {
+        const doi = /^(?:dx\.)?doi\.org\/(10\.\d{4,9}\/\S+)$/i.exec(u)?.[1]?.toLowerCase();
+        if (/(^|[./])api[./]|\/api\/|\/rest\/|[?&](format|output)=json\b|\.json(\?|$)/i.test(u)) machine.push(u);
+        else if (!opened.includes(u) && !(doi && (lowOpened.includes(doi) || decoded.includes(doi)))) unopened.push(u);
+      }
     }
-    if (fromAnswer.length || written.length || unopened.length)
+    if (fromAnswer.length || written.length || unopened.length || machine.length)
       add('answer-traced', 'Did you make that up? ' + [fromAnswer.length && `The answer states ${fromAnswer.slice(0, 6).join(', ')}, found in nothing read this turn`,
         written.length && `the knowledge base got ${written.slice(0, 6).join(', ')}, found in nothing read this turn`,
-        unopened.length && `the answer cites ${unopened.slice(0, 4).join(', ')} without opening it`].filter(Boolean).join('; ') +
+        unopened.length && `the answer cites ${unopened.slice(0, 4).join(', ')} without opening it`,
+        machine.length && `the sources list ${machine.slice(0, 3).join(', ')}, a data address no reader can open: cite the article's page instead (its DOI link, PubMed or the publisher's page)`].filter(Boolean).join('; ') +
         '. Open the source and quote it, cut the claim, or mark the line "(not verified)", "(calculated: ...)" or "(estimate)". Research skill, section D.');
   }
   // REQ: answer-traced (cited claims). A claim cited to a project file shares its key words with it (citedClaimGaps).

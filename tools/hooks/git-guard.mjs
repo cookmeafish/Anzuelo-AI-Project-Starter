@@ -7,7 +7,7 @@
 //                                                              or while .gitignore lets private files out
 //   node tools/hooks/git-guard.mjs scan                        list unpushed commits that credit an AI
 import fs from 'node:fs';
-import { config, aiAttributedCommits, gitignoreProblems, secretHit } from './hooks.mjs';
+import { config, aiAttributedCommits, gitignoreProblems, secretHit, testInputsHash } from './hooks.mjs';
 
 const cfg = config();
 const [mode, file] = process.argv.slice(2);
@@ -54,6 +54,16 @@ if (mode === 'pre-commit') {
 }
 if (mode === 'pre-push' || mode === 'scan') {
   if (mode === 'pre-push') { const sid = unseenSession(); if (sid) { console.error(UNSEEN('push', sid)); process.exit(1); } }
+  // REQ: starter-tested. The starter is pushed only when its whole self-test passed on exactly what it tests now. Every
+  // project gets this engine. Lesson: a push ran in the same command as a failing self-test run, and an engine with a
+  // failing test reached main.
+  if (mode === 'pre-push' && fs.existsSync(new URL('../../.starter-template', import.meta.url)) && process.env.ANZUELO_SESSION_GATE !== 'off') {
+    let st = {}; try { st = JSON.parse(fs.readFileSync(new URL('./state/selftest.json', import.meta.url), 'utf8')); } catch { }
+    if (!(st.passed === true && st.inputs && st.inputs === testInputsHash())) {
+      console.error(`push rejected (starter-tested): the starter's whole self-test has not passed on this engine${st.inputs && st.inputs !== testInputsHash() ? ' (files it tests changed since its last run)' : st.passed === false ? ' (its last run failed)' : ''}. Run node tools/hooks/selfcheck.mjs until it prints ALL PASS, then push.`);
+      process.exit(1);
+    }
+  }
   const bad = aiAttributedCommits(cfg);
   if (bad.length) {
     console.error(`${mode === 'scan' ? 'found' : 'push rejected'} (no-ai-attribution): unpushed commits credit an AI agent:`);

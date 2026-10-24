@@ -87,7 +87,7 @@
           }
         ]
       },
-      "message": "Answers from research say where each fact comes from. Plain words are enough for a project file: \"from exports/2026-W42.csv\", a file opened this turn (a file you wrote this turn is not a source). Web facts get their links (numbered [1], [2] with a \"Sources:\" list at the end works too), each a page opened this turn. Or say plainly that nothing is recorded in the project.",
+      "message": "Answers from research say where each fact comes from. Plain words are enough for a project file: \"from exports/2026-W42.csv\", a file opened this turn (a file you wrote this turn is not a source). Web facts get their links (numbered [1], [2] with a \"Sources:\" list at the end works too), each a page a person can open (an article's DOI link, PubMed or the publisher's page, not a data or API address), read this turn by any route. Or say plainly that nothing is recorded in the project.",
       "waitsForAgents": true
     },
     {

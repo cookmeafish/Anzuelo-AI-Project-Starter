@@ -108,6 +108,13 @@ hooks:**, and an upgrade lists each one as its own review item.
       scenarios too (setup ran them twice); a whole note folder in a skill's check (`Baking/**`) no longer makes
       writing a note count as that skill's report (a dictated note set off research and citation checks).
     - **selfcheck**: standalone tests gated by tag now run with `--tags` (they sat inside the full-run-only block).
+    - **The starter is pushed only after a passing self-test**: its pre-push hook refuses unless the last whole self-test
+      passed on exactly the files it tests now (`starter-tested`). A push had run in the same command as a failing run.
+    - **Cited web sources are pages a person can open** (round 12, a high finding): an article's DOI link counts as opened
+      when that DOI was read by any route (an API query, a mirror); an API or data address in the sources is flagged
+      with the page to cite instead; research-cited's message asks for that page. An agent had swapped working doi.org
+      links for the API addresses it fetched, and the user could not open half of them. Scenarios: `answer-traced: a
+      DOI link cited`, `answer-traced: the API address itself`.
     - **Missing tools are named, not retried** (round 12): a held program run another way is denied with whether it is
       installed at all ("not on PATH: say it is not installed, not that it only needs approval"); a gate whose program
       is not on this machine asks only for the NOT VERIFIED line, with no refused attempt needed first. The Go answers had

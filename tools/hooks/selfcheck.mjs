@@ -1296,6 +1296,14 @@ STOP.push(
     tools: [sk('research'), { name: 'WebSearch', input: { query: 'standing desk back pain study' }, result: 'Results: Study A https://example.org/study-a' },
       { name: 'WebFetch', input: { url: 'https://example.org/study-a', prompt: 'findings' }, result: 'Study A: standing reduced reported back pain.' }],
     answer: 'Standing breaks reduced reported back pain [1].\n\nSources:\n[1] https://example.org/study-a', expect: { not: ['answer-traced'] } },
+  // the article's DOI page counts when that DOI was read through an API; the API address itself is no source a reader
+  // can open (Lesson, trial round 12: an agent swapped working doi.org links for the API addresses it had fetched)
+  { name: 'answer-traced: a DOI link cited, read through an API by that DOI: passes', prompt: 'what do studies say about naps and memory',
+    tools: [sk('research'), { name: 'WebFetch', input: { url: 'https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=DOI:10.1016/j.nlm.2021.107520&format=json', prompt: 'findings' }, result: 'A 30-minute nap improved recall.' }],
+    answer: 'A 30-minute nap improved recall [1].\n\nSources:\n[1] https://doi.org/10.1016/j.nlm.2021.107520', expect: { not: ['answer-traced'] } },
+  { name: 'answer-traced: the API address itself cited as the source: flagged, with the page to cite instead', prompt: 'what do studies say about naps and memory',
+    tools: [sk('research'), { name: 'WebFetch', input: { url: 'https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=DOI:10.1016/j.nlm.2021.107520&format=json', prompt: 'findings' }, result: 'A 30-minute nap improved recall.' }],
+    answer: 'A 30-minute nap improved recall [1].\n\nSources:\n[1] https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=DOI:10.1016/j.nlm.2021.107520&format=json', expect: { tags: ['answer-traced'], says: /data address no reader can open/ } },
   { name: 'answer-traced: figures for the project\'s own numbers, with no file read: blocked', prompt: 'how did we do last month', tools: [...many(1)],
     answer: 'Great month: 1,240 croissants sold, $4,300 in sales, up 12%.', expect: { block: true, tags: ['answer-traced'] } },
   // rounded forms and totals of figures from tool output are traced (Lesson, a field report: a token-use answer was
@@ -3450,7 +3458,7 @@ const proves = s => TAGS.filter(t => (s.expect?.tags || []).includes(t) || (s.ex
 const SHARD = (() => { const i = process.argv.indexOf('--shard'), m = /^(\d+)\/(\d+)$/.exec(i > 0 ? process.argv[i + 1] || '' : ''); return m ? { i: Number(m[1]), n: Number(m[2]) } : null; })();
 const HELPER = !!SHARD;
 // tags a standalone test proves (it runs with --tags <tag>, outside the full-run-only block)
-const STANDALONE_TAGS = ['upset-es', 'feedback-usage', 'session-checklist', 'engine-bypassed', 'transcript-tail', 'instructions-run', 'answer-traced', 'stop-follow-on', 'stop-reblock', 'check-preview'];
+const STANDALONE_TAGS = ['starter-tested', 'upset-es', 'feedback-usage', 'session-checklist', 'engine-bypassed', 'transcript-tail', 'instructions-run', 'answer-traced', 'stop-follow-on', 'stop-reblock', 'check-preview'];
 if (TAGS) {
   const all = [...STOP, ...PRETOOL, ...PROMPT];
   for (const t of TAGS) if (!HELPER && !TRIGGER_TAGS.includes(t) && !STANDALONE_TAGS.includes(t) && t !== 'selftest-speed' && !all.some(s => proves(s).includes(t))) report(false, `tags: a scenario proves ${t}`, `no scenario proves "${t}": add one to tools/hooks/project-scenarios.mjs (blocked when skipped, passes when followed)`);
@@ -4306,6 +4314,7 @@ if (mineB()) {
     'security-checklist': 'La revisión de seguridad salió bien - detalles en docs/reviews/security-2026-10-21.md',
     'parallel': 'Corrí todas las pruebas sobre el resultado.', 'qa-report': 'Hecho en 2 rondas.', 'release-ready': 'Atribución: ninguna línea de IA.',
     'a11y-checked': 'Accesibilidad: revisé el teclado y el contraste de cada pantalla.',
+    'correspondence-draft-saved': 'El borrador está guardado en outputs/drafts/ y queda sin enviar hasta que lo revises.',
   };
   const wordList = p => [...String(p || '').matchAll(/\(([^()]+)\)/g)].some(m => m[1].split('|').filter(a => /^[a-z][a-z ]*[a-z]$/i.test(a)).length >= 4);
   for (const q of shipped) {
@@ -6113,6 +6122,27 @@ if (mineB() && INSTALLED.includes('app')) { // app gates: their own pass lines, 
 }
 // standalone tests that can also be asked for by tag (--tags <tag>): outside the full-run-only block above.
 // Lesson: they sat inside it, so their "--tags" gates never ran and a fast run could not prove them.
+if (mineB() && (!TAGS || TAGS.includes('starter-tested'))) { // starter-tested: the starter is pushed only after its whole
+  // self-test passed on exactly what it tests now (Lesson: a push ran in the same command as a failing self-test run)
+  const dir = copyProject();
+  try {
+    const guard = () => { const e = { ...process.env }; delete e.ANZUELO_SESSION_GATE; const r = spawnSync(process.execPath, [path.join(dir, 'tools/hooks/git-guard.mjs'), 'pre-push'], { cwd: dir, encoding: 'utf8', env: e, input: '' }); return r.stderr || ''; };
+    const st = path.join(dir, 'tools/hooks/state/selftest.json');
+    fs.rmSync(st, { force: true });
+    const none = guard();
+    const h = spawnSync(process.execPath, ['--input-type=module', '-e', `import { testInputsHash } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; console.log(testInputsHash());`], { cwd: dir, encoding: 'utf8' }).stdout.trim();
+    fs.mkdirSync(path.dirname(st), { recursive: true });
+    fs.writeFileSync(st, JSON.stringify({ at: localDay(), passed: false, count: 9, inputs: h }));
+    const failed = guard();
+    fs.writeFileSync(st, JSON.stringify({ at: localDay(), passed: true, count: 9, inputs: h }));
+    const passed = guard();
+    fs.writeFileSync(st, JSON.stringify({ at: localDay(), passed: true, count: 9, inputs: 'other' }));
+    const stale = guard();
+    report(/starter-tested/.test(none) && /last run failed/.test(failed) && !/starter-tested/.test(passed) && /changed since/.test(stale),
+      'starter-tested: the starter is not pushed without a passing whole self-test on its current files (none, a failed run, a stale pass); a current pass lets it through',
+      JSON.stringify({ none: none.slice(0, 80), failed: failed.slice(0, 80), passed: passed.slice(0, 80), stale: stale.slice(0, 80) }));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
 if (mineB() && (!TAGS || TAGS.includes('upset-es'))) { // upset-es: complaints and "..., always" requirements in English and
   // Spanish (Lesson, trial round 10: "otra vez pusiste texto en inglés ... tiene que estar en español, siempre" set off
   // neither the upset handling nor a rule request, and neither did its English twin)
