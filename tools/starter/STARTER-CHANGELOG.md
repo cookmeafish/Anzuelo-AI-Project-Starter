@@ -149,6 +149,11 @@ hooks:**, and an upgrade lists each one as its own review item.
       request's minutes, tool calls, tokens (fresh, cache read, cache write, output) and helper tokens. Scenarios:
       `publish-gate: a waive reason`, `answer-resent: a sentence fix`, `requirement-enforced: a "(judgment: why)"`,
       `relayed turn: one status word`, `recall: "what took so long"`, `status-first:`, `cost:`.
+    - **Push checks see real pushes only** (field report): "git stash push" is local, and a quoted argument that only
+      names a push (a feedback line) runs nothing, for the outward gate, the protected-branch, .gitignore and
+      attribution checks alike; "git -C <dir> push" and "bash -c '...'" still count. A relayed message makes no skill
+      mandatory at all (a line starting "Publish gate:" did); the Stop checks still hold what the turn changes or runs.
+      Scenarios: `outward-gate: "git stash push`, `outward-gate: a feedback line`, `relayed turn: a line that starts`.
     - **Helpers on an old scope are named when the user changes it** (field report): a message from the user that
       arrives while helpers launched before it still run gets a one-time heads-up with the next call, naming them, to
       stop the ones it makes obsolete before new work. Three helpers had judged a free-only deck after the user allowed

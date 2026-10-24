@@ -1285,6 +1285,13 @@ function deniedIds(entries) {
 // here-document whose prose said "git repository ... every commit" counted as a commit, and its refused run as a
 // denied commit, so an answer that said nothing was committed was told it claimed a commit.
 const gitRun = sub => c => new RegExp(`(^|[;&|(\\n]\\s*)git(\\s+-[cC]\\s+\\S+|\\s+--?[\\w-]+(=\\S+)?)*\\s+${sub}\\b`, 'i').test(cmdHead(c).replace(/"[^"\n]*"|'[^'\n]*'/g, '""'));
+// A command line without what it only quotes (a quoted argument, a heredoc's text); "bash -c '...'" and eval still run
+// what they quote. Lessons, field reports: a waive reason and a feedback line that named a command were refused as it.
+export const runText = c => cmdHead(c).replace(/(?<!(?:-c|eval)\s+)("[^"\n]*"|'[^'\n]*')/g, '""');
+// A real "git push": git, its own options, then push ("git stash push" is local). Lesson, field report: "git stash push
+// <file>" was held as an outward push.
+const GIT_PUSH = /(?:^|[;&|(\n"']\s*)git(?:\s+-[cC]\s+\S+|\s+--?[\w-]+(?:=\S+)?)*\s+push\b[^\n;&|"']*/i;
+export const gitPush = c => GIT_PUSH.exec(runText(c));
 // The claim words, in English and Spanish (a Spanish answer is checked too).
 const CLAIMED = [
   { kind: 'push', cmd: gitRun('push'), says: /\bpushed\b|(?<!\p{L})(hice (el )?push|sub[ií] (los cambios|el c[oó]digo|la rama)|subid[oa]s? (a|al) (github|gitlab|remoto|origin))(?!\p{L})/iu },
@@ -4156,12 +4163,13 @@ export function promptHints(prompt, cfg = config(), withNotices = true, { relaye
   // stopped at the end. Lesson: a change to sign-in code was only reviewed when the user remembered to ask.
   // (not for a request that only asks: it changes nothing. Lesson, trial round 12: "which payment provider should we use,
   // Stripe or Mollie?" made the security review mandatory on a research turn with no code)
+  // (nor for a relayed message: another session's report names gates and commands in passing, and the Stop checks still
+  // hold what the turn really changes or runs. Lessons, field reports: an upgrade notice naming "npm publish", then a
+  // line starting "Publish gate: ...", made the security review mandatory)
   const forced = new Map();
-  for (const q of askingOnly(p, cfg) ? [] : loadRequirements().reqs) {
+  for (const q of askingOnly(p, cfg) || relayed ? [] : loadRequirements().reqs) {
     if (!q || q.enabled === false || !q.forces || !q.hint || isSuspended(`check:${q.tag}`)) continue;
-    // (a relayed message: only the sentences that ask for something, without what it quotes. Lesson, field report: an
-    // upgrade notice that named "npm publish" as a fixed false alarm made the security review mandatory)
-    let hit = null; try { hit = re(q.hint).exec(relayed ? m.expanded : unquoted(p)); } catch { }
+    let hit = null; try { hit = re(q.hint).exec(unquoted(p)); } catch { }
     if (hit && !forced.has(q.forces)) forced.set(q.forces, { q, word: hit[0].trim() });
   }
   for (const [n, { q, word }] of forced) {
@@ -4548,12 +4556,14 @@ export function outwardCommand(cmd) {
   // (text a heredoc writes into a file is not a command that runs. Lesson, trial round 12: a DECISIONS.md entry saying
   // "git push to GitHub, then a workflow deploys" was blocked as a push)
   const c = String(cmd || '').replace(/<<-?\s*(['"]?)(\w+)\1[\s\S]*?\n\2\b/g, '');
+  // (the commands themselves, not what is only quoted: a feedback line naming "git stash push" was held as a push)
+  const run = runText(c);
   const pats = [
     /\bSend-MailMessage\b[^\n;&|]*/i, /\b(sendmail|mailx|msmtp|swaks)\b[^\n;&|]*/i, /(^|[\s;&|(])mail\s+-s\b[^\n;&|]*/i,
     /\bgh\s+(issue|pr)\s+(create|comment|close|reopen|merge|edit|review|ready)\b[^\n;&|]*/i, /\bgh\s+api\b[^\n;&|]*(-X|--method)\s*(POST|PUT|PATCH|DELETE)\b[^\n;&|]*/i,
-    /\bgit\b[^;&|\n]*\bpush\b[^\n;&|]*/i
+    GIT_PUSH
   ];
-  for (const p of pats) { const m = p.exec(c); if (m) return m[0]; }
+  for (const p of pats) { const m = p.exec(run); if (m) return m[0].replace(/^[;&|(\n"'\s]+/, ''); }
   // web writes: curl / wget / Invoke-WebRequest / Invoke-RestMethod sending data or a writing method, to a non-local host
   for (const seg of c.split(/&&|\|\||[;\n]/)) {
     if (!/\b(curl|wget|Invoke-WebRequest|Invoke-RestMethod|iwr|irm|http)\b/i.test(seg)) continue;
@@ -4746,7 +4756,7 @@ function pretoolHits(data, cfg) {
     const skipHooks = /\bgit\b[^;&|]*\b(commit|push|merge)\b[^;&|]*\s--no-verify\b|\bgit\b[^;&|]*\bcommit\b[^;&|]*\s-[a-zA-Z]*n[a-zA-Z]*\b|\bgit\s+-c\s+core\.hooksPath=|\bgit\s+config\b[^;&|]*\bcore\.hooksPath[ \t]+(?!["']?\.githooks\b)[^\s;&|]|\bHUSKY=0\b/i.exec(cmd);
     if (skipHooks && !/\b(no-?verify|skip (the )?(git )?hooks|bypass (the )?hooks|without (the )?hooks|hooks ?path|husky)\b/i.test(req()))
       add(`REQ: git-safety. "${skipHooks[0].trim().slice(0, 80)}" skips or re-points the git hooks (AI attribution, secrets and .gitignore checks). Fix what the hook reported instead; do this only when the user asks for it in their own words.`);
-    const pushTo = /\bgit\b[^;&|]*\bpush\b([^;&|]*)/i.exec(cmd);
+    const pushTo = gitPush(cmd) && /\bgit(?:\s+-[cC]\s+\S+|\s+--?[\w-]+(?:=\S+)?)*\s+push\b([^;&|]*)/i.exec(cmd);
     if (pushTo) {
       const branchArg = cfg.protectedBranches.find(b => re(`(^|[\\s:/])${esc(b)}(\\s|$)`).test(pushTo[1]));
       const current = !branchArg && /\bpush\b\s*($|origin\s*$|-u\s+origin\s*$)/i.test(pushTo[0]) ? (spawnSync('git', ['branch', '--show-current'], { cwd: ROOT, encoding: 'utf8' }).stdout || '').trim() : '';
@@ -4755,14 +4765,14 @@ function pretoolHits(data, cfg) {
         add(`REQ: git-safety. This pushes to the protected branch "${target}", and the user didn't name it in this request. Push to the work branch, or ask first.`);
     }
     // REQ: gitignore-ready. A push waits until .gitignore keeps everything private out and everything needed in.
-    if (/\bgit\b[^;&|]*\bpush\b/i.test(cmd)) {
+    if (gitPush(cmd)) {
       const gi = gitignoreProblems(cfg);
       if (gi.length) add(`REQ: gitignore-ready. Fix .gitignore before pushing:\n- ${gi.join('\n- ')}`);
     }
     // REQ: publish-gate. Publishing or deploying waits for a security review this turn (or one logged today in
     // docs/security.md): hard rule 15 says before, and a Stop check could only say it after the fact.
     // Lesson: a package went public before anyone looked at what it contained.
-    const pub = /\b(npm|pnpm|yarn)\s+publish\b|\bgh\s+release\s+create\b|\bgh\s+repo\s+(create\b[^\n;&|]*--public|edit\b[^\n;&|]*--visibility[= ]public)|\b(vercel|netlify)\b[^\n;&|]*--prod\b|\bfirebase\s+deploy\b|\bdocker\s+push\b|\btwine\s+upload\b|\bcargo\s+publish\b|\b(dart|flutter)\s+pub\s+publish\b|\b(poetry|uv)\s+publish\b|\bgem\s+push\b|\bfastlane\s+\w*(deliver|release|upload|beta)\b|\bhf\s+upload\b|\bhuggingface-cli\s+upload\b|\bvsce\s+publish\b|\bflyctl?\s+deploy\b|\bwrangler\s+(deploy|publish)\b/i.exec(cmdHead(cmd).replace(/(?<!(?:-c|eval)\s+)("[^"\n]*"|'[^'\n]*')/g, '""'));
+    const pub = /\b(npm|pnpm|yarn)\s+publish\b|\bgh\s+release\s+create\b|\bgh\s+repo\s+(create\b[^\n;&|]*--public|edit\b[^\n;&|]*--visibility[= ]public)|\b(vercel|netlify)\b[^\n;&|]*--prod\b|\bfirebase\s+deploy\b|\bdocker\s+push\b|\btwine\s+upload\b|\bcargo\s+publish\b|\b(dart|flutter)\s+pub\s+publish\b|\b(poetry|uv)\s+publish\b|\bgem\s+push\b|\bfastlane\s+\w*(deliver|release|upload|beta)\b|\bhf\s+upload\b|\bhuggingface-cli\s+upload\b|\bvsce\s+publish\b|\bflyctl?\s+deploy\b|\bwrangler\s+(deploy|publish)\b/i.exec(runText(cmd));
     // (a heredoc that only writes "npm publish" into a file runs nothing, nor does a quoted argument such as a waive
     // reason; "bash -c '...'" still runs what it quotes. Lessons: trial round 12, a release notes draft written with
     // cat <<EOF was refused until a security review; field report, a waive reason naming the command was refused)
@@ -4813,7 +4823,7 @@ function pretoolHits(data, cfg) {
       add('REQ: no-ai-attribution. This text credits an AI agent (co-author trailer, "generated with", AI email or robot emoji). Remove it: commits, PRs and releases are solely the user\'s.');
     if (/\bgit\b[^;&|]*\bcommit\b[^;&|]*--author[= ]["']?[^"']*/i.test(cmd) && re(cfg.aiAuthor).test(/--author[= ]["']?([^"']*)/i.exec(cmd)?.[1] || ''))
       add('REQ: no-ai-attribution. Don\'t set an AI as the commit author. Commits are authored by the user\'s own git identity.');
-    if (/\bgit\b[^;&|]*\bpush\b/i.test(cmd)) {
+    if (gitPush(cmd)) {
       const bad = aiAttributedCommits(cfg);
       if (bad.length) add(`REQ: no-ai-attribution. Unpushed commits credit an AI agent: ${bad.slice(0, 5).join(', ')}. Reword them (message and author) before pushing. Ask the user first if rewriting history affects anyone else.`);
     }

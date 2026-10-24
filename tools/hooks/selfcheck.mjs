@@ -1684,6 +1684,11 @@ PRETOOL.push(
   // rule 6: outward actions need the OK in this request (Lesson: a mail send, an API POST and "gh issue create" ran unasked)
   // (Lesson, trial round 12: a heredoc writing "git push to GitHub, then a workflow deploys" into DECISIONS.md was denied)
   { name: 'outward-gate: a heredoc that only writes the words "git push" into a doc: allowed', tool: 'Bash', input: { command: "cat >> docs/DECISIONS.md <<'X'\n- Publishing: git push to GitHub, then a GitHub Actions workflow builds and deploys.\nX" }, prompt: 'set up this project', deny: false },
+  // Lesson, field report: "git stash push" is local, and a quoted line that only names a command runs nothing
+  { name: 'outward-gate: "git stash push <file>" is local: allowed', tool: 'Bash', input: { command: 'git stash push tools/hooks/hooks.py -q' }, prompt: 'set the hook change aside', deny: false },
+  { name: 'outward-gate: a feedback line that only names git push: allowed', tool: 'Bash', input: { command: 'node tools/starter.mjs feedback "outward-gate held git stash push as a push"' }, prompt: 'report it', deny: false },
+  { name: 'outward-gate: git -C <dir> push still counts: denied', tool: 'Bash', input: { command: 'git -C ../site push origin work' }, prompt: 'set up this project', deny: true, tag: 'outward-gate' },
+  { name: 'outward-gate: bash -c runs the push it quotes: denied', tool: 'Bash', input: { command: "bash -c 'git push origin work'" }, prompt: 'set up this project', deny: true, tag: 'outward-gate' },
   { name: 'outward-gate: a real push after a heredoc is still denied', tool: 'Bash', input: { command: "cat >> docs/NOTES.md <<'X'\nnotes\nX\ngit push origin main" }, prompt: 'set up this project', deny: true, tag: 'outward-gate' },
   { name: 'outward-gate: sending an email the user only asked to write: denied', tool: 'PowerShell', input: { command: 'Send-MailMessage -To flour@example.com -Subject "Short order"' }, prompt: 'email the flour guy that the order was short', deny: true, tag: 'outward-gate' },
   // Lesson: "reply to this email" counted as an OK to send, when it asks for a reply to be written
@@ -3168,9 +3173,9 @@ PROMPT.push(
   { name: 'relayed turn: a notice that only names "npm publish" makes no skill mandatory',
     prompt: '<cross-session-message from="other">A new engine is on main: run node tools/starter.mjs upgrade when convenient. Changes: a heredoc that only writes "npm publish" is not treated as publishing. Reply only if the upgrade reports a regression.</cross-session-message>',
     setup: HINT_FIX, setupFn: STARTER_IS, hasNot: ['MUST FOLLOW', 'security-publish'] },
-  { name: 'relayed turn: relayed work that asks to publish still names the security review',
-    prompt: '<cross-session-message from="other">Please publish it to npm now: run npm publish.</cross-session-message>',
-    setup: HINT_FIX, setupFn: STARTER_IS, has: ['MUST FOLLOW: security-review'] },
+  { name: 'relayed turn: a line that starts "Publish gate:" makes no skill mandatory',
+    prompt: '<cross-session-message from="other">Fixed locally:\n1. Publish gate: quoted arguments such as a waive reason no longer count.</cross-session-message>',
+    setup: HINT_FIX, setupFn: STARTER_IS, hasNot: ['MUST FOLLOW'] },
   // a "note:" label in a relayed message is the sender's aside; typed by the user it is still the capture shorthand
   { name: 'relayed turn: a "Separate note:" aside in a relayed message sets off no note capture',
     prompt: '<cross-session-message from="other">Both are fixed. Separate note: your usage file changed in your own session. Upgrade when convenient: node tools/starter.mjs update.</cross-session-message>',
