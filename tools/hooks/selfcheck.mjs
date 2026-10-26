@@ -7054,6 +7054,9 @@ if (mineB() && (!TAGS || TAGS.includes('upset-es'))) { // upset-es: complaints a
     ['again you put english text on the page. everything the reader sees has to be in spanish, always', true, true],
     ['ya te dije que las fechas van en formato europeo', true, false],
     ['the export works again, thanks', false, false], ['otra vez gracias, quedó perfecto', false, false],
+    // ("useless" about what the request works on is no verdict on the work. Lesson (a field report))
+    ['yes do it and replace the 2 most useless items in the list', false, false], ['this export is useless', true, false],
+    ['your fix is useless and slow', true, false],
   ];
   const got = cases.map(([t]) => [h.isUpset(t, cfg), h.isRuleRequest(t, cfg)]);
   report(cases.every(([, u, r], i) => got[i][0] === u && got[i][1] === r), 'upset-es: complaints and "..., always" requirements are caught in English and Spanish; thanks and praise are not',

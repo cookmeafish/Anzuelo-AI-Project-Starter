@@ -31,6 +31,8 @@ hooks:**, and an upgrade lists each one as its own review item.
     parts) or "Corrected:" lines, not the whole answer again.
   - **A plain list is no sentence:** 3+ short lines with no end punctuation (an import list, one item per line) are
     read as a list by plain-writing; wrapped prose is still measured. From a field report.
+  - **"Useless" about the request's objects is not upset:** "replace the 2 most useless items" no longer reads as a
+    complaint; "it's useless" still does. From a field report.
   - **A curl to this machine is not the web:** polling the project's own local server (localhost, 127.x, ::1) no longer
     sets off research-verified. From a field report.
   - **Fewer false alarms, no off switch (from a field report, 20 headless builds):** a one-sentence question led by
