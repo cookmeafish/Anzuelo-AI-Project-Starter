@@ -1,0 +1,247 @@
+{
+  "good": "The project collects facts, research, notes or records you want to rely on later.",
+  "costs": "More structure: every fact needs a source and a date, so writing things down takes a little longer.",
+  "plain": "Knowledge base",
+  "does": "Keeps facts, research and notes in organized files, each with its source and date.",
+  "outcome": "Answers come from your own recorded facts, and nothing has to be researched twice.",
+  "title": "Knowledge and context",
+  "for": "Projects whose job is to know things and answer from them: research, planning, records, notes, guides, decisions, a subject the user keeps coming back to.",
+  "notFor": "Building software. A project that is mainly an application takes the app pack (it can take both if it also keeps a knowledge base).",
+  "config": {
+    "protectedOriginals": [
+      "sources/**"
+    ],
+    "noOverwrite": [
+      "outputs/**"
+    ]
+  },
+  "menu": [
+    "| K3 | Ingest files | ingest.md | process every file in inbox/: preserve originals in sources/, extract the facts into docs/knowledge, update the source register |",
+    "| K4 | Make a deliverable | deliverable.md | produce this as a new file in outputs/, built from the knowledge base, checked against the brief |"
+  ],
+  "precedence": [
+    "Files given with a question → `ingest.md` first (so the facts are recorded), then the research skill (section A from the project, C for anything new).",
+    "Answering, looking up or checking facts → the research skill: A when the knowledge base has it and it is current, C when it is missing, stale or the user wants current information."
+  ],
+  "layout": [
+    [
+      "`docs/knowledge/`",
+      "What the project knows, one topic per file",
+      "Labeled, sourced, dated (hook: knowledge-labels)"
+    ],
+    [
+      "`docs/knowledge/SOURCES.md`",
+      "Source register",
+      "Every source, with date and reliability"
+    ],
+    [
+      "`inbox/`",
+      "Drop zone for the user's new files",
+      "Processed by `ingest.md`"
+    ],
+    [
+      "`sources/`",
+      "Originals: documents, exports, images",
+      "Never edited, moved or deleted (hook: protect-originals)"
+    ],
+    [
+      "`outputs/`",
+      "Deliverables",
+      "A new version is a new file (hook: no-overwrite)"
+    ],
+    [
+      "`data/`",
+      "Working data the project keeps current (price lists, counts, tables the user edits)",
+      "Edited freely; its origin is noted in docs/knowledge/SOURCES.md"
+    ]
+  ],
+  "requirements": [
+    {
+      "tag": "research-recorded",
+      "rule": "4",
+      "when": {
+        "skillUsed": "research",
+        "toolRan": "claims\\.mjs\\s+check"
+      },
+      "require": {
+        "filesChanged": [
+          "docs/knowledge/**"
+        ]
+      },
+      "message": "Research skill, section E: record the confirmed findings in docs/knowledge (labeled, sourced, dated) so the next question is answered from the project, not re-researched."
+    },
+    {
+      "tag": "answer-cites",
+      "rule": "4",
+      "when": {
+        "skillUsed": "research",
+        "answerNotMatches": "verified:\\s*\\d+\\s+claims"
+      },
+      "require": {
+        "anyOf": [
+          {
+            "answerCites": true
+          },
+          {
+            "answerMatches": "^[ \\t]*[-*]?[ \\t]*\\[\\d+\\][ \\t]+(?:https?:\\/\\/|<https?:|\\[[^\\]\\n]+\\]\\(https?:)|not (in|recorded in) the (knowledge base|project)|nothing recorded"
+          }
+        ]
+      },
+      "message": "Answer from what the project knows, and say in plain words which file each fact came from: \"from docs/knowledge/x.md\" or \"from exports/2026-W42.csv\", a file opened this turn (a note you wrote this turn is not a source; cite what it came from). Web sources are fine for what the project doesn't have. Or say plainly that the project has nothing recorded on it."
+    },
+    {
+      "tag": "ingest-registered",
+      "rule": "4",
+      "when": {
+        "playbookUsed": "ingest"
+      },
+      "require": {
+        "filesChanged": [
+          "docs/knowledge/SOURCES.md"
+        ]
+      },
+      "message": "Register every ingested file in docs/knowledge/SOURCES.md (and move the originals into sources/)."
+    },
+    {
+      "tag": "deliverable-file",
+      "rule": "5",
+      "when": {
+        "playbookUsed": "deliverable"
+      },
+      "require": {
+        "filesChanged": [
+          "outputs/**",
+          "profiles/*/outputs/**"
+        ]
+      },
+      "message": "Save the deliverable as a new file in outputs/ (profiles/<name>/outputs/ when it is about one person) and give its path. A new version is a new file."
+    },
+    {
+      "tag": "knowledge-changelog",
+      "rule": "12",
+      "when": {
+        "filesChanged": [
+          "docs/knowledge/**"
+        ]
+      },
+      "require": {
+        "filesChanged": [
+          "docs/CHANGELOG.md"
+        ]
+      },
+      "message": "Add a dated line to docs/CHANGELOG.md for the knowledge that changed (a new file in outputs/ is its own dated record and needs none)."
+    },
+    {
+      "tag": "knowledge-captured",
+      "rule": "4",
+      "when": {
+        "skillUsed": "knowledge-capture"
+      },
+      "require": {
+        "filesChanged": [
+          "docs/knowledge/**",
+          "docs/DECISIONS.md",
+          "docs/BRIEF.md"
+        ]
+      },
+      "message": "Knowledge-capture skill: write the fact, preference or decision into docs/knowledge (labeled, sourced, dated), docs/DECISIONS.md or docs/BRIEF.md. Saying it in the answer is not recording it."
+    },
+    {
+      "tag": "ingest-trigger",
+      "rule": "4",
+      "forces": "ingest",
+      "hint": "\\b(here'?s|here (is|are)|attach(ed|ing)|(i|i've|i have|we|just) (just )?(dropped|uploaded|sent)|(?<!the )(uploaded|dropped))\\b[^.?!\\n]{0,30}\\b(files?|pdfs?|docs?|documents?|exports?|screenshots?|spreadsheets?|scans?|statements?|invoices?|receipts?|photos?|images?|pictures?|contracts?|csvs?|xlsx)\\b|\\b(came in|arrived)\\b[^.?!\\n]{0,30}\\b(process|ingest|file|go through)\\b|\\b(in|into|to) (the )?inbox\\b",
+      "when": {
+        "anyOf": [
+          {
+            "filesChanged": [
+              "sources/**"
+            ],
+            "filesIgnore": [
+              "sources/README.md"
+            ]
+          },
+          {
+            "fileRead": [
+              "inbox/**"
+            ]
+          },
+          {
+            "promptMatches": "\\b(here'?s|here (is|are)|attach(ed|ing)|(i|i've|i have|we|just) (just )?(dropped|uploaded|sent)|(?<!the )(uploaded|dropped))\\b[^.?!\\n]{0,30}\\b(files?|pdfs?|docs?|documents?|exports?|spreadsheets?|scans?|statements?|invoices?|receipts?|photos?|images?|pictures?|contracts?|csvs?|xlsx)\\b|\\b(came in|arrived)\\b[^.?!\\n]{0,30}\\b(process|ingest|file|go through)\\b|\\b(in|into|to) (the )?inbox\\b",
+            "workTurn": true
+          }
+        ]
+      },
+      "require": {
+        "anyOf": [
+          {
+            "playbookUsed": "ingest"
+          },
+          {
+            "filesChanged": [
+              "docs/knowledge/SOURCES.md"
+            ]
+          }
+        ]
+      },
+      "message": "New originals arrived in sources/: follow the ingest runbook, so each one is registered in docs/knowledge/SOURCES.md and its facts are captured."
+    },
+    {
+      "tag": "deliverable-trigger",
+      "rule": "4",
+      "forces": "deliverable",
+      "when": {
+        "filesChanged": [
+          "outputs/**"
+        ],
+        "filesIgnore": [
+          "outputs/drafts/**",
+          "outputs/README.md",
+          "outputs/**/.gitkeep"
+        ]
+      },
+      "require": {
+        "playbookUsed": "deliverable"
+      },
+      "message": "A file was written to outputs/: that is a deliverable, so follow the deliverable runbook (new version as a new file, sources, the writing check)."
+    },
+    {
+      "tag": "knowledge-source-trigger",
+      "rule": "4",
+      "forces": "research",
+      "when": {
+        "filesChanged": [
+          "docs/knowledge/**"
+        ],
+        "filesIgnore": [
+          "docs/knowledge/README.md",
+          "docs/knowledge/SOURCES.md",
+          "docs/knowledge/INDEX.md"
+        ]
+      },
+      "require": {
+        "anyOf": [
+          {
+            "skillUsed": "research"
+          },
+          {
+            "skillUsed": "knowledge-capture"
+          },
+          {
+            "playbookUsed": "ingest"
+          },
+          {
+            "knowledgeFromFiles": true
+          },
+          {
+            "skillUsed": "notes-vault"
+          },
+          {
+            "skillUsed": "manuscript"
+          }
+        ]
+      },
+      "message": "Facts were written into docs/knowledge: they come through the research skill (sources read this turn, cited), the knowledge-capture skill (what the user said) the ingest runbook (a file they gave), the notes-vault skill (a note the user dictates) or the manuscript skill (story notes from the book's own chapters). Facts read from this project's own files pass as they are when each one has its evidence label (observed, ...), the date, and the project file it came from as its source."
+    }
+  ]
+}

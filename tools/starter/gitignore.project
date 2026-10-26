@@ -1,0 +1,47 @@
+# Scratch and machine-specific hook state (runbook-usage.json is kept: it drives skill hardening)
+.cache/
+tools/hooks/state/*
+!tools/hooks/state/runbook-usage.json
+.codex/
+.gemini/
+.agents/
+.private-terms
+
+# The starter's leftovers kept for later (tools/starter.mjs keep) and the link to the starter folder (a path on this
+# machine)
+.starter/
+tools/starter.local.json
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+keys.json
+
+# Dependencies and build output
+node_modules/
+dist/
+build/
+__pycache__/
+*.pyc
+
+# OS and editor clutter
+.obsidian/
+.DS_Store
+Thumbs.db
+desktop.ini
+~$*
+*.swp
+# Local memory of past work and hook scratch: it can hold the user's own words, so it stays on this machine
+tools/hooks/state/history.jsonl
+tools/hooks/state/friction-turn.json
+tools/hooks/state/upgrade-nag.json
+tools/hooks/state/selftest.json
+tools/hooks/state/names.json
+# Agent-specific files, made on each machine by node tools/hooks/wire.mjs (the rules live in AGENTS.md)
+CLAUDE.md
+.claude/settings.local.json
+.claude/skills/
+.claude/

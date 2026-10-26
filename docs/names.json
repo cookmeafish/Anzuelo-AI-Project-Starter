@@ -1,0 +1,8 @@
+{
+  "_about": "Every name that may change is written here once. Docs show it as <!--name:KEY-->value<!--/name--> and code reads this file. Change a value, then run: node tools/hooks/hooks.mjs sync",
+  "_subjects": [],
+  "PROJECT_NAME": "{{PROJECT_NAME}}",
+  "STARTER_NAME": "Anzuelo",
+  "STARTER_TAGLINE": "A project starter for AI agents",
+  "_subjectsAbout": "Keys whose value is also the real-world subject of the project (a project named after a game): its mentions in content are not flagged."
+}

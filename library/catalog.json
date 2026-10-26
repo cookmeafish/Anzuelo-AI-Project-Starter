@@ -1,0 +1,1197 @@
+{
+  "_comment": "Ready-made skills. Each fits every project ('any') or one pack. Setup enables every skill that fits the installed packs, unless the user declines it: the 'Library skills' line of the Setup interview in docs/DECISIONS.md names it after 'left out' with the reason (the setup gate checks this). 'ask' is the question that confirms the fit; 'default' is the recommendation. Every folder in library/skills needs an entry here (audit). 'requirements' are the checks that prove the skill was followed; enable adds them to tools/hooks/requirements.json.",
+  "skills": [
+    {
+      "name": "orchestrate",
+      "good": "Big jobs split across several AI helpers or many sessions, like researching many topics at once.",
+      "costs": "Extra bookkeeping (a ledger file) that a small, one-step project never needs.",
+      "plain": "Team tracker for big jobs",
+      "does": "When a big job is split across several AI helpers, it keeps a list of who does what and checks each part before calling it done.",
+      "outcome": "Long jobs finish completely instead of stalling halfway, and you can see where each part stands.",
+      "summary": "Coordinates long multi-step or multi-agent runs with a ledger, check-ins, re-briefs, shared-resource queues and a verify-before-accept gate.",
+      "for": "any",
+      "ask": "Will this project often run long jobs split across several agents or sessions that need tracking until they are all verified?",
+      "default": false,
+      "requirements": [
+        {
+          "tag": "ledger-checked",
+          "rule": "4",
+          "when": {
+            "skillUsed": "orchestrate"
+          },
+          "require": {
+            "toolRan": "ledger\\.mjs\\s+check"
+          },
+          "message": "Orchestrate skill: run node skills/orchestrate/scripts/ledger.mjs check <ledger> and act on everything it lists before reporting."
+        }
+      ]
+    },
+    {
+      "name": "backend-patterns",
+      "good": "The project has, or will have, its own server, API or database.",
+      "costs": "Nothing for projects without server code; it only adds reading time when unused.",
+      "plain": "Server code habits",
+      "does": "Follows proven patterns when writing server code: APIs, databases, errors, logins and logging.",
+      "outcome": "Server code that is more consistent, safer and easier to change later.",
+      "summary": "Stack-neutral patterns for server code: layers, API design, queries, errors, caching, background jobs, access checks and logging, with a Done-when checklist.",
+      "for": "app",
+      "ask": "Will this project have its own server, API or database code?",
+      "default": false,
+      "requirements": [
+        {
+          "tag": "backend-tested",
+          "rule": "4",
+          "when": {
+            "skillUsed": "backend-patterns",
+            "filesChanged": [
+              "src/**",
+              "server/**",
+              "api/**",
+              "app/**",
+              "lib/**",
+              "**/*.py",
+              "**/*.go",
+              "**/*.ts",
+              "**/*.js"
+            ]
+          },
+          "require": {
+            "filesChanged": [
+              "tests/**",
+              "test/**",
+              "**/tests/**",
+              "**/__tests__/**",
+              "**/*.test.*",
+              "**/*.spec.*",
+              "**/*_test.*",
+              "**/test_*.*"
+            ]
+          },
+          "message": "Backend-patterns skill: server code changed without tests. Add tests for the service logic and one success and one failure per endpoint, and run them."
+        }
+      ]
+    },
+    {
+      "name": "codebase-map",
+      "good": "The code is large, unfamiliar, or will grow past what one session can keep in mind.",
+      "costs": "The map must be refreshed after big changes, or it goes stale. Little gain for a handful of files.",
+      "plain": "Map of the code",
+      "does": "Reads an unfamiliar or large codebase once and writes a map: where things start, how parts connect, where to change what.",
+      "outcome": "Faster, safer changes in code you or the AI did not write.",
+      "summary": "Maps an unfamiliar or large codebase (entry points, module dependencies, main flows, git hot spots, where to change what) and saves it to docs/ for later sessions.",
+      "for": "app",
+      "ask": "Is this an existing or large codebase that you or the agent will need to find your way around?",
+      "default": false,
+      "requirements": [
+        {
+          "tag": "map-saved",
+          "rule": "12",
+          "when": {
+            "skillUsed": "codebase-map"
+          },
+          "require": {
+            "filesChanged": [
+              "docs/codebase-map.md"
+            ]
+          },
+          "message": "Codebase-map skill: save the map to docs/codebase-map.md (with date, commit, tools used and unknowns) so later sessions reuse it."
+        }
+      ]
+    },
+    {
+      "name": "frontend-design",
+      "good": "The project has screens, pages or reports people look at: one place for design, wording, accessibility and handoff, all following the same rules.",
+      "costs": "A short design plan before building adds a few minutes per screen. An accessibility review without a real screen-reader test is not a full guarantee.",
+      "plain": "Design help for screens and pages",
+      "does": "Designs new screens on purpose, and also critiques existing designs, keeps colors and components consistent, writes button and error text, checks accessibility, and writes specs for developers.",
+      "outcome": "Screens look distinctive and polished, work for keyboard and screen-reader users, use the same words and styles everywhere, and can be built without guessing.",
+      "summary": "One design skill split by situation: A designs a new screen, B critiques a design, C keeps a design system consistent, D writes interface text, E reviews accessibility against WCAG 2.2 AA, F writes a developer handoff spec.",
+      "for": "gui",
+      "ask": "Will this project have screens or pages people look at, and do you want help designing them, reviewing them, wording them, checking they are accessible, or handing them to a developer?",
+      "default": true,
+      "requirements": [
+        {
+          "tag": "design-plan",
+          "rule": "9",
+          "when": {
+            "skillUsed": "frontend-design"
+          },
+          "require": {
+            "answerMatches": "design (plan|direction)|Frontend design: [A-F]"
+          },
+          "message": "Frontend-design skill: name the section used (\"Frontend design: <letter>\"). For section A, also write the design plan (direction, color, type, layout, first view, motion, the one memorable thing), say in the answer what it is, then run the gui-review-loop."
+        },
+        {
+          "tag": "a11y-checked",
+          "rule": "9",
+          "hint": "\\b(new|add|build|make|redesign|create|need)\\b[^.?!\\n]{0,40}\\b(page|screen|form|dashboard|component|dialog|modal|popup|pop-up|menu|layout|sidebar|side panel|navbar|nav bar|toolbar|drawer)s?\\b(?! (break|count|number|limit|size)s?\\b)",
+          "when": {
+            "guiChanged": true
+          },
+          "require": {
+            "answerMatches": "accessib\\w*\\s*:[^\\n]*\\b(pass|fail|checked|ok|contrast|keyboard|labels?|focus|screen reader)\\b"
+          },
+          "message": "Screens changed and this project uses the frontend-design skill: check accessibility (its section E: keyboard, focus, labels, contrast, screen reader names) and say what you found in one line, in the user's language: \"Accessibility: <what was checked> - PASS/FAIL\" (Spanish: \"Accesibilidad: <qué revisé> - correcta\").",
+          "forces": "frontend-design"
+        }
+      ]
+    },
+    {
+      "name": "mcp-builder",
+      "good": "You want AI assistants to use your app's data or actions directly.",
+      "costs": "Building and securing a server is real work; skip it unless you need AI tools to plug into the app.",
+      "plain": "Connect AI tools to your app",
+      "does": "Builds an MCP server: a standard plug that lets AI assistants use your app's data and actions.",
+      "outcome": "AI assistants can work with your app directly.",
+      "summary": "Designs, builds, tests and documents a Model Context Protocol server in any language, with well-described tools, safe defaults and testing through real agent tasks.",
+      "for": "app",
+      "ask": "Will this project build a server that lets AI agents use its data or actions (an MCP server)?",
+      "default": false,
+      "requirements": [
+        {
+          "tag": "mcp-linted",
+          "rule": "4",
+          "when": {
+            "skillUsed": "mcp-builder"
+          },
+          "require": {
+            "toolRan": "lint-tools\\.mjs"
+          },
+          "message": "Mcp-builder skill: save the server's tools/list result and run node skills/mcp-builder/scripts/lint-tools.mjs on it until it reports no problems."
+        },
+        {
+          "tag": "mcp-trigger",
+          "rule": "4",
+          "hint": "\\bmcp\\b(?![^.?!\\n]{0,25}\\b(acronym|stands? for|mean)\\b)|model context protocol|\\b(expose|give|connect|plug)\\b[^.?!\\n]{0,40}\\b(claude|chatgpt|ai (assistants?|agents?)|llms?|agents?)\\b[^.?!\\n]{0,20}\\btools?\\b",
+          "when": {
+            "changedContentMatches": {
+              "files": [
+                "**/*.js",
+                "**/*.mjs",
+                "**/*.cjs",
+                "**/*.ts",
+                "**/*.tsx",
+                "**/*.jsx",
+                "**/*.py",
+                "**/*.rb",
+                "**/*.go",
+                "**/*.rs",
+                "**/*.java",
+                "**/*.kt",
+                "**/*.cs",
+                "**/*.php",
+                "**/*.swift",
+                "**/*.vue",
+                "**/*.svelte",
+                "**/*.html",
+                "**/*.htm",
+                "**/*.sql",
+                "**/*.sh",
+                "**/*.ps1"
+              ],
+              "ignore": [
+                "tools/hooks/**",
+                "tools/audit.mjs",
+                "tools/packs.mjs",
+                "tools/skills.mjs",
+                "tools/starter.mjs",
+                "tools/new-project.mjs",
+                "tools/recall.mjs",
+                "tools/survey.mjs",
+                "tools/dedupe.mjs",
+                "tools/fit.mjs",
+                "tools/writing-check.mjs",
+                "tools/integrity-check.mjs",
+                "tools/screenshot.mjs",
+                "tools/trial.mjs",
+                "skills/**",
+                "library/**",
+                "packs/**",
+                ".claude/**",
+                ".codex/**",
+                ".githooks/**",
+                "node_modules/**",
+                "dist/**",
+                "build/**",
+                "**/*.min.js",
+                "**/*.test.*",
+                "**/*.spec.*",
+                "**/test/**",
+                "**/tests/**",
+                "**/__tests__/**",
+                "**/*_test.*",
+                "**/test_*.*"
+              ],
+              "pattern": "@modelcontextprotocol\\/sdk|\\bfrom\\s+mcp(\\.server[\\w.]*)?\\s+import\\b|\\bimport\\s+mcp\\b|\\bFastMCP\\b|\\bMcpServer\\b"
+            }
+          },
+          "require": {
+            "anyOf": [
+              {
+                "skillUsed": "mcp-builder"
+              },
+              {
+                "toolRan": "lint-tools\\.mjs"
+              }
+            ]
+          },
+          "message": "This turn wrote MCP server code: follow the mcp-builder skill, including its tool lint (node skills/mcp-builder/scripts/lint-tools.mjs).",
+          "forces": "mcp-builder"
+        }
+      ]
+    },
+    {
+      "name": "repo-setup",
+      "good": "You often download or clone code that has to be installed and run.",
+      "costs": "Not needed when the project starts from scratch and has its start command written down.",
+      "plain": "Get existing code running",
+      "does": "Installs, builds and runs code you downloaded, and writes down the one command that starts it.",
+      "outcome": "Cloned projects run on your machine without trial and error.",
+      "summary": "Gets a cloned or unfamiliar repo to install, build, run and pass its tests locally on any stack, and records it as one start command.",
+      "for": "app",
+      "ask": "Will this project start from existing code that has to be installed and run on this machine?",
+      "default": false,
+      "requirements": [
+        {
+          "tag": "setup-recorded",
+          "rule": "12",
+          "when": {
+            "skillUsed": "repo-setup"
+          },
+          "require": {
+            "filesChanged": [
+              "docs/STATUS.md"
+            ]
+          },
+          "message": "Repo-setup skill: record in docs/STATUS.md what was set up, the baseline test results, what is missing and what is next."
+        }
+      ]
+    },
+    {
+      "name": "security-hardening",
+      "good": "The app stores other people's data, logins or payments, or will be public.",
+      "costs": "A multi-step project of its own; overkill for a personal tool that stays on one computer.",
+      "plain": "Security cleanup project",
+      "does": "Finds and fixes security weaknesses in an existing app, most dangerous first, with a test for each fix.",
+      "outcome": "An app that is much harder to break into or leak data from.",
+      "summary": "Runs a staged, risk-ranked hardening project on an existing app, with a regression test per fix and a re-review at the end.",
+      "for": "app",
+      "ask": "Will this app handle other people's data, accounts or secrets, or be exposed to the internet?",
+      "default": false,
+      "requirements": [
+        {
+          "tag": "hardening-plan",
+          "rule": "4",
+          "when": {
+            "skillUsed": "security-hardening"
+          },
+          "require": {
+            "filesChanged": [
+              "docs/plans/**"
+            ]
+          },
+          "message": "Security-hardening skill: save the plan (threat model, inventory, ranked fixes) in docs/plans/ before fixing."
+        }
+      ]
+    },
+    {
+      "name": "commit-archaeologist",
+      "good": "The project keeps growing and older code gets changed: it explains why code exists before it is changed, so old fixes are not undone. Pays off once there are a few weeks of history.",
+      "costs": "None until used. Needs git history to read.",
+      "plain": "Why is this code here?",
+      "does": "Reads the history of a file to explain why a piece of code exists and what could break if it changes.",
+      "outcome": "Fewer accidents when changing old or unfamiliar code.",
+      "summary": "Explains why a file, function or block of code exists from the local git history (origin, timeline, reverts, companion files, intent words) in a short report with a confidence label and the risks of changing it.",
+      "for": "app",
+      "ask": "Will you work in existing code with a git history, where it helps to know why something was written before changing or removing it?",
+      "default": false,
+      "requirements": [
+        {
+          "tag": "history-confidence",
+          "rule": "4",
+          "when": {
+            "skillUsed": "commit-archaeologist"
+          },
+          "require": {
+            "answerMatches": "confidence\\W{0,4}(high|medium|low)\\b"
+          },
+          "message": "Commit-archaeologist skill: open the report with the bottom line and a label, Confidence: high, medium or low, and back the origin, timeline and intent with commit hashes."
+        },
+        {
+          "tag": "history-hashes",
+          "rule": "4",
+          "when": {
+            "skillUsed": "commit-archaeologist"
+          },
+          "require": {
+            "answerMatches": "\\b[0-9a-f]{7,40}\\b"
+          },
+          "message": "Commit-archaeologist skill: back the origin, the timeline and the intent with the commit hashes they come from (short hashes are fine). If the code has no history yet, say so and waive it: node tools/hooks/hooks.mjs waive history-hashes \"no commits touch it\"."
+        }
+      ]
+    },
+    {
+      "name": "compress-for-ai",
+      "good": "The AI's rules and guides grow long, or you use helper agents and want their notes and reports kept short.",
+      "costs": "Shortened files are harder for people to read, and each compression job takes a few extra steps (backup, check, fixes). Independent tests found modest savings on answers: about 8.5% fewer output tokens.",
+      "plain": "Shorter text for the AI, nothing lost",
+      "does": "Shortens the AI's own rules, guides and notes between AI helpers so they cost less to read. If you ask, it also gives you shorter answers. A check proves that no file path, name, number or \"not\" was changed.",
+      "outcome": "Cheaper, faster sessions. Text meant for you stays plain unless you ask for terse answers.",
+      "summary": "Shortens AI-facing text in three modes (AI-facing files, notes between agents, and terse replies only when the user opts in) at three levels (light, full, ultra). A zero-dependency protect check fails if any path, file name, URL, command, flag, code, identifier, number, date, version, quote, name marker, check tag, heading, frontmatter, table, list numbering or negation changed. Files get a verified backup in .cache/.",
+      "for": "any",
+      "ask": "Do you want the agent to keep its own rules, guides and helper notes short and cheap to read, with a check that no file path, name, number or \"not\" ever changes, and terse answers for you only when you ask?",
+      "default": true,
+      "requirements": [
+        {
+          "tag": "compress-verified",
+          "rule": "4",
+          "when": {
+            "skillUsed": "compress-for-ai"
+          },
+          "require": {
+            "toolRan": "compress-guard\\.mjs\\s+check|protect-check\\.mjs\\s+\\S+\\s+\\S+"
+          },
+          "message": "Compress-for-ai skill: run the protect check on every compressed file (compress-guard.mjs check <backup folder>, or protect-check.mjs <before> <after> for agent notes), fix every CHANGED line or restore the file, before reporting."
+        }
+      ]
+    },
+    {
+      "name": "teach",
+      "good": "You want to learn or understand things, not only get answers.",
+      "costs": "Answers take longer, because it checks understanding step by step.",
+      "plain": "Step-by-step teaching",
+      "does": "When you ask to learn something, it teaches one step at a time and checks you understand, instead of just giving the answer.",
+      "outcome": "You actually learn it, with quizzes or flashcards when you want them.",
+      "summary": "Helps the user really learn something instead of handing over answers, using proven methods (practice recall, worked examples, a hint ladder, feedback on their own attempts), makes quizzes, flashcards and study guides, keeps facts accurate, and respects graded work.",
+      "for": "any",
+      "ask": "Do you want the agent to teach you step by step (checking you understand, with quizzes or flashcards on request) when you ask to learn or understand something?",
+      "default": true,
+      "requirements": [
+        {
+          "tag": "teach-step",
+          "rule": "7",
+          "when": {
+            "skillUsed": "teach"
+          },
+          "require": {
+            "answerMatches": "\\?\\s*$|learned:"
+          },
+          "message": "Teach skill: end each reply with one question that asks the user to take the next step, or close the session with a \"Learned:\" line saying what they can now do."
+        }
+      ]
+    },
+    {
+      "name": "architecture",
+      "good": "Apps that will grow: choosing a database or framework, adding a service or a large feature, or code that keeps getting harder to change.",
+      "costs": "Writing a decision or design takes time that a tiny or throwaway app doesn't need.",
+      "plain": "Big technical choices",
+      "does": "Helps make and write down big technical choices, design a new system before it is built, and list the code clean-ups worth doing in order.",
+      "outcome": "Choices are written down with their reasons, so they are not re-argued, and clean-up happens in small steps instead of a risky rewrite.",
+      "summary": "Three parts: record a decision with real options and a concrete reopen-if in docs/DECISIONS.md, design a system from load numbers to contracts and failure handling, and rank tech debt from evidence into docs/tech-debt.md with a plan paid alongside features.",
+      "for": "app",
+      "ask": "Will this app face big technical choices, such as which database, framework or services to use, or grow large enough to need planned clean-ups?",
+      "default": false,
+      "requirements": [
+        {
+          "tag": "architecture-recorded",
+          "rule": "12",
+          "when": {
+            "skillUsed": "architecture"
+          },
+          "require": {
+            "answerMatches": "docs/DECISIONS\\.md|docs/specs/\\S+-design\\.md|docs/tech-debt\\.md"
+          },
+          "message": "Architecture skill: name the file written: the docs/DECISIONS.md row (part A), the design file in docs/specs (part B), or docs/tech-debt.md (part C)."
+        },
+        {
+          "tag": "architecture-trigger",
+          "rule": "12",
+          "hint": "\\b(new service|microservices?|split\\b[^.?!\\n]{0,30}\\binto (micro)?services|add (a |an )?(\\w+ )?(database|db|queue|cache|message broker|dependency|library|framework|orm)|data model|(new|change the|redesign the) (db |database |data )?schema|schema (change|design|redesign)|switch (to|from) (\\w+ )?(postgres\\w*|mysql|sqlite|mongo\\w*|redis|react|vue|svelte|angular|next\\.?js|django|flask|rails|express|fastapi|graphql|typescript|firebase|supabase|prisma|aws|gcp|azure|a (new )?(framework|database|db|library|stack|backend))|migrate (to|from) \\w+|replace \\w+ with|use (an? )?\\w+ (for|as) (the |our )?(db|database|orm|backend|queue|cache|auth|state|storage|api|server|frontend)|pull in (?!the\\b|changes|latest|updates|main|master|upstream)\\w+|(pick|choose) (the |a )?(tech )?stack|\\w+ (or|vs\\.?|versus) (postgres\\w*|mysql|sqlite|mongo\\w*|redis|react|vue|svelte|angular|django|flask|rails|express|fastapi|firebase|supabase))\\b",
+          "when": {
+            "anyOf": [
+              {
+                "promptMatches": "\\b(new service|microservices?|split\\b[^.?!\\n]{0,30}\\binto (micro)?services|add (a |an )?(\\w+ )?(database|db|queue|cache|message broker|dependency|library|framework|orm)|data model|(new|change the|redesign the) (db |database |data )?schema|schema (change|design|redesign)|switch (to|from) (\\w+ )?(postgres\\w*|mysql|sqlite|mongo\\w*|redis|react|vue|svelte|angular|next\\.?js|django|flask|rails|express|fastapi|graphql|typescript|firebase|supabase|prisma|aws|gcp|azure|a (new )?(framework|database|db|library|stack|backend))|migrate (to|from) \\w+|use (an? )?\\w+ (for|as) (the |our )?(db|database|orm|backend|queue|cache|auth|state|storage|api|server|frontend)|pull in (?!the\\b|changes|latest|updates|main|master|upstream)\\w+|(pick|choose) (the |a )?(tech )?stack|\\w+ (or|vs\\.?|versus) (postgres\\w*|mysql|sqlite|mongo\\w*|redis|react|vue|svelte|angular|django|flask|rails|express|fastapi|firebase|supabase))\\b",
+                "filesChanged": [
+                  "**"
+                ],
+                "filesIgnore": [
+                  "docs/**",
+                  "**/*.md",
+                  "skills/**",
+                  ".claude/**"
+                ]
+              },
+              {
+                "toolRan": "\\b(npm\\s+(i|install|add)\\s+(?!-)[^\\s;&|]|pnpm\\s+add\\s|yarn\\s+add\\s|pip3?\\s+install\\s+(?!-r\\b|-e\\b)[^\\s;&|]|uv\\s+add\\s|poetry\\s+add\\s|cargo\\s+add\\s|go\\s+get\\s|dotnet\\s+add\\s+package\\s|gem\\s+install\\s|composer\\s+require\\s)"
+              },
+              {
+                "filesChanged": [
+                  "**/migrations/**",
+                  "**/*.prisma",
+                  "**/schema.sql",
+                  "**/docker-compose*.yml",
+                  "**/docker-compose*.yaml"
+                ]
+              }
+            ]
+          },
+          "require": {
+            "anyOf": [
+              {
+                "skillUsed": "architecture"
+              },
+              {
+                "filesChanged": [
+                  "docs/DECISIONS.md",
+                  "docs/specs/**",
+                  "docs/adr/**",
+                  "docs/tech-debt.md"
+                ]
+              }
+            ]
+          },
+          "message": "This turn added a dependency, a service or a data model change: that is an architecture decision. Record it with the architecture skill (docs/DECISIONS.md or a design spec: what, why, what it rules out, what would reopen it).",
+          "forces": "architecture"
+        }
+      ]
+    },
+    {
+      "name": "incident-response",
+      "good": "Apps or services that real users depend on while they are live.",
+      "costs": "Nothing until something breaks. A post-mortem takes an hour or so after a serious outage.",
+      "plain": "Outage handling",
+      "does": "When the live app breaks for its users, it stops the harm first, keeps a timeline, drafts updates for people, fixes the cause, and writes a blameless report afterwards.",
+      "outcome": "Outages end sooner, users hear what is going on, and the same problem doesn't come back because every lesson becomes a check.",
+      "summary": "Triage with a severity scale, limit the harm (rollback, flag, block) with the user's OK, drafted status updates, root-cause fix through debug/bugfix/release, and a blameless post-mortem in docs/incidents with typed actions that become checks.",
+      "for": "app",
+      "ask": "Will people rely on this app or service while it is live, so that an outage would hurt them?",
+      "default": false,
+      "requirements": [
+        {
+          "tag": "incident-logged",
+          "rule": "4",
+          "when": {
+            "skillUsed": "incident-response"
+          },
+          "require": {
+            "answerMatches": "docs/incidents/\\S+\\.md"
+          },
+          "message": "Incident-response skill: keep the incident file in docs/incidents/YYYY-MM-DD-<topic>.md (level, timeline, impact, post-mortem) and name it in the answer."
+        },
+        {
+          "tag": "incident-root-cause",
+          "rule": "4",
+          "when": {
+            "skillUsed": "incident-response"
+          },
+          "require": {
+            "answerMatches": "(root cause|\\bcause|why it (happened|broke|failed)|causa( ra[ií]z)?|por qu[eé] (pas[oó]|fall[oó]))\\s*:"
+          },
+          "message": "Incident-response skill: say where the cause stands in a \"Root cause: <what and why>\" line, or \"Root cause: not found yet\" while the harm is still being stopped."
+        },
+        {
+          "tag": "incident-trigger",
+          "rule": "4",
+          "hint": "\\b(prod(uction)?|live site|the site|website|the app|server|service|api|checkout|login)\\b[^.?!\\n]{0,30}\\b(is|went|are|keeps going|has gone|is going)\\s+(down|offline|unreachable)\\b|\\b(site|app|server|api|prod|website)('s| is)\\s+down\\b|\\b(nobody|no one|no-one) can (log ?in|sign ?in|access|pay|check ?out|order)\\b|\\b(broken|down|not working) for (everyone|everybody|all users|all customers|customers)\\b|\\b(server|site|app)\\b[^.?!\\n]{0,15}\\bcrash(ed|ing)\\b|\\boutage\\b(?!\\s+(notice|template|page|banner|plan|policy|drill))|\\b(sev ?[12]\\b|p[01] incident|returning 5\\d\\d|5\\d\\d errors?)\\b",
+          "when": {
+            "promptMatches": "\\b(prod(uction)?|live site|the site|website|the app|server|service|api|checkout|login)\\b[^.?!\\n]{0,30}\\b(is|went|are|keeps going|has gone|is going)\\s+(down|offline|unreachable)\\b|\\b(site|app|server|api|prod|website)('s| is)\\s+down\\b|\\b(nobody|no one|no-one) can (log ?in|sign ?in|access|pay|check ?out|order)\\b|\\b(broken|down|not working) for (everyone|everybody|all users|all customers|customers)\\b|\\b(server|site|app)\\b[^.?!\\n]{0,15}\\bcrash(ed|ing)\\b|\\boutage\\b(?!\\s+(notice|template|page|banner|plan|policy|drill))|\\b(sev ?[12]\\b|p[01] incident|returning 5\\d\\d|5\\d\\d errors?)\\b",
+            "promptNotMatches": "\\b(what|how|why) (is|are|was|were|causes?|do(es)?|did|to (handle|prevent|avoid|write|plan|report))\\b[^.!\\n]{0,30}\\b(an |the )?outages?\\b(?![^.!\\n]{0,20}\\b(now|right now|today|again)\\b)|\\bwhat (is|are) (an |a )?(outage|sev ?[12]|p[01] incident)s?\\b"
+          },
+          "require": {
+            "skillUsed": "incident-response"
+          },
+          "message": "The user reports something down in production: follow the incident-response skill (stabilize first, timeline in docs/incidents/, root cause after).",
+          "forces": "incident-response"
+        }
+      ]
+    },
+    {
+      "name": "data-analysis",
+      "good": "You will hand the AI spreadsheets, CSV or JSON files, survey results or other tables, and ask what they show.",
+      "costs": "Each data question takes a few extra steps (a profile, quality checks, a re-run before sharing). It does nothing for projects without data files.",
+      "plain": "Careful number crunching",
+      "does": "Looks over a data file first, checks it for problems, works out answers with real calculations, and makes honest charts, so every number can be traced back to the data.",
+      "outcome": "Answers, tables and charts from your data that you can trust and check, with the method stated next to each result.",
+      "summary": "Profiles new datasets (zero-dependency profile.mjs), checks quality, answers with computed statistics and stated uncertainty, queries with optional DuckDB or SQLite, builds honest static charts and dashboards, and re-runs and traces every number before sharing.",
+      "for": "knowledge",
+      "ask": "Will you ask the agent to analyse data files such as spreadsheets, CSV or JSON exports and report numbers or charts from them?",
+      "default": false,
+      "requirements": [
+        {
+          "tag": "data-computed",
+          "rule": "4",
+          "when": {
+            "skillUsed": "data-analysis"
+          },
+          "require": {
+            "answerMatches": "how it was computed:|\\(calculated:",
+            "answerFiguresComputed": true
+          },
+          "message": "Data-analysis skill: compute every number with code run this turn (profile.mjs, a script, or a query), and say how in a 'How it was computed:' line naming the script or query and the row count. Each figure in the answer must appear in what that run printed, or follow from the answer's other figures; a sum you work out must give the figure it stands for. Numbers with no output behind them are computed with the script, removed, or marked not verified."
+        },
+        {
+          "tag": "data-computed-trigger",
+          "rule": "4",
+          "hint": "\\b(average|mean|median|total|sum|percent(age)?|share|proportion|ratio|growth|trend|how many|count)\\b[^\\n]{0,60}\\b(csv|spreadsheet|data|dataset|export|xlsx|table|orders|sales|transactions|refunds?|refunded|revenue|rows|responses)\\b",
+          "when": {
+            "anyOf": [
+              {
+                "fileRead": [
+                  "**/*.csv",
+                  "**/*.tsv",
+                  "**/*.xlsx",
+                  "**/*.xls",
+                  "**/*.parquet",
+                  "**/*.sqlite",
+                  "**/*.db"
+                ]
+              },
+              {
+                "toolRan": "\\.(csv|tsv|xlsx?|parquet|sqlite|db)\\b"
+              }
+            ],
+            "answerMatches": "\\b\\d[\\d,]*(\\.\\d+)?\\s*(%|percent)|\\b(average|mean|median|total|sum|count|rate|growth)\\b[^\\n]{0,40}\\d"
+          },
+          "require": {
+            "answerMatches": "how it was computed:|\\(calculated:",
+            "answerFiguresComputed": true
+          },
+          "message": "The answer gives numbers computed from data files: follow the data-analysis skill and show how each was computed (\"How it was computed: ...\" or \"(calculated: ...)\"). Each figure must appear in what the script or query printed this turn, or follow from the answer's other figures.",
+          "forces": "data-analysis"
+        }
+      ]
+    },
+    {
+      "name": "legal-review",
+      "good": "You regularly handle contracts, NDAs, vendor agreements, privacy requests or compliance questions and want a careful first pass before a lawyer or signer sees them.",
+      "costs": "It is not legal advice and can be wrong about the law; anything that matters still needs a qualified lawyer, and law lookups take extra research time.",
+      "plain": "Legal paperwork helper",
+      "does": "Reviews contracts and NDAs, checks plans against privacy and other rules, rates legal risk, drafts replies to legal requests and checks documents before signing, always saying when a lawyer is needed.",
+      "outcome": "You get an organized first read of legal documents, with suggested wording to change and a clear flag whenever something needs a real lawyer.",
+      "summary": "One skill for legal paperwork by situation: contract review against the user's own positions, NDA screening, compliance and privacy checks, risk rating, legal replies, vendor agreement status, briefs and meeting prep, and a signing checklist. Every result says it is not legal advice, lists when a lawyer is needed, and checks laws through the research skill.",
+      "for": "any",
+      "ask": "Do you want the agent to help with contracts, NDAs, compliance questions and other legal paperwork (a first read only, never legal advice, and it tells you when you need a lawyer)?",
+      "default": false,
+      "requirements": [
+        {
+          "tag": "legal-disclaimer",
+          "rule": "4",
+          "when": {
+            "skillUsed": "legal-review"
+          },
+          "require": {
+            "answerMatches": "not legal advice"
+          },
+          "message": "Legal-review skill: end the answer with one line saying it is not legal advice (once, at the end, never inside a letter or draft meant for someone else), and list anything that needs a lawyer."
+        },
+        {
+          "tag": "legal-trigger",
+          "rule": "4",
+          "hint": "\\b(privacy (policy|notice)|cookie policy|terms (of (service|use)|and conditions)|t&cs?|contracts?|ndas?|non-disclosure|eula|gdpr|ccpa|licen[cs]e terms|disclaimer|(service|user|licen[cs]e|vendor|rental|lease|employment|partnership|freelance|consulting|purchase|sales|data processing|confidentiality|subscription|reseller|supplier|loan) agreements?|sign (the|this|an?) agreement|commercially|commercial (use|licen[cs]e)|copyright (infringement|claim|notice|issue)s?|is (it|this|that) legal|legally|rent (increase|rise|hike|review|arrears)s?|(raise|raising|increase|increasing|put up|putting up|hike|hiking) (the |their |his |her |my |our )?rent|evict(ion|ing|ed|s)?|notice (to quit|of (termination|eviction|rent increase|intent(ion)? to \\w+|dismissal|resignation|non-renewal|breach|default|possession))|(eviction|termination|dismissal|resignation|possession|section \\d+) notice|notice period|how much notice|(serve|served|serving|give|giving|gave|hand in|handed in) (\\w+ ){0,2}notice(?! *(banner|bar|box|component|message|toast|popup|pop-up|area|text|icon|style|card))|(security|tenancy|rental|damage) deposits?|(return|keep|withhold|deduct|deducting|deductions from) (the |their |a |his |her )?deposit|terminat(e|ing|ion of) (the |a |their |his |her |my |our |this )?(contract|lease|tenancy|employment|agreement|job)|(unfair |wrongful |constructive )?dismissal|redundan(t|cy|cies)|severance|disciplinary (letter|hearing|meeting|action)|final written warning|(fire|firing|sack|sacking|lay off|laying off|let go of) (an? |the |my |our |this )?(employee|worker|staff member|member of staff)|(aumento|subida|incremento) del? (la )?(renta|alquiler)|(subir|aumentar|incrementar) (el |la )?(alquiler|renta)|desahuci\\w*|desalojo|fianza|dep[oó]sito de (garant[ií]a|seguridad)|preaviso|carta de (despido|preaviso|renuncia)|despidos?|finiquito|rescindir|rescisi[oó]n|(terminaci[oó]n|resoluci[oó]n|fin) del? (contrato|arrendamiento|alquiler))\\b",
+          "when": {
+            "anyOf": [
+              {
+                "filesChanged": [
+                  "**/privacy-policy*",
+                  "**/privacy_policy*",
+                  "**/privacy.*",
+                  "**/terms-of-*",
+                  "**/terms_of_*",
+                  "**/tos.*",
+                  "**/eula*",
+                  "**/contracts/**",
+                  "**/*contract*.md",
+                  "**/*agreement*.md",
+                  "**/nda*",
+                  "**/*-nda*",
+                  "**/*_nda*",
+                  "**/*non-disclosure*",
+                  "**/terms*",
+                  "**/*-terms*",
+                  "**/*_terms*",
+                  "**/*policy*"
+                ],
+                "filesIgnore": [
+                  "skills/**",
+                  "library/**",
+                  "packs/**",
+                  ".claude/**",
+                  "docs/checks/**",
+                  "docs/foundation.md"
+                ]
+              },
+              {
+                "promptMatches": "\\b(privacy (policy|notice)|cookie policy|terms (of (service|use)|and conditions)|t&cs?|contracts?|ndas?|non-disclosure|eula|gdpr|ccpa|licen[cs]e terms|disclaimer|(service|user|licen[cs]e|vendor|rental|lease|employment|partnership|freelance|consulting|purchase|sales|data processing|confidentiality|subscription|reseller|supplier|loan) agreements?|sign (the|this|an?) agreement|commercially|commercial (use|licen[cs]e)|copyright (infringement|claim|notice|issue)s?|is (it|this|that) legal|legally|rent (increase|rise|hike|review|arrears)s?|(raise|raising|increase|increasing|put up|putting up|hike|hiking) (the |their |his |her |my |our )?rent|evict(ion|ing|ed|s)?|notice (to quit|of (termination|eviction|rent increase|intent(ion)? to \\w+|dismissal|resignation|non-renewal|breach|default|possession))|(eviction|termination|dismissal|resignation|possession|section \\d+) notice|notice period|how much notice|(serve|served|serving|give|giving|gave|hand in|handed in) (\\w+ ){0,2}notice(?! *(banner|bar|box|component|message|toast|popup|pop-up|area|text|icon|style|card))|(security|tenancy|rental|damage) deposits?|(return|keep|withhold|deduct|deducting|deductions from) (the |their |a |his |her )?deposit|terminat(e|ing|ion of) (the |a |their |his |her |my |our |this )?(contract|lease|tenancy|employment|agreement|job)|(unfair |wrongful |constructive )?dismissal|redundan(t|cy|cies)|severance|disciplinary (letter|hearing|meeting|action)|final written warning|(fire|firing|sack|sacking|lay off|laying off|let go of) (an? |the |my |our |this )?(employee|worker|staff member|member of staff)|(aumento|subida|incremento) del? (la )?(renta|alquiler)|(subir|aumentar|incrementar) (el |la )?(alquiler|renta)|desahuci\\w*|desalojo|fianza|dep[oó]sito de (garant[ií]a|seguridad)|preaviso|carta de (despido|preaviso|renuncia)|despidos?|finiquito|rescindir|rescisi[oó]n|(terminaci[oó]n|resoluci[oó]n|fin) del? (contrato|arrendamiento|alquiler))\\b",
+                "workTurn": true
+              }
+            ]
+          },
+          "require": {
+            "anyOf": [
+              {
+                "skillUsed": "legal-review"
+              },
+              {
+                "answerMatches": "not legal advice"
+              }
+            ]
+          },
+          "message": "This turn wrote a privacy policy, terms or a contract, or a step with legal effect (a rent increase, a notice, an eviction, a deposit, a dismissal): follow the legal-review skill (for a letter that changes a legal relationship, check how it must be served and keep the pointer to the required form or clause in the draft) and say plainly that it is not legal advice.",
+          "forces": "legal-review"
+        }
+      ]
+    },
+    {
+      "name": "marketing",
+      "good": "The project produces marketing material, campaigns, newsletters or web pages, or needs to track competitors and results.",
+      "costs": "Sourcing every claim and competitor fact makes answers slower, and without your own data it sets no targets and leaves placeholders instead of numbers.",
+      "plain": "Marketing in your voice",
+      "does": "Checks and drafts marketing content in your brand voice, plans campaigns and email sequences, writes sourced competitor briefs, turns results into reports and audits a site's SEO.",
+      "outcome": "Marketing drafts and plans sound like your brand, and every number or competitor claim in them has a source or a clear placeholder.",
+      "summary": "One skill for marketing by situation: brand voice review with claim checks, campaign plans, drafts for any channel including email sequences, competitor briefs through the research skill, performance reports, and SEO audits. No invented statistics or benchmarks; publishing and sending need the user's OK.",
+      "for": "any",
+      "ask": "Do you want the agent to help with marketing (brand voice checks, campaign plans, content and email drafts, competitor briefs, performance reports and SEO audits), with every claim sourced?",
+      "default": false,
+      "requirements": [
+        {
+          "tag": "marketing-sourced",
+          "rule": "4",
+          "when": {
+            "skillUsed": "marketing"
+          },
+          "require": {
+            "answerMatches": "source|\\[stat needed|brand voice"
+          },
+          "message": "Marketing skill: name the brand voice used, and give every statistic, result, benchmark and competitor fact its source, or leave a visible placeholder ([stat needed: <what>, source?])."
+        }
+      ]
+    },
+    {
+      "name": "user-research",
+      "good": "You will plan interviews, surveys or usability tests, or turn notes, survey results, support tickets or reviews into findings.",
+      "costs": "Planning a study and counting every theme take longer than skimming notes. It adds nothing to projects that never learn from people.",
+      "plain": "Learning from people",
+      "does": "Plans interviews, surveys and usability tests that can answer a real question, and turns what people said into findings with counts and exact quotes.",
+      "outcome": "Findings you can trust: every theme counted, every quote traced to the notes, and people's names and contact details kept out.",
+      "summary": "Plans studies with people (the decision, the questions, the method and who takes part), runs them without leading questions, and synthesizes notes, survey exports and feedback into themes with \"n of N\" counts, exact quotes by participant ID, observations kept apart from interpretations, and stated limits. Uses the research skill's accuracy check.",
+      "for": "any",
+      "ask": "Will you plan interviews, surveys or usability tests, or ask the agent to turn notes, survey results or feedback into findings?",
+      "default": false,
+      "requirements": [
+        {
+          "tag": "user-research-counted",
+          "rule": "4",
+          "when": {
+            "skillUsed": "user-research"
+          },
+          "require": {
+            "answerMatches": "\\b\\d+ of \\d+\\b|decision it informs"
+          },
+          "message": "User-research skill: give every theme its count as \"n of N\" with quotes traced to participant IDs, or, for a study plan, name the decision it informs."
+        }
+      ]
+    },
+    {
+      "name": "correspondence",
+      "plain": "Emails and letters drafted, not sent",
+      "does": "Writes emails, messages and letters in your voice, takes every amount, date and order number from your own files, and saves each one as a draft for you to send.",
+      "outcome": "Ready-to-send drafts in outputs/drafts/ with the facts checked and any gaps marked for you to fill; nothing goes out unless you send it.",
+      "good": "You write to suppliers, customers, landlords, partners or officials about orders, invoices, complaints, reminders or replies, and want them right the first time.",
+      "costs": "One extra step per message (a facts check against the source files) and a draft file for each message and revision. Nothing for projects that never write to anyone.",
+      "summary": "Drafts correspondence by channel (email, letter, chat, official form) in the user's voice, traces every figure to project files with the zero-dependency draft-check.mjs (figures, placeholders, secrets, legal-threat wording), treats pasted messages as untrusted data with scam flags, saves to outputs/drafts/ as new versions, and sends only on an explicit OK.",
+      "for": "any",
+      "ask": "Will you ask the agent to write emails, messages or letters to other people (suppliers, customers, a landlord, officials) for you to send?",
+      "default": false,
+      "requirements": [
+        {
+          "tag": "correspondence-draft-saved",
+          "rule": "6",
+          "when": {
+            "skillUsed": "correspondence"
+          },
+          "require": {
+            "filesChanged": [
+              "outputs/drafts/**",
+              "profiles/*/outputs/drafts/**"
+            ],
+            "answerMatches": "\\bnot (been |yet )?sent\\b|\\b(has|have|had|is|was|were)(n'?t| not) (been |yet )?sent\\b|\\bunsent\\b|\\bnothing (was|has been) sent\\b|\\bno se ha enviado\\b|\\bno (lo |la )?(he|hemos) enviado\\b|\\bsin enviar\\b"
+          },
+          "message": "Correspondence skill: save the draft as a new file in outputs/drafts/ (YYYY-MM-DD-<recipient>-<topic>.md), show it in the answer, and say plainly that it was not sent, with what the user must check before sending (placeholders, worked-out figures, tone)."
+        }
+      ]
+    },
+    {
+      "name": "data-pipeline",
+      "plain": "Repeatable data processing",
+      "does": "Keeps a process that turns incoming data files into reports trustworthy: the original files stay untouched and logged, each new file is checked against its expected columns before use, and every total is checked against the original data.",
+      "outcome": "Reports whose numbers can be traced back to the files they came from, and a clear stop when a new export arrives in a different shape.",
+      "good": "Projects that receive data exports or batches again and again (weekly sales, monthly logs, survey waves) and turn them into the same outputs each time.",
+      "costs": "A schema file per data source and a check before each run; little value for one-off questions about a single file (the data-analysis skill covers those).",
+      "summary": "Repeatable file pipelines: raw inputs immutable, dated and logged with row counts and checksums; schema check per input with the zero-dependency scripts/schema-check.mjs (columns, types, required, enum, range, pattern; RESULT: PASS/FAIL); schema changes as recorded decisions with fixtures; deterministic runs writing versioned outputs; totals reconciled against raw.",
+      "for": "any",
+      "ask": "Will this project process the same kind of data files again and again (weekly or monthly exports, batches) into reports or totals?",
+      "default": false,
+      "requirements": [
+        {
+          "tag": "pipeline-schema-checked",
+          "rule": "4",
+          "when": {
+            "skillUsed": "data-pipeline",
+            "filesChanged": [
+              "data/**",
+              "**/raw/**",
+              "**/*.csv",
+              "**/*.tsv",
+              "**/*.jsonl",
+              "**/*.ndjson",
+              "**/*.parquet",
+              "**/*.schema.json"
+            ],
+            "filesIgnore": [
+              "skills/**",
+              "library/**",
+              "packs/**",
+              ".claude/**",
+              "tools/**",
+              "docs/**",
+              "node_modules/**",
+              "**/test/**",
+              "**/tests/**",
+              "**/__tests__/**",
+              "**/fixtures/**",
+              "**/*.test.*",
+              "**/*_test.*"
+            ]
+          },
+          "require": {
+            "toolRan": "schema-check\\.mjs"
+          },
+          "message": "Data-pipeline skill: pipeline inputs changed. Check each new or changed input against its schema before any step uses it: node skills/data-pipeline/scripts/schema-check.mjs <input> <schema.json>. A FAIL stops the run: fix the source or record the schema change (section C)."
+        }
+      ]
+    },
+    {
+      "name": "dependency-update",
+      "plain": "Safe package updates",
+      "does": "Adds, upgrades or removes the code libraries the app uses one at a time, checks each for license, upkeep and known security holes, and runs the tests before and after.",
+      "outcome": "Updates that do not quietly break the app, a clear before and after for each one, and a rollback when one does break something.",
+      "good": "Apps that use packages from npm, PyPI, crates.io, pub.dev, NuGet and similar, especially monorepos and projects that get bot update requests.",
+      "costs": "A test run before and after each dependency change, so updates take a few minutes longer.",
+      "summary": "Dependency and framework/runtime changes across npm, pnpm, yarn, bun, pip, uv, poetry, cargo, go, dotnet, pub, bundler, composer, gradle and maven: need, license, maintenance and vulnerability vetting, smallest change in the right workspace, before/after gate comparison, one change per round, rollback on regression, recorded decision.",
+      "for": "app",
+      "ask": "Will this project add or upgrade third-party packages, frameworks or runtimes over time?",
+      "default": false,
+      "requirements": [
+        {
+          "tag": "dependency-gates-compared",
+          "rule": "4",
+          "when": {
+            "skillUsed": "dependency-update",
+            "filesChanged": [
+              "**/package.json",
+              "**/package-lock.json",
+              "**/npm-shrinkwrap.json",
+              "**/pnpm-lock.yaml",
+              "**/pnpm-workspace.yaml",
+              "**/yarn.lock",
+              "**/bun.lock",
+              "**/bun.lockb",
+              "**/requirements*.txt",
+              "**/pyproject.toml",
+              "**/uv.lock",
+              "**/poetry.lock",
+              "**/Pipfile",
+              "**/Pipfile.lock",
+              "**/Cargo.toml",
+              "**/Cargo.lock",
+              "**/go.mod",
+              "**/go.sum",
+              "**/*.csproj",
+              "**/*.fsproj",
+              "**/Directory.Packages.props",
+              "**/packages.lock.json",
+              "**/global.json",
+              "**/pubspec.yaml",
+              "**/pubspec.lock",
+              "**/Gemfile",
+              "**/Gemfile.lock",
+              "**/composer.json",
+              "**/composer.lock",
+              "**/build.gradle",
+              "**/build.gradle.kts",
+              "**/libs.versions.toml",
+              "**/gradle.lockfile",
+              "**/pom.xml",
+              "**/.nvmrc",
+              "**/.node-version",
+              "**/.python-version",
+              "**/rust-toolchain.toml",
+              "**/rust-toolchain"
+            ],
+            "filesIgnore": [
+              "skills/**",
+              "library/**",
+              "packs/**",
+              ".claude/**",
+              "tools/**"
+            ]
+          },
+          "require": {
+            "anyOf": [
+              {
+                "toolRan": "\\b(npm|pnpm|yarn|bun)\\b[^\\n;&|]*\\s(run\\s+)?(test|build|lint|typecheck|check)(?![\\w@/.-])|\\bnode\\s+--test\\b|\\bnpx\\s+(vitest|jest|tsc|playwright|mocha)\\b|\\bpytest\\b|\\bpython3?\\s+-m\\s+(pytest|unittest)\\b|\\b(tox|nox)\\b|\\bmypy\\b|\\bruff\\s+check\\b|\\bcargo\\s+(test|build|check|clippy)\\b|\\bgo\\s+(test|build|vet)\\b|\\bdotnet\\s+(test|build)\\b|\\b(flutter|dart)\\s+(test|analyze)\\b|\\bflutter\\s+build\\b|\\b(rspec|rake\\s+test|rails\\s+test)\\b|\\bphpunit\\b|\\bcomposer\\s+(test|run)\\b|\\b(gradlew|gradle|mvnw|mvn)\\b[^\\n;&|]*\\b(test|build|check|verify)\\b|\\bmake\\s+(test|check|build)\\b"
+              },
+              {
+                "answerMatches": "before/after\\s*:"
+              }
+            ]
+          },
+          "message": "Dependency-update skill: a manifest or lockfile changed. Run the same gates as before the change (tests, build, lint, type check) and compare them in the answer, one line per gate: \"Before/after: tests 214 pass -> 214 pass\". A gate that passed before and fails now means roll back (section G)."
+        }
+      ]
+    },
+    {
+      "name": "game-dev",
+      "plain": "Game builds and saves",
+      "does": "For games (Godot first, with notes for Unity and others), it exports and starts the game after each change, keeps motion smooth on any machine, keeps old save files loading, and checks sprite sizes.",
+      "outcome": "Builds that start on the first try, saves that survive updates, and sprites that line up on the grid.",
+      "good": "Godot, Unity or other game projects, especially ones that send builds to testers.",
+      "costs": "Each check runs an export, which takes a little time; Godot export templates must be installed by you.",
+      "summary": "Game procedure, Godot 4 first: headless build, test, export with a preset and a smoke start (export-smoke.mjs, RESULT: PASS/FAIL), frame-time budget and delta-based motion, input actions, versioned saves with migrations, a PNG grid check (sprite-check.mjs), playtest notes.",
+      "for": "app",
+      "ask": "Is this project a game (Godot, Unity or another engine)?",
+      "default": false,
+      "requirements": [
+        {
+          "tag": "game-smoke-ran",
+          "rule": "4",
+          "when": {
+            "skillUsed": "game-dev",
+            "filesChanged": [
+              "**/*.gd",
+              "**/*.tscn",
+              "**/*.tres",
+              "**/*.gdshader",
+              "**/*.cs",
+              "project.godot",
+              "export_presets.cfg",
+              "**/*.unity",
+              "**/*.prefab"
+            ]
+          },
+          "require": {
+            "toolRan": "export-smoke\\.mjs|\\bgodot[\\w.-]*\\b[^\\n;&|]*--headless[^\\n;&|]*(\\s-s\\s|--script|gut|gdunit|--export-(release|debug))|\\bdotnet\\s+test\\b|\\bUnity(\\.exe)?\\b[^\\n;&|]*-runTests\\b|\\bRunUAT\\b"
+          },
+          "message": "Game-dev skill: scenes or scripts changed, so build, test, export and start the game before reporting: node skills/game-dev/scripts/export-smoke.mjs --preset \"<preset>\" --out builds/<target>/<Game>.<ext> (or the engine tests: GUT, GdUnit4, dotnet test, Unity -runTests)."
+        }
+      ]
+    },
+    {
+      "name": "manuscript",
+      "plain": "Keeps a long book consistent",
+      "does": "Checks your chapters against your character, place and timeline notes and your style sheet, flags names spelled two ways, turns editor or reader notes into a revision plan, and writes chapter summaries, without rewriting your prose unless you ask.",
+      "outcome": "Continuity reports with each problem's place and a suggested fix, a style sheet that grows with the book, and a revision plan with one row per note for your decision.",
+      "good": "You are writing a novel, memoir, screenplay or long non-fiction book over many chapters and sessions, especially with notes on characters, places or a timeline.",
+      "costs": "A few extra minutes per check (reading the notes, running the names script). The style sheet and notes need keeping up for the checks to be useful.",
+      "summary": "Continuity checks against character, place and timeline notes with the zero-dependency continuity.mjs (capitalized terms per chapter, spelling variants by accent or edit distance, style sheet names and marked-wrong spellings), a style sheet, feedback turned into a revision plan, chapter summaries and pacing notes, and edits only on the author's explicit request; every answer ends with a Continuity: line.",
+      "for": "knowledge",
+      "ask": "Are you writing a book, script or other long text over many chapters that should stay consistent (names, characters, timeline)?",
+      "default": false,
+      "requirements": [
+        {
+          "tag": "continuity-checked",
+          "rule": "4",
+          "when": {
+            "skillUsed": "manuscript"
+          },
+          "require": {
+            "anyOf": [
+              {
+                "toolRan": "continuity\\.mjs"
+              },
+              {
+                "answerMatches": "^[ \\t>*_-]*continuity[*_]*\\s*:"
+              }
+            ]
+          },
+          "message": "Manuscript skill: run node skills/manuscript/scripts/continuity.mjs on the chapters (with --style for the style sheet), or end the answer with a line \"Continuity: <what was checked and found>\" (\"Continuity: not checked this turn (summaries only)\" when nothing was)."
+        }
+      ]
+    },
+    {
+      "name": "ml-experiments",
+      "plain": "Logged model experiments",
+      "does": "Every time a model is trained or scored, it writes down the data, code, settings and score, so the best model is picked from a record instead of from memory.",
+      "outcome": "An experiment log you can read back, scores you can repeat, and notebooks that are committed clean.",
+      "good": "Projects that train or tune machine-learning models, or keep Jupyter notebooks in git.",
+      "costs": "One log line per run and a little discipline about data splits; no use in projects without models.",
+      "summary": "Experiment tracking for ML: fixed seeds and splits without leakage, a Markdown experiment log with data hash and commit (exp-log.mjs), best-run selection from the log, and notebook output and secret stripping (nb-strip.mjs).",
+      "for": "app",
+      "ask": "Will this project train, tune or compare machine-learning models?",
+      "default": false,
+      "requirements": [
+        {
+          "tag": "experiment-logged",
+          "rule": "4",
+          "when": {
+            "skillUsed": "ml-experiments",
+            "toolRan": "\\b(python3?|py|uv\\s+run|poetry\\s+run|pixi\\s+run)\\b[^\\n;&|]*\\b\\w*(train|tune|fit|eval|experiment|sweep|cross_?val)\\w*|\\bjupyter\\s+(nbconvert\\b[^\\n;&|]*--execute|execute)\\b|\\bpapermill\\b|\\bdvc\\s+(exp\\s+run|repro)\\b|\\bmlflow\\s+run\\b"
+          },
+          "require": {
+            "filesChanged": [
+              "experiments/**",
+              "**/EXPERIMENTS.md",
+              "**/experiment-log*.md"
+            ]
+          },
+          "message": "ML-experiments skill: a model was trained or scored this turn, so log the run: node skills/ml-experiments/scripts/exp-log.mjs add experiments/log.md --name <run> --data <data> --params \"<k=v>\" --seed <n> --score \"<metric>=<value>+-<spread>\"."
+        }
+      ]
+    },
+    {
+      "name": "mobile-app",
+      "plain": "Phone app checks",
+      "does": "For phone apps, it runs the app checks after each change, looks at screens on a phone emulator, handles permissions and offline use, and prepares store releases as drafts you send yourself.",
+      "outcome": "Fewer surprises on real phones, version numbers that the stores accept, and nothing sent to a store without your OK.",
+      "good": "Flutter, React Native or Expo, SwiftUI or Jetpack Compose apps.",
+      "costs": "Needs an emulator or simulator for screen checks (iOS needs a Mac); no use for projects without a phone app.",
+      "summary": "Mobile app procedure for Flutter, React Native/Expo, SwiftUI and Compose: analyzer and tests after code changes, emulator screenshots via gui-review-loop, permissions, offline states, version and build bump check (app-version.mjs), signing keys out of git, store releases as drafts.",
+      "for": "app",
+      "ask": "Is this project a phone app (Android or iOS)?",
+      "default": false,
+      "requirements": [
+        {
+          "tag": "mobile-checked",
+          "rule": "4",
+          "when": {
+            "skillUsed": "mobile-app",
+            "filesChanged": [
+              "**/*.dart",
+              "**/*.kt",
+              "**/*.kts",
+              "**/*.java",
+              "**/*.swift",
+              "**/*.m",
+              "**/*.tsx",
+              "**/*.jsx",
+              "**/*.ts",
+              "**/*.js",
+              "android/**",
+              "ios/**",
+              "pubspec.yaml",
+              "app.json"
+            ]
+          },
+          "require": {
+            "toolRan": "\\b(flutter|dart)\\s+(analyze|test)\\b|\\bgradlew(\\.bat)?\\b[^\\n;&|]*\\b(test\\w*|lint\\w*|check)\\b|\\bxcodebuild\\b[^\\n;&|]*\\btest\\b|\\bswift\\s+test\\b|\\bnpx\\s+(jest|tsc|eslint|expo\\s+lint)\\b|\\b(npm|yarn|pnpm)\\s+(run\\s+)?(test|lint|typecheck)\\b"
+          },
+          "message": "Mobile-app skill: app code changed, so run the platform's checks before reporting: flutter analyze and flutter test, ./gradlew lint testDebugUnitTest, xcodebuild test, or npx tsc --noEmit / npx eslint . / npx jest."
+        }
+      ]
+    },
+    {
+      "name": "notes-vault",
+      "plain": "Your notes as the knowledge base",
+      "does": "Uses the notes folder you already keep (an Obsidian vault or plain Markdown notes) as the project's knowledge, where it is, adding facts with their source and date and linking new notes to related ones.",
+      "outcome": "Answers cite your own notes, new facts land in the right existing note instead of a duplicate, and links between notes keep working. No note is moved or renamed.",
+      "good": "You already keep notes in Obsidian or a folder of Markdown files and want the agent to read and extend them instead of starting a second knowledge base.",
+      "costs": "The link check runs after every note change (a second or two). Notes stay in your style, so facts may be formatted less uniformly than in docs/knowledge.",
+      "summary": "Registers existing note folders in knowledgeDirs (zero-dependency vault.mjs scan/find: note folders, link style, registration, topic search by title, aliases and text), keeps one note per topic with sources and dates in the vault's own format, links via the obsidian skill's notes.mjs suggest, and runs notes.mjs check --all after changes.",
+      "for": "knowledge",
+      "ask": "Do you already keep notes (an Obsidian vault or a folder of Markdown files) that the agent should use and extend where they are?",
+      "default": false,
+      "requirements": [
+        {
+          "tag": "vault-links-checked",
+          "rule": "12",
+          "when": {
+            "skillUsed": "notes-vault",
+            "filesChanged": [
+              "**/*.md"
+            ],
+            "filesIgnore": [
+              "docs/STATUS.md",
+              "docs/CHANGELOG.md",
+              "docs/DECISIONS.md",
+              "docs/glossary.md",
+              "docs/plans/**",
+              "outputs/**",
+              "skills/**",
+              "library/**",
+              "packs/**",
+              ".claude/**",
+              ".agents/**",
+              ".codex/**"
+            ]
+          },
+          "require": {
+            "toolRan": "notes\\.mjs\\s+check"
+          },
+          "message": "Notes-vault skill: notes changed, so run the link check: node skills/obsidian/scripts/notes.mjs check --all (note folders outside docs/ are read only with --all). Fix every broken link this turn caused and report the ones that were already there."
+        },
+        {
+          "tag": "vault-backlinks",
+          "rule": "12",
+          "when": {
+            "skillUsed": "notes-vault",
+            "filesChanged": [
+              "**/*.md"
+            ],
+            "filesIgnore": [
+              "docs/STATUS.md",
+              "docs/CHANGELOG.md",
+              "docs/DECISIONS.md",
+              "docs/glossary.md",
+              "docs/plans/**",
+              "outputs/**",
+              "skills/**",
+              "library/**",
+              "packs/**",
+              ".claude/**",
+              ".agents/**",
+              ".codex/**"
+            ]
+          },
+          "require": {
+            "runEach": {
+              "files": [
+                "**/*.md"
+              ],
+              "cmd": "node skills/notes-vault/scripts/vault.mjs backlinks \"{file}\"",
+              "pass": "RESULT: PASS"
+            }
+          },
+          "message": "Notes-vault skill: a note now links to a note that does not link back. Add the link back in that note (a \"Related\" line) where it makes sense; the hook runs node skills/notes-vault/scripts/vault.mjs backlinks on each changed note. If a link back truly does not belong, waive it with the reason: node tools/hooks/hooks.mjs waive vault-backlinks \"<why>\"."
+        }
+      ]
+    },
+    {
+      "name": "package-release",
+      "plain": "Publishing packages",
+      "does": "Gets a library or command-line tool ready for a public package registry: picks the right version number, writes the changelog, checks for changes that would break users, and previews exactly which files go out.",
+      "outcome": "Releases with the right version number and only the files that belong in them, published only after you say so.",
+      "good": "Projects that publish a library or tool to npm, PyPI, crates.io, pub.dev, NuGet, RubyGems or Maven Central.",
+      "costs": "A dry run and an API check before each release; nothing for projects that never publish a package.",
+      "summary": "Registry releases: semver from user-visible changes, public API break checks per ecosystem, minimum supported version tested, package contents previewed with a dry run (npm pack --dry-run, cargo package --list, python -m build + twine check, dart pub publish --dry-run, dotnet pack), changelog and version together, publish behind the engine publish-gate and outward-gate.",
+      "for": "app",
+      "ask": "Will this project publish a library or command-line tool to a package registry such as npm, PyPI or crates.io?",
+      "default": false,
+      "requirements": [
+        {
+          "tag": "package-dry-run",
+          "rule": "4",
+          "when": {
+            "skillUsed": "package-release",
+            "filesChanged": [
+              "**/package.json",
+              "**/Cargo.toml",
+              "**/pyproject.toml",
+              "**/setup.py",
+              "**/setup.cfg",
+              "**/__init__.py",
+              "**/_version.py",
+              "**/version.py",
+              "**/pubspec.yaml",
+              "**/*.csproj",
+              "**/*.fsproj",
+              "**/Directory.Build.props",
+              "**/*.gemspec",
+              "**/version.rb",
+              "**/composer.json",
+              "**/build.gradle",
+              "**/build.gradle.kts",
+              "**/gradle.properties",
+              "**/pom.xml",
+              "**/CHANGELOG*",
+              "**/CHANGES*",
+              "**/HISTORY*",
+              "**/NEWS*"
+            ],
+            "filesIgnore": [
+              "skills/**",
+              "library/**",
+              "packs/**",
+              ".claude/**",
+              "tools/**"
+            ]
+          },
+          "require": {
+            "toolRan": "\\b(npm|pnpm|yarn|bun)\\s+pack\\b|\\b(npm|pnpm|yarn)\\s+publish\\b[^\\n;&|]*--dry-run|\\bcargo\\s+package\\b|\\bcargo\\s+publish\\b[^\\n;&|]*--dry-run|\\btwine\\s+check\\b|\\b(python3?|py)\\s+-m\\s+build\\b|\\b(uv|poetry|hatch|pdm|flit)\\s+build\\b|\\b(dart|flutter)\\s+pub\\s+publish\\b[^\\n;&|]*--dry-run|\\bdotnet\\s+pack\\b|\\bgem\\s+build\\b|\\bpublishToMavenLocal\\b|\\bmvnw?\\b[^\\n;&|]*\\b(package|verify|install)\\b|\\bvsce\\s+(package|ls)\\b"
+          },
+          "message": "Package-release skill: preview the package before it goes out. Run its dry run this turn (npm pack --dry-run, cargo package --list, python -m build then twine check dist/*, dart pub publish --dry-run, dotnet pack, gem build) and read the file list: no secrets, no private fixtures, license and entry points present."
+        }
+      ]
+    },
+    {
+      "name": "routines",
+      "plain": "Recurring jobs that come back",
+      "does": "When you ask for something every Monday or every month, it writes the job down with its schedule, and the project brings it up when it is due.",
+      "outcome": "Weekly and monthly jobs are announced when you open a session on or after their day, and none are quietly forgotten.",
+      "good": "The project has work that repeats on a schedule: weekly plans, monthly reports, regular checks.",
+      "costs": "A small table (docs/routines.md) to keep. Nothing runs while no session is open, unless you agree to set up your computer's scheduler.",
+      "summary": "Recurring work as docs/routines.md rows (Every, Runbook, Last run) announced by the session hook, with a zero-dependency routines.mjs (list, due, done, add, check, and an exported dueRoutines) and an opt-in path to OS schedulers.",
+      "for": "any",
+      "ask": "Will you ask for work that repeats on a schedule, like every Monday or each month?",
+      "default": false,
+      "requirements": [
+        {
+          "tag": "routines-checked",
+          "rule": "4",
+          "when": {
+            "filesChanged": [
+              "docs/routines.md"
+            ]
+          },
+          "require": {
+            "toolPassed": {
+              "cmd": "routines\\.mjs\\s+(check|done|add)\\b",
+              "pass": "RESULT: PASS",
+              "selfRun": "node skills/routines/scripts/routines.mjs check"
+            }
+          },
+          "message": "Routines skill: docs/routines.md changed, so validate it: node skills/routines/scripts/routines.mjs check must print RESULT: PASS (a known Every, an existing runbook, Last run as YYYY-MM-DD or never). Fix every problem it lists."
+        }
+      ]
+    },
+    {
+      "name": "web-app-patterns",
+      "plain": "Habits for web screen code",
+      "does": "Follows proven habits when writing the code behind web screens: where data is kept, loading and error states, forms, pages, tests, download size, and keeping secret keys out of what the browser downloads.",
+      "outcome": "Screens that don't show old or wrong data, forms that keep what people typed, tests run after each change, and no secret keys shipped to visitors.",
+      "good": "The project has web screens built with React, Vue, Svelte or plain TypeScript, or will have.",
+      "costs": "A test or type-check run after each change to screen code (seconds to a minute). Nothing for projects without web screens.",
+      "summary": "Client-side patterns for React, Vue, Svelte and plain TypeScript (state placement, request states and stale-response handling, forms, routes, typed props, component tests, bundle size, public-variable secrets) with a zero-dependency secrets scan of .env files, source and build output.",
+      "for": "gui",
+      "ask": "Will this project have web screens whose code (React, Vue, Svelte or plain TypeScript) the agent writes or changes?",
+      "default": false,
+      "requirements": [
+        {
+          "tag": "client-verified",
+          "rule": "4",
+          "when": {
+            "skillUsed": "web-app-patterns",
+            "filesChanged": [
+              "**/*.tsx",
+              "**/*.jsx",
+              "**/*.vue",
+              "**/*.svelte",
+              "**/*.astro",
+              "src/**/*.ts",
+              "src/**/*.js",
+              "src/**/*.mjs",
+              "app/**/*.ts",
+              "app/**/*.js",
+              "components/**",
+              "pages/**",
+              "routes/**"
+            ]
+          },
+          "require": {
+            "toolRan": "\\b(vitest|jest|playwright\\s+test|cypress\\s+run|(npm|pnpm|yarn|bun)\\s+(run\\s+)?(test|typecheck|type-check|check)|node\\s+--test|tsc|vue-tsc|svelte-check|nuxi\\s+typecheck|ng\\s+test)\\b|client-secrets\\.mjs"
+          },
+          "message": "Web-app-patterns skill: client code changed, so prove it: run the component tests (npx vitest run, npx jest, npm test) or the type check (npx tsc --noEmit, npx vue-tsc --noEmit, npx svelte-check), and before a build ships run node skills/web-app-patterns/scripts/client-secrets.mjs . and fix every FAIL."
+        }
+      ]
+    }
+  ]
+}

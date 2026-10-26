@@ -1,0 +1,434 @@
+{
+  "_comment": "Project checks, added to the baseline checks built into tools/hooks/hooks.mjs (BASE_REQUIREMENTS). An entry with a baseline tag overrides it; turning a baseline check off needs disabled: [{tag, reason}]. Each entry: when (all true) -> require (all must hold), else block with message. Conditions: promptMatches, promptNotMatches, answerMatches, answerNotMatches, minToolCalls, workTurn, filesChanged, allFilesChanged, toolRan, toolUsed, resultMatches, fileRead, playbookRouted, playbookUsed, skillUsed, toolPassed {cmd, pass, selfRun}, runEach {files, cmd}. Every tag needs a row in docs/checks/rule-enforcement.md and a test in tools/hooks/selfcheck.mjs.",
+  "requirements": [
+    {
+      "tag": "plan-saved",
+      "rule": "2",
+      "when": {
+        "playbookUsed": "plan"
+      },
+      "require": {
+        "filesChanged": [
+          "docs/plans/**"
+        ]
+      },
+      "message": "Save the plan to docs/plans/YYYY-MM-DD-<topic>.md (plan skill) and link it in the answer, then ask the user to review it before work starts (with \"autonomy\": \"auto\", carry it out and record your choices instead)."
+    },
+    {
+      "tag": "debug-root-cause",
+      "rule": "4",
+      "when": {
+        "skillUsed": "debug"
+      },
+      "require": {
+        "answerMatches": "(root cause|\\bcause|why it (happened|broke|failed)|causa( ra[ií]z)?|por qu[eé] (pas[oó]|fall[oó]))\\s*:"
+      },
+      "message": "Debug skill: state the root cause in the answer (\"Root cause: <what and why>\") with the evidence that shows it, found before the fix."
+    },
+    {
+      "tag": "debug-test-added",
+      "rule": "4",
+      "when": {
+        "skillUsed": "debug",
+        "filesChanged": [
+          "src/**",
+          "app/**",
+          "lib/**",
+          "server/**",
+          "packages/**",
+          "**/*.mjs",
+          "**/*.py",
+          "**/*.ts",
+          "**/*.js"
+        ]
+      },
+      "require": {
+        "filesChanged": [
+          "**/*.test.*",
+          "**/*.spec.*",
+          "**/test/**",
+          "**/tests/**",
+          "**/__tests__/**",
+          "**/*_test.*",
+          "**/test_*.*",
+          "tools/hooks/selfcheck.mjs",
+          "tools/hooks/project-scenarios.mjs"
+        ]
+      },
+      "message": "Debug skill: code changed for the fix, but no test did. Add a test that fails without the fix and passes with it, and run the suite. If the project has no test framework, waive it (node tools/hooks/hooks.mjs waive debug-test-added \"no test framework here\") and say how the fix was checked instead."
+    },
+    {
+      "tag": "parallel-merged",
+      "rule": "4",
+      "when": {
+        "skillUsed": "parallel-agents"
+      },
+      "require": {
+        "answerMatches": "\\b(combined|merged|together|full (checks|suite|test))\\b"
+      },
+      "message": "Parallel-agents skill: run the full checks on the combined result after the last change, and say in the answer what they showed, part by part.",
+      "waitsForAgents": true
+    },
+    {
+      "tag": "research-cited",
+      "rule": "4",
+      "when": {
+        "skillUsed": "research"
+      },
+      "require": {
+        "anyOf": [
+          {
+            "answerMatches": "(?<!^[ \\t]*)\\[\\d+\\][\\s\\S]*^[ \\t]*\\**sources:?\\**[ \\t]*\\r?\\n(?:[ \\t]*[-*]?[ \\t]*\\[\\d+\\][ \\t]+(?:https?:\\/\\/\\S+|[\\w.-]+\\/\\S+|<[^>\\n]+>|\\[[^\\]\\n]+\\]\\([^)\\n]+\\)|[\\w.-]+\\.\\w{1,5}\\b)[^\\n]*(?:\\r?\\n|$))+|nothing (is )?recorded|not (in|recorded in) the project",
+            "answerNotMatches": "(?<!^[ \\t]*[-*]?[ \\t]*)\\[(\\d+)\\](?![\\s\\S]*^[ \\t]*[-*]?[ \\t]*\\[\\1\\][ \\t]+(?:https?:\\/\\/|[\\w.-]+\\/|<|\\[[^\\]\\n]+\\]\\(|[\\w.-]+\\.\\w{1,5}\\b))"
+          },
+          {
+            "answerCites": true,
+            "answerNotMatches": "(?<!^[ \\t]*[-*]?[ \\t]*)\\[(\\d+)\\](?![\\s\\S]*^[ \\t]*[-*]?[ \\t]*\\[\\1\\][ \\t]+(?:https?:\\/\\/|[\\w.-]+\\/|<|\\[[^\\]\\n]+\\]\\(|[\\w.-]+\\.\\w{1,5}\\b))"
+          }
+        ]
+      },
+      "message": "Answers from research say where each fact comes from. Plain words are enough for a project file: \"from exports/2026-W42.csv\", a file opened this turn (a file you wrote this turn is not a source). Web facts get their links (numbered [1], [2] with a \"Sources:\" list at the end works too), each a page a person can open (an article's DOI link, PubMed or the publisher's page, not a data or API address), read this turn by any route. Or say plainly that nothing is recorded in the project.",
+      "waitsForAgents": true
+    },
+    {
+      "tag": "research-ledger",
+      "rule": "4",
+      "when": {
+        "skillUsed": "research",
+        "answerMatches": "verified:\\s*\\d+\\s+claims"
+      },
+      "require": {
+        "toolPassed": {
+          "cmd": "claims\\.mjs\\s+check",
+          "pass": "CLAIMS: PASS"
+        }
+      },
+      "message": "Research skill: the answer says it is verified, so its ledger must pass: node skills/research/scripts/claims.mjs check .cache/research/<slug>.md, and fix every ERROR."
+    },
+    {
+      "tag": "skill-finder-report",
+      "rule": "2",
+      "when": {
+        "skillUsed": "skill-finder"
+      },
+      "require": {
+        "answerMatches": "existing skills? checked\\s*:"
+      },
+      "message": "Skill-finder skill: report the search in the answer: \"Existing skills checked: <where> - <result>\"."
+    },
+    {
+      "tag": "skill-compared",
+      "rule": "2",
+      "when": {
+        "skillUsed": "skill-finder",
+        "toolRan": "skills\\.mjs\\s+add\\b",
+        "filesChanged": [
+          "skills/**"
+        ]
+      },
+      "require": {
+        "toolPassed": {
+          "cmd": "skills\\.mjs\\s+compare",
+          "pass": "\\b0 shared run"
+        }
+      },
+      "message": "Skill-finder skill: a third-party skill was brought in and changed. Check the wording is ours: node tools/skills.mjs compare skills/<skill> <the untouched copy> must print \"0 shared run(s)\". Rewrite every shared run it lists."
+    },
+    {
+      "tag": "plan-checked",
+      "rule": "2",
+      "when": {
+        "playbookUsed": "plan",
+        "filesChanged": [
+          "docs/plans/**"
+        ]
+      },
+      "require": {
+        "toolRan": "plan-tasks\\.mjs\\s+check"
+      },
+      "message": "Plan skill: run node skills/plan/scripts/plan-tasks.mjs check <plan> and fix each warning (or give its reason) before handing the plan over."
+    },
+    {
+      "tag": "security-report",
+      "rule": "4",
+      "when": {
+        "skillUsed": "security-review"
+      },
+      "require": {
+        "anyOf": [
+          {
+            "answerMatches": "\\|\\s*(PASS|FAIL|N/?A)\\b"
+          },
+          {
+            "answerMatches": "security review\\W{0,6}(all\\s+)?(pass(ed|es)?|clean|found nothing|found no (problems|issues))\\b(?:(?!\\n[ \\t]*\\n)[\\s\\S]){0,400}?docs/reviews/security-",
+            "answerNotMatches": "(?c)\\bFAIL\\s*(->|→)|[:|]\\s*\\**FAIL\\b|^[ \\t]*[-*]?[ \\t]*\\**FAIL\\b|\\bFAILs\\b|\\b(open|one|two|three|\\d+)\\s+FAILs?\\b|\\bFAIL(ed)?\\s+(is|are|was|were)\\s+(open|left)\\b|\\b(NOT RUN|NO PROBADO)\\b",
+            "filesChanged": [
+              "docs/reviews/security-*.md"
+            ]
+          },
+          {
+            "answerMatches": "^(?=[\\s\\S]*security review(?:(?!\\n[ \\t]*\\n)[\\s\\S]){0,400}?docs/reviews/security-)(?=[\\s\\S]*^[^|\\n]*\\bFAIL\\s*(->|→)\\s*(fixed|open)\\b)",
+            "answerNotMatches": "security review\\W{0,6}(all\\s+)?pass(ed|es)?\\b(?!\\s+after\\b)|^(?=[\\s\\S]*\\bFAIL\\s*(->|→)\\s*open\\b)[\\s\\S]*security review\\W{0,6}(all\\s+)?pass",
+            "filesChanged": [
+              "docs/reviews/security-*.md"
+            ]
+          },
+          {
+            "answerMatches": "security review[^\\n]{0,80}\\b(found|caught)\\b[^\\n]{0,160}\\bfixed\\b(?:(?!\\n[ \\t]*\\n)[\\s\\S]){0,400}?docs/reviews/security-",
+            "answerNotMatches": "\\bFAIL\\s*(->|→)\\s*open\\b",
+            "filesChanged": [
+              "docs/reviews/security-*.md"
+            ]
+          },
+          {
+            "answerMatches": "^(?=[\\s\\S]*security review(?:(?!\\n[ \\t]*\\n)[\\s\\S]){0,400}?docs/reviews/security-)(?=[\\s\\S]*\\b(NOT RUN|NO PROBADO)\\s*(->|→|\\(|-|:)\\s*\\S)",
+            "answerNotMatches": "security review\\W{0,6}(all\\s+)?pass(ed|es)?\\b(?!\\s+after\\b)|\\bFAIL\\s*(->|→)\\s*open\\b",
+            "filesChanged": [
+              "docs/reviews/security-*.md"
+            ]
+          },
+          {
+            "answerMatches": "^(?=[\\s\\S]*security review(?:(?!\\n[ \\t]*\\n)[\\s\\S]){0,500}?docs/reviews/security-)(?=[\\s\\S]*security review(?:(?!\\n[ \\t]*\\n)[\\s\\S]){0,300}?\\b(\\d+|one|two|three|four|five|six|an?)\\s+(?:[\\w-]+\\s+){0,2}(items?|problems?|issues?|findings?|risks?|points?|gaps?)\\s+(?:are|is|remain|stay|left)\\s+(?:still\\s+)?open\\b)",
+            "answerNotMatches": "security review\\W{0,6}(all\\s+)?pass(ed|es)?\\b(?!\\s+after\\b)",
+            "filesChanged": [
+              "docs/reviews/security-*.md"
+            ]
+          }
+        ]
+      },
+      "message": "Security-review skill: write the report table (every area PASS, FAIL or N/A with its evidence, and where each open FAIL went) to docs/reviews/security-YYYY-MM-DD.md. The answer gets one plain sentence near the end, not the table, whose words match the result and name the file: nothing failed, \"The security review passed - details in docs/reviews/security-YYYY-MM-DD.md\"; everything that failed is fixed, \"The security review found 2 problems and I fixed both: <what> - details in ...\"; something is still open, say how many items are open, what each one is and where it went, never \"passed\" (\"The security review found no serious problem, but two items are open, both in docs/STATUS.md - details in ...\", or the short form: \"Security review: 1 open - details in ...\" with one \"<area>: FAIL -> open (<severity>, where it went)\" line each). In the user's language (Spanish: \"La revisión de seguridad salió bien - detalles en ...\", \"FALLA -> corregido\", \"FALLA -> abierto\")."
+    },
+    {
+      "tag": "security-logged",
+      "rule": "15",
+      "when": {
+        "skillUsed": "security-review",
+        "workTurn": true
+      },
+      "require": {
+        "filesChanged": [
+          "docs/security.md"
+        ]
+      },
+      "message": "Security-review skill: log the review in the Reviews table of docs/security.md (date, scope, result, open FAILs and where they went)."
+    },
+    {
+      "tag": "security-code",
+      "rule": "15",
+      "forces": "security-review",
+      "waiver": "specific",
+      "hint": "\\b((log|sign) ?in(?! (button|link)\\b[^.?!\\n]{0,20}\\b(text|label|font|colou?r|size|small|big|large|style|misaligned|position)\\b)|sign ?up|log ?out|passwords?|auth|authentication|authori[sz]ation|(user|role|file|folder|access|admin|account|read|write|edit)\\s+permissions?|permissions?\\s+(for|to|on|check|checks|model|system|level|levels)\\b|(user|admin|access|editor|member|staff) roles?|roles? and permissions?|rbac|role[- ]based|admins?|admin (panel|page|area)|(session|auth|tracking|login) cookies?|set(ting)? (a |the )?cookies?|access tokens?|auth tokens?|api keys?|secrets?|credentials|cors|uploads?\\b(?! date)|endpoints?|webhooks?|api routes?|sql|query builder|shell commands?|eval|deserializ\\w*|encrypt\\w*|payments?|stripe|credit cards?|personal data|pii|gdpr|phone numbers?|mobile numbers?|(home|postal|street|billing|shipping|delivery|mailing|email|customer|user) address(es)?|addresses\\b(?! (the|this|that|it|a|an|issues?|bugs?|problems?|concerns?|feedback|comments?)\\b))\\b|\\.env\\b",
+      "when": {
+        "changedContentMatches": {
+          "files": [
+            "**/*.js",
+            "**/*.mjs",
+            "**/*.cjs",
+            "**/*.ts",
+            "**/*.tsx",
+            "**/*.jsx",
+            "**/*.py",
+            "**/*.rb",
+            "**/*.go",
+            "**/*.rs",
+            "**/*.java",
+            "**/*.kt",
+            "**/*.cs",
+            "**/*.php",
+            "**/*.swift",
+            "**/*.vue",
+            "**/*.svelte",
+            "**/*.html",
+            "**/*.htm",
+            "**/*.sql",
+            "**/*.sh",
+            "**/*.ps1"
+          ],
+          "ignore": [
+            ".cache/**",
+            "tools/hooks/**",
+            "tools/audit.mjs",
+            "tools/packs.mjs",
+            "tools/skills.mjs",
+            "tools/starter.mjs",
+            "tools/new-project.mjs",
+            "tools/recall.mjs",
+            "tools/survey.mjs",
+            "tools/dedupe.mjs",
+            "tools/fit.mjs",
+            "tools/writing-check.mjs",
+            "tools/integrity-check.mjs",
+            "tools/screenshot.mjs",
+            "tools/trial.mjs",
+            "skills/**",
+            "library/**",
+            "packs/**",
+            ".claude/**",
+            ".codex/**",
+            ".githooks/**",
+            "node_modules/**",
+            "dist/**",
+            "build/**",
+            "**/*.min.js",
+            "**/*.test.*",
+            "**/*.spec.*",
+            "**/test/**",
+            "**/tests/**",
+            "**/__tests__/**",
+            "**/*_test.*",
+            "**/test_*.*"
+          ],
+          "pattern": "\\b((?<!--)passw(or)?d(?!-store)|passwd|bcrypt|argon2|scrypt|pbkdf2|jsonwebtoken|jwt\\.(sign|verify|decode)|oauth2?|openid|saml|csrf|xsrf|set-cookie|document\\.cookie|cookie-?parser|express-session|login_required|requireAuth|isAuthenticated|authenticate|authorize|hasPermission|has_permission|checkPermission|isAdmin|is_admin|rbac|api[_-]?key|secret[_-]?key|client[_-]?secret|access[_-]?token|refresh[_-]?token|private[_-]?key|Access-Control-Allow-Origin|cors|multer|multipart\\/form-data|(?<=['\"])formidable(?=['\"])|busboy|UploadFile|req\\.files?|request\\.files|child_process|execSync|execFile|spawnSync|subprocess|os\\.system|os\\.popen|eval|vm\\.runIn\\w+|pickle\\.loads?|yaml\\.load|unserialize|ObjectInputStream|Marshal\\.load|BinaryFormatter|createCipheriv|createDecipheriv|crypto\\.subtle|hashlib|paypal|braintree|payment_?intent|card_?number|cvv|iban|ssn|social_security|date_?of_?birth|(phone|mobile|tel(ephone)?)_?(number|no)|e_?mail_?addr(ess)?|(street|home|postal|billing|shipping|mailing|delivery)_?address|address_?line_?[12]|postal_?code|zip_?code|dangerouslySetInnerHTML|v-html|mark_safe)\\b|\\bshell\\s*=\\s*True\\b|\\bnew Function\\s*\\(|(?<![.\\w$])(exec|spawn)\\s*\\(|\\b(child_?process|childProcess|cp|proc|Bun|Deno)\\.(exec|spawn|run)\\w*\\s*\\(|\\.innerHTML\\s*=|type\\s*=\\s*[\"'](file|email|tel)[\"']|\\bres\\.cookie\\s*\\(|\\bcookies\\.set\\s*\\(|stripe\\.(charges|paymentIntents|checkout|customers)|@stripe\\/|\\b(app|router|server|api)\\.(get|post|put|patch|delete|all|use|listen)\\s*\\(|@(app|router|bp|blueprint)\\.(route|get|post|put|delete)\\b|@(Get|Post|Put|Delete|Request)Mapping\\b|\\bcreateServer\\s*\\(|\\bFastAPI\\s*\\(|\\bAPIRouter\\s*\\(|\\b(execute|query|raw)\\s*\\(\\s*(f[\"']|[\"'\\x60][^\"'\\x60\\n]*(\\$\\{|[\"'\\x60]\\s*\\+))"
+        }
+      },
+      "require": {
+        "skillUsed": "security-review"
+      },
+      "message": "This turn wrote security-sensitive code (sign-in, passwords, tokens, secrets, permissions, sessions, cookies, CORS, uploads, endpoints, shell or eval, query building, deserializing, crypto, payments or personal data). Follow the security-review skill for what changed (its report table and the log line in docs/security.md), even though nobody asked. If the match is not security work, waive it: node tools/hooks/hooks.mjs waive security-code \"<the specific reason, e.g. the word is a CSS class name>\"."
+    },
+    {
+      "tag": "security-config",
+      "rule": "15",
+      "forces": "security-review",
+      "waiver": "specific",
+      "hint": "(^|[^\\w.])\\.env\\b|\\b(env(ironment)? var(iable)?s?|(?<!\\bwhat( is|'s|s) )docker\\w*|deploy\\w*|ci (pipeline|workflow|job|config)s?|ci/cd|github actions?|workflow files?|nginx|hosting|host (it|this|the (app|site|api|server)) (on|at|with)|vps|firewall|terraform|kubernetes|k8s|firebase rules)\\b",
+      "when": {
+        "filesChanged": [
+          ".env",
+          ".env.*",
+          "**/.env",
+          "**/.env.*",
+          ".github/workflows/**",
+          ".gitlab-ci.yml",
+          "**/Dockerfile",
+          "**/docker-compose*.yml",
+          "**/docker-compose*.yaml",
+          "**/nginx*.conf",
+          "vercel.json",
+          "netlify.toml",
+          "fly.toml",
+          "**/*.tf",
+          "k8s/**",
+          "**/helm/**",
+          "firebase.json",
+          "**/firestore.rules",
+          "**/storage.rules",
+          "app.yaml",
+          "Procfile",
+          "**/.htaccess"
+        ],
+        "filesIgnore": [
+          "**/.env.example",
+          "**/.env.sample",
+          "**/.env.template"
+        ]
+      },
+      "require": {
+        "skillUsed": "security-review"
+      },
+      "message": "This turn changed secrets, the build pipeline or deployment settings (.env, CI workflows, Docker, hosting, infrastructure). Follow the security-review skill for those areas (Secrets, Deployment, Build pipeline, Access to infrastructure), or waive it: node tools/hooks/hooks.mjs waive security-config \"<the specific reason>\"."
+    },
+    {
+      "tag": "security-publish",
+      "rule": "15",
+      "forces": "security-review",
+      "waiver": "specific",
+      "hint": "\\b(release it|go(ing)? live|make (it|this|the (repo|repository|project|code|site|app)) public|deploy (it )?to prod\\w*|push (it )?to production|(npm|pnpm|yarn) publish|open.?source (it|this)|(share|put|post|upload) (it|this|the (repo|code|project|app)) (on|to) (github|gitlab|npm|pypi|the (web|internet))|(share|publish|put|post) (it|this|the (repo|repository|code|project|app)) (publicly|in public))\\b|\\bpublish\\b(?![^.?!\\n]{0,40}\\b(to|in|into) (the )?(outputs?|drafts?|docs)\\b)",
+      "when": {
+        "anyOf": [
+          {
+            "toolRan": "^(?![^\\n]*--dry-run)[\\s\\S]*?(?:\\b(npm|pnpm|yarn)\\s+publish\\b|\\bgh\\s+release\\s+create\\b|\\bgh\\s+repo\\s+(create\\b[^\\n;&|]*--public|edit\\b[^\\n;&|]*--visibility[= ]public)|\\bgh\\s+api\\b[^\\n;&|]*\\b(private=false|visibility=public)\\b|\\b(vercel|netlify)\\b[^\\n;&|]*--prod\\b|\\bfirebase\\s+deploy\\b|\\bdocker\\s+push\\b|\\btwine\\s+upload\\b|\\bcargo\\s+publish\\b|\\b(dart|flutter)\\s+pub\\s+publish\\b|\\b(poetry|uv)\\s+publish\\b|\\bgem\\s+push\\b|\\bfastlane\\s+\\w*(deliver|release|upload|beta)\\b|\\bhf\\s+upload\\b|\\bhuggingface-cli\\s+upload\\b|\\bvsce\\s+publish\\b|\\bflyctl?\\s+deploy\\b|\\bwrangler\\s+(deploy|publish)\\b)"
+          },
+          {
+            "promptMatches": "\\b(release it|go(ing)? live|make (it|this|the (repo|repository|project|code|site|app)) public|deploy (it )?to prod\\w*|push (it )?to production|(npm|pnpm|yarn) publish|open.?source (it|this)|(share|put|post|upload) (it|this|the (repo|code|project|app)) (on|to) (github|gitlab|npm|pypi|the (web|internet))|(share|publish|put|post) (it|this|the (repo|repository|code|project|app)) (publicly|in public))\\b|\\bpublish\\b(?![^.?!\\n]{0,40}\\b(to|in|into) (the )?(outputs?|drafts?|docs)\\b)",
+            "workTurn": true
+          }
+        ]
+      },
+      "require": {
+        "skillUsed": "security-review"
+      },
+      "message": "Something was published or deployed this turn. Hard rule 15: the security-review skill runs before anything is shared, published or released. Follow it now, log it in docs/security.md, and tell the user what it found."
+    },
+    {
+      "tag": "debug-trigger",
+      "rule": "4",
+      "forces": "debug",
+      "when": {
+        "ranFailing": "\\b(npm|pnpm|yarn)\\s+(run\\s+)?(test|build)\\b|\\bnode\\s+--test\\b|\\bpytest\\b|\\bpython3?\\s+-m\\s+(pytest|unittest)\\b|\\bjest\\b|\\bvitest\\b|\\bmocha\\b|\\bcargo\\s+(test|build)\\b|\\bflutter\\s+(test|analyze|build)\\b|\\bdart\\s+(test|analyze)\\b|\\bswift\\s+(test|build)\\b|\\bgo\\s+(test|build)\\b|\\bdotnet\\s+(test|build)\\b|\\bmvn\\s+\\w*\\s*test\\b|\\bgradlew?\\s+test\\b|\\btsc\\b|selfcheck\\.mjs|\\bmake\\s+test\\b",
+        "filesChanged": [
+          "src/**",
+          "app/**",
+          "lib/**",
+          "server/**",
+          "packages/**",
+          "**/*.js",
+          "**/*.mjs",
+          "**/*.cjs",
+          "**/*.ts",
+          "**/*.tsx",
+          "**/*.jsx",
+          "**/*.py",
+          "**/*.rb",
+          "**/*.go",
+          "**/*.rs",
+          "**/*.java",
+          "**/*.kt",
+          "**/*.cs",
+          "**/*.php",
+          "**/*.swift",
+          "**/*.vue",
+          "**/*.svelte",
+          "**/*.html",
+          "**/*.htm",
+          "**/*.sql",
+          "**/*.sh",
+          "**/*.ps1"
+        ],
+        "filesIgnore": [
+          "docs/**",
+          "**/*.md"
+        ]
+      },
+      "require": {
+        "anyOf": [
+          {
+            "skillUsed": "debug"
+          },
+          {
+            "playbookUsed": "bugfix"
+          },
+          {
+            "answerMatches": "(root cause|\\bcause|why it (happened|broke|failed)|causa( ra[ií]z)?|por qu[eé] (pas[oó]|fall[oó]))\\s*:"
+          }
+        ]
+      },
+      "message": "A test or build failed this turn and code was changed after it: that is a fix, so the debug skill applies. Say what was wrong and why (\"Root cause: <what and why>\", with the evidence), found before the fix, in one or two sentences the user can follow. A cause not proven by a reproduction is \"Likely cause: <what>, not reproduced here\", never stated as fact. A test written first to fail on purpose: \"Root cause: the feature did not exist yet\"."
+    },
+    {
+      "tag": "parallel-trigger",
+      "rule": "4",
+      "forces": "parallel-agents",
+      "waitsForAgents": true,
+      "when": {
+        "toolCount": {
+          "name": "^(Agent|Task)$",
+          "min": 2,
+          "overlap": true
+        }
+      },
+      "require": {
+        "anyOf": [
+          {
+            "skillUsed": "parallel-agents"
+          },
+          {
+            "answerMatches": "\\b(combined|merged|together|full (checks|suite|test))\\b"
+          }
+        ]
+      },
+      "message": "Several sub-agents worked this turn: their results are only done once checked together (parallel-agents skill). Run the full checks on the combined result after the last change and say what they showed, part by part."
+    }
+  ],
+  "disabled": []
+}

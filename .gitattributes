@@ -1,0 +1,7 @@
+# Same line endings on every machine, so git never rewrites files or warns on each commit
+* text=auto eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.png binary
+*.jpg binary
+*.ico binary

@@ -1,0 +1,628 @@
+{
+  "good": "The project builds software: apps, sites, tools, games or scripts that others run.",
+  "costs": "More checks before work is called done (tests, specs, budgets), so small changes take a little longer.",
+  "plain": "Software toolkit",
+  "does": "Adds specs, testing, quality checks, performance budgets and safe releases for building apps, sites or tools.",
+  "outcome": "Software that is tested and checked before it is called done.",
+  "title": "Application",
+  "for": "Projects that build and ship software: apps, sites, tools, games, services. Adds specs with acceptance criteria, the triple-check QA, gates that must pass before commit, releases, performance, data safety and security.",
+  "notFor": "Knowledge or context projects that don't build software: it would add machinery the project never uses.",
+  "config": {
+    "codeRules": [
+      {
+        "files": [
+          "**/*.js",
+          "**/*.jsx",
+          "**/*.ts",
+          "**/*.tsx",
+          "**/*.vue",
+          "**/*.svelte"
+        ],
+        "pattern": "\\.innerHTML\\s*=(?!.*(sanitize|purify|escape))",
+        "message": "untrusted HTML through innerHTML; sanitize it or build DOM nodes (docs/checks/app-standards.md)"
+      },
+      {
+        "files": [
+          "**/*.js",
+          "**/*.jsx",
+          "**/*.ts",
+          "**/*.tsx",
+          "**/*.vue",
+          "**/*.svelte"
+        ],
+        "pattern": "(^|[^.\\w])(window\\.)?(alert|confirm|prompt)\\(",
+        "message": "native alert/confirm/prompt; use the app's own dialog"
+      },
+      {
+        "files": [
+          "**/*.js",
+          "**/*.mjs",
+          "**/*.cjs",
+          "**/*.ts"
+        ],
+        "pattern": "execFile(Sync)?\\([^)]*\\.(cmd|bat)\\b",
+        "message": "execFile on a .cmd/.bat without a shell is unsafe; use spawn with shell:true and fixed arguments"
+      },
+      {
+        "files": [
+          "**/*.js",
+          "**/*.mjs",
+          "**/*.cjs",
+          "**/*.ts",
+          "**/*.jsx",
+          "**/*.tsx",
+          "**/*.py"
+        ],
+        "pattern": "\\beval\\(",
+        "message": "eval on dynamic input; parse the data instead"
+      }
+    ],
+    "approvalPaths": [],
+    "rootAllowed": [
+      "package.json",
+      "package-lock.json",
+      "pnpm-lock.yaml",
+      "yarn.lock",
+      "bun.lockb",
+      "pyproject.toml",
+      "requirements.txt",
+      "requirements-dev.txt",
+      "poetry.lock",
+      "Pipfile",
+      "Pipfile.lock",
+      "Cargo.toml",
+      "Cargo.lock",
+      "go.mod",
+      "go.sum",
+      "Gemfile",
+      "Gemfile.lock",
+      "composer.json",
+      "composer.lock",
+      "tsconfig.json",
+      "jsconfig.json",
+      "vite.config.*",
+      "vitest.config.*",
+      "webpack.config.*",
+      "rollup.config.*",
+      "next.config.*",
+      "svelte.config.*",
+      "tailwind.config.*",
+      "postcss.config.*",
+      "eslint.config.*",
+      ".eslintrc*",
+      ".prettierrc*",
+      ".nvmrc",
+      ".node-version",
+      ".python-version",
+      "Dockerfile",
+      "docker-compose.yml",
+      "Makefile",
+      "index.html",
+      "Start *.bat",
+      "Start *.cmd",
+      "start.sh",
+      "start.bat",
+      "start.cmd",
+      "start.command"
+    ]
+  },
+  "menu": [
+    "| A0 | Set the foundation | app-foundation.md | set the app's foundation with me: security baseline, performance budgets with numbers, usability defaults and gates, then build the scaffolding that enforces them |",
+    "| A1 | Build a feature | feature.md | build this feature: spec with acceptance criteria, plan, build, triple-check QA, independent review until SHIP, release notes |",
+    "| A2 | Fix a bug | bugfix.md | fix this bug: reproduce it, write a failing test, fix the cause, prove it passes, look for siblings |",
+    "| A3 | QA | qa.md | QA failed on this: find what slipped and why, fix it, re-run the full triple check, and harden the process so it can't slip again |",
+    "| A4 | Release | release.md | prepare a release: gates pass, release notes, version, attribution and secrets scan; ask me before pushing or publishing |",
+    "| A5 | Performance | perf.md | make this faster: measure before, find the real cost, change one thing, measure after with the same tool |",
+    "| A6 | Change stored data | data-change.md | change how this data is stored without any loss: backup, migrate on copies, test the restore |",
+    "| A7 | Security review | security-review.md | review the app's security baseline item by item with evidence, and fix what fails |",
+    "| A8 | Install / update | install-update.md | change or verify installing, launching or updating, with a test matrix for me to run |"
+  ],
+  "flags": [
+    "| --no-commit | make and verify the change but don't commit |",
+    "| --sweep | run the change through a QA sweep (independent auditors, rounds until nothing new) |"
+  ],
+  "precedence": [
+    "Something is broken → `bugfix.md`; something new or different → `feature.md`; only speed → `perf.md`; only the look → `gui.md` (gui pack).",
+    "The user says \"QA\" about work that was delivered → `qa.md` §1 first (QA failed), then the original runbook."
+  ],
+  "layout": [
+    [
+      "`docs/foundation.md`",
+      "Security baseline, performance budgets, usability defaults, quality gates",
+      "Set with the user before feature work; features are verified against it"
+    ],
+    [
+      "`docs/specs/`",
+      "One spec per feature: the request, acceptance criteria, plan, verification log",
+      "Each criterion is PASS in the answer"
+    ],
+    [
+      "`docs/releases/`",
+      "Release notes as acceptance scripts: what changed, try it fast, try it for real",
+      "One per release or feature"
+    ],
+    [
+      "`docs/lessons.md`",
+      "One line per escaped bug or rejected result → the check it created",
+      "Read before risky or taste-driven work"
+    ],
+    [
+      "`.cache/reviews/`",
+      "Independent review reports (PASS/FAIL table, SHIP or FIX)",
+      "Scratch, not committed"
+    ]
+  ],
+  "requirements": [
+    {
+      "tag": "foundation-set",
+      "rule": "4",
+      "when": {
+        "playbookUsed": "app-foundation"
+      },
+      "require": {
+        "filesChanged": [
+          "docs/foundation.md"
+        ],
+        "answerMatches": "security[\\s\\S]*(budget|performance|speed|size limit)[\\s\\S]*(usability|friendl|easy to use|ease of use)"
+      },
+      "message": "Fill docs/foundation.md with the user (no <...> left, status: set). In the answer, one line each for the security tests, the budget script and usability, with the result (\"Security: 12 tests pass. Budget: scripts/perf_check.py PASS. Usability: plain errors, --help.\"); the details stay in docs/foundation.md. Plain sentences in the user's language work too (Spanish: \"Seguridad: ... Rendimiento: ... Facilidad de uso: ...\")."
+    },
+    {
+      "tag": "verification-report",
+      "rule": "4",
+      "codeGlobs": true,
+      "when": {
+        "filesChanged": [
+          "src/**",
+          "app/**",
+          "lib/**",
+          "server/**",
+          "packages/**"
+        ]
+      },
+      "require": {
+        "answerMatches": "^(#{1,6}\\s*|\\*\\*)(verification|verificaci[oó]n|how (i|we) (checked|tested|verified)( it| this)?|how it was (checked|tested|verified)|what (i|we) (checked|tested|verified)|c[oó]mo (lo )?(comprob[eé]|verifiqu[eé]|prob[eé]))\\b(?=[\\s\\S]*\\b(automated|tests?\\b|autom[aá]tic|automatizad|pruebas\\b))(?=[\\s\\S]*(real (app|site|run|data|tool|program|command|cli|server|files?|photos?|folders?|pages?)|against the real \\w+|on (real|actual|sample) (files|photos|data|folders?|pages)|end[- ]to[- ]end|live site|manual|ran the (app|site|tool)|in the (app|browser)|ran it|tried it|by hand|(app|aplicaci[oó]n|sitio|web|p[aá]gina|programa|herramienta|servidor) (real|funcionando|en marcha)|en el navegador|lo prob[eé]|prob[eé] (el|la|los|las|a mano)\\b|a mano|datos reales))(?=[\\s\\S]*\\b(review|revisi[oó]n))(?=[\\s\\S]*(still weak|not verified|not (done or )?checked|known issues|nothing weak|sin verificar|sin comprobar|pendiente|d[eé]bil|problemas conocidos))"
+      },
+      "message": "Code changed: add a Verification section (a heading or a bold **Verification** line) with Automated (commands and results), Real app (what was exercised on a real run, screenshot paths), Independent review (SHIP/FIX and the report path) and Still weak (docs/checks/qa-standards.md). Budgets only when the change can affect speed or size (still within docs/foundation.md, with numbers). The Finished section's \"Not done or not checked\" list counts as Still weak: don't repeat it. The headings may be in the language the user writes in (Spanish works). A part that doesn't apply to this change says so in one line with why."
+    },
+    {
+      "tag": "review-verdict",
+      "rule": "4",
+      "when": {
+        "playbookUsed": "feature",
+        "filesChanged": [
+          "src/**",
+          "app/**",
+          "lib/**",
+          "server/**",
+          "packages/**"
+        ],
+        "filesIgnore": [
+          "**/test/**",
+          "**/tests/**",
+          "**/__tests__/**",
+          "**/*.test.*",
+          "**/*.spec.*",
+          "**/*_test.*"
+        ]
+      },
+      "require": {
+        "anyOf": [
+          {
+            "answerMatches": "\\bSHIP\\b"
+          },
+          {
+            "changedContentMatches": {
+              "files": [
+                "docs/reviews/**"
+              ],
+              "pattern": "(?c)^[\\W_]*([Vv]erdict|VERDICT|[Rr]esult|[Dd]ecision)\\b[^\\n]{0,20}?\\b(SHIP|APPROVED?)\\b"
+            }
+          }
+        ]
+      },
+      "message": "A feature needs an independent review that ends in SHIP (fix and re-review until it does). Save the report in docs/reviews/ with its verdict line (\"Verdict: SHIP\"), or quote the verdict and the report path in the answer. With no person to review, start a reviewer sub-agent (the Agent or Task tool) with a read-only brief: no other reviewer is no reason to skip it.",
+      "codeGlobs": true
+    },
+    {
+      "tag": "spec-written",
+      "rule": "4",
+      "when": {
+        "playbookUsed": "feature",
+        "filesChanged": [
+          "src/**",
+          "app/**",
+          "lib/**",
+          "server/**",
+          "packages/**"
+        ],
+        "filesIgnore": [
+          "**/test/**",
+          "**/tests/**",
+          "**/__tests__/**",
+          "**/*.test.*",
+          "**/*.spec.*",
+          "**/*_test.*"
+        ]
+      },
+      "require": {
+        "filesChanged": [
+          "docs/specs/**"
+        ]
+      },
+      "message": "Write or update docs/specs/<feature>.md with numbered acceptance criteria and the plan, and mark each criterion PASS or FAIL there. The answer gives one line (\"Acceptance criteria: 15 of 15 PASS - docs/specs/<feature>.md\"), plus one line for each criterion that failed.",
+      "codeGlobs": true
+    },
+    {
+      "tag": "release-notes",
+      "rule": "12",
+      "when": {
+        "playbookUsed": "feature",
+        "filesChanged": [
+          "src/**",
+          "app/**",
+          "lib/**",
+          "server/**",
+          "packages/**"
+        ],
+        "filesIgnore": [
+          "**/test/**",
+          "**/tests/**",
+          "**/__tests__/**",
+          "**/*.test.*",
+          "**/*.spec.*",
+          "**/*_test.*"
+        ]
+      },
+      "require": {
+        "filesChanged": [
+          "docs/releases/**"
+        ]
+      },
+      "message": "Write release notes in docs/releases/ (what changed, try it fast, try it for real).",
+      "codeGlobs": true
+    },
+    {
+      "tag": "release-ready",
+      "rule": "12",
+      "when": {
+        "playbookUsed": "release",
+        "anyOf": [
+          {
+            "playbookRouted": "release"
+          },
+          {
+            "toolRan": "^(?![^\\n]*--dry-run)[\\s\\S]*?(?:\\bgit\\s+tag\\s+(-[as]\\s+)?v?\\d|\\bgit\\s+push\\b[^\\n]*\\s--tags\\b|\\bgh\\s+release\\s+create\\b|\\b(npm|pnpm|yarn)\\s+publish\\b|\\bcargo\\s+publish\\b|\\b(dart|flutter)\\s+pub\\s+publish\\b|\\b(poetry|uv)\\s+publish\\b|\\bgem\\s+push\\b|\\btwine\\s+upload\\b|\\bvsce\\s+publish\\b|\\bfastlane\\s+\\w*(deliver|release|upload|beta)\\b|\\bgh-pages\\b|\\b(vercel|netlify)\\b[^\\n]*\\b(deploy|--prod)\\b|\\b(firebase|wrangler|serverless|sam|cdk)\\s+deploy\\b|\\bfly(ctl)?\\s+deploy\\b|\\bdocker\\s+push\\b|\\bgcloud\\s+(app|run)\\s+deploy\\b|\\bhelm\\s+(upgrade|install)\\b|\\bterraform\\s+apply\\b)"
+          }
+        ]
+      },
+      "require": {
+        "filesChanged": [
+          "docs/releases/**"
+        ],
+        "answerMatches": "no-ai-attribution: PASS|attribution[^\\n]*(pass|clean|none)"
+      },
+      "message": "A release needs its notes in docs/releases/ and a clean attribution scan (node tools/hooks/git-guard.mjs scan) quoted in the answer."
+    },
+    {
+      "tag": "release-rollback",
+      "rule": "12",
+      "when": {
+        "playbookUsed": "release",
+        "anyOf": [
+          {
+            "playbookRouted": "release"
+          },
+          {
+            "toolRan": "^(?![^\\n]*--dry-run)[\\s\\S]*?(?:\\bgit\\s+tag\\s+(-[as]\\s+)?v?\\d|\\bgit\\s+push\\b[^\\n]*\\s--tags\\b|\\bgh\\s+release\\s+create\\b|\\b(npm|pnpm|yarn)\\s+publish\\b|\\bcargo\\s+publish\\b|\\b(dart|flutter)\\s+pub\\s+publish\\b|\\b(poetry|uv)\\s+publish\\b|\\bgem\\s+push\\b|\\btwine\\s+upload\\b|\\bvsce\\s+publish\\b|\\bfastlane\\s+\\w*(deliver|release|upload|beta)\\b|\\bgh-pages\\b|\\b(vercel|netlify)\\b[^\\n]*\\b(deploy|--prod)\\b|\\b(firebase|wrangler|serverless|sam|cdk)\\s+deploy\\b|\\bfly(ctl)?\\s+deploy\\b|\\bdocker\\s+push\\b|\\bgcloud\\s+(app|run)\\s+deploy\\b|\\bhelm\\s+(upgrade|install)\\b|\\bterraform\\s+apply\\b)"
+          }
+        ]
+      },
+      "require": {
+        "answerMatches": "roll ?-?back"
+      },
+      "message": "Release runbook: decide the rollback plan before the deploy (how to undo it, and the numbers that mean roll back now), put it in the release notes, and name it in the answer."
+    },
+    {
+      "tag": "bugfix-regression-test",
+      "rule": "4",
+      "when": {
+        "playbookUsed": "bugfix"
+      },
+      "require": {
+        "filesChanged": [
+          "**/*.test.*",
+          "**/*.spec.*",
+          "**/test/**",
+          "**/tests/**",
+          "**/__tests__/**",
+          "**/*_test.*",
+          "**/test_*.*"
+        ]
+      },
+      "message": "A bugfix needs a regression test that failed before the fix and passes after it."
+    },
+    {
+      "tag": "qa-incident",
+      "rule": "3",
+      "when": {
+        "playbookUsed": "qa",
+        "promptMatches": "\\b(qa|tests?|checks?|checked) (failed|missed|didn'?t catch)|\\bslip(ped|s|ping)?( through| past)?\\b|\\bdid(n'?t)? you (test|check)|\\bqa\\b[^\\n]*\\b(wrong|broken|still|again|missing|bug)"
+      },
+      "require": {
+        "filesChanged": [
+          "docs/lessons.md"
+        ],
+        "answerMatches": "what slipped[\\s\\S]*(process change|new check|hardened)"
+      },
+      "message": "QA missed something the user found: report What slipped, Why QA missed it, Fix, and Process change, and add a line to docs/lessons.md."
+    },
+    {
+      "tag": "qa-report",
+      "rule": "4",
+      "when": {
+        "playbookUsed": "qa"
+      },
+      "require": {
+        "answerMatches": "\\b(what slipped|findings?|rounds?)\\b"
+      },
+      "message": "QA runbook: report what was found. An incident gets \"What slipped\" and the rest of the incident report; a sweep lists its rounds, findings with evidence, fixes and what is left."
+    },
+    {
+      "tag": "perf-numbers",
+      "rule": "4",
+      "when": {
+        "playbookUsed": "perf"
+      },
+      "require": {
+        "answerMatches": "before[^\\n]{0,120}\\d[\\s\\S]{0,400}after[^\\n]{0,120}\\d"
+      },
+      "message": "Performance work needs before and after numbers from the same tool in the answer."
+    },
+    {
+      "tag": "data-backup",
+      "rule": "4",
+      "when": {
+        "playbookUsed": "data-change"
+      },
+      "require": {
+        "answerMatches": "backup[\\s\\S]*restore[\\s\\S]*\\d"
+      },
+      "message": "Name the backup, the restore test, and the record counts before and after."
+    },
+    {
+      "tag": "security-checklist",
+      "rule": "4",
+      "when": {
+        "playbookUsed": "security-review"
+      },
+      "require": {
+        "anyOf": [
+          {
+            "answerMatches": "\\|[^\\n]*\\b(PASS|FAIL|N/A)\\b[^\\n]*\\|"
+          },
+          {
+            "answerMatches": "security review(?:(?!\\n[ \\t]*\\n)[\\s\\S]){0,400}?docs/reviews/security-",
+            "filesChanged": [
+              "docs/reviews/security-*.md"
+            ]
+          }
+        ]
+      },
+      "message": "Add every foundation and app-standards security item to the review table in docs/reviews/security-YYYY-MM-DD.md, each PASS, FAIL or N/A with its evidence. The answer names that file in its one sentence about the security review (security-review skill), not the whole table."
+    },
+    {
+      "tag": "install-matrix",
+      "rule": "4",
+      "when": {
+        "playbookUsed": "install-update"
+      },
+      "require": {
+        "filesChanged": [
+          "docs/releases/**"
+        ]
+      },
+      "message": "Write the install/update test matrix into the release notes, each case marked tested or for the user to run."
+    },
+    {
+      "tag": "version-bump",
+      "rule": "12",
+      "codeGlobs": true,
+      "enabled": false,
+      "when": {
+        "filesChanged": [
+          "src/**",
+          "app/**",
+          "lib/**",
+          "server/**",
+          "packages/**"
+        ],
+        "filesIgnore": [
+          "**/test/**",
+          "**/tests/**",
+          "**/__tests__/**",
+          "**/*.test.*",
+          "**/*.spec.*",
+          "**/*_test.*"
+        ],
+        "promptNotMatches": "\\b(refactor|rename|restructure|tidy|clean ?up|typo|comments?|format(ting)?|lint)\\b"
+      },
+      "require": {
+        "filesChanged": [
+          "package.json"
+        ]
+      },
+      "message": "Behaviour changed: raise the version number (the last part for fixes, the middle part for new features). Turned on by: node tools/packs.mjs configure app --version-file <file>."
+    },
+    {
+      "tag": "app-changelog",
+      "rule": "12",
+      "when": {
+        "filesChanged": [
+          "docs/specs/**",
+          "docs/lessons.md"
+        ]
+      },
+      "require": {
+        "filesChanged": [
+          "docs/CHANGELOG.md",
+          "docs/releases/**"
+        ]
+      },
+      "message": "Add a dated line to docs/CHANGELOG.md (release notes written this turn count as it: they are the record of the change)."
+    },
+    {
+      "tag": "root-cause-stated",
+      "rule": "4",
+      "when": {
+        "playbookUsed": "bugfix"
+      },
+      "require": {
+        "answerMatches": "(root cause|\\bcause|why it (happened|broke|failed)|causa( ra[ií]z)?|por qu[eé] (pas[oó]|fall[oó]))\\s*:"
+      },
+      "message": "Bugfix: state the root cause in the answer (\"Root cause: <what and why>\"), found before the fix (debug skill), not a description of the symptom."
+    },
+    {
+      "tag": "data-change-trigger",
+      "rule": "4",
+      "forces": "data-change",
+      "hint": "\\bmigrat\\w*\\b[^.?!\\n]{0,30}\\b(database|db|schema|tables?|postgres\\w*|mysql|sqlite|mongo\\w*|records|rows|columns?)\\b|\\b(db|database|data|schema) migrations?\\b|\\b(run|write|add|create) (a |the )?migrations?\\b|\\b(change|update|alter|edit|modify) (the )?(db |database |data )?schema\\b|\\bdatabase change\\b|\\balter table\\b|\\b(add|drop|remove|rename) (a |an |the )?(new )?(['\"]?\\w+['\"]? ){0,2}(column|field|table)s?\\b(?! (to|on|in|from) (the |this |a )?(form|page|screen|ui|dialog|report|layout)\\b| of contents)|\\bstore (the )?[\\w']+( \\w+){0,2} (too|as well)\\b|\\b(change|update) (where|how) (the )?(\\w+ )?(is|are) (saved|stored)\\b|\\b(old|existing) (records|rows|data) need\\w* convert\\w*|\\bconvert\\w* (the )?(old |existing )(records|rows|data)\\b",
+      "when": {
+        "anyOf": [
+          {
+            "filesChanged": [
+              "**/migrations/**",
+              "**/migrate/**",
+              "**/*.sql",
+              "**/*.prisma",
+              "**/schema.*",
+              "**/alembic/**",
+              "**/db/schema*"
+            ],
+            "filesIgnore": [
+              "docs/**",
+              "**/*.md",
+              "skills/**",
+              ".claude/**"
+            ]
+          },
+          {
+            "promptMatches": "\\bmigrat\\w*\\b[^.?!\\n]{0,30}\\b(database|db|schema|tables?|postgres\\w*|mysql|sqlite|mongo\\w*|records|rows|columns?)\\b|\\b(db|database|data|schema) migrations?\\b|\\b(run|write|add|create) (a |the )?migrations?\\b|\\b(change|update|alter|edit|modify) (the )?(db |database |data )?schema\\b|\\bdatabase change\\b|\\balter table\\b|\\b(add|drop|remove|rename) (a |an |the )?(new )?(['\"]?\\w+['\"]? ){0,2}(column|field|table)s?\\b(?! (to|on|in|from) (the |this |a )?(form|page|screen|ui|dialog|report|layout)\\b| of contents)|\\bstore (the )?[\\w']+( \\w+){0,2} (too|as well)\\b|\\b(change|update) (where|how) (the )?(\\w+ )?(is|are) (saved|stored)\\b|\\b(old|existing) (records|rows|data) need\\w* convert\\w*|\\bconvert\\w* (the )?(old |existing )(records|rows|data)\\b",
+            "filesChanged": [
+              "**"
+            ],
+            "filesIgnore": [
+              "docs/**",
+              "**/*.md",
+              "skills/**",
+              ".claude/**"
+            ]
+          }
+        ]
+      },
+      "require": {
+        "anyOf": [
+          {
+            "playbookUsed": "data-change"
+          },
+          {
+            "answerMatches": "backup[\\s\\S]*restor"
+          }
+        ]
+      },
+      "message": "This turn changed a migration, a schema or the data format: follow the data-change runbook, and say how the data is backed up and restored if the change goes wrong."
+    },
+    {
+      "tag": "release-trigger",
+      "rule": "6",
+      "forces": "release",
+      "hint": "\\b(ship|cut|tag)\\s+(it|v?\\d+(\\.\\d+)*)\\b|\\btag (a|the) (release|version)\\b|\\b(cut|put out|push out|roll out|make|do|prepare) (a |the )?(new )?(release|version)\\b|\\b(push|put|take) (it|this) live\\b|\\bgo(ing)? live\\b|\\bdeploy (it )?to prod\\w*|\\brelease (it|this|v?\\d+(\\.\\d+)*)\\b|\\b(npm|pnpm|yarn) publish\\b|\\bpublish\\b[^.?!\\n]{0,25}\\b(npm|pypi|crates\\.io|app store|play store|marketplace|registry)\\b|\\b(onto|on|to) the (app|play) store\\b",
+      "when": {
+        "toolRan": "^(?![^\\n]*--dry-run)[\\s\\S]*?(?:\\bgit\\s+tag\\s+(-[as]\\s+)?v?\\d|\\bgh\\s+release\\s+create\\b|\\b(npm|pnpm|yarn)\\s+publish\\b|\\b(npm|pnpm|yarn)\\s+version\\b(?![^\\n]*--no-git-tag-version)|\\bcargo\\s+publish\\b|\\b(dart|flutter)\\s+pub\\s+publish\\b|\\b(poetry|uv)\\s+publish\\b|\\bgem\\s+push\\b|\\bfastlane\\s+\\w*(deliver|release|upload|beta)\\b|\\bhf\\s+upload\\b|\\bhuggingface-cli\\s+upload\\b|\\btwine\\s+upload\\b|\\bvsce\\s+publish\\b)"
+      },
+      "require": {
+        "playbookUsed": "release"
+      },
+      "message": "A version was tagged or published this turn: follow the release runbook (release notes, rollback plan, attribution check)."
+    },
+    {
+      "tag": "install-trigger",
+      "rule": "4",
+      "forces": "install-update",
+      "hint": "\\b(installer|install script|setup script|launcher|shortcut|auto.?update|self.?update|updater|updates? itself|packaging|first run|start\\.(bat|cmd|command|sh)|double.?click)\\b",
+      "when": {
+        "filesChanged": [
+          "**/install.*",
+          "**/install-*.*",
+          "**/installer/**",
+          "**/setup.ps1",
+          "**/setup.sh",
+          "**/setup.bat",
+          "**/*.iss",
+          "**/*.nsi",
+          "**/*.wxs",
+          "**/updater*",
+          "**/auto-update*",
+          "**/launcher*",
+          "**/electron-builder*"
+        ],
+        "filesIgnore": [
+          "docs/**",
+          "**/*.md",
+          "skills/**",
+          "node_modules/**",
+          ".claude/**"
+        ]
+      },
+      "require": {
+        "playbookUsed": "install-update"
+      },
+      "message": "This turn changed how the app is installed, launched or updated: follow the install-update runbook (its install matrix in docs/releases/)."
+    },
+    {
+      "tag": "modular-code",
+      "rule": "17",
+      "codeGlobs": true,
+      "when": {
+        "workTurn": true,
+        "filesChanged": [
+          "src/**",
+          "app/**",
+          "lib/**",
+          "server/**",
+          "packages/**",
+          "**/*.py"
+        ]
+      },
+      "require": {
+        "runEach": {
+          "files": [
+            "**/*.js",
+            "**/*.jsx",
+            "**/*.mjs",
+            "**/*.cjs",
+            "**/*.ts",
+            "**/*.tsx",
+            "**/*.vue",
+            "**/*.svelte",
+            "**/*.py",
+            "**/*.dart",
+            "**/*.rs",
+            "**/*.go",
+            "**/*.cs",
+            "**/*.kt",
+            "**/*.swift",
+            "**/*.gd",
+            "**/*.java",
+            "**/*.rb",
+            "**/*.php"
+          ],
+          "cmd": "node skills/modular-code/scripts/modularity.mjs \"{file}\"",
+          "pass": "RESULT: PASS",
+          "timeout": 30
+        }
+      },
+      "message": "Modular-code skill: keep the code easy to grow and rename. Each FAIL above names the file and line: split a file that grew past 400 lines by job, read URLs, hosts and ports from the config module (not typed in), import other modules only through their public entry. Details: skills/modular-code/SKILL.md."
+    }
+  ]
+}
