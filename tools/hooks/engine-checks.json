@@ -424,6 +424,10 @@
           },
           {
             "answerMatches": "\\b(combined|merged|together|full (checks|suite|test))\\b"
+          },
+          {
+            "checkedAfterAgents": true,
+            "answerMatches": "\\b(pass(ed|es)?|fail(ed|s|ures?)?|ok|clean|green|errors?)\\b"
           }
         ]
       },

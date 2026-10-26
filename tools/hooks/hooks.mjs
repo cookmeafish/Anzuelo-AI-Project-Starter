@@ -6916,6 +6916,13 @@ export function holds(c, x) {
   const ran = cmd => inlineCodeOut(cmd).replace(/(?<!(?:-c|-lc|\/c|eval|-Command|-EncodedCommand|--command)\s+)("[^"\n]*\s[^"\n]*"|'[^'\n]*\s[^'\n]*')/gi, '""');
   if (c.toolRan && x.toolsKnown && !x.cmds.some(cmd => r(c.toolRan).test(ran(cmd)) && !engineNote(cmd))) return false;
   if (c.toolUsed && x.toolsKnown && !x.uses.some(u => r(c.toolUsed).test(u.name))) return false;
+  // checkedAfterAgents: a check, test or build command ran after the last sub-agent was started (the merged result was
+  // checked). Lesson (a field report): an answer that named each check rerun on the merged file was held for lacking
+  // the word "combined".
+  if (c.checkedAfterAgents && x.toolsKnown) {
+    const last = x.uses.map(u => /^(Agent|Task)$/.test(u.name)).lastIndexOf(true);
+    if (!x.uses.slice(last + 1).some(u => typeof u.input?.command === 'string' && /\b(test|tests|check|selfcheck|validate|verify|audit|lint|build|pytest|jest|vitest|tsc)\b|--check\b/i.test(u.input.command))) return false;
+  }
   if (c.resultMatches && x.toolsKnown && !r(c.resultMatches).test(x.results)) return false;
   // fileRead: filesIgnore applies, and a folder's README.md (what the folder is for) is no read of its contents unless
   // named. Lesson: opening inbox/README.md counted as reading the inbox, and asked for the ingest runbook.
@@ -7192,7 +7199,7 @@ export function passedDrafts(entries) {
   }
   return out.filter(Boolean);
 }
-const HISTORY_KEYS = ['toolRan', 'toolUsed', 'resultMatches', 'fileRead', 'ranFailing', 'toolCount'];
+const HISTORY_KEYS = ['toolRan', 'toolUsed', 'checkedAfterAgents', 'resultMatches', 'fileRead', 'ranFailing', 'toolCount'];
 const needsHistory = c => !!c && (HISTORY_KEYS.some(k => c[k]) || (c.anyOf || []).every(needsHistory) && (c.anyOf || []).length > 0);
 export function declarativeChecks(x) {
   const { reqs, error } = loadRequirements();
