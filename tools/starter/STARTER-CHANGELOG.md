@@ -29,6 +29,8 @@ hooks:**, and an upgrade lists each one as its own review item.
     records it (no plan, no STATUS.md line).
   - **Only what changed:** in a session the user watches, a later round or a long answer ends with "Added:" (the new
     parts) or "Corrected:" lines, not the whole answer again.
+  - **A curl to this machine is not the web:** polling the project's own local server (localhost, 127.x, ::1) no longer
+    sets off research-verified. From a field report.
   - **Fewer false alarms, no off switch (from a field report, 20 headless builds):** a one-sentence question led by
     "what/why/how" gets no NO RUNBOOK or lasting-requirement hint, a context summary that resumes the turn gets no hints,
     and while another session works in the project the turn notes count only when this session wrote them. A check

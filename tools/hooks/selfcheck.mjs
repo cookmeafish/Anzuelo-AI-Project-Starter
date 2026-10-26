@@ -1221,6 +1221,13 @@ STOP.push(
     answer: 'Skill: research. Quick lookup: most hold 100 kg.[1]\n\nSources:\n[1] https://example.com/desks - 2026-10-17', expect: { block: false } },
   { name: 'research-verified: a search that found nothing, said with where and when: passes', prompt: 'is there a proven list for this plant shop', tools: [sk('research'), { name: 'WebSearch', input: { query: 'proven plant shop list tulips' }, result: 'no matching results' }],
     answer: 'Skill: research. Searched: a proven list for this plant shop - nothing found (GardenWeb, PlantFinder, BloomStats, 2026-10-20).', expect: { not: ['research-verified'] } },
+  // Lesson, field report: polling the app's own local server with curl counted as using the web
+  { name: 'research-verified: curl to a local server is not the web: passes', prompt: 'check how the last export run went',
+    tools: [sk('research'), bash('curl -s -m 5 http://127.0.0.1:8765/api/runs', '[{"id":1,"ok":true}]'), bash('curl -s http://localhost:3000/health', 'ok')],
+    answer: 'Skill: research. The last export run finished without errors.', expect: { not: ['research-verified'] } },
+  { name: 'research-verified: curl to a site on the web still counts: blocked', prompt: 'check what the supplier page says about prices',
+    tools: [sk('research'), bash('curl -s https://example.com/prices', 'Prices rise 8% in March')],
+    answer: 'Skill: research. Prices rise 8% in March.', expect: { block: true, tags: ['research-verified'] } },
   // a project's own research rule (its source-and-date line) can stand in for the ledger: "researchCoveredBy" in config
   // Lesson: an adopted project's market lookups, which its own rule already checks, were sent through the whole ledger too
   { name: 'research-verified: the project\'s own research rule line, named in config: passes', prompt: 'is there a proven list for this plant shop',
