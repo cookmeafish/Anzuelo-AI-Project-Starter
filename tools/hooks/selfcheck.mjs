@@ -6680,6 +6680,12 @@ if (mineB()) { // plain-writing in a page: tags are markup, not words; a real wa
   const a = writingProblems(page, undefined, 'site/apple-pie.html'), b = writingProblems(wall, undefined, 'site/stew.html');
   report(!a.some(p => /long|paragraph|sentence/i.test(p)) && b.some(p => /long|paragraph|sentence/i.test(p)),
     'plain-writing: a page\'s tags are not words, and a real wall of text in a page is still flagged', `${a.slice(0, 2).join(' | ')} || ${b.slice(0, 2).join(' | ')}`);
+  // (a field report: an import list, one item per line with no bullets, read as a 204-word sentence)
+  const items = Array.from({ length: 40 }, (_, i) => `${i % 4 + 1} Copper kettle set (KT${i}) ${100 + i}`).join('\n') + '\n';
+  const wrapped = 'Stir the pot and keep stirring it slowly while the sauce thickens and\nthe onions soften in the pan and the kitchen fills with the smell of it\n'.repeat(4);
+  const c = writingProblems(items, undefined, 'exports/order.txt'), d = writingProblems(wrapped, undefined, 'notes/stew.txt');
+  report(!c.some(p => /paragraph|sentence/i.test(p)) && d.some(p => /paragraph|sentence/i.test(p)),
+    'plain-writing: a plain list, one short item per line, is no sentence; wrapped prose still is', `${c.slice(0, 2).join(' | ')} || ${d.slice(0, 2).join(' | ')}`);
 }
 
 if (mineB()) { // fit-checklist: a "later - when:" condition counts what its noun names, and one the hooks can't read is not measured

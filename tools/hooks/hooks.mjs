@@ -3182,6 +3182,10 @@ export function writingProblems(text, cfg = config(), where = 'answer') {
   const paras = prose.map(l => /^\s*>\s*$/.test(l) ? '' : own(l) ? `\n${l}\n` : l).join('\n').split(/\n\s*\n/);
   for (const p of paras) {
     if (/^\s*(\||[-*]\s|\d+\.\s|#)/m.test(p) && p.split('\n').length > 1) continue; // tables and lists are already structured
+    // (so is a plain list: 3+ lines, each short and none ending in punctuation, one item per line. Wrapped prose has
+    // longer lines. Lesson, field report: an import list, one item per line, read as a 204-word sentence)
+    const pl = p.split('\n').filter(l => l.trim());
+    if (pl.length >= 3 && pl.every(l => count(l) <= 8 && !/[.!?,;:]\s*$/.test(l))) continue;
     const words = count(p);
     if (words > cfg.maxParagraphWords) probs.push(`${where}: a ${words}-word paragraph ("${p.trim().slice(0, 50)}..."). Split it, or use a list or table`);
     for (const s of p.replace(/\n/g, ' ').split(/(?<=[.!?])\s+/)) {
