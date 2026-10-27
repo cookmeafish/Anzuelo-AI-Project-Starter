@@ -6899,8 +6899,8 @@ if (mineB()) { // the manual path (agents without hooks): `hooks.mjs begin "<req
       'write a report on the zorbel grobbles': 'ALSO ROUTE: zorbel-tune | ROUTE: deliverable',
       'great job, keep doing this': 'PRAISE', 'perfecto, sigue así': 'PRAISE',
       'is it doing a good or bad job?': '', '¿lo está haciendo bien?': '',
-      // (in the starter, "multiple tests to make sure it is fixed" is also its improvement loop)
-      'give that feedback to anzuelo and mention to do multiple tests to make sure it is fixed': fs.existsSync(path.join(dir, 'tools/starter/runbooks/improvement-loop.md')) ? 'ALSO ROUTE: improvement-loop | ROUTE: project' : 'ROUTE: project',
+      // (a project: the starter's own improvement loop routes only in the starter)
+      'give that feedback to anzuelo and mention to do multiple tests to make sure it is fixed': 'ROUTE: project',
       'from now on always give prices in euros': 'ROUTE: project | RULE REQUEST', 'de ahora en adelante usa siempre euros': 'RULE REQUEST',
       'export the invoices to csv again for the accountant': 'RECALL'
     };
