@@ -6870,6 +6870,7 @@ if (mineB()) { // gitignore-ready: a push waits until .gitignore keeps private f
     // the starter ignores its own hook state; a project that ignores it loses its runbook usage
     fs.mkdirSync(path.join(dir, 'tools/hooks/state'), { recursive: true }); fs.writeFileSync(path.join(dir, 'tools/hooks/state/runbook-usage.json'), '{}');
     fs.appendFileSync(path.join(dir, '.gitignore'), '\ntools/hooks/state/\n');
+    fs.rmSync(path.join(dir, '.starter-template'), { force: true });
     const projectState = problems();
     fs.writeFileSync(path.join(dir, '.starter-template'), '');
     const starterState = problems();
