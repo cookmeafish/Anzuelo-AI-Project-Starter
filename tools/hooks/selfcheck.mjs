@@ -987,6 +987,14 @@ const PRETOOL = [
   // (Lesson, trial round 15: test fixtures built under .cache/.../sources were denied as originals)
   { pack: 'knowledge', name: 'protect-originals: a "sources" folder nested elsewhere (test fixtures under .cache) is not the originals: allowed', tool: 'Bash', input: { command: 'rm -rf .cache/agtest/case1/sources' }, prompt: 'set up this project', deny: false },
   { pack: 'knowledge', name: 'move a file out of sources/: denied', tool: 'Bash', input: { command: 'mv sources/a.pdf inbox/' }, deny: true, tag: 'protect-originals' },
+  // (a glob narrower than its folder protects only what it matches. Lesson (a field report): an append to a changelog
+  // beside the originals was denied, while the Edit tool allowed the same file)
+  { name: 'protect-originals: append to a file the narrow glob does not match: allowed', tool: 'PowerShell', input: { command: 'Add-Content "items/Box One/CHANGELOG.md" "| row |"' },
+    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), protectedOriginals: ['items/**/Original/**'] }) }, setup: { 'items/Box One/CHANGELOG.md': 'x', 'items/Box One/Original/a.txt': 'x' }, deny: false },
+  { name: 'protect-originals: overwrite a file the narrow glob matches: denied', tool: 'PowerShell', input: { command: 'Set-Content "items/Box One/Original/a.txt" "y"' },
+    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), protectedOriginals: ['items/**/Original/**'] }) }, setup: { 'items/Box One/Original/a.txt': 'x' }, deny: true, tag: 'protect-originals' },
+  { name: 'protect-originals: delete a folder that holds narrow-glob originals: denied', tool: 'Bash', input: { command: 'rm -rf "items/Box One"' },
+    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), protectedOriginals: ['items/**/Original/**'] }) }, setup: { 'items/Box One/Original/a.txt': 'x' }, deny: true, tag: 'protect-originals' },
   { pack: 'knowledge', name: 'redirect over a file in sources/: denied', tool: 'Bash', input: { command: 'echo hi > sources/a.md' }, deny: true, tag: 'protect-originals' },
   // Codex edits with apply_patch: every file in the patch gets the file guards (Lesson: an apply_patch passed them all)
   { pack: 'knowledge', name: 'protect-originals: a Codex apply_patch that changes an original: denied', tool: 'apply_patch', input: { command: '*** Begin Patch\n*** Update File: sources/a.md\n@@\n-x\n+y\n*** End Patch' }, setup: { 'sources/a.md': 'x' }, deny: true, tag: 'protect-originals' },

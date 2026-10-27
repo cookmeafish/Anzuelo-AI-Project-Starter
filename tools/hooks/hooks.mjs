@@ -5231,8 +5231,9 @@ function pretoolHits(data, cfg) {
     const prose = c => String(c).replace(/(?<!(?:-c|-lc|\/c|eval|-Command)\s+)("[^"\n]*?(?:\s+[^\s"]+){3,}[^"\n]*"|'[^'\n]*?(?:\s+[^\s']+){3,}[^'\n]*')/gi, '""');
     const here = cfg.protectedOriginals.length ? inProjectParts(prose(inlineCodeOut(cmd))) : cmd;
     const rootP = [...new Set([ROOT, ROOT.replace(/\\/g, '/')])].map(r => esc(r.replace(/[\\/]+$/, ''))).join('|');
-    for (const d of here.trim() ? cfg.protectedOriginals.map(g => g.replace(/\/?\*\*.*$/, '')).filter(Boolean) : []) {
-      const cmd = here;
+    for (const g of here.trim() ? cfg.protectedOriginals : []) {
+      const d = g.replace(/\/?\*\*.*$/, ''), cmd = here;
+      if (!d) continue;
       const P = `["']?(?:\\.[\\\\/]|(?:${rootP})[\\\\/])?${esc(d)}(?:[\\\\/]|["'\\s;|&]|$)`;
       const hits = [
         `(^|[\\s;&|(])(rm|del|erase|rmdir|rd|Remove-Item|ri|Clear-Content|truncate|shred|unlink)\\b[^;&|]*?(\\s|^)${P}`,
@@ -5244,6 +5245,15 @@ function pretoolHits(data, cfg) {
       // runbook with sed was denied, because the folder's name was in the replacement text.
       hits.push(sedInPlaceFiles(cmd).some(f => re(`^${P}`).test(f)));
       const bad = hits.some(Boolean);
+      // A glob narrower than its folder ("items/**/Original/**") protects only the paths it matches: a file elsewhere in
+      // the folder is not an original. A folder the command names still counts, as it may hold originals.
+      // Lesson (a field report): an append to items/<item>/CHANGELOG.md was denied while the Edit tool allowed it.
+      if (bad && !/^(\*\*(\/\*)?)?$/.test(g.slice(d.length + 1))) {
+        const top = `${ROOT.replace(/\\/g, '/').replace(/\/+$/, '')}/`.toLowerCase();
+        const named = [...cmd.matchAll(/"([^"\n]*)"|'([^'\n]*)'|([^\s;&|<>()]+)/g)].map(m => (m[1] ?? m[2] ?? m[3]).replace(/\\/g, '/'))
+          .map(p => (p.toLowerCase().startsWith(top) ? p.slice(top.length) : p).replace(/^\.\//, '')).filter(p => p === d || p.startsWith(`${d}/`));
+        if (named.length && !named.some(p => match(p, [g]) || match(`${p}/x`, [g]) || !/\.\w+$/.test(p.split('/').pop()))) continue;
+      }
       // A file this turn created (not in the turn-start snapshot, not in git) is not an original yet: a helper may delete
       // junk it just downloaded. Only a plain delete, and only when every file it names is new.
       // Lesson: helpers could not remove a broken download and left it in the evidence folder.

@@ -31,6 +31,10 @@ hooks:**, and an upgrade lists each one as its own review item.
     parts) or "Corrected:" lines, not the whole answer again.
   - **A plain list is no sentence:** 3+ short lines with no end punctuation (an import list, one item per line) are
     read as a list by plain-writing; wrapped prose is still measured. From a field report.
+  - **A narrow originals glob guards only what it matches:** with `protectedOriginals` like `items/**/Original/**`,
+    the command guard protected all of `items/`, so writing a changelog beside the originals was denied while the Edit
+    tool allowed it. Commands are now judged by the full glob; a folder that may hold originals still counts. From a
+    field report.
   - **Checks rerun after sub-agents count as the combined check:** parallel-trigger now passes when a check, test or
     build command ran after the last sub-agent started and the answer gives its result; the word "combined" is no
     longer needed. New condition key `checkedAfterAgents`. From a field report.
