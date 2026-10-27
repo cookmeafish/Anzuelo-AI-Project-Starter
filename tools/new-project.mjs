@@ -30,13 +30,13 @@ const ENGINE = [
   '.githooks/commit-msg', '.githooks/pre-commit', '.githooks/pre-push',
   'docs/checks/session-checklist.md', 'docs/checks/finish-checklist.md', 'docs/checks/runbook-standards.md',
   'docs/checks/writing-standards.md', 'docs/checks/layout-standards.md', 'docs/recommended-tools.md', 'docs/checks/better-or-worse.md',
-  'docs/playbooks/_TEMPLATE.md', 'docs/playbooks/_fallback.md', 'docs/playbooks/project.md', 'docs/playbooks/plan.md', 'HOW-TO-USE.md', 'tools/skills.mjs', 'tools/starter.mjs', 'tools/recall.mjs', 'tools/hooks/wire.mjs', 'tools/survey.mjs', 'tools/dedupe.mjs', 'tools/fit.mjs',
+  'docs/playbooks/_TEMPLATE.md', 'docs/playbooks/_fallback.md', 'docs/playbooks/project.md', 'docs/playbooks/plan.md', 'docs/playbooks/status-lines.md', 'HOW-TO-USE.md', 'tools/skills.mjs', 'tools/starter.mjs', 'tools/recall.mjs', 'tools/hooks/wire.mjs', 'tools/survey.mjs', 'tools/dedupe.mjs', 'tools/fit.mjs',
   'tools/hooks/engine-checks.json', 'tools/hooks/engine-checks-history.json',
   // the starter's proof that its full self-test passed on this engine: a project with the same engine reuses it
   // (selftest-cache.mjs PROOF_FILE). Lesson: each new project's setup ran the whole engine suite again first.
   'tools/hooks/engine-proof.json'
 ];
-// The engine's own runbooks (hooks.mjs CORE_RUNBOOKS: project, plan; and _fallback, _TEMPLATE) are engine like the core
+// The engine's own runbooks (hooks.mjs CORE_RUNBOOKS: project, plan, status-lines; and _fallback, _TEMPLATE) are engine like the core
 // skills: replaced on upgrade, keeping the project's added triggers, its "## Project lessons" section and its
 // hardened/harden/keep marks (mergeSkill). Lesson: project.md was in neither list, so upgraded projects kept an old copy
 // whose "Done when" items had no (hook:)/(judgment:) labels, and done-when-labeled fired on the engine's own runbook.

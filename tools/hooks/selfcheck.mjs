@@ -424,6 +424,8 @@ const KNOW = '---\ntopic: Desks\nchecked: 2026-10-17\nvolatile: yes\n---\n# Desk
 const KNOW_LOCAL = (src, label, date) => `---\ntopic: Style\nchecked: 2026-10-21\nvolatile: no\n---\n# Style\n| Fact | Label | Source | Date |\n|---|---|---|---|\n| Narration is in the past tense | ${label} | ${src} | ${date} |\n\n## Related\n- [Desks](desks.md)\n`;
 const TWIN = '# changed twin\nCLAUDE.md and AGENTS.md are twins.\n';
 const NEWPB = '---\nname: meal-plan\nsummary: Plan meals\ntriggers: meal plan, plan meals\nchecks: none - a test runbook\n---\n# Playbook\n## Steps\n1. a\n## Done when\n- [ ] b (judgment: a test runbook)\n';
+// the new runbook's cold read, recorded (REQ: runbook-cold-read)
+const COLD_MEAL = { '.cache/turn-notes.md': 'Cold read: playbooks/meal-plan.md - 1 gap (which week the plan covers), fixed\n' };
 
 // expect: { block: bool, tags: [...must be reported], not: [...must NOT be reported] }
 const SHOT = '.cache/gui-review/r1/page-1400x900-light.png';
@@ -477,7 +479,7 @@ const STOP = [
     host: { CLAUDE_PROJECT_DIR: '.' }, edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), stopStyle: 'block' }) }, expect: { block: true, tags: ['runbook-exists'] },
     after: (dir, reason, d) => (d && d.decision === 'block' && !d.hookSpecificOutput) || `got ${JSON.stringify(d).slice(0, 300)}` },
   { name: 'unrouted work turn that creates + indexes a runbook: runbook-exists passes', prompt: 'build me a weekly meal plan for the family',
-    files: { 'docs/playbooks/meal-plan.md': NEWPB, 'docs/CHANGELOG.md': 'x' },
+    files: { 'docs/playbooks/meal-plan.md': NEWPB, 'docs/CHANGELOG.md': 'x', ...COLD_MEAL },
     tools: [bash('node tools/audit.mjs')], answer: 'Playbook: meal-plan.md (created). Existing skills checked: installed skills and the official repo - none fit.' + FIN, expect: { block: false } },
   { name: 'routed task that never opened its runbook: blocked', prompt: 'make a plan for the csv export', tools: many(16), answer: 'Here is the plan.',
     expect: { block: true, tags: ['runbook-read'] } },
@@ -512,6 +514,17 @@ const STOP = [
   // Lesson: complaints were answered with an apology and a fix, and the same miss came back the next week
   { name: 'upset-learned: a complaint fixed but nothing learned: blocked', prompt: 'you forgot to add the allergens again!!', files: { 'docs/menu.md': 'Croissant (gluten, milk)' },
     answer: 'Added the allergens to the menu.' + FIN, expect: { block: true, tags: ['upset-learned'], not: ['runbook-exists', 'rule-request'] } },
+  // (strong words, nothing wrong: the agent decides and owes no verdict or lesson. Lesson (the user): "the user is solely
+  // explaining but there is nothing wrong here")
+  { name: 'upset-learned: strong words about something else, recorded as nothing wrong: passes that check', prompt: 'ugh the printer at the office is shit today. anyway add the croissant to the menu',
+    files: { 'docs/menu.md': 'Croissant (gluten, milk)', '.cache/turn-notes.md': 'Learned (none): nothing was wrong - the user was venting about the office printer\n' },
+    answer: 'Added the croissant to the menu.' + FIN, expect: { not: ['upset-learned'] } },
+  // (the user sees what the agent decided about strong words, in context. Lesson (the user): "it requires some ai work
+  // to be able to show that with context and afirmation of x issue")
+  { name: 'prompt-visible: strong words with nothing wrong end with a "nothing to fix" line', prompt: 'ugh the printer at the office is shit today. how many items are on the menu?',
+    files: { '.cache/turn-notes.md': 'Learned (none): nothing was wrong - the user was venting about the office printer\n' }, host: { CLAUDE_PROJECT_DIR: '.' },
+    answer: 'There are three items on the menu.', expect: { block: false },
+    after: (dir, reason, d) => /^⚓ Anzuelo 🚨 nothing to fix: the user was venting about the office printer/.test(d?.systemMessage || '') || `no outcome line: ${JSON.stringify(d).slice(0, 200)}` },
   { name: 'upset-learned: the lesson named, but its file never changed: blocked', prompt: 'you forgot to add the allergens again!!', files: { 'docs/menu.md': 'Croissant (gluten, milk)' },
     answer: 'Added the allergens to the menu.\nLearned (rule): every menu item lists its allergens → AGENTS.md' + FIN, expect: { block: true, tags: ['upset-learned'] } },
   // (a lesson in the agent's memory notes, outside the project, written this turn counts. Lesson (a field report))
@@ -725,15 +738,45 @@ const STOP = [
     answer: 'Playbook: project.md. Added the requirement.' + FIN, expect: { not: ['requirement-enforced'] } },
   { name: 'requirement-enforced: a one-off instruction is not a lasting requirement', prompt: 'fix the typo in the zorbl guide and make sure you run the tests', tools: [pb('project'), bash('node tools/audit.mjs')],
     files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md. Fixed it.' + FIN, expect: { not: ['requirement-enforced'], block: false } },
+  // REQ: prompt-visible. A work turn that passes shows the user what the hooks confirmed.
+  { name: 'prompt-visible: a work turn that passes shows the user a ✅ line with its runbook', prompt: 'make a plan for the csv export',
+    tools: [pb('plan'), bash('node skills/plan/scripts/plan-tasks.mjs check docs/plans/2026-10-17-export.md')], files: { 'docs/plans/2026-10-17-export.md': '# Export: plan' },
+    host: { CLAUDE_PROJECT_DIR: '.' }, answer: 'Playbook: plan.md. Saved.' + FIN, expect: { block: false },
+    after: (dir, reason, d) => /^⚓ Anzuelo ✅ checks passed · 📖 the plan runbook it pulled up was followed/.test(d?.systemMessage || '') || `no pass line: ${JSON.stringify(d).slice(0, 200)}` },
+  { name: 'prompt-visible: a runbook the agent opened on its own is not credited to Anzuelo', prompt: 'tidy up the csv export notes',
+    tools: [pb('plan'), bash('node skills/plan/scripts/plan-tasks.mjs check docs/plans/2026-10-17-export.md')], files: { 'docs/plans/2026-10-17-export.md': '# Export: plan' },
+    host: { CLAUDE_PROJECT_DIR: '.' }, answer: 'Playbook: plan.md. Saved.' + FIN, expect: {},
+    after: (dir, reason, d) => !/📖/.test(d?.systemMessage || '') || `credited a runbook Anzuelo did not route: ${d.systemMessage}` },
+  { name: 'prompt-visible: lines the user turned off stay off', prompt: 'make a plan for the csv export',
+    tools: [pb('plan'), bash('node skills/plan/scripts/plan-tasks.mjs check docs/plans/2026-10-17-export.md')], files: { 'docs/plans/2026-10-17-export.md': '# Export: plan' },
+    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), userLines: { hide: ['passed'] } }) },
+    host: { CLAUDE_PROJECT_DIR: '.' }, answer: 'Playbook: plan.md. Saved.' + FIN, expect: { block: false },
+    after: (dir, reason, d) => !d?.systemMessage || `a hidden line was shown: ${d.systemMessage}` },
   // a requirement written into a runbook says how it is proven, so none stays unenforced unnoticed
   { name: 'done-when-labeled: a runbook changed with an item that names no check or judgment: blocked', prompt: 'every zorbl answer must cite its zorbl file', tools: [pb('project'), bash('node tools/audit.mjs')],
     files: { 'docs/playbooks/zorbl-answer.md': '---\nname: zorbl-answer\nsummary: answer a zorbl question\ntriggers: zorbl question\n---\n# Playbook: zorbl answer\n## Steps\n1. Answer.\n## Done when\n- [ ] The answer cites the zorbl file.\n', 'docs/CHANGELOG.md': 'x' },
     answer: 'Playbook: project.md. Added the citation rule.' + FIN, expect: { block: true, tags: ['done-when-labeled'] } },
   { name: 'done-when-labeled: each item names its check or why only judgment can tell: passes that check', prompt: 'every zorbl answer must cite its zorbl file', tools: [pb('project'), bash('node tools/audit.mjs')],
-    files: { 'docs/playbooks/zorbl-answer.md': '---\nname: zorbl-answer\nsummary: answer a zorbl question\ntriggers: zorbl question\n---\n# Playbook: zorbl answer\n## Steps\n1. Answer.\n## Done when\n- [ ] The answer cites the zorbl file (hook: zorbl-cited).\n- [ ] The tone fits a new player (judgment: no script can tell tone).\n', 'docs/CHANGELOG.md': 'x' },
+    files: { 'docs/playbooks/zorbl-answer.md': '---\nname: zorbl-answer\nsummary: answer a zorbl question\ntriggers: zorbl question\n---\n# Playbook: zorbl answer\n## Steps\n1. Answer.\n## Done when\n- [ ] The answer cites the zorbl file (hook: answer-traced).\n- [ ] The tone fits a new player (judgment: no script can tell tone).\n', 'docs/CHANGELOG.md': 'x' },
     answer: 'Playbook: project.md. Added the citation rule.' + FIN, expect: { block: true, not: ['done-when-labeled'] } },
+  // (a check name no hook defines lets the item pass with no evidence. Lesson (the user): "the runbooks must be accurate")
+  { name: 'done-when-labeled: an item naming a check that does not exist: blocked', prompt: 'every zorbl answer must cite its zorbl file', tools: [pb('project'), bash('node tools/audit.mjs')],
+    files: { 'docs/playbooks/zorbl-answer.md': '---\nname: zorbl-answer\nsummary: answer a zorbl question\ntriggers: zorbl question\n---\n# Playbook: zorbl answer\n## Steps\n1. Answer.\n## Done when\n- [ ] The answer cites the zorbl file (hook: zorbl-citd).\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Playbook: project.md. Added the citation rule.' + FIN, expect: { block: true, tags: ['done-when-labeled'], says: /zorbl-citd/ } },
+  // REQ: runbook-cold-read. A new runbook is read cold by a helper before it is relied on.
+  { name: 'runbook-cold-read: a new runbook no helper read cold: blocked', prompt: 'every zorbl answer must cite its zorbl file', tools: [pb('project'), bash('node tools/audit.mjs')],
+    files: { 'docs/playbooks/zorbl-answer.md': '---\nname: zorbl-answer\nsummary: answer a zorbl question\ntriggers: zorbl question\n---\n# Playbook: zorbl answer\n## Steps\n1. Answer.\n## Done when\n- [ ] The answer cites the zorbl file (hook: answer-traced).\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Playbook: project.md. Added the citation rule.' + FIN, expect: { block: true, tags: ['runbook-cold-read'] } },
+  { name: 'runbook-cold-read: the same runbook with its cold read recorded: passes that check', prompt: 'every zorbl answer must cite its zorbl file', tools: [pb('project'), bash('node tools/audit.mjs')],
+    files: { 'docs/playbooks/zorbl-answer.md': '---\nname: zorbl-answer\nsummary: answer a zorbl question\ntriggers: zorbl question\n---\n# Playbook: zorbl answer\n## Steps\n1. Answer.\n## Done when\n- [ ] The answer cites the zorbl file (hook: answer-traced).\n', 'docs/CHANGELOG.md': 'x',
+      '.cache/turn-notes.md': 'Cold read: playbooks/zorbl-answer.md - 2 gaps (the zorbl file path, what counts as a citation), fixed\n' },
+    answer: 'Playbook: project.md. Added the citation rule.' + FIN, expect: { not: ['runbook-cold-read'] } },
+  { name: 'runbook-cold-read: a helper given the new runbook: passes that check', prompt: 'every zorbl answer must cite its zorbl file',
+    tools: [pb('project'), bash('node tools/audit.mjs'), { name: 'Agent', input: { prompt: 'Read docs/playbooks/zorbl-answer.md cold and list every step you could not do exactly as written.' }, result: '1 gap: the zorbl file path' }],
+    files: { 'docs/playbooks/zorbl-answer.md': '---\nname: zorbl-answer\nsummary: answer a zorbl question\ntriggers: zorbl question\n---\n# Playbook: zorbl answer\n## Steps\n1. Answer.\n## Done when\n- [ ] The answer cites the zorbl file (hook: answer-traced).\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Playbook: project.md. Added the citation rule.' + FIN, expect: { not: ['runbook-cold-read'] } },
   { name: 'done-when-labeled: a wrapped item labeled on its last line, and several tags in one label: passes that check', prompt: 'every zorbl answer must cite its zorbl file', tools: [pb('project'), bash('node tools/audit.mjs')],
-    files: { 'docs/playbooks/zorbl-answer.md': '---\nname: zorbl-answer\nsummary: answer a zorbl question\ntriggers: zorbl question\n---\n# Playbook: zorbl answer\n## Steps\n1. Answer.\n## Done when\n- [ ] The answer cites the zorbl file, and every number in it comes from that file or is\n      marked as calculated (hook: zorbl-cited).\n- [ ] It is named and summed up (hooks: runbook-read, finished-summary).\n', 'docs/CHANGELOG.md': 'x' },
+    files: { 'docs/playbooks/zorbl-answer.md': '---\nname: zorbl-answer\nsummary: answer a zorbl question\ntriggers: zorbl question\n---\n# Playbook: zorbl answer\n## Steps\n1. Answer.\n## Done when\n- [ ] The answer cites the zorbl file, and every number in it comes from that file or is\n      marked as calculated (hook: answer-traced).\n- [ ] It is named and summed up (hooks: runbook-read, finished-summary).\n', 'docs/CHANGELOG.md': 'x' },
     answer: 'Playbook: project.md. Added the citation rule.' + FIN, expect: { block: true, not: ['done-when-labeled'] } },
   // the project improves itself: no asking whether to add checks for what the user already asked for
   { name: 'self-improve: offering to add checks instead of adding them: blocked', prompt: 'are these requirements enforced', tools: [],
@@ -1094,8 +1137,10 @@ const PROMPT = [
   { name: 'rule request hint', prompt: 'from now on always give prices in euros', has: ['RULE REQUEST'] },
   { name: 'word routing: key words in any order and with endings still route', prompt: 'please search for the latest version on the web', has: ['SKILL: research'] },
   { name: 'upset-learned: shouting in capitals sends the agent to the learn-from-upset skill', prompt: 'WHY DID YOU SKIP THE SOURCES AGAIN', has: ['THE USER SOUNDS UPSET', 'learn-from-upset'] },
-  { name: 'upset-learned: a calm request gets no upset hint', prompt: 'please add the sources to the desk note', hasNot: ['THE USER SOUNDS UPSET'] },
-  { name: 'upset-learned: a plain why-question is not upset', prompt: 'why does the page take 2 seconds to load', hasNot: ['THE USER SOUNDS UPSET'] },
+  { name: 'upset-learned: a calm request gets no upset hint', prompt: 'please add the sources to the desk note', hasNot: ['THE USER SOUNDS UPSET', '"systemMessage"'] },
+  // REQ: prompt-visible. The user sees that the hooks heard them. (Lesson (the user): "i didn't see the hook icon")
+  { name: 'prompt-visible: shouting shows the user an Anzuelo line', prompt: 'WHY DID YOU SKIP THE SOURCES AGAIN', env: { CLAUDE_PROJECT_DIR: '.' }, has: ['"systemMessage":"⚓ Anzuelo 🚨 noticed: Claude will check whether something went wrong.'] },
+  { name: 'prompt-visible: a standing rule shows the user an Anzuelo line', prompt: 'from now on always cite the source file in every desk note', env: { CLAUDE_PROJECT_DIR: '.' }, has: ['⚓ Anzuelo 📜 noticed a possible rule'] },  { name: 'upset-learned: a plain why-question is not upset', prompt: 'why does the page take 2 seconds to load', hasNot: ['THE USER SOUNDS UPSET'] },
   { name: 'menu code expands', prompt: 'K2 standing desks under 500 --brief', has: ['MENU CODE K2', 'MENU FLAG --brief', 'ROUTE: research'] },
   { name: 'unknown menu code asks', prompt: 'Z9 do the thing', has: ['UNKNOWN MENU CODE Z9'] },
   // Lessons: a question asking whether something did a good job got the PRAISE hint; feedback to pass on got REQUIREMENT
@@ -1688,7 +1733,7 @@ STOP.push(
   { name: 'new runbook without a check: blocked', prompt: 'make a runbook for meal planning', tools: [pb('project'), bash('node tools/audit.mjs')],
     files: { 'docs/playbooks/meal-plan.md': NEWPB.replace('checks: none - a test runbook\n', ''), 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.' + FIN, expect: { block: true, tags: ['runbook-complete'] } },
   { name: 'a new runbook gets its skill and DIRECTORY row generated', prompt: 'make a runbook for meal planning', tools: [pb('project'), bash('node tools/audit.mjs')],
-    files: { 'docs/playbooks/meal-plan.md': NEWPB, 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md. Existing skills checked: installed skills - none fit.' + FIN, expect: { block: false },
+    files: { 'docs/playbooks/meal-plan.md': NEWPB, 'docs/CHANGELOG.md': 'x', ...COLD_MEAL }, answer: 'Playbook: project.md. Existing skills checked: installed skills - none fit.' + FIN, expect: { block: false },
     after: dir => (fs.existsSync(path.join(dir, 'skills/meal-plan/SKILL.md')) && fs.existsSync(path.join(dir, '.claude/skills/meal-plan/SKILL.md')) && fs.readFileSync(path.join(dir, 'DIRECTORY.md'), 'utf8').includes('meal-plan.md')) || 'skill, mirror or directory row not generated' },
   // verbatim examples
   { name: 'a doc that copies the user\'s own words: blocked', prompt: 'never let the reports show the raw server error to my customers again please', tools: [pb('project'), bash('node tools/hooks/selfcheck.mjs'), bash('node tools/audit.mjs')],
@@ -1818,7 +1863,7 @@ STOP.push(
   // editing a runbook is maintaining it, not following it
   { name: 'maintaining a runbook (read, then edit) is not following it: its checks stay off', prompt: 'fix the typo in step one of that runbook', edit: MEAL_CHECK,
     tools: [pb('project'), pb('meal-plan'), { name: 'Edit', input: { file_path: 'docs/playbooks/meal-plan.md', old_string: '1. a', new_string: '1. b' } }, bash('node tools/audit.mjs')],
-    files: { 'docs/playbooks/meal-plan.md': NEWPB.replace('1. a', '1. b'), 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md. Fixed the typo. Existing skills checked: none needed, an edit.' + FIN, expect: { block: false, not: ['meal-ok'] } },
+    files: { 'docs/playbooks/meal-plan.md': NEWPB.replace('1. a', '1. b'), 'docs/CHANGELOG.md': 'x', ...COLD_MEAL }, answer: 'Playbook: project.md. Fixed the typo. Existing skills checked: none needed, an edit.' + FIN, expect: { block: false, not: ['meal-ok'] } },
   { name: 'maintaining a runbook the answer names as followed: its checks apply: blocked', prompt: 'fix the typo in step one of that runbook', edit: MEAL_CHECK,
     tools: [pb('project'), pb('meal-plan'), { name: 'Edit', input: { file_path: 'docs/playbooks/meal-plan.md', old_string: '1. a', new_string: '1. b' } }, bash('node tools/audit.mjs')],
     files: { 'docs/playbooks/meal-plan.md': NEWPB.replace('1. a', '1. b'), 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md, Playbook: meal-plan.md. Fixed the typo. Existing skills checked: none needed, an edit.' + FIN, expect: { block: true, tags: ['meal-ok'] } },
@@ -1991,6 +2036,9 @@ PRETOOL.push(
   // Lesson: "cat .env", Read .env, a key written into src/ and "git add -f .env" all went through before
   { name: 'no-secrets: printing .env into the conversation: denied', tool: 'Bash', input: { command: 'cat .env' }, prompt: 'why does the app fail to start', deny: true, tag: 'no-secrets' },
   { name: 'no-secrets: reading .env with the Read tool: denied', tool: 'Read', input: { file_path: '.env' }, prompt: 'why does the app fail to start', deny: true, tag: 'no-secrets' },
+  // REQ: prompt-visible. The user sees what was stopped, ❗ for the critical guards. (Lesson (the user): "critical things maybe a exclamation?")
+  { name: 'prompt-visible: a critical guard shows the user a ❗ line', tool: 'Read', input: { file_path: '.env' }, prompt: 'why does the app fail to start', host: { CLAUDE_PROJECT_DIR: '.' },
+    deny: true, tag: 'no-secrets', userSees: /^⚓ Anzuelo ❗ stopped an action: / },
   { name: 'no-secrets: reading .env when the user asked for it: allowed', tool: 'Read', input: { file_path: '.env' }, prompt: 'check my .env for a typo', deny: false },
   { name: 'no-secrets: reading .env.example: allowed', tool: 'Bash', input: { command: 'cat .env.example' }, prompt: 'why does the app fail to start', deny: false },
   { name: 'no-secrets: writing a key into a tracked source file: denied', tool: 'Write', input: { file_path: 'src/config.js', content: 'export const key = "' + ['sk', 'ant', 'abcdefghijklmnopqrstuvwxyz0123'].join('-') + '";' }, prompt: 'hook up the api', deny: true, tag: 'no-secrets' },
@@ -2139,6 +2187,19 @@ STOP.push(
     answer: 'Playbook: project.md. Added the line.' + FIN, expect: { block: true, tags: ['changelog'] } },
   { name: 'changelog: the same change with its CHANGELOG line: passes', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
     files: { 'docs/CHANGELOG.md': '# Changelog\n- 2026-10-19: finish checklist asks for screenshots of changed screens\n' }, answer: 'Playbook: project.md. Added the line.' + FIN, expect: { not: ['changelog'] } },
+  // REQ: runbook-ledger. The runbook's "Done when" is the turn's checklist, kept as a record in the turn notes and judged
+  // by the checks its items name. (Lesson (the user): the hooks should save the day, not interrupt the work one check at a time)
+  { name: 'runbook-ledger: a checklist item skipped with a reason drops its checks', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
+    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) },
+    files: { '.cache/turn-notes.md': 'Done 2: the miss is fixed in the checklist itself\nSkip 5: a one-line wording change the owner keeps out of the changelog\n' }, answer: 'Playbook: project.md. Added the line.', expect: { not: ['changelog', 'finished-summary', 'runbook-ledger'] } },
+  { name: 'runbook-ledger: an item marked done whose evidence is missing comes back under its item', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
+    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) },
+    files: { '.cache/turn-notes.md': 'Done 2: the miss is fixed in the checklist itself\nDone 5: changelog updated\n' }, answer: 'Playbook: project.md. Added the line.' + FIN, expect: { block: true, tags: ['changelog'], says: /Item 5 \(marked done\)/ } },
+  { name: 'runbook-ledger: a judgment item with no record line is asked for', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
+    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) },
+    files: { 'docs/CHANGELOG.md': '# Changelog\n- 2026-10-19: finish checklist asks for screenshots of changed screens\n' }, answer: 'Playbook: project.md. Added the line.' + FIN, expect: { block: true, tags: ['runbook-ledger'] } },
+  { name: 'runbook-ledger: off by default, a skip line covers nothing', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
+    files: { '.cache/turn-notes.md': 'Skip 5: a one-line wording change the owner keeps out of the changelog\n' }, answer: 'Playbook: project.md. Added the line.' + FIN, expect: { block: true, tags: ['changelog'], not: ['runbook-ledger'] } },
   { name: 'twin-sync: one twin lost its twin note, so the two can\'t be synced: blocked', prompt: 'fix the wording in the hooks section of the agents file', tools: [pb('project')],
     files: { 'CLAUDE.md': TWIN, 'AGENTS.md': '# my own rules, rewritten\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md' + FIN, expect: { block: true, tags: ['twin-sync'] } },
   { name: 'dev-new-project: project making changed in a development copy without the trial: blocked', prompt: 'make new projects skip the empty inbox folder', edit: { '.starter-dev': () => 'development copy\n' },
@@ -3610,7 +3671,12 @@ const HIST = (prompt, changed) => ({ 'tools/hooks/state/history.jsonl': JSON.str
 PROMPT.push(
   // a report or message for the starter or another session: one primary ROUTE (the project runbook when the starter is
   // named), never the domain runbook on a generic word, never the deliverable runbook
-  hintRoute('a report to the starter on how to improve it routes to the project runbook only', 'Write a detailed report to anzuelo with recommendations on how to improve it', { routes: 1, has: ['ROUTE: project'], hasNot: NOT_DOMAIN }),
+  hintRoute('runbook-ledger: the routed runbook\'s checklist comes with the route', 'Write a detailed report to anzuelo with recommendations on how to improve it',
+    { routes: 1, has: ['ROUTE: project', 'CHECKLIST (docs/playbooks/project.md', 'Skip N:'], setupFn: { ...STARTER_IS, 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) } }),
+  hintRoute('prompt-visible: a routed runbook shows the user the book line, with its checklist count', 'Write a detailed report to anzuelo with recommendations on how to improve it',
+    { routes: 1, env: { CLAUDE_PROJECT_DIR: '.' }, has: ['⚓ Anzuelo 📖 pulled up the project runbook (✅ 5 items to check off)'], setupFn: { ...STARTER_IS, 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) } }),
+  hintRoute('runbook-ledger: off by default, no checklist', 'Write a detailed report to anzuelo with recommendations on how to improve it', { routes: 1, has: ['ROUTE: project'], hasNot: ['CHECKLIST ('] }),
+  hintRoute('a report to the starter on how to improve it routes to the project runbook only','Write a detailed report to anzuelo with recommendations on how to improve it', { routes: 1, has: ['ROUTE: project'], hasNot: NOT_DOMAIN }),
   hintRoute('feedback to the starter with a review of the report step routes to the project runbook only', 'report to anzuelo how to improve the review of each report', { routes: 1, has: ['ROUTE: project'], hasNot: NOT_DOMAIN }),
   hintRoute('a write-up for the other session is a message, not a deliverable', 'write up what you found and how to improve it for the other session', { routes: 0, hasNot: [...NOT_DOMAIN, 'NO RUNBOOK'] }),
   hintRoute('telling another session to improve its report routes nowhere', 'tell the other session to improve its report', { routes: 0, hasNot: [...NOT_DOMAIN, 'NO RUNBOOK'] }),
@@ -4130,7 +4196,9 @@ for (const s of PRETOOL) {
     const denied = /"permissionDecision":"deny"/.test(out);
     // tags: every rule named in one denial; exact: the whole denial text; says: a pattern the denial must match
     let reason = ''; try { reason = JSON.parse(out).hookSpecificOutput?.permissionDecisionReason || ''; } catch { }
-    const tagOk = (!s.tag || out.includes(`REQ: ${s.tag}`)) && (s.tags || []).every(t => reason.includes(`REQ: ${t}.`)) && (s.exact === undefined || reason === s.exact) && (!s.says || s.says.test(reason));
+    let sees = ''; try { sees = JSON.parse(out).systemMessage || ''; } catch { }
+    const tagOk = (!s.tag || out.includes(`REQ: ${s.tag}`)) && (s.tags || []).every(t => reason.includes(`REQ: ${t}.`)) && (s.exact === undefined || reason === s.exact) && (!s.says || s.says.test(reason)) &&
+      (!s.userSees || s.userSees.test(sees)); // userSees: the line shown to the user (REQ: prompt-visible)
     // rewrites: the call goes ahead with its input changed in place (updatedInput), checked field by field
     let upd = null; try { upd = JSON.parse(out).hookSpecificOutput?.updatedInput || null; } catch { }
     const rewriteOk = s.rewrites ? !!upd && Object.entries(s.rewrites).every(([k, re]) => re.test(String(upd[k] ?? ''))) : !upd || s.deny;
@@ -7062,6 +7130,33 @@ if (mineB() && (!TAGS || TAGS.includes('starter-tested'))) { // starter-tested: 
       JSON.stringify({ none: none.slice(0, 80), failed: failed.slice(0, 80), passed: passed.slice(0, 80), stale: stale.slice(0, 80) }));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
+if (mineB() && (!TAGS || TAGS.includes('prompt-visible'))) { // prompt-visible: the second step of each guess from words,
+  // what the agent decided with its reason (Lesson (the user): "there could be multiple more things like this that
+  // could use the 2 step")
+  const h = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks.mjs')).href), cfg = h.config();
+  const X = o => ({ prompt: '', said: '', changed: [], routed: [], usedPb: [], routedSkills: [], usedSkills: [], workTurn: false, ...o });
+  const RULE = 'from now on always cite the source file in every desk note';
+  const cases = [
+    [X({ prompt: RULE, said: 'N/A(rule-request): the user meant only this one note' }), /📜 not a lasting rule: the user meant only this one note/],
+    [X({ prompt: RULE, changed: ['AGENTS.md', 'tools/hooks/requirements.json'] }), /📜 rule saved in AGENTS\.md, with a check/],
+    [X({ prompt: 'great job, keep doing this', changed: ['docs/playbooks/desk-note.md'] }), /🌟 what worked is kept in docs\/playbooks\/desk-note\.md/],
+    [X({ prompt: 'tidy the plan for the export', routed: [{ name: 'plan' }], said: 'N/A(runbook-read): a typo fix in the plan file itself' }), /🚫 the plan runbook didn't fit: a typo fix/],
+    [X({ prompt: 'tidy the notes', routedSkills: [{ name: 'research' }], said: 'N/A(skill-read): no lookup was needed' }), /🚫 the research skill didn't fit: no lookup was needed/],
+    [X({ prompt: `<cross-session-message from="x">${RULE}</cross-session-message>`, said: 'N/A(rule-request): relayed' }), null]];
+  const got = cases.map(([x]) => h.decidedLines(x, cfg).join(' | '));
+  report(cases.every(([, want], i) => want ? want.test(got[i]) : !got[i]), 'prompt-visible: each guess from words ends with what the agent decided, with its reason (and nothing for a relayed message)', JSON.stringify(got));
+}
+if (mineB() && (!TAGS || TAGS.includes('runbook-ledger'))) { // runbook-ledger: a runbook's checklist is only as good as
+  // its proofs: an item with none, or naming a check that doesn't exist, passes with no evidence (Lesson (the user): "the
+  // runbooks must be accurate")
+  const h = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks.mjs')).href);
+  const f = 'docs/playbooks/zz-ledger-probe.md', p = path.join(ROOT, f);
+  fs.writeFileSync(p, '---\nname: zz-ledger-probe\nsummary: probe\ntriggers: zz probe\n---\n# Probe\n\n## Steps\n1. Do it.\n\n## Done when\n- [ ] Changelog updated (hook: changelog)\n- [ ] Typo in the check name (hook: chnagelog)\n- [ ] No proof at all\n- [ ] Read by a person (judgment: taste)\n');
+  let probs = [];
+  try { probs = h.playbookProblems(f); } finally { fs.rmSync(p, { force: true }); }
+  report(probs.length === 2 && probs.some(s => /item 2 names "chnagelog"/.test(s)) && probs.some(s => /item 3 says no proof/.test(s)),
+    'runbook-ledger: the audit names a Done when item with no proof and one naming a check that does not exist', JSON.stringify(probs));
+}
 if (mineB() && (!TAGS || TAGS.includes('upset-es'))) { // upset-es: complaints and "..., always" requirements in English and
   // Spanish (Lesson, trial round 10: "otra vez pusiste texto en inglés ... tiene que estar en español, siempre" set off
   // neither the upset handling nor a rule request, and neither did its English twin)
@@ -7074,6 +7169,10 @@ if (mineB() && (!TAGS || TAGS.includes('upset-es'))) { // upset-es: complaints a
     // ("useless" about what the request works on is no verdict on the work. Lesson (a field report))
     ['yes do it and replace the 2 most useless items in the list', false, false], ['this export is useless', true, false],
     ['your fix is useless and slow', true, false],
+    // (cursing and an angry user's words count, misspelled too. Lesson (the user): "cussing ... dissapoint, angry")
+    ['why did you dissapoint me with the totals', true, false], ['this is shit, the refunds are missing', true, false],
+    ['i am so annoyed, the report skipped the second store', true, false], ['the chart thing aint working', true, false],
+    ['move the old drafts to the trash folder', false, false], ['the cat knocked over the plant', false, false],
   ];
   const got = cases.map(([t]) => [h.isUpset(t, cfg), h.isRuleRequest(t, cfg)]);
   report(cases.every(([, u, r], i) => got[i][0] === u && got[i][1] === r), 'upset-es: complaints and "..., always" requirements are caught in English and Spanish; thanks and praise are not',

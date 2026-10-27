@@ -19,6 +19,11 @@ a rule is the **project-rule** skill; a lesson in a followed skill goes under it
    complained about: don't hunt for another fault, and never blame files the user doesn't see (engine notes, hooks).
 1. **Fix the miss now**, by the runbook or skill it belonged to, saved where the old result was. One plain sentence on
    what went wrong, no over-apologizing. A misread request: undo everything built on the misreading.
+   **The example the user named is one case, not the whole miss:** find every other case of the same miss in the same
+   result (every item of that kind, every slot it fills, every page it is on) and fix them all in this turn, before the
+   answer says it is fixed or can't happen again. A check written for the lesson runs over the whole result, and passes
+   on it, before you say so. Lesson: one weak pick was swapped and a narrow check added, while the same result still held
+   other weak picks of the same kind, and the user found them next.
 2. **Find the cause** in one sentence: "The <skill/runbook/check> did not <step>, so <what went wrong>."
 3. **Pick the lowest level that will reliably stop it:**
 
@@ -51,6 +56,8 @@ a rule is the **project-rule** skill; a lesson in a followed skill goes under it
 - [ ] The answer opens with whether the complaint holds, in full, in part or not, with the evidence (judgment: the
       user can tell at once what was actually wrong).
 - [ ] The miss is fixed and verified (judgment: the user can see the corrected result).
+- [ ] Every other case of the same miss in the same result was looked for and fixed, not only the one the user named
+      (judgment: what counts as "the same kind" needs a reader).
 - [ ] Each part of the complaint was checked on its own, and the answer says which parts held (judgment: whether a
       complaint has several parts needs a reader).
 - [ ] A `Learned (<level>): ... → <file>` line in `.cache/turn-notes.md` names a file that changed this turn, or

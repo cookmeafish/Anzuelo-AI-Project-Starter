@@ -191,10 +191,13 @@ export const triggersOf = fm => { const off = new Set(splitList(fm?.triggers_rem
 const DEFAULTS = {
   workToolCalls: 15,          // a turn with this many tool calls counts as work even if no file changed
   maxBlocksPerTurn: 3,        // Lesson: a single block let a second miss slip through; unlimited blocks can loop
+  runbookLedger: false,       // trial: the routed runbook's "Done when" is the turn's checklist, kept as a record (ledgerSteps)
   // How the Stop hook asks for the steps left. 'auto': the calm form (feedback for the agent plus a one-line note for the
   // user) where the host is known to support it, the classic {"decision":"block"} everywhere else. 'feedback' or
   // 'block' force one form (block is the fallback for a host that ignores the feedback form).
   stopStyle: 'auto',
+  // The "⚓ Anzuelo" lines the user sees (true: all; false: none; {"hide": [<kinds in LINE_KINDS>]}): status-lines runbook
+  userLines: true,
   promoteAfterUses: 3,        // a runbook followed this many times becomes a skill
   pruneAfterDays: 60,
   // 'ask': setup waits for the user's answers; the agent decides the upgrade review itself, asking only about money,
@@ -373,7 +376,9 @@ const DEFAULTS = {
   // (Lesson: "really no pictures ... did you not find any" and "it's lackluster" got no upset handling at all)
   // ("useless" counts as a verdict ("it's useless"), not when it describes what the request is about. Lesson (a field
   // report): "replace the 2 most useless items in the list" read as an upset user)
-  letdown: "\\black ?lustre\\b|\\black ?luster\\b|\\bunderwhelming\\b|\\bdisappoint(ing|ed)\\b|\\bnot good enough\\b|\\bnot what i (asked|wanted|meant)\\b|\\bdid you (not|even)\\b|\\bdidn'?t you (find|check|look|see|read|try|add|test)\\b|\\byou (still )?(haven'?t|have not|couldn'?t|could not) (find|fix|add|get)\\b|\\breally no\\b|\\bstill (no|not|missing|broken|wrong|nothing)\\b|\\b(are|is) still missing\\b|\\?{3,}|\\b(?<!(most|least|more|less) )useless\\b(?!\\s+(?!(and|but|or|now|again|too|here|as|to|for|so)\\b)[a-z])|\\bcome on\\b(?!\\s+(over|in|board|down|up|by)\\b)|\\b(this|it|that)(?:'s| is| looks| feels) (bad|wrong|broken|lacking|incomplete|half[- ]done|sloppy|thin|bare|basic)\\b|\\b(so|very|pretty) (bad|poor|thin|bare|basic|sloppy)\\b",
+  // (cursing and the words of an angry user count too, misspelled or not. Lesson (the user): "cussing and all caps ...
+  // and also key words that someone upset would use like dissapoint, angry")
+  letdown: "\\b(f+u+c+k+\\w*|f+ck\\w*|shit\\w*|bullshit|wtf|ffs|damn\\w*|crap(py)?|retard\\w*|piss(ed|ing)\\w*|dis+ap+oint\\w*|angry|annoy(ed|ing)|frustrat(ed|ing)|furious|fed up|sick of|ridiculous|terrible|awful|ain'?t working)\\b|\\b(this|it|that)(?:'s| is) (garbage|trash|crap|a joke)\\b|\\black ?lustre\\b|\\black ?luster\\b|\\bunderwhelming\\b|\\bdisappoint(ing|ed)\\b|\\bnot good enough\\b|\\bnot what i (asked|wanted|meant)\\b|\\bdid you (not|even)\\b|\\bdidn'?t you (find|check|look|see|read|try|add|test)\\b|\\byou (still )?(haven'?t|have not|couldn'?t|could not) (find|fix|add|get)\\b|\\breally no\\b|\\bstill (no|not|missing|broken|wrong|nothing)\\b|\\b(are|is) still missing\\b|\\?{3,}|\\b(?<!(most|least|more|less) )useless\\b(?!\\s+(?!(and|but|or|now|again|too|here|as|to|for|so)\\b)[a-z])|\\bcome on\\b(?!\\s+(over|in|board|down|up|by)\\b)|\\b(this|it|that)(?:'s| is| looks| feels) (bad|wrong|broken|lacking|incomplete|half[- ]done|sloppy|thin|bare|basic)\\b|\\b(so|very|pretty) (bad|poor|thin|bare|basic|sloppy)\\b",
   // (Lesson: "annoying", "ugh", "why do you keep" and "I keep telling you" were missed, so friction never counted them)
   // ("I asked you to ..., thanks" is a reminder with thanks, not frustration. Lesson: it read as upset; so did "come on over")
   frustration: "\\bwhy (did|didn'?t|would) you\\b|\\bwhy (do|does) (you|it) keep\\b|\\byou (forgot|didn'?t|ignored|skipped|missed)\\b|\\byou keep (\\w+ing|on)\\b|\\bi (already |keep )?(told|telling|said|asked) you\\b(?![^.!?\\n]*\\b(thanks|thank you|cheers)\\b)|\\bagain\\?|\\bwtf\\b|\\bseriously\\b|\\bugh+\\b|\\bannoying\\b|\\bso (frustrating|annoying)\\b|\\bstop (making|asking|doing) me\\b|\\bhow many times\\b|\\bfor the (last|third|nth) time\\b|!!",
@@ -2525,7 +2530,7 @@ export function usage() { return readJSON(path.join(STATE, 'runbook-usage.json')
 // The engine's own skills and runbooks: upgraded from the starter, never pruned.
 export const CORE_SKILLS = ['project-bootstrap', 'project-rule', 'runbook-create', 'skill-harden', 'skill-curate', 'project-sweeps',
   'session-handoff', 'security-review', 'plan', 'debug', 'parallel-agents', 'research', 'skill-finder', 'obsidian', 'learn-from-upset'];
-const CORE_RUNBOOKS = ['project', 'plan'];
+const CORE_RUNBOOKS = ['project', 'plan', 'status-lines'];
 // REQ: skill-prune. Runbooks and skills nobody uses are reviewed: keep (with a reason), merge, or retire. Each one's
 // clock starts when the hooks first see it, restarts on every use, and "keep: YYYY-MM-DD - <reason>" restarts it too.
 export function curateDue(cfg = config(), record = false) {
@@ -2918,7 +2923,21 @@ export function playbookProblems(file) {
     if (!/^##\s+Steps/im.test(text)) probs.push(`${file}: needs a "## Steps" section (numbered, in order)`);
     if (!/^##\s+Done when/im.test(text)) probs.push(`${file}: needs a "## Done when" section (checks that prove it was done)`);
   }
+  // The "Done when" list is the turn's checklist (REQ: runbook-ledger): each item says how it is proven, and each check
+  // it names exists, or the item passes with no evidence at all. Lesson (the user): "the runbooks must be accurate".
+  for (const it of ledgerItems(text)) {
+    if (!DONE_LABEL.test(doneWhenItems(text)[it.n - 1])) probs.push(`${file}: Done when item ${it.n} says no proof: add "(hook: <check>)" or "(judgment: <why no check can tell>)"`);
+    const unknown = it.tags.filter(tg => !knownCheck(tg));
+    if (unknown.length) probs.push(`${file}: Done when item ${it.n} names ${unknown.map(tg => `"${tg}"`).join(', ')}, which no check has: fix the name, or add the check`);
+  }
   return probs;
+}
+// A check name the engine, the project's requirements or its own hook files define (as a quoted name or "REQ: <name>").
+let checkText = null;
+export function knownCheck(tag) {
+  checkText ??= [ENGINE_CHECKS, 'tools/hooks/requirements.json', ...list('tools/hooks').filter(n => /\.(mjs|js|py|ps1|sh)$/.test(n) && !/^selfcheck/.test(n)).map(n => `tools/hooks/${n}`)]
+    .map(f => read(abs(f))).join('\n') + read(fileURLToPath(import.meta.url));
+  return new RegExp(`["'\`]${esc(tag)}["'\`]|REQ: ${esc(tag)}\\b`).test(checkText);
 }
 
 export function knowledgeProblems(file, cfg) {
@@ -4276,7 +4295,7 @@ function cmdSession(data) {
   // (a compaction comes in the middle of a turn: the next message is not a new one for that)
   writeState(SHOWN, { at: new Date().toISOString(), shown: n.map(noticeKey).filter(Boolean), session: true, ...(/compact/i.test(data.source || '') ? { compact: true } : {}) });
   if (n.some(x => x.startsWith('LAST WORK TURN'))) unresolvedAnnounced();
-  contextOut('SessionStart', parts.filter(Boolean).join('\n\n') + '\n');
+  contextOut('SessionStart', parts.filter(Boolean).join('\n\n') + '\n', sessionUserLine(n, cfg));
 }
 
 // ---------- UserPromptSubmit ----------
@@ -4422,6 +4441,7 @@ export function promptHints(prompt, cfg = config(), withNotices = true, { relaye
     const how = `open ${pb.file} THIS turn${pb.skillName ? ` (or use the ${pb.skillName} skill, which points to it)` : ''} and follow every step in order`;
     // (the hooks see the read in Claude Code: naming it in the notes is only for an agent whose tool calls they can't see)
     if (!i) hints.push(`ROUTE: ${pb.name} (matched: ${hits.join(', ')}). If this is the task: ${how}.${hostSeesTools() ? '' : ` Name it in ${NOTES_FILE} ("Playbook: ${pb.file.split('/').pop()}"), not in the answer.`} REQ: runbook-read.`);
+    if (!i) { if (cfg.runbookLedger) { const l = ledgerHint(pb); if (l) hints.push(l); } }
     else hints.push(`ALSO ROUTE: ${pb.name} (matched: ${hits.join(', ')}). Only if the request also covers this job: open ${pb.file} after the one above (precedence notes in DIRECTORY.md)${hostSeesTools() ? '' : ' and name it too'}.`);
   });
   const weakOnes = [...(routed.weak || [])];
@@ -4431,6 +4451,8 @@ export function promptHints(prompt, cfg = config(), withNotices = true, { relaye
   const sk = routeSkills(m.expanded, cfg, routed, { relayed }).filter(({ pb: s }) => !(s.name === 'knowledge-capture' && isRequirement(p, cfg)));
   for (const { pb: s, hits } of sk)
     hints.push(`SKILL: ${s.name} (matched: ${hits.join(', ')}). If this is the task: open ${s.file} THIS turn (or invoke the ${s.name} skill) and follow it, together with any runbook above. Name it in ${NOTES_FILE} ("Skill: ${s.name}"). REQ: skill-read.`);
+  // (a skill's "Done when" is the checklist when no runbook gave one: one checklist per turn)
+  if (cfg.runbookLedger && !hints.some(hn => hn.startsWith('CHECKLIST ('))) { const l = sk.map(({ pb: s }) => ledgerHint(s)).find(Boolean); if (l) hints.push(l); }
   // REQ: fit-checklist (at the request). A library skill the checklist left for later, or skipped, whose triggers this
   // request matches: the request is the evidence a "later - when: the user asks ..." waited for, so decide it now.
   // Lesson: a sales project left data-analysis for "when the user asks a sales question", and the question was then
@@ -4501,7 +4523,13 @@ export function promptHints(prompt, cfg = config(), withNotices = true, { relaye
       'and check each part of it on its own ("Checked: <what you opened> - <what it showed>", one per part: which held, which did not), then fix the miss by its runbook ' +
       'and say plainly what went wrong (no arguing, no long apology), then weigh how important the lesson is (one-off, lesson in the skill that missed it, rule, ' +
       `hook check, new skill, or engine feedback that reaches every project) and write it there. ${PROVEN_HINT} ` +
-      `Put "Learned (<level>): <lesson> → <file>" (or "Learned (none): the complaint didn't hold - <evidence>") in ${NOTES_FILE}, and tell the user in one plain sentence what changes. REQ: upset-learned, check-proven.`);
+      `Put "Learned (<level>): <lesson> → <file>" (or "Learned (none): the complaint didn't hold - <evidence>") in ${NOTES_FILE}, and tell the user in one plain sentence what changes. ` +
+      // (Lesson (the user): "if i talk about being pissed ... the ai agent should be able to make the decision of oh the
+      // user is solely explaining but there is nothing wrong here")
+      'Strong words alone are not a miss: if the user is only telling you how they feel, or about something outside this work, and nothing here went wrong, say nothing about it, ' +
+      'just do what they asked, and put "Learned (none): nothing was wrong - <what they were describing>" in the notes. ' +
+      // (the user sees the issue as the agent understood it, at the end of the turn: REQ prompt-visible)
+      'When something did go wrong, add "Issue: <the user\'s problem in their terms, under 12 words>" to the notes: the user is shown it with what was done. REQ: upset-learned, check-proven.');
   // feedback or a message the user wants passed on to someone else carries that receiver's requirements, not this
   // project's ("give that feedback to the starter and mention to make sure it's fixed"). Lesson: such a relay got the
   // REQUIREMENT hint.
@@ -4741,12 +4769,144 @@ function cmdPrompt(data, { force = false } = {}) {
   if (cfg.promptDigest && !checklisted && !st.shown.includes('digest')) { out.push(DIGEST); st.shown.push('digest'); }
   if (hints.length) out.push('[project hooks: obey these]\n- ' + hints.join('\n- '));
   writeState(SHOWN, { at: st.at, shown: st.shown });
-  if (out.length) contextOut('UserPromptSubmit', out.join('\n') + '\n');
+  if (out.length) contextOut('UserPromptSubmit', out.join('\n') + '\n', promptUserLine(hints, p));
+}
+// The line the user sees in the terminal when their message set off something that changes how the agent works: they
+// can tell the hooks heard them. Lesson (the user): after three messages in capitals, "is there a way to visually show
+// the user that the hook triggered tho? i didn't see the hook icon".
+// (one icon per kind, the same in every line: 📖 runbook, ⚡ skill, ✅ checklist, 📜 rule or requirement, 🚨 upset,
+// 💬 the user's question; from the other hooks: 🛡️ a blocked action, ✅ checks passed, 🧠 a lesson learned, ❓ a
+// question to the user. Lesson (the user): "maybe a book icon for runbook", "some kind of symbol for skill", "question
+// mark for questions to the user. brain for idea maybe?")
+export function promptUserLine(hints, p = '') {
+  const es = isSpanish(p), has = s => hints.some(h => h.startsWith(s)), out = [], A = '⚓ Anzuelo';
+  // (words alone can't tell a complaint from venting: this line only says it was noticed; the end of the turn says what
+  // the agent found, with the issue in context (passLine). Lesson (the user): "it requires some ai work to be able to
+  // show that with context and afirmation of x issue ... and also to decide if the issue ... doesn't need changing")
+  if (has('THE USER SOUNDS UPSET')) out.push(es ? `${A} 🚨 lo noté: Claude revisará si algo salió mal.` : `${A} 🚨 noticed: Claude will check whether something went wrong.`);
+  if (has('QUESTION')) out.push(es ? `${A} 💬 pregunta: se responde primero.` : `${A} 💬 question: it gets answered first.`);
+  // (a rule, a requirement, praise and a new kind of task are guesses from words too: "noticed" now, and the end of the
+  // turn says what the agent decided (decidedLines))
+  if (has('RULE REQUEST')) out.push(es ? `${A} 📜 posible regla: Claude decidirá si es permanente y, si lo es, la guardará con una comprobación.`
+    : `${A} 📜 noticed a possible rule: Claude will decide if it's a lasting one, and save it with a check if so.`);
+  else if (has('REQUIREMENT:')) out.push(es ? `${A} 📜 posible requisito: Claude decidirá si es permanente y, si lo es, lo hará cumplir con una comprobación.`
+    : `${A} 📜 noticed a possible requirement: Claude will decide if it's a lasting one, and enforce it with a check if so.`);
+  const route = hints.map(h => /^ROUTE: ([\w-]+)/.exec(h)?.[1]).find(Boolean), cl = hints.find(h => h.startsWith('CHECKLIST ('));
+  const n = cl ? (cl.match(/\s\d+\.\s/g) || []).length : 0, clFile = cl && /^CHECKLIST \(([^,]+),/.exec(cl)?.[1];
+  // (said as what Anzuelo did: it matched the message and handed the agent the runbook or skill. Lesson (the user):
+  // "it must say that Anzuelo did x thing ... but only if anzuelo is the one actually making it happen")
+  if (route) out.push(es ? `${A} 📖 abrió el runbook ${route}${n && clFile?.includes(`/${route}.md`) ? ` (✅ ${n} puntos que marcar)` : ''}`
+    : `${A} 📖 pulled up the ${route} runbook${n && clFile?.includes(`/${route}.md`) ? ` (✅ ${n} items to check off)` : ''}`);
+  const skills = hints.map(h => /^SKILL: ([\w-]+)/.exec(h)?.[1]).filter(Boolean);
+  const skCount = n && !clFile?.includes(`/${route}.md`) ? (es ? ` (✅ ${n} puntos que marcar)` : ` (✅ ${n} items to check off)`) : '';
+  if (skills.length) out.push(es ? `${A} ⚡ trajo ${skills.length > 1 ? 'las skills' : 'la skill'} ${skills.join(', ')}${skCount}` : `${A} ⚡ brought in the ${skills.join(', ')} skill${skills.length > 1 ? 's' : ''}${skCount}`);
+  // (the rest of what the hooks did with the message, one icon each)
+  const more = [
+    ['PRAISE', '🌟 noticed praise: Claude will find what worked and keep it', '🌟 elogio: Claude buscará qué funcionó y lo conservará'],
+    ['AUTONOMY', '🚀 working on its own: choices get recorded instead of asked', '🚀 trabaja por su cuenta: anota las decisiones en vez de preguntar'],
+    ['PAUSE', '⏸️ pausing: what is still open is saved for next time', '⏸️ pausa: lo pendiente queda guardado para la próxima vez'],
+    ['SCOPE', '🔒 keeping each person\'s files separate', '🔒 mantiene separados los archivos de cada persona'],
+    ['SMALL FIX', '🪶 small fix: the light version of the process', '🪶 arreglo pequeño: la versión ligera del proceso'],
+    ['LAST WORK TURN', '📌 something left open last time comes first', '📌 lo que quedó abierto la última vez va primero'],
+    ['NO RUNBOOK', '🌱 no runbook matches: Claude will decide if this needs a new one', '🌱 ningún runbook coincide: Claude decidirá si hace falta uno nuevo']];
+  for (const [k, en, sp] of more) if (has(k)) out.push(`${A} ${es ? sp : en}`);
+  return out.join('\n');
+}
+// Each kind of line the user can turn off by its name: config "userLines" is true (all, the default), false (none), or
+// {"hide": ["praise", "skill", ...]} (the status-lines runbook changes it). Lesson (the user): "i dont wanna force these
+// icons tho ... a runbook to disable them if the user doesn't want a specific one or 2 of them or all of them".
+export const LINE_KINDS = { upset: '🚨', question: '💬', rule: '📜', runbook: '📖', skill: '⚡', checklist: '✅', passed: '✅', praise: '🌟',
+  autonomy: '🚀', pause: '⏸️', scope: '🔒', 'small-fix': '🪶', 'left-open': '📌', 'new-task': '🌱', session: '🟢', resumed: '🔁',
+  critical: '❗', blocked: '🛡️', upgrade: '🔄', plan: '🗺️', routine: '⏰', inbox: '📥', feedback: '📨', harden: '🔧', stale: '🕰️',
+  lesson: '🧠', asking: '❓', 'not-fit': '🚫' };
+export function visibleLines(text, cfg = config()) {
+  const set = cfg.userLines ?? true;
+  if (set === false || !text) return '';
+  const hide = new Set([].concat(set?.hide || []).map(String));
+  const icons = new Set(Object.entries(LINE_KINDS).filter(([k]) => hide.has(k)).map(([, i]) => i));
+  // (a "checklist" count inside the runbook line is the runbook's; "passed" hides the whole end-of-turn line)
+  const off = seg => [...icons].some(i => seg.replace(/^⚓ Anzuelo\s*/, '').startsWith(i)) && !(seg.includes('✅') && !hide.has('passed') && /checks passed/.test(seg));
+  return String(text).split('\n').map(line => {
+    const segs = line.split(' · ');
+    if (off(segs[0])) return '';
+    return segs.filter((s, i) => !i || !off(s)).join(' · ');
+  }).filter(Boolean).join('\n');
+}
+// The line the user sees when a session starts: what is guarding the project, and what came up since last time.
+export function sessionUserLine(notes, cfg = config()) {
+  const A = '⚓ Anzuelo', has = s => notes.some(x => x.startsWith(s));
+  const pbs = routablePlaybooks().filter(pb => !pb.name.startsWith('_')).length, sks = list(cfg.skillsDir).filter(n => exists(`${cfg.skillsDir}/${n}/SKILL.md`)).length;
+  const out = [`${A} 🟢 on duty: ${pbs} runbook${pbs === 1 ? '' : 's'}, ${sks} skill${sks === 1 ? '' : 's'} and the project's checks`];
+  for (const [k, line] of [['RESUMED', '🔁 your files from before the interruption are intact'], ['INTERRUPTED WORK IS BROKEN', '❗ files from before the interruption need fixing first'],
+    ['LAST WORK TURN', '📌 something was left open last time'], ['UPGRADE REVIEW PENDING', '🔄 a starter upgrade needs a look'], ['OPEN PLANS', '🗺️ a plan is still open'],
+    ['ROUTINES DUE', '⏰ a routine is due'], ['INBOX', '📥 new files are waiting in the inbox'], ['FEEDBACK FROM PROJECTS', '📨 projects sent feedback'],
+    ['SKILL HARDENING DUE', '🔧 a much-used runbook is ready to harden'], ['STALE KNOWLEDGE', '🕰️ some notes are due a re-check']])
+    if (has(k)) out.push(`${A} ${line}`);
+  return out.join('\n');
+}
+
+// The line the user sees when a work turn passes its checks: what the hooks confirmed (REQ: prompt-visible). Lesson
+// (the user): "i want visual queues for when anzuelo does anything to help the project".
+let STOP_PASS = '';
+// The second step of each guess the message hook made from words alone: what the agent decided, with its reason. The
+// prompt line said what was noticed ("a possible rule"); this says what came of it ("rule saved", or "not a lasting
+// rule: <why>"). The reason comes from the agent's waiver ("N/A(<check>): <why>" in x.said) or its notes.
+// Lesson (the user): "there could be multiple more things like this that could use the 2 step".
+export function decidedLines(x, cfg = config()) {
+  const p = x.prompt || '', own = p && !RELAY_START.test(p), A = '⚓ Anzuelo', out = [];
+  if (!own) return out;
+  const clip = s => String(s).replace(/\s+/g, ' ').trim().slice(0, 110);
+  const why = tag => [...String(x.said || '').matchAll(/^\s*N\/?A\s*\(\s*([\w-]+)\s*\)\s*:\s*(.+)$/gim)].find(m => m[1] === tag)?.[2];
+  const changed = x.changed || [];
+  const rulesFile = changed.find(f => /^(AGENTS|CLAUDE)\.md$/.test(f));
+  const checkFile = changed.find(f => /^tools\/hooks\/requirements\.json$/.test(f) || /^docs\/playbooks\/[^_][^/]*\.md$|\/SKILL\.md$/.test(f));
+  if (isRuleRequest(p, cfg)) { const w = why('rule-request'); out.push(w ? `${A} 📜 not a lasting rule: ${clip(w)}` : rulesFile ? `${A} 📜 rule saved in ${rulesFile}${checkFile ? `, with a check` : ''}` : ''); }
+  else if (isRequirement(p, cfg)) { const w = why('requirement-enforced'); out.push(w ? `${A} 📜 not a lasting requirement: ${clip(w)}` : checkFile ? `${A} 📜 requirement now enforced in ${checkFile}` : ''); }
+  if (isPraise(p, cfg)) { const w = why('praise-captured'); const kept = changed.find(f => /^docs\/playbooks\/[^_][^/]*\.md$|\/SKILL\.md$|^(AGENTS|CLAUDE)\.md$/.test(f));
+    out.push(w ? `${A} 🌟 noted, nothing to keep: ${clip(w)}` : kept ? `${A} 🌟 what worked is kept in ${kept}` : ''); }
+  // (a runbook the hooks routed to that the agent decided didn't fit, and a new kind of task)
+  for (const pb of (x.routed || []).filter(r => !(x.usedPb || []).some(u => u.name === r.name))) { const w = why('runbook-read'); if (w) out.push(`${A} 🚫 the ${pb.name} runbook didn't fit: ${clip(w)}`); }
+  for (const s of (x.routedSkills || []).filter(r => !(x.usedSkills || []).some(u => u.name === r.name))) { const w = why('skill-read'); if (w) out.push(`${A} 🚫 the ${s.name} skill didn't fit: ${clip(w)}`); }
+  if (x.workTurn && !(x.routed || []).length) { const w = why('runbook-exists');
+    const made = changed.find(f => /^docs\/playbooks\/[^_][^/]*\.md$/.test(f) && bornThisTurn(f, x.since));
+    out.push(w ? `${A} 🌱 no runbook needed: ${clip(w)}` : made ? `${A} 🌱 new runbook made: ${made}` : ''); }
+  return out.filter(Boolean);
+}
+// Anzuelo takes credit only for what it set off: a runbook or skill its hooks routed the message to (not one the agent
+// opened on its own), a lesson its upset handling asked for, the checklist it handed over. What the agent did by
+// itself (asking the user something) gets its icon without Anzuelo's name. Lesson (the user): "only the ones that it
+// actually forces out. if the ai agent does it by itself then dont mention anzuelo".
+export function passLine(x, rounds = 0) {
+  const routedNames = new Set([...(x.routed || []), ...(x.routedSkills || [])].map(i => i.name));
+  const pbs = (x.usedPb || []).filter(pb => !pb.name.startsWith('_') && routedNames.has(pb.name)).map(pb => pb.name);
+  const sks = (x.usedSkills || []).map(s => s.name).filter(n => !pbs.includes(n) && routedNames.has(n));
+  const pb = ledgerRunbook(x), items = pb ? ledgerItems(read(abs(pb.file))) : [], rec = ledgerLines(x.notes);
+  const done = items.filter(i => rec.has(i.n)).length;
+  const learned = x.prompt && isUpset(x.prompt) ? learnedLines(x.notes || '').map(l => l.file).filter(Boolean) : [];
+  const asks = /\?\s*$/.test(String(x.answer || '').trim().split('\n').filter(l => l.trim()).pop() || '');
+  // (an upset message's outcome, as the agent found it: the issue in context and what was done, nothing to fix, or a
+  // complaint that didn't hold. The user chose "acknowledged" and 🚨)
+  const notes = String(x.notes || ''), clip = s => s.replace(/\s+/g, ' ').trim().slice(0, 110);
+  const issue = /^[\s>*_-]*issue\s*:\s*(.+)$/im.exec(notes)?.[1], none = /^[\s>*_-]*learned\s*\((?:none|nothing)\)\s*:\s*(.+)$/im.exec(notes)?.[1];
+  const upsetLine = !(x.prompt && isUpset(x.prompt)) ? '' : none && /^nothing (was )?wrong\b/i.test(none) ? `⚓ Anzuelo 🚨 nothing to fix: ${clip(none.replace(/^nothing (was )?wrong\s*[-:–]?\s*/i, ''))}`
+    : none ? `⚓ Anzuelo 🚨 checked: ${clip(none)}` : issue ? `⚓ Anzuelo 🚨 acknowledged: ${clip(issue)} → fixed` : '';
+  return [...(upsetLine ? [upsetLine] : []), ...decidedLines(x), ...(x.workTurn ? [[`⚓ Anzuelo ✅ checks passed${rounds ? ` after ${rounds} fix round${rounds > 1 ? 's' : ''}` : ''}`,
+    ...(pbs.length ? [`📖 the ${pbs.join(', ')} runbook it pulled up was followed`] : []), ...(sks.length ? [`⚡ so was the ${sks.join(', ')} skill${sks.length > 1 ? 's' : ''} it brought in`] : []),
+    ...(config().runbookLedger && items.length ? [`✅ checklist ${done}/${items.length} recorded`] : []),
+    ...(learned.length ? [`🧠 lesson saved in ${[...new Set(learned)].slice(0, 2).join(', ')}`] : [])].join(' · ')] : []),
+    ...(asks ? ['❓ Claude is asking you something'] : [])].join('\n');
 }
 
 // ---------- PreToolUse ----------
 function deny(reason) {
-  process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }));
+  // (the user sees what was stopped and why, in one line: REQ prompt-visible)
+  const first = String(reason).replace(/^REQ: [\w-]+\.\s*/, '').split(/(?<=[.!?])\s/)[0].slice(0, 160);
+  // (❗ for the guards that protect what can't be undone or must never leave: Lesson (the user): "critical things maybe a
+  // exclamation?")
+  const critical = /^REQ: (no-ai-attribution|no-secrets|protect-originals|no-overwrite|outward-gate|publish-gate|git-safety|browser-guard|approval-gate|scope-separate|injection-guard)\b/.test(String(reason));
+  const line = HOST === 'claude-code' ? visibleLines(`⚓ Anzuelo ${critical ? '❗' : '🛡️'} stopped an action: ${first}`) : '';
+  process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason },
+    ...(line ? { systemMessage: line } : {}) }));
 }
 
 // A sub-agent prompt that points at a brief file ("Your brief: .cache/briefs/export.md") passes on the rules when that
@@ -5682,6 +5842,24 @@ export function coreChecks(x, cfg) {
   if (unlabeled.length)
     add('done-when-labeled', `Every "Done when" item needs its proof: add a check and write "(hook: <tag>)" (one or more tags: "(hook: a, b)"), or write "(judgment: <why no check can tell>)". ` +
       `Unlabeled: ${unlabeled.slice(0, 4).join('; ')}${unlabeled.length > 4 ? ` and ${unlabeled.length - 4} more` : ''}. Add the checks now; don't ask (hard rule 3).`);
+  // (a check name no hook defines is an item that passes with no evidence: the runbook's checklist would lie. Lesson
+  // (the user): "the runbooks must be accurate")
+  const procs = x.changed.filter(p => /^(docs\/playbooks\/[^/_][^/]*\.md|(skills|library\/skills|packs\/[^/]+\/files\/skills)\/[^/]+\/SKILL\.md|packs\/[^/]+\/files\/docs\/playbooks\/[^/_][^/]*\.md)$/.test(p) && exists(p));
+  const badNames = procs.flatMap(p => ledgerItems(read(abs(p))).flatMap(it => it.tags.filter(tg => !knownCheck(tg)).map(tg => `${p} item ${it.n}: "${tg}"`)));
+  if (badNames.length)
+    add('done-when-labeled', `A "Done when" item names a check that doesn't exist, so it would pass with no evidence: ${badNames.slice(0, 4).join('; ')}. Fix the name, or add the check (runbook-create skill, step 3).`);
+  // REQ: runbook-cold-read. A new runbook or skill is read cold before it is relied on: one helper with no context gets
+  // only the file and the request it is for, and lists every step it could not do exactly as written and every "Done
+  // when" item it could not prove. The writer knows what was meant; the next agent only has the text.
+  // Lesson (the user): "make skill and runbook creation super robust so that they are the best they can be".
+  const newProcs = procs.filter(p => bornThisTurn(p, x.since));
+  const coldRead = p => x.uses.some(u => /^(Agent|Task)$/.test(u.name) && JSON.stringify(u.input || {}).includes(p.split('/').slice(-2).join('/'))) ||
+    new RegExp(`^\\s*Cold read:[^\\n]*${esc(p.split('/').slice(-2).join('/'))}`, 'mi').test(x.notes || '');
+  const uncold = x.toolsKnown ? newProcs.filter(p => !coldRead(p)) : [];
+  if (uncold.length && x.workTurn)
+    add('runbook-cold-read', `Read ${uncold.join(', ')} cold before relying on ${uncold.length > 1 ? 'them' : 'it'}: give one helper agent only the file and the request it is for, and ask for every step it could not do exactly as written ` +
+      '(a missing file or command, an undefined word, a choice left open), every "Done when" item it could not prove, and every step whose result has no item. Fix each one, then add ' +
+      `"Cold read: <file> - <how many gaps it found>, fixed" to ${NOTES_FILE} (runbook-create skill, step 5).`);
   // REQ: plan-required. A bigger addition (many new files) has a checklist in docs/plans/, so nothing is left half done
   // and the next session or another agent can finish it. Setup has its own checklist (SETUP-PROMPT.md) for the rest.
   // (the records a runbook itself asks for, like a spec, a review, release notes or a new runbook's skill, are not the
@@ -5938,7 +6116,10 @@ export function coreChecks(x, cfg) {
   // REQ: upset-learned. An upset user gets the miss fixed AND a lesson stored where it stops the next one: the answer says
   // "Learned (<level>): <lesson> → <file>" and that file changed this turn. The learn-from-upset skill weighs the level.
   // Lesson: complaints were answered with an apology and a fix, and the same miss came back the next week.
-  if (x.prompt && isUpset(x.prompt, cfg)) {
+  // (strong words with nothing wrong in the work: the agent decided so, in the notes, and owes no verdict or lesson.
+  // Lesson (the user): "the user is solely explaining but there is nothing wrong here")
+  const nothingWrong = /^[\s>*_-]*learned\s*\((none|nothing|ninguno|ninguna|nada)\)\s*:\s*(nothing (was )?wrong|no hab[ií]a nada mal)\b.{8,}/im.test(`${x.said || ''}\n${x.notes || ''}`);
+  if (x.prompt && isUpset(x.prompt, cfg) && !nothingWrong) {
     // first, whether the complaint holds, checked against the files and said plainly. Lesson: reviewers of 23 trial
     // projects found complaints conceded and "fixed" when the thing was already there (a test, a refund, a permission)
     // A "Checked: <what was opened> - <what it showed>" line is a verdict in the agent's own words too, so a natural lead
@@ -6604,6 +6785,57 @@ export function doneWhenItems(text) {
 }
 // one or more tags: "(hook: a)", "(hook: a, b)", "(hooks: a, b)"
 export const DONE_LABEL = /\bhooks?\s*:\s*`?[a-z][\w-]*(?:`?\s*,\s*`?[a-z][\w-]*)*|\bjudgment\b|\bjudgement\b/i;
+
+// ---------- runbook ledger (config "runbookLedger") ----------
+// The routed runbook's "Done when" list is the turn's checklist: given at the prompt, kept by the agent as a record in
+// the turn notes ("Done N: <what was done>", "Skip N: <why it doesn't apply>"), and checked once at Stop against the
+// evidence: the checks each item names. The agent works without being stopped for what its record covers; a step whose
+// evidence fails comes back, and the always-on checks (ALWAYS_ON, guards) are never covered. Lesson (the user): "the
+// hooks are there to save the day", but steps sent back one check at a time interrupted the work and cost rounds.
+export function ledgerItems(text) {
+  return doneWhenItems(text).map((raw, i) => {
+    const tags = (/\bhooks?\s*:\s*([^)]*)/i.exec(raw)?.[1] || '').split(',').map(s => s.replace(/`/g, '').trim()).filter(s => /^[a-z][\w-]*$/.test(s));
+    return { n: i + 1, text: raw.replace(/\s*\((hooks?|judge?ment)\s*:[^)]*\)\s*/gi, ' ').trim(), tags, judgment: /\bjudge?ment\b/i.test(raw) };
+  });
+}
+// The record lines in the turn notes: N -> { kind: 'done' | 'skip', why }
+export function ledgerLines(notes) {
+  const out = new Map();
+  for (const m of String(notes || '').matchAll(/^\s*[-*]?\s*(Done|Skip|Skipped)\s+(\d+)\s*[:.-]\s*(.*)$/gim))
+    out.set(+m[2], { kind: /^done$/i.test(m[1]) ? 'done' : 'skip', why: m[3].trim() });
+  return out;
+}
+// The runbook (or, with none, the skill) this turn's record is kept against: the one used, else the one routed.
+const ledgerRunbook = x => [...(x.usedPb || []), ...(x.routed || []), ...(x.usedSkills || []), ...(x.routedSkills || [])]
+  .find(pb => pb?.file && !pb.name.startsWith('_') && ledgerItems(read(abs(pb.file))).length);
+export function ledgerHint(pb) {
+  const items = ledgerItems(read(abs(pb.file)));
+  if (!items.length) return '';
+  return `CHECKLIST (${pb.file}, "Done when"): ${items.map(i => `${i.n}. ${i.text.slice(0, 140)}`).join(' ')} ` +
+    `Work through it without stopping. As you finish each item, add a line to ${NOTES_FILE}: "Done N: <what you did, with the file or command>" or "Skip N: <why it doesn't apply to this request>". ` +
+    'The final check compares these lines with what the turn actually did; only an item whose evidence is missing comes back. REQ: runbook-ledger.';
+}
+// Stop: the steps the runbook's items cover are judged by the record. A skipped item (with a reason) drops its checks;
+// a done or unrecorded item keeps any check that still fails, under its item; a judgment item needs a record line.
+export function ledgerSteps(x, missing, cfg = config()) {
+  const pb = ledgerRunbook(x);
+  if (!pb || !x.workTurn) return missing;
+  const items = ledgerItems(read(abs(pb.file))), rec = ledgerLines(x.notes);
+  const owner = new Map();
+  for (const it of items) for (const tg of it.tags) if (!ALWAYS_ON.test(tg) && !owner.has(tg)) owner.set(tg, it);
+  const out = [];
+  for (const m of missing) {
+    const it = owner.get(m.tag), r = it && rec.get(it.n);
+    // (a skip is logged with the waivers, so a habit of skipping shows: REQ waiver-tally)
+    if (r?.kind === 'skip' && r.why.length >= 8) { (x.ledgerSkipped ||= []).push(m.tag); continue; }
+    out.push(it ? { ...m, short: `Item ${it.n}${r?.kind === 'done' ? ' (marked done)' : ''}: ${shortStep(m)}` } : m);
+  }
+  const unrecorded = items.filter(it => it.judgment && !rec.has(it.n));
+  if (unrecorded.length) out.push({ tag: 'runbook-ledger', short: `Record ${unrecorded.map(i => i.n).join(', ')} of the checklist`,
+    msg: `No script can check ${unrecorded.length > 1 ? 'these checklist items' : 'this checklist item'} of ${pb.file}, so your record is the proof: ${unrecorded.map(i => `${i.n}. ${i.text.slice(0, 120)}`).join(' ')}. ` +
+      `Add "Done N: <what you did and what it showed>" or "Skip N: <why it doesn't apply>" to ${NOTES_FILE}, after doing it.` });
+  return out;
+}
 
 // The core skill checks on helpers' results wait for background helpers even when the project's own requirements.json
 // predates the "waitsForAgents" flag (an upgrade adds missing checks but never rewrites the project's existing ones).
@@ -7407,7 +7639,9 @@ export function externalStopSteps(data, cfg = config()) {
   const more = /\.\.\.\s*and\s+(\d+)\s+more\b/.exec(reason);
   const steps = lines.length ? lines : [reason.split('\n')[0].slice(0, 120)];
   const slug = s => `project-${s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)}`;
-  const out = steps.map(s => ({ tag: slug(s), external: true, short: s, msg: `${s} (the project's own check; its full list: ${why})` }));
+  // (a project's command may name each step's check in "tags", one per step, so a runbook item can cover it)
+  const own = Array.isArray(d.tags) && d.tags.length === steps.length ? d.tags.map(String) : null;
+  const out = steps.map((s, i) => ({ tag: own?.[i] && /^[a-z][\w-]*$/.test(own[i]) ? own[i] : slug(s), external: true, short: s, msg: `${s} (the project's own check; its full list: ${why})` }));
   if (more) out.push({ tag: 'project-more', external: true, short: `${more[1]} more of the project's own steps`, msg: `${more[1]} more of the project's own steps: run ${why} for the full list.` });
   return out;
 }
@@ -7557,7 +7791,7 @@ export function stopDecision(data, cfg = config()) {
   const noticeResend = noticeAck && headless && prevAnswer.trim() && !data.stop_hook_active && !carriesAnswer(raw, prevAnswer)
     ? [{ tag: 'notice-answer', msg: 'This run is headless (claude -p or the SDK): its caller gets only the last message, and this reply to a background notice is now that message, so the answer given before is lost. End with that whole answer again, as it was (updated only where the notice changed something), saying nothing about the notice.' }] : [];
   const all = [...found1, ...timed('skill-learn', () => skillLearnCheck(x, cfg, found.map(m => m.tag))).filter(open), ...timed('unresolved-carryover', () => carryoverChecks(data, t, x, cfg)).filter(open), ...(resend ? [resend] : []), ...watcherStep.filter(open), ...wakeStep.filter(open), ...noticeResend];
-  const logged = (result, extra = {}) => logStop({ request: Number.isFinite(+x.since) && +x.since > 0 ? new Date(+x.since).toISOString() : '', round: nblocks + 1, result, waived: waivedTags, ...extra });
+  const logged = (result, extra = {}) => logStop({ request: Number.isFinite(+x.since) && +x.since > 0 ? new Date(+x.since).toISOString() : '', round: nblocks + 1, result, waived: [...waivedTags, ...(x.ledgerSkipped || []).map(tg => `${tg} (checklist skip)`)], ...extra });
   // While helpers launched in the background have not reported back, the work is not finished: only truth and privacy
   // are checked now, and the whole list runs when their results arrive. Lesson: a turn waiting on three background
   // helpers was blocked three times for a Finished section it could not write yet.
@@ -7577,6 +7811,8 @@ export function stopDecision(data, cfg = config()) {
   // them too. Lesson (a field report): two Stop hooks each asked for "the whole answer again" in the same round, 15 + 2
   // steps, and the user read a long answer three times.
   if (!waiting && !noticeAck && !paused0(x)) missing = [...missing, ...externalStopSteps(data, cfg)];
+  // REQ: runbook-ledger. The routed runbook's checklist and the agent's record judge the steps its items cover.
+  if (cfg.runbookLedger && !waiting && !noticeAck) missing = ledgerSteps(x, missing, cfg);
   noteFriction(key, x, missing);
   // The answer the turn ended with is kept, for a later reply to a notice to carry again (REQ: notice-answer). A reply
   // that did not carry it keeps the earlier one, and a short "Answer unchanged" line keeps the full answer it stands for.
@@ -7618,6 +7854,7 @@ export function stopDecision(data, cfg = config()) {
   }
   if (!missing.length) {
     logged('passed');
+    STOP_PASS = passLine(x, nblocks);
     recordUsage(x, key);
     if (x.workTurn && !envOf('BENCH') && !DRY_STATE) { try { fs.unlinkSync(path.join(STATE, 'unresolved.json')); } catch { } }
     ended(); return null;
@@ -7722,6 +7959,8 @@ const SHORT = {
   'rule-request': "Write the user's new rule down everywhere it belongs",
   'requirement-enforced': "Make the user's new requirement enforced (a check and its test)",
   'done-when-labeled': 'Say how each "Done when" item is proven (its check, or why judgment)',
+  'runbook-cold-read': 'Have a helper read the new runbook or skill cold, and fix the gaps it finds',
+  'runbook-ledger': 'Record the checklist items no script can check',
   'self-improve': 'Add the checks now instead of offering to',
   'verification-report': 'Say how the work was verified',
   'status-handoff': 'Update docs/STATUS.md so the next session can pick it up',
@@ -7863,9 +8102,11 @@ export function fitOutput(text, max = HOOK_OUTPUT_MAX) {
   for (const l of ordered) { if (out.length + l.length + 1 > max - tail.length) break; out += (out ? '\n' : '') + l; }
   return out + tail;
 }
-function contextOut(event, text) {
+function contextOut(event, text, userLine = '') {
   text = fitOutput(String(text));
-  if (HOST === 'claude-code') process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: event, additionalContext: text } }));
+  // (systemMessage: a short line shown to the user, REQ prompt-visible)
+  userLine = visibleLines(userLine);
+  if (HOST === 'claude-code') process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: event, additionalContext: text }, ...(userLine ? { systemMessage: userLine } : {}) }));
   else process.stdout.write(text);
 }
 
@@ -7876,14 +8117,17 @@ function contextOut(event, text) {
 // project's files against it. Lesson: twice an upgrade changed what the engine prints (the Stop "reason" moved to
 // hookSpecificOutput.additionalContext) and a project's own script broke on it with no warning.
 export const CONTRACT = {
-  version: 3,
+  version: 4,
   events: {
     session: 'SessionStart. Claude Code: {"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":<text>}}; other hosts: <text>. ' +
-      'The text: the session checklist, "--- docs/STATUS.md (where things stand) ---" with its first 40 lines, then "--- notices ---" and one "- <NOTICE>: ..." line each. At most 9,000 characters.',
+      'The text: the session checklist, "--- docs/STATUS.md (where things stand) ---" with its first 40 lines, then "--- notices ---" and one "- <NOTICE>: ..." line each. At most 9,000 characters. ' +
+      'Claude Code: a "systemMessage" with "⚓ Anzuelo ..." lines for the user comes with it.',
     prompt: 'UserPromptSubmit. Same shape as session, hookEventName "UserPromptSubmit". The text: an optional "[rules] ..." line, then "[project hooks: obey these]" and one ' +
       '"- <HINT>: ..." line each (ROUTE, SKILL, NO RUNBOOK, CLOSEST RUNBOOK, RULE REQUEST, SCOPE, MENU CODE, ...). No output when there is nothing to say. ' +
-      'A message relayed from another session or agent that asks for work gets its hints too, after a first "- RELAYED: ..." line.',
-    pretool: 'PreToolUse. Allowed: no output. Denied: {"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":<text>}}.',
+      'A message relayed from another session or agent that asks for work gets its hints too, after a first "- RELAYED: ..." line. ' +
+      'Claude Code: when the message sets off something (a runbook, a skill, upset handling, a rule, a question first, ...), a "systemMessage" with "⚓ Anzuelo ..." lines for the user comes with it.',
+    pretool: 'PreToolUse. Allowed: no output. Denied: {"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":<text>}}, ' +
+      'and under Claude Code a "systemMessage" ("⚓ Anzuelo 🛡️ stopped an action: ...") for the user.',
     stop: 'Stop. Passed: no output. Steps left, with stopStyle "feedback" (or "auto", the default, under Claude Code): {"hookSpecificOutput":{"hookEventName":"Stop","additionalContext":<steps>},"systemMessage":<short lines for the user>}; ' +
       'otherwise Codex gets {"decision":"block","reason":<steps>,"systemMessage":<short lines>} and other hosts {"decision":"block","reason":<steps>}. ' +
       'The steps end with "Names: <tag>, <tag>.". A crashed hook: {"decision":"block","reason":"tools/hooks/hooks.mjs stop CRASHED ..."} on every host. ' +
@@ -7896,7 +8140,8 @@ export const CONTRACT = {
     { version: 2, date: '2026-10-18', change: 'Claude Code: Stop prints hookSpecificOutput.additionalContext and systemMessage instead of decision and reason; session and prompt notices are hookSpecificOutput.additionalContext.',
       removed: [{ event: 'stop', field: 'reason', host: 'claude-code', read: /\[\s*['"]reason['"]\s*\]|\.get\(\s*['"]reason['"]|\.reason\b/, unless: /additionalContext/ }] },
     { version: 3, date: '2026-10-20', change: 'systemMessage is several lines (a heading, then one line per step); the resume notice starts "RESUMED:" instead of "INTERRUPTED WORK:"; the unresolved notice names the earlier request.',
-      removed: [{ event: 'session', text: 'INTERRUPTED WORK: RESULT', read: /INTERRUPTED WORK:\s*RESULT/ }] }
+      removed: [{ event: 'session', text: 'INTERRUPTED WORK: RESULT', read: /INTERRUPTED WORK:\s*RESULT/ }] },
+    { version: 4, date: '2026-10-27', change: 'Claude Code: session, prompt and a denied pretool add a "systemMessage" ("⚓ Anzuelo ..." lines for the user), and a Stop that passes a work turn prints {"systemMessage"} alone. Nothing was removed.' }
   ]
 };
 // The decisions file with an upgrade's review block added. A review with nothing to decide (only the self-tests line,
@@ -7979,6 +8224,7 @@ function cmdStop(data) {
   writeState('last-stop-input.json', { ...data, host: HOST, at: new Date().toISOString() }); // diagnostics: what the host sent
   const d = stopDecision(data);
   if (d) process.stdout.write(JSON.stringify(stopOutput(d)));
+  else if (STOP_PASS && HOST === 'claude-code' && visibleLines(STOP_PASS)) process.stdout.write(JSON.stringify({ systemMessage: visibleLines(STOP_PASS) }));
   if (TIMING) process.stderr.write(`STOP-TIMING ${JSON.stringify({ total: Math.round(performance.now() - t0), parts: TIMING })}\n`);
 }
 

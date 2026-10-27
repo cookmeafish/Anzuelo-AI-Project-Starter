@@ -31,7 +31,12 @@ Copy `docs/playbooks/_TEMPLATE.md` to `docs/playbooks/<kebab-name>.md` (standard
   the wrong job every time.
   Lowercase, comma-separated. Avoid single common words that would match everything.
 - `## Steps`: the steps that worked in this conversation, in order, with exact files, tools and commands.
-- `## Done when`: observable results.
+- `## Done when`: observable results. This list is the agent's checklist for the task: it is shown when the request
+  arrives, the agent records each item as done or skipped, and the final check holds each record to its proof. So:
+  one outcome per item, worded so a stranger could tell whether it happened; every item ends with its proof,
+  `(hook: <check>)` naming a check that exists, or `(judgment: <why no check can tell>)`, used sparingly; and every
+  step whose result matters has an item. A missing item is work the final check never asks about; a wrong check
+  name is an item that passes with no evidence (the audit names both).
 - `## Pitfalls`: what went wrong or nearly did, dated.
 
 ## 3. Write its check (mandatory)
@@ -63,3 +68,21 @@ answers a complaint or a rule).
 - Test the routing: `node tools/hooks/selfcheck.mjs --route "<the user's original message>"` must show the runbook.
 - Run `node tools/hooks/selfcheck.mjs --tags <its checks>` (only the scenarios for what changed; the Stop hook names the
   tags) and `node tools/audit.mjs`. Add a CHANGELOG line. Name the runbook in the answer.
+
+## 5. Read it cold (mandatory for a new runbook or skill)
+You know what you meant; the next agent has only the text. Give one helper agent only the new file and the request it
+is for (no conversation, no hints), and ask it for:
+- every step it could not do exactly as written: a file, command or tool that is missing or unnamed, a word the
+  project never defines, a choice the step leaves open ("pick a good one": by what measure?);
+- every "Done when" item it could not tell how to prove;
+- every step whose result has no "Done when" item.
+Fix each gap in the file (or say in one line why it is not one), then record `Cold read: <file> - <n> gaps, fixed` in
+`.cache/turn-notes.md` (hook: runbook-cold-read). A rewrite of most of a runbook gets the same read.
+
+## What makes a runbook or skill good
+- **Exact:** every step names its file, command or tool and what "done" looks like for that step. No "as needed".
+- **Decided:** where a step needs judgment, it gives the measure ("the card that wins more of the slots it fills,
+  compared with every owned card for that slot"), not just the verb ("pick the best").
+- **Complete:** every result that matters has a "Done when" item with a real check, so the final check asks about it.
+- **Short:** steps the agent would do anyway without being told are left out; long background goes in a linked file.
+- **Proven:** it was read cold, and its checks fail on a real miss and pass on real good work (step 3).

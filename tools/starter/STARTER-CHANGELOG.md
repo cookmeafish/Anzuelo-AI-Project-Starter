@@ -6,6 +6,30 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-10-27: The user can see Anzuelo work, runbooks become the checklist, and creation gets stricter.
+  - **⚓ Anzuelo lines (REQ prompt-visible):** under Claude Code, the hooks show the user a short line with an icon each
+    time Anzuelo itself does something: 📖 pulled up a runbook, ⚡ brought in a skill, 💬 a question answered first,
+    🛡️/❗ stopped an action (❗ for the critical guards), ✅ checks passed, 🟢 on duty at session start, and more. Only
+    what Anzuelo set off is credited: a runbook the agent opened on its own is not. The user chose the icons.
+  - **Two steps for guesses from words:** an upset message, a rule, a requirement, praise or a new kind of task is first
+    "noticed" (🚨, 📜, 🌟, 🌱); the end of the turn says what the agent decided, with its reason: "🚨 acknowledged:
+    <issue> → fixed", "🚨 nothing to fix: <venting>", "📜 not a lasting rule: <why>", "🚫 the <x> runbook didn't fit".
+  - **The lines can be turned off:** config `userLines` (true, false, or {"hide": [kinds]}), changed by the new engine
+    runbook `docs/playbooks/status-lines.md` ("turn off the icons", "hide the praise line").
+  - **Upset words:** cursing and an angry user's words (disappoint, misspelled too; angry, annoyed, fed up, "ain't
+    working") count; venting with nothing wrong is recorded as `Learned (none): nothing was wrong - <what>` and owes no
+    verdict or lesson. learn-from-upset now fixes every case of the same miss in the result, not only the one named.
+  - **Runbook checklist (trial, config `runbookLedger`, off by default):** the routed runbook's (or skill's) "Done when"
+    is handed over with the route; the agent records "Done N: ..." / "Skip N: <why>" in the turn notes and works
+    without being stopped; at Stop the checks each item names judge the record, a skip with a reason drops that item's
+    checks, and a judgment item needs its line. Always-on checks and guards are never covered. A project's own Stop
+    command may name each step's check in `tags`, so an item can cover it.
+  - **Runbooks must be accurate:** the audit and the Stop check name a "Done when" item with no proof or naming a check
+    that doesn't exist; a new runbook or skill is read cold by a helper before it is relied on (REQ runbook-cold-read,
+    runbook-create step 5, with "what makes a runbook good").
+  - **Breaking for project hooks:** hook output contract 4: session, prompt, a denied pretool and a passing Stop may
+    carry a `systemMessage` for the user. Nothing was removed.
+
 - 2026-10-25: Efficiency: measured against the same projects with no starter (new `TRIAL_BARE=1` trial mode,
   `tools/starter/trials/efficiency.mjs`, `tokens.mjs`, `overhead.mjs`). Before this batch, setup took 10x the time and
   13x the cost of no starter, and work turns 7.7x the time and 16x the cost: each request after an in-session setup
