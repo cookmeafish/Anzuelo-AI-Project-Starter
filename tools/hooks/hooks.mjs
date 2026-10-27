@@ -4089,7 +4089,8 @@ export function gitignoreProblems(cfg = config()) {
   const ownVault = (git(['ls-files', '.obsidian']).stdout || '').trim() !== '';
   const leak = cfg.gitignoreMustIgnore.filter(p => !ignored.has(p) && !(ownVault && p.startsWith('.obsidian/')));
   if (leak.length) probs.push(`.gitignore does not cover: ${leak.join(', ')} (secrets, local state or caches would be pushed)`);
-  const hidden = cfg.gitignoreMustKeep.filter(p => ignored.has(p) && exists(p));
+  // (the starter never ships its own hook state: that state is from working on the starter, not a project's)
+  const hidden = cfg.gitignoreMustKeep.filter(p => ignored.has(p) && exists(p) && !(exists('.starter-template') && p.startsWith('tools/hooks/state/')));
   if (hidden.length) probs.push(`.gitignore hides files the project needs: ${hidden.join(', ')}`);
   // (the same exception here: a tracked vault's .obsidian settings are meant to be committed, even where .gitignore
   // lists .obsidian/ for other projects. Lesson: an adopted vault's setup failed on "already committed but meant to be

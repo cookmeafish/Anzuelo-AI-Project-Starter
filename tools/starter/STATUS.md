@@ -15,9 +15,11 @@ docs/STATUS.md, which here is the template new projects start from).
    - Every Stop round asks for the whole answer again, so users read it 2 to 3 times.
    - Stop rounds are spent while background helpers are still working.
    - A check run while a helper is still testing reads the helper's red test run.
-3. A runbook for false alarms in the starter only: fix a check that misfires only here, never the critical guards.
-4. The runbook-checklist trial in a real project: compare a day of turns before and after.
-5. One project's prompt hook takes about 2.4 s (budget 1 s): find out why.
+3. no-verbatim-examples flags single common words as the user's examples ("can't", "HEAD", "yes" in engine code):
+   it should need a run of several words. Seen 2026-10-27 in this session.
+4. A runbook for false alarms in the starter only: fix a check that misfires only here, never the critical guards.
+5. The runbook-checklist trial in a real project: compare a day of turns before and after.
+6. One project's prompt hook takes about 2.4 s (budget 1 s): find out why.
 
 ## Open questions
 - (none)

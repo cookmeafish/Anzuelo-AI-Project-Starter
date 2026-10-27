@@ -28,6 +28,8 @@ hooks:**, and an upgrade lists each one as its own review item.
       more steps after the hand-back.
     - **Checks installed as shipped need no self-test (hooks-tested):** a pack check identical to the starter's copy
       was already proven by the starter's tests. Installing a pack had asked for 12 of them to be tested again.
+    - **The starter's push no longer asks it to commit its own hook state (gitignore-ready):** that state comes from
+      working on the starter, so the starter ignores it on purpose. Projects still must commit theirs.
 
 - 2026-10-27: The user can see Anzuelo work, runbooks become the checklist, and creation gets stricter.
   - **⚓ Anzuelo lines (REQ prompt-visible):** under Claude Code, the hooks show the user a short line with an icon each

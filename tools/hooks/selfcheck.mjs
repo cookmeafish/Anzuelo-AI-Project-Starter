@@ -6867,6 +6867,14 @@ if (mineB()) { // gitignore-ready: a push waits until .gitignore keeps private f
     fs.mkdirSync(path.join(dir, 'dist'), { recursive: true }); fs.writeFileSync(path.join(dir, 'dist/app.js'), 'x\n');
     g('add', '-f', '_site/index.html', 'dist/app.js');
     const site = problems();
+    // the starter ignores its own hook state; a project that ignores it loses its runbook usage
+    fs.mkdirSync(path.join(dir, 'tools/hooks/state'), { recursive: true }); fs.writeFileSync(path.join(dir, 'tools/hooks/state/runbook-usage.json'), '{}');
+    fs.appendFileSync(path.join(dir, '.gitignore'), '\ntools/hooks/state/\n');
+    const projectState = problems();
+    fs.writeFileSync(path.join(dir, '.starter-template'), '');
+    const starterState = problems();
+    report(/hides files the project needs: tools\/hooks\/state\/runbook-usage\.json/.test(projectState) && !/hides files/.test(starterState),
+      'gitignore-ready: a project that ignores its hook state is caught; the starter, which never ships its own, is not', `${projectState.slice(0, 200)} | ${starterState.slice(0, 200)}`);
     report(/does not cover: \.env/.test(weak) && /gitignore-ready/.test(push) && ok.trim() === '[]' && /already committed but meant to be ignored: \.private-terms/.test(tracked)
       && /generated folders are committed: _site\/[^"]*"/.test(site) && !/generated folders are committed:[^"]*dist\//.test(site),
       'gitignore-ready: a weak .gitignore blocks the push, the starter\'s passes, a committed private file and a committed _site/ are caught (dist/ is not)', `${weak.slice(0, 200)} | ${push.slice(0, 150)} | ${ok} | ${tracked.slice(0, 200)} | ${site.slice(0, 200)}`);
