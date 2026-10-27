@@ -196,8 +196,11 @@ const DEFAULTS = {
   // user) where the host is known to support it, the classic {"decision":"block"} everywhere else. 'feedback' or
   // 'block' force one form (block is the fallback for a host that ignores the feedback form).
   stopStyle: 'auto',
-  // The "⚓ Anzuelo" lines the user sees (true: all; false: none; {"hide": [<kinds in LINE_KINDS>]}): status-lines runbook
+  // The "⚓ <starter name>" lines the user sees (true: all; false: none; {"hide": [<kinds in LINE_KINDS>]}): status-lines runbook
   userLines: true,
+  // Words that set nothing off by themselves for this user, per kind ({"upset": [...], "praise": [...], "rule": [...]}):
+  // the trigger-words runbook ("hooks.mjs ignore-word") changes it. Capitals and other trigger words still count.
+  ignoreWords: {},
   promoteAfterUses: 3,        // a runbook followed this many times becomes a skill
   pruneAfterDays: 60,
   // 'ask': setup waits for the user's answers; the agent decides the upgrade review itself, asking only about money,
@@ -362,7 +365,10 @@ const DEFAULTS = {
   trivial: "\\b(typos?|spelling|misspel\\w*|reword|rephrase|wording|punctuation|capitali[sz]\\w*|whitespace|indentation|formatting|broken link|dead link|fix the link)\\b|\\brename\\s+\\S+\\s+to\\b|\\bchange (the )?(text|title|label|heading|colou?r|date|year|number) (of |on |in |to |from )",
   // (Lesson: "you did it AGAIN", "the totals are wrong again.", "I literally said no emojis" and "how hard is it to keep
   // the footer" got no upset handling: a miss named with "again", a pointed "I said", an exasperated question)
-  complaint: "\\byou (forgot|didn'?t|did not|missed|skipped|ignored|left out|keep forgetting|never)\\b|\\b(i|we) (already )?told you\\b|\\bwhy (did|didn'?t) you\\b|\\bwhy (do|does) (you|it) keep\\b|\\bagain\\s*[!?]|\\bnot again\\b|\\bkeeps? (happening|forgetting|missing)\\b" +
+  // (checked against a real user's 585 messages: "everything I told you", "what I told you just now" and "so you never
+  // forget" are instructions, and "to not make that mistake again?" a request, not complaints. Lesson (the user): "even
+  // the trigger words you have right now should probably be evaluated")
+  complaint: "\\b(?<!(so|that|sure|ensure) )you (forgot|didn'?t|did not|missed|skipped|ignored|left out|keep forgetting|never)\\b|\\b(i|we) (already|keep|kept) told you\\b|\\b(i|we) told you (so|before|already|twice|multiple|many|\\d+)\\b|\\bhow many times\\b|\\bwhy (did|didn'?t) you\\b|\\bwhy (do|does) (you|it) keep\\b|(?<!\\b(not|never|don'?t)\\b[^.?!\\n]{0,40})\\bagain\\s*[!?]|\\bnot again\\b|\\bkeeps? (happening|forgetting|missing)\\b" +
     // ("you made a new note without linking it". Lesson, trial round 13: that complaint went unseen, so an answer's
     // false "checked automatically" was judged without it)
     String.raw`|\byou (made|wrote|added|created|put|sent|saved|built|changed|left)\b[^.?!\n]{1,40}\bwithout\b` +
@@ -377,11 +383,16 @@ const DEFAULTS = {
   // ("useless" counts as a verdict ("it's useless"), not when it describes what the request is about. Lesson (a field
   // report): "replace the 2 most useless items in the list" read as an upset user)
   // (cursing and the words of an angry user count too, misspelled or not. Lesson (the user): "cussing and all caps ...
-  // and also key words that someone upset would use like dissapoint, angry")
-  letdown: "\\b(f+u+c+k+\\w*|f+ck\\w*|shit\\w*|bullshit|wtf|ffs|damn\\w*|crap(py)?|retard\\w*|piss(ed|ing)\\w*|dis+ap+oint\\w*|angry|annoy(ed|ing)|frustrat(ed|ing)|furious|fed up|sick of|ridiculous|terrible|awful|ain'?t working)\\b|\\b(this|it|that)(?:'s| is) (garbage|trash|crap|a joke)\\b|\\black ?lustre\\b|\\black ?luster\\b|\\bunderwhelming\\b|\\bdisappoint(ing|ed)\\b|\\bnot good enough\\b|\\bnot what i (asked|wanted|meant)\\b|\\bdid you (not|even)\\b|\\bdidn'?t you (find|check|look|see|read|try|add|test)\\b|\\byou (still )?(haven'?t|have not|couldn'?t|could not) (find|fix|add|get)\\b|\\breally no\\b|\\bstill (no|not|missing|broken|wrong|nothing)\\b|\\b(are|is) still missing\\b|\\?{3,}|\\b(?<!(most|least|more|less) )useless\\b(?!\\s+(?!(and|but|or|now|again|too|here|as|to|for|so)\\b)[a-z])|\\bcome on\\b(?!\\s+(over|in|board|down|up|by)\\b)|\\b(this|it|that)(?:'s| is| looks| feels) (bad|wrong|broken|lacking|incomplete|half[- ]done|sloppy|thin|bare|basic)\\b|\\b(so|very|pretty) (bad|poor|thin|bare|basic|sloppy)\\b",
+  // and also key words that someone upset would use like dissapoint, angry". Each word was checked against a real
+  // user's 585 messages: "shit" ("a shit ton", "holy shit I need this") and "terrible" fired mostly on calm ones and
+  // were left out, as were generic words with no evidence ("damn", "crap", "awful"). A project adds its user's own
+  // words with "hooks.mjs learn-word", tested against that user's messages.)
+  letdown: "\\b(f+u+c+k+\\w*|f+ck\\w*|bullshit|wtf|ffs|retard\\w*|piss(ed|ing) (me )?off|pissing me|dis+ap+oint\\w*|angry|annoyed|frustrated|furious|fed up|sick of|ain'?t working)\\b|\\black ?lustre\\b|\\black ?luster\\b|\\bunderwhelming\\b|\\bdisappoint(ing|ed)\\b|\\bnot good enough\\b|\\bnot what i (asked|wanted|meant)\\b|\\bdid you (not|even)\\b|\\bdidn'?t you (find|check|look|see|read|try|add|test)\\b|\\byou (still )?(haven'?t|have not|couldn'?t|could not) (find|fix|add|get)\\b|\\breally no\\b|\\bstill (no|not|missing|broken|wrong|nothing)\\b|\\b(are|is) still missing\\b|\\?{3,}|\\b(?<!(most|least|more|less) )useless\\b(?!\\s+(?!(and|but|or|now|again|too|here|as|to|for|so)\\b)[a-z])|\\bcome on\\b(?!\\s+(over|in|board|down|up|by)\\b)|\\b(this|it|that)(?:'s| is| looks| feels) (bad|wrong|broken|lacking|incomplete|half[- ]done|sloppy|thin|bare|basic)\\b|\\b(so|very|pretty) (bad|poor|thin|bare|basic|sloppy)\\b",
   // (Lesson: "annoying", "ugh", "why do you keep" and "I keep telling you" were missed, so friction never counted them)
   // ("I asked you to ..., thanks" is a reminder with thanks, not frustration. Lesson: it read as upset; so did "come on over")
-  frustration: "\\bwhy (did|didn'?t|would) you\\b|\\bwhy (do|does) (you|it) keep\\b|\\byou (forgot|didn'?t|ignored|skipped|missed)\\b|\\byou keep (\\w+ing|on)\\b|\\bi (already |keep )?(told|telling|said|asked) you\\b(?![^.!?\\n]*\\b(thanks|thank you|cheers)\\b)|\\bagain\\?|\\bwtf\\b|\\bseriously\\b|\\bugh+\\b|\\bannoying\\b|\\bso (frustrating|annoying)\\b|\\bstop (making|asking|doing) me\\b|\\bhow many times\\b|\\bfor the (last|third|nth) time\\b|!!",
+  // (checked against a real user's messages: "!!" was praise ("good decisions!! ur doing better!"), and a bare "I told
+  // you" an instruction ("do everything I told you"): both left out)
+  frustration: "\\bwhy (did|didn'?t|would) you\\b|\\bwhy (do|does) (you|it) keep\\b|\\b(?<!(so|that|sure|ensure) )you (forgot|didn'?t|ignored|skipped|missed)\\b|\\byou keep (\\w+ing|on)\\b|\\bi (already|keep) (told|telling|said|asked) you\\b(?![^.!?\\n]*\\b(thanks|thank you|cheers)\\b)|\\bi (told|said|asked) you (so|before|already|twice|multiple|many|\\d+)\\b|(?<!\\b(not|never|don'?t)\\b[^.?!\\n]{0,40})\\bagain\\?|\\bwtf\\b|\\bugh+\\b|\\bannoying\\b|\\bso (frustrating|annoying)\\b|\\bstop (making|asking|doing) me\\b|\\bhow many times\\b|\\bfor the (last|third|nth) time\\b",
   taskVerbs: "\\b(make|create|build|write|draft|add|update|fix|research|find|look up|plan|compare|organi[sz]e|set ?up|analy[sz]e|summari[sz]e|review|generate|turn|convert|change|edit|rewrite|remove|delete|move|import|ingest|prepare|track|calculate|design|outline|translate|clean ?up|sort|merge|split|audit|check|run|train|retrain|tune|test|document|refactor|rename|upgrade|bump|migrate|restyle|deploy|release|publish|install|configure)\\b",
   overwriteWords: "\\b(overwrite|in place|edit (it|this|that|the (file|doc|output))|replace (it|the file)|fix (it|this|that|the) (file|doc|output|typo))\\b",
   // The user's OK for an outward action in this request (REQ: outward-gate). "email the supplier" alone asks for a draft;
@@ -2530,7 +2541,7 @@ export function usage() { return readJSON(path.join(STATE, 'runbook-usage.json')
 // The engine's own skills and runbooks: upgraded from the starter, never pruned.
 export const CORE_SKILLS = ['project-bootstrap', 'project-rule', 'runbook-create', 'skill-harden', 'skill-curate', 'project-sweeps',
   'session-handoff', 'security-review', 'plan', 'debug', 'parallel-agents', 'research', 'skill-finder', 'obsidian', 'learn-from-upset'];
-const CORE_RUNBOOKS = ['project', 'plan', 'status-lines'];
+const CORE_RUNBOOKS = ['project', 'plan', 'status-lines', 'trigger-words'];
 // REQ: skill-prune. Runbooks and skills nobody uses are reviewed: keep (with a reason), merge, or retire. Each one's
 // clock starts when the hooks first see it, restarts on every use, and "keep: YYYY-MM-DD - <reason>" restarts it too.
 export function curateDue(cfg = config(), record = false) {
@@ -2923,10 +2934,10 @@ export function playbookProblems(file) {
     if (!/^##\s+Steps/im.test(text)) probs.push(`${file}: needs a "## Steps" section (numbered, in order)`);
     if (!/^##\s+Done when/im.test(text)) probs.push(`${file}: needs a "## Done when" section (checks that prove it was done)`);
   }
-  // The "Done when" list is the turn's checklist (REQ: runbook-ledger): each item says how it is proven, and each check
-  // it names exists, or the item passes with no evidence at all. Lesson (the user): "the runbooks must be accurate".
+  // The "Done when" list is the turn's checklist (REQ: runbook-ledger): each check an item names exists, or the item
+  // passes with no evidence at all. Lesson (the user): "the runbooks must be accurate". (An item with no proof label is
+  // the audit's warning, sweep 4: an adopted project's own runbooks keep working through an upgrade.)
   for (const it of ledgerItems(text)) {
-    if (!DONE_LABEL.test(doneWhenItems(text)[it.n - 1])) probs.push(`${file}: Done when item ${it.n} says no proof: add "(hook: <check>)" or "(judgment: <why no check can tell>)"`);
     const unknown = it.tags.filter(tg => !knownCheck(tg));
     if (unknown.length) probs.push(`${file}: Done when item ${it.n} names ${unknown.map(tg => `"${tg}"`).join(', ')}, which no check has: fix the name, or add the check`);
   }
@@ -4100,9 +4111,74 @@ export function isUpset(prompt, cfg = config()) {
   // (a long message is mostly pasted material: its start and end hold the user's own words. Lesson (a field report): a
   // pasted session transcript with two calm lines read as an upset user)
   const full = userText(prompt), p = full.length > PASTE_LONG ? `${full.slice(0, 600)} ... ${full.slice(-600)}` : full, letters = p.replace(/[^A-Za-z]/g, '');
-  return re(cfg.frustration).test(p) || re(cfg.complaint).test(p) || re(cfg.letdown).test(p) || (letters.length > 20 && p.replace(/[^A-Z]/g, '').length / letters.length > 0.6)
-    || capsWeight(p).shouted;
+  // (the user's whitelisted words set nothing off by themselves: the word patterns read the message without them, while
+  // capitals and every other word still count. Lesson (the user): "if the whitelisted word comes up and the user does all
+  // caps then it should trigger regardless or if there is another trigger word ... it should trigger anyway")
+  const q = withoutIgnored(p, 'upset', cfg);
+  if (re(cfg.frustration).test(q) || re(cfg.complaint).test(q) || re(cfg.letdown).test(q)) return true;
+  // (praise shouted in capitals is joy, not anger. Lesson: a real user's "I LOVE THE ..." about their work read as upset)
+  return ((letters.length > 20 && p.replace(/[^A-Z]/g, '').length / letters.length > 0.6) || capsWeight(p).shouted) && !isPraise(p.toLowerCase(), cfg) &&
+    !/\b(i (really |just )?love|thank(s| you)|awesome|amazing|perfect|so good|great job|well done)\b/i.test(p);
 }
+// ---------- the user's whitelist and the trigger log (REQ: trigger-words) ----------
+// Words that set nothing off by themselves for this user, per kind (config "ignoreWords": {"upset": [...], "praise":
+// [...], "rule": [...]}), kept in tools/hooks/config.json so upgrades keep them. Capitals and every other trigger word
+// in the same message still count. The engine never adds trigger words on its own: the built-in ones were checked
+// against a real user's messages, and the log below is the evidence for trimming them further. Lesson (the user): "have
+// a way to whitelist words ... make whitelisting easy peasy and actually work and respected"; on learning new words: "im
+// almost thinking of scrapping the trigger word thing because it might catch things that aren't issues" (no learning).
+export const WORD_KINDS = ['upset', 'praise', 'rule'];
+const wordsRe = (list, flags = 'iu') => list.length ? new RegExp(list.map(w => `(?<![\\p{L}\\p{N}])${esc(w)}(?![\\p{L}\\p{N}])`).join('|'), flags) : null;
+export const ignoredWords = (kind, cfg = config()) => [].concat(cfg.ignoreWords?.[kind] || []).map(String).filter(Boolean);
+export function withoutIgnored(text, kind, cfg = config()) { const r = wordsRe(ignoredWords(kind, cfg), 'giu'); return r ? String(text).replace(r, ' ') : String(text); }
+// The trigger log (tools/hooks/state/triggers.jsonl, which git ignores): each message a word hook fired on, and what the
+// agent decided at the end of the turn ("yes": upset and fixed, rule saved, praise kept; "no": nothing wrong, didn't
+// hold, not lasting). A word that keeps showing up in "no" rows is one to whitelist or trim. Lesson (the user): "analyze
+// solely the messages that trigger it and then compare the other ones that triggered it. like a log of those triggers".
+const TRIGGERS = 'triggers.jsonl', TRIGGERS_MAX = 500;
+const triggerRows = () => read(path.join(STATE, TRIGGERS)).split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+export function logTrigger(kinds, prompt) {
+  if (!kinds.length || envOf('BENCH') || DRY_STATE) return;
+  const rows = triggerRows();
+  rows.push({ at: new Date().toISOString(), kinds, text: userText(prompt).replace(/\s+/g, ' ').slice(0, 500) });
+  try { fs.mkdirSync(STATE, { recursive: true }); fs.writeFileSync(path.join(STATE, TRIGGERS), rows.slice(-TRIGGERS_MAX).map(e => JSON.stringify(e)).join('\n') + '\n'); } catch { }
+}
+export function decideTrigger(x, decisions) {
+  if (!x.since || !Object.keys(decisions).length || envOf('BENCH') || DRY_STATE) return;
+  const rows = triggerRows(), r = [...rows].reverse().find(e => Math.abs(Date.parse(e.at) - x.since) < 15000);
+  if (!r) return;
+  r.decided = { ...(r.decided || {}), ...decisions };
+  try { fs.writeFileSync(path.join(STATE, TRIGGERS), rows.map(e => JSON.stringify(e)).join('\n') + '\n'); } catch { }
+}
+// Whitelist a word for one kind ('add'), or take it off ('remove'). Returns { ok, msg }.
+export function ignoreWord(kind, word, mode = 'add') {
+  word = String(word || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!WORD_KINDS.includes(kind)) return { ok: false, msg: `kind must be one of ${WORD_KINDS.join(', ')}` };
+  if (!word) return { ok: false, msg: 'no word given' };
+  const file = abs('tools/hooks/config.json'), raw = readJSON(file, {}), list = [].concat((raw.ignoreWords ||= {})[kind] || []).map(String);
+  const there = list.some(w => w.toLowerCase() === word);
+  if (mode === 'remove') {
+    if (!there) return { ok: false, msg: `"${word}" is not on the ${kind} whitelist` };
+    raw.ignoreWords[kind] = list.filter(w => w.toLowerCase() !== word);
+  } else {
+    if (there) return { ok: false, msg: `"${word}" is already on the ${kind} whitelist` };
+    raw.ignoreWords[kind] = [...list, word];
+  }
+  fs.writeFileSync(file, JSON.stringify(raw, null, 2) + '\n');
+  logWordChange(kind, word, mode);
+  if (mode === 'remove') return { ok: true, msg: `removed: "${word}" counts as ${kind} again` };
+  const fired = triggerRows().filter(e => (e.kinds || []).includes(kind) && wordsRe([word]).test(e.text)).length;
+  return { ok: true, msg: `whitelisted: "${word}" no longer counts as ${kind} by itself (capitals and other words still do)${fired ? `; it was in ${fired} logged trigger${fired > 1 ? 's' : ''}` : ''}` };
+}
+// (each change shows the user a line at the end of the turn: decidedLines)
+function logWordChange(kind, word, mode) {
+  if (DRY_STATE) return;
+  const f = path.join(STATE, 'words-changed.jsonl'), lines = read(f).split('\n').filter(Boolean);
+  lines.push(JSON.stringify({ at: new Date().toISOString(), kind, word, mode }));
+  try { fs.mkdirSync(STATE, { recursive: true }); fs.writeFileSync(f, lines.slice(-200).join('\n') + '\n'); } catch { }
+}
+export const wordChangesSince = since => read(path.join(STATE, 'words-changed.jsonl')).split('\n').filter(Boolean)
+  .map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(e => e && Date.parse(e.at) >= (since || 0) - 1000);
 // Capitals used for weight inside an otherwise normal message: a run of 3 or more words in capitals ("DO NOT PUSH IT")
 // or an upset word in capitals ("AGAIN", "WHY") is shouting; a rule word in capitals ("NEVER", "ALWAYS", "MUST") marks a
 // standing rule the user means. Acronyms (API, JSON, README) are not emphasis. Lesson, the user: "ALL CAPS tend to
@@ -4335,7 +4411,8 @@ export function ownWords(p) {
     return /\b(always|never|from now on|going forward|siempre|nunca|de ahora en adelante|a partir de ahora)\s*$/i.test(s.slice(Math.max(0, off - 25), off + lead.length)) ? m : lead + ' ';
   });
 }
-export const isRuleRequest = (p, cfg = config()) => re(cfg.ruleRequest).test(ownWords(p)) || capsWeight(ownWords(p)).rule;
+// (the user's whitelisted words don't count: REQ trigger-words)
+export const isRuleRequest = (p, cfg = config()) => re(cfg.ruleRequest).test(withoutIgnored(ownWords(p), 'rule', cfg)) || capsWeight(ownWords(p)).rule;
 // (a one-sentence question led by a question word asks; it states no requirement. Lesson, field report: a plain
 // question set off the lasting-requirement detector)
 export const isWhQuestion = p => { const t = userText(p).trim(); return QUESTION_LED.test(t) && /[?？]\s*$/.test(t) && !/[.!:;]\s+\S/.test(t); };
@@ -4346,8 +4423,9 @@ export function isPraise(p, cfg = config()) {
   for (const c of String(p || '').split(/(?<=[.!?\n])/)) {
     const s = c.trim();
     if (!s || /\?\s*$/.test(s) || /^¿/.test(s) || /^(is|are|was|were|do|does|did|has|have|had|can|could|would|will|should|how|what|why|which|whether|am i|was it)\b/i.test(s)) continue;
-    const m = re(cfg.praise).exec(s);
-    if (m && !/\b(if|whether|unless|si)\b/i.test(s.slice(0, m.index))) return true;
+    // (the user's whitelisted words don't count: REQ trigger-words)
+    const t = withoutIgnored(s, 'praise', cfg), m = re(cfg.praise).exec(t);
+    if (m && !/\b(if|whether|unless|si)\b/i.test(t.slice(0, m.index))) return true;
   }
   return false;
 }
@@ -4762,6 +4840,8 @@ function cmdPrompt(data, { force = false } = {}) {
     ? ['QUESTION (typed while you work): answer it in your very next message, plainly and first, then carry on. Never defer it ("I\'ll answer once ..."), and start no other work for it unless it asks for work. REQ: question-answered.', ...fresh]
     : [...(asking ? ['QUESTION: answer it directly, first, in plain words. A runbook or skill named below is where the answer may be, not steps to run, unless the user asks for the work.'] : []),
       ...scoreFriction(userText(p), cfg), ...promptHints(p, cfg, false), ...fresh];
+  // (each word hook that fired goes to the trigger log, for the agent's decision at the end of the turn: REQ trigger-words)
+  logTrigger([['upset', 'THE USER SOUNDS UPSET'], ['rule', 'RULE REQUEST'], ['praise', 'PRAISE']].filter(([, h]) => hints.some(x => x.startsWith(h))).map(([k]) => k), p);
   const out = [];
   // (not in a session whose start gave the whole session checklist: it says all of this. Lesson: the digest came with
   // every prompt, about 230 characters a turn that repeated what the session already had)
@@ -4779,18 +4859,12 @@ function cmdPrompt(data, { force = false } = {}) {
 // question to the user. Lesson (the user): "maybe a book icon for runbook", "some kind of symbol for skill", "question
 // mark for questions to the user. brain for idea maybe?")
 export function promptUserLine(hints, p = '') {
-  const es = isSpanish(p), has = s => hints.some(h => h.startsWith(s)), out = [], A = '⚓ Anzuelo';
-  // (words alone can't tell a complaint from venting: this line only says it was noticed; the end of the turn says what
-  // the agent found, with the issue in context (passLine). Lesson (the user): "it requires some ai work to be able to
-  // show that with context and afirmation of x issue ... and also to decide if the issue ... doesn't need changing")
-  if (has('THE USER SOUNDS UPSET')) out.push(es ? `${A} 🚨 lo noté: Claude revisará si algo salió mal.` : `${A} 🚨 noticed: Claude will check whether something went wrong.`);
+  const es = isSpanish(p), has = s => hints.some(h => h.startsWith(s)), out = [], A = brand();
+  // (an upset message, a rule, a requirement, praise, a new kind of task or a wish for autonomy are guesses from words:
+  // no line for them here. The end of the turn shows one only when the agent confirms it (passLine, decidedLines).
+  // Lesson (the user): "hide the trigger alert ... and only display the 2nd one that acknowledges ONLY IF ITS ACTUALLY AN
+  // ISSUE. that way the user doesn't see a hook trigger and wonder")
   if (has('QUESTION')) out.push(es ? `${A} 💬 pregunta: se responde primero.` : `${A} 💬 question: it gets answered first.`);
-  // (a rule, a requirement, praise and a new kind of task are guesses from words too: "noticed" now, and the end of the
-  // turn says what the agent decided (decidedLines))
-  if (has('RULE REQUEST')) out.push(es ? `${A} 📜 posible regla: Claude decidirá si es permanente y, si lo es, la guardará con una comprobación.`
-    : `${A} 📜 noticed a possible rule: Claude will decide if it's a lasting one, and save it with a check if so.`);
-  else if (has('REQUIREMENT:')) out.push(es ? `${A} 📜 posible requisito: Claude decidirá si es permanente y, si lo es, lo hará cumplir con una comprobación.`
-    : `${A} 📜 noticed a possible requirement: Claude will decide if it's a lasting one, and enforce it with a check if so.`);
   const route = hints.map(h => /^ROUTE: ([\w-]+)/.exec(h)?.[1]).find(Boolean), cl = hints.find(h => h.startsWith('CHECKLIST ('));
   const n = cl ? (cl.match(/\s\d+\.\s/g) || []).length : 0, clFile = cl && /^CHECKLIST \(([^,]+),/.exec(cl)?.[1];
   // (said as what Anzuelo did: it matched the message and handed the agent the runbook or skill. Lesson (the user):
@@ -4802,13 +4876,9 @@ export function promptUserLine(hints, p = '') {
   if (skills.length) out.push(es ? `${A} ⚡ trajo ${skills.length > 1 ? 'las skills' : 'la skill'} ${skills.join(', ')}${skCount}` : `${A} ⚡ brought in the ${skills.join(', ')} skill${skills.length > 1 ? 's' : ''}${skCount}`);
   // (the rest of what the hooks did with the message, one icon each)
   const more = [
-    ['PRAISE', '🌟 noticed praise: Claude will find what worked and keep it', '🌟 elogio: Claude buscará qué funcionó y lo conservará'],
-    ['AUTONOMY', '🚀 working on its own: choices get recorded instead of asked', '🚀 trabaja por su cuenta: anota las decisiones en vez de preguntar'],
     ['PAUSE', '⏸️ pausing: what is still open is saved for next time', '⏸️ pausa: lo pendiente queda guardado para la próxima vez'],
     ['SCOPE', '🔒 keeping each person\'s files separate', '🔒 mantiene separados los archivos de cada persona'],
-    ['SMALL FIX', '🪶 small fix: the light version of the process', '🪶 arreglo pequeño: la versión ligera del proceso'],
-    ['LAST WORK TURN', '📌 something left open last time comes first', '📌 lo que quedó abierto la última vez va primero'],
-    ['NO RUNBOOK', '🌱 no runbook matches: Claude will decide if this needs a new one', '🌱 ningún runbook coincide: Claude decidirá si hace falta uno nuevo']];
+    ['LAST WORK TURN', '📌 something left open last time comes first', '📌 lo que quedó abierto la última vez va primero']];
   for (const [k, en, sp] of more) if (has(k)) out.push(`${A} ${es ? sp : en}`);
   return out.join('\n');
 }
@@ -4816,16 +4886,18 @@ export function promptUserLine(hints, p = '') {
 // {"hide": ["praise", "skill", ...]} (the status-lines runbook changes it). Lesson (the user): "i dont wanna force these
 // icons tho ... a runbook to disable them if the user doesn't want a specific one or 2 of them or all of them".
 export const LINE_KINDS = { upset: '🚨', question: '💬', rule: '📜', runbook: '📖', skill: '⚡', checklist: '✅', passed: '✅', praise: '🌟',
-  autonomy: '🚀', pause: '⏸️', scope: '🔒', 'small-fix': '🪶', 'left-open': '📌', 'new-task': '🌱', session: '🟢', resumed: '🔁',
+  pause: '⏸️', scope: '🔒', 'left-open': '📌', 'new-task': '🌱', session: '🟢', resumed: '🔁',
   critical: '❗', blocked: '🛡️', upgrade: '🔄', plan: '🗺️', routine: '⏰', inbox: '📥', feedback: '📨', harden: '🔧', stale: '🕰️',
   lesson: '🧠', asking: '❓', 'not-fit': '🚫' };
+// The lines' mark: the anchor and the starter's name from docs/names.json, as the Stop banner has it (REQ: name-var)
+const brand = () => `⚓ ${names().STARTER_NAME || 'Project checks'}`;
 export function visibleLines(text, cfg = config()) {
   const set = cfg.userLines ?? true;
   if (set === false || !text) return '';
   const hide = new Set([].concat(set?.hide || []).map(String));
   const icons = new Set(Object.entries(LINE_KINDS).filter(([k]) => hide.has(k)).map(([, i]) => i));
   // (a "checklist" count inside the runbook line is the runbook's; "passed" hides the whole end-of-turn line)
-  const off = seg => [...icons].some(i => seg.replace(/^⚓ Anzuelo\s*/, '').startsWith(i)) && !(seg.includes('✅') && !hide.has('passed') && /checks passed/.test(seg));
+  const off = seg => [...icons].some(i => seg.replace(new RegExp(`^${esc(brand())}\\s*`), '').startsWith(i)) && !(seg.includes('✅') && !hide.has('passed') && /checks passed/.test(seg));
   return String(text).split('\n').map(line => {
     const segs = line.split(' · ');
     if (off(segs[0])) return '';
@@ -4834,7 +4906,7 @@ export function visibleLines(text, cfg = config()) {
 }
 // The line the user sees when a session starts: what is guarding the project, and what came up since last time.
 export function sessionUserLine(notes, cfg = config()) {
-  const A = '⚓ Anzuelo', has = s => notes.some(x => x.startsWith(s));
+  const A = brand(), has = s => notes.some(x => x.startsWith(s));
   const pbs = routablePlaybooks().filter(pb => !pb.name.startsWith('_')).length, sks = list(cfg.skillsDir).filter(n => exists(`${cfg.skillsDir}/${n}/SKILL.md`)).length;
   const out = [`${A} 🟢 on duty: ${pbs} runbook${pbs === 1 ? '' : 's'}, ${sks} skill${sks === 1 ? '' : 's'} and the project's checks`];
   for (const [k, line] of [['RESUMED', '🔁 your files from before the interruption are intact'], ['INTERRUPTED WORK IS BROKEN', '❗ files from before the interruption need fixing first'],
@@ -4848,28 +4920,35 @@ export function sessionUserLine(notes, cfg = config()) {
 // The line the user sees when a work turn passes its checks: what the hooks confirmed (REQ: prompt-visible). Lesson
 // (the user): "i want visual queues for when anzuelo does anything to help the project".
 let STOP_PASS = '';
-// The second step of each guess the message hook made from words alone: what the agent decided, with its reason. The
-// prompt line said what was noticed ("a possible rule"); this says what came of it ("rule saved", or "not a lasting
-// rule: <why>"). The reason comes from the agent's waiver ("N/A(<check>): <why>" in x.said) or its notes.
-// Lesson (the user): "there could be multiple more things like this that could use the 2 step".
+// The second step of each guess the message hook made from words alone: what the agent confirmed. The prompt shows no
+// guess; this shows only what came true ("rule saved", "what worked is kept", "new runbook made"). A guess the agent
+// turned down ("N/A(<check>): <why>" in x.said) shows nothing, and goes to the trigger log. A runbook or skill Anzuelo
+// pulled up (shown at the prompt) that didn't fit says so, with the reason. Lesson (the user): "there could be multiple
+// more things like this that could use the 2 step", "if its not actually an issue the user doesnt see it".
 export function decidedLines(x, cfg = config()) {
-  const p = x.prompt || '', own = p && !RELAY_START.test(p), A = '⚓ Anzuelo', out = [];
+  const p = x.prompt || '', own = p && !RELAY_START.test(p), A = brand(), out = [];
   if (!own) return out;
   const clip = s => String(s).replace(/\s+/g, ' ').trim().slice(0, 110);
   const why = tag => [...String(x.said || '').matchAll(/^\s*N\/?A\s*\(\s*([\w-]+)\s*\)\s*:\s*(.+)$/gim)].find(m => m[1] === tag)?.[2];
   const changed = x.changed || [];
   const rulesFile = changed.find(f => /^(AGENTS|CLAUDE)\.md$/.test(f));
   const checkFile = changed.find(f => /^tools\/hooks\/requirements\.json$/.test(f) || /^docs\/playbooks\/[^_][^/]*\.md$|\/SKILL\.md$/.test(f));
-  if (isRuleRequest(p, cfg)) { const w = why('rule-request'); out.push(w ? `${A} 📜 not a lasting rule: ${clip(w)}` : rulesFile ? `${A} 📜 rule saved in ${rulesFile}${checkFile ? `, with a check` : ''}` : ''); }
-  else if (isRequirement(p, cfg)) { const w = why('requirement-enforced'); out.push(w ? `${A} 📜 not a lasting requirement: ${clip(w)}` : checkFile ? `${A} 📜 requirement now enforced in ${checkFile}` : ''); }
+  // (each decision also goes to the trigger log, next to the message that set it off: REQ trigger-words)
+  const decided = x._decided ||= {};
+  if (isRuleRequest(p, cfg)) { const w = why('rule-request'); if (!w && rulesFile) out.push(`${A} 📜 rule saved in ${rulesFile}${checkFile ? `, with a check` : ''}`);
+    if (w || rulesFile) decided.rule = w ? 'no' : 'yes'; }
+  else if (isRequirement(p, cfg)) { const w = why('requirement-enforced'); if (!w && checkFile) out.push(`${A} 📜 requirement now enforced in ${checkFile}`); }
   if (isPraise(p, cfg)) { const w = why('praise-captured'); const kept = changed.find(f => /^docs\/playbooks\/[^_][^/]*\.md$|\/SKILL\.md$|^(AGENTS|CLAUDE)\.md$/.test(f));
-    out.push(w ? `${A} 🌟 noted, nothing to keep: ${clip(w)}` : kept ? `${A} 🌟 what worked is kept in ${kept}` : ''); }
+    if (!w && kept) out.push(`${A} 🌟 what worked is kept in ${kept}`);
+    if (w || kept) decided.praise = w ? 'no' : 'yes'; }
+  // (a word the user whitelisted this turn, or took off the whitelist)
+  for (const c of wordChangesSince(x.since)) out.push(c.mode === 'remove' ? `${A} 🧠 "${c.word}" counts as ${c.kind} again` : `${A} 🧠 "${c.word}" won't count as ${c.kind} anymore`);
   // (a runbook the hooks routed to that the agent decided didn't fit, and a new kind of task)
   for (const pb of (x.routed || []).filter(r => !(x.usedPb || []).some(u => u.name === r.name))) { const w = why('runbook-read'); if (w) out.push(`${A} 🚫 the ${pb.name} runbook didn't fit: ${clip(w)}`); }
   for (const s of (x.routedSkills || []).filter(r => !(x.usedSkills || []).some(u => u.name === r.name))) { const w = why('skill-read'); if (w) out.push(`${A} 🚫 the ${s.name} skill didn't fit: ${clip(w)}`); }
   if (x.workTurn && !(x.routed || []).length) { const w = why('runbook-exists');
     const made = changed.find(f => /^docs\/playbooks\/[^_][^/]*\.md$/.test(f) && bornThisTurn(f, x.since));
-    out.push(w ? `${A} 🌱 no runbook needed: ${clip(w)}` : made ? `${A} 🌱 new runbook made: ${made}` : ''); }
+    if (!w && made) out.push(`${A} 🌱 new runbook made: ${made}`); }
   return out.filter(Boolean);
 }
 // Anzuelo takes credit only for what it set off: a runbook or skill its hooks routed the message to (not one the agent
@@ -4888,9 +4967,17 @@ export function passLine(x, rounds = 0) {
   // complaint that didn't hold. The user chose "acknowledged" and 🚨)
   const notes = String(x.notes || ''), clip = s => s.replace(/\s+/g, ' ').trim().slice(0, 110);
   const issue = /^[\s>*_-]*issue\s*:\s*(.+)$/im.exec(notes)?.[1], none = /^[\s>*_-]*learned\s*\((?:none|nothing)\)\s*:\s*(.+)$/im.exec(notes)?.[1];
-  const upsetLine = !(x.prompt && isUpset(x.prompt)) ? '' : none && /^nothing (was )?wrong\b/i.test(none) ? `⚓ Anzuelo 🚨 nothing to fix: ${clip(none.replace(/^nothing (was )?wrong\s*[-:–]?\s*/i, ''))}`
-    : none ? `⚓ Anzuelo 🚨 checked: ${clip(none)}` : issue ? `⚓ Anzuelo 🚨 acknowledged: ${clip(issue)} → fixed` : '';
-  return [...(upsetLine ? [upsetLine] : []), ...decidedLines(x), ...(x.workTurn ? [[`⚓ Anzuelo ✅ checks passed${rounds ? ` after ${rounds} fix round${rounds > 1 ? 's' : ''}` : ''}`,
+  // (shown only when it was a real issue: venting or a complaint that didn't hold shows nothing, though the trigger log
+  // keeps the decision. Lesson (the user): "if its not actually an issue the user doesnt see it")
+  // (the agent may find the user upset with no hook firing, in any wording or language, as the session checklist asks:
+  // its "Issue:" line is the confirmation either way. Lesson (the user): "a hook at the begining of every session can
+  // tell the ai agent to trigger anzuelo fixer/feedack acknowledge thing if it suspects the user is upset")
+  const upset = !!(x.prompt && isUpset(x.prompt)), real = !!issue && !none;
+  const upsetLine = real ? `${brand()} 🚨 acknowledged: ${clip(issue)} → fixed` : '';
+  const decided = decidedLines(x);
+  if (upset && (issue || none)) x._decided = { ...(x._decided || {}), upset: real ? 'yes' : 'no' };
+  decideTrigger(x, x._decided || {});
+  return [...(upsetLine ? [upsetLine] : []), ...decided, ...(x.workTurn ? [[`${brand()} ✅ checks passed${rounds ? ` after ${rounds} fix round${rounds > 1 ? 's' : ''}` : ''}`,
     ...(pbs.length ? [`📖 the ${pbs.join(', ')} runbook it pulled up was followed`] : []), ...(sks.length ? [`⚡ so was the ${sks.join(', ')} skill${sks.length > 1 ? 's' : ''} it brought in`] : []),
     ...(config().runbookLedger && items.length ? [`✅ checklist ${done}/${items.length} recorded`] : []),
     ...(learned.length ? [`🧠 lesson saved in ${[...new Set(learned)].slice(0, 2).join(', ')}`] : [])].join(' · ')] : []),
@@ -4904,7 +4991,7 @@ function deny(reason) {
   // (❗ for the guards that protect what can't be undone or must never leave: Lesson (the user): "critical things maybe a
   // exclamation?")
   const critical = /^REQ: (no-ai-attribution|no-secrets|protect-originals|no-overwrite|outward-gate|publish-gate|git-safety|browser-guard|approval-gate|scope-separate|injection-guard)\b/.test(String(reason));
-  const line = HOST === 'claude-code' ? visibleLines(`⚓ Anzuelo ${critical ? '❗' : '🛡️'} stopped an action: ${first}`) : '';
+  const line = HOST === 'claude-code' ? visibleLines(`${brand()} ${critical ? '❗' : '🛡️'} stopped an action: ${first}`) : '';
   process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason },
     ...(line ? { systemMessage: line } : {}) }));
 }
@@ -8121,13 +8208,13 @@ export const CONTRACT = {
   events: {
     session: 'SessionStart. Claude Code: {"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":<text>}}; other hosts: <text>. ' +
       'The text: the session checklist, "--- docs/STATUS.md (where things stand) ---" with its first 40 lines, then "--- notices ---" and one "- <NOTICE>: ..." line each. At most 9,000 characters. ' +
-      'Claude Code: a "systemMessage" with "⚓ Anzuelo ..." lines for the user comes with it.',
+      'Claude Code: a "systemMessage" with "⚓ <starter name> ..." lines for the user comes with it.',
     prompt: 'UserPromptSubmit. Same shape as session, hookEventName "UserPromptSubmit". The text: an optional "[rules] ..." line, then "[project hooks: obey these]" and one ' +
       '"- <HINT>: ..." line each (ROUTE, SKILL, NO RUNBOOK, CLOSEST RUNBOOK, RULE REQUEST, SCOPE, MENU CODE, ...). No output when there is nothing to say. ' +
       'A message relayed from another session or agent that asks for work gets its hints too, after a first "- RELAYED: ..." line. ' +
-      'Claude Code: when the message sets off something (a runbook, a skill, upset handling, a rule, a question first, ...), a "systemMessage" with "⚓ Anzuelo ..." lines for the user comes with it.',
+      'Claude Code: when the message sets off something (a runbook, a skill, upset handling, a rule, a question first, ...), a "systemMessage" with "⚓ <starter name> ..." lines for the user comes with it.',
     pretool: 'PreToolUse. Allowed: no output. Denied: {"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":<text>}}, ' +
-      'and under Claude Code a "systemMessage" ("⚓ Anzuelo 🛡️ stopped an action: ...") for the user.',
+      'and under Claude Code a "systemMessage" ("⚓ <starter name> 🛡️ stopped an action: ...") for the user.',
     stop: 'Stop. Passed: no output. Steps left, with stopStyle "feedback" (or "auto", the default, under Claude Code): {"hookSpecificOutput":{"hookEventName":"Stop","additionalContext":<steps>},"systemMessage":<short lines for the user>}; ' +
       'otherwise Codex gets {"decision":"block","reason":<steps>,"systemMessage":<short lines>} and other hosts {"decision":"block","reason":<steps>}. ' +
       'The steps end with "Names: <tag>, <tag>.". A crashed hook: {"decision":"block","reason":"tools/hooks/hooks.mjs stop CRASHED ..."} on every host. ' +
@@ -8141,7 +8228,7 @@ export const CONTRACT = {
       removed: [{ event: 'stop', field: 'reason', host: 'claude-code', read: /\[\s*['"]reason['"]\s*\]|\.get\(\s*['"]reason['"]|\.reason\b/, unless: /additionalContext/ }] },
     { version: 3, date: '2026-10-20', change: 'systemMessage is several lines (a heading, then one line per step); the resume notice starts "RESUMED:" instead of "INTERRUPTED WORK:"; the unresolved notice names the earlier request.',
       removed: [{ event: 'session', text: 'INTERRUPTED WORK: RESULT', read: /INTERRUPTED WORK:\s*RESULT/ }] },
-    { version: 4, date: '2026-10-27', change: 'Claude Code: session, prompt and a denied pretool add a "systemMessage" ("⚓ Anzuelo ..." lines for the user), and a Stop that passes a work turn prints {"systemMessage"} alone. Nothing was removed.' }
+    { version: 4, date: '2026-10-27', change: 'Claude Code: session, prompt and a denied pretool add a "systemMessage" ("⚓ <starter name> ..." lines for the user), and a Stop that passes a work turn prints {"systemMessage"} alone. Nothing was removed.' }
   ]
 };
 // The decisions file with an upgrade's review block added. A review with nothing to decide (only the self-tests line,
@@ -8528,6 +8615,12 @@ if (isMain) {
     // (a field report): "waive no-overwrite" printed "waived", and the same rm was denied again, then retried)
     if (GUARD_TAGS.test(tag)) { console.log(`not waived: ${tag} is a guard on tool calls, not a step at the end of the answer, so a waiver can't lift it. ${tag === 'no-overwrite' || tag === 'protect-originals' ? 'A delete goes ahead when the user\'s request asks for it ("delete the old drafts") or when the file matches "deleteOk" in tools/hooks/config.json (drafts the user never saw); otherwise write a new version, or ask the user in one line.' : 'Do what its message says, or ask the user in one line.'}`); process.exit(2); }
     const msg = `waived for this turn: ${tag} (${why.join(' ').trim()})`; logRun(`node tools/hooks/hooks.mjs waive ${tag} "${why.join(' ').trim().replace(/"/g, "'")}"`, msg, false); console.log(msg); process.exit(0); }
+  // the user's whitelist (REQ: trigger-words): node tools/hooks/hooks.mjs ignore-word <upset|praise|rule> "<word>" [--remove]
+  if (cmd === 'ignore-word') {
+    const a = process.argv.slice(3), remove = a.includes('--remove'), [kind, ...w] = a.filter(s => s !== '--remove');
+    if (!kind || !w.length) { console.log(`usage: node tools/hooks/hooks.mjs ignore-word <${WORD_KINDS.join('|')}> "<word or phrase>" [--remove]`); process.exit(2); }
+    const r = ignoreWord(kind, w.join(' '), remove ? 'remove' : 'add'); console.log(r.msg); process.exit(r.ok ? 0 : 2);
+  }
   if (cmd === 'notices') { console.log(notices(config()).join('\n') || 'no notices.'); process.exit(0); }
   // one line per check of the project (requirements.json and enabled packs): its tag and what it asks, so an agent
   // learns them without reading the whole file. Lesson, efficiency trials: setups read the ~60,000-character file whole.

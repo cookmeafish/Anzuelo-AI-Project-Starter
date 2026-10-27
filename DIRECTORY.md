@@ -12,7 +12,8 @@ Open the runbook; its triggers and steps are in the file.
 |---|---|---|---|
 | [plan](docs/playbooks/plan.md) ([skill](skills/plan/SKILL.md)) | Plan multi-step work before starting it, as checkable tasks... | plan-saved, plan-checked | E8 |
 | [project](docs/playbooks/project.md) ([skill](skills/project/SKILL.md)) | The project itself - new rules, complaints about misses,... | rule-request, rule-memory, hooks-tested, runbook-complete | E1, E2, E3, E4, E5, E6, E7, E9 |
-| [status-lines](docs/playbooks/status-lines.md) ([skill](skills/status-lines/SKILL.md)) | Turn the "⚓ Anzuelo" lines the user sees on or off, all of... | (none) |  |
+| [status-lines](docs/playbooks/status-lines.md) ([skill](skills/status-lines/SKILL.md)) | Turn the "⚓" status lines the user sees on or off, all of... | (none) |  |
+| [trigger-words](docs/playbooks/trigger-words.md) ([skill](skills/trigger-words/SKILL.md)) | Whitelist a word so it no longer sets off the upset, praise... | (none) |  |
 | [_fallback](docs/playbooks/_fallback.md) | Anything else: do it, then create a runbook (runbook-create) | runbook-exists | |
 
 ## 2. Skills

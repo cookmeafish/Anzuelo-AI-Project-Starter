@@ -11,21 +11,32 @@ hooks:**, and an upgrade lists each one as its own review item.
     time Anzuelo itself does something: 📖 pulled up a runbook, ⚡ brought in a skill, 💬 a question answered first,
     🛡️/❗ stopped an action (❗ for the critical guards), ✅ checks passed, 🟢 on duty at session start, and more. Only
     what Anzuelo set off is credited: a runbook the agent opened on its own is not. The user chose the icons.
-  - **Two steps for guesses from words:** an upset message, a rule, a requirement, praise or a new kind of task is first
-    "noticed" (🚨, 📜, 🌟, 🌱); the end of the turn says what the agent decided, with its reason: "🚨 acknowledged:
-    <issue> → fixed", "🚨 nothing to fix: <venting>", "📜 not a lasting rule: <why>", "🚫 the <x> runbook didn't fit".
+  - **Guesses from words are never shown, only what the agent confirms:** an upset message, a rule, a requirement,
+    praise or a new kind of task shows nothing when the message arrives; the end of the turn shows only a confirmed
+    result: "🚨 acknowledged: <issue> → fixed" (from the agent's `Issue:` notes line, also when no hook fired: the
+    session checklist asks the agent to judge upset itself, in any wording or language), "📜 rule saved", "🌟 what
+    worked is kept", "🌱 new runbook made". Venting or a complaint that didn't hold shows nothing. A runbook or skill
+    Anzuelo pulled up that didn't fit says so: "🚫 the <x> runbook didn't fit: <why>".
   - **The lines can be turned off:** config `userLines` (true, false, or {"hide": [kinds]}), changed by the new engine
     runbook `docs/playbooks/status-lines.md` ("turn off the icons", "hide the praise line").
-  - **Upset words:** cursing and an angry user's words (disappoint, misspelled too; angry, annoyed, fed up, "ain't
-    working") count; venting with nothing wrong is recorded as `Learned (none): nothing was wrong - <what>` and owes no
-    verdict or lesson. learn-from-upset now fixes every case of the same miss in the result, not only the one named.
+  - **Trigger words, checked against a real user's 585 messages (REQ trigger-words):** cursing and an angry user's
+    words count (wtf, bullshit, disappoint, misspelled too; angry, annoyed, fed up, "ain't working"); words that fired
+    mostly on calm messages are out ("shit" as in "a shit ton", "terrible", "!!" in praise, a bare "I told you", "so you
+    never forget"), as are generic ones ("damn", "seriously"); praise in capitals is not upset. A whitelist per user
+    (config `ignoreWords`, `hooks.mjs ignore-word <upset|praise|rule> "<word>" [--remove]`, the new engine runbook
+    `docs/playbooks/trigger-words.md`) stops a word counting by itself, while capitals and other trigger words in the
+    same message still count. The engine never adds trigger words on its own. A local trigger log
+    (`tools/hooks/state/triggers.jsonl`) keeps each message a word hook fired on and what the agent decided, as
+    evidence for trimming further. Venting with nothing wrong is recorded as `Learned (none): nothing was wrong -
+    <what>` and owes no verdict or lesson. learn-from-upset now fixes every case of the same miss in the result, not
+    only the one named.
   - **Runbook checklist (trial, config `runbookLedger`, off by default):** the routed runbook's (or skill's) "Done when"
     is handed over with the route; the agent records "Done N: ..." / "Skip N: <why>" in the turn notes and works
     without being stopped; at Stop the checks each item names judge the record, a skip with a reason drops that item's
     checks, and a judgment item needs its line. Always-on checks and guards are never covered. A project's own Stop
     command may name each step's check in `tags`, so an item can cover it.
-  - **Runbooks must be accurate:** the audit and the Stop check name a "Done when" item with no proof or naming a check
-    that doesn't exist; a new runbook or skill is read cold by a helper before it is relied on (REQ runbook-cold-read,
+  - **Runbooks must be accurate:** the audit fails a "Done when" item naming a check that doesn't exist (one with no
+    proof label stays its warning), and the Stop check names both for a changed runbook; a new runbook or skill is read cold by a helper before it is relied on (REQ runbook-cold-read,
     runbook-create step 5, with "what makes a runbook good").
   - **Breaking for project hooks:** hook output contract 4: session, prompt, a denied pretool and a passing Stop may
     carry a `systemMessage` for the user. Nothing was removed.

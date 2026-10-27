@@ -519,12 +519,12 @@ const STOP = [
   { name: 'upset-learned: strong words about something else, recorded as nothing wrong: passes that check', prompt: 'ugh the printer at the office is shit today. anyway add the croissant to the menu',
     files: { 'docs/menu.md': 'Croissant (gluten, milk)', '.cache/turn-notes.md': 'Learned (none): nothing was wrong - the user was venting about the office printer\n' },
     answer: 'Added the croissant to the menu.' + FIN, expect: { not: ['upset-learned'] } },
-  // (the user sees what the agent decided about strong words, in context. Lesson (the user): "it requires some ai work
-  // to be able to show that with context and afirmation of x issue")
-  { name: 'prompt-visible: strong words with nothing wrong end with a "nothing to fix" line', prompt: 'ugh the printer at the office is shit today. how many items are on the menu?',
+  // (the user sees an upset message only when the agent confirms a real issue, in context. Lesson (the user): "only
+  // display the 2nd one that acknowledges ONLY IF ITS ACTUALLY AN ISSUE")
+  { name: 'prompt-visible: strong words with nothing wrong show the user nothing', prompt: 'ugh the printer at the office is pissing me off today. how many items are on the menu?',
     files: { '.cache/turn-notes.md': 'Learned (none): nothing was wrong - the user was venting about the office printer\n' }, host: { CLAUDE_PROJECT_DIR: '.' },
     answer: 'There are three items on the menu.', expect: { block: false },
-    after: (dir, reason, d) => /^⚓ Anzuelo 🚨 nothing to fix: the user was venting about the office printer/.test(d?.systemMessage || '') || `no outcome line: ${JSON.stringify(d).slice(0, 200)}` },
+    after: (dir, reason, d) => !/🚨/.test(d?.systemMessage || '') || `showed a line for no issue: ${d.systemMessage}` },
   { name: 'upset-learned: the lesson named, but its file never changed: blocked', prompt: 'you forgot to add the allergens again!!', files: { 'docs/menu.md': 'Croissant (gluten, milk)' },
     answer: 'Added the allergens to the menu.\nLearned (rule): every menu item lists its allergens → AGENTS.md' + FIN, expect: { block: true, tags: ['upset-learned'] } },
   // (a lesson in the agent's memory notes, outside the project, written this turn counts. Lesson (a field report))
@@ -742,7 +742,7 @@ const STOP = [
   { name: 'prompt-visible: a work turn that passes shows the user a ✅ line with its runbook', prompt: 'make a plan for the csv export',
     tools: [pb('plan'), bash('node skills/plan/scripts/plan-tasks.mjs check docs/plans/2026-10-17-export.md')], files: { 'docs/plans/2026-10-17-export.md': '# Export: plan' },
     host: { CLAUDE_PROJECT_DIR: '.' }, answer: 'Playbook: plan.md. Saved.' + FIN, expect: { block: false },
-    after: (dir, reason, d) => /^⚓ Anzuelo ✅ checks passed · 📖 the plan runbook it pulled up was followed/.test(d?.systemMessage || '') || `no pass line: ${JSON.stringify(d).slice(0, 200)}` },
+    after: (dir, reason, d) => /^⚓ .+? ✅ checks passed · 📖 the plan runbook it pulled up was followed/.test(d?.systemMessage || '') || `no pass line: ${JSON.stringify(d).slice(0, 200)}` },
   { name: 'prompt-visible: a runbook the agent opened on its own is not credited to Anzuelo', prompt: 'tidy up the csv export notes',
     tools: [pb('plan'), bash('node skills/plan/scripts/plan-tasks.mjs check docs/plans/2026-10-17-export.md')], files: { 'docs/plans/2026-10-17-export.md': '# Export: plan' },
     host: { CLAUDE_PROJECT_DIR: '.' }, answer: 'Playbook: plan.md. Saved.' + FIN, expect: {},
@@ -1139,8 +1139,14 @@ const PROMPT = [
   { name: 'upset-learned: shouting in capitals sends the agent to the learn-from-upset skill', prompt: 'WHY DID YOU SKIP THE SOURCES AGAIN', has: ['THE USER SOUNDS UPSET', 'learn-from-upset'] },
   { name: 'upset-learned: a calm request gets no upset hint', prompt: 'please add the sources to the desk note', hasNot: ['THE USER SOUNDS UPSET', '"systemMessage"'] },
   // REQ: prompt-visible. The user sees that the hooks heard them. (Lesson (the user): "i didn't see the hook icon")
-  { name: 'prompt-visible: shouting shows the user an Anzuelo line', prompt: 'WHY DID YOU SKIP THE SOURCES AGAIN', env: { CLAUDE_PROJECT_DIR: '.' }, has: ['"systemMessage":"⚓ Anzuelo 🚨 noticed: Claude will check whether something went wrong.'] },
-  { name: 'prompt-visible: a standing rule shows the user an Anzuelo line', prompt: 'from now on always cite the source file in every desk note', env: { CLAUDE_PROJECT_DIR: '.' }, has: ['⚓ Anzuelo 📜 noticed a possible rule'] },  { name: 'upset-learned: a plain why-question is not upset', prompt: 'why does the page take 2 seconds to load', hasNot: ['THE USER SOUNDS UPSET'] },
+  // (a guess from words is never shown: only what the agent confirms, at the end of the turn. Lesson (the user): "hide
+  // the trigger alert ... and only display the 2nd one that acknowledges ONLY IF ITS ACTUALLY AN ISSUE")
+  { name: 'prompt-visible: shouting is handled but no guess is shown to the user', prompt: 'WHY DID YOU SKIP THE SOURCES AGAIN', env: { CLAUDE_PROJECT_DIR: '.' }, has: ['THE USER SOUNDS UPSET'], hasNot: ['🚨'] },
+  { name: 'prompt-visible: a possible rule is handled but no guess is shown to the user', prompt: 'from now on always cite the source file in every desk note', env: { CLAUDE_PROJECT_DIR: '.' }, has: ['RULE REQUEST'], hasNot: ['📜'] },
+  // REQ: trigger-words. A whitelisted word sets nothing off by itself.
+  { name: 'trigger-words: a whitelisted word alone gets no upset handling', prompt: 'wtf nice work on the export', setupFn: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), ignoreWords: { upset: ['wtf'] } }) }, hasNot: ['THE USER SOUNDS UPSET'] },
+  { name: 'trigger-words: the same word in capitals with other words still does', prompt: 'WTF THIS IS WRONG AGAIN', setupFn: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), ignoreWords: { upset: ['wtf'] } }) }, has: ['THE USER SOUNDS UPSET'] },
+  { name: 'upset-learned: a plain why-question is not upset', prompt: 'why does the page take 2 seconds to load', hasNot: ['THE USER SOUNDS UPSET'] },
   { name: 'menu code expands', prompt: 'K2 standing desks under 500 --brief', has: ['MENU CODE K2', 'MENU FLAG --brief', 'ROUTE: research'] },
   { name: 'unknown menu code asks', prompt: 'Z9 do the thing', has: ['UNKNOWN MENU CODE Z9'] },
   // Lessons: a question asking whether something did a good job got the PRAISE hint; feedback to pass on got REQUIREMENT
@@ -2038,7 +2044,7 @@ PRETOOL.push(
   { name: 'no-secrets: reading .env with the Read tool: denied', tool: 'Read', input: { file_path: '.env' }, prompt: 'why does the app fail to start', deny: true, tag: 'no-secrets' },
   // REQ: prompt-visible. The user sees what was stopped, ❗ for the critical guards. (Lesson (the user): "critical things maybe a exclamation?")
   { name: 'prompt-visible: a critical guard shows the user a ❗ line', tool: 'Read', input: { file_path: '.env' }, prompt: 'why does the app fail to start', host: { CLAUDE_PROJECT_DIR: '.' },
-    deny: true, tag: 'no-secrets', userSees: /^⚓ Anzuelo ❗ stopped an action: / },
+    deny: true, tag: 'no-secrets', userSees: /^⚓ .+ ❗ stopped an action: / },
   { name: 'no-secrets: reading .env when the user asked for it: allowed', tool: 'Read', input: { file_path: '.env' }, prompt: 'check my .env for a typo', deny: false },
   { name: 'no-secrets: reading .env.example: allowed', tool: 'Bash', input: { command: 'cat .env.example' }, prompt: 'why does the app fail to start', deny: false },
   { name: 'no-secrets: writing a key into a tracked source file: denied', tool: 'Write', input: { file_path: 'src/config.js', content: 'export const key = "' + ['sk', 'ant', 'abcdefghijklmnopqrstuvwxyz0123'].join('-') + '";' }, prompt: 'hook up the api', deny: true, tag: 'no-secrets' },
@@ -7130,6 +7136,30 @@ if (mineB() && (!TAGS || TAGS.includes('starter-tested'))) { // starter-tested: 
       JSON.stringify({ none: none.slice(0, 80), failed: failed.slice(0, 80), passed: passed.slice(0, 80), stale: stale.slice(0, 80) }));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
+if (mineB() && (!TAGS || TAGS.includes('trigger-words'))) { // trigger-words: the user's whitelist is respected, while
+  // capitals and other trigger words still count; the built-in words that fired on a real user's calm messages are out
+  // (Lesson (the user): "if the whitelisted word comes up and the user does all caps then it should trigger regardless or
+  // if there is another trigger word other than the whitelisted then it should trigger anyway")
+  const h = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks.mjs')).href), cfg = { ...h.config(), ignoreWords: { upset: ['wtf'] } };
+  const cases = [
+    ['wtf nice work on the export', false], ['WTF THIS IS WRONG AGAIN', true], ['wtf, you forgot the totals again', true],
+    ['I LOVE THE NEW REPORT LAYOUT SO MUCH', false], ['do everything i told you about the export', false],
+    ['so you never forget the footer, add a check', false], ['i told you before, no emojis in the footer', true],
+    ['good decisions on the layout!! ur doing better', false], ['there is a shit ton of rows in the export', false]];
+  const got = cases.map(([t]) => h.isUpset(t, cfg));
+  report(cases.every(([, w], i) => got[i] === w), 'trigger-words: a whitelisted word sets nothing off alone, capitals and other words still do; praise in capitals and instructions are not upset', JSON.stringify(cases.map(([t], i) => [t.slice(0, 30), got[i]])));
+  const dir = takeCopy();
+  try {
+    const cli = (...a) => spawnSync(process.execPath, [path.join(dir, 'tools/hooks/hooks.mjs'), ...a], { cwd: dir, encoding: 'utf8' });
+    const add = cli('ignore-word', 'upset', 'sick'), cfgAfter = JSON.parse(fs.readFileSync(path.join(dir, 'tools/hooks/config.json'), 'utf8'));
+    const again = cli('ignore-word', 'upset', 'sick'), off = cli('ignore-word', 'upset', 'sick', '--remove'), cfgOff = JSON.parse(fs.readFileSync(path.join(dir, 'tools/hooks/config.json'), 'utf8'));
+    report(add.status === 0 && /whitelisted: "sick"/.test(add.stdout) && cfgAfter.ignoreWords?.upset?.includes('sick') && again.status === 2 && off.status === 0 && !cfgOff.ignoreWords.upset.includes('sick'),
+      'trigger-words: "ignore-word" whitelists a word in config.json, refuses a repeat, and --remove takes it off', JSON.stringify([add.stdout, again.stdout, off.stdout]));
+    run(dir, 'prompt', { prompt: 'WHY DID YOU SKIP THE SOURCES AGAIN' });
+    const log = fs.readFileSync(path.join(dir, 'tools/hooks/state/triggers.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l)).pop();
+    report(log?.kinds?.includes('upset') && /SKIP THE SOURCES/.test(log.text), 'trigger-words: a message that sets off the upset handling goes to the trigger log', JSON.stringify(log));
+  } finally { giveBack(dir); }
+}
 if (mineB() && (!TAGS || TAGS.includes('prompt-visible'))) { // prompt-visible: the second step of each guess from words,
   // what the agent decided with its reason (Lesson (the user): "there could be multiple more things like this that
   // could use the 2 step")
@@ -7137,14 +7167,20 @@ if (mineB() && (!TAGS || TAGS.includes('prompt-visible'))) { // prompt-visible: 
   const X = o => ({ prompt: '', said: '', changed: [], routed: [], usedPb: [], routedSkills: [], usedSkills: [], workTurn: false, ...o });
   const RULE = 'from now on always cite the source file in every desk note';
   const cases = [
-    [X({ prompt: RULE, said: 'N/A(rule-request): the user meant only this one note' }), /📜 not a lasting rule: the user meant only this one note/],
+    [X({ prompt: RULE, said: 'N/A(rule-request): the user meant only this one note' }), null],
     [X({ prompt: RULE, changed: ['AGENTS.md', 'tools/hooks/requirements.json'] }), /📜 rule saved in AGENTS\.md, with a check/],
     [X({ prompt: 'great job, keep doing this', changed: ['docs/playbooks/desk-note.md'] }), /🌟 what worked is kept in docs\/playbooks\/desk-note\.md/],
     [X({ prompt: 'tidy the plan for the export', routed: [{ name: 'plan' }], said: 'N/A(runbook-read): a typo fix in the plan file itself' }), /🚫 the plan runbook didn't fit: a typo fix/],
     [X({ prompt: 'tidy the notes', routedSkills: [{ name: 'research' }], said: 'N/A(skill-read): no lookup was needed' }), /🚫 the research skill didn't fit: no lookup was needed/],
     [X({ prompt: `<cross-session-message from="x">${RULE}</cross-session-message>`, said: 'N/A(rule-request): relayed' }), null]];
   const got = cases.map(([x]) => h.decidedLines(x, cfg).join(' | '));
-  report(cases.every(([, want], i) => want ? want.test(got[i]) : !got[i]), 'prompt-visible: each guess from words ends with what the agent decided, with its reason (and nothing for a relayed message)', JSON.stringify(got));
+  report(cases.every(([, want], i) => want ? want.test(got[i]) : !got[i]), 'prompt-visible: each guess from words shows only what the agent confirmed (nothing for one turned down, or a relayed message)', JSON.stringify(got));
+  // (an upset message: "acknowledged" with the issue only when the agent confirmed a real one)
+  const UP = 'why did you leave the croissant off the menu again?';
+  const real = h.passLine(X({ prompt: UP, notes: 'Issue: the croissant was left off the menu\nLearned (one-off): copied from an old file → docs/lessons.md\n' }));
+  const vent = h.passLine(X({ prompt: UP, notes: 'Learned (none): nothing was wrong - the croissant is on the menu\n' }));
+  report(/^⚓ .+? 🚨 acknowledged: the croissant was left off the menu → fixed$/m.test(real) && !/🚨/.test(vent),
+    'prompt-visible: an upset message shows "acknowledged: <issue> → fixed" only for a real issue, nothing when the complaint did not hold', JSON.stringify([real, vent]));
 }
 if (mineB() && (!TAGS || TAGS.includes('runbook-ledger'))) { // runbook-ledger: a runbook's checklist is only as good as
   // its proofs: an item with none, or naming a check that doesn't exist, passes with no evidence (Lesson (the user): "the
@@ -7154,8 +7190,8 @@ if (mineB() && (!TAGS || TAGS.includes('runbook-ledger'))) { // runbook-ledger: 
   fs.writeFileSync(p, '---\nname: zz-ledger-probe\nsummary: probe\ntriggers: zz probe\n---\n# Probe\n\n## Steps\n1. Do it.\n\n## Done when\n- [ ] Changelog updated (hook: changelog)\n- [ ] Typo in the check name (hook: chnagelog)\n- [ ] No proof at all\n- [ ] Read by a person (judgment: taste)\n');
   let probs = [];
   try { probs = h.playbookProblems(f); } finally { fs.rmSync(p, { force: true }); }
-  report(probs.length === 2 && probs.some(s => /item 2 names "chnagelog"/.test(s)) && probs.some(s => /item 3 says no proof/.test(s)),
-    'runbook-ledger: the audit names a Done when item with no proof and one naming a check that does not exist', JSON.stringify(probs));
+  report(probs.length === 1 && probs.some(s => /item 2 names "chnagelog"/.test(s)),
+    'runbook-ledger: the audit fails a Done when item naming a check that does not exist (one with no proof stays sweep 4\'s warning)', JSON.stringify(probs));
 }
 if (mineB() && (!TAGS || TAGS.includes('upset-es'))) { // upset-es: complaints and "..., always" requirements in English and
   // Spanish (Lesson, trial round 10: "otra vez pusiste texto en inglés ... tiene que estar en español, siempre" set off
@@ -7170,7 +7206,7 @@ if (mineB() && (!TAGS || TAGS.includes('upset-es'))) { // upset-es: complaints a
     ['yes do it and replace the 2 most useless items in the list', false, false], ['this export is useless', true, false],
     ['your fix is useless and slow', true, false],
     // (cursing and an angry user's words count, misspelled too. Lesson (the user): "cussing ... dissapoint, angry")
-    ['why did you dissapoint me with the totals', true, false], ['this is shit, the refunds are missing', true, false],
+    ['why did you dissapoint me with the totals', true, false], ['this is bullshit, the refunds are missing', true, false],
     ['i am so annoyed, the report skipped the second store', true, false], ['the chart thing aint working', true, false],
     ['move the old drafts to the trash folder', false, false], ['the cat knocked over the plant', false, false],
   ];
