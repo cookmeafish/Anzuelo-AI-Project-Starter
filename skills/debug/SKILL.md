@@ -61,7 +61,8 @@ Leave Phase 2 with the list of differences.
 ## Phase 4: Fix
 1. **A failing test first:** the smallest reproduction, automated if possible, a one-off script if not. It must fail
    before the fix, for the reason you expect.
-2. **One fix, at the root cause.** No "while I'm here" changes and no bundled refactoring.
+2. **One fix, at the root cause, and the simplest one that removes it.** Change one thing in the right place rather
+   than add layers or special cases. No "while I'm here" changes and no bundled refactoring.
 3. **Verify:** the new test passes, every other test still passes, and the original problem is gone in the real app
    (app projects: `docs/checks/qa-standards.md`).
 4. **Make it impossible, not just fixed:** where bad data caused it, add checks at the layers it passes through

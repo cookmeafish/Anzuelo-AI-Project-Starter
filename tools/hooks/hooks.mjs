@@ -785,7 +785,9 @@ export function route(prompt, pbs, { relayed = false } = {}) {
   // to the bugfix runbook on the words of the fixes it described)
   const hasPj = pbs.some(pb => pb.file === 'docs/playbooks/project.md'), starter = hasPj ? starterName() : '';
   const upgrade = hasPj && STARTER_UPGRADE.test(low);
-  if ((starter && re(`(^|[^a-z0-9])${esc(starter.toLowerCase())}($|[^a-z0-9])`).test(low)) || upgrade) {
+  // (in the starter itself every message is about the starter, so its name says nothing there: the other words route.
+  // Lesson (dogfood): every message in the starter's own session was routed to the project runbook)
+  if ((starter && !exists('.starter-template') && re(`(^|[^a-z0-9])${esc(starter.toLowerCase())}($|[^a-z0-9])`).test(low)) || upgrade) {
     const pj = pbs.find(pb => pb.file === 'docs/playbooks/project.md'), tag = starter && !upgrade ? starter : 'starter upgrade';
     if (!off.has(pj.name)) {
       let e = scored.find(s => s.pb === pj);
@@ -1053,7 +1055,12 @@ export function turn(transcript) {
   const sessionTools = rows.flatMap(r => r.type === 'assistant' && Array.isArray(r.message?.content) ? r.message.content : [])
     .filter(x => x && x.type === 'tool_use').map(x => JSON.stringify(x.input || {})).join('\n');
   const sessionStart = Date.parse(rows.find(r => r.timestamp)?.timestamp || '') || since;
-  return { since, entries, get helperEntries() { return helpers(); }, prompt: [prompt, ...queued].map(userText).filter(s => s.trim()).join('\n'), queued, toolsKnown: true, allPrompts, bgRunning: backgroundRunning(rows), watchers: watchersArmed(rows), wakeups: wakeupsPending(rows),
+  // what the session's tools returned, earlier turns too, read on first use (REQ: answer-traced): a figure read in an
+  // earlier turn is no more made up than one read now. Lesson, trial round 20: two right totals, read one turn earlier,
+  // were flagged, and the forced rewrite of the answer added a wrong claim no check looked at.
+  let readCache = null;
+  return {
+    get sessionResults() { return readCache ??= toolResults(rows); }, since, entries, get helperEntries() { return helpers(); }, prompt: [prompt, ...queued].map(userText).filter(s => s.trim()).join('\n'), queued, toolsKnown: true, allPrompts, bgRunning: backgroundRunning(rows), watchers: watchersArmed(rows), wakeups: wakeupsPending(rows),
     get sessionWrites() { const h = helpers(); return h.length ? `${mainWrites}\n${writesOf(h)}` : mainWrites; }, sessionTools, sessionStart };
 }
 
@@ -1215,7 +1222,9 @@ const sizeOf = f => { try { return fs.statSync(String(f)).size; } catch { return
 // unchanged: the turn could not know at its start that it would get that long. Lesson: agents skipped the STATUS.md
 // step in 3 of 6 turns although the CHECKS line had named it, at the end of a long line.
 export function handoffNotice(p, data) {
-  if (p === 'docs/STATUS.md' || !exists('docs/STATUS.md') || isSuspended('check:status-handoff')) return null;
+  // (the starter's own status file in the starter itself: docs/STATUS.md there is the template new projects start from)
+  const sf = exists('.starter-template') && exists('tools/starter/STATUS.md') ? 'tools/starter/STATUS.md' : 'docs/STATUS.md';
+  if (p === sf || !exists(sf) || isSuspended('check:status-handoff')) return null;
   const t = readJSON(stateFile('turn.json'), null), tp = data.transcript_path || t?.transcript;
   if (!t?.at || t.handoffShown || !tp) return null;
   const q = [...BASE_REQUIREMENTS].find(r => r.tag === 'status-handoff'), min = q?.when?.minToolCalls || 15;
@@ -1238,9 +1247,9 @@ export function handoffNotice(p, data) {
   } catch { return null; }
   // (the edit that runs this hook may not be in the transcript yet)
   if (calls + 1 < min) return null;
-  try { if (fs.statSync(abs('docs/STATUS.md')).mtimeMs > Date.parse(t.at)) return null; } catch { return null; }
+  try { if (fs.statSync(abs(sf)).mtimeMs > Date.parse(t.at)) return null; } catch { return null; }
   writeState('turn.json', { ...t, handoffShown: true });
-  return `Before you answer: this turn is past ${min} tool calls. If it will leave work open, update docs/STATUS.md (where things stand, what is next) in this pass; finished work needs no STATUS edit.`;
+  return `Before you answer: this turn is past ${min} tool calls. If it will leave work open, update ${sf} (where things stand, what is next) in this pass; finished work needs no STATUS edit.`;
 }
 
 // ---------- turns: a turn runs from the user's prompt until a Stop lets the answer end ----------
@@ -1657,18 +1666,29 @@ function removedLines(entries, fixes) {
 // anyone else stands only with the user's decision on record ("the user decided 2026-10-21").
 // Lesson: three rounds of a bookshop API setup invented a delete-capable "manager" role, the security review passed it,
 // and the user complained each time that someone other than the owner could delete.
+// With userWords (what the user wrote, at Stop when the row changed this turn), a decision on record must quote the
+// user's own words naming the role: the agent can't write "the user decided" for itself. Lesson, trial round 20: asked
+// only to "add an endpoint that deletes a book", the agent let every staff account delete, removed the test that kept
+// it owner-only, and wrote "the user decided" in the row.
 const DESTRUCTIVE = /\b(delet\w*|remov\w*|destroy\w*|eras\w*|wip(e|es|ing)\b|purg\w*|refund\w*|pay(ment|ments|outs?)?\b|charg(e|es|ing)\b|money|billing|settings?|permissions?|roles?\b[^.;]{0,20}\b(assign|grant|change)\w*|other (people|users)'?s? data|borrar|eliminar)/i;
 const ACTOR = /\b(manager|admin\w*|staff|editor|member|moderator|employee|user|clerk|operator|supervisor|any (signed[- ]in|logged[- ]in|authenticated) \w+|anyone|everyone|all (users|staff|accounts)|role)s?\b/i;
 const USER_DECIDED = /\b(the )?(user|owner|client) (decided|chose|confirmed|asked for|approved|granted)\b|\bdecided by the (user|owner)\b|\bel usuario (decidi[oó]|eligi[oó]|confirm[oó])\b/i;
-export function grantProblems(text) {
+export function grantProblems(text, userWords = null) {
   const row = String(text || '').split(/\r?\n/).find(l => /^\|\s*who may do what/i.test(l));
   if (!row) return [];
   const value = row.split('|').filter(s => s.trim()).pop() || '';
-  if (/^\s*(<\.\.\.>|n\/?a\b)/i.test(value) || USER_DECIDED.test(value)) return [];
+  if (/^\s*(<\.\.\.>|n\/?a\b)/i.test(value)) return [];
   // (test names and other parentheses are evidence, not grants; "staff cannot delete" denies, it does not grant)
+  const notOwner = s => s.replace(/\bowner(['’]s)?( account| role)?\b/gi, ' ');
   const clauses = value.replace(/`([^`]*)`/g, '$1').replace(/\([^)]*\)/g, ' ').split(/;|\.\s+|<br\s*\/?>/i);
-  const bad = clauses.filter(c => DESTRUCTIVE.test(c) && ACTOR.test(c.replace(/\bowner(['’]s)?( account| role)?\b/gi, ' ')) && !/\b(cannot|can'?t|never|not|no|refused|denied|only the owner|owner only)\b/i.test(c));
-  return bad.length ? [`docs/foundation.md "Who may do what" gives a destructive or sensitive action to someone other than the owner ("${bad[0].trim().slice(0, 80)}") without the user's decision: until the user decides, the owner only. Set it to the owner and ask the user, or record the user's own decision in the row ("the user decided <date>")`] : [];
+  const bad = clauses.filter(c => DESTRUCTIVE.test(c) && ACTOR.test(notOwner(c)) && !/\b(cannot|can'?t|never|not|no|refused|denied|only the owner|owner only)\b/i.test(c));
+  if (!bad.length) return [];
+  const flat = s => String(s).toLowerCase().replace(/\s+/g, ' ').trim(), said = flat(userWords ?? '');
+  const quoted = [...value.matchAll(/"([^"]{8,})"|“([^”]{8,})”/g)].map(m => flat(m[1] || m[2]));
+  if (USER_DECIDED.test(value) && (userWords == null || quoted.some(q => said.includes(q) && ACTOR.test(notOwner(q))))) return [];
+  return [`docs/foundation.md "Who may do what" gives a destructive or sensitive action to someone other than the owner ("${bad[0].trim().slice(0, 80)}") without the user's decision: until the user decides, the owner only. ` +
+    (userWords == null ? 'Set it to the owner and ask the user, or record the user\'s own decision in the row ("the user decided <date>")'
+      : 'A request for a feature is no grant to a role. Set it back to the owner and ask the user in one line, or quote the user\'s own words that name the role (the user decided <date>: "<their words>")')];
 }
 // The files git's last commit holds (none without git or a commit).
 function headFiles() {
@@ -4301,7 +4321,10 @@ function notices(cfg) {
     // (in one helper agent where the host has them: the setup's reading, writing and testing then stays out of this
     // conversation, which every later request re-sends. Lesson, efficiency trials: after an in-session setup each later
     // request carried about 195k tokens against 37k without the starter, and work turns cost 16 times as much)
-    out.push('SETUP IN PROGRESS: SETUP-PROMPT.md is still here. Follow it (it builds this project end to end). If you can start a helper agent (Agent tool), run the whole setup in ONE helper: give it the user\'s request and "follow SETUP-PROMPT.md end to end; wait for any helper you start yourself before you return; return the summary for the user and any question only the user can answer", then give the user that summary. This keeps the setup out of this conversation, so every later request costs less. The hooks deny deleting it until node tools/audit.mjs --setup passes. If the user just wants a quick answer, answer it, then continue setup.');
+    // (the helper checks its own answer, and that answer goes to the user unchanged. Lesson, trial round 20: in 3 of 4
+    // judged pairs the helper returned without the answer check, or the main session shortened its checked answer, and
+    // the Stop hook then found 5 to 9 more steps after the hand-back, 4 to 9 minutes each setup)
+    out.push('SETUP IN PROGRESS: SETUP-PROMPT.md is still here. Follow it (it builds this project end to end). If you can start a helper agent (Agent tool), run the whole setup in ONE helper: give it the user\'s request and "follow SETUP-PROMPT.md end to end; wait for any helper you start yourself before you return; write the answer for the user to .cache/answer.md, run node tools/hooks/hooks.mjs check --answer-file .cache/answer.md and fix what it reports; return that answer and any question only the user can answer", then give the user that answer unchanged. This keeps the setup out of this conversation, so every later request costs less. The hooks deny deleting it until node tools/audit.mjs --setup passes. If the user just wants a quick answer, answer it, then continue setup.');
   else if (!template && /status:\s*not bootstrapped/i.test(read(abs('docs/BRIEF.md'))))
     out.push('BOOTSTRAP NEEDED: this project has not been set up. Before other work, use the project-bootstrap skill ' +
       '(interview the user, fill docs/BRIEF.md, create the first runbooks). If the user just wants a quick answer, answer it, then offer.');
@@ -4597,17 +4620,11 @@ export function promptHints(prompt, cfg = config(), withNotices = true, { relaye
     // concede a complaint that was only partly true, before it had opened the file)
     // (each part of a complaint is checked on its own. Lesson: "it sounds like a robot and threatens them" was conceded
     // whole, though the letter was cold but had no threatening word)
-    hints.push('THE USER SOUNDS UPSET about a miss. Use the learn-from-upset skill (skills/learn-from-upset/SKILL.md): first open what the complaint is about, before agreeing to anything, ' +
-      'and check each part of it on its own ("Checked: <what you opened> - <what it showed>", one per part: which held, which did not), then fix the miss by its runbook ' +
-      'and say plainly what went wrong (no arguing, no long apology), then weigh how important the lesson is (one-off, lesson in the skill that missed it, rule, ' +
-      `hook check, new skill, or engine feedback that reaches every project) and write it there. ${PROVEN_HINT} ` +
-      `Put "Learned (<level>): <lesson> → <file>" (or "Learned (none): the complaint didn't hold - <evidence>") in ${NOTES_FILE}, and tell the user in one plain sentence what changes. ` +
-      // (Lesson (the user): "if i talk about being pissed ... the ai agent should be able to make the decision of oh the
-      // user is solely explaining but there is nothing wrong here")
-      'Strong words alone are not a miss: if the user is only telling you how they feel, or about something outside this work, and nothing here went wrong, say nothing about it, ' +
-      'just do what they asked, and put "Learned (none): nothing was wrong - <what they were describing>" in the notes. ' +
-      // (the user sees the issue as the agent understood it, at the end of the turn: REQ prompt-visible)
-      'When something did go wrong, add "Issue: <the user\'s problem in their terms, under 12 words>" to the notes: the user is shown it with what was done. REQ: upset-learned, check-proven.');
+    // (a pointer, not the procedure: the skill holds the steps and is read only when it applies. Lesson (the user):
+    // "direct the ai agent to the runbook of upset user so that it doesn't hold all of that in context"; the hint was
+    // about 1,500 characters on every message that set it off)
+    // (the opening words stay: project hooks and the trigger log key on them, hook output contract)
+    hints.push('THE USER SOUNDS UPSET (maybe): open skills/learn-from-upset/SKILL.md and follow it. It starts by deciding whether anything is actually wrong. REQ: upset-learned.');
   // feedback or a message the user wants passed on to someone else carries that receiver's requirements, not this
   // project's ("give that feedback to the starter and mention to make sure it's fixed"). Lesson: such a relay got the
   // REQUIREMENT hint.
@@ -6053,7 +6070,7 @@ export function coreChecks(x, cfg) {
     const wroteNow = new Set(x.uses.filter(u => /^(Write|Edit|MultiEdit)$/.test(u.name)).map(u => rel(u.input.file_path || '')));
     // Lesson: numbers the agent itself wrote into files earlier in the session were flagged as made up: what it wrote
     // (its Write/Edit inputs, this session) is part of what it knows, like what it read.
-    const corpus = [x.results, x.prompt, x.allPrompts?.join('\n'), today(), ...ledgers.map(p => read(abs(p))), ...cited.filter(p => !wroteNow.has(p)).map(p => read(abs(p)))].join('\n').replace(/(\d),(?=\d{3}\b)/g, '$1');
+    const corpus = [x.results, x.sessionResults, x.prompt, x.allPrompts?.join('\n'), today(), ...ledgers.map(p => read(abs(p))), ...cited.filter(p => !wroteNow.has(p)).map(p => read(abs(p)))].join('\n').replace(/(\d),(?=\d{3}\b)/g, '$1');
     const ownWrites = String(x.sessionWrites || '').replace(/(\d),(?=\d{3}\b)/g, '$1');
     // A rounded form of a traced figure is traced ("238,000" or "238 thousand" for 238166, "103 million" for 103383574),
     // and so is the total of the figures in one tool result (a sum of usage lines). Lesson (a field report): an answer
@@ -6351,6 +6368,17 @@ export function coreChecks(x, cfg) {
         bad.push(`${p} ("${new RegExp(fbx.source, 'iu').exec(now)[1]}")`);
     }
     if (bad.length) add('forbidden-terms', `These files now hold a name the user asked to keep out of the project: ${bad.slice(0, 5).join('; ')}. Replace each with a neutral word or example (seen in ${bad[0]}).`);
+  }
+  // REQ: grant-decided. A "Who may do what" row changed this turn grants a destructive action beyond the owner only on
+  // the user's own quoted words (grantProblems). A row as it was at git's last commit is not this turn's to judge.
+  if (x.changed.includes('docs/foundation.md') && exists('docs/foundation.md')) {
+    const rowOf = s => String(s || '').split(/\r?\n/).find(l => /^\|\s*who may do what/i.test(l)) || '';
+    const now = read(abs('docs/foundation.md')), before = spawnSync('git', ['show', 'HEAD:docs/foundation.md'], { cwd: ROOT, encoding: 'utf8' });
+    if (rowOf(now) !== rowOf(before.status === 0 ? before.stdout : '')) {
+      const asked = read(HISTORY).split('\n').map(l => { try { return JSON.parse(l).prompt; } catch { return ''; } });
+      const g = grantProblems(now, [x.prompt, ...asked].join('\n'));
+      if (g.length) add('grant-decided', g[0]);
+    }
   }
   const vb = verbatimHits(x, cfg);
   if (vb.length) add('no-verbatim-examples', `These files copy the user's own words: ${vb.slice(0, 5).join('; ')}. Rephrase each as the general principle ` +
@@ -6850,7 +6878,11 @@ export function touchedChecks(files) {
     } else {
       const logicOf = q => JSON.stringify({ ...q, message: undefined, rule: undefined, _comment: undefined, pack: undefined });
       const old = new Map((b.requirements || []).filter(q => q?.tag).map(q => [q.tag, logicOf(q)]));
-      for (const q of (a.requirements || []).filter(q => q?.tag)) if (old.get(q.tag) !== logicOf(q)) tags.add(q.tag); // added or changed; a removed check has nothing left to test
+      // A check exactly as the starter ships it (a pack's, installed unchanged) was proven by the starter's own tests.
+      // Not in the starter itself, whose shipped copy is generated from the file being changed. Lesson, trial round 20:
+      // installing a pack asked a project to self-test 12 checks it had not touched (94 s).
+      const shipped = exists('.starter-template') ? new Map() : new Map(readJSON(abs(ENGINE_CHECKS), { requirements: [] }).requirements.filter(q => q?.tag).map(q => [q.tag, logicOf(q)]));
+      for (const q of (a.requirements || []).filter(q => q?.tag)) if (old.get(q.tag) !== logicOf(q) && shipped.get(q.tag) !== logicOf(q)) tags.add(q.tag); // added or changed; a removed check has nothing left to test
     }
   }
   return { tags: [...tags] };
@@ -7331,12 +7363,14 @@ export const BASE_REQUIREMENTS = [
     // (Lesson: a setup answer listed about 40 files one by one, burying the few the user would open)
     // (Lesson: complaint answers listed STATUS, CHANGELOG, plans and rule files one by one around a one-line fix.)
     message: "End the answer with a 'Finished' section: what was done, and the exact path of each file the user will open or care about. With more than about 10, group the rest by folder with a count (\"docs/playbooks/: 6 runbooks\"). The project's own records (docs/STATUS.md, docs/CHANGELOG.md, docs/DECISIONS.md, plans, specs, reviews, the rule and check files) need no list: \"plus the usual records\" is enough." },
-  { tag: 'changelog', rule: '12', when: { filesChanged: ['CLAUDE.md', 'AGENTS.md', 'docs/playbooks/**', 'docs/checks/**', 'skills/**', 'tools/**'] }, require: { filesChanged: ['docs/CHANGELOG.md'] },
-    message: 'Add a dated line to docs/CHANGELOG.md for what changed in the project (rules, runbooks, checks, skills, tools).' },
+  // (in the starter itself, docs/CHANGELOG.md and docs/STATUS.md are the templates new projects start from: its own
+  // records are under tools/starter/, which projects never get. Lesson (dogfood): both checks asked to edit the templates)
+  { tag: 'changelog', rule: '12', when: { filesChanged: ['CLAUDE.md', 'AGENTS.md', 'docs/playbooks/**', 'docs/checks/**', 'skills/**', 'tools/**'] }, require: { filesChanged: ['docs/CHANGELOG.md', 'tools/starter/STARTER-CHANGELOG.md'] },
+    message: 'Add a dated line to docs/CHANGELOG.md for what changed in the project (rules, runbooks, checks, skills, tools). In the starter itself: tools/starter/STARTER-CHANGELOG.md.' },
   // (only when work is left open: finished work is in the CHANGELOG, and a handoff with nothing to hand off is churn.
   // Lesson (efficiency trials): STATUS.md was edited on nearly every turn, two or three times in one feature turn)
-  { tag: 'status-handoff', rule: '12', when: { workTurn: true, minToolCalls: 15, answerMatches: String.raw`\b(still open|not (yet )?(done|finished|fixed|tested|verified)|left to do|to do next|next steps?|unfinished|remaining (work|items?|steps?)|blocked (on|by)|waiting (on|for) (you|the user|your)|NOT VERIFIED|pendiente|falta(n)? por|sin terminar|queda(n)? por)\b` }, require: { filesChanged: ['docs/STATUS.md'] },
-    message: 'Work is left open: update docs/STATUS.md (Now / Next / Open questions) so the next session can pick it up cold.' },
+  { tag: 'status-handoff', rule: '12', when: { workTurn: true, minToolCalls: 15, answerMatches: String.raw`\b(still open|not (yet )?(done|finished|fixed|tested|verified)|left to do|to do next|next steps?|unfinished|remaining (work|items?|steps?)|blocked (on|by)|waiting (on|for) (you|the user|your)|NOT VERIFIED|pendiente|falta(n)? por|sin terminar|queda(n)? por)\b` }, require: { filesChanged: ['docs/STATUS.md', 'tools/starter/STATUS.md'] },
+    message: 'Work is left open: update docs/STATUS.md (Now / Next / Open questions) so the next session can pick it up cold. In the starter itself: tools/starter/STATUS.md.' },
   { tag: 'audit-run', rule: '12', when: { filesChanged: ['CLAUDE.md', 'AGENTS.md', 'docs/MENU.md', 'docs/playbooks/**', 'docs/checks/**', 'skills/**', 'tools/hooks/requirements.json', 'tools/hooks/config.json'] },
     require: { toolPassed: { cmd: String.raw`audit\.mjs`, pass: 'audit: PASS', selfRun: 'node tools/audit.mjs', selfAuto: true } },
     message: 'Project structure changed, and the audit (run by the hooks at the end) reports a FAIL: fix each one; the hooks run it again when you finish.' },

@@ -3,7 +3,7 @@
 1. ROUTE every message: hook hints + DIRECTORY.md → open the matched runbook THIS turn (or its skill), follow it in order, and name it in .cache/turn-notes.md ("Playbook: x.md"). Agents without hooks: `node tools/hooks/hooks.mjs begin "<request>"` first.
 2. A new kind of task → do it, then leave a runbook + a check behind (runbook-create). A miss while following a runbook → write the lesson into it. Unused ones get curated (skill-curate).
 3. "always / never / remember / from now on", a complaint, or "keep doing this" → project-rule: rule + user-requirements row + check + memory + test + audit.
-   Suspect the user is upset (any wording or language, hooks or not)? Decide it yourself: a real issue → learn-from-upset, and `Issue: <it, in a few words>` in .cache/turn-notes.md (the user then sees it acknowledged). Only venting → do what they asked, nothing more.
+   Suspect the user is upset, or an issue keeps coming up (any wording or language, hooks or not)? Open skills/learn-from-upset/SKILL.md and follow it.
 4. Accuracy: never invent facts, results or sources. Verify before claiming. Say what was not verified.
 5. Questions get answers, not edits. Protected files stay untouched. Versioned files get a new version.
 6. No outward actions (send, post, buy, submit, contact, publish, push, delete user data) without an explicit OK.

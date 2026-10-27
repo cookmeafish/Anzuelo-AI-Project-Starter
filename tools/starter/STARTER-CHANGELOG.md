@@ -6,6 +6,29 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-10-27: Pointers, not procedures, and starter-only false alarms.
+  - **The upset hint is a pointer:** about 1,500 characters became one line naming the learn-from-upset skill (the
+    opening words stay for project hooks). The skill starts with a gate: a false alarm (venting, a test, nothing
+    wrong) records `Learned (none): nothing was wrong` and stops; a real issue, or one that keeps coming up even said
+    calmly, writes `Issue:` and goes on. The session checklist line is a pointer too.
+  - **The simplest fix that removes the cause:** learn-from-upset and debug now say it: one change in the right place,
+    extending what exists rather than adding layers.
+  - **Starter-only false alarms (dogfood):** in the starter itself, the changelog and status checks accept its own
+    records under `tools/starter/` (new `tools/starter/STATUS.md`) instead of the templates new projects start from;
+    naming the starter no longer routes every message to the project runbook there (projects keep it).
+  - **Round v20 fixes:**
+    - **No invented permission grants (REQ grant-decided):** when a turn changes the "Who may do what" row in
+      `docs/foundation.md`, a destructive right given beyond the owner needs the user's own quoted words naming the
+      role. A request for a feature is not such a grant. In the trial, the agent was asked only to add a delete
+      endpoint, let all staff delete, and wrote "the user decided".
+    - **Figures read earlier in the session are traced (answer-traced):** two right totals read one turn earlier were
+      flagged as made up, and the forced rewrite of the answer added a wrong claim.
+    - **The setup helper checks its own answer:** it writes the answer to `.cache/answer.md` and runs the answer check
+      on it, and the main session passes that answer on unchanged. In 3 of 4 judged pairs, the Stop hook found 5 to 9
+      more steps after the hand-back.
+    - **Checks installed as shipped need no self-test (hooks-tested):** a pack check identical to the starter's copy
+      was already proven by the starter's tests. Installing a pack had asked for 12 of them to be tested again.
+
 - 2026-10-27: The user can see Anzuelo work, runbooks become the checklist, and creation gets stricter.
   - **⚓ Anzuelo lines (REQ prompt-visible):** under Claude Code, the hooks show the user a short line with an icon each
     time Anzuelo itself does something: 📖 pulled up a runbook, ⚡ brought in a skill, 💬 a question answered first,

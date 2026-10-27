@@ -10,6 +10,15 @@ a rule is the **project-rule** skill; a lesson in a followed skill goes under it
 `## Pitfalls`; a new kind of work is **runbook-create**.
 
 ## Steps
+**Decide first: is anything actually wrong?** Use this skill when the user is upset at the work, or when the same issue
+keeps coming up even if they say it calmly (check `docs/lessons.md`, `tools/hooks/state/triggers.jsonl` and
+`node tools/recall.mjs "<the issue>"` for earlier cases). Strong words alone are not a miss.
+- **False alarm** (venting, a test of the hooks, something outside this work, nothing here went wrong): put
+  `Learned (none): nothing was wrong - <what they were describing>` in `.cache/turn-notes.md`, say nothing about it,
+  do what they asked, and stop following this skill. The user sees nothing.
+- **A real issue, or a repeat:** put `Issue: <the problem in the user's terms, under 12 words>` in
+  `.cache/turn-notes.md` (the user is shown "acknowledged" with it at the end of the turn), then follow the steps below.
+
 0. **Check the complaint first, before you agree.** Open what the user saw: the last commit or what was delivered
    (`git log -- <file>`, `git show HEAD:<file>`), not only the working copy, and never from memory. Never say git has
    no earlier version without running `git log`. Split the complaint into its claims and check each one ("cold and
@@ -22,8 +31,10 @@ a rule is the **project-rule** skill; a lesson in a followed skill goes under it
    **The example the user named is one case, not the whole miss:** find every other case of the same miss in the same
    result (every item of that kind, every slot it fills, every page it is on) and fix them all in this turn, before the
    answer says it is fixed or can't happen again. A check written for the lesson runs over the whole result, and passes
-   on it, before you say so. Lesson: one weak pick was swapped and a narrow check added, while the same result still held
-   other weak picks of the same kind, and the user found them next.
+   on it, before you say so. Lesson: one weak pick was swapped and a narrow check added, while the same result still
+   held other weak picks of the same kind, and the user found them next.
+   **The simplest fix that removes the cause:** change one thing in the right place rather than add layers; extend an
+   existing step, tool or check rather than add a new one. If the fix needs much more than that, say why in one line.
 2. **Find the cause** in one sentence: "The <skill/runbook/check> did not <step>, so <what went wrong>."
 3. **Pick the lowest level that will reliably stop it:**
 

@@ -1597,6 +1597,10 @@ STOP.push(
   { name: 'answer-traced: rounded forms and a total of the tool output\'s figures: passes', prompt: 'how many tokens did the job take in total',
     tools: [{ name: 'Bash', input: { command: 'node tools/usage.mjs' }, result: 'agent a: 412300\nagent b: 538391\noutput 238166\ncache read 103383574' }],
     answer: 'The job used about 238,000 output tokens. The two agents used 950,691 in all, and cache reads came to 103 million.', expect: { not: ['answer-traced'] } },
+  // (Lesson, trial round 20: two right totals read one turn earlier were flagged, and the forced rewrite added a wrong claim)
+  { name: 'answer-traced: figures read in an earlier turn of the session: passes', prompt: 'what was our best week so far by revenue', tools: [...many(1)],
+    before: [{ name: 'Bash', input: { command: 'node scripts/weekly.mjs' }, result: 'week 41: revenue 479, units 26\nweek 42: revenue 692, units 37' }],
+    answer: 'Your best week was week 42, with revenue of 692 against 479 the week before.', expect: { not: ['answer-traced'] } },
   { name: 'answer-traced: a round figure that no tool output rounds to is still flagged', prompt: 'how many tokens did the job take in total',
     tools: [{ name: 'Bash', input: { command: 'node tools/usage.mjs' }, result: 'output 238166' }],
     answer: 'The job used about 500,000 output tokens.', expect: { block: true, tags: ['answer-traced'] } },
@@ -1745,6 +1749,13 @@ STOP.push(
   { name: 'a doc that copies the user\'s own words: blocked', prompt: 'never let the reports show the raw server error to my customers again please', tools: [pb('project'), bash('node tools/hooks/selfcheck.mjs'), bash('node tools/audit.mjs')],
     files: { ...MEM, 'CLAUDE.md': TWIN + '\n- never let the reports show the raw server error to my customers again\n', 'docs/checks/user-requirements.md': 'row', 'tools/hooks/requirements.json': '{"requirements":[]}', 'docs/CHANGELOG.md': 'x' },
     answer: 'Playbook: project.md. hook: N/A judgment.' + FIN, expect: { block: true, tags: ['no-verbatim-examples'] } },
+  // REQ: grant-decided. Lesson, trial round 20: a delete endpoint request became "staff may delete (the user decided)"
+  { name: 'grant-decided: a row changed this turn that grants staff deletes on a "decision" the user never wrote: blocked', prompt: 'add an endpoint that deletes a book', tools: [pb('project')],
+    files: { 'docs/foundation.md': '| Area | Decision |\n|---|---|\n| Who may do what | Staff may add, edit and delete books (the user decided 2026-10-26) |\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Playbook: project.md.' + FIN, expect: { block: true, tags: ['grant-decided'] } },
+  { name: 'grant-decided: the same row quoting the user\'s own words naming the role: passes', prompt: 'yes, let my staff delete books too', tools: [pb('project')],
+    files: { 'docs/foundation.md': '| Area | Decision |\n|---|---|\n| Who may do what | Staff may add, edit and delete books (the user decided 2026-10-26: "let my staff delete books") |\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Playbook: project.md.' + FIN, expect: { not: ['grant-decided'] } },
   // REQ: waiver-tally. Lesson, field report: the same checks were waived build after build and nothing said so
   { name: 'waiver-tally: a check waived in 3 earlier turns asks the agent to tell the user', prompt: 'never let the reports show the raw server error to my customers again please', tools: [pb('project'), bash('node tools/hooks/selfcheck.mjs'), bash('node tools/audit.mjs')],
     prep: dir => write(dir, { 'tools/hooks/state/waivers.json': JSON.stringify({ 'no-verbatim-examples': ['a|1', 'b|2', 'c|3'] }) }),
@@ -1939,6 +1950,10 @@ STOP.push(
     prep: turnStart('config.json', s => JSON.stringify({ ...JSON.parse(s), namesIgnore: ['vendor/**'] }, null, 2)), files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.' + FIN, expect: { block: false, not: ['hooks-tested'] } },
   { name: 'hooks-tested: a changed check needs its own scenarios (selfcheck --tags): blocked', prompt: 'add a check for meal plans', tools: [pb('project'), bash('node tools/audit.mjs')],
     prep: turnStart('requirements.json', NEW_CHECK), files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.' + FIN, expect: { block: true, tags: ['hooks-tested'], says: /--tags meal-ok/ } },
+  // (a check installed exactly as the starter ships it is proven already. Lesson, trial round 20: 12 pack checks re-tested)
+  { name: 'hooks-tested: a project installs a check exactly as the starter ships it: no self-test asked', prompt: 'add a check for meal plans', tools: [pb('project'), bash('node tools/audit.mjs')], removeMarker: true,
+    prep: dir => { turnStart('requirements.json', NEW_CHECK)(dir); write(dir, { 'tools/hooks/engine-checks.json': JSON.stringify({ requirements: [{ tag: 'meal-ok', pack: 'meals', when: { playbookUsed: 'meal-plan' }, require: { answerMatches: 'meals planned' }, message: 'Shipped wording.' }] }) }); },
+    files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.' + FIN, expect: { not: ['hooks-tested'] } },
   { name: 'hooks-tested: the changed check\'s scenarios ran and passed: passes', prompt: 'add a check for meal plans', tools: [pb('project'), bash('node tools/audit.mjs'), bash('node tools/hooks/selfcheck.mjs --tags meal-ok', 'selfcheck: ALL PASS (2 passed, 0 failed)')],
     prep: turnStart('requirements.json', NEW_CHECK), files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.' + FIN, expect: { block: false, not: ['hooks-tested'] } },
   // an audit --setup that ran the whole self-test counts as that run, so setup runs the suite once; one whose self-tests
@@ -3678,15 +3693,18 @@ PROMPT.push(
   // a report or message for the starter or another session: one primary ROUTE (the project runbook when the starter is
   // named), never the domain runbook on a generic word, never the deliverable runbook
   hintRoute('runbook-ledger: the routed runbook\'s checklist comes with the route', 'Write a detailed report to anzuelo with recommendations on how to improve it',
-    { routes: 1, has: ['ROUTE: project', 'CHECKLIST (docs/playbooks/project.md', 'Skip N:'], setupFn: { ...STARTER_IS, 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) } }),
+    { routes: 1, removeMarker: true, has: ['ROUTE: project', 'CHECKLIST (docs/playbooks/project.md', 'Skip N:'], setupFn: { ...STARTER_IS, 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) } }),
   hintRoute('prompt-visible: a routed runbook shows the user the book line, with its checklist count', 'Write a detailed report to anzuelo with recommendations on how to improve it',
-    { routes: 1, env: { CLAUDE_PROJECT_DIR: '.' }, has: ['⚓ Anzuelo 📖 pulled up the project runbook (✅ 5 items to check off)'], setupFn: { ...STARTER_IS, 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) } }),
-  hintRoute('runbook-ledger: off by default, no checklist', 'Write a detailed report to anzuelo with recommendations on how to improve it', { routes: 1, has: ['ROUTE: project'], hasNot: ['CHECKLIST ('] }),
-  hintRoute('a report to the starter on how to improve it routes to the project runbook only','Write a detailed report to anzuelo with recommendations on how to improve it', { routes: 1, has: ['ROUTE: project'], hasNot: NOT_DOMAIN }),
-  hintRoute('feedback to the starter with a review of the report step routes to the project runbook only', 'report to anzuelo how to improve the review of each report', { routes: 1, has: ['ROUTE: project'], hasNot: NOT_DOMAIN }),
+    { routes: 1, removeMarker: true, env: { CLAUDE_PROJECT_DIR: '.' }, has: ['⚓ Anzuelo 📖 pulled up the project runbook (✅ 5 items to check off)'], setupFn: { ...STARTER_IS, 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) } }),
+  hintRoute('runbook-ledger: off by default, no checklist', 'Write a detailed report to anzuelo with recommendations on how to improve it', { routes: 1, removeMarker: true, has: ['ROUTE: project'], hasNot: ['CHECKLIST ('] }),
+  hintRoute('a report to the starter on how to improve it routes to the project runbook only','Write a detailed report to anzuelo with recommendations on how to improve it', { routes: 1, removeMarker: true, has: ['ROUTE: project'], hasNot: NOT_DOMAIN }),
+  hintRoute('feedback to the starter with a review of the report step routes to the project runbook only', 'report to anzuelo how to improve the review of each report', { routes: 1, removeMarker: true, has: ['ROUTE: project'], hasNot: NOT_DOMAIN }),
   hintRoute('a write-up for the other session is a message, not a deliverable', 'write up what you found and how to improve it for the other session', { routes: 0, hasNot: [...NOT_DOMAIN, 'NO RUNBOOK'] }),
   hintRoute('telling another session to improve its report routes nowhere', 'tell the other session to improve its report', { routes: 0, hasNot: [...NOT_DOMAIN, 'NO RUNBOOK'] }),
-  hintRoute('Spanish: a report to the starter routes to the project runbook only', 'escribe un informe para anzuelo con recomendaciones para mejorar', { routes: 1, has: ['ROUTE: project'], hasNot: NOT_DOMAIN }),
+  // (in the starter itself, its name routes nothing: every message there is about it. Lesson (dogfood): every message
+  // in the starter's own session was routed to the project runbook)
+  hintRoute('in the starter itself, naming the starter routes nothing', 'HEY ANZUELO CAN YOU DETECT THIS MESSAGE', { hasNot: ['ROUTE: project'] }),
+  hintRoute('Spanish: a report to the starter routes to the project runbook only','escribe un informe para anzuelo con recomendaciones para mejorar', { routes: 1, removeMarker: true, has: ['ROUTE: project'], hasNot: NOT_DOMAIN }),
   hintRoute('Spanish: a message for the other session routes nowhere', 'dile a la otra sesión que escriba un informe para mejorar', { routes: 0, hasNot: [...NOT_DOMAIN, 'NO RUNBOOK'] }),
   hintRoute('a generic word gives way to a specific match, named as weak', 'look at the hooks of anzuelo and improve them',{ routes: 1, has: ['ROUTE: project', 'WEAK MATCH, not routed: zorbel-tune'], hasNot: NOT_DOMAIN }),
   // positive cases still route: a real deliverable, a domain job on its specific words, a generic word when it is all there is
@@ -6588,6 +6606,7 @@ if (mineB()) { // status-handoff: the edit that finds the turn past 15 tool call
   // (Lesson: agents skipped STATUS.md in 3 of 6 turns although the CHECKS line had named it, at the end of a long line)
   const dir = copyProject();
   try {
+    fs.rmSync(path.join(dir, '.starter-template'), { force: true }); // a project (the starter keeps its own status file)
     const tp = path.join(dir, '.cache/t.jsonl'); fs.mkdirSync(path.dirname(tp), { recursive: true });
     const old = (Date.now() - 3600_000) / 1000; fs.utimesSync(path.join(dir, 'docs/STATUS.md'), old, old);
     fs.writeFileSync(tp, '{"type":"user","message":{"content":"an earlier request"}}\n' + '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read"}]}}\n'.repeat(20));
@@ -6757,8 +6776,13 @@ if (mineB()) { // setup-gate (permissions): a destructive right goes to the owne
   const decided = grantProblems(row('Deleting a book: the manager role (the user decided 2026-10-21)'));
   const denied = grantProblems(row('Deleting: owner only; staff cannot delete'));
   const none = grantProblems(row('N/A - no accounts'));
-  report(invented.length === 1 && /manager role only/.test(invented[0]) && anyone.length === 1 && !owner.length && !decided.length && !denied.length && !none.length,
-    'setup-gate: a destructive right given to a role the user never granted is refused; the owner, the user\'s own decision and N/A pass', JSON.stringify({ invented, anyone, owner, decided, denied, none }).slice(0, 900));
+  // (with what the user wrote: the decision must quote it and name the role)
+  const forged = grantProblems(row('Deleting a book: staff (the user decided 2026-10-26)'), 'add an endpoint that deletes a book');
+  const quotedFeature = grantProblems(row('Deleting a book: staff (the user decided 2026-10-26: "add an endpoint that deletes a book")'), 'add an endpoint that deletes a book');
+  const quotedRole = grantProblems(row('Deleting a book: staff (the user decided 2026-10-26: "staff can delete books too")'), 'ok, staff can delete books too');
+  report(invented.length === 1 && /manager role only/.test(invented[0]) && anyone.length === 1 && !owner.length && !decided.length && !denied.length && !none.length &&
+    forged.length === 1 && /no grant to a role/.test(forged[0]) && quotedFeature.length === 1 && !quotedRole.length,
+    'setup-gate: a destructive right given to a role the user never granted is refused; the owner, the user\'s own (quoted) decision and N/A pass', JSON.stringify({ invented, anyone, owner, decided, denied, none, forged, quotedFeature, quotedRole }).slice(0, 900));
 }
 
 if (mineB()) { // plain-writing in a page: tags are markup, not words; a real wall of text is still found
@@ -6867,6 +6891,7 @@ if (mineB()) { // the manual path (agents without hooks): `hooks.mjs begin "<req
   try {
     write(dir, { ...HINT_FIX, ...HIST('export the invoices to a csv file for the accountant', ['src/export.mjs']) });
     applyEdits(dir, STARTER_IS);
+    fs.rmSync(path.join(dir, '.starter-template'), { force: true }); // a project: only a project routes on the starter's name
     const kinds = s => [...new Set([...String(s).matchAll(/(?:^|\n|\\n)(?:- )?((?:ALSO )?ROUTE: [\w-]+|WEAK MATCH|PRAISE|RULE REQUEST|REQUIREMENT|RECALL)/g)].map(m => m[1]))].sort().join(' | ');
     const want = {
       'Write a detailed report to anzuelo with recommendations on how to improve it': 'ROUTE: project',
