@@ -4,12 +4,16 @@ Where work on the starter itself stands, for the next session. Projects never ge
 docs/STATUS.md, which here is the template new projects start from).
 
 ## Now
+- 2026-10-28: Examples, tests and lessons rewritten in neutral subjects (0793661, local, not pushed; trial not run).
+  The user must remove the starter hooks from C:/projects/.claude/settings.local.json (the host blocked the edit).
 - 2026-10-27: Round v20 (on 4e83937) judged: WORSE, 2 high findings. Both are fixed in this batch: an invented
   permission grant, and a false "made up" flag whose forced rewrite added an error. Also in this batch: the upset hint
   as a pointer, starter-only false alarms, a setup helper that checks its own answer, and no re-tests of checks
   installed as shipped.
 
 ## Next
+0. Run the trial on 0793661, then push when the user names main. Open close calls: the zorbel-tune test shape and
+   the gaming-heavy media-group list in skills/research/scripts/claims.mjs.
 1. Push this batch, then run round v21 to confirm v20's highs are gone. Then run an obedience round.
 2. Open from v20 (medium):
    - Every Stop round asks for the whole answer again, so users read it 2 to 3 times.
