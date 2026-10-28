@@ -78,7 +78,7 @@ export function transcriptState(tp) {
 }
 // (the stop round count, the checks that failed earlier in the turn, hints shown, the plan nudge and the frustration
 // record are a turn's too. Lesson: a second session reset the first one's block count and lost its earlier failures.)
-const PER_SESSION = new Set(['turn.json', 'acknowledged.json', 'snapshot.json', 'turn-end.json', 'notices-shown.json', 'stop-blocks.json', 'stop-failed.json',
+const PER_SESSION = new Set(['turn.json', 'acknowledged.json', 'reminders-shown.json', 'snapshot.json', 'turn-end.json', 'notices-shown.json', 'stop-blocks.json', 'stop-failed.json',
   'event-hints.json', 'plan-watch.json', 'friction-turn.json', 'ext-shown.json', 'wakeups.json', 'checklist.json', 'scope-shown.json', 'alive.json']);
 const stateName = n => SID && PER_SESSION.has(n) ? n.replace(/.json$/, `.${SID}.json`) : n;
 // a session's own file when it has one, else the shared one (written before sessions were told apart, or by a test)
@@ -2425,9 +2425,12 @@ export function context(t, cfg, answerOverride) {
   const cmds = uses.map(u => u.input.command).filter(c => typeof c === 'string');
   const changed = ownChanges(changedFiles(t.since, cfg), t, cfg);
   const work = changed.filter(p => !match(p, cfg.notWork));
+  // (a runbook made this turn was not there for the request to route to: it is a new task's runbook, not one the hooks
+  // pulled up. Lesson (probe): the new-runbook line never showed, and the end of the turn said the hooks pulled it up)
   const pbs = routablePlaybooks();
   const menuInfo = expandMenu(t.prompt);
-  const routedScores = route(menuInfo.expanded, pbs);
+  const atStart = readJSON(stateFile('turn.json'), {}).runbooks;
+  const routedScores = route(menuInfo.expanded, Array.isArray(atStart) ? pbs.filter(p => atStart.includes(path.basename(p.file))) : pbs);
   const routed = routedScores.map(s => s.pb);
   for (const c of menuInfo.known) {
     const pb = pbs.find(p => p.file.endsWith('/' + menuInfo.codes[c].playbook));
@@ -4396,9 +4399,16 @@ function cmdSession(data) {
   if (SID && parts[0] && !seen) writeState('checklist.json', { at: new Date().toISOString() });
   const status = read(abs('docs/STATUS.md')).split(/\r?\n/).slice(0, 40).join('\n').trim();
   if (status) parts.push('--- docs/STATUS.md (where things stand) ---\n' + status);
-  const n = notices(cfg);
-  // REQ: interrupted-work. After a resume or compaction, prove the files edited before the interruption are intact.
-  if (/resume|compact/i.test(data.source || '')) {
+  // (a resumed conversation already saw this session's reminders: only new ones are shown. Lesson (probe): every resume
+  // showed the user the same six reminders again)
+  const before = new Set(/resume/i.test(data.source || '') ? readJSON(stateFile('reminders-shown.json'), {}).keys || [] : []);
+  const n = notices(cfg).filter(x => !before.has(noticeKey(x)));
+  writeState('reminders-shown.json', { keys: [...new Set([...before, ...n.map(noticeKey).filter(Boolean)])] });
+  // REQ: interrupted-work. After a compaction, or a resume of a turn that never ended, prove the files edited before
+  // the interruption are intact. (Lesson (probe): a resume after a turn that ended normally told the user files from
+  // "before the interruption" were intact)
+  const end = readJSON(stateFile(TURN_END), {}), ended = end.clean && (end.at || '') >= (readJSON(stateFile('turn.json'), {}).at || '');
+  if (/compact/i.test(data.source || '') || (/resume/i.test(data.source || '') && !ended)) {
     const r = spawnSync(process.execPath, [path.join(ROOT, 'tools', 'integrity-check.mjs'), '--hours', '12'], { cwd: ROOT, encoding: 'utf8', timeout: 60000 });
     const out = (r.stdout || '').trim().split(/\r?\n/);
     // said as what it means (Lesson: "INTERRUPTED WORK: RESULT: PASS (235 file(s) checked)" read like a failure)
@@ -5006,7 +5016,7 @@ export function passLine(x, rounds = 0) {
   // (the agent may find the user upset with no hook firing, in any wording or language, as the session checklist asks:
   // its "Issue:" line is the confirmation either way. Lesson (the user): "a hook at the begining of every session can
   // tell the ai agent to trigger anzuelo fixer/feedack acknowledge thing if it suspects the user is upset")
-  const upset = !!(x.prompt && isUpset(x.prompt)), real = !!issue && !none;
+  const upset = !!(x.prompt && isUpset(x.prompt)), real = !!issue && !none && !staleIssue(clip(issue));
   // (acknowledged already when the issue was written down: acknowledgedLine. The end of the turn says it was fixed)
   const acked = real && readJSON(stateFile(ACKED), {}).issue === clip(issue);
   const upsetLine = real ? `${brand()} 🚨 ${acked ? 'fixed' : 'acknowledged'}: ${clip(issue)}${acked ? '' : ' → fixed'}` : '';
@@ -5023,7 +5033,8 @@ export function passLine(x, rounds = 0) {
 // ---------- PreToolUse ----------
 function deny(reason) {
   // (the user sees what was stopped and why, in one line: REQ prompt-visible)
-  const first = String(reason).replace(/^REQ: [\w-]+\.\s*/, '').split(/(?<=[.!?])\s/)[0].slice(0, 160);
+  // (the pattern a guard matched is for the agent, not the user. Lesson (probe): the ❗ line showed a raw regex)
+  const first = String(reason).replace(/^REQ: [\w-]+\.\s*/, '').replace(/\s*\(pattern .*?\)(?= into | in |[.,]|$)/, '').split(/(?<=[.!?])\s/)[0].slice(0, 160);
   // (❗ for the guards that protect what can't be undone or must never leave: Lesson (the user): "critical things maybe a
   // exclamation?")
   const critical = /^REQ: (no-ai-attribution|no-secrets|protect-originals|no-overwrite|outward-gate|publish-gate|git-safety|browser-guard|approval-gate|scope-separate|injection-guard)\b/.test(String(reason));
@@ -5628,7 +5639,10 @@ function cmdPretool(data) {
   const r = pretoolDecision(d);
   if (r) { deny(r); return; }
   const notes = [overlapNotice(data), (() => { try { return scopeNotice(data); } catch { return null; } })()].filter(Boolean).join('\n');
-  if (brief || bare || notes) process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', ...(brief || bare ? { updatedInput: d.tool_input } : {}), ...(notes ? { additionalContext: notes } : {}) } }));
+  // (an Issue line written from the shell, which the edit hook never sees, is acknowledged at the next tool call.
+  // Lesson (the user): an Issue line appended with echo showed the user nothing)
+  const ack = HOST === 'claude-code' ? visibleLines(acknowledgedLine('.cache/turn-notes.md')) : '';
+  if (brief || bare || notes || ack) process.stdout.write(JSON.stringify({ ...(brief || bare || notes ? { hookSpecificOutput: { hookEventName: 'PreToolUse', ...(brief || bare ? { updatedInput: d.tool_input } : {}), ...(notes ? { additionalContext: notes } : {}) } } : {}), ...(ack ? { systemMessage: ack } : {}) }));
 }
 // A command that starts by changing to the folder it already runs in ("cd <project> && ..."): the cd is dropped in
 // place, since commands start in the project. The user's permission settings still decide the rest. Lesson, trial
@@ -5750,12 +5764,17 @@ function cmdPosttool(data) {
 const ACKED = 'acknowledged.json';
 export function acknowledgedLine(p) {
   if (p !== '.cache/turn-notes.md') return '';
-  const issue = /^[\s>*_-]*issue\s*:\s*(.+)$/im.exec(read(abs(p)))?.[1]?.replace(/\s+/g, ' ').trim().slice(0, 110);
   const turn = readJSON(stateFile('turn.json'), {}).at || '', was = readJSON(stateFile(ACKED), {});
-  if (!issue || (was.turn === turn && was.issue === issue)) return '';
-  writeState(ACKED, { turn, issue });
+  // (this turn's notes only, and an issue no earlier turn acknowledged: the notes file carries over between turns.
+  // Lesson (probe): a later, unrelated turn showed the earlier turn's "acknowledged" at its first tool call)
+  const issue = turnNotes(Date.parse(turn) || 0).match(/^[\s>*_-]*issue\s*:\s*(.+)$/im)?.[1]?.replace(/\s+/g, ' ').trim().slice(0, 110);
+  if (!issue || was.issue === issue || (was.past || []).includes(issue)) return '';
+  writeState(ACKED, { turn, issue, past: [...(was.past || []), ...(was.issue && was.turn !== turn ? [was.issue] : [])].slice(-20) });
   return `${brand()} 🚨 acknowledged: ${issue}`;
 }
+// an issue acknowledged in an earlier turn, still in the notes file: not this turn's
+export const staleIssue = issue => { const was = readJSON(stateFile(ACKED), {}), turn = readJSON(stateFile('turn.json'), {}).at || '';
+  return (was.past || []).includes(issue) || (was.issue === issue && was.turn !== turn); };
 // The shipped-checks files are written by sync (in the starter) or by an upgrade (in a project): an edit there is lost.
 // Lesson (dogfood): a regex fixed in the starter's engine-checks.json was reverted by the next sync, and the trial failed.
 export function generatedNotice(p) {

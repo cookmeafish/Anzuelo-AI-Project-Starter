@@ -738,6 +738,16 @@ const STOP = [
     answer: 'Playbook: project.md. Added the requirement.' + FIN, expect: { not: ['requirement-enforced'] } },
   { name: 'requirement-enforced: a one-off instruction is not a lasting requirement', prompt: 'fix the typo in the zorbl guide and make sure you run the tests', tools: [pb('project'), bash('node tools/audit.mjs')],
     files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md. Fixed it.' + FIN, expect: { not: ['requirement-enforced'], block: false } },
+  // (a runbook made this turn for a new kind of task gets the 🌱 line, and is not credited as one the hooks pulled up,
+  // even though its triggers match the request. Lesson (probe): 🌱 never showed in real sessions)
+  { name: 'prompt-visible: a runbook made this turn whose triggers match the request shows 🌱, not "pulled up"', prompt: 'make a shopping list for five weeknight dinners and save it',
+    prep: dir => write(dir, { 'tools/hooks/state/turn.json': JSON.stringify({ at: new Date(Date.now() - 2000).toISOString(), prompt: 'make a shopping list for five weeknight dinners and save it', runbooks: fs.readdirSync(path.join(dir, 'docs/playbooks')), skills: fs.readdirSync(path.join(dir, 'skills')) }) }),
+    tools: [{ name: 'Write', input: { file_path: 'docs/playbooks/shopping-list.md' } }, { name: 'Write', input: { file_path: 'lists/shopping-list.md' } }, bash('node tools/hooks/hooks.mjs sync', 'sync: current'), bash('node tools/audit.mjs', 'audit: PASS (31 sweeps, 0 failed)')],
+    files: { 'docs/playbooks/shopping-list.md': '---\nname: shopping-list\nsummary: A shopping list for planned meals\ntriggers: shopping list, weeknight dinners\nchecks: none - a list the user reads\nreuse: none - project-specific: this household\'s own meals\n---\n# Shopping list\n## Steps\n1. List each dinner and its ingredients.\n## Done when\n- [ ] The list is saved in outputs/ (judgment: the user reads it)\n',
+      'lists/shopping-list.md': '# Shopping list\n- pasta\n', 'docs/CHANGELOG.md': '# Changelog\n- 2026-10-27: a runbook for shopping lists\n',
+      '.cache/turn-notes.md': 'Playbook: shopping-list.md\nCold read: docs/playbooks/shopping-list.md - 0 gaps\n' },
+    host: { CLAUDE_PROJECT_DIR: '.' }, answer: 'Playbook: shopping-list.md. Saved the list in lists/shopping-list.md.' + FIN, expect: {},
+    after: (dir, reason, d) => (/🌱 new runbook made: docs\/playbooks\/shopping-list\.md/.test(d?.systemMessage || '') && !/shopping-list runbook it pulled up/.test(d?.systemMessage || '')) || `got ${JSON.stringify(d).slice(0, 400)}` },
   // REQ: prompt-visible. A work turn that passes shows the user what the hooks confirmed.
   { name: 'prompt-visible: a work turn that passes shows the user a ✅ line with its runbook', prompt: 'make a plan for the csv export',
     tools: [pb('plan'), bash('node skills/plan/scripts/plan-tasks.mjs check docs/plans/2026-10-17-export.md')], files: { 'docs/plans/2026-10-17-export.md': '# Export: plan' },
@@ -4959,12 +4969,24 @@ if (mineB()) { // session hook output
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-if (mineB()) { // interrupted-work: after a resume, broken files edited before the interruption are reported
+if (mineB() && (!TAGS || TAGS.includes('interrupted-work'))) { // interrupted-work: after a resume, broken files edited before the interruption are reported
   const dir = copyProject();
   try {
     write(dir, { 'data/settings.json': '{ "a": 1,' });
     const { out } = run(dir, 'session', { source: 'resume' });
     report(/INTERRUPTED WORK IS BROKEN/.test(out) && out.includes('settings.json'), 'session: interrupted-work integrity check catches a cut-off file', out.slice(-300));
+    // (a resume after a turn that ended normally was not interrupted, and its reminders were shown already. Lesson
+    // (probe): every resume showed "files from before the interruption are intact" and the same reminders again)
+    fs.rmSync(path.join(dir, 'data/settings.json'));
+    const tp = path.join(dir, '.cache', 'rs1.jsonl'), ses = source => run(dir, 'session', { source, session_id: 'rs1', transcript_path: tp }).out;
+    write(dir, { 'inbox/notes.txt': 'x', '.cache/rs1.jsonl': JSON.stringify({ type: 'user', message: { role: 'user', content: 'hi' } }) + '\n' });
+    const first = ses('startup');
+    write(dir, { 'tools/hooks/state/turn.rs1.json': JSON.stringify({ at: '2026-10-27T10:00:00.000Z' }), 'tools/hooks/state/turn-end.rs1.json': JSON.stringify({ at: '2026-10-27T10:05:00.000Z', clean: true }) });
+    const again = ses('resume');
+    write(dir, { 'tools/hooks/state/turn-end.rs1.json': JSON.stringify({ at: '2026-10-27T09:00:00.000Z', clean: true }) });
+    const cut = ses('resume');
+    report(/INBOX/i.test(first) && !/INBOX/i.test(again) && !/RESUMED|INTERRUPTED/.test(again) && /RESUMED/.test(cut),
+      'session: a resume after a turn that ended repeats no reminder and claims no interruption; a resume mid-turn checks the files', `${first.slice(-200)} | ${again.slice(-200)} | ${cut.slice(-200)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
@@ -7220,6 +7242,19 @@ if (mineB() && (!TAGS || TAGS.includes('upset-learned'))) { // the user sees "ac
     const none = note('Playbook: project.md\n'), first = note('Issue: the export drops the last row\n'), again = note('Issue: the export drops the last row\nLearned (lesson): x\n');
     report(!/acknowledged/.test(none) && /"systemMessage":"[^"]*🚨 acknowledged: the export drops the last row/.test(first) && !/acknowledged/.test(again),
       'upset-learned: writing the Issue line shows the user "acknowledged" at once, and only once', JSON.stringify([none.slice(0, 80), first.slice(0, 300), again.slice(0, 80)]));
+    // (written from the shell, which the edit hook never sees: shown at the next tool call, once)
+    write(dir, { '.cache/turn-notes.md': 'Issue: the totals skip refunds\n' });
+    const pre = () => run(dir, 'pretool', { tool_name: 'Bash', tool_input: { command: 'ls' } }, { CLAUDE_PROJECT_DIR: '.' }).out;
+    const shell = pre(), next = pre();
+    report(/"systemMessage":"[^"]*🚨 acknowledged: the totals skip refunds/.test(shell) && !/acknowledged/.test(next),
+      'upset-learned: an Issue line written from the shell shows "acknowledged" at the next tool call, once', JSON.stringify([shell.slice(0, 300), next.slice(0, 80)]));
+    // (a later turn whose notes still hold that line, even appended to: not shown again. Lesson (probe): an unrelated
+    // later turn showed the earlier "acknowledged" at its first tool call)
+    write(dir, { 'tools/hooks/state/turn.json': JSON.stringify({ at: new Date(Date.now() - 500).toISOString(), prompt: 'resize the logo' }) });
+    const before = pre();
+    fs.appendFileSync(path.join(dir, '.cache/turn-notes.md'), 'Playbook: gui.md\n');
+    const appended = pre();
+    report(!/acknowledged/.test(before) && !/acknowledged/.test(appended), 'upset-learned: a later turn never shows an earlier turn\'s "acknowledged", even after appending to the notes', JSON.stringify([before.slice(0, 120), appended.slice(0, 120)]));
   } finally { giveBack(dir); }
 }
 if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) { // engine runbook: removal unwires the hooks, removes the

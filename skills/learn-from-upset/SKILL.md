@@ -17,7 +17,8 @@ keeps coming up even if they say it calmly (check `docs/lessons.md`, `tools/hook
   `Learned (none): nothing was wrong - <what they were describing>` in `.cache/turn-notes.md`, say nothing about it,
   do what they asked, and stop following this skill. The user sees nothing.
 - **A real issue, or a repeat:** put `Issue: <the problem in the user's terms, under 12 words>` in
-  `.cache/turn-notes.md` (the user is shown "acknowledged" with it at the end of the turn), then follow the steps below.
+  `.cache/turn-notes.md` before any fix, as your first step (the user is shown "acknowledged" with it at once, and
+  "fixed" when the turn ends), then follow the steps below.
 
 0. **Check the complaint first, before you agree.** Open what the user saw: the last commit or what was delivered
    (`git log -- <file>`, `git show HEAD:<file>`), not only the working copy, and never from memory. Never say git has

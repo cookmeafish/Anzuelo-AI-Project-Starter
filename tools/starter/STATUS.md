@@ -18,6 +18,10 @@ docs/STATUS.md, which here is the template new projects start from).
 3. no-verbatim-examples flags single common words as the user's examples ("can't", "HEAD", "yes" in engine code):
    it should need a run of several words. Seen 2026-10-27 in this session.
 4. A runbook for false alarms in the starter only: fix a check that misfires only here, never the critical guards.
+4b. From the status-line probes (2026-10-27), still open: "checks passed" doesn't say when checks were waived; the
+   checklist count uses the runbook as edited mid-turn (3/4 after a 3-item start); a printable HTML card set off the
+   gui-pack step, and a plain request got a hardening chore; 🟢 missing in 2 of 6 fresh headless sessions; "fixed"
+   never shows when a turn ends with steps left.
 5. The runbook-checklist trial in a real project: compare a day of turns before and after.
 6. One project's prompt hook takes about 2.4 s (budget 1 s): find out why.
 

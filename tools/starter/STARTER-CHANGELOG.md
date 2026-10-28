@@ -17,8 +17,15 @@ hooks:**, and an upgrade lists each one as its own review item.
     with that one line for the user to paste (`! ...` in Claude Code). The agent's own use of the write form is denied
     (permission-respected): a refused edit is never done another way. Field report: the user was told to open
     config.json and add a line by hand, and had to take it to the starter's session.
-  - **"Acknowledged" at once:** the user sees `🚨 acknowledged: <issue>` as soon as the agent writes its `Issue:` line,
-    not only when the turn ends; the end-of-turn line then says `fixed`.
+  - **"Acknowledged" at once:** the user sees `🚨 acknowledged: <issue>` as soon as the agent writes its `Issue:` line
+    (an edit, or from the shell at the next tool call), not only when the turn ends; the end-of-turn line then says
+    `fixed`. An issue from an earlier turn, still in the notes file, is never shown again. learn-from-upset now writes
+    the line first, before any fix.
+  - **Every status line probed in real sessions** (new `tools/starter/trials/probe.mjs`: one real headless turn, the
+    lines read from its transcript). Four independent agents found 23 of 24 kinds shown. Fixed what they found: the 🌱
+    new-runbook line never showed and the end of the turn claimed the hooks "pulled up" a runbook made that turn
+    (routing at the end now uses only the runbooks there when the turn began); a resume repeated every reminder and
+    claimed an interruption after a turn that ended normally; the ❗ line showed a guard's raw pattern.
 
 - 2026-10-27: Pointers, not procedures, and starter-only false alarms.
   - **The upset hint is a pointer:** about 1,500 characters became one line naming the learn-from-upset skill (the
