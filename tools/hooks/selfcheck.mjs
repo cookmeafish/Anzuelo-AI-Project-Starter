@@ -7194,6 +7194,52 @@ if (mineB() && (!TAGS || TAGS.includes('trigger-words'))) { // trigger-words: th
     report(log?.kinds?.includes('upset') && /SKIP THE SOURCES/.test(log.text), 'trigger-words: a message that sets off the upset handling goes to the trigger log', JSON.stringify(log));
   } finally { giveBack(dir); }
 }
+if (mineB() && (!TAGS || TAGS.includes('permission-respected'))) { // engine runbook: a setting the user pastes in one line;
+  // the agent never writes it through that command (Lesson (a field report): the host refused the agent's settings edit,
+  // and the user was told to open config.json and add a line by hand)
+  const dir = takeCopy();
+  try {
+    const cli = (...a) => spawnSync(process.execPath, [path.join(dir, 'tools/hooks/hooks.mjs'), ...a], { cwd: dir, encoding: 'utf8' });
+    const read0 = cli('setting', 'runbookLedger'), set = cli('setting', 'runbookLedger', 'true'), cfg = JSON.parse(fs.readFileSync(path.join(dir, 'tools/hooks/config.json'), 'utf8'));
+    const unknown = cli('setting', 'runbookLedgr', 'true'), wrong = cli('setting', 'runbookLedger', '"yes"');
+    const agent = run(dir, 'pretool', { tool_name: 'Bash', tool_input: { command: 'node tools/hooks/hooks.mjs setting runbookLedger false' } }).out;
+    const look = run(dir, 'pretool', { tool_name: 'Bash', tool_input: { command: 'node tools/hooks/hooks.mjs setting runbookLedger' } }).out;
+    report(/runbookLedger: false \(the default\)/.test(read0.stdout) && set.status === 0 && /false -> true/.test(set.stdout) && cfg.runbookLedger === true
+      && unknown.status === 2 && /not a setting/.test(unknown.stdout) && wrong.status === 2 && /takes a boolean/.test(wrong.stdout)
+      && /permission-respected[\s\S]*! node tools\/hooks\/hooks\.mjs setting runbookLedger false/.test(agent) && !/permission-respected/.test(look),
+      'engine runbook: "setting" reads and writes one hook setting, refuses an unknown key or a wrong type; the agent\'s write is denied with the line for the user, a read is not',
+      JSON.stringify([read0.stdout, set.stdout, unknown.stdout, wrong.stdout, agent.slice(0, 300), look.slice(0, 100)]));
+  } finally { giveBack(dir); }
+}
+if (mineB() && (!TAGS || TAGS.includes('upset-learned'))) { // the user sees "acknowledged" as soon as the agent writes its
+  // Issue line, once (Lesson (the user): it should show as soon as the agent decides it is a real issue to fix)
+  const dir = takeCopy();
+  try {
+    write(dir, { 'tools/hooks/state/turn.json': JSON.stringify({ at: '2026-10-27T10:00:00Z', prompt: 'WHY IS THIS STILL BROKEN' }) });
+    const note = text => { write(dir, { '.cache/turn-notes.md': text }); return run(dir, 'posttool', { tool_name: 'Write', tool_input: { file_path: path.join(dir, '.cache/turn-notes.md'), content: text } }, { CLAUDE_PROJECT_DIR: '.' }).out; };
+    const none = note('Playbook: project.md\n'), first = note('Issue: the export drops the last row\n'), again = note('Issue: the export drops the last row\nLearned (lesson): x\n');
+    report(!/acknowledged/.test(none) && /"systemMessage":"[^"]*🚨 acknowledged: the export drops the last row/.test(first) && !/acknowledged/.test(again),
+      'upset-learned: writing the Issue line shows the user "acknowledged" at once, and only once', JSON.stringify([none.slice(0, 80), first.slice(0, 300), again.slice(0, 80)]));
+  } finally { giveBack(dir); }
+}
+if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) { // engine runbook: removal unwires the hooks, removes the
+  // engine's files with a backup, and keeps the project's own files and other agent settings
+  const dir = copyProject();
+  try {
+    const sp = path.join(dir, '.claude/settings.json');
+    fs.mkdirSync(path.dirname(sp), { recursive: true });
+    fs.writeFileSync(sp, JSON.stringify({ permissions: { allow: ['Bash(ls)'] }, hooks: { Stop: [{ hooks: [{ type: 'command', command: 'node "$CLAUDE_PROJECT_DIR/tools/hooks/hooks.mjs" stop' }] }], PreToolUse: [{ hooks: [{ type: 'command', command: 'mine.sh' }] }] } }));
+    fs.writeFileSync(path.join(dir, 'docs/mine.md'), 'mine\n');
+    const np = (...a) => spawnSync(process.execPath, [path.join(ROOT, 'tools/new-project.mjs'), dir, '--remove', '--dev', ...a], { encoding: 'utf8' });
+    const dry = np('--dry-run'), stillThere = fs.existsSync(path.join(dir, 'tools/hooks/hooks.mjs'));
+    const r = np(), s = JSON.parse(fs.readFileSync(sp, 'utf8')), backup = fs.readdirSync(path.join(dir, '.cache/engine-removed'));
+    report(/Dry run/.test(dry.stdout) && stillThere && r.status === 0 && !fs.existsSync(path.join(dir, 'tools/hooks/hooks.mjs')) && fs.existsSync(path.join(dir, 'docs/mine.md'))
+      && !s.hooks.Stop && s.hooks.PreToolUse?.length === 1 && s.permissions?.allow?.[0] === 'Bash(ls)' && backup.length === 1
+      && fs.existsSync(path.join(dir, '.cache/engine-removed', backup[0], 'tools/hooks/hooks.mjs')),
+      'engine runbook: --remove (after a dry run that changes nothing) unwires only the engine\'s hooks, removes its files with a backup, and keeps the project\'s own',
+      `${r.status} ${r.stdout.slice(-300)} ${r.stderr.slice(0, 200)} | ${JSON.stringify(s)}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
 if (mineB() && (!TAGS || TAGS.includes('prompt-visible'))) { // prompt-visible: the second step of each guess from words,
   // what the agent decided with its reason (Lesson (the user): "there could be multiple more things like this that
   // could use the 2 step")

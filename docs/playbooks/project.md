@@ -1,7 +1,7 @@
 ---
 name: project
-summary: The project itself - new rules, complaints about misses, praise to repeat, sweeps, gaps, runbooks, skills, hooks, packs, status, engine upgrades
-triggers: clean up skills, prune skills, unused skills, retire a skill, show me the menu, menu codes, set up this project, enable a skill, remove a skill, library skills, update the project, update this project, from now on, new rule, make it a rule, remember to always, remember from now on, you forgot, i told you, why did you, i shouldn't have to, sweeps, sweep, audit the project, run the audit, gaps, gap review, what's missing, runbook, runbooks, playbook, project skills, the skills, harden a skill, harden the skill, the hooks, hook change, add a pack, install a pack, packs, where are we, where were we, what's next, to-do list, todo list, remind me, handoff for the next session, what's on my plate, what am i waiting on, daily summary, standup update, share these skills, package skills, skill bundle, make a plugin, customize a plugin, upgrade the engine, upgrade the starter, update the starter, newest starter, new starter release, starter update, where did we leave off, where we left off, what's left to do, project health, add a hook, which skills, project status, stop forgetting, keeps forgetting
+summary: The project itself - new rules, complaints about misses, praise to repeat, sweeps, gaps, runbooks, skills, hooks, packs, status
+triggers: clean up skills, prune skills, unused skills, retire a skill, show me the menu, menu codes, set up this project, enable a skill, remove a skill, library skills, update the project, update this project, from now on, new rule, make it a rule, remember to always, remember from now on, you forgot, i told you, why did you, i shouldn't have to, sweeps, sweep, audit the project, run the audit, gaps, gap review, what's missing, runbook, runbooks, playbook, project skills, the skills, harden a skill, harden the skill, the hooks, hook change, add a pack, install a pack, packs, where are we, where were we, what's next, to-do list, todo list, remind me, handoff for the next session, what's on my plate, what am i waiting on, daily summary, standup update, share these skills, package skills, skill bundle, make a plugin, customize a plugin, where did we leave off, where we left off, what's left to do, project health, add a hook, which skills, project status, stop forgetting, keeps forgetting
 menu: E1
 checks: core: rule-request, rule-memory, hooks-tested, runbook-complete
 ---
@@ -34,31 +34,8 @@ customizing a plugin, follows the **skill-curate** skill's §4.
 Follow the **session-handoff** skill: "where are we", "what's next", reminders and to-dos, a daily summary or
 standup update, a handoff for the next session, and `docs/glossary.md`.
 
-### §7 Upgrade the engine (E6)
-`node tools/starter.mjs update` pulls the newest starter into the linked copy (it stops if that copy has local
-changes or is a development copy), then upgrades as below. To upgrade from the linked copy as it is:
-`node tools/starter.mjs upgrade` (run it with `--dry-run` first to see the list). Either way:
-- Only engine files are replaced (hooks, tests, audit, tools, core skills, core runbooks and checklists). The
-  project's content is never touched, and an engine skill or runbook keeps the triggers and "## Project lessons" it
-  added.
-- Files from installed packs and enabled library skills are refreshed only where this project never edited them. An
-  edited one is kept, and named in the review when the starter changed it since. Files they gained are added.
-
-It can't make the project worse unseen:
-1. It audits and times the hooks before and after. A check that passed before and fails after rolls the whole upgrade
-   back. `--accept-findings` keeps it and lists those checks to fix.
-2. It writes `## Upgrade review (date)` into `docs/DECISIONS.md`: every new hard rule, a pack the setup answers call
-   for that is missing, `fit: N new candidates` when `docs/fit-checklist.md` got new rows (new packs, library skills,
-   tools or features, added as `?`), every new failing check, every hook that got much slower, setup questions added since
-   setup (`interview:`), pack or library files kept because they were edited here (`file:`), and the self-tests.
-3. **You decide; the user only sees a summary.** Decide the new fit rows yourself from the survey, the brief and the
-   code (add, skip, or `later - when: <condition>`, each with its reason) until `node tools/fit.mjs check` passes,
-   then write `decided` on the fit line. Ask the user only about what is truly theirs (money, privacy, outward
-   actions), in one question with choices. Adopt other lines only when they make this project better (`adopted -
-   Worth it: <gain> / <cost>`, then really add it: rules through the project-rule skill), and decline the rest with the
-   reason (`declined - <why>`). Run `node tools/hooks/selfcheck.mjs` and write `passed`. Tell the user in one line
-   (`node tools/fit.mjs summary`): "Added: x, y. Skipped: z (why). Later: w (when)." They can override any of it. The
-   hooks hold work until every line is decided (REQ: upgrade-review).
+### §7 Install, upgrade or remove the engine, or change a hook setting (E6)
+Follow the **engine** runbook (`docs/playbooks/engine.md`).
 
 ### §8 Add a pack (E7)
 `node tools/packs.mjs list` shows what can be added, from the kept copy in `.starter/` or the linked starter

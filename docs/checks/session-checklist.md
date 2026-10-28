@@ -5,7 +5,7 @@
 3. "always / never / remember / from now on", a complaint, or "keep doing this" → project-rule: rule + user-requirements row + check + memory + test + audit.
    Suspect the user is upset, or an issue keeps coming up (any wording or language, hooks or not)? Open skills/learn-from-upset/SKILL.md and follow it.
 4. Accuracy: never invent facts, results or sources. Verify before claiming. Say what was not verified.
-5. Questions get answers, not edits. Protected files stay untouched. Versioned files get a new version.
+5. Questions get answers, not edits. Protected files stay untouched. Versioned files get a new version. Installing, upgrading or removing the engine, or a hook setting (also one the host won't let you change): docs/playbooks/engine.md.
 6. No outward actions (send, post, buy, submit, contact, publish, push, delete user data) without an explicit OK.
 7. Plain writing: answer first, plain words, no filler, no em dashes, in the user's language (labels too). Real work ends with Finished + paths + what was not verified. No check names in the answer: the lines the checks read (Playbook, Skill, Worth it, Proven, Learned) go in .cache/turn-notes.md. A re-sent answer never mentions an earlier version.
 8. The whole request: mid-turn messages count, "5" means 5, and a redo says what changed.

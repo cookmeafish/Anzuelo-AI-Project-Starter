@@ -6,6 +6,20 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-10-27: One runbook installs, upgrades and removes the engine; settings the host refuses; "acknowledged" at once.
+  - **Engine runbook (`docs/playbooks/engine.md`, core, menu E6):** install (new or adopt), upgrade (moved from
+    `project.md` §7, which now points here), remove, and hook settings, with "commit the project's work first".
+  - **Remove:** `node tools/starter.mjs uninstall [--dry-run]` (from the starter: `new-project.mjs "<folder>" --remove`)
+    unwires only the engine's hooks, removes its files, core skills, the skills made from its runbooks and their
+    mirrors, backs them up in `.cache/engine-removed/`, and keeps the project's own files. `--adopt` puts it back.
+  - **Settings:** `node tools/hooks/hooks.mjs setting <key> [<value>]` reads or writes one setting, refusing an unknown
+    key or a wrong type. When the host refuses the agent's edit to `tools/hooks/config.json`, the agent ends its answer
+    with that one line for the user to paste (`! ...` in Claude Code). The agent's own use of the write form is denied
+    (permission-respected): a refused edit is never done another way. Field report: the user was told to open
+    config.json and add a line by hand, and had to take it to the starter's session.
+  - **"Acknowledged" at once:** the user sees `🚨 acknowledged: <issue>` as soon as the agent writes its `Issue:` line,
+    not only when the turn ends; the end-of-turn line then says `fixed`.
+
 - 2026-10-27: Pointers, not procedures, and starter-only false alarms.
   - **The upset hint is a pointer:** about 1,500 characters became one line naming the learn-from-upset skill (the
     opening words stay for project hooks). The skill starts with a gate: a false alarm (venting, a test, nothing

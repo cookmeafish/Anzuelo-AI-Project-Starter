@@ -11,6 +11,8 @@
 //     skill, finding and slowdown, each to adopt or decline with the user. The hooks hold work until it is decided.
 //   node tools/new-project.mjs "<folder>" --add-pack <name>   make a pack available in a project (then: packs.mjs install)
 //   node tools/new-project.mjs "<folder>" --add-skill <name>  copy a skill from the starter's library into a project's skills/
+//   node tools/new-project.mjs "<folder>" --remove    take the engine out: unwire its hooks, remove its files (backed up
+//     in .cache/engine-removed/), keep everything the project wrote
 //   add --dry-run to see what would happen (a summary; --verbose lists every file); --dev allows a development copy (.starter-dev) for throwaway test projects
 // The AI installs packs during setup (SETUP-PROMPT.md): it asks what the project is about and picks only what fits.
 import fs from 'node:fs';
@@ -30,13 +32,13 @@ const ENGINE = [
   '.githooks/commit-msg', '.githooks/pre-commit', '.githooks/pre-push',
   'docs/checks/session-checklist.md', 'docs/checks/finish-checklist.md', 'docs/checks/runbook-standards.md',
   'docs/checks/writing-standards.md', 'docs/checks/layout-standards.md', 'docs/recommended-tools.md', 'docs/checks/better-or-worse.md',
-  'docs/playbooks/_TEMPLATE.md', 'docs/playbooks/_fallback.md', 'docs/playbooks/project.md', 'docs/playbooks/plan.md', 'docs/playbooks/status-lines.md', 'docs/playbooks/trigger-words.md', 'HOW-TO-USE.md', 'tools/skills.mjs', 'tools/starter.mjs', 'tools/recall.mjs', 'tools/hooks/wire.mjs', 'tools/survey.mjs', 'tools/dedupe.mjs', 'tools/fit.mjs',
+  'docs/playbooks/_TEMPLATE.md', 'docs/playbooks/_fallback.md', 'docs/playbooks/project.md', 'docs/playbooks/plan.md', 'docs/playbooks/status-lines.md', 'docs/playbooks/trigger-words.md', 'docs/playbooks/engine.md', 'HOW-TO-USE.md', 'tools/skills.mjs', 'tools/starter.mjs', 'tools/recall.mjs', 'tools/hooks/wire.mjs', 'tools/survey.mjs', 'tools/dedupe.mjs', 'tools/fit.mjs',
   'tools/hooks/engine-checks.json', 'tools/hooks/engine-checks-history.json',
   // the starter's proof that its full self-test passed on this engine: a project with the same engine reuses it
   // (selftest-cache.mjs PROOF_FILE). Lesson: each new project's setup ran the whole engine suite again first.
   'tools/hooks/engine-proof.json'
 ];
-// The engine's own runbooks (hooks.mjs CORE_RUNBOOKS: project, plan, status-lines, trigger-words; and _fallback, _TEMPLATE) are engine like the core
+// The engine's own runbooks (hooks.mjs CORE_RUNBOOKS: project, plan, status-lines, trigger-words, engine; and _fallback, _TEMPLATE) are engine like the core
 // skills: replaced on upgrade, keeping the project's added triggers, its "## Project lessons" section and its
 // hardened/harden/keep marks (mergeSkill). Lesson: project.md was in neither list, so upgraded projects kept an old copy
 // whose "Done when" items had no (hook:)/(judgment:) labels, and done-when-labeled fired on the engine's own runbook.
@@ -274,7 +276,42 @@ function mergeSkill(theirs, mine, rel) {
 // With no mode flag the folder decides: empty → a new project; made from the starter → upgrade its engine; anything
 // else → adopt it (existing files are never overwritten). So an agent pointed at the starter needs one command.
 const madeFromStarter = fs.existsSync(path.join(dest, 'tools', 'hooks', 'hooks.mjs'));
-const auto = !['--adopt', '--upgrade', '--add-pack', '--add-skill'].some(flag);
+const auto = !['--adopt', '--upgrade', '--add-pack', '--add-skill', '--remove'].some(flag);
+// Take the engine out of a project (engine runbook): unwire its hooks and remove its engine files, keeping everything
+// the project wrote (AGENTS.md, docs, its own runbooks, checks and code). The removed files are backed up first, so
+// --adopt or a copy back undoes it.
+if (flag('--remove')) {
+  if (!madeFromStarter) { console.error(`${dest} has no engine to remove (no tools/hooks/hooks.mjs).`); process.exit(1); }
+  const log = [], at = (...p) => path.join(dest, ...p), backupDir = at('.cache', 'engine-removed', stamp);
+  const ours = h => /tools[\\/]+hooks[\\/]+hooks\.mjs/.test(JSON.stringify(h));
+  // the hook wiring: only the engine's entries go, every other setting stays
+  for (const f of ['.claude/settings.json', '.codex/hooks.json']) {
+    let j; try { j = JSON.parse(fs.readFileSync(at(f), 'utf8')); } catch { continue; }
+    if (!j.hooks || !Object.values(j.hooks).flat().some(ours)) continue;
+    for (const [ev, list] of Object.entries(j.hooks)) { const keep = [].concat(list).filter(h => !ours(h)); if (keep.length) j.hooks[ev] = keep; else delete j.hooks[ev]; }
+    if (!Object.keys(j.hooks).length) delete j.hooks;
+    if (!dry) { fs.mkdirSync(path.join(backupDir, path.dirname(f)), { recursive: true }); fs.copyFileSync(at(f), path.join(backupDir, f)); fs.writeFileSync(at(f), JSON.stringify(j, null, 2) + '\n'); }
+    log.push(`unwired  ${f} (the engine's hooks; other settings kept)`);
+  }
+  const hp = (spawnSync('git', ['config', '--get', 'core.hooksPath'], { cwd: dest, encoding: 'utf8' }).stdout || '').trim();
+  if (hp === '.githooks') { if (!dry) spawnSync('git', ['config', '--unset', 'core.hooksPath'], { cwd: dest }); log.push('unwired  git hooks (core.hooksPath)'); }
+  // the engine's files, its machine state and starter link, the skills generated from its runbooks, and their mirrors
+  const generated = (() => { try { return fs.readdirSync(at('skills')); } catch { return []; } })().filter(s => {
+    const t = (() => { try { return fs.readFileSync(at('skills', s, 'SKILL.md'), 'utf8'); } catch { return ''; } })(), rb = /^runbook:\s*(\S+)/m.exec(t)?.[1];
+    return /^generated:\s*true/m.test(t) && rb && ENGINE.includes(rb);
+  });
+  const mirrors = [...CORE_SKILLS, ...generated].flatMap(s => ['.claude/skills', '.agents/skills'].map(m => `${m}/${s}`));
+  for (const f of [...ENGINE, ...generated.map(s => `skills/${s}`), ...mirrors, 'tools/hooks/state', 'tools/starter.local.json'].filter(f => fs.existsSync(at(f)))) {
+    if (!dry) { fs.cpSync(at(f), path.join(backupDir, f), { recursive: true }); fs.rmSync(at(f), { recursive: true, force: true }); }
+    log.push(`removed  ${f}`);
+  }
+  if (!dry) for (const s of CORE_SKILLS) try { fs.rmdirSync(at('skills', s)); } catch { }
+  console.log(log.join('\n'));
+  console.log(dry ? `\nDry run: nothing changed (${log.length} item(s) above).` : `\nRemoved the engine from ${dest}: ${log.length} item(s), backed up in .cache/engine-removed/${stamp}/. ` +
+    'The project\'s own files stay. AGENTS.md (and CLAUDE.md) still describe the engine\'s rules: edit them to what the project keeps. ' +
+    `To put the engine back: node "${path.join(STARTER, 'tools', 'new-project.mjs')}" "${dest}" --adopt`);
+  process.exit(0);
+}
 if (auto && madeFromStarter) console.log(`${dest} was made from the starter: upgrading its engine (its own content stays as it is).\n`);
 if (flag('--upgrade') || (auto && madeFromStarter)) {
   if (!madeFromStarter) { console.error(`${dest} is not a project made from the starter (no tools/hooks/hooks.mjs). Use --adopt.`); process.exit(1); }

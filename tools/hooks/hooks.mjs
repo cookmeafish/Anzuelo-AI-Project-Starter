@@ -78,7 +78,7 @@ export function transcriptState(tp) {
 }
 // (the stop round count, the checks that failed earlier in the turn, hints shown, the plan nudge and the frustration
 // record are a turn's too. Lesson: a second session reset the first one's block count and lost its earlier failures.)
-const PER_SESSION = new Set(['turn.json', 'snapshot.json', 'turn-end.json', 'notices-shown.json', 'stop-blocks.json', 'stop-failed.json',
+const PER_SESSION = new Set(['turn.json', 'acknowledged.json', 'snapshot.json', 'turn-end.json', 'notices-shown.json', 'stop-blocks.json', 'stop-failed.json',
   'event-hints.json', 'plan-watch.json', 'friction-turn.json', 'ext-shown.json', 'wakeups.json', 'checklist.json', 'scope-shown.json', 'alive.json']);
 const stateName = n => SID && PER_SESSION.has(n) ? n.replace(/.json$/, `.${SID}.json`) : n;
 // a session's own file when it has one, else the shared one (written before sessions were told apart, or by a test)
@@ -2561,7 +2561,7 @@ export function usage() { return readJSON(path.join(STATE, 'runbook-usage.json')
 // The engine's own skills and runbooks: upgraded from the starter, never pruned.
 export const CORE_SKILLS = ['project-bootstrap', 'project-rule', 'runbook-create', 'skill-harden', 'skill-curate', 'project-sweeps',
   'session-handoff', 'security-review', 'plan', 'debug', 'parallel-agents', 'research', 'skill-finder', 'obsidian', 'learn-from-upset'];
-const CORE_RUNBOOKS = ['project', 'plan', 'status-lines', 'trigger-words'];
+const CORE_RUNBOOKS = ['project', 'plan', 'status-lines', 'trigger-words', 'engine'];
 // REQ: skill-prune. Runbooks and skills nobody uses are reviewed: keep (with a reason), merge, or retire. Each one's
 // clock starts when the hooks first see it, restarts on every use, and "keep: YYYY-MM-DD - <reason>" restarts it too.
 export function curateDue(cfg = config(), record = false) {
@@ -4191,6 +4191,22 @@ export function ignoreWord(kind, word, mode = 'add') {
   const fired = triggerRows().filter(e => (e.kinds || []).includes(kind) && wordsRe([word]).test(e.text)).length;
   return { ok: true, msg: `whitelisted: "${word}" no longer counts as ${kind} by itself (capitals and other words still do)${fired ? `; it was in ${fired} logged trigger${fired > 1 ? 's' : ''}` : ''}` };
 }
+// One hook setting, read or written by the user: node tools/hooks/hooks.mjs setting <key> [<value>]. The agent edits
+// tools/hooks/config.json itself; when the host refuses it that edit, the agent hands the user this one line (engine
+// runbook) and never runs the write itself (REQ: permission-respected). Lesson (a field report): the agent could only
+// tell the user to open config.json and add a line by hand, and the user had to take it to the starter's session.
+export function setting(key, value) {
+  if (!Object.hasOwn(DEFAULTS, key)) return { ok: false, msg: `"${key}" is not a setting. Settings: ${Object.keys(DEFAULTS).join(', ')}` };
+  const file = abs('tools/hooks/config.json'), raw = readJSON(file, {}), now = raw[key] ?? DEFAULTS[key], show = v => JSON.stringify(v);
+  if (value === undefined) return { ok: true, msg: `${key}: ${show(now)}${Object.hasOwn(raw, key) ? '' : ' (the default)'}` };
+  let v; try { v = JSON.parse(value); } catch { v = value; }
+  const kind = x => Array.isArray(x) ? 'array' : x === null ? 'null' : typeof x;
+  // (userLines takes true/false or {"hide": [...]})
+  if (kind(v) !== kind(DEFAULTS[key]) && !(key === 'userLines' && kind(v) === 'object')) return { ok: false, msg: `${key} takes a ${kind(DEFAULTS[key])} (now ${show(now)}), not ${show(v)}` };
+  raw[key] = v;
+  fs.writeFileSync(file, JSON.stringify(raw, null, 2) + '\n');
+  return { ok: true, msg: `${key}: ${show(now)} -> ${show(v)}` };
+}
 // (each change shows the user a line at the end of the turn: decidedLines)
 function logWordChange(kind, word, mode) {
   if (DRY_STATE) return;
@@ -4991,7 +5007,9 @@ export function passLine(x, rounds = 0) {
   // its "Issue:" line is the confirmation either way. Lesson (the user): "a hook at the begining of every session can
   // tell the ai agent to trigger anzuelo fixer/feedack acknowledge thing if it suspects the user is upset")
   const upset = !!(x.prompt && isUpset(x.prompt)), real = !!issue && !none;
-  const upsetLine = real ? `${brand()} 🚨 acknowledged: ${clip(issue)} → fixed` : '';
+  // (acknowledged already when the issue was written down: acknowledgedLine. The end of the turn says it was fixed)
+  const acked = real && readJSON(stateFile(ACKED), {}).issue === clip(issue);
+  const upsetLine = real ? `${brand()} 🚨 ${acked ? 'fixed' : 'acknowledged'}: ${clip(issue)}${acked ? '' : ' → fixed'}` : '';
   const decided = decidedLines(x);
   if (upset && (issue || none)) x._decided = { ...(x._decided || {}), upset: real ? 'yes' : 'no' };
   decideTrigger(x, x._decided || {});
@@ -5331,6 +5349,10 @@ function pretoolHits(data, cfg) {
     // (whether the program is there at all, so the answer gives the true reason. Lesson, trial round 12: the agent could
     // not check, told the user Go only needed approval, and Go was not installed)
     const there = held && onPath(held);
+    // (a hook setting written by the agent through the user's one-line command: the agent edits config.json itself, and
+    // when the host refuses that edit, the line goes to the user. Engine runbook, step "Settings")
+    const set = cmd.match(/hooks\.mjs["']?\s+setting\s+(\S+)\s+(\S.*)/);
+    if (set) add(`REQ: permission-respected. \`hooks.mjs setting\` with a value is the user's command. Edit tools/hooks/config.json yourself; if the host refused that edit, don't write it another way: end the answer with the line for the user to paste, \`! node tools/hooks/hooks.mjs setting ${set[1]} ${set[2].replace(/\s*(&&|;|\|).*$/, '').trim()}\` (docs/playbooks/engine.md).`);
     if (held) add(`REQ: permission-respected. \`${held}\` was held for the user's approval earlier in this turn; running it through another program is the same command without that approval. ${there === false ? `It is also not installed here: \`${held}\` is not on PATH. Say so in the answer ("NOT VERIFIED: <what> - ${held} is not installed on this machine"), not that it only needs approval.` : `Leave it: say in the answer what was not verified ("NOT VERIFIED: <what> - ${held} was held for approval"), or ask the user to approve it.`}`);
     // REQ: no-repeat. A check run again with nothing changed since gives the same answer (see repeatRun).
     // (unless the user asked for the repeat in this request: "run the tests again", "twice", "otra vez")
@@ -5719,8 +5741,20 @@ function cmdPosttool(data) {
   if (/^(docs\/(playbooks|checks|knowledge|MENU\.md)|skills\/|tools\/hooks\/requirements\.json)/.test(p)) syncAll();
   const h = eventHintAfterEdit(p, data.tool_input || {});
   const pub = publishNotice(p, data.tool_input || {}), plan = planNotice(p, data.tool_input || {}), ps = ps51Notice(p, data.tool_input || {});
-  const hand = handoffNotice(p, data), gen = generatedNotice(p);
-  if (h || pub || plan || ps || hand || gen) contextOut('PostToolUse', [h, pub, plan, ps, hand, gen].filter(Boolean).join('\n') + '\n');
+  const hand = handoffNotice(p, data), gen = generatedNotice(p), ack = acknowledgedLine(p);
+  if (h || pub || plan || ps || hand || gen || ack) contextOut('PostToolUse', [h, pub, plan, ps, hand, gen, ack && 'ACKNOWLEDGED: the user was shown that this issue is being fixed.'].filter(Boolean).join('\n') + '\n', ack || '');
+}
+// The user sees "acknowledged" the moment the agent writes its "Issue:" line (learn-from-upset), not only when the turn
+// ends; the end-of-turn line then says it was fixed. Lesson (the user): the line should show as soon as the agent has
+// decided it is a real issue to fix.
+const ACKED = 'acknowledged.json';
+export function acknowledgedLine(p) {
+  if (p !== '.cache/turn-notes.md') return '';
+  const issue = /^[\s>*_-]*issue\s*:\s*(.+)$/im.exec(read(abs(p)))?.[1]?.replace(/\s+/g, ' ').trim().slice(0, 110);
+  const turn = readJSON(stateFile('turn.json'), {}).at || '', was = readJSON(stateFile(ACKED), {});
+  if (!issue || (was.turn === turn && was.issue === issue)) return '';
+  writeState(ACKED, { turn, issue });
+  return `${brand()} 🚨 acknowledged: ${issue}`;
 }
 // The shipped-checks files are written by sync (in the starter) or by an upgrade (in a project): an edit there is lost.
 // Lesson (dogfood): a regex fixed in the starter's engine-checks.json was reverted by the next sync, and the trial failed.
@@ -8655,6 +8689,11 @@ if (isMain) {
     const a = process.argv.slice(3), remove = a.includes('--remove'), [kind, ...w] = a.filter(s => s !== '--remove');
     if (!kind || !w.length) { console.log(`usage: node tools/hooks/hooks.mjs ignore-word <${WORD_KINDS.join('|')}> "<word or phrase>" [--remove]`); process.exit(2); }
     const r = ignoreWord(kind, w.join(' '), remove ? 'remove' : 'add'); console.log(r.msg); process.exit(r.ok ? 0 : 2);
+  }
+  if (cmd === 'setting') {
+    const [key, ...v] = process.argv.slice(3);
+    if (!key) { console.log(`usage: node tools/hooks/hooks.mjs setting <key> [<value>] (settings: ${Object.keys(DEFAULTS).join(', ')})`); process.exit(2); }
+    const r = setting(key, v.length ? v.join(' ') : undefined); console.log(r.msg); process.exit(r.ok ? 0 : 2);
   }
   if (cmd === 'notices') { console.log(notices(config()).join('\n') || 'no notices.'); process.exit(0); }
   // one line per check of the project (requirements.json and enabled packs): its tag and what it asks, so an agent

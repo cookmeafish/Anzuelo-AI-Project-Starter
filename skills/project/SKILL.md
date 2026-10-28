@@ -1,6 +1,6 @@
 ---
 name: project
-description: The project itself - new rules, complaints about misses, praise to repeat, sweeps, gaps, runbooks, skills, hooks, packs, status, engine upgrades. Use when this runbook's situation comes up (docs/playbooks/project.md), e.g. the user says: clean up skills, prune skills, unused skills, retire a skill, show me the menu, menu codes, set up this project, enable a skill, remove a skill, library skills, update the project, update this project, from now on, new rule.
+description: The project itself - new rules, complaints about misses, praise to repeat, sweeps, gaps, runbooks, skills, hooks, packs, status. Use when this runbook's situation comes up (docs/playbooks/project.md), e.g. the user says: clean up skills, prune skills, unused skills, retire a skill, show me the menu, menu codes, set up this project, enable a skill, remove a skill, library skills, update the project, update this project, from now on, new rule.
 runbook: docs/playbooks/project.md
 generated: true
 ---

@@ -8,6 +8,8 @@
 // Later:
 //   node tools/starter.mjs status                 the choice, the link, what can still be added, and how many commits the
 //                                                 linked starter is behind its git origin
+//   node tools/starter.mjs uninstall [--dry-run]  take the engine out of this project: its hooks unwired, its files
+//                                                 removed (backed up in .cache/engine-removed/), the project's own kept
 //   node tools/starter.mjs update                 get the newest starter (git pull in the linked copy), then upgrade;
 //                                                 --keep-local keeps local changes in that copy on top
 //   node tools/starter.mjs upgrade                refresh the engine from the linked starter (new-project.mjs --upgrade):
@@ -187,6 +189,12 @@ if (cmd === 'link') {
     if (head) console.log(`starter copy: ${link} at ${head}${behind ? `, ${behind} commit(s) behind ${up}: node tools/starter.mjs update gets the newest and upgrades from it` : ''}`);
   }
   const r = spawnSync(process.execPath, [path.join(link, 'tools', 'new-project.mjs'), ROOT, '--upgrade', ...upgradeFlags()], { encoding: 'utf8', stdio: 'inherit' });
+  process.exit(r.status ?? 1);
+} else if (cmd === 'uninstall') {
+  // take the engine out of this project (engine runbook), with the linked starter's list of engine files
+  const link = starterLink();
+  if (!link) { console.error('No starter is linked. Run: node tools/starter.mjs link "<starter folder>" first.'); process.exit(1); }
+  const r = spawnSync(process.execPath, [path.join(link, 'tools', 'new-project.mjs'), ROOT, '--remove', ...process.argv.slice(3).filter(a => ['--dry-run', '--dev'].includes(a))], { encoding: 'utf8', stdio: 'inherit' });
   process.exit(r.status ?? 1);
 } else if (cmd === 'update') {
   // Get the newest starter from where it came from (its git origin), then upgrade this project from it. The upgrade

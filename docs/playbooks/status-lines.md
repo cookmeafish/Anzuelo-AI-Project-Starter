@@ -39,7 +39,7 @@ The user decides which ones stay.
    passed" line): ask in one line which. "Too many icons" names no kind: ask in one line which to keep, offering
    this table's icons.
 2. Read the current value: `"userLines"` in `tools/hooks/config.json`; when the key is missing, it is `true` (all on).
-   Write the new value there (add the key when it is missing):
+   Write the new value there (add the key when it is missing; if the host refuses the edit, `engine.md` §5):
    - all off: `"userLines": false`
    - all on again: `"userLines": true`
    - some off: `"userLines": { "hide": [<kinds>] }`. Start from what is hidden now: from `true`, the kinds the user
