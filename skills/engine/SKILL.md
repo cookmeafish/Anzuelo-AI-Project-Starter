@@ -10,11 +10,15 @@ generated: true
 Open `docs/playbooks/engine.md` and follow every step in order. It is the procedure, and the hooks check its "Done when" list.
 
 ## Done when
-- [ ] An upgrade's review lines are each decided (hook: upgrade-review).
-- [ ] A setting the host refused went to the user as the one line to paste, never written another way (hook: permission-respected).
-- [ ] The engine change is its own commit, or the answer says why not (judgment: whether the project wanted a commit).
-- [ ] After a removal, the answer says where the backup is and how to put the engine back (judgment: plain wording).
-- [ ] The answer ends with a Finished section (hook: finished-summary).
+- [ ] The project's own work was committed before the engine change, and the change is its own commit, or the answer
+      says why not (judgment: whether the project keeps git history is the user's call).
+- [ ] An install ended with the project-bootstrap skill started in that folder (judgment: setup is its own interview).
+- [ ] An upgrade's review lines each end with a decision (hook: upgrade-review).
+- [ ] A removal was asked first, and the answer says where the backup is and how to put the engine back (judgment:
+      plain wording for the user).
+- [ ] A changed setting has its DECISIONS line; one the host refused went to the user as the line to paste, never
+      written another way (hook: permission-respected).
+- [ ] The answer ends with a Finished section: what changed, each file's path, what was not verified (hook: finished-summary).
 <!-- generated:end -->
 
 <!-- Skill-only material goes below: notes for scripts/ and assets/ in this folder. Hardening moves repeatable steps into scripts/. -->

@@ -12,58 +12,73 @@ reuse: none - project-specific: the engine's own install, upgrade and removal to
 (`tools/hooks/config.json`) changes. **Not when:** a first-session setup interview (project-bootstrap skill), a pack or
 library skill (`project.md` §8 and §10).
 
+Words used here: the **starter** is the folder the engine comes from; the **linked copy** is the starter folder this
+project upgrades from (`node tools/starter.mjs status` prints it); a **development copy** is a starter folder with a
+`.starter-dev` file, which projects never upgrade from.
+
 ## Steps
 ### 1. Before any of them
 - Commit the project's own work first (`git status` shows nothing to commit), so the engine change is its own commit
-  and can be undone alone. Not a git repository: say so, and go on (each tool keeps a backup).
-- Each tool takes `--dry-run`: run it first and read the list.
+  and can be undone alone. Not a git repository: say so in the answer and go on; upgrade and removal back up every file
+  they replace or remove under `.cache/`.
+- Run the command with `--dry-run` first. Stop and ask the user if the list names a file the project wrote itself
+  (anything outside `tools/`, `skills/`, `docs/checks/`, `docs/playbooks/` and the agent folders).
 
 ### 2. Install
 From the starter's folder (a project without the engine has no tools for this):
 `node "<starter>/tools/new-project.mjs" "<folder>"`. An empty folder becomes a new project; a folder with files is
-adopted (no file of it is overwritten); a folder that has the engine is upgraded (§3). Then follow the
-project-bootstrap skill in that folder.
+adopted (no file of it is overwritten); a folder that has the engine is upgraded (§3). Then follow
+`skills/project-bootstrap/SKILL.md` in that folder.
 
 ### 3. Upgrade
-`node tools/starter.mjs update` pulls the newest starter into the linked copy (it stops if that copy has local
-changes or is a development copy), then upgrades. To upgrade from the linked copy as it is: `node tools/starter.mjs
-upgrade`. No link: `node tools/starter.mjs link "<starter folder>"` first.
+`node tools/starter.mjs update` pulls the newest starter into the linked copy, then upgrades. It stops when that copy
+has local changes: rerun with `--keep-local` to keep them on top, or ask the user. To upgrade from the linked copy as it
+is: `node tools/starter.mjs upgrade`. No link: `node tools/starter.mjs link "<starter folder>"` first.
 - Only engine files are replaced (hooks, tests, audit, tools, core skills, core runbooks and checklists). The
   project's content is never touched, and an engine skill or runbook keeps the triggers and "## Project lessons" it
   added. Pack and library files are refreshed only where this project never edited them.
-- It audits and times the hooks before and after; a check that passed before and fails after rolls the whole upgrade
-  back (`--accept-findings` keeps it and lists those checks to fix).
-- It writes `## Upgrade review (date)` into `docs/DECISIONS.md`. **You decide; the user only sees a summary.** Decide
-  the new fit rows from the survey, the brief and the code (add, skip, or `later - when: <condition>`, each with its
-  reason) until `node tools/fit.mjs check` passes, then write `decided` on the fit line. Ask the user only about what
-  is truly theirs (money, privacy, outward actions), in one question with choices. Adopt other lines only when they
-  make this project better (`adopted - Worth it: <gain> / <cost>`, then really add it), decline the rest with the
-  reason (`declined - <why>`). Run `node tools/hooks/selfcheck.mjs` and write `passed`. Tell the user in one line
-  (`node tools/fit.mjs summary`). The hooks hold work until every line is decided.
+- A check that passed before and fails after rolls the whole upgrade back. Fix what the listed checks report and
+  upgrade again; use `--accept-findings` only when each listed check is a new, stricter check the project should meet
+  (then fix them next).
+- It writes `## Upgrade review (date)` into `docs/DECISIONS.md`, one line per item. **You decide; the user only sees a
+  summary.** End each line with the decision: `adopted - Worth it: <gain> / <cost>` (then really add it), or
+  `declined - <why>`. The `fit:` line: decide each new `?` row in `docs/fit-checklist.md` (add, skip, or `later - when:
+  <condition>`, with its reason) until `node tools/fit.mjs check` passes, then end the line with `decided`. The
+  self-test line: run `node tools/hooks/selfcheck.mjs` and end it with `passed`. Ask the user only about what is truly
+  theirs (money, privacy, outward actions), in one question with choices. Tell the user in one line
+  (`node tools/fit.mjs summary`).
 - Commit the upgrade (§1) and say in the answer what changed for the user (the starter's changelog lines it printed).
 
 ### 4. Remove
-`node tools/starter.mjs uninstall --dry-run`, then without `--dry-run`. It unwires the engine's hooks (other agent
-settings stay), removes the engine's files, core skills, the skills made from its runbooks and their mirrors, and backs
-all of it up in `.cache/engine-removed/<time>/`. The project's own files stay: AGENTS.md, docs, its runbooks, checks
-and code. Then tell the user that AGENTS.md (and CLAUDE.md) still describe the engine's rules and offer to trim them,
-and how to put the engine back (the command it printed). Ask before removing: it changes how every later session works.
+1. Ask the user first, in one line: removing changes how every later session works. No → stop.
+2. `node tools/starter.mjs uninstall --dry-run`, check the list (§1), then `node tools/starter.mjs uninstall`. It
+   unwires the engine's hooks (other agent settings stay), removes the engine's files, core skills, the skills made from
+   its runbooks and their mirrors, and backs all of it up in `.cache/engine-removed/<time>/`. The project's own files
+   stay: AGENTS.md, docs, its runbooks, checks and code.
+3. Tell the user where the backup is and the command it printed to put the engine back, and offer to trim AGENTS.md
+   (and CLAUDE.md), which still describe the engine's rules.
 
 ### 5. A setting
-- Read it: `node tools/hooks/hooks.mjs setting <key>`. The keys and their defaults are `DEFAULTS` in
-  `tools/hooks/hooks.mjs`.
-- Change it: edit `tools/hooks/config.json` yourself, then record the choice in `docs/DECISIONS.md`.
-- **The agent host refuses the edit** (Claude Code's safety check stops an agent from changing its own hooks' settings):
-  don't write it any other way. End the answer with one line per setting for the user to paste, and nothing else to do:
-  `! node tools/hooks/hooks.mjs setting <key> <value>` (in Claude Code the `!` runs it in this session; in another agent,
-  in a terminal). Name what it turns on in plain words. On the next turn, read it back and record the choice.
+- Read it: `node tools/hooks/hooks.mjs setting <key>`. Each key, its default and what it does are in `DEFAULTS` in
+  `tools/hooks/hooks.mjs` (the comment beside it). Values are JSON: `true`, `3`, `"text"`, `["a", "b"]`.
+- Change it: edit `tools/hooks/config.json` yourself, then add a line to `docs/DECISIONS.md`:
+  `<date>: setting <key> = <value> - <why>`.
+- **The agent host refuses the edit** (the edit tool returns a denial instead of a change, such as Claude Code's
+  safety check on an agent changing its own hooks' settings): don't write it any other way. The `setting` command with
+  a value is the user's, never yours. End the answer with what it does in plain words and one line per setting for the
+  user to paste: `! node tools/hooks/hooks.mjs setting <key> <value>` (in Claude Code the `!` runs it in this session;
+  in another agent, in a terminal). On the next turn, read it back and add the DECISIONS line.
 
 ## Done when
-- [ ] An upgrade's review lines are each decided (hook: upgrade-review).
-- [ ] A setting the host refused went to the user as the one line to paste, never written another way (hook: permission-respected).
-- [ ] The engine change is its own commit, or the answer says why not (judgment: whether the project wanted a commit).
-- [ ] After a removal, the answer says where the backup is and how to put the engine back (judgment: plain wording).
-- [ ] The answer ends with a Finished section (hook: finished-summary).
+- [ ] The project's own work was committed before the engine change, and the change is its own commit, or the answer
+      says why not (judgment: whether the project keeps git history is the user's call).
+- [ ] An install ended with the project-bootstrap skill started in that folder (judgment: setup is its own interview).
+- [ ] An upgrade's review lines each end with a decision (hook: upgrade-review).
+- [ ] A removal was asked first, and the answer says where the backup is and how to put the engine back (judgment:
+      plain wording for the user).
+- [ ] A changed setting has its DECISIONS line; one the host refused went to the user as the line to paste, never
+      written another way (hook: permission-respected).
+- [ ] The answer ends with a Finished section: what changed, each file's path, what was not verified (hook: finished-summary).
 
 ## Pitfalls
 - 2026-10-27: an upgrade ran on top of a session's 27 uncommitted files, so the two could only be committed together.
