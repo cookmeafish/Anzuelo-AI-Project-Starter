@@ -6,6 +6,12 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-10-28: Examples, tests and lessons use neutral subjects only.
+  - About 40 comments, test cases, trigger phrases and changelog lines had kept the subject of the projects their
+    lessons came from. They now use neutral subjects (trips, invoices, kitchen shifts, tax rules). The research
+    ledger no longer treats one game-specific paid-service wording as a seller.
+  - The field-report runbook (step 3) says to retell each case in a neutral subject, and to add a new project's
+    subject words to the private list, so the audit catches what slips through.
 - 2026-10-27: One runbook installs, upgrades and removes the engine; settings the host refuses; "acknowledged" at once.
   - **Engine runbook (`docs/playbooks/engine.md`, core, menu E6):** install (new or adopt), upgrade (moved from
     `project.md` §7, which now points here), remove, and hook settings, with "commit the project's work first".
@@ -398,7 +404,7 @@ hooks:**, and an upgrade lists each one as its own review item.
     adding a block each time (a project had 9 such blocks in a row). The host's "[Cross-session idle notice]" and
     "[Cross-session delivery notice]" messages get no hints, like task notifications. Scenarios:
     `upgrade-review-block`, `relay-preview:` (notices).
-  - **Field report from an upgraded project:** a version number as the text to write ("change the raid notes file to
+  - **Field report from an upgraded project:** a version number as the text to write ("change the trip notes file to
     say v2") no longer reads as a request for a new copy, so no-overwrite lets the edit through; "save it as v2" still
     asks for a new file. The audit's no-overwrite hint says which requests the guard lets through. `claim-checked` judges
     a commit, push, publish or send by the tool's own error lines (`error:`, `fatal:`, `[rejected]`, a denial), not by
@@ -616,7 +622,7 @@ hooks:**, and an upgrade lists each one as its own review item.
     - **Helpers on an old scope are named when the user changes it** (field report): a message from the user that
       arrives while helpers launched before it still run gets a one-time heads-up with the next call, naming them, to
       stop the ones it makes obsolete before new work. Three helpers had judged a free-only plan after the user allowed
-      paid items, and 447,423 tokens were thrown away. The plan skill now orders work for cost: expensive repeated steps
+      paid options, and 447,423 tokens were thrown away. The plan skill now orders work for cost: expensive repeated steps
       (judging rounds, fan-outs, full runs) run once on the final inputs, research first, a fan-out's size is written
       in the plan. Scenarios: `scope-change:`.
     - **Round 11 findings fixed:** the setup gate counts the interview answers written by the same command that
@@ -1191,7 +1197,7 @@ hooks:**, and an upgrade lists each one as its own review item.
     is not security code; modular-code skips `http://*` wildcards and lines marked `modular-ok: <reason>`; a file this
     session brought into a protected folder and nothing cites yet may be removed or renamed (protect-originals); the
     research ledger takes "display ads only" as an honest incentive, catches sellers and boosting services, counts one
-    media group as one owner (`GameRant (Valnet)`, and known groups by name), and logs a lead-only claim as
+    media group as one owner (`Screen Rant (Valnet)`, and known groups by name), and logs a lead-only claim as
     `unverified`; the commit gate shows the command to run and says its own && chain is fine.
   - **New tools are vetted before use:** a package or tool installed in a turn needs a `Vetted:` line (legitimate per
     two or more independent sources, free with a license that allows the use, maintained and well regarded);
@@ -1241,7 +1247,7 @@ hooks:**, and an upgrade lists each one as its own review item.
       and they stay in git's stash.
     - `"researchCoveredBy"` in config: a regex for the line the project's own research rule asks for (sources and a
       date). An answer with that line meets research-verified.
-    - The closest-runbook hint matches plurals to singular words ("lands" and "land").
+    - The closest-runbook hint matches plurals to singular words ("invoices" and "invoice").
     - `hooks.mjs waive` works for agents without hooks too (check reads it from the run log). AGENTS.md rule 7 says to
       waive with the command instead of writing `N/A(...)` into the answer (adopt by hand).
     - A question that asks whether something did a good job no longer gets the PRAISE hint. Feedback the user wants
@@ -1371,7 +1377,7 @@ hooks:**, and an upgrade lists each one as its own review item.
     the time it stamped (any other change is refreshed), runbooks and skills are read once per hook run unless a file
     changes, and `hooks.mjs bench` times the real path (with a transcript) instead of the no-hooks fallback.
   - **From real projects' feedback** (a live project and a brand-new trial project sent these back): "roles" alone no
-    longer forces the security review (game roles; "user roles", "admin roles", RBAC still do); a stated requirement
+    longer forces the security review (team roles; "user roles", "admin roles", RBAC still do); a stated requirement
     no longer also suggests knowledge-capture; the "later - when:" fit notice measures once a day, not every prompt
     (~600 ms per prompt in a project with many images); an HTML page's tags are no longer counted as words by the
     writing check, and block elements end a sentence; self-tests no longer collide with a project's own runbooks,
@@ -1400,7 +1406,7 @@ hooks:**, and an upgrade lists each one as its own review item.
     work from the user's last prompt.
   - **From a project adopted with its own hook engine**: a project's own menu codes are not taken
     for an uninstalled pack's; `wire` keeps the project's own Codex hook commands; `"fluffAllowed"` takes words off the
-    filler list (a game's real terms); an upgrade keeps an adopted project's `_fallback.md` lessons; runbook-usage
+    filler list (a subject's real terms); an upgrade keeps an adopted project's `_fallback.md` lessons; runbook-usage
     stores a hash, not a home-folder path; a Windows home path of an account named "User" is personal too (only
     placeholders pass); `triggers_removed:` takes a starter trigger out of a runbook or skill for good, upgrades
     included; `"externalHooks"` makes the `REQ: <tag>` checks of the project's own hooks count in the audit; a
@@ -1451,7 +1457,7 @@ hooks:**, and an upgrade lists each one as its own review item.
   - **A stale mirror is refreshed.** A skills folder the engine generated (its skills carry `.mirror`) stays a mirror
     even when it is missing from `skillMirrors`, so it is synced, pruned and protected; one left out kept a link that
     pointed one folder short.
-  - **A runbook can own folders.** `owns: sources/raids/**` in a runbook's frontmatter: in a turn that follows it,
+  - **A runbook can own folders.** `owns: sources/trips/**` in a runbook's frontmatter: in a turn that follows it,
     another runbook's trigger skips files there, so research downloads don't call for ingest. In any other turn the
     trigger still fires.
   - **`sed -i` is judged by the files it edits.** protect-originals denied a `sed -i` on a runbook because the script's
@@ -1565,7 +1571,7 @@ hooks:**, and an upgrade lists each one as its own review item.
     - The self-tests pass inside a project mid-setup: their sandbox drops the project's own fit checklist, plans and
       hook state, and uses the starter's current core skill checks when the starter can be reached. The merge and
       citation checks wait for background helpers even in a project whose checks predate `"waitsForAgents"`.
-    - A fit "later - when:" condition counts what its noun names ("raid files" are files with "raid" in the path,
+    - A fit "later - when:" condition counts what its noun names ("trip files" are files with "trip" in the path,
       "html files" end in .html, "commits" is the git history); one it can't read is not measured, and the sweeps
       revisit it.
     - A file rewritten byte for byte is not a change (the prompt hook keeps each file's hash at the turn's start), and
@@ -1647,7 +1653,7 @@ hooks:**, and an upgrade lists each one as its own review item.
     - the setup gate counted the instruction "Replace every `<...>`" as an unfilled value;
     - app tests failed in projects whose code lives outside `src/`;
     - four-part version numbers were flagged as IP addresses;
-    - a project named after its subject (a game) had every mention flagged: `"_subjects"` in `docs/names.json`;
+    - a project named after its subject had every mention flagged: `"_subjects"` in `docs/names.json`;
       setup answers written with a name marker stopped counting;
     - writing "starter.mjs link" into a file with a heredoc was blocked as if it ran.
   - **Development copies:** a `.starter-dev` file marks a copy being worked on. Projects can't be made from it or

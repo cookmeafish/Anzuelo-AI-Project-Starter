@@ -20,7 +20,10 @@ engine, the project's own hooks, or the agent. New projects never get this file.
    from the report's guess. Copy a project to the scratch folder to rerun a hook; never edit the real project.
 3. **Fix the cause in the engine**, in the starter's integration worktree, with a self-test that fails without the
    fix and passes with it (and the cases that must keep working). A cause in the project's own files or hooks is
-   theirs: say what to change, and change nothing in their project.
+   theirs: say what to change, and change nothing in their project. The test data, the `Lesson:` comment and the
+   changelog line retell the case in a neutral subject (recipes, invoices, trips), never the project's own subject,
+   items or wording (AGENTS.md rule 14). A report from a new project: add its subject words to
+   `~/.anzuelo/private-terms.txt` first, so the audit catches what slips through.
 4. **Changelog line** in `tools/starter/STARTER-CHANGELOG.md` per fix, with its scenario names.
 5. **Green chain, gated on exit codes**: `node tools/hooks/selfcheck.mjs && node tools/trial.mjs && node tools/audit.mjs`
    (never `| tail`). Never edit the starter while that chain runs (the trial upgrades from the live folder). Commit
@@ -35,6 +38,7 @@ engine, the project's own hooks, or the agent. New projects never get this file.
 - [ ] This session's work went through the starter's own engine: `node tools/hooks/hooks.mjs begin "<request>"` recorded it, or its hooks did (hook: engine-bypassed)
 - [ ] Every item of the report has a confirmed cause (judgment: from its transcript or state files)
 - [ ] Each engine cause has a fix with a self-test that fails without it (hook: hooks-tested)
+- [ ] Tests, comments and changelog lines use a neutral subject, not the project's (judgment: the audit catches only listed words)
 - [ ] The full chain passed and was pushed with the user as the only author (hook: claim-checked)
 - [ ] The project got a reply naming the commit, causes, fixes and tests (judgment: the reply is the record)
 

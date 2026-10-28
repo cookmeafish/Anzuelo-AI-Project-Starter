@@ -300,7 +300,7 @@ const DEFAULTS = {
   protectedBranches: ['main', 'master'],
   backupDir: '.cache/git-backups',
   // Secrets that must never be committed (key prefixes and private key blocks). Each prefix starts at a word boundary.
-  // Lesson: a file name with "...isk-encounter-..." in it was flagged as a key, because "sk-" matched inside a word.
+  // Lesson: a file name with "...isk-assessment-..." in it was flagged as a key, because "sk-" matched inside a word.
   // (a path segment is no key: "/sk-acq-74e0b-..." in a download path was flagged. Lesson from a project's spec files)
   secretPatterns: ['(?<![A-Za-z0-9/\\\\])sk-[A-Za-z0-9_-]{20,}', '(?<![A-Za-z0-9/\\\\])sk-ant-[A-Za-z0-9_-]{20,}', '(?<![A-Za-z0-9])AIza[0-9A-Za-z_-]{30,}', '(?<![A-Za-z0-9])xai-[A-Za-z0-9]{20,}',
     '(?<![A-Za-z0-9])gh[pousr]_[A-Za-z0-9]{30,}', '(?<![A-Za-z0-9])AKIA[0-9A-Z]{16}', '-----BEGIN [A-Z ]*PRIVATE KEY-----', '(?<![A-Za-z0-9])xox[baprs]-[A-Za-z0-9-]{10,}'],
@@ -379,7 +379,7 @@ const DEFAULTS = {
     String.raw`|\b(olvidaste|se te olvid\w+)\b|\b(ya )?te (lo )?dije\b|\bpor qu[eé] (no )?(hiciste|pusiste|cambiaste|borraste|olvidaste)`,
   // The work falls short: a verdict on its quality, or a disappointed question about what it lacks. Upset too, and a
   // standing requirement on the work, so it is enforced with a check (REQ: upset-learned).
-  // (Lesson: "really no pictures ... did you not find any" and "it's lackluster" got no upset handling at all)
+  // (Lesson: a disbelieving question about missing work and a one-word verdict on its quality got no upset handling)
   // ("useless" counts as a verdict ("it's useless"), not when it describes what the request is about. Lesson (a field
   // report): "replace the 2 most useless items in the list" read as an upset user)
   // (cursing and the words of an angry user count too, misspelled or not. Lesson (the user): "cussing and all caps ...
@@ -407,8 +407,8 @@ export function config() {
   const c = readJSON(path.join(HOOKS, 'config.json'), {});
   const out = { ...DEFAULTS, ...c };
   for (const k of EXTENDS) if (Array.isArray(c[k])) out[k] = [...new Set([...DEFAULTS[k], ...c[k]])];
-  // words that are filler elsewhere but real terms in the project's subject (a game rule that shares its name with a filler
-  // word). Lesson: an adopted project's docs and answers about such a rule were flagged as filler
+  // words that are filler elsewhere but real terms in the project's subject (a technical term that shares its name with a
+  // filler word). Lesson: an adopted project's docs and answers about such a rule were flagged as filler
   if (Array.isArray(c.fluffAllowed)) out.fluff = out.fluff.filter(f => !c.fluffAllowed.includes(f));
   // A skills folder the engine once generated (its skills carry a .mirror marker) stays a mirror, so it is refreshed,
   // pruned and protected like the configured ones. Lesson: .agents/skills was left out of skillMirrors, and its copy
@@ -454,7 +454,7 @@ const PERSONAL = [
   // or Git Bash form ("/c/Users/User") is real. Lesson: the same account's home paths passed in Unix form)
   [/(?<![A-Za-z]:)\/(home|Users)\/(?!<|user\/|you\/|Shared\/|\$)[A-Za-z0-9._-]{2,}\//, 'a personal home path'],
   // first part 10 to 255, every part a real octet, and not a version ("v9.7.0.3", "version 12.1.0.4", "9.7.0.3")
-  // Lesson: four-part version numbers in a game's data were flagged as IP addresses.
+  // Lesson: four-part version numbers in a product's data were flagged as IP addresses.
   [/(?<![\w.]|\bv|\bversions?[\s:=]{1,3}|\bbuild[\s:=]{1,3})(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}(?![\w.])(?<!127\.0\.0\.1)/i, 'an IP address', hit => !RESERVED_IP(hit) && !PUBLIC_TEST_IP.has(hit)]
 ];
 // the first match of each kind that is not a reserved one (keep)
@@ -496,7 +496,7 @@ function playbooksRead(dir = 'docs/playbooks') {
 }
 
 // The runbook whose name, summary and triggers share the most content words with a request (word stems of 5 letters,
-// so "lands" meets "land" and "colors" meets "colored"), when at least two are shared. Generic runbooks are left out.
+// so "invoices" meets "invoice" and "boxes" meets "boxed"), when at least two are shared. Generic runbooks are left out.
 const STOP_STEMS = new Set('about after again their there these those which while where would could should thing pleas thank with make have from this that want need help into more some just like what when your mine also very much'.split(' ').map(w => w.slice(0, 5)));
 // Text without its accents: "añade" is "anade", "línea" is "linea".
 export const fold = s => String(s).normalize('NFD').replace(/\p{M}/gu, '');
@@ -504,15 +504,15 @@ export const fold = s => String(s).normalize('NFD').replace(/\p{M}/gu, '');
 export const coreRunbook = n => String(n).startsWith('_') || /^(project|feature|bugfix|deliverable|qa|plan)$/.test(n);
 // Common Spanish words of a request, in English, so a Spanish request finds an English runbook by its words too.
 // Lesson: a Spanish request found nothing, while the same request in English found the closest runbook.
-const ES_EN = { mejor: 'best', mejores: 'best', peor: 'worse', mejora: 'better', mejorar: 'improve', jugada: 'play', jugadas: 'play', jugar: 'play',
-  juego: 'game', partida: 'game', turno: 'turn',
+const ES_EN = { mejor: 'best', mejores: 'best', peor: 'worse', mejora: 'better', mejorar: 'improve', ruta: 'route', rutas: 'route',
+  dia: 'day', dias: 'day', viaje: 'trip', viajes: 'trip',
   nota: 'note', notas: 'note', linea: 'line', archivo: 'file', archivos: 'file', informe: 'report', reporte: 'report', lista: 'list', precio: 'price',
   precios: 'price', presupuesto: 'budget', pantalla: 'screen', boton: 'button', pagina: 'page', datos: 'data', factura: 'invoice', facturas: 'invoice',
   cliente: 'customer', clientes: 'customer', correo: 'email', mensaje: 'message', prueba: 'test', pruebas: 'test', fallo: 'bug', regla: 'rule',
   reglas: 'rule', construye: 'build', construir: 'build', crea: 'create', crear: 'create', busca: 'search', buscar: 'search', compara: 'compare',
-  comparar: 'compare', calidad: 'quality', nivel: 'tier', colores: 'color', color: 'color', semana: 'week', comida: 'meal', comidas: 'meal', receta: 'recipe' };
+  comparar: 'compare', calidad: 'quality', colores: 'color', color: 'color', semana: 'week', comida: 'meal', comidas: 'meal', receta: 'recipe' };
 export function closestRunbook(prompt) {
-  // (a plural "s" goes first: "lands" was "lands" and "land" was "land", so the two never met)
+  // (a plural "s" goes first: "invoices" was "invoices" and "invoice" was "invoice", so the two never met)
   const stems = (s, tr) => new Set((fold(String(s).toLowerCase()).match(/[a-z]{4,}/g) || []).map(w => tr && ES_EN[w] || w)
     .map(w => (w.length >= 5 ? w.replace(/s$/, '') : w).slice(0, 5)).filter(w => !STOP_STEMS.has(w)));
   const want = stems(prompt, true);
@@ -2788,8 +2788,8 @@ const NAME_MARK = /<!--name:([A-Za-z0-9_]+)-->[\s\S]*?<!--\/name-->/g;
 export const names = () => Object.fromEntries(Object.entries(readJSON(abs(NAMES_FILE), {})).filter(([k, v]) => !k.startsWith('_') && typeof v === 'string'));
 // A name that is still a template placeholder ({{PROJECT_NAME}}) or too short to search for is not checked.
 // "_subjects": keys whose value is also a real-world thing the project's content talks about (a project named after a
-// game, a city or a product). Its mentions in content are the subject, not the project's name, so they are not flagged;
-// the markers still refill on a rename. Lesson: a project named after a game flagged every mention of the game.
+// city, a river or a product). Its mentions in content are the subject, not the project's name, so they are not flagged;
+// the markers still refill on a rename. Lesson: a project named after its subject flagged every mention of the subject.
 const subjects = () => new Set([].concat(readJSON(abs(NAMES_FILE), {})._subjects || []));
 const checkable = nm => { const sub = subjects(); return Object.entries(nm).filter(([k, v]) => !sub.has(k) && v.trim().length >= 3 && !/\{\{|<!--/.test(v)); };
 export const stampNames = (text, nm = names()) => text.replace(NAME_MARK, (m, k) => k in nm ? `<!--name:${k}-->${nm[k]}<!--/name-->` : m);
@@ -3883,9 +3883,9 @@ export function fitRows(text = read(abs(FIT_FILE))) {
 }
 export const fitDecision = d => (/^(add|skip|later)\b/i.exec(String(d).trim()) || [])[1]?.toLowerCase() || null;
 // "later - when: the code passes 30 files" → { metric: 'code', min: 31 }. The noun decides what is counted: "commits"
-// the git history, "code files" or "data files" a survey kind, "html files" files ending in .html, "raid files" files
-// whose path contains "raid". A condition the hooks can't read gets metric null: not measurable, the sweeps revisit it.
-// Lesson: "more than 6 raid files" was counted against every file in the project, so it read as met on day one.
+// the git history, "code files" or "data files" a survey kind, "html files" files ending in .html, "trip files" files
+// whose path contains "trip". A condition the hooks can't read gets metric null: not measurable, the sweeps revisit it.
+// Lesson: "more than 6 trip files" was counted against every file in the project, so it read as met on day one.
 const FIT_KINDS = [['visual', /\b(web|ui|screens?|pages?)\b/], ['tabular', /\bdata\b|\bcsv\b|spreadsheets?|\bxlsx\b/], ['python', /\bpython\b/],
   ['code', /\bcode\b|\bsource\b/], ['notes', /\bnotes?\b|\bdocuments?\b/], ['scripts', /\bscripts?\b/]];
 const FIT_EXTS = /^(html?|css|scss|js|mjs|cjs|ts|tsx|jsx|py|md|mdx|txt|csv|tsv|json|xml|ya?ml|xlsx?|pdf|docx?|png|jpe?g|gif|svg|sql|sqlite|db|ps1|sh|bat|go|rs|java|cs|rb|php)$/;
@@ -4441,8 +4441,8 @@ export function fitDueByRequest(text, cfg = config()) {
     return { name: r.item, fm, triggers: splitList(fm.triggers), triggerRe: null, row: r };
   }).filter(x => x.triggers.length);
   // (a "later - when: <condition>" row waits for that condition: one trigger alone needs a word of the condition too; two
-  // or more triggers are the skill's job plainly. Lesson, a field report: "explain how to use the ability" matched the
-  // teach skill's one trigger "explain how", and its row waited for "the user asks to learn the game rules step by step")
+  // or more triggers are the skill's job plainly. Lesson, a field report: "explain how to use the pivot table" matched the
+  // teach skill's one trigger "explain how", and its row waited for "the user asks to learn the tax rules step by step")
   const want = new Set(keyWords(text));
   const meets = (r, hits) => { const m = /\bwhen\s*:\s*([^)|]*)/i.exec(r.decision || ''); if (!m || hits.length >= 2) return true;
     const cond = keyWords(m[1]).filter(w => w.length > 3 && !GENERIC.has(w) && !/^(user|users|ask|asks|asked|want|wants|first|need|needs|time)$/.test(w));
@@ -5539,7 +5539,7 @@ function pretoolHits(data, cfg) {
         `(^|[^<>2&])>{1,2}\\s*${P}`,
         `(^|[\\s;&|(])(Set-Content|Out-File|Add-Content|tee)\\b[^;&|]*?(\\s|^)${P}`
       ].map(b => re(b).test(cmd));
-      // sed -i edits only its file arguments, not its script. Lesson: adding the line "owns: sources/raids/**" to a
+      // sed -i edits only its file arguments, not its script. Lesson: adding the line "owns: sources/trips/**" to a
       // runbook with sed was denied, because the folder's name was in the replacement text.
       hits.push(sedInPlaceFiles(cmd).some(f => re(`^${P}`).test(f)));
       const bad = hits.some(Boolean);
@@ -5676,7 +5676,7 @@ export function overlapNotice(data) {
 }
 // A message from the user that arrived while helpers launched before it still run: once per message, with the next call,
 // name them, so the ones the message makes obsolete are stopped before new work (a notice, never a denial).
-// Lesson (a field report): the user allowed wildcards while three helpers were judging a free-only plan; they ran on,
+// Lesson (a field report): the user allowed paid options while three helpers were judging a free-only plan; they ran on,
 // and their 447,423 tokens were thrown away.
 export function scopeNotice(data) {
   if (!data.transcript_path) return null;
@@ -6320,7 +6320,7 @@ export function coreChecks(x, cfg) {
       // "again" means it already happened: a one-off note is too weak for a repeat
       else if (/\bagain\b|\bkeeps?\b|\bevery time\b|\bstill\b|\balready told\b/i.test(x.prompt) && learned.every(l => l.level === 'one-off'))
         add('upset-learned', 'The user says this happened before, so a one-off note will not stop it: put the lesson in the skill or runbook that missed it, make it a rule, or add a check (learn-from-upset skill, step 3).');
-      // the work fell short ("lackluster", "really no pictures?"): that is a requirement on the work, so it gets a check
+      // the work fell short (a one-word verdict, a disbelieving question): that is a requirement on the work, so it gets a check
       // (or a "(judgment: <why>)" Done when item where no script can tell), not just a note. Lesson: such complaints got
       // a fix and an apology, and the check only came when the user asked whether anything forced it.
       else if (re(cfg.letdown).test(x.prompt) && !learned.some(l => ['check', 'engine'].includes(l.level))
@@ -7052,7 +7052,7 @@ function addedContentHit(x, spec, counted = () => true) {
 // chapter 2 sadder" and "polish chapter 1", and its message told the agent to write a "v2" copy of the chapter.
 const CHANGE_ASK = /\b(change|edit|fix|correct|polish|tighten|rewrite|revise|reword|tweak|update|improve|shorten|lengthen|expand|trim|cut|swap|replace|rename|remove|delete|add|adjust|redo|rework|make(?!\s+(a|an|another|new|copy|a copy|me a)\b)|cambi\w*|edit\w*|corrig\w*|arregl\w*|pul\w*|reescrib\w*|mejor\w*|ajust\w*|acort\w*|alarg\w*|quit\w*|añad\w*|agreg\w*|haz(?!\s+(un|una|otr[oa]))|hazlo)\b/i;
 // (a version number asks for a new copy only as one: "save it as v2", "make a v2", "v2 of it", "como v2", not as the
-// text to write. Lesson: "change the raid notes file to say v2" was read as a request for a new copy and denied)
+// text to write. Lesson: "change the trip notes file to say v2" was read as a request for a new copy and denied)
 const NEW_COPY = /\b(new (version|file|copy)|another version|a copy|copy of|(?:as|a|into|como|una?)\s+v\d+\b|v\d+\s+(?:of|copy|file|de|copia)\b|nueva versi[oó]n|otra versi[oó]n|una copia|copia de)\b/i;
 const FOLDER_NOUN = { chapters: '(chapter|ch\\.?|cap[ií]tulo|cap\\.?)', capitulos: '(cap[ií]tulo|chapter|cap\\.?)' };
 export function asksToChange(p, prompt) {
@@ -7645,8 +7645,8 @@ ${passed.join('\n')}`;
       const t0 = TIMING ? performance.now() : 0;
       x.detail = ''; x.trigger = ''; x.override = ''; x.short = '';
       // A runbook followed this turn owns the folders in its "owns:" frontmatter: another runbook's trigger ("forces")
-      // doesn't count files there. Not followed, the trigger still fires. Lesson: a project's raid-research runbook saved
-      // downloads into sources/raids/, and the ingest trigger asked for ingest on every one of them.
+      // doesn't count files there. Not followed, the trigger still fires. Lesson: a project's trip-research runbook saved
+      // downloads into sources/trips/, and the ingest trigger asked for ingest on every one of them.
       const owned = q.forces ? (x.usedPb || []).filter(pb => pb.name !== q.forces && pb.fm?.owns).flatMap(pb => String(pb.fm.owns).split(',').map(s => s.trim()).filter(Boolean)) : [];
       // (each "anyOf" branch too: a branch judges its own files. Lesson: the ingest trigger moved its files into anyOf,
       // and the owned folder counted again)

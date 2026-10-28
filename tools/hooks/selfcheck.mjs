@@ -152,7 +152,7 @@ function buildBase(host) {
   if (!host && !IS_STARTER) { delete cfg0.externalHooks; delete cfg0.hookContract; }
   // (protectedBranches too: a project that works on main sets it to [], and the push fixtures expect the defaults)
   // (and the project's own folder names and word lists, which the scope, verbatim and writing fixtures assume are the
-  // defaults. Lesson: an adopted project's "friends" scopes root and its verbatimAllowed broke seven fixtures)
+  // defaults. Lesson: an adopted project's own scopes root and its verbatimAllowed broke seven fixtures)
   for (const k of ['app', 'starter', 'adopted', 'autonomy', 'suspended', 'protectedBranches', 'scopesRoot', 'verbatimAllowed', 'fluffAllowed']) delete cfg0[k];
   // a "## Dropped rules" section of the project's own adoption would be read in place of the fixture's
   try { const dp = at('docs/DECISIONS.md'); fs.writeFileSync(dp, fs.readFileSync(dp, 'utf8').replace(/^## Dropped rules[^\n]*\n[\s\S]*?(?=^## |(?![\s\S]))/gm, '')); } catch { }
@@ -534,14 +534,14 @@ const STOP = [
     answer: 'Checked: docs/menu.md - the croissant line had no allergens. Added them to the menu.\nLearned (lesson): every menu item lists its allergens → allergens-every-item.md' + FIN, expect: { not: ['upset-learned'] } },
   { name: 'upset-learned: "again" with only a one-off note: blocked', prompt: 'you forgot to add the allergens again!!', files: { 'docs/menu.md': 'Croissant (gluten, milk)', 'docs/lessons.md': '- 2026-10-19: allergens missed' },
     answer: 'Added the allergens to the menu.\nLearned (one-off): allergens were missed → docs/lessons.md' + FIN, expect: { block: true, tags: ['upset-learned'] } },
-  // Lesson: complaints sent mid-turn as questions or verdicts ("really no pictures???", "it's lackluster") got no upset
+  // Lesson: complaints sent mid-turn as questions or verdicts (a disbelieving question, a one-word verdict) got no upset
   // handling, and the check came only when the user asked whether anything forced it
-  { name: 'upset-learned: a mid-turn "the work falls short" complaint, fixed with a lesson but no check: blocked', prompt: 'make the zorbl page', queued: ['really no pictures for these encounters??? did you not find any'],
+  { name: 'upset-learned: a mid-turn "the work falls short" complaint, fixed with a lesson but no check: blocked', prompt: 'make the zorbl page', queued: ['seriously no photos for these steps??? you found none'],
     files: { 'docs/zorbl.md': '# Zorbl\n![boss](boss.png)', 'docs/lessons.md': '- 2026-10-19: pictures were missing' },
-    answer: 'Added pictures for every encounter.\nLearned (lesson): every encounter needs a picture → docs/lessons.md' + FIN, expect: { block: true, tags: ['upset-learned'] } },
-  { name: 'upset-learned: a "the work falls short" complaint enforced with a judgment item: passes that check', prompt: 'its lackluster in picture variety and accuracy',
-    files: { 'docs/zorbl.md': '# Zorbl\n![boss](boss.png)', 'docs/playbooks/zorbl.md': '---\nname: zorbl\nsummary: zorbl pages\ntriggers: zorbl page\nchecks: none - a test runbook\n---\n# Playbook: zorbl\n## Done when\n- [ ] Every encounter shows varied, accurate pictures (judgment: only a person can judge accuracy)\n', 'docs/CHANGELOG.md': 'x' },
-    answer: 'You\'re right: the pictures repeated.\nChecked: docs/zorbl.md - one boss picture used for every encounter.\nAdded varied pictures.\nLearned (rule): every encounter shows varied, accurate pictures → docs/playbooks/zorbl.md\nDone when item: "(judgment: only a person can judge accuracy)"' + FIN, expect: { not: ['upset-learned'] } },
+    answer: 'Added photos for every step.\nLearned (lesson): every step needs a photo → docs/lessons.md' + FIN, expect: { block: true, tags: ['upset-learned'] } },
+  { name: 'upset-learned: a "the work falls short" complaint enforced with a judgment item: passes that check', prompt: 'the photos are weak, same ones everywhere and some wrong',
+    files: { 'docs/zorbl.md': '# Zorbl\n![boss](boss.png)', 'docs/playbooks/zorbl.md': '---\nname: zorbl\nsummary: zorbl pages\ntriggers: zorbl page\nchecks: none - a test runbook\n---\n# Playbook: zorbl\n## Done when\n- [ ] Every step shows varied, accurate photos (judgment: only a person can judge accuracy)\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'You\'re right: the pictures repeated.\nChecked: docs/zorbl.md - one photo used for every step.\nAdded varied photos.\nLearned (rule): every step shows varied, accurate photos → docs/playbooks/zorbl.md\nDone when item: "(judgment: only a person can judge accuracy)"' + FIN, expect: { not: ['upset-learned'] } },
   { name: 'upset-learned: an engine lesson kept in one project: blocked', removeMarker: true, prompt: 'ugh, that check fired for nothing again', files: { 'docs/lessons.md': '- 2026-10-19: the check misfires' },
     answer: 'Learned (engine): the check misfires on menus → docs/lessons.md' + FIN, expect: { block: true, tags: ['upset-learned'] } },
   { name: 'upset-learned: fixed, and the lesson written where it stops the next miss: passes', prompt: 'you forgot to add the allergens again!!', tools: [pb('project')],
@@ -719,12 +719,12 @@ const STOP = [
   // a lasting requirement the user states is enforced in the same turn, without being asked
   // Lesson: a requirement said in passing ("there needs to be ...", "keep in mind that every ...") started no learning
   { name: 'requirement-enforced: a requirement said in passing, during work, with nothing enforcing it: blocked',
-    prompt: 'there needs to be role selection obvious to the player. also keep in mind that every phase has different roles and most do not repeat',
-    files: { 'docs/roles.md': '# Roles\n- Phase 1: tank, healer.\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Added a role picker to the page.' + FIN, expect: { block: true, tags: ['requirement-enforced'] } },
+    prompt: 'there needs to be a shift picker obvious to the staff. also keep in mind that every shift has different roles and most do not repeat',
+    files: { 'docs/roles.md': '# Roles\n- Morning: cook, server.\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Added a shift picker to the page.' + FIN, expect: { block: true, tags: ['requirement-enforced'] } },
   { name: 'requirement-enforced: "keep in mind" about the user\'s own day is no requirement: passes that check', prompt: "keep in mind I'm out tomorrow, write the onboarding notes",
     files: { 'docs/onboarding.md': '# Onboarding\n- Step 1.\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Wrote the onboarding notes.' + FIN, expect: { not: ['requirement-enforced'] } },
-  { name: 'requirement-enforced: a requirement said in passing in a question turn: passes that check', prompt: 'there needs to be role selection obvious to the player, right?',
-    answer: 'Yes, a role picker would help.' + FIN, expect: { not: ['requirement-enforced'] } },
+  { name: 'requirement-enforced: a requirement said in passing in a question turn: passes that check', prompt: 'there needs to be a shift picker obvious to the staff, right?',
+    answer: 'Yes, a shift picker would help.' + FIN, expect: { not: ['requirement-enforced'] } },
   { name: 'requirement-enforced: a requirement written only into a runbook: blocked', prompt: 'every zorbl picture must have a paired diagram', tools: [pb('project'), bash('node tools/audit.mjs')],
     files: { 'docs/playbooks/zorbl-research.md': '---\nname: zorbl-research\nsummary: research a zorbl\ntriggers: research a zorbl\nchecks: none - test\n---\n# Playbook: zorbl research\n## Steps\n1. Research.\n## Done when\n- [ ] Every picture has a paired diagram (hook: diagram-paired).\n', 'docs/CHANGELOG.md': 'x' },
     answer: 'Playbook: project.md. Added the requirement.' + FIN, expect: { block: true, tags: ['requirement-enforced'] } },
@@ -767,7 +767,7 @@ const STOP = [
     files: { 'docs/playbooks/zorbl-answer.md': '---\nname: zorbl-answer\nsummary: answer a zorbl question\ntriggers: zorbl question\n---\n# Playbook: zorbl answer\n## Steps\n1. Answer.\n## Done when\n- [ ] The answer cites the zorbl file.\n', 'docs/CHANGELOG.md': 'x' },
     answer: 'Playbook: project.md. Added the citation rule.' + FIN, expect: { block: true, tags: ['done-when-labeled'] } },
   { name: 'done-when-labeled: each item names its check or why only judgment can tell: passes that check', prompt: 'every zorbl answer must cite its zorbl file', tools: [pb('project'), bash('node tools/audit.mjs')],
-    files: { 'docs/playbooks/zorbl-answer.md': '---\nname: zorbl-answer\nsummary: answer a zorbl question\ntriggers: zorbl question\n---\n# Playbook: zorbl answer\n## Steps\n1. Answer.\n## Done when\n- [ ] The answer cites the zorbl file (hook: answer-traced).\n- [ ] The tone fits a new player (judgment: no script can tell tone).\n', 'docs/CHANGELOG.md': 'x' },
+    files: { 'docs/playbooks/zorbl-answer.md': '---\nname: zorbl-answer\nsummary: answer a zorbl question\ntriggers: zorbl question\n---\n# Playbook: zorbl answer\n## Steps\n1. Answer.\n## Done when\n- [ ] The answer cites the zorbl file (hook: answer-traced).\n- [ ] The tone fits a new customer (judgment: no script can tell tone).\n', 'docs/CHANGELOG.md': 'x' },
     answer: 'Playbook: project.md. Added the citation rule.' + FIN, expect: { block: true, not: ['done-when-labeled'] } },
   // (a check name no hook defines lets the item pass with no evidence. Lesson (the user): "the runbooks must be accurate")
   { name: 'done-when-labeled: an item naming a check that does not exist: blocked', prompt: 'every zorbl answer must cite its zorbl file', tools: [pb('project'), bash('node tools/audit.mjs')],
@@ -1017,24 +1017,24 @@ const PRETOOL = [
   { pack: 'knowledge', name: 'overwrite an output when the user asked to edit in place: allowed', tool: 'Write', input: { file_path: 'outputs/plan.md' }, setup: { 'outputs/plan.md': 'v1' }, prompt: 'fix the typo in that file, edit it in place', deny: false },
   { pack: 'knowledge', name: 'new output version: allowed', tool: 'Write', input: { file_path: 'outputs/plan v2.md' }, setup: { 'outputs/plan.md': 'v1' }, deny: false },
   // the session's own downloads that nothing cites yet may be removed or renamed, in a later turn too
-  { name: 'protect-originals: remove an uncited file this session downloaded earlier: allowed', tool: 'Bash', input: { command: 'rm sources/raids/promo1.jpg' },
-    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), protectedOriginals: ['sources/**'] }) }, setup: { 'sources/raids/promo1.jpg': 'x' },
-    before: [{ name: 'Bash', input: { command: 'curl -sL -o sources/raids/promo1.jpg https://img.example/p1.jpg' } }], deny: false },
-  { name: 'protect-originals: rename an uncited file this session downloaded earlier: allowed', tool: 'Bash', input: { command: 'mv sources/raids/map_wrong.webp sources/raids/map_right.webp' },
-    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), protectedOriginals: ['sources/**'] }) }, setup: { 'sources/raids/map_wrong.webp': 'x' },
-    before: [{ name: 'Bash', input: { command: 'curl -sL -o sources/raids/map_wrong.webp https://img.example/m.webp' } }], deny: false },
-  { name: 'protect-originals: remove a session download a note already cites: denied', tool: 'Bash', input: { command: 'rm sources/raids/promo1.jpg' },
-    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), protectedOriginals: ['sources/**'] }) }, setup: { 'sources/raids/promo1.jpg': 'x', 'docs/knowledge/raid.md': 'See sources/raids/promo1.jpg' },
-    before: [{ name: 'Bash', input: { command: 'curl -sL -o sources/raids/promo1.jpg https://img.example/p1.jpg' } }], deny: true, tag: 'protect-originals' },
-  { name: 'protect-originals: remove a file this session did not bring in: denied', tool: 'Bash', input: { command: 'rm sources/raids/promo1.jpg' },
-    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), protectedOriginals: ['sources/**'] }) }, setup: { 'sources/raids/promo1.jpg': 'x' }, deny: true, tag: 'protect-originals' },
+  { name: 'protect-originals: remove an uncited file this session downloaded earlier: allowed', tool: 'Bash', input: { command: 'rm sources/trips/promo1.jpg' },
+    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), protectedOriginals: ['sources/**'] }) }, setup: { 'sources/trips/promo1.jpg': 'x' },
+    before: [{ name: 'Bash', input: { command: 'curl -sL -o sources/trips/promo1.jpg https://img.example/p1.jpg' } }], deny: false },
+  { name: 'protect-originals: rename an uncited file this session downloaded earlier: allowed', tool: 'Bash', input: { command: 'mv sources/trips/map_wrong.webp sources/trips/map_right.webp' },
+    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), protectedOriginals: ['sources/**'] }) }, setup: { 'sources/trips/map_wrong.webp': 'x' },
+    before: [{ name: 'Bash', input: { command: 'curl -sL -o sources/trips/map_wrong.webp https://img.example/m.webp' } }], deny: false },
+  { name: 'protect-originals: remove a session download a note already cites: denied', tool: 'Bash', input: { command: 'rm sources/trips/promo1.jpg' },
+    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), protectedOriginals: ['sources/**'] }) }, setup: { 'sources/trips/promo1.jpg': 'x', 'docs/knowledge/trip.md': 'See sources/trips/promo1.jpg' },
+    before: [{ name: 'Bash', input: { command: 'curl -sL -o sources/trips/promo1.jpg https://img.example/p1.jpg' } }], deny: true, tag: 'protect-originals' },
+  { name: 'protect-originals: remove a file this session did not bring in: denied', tool: 'Bash', input: { command: 'rm sources/trips/promo1.jpg' },
+    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), protectedOriginals: ['sources/**'] }) }, setup: { 'sources/trips/promo1.jpg': 'x' }, deny: true, tag: 'protect-originals' },
   // a cd to a folder outside the project moves the parts after it out (a scratch copy has the same folder names)
-  { name: 'protect-originals: rm of sources/ after a cd into a scratch copy outside the project: allowed', tool: 'Bash', input: { command: `cd "${os.tmpdir().replace(/\\/g, '/')}/scratch-copy"; rm -rf sources/raids/promo*` },
-    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), protectedOriginals: ['sources/**'] }) }, setup: { 'sources/raids/promo1.jpg': 'x' }, deny: false },
-  { name: 'protect-originals: the same rm after a cd into a folder of the project: denied', tool: 'Bash', input: { command: 'cd docs && cd .. && rm -rf sources/raids/promo*' },
-    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), protectedOriginals: ['sources/**'] }) }, setup: { 'sources/raids/promo1.jpg': 'x' }, deny: true, tag: 'protect-originals' },
-  { name: 'protect-originals: an rm that names the project by its absolute path after a cd outside it: denied', tool: 'Bash', input: { command: `cd "${os.tmpdir().replace(/\\/g, '/')}"; rm -rf "<DIR>/sources/raids/promo1.jpg"` },
-    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), protectedOriginals: ['sources/**'] }) }, setup: { 'sources/raids/promo1.jpg': 'x' }, deny: true, tag: 'protect-originals' },
+  { name: 'protect-originals: rm of sources/ after a cd into a scratch copy outside the project: allowed', tool: 'Bash', input: { command: `cd "${os.tmpdir().replace(/\\/g, '/')}/scratch-copy"; rm -rf sources/trips/promo*` },
+    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), protectedOriginals: ['sources/**'] }) }, setup: { 'sources/trips/promo1.jpg': 'x' }, deny: false },
+  { name: 'protect-originals: the same rm after a cd into a folder of the project: denied', tool: 'Bash', input: { command: 'cd docs && cd .. && rm -rf sources/trips/promo*' },
+    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), protectedOriginals: ['sources/**'] }) }, setup: { 'sources/trips/promo1.jpg': 'x' }, deny: true, tag: 'protect-originals' },
+  { name: 'protect-originals: an rm that names the project by its absolute path after a cd outside it: denied', tool: 'Bash', input: { command: `cd "${os.tmpdir().replace(/\\/g, '/')}"; rm -rf "<DIR>/sources/trips/promo1.jpg"` },
+    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), protectedOriginals: ['sources/**'] }) }, setup: { 'sources/trips/promo1.jpg': 'x' }, deny: true, tag: 'protect-originals' },
   { pack: 'knowledge', name: 'rm in sources/: denied', tool: 'Bash', input: { command: 'rm -rf "sources/old.pdf"' }, deny: true, tag: 'protect-originals' },
   { pack: 'knowledge', name: 'Remove-Item absolute path in sources: denied', tool: 'PowerShell', input: { command: 'Remove-Item -Force <DIR>/sources/a.pdf' }, deny: true, tag: 'protect-originals' },
   // (Lesson, trial round 15: test fixtures built under .cache/.../sources were denied as originals)
@@ -1206,11 +1206,11 @@ const PROMPT = [
     remove: ['skills/data-analysis/SKILL.md'], setup: { 'docs/fit-checklist.md': '| Item | Kind | Signal | Decision | Reason |\n|---|---|---|---|---|\n| data-analysis | skill | 3 data files | later - when: the user asks a sales question | the weekly script answers the usual questions |\n' },
     has: ['FIT: this request is what the data-analysis library skill is for'] },
   // (one trigger alone, with no word of the row's condition, is not that condition. Lesson, a field report)
-  { name: 'fit-checklist: one trigger that misses the deferred row\'s condition: no fit notice', prompt: 'explain to me in simple terms how to use the ability', removeMarker: true,
-    remove: ['skills/teach/SKILL.md'], setup: { 'docs/fit-checklist.md': '| Item | Kind | Signal | Decision | Reason |\n|---|---|---|---|---|\n| teach | skill | rules questions | later - when: the user asks to learn the game rules step by step | one-off explanations need no lesson plan |\n' },
+  { name: 'fit-checklist: one trigger that misses the deferred row\'s condition: no fit notice', prompt: 'explain to me in simple terms how to use the pivot table', removeMarker: true,
+    remove: ['skills/teach/SKILL.md'], setup: { 'docs/fit-checklist.md': '| Item | Kind | Signal | Decision | Reason |\n|---|---|---|---|---|\n| teach | skill | rules questions | later - when: the user asks to learn the tax rules step by step | one-off explanations need no lesson plan |\n' },
     hasNot: ['FIT: this request is what the teach library skill is for'] },
-  { name: 'fit-checklist: one trigger plus a word of the condition asks to decide it again', prompt: 'explain how the game rules for blocking work, step by step', removeMarker: true,
-    remove: ['skills/teach/SKILL.md'], setup: { 'docs/fit-checklist.md': '| Item | Kind | Signal | Decision | Reason |\n|---|---|---|---|---|\n| teach | skill | rules questions | later - when: the user asks to learn the game rules step by step | one-off explanations need no lesson plan |\n' },
+  { name: 'fit-checklist: one trigger plus a word of the condition asks to decide it again', prompt: 'explain how the tax rules for deductions work, step by step', removeMarker: true,
+    remove: ['skills/teach/SKILL.md'], setup: { 'docs/fit-checklist.md': '| Item | Kind | Signal | Decision | Reason |\n|---|---|---|---|---|\n| teach | skill | rules questions | later - when: the user asks to learn the tax rules step by step | one-off explanations need no lesson plan |\n' },
     has: ['FIT: this request is what the teach library skill is for'] },
   { name: 'fit-checklist: a request no deferred skill is for: no fit notice', prompt: 'tidy up the readme wording', removeMarker: true,
     remove: ['skills/data-analysis/SKILL.md'], setup: { 'docs/fit-checklist.md': '| Item | Kind | Signal | Decision | Reason |\n|---|---|---|---|---|\n| data-analysis | skill | 3 data files | later - when: the user asks a sales question | the weekly script answers the usual questions |\n' },
@@ -1288,7 +1288,7 @@ STOP.push(
     answer: 'Skill: research. Quick lookup: most hold 100 kg.[1] Heavy-duty models hold 150 kg.[2]\n\nSources:\n[1] https://example.com/desks - Desk specs, 2026-10-17\n[2] https://example.org/loads', expect: { block: false, not: ['research-cited'] } },
   { name: 'quick lookup with its link: passes', edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), packs: (JSON.parse(s).packs || []).filter(p => p !== 'knowledge') }), 'tools/hooks/requirements.json': s => JSON.stringify({ ...JSON.parse(s), requirements: JSON.parse(s).requirements.filter(r => r.pack !== 'knowledge') }) }, prompt: 'search the web for standing desk weight limits', tools: [sk('research'), { name: 'WebFetch', input: { url: 'https://example.com/desks' }, result: 'Rated load: 100 kg.' }],
     answer: 'Skill: research. Quick lookup: most hold 100 kg.[1]\n\nSources:\n[1] https://example.com/desks - 2026-10-17', expect: { block: false } },
-  { name: 'research-verified: a search that found nothing, said with where and when: passes', prompt: 'is there a proven list for this plant shop', tools: [sk('research'), { name: 'WebSearch', input: { query: 'proven plant shop list tulips' }, result: 'no matching results' }],
+  { name: 'research-verified: a search that found nothing, said with where and when: passes', prompt: 'is there a proven layout for this plant shop', tools: [sk('research'), { name: 'WebSearch', input: { query: 'proven plant shop list tulips' }, result: 'no matching results' }],
     answer: 'Skill: research. Searched: a proven list for this plant shop - nothing found (GardenWeb, PlantFinder, BloomStats, 2026-10-20).', expect: { not: ['research-verified'] } },
   // Lesson, field report: polling the app's own local server with curl counted as using the web
   { name: 'research-verified: curl to a local server is not the web: passes', prompt: 'check how the last export run went',
@@ -1299,13 +1299,13 @@ STOP.push(
     answer: 'Skill: research. Prices rise 8% in March.', expect: { block: true, tags: ['research-verified'] } },
   // a project's own research rule (its source-and-date line) can stand in for the ledger: "researchCoveredBy" in config
   // Lesson: an adopted project's market lookups, which its own rule already checks, were sent through the whole ledger too
-  { name: 'research-verified: the project\'s own research rule line, named in config: passes', prompt: 'is there a proven list for this plant shop',
+  { name: 'research-verified: the project\'s own research rule line, named in config: passes', prompt: 'is there a proven layout for this plant shop',
     edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), researchCoveredBy: '^Market checked: .+\\d{4}-\\d\\d-\\d\\d' }) },
-    tools: [sk('research'), { name: 'WebSearch', input: { query: 'proven plant shop list' }, result: 'One list: 52% over 40 games' }],
-    answer: 'Skill: research. One proven list exists, at 52% over 40 games.\nMarket checked: GardenWeb, PlantFinder, 2026-10-20', expect: { not: ['research-verified'] } },
-  { name: 'research-verified: the same line without the config: blocked', prompt: 'is there a proven list for this plant shop',
-    tools: [sk('research'), { name: 'WebSearch', input: { query: 'proven plant shop list' }, result: 'One list: 52% over 40 games' }],
-    answer: 'Skill: research. One proven list exists, at 52% over 40 games.\nMarket checked: GardenWeb, PlantFinder, 2026-10-20', expect: { block: true, tags: ['research-verified'] } },
+    tools: [sk('research'), { name: 'WebSearch', input: { query: 'proven plant shop layout' }, result: 'One layout: 12% more sales over 40 weeks' }],
+    answer: 'Skill: research. One proven layout exists, at 12% more sales over 40 weeks.\nMarket checked: GardenWeb, PlantFinder, 2026-10-20', expect: { not: ['research-verified'] } },
+  { name: 'research-verified: the same line without the config: blocked', prompt: 'is there a proven layout for this plant shop',
+    tools: [sk('research'), { name: 'WebSearch', input: { query: 'proven plant shop layout' }, result: 'One layout: 12% more sales over 40 weeks' }],
+    answer: 'Skill: research. One proven layout exists, at 12% more sales over 40 weeks.\nMarket checked: GardenWeb, PlantFinder, 2026-10-20', expect: { block: true, tags: ['research-verified'] } },
   { name: 'research-verified: web research with no ledger: blocked', prompt: 'is it true that standing desks hold 150 kg', tools: [sk('research'), { name: 'WebSearch', input: { query: 'desk load' }, result: 'Desk A: 150 kg' }],
     answer: 'Skill: research. Yes, 150 kg (https://a.example).', expect: { block: true, tags: ['research-verified'] } },
   { name: 'research-verified: a passing ledger and the Verified line: passes', edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), packs: (JSON.parse(s).packs || []).filter(p => p !== 'knowledge') }), 'tools/hooks/requirements.json': s => JSON.stringify({ ...JSON.parse(s), requirements: JSON.parse(s).requirements.filter(r => r.pack !== 'knowledge') }) }, prompt: 'is it true that standing desks hold 150 kg',
@@ -1950,8 +1950,8 @@ STOP.push(
       'Playbook: project.md · Skill: debug · N/A(status-handoff): a progress note mid-task, the handoff comes when the work ends · N/A(changelog): nothing finished yet', expect: { not: ['plain-writing'] } },
   // Lesson: a two-sentence answer was flagged because its markers line carried a "Footer:" label
   { name: 'plain-writing: a labeled markers line on the last line is not prose: passes', prompt: 'hello',
-    answer: 'The zorbl notes are current and the boss table matches the patch. Nothing else needed a change\n' +
-      'Footer: Playbook: zorbl-research.md (followed, no files changed this turn) · Skill: research (looked up the patch notes for the zorbl) · N/A(changelog): nothing changed · N/A(status-handoff): a quick answer', expect: { not: ['plain-writing'] } },
+    answer: 'The zorbl notes are current and the price table matches the catalog. Nothing else needed a change\n' +
+      'Footer: Playbook: zorbl-research.md (followed, no files changed this turn) · Skill: research (looked up the catalog for the zorbl) · N/A(changelog): nothing changed · N/A(status-handoff): a quick answer', expect: { not: ['plain-writing'] } },
   { name: 'plain-writing: a long run-on sentence in a real answer: blocked', prompt: 'hello',
     answer: 'The desk we looked at last week is still the best pick for the room because it is sturdy and quiet and easy to adjust and it fits by the window and the price stayed the same and the shop can deliver it on Friday and they will also take the old one away for free if we ask them nicely before noon on the day.',
     expect: { tags: ['plain-writing'] } },
@@ -3817,13 +3817,13 @@ PROMPT.push(
 
 // Hints in a host-like project: its own domain runbooks (one named like its job, "zorbel-tune", with that name among its
 // triggers), its own hook file with a ROUTES table listed in "externalHooks", and its own research and note skills, so
-// the result never depends on the starter's runbooks or skills. Made-up nouns. (A field report: a play question about
+// the result never depends on the starter's runbooks or skills. Made-up nouns. (A field report: a route question about
 // the user's own thing got the research and knowledge skills; the same in Spanish got nothing; a request to edit a
 // runbook routed to that runbook's job with rule checks; work relayed from another session got no preview.)
 const HOST_FIX = {
   'docs/playbooks/zorbel-tune.md': '---\nname: zorbel-tune\nsummary: Make a zorbel I own better, or fix its flux\ntriggers: zorbel-tune, make my zorbel better, tune my zorbel, fix the flux, flux base\nchecks: none - enforced by tools/hooks/own_hooks.py\n---\n# Zorbel tune\n1. Read the zorbel.\n',
-  'docs/playbooks/zorbel-play.md': '---\nname: zorbel-play\nsummary: How to play a zorbel: turns, plays and matchups\ntriggers: how to play my zorbel, zorbel matchup\nchecks: none - enforced by tools/hooks/own_hooks.py\n---\n# Zorbel play\n1. Read the zorbel.\n',
-  'tools/hooks/own_hooks.py': '# the project\'s own hook engine (fixture)\nROUTES = [\n    (r"better|tune|flux", "zorbel-tune.md"),\n    (r"how (do i|to) play|matchup", "zorbel-play.md"),\n]\n',
+  'docs/playbooks/zorbel-route.md': '---\nname: zorbel-route\nsummary: How to route a zorbel: days, routes and stops\ntriggers: how to route my zorbel, zorbel stop\nchecks: none - enforced by tools/hooks/own_hooks.py\n---\n# Zorbel route\n1. Read the zorbel.\n',
+  'tools/hooks/own_hooks.py': '# the project\'s own hook engine (fixture)\nROUTES = [\n    (r"better|tune|flux", "zorbel-tune.md"),\n    (r"how (do i|to) route|stop", "zorbel-route.md"),\n]\n',
   'skills/research/SKILL.md': '---\nname: research\ndescription: Get facts right from sources.\ntriggers: research, look up, what is the best, which is better, what do sources say, current prices, investiga, qué dicen\n---\n# Research\n',
   'skills/note-keep/SKILL.md': '---\nname: note-keep\ndescription: Records facts into the project\'s knowledge base.\ntriggers: add a note, add to my notes, note:, añade una nota, apunta que\nchecks: none - fixture\n---\n# Note keep\n'
 };
@@ -3831,26 +3831,26 @@ const hostHint = (name, prompt, more) => ({ name, prompt, setup: HOST_FIX, setup
 const NOT_FACTS = ['SKILL: research', 'SKILL: note-keep', 'research-cited', 'knowledge-captured'];
 const NOT_RULE = ['RULE REQUEST', 'REQUIREMENT', 'PRAISE', 'rule-request', 'requirement-enforced'];
 PROMPT.push(
-  // a play question about the user's own thing is answered from the project and its runbooks, not by web research, and
+  // a route question about the user's own thing is answered from the project and its runbooks, not by web research, and
   // a line for that thing's NOTES file is not the knowledge base
-  hostHint('own-question: a play question about the user\'s own thing with a line for its NOTES gets its own runbook, no research or note skill',
-    "What's the best turn-3 play in my zorbel? Add a line to its NOTES.", { has: ['CLOSEST RUNBOOK: no trigger phrase matched, but docs/playbooks/zorbel-play.md', 'CHECKS: this turn will be held to'], hasNot: NOT_FACTS }),
-  hostHint('own-question: the same with "notes" in lower case', "what's the best turn-3 play in my zorbel? add a line to its notes", { has: ['docs/playbooks/zorbel-play.md'], hasNot: NOT_FACTS }),
+  hostHint('own-question: a route question about the user\'s own thing with a line for its NOTES gets its own runbook, no research or note skill',
+    "What's the best day-3 route in my zorbel? Add a line to its NOTES.", { has: ['CLOSEST RUNBOOK: no trigger phrase matched, but docs/playbooks/zorbel-route.md', 'CHECKS: this turn will be held to'], hasNot: NOT_FACTS }),
+  hostHint('own-question: the same with "notes" in lower case', "what's the best day-3 route in my zorbel? add a line to its notes", { has: ['docs/playbooks/zorbel-route.md'], hasNot: NOT_FACTS }),
   hostHint('own-question: a trigger ending in a colon ("note:") matches only as typed', 'summarize the meeting notes from today', { hasNot: ['SKILL: note-keep'] }),
-  hostHint('own-question: an explicit research request still gets research', 'research the best turn-3 play for my zorbel', { has: ['SKILL: research'] }),
+  hostHint('own-question: an explicit research request still gets research', 'research the best day-3 route for my zorbel', { has: ['SKILL: research'] }),
   hostHint('own-question: looking up current prices still gets research', 'look up current prices for my zorbel parts', { has: ['SKILL: research'] }),
-  hostHint('own-question: "what do sources say" still gets research', 'what do sources say about the best play in my zorbel?', { has: ['SKILL: research'] }),
+  hostHint('own-question: "what do sources say" still gets research', 'what do sources say about the best route in my zorbel?', { has: ['SKILL: research'] }),
   hostHint('own-question: a best-choice question about no thing of the user\'s still gets research', 'what is the best budget flimwrap?', { has: ['SKILL: research'] }),
   hostHint('own-question: a note for the knowledge base still gets the note skill', 'add a note that the zorbel shop closes on mondays', { has: ['SKILL: note-keep', 'CHECKS: this turn will be held to'] }),
   hostHint('own-question: "note:" typed as a label still gets the note skill', 'note: the zorbel shop moved to the high street', { has: ['SKILL: note-keep'] }),
   // the same in Spanish routes the same way
-  hostHint('own-question: Spanish, a play question with a line for its NOTES gets its own runbook, no research or note skill',
-    '¿Cuál es la mejor jugada de turno 3 en mi zorbel? Añade una línea a sus NOTES.', { has: ['CLOSEST RUNBOOK: no trigger phrase matched, but docs/playbooks/zorbel-play.md', 'CHECKS: this turn will be held to'], hasNot: NOT_FACTS }),
-  hostHint('own-question: Spanish, the same with "notas" in lower case', 'añade una línea a sus notas sobre la mejor jugada de mi zorbel', { has: ['CHECKS: this turn will be held to'], hasNot: NOT_FACTS }),
+  hostHint('own-question: Spanish, a route question with a line for its NOTES gets its own runbook, no research or note skill',
+    '¿Cuál es la mejor ruta para el día 3 de mi zorbel? Añade una línea a sus NOTES.', { has: ['CLOSEST RUNBOOK: no trigger phrase matched, but docs/playbooks/zorbel-route.md', 'CHECKS: this turn will be held to'], hasNot: NOT_FACTS }),
+  hostHint('own-question: Spanish, the same with "notas" in lower case', 'añade una línea a sus notas sobre la mejor ruta de mi zorbel', { has: ['CHECKS: this turn will be held to'], hasNot: NOT_FACTS }),
   hostHint('own-question: Spanish, a "quiero que añadas" request is work too', 'quiero que añadas una línea al plan de mi zorbel', { has: ['CHECKS: this turn will be held to'] }),
   hostHint('own-question: Spanish, an infinitive request is a task too', '¿puedes añadir una línea al plan de mi zorbel?', { has: ['NO RUNBOOK'] }),
   hostHint('own-question: Spanish, a request finds the closest runbook as in English', 'mejora mi zorbel', { has: ['CLOSEST RUNBOOK: no trigger phrase matched, but docs/playbooks/zorbel-tune.md'] }),
-  hostHint('own-question: Spanish, an explicit research request still gets research', 'investiga la mejor jugada para mi zorbel', { has: ['SKILL: research'] }),
+  hostHint('own-question: Spanish, an explicit research request still gets research', 'investiga la mejor ruta para mi zorbel', { has: ['SKILL: research'] }),
   hostHint('own-question: Spanish, "qué dicen" still gets research', '¿qué dicen las fuentes sobre mi zorbel?', { has: ['SKILL: research'] }),
   hostHint('own-question: Spanish, a note for the knowledge base still gets the note skill', 'añade una nota: la tienda de zorbels cierra los lunes', { has: ['SKILL: note-keep'] }),
   hostHint('own-question: Spanish, "apunta que" still gets the note skill', 'apunta que la tienda de zorbels cierra los lunes', { has: ['SKILL: note-keep', 'CHECKS: this turn will be held to'] }),
@@ -3887,7 +3887,7 @@ PROMPT.push(
 // The host's own checks in its requirements.json: its sweeps after a change to its runbooks or rules, and its rules'
 // self-test after a change to its hook file (a field report: the preview of a runbook fix left out the project's own
 // sweeps check and the writing check, and named the hook self-tests and runbook-complete, which never fired).
-const HOST_SWEEPS = { tag: 'zorbel-sweeps-after-change', when: { filesChanged: ['docs/playbooks/zorbel-tune.md', 'docs/playbooks/zorbel-play.md', 'tools/hooks/own_hooks.py', 'tools/zorbel_sweeps.py'] },
+const HOST_SWEEPS = { tag: 'zorbel-sweeps-after-change', when: { filesChanged: ['docs/playbooks/zorbel-tune.md', 'docs/playbooks/zorbel-route.md', 'tools/hooks/own_hooks.py', 'tools/zorbel_sweeps.py'] },
   require: { toolPassed: { cmd: String.raw`zorbel_sweeps\.py`, pass: 'RESULT: PASS' } }, message: 'A zorbel runbook or the zorbel rules changed: run python tools/zorbel_sweeps.py until RESULT: PASS.' };
 const HOST_SELFTEST = { tag: 'zorbel-hooks-selftest', when: { filesChanged: ['tools/hooks/own_hooks.py'] },
   require: { toolPassed: { cmd: String.raw`test_own_hooks\.py`, pass: 'RESULT: PASS' } }, message: 'The zorbel rules changed: run python tools/hooks/test_own_hooks.py until RESULT: PASS.' };
@@ -3907,12 +3907,12 @@ PROMPT.push(
   hostChecks('check-preview: a request that names no file lists the project\'s own file checks as "if it changes"',
     'make my zorbel better', { has: ['CHECKS: this turn will be held to', 'If it changes docs/playbooks/zorbel-tune.md', ': zorbel-sweeps-after-change'], hasNot: ['plain-writing'] }),
   // a request in Spanish (or any language) is previewed like English, with status-handoff
-  hostChecks('check-preview: Spanish, a play question with a line for its NOTES gets the CHECKS line with status-handoff',
-    '¿Cuál es la mejor jugada de turno 3 en mi zorbel? Añade una línea a sus NOTES (reglas generales).', { has: ['CHECKS: this turn will be held to', 'status-handoff if it leaves work open'], hasNot: ['plain-writing', ...NOT_FACTS] }),
+  hostChecks('check-preview: Spanish, a route question with a line for its NOTES gets the CHECKS line with status-handoff',
+    '¿Cuál es la mejor ruta para el día 3 de mi zorbel? Añade una línea a sus NOTES (reglas generales).', { has: ['CHECKS: this turn will be held to', 'status-handoff if it leaves work open'], hasNot: ['plain-writing', ...NOT_FACTS] }),
   hostChecks('check-preview: the same play question in English gets the same CHECKS line',
-    "What's the best turn-3 play in my zorbel? Add a line to its NOTES (rules of thumb).", { has: ['CHECKS: this turn will be held to', 'status-handoff if it leaves work open'], hasNot: ['plain-writing', ...NOT_FACTS] }),
-  hostChecks('check-preview: Spanish, a question with no task gets no CHECKS line', '¿Cuál es la mejor jugada de turno 3 en mi zorbel?', { hasNot: ['CHECKS:'] }),
-  hostChecks('check-preview: a question with no task gets no CHECKS line', "What's the best turn-3 play in my zorbel?", { hasNot: ['CHECKS:'] })
+    "What's the best day-3 route in my zorbel? Add a line to its NOTES (rules of thumb).", { has: ['CHECKS: this turn will be held to', 'status-handoff if it leaves work open'], hasNot: ['plain-writing', ...NOT_FACTS] }),
+  hostChecks('check-preview: Spanish, a question with no task gets no CHECKS line', '¿Cuál es la mejor ruta para el día 3 de mi zorbel?', { hasNot: ['CHECKS:'] }),
+  hostChecks('check-preview: a question with no task gets no CHECKS line', "What's the best day-3 route in my zorbel?", { hasNot: ['CHECKS:'] })
 );
 
 // Golden workflows: done right they pass; with any one required step removed they must be blocked.
@@ -4595,16 +4595,16 @@ const previewOf = out => { let t = out; try { t = JSON.parse(out).hookSpecificOu
 if (mineB() && (!TAGS || TAGS.includes('check-preview'))) {
   const names = r => (/Names: ([^\n]*?)\.[ \t]*(\n|$)/.exec(r || '')?.[1] || '').split(', ').filter(Boolean).filter(t => !/^(skill-learn|answer-resent|unresolved-carryover)$/.test(t));
   const FIX = s => s + '2. For a flux fix, check the grobbles first — they set the flux.\n';
-  const NOTES = { 'zorbels/mine/NOTES.md': s => s + '- Turn 3: play the grobble.\n' };
+  const NOTES = { 'zorbels/mine/NOTES.md': s => s + '- Day 3: take the grobble.\n' };
   const CASES = [
     { name: 'a runbook fix', prompt: 'Fix the zorbel-tune playbook so flux-fix requests mention grobbles', tools: [pb('project'), pb('zorbel-tune')], edit: { 'docs/playbooks/zorbel-tune.md': FIX },
       answer: 'The runbook mentions grobbles now.', must: ['zorbel-sweeps-after-change', 'plain-writing'], never: ['hooks-tested', 'runbook-complete', 'zorbel-hooks-selftest'] },
     { name: 'a runbook fix, in Spanish', prompt: 'Arregla el playbook de zorbel-tune para que las peticiones de flux mencionen los grobbles', tools: [pb('project'), pb('zorbel-tune')], edit: { 'docs/playbooks/zorbel-tune.md': FIX },
       answer: 'El runbook ya menciona los grobbles.', must: ['zorbel-sweeps-after-change', 'plain-writing'], never: ['hooks-tested', 'runbook-complete', 'zorbel-hooks-selftest'] },
-    { name: 'a long play question with a line for its NOTES', prompt: "What's the best turn-3 play in my zorbel? Add a line to its NOTES (rules of thumb).", tools: [pb('zorbel-play'), ...many(16)], edit: NOTES,
-      answer: 'Play the grobble on turn 3. Still open: the turn-4 line.', must: ['status-handoff'], never: ['plain-writing', 'zorbel-sweeps-after-change'] },
-    { name: 'a long play question with a line for its NOTES, in Spanish', prompt: '¿Cuál es la mejor jugada de turno 3 en mi zorbel? Añade una línea a sus NOTES (reglas generales).', tools: [pb('zorbel-play'), ...many(16)], edit: NOTES,
-      answer: 'Juega el grobble en el turno 3. Queda por ver la línea del turno 4.', must: ['status-handoff'], never: ['plain-writing', 'zorbel-sweeps-after-change'] },
+    { name: 'a long route question with a line for its NOTES', prompt: "What's the best day-3 route in my zorbel? Add a line to its NOTES (rules of thumb).", tools: [pb('zorbel-route'), ...many(16)], edit: NOTES,
+      answer: 'Take the grobble on day 3. Still open: the day-4 route.', must: ['status-handoff'], never: ['plain-writing', 'zorbel-sweeps-after-change'] },
+    { name: 'a long route question with a line for its NOTES, in Spanish', prompt: '¿Cuál es la mejor ruta para el día 3 de mi zorbel? Añade una línea a sus NOTES (reglas generales).', tools: [pb('zorbel-route'), ...many(16)], edit: NOTES,
+      answer: 'Toma el grobble el día 3. Queda por ver la ruta del día 4.', must: ['status-handoff'], never: ['plain-writing', 'zorbel-sweeps-after-change'] },
     // negative: the request names no file, and its work changes a zorbel runbook anyway: the line named that check as
     // "if it changes" (a request that edits nothing gets no such check held)
     { name: 'a request that names no file, whose work changes a zorbel runbook', prompt: 'make my zorbel better', tools: [pb('zorbel-tune')], edit: { 'docs/playbooks/zorbel-tune.md': s => s + '2. Check the grobbles.\n' },
@@ -5551,9 +5551,9 @@ if (mineB()) { // a patch script whose text names a test is not a run of it; a s
 if (mineB()) { // a long hook output is cut to what the host shows the agent, with the routing lines first
   // Lesson: a routing hint at the end of a 13,000-character output never reached the agent
   const { fitOutput } = await import('./hooks.mjs');
-  const long = Array.from({ length: 300 }, (_, i) => `NOTICE ${i} ${'x'.repeat(40)}`).join('\n') + '\nROUTE: raid-answer (docs/playbooks/raid-answer.md)';
+  const long = Array.from({ length: 300 }, (_, i) => `NOTICE ${i} ${'x'.repeat(40)}`).join('\n') + '\nROUTE: trip-answer (docs/playbooks/trip-answer.md)';
   const o = fitOutput(long), short = fitOutput('ROUTE: x\nNOTICE y');
-  report(o.length <= 9000 && o.startsWith('ROUTE: raid-answer') && /hooks\.mjs notices/.test(o) && short === 'ROUTE: x\nNOTICE y',
+  report(o.length <= 9000 && o.startsWith('ROUTE: trip-answer') && /hooks\.mjs notices/.test(o) && short === 'ROUTE: x\nNOTICE y',
     'hook output: a long one is cut to fit, routing first, with a pointer to the rest; a short one is untouched', `${o.length} chars, starts ${o.slice(0, 40)}`);
 }
 
@@ -5700,8 +5700,8 @@ if (mineB()) { // research ledger: honest ad labels pass, sellers fail, one medi
     const ledger = (rows, claims) => `# Research: t\n\n## Sources\n| ID | Link | Owner | Type | Incentive | Date | Use |\n|---|---|---|---|---|---|---|\n${rows.join('\n')}\n\n## Claims\n| Claim | Sources | Quote or data | Status |\n|---|---|---|---|\n${claims.join('\n')}\n\nSources limit: a test with a small set of sources\n\n## Verdict\nok\n`;
     const check = text => { const f = path.join(dir, 'l.md'); fs.writeFileSync(f, text); return spawnSync(process.execPath, [path.join(ROOT, 'skills/research/scripts/claims.mjs'), 'check', f], { encoding: 'utf8' }).stdout; };
     const honest = check(ledger([row('S1', 'https://a.example/x', 'Alpha News', 'site ads only, no sponsored content found'), row('S2', 'https://b.example/y', 'Beta Media', 'none found (no sponsorship; the site runs display ads)')], ['| A | S1, S2 | "q" | confirmed |']));
-    const seller = check(ledger([row('S1', 'https://shop.example/boost', 'BoostShop', 'sells raid carries')], ['| A | S1 | "q" | single source |']));
-    const group = check(ledger([row('S1', 'https://gamerant.com/a', 'Game Rant', 'none found'), row('S2', 'https://www.thegamer.com/b', 'TheGamer', 'none found')], ['| A | S1, S2 | "q" | confirmed |']));
+    const seller = check(ledger([row('S1', 'https://shop.example/reviews', 'ReviewShop', 'sells review packages')], ['| A | S1 | "q" | single source |']));
+    const group = check(ledger([row('S1', 'https://screenrant.com/a', 'Screen Rant', 'none found'), row('S2', 'https://www.cbr.com/b', 'CBR', 'none found')], ['| A | S1, S2 | "q" | confirmed |']));
     const lead = check(ledger([row('S1', 'https://a.example/x', 'Alpha News', 'none found'), row('S2', 'https://forum.example/t', 'Forum', 'none found', 'lead only', 'forum')], ['| A | S1 | "q" | single source |', '| B | S2 | "q" | unverified |']));
     report(/CLAIMS: PASS/.test(honest) && /paid or biased/.test(seller) && /different owners/.test(group) && /CLAIMS: PASS/.test(lead),
       'research ledger: honest ad labels pass, sellers fail, one media group is one owner, a lead-only claim is unverified', [honest, seller, group, lead].map(s => String(s).trim().split('\n').pop()).join(' | ').slice(0, 400));
@@ -6452,7 +6452,7 @@ if (mineB()) { // no-secrets: a key prefix only counts at the start of a word
   const dir = copyProject();
   try {
     const key = ['sk', 'A'.repeat(24)].join('-');
-    const out = spawnSync(process.execPath, ['--input-type=module', '-e', `import { secretHit } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; console.log(JSON.stringify([secretHit('art/obelisk-encounter-glyphkeeper_shacknews.png'), secretHit('token=${key}'), secretHit('x ${key.replace('sk-', 'ghp_').replace(/-/g, '')}AAAAAAAAAA')]));`], { cwd: dir, encoding: 'utf8' }).stdout;
+    const out = spawnSync(process.execPath, ['--input-type=module', '-e', `import { secretHit } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; console.log(JSON.stringify([secretHit('art/risk-assessment-chart_final.png'), secretHit('token=${key}'), secretHit('x ${key.replace('sk-', 'ghp_').replace(/-/g, '')}AAAAAAAAAA')]));`], { cwd: dir, encoding: 'utf8' }).stdout;
     let r = []; try { r = JSON.parse(out); } catch { }
     report(r[0] == null && !!r[1] && !!r[2], 'no-secrets: a word that contains a key prefix passes, a real-shaped key still fails', out);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
@@ -6826,10 +6826,10 @@ if (mineB()) { // plain-writing in a page: tags are markup, not words; a real wa
 }
 
 if (mineB()) { // fit-checklist: a "later - when:" condition counts what its noun names, and one the hooks can't read is not measured
-  // (a noun no project uses: a raid project already had raid files, and the count was off. Lesson from a real project)
+  // (a noun no project uses: a project already had files named with the noun the test used, and the count was off. Lesson from a real project)
   const { fitWhen } = await import('./hooks.mjs');
   const w = t => fitWhen(`later - when: ${t}`) || {};
-  const ok = w('more than 6 raid files').word === 'raid' && w('more than 6 raid files').min === 7 && w('more than 20 html files').ext === 'html'
+  const ok = w('more than 6 zorbl files').word === 'zorbl' && w('more than 6 zorbl files').min === 7 && w('more than 20 html files').ext === 'html'
     && w('the project has 50 commits').metric === 'commits' && w('10 code files').metric === 'code' && w('the first data file appears').metric === 'tabular'
     && w('more than 30 files').metric === 'all' && w('the team grows').metric === null && w('someone asks for it twice').metric === null;
   const dir = copyProject();

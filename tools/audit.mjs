@@ -373,7 +373,7 @@ sweep('new checks pass a good sample', () => {
   for (const g of [].concat(cfg.noOverwrite || [])) {
     if (packGuards.has(g) && !wordsChanged) continue;
     const isNew = headGlobs ? (!headGlobs.globs.has(g) || wordsChanged) : null;
-    // (the hint says what the guard lets through, so the scenario it asks for can pass. Lesson: "change the raid notes
+    // (the hint says what the guard lets through, so the scenario it asks for can pass. Lesson: "change the trip notes
     // file to say v2" was written as asked and denied, as "v2" read as a request for a new copy)
     if (!allowedEdit(g)) say(isNew, `no-overwrite guard "${g}": no scenario shows a plain request to change an existing file there being allowed (a pretool scenario with setup: { '<file>': '...' }, input.file_path '<file>', deny: false, and a prompt that names the file with an edit verb, e.g. "change <the file's name> so it says ...", or uses a phrase of "overwriteWords" such as "overwrite" or "fix the typo"; a version number asked for as a copy, "save it as v2", is a new file)`);
   }
@@ -427,8 +427,8 @@ sweep('publish safety (no personal or machine details)', () => {
   const all = walk('', p => /\.(md|mdx|txt|json|mjs|cjs|js|ts|tsx|jsx|py|html?|css|ya?ml|bat|cmd|ps1|sh|toml|ini|cfg)$|(^|\/)\.(gitignore|gitattributes)$|^\.githooks\//.test(p), [], /^(\.git|node_modules|\.cache|\.starter|state)$/);
   if (isRepo) { const r = spawnSync('git', ['check-ignore', '--stdin'], { cwd: ROOT, input: all.join('\n'), encoding: 'utf8' }); for (const l of (r.stdout || '').split(/\r?\n/)) if (l) ignored.add(l.trim()); }
   else {
-    // without git, the root .gitignore still counts, read the way git reads it ("friends/", "/notes/*.md", "*.log",
-    // "!keep.md"). Lesson: a project's ignored friends/ folder, then its "*.log" files, were checked as publishable until
+    // without git, the root .gitignore still counts, read the way git reads it ("clients/", "/notes/*.md", "*.log",
+    // "!keep.md"). Lesson: a project's ignored clients/ folder, then its "*.log" files, were checked as publishable until
     // it ran git init
     const isIgnored = gitignoreTest(read(abs('.gitignore')));
     for (const f of all) if (/^\.private-terms$|^tools\/hooks\/state\//.test(f) || isIgnored(f)) ignored.add(f);
@@ -443,7 +443,7 @@ sweep('publish safety (no personal or machine details)', () => {
     for (const t of terms) if (text.toLowerCase().includes(t.toLowerCase())) fail.push(`${f}: contains a private term from .private-terms`);
     // Lesson: a fake key in a test fixture made every project's first full commit fail the secret check. Build such
     // strings at runtime instead of writing them out.
-    // A key prefix counts only at the start of a word (Lesson: "...isk-encounter-..." in a file name read as a key).
+    // A key prefix counts only at the start of a word (Lesson: "...isk-assessment-..." in a file name read as a key).
     const key = secretHit(`${f}\n${text}`, cfg);
     if (key) fail.push(`${f}: looks like a secret (pattern ${key}). Real ones go in .env; test fixtures build the string at runtime`);
   }
