@@ -7747,6 +7747,12 @@ for (const [k, { out, code }] of (await Promise.all(helpers)).entries()) {
   for (const l of lines) { const m = /^(PASS|FAIL)  (.*?)(?:  -> .*)?$/.exec(l); if (!m) continue; LOG_LINES.push(l); if (m[1] === 'FAIL' || VERBOSE) console.log(l); if (m[1] === 'PASS') { pass++; PASSED.push(m[2]); } else { fail++; FAILED.push(m[2]); FAIL_LINES.push(l); } }
   if (done) skipped += Number(done[3]); else report(false, `self-test helper ${k + 1} finished its share`, `exit ${code}: ${out.trim().split(/\r?\n/).slice(-5).join(' | ').slice(0, 500)}`);
 }
+// the upgrade's hook timing: the fastest of several bench runs per hook, so a machine still busy right after the
+// upgrade does not read as a slower engine. Lesson (a field report): three upgrades each timed Stop 87 to 131 ms
+// slower right after, and the next upgrade timed the same engine back down
+{ const { fastestBench } = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks.mjs')).href);
+  const got = fastestBench(['prompt 410 ms, pretool 81 ms, stop 546 ms', 'prompt 333 ms, pretool 70 ms, stop 415 ms', 'prompt 350 ms, stop 430 ms', 'garbled']);
+  report(JSON.stringify(got) === JSON.stringify({ prompt: 333, pretool: 70, stop: 415 }), 'upgrade timing: each hook is timed as the fastest of several bench runs', JSON.stringify(got)); }
 // dev mode: the proof the self-test writes when it passes is no engine change. Lesson (this starter's own turns): a
 // background run finished, and the next turn was asked to run the self-test again and log it in the changelog
 { const { DEV_REQUIREMENTS, match } = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks.mjs')).href);

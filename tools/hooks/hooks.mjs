@@ -4317,6 +4317,15 @@ export function bench(runs = 3) {
   return out;
 }
 
+// Several "bench" outputs ("prompt 333 ms, pretool 70 ms, stop 415 ms"): each hook's fastest time, what the hook itself
+// costs (a busy machine only ever adds to it). It reads the text, so an older engine's bench output works too.
+// Lesson (a field report): an upgrade timed once right after its audit, and every upgrade read 87 to 131 ms slower at Stop
+export function fastestBench(outputs) {
+  const out = {};
+  for (const t of outputs) for (const m of String(t || '').matchAll(/\b(prompt|pretool|stop) (\d+) ms/g)) out[m[1]] = Math.min(out[m[1]] ?? Infinity, +m[2]);
+  return out;
+}
+
 // ---------- SessionStart ----------
 // ---------- routines: recurring work in docs/routines.md (routines library skill) ----------
 // | Routine | Every | Runbook | Last run |, Every: day, week, month, weekday, monday..sunday, "N days" or "month day N".

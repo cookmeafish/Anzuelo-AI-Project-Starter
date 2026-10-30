@@ -15,10 +15,10 @@ docs/STATUS.md, which here is the template new projects start from).
 ## Watched projects
 - Standing job from the user (2026-10-29): watch every project that runs the engine, fix the engine here, upgrade them
   (tools/starter/runbooks/project-watch.md; the list is in tools/starter/watch.local.json, local only).
-- 2026-10-30: both projects run a272c78 with every test passing. Engine 98a3351 (an open plan holds only work that
-  continues it) handed to both sessions, linked copies fast-forwarded; waiting on their `--full` reports. Watch: one
-  project saw Stop about 90 ms slower in two single timings; controlled starter timing is flat (321 to 331 ms).
-  Audit sweep 21 still fails on a short private-list entry matching 3 library skills (the user's list).
+- 2026-10-30: both projects run 98a3351 with every test passing. Committed since: 193e13c (the engine proof is no
+  engine change for the dev checks). In its test chain: the upgrade's hook timing as the fastest of three runs. Both
+  go to the projects together once the chain passes. Audit sweep 21 still fails on a short private-list entry
+  matching 3 library skills (the user's list).
 
 ## Next
 0. Run the trial on 0793661, then push when the user names main. Open close calls: the zorbel-tune test shape and

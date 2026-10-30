@@ -46,6 +46,10 @@ hooks:**, and an upgrade lists each one as its own review item.
     acknowledged line. Swept over 1,182 real typed messages: 21 false upset alarms and 1 false praise gone, no real
     complaint lost. Scenarios: `caps-weight: capitals that stress a wish are not upset ...`, `... with a sign of
     trouble are upset ...`, `praise: a praise word on a thing or a goal is not praise ...`.
+  - **The upgrade times each hook as its fastest of three runs:** before and after alike, so a machine still busy right
+    after the upgrade's audit no longer reads as a slower engine. Before, three upgrades in a row reported Stop 87 to
+    131 ms slower, and the next upgrade timed the same engine back down. Test: `upgrade timing: each hook is timed as
+    the fastest of several bench runs`.
   - **An open plan holds only the work that continues it:** a work turn is stopped to resume an open plan only when
     the request shares a word with the plan's name, title or open tasks, or says to go on ("keep going", "continue");
     other work and messages relayed from another session leave the plan for its own turn. Before, an engine upgrade a

@@ -20,7 +20,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { CORE_SKILLS, today as localToday, usageOf, isEngineCheck, shippedChecks, checkKey, ENGINE_CHECKS_HISTORY, changelogSince, breakingItems, withReviewBlock } from './hooks/hooks.mjs';
+import { CORE_SKILLS, today as localToday, usageOf, isEngineCheck, shippedChecks, checkKey, ENGINE_CHECKS_HISTORY, changelogSince, breakingItems, withReviewBlock, fastestBench } from './hooks/hooks.mjs';
 import { wire } from './hooks/wire.mjs';
 
 const STARTER = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -154,13 +154,16 @@ function probe() {
   // (timed after one untimed run: right after an upgrade writes its files, the first runs read them cold. Lesson, a
   // field report: the upgrade said the prompt hook took 620 ms; the same hook timed by hand afterwards took 277 to 322)
   const benchOnce = () => spawnSync(process.execPath, [path.join(dest, 'tools', 'hooks', 'hooks.mjs'), 'bench'], { cwd: dest, encoding: 'utf8', timeout: 120000, stdio: ['ignore', 'pipe', 'pipe'] });
+  // (and the fastest of three runs per hook, before and after alike: a machine still busy right after the upgrade only
+  // adds time. Lesson, a field report: three upgrades each read Stop 87 to 131 ms slower, then the same engine read
+  // fast again at the next upgrade)
   benchOnce();
-  const b = benchOnce();
+  const runs = [benchOnce(), benchOnce(), benchOnce()].map(r => r.stdout || '');
   // each failing sweep's own lines, so a rollback can say exactly what broke
   const details = {}; let cur = null;
   for (const l of (a.stdout || '').split(/\r?\n/)) { const m = /^(PASS|WARN|FAIL)\s+\d+\.\s+(.+?)(?:\s{2}\(.*)?$/.exec(l); if (m) cur = m[1] === 'FAIL' ? m[2].trim() : null; else if (cur && /^\s+- /.test(l)) (details[cur] ||= []).push(l.trim()); }
   return { failed: rows.filter(r => r[1] === 'FAIL').map(r => r[2].trim()), swept: rows.map(r => r[2].trim()), details,
-    speed: Object.fromEntries([...(b.stdout || '').matchAll(/\b(prompt|pretool|stop) (\d+) ms/g)].map(m => [m[1], +m[2]])) };
+    speed: fastestBench(runs) };
 }
 // A dry run prints a summary: how many files it would create or update per folder, every file that collides with one
 // already there, and the other steps. --verbose prints every line. Lesson: a dry run printed hundreds of file lines and
