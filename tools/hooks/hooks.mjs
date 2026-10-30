@@ -2564,7 +2564,7 @@ export function usage() { return readJSON(path.join(STATE, 'runbook-usage.json')
 // and "Done when" items become checks. Marked "hardened: YYYY-MM-DD" (or "harden: never - <reason>") in the runbook.
 // The engine's own skills and runbooks: upgraded from the starter, never pruned.
 export const CORE_SKILLS = ['project-bootstrap', 'project-rule', 'runbook-create', 'skill-harden', 'skill-curate', 'project-sweeps',
-  'session-handoff', 'security-review', 'plan', 'debug', 'parallel-agents', 'research', 'skill-finder', 'obsidian', 'learn-from-upset'];
+  'session-handoff', 'security-review', 'plan', 'debug', 'parallel-agents', 'research', 'skill-finder', 'obsidian', 'learn-from-upset', 'efficiency-review'];
 const CORE_RUNBOOKS = ['project', 'plan', 'status-lines', 'trigger-words', 'engine'];
 // REQ: skill-prune. Runbooks and skills nobody uses are reviewed: keep (with a reason), merge, or retire. Each one's
 // clock starts when the hooks first see it, restarts on every use, and "keep: YYYY-MM-DD - <reason>" restarts it too.

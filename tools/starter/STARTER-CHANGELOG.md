@@ -27,6 +27,17 @@ hooks:**, and an upgrade lists each one as its own review item.
     case) and `Root cause: <why the earlier work missed it>`; the acknowledged hint asks for both before fixing. Before,
     an issue was acknowledged as the user's example, fixed in that narrow form, and the user had to repeat that it
     meant every case. Scenarios: `upset-acknowledged: ... no general point ...: blocked`, `... no root cause ...: blocked`.
+  - **Starter only: project-watch runbook** (`tools/starter/runbooks/project-watch.md`): the starter session watches
+    the projects that run the engine (performance, self-tests, what the user met), fixes the engine here and gets each
+    project upgraded. The list of projects stays in an ignored local file. Projects never get this runbook.
+  - **From a project's field report:** (1) a project's own scenarios no longer get the starter author's private word
+    list in the self-test (the base sets an empty list unless the project names one); (2) `efficiency-review` is now a
+    core skill, so an upgrade installs it: it shipped outside the core list, never reached existing projects, and the
+    engine's routing tests for it failed there (new test `core-skills: every skill the engine's own routing tests
+    expect is a core skill`); (3) a scenario that blocks when it should pass names each check and its step, not only
+    "1 step is left"; (4) run in a project, the self-tests that link a test copy to the starter now link it to the
+    project's linked starter, not to the project itself. Before, the copy took the project's own config, its own Stop
+    command failed on a script the base had removed, and the engine-cache test failed in every project with one.
   - **A push never carries the engine's private files:** before every push (the agent's hook and git's pre-push hook),
     git itself lists every untracked or committed file under the engine's private paths (`.cache/`, its state, upgrade
     backups, the private word list, this machine's settings and agent folders) that would go out, not only a few

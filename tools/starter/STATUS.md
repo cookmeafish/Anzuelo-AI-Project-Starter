@@ -12,6 +12,10 @@ docs/STATUS.md, which here is the template new projects start from).
   as a pointer, starter-only false alarms, a setup helper that checks its own answer, and no re-tests of checks
   installed as shipped.
 
+## Watched projects
+- Standing job from the user (2026-10-29): watch every project that runs the engine, fix the engine here, upgrade them
+  (tools/starter/runbooks/project-watch.md; the list is in tools/starter/watch.local.json, local only).
+
 ## Next
 0. Run the trial on 0793661, then push when the user names main. Open close calls: the zorbel-tune test shape and
    the gaming-heavy media-group list in skills/research/scripts/claims.mjs.

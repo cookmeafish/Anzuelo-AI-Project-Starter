@@ -53,3 +53,6 @@ Thumbs.db
 desktop.ini
 ~$*
 *.swp
+
+# the starter session's list of watched projects (project-watch runbook): local paths, never shared
+tools/starter/watch.local.json

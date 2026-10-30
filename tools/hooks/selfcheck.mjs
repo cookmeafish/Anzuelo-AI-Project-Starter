@@ -63,6 +63,10 @@ const SKIP_DIRS = new Set(['.git', 'node_modules', 'state', '.cache', '.private-
 // triggers on the engine's project runbook, and the hook-contract test counted the project's real hook file.
 const IS_STARTER = fs.existsSync(path.join(ROOT, '.starter-template'));
 let FIX_BASE = null, HOST_BASE = null;
+// The starter a test copy links to: this folder in the starter, the linked starter (or the kept .starter) in a project.
+// Lesson: run in a project, a test linked its copy to the project itself, so the copy took the project's own config
+// (its own Stop command, whose script the base had removed) and every smoke scenario blocked on that command.
+const STARTER_DIR = IS_STARTER ? ROOT : (() => { try { const l = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/starter.local.json'), 'utf8')).path; if (l && fs.existsSync(path.join(l, 'tools/hooks/hooks.mjs'))) return l; } catch { } return fs.existsSync(path.join(ROOT, '.starter/tools/hooks/hooks.mjs')) ? path.join(ROOT, '.starter') : ROOT; })();
 const ENGINE_CHANGED = []; // engine files this project changed (fixturesOnly), for failureCause
 let SRC_PROOF = null; // the proof of the starter the base borrows from (linked or kept), when there is one
 function base(host = false) {
@@ -141,6 +145,10 @@ function buildBase(host) {
   for (const n of (() => { try { return fs.readdirSync(at('docs/plans')); } catch { return []; } })()) if (!/^readme\.md$/i.test(n)) fs.rmSync(at(`docs/plans/${n}`), { recursive: true, force: true });
   fs.rmSync(at('tools/hooks/state'), { recursive: true, force: true });
   if (!fs.existsSync(at('.starter-template'))) fs.writeFileSync(at('.starter-template'), 'test base\n');
+  // (a project's own scenarios run in a base that has the starter's marker, but the starter author's private word list
+  // is not the project's: it applies only where the project names a list of its own. Lesson (a field report): a
+  // project's own passing scenario was blocked by forbidden-terms over the subject words the starter keeps out)
+  if (host && !IS_STARTER) { try { const c = JSON.parse(fs.readFileSync(at('tools/hooks/config.json'), 'utf8')); if (!c.privateTermsFile) fs.writeFileSync(at('tools/hooks/config.json'), JSON.stringify({ ...c, privateTermsFile: '.cache/no-private-terms.txt' }, null, 2) + '\n'); } catch { } }
   if (!fs.existsSync(at('SETUP-PROMPT.md'))) fs.writeFileSync(at('SETUP-PROMPT.md'), '# Setup prompt\n');
   const cfgPath = at('tools/hooks/config.json');
   // the fixtures-only base: the starter's config as shipped, with the packs this base installs; without the starter at
@@ -4247,7 +4255,10 @@ for (const s of STOP) {
   const r = runStop(s);
   let why = '';
   // no "block" in expect: only the named tags matter (other checks may still block the fixture)
-  if (s.expect.block !== undefined && r.blocked !== s.expect.block) why = `expected ${s.expect.block ? 'BLOCK' : 'PASS'}, got ${r.blocked ? 'BLOCK: ' + r.reason : 'PASS'}${r.err ? ' stderr: ' + r.err.slice(0, 300) : ''}`;
+  // (an unexpected block names the checks behind it and their full steps: the short message only counts them. Lesson
+  // (a field report): "1 step is left" was all a failing scenario said, and only --explain showed which check it was)
+  const blockedBy = () => [...String(r.details || '').matchAll(/^\d+\. \[([^\]]+)\] (.*)$/gm)].map(m => `[${m[1]}] ${m[2].slice(0, 200)}`).join(' | ');
+  if (s.expect.block !== undefined && r.blocked !== s.expect.block) why = `expected ${s.expect.block ? 'BLOCK' : 'PASS'}, got ${r.blocked ? `BLOCK by ${blockedBy() || r.reason}` : 'PASS'}${r.err ? ' stderr: ' + r.err.slice(0, 300) : ''}`;
   // the stop message lists the check names once, on its last line: "Names: a, b."
   const named = t => (/Names: ([^\n]*)\.\s*$/.exec(r.reason || '')?.[1] || '').split(', ').includes(t);
   for (const t of s.expect.tags || []) if (!named(t)) why ||= `missing tag [${t}] in: ${r.reason || '(no block)'}`;
@@ -4804,7 +4815,7 @@ if (mineB() && SPEED) { // engine-cache in a project: full without a recorded pa
     fs.rmSync(path.join(dir, '.starter-template'), { force: true });
     // (without the starter's proof: this test is about passes recorded on this machine; engine-proof tests the proof)
     fs.rmSync(path.join(dir, PROOF_FILE), { force: true });
-    write(dir, { 'tools/starter.local.json': JSON.stringify({ path: ROOT }) });
+    write(dir, { 'tools/starter.local.json': JSON.stringify({ path: STARTER_DIR }) });
     const env = { STARTER_SELFTEST_CACHE: path.join(tmp, 'passes.json'), STARTER_SELFTEST_RUNNING: path.join(tmp, 'running') };
     const mode = (...a) => { const r = nodeIn(dir, ['tools/hooks/selfcheck.mjs', '--which-mode', ...a], env); return (/^selfcheck mode: .*$/m.exec(r.stdout) || [`(no mode line) ${r.stdout.slice(-300)} ${r.stderr.slice(-300)}`])[0]; };
     const first = mode();
@@ -4965,7 +4976,7 @@ if (mineB() && SPEED && IS_STARTER) { // fixtures-only: a project's own docs (pl
   const dir = copyProject(), tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-'));
   try {
     fs.rmSync(path.join(dir, '.starter-template'), { force: true });
-    write(dir, { 'tools/starter.local.json': JSON.stringify({ path: ROOT }) });
+    write(dir, { 'tools/starter.local.json': JSON.stringify({ path: STARTER_DIR }) });
     const env = { STARTER_SELFTEST_CACHE: path.join(tmp, 'passes.json'), STARTER_SELFTEST_RUNNING: path.join(tmp, 'running') };
     const manifestNow = () => { try { return JSON.parse(nodeIn(dir, ['tools/hooks/selfcheck.mjs', '--fixture-manifest'], env).stdout); } catch { return { files: {} }; } };
     // (the names are built here: written out whole in code formatting, this file's own reference sweep would flag them)
@@ -5923,7 +5934,7 @@ if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) { // host-fi
   const dir = copyProject();
   try {
     fs.rmSync(path.join(dir, '.starter-template'), { force: true });
-    write(dir, { 'tools/starter.local.json': JSON.stringify({ path: ROOT }),
+    write(dir, { 'tools/starter.local.json': JSON.stringify({ path: STARTER_DIR }),
       'docs/playbooks/shopfix.md': '---\nname: shopfix\nsummary: Fix a shop - swaps and prices\ntriggers: improve, upgrade, review, report, the hooks\n---\n# Shop fix\n1. Read the shop.\n',
       'skills/shop-notes/SKILL.md': '---\nname: shop-notes\ndescription: Shop notes. Use when the user says anzuelo, the hooks or improve.\ntriggers: anzuelo, the hooks, improve\n---\n# Shop notes\n1. Add the line.\n',
       'tools/hooks/own_hooks.py': 'import json\nROUTES = [(r"improve", "docs/playbooks/shopfix.md")]\nprint(json.dumps({"decision": "block", "reason": "shop rules"}))\n',
@@ -5960,7 +5971,7 @@ if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) { // own-sce
     fs.rmSync(path.join(dir, '.starter-template'), { force: true });
     const check = (tag, script) => ({ tag, rule: '7', when: { filesChanged: ['letters/**'] }, require: { runEach: { files: ['letters/*.md'], cmd: `node ${script} "{file}"`, pass: 'RESULT: PASS' } }, message: 'Letters are friendly and plain.' });
     const stiff = n => `{ name: '${n}: a stiff letter: blocked', prompt: 'write the letter', files: { 'letters/a.md': 'Dear Sam,\\nyou must pay by Friday.\\n' }, answer: 'Saved letters/a.md.', expect: { tags: ['${n}'] } }`;
-    write(dir, { 'tools/starter.local.json': JSON.stringify({ path: ROOT }),
+    write(dir, { 'tools/starter.local.json': JSON.stringify({ path: STARTER_DIR }),
       'tools/tone.mjs': "import fs from 'node:fs';\nconsole.log(/you must/i.test(fs.readFileSync(process.argv[2], 'utf8')) ? 'RESULT: FAIL' : 'RESULT: PASS');\n",
       'tools/tone-weak.mjs': "console.log('RESULT: PASS');\n",
       'tools/hooks/project-scenarios.mjs': `export default () => ({ stop: [${['tone-good', 'tone-weak', 'tone-gone'].map(stiff).join(', ')}], pretool: [], prompt: [] });\n` });
@@ -7008,6 +7019,14 @@ if (mineB()) { // gitignore-ready: a vault kept in git owns its .obsidian settin
     report(vault.trim() === '[]' && /already committed but meant to be ignored: \.private-terms/.test(leak) && !/\.obsidian\//.test(leak),
       'gitignore-ready: a vault\'s tracked .obsidian settings pass the starter\'s .gitignore; a committed private file next to them is still caught', `${vault.slice(0, 300)} | ${leak.slice(0, 300)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+if (mineP() && IS_STARTER) { // a skill the engine's own tests route to is one an upgrade installs (CORE_SKILLS), so
+  // the same tests pass in every project. Lesson (a field report): a skill shipped outside the core list never reached
+  // existing projects, and its routing tests failed there
+  const routed = [...new Set(PROMPT.filter(s => !s.pack && !s.own).flatMap(s => (s.has || []).map(h => /^SKILL: ([\w-]+)$/.exec(h)?.[1]).filter(Boolean)))];
+  const notCore = routed.filter(n => fs.existsSync(path.join(ROOT, 'skills', n, 'SKILL.md')) && !fs.existsSync(path.join(ROOT, 'docs/playbooks', `${n}.md`)) && !CORE_SKILLS.includes(n));
+  report(routed.length > 0 && !notCore.length, 'core-skills: every skill the engine\'s own routing tests expect is a core skill, so upgrades install it', JSON.stringify({ routed, notCore }));
 }
 
 if (mineB()) { // gitignore-ready: every private file the engine keeps, as it is on disk, stays out of a push unless the
