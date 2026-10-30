@@ -15,9 +15,12 @@ docs/STATUS.md, which here is the template new projects start from).
 ## Watched projects
 - Standing job from the user (2026-10-29): watch every project that runs the engine, fix the engine here, upgrade them
   (tools/starter/runbooks/project-watch.md; the list is in tools/starter/watch.local.json, local only).
-- 2026-10-29: engine 705d950 handed to both project sessions (linked copies fast-forwarded); waiting on their upgrade
-  and self-test reports. Audit sweep 21 still fails on a short private-list entry matching 3 library skills (the
-  user's list).
+- 2026-10-29: both projects upgraded to 705d950 and committed it. Engine 2e95e12 (caps and praise false alarms, Stop
+  speed test waits for other runs) handed to both sessions, linked copies fast-forwarded; waiting on their `--full`
+  reports. Audit sweep 21 still fails on a short private-list entry matching 3 library skills (the user's list).
+- Open: the dev-self-tests check reads the last shell command's output, so a full self-test that passed in a
+  background run is not seen and the check gets waived turn after turn. Make it read the newest run's result
+  (.cache/selfcheck-last.txt or the selftest-last record) instead.
 
 ## Next
 0. Run the trial on 0793661, then push when the user names main. Open close calls: the zorbel-tune test shape and
@@ -42,7 +45,7 @@ docs/STATUS.md, which here is the template new projects start from).
    chains every other status line. Still open: wire.mjs only adds missing hooks, so existing projects keep a
    PreToolUse matcher without "Skill" until rewired by hand; projects get these changes only by an engine upgrade
    (one project got the files by hand copy). Committed 2026-10-29.
-4e. 2026-10-29: the stop-budget self-test failed twice in full runs (540 and 580 ms against 500), passed in another;
+4e. (fixed in 2e95e12: the test now waits for other self-test runs) 2026-10-29: the stop-budget self-test failed twice in full runs (540 and 580 ms against 500), passed in another;
    timed alone, old and new engine both take about 110-125 ms, so it is the load of the parallel run. Watch it; if it
    keeps failing, look at "sync (generated files)", the slowest part (about 250-320 ms in those runs). A third run
    (726 ms) ran beside 33 busy node/python processes; alone, this engine takes 156-164 ms against 134-145 ms for
