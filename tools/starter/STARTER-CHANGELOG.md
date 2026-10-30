@@ -46,6 +46,11 @@ hooks:**, and an upgrade lists each one as its own review item.
     acknowledged line. Swept over 1,182 real typed messages: 21 false upset alarms and 1 false praise gone, no real
     complaint lost. Scenarios: `caps-weight: capitals that stress a wish are not upset ...`, `... with a sign of
     trouble are upset ...`, `praise: a praise word on a thing or a goal is not praise ...`.
+  - **Hook timing keeps the caches it rebuilds:** `hooks.mjs bench` still writes no session state, but now keeps the
+    hooks' caches (generated-file stamps, the names list, the setup checklist's checks), so the run after an upgrade, or
+    in a fresh copy, is not timed cold every time. Before, an upgrade read Stop about 80 ms and the prompt hook up to 2 s
+    slower than the same engine once warm (2.4 s against 254 ms in a copy of a real project). Test: `bench-caches: a
+    timing run keeps the caches it rebuilt and writes no session state`.
   - **The upgrade times each hook as its fastest of three runs:** before and after alike, so a machine still busy right
     after the upgrade's audit no longer reads as a slower engine. Before, three upgrades in a row reported Stop 87 to
     131 ms slower, and the next upgrade timed the same engine back down. Test: `upgrade timing: each hook is timed as

@@ -7747,6 +7747,18 @@ for (const [k, { out, code }] of (await Promise.all(helpers)).entries()) {
   for (const l of lines) { const m = /^(PASS|FAIL)  (.*?)(?:  -> .*)?$/.exec(l); if (!m) continue; LOG_LINES.push(l); if (m[1] === 'FAIL' || VERBOSE) console.log(l); if (m[1] === 'PASS') { pass++; PASSED.push(m[2]); } else { fail++; FAILED.push(m[2]); FAIL_LINES.push(l); } }
   if (done) skipped += Number(done[3]); else report(false, `self-test helper ${k + 1} finished its share`, `exit ${code}: ${out.trim().split(/\r?\n/).slice(-5).join(' | ').slice(0, 500)}`);
 }
+// bench writes the hooks' caches (they hold no session state), so each timed run after an upgrade or in a fresh copy
+// is not a cold one. Lesson (a field report): an upgrade timed Stop 80 ms and the prompt hook up to 2 s slower than the
+// same engine timed later, because bench never kept the caches it rebuilt
+if (!TAGS || TAGS.includes('bench-caches')) { const dir = copyProject();
+  try {
+    const st = path.join(dir, 'tools/hooks/state'), CACHES = ['mirror-stamps.json', 'names.json'];
+    for (const n of fs.existsSync(st) ? fs.readdirSync(st) : []) fs.rmSync(path.join(st, n), { recursive: true, force: true });
+    const r = spawnSync(process.execPath, [path.join(dir, 'tools/hooks/hooks.mjs'), 'bench'], { cwd: dir, encoding: 'utf8', timeout: 120000 });
+    const have = fs.existsSync(st) ? fs.readdirSync(st) : [];
+    report(CACHES.every(n => have.includes(n)) && !have.some(n => /^(turn|snapshot|notices-shown|stop-blocks|stop-failed)(.|$)/.test(n)),
+      'bench-caches: a timing run keeps the caches it rebuilt and writes no session state', `state after bench: ${have.join(', ')} | ${(r.stdout || '').slice(0, 120)}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); } }
 // the upgrade's hook timing: the fastest of several bench runs per hook, so a machine still busy right after the
 // upgrade does not read as a slower engine. Lesson (a field report): three upgrades each timed Stop 87 to 131 ms
 // slower right after, and the next upgrade timed the same engine back down

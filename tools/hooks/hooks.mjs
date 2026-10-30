@@ -83,8 +83,12 @@ const PER_SESSION = new Set(['turn.json', 'acknowledged.json', 'reminders-shown.
 const stateName = n => SID && PER_SESSION.has(n) ? n.replace(/.json$/, `.${SID}.json`) : n;
 // a session's own file when it has one, else the shared one (written before sessions were told apart, or by a test)
 const stateFile = n => { const own = path.join(STATE, stateName(n)); return own !== path.join(STATE, n) && !fs.existsSync(own) ? path.join(STATE, n) : own; };
+const BENCH_CACHES = new Set(['mirror-stamps.json', 'names.json', 'fit-check.json', 'fit-later.json']);
 function writeState(name, obj) {
-  if (envOf('BENCH') || DRY_STATE) return; // hooks.mjs bench times the hooks without touching the session's state
+  // hooks.mjs bench times the hooks without touching the session's state; the caches it rebuilt it keeps (they hold no
+  // session state), so the next timed run is not a cold one. Lesson (a field report): after an upgrade every timed run
+  // rebuilt them, and Stop read 80 ms and the prompt hook up to 2 s slower than the same engine once warm
+  if ((envOf('BENCH') && !BENCH_CACHES.has(name)) || DRY_STATE) return;
   if (NO_TRANSCRIPT && (PER_SESSION.has(name) || name === 'setup.json')) return;
   try { fs.mkdirSync(STATE, { recursive: true }); fs.writeFileSync(path.join(STATE, stateName(name)), JSON.stringify(obj, null, 2)); } catch {}
 }
@@ -4059,7 +4063,7 @@ export function fitLaterNotice() {
   const st = readJSON(path.join(STATE, 'fit-later.json'), { announced: [] });
   const key = `${today()}|${(() => { try { return fs.statSync(abs(FIT_FILE)).mtimeMs; } catch { return 0; } })()}`;
   if (st.checked === key) return null;
-  if (!envOf('BENCH')) writeState('fit-later.json', { ...st, checked: key });
+  writeState('fit-later.json', { ...st, checked: key }); // (a cache: bench keeps it too)
   const sv = projectSurvey({ git: due.some(x => x.w.metric === 'commits') });
   const met = due.filter(x => fitMetric(sv, x.w) >= x.w.min && !st.announced.includes(`${x.r.kind}:${x.r.item}|${x.w.text}`));
   if (!met.length) return null;
