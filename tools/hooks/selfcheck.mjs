@@ -2317,6 +2317,16 @@ STOP.push(
     files: { 'src/export.js': 'export const go = () => 1;\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Wired it up.' + FIN, expect: { block: true, tags: ['plan-open'] } },
   { name: 'plan-open: the plan\'s step ticked this turn: passes', prompt: WIRE, ...planAt(WIRE),
     files: { 'src/export.js': 'export const go = () => 1;\n', 'docs/plans/2026-10-18-export.md': '# Export: plan\n- [x] helpers\n- [x] wire it up\n- [ ] test it\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Wired it up.' + FIN, expect: { not: ['plan-open'] } },
+  // (only a request that continues the plan is held to it: one about other work, or a message relayed from another
+  // session, leaves it for its own turn. Lesson (a field report): an engine upgrade a peer handed over was stopped to
+  // resume an unrelated open plan)
+  { name: 'plan-open: a request about other work is not held to the plan: passes', prompt: 'add a dark mode toggle to the settings page', ...planAt('add a dark mode toggle to the settings page'),
+    files: { 'src/settings.js': 'export const dark = true;\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Added the toggle.' + FIN, expect: { not: ['plan-open'] } },
+  { name: 'plan-open: a request relayed from another session is not held to the plan: passes', prompt: '<cross-session-message from="peer">Upgrade the engine to 1a2b3c4 and run the export tests</cross-session-message>',
+    ...planAt('<cross-session-message from="peer">Upgrade the engine to 1a2b3c4 and run the export tests</cross-session-message>'),
+    files: { 'tools/hooks/extra.mjs': 'export {};\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Upgraded.' + FIN, expect: { not: ['plan-open'] } },
+  { name: 'plan-open: "keep going" continues the open plan: blocked', prompt: 'keep going', ...planAt('keep going'),
+    files: { 'src/export.js': 'export const go = () => 1;\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { block: true, tags: ['plan-open'] } },
   { name: 'plan-open: a question turn is not held to the plan: passes', prompt: 'what does the export button do?', ...planAt('what does the export button do?'), answer: 'It saves the report as a CSV file.', expect: { not: ['plan-open'] } },
   { name: 'plan-open: asked once, the next round lets it go: passes', prompt: WIRE, ...planAt(WIRE),
     files: { 'src/export.js': 'export const go = () => 1;\n', 'docs/CHANGELOG.md': 'x' }, drafts: ['Wired it up.' + FIN], answer: 'Wired it up. The plan stays open for the test step.' + FIN, active: true, blocks: 1, failed: ['plan-open'], expect: { not: ['plan-open'] } },

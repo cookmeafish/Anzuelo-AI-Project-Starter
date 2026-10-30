@@ -46,6 +46,11 @@ hooks:**, and an upgrade lists each one as its own review item.
     acknowledged line. Swept over 1,182 real typed messages: 21 false upset alarms and 1 false praise gone, no real
     complaint lost. Scenarios: `caps-weight: capitals that stress a wish are not upset ...`, `... with a sign of
     trouble are upset ...`, `praise: a praise word on a thing or a goal is not praise ...`.
+  - **An open plan holds only the work that continues it:** a work turn is stopped to resume an open plan only when
+    the request shares a word with the plan's name, title or open tasks, or says to go on ("keep going", "continue");
+    other work and messages relayed from another session leave the plan for its own turn. Before, an engine upgrade a
+    peer handed over was stopped to resume an unrelated plan. Scenarios: `plan-open: a request about other work ...`,
+    `plan-open: a request relayed from another session ...`, `plan-open: "keep going" continues the open plan: blocked`.
   - **A correction stays applied for the rest of the turn:** a `Corrected: "<old>" -> "<new>"` message is applied in a
     question turn too once an answer was blocked, and the corrected answer is what a later short note in the same turn
     ("Added:", after a background helper's notice) is read with. Before, the number a correction took out was flagged

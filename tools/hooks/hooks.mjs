@@ -6134,7 +6134,13 @@ export function coreChecks(x, cfg) {
   // Lesson: the OPEN PLANS notice said "before new work", nothing held the agent to it, and plans were left half done.
   const snap = readJSON(stateFile('turn.json'), null);
   const startPlans = snap && Date.parse(snap.at) >= (x.since || 0) - 5000 ? (snap.openPlans || []).filter(p => exists(p)) : [];
-  if (x.workTurn && startPlans.length && !x.failedBefore?.includes('plan-open') && !x.changed.some(p => /^docs\/plans\//.test(p))
+  // (only a request that continues a plan is held to it: one that shares a word with the plan's name, title or open
+  // tasks, or says to go on. Other work, or a message relayed from another session, leaves it for its own turn.
+  // Lesson (a field report): an engine upgrade a peer handed over was stopped to resume an unrelated open plan)
+  const wantWords = new Set(keyWords(x.prompt).filter(w => w.length > 2));
+  const continues = p => /\b(keep going|go on|continue|carry on|resume|next step|finish (it|the plan|up)|the plan|sigue|contin[uú]a)\b/i.test(x.prompt)
+    || keyWords(`${path.basename(p, '.md').replace(/^\d{4}-\d\d-\d\d-/, '')} ${(read(abs(p)).match(/^# .*$|^\s*- \[ \] .*$/gm) || []).join(' ')}`).some(w => w.length > 2 && wantWords.has(w));
+  if (x.workTurn && startPlans.length && !relayedBody(x.prompt) && startPlans.some(continues) && !x.failedBefore?.includes('plan-open') && !x.changed.some(p => /^docs\/plans\//.test(p))
     && ![...x.cmds, ...(x.runs || []).map(r => r.cmd || '')].some(c => /plan-tasks\.mjs/.test(c)))
     add('plan-open', `This turn started with ${startPlans.length > 1 ? 'open plans' : 'an open plan'} (${startPlans.slice(0, 3).join(', ')}) and did not touch ${startPlans.length > 1 ? 'them' : 'it'}. Tell the user, then resume it ` +
       '(node skills/plan/scripts/plan-tasks.mjs status <plan>), tick what this work finished, or close it with "status: done" or "status: dropped - <why>". ' +
