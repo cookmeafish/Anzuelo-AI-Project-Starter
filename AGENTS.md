@@ -43,7 +43,13 @@
 3. **Standing instructions become enforced rules, and an upset user teaches the project.** When the user is upset or
    complains, the **learn-from-upset** skill fixes the miss, weighs how important the lesson is, and stores it where it
    stops the next one (the skill that missed it, a rule, a check, a new skill, or the starter for every project), with
-   "Learned (<level>): <lesson> → <file>" in the turn notes (rule 7). "Always / never / remember / from now on / update the project", or
+   "Learned (<level>): <lesson> → <file>" in the turn notes (rule 7). The user always sees "acknowledged" first: an upset,
+frustrated or all-caps message, a question or one typed mid-turn included, gets its
+`Issue: <problem> | runbook: <name> | fixed when: <outcome>` line before any change or command, and that runbook is
+followed to the end of its checklist with the outcome verified (only a false alarm skips it, with
+`Issue: none - <why>`; 2026-10-29). It lists everything wrong before fixing; upset
+   again in a session means patching failed, so the whole problem gets a plan in `docs/plans/` and a sweep over real
+   data (2026-10-28: one display was "fixed" six times, each tested only on the moment shown). "Always / never / remember / from now on / update the project", or
    praise for something to repeat, go through the **project-rule** skill: the principle
    and why it matters, with the date, a rule here, a row in `docs/checks/user-requirements.md`, a check in
    `tools/hooks/requirements.json` (or "hook: N/A <reason>"), a memory note, a test, and the audit. If something would

@@ -1,6 +1,6 @@
 ---
 name: status-lines
-description: Turn the "⚓" status lines the user sees on or off, all of them or one kind at a time. Use when this runbook's situation comes up (docs/playbooks/status-lines.md), e.g. the user says: turn off the icons, hide the icons, disable the icons, turn on the icons, show the icons again, too many icons, stop showing the anchor lines, hide the anzuelo lines, turn off the anzuelo lines, show the anzuelo lines, hide the praise line, hide the skill line, quitar los iconos, ocultar los iconos.
+description: Turn the "⚓" status lines the user sees on or off, all of them or one kind at a time. Use when this runbook's situation comes up (docs/playbooks/status-lines.md), e.g. the user says: status bar, the bar says, statusline, turn off the icons, hide the icons, disable the icons, turn on the icons, show the icons again, too many icons, stop showing the anchor lines, hide the anzuelo lines, turn off the anzuelo lines, show the anzuelo lines, hide the praise line.
 runbook: docs/playbooks/status-lines.md
 generated: true
 ---
@@ -14,6 +14,9 @@ Open `docs/playbooks/status-lines.md` and follow every step in order. It is the 
       asked: `false` for all off, `true` for all on, otherwise a `hide` list with exactly the named kinds added or
       removed (judgment: which kinds the user meant needs a reader).
 - [ ] The answer says which lines are hidden now and how to bring them back (judgment: plain wording for the user).
+- [ ] A change to the status bar (below): its self-test passes and failed before the fix (hook: hooks-tested).
+- [ ] A change to the status bar: a sweep over real session logs shows 0 wrong, in a `Sweep:` line (judgment: the log is the user's, outside the project).
+- [ ] A change to the status bar: every other status line (the project's, the user's) still shows first and unchanged, in the status-bar self-test (hook: hooks-tested).
 <!-- generated:end -->
 
 <!-- Skill-only material goes below: notes for scripts/ and assets/ in this folder. Hardening moves repeatable steps into scripts/. -->

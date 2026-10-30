@@ -30,7 +30,7 @@ export function wire(dir, { dry = false } = {}) {
   const cc = (cmd, timeout, extra = {}) => [{ ...extra, hooks: [{ type: 'command', command: `node "$CLAUDE_PROJECT_DIR/tools/hooks/hooks.mjs" ${cmd}`, timeout }] }];
   // (the tools that schedule a prompt back into the session, too: their prompt is noted, and a headless run gets no
   // fallback wakeup. Lesson: a wakeup left pending kept a headless run alive until its time limit killed it.)
-  const theirs = { hooks: { SessionStart: cc('session', 60), UserPromptSubmit: cc('prompt', 30), PreToolUse: cc('pretool', 30, { matcher: 'Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell|Read|Agent|Task|mcp__.*|ScheduleWakeup|CronCreate|.*(Wake|Schedule|Remind|Alarm|Timer).*' }),
+  const theirs = { hooks: { SessionStart: cc('session', 60), UserPromptSubmit: cc('prompt', 30), PreToolUse: cc('pretool', 30, { matcher: 'Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell|Read|Skill|Agent|Task|mcp__.*|ScheduleWakeup|CronCreate|.*(Wake|Schedule|Remind|Alarm|Timer).*' }),
     PostToolUse: cc('posttool', 30, { matcher: 'Write|Edit|MultiEdit' }), Stop: cc('stop', 300) } };
   const before = JSON.stringify(mine);
   mine.includeCoAuthoredBy = false;

@@ -299,6 +299,10 @@ function engineStampHere() {
 function copyProject(host = false) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-'));
   fs.cpSync(base(host), dir, { recursive: true, preserveTimestamps: true });
+  // (the scenarios test their own checks: the runbook checklist, on by default, stays off unless a scenario turns it
+  // on, so a scenario written for another check is not sent back for checklist records it never meant to keep)
+  const cf = path.join(dir, 'tools/hooks/config.json');
+  try { const c = JSON.parse(fs.readFileSync(cf, 'utf8')); if (!('runbookLedger' in c)) { const st = fs.statSync(cf); fs.writeFileSync(cf, JSON.stringify({ ...c, runbookLedger: false }, null, 2) + '\n'); fs.utimesSync(cf, st.atime, st.mtime); } } catch { }
   return dir;
 }
 // One reusable copy per base for the scenario runners: after a scenario only what it touched is put back (files it
@@ -532,6 +536,36 @@ const STOP = [
     tools: [{ name: 'Write', input: { file_path: path.join(os.homedir(), '.claude', 'projects', 'x', 'memory', 'allergens-every-item.md'), content: 'Every menu item lists its allergens.' } }],
     files: { 'docs/menu.md': 'Croissant (gluten, milk)' },
     answer: 'Checked: docs/menu.md - the croissant line had no allergens. Added them to the menu.\nLearned (lesson): every menu item lists its allergens → allergens-every-item.md' + FIN, expect: { not: ['upset-learned'] } },
+  // (upset again in the same session: a plan and a sweep, not another patch. Lesson (the user): six complaints about one
+  // status bar in one session, each fixed and tested only on the moment shown)
+  { name: 'upset-learned: upset again in the same session, fixed with a lesson but no plan or sweep: blocked', prompt: 'UGH, IT STILL ROUNDS THE TOTAL DOWN AGAIN',
+    files: { 'tools/hooks/state/triggers.jsonl': JSON.stringify({ at: new Date(Date.now() - 600_000).toISOString(), kinds: ['upset'], text: 'the invoice total is wrong' }) + '\n',
+      'docs/invoice.md': 'Total: 42.00', 'docs/playbooks/invoice.md': '# Invoice\n## Pitfalls\n- totals round half up\n' },
+    answer: 'You\'re right: the total rounded down.\nChecked: docs/invoice.md - 41.99 shown for 42.00. Fixed.\nLearned (lesson): totals round half up → docs/playbooks/invoice.md' + FIN,
+    expect: { block: true, tags: ['upset-learned'], says: /upset again in this session/ } },
+  { name: 'upset-learned: upset again in the same session, with a plan of everything wrong and a sweep: passes that check', prompt: 'UGH, IT STILL ROUNDS THE TOTAL DOWN AGAIN',
+    files: { 'tools/hooks/state/triggers.jsonl': JSON.stringify({ at: new Date(Date.now() - 600_000).toISOString(), kinds: ['upset'], text: 'the invoice total is wrong' }) + '\n',
+      'docs/invoice.md': 'Total: 42.00', 'docs/playbooks/invoice.md': '# Invoice\n## Pitfalls\n- totals round half up\n',
+      'docs/plans/2026-10-28-invoice-totals.md': '# Plan: invoice totals\n- [x] 1. Rounding: half up, in the total and every line\n',
+      '.cache/turn-notes.md': 'Sweep: the total check over all 212 saved invoices - 212 checked, 0 wrong\n' },
+    answer: 'You\'re right: the total rounded down.\nChecked: docs/invoice.md - 41.99 shown for 42.00. Fixed.\nLearned (lesson): totals round half up → docs/playbooks/invoice.md' + FIN,
+    expect: { not: ['upset-learned'] } },
+  // (the runbook "acknowledged" named is opened and followed to the end, and the promised outcome checked. Lesson (the
+  // user): "acknowledged" and then no runbook followed; a checklist done halfway lets the same miss through)
+  ...(() => {
+    const base = { prompt: 'UGH, THE INVOICE TOTAL IS WRONG', answer: 'You\'re right: the total rounded down.\nChecked: docs/invoice.md - 41.99 shown for 42.00. Fixed.\nRoot cause: the total was truncated, not rounded.\nLearned (lesson): totals round half up → docs/playbooks/invoice.md' + FIN };
+    const files = notes => ({ 'docs/invoice.md': 'Total: 42.00', 'docs/playbooks/invoice.md': '# Invoice\n## Pitfalls\n- totals round half up\n',
+      '.cache/turn-notes.md': 'Issue: the invoice total rounds down | runbook: debug | fixed when: the total shows 42.00 for 41.995\n' + notes });
+    const read = [{ name: 'Read', input: { file_path: 'skills/debug/SKILL.md' } }];
+    const count = (fs.readFileSync(path.join(ROOT, 'skills/debug/SKILL.md'), 'utf8').split(/^## Done when/m)[1] || '').split(/^## /m)[0].match(/^- \[ \]/gm)?.length || 0;
+    const all = Array.from({ length: count }, (_, i) => `Done ${i + 1}: checked with tests/invoice.test.mjs and the saved invoices`).join('\n') + '\n';
+    return [
+      { ...base, name: 'upset-acknowledged: the runbook "acknowledged" named was never opened: blocked', files: files(''), expect: { block: true, tags: ['upset-learned'], says: /was not opened this turn/ } },
+      { ...base, name: 'upset-acknowledged: the runbook opened, its checklist not recorded to the end: blocked', files: files('Done 1: listed both symptoms\n'), tools: read, expect: { block: true, tags: ['upset-learned'], says: /checklist .* is not finished/ } },
+      { ...base, name: 'upset-acknowledged: the runbook followed to the end and the outcome verified: passes that check', tools: read,
+        files: files(all + 'Verified: node tools/invoice.mjs 41.995 - prints 42.00\n'), expect: { not: ['upset-learned'] } },
+    ];
+  })(),
   { name: 'upset-learned: "again" with only a one-off note: blocked', prompt: 'you forgot to add the allergens again!!', files: { 'docs/menu.md': 'Croissant (gluten, milk)', 'docs/lessons.md': '- 2026-10-19: allergens missed' },
     answer: 'Added the allergens to the menu.\nLearned (one-off): allergens were missed → docs/lessons.md' + FIN, expect: { block: true, tags: ['upset-learned'] } },
   // Lesson: complaints sent mid-turn as questions or verdicts ("really no pictures???", "it's lackluster") got no upset
@@ -1006,7 +1040,11 @@ const STOP = [
     files: { 'data/v.json': '{"ok":1}', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md' + FIN, expect: { block: false } },
   // cap reached: the miss is carried over to the next prompt instead of vanishing
   { name: 'block cap reached: unresolved checks are saved for the next prompt', prompt: 'build me a weekly cleaning rota', files: { 'docs/rota.md': 'r' }, answer: 'Done.', active: true, blocks: 3,
-    expect: { block: false }, after: dir => fs.existsSync(path.join(dir, 'tools/hooks/state/unresolved.json')) || 'unresolved.json was not written' }
+    expect: { block: false }, after: dir => fs.existsSync(path.join(dir, 'tools/hooks/state/unresolved.json')) || 'unresolved.json was not written' },
+  // (said at once. Lesson (the user): a turn that ended with steps left looked finished, and the status bar said done)
+  { name: 'unresolved-carryover: block cap reached: the user is told at once that the turn ended with steps not done', prompt: 'build me a weekly cleaning rota', files: { 'docs/rota.md': 'r' }, answer: 'Done.', active: true, blocks: 3,
+    host: { CLAUDE_PROJECT_DIR: '.' }, expect: { block: false },
+    after: (dir, reason, d) => (/^⚓ .+? ⚠️ ended with \d+ steps? not done: /.test(d?.systemMessage || '') && !/checks passed/.test(d?.systemMessage || '')) || `got ${JSON.stringify(d).slice(0, 300)}` }
 ];
 
 const PRETOOL = [
@@ -1185,9 +1223,14 @@ const PROMPT = [
   // question-answered as it arrives: a mid-turn question is answered next, with no runbook, skill or upset work of its
   // own; a question opening a turn is answered first. Lesson (a study of 117 real questions): routing and upset hints
   // on "why" questions sent agents into fix work, and mid-turn questions went unanswered.
-  { name: 'question-answered: a question typed mid-turn is to be answered next, with no route or upset work', prompt: 'WHY DO YOU KEEP IGNORING ME, does the order even have bulbs??',
+  // (an upset one is still acknowledged first: REQ upset-acknowledged. Lesson (the user): "always do acknowledged if you
+  // sense the user is upset ... only skip it if false alarm")
+  { name: 'question-answered: a question typed mid-turn is to be answered next, with no route or fix work; an upset one is acknowledged first', prompt: 'WHY DO YOU KEEP IGNORING ME, does the order even have bulbs??',
     setup: { 'tools/hooks/state/notices-shown.json': JSON.stringify({ at: new Date().toISOString(), shown: [] }) },
-    has: ['QUESTION (typed while you work): answer it in your very next message'], hasNot: ['ROUTE:', 'THE USER SOUNDS UPSET', 'SKILL:'] },
+    has: ['QUESTION (typed while you work): answer it in your very next message', 'THE USER SOUNDS UPSET: write "Issue:'], hasNot: ['ROUTE:', 'THE USER SOUNDS UPSET (maybe)', 'SKILL:'] },
+  { name: 'question-answered: a calm question typed mid-turn gets no upset line', prompt: 'does the order even have bulbs?',
+    setup: { 'tools/hooks/state/notices-shown.json': JSON.stringify({ at: new Date().toISOString(), shown: [] }) },
+    has: ['QUESTION (typed while you work)'], hasNot: ['THE USER SOUNDS UPSET'] },
   { name: 'question-answered: a question that opens a turn is answered first', prompt: 'why does the csv export skip empty rows?', has: ['QUESTION: answer it directly, first'] },
   { name: 'question-answered: a request is no question', prompt: 'add a csv export with tests', hasNot: ['QUESTION'] },
   // (a long pasted transcript routes on its start and end only. Lesson (a field report): pasted transcripts set off
@@ -4128,7 +4171,7 @@ const proves = s => TAGS.filter(t => (s.expect?.tags || []).includes(t) || (s.ex
 const SHARD = (() => { const i = process.argv.indexOf('--shard'), m = /^(\d+)\/(\d+)$/.exec(i > 0 ? process.argv[i + 1] || '' : ''); return m ? { i: Number(m[1]), n: Number(m[2]) } : null; })();
 const HELPER = !!SHARD;
 // tags a standalone test proves (it runs with --tags <tag>, outside the full-run-only block)
-const STANDALONE_TAGS = ['starter-tested', 'begin-keeps-turn', 'helper-work-counts', 'upset-es', 'feedback-usage', 'session-checklist', 'engine-bypassed', 'transcript-tail', 'instructions-run', 'answer-traced', 'stop-follow-on', 'stop-reblock', 'check-preview'];
+const STANDALONE_TAGS = ['status-bar', 'upset-acknowledged', 'starter-tested', 'begin-keeps-turn', 'helper-work-counts', 'upset-es', 'feedback-usage', 'session-checklist', 'engine-bypassed', 'transcript-tail', 'instructions-run', 'answer-traced', 'stop-follow-on', 'stop-reblock', 'check-preview'];
 if (TAGS) {
   const all = [...STOP, ...PRETOOL, ...PROMPT];
   for (const t of TAGS) if (!HELPER && !TRIGGER_TAGS.includes(t) && !STANDALONE_TAGS.includes(t) && t !== 'selftest-speed' && !all.some(s => proves(s).includes(t))) report(false, `tags: a scenario proves ${t}`, `no scenario proves "${t}": add one to tools/hooks/project-scenarios.mjs (blocked when skipped, passes when followed)`);
@@ -4348,6 +4391,85 @@ if (mineB() && (!TAGS || TAGS.some(t => TRIGGER_TAGS.includes(t)))) {
       console.log(`trigger recall: ${got} of ${total} (${(100 * recall).toFixed(1)}%), floor ${100 * TRIGGER_FLOOR}%${notHere ? `, ${notHere} targets not installed here` : ''}, ${Date.now() - t0} ms`);
     } finally { restoreFs(); fs.rmSync(dir, { recursive: true, force: true }); }
   }
+}
+// REQ: status-bar. The status bar (tools/hooks/statusline.mjs) says how the session stands at every point of a recorded
+// session: nothing before the first turn, working while the agent is busy (also when a background agent's notice, not
+// a typed message, started the work), almost done while the Stop hook's steps are being done, waiting while background
+// agents still run after the answer, steps not done at the end, nothing once the turn is finished, and never an extra
+// line. Lessons (the user): six complaints in one session, each fix tested only on the moment in the screenshot; a
+// finished turn's "checks passed" left on the bar is noise.
+if (!TAGS || TAGS.includes('status-bar')) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'statusbar-')), tp = path.join(dir, 'session.jsonl');
+  const name = JSON.parse(fs.readFileSync(path.join(ROOT, 'docs/names.json'), 'utf8')).STARTER_NAME;
+  let n = 0; const at = () => new Date(Date.UTC(2026, 9, 28, 12, 0, n++)).toISOString();
+  const typed = text => ({ type: 'user', timestamp: at(), message: { role: 'user', content: text } });
+  const tool = () => ({ type: 'assistant', timestamp: at(), message: { stop_reason: 'tool_use', content: [{ type: 'tool_use', id: 't' + n, name: 'Bash', input: {} }] } });
+  const result = extra => ({ type: 'user', timestamp: at(), message: { content: [{ type: 'tool_result', tool_use_id: 't', content: 'ok' }] }, ...(extra ? { toolUseResult: extra } : {}) });
+  const reply = () => ({ type: 'assistant', timestamp: at(), message: { stop_reason: 'end_turn', content: [{ type: 'text', text: 'Done.' }] } });
+  const stop = text => ({ type: 'attachment', timestamp: at(), attachment: { type: 'hook_system_message', hookName: 'Stop', content: text.split('\n').map(l => `⚓ ${name} ${l}`).join('\n') } });
+  const notice = id => `<task-notification>\n<task-id>${id}</task-id>\n<status>completed</status>\n</task-notification>`;
+  const steps = [
+    [null, ''],
+    [typed('rename the export button'), 'working'],
+    [tool(), 'working'], [result(), 'working'],
+    [reply(), ''],
+    [stop('almost done, 2 steps left (round 1 of 3)'), 'almost done, 2 steps left'],
+    [tool(), 'almost done, 2 steps left'], [result(), 'almost done, 2 steps left'],
+    [reply(), ''],
+    [stop('📜 rule saved in AGENTS.md, with a check\n✅ checks passed · 📖 the export runbook it pulled up was followed'), ''],
+    [typed('now check the import with a helper'), 'working'],
+    [tool(), 'working'], [result({ isAsync: true, status: 'async_launched', agentId: 'helper1' }), 'working'],
+    [reply(), 'waiting on 1 background task'],
+    [{ type: 'attachment', timestamp: at(), attachment: { type: 'queued_command', prompt: notice('helper1') } }, 'working'],
+    [typed(notice('helper1')), 'working'],
+    [tool(), 'working'], [result(), 'working'],
+    [{ ...reply(), isSidechain: true }, 'working'],
+    [reply(), ''],
+    [stop('⚠️ ended with 1 step not done: Note the change in docs/CHANGELOG.md'), '⚠️ ended with 1 step not done'],
+    // (a background command the agent stopped itself gets no notice, only the stop's result)
+    [typed('run the tests in the background'), 'working'],
+    [tool(), 'working'], [result({ stdout: '', backgroundTaskId: 'cmd7' }), 'working'],
+    [reply(), 'waiting on 1 background task'],
+    [typed('stop it'), 'working'], [tool(), 'working'],
+    [result({ message: 'Successfully stopped task: cmd7 (npm test)', task_id: 'cmd7', task_type: 'local_bash' }), 'working'],
+    [reply(), ''],
+    // (a turn the usage limit cut ends with stop_sequence, not end_turn)
+    [typed('one more change'), 'working'], [tool(), 'working'], [result(), 'working'],
+    [{ type: 'assistant', timestamp: at(), message: { stop_reason: 'stop_sequence', content: [{ type: 'text', text: 'You\'ve hit your session limit' }] } }, ''],
+  ];
+  // (a home of its own: the user's real bar stays out of the test)
+  const home = path.join(dir, 'home'), env = { ...process.env, USERPROFILE: home, HOME: home };
+  const bar = () => (spawnSync(process.execPath, [path.join(ROOT, 'tools/hooks/statusline.mjs')], { input: JSON.stringify({ transcript_path: tp, workspace: { project_dir: ROOT } }), encoding: 'utf8', timeout: 10000, env }).stdout || '').replace(/\x1b\[[0-9;]*m/g, '').trim();
+  const lines = [], wrong = [];
+  for (const [entry, want] of steps) {
+    if (entry) lines.push(JSON.stringify(entry));
+    fs.writeFileSync(tp, lines.join('\n') + (lines.length ? '\n' : ''));
+    const out = bar();
+    if (want ? !out.includes(want) || out.split('\n').length > 1 : out) wrong.push(`after ${lines.length} entries: want "${want}", got "${out}"`);
+  }
+  // the user's own bar (model, context, folder) stays, first and unchanged; this line only joins it during a turn.
+  // (Lesson (the user): the project's setting replaced a bar installed with another app)
+  fs.mkdirSync(path.join(home, '.claude'), { recursive: true });
+  fs.writeFileSync(path.join(home, '.claude', 'settings.json'), JSON.stringify({ statusLine: { type: 'command', command: `node -e "process.stdout.write('Opus ctx 12%')"` } }));
+  let got = bar();
+  if (got !== 'Opus ctx 12%') wrong.push(`finished, with the user's own bar: want only it, got "${got}"`);
+  lines.push(JSON.stringify(typed('one more')));
+  fs.writeFileSync(tp, lines.join('\n') + '\n');
+  got = bar();
+  if (got !== 'Opus ctx 12%\n⏳ working') wrong.push(`working, with the user's own bar: want it then working, got "${got}"`);
+  // (a finished turn whose message names an issue about "steps left" is still finished. Lesson (sweep))
+  lines.push(JSON.stringify(reply()), JSON.stringify(stop('🚨 fixed: the bar shows steps left after the agent finished\n✅ checks passed')));
+  fs.writeFileSync(tp, lines.join('\n') + '\n');
+  got = bar();
+  if (got !== 'Opus ctx 12%') wrong.push(`finished, an issue that mentions "steps left": want only the own bar, got "${got}"`);
+  // (a status line set in the project's shared settings by something else is kept too, before the user's: never
+  // overridden or disabled. Lesson (the user): "anzuelo should never override or disable the status bar of anything else")
+  const proj = path.join(dir, 'proj'); fs.mkdirSync(path.join(proj, '.claude'), { recursive: true });
+  fs.writeFileSync(path.join(proj, '.claude', 'settings.json'), JSON.stringify({ statusLine: { type: 'command', command: `node -e "process.stdout.write('team bar')"` } }));
+  got = (spawnSync(process.execPath, [path.join(ROOT, 'tools/hooks/statusline.mjs')], { input: JSON.stringify({ transcript_path: tp, workspace: { project_dir: proj } }), encoding: 'utf8', timeout: 10000, env }).stdout || '').replace(/\x1b\[[0-9;]*m/g, '').trim();
+  if (got !== 'team bar') wrong.push(`a project's own status line: want it kept, got "${got}"`);
+  fs.rmSync(dir, { recursive: true, force: true });
+  report(!wrong.length, 'status-bar: one true line at every point of a session (working, almost done, waiting on helpers, notice-started work, steps not done), nothing once finished', wrong.join(' | '));
 }
 // REQ: stop-follow-on (the guard). Fix rounds as an agent makes them: round 1 is judged, the fix it asks for is made
 // (a lesson in a runbook or a skill, a new rule in CLAUDE.md and the hook, a data file), and round 2 is judged on the same
@@ -7222,11 +7344,13 @@ if (mineB() && (!TAGS || TAGS.includes('permission-respected'))) { // engine run
   const dir = takeCopy();
   try {
     const cli = (...a) => spawnSync(process.execPath, [path.join(dir, 'tools/hooks/hooks.mjs'), ...a], { cwd: dir, encoding: 'utf8' });
-    const read0 = cli('setting', 'runbookLedger'), set = cli('setting', 'runbookLedger', 'true'), cfg = JSON.parse(fs.readFileSync(path.join(dir, 'tools/hooks/config.json'), 'utf8'));
+    const cf = path.join(dir, 'tools/hooks/config.json'), { runbookLedger: _, ...rest } = JSON.parse(fs.readFileSync(cf, 'utf8'));
+    fs.writeFileSync(cf, JSON.stringify(rest, null, 2) + '\n');
+    const read0 = cli('setting', 'runbookLedger'), set = cli('setting', 'runbookLedger', 'false'), cfg = JSON.parse(fs.readFileSync(path.join(dir, 'tools/hooks/config.json'), 'utf8'));
     const unknown = cli('setting', 'runbookLedgr', 'true'), wrong = cli('setting', 'runbookLedger', '"yes"');
     const agent = run(dir, 'pretool', { tool_name: 'Bash', tool_input: { command: 'node tools/hooks/hooks.mjs setting runbookLedger false' } }).out;
     const look = run(dir, 'pretool', { tool_name: 'Bash', tool_input: { command: 'node tools/hooks/hooks.mjs setting runbookLedger' } }).out;
-    report(/runbookLedger: false \(the default\)/.test(read0.stdout) && set.status === 0 && /false -> true/.test(set.stdout) && cfg.runbookLedger === true
+    report(/runbookLedger: true \(the default\)/.test(read0.stdout) && set.status === 0 && /true -> false/.test(set.stdout) && cfg.runbookLedger === false
       && unknown.status === 2 && /not a setting/.test(unknown.stdout) && wrong.status === 2 && /takes a boolean/.test(wrong.stdout)
       && /permission-respected[\s\S]*! node tools\/hooks\/hooks\.mjs setting runbookLedger false/.test(agent) && !/permission-respected/.test(look),
       'engine runbook: "setting" reads and writes one hook setting, refuses an unknown key or a wrong type; the agent\'s write is denied with the line for the user, a read is not',
@@ -7239,11 +7363,12 @@ if (mineB() && (!TAGS || TAGS.includes('upset-learned'))) { // the user sees "ac
   try {
     write(dir, { 'tools/hooks/state/turn.json': JSON.stringify({ at: '2026-10-27T10:00:00Z', prompt: 'WHY IS THIS STILL BROKEN' }) });
     const note = text => { write(dir, { '.cache/turn-notes.md': text }); return run(dir, 'posttool', { tool_name: 'Write', tool_input: { file_path: path.join(dir, '.cache/turn-notes.md'), content: text } }, { CLAUDE_PROJECT_DIR: '.' }).out; };
-    const none = note('Playbook: project.md\n'), first = note('Issue: the export drops the last row\n'), again = note('Issue: the export drops the last row\nLearned (lesson): x\n');
+    const R = ' | runbook: debug | fixed when: the export has every row';
+    const none = note('Playbook: project.md\n'), first = note(`Issue: the export drops the last row${R}\n`), again = note(`Issue: the export drops the last row${R}\nLearned (lesson): x\n`);
     report(!/acknowledged/.test(none) && /"systemMessage":"[^"]*🚨 acknowledged: the export drops the last row/.test(first) && !/acknowledged/.test(again),
       'upset-learned: writing the Issue line shows the user "acknowledged" at once, and only once', JSON.stringify([none.slice(0, 80), first.slice(0, 300), again.slice(0, 80)]));
     // (written from the shell, which the edit hook never sees: shown at the next tool call, once)
-    write(dir, { '.cache/turn-notes.md': 'Issue: the totals skip refunds\n' });
+    write(dir, { '.cache/turn-notes.md': `Issue: the totals skip refunds${R}\n` });
     const pre = () => run(dir, 'pretool', { tool_name: 'Bash', tool_input: { command: 'ls' } }, { CLAUDE_PROJECT_DIR: '.' }).out;
     const shell = pre(), next = pre();
     report(/"systemMessage":"[^"]*🚨 acknowledged: the totals skip refunds/.test(shell) && !/acknowledged/.test(next),
@@ -7255,6 +7380,58 @@ if (mineB() && (!TAGS || TAGS.includes('upset-learned'))) { // the user sees "ac
     fs.appendFileSync(path.join(dir, '.cache/turn-notes.md'), 'Playbook: gui.md\n');
     const appended = pre();
     report(!/acknowledged/.test(before) && !/acknowledged/.test(appended), 'upset-learned: a later turn never shows an earlier turn\'s "acknowledged", even after appending to the notes', JSON.stringify([before.slice(0, 120), appended.slice(0, 120)]));
+    // (a new complaint appended below the earlier Issue line is acknowledged too. Lesson (the user): only the first
+    // complaint of a session was acknowledged, five later ones showed nothing)
+    fs.appendFileSync(path.join(dir, '.cache/turn-notes.md'), `Issue: the invoice total rounds the wrong way${R}\n`);
+    const later = pre(), laterAgain = pre();
+    report(/"systemMessage":"[^"]*🚨 acknowledged: the invoice total rounds the wrong way/.test(later) && !/acknowledged/.test(laterAgain),
+      'upset-learned: a later complaint appended below an earlier Issue line is acknowledged, once', JSON.stringify([later.slice(0, 300), laterAgain.slice(0, 80)]));
+  } finally { giveBack(dir); }
+}
+if (mineB() && (!TAGS || TAGS.includes('upset-acknowledged'))) { // REQ: upset-acknowledged. An upset message holds every
+  // change and command until the Issue line is written; reads go on. (Lesson (the user): the agent went straight to
+  // fixing, and no "acknowledged" was shown while more complaints came in)
+  const dir = takeCopy();
+  try {
+    write(dir, { '.cache/turn-notes.md': 'Issue: an older complaint\n' });
+    const env = { CLAUDE_PROJECT_DIR: '.' }, edit = { tool_name: 'Edit', tool_input: { file_path: path.join(dir, 'docs/STATUS.md'), old_string: 'a', new_string: 'b' } };
+    const pre = d => run(dir, 'pretool', d, env).out;
+    run(dir, 'prompt', { prompt: 'rename the export button' }, env);
+    const calm = pre(edit);
+    run(dir, 'prompt', { prompt: 'WHY IS THE EXPORT STILL BROKEN?? I TOLD YOU TWICE' }, env);
+    const held = pre(edit), cmd = pre({ tool_name: 'Bash', tool_input: { command: 'node tools/build.mjs' } }), look = pre({ tool_name: 'Bash', tool_input: { command: 'grep -n export docs/STATUS.md' } });
+    const notes = pre({ tool_name: 'Write', tool_input: { file_path: path.join(dir, '.cache/turn-notes.md'), content: 'x' } });
+    // (an Issue line with no runbook, or with no outcome, does not count: "acknowledged" names both. Lesson (the user):
+    // "acknowledged" and then no runbook followed)
+    fs.appendFileSync(path.join(dir, '.cache/turn-notes.md'), 'Issue: the export drops the last row\n');
+    const bare = pre(edit), bareShown = pre({ tool_name: 'Bash', tool_input: { command: 'ls' } });
+    fs.appendFileSync(path.join(dir, '.cache/turn-notes.md'), 'Issue: the export drops the last row | runbook: no-such-runbook | fixed when: every row is in the file\n');
+    const wrongRb = pre(edit);
+    fs.appendFileSync(path.join(dir, '.cache/turn-notes.md'), 'Issue: the export drops the last row | runbook: debug | fixed when: the export file has every row\n');
+    const freed = pre(edit);
+    // (each runbook or skill the agent opens is shown once: "running the X runbook")
+    const runSkill = pre({ tool_name: 'Read', tool_input: { file_path: path.join(dir, 'skills/debug/SKILL.md') } }), runAgain = pre({ tool_name: 'Read', tool_input: { file_path: path.join(dir, 'skills/debug/SKILL.md') } });
+    const runPb = pre({ tool_name: 'Bash', tool_input: { command: 'cat docs/playbooks/status-lines.md' } }), runTool = pre({ tool_name: 'Skill', tool_input: { skill: 'learn-from-upset' } });
+    // (not upset after all: "Issue: none" frees the work and shows no acknowledgement)
+    run(dir, 'prompt', { prompt: 'UGH, THE EXPORT IS BROKEN AGAIN' }, env);
+    const held2 = pre(edit);
+    fs.appendFileSync(path.join(dir, '.cache/turn-notes.md'), 'Issue: none - the export works, the file was opened from an old folder\n');
+    const none = pre(edit);
+    const denied = o => /upset-acknowledged/.test(o) && /"permissionDecision":"deny"/.test(o);
+    report(!denied(calm) && denied(held) && denied(cmd) && !denied(look) && !denied(notes) && !denied(freed)
+      && denied(bare) && /names no runbook/.test(bare) && !/acknowledged/.test(bareShown) && denied(wrongRb) && /no-such-runbook/.test(wrongRb)
+      && /🚨 acknowledged: the export drops the last row · ⚡ debug skill · fixed when: the export file has every row/.test(freed) && /CHECKLIST \(skills\/debug\/SKILL\.md/.test(freed)
+      && denied(held2) && !denied(none) && !/acknowledged/.test(none),
+      'upset-acknowledged: an upset message holds changes and commands (not reads, not the notes) until the Issue line names an existing runbook and a "fixed when"; "acknowledged" shows all three and the agent gets the checklist; "Issue: none" frees it silently',
+      JSON.stringify([calm, held, cmd, look, notes, bare, wrongRb, freed, held2, none].map(o => o.slice(0, 160))));
+    // (two checklists in one turn: a record line may name its runbook, and then counts only for that one)
+    const hh = await import(pathToFileURL(path.join(ROOT, 'tools', 'hooks', 'hooks.mjs')).href);
+    const both = 'Done debug 3: swept 693 moments\nDone 4: plain, counts for either\nSkip status-lines 1: no lines hidden\n';
+    const forDebug = hh.ledgerLines(both, 'debug'), forStatus = hh.ledgerLines(both, 'status-lines');
+    report(forDebug.has(3) && forDebug.has(4) && !forDebug.has(1) && forStatus.has(1) && forStatus.has(4) && !forStatus.has(3) && forStatus.get(1).kind === 'skip',
+      'upset-acknowledged: a checklist record that names its runbook ("Done debug 3:") counts only for that runbook; a plain one counts for either', JSON.stringify([[...forDebug.keys()], [...forStatus.keys()]]));
+    report(/⚡ running the debug skill \(✅ \d+ items to check off\)/.test(runSkill) && !/running/.test(runAgain) && /📖 running the status-lines runbook \(✅ \d+ items to check off\)/.test(runPb) && /⚡ running the learn-from-upset skill/.test(runTool),
+      'upset-acknowledged: each runbook or skill the agent opens (Read, a command, the Skill tool) shows "running the X runbook" once', JSON.stringify([runSkill, runAgain, runPb, runTool].map(o => o.slice(0, 160))));
   } finally { giveBack(dir); }
 }
 if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) { // engine runbook: removal unwires the hooks, removes the

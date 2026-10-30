@@ -6,6 +6,53 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-10-29: "Acknowledged" can no longer be skipped, and the status bar keeps the user's own bar.
+  - **Acknowledged first, enforced (REQ upset-acknowledged):** when the user sounds upset (also in a question, or a
+    message typed mid-turn), every change and command is refused until the agent writes its `Issue:` line, which shows
+    "acknowledged" at once; `Issue: none - <why>` for a false alarm. Reads still work. Before, it was only a hint, and
+    upset questions got no upset handling at all.
+  - **Acknowledged names the runbook and the outcome:** the line is
+    `Issue: <problem> | runbook: <name> | fixed when: <outcome>`, accepted only with an existing runbook or skill and
+    an outcome; the user sees all three, and the agent gets that runbook's checklist. At the end of the turn the
+    runbook must have been opened, every "Done when" item recorded (`Done N:` / `Skip N: <why>`), and the outcome
+    checked (`Verified:`). **Breaking for project hooks:** a plain `Issue: <problem>` line no longer shows
+    "acknowledged".
+  - **The checklist for every runbook, on by default:** `runbookLedger` now defaults to `true`. Every runbook the agent
+    follows gives it its "Done when" checklist; items a script checks are checked, and each judgment item needs a
+    `Done N:` or `Skip N: <why>` record before the turn can end. **Breaking for project hooks:** turns that follow a
+    runbook with judgment items now need those records; set `"runbookLedger": false` to go back.
+  - **"Running the X runbook (✅ N items to check off)":** every runbook or skill the agent opens (Read, a command, the
+    Skill tool) is shown to the user once per turn, with its checklist count. `Skill` is added to the PreToolUse matcher (wire.mjs; an existing project adds it by hand
+    or rewires, engine runbook).
+  - **Two checklists in one turn:** a record line may name its runbook (`Done debug 3: ...`) and then counts only for
+    that runbook; a plain `Done 3:` counts for either. The self-test's scenario copies keep the checklist off unless a
+    scenario turns it on, so scenarios written for other checks are not held to records they never kept.
+  - **Debug skill:** list everything wrong first with the rule and a table of states; verify with a sweep over all the
+    real data, a check that nothing the user already had broke, and the promised outcome (`Verified:`).
+  - **Status bar:** any other status line (the project's `.claude/settings.json`, else the user's
+    `~/.claude/settings.json`, e.g. model, context, folder) is printed first, unchanged; the engine never overrides or
+    disables a status line but its own; the project's line is added under it only while a turn is in progress
+    (working, almost done, waiting on background tasks, ended with steps not done). A finished turn shows nothing.
+    **Breaking for project hooks:** "✅ checks passed" and "✅ done" are no longer shown on the bar.
+- 2026-10-28: A status bar you can trust, "acknowledged" for every complaint, and repeat complaints handled with a plan.
+  - **Status bar (new, `tools/hooks/statusline.mjs`, shipped):** one line under the prompt, how the session stands:
+    working, almost done (N steps left), waiting on N background tasks, checks passed, ended with N steps not done, or
+    done. One rule: the newest transcript entry decides (a final reply with nothing after it = ended). It reads the
+    whole transcript and never repeats what the chat shows. Self-test `status-bar` walks a recorded session through
+    every state, including a background command the agent stopped itself; sweeps over real sessions found 0 wrong
+    (the first version: 95 wrong of 507). Wire it in
+    a project's `.claude/settings.local.json`: `"statusLine": {"type": "command", "command": "node \"<project>/tools/hooks/statusline.mjs\""}`.
+  - **"Acknowledged" for every complaint:** the newest `Issue:` line is read, not the first in the notes file. Before,
+    only a session's first complaint was ever acknowledged. Scenario: `upset-learned: a later complaint appended below
+    an earlier Issue line is acknowledged, once`.
+  - **A turn that ends with steps not done says so:** after the third Stop round or a pause, the user sees
+    `⚠️ ended with N steps not done: ...` at once, instead of a silent end that looked finished. Scenario:
+    `unresolved-carryover: block cap reached: the user is told at once ...`.
+  - **Upset again in the same session (upset-learned):** the Stop hook asks for a plan in `docs/plans/` listing
+    everything wrong with each root cause and fix, and a `Sweep:` line proving the fix over the whole real record.
+    The trigger log now records the session id. learn-from-upset gains steps 1a (list everything wrong first) and 1b
+    (repeat: plan, rule, sweep, self-test). The status-lines runbook gains a status bar section (states, rule, sweep).
+
 - 2026-10-27: One runbook installs, upgrades and removes the engine; settings the host refuses; "acknowledged" at once.
   - **Engine runbook (`docs/playbooks/engine.md`, core, menu E6):** install (new or adopt), upgrade (moved from
     `project.md` §7, which now points here), remove, and hook settings, with "commit the project's work first".

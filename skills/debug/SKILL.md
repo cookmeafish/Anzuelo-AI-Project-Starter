@@ -19,6 +19,12 @@ problem you don't fully understand, or a fix that already failed once.
 the user's OK), then come back here. The mitigation is never the fix.
 
 ## Phase 1: Investigate
+0. **List everything wrong first**, as a checklist: every symptom the user reported, in every message of the
+   conversation (also the ones typed while you worked), plus any you find. Each one is fixed and checked off before the
+   answer says "fixed". Then write **the rule** the behavior must follow, and the table of every state or input kind it
+   has to handle (empty, one, many, in progress, finished, interrupted, from another source). A state missing from the
+   table is usually the bug. <!-- Lesson (the user): a display was "fixed" six times, each time for the one moment in
+   the screenshot, because no one wrote down the states it had to show -->
 1. **Read the error completely:** the whole message and stack trace, line numbers, paths, codes and warnings. The
    answer is often there. When the user reports it, ask for the exact text pasted, not retold.
 2. **Reproduce it reliably.** Write down the exact steps. If it doesn't happen every time, gather more data; don't
@@ -65,6 +71,16 @@ Leave Phase 2 with the list of differences.
    than add layers or special cases. No "while I'm here" changes and no bundled refactoring.
 3. **Verify:** the new test passes, every other test still passes, and the original problem is gone in the real app
    (app projects: `docs/checks/qa-standards.md`).
+   - **Over all the real data, not the one case:** run the fixed code over every case there is (every line of the
+     real log, every file, every state in the table from Phase 1) against facts read independently, and write
+     `Sweep: <what ran over what> - <N checked, N wrong>` in `.cache/turn-notes.md`. 0 wrong, or it isn't fixed. Sweep
+     more than one data set when there are several.
+   - **Nothing the user already had is broken:** list what the change touches that the user or other tools rely on
+     (their settings, things another app installed, files they edit, outputs they open) and check each still works.
+     Add to the user's setup, never replace it. <!-- Lesson (the user): a project setting replaced a status bar the
+     user had installed with another app, and model, context and folder vanished -->
+   - **The promised outcome:** check the "fixed when" from the Issue line exactly as the user would see it, and write
+     `Verified: <what you ran or opened> - <what it showed>`.
 4. **Make it impossible, not just fixed:** where bad data caused it, add checks at the layers it passes through
    ([references.md](references.md), defense in depth). Flaky timing in tests: wait for the condition, not a fixed
    delay ([references.md](references.md), waiting on a condition).
@@ -119,14 +135,22 @@ checked, add handling (a retry, a timeout, a clear error message) and logging fo
 findings are unfinished investigations, so be sure first.
 
 ## Done when
+- [ ] Everything wrong is listed (every message), with the rule and the table of states, and each item is fixed (judgment: whether the list is complete needs a reader).
 - [ ] The answer states `Root cause: <what and why>`, with the evidence that shows it (hook: debug-root-cause).
 - [ ] A test that failed before the fix now passes, and the rest of the suite still passes (hook: debug-test-added sees a test change with the code; judgment: that it failed before the fix).
 - [ ] The original problem is gone where it was seen (the real app, the build, the script) (judgment: where the problem showed differs per bug).
+- [ ] A sweep over all the real data shows 0 wrong, in a `Sweep:` line (judgment: the data differs per bug).
+- [ ] Everything the change touches that the user already had still works, and nothing of theirs was replaced (judgment: what they rely on differs per project).
+- [ ] When the user was upset: the "fixed when" outcome is checked, in a `Verified:` line (hook: upset-acknowledged).
 - [ ] Layers that let bad data through now reject it, or the answer says why that wasn't needed (judgment: which layers matter depends on the data flow).
 - [ ] Also unasked: a test or build that failed this turn and was then fixed has its root cause stated (hook: debug-trigger).
 
 ## Pitfalls
 - Fixing where the error surfaced because the true source is several calls away.
+- Fixing the case the user showed (one screenshot, one input) and calling it fixed: the next moment breaks. The sweep
+  over all the real data is what proves it.
+- Replacing a setting or file the user already had (their own status bar, a config another app wrote) instead of
+  adding to it.
 - A test that fails for a different reason than the bug, so it "passes" after an unrelated change.
 - Adding a longer delay to a flaky test instead of waiting for the real condition.
 - Debug logging that hides in a quiet logger: write it to stderr so it shows.

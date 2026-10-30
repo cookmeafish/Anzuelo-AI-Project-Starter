@@ -191,7 +191,8 @@ export const triggersOf = fm => { const off = new Set(splitList(fm?.triggers_rem
 const DEFAULTS = {
   workToolCalls: 15,          // a turn with this many tool calls counts as work even if no file changed
   maxBlocksPerTurn: 3,        // Lesson: a single block let a second miss slip through; unlimited blocks can loop
-  runbookLedger: false,       // trial: the routed runbook's "Done when" is the turn's checklist, kept as a record (ledgerSteps)
+  runbookLedger: true,        // the routed runbook's "Done when" is the turn's checklist, kept as a record (ledgerSteps). On by
+  // default. Lesson (the user): every runbook run shows its checklist, so the user can see the proper measures are taken
   // How the Stop hook asks for the steps left. 'auto': the calm form (feedback for the agent plus a one-line note for the
   // user) where the host is known to support it, the classic {"decision":"block"} everywhere else. 'feedback' or
   // 'block' force one form (block is the fallback for a host that ignores the feedback form).
@@ -4164,9 +4165,13 @@ const triggerRows = () => read(path.join(STATE, TRIGGERS)).split('\n').filter(Bo
 export function logTrigger(kinds, prompt) {
   if (!kinds.length || envOf('BENCH') || DRY_STATE) return;
   const rows = triggerRows();
-  rows.push({ at: new Date().toISOString(), kinds, text: userText(prompt).replace(/\s+/g, ' ').slice(0, 500) });
+  rows.push({ at: new Date().toISOString(), kinds, text: userText(prompt).replace(/\s+/g, ' ').slice(0, 500), ...(SID ? { sid: SID } : {}) });
   try { fs.mkdirSync(STATE, { recursive: true }); fs.writeFileSync(path.join(STATE, TRIGGERS), rows.slice(-TRIGGERS_MAX).map(e => JSON.stringify(e)).join('\n') + '\n'); } catch { }
 }
+// An earlier upset message in this session (or, without a session id, in the last two hours), before this turn: the
+// user is upset again, so patching one complaint at a time has failed.
+export const upsetBefore = since => triggerRows().some(e => (e.kinds || []).includes('upset') && Date.parse(e.at) < since - 15000
+  && (SID ? e.sid === SID : Date.parse(e.at) > since - 2 * 3600_000));
 export function decideTrigger(x, decisions) {
   if (!x.since || !Object.keys(decisions).length || envOf('BENCH') || DRY_STATE) return;
   const rows = triggerRows(), r = [...rows].reverse().find(e => Math.abs(Date.parse(e.at) - x.since) < 15000);
@@ -4886,6 +4891,13 @@ function cmdPrompt(data, { force = false } = {}) {
       ...scoreFriction(userText(p), cfg), ...promptHints(p, cfg, false), ...fresh];
   // (each word hook that fired goes to the trigger log, for the agent's decision at the end of the turn: REQ trigger-words)
   logTrigger([['upset', 'THE USER SOUNDS UPSET'], ['rule', 'RULE REQUEST'], ['praise', 'PRAISE']].filter(([, h]) => hints.some(x => x.startsWith(h))).map(([k]) => k), p);
+  // (an upset message, at a turn's start or typed mid-turn, and also one asked as a question ("WHY DID YOU SKIP IT???"),
+  // holds the work until it is acknowledged: REQ upset-acknowledged. Lesson (the user): upset questions got only the
+  // question hint, and no "acknowledged" was ever shown for them)
+  if ((hints.some(x => x.startsWith('THE USER SOUNDS UPSET')) || isUpset(p, cfg)) && !envOf('BENCH') && !DRY_STATE) {
+    writeState(UPSET_PENDING, { at: new Date().toISOString(), issues: issueCount(read(abs(NOTES_FILE))) });
+    if (!hints.some(x => x.startsWith('THE USER SOUNDS UPSET'))) hints.push(`THE USER SOUNDS UPSET: write "Issue: <what went wrong>" (or "Issue: none - <why>" for a false alarm) in ${NOTES_FILE} before any other change or command; the user sees "acknowledged" at once. Then answer. REQ: upset-acknowledged.`);
+  }
   const out = [];
   // (not in a session whose start gave the whole session checklist: it says all of this. Lesson: the digest came with
   // every prompt, about 230 characters a turn that repeated what the session already had)
@@ -5003,14 +5015,14 @@ export function passLine(x, rounds = 0) {
   const routedNames = new Set([...(x.routed || []), ...(x.routedSkills || [])].map(i => i.name));
   const pbs = (x.usedPb || []).filter(pb => !pb.name.startsWith('_') && routedNames.has(pb.name)).map(pb => pb.name);
   const sks = (x.usedSkills || []).map(s => s.name).filter(n => !pbs.includes(n) && routedNames.has(n));
-  const pb = ledgerRunbook(x), items = pb ? ledgerItems(read(abs(pb.file))) : [], rec = ledgerLines(x.notes);
+  const pb = ledgerRunbook(x), items = pb ? ledgerItems(read(abs(pb.file))) : [], rec = ledgerLines(x.notes, pb?.name);
   const done = items.filter(i => rec.has(i.n)).length;
   const learned = x.prompt && isUpset(x.prompt) ? learnedLines(x.notes || '').map(l => l.file).filter(Boolean) : [];
   const asks = /\?\s*$/.test(String(x.answer || '').trim().split('\n').filter(l => l.trim()).pop() || '');
   // (an upset message's outcome, as the agent found it: the issue in context and what was done, nothing to fix, or a
   // complaint that didn't hold. The user chose "acknowledged" and 🚨)
   const notes = String(x.notes || ''), clip = s => s.replace(/\s+/g, ' ').trim().slice(0, 110);
-  const issue = /^[\s>*_-]*issue\s*:\s*(.+)$/im.exec(notes)?.[1], none = /^[\s>*_-]*learned\s*\((?:none|nothing)\)\s*:\s*(.+)$/im.exec(notes)?.[1];
+  const parts = issueParts(lastIssue(notes)), issue = parts.none ? '' : parts.problem, none = [...notes.matchAll(/^[\s>*_-]*learned\s*\((?:none|nothing)\)\s*:\s*(.+)$/gim)].pop()?.[1];
   // (shown only when it was a real issue: venting or a complaint that didn't hold shows nothing, though the trigger log
   // keeps the decision. Lesson (the user): "if its not actually an issue the user doesnt see it")
   // (the agent may find the user upset with no hook firing, in any wording or language, as the session checklist asks:
@@ -5238,6 +5250,7 @@ function pretoolHits(data, cfg) {
     return out;
   }
   const name = data.tool_name || '', inp = data.tool_input || {};
+  add(upsetUnacknowledged(name, inp));
   // REQ: outward-gate (MCP tools). A connected service's tool that sends, posts, creates or deletes acts outside the
   // project: it needs the user's OK in this request, like the commands below.
   if (/^mcp__/.test(name) && OUTWARD_MCP.test(name.replace(/^mcp__[^_]+(?:_[^_]+)*?__/, '')) && !isSuspended('check:outward-gate')) {
@@ -5638,10 +5651,11 @@ function cmdPretool(data) {
   const d = brief ? { ...data, tool_input: { ...data.tool_input, prompt: brief } } : bare ? { ...data, tool_input: { ...data.tool_input, command: bare } } : data;
   const r = pretoolDecision(d);
   if (r) { deny(r); return; }
-  const notes = [overlapNotice(data), (() => { try { return scopeNotice(data); } catch { return null; } })()].filter(Boolean).join('\n');
   // (an Issue line written from the shell, which the edit hook never sees, is acknowledged at the next tool call.
   // Lesson (the user): an Issue line appended with echo showed the user nothing)
-  const ack = HOST === 'claude-code' ? visibleLines(acknowledgedLine('.cache/turn-notes.md')) : '';
+  const acked = HOST === 'claude-code' ? acknowledgedLine(NOTES_FILE) : '';
+  const notes = [overlapNotice(data), (() => { try { return scopeNotice(data); } catch { return null; } })(), acked && issueChecklist()].filter(Boolean).join('\n');
+  const ack = HOST === 'claude-code' ? [acked, runningLine(d)].filter(Boolean).map(l => visibleLines(l)).filter(Boolean).join('\n') : '';
   if (brief || bare || notes || ack) process.stdout.write(JSON.stringify({ ...(brief || bare || notes ? { hookSpecificOutput: { hookEventName: 'PreToolUse', ...(brief || bare ? { updatedInput: d.tool_input } : {}), ...(notes ? { additionalContext: notes } : {}) } } : {}), ...(ack ? { systemMessage: ack } : {}) }));
 }
 // A command that starts by changing to the folder it already runs in ("cd <project> && ..."): the cd is dropped in
@@ -5756,21 +5770,74 @@ function cmdPosttool(data) {
   const h = eventHintAfterEdit(p, data.tool_input || {});
   const pub = publishNotice(p, data.tool_input || {}), plan = planNotice(p, data.tool_input || {}), ps = ps51Notice(p, data.tool_input || {});
   const hand = handoffNotice(p, data), gen = generatedNotice(p), ack = acknowledgedLine(p);
-  if (h || pub || plan || ps || hand || gen || ack) contextOut('PostToolUse', [h, pub, plan, ps, hand, gen, ack && 'ACKNOWLEDGED: the user was shown that this issue is being fixed.'].filter(Boolean).join('\n') + '\n', ack || '');
+  if (h || pub || plan || ps || hand || gen || ack) contextOut('PostToolUse', [h, pub, plan, ps, hand, gen, ack && 'ACKNOWLEDGED: the user was shown that this issue is being fixed.', ack && issueChecklist()].filter(Boolean).join('\n') + '\n', ack || '');
 }
 // The user sees "acknowledged" the moment the agent writes its "Issue:" line (learn-from-upset), not only when the turn
 // ends; the end-of-turn line then says it was fixed. Lesson (the user): the line should show as soon as the agent has
 // decided it is a real issue to fix.
 const ACKED = 'acknowledged.json';
+// the newest "Issue:" line: the notes file keeps earlier turns' lines above this turn's. (Lesson (the user): only the
+// first complaint of a session was acknowledged; the first Issue line was read every time, already acknowledged)
+export const lastIssue = notes => [...String(notes || '').matchAll(/^[\s>*_-]*issue\s*:\s*(.+)$/gim)].pop()?.[1];
+export const issueCount = notes => [...String(notes || '').matchAll(/^[\s>*_-]*issue\s*:\s*\S/gim)].length;
+// "Issue: <problem> | runbook: <name> | fixed when: <outcome>": what is wrong, the runbook or skill that finds its root
+// cause and fixes it, and the checkable outcome that means it is truly fixed. (Lesson (the user): "acknowledged" alone,
+// with no runbook followed, is not enough; it must say the runbook and lead to an actionable outcome)
+export function issueParts(text) {
+  const t = String(text || '').replace(/\s+/g, ' ').trim();
+  const rb = /\|\s*runbook\s*:\s*([^|]+)/i.exec(t)?.[1] || '', when = (/\|\s*fixed when\s*:\s*([^|]+)/i.exec(t)?.[1] || '').trim();
+  const name = rb.replace(/\\/g, '/').replace(/[`'"]/g, '').replace(/^.*?(docs\/playbooks\/|tools\/starter\/runbooks\/|skills\/)/, '').replace(/\/SKILL\.md$|\.md$/i, '').replace(/\s+(runbook|skill)$/i, '').trim();
+  const file = [`docs/playbooks/${name}.md`, `skills/${name}/SKILL.md`, `tools/starter/runbooks/${name}.md`].find(f => /^[\w.-]+$/.test(name) && exists(f)) || '';
+  return { problem: t.split('|')[0].trim(), none: /^none\b/i.test(t), runbook: name, file, when, ok: /^none\b/i.test(t) || (!!file && when.split(' ').length >= 3) };
+}
+// The user sees each runbook or skill the agent actually opens, once per turn: "running the X runbook". (Lesson (the
+// user): "any runbook that anzuelo helps the ai agent run will need the anzuelo is running x runbook")
+const RUNNING = 'running-shown.json';
+export function runningLine(d) {
+  const name = d.tool_name || '', inp = d.tool_input || {};
+  const text = name === 'Read' ? String(inp.file_path || '') : /^(Bash|PowerShell)$/.test(name) ? String(inp.command || '') : '';
+  const names = name === 'Skill' ? [String(inp.skill || inp.name || '').replace(/^.*:/, '')]
+    : [...text.replace(/\\/g, '/').matchAll(/(?:docs\/playbooks\/([\w-]+)\.md|skills\/([\w-]+)\/SKILL\.md|tools\/starter\/runbooks\/([\w-]+)\.md)/g)].map(m => m[1] || m[2] || m[3]);
+  const turnAt = readJSON(stateFile('turn.json'), {}).at || '', st = readJSON(stateFile(RUNNING), {}), seen = st.turn === turnAt ? st.names || [] : [];
+  const fresh = [...new Set(names)].filter(n => n && !seen.includes(n) && (exists(`docs/playbooks/${n}.md`) || exists(`skills/${n}/SKILL.md`) || exists(`tools/starter/runbooks/${n}.md`)));
+  if (!fresh.length) return '';
+  writeState(RUNNING, { turn: turnAt, names: [...seen, ...fresh] });
+  const file = n => [`docs/playbooks/${n}.md`, `tools/starter/runbooks/${n}.md`, `skills/${n}/SKILL.md`].find(exists);
+  const count = n => { const k = ledgerItems(read(abs(file(n)))).length; return k ? ` (✅ ${k} item${k > 1 ? 's' : ''} to check off)` : ''; };
+  return fresh.map(n => (file(n).startsWith('skills/') ? `${brand()} ⚡ running the ${n} skill` : `${brand()} 📖 running the ${n} runbook`) + count(n)).join('\n');
+}
+// REQ: upset-acknowledged. When the user sounds upset, nothing gets changed or run until the agent has written its
+// "Issue:" line (learn-from-upset step 1), which shows the user "acknowledged" at once; "Issue: none - <why>" when the
+// user is not upset after all. Reads go on, to understand the problem. (Lesson (the user): the hint only reminded, the
+// agent went straight to fixing, and the user saw no acknowledgement while three more complaints came in)
+const UPSET_PENDING = 'upset-pending.json';
+export function upsetUnacknowledged(name, inp) {
+  const pend = readJSON(stateFile(UPSET_PENDING), {}), turnAt = Date.parse(readJSON(stateFile('turn.json'), {}).at || '');
+  if (!pend.at || Date.parse(pend.at) < (turnAt || 0) - 5000 || isSuspended('check:upset-acknowledged')) return null;
+  const notes = read(abs(NOTES_FILE)), it = issueCount(notes) > pend.issues ? issueParts(lastIssue(notes)) : null;
+  if (it?.ok) { writeState(UPSET_PENDING, {}); return null; }
+  const cmd = String(inp.command || '');
+  const changes = /^(Write|Edit|MultiEdit|NotebookEdit)$/.test(name) ? rel(String(inp.file_path || inp.notebook_path || '').replace(/\\/g, '/')) !== NOTES_FILE
+    : /^(Bash|PowerShell|shell)$/.test(name) ? !READ_ONLY.test(cmd) && !/turn-notes\.md|hooks\.mjs["']?\s+(waive|why)\b/.test(cmd) : false;
+  if (!changes) return null;
+  const why = !it ? '' : !it.file ? ` Your Issue line names no runbook or skill that exists${it.runbook ? ` ("${it.runbook}" was not found)` : ''}.` : ' Your Issue line has no "fixed when" outcome of at least 3 words.';
+  return `REQ: upset-acknowledged. The user sounds upset, and has not been shown that you understood yet.${why} First open skills/learn-from-upset/SKILL.md, pick the runbook or skill that finds the root cause and fixes this (DIRECTORY.md; debug for a bug), and write one line to ${NOTES_FILE}: "Issue: <what went wrong, in general terms> | runbook: <name> | fixed when: <a checkable outcome>" (the user sees it as "acknowledged" at once), or "Issue: none - <why>" if nothing is wrong. Then retry.`;
+}
 export function acknowledgedLine(p) {
   if (p !== '.cache/turn-notes.md') return '';
   const turn = readJSON(stateFile('turn.json'), {}).at || '', was = readJSON(stateFile(ACKED), {});
   // (this turn's notes only, and an issue no earlier turn acknowledged: the notes file carries over between turns.
   // Lesson (probe): a later, unrelated turn showed the earlier turn's "acknowledged" at its first tool call)
-  const issue = turnNotes(Date.parse(turn) || 0).match(/^[\s>*_-]*issue\s*:\s*(.+)$/im)?.[1]?.replace(/\s+/g, ' ').trim().slice(0, 110);
-  if (!issue || was.issue === issue || (was.past || []).includes(issue)) return '';
+  // (the problem, the runbook that will fix it, and what fixed means; shown only once all three are there)
+  const it = issueParts(lastIssue(turnNotes(Date.parse(turn) || 0))), issue = it.problem.slice(0, 110);
+  if (!issue || it.none || !it.ok || was.issue === issue || (was.past || []).includes(issue)) return '';
   writeState(ACKED, { turn, issue, past: [...(was.past || []), ...(was.issue && was.turn !== turn ? [was.issue] : [])].slice(-20) });
-  return `${brand()} 🚨 acknowledged: ${issue}`;
+  return `${brand()} 🚨 acknowledged: ${issue} · ${it.file.startsWith('skills/') ? '⚡' : '📖'} ${it.runbook} ${it.file.startsWith('skills/') ? 'skill' : 'runbook'} · fixed when: ${it.when.slice(0, 90)}`;
+}
+// the named runbook's "Done when" checklist, for the agent, when the issue is acknowledged (checked at Stop)
+export function issueChecklist() {
+  const it = issueParts(lastIssue(turnNotes(Date.parse(readJSON(stateFile('turn.json'), {}).at || '') || 0)));
+  return it.file ? `Open ${it.file} now and follow every step: the user was told it finds the root cause and fixes this. ${ledgerHint({ file: it.file })} Then check "fixed when: ${it.when}" and add "Verified: <what you ran or opened> - <what it showed>". REQ: upset-acknowledged.` : '';
 }
 // an issue acknowledged in an earlier turn, still in the notes file: not this turn's
 export const staleIssue = issue => { const was = readJSON(stateFile(ACKED), {}), turn = readJSON(stateFile('turn.json'), {}).at || '';
@@ -6297,6 +6364,33 @@ export function coreChecks(x, cfg) {
       add('upset-learned', 'The answer agrees with the whole complaint. Check each part of it on its own and say what you checked before agreeing, on its own line: "Checked: <the file, output or commit you opened> - <what it showed>", for every part. ' +
         'If part of the complaint was already right in the files, say "Partly: <what was wrong>, <what was already there>" instead (learn-from-upset skill, step 0).');
     const learned = learnedLines(x.said);
+    // Upset again in the same session: one patch per complaint has failed, so the whole problem gets a plan and the fix
+    // is proven over real data, not the moment in the screenshot. Lesson (the user): six complaints about one status
+    // bar in one session, each "fixed" and tested only on the case shown; "make a plan with all these runbooks and hooks
+    // and checks and skills"
+    if (!LEARNED_NONE.test(x.said) && upsetBefore(x.since)) {
+      const plan = x.changed.some(p => /^docs\/plans\/[^/]+\.md$/.test(p));
+      const sweep = /^[\s>*_-]*sweep\s*:\s*\S.{10,}/im.test(`${x.said || ''}\n${x.notes || ''}`);
+      if (!plan || !sweep) add('upset-learned', 'The user is upset again in this session, so fixing one complaint at a time is not working. ' +
+        (plan ? '' : 'Write a plan in docs/plans/ (plan skill) that lists everything wrong, not only the latest message: each item, its root cause, and the runbook, hook, check, skill or engine change that stops it, and work it box by box. ') +
+        (sweep ? '' : `Prove the fix over real data, every case and not only the one shown: a "Sweep: <what ran over what> - <N checked, N wrong>" line in ${NOTES_FILE}. `) +
+        '(learn-from-upset skill, step 1b)');
+    }
+    // REQ: upset-acknowledged (at the end). The runbook the "acknowledged" line named was opened and followed to the end:
+    // every "Done when" item recorded as done or skipped with a reason, and the "fixed when" outcome checked. (Lesson
+    // (the user): "acknowledged" and then no runbook followed; the user is upset again when the whole checklist would
+    // have caught it)
+    const iss = issueParts(lastIssue(x.notes || ''));
+    if (iss.problem && !iss.none) {
+      const opened = iss.file && (x.reads?.has(iss.file) || (x.usedPb || []).some(p => p.file === iss.file) || (x.usedSkills || []).some(s => s.name === iss.runbook)
+        || (x.cmds || []).some(c => String(c).replace(/\\/g, '/').includes(iss.file)));
+      const items = opened ? ledgerItems(read(abs(iss.file))) : [], rec = ledgerLines(x.notes, iss.runbook), open = items.filter(i => !rec.has(i.n) || (rec.get(i.n).kind === 'skip' && rec.get(i.n).why.length < 8));
+      if (!iss.file) add('upset-learned', `The Issue line names no runbook or skill that exists. Write it as "Issue: <problem> | runbook: <name> | fixed when: <checkable outcome>" in ${NOTES_FILE}, open that runbook and follow it.`);
+      else if (!opened) add('upset-learned', `The user was told the ${iss.runbook} runbook would find the root cause and fix this, and it was not opened this turn. Open ${iss.file} and follow every step.`);
+      else if (open.length) add('upset-learned', `The ${iss.runbook} checklist ("Done when" in ${iss.file}) is not finished. For each item add "Done N: <what you did, with the file or command>" or "Skip N: <why it doesn't apply>" to ${NOTES_FILE}: ` +
+        open.map(i => `${i.n}. ${i.text.slice(0, 120)}`).join(' '));
+      if (!/^[\s>*_-]*verified\s*:\s*\S.{10,}/im.test(`${x.said || ''}\n${x.notes || ''}`)) add('upset-learned', `Show that it is truly fixed: check the outcome the user was promised ("${iss.when}") and add "Verified: <what you ran or opened> - <what it showed>" to ${NOTES_FILE}.`);
+    }
     // A complaint the answer showed does not hold has no miss to learn from: "Learned (none): the complaint didn't
     // hold - <evidence>" ends it. Lesson: after a disproved complaint, Stop still asked for a lesson, and the agent added
     // a duplicate check and a made-up "project lesson" about its own process.
@@ -6972,10 +7066,12 @@ export function ledgerItems(text) {
   });
 }
 // The record lines in the turn notes: N -> { kind: 'done' | 'skip', why }
-export function ledgerLines(notes) {
+// (a line may name its runbook, "Done debug 3:", when a turn keeps two checklists; it then counts only for that one.
+// Lesson: an upset turn's runbook and the routed one shared their numbers)
+export function ledgerLines(notes, name = '') {
   const out = new Map();
-  for (const m of String(notes || '').matchAll(/^\s*[-*]?\s*(Done|Skip|Skipped)\s+(\d+)\s*[:.-]\s*(.*)$/gim))
-    out.set(+m[2], { kind: /^done$/i.test(m[1]) ? 'done' : 'skip', why: m[3].trim() });
+  for (const m of String(notes || '').matchAll(/^\s*[-*]?\s*(Done|Skip|Skipped)\s+(?:([a-z][\w-]*)\s+)?(\d+)\s*[:.-]\s*(.*)$/gim))
+    if (!m[2] || !name || m[2].toLowerCase() === String(name).toLowerCase()) out.set(+m[3], { kind: /^done$/i.test(m[1]) ? 'done' : 'skip', why: m[4].trim() });
   return out;
 }
 // The runbook (or, with none, the skill) this turn's record is kept against: the one used, else the one routed.
@@ -6993,7 +7089,7 @@ export function ledgerHint(pb) {
 export function ledgerSteps(x, missing, cfg = config()) {
   const pb = ledgerRunbook(x);
   if (!pb || !x.workTurn) return missing;
-  const items = ledgerItems(read(abs(pb.file))), rec = ledgerLines(x.notes);
+  const items = ledgerItems(read(abs(pb.file))), rec = ledgerLines(x.notes, pb.name);
   const owner = new Map();
   for (const it of items) for (const tg of it.tags) if (!ALWAYS_ON.test(tg) && !owner.has(tg)) owner.set(tg, it);
   const out = [];
@@ -8024,6 +8120,9 @@ export function stopDecision(data, cfg = config()) {
     if (left.length) writeState('unresolved.json', { at: new Date().toISOString(), prompt: x.prompt.slice(0, 160), items: left.map(m => shortStep(m)), tags: left.map(m => m.tag),
       request: x.prompt.slice(0, 4000), since: x.since, transcript: data.transcript_path || '' });
     if (left.length) writeDetails(left, 'Left unresolved when the turn ended');
+    // (said at once, not only at the next prompt. Lesson (the user): a turn that ended with steps left looked finished,
+    // and the status bar said done)
+    if (left.length) STOP_PASS = `${brand()} ⚠️ ended with ${left.length} step${left.length > 1 ? 's' : ''} not done: ${shortStep(left[0])}${left.length > 1 ? ` (+${left.length - 1} more: node tools/hooks/hooks.mjs why)` : ''}`;
     logged(left.length ? (paused ? 'paused' : 'ended-unresolved') : 'passed', { steps: left.map(m => m.tag) });
     recordUsage(x, key); ended(!!left.length); return null;
   }

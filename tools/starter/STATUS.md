@@ -22,7 +22,15 @@ docs/STATUS.md, which here is the template new projects start from).
    checklist count uses the runbook as edited mid-turn (3/4 after a 3-item start); a printable HTML card set off the
    gui-pack step, and a plain request got a hardening chore; 🟢 missing in 2 of 6 fresh headless sessions; "fixed"
    never shows when a turn ends with steps left.
-5. The runbook-checklist trial in a real project: compare a day of turns before and after.
+4c. Status bar and repeat complaints (plan docs/plans/2026-10-28-status-bar-and-acknowledged.md): the bar is in the
+   starter now with its self-test. Still open: wire.mjs does not write the statusLine setting yet (a project gets the
+   bar only by hand, in .claude/settings.local.json). The selfcheck case "stop-follow-on guard: a new rule written into
+   CLAUDE.md" fails on the last commit too (forbidden-terms from the private-term list), like audit sweeps 1 and 21.
+4d. Acknowledged and runbooks (plan docs/plans/2026-10-29-acknowledged-runbook-and-bar.md): done and tested; the bar
+   chains every other status line. Still open: wire.mjs only adds missing hooks, so existing projects keep a
+   PreToolUse matcher without "Skill" until rewired by hand; projects get these changes only by an engine upgrade
+   (one project got the files by hand copy). Nothing committed.
+5. The runbook checklist is now on by default (was a trial): watch a day of real turns for friction.
 6. One project's prompt hook takes about 2.4 s (budget 1 s): find out why.
 
 ## Open questions

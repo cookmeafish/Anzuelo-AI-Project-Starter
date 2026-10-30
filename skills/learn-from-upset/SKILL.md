@@ -12,13 +12,21 @@ a rule is the **project-rule** skill; a lesson in a followed skill goes under it
 ## Steps
 **Decide first: is anything actually wrong?** Use this skill when the user is upset at the work, or when the same issue
 keeps coming up even if they say it calmly (check `docs/lessons.md`, `tools/hooks/state/triggers.jsonl` and
-`node tools/recall.mjs "<the issue>"` for earlier cases). Strong words alone are not a miss.
+`node tools/recall.mjs "<the issue>"` for earlier cases). Strong words alone are not a miss. Decide this before
+anything else, also for a message typed while you work and for one asked as a question ("WHY DID YOU ...???"): until
+the `Issue:` line below is written, the hooks refuse every change and command (reads still work) (hook:
+upset-acknowledged).
 - **False alarm** (venting, a test of the hooks, something outside this work, nothing here went wrong): put
-  `Learned (none): nothing was wrong - <what they were describing>` in `.cache/turn-notes.md`, say nothing about it,
-  do what they asked, and stop following this skill. The user sees nothing.
-- **A real issue, or a repeat:** put `Issue: <the problem in the user's terms, under 12 words>` in
-  `.cache/turn-notes.md` before any fix, as your first step (the user is shown "acknowledged" with it at once, and
-  "fixed" when the turn ends), then follow the steps below.
+  `Issue: none - <why>` and `Learned (none): nothing was wrong - <what they were describing>` in
+  `.cache/turn-notes.md`, say nothing about it, do what they asked, and stop following this skill. The user sees nothing.
+- **A real issue, or a repeat:** pick the runbook or skill that finds its root cause and fixes it (DIRECTORY.md;
+  **debug** for anything that behaves wrong), and put
+  `Issue: <the problem in the user's terms, under 12 words> | runbook: <name> | fixed when: <a checkable outcome>` in
+  `.cache/turn-notes.md` before any fix, as your first step. The user is shown "acknowledged" with all three at once,
+  and "fixed" when the turn ends. Then follow that runbook to the end: every "Done when" item gets `Done N: <evidence>`
+  or `Skip N: <why>` in the notes, and the outcome gets `Verified: <what you ran or opened> - <what it showed>`; the
+  end-of-turn check holds you to both (hook: upset-acknowledged). Follow the steps below alongside it. A new complaint
+  in the same turn gets its own new line.
 
 0. **Check the complaint first, before you agree.** Open what the user saw: the last commit or what was delivered
    (`git log -- <file>`, `git show HEAD:<file>`), not only the working copy, and never from memory. Never say git has
@@ -36,6 +44,19 @@ keeps coming up even if they say it calmly (check `docs/lessons.md`, `tools/hook
    held other weak picks of the same kind, and the user found them next.
    **The simplest fix that removes the cause:** change one thing in the right place rather than add layers; extend an
    existing step, tool or check rather than add a new one. If the fix needs much more than that, say why in one line.
+1a. **List everything wrong before fixing anything.** Write the user's complaint, every part of it and every message
+   they sent while you worked, as a checklist in `.cache/turn-notes.md` (or the plan below): each item, what you
+   checked, its root cause, and what will stop it. Fix from the list, so the answer covers all of it, not the latest
+   message only.
+1b. **Upset again in the same session** (the hook knows; hook: upset-learned): patching has failed, so stop patching.
+   - Write a plan in `docs/plans/` (plan skill) with everything wrong this session, each item's root cause, and the
+     runbook, hook, check, skill or engine change that stops it. Work it box by box.
+   - Write the rule the behavior must follow ("the newest entry decides"), not a fix for the moment shown. List every
+     state and every kind of input it must handle, including the ones nobody complained about yet.
+   - Prove it over real data, every case: run the fix over the whole real record (every line of a log, every file,
+     every saved result) against facts read independently, and write `Sweep: <what ran over what> - <N checked, N
+     wrong>` in `.cache/turn-notes.md`. The moments in the user's screenshots are a sample, not the test.
+   - Turn the sweep into a self-test, so the next change can't break it again.
 2. **Find the cause** in one sentence: "The <skill/runbook/check> did not <step>, so <what went wrong>."
 3. **Pick the lowest level that will reliably stop it:**
 
@@ -79,6 +100,8 @@ keeps coming up even if they say it calmly (check `docs/lessons.md`, `tools/hook
       with an edge case from the project's own words, said in a `Proven:` line (hook: check-proven).
 - [ ] An engine lesson went to the starter (`docs/starter-feedback.md`), or into the engine itself in the starter
       (hook: upset-learned).
+- [ ] Upset again in the same session: a plan in `docs/plans/` lists everything wrong with its root cause and fix, and
+      a `Sweep:` line shows the fix run over the whole real record with 0 wrong (hook: upset-learned).
 
 ## Pitfalls
 - A "lesson" that only says "be more careful": name the step and what to do differently.
@@ -87,4 +110,7 @@ keeps coming up even if they say it calmly (check `docs/lessons.md`, `tools/hook
   blamed internal files).
 - A check tried only on made-up cases: trial checks passed the very work complained about and blocked a warm letter
   whose building name held a flagged word.
+- Fixing the screenshot, not the behavior: six complaints about one status display in one session, each fix tested
+  only on the moment shown, while the cause (a guess about where a turn starts) broke every other kind of moment. A
+  sweep over the whole real log found 95 wrong moments in the first fix.
 - Waiving a check because another hook blocked the work: say the work is blocked, by what, and leave it for the user.
