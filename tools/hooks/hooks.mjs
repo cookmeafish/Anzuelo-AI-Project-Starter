@@ -301,7 +301,7 @@ const DEFAULTS = {
   protectedBranches: ['main', 'master'],
   backupDir: '.cache/git-backups',
   // Secrets that must never be committed (key prefixes and private key blocks). Each prefix starts at a word boundary.
-  // Lesson: a file name with "...isk-encounter-..." in it was flagged as a key, because "sk-" matched inside a word.
+  // Lesson: a file name with "...isk-assessment-..." in it was flagged as a key, because "sk-" matched inside a word.
   // (a path segment is no key: "/sk-acq-74e0b-..." in a download path was flagged. Lesson from a project's spec files)
   secretPatterns: ['(?<![A-Za-z0-9/\\\\])sk-[A-Za-z0-9_-]{20,}', '(?<![A-Za-z0-9/\\\\])sk-ant-[A-Za-z0-9_-]{20,}', '(?<![A-Za-z0-9])AIza[0-9A-Za-z_-]{30,}', '(?<![A-Za-z0-9])xai-[A-Za-z0-9]{20,}',
     '(?<![A-Za-z0-9])gh[pousr]_[A-Za-z0-9]{30,}', '(?<![A-Za-z0-9])AKIA[0-9A-Z]{16}', '-----BEGIN [A-Z ]*PRIVATE KEY-----', '(?<![A-Za-z0-9])xox[baprs]-[A-Za-z0-9-]{10,}'],
@@ -380,7 +380,7 @@ const DEFAULTS = {
     String.raw`|\b(olvidaste|se te olvid\w+)\b|\b(ya )?te (lo )?dije\b|\bpor qu[eé] (no )?(hiciste|pusiste|cambiaste|borraste|olvidaste)`,
   // The work falls short: a verdict on its quality, or a disappointed question about what it lacks. Upset too, and a
   // standing requirement on the work, so it is enforced with a check (REQ: upset-learned).
-  // (Lesson: "really no pictures ... did you not find any" and "it's lackluster" got no upset handling at all)
+  // (Lesson: a disbelieving question about missing work and a one-word verdict on its quality got no upset handling)
   // ("useless" counts as a verdict ("it's useless"), not when it describes what the request is about. Lesson (a field
   // report): "replace the 2 most useless items in the list" read as an upset user)
   // (cursing and the words of an angry user count too, misspelled or not. Lesson (the user): "cussing and all caps ...
@@ -388,7 +388,7 @@ const DEFAULTS = {
   // user's 585 messages: "shit" ("a shit ton", "holy shit I need this") and "terrible" fired mostly on calm ones and
   // were left out, as were generic words with no evidence ("damn", "crap", "awful"). A project adds its user's own
   // words with "hooks.mjs learn-word", tested against that user's messages.)
-  letdown: "\\b(f+u+c+k+\\w*|f+ck\\w*|bullshit|wtf|ffs|retard\\w*|piss(ed|ing) (me )?off|pissing me|dis+ap+oint\\w*|angry|annoyed|frustrated|furious|fed up|sick of|ain'?t working)\\b|\\black ?lustre\\b|\\black ?luster\\b|\\bunderwhelming\\b|\\bdisappoint(ing|ed)\\b|\\bnot good enough\\b|\\bnot what i (asked|wanted|meant)\\b|\\bdid you (not|even)\\b|\\bdidn'?t you (find|check|look|see|read|try|add|test)\\b|\\byou (still )?(haven'?t|have not|couldn'?t|could not) (find|fix|add|get)\\b|\\breally no\\b|\\bstill (no|not|missing|broken|wrong|nothing)\\b|\\b(are|is) still missing\\b|\\?{3,}|\\b(?<!(most|least|more|less) )useless\\b(?!\\s+(?!(and|but|or|now|again|too|here|as|to|for|so)\\b)[a-z])|\\bcome on\\b(?!\\s+(over|in|board|down|up|by)\\b)|\\b(this|it|that)(?:'s| is| looks| feels) (bad|wrong|broken|lacking|incomplete|half[- ]done|sloppy|thin|bare|basic)\\b|\\b(so|very|pretty) (bad|poor|thin|bare|basic|sloppy)\\b",
+  letdown: "\\b(weren'?t|were not|wasn'?t|was not) (you|it) supposed to\\b|\\byou were (supposed|meant) to\\b|\\byou (\\w+ )?dropped the ball\\b|\\bwhy the (hell|heck)\\b|\\b(f+u+c+k+\\w*|f+ck\\w*|bullshit|wtf|ffs|retard\\w*|piss(ed|ing) (me )?off|pissing me|dis+ap+oint\\w*|angry|annoyed|frustrated|furious|fed up|sick of|ain'?t working)\\b|\\black ?lustre\\b|\\black ?luster\\b|\\bunderwhelming\\b|\\bdisappoint(ing|ed)\\b|\\bnot good enough\\b|\\bnot what i (asked|wanted|meant)\\b|\\bdid you (not|even)\\b|\\bdidn'?t you (find|check|look|see|read|try|add|test)\\b|\\byou (still )?(haven'?t|have not|couldn'?t|could not) (find|fix|add|get)\\b|\\breally no\\b|\\bstill (no|not|missing|broken|wrong|nothing)\\b|\\b(are|is) still missing\\b|\\?{3,}|\\b(?<!(most|least|more|less) )useless\\b(?!\\s+(?!(and|but|or|now|again|too|here|as|to|for|so)\\b)[a-z])|\\bcome on\\b(?!\\s+(over|in|board|down|up|by)\\b)|\\b(this|it|that)(?:'s| is| looks| feels) (bad|wrong|broken|lacking|incomplete|half[- ]done|sloppy|thin|bare|basic)\\b|\\b(so|very|pretty) (bad|poor|thin|bare|basic|sloppy)\\b",
   // (Lesson: "annoying", "ugh", "why do you keep" and "I keep telling you" were missed, so friction never counted them)
   // ("I asked you to ..., thanks" is a reminder with thanks, not frustration. Lesson: it read as upset; so did "come on over")
   // (checked against a real user's messages: "!!" was praise ("good decisions!! ur doing better!"), and a bare "I told
@@ -408,8 +408,8 @@ export function config() {
   const c = readJSON(path.join(HOOKS, 'config.json'), {});
   const out = { ...DEFAULTS, ...c };
   for (const k of EXTENDS) if (Array.isArray(c[k])) out[k] = [...new Set([...DEFAULTS[k], ...c[k]])];
-  // words that are filler elsewhere but real terms in the project's subject (a game rule that shares its name with a filler
-  // word). Lesson: an adopted project's docs and answers about such a rule were flagged as filler
+  // words that are filler elsewhere but real terms in the project's subject (a technical term that shares its name with a
+  // filler word). Lesson: an adopted project's docs and answers about such a rule were flagged as filler
   if (Array.isArray(c.fluffAllowed)) out.fluff = out.fluff.filter(f => !c.fluffAllowed.includes(f));
   // A skills folder the engine once generated (its skills carry a .mirror marker) stays a mirror, so it is refreshed,
   // pruned and protected like the configured ones. Lesson: .agents/skills was left out of skillMirrors, and its copy
@@ -455,7 +455,7 @@ const PERSONAL = [
   // or Git Bash form ("/c/Users/User") is real. Lesson: the same account's home paths passed in Unix form)
   [/(?<![A-Za-z]:)\/(home|Users)\/(?!<|user\/|you\/|Shared\/|\$)[A-Za-z0-9._-]{2,}\//, 'a personal home path'],
   // first part 10 to 255, every part a real octet, and not a version ("v9.7.0.3", "version 12.1.0.4", "9.7.0.3")
-  // Lesson: four-part version numbers in a game's data were flagged as IP addresses.
+  // Lesson: four-part version numbers in a product's data were flagged as IP addresses.
   [/(?<![\w.]|\bv|\bversions?[\s:=]{1,3}|\bbuild[\s:=]{1,3})(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}(?![\w.])(?<!127\.0\.0\.1)/i, 'an IP address', hit => !RESERVED_IP(hit) && !PUBLIC_TEST_IP.has(hit)]
 ];
 // the first match of each kind that is not a reserved one (keep)
@@ -497,7 +497,7 @@ function playbooksRead(dir = 'docs/playbooks') {
 }
 
 // The runbook whose name, summary and triggers share the most content words with a request (word stems of 5 letters,
-// so "lands" meets "land" and "colors" meets "colored"), when at least two are shared. Generic runbooks are left out.
+// so "invoices" meets "invoice" and "boxes" meets "boxed"), when at least two are shared. Generic runbooks are left out.
 const STOP_STEMS = new Set('about after again their there these those which while where would could should thing pleas thank with make have from this that want need help into more some just like what when your mine also very much'.split(' ').map(w => w.slice(0, 5)));
 // Text without its accents: "añade" is "anade", "línea" is "linea".
 export const fold = s => String(s).normalize('NFD').replace(/\p{M}/gu, '');
@@ -505,15 +505,15 @@ export const fold = s => String(s).normalize('NFD').replace(/\p{M}/gu, '');
 export const coreRunbook = n => String(n).startsWith('_') || /^(project|feature|bugfix|deliverable|qa|plan)$/.test(n);
 // Common Spanish words of a request, in English, so a Spanish request finds an English runbook by its words too.
 // Lesson: a Spanish request found nothing, while the same request in English found the closest runbook.
-const ES_EN = { mejor: 'best', mejores: 'best', peor: 'worse', mejora: 'better', mejorar: 'improve', jugada: 'play', jugadas: 'play', jugar: 'play',
-  juego: 'game', partida: 'game', turno: 'turn',
+const ES_EN = { mejor: 'best', mejores: 'best', peor: 'worse', mejora: 'better', mejorar: 'improve', ruta: 'route', rutas: 'route',
+  dia: 'day', dias: 'day', viaje: 'trip', viajes: 'trip',
   nota: 'note', notas: 'note', linea: 'line', archivo: 'file', archivos: 'file', informe: 'report', reporte: 'report', lista: 'list', precio: 'price',
   precios: 'price', presupuesto: 'budget', pantalla: 'screen', boton: 'button', pagina: 'page', datos: 'data', factura: 'invoice', facturas: 'invoice',
   cliente: 'customer', clientes: 'customer', correo: 'email', mensaje: 'message', prueba: 'test', pruebas: 'test', fallo: 'bug', regla: 'rule',
   reglas: 'rule', construye: 'build', construir: 'build', crea: 'create', crear: 'create', busca: 'search', buscar: 'search', compara: 'compare',
-  comparar: 'compare', calidad: 'quality', nivel: 'tier', colores: 'color', color: 'color', semana: 'week', comida: 'meal', comidas: 'meal', receta: 'recipe' };
+  comparar: 'compare', calidad: 'quality', colores: 'color', color: 'color', semana: 'week', comida: 'meal', comidas: 'meal', receta: 'recipe' };
 export function closestRunbook(prompt) {
-  // (a plural "s" goes first: "lands" was "lands" and "land" was "land", so the two never met)
+  // (a plural "s" goes first: "invoices" was "invoices" and "invoice" was "invoice", so the two never met)
   const stems = (s, tr) => new Set((fold(String(s).toLowerCase()).match(/[a-z]{4,}/g) || []).map(w => tr && ES_EN[w] || w)
     .map(w => (w.length >= 5 ? w.replace(/s$/, '') : w).slice(0, 5)).filter(w => !STOP_STEMS.has(w)));
   const want = stems(prompt, true);
@@ -1216,7 +1216,7 @@ const recordTurn = (prompt, fresh = true, transcript = '') => {
   // (a continued turn is this session's own: another run's record is never extended)
   const old = fresh ? null : readJSON(path.join(STATE, stateName('turn.json')), null);
   writeState('turn.json', old?.at ? { ...old, prompt: `${old.prompt || ''}\n${prompt}`.slice(-4000) }
-    : { at: new Date().toISOString(), prompt: String(prompt).slice(0, 4000), runbooks: list('docs/playbooks'), skills: list(config().skillsDir), openPlans: openPlans().map(x => x.p), ...(transcript ? { transcript: String(transcript), tpOff: sizeOf(transcript) } : {}) });
+    : { at: new Date().toISOString(), prompt: String(prompt).slice(0, 4000), runbooks: list('docs/playbooks'), skills: list(config().skillsDir), openPlans: openPlans().map(x => x.p), notesOff: read(abs(NOTES_FILE)).length, ...(transcript ? { transcript: String(transcript), tpOff: sizeOf(transcript) } : {}) });
 };
 const sizeOf = f => { try { return fs.statSync(String(f)).size; } catch { return 0; } };
 // REQ: status-handoff. Said once, at the edit that finds the turn past the tool-call count, while docs/STATUS.md is
@@ -2789,8 +2789,8 @@ const NAME_MARK = /<!--name:([A-Za-z0-9_]+)-->[\s\S]*?<!--\/name-->/g;
 export const names = () => Object.fromEntries(Object.entries(readJSON(abs(NAMES_FILE), {})).filter(([k, v]) => !k.startsWith('_') && typeof v === 'string'));
 // A name that is still a template placeholder ({{PROJECT_NAME}}) or too short to search for is not checked.
 // "_subjects": keys whose value is also a real-world thing the project's content talks about (a project named after a
-// game, a city or a product). Its mentions in content are the subject, not the project's name, so they are not flagged;
-// the markers still refill on a rename. Lesson: a project named after a game flagged every mention of the game.
+// city, a river or a product). Its mentions in content are the subject, not the project's name, so they are not flagged;
+// the markers still refill on a rename. Lesson: a project named after its subject flagged every mention of the subject.
 const subjects = () => new Set([].concat(readJSON(abs(NAMES_FILE), {})._subjects || []));
 const checkable = nm => { const sub = subjects(); return Object.entries(nm).filter(([k, v]) => !sub.has(k) && v.trim().length >= 3 && !/\{\{|<!--/.test(v)); };
 export const stampNames = (text, nm = names()) => text.replace(NAME_MARK, (m, k) => k in nm ? `<!--name:${k}-->${nm[k]}<!--/name-->` : m);
@@ -3884,9 +3884,9 @@ export function fitRows(text = read(abs(FIT_FILE))) {
 }
 export const fitDecision = d => (/^(add|skip|later)\b/i.exec(String(d).trim()) || [])[1]?.toLowerCase() || null;
 // "later - when: the code passes 30 files" → { metric: 'code', min: 31 }. The noun decides what is counted: "commits"
-// the git history, "code files" or "data files" a survey kind, "html files" files ending in .html, "raid files" files
-// whose path contains "raid". A condition the hooks can't read gets metric null: not measurable, the sweeps revisit it.
-// Lesson: "more than 6 raid files" was counted against every file in the project, so it read as met on day one.
+// the git history, "code files" or "data files" a survey kind, "html files" files ending in .html, "trip files" files
+// whose path contains "trip". A condition the hooks can't read gets metric null: not measurable, the sweeps revisit it.
+// Lesson: "more than 6 trip files" was counted against every file in the project, so it read as met on day one.
 const FIT_KINDS = [['visual', /\b(web|ui|screens?|pages?)\b/], ['tabular', /\bdata\b|\bcsv\b|spreadsheets?|\bxlsx\b/], ['python', /\bpython\b/],
   ['code', /\bcode\b|\bsource\b/], ['notes', /\bnotes?\b|\bdocuments?\b/], ['scripts', /\bscripts?\b/]];
 const FIT_EXTS = /^(html?|css|scss|js|mjs|cjs|ts|tsx|jsx|py|md|mdx|txt|csv|tsv|json|xml|ya?ml|xlsx?|pdf|docx?|png|jpe?g|gif|svg|sql|sqlite|db|ps1|sh|bat|go|rs|java|cs|rb|php)$/;
@@ -4365,14 +4365,14 @@ function notices(cfg) {
   const rt = dueRoutines(read(abs('docs/routines.md')));
   if (rt.length) out.push(`ROUTINES DUE: ${rt.map(r => `${r.name} (every ${r.every}, last run ${r.last}; ${r.runbook})`).join('; ')}. Tell the user in one line and offer to run them now; after one runs, set its "Last run" to today in docs/routines.md (routines skill).`);
   const due = hardenDue(playbooks(), usage(), cfg);
-  if (due.length) out.push(`SKILL HARDENING DUE: ${due.map(p => p.file).join(', ')} (used ${cfg.promoteAfterUses}+ times). Use the skill-harden skill.`);
+  if (due.length) out.push(`SKILL HARDENING DUE: ${due.map(p => p.file).join(', ')} (used ${cfg.promoteAfterUses}+ times). Harden it this session with the skill-harden skill, without asking the user (the user sees "improving the X runbook" when you edit it).`);
   const idle = template ? [] : curateDue(cfg, true);
   const up = upgradeProblems(cfg);
   if (up.length) out.push(`UPGRADE REVIEW PENDING: the engine was upgraded and ${up.length} item(s) still need a decision (docs/DECISIONS.md "## Upgrade review"). ${cfg.autonomy === 'auto' ? 'Decide each one yourself by the same weighing and list the decisions in your answer:' : 'Decide them yourself before other work, asking the user only about money, privacy or outward actions, then show the one-line summary:'} adopt what makes this project better (Worth it: <gain> / <cost>), decline the rest with the reason.`);
   if (!template) { const fl = fitLaterNotice(); if (fl) out.push(fl); }
   // REQ: plan-open. A plan with unticked steps is announced at every session start until it is done or dropped.
   const plans = openPlans();
-  if (plans.length) out.push(`OPEN PLANS: ${plans.map(x => `${x.p} (${x.left} of ${x.left + x.done} steps left)`).join(', ')}. Before new work, tell the user and resume the plan (node skills/plan/scripts/plan-tasks.mjs status <plan>), or close it with "status: done" or "status: dropped - <why>".`);
+  if (plans.length) out.push(`OPEN PLANS: ${plans.map(x => `${x.p} (${x.left} of ${x.left + x.done} steps left)`).join(', ')}. When the request continues it, resume it without telling the user it is open (node skills/plan/scripts/plan-tasks.mjs status <plan>), or close it with "status: done" or "status: dropped - <why>".`);
   const susp = suspendedItems();
   if (susp.length) out.push(`SUSPENDED FOR FRUSTRATING THE USER: ${susp.map(s => `${s.item} (${s.at}: ${s.why})`).join('; ')}. They don't route or block. Fix each one and restore it (node tools/hooks/hooks.mjs restore <item>), or retire it with the user's OK (skill-curate).`);
   if (idle.length) out.push(`SKILL CLEANUP DUE: ${idle.map(p => `${p.name} (unused ${p.days} days)`).join(', ')}. When the user's request allows, use the skill-curate skill: keep each one with a reason, merge it into another, or retire it with the user's OK.`);
@@ -4426,7 +4426,7 @@ function cmdSession(data) {
   // (a compaction comes in the middle of a turn: the next message is not a new one for that)
   writeState(SHOWN, { at: new Date().toISOString(), shown: n.map(noticeKey).filter(Boolean), session: true, ...(/compact/i.test(data.source || '') ? { compact: true } : {}) });
   if (n.some(x => x.startsWith('LAST WORK TURN'))) unresolvedAnnounced();
-  contextOut('SessionStart', parts.filter(Boolean).join('\n\n') + '\n', sessionUserLine(n, cfg));
+  contextOut('SessionStart', parts.filter(Boolean).join('\n\n') + '\n', sessionUserLine(n));
 }
 
 // ---------- UserPromptSubmit ----------
@@ -4446,8 +4446,8 @@ export function fitDueByRequest(text, cfg = config()) {
     return { name: r.item, fm, triggers: splitList(fm.triggers), triggerRe: null, row: r };
   }).filter(x => x.triggers.length);
   // (a "later - when: <condition>" row waits for that condition: one trigger alone needs a word of the condition too; two
-  // or more triggers are the skill's job plainly. Lesson, a field report: "explain how to use the ability" matched the
-  // teach skill's one trigger "explain how", and its row waited for "the user asks to learn the game rules step by step")
+  // or more triggers are the skill's job plainly. Lesson, a field report: "explain how to use the pivot table" matched the
+  // teach skill's one trigger "explain how", and its row waited for "the user asks to learn the tax rules step by step")
   const want = new Set(keyWords(text));
   const meets = (r, hits) => { const m = /\bwhen\s*:\s*([^)|]*)/i.exec(r.decision || ''); if (!m || hits.length >= 2) return true;
     const cond = keyWords(m[1]).filter(w => w.length > 3 && !GENERIC.has(w) && !/^(user|users|ask|asks|asked|want|wants|first|need|needs|time)$/.test(w));
@@ -4960,17 +4960,12 @@ export function visibleLines(text, cfg = config()) {
     return segs.filter((s, i) => !i || !off(s)).join(' · ');
   }).filter(Boolean).join('\n');
 }
-// The line the user sees when a session starts: what is guarding the project, and what came up since last time.
-export function sessionUserLine(notes, cfg = config()) {
-  const A = brand(), has = s => notes.some(x => x.startsWith(s));
-  const pbs = routablePlaybooks().filter(pb => !pb.name.startsWith('_')).length, sks = list(cfg.skillsDir).filter(n => exists(`${cfg.skillsDir}/${n}/SKILL.md`)).length;
-  const out = [`${A} 🟢 on duty: ${pbs} runbook${pbs === 1 ? '' : 's'}, ${sks} skill${sks === 1 ? '' : 's'} and the project's checks`];
-  for (const [k, line] of [['RESUMED', '🔁 your files from before the interruption are intact'], ['INTERRUPTED WORK IS BROKEN', '❗ files from before the interruption need fixing first'],
-    ['LAST WORK TURN', '📌 something was left open last time'], ['UPGRADE REVIEW PENDING', '🔄 a starter upgrade needs a look'], ['OPEN PLANS', '🗺️ a plan is still open'],
-    ['ROUTINES DUE', '⏰ a routine is due'], ['INBOX', '📥 new files are waiting in the inbox'], ['FEEDBACK FROM PROJECTS', '📨 projects sent feedback'],
-    ['SKILL HARDENING DUE', '🔧 a much-used runbook is ready to harden'], ['STALE KNOWLEDGE', '🕰️ some notes are due a re-check']])
-    if (has(k)) out.push(`${A} ${line}`);
-  return out.join('\n');
+// The line the user sees when a session starts: only what needs the user. Being on duty, intact files and the agent's
+// own chores (an upgrade to review, an open plan, a runbook to harden, the inbox) are implied: the agent gets them as
+// notices and acts on them, and the user sees what it does ("running", "improving" a named runbook). Lesson (the user):
+// "it doesnt gotta tell me the obvious things that are implied"; "why tell me this instead of hardening it without input"
+export function sessionUserLine(notes) {
+  return notes.some(x => x.startsWith('INTERRUPTED WORK IS BROKEN')) ? `${brand()} ❗ files from before the interruption need fixing first` : '';
 }
 
 // The line the user sees when a work turn passes its checks: what the hooks confirmed (REQ: prompt-visible). Lesson
@@ -5015,8 +5010,9 @@ export function passLine(x, rounds = 0) {
   const routedNames = new Set([...(x.routed || []), ...(x.routedSkills || [])].map(i => i.name));
   const pbs = (x.usedPb || []).filter(pb => !pb.name.startsWith('_') && routedNames.has(pb.name)).map(pb => pb.name);
   const sks = (x.usedSkills || []).map(s => s.name).filter(n => !pbs.includes(n) && routedNames.has(n));
-  const pb = ledgerRunbook(x), items = pb ? ledgerItems(read(abs(pb.file))) : [], rec = ledgerLines(x.notes, pb?.name);
-  const done = items.filter(i => rec.has(i.n)).length;
+  const pb = ledgerRunbook(x), items = pb ? ledgerItems(read(abs(pb.file))) : [], rec = ledgerLines(turnRecords(x.notes), pb?.name);
+  // (on a pass, an item a script checks is done by its check; only judgment items need a record)
+  const done = items.filter(i => rec.has(i.n) || !i.judgment).length;
   const learned = x.prompt && isUpset(x.prompt) ? learnedLines(x.notes || '').map(l => l.file).filter(Boolean) : [];
   const asks = /\?\s*$/.test(String(x.answer || '').trim().split('\n').filter(l => l.trim()).pop() || '');
   // (an upset message's outcome, as the agent found it: the issue in context and what was done, nothing to fix, or a
@@ -5037,7 +5033,7 @@ export function passLine(x, rounds = 0) {
   decideTrigger(x, x._decided || {});
   return [...(upsetLine ? [upsetLine] : []), ...decided, ...(x.workTurn ? [[`${brand()} ✅ checks passed${rounds ? ` after ${rounds} fix round${rounds > 1 ? 's' : ''}` : ''}`,
     ...(pbs.length ? [`📖 the ${pbs.join(', ')} runbook it pulled up was followed`] : []), ...(sks.length ? [`⚡ so was the ${sks.join(', ')} skill${sks.length > 1 ? 's' : ''} it brought in`] : []),
-    ...(config().runbookLedger && items.length ? [`✅ checklist ${done}/${items.length} recorded`] : []),
+    ...(config().runbookLedger && items.length ? [`✅ checklist ${done}/${items.length} done`] : []),
     ...(learned.length ? [`🧠 lesson saved in ${[...new Set(learned)].slice(0, 2).join(', ')}`] : [])].join(' · ')] : []),
     ...(asks ? ['❓ Claude is asking you something'] : [])].join('\n');
 }
@@ -5552,7 +5548,7 @@ function pretoolHits(data, cfg) {
         `(^|[^<>2&])>{1,2}\\s*${P}`,
         `(^|[\\s;&|(])(Set-Content|Out-File|Add-Content|tee)\\b[^;&|]*?(\\s|^)${P}`
       ].map(b => re(b).test(cmd));
-      // sed -i edits only its file arguments, not its script. Lesson: adding the line "owns: sources/raids/**" to a
+      // sed -i edits only its file arguments, not its script. Lesson: adding the line "owns: sources/trips/**" to a
       // runbook with sed was denied, because the folder's name was in the replacement text.
       hits.push(sedInPlaceFiles(cmd).some(f => re(`^${P}`).test(f)));
       const bad = hits.some(Boolean);
@@ -5690,7 +5686,7 @@ export function overlapNotice(data) {
 }
 // A message from the user that arrived while helpers launched before it still run: once per message, with the next call,
 // name them, so the ones the message makes obsolete are stopped before new work (a notice, never a denial).
-// Lesson (a field report): the user allowed wildcards while three helpers were judging a free-only plan; they ran on,
+// Lesson (a field report): the user allowed paid options while three helpers were judging a free-only plan; they ran on,
 // and their 447,423 tokens were thrown away.
 export function scopeNotice(data) {
   if (!data.transcript_path) return null;
@@ -5793,8 +5789,18 @@ export function issueParts(text) {
 // The user sees each runbook or skill the agent actually opens, once per turn: "running the X runbook". (Lesson (the
 // user): "any runbook that anzuelo helps the ai agent run will need the anzuelo is running x runbook")
 const RUNNING = 'running-shown.json';
+// (and each one it changes: "improving the X runbook". Lesson (the user): "i want anzuelo to tell me that its upgrading x
+// run book")
 export function runningLine(d) {
   const name = d.tool_name || '', inp = d.tool_input || {};
+  if (/^(Edit|Write|MultiEdit)$/.test(name)) {
+    const m = /(?:^|\/)(?:docs\/playbooks\/([\w-]+)\.md|skills\/([\w-]+)\/SKILL\.md|tools\/starter\/runbooks\/([\w-]+)\.md)$/.exec(String(inp.file_path || '').replace(/\\/g, '/'));
+    const n = m && (m[1] || m[2] || m[3]), f = n && [`docs/playbooks/${n}.md`, `tools/starter/runbooks/${n}.md`, `skills/${n}/SKILL.md`].find(exists);
+    const turnAt = readJSON(stateFile('turn.json'), {}).at || '', st = readJSON(stateFile(RUNNING), {}), seen = st.turn === turnAt ? st.names || [] : [];
+    if (!f || n.startsWith('_') || seen.includes(`edit:${n}`)) return '';
+    writeState(RUNNING, { turn: turnAt, names: [...seen, `edit:${n}`] });
+    return `${brand()} 🔧 improving the ${n} ${f.startsWith('skills/') ? 'skill' : 'runbook'}`;
+  }
   const text = name === 'Read' ? String(inp.file_path || '') : /^(Bash|PowerShell)$/.test(name) ? String(inp.command || '') : '';
   const names = name === 'Skill' ? [String(inp.skill || inp.name || '').replace(/^.*:/, '')]
     : [...text.replace(/\\/g, '/').matchAll(/(?:docs\/playbooks\/([\w-]+)\.md|skills\/([\w-]+)\/SKILL\.md|tools\/starter\/runbooks\/([\w-]+)\.md)/g)].map(m => m[1] || m[2] || m[3]);
@@ -5837,7 +5843,7 @@ export function acknowledgedLine(p) {
 // the named runbook's "Done when" checklist, for the agent, when the issue is acknowledged (checked at Stop)
 export function issueChecklist() {
   const it = issueParts(lastIssue(turnNotes(Date.parse(readJSON(stateFile('turn.json'), {}).at || '') || 0)));
-  return it.file ? `Open ${it.file} now and follow every step: the user was told it finds the root cause and fixes this. ${ledgerHint({ file: it.file })} Then check "fixed when: ${it.when}" and add "Verified: <what you ran or opened> - <what it showed>". REQ: upset-acknowledged.` : '';
+  return it.file ? `Open ${it.file} now and follow every step: the user was told it finds the root cause and fixes this. Before fixing, write "Scope: <the user's point in general terms> - <every case it covers>" (their example is one case) and "Root cause: <why the earlier work missed it>". ${ledgerHint({ file: it.file })} Then check "fixed when: ${it.when}" and add "Verified: <what you ran or opened> - <what it showed>". REQ: upset-acknowledged.` : '';
 }
 // an issue acknowledged in an earlier turn, still in the notes file: not this turn's
 export const staleIssue = issue => { const was = readJSON(stateFile(ACKED), {}), turn = readJSON(stateFile('turn.json'), {}).at || '';
@@ -6384,12 +6390,18 @@ export function coreChecks(x, cfg) {
     if (iss.problem && !iss.none) {
       const opened = iss.file && (x.reads?.has(iss.file) || (x.usedPb || []).some(p => p.file === iss.file) || (x.usedSkills || []).some(s => s.name === iss.runbook)
         || (x.cmds || []).some(c => String(c).replace(/\\/g, '/').includes(iss.file)));
-      const items = opened ? ledgerItems(read(abs(iss.file))) : [], rec = ledgerLines(x.notes, iss.runbook), open = items.filter(i => !rec.has(i.n) || (rec.get(i.n).kind === 'skip' && rec.get(i.n).why.length < 8));
+      const items = opened ? ledgerItems(read(abs(iss.file))) : [], rec = ledgerLines(turnRecords(x.notes), iss.runbook), open = items.filter(i => !rec.has(i.n) || (rec.get(i.n).kind === 'skip' && rec.get(i.n).why.length < 8));
       if (!iss.file) add('upset-learned', `The Issue line names no runbook or skill that exists. Write it as "Issue: <problem> | runbook: <name> | fixed when: <checkable outcome>" in ${NOTES_FILE}, open that runbook and follow it.`);
       else if (!opened) add('upset-learned', `The user was told the ${iss.runbook} runbook would find the root cause and fix this, and it was not opened this turn. Open ${iss.file} and follow every step.`);
       else if (open.length) add('upset-learned', `The ${iss.runbook} checklist ("Done when" in ${iss.file}) is not finished. For each item add "Done N: <what you did, with the file or command>" or "Skip N: <why it doesn't apply>" to ${NOTES_FILE}: ` +
         open.map(i => `${i.n}. ${i.text.slice(0, 120)}`).join(' '));
-      if (!/^[\s>*_-]*verified\s*:\s*\S.{10,}/im.test(`${x.said || ''}\n${x.notes || ''}`)) add('upset-learned', `Show that it is truly fixed: check the outcome the user was promised ("${iss.when}") and add "Verified: <what you ran or opened> - <what it showed>" to ${NOTES_FILE}.`);
+      const mine = `${x.said || ''}\n${turnRecords(x.notes)}`;
+      if (!/^[\s>*_-]*verified\s*:\s*\S.{10,}/im.test(mine)) add('upset-learned', `Show that it is truly fixed: check the outcome the user was promised ("${iss.when}") and add "Verified: <what you ran or opened> - <what it showed>" to ${NOTES_FILE}.`);
+      // (the user's example is one case of their point, and the fix starts from why the earlier work missed it. Lesson
+      // (the user): an issue was acknowledged as the example the user gave, fixed in that narrow form, and the user had
+      // to say twice that it meant every case; "it tunnelvisioned to 1 thing without actually finding the root cause")
+      if (!/^[\s>*_-]*scope\s*:\s*\S.{15,}/im.test(mine)) add('upset-learned', `Write the user's general point, not only their example: "Scope: <the point in general terms> - <every case it covers, and how many you checked>" in ${NOTES_FILE}, and fix every case, not only the one named.`);
+      if (!/^[\s>*_-]*root cause\s*:\s*\S.{15,}/im.test(mine)) add('upset-learned', `Say why the earlier work missed it: "Root cause: <what in the process, runbook or check let it through, and why>" in ${NOTES_FILE}, and fix that too, not only the result.`);
     }
     // A complaint the answer showed does not hold has no miss to learn from: "Learned (none): the complaint didn't
     // hold - <evidence>" ends it. Lesson: after a disproved complaint, Stop still asked for a lesson, and the agent added
@@ -6414,7 +6426,7 @@ export function coreChecks(x, cfg) {
       // "again" means it already happened: a one-off note is too weak for a repeat
       else if (/\bagain\b|\bkeeps?\b|\bevery time\b|\bstill\b|\balready told\b/i.test(x.prompt) && learned.every(l => l.level === 'one-off'))
         add('upset-learned', 'The user says this happened before, so a one-off note will not stop it: put the lesson in the skill or runbook that missed it, make it a rule, or add a check (learn-from-upset skill, step 3).');
-      // the work fell short ("lackluster", "really no pictures?"): that is a requirement on the work, so it gets a check
+      // the work fell short (a one-word verdict, a disbelieving question): that is a requirement on the work, so it gets a check
       // (or a "(judgment: <why>)" Done when item where no script can tell), not just a note. Lesson: such complaints got
       // a fix and an apology, and the check only came when the user asked whether anything forced it.
       else if (re(cfg.letdown).test(x.prompt) && !learned.some(l => ['check', 'engine'].includes(l.level))
@@ -7068,11 +7080,26 @@ export function ledgerItems(text) {
 // The record lines in the turn notes: N -> { kind: 'done' | 'skip', why }
 // (a line may name its runbook, "Done debug 3:", when a turn keeps two checklists; it then counts only for that one.
 // Lesson: an upset turn's runbook and the routed one shared their numbers)
+// (a line may cover several items, "Done 1-12:" or "Done 2, 4:". Lesson (the user): a turn recorded "Done 1-12" and the
+// count read it as item 1 alone)
 export function ledgerLines(notes, name = '') {
   const out = new Map();
-  for (const m of String(notes || '').matchAll(/^\s*[-*]?\s*(Done|Skip|Skipped)\s+(?:([a-z][\w-]*)\s+)?(\d+)\s*[:.-]\s*(.*)$/gim))
-    if (!m[2] || !name || m[2].toLowerCase() === String(name).toLowerCase()) out.set(+m[3], { kind: /^done$/i.test(m[1]) ? 'done' : 'skip', why: m[4].trim() });
+  for (const m of String(notes || '').matchAll(/^\s*[-*]?\s*(Done|Skip|Skipped)\s+(?:([a-z][\w-]*)\s+)?(\d+(?:\s*(?:-|–|,|and|to)\s*\d+)*)\s*[:.-]\s*(.*)$/gim)) {
+    if (m[2] && name && m[2].toLowerCase() !== String(name).toLowerCase()) continue;
+    const ns = [];
+    for (const part of m[3].split(/\s*(?:,|and)\s*/)) {
+      const [a, b] = part.split(/\s*(?:-|–|to)\s*/).map(Number);
+      for (let n = a; n <= (b >= a && b - a < 100 ? b : a); n++) ns.push(n);
+    }
+    for (const n of ns) out.set(n, { kind: /^done$/i.test(m[1]) ? 'done' : 'skip', why: m[4].trim() });
+  }
   return out;
+}
+// Only this turn's records count: the notes file keeps earlier turns' lines, and their "Done 11:" is not this turn's.
+// Lesson (the user): a turn showed "checklist 11/12" from records left by earlier turns, and passed on one of them
+export function turnRecords(notes) {
+  const n = String(notes || ''), off = readJSON(stateFile('turn.json'), {}).notesOff;
+  return Number.isInteger(off) && off > 0 && off <= n.length ? n.slice(off) : n;
 }
 // The runbook (or, with none, the skill) this turn's record is kept against: the one used, else the one routed.
 const ledgerRunbook = x => [...(x.usedPb || []), ...(x.routed || []), ...(x.usedSkills || []), ...(x.routedSkills || [])]
@@ -7089,7 +7116,7 @@ export function ledgerHint(pb) {
 export function ledgerSteps(x, missing, cfg = config()) {
   const pb = ledgerRunbook(x);
   if (!pb || !x.workTurn) return missing;
-  const items = ledgerItems(read(abs(pb.file))), rec = ledgerLines(x.notes, pb.name);
+  const items = ledgerItems(read(abs(pb.file))), rec = ledgerLines(turnRecords(x.notes), pb.name);
   const owner = new Map();
   for (const it of items) for (const tg of it.tags) if (!ALWAYS_ON.test(tg) && !owner.has(tg)) owner.set(tg, it);
   const out = [];
@@ -7148,7 +7175,7 @@ function addedContentHit(x, spec, counted = () => true) {
 // chapter 2 sadder" and "polish chapter 1", and its message told the agent to write a "v2" copy of the chapter.
 const CHANGE_ASK = /\b(change|edit|fix|correct|polish|tighten|rewrite|revise|reword|tweak|update|improve|shorten|lengthen|expand|trim|cut|swap|replace|rename|remove|delete|add|adjust|redo|rework|make(?!\s+(a|an|another|new|copy|a copy|me a)\b)|cambi\w*|edit\w*|corrig\w*|arregl\w*|pul\w*|reescrib\w*|mejor\w*|ajust\w*|acort\w*|alarg\w*|quit\w*|añad\w*|agreg\w*|haz(?!\s+(un|una|otr[oa]))|hazlo)\b/i;
 // (a version number asks for a new copy only as one: "save it as v2", "make a v2", "v2 of it", "como v2", not as the
-// text to write. Lesson: "change the raid notes file to say v2" was read as a request for a new copy and denied)
+// text to write. Lesson: "change the trip notes file to say v2" was read as a request for a new copy and denied)
 const NEW_COPY = /\b(new (version|file|copy)|another version|a copy|copy of|(?:as|a|into|como|una?)\s+v\d+\b|v\d+\s+(?:of|copy|file|de|copia)\b|nueva versi[oó]n|otra versi[oó]n|una copia|copia de)\b/i;
 const FOLDER_NOUN = { chapters: '(chapter|ch\\.?|cap[ií]tulo|cap\\.?)', capitulos: '(cap[ií]tulo|chapter|cap\\.?)' };
 export function asksToChange(p, prompt) {
@@ -7741,8 +7768,8 @@ ${passed.join('\n')}`;
       const t0 = TIMING ? performance.now() : 0;
       x.detail = ''; x.trigger = ''; x.override = ''; x.short = '';
       // A runbook followed this turn owns the folders in its "owns:" frontmatter: another runbook's trigger ("forces")
-      // doesn't count files there. Not followed, the trigger still fires. Lesson: a project's raid-research runbook saved
-      // downloads into sources/raids/, and the ingest trigger asked for ingest on every one of them.
+      // doesn't count files there. Not followed, the trigger still fires. Lesson: a project's trip-research runbook saved
+      // downloads into sources/trips/, and the ingest trigger asked for ingest on every one of them.
       const owned = q.forces ? (x.usedPb || []).filter(pb => pb.name !== q.forces && pb.fm?.owns).flatMap(pb => String(pb.fm.owns).split(',').map(s => s.trim()).filter(Boolean)) : [];
       // (each "anyOf" branch too: a branch judges its own files. Lesson: the ingest trigger moved its files into anyOf,
       // and the owned folder counted again)

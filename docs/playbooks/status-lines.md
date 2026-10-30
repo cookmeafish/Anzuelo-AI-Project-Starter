@@ -24,18 +24,19 @@ The user decides which ones stay.
    | praise | 🌟 | what the user praised is kept |
    | pause | ⏸️ | the user asked to pause |
    | scope | 🔒 | one person's files are kept apart from another's |
-   | left-open | 📌 | something was left open last time |
+   | left-open | 📌 | (not shown: the agent picks up what was left open itself) |
    | new-task | 🌱 | a new runbook was made for a new kind of task |
-   | session | 🟢 | a session started |
-   | resumed | 🔁 | files from before an interruption are intact |
+   | session | 🟢 | (not shown: being on duty is implied) |
+   | resumed | 🔁 | (not shown: intact files are implied; ❗ shows when they are broken) |
    | critical | ❗ | a critical guard stopped an action |
    | blocked | 🛡️ | another guard stopped an action |
-   | upgrade, plan, routine, inbox, feedback, harden, stale | 🔄 🗺️ ⏰ 📥 📨 🔧 🕰️ | session reminders |
+   | upgrade, plan, routine, inbox, feedback, stale | 🔄 🗺️ ⏰ 📥 📨 🕰️ | (not shown: session reminders go to the agent, which acts on them) |
+   | harden | 🔧 | the agent changes a runbook or skill ("improving the X runbook") |
    | not-fit | 🚫 | a runbook or skill the hooks pulled up didn't fit, and why |
    | lesson | 🧠 | a lesson was saved, or a word was whitelisted |
    | asking | ❓ | the answer asks the user something |
 
-   "The reminders" means all seven session-reminder kinds. "✅" alone is open (checklist count or the whole "checks
+   "The reminders" means the six session-reminder kinds. "✅" alone is open (checklist count or the whole "checks
    passed" line): ask in one line which. "Too many icons" names no kind: ask in one line which to keep, offering
    this table's icons.
 2. Read the current value: `"userLines"` in `tools/hooks/config.json`; when the key is missing, it is `true` (all on).

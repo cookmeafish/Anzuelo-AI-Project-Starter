@@ -283,11 +283,11 @@ if (deep) {
   // checklist with a "later" row about the project's own files, and files that match it.
   // Lesson: in a big project the fit and dedupe tests read the project's real checklist, files and duplicates.
   try { const c = JSON.parse(fs.readFileSync(cfgP, 'utf8')); c.protectedOriginals = [...new Set([...(c.protectedOriginals || []), 'sources/**'])]; fs.writeFileSync(cfgP, JSON.stringify(c, null, 2) + '\n'); } catch { }
-  write(dir, { 'sources/raid-a.png': 'same bytes', 'sources/raid-a-copy.png': 'same bytes', 'sources/raid-b.png': 'same bytes',
-    ...Object.fromEntries(Array.from({ length: 8 }, (_, i) => [`notes/raid-${i}.md`, `# Raid ${i}\n`])) });
+  write(dir, { 'sources/trip-a.png': 'same bytes', 'sources/trip-a-copy.png': 'same bytes', 'sources/trip-b.png': 'same bytes',
+    ...Object.fromEntries(Array.from({ length: 8 }, (_, i) => [`notes/trip-${i}.md`, `# Trip ${i}\n`])) });
   node(['tools/fit.mjs'], dir);
   const fitRows = JSON.parse(node(['tools/fit.mjs', '--json'], dir).stdout || '[]').map(r => ({ item: r.item, kind: r.kind,
-    decision: r.item === 'fd' ? 'later - when: more than 6 raid files' : r.present ? 'add' : 'skip',
+    decision: r.item === 'fd' ? 'later - when: more than 6 trip files' : r.present ? 'add' : 'skip',
     reason: r.present ? `Worth it: ${r.item} is set up in this project and keeps its checks running / a little upkeep` : `${r.item} adds nothing this sample project needs, so it would only cost upkeep${r.signals.length ? `, even with ${r.signals.join(' and ')}` : ''}` }));
   fs.writeFileSync(path.join(WORK, 'deep-fit.json'), JSON.stringify(fitRows));
   node(['tools/fit.mjs', 'decide', '--file', path.join(WORK, 'deep-fit.json')], dir);

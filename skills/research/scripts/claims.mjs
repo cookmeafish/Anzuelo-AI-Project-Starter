@@ -18,14 +18,14 @@ const TYPES = ['primary', 'secondary', 'forum', 'social', 'wiki', 'aggregator', 
 const NOT_EVIDENCE = ['forum', 'social', 'wiki', 'aggregator', 'ai'];
 const USES = ['evidence', 'lead only', 'excluded'];
 const STATUS = ['confirmed', 'primary', 'single source', 'conflict', 'unverified'];
-const PAID = /sponsor|affiliate|paid|advert|\bads?\b|#ad|press release|partner content|commission|\bsells?\b|\bselling\b|boost(ing)?\s+service|carr(y|ies)\s+service/i;
+const PAID = /sponsor|affiliate|paid|advert|\bads?\b|#ad|press release|partner content|commission|\bsells?\b|\bselling\b|boost(ing)?\s+service/i;
 // Display ads on the page are how most free sites pay for themselves: an honest label, not a reason to reject the
 // source. So are stated absences ("no sponsorship"). Only sponsored or affiliate content, sellers and paid services count.
 // Lesson: "site ads only, no sponsored content" failed while "none found" passed, which taught agents the vaguer label.
 const NEUTRAL_AD = /\b(no|not|without|none)\s+(\w+\s+){0,2}(sponsor\w*|affiliate\w*|paid\s+\w+|advert\w*|ads?|commissions?|partner content)\b|\b(display|site|banner|page|sidebar)\s+(ads?|advertising)\b|\bads?[- ](only|supported|funded)\b|\b(runs?|shows?|has)\s+(display\s+)?(ads?|advertising)\b|\badvertising[- ](supported|funded)\b/gi;
 const paid = inc => PAID.test(String(inc).replace(NEUTRAL_AD, ''));
 // Outlets owned by the same company are one owner, not two independent sources. Write the parent in brackets
-// ("GameRant (Valnet)"); these well-known groups are recognized by name or site even without it.
+// ("Screen Rant (Valnet)"); these well-known groups are recognized by name or site even without it.
 // Lesson: two sites of one media group counted as two independent sources.
 const GROUPS = {
   valnet: ['game rant', 'gamerant', 'thegamer', 'cbr', 'screen rant', 'screenrant', 'collider', 'dualshockers', 'xda', 'android police', 'androidpolice', 'how-to geek', 'howtogeek', 'makeuseof'],

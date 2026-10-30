@@ -81,8 +81,8 @@ Fix each gap in the file (or say in one line why it is not one), then record `Co
 
 ## What makes a runbook or skill good
 - **Exact:** every step names its file, command or tool and what "done" looks like for that step. No "as needed".
-- **Decided:** where a step needs judgment, it gives the measure ("the card that wins more of the slots it fills,
-  compared with every owned card for that slot"), not just the verb ("pick the best").
+- **Decided:** where a step needs judgment, it gives the measure ("the supplier that fills more of the orders on time,
+  compared with every approved supplier for that item"), not just the verb ("pick the best").
 - **Complete:** every result that matters has a "Done when" item with a real check, so the final check asks about it.
 - **Short:** steps the agent would do anyway without being told are left out; long background goes in a linked file.
 - **Proven:** it was read cold, and its checks fail on a real miss and pass on real good work (step 3).

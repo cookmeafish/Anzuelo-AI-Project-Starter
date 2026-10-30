@@ -44,6 +44,18 @@ Related: [[2026-10-28-status-bar-and-acknowledged]], [learn-from-upset](../../sk
       anywhere in a line, so an issue mentioning "steps left" counted. Fix: the result line must start the line.
       Test: status-bar.
 
+- [x] 13. A soft complaint typed mid-turn ("weren't you supposed to", "you dropped the ball") got no acknowledged. Root
+  cause: the upset words had no soft phrases. Fix: four phrases; swept over 3,190 typed messages, 6 hits, all real.
+- [x] 14. A turn passed showing "checklist 11/12 recorded". Root cause: "Done 1-12" read as item 1, and records from
+  earlier turns counted. Fix: ranges and lists read; only this turn's records count; the count includes script-checked
+  items.
+- [x] 15. The session start showed the implied and the agent's chores (on duty, files intact, upgrade, plan, harden).
+  Root cause: every agent notice also got a user line. Fix: the start shows only broken files; the agent acts on the
+  notices; "improving the X runbook" shows when it changes one.
+- [x] 16. An issue was acknowledged and fixed as the user's one example. Root cause: the Issue line takes the user's
+  terms, which were the example, and nothing checked for the general point or the cause of the miss. Fix: an upset turn
+  needs `Scope:` and `Root cause:` lines; the hint asks for both before fixing.
+
 ## Rule
 The user always sees "acknowledged" when upset (questions and mid-turn messages too), naming the problem, the runbook
 that will fix it and what fixed means; the work is held until then, and the turn can't end until that runbook's

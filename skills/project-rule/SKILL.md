@@ -14,7 +14,13 @@ cheapest level that holds; every extra file and run costs the user time on this 
    no-verbatim-examples). For a complaint, also note which step was missing; for praise, what worked.
 2. **Fix the miss first** if there is one, by its runbook.
 3. **Check for conflicts** with AGENTS.md, the runbooks and `docs/BRIEF.md`; if one conflicts, ask which wins. Write the
-   user's actual point, not a stricter rule.
+   user's actual point, not a stricter rule. Then **search every file** (docs, skills, scripts, help text, defaults,
+   memory) for wording or behavior that still says the opposite, with several searches (the old behavior's words, its
+   synonyms, the settings and flags behind it). Fix each hit or keep it with a reason, and write
+   `Conflicts: <what was searched> - N found, N fixed` in the turn notes. Never say the rule is already in place
+   before this search. <!-- Lesson (the user): a rule was called "already enforced", and only then did a search find
+   15 files still saying the opposite -->
+
 4. **Write it down in one command**, without opening those files:
    `node tools/hooks/hooks.mjs rule "<the principle>" --why "<why>" --enforced "<how>"` writes the AGENTS.md line
    (CLAUDE.md synced) and the dated `docs/checks/user-requirements.md` row. With a new check (5.4), pass it as

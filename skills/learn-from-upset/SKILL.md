@@ -21,8 +21,12 @@ upset-acknowledged).
   `.cache/turn-notes.md`, say nothing about it, do what they asked, and stop following this skill. The user sees nothing.
 - **A real issue, or a repeat:** pick the runbook or skill that finds its root cause and fixes it (DIRECTORY.md;
   **debug** for anything that behaves wrong), and put
-  `Issue: <the problem in the user's terms, under 12 words> | runbook: <name> | fixed when: <a checkable outcome>` in
-  `.cache/turn-notes.md` before any fix, as your first step. The user is shown "acknowledged" with all three at once,
+  `Issue: <the user's point in general terms, under 12 words> | runbook: <name> | fixed when: <a checkable outcome>` in
+  `.cache/turn-notes.md` before any fix, as your first step. Their example is one case of the point, not the point:
+  before fixing, write `Scope: <the point in general terms> - <every case it covers>` and `Root cause: <why the
+  earlier work missed it>` (hook: upset-acknowledged). <!-- Lesson (the user): an issue acknowledged as the user's
+  example was fixed in that narrow form, and the user had to say twice that it meant every case -->
+ The user is shown "acknowledged" with all three at once,
   and "fixed" when the turn ends. Then follow that runbook to the end: every "Done when" item gets `Done N: <evidence>`
   or `Skip N: <why>` in the notes, and the outcome gets `Verified: <what you ran or opened> - <what it showed>`; the
   end-of-turn check holds you to both (hook: upset-acknowledged). Follow the steps below alongside it. A new complaint
