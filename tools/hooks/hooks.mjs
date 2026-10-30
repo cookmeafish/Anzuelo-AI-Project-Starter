@@ -1170,7 +1170,7 @@ function backgroundRunning(rows) {
   rows.forEach((r, i) => {
     const c = r.message?.content;
     // helpers and background commands alike (Lesson: checks fired on files a still-running background sweep made)
-    if (r.type === 'assistant' && Array.isArray(c)) for (const x of c) if (x?.type === 'tool_use' && /^(Agent|Task|Bash|PowerShell)$/.test(x.name)) (x.input?.run_in_background ? launches : shells).push({ id: x.id, i });
+    if (r.type === 'assistant' && Array.isArray(c)) for (const x of c) if (x?.type === 'tool_use' && /^(Agent|Task|Bash|PowerShell)$/.test(x.name)) (x.input?.run_in_background ? launches : shells).push({ id: x.id, i, helper: /^(Agent|Task)$/.test(x.name) });
     // a message that resumes a finished helper ("Resuming agent ...") starts it again: it runs until its next notice.
     // Lesson: a turn waiting on a reviewer it had resumed spent all 3 Stop rounds on steps that needed the review's verdict.
     if (r.type === 'assistant' && Array.isArray(c)) for (const x of c) if (x?.type === 'tool_use' && x.name === 'SendMessage') resumes.push({ id: x.id, i });
@@ -1186,7 +1186,9 @@ function backgroundRunning(rows) {
   // (a helper the host runs in the background by itself says so in its result: "Async agent launched ... agentId: x".
   // Lesson, a field report: three helpers launched that way were not waited on, and Stop asked twice for their merged
   // results while they still ran)
-  for (const s of shells) if (MOVED_BG.test(results.get(s.id) || '') || /\basync agent launched\b/i.test(results.get(s.id) || '')) launches.push(s);
+  // (the helper line counts only in a helper's own result: a shell command's output may quote it. Lesson, dogfood: a read
+  // of a test file that printed such a line counted as a run still going, and every later check run got a false heads-up)
+  for (const s of shells) if (MOVED_BG.test(results.get(s.id) || '') || (s.helper && /^\s*async agent launched\b/i.test(results.get(s.id) || ''))) launches.push(s);
   for (const s of resumes) { const m = /\bresumedAgentId["']?\s*[:=]\s*["']?([\w-]{4,})/i.exec(results.get(s.id) || ''); if (m) launches.push({ ...s, agentId: m[1] }); }
   return launches.filter(l => {
     if (l.agentId) return !notes.some(n => n.i > l.i && n.t.includes(l.agentId)) && !stops.some(s => s.i > l.i && s.t.includes(l.agentId) && /\b(stopped|killed|cancell?ed|terminated)\b/i.test(s.t));
@@ -5710,10 +5712,15 @@ export function overlapNotice(data) {
   if (!/^(Bash|PowerShell)$/.test(data.tool_name || '') || typeof cmd !== 'string' || !CHECK_RUN.test(cmd) || !data.transcript_path) return null;
   const t = turn(data.transcript_path);
   if (!t?.bgRunning?.length) return null;
-  const byId = new Map();
+  const byId = new Map(), started = new Set();
   for (const r of transcriptRows(data.transcript_path))
-    for (const x of Array.isArray(r.message?.content) ? r.message.content : []) if (x?.type === 'tool_use' && typeof x.input?.command === 'string') byId.set(x.id, x.input.command);
-  const busy = t.bgRunning.map(id => byId.get(id)).filter(c => c && CHECK_RUN.test(c));
+    for (const x of Array.isArray(r.message?.content) ? r.message.content : []) {
+      if (x?.type === 'tool_use' && typeof x.input?.command === 'string') byId.set(x.id, x.input.command);
+      if (x?.type === 'tool_result') started.add(x.tool_use_id);
+    }
+  // (only launches whose result came back: the call being checked is already in the transcript, with none yet. Lesson,
+  // dogfood: a background test run was told it was itself still running)
+  const busy = t.bgRunning.filter(id => started.has(id)).map(id => byId.get(id)).filter(c => c && CHECK_RUN.test(c));
   if (!busy.length) return null;
   return `Heads-up: ${busy.length === 1 ? 'a test or sweep run is' : `${busy.length} test or sweep runs are`} still running in the background (${busy.map(c => `"${c.replace(/\s+/g, ' ').trim().slice(0, 80)}"`).join(', ')}). Two at once can see each other's temporary files and fail falsely: wait for its notice before reading this run's failures as real, or run this one after it.`;
 }
@@ -5796,6 +5803,10 @@ function cmdPosttool(data) {
   if (p) writeState(LAST_WRITE, { at: Date.now(), p });
   if (p === 'CLAUDE.md' || p === 'AGENTS.md') syncTwin();
   if (/^(docs\/(playbooks|checks|knowledge|MENU\.md)|skills\/|tools\/hooks\/requirements\.json)/.test(p)) syncAll();
+  // (a shell command that names such a file may have changed it: a script, sed -i or a redirect. Lesson (a field report):
+  // a runbook edited by a script left its generated skill stale, and the next audit failed until something else synced)
+  else if (!p && /^(Bash|PowerShell)$/.test(data.tool_name || '') && /(^|[\s"'=/\\(])(docs[\\/](playbooks|checks|knowledge)[\\/]|docs[\\/]MENU\.md|skills[\\/][\w-]+[\\/]SKILL\.md|tools[\\/]hooks[\\/]requirements\.json)/.test(String(data.tool_input?.command || ''))
+    && !String(data.tool_input.command).split(/&&|\|\||;|\n|\|/).every(s => READ_ONLY.test(s.trim()) || !s.trim())) syncAll();
   const h = eventHintAfterEdit(p, data.tool_input || {});
   const pub = publishNotice(p, data.tool_input || {}), plan = planNotice(p, data.tool_input || {}), ps = ps51Notice(p, data.tool_input || {});
   const hand = handoffNotice(p, data), gen = generatedNotice(p), ack = acknowledgedLine(p);
@@ -6826,10 +6837,17 @@ export function coreChecks(x, cfg) {
     add('gui-pack', `GUI files changed (${gui.slice(0, 3).join(', ')}) but this project has no gui pack, so nothing checks how they look. ` +
       'Tell the user, then install it (node tools/packs.mjs install gui) and run the review loop, or waive it: node tools/hooks/hooks.mjs waive gui-pack "<why these files are not a user interface>".');
   else if (gui.length) {
-    const lastEdit = Math.max(...gui.map(p => fs.statSync(abs(p)).mtimeMs));
     const shots = [];
     const walkShots = d => { for (const n of list(d)) { const p = `${d}/${n}`; let s; try { s = walkStat(p); } catch { continue; } if (s.isDirectory()) walkShots(p); else if (/\.png$/i.test(n) && s.mtimeMs > (x.since || 0) - 1000) shots.push({ p, t: s.mtimeMs }); } };
     walkShots(cfg.guiShotDir);
+    // (a file written again with the bytes it had when the last round was shot is no edit: what is on screen is the
+    // same. Lesson (a field report): a build that rewrote the page unchanged after a reviewed round asked for another
+    // round twice. Each round records what it showed, in gui-shot.json)
+    const lastShot = Math.max(0, ...shots.map(s => s.t)), sumOf = p => { try { return createHash('sha1').update(fs.readFileSync(abs(p))).digest('hex'); } catch { return null; } };
+    const shown = readJSON(path.join(STATE, 'gui-shot.json'), {}), mtimeOf = p => fs.statSync(abs(p)).mtimeMs;
+    const editedAt = p => mtimeOf(p) > lastShot && shown.at >= lastShot && shown.files?.[p] && shown.files[p] === sumOf(p) ? 0 : mtimeOf(p);
+    const lastEdit = Math.max(...gui.map(editedAt));
+    if (lastShot && lastEdit <= lastShot && shown.at !== lastShot) writeState('gui-shot.json', { at: lastShot, files: Object.fromEntries(gui.map(p => [p, sumOf(p)])) });
     // the same shot taken again by a later run (same file name) replaces the earlier one: all show the same files.
     // Lesson, trial round 12: the hook asked to look at an older run's folder as "the latest round" while a newer one existed.
     const seenName = new Set();
@@ -7750,9 +7768,15 @@ export function duplicateWork(name, inp, t) {
     // (two numbered rounds, passes or parts of one procedure are different work, though their briefs share most words.
     // Lesson (a field report): "Justification round 3: adversarial" was refused twice while round 2 ran)
     const nth = s => (String(s).match(/\b(round|pass|part|step|phase|batch|chunk|section)\s*#?\d+\b/gi) || []).map(x => x.toLowerCase().replace(/\s+/g, ' ')).sort().join('|');
+    // (briefs that each name a file or folder the other does not work on different targets, though they share a brief
+    // file and most words. Lesson (a field report): one helper per folder was refused beside the first one running)
+    const paths = s => new Set((String(s).match(/(?:[\w.-]+[\\/])+[\w.-]*/g) || []).map(x => x.toLowerCase().replace(/\\/g, '/').replace(/\/+$/, '')).filter(x => !/^https?:/.test(x)));
+    const myPaths = paths(brief);
     for (const u of uses.filter(u => /^(Agent|Task)$/.test(u.name))) {
       const other = `${u.input?.description || ''} ${u.input?.prompt || ''}`;
       if (nth(`${inp.description || ''} ${brief}`) !== nth(other)) continue;
+      const theirPaths = paths(other);
+      if ([...myPaths].some(p => !theirPaths.has(p)) && [...theirPaths].some(p => !myPaths.has(p))) continue;
       const theirs = words(u.input?.prompt || u.input?.description || '');
       const shared = [...mine].filter(w => theirs.has(w)).length;
       if (theirs.size >= 4 && shared / Math.min(mine.size, theirs.size) >= 0.85) return `a helper still running has nearly the same brief ("${String(u.input?.description || u.input?.prompt || '').replace(/\s+/g, ' ').slice(0, 70)}")`;

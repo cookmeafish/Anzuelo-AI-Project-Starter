@@ -997,6 +997,16 @@ const STOP = [
     // site/index.html. Lesson sent back by a project.)
     answer: 'Playbook: gui.md\n## Visual review\n- Round 1: header overlapped on phone, fixed.\n- Round 2: nothing found.\nVisual review: PASS after 2 rounds\nAccessibility: keyboard, focus and contrast checked - PASS' + FIN,
     expect: { not: ['gui-review-loop', 'gui-review-report', 'gui-warnings', 'gui-pack', 'gui-flows', 'a11y-checked', 'runbook-read', 'playbook-named'] } },
+  // (a build that writes the page again with the same bytes after the screenshots changed nothing on screen. Lesson (a
+  // field report): a rebuild after the last round asked for another screenshot round twice)
+  ...[['the same bytes: passes', '<h1>x</h1>', false], ['other content: blocked', '<h1>y</h1>', true]].map(([what, html, blocked]) => ({ pack: 'gui',
+    name: `gui-review-loop: the page written again after a reviewed round, with ${what}`, prompt: 'make the dashboard page look cleaner', tools: [pb('gui'), bash('node tools/screenshot.mjs --url x', GUISHOT(0)), { name: 'Read', input: { file_path: SHOT } }],
+    files: { 'site/index.html': '<h1>x</h1>', [SHOT]: 'png', 'docs/CHANGELOG.md': 'x' }, mtimes: { 'site/index.html': -500 },
+    answer: 'Playbook: gui.md\nVisual review: PASS after 1 round\nAccessibility: keyboard, focus and contrast checked - PASS' + FIN, expect: { not: ['gui-review-loop'] },
+    after: dir => { fs.writeFileSync(path.join(dir, 'site/index.html'), html);
+      const r = run(dir, 'stop', { transcript_path: path.join(dir, 'transcript.jsonl'), stop_hook_active: false, last_assistant_message: 'Added: the build ran again.' });
+      const asked = /Screenshot the changed screens/.test(r.out);
+      return asked === blocked ? true : `after the page was written again with ${what.replace(/:.*/, '')}, the screenshot round was ${asked ? '' : 'not '}asked for again: ${r.out.slice(0, 200)}`; } })),
   // Lesson, trial round 12: an older run's folder was asked for as "the latest round" while a newer run took the same shots
   { pack: 'gui', name: 'gui-review-loop: two runs after the last edit, the newer one looked at: passes', prompt: 'make the dashboard page look cleaner', tools: [pb('gui'), bash('node tools/screenshot.mjs --url x', GUISHOT(0)), { name: 'Read', input: { file_path: SHOT.replace('/r1/', '/r2/') } }],
     files: { 'site/index.html': '<h1>x</h1>', [SHOT]: 'png', [SHOT.replace('/r1/', '/r2/')]: 'png', 'docs/CHANGELOG.md': 'x' }, mtimes: { 'site/index.html': -500, [SHOT]: -300 },
@@ -2091,6 +2101,12 @@ PRETOOL.push(
   // (another numbered round of the same procedure is other work. Lesson (a field report): round 3 was refused while round 2 ran)
   { name: 'no-repeat: round 3 of a procedure beside its running round 2: allowed', tool: 'Agent', input: { description: 'Audit round 3: adversarial', prompt: 'Read AGENTS.md first. Audit round 3 for the order: review the csv export change for bugs, missing tests and unclear names, and report findings.', run_in_background: true }, prompt: 'add a csv export',
     tools: [{ name: 'Agent', input: { description: 'Audit round 2: every axis', prompt: 'Read AGENTS.md first. Audit round 2 for the order: review the csv export change for bugs, missing tests and unclear names; report the findings.', run_in_background: true }, result: 'Async agent launched successfully.\nagentId: ab12cd34' }], deny: false },
+  // (helpers on different folders are different work, though they share a brief file. Lesson (a field report): five
+  // helpers, one per folder, were refused beside the first one running)
+  { name: 'no-repeat: a helper on another folder with the same shared brief: allowed', tool: 'Agent', input: { description: 'Review the trips folder', prompt: 'Read AGENTS.md first. Your folder: data/trips/spring/. Read the shared brief at docs/briefs/review.md and follow it for your folder; report the findings.', run_in_background: true }, prompt: 'review every folder',
+    tools: [{ name: 'Agent', input: { description: 'Review the trips folder', prompt: 'Read AGENTS.md first. Your folder: data/trips/autumn/. Read the shared brief at docs/briefs/review.md and follow it for your folder; report the findings.', run_in_background: true }, result: 'Async agent launched successfully.\nagentId: ab12cd34' }], deny: false },
+  { name: 'no-repeat: a helper on the same folder with the same shared brief: denied', tool: 'Agent', input: { description: 'Review the trips folder', prompt: 'Read AGENTS.md first. Your folder: data/trips/autumn/. Read the shared brief at docs/briefs/review.md and follow it for your folder; report the findings.', run_in_background: true }, prompt: 'review every folder',
+    tools: [{ name: 'Agent', input: { description: 'Review the trips folder', prompt: 'Read AGENTS.md first. Your folder: data/trips/autumn/. Read the shared brief at docs/briefs/review.md and follow it for your folder; report the findings.', run_in_background: true }, result: 'Async agent launched successfully.\nagentId: ab12cd34' }], deny: true, tag: 'no-repeat' },
   { name: 'no-repeat: a helper with a different brief beside a running one: allowed', tool: 'Agent', input: { prompt: 'Read AGENTS.md first. Write the README section that explains the csv export command and its options.', run_in_background: true }, prompt: 'add a csv export',
     tools: [{ name: 'Agent', input: { prompt: 'Read AGENTS.md first. Review the csv export change for bugs, missing tests and unclear names; report the findings.', run_in_background: true }, result: 'Async agent launched successfully.\nagentId: ab12cd34' }], deny: false },
   // (the call being checked is already in the transcript, with no result yet: not a helper still running. Lesson, trial
@@ -2165,6 +2181,13 @@ PRETOOL.push(
     tools: [BG_JOB('bs1', 'python tools/stock_sweeps.py > .cache/ps.txt 2>&1', BG_OUT('s1'))], deny: false, context: /^Heads-up: a test or sweep run is still running in the background \("python tools\/stock_sweeps\.py/ },
   { name: 'overlap: after the background sweep\'s notice, no heads-up', tool: 'Bash', input: { command: 'python tools/order_sweeps.py' },
     tools: [BG_JOB('bs2', 'python tools/stock_sweeps.py > .cache/ps.txt 2>&1', BG_OUT('s2'))], rows: [MOVED_DONE('bs2', 0)], deny: false, noContext: true },
+  // (Lesson, dogfood: a background test run was told that it was itself still running: the call being checked is already
+  // in the transcript, with no result yet)
+  { name: 'overlap: a background check run, already in the transcript with no result, is not running beside itself: no heads-up', tool: 'Bash', input: { command: 'python tools/order_sweeps.py > .cache/os.txt', run_in_background: true },
+    rows: [{ type: 'assistant', message: { content: [{ type: 'tool_use', id: 'toolu_self2', name: 'Bash', input: { command: 'python tools/order_sweeps.py > .cache/os.txt', run_in_background: true } }] } }], deny: false, noContext: true },
+  // (Lesson, dogfood: a foreground read of the test file printed a helper's launch line, and counted as running)
+  { name: 'overlap: a finished read whose output quotes a helper launch is not running: no heads-up', tool: 'Bash', input: { command: 'python tools/order_sweeps.py' },
+    tools: [bash('sed -n 1,40p tools/order_sweeps_test.py', "result: 'Async agent launched successfully.\\nagentId: ab12cd34'")], deny: false, noContext: true },
   { name: 'overlap: a command that runs no tests, while a sweep runs, gets no heads-up', tool: 'Bash', input: { command: 'git status --short' },
     tools: [BG_JOB('bs3', 'python tools/stock_sweeps.py > .cache/ps.txt 2>&1', BG_OUT('s3'))], deny: false, noContext: true },
   // a message from the user while helpers launched before it still run: name them, once (Lesson, a field report: three
@@ -2677,6 +2700,9 @@ STOP.push(
     answer: 'Playbook: gui.md\n## Visual review\n- Round 1: nothing found.\nVisual review: PASS after 1 rounds' + FIN, expect: { not: ['gui-flows'] } },
   // library skills' triggers (the base enables every library skill)
   { pack: 'gui', name: 'a11y-checked: screens changed without an accessibility line: blocked', prompt: 'tweak the page', files: { 'site/index.html': '<h1>x</h1>' }, answer: 'Done.' + FIN, expect: { tags: ['a11y-checked'] } },
+  // (Lesson (a field report): "Accessibility passed. ..." in plain words was asked for twice, for want of a colon)
+  { pack: 'gui', name: 'a11y-checked: accessibility reported in a plain sentence: passes', prompt: 'tweak the page', files: { 'site/index.html': '<h1>x</h1>' }, answer: 'Done. Accessibility passed. The filter works from the keyboard, focus stays on it, and contrast is good in both themes.' + FIN, expect: { not: ['a11y-checked'] } },
+  { pack: 'gui', name: 'a11y-checked: accessibility only promised: blocked', prompt: 'tweak the page', files: { 'site/index.html': '<h1>x</h1>' }, answer: 'Done. Accessibility will be checked next time.' + FIN, expect: { tags: ['a11y-checked'] } },
   { pack: 'gui', name: 'a11y-checked: accessibility reported: passes', prompt: 'tweak the page', files: { 'site/index.html': '<h1>x</h1>' }, answer: 'Done. Accessibility: keyboard, focus and contrast checked - PASS.' + FIN, expect: { not: ['a11y-checked'] } },
   { name: 'mcp-trigger: MCP server code without the mcp-builder skill: blocked', prompt: 'add a tool to the server', files: { 'src/server.ts': "import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';\n", 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { tags: ['mcp-trigger'] } },
   { name: 'mcp-trigger: the tool lint ran: passes', prompt: 'add a tool to the server', tools: [bash('node skills/mcp-builder/scripts/lint-tools.mjs src/server.ts')], files: { 'src/server.ts': "import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';\n", 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { not: ['mcp-trigger'] } },
@@ -6762,6 +6788,22 @@ if (mineB()) { // plan-required during the work: a turn adding new files hears i
     const outs = ['src/a.js', 'src/b.js', 'src/c.js', 'src/d.js'].map(w);
     const told = outs.findIndex(o => /PLAN: this turn has added/.test(o));
     report(told === 2 && outs.filter(o => /PLAN:/.test(o)).length === 1, 'plan-required: a turn adding new files is told to write the plan first, once, before the limit', outs.map(o => o.slice(0, 80)).join(' | '));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+if (mineB()) { // generated files: a runbook changed by a shell command regenerates its skill, as an editor change does
+  // (Lesson (a field report): a runbook edited by a script left its generated skill stale, and the next audit failed)
+  const dir = copyProject();
+  try {
+    const rb = path.join(dir, 'docs/playbooks/trigger-words.md');
+    const marked = s => s.replace(/^summary: (.*)$/m, 'summary: $1, also from the order screen');
+    fs.writeFileSync(rb, marked(fs.readFileSync(rb, 'utf8')));
+    const sh = cmd => run(dir, 'posttool', { tool_name: 'Bash', tool_input: { command: cmd } });
+    sh('git status --short');
+    const untouched = !/also from the order screen/.test(fs.readFileSync(path.join(dir, 'skills/trigger-words/SKILL.md'), 'utf8'));
+    sh(`python - <<'EOF'\nfrom pathlib import Path\np=Path('docs/playbooks/trigger-words.md'); p.write_text(p.read_text())\nEOF`);
+    const skill = fs.readFileSync(path.join(dir, 'skills/trigger-words/SKILL.md'), 'utf8');
+    report(untouched && /also from the order screen/.test(skill), 'generated-current: a shell command that names a runbook regenerates its skill; one that names none leaves it', `untouched before: ${untouched}; ${skill.split('\n').find(l => /^description:/.test(l))?.slice(0, 120)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 

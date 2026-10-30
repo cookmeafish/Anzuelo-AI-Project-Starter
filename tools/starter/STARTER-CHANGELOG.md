@@ -6,6 +6,28 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-10-30: Helpers on different folders are no longer refused as duplicates, and a finished read no longer counts as a run still going.
+  - **Different targets are different work:** two helper briefs that each name a file or folder the other does not
+    are not near-duplicates, even when they share a brief file and most words. Before, one helper per folder was
+    refused beside the first one still running. Scenarios: `no-repeat: a helper on another folder with the same shared
+    brief: allowed` and `no-repeat: a helper on the same folder with the same shared brief: denied`.
+  - **Only a helper's own result says it launched:** a foreground command whose output quoted a helper's launch line
+    counted as a run still going, so every later test run got a false "still running in the background" heads-up.
+    Scenario: `overlap: a finished read whose output quotes a helper launch is not running: no heads-up`. Nor is a
+    background run told that it is itself still running: `overlap: a background check run, already in the transcript
+    with no result, is not running beside itself: no heads-up`.
+  - **A page written again with the same bytes is no new edit:** each reviewed screenshot round records what the
+    changed screens held (`gui-shot.json`), and a later rewrite with that content asks for no new round. Before, a
+    build that rewrote an unchanged page after the review asked for another round twice. Scenarios: `gui-review-loop:
+    the page written again after a reviewed round, with the same bytes: passes` and `... with other content: blocked`.
+  - **Accessibility in a plain sentence counts:** "Accessibility passed." or "the accessibility check passed" meets
+    the accessibility check, not only "Accessibility: ...". Scenarios: `a11y-checked: accessibility reported in a plain
+    sentence: passes` and `a11y-checked: accessibility only promised: blocked`.
+  - **A runbook changed by a shell command regenerates its skill:** a command that names a runbook, check, skill or
+    `requirements.json` and does more than read syncs the generated files, as an editor change does. Before, a script
+    edit left the skill stale and the next audit failed. Test: `generated-current: a shell command that names a
+    runbook regenerates its skill; one that names none leaves it`.
+
 - 2026-10-29: "Acknowledged" can no longer be skipped, and the status bar keeps the user's own bar.
   - **Soft complaints count as upset:** "weren't you supposed to", "you were supposed to", "you dropped the ball" and
     "why the hell" now set off the upset handling. Before, a complaint with no swearing, capitals or "???" got no

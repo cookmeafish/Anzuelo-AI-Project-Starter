@@ -1199,7 +1199,7 @@
         "guiChanged": true
       },
       "require": {
-        "answerMatches": "accessib\\w*\\s*:[^\\n]*\\b(pass|fail|checked|ok|contrast|keyboard|labels?|focus|screen reader)\\b"
+        "answerMatches": "accessib\\w*\\s*:[^\\n]*\\b(pass|fail|checked|ok|contrast|keyboard|labels?|focus|screen reader)\\b|accessib\\w*( check| review)?( (also|again|still))? (passed|failed|passes|fails)\\b|accesibilidad (correcta|aprobada|falla|fall[oó])\\b"
       },
       "message": "Screens changed and this project uses the frontend-design skill: check accessibility (its section E: keyboard, focus, labels, contrast, screen reader names) and say what you found in one line, in the user's language: \"Accessibility: <what was checked> - PASS/FAIL\" (Spanish: \"Accesibilidad: <qué revisé> - correcta\").",
       "forces": "frontend-design",
