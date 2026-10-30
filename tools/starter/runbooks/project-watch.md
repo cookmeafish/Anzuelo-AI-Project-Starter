@@ -25,7 +25,8 @@ date. A project's own content is its session's; this runbook changes only the en
 3. **Ship it:** the full self-test and the audit, then commit (the user's standing OK; never push without asking).
 4. **Upgrade each project:** fast-forward its linked starter copy from this folder
    (`git -C <copy> pull --ff-only <starter> main`), then hand the upgrade to its session (commit its own work,
-   `starter.mjs upgrade --dry-run`, `upgrade`, report back). Upgrade from here only when no session works there and
+   `starter.mjs upgrade --dry-run`, `upgrade`, `node tools/hooks/selfcheck.mjs --full`, report back; the plain
+   self-test reuses the engine's recorded results, so a handoff that means every test names `--full`). Upgrade from here only when no session works there and
    it has nothing uncommitted (engine runbook, Pitfalls).
 5. **Confirm** each project's report: new engine commit, no checks failing that passed before, hook times. A
    regression is a new problem: back to step 2.

@@ -38,6 +38,18 @@ hooks:**, and an upgrade lists each one as its own review item.
     "1 step is left"; (4) run in a project, the self-tests that link a test copy to the starter now link it to the
     project's linked starter, not to the project itself. Before, the copy took the project's own config, its own Stop
     command failed on a script the base had removed, and the engine-cache test failed in every project with one.
+  - **Capitals alone are emphasis, not anger; praise words on a thing or a goal are not praise:** a message in
+    capitals, or with a run of capital words, counts as upset only with a sign of trouble ("??", "!!", or a word for a
+    problem, a repeat or blame such as again, still, why, wrong, broken, issue, "I already said"). "amazing",
+    "awesome" or "perfect" before a noun ("an amazing recipe") or after a goal ("until it is amazing", "make it
+    perfect") no longer counts as praise. Before, eager requests such as "GO ALL OUT" held all work until an
+    acknowledged line. Swept over 1,182 real typed messages: 21 false upset alarms and 1 false praise gone, no real
+    complaint lost. Scenarios: `caps-weight: capitals that stress a wish are not upset ...`, `... with a sign of
+    trouble are upset ...`, `praise: a praise word on a thing or a goal is not praise ...`.
+  - **The Stop speed test waits for other self-test runs:** it times the hook only once no other self-test run is going
+    on the machine (up to 10 minutes), and a time over budget while one still is gets reported, not failed. Before, it
+    failed at 540 to 726 ms in runs beside another suite, while the same engine takes about 160 ms alone. Scenario:
+    `stop-budget: over budget fails when the run is alone, and is reported, not failed, ...`.
   - **A push never carries the engine's private files:** before every push (the agent's hook and git's pre-push hook),
     git itself lists every untracked or committed file under the engine's private paths (`.cache/`, its state, upgrade
     backups, the private word list, this machine's settings and agent folders) that would go out, not only a few

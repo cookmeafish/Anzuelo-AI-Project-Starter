@@ -3850,6 +3850,21 @@ PROMPT.push(
   { name: 'caps-weight: "AGAIN" in capitals is frustration', prompt: 'the totals are off AGAIN, fix them', has: ['THE USER SOUNDS UPSET'] },
   { name: 'caps-weight: "NEVER" in capitals sets a standing rule', prompt: 'push the fix, and NEVER add attribution to any AI agent', has: ['RULE REQUEST'] },
   { name: 'caps-weight: acronyms and constant names are no emphasis', prompt: 'update the README and the API docs, and raise MAX_FILE_SIZE in the CLI', hasNot: ['THE USER SOUNDS UPSET', 'RULE REQUEST'] },
+  // (capitals that stress what the user wants are no anger: shouting needs a sign of trouble too. Lesson (two projects'
+  // trigger logs): "GO ALL OUT" and other eager requests read as upset, and held all work until an Issue line)
+  ...['i need you to GO ALL OUT on the guide so it is full featured but never overwhelming', 'make a version of this chart that GOES ALL THE WAY OUT',
+    'add a --since YYYY-MM-DD option to the export', 'PUSH THE FIX TO THE BRANCH AND RUN THE APP', 'every page MUST SEPARATE ONE PERSON FROM THE NEXT']
+    .map(p => ({ name: `caps-weight: capitals that stress a wish are not upset ("${p.slice(0, 50)}")`, prompt: p, hasNot: ['THE USER SOUNDS UPSET'] })),
+  ...['HOLD UP, IT IS LISTING EVERY POST AGAIN WHICH SHOULD NOT HAPPEN', 'CAN YOU JUST DO WHAT I SAID', 'NO MY ISSUE IS NOT WITH THE PRINTER',
+    'the chart is still not readable. it NEEDS TO BE CLEAR AT EVERY SIZE', 'WHY DOES THE TOTAL SKIP THE FIRST ROW']
+    .map(p => ({ name: `caps-weight: capitals with a sign of trouble are upset ("${p.slice(0, 50)}")`, prompt: p, has: ['THE USER SOUNDS UPSET'] })),
+  // (a praise word on a thing or a goal is no praise of the work. Lesson (two projects' trigger logs): "another amazing
+  // card", "until everything is ... amazing" and "until you believe it's perfect" read as praise)
+  ...['this is another amazing recipe for the list btw', 'keep going until everything is fully featured and amazing', 'take screenshots on a loop until you believe its perfect.',
+    'make it awesome, with every chart labeled']
+    .map(p => ({ name: `praise: a praise word on a thing or a goal is not praise ("${p.slice(0, 50)}")`, prompt: p, hasNot: ['PRAISE'] })),
+  ...['the new dashboard is amazing. make the labels bigger', 'you are amazing now at writing these', 'awesome work on the export', 'amazing!']
+    .map(p => ({ name: `praise: a praise word on the work is praise ("${p.slice(0, 50)}")`, prompt: p, has: ['PRAISE'] })),
   { name: 'status-first: Spanish "¿ya terminó?" asks for the status first', prompt: '¿ya terminó?', has: ['STATUS QUESTION'] },
   { name: 'status-first: a request that starts like a question is no status question', prompt: 'is it possible to add a dark mode to the settings page and keep the old colors as an option?', hasNot: ['STATUS QUESTION'] },
   // shared steps once (Lesson, the user: a request with x1..x4 where x1 already needs x3 had x3 done twice)
@@ -7704,11 +7719,17 @@ for (const [k, { out, code }] of (await Promise.all(helpers)).entries()) {
 // the helpers finished so no parallel run skews it, with STARTER_TIMING naming the slowest checks when it is over.
 // Lesson: engine Stop went from 40-200 ms to 594-720 ms over a few releases, and nothing noticed the creep.
 // (the fastest of 5 runs: what the hook itself costs; other work on a busy machine only ever adds to it)
-const stopVerdict = (samples, budget) => {
+// (while other self-test runs share the machine, a time over budget is their load, not the hook's: it is reported, not
+// failed. The test first waits for them. Lesson (two projects and the starter): 540 to 726 ms in runs beside another
+// suite, 156 to 164 ms alone for the same engine)
+const stopVerdict = (samples, budget, others = 0) => {
   const mid = [...samples].sort((a, b) => a.total - b.total)[0];
   const slow = mid.parts.filter(([l]) => !/\(total\)$/.test(l)).sort((a, b) => b[1] - a[1]).slice(0, 3);
-  return { ok: mid.total <= budget, total: mid.total, slow: slow.map(([l, ms]) => `${l} ${ms} ms`) };
+  return { ok: mid.total <= budget || others > 0, busy: mid.total > budget && others > 0, total: mid.total, slow: slow.map(([l, ms]) => `${l} ${ms} ms`) };
 };
+{ const t = [{ total: 600, parts: [['check a', 300], ['core b', 200], ['sync c', 100]] }];
+  const alone = stopVerdict(t, 500), shared = stopVerdict(t, 500, 1), fast = stopVerdict([{ ...t[0], total: 400 }], 500, 1);
+  report(!alone.ok && shared.ok && shared.busy && fast.ok && !fast.busy, 'stop-budget: over budget fails when the run is alone, and is reported, not failed, while other self-test runs share the machine', JSON.stringify({ alone, shared, fast })); }
 if (!TAGS && !HELPER && !REUSE) {
   const dir = copyProject();
   try {
@@ -7717,14 +7738,17 @@ if (!TAGS && !HELPER && !REUSE) {
     const tp = transcript(dir, { prompt: 'make a plan for the csv export and note it in the changelog', tools: [pb('plan'), { name: 'Write', input: { file_path: 'docs/plans/2026-10-21-export.md' } },
       { name: 'Edit', input: { file_path: 'docs/CHANGELOG.md' } }, bash('node tools/audit.mjs'), ...many(6)], answer: null }, since);
     write(dir, { 'docs/plans/2026-10-21-export.md': '# Export: plan\n- [ ] helpers\n- [ ] wire it up\n', 'docs/CHANGELOG.md': '# Changelog\n- 2026-10-21: planned the export\n' });
+    // (the other self-test runs on this machine finish first, up to 10 minutes)
+    for (const t0 = Date.now(); otherSuites() && Date.now() - t0 < 600_000;) await new Promise(r => setTimeout(r, 5000));
+    const others = otherSuites();
     const samples = [];
     for (let i = 0; i < 5; i++) {
       const r = spawnSync(process.execPath, [path.join(dir, 'tools/hooks/hooks.mjs'), 'stop'], { cwd: dir, encoding: 'utf8', input: JSON.stringify({ transcript_path: tp, last_assistant_message: 'Playbook: plan.md. Saved the plan.' + FIN }),
         env: { ...process.env, STARTER_TIMING: '1', STARTER_MEMORY_DIR: path.join(dir, '.memtest') } });
       try { samples.push(JSON.parse(/STOP-TIMING (.*)/.exec(r.stderr || '')[1])); } catch { }
     }
-    const v = samples.length ? stopVerdict(samples, budget) : null;
-    if (v) console.log(`stop timing: ${v.total} ms (fastest of ${samples.length}: ${samples.map(s => s.total).join(', ')}; budget ${budget} ms); slowest: ${v.slow.join(', ')}`);
+    const v = samples.length ? stopVerdict(samples, budget, others) : null;
+    if (v) console.log(`stop timing: ${v.total} ms (fastest of ${samples.length}: ${samples.map(s => s.total).join(', ')}; budget ${budget} ms); slowest: ${v.slow.join(', ')}${v.busy ? `; not failed: ${others} other self-test run(s) shared the machine` : ''}`);
     report(!!v && v.ok, `stop-budget: the Stop hook stays within its ${budget} ms budget on a realistic work turn`, v ? `${v.total} ms, over budget; slowest: ${v.slow.join(', ')}` : 'no STOP-TIMING line from the hook (STARTER_TIMING=1)');
     // and the verdict names the slowest checks when the budget is missed
     const tight = v ? stopVerdict(samples, 1) : null;

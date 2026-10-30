@@ -4154,9 +4154,13 @@ export function isUpset(prompt, cfg = config()) {
   const q = withoutIgnored(p, 'upset', cfg);
   if (re(cfg.frustration).test(q) || re(cfg.complaint).test(q) || re(cfg.letdown).test(q)) return true;
   // (praise shouted in capitals is joy, not anger. Lesson: a real user's "I LOVE THE ..." about their work read as upset)
-  return ((letters.length > 20 && p.replace(/[^A-Z]/g, '').length / letters.length > 0.6) || capsWeight(p).shouted) && !isPraise(p.toLowerCase(), cfg) &&
+  // (capitals alone are emphasis: shouting needs a sign of trouble too. Lesson (two projects' trigger logs): eager
+  // requests such as "GO ALL OUT" or a request typed in capitals read as upset and held all work until an Issue line)
+  return ((letters.length > 20 && p.replace(/[^A-Z]/g, '').length / letters.length > 0.6) || capsWeight(p).shouted) && TROUBLE.test(p) && !isPraise(p.toLowerCase(), cfg) &&
     !/\b(i (really |just )?love|thank(s| you)|awesome|amazing|perfect|so good|great job|well done)\b/i.test(p);
 }
+// A sign that a message in capitals is about something wrong: "??" or "!!", or a word for a problem, a repeat or blame.
+const TROUBLE = /\?\?|!!|\b(again|still|why|stop|wrong|broke|broken|bug|bugs|error|errors|fail|fails|failed|failing|crash\w*|issue|issues|problem|ignor\w*|forgot|forget|supposed to|this time|hold up|wait|seriously|wtf|shit|fuck\w*|damn|hell|angry|pissed|pissing|unacceptable|terrible|sloppy|horrible|awful|ridiculous|dumb|stupid|useless|i (already )?(said|told you|asked)|what i (said|told you|asked)|not working|doesn'?t work|should not happen|no my|otra vez|por qu[eé]|basta|mal)\b/i;
 // ---------- the user's whitelist and the trigger log (REQ: trigger-words) ----------
 // Words that set nothing off by themselves for this user, per kind (config "ignoreWords": {"upset": [...], "praise":
 // [...], "rule": [...]}), kept in tools/hooks/config.json so upgrades keep them. Capitals and every other trigger word
@@ -4492,6 +4496,10 @@ export function isPraise(p, cfg = config()) {
     if (!s || /\?\s*$/.test(s) || /^¿/.test(s) || /^(is|are|was|were|do|does|did|has|have|had|can|could|would|will|should|how|what|why|which|whether|am i|was it)\b/i.test(s)) continue;
     // (the user's whitelisted words don't count: REQ trigger-words)
     const t = withoutIgnored(s, 'praise', cfg), m = re(cfg.praise).exec(t);
+    // (a praise word on a thing ("an amazing recipe") or a goal ("until it is amazing", "make it perfect") praises no
+    // work. Lesson (two projects' trigger logs): both read as praise and asked for a rule to keep)
+    if (m && /^(amazing|awesome|perfect)$/i.test(m[0]) && (/^\s+(?!(job|work|stuff|now|too|and|so|as|btw|thanks|thank|man|dude|lol)\b)[a-z]/i.test(t.slice(m.index + m[0].length))
+      || /\b(until|till|so (that|it)|make (it|them|this|that|everything)|to be|should be|must be|needs? to be|want (it|them|this)|believe|hope|wish|could be|would be|will be)\b/i.test(t.slice(0, m.index)))) continue;
     if (m && !/\b(if|whether|unless|si)\b/i.test(t.slice(0, m.index))) return true;
   }
   return false;
