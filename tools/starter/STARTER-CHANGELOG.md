@@ -27,6 +27,9 @@ hooks:**, and an upgrade lists each one as its own review item.
     case) and `Root cause: <why the earlier work missed it>`; the acknowledged hint asks for both before fixing. Before,
     an issue was acknowledged as the user's example, fixed in that narrow form, and the user had to repeat that it
     meant every case. Scenarios: `upset-acknowledged: ... no general point ...: blocked`, `... no root cause ...: blocked`.
+  - **Engine runbook pitfall:** an upgrade run from another folder while a session works in the project is handed to
+    that session instead: under its load the timing check rolled the upgrade back, and files it was writing could not
+    be put back exactly.
   - **A new rule searches the whole project for what says the opposite:** project-rule step 3 and a new "Done when"
     item in the project runbook ask for several searches over every file, each hit fixed or kept with a reason, and a
     `Conflicts: ... - N found, N fixed` line, before the rule is called in place. Before, only the main rules, the

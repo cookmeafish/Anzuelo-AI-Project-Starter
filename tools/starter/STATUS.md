@@ -5,7 +5,8 @@ docs/STATUS.md, which here is the template new projects start from).
 
 ## Now
 - 2026-10-28: Examples, tests and lessons rewritten in neutral subjects (0793661, local, not pushed; trial not run).
-  The user must remove the starter hooks from C:/projects/.claude/settings.local.json (the host blocked the edit).
+  The user must remove the starter hooks from the local Claude settings of the folder that holds the projects (the
+  host blocked the edit).
 - 2026-10-27: Round v20 (on 4e83937) judged: WORSE, 2 high findings. Both are fixed in this batch: an invented
   permission grant, and a false "made up" flag whose forced rewrite added an error. Also in this batch: the upset hint
   as a pointer, starter-only false alarms, a setup helper that checks its own answer, and no re-tests of checks
