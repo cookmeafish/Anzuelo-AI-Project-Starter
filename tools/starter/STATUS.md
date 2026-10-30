@@ -15,6 +15,9 @@ docs/STATUS.md, which here is the template new projects start from).
 ## Watched projects
 - Standing job from the user (2026-10-29): watch every project that runs the engine, fix the engine here, upgrade them
   (tools/starter/runbooks/project-watch.md; the list is in tools/starter/watch.local.json, local only).
+- 2026-10-29: engine 705d950 handed to both project sessions (linked copies fast-forwarded); waiting on their upgrade
+  and self-test reports. Audit sweep 21 still fails on a short private-list entry matching 3 library skills (the
+  user's list).
 
 ## Next
 0. Run the trial on 0793661, then push when the user names main. Open close calls: the zorbel-tune test shape and
