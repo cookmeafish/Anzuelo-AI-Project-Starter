@@ -2496,6 +2496,10 @@ STOP.push(
   { name: 'debug-trigger: a reported crash whose test the turn wrote first: blocked', prompt: 'the export crashes on empty rows',
     tools: [W('src/export.test.js'), bash('npm test', 'not ok 1 empty rows\n1 failed'), W('src/export.js'), bash('npm test', 'ok 1 empty rows')],
     files: { 'src/export.test.js': 'x', 'src/export.js': 'x', 'docs/CHANGELOG.md': 'x' }, answer: 'Fixed.' + FIN, expect: { block: true, tags: ['debug-trigger'] } },
+  // (two fixes, two causes under one heading. Lesson, dogfood: "Root causes:" over a list was asked for again)
+  { name: 'debug-trigger: "Root causes:" over a list of two: passes', prompt: 'the export crashes on empty rows',
+    tools: [W('src/export.test.js'), bash('npm test', 'not ok 1 empty rows\n1 failed'), W('src/export.js'), bash('npm test', 'ok 1 empty rows')],
+    files: { 'src/export.test.js': 'x', 'src/export.js': 'x', 'docs/CHANGELOG.md': 'x' }, answer: 'Fixed.\n\nRoot causes:\n- the parser read an empty row as the end of the file.\n- the writer skipped the header when no rows were left.' + FIN, expect: { not: ['debug-trigger'] } },
   { name: 'debug-trigger: the setup turn that deleted SETUP-PROMPT.md is still setup: no root cause asked', ...SETUP_DONE_RM, prompt: 'set up this project',
     tools: [bash('npm test', 'not ok 1 parses empty rows\n1 failed'), bash('rm SETUP-PROMPT.md')], files: { 'src/parser.js': 'x', 'docs/CHANGELOG.md': 'x' },
     answer: 'Playbook: project.md. Set up.' + FIN, expect: { not: ['debug-trigger', 'skill-learn'] } },

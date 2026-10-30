@@ -11,6 +11,8 @@ hooks:**, and an upgrade lists each one as its own review item.
     from its own prompt; a snapshot taken more than a minute after the turn began no longer decides which files are
     unchanged. Before, a rule written early in a long turn was dropped as unchanged and asked for again. Scenario:
     `rule-request: a snapshot taken mid-turn, after the rule was written, is not the turn start: passes`.
+  - **"Root causes:" over a list counts:** the root-cause line accepts the plural ("Root causes:", "Causes:",
+    "Causas:"), so two fixes can share one heading. Scenario: `debug-trigger: "Root causes:" over a list of two: passes`.
   - **A quoted phrase is named, not claimed:** the hand-test check skips text in quotes. Scenario: `claim-checked: the
     phrase only quoted, as an example of what is flagged: passes`.
 
