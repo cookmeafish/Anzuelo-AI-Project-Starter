@@ -20,7 +20,7 @@ docs/STATUS.md, which here is the template new projects start from).
   3 library skills (the user's list).
 - 2026-10-30 evening: 1970c72 and 02c6c3b fix 6 field-report and dogfood items (per-folder helpers, identical page
   rewrites, plain accessibility lines, shell runbook edits, false still-running notices, "by hand" about data).
-  Handed to both projects; waiting for each to upgrade and send its timing line and self-test totals.
+  Both upgraded and committed (one project 1498 passed, the other 1482 passed, 0 failed; hook times flat).
 
 ## Next
 0. Run the trial on 0793661, then push when the user names main. Open close calls: the zorbel-tune test shape and
