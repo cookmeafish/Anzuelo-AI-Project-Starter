@@ -7747,6 +7747,13 @@ for (const [k, { out, code }] of (await Promise.all(helpers)).entries()) {
   for (const l of lines) { const m = /^(PASS|FAIL)  (.*?)(?:  -> .*)?$/.exec(l); if (!m) continue; LOG_LINES.push(l); if (m[1] === 'FAIL' || VERBOSE) console.log(l); if (m[1] === 'PASS') { pass++; PASSED.push(m[2]); } else { fail++; FAILED.push(m[2]); FAIL_LINES.push(l); } }
   if (done) skipped += Number(done[3]); else report(false, `self-test helper ${k + 1} finished its share`, `exit ${code}: ${out.trim().split(/\r?\n/).slice(-5).join(' | ').slice(0, 500)}`);
 }
+// dev mode: the proof the self-test writes when it passes is no engine change. Lesson (this starter's own turns): a
+// background run finished, and the next turn was asked to run the self-test again and log it in the changelog
+{ const { DEV_REQUIREMENTS, match } = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks.mjs')).href);
+  const fires = (tag, changed) => { const w = DEV_REQUIREMENTS.find(q => q.tag === tag)?.when || {}; return changed.some(p => match(p, [].concat(w.filesChanged || [])) && !match(p, [].concat(w.filesIgnore || []))); };
+  const proofOnly = ['tools/hooks/engine-proof.json'], real = ['tools/hooks/engine-proof.json', 'tools/hooks/hooks.mjs'];
+  report(!fires('dev-self-tests', proofOnly) && !fires('dev-changelog', proofOnly) && fires('dev-self-tests', real) && fires('dev-changelog', real),
+    'dev mode: only the engine proof a finished self-test wrote changed: no self-test or changelog asked; an engine file still asks for both', JSON.stringify(DEV_REQUIREMENTS.slice(0, 2).map(q => q.when))); }
 // stop-budget: the Stop hook's own work on a realistic work turn stays within stopBudgetMs (500 ms), timed here after
 // the helpers finished so no parallel run skews it, with STARTER_TIMING naming the slowest checks when it is over.
 // Lesson: engine Stop went from 40-200 ms to 594-720 ms over a few releases, and nothing noticed the creep.

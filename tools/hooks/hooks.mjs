@@ -7603,12 +7603,15 @@ export const BASE_REQUIREMENTS = [
 // the starter's own layout, so the starter is held to what it asks of every project. They never ship: projects are
 // made without .starter-dev, and these are not part of requirements.json.
 const ENGINE_FILES = ['tools/**', 'packs/**', 'library/**', 'skills/**', '.githooks/**', 'AGENTS.md', 'SETUP-PROMPT.md', 'docs/checks/**', 'docs/playbooks/**'];
+// (the proof the self-test writes when it passes is no engine change: a background run that finished made the next
+// turn look like one, asked to run the tests again and log it)
+const SELF_WRITTEN = 'tools/hooks/engine-proof.json';
 export const DEV_REQUIREMENTS = [
-  { tag: 'dev-self-tests', rule: '12', when: { filesChanged: ['tools/**', 'packs/**', 'library/**', 'skills/**', '.githooks/**'] },
+  { tag: 'dev-self-tests', rule: '12', when: { filesChanged: ['tools/**', 'packs/**', 'library/**', 'skills/**', '.githooks/**'], filesIgnore: [SELF_WRITTEN] },
     // (a run of it, not a command that only names the file: "git add tools/hooks/selfcheck.mjs" read as a failed run)
     require: { toolPassed: { cmd: String.raw`\bnode\s+(\S*[\\/])?selfcheck\.mjs`, pass: 'ALL PASS' } },
     message: 'The starter\'s engine changed: run node tools/hooks/selfcheck.mjs until it prints "ALL PASS" (the app pack\'s gates, for the starter).' },
-  { tag: 'dev-changelog', rule: '12', when: { filesChanged: ENGINE_FILES }, require: { filesChanged: ['tools/starter/STARTER-CHANGELOG.md'] },
+  { tag: 'dev-changelog', rule: '12', when: { filesChanged: ENGINE_FILES, filesIgnore: [SELF_WRITTEN] }, require: { filesChanged: ['tools/starter/STARTER-CHANGELOG.md'] },
     message: 'Projects learn what changed from tools/starter/STARTER-CHANGELOG.md: add what this turn changed to today\'s entry.' },
   { tag: 'dev-new-project', rule: '12', when: { filesChanged: ['tools/new-project.mjs', 'tools/starter.mjs', 'tools/hooks/wire.mjs', 'tools/packs.mjs', 'tools/skills.mjs'] },
     require: { toolPassed: { cmd: String.raw`trial\.mjs`, pass: 'TRIAL: PASS' } },
