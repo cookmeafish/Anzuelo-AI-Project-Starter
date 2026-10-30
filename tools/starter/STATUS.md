@@ -18,6 +18,9 @@ docs/STATUS.md, which here is the template new projects start from).
 - 2026-10-30: both projects run 9399cdb, committed, with every test passing; upgrade timings now read warm (one
   project: Stop 314 to 328 ms, prompt 295 to 235). Audit sweep 21 still fails on a short private-list entry matching
   3 library skills (the user's list).
+- 2026-10-30 evening: 1970c72 and 02c6c3b fix 6 field-report and dogfood items (per-folder helpers, identical page
+  rewrites, plain accessibility lines, shell runbook edits, false still-running notices, "by hand" about data).
+  Handed to both projects; waiting for each to upgrade and send its timing line and self-test totals.
 
 ## Next
 0. Run the trial on 0793661, then push when the user names main. Open close calls: the zorbel-tune test shape and
