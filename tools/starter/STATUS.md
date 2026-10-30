@@ -15,12 +15,9 @@ docs/STATUS.md, which here is the template new projects start from).
 ## Watched projects
 - Standing job from the user (2026-10-29): watch every project that runs the engine, fix the engine here, upgrade them
   (tools/starter/runbooks/project-watch.md; the list is in tools/starter/watch.local.json, local only).
-- 2026-10-29: both projects upgraded to 705d950 and committed it. Engine 2e95e12 (caps and praise false alarms, Stop
-  speed test waits for other runs) handed to both sessions, linked copies fast-forwarded; waiting on their `--full`
-  reports. Audit sweep 21 still fails on a short private-list entry matching 3 library skills (the user's list).
-- Open: the dev-self-tests check reads the last shell command's output, so a full self-test that passed in a
-  background run is not seen and the check gets waived turn after turn. Make it read the newest run's result
-  (.cache/selfcheck-last.txt or the selftest-last record) instead.
+- 2026-10-30: both projects run 2e95e12 with every test passing. Engine a272c78 (corrections stay applied for the
+  turn; the self-test check counts runs) handed to both sessions, linked copies fast-forwarded; waiting on their
+  `--full` reports. Audit sweep 21 still fails on a short private-list entry matching 3 library skills (the user's list).
 
 ## Next
 0. Run the trial on 0793661, then push when the user names main. Open close calls: the zorbel-tune test shape and
