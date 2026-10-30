@@ -82,5 +82,9 @@ is: `node tools/starter.mjs upgrade`. No link: `node tools/starter.mjs link "<st
 
 ## Pitfalls
 - 2026-10-27: an upgrade ran on top of a session's 27 uncommitted files, so the two could only be committed together.
+- 2026-10-29: an upgrade run from another folder while a session was working in the project rolled back (its timing
+  check ran under that session's load), and 9 of the project's files could not be put back exactly because the session
+  was still writing them. Before upgrading a project from outside, check for a session working there (the host's list
+  of sessions) and hand the upgrade to it.
 - 2026-10-27: the host refused a settings edit, and the agent told the user to open config.json and add a line by
   hand; the user had to take it to another session. The one line to paste (§5) is the whole fix for the user.
