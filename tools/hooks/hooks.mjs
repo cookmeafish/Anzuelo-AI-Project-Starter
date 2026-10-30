@@ -1569,7 +1569,9 @@ export function byHandClaim(answer) {
   // ("by hand" after a word for making data says how the data was made, not how it was tested. Lesson (a field report):
   // "tested: ... keeps the rows written by hand" was blocked twice)
   const made = /\b(written|wrote|entered|typed|added|edited|filled( in)?|drawn|copied|kept|curated|maintained|labell?ed|sorted|made|created|built|set)\s+(in\s+)?(by hand|manually)\b|(?<!\p{L})(escrit|añadid|introducid|copiad|editad|hech)[oa]s?\s+(a mano|manualmente)(?!\p{L})/giu;
-  return lines.map((_, i) => at(i)).find(full => { const s = full.replace(made, ' '); return BY_HAND.test(s) && UI_TEST.test(s)
+  // (a phrase in quotes is named, not claimed. Lesson, dogfood: an answer describing this check quoted the phrase)
+  const quoted = /"[^"\n]{1,120}"|“[^”\n]{1,120}”|«[^»\n]{1,120}»/g;
+  return lines.map((_, i) => at(i)).find(full => { const s = full.replace(quoted, ' ').replace(made, ' '); return BY_HAND.test(s) && UI_TEST.test(s)
     && !/\b(you|your|the user|not|n't|never|nothing|should|could|can)\b|(?<!\p{L})(t[uú]|usted|puedes|prueba t[uú]|pru[eé]balo|no|nunca|nada)(?!\p{L})/iu.test(s.replace(BY_HAND, ' ')); }) || '';
 }
 // The checks that run on their own when a file changes, with their file scope: the project's validators
@@ -2059,7 +2061,10 @@ export function takeSnapshot(cfg = config()) {
 }
 function sameAsTurnStart(p, since) {
   const snap = sameAsTurnStart.snap ??= readJSON(stateFile(SNAPSHOT), {});
-  if (!snap.files || Date.parse(snap.at) < (since || 0) - 5000) return false;
+  // (a snapshot taken well after the turn began is no turn start: a message relayed mid-turn takes one, while the turn
+  // runs on from its own prompt. Lesson (a project watch): a rule written early in a long turn was dropped as unchanged,
+  // compared with a snapshot taken after it was written, and asked for again)
+  if (!snap.files || Date.parse(snap.at) < (since || 0) - 5000 || (since && Date.parse(snap.at) > since + 60_000)) return false;
   const o = snap.files[p];
   if (!o || !o[2]) return false;
   let s; try { s = fs.statSync(abs(p)); } catch { return false; }

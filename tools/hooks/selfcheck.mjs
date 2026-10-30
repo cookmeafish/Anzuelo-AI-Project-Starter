@@ -715,6 +715,16 @@ const STOP = [
   { name: 'rule-request: by default no memory note is asked for', prompt: 'from now on always include a budget table in plans', tools: [pb('project'), bash('node tools/hooks/selfcheck.mjs'), bash('node tools/audit.mjs')],
     files: { 'CLAUDE.md': TWIN, 'docs/checks/user-requirements.md': 'row', 'tools/hooks/requirements.json': '{"requirements":[]}', 'docs/CHANGELOG.md': 'x' },
     answer: 'Playbook: project.md.' + FIN, expect: { not: ['rule-request'] } },
+  // (a message relayed mid-turn takes a new snapshot; the turn still began at its own prompt. Lesson (a project watch):
+  // a rule written early in a long turn was asked for again, compared with a snapshot taken after it was written)
+  { name: 'rule-request: a snapshot taken mid-turn, after the rule was written, is not the turn start: passes', prompt: 'from now on always include a budget table in plans', tools: [pb('project'), bash('node tools/hooks/selfcheck.mjs'), bash('node tools/audit.mjs')],
+    files: { 'CLAUDE.md': TWIN, 'docs/checks/user-requirements.md': 'row', 'tools/hooks/requirements.json': '{"requirements":[]}', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Playbook: project.md.' + FIN, expect: { not: ['rule-request'] },
+    after: dir => { const sp = path.join(dir, 'tools/hooks/state/snapshot.json'), h = p => createHash('sha1').update(fs.readFileSync(path.join(dir, p))).digest('hex');
+      const files = {}; for (const p of ['CLAUDE.md', 'AGENTS.md', 'docs/checks/user-requirements.md', 'tools/hooks/requirements.json', 'docs/CHANGELOG.md']) files[p] = [1, fs.statSync(path.join(dir, p)).size, h(p)];
+      fs.writeFileSync(sp, JSON.stringify({ at: new Date(Date.now() + 120_000).toISOString(), files }));
+      const r = run(dir, 'stop', { transcript_path: path.join(dir, 'transcript.jsonl'), stop_hook_active: false, last_assistant_message: 'Added: the rule is in place.' });
+      return /rule-request|standing rule/.test(r.out) ? `the rule's files were dropped as unchanged since a mid-turn snapshot: ${r.out.slice(0, 200)}` : true; } },
   { name: 'hook tests ran but FAILED: blocked', prompt: 'add a hook check for budget tables', tools: [pb('project'), bash('node tools/hooks/selfcheck.mjs', 'FAIL  x\nselfcheck: FAIL (1 passed, 1 failed)'), bash('node tools/audit.mjs')],
     files: { 'tools/hooks/requirements.json': '{"requirements":[]}', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.' + FIN, expect: { block: true, tags: ['hooks-tested'] } },
   // (a check run from inside the same command as an audit sees that command still going: the earlier finished, passing
@@ -3280,6 +3290,9 @@ STOP.push(
   // blocked twice as a hand-test claim)
   { name: 'claim-checked: "by hand" describing the data a script test kept: passes', prompt: 'fix the recipe merge', tools: [bash('python .cache/check_merge.py', 'kept 4 rows: OK')],
     answer: '**Done:** Fixed and tested: merging again now keeps the rows written by hand.', expect: { not: ['claim-checked'] } },
+  // (a phrase in quotes is named, not claimed. Lesson, dogfood: an answer describing this check quoted the phrase twice)
+  { name: 'claim-checked: the phrase only quoted, as an example of what is flagged: passes', prompt: 'fix the recipe merge', tools: [bash('python .cache/check_merge.py', 'kept 4 rows: OK')],
+    answer: '**Done:** the check still flags a sentence like "I tested the page by hand", and a test script checked it.', expect: { not: ['claim-checked'] } },
   { name: 'claim-checked: "tested by hand" next to data written by hand: blocked', prompt: 'fix the recipe merge', tools: [bash('python .cache/check_merge.py', 'kept 4 rows: OK')],
     answer: '**Done:** I tested the page by hand: it keeps the rows written by hand.', expect: { block: true, tags: ['claim-checked'] } },
   // note-linked: the vault's own note folders (knowledgeDirs) are notes too

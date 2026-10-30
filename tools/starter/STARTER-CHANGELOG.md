@@ -6,6 +6,14 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-10-30 (late): A rule written early in a long turn still counts, and a quoted phrase is no claim.
+  - **The turn's start is its first snapshot:** a message relayed mid-turn takes a new snapshot while the turn runs on
+    from its own prompt; a snapshot taken more than a minute after the turn began no longer decides which files are
+    unchanged. Before, a rule written early in a long turn was dropped as unchanged and asked for again. Scenario:
+    `rule-request: a snapshot taken mid-turn, after the rule was written, is not the turn start: passes`.
+  - **A quoted phrase is named, not claimed:** the hand-test check skips text in quotes. Scenario: `claim-checked: the
+    phrase only quoted, as an example of what is flagged: passes`.
+
 - 2026-10-30: Helpers on different folders are no longer refused as duplicates, and a finished read no longer counts as a run still going.
   - **"By hand" about the data is no hand-test claim:** a sentence that says a test kept rows "written by hand" is
     not read as "tested by hand"; "tested the page by hand" still is. Scenarios: `claim-checked: "by hand" describing
