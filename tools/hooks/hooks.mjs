@@ -1566,8 +1566,11 @@ const UI_TEST = /\b(test(ed|ing)?|tried|clicked|clicking|browser|page|screen|mob
 export function byHandClaim(answer) {
   // (a label line, "Lo probé a mano:", is read with the line after it)
   const lines = claimSentences(answer), at = i => /:\**\s*$/.test(lines[i]) ? `${lines[i]} ${lines[i + 1] || ''}` : lines[i];
-  return lines.map((_, i) => at(i)).find(s => BY_HAND.test(s) && UI_TEST.test(s)
-    && !/\b(you|your|the user|not|n't|never|nothing|should|could|can)\b|(?<!\p{L})(t[uú]|usted|puedes|prueba t[uú]|pru[eé]balo|no|nunca|nada)(?!\p{L})/iu.test(s.replace(BY_HAND, ' '))) || '';
+  // ("by hand" after a word for making data says how the data was made, not how it was tested. Lesson (a field report):
+  // "tested: ... keeps the rows written by hand" was blocked twice)
+  const made = /\b(written|wrote|entered|typed|added|edited|filled( in)?|drawn|copied|kept|curated|maintained|labell?ed|sorted|made|created|built|set)\s+(in\s+)?(by hand|manually)\b|(?<!\p{L})(escrit|añadid|introducid|copiad|editad|hech)[oa]s?\s+(a mano|manualmente)(?!\p{L})/giu;
+  return lines.map((_, i) => at(i)).find(full => { const s = full.replace(made, ' '); return BY_HAND.test(s) && UI_TEST.test(s)
+    && !/\b(you|your|the user|not|n't|never|nothing|should|could|can)\b|(?<!\p{L})(t[uú]|usted|puedes|prueba t[uú]|pru[eé]balo|no|nunca|nada)(?!\p{L})/iu.test(s.replace(BY_HAND, ' ')); }) || '';
 }
 // The checks that run on their own when a file changes, with their file scope: the project's validators
 // (requirements.json entries that run something or match changed content, with no skill, runbook or prompt condition)

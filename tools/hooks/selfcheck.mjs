@@ -3276,6 +3276,12 @@ STOP.push(
     answer: '**Hecho:** el índice está listo.\n- **Lo probé a mano:** en el navegador, al tocar una categoría la página salta a su sección.', expect: { block: true, tags: ['claim-checked'], says: /done by hand/ } },
   { name: 'claim-checked: "con un navegador automatizado", or asking the user to try it by hand: passes', prompt: 'agrega una página de índice', tools: [bash('node .cache/check-index.mjs', 'clicked 3 categories: OK')],
     answer: '**Hecho:** el índice está listo.\n- **Sitio real:** con un navegador automatizado, al tocar una categoría la página salta a su sección.\n- Pruébalo tú a mano en tu móvil cuando quieras.', expect: { not: ['claim-checked'] } },
+  // ("by hand" about the data, not the test. Lesson (a field report): "tested: ... keeps the rows written by hand" was
+  // blocked twice as a hand-test claim)
+  { name: 'claim-checked: "by hand" describing the data a script test kept: passes', prompt: 'fix the recipe merge', tools: [bash('python .cache/check_merge.py', 'kept 4 rows: OK')],
+    answer: '**Done:** Fixed and tested: merging again now keeps the rows written by hand.', expect: { not: ['claim-checked'] } },
+  { name: 'claim-checked: "tested by hand" next to data written by hand: blocked', prompt: 'fix the recipe merge', tools: [bash('python .cache/check_merge.py', 'kept 4 rows: OK')],
+    answer: '**Done:** I tested the page by hand: it keeps the rows written by hand.', expect: { block: true, tags: ['claim-checked'] } },
   // note-linked: the vault's own note folders (knowledgeDirs) are notes too
   { name: 'note-linked: a new note in a knowledgeDirs folder that links to nothing: blocked', prompt: 'add a note on basil', edit: VAULT,
     files: { 'Garden/Basil.md': '# Basil\nPlant it next to the tomatoes.\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Added the note.' + FIN, expect: { block: true, tags: ['note-linked'] } },

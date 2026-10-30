@@ -7,6 +7,9 @@ print, or to a command or setting a project's own hooks or scripts may rely on, 
 hooks:**, and an upgrade lists each one as its own review item.
 
 - 2026-10-30: Helpers on different folders are no longer refused as duplicates, and a finished read no longer counts as a run still going.
+  - **"By hand" about the data is no hand-test claim:** a sentence that says a test kept rows "written by hand" is
+    not read as "tested by hand"; "tested the page by hand" still is. Scenarios: `claim-checked: "by hand" describing
+    the data a script test kept: passes` and `claim-checked: "tested by hand" next to data written by hand: blocked`.
   - **Different targets are different work:** two helper briefs that each name a file or folder the other does not
     are not near-duplicates, even when they share a brief file and most words. Before, one helper per folder was
     refused beside the first one still running. Scenarios: `no-repeat: a helper on another folder with the same shared
