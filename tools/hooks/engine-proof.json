@@ -1,5 +1,5 @@
 {
   "_comment": "Written by tools/hooks/selfcheck.mjs in the starter when every test passes: the hash of the engine those tests ran on. A project whose engine hashes the same reuses that result (tools/hooks/selftest-cache.mjs). Do not edit.",
-  "engine": "329cceeb549ac70a74b8db29",
+  "engine": "d274a30f0811a24241a391e0",
   "tests": 1487
 }

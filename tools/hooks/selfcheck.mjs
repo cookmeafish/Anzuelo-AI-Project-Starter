@@ -7769,9 +7769,9 @@ if (!TAGS || TAGS.includes('bench-caches')) { const dir = copyProject();
 // background run finished, and the next turn was asked to run the self-test again and log it in the changelog
 { const { DEV_REQUIREMENTS, match } = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks.mjs')).href);
   const fires = (tag, changed) => { const w = DEV_REQUIREMENTS.find(q => q.tag === tag)?.when || {}; return changed.some(p => match(p, [].concat(w.filesChanged || [])) && !match(p, [].concat(w.filesIgnore || []))); };
-  const proofOnly = ['tools/hooks/engine-proof.json'], real = ['tools/hooks/engine-proof.json', 'tools/hooks/hooks.mjs'];
+  const proofOnly = ['tools/hooks/engine-proof.json', 'tools/starter/STATUS.md', 'tools/starter/dogfood-log.md'], real = ['tools/hooks/engine-proof.json', 'tools/hooks/hooks.mjs'];
   report(!fires('dev-self-tests', proofOnly) && !fires('dev-changelog', proofOnly) && fires('dev-self-tests', real) && fires('dev-changelog', real),
-    'dev mode: only the engine proof a finished self-test wrote changed: no self-test or changelog asked; an engine file still asks for both', JSON.stringify(DEV_REQUIREMENTS.slice(0, 2).map(q => q.when))); }
+    'dev mode: only the engine proof or the starter status notes changed: no self-test or changelog asked; an engine file still asks for both', JSON.stringify(DEV_REQUIREMENTS.slice(0, 2).map(q => q.when))); }
 // stop-budget: the Stop hook's own work on a realistic work turn stays within stopBudgetMs (500 ms), timed here after
 // the helpers finished so no parallel run skews it, with STARTER_TIMING naming the slowest checks when it is over.
 // Lesson: engine Stop went from 40-200 ms to 594-720 ms over a few releases, and nothing noticed the creep.

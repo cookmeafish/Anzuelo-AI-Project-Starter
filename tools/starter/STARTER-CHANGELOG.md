@@ -67,8 +67,9 @@ hooks:**, and an upgrade lists each one as its own review item.
     passing correction is read with the corrected answer: the withdrawn number is not flagged`.
   - **Starter only: the self-test check counts runs, not mentions:** committing or copying `selfcheck.mjs` no longer
     reads as the last self-test run, and the engine proof the self-test writes when it passes no longer counts as an
-    engine change (a background run that finished made the next turn ask for the self-test and a changelog line;
-    test: `dev mode: only the engine proof a finished self-test wrote changed ...`). Before, a full pass earlier in the turn was not seen and the check was waived turn
+    engine change (a background run that finished made the next turn ask for the self-test and a changelog line),
+    and neither are the starter's own status notes (`tools/starter/STATUS.md`, `dogfood-log.md`). Test: `dev mode:
+    only the engine proof or the starter status notes changed ...`. Before, a full pass earlier in the turn was not seen and the check was waived turn
     after turn. Scenario: `dev mode: committing the self-test file after a passing run is no failed run of it ...`.
   - **The Stop speed test waits for other self-test runs:** it times the hook only once no other self-test run is going
     on the machine (up to 10 minutes), and a time over budget while one still is gets reported, not failed. Before, it

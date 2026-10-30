@@ -7618,13 +7618,15 @@ export const BASE_REQUIREMENTS = [
 const ENGINE_FILES = ['tools/**', 'packs/**', 'library/**', 'skills/**', '.githooks/**', 'AGENTS.md', 'SETUP-PROMPT.md', 'docs/checks/**', 'docs/playbooks/**'];
 // (the proof the self-test writes when it passes is no engine change: a background run that finished made the next
 // turn look like one, asked to run the tests again and log it)
-const SELF_WRITTEN = 'tools/hooks/engine-proof.json';
+// (nor are the starter's own records of where work stands: notes, not engine code. Lesson (this starter's own turns):
+// a status line asked for the self-test and a changelog entry)
+const SELF_WRITTEN = ['tools/hooks/engine-proof.json', 'tools/starter/STATUS.md', 'tools/starter/dogfood-log.md'];
 export const DEV_REQUIREMENTS = [
-  { tag: 'dev-self-tests', rule: '12', when: { filesChanged: ['tools/**', 'packs/**', 'library/**', 'skills/**', '.githooks/**'], filesIgnore: [SELF_WRITTEN] },
+  { tag: 'dev-self-tests', rule: '12', when: { filesChanged: ['tools/**', 'packs/**', 'library/**', 'skills/**', '.githooks/**'], filesIgnore: SELF_WRITTEN },
     // (a run of it, not a command that only names the file: "git add tools/hooks/selfcheck.mjs" read as a failed run)
     require: { toolPassed: { cmd: String.raw`\bnode\s+(\S*[\\/])?selfcheck\.mjs`, pass: 'ALL PASS' } },
     message: 'The starter\'s engine changed: run node tools/hooks/selfcheck.mjs until it prints "ALL PASS" (the app pack\'s gates, for the starter).' },
-  { tag: 'dev-changelog', rule: '12', when: { filesChanged: ENGINE_FILES, filesIgnore: [SELF_WRITTEN] }, require: { filesChanged: ['tools/starter/STARTER-CHANGELOG.md'] },
+  { tag: 'dev-changelog', rule: '12', when: { filesChanged: ENGINE_FILES, filesIgnore: SELF_WRITTEN }, require: { filesChanged: ['tools/starter/STARTER-CHANGELOG.md'] },
     message: 'Projects learn what changed from tools/starter/STARTER-CHANGELOG.md: add what this turn changed to today\'s entry.' },
   { tag: 'dev-new-project', rule: '12', when: { filesChanged: ['tools/new-project.mjs', 'tools/starter.mjs', 'tools/hooks/wire.mjs', 'tools/packs.mjs', 'tools/skills.mjs'] },
     require: { toolPassed: { cmd: String.raw`trial\.mjs`, pass: 'TRIAL: PASS' } },
