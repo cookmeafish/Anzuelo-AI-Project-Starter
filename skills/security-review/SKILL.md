@@ -141,6 +141,7 @@ apps, `docs/foundation.md`), and any risk the user must decide on.
 - [ ] Automatic checks were added where a pattern can be caught by a tool (judgment: which patterns a tool can catch needs a reviewer).
 - [ ] Tests and checks pass after the last edit (app projects: `docs/checks/qa-standards.md`) (judgment: each project has its own test commands).
 - [ ] The review is logged in the Reviews table of `docs/security.md` (hook: security-logged).
+- [ ] Before anything is pushed or shared, no private file of the engine goes with it (its state, caches and notes, backups, the private word list, this machine's settings), checked on every file on disk; one is shared only when listed in `gitignoreMustKeep` (hook: gitignore-ready).
 - [ ] Run unasked whenever the turn wrote security-sensitive code (sign-in, passwords, tokens, secrets, permissions, sessions, uploads, endpoints, shell or eval, query building, crypto, payments, personal data), changed secrets or deployment settings, or published something (hook: security-code, security-config, security-publish).
 
 ## Pitfalls

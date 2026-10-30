@@ -27,6 +27,12 @@ hooks:**, and an upgrade lists each one as its own review item.
     case) and `Root cause: <why the earlier work missed it>`; the acknowledged hint asks for both before fixing. Before,
     an issue was acknowledged as the user's example, fixed in that narrow form, and the user had to repeat that it
     meant every case. Scenarios: `upset-acknowledged: ... no general point ...: blocked`, `... no root cause ...: blocked`.
+  - **A push never carries the engine's private files:** before every push (the agent's hook and git's pre-push hook),
+    git itself lists every untracked or committed file under the engine's private paths (`.cache/`, its state, upgrade
+    backups, the private word list, this machine's settings and agent folders) that would go out, not only a few
+    sample names. Sharing one on purpose: list it in `gitignoreMustKeep` and un-ignore it (`<folder>/*` plus `!<path>`).
+    Before, a `.gitignore` that covered the sample names passed while 3,000 cache files and the turn notes would have
+    been pushed. Scenario: `gitignore-ready: every private engine file on disk ... stays out of a push ...`.
   - **Engine runbook pitfall:** an upgrade run from another folder while a session works in the project is handed to
     that session instead: under its load the timing check rolled the upgrade back, and files it was writing could not
     be put back exactly.

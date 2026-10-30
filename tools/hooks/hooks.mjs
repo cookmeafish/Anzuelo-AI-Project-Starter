@@ -4083,7 +4083,7 @@ export function openPlans() {
 // hook, so it holds for every agent and for manual pushes. Lesson in advance: a .gitignore written once and never
 // checked drifts, and the first sign is a key or someone's notes on GitHub.
 export function gitignoreProblems(cfg = config()) {
-  const git = (args, input) => spawnSync('git', args, { cwd: ROOT, encoding: 'utf8', input });
+  const git = (args, input) => spawnSync('git', args, { cwd: ROOT, encoding: 'utf8', input, maxBuffer: 256 * 1024 * 1024 });
   if (git(['rev-parse', '--is-inside-work-tree']).status !== 0) return [];
   if (!exists('.gitignore')) return ['.gitignore is missing: start from the starter\'s tools/starter/gitignore.project'];
   const probs = [];
@@ -4099,7 +4099,19 @@ export function gitignoreProblems(cfg = config()) {
   // (the same exception here: a tracked vault's .obsidian settings are meant to be committed, even where .gitignore
   // lists .obsidian/ for other projects. Lesson: an adopted vault's setup failed on "already committed but meant to be
   // ignored: .obsidian/app.json", and 20 minutes went into reruns of the self-test)
+  // (every private file the engine keeps, as it is on disk now, not only the sample names above: its state, caches and
+  // turn notes, upgrade backups, the private word list, the machine's own settings. One that git would push, or that is
+  // already committed, is named; gitignoreMustKeep is how the user chooses to share one. Lesson (the user): "make sure
+  // all anzuelo files are on .gitignore unless the user wants to intentionally include it", "solid steel proof")
+  // (git lists the untracked files it would add itself: a folder of thousands of files never passes through a buffer.
+  // Lesson: a list of 16,000 cache files overflowed the output and read as "none ignored")
+  const keep = new Set(cfg.gitignoreMustKeep), PRIVATE = ['.cache', 'tools/hooks/state', '.starter', '.private-terms', 'tools/starter.local.json', '.claude/settings.local.json', '.claude/skills', '.codex', '.gemini', '.agents'];
+  const exposed = (git(['ls-files', '--others', '--exclude-standard', '--', ...PRIVATE]).stdout || '').split(/\r?\n/).map(s => s.trim())
+    .filter(f => f && !keep.has(f) && !(exists('.starter-template') && f.startsWith('tools/hooks/state/')));
+  if (exposed.length) probs.push(`the engine's private files would be pushed: ${exposed.slice(0, 6).join(', ')}${exposed.length > 6 ? ` +${exposed.length - 6} more` : ''} (add their folders to .gitignore; to share one on purpose, list it in "gitignoreMustKeep" in tools/hooks/config.json and un-ignore it: the folder as <folder>/* plus !<path> in .gitignore)`);
   const tracked = (git(['ls-files', '-ci', '--exclude-standard']).stdout || '').split(/\r?\n/).filter(f => f && !(ownVault && f.startsWith('.obsidian/')));
+  const privTracked = (git(['ls-files', '--', ...PRIVATE]).stdout || '').split(/\r?\n/).filter(f => f && !keep.has(f) && !tracked.includes(f));
+  if (privTracked.length) probs.push(`the engine's private files are committed: ${privTracked.slice(0, 6).join(', ')}${privTracked.length > 6 ? ' ...' : ''} (git rm --cached <file>, then commit; to share one on purpose, list it in "gitignoreMustKeep")`);
   if (tracked.length) probs.push(`already committed but meant to be ignored: ${tracked.slice(0, 6).join(', ')}${tracked.length > 6 ? ' ...' : ''} (git rm --cached <file>, then commit)`);
   // generated folders no project commits on purpose (dist/ and build/ are left out: some sites publish from them).
   // Lesson, trial round 13/14: an Eleventy blog's _site/ went into git, and the Pages workflow builds it anyway

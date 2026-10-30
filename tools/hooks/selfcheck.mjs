@@ -7010,6 +7010,38 @@ if (mineB()) { // gitignore-ready: a vault kept in git owns its .obsidian settin
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
+if (mineB()) { // gitignore-ready: every private file the engine keeps, as it is on disk, stays out of a push unless the
+  // user shares it on purpose (Lesson (the user): "make sure all anzuelo files are on .gitignore unless the user wants to
+  // intentionally include it", "solid steel proof"; and a list of 16,000 cache files once overflowed and read as none)
+  const dir = copyProject();
+  try {
+    const g = (...a) => spawnSync('git', a, { cwd: dir, encoding: 'utf8' });
+    const problems = () => spawnSync(process.execPath, ['--input-type=module', '-e', `import { gitignoreProblems } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; console.log(JSON.stringify(gitignoreProblems()));`], { cwd: dir, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }).stdout;
+    const good = fs.readFileSync(path.join(dir, '.gitignore'), 'utf8');
+    g('init', '-q');
+    if ((spawnSync('git', ['ls-files', '.obsidian'], { cwd: ROOT, encoding: 'utf8' }).stdout || '').trim()) g('add', '-f', '.obsidian');
+    write(dir, { '.cache/turn-notes.md': 'Issue: x\n', 'tools/hooks/state/upset-pending.json': '{}', '.codex/hooks.json': '{"path":"C:/x"}' });
+    const big = path.join(dir, '.cache', 'sweeps'); fs.mkdirSync(big, { recursive: true });
+    for (let i = 0; i < 3000; i++) fs.writeFileSync(path.join(big, `run-${String(i).padStart(5, '0')}-${'x'.repeat(40)}.jsonl`), '');
+    const clean = problems();
+    // (a .gitignore that names only the sample paths passes the sample test, and leaks every other file)
+    fs.writeFileSync(path.join(dir, '.gitignore'), good.replace(/^\.cache\/\s*$/m, '.cache/x').replace(/^\.codex\/\s*$/m, '.codex/other.json'));
+    const narrow = problems();
+    g('add', '-f', '.cache/turn-notes.md');
+    const committed = problems();
+    g('rm', '-q', '--cached', '.cache/turn-notes.md');
+    // (git re-includes a file only when its folder is written as "<folder>/*", not "<folder>/")
+    const share = good.replace(/^\.cache\/\s*$/m, '.cache/*\n!.cache/shared.md');
+    fs.writeFileSync(path.join(dir, '.gitignore'), share);
+    write(dir, { '.cache/shared.md': 'shared on purpose\n', 'tools/hooks/config.json': JSON.stringify({ ...JSON.parse(fs.readFileSync(path.join(dir, 'tools/hooks/config.json'), 'utf8')), gitignoreMustKeep: [...JSON.parse(spawnSync(process.execPath, ['--input-type=module', '-e', `import { config } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; console.log(JSON.stringify(config().gitignoreMustKeep));`], { cwd: dir, encoding: 'utf8' }).stdout), '.cache/shared.md'] }, null, 2) });
+    const shared = problems(), unshared = (fs.writeFileSync(path.join(dir, '.gitignore'), share + '\n!.cache/turn-notes.md\n'), problems());
+    report(clean.trim() === '[]' && /private files would be pushed: .*\.cache\/(sweeps|turn-notes)/.test(narrow) && /\+\d{4} more/.test(narrow) && /\.codex\/hooks\.json|\+\d+ more/.test(narrow)
+      && /private files are committed: \.cache\/turn-notes\.md/.test(committed) && shared.trim() === '[]' && /would be pushed: \.cache\/turn-notes\.md/.test(unshared),
+      'gitignore-ready: every private engine file on disk (cache, state, agent folders, 3,000 cache files too) stays out of a push; a .gitignore naming only sample paths, a committed one, or one un-ignored without opting in is caught; one listed in gitignoreMustKeep is shared on purpose',
+      JSON.stringify([clean, narrow, committed, shared, unshared].map(s => s.slice(0, 220))));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
 if (mineB()) { // gitignore-ready: a push waits until .gitignore keeps private files out and needed files in
   const dir = copyProject();
   try {

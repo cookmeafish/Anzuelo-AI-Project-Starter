@@ -37,7 +37,9 @@ docs/STATUS.md, which here is the template new projects start from).
    (one project got the files by hand copy). Committed 2026-10-29.
 4e. 2026-10-29: the stop-budget self-test failed twice in full runs (540 and 580 ms against 500), passed in another;
    timed alone, old and new engine both take about 110-125 ms, so it is the load of the parallel run. Watch it; if it
-   keeps failing, look at "sync (generated files)", the slowest part (about 250 ms in those runs).
+   keeps failing, look at "sync (generated files)", the slowest part (about 250-320 ms in those runs). A third run
+   (726 ms) ran beside 33 busy node/python processes; alone, this engine takes 156-164 ms against 134-145 ms for
+   73dec47.
 5. The runbook checklist is now on by default (was a trial): watch a day of real turns for friction.
 6. One project's prompt hook takes about 2.4 s (budget 1 s): find out why.
 
