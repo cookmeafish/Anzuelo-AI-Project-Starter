@@ -46,6 +46,14 @@ hooks:**, and an upgrade lists each one as its own review item.
     acknowledged line. Swept over 1,182 real typed messages: 21 false upset alarms and 1 false praise gone, no real
     complaint lost. Scenarios: `caps-weight: capitals that stress a wish are not upset ...`, `... with a sign of
     trouble are upset ...`, `praise: a praise word on a thing or a goal is not praise ...`.
+  - **A correction stays applied for the rest of the turn:** a `Corrected: "<old>" -> "<new>"` message is applied in a
+    question turn too once an answer was blocked, and the corrected answer is what a later short note in the same turn
+    ("Added:", after a background helper's notice) is read with. Before, the number a correction took out was flagged
+    as made up a round later, and the agent had to waive the check. Scenario: `answer-traced: an Added: note after a
+    passing correction is read with the corrected answer: the withdrawn number is not flagged`.
+  - **Starter only: the self-test check counts runs, not mentions:** committing or copying `selfcheck.mjs` no longer
+    reads as the last self-test run. Before, a full pass earlier in the turn was not seen and the check was waived turn
+    after turn. Scenario: `dev mode: committing the self-test file after a passing run is no failed run of it ...`.
   - **The Stop speed test waits for other self-test runs:** it times the hook only once no other self-test run is going
     on the machine (up to 10 minutes), and a time over budget while one still is gets reported, not failed. Before, it
     failed at 540 to 726 ms in runs beside another suite, while the same engine takes about 160 ms alone. Scenario:

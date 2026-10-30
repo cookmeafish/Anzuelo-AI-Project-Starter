@@ -883,6 +883,13 @@ const STOP = [
   { name: 'dev mode: an engine change with no self-tests, changelog or proof it works: blocked', prompt: 'tidy the packs tool', tools: [pb('project'), bash('node tools/audit.mjs')],
     files: { '.starter-dev': 'dev copy\n', 'tools/extra-tool.mjs': 'export {};\n', 'docs/CHANGELOG.md': 'x' },
     answer: 'Playbook: project.md. Tidied it.' + FIN, expect: { block: true, tags: ['dev-self-tests', 'dev-changelog', 'dev-verification'] } },
+  // (a command that only names the file, such as committing it, is no run of the self-tests. Lesson (this starter's own
+  // turns): "git add tools/hooks/selfcheck.mjs && git commit" was read as the last self-test run, its output as a fail,
+  // and a full pass from earlier in the turn was not seen)
+  { name: 'dev mode: committing the self-test file after a passing run is no failed run of it: passes that check', prompt: 'tidy the packs tool',
+    tools: [pb('project'), bash('node tools/hooks/selfcheck.mjs', 'selfcheck: ALL PASS (900 passed, 0 failed)'), bash('git add tools/hooks/selfcheck.mjs tools/extra-tool.mjs && git commit -m "tidy"', '[main 1a2b3c4] tidy\n 2 files changed')],
+    files: { '.starter-dev': 'dev copy\n', 'tools/extra-tool.mjs': 'export {};\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Playbook: project.md. Tidied it.' + FIN, expect: { not: ['dev-self-tests'] } },
   { name: 'dev mode: without .starter-dev the dev checks stay off (projects never get them)', prompt: 'tidy the packs tool', tools: [pb('project'), bash('node tools/audit.mjs')],
     files: { 'tools/extra-tool.mjs': 'export {};\n', 'docs/CHANGELOG.md': 'x' },
     answer: 'Playbook: project.md. Tidied it.\nN/A(verification-report): a test fixture.' + FIN, expect: { block: false } },
@@ -2812,6 +2819,21 @@ STOP.push(
     failedExtra: { shortOk: false, answer: 'Skill: debug. Fixed it.' + FIN }, drafts: ['Skill: debug. Fixed it.' + FIN], answer: 'Corrected: "Fixed this." -> "Root cause: the date parser."', expect: { block: true, tags: ['answer-resent'] } },
   { ...DEBUG_TURN, name: 'answer-resent: a Corrected: line that leaves the answer still wrong: blocked', active: true, blocks: 1, failed: ['debug-root-cause'],
     failedExtra: { shortOk: false, answer: 'Skill: debug. Fixed it.' + FIN }, drafts: ['Skill: debug. Fixed it.' + FIN], answer: 'Corrected: "Fixed it." -> "Fixed it now."', expect: { block: true, tags: ['debug-root-cause'], not: ['answer-resent'] } },
+  // (a later short message in the same turn builds on the answer as corrected, not on the one before the correction.
+  // Lesson (a field report): a turn went on after a passing correction, its "Added:" note was read after the
+  // uncorrected answer, and the number the correction had taken out was flagged as made up)
+  { name: 'answer-traced: an Added: note after a passing correction is read with the corrected answer: the withdrawn number is not flagged', prompt: 'how did we do last month', tools: [...many(1)],
+    active: true, blocks: 1, failed: ['answer-traced'], failedExtra: { shortOk: false, answer: 'Sales last month: 1,240 croissants.' + FIN }, drafts: ['Sales last month: 1,240 croissants.' + FIN],
+    answer: 'Corrected: "Sales last month: 1,240 croissants." -> "The sales log for last month is empty, so there is no total yet."', expect: { not: ['answer-traced'] },
+    after: dir => { const tp = path.join(dir, 'transcript.jsonl'), t0 = fs.statSync(tp);
+      // (the turn goes on: a background helper's notice, a command, then the short note)
+      fs.appendFileSync(tp, [{ type: 'user', message: { role: 'user', content: '<task-notification>\n<task-id>b1</task-id>\n<status>completed</status>\n<summary>Background command "tests" completed (exit code 0)</summary>\n</task-notification>' } },
+        { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'toolu_after_1', name: 'Bash', input: { command: 'git status --short' } }] } },
+        { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'toolu_after_1', content: '' }] } },
+        { type: 'assistant', message: { content: [{ type: 'text', text: 'Added: the order log is empty too.' }] } }].map(r => JSON.stringify(r)).join('\n') + '\n');
+      fs.utimesSync(tp, t0.atime, t0.mtime);
+      const r = run(dir, 'stop', { transcript_path: tp, stop_hook_active: false, last_assistant_message: 'Added: the order log is empty too.' });
+      return /1,240/.test(r.out) ? `the note after the correction was checked with the uncorrected answer: ${r.out.slice(0, 200)}` : true; } },
   // ("Added:" carries only the new parts; the checks read them after the earlier full answer. Lesson (a field report):
   // a round that asked for two more sections got a 400-line answer re-sent, three times in one turn)
   { ...DEBUG_TURN, name: 'answer-resent: "Added:" with the missing part, checked on the earlier answer plus it: passes', active: true, blocks: 1, failed: ['debug-root-cause'],

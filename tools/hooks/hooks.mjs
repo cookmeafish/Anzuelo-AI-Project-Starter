@@ -7599,7 +7599,8 @@ export const BASE_REQUIREMENTS = [
 const ENGINE_FILES = ['tools/**', 'packs/**', 'library/**', 'skills/**', '.githooks/**', 'AGENTS.md', 'SETUP-PROMPT.md', 'docs/checks/**', 'docs/playbooks/**'];
 export const DEV_REQUIREMENTS = [
   { tag: 'dev-self-tests', rule: '12', when: { filesChanged: ['tools/**', 'packs/**', 'library/**', 'skills/**', '.githooks/**'] },
-    require: { toolPassed: { cmd: String.raw`selfcheck\.mjs`, pass: 'ALL PASS' } },
+    // (a run of it, not a command that only names the file: "git add tools/hooks/selfcheck.mjs" read as a failed run)
+    require: { toolPassed: { cmd: String.raw`\bnode\s+(\S*[\\/])?selfcheck\.mjs`, pass: 'ALL PASS' } },
     message: 'The starter\'s engine changed: run node tools/hooks/selfcheck.mjs until it prints "ALL PASS" (the app pack\'s gates, for the starter).' },
   { tag: 'dev-changelog', rule: '12', when: { filesChanged: ENGINE_FILES }, require: { filesChanged: ['tools/starter/STARTER-CHANGELOG.md'] },
     message: 'Projects learn what changed from tools/starter/STARTER-CHANGELOG.md: add what this turn changed to today\'s entry.' },
@@ -8024,8 +8025,10 @@ export function stopDecision(data, cfg = config()) {
   // A fix of a sentence or two may end with 'Corrected: "<old>" -> "<new>"' lines: the checks read the earlier answer
   // with those replaced. Not in a headless run, whose caller gets only the last message. Lesson, field report: one
   // untraced number cost a 40-line re-send, each round.
+  // (a question turn too, once an answer was blocked: otherwise the correction's own quoted old text is checked as the
+  // answer, and the number it takes out reads as made up. Lesson (a field report))
   const fixes = correctionsOf(raw);
-  if (fixes && x.workTurn) {
+  if (fixes && (x.workTurn || prevFull.trim())) {
     const sdk = (t.entries || []).some(r => /^sdk/.test(String(r.entrypoint || '')));
     const lost = fixes.filter(f => !prevFull.includes(f.old));
     if (prevFull.trim() && !sdk && !lost.length) { full = fixes.reduce((s, f) => s.replace(f.old, f.new), prevFull); x = context(t, cfg, full); }
@@ -8035,11 +8038,15 @@ export function stopDecision(data, cfg = config()) {
   // REQ: answer-resent. "Added: <new parts>" stands for the earlier full answer with those parts after it (the same
   // rules as a correction: an earlier full answer in this turn, and not a run that returns only its last message).
   const added = fixes || isNote ? null : additionOf(raw);
-  if (added && x.workTurn) {
+  if (added && (x.workTurn || prevFull.trim())) {
     const sdk = (t.entries || []).some(r => /^sdk/.test(String(r.entrypoint || '')));
     if (prevFull.trim() && !sdk) { full = `${prevFull}\n\n${added}`; x = context(t, cfg, full); }
     else resend = { tag: 'answer-resent', msg: 'The last message only adds to an answer, but there is no full answer earlier in this turn to add it to (or this run returns only its last message). End with the whole answer.' };
   }
+  // The answer a later short message builds on is this one as corrected or added to, not the one before it: a turn may
+  // go on after a passing correction (a background helper's notice), and its next note was read with the uncorrected
+  // answer. Lesson (a field report): the number a correction had taken out was flagged as made up a round later.
+  if (full != null && sameTurn && !DRY_STATE) writeState('stop-failed.json', { ...failed, answer: full.slice(0, 40000) });
   // A short reply to a background task's notice, with no tool run since the notice, after this turn
   // already ended cleanly, is not new work: the checks stand as they were. Lesson: each acknowledgement of a finished
   // background job got the whole stop list again (Finished section, changelog, status).
