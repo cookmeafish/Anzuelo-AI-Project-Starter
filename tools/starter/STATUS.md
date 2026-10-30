@@ -15,8 +15,8 @@ docs/STATUS.md, which here is the template new projects start from).
 ## Watched projects
 - Standing job from the user (2026-10-29): watch every project that runs the engine, fix the engine here, upgrade them
   (tools/starter/runbooks/project-watch.md; the list is in tools/starter/watch.local.json, local only).
-- 2026-10-30: both projects run 98a3351 with every test passing. Engine 30ae4b2 (dev checks ignore the engine proof; upgrade timing as the fastest of
-  three runs) handed to both sessions, linked copies fast-forwarded; waiting on their `--full` reports. Audit sweep 21 still fails on a short private-list entry
+- 2026-10-30: both projects run 98a3351 with every test passing. Engine 9399cdb (also: bench keeps the hook caches, so timings after an upgrade are
+  warm) handed to both sessions, linked copies fast-forwarded; waiting on their `--full` reports. Audit sweep 21 still fails on a short private-list entry
   matching 3 library skills (the user's list).
 
 ## Next
