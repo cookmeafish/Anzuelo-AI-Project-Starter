@@ -1039,6 +1039,10 @@ const STOP = [
   // honesty and answer checks
   { pack: 'knowledge', name: 'a question that changed files without being asked: blocked', prompt: 'what do you think of the plan?', files: { 'outputs/plan v2.md': 'x', 'docs/CHANGELOG.md': 'x' }, tools: [pb('deliverable')],
     answer: 'Playbook: deliverable.md. It is fine.' + FIN, expect: { block: true, tags: ['question-no-file'] } },
+  { name: 'news typed first, a question queued mid-turn: recording the news is no unasked edit', prompt: 'the shelf is the same but i bought the blue vase', queued: ['are you done with the shelf list btw?'], tools: [pb('project')], files: { 'data/vases.csv': 'x' },
+    answer: 'Playbook: project.md. Yes, the shelf list is done, and the blue vase now counts as yours.' + FIN, expect: { not: ['question-no-file'] } },
+  { name: 'a question with a second one queued mid-turn, files changed: still blocked', prompt: 'is the shelf list done?', queued: ['and the vases?'], tools: [pb('project')], files: { 'data/vases.csv': 'x' },
+    answer: 'Playbook: project.md. Yes, both are done.' + FIN, expect: { tags: ['question-no-file'] } },
   { name: 'a question that only updated STATUS: passes', prompt: 'where are we on the plan?', tools: [pb('project')], files: { 'docs/STATUS.md': 'x' },
     answer: 'Playbook: project.md. We are at step 2.' + FIN, expect: { block: false } },
   // (a FIT hint asks to decide a checklist row on a question: that edit is bookkeeping, not an unasked change, and needs

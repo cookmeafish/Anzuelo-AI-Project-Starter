@@ -1065,7 +1065,7 @@ export function turn(transcript) {
   // were flagged, and the forced rewrite of the answer added a wrong claim no check looked at.
   let readCache = null;
   return {
-    get sessionResults() { return readCache ??= toolResults(rows); }, since, entries, get helperEntries() { return helpers(); }, prompt: [prompt, ...queued].map(userText).filter(s => s.trim()).join('\n'), queued, toolsKnown: true, allPrompts, bgRunning: backgroundRunning(rows), watchers: watchersArmed(rows), wakeups: wakeupsPending(rows),
+    get sessionResults() { return readCache ??= toolResults(rows); }, since, entries, get helperEntries() { return helpers(); }, prompt: [prompt, ...queued].map(userText).filter(s => s.trim()).join('\n'), parts: [prompt, ...queued].map(userText).filter(s => s.trim()), queued, toolsKnown: true, allPrompts, bgRunning: backgroundRunning(rows), watchers: watchersArmed(rows), wakeups: wakeupsPending(rows),
     get sessionWrites() { const h = helpers(); return h.length ? `${mainWrites}\n${writesOf(h)}` : mainWrites; }, sessionTools, sessionStart };
 }
 
@@ -6544,7 +6544,9 @@ export function coreChecks(x, cfg) {
       'Answer it plainly in your final message, first, in a sentence or two (as "Added:" when the rest stands). Never "I\'ll answer once ...".');
   }
   // REQ: question-no-file. A question gets an answer, not unrequested edits.
-  if (x.prompt && askingOnly(x.prompt, cfg)) {
+  // (every message of the turn must be only asking: news typed first and a question typed mid-turn is no question.
+  // Lesson, a field report: news of a purchase, then a queued "done yet?", called recording the purchase unasked)
+  if (x.prompt && (x.parts?.length ? x.parts : [x.prompt]).every(q => askingOnly(q, cfg))) {
     const unasked = x.changed.filter(p => !match(p, cfg.questionNoFileExempt));
     if (unasked.length && !/asked for:\s*["“]/i.test(x.said))
       add('question-no-file', `This was a question, but files changed (${unasked.slice(0, 5).join(', ')}). Questions get answers, not edits: ` +

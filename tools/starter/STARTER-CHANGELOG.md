@@ -6,6 +6,11 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-10-31: News followed by a question typed mid-turn is no longer treated as a question only.
+  - The "question, but files changed" check now needs every message of the turn to be only asking. A statement of new
+    facts, with a question queued while the turn ran, made recording those facts look unasked and cost a Stop round.
+    Self-test: `news typed first, a question queued mid-turn`.
+
 - 2026-10-30 (late): A rule written early in a long turn still counts, and a quoted phrase is no claim.
   - **The turn's start is its first snapshot:** a message relayed mid-turn takes a new snapshot while the turn runs on
     from its own prompt; a snapshot taken more than a minute after the turn began no longer decides which files are
