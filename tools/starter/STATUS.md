@@ -21,7 +21,8 @@ docs/STATUS.md, which here is the template new projects start from).
 - 2026-10-30 evening: 1970c72 and 02c6c3b fix 6 field-report and dogfood items (per-folder helpers, identical page
   rewrites, plain accessibility lines, shell runbook edits, false still-running notices, "by hand" about data).
   Both upgraded and committed. Then 332af2b (rule kept after a mid-turn snapshot; quoted phrases): both on it, full
-  self-tests 1500 and 1484 passed, 0 failed, hook times flat.
+  self-tests 1500 and 1484 passed, 0 failed, hook times flat. Then fc6dcbb (plural root-cause heading): both on it
+  (1501 and 1485 passed, 0 failed).
 
 ## Next
 0. Run the trial on 0793661, then push when the user names main. Open close calls: the zorbel-tune test shape and
