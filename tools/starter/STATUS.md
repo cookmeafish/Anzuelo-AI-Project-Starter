@@ -26,6 +26,10 @@ docs/STATUS.md, which here is the template new projects start from).
 - 2026-10-31: 5406d5f (news plus a queued question is no question-only turn). Both linked copies on it; both sessions
   were mid-work with uncommitted files, so each was sent the upgrade. Open: confirm each upgraded and passed --full.
 
+- 2026-10-31 morning: both projects on dc4ca3c, committed, full self-tests passing. Then 9127ea3 (a recurring job
+  that has run is a standing schedule) and a36843a (a rewritten notes file keeps this turn's records), chain green.
+  Both sessions were sent the a36843a upgrade; open: confirm each upgraded and passed --full. Open from the gap review:
+  per-item proof (plan item 8) and the safety holes.
 - 2026-10-31 night: the unfinished-work exits closed (plan docs/plans/2026-10-31-unfinished-work-exits.md, done but item 8, per-item proof). Upgrade sent to both projects; open: confirm each passed --full.
 
 ## Next
