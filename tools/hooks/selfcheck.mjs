@@ -4976,7 +4976,8 @@ if (mineB() && SPEED) { // engine-cache in a project: full without a recorded pa
     write(dir, { 'docs/STATUS.md': '# Status\n## Now\n- set up\n', 'tools/hooks/project-scenarios.mjs': "export default () => ({ stop: [], pretool: [], prompt: [{ name: 'own probe: runs with engine results reused', prompt: 'hello', has: ['NO-SUCH-HINT-IS-PRINTED'] }] });\n" });
     // (the whole run only once the mode says reused: a miss would run every test)
     const second = mode(), hit = /^selfcheck mode: engine results reused/.test(second);
-    const reused = hit ? nodeIn(dir, ['tools/hooks/selfcheck.mjs'], env, 600_000) : { status: null, stdout: second, stderr: '' }, out = reused.stdout || '';
+    // (20 minutes: with other projects' full runs on the machine, 10 minutes killed it mid-run (a dogfood round))
+    const reused = hit ? nodeIn(dir, ['tools/hooks/selfcheck.mjs'], env, 1_200_000) :{ status: null, stdout: second, stderr: '' }, out = reused.stdout || '';
     // (on a miss, the base files whose hash moved)
     const moved = hit ? [] : (a => [...new Set([...Object.keys(a.files), ...Object.keys(before.files)])].filter(k => a.files[k] !== before.files[k]))(manifestNow());
     const full = mode('--full');
