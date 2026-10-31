@@ -78,7 +78,7 @@ export function transcriptState(tp) {
 }
 // (the stop round count, the checks that failed earlier in the turn, hints shown, the plan nudge and the frustration
 // record are a turn's too. Lesson: a second session reset the first one's block count and lost its earlier failures.)
-const PER_SESSION = new Set(['turn.json', 'acknowledged.json', 'reminders-shown.json', 'snapshot.json', 'turn-end.json', 'notices-shown.json', 'stop-blocks.json', 'stop-failed.json',
+const PER_SESSION = new Set(['turn.json', 'checklist-shown.json', 'acknowledged.json', 'reminders-shown.json', 'snapshot.json', 'turn-end.json', 'notices-shown.json', 'stop-blocks.json', 'stop-failed.json',
   'event-hints.json', 'plan-watch.json', 'friction-turn.json', 'ext-shown.json', 'wakeups.json', 'checklist.json', 'scope-shown.json', 'alive.json']);
 const stateName = n => SID && PER_SESSION.has(n) ? n.replace(/.json$/, `.${SID}.json`) : n;
 // a session's own file when it has one, else the shared one (written before sessions were told apart, or by a test)
@@ -373,7 +373,7 @@ const DEFAULTS = {
   // (checked against a real user's 585 messages: "everything I told you", "what I told you just now" and "so you never
   // forget" are instructions, and "to not make that mistake again?" a request, not complaints. Lesson (the user): "even
   // the trigger words you have right now should probably be evaluated")
-  complaint: "\\b(?<!(so|that|sure|ensure) )you (forgot|didn'?t|did not|missed|skipped|ignored|left out|keep forgetting|never)\\b|\\b(i|we) (already|keep|kept) told you\\b|\\b(i|we) told you (so|before|already|twice|multiple|many|\\d+)\\b|\\bhow many times\\b|\\bwhy (did|didn'?t) you\\b|\\bwhy (do|does) (you|it) keep\\b|(?<!\\b(not|never|don'?t)\\b[^.?!\\n]{0,40})\\bagain\\s*[!?]|\\bnot again\\b|\\bkeeps? (happening|forgetting|missing)\\b" +
+  complaint: "\\b(?<!(so|that|sure|ensure) )you (forgot|didn'?t|did not|missed|skipped|ignored|left out|keep forgetting|never)\\b|\\b(i|we) (already|keep|kept) told you\\b|\\b(i|we) told you (so|before|already|twice|multiple|many|\\d+)\\b|\\bhow many times\\b|\\bwhy (did|didn'?t) you\\b|\\bwhy (do|does) (you|it) keep\\b|(?<!\\b(not|never|don'?t)\\b[^.?!\\n]{0,40})\\bagain\\s*[!?]|\\bnot again\\b|\\bkeeps? (happening|forgetting|missing)\\b|\\bno (hiciste|revisaste|comprobaste|arreglaste|verificaste)\\b|\\bte (lo )?dije\\b|\\bpor qu[eé] (no )?(lo )?(hiciste|fallaste|ignoraste)\\b" +
     // ("you made a new note without linking it". Lesson, trial round 13: that complaint went unseen, so an answer's
     // false "checked automatically" was judged without it)
     String.raw`|\byou (made|wrote|added|created|put|sent|saved|built|changed|left)\b[^.?!\n]{1,40}\bwithout\b` +
@@ -392,7 +392,7 @@ const DEFAULTS = {
   // user's 585 messages: "shit" ("a shit ton", "holy shit I need this") and "terrible" fired mostly on calm ones and
   // were left out, as were generic words with no evidence ("damn", "crap", "awful"). A project adds its user's own
   // words with "hooks.mjs learn-word", tested against that user's messages.)
-  letdown: "\\b(weren'?t|were not|wasn'?t|was not) (you|it) supposed to\\b|\\byou were (supposed|meant) to\\b|\\byou (\\w+ )?dropped the ball\\b|\\bwhy the (hell|heck)\\b|\\b(f+u+c+k+\\w*|f+ck\\w*|bullshit|wtf|ffs|retard\\w*|piss(ed|ing) (me )?off|pissing me|dis+ap+oint\\w*|angry|annoyed|frustrated|furious|fed up|sick of|ain'?t working)\\b|\\black ?lustre\\b|\\black ?luster\\b|\\bunderwhelming\\b|\\bdisappoint(ing|ed)\\b|\\bnot good enough\\b|\\bnot what i (asked|wanted|meant)\\b|\\bdid you (not|even)\\b|\\bdidn'?t you (find|check|look|see|read|try|add|test)\\b|\\byou (still )?(haven'?t|have not|couldn'?t|could not) (find|fix|add|get)\\b|\\breally no\\b|\\bstill (no|not|missing|broken|wrong|nothing)\\b|\\b(are|is) still missing\\b|\\?{3,}|\\b(?<!(most|least|more|less) )useless\\b(?!\\s+(?!(and|but|or|now|again|too|here|as|to|for|so)\\b)[a-z])|\\bcome on\\b(?!\\s+(over|in|board|down|up|by)\\b)|\\b(this|it|that)(?:'s| is| looks| feels) (bad|wrong|broken|lacking|incomplete|half[- ]done|sloppy|thin|bare|basic)\\b|\\b(so|very|pretty) (bad|poor|thin|bare|basic|sloppy)\\b",
+  letdown: "\\b(weren'?t|were not|wasn'?t|was not) (you|it) supposed to\\b|\\byou were (supposed|meant) to\\b|\\byou (\\w+ )?dropped the ball\\b|\\bwhy the (hell|heck)\\b|\\b(f+u+c+k+\\w*|f+ck\\w*|bullshit|wtf|ffs|retard\\w*|piss(ed|ing) (me )?off|pissing me|dis+ap+oint\\w*|angry|annoyed|frustrated|furious|fed up|sick of|ain'?t working)\\b|\\black ?lustre\\b|\\black ?luster\\b|\\bunderwhelming\\b|\\bdisappoint(ing|ed)\\b|\\bnot good enough\\b|\\bnot what i (asked|wanted|meant)\\b|\\bdid you (not|even)\\b|\\bdidn'?t you (find|check|look|see|read|try|add|test)\\b|\\byou (still )?(haven'?t|have not|couldn'?t|could not) (find|fix|add|get)\\b|\\breally no\\b|\\bstill (no|not|missing|broken|wrong|nothing)\\b|\\b(are|is) still missing\\b|\\b(still|again|wrong|broken|missing|supposed|ignor\\w*|forgot|forget|never|seriously|really|none|nothing|didn'?t|did not|not working)\\b[^\\n]{0,80}\\?{3,}|\\b(?<!(most|least|more|less) )useless\\b(?!\\s+(?!(and|but|or|now|again|too|here|as|to|for|so)\\b)[a-z])|\\bcome on\\b(?!\\s+(over|in|board|down|up|by)\\b)|\\b(this|it|that)(?:'s| is| looks| feels) (bad|wrong|broken|lacking|incomplete|half[- ]done|sloppy|thin|bare|basic)\\b|\\b(so|very|pretty) (bad|poor|thin|bare|basic|sloppy)\\b",
   // (Lesson: "annoying", "ugh", "why do you keep" and "I keep telling you" were missed, so friction never counted them)
   // ("I asked you to ..., thanks" is a reminder with thanks, not frustration. Lesson: it read as upset; so did "come on over")
   // (checked against a real user's messages: "!!" was praise ("good decisions!! ur doing better!"), and a bare "I told
@@ -675,7 +675,7 @@ export const relayedOut = s => String(s || '').replace(RELAYED, ' ');
 export function userText(prompt) {
   const out = [];
   let inBlock = false; // a pasted Stop message: its numbered steps run until "For the agent: ... Names: ..." or a blank line
-  for (const l of relayedOut(String(prompt || '').replace(/<pasted_content\b[^>]*>[\s\S]*?<\/pasted_content>/gi, ' ').replace(/<pasted_content\b[^>]*\/>/gi, ' ')).split(/\r?\n/)) {
+  for (const l of relayedOut(String(prompt || '').replace(/<pasted_content\b[^>]*>[\s\S]*?<\/pasted_content(?:\s[^>]*)?>/gi, ' ').replace(/<pasted_content\b[^>]*\/>/gi, ' ')).split(/\r?\n/)) {
     if (/^\s*Another Claude session\b/i.test(l)) break; // a relayed message runs to the end: none of it is the user's
     if (HOOK_BLOCK.test(l)) { inBlock = true; continue; }
     if (inBlock) { if (!l.trim() || /^\s*for the agent:/i.test(l)) inBlock = false; continue; }
@@ -2537,7 +2537,11 @@ export function context(t, cfg, answerOverride) {
   // Every waive in a command counts, not only the first. Lesson: three waivers chained with && in one command kept
   // only the first, so the agent wrote the other two into the answer as N/A(...) lines "because the waivers didn't
   // carry over".
+  // (a waiver counts only when the waive command confirmed it: one it refused, for a reason too short or a false claim,
+  // waives nothing. Lesson (a gap review): Stop read the command's text, so a refused waiver still counted)
+  const confirmed = new Set([...String(t.toolsKnown ? toolResults(withHelpers) : '').matchAll(/waived for this turn: ([a-z][\w-]*)/g)].map(m => m[1]));
   const waives = [...cmds, ...(t.toolsKnown ? [] : loggedRuns(t.since).map(r => r.cmd))].flatMap(c => [...String(c).matchAll(/hooks\.mjs["']?\s+waive\s+([a-z][\w-]*)\s+(?:"([^"\n]+)"|'([^'\n]+)'|([^"'\n&;|]+))/gi)])
+    .filter(m => !t.toolsKnown || confirmed.has(m[1]))
     .map(m => `N/A(${m[1]}): ${(m[2] || m[3] || m[4] || '').trim()}`).join('\n')
     // (and the waive command's own confirmation, so a waiver made in a loop or a script counts. Lesson (a field
     // report): six waivers in "for n in ...; do ... waive $n ...; done" all printed "waived for this turn", and the next
@@ -3387,7 +3391,7 @@ const EN_WORDS = /\b(the|and|to|of|is|that|it|for|with|my|this|you|on|are|please
 // Only the user's own words count: pasted blocks, code blocks and list lines ("2 Maceta de barro grande (REF) 12")
 // are what they pasted, not the language they write in; a message that is nothing else is read whole.
 // Lesson (a field report): an English sentence with a pasted Spanish item list got "the user writes in Spanish".
-const writtenWords = text => String(text || '').replace(/<pasted_content\b[^>]*>[\s\S]*?<\/pasted_content>/gi, ' ').replace(/<pasted_content\b[^>]*\/>/gi, ' ')
+const writtenWords = text => String(text || '').replace(/<pasted_content\b[^>]*>[\s\S]*?<\/pasted_content(?:\s[^>]*)?>/gi, ' ').replace(/<pasted_content\b[^>]*\/>/gi, ' ')
   .replace(/```[\s\S]*?```/g, ' ').split(/\r?\n/).filter(l => !/^\s*(\d+x?\s|[-*•]\s*\d+x?\s|\|)/i.test(l)).join('\n');
 export const isSpanish = text => {
   const own = writtenWords(text), s = (own.trim().length >= 12 ? own : String(text || '')).slice(0, 2000);
@@ -4382,7 +4386,7 @@ function notices(cfg) {
   // REQ: unresolved-carryover. Lesson: after the block cap, a miss passed silently. It is announced once, and the next
   // work turn's Stop re-runs those checks (carryoverChecks), so it cannot just be read and forgotten.
   const un = readJSON(path.join(STATE, 'unresolved.json'), null);
-  if (un && un.items?.length && !un.announced) out.push(`LAST WORK TURN ENDED WITH UNRESOLVED CHECKS (${String(un.prompt || '').slice(0, 60)}...): ${un.items.join('; ')}. Only when this request continues that work: fix what still applies (details: node tools/hooks/hooks.mjs why). An unrelated request starts clean; don't mention them in its answer.`);
+  if (un && un.items?.length && !un.announced) out.push(`LAST WORK TURN ENDED WITH UNRESOLVED CHECKS (${String(un.prompt || '').slice(0, 60)}...): ${un.items.join('; ')}. ${un.must?.length ? `Still owed whatever this request is, do it first: ${un.must.join(', ')}. For the rest: ` : ''}only when this request continues that work, fix what still applies (details: node tools/hooks/hooks.mjs why). An unrelated request starts clean of those; don't mention them in its answer.`);
   if (!template && exists('SETUP-PROMPT.md'))
     // (in one helper agent where the host has them: the setup's reading, writing and testing then stays out of this
     // conversation, which every later request re-sends. Lesson, efficiency trials: after an in-session setup each later
@@ -4950,6 +4954,7 @@ function cmdPrompt(data, { force = false } = {}) {
   if (cfg.promptDigest && !checklisted && !st.shown.includes('digest')) { out.push(DIGEST); st.shown.push('digest'); }
   if (hints.length) out.push('[project hooks: obey these]\n- ' + hints.join('\n- '));
   writeState(SHOWN, { at: st.at, shown: st.shown });
+  { const f = /^CHECKLIST \(([^,]+),/.exec(hints.find(x => x.startsWith('CHECKLIST (')) || '')?.[1]; if (f) checklistShown(f); }
   if (out.length) contextOut('UserPromptSubmit', out.join('\n') + '\n', promptUserLine(hints, p));
 }
 // The line the user sees in the terminal when their message set off something that changes how the agent works: they
@@ -5695,7 +5700,7 @@ function cmdPretool(data) {
   // (an Issue line written from the shell, which the edit hook never sees, is acknowledged at the next tool call.
   // Lesson (the user): an Issue line appended with echo showed the user nothing)
   const acked = HOST === 'claude-code' ? acknowledgedLine(NOTES_FILE) : '';
-  const notes = [overlapNotice(data), (() => { try { return scopeNotice(data); } catch { return null; } })(), acked && issueChecklist()].filter(Boolean).join('\n');
+  const notes = [overlapNotice(data), (() => { try { return scopeNotice(data); } catch { return null; } })(), acked && issueChecklist(), checklistNotice(data)].filter(Boolean).join('\n');
   const ack = HOST === 'claude-code' ? [acked, runningLine(d)].filter(Boolean).map(l => visibleLines(l)).filter(Boolean).join('\n') : '';
   if (brief || bare || notes || ack) process.stdout.write(JSON.stringify({ ...(brief || bare || notes ? { hookSpecificOutput: { hookEventName: 'PreToolUse', ...(brief || bare ? { updatedInput: d.tool_input } : {}), ...(notes ? { additionalContext: notes } : {}) } } : {}), ...(ack ? { systemMessage: ack } : {}) }));
 }
@@ -5762,12 +5767,19 @@ export function scopeNotice(data) {
   return `Heads-up: the user wrote a new message while ${helpers.length === 1 ? 'a helper launched before it is' : `${helpers.length} helpers launched before it are`} still running (${helpers.map(id => `"${what.get(id)}"`).join(', ')}). If the message changes the task, the scope or the budget, stop the ones it makes obsolete (TaskStop) before new work; work done for the old scope is thrown away.`;
 }
 export const BRIEF_LINE = 'Read AGENTS.md first and follow its rules (plain writing, no invented facts, no AI attribution, and the runbook for this task if one is named below).';
-// the prompt with the brief line in front, for a helper launch that lacks it (null when it needs none)
+// the prompt with the brief line in front, for a helper launch that lacks it (null when it needs none). With the
+// checklist on, a runbook checklist handed over this turn goes along, with one evidence line asked per item: the
+// helper's report is a claim the main agent checks, not proof. Lesson (a field report): 25 items done by helpers were
+// never compared one by one, since the helpers never saw the runbook's checklist.
 export function briefLine(data, cfg = config()) {
   const inp = data.tool_input || {};
   if (!/^(Agent|Task)$/.test(data.tool_name || '') || !cfg.subagentBrief || typeof inp.prompt !== 'string' || inp.subagent_type === 'fork') return null;
-  if (/AGENTS\.md|CLAUDE\.md/.test(inp.prompt) || briefFileNamesRules(inp.prompt)) return null;
-  return `${BRIEF_LINE}\n\n${inp.prompt}`;
+  const head = /AGENTS\.md|CLAUDE\.md/.test(inp.prompt) || briefFileNamesRules(inp.prompt) ? '' : BRIEF_LINE;
+  const at = readJSON(stateFile('turn.json'), {}).at || '', st = cfg.runbookLedger ? readJSON(stateFile(CHECKLIST_SHOWN), {}) : {};
+  const lists = (st.at === at ? st.files || [] : []).filter(f => !inp.prompt.includes(f) && ledgerItems(read(abs(f))).length);
+  const tail = lists.length ? `CHECKLIST: this work follows ${lists.join(', ')} ("Done when"). Read the items that apply to your part, and end your report with one line per item: "Evidence N: <the file, command or output that proves it>" or "Not done N: <why>". Your report is checked against them, item by item.` : '';
+  if (!head && !tail) return null;
+  return [head, inp.prompt, tail].filter(Boolean).join('\n\n');
 }
 
 // A request that only asks: a question with no instruction and no change word. Lesson: a relayed instruction ("Add all
@@ -5783,7 +5795,11 @@ export function multiPart(p) {
   return items >= 3 || joins >= 2;
 }
 // A message that asks something: a question mark at its end, or a question word to open it (English and Spanish).
-export const isQuestion = s => { const t = userText(s).trim(); return !!t && t.length < 1500 && (/[?？]\s*$/.test(t) || /^\s*(what|why|how|which|who|where|when|should|is|are|can|could|would|do|does|did|will|wtf|qu[eé]|por ?qu[eé]|c[oó]mo|cu[aá]l|d[oó]nde|cu[aá]ndo|es|est[aá])\b/i.test(t)); };
+// ("do" opens a request as often as a question: "do a review of ..." is work. It asks only before a subject, "do you",
+// "does it". A word ending in an accent needs a Unicode boundary. Lessons (field reports): a request opening with "do"
+// got the question hint and its changes were called unasked; "qué hiciste" was not read as a question)
+const ASK_OPENER = /^\s*((what|why|how|which|who|where|when|should|is|are|can|could|would|will|wtf|qu[eé]|por ?qu[eé]|c[oó]mo|cu[aá]l|d[oó]nde|cu[aá]ndo|es|est[aá])(?![\p{L}\p{N}_])|(do|does|did)\s+(you|i|we|they|it|he|she|this|that|these|those|there|anyone|anybody)\b)/iu;
+export const isQuestion = s => { const t = userText(s).trim(); return !!t && t.length < 1500 && (/[?？]\s*$/.test(t) || ASK_OPENER.test(t)); };
 // The questions typed mid-turn (queued) that no later message of the agent's answers: none of its texts after the
 // question shares a quarter of the question's own words (at least one). A question with no word to match is not judged.
 export function unansweredQuestions(entries) {
@@ -5801,8 +5817,9 @@ export function unansweredQuestions(entries) {
   }).map(x => x.q);
 }
 export function askingOnly(p, cfg) {
-  const instructs = /(^|[.!:\n]\s*)(please\s+)?(add|fix|make|update|upgrade|run|move|create|write|build|remove|change|rename|install|enable|implement|apply)\b/i.test(p);
-  const question = !instructs && (/\?\s*$/.test(p.trim()) || /^\s*(what|why|how|which|who|where|when|should|is|are|can|could|would|do|does|did|will|any)\b/i.test(p));
+  const instructs = /(^|[.!?:\n]\s*)(please\s+)?(add|fix|make|update|upgrade|run|move|create|write|build|remove|change|rename|install|enable|implement|apply|check|go|analy[sz]e|review|test|organi[sz]e|verify|redo)\b/i.test(p) ||
+    (/(^|[.!?:\n]\s*)(please\s+)?do\b(?!\s+(you|i|we|they|it|he|she|this|that|these|those|there|anyone|anybody)\b)/i.test(p) && !/\?\s*$/.test(p.trim()));
+  const question = !instructs && (/\?\s*$/.test(p.trim()) || /^\s*any\b/i.test(p) || ASK_OPENER.test(p));
   return question && !re(cfg.changeWords).test(p);
 }
 
@@ -5881,7 +5898,7 @@ export function upsetUnacknowledged(name, inp) {
     : /^(Bash|PowerShell|shell)$/.test(name) ? !READ_ONLY.test(cmd) && !/turn-notes\.md|hooks\.mjs["']?\s+(waive|why)\b/.test(cmd) : false;
   if (!changes) return null;
   const why = !it ? '' : !it.file ? ` Your Issue line names no runbook or skill that exists${it.runbook ? ` ("${it.runbook}" was not found)` : ''}.` : ' Your Issue line has no "fixed when" outcome of at least 3 words.';
-  return `REQ: upset-acknowledged. The user sounds upset, and has not been shown that you understood yet.${why} First open skills/learn-from-upset/SKILL.md, pick the runbook or skill that finds the root cause and fixes this (DIRECTORY.md; debug for a bug), and write one line to ${NOTES_FILE}: "Issue: <what went wrong, in general terms> | runbook: <name> | fixed when: <a checkable outcome>" (the user sees it as "acknowledged" at once), or "Issue: none - <why>" if nothing is wrong. Then retry.`;
+  return `REQ: upset-acknowledged. The user sounds upset, and has not been shown that you understood yet.${why} First open skills/learn-from-upset/SKILL.md, pick the runbook or skill that finds the root cause and fixes this (DIRECTORY.md; debug for a bug), and write one line to ${NOTES_FILE}: "Issue: <what went wrong, in general terms> | runbook: <name> | fixed when: <a checkable outcome>" (the user sees it as "acknowledged" at once), or "Issue: none - <why>" if nothing is wrong (an Edit of that file, or a shell command that appends to it, goes through now; other changes wait). Then retry.`;
 }
 export function acknowledgedLine(p) {
   if (p !== '.cache/turn-notes.md') return '';
@@ -7181,6 +7198,23 @@ export function ledgerHint(pb) {
     `Work through it without stopping. As you finish each item, add a line to ${NOTES_FILE}: "Done N: <what you did, with the file or command>" or "Skip N: <why it doesn't apply to this request>". ` +
     'The final check compares these lines with what the turn actually did; only an item whose evidence is missing comes back. REQ: runbook-ledger.';
 }
+// The checklist of a runbook opened during the turn, handed over as it is opened (the one the prompt routed to came with
+// the prompt), with its name in the record lines, since the turn may keep several. Lesson (the user): a hook hands the
+// checklist before the work and checks it after; a second runbook's checklist was only asked for at the end, if at all.
+const CHECKLIST_SHOWN = 'checklist-shown.json';
+function checklistShown(file) {
+  const at = readJSON(stateFile('turn.json'), {}).at || '', st = readJSON(stateFile(CHECKLIST_SHOWN), {});
+  const files = st.at === at ? st.files || [] : [];
+  if (!files.includes(file)) writeState(CHECKLIST_SHOWN, { at, files: [...files, file] });
+  return files.includes(file);
+}
+export function checklistNotice(data, cfg = config()) {
+  if (data.tool_name !== 'Read' || !cfg.runbookLedger) return '';
+  const f = rel(String(data.tool_input?.file_path || '').replace(/\\/g, '/'));
+  const m = /^docs\/playbooks\/([^_/][^/]*)\.md$/.exec(f);
+  if (!m || !ledgerItems(read(abs(f))).length || checklistShown(f)) return '';
+  return ledgerHint({ file: f, name: m[1] }).replace(/"Done N:/, `"Done ${m[1]} N:`).replace(/"Skip N:/, `"Skip ${m[1]} N:`);
+}
 // Stop: the steps the runbook's items cover are judged by the record. A skipped item (with a reason) drops its checks;
 // a done or unrecorded item keeps any check that still fails, under its item; a judgment item needs a record line.
 // (every runbook the turn followed keeps its checklist, not only the first. A later one's records name it, "Done
@@ -7188,7 +7222,8 @@ export function ledgerHint(pb) {
 // Lesson, a field report: a turn opened the rules runbook for a new rule, then a per-item runbook for 25 items done by
 // helpers; only the first checklist was asked for, and the second's "every card compared" items were never recorded)
 export function ledgerSteps(x, missing, cfg = config()) {
-  const first = ledgerRunbook(x);
+  // (the first is the one whose checklist came with the prompt, when the turn followed it: its record lines need no name)
+  const first = [x.routed?.[0]].find(pb => pb?.file && (x.usedPb || []).some(u => u.name === pb.name) && ledgerItems(read(abs(pb.file))).length) || ledgerRunbook(x);
   if (!first || !x.workTurn) return missing;
   const pbs = [first, ...(x.usedPb || []).filter(pb => pb?.file && pb.name !== first.name && !pb.name.startsWith('_') && !(x.changed || []).includes(pb.file) && ledgerItems(read(abs(pb.file))).length)];
   const owned = new Set(), asks = [];
@@ -7202,7 +7237,9 @@ export function ledgerSteps(x, missing, cfg = config()) {
     for (const m of out) {
       const it = owner.get(m.tag), r = it && rec.get(it.n);
       // (a skip is logged with the waivers, so a habit of skipping shows: REQ waiver-tally)
-      if (r?.kind === 'skip' && r.why.length >= 8) { (x.ledgerSkipped ||= []).push(m.tag); continue; }
+      // (a skip drops a failing check only with a reason as full as a waiver's, 3 words or more. Lesson (a gap review):
+      // "not needed" dropped a failing check, with less than a waiver asks for)
+      if (r?.kind === 'skip' && r.why.trim().split(/\s+/).length >= 3) { (x.ledgerSkipped ||= []).push(m.tag); continue; }
       next.push(it ? { ...m, short: `${k ? `${pb.name} item` : 'Item'} ${it.n}${r?.kind === 'done' ? ' (marked done)' : ''}: ${shortStep(m)}` } : m);
     }
     const unrecorded = items.filter(it => it.judgment && !rec.has(it.n));
@@ -7968,13 +8005,28 @@ export function relatedRequest(old, now) {
   const a = words(old), shared = [...words(now)].filter(w => a.has(w) && !/^(about|after|again|could|would|should|their|there|these|those|which|while|where|please|thanks|project)$/.test(w));
   return shared.length >= 2 || (String(now).split(/\s+/).length <= 12 && FOLLOW_UP.test(now));
 }
+// Steps still owed whatever the next request is: the lesson from an upset user, a rule or requirement the user set, the
+// project's own checks, and everything a turn that ended while background work ran had not shown yet (unresolved.json
+// "must"). Lesson (the user): a lesson owed after a complaint was dropped because the next message ("still working?")
+// looked unrelated.
+const MUST_CARRY = /^(upset-learned|rule-request|requirement-enforced)$/;
+const owedTags = ms => ms.filter(m => MUST_CARRY.test(m.tag) || m.external).map(m => m.tag);
+const WAIT_SKIP = /^(finished-summary|notice-answer|watcher-left|wakeup-left|status-handoff)$/;
+const waitTags = () => new Set(loadRequirements().reqs.filter(q => q && waitsForAgents(q)).map(q => q.tag));
 function carryoverChecks(data, t, x, cfg) {
   const un = readJSON(path.join(STATE, 'unresolved.json'), null);
-  if (!x.workTurn || data.stop_hook_active || !un?.tags?.length || envOf('BENCH')) return [];
+  if (data.stop_hook_active || !un?.tags?.length || envOf('BENCH')) return [];
   if (un.since && x.since && un.since >= x.since) return []; // written by this turn itself
-  // only a turn that continues that work inherits its open steps: an unrelated request starts clean.
+  // only a turn that continues that work inherits its other open steps: an unrelated request starts clean of them.
   // Lesson: old steps followed an unrelated request, and its answer got padded with waivers about the earlier task.
-  if (!relatedRequest(un.request || un.prompt || '', x.prompt)) return [];
+  const must = new Set(un.must || []);
+  if (!x.workTurn || !relatedRequest(un.request || un.prompt || '', x.prompt)) {
+    if (!must.size) return [];
+    un.tags = un.tags.filter(tg => must.has(tg));
+  }
+  // ("*": the whole check of a turn that ended while background work ran, but for the steps about that turn's own
+  // last message, which the user has moved past)
+  const owes = m => un.tags.includes('*') ? !WAIT_SKIP.test(m.tag) && !waitTags().has(m.tag) && m.tag !== 'unresolved-carryover' : un.tags.includes(m.tag);
   let t0 = null;
   if (un.since && un.transcript && t.toolsKnown) {
     const rows = codexRows(read(un.transcript).split(/\r?\n/).filter(l => l.trim()).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean));
@@ -7987,7 +8039,7 @@ function carryoverChecks(data, t, x, cfg) {
   try {
     const x0 = { ...context(t0, cfg, data.last_assistant_message), failedBefore: [] };
     const said = `${x0.said}\n${x.said}`;
-    still = [...coreChecks(x0, cfg), ...declarativeChecks(x0)].filter(m => un.tags.includes(m.tag) && !waived(m.tag, said, m.specific));
+    still = [...coreChecks(x0, cfg), ...declarativeChecks(x0)].filter(m => owes(m) && !waived(m.tag, said, m.specific));
   } catch { return []; }
   if (!still.length) return [];
   return [{ tag: 'unresolved-carryover', msg: `The last work turn ended with checks still failing, and they still fail now: ${[...new Set(still.map(m => `[${m.tag}] ${shortStep(m)}`))].join('; ')}. ` +
@@ -8217,7 +8269,19 @@ export function stopDecision(data, cfg = config()) {
   // that did not carry it keeps the earlier one, and a short "Answer unchanged" line keeps the full answer it stands for.
   const endAnswer = (noticeAck && prevAnswer.trim() && !carriesAnswer(raw, prevAnswer) ? prevAnswer : full ?? raw).slice(0, 40000);
   const ended = (keep = false) => { writeState(TURN_END, { at: new Date().toISOString(), key, clean: !keep, answer: endAnswer }); if (!keep && !envOf('BENCH') && !DRY_STATE) try { fs.unlinkSync(path.join(STATE, 'stop-details.md')); } catch { } }; // the next prompt starts a new turn
-  if (waiting && !missing.length) { writeState(TURN_END, { at: new Date().toISOString(), key, clean: false, pending: t.bgRunning.length }); logged('waiting', { pending: t.bgRunning.length }); return null; }
+  // (a turn that ends while background work runs still owes its full check: the notice of that work continues the turn
+  // and its Stop checks everything; if the user writes first, the next Stop runs the whole check on that turn, whatever
+  // the request (its files are hidden while helpers may still write them, so nothing can be judged yet). Lesson (a gap
+  // review): 21 of one project's 95 requests ended this way and the full check never ran for them. A block made while
+  // waiting uses no round of the 3, up to 3 of its own.)
+  const waitBlocks = sameRequest ? (st[`${key}|wait`] || 0) : 0;
+  if (waiting && (!missing.length || waitBlocks >= cfg.maxBlocksPerTurn)) {
+    // (a step still owed from an earlier turn is not overwritten)
+    const prevUn = readJSON(path.join(STATE, 'unresolved.json'), null);
+    if (!DRY_STATE && !(prevUn?.must?.length && prevUn.since !== x.since && !prevUn.waiting)) writeState('unresolved.json', { at: new Date().toISOString(), prompt: x.prompt.slice(0, 160), items: ['the full check of a turn that ended while background work ran'], tags: ['*'],
+      must: ['*'], waiting: true, request: x.prompt.slice(0, 4000), since: x.since, transcript: data.transcript_path || '' });
+    writeState(TURN_END, { at: new Date().toISOString(), key, clean: false, pending: t.bgRunning.length }); logged('waiting', { pending: t.bgRunning.length }); return null;
+  }
   // the headless re-send is asked once and costs no round, so a turn that used all its rounds still gets it
   if (noticeResend.length && missing.every(m => m.tag === 'notice-answer')) {
     logged('blocked', { steps: ['notice-answer'] });
@@ -8234,11 +8298,14 @@ export function stopDecision(data, cfg = config()) {
   // Finished list, naming the runbook, plan and note records) go to the next turn instead (its notice, and its first
   // Stop checks them again), not into another full message. Lesson (a field report): a user watched the same answer
   // four times as Stop asked three rounds for a lesson record, and said it "looks broken".
-  const RECORDS = /^(upset-learned|skill-learn|changelog|knowledge-changelog|app-changelog|status-handoff|finished-summary|runbook-read|runbook-exists|skill-read|skill-reuse|plan-required|plan-saved|plan-checked|plan-open|note-linked|requirement-enforced|rule-request|worth-it|decision-logged|praise-captured|autonomy-decide|autonomy-recorded|knowledge-captured|verification-report|gui-review-report)$/;
+  // (the lesson from an upset user, a rule or requirement the user set, and the project's own Stop checks are work, not
+  // records: they keep blocking until the cap. Lesson (the user): a turn ended "with 1 step not done", the lesson from
+  // the user's complaint, after a single block, and the user read it as unfinished work called finished)
+  const RECORDS = /^(skill-learn|changelog|knowledge-changelog|app-changelog|status-handoff|finished-summary|runbook-read|runbook-exists|skill-read|skill-reuse|plan-required|plan-saved|plan-checked|plan-open|note-linked|worth-it|decision-logged|praise-captured|autonomy-decide|autonomy-recorded|knowledge-captured|verification-report|gui-review-report)$/;
   let lateLeft = [];
-  if (nblocks >= 1 && !cfg.repeatStopRounds && !paused) { lateLeft = missing.filter(m => RECORDS.test(m.tag) || m.external); missing = missing.filter(m => !RECORDS.test(m.tag) && !m.external); }
+  if (nblocks >= 1 && !cfg.repeatStopRounds && !paused) { lateLeft = missing.filter(m => RECORDS.test(m.tag) && !m.external); missing = missing.filter(m => !RECORDS.test(m.tag) || m.external); }
   if (lateLeft.length && missing.length) writeState('unresolved.json', { at: new Date().toISOString(), prompt: x.prompt.slice(0, 160), items: lateLeft.map(m => shortStep(m)), tags: lateLeft.map(m => m.tag),
-    request: x.prompt.slice(0, 4000), since: x.since, transcript: data.transcript_path || '' });
+    must: owedTags(lateLeft), request: x.prompt.slice(0, 4000), since: x.since, transcript: data.transcript_path || '' });
   if (lateLeft.length && !missing.length) missing = lateLeft;
   if (nblocks >= cfg.maxBlocksPerTurn || (paused && missing.length) || (lateLeft.length && missing === lateLeft)) {
     // REQ: unresolved-carryover. End quietly (no block), but don't let the miss vanish: the next prompt says it once,
@@ -8246,7 +8313,7 @@ export function stopDecision(data, cfg = config()) {
     const waits = new Set(loadRequirements().reqs.filter(q => q && waitsForAgents(q)).map(q => q.tag));
     const left = missing.filter(m => !waits.has(m.tag) && m.tag !== 'notice-answer');
     if (left.length) writeState('unresolved.json', { at: new Date().toISOString(), prompt: x.prompt.slice(0, 160), items: left.map(m => shortStep(m)), tags: left.map(m => m.tag),
-      request: x.prompt.slice(0, 4000), since: x.since, transcript: data.transcript_path || '' });
+      must: owedTags(left), request: x.prompt.slice(0, 4000), since: x.since, transcript: data.transcript_path || '' });
     if (left.length) writeDetails(left, 'Left unresolved when the turn ended');
     // (said at once, not only at the next prompt. Lesson (the user): a turn that ended with steps left looked finished,
     // and the status bar said done)
@@ -8272,7 +8339,7 @@ export function stopDecision(data, cfg = config()) {
   // Not in a headless run (claude -p, the SDK): its caller gets only the last message, so it must be the whole answer.
   const shortOk = !headless && steps.every(fileFixable);
   logged('blocked', { steps: steps.map(m => m.tag) });
-  writeState('stop-blocks.json', { [key]: nblocks + 1 });
+  writeState('stop-blocks.json', waiting ? { [key]: nblocks, [`${key}|wait`]: waitBlocks + 1 } : { [key]: nblocks + 1, [`${key}|wait`]: waitBlocks });
   writeState('stop-failed.json', { key, tags: [...new Set([...x.failedBefore, ...missing.map(m => m.tag)])], foreseen: [...new Set([...(sameTurn ? failed.foreseen || [] : []), ...follow.map(m => m.tag)])],
     shortOk, answer: (full ?? (isNote || fixes ? '' : raw)).slice(0, 40000) });
   // The full messages, with their details, go to a file the agent reads with "hooks.mjs why".

@@ -25,7 +25,9 @@ been opened, and the answer gives a verdict. Any edit after a round makes that r
      Android `adb exec-out screencap -p > .cache/gui-review/home-phone.png`, iOS
      `xcrun simctl io booted screenshot .cache/gui-review/home-phone.png`, Flutter `flutter screenshot -o .cache/gui-review/home-phone.png`.
      Shoot a small and a large screen, light and dark, and the states you changed (empty, loading, error, offline).
-   - The defaults are desktop 1400x900 and phone 390x844, each in light and dark. Use `--full` for long pages.
+   - The defaults are desktop 1400x900 and phone 390x844, each in light and dark. Use `--full` for long pages. A page
+     with a main button or Next/Back controls is also shot at a laptop size (`--sizes 1366x768,390x844`), without
+     `--full`: the button must be in the shot.
 2. **Look.** Open each `SHEET:` image (a contact sheet: up to 8 screenshots of the round, captioned); with no sheet,
    open every `SCREENSHOT:` image. Open a single screenshot full size only to check a detail the sheet can't show
    (small text, a 1-pixel border). Read the `WARN` lines too (sideways scroll, console errors, broken images, blank

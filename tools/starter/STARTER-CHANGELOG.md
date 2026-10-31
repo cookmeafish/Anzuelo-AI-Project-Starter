@@ -6,6 +6,39 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-10-31 (closing the exits): No answer ends with a lesson, rule or project step unfinished, and no turn skips
+  the full check. Plan: `docs/plans/2026-10-31-unfinished-work-exits.md`.
+  - The lesson after an upset message, a rule request, a requirement check and the project's own Stop checks keep
+    blocking in round 2 and 3. Before, they were deferred as "records" after one block and the answer went out.
+  - What the cap leaves of those steps carries to the next turn whatever the request, and the next prompt says they
+    come first. Before, it came back only if the request "looked related". Record steps (changelog and the like) still
+    carry to related work only.
+  - A turn that ends while background work runs leaves its full check on record, and the next Stop runs it. A block
+    made while background work runs has its own counter and does not use up the turn's 3 rounds.
+  - A waiver counts only when the waive command confirmed it. "Skip N" drops a failing check only with a reason of 3
+    or more words.
+  - A helper launched after a runbook checklist was handed over gets that checklist and is asked for one evidence line
+    per item.
+  - **Breaking for project hooks:** a project Stop command that fails in round 2 now blocks again, where before its
+    steps were deferred. `unresolved.json` gains `must` (steps owed whatever the request) and `waiting`.
+  - Field data from two projects: 25 answers had ended "waiting" and 12 unresolved (8 of them owing a lesson or rule
+    step). Each would now be held. Self-tests: `records-once`, `owed lesson`, `waiting end`, `refused`, `skip without`,
+    `helper launched after`.
+
+- 2026-10-31 (later): A runbook opened mid-turn hands over its checklist at once, and four prompt readers are fixed.
+  - Opening a runbook during the turn gives its "Done when" checklist then, with its name in the record lines
+    ("Done <runbook> N:"), so a second runbook's items are known before the work, not only at Stop. The checklist the
+    prompt routed to stays the first one. Self-test: `opening a runbook mid-turn hands over its checklist`.
+  - A request opening with "do" ("do a review of ...") is work, not a question: it got the question hint, and its
+    changes were called unasked. "do you ...", "does it ..." and anything ending in "?" still ask.
+  - A paste closed with an id (`</pasted_content id="...">`) is no longer read as the user's own words.
+  - "???" alone is eagerness, not upset; it needs a word of trouble with it. Spanish questions with an accented first
+    word, and Spanish complaints ("no revisaste", "te dije"), are read. Self-test: `classifiers: "do ..." requests`.
+  - The "acknowledge first" block says that an Edit of the notes file, or a shell append to it, goes through.
+  - gui pack: the visual review asks that the main action is on screen without scrolling at every size, a laptop
+    size included, and the review loop shoots that size for pages with a main button or Next/Back controls.
+  - The engine gap review is in `tools/starter/reviews/2026-10-31-engine-gaps.md`; the rest of its list is open.
+
 - 2026-10-31: Every runbook a turn follows keeps its checklist, and a peer's idle notice starts its own turn.
   - The after-work checklist (runbook ledger) held only the first runbook the turn used. A turn that opened a rules
     runbook and then a per-item runbook (followed for many items through helpers) was never asked for the second

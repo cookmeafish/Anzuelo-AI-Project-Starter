@@ -11,6 +11,9 @@ anything. A round "finds nothing" only when every item below holds on every scre
 
 ## Clarity
 - [ ] The main action is obvious within 3 seconds. There is one primary button per view.
+- [ ] The main action (the primary button, Next/Back in a flow) is on screen without scrolling at every size shot,
+  a laptop (1366x768) included. Lesson (a field report): a step-by-step page passed every round while its Next button sat
+  below the window on a laptop.
 - [ ] Plain words: no file paths, flags, internal names or jargon in the main UI. Jargon has a tooltip or is hidden under "Advanced".
 - [ ] Not too much at once. Secondary options are collapsed, and headers show the current choice.
 - [ ] Labels match what things do, and the same thing has the same name everywhere.

@@ -587,6 +587,11 @@ const STOP = [
   { name: 'upset-learned: a mid-turn "the work falls short" complaint, fixed with a lesson but no check: blocked', prompt: 'make the zorbl page', queued: ['seriously no photos for these steps??? you found none'],
     files: { 'docs/zorbl.md': '# Zorbl\n![boss](boss.png)', 'docs/lessons.md': '- 2026-10-19: pictures were missing' },
     answer: 'Added photos for every step.\nLearned (lesson): every step needs a photo → docs/lessons.md' + FIN, expect: { block: true, tags: ['upset-learned'] } },
+  // (the lesson is work, not a record: a second round still asks for it. Lesson (the user): the turn ended "with 1 step
+  // not done", the lesson, after one block)
+  { name: 'records-once: the lesson from an upset user is still asked for in round 2', prompt: 'make the zorbl page', queued: ['seriously no photos for these steps??? you found none'],
+    files: { 'docs/zorbl.md': '# Zorbl\n![boss](boss.png)', 'docs/lessons.md': '- 2026-10-19: pictures were missing' }, blocks: 1, active: true,
+    answer: 'Added photos for every step.\nLearned (lesson): every step needs a photo → docs/lessons.md' + FIN, expect: { block: true, tags: ['upset-learned'] } },
   { name: 'upset-learned: a "the work falls short" complaint enforced with a judgment item: passes that check', prompt: 'the photos are weak, same ones everywhere and some wrong',
     files: { 'docs/zorbl.md': '# Zorbl\n![boss](boss.png)', 'docs/playbooks/zorbl.md': '---\nname: zorbl\nsummary: zorbl pages\ntriggers: zorbl page\nchecks: none - a test runbook\n---\n# Playbook: zorbl\n## Done when\n- [ ] Every step shows varied, accurate photos (judgment: only a person can judge accuracy)\n', 'docs/CHANGELOG.md': 'x' },
     answer: 'You\'re right: the pictures repeated.\nChecked: docs/zorbl.md - one photo used for every step.\nAdded varied photos.\nLearned (rule): every step shows varied, accurate photos → docs/playbooks/zorbl.md\nDone when item: "(judgment: only a person can judge accuracy)"' + FIN, expect: { not: ['upset-learned'] } },
@@ -974,6 +979,11 @@ const STOP = [
     tools: [bash('for n in changelog finished-summary; do node tools/hooks/hooks.mjs waive $n "the user is restarting now, records go to the next session"; done',
       'waived for this turn: changelog (the user is restarting now, records go to the next session)\nwaived for this turn: finished-summary (the user is restarting now, records go to the next session)')],
     answer: 'Added the export.', expect: { not: ['changelog', 'finished-summary'] } },
+  // (a waiver counts only when the waive command confirmed it. Lesson (the engine gap review): a refused waiver still
+  // dropped its check)
+  { name: 'waive: a waiver the waive command refused does not count', prompt: 'add a csv export', files: { 'src/export.js': 'export const go = () => 1;\n' },
+    tools: [bash('node tools/hooks/hooks.mjs waive changelog "n/a"', 'not waived: give a reason of at least a few words')],
+    answer: 'Added the export.' + FIN, expect: { block: true, tags: ['changelog'] } },
   { name: 'skill-learn: a complaint with no failed check of the skill demands no lesson: passes', prompt: 'you forgot the logs, debug the failing import', tools: [sk('debug')], files: { 'scratch-work/import.md': 'x', 'docs/CHANGELOG.md': 'x' },
     answer: 'Skill: debug. Root cause: the date parser.' + FIN, expect: { not: ['skill-learn'] } },
   { name: 'skill-learn: another check failed, not the followed skill\'s own: no lesson demanded', prompt: 'debug the failing import', tools: [sk('debug')], files: { 'scratch-work/import.md': 'x', 'docs/CHANGELOG.md': 'x' },
@@ -1437,6 +1447,13 @@ STOP.push(
     answer: 'The rota is in notes/rota.md.', expect: { not: ['finished-summary'] } },
   { name: 'waive command: without it the same answer is held: blocked', prompt: 'make a cleaning rota note', files: { 'notes/rota.md': 'x', 'docs/CHANGELOG.md': 'x' },
     answer: 'The rota is in notes/rota.md.', expect: { block: true, tags: ['finished-summary'] } },
+  // (a turn that ends while helpers run keeps the full check's steps on record, so they are checked later whatever the
+  // next request is. Lesson (a gap review): a fifth of one project's requests ended waiting and were never fully checked)
+  { name: 'waiting end: what the full check would ask stays on record for the next Stop', prompt: 'add a line about screenshots to the finish checklist',
+    tools: [{ name: 'Agent', input: { prompt: 'check the other checklists', run_in_background: true }, result: 'Async agent launched successfully.' }],
+    prep: dir => fs.appendFileSync(path.join(dir, 'docs/checks/finish-checklist.md'), '\n- [ ] Screenshots of every changed screen were looked at.\n'),
+    answer: 'Added the line; a helper is checking the other checklists.', expect: { block: false },
+    after: dir => { const u = (() => { try { return JSON.parse(fs.readFileSync(path.join(dir, 'tools/hooks/state/unresolved.json'), 'utf8')); } catch { return null; } })(); return (u?.waiting && u.must?.length > 0) || `unresolved.json: ${JSON.stringify(u)}`; } },
   // background helpers still running: the work isn't finished, so only truth and privacy are checked until they report
   { name: 'helpers still running in the background: the Finished section waits for their results', prompt: 'rewrite the three order notes',
     tools: [{ name: 'Agent', input: { prompt: 'rewrite order note 1', run_in_background: true }, result: 'Async agent launched successfully.' }], files: { 'notes/order-1.md': 'x', 'docs/CHANGELOG.md': 'x' },
@@ -2199,6 +2216,11 @@ PRETOOL.push(
   // in the transcript, with no result yet)
   { name: 'overlap: a background check run, already in the transcript with no result, is not running beside itself: no heads-up', tool: 'Bash', input: { command: 'python tools/order_sweeps.py > .cache/os.txt', run_in_background: true },
     rows: [{ type: 'assistant', message: { content: [{ type: 'tool_use', id: 'toolu_self2', name: 'Bash', input: { command: 'python tools/order_sweeps.py > .cache/os.txt', run_in_background: true } }] } }], deny: false, noContext: true },
+  // (a runbook opened during the turn hands over its checklist as it is opened, with its name in the record lines.
+  // Lesson (the user): the checklist comes before the work and is checked after it, for every runbook followed)
+  { name: 'runbook-ledger: opening a runbook mid-turn hands over its checklist, records named', tool: 'Read', input: { file_path: 'docs/playbooks/trigger-words.md' },
+    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) }, deny: false, context: /CHECKLIST \(docs\/playbooks\/trigger-words\.md[\s\S]*"Done trigger-words N:/ },
+  { name: 'runbook-ledger: with the checklist off, opening a runbook says nothing', tool: 'Read', input: { file_path: 'docs/playbooks/trigger-words.md' }, deny: false, noContext: true },
   // (Lesson, dogfood: a foreground read of the test file printed a helper's launch line, and counted as running)
   { name: 'overlap: a finished read whose output quotes a helper launch is not running: no heads-up', tool: 'Bash', input: { command: 'python tools/order_sweeps.py' },
     tools: [bash('sed -n 1,40p tools/order_sweeps_test.py', "result: 'Async agent launched successfully.\\nagentId: ab12cd34'")], deny: false, noContext: true },
@@ -2324,6 +2346,10 @@ STOP.push(
   { name: 'runbook-ledger: a checklist item skipped with a reason drops its checks', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
     edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) },
     files: { '.cache/turn-notes.md': 'Done 2: the miss is fixed in the checklist itself\nSkip 3: not a rule request, only a checklist line\nSkip 6: a one-line wording change the owner keeps out of the changelog\n' }, answer: 'Playbook: project.md. Added the line.', expect: { not: ['changelog', 'finished-summary', 'runbook-ledger'] } },
+  // (a skip of a few characters is not a reason. Lesson (the engine gap review): "Skip 6: n/a" dropped a failing check)
+  { name: 'runbook-ledger: a skip without a real reason does not drop a failing check', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
+    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) },
+    files: { '.cache/turn-notes.md': 'Done 2: the miss is fixed in the checklist itself\nSkip 3: not a rule request, only a checklist line\nSkip 6: not needed\n' }, answer: 'Playbook: project.md. Added the line.', expect: { block: true, tags: ['changelog'] } },
   { name: 'runbook-ledger: an item marked done whose evidence is missing comes back under its item', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
     edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) },
     files: { '.cache/turn-notes.md': 'Done 2: the miss is fixed in the checklist itself\nSkip 3: not a rule request, only a checklist line\nDone 6: changelog updated\n' }, answer: 'Playbook: project.md. Added the line.' + FIN, expect: { block: true, tags: ['changelog'], says: /Item 6 \(marked done\)/ } },
@@ -2388,6 +2414,16 @@ STOP.push(
     files: { 'src/export.js': 'export const label = "Download";\n' }, answer: 'Updated.' + FIN, expect: { block: true, tags: ['unresolved-carryover'], says: /\[changelog\]/ } },
   { name: 'unresolved-carryover: an unrelated request starts clean: not carried', prompt: 'rename the export button label to Download', ...CARRY,
     files: { 'src/export.js': 'export const label = "Download";\n' }, answer: 'Renamed.' + FIN, expect: { not: ['unresolved-carryover'] } },
+  // (a lesson owed after a complaint is held whatever the next request is. Lesson (the user): it was dropped because the
+  // next message looked unrelated)
+  { name: 'unresolved-carryover: an owed lesson is held even on an unrelated request', prompt: 'rename the export button label to Download',
+    edit: { 'tools/hooks/state/unresolved.json': () => JSON.stringify({ at: new Date(Date.now() - 300_000).toISOString(), since: Date.now() - 600_000, prompt: 'why did you skip the photos again???', request: 'why did you skip the photos again???', items: ['[upset-learned] Learn from what upset the user'], tags: ['upset-learned'], must: ['upset-learned'] }) },
+    files: { 'src/export.js': 'export const label = "Download";\n' }, answer: 'Renamed.' + FIN, expect: { block: true, tags: ['unresolved-carryover'] } },
+  // (a turn that ended while background work ran gets its full check at the next Stop, on any request. Lesson (field
+  // data): a fifth of one project's answers ended "waiting" and were never fully checked)
+  { name: 'unresolved-carryover: a turn that ended while background work ran gets its full check at the next Stop, on any request', prompt: 'rename the export button label to Download',
+    edit: { 'tools/hooks/state/unresolved.json': () => JSON.stringify({ at: new Date(Date.now() - 300_000).toISOString(), since: Date.now() - 600_000, prompt: 'add a line about screenshots to the finish checklist', request: 'add a line about screenshots to the finish checklist', items: ['the full check of a turn that ended while background work ran'], tags: ['*'], must: ['*'], waiting: true }) },
+    files: { 'src/export.js': 'export const label = "Download";\n' }, answer: 'Renamed.' + FIN, expect: { block: true, tags: ['unresolved-carryover'], says: /\[changelog\]/ } },
   { name: 'unresolved-carryover: last turn\'s miss fixed this turn: passes', prompt: 'add the missing changelog line', ...CARRY,
     files: { 'docs/CHANGELOG.md': '# Changelog\n- 2026-10-19: the finish checklist asks for screenshots\n' }, answer: 'Added the line.' + FIN, expect: { not: ['changelog', 'unresolved-carryover'] } }
 );
@@ -2912,9 +2948,11 @@ STOP.push(
   { ...DEBUG_TURN, name: 'external-stop: the project\'s own Stop steps join this list in round 1', answer: DEBUG_OK, edit: cfgEdit({ externalStop: 'node tools/fake-stop.cjs stop' }),
     files: { ...DEBUG_TURN.files, 'tools/fake-stop.cjs': FAKE_STOP, '.cache/stop-mode.txt': 'block' },
     expect: { block: true, tags: ['project-price-every-item-in-prices-md', 'project-run-the-10-pass-catalog-check-rounds-1-and-2'], says: /Price every item/ } },
-  { ...DEBUG_TURN, name: 'external-stop: in round 2 the project\'s own steps carry over instead of another full message', answer: DEBUG_OK, edit: cfgEdit({ externalStop: 'node tools/fake-stop.cjs stop' }),
+  // (the project's own steps keep blocking in round 2, never deferred as records. Lesson (field data): deferred steps
+  // ended answers with work still owed)
+  { ...DEBUG_TURN, name: 'external-stop: in round 2 the project\'s own steps still block', answer: DEBUG_OK, edit: cfgEdit({ externalStop: 'node tools/fake-stop.cjs stop' }),
     files: { ...DEBUG_TURN.files, 'tools/fake-stop.cjs': FAKE_STOP, '.cache/stop-mode.txt': 'block' }, active: true, blocks: 1, failed: ['project-price-every-item-in-prices-md'],
-    failedExtra: { shortOk: false, answer: DEBUG_OK }, drafts: [DEBUG_OK], expect: { block: false } },
+    failedExtra: { shortOk: false, answer: DEBUG_OK }, drafts: [DEBUG_OK], expect: { block: true, tags: ['project-price-every-item-in-prices-md'] } },
   { ...DEBUG_TURN, name: 'external-stop: a project Stop command that crashes is one step', answer: DEBUG_OK, edit: cfgEdit({ externalStop: 'node tools/fake-stop.cjs stop' }),
     files: { ...DEBUG_TURN.files, 'tools/fake-stop.cjs': FAKE_STOP, '.cache/stop-mode.txt': 'crash' }, expect: { block: true, tags: ['external-stop'] } },
   { ...DEBUG_TURN, name: 'external-stop: a project Stop command that passes adds nothing', answer: DEBUG_OK, edit: cfgEdit({ externalStop: 'node tools/fake-stop.cjs stop' }),
@@ -3753,6 +3791,9 @@ PRETOOL.push(
   { name: 'subagent-brief: a prompt naming a brief file that points at AGENTS.md: allowed', tool: 'Agent', input: { prompt: 'Your brief is .cache/briefs/export.md. Do what it says.', subagent_type: 'general-purpose' }, setup: { '.cache/briefs/export.md': 'Read AGENTS.md first and follow its rules.\nReview the export.' }, deny: false },
   { name: 'subagent-brief: a brief file without the rules: the line is added in place', tool: 'Agent', input: { prompt: 'Your brief is .cache/briefs/export.md. Do what it says.', subagent_type: 'general-purpose' }, setup: { '.cache/briefs/export.md': 'Review the export.' }, deny: false,
     rewrites: { prompt: /^Read AGENTS\.md first[^\n]*\n\nYour brief is \.cache\/briefs\/export\.md\. Do what it says\.$/ } },
+  { name: 'runbook-ledger: a helper launched after a runbook checklist was handed over gets it, with one evidence line per item', tool: 'Agent', input: { prompt: 'Read AGENTS.md first. Compare the next 5 items.', subagent_type: 'general-purpose' }, deny: false,
+    prep: dir => { const at = new Date(Date.now() - 2000).toISOString(); write(dir, { 'tools/hooks/state/turn.json': JSON.stringify({ at }), 'tools/hooks/state/checklist-shown.json': JSON.stringify({ at, files: ['docs/playbooks/trigger-words.md'] }), 'tools/hooks/config.json': JSON.stringify({ ...JSON.parse(fs.readFileSync(path.join(dir, 'tools/hooks/config.json'), 'utf8')), runbookLedger: true }) }); },
+    rewrites: { prompt: /^Read AGENTS\.md first\. Compare the next 5 items\.\n\nCHECKLIST: this work follows docs\/playbooks\/trigger-words\.md[\s\S]*"Evidence N:/ } },
   { pack: 'knowledge', name: 'protect-originals: deleting a file this turn created: allowed', tool: 'Bash', input: { command: 'rm "sources/junk download.tmp"' }, setup: { 'sources/junk download.tmp': 'x' },
     prep: dir => write(dir, { 'tools/hooks/state/turn.json': JSON.stringify({ at: new Date(Date.now() - 2000).toISOString() }), 'tools/hooks/state/snapshot.json': JSON.stringify({ at: new Date(Date.now() - 2000).toISOString(), files: {} }) }), deny: false },
   { pack: 'knowledge', name: 'protect-originals: deleting a file that was there at the turn start: denied', tool: 'Bash', input: { command: 'rm "sources/junk download.tmp"' }, setup: { 'sources/junk download.tmp': 'x' },
@@ -7515,6 +7556,21 @@ if (mineB() && (!TAGS || TAGS.includes('starter-tested'))) { // starter-tested: 
       'starter-tested: the starter is not pushed without a passing whole self-test on its current files (none, a failed run, a stale pass); a current pass lets it through',
       JSON.stringify({ none: none.slice(0, 80), failed: failed.slice(0, 80), passed: passed.slice(0, 80), stale: stale.slice(0, 80) }));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+if (mineB() && (!TAGS || TAGS.includes('question-no-file'))) { // classifiers on real prompt shapes (field reports):
+  // a request opening with "do" is work, not a question; a paste's closing tag with an id still ends the paste; "???"
+  // alone is eagerness, not upset; Spanish words ending in an accent are read; a Spanish complaint is upset
+  const h = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks.mjs')).href), cfg = h.config();
+  const asks = [['do a deep review of the export for gaps', false], ['do the 10 sweeps', false], ['do the tests pass?', true],
+    ['does it work', true], ['what did you do?', true], ['does it need 155 steps??? please go through them and cut the extra ones', false]];
+  const askGot = asks.map(([t]) => h.askingOnly(t, cfg));
+  const paste = h.userText('<pasted_content id="7f">\nWTF IS THIS\n</pasted_content id="7f">\nwhy one step left?');
+  const moods = [['how do you add friends???', false], ['why is it still broken???', true], ['otra vez no revisaste el total', true], ['te dije que el pie va abajo', true]];
+  const moodGot = moods.map(([t]) => h.isUpset(t, cfg));
+  const es = ['qué hiciste con la tabla', 'está listo el informe'].map(t => h.isQuestion(t));
+  report(asks.every(([, w], i) => askGot[i] === w) && !/WTF/.test(paste) && /why one step left/.test(paste) && moods.every(([, w], i) => moodGot[i] === w) && es.every(Boolean),
+    'classifiers: "do ..." requests are work, a paste closed with an id is not the user\'s words, "???" alone is not upset, accented Spanish questions and Spanish complaints are read',
+    JSON.stringify({ askGot, paste, moodGot, es }));
 }
 if (mineB() && (!TAGS || TAGS.includes('trigger-words'))) { // trigger-words: the user's whitelist is respected, while
   // capitals and other trigger words still count; the built-in words that fired on a real user's calm messages are out

@@ -26,6 +26,8 @@ docs/STATUS.md, which here is the template new projects start from).
 - 2026-10-31: 5406d5f (news plus a queued question is no question-only turn). Both linked copies on it; both sessions
   were mid-work with uncommitted files, so each was sent the upgrade. Open: confirm each upgraded and passed --full.
 
+- 2026-10-31 night: the unfinished-work exits closed (plan docs/plans/2026-10-31-unfinished-work-exits.md, done but item 8, per-item proof). Upgrade sent to both projects; open: confirm each passed --full.
+
 ## Next
 0. Run the trial on 0793661, then push when the user names main. Open close calls: the zorbel-tune test shape and
    the gaming-heavy media-group list in skills/research/scripts/claims.mjs.
