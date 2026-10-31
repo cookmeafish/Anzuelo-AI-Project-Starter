@@ -1224,7 +1224,7 @@ const recordTurn = (prompt, fresh = true, transcript = '') => {
   // (a continued turn is this session's own: another run's record is never extended)
   const old = fresh ? null : readJSON(path.join(STATE, stateName('turn.json')), null);
   writeState('turn.json', old?.at ? { ...old, prompt: `${old.prompt || ''}\n${prompt}`.slice(-4000) }
-    : { at: new Date().toISOString(), prompt: String(prompt).slice(0, 4000), runbooks: list('docs/playbooks'), skills: list(config().skillsDir), openPlans: openPlans().map(x => x.p), notesOff: read(abs(NOTES_FILE)).length, ...(transcript ? { transcript: String(transcript), tpOff: sizeOf(transcript) } : {}) });
+    : { at: new Date().toISOString(), prompt: String(prompt).slice(0, 4000), runbooks: list('docs/playbooks'), skills: list(config().skillsDir), openPlans: openPlans().map(x => x.p), ...(notes => ({ notesOff: notes.length, notesTail: notes.slice(-200) }))(read(abs(NOTES_FILE))), ...(transcript ? { transcript: String(transcript), tpOff: sizeOf(transcript) } : {}) });
 };
 const sizeOf = f => { try { return fs.statSync(String(f)).size; } catch { return 0; } };
 // REQ: status-handoff. Said once, at the edit that finds the turn past the tool-call count, while docs/STATUS.md is
@@ -7190,9 +7190,17 @@ export function ledgerLines(notes, name = '', namedOnly = false) {
 }
 // Only this turn's records count: the notes file keeps earlier turns' lines, and their "Done 11:" is not this turn's.
 // Lesson (the user): a turn showed "checklist 11/12" from records left by earlier turns, and passed on one of them
+// (the file may be rewritten during the turn, not appended to: then the turn's lines start after where the last lines
+// it had at the start (notesTail) are now, or, with those gone, the whole file counts. Lesson (a field report): a file
+// rewritten with a heredoc was cut at the old length, and this turn's records before the cut were asked for again)
 export function turnRecords(notes) {
-  const n = String(notes || ''), off = readJSON(stateFile('turn.json'), {}).notesOff;
-  return Number.isInteger(off) && off > 0 && off <= n.length ? n.slice(off) : n;
+  const n = String(notes || ''), t = readJSON(stateFile('turn.json'), {}), off = t.notesOff, tail = t.notesTail;
+  if (!Number.isInteger(off) || off <= 0) return n;
+  if (typeof tail === 'string' && tail && n.slice(Math.max(0, off - tail.length), off) !== tail) {
+    const at = n.lastIndexOf(tail);
+    return at >= 0 ? n.slice(at + tail.length) : n;
+  }
+  return off <= n.length ? n.slice(off) : n;
 }
 // The runbook (or, with none, the skill) this turn's record is kept against: the one used, else the one routed.
 const ledgerRunbook = x => [...(x.usedPb || []), ...(x.routed || []), ...(x.usedSkills || []), ...(x.routedSkills || [])]

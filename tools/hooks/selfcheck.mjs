@@ -7718,10 +7718,17 @@ if (mineB() && (!TAGS || TAGS.includes('upset-acknowledged'))) { // REQ: upset-a
     const span = hh.ledgerLines('Done 1-12: all of it\nSkip 2, 4: not in this request\nDone 7 - plain dash\n');
     const spanOk = [...Array(12)].every((_, i) => span.has(i + 1)) && span.get(2).kind === 'skip' && span.get(7).kind === 'done';
     fs.writeFileSync(path.join(dir, '.cache/turn-notes.md'), 'Done 11: from an earlier turn\n');
+    // (a new turn: the messages above were all one turn, and its record would carry on)
+    fs.rmSync(path.join(dir, 'tools/hooks/state/turn.json'), { force: true });
     run(dir, 'prompt', { prompt: 'rename the export button' }, env);
     fs.appendFileSync(path.join(dir, '.cache/turn-notes.md'), 'Done 3: this turn\n');
     const scoped = spawnSync(process.execPath, ['--input-type=module', '-e', `import { turnRecords, ledgerLines } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; import fs from 'fs'; console.log([...ledgerLines(turnRecords(fs.readFileSync('.cache/turn-notes.md', 'utf8'))).keys()].join(','));`], { cwd: dir, encoding: 'utf8', env: { ...process.env, ...env } }).stdout.trim();
     report(spanOk && scoped === '3', 'upset-acknowledged: a record covers a range or list of items ("Done 1-12:", "Skip 2, 4:"); only records written this turn count, not earlier turns\' lines in the notes file', JSON.stringify([[...span.keys()], scoped]));
+    // (a notes file rewritten during the turn, not appended to, keeps this turn's lines. Lesson (a field report): a
+    // heredoc rewrite was cut at the old length, and the records before the cut were asked for again)
+    fs.writeFileSync(path.join(dir, '.cache/turn-notes.md'), 'Done 3: this turn, the file rewritten with a heredoc\nDone 4: and one more\n');
+    const rewritten = spawnSync(process.execPath, ['--input-type=module', '-e', `import { turnRecords, ledgerLines } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; import fs from 'fs'; console.log([...ledgerLines(turnRecords(fs.readFileSync('.cache/turn-notes.md', 'utf8'))).keys()].join(','));`], { cwd: dir, encoding: 'utf8', env: { ...process.env, ...env } }).stdout.trim();
+    report(rewritten === '3,4', 'runbook-ledger: a notes file rewritten during the turn, not appended to, keeps every record of this turn', rewritten);
     report(/⚡ running the debug skill \(✅ \d+ items to check off\)/.test(runSkill) && !/running/.test(runAgain) && /📖 running the status-lines runbook \(✅ \d+ items to check off\)/.test(runPb) && /⚡ running the learn-from-upset skill/.test(runTool),
       'upset-acknowledged: each runbook or skill the agent opens (Read, a command, the Skill tool) shows "running the X runbook" once', JSON.stringify([runSkill, runAgain, runPb, runTool].map(o => o.slice(0, 160))));
   } finally { giveBack(dir); }
