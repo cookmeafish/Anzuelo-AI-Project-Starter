@@ -6,6 +6,17 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-10-30 (two field reports): Unnamed record lines count for the checklist the prompt gave, and the upgrade says
+  what it is doing.
+  - Stop routed the raw message again, while the prompt had routed a relayed message by its own words only, so the
+    order could differ: the checklist that came with the prompt was read as the second one, and its unnamed "Done N:"
+    lines counted for the other runbook. The prompt's routes are kept in `turn.json` (`routes`) and come first at
+    Stop. Self-test: `the checklist the prompt gave first keeps its unnamed record lines at Stop`.
+  - The upgrade prints a line as each long step starts (the audit and hook timing before and after, the self-tests).
+    It ran silent for over 10 minutes, and the caller took it for hung.
+  - The review heading names the starter commit, `## Upgrade review (<date>) to <commit>`, so two reviews of one day
+    are told apart. Self-test: `the upgrade says each long phase as it starts`.
+
 - 2026-10-31 (self-test time): The starter's reused-engine self-test gets 20 minutes instead of 10. With other full
   runs on the machine it was killed mid-run and read as a failure. Starter only; projects need nothing.
 

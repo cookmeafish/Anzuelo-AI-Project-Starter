@@ -2364,6 +2364,12 @@ STOP.push(
   { name: 'runbook-ledger: the second runbook\'s items recorded under its name: passes', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project'), pb('trigger-words')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
     edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) },
     files: { '.cache/turn-notes.md': 'Playbook: trigger-words.md (its wording)\nDone 1: no rule\nDone 2: the miss is fixed in the checklist itself\nSkip 3: not a rule request, only a checklist line\nSkip 6: a one-line wording change the owner keeps out of the changelog\nSkip trigger-words 1: read for its wording only, no word whitelisted\nSkip trigger-words 2: no word whitelisted, nothing to test\n' }, answer: 'Playbook: project.md. Added the line.', expect: { not: ['runbook-ledger'] } },
+  // (the runbook whose checklist came with the prompt is the first one at Stop too, though Stop routes the raw message
+  // again. Lesson (a field report): a relayed message routed one way at the prompt and another way at Stop, and the
+  // record lines without a name counted for the wrong checklist)
+  { name: 'runbook-ledger: the checklist the prompt gave first keeps its unnamed record lines at Stop', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project'), pb('trigger-words')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
+    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }), 'tools/hooks/state/turn.json': s => JSON.stringify({ ...(s ? JSON.parse(s) : {}), routes: ['trigger-words', 'project'] }) },
+    files: { '.cache/turn-notes.md': 'Playbook: trigger-words.md\nSkip 1: read for its wording only, no word whitelisted\nSkip 2: no word whitelisted, nothing to test\nDone project 1: no rule\nDone project 2: the miss is fixed in the checklist itself\nSkip project 3: not a rule request, only a checklist line\nSkip project 6: a one-line wording change the owner keeps out of the changelog\n' }, answer: 'Playbook: project.md. Added the line.', expect: { not: ['runbook-ledger'] } },
   { name: 'runbook-ledger: off by default, a skip line covers nothing', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
     files: { '.cache/turn-notes.md': 'Skip 6: a one-line wording change the owner keeps out of the changelog\n' }, answer: 'Playbook: project.md. Added the line.' + FIN, expect: { block: true, tags: ['changelog'], not: ['runbook-ledger'] } },
   { name: 'twin-sync: one twin lost its twin note, so the two can\'t be synced: blocked', prompt: 'fix the wording in the hooks section of the agents file', tools: [pb('project')],
@@ -6676,6 +6682,11 @@ if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade
     const plan = fs.readFileSync(planPb, 'utf8'), trig = (/^triggers:\s*(.*)$/m.exec(plan)?.[1] || '').split(',').map(s => s.trim());
     report(ok.status === 0 && /^triggers_removed: make a plan$/m.test(plan) && !trig.includes('make a plan') && trig.includes('break this down') && trig.includes('write a plan'),
       'upgrade: a trigger in triggers_removed stays out of the upgraded runbook; a trigger only deleted comes back', plan.split('\n').slice(0, 8).join(' | ').slice(0, 500));
+    // (each long phase is announced as it starts, and the review heading names the starter commit. Lesson (a field
+    // report): an upgrade printed nothing for over 10 minutes, and two same-day reviews had identical headings)
+    report(/^upgrade: before the upgrade: the audit/m.test(ok.stdout || '') && /^upgrade: after the upgrade: the audit/m.test(ok.stdout || '') && /^ROLLED BACK/.test((r.stderr || '').trim()) &&
+      (fs.existsSync(path.join(base(), '.git')) ? /^## Upgrade review \(\d{4}-\d\d-\d\d\) to [0-9a-f]{7,}\n/m : /^## Upgrade review \(\d{4}-\d\d-\d\d\)\n/m).test(review),
+      'upgrade-review: the upgrade says each long phase as it starts, and the review heading names the starter commit', `${(ok.stdout || '').slice(0, 300)} | ${(r.stderr || '').slice(0, 100)} | ${(review.match(/^## Upgrade review.*$/m) || [''])[0]}`);
   } finally { fs.rmSync(proj, { recursive: true, force: true }); }
 }
 

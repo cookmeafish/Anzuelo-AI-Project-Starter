@@ -147,8 +147,13 @@ function fingerprint(root) {
   return out;
 }
 // The project's audit (which sweeps ran, which failed) and its hook speed, as its current engine reports them.
-function probe() {
+// (each long phase says so as it starts: an upgrade ran silent for over 10 minutes and the caller took it for hung.
+// Lesson (a field report): a shell tool timed out on the silence and moved the upgrade to the background)
+// (on stdout: a rolled-back run's errors lead with ROLLED BACK)
+const phase = what => { if (!dry) process.stdout.write(`upgrade: ${what} (a few minutes; longer while other test runs share the machine)\n`); };
+function probe(when) {
   if (dry) return { failed: [], swept: [], speed: {} };
+  phase(`${when} the upgrade: the audit and the hook timing`);
   const a = spawnSync(process.execPath, [path.join(dest, 'tools', 'audit.mjs')], { cwd: dest, encoding: 'utf8', timeout: 600000 });
   const rows = [...(a.stdout || '').matchAll(/^(PASS|WARN|FAIL)\s+\d+\.\s+(.+?)(?:\s{2}\(.*)?$/gm)];
   // (timed after one untimed run: right after an upgrade writes its files, the first runs read them cold. Lesson, a
@@ -319,7 +324,7 @@ if (auto && madeFromStarter) console.log(`${dest} was made from the starter: upg
 if (flag('--upgrade') || (auto && madeFromStarter)) {
   if (!madeFromStarter) { console.error(`${dest} is not a project made from the starter (no tools/hooks/hooks.mjs). Use --adopt.`); process.exit(1); }
   // Never worse: audit and time the project before, so the result can be compared after.
-  const before = probe();
+  const before = probe('before');
   const print0 = dry ? null : fingerprint(dest);
   const backupDir = path.join(dest, '.cache', 'upgrade-backup', stamp);
   const snapMissing = SNAP.filter(f => !fs.existsSync(path.join(dest, f)));
@@ -531,7 +536,7 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   const synced = sync();
   // Never worse: a check that passed before and fails now rolls the whole upgrade back, unless the user accepts the
   // findings as work to do. New checks that fail and slower hooks go into the review, to fix or decide.
-  const after = probe();
+  const after = probe('after');
   // a sweep that now fails only because the new release brought new candidates to decide (new tools or skills in the
   // fit checklist) is a finding for the upgrade review, not a break. Lesson: adding tools to the catalog rolled back a
   // real project's upgrade, and would have rolled back every project's
@@ -641,6 +646,7 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   // the self-tests run here once: a pass is written in, so the review does not wait on a step the upgrade can do itself.
   // Lesson: every upgrade left "self-tests: ?" for the agent to run and record by hand.
   // (--no-selftest leaves it to the agent: the starter's own tests of the upgrade itself use it, to stay quick)
+  if (!process.argv.includes('--no-selftest')) phase('the self-tests');
   const st = process.argv.includes('--no-selftest') ? { status: 1, stdout: '' } : spawnSync(process.execPath, [path.join(dest, 'tools', 'hooks', 'selfcheck.mjs')], { cwd: dest, encoding: 'utf8', timeout: 900000 });
   const stLine = ((st.stdout || '').match(/^selfcheck: .*$/m) || [''])[0];
   const stPassed = st.status === 0 && /ALL PASS/.test(stLine);
@@ -654,7 +660,11 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
       : kind === 'pack' && fs.existsSync(path.join(STARTER, 'packs', name || '', 'pack.json')) ? JSON.parse(fs.readFileSync(path.join(STARTER, 'packs', name, 'pack.json'), 'utf8')) : null;
     return e?.plain ? `\n  ${e.plain}: ${e.does} What you'll notice: ${e.outcome}` : '';
   };
-  const block = `\n## Upgrade review (${today})\n<!-- Decide each line with the user, or let the AI decide (it writes why), replacing "?": "adopted - Worth it: <gain> / <cost>", ` +
+  // (the starter commit after the date tells two reviews of one day apart. Lesson (a field report): two same-day
+  // upgrades left two identical headings)
+  // (a starter copy without git history has no commit to name)
+  const revTo = /^[0-9a-f]{7,}$/.test(rev) ? ` to ${rev}` : '';
+  const block = `\n## Upgrade review (${today})${revTo}\n<!-- Decide each line with the user, or let the AI decide (it writes why), replacing "?": "adopted - Worth it: <gain> / <cost>", ` +
     `"fixed - <how>" or "declined - <why>". Adopt only what makes this project better. -->\n` + items.map(i => { const [it, done] = i.split('||'); return `- ${it}: ${done || '?'}${plainOf(it)}`; }).join('\n') + '\n';
   // (nothing to decide: the last review that also held only the self-tests is updated in place, not repeated)
   fs.writeFileSync(dp, withReviewBlock(fs.existsSync(dp) ? fs.readFileSync(dp, 'utf8') : '', block, items.length === 1 && stPassed));
@@ -668,7 +678,7 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   const named = after.failed.map(s => `${s}${onlyNew(s) ? ' (expected: new candidates to decide in the review)' : before.failed.includes(s) ? ' (failed before too)' : ''}`);
   console.log(`\nChecks: ${before.failed.length} failing before, ${after.failed.length} after${named.length ? `: ${named.join('; ')}` : ''}. Hooks: ${Object.entries(after.speed).map(([k, v]) => `${k} ${before.speed[k] ?? '?'} → ${v} ms`).join(', ') || 'not timed'}.`);
   const open = items.filter(i => !i.includes('||'));
-  console.log(open.length ? `\nUPGRADE REVIEW: ${open.length} item(s) to decide with the user, in docs/DECISIONS.md "## Upgrade review (${today})":\n` + open.map(i => `  - ${i}`).join('\n')
+  console.log(open.length ? `\nUPGRADE REVIEW: ${open.length} item(s) to decide with the user, in docs/DECISIONS.md "## Upgrade review (${today})${revTo}":\n` + open.map(i => `  - ${i}`).join('\n')
     : `\nUPGRADE REVIEW: nothing to decide (the self-tests ran here and passed: ${stLine.replace(/^selfcheck:\s*/, '')}).`);
   if (news.length) console.log(`\nWhat changed in the starter since ${last || 'this project was made'} (tools/starter/STARTER-CHANGELOG.md):\n` + news.map(e => e.split('\n')[0]).join('\n'));
   console.log(summary(open.length));

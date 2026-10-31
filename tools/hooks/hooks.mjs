@@ -2446,9 +2446,11 @@ export function context(t, cfg, answerOverride) {
   // pulled up. Lesson (probe): the new-runbook line never showed, and the end of the turn said the hooks pulled it up)
   const pbs = routablePlaybooks();
   const menuInfo = expandMenu(t.prompt);
-  const atStart = readJSON(stateFile('turn.json'), {}).runbooks;
+  const tj = readJSON(stateFile('turn.json'), {}), atStart = tj.runbooks;
   const routedScores = route(menuInfo.expanded, Array.isArray(atStart) ? pbs.filter(p => atStart.includes(path.basename(p.file))) : pbs);
-  const routed = routedScores.map(s => s.pb);
+  // (the prompt's own routes first, in its order: see cmdPrompt)
+  const given = (Array.isArray(tj.routes) ? tj.routes : []).map(n => pbs.find(p => p.name === n)).filter(Boolean);
+  const routed = [...given, ...routedScores.map(s => s.pb).filter(p => !given.includes(p))];
   for (const c of menuInfo.known) {
     const pb = pbs.find(p => p.file.endsWith('/' + menuInfo.codes[c].playbook));
     if (pb && !routed.includes(pb)) routed.unshift(pb);
@@ -4613,6 +4615,10 @@ export function promptHints(prompt, cfg = config(), withNotices = true, { relaye
   const reports = /\b(bugs?|fail\w*|wrong|issues?|problems?|feedback|report\w*|broke\w*|false|errors?|crash\w*|blocked|regress\w*|noisy|BAD)\b/.test(p);
   const fieldReport = relayed && reports && !routed.length && pbs.find(pb => pb.name === 'field-report' && pb.file.startsWith('tools/starter/'));
   if (fieldReport) routed.push({ pb: fieldReport, hits: ['a message from another session'] });
+  // (the routes the prompt gave are kept for Stop, which routes the raw message again: for a relayed one that left out
+  // quotes and commands, the order differed. Lesson (a field report): the checklist that came with the prompt was read
+  // as the second one at Stop, and its unnamed record lines counted for the other runbook)
+  if (!DRY_STATE) { const tj = readJSON(stateFile('turn.json'), null); if (tj?.at) writeState('turn.json', { ...tj, routes: [...new Set([...(tj.routes || []), ...routed.map(r => r.pb.name)])] }); }
   for (const c of m.known) {
     const pb = pbs.find(x => x.file.endsWith('/' + m.codes[c].playbook));
     if (pb && !routed.some(r => r.pb === pb)) routed.unshift({ pb, hits: [c] });
@@ -8617,7 +8623,7 @@ export const CONTRACT = {
 // passed) replaces the last review in place when that one was also only the self-tests line; anything else is added.
 // Lesson: a project's DECISIONS.md, which the user reads, held 9 review blocks in a row that each said only "self-tests
 // passed".
-const SELF_ONLY_REVIEW = /\n## Upgrade review \(\d{4}-\d\d-\d\d\)\n<!--[^\n]*-->\n- self-tests: [^\n]*: passed [^\n]*\n?$/;
+const SELF_ONLY_REVIEW = /\n## Upgrade review \(\d{4}-\d\d-\d\d\)[^\n]*\n<!--[^\n]*-->\n- self-tests: [^\n]*: passed [^\n]*\n?$/;
 export function withReviewBlock(text, block, onlySelfTests) {
   const cur = String(text || '');
   return onlySelfTests && SELF_ONLY_REVIEW.test(cur) ? cur.replace(SELF_ONLY_REVIEW, block) : cur + block;
