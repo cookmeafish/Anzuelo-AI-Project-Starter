@@ -23,6 +23,8 @@ docs/STATUS.md, which here is the template new projects start from).
   Both upgraded and committed. Then 332af2b (rule kept after a mid-turn snapshot; quoted phrases): both on it, full
   self-tests 1500 and 1484 passed, 0 failed, hook times flat. Then fc6dcbb (plural root-cause heading): both on it
   (1501 and 1485 passed, 0 failed).
+- 2026-10-31: 5406d5f (news plus a queued question is no question-only turn). Both linked copies on it; both sessions
+  were mid-work with uncommitted files, so each was sent the upgrade. Open: confirm each upgraded and passed --full.
 
 ## Next
 0. Run the trial on 0793661, then push when the user names main. Open close calls: the zorbel-tune test shape and
