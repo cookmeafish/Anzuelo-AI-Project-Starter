@@ -3039,6 +3039,11 @@ STOP.push(
     answer: 'Done: a reminder (a scheduled wakeup) fires in 20 minutes.', expect: { block: false, not: ['wakeup-left'] } },
   { name: 'wakeup-left: a recurring cron job left behind: blocked', prompt: 'is the review done?', tools: [{ name: 'CronCreate', input: { cron: '*/7 * * * *', prompt: 'check the review' }, result: 'Scheduled recurring job id cr8a91f2 (next run 17:07).' }],
     answer: 'Yes: the reviewer approved it.', expect: { block: true, tags: ['wakeup-left'], says: /CronDelete[\s\S]*cr8a91f2|cr8a91f2[\s\S]*CronDelete/ } },
+  // (a recurring job that has fired already is a standing schedule, set up on purpose, not one left behind. Lesson
+  // (dogfood): an hourly job the user asked for was flagged at the end of every short turn between its runs)
+  { name: 'wakeup-left: a recurring cron job that has fired already is a standing schedule: passes', prompt: 'is the review done?', tools: [{ name: 'CronCreate', input: { cron: '0 * * * *', prompt: 'check the review' }, result: 'Scheduled recurring job id cr8a91f4 (next run 18:00).' }],
+    rows: [{ type: 'user', isMeta: true, turnOrigin: 'scheduled', message: { role: 'user', content: 'check the review' } }],
+    answer: 'Yes: the reviewer approved it.', expect: { block: false, not: ['wakeup-left'] } },
   { name: 'wakeup-left: a cron job deleted by its id: passes', prompt: 'is the review done?', tools: [{ name: 'CronCreate', input: { cron: '*/7 * * * *', prompt: 'check the review' }, result: 'Scheduled recurring job id cr8a91f3 (next run 17:07).' },
     { name: 'CronDelete', input: { id: 'cr8a91f3' }, result: 'Cancelled job cr8a91f3.' }],
     answer: 'Yes: the reviewer approved it.', expect: { block: false, not: ['wakeup-left'] } },

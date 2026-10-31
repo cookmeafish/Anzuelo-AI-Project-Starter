@@ -1152,7 +1152,7 @@ export function wakeupsPending(rows, now = Date.now()) {
     // it fired: its prompt came back as a message (Claude Code adds it as a meta user row)
     if (r.type === 'user' && !isToolResult(c)) {
       const t = textOf(c).trim();
-      if (t) for (let k = pending.length - 1; k >= 0; k--) if (pending[k].i < i && !pending[k].recurring && t === pending[k].prompt.trim()) pending.splice(k, 1);
+      if (t) for (let k = pending.length - 1; k >= 0; k--) if (pending[k].i < i && t === pending[k].prompt.trim()) { if (pending[k].recurring) pending[k].fired = true; else pending.splice(k, 1); }
     }
   });
   // a one-time wakeup whose time is past has fired (its prompt may not be in the transcript yet)
@@ -8233,7 +8233,9 @@ export function stopDecision(data, cfg = config()) {
   // It must be cancelled, unless the request asked for a reminder, a loop or a schedule.
   const wantsWake = WAKE_ASK.test(x.prompt || '');
   const WAKE_SAID = /\b(wake-?ups?|reminders?|cron|scheduled|recurring|recordatorios?|programad[oa]s?)\b/i;
-  const leftWakes = t.toolsKnown && !(t.bgRunning || []).length ? (t.wakeups || []).filter(w => headless && !wantsWake ? true : !((w.id && raw.includes(w.id)) || WAKE_SAID.test(raw))) : [];
+  // (interactive, a recurring job that has fired already is a standing schedule, kept on purpose. Lesson (dogfood): an
+  // hourly job the user asked for was flagged at the end of every short turn between its runs)
+  const leftWakes = t.toolsKnown && !(t.bgRunning || []).length ? (t.wakeups || []).filter(w => headless && !wantsWake ? true : !(w.recurring && w.fired) && !((w.id && raw.includes(w.id)) || WAKE_SAID.test(raw))) : [];
   const hhmm = ms => { const d = new Date(ms); return Number.isNaN(+d) ? '' : d.toTimeString().slice(0, 5); };
   const wakeStep = leftWakes.length ? [{ tag: 'wakeup-left', msg: `${leftWakes.length > 1 ? `${leftWakes.length} wakeups you scheduled are` : 'A wakeup you scheduled is'} still pending: ` +
     leftWakes.map(w => `"${w.prompt.replace(/\s+/g, ' ').slice(0, 70)}" (${w.tool}${w.id ? ` ${w.id}` : ''}${w.at ? `, due ${hhmm(w.at)}` : w.recurring ? ', recurring' : ''}; to cancel: ${w.cancel})`).join(', ') + '. ' +

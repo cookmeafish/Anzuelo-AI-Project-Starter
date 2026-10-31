@@ -6,6 +6,10 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-10-31: A recurring job that has fired already is a standing schedule, not a wakeup left behind. An hourly job
+  the user asked for was flagged at the end of every short turn between its runs. Headless runs still have to cancel
+  it. Self-test: `a recurring cron job that has fired already is a standing schedule`.
+
 - 2026-10-30 (two field reports): Unnamed record lines count for the checklist the prompt gave, and the upgrade says
   what it is doing.
   - Stop routed the raw message again, while the prompt had routed a relayed message by its own words only, so the
