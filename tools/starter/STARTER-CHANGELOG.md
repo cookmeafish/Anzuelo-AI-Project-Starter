@@ -6,6 +6,9 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-10-31 (self-test time): The starter's reused-engine self-test gets 20 minutes instead of 10. With other full
+  runs on the machine it was killed mid-run and read as a failure. Starter only; projects need nothing.
+
 - 2026-10-31 (closing the exits): No answer ends with a lesson, rule or project step unfinished, and no turn skips
   the full check. Plan: `docs/plans/2026-10-31-unfinished-work-exits.md`.
   - The lesson after an upset message, a rule request, a requirement check and the project's own Stop checks keep
