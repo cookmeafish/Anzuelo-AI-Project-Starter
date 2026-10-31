@@ -6,6 +6,16 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-10-31: Every runbook a turn follows keeps its checklist, and a peer's idle notice starts its own turn.
+  - The after-work checklist (runbook ledger) held only the first runbook the turn used. A turn that opened a rules
+    runbook and then a per-item runbook (followed for many items through helpers) was never asked for the second
+    one's judgment items. Now each followed runbook's items need records; a later one's lines name it, "Done
+    <runbook> N:". A runbook the turn edited is not counted as followed. Self-test: `a second runbook followed in the
+    turn has its judgment items asked for too`.
+  - A "[Cross-session idle notice]" or delivery notice now starts a turn of its own, like a peer's message. Before,
+    the one-line reply to it was held to the earlier turn's changed files and Finished section. Self-test: `a peer's
+    idle notice after the turn ended starts a turn`.
+
 - 2026-10-31: News followed by a question typed mid-turn is no longer treated as a question only.
   - The "question, but files changed" check now needs every message of the turn to be only asking. A statement of new
     facts, with a question queued while the turn ran, made recording those facts look unasked and cost a Stop round.

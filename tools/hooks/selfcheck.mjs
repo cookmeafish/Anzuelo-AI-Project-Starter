@@ -2330,6 +2330,14 @@ STOP.push(
   { name: 'runbook-ledger: a judgment item with no record line is asked for', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
     edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) },
     files: { 'docs/CHANGELOG.md': '# Changelog\n- 2026-10-19: finish checklist asks for screenshots of changed screens\n' }, answer: 'Playbook: project.md. Added the line.' + FIN, expect: { block: true, tags: ['runbook-ledger'] } },
+  // (every runbook the turn followed keeps its checklist. Lesson, a field report: a second runbook, followed for many
+  // items through helpers, had its judgment items never asked for, because only the first runbook's list counted)
+  { name: 'runbook-ledger: a second runbook followed in the turn has its judgment items asked for too', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project'), pb('trigger-words')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
+    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) },
+    files: { '.cache/turn-notes.md': 'Playbook: trigger-words.md (its wording)\nDone 1: no rule\nDone 2: the miss is fixed in the checklist itself\nSkip 3: not a rule request, only a checklist line\nSkip 6: a one-line wording change the owner keeps out of the changelog\n' }, answer: 'Playbook: project.md. Added the line.', expect: { block: true, tags: ['runbook-ledger'], says: /trigger-words/ } },
+  { name: 'runbook-ledger: the second runbook\'s items recorded under its name: passes', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project'), pb('trigger-words')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
+    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) },
+    files: { '.cache/turn-notes.md': 'Playbook: trigger-words.md (its wording)\nDone 1: no rule\nDone 2: the miss is fixed in the checklist itself\nSkip 3: not a rule request, only a checklist line\nSkip 6: a one-line wording change the owner keeps out of the changelog\nSkip trigger-words 1: read for its wording only, no word whitelisted\nSkip trigger-words 2: no word whitelisted, nothing to test\n' }, answer: 'Playbook: project.md. Added the line.', expect: { not: ['runbook-ledger'] } },
   { name: 'runbook-ledger: off by default, a skip line covers nothing', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
     files: { '.cache/turn-notes.md': 'Skip 6: a one-line wording change the owner keeps out of the changelog\n' }, answer: 'Playbook: project.md. Added the line.' + FIN, expect: { block: true, tags: ['changelog'], not: ['runbook-ledger'] } },
   { name: 'twin-sync: one twin lost its twin note, so the two can\'t be synced: blocked', prompt: 'fix the wording in the hooks section of the agents file', tools: [pb('project')],
@@ -6770,6 +6778,12 @@ if (mineB()) { // a message from another session after the turn ended starts its
     const H = JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href);
     const t = JSON.parse(spawnSync(process.execPath, ['--input-type=module', '-e', `import { turn } from ${H}; const t = turn(${JSON.stringify(tp)}); console.log(JSON.stringify({ prompt: t.prompt, since: t.since }))`], { cwd: dir, encoding: 'utf8' }).stdout || '{}');
     report(t.prompt === '' && t.since === t0 + 1800_000, 'turns: a message from another session after the turn ended starts a turn with no user request', JSON.stringify(t));
+    // (the host's idle notice about a peer is such a message too)
+    const rows = fs.readFileSync(tp, 'utf8').trim().split('\n').map(l => JSON.parse(l));
+    rows[2] = { type: 'user', isMeta: true, timestamp: iso(t0 + 1800_000), message: { role: 'user', content: '[Cross-session idle notice] "peer", which you asked to be notified about, is idle now.' } };
+    fs.writeFileSync(tp, rows.map(r => JSON.stringify(r)).join('\n') + '\n');
+    const n = JSON.parse(spawnSync(process.execPath, ['--input-type=module', '-e', `import { turn } from ${H}; const t = turn(${JSON.stringify(tp)}); console.log(JSON.stringify({ prompt: t.prompt, since: t.since }))`], { cwd: dir, encoding: 'utf8' }).stdout || '{}');
+    report(n.prompt === '' && n.since === t0 + 1800_000, 'turns: a peer\'s idle notice after the turn ended starts a turn with no user request', JSON.stringify(n));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 

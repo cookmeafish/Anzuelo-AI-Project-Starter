@@ -915,7 +915,9 @@ export const textOf = c => typeof c === 'string' ? c
   : Array.isArray(c) ? c.filter(x => x && x.type === 'text').map(x => x.text || '').join('\n') : '';
 const isToolResult = c => Array.isArray(c) && c.some(x => x && x.type === 'tool_result');
 const skipped = t => SKIP.some(s => String(t).trimStart().startsWith(s));
-const RELAYED_TURN = /^\s*(<cross-session-message\b|Another Claude session sent a message)/;
+// (the host's notice that a peer went idle, or held a message, also arrives on its own. Lesson, dogfood: an idle
+// notice kept the earlier turn open, and the one-line reply to it was told to list that turn's changed files)
+const RELAYED_TURN = /^\s*(<cross-session-message\b|Another Claude session sent a message|\[Cross-session (idle|delivery) notice\])/;
 // A helper this session launched, handing back its report: part of the task that launched it, not a new request (no
 // turn of its own, no hints, no cost row). Lesson (a field report): each hand-back of a build's own helpers got RELAYED,
 // NO RUNBOOK and SHARED STEPS hints, and the cost command split one 40-minute request into five rows.
@@ -7149,10 +7151,11 @@ export function ledgerItems(text) {
 // Lesson: an upset turn's runbook and the routed one shared their numbers)
 // (a line may cover several items, "Done 1-12:" or "Done 2, 4:". Lesson (the user): a turn recorded "Done 1-12" and the
 // count read it as item 1 alone)
-export function ledgerLines(notes, name = '') {
+export function ledgerLines(notes, name = '', namedOnly = false) {
   const out = new Map();
   for (const m of String(notes || '').matchAll(/^\s*[-*]?\s*(Done|Skip|Skipped)\s+(?:([a-z][\w-]*)\s+)?(\d+(?:\s*(?:-|–|,|and|to)\s*\d+)*)\s*[:.-]\s*(.*)$/gim)) {
     if (m[2] && name && m[2].toLowerCase() !== String(name).toLowerCase()) continue;
+    if (namedOnly && !m[2]) continue;
     const ns = [];
     for (const part of m[3].split(/\s*(?:,|and)\s*/)) {
       const [a, b] = part.split(/\s*(?:-|–|to)\s*/).map(Number);
@@ -7180,23 +7183,36 @@ export function ledgerHint(pb) {
 }
 // Stop: the steps the runbook's items cover are judged by the record. A skipped item (with a reason) drops its checks;
 // a done or unrecorded item keeps any check that still fails, under its item; a judgment item needs a record line.
+// (every runbook the turn followed keeps its checklist, not only the first. A later one's records name it, "Done
+// upgrade 3:", since its numbers clash with the first one's. A runbook the turn edited was worked on, not followed.
+// Lesson, a field report: a turn opened the rules runbook for a new rule, then a per-item runbook for 25 items done by
+// helpers; only the first checklist was asked for, and the second's "every card compared" items were never recorded)
 export function ledgerSteps(x, missing, cfg = config()) {
-  const pb = ledgerRunbook(x);
-  if (!pb || !x.workTurn) return missing;
-  const items = ledgerItems(read(abs(pb.file))), rec = ledgerLines(turnRecords(x.notes), pb.name);
-  const owner = new Map();
-  for (const it of items) for (const tg of it.tags) if (!ALWAYS_ON.test(tg) && !owner.has(tg)) owner.set(tg, it);
-  const out = [];
-  for (const m of missing) {
-    const it = owner.get(m.tag), r = it && rec.get(it.n);
-    // (a skip is logged with the waivers, so a habit of skipping shows: REQ waiver-tally)
-    if (r?.kind === 'skip' && r.why.length >= 8) { (x.ledgerSkipped ||= []).push(m.tag); continue; }
-    out.push(it ? { ...m, short: `Item ${it.n}${r?.kind === 'done' ? ' (marked done)' : ''}: ${shortStep(m)}` } : m);
-  }
-  const unrecorded = items.filter(it => it.judgment && !rec.has(it.n));
-  if (unrecorded.length) out.push({ tag: 'runbook-ledger', short: `Record ${unrecorded.map(i => i.n).join(', ')} of the checklist`,
-    msg: `No script can check ${unrecorded.length > 1 ? 'these checklist items' : 'this checklist item'} of ${pb.file}, so your record is the proof: ${unrecorded.map(i => `${i.n}. ${i.text.slice(0, 120)}`).join(' ')}. ` +
-      `Add "Done N: <what you did and what it showed>" or "Skip N: <why it doesn't apply>" to ${NOTES_FILE}, after doing it.` });
+  const first = ledgerRunbook(x);
+  if (!first || !x.workTurn) return missing;
+  const pbs = [first, ...(x.usedPb || []).filter(pb => pb?.file && pb.name !== first.name && !pb.name.startsWith('_') && !(x.changed || []).includes(pb.file) && ledgerItems(read(abs(pb.file))).length)];
+  const owned = new Set(), asks = [];
+  let out = missing;
+  pbs.forEach((pb, k) => {
+    const items = ledgerItems(read(abs(pb.file))), rec = ledgerLines(turnRecords(x.notes), pb.name, k > 0), tagN = k ? `${pb.name} ` : '';
+    const owner = new Map();
+    for (const it of items) for (const tg of it.tags) if (!ALWAYS_ON.test(tg) && !owned.has(tg) && !owner.has(tg)) owner.set(tg, it);
+    for (const tg of owner.keys()) owned.add(tg);
+    const next = [];
+    for (const m of out) {
+      const it = owner.get(m.tag), r = it && rec.get(it.n);
+      // (a skip is logged with the waivers, so a habit of skipping shows: REQ waiver-tally)
+      if (r?.kind === 'skip' && r.why.length >= 8) { (x.ledgerSkipped ||= []).push(m.tag); continue; }
+      next.push(it ? { ...m, short: `${k ? `${pb.name} item` : 'Item'} ${it.n}${r?.kind === 'done' ? ' (marked done)' : ''}: ${shortStep(m)}` } : m);
+    }
+    const unrecorded = items.filter(it => it.judgment && !rec.has(it.n));
+    if (unrecorded.length) asks.push({ short: `Record ${unrecorded.map(i => i.n).join(', ')} of the ${k ? `${pb.name} ` : ''}checklist`,
+      msg: `No script can check ${unrecorded.length > 1 ? 'these checklist items' : 'this checklist item'} of ${pb.file}, so your record is the proof: ${unrecorded.map(i => `${i.n}. ${i.text.slice(0, 120)}`).join(' ')}. ` +
+        `Add "Done ${tagN}N: <what you did and what it showed>" or "Skip ${tagN}N: <why it doesn't apply>" to ${NOTES_FILE}, after doing it${k ? ` (with "${pb.name}" in the line: this turn followed more than one runbook)` : ''}.` });
+    out = next;
+  });
+  if (asks.length) out.push({ tag: 'runbook-ledger', short: asks.map(a => a.short).join('; '),
+    msg: asks.map(a => a.msg).join(' ') + (pbs.length > 1 ?' For work spread over many items (files, folders, helpers), say what was checked for each one.' : '') });
   return out;
 }
 
