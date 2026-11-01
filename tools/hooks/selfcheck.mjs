@@ -2882,6 +2882,7 @@ const DEBUG_OK = 'Skill: debug. Root cause: the date parser.' + FIN;
 // a project's own Stop command (REQ external-stop): blocks with two numbered steps, crashes, or passes, by .cache/stop-mode.txt
 const FAKE_STOP = "const fs = require('fs'); const m = fs.existsSync('.cache/stop-mode.txt') ? fs.readFileSync('.cache/stop-mode.txt', 'utf8').trim() : 'pass';\n" +
   "if (m === 'crash') { process.stderr.write('boom'); process.exit(1); }\n" +
+  "if (m === 'slow') { const t = Date.now(); while (Date.now() - t < 4000); }\n" +
   "if (m === 'block') console.log(JSON.stringify({ decision: 'block', reason: 'Almost done: 2 steps are left (round 1 of 3).\\n1. Price every item in PRICES.md\\n2. Run the 10-pass catalog check, rounds 1 and 2\\nFull steps: .cache/stop-details.md' }));\n";
 const DEBUG_NA = 'Skill: debug. Root cause: the date parser. N/A(verification-report): a fixture with no app to run.' + FIN;
 const DEBUG_TURN = { prompt: 'debug the failing import', tools: [sk('debug')], prep: KNOWN, files: { 'scratch-work/import.md': 'x', 'docs/CHANGELOG.md': 'x' } };
@@ -3002,6 +3003,10 @@ STOP.push(
     failedExtra: { shortOk: false, answer: DEBUG_OK }, drafts: [DEBUG_OK], expect: { block: true, tags: ['project-price-every-item-in-prices-md'] } },
   { ...DEBUG_TURN, name: 'external-stop: a project Stop command that crashes is one step', answer: DEBUG_OK, edit: cfgEdit({ externalStop: 'node tools/fake-stop.cjs stop' }),
     files: { ...DEBUG_TURN.files, 'tools/fake-stop.cjs': FAKE_STOP, '.cache/stop-mode.txt': 'crash' }, expect: { block: true, tags: ['external-stop'] } },
+  // (a command that runs out of time reruns at the next Stop; it is not called broken. Lesson (a field report): under
+  // load a project's Stop command passed a fixed 60 s, and the answer was told to remove it)
+  { ...DEBUG_TURN, name: 'external-stop: a project Stop command that runs past its time limit is named as out of time, to rerun, not to remove', answer: DEBUG_OK, edit: cfgEdit({ externalStop: 'node tools/fake-stop.cjs stop', externalStopTimeoutMs: 1500 }),
+    files: { ...DEBUG_TURN.files, 'tools/fake-stop.cjs': FAKE_STOP, '.cache/stop-mode.txt': 'slow' }, expect: { block: true, tags: ['external-stop'], says: /ran out of time after 2 s/ } },
   { ...DEBUG_TURN, name: 'external-stop: a project Stop command that passes adds nothing', answer: DEBUG_OK, edit: cfgEdit({ externalStop: 'node tools/fake-stop.cjs stop' }),
     files: { ...DEBUG_TURN.files, 'tools/fake-stop.cjs': FAKE_STOP, '.cache/stop-mode.txt': 'pass' }, expect: { not: ['external-stop', 'project-price-every-item-in-prices-md'] } },
   { ...DEBUG_TURN, name: 'answer-resent: the earlier full answer is still checked: a missing marker blocks', active: true, blocks: 1, failed: ['changelog'],
@@ -3392,6 +3397,22 @@ STOP.push(
     files: VAULT_NOTE, mtimes: { 'Garden/Basil.md': -3_000_000 }, answer: 'The note `Garden/Basil.md` is linked both ways.\n\nYour rule is already in place and checked automatically. I can\'t finish an answer until both checks pass.' + FIN, expect: { block: true, tags: ['claim-checked'] } },
   { name: 'claim-checked: a setup answer\'s list of rules "each checked automatically", naming no files: passes', prompt: 'set up this project for my letters',
     answer: 'Done: the project is set up.\n\n**Rules, each checked automatically:**\n- Letters are only ever drafts.\n- Your original leases are never edited.', expect: { not: ['claim-checked'] } },
+  // claim-checked (helpers' verdicts): a group called passed or fine, in a session where helpers worked, says who
+  // judged it. Lesson (a field report): "the other 21 passed" rested on a check that only found a helper's note per item
+  { name: 'claim-checked: "the other 21 menus passed" after helpers reviewed them in an earlier turn: blocked', prompt: 'did every recipe earn its place on the menus?',
+    before: [{ name: 'Agent', input: { prompt: 'Read AGENTS.md first and follow its rules. Review the menus, one note per recipe.' }, result: 'done: 25 menus reviewed' }],
+    tools: [bash('python tools/note_check.py', '21 menus OK, 4 missing notes')],
+    answer: 'No recipe changed. In 4 menus, 13 recipes had no note; I compared each one with what you have, and each one stays. The other 21 menus already had their notes and passed.', expect: { block: true, tags: ['claim-checked'], says: /who judged/ } },
+  { name: 'claim-checked: the same answer saying the helpers judged the rest, or a session with no helpers: passes', prompt: 'did every recipe earn its place on the menus?',
+    before: [{ name: 'Agent', input: { prompt: 'Read AGENTS.md first and follow its rules. Review the menus, one note per recipe.' }, result: 'done: 25 menus reviewed' }],
+    tools: [bash('python tools/note_check.py', '21 menus OK, 4 missing notes')],
+    answer: 'No recipe changed. In 4 menus, 13 recipes had no note; I compared each one with what you have, and each one stays. The other 21 menus have a note per recipe, written by the helpers; I did not re-check their verdicts.', expect: { not: ['claim-checked'] } },
+  { name: 'claim-checked: an answer that quotes such a claim to describe it, after helpers worked: passes', prompt: 'what did you fix?',
+    before: [{ name: 'Agent', input: { prompt: 'Read AGENTS.md first and follow its rules. Review the menus, one note per recipe.' }, result: 'done: 25 menus reviewed' }],
+    answer: 'The check now blocks answers like the two that misled you ("21 were fine.", "The other 21 menus already had their notes and passed.").', expect: { not: ['claim-checked'] } },
+  { name: 'claim-checked: a group called fine in a session with no helpers: passes', prompt: 'did every recipe earn its place on the menus?',
+    tools: [bash('python tools/note_check.py', '21 menus OK, 4 missing notes')],
+    answer: 'No recipe changed. In 4 menus, 13 recipes had no note; I compared each one with what you have, and each one stays. The other 21 menus already had their notes and passed.', expect: { not: ['claim-checked'] } },
   // claim-checked (by hand): the agent tests nothing by hand
   { name: 'claim-checked: "Lo probé a mano" about a browser run: blocked', prompt: 'agrega una página de índice', tools: [bash('node .cache/check-index.mjs', 'clicked 3 categories: OK')],
     answer: '**Hecho:** el índice está listo.\n- **Lo probé a mano:** en el navegador, al tocar una categoría la página salta a su sección.', expect: { block: true, tags: ['claim-checked'], says: /done by hand/ } },

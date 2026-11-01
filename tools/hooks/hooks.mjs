@@ -234,6 +234,7 @@ const DEFAULTS = {
   smallLines: 40,            // ... and this many lines edited: held to tests, security and accuracy, not to a feature's ceremony
   deleteOk: [],              // globs a plain delete may remove without asking, e.g. drafts the user never saw (noOverwrite, newVersionOnly)
   externalStop: '',          // the project's own Stop command, run inside this Stop so both lists are one (REQ: external-stop)
+  externalStopTimeoutMs: 180000, // how long that command may run before this Stop gives up on it for this round
   planNewFiles: 5,         // a work turn that creates this many new files needs a plan in docs/plans/ (REQ: plan-required)
   hookBudgetMs: 1000,         // a hook event slower than this (median, node start included) slows every turn: the audit fails
   stopBudgetMs: 500,          // the Stop hook's own work on a realistic work turn (node start not included): the self-tests fail over it
@@ -1062,13 +1063,16 @@ export function turn(transcript) {
   const sessionTools = rows.flatMap(r => r.type === 'assistant' && Array.isArray(r.message?.content) ? r.message.content : [])
     .filter(x => x && x.type === 'tool_use').map(x => JSON.stringify(x.input || {})).join('\n');
   const sessionStart = Date.parse(rows.find(r => r.timestamp)?.timestamp || '') || since;
+  // a helper ran this session, also before a compaction (its summary lists the tools used before it)
+  const sessionHelpers = rows.some(r => r.type === 'assistant' && Array.isArray(r.message?.content) && r.message.content.some(c => c?.type === 'tool_use' && /^(Agent|Task)$/.test(c.name)))
+    || rows.some(r => r.type === 'user' && /<tools-used-before-summary>[^<]*\b(Agent|Task)\b/.test(textOf(r.message?.content ?? '')));
   // what the session's tools returned, earlier turns too, read on first use (REQ: answer-traced): a figure read in an
   // earlier turn is no more made up than one read now. Lesson, trial round 20: two right totals, read one turn earlier,
   // were flagged, and the forced rewrite of the answer added a wrong claim no check looked at.
   let readCache = null;
   return {
     get sessionResults() { return readCache ??= toolResults(rows); }, since, entries, get helperEntries() { return helpers(); }, prompt: [prompt, ...queued].map(userText).filter(s => s.trim()).join('\n'), parts: [prompt, ...queued].map(userText).filter(s => s.trim()), queued, toolsKnown: true, allPrompts, bgRunning: backgroundRunning(rows), watchers: watchersArmed(rows), wakeups: wakeupsPending(rows),
-    get sessionWrites() { const h = helpers(); return h.length ? `${mainWrites}\n${writesOf(h)}` : mainWrites; }, sessionTools, sessionStart };
+    get sessionWrites() { const h = helpers(); return h.length ? `${mainWrites}\n${writesOf(h)}` : mainWrites; }, sessionTools, sessionStart, sessionHelpers };
 }
 
 // Watchers the agent armed (the Monitor tool: "Monitor started (task <id>, expires in 10m ...)") that have not ended yet.
@@ -1567,6 +1571,19 @@ const claimSentences = answer => String(answer || '').replace(/<!--[\s\S]*?-->/g
 export function enforcedClaim(answer) {
   const all = new RegExp(ENFORCED.source, 'giu');
   return claimSentences(answer).find(s => ENFORCED.test(s) && !/\b(not|n'?t|never|no longer|if|unless|whether|would|could|might|how)\b|(?<!\p{L})(si|no|nunca)(?!\p{L})/iu.test(s.replace(all, ' '))) || '';
+}
+// A sentence that says a group of items passed or is fine ("21 were fine", "the other 21 menus passed"), not a test
+// run, and not one that says who judged them or what the check behind it tests. In a session where helpers did work,
+// such a verdict may be theirs, or a check that only found a note for each item. Lesson (a field report): an answer
+// said the rest "passed" after a check that only confirmed each item had a note written by a helper; asked later,
+// the agent said it had never checked whether those verdicts were right.
+const GROUP_VERDICT = /\b(all|every|each|the (other|rest|remaining)|remaining|\d+)\b.{0,80}?\b(passed|pass(es)?|(were|are|was|is) (all )?(fine|ok|okay|good|correct|right|verified|sound)|checked out|hold up|deserve[sd]?|earned)\b|(?<!\p{L})(todos?|todas?|cada|los dem[aá]s|las dem[aá]s|\d+)(?!\p{L}).{0,80}?(?<!\p{L})(pasaron|est[aá]n bien|estaban bien|son correct[oa]s|verificad[oa]s)(?!\p{L})/iu;
+const TEST_RUN = /\b(tests?|self-?tests?|selfcheck|suites?|builds?|lint|type-?checks?|audit|trial|CI|scenarios?)\b|(?<!\p{L})pruebas?(?!\p{L})/iu;
+const JUDGED_BY = /\b(helpers?|sub-?agents?|agents?|I (re-?)?(checked|judged|read|compared|reviewed|scored) (each|every|all|them|it|one by one)|only (checks?|confirms?|found|means)|not (re-?)?(checked|judged|verified|read))\b|(?<!\p{L})(ayudantes?|sub-?agentes?|agentes?)(?!\p{L})/iu;
+export function groupVerdictClaim(answer) {
+  // (a phrase in quotes is named, not claimed. Lesson, dogfood: an answer that quoted the misleading claims was flagged)
+  const quoted = /"[^"\n]{1,160}"|“[^”\n]{1,160}”|«[^»\n]{1,160}»/g;
+  return claimSentences(answer).find(s => { const t = s.replace(quoted, ' '); return GROUP_VERDICT.test(t) && !TEST_RUN.test(t) && !JUDGED_BY.test(t); }) || '';
 }
 // A sentence in which the agent says it tested a page or app by hand (not one that asks the user to, nor a negation).
 const BY_HAND = /\b(by hand|manually|hand-tested)\b|(?<!\p{L})(a mano|manualmente)(?!\p{L})/iu;
@@ -6805,6 +6822,11 @@ export function coreChecks(x, cfg) {
   const handClaim = byHandClaim(x.answer);
   if (handClaim)
     add('claim-checked', `The answer says a test was done by hand ("${handClaim.trim().slice(0, 80)}"), but nobody here tests by hand: say how it ran ("with an automated browser", "con un navegador automatizado", and the tool), or that it is for the user to try.`);
+  // REQ: claim-checked (helpers' verdicts). In a session where helpers worked, a group of items called passed or fine
+  // says who judged them and what the check behind it tests (groupVerdictClaim).
+  const verdict = x.sessionHelpers ? groupVerdictClaim(x.answer) : '';
+  if (verdict)
+    add('claim-checked', `The answer says "${verdict.trim().slice(0, 80)}", but helpers worked this session, so that verdict may be theirs or come from a check that only found a record per item. Say who judged those items (you, re-checking each one, or a helper whose verdict you did not re-check) and what the check behind it tests, or check them yourself first.`);
   // REQ: instructions-run. A script, launcher or command the answer tells the user to run, made or changed this turn,
   // ran here and worked, or the answer says it is not verified (launcherGaps).
   if (x.toolsKnown) {
@@ -8138,7 +8160,13 @@ export function externalStopSteps(data, cfg = config()) {
   const cmd = String(cfg.externalStop || '').trim();
   if (!cmd || envOf('BENCH')) return [];
   const why = cmd.replace(/\s+stop\s*$/i, ' why');
-  const r = spawnSync(cmd, { cwd: ROOT, shell: true, input: JSON.stringify(data), encoding: 'utf8', timeout: 60000, env: { ...process.env, ANZUELO_MERGED_STOP: '1' } });
+  const limit = Number(cfg.externalStopTimeoutMs) > 0 ? Number(cfg.externalStopTimeoutMs) : 180000;
+  const r = spawnSync(cmd, { cwd: ROOT, shell: true, input: JSON.stringify(data), encoding: 'utf8', timeout: limit, env: { ...process.env, ANZUELO_MERGED_STOP: '1' } });
+  // (a command that ran out of time is not broken: it runs again at the next Stop. Removing it would turn off every
+  // check it runs. Lesson (a field report): under load from helpers, a project's Stop command passed the fixed 60 s
+  // and the answer was told to fix it or remove it)
+  if (r.error?.code === 'ETIMEDOUT') return [{ tag: 'external-stop', external: true, short: "The project's own Stop command ran out of time: it runs again at the next Stop",
+    msg: `The project's own Stop command (${cmd}, config "externalStop") ran out of time after ${Math.round(limit / 1000)} s, likely because the machine was busy (helpers or other runs). Nothing is wrong with it: let any helper runs finish, then end the turn again so it reruns. If it keeps running out of time with the machine quiet, raise "externalStopTimeoutMs" in tools/hooks/config.json or make the command faster.` }];
   const last = String(r.stdout || '').trim().split(/\r?\n/).filter(Boolean).pop() || '';
   let d = null; try { d = last ? JSON.parse(last) : null; } catch { }
   if (r.error || (r.status && !d)) return [{ tag: 'external-stop', external: true, short: "Fix the project's own Stop command: it failed",

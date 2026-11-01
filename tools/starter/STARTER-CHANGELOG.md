@@ -6,6 +6,16 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-01 (project Stop time limit): The project's own Stop command (config "externalStop") may run for
+  "externalStopTimeoutMs" (new key, default 180000, was a fixed 60000). One that runs out of time is named as out of
+  time, to rerun at the next Stop, not as broken with advice to remove it (which turned off every check it runs).
+  Scenario: "external-stop: a project Stop command that runs past its time limit is named as out of time, to rerun,
+  not to remove".
+- 2026-11-01 (helpers' verdicts): In a session where helpers worked, an answer that calls a group of items passed or
+  fine ("the other 21 menus passed") says who judged them and what the check behind it tests, or claim-checked blocks
+  it. A check that only finds a helper's note per item had been reported as the items passing. Scenarios:
+  "claim-checked: "the other 21 menus passed" after helpers reviewed them ...", "... saying the helpers judged the
+  rest ...", "... no helpers: passes".
 - 2026-11-01 (hook run ending): A self-test whose hook run ended badly (a status other than 0, a signal, or a process
   that never started) says so in its failure, with the error output, also when it reports a missing tag. Two projects
   saw Stop tests pass that should block, once each, with no error output; the cause is not found yet.
