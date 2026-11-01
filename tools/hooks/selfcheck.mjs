@@ -981,6 +981,16 @@ const STOP = [
     tools: [bash('for n in changelog finished-summary; do node tools/hooks/hooks.mjs waive $n "the user is restarting now, records go to the next session"; done',
       'waived for this turn: changelog (the user is restarting now, records go to the next session)\nwaived for this turn: finished-summary (the user is restarting now, records go to the next session)')],
     answer: 'Added the export.', expect: { not: ['changelog', 'finished-summary'] } },
+  // (a waive whose output was thrown away counts by its record in the run log. Lesson (a field report): "waive x ...
+  // >/dev/null && git commit" was asked for again in two more Stop rounds)
+  ...(() => { const cmd = 'node tools/hooks/hooks.mjs waive changelog "the user is restarting now, records go to the next session" >/dev/null && git status --short';
+    const log = JSON.stringify({ at: new Date(Date.now() + 3_600_000).toISOString(), cmd: 'node tools/hooks/hooks.mjs waive changelog "the user is restarting now, records go to the next session"', out: 'waived for this turn: changelog (the user is restarting now, records go to the next session)', error: false }) + '\n';
+    return [
+      { name: 'waive: a waiver whose output went to /dev/null counts by its record in the run log', prompt: 'add a csv export', files: { 'src/export.js': 'export const go = () => 1;\n', 'tools/hooks/state/runs.jsonl': log },
+        tools: [bash(cmd, '')], answer: 'Added the export.\n\n**Finished**\n- `src/export.js`', expect: { not: ['changelog'] } },
+      { name: 'waive: the same command with no record in the run log waives nothing', prompt: 'add a csv export', files: { 'src/export.js': 'export const go = () => 1;\n' },
+        tools: [bash(cmd, '')], answer: 'Added the export.\n\n**Finished**\n- `src/export.js`', expect: { tags: ['changelog'] } },
+    ]; })(),
   // (a waiver counts only when the waive command confirmed it. Lesson (the engine gap review): a refused waiver still
   // dropped its check)
   { name: 'waive: a waiver the waive command refused does not count', prompt: 'add a csv export', files: { 'src/export.js': 'export const go = () => 1;\n' },
@@ -6318,6 +6328,9 @@ if (mineB() && fs.existsSync(path.join(ROOT, 'tools/starter/trials/compare.mjs')
   // (tools/starter/runbooks/improvement-loop.md). Lesson: the first baseline's judges did not count Stop rounds, which made it look
   // block-free and every later round "worse"; blocks are counted from the trial records.
   const c = await import(pathToFileURL(path.join(ROOT, 'tools/starter/trials/compare.mjs')).href);
+  // (a turn the account's limit answered is void, in any wording. Lesson: "You've hit your 5-hour limit" was not)
+  report(["You've hit your 5-hour limit · resets 4:40pm (America/Los_Angeles)", "You've hit your session limit · resets 2pm", 'Claude usage limit reached'].every(a => c.isVoid({ turns: [{ answer: a }] })) && !c.isVoid({ turns: [{ answer: 'The export now stays within the limit you set.' }] }),
+    "improvement-loop: a trial turn answered by the account's limit, in any wording, is void; an answer that mentions a limit is not", '');
   const rec = (setup, blocked, turns = 3, errors = 0) => ({ turns: Array.from({ length: turns }, (_, i) => ({ min: i ? 5 : setup, blockTags: i < blocked ? ['x'] : [], error: i < errors ? 'ETIMEDOUT' : '' })) });
   const judged = (h, m, l = 2) => ({ findings: [...Array(h).fill({ severity: 'high', starter: 'a check' }), ...Array(m).fill({ severity: 'medium', starter: 'none' }), ...Array(l).fill({ severity: 'low' })] });
   const P = (setup, blocked, h, m, errors = 0) => c.projectStats(rec(setup, blocked, 3, errors), judged(h, m));
@@ -8065,14 +8078,40 @@ if (!TAGS || TAGS.includes('bench-caches')) { const dir = copyProject();
 // (while other self-test runs share the machine, a time over budget is their load, not the hook's: it is reported, not
 // failed. The test first waits for them. Lesson (two projects and the starter): 540 to 726 ms in runs beside another
 // suite, 156 to 164 ms alone for the same engine)
-const stopVerdict = (samples, budget, others = 0) => {
+// (prev: the previous engine's fastest time in the same run, on the same turn. Over budget but no slower than it,
+// within 10% and 20 ms, the machine is what is slow, not the change: reported, not failed. Lesson: the test failed in
+// 3 of 6 full runs in one day while other projects' helpers loaded the machine; a side-by-side run showed no slowdown)
+const stopVerdict = (samples, budget, others = 0, prev = null) => {
   const mid = [...samples].sort((a, b) => a.total - b.total)[0];
   const slow = mid.parts.filter(([l]) => !/\(total\)$/.test(l)).sort((a, b) => b[1] - a[1]).slice(0, 3);
-  return { ok: mid.total <= budget || others > 0, busy: mid.total > budget && others > 0, total: mid.total, slow: slow.map(([l, ms]) => `${l} ${ms} ms`) };
+  const asPrev = prev != null && mid.total <= prev * 1.1 + 20;
+  return { ok: mid.total <= budget || others > 0 || asPrev, busy: mid.total > budget && (others > 0 || asPrev), total: mid.total, prev, slow: slow.map(([l, ms]) => `${l} ${ms} ms`) };
 };
 { const t = [{ total: 600, parts: [['check a', 300], ['core b', 200], ['sync c', 100]] }];
   const alone = stopVerdict(t, 500), shared = stopVerdict(t, 500, 1), fast = stopVerdict([{ ...t[0], total: 400 }], 500, 1);
   report(!alone.ok && shared.ok && shared.busy && fast.ok && !fast.busy, 'stop-budget: over budget fails when the run is alone, and is reported, not failed, while other self-test runs share the machine', JSON.stringify({ alone, shared, fast })); }
+{ const t = [{ total: 600, parts: [['check a', 300], ['core b', 200], ['sync c', 100]] }];
+  const asSlow = stopVerdict(t, 500, 0, 580), slower = stopVerdict(t, 500, 0, 400);
+  report(asSlow.ok && asSlow.busy && !slower.ok, 'stop-budget: over budget but as fast as the previous engine on the same run is reported, not failed; slower than it fails', JSON.stringify({ asSlow, slower })); }
+// The previous engine's fastest Stop time on the same turn (the committed one, or before the last commit that changed
+// it when the working copy is the committed one), or null where git can't give it (a project, no history).
+function prevEngineStop(dir, tp) {
+  const git = (...a) => ({ stdout: spawnSync('git', a, { cwd: ROOT, encoding: 'utf8' }).stdout || '' });
+  const f = 'tools/hooks/hooks.mjs', here = fs.readFileSync(path.join(ROOT, f), 'utf8');
+  let old = git('show', `HEAD:${f}`).stdout;
+  if (!old || old === here) { const last = git('log', '-1', '--format=%H', '--', f).stdout.trim(); old = last ? git('show', `${last}^:${f}`).stdout : ''; }
+  if (!old || old === here) return null;
+  const at = path.join(dir, f), mine = fs.readFileSync(at, 'utf8'), times = [];
+  try {
+    fs.writeFileSync(at, old);
+    for (let i = 0; i < 5; i++) {
+      const r = spawnSync(process.execPath, [at, 'stop'], { cwd: dir, encoding: 'utf8', input: JSON.stringify({ transcript_path: tp, last_assistant_message: 'Playbook: plan.md. Saved the plan.' + FIN }),
+        env: { ...process.env, STARTER_TIMING: '1', STARTER_MEMORY_DIR: path.join(dir, '.memtest') } });
+      try { times.push(JSON.parse(/STOP-TIMING (.*)/.exec(r.stderr || '')[1]).total); } catch { }
+    }
+  } finally { fs.writeFileSync(at, mine); }
+  return times.length ? Math.min(...times) : null;
+}
 if (!TAGS && !HELPER && !REUSE) {
   const dir = copyProject();
   try {
@@ -8095,8 +8134,11 @@ if (!TAGS && !HELPER && !REUSE) {
         env: { ...process.env, STARTER_TIMING: '1', STARTER_MEMORY_DIR: path.join(dir, '.memtest') } });
       try { samples.push(JSON.parse(/STOP-TIMING (.*)/.exec(r.stderr || '')[1])); } catch { }
     }
-    const v = samples.length ? stopVerdict(samples, budget, others) : null;
-    if (v) console.log(`stop timing: ${v.total} ms (fastest of ${samples.length}: ${samples.map(s => s.total).join(', ')}; budget ${budget} ms); slowest: ${v.slow.join(', ')}${v.busy ? `; not failed: ${others} other self-test run(s) shared the machine` : ''}`);
+    // (over budget: time the previous engine on the same turn, in the same copy, to tell a slow machine from a slow change)
+    let prev = null;
+    if (samples.length && Math.min(...samples.map(s => s.total)) > budget) prev = prevEngineStop(dir, tp);
+    const v = samples.length ? stopVerdict(samples, budget, others, prev) : null;
+    if (v) console.log(`stop timing: ${v.total} ms (fastest of ${samples.length}: ${samples.map(s => s.total).join(', ')}; budget ${budget} ms); slowest: ${v.slow.join(', ')}${v.busy ? `; not failed: ${others ? `${others} other self-test run(s) shared the machine` : `the previous engine took ${prev} ms on the same run, so the machine is slow, not the change`}` : prev != null ? `; the previous engine took ${prev} ms on the same run` : ''}`);
     report(!!v && v.ok, `stop-budget: the Stop hook stays within its ${budget} ms budget on a realistic work turn`, v ? `${v.total} ms, over budget; slowest: ${v.slow.join(', ')}` : 'no STOP-TIMING line from the hook (STARTER_TIMING=1)');
     // and the verdict names the slowest checks when the budget is missed
     const tight = v ? stopVerdict(samples, 1) : null;

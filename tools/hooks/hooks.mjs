@@ -2596,7 +2596,9 @@ export function context(t, cfg, answerOverride) {
   // carry over".
   // (a waiver counts only when the waive command confirmed it: one it refused, for a reason too short or a false claim,
   // waives nothing. Lesson (a gap review): Stop read the command's text, so a refused waiver still counted)
-  const confirmed = new Set([...String(t.toolsKnown ? toolResults(withHelpers) : '').matchAll(/waived for this turn: ([a-z][\w-]*)/g)].map(m => m[1]));
+  // (or its own record in the run log, for a waive this turn's commands ran with its output thrown away. Lesson (a field
+  // report): "waive x ... >/dev/null && git commit" was asked for again in two more Stop rounds)
+  const confirmed = new Set([...`${t.toolsKnown ? toolResults(withHelpers) : ''}\n${loggedRuns(t.since).map(r => r.out).join('\n')}`.matchAll(/waived for this turn: ([a-z][\w-]*)/g)].map(m => m[1]));
   const waives = [...cmds, ...(t.toolsKnown ? [] : loggedRuns(t.since).map(r => r.cmd))].flatMap(c => [...String(c).matchAll(/hooks\.mjs["']?\s+waive\s+([a-z][\w-]*)\s+(?:"([^"\n]+)"|'([^'\n]+)'|([^"'\n&;|]+))/gi)])
     .filter(m => !t.toolsKnown || confirmed.has(m[1]))
     .map(m => `N/A(${m[1]}): ${(m[2] || m[3] || m[4] || '').trim()}`).join('\n')

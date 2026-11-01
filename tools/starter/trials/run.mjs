@@ -14,6 +14,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { LIMIT_ANSWER } from './compare.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const STARTER_ROOT = path.resolve(HERE, '..', '..', '..');
@@ -28,7 +29,7 @@ const SC = readScenarios(process.env.TRIAL_SCENARIOS || 'scenarios.json');
 export const STANDARD = ['np-flask-api', 'np-go-service', 'np-photo-cli', 'np-blog-es', 'np-landlord', 'np-weekly-sales', 'np-vault', 'np-novel'];
 const PARALLEL = 4;
 // the account's usage or session limit, as the host answers a turn it never started
-const USAGE_LIMIT = /\b(hit your (session|usage|weekly) limit|usage limit (reached|exceeded)|session limit · resets|rate limit reached)\b/i;
+const USAGE_LIMIT = LIMIT_ANSWER;
 
 const arg = process.argv[2];
 if (arg === '--list') { for (const s of SC) console.log(`${STANDARD.includes(s.id) ? '*' : ' '} ${s.id} - ${s.why}`); process.exit(0); }

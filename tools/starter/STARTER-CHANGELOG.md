@@ -6,6 +6,19 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-01 (waivers with their output thrown away): A waive command this turn ran counts by its record in the run
+  log too, not only by the "waived for this turn" line in the tool output. A waiver run as "waive x ... >/dev/null &&
+  git commit" was asked for again in two more Stop rounds, and the turn ended unresolved. Scenarios: "waive: a
+  waiver whose output went to /dev/null counts by its record in the run log", "waive: the same command with no record
+  in the run log waives nothing".
+- 2026-11-01 (trial rounds and the account limit): run.mjs and compare.mjs share one pattern for a turn the account's
+  limit answered, in any "hit your ... limit" wording ("5-hour" was missed, so a round ran on into the limit
+  unmarked), and run.mjs refuses a round name used before, before any trial starts. Test: "improvement-loop: a trial
+  turn answered by the account's limit, in any wording, is void; an answer that mentions a limit is not".
+- 2026-11-01 (Stop timing under load): In the starter, a Stop timing over budget also times the previous engine on
+  the same turn in the same run; no slower than it (within 10% and 20 ms), the machine is slow, not the change: reported,
+  not failed. It failed 3 of 6 full runs in one day under other projects' load. Scenario: "stop-budget: over budget but
+  as fast as the previous engine on the same run is reported, not failed; slower than it fails".
 - 2026-11-01 (timed testing sessions): The improvement-loop runbook covers a testing session with a time budget:
   rounds back to back with the drift probes, the real projects watched between rounds, every finding fixed with a
   test and retested, a report of rounds, verdicts and fixes at the end. Its step 6 commits and pushes only with the

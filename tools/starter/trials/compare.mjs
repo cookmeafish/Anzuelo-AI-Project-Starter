@@ -26,7 +26,9 @@ export const MEDIUM_NOISE = 3, SLOWER = 1.25, BLOCKED_NOISE = 0.15, COSTLIER = 1
 
 // One project's numbers from its trial record and its judged findings.
 // A trial the account's usage limit stopped: marked by run.mjs, or (older records) a turn whose whole answer is the limit
-const LIMIT_ANSWER = /\b(hit your (session|usage|weekly) limit|usage limit (reached|exceeded))\b/i;
+// (one pattern for run.mjs and this file, any "hit your ... limit" wording. Lesson: "You've hit your 5-hour limit" ran a
+// whole round into the limit unmarked, since run.mjs and this file each kept their own, older list)
+export const LIMIT_ANSWER = /\b(hit your [\w -]{0,24}limit|usage limit (reached|exceeded)|session limit · resets|rate limit reached)\b/i;
 export const isVoid = r => !!r?.void || (r?.turns || []).some(t => LIMIT_ANSWER.test(t.answer || '') && String(t.answer || '').trim().length < 300);
 export function projectStats(record, judged) {
   const turns = record?.turns || [];

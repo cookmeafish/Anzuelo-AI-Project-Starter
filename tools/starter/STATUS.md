@@ -33,9 +33,14 @@ docs/STATUS.md, which here is the template new projects start from).
 - 2026-11-01: 03dc06f, e29973c, fc549dd (proof runs with failure counts, file entries, relayed labels): both projects on fc549dd, committed. bf1c8e1 (failed self-tests say how the hook run ended) sent to both. Open: the first --full run after the fc549dd upgrade failed in both projects (11 and 20 Stop tests passed that should block, no error output), each overlapping the other project's upgrade; a rerun passed; two full runs at once in the starter passed. Cause not found; next: reproduce a full run while an upgrade runs in another project.
 - 2026-11-01 night: the user asked for 5 hours of trial testing (drift and memory probes added), every issue fixed
   and retested. Testing session: started 2026-11-01 11:57 PST (19:57 UTC), ends 16:57 PST (00:57 UTC 2026-11-02)
-  (improvement-loop runbook, "A testing session with a time budget"). Round v21 is the first. Fixes to the new group-verdict check (test counts, dates, the user's own words) in the chain now.
-  Open: the stop-budget self-test fails under unrelated machine load (an A/B in one worktree showed no slowdown);
-  11 and 5 turns in the projects ended with their full Stop check never run (background work).
+  (improvement-loop runbook, "A testing session with a time budget"). Round v22 is the first (v21's name was used
+  by an old run; run.mjs now refuses a used name up front, e678ebf), started 12:47 PST on e678ebf. At about 13:10 the
+  account's 5-hour limit stopped it (resets 16:40 PST); v22 is void but np-photo-cli. The limit message was not
+  recognized (fixed: one shared pattern). Next: after the reset, round v23 (all 11), then judge, fix, repeat, until
+  5 hours of testing have run. Fixes to the new group-verdict check (test counts, dates, the user's own words) in the chain now.
+  Open: the stop-budget self-test fails under unrelated machine load (an A/B in one worktree showed no slowdown).
+  The projects' "ended-unresolved" turns are the 3-block cap (by design, announced next prompt), plus older ones from
+  before 69f3084.
 - 2026-11-01 evening: helpers' verdicts reported as items passing (claim-checked), from a project's complaint, and
   a project Stop command's time limit (externalStopTimeoutMs, 180 s): e71fcba. Both projects on it, committed, full
   self-tests passing (1522 and 1538). Watch: Stop timings drift up under load (here 389 to 622 ms in full runs while
