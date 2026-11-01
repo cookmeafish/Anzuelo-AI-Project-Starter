@@ -41,6 +41,10 @@ async function round() {
   const ids = process.argv.slice(4).filter(a => !a.startsWith('--'));
   const list = ids.length ? ids : STANDARD;
   for (const id of list) if (!SC.some(s => s.id === id)) { console.error(`unknown trial ${id}`); process.exit(1); }
+  // (a round name used before is refused for the whole round, before any trial starts. Lesson: a reused name stopped
+  // eight trials at once while three new ones ran on, so the round could not be compared as one)
+  const used = list.filter(id => fs.existsSync(path.join(os.tmpdir(), 'anzuelo-new', `${id}-${name}`)));
+  if (used.length) { console.error(`run.mjs: round name "${name}" was used before (${used.join(', ')}): pick a new one`); process.exit(1); }
   let starter = process.env.TRIAL_STARTER || STARTER_ROOT;
   const head = spawnSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: STARTER_ROOT, encoding: 'utf8' }).stdout.trim();
   if (process.argv.includes('--freeze')) {
