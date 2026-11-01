@@ -6,6 +6,9 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-01 (file entries): A list entry that names a file and says what it is ("- `x.mjs`: how a test run is
+  judged") no longer tells the user to run it because "run" appears as a noun; it does when a clause of the
+  description starts with the verb (`a Finished entry for a script changed this turn`).
 - 2026-11-01 (proof run counts): A proof run of a new check that printed a failure count ("45 passed, 2 failed") or
   an exit code ("exit 1") counts as failing, though the command's last part succeeded, and a run with failures is no
   passing run. Such a run read as a pass, so the check's failing run on the earlier version never counted

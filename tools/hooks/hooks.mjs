@@ -1482,7 +1482,13 @@ export function instructedLaunchers(answer, changed) {
   // `scripts/setup.ps1`", tells the user to run nothing)
   const fileList = l => { const rest = l.replace(/^[^`:\n]{0,40}:/, ''), spans = rest.match(/`[^`\n]+`/g) || [];
     return spans.length >= 2 && !runSaid(rest.replace(/\([^)\n]*\)/g, ' ')); };
-  const body = String(answer || '').split(/\r?\n/).filter(l => !fileList(l)).join('\n');
+  // (a list entry that names a file and then says what it is, "- `x.mjs`: how a test run is judged", tells the user to
+  // run it only when a clause of the description starts with the verb: "- `start.bat`: double-click it". Lesson (the
+  // starter's own work): "run" as a noun in a Finished entry for a changed engine file asked for that file to be run)
+  const entry = l => /^\s*[-*+]\s+`[^`\n]+`\s*[:,-]\s*(.*)$/.exec(l)?.[1];
+  const entryOnly = l => { const d = entry(l); if (d == null) return false;
+    return !d.split(/[;:.,]\s*|\b(?:then|and|to|you|please|just)\s+/i).some(c => runSaid((/^\s*(dob\w+\s+\S+|\S+)/i.exec(c || '') || [])[1] || '')); };
+  const body = String(answer || '').split(/\r?\n/).filter(l => !fileList(l) && !entryOnly(l)).join('\n');
   const ch = (changed || []).map(p => String(p).replace(/\\/g, '/'));
   const lower = ch.map(p => p.toLowerCase());
   const pkg = ch.some(p => /(^|\/)package\.json$/i.test(p)), mk = ch.some(p => /(^|\/)(GNU)?makefile$/i.test(p));

@@ -3367,6 +3367,11 @@ STOP.push(
     files: { 'start.cmd': '@echo off\ncall npm start\n', 'docs/CHANGELOG.md': 'x' }, answer: '**Hecho:** el blog está listo.\n- **Ver el blog:** doble clic en `start.cmd` y abre http://127.0.0.1:8080/.' + ES_FIN, expect: { not: ['instructions-run'] } },
   { name: 'instructions-run: a script this turn did not touch, and a launcher only listed in Finished: passes', prompt: 'set up the api', tools: [W('start.bat', '@echo off\n')],
     files: { 'start.bat': '@echo off\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done. Run `node tools/audit.mjs` any time to check the project.\n\n## Finished\n- Files: `start.bat`', expect: { not: ['instructions-run'] } },
+  // Lesson (the starter's own work): "run" as a noun in a Finished entry for a changed file asked for that file to be run
+  ...[['how a test run of the menu is judged', { not: ['instructions-run'] }, 'describes it with "run" as a noun: passes'],
+    ['sets up the menu; run it once before the first start', { block: true, tags: ['instructions-run'] }, 'says to run it: blocked']].map(([desc, expect, says]) => ({
+    name: `instructions-run: a Finished entry for a script changed this turn that ${says}`, prompt: 'set up the menu', tools: [W('scripts/menu.mjs', 'console.log(1)\n')],
+    files: { 'scripts/menu.mjs': 'console.log(1)\n', 'docs/CHANGELOG.md': 'x' }, answer: `Done: the menu is set up.\n\n**Finished**\n- \`scripts/menu.mjs\`: ${desc}\n- Not verified: nothing else.`, expect })),
   { name: 'instructions-run: an npm script added this turn, run here and passing: passes', prompt: 'add a seed script', tools: [W('package.json', '{"scripts":{"seed":"node seed.js"}}'), bash('npm run seed', 'seeded 12 rows')],
     files: { 'package.json': '{"scripts":{"seed":"node seed.js"}}', 'docs/CHANGELOG.md': 'x' }, answer: 'Done. Run `npm run seed` to fill the database.' + FIN, expect: { not: ['instructions-run'] } },
   { name: 'instructions-run: an npm script added this turn and never run: blocked', prompt: 'add a seed script', tools: [W('package.json', '{"scripts":{"seed":"node seed.js"}}')],
