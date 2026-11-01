@@ -4606,8 +4606,11 @@ export function relayRequestText(s, cfg = config()) {
   // (a bare "upgrade" from another session, with no object, is the engine's: "Upgrade when convenient" had routed to a
   // project's own upgrade runbook)
   const bare = /^(?:please\s+)?(?:upgrade|update|actualiza)\s*(?=$|[.!,]|\s+(?:when|once|now|again|after|before|at|if|whenever|cuando|ahora)\b)/i;
+  // (a label before a colon is no task verb: "Test: (fails on the old engine)" names a test, "Steps: commit ..." starts
+  // with its verb after it. Lesson (a field report): a relayed upgrade note's "Test:" line routed to the debug skill)
+  const unlabeled = x => x.trim().replace(/^[\s\-*>]*\**\p{L}[\p{L} ]{0,20}\**:\s*/u, '');
   return String(s || '').split(/(?<=[.!?])\s+|\r?\n/).map(x => bare.test(x.trim()) ? 'upgrade the starter.' : x)
-    .filter(x => starts.test(x.trim()) || asks.test(x) || /upgrade the starter/.test(x)).join(' ').trim();
+    .filter(x => starts.test(unlabeled(x)) || asks.test(x) || /upgrade the starter/.test(x)).join(' ').trim();
 }
 // The user's own message routes on its words too: a command it names (in backticks or as a command line) and work it
 // reports as done are no request for that work; what it quotes stays (a user quotes the thing they mean). Lesson:

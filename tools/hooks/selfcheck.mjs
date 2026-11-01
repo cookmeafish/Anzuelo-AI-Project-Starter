@@ -6332,9 +6332,12 @@ if (mineB()) { // relay-request-text: only the sentences of a relayed message th
   const report1 = relayRequestText('Both items are fixed. STATUS.md had changed since then, so the reminder stayed quiet. Checked against a copy of your checklist. Upgrade when convenient.');
   const asks = relayRequestText('Field report 9 is in. Please replay session abc. Also make me a spring order for the tulip shop. Can you look at the sweeps?');
   const order = relayRequestText('Upgrade the tulip order with the new spring plants.');
+  // (a label is no task verb: "Test: (fails on the old soup recipe)" names a test. Lesson (a field report): a relayed
+  // upgrade note's "Test:" line routed to the debug skill on its "fails")
+  const label = relayRequestText('Test: (old recipe: fails on the soup; new recipe: passes). Steps: make the soup again.');
   report(report1 === 'upgrade the starter.' && /replay session abc/.test(asks) && /make me a spring order/.test(asks) && /look at the sweeps/.test(asks) && !/Field report 9/.test(asks)
-    && /Upgrade the tulip order/.test(order) && !/starter/.test(order),
-    'relay-request-text: a relayed message routes on the sentences that ask for something; reports and explanations route nothing; a bare "upgrade when ..." is the starter upgrade, "upgrade the order" stays', JSON.stringify({ report1, asks, order }));
+    && /Upgrade the tulip order/.test(order) && !/starter/.test(order) && !/fails/.test(label) && /make the soup again/.test(label),
+    'relay-request-text: a relayed message routes on the sentences that ask for something; reports and explanations route nothing; a bare "upgrade when ..." is the starter upgrade, "upgrade the order" stays; a "Label:" is no task verb', JSON.stringify({ report1, asks, order, label }));
 }
 if (mineB()) { // route: words joined by a hyphen are a phrase. Lesson: "15 tool calls" in a relayed report matched the
   // "on-call" trigger, whose "on" is a small word, and suggested the incident-response skill

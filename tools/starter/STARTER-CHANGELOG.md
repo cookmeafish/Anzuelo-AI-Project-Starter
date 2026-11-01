@@ -6,6 +6,9 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-01 (relayed labels): In a message from another session, a label before a colon ("Test: ... fails on the
+  old engine") is no task verb, so that line no longer routes (it had set off the debug skill); the words after the
+  label still route when they start with one (`relay-request-text`).
 - 2026-11-01 (file entries): A list entry that names a file and says what it is ("- `x.mjs`: how a test run is
   judged") no longer tells the user to run it because "run" appears as a noun; it does when a clause of the
   description starts with the verb (`a Finished entry for a script changed this turn`).
