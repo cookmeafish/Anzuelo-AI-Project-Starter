@@ -6,6 +6,12 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-01 (layout is not a fact): Where a mark goes on a picture or a page, in a data file written into the
+  knowledge folder (a box's corners, a label's point, a size, a crop), is no longer flagged as a made-up fact. Helpers
+  that drew markup on pictures had their box corners called invented, and the agent had to waive the check twice.
+  Figures beside the layout (a price, a width in a sentence) are still traced. Self-tests: `in a drawing file in
+  docs/knowledge, is layout` and `a figure in a data file in docs/knowledge, beside layout`.
+
 - 2026-10-31 (notes rewritten): A notes file rewritten during the turn, not appended to, keeps this turn's records.
   The turn's records were read from the file's length at the turn start, so a rewrite at least that long was cut in
   the middle, and the records before the cut were asked for again. The turn start now also keeps the file's last

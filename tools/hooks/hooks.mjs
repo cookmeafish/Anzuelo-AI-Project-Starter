@@ -6338,8 +6338,12 @@ export function coreChecks(x, cfg) {
       });
     };
     const fromAnswer = traceAnswer ? computed(x.answer, untraced(x.answer, ownWrites)) : []; // what goes into the knowledge base itself must trace to a source
+    // (in a data file, where a mark goes on a picture or a page - its box, point, size or crop - is layout, not a fact.
+    // Lesson (a field report): helpers drew markup on pictures, and the box corners 0.28 and 0.6 were "made up")
+    const LAYOUT = /"(box|at|x|y|w|h|x[12]|y[12]|width|height|max_width|max_height|left|top|right|bottom|size|font_size|scale|zoom|rotate|angle|opacity|crop|pos|position|points?|from|to|radius|stroke|thickness|padding|margin)"\s*:\s*(\[[-\d.,\s\[\]]*\]|-?\d+(?:\.\d+)?)/gi;
     const written = x.uses.filter(u => /^(Write|Edit|MultiEdit)$/.test(u.name) && inKb.test(rel(u.input.file_path || '')))
-      .flatMap(u => untraced([u.input.content, u.input.new_string, ...(u.input.edits || []).map(e => e.new_string)].filter(Boolean).join('\n')));
+      .flatMap(u => untraced([u.input.content, u.input.new_string, ...(u.input.edits || []).map(e => e.new_string)].filter(Boolean).join('\n')
+        .replace(/\.json$/i.test(u.input.file_path || '') ? LAYOUT : /(?!)/g, ' ')));
     const machine = [];
     // (a Grep run on the file itself read it: its output holds the lines without the file's name. Lesson, trial round 14:
     // a quote found that way was "not opened", and the agent read the file four more times)

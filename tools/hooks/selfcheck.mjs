@@ -2757,6 +2757,13 @@ STOP.push(
     files: { 'tools/chart-check.mjs': '// make every chart in the monthly report use the warm colour palette\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { not: ['no-verbatim-examples'] } },
   { pack: 'knowledge', name: 'answer-traced: a number typed into docs/knowledge outside research: blocked', prompt: 'note the desk price', tools: [{ name: 'Write', input: { file_path: 'docs/knowledge/desks.md', content: KNOW.replace('$300', '$345') } }],
     files: { 'docs/knowledge/desks.md': KNOW.replace('$300', '$345'), 'docs/CHANGELOG.md': 'x' }, answer: 'Noted.' + FIN, expect: { tags: ['answer-traced'] } },
+  // Lesson (a field report): the corners of a box drawn on a picture were flagged as made-up facts
+  { pack: 'knowledge', name: 'answer-traced: where marks go on a picture, in a drawing file in docs/knowledge, is layout, not a fact: passes', prompt: 'mark the desk in the photo',
+    tools: [{ name: 'Write', input: { file_path: 'docs/knowledge/images/desk.spec.json', content: '{\n "marks": [\n  { "type": "box", "box": [\n    0.28,\n    0.6,\n    0.62,\n    0.99\n   ] },\n  { "type": "label", "at": [0.5, 0.12], "text": "The desk" }\n ],\n "max_width": 1280\n}' } }],
+    files: { 'docs/knowledge/images/desk.spec.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Marked.' + FIN, expect: { not: ['answer-traced'] } },
+  { pack: 'knowledge', name: 'answer-traced: a figure in a data file in docs/knowledge, beside layout, is still traced: blocked', prompt: 'mark the desk in the photo',
+    tools: [{ name: 'Write', input: { file_path: 'docs/knowledge/images/desk.spec.json', content: '{ "box": [0.28, 0.6], "price": 345, "text": "Desk, 87 cm wide" }' } }],
+    files: { 'docs/knowledge/images/desk.spec.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Marked.' + FIN, expect: { tags: ['answer-traced'], says: /knowledge base got 345\b(?![^\n]*0\.28)/ } },
   // Lesson: a Flutter screen edit never asked for a screenshot (mobile screens were not GUI files)
   { pack: 'gui', name: 'gui-review-loop: a Flutter screen changed with no screenshots: blocked', prompt: 'make the order button bigger', tools: [pb('gui')],
     files: { 'lib/screens/order_screen.dart': 'class OrderScreen {}', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: gui.md. Bigger button.' + FIN, expect: { block: true, tags: ['gui-review-loop'] } },
