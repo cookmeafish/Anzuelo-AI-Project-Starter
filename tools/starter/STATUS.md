@@ -30,7 +30,7 @@ docs/STATUS.md, which here is the template new projects start from).
   that has run is a standing schedule) and a36843a (a rewritten notes file keeps this turn's records), chain green.
   Both sessions were sent the a36843a upgrade; open: confirm each upgraded and passed --full. Open from the gap review:
   per-item proof (plan item 8) and the safety holes.
-- 2026-11-01: d082dda (self-test runs take turns to time the Stop hook). Both projects on it, committed: aec359d (1510 passed, stop timing 326 ms) and 1ef9fe2 (1526 passed, 319 ms).
+- 2026-11-01: cd83096 (grouped gate run into a file; commit names in cited claims), chain green (1529, stop 322 ms). Both on d082dda before it; both sent cd83096. Open: confirm each upgraded and passed --full.
 - 2026-11-01: 9e99c3a and 54b85b7 (four false blocks from one field report: layout numbers, helper run order, debug shots, data named like tests), chain green. Both linked copies fast-forwarded; both sessions sent the upgrade. Open: confirm each upgraded and passed --full.
 - 2026-10-31 night: the unfinished-work exits closed (plan docs/plans/2026-10-31-unfinished-work-exits.md, done but item 8, per-item proof). Upgrade sent to both projects; open: confirm each passed --full.
 
