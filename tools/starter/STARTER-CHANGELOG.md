@@ -6,6 +6,14 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-01 (helpers, debug shots, data named like tests): Three false blocks from one field report.
+  A helper's tool calls are now read in the order they happened, with the session's own: a helper's early failing test
+  run was "the last run" after the session's later passing runs, and its check blocked all 3 rounds (`inTimeOrder`).
+  A full screenshot round (its folder has a contact sheet) taken after the last edit leaves earlier one-off shots
+  behind: two debug shots from before a reviewed round were asked for. A test file is code: a data file named
+  `*.spec.json` is no new check to prove. Self-tests: `helper-runs-in-time` (full run), `a debug shot taken`,
+  `file named like a test`.
+
 - 2026-11-01 (layout is not a fact): Where a mark goes on a picture or a page, in a data file written into the
   knowledge folder (a box's corners, a label's point, a size, a crop), is no longer flagged as a made-up fact. Helpers
   that drew markup on pictures had their box corners called invented, and the agent had to waive the check twice.

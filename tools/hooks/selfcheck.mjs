@@ -1034,6 +1034,13 @@ const STOP = [
   { pack: 'gui', name: 'gui-review-loop: two runs after the last edit, only the older one looked at: blocked', prompt: 'make the dashboard page look cleaner', tools: [pb('gui'), bash('node tools/screenshot.mjs --url x', GUISHOT(0)), { name: 'Read', input: { file_path: SHOT } }],
     files: { 'site/index.html': '<h1>x</h1>', [SHOT]: 'png', [SHOT.replace('/r1/', '/r2/')]: 'png, the screen changed', 'docs/CHANGELOG.md': 'x' }, mtimes: { 'site/index.html': -500, [SHOT]: -300 },
     answer: 'Playbook: gui.md\nVisual review: PASS after 1 round' + FIN, expect: { tags: ['gui-review-loop'] } },
+  // Lesson (a field report): one-off debug shots taken before a full, reviewed round were asked for in the last Stop round
+  ...[['before', -300, { not: ['gui-review-loop'] }, 'passes'], ['after', -50, { tags: ['gui-review-loop'] }, 'blocked']].map(([when, at, expect, says]) => ({ pack: 'gui',
+    name: `gui-review-loop: a debug shot taken ${when} a full round whose contact sheet was looked at: ${says}`, prompt: 'make the dashboard page look cleaner',
+    tools: [pb('gui'), bash('node tools/screenshot.mjs --url x', GUISHOT(0)), { name: 'Read', input: { file_path: '.cache/gui-review/r2/_sheet-1.png' } }],
+    files: { 'site/index.html': '<h1>x</h1>', '.cache/gui-review/dbg/check-390x844-dark.png': 'debug png', '.cache/gui-review/r2/_sheet-1.png': 'sheet', '.cache/gui-review/r2/page-1400x900-light.png': 'png', 'docs/CHANGELOG.md': 'x' },
+    mtimes: { 'site/index.html': -500, '.cache/gui-review/dbg/check-390x844-dark.png': at, '.cache/gui-review/r2/page-1400x900-light.png': -200, '.cache/gui-review/r2/_sheet-1.png': -190 },
+    answer: 'Playbook: gui.md\nVisual review: PASS after 1 round' + FIN, expect })),
   // (a newer shot identical, byte for byte, to one already opened shows nothing new. Lesson (website trials): all 64
   // shots of an unchanged run were opened again)
   { pack: 'gui', name: 'gui-review-loop: a newer run identical to the one looked at: passes', prompt: 'make the dashboard page look cleaner', tools: [pb('gui'), bash('node tools/screenshot.mjs --url x', GUISHOT(0)), { name: 'Read', input: { file_path: SHOT } }],
@@ -1544,6 +1551,11 @@ STOP.push(
   // check-proven: a check written after a complaint fails on what the user complained about and passes on good samples.
   // Lesson: a new input check failed only made-up junk, passed the very code the user complained about, and the answer
   // said the project now enforced it on its own.
+  // Lesson (a field report): drawing files named "*.spec.json" were taken for new tests to prove
+  ...[['docs/images/menu.spec.json', '{ "box": [0.2, 0.4] }', { not: ['check-proven'] }, 'data, not a check: passes'], ['tests/menu.spec.ts', 'test("price", () => {})', { tags: ['check-proven'] }, 'a check: blocked']].map(([file, body, expect, says]) => ({
+    name: `check-proven: a new ${file.split('.').pop()} file named like a test after a complaint is ${says}`, prompt: 'you forgot the soup picture again!!',
+    files: { [file]: body, 'docs/CHANGELOG.md': 'x' }, tools: [{ name: 'Write', input: { file_path: file, content: body } }],
+    answer: 'You\'re right: the soup had no picture. Added it.\nLearned (skill): every dish gets a picture → docs/playbooks/menu.md' + FIN, expect })),
   { name: 'check-proven: a new check tried only on made-up junk after the fix, and a promise: blocked', prompt: 'you forgot to validate the links again!!', prep: preexisting('links.go'),
     files: { 'links.go': 'package main\nfunc validateURL(s string) bool { return strict(s) }\n', 'tools/input-check.mjs': '// fails a handler that skips validation\n', 'docs/CHANGELOG.md': 'x' },
     tools: [editTool('links.go'), bash('node tools/input-check.mjs .cache/ic/h.go', 'h.go: reads input with no validate call\nRESULT: FAIL'), bash('node tools/input-check.mjs links.go', 'RESULT: PASS')],
@@ -4871,6 +4883,30 @@ if (mineB() && (!TAGS || TAGS.includes('helper-work-counts'))) {
         `helper read seen: ${helperRead} | answer: ${answer.slice(0, 80)}`);
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   }
+}
+// helper-runs-in-time: a helper's runs and the session's own are judged in the order they happened. Lesson (a field
+// report): a helper's early failing test run came after the session's later passing runs, so it was "the last run".
+if (mineB() && (!TAGS || TAGS.includes('helper-runs-in-time'))) {
+  const dir = copyProject();
+  try {
+    ownChecksOff(dir);
+    const t0 = Date.now() - 600_000, iso = t => new Date(t).toISOString(), tp = path.join(dir, 'transcript.jsonl');
+    const run = (id, at, out) => [{ type: 'assistant', timestamp: iso(at), message: { content: [{ type: 'tool_use', id, name: 'Bash', input: { command: 'python check_menu.py' } }] } },
+      { type: 'user', timestamp: iso(at + 1000), message: { content: [{ type: 'tool_result', tool_use_id: id, content: out }] } }];
+    fs.writeFileSync(tp, [{ type: 'user', timestamp: iso(t0), message: { role: 'user', content: 'fix the menu prices' } },
+      { type: 'assistant', timestamp: iso(t0 + 2000), message: { content: [{ type: 'tool_use', id: 'toolu_ht0', name: 'Agent', input: { prompt: 'fix the soup prices' } }] } },
+      { type: 'user', timestamp: iso(t0 + 30000), message: { content: [{ type: 'tool_result', tool_use_id: 'toolu_ht0', content: 'Done.' }] } },
+      ...run('toolu_ht1', t0 + 40000, 'RESULT: PASS')].map(r => JSON.stringify(r)).join('\n') + '\n');
+    const sub = path.join(dir, 'transcript', 'subagents');
+    fs.mkdirSync(sub, { recursive: true });
+    fs.writeFileSync(path.join(sub, 'agent-1.jsonl'), [{ type: 'user', isSidechain: true, timestamp: iso(t0 + 3000), message: { role: 'user', content: 'fix the soup prices' } },
+      ...run('toolu_hs1', t0 + 10000, 'soup: no price\nRESULT: FAIL')].map(r => JSON.stringify({ ...r, isSidechain: true })).join('\n') + '\n');
+    const H = await import(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href + '?hrt=1');
+    const x = H.context(H.turn(tp), H.config());
+    const outs = x.runs.filter(r => /check_menu/.test(r.cmd)).map(r => r.out.trim().split('\n').pop());
+    report(outs.length === 2 && outs[1] === 'RESULT: PASS', 'helper-runs-in-time: a helper\'s early failing run is not the last run when the session passed later',
+      `runs in order: ${outs.join(' | ')}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 // begin-keeps-turn: "begin" in a session whose prompt hook recorded the turn shows the routing and keeps the turn's
 // start; without hooks it starts the turn. Lesson, trial round 19: a mid-turn begin made a report already written look

@@ -1617,7 +1617,9 @@ export function enforcementGaps(x, cfg, sentence, wide = true) {
 // REQ: check-proven. The project's own checks born this turn: a script named for checking, or a test file. Engine
 // files and scratch copies are not the project's checks.
 const CHECK_FILE = /(^|\/)[^/]*(check|guard|lint|valid|verif|enforce)[^/]*\.(mjs|cjs|js|ts|py|go|rs|rb|sh|ps1|cs|java|kt|php)$/i;
-const TEST_FILE = /(^|\/)(tests?|__tests__|spec)\/[^/]+\.(mjs|cjs|js|ts|py|go|rs|rb|cs|java|kt|php)$|[._-](test|spec)\.\w+$|(^|\/)test_[^/]+\.py$/i;
+// (a test is code: "x.spec.json" is data, like a picture's drawing spec. Lesson (a field report): drawing files named
+// that way were "new checks" to prove)
+const TEST_FILE = /(^|\/)(tests?|__tests__|spec)\/[^/]+\.(mjs|cjs|js|ts|py|go|rs|rb|cs|java|kt|php)$|[._-](test|spec)\.(mjs|cjs|js|jsx|ts|tsx|py|go|rs|rb|cs|java|kt|php|sh|ps1|dart|swift|exs?)$|(^|\/)test_[^/]+\.py$/i;
 const NOT_PROJECT_CHECK = /^(tools\/hooks\/|tools\/(audit|trial|fit|starter|skills|packs|recall|survey|dedupe|integrity-check|writing-check|new-project)\.mjs$|library\/|packs\/|\.cache\/)/;
 // A script that tools/hooks/requirements.json runs is a check whatever its name. Lesson: a check named in the user's
 // language ("revisar-idioma.mjs") was not seen as one, so only its test file was asked to be proven, and the failing
@@ -2435,9 +2437,17 @@ export function turnNotes(since) {
     return read(abs(NOTES_FILE));
   } catch { return ''; }
 }
+// Rows of several transcripts in the order they happened (a row with no time keeps the time of the row before it).
+// Lesson (a field report): helpers' rows were put after the session's own, so a helper's early failing test run was
+// "the last run", and the session's later passing runs never met the check for 3 rounds.
+export function inTimeOrder(...lists) {
+  const rows = [];
+  for (const list of lists) { let at = ''; for (const r of list || []) { at = (typeof r?.timestamp === 'string' && r.timestamp) || at; rows.push({ r, at, i: rows.length }); } }
+  return rows.sort((a, b) => (a.at && b.at && a.at !== b.at ? (a.at < b.at ? -1 : 1) : a.i - b.i)).map(x => x.r);
+}
 export function context(t, cfg, answerOverride) {
   // (helper agents' tool calls count as this turn's work, REQ helper-work-counts; the answer stays the main session's)
-  const withHelpers = [...(t.entries || []), ...(t.helperEntries || [])];
+  const withHelpers = inTimeOrder(t.entries, t.helperEntries);
   const uses = toolUses(withHelpers);
   const cmds = uses.map(u => u.input.command).filter(c => typeof c === 'string');
   const changed = ownChanges(changedFiles(t.since, cfg), t, cfg);
@@ -5561,7 +5571,7 @@ function pretoolHits(data, cfg) {
         // passing audit sent to a file was run again, 1.5 to 3 minutes each, before the gate let the file go)
         // (a helper agent's audit counts too, REQ helper-work-counts. Lesson, efficiency trials: a setup run in a helper
         // passed its audit, the gate read only the main session, and the audit ran four times, about 6 minutes)
-        const audited = runsOf([...(t().entries || []), ...(t().helperEntries || [])]).some(r => /audit\.mjs/.test(r.cmd) && /--(full|setup)/.test(r.cmd) && /audit: PASS/.test((redirectedRun(r, /audit\.mjs/, t().since || 0) || r).out));
+        const audited = runsOf(inTimeOrder(t().entries, t().helperEntries)).some(r => /audit\.mjs/.test(r.cmd) && /--(full|setup)/.test(r.cmd) && /audit: PASS/.test((redirectedRun(r, /audit\.mjs/, t().since || 0) || r).out));
         if (!audited) probs.push('run node tools/audit.mjs --setup in this turn and get "audit: PASS"');
         if (probs.length) add('REQ: setup-gate. Setup is not finished, so SETUP-PROMPT.md stays:\n- ' + probs.join('\n- '));
       }
@@ -6892,7 +6902,14 @@ export function coreChecks(x, cfg) {
     const seenName = new Set();
     // (a contact sheet, _sheet-N.png, is no screenshot to review: opening it counts for the shots of its round folder)
     const isSheet = p => /(^|\/)_sheet-\d+\.png$/i.test(p);
-    const fresh = shots.filter(s => s.t >= lastEdit && !isSheet(s.p)).sort((a, b) => b.t - a.t).filter(s => { const n = s.p.split('/').pop(); return !seenName.has(n) && seenName.add(n); }).map(s => s.p);
+    // (a full round - its folder has a contact sheet - shows the screens as they are: shots from before it, like a one-off
+    // debug shot, are behind it. Lesson (a field report): two debug shots from before a reviewed 169-shot round were
+    // asked for in the last Stop round)
+    const dirOf = p => p.replace(/\/[^/]+$/, '');
+    const fullDirs = new Set(shots.filter(s => isSheet(s.p) && s.t >= lastEdit).map(s => dirOf(s.p)));
+    // (the start of the newest full round: its first shot)
+    const fullAt = Math.max(lastEdit, ...[...fullDirs].map(d => Math.min(...shots.filter(s => dirOf(s.p) === d && s.t >= lastEdit).map(s => s.t))));
+    const fresh = shots.filter(s => s.t >= fullAt && !isSheet(s.p)).sort((a, b) => b.t - a.t).filter(s => { const n = s.p.split('/').pop(); return !seenName.has(n) && seenName.add(n); }).map(s => s.p);
     const sheetDirs = new Set(shots.filter(s => isSheet(s.p) && x.reads.has(s.p)).map(s => s.p.replace(/\/[^/]+$/, '')));
     const files = gui.slice(0, 5).join(', ') + (gui.length > 5 ? ', ...' : '');
     if (!fresh.length)
