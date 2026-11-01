@@ -2375,8 +2375,24 @@ export function shellParts(cmd) {
 export function redirectedRun(run, cmdRe, since = 0) {
   const { parts } = shellParts(run.cmd);
   let dir = ROOT;
-  // (a gate of several commands run as one group, "(a && b) > out.txt", wrote its output to that file. Lesson (a field
-  // report): the group's file was never read, and the build gate judged the tests printed after it)
+  for (const p of parts) {
+    const cd = /^\(?\s*(?:cd|Set-Location|pushd)\s+(?:\/d\s+)?("[^"]+"|'[^']+'|\S+)\s*$/i.exec(p);
+    if (cd) { const d = cd[1].replace(/^["']|["']$/g, ''); dir = path.resolve(dir, /^\/[a-z]\//i.test(d) ? `${d[1]}:${d.slice(2)}` : d); continue; }
+    if (!cmdRe.test(cmdHead(p))) continue;
+    const m = /(?:^|\s)(?<![2&])1?>>?\s*("[^"]+"|'[^']+'|[^\s;&|)]+)/.exec(p);
+    if (!m || /^&\d$/.test(m[1])) break; // (no file of its own: a group around it may have one)
+    const f = path.resolve(dir, m[1].replace(/^["']|["']$/g, ''));
+    try {
+      const st = fs.statSync(f);
+      if (st.mtimeMs < (since || 0) - 2000) return null;
+      const t = fs.readFileSync(f, 'utf8');
+      return { cmd: p.replace(/^\(\s*/, '').replace(m[0], ' ').trim(), out: t.length > 200000 ? t.slice(-200000) : t, error: false, file: rel(f) };
+    } catch { return null; }
+  }
+  // (a gate of several commands run as one group, "(a && b) > out.txt", wrote its output to that file; a command of the
+  // gate that sent its output to a file of its own was read above. Lesson (a field report): the group's file was never
+  // read, and the build gate judged the tests printed after it. Lesson (this starter): "(selfcheck > sc.txt; ...) >
+  // chain.txt" was judged on chain.txt, which never holds the self-test's pass line)
   for (const g of String(run.cmd).matchAll(/\(([^()]+)\)\s*1?>>?\s*("[^"]+"|'[^']+'|[^\s;&|)]+)/g)) {
     if (!cmdRe.test(gateText(g[1].trim())) || /^&\d$/.test(g[2])) continue;
     const before = String(run.cmd).slice(0, g.index), cd = [...before.matchAll(/(?:^|[;&|(]\s*)(?:cd|Set-Location|pushd)\s+(?:\/d\s+)?("[^"]+"|'[^']+'|[^\s;&|)]+)/gi)].pop();
@@ -2387,20 +2403,6 @@ export function redirectedRun(run, cmdRe, since = 0) {
       const t = fs.readFileSync(f, 'utf8');
       return { cmd: g[1].trim(), out: t.length > 200000 ? t.slice(-200000) : t, error: false, file: rel(f) };
     } catch { }
-  }
-  for (const p of parts) {
-    const cd = /^\(?\s*(?:cd|Set-Location|pushd)\s+(?:\/d\s+)?("[^"]+"|'[^']+'|\S+)\s*$/i.exec(p);
-    if (cd) { const d = cd[1].replace(/^["']|["']$/g, ''); dir = path.resolve(dir, /^\/[a-z]\//i.test(d) ? `${d[1]}:${d.slice(2)}` : d); continue; }
-    if (!cmdRe.test(cmdHead(p))) continue;
-    const m = /(?:^|\s)(?<![2&])1?>>?\s*("[^"]+"|'[^']+'|[^\s;&|)]+)/.exec(p);
-    if (!m || /^&\d$/.test(m[1])) return null;
-    const f = path.resolve(dir, m[1].replace(/^["']|["']$/g, ''));
-    try {
-      const st = fs.statSync(f);
-      if (st.mtimeMs < (since || 0) - 2000) return null;
-      const t = fs.readFileSync(f, 'utf8');
-      return { cmd: p.replace(/^\(\s*/, '').replace(m[0], ' ').trim(), out: t.length > 200000 ? t.slice(-200000) : t, error: false, file: rel(f) };
-    } catch { return null; }
   }
   return null;
 }

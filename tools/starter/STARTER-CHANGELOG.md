@@ -8,7 +8,8 @@ hooks:**, and an upgrade lists each one as its own review item.
 
 - 2026-11-01 (grouped gate, commit names): A gate of several commands run as one group with its output sent to a file,
   `(a && b) > out.txt`, is judged on that file. It was judged on what the command printed after it, which lacked the
-  gate's pass line, and a passing build blocked a round. A claim cited to a file no longer counts the digits of a
+  gate's pass line, and a passing build blocked a round. A gate command inside the group that sent its output to a file
+  of its own is judged on that file first (`its own file inside a group`). A claim cited to a file no longer counts the digits of a
   commit name in code (`e348b41`) as figures the file lacks: code spans are taken out first, and a number inside a
   word is no figure. Self-tests: `run as one group`, and the cited-claims test (`a commit name pass`).
 

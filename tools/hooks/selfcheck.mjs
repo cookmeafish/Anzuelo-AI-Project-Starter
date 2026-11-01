@@ -1102,6 +1102,10 @@ const STOP = [
     edit: withReqs({ tag: 'data-valid', when: { filesChanged: ['data/**'] }, require: { toolPassed: { cmd: 'python tools/build_menu.py && python tools/validate.py', pass: 'Built \\d+ menus' } }, message: 'Build and validate.' }),
     tools: [pb('project'), bash('(python tools/build_menu.py && python tools/validate.py) > .cache/build.txt 2>&1; echo built $?; python tools/prices.py', 'built 0\nprices: 12 checked\nRESULT: PASS')],
     files: { 'data/v.json': '{}', '.cache/build.txt': out, 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md' + FIN, expect })),
+  // Lesson (this starter): "(selfcheck > sc.txt; ...) > chain.txt" was judged on chain.txt, not the self-test's own file
+  { name: 'toolPassed: a gate command with its own file inside a group sent to another file is judged on its own file: passes', prompt: 'add the new vendor data', edit: VALIDATOR,
+    tools: [pb('project'), bash('(python tools/validate.py data/v.json > .cache/val.txt 2>&1; echo "v=$?") > .cache/chain.txt 2>&1', '')],
+    files: { 'data/v.json': '{}', '.cache/val.txt': 'RESULT: PASS', '.cache/chain.txt': 'v=0', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md' + FIN, expect: { not: ['data-valid'] } },
   { name: 'runEach: the hook re-validates changed files itself (invalid JSON): blocked', prompt: 'add the new vendor data', edit: RUNEACH, tools: [pb('project')],
     files: { 'data/v.json': '{ broken', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md' + FIN, expect: { block: true, tags: ['json-valid'] } },
   { name: 'runEach: valid JSON passes', prompt: 'add the new vendor data', edit: RUNEACH, tools: [pb('project')],
