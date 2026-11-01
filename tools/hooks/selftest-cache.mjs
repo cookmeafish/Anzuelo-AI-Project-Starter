@@ -141,16 +141,26 @@ export function releaseLock(lockFile) { const l = readJSON(lockFile); if (l && l
 // for this machine, and a run shares the CPUs with the live ones. Lesson: eight projects set up at once, each with 12
 // helpers, and every suite took two to four times as long.
 export const runningDir = () => process.env.STARTER_SELFTEST_RUNNING || path.join(os.tmpdir(), 'starter-selftest-running');
-export function otherSuites(dir = runningDir()) {
+// (busy: only the runs still working; a run that only waits for its turn to time a hook adds no load. Lesson (two
+// projects): two runs waited for each other at the timing test for the full 10 minutes, then timed at the same moment,
+// and one counted the other as gone and failed on the other's load)
+export function otherSuites(dir = runningDir(), { busy = false } = {}) {
   let n = 0;
   for (const f of (() => { try { return fs.readdirSync(dir); } catch { return []; } })()) {
     const m = /^(\d+)\.json$/.exec(f); if (!m) continue;
     const pid = Number(m[1]);
     if (pid === process.pid) continue;
-    if (alive(pid)) n++; else try { fs.rmSync(path.join(dir, f), { force: true }); } catch { }
+    if (!alive(pid)) { try { fs.rmSync(path.join(dir, f), { force: true }); } catch { } continue; }
+    if (!(busy && readJSON(path.join(dir, f))?.waiting)) n++;
   }
   return n;
 }
+// marks this run as only waiting (or working again), and the turn to time a hook: one run at a time on the machine
+export function markWaiting(waiting, dir = runningDir()) {
+  const f = path.join(dir, `${process.pid}.json`), cur = readJSON(f);
+  if (cur) try { fs.writeFileSync(f, JSON.stringify({ ...cur, waiting: !!waiting })); } catch { }
+}
+export const timingLock = (dir = runningDir()) => path.join(dir, 'timing.lock');
 export function registerSuite(info, dir = runningDir()) {
   try { fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(path.join(dir, `${process.pid}.json`), JSON.stringify({ at: new Date().toISOString(), ...info })); } catch { }
   return () => { try { fs.rmSync(path.join(dir, `${process.pid}.json`), { force: true }); } catch { } };

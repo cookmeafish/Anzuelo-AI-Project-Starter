@@ -6,6 +6,12 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-01 (timing turns): Self-test runs on one machine take turns to time the Stop hook. Two runs that reached
+  the timing test together waited for each other for the full 10 minutes, then timed at the same moment, and one,
+  counting the other as gone, failed the 500 ms budget on the other's load. A run waiting for its turn is no load now,
+  and a lock gives the turn to one run at a time (`markWaiting`, `timingLock` in selftest-cache.mjs). Self-test:
+  `timing-turns` (full run).
+
 - 2026-11-01 (helpers, debug shots, data named like tests): Three false blocks from one field report.
   A helper's tool calls are now read in the order they happened, with the session's own: a helper's early failing test
   run was "the last run" after the session's later passing runs, and its check blocked all 3 rounds (`inTimeOrder`).

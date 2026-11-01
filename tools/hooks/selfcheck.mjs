@@ -16,7 +16,7 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { engineStamp, findPass, recordPass, localDay, SMOKE_EVERY, lockState, takeLock, releaseLock, otherSuites, registerSuite, shardCount, failureCause, proofHash, readProof, writeProof, PROOF_FILE, PROOF_PATHS } from './selftest-cache.mjs';
+import { engineStamp, findPass, recordPass, localDay, SMOKE_EVERY, lockState, takeLock, releaseLock, otherSuites, registerSuite, markWaiting, timingLock, shardCount, failureCause, proofHash, readProof, writeProof, PROOF_FILE, PROOF_PATHS } from './selftest-cache.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 // The self-tests make throwaway projects from this copy on purpose, even when it is a development copy (.starter-dev).
@@ -5150,6 +5150,23 @@ if (mineB() && SPEED) { // selftest-shards: helpers scale with the CPUs and the 
       JSON.stringify({ n, busy, small, few, full, live, deadGone }));
   } finally { child.kill(); fs.rmSync(tmp, { recursive: true, force: true }); }
 }
+// timing-turns: a run only waiting for its turn to time a hook is no load, and one run times at a time. Lesson (two
+// projects): two runs waited for each other at the timing test for 10 minutes, then timed together, and one failed
+if (mineB() && SPEED) {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-'));
+  const kids = [0, 1].map(() => spawn(process.execPath, ['-e', 'setTimeout(() => {}, 20000)'], { stdio: 'ignore' }));
+  try {
+    write(tmp, { [`${kids[0].pid}.json`]: '{"waiting":true}', [`${kids[1].pid}.json`]: '{}' });
+    const all = otherSuites(tmp), busy = otherSuites(tmp, { busy: true });
+    write(tmp, { [`${kids[1].pid}.json`]: '{"waiting":true}' });
+    const none = otherSuites(tmp, { busy: true });
+    const first = takeLock(timingLock(tmp), { what: 'stop timing' }).taken;
+    write(tmp, { 'timing.lock': JSON.stringify({ pid: kids[0].pid, at: new Date().toISOString() }) });
+    const second = takeLock(timingLock(tmp), { what: 'stop timing' }).taken;
+    report(all === 2 && busy === 1 && none === 0 && first && !second,
+      'timing-turns: runs waiting for their turn to time a hook are no load, and the turn goes to one run at a time', JSON.stringify({ all, busy, none, first, second }));
+  } finally { for (const k of kids) k.kill(); fs.rmSync(tmp, { recursive: true, force: true }); }
+}
 if (mineB() && SPEED) { // audit-selftests: a self-test run that timed out is a warning that says what to do; failing tests are named,
   // also after the audit's last line; a crash (a broken engine file) is a failure
   const dir = copyProject();
@@ -8001,9 +8018,14 @@ if (!TAGS && !HELPER && !REUSE) {
     const tp = transcript(dir, { prompt: 'make a plan for the csv export and note it in the changelog', tools: [pb('plan'), { name: 'Write', input: { file_path: 'docs/plans/2026-10-21-export.md' } },
       { name: 'Edit', input: { file_path: 'docs/CHANGELOG.md' } }, bash('node tools/audit.mjs'), ...many(6)], answer: null }, since);
     write(dir, { 'docs/plans/2026-10-21-export.md': '# Export: plan\n- [ ] helpers\n- [ ] wire it up\n', 'docs/CHANGELOG.md': '# Changelog\n- 2026-10-21: planned the export\n' });
-    // (the other self-test runs on this machine finish first, up to 10 minutes)
-    for (const t0 = Date.now(); otherSuites() && Date.now() - t0 < 600_000;) await new Promise(r => setTimeout(r, 5000));
-    const others = otherSuites();
+    // (the other self-test runs on this machine finish first, up to 10 minutes; one waiting for its own turn to time is
+    // no load, and the turn to time goes to one run at a time)
+    markWaiting(true);
+    const lock = timingLock();
+    let turn = false;
+    for (const t0 = Date.now(); Date.now() - t0 < 600_000; await new Promise(r => setTimeout(r, 5000)))
+      if (!otherSuites(undefined, { busy: true }) && (turn = takeLock(lock, { what: 'stop timing' }).taken)) break;
+    const others = otherSuites(undefined, { busy: true }) + (turn ? 0 : 1);
     const samples = [];
     for (let i = 0; i < 5; i++) {
       const r = spawnSync(process.execPath, [path.join(dir, 'tools/hooks/hooks.mjs'), 'stop'], { cwd: dir, encoding: 'utf8', input: JSON.stringify({ transcript_path: tp, last_assistant_message: 'Playbook: plan.md. Saved the plan.' + FIN }),
@@ -8017,7 +8039,7 @@ if (!TAGS && !HELPER && !REUSE) {
     const tight = v ? stopVerdict(samples, 1) : null;
     report(!!tight && !tight.ok && tight.slow.length === 3 && tight.slow.every(s => /^[\w(][^]* \d+(\.\d)? ms$/.test(s)) && samples[0].parts.some(([l]) => /^check /.test(l)) && samples[0].parts.some(([l]) => /^core /.test(l)),
       'stop-budget: over its budget the verdict names the 3 slowest checks', JSON.stringify(tight));
-  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  } finally { releaseLock(timingLock()); markWaiting(false); fs.rmSync(dir, { recursive: true, force: true }); }
 }
 if (!TAGS && !REUSE) for (const [tag, name] of Object.entries(COVERS)) if (hereSrc.includes(tag)) report(PASSED.some(n => n.includes(name)), `covers: ${tag} is proven by "${name}"`, 'no passing scenario with that name');
 
