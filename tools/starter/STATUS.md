@@ -32,8 +32,9 @@ docs/STATUS.md, which here is the template new projects start from).
   per-item proof (plan item 8) and the safety holes.
 - 2026-11-01: 03dc06f, e29973c, fc549dd (proof runs with failure counts, file entries, relayed labels): both projects on fc549dd, committed. bf1c8e1 (failed self-tests say how the hook run ended) sent to both. Open: the first --full run after the fc549dd upgrade failed in both projects (11 and 20 Stop tests passed that should block, no error output), each overlapping the other project's upgrade; a rerun passed; two full runs at once in the starter passed. Cause not found; next: reproduce a full run while an upgrade runs in another project.
 - 2026-11-01 evening: helpers' verdicts reported as items passing (claim-checked), from a project's complaint, and
-  a project Stop command's time limit (externalStopTimeoutMs, 180 s). Open: ship both to both projects and confirm
-  each passed --full; a full run here saw Stop at 613 ms (every part about 2x) while a project ran 3 heavy helpers.
+  a project Stop command's time limit (externalStopTimeoutMs, 180 s): e71fcba. Both projects on it, committed, full
+  self-tests passing (1522 and 1538). Watch: Stop timings drift up under load (here 389 to 622 ms in full runs while
+  a project ran heavy helpers, 465 ms on the commit run; projects 355 and 385 ms).
 - 2026-11-01: 55586fa (after cd83096: grouped gate run into a file, commit names in cited claims, and a gate command's own file first). Both projects on it, committed: 3835269 (1513 passed, stop 334 ms) and b0fa5bf (1529 passed, stop 329 ms).
 - 2026-11-01: 9e99c3a and 54b85b7 (four false blocks from one field report: layout numbers, helper run order, debug shots, data named like tests), chain green. Both linked copies fast-forwarded; both sessions sent the upgrade. Open: confirm each upgraded and passed --full.
 - 2026-10-31 night: the unfinished-work exits closed (plan docs/plans/2026-10-31-unfinished-work-exits.md, done but item 8, per-item proof). Upgrade sent to both projects; open: confirm each passed --full.
