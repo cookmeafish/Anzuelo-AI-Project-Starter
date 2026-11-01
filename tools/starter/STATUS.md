@@ -30,7 +30,7 @@ docs/STATUS.md, which here is the template new projects start from).
   that has run is a standing schedule) and a36843a (a rewritten notes file keeps this turn's records), chain green.
   Both sessions were sent the a36843a upgrade; open: confirm each upgraded and passed --full. Open from the gap review:
   per-item proof (plan item 8) and the safety holes.
-- 2026-11-01: cd83096 (grouped gate run into a file; commit names in cited claims): both on it, committed (036750e, 3036cc3). Then 55586fa (a gate command's own file before the group's, a regression cd83096 made on this starter's own chain), chain green (1528). Both sent 55586fa; open: confirm each upgraded.
+- 2026-11-01: 55586fa (after cd83096: grouped gate run into a file, commit names in cited claims, and a gate command's own file first). Both projects on it, committed: 3835269 (1513 passed, stop 334 ms) and b0fa5bf (1529 passed, stop 329 ms).
 - 2026-11-01: 9e99c3a and 54b85b7 (four false blocks from one field report: layout numbers, helper run order, debug shots, data named like tests), chain green. Both linked copies fast-forwarded; both sessions sent the upgrade. Open: confirm each upgraded and passed --full.
 - 2026-10-31 night: the unfinished-work exits closed (plan docs/plans/2026-10-31-unfinished-work-exits.md, done but item 8, per-item proof). Upgrade sent to both projects; open: confirm each passed --full.
 
