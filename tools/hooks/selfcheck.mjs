@@ -653,6 +653,12 @@ const STOP = [
   // Lesson (a study of 117 real questions): 15 of 58 got no answer with the starter, most typed mid-turn)
   { name: 'question-answered: a question typed mid-turn that no later message answers: blocked', prompt: 'build the tulip order', queued: ['does it even have bulbs??'],
     answer: 'Built the order: 24 tulips and 36 daffodils, saved to orders/tulips.txt.' + FIN, expect: { block: true, tags: ['question-answered'] } },
+  // (a yes/no question answered "No, ..." in other words. Lesson (a field report): "was this intentional?" answered
+  // "No, it wasn't on purpose" was called unanswered)
+  { name: 'question-answered: a yes/no question typed mid-turn, answered "No, ..." in other words: passes', prompt: 'build the tulip order', queued: ['WAS THIS INTENTIONAL? WAS IT MADE BADLY?'],
+    answer: 'No, it wasn\'t on purpose. It was my mistake in the order: 24 tulips and 36 daffodils now, saved to orders/tulips.txt.' + FIN, expect: { not: ['question-answered'] } },
+  { name: 'question-answered: a yes/no question typed mid-turn, with no reply opening yes or no and no shared word: blocked', prompt: 'build the tulip order', queued: ['WAS THIS INTENTIONAL? WAS IT MADE BADLY?'],
+    answer: 'Built the order: 24 tulips and 36 daffodils, saved to orders/tulips.txt.' + FIN, expect: { block: true, tags: ['question-answered'] } },
   { name: 'question-answered: the final message answers the mid-turn question: passes', prompt: 'build the tulip order', queued: ['does it even have bulbs??'],
     answer: 'Built the order: 24 tulips and 36 daffodils. Bulbs: yes, six bulbs, two of them rare.' + FIN, expect: { not: ['question-answered'] } },
   { name: 'question-answered: held once already, the turn ends however it is answered', prompt: 'build the tulip order', queued: ['does it even have bulbs??'],

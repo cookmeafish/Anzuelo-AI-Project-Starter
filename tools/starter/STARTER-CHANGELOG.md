@@ -6,6 +6,10 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-01 (yes/no questions typed mid-turn): A yes/no question typed while the agent works is answered by a later
+  text that opens with yes or no, even with no shared word ("was this intentional?" answered "No, it wasn't on
+  purpose" was called unanswered). Scenarios: "question-answered: a yes/no question typed mid-turn, answered "No,
+  ..." in other words: passes", "... with no reply opening yes or no and no shared word: blocked".
 - 2026-11-01 (waivers with their output thrown away): A waive command this turn ran counts by its record in the run
   log too, not only by the "waived for this turn" line in the tool output. A waiver run as "waive x ... >/dev/null &&
   git commit" was asked for again in two more Stop rounds, and the turn ended unresolved. Scenarios: "waive: a

@@ -5868,14 +5868,19 @@ const ASK_OPENER = /^\s*((what|why|how|which|who|where|when|should|is|are|can|co
 export const isQuestion = s => { const t = userText(s).trim(); return !!t && t.length < 1500 && (/[?？]\s*$/.test(t) || ASK_OPENER.test(t)); };
 // The questions typed mid-turn (queued) that no later message of the agent's answers: none of its texts after the
 // question shares a quarter of the question's own words (at least one). A question with no word to match is not judged.
+// A yes/no question is also answered by a later text that opens with yes or no. Lesson (a field report): "was this
+// intentional?" answered "No, it wasn't on purpose" shared no word with it and was called unanswered.
+const YES_NO_Q = /^\s*(is|are|was|were|do|does|did|can|could|will|would|should|has|have|had|es|est[aá]|fue|era|puede|hay)(?![\p{L}\p{N}_])/iu;
+const YES_NO_A = /^[\s*_>#-]*(yes|no|yeah|yep|nope|not (really|quite|fully|yet)|sí|si)(?![\p{L}\p{N}_])/iu;
 export function unansweredQuestions(entries) {
   const qs = [], texts = [];
   (entries || []).forEach((r, i) => {
     const a = r?.attachment;
     if (r?.type === 'attachment' && a?.type === 'queued_command') { const q = textOf(a.prompt ?? a.content ?? ''); if (q.trim() && !skipped(q) && isQuestion(q)) qs.push({ q, i }); }
-    if (r?.type === 'assistant' && Array.isArray(r.message?.content)) for (const c of r.message.content) if (c?.type === 'text' && c.text) texts.push({ words: new Set(keyWords(c.text)), i });
+    if (r?.type === 'assistant' && Array.isArray(r.message?.content)) for (const c of r.message.content) if (c?.type === 'text' && c.text) texts.push({ words: new Set(keyWords(c.text)), yesNo: YES_NO_A.test(c.text), i });
   });
   return qs.filter(({ q, i }) => {
+    if (YES_NO_Q.test(userText(q)) && texts.some(t => t.i > i && t.yesNo)) return false;
     const words = [...new Set(keyWords(userText(q)).filter(w => w.length > 3 && !GENERIC.has(w)))];
     if (!words.length) return false;
     const need = Math.max(1, Math.round(words.length / 4));
