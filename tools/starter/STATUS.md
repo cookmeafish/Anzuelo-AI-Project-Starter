@@ -43,7 +43,8 @@ docs/STATUS.md, which here is the template new projects start from).
   before 69f3084.
 - 2026-11-01 14:54 PST: aed606f (a yes/no question typed mid-turn counts as answered by a reply that opens with
   yes or no; a false Stop step in one project). Chain green (1548 passed, stop 385 ms, trial 132/132). Both linked
-  copies on 4ad058c; both sessions sent the upgrade. Open: confirm each passed --full.
+  copies on 4ad058c. Both upgraded and committed: faaa612 (1529 passed, stop 394 ms) and 4863a10 (1545 passed,
+  stop 355 ms).
 - 2026-11-01 evening: helpers' verdicts reported as items passing (claim-checked), from a project's complaint, and
   a project Stop command's time limit (externalStopTimeoutMs, 180 s): e71fcba. Both projects on it, committed, full
   self-tests passing (1522 and 1538). Watch: Stop timings drift up under load (here 389 to 622 ms in full runs while
