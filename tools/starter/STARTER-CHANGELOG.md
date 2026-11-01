@@ -6,6 +6,13 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-01 (dates and the user's words): A date, time or version is no count of items, what the user said earlier
+  is no verdict of the agent's, and a quoted phrase up to 600 characters is named, not claimed. A real answer that
+  recalled the user's own earlier verdict, with its date, was blocked three times in one turn. Scenario:
+  "claim-checked: a date and what the user said earlier (...), after helpers worked: passes".
+- 2026-11-01 (pass and fail counts): A pass count beside a fail count ("1522 passed, 0 failed", in a table row
+  too) is a test run's result, not a group verdict. Scenario: "claim-checked: a table row with a pass and fail count,
+  after helpers worked: passes".
 - 2026-11-01 (project Stop time limit): The project's own Stop command (config "externalStop") may run for
   "externalStopTimeoutMs" (new key, default 180000, was a fixed 60000). One that runs out of time is named as out of
   time, to rerun at the next Stop, not as broken with advice to remove it (which turned off every check it runs).

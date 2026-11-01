@@ -1578,12 +1578,16 @@ export function enforcedClaim(answer) {
 // said the rest "passed" after a check that only confirmed each item had a note written by a helper; asked later,
 // the agent said it had never checked whether those verdicts were right.
 const GROUP_VERDICT = /\b(all|every|each|the (other|rest|remaining)|remaining|\d+)\b.{0,80}?\b(passed|pass(es)?|(were|are|was|is) (all )?(fine|ok|okay|good|correct|right|verified|sound)|checked out|hold up|deserve[sd]?|earned)\b|(?<!\p{L})(todos?|todas?|cada|los dem[aá]s|las dem[aá]s|\d+)(?!\p{L}).{0,80}?(?<!\p{L})(pasaron|est[aá]n bien|estaban bien|son correct[oa]s|verificad[oa]s)(?!\p{L})/iu;
-const TEST_RUN = /\b(tests?|self-?tests?|selfcheck|suites?|builds?|lint|type-?checks?|audit|trial|CI|scenarios?)\b|(?<!\p{L})pruebas?(?!\p{L})/iu;
-const JUDGED_BY = /\b(helpers?|sub-?agents?|agents?|I (re-?)?(checked|judged|read|compared|reviewed|scored) (each|every|all|them|it|one by one)|only (checks?|confirms?|found|means)|not (re-?)?(checked|judged|verified|read))\b|(?<!\p{L})(ayudantes?|sub-?agentes?|agentes?)(?!\p{L})/iu;
+// (a pass count beside a fail count is a test run's result, also in a table row with no word for tests. Lesson,
+// dogfood: a row "| 1522 passed, 0 failed |" was flagged)
+const TEST_RUN = /\b(tests?|self-?tests?|selfcheck|suites?|builds?|lint|type-?checks?|audit|trial|CI|scenarios?)\b|\b\d+ passed\b.{0,30}\b\d+ fail(ed|ures?)\b|(?<!\p{L})pruebas?(?!\p{L})/iu;
+// (what the user said is no verdict of the agent's, and a date, time or version is no count of items. Lesson (a field
+// report): "on 2026-10-26 you said its draw was fine at 9" was blocked three times in one turn)
+const JUDGED_BY = /\b(you (said|wrote|told me|asked)|the user (said|wrote)|helpers?|sub-?agents?|agents?|I (re-?)?(checked|judged|read|compared|reviewed|scored) (each|every|all|them|it|one by one)|only (checks?|confirms?|found|means)|not (re-?)?(checked|judged|verified|read))\b|(?<!\p{L})(ayudantes?|sub-?agentes?|agentes?)(?!\p{L})/iu;
 export function groupVerdictClaim(answer) {
   // (a phrase in quotes is named, not claimed. Lesson, dogfood: an answer that quoted the misleading claims was flagged)
-  const quoted = /"[^"\n]{1,160}"|“[^”\n]{1,160}”|«[^»\n]{1,160}»/g;
-  return claimSentences(answer).find(s => { const t = s.replace(quoted, ' '); return GROUP_VERDICT.test(t) && !TEST_RUN.test(t) && !JUDGED_BY.test(t); }) || '';
+  const quoted = /"[^"\n]{1,600}"|“[^”\n]{1,600}”|«[^»\n]{1,600}»/g, notCount = /\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}:\d{2}\b|\bv?\d+(\.\d+)+\b/g;
+  return claimSentences(answer).find(s => { const t = s.replace(quoted, ' ').replace(notCount, ' '); return GROUP_VERDICT.test(t) && !TEST_RUN.test(t) && !JUDGED_BY.test(t); }) || '';
 }
 // A sentence in which the agent says it tested a page or app by hand (not one that asks the user to, nor a negation).
 const BY_HAND = /\b(by hand|manually|hand-tested)\b|(?<!\p{L})(a mano|manualmente)(?!\p{L})/iu;
