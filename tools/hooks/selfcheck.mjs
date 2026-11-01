@@ -4043,6 +4043,10 @@ PROMPT.push(
     return [
       { name: 'starter-runbooks: in the starter, "test it many times so nothing gets worse" routes to the improvement loop', setup: rb,
         prompt: 'do multiple tests with yourself to make sure that only improvements happen and nothing gets worse', has: ['ROUTE: improvement-loop (', 'open tools/starter/runbooks/improvement-loop.md THIS turn and follow'] },
+      // (a time budget for testing whether the starter keeps the agent on track. Lesson, the user, 2026-11-01: "make this
+      // a runbook ... so i dont gotta explain all of this again")
+      { name: 'starter-runbooks: in the starter, "tests for hours, did it keep it on track or forget things" routes to the improvement loop', setup: rb,
+        prompt: 'do a lot of tests for 3 hours with the starter and check if it kept it on track or forgot things', has: ['ROUTE: improvement-loop ('] },
       { name: 'starter-runbooks: in the starter, a report from another session routes to the field-report runbook', setup: rb,
         prompt: '<cross-session-message from="shop-project">Field report 9 is in the inbox. Please replay the turn.</cross-session-message>', has: ['ROUTE: field-report ('] },
       { name: 'starter-runbooks: a project never routes to the starter\'s own runbooks', setup: rb, removeMarker: true,

@@ -598,5 +598,37 @@
       "save this lecture transcript as notes for lecture 3, with a short summary at the top:\n\nIn this lecture the professor walks through how the immune system responds to a new virus. She says the average response time for the innate system is minutes, while the adaptive system takes days. A tutor once told her that system design in biology is about redundancy, not efficiency. There is a design system to how antibodies are shaped: a constant region and a variable region. She compares T cells to a security team with permission to destroy infected cells. Memory cells keep the average second response much faster, which is why vaccines work. Then she reviews the step by step lesson plan for next week and the data from the class survey. In this lecture the professor walks through how the immune system responds to a new virus. She says the average response time for the innate system is minutes, while the adaptive system takes days. A tutor once told her that system design in biology is about redundancy, not efficiency. There is a design system to how antibodies are shaped: a constant region and a variable region. She compares T cells to a security team with permission to destroy infected cells. Memory cells keep the average second response much faster, which is why vaccines work. Then she reviews the step by step lesson plan for next week and the data from the class survey. In this lecture the professor walks through how the immune system responds to a new virus. She says the average response time for the innate system is minutes, while the adaptive system takes days. A tutor once told her that system design in biology is about redundancy, not efficiency. There is a design system to how antibodies are shaped: a constant region and a variable region. She compares T cells to a security team with permission to destroy infected cells. Memory cells keep the average second response much faster, which is why vaccines work. Then she reviews the step by step lesson plan for next week and the data from the class survey. In this lecture the professor walks through how the immune system responds to a new virus. She says the average response time for the innate system is minutes, while the adaptive system takes days. A tutor once told her that system design in biology is about redundancy, not efficiency. There is a design system to how antibodies are shaped: a constant region and a variable region. She compares T cells to a security team with permission to destroy infected cells. Memory cells keep the average second response much faster, which is why vaccines work. Then she reviews the step by step lesson plan for next week and the data from the class survey. In this lecture the professor walks through how the immune system responds to a new virus. She says the average response time for the innate system is minutes, while the adaptive system takes days. A tutor once told her that system design in biology is about redundancy, not efficiency. There is a design system to how antibodies are shaped: a constant region and a variable region. She compares T cells to a security team with permission to destroy infected cells. Memory cells keep the average second response much faster, which is why vaccines work. Then she reviews the step by step lesson plan for next week and the data from the class survey. In this lecture the professor walks through how the immune system responds to a new virus. She says the average response time for the innate system is minutes, while the adaptive system takes days. A tutor once told her that system design in biology is about redundancy, not efficiency. There is a design system to how antibodies are shaped: a constant region and a variable region. She compares T cells to a security team with permission to destroy infected cells. Memory cells keep the average second response much faster, which is why vaccines work. Then she reviews the step by step lesson plan for next week and the data from the class survey. In this lecture the professor walks through how the immune system responds to a new virus. She says the average response time for the innate system is minutes, while the adaptive system takes days. A tutor once told her that system design in biology is about redundancy, not efficiency. There is a design system to how antibodies are shaped: a constant region and a variable region.",
       "you didn't answer my question from before: which part of lecture 3 will be on the exam? WHY DO YOU KEEP IGNORING ME"
     ]
+  },
+  {
+    "id": "np-reading-rule",
+    "why": "a reading list: a formatting rule given in turn 2 must hold in every later turn without a reminder (drift probe)",
+    "expect": {
+      "packs": [
+        "knowledge"
+      ],
+      "follow": "project"
+    },
+    "setup": "set up this project to keep my reading list and short notes on the books I read. Decide everything yourself and do not ask me anything: I am not available to answer.",
+    "then": [
+      "from now on, write every book title in italics and every author as Last name, First name, in every file and every answer",
+      "add these to my reading list: The Left Hand of Darkness by Ursula K. Le Guin, Piranesi by Susanna Clarke, The Remains of the Day by Kazuo Ishiguro, Kindred by Octavia E. Butler",
+      "write a short note on Piranesi in its own file: what it is about and why I might like it",
+      "make me a reading plan for the next 3 months from the list, one book every three weeks, starting next Monday"
+    ]
+  },
+  {
+    "id": "np-garden-parts",
+    "why": "a vegetable garden: facts given early, a five-part request, a which-did-you-finish check, then a change that must reach every dependent file (drift probe)",
+    "expect": {
+      "packs": [],
+      "follow": "deliverable"
+    },
+    "setup": "set up this project for planning my vegetable garden. Decide everything yourself and do not ask me anything: I am not available to answer.",
+    "then": [
+      "my garden bed is 4 by 8 feet, gets 6 hours of sun a day, and I am in USDA zone 7b. keep that in mind for everything",
+      "do these five things: 1) pick 6 vegetables that suit my bed, 2) draw a planting layout as a simple text grid, 3) make a spring sowing calendar, 4) write a watering schedule, 5) list what I need to buy",
+      "which of the five did you finish, and where is each one?",
+      "swap the vegetable that takes the most space for one that fits the bed better, and update everything that depends on it"
+    ]
   }
 ]

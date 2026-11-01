@@ -32,7 +32,8 @@ docs/STATUS.md, which here is the template new projects start from).
   per-item proof (plan item 8) and the safety holes.
 - 2026-11-01: 03dc06f, e29973c, fc549dd (proof runs with failure counts, file entries, relayed labels): both projects on fc549dd, committed. bf1c8e1 (failed self-tests say how the hook run ended) sent to both. Open: the first --full run after the fc549dd upgrade failed in both projects (11 and 20 Stop tests passed that should block, no error output), each overlapping the other project's upgrade; a rerun passed; two full runs at once in the starter passed. Cause not found; next: reproduce a full run while an upgrade runs in another project.
 - 2026-11-01 night: the user asked for 5 hours of trial testing (drift and memory probes added), every issue fixed
-  and retested. Fixes to the new group-verdict check (test counts, dates, the user's own words) in the chain now.
+  and retested. Testing session: started 2026-11-01 11:57 PST (19:57 UTC), ends 16:57 PST (00:57 UTC 2026-11-02)
+  (improvement-loop runbook, "A testing session with a time budget"). Round v21 is the first. Fixes to the new group-verdict check (test counts, dates, the user's own words) in the chain now.
   Open: the stop-budget self-test fails under unrelated machine load (an A/B in one worktree showed no slowdown);
   11 and 5 turns in the projects ended with their full Stop check never run (background work).
 - 2026-11-01 evening: helpers' verdicts reported as items passing (claim-checked), from a project's complaint, and

@@ -1,7 +1,7 @@
 ---
 name: improvement-loop
 summary: Prove a starter change makes new projects better and never worse - trial rounds, blind judges, verdict, fix, repeat
-triggers: only improvements, only improve, not worse, nothing worse, make anything worse, makes it worse, multiple tests, test it multiple times, test with yourself, tests with yourself, new projects in your scratchpad, trial round, run the trials, judge the round, feedback loop, loop the feedback, give yourself feedback, efficiency, more efficient, use more tokens, wasted tokens, pause or stop
+triggers: only improvements, only improve, not worse, nothing worse, make anything worse, makes it worse, multiple tests, test it multiple times, test with yourself, tests with yourself, new projects in your scratchpad, trial round, run the trials, judge the round, feedback loop, loop the feedback, give yourself feedback, efficiency, more efficient, use more tokens, wasted tokens, pause or stop, ton of tests, lots of tests, tests for hours, hours of tests, test for hours, did good or bad, kept it on track, keeps it on track, forgot things, forgets things, feed it back into yourself, fed back into yourself
 ---
 # Improvement loop (starter only)
 
@@ -37,11 +37,30 @@ stop at the usage limit, so check that a headless session runs (`claude -p "ok"`
    starter caused or could prevent: confirm it in the transcript first, fix the cause in the engine (not the
    symptom), add a self-test that fails without the fix, and add a line to `tools/starter/STARTER-CHANGELOG.md`.
    A finding that is the model's own slip, with nothing the starter could do, is noted as such, not "fixed".
-6. **Green again, then push.** Step 1's chain passes; commit the engine proof (`tools/hooks/engine-proof.json`) and
-   `rounds.json`; push with the user as the only author.
+6. **Green again, then commit.** Step 1's chain passes; commit the fix, then the engine proof
+   (`tools/hooks/engine-proof.json`, subject "Engine proof") and `rounds.json`, with the user as the only author.
+   Push only with the user's OK in this session.
 7. **Loop.** Start the next round on the fixed engine (step 2). Stop when a round is NOT WORSE against both the
    baseline and the previous round and has no high finding and no new medium finding the starter could prevent; or
    when the usage limit stops it, then say so and resume after the reset.
+
+## A testing session with a time budget ("test it for 5 hours")
+
+When the user gives a time budget for testing, it is one session of steps 1 to 7, run back to back:
+1. Write the start and end time in `tools/starter/STATUS.md`, so a later session knows when the budget ends.
+2. Each round is the standard eight plus the drift probes (`np-reading-rule`, `np-garden-parts`, `np-meals-upset`):
+   `node tools/starter/trials/run.mjs --round <name> --freeze <the ids>`. The drift probes check what the standard
+   set does not: a rule or a fact the user gave earlier still holds turns later, every part of a several-part request
+   is done and truly reported, a change reaches every file that depends on it, and the project's notes are used.
+   Their judges (groups i and j in `judge.mjs`) say what to check in each.
+3. While a round runs, look at the real projects (the project-watch runbook): their Stop logs, upsets and false
+   alarms are evidence the trials don't have. Each problem found goes through step 5 like a finding.
+4. Every finding the starter caused or could prevent is fixed with a test that fails without the fix, the chain
+   passes, and the next round runs on the fixed engine (the user, 2026-11-01: any issue found is fed back in, fixed
+   and retested). A round started on an older commit still counts; its findings are checked against the newest
+   engine before fixing.
+5. Stop at the end time or when a round meets step 7's bar, whichever is first. The answer lists each round with
+   its verdict, each fix with its commit and test, and what is still open; the open items go in `STATUS.md`.
 
 ## Done when
 
@@ -51,6 +70,7 @@ stop at the usage limit, so check that a headless session runs (`claude -p "ok"`
 - [ ] No engine file changed since the last judged round, or the next round is running (hook: audit sweep "improvement
       loop is current")
 - [ ] Every high and medium finding of the last round is fixed with a test or noted as the model's own slip (judgment)
+- [ ] A testing session with a time budget ran rounds until its end time or a clean round, and the answer lists rounds, verdicts, fixes and what is open (judgment: the budget and the rounds differ each time)
 
 ## Pitfalls
 

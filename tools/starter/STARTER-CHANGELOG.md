@@ -6,6 +6,13 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-01 (timed testing sessions): The improvement-loop runbook covers a testing session with a time budget:
+  rounds back to back with the drift probes, the real projects watched between rounds, every finding fixed with a
+  test and retested, a report of rounds, verdicts and fixes at the end. Its step 6 commits and pushes only with the
+  user's OK. Two drift probes (np-reading-rule, np-garden-parts) and judge groups i and j check that a rule or fact
+  from an earlier turn still holds, every part of a request is done, and a change reaches every dependent file.
+  Scenario: "starter-runbooks: in the starter, "tests for hours, did it keep it on track or forget things" routes
+  to the improvement loop".
 - 2026-11-01 (dates and the user's words): A date, time or version is no count of items, what the user said earlier
   is no verdict of the agent's, and a quoted phrase up to 600 characters is named, not claimed. A real answer that
   recalled the user's own earlier verdict, with its date, was blocked three times in one turn. Scenario:
