@@ -6,6 +6,9 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-01 (hook run ending): A self-test whose hook run ended badly (a status other than 0, a signal, or a process
+  that never started) says so in its failure, with the error output, also when it reports a missing tag. Two projects
+  saw Stop tests pass that should block, once each, with no error output; the cause is not found yet.
 - 2026-11-01 (relayed labels): In a message from another session, a label before a colon ("Test: ... fails on the
   old engine") is no task verb, so that line no longer routes (it had set off the debug skill); the words after the
   label still route when they start with one (`relay-request-text`).

@@ -408,7 +408,9 @@ function run(dir, cmd, input, host = {}) {
   // (fixtures run as an agent that isn't Claude Code unless a scenario says so: the run's own host must not change them)
   delete env.CLAUDE_CODE_ENTRYPOINT; delete env.CLAUDECODE;
   const r = spawnSync(process.execPath, [path.join(dir, 'tools', 'hooks', 'hooks.mjs'), cmd], { input: JSON.stringify(input), encoding: 'utf8', cwd: dir, env: { ...env, ...host } });
-  return { out: r.stdout || '', err: r.stderr || '' };
+  // (how the run ended, when it did not end well, so a failing test says it)
+  const ended = r.error || r.signal || r.status ? ` [hook run ended: status ${r.status}, signal ${r.signal || 'none'}${r.error ? `, ${r.error.code || r.error.message}` : ''}]` : '';
+  return { out: r.stdout || '', err: (r.stderr || '') + ended };
 }
 
 const pb = n => ({ name: 'Read', input: { file_path: `docs/playbooks/${n}.md` } });
@@ -4465,7 +4467,7 @@ for (const s of STOP) {
   if (s.expect.block !== undefined && r.blocked !== s.expect.block) why = `expected ${s.expect.block ? 'BLOCK' : 'PASS'}, got ${r.blocked ? `BLOCK by ${blockedBy() || r.reason}` : 'PASS'}${r.err ? ' stderr: ' + r.err.slice(0, 300) : ''}`;
   // the stop message lists the check names once, on its last line: "Names: a, b."
   const named = t => (/Names: ([^\n]*)\.\s*$/.exec(r.reason || '')?.[1] || '').split(', ').includes(t);
-  for (const t of s.expect.tags || []) if (!named(t)) why ||= `missing tag [${t}] in: ${r.reason || '(no block)'}`;
+  for (const t of s.expect.tags || []) if (!named(t)) why ||= `missing tag [${t}] in: ${r.reason || `(no block)${r.err ? ' stderr: ' + r.err.slice(0, 300) : ''}`}`;
   for (const t of s.expect.not || []) if (named(t)) why ||= `unexpected tag [${t}]`;
   // a scenario with nothing to judge would always pass. Lesson: a project scenario meant as a pass had only a name.
   if (s.expect.block === undefined && !(s.expect.tags || []).length && !(s.expect.not || []).length && !s.expect.says && !s.after)
