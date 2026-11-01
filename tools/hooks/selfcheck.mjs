@@ -1577,6 +1577,16 @@ STOP.push(
       bash('node tools/input-check.mjs links.go .cache/good/idn-host.go', 'RESULT: PASS')],
     answer: 'Partly: links were checked, but only the scheme. Fixed, and it can\'t happen again.\nProven: fails on links.go as it was before the fix; passes on links.go now and an edge case: a handler with an international host and a port\nLearned (check): every input is validated → tools/input-check.mjs' + FIN,
     expect: { not: ['check-proven', 'claim-checked'] } },
+  // Lesson (a field report): a run sent to a file printed "exit 1" and "45 passed, 2 failed" and read as a pass, since
+  // the command's last part succeeded; a run with failures is no passing run either
+  ...[[['exit 1\n45 passed, 2 failed', '47 passed, 0 failed'], { not: ['check-proven'] }, 'its failing run counts: passes'],
+    [['exit 1\n45 passed, 2 failed', '46 passed, 1 failed'], { tags: ['check-proven'], says: /no run of the check passed/ }, 'a run with a failure is no passing run: blocked']].map(([[bad, good], expect, says]) => ({
+    name: `check-proven: a run that printed its failure count and exit code, its last command succeeding: ${says}`, prompt: 'you forgot to validate the links again!!', prep: preexisting('links.go'),
+    files: { 'links.go': 'package main\nfunc validateURL(s string) bool { return strict(s) }\n', 'tools/input-check.mjs': '// fails a handler that skips validation\n', 'docs/CHANGELOG.md': 'x' },
+    tools: [editTool('links.go'), bash('git show HEAD:links.go > .cache/before-links.go', 'ok'), bash('node tools/input-check.mjs .cache/before-links.go > .cache/out.txt 2>&1; echo "exit $?"; tail -1 .cache/out.txt', bad),
+      bash('node tools/input-check.mjs links.go .cache/good/idn-host.go', good)],
+    answer: 'Partly: links were checked, but only the scheme. Fixed.\nProven: fails on links.go as it was before the fix; passes on links.go now and an edge case: a handler with an international host and a port\nLearned (check): every input is validated → tools/input-check.mjs' + FIN,
+    expect })),
   // Lesson: a tone check passed the one rewritten letter and was never tried on a legitimate late-rent letter
   { name: 'check-proven: a "Proven:" line with only one good sample: blocked', prompt: 'the letter sounds like a robot and threatens them. letters to tenants are friendly and plain, always',
     files: { 'tools/letter-check.mjs': '// tone check\n', 'drafts/rent-v2.md': 'Hi Sam', 'docs/CHANGELOG.md': 'x' },

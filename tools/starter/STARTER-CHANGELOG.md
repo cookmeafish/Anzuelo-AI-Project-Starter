@@ -6,6 +6,10 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-01 (proof run counts): A proof run of a new check that printed a failure count ("45 passed, 2 failed") or
+  an exit code ("exit 1") counts as failing, though the command's last part succeeded, and a run with failures is no
+  passing run. Such a run read as a pass, so the check's failing run on the earlier version never counted
+  (`printed its failure count and exit code`).
 - 2026-11-01 (grouped gate, commit names): A gate of several commands run as one group with its output sent to a file,
   `(a && b) > out.txt`, is judged on that file. It was judged on what the command printed after it, which lacked the
   gate's pass line, and a passing build blocked a round. A gate command inside the group that sent its output to a file

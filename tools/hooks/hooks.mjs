@@ -1799,8 +1799,11 @@ export function checkProof(x) {
   });
   const runs = [...proved, ...(x.runs || []).filter(r => typeof r.cmd === 'string' && !/selfcheck\.mjs|hooks\.mjs/.test(r.cmd)
     && (stems.some(s => r.cmd.includes(s)) || (tests && /\b(test|tests|pytest|unittest|jest|vitest|mocha|rspec|phpunit)\b/i.test(r.cmd))))];
-  const failed = r => r.error || /\b(FAIL(ED|S|URES?)?|not ok|MAL)\b|✖/.test(r.out || '');
-  const passed = r => /\b(PASS(ED|ES)?|OK|\d+ passed)\b|✔/.test(r.out || '') || (!r.error && !failed(r));
+  // (a count of failures or an exit code the command printed fails it too, though its last command succeeded. Lesson (a
+  // field report): "check > out.txt; echo exit $?" printed "exit 1" and "45 passed, 2 failed", and read as a pass)
+  const failCount = /\b[1-9]\d* (failed|failing|failures?|errors?)\b|^exit(?: code)?:? *[1-9]\d*\s*$/im;
+  const failed = r => r.error || /\b(FAIL(ED|S|URES?)?|not ok|MAL)\b|✖/.test(r.out || '') || failCount.test(r.out || '');
+  const passed = r => (/\b(PASS(ED|ES)?|OK)\b|✔/.test(r.out || '') || (/\b\d+ passed\b/.test(r.out || '') && !failCount.test(r.out || ''))) || (!r.error && !failed(r));
   // the state the user complained about: nothing that was already there had been changed yet, or git gave the old version
   const fixes = new Set((x.changed || []).filter(p => !checks.includes(p) && !/^(docs\/|tools\/hooks\/|\.cache\/)|(^|\/)(AGENTS|CLAUDE|SKILL)\.md$/.test(p) && !bornThisTurn(p, x.since)));
   const all = x.runs || [];
