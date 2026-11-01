@@ -1096,6 +1096,12 @@ const STOP = [
     files: { 'data/v.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md' + FIN, expect: { block: true, tags: ['data-valid'] } },
   { name: 'toolPassed: validator PASS: passes', prompt: 'add the new vendor data', edit: VALIDATOR, tools: [pb('project'), bash('python tools/validate.py data/v.json', 'RESULT: PASS')],
     files: { 'data/v.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md' + FIN, expect: { block: false } },
+  // Lesson (a field report): a two-command gate run as one group into a file was judged on what the command printed after
+  ...[['Built 4 menus\nRESULT: PASS', { not: ['data-valid'] }, 'passes'], ['Traceback\nERROR: no menus built', { tags: ['data-valid'] }, 'blocked']].map(([out, expect, says]) => ({
+    name: `toolPassed: a two-command gate run as one group with its output sent to a file is judged on that file (${/Built/.test(out) ? 'built' : 'not built'}): ${says}`, prompt: 'add the new vendor data',
+    edit: withReqs({ tag: 'data-valid', when: { filesChanged: ['data/**'] }, require: { toolPassed: { cmd: 'python tools/build_menu.py && python tools/validate.py', pass: 'Built \\d+ menus' } }, message: 'Build and validate.' }),
+    tools: [pb('project'), bash('(python tools/build_menu.py && python tools/validate.py) > .cache/build.txt 2>&1; echo built $?; python tools/prices.py', 'built 0\nprices: 12 checked\nRESULT: PASS')],
+    files: { 'data/v.json': '{}', '.cache/build.txt': out, 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md' + FIN, expect })),
   { name: 'runEach: the hook re-validates changed files itself (invalid JSON): blocked', prompt: 'add the new vendor data', edit: RUNEACH, tools: [pb('project')],
     files: { 'data/v.json': '{ broken', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md' + FIN, expect: { block: true, tags: ['json-valid'] } },
   { name: 'runEach: valid JSON passes', prompt: 'add the new vendor data', edit: RUNEACH, tools: [pb('project')],
@@ -7959,9 +7965,11 @@ if (mineB() && (!TAGS || TAGS.includes('answer-traced'))) { // cited claims: an 
   const fair = ['- Aren is a right-handed smith with a scar over his left eye [1].', '- He follows the same road Ilka took [2], on the slow horse, two days behind her.', '- He is right-handed: hammer, sword or reins in the right hand [1].',
     '- Ilka went north [2], and he lifts the hammer, so it finds no problem [1].', '- My guess: the scar leaves a blind side on his left [1].', '- Inferido: el lado izquierdo sería su punto débil [1].'].map(l => citedClaimGaps([doc(l)], rd).length);
   const answer = citedClaimGaps([{ text: 'From `characters.md`: Aren is right-handed, so he fights best with a spear on horseback at night.', where: 'the answer' }], rd).length;
-  report(caught.every(n => n === 1) && fair.every(n => n === 0) && answer === 1,
-    'answer-traced: a claim cited to a file must share its key words with it (an inference after "so" or ":" counts on its own); a fair reading, a marker cited mid-sentence and a "my guess:" line pass',
-    JSON.stringify({ caught, fair, answer }));
+  // (a commit name in code after "from <file>" holds no figures. Lesson (a field report): its digits were "missing")
+  const commit = citedClaimGaps([{ text: 'Aren passed, linked from `characters.md` (commit `e348b41`).', where: 'the answer' }], rd).length;
+  report(caught.every(n => n === 1) && fair.every(n => n === 0) && answer === 1 && commit === 0,
+    'answer-traced: a claim cited to a file must share its key words with it (an inference after "so" or ":" counts on its own); a fair reading, a marker cited mid-sentence, a "my guess:" line and a commit name pass',
+    JSON.stringify({ caught, fair, answer, commit }));
 }
 // the helpers' results, as if this process had run them (their lines, their passes for the COVERS check below)
 if (HELPER) { console.log(`SHARD ${pass} ${fail} ${skipped}`); process.exit(0); } // a helper's share is done

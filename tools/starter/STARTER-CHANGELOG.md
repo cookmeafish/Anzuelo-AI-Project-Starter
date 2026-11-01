@@ -6,6 +6,12 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-01 (grouped gate, commit names): A gate of several commands run as one group with its output sent to a file,
+  `(a && b) > out.txt`, is judged on that file. It was judged on what the command printed after it, which lacked the
+  gate's pass line, and a passing build blocked a round. A claim cited to a file no longer counts the digits of a
+  commit name in code (`e348b41`) as figures the file lacks: code spans are taken out first, and a number inside a
+  word is no figure. Self-tests: `run as one group`, and the cited-claims test (`a commit name pass`).
+
 - 2026-11-01 (timing turns): Self-test runs on one machine take turns to time the Stop hook. Two runs that reached
   the timing test together waited for each other for the full 10 minutes, then timed at the same moment, and one,
   counting the other as gone, failed the 500 ms budget on the other's load. A run waiting for its turn is no load now,

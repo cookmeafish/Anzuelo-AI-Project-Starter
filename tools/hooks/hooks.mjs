@@ -2375,6 +2375,19 @@ export function shellParts(cmd) {
 export function redirectedRun(run, cmdRe, since = 0) {
   const { parts } = shellParts(run.cmd);
   let dir = ROOT;
+  // (a gate of several commands run as one group, "(a && b) > out.txt", wrote its output to that file. Lesson (a field
+  // report): the group's file was never read, and the build gate judged the tests printed after it)
+  for (const g of String(run.cmd).matchAll(/\(([^()]+)\)\s*1?>>?\s*("[^"]+"|'[^']+'|[^\s;&|)]+)/g)) {
+    if (!cmdRe.test(gateText(g[1].trim())) || /^&\d$/.test(g[2])) continue;
+    const before = String(run.cmd).slice(0, g.index), cd = [...before.matchAll(/(?:^|[;&|(]\s*)(?:cd|Set-Location|pushd)\s+(?:\/d\s+)?("[^"]+"|'[^']+'|[^\s;&|)]+)/gi)].pop();
+    const d = cd ? cd[1].replace(/^["']|["']$/g, '') : '', base = d ? path.resolve(ROOT, /^\/[a-z]\//i.test(d) ? `${d[1]}:${d.slice(2)}` : d) : ROOT;
+    try {
+      const f = path.resolve(base, g[2].replace(/^["']|["']$/g, '')), st = fs.statSync(f);
+      if (st.mtimeMs < (since || 0) - 2000) continue;
+      const t = fs.readFileSync(f, 'utf8');
+      return { cmd: g[1].trim(), out: t.length > 200000 ? t.slice(-200000) : t, error: false, file: rel(f) };
+    } catch { }
+  }
   for (const p of parts) {
     const cd = /^\(?\s*(?:cd|Set-Location|pushd)\s+(?:\/d\s+)?("[^"]+"|'[^']+'|\S+)\s*$/i.exec(p);
     if (cd) { const d = cd[1].replace(/^["']|["']$/g, ''); dir = path.resolve(dir, /^\/[a-z]\//i.test(d) ? `${d[1]}:${d.slice(2)}` : d); continue; }
@@ -7433,9 +7446,12 @@ export function citedClaimGaps(texts, readFile = p => (exists(p) ? read(abs(p)) 
         if (!files.length || seen.has(f + text)) continue; seen.add(f + text);
         const src = files.map(readFile).join('\n').toLowerCase();
         if (!src.trim()) continue;
-        const claim = text.replace(/\[\d+\]|`[^`]*`|\b(?:from|according to|per|seg[uú]n)\s+\S+\.\w{1,5}\b|\([^)]*\.\w{1,5}\)|\*\*[^*]+\*\*|\b\d{4}-\d\d-\d\d\b/gi, ' ');
+        // (code spans go first, whole: "from `x.md` (commit `e348b41`)" lost its first backtick to the "from" rule, and
+        // the commit's digits were read as figures the file lacked. Lesson (a field report). A number inside a word or
+        // name, like a commit, is no figure either)
+        const claim = text.replace(/`[^`]*`/g, ' ').replace(/\[\d+\]|\b(?:from|according to|per|seg[uú]n)\s+\S+\.\w{1,5}\b|\([^)]*\.\w{1,5}\)|\*\*[^*]+\*\*|\b\d{4}-\d\d-\d\d\b/gi, ' ');
         for (const part of claim.split(/\b(?:so|therefore|thus|hence|which means|meaning|that means)\b|[;:]|(?<!\p{L})(?:as[ií] que|por lo tanto|o sea)(?!\p{L})/iu)) {
-          const words = [...new Set((part.toLowerCase().match(/[a-záéíóúñü]{4,}|\d{2,}/g) || []).filter(w => !CITE_STOP.has(w)))];
+          const words = [...new Set((part.toLowerCase().match(/[a-záéíóúñü]{4,}|(?<![a-z0-9])\d{2,}(?![a-z0-9])/g) || []).filter(w => !CITE_STOP.has(w)))];
           // (a part of fewer than 3 content words is a label or a verdict, "Point of view:", "so it finds no problem")
           if (words.length < 3) continue;
           const found = words.filter(w => /^\d+$/.test(w) ? new RegExp(`(?<!\\d)${w}(?!\\d)`).test(src) : src.includes(stemOf(w)));
