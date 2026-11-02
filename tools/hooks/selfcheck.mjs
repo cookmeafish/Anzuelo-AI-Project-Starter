@@ -3004,6 +3004,9 @@ STOP.push(
   // Lesson, field report: one untraced number cost a 40-line re-send each round
   { ...DEBUG_TURN, name: 'answer-resent: a sentence fix may end with a Corrected: line, checked on the corrected answer: passes', active: true, blocks: 1, failed: ['debug-root-cause'],
     failedExtra: { shortOk: false, answer: 'Skill: debug. Fixed it.' + FIN }, drafts: ['Skill: debug. Fixed it.' + FIN], answer: 'Corrected: "Fixed it." -> "Root cause: the date parser."', expect: { block: false } },
+  { ...DEBUG_TURN, name: 'answer-resent: a Corrected: line whose quoted text holds quotes is read as the correction: passes', active: true, blocks: 1, failed: ['plain-writing'],
+    failedExtra: { shortOk: true, answer: 'Skill: debug. Root cause: the date parser. The label reads "Date — Time".' + FIN }, drafts: ['Skill: debug. Root cause: the date parser. The label reads "Date — Time".' + FIN],
+    answer: 'Corrected: "The label reads "Date — Time"." -> "The label reads "Date, Time"."', expect: { not: ['plain-writing', 'answer-resent'] } },
   { ...DEBUG_TURN, name: 'answer-resent: a Corrected: line whose old text the answer does not hold: blocked', active: true, blocks: 1, failed: ['debug-root-cause'],
     failedExtra: { shortOk: false, answer: 'Skill: debug. Fixed it.' + FIN }, drafts: ['Skill: debug. Fixed it.' + FIN], answer: 'Corrected: "Fixed this." -> "Root cause: the date parser."', expect: { block: true, tags: ['answer-resent'] } },
   { ...DEBUG_TURN, name: 'answer-resent: a Corrected: line that leaves the answer still wrong: blocked', active: true, blocks: 1, failed: ['debug-root-cause'],

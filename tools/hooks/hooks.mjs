@@ -8520,7 +8520,10 @@ export function stopDecision(data, cfg = config()) {
 export function correctionsOf(text) {
   const s = String(text || '').trim();
   if (s.length > 2000 || !/^\W{0,4}(corrected|correction|corregido|correcci[oó]n)\s*:/i.test(s)) return null;
-  const out = [...s.matchAll(/["“]([^"”\n]+)["”]\s*(?:->|→)\s*["“]([^"”\n]*)["”]/g)].map(m => ({ old: m[1], new: m[2] }));
+  // (one per line, read from the arrow out, so quotes inside the quoted text stay part of it. Lesson (a field report):
+  // a fixed quote that held quotes parsed as no correction, the line was checked as the answer, and the em dash in
+  // its old text blocked the turn again)
+  const out = s.split(/\r?\n/).map(l => /["“](.+?)["”]\s*(?:->|→)\s*["“](.*)["”]\W{0,2}$/.exec(l.trim())).filter(Boolean).map(m => ({ old: m[1], new: m[2] }));
   return out.length ? out : null;
 }
 // "Added: <the new parts>" as the whole last message ("Añadido:" too): the parts a round asked for, to read after the
