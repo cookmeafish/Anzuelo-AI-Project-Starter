@@ -24,7 +24,9 @@ date. A project's own content is its session's; this runbook changes only the en
    as what to change, never edited from here.
 3. **Ship it:** the full self-test and the audit, then commit (the user's standing OK; never push without asking).
 4. **Upgrade each project:** fast-forward its linked starter copy from this folder
-   (`git -C <copy> pull --ff-only <starter> main`), then hand the upgrade to its session (commit its own work,
+   (`git -C <copy> pull --ff-only <starter> main`), then hand the upgrade to its session (open
+   `docs/playbooks/engine.md` and record its checklist, which its hooks route the message to: without that line each
+   upgrade turn spent two Stop rounds on it; commit its own work,
    `starter.mjs upgrade --dry-run`, `upgrade`, `node tools/hooks/selfcheck.mjs --full`, report back; the plain
    self-test reuses the engine's recorded results, so a handoff that means every test names `--full`). Upgrade from here only when no session works there and
    it has nothing uncommitted (engine runbook, Pitfalls).

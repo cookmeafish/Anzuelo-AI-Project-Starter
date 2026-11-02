@@ -6,6 +6,7 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-01 (project-watch runbook): upgrade handoffs tell the project to open its engine runbook and record its checklist, which its hooks route the message to (two Stop rounds per upgrade turn before).
 - 2026-11-01 (trial round 24 findings): While an upset message waits for its "Issue:" line, a shell line counts as a read
   only when every part of it reads ("cd", "sed -n", pipes of plain readers) and nothing goes to a file. A chain of
   reads was held as a change, and "cat a > b" passed as a read. Scenario: "upset-acknowledged: a chain of reads goes
