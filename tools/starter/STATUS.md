@@ -45,9 +45,19 @@ docs/STATUS.md, which here is the template new projects start from).
   1 high (a headless setup ended on "still running" while a helper it resumed by message was stopped with the run).
   Fixed with 4 more in ffbea95 (proof 34e21e8, check list 66f3b04): headless-resume, destination triggers, the
   security line wording, the short cited-claim step, names in shipped docs (new audit sweep). Both projects on
-  66f3b04: ed4a6ae (1537 passed, stop 354 ms) and 1bc4fc1 (1553 passed, stop 358 ms). Round v24 ran 19:55-22:03,
-  judges started 22:05. Open from v23 (medium): full self-test after one-line rule changes, heavy research for
-  low-stakes facts, sources cited from search snippets, the upset guard reading only the notes file.
+  66f3b04: ed4a6ae (1537 passed, stop 354 ms) and 1bc4fc1 (1553 passed, stop 358 ms). Round v24 ran 19:55-22:03:
+  WORSE on 1 high (the same headless case: the new step fired, but its short line said only "This run is headless",
+  and a headless run sees only short lines). Fixed with 3 more in 013adfd (proof 23a9e6f): headless-resume short line
+  says what to do, read-only shell chains while an Issue line is owed (and writes in a chain now held), the writing
+  step names its files; the meal-plan trial now seeds the notes its complaint relies on. Chain green (1558 passed,
+  stop 342 ms, trial 132/132). Both copies on 71f74fc; both sessions sent the upgrade. Testing session ended 22:32
+  (budget spent). Next: round v25 to confirm the headless high is gone. Open (medium): `audit.mjs --setup` can run
+  past the 600 s single-command limit (the root of the headless case); setup spends about half its time on the
+  starter's own audit and self-tests; full self-test after one-line rule changes; heavy research for low-stakes
+  facts; sources cited from search snippets; a claim check the agent cannot clear when `prove` refuses new files;
+  ingest checks firing on an empty inbox; a setup helper's computations not counted by data-computed; the
+  skill-finder-report check needs exact wording; a project granted delete to staff against its own owner-only
+  decision.
 - 2026-11-01 14:54 PST: aed606f (a yes/no question typed mid-turn counts as answered by a reply that opens with
   yes or no; a false Stop step in one project). Chain green (1548 passed, stop 385 ms, trial 132/132). Both linked
   copies on 4ad058c. Both upgraded and committed: faaa612 (1529 passed, stop 394 ms) and 4863a10 (1545 passed,
