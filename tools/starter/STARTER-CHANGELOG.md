@@ -6,6 +6,7 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-02 (field report): every Stop check reads only the turn-notes lines written this turn. The file keeps earlier turns' lines when agents append to it, and an earlier lesson line made the lesson step ask for files this turn never touched. Scenario: "upset-learned: an earlier turn's lesson line left in the notes file is not this turn's: passes". A reply with both an "Added:" part and "Corrected:" lines applies the corrections too (they were read as more added text, so the fixed sentence was flagged again). Scenario: "answer-resent: a reply with an Added: part and a Corrected: line applies the correction too: passes".
 - 2026-11-02 (project-watch): a correction line whose quoted text itself holds quotes is read as the correction. It parsed as none, the line was checked as the whole answer, and the em dash in its quoted old text blocked the turn again. Scenario: "answer-resent: a Corrected: line whose quoted text holds quotes is read as the correction: passes".
 - 2026-11-01 (project-watch runbook): upgrade handoffs tell the project to open its engine runbook and record its checklist, which its hooks route the message to (two Stop rounds per upgrade turn before).
 - 2026-11-01 (trial round 24 findings): While an upset message waits for its "Issue:" line, a shell line counts as a read

@@ -2534,7 +2534,10 @@ export function context(t, cfg, answerOverride) {
   // field report: one session's "N/A" and feedback lines answered another session's checks)
   const notesMine = !(t.toolsKnown && otherSessionActive(t.since)) || edited.some(p => p.toLowerCase() === NOTES_FILE) ||
     uses.some(u => typeof u.input.command === 'string' && (u.input.command.replace(/\\/g, '/').includes(NOTES_FILE) || /hooks\.mjs["']?\s+prove\b/.test(u.input.command)));
-  const notes = notesMine ? inEnglish(turnNotes(t.since), cfg) : '';
+  // (only the lines written this turn: agents append to the file, and an earlier turn's "Learned ... → <file>" or
+  // "Issue:" line was read as this turn's. Lesson (a field report): a lesson step asked for files named by lessons of
+  // earlier turns, and blocked a finished turn three times)
+  const notes = notesMine ? inEnglish(turnRecords(turnNotes(t.since)), cfg) : '';
   const answerEn = `${inEnglish(answer, cfg)}\n${notes}`; // "Guía: x.md" / "Habilidad: x" name a runbook or skill too
   const namesIt = n => re(`\\b(playbook|runbook|skill)s?\\s*:\\s*\`?(docs/playbooks/|skills/)?${esc(n)}(\\.md)?\\b`).test(answerEn);
   // A runbook only opened (read, its skill not invoked) counts as followed when the request routed to it, the answer
@@ -5131,7 +5134,7 @@ export function passLine(x, rounds = 0) {
   const routedNames = new Set([...(x.routed || []), ...(x.routedSkills || [])].map(i => i.name));
   const pbs = (x.usedPb || []).filter(pb => !pb.name.startsWith('_') && routedNames.has(pb.name)).map(pb => pb.name);
   const sks = (x.usedSkills || []).map(s => s.name).filter(n => !pbs.includes(n) && routedNames.has(n));
-  const pb = ledgerRunbook(x), items = pb ? ledgerItems(read(abs(pb.file))) : [], rec = ledgerLines(turnRecords(x.notes), pb?.name);
+  const pb = ledgerRunbook(x), items = pb ? ledgerItems(read(abs(pb.file))) : [], rec = ledgerLines(x.notes || '', pb?.name);
   // (on a pass, an item a script checks is done by its check; only judgment items need a record)
   const done = items.filter(i => rec.has(i.n) || !i.judgment).length;
   const learned = x.prompt && isUpset(x.prompt) ? learnedLines(x.notes || '').map(l => l.file).filter(Boolean) : [];
@@ -6558,12 +6561,12 @@ export function coreChecks(x, cfg) {
     if (iss.problem && !iss.none) {
       const opened = iss.file && (x.reads?.has(iss.file) || (x.usedPb || []).some(p => p.file === iss.file) || (x.usedSkills || []).some(s => s.name === iss.runbook)
         || (x.cmds || []).some(c => String(c).replace(/\\/g, '/').includes(iss.file)));
-      const items = opened ? ledgerItems(read(abs(iss.file))) : [], rec = ledgerLines(turnRecords(x.notes), iss.runbook), open = items.filter(i => !rec.has(i.n) || (rec.get(i.n).kind === 'skip' && rec.get(i.n).why.length < 8));
+      const items = opened ? ledgerItems(read(abs(iss.file))) : [], rec = ledgerLines(x.notes || '', iss.runbook), open = items.filter(i => !rec.has(i.n) || (rec.get(i.n).kind === 'skip' && rec.get(i.n).why.length < 8));
       if (!iss.file) add('upset-learned', `The Issue line names no runbook or skill that exists. Write it as "Issue: <problem> | runbook: <name> | fixed when: <checkable outcome>" in ${NOTES_FILE}, open that runbook and follow it.`);
       else if (!opened) add('upset-learned', `The user was told the ${iss.runbook} runbook would find the root cause and fix this, and it was not opened this turn. Open ${iss.file} and follow every step.`);
       else if (open.length) add('upset-learned', `The ${iss.runbook} checklist ("Done when" in ${iss.file}) is not finished. For each item add "Done N: <what you did, with the file or command>" or "Skip N: <why it doesn't apply>" to ${NOTES_FILE}: ` +
         open.map(i => `${i.n}. ${i.text.slice(0, 120)}`).join(' '));
-      const mine = `${x.said || ''}\n${turnRecords(x.notes)}`;
+      const mine = `${x.said || ''}\n${x.notes || ''}`;
       if (!/^[\s>*_-]*verified\s*:\s*\S.{10,}/im.test(mine)) add('upset-learned', `Show that it is truly fixed: check the outcome the user was promised ("${iss.when}") and add "Verified: <what you ran or opened> - <what it showed>" to ${NOTES_FILE}.`);
       // (the user's example is one case of their point, and the fix starts from why the earlier work missed it. Lesson
       // (the user): an issue was acknowledged as the example the user gave, fixed in that narrow form, and the user had
@@ -7343,7 +7346,7 @@ export function ledgerSteps(x, missing, cfg = config()) {
   const owned = new Set(), asks = [];
   let out = missing;
   pbs.forEach((pb, k) => {
-    const items = ledgerItems(read(abs(pb.file))), rec = ledgerLines(turnRecords(x.notes), pb.name, k > 0), tagN = k ? `${pb.name} ` : '';
+    const items = ledgerItems(read(abs(pb.file))), rec = ledgerLines(x.notes || '', pb.name, k > 0), tagN = k ? `${pb.name} ` : '';
     const owner = new Map();
     for (const it of items) for (const tg of it.tags) if (!ALWAYS_ON.test(tg) && !owned.has(tg) && !owner.has(tg)) owner.set(tg, it);
     for (const tg of owner.keys()) owned.add(tg);
@@ -8286,10 +8289,15 @@ export function stopDecision(data, cfg = config()) {
   }
   // REQ: answer-resent. "Added: <new parts>" stands for the earlier full answer with those parts after it (the same
   // rules as a correction: an earlier full answer in this turn, and not a run that returns only its last message).
+  // (a reply may hold both: its "Corrected:" lines are applied, the rest is added. Lesson (a field report): a correction
+  // after an "Added:" part was read as more added text, so the sentence it fixed was flagged again for two rounds)
   const added = fixes || isNote ? null : additionOf(raw);
   if (added && (x.workTurn || prevFull.trim())) {
     const sdk = (t.entries || []).some(r => /^sdk/.test(String(r.entrypoint || '')));
-    if (prevFull.trim() && !sdk) { full = `${prevFull}\n\n${added}`; x = context(t, cfg, full); }
+    const lines = added.split(/\r?\n/), inner = lines.flatMap(l => correctionsOf(l) || []), rest = lines.filter(l => !correctionsOf(l)).join('\n').trim();
+    const lost = inner.filter(f => !prevFull.includes(f.old));
+    if (prevFull.trim() && !sdk && lost.length) resend = { tag: 'answer-resent', msg: `The correction quotes text the earlier answer does not hold word for word (${lost.map(f => `"${f.old.slice(0, 60)}"`).join(', ')}). Quote it exactly, or end with the whole answer again, corrected.` };
+    else if (prevFull.trim() && !sdk) { full = `${inner.reduce((s, f) => s.replace(f.old, f.new), prevFull)}${rest ? `\n\n${rest}` : ''}`; x = context(t, cfg, full); }
     else resend = { tag: 'answer-resent', msg: 'The last message only adds to an answer, but there is no full answer earlier in this turn to add it to (or this run returns only its last message). End with the whole answer.' };
   }
   // The answer a later short message builds on is this one as corrected or added to, not the one before it: a turn may

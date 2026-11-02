@@ -602,6 +602,13 @@ const STOP = [
   { name: 'upset-learned: fixed, and the lesson written where it stops the next miss: passes', prompt: 'you forgot to add the allergens again!!', tools: [pb('project')],
     files: { 'docs/menu.md': 'Croissant (gluten, milk)', 'docs/playbooks/menu.md': '---\nname: menu\nsummary: menus\ntriggers: menu card\nchecks: none - a test runbook\n---\n# Playbook: menu\n## Pitfalls\n- Every item lists its allergens.\n', 'docs/CHANGELOG.md': 'x' },
     answer: 'You\'re right: the croissant had no allergens.\nChecked: docs/menu.md - the croissant line had no allergens.\nAdded the allergens to the menu. Playbook: project.md.\nLearned (lesson): every menu item lists its allergens, a step the menu runbook lacked → docs/playbooks/menu.md' + FIN, expect: { not: ['upset-learned', 'rule-request'] } },
+  // (only this turn's notes count: an earlier turn's lesson line in the same file names a file this turn never touched.
+  // Lesson (a field report): a finished turn was blocked three times for files named by earlier lessons)
+  { name: 'upset-learned: an earlier turn\'s lesson line left in the notes file is not this turn\'s: passes', prompt: 'you forgot to add the allergens again!!', tools: [pb('project')],
+    files: { 'docs/menu.md': 'Croissant (gluten, milk)', 'docs/playbooks/menu.md': '---\nname: menu\nsummary: menus\ntriggers: menu card\nchecks: none - a test runbook\n---\n# Playbook: menu\n## Pitfalls\n- Every item lists its allergens.\n', 'docs/CHANGELOG.md': 'x',
+      '.cache/turn-notes.md': ('Learned (check): totals are rounded up → tools/old_totals.py\nLearned (lesson): every menu item lists its allergens, a step the menu runbook lacked → docs/playbooks/menu.md\n'),
+      'tools/hooks/state/turn.json': JSON.stringify({ at: new Date(Date.now() - 2000).toISOString(), prompt: 'you forgot to add the allergens again!!', notesOff: 61,notesTail: 'Learned (check): totals are rounded up → tools/old_totals.py\n'.slice(-40) }) },
+    answer: 'You\'re right: the croissant had no allergens.\nChecked: docs/menu.md - the croissant line had no allergens.\nAdded the allergens to the menu. Playbook: project.md.' + FIN, expect: { not: ['upset-learned', 'rule-request'] } },
   // Lesson: an agent agreed that the README never described a new option before opening it; it did describe it
   { name: 'upset-learned: agrees with the whole complaint without saying what was checked: blocked', prompt: 'you forgot to add the allergens again!!', tools: [pb('project')],
     files: { 'docs/menu.md': 'Croissant (gluten, milk)', 'docs/playbooks/menu.md': '---\nname: menu\nsummary: menus\ntriggers: menu card\nchecks: none - a test runbook\n---\n# Playbook: menu\n## Pitfalls\n- Every item lists its allergens.\n', 'docs/CHANGELOG.md': 'x' },
@@ -3007,6 +3014,9 @@ STOP.push(
   { ...DEBUG_TURN, name: 'answer-resent: a Corrected: line whose quoted text holds quotes is read as the correction: passes', active: true, blocks: 1, failed: ['plain-writing'],
     failedExtra: { shortOk: true, answer: 'Skill: debug. Root cause: the date parser. The label reads "Date — Time".' + FIN }, drafts: ['Skill: debug. Root cause: the date parser. The label reads "Date — Time".' + FIN],
     answer: 'Corrected: "The label reads "Date — Time"." -> "The label reads "Date, Time"."', expect: { not: ['plain-writing', 'answer-resent'] } },
+  { ...DEBUG_TURN, name: 'answer-resent: a reply with an Added: part and a Corrected: line applies the correction too: passes', active: true, blocks: 1, failed: ['plain-writing'],
+    failedExtra: { shortOk: true, answer: 'Skill: debug. Root cause: the date parser. The label reads "Date — Time".' + FIN }, drafts: ['Skill: debug. Root cause: the date parser. The label reads "Date — Time".' + FIN],
+    answer: 'Added: the parser now reads both date orders.\n\nCorrected: "The label reads "Date — Time"." -> "The label reads "Date, Time"."', expect: { not: ['plain-writing', 'answer-resent'] } },
   { ...DEBUG_TURN, name: 'answer-resent: a Corrected: line whose old text the answer does not hold: blocked', active: true, blocks: 1, failed: ['debug-root-cause'],
     failedExtra: { shortOk: false, answer: 'Skill: debug. Fixed it.' + FIN }, drafts: ['Skill: debug. Fixed it.' + FIN], answer: 'Corrected: "Fixed this." -> "Root cause: the date parser."', expect: { block: true, tags: ['answer-resent'] } },
   { ...DEBUG_TURN, name: 'answer-resent: a Corrected: line that leaves the answer still wrong: blocked', active: true, blocks: 1, failed: ['debug-root-cause'],
