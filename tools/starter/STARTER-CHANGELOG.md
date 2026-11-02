@@ -6,6 +6,16 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-01 (trial round 24 findings): While an upset message waits for its "Issue:" line, a shell line counts as a read
+  only when every part of it reads ("cd", "sed -n", pipes of plain readers) and nothing goes to a file. A chain of
+  reads was held as a change, and "cat a > b" passed as a read. Scenario: "upset-acknowledged: a chain of reads goes
+  through while the Issue line is owed ...". The writing step names the files its problems are in, so an answer is no
+  longer rewritten for a sentence in a file. Scenario: "plain-writing: the short step names the file with the
+  problem". The meal-plan trial now starts with the family notes its complaint relies on (a trial setup gap: the
+  complaint was false in rounds 23 and 24). The headless-resume step's short line says what to do (finish the resumed
+  helper's work, or wait for a new helper): a headless run sees only the short lines, and "This run is headless" alone
+  ended three rounds with "not done yet". Scenario: "headless-resume: a headless run ending while a resumed helper runs:
+  blocked" (now also checks the short line).
 - 2026-11-01 (trial round 23 findings): A headless run that ends while a helper it resumed by message still works is
   stopped (new step: headless-resume): the run ends with its answer and the resumed helper with it, so "the setup is
   still running" was the whole result. Scenarios: "headless-resume: a headless run ending while a resumed helper runs:

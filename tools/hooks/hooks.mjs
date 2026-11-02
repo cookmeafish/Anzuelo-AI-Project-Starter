@@ -5964,6 +5964,14 @@ export function runningLine(d) {
 // user is not upset after all. Reads go on, to understand the problem. (Lesson (the user): the hint only reminded, the
 // agent went straight to fixing, and the user saw no acknowledgement while three more complaints came in)
 const UPSET_PENDING = 'upset-pending.json';
+// A shell line that only reads: every part of the chain is a read ("cd", "sed -n" and the plain readers count), and
+// nothing goes to a file (a redirect, tee, "sed -i"). Lesson, trial rounds 23 and 24: "cd <dir>; sed -n 1,9p <file>"
+// was held as a change, while "cat a > b" passed because only the start of the line was read.
+const READ_PART = /^\s*(cd|sed\s+-n|sort|uniq|cut|tr|nl|less|more|stat|file|du|df|date|realpath|dirname|basename)\b/i;
+export const readOnlyChain = cmd => {
+  const c = String(cmd || '').replace(/\d?>&\d|\d?>\s*\/dev\/null|\d?>\s*\$null|\bNUL\b/gi, ' ');
+  return !/>|\btee\b|\b(sed|perl)\b[^|;&\n]*\s-i|--in-place|\bOut-File\b|\bSet-Content\b/i.test(c) && c.split(/&&|\|\||;|\n|\|/).every(s => !s.trim() || READ_ONLY.test(s.trim()) || READ_PART.test(s.trim()));
+};
 export function upsetUnacknowledged(name, inp) {
   const pend = readJSON(stateFile(UPSET_PENDING), {}), turnAt = Date.parse(readJSON(stateFile('turn.json'), {}).at || '');
   if (!pend.at || Date.parse(pend.at) < (turnAt || 0) - 5000 || isSuspended('check:upset-acknowledged')) return null;
@@ -5971,7 +5979,7 @@ export function upsetUnacknowledged(name, inp) {
   if (it?.ok) { writeState(UPSET_PENDING, {}); return null; }
   const cmd = String(inp.command || '');
   const changes = /^(Write|Edit|MultiEdit|NotebookEdit)$/.test(name) ? rel(String(inp.file_path || inp.notebook_path || '').replace(/\\/g, '/')) !== NOTES_FILE
-    : /^(Bash|PowerShell|shell)$/.test(name) ? !READ_ONLY.test(cmd) && !/turn-notes\.md|hooks\.mjs["']?\s+(waive|why)\b/.test(cmd) : false;
+    : /^(Bash|PowerShell|shell)$/.test(name) ? !readOnlyChain(cmd) && !/turn-notes\.md|hooks\.mjs["']?\s+(waive|why)\b/.test(cmd) : false;
   if (!changes) return null;
   const why = !it ? '' : !it.file ? ` Your Issue line names no runbook or skill that exists${it.runbook ? ` ("${it.runbook}" was not found)` : ''}.` : ' Your Issue line has no "fixed when" outcome of at least 3 words.';
   return `REQ: upset-acknowledged. The user sounds upset, and has not been shown that you understood yet.${why} First open skills/learn-from-upset/SKILL.md, pick the runbook or skill that finds the root cause and fixes this (DIRECTORY.md; debug for a bug), and write one line to ${NOTES_FILE}: "Issue: <what went wrong, in general terms> | runbook: <name> | fixed when: <a checkable outcome>" (the user sees it as "acknowledged" at once), or "Issue: none - <why>" if nothing is wrong (an Edit of that file, or a shell command that appends to it, goes through now; other changes wait). Then retry.`;
@@ -6669,7 +6677,10 @@ export function coreChecks(x, cfg) {
   // REQ: plain-writing. The answer and every user-facing file changed this turn: straight to the point, no filler, no em dashes.
   const wp = [...writingProblems(x.answer.split(EN_COPIES)[0], cfg, 'answer'), // (the answer as written, not the label copies)
     ...x.changed.filter(p => match(p, cfg.userFacing) && !match(p, cfg.userFacingIgnore) && exists(p)).flatMap(p => writingProblems(read(abs(p)), cfg, p))];
-  if (wp.length) add('plain-writing', `Make it plain and direct (docs/checks/writing-standards.md): ${wp.slice(0, 8).join('; ')}${wp.length > 8 ? `; +${wp.length - 8} more (node tools/writing-check.mjs <file>)` : ''}.`);
+  // (the step names where the problems are: "seen in" reaches the short line. Lesson, trial round 24: the short line
+  // named nothing, and an answer was rewritten three times for a sentence in a file)
+  const wpWhere = [...new Set(wp.map(w => w.split(':')[0]))].slice(0, 3).map(w => w === 'answer' ? 'the answer' : w.split('/').pop());
+  if (wp.length) add('plain-writing', `Make it plain and direct (docs/checks/writing-standards.md): ${wp.slice(0, 8).join('; ')}${wp.length > 8 ? `; +${wp.length - 8} more (node tools/writing-check.mjs <file>)` : ''}. (seen in ${wpWhere.join(', ')})`);
   // REQ: no-ai-attribution (commits made this turn, including ones written in an editor the pretool hook can't see)
   if (x.since && exists('.git')) {
     const bad = aiAttributedCommits(cfg, x.since);
@@ -8367,7 +8378,10 @@ export function stopDecision(data, cfg = config()) {
   const sent = new Set((t.entries || []).flatMap(r => r.type === 'assistant' && Array.isArray(r.message?.content) ? r.message.content.filter(c => c?.type === 'tool_use' && c.name === 'SendMessage').map(c => c.id) : []));
   const lostResumes = headless ? (t.bgRunning || []).filter(id => sent.has(id)) : [];
   const resumedId = id => { for (const r of t.entries || []) for (const c of Array.isArray(r.message?.content) ? r.message.content : []) if (c?.type === 'tool_result' && c.tool_use_id === id) return /resumedAgentId["']?\s*[:=]\s*["']?([\w-]{4,})/i.exec(textOf(c.content))?.[1] || id; return id; };
-  if (lostResumes.length && open({ tag: 'headless-resume' })) all.push({ tag: 'headless-resume', msg: `This run is headless (claude -p or the SDK): it ends with this answer, and a helper resumed with SendMessage stops with it, so its work never comes back (agent ${lostResumes.map(resumedId).join(', ')}). Do the rest of its work yourself, or start a new helper with the Agent tool and wait for its result, then end with the whole answer.` });
+  if (lostResumes.length && open({ tag: 'headless-resume' })) all.push({ tag: 'headless-resume', msg: `This run is headless (claude -p or the SDK): it ends with this answer, and a helper resumed with SendMessage stops with it, so its work never comes back (agent ${lostResumes.map(resumedId).join(', ')}). Do the rest of its work yourself, or start a new helper with the Agent tool and wait for its result, then end with the whole answer.`,
+    // (a headless run sees only the short lines, so this one says what to do. Lesson, trial round 24: it read "This run is
+    // headless", and the agent ended three rounds with "not done yet")
+    short: 'Finish the resumed helper\'s work yourself (or in a new Agent tool helper you wait for): this headless run stops it when you answer' });
   const waiting = t.toolsKnown && (t.bgRunning || []).length > lostResumes.length;
   const SAFE = /^(claim-checked|scope-separate|answer-traced|no-secrets)$/;
   // In a later round, bookkeeping steps that only the fixing itself brought on (more tool calls, a file touched after

@@ -579,6 +579,9 @@
       "packs": [],
       "follow": "feature"
     },
+    "files": {
+      "notes/family.md": "# Our family\n\nFour of us: two adults, a daughter (9) and a son (6).\n\n- Our son is allergic to peanuts: no peanuts or peanut products, ever.\n- Our daughter does not eat mushrooms.\n- Weeknight dinners must take 40 minutes or less.\n"
+    },
     "setup": "set up this project. It will hold weekly meal plans and shopping lists for my family of four. Decide everything yourself and do not ask me anything: I am not available to answer.",
     "then": [
       "write next week's meal plan with a shopping list grouped by store aisle",

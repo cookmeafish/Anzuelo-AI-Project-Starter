@@ -1904,6 +1904,11 @@ STOP.push(
   { name: 'answer with filler: blocked', prompt: 'hello', answer: 'Great question! I hope this helps.', expect: { block: true, tags: ['plain-writing'] } },
   { name: 'user-facing file with filler: blocked', prompt: 'make a runbook for meal planning', tools: [pb('project'), bash('node tools/audit.mjs')],
     files: { 'docs/playbooks/meal-plan.md': NEWPB + '\nIt is important to note that meals matter.\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.' + FIN, expect: { block: true, tags: ['plain-writing'] } },
+  // (the short step names the file the problem is in, so the answer is not rewritten for a file's sentence. Lesson,
+  // trial round 24: "Make the writing plain" held a turn for 3 rounds, and the answer was rewritten each time)
+  { name: 'plain-writing: the short step names the file with the problem', prompt: 'make a runbook for meal planning', tools: [pb('project'), bash('node tools/audit.mjs')],
+    files: { 'docs/playbooks/meal-plan.md': NEWPB + '\nIt is important to note that meals matter.\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.' + FIN,
+    expect: { block: true, tags: ['plain-writing'] }, after: (dir, reason) => /^\s*\d+\. Make the writing plain[^\n]*meal-plan\.md/m.test(reason) || `the short step names no file: ${reason.slice(0, 300)}` },
   // runbooks
   { name: 'new runbook without a check: blocked', prompt: 'make a runbook for meal planning', tools: [pb('project'), bash('node tools/audit.mjs')],
     files: { 'docs/playbooks/meal-plan.md': NEWPB.replace('checks: none - a test runbook\n', ''), 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.' + FIN, expect: { block: true, tags: ['runbook-complete'] } },
@@ -2625,7 +2630,10 @@ STOP.push(
   // (a headless run ends with its answer, and a helper resumed by a message is stopped with it. Lesson, trial round 23:
   // a headless setup resumed its helper, answered "the setup is still running", and the user got no result)
   { name: 'headless-resume: a headless run ending while a resumed helper runs: blocked', prompt: 'add the rename command', tools: [RESUMED],
-    rows: [{ type: 'system', entrypoint: 'sdk-cli', content: 'headless' }], files: { 'src/rename.js': 'x' }, answer: 'Still running in the background.', expect: { block: true, tags: ['headless-resume'], says: /a1b2c3d4/ } },
+    rows: [{ type: 'system', entrypoint: 'sdk-cli', content: 'headless' }], files: { 'src/rename.js': 'x' }, answer: 'Still running in the background.', expect: { block: true, tags: ['headless-resume'], says: /a1b2c3d4/ },
+    // (the short line carries what to do: a headless run sees only the short lines. Lesson, trial round 24: the step read
+    // "This run is headless", and the agent ended three rounds with "not done yet")
+    after: (dir, reason) => /^\s*\d+\. [^\n]*(yourself|Agent tool)[^\n]*/m.test(reason) || `the short step says nothing to do: ${reason.slice(0, 300)}` },
   { name: 'headless-resume: the same in an interactive session waits, no steps asked', prompt: 'add the rename command', tools: [RESUMED],
     files: { 'src/rename.js': 'x' }, answer: 'Still running in the background.', expect: { block: false, not: ['headless-resume'] } },
   // review-excuse: "no other reviewer" where sub-agents exist
@@ -7842,11 +7850,19 @@ if (mineB() && (!TAGS || TAGS.includes('upset-acknowledged'))) { // REQ: upset-a
     write(dir, { '.cache/turn-notes.md': 'Issue: an older complaint\n' });
     const env = { CLAUDE_PROJECT_DIR: '.' }, edit = { tool_name: 'Edit', tool_input: { file_path: path.join(dir, 'docs/STATUS.md'), old_string: 'a', new_string: 'b' } };
     const pre = d => run(dir, 'pretool', d, env).out;
+    const denied0 = o => /upset-acknowledged/.test(o) && /"permissionDecision":"deny"/.test(o);
     run(dir, 'prompt', { prompt: 'rename the export button' }, env);
     const calm = pre(edit);
     run(dir, 'prompt', { prompt: 'WHY IS THE EXPORT STILL BROKEN?? I TOLD YOU TWICE' }, env);
     const held = pre(edit), cmd = pre({ tool_name: 'Bash', tool_input: { command: 'node tools/build.mjs' } }), look = pre({ tool_name: 'Bash', tool_input: { command: 'grep -n export docs/STATUS.md' } });
     const notes = pre({ tool_name: 'Write', tool_input: { file_path: path.join(dir, '.cache/turn-notes.md'), content: 'x' } });
+    // (a chain of reads is a read: every part counts, and "sed -n" prints. Lesson, trial rounds 23 and 24: "cd <dir>;
+    // sed -n 630,680p <file>" was denied as a change, and the agent sent it again after writing the Issue line)
+    const bash = c => pre({ tool_name: 'Bash', tool_input: { command: c } });
+    const reads = [bash(`cd "${dir}"; sed -n 1,20p docs/STATUS.md; grep -n export docs/STATUS.md | sort | uniq`), bash('git show HEAD:docs/STATUS.md | head -5 && wc -l docs/STATUS.md'), bash('grep -i -n export docs/STATUS.md 2>/dev/null')];
+    const writes = [bash('grep -n export docs/STATUS.md; node tools/build.mjs'), bash('sed -n -i s/a/b/ docs/STATUS.md'), bash('cat docs/STATUS.md > docs/copy.md'), bash('ls | tee list.txt')];
+    report(!reads.some(denied0) && writes.every(denied0), 'upset-acknowledged: a chain of reads goes through while the Issue line is owed ("cd", "sed -n", pipes); a chain with a change, a redirect or "sed -i" is held',
+      JSON.stringify([...reads, ...writes].map(o => o.slice(0, 120))));
     // (an Issue line with no runbook, or with no outcome, does not count: "acknowledged" names both. Lesson (the user):
     // "acknowledged" and then no runbook followed)
     fs.appendFileSync(path.join(dir, '.cache/turn-notes.md'), 'Issue: the export drops the last row\n');
