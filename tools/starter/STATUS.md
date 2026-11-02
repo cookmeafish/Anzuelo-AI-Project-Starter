@@ -60,7 +60,7 @@ docs/STATUS.md, which here is the template new projects start from).
   decision.
 - 2026-11-02 afternoon: 7319e17 (three Stop rounds wasted on finished turns in one project: corrections whose quote held
   quotes, earlier turns' notes lines read as this turn's, Added plus Corrected in one reply). Chain green (1561, stop
-  342 ms). Both linked copies on it; both sessions sent the upgrade. Open: confirm each upgraded and passed --full.
+  342 ms). Both linked copies on it; both upgraded and committed: 1415d41 (1542 passed, stop 350 ms) and 26e8ba1 (1558 passed, stop 372 ms).
 - 2026-11-01 14:54 PST: aed606f (a yes/no question typed mid-turn counts as answered by a reply that opens with
   yes or no; a false Stop step in one project). Chain green (1548 passed, stop 385 ms, trial 132/132). Both linked
   copies on 4ad058c. Both upgraded and committed: faaa612 (1529 passed, stop 394 ms) and 4863a10 (1545 passed,
@@ -70,7 +70,7 @@ docs/STATUS.md, which here is the template new projects start from).
   self-tests passing (1522 and 1538). Watch: Stop timings drift up under load (here 389 to 622 ms in full runs while
   a project ran heavy helpers, 465 ms on the commit run; projects 355 and 385 ms).
 - 2026-11-01: 55586fa (after cd83096: grouped gate run into a file, commit names in cited claims, and a gate command's own file first). Both projects on it, committed: 3835269 (1513 passed, stop 334 ms) and b0fa5bf (1529 passed, stop 329 ms).
-- 2026-11-01: 9e99c3a and 54b85b7 (four false blocks from one field report: layout numbers, helper run order, debug shots, data named like tests), chain green. Both linked copies fast-forwarded; both sessions sent the upgrade. Open: confirm each upgraded and passed --full.
+- 2026-11-01: 9e99c3a and 54b85b7 (four false blocks from one field report: layout numbers, helper run order, debug shots, data named like tests), chain green. Both linked copies fast-forwarded; both upgraded and committed: 1415d41 (1542 passed, stop 350 ms) and 26e8ba1 (1558 passed, stop 372 ms).
 - 2026-10-31 night: the unfinished-work exits closed (plan docs/plans/2026-10-31-unfinished-work-exits.md, done but item 8, per-item proof). Upgrade sent to both projects; open: confirm each passed --full.
 
 ## Next
