@@ -50,7 +50,7 @@ docs/STATUS.md, which here is the template new projects start from).
   and a headless run sees only short lines). Fixed with 3 more in 013adfd (proof 23a9e6f): headless-resume short line
   says what to do, read-only shell chains while an Issue line is owed (and writes in a chain now held), the writing
   step names its files; the meal-plan trial now seeds the notes its complaint relies on. Chain green (1558 passed,
-  stop 342 ms, trial 132/132). Both copies on 71f74fc; both sessions sent the upgrade. Testing session ended 22:32
+  stop 342 ms, trial 132/132). Both projects on 71f74fc: ba741b2 (1539 passed, stop 353 ms) and 23733f7 (1555 passed, stop 343 ms). Testing session ended 22:32
   (budget spent). Next: round v25 to confirm the headless high is gone. Open (medium): `audit.mjs --setup` can run
   past the 600 s single-command limit (the root of the headless case); setup spends about half its time on the
   starter's own audit and self-tests; full self-test after one-line rule changes; heavy research for low-stakes
