@@ -41,6 +41,13 @@ docs/STATUS.md, which here is the template new projects start from).
   Open: the stop-budget self-test fails under unrelated machine load (an A/B in one worktree showed no slowdown).
   The projects' "ended-unresolved" turns are the 3-block cap (by design, announced next prompt), plus older ones from
   before 69f3084.
+- 2026-11-01 evening, testing session (improvement loop): round v23 (all 11, on 4ad058c's engine) judged WORSE on
+  1 high (a headless setup ended on "still running" while a helper it resumed by message was stopped with the run).
+  Fixed with 4 more in ffbea95 (proof 34e21e8, check list 66f3b04): headless-resume, destination triggers, the
+  security line wording, the short cited-claim step, names in shipped docs (new audit sweep). Both projects on
+  66f3b04: ed4a6ae (1537 passed, stop 354 ms) and 1bc4fc1 (1553 passed, stop 358 ms). Round v24 ran 19:55-22:03,
+  judges started 22:05. Open from v23 (medium): full self-test after one-line rule changes, heavy research for
+  low-stakes facts, sources cited from search snippets, the upset guard reading only the notes file.
 - 2026-11-01 14:54 PST: aed606f (a yes/no question typed mid-turn counts as answered by a reply that opens with
   yes or no; a false Stop step in one project). Chain green (1548 passed, stop 385 ms, trial 132/132). Both linked
   copies on 4ad058c. Both upgraded and committed: faaa612 (1529 passed, stop 394 ms) and 4863a10 (1545 passed,
