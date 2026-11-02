@@ -756,6 +756,11 @@ export function route(prompt, pbs, { relayed = false } = {}) {
       // word comes first in the message too, before the rest of its key words. Lesson: "add a --dry-run option that
       // only prints what would be renamed" matched "what are the options" and sent a feature to the research skill.
       if (!exact && k.length >= 2 && QUESTION_LED.test(t.trim()) && !keyOrdered(seq, k)) continue;
+      // A trigger that ends in "to" or "from" ("add the starter to") names where something goes: that word follows its
+      // last key word. Lesson, trial round 23: "resting it before adding the starter makes the dough easier" routed a
+      // note about baking to the engine runbook.
+      const dest = /\s(to|from|into)\s*$/i.exec(t);
+      if (!exact && !common && dest && !re(`${esc(k[k.length - 1])}[a-z]*\\s+([a-z0-9'-]+\\s+){0,2}${dest[1]}($|[^a-z0-9])`).test(low)) continue;
       // A whole phrase typed exactly ("not working", "fix this", "teach me", "ship it") is the request itself, unless it
       // sits in a plain question with no request verb. Lesson: such triggers could only back up another match, so "the
       // export is not working" and "teach me git branching" routed nowhere.
@@ -3124,7 +3129,7 @@ export function aiAttributedCommits(cfg = config(), sinceMs = null) {
 }
 
 // The engine's own files (what tools/new-project.mjs --upgrade replaces): written by the starter, not from the user's words.
-const VERBATIM_ENGINE = ['tools/**', '.githooks/**', 'HOW-TO-USE.md', 'docs/recommended-tools.md', 'docs/playbooks/_TEMPLATE.md', 'docs/playbooks/_fallback.md',
+export const VERBATIM_ENGINE = ['tools/**', '.githooks/**', 'HOW-TO-USE.md', 'docs/recommended-tools.md', 'docs/playbooks/_TEMPLATE.md', 'docs/playbooks/_fallback.md',
   ...['session-checklist', 'finish-checklist', 'runbook-standards', 'writing-standards', 'layout-standards', 'better-or-worse'].map(n => `docs/checks/${n}.md`)];
 // Runs of verbatimWords+ consecutive words from the user's messages that appear in a changed file.
 const words = s => String(s || '').toLowerCase().replace(/[`*_>#|"'“”‘’()[\]{}]/g, ' ').match(/[a-z0-9]+(?:'[a-z]+)?/g) || [];
@@ -6133,7 +6138,7 @@ export function rootToolchainFile(p) {
 export function coreChecks(x, cfg) {
   const lap = lapper('core '); // STARTER_TIMING: each group of core checks, named by its first and last check
   const miss = [];
-  const add = (tag, msg) => miss.push({ tag, msg });
+  const add = (tag, msg, short) => miss.push(short ? { tag, msg, short } : { tag, msg });
   const pbChanged = x.changed.filter(p => /^docs\/playbooks\/[^/]+\.md$/.test(p) && !p.endsWith('_TEMPLATE.md'));
   const skillDirs = [...new Set(x.changed.map(p => new RegExp(`^${esc(cfg.skillsDir)}/([^/]+)/`).exec(p)?.[1]).filter(Boolean))].map(n => `${cfg.skillsDir}/${n}`);
 
@@ -6443,7 +6448,10 @@ export function coreChecks(x, cfg) {
   const weakCites = citedClaimGaps([{ text: x.answer, where: 'the answer' }, ...x.changed.filter(p => citedFile(p, cfg) && exists(p)).map(p => ({ text: read(abs(p)), where: p }))]);
   if (weakCites.length)
     add('answer-traced', `${weakCites.slice(0, 3).map(w => `${w.where} cites ${w.file} for "${w.claim}", but the file says nothing like it (no ${w.missing.slice(0, 3).join(', ')})`).join('; ')}. ` +
-      'Quote what the file does say, or mark the line as your own inference ("my guess: ...", "inferido: ...") and keep the citation for the part the file holds.');
+      'Quote what the file does say, or mark the line as your own inference ("my guess: ...", "inferido: ...") and keep the citation for the part the file holds.',
+      // (the short step keeps the claim: the usual shortening drops quotes, and left "... cites characters.md for".
+      // Lesson, trial round 23: the agent guessed the wrong claim and spent a second Stop round)
+      `Back the claim "${weakCites[0].claim.replace(/\s+/g, ' ').slice(0, 60)}${weakCites[0].claim.length > 60 ? '...' : ''}" with ${weakCites[0].file.split('/').pop()}, or mark it as your inference${weakCites.length > 1 ? ` (+${weakCites.length - 1} more)` : ''}`);
   lap('note-linked .. answer-traced');
   // REQ: upgrade-review. After an engine upgrade, every new rule, pack, skill and finding is weighed and decided.
   // It blocks once a day, then only the session notice reminds: a pending review must never stall the user's own work.
@@ -8352,7 +8360,15 @@ export function stopDecision(data, cfg = config()) {
   // While helpers launched in the background have not reported back, the work is not finished: only truth and privacy
   // are checked now, and the whole list runs when their results arrive. Lesson: a turn waiting on three background
   // helpers was blocked three times for a Finished section it could not write yet.
-  const waiting = t.toolsKnown && (t.bgRunning || []).length;
+  // REQ: headless-resume. A headless run ends with its answer, and a helper resumed by a message (SendMessage) is
+  // stopped with it: no notice ever comes back. Lesson, trial round 23: a headless setup resumed its helper, answered
+  // "the setup is still running", and the user got no result; the helper's notice said it "didn't finish before the
+  // previous session ended".
+  const sent = new Set((t.entries || []).flatMap(r => r.type === 'assistant' && Array.isArray(r.message?.content) ? r.message.content.filter(c => c?.type === 'tool_use' && c.name === 'SendMessage').map(c => c.id) : []));
+  const lostResumes = headless ? (t.bgRunning || []).filter(id => sent.has(id)) : [];
+  const resumedId = id => { for (const r of t.entries || []) for (const c of Array.isArray(r.message?.content) ? r.message.content : []) if (c?.type === 'tool_result' && c.tool_use_id === id) return /resumedAgentId["']?\s*[:=]\s*["']?([\w-]{4,})/i.exec(textOf(c.content))?.[1] || id; return id; };
+  if (lostResumes.length && open({ tag: 'headless-resume' })) all.push({ tag: 'headless-resume', msg: `This run is headless (claude -p or the SDK): it ends with this answer, and a helper resumed with SendMessage stops with it, so its work never comes back (agent ${lostResumes.map(resumedId).join(', ')}). Do the rest of its work yourself, or start a new helper with the Agent tool and wait for its result, then end with the whole answer.` });
+  const waiting = t.toolsKnown && (t.bgRunning || []).length > lostResumes.length;
   const SAFE = /^(claim-checked|scope-separate|answer-traced|no-secrets)$/;
   // In a later round, bookkeeping steps that only the fixing itself brought on (more tool calls, a file touched after
   // the Finished section) are not new work: round 1 already listed what the answer needed. Lesson: steps trickled in one

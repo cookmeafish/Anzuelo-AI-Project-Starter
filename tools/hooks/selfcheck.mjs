@@ -2300,6 +2300,11 @@ PROMPT.push(
   { pack: 'app', name: 'route: a generic phrase alone does not route ("fix it here")', prompt: 'can you fix it here', hasNot: ['ROUTE: bugfix'] },
   { pack: 'app', name: 'route: a real bug report still routes', prompt: 'the export is broken, fix it', has: ['ROUTE: bugfix'] },
   { name: 'route: "save tokens" in passing does not route to compress-for-ai', prompt: 'keep the answers short to save tokens', hasNot: ['SKILL: compress-for-ai'] },
+  // (a trigger that ends in "to" or "from" names where something goes: that word follows its key words. Lesson, trial
+  // round 23: "resting it before adding the starter makes the dough easier" routed a note about baking to the engine runbook)
+  { name: 'route: "adding the starter makes the dough" is no engine install', prompt: 'add a note on resting the flour before adding the starter makes the dough easier to shape', hasNot: ['ROUTE: engine'] },
+  { name: 'route: "add the starter to this folder" still routes to the engine runbook', prompt: 'please add the starter to this folder', has: ['ROUTE: engine'] },
+  { name: 'route: "remove the old starter from my project" still routes to the engine runbook', prompt: 'remove the old starter from my project', has: ['ROUTE: engine'] },
   { pack: 'knowledge', name: 'route: "i added" alone does not route to ingest', prompt: 'i added a line to the notes, does it read well', hasNot: ['ROUTE: ingest'] },
   // Lesson: "notes" was cut to "not", and a phrase about the user's own thing could never route on its own
   { pack: 'knowledge', name: 'route: a phrase about the user\'s own notes routes ("add this fact to my notes")', prompt: 'add this fact to my notes on composting', has: ['SKILL: knowledge-capture'] },
@@ -2617,6 +2622,12 @@ STOP.push(
     files: { 'src/rename.js': 'x' }, answer: 'Waiting for the reviewer.', expect: { block: false } },
   { name: 'stop-wait: the resumed reviewer reported back: the steps are asked', prompt: 'add the rename command', tools: [RESUMED], rows: [BG_DONE],
     files: { 'src/rename.js': 'x' }, answer: 'Waiting for the reviewer.', expect: { block: true, tags: ['finished-summary'] } },
+  // (a headless run ends with its answer, and a helper resumed by a message is stopped with it. Lesson, trial round 23:
+  // a headless setup resumed its helper, answered "the setup is still running", and the user got no result)
+  { name: 'headless-resume: a headless run ending while a resumed helper runs: blocked', prompt: 'add the rename command', tools: [RESUMED],
+    rows: [{ type: 'system', entrypoint: 'sdk-cli', content: 'headless' }], files: { 'src/rename.js': 'x' }, answer: 'Still running in the background.', expect: { block: true, tags: ['headless-resume'], says: /a1b2c3d4/ } },
+  { name: 'headless-resume: the same in an interactive session waits, no steps asked', prompt: 'add the rename command', tools: [RESUMED],
+    files: { 'src/rename.js': 'x' }, answer: 'Still running in the background.', expect: { block: false, not: ['headless-resume'] } },
   // review-excuse: "no other reviewer" where sub-agents exist
   { name: 'review-excuse: review skipped as "no other reviewer" where sub-agents exist: blocked', prompt: 'add an index page', rows: [CLI_ROW], files: { 'docs/CHANGELOG.md': 'x' },
     answer: 'Added the index page.\n- Independent review: skipped, because this session has no other reviewer.' + FIN, expect: { block: true, tags: ['review-excuse'] } },
@@ -2706,6 +2717,14 @@ STOP.push(
   { name: 'security-report: all areas pass, one line in the answer and the table in its file: passes', prompt: 'make the form check the user', tools: [sk('security-review')],
     files: { ...AUTH, ...SEC_LOG, 'docs/reviews/security-2026-10-20.md': SEC_TABLE, 'docs/CHANGELOG.md': 'x' },
     answer: 'The form checks the user now.\nSecurity review: PASS, 12 areas (N/A: uploads) - table in docs/reviews/security-2026-10-20.md' + FIN, expect: { not: ['security-report'] } },
+  // (a few plain words may stand between the label and the result. Lesson, trial round 23: "**Security review:** it
+  // passed, and the report is ..." was blocked, and the agent read the hook's code to find wording it accepts)
+  { name: 'security-report: "Security review: it passed" with the report path: passes', prompt: 'make the form check the user', tools: [sk('security-review')],
+    files: { ...AUTH, ...SEC_LOG, 'docs/reviews/security-2026-10-20.md': SEC_TABLE, 'docs/CHANGELOG.md': 'x' },
+    answer: 'The form checks the user now.\n**Security review:** it passed, and the report is `docs/reviews/security-2026-10-20.md`.' + FIN, expect: { not: ['security-report'] } },
+  { name: 'security-report: "Security review: it has not passed" is no pass: blocked', prompt: 'make the form check the user', tools: [sk('security-review')],
+    files: { ...AUTH, ...SEC_LOG, 'docs/reviews/security-2026-10-20.md': SEC_TABLE, 'docs/CHANGELOG.md': 'x' },
+    answer: 'The form checks the user now.\n**Security review:** it has not passed yet, and the report is `docs/reviews/security-2026-10-20.md`.' + FIN, expect: { block: true, tags: ['security-report'] } },
   // (a check that could not run is NOT RUN, not FAIL. Lesson, trial round 17: an attack test held for approval was
   // written "FAIL -> open" and read as proof of the problem)
   { name: 'security-report: an attack test that could not run, as NOT RUN with the reason: passes', prompt: 'make the form check the user', tools: [sk('security-review')],
@@ -3479,6 +3498,10 @@ STOP.push(
   // answer-traced (cited claims): a claim cited to a file shares its key words with it
   { name: 'answer-traced: an outline cites characters.md for an inference the file does not hold: blocked', prompt: 'write a one-page outline for chapter 3', files: OUTLINE('Scar: left eye, so a blind or weaker side is on the left'),
     answer: 'The outline is in `outputs/chapter-03-outline.md`.' + FIN, expect: { block: true, tags: ['answer-traced'], says: /says nothing like it/ } },
+  // (the short step names the claim it doubts. Lesson, trial round 23: the step read "...cites characters.md for", the
+  // quoted claim cut away, and the agent guessed the wrong claim and spent a second Stop round)
+  { name: 'answer-traced: the short step names the cited claim it doubts', prompt: 'write a one-page outline for chapter 3', files: OUTLINE('Scar: left eye, so a blind or weaker side is on the left'),
+    answer: 'The outline is in `outputs/chapter-03-outline.md`.' + FIN, expect: { block: true, tags: ['answer-traced'] }, after: (dir, reason) => /^\s*\d+\. [^\n]*claim "[^"\n]*weaker side/m.test(reason) || `no short step names the claim: ${reason.slice(0, 400)}` },
   { name: 'answer-traced: the same inference marked as the agent\'s own ("my guess:"): passes', prompt: 'write a one-page outline for chapter 3', files: OUTLINE('My guess: the scar may leave a blind side on his left'),
     answer: 'The outline is in `outputs/chapter-03-outline.md`.' + FIN, expect: { not: ['answer-traced'] } }
 );

@@ -6,6 +6,19 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-01 (trial round 23 findings): A headless run that ends while a helper it resumed by message still works is
+  stopped (new step: headless-resume): the run ends with its answer and the resumed helper with it, so "the setup is
+  still running" was the whole result. Scenarios: "headless-resume: a headless run ending while a resumed helper runs:
+  blocked", "... the same in an interactive session waits, no steps asked". A trigger ending in "to" or "from" ("add
+  the starter to") needs that word after its key words, so a note about adding a sourdough starter to dough no longer
+  routes to the engine runbook. Scenarios: "route: "adding the starter makes the dough" is no engine install", "...
+  "add the starter to this folder" still routes...", "... "remove the old starter from my project" still routes...".
+  "Security review: it passed, and the report is ..." meets the security report check (a few plain words may stand
+  before the result; "it has not passed" still does not). Scenarios: "security-report: "Security review: it passed"
+  with the report path: passes", "... "it has not passed" is no pass: blocked". The short cited-claim step names the
+  claim it doubts (it read "... cites characters.md for"). Scenario: "answer-traced: the short step names the cited
+  claim it doubts". A requirements row typed the starter's name outside its marker, which failed every new project's
+  setup audit once; the row is fixed and a new audit sweep, "shipped docs write names in markers", catches the next.
 - 2026-11-01 (yes/no questions typed mid-turn): A yes/no question typed while the agent works is answered by a later
   text that opens with yes or no, even with no shared word ("was this intentional?" answered "No, it wasn't on
   purpose" was called unanswered). Scenarios: "question-answered: a yes/no question typed mid-turn, answered "No,

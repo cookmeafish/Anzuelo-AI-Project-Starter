@@ -12,7 +12,8 @@ import {
   loadRequirements, usage, hardenDue, menu, runbookHasCheck, generatedSkill, directoryBlock, staleKnowledge,
   setupProblems, upgradeProblems, bench, gitignoreProblems, writingProblems, aiAttributedCommits, BASE_REQUIREMENTS, routableSkills, skillHasCheck, curateDue,
   FIT_FILE, fitProblems, fitRows, fitDecision, fitWhenOf, doneWhenItems, DONE_LABEL, findLibrary, secretHit, mirrorText, logRun, testInputsHash, deadTriggers, rulesText, route, personalDetails,
-  externalHookSizes, HOOK_OUTPUT_MAX, gitignoreTest, today, bulkDir, checkRe, RETIRED_TAGS, forbiddenRe, privateTermsPath
+  externalHookSizes, HOOK_OUTPUT_MAX, gitignoreTest, today, bulkDir, checkRe, RETIRED_TAGS, forbiddenRe, privateTermsPath,
+  nameFiles, nameProblems, match, VERBATIM_ENGINE
 } from './hooks/hooks.mjs';
 
 const cfg = config();
@@ -480,6 +481,13 @@ sweep('user-facing writing (no em dashes, no filler)', () => {
   return { fail: probs.slice(0, 20), note: `${files.length} files` };
 });
 function match2(p, globs) { return [].concat(globs || []).some(g => { let s = ''; for (let i = 0; i < g.length; i++) { const c = g[i]; if (c === '*') { if (g[i + 1] === '*') { s += '.*'; i++; if (g[i + 1] === '/') i++; } else s += '[^/]*'; } else s += c.replace(/[.+^${}()|[\]\\]/g, '\\$&'); } return new RegExp('^' + s + '$', 'i').test(p); }); }
+
+// (a name typed out in a doc the starter ships fails every new project's setup audit, which checks the shipped docs
+// that the engine does not own. Lesson, trial round 23: two setups each spent an audit run fixing one requirements row)
+if (isTemplate) sweep('shipped docs write names in markers', () => {
+  const files = nameFiles(cfg).filter(p => !match(p, VERBATIM_ENGINE));
+  return { fail: files.flatMap(p => nameProblems(p, read(abs(p)), undefined, cfg)).slice(0, 20), note: `${files.length} files` };
+});
 
 sweep('tools compile', () => {
   const files = walk('', p => /\.(mjs|cjs)$/.test(p) && (p.startsWith('tools/') || p.startsWith(cfg.skillsDir + '/')));
