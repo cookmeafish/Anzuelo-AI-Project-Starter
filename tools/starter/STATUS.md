@@ -66,8 +66,8 @@ docs/STATUS.md, which here is the template new projects start from).
   linked copies on it; both upgraded and committed: e72c356 (MTG, 251 passed) and 7d7c226 (1559 passed, stop 367 ms).
 - 2026-11-03 night: 0f6e4b5 (trigger words match within one clause: a handoff's "first; run" routed a project's own
   runbook) and 7e305cc (plain wording for a full rerun after helpers; "I ran every check myself" says who judged: one
-  turn ended unresolved on both). Chain green (1565 passed, trial 132/132; sweep 21 as before). 059847b sent to both.
-  Open: confirm each upgraded and passed --full.
+  turn ended unresolved on both). Chain green (1565 passed, trial 132/132; sweep 21 as before). Both on 059847b,
+  committed: a522631 (1546 passed, stop 363 ms) and 413a720 (1562 passed, stop 340 ms). Full runs took 10+ min each.
 - 2026-11-01 14:54 PST: aed606f (a yes/no question typed mid-turn counts as answered by a reply that opens with
   yes or no; a false Stop step in one project). Chain green (1548 passed, stop 385 ms, trial 132/132). Both linked
   copies on 4ad058c. Both upgraded and committed: faaa612 (1529 passed, stop 394 ms) and 4863a10 (1545 passed,
