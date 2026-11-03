@@ -4251,8 +4251,9 @@ export function isUpset(prompt, cfg = config()) {
   return ((letters.length > 20 && p.replace(/[^A-Z]/g, '').length / letters.length > 0.6) || capsWeight(p).shouted) && TROUBLE.test(p) && !isPraise(p.toLowerCase(), cfg) &&
     !/\b(i (really |just )?love|thank(s| you)|awesome|amazing|perfect|so good|great job|well done)\b/i.test(p);
 }
-// A sign that a message in capitals is about something wrong: "??" or "!!", or a word for a problem, a repeat or blame.
-const TROUBLE = /\?\?|!!|\b(again|still|why|stop|wrong|broke|broken|bug|bugs|error|errors|fail|fails|failed|failing|crash\w*|issue|issues|problem|ignor\w*|forgot|forget|supposed to|this time|hold up|wait|seriously|wtf|shit|fuck\w*|damn|hell|angry|pissed|pissing|unacceptable|terrible|sloppy|horrible|awful|ridiculous|dumb|stupid|useless|i (already )?(said|told you|asked)|what i (said|told you|asked)|not working|doesn'?t work|should not happen|no my|otra vez|por qu[eé]|basta|mal)\b/i;
+// A sign that a message in capitals is about something wrong: "??" or "!!", or a word for a problem, a repeat or blame,
+// or for being misunderstood (Lesson (a field report): a reply shouted as "you don't understand" read as calm).
+const TROUBLE = /\?\?|!!|\b(again|(you )?(don'?t|do not|didn'?t|did not) (understand|get it|listen)|not listening|missed (my|the) point|still|why|stop|wrong|broke|broken|bug|bugs|error|errors|fail|fails|failed|failing|crash\w*|issue|issues|problem|ignor\w*|forgot|forget|supposed to|this time|hold up|wait|seriously|wtf|shit|fuck\w*|damn|hell|angry|pissed|pissing|unacceptable|terrible|sloppy|horrible|awful|ridiculous|dumb|stupid|useless|i (already )?(said|told you|asked)|what i (said|told you|asked)|not working|doesn'?t work|should not happen|no my|otra vez|por qu[eé]|basta|mal)\b/i;
 // ---------- the user's whitelist and the trigger log (REQ: trigger-words) ----------
 // Words that set nothing off by themselves for this user, per kind (config "ignoreWords": {"upset": [...], "praise":
 // [...], "rule": [...]}), kept in tools/hooks/config.json so upgrades keep them. Capitals and every other trigger word
@@ -6287,9 +6288,18 @@ export function coreChecks(x, cfg) {
   // (only a request that continues a plan is held to it: one that shares a word with the plan's name, title or open
   // tasks, or says to go on. Other work, or a message relayed from another session, leaves it for its own turn.
   // Lesson (a field report): an engine upgrade a peer handed over was stopped to resume an unrelated open plan)
-  const wantWords = new Set(keyWords(x.prompt).filter(w => w.length > 2));
+  // (a word the project uses everywhere, in a runbook's name or in the names and titles of 3 or more of its plans, is
+  // its subject, not a sign of one plan. Lesson (a field report): in a project about one game nearly every request
+  // names the game's pieces, and each unrelated request was stopped twice to resume plans that shared one such word)
+  const planHead = p => `${path.basename(p, '.md').replace(/^\d{4}-\d\d-\d\d-/, '')} ${(read(abs(p)).match(/^# .*$/m) || [''])[0]}`;
+  const everyday = startPlans.length ? (() => {
+    const seen = {};
+    for (const n of list('docs/plans').filter(n => /\.md$/i.test(n))) for (const w of new Set(keyWords(planHead(`docs/plans/${n}`)))) seen[w] = (seen[w] || 0) + 1;
+    return new Set([...Object.keys(seen).filter(w => seen[w] >= 3), ...playbooks().flatMap(pb => keyWords(pb.name.replace(/[-_]/g, ' ')))]);
+  })() : new Set();
+  const wantWords = new Set(keyWords(x.prompt).filter(w => w.length > 2 && !everyday.has(w)));
   const continues = p => /\b(keep going|go on|continue|carry on|resume|next step|finish (it|the plan|up)|the plan|sigue|contin[uú]a)\b/i.test(x.prompt)
-    || keyWords(`${path.basename(p, '.md').replace(/^\d{4}-\d\d-\d\d-/, '')} ${(read(abs(p)).match(/^# .*$|^\s*- \[ \] .*$/gm) || []).join(' ')}`).some(w => w.length > 2 && wantWords.has(w));
+    || keyWords(`${planHead(p)} ${(read(abs(p)).match(/^\s*- \[ \] .*$/gm) || []).join(' ')}`).some(w => w.length > 2 && wantWords.has(w));
   if (x.workTurn && startPlans.length && !relayedBody(x.prompt) && startPlans.some(continues) && !x.failedBefore?.includes('plan-open') && !x.changed.some(p => /^docs\/plans\//.test(p))
     && ![...x.cmds, ...(x.runs || []).map(r => r.cmd || '')].some(c => /plan-tasks\.mjs/.test(c)))
     add('plan-open', `This turn started with ${startPlans.length > 1 ? 'open plans' : 'an open plan'} (${startPlans.slice(0, 3).join(', ')}) and did not touch ${startPlans.length > 1 ? 'them' : 'it'}. Tell the user, then resume it ` +

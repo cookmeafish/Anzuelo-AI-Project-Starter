@@ -2474,6 +2474,18 @@ STOP.push(
   // resume an unrelated open plan)
   { name: 'plan-open: a request about other work is not held to the plan: passes', prompt: 'add a dark mode toggle to the settings page', ...planAt('add a dark mode toggle to the settings page'),
     files: { 'src/settings.js': 'export const dark = true;\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Added the toggle.' + FIN, expect: { not: ['plan-open'] } },
+  // (a word in the names of 3 or more plans is the project's subject, not a sign of one plan. Lesson (a field report):
+  // unrelated requests in a one-subject project were stopped to resume plans sharing one everyday word)
+  { name: 'plan-open: a request sharing only the project\'s everyday word with the plan is not held to it: passes', prompt: 'add a gluten free note to the pancake recipe',
+    edit: { 'docs/plans/2026-10-18-recipe-scaling.md': () => '# Recipe scaling: plan\n- [x] helpers\n- [ ] scale by servings\n',
+      'docs/plans/2026-10-12-recipe-tags.md': () => '# Recipe tags: plan\nstatus: done\n- [x] tags\n', 'docs/plans/2026-10-14-recipe-photos.md': () => '# Recipe photos: plan\nstatus: done\n- [x] photos\n' },
+    prep: dir => run(dir, 'prompt', { prompt: 'add a gluten free note to the pancake recipe' }),
+    files: { 'recipes/pancakes.md': '# Pancakes\nGluten free: use rice flour.\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Added the note.' + FIN, expect: { not: ['plan-open'] } },
+  { name: 'plan-open: a request naming the plan\'s own subject is still held to it: blocked', prompt: 'scale the pancake recipe by servings',
+    edit: { 'docs/plans/2026-10-18-recipe-scaling.md': () => '# Recipe scaling: plan\n- [x] helpers\n- [ ] scale by servings\n',
+      'docs/plans/2026-10-12-recipe-tags.md': () => '# Recipe tags: plan\nstatus: done\n- [x] tags\n', 'docs/plans/2026-10-14-recipe-photos.md': () => '# Recipe photos: plan\nstatus: done\n- [x] photos\n' },
+    prep: dir => run(dir, 'prompt', { prompt: 'scale the pancake recipe by servings' }),
+    files: { 'recipes/pancakes.md': '# Pancakes\nServes 4.\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Scaled it.' + FIN, expect: { block: true, tags: ['plan-open'] } },
   { name: 'plan-open: a request relayed from another session is not held to the plan: passes', prompt: '<cross-session-message from="peer">Upgrade the engine to 1a2b3c4 and run the export tests</cross-session-message>',
     ...planAt('<cross-session-message from="peer">Upgrade the engine to 1a2b3c4 and run the export tests</cross-session-message>'),
     files: { 'tools/hooks/extra.mjs': 'export {};\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Upgraded.' + FIN, expect: { not: ['plan-open'] } },
@@ -7805,6 +7817,12 @@ if (mineB() && (!TAGS || TAGS.includes('trigger-words'))) { // trigger-words: th
     ['were you supposed to get a code by email?', false], ['the vendor dropped the ball on shipping, draft an apology', false]];
   const softGot = soft.map(([t]) => h.isUpset(t, h.config()));
   report(soft.every(([, w], i) => softGot[i] === w), 'upset-acknowledged: a soft complaint ("weren\'t you supposed to", "you dropped the ball", "why the hell") is upset; a calm question with the same words is not', JSON.stringify(soft.map(([t], i) => [t.slice(0, 30), softGot[i]])));
+  // (being misunderstood, shouted, is upset. Lesson (a field report): "YOU DONT UNDERSTAND, WHAT IF ..." read as calm)
+  const lost = [
+    ["YOU DONT UNDERSTAND, WHAT IF THE OVEN IS OFF? wouldn't a timer make sense as well for the bread recipe?", true],
+    ['YOU ARE NOT LISTENING TO WHAT THE MENU NEEDS', true], ["if you don't understand a recipe step, ask me", false]];
+  const lostGot = lost.map(([t]) => h.isUpset(t, h.config()));
+  report(lost.every(([, w], i) => lostGot[i] === w), 'upset-acknowledged: "you don\'t understand" or "not listening" in capitals is upset; the same words calm are not', JSON.stringify(lost.map(([t], i) => [t.slice(0, 30), lostGot[i]])));
   const dir = takeCopy();
   try {
     const cli = (...a) => spawnSync(process.execPath, [path.join(dir, 'tools/hooks/hooks.mjs'), ...a], { cwd: dir, encoding: 'utf8' });
