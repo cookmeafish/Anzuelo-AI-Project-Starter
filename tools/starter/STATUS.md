@@ -70,7 +70,7 @@ docs/STATUS.md, which here is the template new projects start from).
   committed: a522631 (1546 passed, stop 363 ms) and 413a720 (1562 passed, stop 340 ms). Full runs took 10+ min each.
 - 2026-11-03 afternoon: 9724d9b (one project's unrelated requests were stopped twice to resume open plans sharing one everyday word; a
   shouted "you don't understand" was not flagged as upset). Chain green (1568 passed, trial 132/132; sweep 21 as before).
-  950754e sent to both projects; open: confirm each upgraded and passed --full. Noted to that project: its own Stop command
+  Both on 950754e, committed: 4fa1875 (1549 passed, stop 341 ms) and 5c1b07d (1565 passed, stop 334 ms). Noted to one project: its own Stop command
   takes 5 to 23 s on its heavier turns.
 - 2026-11-01 14:54 PST: aed606f (a yes/no question typed mid-turn counts as answered by a reply that opens with
   yes or no; a false Stop step in one project). Chain green (1548 passed, stop 385 ms, trial 132/132). Both linked
