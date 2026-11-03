@@ -61,6 +61,9 @@ docs/STATUS.md, which here is the template new projects start from).
 - 2026-11-02 afternoon: 7319e17 (three Stop rounds wasted on finished turns in one project: corrections whose quote held
   quotes, earlier turns' notes lines read as this turn's, Added plus Corrected in one reply). Chain green (1561, stop
   342 ms). Both linked copies on it; both upgraded and committed: 1415d41 (1542 passed, stop 350 ms) and 26e8ba1 (1558 passed, stop 372 ms).
+- 2026-11-03: 3be825d (a turn naming a runbook it never opened was told to write a new one, plus three follow-on steps;
+  now it is asked to open the named runbook). Chain green (1562 passed, trial 132/132; audit sweep 21 as before). Both
+  linked copies on it; upgrade sent to both sessions. Open: confirm each upgraded and passed --full.
 - 2026-11-01 14:54 PST: aed606f (a yes/no question typed mid-turn counts as answered by a reply that opens with
   yes or no; a false Stop step in one project). Chain green (1548 passed, stop 385 ms, trial 132/132). Both linked
   copies on 4ad058c. Both upgraded and committed: faaa612 (1529 passed, stop 394 ms) and 4863a10 (1545 passed,
