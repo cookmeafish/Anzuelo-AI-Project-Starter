@@ -2616,7 +2616,7 @@ export function context(t, cfg, answerOverride) {
     + '\n' + [...String(t.toolsKnown ? toolResults(withHelpers) : '').matchAll(/^waived for this turn: ([a-z][\w-]*) \(([^\n]*)\)\s*$/gm)].map(m => `N/A(${m[1]}): ${m[2].trim()}`).join('\n');
   const all = turnText(t.entries), said = `${inEnglish(`${answer}\n${all}\n${waives}`, cfg)}\n${notes}`;
   return {
-    ...t, uses, cmds, changed, work, pbs, routed, reads, skillsUsed, usedPb, routedSkills, usedSkills, notes, runs: t.toolsKnown ? runsOf(withHelpers) : loggedRuns(t.since),
+    ...t, uses, cmds, changed, work, pbs, routed, reads, skillsUsed, usedPb, namedPb: pbs.filter(pb => namesIt(pb.name)).map(pb => pb.name), routedSkills, usedSkills, notes, runs: t.toolsKnown ? runsOf(withHelpers) : loggedRuns(t.since),
     answer: inEnglish(answer, cfg), said, afterChange: inEnglish(`${textAfterLastChange(t.entries, changed.reduce((m, p) => { try { return Math.max(m, fs.statSync(abs(p)).mtimeMs); } catch { return m; } }, 0))}\n${answer}`, cfg), results: toolResults(withHelpers), resultsList: toolResultsList(t.entries),
     gui: changed.filter(p => match(p, cfg.guiFiles) && !match(p, cfg.guiIgnore) && exists(p)),
     workTurn: work.length > 0 || (t.toolsKnown && uses.length >= cfg.workToolCalls),
@@ -6182,8 +6182,15 @@ export function coreChecks(x, cfg) {
   const META_SKILLS = ['runbook-create', 'skill-finder'];
   const realPb = x.usedPb.filter(pb => !pb.name.startsWith('_')), realSkills = x.usedSkills.filter(s => !META_SKILLS.includes(s.name));
   const realRoute = x.routed.filter(pb => !pb.name.startsWith('_'));
-  if (x.workTurn && x.prompt.trim() && !realRoute.length && !realPb.length && !realSkills.length && !pbChanged.length && !isUpset(x.prompt, cfg) && !isRelay(unquoted(userText(x.prompt)))
-    && !(x.changed.length <= 2 && re(cfg.trivial).test(userText(x.prompt))))
+  // A runbook the notes or the answer name but this turn never opened exists: the step is to open it, not to write a
+  // new one (Lesson (a field report): "Playbook: x.md" named, x.md unread, so the turn was told to leave a runbook
+  // behind, with three follow-on steps, and waived all four).
+  const namedPb = (x.pbs || []).filter(pb => !pb.name.startsWith('_') && x.namedPb?.includes(pb.name));
+  const noPb = x.workTurn && x.prompt.trim() && !realRoute.length && !realPb.length && !realSkills.length && !pbChanged.length && !isUpset(x.prompt, cfg) && !isRelay(unquoted(userText(x.prompt)))
+    && !(x.changed.length <= 2 && re(cfg.trivial).test(userText(x.prompt)));
+  if (noPb && namedPb.length)
+    add('runbook-read', `This turn names ${namedPb.map(pb => pb.file).join(' / ')} but never opened it. Read it now, check the work against every step, fix what was skipped, then finish.`);
+  else if (noPb)
     add('runbook-exists', 'This turn did real work but no runbook covers it and none was created or extended. Use the runbook-create skill: ' +
       'extend the closest runbook in docs/playbooks/ with this case, or create one (frontmatter with triggers, ## Steps, ## Done when) plus a check ' +
       'in tools/hooks/requirements.json, a "blocked" and a "passes" scenario for it in tools/hooks/project-scenarios.mjs (then ' +

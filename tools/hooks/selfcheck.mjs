@@ -473,6 +473,8 @@ const STOP = [
     expect: { block: true, tags: ['runbook-exists'] } },
   // Lesson: following _fallback.md (as NO RUNBOOK says) counted as a runbook used, and no runbook was left behind
   // Lesson: "fix the typo in the README" was told to create a runbook, a check and two scenarios
+  { name: 'runbook-exists: work that names an existing runbook it never opened is asked to open it, not to write one: blocked', prompt: 'build me a weekly cleaning rota for the flat', files: { 'docs/rota.md': 'rota', '.cache/turn-notes.md': 'Playbook: plan.md (the rota)\n' }, answer: 'Done.' + FIN,
+    expect: { block: true, tags: ['runbook-read'], not: ['runbook-exists'] } },
   { name: 'runbook-exists: a typo fix in one file needs no runbook: passes', prompt: 'fix the typos in the rota note', files: { 'docs/rota.md': 'rota' }, answer: 'Fixed the typos.' + FIN,
     expect: { not: ['runbook-exists'] } },
   { name: 'runbook-exists: _fallback followed but no runbook left behind: blocked', prompt: 'build me a weekly cleaning rota for the flat', tools: [pb('_fallback')], files: { 'docs/rota.md': 'rota' }, answer: 'Playbook: _fallback.md. Done.' + FIN,
