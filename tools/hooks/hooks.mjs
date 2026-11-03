@@ -730,6 +730,10 @@ export function route(prompt, pbs, { relayed = false } = {}) {
   if (OPINION.test(text)) return [];
   const low = ` ${text.toLowerCase()} `;
   const seq = keyWords(fileCapsOut(text)), words = new Set(seq);
+  // A trigger's key words sit in one clause: a ";", a sentence end or a new line ends a clause. Lesson (a field report):
+  // "commit your work first; run the tests" matched a "first run" trigger.
+  const clauses = fileCapsOut(text).split(/[;!?\n]|\.(?=\s|$)/).map(keyWords).filter(c => c.length);
+  const span = k => Math.min(...clauses.map(c => keySpan(c, k)));
   const scored = [];
   const off = new Set(suspendedItems().map(s => s.item.replace(/^(skill|runbook):/, ''))); // REQ: friction-suspend
   for (const pb of pbs) {
@@ -751,7 +755,7 @@ export function route(prompt, pbs, { relayed = false } = {}) {
       // a one-word trigger also matches its plural or past form ("bug" in "two bugs"); a longer one needs its key words
       // ...and those key words close together: "make it so the app can be installed and started on a new machine" is
       // no "start a new app" (Lesson: a live trial routed it to app-foundation)
-      if (common ? !exact : !exact && !(k.every(w => words.has(w)) && (k.length >= 2 ? keySpan(seq, k) <= k.length + 2 : !/\s/.test(t.trim())))) continue;
+      if (common ? !exact : !exact && !(k.every(w => words.has(w)) && (k.length >= 2 ? span(k) <= k.length + 2 : !/\s/.test(t.trim())))) continue;
       // A trigger led by a question word ("what are the options", "which is better") asks that question: its question
       // word comes first in the message too, before the rest of its key words. Lesson: "add a --dry-run option that
       // only prints what would be renamed" matched "what are the options" and sent a feature to the research skill.

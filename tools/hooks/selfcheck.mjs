@@ -2317,6 +2317,9 @@ PROMPT.push(
   // (a trigger that ends in "to" or "from" names where something goes: that word follows its key words. Lesson, trial
   // round 23: "resting it before adding the starter makes the dough easier" routed a note about baking to the engine runbook)
   { name: 'route: "adding the starter makes the dough" is no engine install', prompt: 'add a note on resting the flour before adding the starter makes the dough easier to shape', hasNot: ['ROUTE: engine'] },
+  // (a trigger's key words sit in one clause. Lesson (a field report): "commit your work first; run the tests" matched
+  // a "first run" trigger)
+  { name: 'route: a trigger\'s words split by a semicolon do not route', prompt: 'save the rota as the newest version; the starter list of chores stays as it is', hasNot: ['ROUTE: engine'] },
   { name: 'route: "add the starter to this folder" still routes to the engine runbook', prompt: 'please add the starter to this folder', has: ['ROUTE: engine'] },
   { name: 'route: "remove the old starter from my project" still routes to the engine runbook', prompt: 'remove the old starter from my project', has: ['ROUTE: engine'] },
   { pack: 'knowledge', name: 'route: "i added" alone does not route to ingest', prompt: 'i added a line to the notes, does it read well', hasNot: ['ROUTE: ingest'] },
