@@ -64,7 +64,7 @@
         "skillUsed": "parallel-agents"
       },
       "require": {
-        "answerMatches": "\\b(combined|merged|together|full (checks|suite|test))\\b"
+        "answerMatches": "\\b(combined|merged|together|full (checks|suite|test)|after the last change|(every|each|all( of)?( the)?) checks?)\\b"
       },
       "message": "Parallel-agents skill: run the full checks on the combined result after the last change, and say in the answer what they showed, part by part.",
       "waitsForAgents": true
@@ -423,7 +423,7 @@
             "skillUsed": "parallel-agents"
           },
           {
-            "answerMatches": "\\b(combined|merged|together|full (checks|suite|test))\\b"
+            "answerMatches": "\\b(combined|merged|together|full (checks|suite|test)|after the last change|(every|each|all( of)?( the)?) checks?)\\b"
           },
           {
             "checkedAfterAgents": true,

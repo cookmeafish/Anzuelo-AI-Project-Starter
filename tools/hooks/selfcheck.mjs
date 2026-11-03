@@ -1397,6 +1397,9 @@ STOP.push(
     answer: 'Root cause: the parser read the header twice.' + FIN, expect: { not: ['playbook-named', 'skill-read'] } },
   { name: 'parallel work without the combined check: blocked', prompt: 'split the work across several agents', tools: [sk('parallel-agents'), ...many(15)], files: { 'docs/STATUS.md': 'x' },
     answer: 'Skill: parallel-agents. All three agents finished.' + FIN, expect: { block: true, tags: ['parallel-merged'] } },
+  // (Lesson (a field report): a plain "I ran every check again after the last change" was asked for three rounds)
+  { name: 'parallel work whose answer says every check ran again after the last change: passes', prompt: 'split the work across several agents', tools: [sk('parallel-agents'), ...many(15)], files: { 'docs/STATUS.md': 'x' },
+    answer: 'Skill: parallel-agents. All three agents finished. I ran every check again on the final rota; the notes check and the layout check passed.' + FIN, expect: { not: ['parallel-merged'] } },
   { name: 'parallel work still running in the background: the merge check waits', prompt: 'split the work across several agents', tools: [sk('parallel-agents'), { name: 'Agent', input: { prompt: 'part one', run_in_background: true } }, { name: 'Write', input: { file_path: 'docs/STATUS.md', content: 'x' } }, ...many(15)], files: { 'docs/STATUS.md': 'x' },
     answer: 'Skill: parallel-agents. Three agents are running; I will check their results when they report.' + FIN, expect: { block: false } },
   // (helpers the host runs in the background by itself, with no run_in_background flag. Lesson, a field report: three
@@ -3468,6 +3471,10 @@ STOP.push(
     before: [{ name: 'Agent', input: { prompt: 'Read AGENTS.md first and follow its rules. Review the menus, one note per recipe.' }, result: 'done: 25 menus reviewed' }],
     tools: [bash('python tools/note_check.py', '21 menus OK, 4 missing notes')],
     answer: 'No recipe changed. In 4 menus, 13 recipes had no note; I compared each one with what you have, and each one stays. The other 21 menus have a note per recipe, written by the helpers; I did not re-check their verdicts.', expect: { not: ['claim-checked'] } },
+  // (Lesson (a field report): "I ran every check myself" was flagged until the turn's last round)
+  { name: 'claim-checked: "I ran every check myself ... and all of them passed", after helpers worked: passes', prompt: 'did every recipe earn its place on the menus?',
+    before: [{ name: 'Agent', input: { prompt: 'Read AGENTS.md first and follow its rules. Review the menus, one note per recipe.' }, result: 'done: 25 menus reviewed' }],
+    answer: 'I ran every check myself on the final menus, after the last change, and all of them passed.', expect: { not: ['claim-checked'] } },
   { name: 'claim-checked: an answer that quotes such a claim to describe it, after helpers worked: passes', prompt: 'what did you fix?',
     before: [{ name: 'Agent', input: { prompt: 'Read AGENTS.md first and follow its rules. Review the menus, one note per recipe.' }, result: 'done: 25 menus reviewed' }],
     answer: 'The check now blocks answers like the two that misled you ("21 were fine.", "The other 21 menus already had their notes and passed.").', expect: { not: ['claim-checked'] } },

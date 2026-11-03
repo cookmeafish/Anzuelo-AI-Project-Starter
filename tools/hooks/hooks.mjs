@@ -1592,7 +1592,8 @@ const GROUP_VERDICT = /\b(all|every|each|the (other|rest|remaining)|remaining|\d
 const TEST_RUN = /\b(tests?|self-?tests?|selfcheck|suites?|builds?|lint|type-?checks?|audit|trial|CI|scenarios?)\b|\b\d+ passed\b.{0,30}\b\d+ fail(ed|ures?)\b|(?<!\p{L})pruebas?(?!\p{L})/iu;
 // (what the user said is no verdict of the agent's, and a date, time or version is no count of items. Lesson (a field
 // report): "on 2026-10-26 you said its draw was fine at 9" was blocked three times in one turn)
-const JUDGED_BY = /\b(you (said|wrote|told me|asked)|the user (said|wrote)|helpers?|sub-?agents?|agents?|I (re-?)?(checked|judged|read|compared|reviewed|scored) (each|every|all|them|it|one by one)|only (checks?|confirms?|found|means)|not (re-?)?(checked|judged|verified|read))\b|(?<!\p{L})(ayudantes?|sub-?agentes?|agentes?)(?!\p{L})/iu;
+// ("I ran every check myself" says who judged. Lesson (a field report): it was flagged until the turn's last round)
+const JUDGED_BY = /\b(you (said|wrote|told me|asked)|I (re-?)?ran [^.\n]{0,60}\bmyself|the user (said|wrote)|helpers?|sub-?agents?|agents?|I (re-?)?(checked|judged|read|compared|reviewed|scored) (each|every|all|them|it|one by one)|only (checks?|confirms?|found|means)|not (re-?)?(checked|judged|verified|read))\b|(?<!\p{L})(ayudantes?|sub-?agentes?|agentes?)(?!\p{L})/iu;
 export function groupVerdictClaim(answer) {
   // (a phrase in quotes is named, not claimed. Lesson, dogfood: an answer that quoted the misleading claims was flagged)
   const quoted = /"[^"\n]{1,600}"|“[^”\n]{1,600}”|«[^»\n]{1,600}»/g, notCount = /\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}:\d{2}\b|\bv?\d+(\.\d+)+\b/g;
