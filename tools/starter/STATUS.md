@@ -72,6 +72,9 @@ docs/STATUS.md, which here is the template new projects start from).
   shouted "you don't understand" was not flagged as upset). Chain green (1568 passed, trial 132/132; sweep 21 as before).
   Both on 950754e, committed: 4fa1875 (1549 passed, stop 341 ms) and 5c1b07d (1565 passed, stop 334 ms). Noted to one project: its own Stop command
   takes 5 to 23 s on its heavier turns.
+- 2026-11-03 evening: (question-no-file under autonomy auto: "what do you think we should do?" about a problem asks for the fix; one
+  project's fix was flagged as unasked). Chain green (1570 passed, trial 132/132; sweep 21 as before). Sent to both projects.
+  Open: confirm each upgraded and passed --full.
 - 2026-11-01 14:54 PST: aed606f (a yes/no question typed mid-turn counts as answered by a reply that opens with
   yes or no; a false Stop step in one project). Chain green (1548 passed, stop 385 ms, trial 132/132). Both linked
   copies on 4ad058c. Both upgraded and committed: faaa612 (1529 passed, stop 394 ms) and 4863a10 (1545 passed,

@@ -1083,6 +1083,12 @@ const STOP = [
   // honesty and answer checks
   { pack: 'knowledge', name: 'a question that changed files without being asked: blocked', prompt: 'what do you think of the plan?', files: { 'outputs/plan v2.md': 'x', 'docs/CHANGELOG.md': 'x' }, tools: [pb('deliverable')],
     answer: 'Playbook: deliverable.md. It is fine.' + FIN, expect: { block: true, tags: ['question-no-file'] } },
+  // (with autonomy "auto", "what should we do?" about a problem asks for the fix. Lesson (a field report): a reported
+  // problem ending "what do you think we should do?" was fixed as asked and called an unrequested edit)
+  { name: 'question-no-file: "what should we do?" about a problem, autonomy auto, fixed: passes', prompt: 'the menu has trouble showing prices on phones. what do you think we should do?', edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), autonomy: 'auto' }) },
+    tools: [pb('project')], files: { 'site/menu.css': 'x' }, answer: 'Playbook: project.md. The price column was too wide; I made it wrap.' + FIN, expect: { not: ['question-no-file'] } },
+  { name: 'question-no-file: "what should we do?" about a problem, autonomy ask, fixed: blocked', prompt: 'the menu has trouble showing prices on phones. what do you think we should do?',
+    tools: [pb('project')], files: { 'site/menu.css': 'x' }, answer: 'Playbook: project.md. The price column was too wide; I made it wrap.' + FIN, expect: { tags: ['question-no-file'] } },
   { name: 'news typed first, a question queued mid-turn: recording the news is no unasked edit', prompt: 'the shelf is the same but i bought the blue vase', queued: ['are you done with the shelf list btw?'], tools: [pb('project')], files: { 'data/vases.csv': 'x' },
     answer: 'Playbook: project.md. Yes, the shelf list is done, and the blue vase now counts as yours.' + FIN, expect: { not: ['question-no-file'] } },
   { name: 'a question with a second one queued mid-turn, files changed: still blocked', prompt: 'is the shelf list done?', queued: ['and the vases?'], tools: [pb('project')], files: { 'data/vases.csv': 'x' },

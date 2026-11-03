@@ -6681,7 +6681,11 @@ export function coreChecks(x, cfg) {
   // REQ: question-no-file. A question gets an answer, not unrequested edits.
   // (every message of the turn must be only asking: news typed first and a question typed mid-turn is no question.
   // Lesson, a field report: news of a purchase, then a queued "done yet?", called recording the purchase unasked)
-  if (x.prompt && (x.parts?.length ? x.parts : [x.prompt]).every(q => askingOnly(q, cfg))) {
+  // (with autonomy "auto" the user asked to be decided for, so "what should we do?" asks for it done, not described.
+  // Lesson (a field report): a reported problem ending "what do you think we should do?" was fixed as that project's
+  // rules say, and the fix was called an unrequested edit)
+  const decideForMe = cfg.autonomy === 'auto' && (x.parts?.length ? x.parts : [x.prompt]).some(q => /\bwhat (do you think |would you suggest |would you )?((should|shall|could|can|do) (we|i)|(we|i) (should|could|can)) do\b|\bhow (should|shall|do|can|could) (we|i) (fix|solve|handle|deal with|improve|address)\b/i.test(userText(String(q || ''))));
+  if (x.prompt && !decideForMe && (x.parts?.length ? x.parts : [x.prompt]).every(q => askingOnly(q, cfg))) {
     const unasked = x.changed.filter(p => !match(p, cfg.questionNoFileExempt));
     if (unasked.length && !/asked for:\s*["“]/i.test(x.said))
       add('question-no-file', `This was a question, but files changed (${unasked.slice(0, 5).join(', ')}). Questions get answers, not edits: ` +
