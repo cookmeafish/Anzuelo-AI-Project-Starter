@@ -6491,6 +6491,13 @@ if (mineB()) { // upgrade-review-block: a review with nothing to decide updates 
   report(count(twice) === 1 && /2026-10-22, run by the upgrade/.test(twice) && twice.startsWith(base) && count(decide) === 2 && count(kept) === 2 && /pack: gui: adopted/.test(kept),
     'upgrade-review-block: an upgrade with only passed self-tests updates a last review that held only those in place; a review to decide, or after one with decisions, is added',
     JSON.stringify({ once: count(once), twice: count(twice), decide: count(decide), kept: count(kept) }));
+  // (the replaced review's commits stay named. Lesson (a field report): a second same-day upgrade rewrote the first
+  // one's heading, and its commit was left only in git history)
+  const revTo = (d, c) => self(d).replace(`(${d})`, `(${d}) to ${c}`);
+  const a = withReviewBlock(base + revTo('2026-10-20', 'aaaaaaa'), revTo('2026-10-20', 'bbbbbbb'), true);
+  const b = withReviewBlock(a, revTo('2026-10-21', 'ccccccc'), true);
+  report(count(b) === 1 && /^## Upgrade review \(2026-10-21\) to ccccccc \(earlier: bbbbbbb 2026-10-20, aaaaaaa 2026-10-20\)$/m.test(b),
+    'upgrade-review-block: a review updated in place keeps the earlier engine commits named in its heading', JSON.stringify(b.split('\n').filter(l => l.startsWith('## '))));
 }
 
 if (mineB()) { // state-no-transcript: a hook run with a made-up session id and an empty or unreadable transcript writes no session state

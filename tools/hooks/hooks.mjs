@@ -8791,9 +8791,15 @@ export const CONTRACT = {
 // Lesson: a project's DECISIONS.md, which the user reads, held 9 review blocks in a row that each said only "self-tests
 // passed".
 const SELF_ONLY_REVIEW = /\n## Upgrade review \(\d{4}-\d\d-\d\d\)[^\n]*\n<!--[^\n]*-->\n- self-tests: [^\n]*: passed [^\n]*\n?$/;
+// (the replaced review's engine commits stay named in the new heading, the last 6, so the record of which engines were
+// reviewed survives. Lesson (a field report): a second same-day upgrade rewrote the first one's heading, and its commit
+// was left only in git history)
 export function withReviewBlock(text, block, onlySelfTests) {
   const cur = String(text || '');
-  return onlySelfTests && SELF_ONLY_REVIEW.test(cur) ? cur.replace(SELF_ONLY_REVIEW, block) : cur + block;
+  if (!(onlySelfTests && SELF_ONLY_REVIEW.test(cur))) return cur + block;
+  const old = cur.match(SELF_ONLY_REVIEW)[0].match(/## Upgrade review \((\d{4}-\d\d-\d\d)\)( to ([0-9a-f]{7,}))?(?: \(earlier: ([^)\n]*)\))?/);
+  const earlier = [...(old?.[3] ? [`${old[3]} ${old[1]}`] : []), ...(old?.[4] ? old[4].split(', ') : [])].slice(0, 6);
+  return cur.replace(SELF_ONLY_REVIEW, earlier.length ? block.replace(/^(\n## Upgrade review [^\n]*)/, `$1 (earlier: ${earlier.join(', ')})`) : block);
 }
 // What the starter's changelog (newText) says that its copy at the project's last upgrade (oldText) did not say yet:
 // the entries that are new or grew, and each "**Breaking for project hooks:**" note in them that the old copy lacked.
