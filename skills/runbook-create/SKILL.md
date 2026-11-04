@@ -59,7 +59,9 @@ A validator script you write for the check is run on real samples before you rel
 case and passes on every existing file it governs (from the last commit) and on realistic good samples, one an edge
 case made from the project's own words (names, addresses, headings, quoted text). Made-up junk alone proves
 little: a check can fail every fixture and still pass the real miss, or block good work (hook: check-proven, when it
-answers a complaint or a rule).
+answers a complaint or a rule). The validator's own tests keep their samples in their own files (copied from the
+real ones), never read the project's live data: a later turn that edits that data as asked must not break them.
+Lesson (a trial): a test needed one row of the live data to stay unfinished; filling it in as asked broke the tests.
 
 ## 4. Route and verify
 - The skill (`skills/<name>/SKILL.md`) and the `DIRECTORY.md` row are generated. Run `node tools/hooks/hooks.mjs sync`.

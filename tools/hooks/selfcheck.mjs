@@ -5985,6 +5985,15 @@ if (mineB()) {
   report(!offenders.length && caught, 'answer-noise: no engine text tells the agent to write N/A(<check>) into the answer (and the scan catches one that does)', offenders.slice(0, 6).join(' | ') || 'the scan missed a sample');
 }
 
+// guidance the trials showed was missing: a validator's tests keep their own samples; a legal letter keeps open choices
+// out of its body. Lesson (trial round 27): a test read a live data row the next turn filled in, and a letter kept a
+// bracketed note with options for the user
+if (mineB()) {
+  const rd = f => { try { return fs.readFileSync(path.join(ROOT, f), 'utf8'); } catch { return ''; } };
+  const rc = rd('skills/runbook-create/SKILL.md'), li = rd('library/skills/legal-review/sections/i.md');
+  report(/never read the project's live data/.test(rc) && (!li || /never a bracketed note/.test(li)), 'guidance: validator tests keep their own samples; a legal letter carries no bracketed note for the user',
+    `runbook-create ${/never read the project's live data/.test(rc)}, legal-review I ${/never a bracketed note/.test(li)}`);
+}
 // the "Not legal advice" line: once, at the end of a legal reading, never a banner on top
 if (mineB()) {
   const lastInBlocks = t => [...String(t).matchAll(/```\n([\s\S]*?)```/g)].map(m => m[1].trim().split('\n')).filter(l => l.some(x => /not legal advice/i.test(x))).every(l => /not legal advice/i.test(l[l.length - 1]) && l.filter(x => /not legal advice/i.test(x)).length === 1);
