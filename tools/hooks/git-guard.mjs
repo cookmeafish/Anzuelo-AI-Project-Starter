@@ -7,14 +7,20 @@
 //                                                              or while .gitignore lets private files out
 //   node tools/hooks/git-guard.mjs scan                        list unpushed commits that credit an AI
 import fs from 'node:fs';
-import { config, aiAttributedCommits, gitignoreProblems, secretHit, testInputsHash } from './hooks.mjs';
+import { config, aiAttributedCommits, gitignoreProblems, secretHit, testInputsHash, forbiddenRe } from './hooks.mjs';
 
 const cfg = config();
 const [mode, file] = process.argv.slice(2);
 const attribution = new RegExp(cfg.aiAttribution, 'i');
+// REQ: forbidden-terms, for commits too: a name the user asked to keep out of the project never enters git history,
+// by message or by staged lines, whoever commits. The rejection never repeats the name. Lesson (a trial): the edit
+// hooks kept the name out of files, while a commit message or a hand-staged line could still carry it.
+const forbidHit = s => !!forbiddenRe(cfg)?.test(s);
+const FORBID_MSG = 'commit rejected (forbidden-terms): it contains a name the user asked to keep out of the project. Replace it with a neutral word, then commit again.';
 
 if (mode === 'commit-msg') {
   const msg = fs.readFileSync(file, 'utf8').split(/\r?\n/).filter(l => !l.startsWith('#')).join('\n');
+  if (forbidHit(msg)) { console.error(FORBID_MSG); process.exit(1); }
   if (attribution.test(msg)) {
     console.error('commit rejected (no-ai-attribution): the message credits an AI agent. Commits are solely the user\'s.');
     console.error('Remove co-author trailers, "generated with" lines, AI emails and robot emoji, then commit again.');
@@ -46,6 +52,7 @@ if (mode === 'pre-commit') {
   const { spawnSync } = await import('node:child_process');
   const git = (...a) => spawnSync('git', a, { encoding: 'utf8' }).stdout || '';
   const added = git('diff', '--cached', '-U0').split('\n').filter(l => l.startsWith('+') && !l.startsWith('+++')).join('\n');
+  if (forbidHit(added)) { console.error(FORBID_MSG); process.exit(1); }
   const hit = secretHit(added, cfg);
   if (hit) { console.error(`commit rejected (no-secrets): staged changes contain something that looks like a secret (pattern ${hit}). Move it to an ignored file such as .env.`); process.exit(1); }
   const stray = git('diff', '--cached', '--name-only', '--diff-filter=A').split(/\r?\n/).filter(f => /(^|\/)(nul|con|aux|prn|com\d|lpt\d)(\.[a-z0-9]+)?$/i.test(f));

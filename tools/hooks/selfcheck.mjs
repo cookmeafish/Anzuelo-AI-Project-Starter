@@ -2799,6 +2799,16 @@ STOP.push(
     tools: [{ name: 'Write', input: { file_path: 'docs/playbooks/export.md', content: '---\nname: export\nsummary: export customers\ntriggers: export customers\nchecks: none - a test runbook\n---\n# Playbook: export\n## Pitfalls\n- Quote every field: Marisol Etxeberria\'s address broke it.\n' } }],
     files: { 'docs/playbooks/export.md': '---\nname: export\nsummary: export customers\ntriggers: export customers\nchecks: none - a test runbook\n---\n# Playbook: export\n## Pitfalls\n- Quote every field: Marisol Etxeberria\'s address broke it.\n', 'docs/CHANGELOG.md': 'x' },
     answer: 'Fixed the export and added the pitfall.' + FIN, expect: { block: true, tags: ['no-verbatim-examples'] }, after: (dir, reason) => /Etxeberria/.test(reason) },
+  // (the project's own tests too. Lesson (an obedience trial): a fix for a missing currency put the user's product
+  // name from the complaint into two test files)
+  { name: 'no-verbatim-examples: a test written for a complaint names the user\'s product: blocked', prompt: 'prices must always show their currency. The list printed \'Copper fern pot 12\' with no currency and a customer got confused. fix it',
+    tools: [{ name: 'Write', input: { file_path: 'tests/test_prices.py', content: 'def test_currency():\n    assert show("Copper fern pot", 12) == "Copper fern pot 12.00 EUR"\n' } }],
+    files: { 'tests/test_prices.py': 'def test_currency():\n    assert show("Copper fern pot", 12) == "Copper fern pot 12.00 EUR"\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Every price now shows its currency.' + FIN, expect: { block: true, tags: ['no-verbatim-examples'] }, after: (dir, reason) => /Copper/.test(reason) },
+  { name: 'no-verbatim-examples: the same test with a neutral item: passes', prompt: 'prices must always show their currency. The list printed \'Copper fern pot 12\' with no currency and a customer got confused. fix it',
+    tools: [{ name: 'Write', input: { file_path: 'tests/test_prices.py', content: 'def test_currency():\n    assert show("Sample item", 12) == "Sample item 12.00 EUR"\n' } }],
+    files: { 'tests/test_prices.py': 'def test_currency():\n    assert show("Sample item", 12) == "Sample item 12.00 EUR"\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Every price now shows its currency.' + FIN, expect: { not: ['no-verbatim-examples'] } },
   { name: 'no-verbatim-examples: the same pitfall with a neutral example: passes that check', prompt: 'the export broke on my customer Marisol Etxeberria because her address has a comma in it. make sure it never happens again',
     tools: [{ name: 'Write', input: { file_path: 'docs/playbooks/export.md', content: '---\nname: export\nsummary: export customers\ntriggers: export customers\nchecks: none - a test runbook\n---\n# Playbook: export\n## Pitfalls\n- Quote every field: an address with a comma broke the columns.\n' } }],
     files: { 'docs/playbooks/export.md': '---\nname: export\nsummary: export customers\ntriggers: export customers\nchecks: none - a test runbook\n---\n# Playbook: export\n## Pitfalls\n- Quote every field: an address with a comma broke the columns.\n', 'docs/CHANGELOG.md': 'x' },
@@ -8179,6 +8189,23 @@ if (mineB() && (!TAGS || TAGS.includes('engine-bypassed'))) { // engine-bypassed
       && person.code === 0 && harness.code === 0 && recorded && seen.code === 0,
       'engine-bypassed: a commit or push from a Claude Code session the hooks never saw is refused with the way through; after begin records the session it passes; a person\'s commit and a test harness never meet it',
       JSON.stringify({ unseen: unseen.code, push: unseenPush.code, person: person.code, harness: harness.code, recorded, seen: seen.code, err: unseen.err.slice(0, 200) }));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+if (mineB() && (!TAGS || TAGS.includes('forbidden-terms'))) { // forbidden-terms in git: a commit message or staged line with a
+  // name the user asked to keep out is refused, without the name in the message; a clean one passes. Lesson (a trial):
+  // the edit hooks kept the name out of files, while a commit could still carry it into history.
+  const dir = copyProject();
+  try {
+    const git = (...a) => spawnSync('git', a, { cwd: dir, encoding: 'utf8' });
+    applyEdits(dir, cfgEdit({ forbiddenTerms: ['Quillmart'] }));
+    git('init', '-q'); write(dir, { 'notes/a.md': 'a', '.cache/bad-msg.txt': 'Tidy the Quillmart notes\n', '.cache/good-msg.txt': 'Tidy the shop notes\n' });
+    const guard = (mode, f) => { const r = spawnSync(process.execPath, [path.join(dir, 'tools/hooks/git-guard.mjs'), mode, ...(f ? [path.join(dir, f)] : [])], { cwd: dir, encoding: 'utf8', env: { ...process.env, ANZUELO_SESSION_GATE: 'off' } }); return { code: r.status, err: r.stderr || '' }; };
+    const badMsg = guard('commit-msg', '.cache/bad-msg.txt'), goodMsg = guard('commit-msg', '.cache/good-msg.txt');
+    git('add', 'notes/a.md'); const cleanStage = guard('pre-commit');
+    write(dir, { 'notes/b.md': 'Order from Quillmart on Friday' }); git('add', 'notes/b.md'); const badStage = guard('pre-commit');
+    report(badMsg.code === 1 && /forbidden-terms/.test(badMsg.err) && !/Quillmart/.test(badMsg.err) && goodMsg.code === 0 && cleanStage.code === 0 && badStage.code === 1,
+      'forbidden-terms: a commit message or staged line with a name the user asked to keep out is refused without repeating it; clean ones pass',
+      JSON.stringify({ badMsg, goodMsg: goodMsg.code, cleanStage: cleanStage.code, badStage: badStage.code }));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 if (mineB() && (!TAGS || TAGS.includes('transcript-tail'))) { // transcript-tail: a transcript is read from its end in a window that grows until it holds the turn's prompt

@@ -6,6 +6,8 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-04 (no-verbatim-examples): the user's example names are kept out of the project's own test files too, not only rules, runbooks and skills. An obedience trial's fix for a complaint put the user's product name into two test files.
+- 2026-11-04 (forbidden-terms in git): the git guard refuses a commit message or staged line that holds a name the user asked to keep out of the project, without repeating the name. The edit hooks already kept it out of files; a commit could still carry it into history (found by an obedience trial).
 - 2026-11-04 (upset-learned): a complaint shown not to hold ("Learned (none)" with its evidence) no longer owes the whole checklist of the runbook its Issue line named; the Verified line still is. A trial agent was asked for a chapter check's checklist about chapters nobody changed.
 - 2026-11-04 (upset-acknowledged): quoted text in a shell line is an argument: a "|" or ">" inside quotes no longer makes a chain of reads look like a change. Trial agents were held 4 times in 3 projects for grep -E "a|b" and echo "---" while writing up a complaint.
 - 2026-11-04 (selfcheck): a --tags run in a project reuses the engine's proven results like a plain run: it runs the project's own scenarios and the engine smoke ones under those tags. Trial setups spent 4 to 10 minutes per targeted run rerunning 57 engine scenarios for two engine guards they named.

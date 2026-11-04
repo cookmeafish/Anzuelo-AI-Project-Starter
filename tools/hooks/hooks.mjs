@@ -3237,7 +3237,10 @@ export function userNames(prompts) {
 function exampleNameHits(x, cfg) {
   if (!x.toolsKnown || !x.allPrompts?.length) return [];
   const starter = exists('.starter-template');
+  // (the project's own tests too: a test written for a complaint is where the user's example gets pasted. Lesson (an
+  // obedience trial): a fix for a missing currency put the user's product name in two test files)
   const files = ['AGENTS.md', 'CLAUDE.md', 'docs/playbooks/**', 'docs/checks/**', `${cfg.skillsDir}/**`, 'tools/hooks/requirements.json', 'tools/hooks/project-scenarios.mjs',
+    'tests/**', 'test/**', '**/*.test.*', '**/*.spec.*', '**/test_*.*', '**/*_test.*',
     ...(starter ? ['tools/**', 'packs/**', 'library/**', 'docs/**', '*.md'] : [])];
   const vocab = projectVocab(cfg);
   const names = userNames(x.allPrompts).filter(n => !n.toLowerCase().split(/\s+/).every(w => vocab.has(w)));
