@@ -2392,6 +2392,8 @@ export function carriedRuns(t, entries) {
   const n = runsOf(pre).length, all = runsOf([...pre, ...entries]);
   return [...all.slice(0, n).filter(r => !r.pending), ...all.slice(n)];
 }
+// The commands the main session ran this turn (not its helpers'), with their results; none without tool history.
+const toolsKnownRuns = x => x.toolsKnown && Array.isArray(x.entries) ? carriedRuns(x, x.entries) : [];
 export function runsOf(entries) {
   const byId = new Map(), out = [];
   // the files edited before each run (editedBefore), so a check can tell a failure the turn found from one it caused
@@ -6971,8 +6973,14 @@ export function coreChecks(x, cfg) {
   if (x.prompt && (x.work || []).length && askedParts.some(q => EXAMPLE_CLASS.test(q)) && !isUpset(x.prompt, cfg)
     && !/^[\s>*_-]*scope\s*:\s*\S.{15,}/im.test(`${x.said || ''}\n${x.notes || ''}`))
     add('scope-general', `The user named examples of a wider point ("or something else", "there might be others"). Write "Scope: <the point in general terms> - <every case it covers, and how many you checked>" in ${NOTES_FILE}, and change every case, not only the ones named.`);
+  // (a verdict backed by a check the agent itself ran this turn, and saw pass, is its own, not a helper's. Lesson (a
+  // trial): "the checks passed", right after the agent's own passing run, was flagged 3 times in one turn because a
+  // setup helper had worked earlier in the session)
+  // (a pass word, and nothing failing, missing or wrong in the same output: "21 OK, 4 missing notes" backs no "all passed")
+  const ownPass = () => toolsKnownRuns(x).some(r => !r.pending && !r.error && /\b(PASS(ED)?|passed|all \d+ \w+ pass\w*)\b/i.test(r.out || '')
+    && !/\bFAIL(ED|S|URES?)?\b|\b[1-9]\d* (failed|missing|errors?|wrong)\b|\bmissing\b|\bERROR\b/i.test(r.out || ''));
   const verdict = x.sessionHelpers ? groupVerdictClaim(x.answer) : '';
-  if (verdict)
+  if (verdict && !ownPass())
     add('claim-checked', `The answer says "${verdict.trim().slice(0, 80)}", but helpers worked this session, so that verdict may be theirs or come from a check that only found a record per item. Say who judged those items (you, re-checking each one, or a helper whose verdict you did not re-check) and what the check behind it tests, or check them yourself first.`);
   // REQ: instructions-run. A script, launcher or command the answer tells the user to run, made or changed this turn,
   // ran here and worked, or the answer says it is not verified (launcherGaps).

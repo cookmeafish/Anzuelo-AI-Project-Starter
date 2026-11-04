@@ -7,7 +7,11 @@ works in a set form: a required notice or form, a notice period, a way of servin
 1. Check how it must be done where the user is, with the jurisdiction named (research skill, section C, with the law
    text or the regulator as the primary source). Unchecked: say so once in the answer, with what to check.
 2. The draft keeps a pointer to what it relies on: the clause in the agreement, or the official form to send with
-   it. A later rewrite (for tone, for length) never drops that pointer.
+   it. A later rewrite (for tone, for length) never drops that pointer. The pointer is one plain sentence in the
+   letter's own voice, filled in; a choice still open (which clause, whether the form is enclosed) is a question in
+   the answer, never a bracketed note or a list of options inside the letter body.
 3. The letter itself stays plain and carries no "Not legal advice" line (the answer does, once, at its end).
 Lesson: a rent increase letter was written as if the letter alone put the increase into effect; the law was never
 checked, and a friendlier rewrite removed the only line that pointed to the official notice.
+Lesson (a trial): a bracketed note to the user with two wordings to choose from was left inside a letter body, and
+the recipient-facing letter read as robotic.

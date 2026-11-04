@@ -6,6 +6,7 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-04 (engine): a "checks passed" verdict right after the agent's own passing run is no helper's verdict (claim-checked); legal-review section I: an open choice goes in the answer, never as a bracketed note inside the letter.
 - 2026-11-04 (engine): the starter changelog and trial records no longer count as an engine change that asks for the self-test.
 - 2026-11-04 (engine): the trial gate counts a run of node tools/trial.mjs, not a command that only names the file (a git add).
 - 2026-11-04 (engine): an upgrade dry run names refreshed checks with their file (tools/hooks/requirements.json) instead of counting them as a root file. Trial: "a dry-run upgrade lists refreshed checks by name and file".
