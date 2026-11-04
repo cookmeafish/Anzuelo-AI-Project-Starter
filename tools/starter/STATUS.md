@@ -82,8 +82,9 @@ docs/STATUS.md, which here is the template new projects start from).
   count toward the 3 rounds, a question after Finished counts under autonomy, upgrades route to engine.md, checklist asks
   name their runbook, warm-letter example. Sent to both projects. Next: setup time (audit --setup reruns, 6 to 10 min each).
 - 2026-11-04 09:50 UTC: c6979aa (proof 808ceac): a --tags self-test run reuses proven engine results (28 s to 4 s); sent to
-  both. Open, not committed yet: quoted text is no command in the upset gate's read check; a disproved complaint owes no
-  runbook checklist. Obedience round o4 (4 projects, frozen 808ceac) running.
+  both. 21998f3 (proof a14d856): quoted text is no command in the upset gate's read check; a disproved complaint owes no
+  runbook checklist; sent to both. Obedience round o4 (4 projects, frozen 808ceac) running. Stop timing near 500 ms in both
+  projects under load: recheck asked for on a quiet machine.
 - 2026-11-04 06:40 UTC: 247f74d from a replay of every real user message of both projects: contractions are no quotes, idioms
   and everyday phrases route nothing, missed and false upsets fixed, an echo naming a gate tool is no run of it. Chain green
   (1590 passed, trial 132/132; sweep 21 as before), proof 84047bf, sent to both; open: their --full runs. Trial round v25
