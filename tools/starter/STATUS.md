@@ -81,6 +81,10 @@ docs/STATUS.md, which here is the template new projects start from).
   the agent got wrong), verdict WORSE on setup cost ($6.57 median vs $5). Fixed in 4dd7d54 (proof 28648cb): waiting blocks
   count toward the 3 rounds, a question after Finished counts under autonomy, upgrades route to engine.md, checklist asks
   name their runbook, warm-letter example. Sent to both projects. Next: setup time (audit --setup reruns, 6 to 10 min each).
+- 2026-11-04 18:30 UTC: also fixed: the carry-over check missed background runs from before the turn it re-checks (692255d);
+  the upgrade dry run labelled refreshed checks "(root) 1" (7233f98, from both projects); the trial gate took a
+  "git add tools/trial.mjs" for its last run (this commit). Both projects on 774a2eb; d508c62 handed out, reports pending.
+  Next: the projects' d508c62 reports, then a new trial round on the current engine.
 - 2026-11-04 16:30 UTC: ablation goldens fixed (fe2297c, 35/35). Trial v26 (12 trials on fe2297c, 6 blind judges): NOT WORSE, 0 high,
   setup median 18.3 min. Fixed from it: claim check quotes its claim, colon lead-in pastes, Issue line in the chat (228f615),
   piped gate runs say why (08f09e7), background runs carried across turns (this commit). Both projects on 08f09e7.

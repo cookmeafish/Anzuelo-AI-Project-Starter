@@ -7958,7 +7958,8 @@ export const DEV_REQUIREMENTS = [
   { tag: 'dev-changelog', rule: '12', when: { filesChanged: ENGINE_FILES, filesIgnore: SELF_WRITTEN }, require: { filesChanged: ['tools/starter/STARTER-CHANGELOG.md'] },
     message: 'Projects learn what changed from tools/starter/STARTER-CHANGELOG.md: add what this turn changed to today\'s entry.' },
   { tag: 'dev-new-project', rule: '12', when: { filesChanged: ['tools/new-project.mjs', 'tools/starter.mjs', 'tools/hooks/wire.mjs', 'tools/packs.mjs', 'tools/skills.mjs'] },
-    require: { toolPassed: { cmd: String.raw`trial\.mjs`, pass: 'TRIAL: PASS' } },
+    // (a run of the script, not a command that names it: a "git add tools/trial.mjs" after a passing trial was its last run)
+    require: { toolPassed: { cmd: String.raw`\bnode\s+(\S*[\\/])?trial\.mjs`, pass: 'TRIAL: PASS' } },
     message: 'Making, linking or upgrading projects changed: run node tools/trial.mjs until it prints "TRIAL: PASS". It proves on sample projects that nothing gets worse (files, rules, secrets, tests, git hooks, speed, repeat upgrades).' },
   { tag: 'dev-verification', rule: '4', when: { filesChanged: ['tools/*.mjs', 'tools/**/*.mjs', 'skills/**/*.mjs', 'library/**/*.mjs', 'packs/**/*.mjs'] },
     require: { answerMatches: String.raw`\b(verif\w*|tests? (pass|ran)|ALL PASS|audit: PASS|checked by running)\b` },

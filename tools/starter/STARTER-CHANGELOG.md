@@ -6,6 +6,7 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-04 (engine): the trial gate counts a run of node tools/trial.mjs, not a command that only names the file (a git add).
 - 2026-11-04 (engine): an upgrade dry run names refreshed checks with their file (tools/hooks/requirements.json) instead of counting them as a root file. Trial: "a dry-run upgrade lists refreshed checks by name and file".
 - 2026-11-04 (engine): the carry-over check reads an earlier turn's background launches from the rows before that turn, so a self-test started earlier and passed in it is no "no run".
 - 2026-11-04 (engine): the security sentence counts with any few words before "passed" (not a negation), a backslash report path, or the report named further down the answer.

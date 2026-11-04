@@ -2510,6 +2510,10 @@ STOP.push(
     prep: touch('tools/new-project.mjs', '\n// skip the empty inbox folder\n'), files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { block: true, tags: ['dev-new-project'] } },
   { name: 'dev-new-project: the trial ran and passed: passes', prompt: 'make new projects skip the empty inbox folder', edit: { '.starter-dev': () => 'development copy\n' },
     prep: touch('tools/new-project.mjs', '\n// skip the empty inbox folder\n'), tools: [bash('node tools/trial.mjs', 'TRIAL: PASS (6 samples, nothing worse)')], files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { not: ['dev-new-project'] } },
+  // (a command that only names the script, such as a git add of it, is no run of the trial. Lesson (this starter): a
+  // commit that staged tools/trial.mjs after a passing trial was taken as its last run, which "did not pass")
+  { name: 'dev-new-project: a git add naming the trial script after a passing trial: passes', prompt: 'make new projects skip the empty inbox folder', edit: { '.starter-dev': () => 'development copy\n' },
+    prep: touch('tools/new-project.mjs', '\n// skip the empty inbox folder\n'), tools: [bash('node tools/trial.mjs', 'TRIAL: PASS (6 samples, nothing worse)'), bash('git add tools/new-project.mjs tools/trial.mjs && git commit -qm "Skip the empty inbox folder"', '')], files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { not: ['dev-new-project'] } },
   { name: 'dev-new-project: outside a development copy it is never asked: passes', prompt: 'make new projects skip the empty inbox folder',
     prep: touch('tools/new-project.mjs', '\n// skip the empty inbox folder\n'), files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { not: ['dev-new-project'] } },
   // autonomy-recorded: "you decide / don't ask me" is a standing choice; it goes into config, not just this answer
