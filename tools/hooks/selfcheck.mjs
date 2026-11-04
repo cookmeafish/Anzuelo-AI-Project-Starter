@@ -1997,6 +1997,14 @@ STOP.push(
   // forced back in)
   { pack: 'app', name: 'verification-report: plain wording ("Tests", "Against the real tool") counts: passes', prompt: 'add a feature to export reports as csv', tools: [pb('feature')], files: SPEC,
     answer: 'Playbook: feature.md.\n**Verification**\n- Tests: 18 pass (npm test).\n- Against the real tool: exported a CSV from a folder of 5 sample files.\n- Review: the reviewer said SHIP (docs/reviews/x.md).\n- Still weak: nothing weak found.\n' + FIN, expect: { not: ['verification-report'] } },
+  // (an honest "the app was not run" is a real-app line. Lesson (a trial): a section saying "Running the app: not done"
+  // and one saying the server was not run were both announced as no verification at all)
+  { pack: 'app', name: 'verification-report: an honest "Running the app: not done" counts: passes', prompt: 'add a feature to export reports as csv', tools: [pb('feature')], files: SPEC,
+    answer: 'Playbook: feature.md.\n## Verification\n- Automated tests: none ran (the test runner is not installed).\n- Running the app: not done, no sample folder here.\n- Separate review: not asked for.\n- Not verified: the export with very large files.' + FIN, expect: { not: ['verification-report'] } },
+  { pack: 'app', name: 'verification-report: "the server was not run" counts as the real-app line: passes', prompt: 'add a feature to export reports as csv', tools: [pb('feature')], files: SPEC,
+    answer: 'Playbook: feature.md.\n**How it was checked**\n- Tests: 6 pass (npm test).\n- The server was not run: it needs a database this machine lacks.\n- No outside review.\n- Not verified: the export under load.' + FIN, expect: { not: ['verification-report'] } },
+  { pack: 'app', name: 'verification-report: a section with no real-app line at all: blocked', prompt: 'add a feature to export reports as csv', tools: [pb('feature')], files: SPEC,
+    answer: 'Playbook: feature.md.\n## Verification\n- Automated tests: 6 pass.\n- Separate review: SHIP.\n- Gaps: none known.' + FIN, expect: { block: true, tags: ['verification-report'] } },
   // (Lesson, trial round 16: "How I checked it" was rejected where "How it was checked" passed, and the answer re-sent)
   { pack: 'app', name: 'verification-report: a "How I checked it" heading counts: passes', prompt: 'add a feature to export reports as csv', tools: [pb('feature')], files: SPEC,
     answer: 'Playbook: feature.md.\n## How I checked it\n- Tests: 18 pass (npm test).\n- Against the real tool: exported a CSV from a folder of 5 sample files.\n- Review: the reviewer said SHIP (docs/reviews/x.md).\n- Still weak: nothing weak found.\n' + FIN, expect: { not: ['verification-report'] } },
