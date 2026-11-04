@@ -4384,25 +4384,31 @@ PROMPT.push(
 // A step that can be removed without a block is a hole in the checks (fix the hook, never the test).
 const GOLDEN = [
   { name: 'research (knowledge pack)', prompt: 'research the best standing desks under $500',
-    tools: [sk('research'), { name: 'WebSearch', input: { query: 'standing desk under 500 test' }, result: 'Desk X tested: best value' }, bash('node skills/research/scripts/claims.mjs check .cache/research/desks.md', 'CLAIMS: PASS - 1 claims')],
+    // (the source the answer cites is opened, as answer-traced asks)
+    tools: [sk('research'), { name: 'WebSearch', input: { query: 'standing desk under 500 test' }, result: 'Desk X tested: best value' }, bash('node skills/research/scripts/claims.mjs check .cache/research/desks.md', 'CLAIMS: PASS - 1 claims'),
+      { name: 'WebFetch', input: { url: 'https://example.com', prompt: 'the test results' }, result: 'Desk X tested: best value under $500' }],
     files: { 'docs/knowledge/desks.md': KNOW, 'docs/CHANGELOG.md': 'x' },
     answer: ['Skill: research.', 'Desk X is the best value.[1]', 'Sources:\n[1] https://example.com','Verified: 1 claims traced to 3 independent sources; 0 cut or marked not verified.', FIN],
-    optional: ['tools:1', 'answer:1'] },
+    optional: ['tools:1', 'answer:0', 'answer:1'] },
   { pack: 'gui', name: 'GUI change (gui pack)', prompt: 'make the dashboard page look cleaner',
     tools: [pb('gui'), bash('node tools/screenshot.mjs --url x', GUISHOT(0)), { name: 'Read', input: { file_path: SHOT } }],
     files: { 'site/index.html': '<h1>x</h1>', [SHOT]: 'png' }, mtimes: { 'site/index.html': -500 },
     answer: ['Playbook: gui.md', '## Visual review\n- Round 1: header overlapped on phone, fixed.\n- Round 2: nothing found.\nVisual review: PASS after 2 rounds', 'Accessibility: keyboard, focus and contrast checked - PASS', FIN],
-    optional: ['tools:1', 'files:site/index.html'] },
+    // (the "Playbook:" line is the turn notes' now; the hooks see the runbook opened: answer:0 is optional in each)
+    optional: ['tools:1', 'files:site/index.html', 'answer:0'] },
   { name: 'standing rule (core)', prompt: 'from now on always include a budget table in plans',
     tools: [pb('project'), bash('node tools/hooks/selfcheck.mjs'), bash('node tools/audit.mjs')],
     files: { ...MEM, 'CLAUDE.md': TWIN, 'docs/checks/user-requirements.md': 'row', 'tools/hooks/requirements.json': '{"requirements":[]}', 'docs/CHANGELOG.md': 'x', 'docs/checks/rule-enforcement.md': 'row' },
-    answer: ['Playbook: project.md.', 'Rule added.', FIN], optional: ['answer:1', 'files:docs/checks/rule-enforcement.md'] },
+    // (the memory note is asked for only with memoryOnRuleRequest, off by default)
+    answer: ['Playbook: project.md.', 'Rule added.', FIN], optional: ['answer:0', 'answer:1', 'files:docs/checks/rule-enforcement.md', 'files:.memtest/rule.md'] },
+  // (the release note stands for the changelog line)
   { name: 'feature (app pack)', prompt: 'add a feature to export reports as csv',
-    tools: [pb('feature')], files: SPEC, answer: ['Playbook: feature.md.', VERIF, FIN], optional: ['files:src/export.js'] },
+    tools: [pb('feature')], files: SPEC, answer: ['Playbook: feature.md.', VERIF, FIN], optional: ['files:src/export.js', 'answer:0', 'files:docs/CHANGELOG.md'] },
   { name: 'debug (core skill)', prompt: 'debug the failing test in the parser please',
     tools: [sk('debug'), ...many(15)], files: { 'docs/STATUS.md': 'x' },
     answer: ['Skill: debug.', 'Root cause: the parser read the header twice.', FIN],
-    optional: [...Array.from({ length: 15 }, (_, i) => `tools:${i + 1}`)] }
+    // (STATUS is owed only when work is left open, and this turn finishes it)
+    optional: [...Array.from({ length: 15 }, (_, i) => `tools:${i + 1}`), 'answer:0', 'files:docs/STATUS.md'] }
 ];
 
 // --fixture-base: build the base the engine's scenarios run in and the one this project's own scenarios run in, and
