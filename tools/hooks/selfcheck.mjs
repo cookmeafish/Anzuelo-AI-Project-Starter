@@ -6317,6 +6317,13 @@ if (mineB()) { // a background run is judged by its output file and its exit cod
     const [done] = runsOf([use, res, note(0)]), [running] = runsOf([use, res]), [failed] = runsOf([use, res, note(1)]);
     report(/ALL PASS/.test(done.out) && !done.error && running.pending && running.out === '' && failed.error,
       'background runs: judged by their output file and exit code, and pending until the notification', JSON.stringify({ done, running, failed }).slice(0, 300));
+    // (one started in an earlier turn whose notice comes in this turn is this turn's run; one still running is not.
+    // Lesson (this starter): a self-test chain started one turn and passed the next was asked for again, 3 turns running)
+    const { carriedRuns } = await import('./hooks.mjs');
+    const later = typeof carriedRuns === 'function' ? carriedRuns({ carriedEntries: [use, res] }, [note(0)]) : [];
+    const still = typeof carriedRuns === 'function' ? carriedRuns({ carriedEntries: [use, res] }, []) : [null];
+    report(later.length === 1 && /ALL PASS/.test(later[0].out) && !later[0].error && still.length === 0,
+      'background runs: one started in an earlier turn that ends in this one counts for this turn; one still running does not', JSON.stringify({ later, still }).slice(0, 300));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 

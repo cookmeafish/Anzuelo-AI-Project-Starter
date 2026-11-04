@@ -81,6 +81,10 @@ docs/STATUS.md, which here is the template new projects start from).
   the agent got wrong), verdict WORSE on setup cost ($6.57 median vs $5). Fixed in 4dd7d54 (proof 28648cb): waiting blocks
   count toward the 3 rounds, a question after Finished counts under autonomy, upgrades route to engine.md, checklist asks
   name their runbook, warm-letter example. Sent to both projects. Next: setup time (audit --setup reruns, 6 to 10 min each).
+- 2026-11-04 16:30 UTC: ablation goldens fixed (fe2297c, 35/35). Trial v26 (12 trials on fe2297c, 6 blind judges): NOT WORSE, 0 high,
+  setup median 18.3 min. Fixed from it: claim check quotes its claim, colon lead-in pastes, Issue line in the chat (228f615),
+  piped gate runs say why (08f09e7), background runs carried across turns (this commit). Both projects on 08f09e7.
+  Open from v26: setup heavy for small projects; Stop rounds that only ask for a set wording (security sentence).
 - 2026-11-04 12:30 UTC: obedience round o4 (4 projects on 808ceac): 1 rule broken (a user's example name in two test
   files). Fixed in 5af19dd (proof 5b30ff7) with the git guard gap the same round showed (a forbidden name could enter a
   commit message or staged line). Stop timing in both projects is 345 ms on a quiet machine: the high readings were load.

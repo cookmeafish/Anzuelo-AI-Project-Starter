@@ -1094,7 +1094,23 @@ export function turn(transcript) {
   // earlier turn is no more made up than one read now. Lesson, trial round 20: two right totals, read one turn earlier,
   // were flagged, and the forced rewrite of the answer added a wrong claim no check looked at.
   let readCache = null;
+  // a command started in the background in an earlier turn that ends in this one is this turn's run too: its launch
+  // and stub come first, so runsOf reads its output file once this turn's notice arrives. Lesson (this starter): a full
+  // self-test chain started one turn and passed the next was asked for again, and waived in 3 turns running.
+  const carried = () => {
+    const bg = new Set(), keep = [];
+    for (const r of rows.slice(0, start + 1)) {
+      const c = Array.isArray(r.message?.content) ? r.message.content : [];
+      const launches = c.filter(x => r.type === 'assistant' && x?.type === 'tool_use' && x.input?.run_in_background && typeof x.input?.command === 'string');
+      const stubs = c.filter(x => r.type === 'user' && x?.type === 'tool_result' && bg.has(x.tool_use_id));
+      launches.forEach(x => bg.add(x.id));
+      if (launches.length) keep.push({ ...r, message: { ...r.message, content: launches } });
+      if (stubs.length) keep.push({ ...r, message: { ...r.message, content: stubs } });
+    }
+    return keep;
+  };
   return {
+    get carriedEntries() { return carried(); },
     get sessionResults() { return readCache ??= toolResults(rows); }, since, entries, get helperEntries() { return helpers(); }, prompt: [prompt, ...queued].map(userText).filter(s => s.trim()).join('\n'), parts: [prompt, ...queued].map(userText).filter(s => s.trim()), queued, toolsKnown: true, allPrompts, bgRunning: backgroundRunning(rows), watchers: watchersArmed(rows), wakeups: wakeupsPending(rows),
     get sessionWrites() { const h = helpers(); return h.length ? `${mainWrites}\n${writesOf(h)}` : mainWrites; }, sessionTools, sessionStart, sessionHelpers };
 }
@@ -2367,6 +2383,14 @@ export const engineNote = cmd => shellParts(cmdHead(cmd)).parts.every(p => /^\(?
 // A real run of a node script (node, then the script's path): a grep or an editor opening the file is not a run of it.
 // Lesson: "grep -n ... tools/hooks/selfcheck.mjs" was taken as the last self-test run, which "did not print ALL PASS".
 export const runsScript = (cmd, name) => new RegExp(`(^|[\\s;&|(])node(\\.exe)?["']?\\s+(--\\S+\\s+)*["']?[^\\s"';&|]*${esc(name)}\\b`).test(cmdHead(cmd));
+// This turn's runs, after the background ones started in an earlier turn whose notice came in this one (a carried
+// run whose notice has not come, or came in an earlier turn, is left out).
+export function carriedRuns(t, entries) {
+  const pre = t.carriedEntries || [];
+  if (!pre.length) return runsOf(entries);
+  const n = runsOf(pre).length, all = runsOf([...pre, ...entries]);
+  return [...all.slice(0, n).filter(r => !r.pending), ...all.slice(n)];
+}
 export function runsOf(entries) {
   const byId = new Map(), out = [];
   // the files edited before each run (editedBefore), so a check can tell a failure the turn found from one it caused
@@ -2639,7 +2663,7 @@ export function context(t, cfg, answerOverride) {
     + '\n' + [...String(t.toolsKnown ? toolResults(withHelpers) : '').matchAll(/^waived for this turn: ([a-z][\w-]*) \(([^\n]*)\)\s*$/gm)].map(m => `N/A(${m[1]}): ${m[2].trim()}`).join('\n');
   const all = turnText(t.entries), said = `${inEnglish(`${answer}\n${all}\n${waives}`, cfg)}\n${notes}`;
   return {
-    ...t, uses, cmds, changed, work, pbs, routed, reads, skillsUsed, usedPb, namedPb: pbs.filter(pb => namesIt(pb.name)).map(pb => pb.name), routedSkills, usedSkills, notes, runs: t.toolsKnown ? runsOf(withHelpers) : loggedRuns(t.since),
+    ...t, uses, cmds, changed, work, pbs, routed, reads, skillsUsed, usedPb, namedPb: pbs.filter(pb => namesIt(pb.name)).map(pb => pb.name), routedSkills, usedSkills, notes, runs: t.toolsKnown ? carriedRuns(t, withHelpers) : loggedRuns(t.since),
     answer: inEnglish(answer, cfg), said, afterChange: inEnglish(`${textAfterLastChange(t.entries, changed.reduce((m, p) => { try { return Math.max(m, fs.statSync(abs(p)).mtimeMs); } catch { return m; } }, 0))}\n${answer}`, cfg), results: toolResults(withHelpers), resultsList: toolResultsList(t.entries),
     gui: changed.filter(p => match(p, cfg.guiFiles) && !match(p, cfg.guiIgnore) && exists(p)),
     workTurn: work.length > 0 || (t.toolsKnown && uses.length >= cfg.workToolCalls),

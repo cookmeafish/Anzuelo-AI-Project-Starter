@@ -6,6 +6,7 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-04 (engine): a background run started in an earlier turn that ends in this one counts as this turn's run.
 - 2026-11-04 (engine): a gate step whose run passed but was piped or filtered says why it did not count and to run it as one plain command.
 - 2026-11-04 (engine): the claim check names the claim it means; a short lead-in ending in a colon routes a long pasted message, not the material; an Issue line shown in the chat counts as the acknowledgement and is copied to the notes.
 - 2026-11-04 (no-verbatim-examples): the user's example names are kept out of the project's own test files too, not only rules, runbooks and skills. An obedience trial's fix for a complaint put the user's product name into two test files.
