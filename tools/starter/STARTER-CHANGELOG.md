@@ -6,6 +6,7 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-04 (engine): the carry-over check reads an earlier turn's background launches from the rows before that turn, so a self-test started earlier and passed in it is no "no run".
 - 2026-11-04 (engine): the security sentence counts with any few words before "passed" (not a negation), a backslash report path, or the report named further down the answer.
 - 2026-11-04 (engine): a background run started in an earlier turn that ends in this one counts as this turn's run.
 - 2026-11-04 (engine): a gate step whose run passed but was piped or filtered says why it did not count and to run it as one plain command.

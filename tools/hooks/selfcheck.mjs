@@ -6335,6 +6335,12 @@ if (mineB()) { // a background run is judged by its output file and its exit cod
     const still = typeof carriedRuns === 'function' ? carriedRuns({ carriedEntries: [use, res] }, []) : [null];
     report(later.length === 1 && /ALL PASS/.test(later[0].out) && !later[0].error && still.length === 0,
       'background runs: one started in an earlier turn that ends in this one counts for this turn; one still running does not', JSON.stringify({ later, still }).slice(0, 300));
+    // (the launches before a turn are found in the rows before it, as the carry-over check needs for an earlier turn.
+    // Lesson (this starter): that check read them from the current turn's tail, and reported "no run")
+    const { backgroundLaunches } = await import('./hooks.mjs');
+    const before = [{ type: 'user', message: { role: 'user', content: 'run the tests' } }, use, res, { type: 'assistant', message: { content: [{ type: 'text', text: 'Started.' }] } }];
+    const found = typeof backgroundLaunches === 'function' ? carriedRuns({ carriedEntries: backgroundLaunches(before) }, [note(0)]) : [];
+    report(found.length === 1 && /ALL PASS/.test(found[0].out), 'background runs: the launches before an earlier turn are read from the rows before it (the carry-over check)', JSON.stringify(found).slice(0, 200));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
