@@ -2329,6 +2329,11 @@ PROMPT.push(
   // (a trigger's key words sit in one clause. Lesson (a field report): "commit your work first; run the tests" matched
   // a "first run" trigger)
   { name: 'route: a trigger\'s words split by a semicolon do not route', prompt: 'save the rota as the newest version; the starter list of chores stays as it is', hasNot: ['ROUTE: engine'] },
+  // (a verb the user says not to do is no request for it. Lesson (a field report): "don't make it weaker" in a change
+  // to an existing item routed to the runbook for making a new one)
+  { name: 'route: "don\x27t make the plugin slower" is no request to make a plugin', prompt: 'rename the export button, but don\x27t make the plugin any slower', hasNot: ['ROUTE: project'] },
+  { name: 'route: "make a plugin" still routes to the project runbook', prompt: 'make a plugin for my team', has: ['ROUTE: project'] },
+  { name: 'scope-general: the prompt hint names it for "there might be other ones too"', prompt: 'the spring menu has a heavy stew, and there might be other dishes that are too heavy for it too', has: ['EXAMPLES:'] },
   { name: 'route: "add the starter to this folder" still routes to the engine runbook', prompt: 'please add the starter to this folder', has: ['ROUTE: engine'] },
   { name: 'route: "remove the old starter from my project" still routes to the engine runbook', prompt: 'remove the old starter from my project', has: ['ROUTE: engine'] },
   { pack: 'knowledge', name: 'route: "i added" alone does not route to ingest', prompt: 'i added a line to the notes, does it read well', hasNot: ['ROUTE: ingest'] },
@@ -3530,6 +3535,14 @@ STOP.push(
   // blocked twice as a hand-test claim)
   { name: 'claim-checked: "by hand" describing the data a script test kept: passes', prompt: 'fix the recipe merge', tools: [bash('python .cache/check_merge.py', 'kept 4 rows: OK')],
     answer: '**Done:** Fixed and tested: merging again now keeps the rows written by hand.', expect: { not: ['claim-checked'] } },
+  // scope-general: a request that names examples of a wider point is held to every case. Lesson (a field report): each
+  // change fixed only the items the user named, though the user said there might be others
+  { name: 'scope-general: "or something else that doesn\'t fit" changed with no Scope line: blocked', prompt: 'swap the bland soup on the winter menu for a better one, or something else that doesn\'t fit the season',
+    files: { 'docs/menus/winter.md': 'menu' }, answer: '**Done:** the bland soup is now a lentil soup.' + FIN, expect: { block: true, tags: ['scope-general'], says: /every case/ } },
+  { name: 'scope-general: the same request with a Scope line over every dish: passes', prompt: 'swap the bland soup on the winter menu for a better one, or something else that doesn\'t fit the season',
+    files: { 'docs/menus/winter.md': 'menu', '.cache/turn-notes.md': 'Scope: dishes that do not fit the season - all 14 dishes checked, 2 changed\n' }, answer: '**Done:** the bland soup and the cold salad are replaced.' + FIN, expect: { not: ['scope-general'] } },
+  { name: 'scope-general: a request with no wider point ("add a dessert, for example a tart"): passes', prompt: 'add a dessert to the winter menu, for example a tart',
+    files: { 'docs/menus/winter.md': 'menu' }, answer: '**Done:** added an apple tart.' + FIN, expect: { not: ['scope-general'] } },
   // (a phrase in quotes is named, not claimed. Lesson, dogfood: an answer describing this check quoted the phrase twice)
   { name: 'claim-checked: the phrase only quoted, as an example of what is flagged: passes', prompt: 'fix the recipe merge', tools: [bash('python .cache/check_merge.py', 'kept 4 rows: OK')],
     answer: '**Done:** the check still flags a sentence like "I tested the page by hand", and a test script checked it.', expect: { not: ['claim-checked'] } },

@@ -62,6 +62,11 @@ upset-acknowledged).
      wrong>` in `.cache/turn-notes.md`. The moments in the user's screenshots are a sample, not the test.
    - Turn the sweep into a self-test, so the next change can't break it again.
 2. **Find the cause** in one sentence: "The <skill/runbook/check> did not <step>, so <what went wrong>."
+   **Learned before?** Search the earlier lessons for this complaint's subject (the `Learned` lines in
+   `.cache/turn-notes.md`, `docs/lessons.md`, `docs/checks/user-requirements.md`). If one covers it, its fix did not
+   hold: the cause is why that rule or check let this through (it counted instead of judging each item, it let a
+   generic case pass), and that is what gets fixed. Lesson (a field report): the same lesson was learned four times in
+   nine days, each time treated as new, while the check it got only counted items against a bar.
 3. **Pick the lowest level that will reliably stop it:**
 
    | Level | When | Where it goes |

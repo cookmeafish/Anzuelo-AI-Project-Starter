@@ -6,6 +6,9 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-04 (route, negated verb): a trigger's verb right after "don't", "do not" or "never" counts for nothing ("don't make the plugin slower" is no request to make a plugin). Scenarios: route: "don't make the plugin slower" ..., route: "make a plugin" still routes.
+- 2026-11-04 (scope-general): a request that names examples of a wider point ("or something else", "there might be other ones too") gets an EXAMPLES hint and, when it changes files, a Stop step asking for a Scope line and every case changed, as a complaint already did. Scenarios: scope-general: *.
+- 2026-11-04 (learn-from-upset, learned before): step 2 searches the earlier lessons; a complaint an earlier lesson covered means that fix did not hold, and its root cause is fixed. The Root cause step says so too.
 - 2026-11-04 (turn notes, line endings): a notes file rewritten during the turn with other line endings (CRLF) still counts only this turn's records; before, the turn start was lost and every earlier turn's "Learned ... -> <file>" line was asked for again.
 - 2026-11-04 (claim-checked, who judged): a verdict about a group counts as attributed when the next sentence says who judged it, or says "I judged this/these myself"; before, a corrected answer that said so was still flagged.
 - 2026-11-03 (open plans, task words): a request is held to an open plan by one distinctive word of its name or title, or by two words of its open tasks; one common word of a task line no longer counts. Tests: "plan-open: a request sharing one common word with an open task is not held to the plan", "plan-open: a request naming two words of an open task is held to the plan".

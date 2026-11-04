@@ -729,10 +729,13 @@ export function route(prompt, pbs, { relayed = false } = {}) {
   const text = unquoted(userText(prompt));
   if (OPINION.test(text)) return [];
   const low = ` ${text.toLowerCase()} `;
-  const seq = keyWords(fileCapsOut(text)), words = new Set(seq);
+  // (a verb the user tells the agent not to do is no request for it: "don't make the menu longer" is no "make me a
+  // menu". Lesson (a field report): a change to an existing item routed to the runbook for making a new one)
+  const keyText = fileCapsOut(text).replace(/\b(don'?t|do not|never)\s+[a-z]+/gi, '$1');
+  const seq = keyWords(keyText), words = new Set(seq);
   // A trigger's key words sit in one clause: a ";", a sentence end or a new line ends a clause. Lesson (a field report):
   // "commit your work first; run the tests" matched a "first run" trigger.
-  const clauses = fileCapsOut(text).split(/[;!?\n]|\.(?=\s|$)/).map(keyWords).filter(c => c.length);
+  const clauses = keyText.split(/[;!?\n]|\.(?=\s|$)/).map(keyWords).filter(c => c.length);
   const span = k => Math.min(...clauses.map(c => keySpan(c, k)));
   const scored = [];
   const off = new Set(suspendedItems().map(s => s.item.replace(/^(skill|runbook):/, ''))); // REQ: friction-suspend
@@ -4789,6 +4792,8 @@ export function promptHints(prompt, cfg = config(), withNotices = true, { relaye
     // about 1,500 characters on every message that set it off)
     // (the opening words stay: project hooks and the trigger log key on them, hook output contract)
     hints.push('THE USER SOUNDS UPSET (maybe): open skills/learn-from-upset/SKILL.md and follow it. It starts by deciding whether anything is actually wrong. REQ: upset-learned.');
+  else if (own && EXAMPLE_CLASS.test(unquoted(userText(p))))
+    hints.push(`EXAMPLES: the items named are cases of a wider point. Write "Scope: <the point in general terms> - <every case it covers>" in ${NOTES_FILE} and change every case, not only the ones named. REQ: scope-general.`);
   // feedback or a message the user wants passed on to someone else carries that receiver's requirements, not this
   // project's ("give that feedback to the starter and mention to make sure it's fixed"). Lesson: such a relay got the
   // REQUIREMENT hint.
@@ -6600,7 +6605,7 @@ export function coreChecks(x, cfg) {
       // (the user): an issue was acknowledged as the example the user gave, fixed in that narrow form, and the user had
       // to say twice that it meant every case; "it tunnelvisioned to 1 thing without actually finding the root cause")
       if (!/^[\s>*_-]*scope\s*:\s*\S.{15,}/im.test(mine)) add('upset-learned', `Write the user's general point, not only their example: "Scope: <the point in general terms> - <every case it covers, and how many you checked>" in ${NOTES_FILE}, and fix every case, not only the one named.`);
-      if (!/^[\s>*_-]*root cause\s*:\s*\S.{15,}/im.test(mine)) add('upset-learned', `Say why the earlier work missed it: "Root cause: <what in the process, runbook or check let it through, and why>" in ${NOTES_FILE}, and fix that too, not only the result.`);
+      if (!/^[\s>*_-]*root cause\s*:\s*\S.{15,}/im.test(mine)) add('upset-learned', `Say why the earlier work missed it: "Root cause: <what in the process, runbook or check let it through, and why>" in ${NOTES_FILE}, and fix that too, not only the result. If an earlier lesson covered this (the notes' Learned lines, docs/lessons.md, docs/checks/user-requirements.md), say why its fix let this through.`);
     }
     // A complaint the answer showed does not hold has no miss to learn from: "Learned (none): the complaint didn't
     // hold - <evidence>" ends it. Lesson: after a disproved complaint, Stop still asked for a lesson, and the agent added
@@ -6889,6 +6894,12 @@ export function coreChecks(x, cfg) {
     add('claim-checked', `The answer says a test was done by hand ("${handClaim.trim().slice(0, 80)}"), but nobody here tests by hand: say how it ran ("with an automated browser", "con un navegador automatizado", and the tool), or that it is for the user to try.`);
   // REQ: claim-checked (helpers' verdicts). In a session where helpers worked, a group of items called passed or fine
   // says who judged them and what the check behind it tests (groupVerdictClaim).
+  // REQ: scope-general. A request that names examples of a wider point ("or something else") is held to every case of
+  // it, as a complaint is (the upset path asks for the same Scope line). See EXAMPLE_CLASS.
+  const askedParts = (x.parts?.length ? x.parts : [x.prompt]).map(q => userText(String(q || '')));
+  if (x.prompt && (x.work || []).length && askedParts.some(q => EXAMPLE_CLASS.test(q)) && !isUpset(x.prompt, cfg)
+    && !/^[\s>*_-]*scope\s*:\s*\S.{15,}/im.test(`${x.said || ''}\n${x.notes || ''}`))
+    add('scope-general', `The user named examples of a wider point ("or something else", "there might be others"). Write "Scope: <the point in general terms> - <every case it covers, and how many you checked>" in ${NOTES_FILE}, and change every case, not only the ones named.`);
   const verdict = x.sessionHelpers ? groupVerdictClaim(x.answer) : '';
   if (verdict)
     add('claim-checked', `The answer says "${verdict.trim().slice(0, 80)}", but helpers worked this session, so that verdict may be theirs or come from a check that only found a record per item. Say who judged those items (you, re-checking each one, or a helper whose verdict you did not re-check) and what the check behind it tests, or check them yourself first.`);
@@ -7185,6 +7196,10 @@ const FIX_FILES = {
 // a glob as one path it matches ("items/**/*.txt" -> "items/x/x.txt"), so the checks on it can be asked
 const sampleOf = g => String(g).replace(/\{([^,}]*)[^}]*\}/g, '$1').replace(/\*\*/g, 'x').replace(/[*?]/g, 'x');
 const filesOfCond = c => !c || typeof c !== 'object' ? [] : [...[].concat(c.filesChanged || []), ...(c.anyOf || []).flatMap(filesOfCond)];
+// REQ: scope-general. A request that names examples of a wider point ("or something else", "there might be other ones
+// too"): the named items are cases of it, and the work covers every case. Lesson (a field report): over many turns the
+// user named one or two items each time, with "there might be others", and each change fixed only the ones named.
+export const EXAMPLE_CLASS = /\b(or (something|anything|whatever) else|(there )?(might|may|could) (even )?be (even )?(other|more) [a-z]+|(and )?others? like (it|this|that|these|those|them)|ones? like (it|this|that|these|those)|(any|every) other [a-z]+ like)\b/i;
 // "Learned (<level>): <lesson> → <file>" lines: the level and the file the lesson went into
 // "Learned (none): the complaint didn't hold - <evidence>": nothing to learn (Spanish "Aprendido (nada): ...")
 export const LEARNED_NONE = /^[\s>*_-]*learned\s*\((none|nothing|ninguno|ninguna|nada)\)\s*:\s*\S.{8,}/im;
@@ -8625,6 +8640,7 @@ const SHORT = {
   'hooks-tested': 'Run the hook self-tests until they pass',
   'name-var': 'Use the name markers instead of typing names out',
   'upset-learned': 'Learn from what upset the user, and say where the lesson went',
+  'scope-general': 'Change every case of the user\'s point, not only the examples named',
   'skill-learn': 'Write the lesson into the runbook or skill that missed it',
   'empty-answer': 'Tell the user what was done',
   'watcher-left': 'Stop the watcher you left running, or say what it watches',
