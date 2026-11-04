@@ -175,6 +175,12 @@ for (const [name, s] of Object.entries(SAMPLES)) {
     fs.writeFileSync(hp, fs.readFileSync(hp, 'utf8').replace("export const INTERVIEW = ['Involvement', ", 'export const INTERVIEW = ['));
   }
   const mine = snapshot(dir);
+  // the dry run's summary names the refreshed checks and their file, never a "(root)" file. Lesson (two field reports):
+  // a refreshed check showed as "(root) 1", which reads as a file outside tools/, a reason to stop the upgrade
+  if (cited && !noPrev) {
+    const d = starterRun(dir, '--upgrade', '--dry-run'), out = d.stdout || '';
+    check(name, 'a dry-run upgrade lists refreshed checks by name and file, not as a root file', !/\(root\)/.test(out) && /refresh .*research-cited.* in tools\/hooks\/requirements\.json/.test(out), out.slice(0, 400));
+  }
   const u1 = starterRun(dir, '--upgrade', '--accept-findings');
   const rq1 = JSON.parse(fs.readFileSync(rqPath, 'utf8')).requirements, starterRq = JSON.parse(fs.readFileSync(path.join(STARTER, 'tools/hooks/requirements.json'), 'utf8')).requirements;
   const review = (() => { try { return fs.readFileSync(path.join(dir, 'docs/DECISIONS.md'), 'utf8'); } catch { return ''; } })();

@@ -178,7 +178,10 @@ function printLog() {
   const counts = {}, kept = [], other = [];
   for (const l of log) {
     const m = /^(created|updated)\s+(\S+)/.exec(l), k = /^kept\s+(\S+) \(exists\)/.exec(l);
-    if (m) { const top = m[2].includes('/') ? m[2].split('/')[0] + '/' : '(root)'; const c = counts[m[1]] ||= {}; c[top] = (c[top] || 0) + 1; }
+    // (refreshed checks are entries of one file, named with it, not a file at the root. Lesson (two field reports):
+    // "(root) 1" read as a file outside tools/, a reason the engine runbook gives to stop an upgrade)
+    if (m?.[2] === 'checks') other.push(l.replace(/^updated\s+checks\s+/, 'would refresh check(s) ').replace(/ \(the starter's newer version;.*$/, ''));
+    else if (m) { const top = m[2].includes('/') ? m[2].split('/')[0] + '/' : '(root)'; const c = counts[m[1]] ||= {}; c[top] = (c[top] || 0) + 1; }
     else if (k) kept.push(k[1]);
     else other.push(l);
   }
