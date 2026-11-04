@@ -4423,6 +4423,7 @@ if (process.argv.includes('--proof-hash')) {
 // background, costs nothing extra. A lock whose process is gone is taken over.
 // (--which-mode: print which mode a whole run would take, and why, then stop; it takes no lock)
 const PLAIN_RUN = !TAGS && !process.argv.includes('--shard') && !process.argv.includes('--ablation') && !process.argv.includes('--explain');
+const TAGS_RUN = !!TAGS && !process.argv.includes('--shard') && !process.argv.includes('--ablation') && !process.argv.includes('--explain');
 const WHOLE_RUN = PLAIN_RUN && !process.argv.includes('--which-mode');
 const LOCK = path.join(ROOT, 'tools/hooks/state/selftest.lock'), LAST = path.join(ROOT, 'tools/hooks/state/selftest-last.json');
 if (WHOLE_RUN) {
@@ -4602,7 +4603,10 @@ const shippedProof = () => {
   return proofHash(base(), CORE_SKILLS) === proof.engine ? { passed: proof.tests, shipped: true } : null;
 };
 if (HELPER) REUSED = process.argv.includes('--reuse-engine') ? {} : null;
-else if (!IS_STARTER && PLAIN_RUN) {
+// (a --tags run reuses them too: the engine's scenarios under a tag the project names were proven with the engine.
+// Lesson (a trial): runs of a project's own new checks, named with two engine guards, took 4 to 10 minutes each,
+// rerunning 57 engine scenarios a whole run would have reused)
+else if (!IS_STARTER && (PLAIN_RUN || TAGS_RUN)) {
   STAMP = engineStampHere();
   if (ALL_ASKED) MODE_WHY = `${ALL_ASKED} asks for every test`;
   else if ((REUSED = findPass(STAMP))) MODE_WHY = `this engine (stamp ${STAMP.slice(0, 8)}: its files, Node ${process.versions.node.split('.')[0]}, ${process.platform}, ${localDay()}) passed all ${REUSED.passed} engine tests at ${String(REUSED.at).slice(11, 16)} UTC`;
@@ -4629,7 +4633,7 @@ const SMOKE = (() => {
 })();
 let reusedCount = 0;
 if (REUSE) for (const list of [STOP, PRETOOL, PROMPT]) { const keep = list.filter(s => !isEngine(s) || SMOKE.has(s)); reusedCount += list.length - keep.length; list.length = 0; list.push(...keep); }
-if (!HELPER) console.log(TAGS ? `selfcheck mode: tags (${TAGS.join(', ')})` : IS_STARTER ? 'selfcheck mode: full (the starter always runs every test)'
+if (!HELPER) console.log(TAGS ? `selfcheck mode: tags (${TAGS.join(', ')})${REUSE ? `, engine results reused because ${MODE_WHY}: the project's own scenarios and the engine's smoke scenarios run` : ''}` : IS_STARTER ? 'selfcheck mode: full (the starter always runs every test)'
   : REUSE ? `selfcheck mode: engine results reused, because ${MODE_WHY}. Running the project's own scenarios and checks and ${SMOKE.size} engine smoke scenarios. node tools/hooks/selfcheck.mjs --full runs everything.`
   : `selfcheck mode: full, because ${MODE_WHY || 'this run is not a whole run'}.${STAMP ? ' When every engine test passes, that is recorded, and the next run with this engine reuses it.' : ''}`);
 if (process.argv.includes('--which-mode')) process.exit(0);
@@ -5249,6 +5253,9 @@ if (mineB() && SPEED) { // engine-cache in a project: full without a recorded pa
     const reused = hit ? nodeIn(dir, ['tools/hooks/selfcheck.mjs'], env, 1_200_000) :{ status: null, stdout: second, stderr: '' }, out = reused.stdout || '';
     // (on a miss, the base files whose hash moved)
     const moved = hit ? [] : (a => [...new Set([...Object.keys(a.files), ...Object.keys(before.files)])].filter(k => a.files[k] !== before.files[k]))(manifestNow());
+    // (a --tags run reuses the recorded pass too. Lesson (a trial): runs of a project's own new checks named with two
+    // engine guards reran 57 engine scenarios, 4 to 10 minutes each)
+    const tagged = mode('--tags', 'protect-originals');
     const full = mode('--full');
     fs.appendFileSync(path.join(dir, 'tools/hooks/hooks.mjs'), '\n// an engine file changed\n');
     const changed = mode();
@@ -5256,9 +5263,9 @@ if (mineB() && SPEED) { // engine-cache in a project: full without a recorded pa
       && /^selfcheck mode: engine results reused, because this engine \(stamp [0-9a-f]{8}: its files, Node \d+, \w+, \d{4}-\d\d-\d\d\) passed all 700 engine tests/m.test(out)
       && /^FAIL {2}prompt: own probe: runs with engine results reused/m.test(out) && /^PASS {2}(stop|pretool|prompt): /m.test(out) && reused.status === 1
       && /engine scenarios and the engine's other tests reused/.test(out) && /^failing tests: prompt: own probe/m.test(out)
-      && /^selfcheck mode: full, because --full asks for every test/.test(full) && /^selfcheck mode: full, because no full pass is recorded/.test(changed),
+      && /^selfcheck mode: tags \(protect-originals\), engine results reused/.test(tagged) && /^selfcheck mode: full, because --full asks for every test/.test(full) && /^selfcheck mode: full, because no full pass is recorded/.test(changed),
       'engine-cache: a project reuses a recorded engine pass despite new notes and own scenarios, still runs those scenarios and a smoke set, and runs everything with --full or a changed engine file',
-      `first: ${first} | stamp ${stamp}${moved.length ? ` | base files that changed: ${moved.slice(0, 10).join(', ')}` : ''} | reused run exit ${reused.status}: ${out.split(/\r?\n/).filter(l => /^(selfcheck|FAIL|failing)/.test(l)).join(' / ').slice(0, 900)} ${String(reused.stderr || '').slice(-300)} | --full: ${full} | changed: ${changed}`);
+      `first: ${first} | tags run: ${tagged} | stamp ${stamp}${moved.length ? ` | base files that changed: ${moved.slice(0, 10).join(', ')}` : ''} | reused run exit ${reused.status}: ${out.split(/\r?\n/).filter(l => /^(selfcheck|FAIL|failing)/.test(l)).join(' / ').slice(0, 900)} ${String(reused.stderr || '').slice(-300)} | --full: ${full} | changed: ${changed}`);
   } finally { for (const d of [dir, tmp]) try { fs.rmSync(d, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); } catch { } }
 }
 if (mineB() && SPEED) { // engine-proof: a project whose engine is the one the starter proved reuses the starter's full run,
@@ -8332,7 +8339,7 @@ const projectTest = n => OWN_NAMES.has(n) || PROJECT_TESTS.has(n) || /^(project 
 const engineFailed = FAILED.filter(n => !projectTest(n)), enginePassed = PASSED.filter(n => !projectTest(n)).length;
 let modeNote = '';
 if (REUSE) modeNote = `; ${reusedCount} engine scenarios and the engine's other tests reused from ${REUSED.shipped ? "the starter's own full run of this engine" : 'an earlier full pass of this engine'}${engineFailed.length ? `. An engine smoke test failed although this engine passed before: run node tools/hooks/selfcheck.mjs --full` : ''}`;
-else if (STAMP) modeNote = engineFailed.length ? '; full run, engine tests failed, so nothing was recorded for reuse'
+else if (STAMP && PLAIN_RUN) modeNote = engineFailed.length ? '; full run, engine tests failed, so nothing was recorded for reuse'
   : recordPass(STAMP, { passed: enginePassed, node: process.versions.node, platform: process.platform, day: localDay() }) ? `; full run, its ${enginePassed} engine passes recorded: the next run with this engine reuses them` : '; full run (the reuse cache could not be written)';
 const summary = `selfcheck: ${fail ? 'FAIL' : 'ALL PASS'}${TAGS ? ` for ${TAGS.join(', ')}` : ''} (${pass} passed, ${fail} failed${skipped ? `, ${skipped} skipped: packs not installed here` : ''}${modeNote})`;
 try { fs.mkdirSync(path.join(ROOT, '.cache'), { recursive: true }); fs.writeFileSync(path.join(ROOT, '.cache', 'selfcheck-last.txt'), `${LOG_LINES.join('\n')}\n\n${summary}\n`); } catch { }
