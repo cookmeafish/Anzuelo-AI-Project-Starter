@@ -8758,7 +8758,11 @@ export function shortStep(m) {
   // (a claim check quotes the claim it means. Lesson (a trial): "a claim in it is not backed" named none, and the agent
   // rewrote the answer three times by guessing)
   if (m.tag === 'claim-checked') { const q = /"([^"]{4,90})"/.exec(m.msg || ''); if (q) return `Correct the answer: "${q[1].trim()}" is not backed by this turn`; }
-  if (SHORT[m.tag]) { const seen = /\(seen in ([^)]{1,140})\)/.exec(m.msg || ''); return SHORT[m.tag] + (seen ? ` (${seen[1]})` : ''); }
+  // (a run that passed but was piped or chained says why it did not count. Lesson (a trial): "Run the build until it
+  // passes" came back twice after "build | tail -1" runs that passed, and only a plain run was accepted)
+  const how = /its own result is unknown/.test(m.msg || '') ? ': run it on its own, as one plain command (a pipe or ";" after it hides its result)'
+    : /its pass line .* is not in the output/.test(m.msg || '') ? ': its pass line was not in the output (run it without tail, head or grep)' : '';
+  if (SHORT[m.tag]) { const seen = /\(seen in ([^)]{1,140})\)/.exec(m.msg || ''); return SHORT[m.tag] + how + (seen ? ` (${seen[1]})` : ''); }
   // A path becomes its last part ("docs/knowledge/SOURCES.md" → SOURCES.md), so the sentence still reads; code, quotes
   // and asides go. Lesson: removing paths whole left "Add a dated line to for the knowledge" and "files changed .".
   const last = p => p.replace(/[/*]+$/, '').split('/').filter(x => x && !/^[*<]/.test(x)).pop() || '';

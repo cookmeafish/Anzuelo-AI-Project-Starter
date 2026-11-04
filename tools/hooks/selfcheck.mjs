@@ -6015,6 +6015,10 @@ if (mineB()) { // knowledgeDirs, fit, labels and names: what a notes-only projec
     // the claim check's step quotes the claim it means, so the agent fixes that one instead of guessing
     const labC = shortStep({ tag: 'claim-checked', msg: 'The answer says "every export test passed", but helpers worked this session. Say who judged it.' });
     report(labC.includes('"every export test passed"'), 'claim-checked step label quotes the unbacked claim', labC);
+    // a gate run that passed but was piped says so in its step, so the agent runs it plainly instead of piping it again
+    const labP = shortStep({ tag: 'app-build-pass', msg: 'Run the build. (last run did not pass, it ran with other commands after ; or |, or a command in its && chain failed, so its own result is unknown. Run the gate exactly as written: x)' });
+    const labG = shortStep({ tag: 'audit-run', msg: 'Audit. (last run did not pass, its pass line /audit: PASS/ is not in the output: 3 lines)' });
+    report(/on its own, as one plain command/.test(labP) && /without tail, head or grep/.test(labG), 'gate step labels say a piped or filtered run did not count, and how to run it', `${labP} | ${labG}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
