@@ -393,7 +393,7 @@ const DEFAULTS = {
   // user's 585 messages: "shit" ("a shit ton", "holy shit I need this") and "terrible" fired mostly on calm ones and
   // were left out, as were generic words with no evidence ("damn", "crap", "awful"). A project adds its user's own
   // words with "hooks.mjs learn-word", tested against that user's messages.)
-  letdown: "\\b(weren'?t|were not|wasn'?t|was not) (you|it) supposed to\\b|\\byou were (supposed|meant) to\\b|\\byou (\\w+ )?dropped the ball\\b|\\bwhy the (hell|heck)\\b|\\b(f+u+c+k+\\w*|f+ck\\w*|bullshit|wtf|ffs|retard\\w*|piss(ed|ing) (me )?off|pissing me|dis+ap+oint\\w*|angry|annoyed|frustrated|furious|fed up|sick of|ain'?t working)\\b|\\black ?lustre\\b|\\black ?luster\\b|\\bunderwhelming\\b|\\bdisappoint(ing|ed)\\b|\\bnot good enough\\b|\\bnot what i (asked|wanted|meant)\\b|\\bdid you (not|even)\\b|\\bdidn'?t you (find|check|look|see|read|try|add|test)\\b|\\byou (still )?(haven'?t|have not|couldn'?t|could not) (find|fix|add|get)\\b|\\breally no\\b|\\bstill (no|not|missing|broken|wrong|nothing)\\b|\\b(are|is) still missing\\b|\\b(still|again|wrong|broken|missing|supposed|ignor\\w*|forgot|forget|never|seriously|really|none|nothing|didn'?t|did not|not working)\\b[^\\n]{0,80}\\?{3,}|\\b(?<!(most|least|more|less) )useless\\b(?!\\s+(?!(and|but|or|now|again|too|here|as|to|for|so)\\b)[a-z])|\\bcome on\\b(?!\\s+(over|in|board|down|up|by)\\b)|\\b(this|it|that)(?:'s| is| looks| feels) (bad|wrong|broken|lacking|incomplete|half[- ]done|sloppy|thin|bare|basic)\\b|\\b(so|very|pretty) (bad|poor|thin|bare|basic|sloppy)\\b",
+  letdown: "\\b(weren'?t|were not|wasn'?t|was not) (you|it) supposed to\\b|\\byou were (supposed|meant) to\\b|\\byou (\\w+ )?dropped the ball\\b|\\bwhy the (hell|heck)\\b|\\b(f+u+c+k+\\w*|f+ck\\w*|bullshit|wtf|ffs|retard\\w*|piss(ed|ing) (me )?off|pissing me|dis+ap+oint\\w*|angry|annoyed|frustrated|furious|fed up|sick of|ain'?t working)\\b|\\black ?lustre\\b|\\black ?luster\\b|\\bunderwhelming\\b|\\bdisappoint(ing|ed)\\b|\\bnot good enough\\b|\\bnot what i (asked|wanted|meant)\\b|\\bdid you (not|even)\\b|\\bdo you (ever|even) (think|read|check|look|listen|test|consider|care)\\b|\\bstill (has|have|had) (a ton of |a lot of |lots of |so many |many |some )?(issues|problems|bugs|errors|gaps|mistakes)\\b|\\bbecause (you'?re|you are|ur|u r|u are) not (following|doing|reading|checking|listening|using|looking)\\b|\\bdidn'?t you (find|check|look|see|read|try|add|test)\\b|\\byou (still )?(haven'?t|have not|couldn'?t|could not) (find|fix|add|get)\\b|\\breally no\\b|\\bstill (no|not|missing|broken|wrong|nothing)\\b|\\b(are|is) still missing\\b|\\b(still|again|wrong|broken|missing|supposed|ignor\\w*|forgot|forget|never|seriously|really|none|nothing|didn'?t|did not|not working)\\b[^\\n]{0,80}\\?{3,}|\\b(?<!(most|least|more|less) )useless\\b(?!\\s+(?!(and|but|or|now|again|too|here|as|to|for|so)\\b)[a-z])|\\bcome on\\b(?!\\s+(over|in|board|down|up|by)\\b)|\\b(this|it|that)(?:'s| is| looks| feels) (bad|wrong|broken|lacking|incomplete|half[- ]done|sloppy|thin|bare|basic)\\b|\\b(so|very|pretty) (bad|poor|thin|bare|basic|sloppy)\\b",
   // (Lesson: "annoying", "ugh", "why do you keep" and "I keep telling you" were missed, so friction never counted them)
   // ("I asked you to ..., thanks" is a reminder with thanks, not frustration. Lesson: it read as upset; so did "come on over")
   // (checked against a real user's messages: "!!" was praise ("good decisions!! ur doing better!"), and a bare "I told
@@ -628,7 +628,7 @@ const GENERIC = new Set(['fix', 'add', 'added', 'save', 'make', 'get', 'use', 'c
   'think', 'look', 'find', 'see', 'go', 'put', 'set', 'run', 'show', 'tell', 'give', 'keep', 'take', 'work', 'thing', 'here', 'there', 'now', 'just',
   'also', 'please', 'can', 'could', 'would', 'should', 'will', 'what', 'how', 'why', 'which', 'who', 'when', 'where', 'about', 'more', 'some', 'any',
   'all', 'one', 'up', 'out', 'so', 'not', 'no', 'yes', 'ok', 'like', 'have', 'has', 'had', 'was', 'were', 'if', 'then', 'but', 'very', 'really',
-  'let', 'try', 'start', 'open', 'read', 'file', 'files', 'again', 'still', 'same', 'other', 'into', 'over', 'done', 'build', 'got', 'way', 'own',
+  'let', 'try', 'start', 'open', 'read', 'file', 'files', 'again', 'still', 'same', 'time', 'other', 'into', 'over', 'done', 'build', 'got', 'way', 'own',
   's', 't', 'll', 're', 've', 'd', 'm', 'into', 'him', 'her', 'them', 'they', 'he', 'she', 'us', 'them', 'there', 'their', 'something', 'anything',
   // (the same common verbs in Spanish, without accents)
   'anade', 'anadir', 'agrega', 'agregar', 'haz', 'hacer', 'pon', 'poner', 'cambia', 'cambiar', 'quiero', 'puedes', 'necesito'].map(stem));
@@ -687,8 +687,11 @@ export function userText(prompt) {
 export const deadTriggers = triggers => triggers.filter(t => !/\s/.test(String(t).trim()) && !keyWords(t).some(w => !GENERIC.has(w)));
 // Quoted material is what the request is about, not the request: code fences, "> " quote lines and long quoted
 // passages don't route. Lesson: "reply to this customer: 'the app keeps crashing when I log in'" routed to bugfix.
+// (an apostrophe inside a word is no quote mark. Lesson (a field report): the text between "doesn't" and "don't" was
+// taken for a quotation and dropped, and with it the request's "there might be other ones too")
 export const unquoted = s => String(s || '').replace(/```[\s\S]*?(```|$(?![\s\S]))/g, ' ').replace(/^\s*>.*$/gm, ' ')
-  .replace(/(["“'‘])([^"”'’\n]{40,})(["”'’])/g, ' ');
+  .replace(/["“][^"”\n]{40,}["”]/g, ' ')
+  .replace(/(?<![\p{L}\p{N}])['‘](?:[^'’\n]|(?<=\p{L})['’](?=\p{L})){40,}?['’](?![\p{L}\p{N}])/gu, ' ');
 // The fewest consecutive key words of the message that hold every key word of a trigger (Infinity if none).
 const keySpan = (seq, k) => {
   let best = Infinity;
@@ -731,12 +734,17 @@ export function route(prompt, pbs, { relayed = false } = {}) {
   const low = ` ${text.toLowerCase()} `;
   // (a verb the user tells the agent not to do is no request for it: "don't make the menu longer" is no "make me a
   // menu". Lesson (a field report): a change to an existing item routed to the runbook for making a new one)
-  const keyText = fileCapsOut(text).replace(/\b(don'?t|do not|never)\s+[a-z]+/gi, '$1');
-  const seq = keyWords(keyText), words = new Set(seq);
+  // ("make sure" and "make sense" make nothing. Lesson (a field report): "an item that doesn't make sense for the
+  // menu" matched "make me a menu")
+  // (a trigger that holds a "don't" itself, "totals don't add up", is read against the words as typed)
+  const NEG = /\b(don'?t|do not|never)\b/i;
+  const keyText = fileCapsOut(text).replace(/\b(don'?t|do not|never)\s+[a-z]+/gi, '$1').replace(/\bmak(e|es|ing) (sure|sense|certain)\b/gi, ' ');
+  const seq = keyWords(keyText), words = new Set(seq), wordsRaw = new Set(keyWords(fileCapsOut(text)));
   // A trigger's key words sit in one clause: a ";", a sentence end or a new line ends a clause. Lesson (a field report):
   // "commit your work first; run the tests" matched a "first run" trigger.
-  const clauses = keyText.split(/[;!?\n]|\.(?=\s|$)/).map(keyWords).filter(c => c.length);
-  const span = k => Math.min(...clauses.map(c => keySpan(c, k)));
+  const clausesOf = s => s.split(/[;!?\n]|\.(?=\s|$)/).map(keyWords).filter(c => c.length);
+  const clauses = clausesOf(keyText), clausesRaw = clausesOf(fileCapsOut(text));
+  const spanIn = (cs, k) => Math.min(...cs.map(c => keySpan(c, k)));
   const scored = [];
   const off = new Set(suspendedItems().map(s => s.item.replace(/^(skill|runbook):/, ''))); // REQ: friction-suspend
   for (const pb of pbs) {
@@ -758,7 +766,8 @@ export function route(prompt, pbs, { relayed = false } = {}) {
       // a one-word trigger also matches its plural or past form ("bug" in "two bugs"); a longer one needs its key words
       // ...and those key words close together: "make it so the app can be installed and started on a new machine" is
       // no "start a new app" (Lesson: a live trial routed it to app-foundation)
-      if (common ? !exact : !exact && !(k.every(w => words.has(w)) && (k.length >= 2 ? span(k) <= k.length + 2 : !/\s/.test(t.trim())))) continue;
+      const [ws, cs] = NEG.test(t) ? [wordsRaw, clausesRaw] : [words, clauses];
+      if (common ? !exact : !exact && !(k.every(w => ws.has(w)) && (k.length >= 2 ? spanIn(cs, k) <= k.length + 2 : !/\s/.test(t.trim())))) continue;
       // A trigger led by a question word ("what are the options", "which is better") asks that question: its question
       // word comes first in the message too, before the rest of its key words. Lesson: "add a --dry-run option that
       // only prints what would be renamed" matched "what are the options" and sent a feature to the research skill.
@@ -4259,7 +4268,9 @@ export function isUpset(prompt, cfg = config()) {
 }
 // A sign that a message in capitals is about something wrong: "??" or "!!", or a word for a problem, a repeat or blame,
 // or for being misunderstood (Lesson (a field report): a reply shouted as "you don't understand" read as calm).
-const TROUBLE = /\?\?|!!|\b(again|(you )?(don'?t|do not|didn'?t|did not) (understand|get it|listen)|not listening|missed (my|the) point|still|why|stop|wrong|broke|broken|bug|bugs|error|errors|fail|fails|failed|failing|crash\w*|issue|issues|problem|ignor\w*|forgot|forget|supposed to|this time|hold up|wait|seriously|wtf|shit|fuck\w*|damn|hell|angry|pissed|pissing|unacceptable|terrible|sloppy|horrible|awful|ridiculous|dumb|stupid|useless|i (already )?(said|told you|asked)|what i (said|told you|asked)|not working|doesn'?t work|should not happen|no my|otra vez|por qu[eé]|basta|mal)\b/i;
+// ("!!" after a word of delight is excitement. Lesson (a field report): a rule explained with "which is crazy!!" and
+// words in capitals for emphasis read as upset, and its rule hint was dropped)
+const TROUBLE = /\?\?|(?<!\b(crazy|awesome|amazing|great|cool|nice|wow|yes|yay|insane|love it|so good))!!|\b(again|(you )?(don'?t|do not|didn'?t|did not) (understand|get it|listen)|not listening|missed (my|the) point|still|why|stop|wrong|broke|broken|bug|bugs|error|errors|fail|fails|failed|failing|crash\w*|issue|issues|problem|ignor\w*|forgot|forget|supposed to|this time|hold up|wait|seriously|wtf|shit(?!\s*(tons?|loads?)\b)|fuck\w*|damn|hell|angry|pissed|pissing|unacceptable|terrible|sloppy|horrible|awful|ridiculous|dumb|stupid|useless|i (already )?(said|told you|asked)|what i (said|told you|asked)|not working|doesn'?t work|should not happen|no my|otra vez|por qu[eé]|basta|mal)\b/i;
 // ---------- the user's whitelist and the trigger log (REQ: trigger-words) ----------
 // Words that set nothing off by themselves for this user, per kind (config "ignoreWords": {"upset": [...], "praise":
 // [...], "rule": [...]}), kept in tools/hooks/config.json so upgrades keep them. Capitals and every other trigger word
@@ -7768,7 +7779,11 @@ export function holds(c, x) {
     // matched its own passing runs, and 9 Stop rounds asked to run the tests)
     const exact = r(spec.cmd), bare = (() => { try { return r(String(spec.cmd).replace(/\\?["']/g, '')); } catch { return exact; } })();
     const cmdRe = { test: s => exact.test(s) || bare.test(String(s).replace(/["']/g, '')) };
-    const attempts = x.runs.filter(rn => cmdRe.test(gateText(rn.cmd)) && !engineNote(rn.cmd));
+    // (a command that only prints or appends text naming the tool runs nothing. Lesson (a field report): an echo of
+    // "the tool's tests PASS" into the notes file was taken for the last run, the notes file for its output, and an old
+    // FAIL line in it blocked a turn whose real run had passed)
+    const ranIt = rn => cmdRe.test(gateText(cmdHead(rn.cmd).replace(/(^|[;&|(\n]\s*)(echo|printf|Write-Output|Write-Host)\b("[^"\n]*"|'[^'\n]*'|[^;&|\n])*/gi, '$1')));
+    const attempts = x.runs.filter(rn => cmdRe.test(gateText(rn.cmd)) && ranIt(rn) && !engineNote(rn.cmd));
     // (a run still going has no output yet: the check run from inside the same command ("audit | tail -1 && hooks.mjs
     // check") is judged on the last finished run. Lesson (efficiency trials): an audit that had printed "audit: PASS" was
     // reported as "pass line not in the output", and the whole audit ran again with nothing changed)

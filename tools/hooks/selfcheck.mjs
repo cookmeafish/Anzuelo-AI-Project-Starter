@@ -1129,6 +1129,11 @@ const STOP = [
     files: { 'data/v.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md' + FIN, expect: { block: true, tags: ['data-valid'] } },
   { name: 'toolPassed: validator PASS: passes', prompt: 'add the new vendor data', edit: VALIDATOR, tools: [pb('project'), bash('python tools/validate.py data/v.json', 'RESULT: PASS')],
     files: { 'data/v.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md' + FIN, expect: { block: false } },
+  // (an echo that only names the tool runs nothing. Lesson (a field report): an echo of "validate PASS" into the notes
+  // file was taken for the last run, the notes file for its output, and an old FAIL line in it blocked a passing turn)
+  { name: 'toolPassed: an echo naming the validator into the notes file after its passing run: passes', prompt: 'add the new vendor data', edit: VALIDATOR,
+    tools: [pb('project'), bash('python tools/validate.py data/v.json', 'RESULT: PASS'), bash('echo "Sweep: validate.py PASS on every vendor file" >> .cache/turn-notes.md', '')],
+    files: { 'data/v.json': '{}', 'docs/CHANGELOG.md': 'x', '.cache/turn-notes.md': 'Checked: an earlier run said RESULT: FAIL bad price\nSweep: validate.py PASS on every vendor file\n' }, answer: 'Playbook: project.md' + FIN, expect: { not: ['data-valid'] } },
   // Lesson (a field report): a two-command gate run as one group into a file was judged on what the command printed after
   ...[['Built 4 menus\nRESULT: PASS', { not: ['data-valid'] }, 'passes'], ['Traceback\nERROR: no menus built', { tags: ['data-valid'] }, 'blocked']].map(([out, expect, says]) => ({
     name: `toolPassed: a two-command gate run as one group with its output sent to a file is judged on that file (${/Built/.test(out) ? 'built' : 'not built'}): ${says}`, prompt: 'add the new vendor data',
@@ -2334,6 +2339,22 @@ PROMPT.push(
   { name: 'route: "don\x27t make the plugin slower" is no request to make a plugin', prompt: 'rename the export button, but don\x27t make the plugin any slower', hasNot: ['ROUTE: project'] },
   { name: 'route: "make a plugin" still routes to the project runbook', prompt: 'make a plugin for my team', has: ['ROUTE: project'] },
   { name: 'scope-general: the prompt hint names it for "there might be other ones too"', prompt: 'the spring menu has a heavy stew, and there might be other dishes that are too heavy for it too', has: ['EXAMPLES:'] },
+  // (an apostrophe inside a word is no quote mark. Lesson (a field report): the text between two contractions was
+  // dropped as a quotation, and with it the request's "there might be other ones")
+  { name: 'scope-general: text between two contractions still counts ("doesn\'t ... don\'t")', prompt: 'swap the stew, it doesn\'t suit the spring menu at all, and there might be other dishes on it that don\'t suit spring either', has: ['EXAMPLES:'] },
+  { name: 'route: a double-quoted passage with contractions is still quoted material', prompt: 'reply to this guest: "the soup doesn\'t taste right and I can\'t find the allergy list for the plugin anywhere on the menu"', hasNot: ['ROUTE: project'] },
+  // ("make sure" and "make sense" make nothing)
+  { name: 'route: "make sure the plugin loads" is no request to make a plugin', prompt: 'make sure the plugin loads before the menu opens', hasNot: ['ROUTE: project'] },
+  // (an everyday phrase is no trigger: "at the same time" meant "also". Lesson (a field report): it routed requests and
+  // a shouted complaint ending "the same every time" to the parallel-agents skill)
+  { name: 'route: "the same every time" and "at the same time, ..." do not route to parallel-agents', prompt: 'at the same time, the soups taste the same every time, check the salt', hasNot: ['SKILL: parallel-agents'] },
+  // upset-learned: complaints the patterns missed. Lesson (a field report): a calm "still has a ton of issues because
+  // you're not following" and a shouted "DO YOU EVER THINK ABOUT THESE THINGS?" read as calm
+  { name: 'upset-learned: "still has a ton of issues ... because you\'re not following" is upset', prompt: 'the spring menu still has a ton of issues and its because ur not following the season', has: ['THE USER SOUNDS UPSET'] },
+  { name: 'upset-learned: "DO YOU EVER THINK ABOUT THESE THINGS?" is upset', prompt: 'DO YOU EVER THINK ABOUT THESE THINGS?', has: ['THE USER SOUNDS UPSET'] },
+  // (excitement and an intensifier are not anger. Lesson (a field report): a rule explained with "crazy!!", "a shit ton"
+  // and words in capitals for emphasis read as upset, and its rule hint was dropped)
+  { name: 'upset-learned: emphasis with "crazy!!" and "a shit ton of" in capitals is no upset', prompt: 'this stock is crazy!! a soup needs a shit ton of herbs, REALLY FRESH HERBS NOT DRIED ONES', hasNot: ['THE USER SOUNDS UPSET'] },
   { name: 'route: "add the starter to this folder" still routes to the engine runbook', prompt: 'please add the starter to this folder', has: ['ROUTE: engine'] },
   { name: 'route: "remove the old starter from my project" still routes to the engine runbook', prompt: 'remove the old starter from my project', has: ['ROUTE: engine'] },
   { pack: 'knowledge', name: 'route: "i added" alone does not route to ingest', prompt: 'i added a line to the notes, does it read well', hasNot: ['ROUTE: ingest'] },
