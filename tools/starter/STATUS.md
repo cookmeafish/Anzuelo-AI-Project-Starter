@@ -77,6 +77,10 @@ docs/STATUS.md, which here is the template new projects start from).
   Chain green (1580 passed, trial 132/132; sweep 21 as before). Both projects took 5c847ba (f62e9b5 1557, f98df09 1573);
   ff4c0c7 sent to both, open: their --full runs and a Stop timing on a quiet machine (655 ms under load, 384 ms quiet).
   The project's own focus test (passes generic cards that fill a basic job) is its session's to change: told.
+- 2026-11-04 06:40 UTC: 247f74d from a replay of every real user message of both projects: contractions are no quotes, idioms
+  and everyday phrases route nothing, missed and false upsets fixed, an echo naming a gate tool is no run of it. Chain green
+  (1590 passed, trial 132/132; sweep 21 as before), proof 84047bf, sent to both; open: their --full runs. Trial round v25
+  (12 trials, frozen e341b18) running, then blind judging.
 - 2026-11-04 03:30 UTC: b15445e (two false Stop steps from one project: notes rewritten with CRLF mid-turn lost the turn start, so
   earlier turns' lessons were asked for; a verdict whose next sentence said who judged it was still flagged). Chain green (1576
   passed, trial 132/132; sweep 21 as before). Both linked copies on 5c847ba; upgrade sent to both, open: their --full runs.
