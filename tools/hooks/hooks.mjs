@@ -1593,11 +1593,14 @@ const TEST_RUN = /\b(tests?|self-?tests?|selfcheck|suites?|builds?|lint|type-?ch
 // (what the user said is no verdict of the agent's, and a date, time or version is no count of items. Lesson (a field
 // report): "on 2026-10-26 you said its draw was fine at 9" was blocked three times in one turn)
 // ("I ran every check myself" says who judged. Lesson (a field report): it was flagged until the turn's last round)
-const JUDGED_BY = /\b(you (said|wrote|told me|asked)|I (re-?)?ran [^.\n]{0,60}\bmyself|the user (said|wrote)|helpers?|sub-?agents?|agents?|I (re-?)?(checked|judged|read|compared|reviewed|scored) (each|every|all|them|it|one by one)|only (checks?|confirms?|found|means)|not (re-?)?(checked|judged|verified|read))\b|(?<!\p{L})(ayudantes?|sub-?agentes?|agentes?)(?!\p{L})/iu;
+const JUDGED_BY = /\b(you (said|wrote|told me|asked)|I (re-?)?ran [^.\n]{0,60}\bmyself|the user (said|wrote)|helpers?|sub-?agents?|agents?|I (re-?)?(checked|judged|read|compared|reviewed|scored) (each|every|all|them|it|this|these|that|those|one by one)|only (checks?|confirms?|found|means)|not (re-?)?(checked|judged|verified|read))\b|(?<!\p{L})(ayudantes?|sub-?agentes?|agentes?)(?!\p{L})/iu;
 export function groupVerdictClaim(answer) {
   // (a phrase in quotes is named, not claimed. Lesson, dogfood: an answer that quoted the misleading claims was flagged)
   const quoted = /"[^"\n]{1,600}"|“[^”\n]{1,600}”|«[^»\n]{1,600}»/g, notCount = /\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}:\d{2}\b|\bv?\d+(\.\d+)+\b/g;
-  return claimSentences(answer).find(s => { const t = s.replace(quoted, ' ').replace(notCount, ' '); return GROUP_VERDICT.test(t) && !TEST_RUN.test(t) && !JUDGED_BY.test(t); }) || '';
+  // (the sentence right after the verdict may say who judged it. Lesson (a field report): "The list passes the new checks.
+  // I judged this myself this turn, with no helper." was flagged for two rounds after the correction said so)
+  const ss = claimSentences(answer), clean = s => String(s || '').replace(quoted, ' ').replace(notCount, ' ');
+  return ss.find((s, i) => { const t = clean(s); return GROUP_VERDICT.test(t) && !TEST_RUN.test(t) && !JUDGED_BY.test(t) && !JUDGED_BY.test(clean(ss[i + 1])); }) || '';
 }
 // A sentence in which the agent says it tested a page or app by hand (not one that asks the user to, nor a negation).
 const BY_HAND = /\b(by hand|manually|hand-tested)\b|(?<!\p{L})(a mano|manualmente)(?!\p{L})/iu;
@@ -7330,7 +7333,11 @@ export function turnRecords(notes) {
   if (!Number.isInteger(off) || off <= 0) return n;
   if (typeof tail === 'string' && tail && n.slice(Math.max(0, off - tail.length), off) !== tail) {
     const at = n.lastIndexOf(tail);
-    return at >= 0 ? n.slice(at + tail.length) : n;
+    if (at >= 0) return n.slice(at + tail.length);
+    // (a rewrite may change the line endings. Lesson (a field report): a script rewrote the notes with CRLF, the tail
+    // was not found, and lessons of 20 earlier turns were asked for again, blocking a finished turn twice)
+    const lf = s => s.replace(/\r\n/g, '\n'), nl = lf(n), tl = lf(tail), at2 = nl.lastIndexOf(tl);
+    return at2 >= 0 ? nl.slice(at2 + tl.length) : n;
   }
   return off <= n.length ? n.slice(off) : n;
 }

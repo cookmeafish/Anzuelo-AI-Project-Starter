@@ -3501,6 +3501,14 @@ STOP.push(
   { name: 'claim-checked: "I ran every check myself ... and all of them passed", after helpers worked: passes', prompt: 'did every recipe earn its place on the menus?',
     before: [{ name: 'Agent', input: { prompt: 'Read AGENTS.md first and follow its rules. Review the menus, one note per recipe.' }, result: 'done: 25 menus reviewed' }],
     answer: 'I ran every check myself on the final menus, after the last change, and all of them passed.', expect: { not: ['claim-checked'] } },
+  // (who judged it may come in the next sentence, or as "I judged these myself". Lesson (a field report): a corrected
+  // claim that said so was flagged for two more rounds)
+  { name: 'claim-checked: "All 21 menus pass the new checks. I checked each one myself", after helpers worked: passes', prompt: 'did every recipe earn its place on the menus?',
+    before: [{ name: 'Agent', input: { prompt: 'Read AGENTS.md first and follow its rules. Review the menus, one note per recipe.' }, result: 'done: 25 menus reviewed' }],
+    answer: 'All 21 menus pass the new checks. I checked each one myself this turn, with no helper.', expect: { not: ['claim-checked'] } },
+  { name: 'claim-checked: "All 21 menus pass the new checks: I judged these myself", after helpers worked: passes', prompt: 'did every recipe earn its place on the menus?',
+    before: [{ name: 'Agent', input: { prompt: 'Read AGENTS.md first and follow its rules. Review the menus, one note per recipe.' }, result: 'done: 25 menus reviewed' }],
+    answer: 'All 21 menus pass the new checks: I judged these myself this turn, with no helper.', expect: { not: ['claim-checked'] } },
   { name: 'claim-checked: an answer that quotes such a claim to describe it, after helpers worked: passes', prompt: 'what did you fix?',
     before: [{ name: 'Agent', input: { prompt: 'Read AGENTS.md first and follow its rules. Review the menus, one note per recipe.' }, result: 'done: 25 menus reviewed' }],
     answer: 'The check now blocks answers like the two that misled you ("21 were fine.", "The other 21 menus already had their notes and passed.").', expect: { not: ['claim-checked'] } },
@@ -7972,6 +7980,14 @@ if (mineB() && (!TAGS || TAGS.includes('upset-acknowledged'))) { // REQ: upset-a
     fs.writeFileSync(path.join(dir, '.cache/turn-notes.md'), 'Done 3: this turn, the file rewritten with a heredoc\nDone 4: and one more\n');
     const rewritten = spawnSync(process.execPath, ['--input-type=module', '-e', `import { turnRecords, ledgerLines } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; import fs from 'fs'; console.log([...ledgerLines(turnRecords(fs.readFileSync('.cache/turn-notes.md', 'utf8'))).keys()].join(','));`], { cwd: dir, encoding: 'utf8', env: { ...process.env, ...env } }).stdout.trim();
     report(rewritten === '3,4', 'runbook-ledger: a notes file rewritten during the turn, not appended to, keeps every record of this turn', rewritten);
+    // (a rewrite that changes the line endings still finds where this turn starts. Lesson (a field report): a script
+    // rewrote the notes with CRLF, and the lessons of every earlier turn were asked for again)
+    fs.writeFileSync(path.join(dir, '.cache/turn-notes.md'), 'Done 9: before this turn\n');
+    fs.rmSync(path.join(dir, 'tools/hooks/state/turn.json'), { force: true });
+    run(dir, 'prompt', { prompt: 'rename the import button' }, env);
+    fs.writeFileSync(path.join(dir, '.cache/turn-notes.md'), 'Done 9: before this turn\r\nDone 5: this turn, saved with CRLF\r\n');
+    const crlf = spawnSync(process.execPath, ['--input-type=module', '-e', `import { turnRecords, ledgerLines } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; import fs from 'fs'; console.log([...ledgerLines(turnRecords(fs.readFileSync('.cache/turn-notes.md', 'utf8'))).keys()].join(','));`], { cwd: dir, encoding: 'utf8', env: { ...process.env, ...env } }).stdout.trim();
+    report(crlf === '5', 'runbook-ledger: a notes file rewritten with other line endings during the turn counts only this turn\'s records', crlf);
     report(/⚡ running the debug skill \(✅ \d+ items to check off\)/.test(runSkill) && !/running/.test(runAgain) && /📖 running the status-lines runbook \(✅ \d+ items to check off\)/.test(runPb) && /⚡ running the learn-from-upset skill/.test(runTool),
       'upset-acknowledged: each runbook or skill the agent opens (Read, a command, the Skill tool) shows "running the X runbook" once', JSON.stringify([runSkill, runAgain, runPb, runTool].map(o => o.slice(0, 160))));
   } finally { giveBack(dir); }
