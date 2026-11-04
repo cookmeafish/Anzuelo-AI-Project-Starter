@@ -160,35 +160,35 @@
             "answerMatches": "\\|\\s*(PASS|FAIL|N/?A)\\b"
           },
           {
-            "answerMatches": "security review\\W{0,6}((it|this|all|everything|every|areas?|has|have|was)\\s+){0,3}(pass(ed|es)?|clean|found nothing|found no (problems|issues))\\b(?:(?!\\n[ \\t]*\\n)[\\s\\S]){0,400}?docs/reviews/security-",
+            "answerMatches": "security review\\W{0,6}((?!(?:not|never|no|yet)\\b)(?![\\w-]*n't\\b)[\\w'-]+\\s+){0,3}(pass(ed|es)?|clean|found nothing|found no (problems|issues))\\b[\\s\\S]*?docs[\\\\/]reviews[\\\\/]security-",
             "answerNotMatches": "(?c)\\bFAIL\\s*(->|→)|[:|]\\s*\\**FAIL\\b|^[ \\t]*[-*]?[ \\t]*\\**FAIL\\b|\\bFAILs\\b|\\b(open|one|two|three|\\d+)\\s+FAILs?\\b|\\bFAIL(ed)?\\s+(is|are|was|were)\\s+(open|left)\\b|\\b(NOT RUN|NO PROBADO)\\b",
             "filesChanged": [
               "docs/reviews/security-*.md"
             ]
           },
           {
-            "answerMatches": "^(?=[\\s\\S]*security review(?:(?!\\n[ \\t]*\\n)[\\s\\S]){0,400}?docs/reviews/security-)(?=[\\s\\S]*^[^|\\n]*\\bFAIL\\s*(->|→)\\s*(fixed|open)\\b)",
+            "answerMatches": "^(?=[\\s\\S]*security review(?:(?!\\n[ \\t]*\\n)[\\s\\S]){0,400}?docs[\\\\/]reviews[\\\\/]security-)(?=[\\s\\S]*^[^|\\n]*\\bFAIL\\s*(->|→)\\s*(fixed|open)\\b)",
             "answerNotMatches": "security review\\W{0,6}((it|this|all|everything|every|areas?|has|have|was)\\s+){0,3}pass(ed|es)?\\b(?!\\s+after\\b)|^(?=[\\s\\S]*\\bFAIL\\s*(->|→)\\s*open\\b)[\\s\\S]*security review\\W{0,6}((it|this|all|everything|every|areas?|has|have|was)\\s+){0,3}pass",
             "filesChanged": [
               "docs/reviews/security-*.md"
             ]
           },
           {
-            "answerMatches": "security review[^\\n]{0,80}\\b(found|caught)\\b[^\\n]{0,160}\\bfixed\\b(?:(?!\\n[ \\t]*\\n)[\\s\\S]){0,400}?docs/reviews/security-",
+            "answerMatches": "security review[^\\n]{0,80}\\b(found|caught)\\b[^\\n]{0,160}\\bfixed\\b(?:(?!\\n[ \\t]*\\n)[\\s\\S]){0,400}?docs[\\\\/]reviews[\\\\/]security-",
             "answerNotMatches": "\\bFAIL\\s*(->|→)\\s*open\\b",
             "filesChanged": [
               "docs/reviews/security-*.md"
             ]
           },
           {
-            "answerMatches": "^(?=[\\s\\S]*security review(?:(?!\\n[ \\t]*\\n)[\\s\\S]){0,400}?docs/reviews/security-)(?=[\\s\\S]*\\b(NOT RUN|NO PROBADO)\\s*(->|→|\\(|-|:)\\s*\\S)",
+            "answerMatches": "^(?=[\\s\\S]*security review(?:(?!\\n[ \\t]*\\n)[\\s\\S]){0,400}?docs[\\\\/]reviews[\\\\/]security-)(?=[\\s\\S]*\\b(NOT RUN|NO PROBADO)\\s*(->|→|\\(|-|:)\\s*\\S)",
             "answerNotMatches": "security review\\W{0,6}((it|this|all|everything|every|areas?|has|have|was)\\s+){0,3}pass(ed|es)?\\b(?!\\s+after\\b)|\\bFAIL\\s*(->|→)\\s*open\\b",
             "filesChanged": [
               "docs/reviews/security-*.md"
             ]
           },
           {
-            "answerMatches": "^(?=[\\s\\S]*security review(?:(?!\\n[ \\t]*\\n)[\\s\\S]){0,500}?docs/reviews/security-)(?=[\\s\\S]*security review(?:(?!\\n[ \\t]*\\n)[\\s\\S]){0,300}?\\b(\\d+|one|two|three|four|five|six|an?)\\s+(?:[\\w-]+\\s+){0,2}(items?|problems?|issues?|findings?|risks?|points?|gaps?)\\s+(?:are|is|remain|stay|left)\\s+(?:still\\s+)?open\\b)",
+            "answerMatches": "^(?=[\\s\\S]*security review(?:(?!\\n[ \\t]*\\n)[\\s\\S]){0,500}?docs[\\\\/]reviews[\\\\/]security-)(?=[\\s\\S]*security review(?:(?!\\n[ \\t]*\\n)[\\s\\S]){0,300}?\\b(\\d+|one|two|three|four|five|six|an?)\\s+(?:[\\w-]+\\s+){0,2}(items?|problems?|issues?|findings?|risks?|points?|gaps?)\\s+(?:are|is|remain|stay|left)\\s+(?:still\\s+)?open\\b)",
             "answerNotMatches": "security review\\W{0,6}((it|this|all|everything|every|areas?|has|have|was)\\s+){0,3}pass(ed|es)?\\b(?!\\s+after\\b)",
             "filesChanged": [
               "docs/reviews/security-*.md"
