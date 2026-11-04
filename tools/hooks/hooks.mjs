@@ -4696,7 +4696,15 @@ export function promptHints(prompt, cfg = config(), withNotices = true, { relaye
   // (a long message is mostly pasted material, a transcript or a log, that names everything: only its start and end,
   // where the user's own words sit, route. Lesson (a field report): two pasted video transcripts set off the design,
   // architecture, teaching and data-analysis skills)
-  if (!relayed && m.expanded.length > PASTE_LONG) m.expanded = `${m.expanded.slice(0, 600)} ... ${m.expanded.slice(-600)}`;
+  // (a short lead-in that ends in a colon introduces what follows: the lead-in, and a short closing paragraph set apart
+  // from the material, are the user's words. Lesson (a trial): "save this transcript as notes:" and one long pasted
+  // paragraph set off eight routes from words in the transcript's own start and end)
+  if (!relayed && m.expanded.length > PASTE_LONG) {
+    // (paragraphs come from the message itself: the route text has its line breaks folded)
+    const paras = p.split(/\n\s*\n/), lead = paras[0].trim(), last = paras.length > 2 ? paras[paras.length - 1].trim() : '';
+    m.expanded = lead.length <= 400 && /:$/.test(lead) ? typedRouteText(expandMenu(`${lead}${last.length <= 300 && last ? ` ... ${last}` : ''}`).expanded)
+      : `${m.expanded.slice(0, 600)} ... ${m.expanded.slice(-600)}`;
+  }
   for (const c of m.known) {
     const r = m.codes[c];
     hints.push(`MENU CODE ${c} = "${r.means}". Runbook: docs/playbooks/${r.playbook}. Treat it exactly as if the user typed that in full; the rest of the message adds details.`);
@@ -5401,7 +5409,7 @@ function pretoolHits(data, cfg) {
     return out;
   }
   const name = data.tool_name || '', inp = data.tool_input || {};
-  add(upsetUnacknowledged(name, inp));
+  add(upsetUnacknowledged(name, inp, data.transcript_path || ''));
   // REQ: outward-gate (MCP tools). A connected service's tool that sends, posts, creates or deletes acts outside the
   // project: it needs the user's OK in this request, like the commands below.
   if (/^mcp__/.test(name) && OUTWARD_MCP.test(name.replace(/^mcp__[^_]+(?:_[^_]+)*?__/, '')) && !isSuspended('check:outward-gate')) {
@@ -6008,7 +6016,7 @@ export const readOnlyChain = cmd => {
   const c = String(cmd || '').replace(/"(?:[^"\\]|\\.)*"|'[^']*'/g, 'Q').replace(/\d?>&\d|\d?>\s*\/dev\/null|\d?>\s*\$null|\bNUL\b/gi, ' ');
   return !/>|\btee\b|\b(sed|perl)\b[^|;&\n]*\s-i|--in-place|\bOut-File\b|\bSet-Content\b/i.test(c) && c.split(/&&|\|\||;|\n|\|/).every(s => !s.trim() || READ_ONLY.test(s.trim()) || READ_PART.test(s.trim()));
 };
-export function upsetUnacknowledged(name, inp) {
+export function upsetUnacknowledged(name, inp, tp = '') {
   const pend = readJSON(stateFile(UPSET_PENDING), {}), turnAt = Date.parse(readJSON(stateFile('turn.json'), {}).at || '');
   if (!pend.at || Date.parse(pend.at) < (turnAt || 0) - 5000 || isSuspended('check:upset-acknowledged')) return null;
   const notes = read(abs(NOTES_FILE)), it = issueCount(notes) > pend.issues ? issueParts(lastIssue(notes)) : null;
@@ -6017,6 +6025,18 @@ export function upsetUnacknowledged(name, inp) {
   const changes = /^(Write|Edit|MultiEdit|NotebookEdit)$/.test(name) ? rel(String(inp.file_path || inp.notebook_path || '').replace(/\\/g, '/')) !== NOTES_FILE
     : /^(Bash|PowerShell|shell)$/.test(name) ? !readOnlyChain(cmd) && !/turn-notes\.md|hooks\.mjs["']?\s+(waive|why)\b/.test(cmd) : false;
   if (!changes) return null;
+  // (an Issue line the agent already showed the user in its own text counts too: it is copied to the notes, where the
+  // end-of-turn checks read it. Lesson (a trial): the line was in the chat, and 6 tool calls were still held for it)
+  if (!it?.ok && tp) {
+    const since = Date.parse(pend.at) - 5000;
+    const said = transcriptRows(tp).filter(r => r.type === 'assistant' && !(Date.parse(r.timestamp || '') < since))
+      .flatMap(r => Array.isArray(r.message?.content) ? r.message.content.filter(c => c?.type === 'text').map(c => c.text) : []).join('\n');
+    const shown = lastIssue(said);
+    if (shown && issueParts(shown).ok) {
+      try { fs.mkdirSync(path.dirname(abs(NOTES_FILE)), { recursive: true }); fs.appendFileSync(abs(NOTES_FILE), `\nIssue: ${shown.replace(/\*+/g, '').trim()}\n`); } catch { }
+      writeState(UPSET_PENDING, {}); return null;
+    }
+  }
   const why = !it ? '' : !it.file ? ` Your Issue line names no runbook or skill that exists${it.runbook ? ` ("${it.runbook}" was not found)` : ''}.` : ' Your Issue line has no "fixed when" outcome of at least 3 words.';
   return `REQ: upset-acknowledged. The user sounds upset, and has not been shown that you understood yet.${why} First open skills/learn-from-upset/SKILL.md, pick the runbook or skill that finds the root cause and fixes this (DIRECTORY.md; debug for a bug), and write one line to ${NOTES_FILE}: "Issue: <what went wrong, in general terms> | runbook: <name> | fixed when: <a checkable outcome>" (the user sees it as "acknowledged" at once), or "Issue: none - <why>" if nothing is wrong (an Edit of that file, or a shell command that appends to it, goes through now; other changes wait). Then retry.`;
 }
@@ -8735,6 +8755,9 @@ export function shortStep(m) {
   // (a check set off by what a file now says names that file and the words, so a false alarm shows as one. Lesson (a
   // field report): "Run the security review" named no file, and a build ran the whole review for another
   // session's edit)
+  // (a claim check quotes the claim it means. Lesson (a trial): "a claim in it is not backed" named none, and the agent
+  // rewrote the answer three times by guessing)
+  if (m.tag === 'claim-checked') { const q = /"([^"]{4,90})"/.exec(m.msg || ''); if (q) return `Correct the answer: "${q[1].trim()}" is not backed by this turn`; }
   if (SHORT[m.tag]) { const seen = /\(seen in ([^)]{1,140})\)/.exec(m.msg || ''); return SHORT[m.tag] + (seen ? ` (${seen[1]})` : ''); }
   // A path becomes its last part ("docs/knowledge/SOURCES.md" → SOURCES.md), so the sentence still reads; code, quotes
   // and asides go. Lesson: removing paths whole left "Add a dated line to for the knowledge" and "files changed .".

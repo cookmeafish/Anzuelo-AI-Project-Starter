@@ -1355,6 +1355,10 @@ const PROMPT = [
   // four unrelated skills)
   { name: 'paste-routing: a skill named only in the middle of a long paste is not suggested', prompt: `save these two transcripts as notes:\n${'the presenter waters the plants and talks about soil mixes. '.repeat(40)} then he says you should debug the failing import test. ${'more talk about pots and seeds. '.repeat(60)}\nthanks`, hasNot: ['SKILL: debug'] },
   { name: 'paste-routing: the same words in a short message still suggest the skill', prompt: 'debug the failing import test', has: ['SKILL: debug'] },
+  // (a lead-in ending in a colon introduces the material: words at the material's own start don't route. Lesson (a
+  // trial): a pasted lecture's opening sentences set off eight routes)
+  { name: 'paste-routing: words at the start of the material after a "...:" lead-in are not routed', prompt: `save this lecture as notes, with a short summary:\n\nthe speaker says you should debug the failing import test first. ${'more talk about pots and seeds. '.repeat(110)}`, hasNot: ['SKILL: debug'] },
+  { name: 'paste-routing: a short closing paragraph after the material still routes', prompt: `here is the lecture:\n\n${'more talk about pots and seeds. '.repeat(110)}\n\nthen debug the failing import test`, has: ['SKILL: debug'] },
   // (complaint words inside a long paste are not the user's mood. Lesson (a field report): a pasted session transcript
   // with two calm lines read as an upset user)
   { name: 'paste-routing: complaint words in the middle of a long paste: no upset notice', prompt: `here is the log from the other session, have a look:\n${'the agent read the order file and ran the checks. '.repeat(40)} WHY DID YOU IGNORE ME, you forgot again!! ${'it then wrote the notes and finished. '.repeat(60)}\nthanks, no rush`, hasNot: ['THE USER SOUNDS UPSET'] },
@@ -6008,6 +6012,9 @@ if (mineB()) { // knowledgeDirs, fit, labels and names: what a notes-only projec
       && np('README.md', 'photodate sorts photos by date.\n', { PROJECT_NAME: 'photodate' }) === '1';
     report(allCovered && lab === 'Add a dated line to CHANGELOG.md for the knowledge change' && /^Record the confirmed findings/.test(lab2) && files.includes('docs/shared.md') && !files.includes('local-notes.md') && codeOk,
       'knowledgeDirs, labels, names: a vault folder gets the knowledge checks, labels read as sentences, ignored files and code identifiers are not name-checked', `${globs} | ${lab} | ${lab2} | ${files.slice(0, 200)} | code ${codeOk}`);
+    // the claim check's step quotes the claim it means, so the agent fixes that one instead of guessing
+    const labC = shortStep({ tag: 'claim-checked', msg: 'The answer says "every export test passed", but helpers worked this session. Say who judged it.' });
+    report(labC.includes('"every export test passed"'), 'claim-checked step label quotes the unbacked claim', labC);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
@@ -8038,6 +8045,19 @@ if (mineB() && (!TAGS || TAGS.includes('upset-acknowledged'))) { // REQ: upset-a
       && denied(held2) && !denied(none) && !/acknowledged/.test(none),
       'upset-acknowledged: an upset message holds changes and commands (not reads, not the notes) until the Issue line names an existing runbook and a "fixed when"; "acknowledged" shows all three and the agent gets the checklist; "Issue: none" frees it silently',
       JSON.stringify([calm, held, cmd, look, notes, bare, wrongRb, freed, held2, none].map(o => o.slice(0, 160))));
+    // (an Issue line already shown in the agent's own text counts, and is copied to the notes. Lesson (a trial): the
+    // line was in the chat, and 6 tool calls were still held for it)
+    run(dir, 'prompt', { prompt: 'THE EXPORT IS BROKEN AGAIN, FIX IT' }, env);
+    const tpA = path.join(dir, '.cache', 'chat-ack.jsonl'), ts = new Date().toISOString();
+    const chat = [{ type: 'user', timestamp: ts, message: { role: 'user', content: 'THE EXPORT IS BROKEN AGAIN, FIX IT' } },
+      { type: 'assistant', timestamp: ts, message: { role: 'assistant', content: [{ type: 'text', text: '**Issue:** the export drops the last row again | runbook: debug | fixed when: the export file has every row' }] } }];
+    const chatOnly = [chat[0], { ...chat[1], message: { role: 'assistant', content: [{ type: 'text', text: 'Looking into it.' }] } }];
+    fs.writeFileSync(tpA, chatOnly.map(r => JSON.stringify(r)).join('\n') + '\n');
+    const noLine = pre({ ...edit, transcript_path: tpA });
+    fs.writeFileSync(tpA, chat.map(r => JSON.stringify(r)).join('\n') + '\n');
+    const shownChat = pre({ ...edit, transcript_path: tpA }), copied = /drops the last row again \| runbook: debug/.test(fs.readFileSync(path.join(dir, '.cache/turn-notes.md'), 'utf8'));
+    report(denied(noLine) && !denied(shownChat) && copied, 'upset-acknowledged: an Issue line the agent already showed in its text frees the work and is copied to the notes; text without one still holds it',
+      JSON.stringify([noLine, shownChat].map(o => o.slice(0, 160)).concat(String(copied))));
     // (two checklists in one turn: a record line may name its runbook, and then counts only for that one)
     const hh = await import(pathToFileURL(path.join(ROOT, 'tools', 'hooks', 'hooks.mjs')).href);
     const both = 'Done debug 3: swept 693 moments\nDone 4: plain, counts for either\nSkip status-lines 1: no lines hidden\n';
