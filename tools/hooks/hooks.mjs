@@ -7949,7 +7949,7 @@ const ENGINE_FILES = ['tools/**', 'packs/**', 'library/**', 'skills/**', '.githo
 // turn look like one, asked to run the tests again and log it)
 // (nor are the starter's own records of where work stands: notes, not engine code. Lesson (this starter's own turns):
 // a status line asked for the self-test and a changelog entry)
-const SELF_WRITTEN = ['tools/hooks/engine-proof.json', 'tools/starter/STATUS.md', 'tools/starter/dogfood-log.md'];
+const SELF_WRITTEN = ['tools/hooks/engine-proof.json', 'tools/starter/STATUS.md', 'tools/starter/dogfood-log.md', 'tools/starter/STARTER-CHANGELOG.md', 'tools/starter/trials/rounds.json']; // (records, not engine: a changelog line asked for a 5-minute self-test, waived 3 turns running)
 export const DEV_REQUIREMENTS = [
   { tag: 'dev-self-tests', rule: '12', when: { filesChanged: ['tools/**', 'packs/**', 'library/**', 'skills/**', '.githooks/**'], filesIgnore: SELF_WRITTEN },
     // (a run of it, not a command that only names the file: "git add tools/hooks/selfcheck.mjs" read as a failed run)

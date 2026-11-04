@@ -8338,11 +8338,11 @@ if (!TAGS || TAGS.includes('bench-caches')) { const dir = copyProject();
 { const { fastestBench } = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks.mjs')).href);
   const got = fastestBench(['prompt 410 ms, pretool 81 ms, stop 546 ms', 'prompt 333 ms, pretool 70 ms, stop 415 ms', 'prompt 350 ms, stop 430 ms', 'garbled']);
   report(JSON.stringify(got) === JSON.stringify({ prompt: 333, pretool: 70, stop: 415 }), 'upgrade timing: each hook is timed as the fastest of several bench runs', JSON.stringify(got)); }
-// dev mode: the proof the self-test writes when it passes is no engine change. Lesson (this starter's own turns): a
+// dev mode: the proof the self-test writes when it passes, the changelog and the trial records are no engine change. Lesson (this starter's own turns): a
 // background run finished, and the next turn was asked to run the self-test again and log it in the changelog
 { const { DEV_REQUIREMENTS, match } = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks.mjs')).href);
   const fires = (tag, changed) => { const w = DEV_REQUIREMENTS.find(q => q.tag === tag)?.when || {}; return changed.some(p => match(p, [].concat(w.filesChanged || [])) && !match(p, [].concat(w.filesIgnore || []))); };
-  const proofOnly = ['tools/hooks/engine-proof.json', 'tools/starter/STATUS.md', 'tools/starter/dogfood-log.md'], real = ['tools/hooks/engine-proof.json', 'tools/hooks/hooks.mjs'];
+  const proofOnly = ['tools/hooks/engine-proof.json', 'tools/starter/STATUS.md', 'tools/starter/dogfood-log.md', 'tools/starter/STARTER-CHANGELOG.md', 'tools/starter/trials/rounds.json'], real = ['tools/hooks/engine-proof.json', 'tools/hooks/hooks.mjs'];
   report(!fires('dev-self-tests', proofOnly) && !fires('dev-changelog', proofOnly) && fires('dev-self-tests', real) && fires('dev-changelog', real),
     'dev mode: only the engine proof or the starter status notes changed: no self-test or changelog asked; an engine file still asks for both', JSON.stringify(DEV_REQUIREMENTS.slice(0, 2).map(q => q.when))); }
 // stop-budget: the Stop hook's own work on a realistic work turn stays within stopBudgetMs (500 ms), timed here after

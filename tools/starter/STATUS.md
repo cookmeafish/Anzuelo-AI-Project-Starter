@@ -81,6 +81,9 @@ docs/STATUS.md, which here is the template new projects start from).
   the agent got wrong), verdict WORSE on setup cost ($6.57 median vs $5). Fixed in 4dd7d54 (proof 28648cb): waiting blocks
   count toward the 3 rounds, a question after Finished counts under autonomy, upgrades route to engine.md, checklist asks
   name their runbook, warm-letter example. Sent to both projects. Next: setup time (audit --setup reruns, 6 to 10 min each).
+- 2026-11-04 19:10 UTC: both projects on d508c62 (885f472, c94adf6). fb471cc: trial gate needs a node run. The high
+  after-upgrade Stop readings did not reproduce on a sample project (load from the starter chain). Next: a new trial
+  round on the current engine; setup cost for small projects is still open.
 - 2026-11-04 18:30 UTC: also fixed: the carry-over check missed background runs from before the turn it re-checks (692255d);
   the upgrade dry run labelled refreshed checks "(root) 1" (7233f98, from both projects); the trial gate took a
   "git add tools/trial.mjs" for its last run (this commit). Both projects on 774a2eb; d508c62 handed out, reports pending.
