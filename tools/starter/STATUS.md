@@ -72,6 +72,10 @@ docs/STATUS.md, which here is the template new projects start from).
   shouted "you don't understand" was not flagged as upset). Chain green (1568 passed, trial 132/132; sweep 21 as before).
   Both on 950754e, committed: 4fa1875 (1549 passed, stop 341 ms) and 5c1b07d (1565 passed, stop 334 ms). Noted to one project: its own Stop command
   takes 5 to 23 s on its heavier turns.
+- 2026-11-04 03:30 UTC: b15445e (two false Stop steps from one project: notes rewritten with CRLF mid-turn lost the turn start, so
+  earlier turns' lessons were asked for; a verdict whose next sentence said who judged it was still flagged). Chain green (1576
+  passed, trial 132/132; sweep 21 as before). Both linked copies on 5c847ba; upgrade sent to both, open: their --full runs.
+  That project's 8 to 9 s Stops: its own externalStop command, and one waiting Stop during its heavy format sweep (load).
 - 2026-11-03 evening: (question-no-file under autonomy auto: "what do you think we should do?" about a problem asks for the fix; one
   project's fix was flagged as unasked). Chain green (1570 passed, trial 132/132; sweep 21 as before). Sent to both projects.
   Both on 59691c8, committed: 8f0572d (1551 passed, stop 453 ms, machine loaded) and 476eea4 (1567 passed, stop 445 ms).
