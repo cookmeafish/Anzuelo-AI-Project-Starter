@@ -2835,6 +2835,17 @@ STOP.push(
   { name: 'security-report: "Security review: it has not passed" is no pass: blocked', prompt: 'make the form check the user', tools: [sk('security-review')],
     files: { ...AUTH, ...SEC_LOG, 'docs/reviews/security-2026-10-20.md': SEC_TABLE, 'docs/CHANGELOG.md': 'x' },
     answer: 'The form checks the user now.\n**Security review:** it has not passed yet, and the report is `docs/reviews/security-2026-10-20.md`.' + FIN, expect: { block: true, tags: ['security-report'] } },
+  // (any few words may stand there, the path may use backslashes, and the report may be named further down, in the
+  // file list. Lesson, trial round 26: "this change passed", "which passed" and "also passed" each cost a Stop round)
+  { name: 'security-report: "the security review also passed" with the report in the file list: passes', prompt: 'make the form check the user', tools: [sk('security-review')],
+    files: { ...AUTH, ...SEC_LOG, 'docs/reviews/security-2026-10-20.md': SEC_TABLE, 'docs/CHANGELOG.md': 'x' },
+    answer: 'The form checks the user now. The security review also passed.\n\nFiles:\n- docs\\reviews\\security-2026-10-20.md' + FIN, expect: { not: ['security-report'] } },
+  { name: 'security-report: "Security review: this change passed" names its report: passes', prompt: 'make the form check the user', tools: [sk('security-review')],
+    files: { ...AUTH, ...SEC_LOG, 'docs/reviews/security-2026-10-20.md': SEC_TABLE, 'docs/CHANGELOG.md': 'x' },
+    answer: 'The form checks the user now.\nSecurity review: this change passed with no serious problems, and the full report is in docs/reviews/security-2026-10-20.md.' + FIN, expect: { not: ['security-report'] } },
+  { name: 'security-report: "the security review hasn\'t passed" is no pass: blocked', prompt: 'make the form check the user', tools: [sk('security-review')],
+    files: { ...AUTH, ...SEC_LOG, 'docs/reviews/security-2026-10-20.md': SEC_TABLE, 'docs/CHANGELOG.md': 'x' },
+    answer: 'The form checks the user now. The security review still hasn\'t passed.\n\nFiles:\n- docs/reviews/security-2026-10-20.md' + FIN, expect: { block: true, tags: ['security-report'] } },
   // (a check that could not run is NOT RUN, not FAIL. Lesson, trial round 17: an attack test held for approval was
   // written "FAIL -> open" and read as proof of the problem)
   { name: 'security-report: an attack test that could not run, as NOT RUN with the reason: passes', prompt: 'make the form check the user', tools: [sk('security-review')],
