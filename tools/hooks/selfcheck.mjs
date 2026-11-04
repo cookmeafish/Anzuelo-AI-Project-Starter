@@ -2489,6 +2489,11 @@ STOP.push(
     edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) },
     files: { '.cache/turn-notes.md': 'Playbook: trigger-words.md (its wording)\nDone 1: no rule\nDone 2: the miss is fixed in the checklist itself\nSkip 3: not a rule request, only a checklist line\nSkip 6: a one-line wording change the owner keeps out of the changelog\n' }, answer: 'Playbook: project.md. Added the line.', expect: { block: true, tags: ['runbook-ledger'], says: /trigger-words/ } },
   // (the first runbook's ask names it too when two are in play. Lesson (a field report): an unnamed "Record 2, 3 of the
+  // (the checklist record is a turn-notes fix, so a round blocked only on it offers the one-line reply. Lesson (this
+  // starter): the round asked for "Added:" lines, the one line sent instead was refused, and the answer went out again)
+  { name: 'runbook-ledger: a round blocked only on the checklist record offers "Answer unchanged; also updated"', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project'), pb('trigger-words'), bash('node tools/audit.mjs')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
+    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) },
+    files: { '.cache/turn-notes.md': 'Playbook: trigger-words.md (its wording)\nDone 1: no rule\nDone 2: the miss is fixed in the checklist itself\nSkip 3: not a rule request, only a checklist line\nSkip 6: a one-line wording change the owner keeps out of the changelog\n' }, answer: 'Playbook: project.md. Added the line.', expect: { block: true, tags: ['runbook-ledger'], says: /Answer unchanged; also updated/ } },
   // checklist" in a turn with four runbooks was answered for the wrong one, three rounds running)
   { name: 'runbook-ledger: with two runbooks the first one\'s ask names its runbook', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project'), pb('trigger-words')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
     edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) },

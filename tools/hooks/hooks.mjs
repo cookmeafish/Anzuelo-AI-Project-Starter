@@ -8686,7 +8686,7 @@ export const isUnchangedNote = text => { const s = String(text || '').trim(); re
 // A step met by files or runs, not by words in the answer: an unchanged answer stays valid when only these were asked.
 const CORE_FILE_FIX = new Set(['hooks-tested', 'skill-learn', 'runbook-complete', 'skill-complete', 'done-when-labeled', 'playbook-format', 'skill-valid', 'knowledge-labels',
   'name-var', 'root-tidy', 'directory-current', 'twin-sync', 'note-linked', 'injection-guard', 'code-rules', 'runbook-exists', 'rule-request', 'requirement-enforced', 'plan-required', 'autonomy-recorded',
-  'watcher-left', 'wakeup-left']);
+  'watcher-left', 'wakeup-left', 'runbook-ledger']); // (the checklist record goes in the turn notes, not the answer. Lesson (this starter): a ledger-only round offered "Added:" lines, and the "Answer unchanged" line sent instead was refused, so the whole answer went out again)
 // Does a reply carry the earlier answer (REQ: notice-answer)? Most of its length, or at least half of its lines, with
 // markdown and spacing ignored, so an answer re-sent with small updates counts and a short note does not.
 export function carriesAnswer(reply, prev) {
@@ -8698,7 +8698,7 @@ export function carriesAnswer(reply, prev) {
 }
 const answerWords = c => !!c && typeof c === 'object' && (c.answerMatches != null || c.answerNotMatches != null || c.answerCites != null || c.answerFiguresComputed != null || (c.anyOf || []).some(answerWords));
 function fileFixable(m) {
-  if (m.short) return false; // (it asks for a line in the answer this time)
+  if (m.short && m.tag !== 'runbook-ledger') return false; // (it asks for a line in the answer this time; the checklist step's label only names the notes lines)
   if (CORE_FILE_FIX.has(m.tag)) return true;
   const q = loadRequirements().reqs.find(r => r && r.tag === m.tag) || DEV_REQUIREMENTS.find(r => r.tag === m.tag);
   return !!q && !answerWords(q.require);

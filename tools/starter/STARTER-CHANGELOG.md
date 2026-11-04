@@ -6,6 +6,7 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-04 (engine): a Stop round blocked only on the checklist record offers the one-line "Answer unchanged; also updated" reply instead of asking for the whole answer again (its step label was read as an answer line).
 - 2026-11-04 (engine): runbook-create: a validator's tests keep their own sample files and never read the project's live data.
 - 2026-11-04 (engine): a "checks passed" verdict right after the agent's own passing run is no helper's verdict (claim-checked); legal-review section I: an open choice goes in the answer, never as a bracketed note inside the letter.
 - 2026-11-04 (engine): the starter changelog and trial records no longer count as an engine change that asks for the self-test.
