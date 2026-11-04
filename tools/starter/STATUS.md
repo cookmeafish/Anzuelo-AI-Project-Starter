@@ -81,6 +81,10 @@ docs/STATUS.md, which here is the template new projects start from).
   the agent got wrong), verdict WORSE on setup cost ($6.57 median vs $5). Fixed in 4dd7d54 (proof 28648cb): waiting blocks
   count toward the 3 rounds, a question after Finished counts under autonomy, upgrades route to engine.md, checklist asks
   name their runbook, warm-letter example. Sent to both projects. Next: setup time (audit --setup reruns, 6 to 10 min each).
+- 2026-11-04 12:30 UTC: obedience round o4 (4 projects on 808ceac): 1 rule broken (a user's example name in two test
+  files). Fixed in 5af19dd (proof 5b30ff7) with the git guard gap the same round showed (a forbidden name could enter a
+  commit message or staged line). Stop timing in both projects is 345 ms on a quiet machine: the high readings were load.
+  Live probe of "do not ask me anything" passed. Sent 5b30ff7 to both.
 - 2026-11-04 09:50 UTC: c6979aa (proof 808ceac): a --tags self-test run reuses proven engine results (28 s to 4 s); sent to
   both. 21998f3 (proof a14d856): quoted text is no command in the upset gate's read check; a disproved complaint owes no
   runbook checklist; sent to both. Obedience round o4 (4 projects, frozen 808ceac) running. Stop timing near 500 ms in both
