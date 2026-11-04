@@ -75,7 +75,8 @@ docs/STATUS.md, which here is the template new projects start from).
 - 2026-11-03 evening: (question-no-file under autonomy auto: "what do you think we should do?" about a problem asks for the fix; one
   project's fix was flagged as unasked). Chain green (1570 passed, trial 132/132; sweep 21 as before). Sent to both projects.
   Both on 59691c8, committed: 8f0572d (1551 passed, stop 453 ms, machine loaded) and 476eea4 (1567 passed, stop 445 ms).
-  Then the upgrade review fix (a same-day review kept the earlier commit only in git): chain, then sent to both.
+  Then 627fd05 (a same-day upgrade review kept the earlier commit only in git) and the open-plan task-word fix (one
+  common word of a task line held an unrelated request): chain green (1573 passed, trial 132/132). Sent to both; open: confirm.
 - 2026-11-01 14:54 PST: aed606f (a yes/no question typed mid-turn counts as answered by a reply that opens with
   yes or no; a false Stop step in one project). Chain green (1548 passed, stop 385 ms, trial 132/132). Both linked
   copies on 4ad058c. Both upgraded and committed: faaa612 (1529 passed, stop 394 ms) and 4863a10 (1545 passed,

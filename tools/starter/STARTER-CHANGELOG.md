@@ -6,6 +6,7 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-03 (open plans, task words): a request is held to an open plan by one distinctive word of its name or title, or by two words of its open tasks; one common word of a task line no longer counts. Tests: "plan-open: a request sharing one common word with an open task is not held to the plan", "plan-open: a request naming two words of an open task is held to the plan".
 - 2026-11-03 (upgrade review): an upgrade review updated in place keeps the replaced review's engine commits in its heading ("(earlier: <commit> <date>, ...)", the last 6), so a second same-day upgrade no longer drops the first one's record. Test: "upgrade-review-block: a review updated in place keeps the earlier engine commits named in its heading".
 - 2026-11-03 (question-no-file): with autonomy "auto", a message asking "what should we do?" or "how should we fix" about a problem asks for the work, so a fix is no unrequested edit; with autonomy "ask" it stays a question.
 - 2026-11-03 (open plans): a request is held to an open plan only by a word that marks that plan, not by a word in a runbook name or in the names of 3 or more plans; a message shouted with "you don't understand" or "not listening" counts as upset.

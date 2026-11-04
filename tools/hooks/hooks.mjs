@@ -6299,7 +6299,10 @@ export function coreChecks(x, cfg) {
   })() : new Set();
   const wantWords = new Set(keyWords(x.prompt).filter(w => w.length > 2 && !everyday.has(w)));
   const continues = p => /\b(keep going|go on|continue|carry on|resume|next step|finish (it|the plan|up)|the plan|sigue|contin[uú]a)\b/i.test(x.prompt)
-    || keyWords(`${planHead(p)} ${(read(abs(p)).match(/^\s*- \[ \] .*$/gm) || []).join(' ')}`).some(w => w.length > 2 && wantWords.has(w));
+    || keyWords(planHead(p)).some(w => w.length > 2 && wantWords.has(w))
+    // (an open task is a sentence full of common words: it takes two of its words. Lesson (a field report): one word
+    // each from two plans' open tasks, such as "same", held an unrelated request to both)
+    || new Set(keyWords((read(abs(p)).match(/^\s*- \[ \] .*$/gm) || []).join(' ')).filter(w => w.length > 2 && wantWords.has(w))).size >= 2;
   if (x.workTurn && startPlans.length && !relayedBody(x.prompt) && startPlans.some(continues) && !x.failedBefore?.includes('plan-open') && !x.changed.some(p => /^docs\/plans\//.test(p))
     && ![...x.cmds, ...(x.runs || []).map(r => r.cmd || '')].some(c => /plan-tasks\.mjs/.test(c)))
     add('plan-open', `This turn started with ${startPlans.length > 1 ? 'open plans' : 'an open plan'} (${startPlans.slice(0, 3).join(', ')}) and did not touch ${startPlans.length > 1 ? 'them' : 'it'}. Tell the user, then resume it ` +
