@@ -74,8 +74,11 @@ The checker is `skills/correspondence/scripts/draft-check.mjs` (Node only, read-
    - **Official or form text:** the reference numbers first, plain statements, no emotion, the request at the end.
 4. Tone fits the relationship. Someone the user keeps dealing with (a tenant, a customer, a neighbour) gets a warm,
    plain letter by default; firm is for a dispute or when the user asks. Never rude: no threats, no legal language,
-   no blame on a named employee unless the user asked for it. Where a clause or law must be named, say it plainly
-   ("as our lease allows, with the two months' notice it asks for"), not "This increase is made under clause 4.2".
+   no blame on a named employee unless the user asked for it. Leave the lease, clauses and the law out of a warm
+   letter; when one must be named, say it once, plainly, after the news ("you have the usual two months before it
+   starts"), never as the reason for the news ("as our lease allows", "made under clause 4.2").
+   <!-- Lesson, a trial: the earlier example here, "as our lease allows", was copied into a letter the user then called
+   cold. -->
    <!-- Lesson, trial round 13: a rent letter to a long-time tenant came out with a bold "Re:" line, "I am writing to
    let you know" and "made under [clause]", and the user called it cold. -->
    A tone check the user asks for afterwards flags phrases, not single common words: "fine" or "you must" alone also

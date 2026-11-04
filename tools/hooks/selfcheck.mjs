@@ -720,6 +720,10 @@ const STOP = [
     answer: null, last: 'Skill: research. Sources: https://a.com', expect: { block: true, tags: ['finished-summary'] } },
   { name: 'reblock cap: 4th stop in a turn lets the session end', prompt: 'build me a weekly cleaning rota', files: { 'docs/rota.md': 'r' }, answer: 'Done.', active: true, blocks: 3,
     expect: { block: false } },
+  // (blocks made while background work ran count toward the same 3. Lesson (a trial): 3 such blocks plus 2 more made 5
+  // blocks in one turn, the last 4 all labelled "round 2 of 3")
+  { name: 'reblock cap: blocks made while waiting count toward the 3', edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), repeatStopRounds: true }) }, prompt: 'build me a weekly cleaning rota', files: { 'docs/rota.md': 'r' }, answer: 'Done.', active: true, blocks: 1, waitBlocks: 2,
+    expect: { block: false } },
   { name: '2nd block in a turn still blocks', edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), repeatStopRounds: true }) }, prompt: 'build me a weekly cleaning rota', files: { 'docs/rota.md': 'r' }, answer: 'Done.', active: true, blocks: 1,
     expect: { block: true, tags: ['runbook-exists'] } },
   { name: 'image + text prompt is a real prompt', promptContent: [{ type: 'text', text: 'from now on always label photos' }, { type: 'image', source: {} }], prompt: 'x', answer: 'ok',
@@ -1535,6 +1539,14 @@ STOP.push(
   { name: 'autonomy-decide: autonomy auto, the answer ends asking a design question: blocked', prompt: 'let owners delete their books', files: { 'notes/books.md': 'x', 'docs/CHANGELOG.md': 'x' },
     edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), autonomy: 'auto' }) },
     answer: 'Owners can delete their own books now.\n\nShould deleted books be kept in an archive or removed for good?' + FIN, expect: { block: true, tags: ['autonomy-decide'] } },
+  // (a question placed after the Finished section, where the writing rules put it, asks too. Lesson (a trial): two
+  // answers to a user who said not to be asked ended with "Question for you:" below Finished, unseen)
+  { name: 'autonomy-decide: autonomy auto, a labeled question after the Finished section: blocked', prompt: 'plan my herb bed', files: { 'notes/herbs.md': 'x', 'docs/CHANGELOG.md': 'x' },
+    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), autonomy: 'auto' }) },
+    answer: 'The bed file is saved.' + FIN + '\n\n**Question for you:** what town is the bed in?', expect: { block: true, tags: ['autonomy-decide'] } },
+  { name: 'autonomy-decide: autonomy auto, a plain question after the Finished section: blocked', prompt: 'plan my herb bed', files: { 'notes/herbs.md': 'x', 'docs/CHANGELOG.md': 'x' },
+    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), autonomy: 'auto' }) },
+    answer: 'The bed file is saved.' + FIN + '\n\nWhich town is the bed in?', expect: { block: true, tags: ['autonomy-decide'] } },
   { name: 'autonomy-decide: autonomy auto, the answer asks before publishing: passes', prompt: 'let owners delete their books', files: { 'notes/books.md': 'x', 'docs/CHANGELOG.md': 'x' },
     edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), autonomy: 'auto' }) },
     answer: 'Owners can delete their own books now. Assumed: archive deleted books - nothing is lost - one table to clean later.\n\nShall I publish it to the live site?' + FIN, expect: { not: ['autonomy-decide'] } },
@@ -2468,6 +2480,11 @@ STOP.push(
   { name: 'runbook-ledger: a second runbook followed in the turn has its judgment items asked for too', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project'), pb('trigger-words')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
     edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) },
     files: { '.cache/turn-notes.md': 'Playbook: trigger-words.md (its wording)\nDone 1: no rule\nDone 2: the miss is fixed in the checklist itself\nSkip 3: not a rule request, only a checklist line\nSkip 6: a one-line wording change the owner keeps out of the changelog\n' }, answer: 'Playbook: project.md. Added the line.', expect: { block: true, tags: ['runbook-ledger'], says: /trigger-words/ } },
+  // (the first runbook's ask names it too when two are in play. Lesson (a field report): an unnamed "Record 2, 3 of the
+  // checklist" in a turn with four runbooks was answered for the wrong one, three rounds running)
+  { name: 'runbook-ledger: with two runbooks the first one\'s ask names its runbook', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project'), pb('trigger-words')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
+    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) },
+    files: { '.cache/turn-notes.md': 'Playbook: trigger-words.md (its wording)\nSkip trigger-words 1: read for its wording only, no word whitelisted\nSkip trigger-words 2: no word whitelisted, nothing to test\n' }, answer: 'Playbook: project.md. Added the line.', expect: { block: true, tags: ['runbook-ledger'], says: /Record [\d, ]+ of the project checklist/ } },
   { name: 'runbook-ledger: the second runbook\'s items recorded under its name: passes', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project'), pb('trigger-words')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
     edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) },
     files: { '.cache/turn-notes.md': 'Playbook: trigger-words.md (its wording)\nDone 1: no rule\nDone 2: the miss is fixed in the checklist itself\nSkip 3: not a rule request, only a checklist line\nSkip 6: a one-line wording change the owner keeps out of the changelog\nSkip trigger-words 1: read for its wording only, no word whitelisted\nSkip trigger-words 2: no word whitelisted, nothing to test\n' }, answer: 'Playbook: project.md. Added the line.', expect: { not: ['runbook-ledger'] } },
@@ -2730,7 +2747,7 @@ function runStop(s) {
     // the fixture's transcript sits in the project (a real one lives outside it): it was there before the turn
     const sp = path.join(dir, 'tools/hooks/state/snapshot.json');
     if (fs.existsSync(sp)) { try { const j = JSON.parse(fs.readFileSync(sp, 'utf8')); j.files['transcript.jsonl'] = [0, 0, null]; fs.writeFileSync(sp, JSON.stringify(j)); } catch { } }
-    if (s.blocks) write(dir, { 'tools/hooks/state/stop-blocks.json': JSON.stringify({ [`${tp}|${since}`]: s.blocks }) });
+    if (s.blocks || s.waitBlocks) write(dir, { 'tools/hooks/state/stop-blocks.json': JSON.stringify({ [`${tp}|${since}`]: s.blocks || 0, ...(s.waitBlocks ? { [`${tp}|${since}|wait`]: s.waitBlocks } : {}) }) });
     if (s.failed) write(dir, { 'tools/hooks/state/stop-failed.json': JSON.stringify({ key: `${tp}|${since}`, tags: s.failed, ...(s.failedExtra || {}) }) });
     // (turnEnd: this request already ended cleanly once, with this record, e.g. the answer it ended with)
     if (s.turnEnd) write(dir, { 'tools/hooks/state/turn-end.json': JSON.stringify({ at: new Date().toISOString(), key: `${tp}|${since}`, clean: true, ...s.turnEnd }) });
@@ -4161,14 +4178,14 @@ PROMPT.push(
     .map(p => ({ name: `relayed turn: a peer message sets no rule, requirement, praise or menu code ("${p.slice(0, 60)}")`, prompt: p, setup: HINT_FIX, setupFn: STARTER_IS,
       hasNot: ['REQUIREMENT', 'RULE REQUEST', 'MENU CODE', 'MENU FLAG', 'UNKNOWN FLAG', 'PRAISE', 'rule-request', 'requirement-enforced'] })),
   // a relayed report of fixes routes on its own words, not on what it quotes or runs, and a starter upgrade goes to
-  // the project runbook first
-  { name: 'relayed turn: a report of fixes that ends "upgrade again with node tools/starter.mjs update" routes to the project runbook first',
+  // the engine runbook first (it holds the upgrade checklist)
+  { name: 'relayed turn: a report of fixes that ends "upgrade again with node tools/starter.mjs update" routes to the engine runbook first',
     prompt: '<cross-session-message from="other">All 3 are fixed and pushed. The old check read "the commit failed" as an error. Tests: "claim-checked: a commit that went through ... passes". Upgrade again with node tools/starter.mjs update.</cross-session-message>',
-    setup: HINT_FIX, setupFn: STARTER_IS, has: ['ROUTE: project'], hasNot: ['FIT:'] },
+    setup: HINT_FIX, setupFn: STARTER_IS, has: ['ROUTE: engine'], hasNot: ['ROUTE: project', 'FIT:'] },
   // work reported as done is no request for it; the same words as a request still route
-  { pack: 'app', name: 'route: "fixed and pushed: GitHub main" with a starter upgrade routes to the project runbook, not to release',
+  { pack: 'app', name: 'route: "fixed and pushed: GitHub main" with a starter upgrade routes to the engine runbook, not to release',
     prompt: 'Both of your latest findings are fixed and pushed: GitHub main 754ac35. Upgrade with node tools/starter.mjs update.',
-    has: ['ROUTE: project'], hasNot: ['ROUTE: release', 'release-'] },
+    has: ['ROUTE: engine'], hasNot: ['ROUTE: project', 'ROUTE: release', 'release-'] },
   { pack: 'app', name: 'route: "push to main and tag the release" still routes to release', prompt: 'push to main and tag the release v1.2', has: ['release'] },
   // Spanish debugging requests get the debug skill; "falla" in other senses does not
   { name: 'route: a Spanish debug request gets the debug skill', prompt: 'depura el fallo de la importación: el script falla con fechas vacías', has: ['SKILL: debug'] },
@@ -4203,7 +4220,7 @@ PROMPT.push(
   // a "note:" label in a relayed message is the sender's aside; typed by the user it is still the capture shorthand
   { name: 'relayed turn: a "Separate note:" aside in a relayed message sets off no note capture',
     prompt: '<cross-session-message from="other">Both are fixed. Separate note: your usage file changed in your own session. Upgrade when convenient: node tools/starter.mjs update.</cross-session-message>',
-    setup: HINT_FIX, setupFn: STARTER_IS, has: ['ROUTE: project'], hasNot: ['SKILL: knowledge-capture'] },
+    setup: HINT_FIX, setupFn: STARTER_IS, has: ['ROUTE: engine'], hasNot: ['SKILL: knowledge-capture'] },
   // status-first (Lesson, field report: "is it done?" got a long account first, and the user was upset)
   { name: 'status-first: "is it done?" asks for the status first', prompt: 'is it done?', has: ['STATUS QUESTION'] },
   // capitals for weight inside a normal message (Lesson, the user: "ALL CAPS tend to signify frustration too or something

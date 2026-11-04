@@ -815,7 +815,10 @@ export function route(prompt, pbs, { relayed = false } = {}) {
   // (in the starter itself every message is about the starter, so its name says nothing there: the other words route.
   // Lesson (dogfood): every message in the starter's own session was routed to the project runbook)
   if ((starter && !exists('.starter-template') && re(`(^|[^a-z0-9])${esc(starter.toLowerCase())}($|[^a-z0-9])`).test(low)) || upgrade) {
-    const pj = pbs.find(pb => pb.file === 'docs/playbooks/project.md'), tag = starter && !upgrade ? starter : 'starter upgrade';
+    // (an upgrade goes to the engine runbook, where the upgrade checklist is, when the project has it. Lesson (a field
+    // report): an upgrade message routed to the project runbook, and the turn opened neither until a Stop round)
+    const eng = upgrade && pbs.find(pb => pb.file === 'docs/playbooks/engine.md' && !off.has(pb.name));
+    const pj = eng || pbs.find(pb => pb.file === 'docs/playbooks/project.md'), tag = starter && !upgrade ? starter : 'starter upgrade';
     if (!off.has(pj.name)) {
       let e = scored.find(s => s.pb === pj);
       if (!e) scored.push(e = { pb: pj, score: 0, hits: [] });
@@ -6811,8 +6814,12 @@ export function coreChecks(x, cfg) {
   // AGENTS.md step 0.5 keeps for them (outward actions, installs, anything irreversible, security, money).
   // Lesson: under autonomy auto an answer ended by asking whether to keep or archive deleted records.
   if (cfg.autonomy === 'auto' && x.workTurn) {
-    const body = x.answer.split(EN_COPIES)[0].split(/^#{1,6}\s*\**finished\b/im)[0].trim();
-    const tail = body.split(/\n\s*\n/).filter(b => !/^\s*(playbook|skill|n\/a\(|worth it)/i.test(b)).pop() || '';
+    // (the whole answer: the writing rules put a question last, after the Finished section. Lesson (a trial): two
+    // answers to a user who said "do not ask me anything" ended with "Question for you:" below Finished, unseen)
+    const body = x.answer.split(EN_COPIES)[0].trim(), parts = body.split(/^(?=#{1,6}\s*\**finished\b)/im);
+    const lastOf = s => s.split(/\n\s*\n/).filter(b => b.trim() && !/^\s*(playbook|skill|n\/a\(|worth it|#{1,6}\s*\**finished\b)/i.test(b)).pop() || '';
+    // (the last block before Finished, or a question after it)
+    const after = parts.length > 1 ? lastOf(parts.slice(1).join('')) : '', tail = /\?\s*\**\s*$/.test(after) ? after : lastOf(parts[0]);
     // (a labeled question, or a closing "reply with a number", asks too; what it is about is the question itself, not
     // the options under it. Lesson, trial round 9: "Question for you: who should be able to delete a book?" with four
     // options and "Reply with a number" stalled a turn the user had said to decide, and an option's mention of a leaked
@@ -7408,7 +7415,7 @@ export function ledgerSteps(x, missing, cfg = config()) {
   const owned = new Set(), asks = [];
   let out = missing;
   pbs.forEach((pb, k) => {
-    const items = ledgerItems(read(abs(pb.file))), rec = ledgerLines(x.notes || '', pb.name, k > 0), tagN = k ? `${pb.name} ` : '';
+    const items = ledgerItems(read(abs(pb.file))), rec = ledgerLines(x.notes || '', pb.name, k > 0);
     const owner = new Map();
     for (const it of items) for (const tg of it.tags) if (!ALWAYS_ON.test(tg) && !owned.has(tg) && !owner.has(tg)) owner.set(tg, it);
     for (const tg of owner.keys()) owned.add(tg);
@@ -7421,10 +7428,12 @@ export function ledgerSteps(x, missing, cfg = config()) {
       if (r?.kind === 'skip' && r.why.trim().split(/\s+/).length >= 3) { (x.ledgerSkipped ||= []).push(m.tag); continue; }
       next.push(it ? { ...m, short: `${k ? `${pb.name} item` : 'Item'} ${it.n}${r?.kind === 'done' ? ' (marked done)' : ''}: ${shortStep(m)}` } : m);
     }
-    const unrecorded = items.filter(it => it.judgment && !rec.has(it.n));
-    if (unrecorded.length) asks.push({ short: `Record ${unrecorded.map(i => i.n).join(', ')} of the ${k ? `${pb.name} ` : ''}checklist`,
+    // (with more than one checklist in play, each ask names its runbook, the first one's too. Lesson (a field report):
+    // "Record 2, 3 of the checklist" in a turn with four runbooks open was answered for the wrong one, three rounds)
+    const unrecorded = items.filter(it => it.judgment && !rec.has(it.n)), named = k || pbs.length > 1;
+    if (unrecorded.length) asks.push({ short: `Record ${unrecorded.map(i => i.n).join(', ')} of the ${named ? `${pb.name} ` : ''}checklist`,
       msg: `No script can check ${unrecorded.length > 1 ? 'these checklist items' : 'this checklist item'} of ${pb.file}, so your record is the proof: ${unrecorded.map(i => `${i.n}. ${i.text.slice(0, 120)}`).join(' ')}. ` +
-        `Add "Done ${tagN}N: <what you did and what it showed>" or "Skip ${tagN}N: <why it doesn't apply>" to ${NOTES_FILE}, after doing it${k ? ` (with "${pb.name}" in the line: this turn followed more than one runbook)` : ''}.` });
+        `Add "Done ${named ? `${pb.name} ` : ''}N: <what you did and what it showed>" or "Skip ${named ? `${pb.name} ` : ''}N: <why it doesn't apply>" to ${NOTES_FILE}, after doing it${named ? ` (with "${pb.name}" in the line: this turn followed more than one runbook)` : ''}.` });
     out = next;
   });
   if (asks.length) out.push({ tag: 'runbook-ledger', short: asks.map(a => a.short).join('; '),
@@ -8317,7 +8326,9 @@ export function stopDecision(data, cfg = config()) {
   // to round 1, and the cap of 3 blocks never ended a long turn (1 blocked, 2 waiting, 1 waiting x3, 1 blocked).
   const prevEnd = readJSON(stateFile(TURN_END), {});
   const sameRequest = !!data.stop_hook_active || prevEnd.key === key;
-  const nblocks = sameRequest ? (st[key] || 0) : 0;
+  // (a block made while background work runs counts toward the same cap: a turn is blocked at most 3 times in all.
+  // Lesson (a trial): 3 blocks while waiting plus 2 after made 5 blocks in one turn, the last 4 all "round 2 of 3")
+  const waitBlocks = sameRequest ? (st[`${key}|wait`] || 0) : 0, nblocks = (sameRequest ? (st[key] || 0) : 0) + waitBlocks;
   // REQ: final-answer-source. When Stop fires, the final message is often not in the transcript yet, so a correct
   // answer kept failing "Finished"/"Playbook:" checks (found in live testing). The agent passes it directly.
   let x = timed('context (what the turn did)', () => context(t, cfg, data.last_assistant_message));
@@ -8483,9 +8494,8 @@ export function stopDecision(data, cfg = config()) {
   // and its Stop checks everything; if the user writes first, the next Stop runs the whole check on that turn, whatever
   // the request (its files are hidden while helpers may still write them, so nothing can be judged yet). Lesson (a gap
   // review): 21 of one project's 95 requests ended this way and the full check never ran for them. A block made while
-  // waiting uses no round of the 3, up to 3 of its own.)
-  const waitBlocks = sameRequest ? (st[`${key}|wait`] || 0) : 0;
-  if (waiting && (!missing.length || waitBlocks >= cfg.maxBlocksPerTurn)) {
+  // waiting is one of the 3 rounds.)
+  if (waiting && (!missing.length || nblocks >= cfg.maxBlocksPerTurn)) {
     // (a step still owed from an earlier turn is not overwritten)
     const prevUn = readJSON(path.join(STATE, 'unresolved.json'), null);
     if (!DRY_STATE && !(prevUn?.must?.length && prevUn.since !== x.since && !prevUn.waiting)) writeState('unresolved.json', { at: new Date().toISOString(), prompt: x.prompt.slice(0, 160), items: ['the full check of a turn that ended while background work ran'], tags: ['*'],
@@ -8549,7 +8559,7 @@ export function stopDecision(data, cfg = config()) {
   // Not in a headless run (claude -p, the SDK): its caller gets only the last message, so it must be the whole answer.
   const shortOk = !headless && steps.every(fileFixable);
   logged('blocked', { steps: steps.map(m => m.tag) });
-  writeState('stop-blocks.json', waiting ? { [key]: nblocks, [`${key}|wait`]: waitBlocks + 1 } : { [key]: nblocks + 1, [`${key}|wait`]: waitBlocks });
+  writeState('stop-blocks.json', waiting ? { [key]: nblocks - waitBlocks, [`${key}|wait`]: waitBlocks + 1 } : { [key]: nblocks - waitBlocks + 1, [`${key}|wait`]: waitBlocks });
   writeState('stop-failed.json', { key, tags: [...new Set([...x.failedBefore, ...missing.map(m => m.tag)])], foreseen: [...new Set([...(sameTurn ? failed.foreseen || [] : []), ...follow.map(m => m.tag)])],
     shortOk, answer: (full ?? (isNote || fixes ? '' : raw)).slice(0, 40000) });
   // The full messages, with their details, go to a file the agent reads with "hooks.mjs why".

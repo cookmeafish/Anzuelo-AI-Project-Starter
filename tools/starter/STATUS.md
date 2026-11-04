@@ -72,7 +72,7 @@ docs/STATUS.md, which here is the template new projects start from).
   shouted "you don't understand" was not flagged as upset). Chain green (1568 passed, trial 132/132; sweep 21 as before).
   Both on 950754e, committed: 4fa1875 (1549 passed, stop 341 ms) and 5c1b07d (1565 passed, stop 334 ms). Noted to one project: its own Stop command
   takes 5 to 23 s on its heavier turns.
-- 2026-11-04 04:50 UTC: b4c8d15 from the owner's review of one deck's 12 changes: negated verbs route nothing; calm requests naming
+- 2026-11-04 04:50 UTC: b4c8d15 from the owner's review of one project's 12 changes: negated verbs route nothing; calm requests naming
   examples of a wider point get an EXAMPLES hint and the scope-general Stop step; learn-from-upset step 2 checks earlier lessons.
   Chain green (1580 passed, trial 132/132; sweep 21 as before). Both projects took 5c847ba (f62e9b5 1557, f98df09 1573);
   ff4c0c7 sent to both, open: their --full runs and a Stop timing on a quiet machine (655 ms under load, 384 ms quiet).
