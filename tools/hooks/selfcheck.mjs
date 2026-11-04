@@ -580,6 +580,10 @@ const STOP = [
       // tunnelvisioned to 1 thing without actually finding the root cause")
       { ...base, name: 'upset-acknowledged: checklist and outcome done, but no general point with every case it covers: blocked', tools: read,
         files: files(all + 'Verified: node tools/invoice.mjs 41.995 - prints 42.00\n'), expect: { block: true, tags: ['upset-learned'], says: /Scope: <the point in general terms>/ } },
+      // (a complaint shown not to hold owes no checklist of the runbook named to fix it. Lesson (a trial): after
+      // "Learned (none)" with its evidence, a Stop round asked for a chapter check's whole checklist)
+      { ...base, answer: 'The total already shows 42.00.\nChecked: docs/invoice.md - none of the totals shows 41.99.' + FIN, name: 'upset-acknowledged: a complaint shown not to hold owes no runbook checklist: passes that check', tools: read,
+        files: files('Done 1: opened docs/invoice.md\nVerified: node tools/invoice.mjs 41.995 - prints 42.00\nScope: every total on the invoice - 1 checked\nRoot cause: none - the total was right; nothing let a miss through\nLearned (none): the complaint didn\'t hold - docs/invoice.md shows 42.00\n'), expect: { not: ['upset-learned'] } },
       { ...base, answer: base.answer.replace(/^Root cause:.*\n/m, ''), name: 'upset-acknowledged: checklist, outcome and scope done, but no root cause for the miss: blocked', tools: read,
         files: files(all + 'Verified: node tools/invoice.mjs 41.995 - prints 42.00\nScope: every amount rounds half up - the total and all 14 line amounts checked\n'), expect: { block: true, tags: ['upset-learned'], says: /Root cause: <what in the process/ } },
     ];
@@ -7989,8 +7993,10 @@ if (mineB() && (!TAGS || TAGS.includes('upset-acknowledged'))) { // REQ: upset-a
     // (a chain of reads is a read: every part counts, and "sed -n" prints. Lesson, trial rounds 23 and 24: "cd <dir>;
     // sed -n 630,680p <file>" was denied as a change, and the agent sent it again after writing the Issue line)
     const bash = c => pre({ tool_name: 'Bash', tool_input: { command: c } });
-    const reads = [bash(`cd "${dir}"; sed -n 1,20p docs/STATUS.md; grep -n export docs/STATUS.md | sort | uniq`), bash('git show HEAD:docs/STATUS.md | head -5 && wc -l docs/STATUS.md'), bash('grep -i -n export docs/STATUS.md 2>/dev/null')];
-    const writes = [bash('grep -n export docs/STATUS.md; node tools/build.mjs'), bash('sed -n -i s/a/b/ docs/STATUS.md'), bash('cat docs/STATUS.md > docs/copy.md'), bash('ls | tee list.txt')];
+    const reads = [bash(`cd "${dir}"; sed -n 1,20p docs/STATUS.md; grep -n export docs/STATUS.md | sort | uniq`), bash('git show HEAD:docs/STATUS.md | head -5 && wc -l docs/STATUS.md'), bash('grep -i -n export docs/STATUS.md 2>/dev/null'),
+      // (a "|" or ">" inside quotes is an argument. Lesson (a trial): grep -E "a|b" and echo "---" separators were held)
+      bash(`grep -rniE "export|button|tuesday" docs 2>/dev/null; echo "--- status:"; git log --oneline -3; ls -la docs`), bash(`grep -n 'a>b|c' docs/STATUS.md`)];
+    const writes = [bash('grep -n "export|x" docs/STATUS.md > found.txt'), bash('grep -n export docs/STATUS.md; node tools/build.mjs'), bash('sed -n -i s/a/b/ docs/STATUS.md'), bash('cat docs/STATUS.md > docs/copy.md'), bash('ls | tee list.txt')];
     report(!reads.some(denied0) && writes.every(denied0), 'upset-acknowledged: a chain of reads goes through while the Issue line is owed ("cd", "sed -n", pipes); a chain with a change, a redirect or "sed -i" is held',
       JSON.stringify([...reads, ...writes].map(o => o.slice(0, 120))));
     // (an Issue line with no runbook, or with no outcome, does not count: "acknowledged" names both. Lesson (the user):

@@ -5999,8 +5999,10 @@ const UPSET_PENDING = 'upset-pending.json';
 // nothing goes to a file (a redirect, tee, "sed -i"). Lesson, trial rounds 23 and 24: "cd <dir>; sed -n 1,9p <file>"
 // was held as a change, while "cat a > b" passed because only the start of the line was read.
 const READ_PART = /^\s*(cd|sed\s+-n|sort|uniq|cut|tr|nl|less|more|stat|file|du|df|date|realpath|dirname|basename)\b/i;
+// (quoted text is an argument, not a command: a "|" or ">" inside it splits and redirects nothing. Lesson (a trial):
+// `grep -E "peanut|satay" data; echo "---"` was held as a change after a complaint, 4 times in 3 projects)
 export const readOnlyChain = cmd => {
-  const c = String(cmd || '').replace(/\d?>&\d|\d?>\s*\/dev\/null|\d?>\s*\$null|\bNUL\b/gi, ' ');
+  const c = String(cmd || '').replace(/"(?:[^"\\]|\\.)*"|'[^']*'/g, 'Q').replace(/\d?>&\d|\d?>\s*\/dev\/null|\d?>\s*\$null|\bNUL\b/gi, ' ');
   return !/>|\btee\b|\b(sed|perl)\b[^|;&\n]*\s-i|--in-place|\bOut-File\b|\bSet-Content\b/i.test(c) && c.split(/&&|\|\||;|\n|\|/).every(s => !s.trim() || READ_ONLY.test(s.trim()) || READ_PART.test(s.trim()));
 };
 export function upsetUnacknowledged(name, inp) {
@@ -6604,14 +6606,17 @@ export function coreChecks(x, cfg) {
     // every "Done when" item recorded as done or skipped with a reason, and the "fixed when" outcome checked. (Lesson
     // (the user): "acknowledged" and then no runbook followed; the user is upset again when the whole checklist would
     // have caught it)
-    const iss = issueParts(lastIssue(x.notes || ''));
+    const iss = issueParts(lastIssue(x.notes || '')), saidAll = `${x.said || ''}\n${x.notes || ''}`;
     if (iss.problem && !iss.none) {
       const opened = iss.file && (x.reads?.has(iss.file) || (x.usedPb || []).some(p => p.file === iss.file) || (x.usedSkills || []).some(s => s.name === iss.runbook)
         || (x.cmds || []).some(c => String(c).replace(/\\/g, '/').includes(iss.file)));
       const items = opened ? ledgerItems(read(abs(iss.file))) : [], rec = ledgerLines(x.notes || '', iss.runbook), open = items.filter(i => !rec.has(i.n) || (rec.get(i.n).kind === 'skip' && rec.get(i.n).why.length < 8));
       if (!iss.file) add('upset-learned', `The Issue line names no runbook or skill that exists. Write it as "Issue: <problem> | runbook: <name> | fixed when: <checkable outcome>" in ${NOTES_FILE}, open that runbook and follow it.`);
       else if (!opened) add('upset-learned', `The user was told the ${iss.runbook} runbook would find the root cause and fix this, and it was not opened this turn. Open ${iss.file} and follow every step.`);
-      else if (open.length) add('upset-learned', `The ${iss.runbook} checklist ("Done when" in ${iss.file}) is not finished. For each item add "Done N: <what you did, with the file or command>" or "Skip N: <why it doesn't apply>" to ${NOTES_FILE}: ` +
+      // (a complaint shown not to hold has nothing for the runbook to fix: its checklist is not owed, the Verified line
+      // still is. Lesson (a trial): after "Learned (none)" with its evidence, a Stop round asked for the whole checklist
+      // of a chapter check on chapters nobody had changed)
+      else if (open.length && !(LEARNED_NONE.test(saidAll) && complaintDisproved(saidAll, x.answer))) add('upset-learned', `The ${iss.runbook} checklist ("Done when" in ${iss.file}) is not finished. For each item add "Done N: <what you did, with the file or command>" or "Skip N: <why it doesn't apply>" to ${NOTES_FILE}: ` +
         open.map(i => `${i.n}. ${i.text.slice(0, 120)}`).join(' '));
       const mine = `${x.said || ''}\n${x.notes || ''}`;
       if (!/^[\s>*_-]*verified\s*:\s*\S.{10,}/im.test(mine)) add('upset-learned', `Show that it is truly fixed: check the outcome the user was promised ("${iss.when}") and add "Verified: <what you ran or opened> - <what it showed>" to ${NOTES_FILE}.`);
