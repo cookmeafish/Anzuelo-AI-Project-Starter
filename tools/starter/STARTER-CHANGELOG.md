@@ -6,6 +6,7 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-04 (engine): install-vetted accepts a license named by its id ("Vetted: <tool> (BSD-3-Clause)") and its Stop line shows the "Vetted: <tool> <version> (license <name>)" form; scenarios: install-vetted license id, round shows the form.
 - 2026-11-04 (app pack): verification-report accepts an honest real-app line ("Running the app: not done", "the server was not run", "could not run it") and a "Gaps" line; scenarios: verification-report honest not-run (2), no real-app line blocked.
 - 2026-11-04 (engine): a Stop round blocked only on the checklist record offers the one-line "Answer unchanged; also updated" reply instead of asking for the whole answer again (its step label was read as an answer line).
 - 2026-11-04 (engine): runbook-create: a validator's tests keep their own sample files and never read the project's live data.
