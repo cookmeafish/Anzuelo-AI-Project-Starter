@@ -310,6 +310,41 @@ const logged = fs.readFileSync(shadowLog, 'utf8').trim().split('\n').map(l => JS
 report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\/export\.md/.test(logged[0].reminder) && /Open docs\/playbooks\/export\.md/.test(logged[1].block),
   'shadow: logs the reminder and the block it would have given, prints nothing, and skips the repeat Stop', { printed, logged });
 
+// guard (design B): under "engine": "v2" each safety refusal still happens, the decision is the same as v1's, and an
+// ordinary busy turn gets no refusal at all. Lesson: the quiet engine's point is silence during the work, safety aside.
+{
+  const { guard, IN_WORK_GUARDS } = await import('./guard.mjs');
+  const { config, ROOT } = await import('../hooks.mjs');
+  const R = ROOT.replace(/\\/g, '/') + '/', g = 'gi' + 't ', base = { ...config(), engine: 'v2' };
+  const prot = { ...base, protectedOriginals: ['originals/**'] };
+  const bash = command => ({ tool_name: 'Bash', tool_input: { command } });
+  const refuse = [
+    ['no-secrets', { tool_name: 'Write', tool_input: { file_path: R + 'src/k.js', content: 'const k = "sk-ant-api03-' + 'A'.repeat(90) + '";\n' } }, base],
+    ['no-ai-attribution', bash(g + 'commit -m "fix\n\nCo-Authored' + '-By: Claude <noreply@' + 'anthropic.com>"'), base],
+    ['git-safety', bash(g + 'reset --' + 'hard HEAD~3'), base],
+    ['outward-gate|git-safety', bash(g + 'push origin main'), base],
+    ['browser-guard', bash('start ' + 'chrome --remote-debugging-port=9222'), base],
+    ['skill-mirror', { tool_name: 'Edit', tool_input: { file_path: R + '.claude/skills/plan/SKILL.md', old_string: 'a', new_string: 'b' } }, base],
+    ['protect-originals', bash('rm -' + 'rf originals/2024'), prot],
+    ['protect-originals', { tool_name: 'Edit', tool_input: { file_path: R + 'tools/starter/STATUS.md', old_string: 'a', new_string: 'b' } }, { ...base, protectedOriginals: ['tools/starter/**'] }],
+  ];
+  const got = refuse.map(([tag, d, cfg]) => [tag, guard({ session_id: '', ...d }, cfg) || '']);
+  const same = refuse.every(([, d, cfg]) => guard({ session_id: '', ...d }, cfg) === guard({ session_id: '', ...d }, { ...cfg, engine: 'v1' }));
+  report(got.every(([tag, r]) => new RegExp(`REQ: (${tag})\\b`).test(r)) && same && IN_WORK_GUARDS.test('REQ: no-secrets'),
+    'guard: under v2 each safety guard refuses (secrets, AI credit, risky git, push, browser, generated copies, protected files), the same as v1', got.filter(([tag, r]) => !new RegExp(`REQ: (${tag})\\b`).test(r)));
+  const busy = [
+    { tool_name: 'Read', tool_input: { file_path: R + 'README.md' } }, { tool_name: 'Grep', tool_input: { pattern: 'total' } },
+    { tool_name: 'Glob', tool_input: { pattern: 'src/**/*.js' } },
+    { tool_name: 'Edit', tool_input: { file_path: R + 'src/report.js', old_string: 'a', new_string: 'b' } },
+    { tool_name: 'Write', tool_input: { file_path: R + 'docs/notes.md', content: '# Notes\n\nThe totals row is fixed.\n' } },
+    { tool_name: 'Write', tool_input: { file_path: R + 'docs/style.md', content: 'A dash — waits for the end check.\n' } },
+    bash('npm test'), bash('node tools/hooks/v2/selftest.mjs'), bash(g + 'status && ' + g + 'diff --stat'),
+    bash(g + 'add src/report.js && ' + g + 'commit -m "Fix the totals row"'), bash('ls docs/plans'), bash('rm -' + 'rf node_modules/.cache'),
+  ];
+  const loud = busy.map(d => [d.tool_input.command || d.tool_input.file_path || d.tool_input.pattern, guard({ session_id: '', ...d }, prot)]).filter(([, r]) => r);
+  report(!loud.length, 'guard: a busy ordinary turn (reads, edits, writes, tests, a commit, a cache delete) gets no refusal under v2', loud);
+}
+
 // size budget (docs/plans/2026-11-05-engine-v2.md): the engine stays small, and the end check has at most 15 checks.
 // Lesson: v1 grew to about 9,600 lines of hooks, most of it fixing friction it made itself.
 {
