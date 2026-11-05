@@ -260,6 +260,43 @@ report(['The fixes get committed once they pass.', 'Wipe once they have committe
 report(claimGaps(acts([user('which engine is this?'), { type: 'attachment', attachment: { type: 'hook_additional_context', content: 'engine 4c5d6e7 (starter)' } }, code, say('It runs engine 4c5d6e7.')])).length === 0,
   'end: a commit the hooks named to the agent this turn backs the answer');
 
+// Codex transcripts and long ones
+{
+  const ri = (payload, ts = '2026-11-05T10:00:00Z') => ({ type: 'response_item', timestamp: ts, payload });
+  const codex = path.join(dir, 'codex.jsonl');
+  fs.writeFileSync(codex, [
+    { type: 'session_meta', payload: { id: 'x' } },
+    ri({ type: 'message', role: 'user', content: [{ type: 'input_text', text: '<environment_context>cwd</environment_context>' }] }),
+    ri({ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'fix the total' }] }),
+    ri({ type: 'custom_tool_call', name: 'apply_patch', call_id: 'c1', input: '*** Begin Patch\n*** Update File: src/a.js\n@@\n-old\n+const total = 1;\n*** End Patch' }),
+    ri({ type: 'function_call', name: 'shell', call_id: 'c2', arguments: JSON.stringify({ command: ['bash', '-lc', 'npm test'] }) }),
+    ri({ type: 'function_call_output', call_id: 'c2', output: JSON.stringify({ output: 'Tests: 1 failed', metadata: { exit_code: 1 } }) }),
+    ri({ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'Fixed.' }] }),
+  ].map(r => JSON.stringify(r)).join('\n') + '\n');
+  put('package.json', JSON.stringify({ scripts: { test: 'node --test' } }));
+  const ca = turnActs(turnRows(codex));
+  report(ca.calls.length === 2 && ca.calls[0].name === 'Edit' && /src\/a\.js$/.test(ca.calls[0].input.file_path) && /const total/.test(ca.calls[0].input.new_string)
+    && ca.calls[1].name === 'Bash' && ca.calls[1].input.command === 'npm test' && ca.calls[1].error && ca.answer === 'Fixed.' && testGaps(ca).length === 1,
+    'end: a Codex turn is read: its typed message, the patch as an edit, the failing test run, the answer', ca);
+  fs.rmSync(path.join(dir, 'package.json'));
+  // newer Codex: an "exec" call whose code runs the commands and the patch
+  fs.writeFileSync(codex, [
+    ri({ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'add the export' }] }),
+    ri({ type: 'custom_tool_call', name: 'exec', call_id: 'e1', input: 'const patch = "*** Begin Patch\\n*** Add File: src/export.js\\n+export const rows = [];\\n*** End Patch";\ntools.apply_patch(patch);\ntext(await tools.exec_command({cmd:"npm test -- --run \\"export\\"", workdir:"C:\\\\x"}));\ntext(await tools.exec_command({cmd:"git status"}));' }),
+    ri({ type: 'custom_tool_call_output', call_id: 'e1', output: 'Tests: 3 passed' }),
+    ri({ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'Added.' }] }),
+  ].map(r => JSON.stringify(r)).join('\n') + '\n');
+  const ex = turnActs(turnRows(codex));
+  report(ex.calls.length === 2 && ex.calls[0].name === 'Bash' && ex.calls[0].input.command === 'npm test -- --run "export"\ngit status' && ex.calls[0].out === 'Tests: 3 passed'
+    && ex.calls[1].name === 'Edit' && ex.calls[1].input.file_path === 'src/export.js' && ex.calls[1].input.new_string === 'export const rows = [];',
+    'end: a newer Codex exec call is read: its commands as one shell call with the output, its patch as an edit', ex.calls);
+  const { tail } = await import('./lib.mjs');
+  const big = path.join(dir, 'big.jsonl');
+  fs.writeFileSync(big, Array.from({ length: 3000 }, (_, k) => JSON.stringify(say(`filler ${k} ${'x'.repeat(300)}`))).join('\n') + '\n' + [user('add a csv export'), say('Done.')].map(r => JSON.stringify(r)).join('\n') + '\n');
+  const t = tail(big, 64 << 10);
+  report(t.length <= 64 << 10 && t.length > 0 && !t.startsWith('lller') && turnRows(big).length === 2, 'end: a transcript is read from its tail, starting at a whole line, and the turn is still found');
+}
+
 // shadow: beside v1, v2 only logs
 const { shadow } = await import('./shadow.mjs');
 const shadowLog = path.join(dir, 'tools/hooks/state/v2-shadow.jsonl');

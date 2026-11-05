@@ -67,10 +67,64 @@ export function route(prompt, books = runbooks()) {
 // A message the user typed: not a notice, a relayed message, or the summary that resumes a session.
 export const typed = r => r.type === 'user' && !r.isMeta && !r.isCompactSummary && typeof r.message?.content === 'string'
   && !/^\s*<(task-notification|system-reminder|cross-session-message|agent-message|command-|local-command-)|^This session is being continued from a previous conversation/.test(r.message.content);
-// This turn's rows from a transcript: everything after the last message the user typed.
+// A transcript's last part, from a line start, at most `max` bytes. Lesson (the old engine): a 568 MB transcript was
+// over the largest string a file can be read into, and every hook lost the session's history.
+export function tail(transcript, max = 32 << 20) {
+  try {
+    const size = fs.statSync(String(transcript)).size, win = Math.min(size, max), b = Buffer.alloc(win), fd = fs.openSync(String(transcript), 'r');
+    try { fs.readSync(fd, b, 0, win, size - win); } finally { fs.closeSync(fd); }
+    const t = b.toString('utf8');
+    return win < size ? t.slice(t.indexOf('\n') + 1) : t;
+  } catch { return ''; }
+}
+
+// Codex writes rollout lines ({ type: "response_item", payload: message | function_call | ..._output }). They become
+// the same rows as Claude Code's: a typed message, tool calls with results, and each file an apply_patch touched as an
+// Edit of it with the patch's added lines. Lesson (the old engine): under Codex no tool call was seen at all.
+const CODEX_SKIP = /^\s*(<environment_context>|<user_instructions>|<permissions instructions>|# AGENTS\.md instructions)/;
+export function codexRows(rows) {
+  if (!rows.some(r => r?.payload && /^(response_item|session_meta|turn_context|event_msg)$/.test(r.type))) return rows;
+  const out = [], shell = a => { const c = a?.command ?? a?.cmd ?? a?.action?.command; return Array.isArray(c) ? (/^(ba|z)?sh$|powershell|pwsh|cmd$/i.test(c[0] || '') && c.length >= 3 ? c[c.length - 1] : c.join(' ')) : String(c ?? ''); };
+  for (const r of rows) {
+    const p = r?.payload, timestamp = r?.timestamp;
+    if (r?.type !== 'response_item' || !p) continue;
+    if (p.type === 'message') {
+      const text = (Array.isArray(p.content) ? p.content : []).map(c => c?.text || '').join('\n');
+      if (p.role === 'user' && !CODEX_SKIP.test(text)) out.push({ type: 'user', timestamp, message: { content: text } });
+      else if (p.role === 'assistant') out.push({ type: 'assistant', timestamp, message: { content: [{ type: 'text', text }] } });
+    } else if (/^(function_call|custom_tool_call|local_shell_call)$/.test(p.type)) {
+      let args = p.arguments ?? p.input ?? p.action ?? {};
+      if (typeof args === 'string') { try { args = JSON.parse(args); } catch { args = { command: args }; } }
+      const name = String(p.name || (p.type === 'local_shell_call' ? 'shell' : '')), id = p.call_id || p.id;
+      // (newer Codex: one "exec" call whose code runs tools.exec_command({cmd: "..."}) and tools.apply_patch(...): its
+      // commands are one shell call, and each patched file an edit. Lesson (real sessions): 51 of them, none read)
+      if (name === 'exec' && typeof p.input === 'string') {
+        const cmds = [...p.input.matchAll(/\bcmd\s*:\s*("(?:[^"\\]|\\.)*")/g)].map(m => { try { return JSON.parse(m[1]); } catch { return m[1]; } });
+        if (cmds.length) out.push({ type: 'assistant', timestamp, message: { content: [{ type: 'tool_use', id, name: 'Bash', input: { command: cmds.join('\n') } }] } });
+        for (const patch of p.input.match(/\*\*\* Begin Patch[\s\S]*?\*\*\* End Patch/g) || []) codexRows.patch(out, timestamp, `${id}:p`, patch.replace(/\\n/g, '\n'));
+        continue;
+      }
+      const cmd = name === 'apply_patch' && typeof p.input === 'string' ? p.input : shell(args);
+      if (name === 'apply_patch' || /^\s*apply_patch\b/.test(cmd)) codexRows.patch(out, timestamp, id, cmd);
+      else out.push({ type: 'assistant', timestamp, message: { content: [{ type: 'tool_use', id, ...(/^(shell|exec_command|container\.exec|local_shell|shell_command)$/.test(name) ? { name: 'Bash', input: { command: cmd } } : { name, input: args }) }] } });
+    } else if (/^(function_call_output|custom_tool_call_output|local_shell_call_output)$/.test(p.type)) {
+      let o = p.output, err = false;
+      if (typeof o === 'string') { try { const j = JSON.parse(o); if (j && typeof j === 'object' && 'output' in j) { err = Number(j.metadata?.exit_code) > 0; o = j.output; } } catch { } }
+      else if (o && typeof o === 'object') { err = Number(o.metadata?.exit_code ?? o.exit_code) > 0; o = o.output ?? o.content ?? JSON.stringify(o); }
+      out.push({ type: 'user', timestamp, message: { content: [{ type: 'tool_result', tool_use_id: p.call_id || p.id, content: String(o ?? ''), ...(err ? { is_error: true } : {}) }] } });
+    }
+  }
+  return out;
+}
+// (a patch: one Edit per file it adds or updates, with the lines it adds)
+codexRows.patch = (out, timestamp, id, patch) => {
+  for (const [, f, body] of String(patch).matchAll(/^\*\*\* (?:Add|Update) File: (.+)\n([\s\S]*?)(?=^\*\*\* |(?![\s\S]))/gm))
+    out.push({ type: 'assistant', timestamp, message: { content: [{ type: 'tool_use', id: `${id}:${f}`, name: 'Edit', input: { file_path: f.trim(), new_string: body.split('\n').filter(l => l.startsWith('+')).map(l => l.slice(1)).join('\n') } }] } });
+};
+
+// This turn's rows from a transcript (Claude Code or Codex): everything after the last message the user typed.
 export function turnRows(transcript) {
-  let rows = [];
-  try { rows = fs.readFileSync(transcript, 'utf8').split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean); } catch { return []; }
+  const rows = codexRows(tail(transcript).split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean));
   let start = 0;
   rows.forEach((r, i) => { if (typed(r)) start = i; });
   return rows.slice(start);
