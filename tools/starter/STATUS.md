@@ -8,8 +8,12 @@ docs/STATUS.md, which here is the template new projects start from).
   never held, no done/skip lines. Both projects upgraded to 299f45a (all tests pass). Engine v2 is in
   tools/hooks/v2 and off by default. It has the start reminder and end checks 1 (runbook Done-when) and 2 (tests),
   and was replayed on real sessions: 0.05 blocks per turn against v1's 0.68.
+  Later (451d669, local): v2 runs in shadow beside v1 and logs to tools/hooks/state/v2-shadow.jsonl. Its tests check
+  honors the project's declared commands. Upset messages go to learn-from-upset, and unrouted work picks its runbook.
+  The routing sample is done (in the plan).
   Next (docs/plans/2026-11-05-engine-v2.md):
-  - compare v2's routing with v1's on the same prompts (v2 routes far fewer);
+  - tomorrow's batched upgrade of both projects (they were already upgraded once today), then read their shadow logs
+    for live recall and precision;
   - end checks 3 to 7;
   - make the Done-when items checkable;
   - one engine-off round.
