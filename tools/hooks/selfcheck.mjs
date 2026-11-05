@@ -8738,7 +8738,10 @@ if (!TAGS && !HELPER && !REUSE) {
     markWaiting(true);
     const lock = timingLock();
     let turn = false;
-    for (const t0 = Date.now(); Date.now() - t0 < 600_000; await new Promise(r => setTimeout(r, 5000)))
+    // (an upgrade's own run does not wait: it times the hooks itself, and a busy machine only marks the timing as
+    // shared. Lesson (a field report): an upgrade sat 10 minutes here while a trial's self-tests ran)
+    const wait = process.env.STARTER_UPGRADE_RUN ? 0 : 600_000;
+    for (const t0 = Date.now(); Date.now() - t0 <= wait; await new Promise(r => setTimeout(r, wait ? 5000 : 0)))
       if (!otherSuites(undefined, { busy: true }) && (turn = takeLock(lock, { what: 'stop timing' }).taken)) break;
     const others = otherSuites(undefined, { busy: true }) + (turn ? 0 : 1);
     const samples = [];
@@ -8753,6 +8756,18 @@ if (!TAGS && !HELPER && !REUSE) {
     const v = samples.length ? stopVerdict(samples, budget, others, prev) : null;
     if (v) console.log(`stop timing: ${v.total} ms (fastest of ${samples.length}: ${samples.map(s => s.total).join(', ')}; budget ${budget} ms); slowest: ${v.slow.join(', ')}${v.busy ? `; not failed: ${others ? `${others} other self-test run(s) shared the machine` : `the previous engine took ${prev} ms on the same run, so the machine is slow, not the change`}` : prev != null ? `; the previous engine took ${prev} ms on the same run` : ''}`);
     report(!!v && v.ok, `stop-budget: the Stop hook stays within its ${budget} ms budget on a realistic work turn`, v ? `${v.total} ms, over budget; slowest: ${v.slow.join(', ')}` : 'no STOP-TIMING line from the hook (STARTER_TIMING=1)');
+    // (the engine a project runs by default is v2, and this suite pins v1 for its own tests: v2's Stop is timed too,
+    // on the same turn, whole process included. Lesson (a field report): the timing line showed only v1's Stop)
+    const v2ms = [];
+    for (let i = 0; i < 5; i++) {
+      const t0 = Date.now();
+      spawnSync(process.execPath, [path.join(dir, 'tools/hooks/hooks.mjs'), 'stop'], { cwd: dir, encoding: 'utf8', input: JSON.stringify({ transcript_path: tp, session_id: 'timing' }),
+        env: { ...process.env, STARTER_ENGINE: 'v2', STARTER_MEMORY_DIR: path.join(dir, '.memtest') } });
+      v2ms.push(Date.now() - t0);
+    }
+    const v2best = Math.min(...v2ms);
+    console.log(`stop timing (engine v2, the default): ${v2best} ms (fastest of 5: ${v2ms.join(', ')}; budget ${budget} ms)`);
+    report(v2best <= budget || others > 0, `stop-budget: engine v2's Stop hook stays within its ${budget} ms budget on a realistic work turn`, `${v2best} ms`);
     // and the verdict names the slowest checks when the budget is missed
     const tight = v ? stopVerdict(samples, 1) : null;
     report(!!tight && !tight.ok && tight.slow.length === 3 && tight.slow.every(s => /^[\w(][^]* \d+(\.\d)? ms$/.test(s)) && samples[0].parts.some(([l]) => /^check /.test(l)) && samples[0].parts.some(([l]) => /^core /.test(l)),

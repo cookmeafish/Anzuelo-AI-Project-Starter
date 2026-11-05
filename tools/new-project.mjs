@@ -650,7 +650,7 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   // Lesson: every upgrade left "self-tests: ?" for the agent to run and record by hand.
   // (--no-selftest leaves it to the agent: the starter's own tests of the upgrade itself use it, to stay quick)
   if (!process.argv.includes('--no-selftest')) phase('the self-tests');
-  const st = process.argv.includes('--no-selftest') ? { status: 1, stdout: '' } : spawnSync(process.execPath, [path.join(dest, 'tools', 'hooks', 'selfcheck.mjs')], { cwd: dest, encoding: 'utf8', timeout: 900000 });
+  const st = process.argv.includes('--no-selftest') ? { status: 1, stdout: '' } : spawnSync(process.execPath, [path.join(dest, 'tools', 'hooks', 'selfcheck.mjs')], { cwd: dest, encoding: 'utf8', timeout: 900000, env: { ...process.env, STARTER_UPGRADE_RUN: '1' } });
   const stLine = ((st.stdout || '').match(/^selfcheck: .*$/m) || [''])[0];
   const stPassed = st.status === 0 && /ALL PASS/.test(stLine);
   items.push(stPassed ? `self-tests: node tools/hooks/selfcheck.mjs passes here||passed (${today}, run by the upgrade: ${stLine.replace(/^selfcheck:\s*/, '')})` : 'self-tests: node tools/hooks/selfcheck.mjs passes here');
