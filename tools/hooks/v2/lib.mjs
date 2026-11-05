@@ -140,10 +140,20 @@ export const startsTurn = (rows, i) => {
   for (let j = i + 1; j < rows.length && j <= i + 3; j++) if (rows[j].attachment?.hookEvent === 'UserPromptSubmit') return true;
   return false;
 };
-export function turnRows(transcript) {
+export function turnRows(transcript, at = '') {
   const rows = codexRows(tail(transcript).split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean));
-  // (a row the host wrote, such as a message from another session, starts a turn when the prompt hook ran on it.
-  // Lesson: a peer's turn of read-only commands reached back to the last typed request and was held to its edits)
+  // (live, the turn starts where the prompt hook saw the request: the rows from that time on, and the request's own row
+  // just before it. Lesson: guessing the start from row kinds broke on peer messages, notices and helper reports alike)
+  const t = Date.parse(at || '');
+  if (t) {
+    let s = rows.findIndex(r => Date.parse(r.timestamp || '') >= t);
+    if (s < 0) s = rows.length;
+    for (let j = s - 1; j >= 0 && t - (Date.parse(rows[j].timestamp || '') || 0) < 30_000; j--)
+      if (rows[j].type === 'user' && typeof rows[j].message?.content === 'string') { s = j; break; }
+    if (rows.some(r => r.timestamp)) return rows.slice(s);
+  }
+  // (with no saved time, as in a replay: a row the host wrote, such as a message from another session, starts a turn
+  // when the prompt hook ran on it. Lesson: a peer's turn of read-only commands reached back to the last typed request)
   let start = 0;
   rows.forEach((r, i) => { if (startsTurn(rows, i)) start = i; });
   return rows.slice(start);

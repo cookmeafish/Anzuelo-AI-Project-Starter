@@ -2,7 +2,7 @@
 // "Done when" list, which the end hook checks. Nothing about the engine itself.
 import fs from 'node:fs';
 import path from 'node:path';
-import { route, saveTurn, ROOT } from './lib.mjs';
+import { route, saveTurn, loadTurn, ROOT } from './lib.mjs';
 
 export const MAX_LINES = 10;
 // (an upset message: mostly capitals, or the usual frustration words. Lesson (routing sample): complaints used no
@@ -47,6 +47,11 @@ export function onPrompt(data) {
   // routed to the project runbook, and the end check asked for its rule-request items)
   if (/^\s*(<(task-notification|system-reminder)\b|\[SYSTEM NOTIFICATION)/i.test(String(data.prompt || '')) || /<agent-message\b[^>]*>\s*\[Subagent hand-back\]/.test(String(data.prompt || ''))) return null;
   const { book, text } = reminder(data.prompt || '');
-  saveTurn(data.session_id, { at: new Date().toISOString(), runbook: book?.file || null });
+  // (a message that arrives while a turn runs joins that turn: it gets its reminder, and the turn keeps its start and
+  // its runbook. A turn ends when its Stop passes; one left open over 12 hours, as after a crash, does not hold.
+  // Lesson (live): a mid-turn message moved the turn's start, and the end check lost the work done before it)
+  const prev = loadTurn(data.session_id);
+  if (prev.at && !prev.ended && Date.now() - Date.parse(prev.at) < 12 * 3600_000) saveTurn(data.session_id, { ...prev, runbook: prev.runbook || book?.file || null });
+  else saveTurn(data.session_id, { at: new Date().toISOString(), runbook: book?.file || null });
   return text ? { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: text } } : null;
 }

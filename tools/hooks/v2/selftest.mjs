@@ -126,6 +126,26 @@ report(missing({ runbook: null }, acts([user('fix it'), edit, say('Fixed.')])).l
 const chose = missing({ runbook: null }, acts([user('fix the orders file'), read, edit, say('Fixed.')]));
 report(chose.some(s => /export\.md item 1/.test(s)) && !chose.some(s => /^Open/.test(s)), 'end: with none routed, the runbook the agent opened is the one the turn is held to', chose);
 report(onStop({ stop_hook_active: true, transcript_path: transcript([user('add a csv export'), edit]), session_id: 's' }) === null, 'end: never blocks twice in one turn');
+{
+  // (a turn that goes on after its block and stops again, without a new request, is not blocked again)
+  const { onPrompt } = await import('./start.mjs');
+  const loadTurnT = (await import('./lib.mjs')).loadTurn;
+  onPrompt({ session_id: 'again', prompt: 'add a csv export' });
+  const tp = transcript([user('add a csv export'), edit]);
+  const first = onStop({ transcript_path: tp, session_id: 'again' }), later = onStop({ transcript_path: tp, session_id: 'again' });
+  onPrompt({ session_id: 'again', prompt: 'add a csv export' });
+  const next = onStop({ transcript_path: tp, session_id: 'again' });
+  // (a message typed while a turn runs joins it; after the turn's Stop passes, the next message starts a new turn)
+  onPrompt({ session_id: 'join', prompt: 'add a csv export' }); const t1 = loadTurnT('join');
+  await new Promise(r => setTimeout(r, 5));
+  onPrompt({ session_id: 'join', prompt: 'rotate the logs too' }); const t2 = loadTurnT('join');
+  onStop({ transcript_path: transcript([user('add a csv export'), say('Done.')]), session_id: 'join' });
+  await new Promise(r => setTimeout(r, 5));
+  onPrompt({ session_id: 'join', prompt: 'rotate the logs' }); const t3 = loadTurnT('join');
+  report(t2.at === t1.at && t2.runbook === 'docs/playbooks/export.md' && t3.at !== t1.at && t3.runbook === 'docs/playbooks/windows.md',
+    'start: a message that arrives mid-turn joins the turn (same start, same runbook); after a passing Stop the next one starts a new turn', [t1, t2, t3]);
+  report(first?.decision === 'block' && later === null && next?.decision === 'block', 'end: one block per request, even when the turn stops again later without a new request', [first?.decision, later, next?.decision]);
+}
 put('docs/CHANGELOG.md', '# Changelog\n');
 const turnStart = new Date(Date.now() + 50).toISOString();
 const onlyNamed = missing(turn, { ...acts([user('add a csv export'), read, edit, call('Bash', { command: 'npm test' }), call('Bash', { command: 'cat docs/CHANGELOG.md' }), say('How it was checked: tests.')]), at: turnStart });
@@ -182,6 +202,17 @@ report(resumed.length === 5, 'end: the summary that resumes a session is not a n
   const hooked = { type: 'attachment', attachment: { type: 'hook_additional_context', hookEvent: 'UserPromptSubmit', content: [] } };
   const p = turnActs(turnRows(transcript([user('fix the export'), code, say('Fixed.'), peer, hooked, call('Bash', { command: 'git log -3' }), say('Noted.')])));
   report(!worked(p), 'end: a message from another session that starts a turn is that turn\'s start, so the earlier turn\'s edits are not this turn\'s work', p.calls.map(c => c.name));
+  // (live, the saved time of the prompt hook marks the start, whatever kind of row the request is)
+  const at = (s, r) => ({ ...r, timestamp: `2026-01-02T10:${s}.000Z` });
+  const kE = `t${++id}`, kB = `t${++id}`, kL = `t${++id}`;
+  const timed = transcript([at('00:00', user('fix the export')), at('00:05', { type: 'assistant', message: { content: [{ type: 'tool_use', id: kE, name: 'Edit', input: { file_path: 'src/a.js' } }] } }),
+    at('05:00', { type: 'user', isMeta: true, message: { role: 'user', content: 'a note from elsewhere' } }),
+    at('05:02', { type: 'assistant', message: { content: [{ type: 'tool_use', id: kB, name: 'Bash', input: { command: 'git log -3' } }] } }),
+    at('05:09', user('<system-reminder>also look at the totals</system-reminder>')),
+    at('05:10', { type: 'assistant', message: { content: [{ type: 'tool_use', id: kL, name: 'Edit', input: { file_path: 'src/b.js' } }] } })]);
+  const live = turnActs(turnRows(timed, '2026-01-02T10:05:00.300Z')).calls.map(c => c.input.file_path || c.input.command);
+  report(JSON.stringify(live) === JSON.stringify(['git log -3', 'src/b.js']) && JSON.stringify(turnActs(turnRows(timed, '2026-01-02T10:00:00.200Z')).calls.length) === '3',
+    'end: live, the turn starts at the request the prompt hook saw, by its saved time, and a row arriving mid-turn does not split it', live);
   const mid = turnActs(turnRows(transcript([user('fix the export'), code, { type: 'attachment', attachment: { type: 'queued_command', prompt: 'a note' } }, hooked, say('Fixed.')])));
   report(worked(mid), 'end: a message from another session that arrives mid-turn does not split the turn', mid.calls.map(c => c.name));
 }
