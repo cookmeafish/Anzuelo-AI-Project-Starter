@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 
 // --- engine-result cache -------------------------------------------------------------------------------------------
 // The engine's scenarios run in the fixtures-only base (selfcheck.mjs base()), so their result is a function of that
@@ -37,6 +38,16 @@ export function engineStamp(baseDir, extra = [], { day = localDay(), node = proc
   for (const [r, s] of manifest(baseDir)) h.update(`${r}\0${s}\n`);
   for (const [n, t] of extra) h.update(`extra ${n}\0${t}\n`);
   return h.digest('hex').slice(0, 24);
+}
+// The main checkout of a linked git worktree, or null for a main checkout or no repository. A whole pass in a frozen
+// worktree of a commit is recorded there too, and the main folder's end check takes it only when its own tested files
+// hash the same. Lesson: the full self-test passed on a frozen copy of the exact commit, and the main folder's check
+// asked for it again in four turns.
+export function mainCheckout(dir) {
+  const git = a => (spawnSync('git', ['-C', dir, 'rev-parse', '--path-format=absolute', a], { encoding: 'utf8' }).stdout || '').trim();
+  const common = git('--git-common-dir'), own = git('--git-dir');
+  if (!common || !own || path.resolve(common) === path.resolve(own) || path.basename(common) !== '.git') return null;
+  return path.dirname(common);
 }
 export const cacheFile = () => process.env.STARTER_SELFTEST_CACHE || path.join(os.homedir(), '.cache', 'project-starter', 'engine-passes.json');
 function readCache(file = cacheFile()) { try { const j = JSON.parse(fs.readFileSync(file, 'utf8')); return Array.isArray(j.passes) ? j : { passes: [] }; } catch { return { passes: [] }; } }

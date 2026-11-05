@@ -16,7 +16,7 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { engineStamp, findPass, recordPass, localDay, SMOKE_EVERY, lockState, takeLock, releaseLock, otherSuites, registerSuite, markWaiting, timingLock, shardCount, failureCause, proofHash, readProof, writeProof, PROOF_FILE, PROOF_PATHS } from './selftest-cache.mjs';
+import { engineStamp, findPass, recordPass, localDay, SMOKE_EVERY, lockState, takeLock, releaseLock, otherSuites, registerSuite, markWaiting, timingLock, shardCount, failureCause, proofHash, readProof, writeProof, PROOF_FILE, PROOF_PATHS, mainCheckout } from './selftest-cache.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 // The self-tests make throwaway projects from this copy on purpose, even when it is a development copy (.starter-dev).
@@ -5687,6 +5687,17 @@ if (mineB() && SPEED) { // selftest-shards: helpers scale with the CPUs and the 
       JSON.stringify({ n, busy, small, few, full, live, deadGone }));
   } finally { child.kill(); fs.rmSync(tmp, { recursive: true, force: true }); }
 }
+if (mineB()) { // frozen-pass: a frozen worktree finds its main checkout, so its whole pass counts there; a main checkout has none
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-'));
+  try {
+    const repo = path.join(tmp, 'repo'), wt = path.join(tmp, 'frozen'), g = (...a) => spawnSync('git', a, { cwd: repo, encoding: 'utf8' });
+    write(repo, { 'a.txt': 'a\n' });
+    g('init', '-q'); g('add', '.'); g('-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-qm', 'a'); g('worktree', 'add', '-q', '--detach', wt);
+    const same = (a, b) => !!a && !!b && path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase();
+    const fromWt = mainCheckout(wt), fromMain = mainCheckout(repo), none = mainCheckout(tmp);
+    report(same(fromWt, repo) && fromMain === null && none === null, 'frozen-pass: a frozen worktree names its main checkout, where its whole pass is recorded; a main checkout or a plain folder names none', JSON.stringify({ fromWt, fromMain, none }));
+  } finally { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
+}
 // timing-turns: a run only waiting for its turn to time a hook is no load, and one run times at a time. Lesson (two
 // projects): two runs waited for each other at the timing test for 10 minutes, then timed together, and one failed
 if (mineB() && SPEED) {
@@ -8766,6 +8777,8 @@ try { const { logRun } = await import('./hooks.mjs'); logRun(`node tools/hooks/s
 // a whole run is what the upgrade review asks for (REQ: upgrade-review); with engine results reused it counts too, since
 // the engine passed in full under the same stamp
 if (!TAGS) try { fs.mkdirSync(path.join(ROOT, 'tools/hooks/state'), { recursive: true }); fs.writeFileSync(path.join(ROOT, 'tools/hooks/state/selftest.json'), JSON.stringify({ at: localDay(), passed: !fail, count: pass, inputs: INPUTS0, mode: REUSE ? 'reused' : 'full' })); } catch { }
+// (a whole pass in a frozen worktree is recorded in the main checkout too: see mainCheckout)
+if (!TAGS && !fail && !HELPER) try { const main = mainCheckout(ROOT); if (main && fs.existsSync(path.join(main, 'tools/hooks/hooks.mjs'))) { fs.mkdirSync(path.join(main, 'tools/hooks/state'), { recursive: true }); fs.writeFileSync(path.join(main, 'tools/hooks/state/selftest.json'), JSON.stringify({ at: localDay(), passed: true, count: pass, inputs: INPUTS0, mode: REUSE ? 'reused' : 'full', from: ROOT })); } } catch { }
 // a tagged run records itself too, so a pass whose output went to a file or ran in the background counts for the checks
 // it covered (Lesson, trial round 18: a background tagged run passed, and hooks-tested asked for it again: 1m42s)
 if (TAGS) try { fs.mkdirSync(path.join(ROOT, 'tools/hooks/state'), { recursive: true }); fs.writeFileSync(path.join(ROOT, 'tools/hooks/state/selftest-tags.json'), JSON.stringify({ at: new Date().toISOString(), passed: !fail, tags: TAGS, inputs: INPUTS0 })); } catch { }
