@@ -20,7 +20,10 @@ checks. Prefer deleting: fix a miss in the start reminder or the end check, or r
 measures the real projects with `node tools/starter/interrupts.mjs <transcripts> --since <date>`, and any refusal or
 notice during work that isn't for safety counts as a finding. `node tools/starter/stop-value.mjs` shows which end
 checks led to real work, and `node tools/starter/stop-found.mjs` reads v2's blocks. Engine v2 is the default since
-2026-11-05, and trial rounds run on it again (from v31).
+2026-11-05, and trial rounds run on it again (from v32). Live data from the real projects comes before trial
+findings. A fix must hold in two unrelated kinds of project; one that would add a gate is recorded and left. Each round
+reports v2's numbers: blocks per turn, how often the verify list led to a real fix, and false alarms. Fixes ship
+in the next frozen batch, not one upgrade per fix.
 
 0. **Work under the engine.** `node tools/hooks/hooks.mjs begin "<the request>"` in the starter first; what it gets wrong
    on this work goes in `tools/starter/dogfood-log.md` (the inside view, alongside the trial rounds' outside view).
