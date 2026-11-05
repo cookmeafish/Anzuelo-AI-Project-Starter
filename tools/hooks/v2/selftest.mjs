@@ -73,6 +73,17 @@ const edit = call('Edit', { file_path: path.join(dir, 'src/export.js'), old_stri
 const log = call('Edit', { file_path: path.join(dir, 'docs/CHANGELOG.md'), old_string: 'a', new_string: 'b' });
 const good = [user('add a csv export'), read, edit, call('Bash', { command: 'npm test' }, 'Tests: 4 passed'), log, say('Done. How it was checked: npm test, 4 pass.')];
 report(missing(turn, acts(good)).length === 0, 'end: a turn that met every checkable item passes', missing(turn, acts(good)));
+{
+  // the items no script can check: the agent goes over them once at the end of a work turn, in the one block
+  const { toVerify } = await import('./end.mjs');
+  const v = toVerify(turn, acts(good)), stop = onStop({ transcript_path: transcript(good), session_id: 'verify1' });
+  report(v?.file === 'docs/playbooks/export.md' && v.items.map(i => i.n).join() === '4' && /reads well for a person, which only a reader can judge$/.test(v.items[0].text)
+    && /Check that these items of docs\/playbooks\/export\.md are really done[\s\S]*\n4\. The output reads well/.test(stop?.reason || '') && !/Not done yet/.test(stop?.reason || ''),
+    'end: on a work turn the runbook\'s items no script can check are listed once for the agent to verify; met checkable ones are not', stop?.reason);
+  report(toVerify(turn, acts([user('what does the csv export do?'), read, say('It writes one row per order.')])) === null && toVerify({ runbook: null }, acts([user('fix it'), edit, say('Fixed.')])) === null
+    && onStop({ stop_hook_active: true, transcript_path: transcript(good), session_id: 'verify1' }) === null,
+    'end: a question, a turn with no runbook, and the repeat Stop get no verify list');
+}
 const noRead = missing(turn, acts([user('add a csv export'), edit, call('Bash', { command: 'npm test' }), log, say('How it was checked: tests.')]));
 report(noRead.length === 1 && /Open docs\/playbooks\/export\.md/.test(noRead[0]), 'end: work done without opening the runbook is named', noRead);
 const failed = missing(turn, acts([user('add a csv export'), read, edit, call('Bash', { command: 'npm test' }, 'Tests: 1 failed', true), log, say('How it was checked: tests.')]));

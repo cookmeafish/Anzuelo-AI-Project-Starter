@@ -12,7 +12,7 @@ const since = args.includes('--since') ? args[args.indexOf('--since') + 1] : '20
 if (!project || !tdir) { console.error('usage: node tools/starter/v2-replay.mjs <project folder> <transcript folder> [--since YYYY-MM-DD] [--show]'); process.exit(2); }
 process.env.ANZUELO_ROOT = path.resolve(project);
 const { reminder } = await import('../hooks/v2/start.mjs');
-const { missing } = await import('../hooks/v2/end.mjs');
+const { missing, toVerify } = await import('../hooks/v2/end.mjs');
 const { turnActs, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, runbooks, typed } = await import('../hooks/v2/lib.mjs');
 const books = runbooks();
 import { firstTry, withShellEdits } from './replay-lib.mjs';
@@ -28,6 +28,9 @@ for (const f of fs.readdirSync(tdir).filter(f => f.endsWith('.jsonl')).map(f => 
     turns++; if (r.book) { routed++; lines += r.text.split('\n').length; chars += r.text.length; }
     const acts = withShellEdits(turnActs(firstTry(slice))), list = [...missing({ runbook: r.book?.file || null }, acts, books), ...testGaps(acts), ...gateGaps(acts), ...screenGaps(acts), ...healthGaps(acts, { run: false }), ...knowledgeGaps(acts), ...securityGaps(acts), ...claimGaps(acts, rows.slice(0, s).map(x => JSON.stringify(x)).join('\n').slice(-5_000_000))];
     // (the health check can't be rerun on a past turn: "would run" is counted on its own line, not as a block)
+    // (the runbook's items no script can check, listed for the agent to verify on a work turn: a block too)
+    const verify = toVerify({ runbook: r.book?.file || null }, acts, books);
+    if (verify) list.push(`Verify ${verify.items.length} reader items of <runbook>`);
     if (list.some(x => !/would run here/.test(x))) blocks++;
     if (list.length) { for (const x of list) { const key = x.replace(/item \d+: .*/, 'item N').replace(/docs\/playbooks\/[\w-]+\.md|tools\/starter\/runbooks\/[\w-]+\.md/, '<runbook>'); kinds.set(key, (kinds.get(key) || 0) + 1); }
       if (args.includes('--show')) console.log(`${rows[s].timestamp?.slice(0, 16)} "${prompt.replace(/\s+/g, ' ').slice(0, 70)}"\n   ${list.join('\n   ')}`); }

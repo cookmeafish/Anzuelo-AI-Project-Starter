@@ -13,7 +13,7 @@ docs/STATUS.md, which here is the template new projects start from).
   The routing sample is done (in the plan). v2 end checks 3 to 7 are built (screens, health check, knowledge sources,
   security review, claims backed; last d415138). Their replay recall is under target, so they wait on the shadow logs.
   Decision 2026-11-08: a check under 50% blocks-found in shadow is dropped. Full self-test at 66de043: all pass; the
-  run at d415138 is in C:/Users/User/.anzuelo-frozen. Next: Done-when items checkable or dropped, size-budget test,
+  run at d415138 is in ~/.anzuelo-frozen. Next: Done-when items checkable or dropped, size-budget test,
   AGENTS/README draft, then the 2026-11-06 batched upgrade.
   Next (docs/plans/2026-11-05-engine-v2.md):
   - tomorrow's batched upgrade of both projects (they were already upgraded once today), then read their shadow logs
