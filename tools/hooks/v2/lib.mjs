@@ -321,7 +321,13 @@ export function healthGaps(acts, { run = true } = {}) {
   if (r.status === 0 || r.error) { saveTurn('health', { ...loadTurn('health'), ms }); return []; }
   // (a failure already reported on an earlier turn is not this turn's: it is asked about once, not on every turn after.
   // Lesson: a sweep waiting on the user's decision failed in every structural turn)
-  const fails = String(r.stdout || '').split('\n').filter(l => /^FAIL/.test(l)).map(l => l.replace(/^FAIL\s+/, '').replace(/\s*\(.*$/, '').trim());
+  // (a failure whose every line names a file this turn did not change is not this turn's either. Lesson (live v2): the
+  // first structural turn under v2 had no earlier record, and a failure about three untouched files was asked about)
+  const blocks = String(r.stdout || '').split(/\n(?=PASS|WARN|FAIL)/).filter(b => /^FAIL/.test(b));
+  const touched = new Set([...acts.calls.filter(c => /^(Edit|Write|MultiEdit)$/.test(c.name)).map(c => relp(c.input.file_path || '')), ...changedSince(acts, { test: () => true })]);
+  const others = b => { const named = [...b.matchAll(/^\s+- ([\w./-]+\.\w+):/gm)].map(m => m[1]); return named.length > 0 && named.every(f => !touched.has(f)); };
+  const fails = blocks.filter(b => !others(b)).map(b => b.split('\n')[0].replace(/^FAIL\s+/, '').replace(/\s*\(.*$/, '').trim());
+  if (!fails.length) { saveTurn('health', { ...loadTurn('health'), ms }); return []; }
   const known = new Set(loadTurn('health').fails || []), fresh = fails.filter(f => !known.has(f));
   saveTurn('health', { fails, ms });
   if (fails.length && !fresh.length) return [];

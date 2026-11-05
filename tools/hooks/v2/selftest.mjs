@@ -211,6 +211,12 @@ report(hFail.length === 1 && /health check .*fails.*runbook steps/.test(hFail[0]
 report(healthGaps(acts([user('add another step'), rule, say('Added.')])).length === 0, 'end: a failure already reported on an earlier turn is not asked about again');
 put('tools/fail.txt', 'skill mirror');
 report(healthGaps(acts([user('add a third step'), rule, say('Added.')])).length === 1, 'end: a new failure is asked about');
+put('tools/fail.txt', 'publish safety\n        - library/other.md: a private term');
+const untouched = healthGaps(acts([user('add a fourth step'), rule, say('Added.')]));
+put('tools/fail.txt', 'name check\n        - docs/playbooks/export.md: a typed-out name');
+const mine = healthGaps(acts([user('add a fifth step'), rule, say('Added.')]));
+report(untouched.length === 0 && mine.length === 1, 'end: a new failure that names only files the turn did not touch is not its; one naming a changed file is', { untouched, mine });
+put('tools/fail.txt', 'skill mirror');
 const before = ranCount();
 report(healthGaps(acts([user('add a step'), rule, call('Bash', { command: 'node tools/audit.mjs' }, 'audit: PASS (30 sweeps)'), say('Added.')])).length === 0 && ranCount() === before,
   'end: a passing health check the agent ran after the change is enough; it is not run again');
