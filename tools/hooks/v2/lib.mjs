@@ -6,7 +6,9 @@ import path from 'node:path';
 
 export const ROOT = process.env.ANZUELO_ROOT || process.cwd();
 const RUNBOOK_DIRS = ['docs/playbooks', 'tools/starter/runbooks'];
-const read = f => { try { return fs.readFileSync(path.join(ROOT, f), 'utf8'); } catch { return ''; } };
+// (Windows line endings read as plain ones: a runbook saved with CRLF had no header the router could see. Lesson
+// (replay): most of a project's runbooks were invisible to routing)
+const read = f => { try { return fs.readFileSync(path.join(ROOT, f), 'utf8').replace(/\r\n?/g, '\n'); } catch { return ''; } };
 
 // "## Done when" items. A checkable item ends with one of:
 //   (file: <path or glob>)   the turn changed that file (Edit, Write, or a command that names it as its output)
@@ -37,7 +39,8 @@ export function runbooks() {
     for (const f of names.filter(f => f.endsWith('.md') && !f.startsWith('_'))) {
       const file = `${d}/${f}`, text = read(file), fm = /^---\n([\s\S]*?)\n---/.exec(text)?.[1] || '';
       const triggers = (/^triggers:\s*(.+)$/m.exec(fm)?.[1] || '').split(',').map(s => s.trim().toLowerCase()).filter(s => s.length > 2);
-      out.push({ name: f.replace(/\.md$/, ''), file, triggers, items: doneWhen(text) });
+      const menu = (/^menu:\s*(.+)$/m.exec(fm)?.[1] || '').split(/[,\s]+/).map(s => s.trim().toUpperCase()).filter(s => /^[A-Z]\d{1,2}$/.test(s));
+      out.push({ name: f.replace(/\.md$/, ''), file, triggers, menu, items: doneWhen(text) });
     }
   }
   return out;
@@ -45,6 +48,10 @@ export function runbooks() {
 
 // The runbook whose trigger phrase matches the request best: the longest whole-phrase match wins.
 export function route(prompt, books = runbooks()) {
+  // (a menu code at the start, "B4 <args>", names its runbook outright)
+  const code = /^\s*([A-Za-z]\d{1,2})(?=\s|$)/.exec(String(prompt))?.[1]?.toUpperCase();
+  const byCode = code && books.find(b => b.menu.includes(code));
+  if (byCode) return { ...byCode, matched: code };
   const p = ` ${String(prompt).toLowerCase().replace(/[^\p{L}\p{N}' ]+/gu, ' ').replace(/\s+/g, ' ')} `;
   let best = null;
   for (const b of books) for (const t of b.triggers) {
@@ -56,7 +63,7 @@ export function route(prompt, books = runbooks()) {
 
 // A message the user typed: not a notice, a relayed message, or the summary that resumes a session.
 export const typed = r => r.type === 'user' && !r.isMeta && !r.isCompactSummary && typeof r.message?.content === 'string'
-  && !/^\s*<(task-notification|system-reminder|cross-session-message|agent-message|command-)|^This session is being continued from a previous conversation/.test(r.message.content);
+  && !/^\s*<(task-notification|system-reminder|cross-session-message|agent-message|command-|local-command-)|^This session is being continued from a previous conversation/.test(r.message.content);
 // This turn's rows from a transcript: everything after the last message the user typed.
 export function turnRows(transcript) {
   let rows = [];
@@ -74,10 +81,10 @@ export function turnActs(rows) {
     const c = r.message?.content;
     if (!Array.isArray(c)) continue;
     for (const x of c) {
-      if (r.type === 'assistant' && x.type === 'tool_use') { const call = { name: x.name, input: x.input || {}, error: false, out: '' }; calls.push(call); byId.set(x.id, call); }
+      if (r.type === 'assistant' && x.type === 'tool_use') { const call = { name: x.name, input: x.input || {}, error: false, out: '', done: 0 }; calls.push(call); byId.set(x.id, call); }
       if (x.type === 'tool_result' && byId.has(x.tool_use_id)) {
         const out = typeof x.content === 'string' ? x.content : Array.isArray(x.content) ? x.content.map(b => b?.text || '').join('\n') : '';
-        Object.assign(byId.get(x.tool_use_id), { out: out.slice(-4000), error: !!x.is_error || /\bexit code [1-9]|^Exit code [1-9]/m.test(out) });
+        Object.assign(byId.get(x.tool_use_id), { out: out.slice(-4000), error: !!x.is_error || /\bexit code [1-9]|^Exit code [1-9]/m.test(out), done: Date.parse(r.timestamp || '') || 0 });
       }
       if (r.type === 'assistant' && x.type === 'text' && x.text.trim()) answer = x.text;
     }
@@ -123,24 +130,55 @@ const testScript = () => { let s = ''; try { s = JSON.parse(fs.readFileSync(path
 const PASS_OUT = /\b\d+ (tests? )?passed\b|\bALL PASS\b|\bRESULT:\s*PASS\b|\b0 (failed|failures)\b|\bRan \d+ tests?\b[\s\S]{0,200}\bOK\b|\b\d+ passing\b|\btests? passed\b/i;
 const FAIL_OUT = /\b[1-9]\d* (tests? )?(failed|failing)\b|\bFAILED\b|\bnot ok\b/;
 export const passedRun = c => /^(Bash|PowerShell)$/.test(c.name) && !c.error && (isTestRun(String(c.input.command || '')) || PASS_OUT.test(c.out || '')) && !FAIL_OUT.test(c.out || '');
+// (the project's own declared test and build commands, tools/hooks/config.json "test" and "build", count part by part.
+// Lesson (replay): a project's tests were a plain script run with node, which no runner name matched)
+const declared = () => { try { const c = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/hooks/config.json'), 'utf8')); return [c.test, c.build].filter(s => typeof s === 'string').flatMap(s => s.split(/\s*&&\s*/)).map(s => s.trim()).filter(Boolean); } catch { return []; } };
 export function isTestRun(cmd) {
   if (RUNNERS.test(cmd)) return true;
   const script = testScript();
-  return !!script && String(cmd).includes(script);
+  return (!!script && String(cmd).includes(script)) || declared().some(d => String(cmd).includes(d));
 }
 const CODE = /\.(js|mjs|cjs|ts|tsx|jsx|py|go|rs|java|kt|cs|rb|php|swift|c|cc|cpp|h|vue|svelte)$/i;
+// Files changed in the turn: edited by a tool, or (in a live turn) written since it began by anything, a helper or a
+// script included. Lesson (replay): edits made by helpers were invisible, and their code went untested.
+const changedSince = (since, rx) => since ? filesMatching('**/*').filter(f => rx.test(f) && !/^(\.cache|tools\/hooks\/state)\//.test(f) && (() => { try { return fs.statSync(path.join(ROOT, f)).mtimeMs > since; } catch { return false; } })()) : [];
+const mtime = f => { try { return fs.statSync(path.join(ROOT, f)).mtimeMs; } catch { return 0; } };
+// The project's own declared checks: tools/hooks/config.json "commitGate" entries, a command (a regex) and the files it
+// covers. A change to those files asks for that command to pass afterwards.
+const gates = () => { try { return JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/hooks/config.json'), 'utf8')).commitGate || []; } catch { return []; } };
+export function gateGaps(acts) {
+  const out = [], since = Date.parse(acts.at || '') || 0;
+  for (const g of gates()) {
+    const when = [].concat(g.when || []).map(globRx), hit = p => when.some(rx => rx.test(p));
+    const edits = acts.calls.map((c, k) => [c, k]).filter(([c]) => /^(Edit|Write|MultiEdit)$/.test(c.name) && hit(relp(c.input.file_path || '')));
+    const files = changedSince(since, { test: hit });
+    if (!edits.length && !files.length) continue;
+    const lastEdit = Math.max(-1, ...edits.map(([, k]) => k)), lastWrite = Math.max(0, ...files.map(mtime));
+    // (a chained command counts part by part: the agent may run its steps one at a time)
+    for (const part of String(g.cmd || '').split(/\s*&&\s*/).filter(Boolean)) {
+      let rx; try { rx = new RegExp(part, 'i'); } catch { continue; }
+      const ok = acts.calls.some((c, k) => /^(Bash|PowerShell)$/.test(c.name) && !c.error && rx.test(String(c.input.command || '')) && k > lastEdit && (!lastWrite || c.done > lastWrite));
+      if (!ok) out.push(`Run the project's check \`${part.replace(/\\(.)/g, '$1')}\` after the change, and say the result.`);
+    }
+  }
+  return out;
+}
 // Check 2: code changed after the last passing test run, or the answer says tests passed and none did this turn.
 export function testGaps(acts) {
   const out = [], i = acts.calls.map((c, k) => [c, k]);
-  const lastCode = Math.max(-1, ...i.filter(([c]) => /^(Edit|Write|MultiEdit)$/.test(c.name) && CODE.test(String(c.input.file_path || ''))).map(([, k]) => k));
+  // (the project's code: not a scratch script in .cache or outside the project. Lesson (replay): helper scripts the
+  // agent wrote in .cache asked for the project's tests)
+  const own = p => { const r = relp(p); return CODE.test(r) && !/^(\.\.|\.cache\/|[a-z]:)/i.test(r); };
+  const lastCode = Math.max(-1, ...i.filter(([c]) => /^(Edit|Write|MultiEdit)$/.test(c.name) && own(c.input.file_path || '')).map(([, k]) => k));
   const passes = i.filter(([c]) => passedRun(c)).map(([, k]) => k);
+  const codeWrite = Math.max(0, ...changedSince(Date.parse(acts.at || '') || 0, CODE).map(mtime));
   const anyRunner = i.some(([c]) => /^(Bash|PowerShell)$/.test(c.name) && isTestRun(String(c.input.command || '')));
   // (a project has tests when a runner was seen this turn or a test setup exists, not just a build file. Lesson
   // (review): pyproject.toml and go.mod are in many projects with no tests at all)
   const has = f => fs.existsSync(path.join(ROOT, f)), pyproject = (() => { try { return fs.readFileSync(path.join(ROOT, 'pyproject.toml'), 'utf8'); } catch { return ''; } })();
-  const hasTests = anyRunner || !!testScript() || ['pytest.ini', 'conftest.py', 'tests', 'test', '__tests__', 'spec'].some(has)
+  const hasTests = anyRunner || !!testScript() || declared().length > 0 || ['pytest.ini', 'conftest.py', 'tests', 'test', '__tests__', 'spec'].some(has)
     || /\[tool\.pytest/.test(pyproject) || ['**/*_test.go', '**/test_*.py', '**/*_test.py', '**/*.test.js', '**/*.test.mjs', '**/*.test.ts'].some(g => filesMatching(g).length > 0);
-  if (lastCode >= 0 && hasTests && !passes.some(k => k > lastCode)) out.push('Run the tests after the last code change, and say the result.');
+  if ((lastCode >= 0 || codeWrite) && hasTests && !passes.some(k => k > lastCode && (!codeWrite || acts.calls[k].done > codeWrite))) out.push('Run the tests after the last code change, and say the result.');
   else if (/\b(all )?tests? (now )?pass(ed|es|ing)?\b|\b\d+ (tests? )?passed\b/i.test(acts.answer) && !passes.length) out.push('The answer says tests passed, but no test run passed in this turn: run them, or correct the answer.');
   return out;
 }

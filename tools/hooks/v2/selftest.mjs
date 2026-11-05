@@ -10,6 +10,7 @@ const put = (f, s) => { fs.mkdirSync(path.dirname(path.join(dir, f)), { recursiv
 put('docs/playbooks/export.md', `---
 name: export
 triggers: csv export, export the orders
+menu: C3
 ---
 # Export
 ## Steps
@@ -22,6 +23,7 @@ triggers: csv export, export the orders
    reader can judge (judgment: taste)
 `);
 put('docs/playbooks/long.md', `---\ntriggers: long job\n---\n## Done when\n${Array.from({ length: 14 }, (_, i) => `${i + 1}. Step number ${i + 1} is done`).join('\n')}\n`);
+put('docs/playbooks/windows.md', '---\r\nname: windows\r\ntriggers: rotate the logs\r\nmenu: W1\r\n---\r\n# Logs\r\n## Done when\r\n1. The old logs are zipped (file: logs/*.zip)\r\n');
 const { reminder, MAX_LINES } = await import('./start.mjs');
 const { missing, onStop } = await import('./end.mjs');
 const { turnRows, turnActs } = await import('./lib.mjs');
@@ -43,6 +45,11 @@ const r = reminder('can you add a CSV export for the orders page');
 report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/.test(r.text) && /Done when:\n1\. The tests pass/.test(r.text) && !/ran:|file:|answer:|judgment:|REQ/.test(r.text),
   'start: a matching request gets the runbook and its Done-when list, in plain words', r.text);
 report(/4\. The output reads well for a person, which only a reader can judge$/m.test(r.text), 'start: an item that wraps onto a second line is shown whole, without its check marker', r.text);
+report(reminder('C3 --since monday --format xlsx').book?.name === 'export' && !reminder('C31 rows').book && !reminder('version C3 is out').book, 'start: a menu code at the start routes to its runbook; a longer code or one mid-sentence does not');
+const win = reminder('please rotate the logs tonight');
+report(win.book?.name === 'windows' && reminder('W1').book?.name === 'windows' && /1\. The old logs are zipped$/m.test(win.text), 'start: a runbook saved with Windows line endings routes and shows its list', win.text);
+const { typed } = await import('./lib.mjs');
+report(!typed({ type: 'user', message: { content: '<local-command-stdout>Login successful.</local-command-stdout>' } }) && typed({ type: 'user', message: { content: 'export the orders' } }), 'start: terminal output from a local command is not a typed request');
 report(reminder('what time is it').text === '', 'start: a request no runbook fits gets nothing');
 const long = reminder('start the long job now').text.split('\n');
 report(long.length <= MAX_LINES && /more in docs\/playbooks\/long\.md/.test(long.at(-1)), `start: the reminder is at most ${MAX_LINES} lines`, long.length);
@@ -100,6 +107,34 @@ fs.rmSync(path.join(dir, 'tools'), { recursive: true });
 put('pyproject.toml', '[project]\nname = "tool"\n[tool.pytest.ini_options]\n');
 report(testGaps(acts([user('fix the total'), code, say('Fixed.')])).length === 1, 'end: a configured pytest asks for a test run after a code change');
 report(testGaps(acts([user('tidy the notes'), call('Edit', { file_path: path.join(dir, 'notes/a.md'), old_string: 'a', new_string: 'b' }), say('Tidied.')])).length === 0, 'end: a change to notes, not code, asks for no tests');
+report(testGaps(acts([user('fix the total'), call('Write', { file_path: path.join(dir, '.cache/fix.py'), content: 'x' }), call('Write', { file_path: path.join(os.tmpdir(), 'scratch.py'), content: 'x' }), say('Fixed.')])).length === 0,
+  'end: a scratch script in .cache or outside the project is not project code');
+const helperStart =new Date(Date.now() + 50).toISOString();
+await new Promise(r => setTimeout(r, 120));
+put('src/helper.py', 'x = 1\n');
+report(testGaps({ ...acts([user('fix the total'), call('Agent', { prompt: 'fix it' }), say('Fixed.')]), at: helperStart }).length === 1, 'end: code a helper or script changed during the turn asks for a test run');
+const ranLater = acts([user('fix the total'), call('Agent', { prompt: 'fix it' }), call('Bash', { command: 'pytest -q' }, '3 passed'), say('Fixed, 3 passed.')]);
+ranLater.calls[1].done = Date.now() + 1000;
+report(testGaps({ ...ranLater, at: helperStart }).length === 0, 'end: a passing test run after the helper\'s change covers it');
+
+// end: the project's own declared checks (config.json commitGate)
+const { gateGaps } = await import('./lib.mjs');
+put('tools/hooks/config.json', JSON.stringify({ commitGate: [{ cmd: 'python site/verify\\.py && node site/controls\\.js', when: ['site/**'] }] }));
+const siteEdit = call('Edit', { file_path: path.join(dir, 'site/page.html'), old_string: 'a', new_string: 'b' });
+const gNone = gateGaps(acts([user('fix the page'), siteEdit, say('Fixed.')]));
+report(gNone.length === 2 && /python site\/verify\.py/.test(gNone[0]), 'end: a change to files a declared check covers asks for each part of that check', gNone);
+report(gateGaps(acts([user('fix the page'), siteEdit, call('Bash', { command: 'python site/verify.py' }), call('Bash', { command: 'node site/controls.js' }), say('Fixed.')])).length === 0,
+  'end: the parts run one at a time after the change count');
+report(gateGaps(acts([user('fix the page'), call('Bash', { command: 'python site/verify.py && node site/controls.js' }), siteEdit, say('Fixed.')])).length === 2, 'end: a declared check run before the change does not cover it');
+report(gateGaps(acts([user('fix the page'), siteEdit, call('Bash', { command: 'python site/verify.py && node site/controls.js' }, 'Exit code 1', true), say('Fixed.')])).length === 2, 'end: a failing declared check does not count');
+fs.rmSync(path.join(dir, 'pyproject.toml'));
+put('tools/hooks/config.json', JSON.stringify({ test: 'node site/page-test.mjs && python site/verify.py' }));
+const page = call('Edit', { file_path: path.join(dir, 'site/page.js'), old_string: 'a', new_string: 'b' });
+report(testGaps(acts([user('fix the page'), page, say('Fixed.')])).length === 1
+  && testGaps(acts([user('fix the page'), page, call('Bash', { command: 'cd site && node site/page-test.mjs' }, 'done'), say('Fixed.')])).length === 0,
+  'end: the project\'s declared test command (config "test") is its test setup and counts as a test run');
+put('tools/hooks/config.json', JSON.stringify({ commitGate: [{ cmd: 'python site/verify\\.py && node site/controls\\.js', when: ['site/**'] }] }));
+report(gateGaps(acts([user('tidy the notes'), call('Edit', { file_path: path.join(dir, 'notes/a.md'), old_string: 'a', new_string: 'b' }), say('Tidied.')])).length === 0, 'end: a change outside a declared check\'s files asks for nothing');
 
 fs.rmSync(dir, { recursive: true, force: true });
 console.log(`v2 selftest: ${fail ? 'FAIL' : 'ALL PASS'} (${pass} passed, ${fail} failed)`);
