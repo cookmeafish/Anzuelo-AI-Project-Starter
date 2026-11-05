@@ -57,6 +57,11 @@ export function route(prompt, books = runbooks()) {
   const code = /^\s*([A-Za-z]\d{1,2})(?=\s|$)/.exec(String(prompt))?.[1]?.toUpperCase();
   const byCode = code && books.find(b => b.menu.includes(code));
   if (byCode) return { ...byCode, matched: code };
+  // (an engine upgrade goes to the engine runbook, where its checklist is, whatever the fixes it describes say. Not in
+  // the starter, where an upgrade message is a project's report back. Lesson (replay): every upgrade message the starter
+  // sent a project routed to the project runbook on words like "audit" in its list of fixes)
+  const eng = books.find(b => b.file === 'docs/playbooks/engine.md');
+  if (eng && !fs.existsSync(path.join(ROOT, '.starter-template')) && /\bstarter\.mjs\s+(update|upgrade)\b|\bengine upgrade\b|\b(upgrade|update)\s+(the\s+|this\s+|your\s+)?(engine|starter)\b|\bactualiza\w*\s+(el\s+)?(motor|starter)\b/i.test(String(prompt))) return { ...eng, matched: 'engine upgrade' };
   const p = ` ${String(prompt).toLowerCase().replace(/[^\p{L}\p{N}' ]+/gu, ' ').replace(/\s+/g, ' ')} `;
   let best = null;
   for (const b of books) for (const t of b.triggers) {

@@ -49,6 +49,14 @@ const acts = rows => turnActs(turnRows(transcript(rows)));
 const r = reminder('can you add a CSV export for the orders page');
 report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/.test(r.text) && /Done when:\n1\. The tests pass/.test(r.text) && !/ran:|file:|answer:|judgment:|REQ/.test(r.text),
   'start: a matching request gets the runbook and its Done-when list, in plain words', r.text);
+{
+  const { route } = await import('./lib.mjs');
+  const books = [{ file: 'docs/playbooks/engine.md', name: 'engine', triggers: ['upgrade the engine'], menu: [] }, { file: 'docs/playbooks/project.md', name: 'project', triggers: ['audit', 'sweep'], menu: [] }];
+  const msg = 'Engine upgrade 1a2b3c is ready in your linked starter copy. It fixes the audit sweep. Run node tools/starter.mjs upgrade.';
+  report(route(msg, books)?.name === 'engine', 'start: an engine upgrade message goes to the engine runbook, not to a runbook named by words in its list of fixes', route(msg, books)?.name);
+  put('.starter-template', ''); const inStarter = route(msg, books)?.name; fs.rmSync(path.join(dir, '.starter-template'));
+  report(inStarter === 'project', 'start: in the starter itself an upgrade message is a report back and routes on its other words', inStarter);
+}
 report(/4\. The output reads well for a person, which only a reader can judge$/m.test(r.text), 'start: an item that wraps onto a second line is shown whole, without its check marker', r.text);
 report(reminder('C3 --since monday --format xlsx').book?.name === 'export' && !reminder('C31 rows').book && !reminder('version C3 is out').book, 'start: a menu code at the start routes to its runbook; a longer code or one mid-sentence does not');
 const win = reminder('please rotate the logs tonight');
