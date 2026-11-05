@@ -81,6 +81,10 @@ docs/STATUS.md, which here is the template new projects start from).
   the agent got wrong), verdict WORSE on setup cost ($6.57 median vs $5). Fixed in 4dd7d54 (proof 28648cb): waiting blocks
   count toward the 3 rounds, a question after Finished counts under autonomy, upgrades route to engine.md, checklist asks
   name their runbook, warm-letter example. Sent to both projects. Next: setup time (audit --setup reruns, 6 to 10 min each).
+- 2026-11-05 07:00 UTC: v28q (4 projects) VERDICT WORSE on setup time and cost, traced to 2-3 waits over 5 minutes per setup
+  (cache expiry, 150k-205k extra cache tokens), during my own chains and the projects' upgrade runs. Seven false alarms
+  from v28/v28q fixed in 3e070fe (proof a24faf4), upgrades handed out. Next: quiet timing of a project self-test, then
+  a quiet round (nothing else running) to settle the setup verdict.
 - 2026-11-05 05:50 UTC: v28 (15405e0, 12 projects, 6 judges): high 2 -> 0, medium 23 -> 12 vs v27, but VERDICT WORSE on setup
   median 27.5 vs 18.1 min. Confounded: 4 full chains and probes ran alongside (self-test median 45 s vs 17 s, audit runs
   37 vs 16). Quiet rerun v28q (4 projects) running. Open v28 findings: wording checks that do not show the accepted

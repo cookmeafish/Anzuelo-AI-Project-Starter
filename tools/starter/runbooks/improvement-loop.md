@@ -87,3 +87,7 @@ When the user gives a time budget for testing, it is one session of steps 1 to 7
   projects under a new round name after the reset; never judge them.
 - A round's projects live in the temp folder (`anzuelo-new/<id>-<round>`); a name used once cannot be reused.
 - Never edit the frozen copy, and never judge a round with an agent that wrote its fixes.
+- Nothing heavy runs beside a round: no full chain here and no project upgrade (their `selfcheck --full`). Load
+  stretches each setup self-test past 5 minutes, the prompt cache expires during the wait, and the context is written
+  again: rounds v28 and v28q read WORSE on setup time and cost (150k to 205k extra cache tokens per setup) from load
+  alone. Fixes made during a round wait to be tested until it ends; hand upgrades out after it.
