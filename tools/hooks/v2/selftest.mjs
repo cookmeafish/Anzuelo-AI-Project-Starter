@@ -47,6 +47,13 @@ const acts = rows => turnActs(turnRows(transcript(rows)));
   report(both.kind === 'file' && both.arg === 'docs/plans/*.md' && both.text === 'The plan is saved in docs/plans/', 'start: an item with the old engine\'s marker and v2\'s keeps v2\'s check and shows neither', both);
   const [mid] = doneWhen('## Done when\n- [ ] The review table is written (file: docs/reviews/*.md), each area\n  with its evidence.\n');
   report(mid.kind === 'file' && mid.arg === 'docs/reviews/*.md' && mid.text === 'The review table is written, each area with its evidence', 'start: a marker inside an item, not only at its end, is its check', mid);
+  // (an item for one branch says when it applies; on other turns it is neither checked nor listed to verify)
+  const { applies, met } = await import('./lib.mjs');
+  const [install, upg] = doneWhen('## Done when\n- [ ] An install started setup (when ran: tool install).\n- [ ] An upgrade was committed (when ran: tool upgrade|tool update) (ran: git commit).\n');
+  const upTurn = { calls: [{ name: 'Bash', input: { command: 'node tool upgrade' }, out: 'ok' }], answer: '' };
+  report(install.when?.arg === 'tool install' && install.kind === null && install.text === 'An install started setup' && upg.kind === 'ran'
+    && !applies(install, upTurn) && applies(upg, upTurn) && met(upg, upTurn) === false,
+    'start: a "(when ...)" item applies only on turns where its condition held, and its own check still counts there', [install, upg]);
 }
 const r = reminder('can you add a CSV export for the orders page');
 report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/.test(r.text) && /Done when:\n1\. The tests pass/.test(r.text) && !/ran:|file:|answer:|judgment:|REQ/.test(r.text),

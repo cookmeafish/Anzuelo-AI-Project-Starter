@@ -30,10 +30,14 @@ export function doneWhen(text) {
     // (the last marker anywhere in the item. Lesson (a field report): a marker on the first line of a two-line item
     // was not read)
     const c = [...raw.matchAll(/\((file|ran|answer):\s*([^)]+)\)/gi)].at(-1);
+    // (an item that fits one branch of a runbook says when: "(when ran: <regex>)" and the like. On a turn where that
+    // did not happen it is neither checked nor listed. Lesson (replay): an engine upgrade turn was asked to verify the
+    // install, removal and setting items too)
+    const w = /\(when\s+(file|ran|answer):\s*([^)]+)\)/i.exec(raw);
     // (every marker goes from the shown text: an item may carry the old engine's "(hook: ...)" or "(judgment: ...)"
     // before v2's own)
-    const text = raw.replace(/\s*\((?:file|ran|answer|hooks?|judgment):[^)]*\)/gi, '').replace(/\s*\.\s*$/, '').replace(/`/g, '').trim();
-    return { n: i + 1, text, kind: c ? c[1].toLowerCase() : null, arg: c ? c[2].trim() : null };
+    const text = raw.replace(/\s*\((?:when\s+)?(?:file|ran|answer|hooks?|judgment):[^)]*\)/gi, '').replace(/\s*\.\s*$/, '').replace(/`/g, '').trim();
+    return { n: i + 1, text, kind: c ? c[1].toLowerCase() : null, arg: c ? c[2].trim() : null, when: w ? { kind: w[1].toLowerCase(), arg: w[2].trim() } : null };
   });
 }
 
@@ -224,6 +228,8 @@ const globRx = g => new RegExp('^' + g.replace(/\\/g, '/').replace(/[.+^${}()|[\
 const relp = p => path.relative(ROOT, path.resolve(ROOT, String(p))).replace(/\\/g, '/');
 
 // Whether a checkable item was met by what the turn did. Null means it can't be checked here.
+// Whether an item fits this turn: always, or when its "(when ...)" condition held.
+export const applies = (item, acts) => !item.when || met(item.when, acts) === true;
 export function met(item, acts) {
   if (!item.kind) return null;
   if (item.kind === 'answer') return new RegExp(item.arg, 'i').test(acts.answer);

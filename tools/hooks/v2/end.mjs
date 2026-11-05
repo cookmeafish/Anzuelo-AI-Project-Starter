@@ -1,6 +1,6 @@
 // Engine v2 end hook (Stop): the one check. It judges only what this session did in this turn, from its own
 // transcript, and blocks at most once with a short plain list of what is really missing.
-import { runbooks, turnRows, turnActs, met, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, tail } from './lib.mjs';
+import { runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, tail } from './lib.mjs';
 
 // Check 1: the routed runbook was followed, and its checkable "Done when" items were met. With none routed, the
 // runbook the agent chose and opened is the one it is held to.
@@ -9,7 +9,7 @@ export function missing(turn, acts, books = runbooks()) {
   if (!book || !worked(acts)) return [];
   const out = [];
   if (!opened(book, acts)) out.push(`Open ${book.file} and check the work against its steps.`);
-  for (const it of book.items) if (met(it, acts) === false) out.push(`${book.file} item ${it.n}: ${it.text}`);
+  for (const it of book.items) if (applies(it, acts) && met(it, acts) === false) out.push(`${book.file} item ${it.n}: ${it.text}`);
   return out;
 }
 
@@ -19,7 +19,7 @@ export function missing(turn, acts, books = runbooks()) {
 export function toVerify(turn, acts, books = runbooks()) {
   const book = (turn.runbook && books.find(b => b.file === turn.runbook)) || books.find(b => opened(b, acts));
   if (!book || !worked(acts)) return null;
-  const items = book.items.filter(it => met(it, acts) === null);
+  const items = book.items.filter(it => applies(it, acts) && met(it, acts) === null);
   return items.length ? { file: book.file, items } : null;
 }
 
