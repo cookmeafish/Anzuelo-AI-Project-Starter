@@ -233,6 +233,28 @@ report(securityGaps(acts([user('fix the total'), code, call('Edit', { file_path:
   'end: plain code, ignored folders and notes ask for no review');
 fs.rmSync(path.join(dir, 'tools/hooks/requirements.json'));
 
+// end: check 7, claims backed by the turn
+const { claimGaps } = await import('./lib.mjs');
+put('src/a.js', 'x');
+report(claimGaps(acts([user('commit it'), call('Bash', { command: 'git commit -m x' }, '[main 3e76a21] x'), say('Committed as 3e76a21. Corrected: "old" -> "new". The changed file is src/a.js.')])).length === 0,
+  'end: a commit shown by this turn\'s output and a file that exists pass; an engine label is not a claim');
+const madeUp = claimGaps(acts([user('commit it'), code, say('Committed as 9f8e7d6, see src/missing.js and C:/nowhere/at/all.md.')]));
+report(madeUp.length === 3 && /9f8e7d6/.test(madeUp[0]) && /src\/missing\.js/.test(madeUp[1]) && /C:\/nowhere/.test(madeUp[1]) && /says it committed/.test(madeUp[2]), 'end: a commit nothing showed and files that do not exist are named', madeUp);
+report(claimGaps(acts([user('clean up'), code, say('Removed src/old.js, the color is #a1b2c3d, and see other-project/notes/a.md for the record.')])).length === 0,
+  'end: a file said to be removed, a colour code and a path in another folder ask for nothing');
+report(claimGaps(acts([user('save it'), code, say('Done and committed.')])).some(s => /says it committed/.test(s))
+  && claimGaps(acts([user('save it'), code, call('Bash', { command: 'git commit -m x' }, '[main 1a2b3c4] x', true), say('Done and committed.')])).some(s => /says it committed/.test(s)),
+  'end: "committed" with no successful git commit this turn is named');
+report(claimGaps(acts([user('save it'), code, call('Bash', { command: 'git add -A && git commit -q -m x' }, ''), say('Committed (not pushed).')])).length === 0
+  && claimGaps(acts([user('status?'), say('Nothing is committed yet, and it was committed earlier in the week.')])).length === 0,
+  'end: a real commit, "not committed" and "committed earlier" pass');
+report(['The fixes get committed once they pass.', 'Wipe once they have committed 3 or more creatures.', 'My own rule pushed the plan further.', 'I will commit once the tests pass, after it can be committed.']
+  .every(t => claimGaps(acts([user('status?'), code, say(t)])).length === 0)
+  && claimGaps(acts([user('upgrade it'), code, call('Bash', { command: 'node tools/starter.mjs upgrade' }, 'upgrade done: committed as Engine upgrade'), say('The upgrade is finished and committed.')])).length === 0,
+  'end: future or other-meaning uses of committed and pushed are no claims; a command whose output shows the commit backs one');
+report(claimGaps(acts([user('which engine is this?'), { type: 'attachment', attachment: { type: 'hook_additional_context', content: 'engine 4c5d6e7 (starter)' } }, code, say('It runs engine 4c5d6e7.')])).length === 0,
+  'end: a commit the hooks named to the agent this turn backs the answer');
+
 // shadow: beside v1, v2 only logs
 const { shadow } = await import('./shadow.mjs');
 const shadowLog = path.join(dir, 'tools/hooks/state/v2-shadow.jsonl');

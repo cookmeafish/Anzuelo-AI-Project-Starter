@@ -77,8 +77,12 @@ export function turnRows(transcript) {
 // What the turn did: tool calls with their results, and the last text the agent wrote.
 export function turnActs(rows) {
   const calls = [], byId = new Map();
-  let answer = '';
+  let answer = '', context = '', started = '';
   for (const r of rows) {
+    started ||= r.timestamp || '';
+    // (what the hooks and the host showed the agent this turn: evidence too, like a version a status line named)
+    if (r.attachment) context += JSON.stringify(r.attachment.content ?? r.attachment).slice(0, 20000) + '\n';
+    if (r.type === 'user' && typeof r.message?.content === 'string') context += r.message.content.slice(0, 20000) + '\n';
     const c = r.message?.content;
     if (!Array.isArray(c)) continue;
     for (const x of c) {
@@ -90,7 +94,7 @@ export function turnActs(rows) {
       if (r.type === 'assistant' && x.type === 'text' && x.text.trim()) answer = x.text;
     }
   }
-  return { calls, answer };
+  return { calls, answer, context, started };
 }
 
 // The files a path or glob names: walked from its fixed part, at most 20,000. Bulk folders below it are skipped
@@ -277,6 +281,40 @@ export function securityGaps(acts) {
     || (/^(Edit|Write)$/.test(c.name) && /^docs\/reviews\/security[^/]*\.md$/i.test(relp(c.input.file_path || ''))))
     || changedSince(acts, { test: r => /^docs\/reviews\/security[^/]*\.md$/i.test(r) }).length > 0;
   return reviewed ? [] : [`Security-sensitive code changed (${[...new Set(hit)].slice(0, 3).join(', ')}): run the security review (skills/security-review/SKILL.md) and say its result.`];
+}
+
+// Check 7: the answer claims nothing the turn can't back. A commit it names exists here or showed up in this turn's
+// tool output (another repository's commit, read in a log, counts). A file it names exists, unless it says the file
+// went. Only checkable facts: labels, wording and judgment are never read as claims. Lesson (an old check): the
+// "Corrected:" label the engine itself asked for was called a claim with no evidence. Evidence is the whole session so
+// far (`history`, the transcript's text), not only this turn: a version a message named two turns ago is known.
+// Lesson (replay): an engine version relayed by another session earlier was flagged as made up.
+export function claimGaps(acts, history = '') {
+  const a = String(acts.answer || ''), seen = acts.calls.map(c => JSON.stringify(c.input) + '\n' + (c.out || '')).join('\n') + (acts.context || '') + history;
+  const out = [];
+  const hashes = [...new Set([...a.matchAll(/(?<![\w/#-])([0-9a-f]{7,40})(?![\w-])/g)].map(m => m[1]).filter(h => /\d/.test(h) && /[a-f]/.test(h)))];
+  const unknown = hashes.filter(h => !seen.includes(h) && spawnSync('git', ['cat-file', '-e', `${h}^{commit}`], { cwd: ROOT, timeout: 5000 }).status !== 0);
+  if (unknown.length) out.push(`The answer names commit ${unknown.slice(0, 3).join(', ')}, which no command in this turn showed and this repository does not have: check it, or correct the answer.`);
+  const top = p => { try { return fs.existsSync(path.join(ROOT, p.split('/')[0])); } catch { return false; } };
+  const paths = [...new Set([...a.matchAll(/(?:[A-Za-z]:[\\/]|(?<![\w.:/\\-]))((?:[\w.-]+[\\/])+[\w.-]+\.[A-Za-z]{1,5})\b/g)].map(m => m[0].replace(/\\/g, '/')))];
+  const missingFiles = paths.filter(p => /^[A-Za-z]:\//.test(p) ? !fs.existsSync(p) : top(p) && !fs.existsSync(path.join(ROOT, p)))
+    .filter(p => !new RegExp(`(delet|remov|retir|renam|moved)\\w*[^.\\n]{0,80}${p.split('/').pop().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}|${p.split('/').pop().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^.\\n]{0,80}(delet|remov|retir|renam|moved|gone)`, 'i').test(a));
+  if (missingFiles.length) out.push(`The answer names ${missingFiles.slice(0, 3).join(', ')}, which does not exist: check the path, or correct the answer.`);
+  // (it says, as done, that it committed or pushed the work, and no command this turn did or showed it. Only the
+  // first-person "done" forms: "will get committed", "pushed it further" or a game's "they committed" are not claims.
+  // Lesson (replay): a plain word match was wrong 6 times in 8)
+  for (const [word, rx] of [['committed', /\bgit\b[^|;&\n]*\bcommit\b|\[[\w./-]+ [0-9a-f]{7,}\]|\bcommitted\b/i], ['pushed', /\bgit\b[^|;&\n]*\bpush\b|\bTo (https?:|git@|[\w.-]+:)|\b[0-9a-f]{7,}\.\.[0-9a-f]{7,}\b/i]]) {
+    const claim = new RegExp(`\\b(I(?:'ve| have)?|it(?:'s| is)|(?:is|are|was|were|all|work|changes?) (?:now )?|and )\\s*(?:\\w+ )?${word}\\b(?! (earlier|before|last|in an earlier|yesterday|by))|^\\W*${word}\\b`, 'im');
+    if (!claim.test(a) || new RegExp(`\\b(not|never|nothing|no)\\b[^.\\n]{0,20}\\b${word}\\b|n't\\b[^.\\n]{0,20}\\b${word}\\b|\\b(will|to be|can be|get|gets|once)\\b[^.\\n]{0,15}\\b${word}\\b`, 'i').test(a)) continue;
+    // (also backed: a real commit the answer names, or, for "committed", any commit made here since the turn began, by
+    // a helper or a script included)
+    const since = acts.at || acts.started;
+    const backed = acts.calls.some(c => /^(Bash|PowerShell)$/.test(c.name) && !c.error && (rx.test(String(c.input.command || '')) || rx.test(c.out || '')))
+      || hashes.some(h => !unknown.includes(h))
+      || (word === 'committed' && !!since && !!String(spawnSync('git', ['log', `--after=${since}`, '--format=%h', '-1'], { cwd: ROOT, encoding: 'utf8', timeout: 5000 }).stdout || '').trim());
+    if (!backed) out.push(`The answer says it ${word}, but no command in this turn ${word === 'committed' ? 'committed' : 'pushed'}: check it, or correct the answer.`);
+  }
+  return out;
 }
 
 // Whether the turn opened the runbook (read it, or ran its skill).

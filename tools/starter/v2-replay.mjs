@@ -13,7 +13,7 @@ if (!project || !tdir) { console.error('usage: node tools/starter/v2-replay.mjs 
 process.env.ANZUELO_ROOT = path.resolve(project);
 const { reminder } = await import('../hooks/v2/start.mjs');
 const { missing } = await import('../hooks/v2/end.mjs');
-const { turnActs, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, runbooks, typed } = await import('../hooks/v2/lib.mjs');
+const { turnActs, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, runbooks, typed } = await import('../hooks/v2/lib.mjs');
 const books = runbooks();
 import { firstTry, withShellEdits } from './replay-lib.mjs';
 
@@ -26,7 +26,7 @@ for (const f of fs.readdirSync(tdir).filter(f => f.endsWith('.jsonl')).map(f => 
     const prompt = rows[s].message.content, slice = rows.slice(s, starts[k + 1] ?? rows.length);
     const r = reminder(prompt);
     turns++; if (r.book) { routed++; lines += r.text.split('\n').length; chars += r.text.length; }
-    const acts = withShellEdits(turnActs(firstTry(slice))), list = [...missing({ runbook: r.book?.file || null }, acts, books), ...testGaps(acts), ...gateGaps(acts), ...screenGaps(acts), ...healthGaps(acts, { run: false }), ...knowledgeGaps(acts), ...securityGaps(acts)];
+    const acts = withShellEdits(turnActs(firstTry(slice))), list = [...missing({ runbook: r.book?.file || null }, acts, books), ...testGaps(acts), ...gateGaps(acts), ...screenGaps(acts), ...healthGaps(acts, { run: false }), ...knowledgeGaps(acts), ...securityGaps(acts), ...claimGaps(acts, rows.slice(0, s).map(x => JSON.stringify(x)).join('\n').slice(-5_000_000))];
     // (the health check can't be rerun on a past turn: "would run" is counted on its own line, not as a block)
     if (list.some(x => !/would run here/.test(x))) blocks++;
     if (list.length) { for (const x of list) { const key = x.replace(/item \d+: .*/, 'item N').replace(/docs\/playbooks\/[\w-]+\.md|tools\/starter\/runbooks\/[\w-]+\.md/, '<runbook>'); kinds.set(key, (kinds.get(key) || 0) + 1); }

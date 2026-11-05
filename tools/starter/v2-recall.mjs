@@ -10,7 +10,7 @@ const since = args.includes('--since') ? args[args.indexOf('--since') + 1] : '20
 process.env.ANZUELO_ROOT = path.resolve(project);
 const { reminder } = await import('../hooks/v2/start.mjs');
 const { missing } = await import('../hooks/v2/end.mjs');
-const { turnActs, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, runbooks, typed } = await import('../hooks/v2/lib.mjs');
+const { turnActs, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, runbooks, typed } = await import('../hooks/v2/lib.mjs');
 const books = runbooks();
 import { firstTry, withShellEdits } from './replay-lib.mjs';
 
@@ -18,7 +18,7 @@ const KINDS = [
   ['tests', /run the (tests|build)|tests? passed|project's check/i],
   ['gates', /health check|hook self-tests|checks the last turn left failing/i],
   ['runbook', /open (the matching runbook|[\w/.-]+\.md)|checklist|\bitem \d|leave a runbook|runbook .* followed/i],
-  ['claim', /claim in it is not backed|did you make that up|says nothing like it|correct the answer/i],
+  ['claim', /claim in it is not backed|did you make that up|says nothing like it|correct the answer|does not exist|no command in this turn showed/i],
   ['security', /security review/i],
   ['screens', /screenshot|visual review|accessibility/i],
   ['knowledge', /knowledge base|used the web in a knowledge|name no source/i],
@@ -54,7 +54,7 @@ for (const f of fs.readdirSync(tdir).filter(f => f.endsWith('.jsonl')).map(f => 
     });
     if (!real.size) return;
     const r = reminder(rows[s].message.content), acts = withShellEdits(turnActs(firstTry(slice)));
-    const v2list = [...missing({ runbook: r.book?.file || null }, acts, books), ...testGaps(acts), ...gateGaps(acts), ...screenGaps(acts), ...healthGaps(acts, { run: false }), ...knowledgeGaps(acts), ...securityGaps(acts)], v2 = new Set(kindsOf(v2list.join('\n')));
+    const v2list = [...missing({ runbook: r.book?.file || null }, acts, books), ...testGaps(acts), ...gateGaps(acts), ...screenGaps(acts), ...healthGaps(acts, { run: false }), ...knowledgeGaps(acts), ...securityGaps(acts), ...claimGaps(acts, rows.slice(0, s).map(x => JSON.stringify(x)).join('\n').slice(-5_000_000))], v2 = new Set(kindsOf(v2list.join('\n')));
     for (const kd of real) add(kd, v2.has(kd));
     // --show <kind>: what v1 asked on each such turn, and what v2 asked
     const show = args.includes('--show') ? args[args.indexOf('--show') + 1] : '';
