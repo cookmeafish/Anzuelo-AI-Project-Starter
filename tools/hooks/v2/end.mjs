@@ -2,9 +2,10 @@
 // transcript, and blocks at most once with a short plain list of what is really missing.
 import { runbooks, turnRows, turnActs, met, opened, worked, loadTurn, testGaps, gateGaps } from './lib.mjs';
 
-// Check 1: the routed runbook was followed, and its checkable "Done when" items were met.
+// Check 1: the routed runbook was followed, and its checkable "Done when" items were met. With none routed, the
+// runbook the agent chose and opened is the one it is held to.
 export function missing(turn, acts, books = runbooks()) {
-  const book = turn.runbook && books.find(b => b.file === turn.runbook);
+  const book = (turn.runbook && books.find(b => b.file === turn.runbook)) || books.find(b => opened(b, acts));
   if (!book || !worked(acts)) return [];
   const out = [];
   if (!opened(book, acts)) out.push(`Open ${book.file} and check the work against its steps.`);

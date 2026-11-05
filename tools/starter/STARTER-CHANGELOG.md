@@ -7,6 +7,7 @@ print, or to a command or setting a project's own hooks or scripts may rely on, 
 hooks:**, and an upgrade lists each one as its own review item.
 
 - 2026-11-05 (engine): engine v2 runs in shadow beside v1. It logs what it would have shown or blocked to tools/hooks/state/v2-shadow.jsonl and prints nothing, so nothing changes for the user. Off with `"v2shadow": false` in tools/hooks/config.json.
+  - v2's start reminder: an upset message points to the learn-from-upset skill, and when no trigger fits, one line asks the agent to pick and open the fitting runbook. The end check then holds the turn to the runbook it opened.
   - v2's tests check now honors the project's declared "test", "build" and "commitGate" commands in config.json. In a live turn it also counts code changed by helpers and scripts since the turn began. Scratch scripts in .cache are not project code.
 - 2026-11-05 (engine): engine v2 started, off by default. `"engine": "v2"` in tools/hooks/config.json turns it on.
   - With it on, the start reminder and the end check come from tools/hooks/v2/. The reminder is at most 10 lines: the runbook and its "Done when" list. The end check covers the runbook's checkable items and tests run after code changes.

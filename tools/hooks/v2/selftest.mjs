@@ -51,6 +51,14 @@ report(win.book?.name === 'windows' && reminder('W1').book?.name === 'windows' &
 const { typed } = await import('./lib.mjs');
 report(!typed({ type: 'user', message: { content: '<local-command-stdout>Login successful.</local-command-stdout>' } }) && typed({ type: 'user', message: { content: 'export the orders' } }), 'start: terminal output from a local command is not a typed request');
 report(reminder('what time is it').text === '', 'start: a request no runbook fits gets nothing');
+put('DIRECTORY.md', '# Directory\n'); put('skills/learn-from-upset/SKILL.md', '# Learn from upset\n');
+report(/pick the runbook in DIRECTORY\.md/.test(reminder('the totals look off on the summary page').text) && !reminder('the totals look off').book,
+  'start: when no trigger fits, one line asks the agent to pick and open the fitting runbook');
+const { upset } = await import('./start.mjs');
+report(/learn-from-upset/.test(reminder('WHY DID YOU BREAK THE EXPORT AGAIN').text) && /learn-from-upset/.test(reminder('ugh, you forgot the totals row').text)
+  && upset('the export still has issues because ur not following the format') && upset('i dont think you understand the totals')
+  && !upset('still working?') && !upset('why do you think the export is slow?') && !upset('B2 CSV export --path out/orders') && !upset('add a CSV export'),
+  'start: an upset message (capitals or frustration words) goes to the learn-from-upset skill; plain questions and codes do not');
 const long = reminder('start the long job now').text.split('\n');
 report(long.length <= MAX_LINES && /more in docs\/playbooks\/long\.md/.test(long.at(-1)), `start: the reminder is at most ${MAX_LINES} lines`, long.length);
 
@@ -71,7 +79,9 @@ report(missing(turn, acts([user('what does the csv export do?'), say('It writes 
   'end: a text-only answer is never checked against the runbook');
 const earlier = missing(turn, acts([user('add a csv export'), read, edit, call('Bash', { command: 'npm test' }), log, say('How it was checked: tests.'), user('and the totals row?'), edit, say('Added.')]));
 report(earlier.some(s => /item 1/.test(s)) && earlier.some(s => /Open/.test(s)), 'end: only this turn counts, not what an earlier turn did', earlier);
-report(missing({ runbook: null }, acts([user('fix it'), edit, say('Fixed.')])).length === 0, 'end: a turn no runbook fit is not held to one');
+report(missing({ runbook: null }, acts([user('fix it'), edit, say('Fixed.')])).length === 0, 'end: a turn no runbook fit, and that opened none, is not held to one');
+const chose = missing({ runbook: null }, acts([user('fix the orders file'), read, edit, say('Fixed.')]));
+report(chose.some(s => /export\.md item 1/.test(s)) && !chose.some(s => /^Open/.test(s)), 'end: with none routed, the runbook the agent opened is the one the turn is held to', chose);
 report(onStop({ stop_hook_active: true, transcript_path: transcript([user('add a csv export'), edit]), session_id: 's' }) === null, 'end: never blocks twice in one turn');
 put('docs/CHANGELOG.md', '# Changelog\n');
 const turnStart = new Date(Date.now() + 50).toISOString();
