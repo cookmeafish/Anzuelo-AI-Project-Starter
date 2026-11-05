@@ -23,7 +23,8 @@ date. A project's own content is its session's; this runbook changes only the en
    are fixed here with a self-test that fails without the fix; one in the project's own files goes to its session
    as what to change, never edited from here.
 3. **Ship it:** the full self-test and the audit, then commit (the user's standing OK; never push without asking).
-4. **Upgrade each project:** fast-forward its linked starter copy from this folder
+4. **Upgrade each project, in batches:** at most once a day, or sooner only for a fix the project is paying for now.
+   Engine upgrades were about 45% of one project's commits (2026-11-05). Fast-forward its linked starter copy from this folder
    (`git -C <copy> pull --ff-only <starter> main`), then hand the upgrade to its session (open
    `docs/playbooks/engine.md` and record its checklist, which its hooks route the message to: without that line each
    upgrade turn spent two Stop rounds on it; commit its own work,

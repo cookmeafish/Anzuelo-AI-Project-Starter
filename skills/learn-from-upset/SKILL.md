@@ -13,8 +13,8 @@ a rule is the **project-rule** skill; a lesson in a followed skill goes under it
 **Decide first: is anything actually wrong?** Use this skill when the user is upset at the work, or when the same issue
 keeps coming up even if they say it calmly (check `docs/lessons.md`, `tools/hooks/state/triggers.jsonl` and
 `node tools/recall.mjs "<the issue>"` for earlier cases). Strong words alone are not a miss. Decide this before
-anything else, also for a message typed while you work and for one asked as a question ("WHY DID YOU ...???"): until
-the `Issue:` line below is written, the hooks refuse every change and command (reads still work) (hook:
+anything else, also for a message typed while you work and for one asked as a question ("WHY DID YOU ...???"), and
+write the `Issue:` line below first: it shows the user "acknowledged", and the end-of-turn check looks for it (hook:
 upset-acknowledged).
 - **False alarm** (venting, a test of the hooks, something outside this work, nothing here went wrong): put
   `Issue: none - <why>` and `Learned (none): nothing was wrong - <what they were describing>` in

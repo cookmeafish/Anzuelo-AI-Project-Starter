@@ -1214,7 +1214,7 @@ const PRETOOL = [
   { pack: 'knowledge', name: 'redirect over a file in sources/: denied', tool: 'Bash', input: { command: 'echo hi > sources/a.md' }, deny: true, tag: 'protect-originals' },
   // Codex edits with apply_patch: every file in the patch gets the file guards (Lesson: an apply_patch passed them all)
   { pack: 'knowledge', name: 'protect-originals: a Codex apply_patch that changes an original: denied', tool: 'apply_patch', input: { command: '*** Begin Patch\n*** Update File: sources/a.md\n@@\n-x\n+y\n*** End Patch' }, setup: { 'sources/a.md': 'x' }, deny: true, tag: 'protect-originals' },
-  { name: 'plain-writing: a Codex apply_patch that adds an em dash to a user-facing file: denied', tool: 'apply_patch', input: { command: '*** Begin Patch\n*** Add File: docs/notes.md\n+A note — with a dash\n*** End Patch' }, deny: true, tag: 'plain-writing' },
+  { name: 'plain-writing: a Codex apply_patch that adds an em dash to a user-facing file: allowed during work (REQ quiet-work: not a safety guard)', tool: 'apply_patch', input: { command: '*** Begin Patch\n*** Add File: docs/notes.md\n+A note — with a dash\n*** End Patch' }, deny: false },
   { name: 'pretool: a plain Codex apply_patch: allowed', tool: 'apply_patch', input: { command: '*** Begin Patch\n*** Add File: docs/notes.md\n+A plain note.\n*** End Patch' }, deny: false },
   { pack: 'knowledge', name: 'protect-originals: sed -i on a file in sources/: denied', tool: 'Bash', input: { command: "sed -i 's|a|b|' \"sources/my notes.md\"" }, deny: true, tag: 'protect-originals' },
   { pack: 'knowledge', name: 'protect-originals: sed -i whose script only names sources/: allowed', tool: 'Bash', input: { command: "sed -i '/^summary:/a owns: sources/zorbls/**' docs/playbooks/zorbl-research.md" }, deny: false },
@@ -2233,7 +2233,7 @@ STOP.push(
 );
 
 PRETOOL.push(
-  { name: 'em dash written into a user-facing file: denied', tool: 'Write', input: { file_path: 'docs/guide.md', content: 'Step one \u2014 open it.' }, deny: true, tag: 'plain-writing' },
+  { name: 'em dash written into a user-facing file: allowed during work (REQ quiet-work: not a safety guard)', tool: 'Write', input: { file_path: 'docs/guide.md', content: 'Step one \u2014 open it.' }, deny: false },
   { name: 'em dash in code (not user-facing): allowed', tool: 'Write', input: { file_path: 'src/a.js', content: '// a \u2014 b' }, deny: false },
   { name: 'script that drives the installed Chrome: denied', tool: 'Write', input: { file_path: 'tools/drive.mjs', content: "chromium.launch({ executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe' })" }, deny: true, tag: 'browser-guard' },
   { name: 'script that uses the bundled Chromium: allowed', tool: 'Write', input: { file_path: 'tools/drive.mjs', content: "chromium.launch({ headless: true, args: ['--mute-audio'] })" }, deny: false },
@@ -2258,17 +2258,17 @@ PRETOOL.push(
   // (Lesson, trial round 12: a heredoc writing "git push to GitHub, then a workflow deploys" into DECISIONS.md was denied)
   { name: 'outward-gate: a heredoc that only writes the words "git push" into a doc: allowed', tool: 'Bash', input: { command: "cat >> docs/DECISIONS.md <<'X'\n- Publishing: git push to GitHub, then a GitHub Actions workflow builds and deploys.\nX" }, prompt: 'set up this project', deny: false },
   // no-repeat (Lesson, trial rounds 13 to 16 and the user: audits, tests and self-tests ran again with nothing changed)
-  { name: 'no-repeat: the tests run again with nothing changed since: denied', tool: 'Bash', input: { command: 'npm test' }, prompt: 'add a csv export',
-    tools: [{ name: 'Edit', input: { file_path: 'src/x.js', old_string: 'a', new_string: 'b' } }, bash('npm test', 'Tests: 12 passed'), bash('git status --short', ' M src/x.js')], deny: true, tag: 'no-repeat' },
-  { name: 'no-repeat: the same audit with its output trimmed differently is still the same check: denied', tool: 'Bash', input: { command: 'node tools/audit.mjs --setup 2>&1 | tail -5' }, prompt: 'set up this project',
-    tools: [bash('node tools/audit.mjs --setup 2>&1 | tail -20', 'audit: PASS (31 sweeps)')], deny: true, tag: 'no-repeat' },
-  { name: 'no-polling: a long sleep while a background audit runs: denied', tool: 'Bash', input: { command: 'sleep 300' }, prompt: 'set up this project',
-    tools: [{ name: 'Bash', input: { command: 'node tools/audit.mjs > .cache/audit.txt 2>&1', run_in_background: true }, result: 'Command running in background with ID: bx91. Output is being written to: C:/t/tasks/bx91.output' }], deny: true, tag: 'no-polling' },
+  { name: 'no-repeat: the tests run again with nothing changed since: allowed during work (REQ quiet-work: not a safety guard)', tool: 'Bash', input: { command: 'npm test' }, prompt: 'add a csv export',
+    tools: [{ name: 'Edit', input: { file_path: 'src/x.js', old_string: 'a', new_string: 'b' } }, bash('npm test', 'Tests: 12 passed'), bash('git status --short', ' M src/x.js')], deny: false },
+  { name: 'no-repeat: the same audit with its output trimmed differently is still the same check: allowed during work (REQ quiet-work: not a safety guard)', tool: 'Bash', input: { command: 'node tools/audit.mjs --setup 2>&1 | tail -5' }, prompt: 'set up this project',
+    tools: [bash('node tools/audit.mjs --setup 2>&1 | tail -20', 'audit: PASS (31 sweeps)')], deny: false },
+  { name: 'no-polling: a long sleep while a background audit runs: allowed during work (REQ quiet-work: not a safety guard)', tool: 'Bash', input: { command: 'sleep 300' }, prompt: 'set up this project',
+    tools: [{ name: 'Bash', input: { command: 'node tools/audit.mjs > .cache/audit.txt 2>&1', run_in_background: true }, result: 'Command running in background with ID: bx91. Output is being written to: C:/t/tasks/bx91.output' }], deny: false },
   { name: 'no-polling: a long sleep with nothing in the background: allowed', tool: 'Bash', input: { command: 'sleep 300' }, prompt: 'set up this project',
     tools: [bash('node tools/audit.mjs > .cache/audit.txt 2>&1', 'audit: PASS')], deny: false },
   // (Lesson (trial v29): the plan-format check ran again with the plan unchanged, in three projects)
-  { name: 'no-repeat: the plan-format check run again with the plan unchanged: denied', tool: 'Bash', input: { command: 'node skills/plan/scripts/plan-tasks.mjs check docs/plans/x.md' }, prompt: 'plan the csv export',
-    tools: [bash('node skills/plan/scripts/plan-tasks.mjs check docs/plans/x.md', 'plan OK: 4 tasks')], deny: true, tag: 'no-repeat' },
+  { name: 'no-repeat: the plan-format check run again with the plan unchanged: allowed during work (REQ quiet-work: not a safety guard)', tool: 'Bash', input: { command: 'node skills/plan/scripts/plan-tasks.mjs check docs/plans/x.md' }, prompt: 'plan the csv export',
+    tools: [bash('node skills/plan/scripts/plan-tasks.mjs check docs/plans/x.md', 'plan OK: 4 tasks')], deny: false },
   { name: 'no-repeat: the plan-format check after the plan was edited: allowed', tool: 'Bash', input: { command: 'node skills/plan/scripts/plan-tasks.mjs check docs/plans/x.md' }, prompt: 'plan the csv export',
     tools: [bash('node skills/plan/scripts/plan-tasks.mjs check docs/plans/x.md', 'plan OK: 4 tasks'), { name: 'Edit', input: { file_path: 'docs/plans/x.md', old_string: 'a', new_string: 'b' } }], deny: false },
   { name: 'no-repeat: an edit after the last run: allowed', tool: 'Bash', input: { command: 'npm test' }, prompt: 'add a csv export',
@@ -2285,8 +2285,8 @@ PRETOOL.push(
   { name: 'no-repeat: the user asked to run the tests again: allowed', tool: 'Bash', input: { command: 'npm test' }, prompt: 'run the tests again, twice, I think one is flaky',
     tools: [bash('npm test', 'Tests: 12 passed')], deny: false },
   // (work already going: Lesson, the user, "if the ai agent has things going that are redundant or will be redundant then fix it")
-  { name: 'no-repeat: a helper launched with the brief of one still running: denied', tool: 'Agent', input: { prompt: 'Read AGENTS.md first. Review the csv export change for bugs, missing tests and unclear names, and report findings.', run_in_background: true }, prompt: 'add a csv export',
-    tools: [{ name: 'Agent', input: { prompt: 'Read AGENTS.md first. Review the csv export change for bugs, missing tests and unclear names; report the findings.', run_in_background: true }, result: 'Async agent launched successfully.\nagentId: ab12cd34' }], deny: true, tag: 'no-repeat' },
+  { name: 'no-repeat: a helper launched with the brief of one still running: allowed during work (REQ quiet-work: not a safety guard)', tool: 'Agent', input: { prompt: 'Read AGENTS.md first. Review the csv export change for bugs, missing tests and unclear names, and report findings.', run_in_background: true }, prompt: 'add a csv export',
+    tools: [{ name: 'Agent', input: { prompt: 'Read AGENTS.md first. Review the csv export change for bugs, missing tests and unclear names; report the findings.', run_in_background: true }, result: 'Async agent launched successfully.\nagentId: ab12cd34' }], deny: false },
   // (another numbered round of the same procedure is other work. Lesson (a field report): round 3 was refused while round 2 ran)
   { name: 'no-repeat: round 3 of a procedure beside its running round 2: allowed', tool: 'Agent', input: { description: 'Audit round 3: adversarial', prompt: 'Read AGENTS.md first. Audit round 3 for the order: review the csv export change for bugs, missing tests and unclear names, and report findings.', run_in_background: true }, prompt: 'add a csv export',
     tools: [{ name: 'Agent', input: { description: 'Audit round 2: every axis', prompt: 'Read AGENTS.md first. Audit round 2 for the order: review the csv export change for bugs, missing tests and unclear names; report the findings.', run_in_background: true }, result: 'Async agent launched successfully.\nagentId: ab12cd34' }], deny: false },
@@ -2294,8 +2294,8 @@ PRETOOL.push(
   // helpers, one per folder, were refused beside the first one running)
   { name: 'no-repeat: a helper on another folder with the same shared brief: allowed', tool: 'Agent', input: { description: 'Review the trips folder', prompt: 'Read AGENTS.md first. Your folder: data/trips/spring/. Read the shared brief at docs/briefs/review.md and follow it for your folder; report the findings.', run_in_background: true }, prompt: 'review every folder',
     tools: [{ name: 'Agent', input: { description: 'Review the trips folder', prompt: 'Read AGENTS.md first. Your folder: data/trips/autumn/. Read the shared brief at docs/briefs/review.md and follow it for your folder; report the findings.', run_in_background: true }, result: 'Async agent launched successfully.\nagentId: ab12cd34' }], deny: false },
-  { name: 'no-repeat: a helper on the same folder with the same shared brief: denied', tool: 'Agent', input: { description: 'Review the trips folder', prompt: 'Read AGENTS.md first. Your folder: data/trips/autumn/. Read the shared brief at docs/briefs/review.md and follow it for your folder; report the findings.', run_in_background: true }, prompt: 'review every folder',
-    tools: [{ name: 'Agent', input: { description: 'Review the trips folder', prompt: 'Read AGENTS.md first. Your folder: data/trips/autumn/. Read the shared brief at docs/briefs/review.md and follow it for your folder; report the findings.', run_in_background: true }, result: 'Async agent launched successfully.\nagentId: ab12cd34' }], deny: true, tag: 'no-repeat' },
+  { name: 'no-repeat: a helper on the same folder with the same shared brief: allowed during work (REQ quiet-work: not a safety guard)', tool: 'Agent', input: { description: 'Review the trips folder', prompt: 'Read AGENTS.md first. Your folder: data/trips/autumn/. Read the shared brief at docs/briefs/review.md and follow it for your folder; report the findings.', run_in_background: true }, prompt: 'review every folder',
+    tools: [{ name: 'Agent', input: { description: 'Review the trips folder', prompt: 'Read AGENTS.md first. Your folder: data/trips/autumn/. Read the shared brief at docs/briefs/review.md and follow it for your folder; report the findings.', run_in_background: true }, result: 'Async agent launched successfully.\nagentId: ab12cd34' }], deny: false },
   { name: 'no-repeat: a helper with a different brief beside a running one: allowed', tool: 'Agent', input: { prompt: 'Read AGENTS.md first. Write the README section that explains the csv export command and its options.', run_in_background: true }, prompt: 'add a csv export',
     tools: [{ name: 'Agent', input: { prompt: 'Read AGENTS.md first. Review the csv export change for bugs, missing tests and unclear names; report the findings.', run_in_background: true }, result: 'Async agent launched successfully.\nagentId: ab12cd34' }], deny: false },
   // (the call being checked is already in the transcript, with no result yet: not a helper still running. Lesson, trial
@@ -2304,8 +2304,8 @@ PRETOOL.push(
     rows: [{ type: 'assistant', message: { content: [{ type: 'tool_use', id: 'toolu_self1', name: 'Agent', input: { prompt: 'Read AGENTS.md first. Review the dry-run change for bugs, missing tests and unclear names; report the findings.', description: 'Independent review of dry-run', run_in_background: true } }] } }], deny: false },
   { name: 'no-repeat: a same-brief helper that says how it differs: allowed', tool: 'Agent', input: { prompt: 'not a duplicate: second reviewer for a blind vote. Read AGENTS.md first. Review the csv export change for bugs, missing tests and unclear names; report the findings.', run_in_background: true }, prompt: 'add a csv export',
     tools: [{ name: 'Agent', input: { prompt: 'Read AGENTS.md first. Review the csv export change for bugs, missing tests and unclear names; report the findings.', run_in_background: true }, result: 'Async agent launched successfully.\nagentId: ab12cd34' }], deny: false },
-  { name: 'no-repeat: the tests started while the same tests still run in the background: denied', tool: 'Bash', input: { command: 'npm test 2>&1 | tail -20' }, prompt: 'add a csv export',
-    tools: [BG_JOB('bn1', 'npm test', 'out.txt')], deny: true, tag: 'no-repeat' },
+  { name: 'no-repeat: the tests started while the same tests still run in the background: allowed during work (REQ quiet-work: not a safety guard)', tool: 'Bash', input: { command: 'npm test 2>&1 | tail -20' }, prompt: 'add a csv export',
+    tools: [BG_JOB('bn1', 'npm test', 'out.txt')], deny: false },
   { name: 'no-repeat: the same tests after the background run finished: allowed', tool: 'Bash', input: { command: 'npm test # rerun: the edit after it' }, prompt: 'add a csv export',
     tools: [BG_JOB('bn2', 'npm test', 'out.txt')], rows: [MOVED_DONE('bn2', 0)], deny: false },
   // a cd into the folder the command already runs in is dropped in place (Lesson, trial round 17: about 10 compound
@@ -2376,14 +2376,20 @@ PRETOOL.push(
     rows: [{ type: 'assistant', message: { content: [{ type: 'tool_use', id: 'toolu_self2', name: 'Bash', input: { command: 'python tools/order_sweeps.py > .cache/os.txt', run_in_background: true } }] } }], deny: false, noContext: true },
   // (a runbook opened during the turn hands over its checklist as it is opened, with its name in the record lines.
   // Lesson (the user): the checklist comes before the work and is checked after it, for every runbook followed)
-  { name: 'runbook-ledger: opening a runbook mid-turn hands over its checklist, records named', tool: 'Read', input: { file_path: 'docs/playbooks/trigger-words.md' },
-    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) }, deny: false, context: /CHECKLIST \(docs\/playbooks\/trigger-words\.md[\s\S]*"Done trigger-words N:/ },
+  { name: 'runbook-ledger: opening a runbook mid-turn adds no notice (REQ quiet-work: the checklist came with the prompt)', tool: 'Read', input: { file_path: 'docs/playbooks/trigger-words.md' },
+    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) }, deny: false, noContext: true },
   { name: 'runbook-ledger: with the checklist off, opening a runbook says nothing', tool: 'Read', input: { file_path: 'docs/playbooks/trigger-words.md' }, deny: false, noContext: true },
   // (Lesson, dogfood: a foreground read of the test file printed a helper's launch line, and counted as running)
   { name: 'overlap: a finished read whose output quotes a helper launch is not running: no heads-up', tool: 'Bash', input: { command: 'python tools/order_sweeps.py' },
     tools: [bash('sed -n 1,40p tools/order_sweeps_test.py', "result: 'Async agent launched successfully.\\nagentId: ab12cd34'")], deny: false, noContext: true },
   { name: 'overlap: a command that runs no tests, while a sweep runs, gets no heads-up', tool: 'Bash', input: { command: 'git status --short' },
     tools: [BG_JOB('bs3', 'python tools/stock_sweeps.py > .cache/ps.txt 2>&1', BG_OUT('s3'))], deny: false, noContext: true },
+  // (REQ quiet-work. Lesson (the user): the notice came back on almost every command, also in helpers that never
+  // started the run, and for commands that only read a check's output file)
+  { name: 'overlap: a command that only names a check file (a grep of its output), while a sweep runs, gets no heads-up', tool: 'Bash', input: { command: 'grep -c FAIL .cache/selfcheck-out.txt; tail -3 .cache/selfcheck-out.txt' },
+    tools: [BG_JOB('bs4', 'python tools/stock_sweeps.py > .cache/ps.txt 2>&1', BG_OUT('s4'))], deny: false, noContext: true },
+  { name: 'overlap: a helper never gets the heads-up for the session\'s run (REQ quiet-work)', tool: 'Bash', input: { command: 'python tools/order_sweeps.py' }, agentId: 'h9',
+    tools: [BG_JOB('bs5', 'python tools/stock_sweeps.py > .cache/ps.txt 2>&1', BG_OUT('s5'))], deny: false, noContext: true },
   // a message from the user while helpers launched before it still run: name them, once (Lesson, a field report: three
   // helpers judged a stock-only order after the user allowed substitutes, and their 447,423 tokens were thrown away)
   ...[['while a helper launched before it runs gets a heads-up to stop the obsolete ones', [{ type: 'attachment', attachment: { type: 'queued_command', prompt: 'you can use substitutes now' } }], { context: /stop the ones it makes obsolete \(TaskStop\)/ }],
@@ -2540,28 +2546,28 @@ STOP.push(
   { name: 'runbook-ledger: an item marked done whose evidence is missing comes back under its item', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
     edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) },
     files: { '.cache/turn-notes.md': 'Done 2: the miss is fixed in the checklist itself\nSkip 3: not a rule request, only a checklist line\nDone 6: changelog updated\n' }, answer: 'Playbook: project.md. Added the line.' + FIN, expect: { block: true, tags: ['changelog'], says: /Item 6 \(marked done\)/ } },
-  { name: 'runbook-ledger: a judgment item with no record line is asked for', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
+  { name: 'runbook-ledger: a judgment item with no record line asks for nothing (REQ quiet-work: no bookkeeping lines)', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
     edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) },
-    files: { 'docs/CHANGELOG.md': '# Changelog\n- 2026-10-19: finish checklist asks for screenshots of changed screens\n' }, answer: 'Playbook: project.md. Added the line.' + FIN, expect: { block: true, tags: ['runbook-ledger'] } },
+    files: { 'docs/CHANGELOG.md': '# Changelog\n- 2026-10-19: finish checklist asks for screenshots of changed screens\n' }, answer: 'Playbook: project.md. Added the line.' + FIN, expect: { not: ['runbook-ledger'] } },
   // (Lesson (trial v30): "Record 2, 3 of the project checklist" took two rounds to place: the ask quotes each item)
-  { name: 'runbook-ledger: the record ask quotes each item\'s first words and names the notes file', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
+  { name: 'runbook-ledger: no record ask names the notes file', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
     edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) },
-    files: { 'docs/CHANGELOG.md': '# Changelog\n- 2026-10-19: finish checklist asks for screenshots of changed screens\n' }, answer: 'Playbook: project.md. Added the line.' + FIN, expect: { block: true, tags: ['runbook-ledger'], says: /Record in \.cache\/turn-notes\.md, item \d+ \("[^"]{6,}"\)/ } },
+    files: { 'docs/CHANGELOG.md': '# Changelog\n- 2026-10-19: finish checklist asks for screenshots of changed screens\n' }, answer: 'Playbook: project.md. Added the line.' + FIN, expect: { not: ['runbook-ledger'] } },
   // (every runbook the turn followed keeps its checklist. Lesson, a field report: a second runbook, followed for many
   // items through helpers, had its judgment items never asked for, because only the first runbook's list counted)
-  { name: 'runbook-ledger: a second runbook followed in the turn has its judgment items asked for too', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project'), pb('trigger-words')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
+  { name: 'runbook-ledger: a second runbook followed in the turn asks for no record lines either (REQ quiet-work)', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project'), pb('trigger-words')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
     edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) },
-    files: { '.cache/turn-notes.md': 'Playbook: trigger-words.md (its wording)\nDone 1: no rule\nDone 2: the miss is fixed in the checklist itself\nSkip 3: not a rule request, only a checklist line\nSkip 6: a one-line wording change the owner keeps out of the changelog\n' }, answer: 'Playbook: project.md. Added the line.', expect: { block: true, tags: ['runbook-ledger'], says: /trigger-words/ } },
+    files: { '.cache/turn-notes.md': 'Playbook: trigger-words.md (its wording)\nDone 1: no rule\nDone 2: the miss is fixed in the checklist itself\nSkip 3: not a rule request, only a checklist line\nSkip 6: a one-line wording change the owner keeps out of the changelog\n' }, answer: 'Playbook: project.md. Added the line.', expect: { not: ['runbook-ledger'] } },
   // (the first runbook's ask names it too when two are in play. Lesson (a field report): an unnamed "Record 2, 3 of the
   // (the checklist record is a turn-notes fix, so a round blocked only on it offers the one-line reply. Lesson (this
   // starter): the round asked for "Added:" lines, the one line sent instead was refused, and the answer went out again)
-  { name: 'runbook-ledger: a round blocked only on the checklist record offers "Answer unchanged; also updated"', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project'), pb('trigger-words'), bash('node tools/audit.mjs')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
+  { name: 'runbook-ledger: a missing checklist record is no reason to block (REQ quiet-work)', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project'), pb('trigger-words'), bash('node tools/audit.mjs')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
     edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) },
-    files: { '.cache/turn-notes.md': 'Playbook: trigger-words.md (its wording)\nDone 1: no rule\nDone 2: the miss is fixed in the checklist itself\nSkip 3: not a rule request, only a checklist line\nSkip 6: a one-line wording change the owner keeps out of the changelog\n' }, answer: 'Playbook: project.md. Added the line.', expect: { block: true, tags: ['runbook-ledger'], says: /Answer unchanged; also updated/ } },
+    files: { '.cache/turn-notes.md': 'Playbook: trigger-words.md (its wording)\nDone 1: no rule\nDone 2: the miss is fixed in the checklist itself\nSkip 3: not a rule request, only a checklist line\nSkip 6: a one-line wording change the owner keeps out of the changelog\n' }, answer: 'Playbook: project.md. Added the line.', expect: { not: ['runbook-ledger'] } },
   // checklist" in a turn with four runbooks was answered for the wrong one, three rounds running)
-  { name: 'runbook-ledger: with two runbooks the first one\'s ask names its runbook', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project'), pb('trigger-words')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
+  { name: 'runbook-ledger: with two runbooks no record ask is made (REQ quiet-work)', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project'), pb('trigger-words')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
     edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) },
-    files: { '.cache/turn-notes.md': 'Playbook: trigger-words.md (its wording)\nSkip trigger-words 1: read for its wording only, no word whitelisted\nSkip trigger-words 2: no word whitelisted, nothing to test\n' }, answer: 'Playbook: project.md. Added the line.', expect: { block: true, tags: ['runbook-ledger'], says: /Record in \.cache\/turn-notes\.md, item [^\n]* of the project checklist/ } },
+    files: { '.cache/turn-notes.md': 'Playbook: trigger-words.md (its wording)\nSkip trigger-words 1: read for its wording only, no word whitelisted\nSkip trigger-words 2: no word whitelisted, nothing to test\n' }, answer: 'Playbook: project.md. Added the line.', expect: { not: ['runbook-ledger'] } },
   { name: 'runbook-ledger: the second runbook\'s items recorded under its name: passes', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project'), pb('trigger-words')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
     edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) },
     files: { '.cache/turn-notes.md': 'Playbook: trigger-words.md (its wording)\nDone 1: no rule\nDone 2: the miss is fixed in the checklist itself\nSkip 3: not a rule request, only a checklist line\nSkip 6: a one-line wording change the owner keeps out of the changelog\nSkip trigger-words 1: read for its wording only, no word whitelisted\nSkip trigger-words 2: no word whitelisted, nothing to test\n' }, answer: 'Playbook: project.md. Added the line.', expect: { not: ['runbook-ledger'] } },
@@ -4171,14 +4177,16 @@ const NO_OVERWRITE_OUT = { 'tools/hooks/config.json': s => JSON.stringify({ ...J
 PRETOOL.push(
   { name: 'pretool-combined: one Bash command breaking two rules names both', tool: 'Bash', input: { command: 'git commit --no-verify -m "fix" -m "Co-Authored-By: Claude <noreply@anthropic.com>"' },
     deny: true, tags: ['git-safety', 'no-ai-attribution'], says: /^This tool call breaks 2 rules\. [^\n]*\n1\. REQ: git-safety\. [^\n]*\n2\. REQ: no-ai-attribution\. / },
-  { name: 'pretool-combined: one Write breaking two rules names both', tool: 'Write', input: { file_path: 'outputs/plan.md', content: 'The plan — revised.' }, setup: { 'outputs/plan.md': 'v1' }, edit: NO_OVERWRITE_OUT,
-    deny: true, tags: ['plain-writing', 'no-overwrite'], says: /^This tool call breaks 2 rules\.[^\n]*\n1\. REQ: plain-writing\.[\s\S]*\n2\. REQ: no-overwrite\./ },
+  { name: 'pretool-combined: one Write breaking two rules names both', tool: 'Write', input: { file_path: 'outputs/plan.md', content: 'The plan, revised. API_KEY=' + ['sk', 'live', 'abcdefghijklmnopqrstuvwx'].join('-') }, setup: { 'outputs/plan.md': 'v1' }, edit: NO_OVERWRITE_OUT,
+    deny: true, tags: ['no-secrets', 'no-overwrite'], says: /^This tool call breaks 2 rules\./ },
+  { name: 'pretool-combined: a style rule is not a refusal during work (REQ quiet-work), only the safety one is', tool: 'Write', input: { file_path: 'outputs/plan.md', content: 'The plan — revised.' }, setup: { 'outputs/plan.md': 'v1' }, edit: NO_OVERWRITE_OUT,
+    deny: true, tag: 'no-overwrite', says: /^REQ: no-overwrite\./ },
   { name: 'pretool-combined: one rule broken gives the same text as before', tool: 'Bash', input: { command: 'ls > nul' }, deny: true,
     exact: 'REQ: shell-hygiene. In Bash, "> nul" creates a file literally named "nul". Use > /dev/null instead.' },
   { name: 'pretool-combined: a call that breaks no rule stays allowed', tool: 'Write', input: { file_path: 'outputs/plan v2.md', content: 'The plan, revised.' }, setup: { 'outputs/plan.md': 'v1' }, edit: NO_OVERWRITE_OUT, deny: false },
-  { name: 'pretool-combined: an apply_patch breaking two rules in two files names both', tool: 'apply_patch', setup: { 'outputs/plan.md': 'v1' }, edit: NO_OVERWRITE_OUT,
+  { name: 'pretool-combined: an apply_patch with an em dash and an overwrite is refused for the overwrite only', tool: 'apply_patch', setup: { 'outputs/plan.md': 'v1' }, edit: NO_OVERWRITE_OUT,
     input: { command: '*** Begin Patch\n*** Add File: docs/notes.md\n+A note — with a dash\n*** Update File: outputs/plan.md\n@@\n-v1\n+v2\n*** End Patch' },
-    deny: true, tags: ['plain-writing', 'no-overwrite'], says: /^This tool call breaks 2 rules\./ }
+    deny: true, tag: 'no-overwrite', says: /^REQ: no-overwrite\./ }
 );
 PRETOOL.push(
   { name: 'publish-gate: publishing before a security review: denied', tool: 'Bash', input: { command: 'npm publish' }, deny: true, tag: 'publish-gate' },
@@ -4295,7 +4303,7 @@ PROMPT.push(
   // a report or message for the starter or another session: one primary ROUTE (the project runbook when the starter is
   // named), never the domain runbook on a generic word, never the deliverable runbook
   hintRoute('runbook-ledger: the routed runbook\'s checklist comes with the route', 'Write a detailed report to anzuelo with recommendations on how to improve it',
-    { routes: 1, removeMarker: true, has: ['ROUTE: project', 'CHECKLIST (docs/playbooks/project.md', 'Skip N:'], setupFn: { ...STARTER_IS, 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) } }),
+    { routes: 1, removeMarker: true, has: ['ROUTE: project', 'CHECKLIST (docs/playbooks/project.md', 'need nothing'], hasNot: ['Skip N:', 'Done N:'], setupFn: { ...STARTER_IS, 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) } }),
   hintRoute('prompt-visible: a routed runbook shows the user the book line, with its checklist count', 'Write a detailed report to anzuelo with recommendations on how to improve it',
     { routes: 1, removeMarker: true, env: { CLAUDE_PROJECT_DIR: '.' }, has: ['⚓ Anzuelo 📖 pulled up the project runbook (✅ 6 items to check off)'], setupFn: { ...STARTER_IS, 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) } }),
   hintRoute('runbook-ledger: off by default, no checklist', 'Write a detailed report to anzuelo with recommendations on how to improve it', { routes: 1, removeMarker: true, has: ['ROUTE: project'], hasNot: ['CHECKLIST ('] }),
@@ -4850,7 +4858,7 @@ for (const s of PRETOOL) {
     if (input.file_path) input.file_path = path.join(dir, input.file_path);
     // ("<DIR>" in a command stands for the fixture's own folder, as in a transcript's tool calls)
     if (typeof input.command === 'string') input.command = input.command.split('<DIR>').join(dir.replace(/\\/g, '/'));
-    const { out, err } = run(dir, 'pretool', { tool_name: s.tool, tool_input: input, transcript_path: tp }, s.host);
+    const { out, err } = run(dir, 'pretool', { tool_name: s.tool, tool_input: input, transcript_path: tp, ...(s.agentId ? { agent_id: s.agentId } : {}) }, s.host);
     const denied = /"permissionDecision":"deny"/.test(out);
     // tags: every rule named in one denial; exact: the whole denial text; says: a pattern the denial must match
     let reason = ''; try { reason = JSON.parse(out).hookSpecificOutput?.permissionDecisionReason || ''; } catch { }
@@ -7521,7 +7529,7 @@ if (mineB()) { // plan-required during the work: a turn adding new files hears i
     const w = f => run(dir, 'posttool', { tool_name: 'Write', tool_input: { file_path: path.join(dir, f), content: 'export const x = 1;\n' } }).out;
     const outs = ['src/a.js', 'src/b.js', 'src/c.js', 'src/d.js'].map(w);
     const told = outs.findIndex(o => /PLAN: this turn has added/.test(o));
-    report(told === 2 && outs.filter(o => /PLAN:/.test(o)).length === 1, 'plan-required: a turn adding new files is told to write the plan first, once, before the limit', outs.map(o => o.slice(0, 80)).join(' | '));
+    report([...outs].every(o => !String(o).trim()), 'plan-required: an edit adding new files adds no notice during work (REQ quiet-work: Stop asks for the plan)', outs.map(o => o.slice(0, 80)).join(' | '));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
@@ -7549,8 +7557,7 @@ if (mineB()) { // generated files: an edit to the shipped-checks files names the
     const starter = e('tools/hooks/engine-checks.json'), other = e('tools/hooks/requirements.json');
     fs.rmSync(path.join(dir, '.starter-template'), { force: true });
     const project = e('tools/hooks/engine-checks.json');
-    report(/GENERATED FILE: .*rebuilt by sync from tools\/hooks\/requirements\.json/.test(starter) && /GENERATED FILE: .*next upgrade replaces/.test(project) && !/GENERATED FILE/.test(other),
-      'generated-file: an edit to engine-checks.json names its source (starter: requirements, packs, library; project: requirements.json)', [starter, project, other].map(o => o.slice(0, 80)).join(' | '));
+    report([starter, other, project].every(o => !String(o).trim()), 'generated-file: an edit to engine-checks.json adds no notice during work (REQ quiet-work)', [starter, project, other].map(o => o.slice(0, 80)).join(' | '));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
@@ -7597,7 +7604,7 @@ if (mineB()) { // plan-required during setup: app files the setup writes count, 
     const own = ['tools/check.mjs', 'tools/budget.py', '.github/workflows/ci.yml', 'docs/foundation.md', 'NOTES.md'].map(f => w(f, t1));
     const app = ['pyproject.toml', 'src/app.py', 'src/db.py', 'src/auth.py'].map(f => w(f, t2));
     const told = app.findIndex(o => /PLAN: this turn has added/.test(o));
-    report(own.every(o => !/PLAN:/.test(o)) && told === 2 && /spec/.test(app[2]), 'plan-required: setup hears the plan notice for app files it writes, not for its own scaffolding', [...own, ...app].map(o => o.slice(0, 60)).join(' | '));
+    report([...own, ...app].every(o => !String(o).trim()), 'plan-required: setup edits add no plan notice during work (REQ quiet-work)', [...own, ...app].map(o => o.slice(0, 60)).join(' | '));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
@@ -7616,8 +7623,7 @@ if (mineB()) { // status-handoff: the edit that finds the turn past 15 tool call
     const blob = n => fs.appendFileSync(tp, JSON.stringify({ type: 'api-request-blob', message: { content: Array.from({ length: n }, () => ({ type: 'tool_use', name: 'Bash' })) } }) + '\n');
     calls(5); blob(12); const short = edit();
     calls(10); const long = edit(), again = edit();
-    report(!/docs\/STATUS\.md/.test(short) && /Before you answer: this turn is past 15 tool calls\. If it will leave work open, update docs\/STATUS\.md/.test(long) && !/docs\/STATUS\.md/.test(again),
-      'status-handoff: the edit that finds the turn past 15 tool calls (earlier turns not counted) names docs/STATUS.md once',
+    report([short, long, again].every(o => !String(o).trim()), 'status-handoff: a long turn\'s edits add no STATUS notice during work (REQ quiet-work: Stop asks)',
       `short: ${short.slice(0, 200)} | long: ${long.slice(0, 200)} | again: ${again.slice(0, 200)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
@@ -7653,10 +7659,8 @@ if (mineB()) { // event-hint after an edit: writing sign-in code names the manda
     // ...in Git Bash and macOS form too ("/c/Users/User", "/Users/User"); "/home/user/" stays a placeholder
     const U = ['', 'Users', 'User', ''].join('/'); // built at run time, so this file names no account
     const bash = docEdit(`Run it from /c${U}projects/shop/.`), mac = docEdit(`Data lives in ${U}Documents/shop.`), unixPh = docEdit('Data lives in /home/user/shop/ and /Users/you/shop/.');
-    report(/PUBLISH SAFETY: docs\/plans\/launch\.md .*an email address/.test(mail) && !/PUBLISH SAFETY/.test(safe) && /a personal Windows path/.test(home) && !/PUBLISH SAFETY/.test(ph)
-      && /a personal home path/.test(bash) && /a personal home path/.test(mac) && !/PUBLISH SAFETY/.test(unixPh),
-      'publish-safety: an email or a home path written into a tracked doc is named at the edit; placeholders are quiet', `${mail.slice(0, 200)} | ${safe.slice(0, 200)} | ${home.slice(0, 200)} | ${ph.slice(0, 200)} | ${bash.slice(0, 150)} | ${mac.slice(0, 150)} | ${unixPh.slice(0, 150)}`);
-    report(/MUST FOLLOW: security-review/.test(first) && /security-code/.test(first) && !/MUST FOLLOW/.test(again) && !plain.trim() && !/MUST FOLLOW: debug/.test(script), 'event-hint: an edit that writes sign-in code names the security review at once, once per turn; a plain code edit names no debug', `${first.slice(0, 200)} | ${again.slice(0, 100)} | ${plain.slice(0, 100)} | ${script.slice(0, 100)}`);
+    report([mail, safe, home, ph, bash, mac, unixPh].every(o => !String(o).trim()), 'publish-safety: an email or a home path written into a doc adds no notice during work (REQ quiet-work: the publish sweep and Stop catch it)', `${mail.slice(0, 200)} | ${safe.slice(0, 200)} | ${home.slice(0, 200)} | ${ph.slice(0, 200)} | ${bash.slice(0, 150)} | ${mac.slice(0, 150)} | ${unixPh.slice(0, 150)}`);
+    report([first, again, plain, script].every(o => !String(o).trim()), 'event-hint: an edit that writes sign-in code adds no notice during work (REQ quiet-work: Stop asks for the security review)', `${first.slice(0, 200)} | ${again.slice(0, 100)} | ${plain.slice(0, 100)} | ${script.slice(0, 100)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
@@ -8333,7 +8337,7 @@ if (mineB() && (!TAGS || TAGS.includes('upset-acknowledged'))) { // REQ: upset-a
       // (a "|" or ">" inside quotes is an argument. Lesson (a trial): grep -E "a|b" and echo "---" separators were held)
       bash(`grep -rniE "export|button|tuesday" docs 2>/dev/null; echo "--- status:"; git log --oneline -3; ls -la docs`), bash(`grep -n 'a>b|c' docs/STATUS.md`)];
     const writes = [bash('grep -n "export|x" docs/STATUS.md > found.txt'), bash('grep -n export docs/STATUS.md; node tools/build.mjs'), bash('sed -n -i s/a/b/ docs/STATUS.md'), bash('cat docs/STATUS.md > docs/copy.md'), bash('ls | tee list.txt')];
-    report(!reads.some(denied0) && writes.every(denied0), 'upset-acknowledged: a chain of reads goes through while the Issue line is owed ("cd", "sed -n", pipes); a chain with a change, a redirect or "sed -i" is held',
+    report(![...reads, ...writes].some(denied0), 'upset-acknowledged: no read or change is held while the Issue line is owed (REQ quiet-work: Stop looks for it)',
       JSON.stringify([...reads, ...writes].map(o => o.slice(0, 120))));
     // (an Issue line with no runbook, or with no outcome, does not count: "acknowledged" names both. Lesson (the user):
     // "acknowledged" and then no runbook followed)
@@ -8352,11 +8356,7 @@ if (mineB() && (!TAGS || TAGS.includes('upset-acknowledged'))) { // REQ: upset-a
     fs.appendFileSync(path.join(dir, '.cache/turn-notes.md'), 'Issue: none - the export works, the file was opened from an old folder\n');
     const none = pre(edit);
     const denied = o => /upset-acknowledged/.test(o) && /"permissionDecision":"deny"/.test(o);
-    report(!denied(calm) && denied(held) && denied(cmd) && !denied(look) && !denied(notes) && !denied(freed)
-      && denied(bare) && /names no runbook/.test(bare) && !/acknowledged/.test(bareShown) && denied(wrongRb) && /no-such-runbook/.test(wrongRb)
-      && /🚨 acknowledged: the export drops the last row · ⚡ debug skill · fixed when: the export file has every row/.test(freed) && /CHECKLIST \(skills\/debug\/SKILL\.md/.test(freed)
-      && denied(held2) && !denied(none) && !/acknowledged/.test(none),
-      'upset-acknowledged: an upset message holds changes and commands (not reads, not the notes) until the Issue line names an existing runbook and a "fixed when"; "acknowledged" shows all three and the agent gets the checklist; "Issue: none" frees it silently',
+    report(![calm, held, cmd, look, notes, bare, wrongRb, freed, held2, none].some(denied) && /🚨 acknowledged: the export drops the last row/.test(freed) && !/CHECKLIST/.test(freed) && !/acknowledged/.test(none), 'upset-acknowledged: an upset message holds nothing during work (REQ quiet-work); the user still sees "acknowledged" once the Issue line is written, with no checklist pushed to the agent; "Issue: none" shows nothing',
       JSON.stringify([calm, held, cmd, look, notes, bare, wrongRb, freed, held2, none].map(o => o.slice(0, 160))));
     // (an Issue line already shown in the agent's own text counts, and is copied to the notes. Lesson (a trial): the
     // line was in the chat, and 6 tool calls were still held for it)
@@ -8369,7 +8369,7 @@ if (mineB() && (!TAGS || TAGS.includes('upset-acknowledged'))) { // REQ: upset-a
     const noLine = pre({ ...edit, transcript_path: tpA });
     fs.writeFileSync(tpA, chat.map(r => JSON.stringify(r)).join('\n') + '\n');
     const shownChat = pre({ ...edit, transcript_path: tpA }), copied = /drops the last row again \| runbook: debug/.test(fs.readFileSync(path.join(dir, '.cache/turn-notes.md'), 'utf8'));
-    report(denied(noLine) && /written in this same reply is not visible/.test(noLine) && !denied(shownChat) && copied, 'upset-acknowledged: an Issue line the agent already showed in its text frees the work and is copied to the notes; text without one still holds it, and says a line in the same reply is not seen yet',
+    report(!denied(noLine) && !denied(shownChat) && copied, 'upset-acknowledged: an Issue line shown in the agent\'s text is copied to the notes, and nothing is held without one (REQ quiet-work)',
       JSON.stringify([noLine, shownChat].map(o => o.slice(0, 160)).concat(String(copied))));
     // (two checklists in one turn: a record line may name its runbook, and then counts only for that one)
     const hh = await import(pathToFileURL(path.join(ROOT, 'tools', 'hooks', 'hooks.mjs')).href);
@@ -8409,9 +8409,7 @@ if (mineB() && (!TAGS || TAGS.includes('upset-acknowledged'))) { // REQ: upset-a
     fs.writeFileSync(path.join(helperDir, 'agent-h4.jsonl'), hRow('The user sent a new message while you were working:\nWHY DID YOU SKIP THE CHECK AGAIN? THIS IS SUPER BAD') + '\n');
     const hUpset = inH('h4', 'Read', { file_path: path.join(dir, 'README.md') });
     fs.writeFileSync(path.join(dir, 'tools/hooks/state/upset-pending.json'), '{}');
-    report(/USER MESSAGE TO THIS HELPER/.test(hRouted) && /ROUTE: status-lines/.test(hRouted) && isDeny(hHeld) && /helper-turn-checked/.test(hHeld) && /THE USER SOUNDS UPSET/.test(hUpset)
-      && !isDeny(hFreed) && !isDeny(hOther) && /"decision":"block"/.test(hStop) && /helper-turn-checked/.test(hStop),
-      'helper-turn-checked: a user message that reaches a helper is routed at its next tool call (an upset one gets the upset hint); its hand-back (and SubagentStop) waits for the routed checklist; a helper the user never spoke to is not held',
+    report([hRouted, hHeld, hFreed, hOther, hUpset].every(o => !isDeny(o) && !/additionalContext/.test(o)) && !String(hStop).trim(), 'helper-turn-checked: a helper is never routed, held or given notices, even when the user writes to it (REQ quiet-work: its result is checked with the main turn)',
       JSON.stringify([hRouted, hHeld, hFreed, hOther, hStop, hUpset].map(o => String(o).slice(0, 160))));
     // (a record may cover several items, and only this turn's records count. Lesson (the user): a turn recorded
     // "Done 1-12", the count read item 1 alone and took 11 more from earlier turns' lines, and showed "11/12" on a pass)
@@ -8618,8 +8616,7 @@ if (mineB() && (!TAGS || TAGS.includes('instructions-run'))) { // instructions-r
     const bad = ps('scripts/setup.ps1', '"KEY=$k" | Out-File -Encoding utf8NoBOM .env\n$v = $a ?? 3\nnpm ci && npm test\n');
     const ok = ps('scripts/start.ps1', '# runs with ?? in a comment\n$x = Get-Item a | ? { $_.Length -gt 1 }\nWrite-Host "build && test"\nif ($a) { 1 } else { 2 }\nOut-File -Encoding utf8 .env\n');
     const seven = ps('scripts/new.ps1', '#Requires -Version 7\n$v = $a ?? 3\n'), sh = ps('scripts/start.sh', 'npm ci && npm test\n');
-    report(/POWERSHELL 5\.1: scripts\/setup\.ps1 uses -Encoding utf8NoBOM\/utf8BOM, the \?\? operator, the && or \|\| pipeline chains/.test(bad) && !/POWERSHELL 5\.1/.test(ok + seven + sh),
-      'instructions-run: a .ps1 using utf8NoBOM, ?? or && is named at the edit for PowerShell 5.1; 5.1-safe code, text in strings and comments, a #Requires -Version 7 script and a .sh stay quiet',
+    report([bad, ok, seven, sh].every(o => !String(o).trim()), 'instructions-run: a .ps1 edit adds no notice during work (REQ quiet-work: Stop checks the instructions)',
       `${bad.slice(0, 200)} | ${ok.slice(0, 100)} | ${seven.slice(0, 100)} | ${sh.slice(0, 100)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }

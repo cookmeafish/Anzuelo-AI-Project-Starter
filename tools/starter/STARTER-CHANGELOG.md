@@ -6,6 +6,13 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-05 (engine): quiet work. The engine now reminds the agent before the work and checks once after it.
+  - During the work it refuses only what is unsafe (secrets, AI attribution, protected and versioned files, outward actions, risky git, people's data mixing, the project's own guards). The upset hold, repeat and polling refusals and the em dash refusal are gone (Stop still checks the writing and the upset follow-through).
+  - Tool calls get no notices: the checklist on opening a runbook, STATUS, plan, security, publish and generated-file notes are gone. The background-run notice shows once per run, in the main session only, and not for a command that only reads a check's output.
+  - Helpers are never routed or held.
+  - Stop no longer asks for "Done N" or "Skip N" lines.
+  - New read-only tools: `tools/starter/interrupts.mjs` and `tools/starter/stop-value.mjs`.
+  - **Breaking for project hooks:** PreToolUse and PostToolUse print far less, and SubagentStop prints nothing.
 - 2026-11-05 (engine): machine-local files (*.local.json) are left out of the self-test fingerprint, so updating this machine's settings or watch list keeps a fresh self-test pass current.
 - 2026-11-05 (engine): turn notes with new lines inserted above an earlier turn's lines count only this turn's lines (the notes at the start of the turn are kept and subtracted), so an old lesson no longer asks for work in a turn that changed nothing.
 - 2026-11-05 (engine): trial v30 findings: the purpose line of AGENTS.md and CLAUDE.md and a project's decisions log may use the user's own description; read-only loops and the vault's read scripts count as reads while a complaint waits for its Issue line; the rule hint asks for the new check's own tests, not the whole self-test; a screenshot warning on one address is not hidden by a clean run on another; the checklist and new-runbook steps say exactly what to record; one more trial wording removed (keepOut for the meals trial).

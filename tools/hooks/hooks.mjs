@@ -5421,8 +5421,13 @@ export function patchFiles(patch) {
 // denial costs no more than an allowed call. Lesson: a call that broke two rules was denied for the first only, and
 // the retry was denied again for the second.
 const PRETOOL_MAX = 6;
+// REQ: quiet-work. During the work a tool call is refused only for safety: what can't be undone, what leaks, what breaks
+// a protection the user set, a headless run left hanging. Style, cost, bookkeeping and an unacknowledged complaint wait
+// for the one check at Stop, which covers them. Lesson (the user): the engine is a reminder before the work and a check
+// after it; refusals and notices during the work made answers worse and kept helpers from doing their job.
+export const IN_WORK_GUARDS = /^REQ: (approval-gate|browser-guard|commit-gate|forbidden-command|forbidden-terms|git-safety|gitignore-ready|headless-no-wakeup|injection-guard|no-ai-attribution|no-overwrite|no-secrets|outward-gate|permission-respected|protect-originals|publish-gate|scope-separate|setup-[\w-]+|shell-hygiene|skill-mirror|subagent-brief|wakeup-left|whole-output|write-only-via)\b/;
 export function pretoolDecision(data, cfg = config()) {
-  const hits = pretoolHits(data, cfg);
+  const hits = pretoolHits(data, cfg).filter(h => IN_WORK_GUARDS.test(h));
   if (hits.length < 2) return hits[0] || null;
   const shown = hits.slice(0, PRETOOL_MAX), more = hits.length - shown.length;
   return `This tool call breaks ${hits.length} rules. Fix all of them before trying again:\n` +
@@ -5862,16 +5867,14 @@ function cmdPretool(data) {
   // launched without the line cost a denial and a full extra round that resent its whole prompt (4 in one trial round).
   const brief = briefLine(data), bare = cdDropped(data);
   const d = brief ? { ...data, tool_input: { ...data.tool_input, prompt: brief } } : bare ? { ...data, tool_input: { ...data.tool_input, command: bare } } : data;
-  // REQ: helper-turn-checked (a user message that reached a helper is routed at its next tool call; its hand-back waits
-  // for the routed checklist)
-  const helperHint = data.agent_id ? helperRoute(data) : '';
-  if (data.agent_id && data.tool_name === 'SubagentHandback') { const g = helperGate(data); if (g) { deny(helperHint ? `${helperHint}\n${g}` : g); return; } }
   const r = pretoolDecision(d);
   if (r) { deny(r); return; }
   // (an Issue line written from the shell, which the edit hook never sees, is acknowledged at the next tool call.
   // Lesson (the user): an Issue line appended with echo showed the user nothing)
   const acked = HOST === 'claude-code' ? acknowledgedLine(NOTES_FILE) : '';
-  const notes = [helperHint, overlapNotice(data), (() => { try { return scopeNotice(data); } catch { return null; } })(), acked && issueChecklist(), checklistNotice(data)].filter(Boolean).join('\n');
+  // REQ: quiet-work. Two notices only, each once, in the main session (a helper never started the session's runs and
+  // never got the user's message): the agent's own test run still going, and a new user message while helpers run.
+  const notes = data.agent_id ? '' : [overlapNotice(data), (() => { try { return scopeNotice(data); } catch { return null; } })()].filter(Boolean).join('\n');
   const ack = HOST === 'claude-code' ? [acked, runningLine(d)].filter(Boolean).map(l => visibleLines(l)).filter(Boolean).join('\n') : '';
   if (brief || bare || notes || ack) process.stdout.write(JSON.stringify({ ...(brief || bare || notes ? { hookSpecificOutput: { hookEventName: 'PreToolUse', ...(brief || bare ? { updatedInput: d.tool_input } : {}), ...(notes ? { additionalContext: notes } : {}) } } : {}), ...(ack ? { systemMessage: ack } : {}) }));
 }
@@ -5895,7 +5898,10 @@ export function cdDropped(data) {
 export const CHECK_RUN = /\b(pytest|unittest|npm (run )?test|npx (jest|vitest|playwright)|go test|cargo test|dotnet test|mvn test|gradle test|selfcheck|audit|trial|sweeps?|validate|lint)\b|\b\w*(test|sweep|check|audit)\w*\.(py|mjs|js|ps1|sh)\b/i;
 export function overlapNotice(data) {
   const cmd = data.tool_input?.command;
-  if (!/^(Bash|PowerShell)$/.test(data.tool_name || '') || typeof cmd !== 'string' || !CHECK_RUN.test(cmd) || !data.transcript_path) return null;
+  // (a part of the command that starts a check, not one that only names its file: REQ quiet-work. Lesson (the user): a
+  // grep of a self-test's output file got the notice)
+  const runs = c => String(c).split(/&&|\|\||;|\n|\|/).some(s => !READ_ONLY.test(s.trim()) && !READ_PART.test(s.trim()) && CHECK_RUN.test(s));
+  if (!/^(Bash|PowerShell)$/.test(data.tool_name || '') || typeof cmd !== 'string' || !runs(cmd) || !data.transcript_path) return null;
   const t = turn(data.transcript_path);
   if (!t?.bgRunning?.length) return null;
   const byId = new Map(), started = new Set();
@@ -5906,8 +5912,11 @@ export function overlapNotice(data) {
     }
   // (only launches whose result came back: the call being checked is already in the transcript, with none yet. Lesson,
   // dogfood: a background test run was told it was itself still running)
-  const busy = t.bgRunning.filter(id => started.has(id)).map(id => byId.get(id)).filter(c => c && CHECK_RUN.test(c));
+  // (once per run: REQ quiet-work. Lesson (the user): the same notice came back on almost every command)
+  const shown = readJSON(stateFile('overlap-shown.json'), {}), ids = t.bgRunning.filter(id => started.has(id) && !(shown.ids || []).includes(id) && CHECK_RUN.test(byId.get(id) || ''));
+  const busy = ids.map(id => byId.get(id));
   if (!busy.length) return null;
+  writeState('overlap-shown.json', { ids: [...(shown.ids || []), ...ids].slice(-50) });
   return `Heads-up: ${busy.length === 1 ? 'a test or sweep run is' : `${busy.length} test or sweep runs are`} still running in the background (${busy.map(c => `"${c.replace(/\s+/g, ' ').trim().slice(0, 80)}"`).join(', ')}). Two at once can see each other's temporary files and fail falsely: wait for its notice before reading this run's failures as real, or run this one after it.`;
 }
 // A message from the user that arrived while helpers launched before it still run: once per message, with the next call,
@@ -6010,10 +6019,10 @@ function cmdPosttool(data) {
   // a runbook edited by a script left its generated skill stale, and the next audit failed until something else synced)
   else if (!p && /^(Bash|PowerShell)$/.test(data.tool_name || '') && /(^|[\s"'=/\\(])(docs[\\/](playbooks|checks|knowledge)[\\/]|docs[\\/]MENU\.md|skills[\\/][\w-]+[\\/]SKILL\.md|tools[\\/]hooks[\\/]requirements\.json)/.test(String(data.tool_input?.command || ''))
     && !String(data.tool_input.command).split(/&&|\|\||;|\n|\|/).every(s => READ_ONLY.test(s.trim()) || !s.trim())) syncAll();
-  const h = eventHintAfterEdit(p, data.tool_input || {});
-  const pub = publishNotice(p, data.tool_input || {}), plan = planNotice(p, data.tool_input || {}), ps = ps51Notice(p, data.tool_input || {});
-  const hand = handoffNotice(p, data), gen = generatedNotice(p), ack = acknowledgedLine(p);
-  if (h || pub || plan || ps || hand || gen || ack) contextOut('PostToolUse', [h, pub, plan, ps, hand, gen, ack && 'ACKNOWLEDGED: the user was shown that this issue is being fixed.', ack && issueChecklist()].filter(Boolean).join('\n') + '\n', ack || '');
+  // (REQ: quiet-work: no notices after a tool call; the Stop check asks for what is still missing. Only the user's
+  // "acknowledged" line is shown)
+  const ack = acknowledgedLine(p);
+  if (ack) contextOut('PostToolUse', 'ACKNOWLEDGED: the user was shown that this issue is being fixed.\n', ack);
 }
 // The user sees "acknowledged" the moment the agent writes its "Issue:" line (learn-from-upset), not only when the turn
 // ends; the end-of-turn line then says it was fixed. Lesson (the user): the line should show as soon as the agent has
@@ -6131,11 +6140,9 @@ export function helperGate(data) {
     `${open.map(i => `${i.n}. ${i.text.slice(0, 110)}`).join(' ')}. Do each item, then add "Done N: <what you did, with the file or command>" ` +
     `or "Skip N: <why it doesn't apply>" to ${NOTES_FILE}, and hand back again.`;
 }
-function cmdSubagentstop(data) {
-  if (data.stop_hook_active) return;
-  const g = helperGate(data);
-  if (g) process.stdout.write(JSON.stringify({ decision: 'block', reason: g }));
-}
+// (REQ: quiet-work: a helper's end is never held; its result is checked with the main turn. Lesson (the user): a
+// helper's text-only review was refused until it wrote six "Skip" lines)
+function cmdSubagentstop() { }
 export function upsetUnacknowledged(name, inp, tp = '') {
   const pend = readJSON(stateFile(UPSET_PENDING), {}), turnAt = Date.parse(readJSON(stateFile('turn.json'), {}).at || '');
   if (!pend.at || Date.parse(pend.at) < (turnAt || 0) - 5000 || isSuspended('check:upset-acknowledged')) return null;
@@ -7562,8 +7569,7 @@ export function ledgerHint(pb) {
   const items = ledgerItems(read(abs(pb.file)));
   if (!items.length) return '';
   return `CHECKLIST (${pb.file}, "Done when"): ${items.map(i => `${i.n}. ${i.text.slice(0, 140)}`).join(' ')} ` +
-    `Work through it without stopping. As you finish each item, add a line to ${NOTES_FILE}: "Done N: <what you did, with the file or command>" or "Skip N: <why it doesn't apply to this request>". ` +
-    'The final check compares these lines with what the turn actually did; only an item whose evidence is missing comes back. REQ: runbook-ledger.';
+    'Work through it without stopping. Items that do not apply to this request need nothing; the final check looks at the work, not at notes.';
 }
 // The checklist of a runbook opened during the turn, handed over as it is opened (the one the prompt routed to came with
 // the prompt), with its name in the record lines, since the turn may keep several. Lesson (the user): a hook hands the
@@ -7609,19 +7615,10 @@ export function ledgerSteps(x, missing, cfg = config()) {
       if (r?.kind === 'skip' && r.why.trim().split(/\s+/).length >= 3) { (x.ledgerSkipped ||= []).push(m.tag); continue; }
       next.push(it ? { ...m, short: `${k ? `${pb.name} item` : 'Item'} ${it.n}${r?.kind === 'done' ? ' (marked done)' : ''}: ${shortStep(m)}` } : m);
     }
-    // (with more than one checklist in play, each ask names its runbook, the first one's too. Lesson (a field report):
-    // "Record 2, 3 of the checklist" in a turn with four runbooks open was answered for the wrong one, three rounds)
-    const unrecorded = items.filter(it => it.judgment && !rec.has(it.n)), named = k || pbs.length > 1;
-    // (each item with its first words, so the record is written for the right item. Lesson (trial v30): "Record 2, 3 of
-    // the project checklist" took two rounds and a reread of the runbook to place)
-    const gist = i => { const t = i.text.replace(/\s*\(hook:[^)]*\)|`/g, '').trim(); return t.length > 48 ? `${t.slice(0, t.lastIndexOf(' ', 46))}...` : t; };
-    if (unrecorded.length) asks.push({ short: `Record in .cache/turn-notes.md, item ${unrecorded.slice(0, 4).map(i => `${i.n} ("${gist(i)}")`).join(', ')}${unrecorded.length > 4 ? ` and ${unrecorded.length - 4} more` : ''} of the ${named ? `${pb.name} ` : ''}checklist`,
-      msg: `No script can check ${unrecorded.length > 1 ? 'these checklist items' : 'this checklist item'} of ${pb.file}, so your record is the proof: ${unrecorded.map(i => `${i.n}. ${i.text.slice(0, 120)}`).join(' ')}. ` +
-        `Add "Done ${named ? `${pb.name} ` : ''}N: <what you did and what it showed>" or "Skip ${named ? `${pb.name} ` : ''}N: <why it doesn't apply>" to ${NOTES_FILE}, after doing it${named ? ` (with "${pb.name}" in the line: this turn followed more than one runbook)` : ''}.` });
+    // (an item no script can check asks for no record line: REQ quiet-work. Lesson (the user): "Done N" and "Skip N"
+    // lines were written only so a check would pass, and proved nothing about the work)
     out = next;
   });
-  if (asks.length) out.push({ tag: 'runbook-ledger', short: asks.map(a => a.short).join('; '),
-    msg: asks.map(a => a.msg).join(' ') + (pbs.length > 1 ?' For work spread over many items (files, folders, helpers), say what was checked for each one.' : '') });
   return out;
 }
 

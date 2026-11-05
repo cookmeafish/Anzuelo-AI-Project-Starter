@@ -112,6 +112,11 @@ followed to the end of its checklist with the outcome verified (only a false ala
     check (3 of its last 6 turns), the hooks suspend it and say so: it stops routing or blocking until it is fixed and
     restored, or retired with the user's OK. Safeguards for safety and honesty stay, and get made less annoying
     instead. No check may stall the work: a turn is blocked at most 3 times, then it ends and the misses are announced.
+    **The engine is a reminder before the work and one check after it.** During the work it stays silent and refuses
+    only what can't be undone, what leaks, or what breaks a protection the user set. Helpers get no checklist and no
+    gate, and no check asks for a line that only says an item was done or skipped. A fix for a miss never adds an
+    interruption during work: it improves the reminder or the end check, or it is left out (2026-11-05: notices
+    on almost every command and refused helper hand-backs made the work worse).
 
 ## How the project improves itself
 ```
