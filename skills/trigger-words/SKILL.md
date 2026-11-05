@@ -12,7 +12,8 @@ Open `docs/playbooks/trigger-words.md` and follow every step in order. It is the
 ## Done when
 - [ ] `node tools/hooks/hooks.mjs ignore-word` exited 0 for each word and kind (or printed that nothing needed to
       change), and `"ignoreWords"` in tools/hooks/config.json now lists the word, in lowercase, under each kind the
-      user meant, or no longer lists it after `--remove` (judgment: which word and kind the user meant needs a reader).
+      user meant, or no longer lists it after `--remove` (judgment: which word and kind the user meant needs a reader)
+      (ran: hooks\.mjs ignore-word).
 - [ ] The answer says what changed and how to undo it (judgment: plain wording for the user).
 <!-- generated:end -->
 

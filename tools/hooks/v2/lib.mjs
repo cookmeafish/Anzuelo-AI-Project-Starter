@@ -28,7 +28,9 @@ export function doneWhen(text) {
   }
   return items.map((raw, i) => {
     const c = /\((file|ran|answer):\s*([^)]+)\)\s*\.?\s*$/i.exec(raw);
-    const text = raw.replace(/\s*\((?:file|ran|answer|hook|judgment):[^)]*\)\s*\.?\s*$/i, '').replace(/`/g, '').trim();
+    // (every marker goes from the shown text: an item may carry the old engine's "(hook: ...)" or "(judgment: ...)"
+    // before v2's own)
+    const text = raw.replace(/\s*\((?:file|ran|answer|hooks?|judgment):[^)]*\)/gi, '').replace(/\s*\.\s*$/, '').replace(/`/g, '').trim();
     return { n: i + 1, text, kind: c ? c[1].toLowerCase() : null, arg: c ? c[2].trim() : null };
   });
 }

@@ -78,7 +78,7 @@ is: `node tools/starter.mjs upgrade`. No link: `node tools/starter.mjs link "<st
       plain wording for the user).
 - [ ] A changed setting has its DECISIONS line; one the host refused went to the user as the line to paste, never
       written another way (hook: permission-respected).
-- [ ] The answer ends with a Finished section: what changed, each file's path, what was not verified (hook: finished-summary).
+- [ ] The answer ends with a Finished section: what changed, each file's path, what was not verified (hook: finished-summary) (answer: Finished).
 
 ## Pitfalls
 - 2026-10-27: an upgrade ran on top of a session's 27 uncommitted files, so the two could only be committed together.

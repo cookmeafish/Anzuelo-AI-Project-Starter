@@ -41,6 +41,11 @@ const turn = { runbook: 'docs/playbooks/export.md' };
 const acts = rows => turnActs(turnRows(transcript(rows)));
 
 // start: the reminder
+{
+  const { doneWhen } = await import('./lib.mjs');
+  const [both] = doneWhen('## Done when\n- [ ] The plan is saved in `docs/plans/` (hook: plan-saved; judgment: the reader) (file: docs/plans/*.md).\n');
+  report(both.kind === 'file' && both.arg === 'docs/plans/*.md' && both.text === 'The plan is saved in docs/plans/', 'start: an item with the old engine\'s marker and v2\'s keeps v2\'s check and shows neither', both);
+}
 const r = reminder('can you add a CSV export for the orders page');
 report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/.test(r.text) && /Done when:\n1\. The tests pass/.test(r.text) && !/ran:|file:|answer:|judgment:|REQ/.test(r.text),
   'start: a matching request gets the runbook and its Done-when list, in plain words', r.text);
@@ -267,6 +272,16 @@ try {
 const logged = fs.readFileSync(shadowLog, 'utf8').trim().split('\n').map(l => JSON.parse(l));
 report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\/export\.md/.test(logged[0].reminder) && /Open docs\/playbooks\/export\.md/.test(logged[1].block),
   'shadow: logs the reminder and the block it would have given, prints nothing, and skips the repeat Stop', { printed, logged });
+
+// size budget (docs/plans/2026-11-05-engine-v2.md): the engine stays small, and the end check has at most 15 checks.
+// Lesson: v1 grew to about 9,600 lines of hooks, most of it fixing friction it made itself.
+{
+  const here = path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1'));
+  const engine = fs.readdirSync(here).filter(f => f.endsWith('.mjs') && f !== 'selftest.mjs');
+  const lines = engine.reduce((n, f) => n + fs.readFileSync(path.join(here, f), 'utf8').split('\n').length, 0);
+  const checks = (/const list = \[([^\]]*)\]/.exec(fs.readFileSync(path.join(here, 'end.mjs'), 'utf8'))?.[1].match(/\.\.\.\w+\(/g) || []).length;
+  report(lines <= 1500 && checks >= 1 && checks <= 15, `size: the v2 engine is at most 1,500 lines (${lines}) and the end check runs at most 15 checks (${checks})`, { lines, checks });
+}
 
 fs.rmSync(dir, { recursive: true, force: true });
 console.log(`v2 selftest: ${fail ? 'FAIL' : 'ALL PASS'} (${pass} passed, ${fail} failed)`);

@@ -13,6 +13,7 @@ hooks:**, and an upgrade lists each one as its own review item.
   - v2's end check 5: new text in the knowledge folders names its source (a link, a project file or the user), or the sources list changed with it. Files a script changed are read from their git diff.
   - v2's end check 6: new code matching the project's security pattern (requirements.json "security-code") asks for the security review unless the turn ran it or wrote its report.
   - v2's end check 7: the answer's commits exist or showed up in the session, the files it names exist, and "committed" or "pushed" stated as done is backed by a command or a commit made since the turn began.
+  - Runbook "Done when" items can carry v2's check after v1's marker, as in "(hook: plan-saved) (file: docs/plans/*.md)". Four of the starter's runbooks now do (engine, plan, project, trigger-words). A project adopts this by hand: add `(file: ...)`, `(ran: ...)` or `(answer: ...)` only to items that hold on every work turn of that runbook. `node tools/starter/done-when-coverage.mjs <project> --list` shows the candidates.
   - v2 sees changes in projects with large .cache folders: the file walk skips bulk folders and runs once per turn.
   - v2's tests check now honors the project's declared "test", "build" and "commitGate" commands in config.json. In a live turn it also counts code changed by helpers and scripts since the turn began. Scratch scripts in .cache are not project code.
 - 2026-11-05 (engine): engine v2 started, off by default. `"engine": "v2"` in tools/hooks/config.json turns it on.

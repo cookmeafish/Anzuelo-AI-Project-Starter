@@ -89,7 +89,7 @@ SKILL CLEANUP DUE, and the skill-curate skill keeps it with a reason, merges it,
 - [ ] Rule requests: every file was searched for wording or behavior that says the opposite, each hit fixed or kept with a reason, in a `Conflicts:` line (judgment: what counts as the opposite needs a reader).
 - [ ] Skills added or removed: each one belongs to a runbook or has its own triggers and a check (hook: skill-complete).
 - [ ] Skills due for cleanup: each kept with a reason, merged, or retired with the user's OK (skill-curate; hook: skill-prune).
-- [ ] CHANGELOG updated; Finished section (hooks: changelog, finished-summary).
+- [ ] CHANGELOG updated; Finished section (hooks: changelog, finished-summary) (file: docs/CHANGELOG.md).
 
 ## Pitfalls
 - A rule written only in the docs gets forgotten. Every checkable rule needs a check.

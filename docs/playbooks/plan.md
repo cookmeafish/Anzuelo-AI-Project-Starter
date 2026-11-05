@@ -31,7 +31,7 @@ runbook.
 5. When every box is ticked and every check passes, set `status: done` (or `status: dropped - <why>`).
 
 ## Done when
-- [ ] The plan is saved in `docs/plans/` and linked in the answer (hook: plan-saved).
+- [ ] The plan is saved in `docs/plans/` and linked in the answer (hook: plan-saved) (file: docs/plans/*.md).
 - [ ] Every requirement in the spec maps to a task, and every task ends with a check (hook: plan-checked for the checks; judgment: whether every spec item is covered).
 - [ ] A finished or abandoned plan carries `status: done` or `status: dropped - <why>` (hook: plan-open announces it at each session start until closed; judgment: only the person running it knows it is finished or dropped).
 
