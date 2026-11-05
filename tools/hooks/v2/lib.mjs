@@ -215,13 +215,15 @@ export function healthGaps(acts, { run = true } = {}) {
   if (lastEdit < 0 && !lastWrite) return [];
   if (i.some(([c, k]) => k > lastEdit && /^(Bash|PowerShell)$/.test(c.name) && !c.error && /audit\.mjs/.test(String(c.input.command || '')) && /audit: PASS/.test(c.out || '') && (!lastWrite || c.done > lastWrite))) return [];
   if (!run) return ['(the health check would run here)'];
-  const r = spawnSync(process.execPath, ['tools/audit.mjs'], { cwd: ROOT, encoding: 'utf8', timeout: 90_000 });
-  if (r.status === 0 || r.error) return [];
+  // (a hard limit: a slow audit never holds the end of a turn. Its time is kept, to see what it costs)
+  const t0 = Date.now(), r = spawnSync(process.execPath, ['tools/audit.mjs'], { cwd: ROOT, encoding: 'utf8', timeout: 30_000 });
+  const ms = Date.now() - t0;
+  if (r.status === 0 || r.error) { saveTurn('health', { ...loadTurn('health'), ms }); return []; }
   // (a failure already reported on an earlier turn is not this turn's: it is asked about once, not on every turn after.
   // Lesson: a sweep waiting on the user's decision failed in every structural turn)
   const fails = String(r.stdout || '').split('\n').filter(l => /^FAIL/.test(l)).map(l => l.replace(/^FAIL\s+/, '').replace(/\s*\(.*$/, '').trim());
   const known = new Set(loadTurn('health').fails || []), fresh = fails.filter(f => !known.has(f));
-  saveTurn('health', { fails });
+  saveTurn('health', { fails, ms });
   if (fails.length && !fresh.length) return [];
   return [`The project's health check (node tools/audit.mjs) fails after this change: ${fresh.slice(0, 3).join('; ') || 'see its output'}. Fix it and run it again.`];
 }
