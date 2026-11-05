@@ -5309,6 +5309,23 @@ if (mineB() && (!TAGS || TAGS.includes('upset-acknowledged'))) {
     report(got.every(Boolean), label, JSON.stringify(got));
   } catch (e) { report(false, label, e.message); }
 }
+// selftest-inputs: a machine-local file (*.local.json) is no test input, so editing it keeps a self-test pass current;
+// a change to a real input still voids it. Lesson: updating the starter's watch list voided a fresh pass.
+if (mineB() && (!TAGS || TAGS.includes('hooks-tested'))) {
+  const label = 'hooks-tested: editing a machine-local *.local.json keeps the self-test fingerprint; editing requirements.json changes it';
+  const dir = copyProject();
+  try {
+    const hash = () => spawnSync(process.execPath, ['--input-type=module', '-e', `import { testInputsHash } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; console.log(testInputsHash());`], { cwd: dir, encoding: 'utf8' }).stdout.trim();
+    const a = hash();
+    fs.mkdirSync(path.join(dir, 'tools/starter'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'tools/starter/watch.local.json'), JSON.stringify({ projects: [{ engine: 'abc1234' }] }));
+    const b = hash();
+    fs.appendFileSync(path.join(dir, 'tools/hooks/requirements.json'), '\n');
+    const c = hash();
+    report(!!a && a === b && b !== c, label, JSON.stringify([a, b, c]));
+  } catch (e) { report(false, label, e.message); }
+  finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
 // no-polling: waiting on background work by sleeping or re-reading its output is refused; the first read, a read a
 // minute later, a short pause and a read after the notice are not. Lesson (trial v29): setup helpers slept and polled.
 if (mineB() && (!TAGS || TAGS.includes('no-polling'))) {
