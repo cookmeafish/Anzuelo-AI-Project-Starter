@@ -9597,6 +9597,11 @@ if (isMain) {
     } catch (e) { process.stderr.write(`[hooks v2 ${cmd}] error: ${e && e.stack || e}\n`); }
     process.exit(0);
   }
+  // (and in shadow beside v1: v2 logs what it would have done, prints nothing, and never fails the turn)
+  // (only for a real session: a hand run with a made-up id writes no state, the shadow log included)
+  if ((cmd === 'prompt' || cmd === 'stop') && config().v2shadow !== false && !envOf('BENCH') && SID && !NO_TRANSCRIPT) {
+    try { process.env.ANZUELO_ROOT ||= ROOT; (await import('./v2/shadow.mjs')).shadow(cmd, data); } catch { }
+  }
   try {
     const fn = { session: cmdSession, prompt: cmdPrompt, pretool: cmdPretool, posttool: cmdPosttool, stop: cmdStop, subagentstop: cmdSubagentstop }[cmd];
     if (fn) fn(data);

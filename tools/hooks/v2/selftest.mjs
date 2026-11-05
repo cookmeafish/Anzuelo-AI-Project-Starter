@@ -136,6 +136,19 @@ report(testGaps(acts([user('fix the page'), page, say('Fixed.')])).length === 1
 put('tools/hooks/config.json', JSON.stringify({ commitGate: [{ cmd: 'python site/verify\\.py && node site/controls\\.js', when: ['site/**'] }] }));
 report(gateGaps(acts([user('tidy the notes'), call('Edit', { file_path: path.join(dir, 'notes/a.md'), old_string: 'a', new_string: 'b' }), say('Tidied.')])).length === 0, 'end: a change outside a declared check\'s files asks for nothing');
 
+// shadow: beside v1, v2 only logs
+const { shadow } = await import('./shadow.mjs');
+const shadowLog = path.join(dir, 'tools/hooks/state/v2-shadow.jsonl');
+const printed = []; const write = process.stdout.write; process.stdout.write = s => { printed.push(s); return true; };
+try {
+  shadow('prompt', { session_id: 'sh', prompt: 'add a csv export' });
+  shadow('stop', { session_id: 'sh', transcript_path: transcript([user('add a csv export'), edit, say('Done.')]) });
+  shadow('stop', { session_id: 'sh', stop_hook_active: true, transcript_path: transcript([user('add a csv export'), edit, say('Done.')]) });
+} finally { process.stdout.write = write; }
+const logged = fs.readFileSync(shadowLog, 'utf8').trim().split('\n').map(l => JSON.parse(l));
+report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\/export\.md/.test(logged[0].reminder) && /Open docs\/playbooks\/export\.md/.test(logged[1].block),
+  'shadow: logs the reminder and the block it would have given, prints nothing, and skips the repeat Stop', { printed, logged });
+
 fs.rmSync(dir, { recursive: true, force: true });
 console.log(`v2 selftest: ${fail ? 'FAIL' : 'ALL PASS'} (${pass} passed, ${fail} failed)`);
 process.exit(fail ? 1 : 0);
