@@ -14,7 +14,7 @@ legal document or says what the law allows ends with this line, once, in the use
 It goes at the end, after the answer, never as a banner on top and never inside a letter, reply or other draft meant
 for someone else. A plain letter that only applies facts already settled (an amount, a date, a notice period the user
 gave) needs no review and no line. Lesson: the line headed a rent letter and an answer about a letter's tone, where it
-told the user nothing. Name the skill only on the answer's last markers line (`Skill: legal-review`), not in the text.
+told the user nothing. Don't name the skill in the answer.
 
 ## Pick the situation
 | The user... | Section |

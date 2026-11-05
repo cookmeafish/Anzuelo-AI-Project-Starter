@@ -15,7 +15,7 @@ Open `docs/playbooks/status-lines.md` and follow every step in order. It is the 
       removed (judgment: which kinds the user meant needs a reader).
 - [ ] The answer says which lines are hidden now and how to bring them back (judgment: plain wording for the user).
 - [ ] A change to the status bar (below): its self-test passes and failed before the fix (hook: hooks-tested).
-- [ ] A change to the status bar: a sweep over real session logs shows 0 wrong, in a `Sweep:` line (judgment: the log is the user's, outside the project).
+- [ ] A change to the status bar: a sweep over real session logs shows 0 wrong, and the answer gives the count (judgment: the log is the user's, outside the project).
 - [ ] A change to the status bar: every other status line (the project's, the user's) still shows first and unchanged, in the status-bar self-test (hook: hooks-tested).
 <!-- generated:end -->
 

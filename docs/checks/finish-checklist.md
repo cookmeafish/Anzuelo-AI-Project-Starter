@@ -8,7 +8,7 @@ Go through it top to bottom. Items marked (hook: tag) are also checked automatic
 - [ ] The runbook you followed is named, and its "Done when" items pass (hook: runbook-read).
 - [ ] A new kind of task left a runbook and a check behind (hook: runbook-exists, runbook-complete).
 - [ ] A miss while following a runbook or skill left its lesson in that file (hook: skill-learn).
-- [ ] Anything added (skill, pack, dependency) says "Worth it: <gain> / <cost>" (hook: worth-it).
+- [ ] Anything added (skill, pack, dependency) was weighed, and the answer says its gain and cost (hook: worth-it).
 - [ ] Anything ambiguous was asked about, or stated as an assumption. Nothing was silently guessed.
 
 ## Accuracy

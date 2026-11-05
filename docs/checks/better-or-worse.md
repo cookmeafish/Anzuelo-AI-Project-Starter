@@ -1,7 +1,7 @@
 # Better or worse?
 
 Answer these before adding or changing anything in a project (a pack, skill, tool, rule, check, dependency or engine
-upgrade). Hard rule 16 sums them up as `Worth it: <gain> / <cost>`. Where a check answers a question, it is named.
+upgrade). Hard rule 16 sums them up as one line to the user: the gain and the cost. Where a check answers a question, it is named.
 
 ## Questions the checks answer
 | Question | Answered by |

@@ -17,8 +17,8 @@ anything else, also for a message typed while you work and for one asked as a qu
 write the `Issue:` line below first: it shows the user "acknowledged", and the end-of-turn check looks for it (hook:
 upset-acknowledged).
 - **False alarm** (venting, a test of the hooks, something outside this work, nothing here went wrong): put
-  `Issue: none - <why>` and `Learned (none): nothing was wrong - <what they were describing>` in
-  `.cache/turn-notes.md`, say nothing about it, do what they asked, and stop following this skill. The user sees nothing.
+  `Issue: none - <why>` in `.cache/turn-notes.md`, say nothing about it, do what they asked, and stop following this
+  skill. The user sees nothing.
 - **A real issue, or a repeat:** pick the runbook or skill that finds its root cause and fixes it (DIRECTORY.md;
   **debug** for anything that behaves wrong), and put
   `Issue: <the user's point in general terms, under 12 words> | runbook: <name> | fixed when: <a checkable outcome>` in
@@ -27,10 +27,9 @@ upset-acknowledged).
   earlier work missed it>` (hook: upset-acknowledged). <!-- Lesson (the user): an issue acknowledged as the user's
   example was fixed in that narrow form, and the user had to say twice that it meant every case -->
  The user is shown "acknowledged" with all three at once,
-  and "fixed" when the turn ends. Then follow that runbook to the end: every "Done when" item gets `Done N: <evidence>`
-  or `Skip N: <why>` in the notes, and the outcome gets `Verified: <what you ran or opened> - <what it showed>`; the
-  end-of-turn check holds you to both (hook: upset-acknowledged). Follow the steps below alongside it. A new complaint
-  in the same turn gets its own new line.
+  and "fixed" when the turn ends. Then follow that runbook to the end, and verify the outcome by running or opening
+  what shows it; the end check has you go over the runbook's list. Follow the steps below alongside it. A new
+  complaint in the same turn gets its own new line.
 
 0. **Check the complaint first, before you agree.** Open what the user saw: the last commit or what was delivered
    (`git log -- <file>`, `git show HEAD:<file>`), not only the working copy, and never from memory. Never say git has
@@ -49,7 +48,7 @@ upset-acknowledged).
    **The simplest fix that removes the cause:** change one thing in the right place rather than add layers; extend an
    existing step, tool or check rather than add a new one. If the fix needs much more than that, say why in one line.
 1a. **List everything wrong before fixing anything.** Write the user's complaint, every part of it and every message
-   they sent while you worked, as a checklist in `.cache/turn-notes.md` (or the plan below): each item, what you
+   they sent while you worked, as a checklist (in the plan below, or your own notes): each item, what you
    checked, its root cause, and what will stop it. Fix from the list, so the answer covers all of it, not the latest
    message only.
 1b. **Upset again in the same session** (the hook knows; hook: upset-learned): patching has failed, so stop patching.
@@ -58,12 +57,12 @@ upset-acknowledged).
    - Write the rule the behavior must follow ("the newest entry decides"), not a fix for the moment shown. List every
      state and every kind of input it must handle, including the ones nobody complained about yet.
    - Prove it over real data, every case: run the fix over the whole real record (every line of a log, every file,
-     every saved result) against facts read independently, and write `Sweep: <what ran over what> - <N checked, N
-     wrong>` in `.cache/turn-notes.md`. The moments in the user's screenshots are a sample, not the test.
+     every saved result) against facts read independently, and say in the answer what ran over what, how many were
+     checked and how many were wrong. The moments in the user's screenshots are a sample, not the test.
    - Turn the sweep into a self-test, so the next change can't break it again.
 2. **Find the cause** in one sentence: "The <skill/runbook/check> did not <step>, so <what went wrong>."
-   **Learned before?** Search the earlier lessons for this complaint's subject (the `Learned` lines in
-   `.cache/turn-notes.md`, `docs/lessons.md`, `docs/checks/user-requirements.md`). If one covers it, its fix did not
+   **Learned before?** Search the earlier lessons for this complaint's subject (`docs/lessons.md`,
+   `docs/checks/user-requirements.md`, the skills' `## Project lessons`). If one covers it, its fix did not
    hold: the cause is why that rule or check let this through (it counted instead of judging each item, it let a
    generic case pass), and that is what gets fixed. Lesson (a field report): the same lesson was learned four times in
    nine days, each time treated as new, while the check it got only counted items against a bar.
@@ -83,16 +82,14 @@ upset-acknowledged).
 4. **Write it there** in your own words, never the user's (hook: no-verbatim-examples), as what to do next time.
 5. **Prove a new check** in one command (hook: check-proven): `node tools/hooks/hooks.mjs prove "<its command>"
    --edge "<a good edge case from this project's own words: a name, address, label, quoted text>"` runs it on git's
-   version before the fix (it must fail) and on the fix (it must pass), and writes the `Proven:` line. Make the check
-   run over its whole scope, prefer testing the result over a word list, and extend an existing check rather than adding
-   a second. When the problem was never in the files, prove it on a sample written to `.cache/` (it fails) and the
-   real files (they pass), in a `Proven:` line in `.cache/turn-notes.md`. Only then may the answer say it can't happen
-   again (hook: claim-checked). A new check's scenarios pass: `node tools/hooks/selfcheck.mjs --tags <tag>`.
-6. **Tell the user** in one sentence what changes from now on. In `.cache/turn-notes.md`, not the answer:
-   `Learned (<level>): <lesson> → <file>`; for a complaint that didn't hold, `Learned (none): the complaint didn't hold -
-   <evidence>` and no made-up lesson. Upset about something outside the project: say so, and
-   `node tools/hooks/hooks.mjs waive upset-learned "<why>"`. "Reported" means `node tools/starter.mjs report` ran;
-   otherwise say "noted in docs/starter-feedback.md".
+   version before the fix (it must fail) and on the fix (it must pass). Make the check run over its whole scope, prefer
+   testing the result over a word list, and extend an existing check rather than adding a second. When the problem was
+   never in the files, prove it on a sample written to `.cache/` (it fails) and the real files (they pass). Only then
+   may the answer say it can't happen again (hook: claim-checked). A new check's scenarios pass:
+   `node tools/hooks/selfcheck.mjs --tags <tag>`.
+6. **Tell the user** in one sentence what changes from now on and where the lesson went. A complaint that didn't hold
+   gets the evidence and no made-up lesson. Upset about something outside the project: say so. "Reported" means
+   `node tools/starter.mjs report` ran; otherwise say "noted in docs/starter-feedback.md".
 
 ## Done when
 - [ ] The answer opens with whether the complaint holds, in full, in part or not, with the evidence (judgment: the
@@ -102,15 +99,15 @@ upset-acknowledged).
       (judgment: what counts as "the same kind" needs a reader).
 - [ ] Each part of the complaint was checked on its own, and the answer says which parts held (judgment: whether a
       complaint has several parts needs a reader).
-- [ ] A `Learned (<level>): ... → <file>` line in `.cache/turn-notes.md` names a file that changed this turn, or
-      `Learned (none): ...` for a complaint that did not hold (hook: upset-learned).
+- [ ] The lesson is written in a file that changed this turn (the skill, runbook, rule or check that missed it), or
+      the answer shows the complaint did not hold (hook: upset-learned).
 - [ ] A lesson at level check has its scenarios and they pass (hook: hooks-tested).
 - [ ] A new check failed on the complained-about state, passed on every existing file it governs and on good samples
-      with an edge case from the project's own words, said in a `Proven:` line (hook: check-proven).
+      with an edge case from the project's own words (hook: check-proven).
 - [ ] An engine lesson went to the starter (`docs/starter-feedback.md`), or into the engine itself in the starter
       (hook: upset-learned).
 - [ ] Upset again in the same session: a plan in `docs/plans/` lists everything wrong with its root cause and fix, and
-      a `Sweep:` line shows the fix run over the whole real record with 0 wrong (hook: upset-learned).
+      the fix was run over the whole real record with 0 wrong (hook: upset-learned).
 
 ## Pitfalls
 - A "lesson" that only says "be more careful": name the step and what to do differently.

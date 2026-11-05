@@ -34,8 +34,10 @@ no vendor.
 - **Only what makes it better.** Every added skill, pack or dependency comes with its gain and cost, weighed.
   Upgrades roll back if a passing check breaks. The agent weighs each new item and tells you what it added or skipped,
   asking only about money, privacy or outward actions. The audit enforces a speed budget for the hooks.
-- **Only improvements, never friction.** A skill, runbook or check that keeps frustrating you is suspended and
-  announced. Safety and honesty checks stay, and get made less annoying instead. No check can stall the work.
+- **Reminded before, free during, verified after.** Before each request the agent gets a short reminder of the
+  runbook that fits and its checklist. During the work nothing interrupts it, except refusals of what is unsafe. After
+  the work one check, once, lists what is really missing and the checklist items for the agent to verify itself, so
+  everything on the runbook actually gets done.
 - **Facts that are real.** One research skill covers answers from the project's own files, quick lookups, and full
   research across independent sources with sponsored and biased ones screened out. A check traces every number in an
   answer to something read that turn and catches cited files that were never opened.

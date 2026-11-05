@@ -10,16 +10,27 @@ export const MAX_LINES = 10;
 export const upset = p => { const s = String(p), letters = s.replace(/[^A-Za-z]/g, ''); return (letters.length >= 12 && letters.replace(/[^A-Z]/g, '').length / letters.length > 0.6)
   || /\b(wtf|ugh|again\?!|why (did|would) you|you (forgot|missed|ignored|broke)|i (already )?told you|not what i asked|frustrat\w*|annoy\w*|(you|u|you're|ur|youre) (are )?not (following|listening)|i don'?t think you (understand|get it)|(is )?still (broken|wrong))\b/i.test(s); };
 const has = f => fs.existsSync(path.join(ROOT, f));
+// (a word only mentioned ("the word ugh", a word in quotes) or on the user's ignore list, config "ignoreWords": {"upset":
+// [...]}, is no complaint. Lesson (end-to-end run): a request to whitelist a word was itself read as upset)
+const ignored = () => { try { return [].concat(JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/hooks/config.json'), 'utf8')).ignoreWords?.upset || []).map(String).filter(Boolean); } catch { return []; } };
+const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+export const upsetIn = p => {
+  let s = String(p).replace(/(["'`“‘])[^"'`”’\n]{1,40}["'`”’]/g, ' ').replace(/\b(?:the |that |this )?words?\s+\S+/gi, ' ');
+  for (const w of ignored()) s = s.replace(new RegExp(`\\b${esc(w)}\\b`, 'gi'), ' ');
+  return upset(s);
+};
 export function reminder(prompt) {
   // (pasted text is not the user's words: it never routes and is never upset. Lesson (the old engine): words inside a
   // pasted text set off the complaint handling)
   prompt = String(prompt || '').replace(/<pasted_content\b[^>]*>[\s\S]*?<\/pasted_content(?:\s[^>]*)?>|<pasted_content\b[^>]*\/>/gi, ' ');
-  if (upset(prompt) && has('skills/learn-from-upset/SKILL.md')) return { book: null, text: 'This sounds upset: open skills/learn-from-upset/SKILL.md and follow it.' };
+  // (upset and a fitting runbook: both are named, so the fix still follows its runbook)
+  const sore = upsetIn(prompt) && has('skills/learn-from-upset/SKILL.md') ? 'This sounds upset: open skills/learn-from-upset/SKILL.md and follow it.' : '';
   const book = route(prompt);
+  if (sore && !book) return { book: null, text: sore };
   // (no trigger fits: the agent picks the runbook, and the end check holds the turn to the one it opened. Lesson
   // (routing sample): plain requests used no trigger phrase; growing trigger lists forever is the old engine's path)
   if (!book) return { book: null, text: has('DIRECTORY.md') ? 'If this is real work, pick the runbook in DIRECTORY.md that fits and open it.' : '' };
-  const lines = [`Runbook: open ${book.file} and follow it.`];
+  const lines = [...(sore ? [sore] : []), `Runbook: open ${book.file} and follow it.`];
   if (book.items.length) {
     lines.push('Done when:');
     for (const it of book.items) lines.push(`${it.n}. ${it.text.length > 140 ? it.text.slice(0, it.text.lastIndexOf(' ', 137)) + '...' : it.text}`);

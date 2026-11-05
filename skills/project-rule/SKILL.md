@@ -16,8 +16,8 @@ cheapest level that holds; every extra file and run costs the user time on this 
 3. **Check for conflicts** with AGENTS.md, the runbooks and `docs/BRIEF.md`; if one conflicts, ask which wins. Write the
    user's actual point, not a stricter rule. Then **search every file** (docs, skills, scripts, help text, defaults,
    memory) for wording or behavior that still says the opposite, with several searches (the old behavior's words, its
-   synonyms, the settings and flags behind it). Fix each hit or keep it with a reason, and write
-   `Conflicts: <what was searched> - N found, N fixed` in the turn notes. Never say the rule is already in place
+   synonyms, the settings and flags behind it). Fix each hit or keep it with a reason, and say in
+   the answer what was searched, how many were found and how many fixed. Never say the rule is already in place
    before this search. <!-- Lesson (the user): a rule was called "already enforced", and only then did a search find
    15 files still saying the opposite -->
 
@@ -49,7 +49,7 @@ cheapest level that holds; every extra file and run costs the user time on this 
    5. **Pure judgment:** `--enforced "N/A <reason>"`, and `hook: N/A <reason>` in the answer.
 6. **Prove what you added**, once, in one command: `node tools/hooks/hooks.mjs prove "<the test or check command>"
    --edge "<an edge case from this project's own words>"`. It runs it on git's version before your fix (it must fail),
-   then on the fix (it must pass), and writes the `Proven:` line (hook: check-proven). A new check also runs
+   then on the fix (it must pass) (hook: check-proven). A new check also runs
    `node tools/hooks/selfcheck.mjs --tags <tag>`. Test the result, not a word list, and describe the rule exactly as it
    is enforced: an exception you promise must be in the check. When the problem is not in the project's files (nothing
    to put back), prove it on a sample of the problem written to `.cache/` (it fails) and the real files (they pass).

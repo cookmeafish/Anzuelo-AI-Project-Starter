@@ -7,6 +7,8 @@
 // Each promise answers a question the user would otherwise have to ask: "did it touch my files?", "are my rules
 // kept?", "are my secrets still out of git?", "do my own tests and git hooks still work?", "is it slower?", "does a
 // second upgrade change anything?", "did anything private from the starter leak in?".
+// (its hook promises were written for the old engine, v1, so it pins v1; the default engine, v2, has its own self-test)
+process.env.STARTER_ENGINE ||= 'v1';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';

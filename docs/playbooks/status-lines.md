@@ -54,7 +54,7 @@ The user decides which ones stay.
       removed (judgment: which kinds the user meant needs a reader).
 - [ ] The answer says which lines are hidden now and how to bring them back (judgment: plain wording for the user).
 - [ ] A change to the status bar (below): its self-test passes and failed before the fix (hook: hooks-tested).
-- [ ] A change to the status bar: a sweep over real session logs shows 0 wrong, in a `Sweep:` line (judgment: the log is the user's, outside the project).
+- [ ] A change to the status bar: a sweep over real session logs shows 0 wrong, and the answer gives the count (judgment: the log is the user's, outside the project).
 - [ ] A change to the status bar: every other status line (the project's, the user's) still shows first and unchanged, in the status-bar self-test (hook: hooks-tested).
 
 ## Pitfalls
@@ -87,8 +87,8 @@ A change to the bar:
 2. Add the case to its self-test (`node tools/hooks/selfcheck.mjs --tags status-bar`, a recorded session that walks
    through every state) and see it fail before the fix.
 3. Sweep a real session log: run the bar on every prefix that ends at a tool call or a turn end, against facts read
-   independently (a tool call is busy; Claude Code's own `turn_duration` entry is an end), and write
-   `Sweep: ... - <N checked, N wrong>` in `.cache/turn-notes.md`. 0 wrong, or it isn't fixed.
+   independently (a tool call is busy; Claude Code's own `turn_duration` entry is an end), and say how many were
+   checked and how many were wrong. 0 wrong, or it isn't fixed.
 
 Its checklist is in "Done when" above (the items that start "A change to the status bar").
 

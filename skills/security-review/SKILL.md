@@ -16,10 +16,8 @@ anything is shared, published or released (hard rule 15), and when the user asks
 **It is also mandatory, asked or not, when the work touches security.** That means code for sign-in, passwords,
 tokens, secrets, permissions, sessions, cookies, CORS, uploads, endpoints, shell or eval, query building,
 deserializing, crypto, payments or personal data. It also means `.env`, CI, Docker or hosting settings, or a publish
-or deploy command. The prompt hook
-says `MUST FOLLOW: security-review` when the request shows it coming, the edit hook says it when such code is
-written, and the Stop hook holds the answer until the review is done (or waived with
-`node tools/hooks/hooks.mjs waive <check> "<the specific reason>"`). Review only what changed, with the areas it touches.
+or deploy command. The end check asks
+for it once when such code was written and no review ran. Review only what changed, with the areas it touches.
 
 In app projects, the `security-review.md` runbook adds its own items. **This skill finds problems and fixes the few
 critical ones; the security-hardening library skill fixes a long list as a staged project.** Both use the same areas,

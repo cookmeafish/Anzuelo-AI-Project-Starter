@@ -11,7 +11,7 @@ agent's installed skills, official repositories and marketplaces, and reputable 
 downloaded skill is third-party code: read every file, check it doesn't drive the installed browser, phone home or
 touch files outside the project, and install it only with the user's OK (`node tools/skills.mjs add <owner/repo>
 <skill>`). Then make it ours: rewrite it in the project's style, keep its LICENSE, credit the source in SOURCE.md, and
-add `Worth it: <gain> / <cost>` (REQ: worth-it). Never ship it unchanged.
+tell the user its gain and cost in one line (REQ: worth-it). Never ship it unchanged.
 
 Write the runbook around it (the runbook keeps the routing and "Done when"; its `skill:` points at the skill). Report
 it in the answer: `Existing skills checked: <where you looked> - <what you found and used, or none fit>` (hook:
@@ -79,8 +79,8 @@ is for (no conversation, no hints), and ask it for:
   project never defines, a choice the step leaves open ("pick a good one": by what measure?);
 - every "Done when" item it could not tell how to prove;
 - every step whose result has no "Done when" item.
-Fix each gap in the file (or say in one line why it is not one), then record `Cold read: <file> - <n> gaps, fixed` in
-`.cache/turn-notes.md` (hook: runbook-cold-read). A rewrite of most of a runbook gets the same read.
+Fix each gap in the file (or say in one line why it is not one) (hook: runbook-cold-read). A rewrite of most of a
+runbook gets the same read.
 
 ## What makes a runbook or skill good
 - **Exact:** every step names its file, command or tool and what "done" looks like for that step. No "as needed".

@@ -86,7 +86,7 @@ SKILL CLEANUP DUE, and the skill-curate skill keeps it with a reason, merges it,
 ## Done when
 - [ ] Rule requests: AGENTS/CLAUDE + user-requirements + rule-enforcement + a check (or hook: N/A) + memory; tests and audit PASS (hook: rule-request, rule-memory, hooks-tested, audit-run).
 - [ ] The original miss behind a complaint is fixed, not just prevented (judgment: whether the miss itself is fixed needs a look at the result).
-- [ ] Rule requests: every file was searched for wording or behavior that says the opposite, each hit fixed or kept with a reason, in a `Conflicts:` line (judgment: what counts as the opposite needs a reader).
+- [ ] Rule requests: every file was searched for wording or behavior that says the opposite, each hit fixed or kept with a reason, and the answer says how many (judgment: what counts as the opposite needs a reader).
 - [ ] Skills added or removed: each one belongs to a runbook or has its own triggers and a check (hook: skill-complete).
 - [ ] Skills due for cleanup: each kept with a reason, merged, or retired with the user's OK (skill-curate; hook: skill-prune).
 - [ ] CHANGELOG updated; Finished section (hooks: changelog, finished-summary) (file: docs/CHANGELOG.md).
@@ -94,5 +94,4 @@ SKILL CLEANUP DUE, and the skill-curate skill keeps it with a reason, merges it,
 ## Pitfalls
 - A rule written only in the docs gets forgotten. Every checkable rule needs a check.
 - Write down the user's actual complaint, not a stricter rule than they said. An over-strict rule creates new misses.
-- Waivers (`node tools/hooks/hooks.mjs waive <tag> "<reason>"`, kept out of the answer) are for checks that
-  don't apply, never for skipping work that does.
+- A check at the end that doesn't fit the work is an engine bug to fix, not a step to talk around.

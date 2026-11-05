@@ -193,7 +193,8 @@ export const triggersOf = fm => { const off = new Set(splitList(fm?.triggers_rem
 
 // ---------- configuration ----------
 const DEFAULTS = {
-  workToolCalls: 15,          // a turn with this many tool calls counts as work even if no file changed
+  engine: 'v2',               // the simple engine (tools/hooks/v2): a reminder before the work, one check after it, only safety during it. "v1" keeps the old one.
+  workToolCalls: 15,         // a turn with this many tool calls counts as work even if no file changed
   maxBlocksPerTurn: 3,        // Lesson: a single block let a second miss slip through; unlimited blocks can loop
   runbookLedger: true,        // the routed runbook's "Done when" is the turn's checklist, kept as a record (ledgerSteps). On by
   // default. Lesson (the user): every runbook run shows its checklist, so the user can see the proper measures are taken
@@ -4573,6 +4574,10 @@ function notices(cfg) {
   return out;
 }
 
+export const V2_SESSION = '# How this project\'s engine works (full rules in AGENTS.md / CLAUDE.md)\n' +
+  '- Before each request: a short reminder names the runbook that fits and its "Done when" list. Open it and follow it. Nothing named and it is real work: pick the fitting runbook in DIRECTORY.md.\n' +
+  '- During the work: nothing interrupts you, except refusals for safety (secrets, AI credit in git, protected files, outward actions, risky git, other people\'s data).\n' +
+  '- After the work: one check. It lists anything really missing, and the runbook items to verify yourself, once. Fix what isn\'t done and finish with what changed. No record lines are needed.';
 function cmdSession(data) {
   const cfg = config();
   syncAll(cfg);
@@ -4590,7 +4595,8 @@ function cmdSession(data) {
   // (Lesson, trial rounds 4 to 9: every resumed turn got the 2,300-character checklist again, the largest part of the
   // hook text per turn, which rose a quarter above the first round's)
   const seen = SID && /resume/i.test(data.source || '') && fs.existsSync(path.join(STATE, stateName('checklist.json')));
-  const parts = [seen ? 'Session checklist: as shown at this session\'s start (full rules in AGENTS.md / CLAUDE.md).' : read(abs('docs/checks/session-checklist.md')).trim()];
+  // (engine v2: the old checklist asked for record lines nothing checks any more; three plain sentences instead)
+  const parts = [seen ? 'Session checklist: as shown at this session\'s start (full rules in AGENTS.md / CLAUDE.md).' : engineOf() === 'v2' ? V2_SESSION : read(abs('docs/checks/session-checklist.md')).trim()];
   // (the prompt's rules digest says the same in short: this session has the whole checklist, so the prompts skip it)
   if (SID && parts[0] && !seen) writeState('checklist.json', { at: new Date().toISOString() });
   const status = read(abs('docs/STATUS.md')).split(/\r?\n/).slice(0, 40).join('\n').trim();
@@ -4598,7 +4604,8 @@ function cmdSession(data) {
   // (a resumed conversation already saw this session's reminders: only new ones are shown. Lesson (probe): every resume
   // showed the user the same six reminders again)
   const before = new Set(/resume/i.test(data.source || '') ? readJSON(stateFile('reminders-shown.json'), {}).keys || [] : []);
-  const n = notices(cfg).filter(x => !before.has(noticeKey(x)));
+  // (v2 has no carried-over checks: its one end check happens in the turn itself)
+  const n = notices(cfg).filter(x => !before.has(noticeKey(x)) && !(engineOf() === 'v2' && x.startsWith('LAST WORK TURN')));
   writeState('reminders-shown.json', { keys: [...new Set([...before, ...n.map(noticeKey).filter(Boolean)])] });
   // REQ: interrupted-work. After a compaction, or a resume of a turn that never ended, prove the files edited before
   // the interruption are intact. (Lesson (probe): a resume after a turn that ended normally told the user files from
@@ -5902,6 +5909,7 @@ export const CHECK_RUN = /\b(pytest|unittest|npm (run )?test|npx (jest|vitest|pl
 // shell command, whatever that command is. Which runs are going comes from the transcript's launches and notices
 // (v2/lib.mjs backgroundRuns), not from what the commands say.
 let V2_RUNS = null;
+export const engineOf = () => envOf('ENGINE') || config().engine;
 export function runsNotice(data, runsOf) {
   if (!/^(Bash|PowerShell)$/.test(data.tool_name || '') || !data.transcript_path) return null;
   const shown = readJSON(stateFile('overlap-shown.json'), {}), runs = runsOf(data.transcript_path).filter(r => !(shown.ids || []).includes(r.id));
@@ -9222,6 +9230,29 @@ function cmdStop(data) {
 // ---------- manual mode, for agents without hooks ----------
 // node tools/hooks/hooks.mjs begin "<the user's request>"    at the start of every request: records it, prints the rules + hints
 // node tools/hooks/hooks.mjs check [--answer-file <file>] [--session <id>]   before finishing: runs every Stop check; exit 1 + the list if anything is missing
+// Engine v2's begin and check for agents without hooks. The session is the Claude Code one when the command runs inside
+// it, else one fixed id per project. Check reads the session's transcript when there is one; with none, the routed
+// runbook's whole "Done when" list is for the agent to verify.
+async function v2Cli(cmd) {
+  process.env.ANZUELO_ROOT ||= ROOT;
+  const sid = String(process.env.CLAUDE_CODE_SESSION_ID || 'manual').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
+  let tp = '';
+  try { const root = path.join(os.homedir(), '.claude', 'projects'); for (const d of fs.readdirSync(root)) { const f = path.join(root, d, `${sid}.jsonl`); if (fs.existsSync(f)) { tp = f; break; } } } catch { }
+  const lib = await import('./v2/lib.mjs');
+  if (cmd === 'begin') {
+    const req = process.argv.slice(3).join(' ').trim();
+    if (!req) { console.log('usage: node tools/hooks/hooks.mjs begin "<the user\'s request>"'); return 1; }
+    const r = (await import('./v2/start.mjs')).onPrompt({ prompt: req, session_id: sid });
+    console.log(r?.hookSpecificOutput?.additionalContext || 'BEGIN: recorded. No runbook named for this request.');
+    return 0;
+  }
+  const turn = lib.loadTurn(sid);
+  if (!turn.at) { console.log('CHECK: no request recorded. Run: node tools/hooks/hooks.mjs begin "<the user\'s request>" first.'); return 1; }
+  if (tp) { const d = (await import('./v2/end.mjs')).onStop({ transcript_path: tp, session_id: sid }); console.log(d ? `CHECK: ${d.reason}` : 'CHECK: PASS'); return d ? 1 : 0; }
+  const book = turn.runbook && lib.runbooks().find(b => b.file === turn.runbook);
+  console.log(book?.items.length ? `CHECK: verify that each item of ${book.file} is really done (skip any that don't fit this work), fix what isn't, then answer:\n${book.items.map(it => `${it.n}. ${it.text}`).join('\n')}` : 'CHECK: PASS');
+  return 0;
+}
 function cmdBegin() {
   const req = process.argv.slice(3).join(' ').trim();
   if (!req) { console.log('usage: node tools/hooks/hooks.mjs begin "<the user\'s request>"'); process.exit(1); }
@@ -9364,6 +9395,8 @@ function cmdCost() {
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
   const cmd = process.argv[2] || '';
+  // (engine v2, for agents without hooks: begin prints the same reminder, check runs the same one end check)
+  if ((cmd === 'begin' || cmd === 'check') && engineOf() === 'v2' && !envOf('BENCH')) process.exit(await v2Cli(cmd));
   if (cmd === 'begin') { cmdBegin(); process.exit(0); }
   if (cmd === 'check') cmdCheck();
   if (cmd === 'cost') cmdCost();
@@ -9602,7 +9635,10 @@ if (isMain) {
   if (cmd === 'session' && !envOf('BENCH')) pruneState();
   // Engine v2 (docs/plans/2026-11-05-engine-v2.md): with "engine": "v2" in config.json, the start reminder and the end
   // check come from tools/hooks/v2/; the tool hooks stay v1's, which refuse only for safety.
-  if ((cmd === 'prompt' || cmd === 'stop') && config().engine === 'v2') {
+  // (the engine is v2 unless config.json says "v1"; STARTER_ENGINE overrides both, so the old engine's own tests pin v1.
+  // The user, 2026-11-05: the whole project lets the agent work freely, reminded before and verified after)
+  const ENGINE = engineOf();
+  if ((cmd === 'prompt' || cmd === 'stop') && ENGINE === 'v2') {
     try {
       process.env.ANZUELO_ROOT ||= ROOT;
       const v2 = cmd === 'prompt' ? (await import('./v2/start.mjs')).onPrompt(data) : (await import('./v2/end.mjs')).onStop(data);
@@ -9616,7 +9652,7 @@ if (isMain) {
     try { process.env.ANZUELO_ROOT ||= ROOT; (await import('./v2/shadow.mjs')).shadow(cmd, data); } catch { }
   }
   // (under v2 the background-run notice comes from the runs this session started, never from command text)
-  if (cmd === 'pretool' && config().engine === 'v2') try { V2_RUNS = (await import('./v2/lib.mjs')).backgroundRunsOf; } catch { }
+  if (cmd === 'pretool' && ENGINE === 'v2') try { V2_RUNS = (await import('./v2/lib.mjs')).backgroundRunsOf; } catch { }
   try {
     const fn = { session: cmdSession, prompt: cmdPrompt, pretool: cmdPretool, posttool: cmdPosttool, stop: cmdStop, subagentstop: cmdSubagentstop }[cmd];
     if (fn) fn(data);

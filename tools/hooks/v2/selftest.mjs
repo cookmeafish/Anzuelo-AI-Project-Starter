@@ -362,6 +362,18 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     'start: words inside pasted text neither route nor count as upset; the user\'s own words around it still do');
 }
 
+{
+  // a word only mentioned, or on the user's ignore list, is no complaint; upset and a fitting runbook name both
+  const cf = path.join(dir, 'tools/hooks/config.json'), before = fs.existsSync(cf) ? fs.readFileSync(cf, 'utf8') : null;
+  put('tools/hooks/config.json', JSON.stringify({ ...(before ? JSON.parse(before) : {}), ignoreWords: { upset: ['annoying'] } }));
+  const both = reminder('ugh, you forgot the csv export again');
+  report(!/upset/.test(reminder('whitelist the word ugh, it is not me being upset').text) && !/upset/.test(reminder('stop treating "wtf" as a complaint').text)
+    && !/upset/.test(reminder('this report layout is annoying to read').text) && /upset/.test(reminder('ugh, you forgot the totals row').text)
+    && /learn-from-upset/.test(both.text) && /Runbook: open docs\/playbooks\/export\.md/.test(both.text) && both.book?.name === 'export',
+    'start: a mentioned or whitelisted word is no complaint; an upset message that fits a runbook names both', both.text);
+  if (before === null) fs.rmSync(cf); else fs.writeFileSync(cf, before);
+}
+
 // another session's change: a file written while none of the turn's own commands or helpers ran is not the turn's
 {
   const T = ms => new Date(ms).toISOString(), at = Date.now() + 50;
@@ -393,6 +405,25 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   const stop = [use('t3', '', false), res('t3', 'Successfully stopped task: b1 (npm test)')];
   report(ids(launch) === 'b1' && backgroundRuns(launch)[0].cmd === 'npm test' && ids([...launch, notice]) === '' && ids([...launch, ...stop]) === '' && ids([...launch, ...quoted]) === 'b1' && ids(quoted) === '',
     'runs: a background launch runs until its notice or a stop; output that quotes the launch line is not a run', { a: ids(launch), b: ids([...launch, notice]), c: ids([...launch, ...stop]), d: ids(quoted) });
+}
+
+// the whole project works the simple way (the user, 2026-11-05): v2 is the default engine, the old one only on request,
+// and the session text, rules, runbooks and skills ask for no record lines, waivers or turn notes (the Issue line that
+// shows the user "acknowledged" excepted)
+{
+  const repo = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
+  const saved = process.env.STARTER_ENGINE;
+  delete process.env.STARTER_ENGINE;
+  const { engineOf, V2_SESSION } = await import('../hooks.mjs');
+  const dflt = engineOf(); process.env.STARTER_ENGINE = 'v1'; const pinned = engineOf();
+  if (saved === undefined) delete process.env.STARTER_ENGINE; else process.env.STARTER_ENGINE = saved;
+  const RECORD = /turn-notes|turn notes|hooks\.mjs waive|`(Playbook|Skill|Worth it|Proven|Learned|Sweep|Conflicts|Cold read|Done N|Skip N|Verified):/;
+  const walk = d => { try { return fs.readdirSync(path.join(repo, d), { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(`${d}/${e.name}`) : e.name.endsWith('.md') ? [`${d}/${e.name}`] : []); } catch { return []; } };
+  const files = ['AGENTS.md', 'README.md', ...walk('docs/playbooks'), ...walk('skills'), ...walk('tools/starter/runbooks'), 'docs/checks/writing-standards.md', 'docs/checks/finish-checklist.md'];
+  const asks = files.flatMap(f => fs.readFileSync(path.join(repo, f), 'utf8').split('\n').map((l, i) => [f, i + 1, l]))
+    .filter(([, , l]) => RECORD.test(l) && !/Issue:|before any fix, as your first step|No record lines|no `Playbook:`|`Verified: <n> claims traced/.test(l)).map(([f, n, l]) => `${f}:${n}: ${l.trim().slice(0, 80)}`);
+  report(dflt === 'v2' && pinned === 'v1' && !RECORD.test(V2_SESSION) && files.length > 20 && !asks.length,
+    `simple: v2 is the default engine (v1 only when pinned), and the session text and ${files.length} rule, runbook and skill files ask for no record lines`, JSON.stringify({ dflt, pinned, asks: asks.slice(0, 8) }));
 }
 
 // size budget (docs/plans/2026-11-05-engine-v2.md): the engine stays small, and the end check has at most 15 checks.

@@ -72,15 +72,15 @@ Leave Phase 2 with the list of differences.
 3. **Verify:** the new test passes, every other test still passes, and the original problem is gone in the real app
    (app projects: `docs/checks/qa-standards.md`).
    - **Over all the real data, not the one case:** run the fixed code over every case there is (every line of the
-     real log, every file, every state in the table from Phase 1) against facts read independently, and write
-     `Sweep: <what ran over what> - <N checked, N wrong>` in `.cache/turn-notes.md`. 0 wrong, or it isn't fixed. Sweep
-     more than one data set when there are several.
+     real log, every file, every state in the table from Phase 1) against facts read independently, and say in the
+     answer what ran over what, how many were checked and how many were wrong. 0 wrong, or it isn't fixed. Sweep more
+     than one data set when there are several.
    - **Nothing the user already had is broken:** list what the change touches that the user or other tools rely on
      (their settings, things another app installed, files they edit, outputs they open) and check each still works.
      Add to the user's setup, never replace it. <!-- Lesson (the user): a project setting replaced a status bar the
      user had installed with another app, and model, context and folder vanished -->
-   - **The promised outcome:** check the "fixed when" from the Issue line exactly as the user would see it, and write
-     `Verified: <what you ran or opened> - <what it showed>`.
+   - **The promised outcome:** check the "fixed when" from the Issue line exactly as the user would see it, and say
+     in the answer what you ran or opened and what it showed.
 4. **Make it impossible, not just fixed:** where bad data caused it, add checks at the layers it passes through
    ([references.md](references.md), defense in depth). Flaky timing in tests: wait for the condition, not a fixed
    delay ([references.md](references.md), waiting on a condition).
@@ -139,9 +139,9 @@ findings are unfinished investigations, so be sure first.
 - [ ] The answer states `Root cause: <what and why>`, with the evidence that shows it (hook: debug-root-cause).
 - [ ] A test that failed before the fix now passes, and the rest of the suite still passes (hook: debug-test-added sees a test change with the code; judgment: that it failed before the fix).
 - [ ] The original problem is gone where it was seen (the real app, the build, the script) (judgment: where the problem showed differs per bug).
-- [ ] A sweep over all the real data shows 0 wrong, in a `Sweep:` line (judgment: the data differs per bug).
+- [ ] A sweep over all the real data shows 0 wrong, and the answer gives the count (judgment: the data differs per bug).
 - [ ] Everything the change touches that the user already had still works, and nothing of theirs was replaced (judgment: what they rely on differs per project).
-- [ ] When the user was upset: the "fixed when" outcome is checked, in a `Verified:` line (hook: upset-acknowledged).
+- [ ] When the user was upset: the "fixed when" outcome is checked, and the answer says how (hook: upset-acknowledged).
 - [ ] Layers that let bad data through now reject it, or the answer says why that wasn't needed (judgment: which layers matter depends on the data flow).
 - [ ] Also unasked: a test or build that failed this turn and was then fixed has its root cause stated (hook: debug-trigger).
 

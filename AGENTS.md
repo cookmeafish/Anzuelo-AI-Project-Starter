@@ -7,16 +7,22 @@
 > keep the two identical. The project's purpose is in [docs/BRIEF.md](docs/BRIEF.md), where things stand is in
 > [docs/STATUS.md](docs/STATUS.md), and the map of what to use when is in [DIRECTORY.md](DIRECTORY.md).
 
+## How the engine works: reminded before, free during, verified after
+- **Before the work:** a short reminder names the runbook that fits the request and its "Done when" list.
+- **During the work:** nothing interrupts you. Only what is unsafe is refused: secrets, AI credit in git, protected
+  files, outward actions, risky git, other people's data.
+- **After the work:** one check, once. It lists what is really missing, and the runbook items for you to verify
+  yourself. Fix what isn't done and finish with what changed. No record lines are ever needed: the check reads what
+  the session did.
+
 ## Step 0, every message: route it (never skip)
-1. **Read the hook hints** (`ROUTE`, `SKILL`, `NO RUNBOOK`, `RULE REQUEST`, `SCOPE`, `MENU CODE`, notices) and obey
-   them. If your agent has no hooks, run `node tools/hooks/hooks.mjs begin "<the request>"` first. It prints the same
-   hints.
+1. **Read the reminder** and follow it. If your agent has no hooks, run
+   `node tools/hooks/hooks.mjs begin "<the request>"` first. It prints the same reminder.
 2. **Find the runbook** in [DIRECTORY.md](DIRECTORY.md) §1. Open `docs/playbooks/<name>.md` (or its skill in
    `skills/<name>/`) THIS turn and follow every step in order. Skills with their own route (§2: debug, research,
    obsidian, parallel-agents, skill-finder, security-review and any enabled library skill) work the same way: open
-   `skills/<name>/SKILL.md` and follow it alongside any runbook. The hooks see what you open; only an agent without
-   hooks names it in the turn notes (`Playbook: <name>.md`, `Skill: <name>`). This project's skills come before global
-   skills that do the same job.
+   `skills/<name>/SKILL.md` and follow it alongside any runbook. This project's skills come before global skills that
+   do the same job.
 3. **No runbook fits a real task:** follow [`_fallback.md`](docs/playbooks/_fallback.md). Do the task carefully, then
    leave a runbook and a check behind (runbook-create skill). The skill and the directory row are generated.
 4. **A quick question** answered from what the project already has needs no runbook. Real work does (files changed,
@@ -42,8 +48,8 @@
    following a runbook or skill writes the lesson into it. Ones nobody uses get reviewed and retired (skill-curate).
 3. **Standing instructions become enforced rules, and an upset user teaches the project.** When the user is upset or
    complains, the **learn-from-upset** skill fixes the miss, weighs how important the lesson is, and stores it where it
-   stops the next one (the skill that missed it, a rule, a check, a new skill, or the starter for every project), with
-   "Learned (<level>): <lesson> → <file>" in the turn notes (rule 7). The user always sees "acknowledged" first: an upset,
+   stops the next one (the skill that missed it, a rule, a check, a new skill, or the starter for every project). The
+   user always sees "acknowledged" first: an upset,
 frustrated or all-caps message, a question or one typed mid-turn included, gets its
 `Issue: <problem> | runbook: <name> | fixed when: <outcome>` line before any change or command, and that runbook is
 followed to the end of its checklist with the outcome verified (only a false alarm skips it, with
@@ -71,11 +77,9 @@ followed to the end of its checklist with the outcome verified (only a false ala
    **Finished** section: what was done, the exact path of every file the user will open or care about (more than
    about 10: the rest grouped by folder with a count; the project's own records, like STATUS, CHANGELOG, plans and
    rule files, are just "plus the usual records"), and what was not done or verified. Long reports,
-   tables and checklists go in a file (`docs/reviews/`, the spec), with one line in the answer. Lines only the checks
-   need (`Playbook:`, `Skill:`, `Worth it:`, `Proven:`, `Learned (...)`) go in the turn notes, `.cache/turn-notes.md`,
-   not the answer. The answer itself never uses check names: a check that does not apply
-   is waived with `node tools/hooks/hooks.mjs waive <name> "<reason>"`, not with an `N/A(...)` line. Shortening any
-   text keeps file paths, names, commands, code, numbers and every "not" exactly as they were (compress-for-ai).
+   tables and checklists go in a file (`docs/reviews/`, the spec), with one line in the answer. The answer holds only
+   what the user needs: no record lines, check names or waivers. Shortening any text keeps file paths, names,
+   commands, code, numbers and every "not" exactly as they were (compress-for-ai).
 8. **The whole request, exactly.** Messages typed while you work are part of it. "Give me 5" means 5. A redo says what
    changed from the last answer. **And nothing twice:** a step two tasks share is done once; a check, test, read or
    helper is not repeated when nothing changed since, unless the user asked for the repeat (plan skill, "Shared steps
@@ -102,30 +106,24 @@ followed to the end of its checklist with the outcome verified (only a false ala
     it. Run the **security-review** skill before anything is shared, published or released.
 16. **Only what makes the project better** ([better-or-worse.md](docs/checks/better-or-worse.md)). Before adding a skill, pack, tool, dependency or rule, weigh it: what it
     makes better, what it costs (noise, upkeep, speed, conflicts, risk), whether it fits this project, and whether its
-    license allows commercial use. Write it as `Worth it: <gain> / <cost>`. If the cost is bigger, don't add it, and
-    say why. An engine upgrade is weighed the same way, item by item (its upgrade review), and the hooks stay within
+    license allows commercial use. Tell the user the gain and the cost in one line. If the cost is bigger, don't add
+    it, and say why. An engine upgrade is weighed the same way, item by item (its upgrade review), and the hooks stay within
     their speed budget.
 17. **Every name is a variable** ([docs/names.json](docs/names.json)). The project's name and every other name that
     may change (products, brands, companies) is written once in `docs/names.json`. Docs show it as
     `<!--name:KEY-->value<!--/name-->`, which sync refills, and code reads the file. A rename is one edit there.
-18. **Only improvements, never friction.** When the user's frustration keeps following the same runbook, skill or
-    check (3 of its last 6 turns), the hooks suspend it and say so: it stops routing or blocking until it is fixed and
-    restored, or retired with the user's OK. Safeguards for safety and honesty stay, and get made less annoying
-    instead. No check may stall the work: a turn is blocked at most 3 times, then it ends and the misses are announced.
-    **The engine is a reminder before the work and one check after it.** During the work it stays silent and refuses
-    only what can't be undone, what leaks, or what breaks a protection the user set. Helpers get no checklist and no
-    gate, and no check asks for a line that only says an item was done or skipped. A fix for a miss never adds an
-    interruption during work: it improves the reminder or the end check, or it is left out (2026-11-05: notices
-    on almost every command and refused helper hand-backs made the work worse).
+18. **Only improvements, never friction.** The engine works as "How the engine works" above says. Helpers get no
+    checklist and no gate. A fix for a miss never adds an interruption during work: it improves the reminder or the end
+    check, or it is left out (2026-11-05: notices during work and refused helper hand-backs made the work worse).
 
 ## How the project improves itself
 ```
 new kind of task ──► _fallback ──► runbook + check (runbook-create) ──► skill + DIRECTORY row (generated)
 "always / never" ──► project-rule ──► rule + user-requirements row + check + memory + test
-the user is upset ──► learn-from-upset ──► fix, then the lesson where it belongs (skill, rule, check, new skill) + "Learned:" line
+the user is upset ──► learn-from-upset ──► fix, then the lesson where it belongs (skill, rule, check, new skill)
 an engine lesson or a suspended engine check ──► docs/starter-feedback.md ──► the starter (next session) ──► every project (upgrade)
 runbook used 3x ──► skill-harden ──► repeated steps become scripts/, pitfalls added, "Done when" becomes checks
-followed a runbook and still missed ──► Stop hook (skill-learn) ──► the lesson is written into that runbook or skill
+followed a runbook and still missed ──► the lesson is written into that runbook or skill
 unused for 60 days ──► skill-curate ──► keep with a reason, merge, or retire (with the user's OK)
 every few sessions or on request ──► project-sweeps (audit + gaps review) ──► fixes
 ```
@@ -138,15 +136,15 @@ every few sessions or on request ──► project-sweeps (audit + gaps review) 
 | Any other agent | Mandatory and manual: `node tools/hooks/hooks.mjs begin "<request>"` at the start, and `node tools/hooks/hooks.mjs check --answer-file .cache/answer.md` before finishing (exit 1 = not done) |
 | Everyone, including plain git | `.githooks/` rejects AI attribution in commits and pushes (`git config core.hooksPath .githooks`) |
 
-- **Stop / check** blocks the answer until every core check and every check in `tools/hooks/requirements.json` passes.
-  It blocks at most 3 times per turn, and anything still missing is announced at the next prompt. A check that truly
-  doesn't apply is waived with `node tools/hooks/hooks.mjs waive <tag> "<reason>"`, which keeps it out of the user's
-  answer (`N/A(<tag>): <reason>` in the answer works too). Never use a waiver to skip work that applies. While
-  background helpers or commands of this turn still run, only truth and privacy are checked; the rest waits for them.
-- **Before tool calls** the hooks deny: changes to protected files, overwrites of versioned files, edits of generated
-  skill mirrors, em dashes in user-facing files, mixing people's data, automating the installed browser, secrets or AI
-  attribution in git, risky git commands without a backup, the project's forbidden commands, and deleting
-  `SETUP-PROMPT.md` before setup is verified.
+- **The check after** (Stop) asks at most once per turn, from what the session really did: the runbook's checkable
+  items, tests after a code change, the project's declared checks, screenshots after a screen change, the health check
+  after a rule or runbook change, sources for new knowledge, the security review for sensitive code, claims nothing
+  backs, and the runbook items for the agent to verify itself. A question or a turn that changed nothing is not held.
+- **Before tool calls** the hooks deny only what is unsafe: changes to protected files, overwrites of versioned
+  files, edits of generated skill mirrors, mixing people's data, automating the installed browser, secrets or AI
+  attribution in git, risky git commands without a backup, outward actions, the project's forbidden commands, and
+  deleting `SETUP-PROMPT.md` before setup is verified.
+- `"engine": "v1"` in `tools/hooks/config.json` brings back the old engine, which checked more and asked for more.
 - A hook that crashes blocks once with the error, so it gets seen and fixed.
 
 ## The user's standing preferences

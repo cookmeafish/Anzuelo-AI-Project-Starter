@@ -10,6 +10,8 @@
 //   node tools/hooks/selfcheck.mjs --explain "<scenario name>"  every check that fires for that scenario, with what satisfies it
 //   node tools/hooks/selfcheck.mjs --contract   the project's own hooks ("externalHooks") still read what the engine prints
 // Add a scenario for every new REQ tag (project-rule skill): one where the rule is skipped, one where it is followed.
+// These scenarios test the old engine (v1), so they pin it; tools/hooks/v2/selftest.mjs tests v2, the default.
+process.env.STARTER_ENGINE ||= 'v1';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
