@@ -84,6 +84,10 @@ docs/STATUS.md, which here is the template new projects start from).
 - 2026-11-05 UTC: v29 findings fixed in b367ad9 (proof d783e2d): knowledge computed figures, one-word names, security
   open-count wording, bulleted verification label, plan check in the repeat guard, no-polling guard, trial wording out
   of the engine (keepOut in scenarios.json). Chain green. Sent to both projects. Next: round v30 once both upgrades end.
+- 2026-11-05 UTC: trial v30 (engine 9e5e6bd) WORSE: 1 high (the model's own scope slip), 21 mediums; repeats 0.18 -> 0.04
+  per turn. Fixed in a0a6b7f and 0a942ef: description and decisions not copied examples, read-only loops as reads, rule
+  hint asks for --tags, screenshot warnings per address, clearer Stop steps, turn notes after inserted lines. Sent to
+  both projects. Next: round v31 once both upgrades end.
 - 2026-11-05 07:45 UTC: quiet round v29 (12 projects, engine a24faf4) running; nothing heavy beside it. Quiet project
   self-test 113 s vs 213 s loaded; test counts equal across v26-v28q, so the setup slowdown was load. Uncommitted, waits
   for the chain after v29: usage-quiet (runbook-usage.json changes only on a use under the hardening count, a new day
