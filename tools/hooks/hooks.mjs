@@ -3222,12 +3222,16 @@ export function verbatimHits(x, cfg = config()) {
   }
   // (and the decisions record, whose setup interview keeps what the user said the project is. Lesson, trial round 13:
   // a vault's interview record was flagged for the user's description of the vault)
-  const DESCRIBES = /^(docs\/(BRIEF|STATUS|DECISIONS)\.md|README\.md)$/i;
+  // (and the purpose line under the title of AGENTS.md and CLAUDE.md. A project's decisions log records what the user
+  // decided and why, in their words if need be: it is a record, not a rule. Lesson (trial v30): both were flagged, and
+  // the agent made the vault's own description less accurate to get past the check)
+  const DESCRIBES = /^(docs\/(BRIEF|STATUS|DECISIONS)\.md|README\.md|AGENTS\.md|CLAUDE\.md)$/i;
+  const RECORD = !exists('.starter-template') ? /^docs\/DECISIONS\.md$/i : /(?!)/;
   const hits = [];
   // Engine files are the starter's words, not the user's: never scanned (an upgrade rewrites them mid-session), and
   // neither are generated skills. Lesson: right after an upgrade, tools/audit.mjs and hooks.mjs were flagged.
   const engine = [...VERBATIM_ENGINE, ...CORE_SKILLS.map(n => `${cfg.skillsDir}/${n}/**`), ...cfg.skillMirrors.map(m => `${m}/**`)];
-  for (const f of x.changed.filter(p => !match(p, cfg.verbatimAllowed) && !match(p, engine) && exists(p) && /\.(md|mdx|txt|html?|js|mjs|cjs|jsx|ts|tsx|py|json|ya?ml|css|vue|svelte)$/i.test(p))) {
+  for (const f of x.changed.filter(p => !RECORD.test(p) && !match(p, cfg.verbatimAllowed) && !match(p, engine) && exists(p) && /\.(md|mdx|txt|html?|js|mjs|cjs|jsx|ts|tsx|py|json|ya?ml|css|vue|svelte)$/i.test(p))) {
     if (/SKILL\.md$/.test(f) && /^generated:\s*true/m.test(read(abs(f)))) continue;
     // (the user's quoted decision in a "Who may do what" row is the record grant-decided asks for, not a copied
     // example. Lesson (a trial): the quote one check required, the other refused)
@@ -4871,7 +4875,7 @@ export function promptHints(prompt, cfg = config(), withNotices = true, { relaye
   else if (isRuleRequest(p, cfg) && !isUpset(p, cfg))
     hints.push('RULE REQUEST: the user is setting a standing rule. Use the project-rule skill: record the principle and why (in your own words, not theirs) with today\'s date, ' +
       'write the rule into CLAUDE.md, add a row to docs/checks/user-requirements.md, enforce it in tools/hooks/requirements.json (or say ' +
-      `"hook: N/A <reason>"), run the hook tests and the audit. ${PROVEN_HINT} If it is not actually a rule, waive it: node tools/hooks/hooks.mjs waive rule-request "<why>". REQ: rule-request, check-proven.`);
+      `"hook: N/A <reason>"), run the new check's own scenarios (node tools/hooks/selfcheck.mjs --tags <tag>, not the whole self-test) and the audit. ${PROVEN_HINT} If it is not actually a rule, waive it: node tools/hooks/hooks.mjs waive rule-request "<why>". REQ: rule-request, check-proven.`);
   else if (isRequirement(p, cfg))
     hints.push('REQUIREMENT: the user stated a lasting requirement on the work. Enforce it this turn, without asking: a "Done when" item in its runbook or skill with ' +
       `"(hook: <tag>)", the check and a test (or "(judgment: <why>)" when no script can tell). ${PROVEN_HINT} If it was only for this one task, ` +
@@ -6065,11 +6069,16 @@ const UPSET_PENDING = 'upset-pending.json';
 // was held as a change, while "cat a > b" passed because only the start of the line was read.
 const READ_PART = /^\s*(cd|sed\s+-n|sort|uniq|cut|tr|nl|less|more|stat|file|du|df|date|realpath|dirname|basename)\b/i;
 // (quoted text is an argument, not a command: a "|" or ">" inside it splits and redirects nothing. Lesson (a trial):
-// `grep -E "peanut|satay" data; echo "---"` was held as a change after a complaint, 4 times in 3 projects)
+// `grep -E "walnut|pecan" data; echo "---"` was held as a change after a complaint, 4 times in 3 projects)
 export const readOnlyChain = cmd => {
   const c = String(cmd || '').replace(/"(?:[^"\\]|\\.)*"|'[^']*'/g, 'Q').replace(/\d?>&\d|\d?>\s*\/dev\/null|\d?>\s*\$null|\bNUL\b/gi, ' ');
-  return !/>|\btee\b|\b(sed|perl)\b[^|;&\n]*\s-i|--in-place|\bOut-File\b|\bSet-Content\b/i.test(c) && c.split(/&&|\|\||;|\n|\|/).every(s => !s.trim() || READ_ONLY.test(s.trim()) || READ_PART.test(s.trim()));
+  return !/>|\btee\b|\b(sed|perl)\b[^|;&\n]*\s-i|--in-place|\bOut-File\b|\bSet-Content\b/i.test(c) && c.split(/&&|\|\||;|\n|\|/)
+    .map(s => s.trim().replace(/^(do|then|else)\s+/i, '')).every(s => !s || READ_ONLY.test(s) || READ_PART.test(s) || LOOP_PART.test(s) || READ_SCRIPT.test(s));
 };
+// (a shell loop over files that only reads, and the engine's own read-only note scripts, are reads too. Lesson (trial
+// v30): "for f in notes/*.md; do cat $f; done; notes.mjs check" was held as a change while the user waited, upset)
+const LOOP_PART = /^(for\s+\w+\s+in\b.*|while\s+read\b.*|done|fi|esac)$/i;
+const READ_SCRIPT = /^node(\.exe)?\s+Q?["']?(?:\S*\/)?(notes\.mjs\s+(check|suggest|related|orphans|links|find)|vault\.mjs\s+(find|scan|backlinks|related))\b(?![^;&|]*--(fix|write|apply)\b)/i;
 // ---------- helper turns (REQ: helper-turn-checked) ----------
 // A user message can reach a helper agent directly (the user talks to a background helper). A helper gets no prompt
 // hook and no Stop: only its tool calls (with agent_id) and its end (SubagentStop, or the SubagentHandback tool). So
@@ -7244,7 +7253,17 @@ export function coreChecks(x, cfg) {
       // the run's own summary says how many were its warnings; other tools' WARN lines in between are not
       // (Lesson: an audit warning printed between two screenshot runs was counted as a screenshot warning.)
       const counted = [...x.results.matchAll(/GUI-SHOT: \d+ screenshot\(s\), (\d+) warning/g)].pop();
-      const w = counted && +counted[1] ? [...lastRun.matchAll(/^WARN (.+)$/gm)].map(m => m[1]).slice(-counted[1]) : [];
+      let w = counted && +counted[1] ? [...lastRun.matchAll(/^WARN (.+)$/gm)].map(m => m[1]).slice(-counted[1]) : [];
+      // (each address keeps its own latest run: a clean run of the preview server does not clear a warning the same
+      // site gave opened as files. Lesson (trial v30): a blank page seen as files was hidden by a later clean run, and
+      // the user found it)
+      const target = cmd => (/--url[= ]["']?([^\s"']+)/.exec(cmd) || [])[1] || '';
+      const latest = new Map();
+      for (const r of shotRuns) if (/GUI-SHOT:/.test(r.out || '')) latest.set(target(r.cmd), r);
+      for (const [t, r] of latest) {
+        const n = +((/GUI-SHOT: \d+ screenshot\(s\), (\d+) warning/.exec(r.out || '') || [])[1] || 0);
+        if (n && t && r !== shotRuns.filter(q => /GUI-SHOT:/.test(q.out || '')).pop()) w = [...w, ...[...String(r.out).matchAll(/^WARN (.+)$/gm)].map(m => `${m[1]} (${t})`).slice(-n)];
+      }
       if (verdict && /pass/i.test(verdict[1]) && w.length && !/warn(ing)?s?\b[^\n]*(accepted|expected|not a problem|intentional|n\/a)/i.test(x.said))
         add('gui-warnings', `The latest screenshot run reported ${w.length} warning(s) (e.g. ${w[0].slice(0, 140)}). Fix them and re-shoot, or say in the answer why each is accepted ("warnings accepted: ...").`);
     }
@@ -7587,7 +7606,10 @@ export function ledgerSteps(x, missing, cfg = config()) {
     // (with more than one checklist in play, each ask names its runbook, the first one's too. Lesson (a field report):
     // "Record 2, 3 of the checklist" in a turn with four runbooks open was answered for the wrong one, three rounds)
     const unrecorded = items.filter(it => it.judgment && !rec.has(it.n)), named = k || pbs.length > 1;
-    if (unrecorded.length) asks.push({ short: `Record ${unrecorded.map(i => i.n).join(', ')} of the ${named ? `${pb.name} ` : ''}checklist`,
+    // (each item with its first words, so the record is written for the right item. Lesson (trial v30): "Record 2, 3 of
+    // the project checklist" took two rounds and a reread of the runbook to place)
+    const gist = i => { const t = i.text.replace(/\s*\(hook:[^)]*\)|`/g, '').trim(); return t.length > 48 ? `${t.slice(0, t.lastIndexOf(' ', 46))}...` : t; };
+    if (unrecorded.length) asks.push({ short: `Record in .cache/turn-notes.md, item ${unrecorded.slice(0, 4).map(i => `${i.n} ("${gist(i)}")`).join(', ')}${unrecorded.length > 4 ? ` and ${unrecorded.length - 4} more` : ''} of the ${named ? `${pb.name} ` : ''}checklist`,
       msg: `No script can check ${unrecorded.length > 1 ? 'these checklist items' : 'this checklist item'} of ${pb.file}, so your record is the proof: ${unrecorded.map(i => `${i.n}. ${i.text.slice(0, 120)}`).join(' ')}. ` +
         `Add "Done ${named ? `${pb.name} ` : ''}N: <what you did and what it showed>" or "Skip ${named ? `${pb.name} ` : ''}N: <why it doesn't apply>" to ${NOTES_FILE}, after doing it${named ? ` (with "${pb.name}" in the line: this turn followed more than one runbook)` : ''}.` });
     out = next;
@@ -8908,7 +8930,7 @@ const SHORT = {
   'app-typecheck-pass': 'Run the type check until it passes', 'version-bump': 'Bump the version for this behaviour change',
   'root-cause-stated': 'State the root cause of the bug', 'bugfix-regression-test': 'Add a test that failed before the fix',
   'plan-saved': 'Save the plan in docs/plans/ and link it', 'research-ledger': 'Run the research ledger check until it passes',
-  'skill-finder-report': 'Add one line: "Existing skills checked: <where> - <result>"', 'skill-compared': 'Rewrite the imported skill in this project\'s words',
+  'skill-finder-report': 'Add one line: "Existing skills checked: <where> - <result>"', 'skill-reuse': 'New runbook or skill: look for an existing skill first, then add "Existing skills checked: <where> - <result>" (or "reuse: none - project-specific: <why>" in its frontmatter)', 'skill-compared': 'Rewrite the imported skill in this project\'s words',
   'data-change-trigger': 'Follow the data-change runbook: the data format changed', 'release-trigger': 'Follow the release runbook: a version went out',
   'install-trigger': 'Follow the install-update runbook: the app was installed or updated', 'knowledge-source-trigger': 'Say where the new facts in the knowledge base came from',
   'ingest-trigger': 'Register the new files in sources/ (ingest runbook)', 'deliverable-trigger': 'Follow the deliverable runbook for the file in outputs/',

@@ -1046,6 +1046,13 @@ const STOP = [
   { pack: 'gui', name: 'GUI PASS while the tool reported warnings: blocked', prompt: 'make the dashboard page look cleaner', tools: [pb('gui'), bash('node tools/screenshot.mjs --url x', GUISHOT(1)), { name: 'Read', input: { file_path: SHOT } }],
     files: { 'site/index.html': '<h1>x</h1>', [SHOT]: 'png', 'docs/CHANGELOG.md': 'x' }, mtimes: { 'site/index.html': -500 },
     answer: 'Playbook: gui.md\n- Round 1: ok\nVisual review: PASS after 1 round' + FIN, expect: { block: true, tags: ['gui-warnings'] } },
+  // (Lesson (trial v30): a warning from the site opened as files was hidden by a later clean run on the preview server)
+  { pack: 'gui', name: 'GUI warning on one address, a later clean run on another: still blocked', prompt: 'make the dashboard page look cleaner', tools: [pb('gui'), bash('node tools/screenshot.mjs --url file:///site/index.html', GUISHOT(1)), bash('node tools/screenshot.mjs --url http://localhost:4000/', GUISHOT(0)), { name: 'Read', input: { file_path: SHOT } }],
+    files: { 'site/index.html': '<h1>x</h1>', [SHOT]: 'png', 'docs/CHANGELOG.md': 'x' }, mtimes: { 'site/index.html': -500 },
+    answer: 'Playbook: gui.md\n- Round 1: ok\nVisual review: PASS after 1 round' + FIN, expect: { block: true, tags: ['gui-warnings'] } },
+  { pack: 'gui', name: 'GUI warning fixed and the same address shot clean again: passes that check', prompt: 'make the dashboard page look cleaner', tools: [pb('gui'), bash('node tools/screenshot.mjs --url http://localhost:4000/', GUISHOT(1)), bash('node tools/screenshot.mjs --url http://localhost:4000/', GUISHOT(0)), { name: 'Read', input: { file_path: SHOT } }],
+    files: { 'site/index.html': '<h1>x</h1>', [SHOT]: 'png', 'docs/CHANGELOG.md': 'x' }, mtimes: { 'site/index.html': -500 },
+    answer: 'Playbook: gui.md\n- Round 1: ok\nVisual review: PASS after 1 round' + FIN, expect: { not: ['gui-warnings'] } },
   { pack: 'gui', name: 'GUI loop done right: passes', prompt: 'make the dashboard page look cleaner', tools: [pb('gui'), bash('node tools/screenshot.mjs --url x', GUISHOT(0)), { name: 'Read', input: { file_path: SHOT } }],
     files: { 'site/index.html': '<h1>x</h1>', [SHOT]: 'png', 'docs/CHANGELOG.md': 'x' }, mtimes: { 'site/index.html': -500 },
     // (only the GUI checks are this scenario's: in a website project its own test, build and flow checks rightly fire on
@@ -1301,6 +1308,8 @@ const PROMPT = [
     setup: { 'docs/playbooks/zorbel-tune.md': '---\nname: zorbel-tune\nsummary: Tune a zorbel - its flim, quon and grob\ntriggers: tune my zorbel, improve my zorbel\n---\n# Zorbel tune\n1. Read the zorbel.\n' },
     has: ['NO RUNBOOK'], hasNot: ['CLOSEST RUNBOOK'] },
   { name: 'rule request hint', prompt: 'from now on always give prices in euros', has: ['RULE REQUEST'] },
+  // (Lesson (trial v30): "run the hook tests" sent agents to the whole multi-minute self-test after one new check)
+  { name: 'rule request hint: asks for the new check\'s own scenarios, not the whole self-test', prompt: 'from now on always give prices in euros', has: ['RULE REQUEST', 'selfcheck.mjs --tags <tag>, not the whole self-test'] },
   { name: 'word routing: key words in any order and with endings still route', prompt: 'please search for the latest version on the web', has: ['SKILL: research'] },
   { name: 'upset-learned: shouting in capitals sends the agent to the learn-from-upset skill', prompt: 'WHY DID YOU SKIP THE SOURCES AGAIN', has: ['THE USER SOUNDS UPSET', 'learn-from-upset'] },
   { name: 'upset-learned: a calm request gets no upset hint', prompt: 'please add the sources to the desk note', hasNot: ['THE USER SOUNDS UPSET', '"systemMessage"'] },
@@ -1916,6 +1925,12 @@ STOP.push(
     files: { 'Tea/Steeping.md': '# Steeping\nRest the leaves in water before the [[Green tea]] goes in. See [[Water temperature]].\n', 'Tea/Water temperature.md': '# Water temperature\nHeat per leaf.\n\n## Related\n- [[Steeping]]\n', 'Tea/Green tea.md': starter },
     answer: 'Skill: notes-vault. Added Tea/Steeping.md and linked it. Every link resolves.' + FIN, expect })),
   { name: 'notes-vault: a note changed and the link check ran: passes', prompt: 'update the note on sleep in my vault with the new study', tools: [sk('notes-vault'), bash('node skills/obsidian/scripts/notes.mjs check --all', 'NOTES: every link resolves')], files: { 'Notes/Sleep.md': '# Sleep\n- Adults need 7 to 9 hours (sources/sleep-study.pdf, checked 2026-10-19)\n\n## Related\n- [Caffeine](Caffeine.md): affects sleep\n' }, answer: 'Skill: notes-vault. Added the finding to Notes/Sleep.md with its source and date. Every link resolves.' + FIN, expect: { not: ['vault-links-checked'] } },
+  // (Lesson (trial v30): the link check chained before a backlinks listing and a waive was not counted, so it ran again)
+  { name: 'notes-vault: the link check chained with other commands, then the changelog and answer edited: passes', prompt: 'update the note on sleep in my vault with the new study', tools: [sk('notes-vault'),
+    bash('node skills/obsidian/scripts/notes.mjs check --all; node skills/notes-vault/scripts/vault.mjs backlinks "Notes/Sleep.md"; node tools/hooks/hooks.mjs waive knowledge-source-trigger "the note records the owner\'s own tip with its date"', 'NOTES: every link resolves\nEvery note these link to links back.\nRESULT: PASS\nwaived for this turn: knowledge-source-trigger'),
+    { name: 'Edit', input: { file_path: 'docs/CHANGELOG.md', old_string: 'x', new_string: 'y' } }, { name: 'Write', input: { file_path: '.cache/answer.md', content: 'Added the finding.' } }],
+    files: { 'Notes/Sleep.md': '# Sleep\n- Adults need 7 to 9 hours (the owner, 2026-10-19)\n\n## Related\n- [Caffeine](Caffeine.md): affects sleep\n', 'docs/CHANGELOG.md': 'y', '.cache/answer.md': 'Added the finding.' },
+    answer: 'Skill: notes-vault. Added the finding to Notes/Sleep.md with its source and date. Every link resolves.' + FIN, expect: { not: ['vault-links-checked'] } },
   // package-release (library)
   { name: 'package version set without a dry run: blocked', prompt: 'publish the crate to crates.io', tools: [sk('package-release')], files: { 'Cargo.toml': '[package]\nname = "x"\nversion = "0.3.0"\n', 'CHANGELOG.md': '## 0.3.0' }, answer: 'Skill: package-release. Version set to 0.3.0.', expect: { block: true, tags: ['package-dry-run'] } },
   { name: 'package version set and contents previewed: passes', prompt: 'publish the crate to crates.io', tools: [sk('package-release'), bash('cargo package --list', 'Cargo.toml\nLICENSE\nREADME.md\nsrc/lib.rs')], files: { 'Cargo.toml': '[package]\nname = "x"\nversion = "0.3.0"\n', 'CHANGELOG.md': '## 0.3.0' }, answer: 'Skill: package-release. Version 0.3.0, contents previewed: 4 files. Waiting for your OK to publish.' + FIN, expect: { not: ['package-dry-run'] } },
@@ -2528,6 +2543,10 @@ STOP.push(
   { name: 'runbook-ledger: a judgment item with no record line is asked for', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
     edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) },
     files: { 'docs/CHANGELOG.md': '# Changelog\n- 2026-10-19: finish checklist asks for screenshots of changed screens\n' }, answer: 'Playbook: project.md. Added the line.' + FIN, expect: { block: true, tags: ['runbook-ledger'] } },
+  // (Lesson (trial v30): "Record 2, 3 of the project checklist" took two rounds to place: the ask quotes each item)
+  { name: 'runbook-ledger: the record ask quotes each item\'s first words and names the notes file', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
+    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) },
+    files: { 'docs/CHANGELOG.md': '# Changelog\n- 2026-10-19: finish checklist asks for screenshots of changed screens\n' }, answer: 'Playbook: project.md. Added the line.' + FIN, expect: { block: true, tags: ['runbook-ledger'], says: /Record in \.cache\/turn-notes\.md, item \d+ \("[^"]{6,}"\)/ } },
   // (every runbook the turn followed keeps its checklist. Lesson, a field report: a second runbook, followed for many
   // items through helpers, had its judgment items never asked for, because only the first runbook's list counted)
   { name: 'runbook-ledger: a second runbook followed in the turn has its judgment items asked for too', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project'), pb('trigger-words')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
@@ -2542,7 +2561,7 @@ STOP.push(
   // checklist" in a turn with four runbooks was answered for the wrong one, three rounds running)
   { name: 'runbook-ledger: with two runbooks the first one\'s ask names its runbook', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project'), pb('trigger-words')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
     edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) },
-    files: { '.cache/turn-notes.md': 'Playbook: trigger-words.md (its wording)\nSkip trigger-words 1: read for its wording only, no word whitelisted\nSkip trigger-words 2: no word whitelisted, nothing to test\n' }, answer: 'Playbook: project.md. Added the line.', expect: { block: true, tags: ['runbook-ledger'], says: /Record [\d, ]+ of the project checklist/ } },
+    files: { '.cache/turn-notes.md': 'Playbook: trigger-words.md (its wording)\nSkip trigger-words 1: read for its wording only, no word whitelisted\nSkip trigger-words 2: no word whitelisted, nothing to test\n' }, answer: 'Playbook: project.md. Added the line.', expect: { block: true, tags: ['runbook-ledger'], says: /Record in \.cache\/turn-notes\.md, item [^\n]* of the project checklist/ } },
   { name: 'runbook-ledger: the second runbook\'s items recorded under its name: passes', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project'), pb('trigger-words')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
     edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) },
     files: { '.cache/turn-notes.md': 'Playbook: trigger-words.md (its wording)\nDone 1: no rule\nDone 2: the miss is fixed in the checklist itself\nSkip 3: not a rule request, only a checklist line\nSkip 6: a one-line wording change the owner keeps out of the changelog\nSkip trigger-words 1: read for its wording only, no word whitelisted\nSkip trigger-words 2: no word whitelisted, nothing to test\n' }, answer: 'Playbook: project.md. Added the line.', expect: { not: ['runbook-ledger'] } },
@@ -3017,6 +3036,14 @@ STOP.push(
   // (Lesson, trial round 13: the setup interview's record in DECISIONS.md was flagged for the same description)
   { name: 'no-verbatim-examples: the decisions record describes the project in the user\'s words: passes', prompt: 'set up this project. It is my Obsidian vault of notes on baking and gardening; I want help keeping it tidy.',
     files: { 'docs/DECISIONS.md': '# Decisions\n## Setup interview\n- What it is: an Obsidian vault of notes on baking and gardening (the user).\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Done.' + FIN, expect: { not: ['no-verbatim-examples'] } },
+  // (Lesson (trial v30): the purpose line of AGENTS.md and CLAUDE.md, and a decision row giving the user's reason, were
+  // flagged; the agent made the project's own description less accurate to get past it)
+  { name: 'no-verbatim-examples: the purpose line of AGENTS.md and CLAUDE.md describes the project in the user\'s words: passes', prompt: 'set up this project. It is my Obsidian vault of notes on baking and gardening; I want help keeping it tidy.',
+    files: { 'AGENTS.md': '# Vault: START HERE\n\nAn Obsidian vault of notes on baking and gardening, kept tidy and easy to search.\n', 'CLAUDE.md': '# Vault: START HERE\n\nAn Obsidian vault of notes on baking and gardening, kept tidy and easy to search.\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Done.' + FIN, expect: { not: ['no-verbatim-examples'] } },
+  { name: 'no-verbatim-examples: a decision row gives the user\'s reason in their words: passes', removeMarker: true, prompt: 'set up this project. Decide everything yourself and do not ask me anything: I am not available to answer.',
+    files: { 'docs/DECISIONS.md': '# Decisions\n| Date | Decision | Why |\n|---|---|---|\n| 2026-11-05 | Autonomy is auto | The user said: decide everything yourself and do not ask me anything |\n', 'docs/CHANGELOG.md': 'x' },
     answer: 'Done.' + FIN, expect: { not: ['no-verbatim-examples'] } },
   { name: 'no-verbatim-examples: a sample sentence from the request copied into the brief is still caught', prompt: 'set up this project. It is my blog of family recipes. For example a post starts like this: grandma always soaked the chickpeas overnight in salted water',
     files: { 'docs/BRIEF.md': '# Brief\n## Purpose\nA blog of family recipes. Posts open like: grandma always soaked the chickpeas overnight in salted water.\n', 'docs/CHANGELOG.md': 'x' },
@@ -5269,6 +5296,19 @@ if (mineB() && (!TAGS || TAGS.includes('trial-wording')) && fs.existsSync(path.j
     report(rxs.length > 0 && !hits.length, label, `${rxs.length} words checked; ${hits.slice(0, 8).join('; ')}`);
   } catch (e) { report(false, label, e.message); }
 }
+// upset-acknowledged reads: looking at the files before the Issue line is seen is not held. Lesson (trial v30): a loop
+// that printed every note and the vault's own read-only link scripts were held as a change while the user waited.
+if (mineB() && (!TAGS || TAGS.includes('upset-acknowledged'))) {
+  const label = 'upset-acknowledged: a read-only loop and the note scripts\' read commands count as reads; a write inside them still does not';
+  try {
+    const H = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks.mjs')).href + '?ro=1');
+    const reads = ['for f in notes/*.md; do echo "== $f"; cat "$f"; done; git status --short notes',
+      'node skills/obsidian/scripts/notes.mjs check --all; node skills/notes-vault/scripts/vault.mjs backlinks "notes/Tea.md"; node skills/obsidian/scripts/notes.mjs suggest "notes/Tea.md"'];
+    const writes = ['for f in notes/*.md; do echo x >> "$f"; done', 'for f in notes/*.md; do rm "$f"; done', 'node skills/obsidian/scripts/notes.mjs check --all --fix'];
+    const got = [...reads.map(c => H.readOnlyChain(c)), ...writes.map(c => !H.readOnlyChain(c))];
+    report(got.every(Boolean), label, JSON.stringify(got));
+  } catch (e) { report(false, label, e.message); }
+}
 // no-polling: waiting on background work by sleeping or re-reading its output is refused; the first read, a read a
 // minute later, a short pause and a read after the notice are not. Lesson (trial v29): setup helpers slept and polled.
 if (mineB() && (!TAGS || TAGS.includes('no-polling'))) {
@@ -6255,6 +6295,9 @@ if (mineB()) { // knowledgeDirs, fit, labels and names: what a notes-only projec
     const labP = shortStep({ tag: 'app-build-pass', msg: 'Run the build. (last run did not pass, it ran with other commands after ; or |, or a command in its && chain failed, so its own result is unknown. Run the gate exactly as written: x)' });
     const labG = shortStep({ tag: 'audit-run', msg: 'Audit. (last run did not pass, its pass line /audit: PASS/ is not in the output: 3 lines)' });
     report(/on its own, as one plain command/.test(labP) && /without tail, head or grep/.test(labG), 'gate step labels say a piped or filtered run did not count, and how to run it', `${labP} | ${labG}`);
+    // (Lesson (trial v30): "New runbook or skill garden-plan.md" said nothing to do, and the agent read hooks.mjs to learn it)
+    const labR = shortStep({ tag: 'skill-reuse', msg: 'New runbook or skill docs/playbooks/garden-plan.md: first look for an existing skill that already does this (official skill repos). Say what you found: "Existing skills checked: <where> - <result>".' });
+    report(/Existing skills checked: <where> - <result>/.test(labR) && /project-specific/.test(labR), 'skill-reuse step label says what to search and what line to add', labR);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 

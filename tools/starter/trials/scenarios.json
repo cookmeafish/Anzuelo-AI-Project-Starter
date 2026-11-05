@@ -586,6 +586,10 @@
   {
     "id": "np-meals-upset",
     "why": "family meal plans: an upset complaint in caps, then a pause to restart (repeat-round probe)",
+    "keepOut": [
+      "peanut",
+      "satay"
+    ],
     "expect": {
       "packs": [],
       "follow": "feature"
