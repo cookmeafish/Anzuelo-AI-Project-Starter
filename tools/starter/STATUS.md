@@ -81,6 +81,11 @@ docs/STATUS.md, which here is the template new projects start from).
   the agent got wrong), verdict WORSE on setup cost ($6.57 median vs $5). Fixed in 4dd7d54 (proof 28648cb): waiting blocks
   count toward the 3 rounds, a question after Finished counts under autonomy, upgrades route to engine.md, checklist asks
   name their runbook, warm-letter example. Sent to both projects. Next: setup time (audit --setup reruns, 6 to 10 min each).
+- 2026-11-05 07:45 UTC: quiet round v29 (12 projects, engine a24faf4) running; nothing heavy beside it. Quiet project
+  self-test 113 s vs 213 s loaded; test counts equal across v26-v28q, so the setup slowdown was load. Uncommitted, waits
+  for the chain after v29: usage-quiet (runbook-usage.json changes only on a use under the hardening count, a new day
+  or a new session; field report: 15 commits of that file in one project). Helper noise: hook text about 1.1k chars per
+  helper; the bulk is the host loading CLAUDE.md (about 15k chars) into each helper.
 - 2026-11-05 07:00 UTC: v28q (4 projects) VERDICT WORSE on setup time and cost, traced to 2-3 waits over 5 minutes per setup
   (cache expiry, 150k-205k extra cache tokens), during my own chains and the projects' upgrade runs. Seven false alarms
   from v28/v28q fixed in 3e070fe (proof a24faf4), upgrades handed out. Next: quiet timing of a project self-test, then

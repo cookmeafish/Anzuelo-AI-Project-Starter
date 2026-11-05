@@ -8315,17 +8315,32 @@ function recallClose(want, h) {
   return shared.length >= 2 && shared.length / content.length >= 0.5;
 }
 
-function recordUsage(x, key) {
+const USAGE_SEEN = 'usage-seen.json';
+export function recordUsage(x, key) {
   recordHistory(x, key);
   if (!x.usedPb.length && !x.usedSkills.length) return;
   // runbook-usage.json is committed: the key (transcript path + time) holds the user's home folder, so only its hash is
   // kept (Lesson: an adopted project's publish-safety sweep found the user's folder path in it)
   const u = usage(), k = createHash('sha1').update(String(key)).digest('hex').slice(0, 16);
-  if (u._last === key || u._last === k) return;
+  // (the turn already counted is kept beside it in a state file git ignores, and the committed file changes only when
+  // what its readers use changes: a use while under the hardening count, a new day, a new session. Lesson (a field
+  // report): it changed on every turn, and one project made 15 commits of it alone)
+  const seen = readJSON(stateFile(USAGE_SEEN), {});
+  if (u._last === key || u._last === k || seen.k === k) return;
+  writeState(USAGE_SEEN, { k });
   // the sessions it was used in, too (a short hash of the transcript): hardening waits for use in more than one
   const ses = createHash('sha1').update(String(key).split('|')[0]).digest('hex').slice(0, 8);
-  for (const n of new Set([...x.usedPb, ...x.usedSkills].map(p => p.name))) { const e = u[n] || { uses: 0 }; e.uses++; e.last = today(); e.sessions = [...new Set([...(e.sessions || []), ses])].slice(-5); u[n] = e; }
-  u._last = k;
+  const cap = Math.max(config().promoteAfterUses || 3, 1);
+  let changed = false;
+  for (const n of new Set([...x.usedPb, ...x.usedSkills].map(p => p.name))) {
+    const e = u[n] || { uses: 0 }, sessions = [...new Set([...(e.sessions || []), ses])].slice(-5);
+    if (e.uses < cap) { e.uses++; changed = true; }
+    if (e.last !== today()) { e.last = today(); changed = true; }
+    if (sessions.length !== (e.sessions || []).length) { e.sessions = sessions; changed = true; }
+    u[n] = e;
+  }
+  if (!changed) return;
+  delete u._last;
   writeState('runbook-usage.json', u);
 }
 

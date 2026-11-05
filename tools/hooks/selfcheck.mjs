@@ -4685,7 +4685,7 @@ const proves = s => TAGS.filter(t => (s.expect?.tags || []).includes(t) || (s.ex
 const SHARD = (() => { const i = process.argv.indexOf('--shard'), m = /^(\d+)\/(\d+)$/.exec(i > 0 ? process.argv[i + 1] || '' : ''); return m ? { i: Number(m[1]), n: Number(m[2]) } : null; })();
 const HELPER = !!SHARD;
 // tags a standalone test proves (it runs with --tags <tag>, outside the full-run-only block)
-const STANDALONE_TAGS = ['status-bar', 'upset-acknowledged', 'helper-turn-checked', 'starter-tested', 'begin-keeps-turn', 'helper-work-counts', 'upset-es', 'feedback-usage', 'session-checklist', 'engine-bypassed', 'transcript-tail', 'instructions-run', 'answer-traced', 'stop-follow-on', 'stop-reblock', 'check-preview'];
+const STANDALONE_TAGS = ['status-bar', 'usage-quiet', 'upset-acknowledged', 'helper-turn-checked', 'starter-tested', 'begin-keeps-turn', 'helper-work-counts', 'upset-es', 'feedback-usage', 'session-checklist', 'engine-bypassed', 'transcript-tail', 'instructions-run', 'answer-traced', 'stop-follow-on', 'stop-reblock', 'check-preview'];
 if (TAGS) {
   const all = [...STOP, ...PRETOOL, ...PROMPT];
   for (const t of TAGS) if (!HELPER && !TRIGGER_TAGS.includes(t) && !STANDALONE_TAGS.includes(t) && t !== 'selftest-speed' && !all.some(s => proves(s).includes(t))) report(false, `tags: a scenario proves ${t}`, `no scenario proves "${t}": add one to tools/hooks/project-scenarios.mjs (blocked when skipped, passes when followed)`);
@@ -5207,6 +5207,28 @@ if (mineB() && (!TAGS || TAGS.includes('helper-work-counts'))) {
         `helper read seen: ${helperRead} | answer: ${answer.slice(0, 80)}`);
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   }
+}
+// usage-quiet: the committed usage file changes only when what its readers use changes (a use under the hardening
+// count, a new day, a new session), not on every turn. Lesson (a field report): one project made 15 commits of it alone.
+if (mineB() && (!TAGS || TAGS.includes('usage-quiet'))) {
+  const dir = copyProject();
+  try {
+    const H = await import(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href + '?uq=1');
+    const f = path.join(dir, 'tools/hooks/state/runbook-usage.json'), x = { usedPb: [{ name: 'meal-plan' }], usedSkills: [] };
+    const snap = () => { try { return fs.readFileSync(f, 'utf8'); } catch { return ''; } };
+    const counts = [];
+    if (typeof H.recordUsage !== 'function') throw new Error('recordUsage is not exported');
+    for (let i = 1; i <= 5; i++) { H.recordUsage(x, `C:/t/one.jsonl|2026-11-05T0${i}:00:00Z`); counts.push(JSON.parse(snap() || '{}')['meal-plan']?.uses); }
+    const before = snap();
+    H.recordUsage(x, 'C:/t/one.jsonl|2026-11-05T09:00:00Z');
+    const quiet = snap() === before;
+    H.recordUsage(x, 'C:/t/two.jsonl|2026-11-05T10:00:00Z');
+    const newSession = snap() !== before && JSON.parse(snap())['meal-plan'].sessions.length === 2;
+    report(JSON.stringify(counts) === '[1,2,3,3,3]' && quiet && newSession && !/_last/.test(snap()),
+      'usage-quiet: a repeat use in the same session and day leaves the committed usage file unchanged; uses stop at the hardening count; a new session still counts',
+      JSON.stringify({ counts, quiet, newSession, file: snap().slice(0, 200) }));
+  } catch (e) { report(false, 'usage-quiet: a repeat use in the same session and day leaves the committed usage file unchanged; uses stop at the hardening count; a new session still counts', e.message); }
+  finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 // helper-work-counts (files): while this turn's helper still runs, a file it wrote with its edit tools is this turn's
 // change; a file nobody here wrote or named is still not. Lesson (trial v28q): a setup helper wrote the security report,
