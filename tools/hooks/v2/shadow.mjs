@@ -10,7 +10,7 @@ import { ROOT } from './lib.mjs';
 
 const MAX_BYTES = 2_000_000;
 export function shadow(cmd, data) {
-  const out = cmd === 'prompt' ? onPrompt(data) : onStop(data);
+  const out = cmd === 'prompt' ? onPrompt(data) : onStop(data, { shadow: true });
   if (cmd === 'stop' && data.stop_hook_active) return; // v2 judges only the first attempt to finish
   const row = { at: new Date().toISOString(), sid: String(data.session_id || '').slice(0, 64), event: cmd };
   if (cmd === 'prompt') row.reminder = out?.hookSpecificOutput?.additionalContext || '';

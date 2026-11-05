@@ -163,6 +163,25 @@ report(screenGaps(acts([user('fix the paste test'), call('Edit', { file_path: pa
   && screenGaps(acts([user('fix the panel'), call('Edit', { file_path: path.join(dir, 'app/gui/panel.py'), old_string: 'a', new_string: 'b' }), say('Fixed.')])).length === 1,
   'end: tests and fixtures in a gui folder are not screens; the gui code itself is');
 
+// end: check 4, the health check
+const { healthGaps } = await import('./lib.mjs');
+const rule = call('Edit', { file_path: path.join(dir, 'docs/playbooks/export.md'), old_string: 'a', new_string: 'b' });
+report(healthGaps(acts([user('add a step'), rule, say('Added.')])).length === 0, 'end: a project with no health check is not asked for one');
+put('tools/audit.mjs', `import fs from 'node:fs'; fs.appendFileSync('tools/ran.txt', 'x'); const f = fs.readFileSync('tools/fail.txt', 'utf8'); if (f.trim()) { console.log('FAIL  ' + f.trim() + '  (2 files)'); process.exit(1); } console.log('audit: PASS');`);
+put('tools/fail.txt', 'runbook steps');
+const ranCount = () => { try { return fs.readFileSync(path.join(dir, 'tools/ran.txt'), 'utf8').length; } catch { return 0; } };
+report(healthGaps(acts([user('fix the export'), code, say('Fixed.')])).length === 0 && ranCount() === 0, 'end: a turn that changed no rule, runbook, check or skill does not run the health check');
+const hFail = healthGaps(acts([user('add a step'), rule, say('Added.')]));
+report(hFail.length === 1 && /health check .*fails.*runbook steps/.test(hFail[0]) && ranCount() === 1, 'end: a structural change runs the health check, and a failure is named', hFail);
+report(healthGaps(acts([user('add another step'), rule, say('Added.')])).length === 0, 'end: a failure already reported on an earlier turn is not asked about again');
+put('tools/fail.txt', 'skill mirror');
+report(healthGaps(acts([user('add a third step'), rule, say('Added.')])).length === 1, 'end: a new failure is asked about');
+const before = ranCount();
+report(healthGaps(acts([user('add a step'), rule, call('Bash', { command: 'node tools/audit.mjs' }, 'audit: PASS (30 sweeps)'), say('Added.')])).length === 0 && ranCount() === before,
+  'end: a passing health check the agent ran after the change is enough; it is not run again');
+report(/would run/.test(healthGaps(acts([user('add a step'), rule, say('Added.')]), { run: false })[0] || '') && ranCount() === before, 'end: in shadow the health check is only noted, never run');
+fs.rmSync(path.join(dir, 'tools/audit.mjs'));
+
 // shadow: beside v1, v2 only logs
 const { shadow } = await import('./shadow.mjs');
 const shadowLog = path.join(dir, 'tools/hooks/state/v2-shadow.jsonl');

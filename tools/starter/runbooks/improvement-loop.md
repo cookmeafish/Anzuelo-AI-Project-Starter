@@ -25,7 +25,10 @@ checks led to real work. Trial rounds and per-finding fixes are paused until eng
 0. **Work under the engine.** `node tools/hooks/hooks.mjs begin "<the request>"` in the starter first; what it gets wrong
    on this work goes in `tools/starter/dogfood-log.md` (the inside view, alongside the trial rounds' outside view).
 1. **Green first.** Everything committed; `node tools/hooks/selfcheck.mjs`, `node tools/trial.mjs` and
-   `node tools/audit.mjs` pass, each gated on its exit code (never `| tail`).
+   `node tools/audit.mjs` pass, each gated on its exit code (never `| tail`). Run the long ones on a frozen copy of
+   the commit (`git worktree add --detach <scratch dir> <commit>`, then run there), so work in the main folder goes on
+   during the 20 minutes. Copy its `tools/hooks/engine-proof.json` back only when no engine file changed since that
+   commit, and remove the copy afterwards (`git worktree remove <dir>`).
 2. **Run the round on a frozen copy.** `node tools/starter/trials/run.mjs --round <name> --freeze` (names go up:
    v9, v10, ...). Eight standard projects, four at a time: code in three languages, a Spanish-speaking user, letters,
    spreadsheets, a notes vault, a manuscript (`run.mjs --list` marks them). The frozen copy is this commit, so

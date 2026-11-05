@@ -3,6 +3,7 @@
 // transcript (never the git state of a shared folder). Plan: docs/plans/2026-11-05-engine-v2.md.
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 export const ROOT = process.env.ANZUELO_ROOT || process.cwd();
 const RUNBOOK_DIRS = ['docs/playbooks', 'tools/starter/runbooks'];
@@ -199,6 +200,30 @@ export function screenGaps(acts) {
   const shot = i.find(([c, k]) => k > lastEdit && /^(Bash|PowerShell)$/.test(c.name) && !c.error && /screenshot/i.test(String(c.input.command || '')) && (!lastWrite || c.done > lastWrite));
   const looked = shot && i.some(([c, k]) => k > shot[1] && c.name === 'Read' && /\.(png|jpe?g|webp)$/i.test(String(c.input.file_path || '')));
   return looked ? [] : ['A screen changed: take screenshots after the last change (node tools/screenshot.mjs) and look at them.'];
+}
+
+// Check 4: the project's structure changed (rules, runbooks, checks, skills, hook settings) and no passing health
+// check (tools/audit.mjs) ran after it. The end check runs it itself and asks only when it fails. Replay: the old
+// engine's ask found a real problem in 5 of 8 runs.
+const STRUCTURE = /^(CLAUDE\.md|AGENTS\.md|docs\/MENU\.md|docs\/playbooks\/|docs\/checks\/|skills\/|tools\/hooks\/(requirements|config)\.json$)/;
+export function healthGaps(acts, { run = true } = {}) {
+  if (!fs.existsSync(path.join(ROOT, 'tools/audit.mjs'))) return [];
+  const own = p => STRUCTURE.test(relp(p));
+  const i = acts.calls.map((c, k) => [c, k]);
+  const lastEdit = Math.max(-1, ...i.filter(([c]) => /^(Edit|Write|MultiEdit)$/.test(c.name) && own(c.input.file_path || '')).map(([, k]) => k));
+  const lastWrite = Math.max(0, ...changedSince(Date.parse(acts.at || '') || 0, { test: own }).map(mtime));
+  if (lastEdit < 0 && !lastWrite) return [];
+  if (i.some(([c, k]) => k > lastEdit && /^(Bash|PowerShell)$/.test(c.name) && !c.error && /audit\.mjs/.test(String(c.input.command || '')) && /audit: PASS/.test(c.out || '') && (!lastWrite || c.done > lastWrite))) return [];
+  if (!run) return ['(the health check would run here)'];
+  const r = spawnSync(process.execPath, ['tools/audit.mjs'], { cwd: ROOT, encoding: 'utf8', timeout: 90_000 });
+  if (r.status === 0 || r.error) return [];
+  // (a failure already reported on an earlier turn is not this turn's: it is asked about once, not on every turn after.
+  // Lesson: a sweep waiting on the user's decision failed in every structural turn)
+  const fails = String(r.stdout || '').split('\n').filter(l => /^FAIL/.test(l)).map(l => l.replace(/^FAIL\s+/, '').replace(/\s*\(.*$/, '').trim());
+  const known = new Set(loadTurn('health').fails || []), fresh = fails.filter(f => !known.has(f));
+  saveTurn('health', { fails });
+  if (fails.length && !fresh.length) return [];
+  return [`The project's health check (node tools/audit.mjs) fails after this change: ${fresh.slice(0, 3).join('; ') || 'see its output'}. Fix it and run it again.`];
 }
 
 // Whether the turn opened the runbook (read it, or ran its skill).

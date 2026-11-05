@@ -10,7 +10,8 @@ docs/STATUS.md, which here is the template new projects start from).
   and was replayed on real sessions: 0.05 blocks per turn against v1's 0.68.
   Later (451d669, local): v2 runs in shadow beside v1 and logs to tools/hooks/state/v2-shadow.jsonl. Its tests check
   honors the project's declared commands. Upset messages go to learn-from-upset, and unrouted work picks its runbook.
-  The routing sample is done (in the plan).
+  The routing sample is done (in the plan). End check 3, screens, is built (a54b827). Its replay recall is 3 of 10,
+  under target, so it waits on the shadow logs before it counts.
   Next (docs/plans/2026-11-05-engine-v2.md):
   - tomorrow's batched upgrade of both projects (they were already upgraded once today), then read their shadow logs
     for live recall and precision;

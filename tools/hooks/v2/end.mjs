@@ -1,6 +1,6 @@
 // Engine v2 end hook (Stop): the one check. It judges only what this session did in this turn, from its own
 // transcript, and blocks at most once with a short plain list of what is really missing.
-import { runbooks, turnRows, turnActs, met, opened, worked, loadTurn, testGaps, gateGaps, screenGaps } from './lib.mjs';
+import { runbooks, turnRows, turnActs, met, opened, worked, loadTurn, testGaps, gateGaps, screenGaps, healthGaps } from './lib.mjs';
 
 // Check 1: the routed runbook was followed, and its checkable "Done when" items were met. With none routed, the
 // runbook the agent chose and opened is the one it is held to.
@@ -13,10 +13,11 @@ export function missing(turn, acts, books = runbooks()) {
   return out;
 }
 
-export function onStop(data) {
+// (in shadow, the health check is not run, only noted: the old engine's turn must not wait on it)
+export function onStop(data, { shadow = false } = {}) {
   if (data.stop_hook_active) return null; // at most one block per turn
   const turn = loadTurn(data.session_id), acts = { ...turnActs(turnRows(data.transcript_path || '')), at: turn.at };
-  const list = [...missing(turn, acts), ...testGaps(acts), ...gateGaps(acts), ...screenGaps(acts)];
+  const list = [...missing(turn, acts), ...testGaps(acts), ...gateGaps(acts), ...screenGaps(acts), ...healthGaps(acts, { run: !shadow })];
   if (!list.length) return null;
   return { decision: 'block', reason: `Not done yet:\n${list.map(s => `- ${s}`).join('\n')}\nDo these, then finish with only what changed.` };
 }
