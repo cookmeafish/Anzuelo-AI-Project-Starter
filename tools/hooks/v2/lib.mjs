@@ -27,7 +27,9 @@ export function doneWhen(text) {
     else if (items.length && /^\s+\S/.test(l)) items[items.length - 1] += ' ' + l.trim();
   }
   return items.map((raw, i) => {
-    const c = /\((file|ran|answer):\s*([^)]+)\)\s*\.?\s*$/i.exec(raw);
+    // (the last marker anywhere in the item. Lesson (a field report): a marker on the first line of a two-line item
+    // was not read)
+    const c = [...raw.matchAll(/\((file|ran|answer):\s*([^)]+)\)/gi)].at(-1);
     // (every marker goes from the shown text: an item may carry the old engine's "(hook: ...)" or "(judgment: ...)"
     // before v2's own)
     const text = raw.replace(/\s*\((?:file|ran|answer|hooks?|judgment):[^)]*\)/gi, '').replace(/\s*\.\s*$/, '').replace(/`/g, '').trim();
