@@ -1,7 +1,7 @@
 ---
 name: project-watch
 summary: Watch the projects that run the engine - how they perform, what breaks - fix the engine here and upgrade them
-triggers: check up on the projects, check on the projects, watch the projects, in charge of the projects, performance of the projects, how are the projects doing, keep the projects running well, update anzuelo on the projects, upgrade the projects, projects bug free
+triggers: project watch round, project watch, check up on the projects, check on the projects, watch the projects, in charge of the projects, performance of the projects, how are the projects doing, keep the projects running well, update anzuelo on the projects, upgrade the projects, projects bug free
 ---
 # Project watch (starter only)
 

@@ -49,7 +49,9 @@ export function runbooks() {
   return out;
 }
 
-// The runbook whose trigger phrase matches the request best: the longest whole-phrase match wins.
+// The runbook whose trigger phrase matches the request best: a phrase that opens the request wins, then the longest
+// whole-phrase match. (Lesson (live v2): a request that opened with its job's name went to another runbook because a
+// longer phrase of a sub-step appeared later in it)
 export function route(prompt, books = runbooks()) {
   // (a menu code at the start, "B4 <args>", names its runbook outright)
   const code = /^\s*([A-Za-z]\d{1,2})(?=\s|$)/.exec(String(prompt))?.[1]?.toUpperCase();
@@ -59,7 +61,8 @@ export function route(prompt, books = runbooks()) {
   let best = null;
   for (const b of books) for (const t of b.triggers) {
     const phrase = t.replace(/[^\p{L}\p{N}' ]+/gu, ' ').replace(/\s+/g, ' ').trim();
-    if (phrase && p.includes(` ${phrase} `) && (!best || phrase.length > best.len)) best = { book: b, len: phrase.length, phrase };
+    const score = !phrase || !p.includes(` ${phrase} `) ? 0 : (p.startsWith(` ${phrase} `) ? 1000 : 0) + phrase.length;
+    if (score && (!best || score > best.score)) best = { book: b, score, phrase };
   }
   return best && { ...best.book, matched: best.phrase };
 }

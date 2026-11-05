@@ -56,6 +56,14 @@ report(win.book?.name === 'windows' && reminder('W1').book?.name === 'windows' &
 const { typed } = await import('./lib.mjs');
 report(!typed({ type: 'user', message: { content: '<local-command-stdout>Login successful.</local-command-stdout>' } }) && typed({ type: 'user', message: { content: 'export the orders' } }), 'start: terminal output from a local command is not a typed request');
 report(reminder('what time is it').text === '', 'start: a request no runbook fits gets nothing');
+{
+  // a phrase that opens the request names its job, even when a longer phrase of another runbook comes later
+  put('docs/playbooks/orders-loop.md', '---\nname: orders-loop\ntriggers: orders loop\n---\n## Done when\n1. The loop ran\n');
+  const r = reminder('Orders loop: pick up where it is, then export the orders for the week');
+  report(r.book?.name === 'orders-loop' && reminder('please export the orders, the orders loop can wait').book?.name === 'export',
+    'start: a trigger that opens the request wins over a longer one later; mid-sentence the longest still wins', r.text);
+  fs.rmSync(path.join(dir, 'docs/playbooks/orders-loop.md'));
+}
 put('DIRECTORY.md', '# Directory\n'); put('skills/learn-from-upset/SKILL.md', '# Learn from upset\n');
 report(/pick the runbook in DIRECTORY\.md/.test(reminder('the totals look off on the summary page').text) && !reminder('the totals look off').book,
   'start: when no trigger fits, one line asks the agent to pick and open the fitting runbook');
