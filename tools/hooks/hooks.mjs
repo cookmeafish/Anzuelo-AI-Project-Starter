@@ -2207,7 +2207,9 @@ function readsOf(uses) {
 // DECISIONS.md, the review rows from security.md, and use a placeholder names.json, so those parts don't count.
 // Lesson: the setup interview and the security review changed the hash at every setup step, so the reuse never applied.
 export function testInputsHash() {
-  const h = createHash('sha1'), addText = (p, t) => { h.update(p + '\0'); h.update(t); }, add = p => { try { addText(p, fs.readFileSync(abs(p))); } catch { } };
+  // (line endings don't count: git keeps a file the same with either, and a checkout may hold Windows ones. Lesson: a
+  // frozen worktree's pass of the exact commit hashed differently from the main folder over one CRLF runbook)
+  const h = createHash('sha1'), addText = (p, t) => { h.update(p + '\0'); h.update(String(t).replace(/\r\n/g, '\n')); }, add = p => { try { addText(p, fs.readFileSync(abs(p), 'utf8')); } catch { } };
   const walk = (d, rx) => { for (const n of list(d).sort()) { const p = `${d}/${n}`; let s; try { s = walkStat(p); } catch { continue; } if (s.isDirectory()) { if (n !== 'state') walk(p, rx); } else if (rx.test(n) && !/\.local\.json$/.test(n) && n !== 'engine-proof.json') add(p); } }; // (machine-local files (*.local.json) are this machine's settings and watch lists, not test inputs: Lesson: updating the starter's watch list voided a fresh self-test pass) (the proof is a result of the tests, not an input)
   walk('tools', /\.(mjs|json)$/); walk('docs/checks', /\.md$/); walk('docs/playbooks', /\.md$/); walk(config().skillsDir, /\.(md|mjs)$/);
   add('AGENTS.md');

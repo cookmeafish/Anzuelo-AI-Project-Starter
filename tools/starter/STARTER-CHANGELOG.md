@@ -14,6 +14,7 @@ hooks:**, and an upgrade lists each one as its own review item.
   - v2's end check 6: new code matching the project's security pattern (requirements.json "security-code") asks for the security review unless the turn ran it or wrote its report.
   - v2's end check 7: the answer's commits exist or showed up in the session, the files it names exist, and "committed" or "pushed" stated as done is backed by a command or a commit made since the turn began.
   - Runbook "Done when" items can carry v2's check after v1's marker, as in "(hook: plan-saved) (file: docs/plans/*.md)". Four of the starter's runbooks now do (engine, plan, project, trigger-words). A project adopts this by hand: add `(file: ...)`, `(ran: ...)` or `(answer: ...)` only to items that hold on every work turn of that runbook. `node tools/starter/done-when-coverage.mjs <project> --list` shows the candidates.
+  - A full self-test that passes on a frozen worktree of the commit now counts in the main folder. The pass is recorded there too, and the tested-files fingerprint ignores Windows line endings, so the end check stops asking for the run again.
   - v2 fixes:
     - The background-run notice works from the session's own running jobs, not from command text.
     - Pasted text no longer routes a message or marks it as upset.

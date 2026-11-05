@@ -5330,7 +5330,11 @@ if (mineB() && (!TAGS || TAGS.includes('hooks-tested'))) {
     const b = hash();
     fs.appendFileSync(path.join(dir, 'tools/hooks/requirements.json'), '\n');
     const c = hash();
-    report(!!a && a === b && b !== c, label, JSON.stringify([a, b, c]));
+    // (Windows line endings in a checkout are the same file to git: a frozen worktree's pass must match the main folder)
+    const rb = path.join(dir, 'docs/playbooks/plan.md');
+    fs.writeFileSync(rb, fs.readFileSync(rb, 'utf8').replace(/\r?\n/g, '\r\n'));
+    const d = hash();
+    report(!!a && a === b && b !== c && c === d, label + '; Windows line endings keep it', JSON.stringify([a, b, c, d]));
   } catch (e) { report(false, label, e.message); }
   finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
