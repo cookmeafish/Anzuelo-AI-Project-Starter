@@ -5,9 +5,16 @@ docs/STATUS.md, which here is the template new projects start from).
 
 ## Now
 - 2026-11-05: Quiet work shipped (45a94c2, local, not pushed): during work only safety guards refuse, helpers are
-  never held, no done/skip lines. Both projects were sent one batched upgrade. Next: engine v2 (one short reminder
-  at the start, one real check at the end, a size budget), docs/plans/2026-11-05-engine-v2.md, Task 1. Trial rounds
-  and v1 micro-fixes are paused until v2 lands.
+  never held, no done/skip lines. Both projects upgraded to 299f45a (all tests pass). Engine v2 is in
+  tools/hooks/v2 and off by default. It has the start reminder and end checks 1 (runbook Done-when) and 2 (tests),
+  and was replayed on real sessions: 0.05 blocks per turn against v1's 0.68.
+  Next (docs/plans/2026-11-05-engine-v2.md):
+  - compare v2's routing with v1's on the same prompts (v2 routes far fewer);
+  - end checks 3 to 7;
+  - make the Done-when items checkable;
+  - one engine-off round.
+  Trial rounds and v1 micro-fixes stay paused until v2 lands. Open question for the user: replace the two scheduled
+  prompts with "continue the v2 plan".
 - 2026-10-28: Examples, tests and lessons rewritten in neutral subjects (0793661, local, not pushed; trial not run).
   The user must remove the starter hooks from the local Claude settings of the folder that holds the projects (the
   host blocked the edit).

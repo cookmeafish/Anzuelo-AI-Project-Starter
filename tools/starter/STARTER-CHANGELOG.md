@@ -6,6 +6,10 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-05 (engine): engine v2 started, off by default. `"engine": "v2"` in tools/hooks/config.json turns it on.
+  - With it on, the start reminder and the end check come from tools/hooks/v2/. The reminder is at most 10 lines: the runbook and its "Done when" list. The end check covers the runbook's checkable items and tests run after code changes.
+  - A "Done when" item becomes checkable with `(file: <glob>)`, `(ran: <regex>)` or `(answer: <regex>)`.
+  - Self-test: `node tools/hooks/v2/selftest.mjs`. Replay on real sessions: `node tools/starter/v2-replay.mjs <project> <transcripts>`.
 - 2026-11-05 (engine): quiet work. The engine now reminds the agent before the work and checks once after it.
   - During the work it refuses only what is unsafe (secrets, AI attribution, protected and versioned files, outward actions, risky git, people's data mixing, the project's own guards). The upset hold, repeat and polling refusals and the em dash refusal are gone (Stop still checks the writing and the upset follow-through).
   - Tool calls get no notices: the checklist on opening a runbook, STATUS, plan, security, publish and generated-file notes are gone. The background-run notice shows once per run, in the main session only, and not for a command that only reads a check's output.
