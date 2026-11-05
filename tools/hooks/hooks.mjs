@@ -8796,6 +8796,23 @@ function writeDetails(missing, title) {
     fs.writeFileSync(path.join(STATE, 'stop-details.md'), `# ${title}\n\n` + missing.map((m, i) => `${i + 1}. [${m.tag}] ${m.msg.replace(/\s*\(no run of \/[^)]*\/ this turn\)/, ' (it has not run yet this turn)')}`).join('\n') + '\n');
   } catch { }
 }
+const UPSET_SHORT = [
+  [/^Before fixing anything, check the complaint/, 'Say at the start whether the complaint holds, after checking the files'],
+  [/agrees with the whole complaint/, 'Check each part of the complaint: "Checked: <file> - <what it showed>"'],
+  [/upset again in this session/, 'Upset again: a plan in docs/plans/ and a sweep over the real data'],
+  [/Issue line names no runbook or skill that exists/, 'The Issue line names no runbook or skill that exists'],
+  [/would find the root cause and fix this, and it was not opened/, m => `Open the ${/the (\S+) runbook would/.exec(m)?.[1] || 'named'} runbook and follow it`],
+  [/checklist \("Done when" in .* is not finished/, m => `Finish the ${/The (\S+) checklist/.exec(m)?.[1] || ''} checklist: a Done or Skip line per item`.replace('the  checklist', 'the checklist')],
+  [/^Show that it is truly fixed/, 'Add "Verified: <what you ran or opened> - <what it showed>" to the notes'],
+  [/^Write the user's general point/, 'Add "Scope: <the general point> - <every case it covers>" to the notes'],
+  [/^Say why the earlier work missed it/, 'Add "Root cause: <why the earlier work missed it>" to the notes'],
+  [/^"Learned \(none\)" is only for a complaint/, 'Say once, plainly, that the complaint did not hold ("Learned (none)" is only for that)'],
+  [/^The user is upset about a miss/, 'Say where the lesson went: "Learned (<level>): <lesson> → <file>"'],
+  [/must be written into the file the answer names/, 'Write the lesson into the file its Learned line names'],
+  [/says this happened before/, 'A repeat: put the lesson in the skill, a rule or a check, not a note'],
+  [/says the work falls short/, 'Add a check that enforces what the user found lacking'],
+  [/^An engine lesson reaches the starter/, 'Send the engine lesson: node tools/starter.mjs feedback "<lesson>"'],
+];
 export function shortStep(m) {
   if (m.short) return m.short; // a step that asks for something else this time (a gate that can't run: the honest line)
   // (a check set off by what a file now says names that file and the words, so a false alarm shows as one. Lesson (a
@@ -8804,6 +8821,9 @@ export function shortStep(m) {
   // (a claim check quotes the claim it means. Lesson (a trial): "a claim in it is not backed" named none, and the agent
   // rewrote the answer three times by guessing)
   if (m.tag === 'claim-checked') { const q = /"([^"]{4,90})"/.exec(m.msg || ''); if (q) return `Correct the answer: "${q[1].trim()}" is not backed by this turn`; }
+  // (the upset check names the part that is missing. Lesson (a trial): two rounds repeated "Learn from what upset the
+  // user" over a dozen sub-checks, and the agent guessed which one until the round cap)
+  if (m.tag === 'upset-learned') { const u = UPSET_SHORT.find(([r]) => r.test(m.msg || '')); if (u) return typeof u[1] === 'function' ? u[1](m.msg) : u[1]; }
   // (a run that passed but was piped or chained says why it did not count. Lesson (a trial): "Run the build until it
   // passes" came back twice after "build | tail -1" runs that passed, and only a plain run was accepted)
   const how = /its own result is unknown/.test(m.msg || '') ? ': run it on its own, as one plain command (a pipe or ";" after it hides its result)'

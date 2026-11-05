@@ -8155,6 +8155,14 @@ if (mineB() && (!TAGS || TAGS.includes('upset-acknowledged'))) { // REQ: upset-a
     const forDebug = hh.ledgerLines(both, 'debug'), forStatus = hh.ledgerLines(both, 'status-lines');
     report(forDebug.has(3) && forDebug.has(4) && !forDebug.has(1) && forStatus.has(1) && forStatus.has(4) && !forStatus.has(3) && forStatus.get(1).kind === 'skip',
       'upset-acknowledged: a checklist record that names its runbook ("Done debug 3:") counts only for that runbook; a plain one counts for either', JSON.stringify([[...forDebug.keys()], [...forStatus.keys()]]));
+    // (each part of the upset check has its own round label. Lesson (a trial): two rounds repeated the one generic label
+    // over a dozen sub-checks, and the agent guessed which part was missing until the round cap)
+    const upsetMsgs = [...fs.readFileSync(path.join(ROOT, 'tools', 'hooks', 'hooks.mjs'), 'utf8').matchAll(/add\('upset-learned', (['"`])((?:(?!\1).){12,200})/g)]
+      .map(m => m[2].replace(/\$\{[^}]*\}/g, 'notes-vault').replace(/\\'/g, "'"));
+    const upsetLabels = upsetMsgs.map(msg => hh.shortStep({ tag: 'upset-learned', msg }));
+    const generic = upsetLabels.filter(l => /^Learn from what upset the user/.test(l));
+    report(upsetMsgs.length >= 12 && !generic.length && new Set(upsetLabels).size >= upsetMsgs.length - 2,
+      'upset-learned: every part of the upset check has its own round label, not the one generic line', JSON.stringify({ n: upsetMsgs.length, generic: upsetMsgs.filter((_, i) => /^Learn from/.test(upsetLabels[i])).map(s => s.slice(0, 50)) }));
     // (a record may cover several items, and only this turn's records count. Lesson (the user): a turn recorded
     // "Done 1-12", the count read item 1 alone and took 11 more from earlier turns' lines, and showed "11/12" on a pass)
     const span = hh.ledgerLines('Done 1-12: all of it\nSkip 2, 4: not in this request\nDone 7 - plain dash\n');
