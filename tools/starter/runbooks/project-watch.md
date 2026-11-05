@@ -45,6 +45,9 @@ date. A project's own content is its session's; this runbook changes only the en
 - [ ] Each project runs the newest engine, or the answer says what it waits on (judgment: a project's session decides when its own work is committed).
 
 ## Pitfalls
+- A full run that restarts on every newer commit never finishes, and the projects never get the upgrade. Freeze the
+  commit under test as the release candidate: let its run finish and ship it, and test later fixes together in the
+  next batch.
 - An upgrade run while the project's session works there rolls back under its load and can't put back files the
   session is writing.
 - A test that fails only in one project usually traces to what that project lacks (a skill the upgrade never
