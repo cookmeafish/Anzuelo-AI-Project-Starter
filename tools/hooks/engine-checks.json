@@ -112,7 +112,7 @@
         "skillUsed": "skill-finder"
       },
       "require": {
-        "answerMatches": "existing skills? checked\\s*:"
+        "answerMatches": "existing skills?\\b[^\\n:]{0,40}?\\b(checked|searched|reviewed)\\b[^\\n:]{0,30}:"
       },
       "message": "Skill-finder skill: report the search in the answer: \"Existing skills checked: <where> - <result>\"."
     },
@@ -188,7 +188,7 @@
             ]
           },
           {
-            "answerMatches": "^(?=[\\s\\S]*security (?:review|check)(?:(?!\\n[ \\t]*\\n)[\\s\\S]){0,500}?docs[\\\\/]reviews[\\\\/]security-)(?=[\\s\\S]*security (?:review|check)(?:(?!\\n[ \\t]*\\n)[\\s\\S]){0,300}?\\b(\\d+|one|two|three|four|five|six|an?)\\s+(?:[\\w-]+\\s+){0,2}(items?|problems?|issues?|findings?|risks?|points?|gaps?)\\s+(?:are|is|remain|stay|left)\\s+(?:still\\s+)?open\\b)",
+            "answerMatches": "^(?=[\\s\\S]*security (?:review|check)(?:(?!\\n[ \\t]*\\n)[\\s\\S]){0,500}?docs[\\\\/]reviews[\\\\/]security-)(?=[\\s\\S]*security (?:review|check)(?:(?!\\n[ \\t]*\\n)[\\s\\S]){0,300}?(?:\\b(\\d+|one|two|three|four|five|six|an?)\\s+(?:[\\w-]+\\s+){0,2}(items?|problems?|issues?|findings?|risks?|points?|gaps?)\\s+(?:are|is|remain|stay|left)\\s+(?:still\\s+)?open\\b|\\b(?:left|leaves|leaving|leave)\\s+(\\d+|one|two|three|four|five|six|an?)\\s+(?:[\\w-]+\\s+){0,2}(items?|problems?|issues?|findings?|risks?|points?|gaps?)\\s+open\\b))",
             "answerNotMatches": "security (?:review|check)\\W{0,6}((it|this|all|everything|every|areas?|has|have|was)\\s+){0,3}pass(ed|es)?\\b(?!\\s+after\\b)",
             "filesChanged": [
               "docs/reviews/security-*.md"
