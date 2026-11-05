@@ -8740,7 +8740,7 @@ if (!TAGS && !HELPER && !REUSE) {
     let turn = false;
     // (an upgrade's own run does not wait: it times the hooks itself, and a busy machine only marks the timing as
     // shared. Lesson (a field report): an upgrade sat 10 minutes here while a trial's self-tests ran)
-    const wait = process.env.STARTER_UPGRADE_RUN ? 0 : 600_000;
+    const wait = process.env.STARTER_NO_TIMING_WAIT ? 0 : 600_000;
     for (const t0 = Date.now(); Date.now() - t0 <= wait; await new Promise(r => setTimeout(r, wait ? 5000 : 0)))
       if (!otherSuites(undefined, { busy: true }) && (turn = takeLock(lock, { what: 'stop timing' }).taken)) break;
     const others = otherSuites(undefined, { busy: true }) + (turn ? 0 : 1);

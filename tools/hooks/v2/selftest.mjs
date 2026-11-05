@@ -471,8 +471,9 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   report(ruleLines <= 153, `simple: AGENTS.md stays at most 152 lines (${ruleLines - 1})`, ruleLines);
   // (an upgrade's self-test never waits on other runs to time Stop, and the full run times v2's Stop, not only v1's)
   const np = fs.readFileSync(path.join(repo, 'tools/new-project.mjs'), 'utf8'), sc = fs.readFileSync(path.join(repo, 'tools/hooks/selfcheck.mjs'), 'utf8');
-  report(/selfcheck\.mjs'\)\][^\n]*STARTER_UPGRADE_RUN: '1'/.test(np) && /STARTER_UPGRADE_RUN \? 0 : 600_000/.test(sc) && /STARTER_ENGINE: 'v2'[\s\S]{0,400}stop-budget: engine v2/.test(sc.slice(sc.indexOf('const v2ms'))),
-    'simple: an upgrade\'s self-test does not wait for other runs to time Stop, and the full self-test times v2\'s Stop');
+  const au = fs.readFileSync(path.join(repo, 'tools/audit.mjs'), 'utf8');
+  report(/selfcheck\.mjs'\)\][^\n]*STARTER_NO_TIMING_WAIT: '1'/.test(np) && /selfcheck\.mjs'\), \.\.\.args\][^\n]*STARTER_NO_TIMING_WAIT: '1'/.test(au) && /STARTER_NO_TIMING_WAIT \? 0 : 600_000/.test(sc) && /STARTER_ENGINE: 'v2'[\s\S]{0,400}stop-budget: engine v2/.test(sc.slice(sc.indexOf('const v2ms'))),
+    'simple: an upgrade\'s or setup audit\'s self-test does not wait for other runs to time Stop, and the full self-test times v2\'s Stop');
   report(dflt === 'v2' && pinned === 'v1' && !RECORD.test(V2_SESSION) && files.length > 20 && !asks.length,
     `simple: v2 is the default engine (v1 only when pinned), and the session text and ${files.length} rule, runbook and skill files ask for no record lines`, JSON.stringify({ dflt, pinned, asks: asks.slice(0, 8) }));
 }

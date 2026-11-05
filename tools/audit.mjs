@@ -594,7 +594,7 @@ if (process.argv.includes('--full') || process.argv.includes('--setup')) {
       // Lesson: the 900 s limit fired under load, reported a false "FAIL hook self-tests", and forced a 15 to 24 minute
       // rerun that pushed two setups past their 60-minute limit.
       const limit = Number(process.env.STARTER_SELFTEST_TIMEOUT_MS) || 45 * 60_000;
-      const r = spawnSync(process.execPath, [abs('tools/hooks/selfcheck.mjs'), ...args], { encoding: 'utf8', timeout: limit, maxBuffer: 64 * 1024 * 1024 });
+      const r = spawnSync(process.execPath, [abs('tools/hooks/selfcheck.mjs'), ...args], { encoding: 'utf8', timeout: limit, maxBuffer: 64 * 1024 * 1024, env: { ...process.env, STARTER_NO_TIMING_WAIT: '1' } });
       const out = (r.stdout || '') + (r.stderr || '');
       const lines = out.split(/\r?\n/), summary = lines.filter(l => /^(selfcheck|ablation): (ALL PASS|FAIL)/.test(l)).pop();
       if (r.error || r.signal || r.status === null) return { warn: [`${r.error?.code === 'ETIMEDOUT' ? `timed out after ${limit >= 60_000 ? `${Math.round(limit / 60_000)} minutes` : `${Math.round(limit / 1000)} s`}` : `stopped before it finished${r.signal ? ` (${r.signal})` : ''}`}; run node tools/hooks/selfcheck.mjs alone (in the background if it may take longer than your command limit), then this audit again`] };
