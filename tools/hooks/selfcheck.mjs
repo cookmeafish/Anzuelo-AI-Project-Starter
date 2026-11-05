@@ -8147,7 +8147,7 @@ if (mineB() && (!TAGS || TAGS.includes('upset-acknowledged'))) { // REQ: upset-a
     const noLine = pre({ ...edit, transcript_path: tpA });
     fs.writeFileSync(tpA, chat.map(r => JSON.stringify(r)).join('\n') + '\n');
     const shownChat = pre({ ...edit, transcript_path: tpA }), copied = /drops the last row again \| runbook: debug/.test(fs.readFileSync(path.join(dir, '.cache/turn-notes.md'), 'utf8'));
-    report(denied(noLine) && !denied(shownChat) && copied, 'upset-acknowledged: an Issue line the agent already showed in its text frees the work and is copied to the notes; text without one still holds it',
+    report(denied(noLine) && /written in this same reply is not visible/.test(noLine) && !denied(shownChat) && copied, 'upset-acknowledged: an Issue line the agent already showed in its text frees the work and is copied to the notes; text without one still holds it, and says a line in the same reply is not seen yet',
       JSON.stringify([noLine, shownChat].map(o => o.slice(0, 160)).concat(String(copied))));
     // (two checklists in one turn: a record line may name its runbook, and then counts only for that one)
     const hh = await import(pathToFileURL(path.join(ROOT, 'tools', 'hooks', 'hooks.mjs')).href);

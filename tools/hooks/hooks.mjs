@@ -6067,7 +6067,11 @@ export function upsetUnacknowledged(name, inp, tp = '') {
       writeState(UPSET_PENDING, {}); return null;
     }
   }
-  const why = !it ? '' : !it.file ? ` Your Issue line names no runbook or skill that exists${it.runbook ? ` ("${it.runbook}" was not found)` : ''}.` : ' Your Issue line has no "fixed when" outcome of at least 3 words.';
+  // (a reply's own text reaches the transcript only after its tool calls, so an Issue line written in this same reply
+  // can't be seen yet: copy that same line, never a new one. Lesson (a trial): the line was in the reply, the call in
+  // the same reply was held, and a second Issue line naming another runbook was written)
+  const why = !it ? ' An Issue line written in this same reply is not visible to this check yet: append that same line to the notes, unchanged.'
+    : !it.file ? ` Your Issue line names no runbook or skill that exists${it.runbook ? ` ("${it.runbook}" was not found)` : ''}.` : ' Your Issue line has no "fixed when" outcome of at least 3 words.';
   return `REQ: upset-acknowledged. The user sounds upset, and has not been shown that you understood yet.${why} First open skills/learn-from-upset/SKILL.md, pick the runbook or skill that finds the root cause and fixes this (DIRECTORY.md; debug for a bug), and write one line to ${NOTES_FILE}: "Issue: <what went wrong, in general terms> | runbook: <name> | fixed when: <a checkable outcome>" (the user sees it as "acknowledged" at once), or "Issue: none - <why>" if nothing is wrong (an Edit of that file, or a shell command that appends to it, goes through now; other changes wait). Then retry.`;
 }
 export function acknowledgedLine(p) {
