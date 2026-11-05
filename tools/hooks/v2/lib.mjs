@@ -180,6 +180,9 @@ export function turnActs(rows) {
     started ||= r.timestamp || '';
     // (what the hooks and the host showed the agent this turn: evidence too, like a version a status line named)
     if (r.attachment) context += JSON.stringify(r.attachment.content ?? r.attachment).slice(0, 20000) + '\n';
+    // (only the conversation's own rows: the host's request copies repeat results with no time. Lesson (trial): a copy
+    // erased when each test run ended, and runs that passed after the last change were asked for again)
+    if (r.type !== 'user' && r.type !== 'assistant') continue;
     if (r.type === 'user' && typeof r.message?.content === 'string') { context += r.message.content.slice(0, 20000) + '\n'; heard += r.message.content.slice(0, 20000) + '\n'; }
     const c = r.message?.content;
     if (!Array.isArray(c)) continue;

@@ -163,6 +163,16 @@ report(testGaps(acts([user('Another session: the upgrade is in, selfcheck 1635 p
   && testGaps(acts([user('how is the project?'), call('Bash', { command: 'tail -1 ../app/.cache/selfcheck-last.txt' }, 'selfcheck: ALL PASS (1635 passed)'), say('Its tests passed.')])).length === 0,
   'end: an answer relaying a result this turn heard or read (a message, a report file) is not asked to run the tests itself');
 const resumed = turnRows(transcript([user('fix the export'), code, { type: 'user', isCompactSummary: true, message: { role: 'user', content: 'This session is being continued from a previous conversation that ran out of context.' } }, say('Continuing.')]));
+{
+  // (the host also writes request copies that repeat a result with no time: they are not the turn's own rows)
+  const k = `t${++id}`;
+  const rows = [{ ...user('fix the total'), timestamp: '2026-01-02T10:00:00.000Z' },
+    { type: 'assistant', timestamp: '2026-01-02T10:00:01.000Z', message: { content: [{ type: 'tool_use', id: k, name: 'Bash', input: { command: 'npm test' } }] } },
+    { type: 'user', timestamp: '2026-01-02T10:00:09.000Z', message: { content: [{ type: 'tool_result', tool_use_id: k, content: '12 passed' }] } },
+    { type: 'api-request-blob', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: k, content: '12 passed' }] } }];
+  const run = turnActs(turnRows(transcript(rows))).calls[0];
+  report(run?.done === Date.parse('2026-01-02T10:00:09.000Z'), 'end: a request copy that repeats a result without a time does not erase when the run ended', run?.done);
+}
 report(resumed.length === 5, 'end: the summary that resumes a session is not a new request, so the turn keeps its earlier work', resumed.length);
 {
   // (the host writes a message from another session as a meta row, and the prompt hook runs on it: a new turn)

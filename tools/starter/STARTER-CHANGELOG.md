@@ -26,6 +26,7 @@ hooks:**, and an upgrade lists each one as its own review item.
     - Another session's file changes are no longer counted as this turn's.
     - A turn started by a message from another session starts there. Before, it reached back to the last typed request, and a turn of read-only commands was held to that request's edits.
     - An answer that relays a test result this turn heard or read (another session's message, a project's report file) is not asked to run the tests itself. A summary that also counts failures still backs nothing. The replay tool splits turns the same way the live check does.
+    - The end check no longer asks for tests that already passed after the last code change. The host's request copies in the transcript repeat each tool result with no time, and v2 read them, which erased when each run ended. Found in 4 trial projects (v32), in turns where a run passed after the change.
     - The full self-test times engine v2's Stop hook too, as its own test with its own line ("stop timing (engine v2, the default)"). Before, it timed only v1's, which its own tests pin.
     - An upgrade's self-test, and the setup audit's, no longer waits up to 10 minutes for other self-test runs to finish before timing the Stop hook. A shared machine only marks that timing as shared.
     - A "Done when" check marker counts anywhere in its item, not only at the very end of a wrapped item.
