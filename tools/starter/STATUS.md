@@ -4,6 +4,10 @@ Where work on the starter itself stands, for the next session. Projects never ge
 docs/STATUS.md, which here is the template new projects start from).
 
 ## Now
+- 2026-11-05: Quiet work shipped (45a94c2, local, not pushed): during work only safety guards refuse, helpers are
+  never held, no done/skip lines. Both projects were sent one batched upgrade. Next: engine v2 (one short reminder
+  at the start, one real check at the end, a size budget), docs/plans/2026-11-05-engine-v2.md, Task 1. Trial rounds
+  and v1 micro-fixes are paused until v2 lands.
 - 2026-10-28: Examples, tests and lessons rewritten in neutral subjects (0793661, local, not pushed; trial not run).
   The user must remove the starter hooks from the local Claude settings of the folder that holds the projects (the
   host blocked the edit).
