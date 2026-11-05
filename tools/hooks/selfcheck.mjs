@@ -1465,6 +1465,11 @@ STOP.push(
   { name: 'research-verified: curl to a site on the web still counts: blocked', prompt: 'check what the supplier page says about prices',
     tools: [sk('research'), bash('curl -s https://example.com/prices', 'Prices rise 8% in March')],
     answer: 'Skill: research. Prices rise 8% in March.', expect: { block: true, tags: ['research-verified'] } },
+  { name: 'research-verified: a notes line naming the ledger check is no run of it: passes', prompt: 'check what the supplier page says about prices',
+    tools: [sk('research'), bash('curl -s https://example.com/prices', 'Prices rise 8% in March'),
+      bash("node - <<'EOF'\nrequire('fs').appendFileSync('.cache/research/prices.md', '')\nEOF\nnode skills/research/scripts/claims.mjs check .cache/research/prices.md", 'CLAIMS: PASS - 1 claims'),
+      bash('printf \'%s\\n\' "Done 3: node skills/research/scripts/claims.mjs check PASS" >> .cache/turn-notes.md', '')],
+    answer: 'Skill: research. Prices rise 8% in March.[1]\n\nSources:\n[1] https://example.com/prices\n\nVerified: 1 claims traced to 3 independent sources; 0 cut.', expect: { not: ['research-verified'] } },
   // a project's own research rule (its source-and-date line) can stand in for the ledger: "researchCoveredBy" in config
   // Lesson: an adopted project's market lookups, which its own rule already checks, were sent through the whole ledger too
   { name: 'research-verified: the project\'s own research rule line, named in config: passes', prompt: 'is there a proven layout for this plant shop',
@@ -1825,6 +1830,8 @@ STOP.push(
     answer: 'Skill: research. Yes: 150 kg, and they last 12 years.[1][2]\n\nSources:\n[1] https://a.example\n[2] https://b.example\nVerified: 1 claims traced to 3 independent sources; 0 cut or marked not verified.', expect: { block: true, tags: ['answer-traced'] } },
   { name: 'skill search without the report line: blocked', prompt: 'is there a skill for invoices', tools: [sk('skill-finder')], answer: 'Skill: skill-finder. Found one.',
     expect: { block: true, tags: ['skill-finder-report'] } },
+  { name: 'skill search reported with a word between "checked" and the colon: passes', prompt: 'is there a skill for invoices', tools: [sk('skill-finder')],
+    answer: 'Skill: skill-finder.\n\n**Existing skills checked first:** the project skills and the library - none fits.', expect: { not: ['skill-finder-report'] } },
   { name: 'skill-compared: an adopted skill still shares wording with the original: blocked', prompt: 'is there a skill for invoices', tools: [sk('skill-finder'), bash('node tools/skills.mjs add acme/skills invoices', 'installed skills/invoices'),
     bash('node tools/skills.mjs compare skills/invoices .cache/skill-original/invoices', 'COMPARE: 10 shared run(s) of 8+ words, 40% of our text. Rewrite each one in your own words.')],
     files: { 'skills/invoices/SKILL.md': '---\nname: invoices\ndescription: Makes invoices. Use when asked for an invoice.\n---\n# Invoices\n', 'docs/CHANGELOG.md': 'x' },
@@ -2241,6 +2248,8 @@ PRETOOL.push(
     tools: [bash('node tools/hooks/hooks.mjs check --answer-file .cache/answer.md', 'CHECK: FAIL'), bash('node tools/hooks/hooks.mjs waive changelog "the turn changed no code at all"', 'waived')], deny: false },
   { name: 'no-repeat: the first run was held for approval: allowed', tool: 'Bash', input: { command: 'npm test' }, prompt: 'add a csv export',
     tools: [{ ...bash('npm test', 'This command requires approval'), denied: true }], deny: false },
+  { name: 'no-repeat: the first run was a PowerShell call the tool refused as too long: allowed', tool: 'Bash', input: { command: 'python -m unittest discover -s tests 2>&1 | tail -3' }, prompt: 'add a csv export',
+    tools: [{ name: 'PowerShell', input: { command: 'python -m unittest discover -s tests 2>&1 | Select-Object -Last 3' }, result: 'Command contains malformed syntax that cannot be parsed: pwsh exited with code 1: The command line is too long.', error: true }], deny: false },
   { name: 'no-repeat: a rerun with a reason: allowed', tool: 'Bash', input: { command: 'npm test # rerun: the flaky network test' }, prompt: 'add a csv export',
     tools: [bash('npm test', 'Tests: 12 passed')], deny: false },
   // (the user may ask for it: Lesson, the user, "only if the user specifically mentions it should it do it twice")
@@ -2906,6 +2915,10 @@ STOP.push(
   { name: 'security-report: open items said plainly, how many, each with its risk and where they went: passes', prompt: 'make the form check the user', tools: [sk('security-review')],
     files: { ...AUTH, ...SEC_LOG, 'docs/reviews/security-2026-10-20.md': SEC_TABLE, 'docs/CHANGELOG.md': 'x' },
     answer: 'The form checks the user now.\n\n## Security review\nNo serious problem was found in the code, but two items are open. Both are in `docs/STATUS.md`, and the full review is in `docs/reviews/security-2026-10-20.md`.\n- **Packages (low risk):** no pinned versions yet.\n- **Other computers (medium risk):** HTTPS first.' + FIN, expect: { not: ['security-report'] } },
+  // (the verb may come first: "left two problems open". Lesson (trial v28q): that correct sentence was refused twice)
+  { name: 'security-report: "the security check left two problems open": passes', prompt: 'make the form check the user', tools: [sk('security-review')],
+    files: { ...AUTH, ...SEC_LOG, 'docs/reviews/security-2026-10-20.md': SEC_TABLE, 'docs/CHANGELOG.md': 'x' },
+    answer: 'The form checks the user now.\n\nThe security check left two problems open, both in `docs/STATUS.md`: package pinning (low) and HTTPS (medium). Details are in `docs/reviews/security-2026-10-20.md`.' + FIN, expect: { not: ['security-report'] } },
   { name: 'security-report: open items said plainly, but no report file named: blocked', prompt: 'make the form check the user', tools: [sk('security-review')],
     files: { ...AUTH, ...SEC_LOG, 'docs/reviews/security-2026-10-20.md': SEC_TABLE, 'docs/CHANGELOG.md': 'x' },
     answer: 'The form checks the user now.\n\n## Security review\nNo serious problem was found, but two items are open: package pinning and HTTPS.' + FIN, expect: { tags: ['security-report'] } },
@@ -3559,6 +3572,10 @@ STOP.push(
     files: { 'scripts/setup.ps1': SETUP_PS1, 'docs/CHANGELOG.md': 'x' }, answer: RUN_SETUP + FIN, expect: { block: true, tags: ['instructions-run'] } },
   { name: 'instructions-run: its run failed (5.1 rejects utf8NoBOM): blocked', prompt: 'set up the api', tools: [W('scripts/setup.ps1', SETUP_PS1), { ...bash('powershell -ExecutionPolicy Bypass -File scripts\\setup.ps1', 'Out-File : Cannot validate argument on parameter \'Encoding\'.'), error: true }],
     files: { 'scripts/setup.ps1': SETUP_PS1, 'docs/CHANGELOG.md': 'x' }, answer: RUN_SETUP + FIN, expect: { block: true, tags: ['instructions-run'], says: /its run here failed/ } },
+  { name: 'instructions-run: a changed file named in a sentence beside one that says "you type": passes', prompt: 'can staff remove orders',
+    tools: [W('src/shop/auth.py', 'ROLES = ("owner",)\n')], files: { 'src/shop/auth.py': 'ROLES = ("owner",)\n', 'docs/CHANGELOG.md': 'x' },
+    answer: '**What I checked:** the owner check in `src/shop/auth.py` refuses every other account. New accounts are staff unless you type `--role owner`.' + FIN,
+    expect: { not: ['instructions-run'] } },
   { name: 'instructions-run: a NOT VERIFIED line that names the script: passes', prompt: 'set up the api', tools: [W('scripts/setup.ps1', SETUP_PS1)],
     files: { 'scripts/setup.ps1': SETUP_PS1, 'docs/CHANGELOG.md': 'x' }, answer: RUN_SETUP + '\nNOT VERIFIED: scripts/setup.ps1 - my tool could not run PowerShell here.' + FIN, expect: { not: ['instructions-run'] } },
   // (a draft that passed the pre-check answers a core check too, when the sent answer rewords it. Lesson, trial round
@@ -5190,6 +5207,33 @@ if (mineB() && (!TAGS || TAGS.includes('helper-work-counts'))) {
         `helper read seen: ${helperRead} | answer: ${answer.slice(0, 80)}`);
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   }
+}
+// helper-work-counts (files): while this turn's helper still runs, a file it wrote with its edit tools is this turn's
+// change; a file nobody here wrote or named is still not. Lesson (trial v28q): a setup helper wrote the security report,
+// and the report check refused 3 correct answers because the file did not count as changed.
+if (mineB() && (!TAGS || TAGS.includes('helper-work-counts'))) {
+  const dir = copyProject();
+  try {
+    ownChecksOff(dir);
+    const t0 = Date.now() - 600_000, iso = t => new Date(t).toISOString(), tp = path.join(dir, 'transcript.jsonl');
+    const report1 = path.join(dir, 'docs', 'reviews', 'security-2026-11-05.md');
+    fs.mkdirSync(path.dirname(report1), { recursive: true });
+    fs.writeFileSync(report1, '| Area | Result |\n|---|---|\n| Secrets | PASS |\n');
+    fs.writeFileSync(path.join(dir, 'docs', 'stray.md'), 'changed by something else\n');
+    fs.writeFileSync(tp, [{ type: 'user', timestamp: iso(t0), message: { role: 'user', content: 'set up the shop notes' } },
+      { type: 'assistant', timestamp: iso(t0 + 2000), message: { content: [{ type: 'tool_use', id: 'toolu_hf0', name: 'Agent', input: { prompt: 'run the setup', run_in_background: true } }] } },
+      { type: 'user', timestamp: iso(t0 + 3000), message: { content: [{ type: 'tool_result', tool_use_id: 'toolu_hf0', content: 'Async agent launched successfully.\nagentId: a9 (use it to check on the agent)' }] } }].map(r => JSON.stringify(r)).join('\n') + '\n');
+    const sub = path.join(dir, 'transcript', 'subagents');
+    fs.mkdirSync(sub, { recursive: true });
+    fs.writeFileSync(path.join(sub, 'agent-a9.jsonl'), [{ type: 'user', timestamp: iso(t0 + 4000), message: { role: 'user', content: 'run the setup' } },
+      { type: 'assistant', timestamp: iso(t0 + 5000), message: { content: [{ type: 'tool_use', id: 'toolu_hf1', name: 'Write', input: { file_path: report1, content: 'x' } }] } },
+      { type: 'user', timestamp: iso(t0 + 6000), message: { content: [{ type: 'tool_result', tool_use_id: 'toolu_hf1', content: 'File created' }] } }].map(r => JSON.stringify({ ...r, isSidechain: true })).join('\n') + '\n');
+    const H = await import(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href + '?hwf=1');
+    const t = H.turn(tp), x = H.context(t, H.config());
+    report((t.bgRunning || []).length > 0 && x.changed.includes('docs/reviews/security-2026-11-05.md') && !x.changed.includes('docs/stray.md'),
+      'helper-work-counts: while the helper still runs, the file it wrote counts as changed; a file nobody here wrote does not',
+      `running: ${(t.bgRunning || []).length} | changed: ${x.changed.join(', ')}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 // helper-runs-in-time: a helper's runs and the session's own are judged in the order they happened. Lesson (a field
 // report): a helper's early failing test run came after the session's later passing runs, so it was "the last run".
@@ -8155,6 +8199,10 @@ if (mineB() && (!TAGS || TAGS.includes('upset-acknowledged'))) { // REQ: upset-a
     const forDebug = hh.ledgerLines(both, 'debug'), forStatus = hh.ledgerLines(both, 'status-lines');
     report(forDebug.has(3) && forDebug.has(4) && !forDebug.has(1) && forStatus.has(1) && forStatus.has(4) && !forStatus.has(3) && forStatus.get(1).kind === 'skip',
       'upset-acknowledged: a checklist record that names its runbook ("Done debug 3:") counts only for that runbook; a plain one counts for either', JSON.stringify([[...forDebug.keys()], [...forStatus.keys()]]));
+    // (the name before the word counts the same: "debug Done 2:". Lesson (trial v28): that form was refused twice)
+    const before = 'debug Done 2: swept\nstatus-lines Skip 5: none hidden\n', bDebug = hh.ledgerLines(before, 'debug'), bStatus = hh.ledgerLines(before, 'status-lines');
+    report(bDebug.has(2) && !bDebug.has(5) && bStatus.has(5) && !bStatus.has(2) && bStatus.get(5).kind === 'skip',
+      'upset-acknowledged: a record with the runbook name before the word ("debug Done 2:") counts only for that runbook', JSON.stringify([[...bDebug.keys()], [...bStatus.keys()]]));
     // (each part of the upset check has its own round label. Lesson (a trial): two rounds repeated the one generic label
     // over a dozen sub-checks, and the agent guessed which part was missing until the round cap)
     const upsetMsgs = [...fs.readFileSync(path.join(ROOT, 'tools', 'hooks', 'hooks.mjs'), 'utf8').matchAll(/add\('upset-learned', (['"`])((?:(?!\1).){12,200})/g)]

@@ -35,9 +35,12 @@ export const GROUPS = [
     ['np-study-paste', 'study notes; a long pasted transcript full of trigger words, then a frustrated follow-up: check whether the paste was treated as data and whether the follow-up got what it asked for']]],
 ];
 
-export const prompt = (round, projects, out) => `You are an independent, strict reviewer of AI-agent work. Two test projects were each made from a project starter called Anzuelo and then used by an AI agent (Claude Code) for several turns, as a real user would. Judge whether the agent did a genuinely good job for the user in each turn, and whether the starter's rules and hooks helped or got in the way.
+// (a group with one project in the round gets a prompt about one. Lesson (round v28q): "review both" over one project
+// sent each judge looking for a second one)
+const one = projects => String(projects).split(/\r?\n/).filter(l => l.trim()).length === 1;
+export const prompt = (round, projects, out) => `You are an independent, strict reviewer of AI-agent work. ${one(projects) ? 'One test project was' : 'Two test projects were each'} made from a project starter called Anzuelo and then used by an AI agent (Claude Code) for several turns, as a real user would. Judge whether the agent did a genuinely good job for the user in each turn, and whether the starter's rules and hooks helped or got in the way.
 
-Projects (review both):
+Projects (review ${one(projects) ? 'it' : 'both'}):
 ${projects}
 
 Evidence:

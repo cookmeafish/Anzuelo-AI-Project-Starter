@@ -1529,7 +1529,9 @@ export function instructedLaunchers(answer, changed) {
   for (const line of body.split(/\r?\n/)) {
     if (/^\s*```/.test(line)) { fence = !fence; fenceRun = fence && (runSaid(prev) || /:\s*$/.test(prev)); continue; }
     if (!fence && line.trim()) prev = line;
-    const said = fence ? (fenceRun ? line : '') : (runSaid(line) ? line : '');
+    // (only the sentence that says to run: "The check in `routes.py` refuses others. Accounts are staff unless you type
+    // `--role owner`." asks to run nothing in routes.py. Lesson (trial v28): a changed file named beside it was flagged)
+    const said = fence ? (fenceRun ? line : '') : line.split(/(?<=[.!?])\s+/).filter(s => runSaid(s)).join(' ');
     if (!said.trim()) continue;
     // the code span that holds it, when there is one: the exact command the user is told to type
     const spans = [...said.matchAll(/`([^`\n]+)`/g)].map(m => m[1]);
@@ -2149,7 +2151,9 @@ const otherSessionActive = since => {
 function ownChanges(changed, t, cfg) {
   let out = changed.filter(p => !match(p, cfg.buildOutputs || []) && !sameAsTurnStart(p, t.since));
   if (t.toolsKnown && (t.bgRunning?.length || otherSessionActive(t.since))) {
-    const uses = toolUses(t.entries);
+    // (a file this turn's own helper wrote with its edit tools is this turn's work, REQ helper-work-counts. Lesson (trial
+    // v28q): a setup helper still running wrote the security report, and the report check refused 3 correct answers)
+    const uses = [...toolUses(t.entries), ...toolUses(t.helperEntries || []).filter(u => /^(Write|Edit|MultiEdit|NotebookEdit)$/.test(u.name))];
     // (Windows and macOS file names ignore case: a write to docs/menu.md lands on docs/MENU.md)
     const fold = /^(win32|darwin)$/.test(process.platform) ? s => s.toLowerCase() : s => s;
     const written = new Set(uses.filter(u => /^(Write|Edit|MultiEdit|NotebookEdit)$/.test(u.name)).map(u => fold(rel(u.input.file_path || u.input.notebook_path || ''))));
@@ -2232,6 +2236,9 @@ export function loggedRuns(since) {
 // A command without its here-document bodies: a patch script whose text names a test file is not a run of that test.
 // Lesson: "python - <<'EOF' ... test_hooks.py ... EOF" was taken as the last run of the project's hook tests.
 export const cmdHead = c => String(c || '').replace(/<<-?\s*(['"]?)(\w+)\1[^\n]*\n[\s\S]*?\n\s*\2\b/g, '<<$2');
+// What a command runs: its head without the text it only prints or appends (echo, printf). Lesson (a field report): an
+// echo naming a tool, appended to the notes file, was taken for the last run of that tool.
+export const runPart = c => cmdHead(c).replace(/(^|[;&|(\n]\s*)(echo|printf|Write-Output|Write-Host)\b("[^"\n]*"|'[^'\n]*'|[^;&|\n])*/gi, '$1');
 // A command the agent's tool refused before it started (a permission prompt, a hook's denial) never ran: it is no run of
 // any gate, passing or failing. Lesson: a refused command whose inline script only mentioned "audit.mjs --setup" was
 // taken as the last audit run, so Stop asked for the audit that had just passed.
@@ -6484,7 +6491,9 @@ export function coreChecks(x, cfg) {
   // (a curl to this machine, such as the project's own app server, is not the web. Lesson, field report: polling the
   // app's local API with curl set off the whole research ledger)
   const web = x.toolsKnown && (x.uses.some(u => /^(WebSearch|WebFetch)$/.test(u.name)) || x.cmds.some(c => /\bddgs\s|search\.mjs|\bcurl\b[^|;&]*https?:\/\/(?!(localhost|127\.\d+\.\d+\.\d+|0\.0\.0\.0|\[::1\])(?![\w.-]))/.test(c)));
-  const ledgerRuns = x.runs.filter(r => /claims\.mjs\s+check\b/.test(r.cmd));
+  // (a notes line written with printf that names the ledger check runs nothing. Lesson (trial v28): "Done 3: ... claims.mjs
+  // check PASS" appended to the notes was taken for the last ledger run, and a passing ledger was asked for again)
+  const ledgerRuns = x.runs.filter(r => /claims\.mjs\s+check\b/.test(runPart(r.cmd)) && !r.pending);
   const ledgerOk = ledgerRuns.length && /CLAIMS: PASS/.test(ledgerRuns[ledgerRuns.length - 1].out || '');
   const knowledge = (cfg.packs || []).includes('knowledge'), researched = x.usedSkills.some(s => s.name === 'research');
   // a search that found nothing has no claims to verify: it says what was searched, where, and when
@@ -7473,7 +7482,10 @@ export function ledgerItems(text) {
 // count read it as item 1 alone)
 export function ledgerLines(notes, name = '', namedOnly = false) {
   const out = new Map();
-  for (const m of String(notes || '').matchAll(/^\s*[-*]?\s*(Done|Skip|Skipped)\s+(?:([a-z][\w-]*)\s+)?(\d+(?:\s*(?:-|–|,|and|to)\s*\d+)*)\s*[:.-]\s*(.*)$/gim)) {
+  // (the runbook's name may come before the word too: "project Done 2:". Lesson (trial v28): that form was refused twice,
+  // and the agent ran "why" to learn the accepted one)
+  for (const m0 of String(notes || '').matchAll(/^\s*[-*]?\s*(?:([a-z][\w-]*)\s+)?(Done|Skip|Skipped)\s+(?:([a-z][\w-]*)\s+)?(\d+(?:\s*(?:-|–|,|and|to)\s*\d+)*)\s*[:.-]\s*(.*)$/gim)) {
+    const m = [m0[0], m0[2], m0[3] || m0[1], m0[4], m0[5]];
     if (m[2] && name && m[2].toLowerCase() !== String(name).toLowerCase()) continue;
     if (namedOnly && !m[2]) continue;
     const ns = [];
@@ -7920,7 +7932,7 @@ export function holds(c, x) {
     // (a command that only prints or appends text naming the tool runs nothing. Lesson (a field report): an echo of
     // "the tool's tests PASS" into the notes file was taken for the last run, the notes file for its output, and an old
     // FAIL line in it blocked a turn whose real run had passed)
-    const ranIt = rn => cmdRe.test(gateText(cmdHead(rn.cmd).replace(/(^|[;&|(\n]\s*)(echo|printf|Write-Output|Write-Host)\b("[^"\n]*"|'[^'\n]*'|[^;&|\n])*/gi, '$1')));
+    const ranIt = rn => cmdRe.test(gateText(runPart(rn.cmd)));
     const attempts = x.runs.filter(rn => cmdRe.test(gateText(rn.cmd)) && ranIt(rn) && !engineNote(rn.cmd));
     // (a run still going has no output yet: the check run from inside the same command ("audit | tail -1 && hooks.mjs
     // check") is judged on the last finished run. Lesson (efficiency trials): an audit that had printed "audit: PASS" was
@@ -8117,7 +8129,10 @@ export function repeatRun(cmd, entries, lastWrite = readJSON(stateFile(LAST_WRIT
     }
   }
   let last = -1;
-  events.forEach((e, i) => { if (e.result && /^(Bash|PowerShell)$/.test(e.use.name) && typeof e.use.input?.command === 'string' && key(e.use.input.command) === want) last = i; });
+  // (a call the tool refused before it started never ran. Lesson (trial v28q): a PowerShell call refused as "the command
+  // line is too long" was taken for the test run, and the same tests sent again in Bash were refused as a repeat)
+  events.forEach((e, i) => { if (e.result && /^(Bash|PowerShell)$/.test(e.use.name) && typeof e.use.input?.command === 'string' && key(e.use.input.command) === want
+    && !neverRan({ error: !!e.result.is_error, out: textOf(e.result.content) })) last = i; });
   if (last < 0) return null;
   const res = events[last].result, out = textOf(res.content);
   // (a file written after that run, by the after-edit hook's record, though the transcript may not show it yet)
@@ -8816,7 +8831,7 @@ const SHORT = {
   'app-typecheck-pass': 'Run the type check until it passes', 'version-bump': 'Bump the version for this behaviour change',
   'root-cause-stated': 'State the root cause of the bug', 'bugfix-regression-test': 'Add a test that failed before the fix',
   'plan-saved': 'Save the plan in docs/plans/ and link it', 'research-ledger': 'Run the research ledger check until it passes',
-  'skill-finder-report': 'Report what the skill search found', 'skill-compared': 'Rewrite the imported skill in this project\'s words',
+  'skill-finder-report': 'Add one line: "Existing skills checked: <where> - <result>"', 'skill-compared': 'Rewrite the imported skill in this project\'s words',
   'data-change-trigger': 'Follow the data-change runbook: the data format changed', 'release-trigger': 'Follow the release runbook: a version went out',
   'install-trigger': 'Follow the install-update runbook: the app was installed or updated', 'knowledge-source-trigger': 'Say where the new facts in the knowledge base came from',
   'ingest-trigger': 'Register the new files in sources/ (ingest runbook)', 'deliverable-trigger': 'Follow the deliverable runbook for the file in outputs/',
