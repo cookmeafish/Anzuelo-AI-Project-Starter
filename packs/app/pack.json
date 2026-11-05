@@ -402,7 +402,7 @@
             "answerMatches": "\\|[^\\n]*\\b(PASS|FAIL|N/A)\\b[^\\n]*\\|"
           },
           {
-            "answerMatches": "security review(?:(?!\\n[ \\t]*\\n)[\\s\\S]){0,400}?docs/reviews/security-",
+            "answerMatches": "security review(?:(?!\\n[ \\t]*\\n)[\\s\\S]){0,400}?docs[\\\\/]reviews[\\\\/]security-",
             "filesChanged": [
               "docs/reviews/security-*.md"
             ]

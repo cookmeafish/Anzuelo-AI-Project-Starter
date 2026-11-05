@@ -8770,7 +8770,9 @@ const SHORT = {
   'knowledge-changelog': 'Note the knowledge change in docs/CHANGELOG.md', 'knowledge-captured': 'Write the new fact or decision into the project',
   'history-hashes': 'Back the history with commit hashes', 'teach-step': 'End with one question that has the user try the next step',
   'marketing-sourced': 'Name the brand voice and source every claim', 'mcp-linted': 'Lint the MCP server\'s tool list',
-  'security-checklist': 'Give the security checklist table with evidence',
+  // (the answer never carries the table. Lesson (a trial): "Give the security checklist table" here and "not the table"
+  // in security-report's line were read together, and the table went into the answer)
+  'security-checklist': "Name the security report file in the answer's one sentence about it (the table stays in the file)",
   'skill-harden': 'Turn the runbook used 3 times into scripts and checks (skill-harden)', 'runbook-complete': 'Give the new runbook its check, test and rule-map row',
   'plan-required': 'Write a plan first: this work adds many files',
   'review-excuse': 'Get the independent review from a reviewer sub-agent',
