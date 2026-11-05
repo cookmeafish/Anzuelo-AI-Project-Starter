@@ -436,6 +436,10 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   const files = ['AGENTS.md', 'README.md', ...walk('docs/playbooks'), ...walk('skills'), ...walk('tools/starter/runbooks'), 'docs/checks/writing-standards.md', 'docs/checks/finish-checklist.md'];
   const asks = files.flatMap(f => fs.readFileSync(path.join(repo, f), 'utf8').split('\n').map((l, i) => [f, i + 1, l]))
     .filter(([, , l]) => RECORD.test(l) && !/Issue:|before any fix, as your first step|No record lines|no `Playbook:`|`Verified: <n> claims traced/.test(l)).map(([f, n, l]) => `${f}:${n}: ${l.trim().slice(0, 80)}`);
+  // (the rules only shrink: at most the 152 lines they had at the switch, until the short draft replaces them;
+  // docs/plans/2026-11-05-engine-v2-agents-draft.md, under 60)
+  const ruleLines = fs.readFileSync(path.join(repo, 'AGENTS.md'), 'utf8').split('\n').length;
+  report(ruleLines <= 153, `simple: AGENTS.md stays at most 152 lines (${ruleLines - 1})`, ruleLines);
   report(dflt === 'v2' && pinned === 'v1' && !RECORD.test(V2_SESSION) && files.length > 20 && !asks.length,
     `simple: v2 is the default engine (v1 only when pinned), and the session text and ${files.length} rule, runbook and skill files ask for no record lines`, JSON.stringify({ dflt, pinned, asks: asks.slice(0, 8) }));
 }
