@@ -13,6 +13,14 @@ hooks:**, and an upgrade lists each one as its own review item.
   - Stop no longer asks for "Done N" or "Skip N" lines.
   - New read-only tools: `tools/starter/interrupts.mjs` and `tools/starter/stop-value.mjs`.
   - **Breaking for project hooks:** PreToolUse and PostToolUse print far less, and SubagentStop prints nothing.
+  - Commit 45a94c2. Its self-test names all carry "REQ quiet-work":
+    - "upset-acknowledged: an upset message holds nothing during work";
+    - "helper-turn-checked: a helper is never routed, held or given notices";
+    - "overlap: a helper never gets the heads-up";
+    - "overlap: a command that only names a check file";
+    - "runbook-ledger: a judgment item with no record line asks for nothing";
+    - the no-repeat, no-polling and plain-writing "allowed during work" tests.
+  - Confirmed failing on the old engine: 21 tests.
 - 2026-11-05 (engine): machine-local files (*.local.json) are left out of the self-test fingerprint, so updating this machine's settings or watch list keeps a fresh self-test pass current.
 - 2026-11-05 (engine): turn notes with new lines inserted above an earlier turn's lines count only this turn's lines (the notes at the start of the turn are kept and subtracted), so an old lesson no longer asks for work in a turn that changed nothing.
 - 2026-11-05 (engine): trial v30 findings: the purpose line of AGENTS.md and CLAUDE.md and a project's decisions log may use the user's own description; read-only loops and the vault's read scripts count as reads while a complaint waits for its Issue line; the rule hint asks for the new check's own tests, not the whole self-test; a screenshot warning on one address is not hidden by a clean run on another; the checklist and new-runbook steps say exactly what to record; one more trial wording removed (keepOut for the meals trial).
