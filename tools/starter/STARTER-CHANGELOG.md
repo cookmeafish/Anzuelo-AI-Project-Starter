@@ -6,6 +6,7 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-05 (engine): a user message that reaches a helper agent is routed at the helper's next tool call (route, checklist, upset hint), and its hand-back (SubagentHandback, and SubagentStop, now wired) is held until the routed checklist is recorded; the improvement loop checks helper turns. Test: helper-turn-checked.
 - 2026-11-04 (engine): each part of the upset-learned check has its own Stop label (Verified, Scope, Root cause, the checklist, Learned line, ...) instead of one generic line; test: upset-learned every part has its own round label (reads all 15 messages from the engine).
 - 2026-11-04 (engine): the upset guard's refusal says an Issue line written in the same reply is not visible yet (a reply's text reaches the transcript only after its tool calls, confirmed with a headless probe) and asks to copy that same line; scenario: upset-acknowledged chat line (extended).
 - 2026-11-04 (engine): security-report accepts "security check" as well as "security review"; scenarios: security-report "Security check: ... passed" passes, "has not passed" blocked.

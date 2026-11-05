@@ -5838,12 +5838,16 @@ function cmdPretool(data) {
   // launched without the line cost a denial and a full extra round that resent its whole prompt (4 in one trial round).
   const brief = briefLine(data), bare = cdDropped(data);
   const d = brief ? { ...data, tool_input: { ...data.tool_input, prompt: brief } } : bare ? { ...data, tool_input: { ...data.tool_input, command: bare } } : data;
+  // REQ: helper-turn-checked (a user message that reached a helper is routed at its next tool call; its hand-back waits
+  // for the routed checklist)
+  const helperHint = data.agent_id ? helperRoute(data) : '';
+  if (data.agent_id && data.tool_name === 'SubagentHandback') { const g = helperGate(data); if (g) { deny(helperHint ? `${helperHint}\n${g}` : g); return; } }
   const r = pretoolDecision(d);
   if (r) { deny(r); return; }
   // (an Issue line written from the shell, which the edit hook never sees, is acknowledged at the next tool call.
   // Lesson (the user): an Issue line appended with echo showed the user nothing)
   const acked = HOST === 'claude-code' ? acknowledgedLine(NOTES_FILE) : '';
-  const notes = [overlapNotice(data), (() => { try { return scopeNotice(data); } catch { return null; } })(), acked && issueChecklist(), checklistNotice(data)].filter(Boolean).join('\n');
+  const notes = [helperHint, overlapNotice(data), (() => { try { return scopeNotice(data); } catch { return null; } })(), acked && issueChecklist(), checklistNotice(data)].filter(Boolean).join('\n');
   const ack = HOST === 'claude-code' ? [acked, runningLine(d)].filter(Boolean).map(l => visibleLines(l)).filter(Boolean).join('\n') : '';
   if (brief || bare || notes || ack) process.stdout.write(JSON.stringify({ ...(brief || bare || notes ? { hookSpecificOutput: { hookEventName: 'PreToolUse', ...(brief || bare ? { updatedInput: d.tool_input } : {}), ...(notes ? { additionalContext: notes } : {}) } } : {}), ...(ack ? { systemMessage: ack } : {}) }));
 }
@@ -6046,6 +6050,63 @@ export const readOnlyChain = cmd => {
   const c = String(cmd || '').replace(/"(?:[^"\\]|\\.)*"|'[^']*'/g, 'Q').replace(/\d?>&\d|\d?>\s*\/dev\/null|\d?>\s*\$null|\bNUL\b/gi, ' ');
   return !/>|\btee\b|\b(sed|perl)\b[^|;&\n]*\s-i|--in-place|\bOut-File\b|\bSet-Content\b/i.test(c) && c.split(/&&|\|\||;|\n|\|/).every(s => !s.trim() || READ_ONLY.test(s.trim()) || READ_PART.test(s.trim()));
 };
+// ---------- helper turns (REQ: helper-turn-checked) ----------
+// A user message can reach a helper agent directly (the user talks to a background helper). A helper gets no prompt
+// hook and no Stop: only its tool calls (with agent_id) and its end (SubagentStop, or the SubagentHandback tool). So
+// its message is routed at its next tool call, and its hand-back is held until the routed checklist is recorded.
+// Lesson (a field report): an upgrade asked of a helper skipped its runbook's research step, and nothing held it.
+const HELPER_ASK = /^\s*The user sent a new message while you were working:\s*/;
+export function helperTranscript(data) {
+  if (data.agent_transcript_path) return String(data.agent_transcript_path);
+  const id = String(data.agent_id || '').replace(/[^\w-]/g, ''), tp = String(data.transcript_path || '');
+  return id && tp ? path.join(tp.replace(/\.jsonl$/i, ''), 'subagents', `agent-${id}.jsonl`) : '';
+}
+export function helperAsk(file) {
+  let last = null;
+  for (const r of transcriptRows(file, () => false)) {
+    if (r.type !== 'user') continue;
+    const c = r.message?.content, t = typeof c === 'string' ? c : Array.isArray(c) ? c.filter(b => b?.type === 'text').map(b => b.text).join('\n') : '';
+    if (HELPER_ASK.test(t)) last = { at: String(r.timestamp || ''), text: t.replace(HELPER_ASK, '').replace(/\n\s*This is how Claude Code surfaces[\s\S]*$/, '').trim() };
+  }
+  return last;
+}
+const helperState = data => `helper-${String(data.agent_id || '').replace(/[^\w-]/g, '').slice(0, 40)}.json`;
+export function helperRoute(data, cfg = config()) {
+  if (!data.agent_id) return '';
+  const ask = helperAsk(helperTranscript(data));
+  if (!ask?.text) return '';
+  const st = readJSON(stateFile(helperState(data)), {});
+  if (st.at === ask.at) return '';
+  const hints = promptHints(ask.text, cfg, false);
+  // (an upset message to a helper is acknowledged first, as at a prompt: REQ upset-acknowledged)
+  if (isUpset(ask.text, cfg) && !hints.some(x => x.startsWith('THE USER SOUNDS UPSET')) && !envOf('BENCH') && !DRY_STATE) {
+    writeState(UPSET_PENDING, { at: new Date().toISOString(), issues: issueCount(read(abs(NOTES_FILE))) });
+    hints.unshift(`THE USER SOUNDS UPSET: write "Issue: <what went wrong> | runbook: <name> | fixed when: <a checkable outcome>" (or "Issue: none - <why>") in ${NOTES_FILE} before any other change; then open skills/learn-from-upset/SKILL.md and follow it. REQ: upset-acknowledged.`);
+  }
+  // (the checklist's runbook, or the one the route names when no checklist is given)
+  const file = /^CHECKLIST \(([^,]+),/.exec(hints.find(h => h.startsWith('CHECKLIST (')) || '')?.[1]
+    || /^ROUTE: [\w-]+ .*?\bopen ((?:docs\/playbooks|skills)\/[\w./-]+\.md)\b/.exec(hints.find(h => h.startsWith('ROUTE: ')) || '')?.[1] || '';
+  writeState(helperState(data), { at: ask.at, file, notesOff: read(abs(NOTES_FILE)).length, blocks: 0 });
+  return hints.length ? `USER MESSAGE TO THIS HELPER: the user asked you for work, so route and check it like a prompt.\n${hints.map(h => `- ${h}`).join('\n')}` : '';
+}
+export function helperGate(data) {
+  if (!data.agent_id) return '';
+  const st = readJSON(stateFile(helperState(data)), {});
+  if (!st.at || !st.file || !exists(st.file) || (st.blocks || 0) >= 3) return '';
+  const notes = read(abs(NOTES_FILE)), mine = notes.length >= (st.notesOff || 0) ? notes.slice(st.notesOff || 0) : notes;
+  const name = /SKILL\.md$/i.test(st.file) ? path.basename(path.dirname(st.file)) : path.basename(st.file).replace(/\.md$/i, '');
+  const rec = ledgerLines(mine, name), open = ledgerItems(read(abs(st.file))).filter(i => !rec.has(i.n));
+  if (!open.length) return '';
+  writeState(helperState(data), { ...st, blocks: (st.blocks || 0) + 1 });
+  return `REQ: helper-turn-checked. The user asked this helper for work, and the ${name} checklist (${st.file}) is not recorded: ` +
+    `${open.map(i => `${i.n}. ${i.text.slice(0, 110)}`).join(' ')}. Do each item, then add "Done N: <what you did, with the file or command>" ` +
+    `or "Skip N: <why it doesn't apply>" to ${NOTES_FILE}, and hand back again.`;
+}
+function cmdSubagentstop(data) {
+  if (data.stop_hook_active) return;
+  const g = helperGate(data);
+  if (g) process.stdout.write(JSON.stringify({ decision: 'block', reason: g }));
+}
 export function upsetUnacknowledged(name, inp, tp = '') {
   const pend = readJSON(stateFile(UPSET_PENDING), {}), turnAt = Date.parse(readJSON(stateFile('turn.json'), {}).at || '');
   if (!pend.at || Date.parse(pend.at) < (turnAt || 0) - 5000 || isSuspended('check:upset-acknowledged')) return null;
@@ -9390,10 +9451,10 @@ if (isMain) {
       : `nothing to prune: no per-session state file is older than ${STATE_KEEP_DAYS} days`);
     process.exit(0);
   }
-  if (!['session', 'prompt', 'pretool', 'posttool', 'stop'].includes(cmd)) {
+  if (!['session', 'prompt', 'pretool', 'posttool', 'stop', 'subagentstop'].includes(cmd)) {
     console.log('usage: node tools/hooks/hooks.mjs begin "<the user\'s request>" | check --answer-file <file> | run "<command>" | why | checks | sync | bench | restore <item>\n' +
       '       node tools/hooks/hooks.mjs last [N] [--json] | prune [--dry] | contract [--json] | shown <key> --session <id> | jobs <transcript>\n' +
-      '       node tools/hooks/hooks.mjs session | prompt | pretool | posttool | stop   (hook events: JSON on stdin, run by the agent)');
+      '       node tools/hooks/hooks.mjs session | prompt | pretool | posttool | stop | subagentstop   (hook events: JSON on stdin, run by the agent)');
     process.exit(1);
   }
   let data = {};
@@ -9410,7 +9471,7 @@ if (isMain) {
   // releases left. Lesson: an 80 KB snapshot.json from before per-session files stayed for good.
   if (cmd === 'session' && !envOf('BENCH')) pruneState();
   try {
-    const fn = { session: cmdSession, prompt: cmdPrompt, pretool: cmdPretool, posttool: cmdPosttool, stop: cmdStop }[cmd];
+    const fn = { session: cmdSession, prompt: cmdPrompt, pretool: cmdPretool, posttool: cmdPosttool, stop: cmdStop, subagentstop: cmdSubagentstop }[cmd];
     if (fn) fn(data);
   } catch (e) {
     process.stderr.write(`[hooks ${cmd}] error: ${e && e.stack || e}\n`);

@@ -81,6 +81,12 @@ docs/STATUS.md, which here is the template new projects start from).
   the agent got wrong), verdict WORSE on setup cost ($6.57 median vs $5). Fixed in 4dd7d54 (proof 28648cb): waiting blocks
   count toward the 3 rounds, a question after Finished counts under autonomy, upgrades route to engine.md, checklist asks
   name their runbook, warm-letter example. Sent to both projects. Next: setup time (audit --setup reruns, 6 to 10 min each).
+- 2026-11-05 03:30 UTC: FIXED (this commit), high: work the user asks for inside a helper agent gets no prompt routing and no final
+  check (only PreToolUse/SessionStart fire; SubagentHandback ends it unchecked). Seen in a project: an upgrade skipped its
+  runbook research step. Fix after v28: hold SubagentHandback until the checklist and Stop checks pass; route user
+  messages that reach a helper.
+- 2026-11-04 21:50 UTC: engine 15405e0 (all v27 findings fixed but the flask design check) handed to both projects; trial v28 running on it
+  (12 projects, then 6 blind judges and compare). Do not edit the starter until it ends.
 - 2026-11-04 20:40 UTC: v27 findings fixed: one-line reply on a checklist-only round (4e192f1), honest app-not-run line
   (4ccf96d), Vetted license by id + form shown (5e761a8), quoted grant decision not a copied example (39cd664), security-checklist line (8882415), "security check" wording (fcee2ba), same-reply Issue line wording (2c17818), upset-learned labels (this commit).
   Open from v27: flask design check (grant-decided looks at wording only),

@@ -54,7 +54,10 @@ When the user gives a time budget for testing, it is one session of steps 1 to 7
    is done and truly reported, a change reaches every file that depends on it, and the project's notes are used.
    Their judges (groups i and j in `judge.mjs`) say what to check in each.
 3. While a round runs, look at the real projects (the project-watch runbook): their Stop logs, upsets and false
-   alarms are evidence the trials don't have. Each problem found goes through step 5 like a finding.
+   alarms are evidence the trials don't have. Each problem found goes through step 5 like a finding. Include their
+   helper agents (`<session>/subagents/*.jsonl`): every user message that reached a helper was routed and its
+   hand-back held to the checklist (the trials never talk to a helper, so only this finds a miss there). Lesson (a
+   field report, 2026-11-05): a helper did user work with no routing and no final check, and no test kind looked.
 4. Every finding the starter caused or could prevent is fixed with a test that fails without the fix, the chain
    passes, and the next round runs on the fixed engine (the user, 2026-11-01: any issue found is fed back in, fixed
    and retested). A round started on an older commit still counts; its findings are checked against the newest

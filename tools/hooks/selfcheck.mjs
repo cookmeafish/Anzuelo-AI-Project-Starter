@@ -4668,7 +4668,7 @@ const proves = s => TAGS.filter(t => (s.expect?.tags || []).includes(t) || (s.ex
 const SHARD = (() => { const i = process.argv.indexOf('--shard'), m = /^(\d+)\/(\d+)$/.exec(i > 0 ? process.argv[i + 1] || '' : ''); return m ? { i: Number(m[1]), n: Number(m[2]) } : null; })();
 const HELPER = !!SHARD;
 // tags a standalone test proves (it runs with --tags <tag>, outside the full-run-only block)
-const STANDALONE_TAGS = ['status-bar', 'upset-acknowledged', 'starter-tested', 'begin-keeps-turn', 'helper-work-counts', 'upset-es', 'feedback-usage', 'session-checklist', 'engine-bypassed', 'transcript-tail', 'instructions-run', 'answer-traced', 'stop-follow-on', 'stop-reblock', 'check-preview'];
+const STANDALONE_TAGS = ['status-bar', 'upset-acknowledged', 'helper-turn-checked', 'starter-tested', 'begin-keeps-turn', 'helper-work-counts', 'upset-es', 'feedback-usage', 'session-checklist', 'engine-bypassed', 'transcript-tail', 'instructions-run', 'answer-traced', 'stop-follow-on', 'stop-reblock', 'check-preview'];
 if (TAGS) {
   const all = [...STOP, ...PRETOOL, ...PROMPT];
   for (const t of TAGS) if (!HELPER && !TRIGGER_TAGS.includes(t) && !STANDALONE_TAGS.includes(t) && t !== 'selftest-speed' && !all.some(s => proves(s).includes(t))) report(false, `tags: a scenario proves ${t}`, `no scenario proves "${t}": add one to tools/hooks/project-scenarios.mjs (blocked when skipped, passes when followed)`);
@@ -8163,6 +8163,30 @@ if (mineB() && (!TAGS || TAGS.includes('upset-acknowledged'))) { // REQ: upset-a
     const generic = upsetLabels.filter(l => /^Learn from what upset the user/.test(l));
     report(upsetMsgs.length >= 12 && !generic.length && new Set(upsetLabels).size >= upsetMsgs.length - 2,
       'upset-learned: every part of the upset check has its own round label, not the one generic line', JSON.stringify({ n: upsetMsgs.length, generic: upsetMsgs.filter((_, i) => /^Learn from/.test(upsetLabels[i])).map(s => s.slice(0, 50)) }));
+    // REQ: helper-turn-checked. (a user message that reaches a helper is routed at its next tool call, and its hand-back
+    // waits for the routed checklist. Lesson (a field report): an upgrade asked of a helper skipped its runbook's
+    // research step: a helper gets no prompt hook and no Stop, and nothing held it)
+    const isDeny = o => /"permissionDecision":"deny"/.test(o);
+    const tpMain = path.join(dir, '.cache', 'main-s1.jsonl'), helperDir = path.join(dir, '.cache', 'main-s1', 'subagents');
+    fs.mkdirSync(helperDir, { recursive: true }); fs.writeFileSync(tpMain, '');
+    const hRow = text => JSON.stringify({ type: 'user', timestamp: new Date().toISOString(), message: { role: 'user', content: text } });
+    fs.writeFileSync(path.join(helperDir, 'agent-h1.jsonl'), [hRow('Review the export file.'), hRow('The user sent a new message while you were working:\nhide the anzuelo lines, all of them\n\nThis is how Claude Code surfaces messages the user sends mid-turn.')].join('\n') + '\n');
+    fs.writeFileSync(path.join(helperDir, 'agent-h2.jsonl'), hRow('Review the export file.') + '\n');
+    const inH = (id, tool, input) => pre({ tool_name: tool, tool_input: input, agent_id: id, agent_type: 'general-purpose', transcript_path: tpMain });
+    const hRouted = inH('h1', 'Bash', { command: 'ls' }), hHeld = inH('h1', 'SubagentHandback', { message: 'Done.' });
+    const items = hh.ledgerItems(fs.readFileSync(path.join(dir, 'docs/playbooks/status-lines.md'), 'utf8')).length;
+    fs.appendFileSync(path.join(dir, '.cache/turn-notes.md'), `Done status-lines 1-${items}: hid every kind of line, checked in the config\n`);
+    const hFreed = inH('h1', 'SubagentHandback', { message: 'Done.' }), hOther = inH('h2', 'SubagentHandback', { message: 'Done.' });
+    fs.writeFileSync(path.join(helperDir, 'agent-h3.jsonl'), hRow('The user sent a new message while you were working:\nhide the anzuelo lines') + '\n');
+    inH('h3', 'Read', { file_path: path.join(dir, 'README.md') });
+    const hStop = run(dir, 'subagentstop', { agent_id: 'h3', agent_type: 'general-purpose', transcript_path: tpMain, agent_transcript_path: path.join(helperDir, 'agent-h3.jsonl'), stop_hook_active: false }, env).out;
+    fs.writeFileSync(path.join(helperDir, 'agent-h4.jsonl'), hRow('The user sent a new message while you were working:\nWHY DID YOU SKIP THE CHECK AGAIN? THIS IS SUPER BAD') + '\n');
+    const hUpset = inH('h4', 'Read', { file_path: path.join(dir, 'README.md') });
+    fs.writeFileSync(path.join(dir, 'tools/hooks/state/upset-pending.json'), '{}');
+    report(/USER MESSAGE TO THIS HELPER/.test(hRouted) && /ROUTE: status-lines/.test(hRouted) && isDeny(hHeld) && /helper-turn-checked/.test(hHeld) && /THE USER SOUNDS UPSET/.test(hUpset)
+      && !isDeny(hFreed) && !isDeny(hOther) && /"decision":"block"/.test(hStop) && /helper-turn-checked/.test(hStop),
+      'helper-turn-checked: a user message that reaches a helper is routed at its next tool call (an upset one gets the upset hint); its hand-back (and SubagentStop) waits for the routed checklist; a helper the user never spoke to is not held',
+      JSON.stringify([hRouted, hHeld, hFreed, hOther, hStop, hUpset].map(o => String(o).slice(0, 160))));
     // (a record may cover several items, and only this turn's records count. Lesson (the user): a turn recorded
     // "Done 1-12", the count read item 1 alone and took 11 more from earlier turns' lines, and showed "11/12" on a pass)
     const span = hh.ledgerLines('Done 1-12: all of it\nSkip 2, 4: not in this request\nDone 7 - plain dash\n');
