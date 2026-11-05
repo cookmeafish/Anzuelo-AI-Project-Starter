@@ -14,8 +14,8 @@ export function missing(turn, acts, books = runbooks()) {
 
 export function onStop(data) {
   if (data.stop_hook_active) return null; // at most one block per turn
-  const acts = turnActs(turnRows(data.transcript_path || ''));
-  const list = [...missing(loadTurn(data.session_id), acts), ...testGaps(acts)];
+  const turn = loadTurn(data.session_id), acts = { ...turnActs(turnRows(data.transcript_path || '')), at: turn.at };
+  const list = [...missing(turn, acts), ...testGaps(acts)];
   if (!list.length) return null;
   return { decision: 'block', reason: `Not done yet:\n${list.map(s => `- ${s}`).join('\n')}\nDo these, then finish with only what changed.` };
 }

@@ -66,8 +66,14 @@ const earlier = missing(turn, acts([user('add a csv export'), read, edit, call('
 report(earlier.some(s => /item 1/.test(s)) && earlier.some(s => /Open/.test(s)), 'end: only this turn counts, not what an earlier turn did', earlier);
 report(missing({ runbook: null }, acts([user('fix it'), edit, say('Fixed.')])).length === 0, 'end: a turn no runbook fit is not held to one');
 report(onStop({ stop_hook_active: true, transcript_path: transcript([user('add a csv export'), edit]), session_id: 's' }) === null, 'end: never blocks twice in one turn');
-const viaCmd = missing(turn, acts([user('add a csv export'), read, edit, call('Bash', { command: 'npm test' }), call('Bash', { command: 'echo "- csv export" >> docs/CHANGELOG.md' }), say('How it was checked: tests.')]));
-report(viaCmd.length === 0, 'end: a file changed by a command counts as changed', viaCmd);
+put('docs/CHANGELOG.md', '# Changelog\n');
+const turnStart = new Date(Date.now() + 50).toISOString();
+const onlyNamed = missing(turn, { ...acts([user('add a csv export'), read, edit, call('Bash', { command: 'npm test' }), call('Bash', { command: 'cat docs/CHANGELOG.md' }), say('How it was checked: tests.')]), at: turnStart });
+report(onlyNamed.some(s => /item 2/.test(s)), 'end: a command that only names a file (cat) does not count as changing it', onlyNamed);
+await new Promise(r => setTimeout(r, 120));
+fs.appendFileSync(path.join(dir, 'docs/CHANGELOG.md'), '- csv export\n');
+const viaCmd = missing(turn, { ...acts([user('add a csv export'), read, edit, call('Bash', { command: 'npm test' }), call('Bash', { command: 'node tools/log.mjs "csv export"' }), say('How it was checked: tests.')]), at: turnStart });
+report(viaCmd.length === 0, 'end: a file a script changed during the turn counts as changed', viaCmd);
 
 // end: check 2, tests
 const { testGaps } = await import('./lib.mjs');
@@ -80,6 +86,16 @@ report(testGaps(acts([user('fix the total'), code, call('Bash', { command: 'node
 report(testGaps(acts([user('fix the total'), call('Bash', { command: 'npm test' }), code, say('Fixed.')])).length === 1, 'end: a test run before the last change does not cover it');
 report(testGaps(acts([user('fix the total'), code, call('Bash', { command: 'npm test' }, 'Tests: 2 failed', true), say('Fixed.')])).length === 1, 'end: a failing test run does not count');
 report(testGaps(acts([user('is the export fine?'), say('Yes, all 12 tests passed.')])).some(s => /no test run passed in this turn/.test(s)), 'end: an answer that claims passing tests with no run this turn is named');
+report(testGaps(acts([user('upgrade the engine'), call('Bash', { command: 'node tools/hooks/selfcheck.mjs --full > .cache/sc.txt; tail -1 .cache/sc.txt' }, 'selfcheck: ALL PASS (1655 passed, 0 failed)'), say('Upgraded: 1655 passed.')])).length === 0,
+  'end: a project\'s own test command whose output shows a passing summary backs "N passed"');
+report(testGaps(acts([user('upgrade the engine'), call('Bash', { command: 'node tools/check.mjs' }, 'checks: 12 passed, 2 failed'), say('Done, 12 passed.')])).length === 1,
+  'end: an output with failures does not back "passed"');
+const resumed = turnRows(transcript([user('fix the export'), code, { type: 'user', isCompactSummary: true, message: { role: 'user', content: 'This session is being continued from a previous conversation that ran out of context.' } }, say('Continuing.')]));
+report(resumed.length === 5, 'end: the summary that resumes a session is not a new request, so the turn keeps its earlier work', resumed.length);
+fs.rmSync(path.join(dir, 'package.json')); put('pyproject.toml', '[project]\nname = "tool"\n');
+report(testGaps(acts([user('fix the total'), code, say('Fixed.')])).length === 0, 'end: a build file alone (pyproject.toml, no test setup) asks for no tests');
+put('pyproject.toml', '[project]\nname = "tool"\n[tool.pytest.ini_options]\n');
+report(testGaps(acts([user('fix the total'), code, say('Fixed.')])).length === 1, 'end: a configured pytest asks for a test run after a code change');
 report(testGaps(acts([user('tidy the notes'), call('Edit', { file_path: path.join(dir, 'notes/a.md'), old_string: 'a', new_string: 'b' }), say('Tidied.')])).length === 0, 'end: a change to notes, not code, asks for no tests');
 
 fs.rmSync(dir, { recursive: true, force: true });
