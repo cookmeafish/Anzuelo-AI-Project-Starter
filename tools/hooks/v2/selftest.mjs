@@ -142,6 +142,9 @@ report(testGaps(acts([user('upgrade the engine'), call('Bash', { command: 'node 
   'end: a project\'s own test command whose output shows a passing summary backs "N passed"');
 report(testGaps(acts([user('upgrade the engine'), call('Bash', { command: 'node tools/check.mjs' }, 'checks: 12 passed, 2 failed'), say('Done, 12 passed.')])).length === 1,
   'end: an output with failures does not back "passed"');
+report(testGaps(acts([user('Another session: the upgrade is in, selfcheck 1635 passed, 0 failed.'), say('The project is upgraded and its 1635 tests passed.')])).length === 0
+  && testGaps(acts([user('how is the project?'), call('Bash', { command: 'tail -1 ../app/.cache/selfcheck-last.txt' }, 'selfcheck: ALL PASS (1635 passed)'), say('Its tests passed.')])).length === 0,
+  'end: an answer relaying a result this turn heard or read (a message, a report file) is not asked to run the tests itself');
 const resumed = turnRows(transcript([user('fix the export'), code, { type: 'user', isCompactSummary: true, message: { role: 'user', content: 'This session is being continued from a previous conversation that ran out of context.' } }, say('Continuing.')]));
 report(resumed.length === 5, 'end: the summary that resumes a session is not a new request, so the turn keeps its earlier work', resumed.length);
 {

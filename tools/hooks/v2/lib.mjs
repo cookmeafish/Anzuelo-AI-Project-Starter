@@ -126,13 +126,19 @@ codexRows.patch = (out, timestamp, id, patch) => {
 };
 
 // This turn's rows from a transcript (Claude Code or Codex): everything after the last message the user typed.
+export const startsTurn = (rows, i) => {
+  const r = rows[i];
+  if (typed(r)) return true;
+  if (r.type !== 'user' || typeof r.message?.content !== 'string' || r.isCompactSummary) return false;
+  for (let j = i + 1; j < rows.length && j <= i + 3; j++) if (rows[j].attachment?.hookEvent === 'UserPromptSubmit') return true;
+  return false;
+};
 export function turnRows(transcript) {
   const rows = codexRows(tail(transcript).split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean));
   // (a row the host wrote, such as a message from another session, starts a turn when the prompt hook ran on it.
   // Lesson: a peer's turn of read-only commands reached back to the last typed request and was held to its edits)
-  const prompted = i => { for (let j = i + 1; j < rows.length && j <= i + 3; j++) if (rows[j].attachment?.hookEvent === 'UserPromptSubmit') return true; return false; };
   let start = 0;
-  rows.forEach((r, i) => { if (typed(r) || (r.type === 'user' && typeof r.message?.content === 'string' && !r.isCompactSummary && prompted(i))) start = i; });
+  rows.forEach((r, i) => { if (startsTurn(rows, i)) start = i; });
   return rows.slice(start);
 }
 
@@ -162,12 +168,12 @@ export const backgroundRunsOf = transcript => backgroundRuns(codexRows(tail(tran
 // What the turn did: tool calls with their results, and the last text the agent wrote.
 export function turnActs(rows) {
   const calls = [], byId = new Map();
-  let answer = '', context = '', started = '';
+  let answer = '', context = '', started = '', heard = '';
   for (const r of rows) {
     started ||= r.timestamp || '';
     // (what the hooks and the host showed the agent this turn: evidence too, like a version a status line named)
     if (r.attachment) context += JSON.stringify(r.attachment.content ?? r.attachment).slice(0, 20000) + '\n';
-    if (r.type === 'user' && typeof r.message?.content === 'string') context += r.message.content.slice(0, 20000) + '\n';
+    if (r.type === 'user' && typeof r.message?.content === 'string') { context += r.message.content.slice(0, 20000) + '\n'; heard += r.message.content.slice(0, 20000) + '\n'; }
     const c = r.message?.content;
     if (!Array.isArray(c)) continue;
     for (const x of c) {
@@ -179,7 +185,7 @@ export function turnActs(rows) {
       if (r.type === 'assistant' && x.type === 'text' && x.text.trim()) answer = x.text;
     }
   }
-  return { calls, answer, context, started };
+  return { calls, answer, context, started, heard };
 }
 
 // The files a path or glob names: walked from its fixed part, at most 20,000. Bulk folders below it are skipped
@@ -283,7 +289,10 @@ export function testGaps(acts) {
   const hasTests = anyRunner || !!testScript() || declared().length > 0 || ['pytest.ini', 'conftest.py', 'tests', 'test', '__tests__', 'spec'].some(has)
     || /\[tool\.pytest/.test(pyproject) || ['**/*_test.go', '**/test_*.py', '**/*_test.py', '**/*.test.js', '**/*.test.mjs', '**/*.test.ts'].some(g => filesMatching(g).length > 0);
   if ((lastCode >= 0 || codeWrite) && hasTests && !passes.some(k => k > lastCode && (!codeWrite || acts.calls[k].done > codeWrite))) out.push('Run the tests after the last code change, and say the result.');
-  else if (/\b(all )?tests? (now )?pass(ed|es|ing)?\b|\b\d+ (tests? )?passed\b/i.test(acts.answer) && !passes.length) out.push('The answer says tests passed, but no test run passed in this turn: run them, or correct the answer.');
+  // (a result this turn read, in a message or a command's output, may be relayed. Lesson (replay): answers passing on
+  // another session's or a project's test results were asked to run tests themselves)
+  else if (/\b(all )?tests? (now )?pass(ed|es|ing)?\b|\b\d+ (tests? )?passed\b/i.test(acts.answer) && !passes.length
+    && ![acts.heard || '', ...acts.calls.map(c => c.out)].join('\n').split('\n').some(l => /\b\d+ (tests? )?passed\b|\bALL PASS\b/i.test(l) && !/\b[1-9]\d* (tests? )?fail/i.test(l))) out.push('The answer says tests passed, but no test run passed in this turn: run them, or correct the answer.');
   return out;
 }
 
