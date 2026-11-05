@@ -183,6 +183,24 @@ export function testGaps(acts) {
   return out;
 }
 
+// Check 3: a screen changed, and no screenshot taken after the change was looked at. Only in a project that can take
+// them (tools/screenshot.mjs). Replay: the old engine's screenshot ask found a real problem in 7 of 13 runs.
+const SCREEN = /\.(html?|css|scss|jsx|tsx|vue|svelte|xaml|qml)$|(^|\/)(gui|ui|templates|components)\//i;
+// (tests and their fixtures in a gui folder show nothing on screen. Lesson (replay): edits to a gui folder's tests asked
+// for screenshots)
+const NOT_SCREEN = /^(\.cache|docs|skills|packs|library|node_modules|dist|build|tools\/hooks)\/|\.md$|(^|\/)(tests?|fixtures|__tests__)\/|(^|\/)test_[^/]*$|[._-]test\.\w+$/i;
+export function screenGaps(acts) {
+  if (!fs.existsSync(path.join(ROOT, 'tools/screenshot.mjs'))) return [];
+  const screen = p => { const r = relp(p); return SCREEN.test(r) && !NOT_SCREEN.test(r) && !/^(\.\.|[a-z]:)/i.test(r); };
+  const i = acts.calls.map((c, k) => [c, k]);
+  const lastEdit = Math.max(-1, ...i.filter(([c]) => /^(Edit|Write|MultiEdit)$/.test(c.name) && screen(c.input.file_path || '')).map(([, k]) => k));
+  const lastWrite = Math.max(0, ...changedSince(Date.parse(acts.at || '') || 0, { test: screen }).map(mtime));
+  if (lastEdit < 0 && !lastWrite) return [];
+  const shot = i.find(([c, k]) => k > lastEdit && /^(Bash|PowerShell)$/.test(c.name) && !c.error && /screenshot/i.test(String(c.input.command || '')) && (!lastWrite || c.done > lastWrite));
+  const looked = shot && i.some(([c, k]) => k > shot[1] && c.name === 'Read' && /\.(png|jpe?g|webp)$/i.test(String(c.input.file_path || '')));
+  return looked ? [] : ['A screen changed: take screenshots after the last change (node tools/screenshot.mjs) and look at them.'];
+}
+
 // Whether the turn opened the runbook (read it, or ran its skill).
 export const opened = (book, acts) => acts.calls.some(c => (c.name === 'Read' && relp(c.input.file_path || '') === book.file)
   || (c.name === 'Skill' && String(c.input.skill || '').replace(/^.*:/, '') === book.name)

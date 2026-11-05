@@ -146,6 +146,23 @@ report(testGaps(acts([user('fix the page'), page, say('Fixed.')])).length === 1
 put('tools/hooks/config.json', JSON.stringify({ commitGate: [{ cmd: 'python site/verify\\.py && node site/controls\\.js', when: ['site/**'] }] }));
 report(gateGaps(acts([user('tidy the notes'), call('Edit', { file_path: path.join(dir, 'notes/a.md'), old_string: 'a', new_string: 'b' }), say('Tidied.')])).length === 0, 'end: a change outside a declared check\'s files asks for nothing');
 
+// end: check 3, screens
+const { screenGaps } = await import('./lib.mjs');
+const css = call('Edit', { file_path: path.join(dir, 'web/site.css'), old_string: 'a', new_string: 'b' });
+const shoot = call('Bash', { command: 'node tools/screenshot.mjs --file web/index.html' }, 'SCREENSHOT: .cache/gui-review/1/index.png');
+const look = call('Read', { file_path: path.join(dir, '.cache/gui-review/1/index.png') });
+report(screenGaps(acts([user('make the header blue'), css, say('Done.')])).length === 0, 'end: a project with no screenshot tool is not asked for screenshots');
+put('tools/screenshot.mjs', '// shots\n');
+report(screenGaps(acts([user('make the header blue'), css, say('Done.')])).length === 1, 'end: a changed screen with no screenshots is named');
+report(screenGaps(acts([user('make the header blue'), css, shoot, say('Done.')])).length === 1, 'end: screenshots taken but never looked at do not count');
+report(screenGaps(acts([user('make the header blue'), css, shoot, look, say('Done.')])).length === 0, 'end: screenshots taken after the change and looked at pass');
+report(screenGaps(acts([user('make the header blue'), shoot, look, css, say('Done.')])).length === 1, 'end: screenshots from before the last change do not cover it');
+report(screenGaps(acts([user('tidy the notes'), call('Edit', { file_path: path.join(dir, 'docs/ui/a.html'), old_string: 'a', new_string: 'b' }), call('Write', { file_path: path.join(dir, '.cache/x.html'), content: 'x' }), say('Tidied.')])).length === 0,
+  'end: pages under docs or .cache are not screens');
+report(screenGaps(acts([user('fix the paste test'), call('Edit', { file_path: path.join(dir, 'app/gui/test_text.py'), old_string: 'a', new_string: 'b' }), call('Edit', { file_path: path.join(dir, 'app/gui/fixtures/fake.py'), old_string: 'a', new_string: 'b' }), say('Fixed.')])).length === 0
+  && screenGaps(acts([user('fix the panel'), call('Edit', { file_path: path.join(dir, 'app/gui/panel.py'), old_string: 'a', new_string: 'b' }), say('Fixed.')])).length === 1,
+  'end: tests and fixtures in a gui folder are not screens; the gui code itself is');
+
 // shadow: beside v1, v2 only logs
 const { shadow } = await import('./shadow.mjs');
 const shadowLog = path.join(dir, 'tools/hooks/state/v2-shadow.jsonl');
