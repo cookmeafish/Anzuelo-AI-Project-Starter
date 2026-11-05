@@ -257,6 +257,28 @@ export function knowledgeGaps(acts) {
   return bare.length && !sourcesEdited && !sourcesWritten ? [`New facts in ${bare.slice(0, 3).join(', ')} name no source: add where each came from (a link read this turn, a project file, or the user).`] : [];
 }
 
+// Check 6: code that touches sign-in, secrets, commands, uploads, payments or personal data was written, and the turn
+// neither ran the security review nor wrote its report. The pattern and the files are the project's own
+// (tools/hooks/requirements.json, "security-code"), so a project tunes them in one place. Replay: the old engine's ask
+// found a real problem in 3 of 4 runs.
+const securitySpec = () => { try { return JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/hooks/requirements.json'), 'utf8')).requirements.find(r => r.tag === 'security-code')?.when?.changedContentMatches || null; } catch { return null; } };
+export function securityGaps(acts) {
+  const spec = securitySpec();
+  if (!spec?.pattern) return [];
+  let rx; try { rx = new RegExp(spec.pattern, 'i'); } catch { return []; }
+  const files = (spec.files || []).map(globRx), ignore = (spec.ignore || []).map(globRx);
+  const covered = r => files.some(x => x.test(r)) && !ignore.some(x => x.test(r)) && !/^(\.\.|[a-z]:)/i.test(r);
+  const hit = acts.calls.filter(c => /^(Edit|Write|MultiEdit)$/.test(c.name) && covered(relp(c.input.file_path || '')))
+    .filter(c => rx.test(String(c.input.new_string ?? c.input.content ?? (c.input.edits || []).map(e => e.new_string).join('\n'))))
+    .map(c => relp(c.input.file_path));
+  if (!hit.length) return [];
+  const reviewed = acts.calls.some(c => (c.name === 'Skill' && /security-review$/.test(String(c.input.skill || '')))
+    || (c.name === 'Read' && /skills[\\/]security-review[\\/]SKILL\.md$/i.test(String(c.input.file_path || '')))
+    || (/^(Edit|Write)$/.test(c.name) && /^docs\/reviews\/security[^/]*\.md$/i.test(relp(c.input.file_path || ''))))
+    || changedSince(acts, { test: r => /^docs\/reviews\/security[^/]*\.md$/i.test(r) }).length > 0;
+  return reviewed ? [] : [`Security-sensitive code changed (${[...new Set(hit)].slice(0, 3).join(', ')}): run the security review (skills/security-review/SKILL.md) and say its result.`];
+}
+
 // Whether the turn opened the runbook (read it, or ran its skill).
 export const opened = (book, acts) => acts.calls.some(c => (c.name === 'Read' && relp(c.input.file_path || '') === book.file)
   || (c.name === 'Skill' && String(c.input.skill || '').replace(/^.*:/, '') === book.name)

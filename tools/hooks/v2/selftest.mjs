@@ -220,6 +220,19 @@ report(knowledgeGaps(acts([user('fix a typo'), fact('Tides'), fact(plain, 'docs/
   fs.rmSync(path.join(dir, '.git'), { recursive: true, force: true });
 }
 
+// end: check 6, security review
+const { securityGaps } = await import('./lib.mjs');
+const login = call('Edit', { file_path: path.join(dir, 'src/login.js'), old_string: 'a', new_string: 'const ok = await bcrypt.compare(password, user.hash);' });
+report(securityGaps(acts([user('add sign-in'), login, say('Done.')])).length === 0, 'end: a project that declares no security pattern is not checked');
+put('tools/hooks/requirements.json', JSON.stringify({ requirements: [{ tag: 'security-code', when: { changedContentMatches: { pattern: '\\b(bcrypt|password|subprocess)\\b', files: ['**/*.js', '**/*.py'], ignore: ['tools/hooks/**'] } } }] }));
+report(securityGaps(acts([user('add sign-in'), login, say('Done.')])).length === 1, 'end: security-sensitive code with no review is named');
+report(securityGaps(acts([user('add sign-in'), login, call('Skill', { skill: 'security-review' }), say('Done.')])).length === 0
+  && securityGaps(acts([user('add sign-in'), login, call('Write', { file_path: path.join(dir, 'docs/reviews/security-2026-11-05.md'), content: 'PASS' }), say('Done.')])).length === 0,
+  'end: the security review run, or its report written, in the turn passes');
+report(securityGaps(acts([user('fix the total'), code, call('Edit', { file_path: path.join(dir, 'tools/hooks/x.js'), old_string: 'a', new_string: 'subprocess' }), call('Edit', { file_path: path.join(dir, 'notes/a.md'), old_string: 'a', new_string: 'password' }), say('Fixed.')])).length === 0,
+  'end: plain code, ignored folders and notes ask for no review');
+fs.rmSync(path.join(dir, 'tools/hooks/requirements.json'));
+
 // shadow: beside v1, v2 only logs
 const { shadow } = await import('./shadow.mjs');
 const shadowLog = path.join(dir, 'tools/hooks/state/v2-shadow.jsonl');

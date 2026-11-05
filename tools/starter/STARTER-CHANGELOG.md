@@ -11,6 +11,7 @@ hooks:**, and an upgrade lists each one as its own review item.
   - v2's end check 3: when a screen file changed, screenshots taken after the change must be looked at (projects with tools/screenshot.mjs only). Tests and fixtures in a gui folder are not screens.
   - v2's end check 4: after a change to rules, runbooks, checks, skills or hook settings with no passing health check after it, the end check runs `tools/audit.mjs` and asks only about a failure not reported before. In shadow it is never run.
   - v2's end check 5: new text in the knowledge folders names its source (a link, a project file or the user), or the sources list changed with it. Files a script changed are read from their git diff.
+  - v2's end check 6: new code matching the project's security pattern (requirements.json "security-code") asks for the security review unless the turn ran it or wrote its report.
   - v2 sees changes in projects with large .cache folders: the file walk skips bulk folders and runs once per turn.
   - v2's tests check now honors the project's declared "test", "build" and "commitGate" commands in config.json. In a live turn it also counts code changed by helpers and scripts since the turn began. Scratch scripts in .cache are not project code.
 - 2026-11-05 (engine): engine v2 started, off by default. `"engine": "v2"` in tools/hooks/config.json turns it on.
