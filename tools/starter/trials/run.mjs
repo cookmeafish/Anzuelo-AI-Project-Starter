@@ -148,6 +148,10 @@ async function one(id) {
       .map(c => c.name === 'Skill' ? `skill:${c.input?.skill || ''}` : String(c.input?.file_path || '').replace(/\\/g, '/'))
       .map(p => (/(docs\/playbooks\/[^/]+\.md|skills\/[^/]+\/SKILL\.md|SETUP-PROMPT\.md)$/.exec(p) || [])[1] || (p.startsWith('skill:') ? p : '')).filter(Boolean))];
     const blockTags = [...new Set(rows.map(text).filter(x => /Almost done:/.test(x)).flatMap(x => (/Names: ([\w ,-]+)/.exec(x) || [, ''])[1].split(/,\s*/)).map(s => s.trim()).filter(Boolean))];
+    // (engine v2 blocks as a hook_blocking_error, one per Stop: each named by its kind of line. Lesson (v32): the
+    // round counted none of them and reported 0% blocked)
+    const v2Blocks = rows.filter(r => r.attachment?.type === 'hook_blocking_error' && r.attachment.hookEvent === 'Stop').map(r => String(r.attachment.blockingError?.blockingError || ''));
+    for (const b of v2Blocks) blockTags.push(...[...b.matchAll(/^- (.{0,40})/gm)].map(m => `v2: ${m[1].replace(/[\w./-]+\.md\b/g, '<runbook>').trim()}`), ...(/Check that these items/.test(b) ? ['v2: verify the runbook items'] : []));
     // what the starter's own hooks cost this turn: text they put into the conversation, tool calls they denied (each a
     // full extra round), and Stop blocks (each another round)
     const overhead = { hookChars: 0, denials: 0, stopBlocks: 0 };
@@ -160,6 +164,7 @@ async function one(id) {
         overhead.hookChars += body.length;
         if (a.hookEvent === 'Stop' && /Almost done:/.test(body)) overhead.stopBlocks++;
       }
+      if (r.type === 'attachment' && a?.type === 'hook_blocking_error' && a.hookEvent === 'Stop') { overhead.stopBlocks++; overhead.hookChars += String(a.blockingError?.blockingError || '').length; }
       const c = r.message?.content;
       const said = v => typeof v === 'string' ? v : Array.isArray(v) ? v.map(y => y?.text || '').join('') : '';
       if (r.type === 'user' && Array.isArray(c)) for (const x of c) if (x?.type === 'tool_result' && /^PreToolUse:\S+ hook error: /.test(said(x.content))) overhead.denials++;
