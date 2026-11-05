@@ -93,12 +93,15 @@ export function turnActs(rows) {
   return { calls, answer };
 }
 
-// The files a path or glob names: walked from its fixed part, skipping .git and node_modules, at most 2,000.
+// The files a path or glob names: walked from its fixed part, at most 20,000. Bulk folders below it are skipped
+// (.git, node_modules, .cache, virtual environments, build output). Lesson: one project held 40,000 files in .cache, and
+// a 2,000-file cap hid every change outside it.
+const BULK = new Set(['.git', 'node_modules', '.cache', '.venv', 'venv', '__pycache__', 'dist', 'build', '.next', 'target']);
 function filesMatching(glob) {
   const g = glob.replace(/\\/g, '/'), rx = globRx(g), base = g.split('/').filter((s, i, a) => !/[*?]/.test(a.slice(0, i + 1).join('/'))).join('/');
   if (!/[*?]/.test(g)) return fs.existsSync(path.join(ROOT, g)) ? [g] : [];
-  const out = [], walk = d => { if (out.length > 2000) return; let es = []; try { es = fs.readdirSync(path.join(ROOT, d), { withFileTypes: true }); } catch { return; }
-    for (const e of es) { if (e.name === '.git' || e.name === 'node_modules') continue; const p = d ? `${d}/${e.name}` : e.name; if (e.isDirectory()) walk(p); else if (rx.test(p)) out.push(p); } };
+  const out = [], walk = d => { if (out.length > 20000) return; let es = []; try { es = fs.readdirSync(path.join(ROOT, d), { withFileTypes: true }); } catch { return; }
+    for (const e of es) { if (e.isDirectory() && BULK.has(e.name)) continue; const p = d ? `${d}/${e.name}` : e.name; if (e.isDirectory()) walk(p); else if (rx.test(p)) out.push(p); } };
   walk(base);
   return out;
 }
@@ -142,7 +145,9 @@ export function isTestRun(cmd) {
 const CODE = /\.(js|mjs|cjs|ts|tsx|jsx|py|go|rs|java|kt|cs|rb|php|swift|c|cc|cpp|h|vue|svelte)$/i;
 // Files changed in the turn: edited by a tool, or (in a live turn) written since it began by anything, a helper or a
 // script included. Lesson (replay): edits made by helpers were invisible, and their code went untested.
-const changedSince = (since, rx) => since ? filesMatching('**/*').filter(f => rx.test(f) && !/^(\.cache|tools\/hooks\/state)\//.test(f) && (() => { try { return fs.statSync(path.join(ROOT, f)).mtimeMs > since; } catch { return false; } })()) : [];
+// (the tree is walked once per turn checked, whatever number of checks ask)
+const walked = new WeakMap();
+const changedSince = (acts, rx) => { const since = Date.parse(acts.at || '') || 0; if (!since) return []; if (!walked.has(acts)) walked.set(acts, filesMatching('**/*')); return walked.get(acts).filter(f => rx.test(f) && !/^(\.cache|tools\/hooks\/state)\//.test(f) && (() => { try { return fs.statSync(path.join(ROOT, f)).mtimeMs > since; } catch { return false; } })()); };
 const mtime = f => { try { return fs.statSync(path.join(ROOT, f)).mtimeMs; } catch { return 0; } };
 // The project's own declared checks: tools/hooks/config.json "commitGate" entries, a command (a regex) and the files it
 // covers. A change to those files asks for that command to pass afterwards.
@@ -152,7 +157,7 @@ export function gateGaps(acts) {
   for (const g of gates()) {
     const when = [].concat(g.when || []).map(globRx), hit = p => when.some(rx => rx.test(p));
     const edits = acts.calls.map((c, k) => [c, k]).filter(([c]) => /^(Edit|Write|MultiEdit)$/.test(c.name) && hit(relp(c.input.file_path || '')));
-    const files = changedSince(since, { test: hit });
+    const files = changedSince(acts, { test: hit });
     if (!edits.length && !files.length) continue;
     const lastEdit = Math.max(-1, ...edits.map(([, k]) => k)), lastWrite = Math.max(0, ...files.map(mtime));
     // (a chained command counts part by part: the agent may run its steps one at a time)
@@ -172,7 +177,7 @@ export function testGaps(acts) {
   const own = p => { const r = relp(p); return CODE.test(r) && !/^(\.\.|\.cache\/|[a-z]:)/i.test(r); };
   const lastCode = Math.max(-1, ...i.filter(([c]) => /^(Edit|Write|MultiEdit)$/.test(c.name) && own(c.input.file_path || '')).map(([, k]) => k));
   const passes = i.filter(([c]) => passedRun(c)).map(([, k]) => k);
-  const codeWrite = Math.max(0, ...changedSince(Date.parse(acts.at || '') || 0, CODE).map(mtime));
+  const codeWrite = Math.max(0, ...changedSince(acts, CODE).map(mtime));
   const anyRunner = i.some(([c]) => /^(Bash|PowerShell)$/.test(c.name) && isTestRun(String(c.input.command || '')));
   // (a project has tests when a runner was seen this turn or a test setup exists, not just a build file. Lesson
   // (review): pyproject.toml and go.mod are in many projects with no tests at all)
@@ -195,7 +200,7 @@ export function screenGaps(acts) {
   const screen = p => { const r = relp(p); return SCREEN.test(r) && !NOT_SCREEN.test(r) && !/^(\.\.|[a-z]:)/i.test(r); };
   const i = acts.calls.map((c, k) => [c, k]);
   const lastEdit = Math.max(-1, ...i.filter(([c]) => /^(Edit|Write|MultiEdit)$/.test(c.name) && screen(c.input.file_path || '')).map(([, k]) => k));
-  const lastWrite = Math.max(0, ...changedSince(Date.parse(acts.at || '') || 0, { test: screen }).map(mtime));
+  const lastWrite = Math.max(0, ...changedSince(acts, { test: screen }).map(mtime));
   if (lastEdit < 0 && !lastWrite) return [];
   const shot = i.find(([c, k]) => k > lastEdit && /^(Bash|PowerShell)$/.test(c.name) && !c.error && /screenshot/i.test(String(c.input.command || '')) && (!lastWrite || c.done > lastWrite));
   const looked = shot && i.some(([c, k]) => k > shot[1] && c.name === 'Read' && /\.(png|jpe?g|webp)$/i.test(String(c.input.file_path || '')));
@@ -211,7 +216,7 @@ export function healthGaps(acts, { run = true } = {}) {
   const own = p => STRUCTURE.test(relp(p));
   const i = acts.calls.map((c, k) => [c, k]);
   const lastEdit = Math.max(-1, ...i.filter(([c]) => /^(Edit|Write|MultiEdit)$/.test(c.name) && own(c.input.file_path || '')).map(([, k]) => k));
-  const lastWrite = Math.max(0, ...changedSince(Date.parse(acts.at || '') || 0, { test: own }).map(mtime));
+  const lastWrite = Math.max(0, ...changedSince(acts, { test: own }).map(mtime));
   if (lastEdit < 0 && !lastWrite) return [];
   if (i.some(([c, k]) => k > lastEdit && /^(Bash|PowerShell)$/.test(c.name) && !c.error && /audit\.mjs/.test(String(c.input.command || '')) && /audit: PASS/.test(c.out || '') && (!lastWrite || c.done > lastWrite))) return [];
   if (!run) return ['(the health check would run here)'];
@@ -226,6 +231,30 @@ export function healthGaps(acts, { run = true } = {}) {
   saveTurn('health', { fails, ms });
   if (fails.length && !fresh.length) return [];
   return [`The project's health check (node tools/audit.mjs) fails after this change: ${fresh.slice(0, 3).join('; ') || 'see its output'}. Fix it and run it again.`];
+}
+
+// Check 5: new facts written into the knowledge base name where they came from. The outcome, not the process: each
+// knowledge edit's new text carries a source (a link, a project file, "source:", a footnote, "the user said"), or a
+// sources list edited in the same turn does. Replay: the old engine's ask found a real problem in 4 of 7 runs.
+const knowledgeDirs = () => { try { return JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/hooks/config.json'), 'utf8')).knowledgeDirs || ['docs/knowledge']; } catch { return ['docs/knowledge']; } };
+const SOURCED = /https?:\/\/|\bsources?\s*:|\[\^[^\]]+\]|\b(the )?user (said|told|gave|wrote)\b|\bobserved\b|\(from [\w./-]+\)|\b[\w-]+\/[\w./-]+\.(md|txt|csv|json|pdf)\b/i;
+export function knowledgeGaps(acts) {
+  const dirs = knowledgeDirs().map(d => d.replace(/\/+$/, '') + '/');
+  const isK = r => dirs.some(d => r.startsWith(d)) && !/(^|\/)(README|SOURCES|INDEX)\.md$/i.test(r);
+  const sourcesEdited = acts.calls.some(c => /^(Edit|Write|MultiEdit)$/.test(c.name) && /(^|\/)SOURCES\.md$/i.test(relp(c.input.file_path || '')));
+  const sourcesWritten = changedSince(acts, { test: r => /(^|\/)SOURCES\.md$/i.test(r) }).length > 0;
+  const bare = [...new Set(acts.calls.filter(c => /^(Edit|Write|MultiEdit)$/.test(c.name) && isK(relp(c.input.file_path || '')))
+    .filter(c => { const t = String(c.input.new_string ?? c.input.content ?? (c.input.edits || []).map(e => e.new_string).join('\n')); return t.trim().length > 80 && !SOURCED.test(t); })
+    .map(c => relp(c.input.file_path)))];
+  // (in a live turn, a knowledge file a script wrote: its lines added since the last commit. Lesson (replay): facts
+  // merged into the knowledge base by a script were never seen)
+  const edited = new Set(acts.calls.filter(c => /^(Edit|Write|MultiEdit)$/.test(c.name)).map(c => relp(c.input.file_path || '')));
+  for (const f of changedSince(acts, { test: isK }).filter(f => !edited.has(f) && f.endsWith('.md'))) {
+    const d = spawnSync('git', ['diff', '-U0', '--', f], { cwd: ROOT, encoding: 'utf8', timeout: 5000 }).stdout || '';
+    const added = d.split('\n').filter(l => /^\+(?!\+\+)/.test(l)).map(l => l.slice(1)).join('\n');
+    if (added.trim().length > 80 && !SOURCED.test(added)) bare.push(f);
+  }
+  return bare.length && !sourcesEdited && !sourcesWritten ? [`New facts in ${bare.slice(0, 3).join(', ')} name no source: add where each came from (a link read this turn, a project file, or the user).`] : [];
 }
 
 // Whether the turn opened the runbook (read it, or ran its skill).

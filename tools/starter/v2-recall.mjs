@@ -10,7 +10,7 @@ const since = args.includes('--since') ? args[args.indexOf('--since') + 1] : '20
 process.env.ANZUELO_ROOT = path.resolve(project);
 const { reminder } = await import('../hooks/v2/start.mjs');
 const { missing } = await import('../hooks/v2/end.mjs');
-const { turnActs, testGaps, gateGaps, screenGaps, healthGaps, runbooks, typed } = await import('../hooks/v2/lib.mjs');
+const { turnActs, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, runbooks, typed } = await import('../hooks/v2/lib.mjs');
 const books = runbooks();
 import { firstTry, withShellEdits } from './replay-lib.mjs';
 
@@ -21,7 +21,7 @@ const KINDS = [
   ['claim', /claim in it is not backed|did you make that up|says nothing like it|correct the answer/i],
   ['security', /security review/i],
   ['screens', /screenshot|visual review|accessibility/i],
-  ['knowledge', /knowledge base|used the web in a knowledge/i],
+  ['knowledge', /knowledge base|used the web in a knowledge|name no source/i],
   ['lesson', /learn from what upset|lesson/i],
   ['plan', /\bplan\b/i],
   ['records', /changelog|status\.md|decisions/i],
@@ -54,7 +54,7 @@ for (const f of fs.readdirSync(tdir).filter(f => f.endsWith('.jsonl')).map(f => 
     });
     if (!real.size) return;
     const r = reminder(rows[s].message.content), acts = withShellEdits(turnActs(firstTry(slice)));
-    const v2list = [...missing({ runbook: r.book?.file || null }, acts, books), ...testGaps(acts), ...gateGaps(acts), ...screenGaps(acts), ...healthGaps(acts, { run: false })], v2 = new Set(kindsOf(v2list.join('\n')));
+    const v2list = [...missing({ runbook: r.book?.file || null }, acts, books), ...testGaps(acts), ...gateGaps(acts), ...screenGaps(acts), ...healthGaps(acts, { run: false }), ...knowledgeGaps(acts)], v2 = new Set(kindsOf(v2list.join('\n')));
     for (const kd of real) add(kd, v2.has(kd));
     // --show <kind>: what v1 asked on each such turn, and what v2 asked
     const show = args.includes('--show') ? args[args.indexOf('--show') + 1] : '';

@@ -92,6 +92,17 @@ fs.appendFileSync(path.join(dir, 'docs/CHANGELOG.md'), '- csv export\n');
 const viaCmd = missing(turn, { ...acts([user('add a csv export'), read, edit, call('Bash', { command: 'npm test' }), call('Bash', { command: 'node tools/log.mjs "csv export"' }), say('How it was checked: tests.')]), at: turnStart });
 report(viaCmd.length === 0, 'end: a file a script changed during the turn counts as changed', viaCmd);
 
+{
+  // a project with a large .cache: a change elsewhere is still seen
+  for (let k = 0; k < 2100; k++) put(`.cache/bulk/f${k}.txt`, 'x');
+  const bulkStart = new Date(Date.now() + 50).toISOString();
+  await new Promise(r => setTimeout(r, 120));
+  fs.appendFileSync(path.join(dir, 'docs/CHANGELOG.md'), '- bulk\n');
+  const bulk = missing(turn, { ...acts([user('add a csv export'), read, edit, call('Bash', { command: 'npm test' }), call('Bash', { command: 'node tools/log.mjs' }), say('How it was checked: tests.')]), at: bulkStart });
+  report(!bulk.some(s => /item 2/.test(s)), 'end: thousands of files in .cache do not hide a change elsewhere', bulk);
+  fs.rmSync(path.join(dir, '.cache/bulk'), { recursive: true });
+}
+
 // end: check 2, tests
 const { testGaps } = await import('./lib.mjs');
 put('package.json', JSON.stringify({ scripts: { test: 'node --test tests/*.test.mjs' } }));
@@ -181,6 +192,33 @@ report(healthGaps(acts([user('add a step'), rule, call('Bash', { command: 'node 
   'end: a passing health check the agent ran after the change is enough; it is not run again');
 report(/would run/.test(healthGaps(acts([user('add a step'), rule, say('Added.')]), { run: false })[0] || '') && ranCount() === before, 'end: in shadow the health check is only noted, never run');
 fs.rmSync(path.join(dir, 'tools/audit.mjs'));
+
+// end: check 5, knowledge sources
+const { knowledgeGaps } = await import('./lib.mjs');
+const fact = (text, f = 'docs/knowledge/tides.md') => call('Edit', { file_path: path.join(dir, f), old_string: 'a', new_string: text });
+const plain = 'The spring tide at the north pier reaches 4.2 metres in March, and the harbour closes for two days each year.';
+report(knowledgeGaps(acts([user('add the tide facts'), fact(plain), say('Added.')])).length === 1, 'end: new knowledge text with no source is named');
+report(knowledgeGaps(acts([user('add the tide facts'), fact(plain + ' Source: https://example.org/tides (read 2026-11-05).'), say('Added.')])).length === 0
+  && knowledgeGaps(acts([user('add the tide facts'), fact(plain + ' (observed, 2026-11-05, from data/tides.csv)'), say('Added.')])).length === 0
+  && knowledgeGaps(acts([user('add the tide facts'), fact(plain + ' The user said this on 2026-11-05.'), say('Added.')])).length === 0,
+  'end: a link, a project file or the user as the source passes');
+report(knowledgeGaps(acts([user('add the tide facts'), fact(plain), call('Edit', { file_path: path.join(dir, 'docs/knowledge/SOURCES.md'), old_string: 'a', new_string: '| tides | https://example.org |' }), say('Added.')])).length === 0,
+  'end: a sources list edited in the same turn covers the new facts');
+report(knowledgeGaps(acts([user('fix a typo'), fact('Tides'), fact(plain, 'docs/knowledge/README.md'), fact(plain, 'notes/tides.md'), say('Fixed.')])).length === 0,
+  'end: a short fix, the knowledge index files and notes outside the knowledge base ask for nothing');
+{
+  const { execSync } = await import('node:child_process');
+  const git = c => execSync(`git ${c}`, { cwd: dir, stdio: 'pipe' });
+  put('docs/knowledge/pier.md', '# Pier\n'); git('init -q'); git('-c user.name=t -c user.email=t@t add docs/knowledge/pier.md'); git('-c user.name=t -c user.email=t@t commit -q -m base');
+  const kStart = new Date(Date.now() + 50).toISOString();
+  await new Promise(r => setTimeout(r, 120));
+  fs.appendFileSync(path.join(dir, 'docs/knowledge/pier.md'), plain + '\n');
+  const merged = [user('merge the tide notes'), call('Bash', { command: 'python merge.py' }), say('Merged.')];
+  report(knowledgeGaps({ ...acts(merged), at: kStart }).length === 1, 'end: facts a script added to the knowledge base with no source are named (live turn)');
+  fs.appendFileSync(path.join(dir, 'docs/knowledge/pier.md'), 'Source: https://example.org/pier\n');
+  report(knowledgeGaps({ ...acts(merged), at: kStart }).length === 0, 'end: a script that added the facts with their source passes');
+  fs.rmSync(path.join(dir, '.git'), { recursive: true, force: true });
+}
 
 // shadow: beside v1, v2 only logs
 const { shadow } = await import('./shadow.mjs');
