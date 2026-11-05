@@ -9587,6 +9587,16 @@ if (isMain) {
   // old sessions' state files go after 7 days (pruneState), the unsuffixed ones too: what agents without hooks and older
   // releases left. Lesson: an 80 KB snapshot.json from before per-session files stayed for good.
   if (cmd === 'session' && !envOf('BENCH')) pruneState();
+  // Engine v2 (docs/plans/2026-11-05-engine-v2.md): with "engine": "v2" in config.json, the start reminder and the end
+  // check come from tools/hooks/v2/; the tool hooks stay v1's, which refuse only for safety.
+  if ((cmd === 'prompt' || cmd === 'stop') && config().engine === 'v2') {
+    try {
+      process.env.ANZUELO_ROOT ||= ROOT;
+      const v2 = cmd === 'prompt' ? (await import('./v2/start.mjs')).onPrompt(data) : (await import('./v2/end.mjs')).onStop(data);
+      if (v2) process.stdout.write(JSON.stringify(v2));
+    } catch (e) { process.stderr.write(`[hooks v2 ${cmd}] error: ${e && e.stack || e}\n`); }
+    process.exit(0);
+  }
   try {
     const fn = { session: cmdSession, prompt: cmdPrompt, pretool: cmdPretool, posttool: cmdPosttool, stop: cmdStop, subagentstop: cmdSubagentstop }[cmd];
     if (fn) fn(data);
