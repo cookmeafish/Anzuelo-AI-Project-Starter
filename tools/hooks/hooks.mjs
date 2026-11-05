@@ -1256,7 +1256,7 @@ const recordTurn = (prompt, fresh = true, transcript = '') => {
   // (a continued turn is this session's own: another run's record is never extended)
   const old = fresh ? null : readJSON(path.join(STATE, stateName('turn.json')), null);
   writeState('turn.json', old?.at ? { ...old, prompt: `${old.prompt || ''}\n${prompt}`.slice(-4000) }
-    : { at: new Date().toISOString(), prompt: String(prompt).slice(0, 4000), runbooks: list('docs/playbooks'), skills: list(config().skillsDir), openPlans: openPlans().map(x => x.p), ...(notes => ({ notesOff: notes.length, notesTail: notes.slice(-200) }))(read(abs(NOTES_FILE))), ...(transcript ? { transcript: String(transcript), tpOff: sizeOf(transcript) } : {}) });
+    : { at: new Date().toISOString(), prompt: String(prompt).slice(0, 4000), runbooks: list('docs/playbooks'), skills: list(config().skillsDir), openPlans: openPlans().map(x => x.p), ...(notes => ({ notesOff: notes.length, notesTail: notes.slice(-200), ...(notes.length <= 30000 ? { notesStart: notes } : {}) }))(read(abs(NOTES_FILE))), ...(transcript ? { transcript: String(transcript), tpOff: sizeOf(transcript) } : {}) });
 };
 const sizeOf = f => { try { return fs.statSync(String(f)).size; } catch { return 0; } };
 // REQ: status-handoff. Said once, at the edit that finds the turn past the tool-call count, while docs/STATUS.md is
@@ -7545,7 +7545,13 @@ export function turnRecords(notes) {
     // (a rewrite may change the line endings. Lesson (a field report): a script rewrote the notes with CRLF, the tail
     // was not found, and lessons of 20 earlier turns were asked for again, blocking a finished turn twice)
     const lf = s => s.replace(/\r\n/g, '\n'), nl = lf(n), tl = lf(tail), at2 = nl.lastIndexOf(tl);
-    return at2 >= 0 ? nl.slice(at2 + tl.length) : n;
+    if (at2 >= 0) return nl.slice(at2 + tl.length);
+    // (new lines written in front of earlier ones: the lines the file had at the start are taken out, one for one.
+    // Lesson (trial v30): new records were inserted above an earlier turn's "Learned" line, the whole file then counted,
+    // and that old lesson asked for a lesson edit, a changelog line and an audit in a turn that changed nothing)
+    if (typeof t.notesStart === 'string') { const left = new Map(); for (const l of lf(t.notesStart).split('\n')) left.set(l, (left.get(l) || 0) + 1);
+      return nl.split('\n').filter(l => { const k = left.get(l) || 0; if (k && l.trim()) { left.set(l, k - 1); return false; } return true; }).join('\n'); }
+    return n;
   }
   return off <= n.length ? n.slice(off) : n;
 }

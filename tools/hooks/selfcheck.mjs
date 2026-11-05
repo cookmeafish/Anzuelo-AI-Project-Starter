@@ -8420,6 +8420,14 @@ if (mineB() && (!TAGS || TAGS.includes('upset-acknowledged'))) { // REQ: upset-a
     fs.writeFileSync(path.join(dir, '.cache/turn-notes.md'), 'Done 9: before this turn\r\nDone 5: this turn, saved with CRLF\r\n');
     const crlf = spawnSync(process.execPath, ['--input-type=module', '-e', `import { turnRecords, ledgerLines } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; import fs from 'fs'; console.log([...ledgerLines(turnRecords(fs.readFileSync('.cache/turn-notes.md', 'utf8'))).keys()].join(','));`], { cwd: dir, encoding: 'utf8', env: { ...process.env, ...env } }).stdout.trim();
     report(crlf === '5', 'runbook-ledger: a notes file rewritten with other line endings during the turn counts only this turn\'s records', crlf);
+    // (new lines inserted above an earlier turn's lines: those old lines still don't count. Lesson (trial v30): an old
+    // "Learned" line counted again and asked for a lesson, a changelog line and an audit in a turn that changed nothing)
+    fs.writeFileSync(path.join(dir, '.cache/turn-notes.md'), 'Done 9: before this turn\nDone 8: also before this turn\nLearned (skill): an old lesson\n');
+    fs.rmSync(path.join(dir, 'tools/hooks/state/turn.json'), { force: true });
+    run(dir, 'prompt', { prompt: 'rename the print button' }, env);
+    fs.writeFileSync(path.join(dir, '.cache/turn-notes.md'), 'Done 9: before this turn\nDone 8: also before this turn\nDone 2: this turn, inserted above\nLearned (skill): an old lesson\n');
+    const inserted = spawnSync(process.execPath, ['--input-type=module', '-e', `import { turnRecords } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; import fs from 'fs'; console.log(JSON.stringify(turnRecords(fs.readFileSync('.cache/turn-notes.md', 'utf8')).trim()));`], { cwd: dir, encoding: 'utf8', env: { ...process.env, ...env } }).stdout.trim();
+    report(inserted === JSON.stringify('Done 2: this turn, inserted above'), 'runbook-ledger: new records inserted above an earlier turn\'s lines count alone; the earlier lines stay out', inserted);
     report(/⚡ running the debug skill \(✅ \d+ items to check off\)/.test(runSkill) && !/running/.test(runAgain) && /📖 running the status-lines runbook \(✅ \d+ items to check off\)/.test(runPb) && /⚡ running the learn-from-upset skill/.test(runTool),
       'upset-acknowledged: each runbook or skill the agent opens (Read, a command, the Skill tool) shows "running the X runbook" once', JSON.stringify([runSkill, runAgain, runPb, runTool].map(o => o.slice(0, 160))));
   } finally { giveBack(dir); }
