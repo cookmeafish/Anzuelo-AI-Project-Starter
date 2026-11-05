@@ -139,7 +139,7 @@ export function testGaps(acts) {
   // (review): pyproject.toml and go.mod are in many projects with no tests at all)
   const has = f => fs.existsSync(path.join(ROOT, f)), pyproject = (() => { try { return fs.readFileSync(path.join(ROOT, 'pyproject.toml'), 'utf8'); } catch { return ''; } })();
   const hasTests = anyRunner || !!testScript() || ['pytest.ini', 'conftest.py', 'tests', 'test', '__tests__', 'spec'].some(has)
-    || /\[tool\.pytest/.test(pyproject) || filesMatching('**/*_test.go').length > 0;
+    || /\[tool\.pytest/.test(pyproject) || ['**/*_test.go', '**/test_*.py', '**/*_test.py', '**/*.test.js', '**/*.test.mjs', '**/*.test.ts'].some(g => filesMatching(g).length > 0);
   if (lastCode >= 0 && hasTests && !passes.some(k => k > lastCode)) out.push('Run the tests after the last code change, and say the result.');
   else if (/\b(all )?tests? (now )?pass(ed|es|ing)?\b|\b\d+ (tests? )?passed\b/i.test(acts.answer) && !passes.length) out.push('The answer says tests passed, but no test run passed in this turn: run them, or correct the answer.');
   return out;

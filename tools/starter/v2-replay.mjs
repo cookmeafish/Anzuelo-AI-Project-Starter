@@ -14,6 +14,10 @@ const { reminder } = await import('../hooks/v2/start.mjs');
 const { missing } = await import('../hooks/v2/end.mjs');
 const { turnActs, testGaps, runbooks, typed } = await import('../hooks/v2/lib.mjs');
 const books = runbooks();
+// The turn as it stood at the agent's first attempt to finish: up to the first Stop hook run. Later rows hold the fixes
+// the old engine's block forced, so judging the whole turn would see a turn already repaired.
+const firstTry = slice => { const k = slice.findIndex(r => /^Stop$/.test(r.attachment?.hookEvent || '')); return k < 0 ? slice : slice.slice(0, k); };
+
 let turns = 0, routed = 0, lines = 0, chars = 0, blocks = 0;
 const kinds = new Map();
 for (const f of fs.readdirSync(tdir).filter(f => f.endsWith('.jsonl')).map(f => path.join(tdir, f))) {
@@ -23,7 +27,7 @@ for (const f of fs.readdirSync(tdir).filter(f => f.endsWith('.jsonl')).map(f => 
     const prompt = rows[s].message.content, slice = rows.slice(s, starts[k + 1] ?? rows.length);
     const r = reminder(prompt);
     turns++; if (r.book) { routed++; lines += r.text.split('\n').length; chars += r.text.length; }
-    const acts = turnActs(slice), list = [...missing({ runbook: r.book?.file || null }, acts, books), ...testGaps(acts)];
+    const acts = turnActs(firstTry(slice)), list = [...missing({ runbook: r.book?.file || null }, acts, books), ...testGaps(acts)];
     if (list.length) { blocks++; for (const x of list) { const key = x.replace(/item \d+: .*/, 'item N').replace(/docs\/playbooks\/[\w-]+\.md|tools\/starter\/runbooks\/[\w-]+\.md/, '<runbook>'); kinds.set(key, (kinds.get(key) || 0) + 1); }
       if (args.includes('--show')) console.log(`${rows[s].timestamp?.slice(0, 16)} "${prompt.replace(/\s+/g, ' ').slice(0, 70)}"\n   ${list.join('\n   ')}`); }
   });

@@ -94,6 +94,9 @@ const resumed = turnRows(transcript([user('fix the export'), code, { type: 'user
 report(resumed.length === 5, 'end: the summary that resumes a session is not a new request, so the turn keeps its earlier work', resumed.length);
 fs.rmSync(path.join(dir, 'package.json')); put('pyproject.toml', '[project]\nname = "tool"\n');
 report(testGaps(acts([user('fix the total'), code, say('Fixed.')])).length === 0, 'end: a build file alone (pyproject.toml, no test setup) asks for no tests');
+put('tools/gui/test_panel.py', 'def test_x(): pass\n');
+report(testGaps(acts([user('fix the total'), code, say('Fixed.')])).length === 1, 'end: test files in the project (test_*.py) count as a test setup');
+fs.rmSync(path.join(dir, 'tools'), { recursive: true });
 put('pyproject.toml', '[project]\nname = "tool"\n[tool.pytest.ini_options]\n');
 report(testGaps(acts([user('fix the total'), code, say('Fixed.')])).length === 1, 'end: a configured pytest asks for a test run after a code change');
 report(testGaps(acts([user('tidy the notes'), call('Edit', { file_path: path.join(dir, 'notes/a.md'), old_string: 'a', new_string: 'b' }), say('Tidied.')])).length === 0, 'end: a change to notes, not code, asks for no tests');
