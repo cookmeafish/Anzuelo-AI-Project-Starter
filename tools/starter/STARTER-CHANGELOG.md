@@ -6,6 +6,7 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-04 (engine): security-report accepts "security check" as well as "security review"; scenarios: security-report "Security check: ... passed" passes, "has not passed" blocked.
 - 2026-11-04 (engine, app pack): security-checklist no longer asks for the table in the answer (its Stop line names the report file instead), and accepts the report named with a Windows path; scenarios: security review without the item table (says), Windows path meets both security checks.
 - 2026-11-04 (engine): the user's quoted decision in a "Who may do what" row (the quote grant-decided asks for) is no longer flagged as a copied example; the same words anywhere else still are. Scenarios: grant-decided long quote passes, copy outside the row blocked.
 - 2026-11-04 (engine): install-vetted accepts a license named by its id ("Vetted: <tool> (BSD-3-Clause)") and its Stop line shows the "Vetted: <tool> <version> (license <name>)" form; scenarios: install-vetted license id, round shows the form.

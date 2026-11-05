@@ -2863,6 +2863,14 @@ STOP.push(
   { name: 'security-report: "Security review: it passed" with the report path: passes', prompt: 'make the form check the user', tools: [sk('security-review')],
     files: { ...AUTH, ...SEC_LOG, 'docs/reviews/security-2026-10-20.md': SEC_TABLE, 'docs/CHANGELOG.md': 'x' },
     answer: 'The form checks the user now.\n**Security review:** it passed, and the report is `docs/reviews/security-2026-10-20.md`.' + FIN, expect: { not: ['security-report'] } },
+  // ("security check" names the same review. Lesson (a trial): a passed review called a "security check" cost a Stop
+  // round, and the agent read the check config to find the wording)
+  { name: 'security-report: "Security check: ... passed" with the report path: passes', prompt: 'make the form check the user', tools: [sk('security-review')],
+    files: { ...AUTH, ...SEC_LOG, 'docs/reviews/security-2026-10-20.md': SEC_TABLE, 'docs/CHANGELOG.md': 'x' },
+    answer: 'The form checks the user now.\nSecurity check: the form passed - details in docs/reviews/security-2026-10-20.md.' + FIN, expect: { not: ['security-report'] } },
+  { name: 'security-report: "Security check: it has not passed" is no pass: blocked', prompt: 'make the form check the user', tools: [sk('security-review')],
+    files: { ...AUTH, ...SEC_LOG, 'docs/reviews/security-2026-10-20.md': SEC_TABLE, 'docs/CHANGELOG.md': 'x' },
+    answer: 'The form checks the user now.\nSecurity check: it has not passed yet - details in docs/reviews/security-2026-10-20.md.' + FIN, expect: { block: true, tags: ['security-report'] } },
   { name: 'security-report: "Security review: it has not passed" is no pass: blocked', prompt: 'make the form check the user', tools: [sk('security-review')],
     files: { ...AUTH, ...SEC_LOG, 'docs/reviews/security-2026-10-20.md': SEC_TABLE, 'docs/CHANGELOG.md': 'x' },
     answer: 'The form checks the user now.\n**Security review:** it has not passed yet, and the report is `docs/reviews/security-2026-10-20.md`.' + FIN, expect: { block: true, tags: ['security-report'] } },
