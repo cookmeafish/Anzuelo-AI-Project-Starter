@@ -2621,7 +2621,7 @@ export function context(t, cfg, answerOverride) {
   // only through the Skill tool, so Stop asked for it again and the answer opened with a paragraph about the review.
   const ranScript = n => cmds.some(c => new RegExp(`skills[\\\\/]${esc(n)}[\\\\/]scripts`).test(c));
   const reqFiles = c => !c || typeof c !== 'object' ? [] : [...[].concat(c.filesChanged || []), ...(c.anyOf || []).flatMap(reqFiles)];
-  // (a file shape, not a whole folder: "Baking/**" is where notes live, not a report. Lesson, trial round 9: setup added the
+  // (a file shape, not a whole folder: "Tea/**" is where notes live, not a report. Lesson, trial round 9: setup added the
   // vault's note folders to the research check, so writing a dictated note counted as research and its citation checks fired)
   const reportOf = n => reqsNow.filter(q => q.when.skillUsed === n).flatMap(q => reqFiles(q.require)).filter(g => g.includes('*') && !/(^|\/)\*\*?$/.test(g));
   // Maintaining the skill in the same turn does not undo carrying it out: its dated report written this turn always
@@ -3282,7 +3282,12 @@ function exampleNameHits(x, cfg) {
   const vocab = projectVocab(cfg);
   const names = userNames(x.allPrompts).filter(n => !n.toLowerCase().split(/\s+/).every(w => vocab.has(w)));
   if (!names.length) return [];
-  const rx = new RegExp(`(?<![\\p{L}\\p{N}_-])(${names.map(esc).join('|')})(?![\\p{L}\\p{N}_-])`, 'iu'), hits = [];
+  // (a one-word name matches only as the user wrote it, capitalized: "Day" from a title is no example in "every day".
+  // Lesson (trial v29): a book title's "Day" flagged an ordinary "day" in a runbook, 4 checks and a waiver)
+  const multi = names.filter(n => /\s/.test(n)), single = names.filter(n => !/\s/.test(n));
+  const part = (ns, flags) => ns.length ? new RegExp(`(?<![\\p{L}\\p{N}_-])(${ns.map(esc).join('|')})(?![\\p{L}\\p{N}_-])`, flags) : null;
+  const rxM = part(multi, 'iu'), rxS = part(single, 'u');
+  const rx = { exec: s => (rxM && rxM.exec(s)) || (rxS && rxS.exec(s)) || null, test: s => !!((rxM && rxM.test(s)) || (rxS && rxS.test(s))) }, hits = [];
   for (const u of x.uses || []) {
     if (!/^(Write|Edit|MultiEdit)$/.test(u.name)) continue;
     const f = rel(u.input.file_path || '');
@@ -3292,7 +3297,9 @@ function exampleNameHits(x, cfg) {
       const m = rx.exec(String(added || ''));
       if (!m || (removed != null && rx.test(String(removed)))) continue;
       // (a Write over a file that had the name before the turn keeps what was there)
-      if (u.name === 'Write' && new RegExp(rx.source, 'iu').test(spawnSync('git', ['show', `HEAD:${f}`], { cwd: ROOT, encoding: 'utf8' }).stdout || '')) continue;
+      if (u.name === 'Write' && rx.test(spawnSync('git', ['show', `HEAD:${f}`], { cwd: ROOT, encoding: 'utf8' }).stdout || '')) continue;
+      // (a name a later edit took out again is no longer in the file. Lesson (trial v29): the check kept flagging it)
+      if (!rx.test(read(abs(f)))) continue;
       hits.push(`${f} (the user's example "${m[1]}": use a neutral one)`);
       break;
     }
@@ -5560,6 +5567,12 @@ function pretoolHits(data, cfg) {
     const dup = duplicateWork(name, inp, t());
     if (dup) add(`REQ: no-repeat. ${dup}: the same work twice. Wait for its result (its notice arrives on its own), or stop it first (TaskStop) if this one replaces it. ${/^(Agent|Task)$/.test(name) ? 'If this helper does different work, say how in its brief: "not a duplicate: <how>".' : 'If it truly must run beside it, end the command with "# rerun: <why>".'}`);
   }
+  // REQ: no-polling: see pollWait
+  if (/^(Agent|Task|Bash|PowerShell|Read)$/.test(name) && data.transcript_path && !isSuspended('check:no-polling')) {
+    const own = data.agent_id ? helperTranscript(data) : String(data.transcript_path);
+    const why = pollWait(name, inp, own && fs.existsSync(own) ? transcriptRows(own) : [], { helper: !!data.agent_id });
+    if (why) add(`REQ: no-polling. ${why}.`);
+  }
   if (/^(Bash|PowerShell)$/.test(name) && typeof inp.command === 'string') {
     const cmd = inp.command;
     // REQ: permission-respected. A program the user's permission settings held this turn is not run another way (from a
@@ -6464,7 +6477,7 @@ export function coreChecks(x, cfg) {
   // own structure, and the starter's own documents are linked from the rules.
   // The folders in "knowledgeDirs" (a vault's own note folders) are notes too, apart from their templates and
   // attachments. Lesson: an answer said an unlinked new note "can't get through", but notes in a vault's own folders
-  // (Baking/, Garden/) were never checked.
+  // (Tea/, Garden/) were never checked.
   const kDirs = noteDirs(cfg).filter(d => !/^docs\/knowledge$/i.test(d));
   const inVault = p => /\.md$/i.test(p) && kDirs.some(d => p.toLowerCase().startsWith(d.toLowerCase() + '/')) && !/(^|\/)(_?templates?|attachments?|\.obsidian|\.trash)\//i.test(p);
   const newNotes = x.changed.filter(p => (/^docs\/(knowledge|notes)\/.+\.md$/i.test(p) || /^docs\/[^/]+\.md$/i.test(p) || inVault(p)) &&
@@ -6599,8 +6612,10 @@ export function coreChecks(x, cfg) {
     // Lesson (a field report): helpers drew markup on pictures, and the box corners 0.28 and 0.6 were "made up")
     const LAYOUT = /"(box|at|x|y|w|h|x[12]|y[12]|width|height|max_width|max_height|left|top|right|bottom|size|font_size|scale|zoom|rotate|angle|opacity|crop|pos|position|points?|from|to|radius|stroke|thickness|padding|margin)"\s*:\s*(\[[-\d.,\s\[\]]*\]|-?\d+(?:\.\d+)?)/gi;
     const written = x.uses.filter(u => /^(Write|Edit|MultiEdit)$/.test(u.name) && inKb.test(rel(u.input.file_path || '')))
-      .flatMap(u => untraced([u.input.content, u.input.new_string, ...(u.input.edits || []).map(e => e.new_string)].filter(Boolean).join('\n')
-        .replace(/\.json$/i.test(u.input.file_path || '') ? LAYOUT : /(?!)/g, ' ')));
+      // (a figure worked out there from two traced ones is traced, as in the answer. Lesson (trial v29): "+88.00
+      // (calculated: 242 - 154)" written into the knowledge file was flagged as made up)
+      .flatMap(u => { const t = [u.input.content, u.input.new_string, ...(u.input.edits || []).map(e => e.new_string)].filter(Boolean).join('\n')
+        .replace(/\.json$/i.test(u.input.file_path || '') ? LAYOUT : /(?!)/g, ' '); return computed(t, untraced(t)); });
     const machine = [];
     // (a Grep run on the file itself read it: its output holds the lines without the file's name. Lesson, trial round 14:
     // a quote found that way was "not opened", and the agent read the file four more times)
@@ -6701,7 +6716,7 @@ export function coreChecks(x, cfg) {
     // first, whether the complaint holds, checked against the files and said plainly. Lesson: reviewers of 23 trial
     // projects found complaints conceded and "fixed" when the thing was already there (a test, a refund, a permission)
     // A "Checked: <what was opened> - <what it showed>" line is a verdict in the agent's own words too, so a natural lead
-    // ("Aren is right-handed in every file here.") stands. Lesson: an answer that had checked every file and led with
+    // ("Bram is right-handed in every file here.") stands. Lesson: an answer that had checked every file and led with
     // the plain fact was rewritten by the Stop hook into a blunt "That isn't what happened:" for an upset user.
     const VERDICT = /\b(you'?re right|you are right|partly right|partly[:,]|that (isn'?t|is not|wasn'?t|was not) what happened|that'?s not what happened|(the )?complaint(:\s*|\s+)(holds|partly|does(n'?t| not) hold)|(this|that|it) (was|is) (already|still) (there|in place|done)|already (there|in place|covered|handled|tested))/i;
     const CHECKED_LINE = /^[\s>*_-]*(checked)\**\s*:\**\s*\S.{8,}/im;
@@ -8108,7 +8123,7 @@ export function overlappingCalls(entries, nameRx) {
 // started may go again; "# rerun: <why>" lets a real rerun through. Lesson, trial rounds 13 to 16 and the user's own
 // words ("never do redundant things ... it will take too long and waste tokens"): setups ran the full audit three to
 // six times, test suites and self-tests ran again with nothing changed, and proofs were run twice.
-const REPEAT_CHECK = /\b(npm|pnpm|yarn|bun)\s+(run\s+)?(test|build|lint|typecheck|type-check|check)\b|\bnpx\s+(vitest|jest|tsc|eslint|biome|prettier\s+--check)\b|\b(pytest|go\s+(test|build|vet)|cargo\s+(test|build|clippy|check)|dotnet\s+(test|build)|ruff\s+check|mypy|pyright|flutter\s+(test|analyze))\b|\bpython3?\s+-m\s+(pytest|unittest)\b|\bnode\s+["']?\S*(audit|selfcheck|trial)\.mjs\b|\bhooks\.mjs["']?\s+check\b|\bfit\.mjs["']?\s+check\b|\bclaims\.mjs["']?\s+check\b/i;
+const REPEAT_CHECK = /\b(npm|pnpm|yarn|bun)\s+(run\s+)?(test|build|lint|typecheck|type-check|check)\b|\bnpx\s+(vitest|jest|tsc|eslint|biome|prettier\s+--check)\b|\b(pytest|go\s+(test|build|vet)|cargo\s+(test|build|clippy|check)|dotnet\s+(test|build)|ruff\s+check|mypy|pyright|flutter\s+(test|analyze))\b|\bpython3?\s+-m\s+(pytest|unittest)\b|\bnode\s+["']?\S*(audit|selfcheck|trial)\.mjs\b|\bhooks\.mjs["']?\s+check\b|\bfit\.mjs["']?\s+check\b|\bclaims\.mjs["']?\s+check\b|\bplan-tasks\.mjs["']?\s+check\b/i;
 // commands that only read: running them between two checks changes nothing either
 const READ_ONLY = /^\s*(git\s+(status|log|diff|show|branch|rev-parse|ls-files)|ls|dir|cat|type|head|tail|grep|rg|findstr|find|wc|pwd|echo|Get-Content|Get-ChildItem|Select-String|Test-Path|where|which|node\s+--version|npm\s+(ls|view))\b/i;
 // The after-edit hook's record of the last file write. Lesson, trial round 18: Claude Code writes the transcript a moment
@@ -8189,6 +8204,53 @@ export function duplicateWork(name, inp, t) {
     const key = c => gateText(c).replace(/\s*\d?>&\d/g, '').replace(/\s*\|\s*(tail|head|grep|findstr|Select-Object|Out-String)\b[^;&]*$/i, '').replace(/\s+/g, ' ').trim();
     const same = uses.find(u => /^(Bash|PowerShell)$/.test(u.name) && typeof u.input?.command === 'string' && key(u.input.command) === key(inp.command));
     if (same) return `the same check is still running in the background ("${key(inp.command).slice(0, 70)}")`;
+  }
+  return null;
+}
+// REQ: no-polling. Waiting on work that runs in the background by sleeping or by reading its output again and again
+// spends minutes on nothing: the main session gets a notice when the work ends, and a helper gets a foreground helper's
+// result directly. Refused: a helper launching a helper in the background; a sleep or wait loop while a job this agent
+// started still runs; a read of a running job's output file within a minute of the last read. Returns why, or null.
+// Lesson (trial v29): setup helpers launched a reviewer in the background, then slept 110 s, 180 s and 300 s, ran a
+// 600 s wait loop on the wrong signal, and read an empty audit output four times in a minute.
+const WAIT_CMD = c => {
+  const n = (rx, min) => [...c.matchAll(rx)].some(m => Number(m[1]) >= min);
+  return n(/\b(?:sleep|Start-Sleep(?:\s+-s(?:econds)?)?)\s+(\d+)/gi, 20) || n(/\bStart-Sleep\s+-m(?:illiseconds)?\s+(\d+)/gi, 20000)
+    || n(/\bsetTimeout\s*\([^]*?,\s*(\d+)\s*\)/g, 20000) || n(/\btimeout\s+\/t\s+(\d+)/gi, 20) || /\b(until|while)\b[^]*\b(sleep|Start-Sleep|setTimeout)\b/i.test(c);
+};
+export function pollWait(name, inp, rows, { helper = false, now = Date.now() } = {}) {
+  if (helper && /^(Agent|Task)$/.test(name) && inp.run_in_background)
+    return 'a helper launching a helper in the background has no way to hear when it ends, so it sleeps or polls. Launch it in the foreground (run_in_background: false): its result comes back directly, and several foreground helpers in one message still run at once';
+  const running = new Set(backgroundRunning(rows));
+  if (!running.size) return null;
+  const jobs = [], results = new Map();
+  for (const r of rows) for (const x of Array.isArray(r.message?.content) ? r.message.content : []) {
+    if (x?.type === 'tool_use' && running.has(x.id)) jobs.push({ id: x.id, helper: /^(Agent|Task)$/.test(x.name), cmd: String(x.input?.command || ''), at: Date.parse(r.timestamp || '') || 0 });
+    if (x?.type === 'tool_result') results.set(x.tool_use_id, textOf(x.content));
+  }
+  const live = jobs.filter(j => results.has(j.id));
+  if (!live.length) return null;
+  const wake = helper ? 'Next time run it in the foreground; now do the work that does not need it, and read its output once when that is done'
+    : 'Its notice wakes you when it ends: do the work that does not need it, or end the turn and continue from the notice';
+  if (/^(Bash|PowerShell)$/.test(name) && WAIT_CMD(runPart(String(inp.command || ''))) && (!helper || live.some(j => j.helper)))
+    return `this waits by sleeping while work started in the background still runs. ${wake}`;
+  const files = j => [...j.cmd.matchAll(/(?:^|[^\d&])>{1,2}\s*["']?([^\s;&|>"')]+)/g).map(m => m[1]),
+    ...(results.get(j.id).match(/(?:written to:?|output[-_ ]file>?)\s*["']?([^\s<"']+)/gi) || []).map(s => s.replace(/^(?:written to:?|output[-_ ]file>?)\s*["']?/i, ''))]
+    .map(f => path.basename(f.replace(/\\/g, '/'))).filter(b => b.length >= 5);
+  const target = name === 'Read' ? String(inp.file_path || '') : /^(Bash|PowerShell)$/.test(name) && READ_ONLY.test(String(inp.command || '')) ? String(inp.command) : '';
+  if (!target) return null;
+  const has = s => b => new RegExp(`(?<![\\w.-])${esc(b)}(?![\\w.-])`).test(s.replace(/\\/g, '/'));
+  for (const j of live) {
+    const bs = files(j).filter(has(target));
+    if (!bs.length) continue;
+    let last = 0;
+    for (const r of rows) for (const x of Array.isArray(r.message?.content) ? r.message.content : []) {
+      const at = Date.parse(r.timestamp || '') || 0;
+      if (x?.type !== 'tool_use' || at < j.at) continue;
+      const s = x.name === 'Read' ? String(x.input?.file_path || '') : /^(Bash|PowerShell)$/.test(x.name) && READ_ONLY.test(String(x.input?.command || '')) ? String(x.input.command) : '';
+      if (s && bs.some(has(s))) last = Math.max(last, at);
+    }
+    if (last && now - last < 60000) return `${bs[0]} belongs to work still running in the background, read ${Math.round((now - last) / 1000)} s ago. ${wake}`;
   }
   return null;
 }

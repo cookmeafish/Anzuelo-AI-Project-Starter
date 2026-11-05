@@ -136,7 +136,7 @@ export default {
     'set up the project skeleton for a react app',
     'bootstrap a new web app from nothing',
     "we're starting the app, lay the groundwork right"], quiet: [
-    'what is the foundation of a good sourdough?',
+    'what is the foundation of a good loaf of bread?',
     'fix the scaffolding page typo',
     'the new app version should start faster on my machine'] },
 

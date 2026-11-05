@@ -188,7 +188,7 @@
             ]
           },
           {
-            "answerMatches": "^(?=[\\s\\S]*security (?:review|check)(?:(?!\\n[ \\t]*\\n)[\\s\\S]){0,500}?docs[\\\\/]reviews[\\\\/]security-)(?=[\\s\\S]*security (?:review|check)(?:(?!\\n[ \\t]*\\n)[\\s\\S]){0,300}?(?:\\b(\\d+|one|two|three|four|five|six|an?)\\s+(?:[\\w-]+\\s+){0,2}(items?|problems?|issues?|findings?|risks?|points?|gaps?)\\s+(?:are|is|remain|stay|left)\\s+(?:still\\s+)?open\\b|\\b(?:left|leaves|leaving|leave)\\s+(\\d+|one|two|three|four|five|six|an?)\\s+(?:[\\w-]+\\s+){0,2}(items?|problems?|issues?|findings?|risks?|points?|gaps?)\\s+open\\b))",
+            "answerMatches": "^(?=[\\s\\S]*security (?:review|check)(?:(?!\\n[ \\t]*\\n)[\\s\\S]){0,500}?docs[\\\\/]reviews[\\\\/]security-)(?=[\\s\\S]*security (?:review|check)(?:(?!\\n[ \\t]*\\n)[\\s\\S]){0,300}?(?:\\b(\\d+|one|two|three|four|five|six|an?)\\s+(?:[\\w-]+\\s+){0,2}(items?|problems?|issues?|findings?|risks?|points?|gaps?)\\s+(?:are|is|remain|stay|left)\\s+(?:still\\s+)?open\\b|\\b(?:left|leaves|leaving|leave)\\s+(\\d+|one|two|three|four|five|six|an?)\\s+(?:[\\w-]+\\s+){0,2}(items?|problems?|issues?|findings?|risks?|points?|gaps?)\\s+open\\b|\\b(?:found|finds|has|have|shows?)\\s+(\\d+|one|two|three|four|five|six|an?)\\s+open\\s+(?:[\\w-]+\\s+){0,1}(items?|problems?|issues?|findings?|risks?|points?|gaps?)\\b))",
             "answerNotMatches": "security (?:review|check)\\W{0,6}((it|this|all|everything|every|areas?|has|have|was)\\s+){0,3}pass(ed|es)?\\b(?!\\s+after\\b)",
             "filesChanged": [
               "docs/reviews/security-*.md"

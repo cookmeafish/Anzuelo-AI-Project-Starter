@@ -640,16 +640,16 @@ const STOP = [
     expect: { tags: ['upset-learned'], says: /in your own words and with no concession \("Checked: <what you opened> - <what it showed>"\)[\s\S]*never blame files the user doesn't see/ } },
   // Lesson: after a complaint, an answer got a "Root cause" paragraph about its own new check's scenario that first ran
   // in an empty test folder: the agent's tooling in progress, not a failure the user saw.
-  { name: 'debug-trigger: after a complaint, the new check\'s own scenario failed while being written: no root cause asked', prompt: 'you keep making Aren left-handed!! he is right-handed',
+  { name: 'debug-trigger: after a complaint, the new check\'s own scenario failed while being written: no root cause asked', prompt: 'you keep making Bram left-handed!! he is right-handed',
     files: { 'tools/traits-check.mjs': '// fixed traits\n', 'docs/CHANGELOG.md': 'x' },
     tools: [editTool('tools/hooks/project-scenarios.mjs'), bash('node tools/hooks/selfcheck.mjs --tags traits', 'FAIL  stop: traits: an outline that keeps him right-handed: passes\nselfcheck: FAIL for traits (1 passed, 1 failed)'),
       editTool('tools/traits-check.mjs'), bash('node tools/hooks/selfcheck.mjs --tags traits', 'selfcheck: ALL PASS for traits (2 passed, 0 failed)')],
-    answer: 'Aren is right-handed in every file here.\nChecked: characters.md and both chapters - the complaint doesn\'t hold: every mention says right hand.' + FIN, expect: { not: ['debug-trigger'] } },
-  { name: 'debug-trigger: after a complaint, a self-test that failed before any check was edited still asks for the root cause: blocked', prompt: 'you keep making Aren left-handed!! he is right-handed',
+    answer: 'Bram is right-handed in every file here.\nChecked: characters.md and both chapters - the complaint doesn\'t hold: every mention says right hand.' + FIN, expect: { not: ['debug-trigger'] } },
+  { name: 'debug-trigger: after a complaint, a self-test that failed before any check was edited still asks for the root cause: blocked', prompt: 'you keep making Bram left-handed!! he is right-handed',
     files: { 'tools/traits-check.mjs': '// fixed traits\n', 'docs/CHANGELOG.md': 'x' },
     tools: [bash('node tools/hooks/selfcheck.mjs --tags traits', 'FAIL  stop: traits: an outline that keeps him right-handed: passes\nselfcheck: FAIL for traits (1 passed, 1 failed)'),
       editTool('tools/traits-check.mjs'), bash('node tools/hooks/selfcheck.mjs --tags traits', 'selfcheck: ALL PASS for traits (2 passed, 0 failed)')],
-    answer: 'Aren is right-handed in every file here.\nChecked: characters.md and both chapters - the complaint doesn\'t hold: every mention says right hand.' + FIN, expect: { tags: ['debug-trigger'] } },
+    answer: 'Bram is right-handed in every file here.\nChecked: characters.md and both chapters - the complaint doesn\'t hold: every mention says right hand.' + FIN, expect: { tags: ['debug-trigger'] } },
   { name: 'upset-learned: upset about something outside the project, said so: passes', prompt: 'ugh the wifi died again, what was I saying', answer: 'You were planning the spring menu. N/A(upset-learned): the wifi is outside the project.',
     expect: { not: ['upset-learned'] } },
   { name: 'rule request fully enforced: passes', prompt: 'from now on always include a budget table in plans', tools: [pb('project'), bash('node tools/hooks/selfcheck.mjs'), bash('node tools/audit.mjs')],
@@ -1909,12 +1909,12 @@ STOP.push(
   // notes-vault (library)
   { name: 'notes-vault: a note changed without the link check: blocked', prompt: 'update the note on sleep in my vault with the new study', tools: [sk('notes-vault')], files: { 'Notes/Sleep.md': '# Sleep\n- Adults need 7 to 9 hours (sources/sleep-study.pdf, checked 2026-10-19)\n\n## Related\n- [Caffeine](Caffeine.md): affects sleep\n' }, answer: 'Skill: notes-vault. Added the finding to Notes/Sleep.md with its source and date.' + FIN, expect: { block: true, tags: ['vault-links-checked'] } },
   // Lesson: a new note linked to two notes and only the closest got a link back; the user noticed the missing one
-  ...[['a new note links to two notes and only one links back: blocked', '# Sourdough starter\nFeed it daily.\n', { block: true, tags: ['vault-backlinks'], says: /Sourdough starter\.md/ }],
-    ['a new note links to two notes and both link back: passes', '# Sourdough starter\nFeed it daily.\n\n## Related\n- [[Autolyse]]\n', { not: ['vault-backlinks'] }]].map(([n, starter, expect]) => ({
-    name: `notes-vault: ${n}`, prompt: 'add a note on autolyse to my vault', tools: [sk('notes-vault'), bash('node skills/obsidian/scripts/notes.mjs check --all', 'NOTES: every link resolves')],
-    edit: { 'Baking/Hydration.md': () => '# Hydration\nWater per flour.\n', 'Baking/Sourdough starter.md': () => '# Sourdough starter\nFeed it daily.\n', 'Garden/Tomatoes.md': () => '# Tomatoes\nSee [[Hydration]].\n' },
-    files: { 'Baking/Autolyse.md': '# Autolyse\nRest flour and water before the [[Sourdough starter]] goes in. See [[Hydration]].\n', 'Baking/Hydration.md': '# Hydration\nWater per flour.\n\n## Related\n- [[Autolyse]]\n', 'Baking/Sourdough starter.md': starter },
-    answer: 'Skill: notes-vault. Added Baking/Autolyse.md and linked it. Every link resolves.' + FIN, expect })),
+  ...[['a new note links to two notes and only one links back: blocked', '# Green tea\nFeed it daily.\n', { block: true, tags: ['vault-backlinks'], says: /Green tea\.md/ }],
+    ['a new note links to two notes and both link back: passes', '# Green tea\nFeed it daily.\n\n## Related\n- [[Steeping]]\n', { not: ['vault-backlinks'] }]].map(([n, starter, expect]) => ({
+    name: `notes-vault: ${n}`, prompt: 'add a note on steeping to my vault', tools: [sk('notes-vault'), bash('node skills/obsidian/scripts/notes.mjs check --all', 'NOTES: every link resolves')],
+    edit: { 'Tea/Water temperature.md': () => '# Water temperature\nHeat per leaf.\n', 'Tea/Green tea.md': () => '# Green tea\nFeed it daily.\n', 'Garden/Tomatoes.md': () => '# Tomatoes\nSee [[Water temperature]].\n' },
+    files: { 'Tea/Steeping.md': '# Steeping\nRest the leaves in water before the [[Green tea]] goes in. See [[Water temperature]].\n', 'Tea/Water temperature.md': '# Water temperature\nHeat per leaf.\n\n## Related\n- [[Steeping]]\n', 'Tea/Green tea.md': starter },
+    answer: 'Skill: notes-vault. Added Tea/Steeping.md and linked it. Every link resolves.' + FIN, expect })),
   { name: 'notes-vault: a note changed and the link check ran: passes', prompt: 'update the note on sleep in my vault with the new study', tools: [sk('notes-vault'), bash('node skills/obsidian/scripts/notes.mjs check --all', 'NOTES: every link resolves')], files: { 'Notes/Sleep.md': '# Sleep\n- Adults need 7 to 9 hours (sources/sleep-study.pdf, checked 2026-10-19)\n\n## Related\n- [Caffeine](Caffeine.md): affects sleep\n' }, answer: 'Skill: notes-vault. Added the finding to Notes/Sleep.md with its source and date. Every link resolves.' + FIN, expect: { not: ['vault-links-checked'] } },
   // package-release (library)
   { name: 'package version set without a dry run: blocked', prompt: 'publish the crate to crates.io', tools: [sk('package-release')], files: { 'Cargo.toml': '[package]\nname = "x"\nversion = "0.3.0"\n', 'CHANGELOG.md': '## 0.3.0' }, answer: 'Skill: package-release. Version set to 0.3.0.', expect: { block: true, tags: ['package-dry-run'] } },
@@ -2014,6 +2014,11 @@ STOP.push(
   // Lesson: a correct **Verification** block failed twice, because only a # heading counted
   { pack: 'app', name: 'verification-report: a bold Verification line counts like a heading: passes', prompt: 'add a feature to export reports as csv', tools: [pb('feature')], files: SPEC,
     answer: 'Playbook: feature.md.\n' + VERIF.replace(/^#{1,6}\s*Verification[^\n]*/m, '**Verification**') + FIN, expect: { not: ['verification-report'] } },
+  // (Lesson (trial v29): "- **How I checked it:**" as a bullet was refused, only a line starting with the label counted)
+  { pack: 'app', name: 'verification-report: a bulleted bold label counts like a heading: passes', prompt: 'add a feature to export reports as csv', tools: [pb('feature')], files: SPEC,
+    answer: 'Playbook: feature.md.\n' + VERIF.replace(/^#{1,6}\s*Verification[^\n]*/m, '- **How I checked it:**') + FIN, expect: { not: ['verification-report'] } },
+  { pack: 'app', name: 'verification-report: a bullet with no label: blocked', prompt: 'add a feature to export reports as csv', tools: [pb('feature')], files: SPEC,
+    answer: 'Playbook: feature.md.\n- Added the export.\n- Tests: 18 pass (npm test).\n' + FIN, expect: { block: true, tags: ['verification-report'] } },
   // plain words count (Lesson, trial round 11: "Tests" and "Against the real tool" were blocked and the jargon labels
   // forced back in)
   { pack: 'app', name: 'verification-report: plain wording ("Tests", "Against the real tool") counts: passes', prompt: 'add a feature to export reports as csv', tools: [pb('feature')], files: SPEC,
@@ -2242,6 +2247,15 @@ PRETOOL.push(
     tools: [{ name: 'Edit', input: { file_path: 'src/x.js', old_string: 'a', new_string: 'b' } }, bash('npm test', 'Tests: 12 passed'), bash('git status --short', ' M src/x.js')], deny: true, tag: 'no-repeat' },
   { name: 'no-repeat: the same audit with its output trimmed differently is still the same check: denied', tool: 'Bash', input: { command: 'node tools/audit.mjs --setup 2>&1 | tail -5' }, prompt: 'set up this project',
     tools: [bash('node tools/audit.mjs --setup 2>&1 | tail -20', 'audit: PASS (31 sweeps)')], deny: true, tag: 'no-repeat' },
+  { name: 'no-polling: a long sleep while a background audit runs: denied', tool: 'Bash', input: { command: 'sleep 300' }, prompt: 'set up this project',
+    tools: [{ name: 'Bash', input: { command: 'node tools/audit.mjs > .cache/audit.txt 2>&1', run_in_background: true }, result: 'Command running in background with ID: bx91. Output is being written to: C:/t/tasks/bx91.output' }], deny: true, tag: 'no-polling' },
+  { name: 'no-polling: a long sleep with nothing in the background: allowed', tool: 'Bash', input: { command: 'sleep 300' }, prompt: 'set up this project',
+    tools: [bash('node tools/audit.mjs > .cache/audit.txt 2>&1', 'audit: PASS')], deny: false },
+  // (Lesson (trial v29): the plan-format check ran again with the plan unchanged, in three projects)
+  { name: 'no-repeat: the plan-format check run again with the plan unchanged: denied', tool: 'Bash', input: { command: 'node skills/plan/scripts/plan-tasks.mjs check docs/plans/x.md' }, prompt: 'plan the csv export',
+    tools: [bash('node skills/plan/scripts/plan-tasks.mjs check docs/plans/x.md', 'plan OK: 4 tasks')], deny: true, tag: 'no-repeat' },
+  { name: 'no-repeat: the plan-format check after the plan was edited: allowed', tool: 'Bash', input: { command: 'node skills/plan/scripts/plan-tasks.mjs check docs/plans/x.md' }, prompt: 'plan the csv export',
+    tools: [bash('node skills/plan/scripts/plan-tasks.mjs check docs/plans/x.md', 'plan OK: 4 tasks'), { name: 'Edit', input: { file_path: 'docs/plans/x.md', old_string: 'a', new_string: 'b' } }], deny: false },
   { name: 'no-repeat: an edit after the last run: allowed', tool: 'Bash', input: { command: 'npm test' }, prompt: 'add a csv export',
     tools: [bash('npm test', 'Tests: 11 passed, 1 failed'), { name: 'Edit', input: { file_path: 'src/x.js', old_string: 'a', new_string: 'b' } }], deny: false },
   { name: 'no-repeat: a waive or another file-changing command after the last run: allowed', tool: 'Bash', input: { command: 'node tools/hooks/hooks.mjs check --answer-file .cache/answer.md' }, prompt: 'add a csv export',
@@ -2843,6 +2857,17 @@ STOP.push(
     tools: [{ name: 'Write', input: { file_path: 'docs/playbooks/export.md', content: '---\nname: export\nsummary: export customers\ntriggers: export customers\nchecks: none - a test runbook\n---\n# Playbook: export\n## Pitfalls\n- Quote every field: Marisol Etxeberria\'s address broke it.\n' } }],
     files: { 'docs/playbooks/export.md': '---\nname: export\nsummary: export customers\ntriggers: export customers\nchecks: none - a test runbook\n---\n# Playbook: export\n## Pitfalls\n- Quote every field: Marisol Etxeberria\'s address broke it.\n', 'docs/CHANGELOG.md': 'x' },
     answer: 'Fixed the export and added the pitfall.' + FIN, expect: { block: true, tags: ['no-verbatim-examples'] }, after: (dir, reason) => /Etxeberria/.test(reason) },
+  // (a one-word name from a title matches only capitalized, and a name taken out again is gone. Lesson (trial v29):
+  // "Day" from a book title flagged "every day" in a runbook, and kept flagging after it was removed)
+  { name: 'no-verbatim-examples: an everyday word that is also one word of a title the user named: passes', prompt: 'add The Lighthouse of the Harbor by Imre Valkonen to my shelf list, and a routine for it',
+    tools: [{ name: 'Write', input: { file_path: 'docs/playbooks/shelf.md', content: '---\nname: shelf\nsummary: shelf list\ntriggers: shelf list, a book about the harbor\nchecks: none - a test runbook\n---\n# Playbook: shelf\n' } }],
+    files: { 'docs/playbooks/shelf.md': '---\nname: shelf\nsummary: shelf list\ntriggers: shelf list, a book about the harbor\nchecks: none - a test runbook\n---\n# Playbook: shelf\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Added the book and the routine.' + FIN, expect: { not: ['no-verbatim-examples'] } },
+  { name: 'no-verbatim-examples: the user\'s name written and then taken out again this turn: passes', prompt: 'add The Lighthouse of the Harbor by Imre Valkonen to my shelf list, and a routine for it',
+    tools: [{ name: 'Write', input: { file_path: 'docs/playbooks/shelf.md', content: '---\nname: shelf\nsummary: shelf list\ntriggers: shelf list\nchecks: none - a test runbook\n---\n# Playbook: shelf\n- Example: Imre Valkonen\n' } },
+      { name: 'Edit', input: { file_path: 'docs/playbooks/shelf.md', old_string: '- Example: Imre Valkonen\n', new_string: '' } }],
+    files: { 'docs/playbooks/shelf.md': '---\nname: shelf\nsummary: shelf list\ntriggers: shelf list\nchecks: none - a test runbook\n---\n# Playbook: shelf\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Added the book and the routine.' + FIN, expect: { not: ['no-verbatim-examples'] } },
   // (the project's own tests too. Lesson (an obedience trial): a fix for a missing currency put the user's product
   // name from the complaint into two test files)
   { name: 'no-verbatim-examples: a test written for a complaint names the user\'s product: blocked', prompt: 'prices must always show their currency. The list printed \'Copper fern pot 12\' with no currency and a customer got confused. fix it',
@@ -2919,6 +2944,10 @@ STOP.push(
   { name: 'security-report: "the security check left two problems open": passes', prompt: 'make the form check the user', tools: [sk('security-review')],
     files: { ...AUTH, ...SEC_LOG, 'docs/reviews/security-2026-10-20.md': SEC_TABLE, 'docs/CHANGELOG.md': 'x' },
     answer: 'The form checks the user now.\n\nThe security check left two problems open, both in `docs/STATUS.md`: package pinning (low) and HTTPS (medium). Details are in `docs/reviews/security-2026-10-20.md`.' + FIN, expect: { not: ['security-report'] } },
+  // (Lesson (trial v29): "found 2 open issues" was refused, the count stood before "open")
+  { name: 'security-report: "the security review found 2 open issues": passes', prompt: 'make the form check the user', tools: [sk('security-review')],
+    files: { ...AUTH, ...SEC_LOG, 'docs/reviews/security-2026-10-20.md': SEC_TABLE, 'docs/CHANGELOG.md': 'x' },
+    answer: 'The form checks the user now.\n\nThe security review found 2 open issues, both in `docs/STATUS.md`: package pinning (low) and HTTPS (medium). Details are in `docs/reviews/security-2026-10-20.md`.' + FIN, expect: { not: ['security-report'] } },
   { name: 'security-report: open items said plainly, but no report file named: blocked', prompt: 'make the form check the user', tools: [sk('security-review')],
     files: { ...AUTH, ...SEC_LOG, 'docs/reviews/security-2026-10-20.md': SEC_TABLE, 'docs/CHANGELOG.md': 'x' },
     answer: 'The form checks the user now.\n\n## Security review\nNo serious problem was found, but two items are open: package pinning and HTTPS.' + FIN, expect: { tags: ['security-report'] } },
@@ -3054,10 +3083,10 @@ STOP.push(
   { pack: 'knowledge', name: 'knowledge-source-trigger: facts written without research or capture: blocked', prompt: 'tidy the desk note', files: { 'docs/knowledge/desks.md': KNOW, 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { tags: ['knowledge-source-trigger'] } },
   // facts read from the project's own files, each labeled, dated and sourced from a file that exists, need no skill ritual
   // (Lesson, trial rounds 13 and 16: a tip the user dictated, saved with the vault's note skill, was held to research)
-  { pack: 'knowledge', name: 'knowledge-source-trigger: a note the user dictated, saved with the notes-vault skill: passes', prompt: 'add a note: autolyse means resting flour and water before the salt', tools: [sk('notes-vault')],
-    files: { 'docs/knowledge/autolyse.md': '# Autolyse\nRest flour and water before the salt.\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Skill: notes-vault. Saved.' + FIN, expect: { not: ['knowledge-source-trigger'] } },
+  { pack: 'knowledge', name: 'knowledge-source-trigger: a note the user dictated, saved with the notes-vault skill: passes', prompt: 'add a note: steeping means resting flour and water before the salt', tools: [sk('notes-vault')],
+    files: { 'docs/knowledge/steeping.md': '# Steeping\nRest the leaves in water before the salt.\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Skill: notes-vault. Saved.' + FIN, expect: { not: ['knowledge-source-trigger'] } },
   { pack: 'knowledge', name: 'knowledge-source-trigger: facts labeled "observed" with the project file and date: passes', prompt: 'set up the style sheet from the chapters',
-    files: { 'chapters/01-forge.md': '# Forge\nAren held the hammer.\n', 'docs/knowledge/style.md': KNOW_LOCAL('chapters/01-forge.md', 'observed', '2026-10-21'), 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { not: ['knowledge-source-trigger'] } },
+    files: { 'chapters/01-forge.md': '# Forge\nBram held the hammer.\n', 'docs/knowledge/style.md': KNOW_LOCAL('chapters/01-forge.md', 'observed', '2026-10-21'), 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { not: ['knowledge-source-trigger'] } },
   { pack: 'knowledge', name: 'knowledge-source-trigger: a labeled fact whose source file does not exist: blocked', prompt: 'set up the style sheet from the chapters',
     files: { 'docs/knowledge/style.md': KNOW_LOCAL('chapters/09-missing.md', 'observed', '2026-10-21'), 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { tags: ['knowledge-source-trigger'] } },
   { pack: 'knowledge', name: 'knowledge-source-trigger: a row with no evidence label: blocked', prompt: 'set up the style sheet from the chapters',
@@ -3108,7 +3137,7 @@ STOP.push(
   { name: 'stop-follow-on: a lesson placed in CLAUDE.md names the audit in round 1', prompt: 'you forgot the changelog again, this is annoying', files: { 'docs/CHANGELOG.md': 'x' },
     answer: 'You\'re right: the changelog line was missing.\nLearned (rule): every change gets its changelog line → CLAUDE.md' + FIN, expect: { block: true, tags: ['upset-learned', 'audit-run'] } },
   // (Lesson: a false complaint checked with nothing changed got "Then:" changelog and audit steps, waived as "no file changed")
-  { name: 'stop-follow-on: an upset turn that changed no file names no changelog or audit after upset-learned', prompt: 'you keep making Aren left-handed!! he is right-handed', tools: [pb('project')],
+  { name: 'stop-follow-on: an upset turn that changed no file names no changelog or audit after upset-learned', prompt: 'you keep making Bram left-handed!! he is right-handed', tools: [pb('project')],
     files: { '.cache/turn-notes.md': 'Playbook: project.md\nLearned (none): no lesson\n' }, answer: 'Sorry, I will watch his hands.' + FIN, expect: { block: true, tags: ['upset-learned'], not: ['changelog', 'audit-run'] } },
   { ...MEAL_TURN, name: 'stop-follow-on: an upset turn that changed a file still names the runbook lesson\'s audit and changelog', prompt: 'ugh, you forgot the meal plan again!! plan meals for the week', files: { 'notes/meals.md': 'x' },
     answer: 'Playbook: meal-plan.md. You\'re right: the plan was missing. Done.' + FIN, expect: { block: true, tags: ['upset-learned', 'audit-run', 'changelog'] } },
@@ -3560,8 +3589,8 @@ const SALES_OUT = '2026-W40.csv: rows 3, revenue 440\n  mugs: revenue 315\n  pla
 const FIGS = withReqs({ tag: 'data-computed', when: { promptMatches: 'best week' }, require: { answerMatches: 'how it was computed:', answerFiguresComputed: true }, message: 'Compute every number with code run this turn.' });
 const FIG_RUN = bash('node .cache/data/compare-weeks.mjs', SALES_OUT);
 const FIG_HOW = '\nHow it was computed: `.cache/data/compare-weeks.mjs` over the three exports. The figures without bowls: 300 + 150, 225 + 100 and 315 + 125.';
-const CHARS = { 'characters.md': '# Characters\n- **Aren Vale**: smith, right-handed, scar over the left eye.\n' };
-const OUTLINE = l => ({ ...CHARS, 'outputs/chapter-03-outline.md': `# Chapter 3 outline\n- Aren is a smith, right-handed, with a scar over his left eye [1].\n- ${l} [1].\n\n[1] characters.md\n`, 'docs/CHANGELOG.md': 'x' });
+const CHARS = { 'characters.md': '# Characters\n- **Bram Oaken**: smith, right-handed, scar over the left eye.\n' };
+const OUTLINE = l => ({ ...CHARS, 'outputs/chapter-03-outline.md': `# Chapter 3 outline\n- Bram is a smith, right-handed, with a scar over his left eye [1].\n- ${l} [1].\n\n[1] characters.md\n`, 'docs/CHANGELOG.md': 'x' });
 STOP.push(
   // instructions-run: a launcher the turn wrote, sent to the user, never run here
   { name: 'instructions-run: the answer sends the user to run a setup script written this turn that never ran: blocked', prompt: 'set up the api', tools: [W('scripts/setup.ps1', SETUP_PS1)],
@@ -3859,13 +3888,13 @@ STOP.push(
     files: { 'docs/menu.md': 'Croissant (gluten, milk)', 'docs/CHANGELOG.md': 'x', ...NOTES('Playbook: project.md\nLearned (none): nothing to learn here, it was a slip\n') },
     answer: 'You\'re right: the croissant had no allergens.\nChecked: docs/menu.md - the croissant line had none. Added them.' + FIN, expect: { tags: ['upset-learned'], says: /only for a complaint that did not hold/ } },
   // (Lesson: the notes' own "didn't hold" did not count, and agents pasted "the complaint doesn't hold:" into every bullet)
-  { name: 'upset-learned: a disproved complaint in plain words, "didn\'t hold" in the notes, no fixed phrase in the answer: passes', prompt: 'you keep making Aren left-handed!! he is right-handed, it is in characters.md', tools: [pb('project')],
-    files: { ...NOTES('Playbook: project.md\nLearned (none): the complaint didn\'t hold - characters.md, chapter 1 and the outline all give Aren as right-handed\n') },
-    answer: 'I checked every file, and none of them makes Aren left-handed. They all say he\'s right-handed.\n\n- `characters.md`: right-handed, with a scar over his left eye.\n- `chapters/01-forge.md`: he lifts the hammer in his right hand.\n\nSo I changed nothing.' + FIN, expect: { not: ['upset-learned'] } },
+  { name: 'upset-learned: a disproved complaint in plain words, "didn\'t hold" in the notes, no fixed phrase in the answer: passes', prompt: 'you keep making Bram left-handed!! he is right-handed, it is in characters.md', tools: [pb('project')],
+    files: { ...NOTES('Playbook: project.md\nLearned (none): the complaint didn\'t hold - characters.md, chapter 1 and the outline all give Bram as right-handed\n') },
+    answer: 'I checked every file, and none of them makes Bram left-handed. They all say he\'s right-handed.\n\n- `characters.md`: right-handed, with a scar over his left eye.\n- `chapters/01-forge.md`: he lifts the hammer in his right hand.\n\nSo I changed nothing.' + FIN, expect: { not: ['upset-learned'] } },
   { name: 'upset-learned: plain Spanish "no encontré" with "Learned (none)" in the notes: passes', prompt: '¡¡otra vez hay texto en inglés en el blog!!', tools: [pb('project')],
     files: { ...NOTES('Playbook: project.md\nLearned (none): revisé las 14 páginas del sitio\n') },
     answer: 'Revisé las 14 páginas del sitio y no encontré ningún texto en inglés.\n\n## Terminado\n- Hecho. Archivos: _site/index.html', expect: { not: ['upset-learned'] } },
-  { name: 'upset-learned: "Learned (none)" with no verdict at all in the answer or notes: blocked', prompt: 'you keep making Aren left-handed!! he is right-handed, it is in characters.md', tools: [pb('project')],
+  { name: 'upset-learned: "Learned (none)" with no verdict at all in the answer or notes: blocked', prompt: 'you keep making Bram left-handed!! he is right-handed, it is in characters.md', tools: [pb('project')],
     files: { ...NOTES('Playbook: project.md\nLearned (none): no lesson this time\n') },
     answer: 'Sorry about that. I will be careful with his hands from now on.' + FIN, expect: { tags: ['upset-learned'] } },
   // turn-notes: the lines the checks read live in .cache/turn-notes.md, written this turn; last turn's notes don't count
@@ -3911,6 +3940,11 @@ STOP.push(
   { pack: 'knowledge', name: 'answer-traced: a note written this turn with a price no page had: blocked', prompt: 'what do we know about desk prices',
     tools: [sk('research'), { name: 'WebFetch', input: { url: 'https://example.com' }, result: KNOW }, W('docs/knowledge/desks.md', KNOW.replace('$300', '$345'))], files: { 'docs/knowledge/desks.md': KNOW.replace('$300', '$345'), 'docs/CHANGELOG.md': 'x' },
     answer: 'Desk X costs $345 (from docs/knowledge/desks.md).', expect: { tags: ['answer-traced'], says: /\$345/ } },
+  // (Lesson (trial v29): a difference of two figures the turn read, written into the knowledge file, was "made up")
+  { pack: 'knowledge', name: 'answer-traced: a note with the difference of two figures read this turn: passes', prompt: 'which week did teapots grow most',
+    tools: [sk('research'), bash('node tools/weekly.mjs', 'teapots: week 1 154, week 2 242'), W('docs/knowledge/teapots.md', '# Teapots\n- Week 2: 242, up 88.00 on week 1 (154).\n')],
+    files: { 'docs/knowledge/teapots.md': '# Teapots\n- Week 2: 242, up 88.00 on week 1 (154).\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Week 2 grew most: 242 against 154 the week before.', expect: { not: ['answer-traced'] } },
   // answer-cites: a path a script printed while reading it was opened by that script
   { pack: 'knowledge', name: 'answer-cites: a path the script printed as it read it: passes', prompt: 'what was our best week so far',
     tools: [sk('research'), bash('node -e "for (const w of [42]) console.log(\'exports/2026-W\' + w + \'.csv\', 692)"', 'exports/2026-W42.csv 692')], files: SALES, mtimes: { 'exports/2026-W42.csv': -5000 },
@@ -4685,7 +4719,7 @@ const proves = s => TAGS.filter(t => (s.expect?.tags || []).includes(t) || (s.ex
 const SHARD = (() => { const i = process.argv.indexOf('--shard'), m = /^(\d+)\/(\d+)$/.exec(i > 0 ? process.argv[i + 1] || '' : ''); return m ? { i: Number(m[1]), n: Number(m[2]) } : null; })();
 const HELPER = !!SHARD;
 // tags a standalone test proves (it runs with --tags <tag>, outside the full-run-only block)
-const STANDALONE_TAGS = ['status-bar', 'usage-quiet', 'upset-acknowledged', 'helper-turn-checked', 'starter-tested', 'begin-keeps-turn', 'helper-work-counts', 'upset-es', 'feedback-usage', 'session-checklist', 'engine-bypassed', 'transcript-tail', 'instructions-run', 'answer-traced', 'stop-follow-on', 'stop-reblock', 'check-preview'];
+const STANDALONE_TAGS = ['status-bar', 'usage-quiet', 'no-polling', 'trial-wording', 'upset-acknowledged', 'helper-turn-checked', 'starter-tested', 'begin-keeps-turn', 'helper-work-counts', 'upset-es', 'feedback-usage', 'session-checklist', 'engine-bypassed', 'transcript-tail', 'instructions-run', 'answer-traced', 'stop-follow-on', 'stop-reblock', 'check-preview'];
 if (TAGS) {
   const all = [...STOP, ...PRETOOL, ...PROMPT];
   for (const t of TAGS) if (!HELPER && !TRIGGER_TAGS.includes(t) && !STANDALONE_TAGS.includes(t) && t !== 'selftest-speed' && !all.some(s => proves(s).includes(t))) report(false, `tags: a scenario proves ${t}`, `no scenario proves "${t}": add one to tools/hooks/project-scenarios.mjs (blocked when skipped, passes when followed)`);
@@ -5207,6 +5241,68 @@ if (mineB() && (!TAGS || TAGS.includes('helper-work-counts'))) {
         `helper read seen: ${helperRead} | answer: ${answer.slice(0, 80)}`);
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   }
+}
+// trial-wording: no trial scenario's own names or note titles in the files a project receives. An engine tuned to its
+// trials' content makes trial results look better than real use. Lesson (trial v29): a judge found a trial's note
+// titles and character names in the shipped self-tests, including a test for that trial's exact situation.
+if (mineB() && (!TAGS || TAGS.includes('trial-wording')) && fs.existsSync(path.join(ROOT, 'tools/starter/trials/scenarios.json'))) {
+  const label = 'trial-wording: no trial scenario\'s names, titles or keepOut words in the shipped engine files';
+  try {
+    const H = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks.mjs')).href + '?tw=1');
+    const sc = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/starter/trials/scenarios.json'), 'utf8'));
+    const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const rxs = [];
+    for (const s of sc) {
+      const texts = [];
+      const walk = x => { if (typeof x === 'string') texts.push(x); else if (x && typeof x === 'object') for (const [k, v] of Object.entries(x)) { texts.push(k); walk(v); } };
+      walk(s.setup); walk(s.then);
+      // (a capitalized word matches only as written: "Mark" is a name, "mark" is not)
+      for (const w of s.keepOut || []) rxs.push([s.id, w, new RegExp(`(?<![\\p{L}])${esc(w)}(?![\\p{L}])`, /^\p{Lu}/u.test(w) ? 'u' : 'iu')]);
+      for (const n of H.userNames(texts).filter(n => /\s/.test(n))) rxs.push([s.id, n, new RegExp(`(?<![\\p{L}])${esc(n)}(?![\\p{L}])`, 'u')]);
+    }
+    const hits = [], skip = /(^|\/)(node_modules|\.git|state)(\/|$)|^tools\/starter\//;
+    const walkFiles = d => { for (const n of fs.readdirSync(path.join(ROOT, d), { withFileTypes: true })) { const r = d ? `${d}/${n.name}` : n.name;
+      if (skip.test(r)) continue; if (n.isDirectory()) walkFiles(r); else if (/\.(mjs|cjs|js|json|md|py|sh|ps1|txt)$/i.test(n.name)) scan(r); } };
+    const scan = r => { const t = fs.readFileSync(path.join(ROOT, r), 'utf8').replace(/\\n/g, ' '); for (const [id, w, rx] of rxs) if (rx.test(t)) hits.push(`${r}: "${w}" (${id})`); };
+    for (const d of ['tools/hooks', 'skills', 'docs/playbooks', 'docs/checks', 'packs', 'library']) if (fs.existsSync(path.join(ROOT, d))) walkFiles(d);
+    for (const f of ['AGENTS.md', 'tools/audit.mjs']) if (fs.existsSync(path.join(ROOT, f))) scan(f);
+    report(rxs.length > 0 && !hits.length, label, `${rxs.length} words checked; ${hits.slice(0, 8).join('; ')}`);
+  } catch (e) { report(false, label, e.message); }
+}
+// no-polling: waiting on background work by sleeping or re-reading its output is refused; the first read, a read a
+// minute later, a short pause and a read after the notice are not. Lesson (trial v29): setup helpers slept and polled.
+if (mineB() && (!TAGS || TAGS.includes('no-polling'))) {
+  const label = 'no-polling: a helper\'s background helper, a sleep while a job runs and a quick re-read of its output are refused; first reads, short pauses and reads after the notice pass';
+  try {
+    const H = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks.mjs')).href + '?np=1');
+    if (typeof H.pollWait !== 'function') throw new Error('pollWait is not exported');
+    const T0 = Date.parse('2026-11-05T08:00:00Z'), at = s => new Date(T0 + s * 1000).toISOString();
+    const use = (s, id, name, input) => ({ type: 'assistant', timestamp: at(s), message: { content: [{ type: 'tool_use', id, name, input }] } });
+    const res = (s, id, text) => ({ type: 'user', timestamp: at(s), message: { content: [{ type: 'tool_result', tool_use_id: id, content: text }] } });
+    const note = (s, id) => ({ type: 'user', timestamp: at(s), message: { content: `<task-notification>\n<task-id>${id}</task-id>\n<status>completed</status>\n</task-notification>` } });
+    const job = [use(0, 'b1', 'Bash', { command: 'node tools/audit.mjs > .cache/audit.txt 2>&1', run_in_background: true }),
+      res(1, 'b1', 'Command running in background with ID: bx91. Output is being written to: C:/t/tasks/bx91.output'),
+      use(10, 'r1', 'Read', { file_path: 'C:/p/.cache/audit.txt' }), res(11, 'r1', '')];
+    const kid = [use(0, 'a1', 'Agent', { description: 'cold read', prompt: 'read the runbook cold', run_in_background: true }), res(1, 'a1', 'Async agent launched successfully. agentId: ag77')];
+    const now = s => ({ now: T0 + s * 1000 });
+    const got = {
+      helperBg: !!H.pollWait('Agent', { prompt: 'review it', run_in_background: true }, [], { helper: true }),
+      mainBg: !!H.pollWait('Agent', { prompt: 'review it', run_in_background: true }, [], {}),
+      helperSleep: !!H.pollWait('Bash', { command: 'node -e "setTimeout(() => {}, 110000)"' }, kid, { helper: true, ...now(20) }),
+      helperLoop: !!H.pollWait('Bash', { command: 'until [ -s .cache/cold.txt ]; do sleep 5; done' }, kid, { helper: true, ...now(20) }),
+      mainSleep: !!H.pollWait('Bash', { command: 'sleep 300' }, job, now(20)),
+      shortPause: !!H.pollWait('Bash', { command: 'sleep 2' }, job, now(20)),
+      reread: !!H.pollWait('Read', { file_path: 'C:/p/.cache/audit.txt' }, job, now(30)),
+      rereadCat: !!H.pollWait('Bash', { command: 'tail -5 .cache/audit.txt' }, job, now(30)),
+      rereadLater: !!H.pollWait('Read', { file_path: 'C:/p/.cache/audit.txt' }, job, now(90)),
+      firstReadTask: !!H.pollWait('Read', { file_path: 'C:/t/tasks/bx91.output' }, job, now(30)),
+      otherFile: !!H.pollWait('Read', { file_path: 'C:/p/src/app.js' }, job, now(30)),
+      afterNotice: !!H.pollWait('Read', { file_path: 'C:/p/.cache/audit.txt' }, [...job, note(25, 'bx91')], now(30)),
+      echoOnly: !!H.pollWait('Bash', { command: 'echo "sleep 300 while waiting"' }, job, now(20)),
+    };
+    const want = { helperBg: true, mainBg: false, helperSleep: true, helperLoop: true, mainSleep: true, shortPause: false, reread: true, rereadCat: true, rereadLater: false, firstReadTask: false, otherFile: false, afterNotice: false, echoOnly: false };
+    report(JSON.stringify(got) === JSON.stringify(want), label, JSON.stringify(Object.fromEntries(Object.entries(got).filter(([k, v]) => want[k] !== v))));
+  } catch (e) { report(false, label, e.message); }
 }
 // usage-quiet: the committed usage file changes only when what its readers use changes (a use under the hardening
 // count, a new day, a new session), not on every turn. Lesson (a field report): one project made 15 commits of it alone.
@@ -5951,7 +6047,7 @@ if (mineB()) {
     'incident-logged': 'Cronología en docs/incidents/2026-10-21-caida.md.', 'data-computed': 'Cómo se calculó: suma de las filas de exports/a.csv.',
     'data-computed-trigger': 'Cómo se calculó: suma de las filas de exports/a.csv.', 'not legal advice': 'No es asesoramiento legal: una primera lectura para un abogado.',
     'marketing-sourced': 'Fuente: el informe anual.', 'user-research-counted': '7 de 12 personas lo pidieron.', 'correspondence-draft-saved': 'No se ha enviado nada.',
-    'dependency-gates-compared': 'Antes/después: las pruebas pasan igual.', 'continuity-checked': 'Continuidad: Aren sigue siendo diestro.',
+    'dependency-gates-compared': 'Antes/después: las pruebas pasan igual.', 'continuity-checked': 'Continuidad: Bram sigue siendo diestro.',
     'parallel': 'Pasé las pruebas completas sobre el resultado combinado.', 'install-vetted': 'Evaluado: marked - legítimo según npm y GitHub - gratis, licencia MIT - mantenido.',
     'finished-summary': '## Terminado\n- docs/x.md', 'redo-changes': 'Qué cambió: el total ahora cuenta las devoluciones.'
   };
@@ -7341,9 +7437,9 @@ if (mineB()) { // wire: an adopted vault also hides the engine's records, rule f
   const v = fs.mkdtempSync(path.join(os.tmpdir(), 'vault-')), old = fs.mkdtempSync(path.join(os.tmpdir(), 'vault-'));
   try {
     const APP = { userIgnoreFilters: ['Archive/'], attachmentFolderPath: 'Attachments', showLineNumber: true };
-    for (const d of [v, old]) write(d, { '.obsidian/app.json': JSON.stringify(APP, null, 2) + '\n', '.obsidian/appearance.json': '{"theme":"obsidian"}\n', 'Baking/Hydration.md': '# Hydration\n', 'README.md': '# My vault\n' });
+    for (const d of [v, old]) write(d, { '.obsidian/app.json': JSON.stringify(APP, null, 2) + '\n', '.obsidian/appearance.json': '{"theme":"obsidian"}\n', 'Tea/Water temperature.md': '# Water temperature\n', 'README.md': '# My vault\n' });
     // new-project's list of what the folder had before the starter (old: a vault adopted before that list existed)
-    write(v, { '.starter/original-files.txt': '.obsidian/app.json\n.obsidian/appearance.json\nBaking/Hydration.md\nREADME.md\n' });
+    write(v, { '.starter/original-files.txt': '.obsidian/app.json\n.obsidian/appearance.json\nTea/Water temperature.md\nREADME.md\n' });
     const W = JSON.stringify(pathToFileURL(path.join(ROOT, 'tools/hooks/wire.mjs')).href);
     for (const d of [v, old]) spawnSync(process.execPath, ['--input-type=module', '-e', `import { wire } from ${W}; wire(${JSON.stringify(d)}); wire(${JSON.stringify(d)});`], { encoding: 'utf8' });
     const va = JSON.parse(fs.readFileSync(path.join(v, '.obsidian/app.json'), 'utf8')), oa = JSON.parse(fs.readFileSync(path.join(old, '.obsidian/app.json'), 'utf8'));
@@ -8461,15 +8557,15 @@ if (mineB() && (!TAGS || TAGS.includes('instructions-run'))) { // instructions-r
 }
 if (mineB() && (!TAGS || TAGS.includes('answer-traced'))) { // cited claims: an inference cited to a file that does not hold it is caught, a fair reading is not
   const { citedClaimGaps } = await import(pathToFileURL(path.join(B, 'tools/hooks/hooks.mjs')).href);
-  const files = { 'characters.md': '# Characters\n- Aren Vale: smith, right-handed, scar over the left eye.\n', 'chapters/02-road.md': '# The road\nIlka rode north with the letter.\n' };
+  const files = { 'characters.md': '# Characters\n- Bram Oaken: smith, right-handed, scar over the left eye.\n', 'chapters/02-road.md': '# The road\nMira rode north with the letter.\n' };
   const rd = p => files[p] || '';
   const doc = l => ({ text: `${l}\n\n[1] characters.md\n[2] chapters/02-road.md\n`, where: 'outputs/o.md' });
   const caught = ['- Scar: left eye, so a blind or weaker side is on the left [1].', '- His scar draws a stranger\'s notice, which is useful later if people remember him by it [1].'].map(l => citedClaimGaps([doc(l)], rd).length);
-  const fair = ['- Aren is a right-handed smith with a scar over his left eye [1].', '- He follows the same road Ilka took [2], on the slow horse, two days behind her.', '- He is right-handed: hammer, sword or reins in the right hand [1].',
-    '- Ilka went north [2], and he lifts the hammer, so it finds no problem [1].', '- My guess: the scar leaves a blind side on his left [1].', '- Inferido: el lado izquierdo sería su punto débil [1].'].map(l => citedClaimGaps([doc(l)], rd).length);
-  const answer = citedClaimGaps([{ text: 'From `characters.md`: Aren is right-handed, so he fights best with a spear on horseback at night.', where: 'the answer' }], rd).length;
+  const fair = ['- Bram is a right-handed smith with a scar over his left eye [1].', '- He follows the same road Mira took [2], on the slow horse, two days behind her.', '- He is right-handed: hammer, sword or reins in the right hand [1].',
+    '- Mira went north [2], and he lifts the hammer, so it finds no problem [1].', '- My guess: the scar leaves a blind side on his left [1].', '- Inferido: el lado izquierdo sería su punto débil [1].'].map(l => citedClaimGaps([doc(l)], rd).length);
+  const answer = citedClaimGaps([{ text: 'From `characters.md`: Bram is right-handed, so he fights best with a spear on horseback at night.', where: 'the answer' }], rd).length;
   // (a commit name in code after "from <file>" holds no figures. Lesson (a field report): its digits were "missing")
-  const commit = citedClaimGaps([{ text: 'Aren passed, linked from `characters.md` (commit `e348b41`).', where: 'the answer' }], rd).length;
+  const commit = citedClaimGaps([{ text: 'Bram passed, linked from `characters.md` (commit `e348b41`).', where: 'the answer' }], rd).length;
   report(caught.every(n => n === 1) && fair.every(n => n === 0) && answer === 1 && commit === 0,
     'answer-traced: a claim cited to a file must share its key words with it (an inference after "so" or ":" counts on its own); a fair reading, a marker cited mid-sentence, a "my guess:" line and a commit name pass',
     JSON.stringify({ caught, fair, answer, commit }));

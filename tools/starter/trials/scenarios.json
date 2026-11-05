@@ -117,6 +117,10 @@
   {
     "id": "np-novel",
     "why": "existing manuscript (adopt)",
+    "keepOut": [
+      "Aren",
+      "Ilka"
+    ],
     "expect": {
       "packs": [
         "knowledge"
@@ -461,6 +465,13 @@
   {
     "id": "np-vault",
     "why": "existing Obsidian vault (adopt)",
+    "keepOut": [
+      "Autolyse",
+      "autolyse",
+      "Sourdough",
+      "sourdough",
+      "Hydration"
+    ],
     "expect": {
       "packs": [
         "knowledge"
@@ -605,6 +616,16 @@
   {
     "id": "np-reading-rule",
     "why": "a reading list: a formatting rule given in turn 2 must hold in every later turn without a reminder (drift probe)",
+    "keepOut": [
+      "Piranesi",
+      "Susanna Clarke",
+      "Ishiguro",
+      "Kindred",
+      "Octavia",
+      "Le Guin",
+      "Left Hand of Darkness",
+      "Remains of the Day"
+    ],
     "expect": {
       "packs": [
         "knowledge"

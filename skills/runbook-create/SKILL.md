@@ -72,7 +72,8 @@ Lesson (a trial): a test needed one row of the live data to stay unfinished; fil
   tags) and `node tools/audit.mjs`. Add a CHANGELOG line. Name the runbook in the answer.
 
 ## 5. Read it cold (mandatory for a new runbook or skill)
-You know what you meant; the next agent has only the text. Give one helper agent only the new file and the request it
+You know what you meant; the next agent has only the text. Give one helper agent, launched in the foreground so its
+answer comes straight back (no sleeping or polling), only the new file and the request it
 is for (no conversation, no hints), and ask it for:
 - every step it could not do exactly as written: a file, command or tool that is missing or unnamed, a word the
   project never defines, a choice the step leaves open ("pick a good one": by what measure?);
