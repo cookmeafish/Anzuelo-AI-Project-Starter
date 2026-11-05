@@ -19,8 +19,8 @@ stop at the usage limit, so check that a headless session runs (`claude -p "ok"`
 checks. Prefer deleting: fix a miss in the start reminder or the end check, or record it and leave it. Each round
 measures the real projects with `node tools/starter/interrupts.mjs <transcripts> --since <date>`, and any refusal or
 notice during work that isn't for safety counts as a finding. `node tools/starter/stop-value.mjs` shows which end
-checks led to real work. Trial rounds and per-finding fixes are paused until engine v2 lands
-(docs/plans/2026-11-05-engine-v2.md).
+checks led to real work, and `node tools/starter/stop-found.mjs` reads v2's blocks. Engine v2 is the default since
+2026-11-05, and trial rounds run on it again (from v31).
 
 0. **Work under the engine.** `node tools/hooks/hooks.mjs begin "<the request>"` in the starter first; what it gets wrong
    on this work goes in `tools/starter/dogfood-log.md` (the inside view, alongside the trial rounds' outside view).
