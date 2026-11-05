@@ -24,6 +24,10 @@ hooks:**, and an upgrade lists each one as its own review item.
     - The background-run notice works from the session's own running jobs, not from command text.
     - Pasted text no longer routes a message or marks it as upset.
     - Another session's file changes are no longer counted as this turn's.
+    - A turn started by a message from another session starts there. Before, it reached back to the last typed request, and a turn of read-only commands was held to that request's edits.
+    - A request that opens with a runbook's trigger goes to that runbook, ahead of a longer trigger found later in the text.
+    - The health check asks only about failures in files the turn touched, or failures that name no file.
+    - `tools/starter/stop-found.mjs` reads v2's end-check blocks, line by line, for the 2026-11-08 decision. A self-test keeps AGENTS.md at 152 lines or fewer.
   - The v2 plan's boxes now match the commits, and the plan has a replay baseline table for the 2026-11-08 decision.
   - v2 has its own guard module, which uses v1's safety refusals and does not copy them. Tests prove each refusal under v2 and silence on a busy ordinary turn.
   - v2 reads Codex transcripts, including the newer `exec` calls (commands and patches inside code), and reads long transcripts from their tail.

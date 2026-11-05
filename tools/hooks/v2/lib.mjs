@@ -128,8 +128,11 @@ codexRows.patch = (out, timestamp, id, patch) => {
 // This turn's rows from a transcript (Claude Code or Codex): everything after the last message the user typed.
 export function turnRows(transcript) {
   const rows = codexRows(tail(transcript).split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean));
+  // (a row the host wrote, such as a message from another session, starts a turn when the prompt hook ran on it.
+  // Lesson: a peer's turn of read-only commands reached back to the last typed request and was held to its edits)
+  const prompted = i => { for (let j = i + 1; j < rows.length && j <= i + 3; j++) if (rows[j].attachment?.hookEvent === 'UserPromptSubmit') return true; return false; };
   let start = 0;
-  rows.forEach((r, i) => { if (typed(r)) start = i; });
+  rows.forEach((r, i) => { if (typed(r) || (r.type === 'user' && typeof r.message?.content === 'string' && !r.isCompactSummary && prompted(i))) start = i; });
   return rows.slice(start);
 }
 

@@ -26,7 +26,7 @@ put('docs/playbooks/long.md', `---\ntriggers: long job\n---\n## Done when\n${Arr
 put('docs/playbooks/windows.md', '---\r\nname: windows\r\ntriggers: rotate the logs\r\nmenu: W1\r\n---\r\n# Logs\r\n## Done when\r\n1. The old logs are zipped (file: logs/*.zip)\r\n');
 const { reminder, MAX_LINES } = await import('./start.mjs');
 const { missing, onStop } = await import('./end.mjs');
-const { turnRows, turnActs } = await import('./lib.mjs');
+const { turnRows, turnActs, worked } = await import('./lib.mjs');
 
 let pass = 0, fail = 0;
 const report = (ok, name, detail = '') => { if (ok) pass++; else { fail++; console.log(`FAIL  ${name}  -> ${detail}`); } };
@@ -144,6 +144,15 @@ report(testGaps(acts([user('upgrade the engine'), call('Bash', { command: 'node 
   'end: an output with failures does not back "passed"');
 const resumed = turnRows(transcript([user('fix the export'), code, { type: 'user', isCompactSummary: true, message: { role: 'user', content: 'This session is being continued from a previous conversation that ran out of context.' } }, say('Continuing.')]));
 report(resumed.length === 5, 'end: the summary that resumes a session is not a new request, so the turn keeps its earlier work', resumed.length);
+{
+  // (the host writes a message from another session as a meta row, and the prompt hook runs on it: a new turn)
+  const peer = { type: 'user', isMeta: true, message: { role: 'user', content: 'Another Claude session sent a message: <cross-session-message from="x">a note</cross-session-message>' } };
+  const hooked = { type: 'attachment', attachment: { type: 'hook_additional_context', hookEvent: 'UserPromptSubmit', content: [] } };
+  const p = turnActs(turnRows(transcript([user('fix the export'), code, say('Fixed.'), peer, hooked, call('Bash', { command: 'git log -3' }), say('Noted.')])));
+  report(!worked(p), 'end: a message from another session that starts a turn is that turn\'s start, so the earlier turn\'s edits are not this turn\'s work', p.calls.map(c => c.name));
+  const mid = turnActs(turnRows(transcript([user('fix the export'), code, { type: 'attachment', attachment: { type: 'queued_command', prompt: 'a note' } }, hooked, say('Fixed.')])));
+  report(worked(mid), 'end: a message from another session that arrives mid-turn does not split the turn', mid.calls.map(c => c.name));
+}
 fs.rmSync(path.join(dir, 'package.json')); put('pyproject.toml', '[project]\nname = "tool"\n');
 report(testGaps(acts([user('fix the total'), code, say('Fixed.')])).length === 0, 'end: a build file alone (pyproject.toml, no test setup) asks for no tests');
 put('tools/gui/test_panel.py', 'def test_x(): pass\n');
