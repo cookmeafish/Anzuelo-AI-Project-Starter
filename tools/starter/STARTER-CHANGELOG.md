@@ -14,6 +14,11 @@ hooks:**, and an upgrade lists each one as its own review item.
   - v2's end check 6: new code matching the project's security pattern (requirements.json "security-code") asks for the security review unless the turn ran it or wrote its report.
   - v2's end check 7: the answer's commits exist or showed up in the session, the files it names exist, and "committed" or "pushed" stated as done is backed by a command or a commit made since the turn began.
   - Runbook "Done when" items can carry v2's check after v1's marker, as in "(hook: plan-saved) (file: docs/plans/*.md)". Four of the starter's runbooks now do (engine, plan, project, trigger-words). A project adopts this by hand: add `(file: ...)`, `(ran: ...)` or `(answer: ...)` only to items that hold on every work turn of that runbook. `node tools/starter/done-when-coverage.mjs <project> --list` shows the candidates.
+  - v2 fixes:
+    - The background-run notice works from the session's own running jobs, not from command text.
+    - Pasted text no longer routes a message or marks it as upset.
+    - Another session's file changes are no longer counted as this turn's.
+  - The v2 plan's boxes now match the commits, and the plan has a replay baseline table for the 2026-11-08 decision.
   - v2 has its own guard module, which uses v1's safety refusals and does not copy them. Tests prove each refusal under v2 and silence on a busy ordinary turn.
   - v2 reads Codex transcripts, including the newer `exec` calls (commands and patches inside code), and reads long transcripts from their tail.
   - v2 sees changes in projects with large .cache folders: the file walk skips bulk folders and runs once per turn.

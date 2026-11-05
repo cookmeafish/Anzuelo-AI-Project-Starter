@@ -130,6 +130,29 @@ export function turnRows(transcript) {
   return rows.slice(start);
 }
 
+// Background shell runs this session started that have not finished: a launch whose result says it runs in the
+// background, until a task notice names its id or a stop names it. No command text is matched. Lesson (the old engine):
+// a notice set off by words in a command fired on a grep of a test's output file and on quoted text.
+export function backgroundRuns(rows) {
+  const runs = new Map(), done = new Set();
+  for (const r of rows) {
+    for (const x of Array.isArray(r.message?.content) ? r.message.content : []) {
+      if (x?.type !== 'tool_result') continue;
+      const out = typeof x.content === 'string' ? x.content : (Array.isArray(x.content) ? x.content.map(c => c?.text || '').join('\n') : '');
+      // (the host's own line only, at the start of the result: a command's output may quote it. Lesson: a grep that
+      // printed the line counted as a run still going)
+      const m = /^\s*Command (?:running in background with ID:|[^\n]*?moved to the background \(ID:?)\s*([\w-]+)/i.exec(out);
+      if (m) runs.set(m[1], x.tool_use_id);
+    }
+    const s = JSON.stringify(r);
+    for (const m of s.matchAll(/<task-id>([\w-]+)<\/task-id>|stopped task:?\s*([\w-]+)/gi)) done.add(m[1] || m[2]);
+  }
+  const cmds = new Map();
+  for (const r of rows) for (const x of Array.isArray(r.message?.content) ? r.message.content : []) if (x?.type === 'tool_use') cmds.set(x.id, String(x.input?.command || x.input?.description || ''));
+  return [...runs].filter(([id]) => !done.has(id)).map(([id, use]) => ({ id, cmd: cmds.get(use) || '' }));
+}
+export const backgroundRunsOf = transcript => backgroundRuns(codexRows(tail(transcript).split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean)));
+
 // What the turn did: tool calls with their results, and the last text the agent wrote.
 export function turnActs(rows) {
   const calls = [], byId = new Map();
@@ -142,7 +165,7 @@ export function turnActs(rows) {
     const c = r.message?.content;
     if (!Array.isArray(c)) continue;
     for (const x of c) {
-      if (r.type === 'assistant' && x.type === 'tool_use') { const call = { name: x.name, input: x.input || {}, error: false, out: '', done: 0 }; calls.push(call); byId.set(x.id, call); }
+      if (r.type === 'assistant' && x.type === 'tool_use') { const call = { name: x.name, input: x.input || {}, error: false, out: '', done: 0, at: Date.parse(r.timestamp || '') || 0 }; calls.push(call); byId.set(x.id, call); }
       if (x.type === 'tool_result' && byId.has(x.tool_use_id)) {
         const out = typeof x.content === 'string' ? x.content : Array.isArray(x.content) ? x.content.map(b => b?.text || '').join('\n') : '';
         Object.assign(byId.get(x.tool_use_id), { out: out.slice(-4000), error: !!x.is_error || /\bexit code [1-9]|^Exit code [1-9]/m.test(out), done: Date.parse(r.timestamp || '') || 0 });
@@ -207,7 +230,16 @@ const CODE = /\.(js|mjs|cjs|ts|tsx|jsx|py|go|rs|java|kt|cs|rb|php|swift|c|cc|cpp
 // script included. Lesson (replay): edits made by helpers were invisible, and their code went untested.
 // (the tree is walked once per turn checked, whatever number of checks ask)
 const walked = new WeakMap();
-const changedSince = (acts, rx) => { const since = Date.parse(acts.at || '') || 0; if (!since) return []; if (!walked.has(acts)) walked.set(acts, filesMatching('**/*')); return walked.get(acts).filter(f => rx.test(f) && !/^(\.cache|tools\/hooks\/state)\//.test(f) && (() => { try { return fs.statSync(path.join(ROOT, f)).mtimeMs > since; } catch { return false; } })()); };
+// (only while one of the turn's own commands or helpers ran: a file another session changed meanwhile is not this
+// turn's. A run in the background counts until the turn ends. Lesson (the old engine): a peer session's edits in the
+// same folder were blamed on the turn. Calls with no times, as in hand-made transcripts, keep the whole turn.)
+const RUNNER = /^(Bash|PowerShell|Agent|Task)$/, BG = /^\s*(Command running in background|Command[^\n]*moved to the background|Async agent launched)/i;
+const ranAt = (acts, t) => {
+  const runs = acts.calls.filter(c => RUNNER.test(c.name));
+  if (runs.some(c => !c.at)) return true;
+  return runs.some(c => t >= c.at - 2000 && t <= (BG.test(c.out) || !c.done ? Infinity : c.done + 2000));
+};
+const changedSince = (acts, rx) => { const since = Date.parse(acts.at || '') || 0; if (!since) return []; if (!walked.has(acts)) walked.set(acts, filesMatching('**/*')); return walked.get(acts).filter(f => rx.test(f) && !/^(\.cache|tools\/hooks\/state)\//.test(f) && (() => { try { const t = fs.statSync(path.join(ROOT, f)).mtimeMs; return t > since && ranAt(acts, t); } catch { return false; } })()); };
 const mtime = f => { try { return fs.statSync(path.join(ROOT, f)).mtimeMs; } catch { return 0; } };
 // The project's own declared checks: tools/hooks/config.json "commitGate" entries, a command (a regex) and the files it
 // covers. A change to those files asks for that command to pass afterwards.

@@ -89,6 +89,9 @@ When the user gives a time budget for testing, it is one session of steps 1 to 7
 
 ## Pitfalls
 
+- Code edits use the Edit tool, or a Node string-replace script written with the Write tool for bulk edits. Never use
+  sed, echo, a heredoc or `node -e` with regexes or backslashes in them: the shell eats the escapes, and the edit fails
+  or changes the wrong text. This went wrong at least six times in one session.
 - Judge counts swing by about 3 mediums between rounds from judge noise alone: compare highs, failed turns, setup
   minutes and blocked turns first.
 - Count Stop blocks from the trial records, not the judges: early judges did not count them.

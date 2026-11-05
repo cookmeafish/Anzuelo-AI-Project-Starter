@@ -11,6 +11,9 @@ export const upset = p => { const s = String(p), letters = s.replace(/[^A-Za-z]/
   || /\b(wtf|ugh|again\?!|why (did|would) you|you (forgot|missed|ignored|broke)|i (already )?told you|not what i asked|frustrat\w*|annoy\w*|(you|u|you're|ur|youre) (are )?not (following|listening)|i don'?t think you (understand|get it)|(is )?still (broken|wrong))\b/i.test(s); };
 const has = f => fs.existsSync(path.join(ROOT, f));
 export function reminder(prompt) {
+  // (pasted text is not the user's words: it never routes and is never upset. Lesson (the old engine): words inside a
+  // pasted text set off the complaint handling)
+  prompt = String(prompt || '').replace(/<pasted_content\b[^>]*>[\s\S]*?<\/pasted_content(?:\s[^>]*)?>|<pasted_content\b[^>]*\/>/gi, ' ');
   if (upset(prompt) && has('skills/learn-from-upset/SKILL.md')) return { book: null, text: 'This sounds upset: open skills/learn-from-upset/SKILL.md and follow it.' };
   const book = route(prompt);
   // (no trigger fits: the agent picks the runbook, and the end check holds the turn to the one it opened. Lesson

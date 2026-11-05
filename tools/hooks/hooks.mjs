@@ -5874,7 +5874,7 @@ function cmdPretool(data) {
   const acked = HOST === 'claude-code' ? acknowledgedLine(NOTES_FILE) : '';
   // REQ: quiet-work. Two notices only, each once, in the main session (a helper never started the session's runs and
   // never got the user's message): the agent's own test run still going, and a new user message while helpers run.
-  const notes = data.agent_id ? '' : [overlapNotice(data), (() => { try { return scopeNotice(data); } catch { return null; } })()].filter(Boolean).join('\n');
+  const notes = data.agent_id ? '' : [V2_RUNS ? runsNotice(data, V2_RUNS) : overlapNotice(data), (() => { try { return scopeNotice(data); } catch { return null; } })()].filter(Boolean).join('\n');
   const ack = HOST === 'claude-code' ? [acked, runningLine(d)].filter(Boolean).map(l => visibleLines(l)).filter(Boolean).join('\n') : '';
   if (brief || bare || notes || ack) process.stdout.write(JSON.stringify({ ...(brief || bare || notes ? { hookSpecificOutput: { hookEventName: 'PreToolUse', ...(brief || bare ? { updatedInput: d.tool_input } : {}), ...(notes ? { additionalContext: notes } : {}) } } : {}), ...(ack ? { systemMessage: ack } : {}) }));
 }
@@ -5896,6 +5896,17 @@ export function cdDropped(data) {
 // Lesson (a field report): a sweep started while another sweep's background run was still making its temporary files
 // failed twice, and only a rerun on its own passed.
 export const CHECK_RUN = /\b(pytest|unittest|npm (run )?test|npx (jest|vitest|playwright)|go test|cargo test|dotnet test|mvn test|gradle test|selfcheck|audit|trial|sweeps?|validate|lint)\b|\b\w*(test|sweep|check|audit)\w*\.(py|mjs|js|ps1|sh)\b/i;
+// Engine v2's version: once per background shell run this session started and that has not finished, at the next
+// shell command, whatever that command is. Which runs are going comes from the transcript's launches and notices
+// (v2/lib.mjs backgroundRuns), not from what the commands say.
+let V2_RUNS = null;
+export function runsNotice(data, runsOf) {
+  if (!/^(Bash|PowerShell)$/.test(data.tool_name || '') || !data.transcript_path) return null;
+  const shown = readJSON(stateFile('overlap-shown.json'), {}), runs = runsOf(data.transcript_path).filter(r => !(shown.ids || []).includes(r.id));
+  if (!runs.length) return null;
+  writeState('overlap-shown.json', { ids: [...(shown.ids || []), ...runs.map(r => r.id)].slice(-50) });
+  return `Heads-up: ${runs.length === 1 ? 'a background command is' : `${runs.length} background commands are`} still running (${runs.map(r => `"${r.cmd.replace(/\s+/g, ' ').trim().slice(0, 80)}"`).join(', ')}). If this command uses the same files or tests, wait for its notice before reading failures as real.`;
+}
 export function overlapNotice(data) {
   const cmd = data.tool_input?.command;
   // (a part of the command that starts a check, not one that only names its file: REQ quiet-work. Lesson (the user): a
@@ -9602,6 +9613,8 @@ if (isMain) {
   if ((cmd === 'prompt' || cmd === 'stop') && config().v2shadow !== false && !envOf('BENCH') && SID && !NO_TRANSCRIPT) {
     try { process.env.ANZUELO_ROOT ||= ROOT; (await import('./v2/shadow.mjs')).shadow(cmd, data); } catch { }
   }
+  // (under v2 the background-run notice comes from the runs this session started, never from command text)
+  if (cmd === 'pretool' && config().engine === 'v2') try { V2_RUNS = (await import('./v2/lib.mjs')).backgroundRunsOf; } catch { }
   try {
     const fn = { session: cmdSession, prompt: cmdPrompt, pretool: cmdPretool, posttool: cmdPosttool, stop: cmdStop, subagentstop: cmdSubagentstop }[cmd];
     if (fn) fn(data);

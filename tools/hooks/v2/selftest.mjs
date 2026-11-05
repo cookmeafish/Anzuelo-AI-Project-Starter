@@ -345,6 +345,45 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   report(!loud.length, 'guard: a busy ordinary turn (reads, edits, writes, tests, a commit, a cache delete) gets no refusal under v2', loud);
 }
 
+{
+  const pasted = '<pasted_content id="a1">WHY DID YOU BREAK IT AGAIN, you forgot the C3 export</pasted_content a1>';
+  report(!/upset/.test(reminder(`summarize this ${pasted}`).text) && !reminder(`what does this say ${pasted}`).book && /learn-from-upset/.test(reminder(`WHY DID YOU BREAK IT AGAIN ${pasted}`).text),
+    'start: words inside pasted text neither route nor count as upset; the user\'s own words around it still do');
+}
+
+// another session's change: a file written while none of the turn's own commands or helpers ran is not the turn's
+{
+  const T = ms => new Date(ms).toISOString(), at = Date.now() + 50;
+  const timed = (k, name, input, from, to, result = 'ok') => [
+    { type: 'assistant', timestamp: T(from), message: { content: [{ type: 'tool_use', id: k, name, input }] } },
+    { type: 'user', timestamp: T(to), message: { content: [{ type: 'tool_result', tool_use_id: k, content: result }] } }];
+  await new Promise(r => setTimeout(r, 120));
+  put('pytest.ini', '[pytest]\n');
+  put('src/peer.py', 'x = 2\n');
+  const t = fs.statSync(path.join(dir, 'src/peer.py')).mtimeMs;
+  const before = acts([user('fix the total'), timed('p1', 'Bash', { command: 'ls' }, t - 60000, t - 50000), say('Done.')]);
+  const during = acts([user('fix the total'), timed('p2', 'Bash', { command: 'node tools/fix.mjs' }, t - 1000, t + 1000), say('Done.')]);
+  const bg = acts([user('fix the total'), timed('p3', 'Bash', { command: 'node tools/fix.mjs', run_in_background: true }, t - 60000, t - 59000, 'Command running in background with ID: b7'), say('Started.')]);
+  report(testGaps({ ...before, at: T(at) }).length === 0 && testGaps({ ...during, at: T(at) }).length === 1 && testGaps({ ...bg, at: T(at) }).length === 1,
+    'end: a file changed while none of the turn\'s commands ran is another session\'s; one changed during a command or a background run is the turn\'s',
+    [testGaps({ ...before, at: T(at) }), testGaps({ ...during, at: T(at) }), testGaps({ ...bg, at: T(at) })].map(g => g.length));
+  fs.rmSync(path.join(dir, 'src/peer.py')); fs.rmSync(path.join(dir, 'pytest.ini'));
+}
+
+// background runs: from the session's own launches and notices, never from command text
+{
+  const { backgroundRuns } = await import('./lib.mjs');
+  const use = (id, command, bg) => ({ type: 'assistant', message: { content: [{ type: 'tool_use', id, name: 'Bash', input: { command, ...(bg ? { run_in_background: true } : {}) } }] } });
+  const res = (id, text) => ({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: id, content: text }] } });
+  const launch = [use('t1', 'npm test', true), res('t1', 'Command running in background with ID: b1. Output is being written to: x.output')];
+  const quoted = [use('t2', 'grep -n background notes.txt', false), res('t2', '12:Command running in background with ID: q9\nsee "moved to the background (ID: q8)"')];
+  const ids = rows => backgroundRuns(rows).map(r => r.id).join(',');
+  const notice = { type: 'queue-operation', content: '<task-notification>\n<task-id>b1</task-id>\n<status>completed</status>' };
+  const stop = [use('t3', '', false), res('t3', 'Successfully stopped task: b1 (npm test)')];
+  report(ids(launch) === 'b1' && backgroundRuns(launch)[0].cmd === 'npm test' && ids([...launch, notice]) === '' && ids([...launch, ...stop]) === '' && ids([...launch, ...quoted]) === 'b1' && ids(quoted) === '',
+    'runs: a background launch runs until its notice or a stop; output that quotes the launch line is not a run', { a: ids(launch), b: ids([...launch, notice]), c: ids([...launch, ...stop]), d: ids(quoted) });
+}
+
 // size budget (docs/plans/2026-11-05-engine-v2.md): the engine stays small, and the end check has at most 15 checks.
 // Lesson: v1 grew to about 9,600 lines of hooks, most of it fixing friction it made itself.
 {
