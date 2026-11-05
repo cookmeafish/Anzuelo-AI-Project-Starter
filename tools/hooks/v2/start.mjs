@@ -41,6 +41,9 @@ export function reminder(prompt) {
 }
 
 export function onPrompt(data) {
+  // (a host notice, like a background job ending, is not a request: the turn keeps its runbook and gets no reminder.
+  // Lesson (live): a job's notice mid-turn cleared the routed runbook, and the end check held the turn to another one)
+  if (/^\s*(<(task-notification|system-reminder)\b|\[SYSTEM NOTIFICATION)/i.test(String(data.prompt || ''))) return null;
   const { book, text } = reminder(data.prompt || '');
   saveTurn(data.session_id, { at: new Date().toISOString(), runbook: book?.file || null });
   return text ? { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: text } } : null;

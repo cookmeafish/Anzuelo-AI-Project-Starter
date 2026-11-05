@@ -57,6 +57,13 @@ report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/
   put('.starter-template', ''); const inStarter = route(msg, books)?.name; fs.rmSync(path.join(dir, '.starter-template'));
   report(inStarter === 'project', 'start: in the starter itself an upgrade message is a report back and routes on its other words', inStarter);
 }
+{
+  const { onPrompt } = await import('./start.mjs');
+  const { loadTurn } = await import('./lib.mjs');
+  onPrompt({ session_id: 'notice', prompt: 'can you add a CSV export for the orders page' });
+  const out = onPrompt({ session_id: 'notice', prompt: '<task-notification>\n<task-id>b1</task-id>\n<status>completed</status>\n</task-notification>' });
+  report(out === null && loadTurn('notice').runbook === 'docs/playbooks/export.md', 'start: a background-job notice mid-turn adds no reminder and keeps the runbook the turn was routed to', [out, loadTurn('notice').runbook]);
+}
 report(/4\. The output reads well for a person, which only a reader can judge$/m.test(r.text), 'start: an item that wraps onto a second line is shown whole, without its check marker', r.text);
 report(reminder('C3 --since monday --format xlsx').book?.name === 'export' && !reminder('C31 rows').book && !reminder('version C3 is out').book, 'start: a menu code at the start routes to its runbook; a longer code or one mid-sentence does not');
 const win = reminder('please rotate the logs tonight');
