@@ -3222,7 +3222,10 @@ export function verbatimHits(x, cfg = config()) {
   const engine = [...VERBATIM_ENGINE, ...CORE_SKILLS.map(n => `${cfg.skillsDir}/${n}/**`), ...cfg.skillMirrors.map(m => `${m}/**`)];
   for (const f of x.changed.filter(p => !match(p, cfg.verbatimAllowed) && !match(p, engine) && exists(p) && /\.(md|mdx|txt|html?|js|mjs|cjs|jsx|ts|tsx|py|json|ya?ml|css|vue|svelte)$/i.test(p))) {
     if (/SKILL\.md$/.test(f) && /^generated:\s*true/m.test(read(abs(f)))) continue;
-    const w = words(read(abs(f)).replace(/```template[\s\S]*?```/g, ' ').replace(/^\s*(>\s*)?[-*]?\s*template:.*$/gim, ' '));
+    // (the user's quoted decision in a "Who may do what" row is the record grant-decided asks for, not a copied
+    // example. Lesson (a trial): the quote one check required, the other refused)
+    const w = words(read(abs(f)).replace(/```template[\s\S]*?```/g, ' ').replace(/^\s*(>\s*)?[-*]?\s*template:.*$/gim, ' ')
+      .replace(/^\|\s*who may do what.*$/gim, l => USER_DECIDED.test(l) ? l.replace(/"[^"]*"|“[^”]*”/g, ' ') : l));
     // (text the file already had at the last commit is not this turn's copy: the user may paste what a file says.
     // Lesson, field report: lines written in earlier turns, and a pasted app transcript the files already held, were
     // flagged, and waived each time)

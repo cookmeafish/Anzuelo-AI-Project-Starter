@@ -1975,6 +1975,14 @@ STOP.push(
   { name: 'grant-decided: the same row quoting the user\'s own words naming the role: passes', prompt: 'yes, let my staff delete books too', tools: [pb('project')],
     files: { 'docs/foundation.md': '| Area | Decision |\n|---|---|\n| Who may do what | Staff may add, edit and delete books (the user decided 2026-10-26: "let my staff delete books") |\n', 'docs/CHANGELOG.md': 'x' },
     answer: 'Playbook: project.md.' + FIN, expect: { not: ['grant-decided'] } },
+  // (the quote grant-decided asks for is no copied example. Lesson (a trial): the user's quoted decision in the row
+  // passed one check and was refused by the other)
+  { name: 'grant-decided: a long quote of the user\'s decision in the row is not a copied example: passes', prompt: 'yes, my staff members should be able to delete books from the shelf list too', tools: [pb('project')],
+    files: { 'docs/foundation.md': '| Area | Decision |\n|---|---|\n| Who may do what | Staff may add, edit and delete books (the user decided 2026-10-26: "my staff members should be able to delete books from the shelf list too") |\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Playbook: project.md.' + FIN, expect: { not: ['grant-decided', 'no-verbatim-examples'] } },
+  { name: 'grant-decided: the same words copied outside the row still count as a copied example: blocked', prompt: 'yes, my staff members should be able to delete books from the shelf list too', tools: [pb('project')],
+    files: { 'docs/foundation.md': '| Area | Decision |\n|---|---|\n| Who may do what | Owner only |\n\nNote: my staff members should be able to delete books from the shelf list too.\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Playbook: project.md.' + FIN, expect: { block: true, tags: ['no-verbatim-examples'] } },
   // REQ: waiver-tally. Lesson, field report: the same checks were waived build after build and nothing said so
   { name: 'waiver-tally: a check waived in 3 earlier turns asks the agent to tell the user', prompt: 'never let the reports show the raw server error to my customers again please', tools: [pb('project'), bash('node tools/hooks/selfcheck.mjs'), bash('node tools/audit.mjs')],
     prep: dir => write(dir, { 'tools/hooks/state/waivers.json': JSON.stringify({ 'no-verbatim-examples': ['a|1', 'b|2', 'c|3'] }) }),

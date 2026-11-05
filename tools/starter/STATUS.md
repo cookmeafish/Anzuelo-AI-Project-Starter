@@ -81,6 +81,10 @@ docs/STATUS.md, which here is the template new projects start from).
   the agent got wrong), verdict WORSE on setup cost ($6.57 median vs $5). Fixed in 4dd7d54 (proof 28648cb): waiting blocks
   count toward the 3 rounds, a question after Finished counts under autonomy, upgrades route to engine.md, checklist asks
   name their runbook, warm-letter example. Sent to both projects. Next: setup time (audit --setup reruns, 6 to 10 min each).
+- 2026-11-04 20:40 UTC: v27 findings fixed: one-line reply on a checklist-only round (4e192f1), honest app-not-run line
+  (4ccf96d), Vetted license by id + form shown (5e761a8), quoted grant decision not a copied example (pending commit).
+  Open from v27: flask design check (grant-decided looks at wording only), security-report vs security-checklist,
+  "security check" wording, upset-learned label, Issue line in the same message as the tool call. Then a new trial round.
 - 2026-11-04 19:10 UTC: both projects on d508c62 (885f472, c94adf6). fb471cc: trial gate needs a node run. The high
   after-upgrade Stop readings did not reproduce on a sample project (load from the starter chain). Next: a new trial
   round on the current engine; setup cost for small projects is still open.
