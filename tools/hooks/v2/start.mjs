@@ -43,7 +43,9 @@ export function reminder(prompt) {
 export function onPrompt(data) {
   // (a host notice, like a background job ending, is not a request: the turn keeps its runbook and gets no reminder.
   // Lesson (live): a job's notice mid-turn cleared the routed runbook, and the end check held the turn to another one)
-  if (/^\s*(<(task-notification|system-reminder)\b|\[SYSTEM NOTIFICATION)/i.test(String(data.prompt || ''))) return null;
+  // (so is a helper's report back: the words of its report route nowhere. Lesson (live): a review helper's report
+  // routed to the project runbook, and the end check asked for its rule-request items)
+  if (/^\s*(<(task-notification|system-reminder)\b|\[SYSTEM NOTIFICATION)/i.test(String(data.prompt || '')) || /<agent-message\b[^>]*>\s*\[Subagent hand-back\]/.test(String(data.prompt || ''))) return null;
   const { book, text } = reminder(data.prompt || '');
   saveTurn(data.session_id, { at: new Date().toISOString(), runbook: book?.file || null });
   return text ? { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: text } } : null;

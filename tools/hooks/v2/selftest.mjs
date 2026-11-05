@@ -65,6 +65,8 @@ report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/
   onPrompt({ session_id: 'notice', prompt: 'can you add a CSV export for the orders page' });
   const out = onPrompt({ session_id: 'notice', prompt: '<task-notification>\n<task-id>b1</task-id>\n<status>completed</status>\n</task-notification>' });
   report(out === null && loadTurn('notice').runbook === 'docs/playbooks/export.md', 'start: a background-job notice mid-turn adds no reminder and keeps the runbook the turn was routed to', [out, loadTurn('notice').runbook]);
+  const back = onPrompt({ session_id: 'notice', prompt: 'Another Claude session sent a message:\n<agent-message from="a1">\n[Subagent hand-back] The text below is the final report of a subagent.\n  Rule requests: none. The csv export review is written.\n</agent-message>' });
+  report(back === null && loadTurn('notice').runbook === 'docs/playbooks/export.md', 'start: a helper\'s report back is not a request: no reminder, and the turn keeps its runbook', [back, loadTurn('notice').runbook]);
 }
 report(/4\. The output reads well for a person, which only a reader can judge$/m.test(r.text), 'start: an item that wraps onto a second line is shown whole, without its check marker', r.text);
 report(reminder('C3 --since monday --format xlsx').book?.name === 'export' && !reminder('C31 rows').book && !reminder('version C3 is out').book, 'start: a menu code at the start routes to its runbook; a longer code or one mid-sentence does not');

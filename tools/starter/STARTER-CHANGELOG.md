@@ -30,6 +30,7 @@ hooks:**, and an upgrade lists each one as its own review item.
     - The full self-test times engine v2's Stop hook too, as its own test with its own line ("stop timing (engine v2, the default)"). Before, it timed only v1's, which its own tests pin.
     - An upgrade's self-test, and the setup audit's, no longer waits up to 10 minutes for other self-test runs to finish before timing the Stop hook. A shared machine only marks that timing as shared.
     - A "Done when" check marker counts anywhere in its item, not only at the very end of a wrapped item.
+    - A helper agent's report back is not a request either: no reminder, and the turn keeps its runbook. Before, the words of a review helper's report routed the turn to the project runbook.
     - A background job's notice that arrives mid-turn no longer clears the runbook the turn was routed to, and adds no reminder. Before, the end check held the turn to whichever runbook a command had read.
     - An engine upgrade message goes to the engine runbook again, as under v1, whatever words its list of fixes uses. Under v2, 26 of 27 such messages in one project's history went to the project runbook.
     - A request that opens with a runbook's trigger goes to that runbook, ahead of a longer trigger found later in the text.
