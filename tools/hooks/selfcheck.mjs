@@ -6713,6 +6713,15 @@ if (mineB()) { // every test block that runs a library skill's script is gated b
   const bare = src.map((l, i) => [l, i]).filter(([l]) => l.includes(needle) && l.includes('spawnSync(')).filter(([, i]) => { let k = i; while (k > 0 && !/^if \(mineB\(\)/.test(src[k])) k--; return !src[k].includes('libMissing('); }).map(([, i]) => i + 1);
   report(bare.length === 0, 'selfcheck: every test of a library skill\'s script is skipped where the project has no library/', `ungated at lines ${bare.join(', ')}`);
 }
+if (mineB() && fs.existsSync(path.join(ROOT, 'tools/starter/gitignore.project'))) { // new project's .gitignore: build output only at the top
+  // (Lesson (trial v42): an unanchored build/ line kept a site generator in src/build/ out of git, and publishing failed)
+  const gd = fs.mkdtempSync(path.join(os.tmpdir(), 'gitignore-')), gi = (...a) => spawnSync('git', a, { cwd: gd, encoding: 'utf8' });
+  gi('init', '-q'); fs.copyFileSync(path.join(ROOT, 'tools/starter/gitignore.project'), path.join(gd, '.gitignore'));
+  const ig = p => gi('check-ignore', '-q', '--no-index', p).status === 0;
+  const res = { top: ig('build/site.html'), dist: ig('dist/app.js'), code: ig('src/build/make.js'), codeDist: ig('src/dist/pack.js') };
+  fs.rmSync(gd, { recursive: true, force: true });
+  report(res.top && res.dist && !res.code && !res.codeDist, 'new project .gitignore: build/ and dist/ at the top are ignored; a src/build/ or src/dist/ code folder is not', res);
+}
 if (mineB() && fs.existsSync(path.join(ROOT, 'skills/obsidian/SKILL.md'))) { // obsidian skill: a vault that uses wikilinks keeps them
   // (Lesson (trial v41): the skill said "not [[wikilinks]]" while the notes-vault skill says to keep a vault's own style,
   // and the agent patched the project's copy of the skill)

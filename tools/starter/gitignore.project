@@ -20,10 +20,10 @@ tools/starter.local.json
 *.key
 keys.json
 
-# Dependencies and build output
+# Dependencies and build output (dist and build only at the top: a src/build/ folder is code)
 node_modules/
-dist/
-build/
+/dist/
+/build/
 __pycache__/
 *.pyc
 
