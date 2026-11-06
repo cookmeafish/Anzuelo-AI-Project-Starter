@@ -102,9 +102,11 @@ When the user gives a time budget for testing, it is one session of steps 1 to 7
 - Code edits use the Edit tool, or a Node string-replace script written with the Write tool for bulk edits. Never use
   sed, echo, a heredoc or `node -e` with regexes or backslashes in them: the shell eats the escapes, and the edit fails
   or changes the wrong text. This went wrong at least six times in one session.
-- A new self-test's sample text (a runbook it writes, a skill path it names) is read by the audit's reference sweep:
-  run `node tools/audit.mjs` before committing a test, or build sample paths at run time. A test that wrote a
-  made-up skill path failed the audit in every trial sample, and a 30-minute frozen chain had to be run again.
+- Pre-flight before every frozen chain, in the main folder: the scratch upgrade, `node tools/audit.mjs`,
+  `node tools/hooks/v2/selftest.mjs`, and `node tools/hooks/selfcheck.mjs --tags <each check the batch touched>`; a
+  change to a check's message, a pack's checks or test fixtures needs the whole self-check there first (`--tags` runs
+  only scenarios, not the cross-checks such as message-example). Two chains in a row failed on the batch's own edits
+  (a test's sample path the reference sweep read, a quoted example a message check rejected): 40 minutes lost.
 - Judge counts swing by about 3 mediums between rounds from judge noise alone: compare highs, failed turns, setup
   minutes and blocked turns first.
 - Count Stop blocks from the trial records, not the judges: early judges did not count them.
