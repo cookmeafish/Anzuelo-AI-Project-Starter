@@ -29,11 +29,18 @@ export function rulesFor(prompt) {
   let text = ''; try { text = fs.readFileSync(path.join(ROOT, 'AGENTS.md'), 'utf8'); } catch { return []; }
   const sec = /^##\s+The user's standing preferences\s*$([\s\S]*?)(?=^##\s|(?![\s\S]))/im.exec(text)?.[1] || '';
   const stem = w => w.toLowerCase().slice(0, 5);
+  // (a short request only: a long one shares words with most rules. Lesson (replay): on long requests and relayed
+  // messages a rule line showed on nearly every turn)
+  if (String(prompt).length > 300 || relayedRx.test(String(prompt))) return [];
   const words = new Set((String(prompt).match(/\p{L}{5,}/gu) || []).map(w => w.toLowerCase()).filter(w => !STOP.has(w)).map(stem));
   if (!words.size) return [];
-  return sec.split(/\r?\n/).filter(l => /^\s*-\s+\S/.test(l) && !/^\s*-\s+\(none/i.test(l))
+  const rules = sec.split(/\r?\n/).filter(l => /^\s*-\s+\S/.test(l) && !/^\s*-\s+\(none/i.test(l));
+  const stemsOf = l => new Set((l.match(/\p{L}{5,}/gu) || []).filter(w => !STOP.has(w.toLowerCase())).map(stem));
+  // (a word counts only when it is this rule's own, in no other rule: the project's main nouns are in many)
+  const seen = new Map(); for (const l of rules) for (const s of stemsOf(l)) seen.set(s, (seen.get(s) || 0) + 1);
+  return rules
     // (two words in common, not one: one common word, like the project's main noun, matched 16 of 38 real requests)
-    .filter(l => new Set((l.match(/\p{L}{5,}/gu) || []).filter(w => !STOP.has(w.toLowerCase())).map(stem).filter(s => words.has(s))).size >= 2)
+    .filter(l => [...stemsOf(l)].filter(s => words.has(s) && seen.get(s) === 1).length >= 2)
     .slice(0, 2).map(l => l.replace(/^\s*-\s+/, '').trim()).map(l => l.length > 200 ? l.slice(0, l.lastIndexOf(' ', 197)) + '...' : l);
 }
 const relayedRx = /^\s*Another Claude session sent a message|<cross-session-message\b/;

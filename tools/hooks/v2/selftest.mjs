@@ -154,8 +154,11 @@ report(/learn-from-upset/.test(reminder('WHY DID YOU BREAK THE EXPORT AGAIN').te
 { // the project's own standing rule that shares two words with the request is named in the reminder; others are not
   put('AGENTS.md', "# Rules\n\n## The user's standing preferences\n- Only the owner account may delete anything; staff accounts never may (2026-11-05).\n- Exports always list the totals row last (2026-11-05).\n");
   const del = reminder('add an endpoint that deletes an order, for the owner account'), plain = reminder('can you add a CSV export for the orders page');
-  report(/The project's own rule here: Only the owner account may delete/.test(del.text) && !/own rule/.test(plain.text),
-    'start: a standing rule of the project that shares two words with the request is named in the reminder; one sharing one word is not', { del: del.text, plain: plain.text });
+  // (not on a long request or a relayed message: those share words with most rules)
+  const long = reminder(`export the orders with an endpoint that deletes an order for the owner account. ${'Also keep the layout as it is. '.repeat(10)}`);
+  const relay = reminder('Another Claude session sent a message:\n<cross-session-message from="x">export the orders: the owner account deletes them now</cross-session-message>');
+  report(/The project's own rule here: Only the owner account may delete/.test(del.text) && !/own rule/.test(plain.text) && !/own rule/.test(long.text) && !/own rule/.test(relay.text),
+    'start: a standing rule of the project that shares two words with a short request is named in the reminder; one sharing one word, a long request or a relayed message is not', { del: del.text, plain: plain.text, long: long.text, relay: relay.text });
   fs.rmSync(path.join(dir, 'AGENTS.md'));
 }
 { // a Spanish request routes like its English wording, gets a line to answer in Spanish, and its complaints count
