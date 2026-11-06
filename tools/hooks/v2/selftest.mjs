@@ -145,6 +145,14 @@ report(/learn-from-upset/.test(reminder('WHY DID YOU BREAK THE EXPORT AGAIN').te
   && upset('the export still has issues because ur not following the format') && upset('i dont think you understand the totals')
   && !upset('still working?') && !upset('why do you think the export is slow?') && !upset('B2 CSV export --path out/orders') && !upset('add a CSV export'),
   'start: an upset message (capitals or frustration words) goes to the learn-from-upset skill; plain questions and codes do not');
+{ // a Spanish request routes like its English wording, gets a line to answer in Spanish, and its complaints count
+  put('docs/playbooks/pages.md', '---\nname: pages\ntriggers: add a page, index page\n---\n## Done when\n1. The page is linked from the menu\n');
+  const es = reminder('agrega una página de índice con todas las recetas ordenadas por categoría'), en = reminder('add a page for the recipes');
+  report(es.book?.name === 'pages' && /write the whole answer in Spanish/.test(es.text) && en.book?.name === 'pages' && !/Spanish/.test(en.text)
+    && upset('otra vez pusiste texto en inglés en la página, todo tiene que estar en español') && !upset('hazlo otra vez, por favor'),
+    'start: a Spanish request routes like its English wording and is told to answer in Spanish; a Spanish complaint is upset', { es: es.text, en: en.text });
+  fs.rmSync(path.join(dir, 'docs/playbooks/pages.md'));
+}
 const long = reminder('start the long job now').text.split('\n');
 report(long.length <= MAX_LINES && /more in docs\/playbooks\/long\.md/.test(long.at(-1)), `start: the reminder is at most ${MAX_LINES} lines`, long.length);
 

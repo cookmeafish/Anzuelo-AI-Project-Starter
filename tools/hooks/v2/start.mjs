@@ -2,13 +2,15 @@
 // "Done when" list, which the end hook checks. Nothing about the engine itself.
 import fs from 'node:fs';
 import path from 'node:path';
-import { route, saveTurn, loadTurn, ROOT } from './lib.mjs';
+import { route, saveTurn, loadTurn, isSpanish, ROOT } from './lib.mjs';
 
 export const MAX_LINES = 10;
 // (an upset message: mostly capitals, or the usual frustration words. Lesson (routing sample): complaints used no
 // trigger phrase, so they reached no runbook)
 export const upset = p => { const s = String(p), letters = s.replace(/[^A-Za-z]/g, ''); return (letters.length >= 12 && letters.replace(/[^A-Z]/g, '').length / letters.length > 0.6)
-  || /\b(wtf|ugh|again\?!|why (did|would) you|you (forgot|missed|ignored|broke)|i (already )?told you|not what i asked|frustrat\w*|annoy\w*|(you|u|you're|ur|youre) (are )?not (following|listening)|i don'?t think you (understand|get it)|(is )?still (broken|wrong))\b/i.test(s); };
+  || /\b(wtf|ugh|again\?!|why (did|would) you|you (forgot|missed|ignored|broke)|i (already )?told you|not what i asked|frustrat\w*|annoy\w*|(you|u|you're|ur|youre) (are )?not (following|listening)|i don'?t think you (understand|get it)|(is )?still (broken|wrong))\b/i.test(s)
+  // (the Spanish forms. Lesson (trial v37): "otra vez pusiste texto en inglés" got no upset notice under v2)
+  || /(?<!\p{L})(otra vez|de nuevo) (pusiste|hiciste|olvidaste|dejaste|metiste|usaste|escribiste|rompiste)|(?<!\p{L})(te (lo )?dije|(se te )?olvid(aste|ó)|por qu[eé] (lo )?hiciste|no me (escuchas|haces caso)|sigue (roto|mal|fallando))(?!\p{L})/iu.test(s); };
 const has = f => fs.existsSync(path.join(ROOT, f));
 // (a word only mentioned ("the word ugh", a word in quotes) or on the user's ignore list, config "ignoreWords": {"upset":
 // [...]}, is no complaint. Lesson (end-to-end run): a request to whitelist a word was itself read as upset)
@@ -26,11 +28,14 @@ export function reminder(prompt) {
   // (upset and a fitting runbook: both are named, so the fix still follows its runbook)
   const sore = upsetIn(prompt) && has('skills/learn-from-upset/SKILL.md') ? 'This sounds upset: open skills/learn-from-upset/SKILL.md and follow it.' : '';
   const book = route(prompt);
-  if (sore && !book) return { book: null, text: sore };
+  // (a Spanish request: the whole answer in Spanish, labels too. Lesson (trial v37): a runbook item quoted an English
+  // label, and it went into a Spanish answer twice, the second time in the reply to a complaint about English text)
+  const es = isSpanish(prompt) ? 'The user writes in Spanish: write the whole answer in Spanish, including any label a runbook quotes in English.' : '';
+  if (sore && !book) return { book: null, text: [sore, es].filter(Boolean).join('\n') };
   // (no trigger fits: the agent picks the runbook, and the end check holds the turn to the one it opened. Lesson
   // (routing sample): plain requests used no trigger phrase; growing trigger lists forever is the old engine's path)
-  if (!book) return { book: null, text: has('DIRECTORY.md') ? 'If this is real work, pick the runbook in DIRECTORY.md that fits and open it.' : '' };
-  const lines = [...(sore ? [sore] : []), `Runbook: open ${book.file} and follow it.`];
+  if (!book) return { book: null, text: [has('DIRECTORY.md') ? 'If this is real work, pick the runbook in DIRECTORY.md that fits and open it.' : '', es].filter(Boolean).join('\n') };
+  const lines = [...(sore ? [sore] : []), ...(es ? [es] : []), `Runbook: open ${book.file} and follow it.`];
   if (book.items.length) {
     lines.push('Done when:');
     for (const it of book.items) lines.push(`${it.n}. ${it.text.length > 140 ? it.text.slice(0, it.text.lastIndexOf(' ', 137)) + '...' : it.text}`);

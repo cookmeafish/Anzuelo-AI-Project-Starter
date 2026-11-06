@@ -68,15 +68,40 @@ export function route(prompt, books = runbooks()) {
   // sent a project routed to the project runbook on words like "audit" in its list of fixes)
   const eng = books.find(b => b.file === 'docs/playbooks/engine.md');
   if (eng && !fs.existsSync(path.join(ROOT, '.starter-template')) && /\bstarter\.mjs\s+(update|upgrade)\b|\bengine upgrade\b|\b(upgrade|update)\s+(the\s+|this\s+|your\s+)?(engine|starter)\b|\bactualiza\w*\s+(el\s+)?(motor|starter)\b/i.test(String(prompt))) return { ...eng, matched: 'engine upgrade' };
-  const p = ` ${String(prompt).toLowerCase().replace(/[^\p{L}\p{N}' ]+/gu, ' ').replace(/\s+/g, ' ')} `;
-  let best = null;
-  for (const b of books) for (const t of b.triggers) {
-    const phrase = t.replace(/[^\p{L}\p{N}' ]+/gu, ' ').replace(/\s+/g, ' ').trim();
-    const score = !phrase || !p.includes(` ${phrase} `) ? 0 : (p.startsWith(` ${phrase} `) ? 1000 : 0) + phrase.length;
-    if (score && (!best || score > best.score)) best = { book: b, score, phrase };
-  }
+  const match = text => {
+    const p = ` ${String(text).toLowerCase().replace(/[^\p{L}\p{N}' ]+/gu, ' ').replace(/\s+/g, ' ')} `;
+    let best = null;
+    for (const b of books) for (const t of b.triggers) {
+      const phrase = t.replace(/[^\p{L}\p{N}' ]+/gu, ' ').replace(/\s+/g, ' ').trim();
+      const score = !phrase || !p.includes(` ${phrase} `) ? 0 : (p.startsWith(` ${phrase} `) ? 1000 : 0) + phrase.length;
+      if (score && (!best || score > best.score)) best = { book: b, score, phrase };
+    }
+    return best;
+  };
+  // (a Spanish request with no trigger of its own routes like its English wording. Lesson (trial v37): Spanish requests
+  // got no runbook under v2, while v1's router translated "agrega una página de índice" to "add a page, index page")
+  const best = match(prompt) || (isSpanish(prompt) ? match(routeEnglish(prompt)) : null);
   return best && { ...best.book, matched: best.phrase };
 }
+// Spanish: the common short words outnumber the English ones (as the old engine tells them apart).
+const ES_WORDS = /(?<![\p{L}])(el|la|los|las|de|del|en|un|y|es|se|al|lo|que|para|con|por|una|est[aá]|esta|este|mi|tu|todo|pero|como|tiene|quiero|hay|desde|sobre|cada|otra|vez)(?![\p{L}])/giu;
+const EN_WORDS = /\b(the|and|to|of|is|that|it|for|with|my|this|you|on|are|please|what|from|have|be)\b/gi;
+export const isSpanish = text => { const s = String(text || '').slice(0, 2000), es = (s.match(ES_WORDS) || []).length, en = (s.match(EN_WORDS) || []).length; return es >= 3 && es > en * 2; };
+// A Spanish request's common task words in English, for routing only, so runbooks need no Spanish triggers (the old
+// engine's map, phrases before the words in them; no word with two common senses, like "carta": letter and menu)
+const ROUTE_ES = [
+  [/\b(configura|prepara|monta|inicializa)r? (este|el|mi) proyecto\b/, 'set up this project'], [/\b(de ahora en adelante|a partir de ahora|desde ahora)\b/, 'from now on'],
+  [/\bnueva regla\b/, 'new rule'], [/\bte (lo )?dije\b/, 'i told you'], [/\b(olvidaste|se te olvid[oó])\b/, 'you forgot'], [/\bpor qu[eé] (lo )?hiciste\b/, 'why did you'],
+  [/\b(agrega|añade|agregar|añadir|incluye|pon)\b/, 'add'], [/\b(arregla|corrige|repara|arreglar|corregir)\b/, 'fix'], [/\b(crea|crear|haz|hacer)\b/, 'make'],
+  [/\b(cambia|cambiar|modifica)\b/, 'change'], [/\b(quita|elimina|borra|quitar|eliminar|borrar)\b/, 'remove'], [/\b(revisa|revisar|revisión)\b/, 'review'],
+  [/\b(publica|publicar|despliega|desplegar)\b/, 'publish'], [/\b(escribe|redacta|escribir|redactar)\b/, 'write'], [/\b(resume|resumir|resumen)\b/, 'summary'],
+  [/\b(nuev[oa]s?)\b/, 'new'], [/\bp[aá]ginas?\b/, 'page'], [/\bbot[oó]n(es)?\b/, 'button'], [/\bcolumnas?\b/, 'column'], [/\bcampos?\b/, 'field'],
+  [/\bpantallas?\b/, 'screen'], [/\binicio de sesi[oó]n\b/, 'login'], [/\bopci[oó]n(es)?\b/, 'option'], [/\bfunci[oó]n(es)?\b/, 'feature'], [/\b[ií]ndice\b/, 'index'],
+  [/\b(error|errores|fallo|fallos)\b/, 'bug'], [/\bpruebas?\b/, 'tests'], [/\bseguridad\b/, 'security'], [/\b(informe|reporte)s?\b/, 'report'],
+  [/\bnotas?\b/, 'note'], [/\b(plan|planes)\b/, 'plan'], [/\b(dise[nñ]o)\b/, 'design'], [/\b(datos)\b/, 'data'], [/\b(regla)s?\b/, 'rule'],
+  [/\b(una?|el|la|los|las)\b/, 'a'], [/\b(siempre)\b/, 'always'], [/\b(nunca)\b/, 'never'],
+].map(([r, v]) => [new RegExp(r.source.replaceAll(String.raw`\b`, String.raw`(?:(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])|(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_]))`), 'giu'), v]);
+export const routeEnglish = text => ROUTE_ES.reduce((s, [r, v]) => s.replace(r, v), String(text || ''));
 
 // A message the user typed: not a notice, a relayed message, or the summary that resumes a session.
 export const typed = r => r.type === 'user' && !r.isMeta && !r.isCompactSummary && typeof r.message?.content === 'string'
