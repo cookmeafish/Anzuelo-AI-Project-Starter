@@ -38,7 +38,9 @@ in the next frozen batch, not one upgrade per fix.
 2. **Run the round on a frozen copy.** `node tools/starter/trials/run.mjs --round <name> --freeze` (names go up:
    v9, v10, ...). Eight standard projects, four at a time: code in three languages, a Spanish-speaking user, letters,
    spreadsheets, a notes vault, a manuscript (`run.mjs --list` marks them). The frozen copy is this commit, so
-   fixes made while it runs never reach it. Records: `.cache/trials/results-<name>/`.
+   fixes made while it runs never reach it. Before any long job (a round, a frozen chain), print the commit and proof
+   it will test (`git -C <copy> log -1 --format='%h %s'`): a starter copy without its proof makes every trial setup
+   rerun the whole self-test, and the round measures nothing (2026-11-06; `run.mjs` now refuses such a copy). Records: `.cache/trials/results-<name>/`.
 3. **Judge blind.** `node tools/starter/trials/judge.mjs <name>` writes four prompts, two projects each, to
    `.cache/trials/judge/`. Run each with its own sub-agent that has not seen the engine work, in parallel. The prompt
    is the same every round; never soften it for a round. Each judge writes `<name>-<k>.json`.
