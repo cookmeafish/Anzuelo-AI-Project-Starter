@@ -6687,6 +6687,23 @@ if (mineB()) { // selfcheck --help prints the usage and runs nothing (Lesson (tr
   report(r.status === 0 && /selfcheck\.mjs --full/.test(r.stdout) && !/^selfcheck mode:/m.test(r.stdout), 'selfcheck --help prints the usage and runs no test', `status ${r.status} ${String(r.stdout).slice(0, 200)}`);
 }
 
+if (mineB()) { // vault backlinks: the PASS line says how many new links it checked, and that older links were not
+  // Lesson (trial v36): a PASS that checked no new links was relayed as "every link has a link back"
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-vault-'));
+  try {
+    const g = (...a) => spawnSync('git', a, { cwd: dir, encoding: 'utf8' });
+    const w = (f, s) => { fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true }); fs.writeFileSync(path.join(dir, f), s); };
+    w('Tea/Steeping.md', '# Steeping\nSee [[Water]].\n'); w('Tea/Water.md', '# Water\n\n## Related\n- [[Steeping]]\n'); w('Tea/Kettle.md', '# Kettle\n');
+    g('init', '-q'); g('add', '.'); g('-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-qm', 'notes');
+    const run = () => spawnSync(process.execPath, [path.join(ROOT, 'library/skills/notes-vault/scripts/vault.mjs'), 'backlinks', 'Tea/Steeping.md', '--root', dir], { encoding: 'utf8' }).stdout;
+    const none = run();
+    w('Tea/Steeping.md', '# Steeping\nSee [[Water]] and [[Kettle]].\n'); w('Tea/Kettle.md', '# Kettle\n\n## Related\n- [[Steeping]]\n');
+    const one = run();
+    report(/No new links in 1 note\(s\) since the last commit, so none were checked\. Older links were not checked\.\nRESULT: PASS/.test(none) && /1 new link\(s\) in 1 note\(s\) checked: each links back\. Older links were not checked\.\nRESULT: PASS/.test(one),
+      'vault backlinks: the PASS line says how many new links it checked, and that older links were not', [none, one].join(' | ').slice(0, 400));
+  } finally { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
+}
+
 if (mineB()) { // correspondence draft check: a draft that copies a phrase the skill quotes as an example fails
   // Lesson (trials): the skill's own example lines were copied word for word into letters the user called cold
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-draft-'));

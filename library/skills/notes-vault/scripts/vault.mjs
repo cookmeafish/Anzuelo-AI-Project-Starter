@@ -113,16 +113,18 @@ if (cmd === 'scan') {
   // the note as the last commit had it ('' when git has no such note, or there is no git)
   const before = r => { const g = spawnSync('git', ['show', `HEAD:${r}`], { cwd: ROOT, encoding: 'utf8' }); return g.status === 0 ? g.stdout : ''; };
   const missing = [];
-  let checked = 0;
+  let checked = 0, links = 0;
   for (const f of files) {
     const r = rel(path.resolve(ROOT, f));
     if (!/\.md$/i.test(r) || !inNotes(r) || !fs.existsSync(path.join(ROOT, r))) continue;
     checked++;
     const now = targets(read(path.join(ROOT, r)), r), had = targets(before(r), r);
-    for (const t of now) if (!had.has(t) && !targets(read(path.join(ROOT, t)), t).has(r)) missing.push(`${t} does not link back to ${r}`);
+    for (const t of now) if (!had.has(t)) { links++; if (!targets(read(path.join(ROOT, t)), t).has(r)) missing.push(`${t} does not link back to ${r}`); }
   }
+  // (the PASS line says how many new links it checked, and that older ones were not. Lesson (trial v36): a PASS that
+  // checked no new links was relayed as "every link has a link back", and an older link had none)
   if (!checked) { console.log('No notes to check (only notes in note folders count).\nRESULT: PASS'); process.exit(0); }
   console.log(missing.length ? `${missing.map(m => `- ${m}`).join('\n')}\nAdd a link back where it makes sense (a "Related" line in that note). If one truly does not belong, say why in the answer.\nRESULT: FAIL ${missing.length} link(s) back missing`
-    : 'Every note these link to links back.\nRESULT: PASS');
+    : `${links ? `${links} new link(s) in ${checked} note(s) checked: each links back.` : `No new links in ${checked} note(s) since the last commit, so none were checked.`} Older links were not checked.\nRESULT: PASS`);
   process.exit(missing.length ? 1 : 0);
 } else usage();
