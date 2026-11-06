@@ -77,6 +77,9 @@ report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/
   report(mid === 'project' && lead === 'feature', 'start: a standing rule stated plainly comes before a work trigger found mid-sentence; a trigger the request starts with still wins', { mid, lead });
   const never = route('you let any visitor cancel orders! only the owner may cancel. that should never happen again', withFeature)?.name;
   report(never === 'project', 'start: "that should never happen again" is a standing rule request and routes to the project runbook', never);
+  const tailEs = route('otra vez quedó una fecha en otro formato. toda fecha que vea el cliente tiene que ir en formato largo, siempre', withFeature)?.name;
+  const tailEn = route('every label the customer sees must be in plain words, always.', withFeature)?.name, notRule = route('why does the export always fail on empty rows', withFeature)?.name;
+  report(tailEs === 'project' && tailEn === 'project' && notRule !== 'project', 'start: a sentence that ends ", always" (", siempre") is a standing rule request; "always" inside a question is not', { tailEs, tailEn, notRule });
 }
 {
   const { onPrompt } = await import('./start.mjs');

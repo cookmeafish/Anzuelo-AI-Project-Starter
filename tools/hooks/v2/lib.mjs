@@ -91,7 +91,10 @@ export function route(prompt, books = runbooks()) {
   // (and it comes before a trigger found mid-sentence; a trigger the request starts with still wins. Lesson (trials v38,
   // v41): "you forgot the new option ... every option has to be documented" went to the feature runbook on "new option")
   // ("that should never happen again" asks for a standing rule too. Lesson (trial v42): it named no runbook)
-  const proj = books.find(b => b.file === 'docs/playbooks/project.md'), rule = proj && (STANDING.test(String(prompt)) || /\b(that|this|it) (should|must|can) never happen again\b/i.test(String(prompt)));
+  // (so does a sentence that ends ", always" or ", never", in Spanish ", siempre". Lesson (trial v43): "... tiene que
+  // estar en español, siempre" named no runbook, and the rule's items were never checked)
+  const said = isSpanish(prompt) ? `${prompt}\n${routeEnglish(prompt)}` : String(prompt);
+  const proj = books.find(b => b.file === 'docs/playbooks/project.md'), rule = proj && (STANDING.test(said) || /\b(that|this|it) (should|must|can) never happen again\b/i.test(said) || /,\s*(always|never)\s*(?:[.!]+|$)/im.test(said));
   if (best && !(rule && best.score < 1000)) return { ...best.book, matched: best.phrase };
   return rule ? { ...proj, matched: 'standing rule' } : null;
 }

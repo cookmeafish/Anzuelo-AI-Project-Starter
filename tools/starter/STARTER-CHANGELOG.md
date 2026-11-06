@@ -6,6 +6,8 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-06 (engine): a rule stated as a sentence that ends ", always" or ", never" (in Spanish ", siempre", ", nunca") now routes to the project runbook, so its rule items get checked. Replay: no change in routed requests or blocks in either real project. Test: "start: a sentence that ends ", always" (", siempre") is a standing rule request; "always" inside a question is not".
+
 - 2026-11-06 (engine): when no runbook was routed, the end check no longer holds a turn to a runbook that the same turn wrote or edited and then read back. That runbook is the turn's work, not the procedure it chose. Replay: 82 to 77 blocks in one real project, 11 to 11 in the other. Test: "end: with none routed, a runbook the turn wrote and then read is not the one the turn is held to".
 
 - 2026-11-06 (engine): fixes from trial round v38. Each one has a test that fails without it.
