@@ -9538,12 +9538,14 @@ if (isMain) {
     if (!fixed.length) { console.log('nothing to put back: this turn changed no tracked file the check governs (a new file, or a problem not in the project). Prove it on a sample of the problem instead: write one to .cache/, run the check on it (it fails), and on the real files (it passes).'); process.exit(2); }
     const run = () => { const r = spawnSync(check, { shell: true, cwd: ROOT, encoding: 'utf8', timeout: 600000, maxBuffer: 64 * 1024 * 1024 }); const out = `${r.stdout || ''}${r.stderr || ''}`; return { out, ok: r.status === 0 && !/\b(FAIL(ED|S|URES?)?|not ok)\b|✖/.test(out) }; };
     const tail = s => s.trim().split(/\r?\n/).slice(-6).map(l => `  ${l.slice(0, 200)}`).join('\n');
-    const keep = new Map(fixed.map(p => [p, fs.readFileSync(abs(p))]));
+    // (each file goes back with its own modification time too: the put-back is no change. Lesson (trial): the end check
+    // took the put-back for code changed after the tests had passed, and asked for them again)
+    const keep = new Map(fixed.map(p => [p, [fs.readFileSync(abs(p)), fs.statSync(abs(p))]]));
     let before;
     try {
       for (const p of fixed) { const old = spawnSync('git', ['show', `HEAD:${p}`], { cwd: ROOT, maxBuffer: 64 * 1024 * 1024 }); if (old.status === 0) fs.writeFileSync(abs(p), old.stdout); }
       before = run();
-    } finally { for (const [p, b] of keep) fs.writeFileSync(abs(p), b); }
+    } finally { for (const [p, [b, st]] of keep) { fs.writeFileSync(abs(p), b); try { fs.utimesSync(abs(p), st.atime, st.mtime); } catch { } } }
     const after = run();
     const list = fixed.slice(0, 4).join(', ') + (fixed.length > 4 ? ` +${fixed.length - 4} more` : '');
     console.log(`BEFORE THE FIX (git HEAD version of ${list}): ${before.ok ? 'PASS' : 'FAIL'}\n${tail(before.out)}`);

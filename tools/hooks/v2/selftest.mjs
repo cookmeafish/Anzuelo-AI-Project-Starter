@@ -582,6 +582,22 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     fs.rmSync(path.join(c3, 'tools/hooks/state'), { recursive: true, force: true });
     const fine = probeEngine(c3), left = (() => { try { return fs.readdirSync(path.join(c3, 'tools/hooks/state')).filter(f => /upgradeprobe/.test(f)); } catch { return []; } })();
     fs.rmSync(c3, { recursive: true, force: true });
+    // (proving a check puts the fixed files back with their own modification time, so the end check does not take the
+    // put-back for a change after the tests. Lesson (trial): the tests passed, prove ran, and the end check asked again)
+    {
+      const g = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-prove-'));
+      fs.mkdirSync(path.join(g, 'tools/hooks'), { recursive: true });
+      for (const f of ['hooks.mjs', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(g, 'tools/hooks', f));
+      const gg = (...a) => spawnSync('git', a, { cwd: g, encoding: 'utf8' });
+      gg('init', '-q'); fs.writeFileSync(path.join(g, 'menu.js'), 'broken\n'); gg('add', '-A'); gg('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'x');
+      fs.writeFileSync(path.join(g, 'menu.js'), 'fixed\n');
+      const old = new Date(Date.now() - 3600_000); fs.utimesSync(path.join(g, 'menu.js'), old, old);
+      const before = fs.statSync(path.join(g, 'menu.js')).mtimeMs;
+      const pr = spawnSync(process.execPath, [path.join(g, 'tools/hooks/hooks.mjs'), 'prove', `node -e "process.exit(require('fs').readFileSync('menu.js','utf8').includes('fixed')?0:1)"`], { cwd: g, encoding: 'utf8', env: { ...process.env, ANZUELO_SESSION_GATE: 'off' } });
+      const after = fs.statSync(path.join(g, 'menu.js')).mtimeMs, body = fs.readFileSync(path.join(g, 'menu.js'), 'utf8');
+      fs.rmSync(g, { recursive: true, force: true });
+      report(body === 'fixed\n' && Math.abs(after - before) < 5, 'prove: the fixed files are put back with their own modification time', [pr.stdout.slice(0, 120), before, after]);
+    }
     report(broken.length === 2 && broken.every(e => /v2|CRASHED/.test(e)) && !fine.length && !left.length,
       'upgrade: the engine probe names a v2 that cannot load, passes one that runs, and leaves no probe state', [broken.join(' | ').slice(0, 200), fine.join(' | '), left.join(',')]);
   }
