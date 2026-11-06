@@ -48,6 +48,9 @@ date. A project's own content is its session's; this runbook changes only the en
 - A full run that restarts on every newer commit never finishes, and the projects never get the upgrade. Freeze the
   commit under test as the release candidate: let its run finish and ship it, and test later fixes together in the
   next batch.
+- Before every frozen run, upgrade a scratch project made from the starter (with `tools/hooks/v2` deleted first) using
+  `--no-selftest`, and read its output for errors and "ENGINE DOES NOT RUN HERE". It takes seconds, and on 2026-11-05 it
+  caught an upgrade crash that cost a 20-minute frozen run.
 - A release ships with its own engine proof, or every project's upgrade runs the whole self-test (over 10 minutes on a
   shared machine, 2026-11-05). After the frozen run passes, commit its `tools/hooks/engine-proof.json` in the frozen
   worktree ("Engine proof", on top of the candidate), merge that commit into `main`, and fast-forward the linked
