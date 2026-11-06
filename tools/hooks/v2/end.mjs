@@ -32,7 +32,10 @@ export function onStop(data, opts = {}) {
 }
 function judge(data, { shadow = false } = {}) {
   if (data.stop_hook_active) return null; // at most one block per turn
-  const turn = loadTurn(data.session_id), acts = { ...turnActs(turnRows(data.transcript_path || '', turn.at)), at: turn.at };
+  // (with no saved start, the turn starts at its request's own time. Lesson (a field report): the first turn after an
+  // upgrade installed v2 had no saved start, so a file a script wrote did not count, and the request was blocked twice)
+  const saved = loadTurn(data.session_id), found = turnActs(turnRows(data.transcript_path || '', saved.at));
+  const turn = { ...saved, at: saved.at || found.started || '' }, acts = { ...found, at: turn.at };
   // (and per request: a turn that goes on after its block and stops again, with no new request, is not blocked again.
   // Lesson (trial): one request got the same list 3 times, each stop after a continuation the host did not mark)
   if (turn.at && turn.blocked === turn.at) return null;

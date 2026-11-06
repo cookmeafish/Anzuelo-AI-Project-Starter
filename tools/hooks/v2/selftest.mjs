@@ -74,6 +74,27 @@ report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/
   report(out === null && loadTurn('notice').runbook === 'docs/playbooks/export.md', 'start: a background-job notice mid-turn adds no reminder and keeps the runbook the turn was routed to', [out, loadTurn('notice').runbook]);
   const back = onPrompt({ session_id: 'notice', prompt: 'Another Claude session sent a message:\n<agent-message from="a1">\n[Subagent hand-back] The text below is the final report of a subagent.\n  Rule requests: none. The csv export review is written.\n</agent-message>' });
   report(back === null && loadTurn('notice').runbook === 'docs/playbooks/export.md', 'start: a helper\'s report back is not a request: no reminder, and the turn keeps its runbook', [back, loadTurn('notice').runbook]);
+  // (a run with no session id, such as the hook timing, saves no turn record. Lesson (a field report): an upgrade's hook
+  // timing left a turn record under a made-up id in the project's state folder)
+  const { onStop } = await import('./end.mjs');
+  const st = path.join(dir, 'tools/hooks/state');
+  const before = fs.existsSync(st) ? fs.readdirSync(st).filter(f => /^v2-turn\./.test(f)) : [];
+  const tq = path.join(os.tmpdir(), `v2-nosid-${process.pid}.jsonl`);
+  fs.writeFileSync(tq, JSON.stringify({ type: 'user', message: { role: 'user', content: 'what does the brief say' } }) + '\n');
+  onPrompt({ prompt: 'what does the brief say' }); onStop({ transcript_path: tq });
+  fs.rmSync(tq, { force: true });
+  const after = fs.existsSync(st) ? fs.readdirSync(st).filter(f => /^v2-turn\./.test(f)) : [];
+  report(after.length === before.length, 'start: a hook run with no session id leaves no turn record', after.filter(f => !before.includes(f)));
+  // (a turn with no saved start, such as the first turn after v2 is installed, starts at its request's own time: a file
+  // a script wrote since then counts, and the request is blocked once, not again. Lesson (a field report): the first
+  // turn after an upgrade asked for a file a shell command had written, and asked twice)
+  const T = s => new Date(Date.now() - 60_000 + s * 1000).toISOString(), at = (s, r) => [r].flat().map(x => ({ ...x, timestamp: T(s) }));
+  const late = transcript([at(0, user('upgrade the export tool')), at(1, call('Read', { file_path: path.join(dir, 'docs/playbooks/export.md') })),
+    at(2, call('Edit', { file_path: path.join(dir, 'src/a.js'), old_string: 'a', new_string: 'b' })), at(3, call('Bash', { command: 'npm test' }, '3 passed')),
+    at(4, say('Done; how it was checked: npm test.'))]);
+  put('docs/CHANGELOG.md', '- export: tidied\n');
+  const b1 = onStop({ session_id: 'latestart', transcript_path: late }), b2 = onStop({ session_id: 'latestart', transcript_path: late });
+  report(!!b1 && !/item 2/.test(b1.reason) && b2 === null, 'end: a turn with no saved start begins at its request, so a file a script wrote counts, and it is blocked once', [b1?.reason?.slice(0, 160), b2?.reason?.slice(0, 80)]);
 }
 report(/4\. The output reads well for a person, which only a reader can judge$/m.test(r.text), 'start: an item that wraps onto a second line is shown whole, without its check marker', r.text);
 report(reminder('C3 --since monday --format xlsx').book?.name === 'export' && !reminder('C31 rows').book && !reminder('version C3 is out').book, 'start: a menu code at the start routes to its runbook; a longer code or one mid-sentence does not');

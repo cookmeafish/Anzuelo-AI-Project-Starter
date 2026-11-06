@@ -454,5 +454,6 @@ export const worked = acts => acts.calls.some(c => /^(Edit|Write|MultiEdit|Noteb
 
 const STATE = () => path.join(ROOT, 'tools', 'hooks', 'state');
 const stateFile = sid => path.join(STATE(), `v2-turn.${String(sid || 'x').replace(/[^\w-]/g, '').slice(0, 64)}.json`);
-export const saveTurn = (sid, v) => { try { fs.mkdirSync(STATE(), { recursive: true }); fs.writeFileSync(stateFile(sid), JSON.stringify(v)); } catch { } };
-export const loadTurn = sid => { try { return JSON.parse(fs.readFileSync(stateFile(sid), 'utf8')); } catch { return {}; } };
+// (no session, no record: a run without a session id (the hook timing, a hand run) would share one made-up record)
+export const saveTurn = (sid, v) => { if (!sid) return; try { fs.mkdirSync(STATE(), { recursive: true }); fs.writeFileSync(stateFile(sid), JSON.stringify(v)); } catch { } };
+export const loadTurn = sid => { if (!sid) return {}; try { return JSON.parse(fs.readFileSync(stateFile(sid), 'utf8')); } catch { return {}; } };
