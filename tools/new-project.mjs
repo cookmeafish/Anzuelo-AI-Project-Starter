@@ -688,8 +688,8 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   items.push(stPassed ? `self-tests: node tools/hooks/selfcheck.mjs passes here||passed (${today}, run by the upgrade: ${stLine.replace(/^selfcheck:\s*/, '')})` : 'self-tests: node tools/hooks/selfcheck.mjs passes here');
   // (the engine is proven to run here, not only installed: the project's own prompt and Stop hooks run once. Lesson (two
   // projects): an upgrade and a full self-test passed while the default engine could not load in the project)
-  const probe = probeEngine(dest);
-  if (probe.length) { items.push(`engine: the hooks fail to run in this project (${probe.join('; ')}). Fix it before relying on the engine: tell the starter session`); console.log(`\nENGINE DOES NOT RUN HERE: ${probe.join('; ')}`); }
+  const engineErrs = probeEngine(dest);
+  if (engineErrs.length) { items.push(`engine: the hooks fail to run in this project (${engineErrs.join('; ')}). Fix it before relying on the engine: tell the starter session`); console.log(`\nENGINE DOES NOT RUN HERE: ${engineErrs.join('; ')}`); }
   const dp = path.join(dest, 'docs', 'DECISIONS.md');
   fs.mkdirSync(path.dirname(dp), { recursive: true });
   // each pack and skill in plain words: what it does and what the user will notice
