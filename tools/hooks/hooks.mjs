@@ -3322,6 +3322,13 @@ function exampleNameHits(x, cfg) {
 const homeDir = () => process.env.USERPROFILE || process.env.HOME || '';
 export const privateTermsPath = (cfg = config()) => cfg.privateTermsFile ? String(cfg.privateTermsFile).replace(/^~(?=[\\/])/, homeDir())
   : exists('.starter-template') && homeDir() ? path.join(homeDir(), '.anzuelo', 'private-terms.txt') : '';
+// The folder's .private-terms, or in a git worktree without one (the file is git-ignored) the main folder's.
+export function privateTermsListFile(root) {
+  const own = path.join(root, '.private-terms');
+  if (fs.existsSync(own)) return own;
+  const c = spawnSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd: root, encoding: 'utf8' });
+  return c.status === 0 && c.stdout.trim() ? path.join(path.dirname(c.stdout.trim()), '.private-terms') : own;
+}
 export function forbiddenTerms(cfg = config()) {
   const list = [].concat(cfg.forbiddenTerms || []), f = privateTermsPath(cfg);
   if (f) { try { list.push(...fs.readFileSync(f, 'utf8').split(/\r?\n/).map(l => l.trim()).filter(l => l && !l.startsWith('#'))); } catch { } }

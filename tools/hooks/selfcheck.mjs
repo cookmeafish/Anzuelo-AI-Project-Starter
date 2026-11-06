@@ -5001,7 +5001,8 @@ if (mineB() && (!TAGS || TAGS.some(t => TRIGGER_TAGS.includes(t)))) {
 // agents still run after the answer, steps not done at the end, nothing once the turn is finished, and never an extra
 // line. Lessons (the user): six complaints in one session, each fix tested only on the moment in the screenshot; a
 // finished turn's "checks passed" left on the bar is noise.
-if (!TAGS || TAGS.includes('status-bar')) {
+// (in one helper process only: run in each, it was counted once per helper, so the total moved with the machine's load)
+if ((!TAGS || TAGS.includes('status-bar')) && mineB()) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'statusbar-')), tp = path.join(dir, 'session.jsonl');
   const name = JSON.parse(fs.readFileSync(path.join(ROOT, 'docs/names.json'), 'utf8')).STARTER_NAME;
   let n = 0; const at = () => new Date(Date.UTC(2026, 9, 28, 12, 0, n++)).toISOString();
@@ -6731,6 +6732,21 @@ if (mineB() && !libMissing('notes-vault/scripts/vault.mjs')) { // vault backlink
   } finally { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
 }
 
+if (mineB()) { // publish safety in a worktree reads the main folder's .private-terms (git-ignored), and a starter with none fails
+  // Lesson (2026-11-06): a frozen worktree's audit passed this sweep with no terms to check, while the main folder's failed
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-terms-')), main = path.join(dir, 'main'), wt = path.join(dir, 'wt');
+  try {
+    fs.mkdirSync(main); const g = (...a) => spawnSync('git', a, { cwd: main, encoding: 'utf8' });
+    g('init', '-q'); fs.writeFileSync(path.join(main, 'a.md'), 'x\n'); g('add', 'a.md'); g('-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-qm', 'a');
+    fs.writeFileSync(path.join(main, '.private-terms'), 'zzsecretname\n'); g('worktree', 'add', '-q', '--detach', wt);
+    const at = r => spawnSync(process.execPath, ['--input-type=module', '-e', `import { privateTermsListFile } from ${JSON.stringify(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks.mjs')).href)}; console.log(privateTermsListFile(${JSON.stringify(r)}));`], { encoding: 'utf8' }).stdout.trim();
+    const fromWt = at(wt), fromMain = at(main), audit = fs.readFileSync(path.join(ROOT, 'tools/audit.mjs'), 'utf8');
+    const same = (a, b) => path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase();
+    report(same(fromWt, path.join(main, '.private-terms')) && same(fromMain, path.join(main, '.private-terms')) && /privateTermsListFile\(ROOT\)/.test(audit) && /\.private-terms is missing, so no private term was checked/.test(audit),
+      'publish-safety: a worktree of the starter reads the main folder\'s .private-terms, and a starter with none fails the sweep instead of passing it', { fromWt, fromMain });
+  } finally { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
+}
+
 if (mineB()) { // notes link check: a project's report to the starter is no note, so an example link quoted in it is not broken
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-notes-'));
   try {
@@ -6968,6 +6984,14 @@ if (mineB() && fs.existsSync(path.join(ROOT, 'tools/starter/trials/compare.mjs')
   const skillRound = c.verdict({ round: 's2', projects: { a: S(1) } }, skillHist), engRound = c.verdict({ round: 's2', projects: { a: S(1, 'engine') } }, skillHist);
   report(skillRound.ok && skillRound.now.skillHigh === 1 && skillRound.skillWorse?.length === 1 && !engRound.ok && c.layerOf({ starter: 'tools/hooks/hooks.mjs prove' }) === 'engine' && c.layerOf({ starter: 'none (the agent)' }) === 'none',
     'improvement-loop: a high finding in a skill\'s own check is counted and judged apart; the engine\'s verdict stays NOT WORSE, and the same finding in the engine makes it WORSE', JSON.stringify({ skill: skillRound.worse, skillWorse: skillRound.skillWorse, eng: engRound.worse }));
+  // a starter copy handed to a round must be an "Engine proof" commit: without its proof every trial setup reruns the
+  // whole self-test and the round measures that instead of the engine. Lesson (round v39)
+  const pr = fs.mkdtempSync(path.join(os.tmpdir(), 'proofcopy-')), g = (...a) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'core.hooksPath=', ...a], { cwd: pr, encoding: 'utf8' });
+  g('init', '-q'); fs.writeFileSync(path.join(pr, 'a.txt'), '1'); g('add', '.'); g('commit', '-qm', 'Engine v2: a change');
+  const notProof = c.proofProblem(pr); fs.writeFileSync(path.join(pr, 'a.txt'), '2'); g('commit', '-qam', 'Engine proof');
+  const proof = c.proofProblem(pr); fs.rmSync(pr, { recursive: true, force: true });
+  report(/not an "Engine proof" commit/.test(notProof) && proof === '',
+    'improvement-loop: a round refuses a starter copy that is not an "Engine proof" commit and accepts one that is', JSON.stringify({ notProof, proof }));
   report(same.ok && !same.first && !high.ok && /high findings/.test(high.worse.join()) && !slow.ok && /setup median/.test(slow.worse.join())
     && !blocky.ok && /blocked at Stop/.test(blocky.worse.join()) && !failed.ok && /failed or timed-out/.test(failed.worse.join())
     && newProj.ok && newProj.base.now.projects === 1 && first.first
@@ -8893,7 +8917,21 @@ if (REUSE) modeNote = `; ${reusedCount} engine scenarios and the engine's other 
 else if (STAMP && PLAIN_RUN) modeNote = engineFailed.length ? '; full run, engine tests failed, so nothing was recorded for reuse'
   : recordPass(STAMP, { passed: enginePassed, node: process.versions.node, platform: process.platform, day: localDay() }) ? `; full run, its ${enginePassed} engine passes recorded: the next run with this engine reuses them` : '; full run (the reuse cache could not be written)';
 const summary = `selfcheck: ${fail ? 'FAIL' : 'ALL PASS'}${TAGS ? ` for ${TAGS.join(', ')}` : ''} (${pass} passed, ${fail} failed${skipped ? `, ${skipped} skipped: packs not installed here` : ''}${modeNote})`;
-try { fs.mkdirSync(path.join(ROOT, '.cache'), { recursive: true }); fs.writeFileSync(path.join(ROOT, '.cache', 'selfcheck-last.txt'), `${LOG_LINES.join('\n')}\n\n${summary}\n`); } catch { }
+// (a whole run keeps the one before it as selfcheck-prev.txt and names the tests that ran then and not now, so a lower
+// count is a diff of two saved lists. Lesson (2026-11-06): finding which tests a run had dropped took a second full run)
+let dropped = [];
+try {
+  fs.mkdirSync(path.join(ROOT, '.cache'), { recursive: true });
+  const last = path.join(ROOT, '.cache', 'selfcheck-last.txt'), prev = path.join(ROOT, '.cache', 'selfcheck-prev.txt');
+  if (PLAIN_RUN && fs.existsSync(last) && !/ for [\w-]/.test(fs.readFileSync(last, 'utf8').trim().split('\n').pop())) {
+    const names = s => new Set(s.split('\n').map(l => /^(?:PASS|FAIL)  (.*?)(?:  -> .*)?$/.exec(l)?.[1]).filter(Boolean));
+    const was = names(fs.readFileSync(last, 'utf8')), now = names(LOG_LINES.join('\n'));
+    dropped = [...was].filter(n => !now.has(n));
+    fs.copyFileSync(last, prev);
+  }
+  fs.writeFileSync(last, `${LOG_LINES.join('\n')}\n\n${summary}\n`);
+} catch { }
+if (dropped.length) console.log(`${dropped.length} test(s) of the previous whole run did not run this time (lists: .cache/selfcheck-prev.txt, .cache/selfcheck-last.txt): ${dropped.slice(0, 8).join(' | ').slice(0, 600)}`);
 console.log(`\n${summary}${VERBOSE ? '' : ' (every test line: .cache/selfcheck-last.txt)'}`);
 // the failing tests' names again, after the summary, so a run whose output is cut to its last lines still names them
 if (FAILED.length && !HELPER) console.log(`failing tests: ${FAILED.slice(0, 12).join(' | ')}${FAILED.length > 12 ? ` | and ${FAILED.length - 12} more` : ''}`);

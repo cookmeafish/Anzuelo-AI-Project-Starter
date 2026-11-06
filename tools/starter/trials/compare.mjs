@@ -18,6 +18,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { repeatsOf } from './repeats.mjs';
+import { spawnSync } from 'node:child_process';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const TRIALS = process.env.ANZUELO_TRIALS_DIR || path.join(HERE, '..', '..', '..', '.cache', 'trials');
@@ -133,6 +134,13 @@ export function verdict(round, history) {
   return { now, base: b, prev: p && { round: prev.round, ...p }, baseFrom, worse, better, ok: !worse.length, first: !b && !p, skillWorse };
 }
 
+// Why a starter copy can't run a round: its HEAD is not an "Engine proof" commit, so the proof it ships may not name its
+// engine ('' when it is).
+export function proofProblem(dir) {
+  const s = spawnSync('git', ['log', '-1', '--format=%s'], { cwd: dir, encoding: 'utf8' });
+  if (s.status !== 0) return `${dir} is not a git copy of the starter`;
+  return s.stdout.trim() === 'Engine proof' ? '' : `is at "${s.stdout.trim().slice(0, 60)}", not an "Engine proof" commit`;
+}
 const readJSON = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
 if (fileURLToPath(import.meta.url) === path.resolve(process.argv[1] || '')) {
   const name = process.argv[2];

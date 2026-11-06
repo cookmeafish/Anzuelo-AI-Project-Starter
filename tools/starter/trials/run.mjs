@@ -14,7 +14,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { LIMIT_ANSWER } from './compare.mjs';
+import { LIMIT_ANSWER, proofProblem } from './compare.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const STARTER_ROOT = path.resolve(HERE, '..', '..', '..');
@@ -62,6 +62,10 @@ async function round() {
       if (w.status !== 0) { console.error(`could not freeze ${head}: ${w.stderr}`); process.exit(1); }
     }
   }
+  // (a copy given in TRIAL_STARTER is held to the same rule. Lesson (round v39): a frozen copy of a commit before its
+  // proof was passed in by hand, and every setup ran the whole self-test suite, up to 32 minutes)
+  const given = process.env.TRIAL_STARTER && !process.argv.includes('--freeze') ? proofProblem(starter) : '';
+  if (given && !process.env.TRIAL_ANY_COMMIT) { console.error(`run.mjs: TRIAL_STARTER ${given}: give a copy of an "Engine proof" commit, or set TRIAL_ANY_COMMIT=1`); process.exit(1); }
   const engine = spawnSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: starter, encoding: 'utf8' }).stdout.trim() || head;
   fs.mkdirSync(TRIALS, { recursive: true });
   fs.writeFileSync(path.join(TRIALS, `round-${name}.json`), JSON.stringify({ round: name, engine, starter, ids: list, started: new Date().toISOString() }, null, 2));

@@ -12,7 +12,7 @@ import {
   loadRequirements, usage, hardenDue, menu, runbookHasCheck, generatedSkill, directoryBlock, staleKnowledge,
   setupProblems, upgradeProblems, bench, gitignoreProblems, writingProblems, aiAttributedCommits, BASE_REQUIREMENTS, routableSkills, skillHasCheck, curateDue,
   FIT_FILE, fitProblems, fitRows, fitDecision, fitWhenOf, doneWhenItems, DONE_LABEL, findLibrary, secretHit, mirrorText, logRun, testInputsHash, deadTriggers, rulesText, route, personalDetails,
-  externalHookSizes, HOOK_OUTPUT_MAX, gitignoreTest, today, bulkDir, checkRe, RETIRED_TAGS, forbiddenRe, privateTermsPath,
+  externalHookSizes, HOOK_OUTPUT_MAX, gitignoreTest, today, bulkDir, checkRe, RETIRED_TAGS, forbiddenRe, privateTermsPath, privateTermsListFile,
   nameFiles, nameProblems, match, VERBATIM_ENGINE
 } from './hooks/hooks.mjs';
 
@@ -434,7 +434,12 @@ sweep('publish safety (no personal or machine details)', () => {
     const isIgnored = gitignoreTest(read(abs('.gitignore')));
     for (const f of all) if (/^\.private-terms$|^tools\/hooks\/state\//.test(f) || isIgnored(f)) ignored.add(f);
   }
-  const terms = read(abs('.private-terms')).split(/\r?\n/).map(s => s.trim()).filter(s => s && !s.startsWith('#'));
+  // (.private-terms is git-ignored, so a worktree of the starter has none: there it is read from the main folder, and
+  // a starter with no list at all fails rather than passing unchecked. Lesson (2026-11-06): a frozen copy's audit
+  // passed this sweep, checking no terms, while the main folder's failed it)
+  const termsFile = privateTermsListFile(ROOT);
+  if (isTemplate && !fs.existsSync(termsFile)) fail.push('.private-terms is missing, so no private term was checked: copy it from the starter\'s main folder (it is git-ignored)');
+  const terms = read(termsFile).split(/\r?\n/).map(s => s.trim()).filter(s => s && !s.startsWith('#'));
   for (const f of all.filter(f => !ignored.has(f) && f !== '.private-terms')) {
     const text = read(abs(f));
     // agent wiring with a home path: say how to make it machine-neutral (Lesson: a project's own hook commands under
