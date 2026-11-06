@@ -105,6 +105,13 @@ report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/
     const back = { type: 'user', isMeta: true, message: { role: 'user', content: '<agent-message from="a1b2c3">\n[Subagent hand-back] The review found nothing.\n</agent-message>' } };
     const b = onStop({ session_id: 'helperwait', transcript_path: transcript([...base, at(4, back), at(5, say('The reviewer found nothing; saved as 7c6b5a4.'))]) });
     report(w === null && open && !!b && /7c6b5a4/.test(b.reason), 'end: while a helper started this turn still works there is no check and the turn stays open; after it reports back the turn is judged', [w, open, b?.reason?.slice(0, 100)]);
+    // (a helper resumed after its report works again: the turn waits for its next report)
+    const { helpersRunning } = await import('./lib.mjs');
+    const resume = at(5, call('SendMessage', { to: 'a1b2c3', message: 'check the fix' }, '{"success":true,"message":"Resuming agent a1b2c3","resumedAgentId":"a1b2c3"}'));
+    const rows = r => fs.readFileSync(transcript(r), 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l));
+    const again = helpersRunning(rows([...base, at(4, back), resume, at(6, say('The reviewer is checking the fix.'))]));
+    const after = helpersRunning(rows([...base, at(4, back), resume, at(6, back), at(7, say('The reviewer found nothing.'))]));
+    report(again.join() === 'a1b2c3' && after.length === 0, 'end: a helper resumed after its report counts as working until its next report', { again, after });
     // (live, the session's evidence leaves out the agent's own words: the answer never backs its own made-up commit)
     const made = onStop({ session_id: 'madeup', transcript_path: transcript([at(0, user('save the invoice fix')), at(1, say('Saved as 9e8d7c6.'))]) });
     report(!!made && /9e8d7c6/.test(made.reason), 'end: live, a commit only the answer names is reported (the answer is not its own evidence)', made?.reason?.slice(0, 120));

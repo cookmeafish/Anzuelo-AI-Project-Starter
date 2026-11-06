@@ -188,17 +188,19 @@ export function backgroundRuns(rows) {
 // notice or the helper's hand-back names its id. Lesson (trial v33): the end check judged a turn while its reviewer
 // was still working, and the agent answered with filler about unfinished work.
 export function helpersRunning(rows) {
-  const runs = new Set(), done = new Set();
+  // (in order: a helper resumed after its report runs again until its next one. Lesson (trial v36): a reviewer resumed
+  // with SendMessage still counted as done from its first report, and the answer went out before its second)
+  const runs = new Set();
   for (const r of rows) {
+    for (const m of JSON.stringify(r).matchAll(/<task-id>([\w-]+)<\/task-id>|<agent-message from=\\?"([\w-]+)\\?"/g)) runs.delete(m[1] || m[2]);
     for (const x of Array.isArray(r.message?.content) ? r.message.content : []) {
       if (x?.type !== 'tool_result') continue;
       const out = typeof x.content === 'string' ? x.content : (Array.isArray(x.content) ? x.content.map(c => c?.text || '').join('\n') : '');
-      const m = /^\s*Async agent launched successfully[\s\S]{0,400}?agentId:\s*([\w-]+)/i.exec(out);
+      const m = /^\s*Async agent launched successfully[\s\S]{0,400}?agentId:\s*([\w-]+)/i.exec(out) || /"resumedAgentId"\s*:\s*"([\w-]+)"/.exec(out);
       if (m) runs.add(m[1]);
     }
-    for (const m of JSON.stringify(r).matchAll(/<task-id>([\w-]+)<\/task-id>|<agent-message from=\\?"([\w-]+)\\?"/g)) done.add(m[1] || m[2]);
   }
-  return [...runs].filter(id => !done.has(id));
+  return [...runs];
 }
 export const backgroundRunsOf = transcript => backgroundRuns(codexRows(tail(transcript).split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean)));
 
