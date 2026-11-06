@@ -119,12 +119,15 @@ if (cmd === 'scan') {
     if (!/\.md$/i.test(r) || !inNotes(r) || !fs.existsSync(path.join(ROOT, r))) continue;
     checked++;
     const now = targets(read(path.join(ROOT, r)), r), had = targets(before(r), r);
+    // (a new note, one git does not know, links to at least one note when the vault has others. Lesson (trial v38): a
+    // new note with no links passed, and the user was told this check would catch exactly that)
+    if (!now.size && !before(r) && all.some(a => a !== r)) missing.push(`${r} is new and links to no note: link it to a related one`);
     for (const t of now) if (!had.has(t)) { links++; if (!targets(read(path.join(ROOT, t)), t).has(r)) missing.push(`${t} does not link back to ${r}`); }
   }
   // (the PASS line says how many new links it checked, and that older ones were not. Lesson (trial v36): a PASS that
   // checked no new links was relayed as "every link has a link back", and an older link had none)
   if (!checked) { console.log('No notes to check (only notes in note folders count).\nRESULT: PASS'); process.exit(0); }
-  console.log(missing.length ? `${missing.map(m => `- ${m}`).join('\n')}\nAdd a link back where it makes sense (a "Related" line in that note). If one truly does not belong, say why in the answer.\nRESULT: FAIL ${missing.length} link(s) back missing`
+  console.log(missing.length ? `${missing.map(m => `- ${m}`).join('\n')}\nAdd each missing link where it makes sense (a "Related" line in that note). If one truly does not belong, say why in the answer.\nRESULT: FAIL ${missing.length} link(s) missing`
     : `${links ? `${links} new link(s) in ${checked} note(s) checked: each links back.` : `No new links in ${checked} note(s) since the last commit, so none were checked.`} Older links were not checked.\nRESULT: PASS`);
   process.exit(missing.length ? 1 : 0);
 } else usage();

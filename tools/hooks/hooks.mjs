@@ -9270,7 +9270,8 @@ async function v2Cli(cmd) {
   }
   const turn = lib.loadTurn(sid);
   if (!turn.at) { console.log('CHECK: no request recorded. Run: node tools/hooks/hooks.mjs begin "<the user\'s request>" first.'); return 1; }
-  if (tp) { const d = (await import('./v2/end.mjs')).onStop({ transcript_path: tp, session_id: sid }); console.log(d ? `CHECK: ${d.reason}` : 'CHECK: PASS'); return d ? 1 : 0; }
+  // (a helper's check judges the helper's own transcript, as its own turn, and leaves the session's turn alone)
+  if (tp) { const who = lib.callerTranscript(tp, sid); const d = (await import('./v2/end.mjs')).onStop({ transcript_path: who.file, session_id: who.id ? `${sid}-${who.id}` : sid }); console.log(d ? `CHECK: ${d.reason}` : 'CHECK: PASS'); return d ? 1 : 0; }
   const book = turn.runbook && lib.runbooks().find(b => b.file === turn.runbook);
   console.log(book?.items.length ? `CHECK: verify that each item of ${book.file} is really done (skip any that don't fit this work), fix what isn't, then answer:\n${book.items.map(it => `${it.n}. ${it.text}`).join('\n')}` : 'CHECK: PASS');
   return 0;
@@ -9556,6 +9557,10 @@ if (isMain) {
     const list = fixed.slice(0, 4).join(', ') + (fixed.length > 4 ? ` +${fixed.length - 4} more` : '');
     console.log(`BEFORE THE FIX (git HEAD version of ${list}): ${before.ok ? 'PASS' : 'FAIL'}\n${tail(before.out)}`);
     console.log(`AFTER THE FIX: ${after.ok ? 'PASS' : 'FAIL'}\n${tail(after.out)}`);
+    // (when the fix is the check itself, putting back the other files proves nothing: the check's old version is what
+    // missed it. Lesson (trial v38): a fixed letter check got NOT PROVEN, because a wording file was put back instead)
+    const own = (git('diff', '--name-only', 'HEAD').stdout || '').split(/\r?\n/).map(s => s.trim()).filter(p => p && (named.has(p) || CHECK_FILE.test(p)) && exists(p));
+    if (before.ok && own.length) { console.log(`NOT THIS WAY: the fix changed the check itself (${own.slice(0, 3).join(', ')}), so putting back the other files proves nothing. Prove it on a sample: save the output the user complained about in .cache/, run the check's old version (git show HEAD:${own[0]}) and the new one on it: the old passes it, the new fails it.`); process.exit(2); }
     if (before.ok) { console.log('NOT PROVEN: the check passes on the state before the fix, so it would not have caught the problem. Make it test what went wrong.'); process.exit(1); }
     if (!after.ok) { console.log('NOT PROVEN: the check fails on the fixed files. Fix the code or the check.'); process.exit(1); }
     const proven = `Proven: fails on the version before the fix (git HEAD: ${list}); passes on all ${fixed.length} fixed file(s) and the files it covers, ${edge ? `and an edge case: ${edge}` : 'and an edge case: <one from this project\'s own words>'}`;

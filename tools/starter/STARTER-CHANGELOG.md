@@ -6,6 +6,14 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-06 (engine): fixes from trial round v38. Each one has a test that fails without it.
+  - The letter draft check no longer fails a phrase the correspondence skill says to keep, such as a plain good wish. Test: "correspondence draft check: ... or with a good wish the skill says to keep, passes".
+  - The vault link check fails a new note that links to no note, and the notes-vault skill no longer names a check that does not exist. Test: "vault backlinks: ... a new note that links to no note fails".
+  - The end check no longer asks for a source for lines that only link to notes ("Related: [[note]]"), and counts only the lines an edit added. Test: "end: link lines added below a note's old text ask for no source; a new fact added the same way still does".
+  - `hooks.mjs check` run by a helper judges the helper's own transcript, not the session's, so the helper's own test runs count. Test: "check: run by a helper, the manual check reads that helper's transcript; run by the session, its own".
+  - `hooks.mjs prove` says to prove on a sample when the fix changed the check itself, instead of a false NOT PROVEN. Test: "rule and prove commands: ...".
+  - The notes link check skips `docs/starter-feedback.md`, so an example link quoted there is not a broken link. Test: "notes link check: an example link quoted in the project's report to the starter is not a broken link".
+  - A comment inside a runbook's "Done when" item is no longer shown in the reminder or the end check. Test: "start: a comment in a runbook item, one line or several, is never shown".
 - 2026-11-05 (engine): engine v2 fixes from its first live use and trial round v32. Each one has a self-test that fails without it.
   - The background-run notice works from the session's own running jobs, not from command text.
   - Pasted text no longer routes a message or marks it as upset.

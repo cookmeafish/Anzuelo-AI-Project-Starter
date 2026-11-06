@@ -28,7 +28,7 @@ const words = s => [...new Set(String(s).toLowerCase().split(/[^a-z0-9]+/).filte
 
 function notes(every = false) {
   const out = [];
-  const walk = d => { for (const n of fs.readdirSync(path.join(ROOT, d || '.'))) { if (SKIP.test(n)) continue; const p = d ? `${d}/${n}` : n; const st = fs.statSync(path.join(ROOT, p)); if (st.isDirectory()) { if (!d && !ALL && !['docs', 'profiles', ...KNOWLEDGE_ROOTS].includes(n)) continue; walk(p); } else if (p.endsWith('.md') && !/^docs\/feedback-inbox\//.test(p) && (every || ALL || !NOT_NOTES.test(p))) out.push(p); } }; // reports from projects are never notes
+  const walk = d => { for (const n of fs.readdirSync(path.join(ROOT, d || '.'))) { if (SKIP.test(n)) continue; const p = d ? `${d}/${n}` : n; const st = fs.statSync(path.join(ROOT, p)); if (st.isDirectory()) { if (!d && !ALL && !['docs', 'profiles', ...KNOWLEDGE_ROOTS].includes(n)) continue; walk(p); } else if (p.endsWith('.md') && !/^docs\/(feedback-inbox\/|starter-feedback\.md$)/.test(p) && (every || ALL || !NOT_NOTES.test(p))) out.push(p); } }; // reports from projects are never notes, nor a project's report to the starter (Lesson (trial v38): an example link quoted in it failed the link check on every later run)
   walk('');
   return out;
 }

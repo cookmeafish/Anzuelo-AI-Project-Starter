@@ -6090,11 +6090,18 @@ if (mineB()) { // rule and prove commands: a standing rule written everywhere it
     const restored = fs.readFileSync(path.join(dir, 'src/del.js'), 'utf8') === fixed;
     const notes = (() => { try { return fs.readFileSync(path.join(dir, '.cache/turn-notes.md'), 'utf8'); } catch { return ''; } })();
     const weak = node('prove', 'node -e "console.log(1)"');
+    // (the fix is the check itself: prove says to use a sample, not NOT PROVEN. Lesson (trial v38): a fixed check was
+    // called NOT PROVEN because another changed file was put back instead)
+    g('add', '-A'); g('commit', '-q', '--no-verify', '-m', 'fixed');
+    write(dir, { 'src/tone.txt': 'warmer\n', 'tools/del-check.mjs': "console.log('RESULT: PASS');\n" });
+    g('add', '-A'); g('commit', '-q', '--no-verify', '-m', 'tone'); write(dir, { 'src/tone.txt': 'warmest\n', 'tools/del-check.mjs': "console.log('RESULT: PASS'); // stricter\n" });
+    const self = node('prove', 'node tools/del-check.mjs');
     const proveOk = p.status === 0 && /BEFORE THE FIX \(git HEAD version of src\/del\.js\): FAIL/.test(p.stdout) && /AFTER THE FIX: PASS/.test(p.stdout) && restored
       && /Proven: fails on the version before the fix[^\n]*an edge case: a staff user named Owen/.test(notes)
-      && weak.status === 1 && /NOT PROVEN: the check passes on the state before the fix/.test(weak.stdout) && fs.readFileSync(path.join(dir, 'src/del.js'), 'utf8') === fixed;
+      && weak.status === 1 && /NOT PROVEN: the check passes on the state before the fix/.test(weak.stdout) && fs.readFileSync(path.join(dir, 'src/del.js'), 'utf8') === fixed
+      && self.status === 2 && /NOT THIS WAY: the fix changed the check itself \(tools\/del-check\.mjs\)/.test(self.stdout);
     report(ruleOk && proveOk, 'rule and prove commands: one step writes a rule to AGENTS.md, user-requirements.md, requirements.json and rule-enforcement.md (validated, no duplicates); prove fails the check on git\'s version before the fix, passes it on the fix, writes the Proven line and always puts the fix back',
-      `rule: ${r1.stdout.slice(0, 200)} | dup: ${dup.stdout.slice(0, 120)} | bad: ${bad.stdout.slice(0, 120)} | prove: ${p.stdout.slice(0, 400)} | weak: ${weak.stdout.slice(0, 200)} | restored ${restored}`);
+      `rule: ${r1.stdout.slice(0, 200)} | dup: ${dup.stdout.slice(0, 120)} | bad: ${bad.stdout.slice(0, 120)} | prove: ${p.stdout.slice(0, 400)} | weak: ${weak.stdout.slice(0, 200)} | self: ${self.stdout.slice(-300)} | restored ${restored}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
@@ -6711,9 +6718,30 @@ if (mineB() && !libMissing('notes-vault/scripts/vault.mjs')) { // vault backlink
     const none = run();
     w('Tea/Steeping.md', '# Steeping\nSee [[Water]] and [[Kettle]].\n'); w('Tea/Kettle.md', '# Kettle\n\n## Related\n- [[Steeping]]\n');
     const one = run();
-    report(/No new links in 1 note\(s\) since the last commit, so none were checked\. Older links were not checked\.\nRESULT: PASS/.test(none) && /1 new link\(s\) in 1 note\(s\) checked: each links back\. Older links were not checked\.\nRESULT: PASS/.test(one),
-      'vault backlinks: the PASS line says how many new links it checked, and that older links were not', [none, one].join(' | ').slice(0, 400));
+    // (a new note that links to no note fails: the skill says a new note links to at least one. Lesson (trial v38): a
+    // new note with no links passed, and the user was told the check would catch exactly that)
+    w('Tea/Cups.md', '# Cups\nThin ones.\n');
+    const lone = spawnSync(process.execPath, [path.join(ROOT, 'library/skills/notes-vault/scripts/vault.mjs'), 'backlinks', 'Tea/Cups.md', '--root', dir], { encoding: 'utf8' });
+    report(/No new links in 1 note\(s\) since the last commit, so none were checked\. Older links were not checked\.\nRESULT: PASS/.test(none) && /1 new link\(s\) in 1 note\(s\) checked: each links back\. Older links were not checked\.\nRESULT: PASS/.test(one)
+      && lone.status === 1 && /Tea\/Cups\.md is new and links to no note[\s\S]*RESULT: FAIL/.test(lone.stdout),
+      'vault backlinks: the PASS line says how many new links it checked, and that older links were not; a new note that links to no note fails', [none, one, lone.stdout].join(' | ').slice(0, 500));
   } finally { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
+}
+
+if (mineB()) { // notes link check: a project's report to the starter is no note, so an example link quoted in it is not broken
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-notes-'));
+  try {
+    const w = (f, s) => { fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true }); fs.writeFileSync(path.join(dir, f), s); };
+    w('docs/knowledge/tea.md', '# Tea\n\nRelated: [[kettle]]\n'); w('docs/knowledge/kettle.md', '# Kettle\n\nRelated: [[tea]]\n');
+    w('docs/starter-feedback.md', "- The end check asked for a source for a link line (e.g. 'Related: [[Other note]]').\n");
+    w('skills/obsidian/scripts/notes.mjs', fs.readFileSync(path.join(ROOT, 'skills/obsidian/scripts/notes.mjs'), 'utf8'));
+    const links = () => spawnSync(process.execPath, [path.join(dir, 'skills/obsidian/scripts/notes.mjs'), 'check', '--all'], { cwd: dir, encoding: 'utf8' });
+    const ok = links();
+    w('docs/knowledge/tea.md', '# Tea\n\nRelated: [[kettle]], [[cups]]\n');
+    const bad = links();
+    report(ok.status === 0 && bad.status === 1 && /cups/.test(bad.stdout),
+      'notes link check: an example link quoted in the project\'s report to the starter is not a broken link; a broken link in a note still is', [ok.stdout, bad.stdout].join(' | ').slice(0, 300));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
 if (mineB() && !libMissing('correspondence/scripts/draft-check.mjs')) { // correspondence draft check: a draft that copies a phrase the skill quotes as an example fails
@@ -6723,8 +6751,11 @@ if (mineB() && !libMissing('correspondence/scripts/draft-check.mjs')) { // corre
     const check = text => { const f = path.join(dir, 'd.md'); fs.writeFileSync(f, text); return spawnSync(process.execPath, [path.join(ROOT, 'library/skills/correspondence/scripts/draft-check.mjs'), f], { encoding: 'utf8' }).stdout; };
     const copied = check('Hi Sam,\n\nI am writing to let you know that the rent goes up in spring.\n\nBest,\nAlex\n');
     const own = check('Hi Sam,\n\nSome news first: the rent goes up a little in spring.\n\nBest,\nAlex\n');
-    report(/copies the skill's own example "i am writing to let you know"/.test(copied) && /RESULT: FAIL .*copied from the skill's examples/.test(copied) && /RESULT: PASS \(figures only: .*statements in words were not checked\)/.test(own),
-      'correspondence draft check: a draft that copies a phrase the skill quotes as an example fails; one in its own words passes, and its PASS says it checked figures only', [copied, own].map(s => String(s).trim().split('\n').pop()).join(' | ').slice(0, 400));
+    // (a phrase the skill says to keep, a plain good wish, is no copy. Lesson (trial v38): the check failed it, and the
+    // agent took the only warm line out of a letter the user had called cold)
+    const kept = check('Hi Sam,\n\nI hope you are well. Some news first: the rent goes up a little in spring.\n\nBest,\nAlex\n');
+    report(/copies the skill's own example "i am writing to let you know"/.test(copied) && /RESULT: FAIL .*copied from the skill's examples/.test(copied) && /RESULT: PASS \(figures only: .*statements in words were not checked\)/.test(own) && /RESULT: PASS/.test(kept),
+      'correspondence draft check: a draft that copies a phrase the skill quotes as an example fails; one in its own words, or with a good wish the skill says to keep, passes, and its PASS says it checked figures only', [copied, own, kept].map(s => String(s).trim().split('\n').pop()).join(' | ').slice(0, 500));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 

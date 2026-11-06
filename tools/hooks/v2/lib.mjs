@@ -21,7 +21,9 @@ export function doneWhen(text) {
   if (!m) return [];
   // (an item wraps onto indented lines: they belong to it)
   const items = [];
-  for (const l of m[1].split('\n')) {
+  // (a comment is for whoever edits the runbook, never part of the item. Lesson (trial v38): a lesson comment about a
+  // past trial was shown in every project's reminder, word for word)
+  for (const l of m[1].replace(/<!--[\s\S]*?-->/g, '').split('\n')) {
     const start = /^\s*(?:\d+\.|[-*])\s+(?:\[[ x]\]\s*)?(.+)$/.exec(l)?.[1];
     if (start) items.push(start.trim());
     else if (items.length && /^\s+\S/.test(l)) items[items.length - 1] += ' ' + l.trim();
@@ -208,6 +210,15 @@ export function backgroundRuns(rows) {
   const cmds = new Map();
   for (const r of rows) for (const x of Array.isArray(r.message?.content) ? r.message.content : []) if (x?.type === 'tool_use') cmds.set(x.id, String(x.input?.command || x.input?.description || ''));
   return [...runs].filter(([id]) => !done.has(id)).map(([id, use]) => ({ id, cmd: cmds.get(use) || '' }));
+}
+// The transcript of whoever runs "hooks.mjs check" now: a helper shares the session's id, and its transcript (written
+// as it calls the command) is newer than the session's own. Lesson (trial v38): a setup helper's check read the
+// session's transcript, saw none of the helper's own test runs, and asked for tests, build and screenshots again.
+export function callerTranscript(main, sid) {
+  const mt = f => { try { return fs.statSync(f).mtimeMs; } catch { return 0; } };
+  const dir = path.join(path.dirname(main), sid, 'subagents');
+  let best = null; try { for (const f of fs.readdirSync(dir).filter(f => /^agent-[\w-]+\.jsonl$/.test(f))) { const t = mt(path.join(dir, f)); if (!best || t > best.t) best = { f, t }; } } catch { }
+  return best && best.t > mt(main) ? { file: path.join(dir, best.f), id: best.f.replace(/^agent-|\.jsonl$/g, '').slice(0, 40) } : { file: main, id: '' };
 }
 // Helper agents started in the background that have not reported back: a launch whose result says so, until a task
 // notice or the helper's hand-back names its id. Lesson (trial v33): the end check judged a turn while its reviewer
@@ -445,15 +456,19 @@ export function knowledgeGaps(acts) {
   const isK = r => dirs.some(d => r.startsWith(d)) && !/(^|\/)(README|SOURCES|INDEX)\.md$/i.test(r);
   const sourcesEdited = acts.calls.some(c => /^(Edit|Write|MultiEdit)$/.test(c.name) && /(^|\/)SOURCES\.md$/i.test(relp(c.input.file_path || '')));
   const sourcesWritten = changedSince(acts, { test: r => /(^|\/)SOURCES\.md$/i.test(r) }).length > 0;
+  // (only the lines the edit added, and not lines that only link to notes: a link is no fact. Lesson (trial v38): a
+  // "Related: [[note]]" line added below a note's old text was asked for a source)
+  const linkOnly = l => /^\s*(?:[-*]\s*)?(?:#+\s*)?(?:related|see also|links?)?\s*:?\s*(?:\[\[[^\]]+\]\]|\[[^\]]*\]\([^)]*\)|[,;\s])*$/i.test(l);
+  const facts = (t, old = '') => { const was = new Set(String(old).split(/\r?\n/)); return String(t).split(/\r?\n/).filter(l => !was.has(l) && !linkOnly(l)).join('\n'); };
   const bare = [...new Set(acts.calls.filter(c => /^(Edit|Write|MultiEdit)$/.test(c.name) && isK(relp(c.input.file_path || '')))
-    .filter(c => { const t = String(c.input.new_string ?? c.input.content ?? (c.input.edits || []).map(e => e.new_string).join('\n')); return t.trim().length > 80 && !SOURCED.test(t); })
+    .filter(c => { const t = c.input.edits ? c.input.edits.map(e => facts(e.new_string, e.old_string)).join('\n') : facts(c.input.new_string ?? c.input.content ?? '', c.input.old_string); return t.trim().length > 80 && !SOURCED.test(t); })
     .map(c => relp(c.input.file_path)))];
   // (in a live turn, a knowledge file a script wrote: its lines added since the last commit. Lesson (replay): facts
   // merged into the knowledge base by a script were never seen)
   const edited = new Set(acts.calls.filter(c => /^(Edit|Write|MultiEdit)$/.test(c.name)).map(c => relp(c.input.file_path || '')));
   for (const f of changedSince(acts, { test: isK }).filter(f => !edited.has(f) && f.endsWith('.md'))) {
     const d = spawnSync('git', ['diff', '-U0', '--', f], { cwd: ROOT, encoding: 'utf8', timeout: 5000 }).stdout || '';
-    const added = d.split('\n').filter(l => /^\+(?!\+\+)/.test(l)).map(l => l.slice(1)).join('\n');
+    const added = facts(d.split('\n').filter(l => /^\+(?!\+\+)/.test(l)).map(l => l.slice(1)).join('\n'));
     if (added.trim().length > 80 && !SOURCED.test(added)) bare.push(f);
   }
   return bare.length && !sourcesEdited && !sourcesWritten ? [`New facts in ${bare.slice(0, 3).join(', ')} name no source: add where each came from (a link read this turn, a project file, or the user).`] : [];

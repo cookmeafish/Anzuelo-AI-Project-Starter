@@ -50,7 +50,9 @@ if (/\b(lawsuit|legal action|sue you|my (lawyer|attorney)|court|small claims|dem
 // user's. Lesson (trials): three of the skill's examples were copied word for word into letters the user called cold.
 const flatText = s => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 let examples = [];
-try { examples = [...fs.readFileSync(new URL('../SKILL.md', import.meta.url), 'utf8').matchAll(/"([^"\n]{12,120})"/g)].map(m => flatText(m[1])).filter(e => e.split(' ').length >= 4); } catch { }
+// (a phrase the skill says to keep is not an example to avoid. Lesson (trial v38): the plain good wish the skill tells
+// letters to keep failed the check, and the agent took the only warm line out of a letter)
+try { examples = fs.readFileSync(new URL('../SKILL.md', import.meta.url), 'utf8').split(/\r?\n/).filter(l => !/\bkeep (it|them|this|these)\b/i.test(l)).flatMap(l => [...l.matchAll(/"([^"\n]{12,120})"/g)]).map(m => flatText(m[1])).filter(e => e.split(' ').length >= 4); } catch { }
 const copied = [...new Set(examples.filter(e => ` ${flatText(body)} `.includes(` ${e} `)))];
 for (const c of copied) notes.push(`copies the skill's own example "${c}": say it in the user's words`);
 const secrets = [];

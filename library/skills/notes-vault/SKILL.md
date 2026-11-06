@@ -36,7 +36,7 @@ change. Helper: `skills/notes-vault/scripts/vault.mjs` (Node only, read-only).
    and whether it is registered, then prints the `knowledgeDirs` value to use.
 2. Add the note folders to `"knowledgeDirs"` in `tools/hooks/config.json`, e.g. `"knowledgeDirs": ["Notes", "Journal"]`.
    The list extends the default (`docs/knowledge`); don't repeat it. The knowledge checks, citations, stale-fact
-   sweeps and the new-note link check (note-linked, on every turn) then cover these folders, and `DIRECTORY.md` lists
+   sweeps and the link check (`vault.mjs backlinks`, step D) then cover these folders, and `DIRECTORY.md` lists
    them. A folder left out of the list is checked by none of them.
 3. Leave out what is not knowledge: private journals, templates, attachments, an archive. Ask once when unsure and
    record the answer in `docs/glossary.md`.
@@ -73,7 +73,7 @@ change. Helper: `skills/notes-vault/scripts/vault.mjs` (Node only, read-only).
 3. A new note links to at least one related note, and every note it links to gets a link back where the relation
    makes sense from that side too (a "Related" line), not only the closest one. The same holds for a link added to an
    existing note. `node skills/notes-vault/scripts/vault.mjs backlinks "<note>"` lists every linked note that doesn't
-   link back; the hook runs it on each changed note (vault-backlinks). A link back that truly doesn't belong (a
+   link back, and fails a new note that links to no note. Run it on each changed note. A link back that truly doesn't belong (a
    source or an index the user keeps by hand) is waived with the reason.
    Lesson: a new note linked to two notes and only the closest got a link back; the user noticed the missing one.
 4. After any note changed, run `node skills/obsidian/scripts/notes.mjs check --all` (`--all` also reads note folders

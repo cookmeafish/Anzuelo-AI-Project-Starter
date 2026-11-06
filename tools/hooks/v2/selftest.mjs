@@ -47,6 +47,8 @@ const acts = rows => turnActs(turnRows(transcript(rows)));
   report(both.kind === 'file' && both.arg === 'docs/plans/*.md' && both.text === 'The plan is saved in docs/plans/', 'start: an item with the old engine\'s marker and v2\'s keeps v2\'s check and shows neither', both);
   const [mid] = doneWhen('## Done when\n- [ ] The review table is written (file: docs/reviews/*.md), each area\n  with its evidence.\n');
   report(mid.kind === 'file' && mid.arg === 'docs/reviews/*.md' && mid.text === 'The review table is written, each area with its evidence', 'start: a marker inside an item, not only at its end, is its check', mid);
+  const cm = doneWhen('## Done when\n- [ ] Every new flag is in the README. <!-- Lesson, an old trial: a flag shipped\n  undocumented. -->\n- [ ] The tests pass.\n');
+  report(cm.length === 2 && cm[0].text === 'Every new flag is in the README' && cm[1].text === 'The tests pass', 'start: a comment in a runbook item, one line or several, is never shown', cm);
   // (an item for one branch says when it applies; on other turns it is neither checked nor listed to verify)
   const { applies, met } = await import('./lib.mjs');
   const [install, upg] = doneWhen('## Done when\n- [ ] An install started setup (when ran: tool install).\n- [ ] An upgrade was committed (when ran: tool upgrade|tool update) (ran: git commit).\n');
@@ -112,6 +114,18 @@ report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/
     const again = helpersRunning(rows([...base, at(4, back), resume, at(6, say('The reviewer is checking the fix.'))]));
     const after = helpersRunning(rows([...base, at(4, back), resume, at(6, back), at(7, say('The reviewer found nothing.'))]));
     report(again.join() === 'a1b2c3' && after.length === 0, 'end: a helper resumed after its report counts as working until its next report', { again, after });
+    { // (the manual check run by a helper reads the helper's transcript, the newest one of the session; run by the
+      // session itself, the session's own)
+      const { callerTranscript } = await import('./lib.mjs');
+      const tdir = fs.mkdtempSync(path.join(dir, 'tr-')), main = path.join(tdir, 's1.jsonl'), sub = path.join(tdir, 's1', 'subagents');
+      fs.mkdirSync(sub, { recursive: true }); fs.writeFileSync(main, '{}\n'); fs.writeFileSync(path.join(sub, 'agent-old1.jsonl'), '{}\n'); fs.writeFileSync(path.join(sub, 'agent-ab12.jsonl'), '{}\n');
+      const now = Date.now() / 1000; fs.utimesSync(path.join(sub, 'agent-old1.jsonl'), now - 60, now - 60); fs.utimesSync(main, now - 30, now - 30);
+      const helper = callerTranscript(main, 's1');
+      fs.utimesSync(main, now + 5, now + 5);
+      const own = callerTranscript(main, 's1');
+      report(helper.id === 'ab12' && helper.file === path.join(sub, 'agent-ab12.jsonl') && own.file === main && own.id === '',
+        'check: run by a helper, the manual check reads that helper\'s transcript; run by the session, its own', { helper, own });
+    }
     // (live, the session's evidence leaves out the agent's own words: the answer never backs its own made-up commit)
     const made = onStop({ session_id: 'madeup', transcript_path: transcript([at(0, user('save the invoice fix')), at(1, say('Saved as 9e8d7c6.'))]) });
     report(!!made && /9e8d7c6/.test(made.reason), 'end: live, a commit only the answer names is reported (the answer is not its own evidence)', made?.reason?.slice(0, 120));
@@ -421,6 +435,12 @@ report(knowledgeGaps(acts([user('add the tide facts'), fact(plain), call('Edit',
   'end: a sources list edited in the same turn covers the new facts');
 report(knowledgeGaps(acts([user('fix a typo'), fact('Tides'), fact(plain, 'docs/knowledge/README.md'), fact(plain, 'notes/tides.md'), say('Fixed.')])).length === 0,
   'end: a short fix, the knowledge index files and notes outside the knowledge base ask for nothing');
+{ // (link lines added below a note's old text are no new facts; a fact added the same way still is)
+  const link = (add, f = 'docs/knowledge/tides.md') => call('Edit', { file_path: path.join(dir, f), old_string: plain, new_string: `${plain}\n\n${add}` });
+  report(knowledgeGaps(acts([user('link the tide notes'), link('Related: [[Harbour]], [[Pier]]'), link('## Related\n- [[Moon]]\n- [Pier](pier.md)', 'docs/knowledge/moon.md'), say('Linked.')])).length === 0
+    && knowledgeGaps(acts([user('add a fact'), link('The harbour master logs every closing day and posts the list at the pier office each spring.'), say('Added.')])).length === 1,
+    'end: link lines added below a note\'s old text ask for no source; a new fact added the same way still does');
+}
 {
   const { execSync } = await import('node:child_process');
   const git = c => execSync(`git ${c}`, { cwd: dir, stdio: 'pipe' });
