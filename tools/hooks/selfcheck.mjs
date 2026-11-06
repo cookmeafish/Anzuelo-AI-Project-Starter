@@ -18,6 +18,12 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+// --help prints the usage above and runs nothing. Lesson (trial v36): --help started the whole suite, minutes of a setup
+if (process.argv.some(a => a === '--help' || a === '-h')) {
+  const own = fs.readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n');
+  console.log(own.slice(1).filter(l => /^\/\/ {2,}/.test(l)).map(l => l.replace(/^\/\/ /, '')).join('\n'));
+  process.exit(0);
+}
 import { engineStamp, findPass, recordPass, localDay, SMOKE_EVERY, lockState, takeLock, releaseLock, otherSuites, registerSuite, markWaiting, timingLock, shardCount, failureCause, proofHash, readProof, writeProof, PROOF_FILE, PROOF_PATHS, mainCheckout } from './selftest-cache.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -6674,6 +6680,11 @@ if (mineB()) { // research ledger: honest ad labels pass, sellers fail, one medi
     report(/CLAIMS: PASS/.test(honest) && /paid or biased/.test(seller) && /different owners/.test(group) && /CLAIMS: PASS/.test(lead),
       'research ledger: honest ad labels pass, sellers fail, one media group is one owner, a lead-only claim is unverified', [honest, seller, group, lead].map(s => String(s).trim().split('\n').pop()).join(' | ').slice(0, 400));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+if (mineB()) { // selfcheck --help prints the usage and runs nothing (Lesson (trial v36): it started the whole suite)
+  const r = spawnSync(process.execPath, [fileURLToPath(import.meta.url), '--help'], { encoding: 'utf8', timeout: 15000, env: { ...process.env, STARTER_SELFTEST_RUNNING: path.join(os.tmpdir(), `starter-help-${process.pid}`) } });
+  report(r.status === 0 && /selfcheck\.mjs --full/.test(r.stdout) && !/^selfcheck mode:/m.test(r.stdout), 'selfcheck --help prints the usage and runs no test', `status ${r.status} ${String(r.stdout).slice(0, 200)}`);
 }
 
 if (mineB()) { // correspondence draft check: a draft that copies a phrase the skill quotes as an example fails
