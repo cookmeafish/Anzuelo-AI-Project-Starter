@@ -373,7 +373,9 @@ export function testGaps(acts) {
   // (a test run tried after the change that could not start, held for approval or with its program missing, is not asked
   // for again: the end check cannot make it run. Lesson (trial v33): tests held for approval and a toolchain not
   // installed were asked for turn after turn, about ten tries each)
-  const cantRun = i.some(([c, k]) => k > lastCode && cantStart(c) && isTestRun(String(c.input.command || '')));
+  // (any time in the turn: a run held for approval or missing its program stays so after more edits. Lesson (trial
+  // v37): tests held before the last edit were asked for again, and the retry was held again)
+  const cantRun = i.some(([c]) => cantStart(c) && isTestRun(String(c.input.command || '')));
   if ((lastCode >= 0 || codeWrite) && hasTests && !cantRun && !passes.some(k => k > lastCode && (!codeWrite || acts.calls[k].done > codeWrite))) out.push('Run the tests after the last code change, and say the result.');
   // (a result this turn read, in a message or a command's output, may be relayed. Lesson (replay): answers passing on
   // another session's or a project's test results were asked to run tests themselves)

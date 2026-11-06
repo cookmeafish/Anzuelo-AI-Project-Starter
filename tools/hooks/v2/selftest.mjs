@@ -297,8 +297,10 @@ put('pyproject.toml', '[project]\nname = "tool"\n[tool.pytest.ini_options]\n');
 report(testGaps(acts([user('fix the total'), code, say('Fixed.')])).length === 1, 'end: a configured pytest asks for a test run after a code change');
 report(testGaps(acts([user('fix the total'), code, call('Bash', { command: 'pytest -q' }, 'This Bash command requires approval', true), say('Fixed; the tests could not run here.')])).length === 0
   && testGaps(acts([user('fix the total'), code, call('Bash', { command: 'go test ./...' }, '/usr/bin/bash: line 1: go: command not found', true), say('Fixed; Go is not installed.')])).length === 0
-  && testGaps(acts([user('fix the total'), code, call('Bash', { command: 'pytest -q' }, '1 failed', true), say('Fixed.')])).length === 1,
-  'end: a test run that could not start (held for approval, program missing) is not asked for again; a failing run still is');
+  && testGaps(acts([user('fix the total'), code, call('Bash', { command: 'pytest -q' }, '1 failed', true), say('Fixed.')])).length === 1
+  // (held before the last edit too: it stays held)
+  && testGaps(acts([user('fix the total'), call('Bash', { command: 'pytest -q' }, 'This command requires approval', true), code, say('Fixed; the tests could not run here.')])).length === 0,
+  'end: a test run that could not start (held for approval, program missing), before or after the last edit, is not asked for again; a failing run still is');
 report(testGaps(acts([user('tidy the notes'), call('Edit', { file_path: path.join(dir, 'notes/a.md'), old_string: 'a', new_string: 'b' }), say('Tidied.')])).length === 0, 'end: a change to notes, not code, asks for no tests');
 report(testGaps(acts([user('fix the total'), call('Write', { file_path: path.join(dir, '.cache/fix.py'), content: 'x' }), call('Write', { file_path: path.join(os.tmpdir(), 'scratch.py'), content: 'x' }), say('Fixed.')])).length === 0,
   'end: a scratch script in .cache or outside the project is not project code');
