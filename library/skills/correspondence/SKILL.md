@@ -75,8 +75,11 @@ The checker is `skills/correspondence/scripts/draft-check.mjs` (Node only, read-
 4. Tone fits the relationship. Someone the user keeps dealing with (a tenant, a customer, a neighbour) gets a warm,
    plain letter by default; firm is for a dispute or when the user asks. Never rude: no threats, no legal language,
    no blame on a named employee unless the user asked for it. Leave the lease, clauses and the law out of a warm
-   letter; when one must be named, say it once, plainly, after the news ("you have the usual two months before it
-   starts"), never as the reason for the news ("as our lease allows", "made under clause 4.2").
+   letter; when one must be named, say it once, plainly, in the user's own words, after the news, never as the reason
+   for the news ("as our lease allows", "made under clause 4.2"). The draft check fails a draft that copies an example
+   phrase quoted in this skill.
+   <!-- Lesson, trial v36: the earlier example here for a notice period was copied into a rent letter the user called
+   threatening. -->
    <!-- Lesson, a trial: the earlier example here, "as our lease allows", was copied into a letter the user then called
    cold. -->
    <!-- Lesson, trial round 13: a rent letter to a long-time tenant came out with a bold "Re:" line, "I am writing to

@@ -300,8 +300,16 @@ const mtime = f => { try { return fs.statSync(path.join(ROOT, f)).mtimeMs; } cat
 // The project's own declared checks: tools/hooks/config.json "commitGate" entries, a command (a regex) and the files it
 // covers. A change to those files asks for that command to pass afterwards.
 const gates = () => { try { return JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/hooks/config.json'), 'utf8')).commitGate || []; } catch { return []; } };
+// A run that could not start: held for approval, or its program missing.
+const CANT_START = /requires? approval|permission|denied|not recognized|command not found|not found|not installed|ENOENT|executable file not found/i;
+const cantStart = c => /^(Bash|PowerShell)$/.test(c.name) && c.error && CANT_START.test(c.out || '');
+// (the program each step of a command starts: "cd api && go test ./..." starts cd and go)
+const programs = cmd => String(cmd).split(/\s*(?:&&|\|\||;)\s*/).map(s => (/^\s*([\w.\/-]+)/.exec(s) || [])[1]).filter(Boolean).map(s => s.toLowerCase());
 export function gateGaps(acts) {
   const out = [], since = Date.parse(acts.at || '') || 0;
+  // (a declared check whose program could not start this turn is not asked for: the end check cannot make it run.
+  // Lesson (trial v36): go was not installed, go test failed to start, and go build and go vet were still asked for)
+  const missing = new Set(acts.calls.filter(cantStart).flatMap(c => programs(c.input.command || '')).filter(p => p !== 'cd'));
   for (const g of gates()) {
     const when = [].concat(g.when || []).map(globRx), hit = p => when.some(rx => rx.test(p));
     const edits = acts.calls.map((c, k) => [c, k]).filter(([c]) => /^(Edit|Write|MultiEdit)$/.test(c.name) && hit(relp(c.input.file_path || '')));
@@ -315,7 +323,7 @@ export function gateGaps(acts) {
       // Lesson (trial v34): the declared glob was quoted, the agent's run was not, and passing tests were asked for)
       const after = (c, k) => k > lastEdit && (!lastWrite || c.done > lastWrite), asTest = isTestRun(part.replace(/\\(.)/g, '$1'));
       const ok = acts.calls.some((c, k) => after(c, k) && ((/^(Bash|PowerShell)$/.test(c.name) && !c.error && rx.test(String(c.input.command || ''))) || (asTest && passedRun(c))));
-      if (!ok) out.push(`Run the project's check \`${part.replace(/\\(.)/g, '$1')}\` after the change, and say the result.`);
+      if (!ok && !programs(part.replace(/\\(.)/g, '$1')).some(p => missing.has(p))) out.push(`Run the project's check \`${part.replace(/\\(.)/g, '$1')}\` after the change, and say the result.`);
     }
   }
   return out;
@@ -338,8 +346,7 @@ export function testGaps(acts) {
   // (a test run tried after the change that could not start, held for approval or with its program missing, is not asked
   // for again: the end check cannot make it run. Lesson (trial v33): tests held for approval and a toolchain not
   // installed were asked for turn after turn, about ten tries each)
-  const cantRun = i.some(([c, k]) => k > lastCode && /^(Bash|PowerShell)$/.test(c.name) && c.error && isTestRun(String(c.input.command || ''))
-    && /requires? approval|permission|denied|not recognized|command not found|not found|not installed|ENOENT|executable file not found/i.test(c.out || ''));
+  const cantRun = i.some(([c, k]) => k > lastCode && cantStart(c) && isTestRun(String(c.input.command || '')));
   if ((lastCode >= 0 || codeWrite) && hasTests && !cantRun && !passes.some(k => k > lastCode && (!codeWrite || acts.calls[k].done > codeWrite))) out.push('Run the tests after the last code change, and say the result.');
   // (a result this turn read, in a message or a command's output, may be relayed. Lesson (replay): answers passing on
   // another session's or a project's test results were asked to run tests themselves)

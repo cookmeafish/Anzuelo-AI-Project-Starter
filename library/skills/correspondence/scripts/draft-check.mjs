@@ -46,6 +46,13 @@ if (!/^\s*\**subject\**\s*:/im.test(text) && /email|mail/i.test(draft + raw.slic
 if (!/^\s*(dear|hi|hello|hey|good (morning|afternoon|evening)|estimad[oa]s?|hola|buenos d[ií]as|buenas)\b/im.test(body)) notes.push('no greeting');
 if (words > 250) notes.push(`${words} words: long for a message, check that the ask is in the first two sentences`);
 if (/\b(lawsuit|legal action|sue you|my (lawyer|attorney)|court|small claims|demanda|abogado)\b/i.test(body)) notes.push('reads as a legal threat: only if the user asked (legal-review skill for anything contractual)');
+// A phrase this skill quotes as an example (four words or more) copied into the draft: it is the skill's voice, not the
+// user's. Lesson (trials): three of the skill's examples were copied word for word into letters the user called cold.
+const flatText = s => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+let examples = [];
+try { examples = [...fs.readFileSync(new URL('../SKILL.md', import.meta.url), 'utf8').matchAll(/"([^"\n]{12,120})"/g)].map(m => flatText(m[1])).filter(e => e.split(' ').length >= 4); } catch { }
+const copied = [...new Set(examples.filter(e => ` ${flatText(body)} `.includes(` ${e} `)))];
+for (const c of copied) notes.push(`copies the skill's own example "${c}": say it in the user's words`);
 const secrets = [];
 if (/\b(password|passcode|contrase[nñ]a|pin)\s*[:=]\s*\S+/i.test(body)) secrets.push('a password or PIN');
 if (/\b(?:\d[ -]?){13,19}\b/.test(noPh.replace(/\b\d{4}-\d{2}-\d{2}\b/g, ''))) secrets.push('a long number that may be a card or account number');
@@ -61,5 +68,6 @@ for (const s of secrets) console.log(`Secret: the draft contains ${s}`);
 const why = [];
 if (missing.length) why.push(`${missing.length} figure(s) not in the facts files: replace each with the sourced value or a [placeholder?]`);
 if (secrets.length) why.push(`secret-looking content (${secrets.join(', ')})`);
+if (copied.length) why.push(`${copied.length} phrase(s) copied from the skill's examples`);
 console.log(why.length ? `RESULT: FAIL ${why.join('; ')}` : 'RESULT: PASS');
 process.exit(why.length ? 1 : 0);

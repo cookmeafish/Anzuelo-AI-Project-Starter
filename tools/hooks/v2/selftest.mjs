@@ -319,6 +319,11 @@ put('tools/hooks/config.json', JSON.stringify({ commitGate: [{ cmd: 'node --test
 report(gateGaps(acts([user('fix the page'), siteEdit, call('Bash', { command: 'node --test tests/*.test.mjs 2>&1 | grep pass' }, 'ℹ pass 16\nℹ fail 0'), say('Fixed.')])).length === 0
   && gateGaps(acts([user('fix the page'), siteEdit, call('Bash', { command: 'node --test tests/*.test.mjs' }, '✖ 1 failing\nℹ fail 1', true), say('Fixed.')])).length === 1,
   'end: a declared test check is met by a passing test run spelled another way; a failing one is not');
+put('tools/hooks/config.json', JSON.stringify({ commitGate: [{ cmd: 'go test \\./\\.\\.\\. && go build \\./\\.\\.\\. && go vet \\./\\.\\.\\.', when: ['site/**'] }] }));
+{ const noGo = call('Bash', { command: 'cd site && go test ./...' }, "Exit code 127\n/usr/bin/bash: line 1: go: command not found", true);
+  const gMissing = gateGaps(acts([user('fix the page'), siteEdit, noGo, say('Fixed. Go is not installed here, so nothing was built or tested.')]));
+  const gOther = gateGaps(acts([user('fix the page'), siteEdit, call('Bash', { command: 'gofmt -l .' }, 'command not found', true), say('Fixed.')]));
+  report(gMissing.length === 0 && gOther.length === 3, 'end: a declared check whose program could not start this turn is not asked for; another missing program does not excuse it', { gMissing, gOther }); }
 put('tools/hooks/config.json', JSON.stringify({ commitGate: [{ cmd: 'python site/verify\\.py && node site/controls\\.js', when: ['site/**'] }] }));
 
 // end: check 3, screens
