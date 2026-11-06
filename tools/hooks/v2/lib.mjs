@@ -271,7 +271,7 @@ export const backgroundRunsOf = transcript => backgroundRuns(codexRows(tail(tran
 // What the turn did: tool calls with their results, and the last text the agent wrote.
 export function turnActs(rows) {
   const calls = [], byId = new Map();
-  let answer = '', context = '', started = '', heard = '';
+  let answer = '', context = '', started = '', heard = '', said = '';
   for (const r of rows) {
     started ||= r.timestamp || '';
     // (what the hooks and the host showed the agent this turn: evidence too, like a version a status line named)
@@ -288,10 +288,20 @@ export function turnActs(rows) {
         const out = typeof x.content === 'string' ? x.content : Array.isArray(x.content) ? x.content.map(b => b?.text || '').join('\n') : '';
         Object.assign(byId.get(x.tool_use_id), { out: out.slice(-4000), error: !!x.is_error || /\bexit code [1-9]|^Exit code [1-9]/m.test(out), done: Date.parse(r.timestamp || '') || 0 });
       }
-      if (r.type === 'assistant' && x.type === 'text' && x.text.trim()) answer = x.text;
+      if (r.type === 'assistant' && x.type === 'text' && x.text.trim()) { answer = x.text; said += x.text + '\n'; }
     }
   }
-  return { calls, answer, context, started, heard };
+  return { calls, answer, context, started, heard, said };
+}
+
+// The user asked for no questions ("autonomy": "auto", or "don't ask me" in this turn's request), and a message of
+// this turn still asks some. Every message counts: the user sees each one. Lesson (trial v44): three setups told
+// "do not ask me anything" ended a message with "Questions for you", choices the agent was to make itself.
+export function questionGaps(acts) {
+  const auto = (() => { try { return JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/hooks/config.json'), 'utf8')).autonomy === 'auto'; } catch { return false; } })();
+  if (!auto && !/\b(do not|don'?t|never) ask me\b|\bno me preguntes\b/i.test(acts.heard || '')) return [];
+  if (!/^\W*Questions? for you\b|^\W*Preguntas? para (ti|usted)\b/im.test(acts.said || acts.answer || '')) return [];
+  return ['The user asked for no questions: make each choice yourself and note it as "Assumed: <choice> - <why> - <cost if wrong>". A step only the user can take (an install, a sign-in, a name for git) goes under a Heads-up, not a question; ask only what the rules stop for (an outward action, anything irreversible).'];
 }
 
 // The files a path or glob names: walked from its fixed part, at most 20,000. Bulk folders below it are skipped

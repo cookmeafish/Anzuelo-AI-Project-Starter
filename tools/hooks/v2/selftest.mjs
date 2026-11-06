@@ -526,6 +526,18 @@ report(securityGaps(acts([user('fix the total'), code, call('Edit', { file_path:
   'end: plain code, ignored folders and notes ask for no review');
 fs.rmSync(path.join(dir, 'tools/hooks/requirements.json'));
 
+// end: questions the user asked not to get
+const { questionGaps } = await import('./lib.mjs');
+{
+  const asked = [say('**Questions for you**\n1. Should staff delete books?'), say('**Done:** set up.')];
+  const plain = questionGaps(acts([user('add a filter for the month'), ...asked])).length;
+  const told = questionGaps(acts([user('set up this project. Decide everything yourself and do not ask me anything.'), ...asked])).length;
+  put('tools/hooks/config.json', JSON.stringify({ autonomy: 'auto' }));
+  const auto = questionGaps(acts([user('add a filter for the month'), ...asked])).length, none = questionGaps(acts([user('add a filter for the month'), say('**Done:** added. **Heads-up:** install Go to run the tests.')])).length;
+  fs.rmSync(path.join(dir, 'tools/hooks/config.json'));
+  report(plain === 0 && told === 1 && auto === 1 && none === 0, 'end: with "autonomy": "auto" or "do not ask me" in the request, any message of the turn that asks "Questions for you" is named; a heads-up is not', { plain, told, auto, none });
+}
+
 // end: check 7, claims backed by the turn
 const { claimGaps } = await import('./lib.mjs');
 put('src/a.js', 'x');

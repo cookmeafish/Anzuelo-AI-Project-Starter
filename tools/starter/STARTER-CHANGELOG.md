@@ -6,6 +6,8 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-06 (engine): when the user asked for no questions ("autonomy": "auto", or "do not ask me" in the request), the end check names any message of the turn that still asks "Questions for you": each choice is made and noted as assumed, and a step only the user can take goes under a heads-up. In trial round v44 three setups told not to ask ended a message with questions. Replay: blocks unchanged in both real projects. Test: "end: with "autonomy": "auto" or "do not ask me" in the request, any message of the turn that asks "Questions for you" is named; a heads-up is not".
+
 - 2026-11-06 (engine): `selfcheck.mjs`, `audit.mjs` and `trial.mjs` refuse a flag they don't know: they print their usage and exit 2, running nothing; `--help` prints the usage. A mistyped flag had started a 20-minute self-check twice. Test: "tool flags: selfcheck, audit and trial refuse an unknown flag with the usage and exit 2, running nothing".
 
 - 2026-11-06 (engine): the end check's block now asks for the same answer again, changed only where a fix changed something and with nothing about the check in it. In trial round v43 every resent answer was reworded and gained lines about the checklist that meant nothing to the user. Test: "end: a block asks for the same whole answer again, in the user's language, changed only where a fix changed it and with nothing about the check".
