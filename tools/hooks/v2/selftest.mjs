@@ -114,6 +114,15 @@ report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/
     const helped = ask(13), stale = ask(5);
     report(!/Run the tests after the last code change/.test(helped) && /Run the tests after the last code change/.test(stale),
       'end: a test run a helper made after the last change, in this turn, counts for the session; one from before the turn does not', [helped.slice(0, 160), stale.slice(0, 160)]);
+    // (and the screenshots a helper took and looked at. Lesson (trial v41))
+    put('tools/screenshot.mjs', '// shots');
+    mainRows[1] = at(11, call('Edit', { file_path: path.join(dir, 'src/page.html'), old_string: 'a', new_string: 'b' }));
+    sv('hrun', { at: T(10), runbook: null });
+    fs.writeFileSync(path.join(sub, 'agent-h1.jsonl'), lines([at(13, call('Bash', { command: 'node tools/screenshot.mjs' }, 'saved .cache/gui-review/x/_sheet-1.png')), at(13, call('Read', { file_path: path.join(dir, '.cache/gui-review/x/_sheet-1.png') }))]));
+    fs.writeFileSync(main, lines(mainRows));
+    const shots = onStop({ session_id: 'hrun', transcript_path: main })?.reason || '';
+    fs.rmSync(path.join(dir, 'tools/screenshot.mjs'));
+    report(!/A screen changed/.test(shots), 'end: screenshots a helper took and looked at after the last screen change count for the session', shots.slice(0, 160));
     fs.rmSync(path.join(dir, 'package.json'));
   }
   // (a helper started this turn that has not reported back: no check yet, and the turn stays open for the next Stop)

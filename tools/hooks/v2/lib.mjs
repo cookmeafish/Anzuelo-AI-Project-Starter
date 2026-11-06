@@ -226,7 +226,7 @@ export function callerTranscript(main, sid) {
   return best && best.t > mt(main) ? { file: path.join(dir, best.f), id: best.f.replace(/^agent-|\.jsonl$/g, '').slice(0, 40) } : { file: main, id: '' };
 }
 // The commands this session's helpers ran since the turn began (their transcripts sit in <session>/subagents), so a
-// test run, build or screenshot a helper made counts for the session's turn. Commands only: what the helper edited is
+// test run, build or screenshot a helper made counts for the session's turn. Commands and image reads only: what it edited is
 // seen by its files' times. Lesson (trial v40): setup run in a helper as the engine says, then the end check asked
 // the session for the tests, build and screenshots the helper had already run.
 export function helperRuns(main, sid, since, until = '') {
@@ -235,7 +235,9 @@ export function helperRuns(main, sid, since, until = '') {
   let fs_ = []; try { fs_ = fs.readdirSync(dir).filter(f => /^agent-[\w-]+\.jsonl$/.test(f) && fs.statSync(path.join(dir, f)).mtimeMs >= t); } catch { return []; }
   return fs_.flatMap(f => {
     const rows = codexRows(tail(path.join(dir, f)).split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean)).filter(r => { const x = Date.parse(r.timestamp || '') || 0; return x >= t && x < u; });
-    return turnActs(rows).calls.filter(c => /^(Bash|PowerShell)$/.test(c.name));
+    // (and the screenshots it looked at. Lesson (trial v41): a setup helper took and read screenshots, and the session
+    // was asked for them again)
+    return turnActs(rows).calls.filter(c => /^(Bash|PowerShell)$/.test(c.name) || (c.name === 'Read' && /\.(png|jpe?g|webp)$/i.test(String(c.input.file_path || ''))));
   });
 }
 // Helper agents started in the background that have not reported back: a launch whose result says so, until a task
