@@ -254,6 +254,13 @@ report(earlier.some(s => /item 1/.test(s)) && earlier.some(s => /Open/.test(s)),
 report(missing({ runbook: null }, acts([user('fix it'), edit, say('Fixed.')])).length === 0, 'end: a turn no runbook fit, and that opened none, is not held to one');
 const chose = missing({ runbook: null }, acts([user('fix the orders file'), read, edit, say('Fixed.')]));
 report(chose.some(s => /export\.md item 1/.test(s)) && !chose.some(s => /^Open/.test(s)), 'end: with none routed, the runbook the agent opened is the one the turn is held to', chose);
+{ // (a skill the runbook hands the case to counts as opening it; any other skill does not. Lesson (trial v42))
+  put('docs/playbooks/ledger.md', '---\ntriggers: ledger rule\n---\nA standing rule: follow the **rule** skill (`skills/ledger-rule/SKILL.md`).\n## Done when\n1. The rule is written (judgment: wording)\n');
+  const viaSkill = missing({ runbook: 'docs/playbooks/ledger.md' }, acts([user('every ledger line has a date'), call('Read', { file_path: path.join(dir, 'skills/ledger-rule/SKILL.md') }), edit, say('Done.')]));
+  const other = missing({ runbook: 'docs/playbooks/ledger.md' }, acts([user('every ledger line has a date'), call('Read', { file_path: path.join(dir, 'skills/other/SKILL.md') }), edit, say('Done.')]));
+  fs.rmSync(path.join(dir, 'docs/playbooks/ledger.md'));
+  report(!viaSkill.some(s => /^Open/.test(s)) && other.some(s => /^Open/.test(s)), 'end: reading a skill the runbook hands its steps to counts as opening the runbook; another skill does not', { viaSkill, other });
+}
 report(onStop({ stop_hook_active: true, transcript_path: transcript([user('add a csv export'), edit]), session_id: 's' }) === null, 'end: never blocks twice in one turn');
 {
   // (a turn that goes on after its block and stops again, without a new request, is not blocked again)

@@ -51,7 +51,9 @@ export function runbooks() {
       const file = `${d}/${f}`, text = read(file), fm = /^---\n([\s\S]*?)\n---/.exec(text)?.[1] || '';
       const triggers = (/^triggers:\s*(.+)$/m.exec(fm)?.[1] || '').split(',').map(s => s.trim().toLowerCase()).filter(s => s.length > 2);
       const menu = (/^menu:\s*(.+)$/m.exec(fm)?.[1] || '').split(/[,\s]+/).map(s => s.trim().toUpperCase()).filter(s => /^[A-Z]\d{1,2}$/.test(s));
-      out.push({ name: f.replace(/\.md$/, ''), file, triggers, menu, items: doneWhen(text) });
+      // (the skills it hands its steps to: its own mirror, and each skills/<name>/SKILL.md its text names)
+      const skills = [...new Set([`skills/${f.replace(/\.md$/, '')}/SKILL.md`, ...[...text.matchAll(/\bskills\/[\w-]+\/SKILL\.md\b/g)].map(m => m[0])])];
+      out.push({ name: f.replace(/\.md$/, ''), file, triggers, menu, items: doneWhen(text), skills });
     }
   }
   return out;
@@ -553,7 +555,9 @@ export function claimGaps(acts, history = '') {
 }
 
 // Whether the turn opened the runbook (read it, or ran its skill).
-export const opened = (book, acts) => acts.calls.some(c => (c.name === 'Read' && relp(c.input.file_path || '') === book.file)
+// (reading a skill the runbook hands its steps to counts: its own skill, or one its text names. Lesson (trial v42): a
+// complaint followed through learn-from-upset and project-rule, where the project runbook sends it, was asked to open it)
+export const opened = (book, acts) => acts.calls.some(c => (c.name === 'Read' && (relp(c.input.file_path || '') === book.file || (book.skills || []).includes(relp(c.input.file_path || ''))))
   || (c.name === 'Skill' && String(c.input.skill || '').replace(/^.*:/, '') === book.name)
   || (/^(Bash|PowerShell)$/.test(c.name) && String(c.input.command || '').includes(book.file)));
 

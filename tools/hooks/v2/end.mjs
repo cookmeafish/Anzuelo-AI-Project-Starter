@@ -3,9 +3,10 @@
 import { runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, tail, helpersRunning, helperRuns, evidenceOf } from './lib.mjs';
 
 // Check 1: the routed runbook was followed, and its checkable "Done when" items were met. With none routed, the
-// runbook the agent chose and opened is the one it is held to.
+// runbook the agent chose and opened is the one it is held to (the runbook itself, not a skill it names: reading the
+// debug skill does not make a turn a debug runbook turn. Lesson (replay): it added a block).
 export function missing(turn, acts, books = runbooks()) {
-  const book = (turn.runbook && books.find(b => b.file === turn.runbook)) || books.find(b => opened(b, acts));
+  const book = (turn.runbook && books.find(b => b.file === turn.runbook)) || books.find(b => opened({ ...b, skills: [] }, acts));
   if (!book || !worked(acts)) return [];
   const out = [];
   if (!opened(book, acts)) out.push(`Open ${book.file} and check the work against its steps.`);
@@ -17,7 +18,7 @@ export function missing(turn, acts, books = runbooks()) {
 // the end, in the same single block, so the whole list gets done, not only its checkable part. Lesson (the user,
 // 2026-11-05): the hook before reminds, the hook after has the agent verify that everything on the runbook was done.
 export function toVerify(turn, acts, books = runbooks()) {
-  const book = (turn.runbook && books.find(b => b.file === turn.runbook)) || books.find(b => opened(b, acts));
+  const book = (turn.runbook && books.find(b => b.file === turn.runbook)) || books.find(b => opened({ ...b, skills: [] }, acts));
   if (!book || !worked(acts)) return null;
   const items = book.items.filter(it => applies(it, acts) && met(it, acts) === null);
   return items.length ? { file: book.file, items } : null;
