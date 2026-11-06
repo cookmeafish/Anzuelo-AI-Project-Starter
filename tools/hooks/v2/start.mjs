@@ -64,8 +64,8 @@ export function reminder(prompt) {
   const own = rulesFor(prompt).map(r => `The project's own rule here: ${r}`);
   // (a message relayed from another session may only report: its runbook is for when it asks for work. Lesson (project
   // report): a note that a fix had landed got the bugfix runbook and its list, though it asked for nothing)
-  const relayed = relayedRx.test(raw) ? ['A message from another session: follow this runbook only if the message asks for work here.'] : [];
-  const lines = [...(sore ? [sore] : []), ...(es ? [es] : []), ...own, ...relayed, `Runbook: open ${book.file} and follow it.`];
+  // (said in the runbook line itself: a line of its own was most of the reminders' growth on peer messages)
+  const lines = [...(sore ? [sore] : []), ...(es ? [es] : []), ...own, `Runbook${relayedRx.test(raw) ? ', only if this message asks for work here' : ''}: open ${book.file} and follow it.`];
   if (book.items.length) {
     lines.push('Done when:');
     for (const it of book.items) lines.push(`${it.n}. ${it.text.length > 140 ? it.text.slice(0, it.text.lastIndexOf(' ', 137)) + '...' : it.text}`);
