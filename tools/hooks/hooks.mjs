@@ -5346,9 +5346,17 @@ export function madeThisTurn(p, t, cfg = config()) {
   const skipped = parts.some((_, i) => { const q = parts.slice(0, i + 1).join('/'); return ign.some(r => r.test(q) || r.test(q + '/')); });
   if (snap?.files && turnAt && Date.parse(snap.at) >= turnAt - 5000 && !skipped) return !snap.files[p] && !tracked();
   const entries = t?.entries || [], ids = new Set();
-  for (const r of entries) { const c = r.message?.content; if (r.type === 'assistant' && Array.isArray(c)) for (const x of c) if (x?.type === 'tool_use' && x.name === 'Write' && rel(x.input?.file_path || '') === p) ids.add(x.id); }
+  // (a copy the turn made with a shell command counts too: cp, copy, Copy-Item naming the file. Lesson (trial v42): a
+  // "v2" draft made with cp could be neither edited nor removed, and the user was left with a duplicate)
+  // (only as the copy's target, its last argument: copying the file away makes nothing new)
+  const base = p.split('/').pop(), copied = cmd => cmd.split(/&&|\|\||[;|\n]/).some(seg => {
+    const m = /^\s*(?:cp|copy|Copy-Item|cpi)\s+(.+)$/i.exec(seg); if (!m) return false;
+    const args = [...m[1].matchAll(/"([^"]+)"|'([^']+)'|(\S+)/g)].map(a => a[1] ?? a[2] ?? a[3]).filter(a => !/^-/.test(a));
+    return args.length >= 2 && args.at(-1).replace(/\\/g, '/').split('/').pop() === base; });
+  for (const r of entries) { const c = r.message?.content; if (r.type === 'assistant' && Array.isArray(c)) for (const x of c) if (x?.type === 'tool_use' && ((x.name === 'Write' && rel(x.input?.file_path || '') === p) || (/^(Bash|PowerShell)$/.test(x.name) && copied(String(x.input?.command || ''))))) ids.add(x.id); }
   if (!ids.size) return false;
-  for (const r of entries) { const c = r.message?.content; if (r.type === 'user' && Array.isArray(c)) for (const x of c) if (x?.type === 'tool_result' && ids.has(x.tool_use_id) && !x.is_error && /^File created successfully\b/.test(textOf(x.content).trim())) return !tracked(); }
+  const writes = new Set(); for (const r of entries) { const c = r.message?.content; if (r.type === 'assistant' && Array.isArray(c)) for (const x of c) if (x?.type === 'tool_use' && x.name === 'Write') writes.add(x.id); }
+  for (const r of entries) { const c = r.message?.content; if (r.type === 'user' && Array.isArray(c)) for (const x of c) if (x?.type === 'tool_result' && ids.has(x.tool_use_id) && !x.is_error && (!writes.has(x.tool_use_id) || /^File created successfully\b/.test(textOf(x.content).trim()))) return !tracked(); }
   return false;
 }
 // The files a command deletes or moves away, as they exist now: the file arguments of rm, del, erase, unlink, rmdir,

@@ -4097,6 +4097,13 @@ PRETOOL.push(
   { name: 'no-overwrite: a change asked for chapter 1 does not open chapter 2: denied', tool: 'Edit', input: CH2_EDIT, setup: CH2, edit: CHAPTER_GUARD, prompt: 'make the ending of chapter 1 sadder', deny: true, tag: 'no-overwrite', says: /ask them in one line/ },
   { name: 'no-overwrite: a new version of chapter 2 asked for: the edit is denied', tool: 'Edit', input: CH2_EDIT, setup: CH2, edit: CHAPTER_GUARD, prompt: 'write a new version of chapter 2 with a sadder ending', deny: true, tag: 'no-overwrite' },
   { name: 'no-overwrite: summarizing the chapters: denied', tool: 'Edit', input: CH2_EDIT, setup: CH2, edit: CHAPTER_GUARD, prompt: 'summarize chapter 2', deny: true, tag: 'no-overwrite' },
+  // (a copy this turn made with a shell command is the turn's own file; copying the original away makes nothing new.
+  // Lesson (trial v42): a v2 draft made with cp could be neither edited nor removed)
+  { name: 'no-overwrite: editing a v2 copy this turn made with cp: allowed', tool: 'Edit', input: { file_path: 'chapters/02-road v2.md', old_string: 'long', new_string: 'endless' },
+    setup: { ...CH2, 'chapters/02-road v2.md': 'The road was long.\n' }, edit: CHAPTER_GUARD, prompt: 'write a new version of chapter 2 with a sadder ending',
+    tools: [{ name: 'Bash', input: { command: 'cd chapters && cp "02-road.md" "02-road v2.md"' }, result: '' }], deny: false },
+  { name: 'no-overwrite: copying chapter 2 away does not open it for edits: denied', tool: 'Edit', input: CH2_EDIT, setup: CH2, edit: CHAPTER_GUARD, prompt: 'summarize chapter 2',
+    tools: [{ name: 'Bash', input: { command: 'cp chapters/02-road.md .cache/02-road.bak' }, result: '' }], deny: true, tag: 'no-overwrite' },
 );
 // A foreground command past its timeout is moved to the background: it runs on, like a background launch, and its
 // result is its output file and the notice's exit code. Files a running job makes are not this turn's.
