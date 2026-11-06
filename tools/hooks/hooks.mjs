@@ -3803,8 +3803,9 @@ export function setupCompleteness(cfg = config(), { final = false, beforeStarter
   if (!/^(knowledge|software|app|both|neither|none)\b/i.test(f['kind of work'] || '')) probs.push('Setup interview "Kind of work" must start with knowledge, software, both or neither');
   if (!/^(yes|no)\b/i.test(f['visual interface'] || '')) probs.push('Setup interview "Visual interface" must start with yes or no');
   // the Branches answer decides which branches the push guard protects. Lesson: "I work on master directly" kept master
-  // protected, so every push the user asked for was refused unless they typed the branch name.
-  const workOn = /(?<!\b(never|don'?t|do not|not|no)\s+)\b(work|commit|push)(s|ing)?\s+(directly\s+)?(on|to)\s+(main|master)\b(?![^.;]*\b(never|don'?t|not)\b)/i.exec(f.branches || '');
+  // protected, so every push the user asked for was refused unless they typed the branch name. An answer the agent only
+  // assumed asks for nothing: the guard stays. Lesson (trial v43): two setups that assumed it turned the push guard off.
+  const workOn = !f['branches (assumed)'] &&/(?<!\b(never|don'?t|do not|not|no)\s+)\b(work|commit|push)(s|ing)?\s+(directly\s+)?(on|to)\s+(main|master)\b(?![^.;]*\b(never|don'?t|not)\b)/i.exec(f.branches || '');
   if (workOn && (cfg.protectedBranches || []).includes(workOn[6].toLowerCase())) probs.push(`Setup interview "Branches" says the work goes on ${workOn[6]}, but tools/hooks/config.json still protects it: set "protectedBranches" to the branches never to push to (or [])`);
   for (const p of want.filter(p => !packs.includes(p))) probs.push(`the answers call for the ${p} pack and it is not installed: node tools/packs.mjs install ${p}`);
   for (const p of packs.filter(p => !want.includes(p))) probs.push(`the ${p} pack is installed but the answers don't call for it: fix the "Kind of work" / "Visual interface" answer or remove the pack`);

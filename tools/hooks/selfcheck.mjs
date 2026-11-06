@@ -5869,6 +5869,13 @@ if (mineB() && SPEED) { // setup interview: an assumed always/never answer is th
     const guessed = ask('- Always/never: assumed - never send anything to the client'), given = ask('- Always/never: never send anything to the client');
     report(guessed === '["never send anything to the client",true]' && given === '["never send anything to the client",false]',
       'setup interview: an always/never answer marked "assumed" is kept as the agent\'s guess, so setup does not ask to write it as the user\'s rule', { guessed, given });
+    // (and a Branches answer the agent only assumed does not ask to unprotect main. Lesson (trial v43): two setups that
+    // assumed "work on master directly" were told to set protectedBranches to [], and the push guard went off)
+    const branches = body => { write(dir, { 'docs/DECISIONS.md': `# Decisions\n\n## Setup interview (2026-11-06)\n${body}\n` });
+      return nodeIn(dir, ['--input-type=module', '-e', `import { setupCompleteness } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; console.log(setupCompleteness({ protectedBranches: ['main', 'master'] }, { final: true }).some(p => /says the work goes on/.test(p)))`]).stdout.trim(); };
+    const assumedMain = branches('- Branches: assumed - work on master directly (single author)'), saidMain = branches('- Branches: I work on master directly');
+    report(assumedMain === 'false' && saidMain === 'true',
+      'setup interview: a Branches answer marked "assumed" keeps main protected; the user\'s own "I work on master" still asks to unprotect it', { assumedMain, saidMain });
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 if (mineB() && SPEED) { // test-inputs: the audit's reuse hash ignores what the test copies drop (setup interview, review rows), not rules or checks
