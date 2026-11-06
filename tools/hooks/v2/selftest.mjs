@@ -411,11 +411,22 @@ report(gateGaps(acts([user('fix the page'), siteEdit, call('Bash', { command: 'p
 report(gateGaps(acts([user('fix the page'), call('Bash', { command: 'python site/verify.py && node site/controls.js' }), siteEdit, say('Fixed.')])).length === 2, 'end: a declared check run before the change does not cover it');
 report(gateGaps(acts([user('fix the page'), siteEdit, call('Bash', { command: 'python site/verify.py && node site/controls.js' }, 'Exit code 1', true), say('Fixed.')])).length === 2, 'end: a failing declared check does not count');
 fs.rmSync(path.join(dir, 'pyproject.toml'));
-put('tools/hooks/config.json', JSON.stringify({ test: 'node site/page-test.mjs && python site/verify.py' }));
+put('tools/hooks/config.json', JSON.stringify({ test: 'node site/page-test.mjs && node site/verify.mjs' }));
 const page = call('Edit', { file_path: path.join(dir, 'site/page.js'), old_string: 'a', new_string: 'b' });
 report(testGaps(acts([user('fix the page'), page, say('Fixed.')])).length === 1
   && testGaps(acts([user('fix the page'), page, call('Bash', { command: 'cd site && node site/page-test.mjs' }, 'done'), say('Fixed.')])).length === 0,
   'end: the project\'s declared test command (config "test") is its test setup and counts as a test run');
+// (with a declared test command, a held hand-made run does not excuse it, and the ask names it; a declared command whose
+// program is not installed is not asked for. Lesson (trial v44))
+{
+  put('tools/hooks/config.json', JSON.stringify({ test: 'node tests/run.mjs' }));
+  const held = testGaps(acts([user('fix the page'), page, call('Bash', { command: 'pytest -q tests' }, 'This Bash command requires approval', true), say('Fixed; the tests could not run here.')]));
+  const heldOwn = testGaps(acts([user('fix the page'), page, call('Bash', { command: 'node tests/run.mjs' }, 'This Bash command requires approval', true), say('Fixed; the tests could not run here.')])).length;
+  put('tools/hooks/config.json', JSON.stringify({ test: 'no-such-runner-x test ./...' }));
+  const missing = testGaps(acts([user('fix the page'), page, say('Fixed; the toolchain is not installed here.')])).length;
+  report(held.length === 1 && /this project's command: node tests\/run\.mjs/.test(held[0]) && heldOwn === 0 && missing === 0,
+    'end: with a declared test command, only a held run of that command excuses the tests, the ask names it, and a command whose program is not installed is not asked for', { held, heldOwn, missing });
+}
 put('tools/hooks/config.json', JSON.stringify({ commitGate: [{ cmd: 'python site/verify\\.py && node site/controls\\.js', when: ['site/**'] }] }));
 report(gateGaps(acts([user('tidy the notes'), call('Edit', { file_path: path.join(dir, 'notes/a.md'), old_string: 'a', new_string: 'b' }), say('Tidied.')])).length === 0, 'end: a change outside a declared check\'s files asks for nothing');
 // (a declared check that is a test run is met by a passing test run in another spelling. Lesson (trial v34): the

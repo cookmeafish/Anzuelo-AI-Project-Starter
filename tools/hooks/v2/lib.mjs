@@ -352,6 +352,12 @@ export const passedRun = c => /^(Bash|PowerShell)$/.test(c.name) && !c.error && 
 // (the project's own declared test and build commands, tools/hooks/config.json "test" and "build", count part by part.
 // Lesson (replay): a project's tests were a plain script run with node, which no runner name matched)
 const declared = () => { try { const c = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/hooks/config.json'), 'utf8')); return [c.test, c.build].filter(s => typeof s === 'string').flatMap(s => s.split(/\s*&&\s*/)).map(s => s.trim()).filter(Boolean); } catch { return []; } };
+// (the declared test command alone, tools/hooks/config.json "test")
+const ownTests = () => { try { const t = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/hooks/config.json'), 'utf8')).test; return typeof t === 'string' ? t.split(/\s*&&\s*/).map(s => s.trim()).filter(Boolean) : []; } catch { return []; } };
+// (whether a program can start here: a shell word, a path, or a file on PATH)
+const SHELL_WORDS = new Set(['cd', 'echo', 'set', 'export', 'true', 'test']);
+export const installed = prog => SHELL_WORDS.has(prog) || /[\/\\]/.test(prog) || String(process.env.PATH || process.env.Path || '').split(path.delimiter).filter(Boolean)
+  .some(d => ['', ...(process.platform === 'win32' ? String(process.env.PATHEXT || '.EXE;.CMD;.BAT;.COM').toLowerCase().split(';') : [])].some(x => { try { return fs.statSync(path.join(d, prog + x)).isFile(); } catch { return false; } }));
 export function isTestRun(cmd) {
   if (RUNNERS.test(cmd)) return true;
   const script = testScript();
@@ -424,8 +430,15 @@ export function testGaps(acts) {
   // installed were asked for turn after turn, about ten tries each)
   // (any time in the turn: a run held for approval or missing its program stays so after more edits. Lesson (trial
   // v37): tests held before the last edit were asked for again, and the retry was held again)
-  const cantRun = i.some(([c]) => cantStart(c) && isTestRun(String(c.input.command || '')));
-  if ((lastCode >= 0 || codeWrite) && hasTests && !cantRun && !passes.some(k => k > lastCode && (!codeWrite || acts.calls[k].done > codeWrite))) out.push('Run the tests after the last code change, and say the result.');
+  // (with a declared test command, only a try of that command counts, and the ask names it. Lesson (trial v44): four
+  // hand-made test commands were held for approval, and the project's own, which ran without approval, was never tried)
+  // (nor is a run asked for whose program is not installed here. Lesson (trial v44): go was missing, setup had said so,
+  // and the next turn was asked to run go test)
+  const mine = ownTests(), cmdOf = c => String(c.input.command || '');
+  const cantRun = (mine.length ? i.some(([c]) => cantStart(c) && mine.some(t => cmdOf(c).includes(t))) : i.some(([c]) => cantStart(c) && isTestRun(cmdOf(c))))
+    || (mine.length > 0 && mine.some(t => programs(t).some(p => !installed(p))));
+  if ((lastCode >= 0 || codeWrite) && hasTests && !cantRun && !passes.some(k => k > lastCode && (!codeWrite || acts.calls[k].done > codeWrite)))
+    out.push(mine.length ? `Run the tests after the last code change (this project's command: ${mine.join(' && ')}), and say the result.` : 'Run the tests after the last code change, and say the result.');
   // (a result this turn read, in a message or a command's output, may be relayed. Lesson (replay): answers passing on
   // another session's or a project's test results were asked to run tests themselves)
   // (only a pass count is a claim. Lesson (trial v34): "I don't know whether your tests pass" was held as one)
