@@ -309,7 +309,10 @@ export function gateGaps(acts) {
     // (a chained command counts part by part: the agent may run its steps one at a time)
     for (const part of String(g.cmd || '').split(/\s*&&\s*/).filter(Boolean)) {
       let rx; try { rx = new RegExp(part, 'i'); } catch { continue; }
-      const ok = acts.calls.some((c, k) => /^(Bash|PowerShell)$/.test(c.name) && !c.error && rx.test(String(c.input.command || '')) && k > lastEdit && (!lastWrite || c.done > lastWrite));
+      // (a step that is itself a test run is met by any passing test run after the change, however it is spelled.
+      // Lesson (trial v34): the declared glob was quoted, the agent's run was not, and passing tests were asked for)
+      const after = (c, k) => k > lastEdit && (!lastWrite || c.done > lastWrite), asTest = isTestRun(part.replace(/\\(.)/g, '$1'));
+      const ok = acts.calls.some((c, k) => after(c, k) && ((/^(Bash|PowerShell)$/.test(c.name) && !c.error && rx.test(String(c.input.command || ''))) || (asTest && passedRun(c))));
       if (!ok) out.push(`Run the project's check \`${part.replace(/\\(.)/g, '$1')}\` after the change, and say the result.`);
     }
   }
@@ -338,7 +341,8 @@ export function testGaps(acts) {
   if ((lastCode >= 0 || codeWrite) && hasTests && !cantRun && !passes.some(k => k > lastCode && (!codeWrite || acts.calls[k].done > codeWrite))) out.push('Run the tests after the last code change, and say the result.');
   // (a result this turn read, in a message or a command's output, may be relayed. Lesson (replay): answers passing on
   // another session's or a project's test results were asked to run tests themselves)
-  else if (/\b(all )?tests? (now )?pass(ed|es|ing)?\b|\b\d+ (tests? )?passed\b/i.test(acts.answer) && !passes.length
+  // (only a pass count is a claim. Lesson (trial v34): "I don't know whether your tests pass" was held as one)
+  else if (/\b\d+ (tests? )?passed\b/i.test(acts.answer) && !passes.length
     && ![acts.heard || '', ...acts.calls.map(c => c.out)].join('\n').split('\n').some(l => /\b\d+ (tests? )?passed\b|\bALL PASS\b/i.test(l) && !/\b[1-9]\d* (tests? )?fail/i.test(l))) out.push('The answer says tests passed, but no test run passed in this turn: run them, or correct the answer.');
   return out;
 }
@@ -457,7 +461,10 @@ export function claimGaps(acts, history = '') {
   const unknown = hashes.filter(h => !seen.includes(h) && spawnSync('git', ['cat-file', '-e', `${h}^{commit}`], { cwd: ROOT, timeout: 5000 }).status !== 0);
   if (unknown.length) out.push(`The answer names commit ${unknown.slice(0, 3).join(', ')}, which no command in this turn showed and this repository does not have: check it, or correct the answer.`);
   const top = p => { try { return fs.existsSync(path.join(ROOT, p.split('/')[0])); } catch { return false; } };
-  const paths = [...new Set([...a.matchAll(/(?:[A-Za-z]:[\\/]|(?<![\w.:/\\-]))((?:[\w.-]+[\\/])+[\w.-]+\.[A-Za-z]{1,5})\b/g)].map(m => m[0].replace(/\\/g, '/')))];
+  // (an answer with a Finished section names its files there; a path above it may be an example. Lesson (trial v34): a
+  // report a later check would write, given as an example, was reported missing)
+  const fin = /^\s*(#+\s*|\*\*)Finished\b/im.exec(a), listed = fin ? a.slice(fin.index) : a;
+  const paths = [...new Set([...listed.matchAll(/(?:[A-Za-z]:[\\/]|(?<![\w.:/\\-]))((?:[\w.-]+[\\/])+[\w.-]+\.[A-Za-z]{1,5})\b/g)].map(m => m[0].replace(/\\/g, '/')))];
   const missingFiles = paths.filter(p => /^[A-Za-z]:\//.test(p) ? !fs.existsSync(p) : top(p) && !fs.existsSync(path.join(ROOT, p)))
     .filter(p => !new RegExp(`(delet|remov|retir|renam|moved)\\w*[^.\\n]{0,80}${p.split('/').pop().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}|${p.split('/').pop().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^.\\n]{0,80}(delet|remov|retir|renam|moved|gone)`, 'i').test(a));
   if (missingFiles.length) out.push(`The answer names ${missingFiles.slice(0, 3).join(', ')}, which does not exist: check the path, or correct the answer.`);

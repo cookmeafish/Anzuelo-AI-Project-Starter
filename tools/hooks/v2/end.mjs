@@ -52,5 +52,7 @@ function judge(data, { shadow = false } = {}) {
   if (list.length) parts.push(`Not done yet:\n${list.map(s => `- ${s}`).join('\n')}`);
   if (turn.at && !shadow) saveTurn(data.session_id, { ...turn, blocked: turn.at });
   if (check) parts.push(`Check that these items of ${check.file} are really done (skip any that don't fit this work):\n${check.items.map(it => `${it.n}. ${it.text}`).join('\n')}`);
-  return { decision: 'block', reason: `${parts.join('\n')}\nFix what isn't done, then finish with only what changed.` };
+  // (the user reads the last message, so it carries the whole answer, in the user's language. Lesson (trials v33, v34):
+  // "finish with only what changed" made it a note like "nothing changed", in English to a Spanish-speaking user)
+  return { decision: 'block', reason: `${parts.join('\n')}\nFix what isn't done. Then give your whole answer to the user again, in their language, with any fix in it: it is the message they read last.` };
 }

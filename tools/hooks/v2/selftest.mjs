@@ -108,6 +108,11 @@ report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/
     // (live, the session's evidence leaves out the agent's own words: the answer never backs its own made-up commit)
     const made = onStop({ session_id: 'madeup', transcript_path: transcript([at(0, user('save the invoice fix')), at(1, say('Saved as 9e8d7c6.'))]) });
     report(!!made && /9e8d7c6/.test(made.reason), 'end: live, a commit only the answer names is reported (the answer is not its own evidence)', made?.reason?.slice(0, 120));
+    // (the user reads the last message: the block asks for the whole answer again, in the user's language, never for a
+    // note of only what changed. Lesson (trials v33, v34): the last message became "nothing changed" or a checklist
+    // report, in English to a Spanish-speaking user, and hid the result)
+    report(/answer[^.]*again[^.]*whole|whole[^.]*answer/i.test(made?.reason || '') && /their language|user's language/i.test(made?.reason || '') && !/only what changed/.test(made?.reason || ''),
+      'end: a block asks for the whole answer again, in the user\'s language', (made?.reason || '').split('\n').at(-1));
   }
 }
 report(/4\. The output reads well for a person, which only a reader can judge$/m.test(r.text), 'start: an item that wraps onto a second line is shown whole, without its check marker', r.text);
@@ -219,6 +224,10 @@ report(testGaps(acts([user('fix the total'), code, call('Bash', { command: 'node
 report(testGaps(acts([user('fix the total'), call('Bash', { command: 'npm test' }), code, say('Fixed.')])).length === 1, 'end: a test run before the last change does not cover it');
 report(testGaps(acts([user('fix the total'), code, call('Bash', { command: 'npm test' }, 'Tests: 2 failed', true), say('Fixed.')])).length === 1, 'end: a failing test run does not count');
 report(testGaps(acts([user('is the export fine?'), say('Yes, all 12 tests passed.')])).some(s => /no test run passed in this turn/.test(s)), 'end: an answer that claims passing tests with no run this turn is named');
+// (only a pass count is a claim: wording about tests is not. Lesson (trial v34): "I don't know whether your tests pass"
+// and "a rule that tests pass before each commit" were held as claims that tests had passed)
+report(['Go is not installed, so I don\'t know whether your tests pass today.', 'Added a rule that tests, build and vet pass before each commit.', 'The health check passed (31 checks, 0 failed).']
+  .every(t => testGaps(acts([user('set it up'), say(t)])).length === 0), 'end: wording about tests passing, with no pass count, is not a claim that they passed');
 report(testGaps(acts([user('upgrade the engine'), call('Bash', { command: 'node tools/hooks/selfcheck.mjs --full > .cache/sc.txt; tail -1 .cache/sc.txt' }, 'selfcheck: ALL PASS (1655 passed, 0 failed)'), say('Upgraded: 1655 passed.')])).length === 0,
   'end: a project\'s own test command whose output shows a passing summary backs "N passed"');
 report(testGaps(acts([user('upgrade the engine'), call('Bash', { command: 'node tools/check.mjs' }, 'checks: 12 passed, 2 failed'), say('Done, 12 passed.')])).length === 1,
@@ -304,6 +313,13 @@ report(testGaps(acts([user('fix the page'), page, say('Fixed.')])).length === 1
   'end: the project\'s declared test command (config "test") is its test setup and counts as a test run');
 put('tools/hooks/config.json', JSON.stringify({ commitGate: [{ cmd: 'python site/verify\\.py && node site/controls\\.js', when: ['site/**'] }] }));
 report(gateGaps(acts([user('tidy the notes'), call('Edit', { file_path: path.join(dir, 'notes/a.md'), old_string: 'a', new_string: 'b' }), say('Tidied.')])).length === 0, 'end: a change outside a declared check\'s files asks for nothing');
+// (a declared check that is a test run is met by a passing test run in another spelling. Lesson (trial v34): the
+// tests passed as node --test tests/*.test.mjs, the declared check read node --test "tests/**/*.test.mjs", and it asked)
+put('tools/hooks/config.json', JSON.stringify({ commitGate: [{ cmd: 'node --test "tests/\\*\\*/\\*\\.test\\.mjs"', when: ['site/**'] }] }));
+report(gateGaps(acts([user('fix the page'), siteEdit, call('Bash', { command: 'node --test tests/*.test.mjs 2>&1 | grep pass' }, 'ℹ pass 16\nℹ fail 0'), say('Fixed.')])).length === 0
+  && gateGaps(acts([user('fix the page'), siteEdit, call('Bash', { command: 'node --test tests/*.test.mjs' }, '✖ 1 failing\nℹ fail 1', true), say('Fixed.')])).length === 1,
+  'end: a declared test check is met by a passing test run spelled another way; a failing one is not');
+put('tools/hooks/config.json', JSON.stringify({ commitGate: [{ cmd: 'python site/verify\\.py && node site/controls\\.js', when: ['site/**'] }] }));
 
 // end: check 3, screens
 const { screenGaps } = await import('./lib.mjs');
@@ -396,6 +412,15 @@ const madeUp = claimGaps(acts([user('commit it'), code, say('Committed as 9f8e7d
 report(madeUp.length === 2 && /9f8e7d6/.test(madeUp[0]) && /src\/missing\.js/.test(madeUp[1]) && /C:\/nowhere/.test(madeUp[1]), 'end: a commit nothing showed and files that do not exist are named', madeUp);
 report(claimGaps(acts([user('clean up'), code, say('Removed src/old.js, the color is #a1b2c3d, and see other-project/notes/a.md for the record.')])).length === 0,
   'end: a file said to be removed, a colour code and a path in another folder ask for nothing');
+// (an answer with a Finished section names its files there: a path only mentioned above it, such as an example of a
+// report a later check would write, is not a file it claims. Lesson (trial v34): such an example was reported missing)
+{
+  put('outputs/.keep', '');
+  const fin = 'The new check will write reports like outputs/check-ch03.md when it finds a problem.\n\n## Finished\n- Changed: src/a.js';
+  const finBad = 'Done.\n\n## Finished\n- Changed: src/missing-report.md';
+  report(claimGaps(acts([user('add the check'), code, say(fin)])).length === 0 && claimGaps(acts([user('add the check'), code, say(finBad)])).some(s => /missing-report/.test(s)),
+    'end: with a Finished section, only the files it lists are checked; a missing one there is still named');
+}
 // (a commit claim is checked only by the commit it names, never by the word: grammar lists were wrong more often than
 // right on live data)
 report(['Done and committed.', 'Nothing else is ready until it passes and its engine proof is committed.', 'It ships if the change is committed.', 'All pushed.', 'The fixes get committed once they pass.']
