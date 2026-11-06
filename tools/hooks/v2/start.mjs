@@ -21,6 +21,21 @@ export const upsetIn = p => {
   for (const w of ignored()) s = s.replace(new RegExp(`\\b${esc(w)}\\b`, 'gi'), ' ');
   return upset(s);
 };
+// The project's own standing rules (AGENTS.md, "The user's standing preferences") that share a word with the request,
+// at most two. Lesson (trials v30, v37): agents built against a rule the project already had for the area they touched
+// (who may delete, who manages accounts); the rule was in the rules file, not in front of them at that moment.
+const STOP = new Set(['about', 'after', 'again', 'their', 'there', 'these', 'thing', 'which', 'would', 'could', 'should', 'please', 'every', 'other', 'where', 'while', 'project', 'always', 'never', 'until', 'because', 'stays', 'without']);
+export function rulesFor(prompt) {
+  let text = ''; try { text = fs.readFileSync(path.join(ROOT, 'AGENTS.md'), 'utf8'); } catch { return []; }
+  const sec = /^##\s+The user's standing preferences\s*$([\s\S]*?)(?=^##\s|(?![\s\S]))/im.exec(text)?.[1] || '';
+  const stem = w => w.toLowerCase().slice(0, 5);
+  const words = new Set((String(prompt).match(/\p{L}{5,}/gu) || []).map(w => w.toLowerCase()).filter(w => !STOP.has(w)).map(stem));
+  if (!words.size) return [];
+  return sec.split(/\r?\n/).filter(l => /^\s*-\s+\S/.test(l) && !/^\s*-\s+\(none/i.test(l))
+    // (two words in common, not one: one common word, like the project's main noun, matched 16 of 38 real requests)
+    .filter(l => new Set((l.match(/\p{L}{5,}/gu) || []).filter(w => !STOP.has(w.toLowerCase())).map(stem).filter(s => words.has(s))).size >= 2)
+    .slice(0, 2).map(l => l.replace(/^\s*-\s+/, '').trim()).map(l => l.length > 200 ? l.slice(0, l.lastIndexOf(' ', 197)) + '...' : l);
+}
 export function reminder(prompt) {
   // (pasted text is not the user's words: it never routes and is never upset. Lesson (the old engine): words inside a
   // pasted text set off the complaint handling)
@@ -34,8 +49,9 @@ export function reminder(prompt) {
   if (sore && !book) return { book: null, text: [sore, es].filter(Boolean).join('\n') };
   // (no trigger fits: the agent picks the runbook, and the end check holds the turn to the one it opened. Lesson
   // (routing sample): plain requests used no trigger phrase; growing trigger lists forever is the old engine's path)
-  if (!book) return { book: null, text: [has('DIRECTORY.md') ? 'If this is real work, pick the runbook in DIRECTORY.md that fits and open it.' : '', es].filter(Boolean).join('\n') };
-  const lines = [...(sore ? [sore] : []), ...(es ? [es] : []), `Runbook: open ${book.file} and follow it.`];
+  if (!book) return { book: null, text: [has('DIRECTORY.md') ? 'If this is real work, pick the runbook in DIRECTORY.md that fits and open it.' : '', es, ...rulesFor(prompt).map(r => `The project's own rule here: ${r}`)].filter(Boolean).join('\n') };
+  const own = rulesFor(prompt).map(r => `The project's own rule here: ${r}`);
+  const lines = [...(sore ? [sore] : []), ...(es ? [es] : []), ...own, `Runbook: open ${book.file} and follow it.`];
   if (book.items.length) {
     lines.push('Done when:');
     for (const it of book.items) lines.push(`${it.n}. ${it.text.length > 140 ? it.text.slice(0, it.text.lastIndexOf(' ', 137)) + '...' : it.text}`);

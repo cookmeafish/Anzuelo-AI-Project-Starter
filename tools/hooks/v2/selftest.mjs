@@ -145,6 +145,13 @@ report(/learn-from-upset/.test(reminder('WHY DID YOU BREAK THE EXPORT AGAIN').te
   && upset('the export still has issues because ur not following the format') && upset('i dont think you understand the totals')
   && !upset('still working?') && !upset('why do you think the export is slow?') && !upset('B2 CSV export --path out/orders') && !upset('add a CSV export'),
   'start: an upset message (capitals or frustration words) goes to the learn-from-upset skill; plain questions and codes do not');
+{ // the project's own standing rule that shares two words with the request is named in the reminder; others are not
+  put('AGENTS.md', "# Rules\n\n## The user's standing preferences\n- Only the owner account may delete anything; staff accounts never may (2026-11-05).\n- Exports always list the totals row last (2026-11-05).\n");
+  const del = reminder('add an endpoint that deletes an order, for the owner account'), plain = reminder('can you add a CSV export for the orders page');
+  report(/The project's own rule here: Only the owner account may delete/.test(del.text) && !/own rule/.test(plain.text),
+    'start: a standing rule of the project that shares two words with the request is named in the reminder; one sharing one word is not', { del: del.text, plain: plain.text });
+  fs.rmSync(path.join(dir, 'AGENTS.md'));
+}
 { // a Spanish request routes like its English wording, gets a line to answer in Spanish, and its complaints count
   put('docs/playbooks/pages.md', '---\nname: pages\ntriggers: add a page, index page\n---\n## Done when\n1. The page is linked from the menu\n');
   const es = reminder('agrega una página de índice con todas las recetas ordenadas por categoría'), en = reminder('add a page for the recipes');
