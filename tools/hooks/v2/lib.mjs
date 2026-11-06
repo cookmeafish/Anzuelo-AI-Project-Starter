@@ -58,6 +58,20 @@ export function runbooks() {
   }
   return out;
 }
+// The skills with a route of their own (skills/<name>/SKILL.md with triggers): not a runbook's mirror, not generated,
+// not a part of a runbook ("runbook:"). Lesson (trial v44): "what was our best week, and what drove it?" matched the
+// data-analysis skill's own triggers, and the reminder named nothing, as v2 read only the runbooks.
+export function skillBooks() {
+  const own = new Set(runbooks().map(b => b.name)), out = [];
+  let names = []; try { names = fs.readdirSync(path.join(ROOT, 'skills')); } catch { return out; }
+  for (const n of names.filter(n => !own.has(n))) {
+    const file = `skills/${n}/SKILL.md`, text = read(file), fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text)?.[1] || '';
+    if (!fm || /^generated:\s*true/m.test(fm) || /^runbook:/m.test(fm)) continue;
+    const triggers = (/^triggers:\s*(.+)$/m.exec(fm)?.[1] || '').split(',').map(s => s.trim().toLowerCase()).filter(s => s.length > 2);
+    if (triggers.length) out.push({ name: n, file, triggers, menu: [], items: [], skills: [] });
+  }
+  return out;
+}
 
 // The runbook whose trigger phrase matches the request best: a phrase that opens the request wins, then the longest
 // whole-phrase match. (Lesson (live v2): a request that opened with its job's name went to another runbook because a

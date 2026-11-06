@@ -190,6 +190,16 @@ report(reminder('what time is it').text === '', 'start: a request no runbook fit
     'start: a trigger that opens the request wins over a longer one later; mid-sentence the longest still wins', r.text);
   fs.rmSync(path.join(dir, 'docs/playbooks/orders-loop.md'));
 }
+{
+  // a skill with its own triggers is named when they fit, beside a runbook too; a runbook's generated mirror is not
+  put('skills/figures/SKILL.md', '---\nname: figures\ntriggers: best week, what drove\n---\n# Figures\n');
+  put('skills/mirror/SKILL.md', '---\nname: mirror\ngenerated: true\ntriggers: best week\n---\n# Mirror\n');
+  const alone = reminder('what was our best week so far, and what drove it?'), beside = reminder('add a CSV export of our best week');
+  report(/^Skill: open skills\/figures\/SKILL\.md and follow it\.$/m.test(alone.text) && !alone.book && beside.book?.name === 'export' && /Skill: open skills\/figures\/SKILL\.md/.test(beside.text)
+    && !/skills\/mirror/.test(alone.text + beside.text) && !/Skill:/.test(reminder('what time is it').text),
+    'start: a skill whose own triggers fit is named, alone or beside a runbook; a generated skill is not', [alone.text, beside.text]);
+  fs.rmSync(path.join(dir, 'skills/figures'), { recursive: true }); fs.rmSync(path.join(dir, 'skills/mirror'), { recursive: true });
+}
 put('DIRECTORY.md', '# Directory\n'); put('skills/learn-from-upset/SKILL.md', '# Learn from upset\n');
 report(/pick the runbook in DIRECTORY\.md/.test(reminder('the totals look off on the summary page').text) && !reminder('the totals look off').book,
   'start: when no trigger fits, one line asks the agent to pick and open the fitting runbook');
