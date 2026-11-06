@@ -84,11 +84,13 @@ export function route(prompt, books = runbooks()) {
   // (a Spanish request with no trigger of its own routes like its English wording. Lesson (trial v37): Spanish requests
   // got no runbook under v2, while v1's router translated "agrega una página de índice" to "add a page, index page")
   const best = match(prompt) || (isSpanish(prompt) ? match(routeEnglish(prompt)) : null);
-  if (best) return { ...best.book, matched: best.phrase };
   // (a standing rule stated plainly, "every new note links to ...", is a rule request like "from now on". Lesson (trial
   // v38): it named no runbook, and the rule went into a memory note with no check)
-  const proj = books.find(b => b.file === 'docs/playbooks/project.md');
-  return proj && STANDING.test(String(prompt)) ? { ...proj, matched: 'standing rule' } : null;
+  // (and it comes before a trigger found mid-sentence; a trigger the request starts with still wins. Lesson (trials v38,
+  // v41): "you forgot the new option ... every option has to be documented" went to the feature runbook on "new option")
+  const proj = books.find(b => b.file === 'docs/playbooks/project.md'), rule = proj && STANDING.test(String(prompt));
+  if (best && !(rule && best.score < 1000)) return { ...best.book, matched: best.phrase };
+  return rule ? { ...proj, matched: 'standing rule' } : null;
 }
 // Spanish: the common short words outnumber the English ones (as the old engine tells them apart).
 const ES_WORDS = /(?<![\p{L}])(el|la|los|las|de|del|en|un|y|es|se|al|lo|que|para|con|por|una|est[aá]|esta|este|mi|tu|todo|pero|como|tiene|quiero|hay|desde|sobre|cada|otra|vez)(?![\p{L}])/giu;

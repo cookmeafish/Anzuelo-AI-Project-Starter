@@ -71,6 +71,10 @@ report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/
   const rule = route('you made a new invoice without a due date. every new invoice has a due date', books)?.name, each = route('Each order must name its customer.', books)?.name;
   const plain = route('can you check every invoice for typos', books), q = route('does every invoice have a date?', books);
   report(rule === 'project' && each === 'project' && !plain && !q, 'start: a standing rule stated plainly ("every new invoice has ...") routes to the project runbook; a request or question about every item does not', { rule, each, plain: plain?.name, q: q?.name });
+  // (it comes before a work trigger found mid-sentence; a request that starts with the trigger still goes there)
+  const withFeature = [...books, { file: 'docs/playbooks/feature.md', name: 'feature', triggers: ['new field'], menu: [] }];
+  const mid = route('you forgot the new field in the guide. every field has to be documented', withFeature)?.name, lead = route('new field for the due date. every field has a label', withFeature)?.name;
+  report(mid === 'project' && lead === 'feature', 'start: a standing rule stated plainly comes before a work trigger found mid-sentence; a trigger the request starts with still wins', { mid, lead });
 }
 {
   const { onPrompt } = await import('./start.mjs');
