@@ -184,6 +184,22 @@ export function backgroundRuns(rows) {
   for (const r of rows) for (const x of Array.isArray(r.message?.content) ? r.message.content : []) if (x?.type === 'tool_use') cmds.set(x.id, String(x.input?.command || x.input?.description || ''));
   return [...runs].filter(([id]) => !done.has(id)).map(([id, use]) => ({ id, cmd: cmds.get(use) || '' }));
 }
+// Helper agents started in the background that have not reported back: a launch whose result says so, until a task
+// notice or the helper's hand-back names its id. Lesson (trial v33): the end check judged a turn while its reviewer
+// was still working, and the agent answered with filler about unfinished work.
+export function helpersRunning(rows) {
+  const runs = new Set(), done = new Set();
+  for (const r of rows) {
+    for (const x of Array.isArray(r.message?.content) ? r.message.content : []) {
+      if (x?.type !== 'tool_result') continue;
+      const out = typeof x.content === 'string' ? x.content : (Array.isArray(x.content) ? x.content.map(c => c?.text || '').join('\n') : '');
+      const m = /^\s*Async agent launched successfully[\s\S]{0,400}?agentId:\s*([\w-]+)/i.exec(out);
+      if (m) runs.add(m[1]);
+    }
+    for (const m of JSON.stringify(r).matchAll(/<task-id>([\w-]+)<\/task-id>|<agent-message from=\\?"([\w-]+)\\?"/g)) done.add(m[1] || m[2]);
+  }
+  return [...runs].filter(id => !done.has(id));
+}
 export const backgroundRunsOf = transcript => backgroundRuns(codexRows(tail(transcript).split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean)));
 
 // What the turn did: tool calls with their results, and the last text the agent wrote.
@@ -314,7 +330,12 @@ export function testGaps(acts) {
   const has = f => fs.existsSync(path.join(ROOT, f)), pyproject = (() => { try { return fs.readFileSync(path.join(ROOT, 'pyproject.toml'), 'utf8'); } catch { return ''; } })();
   const hasTests = anyRunner || !!testScript() || declared().length > 0 || ['pytest.ini', 'conftest.py', 'tests', 'test', '__tests__', 'spec'].some(has)
     || /\[tool\.pytest/.test(pyproject) || ['**/*_test.go', '**/test_*.py', '**/*_test.py', '**/*.test.js', '**/*.test.mjs', '**/*.test.ts'].some(g => filesMatching(g).length > 0);
-  if ((lastCode >= 0 || codeWrite) && hasTests && !passes.some(k => k > lastCode && (!codeWrite || acts.calls[k].done > codeWrite))) out.push('Run the tests after the last code change, and say the result.');
+  // (a test run tried after the change that could not start, held for approval or with its program missing, is not asked
+  // for again: the end check cannot make it run. Lesson (trial v33): tests held for approval and a toolchain not
+  // installed were asked for turn after turn, about ten tries each)
+  const cantRun = i.some(([c, k]) => k > lastCode && /^(Bash|PowerShell)$/.test(c.name) && c.error && isTestRun(String(c.input.command || ''))
+    && /requires? approval|permission|denied|not recognized|command not found|not found|not installed|ENOENT|executable file not found/i.test(c.out || ''));
+  if ((lastCode >= 0 || codeWrite) && hasTests && !cantRun && !passes.some(k => k > lastCode && (!codeWrite || acts.calls[k].done > codeWrite))) out.push('Run the tests after the last code change, and say the result.');
   // (a result this turn read, in a message or a command's output, may be relayed. Lesson (replay): answers passing on
   // another session's or a project's test results were asked to run tests themselves)
   else if (/\b(all )?tests? (now )?pass(ed|es|ing)?\b|\b\d+ (tests? )?passed\b/i.test(acts.answer) && !passes.length
@@ -424,6 +445,11 @@ export function securityGaps(acts) {
 // "Corrected:" label the engine itself asked for was called a claim with no evidence. Evidence is the whole session so
 // far (`history`, the transcript's text), not only this turn: a version a message named two turns ago is known.
 // Lesson (replay): an engine version relayed by another session earlier was flagged as made up.
+// The session's evidence for check 7: every row but the agent's own words, so an answer never backs itself. Lesson
+// (a self-test): with the whole transcript as evidence, a made-up commit in the answer was found in the answer.
+export const evidenceOf = text => String(text || '').split('\n').filter(Boolean).map(l => {
+  try { const r = JSON.parse(l); return r.type === 'assistant' && Array.isArray(r.message?.content) ? JSON.stringify(r.message.content.filter(x => x?.type !== 'text' && x?.type !== 'thinking')) : l; } catch { return ''; }
+}).join('\n');
 export function claimGaps(acts, history = '') {
   const a = String(acts.answer || ''), seen = acts.calls.map(c => JSON.stringify(c.input) + '\n' + (c.out || '')).join('\n') + (acts.context || '') + history;
   const out = [];

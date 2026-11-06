@@ -95,6 +95,20 @@ report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/
   put('docs/CHANGELOG.md', '- export: tidied\n');
   const b1 = onStop({ session_id: 'latestart', transcript_path: late }), b2 = onStop({ session_id: 'latestart', transcript_path: late });
   report(!!b1 && !/item 2/.test(b1.reason) && b2 === null, 'end: a turn with no saved start begins at its request, so a file a script wrote counts, and it is blocked once', [b1?.reason?.slice(0, 160), b2?.reason?.slice(0, 80)]);
+  // (a helper started this turn that has not reported back: no check yet, and the turn stays open for the next Stop)
+  {
+    const { saveTurn: sv, loadTurn: ld } = await import('./lib.mjs');
+    sv('helperwait', { at: T(0), runbook: null });
+    const base = [at(0, user('tidy the invoice totals')), at(1, call('Edit', { file_path: path.join(dir, 'src/a.js'), old_string: 'a', new_string: 'b' })),
+      at(2, call('Agent', { description: 'review', prompt: 'review it', run_in_background: true }, 'Async agent launched successfully.\nagentId: a1b2c3 (internal ID)')), at(3, say('A reviewer is checking it.'))];
+    const w = onStop({ session_id: 'helperwait', transcript_path: transcript(base) }), open = !ld('helperwait').ended;
+    const back = { type: 'user', isMeta: true, message: { role: 'user', content: '<agent-message from="a1b2c3">\n[Subagent hand-back] The review found nothing.\n</agent-message>' } };
+    const b = onStop({ session_id: 'helperwait', transcript_path: transcript([...base, at(4, back), at(5, say('The reviewer found nothing; saved as 7c6b5a4.'))]) });
+    report(w === null && open && !!b && /7c6b5a4/.test(b.reason), 'end: while a helper started this turn still works there is no check and the turn stays open; after it reports back the turn is judged', [w, open, b?.reason?.slice(0, 100)]);
+    // (live, the session's evidence leaves out the agent's own words: the answer never backs its own made-up commit)
+    const made = onStop({ session_id: 'madeup', transcript_path: transcript([at(0, user('save the invoice fix')), at(1, say('Saved as 9e8d7c6.'))]) });
+    report(!!made && /9e8d7c6/.test(made.reason), 'end: live, a commit only the answer names is reported (the answer is not its own evidence)', made?.reason?.slice(0, 120));
+  }
 }
 report(/4\. The output reads well for a person, which only a reader can judge$/m.test(r.text), 'start: an item that wraps onto a second line is shown whole, without its check marker', r.text);
 report(reminder('C3 --since monday --format xlsx').book?.name === 'export' && !reminder('C31 rows').book && !reminder('version C3 is out').book, 'start: a menu code at the start routes to its runbook; a longer code or one mid-sentence does not');
@@ -257,6 +271,10 @@ report(testGaps(acts([user('fix the total'), code, say('Fixed.')])).length === 1
 fs.rmSync(path.join(dir, 'tools'), { recursive: true });
 put('pyproject.toml', '[project]\nname = "tool"\n[tool.pytest.ini_options]\n');
 report(testGaps(acts([user('fix the total'), code, say('Fixed.')])).length === 1, 'end: a configured pytest asks for a test run after a code change');
+report(testGaps(acts([user('fix the total'), code, call('Bash', { command: 'pytest -q' }, 'This Bash command requires approval', true), say('Fixed; the tests could not run here.')])).length === 0
+  && testGaps(acts([user('fix the total'), code, call('Bash', { command: 'go test ./...' }, '/usr/bin/bash: line 1: go: command not found', true), say('Fixed; Go is not installed.')])).length === 0
+  && testGaps(acts([user('fix the total'), code, call('Bash', { command: 'pytest -q' }, '1 failed', true), say('Fixed.')])).length === 1,
+  'end: a test run that could not start (held for approval, program missing) is not asked for again; a failing run still is');
 report(testGaps(acts([user('tidy the notes'), call('Edit', { file_path: path.join(dir, 'notes/a.md'), old_string: 'a', new_string: 'b' }), say('Tidied.')])).length === 0, 'end: a change to notes, not code, asks for no tests');
 report(testGaps(acts([user('fix the total'), call('Write', { file_path: path.join(dir, '.cache/fix.py'), content: 'x' }), call('Write', { file_path: path.join(os.tmpdir(), 'scratch.py'), content: 'x' }), say('Fixed.')])).length === 0,
   'end: a scratch script in .cache or outside the project is not project code');

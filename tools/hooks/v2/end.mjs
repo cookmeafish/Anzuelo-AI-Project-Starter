@@ -1,6 +1,6 @@
 // Engine v2 end hook (Stop): the one check. It judges only what this session did in this turn, from its own
 // transcript, and blocks at most once with a short plain list of what is really missing.
-import { runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, tail } from './lib.mjs';
+import { runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, tail, helpersRunning, evidenceOf } from './lib.mjs';
 
 // Check 1: the routed runbook was followed, and its checkable "Done when" items were met. With none routed, the
 // runbook the agent chose and opened is the one it is held to.
@@ -25,21 +25,27 @@ export function toVerify(turn, acts, books = runbooks()) {
 
 // (in shadow, the health check is not run, only noted: the old engine's turn must not wait on it)
 // A Stop that passes ends the turn: the next request starts a new one, and a message before then joins this one.
+// (while a helper started this turn still works, the turn is not over: no check yet, and the turn stays open, so the
+// Stop after the helper reports back judges the whole of it)
+let waiting = false;
 export function onStop(data, opts = {}) {
+  waiting = false;
   const out = judge(data, opts);
-  if (!out && !opts.shadow) { const t = loadTurn(data.session_id); if (t.at) saveTurn(data.session_id, { ...t, ended: true }); }
+  if (!out && !waiting && !opts.shadow) { const t = loadTurn(data.session_id); if (t.at) saveTurn(data.session_id, { ...t, ended: true }); }
   return out;
 }
 function judge(data, { shadow = false } = {}) {
   if (data.stop_hook_active) return null; // at most one block per turn
   // (with no saved start, the turn starts at its request's own time. Lesson (a field report): the first turn after an
   // upgrade installed v2 had no saved start, so a file a script wrote did not count, and the request was blocked twice)
-  const saved = loadTurn(data.session_id), found = turnActs(turnRows(data.transcript_path || '', saved.at));
+  const saved = loadTurn(data.session_id), rows = turnRows(data.transcript_path || '', saved.at);
+  if (helpersRunning(rows).length) { waiting = true; return null; }
+  const found = turnActs(rows);
   const turn = { ...saved, at: saved.at || found.started || '' }, acts = { ...found, at: turn.at };
   // (and per request: a turn that goes on after its block and stops again, with no new request, is not blocked again.
   // Lesson (trial): one request got the same list 3 times, each stop after a continuation the host did not mark)
   if (turn.at && turn.blocked === turn.at) return null;
-  const list = [...missing(turn, acts), ...testGaps(acts), ...gateGaps(acts), ...screenGaps(acts), ...healthGaps(acts, { run: !shadow }), ...knowledgeGaps(acts), ...securityGaps(acts), ...claimGaps(acts, tail(data.transcript_path, 5 << 20))];
+  const list = [...missing(turn, acts), ...testGaps(acts), ...gateGaps(acts), ...screenGaps(acts), ...healthGaps(acts, { run: !shadow }), ...knowledgeGaps(acts), ...securityGaps(acts), ...claimGaps(acts, evidenceOf(tail(data.transcript_path, 5 << 20)))];
   const check = toVerify(turn, acts);
   if (!list.length && !check) return null;
   const parts = [];
