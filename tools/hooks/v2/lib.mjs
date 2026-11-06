@@ -229,12 +229,12 @@ export function callerTranscript(main, sid) {
 // test run, build or screenshot a helper made counts for the session's turn. Commands only: what the helper edited is
 // seen by its files' times. Lesson (trial v40): setup run in a helper as the engine says, then the end check asked
 // the session for the tests, build and screenshots the helper had already run.
-export function helperRuns(main, sid, since) {
-  const t = Date.parse(since || ''), dir = path.join(path.dirname(main), sid, 'subagents');
+export function helperRuns(main, sid, since, until = '') {
+  const u = Date.parse(until || '') || Infinity, t = Date.parse(since || ''), dir = path.join(path.dirname(main), sid, 'subagents');
   if (!t || path.basename(main, '.jsonl') !== sid) return [];
   let fs_ = []; try { fs_ = fs.readdirSync(dir).filter(f => /^agent-[\w-]+\.jsonl$/.test(f) && fs.statSync(path.join(dir, f)).mtimeMs >= t); } catch { return []; }
   return fs_.flatMap(f => {
-    const rows = codexRows(tail(path.join(dir, f)).split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean)).filter(r => (Date.parse(r.timestamp || '') || 0) >= t);
+    const rows = codexRows(tail(path.join(dir, f)).split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean)).filter(r => { const x = Date.parse(r.timestamp || '') || 0; return x >= t && x < u; });
     return turnActs(rows).calls.filter(c => /^(Bash|PowerShell)$/.test(c.name));
   });
 }

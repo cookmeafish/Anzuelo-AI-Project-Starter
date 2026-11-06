@@ -13,6 +13,7 @@ if (!project || !tdir) { console.error('usage: node tools/starter/v2-replay.mjs 
 process.env.ANZUELO_ROOT = path.resolve(project);
 const { reminder } = await import('../hooks/v2/start.mjs');
 const { missing, toVerify } = await import('../hooks/v2/end.mjs');
+const lib = await import('../hooks/v2/lib.mjs');
 const { turnActs, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, runbooks, startsTurn } = await import('../hooks/v2/lib.mjs');
 const books = runbooks();
 import { firstTry, withShellEdits } from './replay-lib.mjs';
@@ -26,7 +27,10 @@ for (const f of fs.readdirSync(tdir).filter(f => f.endsWith('.jsonl')).map(f => 
     const prompt = rows[s].message.content, slice = rows.slice(s, starts[k + 1] ?? rows.length);
     const r = reminder(prompt);
     turns++; if (r.book) { routed++; lines += r.text.split('\n').length; chars += r.text.length; }
-    const acts = withShellEdits(turnActs(firstTry(slice))), list = [...missing({ runbook: r.book?.file || null }, acts, books), ...testGaps(acts), ...gateGaps(acts), ...screenGaps(acts), ...healthGaps(acts, { run: false }), ...knowledgeGaps(acts), ...securityGaps(acts), ...claimGaps(acts, rows.slice(0, s).map(x => JSON.stringify(x)).join('\n').slice(-5_000_000))];
+    // (the commands the session's helpers ran in this turn count, as the live end check counts them; an engine without
+    // helperRuns replays without them)
+    const own = withShellEdits(turnActs(firstTry(slice))), extra = lib.helperRuns ? lib.helperRuns(f, path.basename(f, '.jsonl'), rows[s].timestamp, rows[starts[k + 1]]?.timestamp) : [];
+    const acts = extra.length ? { ...own, calls: [...own.calls, ...extra].sort((a, b) => (a.at || 0) - (b.at || 0)) } : own, list = [...missing({ runbook: r.book?.file || null }, acts, books), ...testGaps(acts), ...gateGaps(acts), ...screenGaps(acts), ...healthGaps(acts, { run: false }), ...knowledgeGaps(acts), ...securityGaps(acts), ...claimGaps(acts, rows.slice(0, s).map(x => JSON.stringify(x)).join('\n').slice(-5_000_000))];
     // (the health check can't be rerun on a past turn: "would run" is counted on its own line, not as a block)
     // (the runbook's items no script can check, listed for the agent to verify on a work turn: a block too)
     const verify = toVerify({ runbook: r.book?.file || null }, acts, books);
