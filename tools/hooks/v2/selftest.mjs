@@ -145,6 +145,12 @@ report(/learn-from-upset/.test(reminder('WHY DID YOU BREAK THE EXPORT AGAIN').te
   && upset('the export still has issues because ur not following the format') && upset('i dont think you understand the totals')
   && !upset('still working?') && !upset('why do you think the export is slow?') && !upset('B2 CSV export --path out/orders') && !upset('add a CSV export'),
   'start: an upset message (capitals or frustration words) goes to the learn-from-upset skill; plain questions and codes do not');
+{ // a message relayed from another session gets its runbook only for when it asks for work
+  const relay = reminder('Another Claude session sent a message:\n<cross-session-message from="x">The fix to export the orders landed in 1a2b3c. Nothing to change.</cross-session-message>');
+  const asked = reminder('can you export the orders for this week');
+  report(/A message from another session: follow this runbook only if the message asks for work here\.\nRunbook: open docs\/playbooks\/export\.md/.test(relay.text) && !/another session/.test(asked.text),
+    'start: a relayed message gets its runbook only for when it asks for work; a typed request gets it plainly', { relay: relay.text, asked: asked.text });
+}
 { // the project's own standing rule that shares two words with the request is named in the reminder; others are not
   put('AGENTS.md', "# Rules\n\n## The user's standing preferences\n- Only the owner account may delete anything; staff accounts never may (2026-11-05).\n- Exports always list the totals row last (2026-11-05).\n");
   const del = reminder('add an endpoint that deletes an order, for the owner account'), plain = reminder('can you add a CSV export for the orders page');

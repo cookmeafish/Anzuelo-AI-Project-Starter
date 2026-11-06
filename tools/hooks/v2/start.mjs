@@ -36,7 +36,9 @@ export function rulesFor(prompt) {
     .filter(l => new Set((l.match(/\p{L}{5,}/gu) || []).filter(w => !STOP.has(w.toLowerCase())).map(stem).filter(s => words.has(s))).size >= 2)
     .slice(0, 2).map(l => l.replace(/^\s*-\s+/, '').trim()).map(l => l.length > 200 ? l.slice(0, l.lastIndexOf(' ', 197)) + '...' : l);
 }
+const relayedRx = /^\s*Another Claude session sent a message|<cross-session-message\b/;
 export function reminder(prompt) {
+  const raw = String(prompt || '');
   // (pasted text is not the user's words: it never routes and is never upset. Lesson (the old engine): words inside a
   // pasted text set off the complaint handling)
   prompt = String(prompt || '').replace(/<pasted_content\b[^>]*>[\s\S]*?<\/pasted_content(?:\s[^>]*)?>|<pasted_content\b[^>]*\/>/gi, ' ');
@@ -51,7 +53,10 @@ export function reminder(prompt) {
   // (routing sample): plain requests used no trigger phrase; growing trigger lists forever is the old engine's path)
   if (!book) return { book: null, text: [has('DIRECTORY.md') ? 'If this is real work, pick the runbook in DIRECTORY.md that fits and open it.' : '', es, ...rulesFor(prompt).map(r => `The project's own rule here: ${r}`)].filter(Boolean).join('\n') };
   const own = rulesFor(prompt).map(r => `The project's own rule here: ${r}`);
-  const lines = [...(sore ? [sore] : []), ...(es ? [es] : []), ...own, `Runbook: open ${book.file} and follow it.`];
+  // (a message relayed from another session may only report: its runbook is for when it asks for work. Lesson (project
+  // report): a note that a fix had landed got the bugfix runbook and its list, though it asked for nothing)
+  const relayed = relayedRx.test(raw) ? ['A message from another session: follow this runbook only if the message asks for work here.'] : [];
+  const lines = [...(sore ? [sore] : []), ...(es ? [es] : []), ...own, ...relayed, `Runbook: open ${book.file} and follow it.`];
   if (book.items.length) {
     lines.push('Done when:');
     for (const it of book.items) lines.push(`${it.n}. ${it.text.length > 140 ? it.text.slice(0, it.text.lastIndexOf(' ', 137)) + '...' : it.text}`);
