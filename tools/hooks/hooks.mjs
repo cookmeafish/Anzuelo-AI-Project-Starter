@@ -3579,7 +3579,9 @@ export const LABELS_ES_HINT = labelsEsHint();
 // ---------- people / scopes ----------
 export function people(cfg = config()) {
   return list(cfg.scopesRoot).filter(n => !/^[_.]/.test(n) && !/\.md$/i.test(n)).filter(n => { try { return fs.statSync(abs(`${cfg.scopesRoot}/${n}`)).isDirectory(); } catch { return false; } })
-    .map(n => ({ name: n, words: [n.toLowerCase(), ...splitList((frontmatter(read(abs(`${cfg.scopesRoot}/${n}/PROFILE.md`))) || {}).aliases)] }));
+    // (a folder name's hyphens and underscores read as spaces too: profiles/flat-1 is "flat 1". Lesson (trials): "flat 1"
+    // named nobody, and the guard refused the work for that flat)
+    .map(n => ({ name: n, words: [...new Set([n.toLowerCase(), n.toLowerCase().replace(/[-_]+/g, ' ')])].filter(Boolean).concat(splitList((frontmatter(read(abs(`${cfg.scopesRoot}/${n}/PROFILE.md`))) || {}).aliases)) }));
 }
 export const personOf = (p, cfg = config()) => { const m = new RegExp(`^${esc(cfg.scopesRoot)}/([^/]+)/`, 'i').exec(p); return m && !/^[_.]/.test(m[1]) ? m[1] : null; };
 export const peopleIn = (text, ppl) => ppl.filter(x => x.words.some(w => re(`(^|[^a-z0-9])${esc(w)}($|[^a-z0-9])`).test(String(text).toLowerCase()))).map(x => x.name);
