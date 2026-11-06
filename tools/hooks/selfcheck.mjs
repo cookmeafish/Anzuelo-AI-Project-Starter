@@ -5860,6 +5860,17 @@ if (mineB()) { // setup-complete people: one owner with qualifiers, or staff who
       `${wrong.join(' | ')} | single: ${single.slice(0, 200)} | list: ${list.slice(0, 200)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
+if (mineB() && SPEED) { // setup interview: an assumed always/never answer is the agent's guess, not the user's rule
+  // (Lesson (trial v42): setup failed until the agent's own guesses were written as "the user's standing preferences")
+  const dir = copyProject();
+  try {
+    const ask = body => { write(dir, { 'docs/DECISIONS.md': `# Decisions\n\n## Setup interview (2026-11-06)\n${body}\n` });
+      return nodeIn(dir, ['--input-type=module', '-e', `import { setupInterview } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; const f = setupInterview(); console.log(JSON.stringify([f['always/never'], !!f['always/never (assumed)']]))`]).stdout.trim(); };
+    const guessed = ask('- Always/never: assumed - never send anything to the client'), given = ask('- Always/never: never send anything to the client');
+    report(guessed === '["never send anything to the client",true]' && given === '["never send anything to the client",false]',
+      'setup interview: an always/never answer marked "assumed" is kept as the agent\'s guess, so setup does not ask to write it as the user\'s rule', { guessed, given });
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
 if (mineB() && SPEED) { // test-inputs: the audit's reuse hash ignores what the test copies drop (setup interview, review rows), not rules or checks
   const dir = copyProject();
   try {

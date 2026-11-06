@@ -3707,7 +3707,9 @@ export function setupProblems(cfg = config()) {
   if (fit.length) probs.push(`fit checklist: ${fit[0]}${fit.length > 1 ? ` (+${fit.length - 1} more: node tools/fit.mjs check)` : ''}`);
   // the answers are carried out, not just recorded
   const f = setupInterview();
-  if (f['always/never'] && !/^(none|no\b|n\/a)/i.test(f['always/never']) && /^- \(none (yet|stated)/m.test(section(claude, "The user's standing preferences")))
+  // (only rules the user gave: an assumed answer is the agent's guess, and writing it as the user's preference would
+  // put words in their mouth. Lesson (trial v42): setup failed until the agent's guesses became "the user's" rules)
+  if (f['always/never'] && !f['always/never (assumed)'] && !/^(none|no\b|n\/a)/i.test(f['always/never']) && /^- \(none (yet|stated)/m.test(section(claude, "The user's standing preferences")))
     probs.push('the user gave always/never rules in the setup interview, but CLAUDE.md has no standing preferences: write each as a rule with the project-rule skill');
   const guard = section(sec, 'What needs protecting, and from whom');
   if (/status:\s*set\b/i.test(sec) && guard && [...guard.matchAll(/^\|[^|\n]+\|\s*(N\/?A\b[^|]*)\|/gmi)].length >= 3)
@@ -3731,7 +3733,11 @@ export function setupInterview() {
   const f = {};
   // name markers inside answers read as the name itself (Lesson: answers written with a marker stopped counting)
   for (const m of section(read(abs('docs/DECISIONS.md')), 'Setup interview').replace(NAME_MARK, (x, k) => names()[k] || k).matchAll(/^\s*-\s*\*{0,2}([^:*\n]+?)\*{0,2}:\s*(.*)$/gm))
-    f[m[1].trim().toLowerCase()] = m[2].trim().replace(/^assumed\s*[-:]\s*/i, ''); // autonomy auto: "assumed - <answer>"
+  { // autonomy auto: "assumed - <answer>"; which answers were assumed is kept apart, as the agent's guess, not the user's
+    const k = m[1].trim().toLowerCase(), v = m[2].trim();
+    f[k] = v.replace(/^assumed\s*[-:]\s*/i, '');
+    if (/^assumed\s*[-:]/i.test(v)) Object.defineProperty(f, `${k} (assumed)`, { value: true, enumerable: false });
+  }
   return f;
 }
 // a placeholder is a whole answer in angle brackets or "<...>"; "run: python -m tool <csv> <report>" is a real answer
