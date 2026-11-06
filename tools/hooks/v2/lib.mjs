@@ -231,7 +231,9 @@ export function turnActs(rows) {
 // The files a path or glob names: walked from its fixed part, at most 20,000. Bulk folders below it are skipped
 // (.git, node_modules, .cache, virtual environments, build output). Lesson: one project held 40,000 files in .cache, and
 // a 2,000-file cap hid every change outside it.
-const BULK = new Set(['.git', 'node_modules', '.cache', '.venv', 'venv', '__pycache__', 'dist', 'build', '.next', 'target']);
+// (build output too: a build rewrites it, and it is no change the agent made. Lesson (trial): a static site's build
+// rewrote _site/*.html and the end check asked for screenshots of it)
+const BULK = new Set(['.git', 'node_modules', '.cache', '.venv', 'venv', '__pycache__', 'dist', 'build', '.next', 'target', '_site', '.nuxt', '.output', '.svelte-kit', 'coverage', 'storybook-static']);
 function filesMatching(glob) {
   const g = glob.replace(/\\/g, '/'), rx = globRx(g), base = g.split('/').filter((s, i, a) => !/[*?]/.test(a.slice(0, i + 1).join('/'))).join('/');
   if (!/[*?]/.test(g)) return fs.existsSync(path.join(ROOT, g)) ? [g] : [];
@@ -352,7 +354,7 @@ export function testGaps(acts) {
 const SCREEN = /\.(html?|css|scss|jsx|tsx|vue|svelte|xaml|qml)$|(^|\/)(gui|ui|templates|components)\//i;
 // (tests and their fixtures in a gui folder show nothing on screen. Lesson (replay): edits to a gui folder's tests asked
 // for screenshots)
-const NOT_SCREEN = /^(\.cache|docs|skills|packs|library|node_modules|dist|build|tools\/hooks)\/|\.md$|(^|\/)(tests?|fixtures|__tests__)\/|(^|\/)test_[^/]*$|[._-]test\.\w+$/i;
+const NOT_SCREEN = /^(\.cache|docs|skills|packs|library|tools\/hooks)\/|(^|\/)(node_modules|dist|build|_site|\.next|\.nuxt|\.output|\.svelte-kit|coverage|storybook-static)\/|\.md$|(^|\/)(tests?|fixtures|__tests__)\/|(^|\/)test_[^/]*$|[._-]test\.\w+$/i;
 export function screenGaps(acts) {
   if (!fs.existsSync(path.join(ROOT, 'tools/screenshot.mjs'))) return [];
   const screen = p => { const r = relp(p); return SCREEN.test(r) && !NOT_SCREEN.test(r) && !/^(\.\.|[a-z]:)/i.test(r); };

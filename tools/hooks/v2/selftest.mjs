@@ -337,6 +337,13 @@ report(screenGaps(acts([user('tidy the notes'), call('Edit', { file_path: path.j
 report(screenGaps(acts([user('fix the paste test'), call('Edit', { file_path: path.join(dir, 'app/gui/test_text.py'), old_string: 'a', new_string: 'b' }), call('Edit', { file_path: path.join(dir, 'app/gui/fixtures/fake.py'), old_string: 'a', new_string: 'b' }), say('Fixed.')])).length === 0
   && screenGaps(acts([user('fix the panel'), call('Edit', { file_path: path.join(dir, 'app/gui/panel.py'), old_string: 'a', new_string: 'b' }), say('Fixed.')])).length === 1,
   'end: tests and fixtures in a gui folder are not screens; the gui code itself is');
+{ // a build rewrites its output folder; that output is not a screen the agent changed
+  const built = () => { for (const f of ['_site/index.html', 'web/.svelte-kit/app.html']) put(f, '<p>built</p>'); };
+  built();
+  const a = acts([user('add a recipe'),call('Write', { file_path: path.join(dir, '_site/recetas/index.html'), content: 'x' }), call('Bash', { command: 'npm run build' }, 'built'), say('Added.')]);
+  report(screenGaps(a).length === 0, 'end: build output (_site, .svelte-kit) is not a changed screen', screenGaps(a));
+  for (const f of ['_site', 'web/.svelte-kit']) fs.rmSync(path.join(dir, f), { recursive: true, force: true });
+}
 
 // end: check 4, the health check
 const { healthGaps } = await import('./lib.mjs');
