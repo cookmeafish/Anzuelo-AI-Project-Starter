@@ -23,6 +23,9 @@ date. A project's own content is its session's; this runbook changes only the en
    are fixed here with a self-test that fails without the fix; one in the project's own files goes to its session
    as what to change, never edited from here.
 3. **Ship it:** the full self-test and the audit, then commit (the user's standing OK; never push without asking).
+   Any figure quoted for a change (how often it fires, how much longer the reminder gets) comes from the replay tool
+   run on the real commits, shipped engine against candidate (`node tools/starter/v2-replay.mjs` in a worktree of
+   each, diffed), never from a side measurement of the idea.
 4. **Upgrade each project, in batches:** at most once a day, or sooner only for a fix the project is paying for now.
    Engine upgrades were about 45% of one project's commits (2026-11-05). Fast-forward its linked starter copy from this folder
    (`git -C <copy> pull --ff-only <starter> main`), then hand the upgrade to its session (open
@@ -42,6 +45,7 @@ date. A project's own content is its session's; this runbook changes only the en
 - [ ] Each watched project was looked at on every point of step 1, or the answer says which could not be (judgment: what each project exposes differs).
 - [ ] Every problem found has a confirmed cause, and each engine cause a fix with a self-test that fails without it (hook: hooks-tested).
 - [ ] The fixes were committed with the user as the only author, not pushed (hook: no-ai-attribution).
+- [ ] Every figure quoted for a change came from a replay of the shipped and candidate commits (judgment: which figure a change needs differs).
 - [ ] Each project runs the newest engine, or the answer says what it waits on (judgment: a project's session decides when its own work is committed).
 
 ## Pitfalls
@@ -57,6 +61,10 @@ date. A project's own content is its session's; this runbook changes only the en
   copies to it. A passing run that prints no `proof:` line left the proof unchanged: the files the release changed are
   outside `PROOF_PATHS` (tools/hooks/selftest-cache.mjs). Add them there with a test; never ship that release
   (2026-11-05: a release that changed only engine v2 kept the old proof).
+- A figure measured beside the code is no proof of what the code does. A reminder line was shipped on a side count of
+  "a few of 38 requests"; a replay of the shipped commit showed it on nearly every routed turn, with reminders about
+  30% longer until the next batch (2026-11-06). A wait of a day is acceptable for extra reminder text. A wrong block
+  justifies shipping the fix early.
 - A hook time or a quiet log is no proof the engine runs. A crashed hook is fast and silent: v2 could not load in two
   projects for days while their reports showed a 67 ms Stop and no false asks (2026-11-05). A project's engine report
   counts only with at least one real reminder or block seen in its newest transcript, and the transcripts are searched
