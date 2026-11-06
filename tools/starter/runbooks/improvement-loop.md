@@ -32,7 +32,8 @@ in the next frozen batch, not one upgrade per fix.
    the commit, so work in the main folder goes on during the 20 minutes: `git worktree add --detach
    ~/.anzuelo-frozen/<commit> <commit>`, then `node tools/hooks/wire.mjs` in it, then run there. Not in a temp folder
    (the link tests refuse one) and not without wire.mjs (the generated hook settings are not in git): each cost a
-   failed run. Copy its `tools/hooks/engine-proof.json` back only when no engine file changed since that
+   failed run. A new worktree has no `.cache/`: create it before sending any output there (2026-11-06: every step's
+   redirect failed and the chain did not run). Copy its `tools/hooks/engine-proof.json` back only when no engine file changed since that
    commit, and remove the copy afterwards (`git worktree remove <dir>`).
 2. **Run the round on a frozen copy.** `node tools/starter/trials/run.mjs --round <name> --freeze` (names go up:
    v9, v10, ...). Eight standard projects, four at a time: code in three languages, a Spanish-speaking user, letters,
