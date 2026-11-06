@@ -626,6 +626,20 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     fs.rmSync(f, { force: true }); fs.rmSync(g, { recursive: true, force: true });
     report(before === 1 && after === 0, 'guard: a session the v2 prompt hook recorded may commit; one no hook saw is refused (engine-bypassed)', [before, after]);
   }
+  // (a resumed session whose last turn ended gets no "interrupted" notice; one whose last turn never ended does)
+  {
+    const { spawnSync } = await import('node:child_process');
+    const c = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-resume-'));
+    fs.mkdirSync(path.join(c, 'tools/hooks/state'), { recursive: true });
+    fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(c, 'tools/hooks/v2'), { recursive: true });
+    for (const f of ['hooks.mjs', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
+    const resume = ended => { const sid = ended ? 'resumedone' : 'resumeopen';
+      fs.writeFileSync(path.join(c, `tools/hooks/state/v2-turn.${sid}.json`), JSON.stringify({ at: new Date().toISOString(), runbook: null, ...(ended ? { ended: true } : {}) }));
+      return spawnSync(process.execPath, [path.join(c, 'tools/hooks/hooks.mjs'), 'session'], { cwd: c, encoding: 'utf8', input: JSON.stringify({ session_id: sid, source: 'resume' }), env: { ...process.env, STARTER_ENGINE: 'v2', ANZUELO_ROOT: c } }).stdout || ''; };
+    const done = resume(true), open = resume(false);
+    fs.rmSync(c, { recursive: true, force: true });
+    report(!/RESUMED|INTERRUPTED/.test(done) && /RESUMED|INTERRUPTED/.test(open), 'session: a resume after a turn that ended says nothing about an interruption; after one that never ended it does', [done.slice(-160), open.slice(-160)]);
+  }
   // (a v2 hook that cannot run shows its error to the agent once per session, never only on stderr)
   {
     const { spawnSync } = await import('node:child_process');

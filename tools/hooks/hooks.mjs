@@ -4612,7 +4612,10 @@ function cmdSession(data) {
   // REQ: interrupted-work. After a compaction, or a resume of a turn that never ended, prove the files edited before
   // the interruption are intact. (Lesson (probe): a resume after a turn that ended normally told the user files from
   // "before the interruption" were intact)
-  const end = readJSON(stateFile(TURN_END), {}), ended = end.clean && (end.at || '') >= (readJSON(stateFile('turn.json'), {}).at || '');
+  // (under v2, its own record says whether the last turn ended; a session with no turn has nothing to resume. Lesson
+  // (trial v37): v2 never writes v1's turn end, so every resumed follow-up was told its work had been interrupted)
+  const v2turn = V2_TURN && data.session_id ? V2_TURN(data.session_id) : null;
+  const end = readJSON(stateFile(TURN_END), {}), ended = v2turn ? !v2turn.at || !!v2turn.ended : end.clean && (end.at || '') >= (readJSON(stateFile('turn.json'), {}).at || '');
   if (/compact/i.test(data.source || '') || (/resume/i.test(data.source || '') && !ended)) {
     const r = spawnSync(process.execPath, [path.join(ROOT, 'tools', 'integrity-check.mjs'), '--hours', '12'], { cwd: ROOT, encoding: 'utf8', timeout: 60000 });
     const out = (r.stdout || '').trim().split(/\r?\n/);
@@ -5911,6 +5914,7 @@ export const CHECK_RUN = /\b(pytest|unittest|npm (run )?test|npx (jest|vitest|pl
 // shell command, whatever that command is. Which runs are going comes from the transcript's launches and notices
 // (v2/lib.mjs backgroundRuns), not from what the commands say.
 let V2_RUNS = null;
+let V2_TURN = null; // (under v2 a turn's end is in v2's own turn record: v2/lib.mjs loadTurn)
 export const engineOf = () => envOf('ENGINE') || config().engine;
 // The engine runs in a project: its own prompt and Stop hooks, on a sample request, with the engine its config picks.
 // Returns the errors seen (none when it runs). The probe's session leaves no state behind. Lesson (two projects): an
@@ -9684,6 +9688,7 @@ if (isMain) {
   }
   // (under v2 the background-run notice comes from the runs this session started, never from command text)
   if (cmd === 'pretool' && ENGINE === 'v2') try { V2_RUNS = (await import('./v2/lib.mjs')).backgroundRunsOf; } catch { }
+  if (cmd === 'session' && ENGINE === 'v2') try { V2_TURN = (await import('./v2/lib.mjs')).loadTurn; } catch { }
   try {
     const fn = { session: cmdSession, prompt: cmdPrompt, pretool: cmdPretool, posttool: cmdPosttool, stop: cmdStop, subagentstop: cmdSubagentstop }[cmd];
     if (fn) fn(data);
