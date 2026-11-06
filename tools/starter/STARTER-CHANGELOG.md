@@ -23,6 +23,7 @@ hooks:**, and an upgrade lists each one as its own review item.
   - An engine upgrade message goes to the engine runbook again, as under v1, whatever words its list of fixes uses. Under v2, 26 of 27 such messages in one project's history went to the project runbook.
   - A request that opens with a runbook's trigger goes to that runbook, ahead of a longer trigger found later in the text.
   - The health check asks only about failures in files the turn touched, or failures that name no file.
+  - The end check no longer reads a condition ("until it is committed", "if it is committed") as a claim that the work was committed.
   - A commit from a session that engine v2 recorded is no longer refused as "engine-bypassed". The git guard looked only for v1's turn record, so under v2 every commit from an agent session failed. Self-test: "guard: a session the v2 prompt hook recorded may commit".
   - An upgrade keeps the check markers a project put on the "Done when" items of an engine runbook, where the new version ships no check of its own there. Before, each upgrade dropped them. Scenario (trial): "an upgrade keeps a check marker the project put on an engine runbook's Done-when item".
   - `tools/starter/stop-found.mjs` reads v2's end-check blocks, line by line, for the 2026-11-08 decision. A self-test keeps AGENTS.md at 152 lines or fewer.

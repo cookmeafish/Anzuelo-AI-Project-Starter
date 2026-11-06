@@ -357,7 +357,7 @@ report(claimGaps(acts([user('save it'), code, say('Done and committed.')])).some
 report(claimGaps(acts([user('save it'), code, call('Bash', { command: 'git add -A && git commit -q -m x' }, ''), say('Committed (not pushed).')])).length === 0
   && claimGaps(acts([user('status?'), say('Nothing is committed yet, and it was committed earlier in the week.')])).length === 0,
   'end: a real commit, "not committed" and "committed earlier" pass');
-report(['The fixes get committed once they pass.', 'Wipe once they have committed 3 or more creatures.', 'My own rule pushed the plan further.', 'I will commit once the tests pass, after it can be committed.']
+report(['The fixes get committed once they pass.', 'Wipe once they have committed 3 or more creatures.', 'My own rule pushed the plan further.', 'I will commit once the tests pass, after it can be committed.', 'Nothing else is ready until it passes and its engine proof is committed.', 'It ships if the change is committed.']
   .every(t => claimGaps(acts([user('status?'), code, say(t)])).length === 0)
   && claimGaps(acts([user('upgrade it'), code, call('Bash', { command: 'node tools/starter.mjs upgrade' }, 'upgrade done: committed as Engine upgrade'), say('The upgrade is finished and committed.')])).length === 0,
   'end: future or other-meaning uses of committed and pushed are no claims; a command whose output shows the commit backs one');
