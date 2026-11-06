@@ -54,7 +54,9 @@ date. A project's own content is its session's; this runbook changes only the en
 - A release ships with its own engine proof, or every project's upgrade runs the whole self-test (over 10 minutes on a
   shared machine, 2026-11-05). After the frozen run passes, commit its `tools/hooks/engine-proof.json` in the frozen
   worktree ("Engine proof", on top of the candidate), merge that commit into `main`, and fast-forward the linked
-  copies to it.
+  copies to it. A passing run that prints no `proof:` line left the proof unchanged: the files the release changed are
+  outside `PROOF_PATHS` (tools/hooks/selftest-cache.mjs). Add them there with a test; never ship that release
+  (2026-11-05: a release that changed only engine v2 kept the old proof).
 - A hook time or a quiet log is no proof the engine runs. A crashed hook is fast and silent: v2 could not load in two
   projects for days while their reports showed a 67 ms Stop and no false asks (2026-11-05). A project's engine report
   counts only with at least one real reminder or block seen in its newest transcript, and the transcripts are searched
