@@ -2991,6 +2991,9 @@ STOP.push(
     files: { 'src/score.js': 'const plants = ["Formidable Fern", "Snow Tulip"];\nexport const score = c => plants.indexOf(c);\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Scored.' + FIN, expect: { not: ['security-code'] } },
   { name: 'security-code: the formidable upload library imported: fired', prompt: 'accept uploads',
     files: { 'src/upload.js': 'const formidable = require("formidable");\nexport const parse = req => formidable().parse(req);\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { tags: ['security-code'] } },
+  // (Lesson (trial v41): a Go web handler with a token check matched nothing; the review was asked for only by chance)
+  { name: 'security-code: a Go web handler: fired', prompt: 'add the recipes endpoint',
+    files: { 'src/recipes.go': 'package main\n\nimport "net/http"\n\nfunc recipes(w http.ResponseWriter, r *http.Request) {\n\tw.Write([]byte("ok"))\n}\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { tags: ['security-code'] } },
   // (Lesson: a word-list checker's RegExp .exec( call made two turns of a static blog run the security review)
   { name: 'security-code: a JS regex .exec( call and a Python re call are not code execution: not fired', prompt: 'check the pages for English words',
     files: { 'tools/check-words.mjs': 'const WORD = /\\b[a-z]+\\b/g;\nlet m; while ((m = WORD.exec(text))) seen.push(m[0]);\n', 'tools/words.py': 'import re\nfor m in re.finditer(r"\\w+", text):\n    print(re.fullmatch(r"[a-z]+", m.group(0)))\n', 'docs/CHANGELOG.md': 'x' },
