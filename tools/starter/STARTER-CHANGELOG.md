@@ -14,6 +14,7 @@ hooks:**, and an upgrade lists each one as its own review item.
   - `hooks.mjs prove` says to prove on a sample when the fix changed the check itself, instead of a false NOT PROVEN. Test: "rule and prove commands: ...".
   - The notes link check skips `docs/starter-feedback.md`, so an example link quoted there is not a broken link. Test: "notes link check: an example link quoted in the project's report to the starter is not a broken link".
   - A comment inside a runbook's "Done when" item is no longer shown in the reminder or the end check. Test: "start: a comment in a runbook item, one line or several, is never shown".
+  - A failing project test that ran in a self-test helper process is reported as the project's, not as an engine failure to send to the starter. Test: "selfcheck: a project test is named in PROJECT_TESTS's own list, so a failure in a helper process is still the project's".
 - 2026-11-05 (engine): engine v2 fixes from its first live use and trial round v32. Each one has a self-test that fails without it.
   - The background-run notice works from the session's own running jobs, not from command text.
   - Pasted text no longer routes a message or marks it as upset.

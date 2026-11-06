@@ -4922,7 +4922,10 @@ const mineB = () => nextB() && !REUSE, mineP = () => nextB();
 // mineS: an engine test that exercises the platform (links in the file system, the agents' wiring), so it is part of
 // the smoke set and runs with reused engine results too
 const mineS = mineP;
-const PROJECT_TESTS = new Set(); // report names of the tests that depend on the project: never part of an engine pass
+// report names of the tests that depend on the project: never part of an engine pass. (Listed here, never added where
+// the test runs: a test that runs in a helper process would be known to that helper only, and its failure was called the
+// engine's. Lesson (trial v38): a project's own broken check pattern was reported as an engine failure to send upstream)
+const PROJECT_TESTS = new Set(['requirements-valid: no check pattern lost its backslashes']);
 
 // trigger-recall / trigger-quiet: every message in tools/hooks/trigger-cases.mjs goes through the engine's prompt hints
 // (what --route shows) and, for "CHECK: <tag>", the check's own promptMatches. A near miss ("quiet") that sets off a
@@ -7352,8 +7355,11 @@ if (mineP()) { // check patterns keep their escapes. Lesson: a pattern written t
     const walk = (o, k) => { if (typeof o === 'string') { if (/Matches$|^(cmd|pass|toolRan|pattern)$/.test(k) && /\[sS\]|\[wW\]|\[dD\]|(^|[^\\])\b[bswd]\*/.test(o) && !/\\/.test(o)) bad.push(`${f} ${k}: ${o}`); } else if (o && typeof o === 'object') for (const [kk, v] of Object.entries(o)) walk(v, kk); };
     walk(JSON.parse(fs.readFileSync(path.join(ROOT, f), 'utf8')));
   }
-  PROJECT_TESTS.add('requirements-valid: no check pattern lost its backslashes');
   report(!bad.length, 'requirements-valid: no check pattern lost its backslashes', bad.join(' | '));
+  // (every project test is in PROJECT_TESTS's own list, so the main process knows it whichever process ran it)
+  const src = fs.readFileSync(fileURLToPath(import.meta.url), 'utf8');
+  report(!new RegExp('PROJECT_TESTS\\.add' + '\\(').test(src) && PROJECT_TESTS.has('requirements-valid: no check pattern lost its backslashes'),
+    'selfcheck: a project test is named in PROJECT_TESTS\'s own list, so a failure in a helper process is still the project\'s');
 }
 
 if (mineB()) { // skill-curate: retiring a runbook takes its generated skill, checks and menu code with it; engine skills are refused
