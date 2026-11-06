@@ -539,7 +539,10 @@ export function claimGaps(acts, history = '') {
   const fin = /^\s*(#+\s*|\*\*)Finished\b/im.exec(a), listed = fin ? a.slice(fin.index) : a;
   const paths = [...new Set([...listed.matchAll(/(?:[A-Za-z]:[\\/]|(?<![\w.:/\\-]))((?:[\w.-]+[\\/])+[\w.-]+\.[A-Za-z]{1,5})\b/g)].map(m => m[0].replace(/\\/g, '/')))];
   const missingFiles = paths.filter(p => /^[A-Za-z]:\//.test(p) ? !fs.existsSync(p) : top(p) && !fs.existsSync(path.join(ROOT, p)))
-    .filter(p => !new RegExp(`(delet|remov|retir|renam|moved)\\w*[^.\\n]{0,80}${p.split('/').pop().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}|${p.split('/').pop().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^.\\n]{0,80}(delet|remov|retir|renam|moved|gone)`, 'i').test(a));
+    // (a path given as an example, or one the answer says was filed or taken in elsewhere, is no claim that it exists.
+    // Lesson (trial v40): "for example inbox/W43.csv" and "W42.csv was taken in ... filed as sources/..." were reported)
+    .filter(p => { const n = p.split('/').pop().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), gone = 'delet|remov|retir|renam|moved|filed|archiv|taken in|copied';
+      return !new RegExp(`(${gone})\\w*[^.\\n]{0,80}${n}|${n}[^.\\n]{0,80}(${gone}|gone)|(for example|e\\.g\\.|such as|named like|for instance|would be)[^.\\n]{0,30}${n}`, 'i').test(a); });
   if (missingFiles.length) out.push(`The answer names ${missingFiles.slice(0, 3).join(', ')}, which does not exist: check the path, or correct the answer.`);
   // (a "committed" or "pushed" claim is checked only by the commit it names, above, never by its wording. Lesson (live
   // data and replay): word lists for which sentences claim a commit were wrong more often than right, and each miss

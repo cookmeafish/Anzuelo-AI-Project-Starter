@@ -510,6 +510,10 @@ const madeUp = claimGaps(acts([user('commit it'), code, say('Committed as 9f8e7d
 report(madeUp.length === 2 && /9f8e7d6/.test(madeUp[0]) && /src\/missing\.js/.test(madeUp[1]) && /C:\/nowhere/.test(madeUp[1]), 'end: a commit nothing showed and files that do not exist are named', madeUp);
 report(claimGaps(acts([user('clean up'), code, say('Removed src/old.js, the color is #a1b2c3d, and see other-project/notes/a.md for the record.')])).length === 0,
   'end: a file said to be removed, a colour code and a path in another folder ask for nothing');
+// (Lesson (trial v40): an example name for next week's file and a file the answer says was filed elsewhere were reported)
+report(claimGaps(acts([user('take in the orders'), code, say('Save next week\'s file in src/, for example src/orders-w43.csv. Last week\'s src/orders-w42.csv was taken in during setup and is now filed under src/a.js.')])).length === 0
+  && claimGaps(acts([user('take in the orders'), code, say('The orders are in src/orders-w43.csv.')])).some(s => /orders-w43/.test(s)),
+  'end: a path given as an example, or said to be filed or taken in elsewhere, asks for nothing; a missing path stated as fact still does');
 // (an answer with a Finished section names its files there: a path only mentioned above it, such as an example of a
 // report a later check would write, is not a file it claims. Lesson (trial v34): such an example was reported missing)
 {
