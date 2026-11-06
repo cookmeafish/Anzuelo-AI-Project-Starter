@@ -56,7 +56,8 @@ Efficiency (the user pays for every step and waits through every pause): find st
 Do not modify the project folders. Be concrete and skeptical; don't invent problems either: only report what the evidence shows.
 
 Write your findings as JSON to ${out} in this shape:
-[{"project":"<name>","stopRounds":[<per turn>],"findings":[{"area":"task|answer|claims|hooks|skills|setup|complaint|writing|efficiency","severity":"high|medium|low","what":"...","evidence":"...","starter":"what in the starter (rule, hook, skill) caused or could prevent it, or 'none'"}]}, {...}]
+[{"project":"<name>","stopRounds":[<per turn>],"findings":[{"area":"task|answer|claims|hooks|skills|setup|complaint|writing|efficiency","severity":"high|medium|low","what":"...","evidence":"...","starter":"what in the starter (rule, hook, skill) caused or could prevent it, or 'none'","layer":"engine|skill|none"}]}, {...}]
+"layer": "engine" for the hooks, the reminder before a turn, the end check and the engine's commands and core rules; "skill" for a skill's, pack's or library's own check or script; "none" when nothing in the starter could have prevented it.
 High = the user got a wrong/false/missing result or was misled; medium = a real quality gap the user would notice; low = minor polish. Then reply with a short summary: counts by severity per project and the top 3 problems.`;
 
 const cmd = process.argv[2];

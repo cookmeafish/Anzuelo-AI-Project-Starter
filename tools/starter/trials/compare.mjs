@@ -30,10 +30,23 @@ export const MEDIUM_NOISE = 3, SLOWER = 1.25, BLOCKED_NOISE = 0.15, COSTLIER = 1
 // whole round into the limit unmarked, since run.mjs and this file each kept their own, older list)
 export const LIMIT_ANSWER = /\b(hit your [\w -]{0,24}limit|usage limit (reached|exceeded)|session limit · resets|rate limit reached)\b/i;
 export const isVoid = r => !!r?.void || (r?.turns || []).some(t => LIMIT_ANSWER.test(t.answer || '') && String(t.answer || '').trim().length < 300);
+// Which part of the starter a finding is about: "skill" (a skill's, pack's or library's own check or script), "none"
+// (the agent's own slip) or "engine" (hooks, reminder, end check, engine commands). The judge says so in "layer"; older
+// findings are read from their "starter" text. Lesson (round v38): one high finding in a skill's own check flipped the
+// whole round to WORSE while the engine's numbers improved, so the verdict no longer said whether the engine got better.
+export function layerOf(x) {
+  if (/^(engine|skill|none)$/.test(x?.layer || '')) return x.layer;
+  const s = String(x?.starter ?? 'none');
+  if (!s.trim() || /^\s*(none|n\/a)\b/i.test(s)) return 'none';
+  if (/^\s*tools\//i.test(s)) return 'engine';
+  return /\b(library skill|skills?\/[\w-]+\/scripts|library\/|packs?\/|[\w-]+ (skill|pack)('s)?\b|(skill|pack)'s)/i.test(s) && !/\b(tools\/hooks|hooks\.mjs|end check|stop (hook|check)|reminder|userpromptsubmit|routing)\b/i.test(s) ? 'skill' : 'engine';
+}
 export function projectStats(record, judged) {
   const turns = record?.turns || [];
-  // (efficiency findings are counted on their own: rounds judged before the judges looked for them still compare)
-  const all = judged?.findings || [], f = all.filter(x => x.area !== 'efficiency'), eff = all.filter(x => x.area === 'efficiency');
+  // (efficiency findings are counted on their own: rounds judged before the judges looked for them still compare. So
+  // are a skill's own checks, below)
+  const every = judged?.findings || [], all = every.filter(x => layerOf(x) !== 'skill'), skill = every.filter(x => layerOf(x) === 'skill' && x.area !== 'efficiency');
+  const f = all.filter(x => x.area !== 'efficiency'), eff = every.filter(x => x.area === 'efficiency');
   const n = s => f.filter(x => x.severity === s).length;
   const caused = s => f.filter(x => x.severity === s && !/^\s*(none|n\/a)?\s*$/i.test(String(x.starter ?? 'none'))).length;
   const stops = (judged?.stopRounds || []).reduce((a, b) => a + (Number(b) || 0), 0);
@@ -48,6 +61,7 @@ export function projectStats(record, judged) {
     hookChars: over('hookChars'), denials: over('denials'), stopBlocks: over('stopBlocks'),
     effHigh: eff.filter(x => x.severity === 'high').length, effMedium: eff.filter(x => x.severity === 'medium').length,
     high: n('high'), medium: n('medium'), low: n('low'), starterHigh: caused('high'), starterMedium: caused('medium'),
+    skillHigh: skill.filter(x => x.severity === 'high').length, skillMedium: skill.filter(x => x.severity === 'medium').length,
     turns: turns.length, stops, blocked: turns.filter(t => (t.blockTags || []).length).length, setupMin: turns[0]?.min ?? null, errors: turns.filter(t => t.error).length,
   };
 }
@@ -64,6 +78,8 @@ export function totals(projects, ids) {
     // (repeated work: a step done again with nothing changed since, see repeats.mjs; rounds recorded before it have none)
     repeatsPerTurn: (r => r.length ? r2(r.reduce((a, p) => a + p.repeats, 0) / r.reduce((a, p) => a + p.turns, 0)) : null)(ps.filter(p => typeof p.repeats === 'number')),
     projects: ps.length, high: sum('high'), medium: sum('medium'), low: sum('low'), starterHigh: sum('starterHigh'), starterMedium: sum('starterMedium'),
+    // (null for rounds recorded before the split: their skill findings are in high and medium)
+    skillHigh: ps.every(p => typeof p.skillHigh === 'number') ? sum('skillHigh') : null, skillMedium: ps.every(p => typeof p.skillMedium === 'number') ? sum('skillMedium') : null,
     errors: sum('errors'), blockedShare: turns ? Math.round(sum('blocked') / turns * 100) / 100 : 0, setupMedian: (x => x == null ? null : Math.round(x * 10) / 10)(median(ps.map(p => p.setupMin))) };
 }
 // What makes "now" worse than "then" (both totals over the same projects)
@@ -110,7 +126,11 @@ export function verdict(round, history) {
   const p = withPrev.length ? { now: totals(round.projects, withPrev), then: totals(prev.projects, withPrev) } : null;
   const worse = [...(b ? worseThan(b.now, b.then, 'the baseline') : []), ...(p ? worseThan(p.now, p.then, prev.round) : [])];
   const better = [...(b ? betterThan(b.now, b.then).map(s => `vs baseline: ${s}`) : []), ...(p ? betterThan(p.now, p.then).map(s => `vs ${prev.round}: ${s}`) : [])];
-  return { now, base: b, prev: p && { round: prev.round, ...p }, baseFrom, worse, better, ok: !worse.length, first: !b && !p };
+  // the skills' own checks get their own verdict, against the previous round that recorded them apart
+  const sk = (n, t) => n.skillHigh != null && t.skillHigh != null;
+  const skillWorse = p && sk(p.now, p.then) ? [...(p.now.skillHigh > p.then.skillHigh ? [`${p.now.skillHigh} high, ${prev.round} had ${p.then.skillHigh}`] : []),
+    ...(p.now.skillMedium > p.then.skillMedium + MEDIUM_NOISE ? [`${p.now.skillMedium} medium, ${prev.round} had ${p.then.skillMedium}`] : [])] : null;
+  return { now, base: b, prev: p && { round: prev.round, ...p }, baseFrom, worse, better, ok: !worse.length, first: !b && !p, skillWorse };
 }
 
 const readJSON = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
@@ -148,8 +168,10 @@ if (fileURLToPath(import.meta.url) === path.resolve(process.argv[1] || '')) {
   if (v.better.length) console.log(`better: ${v.better.join('; ')}`);
   console.log(v.first ? 'VERDICT: FIRST ROUND (nothing to compare with yet; it becomes the baseline)'
     : v.ok ? 'VERDICT: NOT WORSE' : `VERDICT: WORSE - ${v.worse.join('; ')}`);
+  console.log(`SKILLS (their own checks and scripts, not in the verdict above): ${v.now.skillHigh ?? 0} high, ${v.now.skillMedium ?? 0} medium${v.skillWorse == null ? ' (no earlier round counted them apart)' : v.skillWorse.length ? `: WORSE - ${v.skillWorse.join('; ')}` : ': NOT WORSE'}`);
   if (process.argv.includes('--record')) {
     round.verdict = v.first ? 'first' : v.ok ? 'not worse' : 'worse';
+    if (v.skillWorse) round.skillVerdict = v.skillWorse.length ? 'worse' : 'not worse';
     round.totals = v.now;
     history.rounds = [...(history.rounds || []).filter(r => r.round !== name), round];
     const note = 'Written by tools/starter/trials/compare.mjs --record: each judged trial round of the improvement loop (tools/starter/runbooks/improvement-loop.md). Each project\'s first round is its baseline.';

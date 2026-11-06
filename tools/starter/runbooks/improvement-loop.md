@@ -47,7 +47,11 @@ in the next frozen batch, not one upgrade per fix.
    1.25x slower; more failed or timed-out turns; a share of Stop-blocked turns 15 points higher. And, for efficiency
    (the user pays for every step and waits through every pause): cost per work turn or median setup cost more than
    1.3x; more than 0.25 more denied tool calls per turn (each one a full extra round); more than 1.2x the hook text
-   per turn. The judges also report waste with no benefit as area "efficiency", counted on its own.
+   per turn. The judges also report waste with no benefit as area "efficiency", counted on its own. Findings in a
+   skill's, pack's or library's own check or script (the judge's "layer": "skill") are left out of the verdict and get
+   their own SKILLS line and verdict, so one skill's check never decides whether the engine got better (2026-11-06:
+   one such high made a round WORSE while the engine's numbers improved). The user's summary gives the engine verdict
+   and one line counting the skills' findings.
 5. **Feedback to fixes.** Read every high and medium finding (and lows that repeat across projects). For each one the
    starter caused or could prevent: confirm it in the transcript first, fix the cause in the engine (not the
    symptom), add a self-test that fails without the fix, and add a line to `tools/starter/STARTER-CHANGELOG.md`.

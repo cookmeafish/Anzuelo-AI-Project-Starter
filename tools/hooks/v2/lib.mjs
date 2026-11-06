@@ -60,6 +60,7 @@ export function runbooks() {
 // The runbook whose trigger phrase matches the request best: a phrase that opens the request wins, then the longest
 // whole-phrase match. (Lesson (live v2): a request that opened with its job's name went to another runbook because a
 // longer phrase of a sub-step appeared later in it)
+const STANDING = /(?:^|[.!?;]\s+)(?:every|each|all|no) (?:new |single )?[\p{L}-]+ (?:links?|has|have|gets?|goes|go|must|should|needs?|stays?|uses?|keeps?|ends?|starts?|names?|includes?|is always|are always|is never|are never)\b/iu;
 export function route(prompt, books = runbooks()) {
   // (a menu code at the start, "B4 <args>", names its runbook outright)
   const code = /^\s*([A-Za-z]\d{1,2})(?=\s|$)/.exec(String(prompt))?.[1]?.toUpperCase();
@@ -83,7 +84,11 @@ export function route(prompt, books = runbooks()) {
   // (a Spanish request with no trigger of its own routes like its English wording. Lesson (trial v37): Spanish requests
   // got no runbook under v2, while v1's router translated "agrega una página de índice" to "add a page, index page")
   const best = match(prompt) || (isSpanish(prompt) ? match(routeEnglish(prompt)) : null);
-  return best && { ...best.book, matched: best.phrase };
+  if (best) return { ...best.book, matched: best.phrase };
+  // (a standing rule stated plainly, "every new note links to ...", is a rule request like "from now on". Lesson (trial
+  // v38): it named no runbook, and the rule went into a memory note with no check)
+  const proj = books.find(b => b.file === 'docs/playbooks/project.md');
+  return proj && STANDING.test(String(prompt)) ? { ...proj, matched: 'standing rule' } : null;
 }
 // Spanish: the common short words outnumber the English ones (as the old engine tells them apart).
 const ES_WORDS = /(?<![\p{L}])(el|la|los|las|de|del|en|un|y|es|se|al|lo|que|para|con|por|una|est[aá]|esta|este|mi|tu|todo|pero|como|tiene|quiero|hay|desde|sobre|cada|otra|vez)(?![\p{L}])/giu;

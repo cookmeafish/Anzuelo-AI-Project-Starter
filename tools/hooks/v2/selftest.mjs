@@ -67,6 +67,10 @@ report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/
   report(route(msg, books)?.name === 'engine', 'start: an engine upgrade message goes to the engine runbook, not to a runbook named by words in its list of fixes', route(msg, books)?.name);
   put('.starter-template', ''); const inStarter = route(msg, books)?.name; fs.rmSync(path.join(dir, '.starter-template'));
   report(inStarter === 'project', 'start: in the starter itself an upgrade message is a report back and routes on its other words', inStarter);
+  // (a standing rule stated plainly is a rule request; a plain request that only mentions "every" is not)
+  const rule = route('you made a new invoice without a due date. every new invoice has a due date', books)?.name, each = route('Each order must name its customer.', books)?.name;
+  const plain = route('can you check every invoice for typos', books), q = route('does every invoice have a date?', books);
+  report(rule === 'project' && each === 'project' && !plain && !q, 'start: a standing rule stated plainly ("every new invoice has ...") routes to the project runbook; a request or question about every item does not', { rule, each, plain: plain?.name, q: q?.name });
 }
 {
   const { onPrompt } = await import('./start.mjs');
@@ -157,8 +161,9 @@ report(/pick the runbook in DIRECTORY\.md/.test(reminder('the totals look off on
 const { upset } = await import('./start.mjs');
 report(/learn-from-upset/.test(reminder('WHY DID YOU BREAK THE EXPORT AGAIN').text) && /learn-from-upset/.test(reminder('ugh, you forgot the totals row').text)
   && upset('the export still has issues because ur not following the format') && upset('i dont think you understand the totals')
-  && !upset('still working?') && !upset('why do you think the export is slow?') && !upset('B2 CSV export --path out/orders') && !upset('add a CSV export'),
-  'start: an upset message (capitals or frustration words) goes to the learn-from-upset skill; plain questions and codes do not');
+  && !upset('still working?') && !upset('why do you think the export is slow?') && !upset('B2 CSV export --path out/orders') && !upset('add a CSV export')
+  && upset('you made a new invoice without linking it to the order') && !upset('can you make the export work without the header row?'),
+  'start: an upset message (capitals, frustration words, or "you made X without Y") goes to the learn-from-upset skill; plain questions and codes do not');
 { // a message relayed from another session gets its runbook only for when it asks for work
   const relay = reminder('Another Claude session sent a message:\n<cross-session-message from="x">The fix to export the orders landed in 1a2b3c. Nothing to change.</cross-session-message>');
   const asked = reminder('can you export the orders for this week');

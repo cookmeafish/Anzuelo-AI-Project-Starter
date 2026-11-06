@@ -6961,6 +6961,13 @@ if (mineB() && fs.existsSync(path.join(ROOT, 'tools/starter/trials/compare.mjs')
   const denied = c.verdict({ round: 'e2', projects: { a: E(8, 2, 4000), b: E(8, 2, 4000) } }, eh);
   const wordy = c.verdict({ round: 'e2', projects: { a: E(8, 1, 6000), b: E(8, 1, 6000) } }, eh);
   const effFind = c.projectStats(rec(20, 1), { findings: [{ severity: 'medium', area: 'efficiency', starter: 'a hook' }, { severity: 'medium', area: 'task', starter: 'none' }] });
+  // (a skill's own check gets its own count and verdict: one high there does not make the engine's round WORSE.
+  // Lesson (round v38): it did, while the engine's numbers improved)
+  const S = (h, layer) => c.projectStats(rec(19, 2), { findings: [...Array(h).fill({ severity: 'high', starter: 'library skill letters: its draft check', ...(layer ? { layer } : {}) }), ...Array(3).fill({ severity: 'medium', starter: 'none' })] });
+  const skillHist = { rounds: [{ round: 's1', projects: { a: S(0) } }] };
+  const skillRound = c.verdict({ round: 's2', projects: { a: S(1) } }, skillHist), engRound = c.verdict({ round: 's2', projects: { a: S(1, 'engine') } }, skillHist);
+  report(skillRound.ok && skillRound.now.skillHigh === 1 && skillRound.skillWorse?.length === 1 && !engRound.ok && c.layerOf({ starter: 'tools/hooks/hooks.mjs prove' }) === 'engine' && c.layerOf({ starter: 'none (the agent)' }) === 'none',
+    'improvement-loop: a high finding in a skill\'s own check is counted and judged apart; the engine\'s verdict stays NOT WORSE, and the same finding in the engine makes it WORSE', JSON.stringify({ skill: skillRound.worse, skillWorse: skillRound.skillWorse, eng: engRound.worse }));
   report(same.ok && !same.first && !high.ok && /high findings/.test(high.worse.join()) && !slow.ok && /setup median/.test(slow.worse.join())
     && !blocky.ok && /blocked at Stop/.test(blocky.worse.join()) && !failed.ok && /failed or timed-out/.test(failed.worse.join())
     && newProj.ok && newProj.base.now.projects === 1 && first.first

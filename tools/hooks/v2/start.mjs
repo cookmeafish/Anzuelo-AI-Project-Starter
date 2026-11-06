@@ -8,6 +8,8 @@ export const MAX_LINES = 10;
 // (an upset message: mostly capitals, or the usual frustration words. Lesson (routing sample): complaints used no
 // trigger phrase, so they reached no runbook)
 export const upset = p => { const s = String(p), letters = s.replace(/[^A-Za-z]/g, ''); return (letters.length >= 12 && letters.replace(/[^A-Z]/g, '').length / letters.length > 0.6)
+  // (a complaint about what was done: "you made a new note without linking it". Lesson (trial v38): it got no notice)
+  || /\byou (made|wrote|added|created|built|saved|left|put|did)\b[^.?!]{0,80}\bwithout\b/i.test(s)
   || /\b(wtf|ugh|again\?!|why (did|would) you|you (forgot|missed|ignored|broke)|i (already )?told you|not what i asked|frustrat\w*|annoy\w*|(you|u|you're|ur|youre) (are )?not (following|listening)|i don'?t think you (understand|get it)|(is )?still (broken|wrong))\b/i.test(s)
   // (the Spanish forms. Lesson (trial v37): "otra vez pusiste texto en inglés" got no upset notice under v2)
   || /(?<!\p{L})(otra vez|de nuevo) (pusiste|hiciste|olvidaste|dejaste|metiste|usaste|escribiste|rompiste)|(?<!\p{L})(te (lo )?dije|(se te )?olvid(aste|ó)|por qu[eé] (lo )?hiciste|no me (escuchas|haces caso)|sigue (roto|mal|fallando))(?!\p{L})/iu.test(s); };
