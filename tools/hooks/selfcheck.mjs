@@ -8758,13 +8758,17 @@ if (!TAGS && !HELPER && !REUSE) {
     report(!!v && v.ok, `stop-budget: the Stop hook stays within its ${budget} ms budget on a realistic work turn`, v ? `${v.total} ms, over budget; slowest: ${v.slow.join(', ')}` : 'no STOP-TIMING line from the hook (STARTER_TIMING=1)');
     // (the engine a project runs by default is v2, and this suite pins v1 for its own tests: v2's Stop is timed too,
     // on the same turn, whole process included. Lesson (a field report): the timing line showed only v1's Stop)
-    const v2ms = [];
+    const v2ms = [], v2err = [];
     for (let i = 0; i < 5; i++) {
       const t0 = Date.now();
-      spawnSync(process.execPath, [path.join(dir, 'tools/hooks/hooks.mjs'), 'stop'], { cwd: dir, encoding: 'utf8', input: JSON.stringify({ transcript_path: tp, session_id: 'timing' }),
+      const r = spawnSync(process.execPath, [path.join(dir, 'tools/hooks/hooks.mjs'), 'stop'], { cwd: dir, encoding: 'utf8', input: JSON.stringify({ transcript_path: tp, session_id: 'timing' }),
         env: { ...process.env, STARTER_ENGINE: 'v2', STARTER_MEMORY_DIR: path.join(dir, '.memtest') } });
       v2ms.push(Date.now() - t0);
+      if (/\[hooks v2 \w+\] error/.test(r.stderr || '')) v2err.push(r.stderr.trim().split('\n')[0]);
     }
+    // (a v2 hook that fails to load is timed as fast and passes the budget. Lesson (two projects): upgrades left out
+    // tools/hooks/v2, the timing showed 67 ms, and the projects ran with no reminder and no end check)
+    report(!v2err.length, "engine v2's Stop hook loads and runs without an error", v2err[0] || '');
     const v2best = Math.min(...v2ms);
     console.log(`stop timing (engine v2, the default): ${v2best} ms (fastest of 5: ${v2ms.join(', ')}; budget ${budget} ms)`);
     report(v2best <= budget || others > 0, `stop-budget: engine v2's Stop hook stays within its ${budget} ms budget on a realistic work turn`, `${v2best} ms`);

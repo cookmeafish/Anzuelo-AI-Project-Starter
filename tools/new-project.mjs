@@ -36,7 +36,11 @@ const ENGINE = [
   'tools/hooks/engine-checks.json', 'tools/hooks/engine-checks-history.json',
   // the starter's proof that its full self-test passed on this engine: a project with the same engine reuses it
   // (selftest-cache.mjs PROOF_FILE). Lesson: each new project's setup ran the whole engine suite again first.
-  'tools/hooks/engine-proof.json'
+  'tools/hooks/engine-proof.json',
+  // engine v2, every file of its folder (hooks.mjs imports them for the prompt and Stop hooks). Lesson (two projects):
+  // the list named none of them, so after v2 became the default every upgraded project's prompt and Stop hooks failed
+  // to load it, and the error went only to the transcript: no reminder and no end check, for days
+  ...fs.readdirSync(path.join(STARTER, 'tools/hooks/v2')).filter(f => f.endsWith('.mjs')).map(f => `tools/hooks/v2/${f}`)
 ];
 // The engine's own runbooks (hooks.mjs CORE_RUNBOOKS: project, plan, status-lines, trigger-words, engine; and _fallback, _TEMPLATE) are engine like the core
 // skills: replaced on upgrade, keeping the project's added triggers, its "## Project lessons" section and its

@@ -178,6 +178,8 @@ for (const [name, s] of Object.entries(SAMPLES)) {
     fs.writeFileSync(dp, fs.readFileSync(dp, 'utf8').replace(/^- Involvement:.*\n/m, ''));
     fs.writeFileSync(hp, fs.readFileSync(hp, 'utf8').replace("export const INTERVIEW = ['Involvement', ", 'export const INTERVIEW = ['));
   }
+  // a project made before engine v2 has no tools/hooks/v2 folder
+  fs.rmSync(path.join(dir, 'tools/hooks/v2'), { recursive: true, force: true });
   const mine = snapshot(dir);
   // the dry run's summary names the refreshed checks and their file, never a "(root)" file. Lesson (two field reports):
   // a refreshed check showed as "(root) 1", which reads as a file outside tools/, a reason to stop the upgrade
@@ -198,6 +200,15 @@ for (const [name, s] of Object.entries(SAMPLES)) {
   check(name, 'an upgrade keeps a section the project added to an engine runbook, under its Project lessons, and lists it in the review',
     /^## Project lessons[\s\S]*^### §11b Performance\n- Time the build after every change\./m.test(fs.readFileSync(pmPath, 'utf8')) && /- sections: docs\/playbooks\/project\.md is an engine file, so the section "§11b Performance"/.test(review), review.slice(-400));
   check(name, 'an upgrade runs without an error', u1.status === 0, (u1.stderr || u1.stdout).slice(-400));
+  // (Lesson (two projects): upgrades never installed engine v2's folder, so after v2 became the default their prompt
+  // and Stop hooks failed to load it and ran nothing)
+  {
+    const v2files = fs.readdirSync(path.join(STARTER, 'tools/hooks/v2')).filter(f => f.endsWith('.mjs'));
+    const missing = v2files.filter(f => !fs.existsSync(path.join(dir, 'tools/hooks/v2', f)));
+    const p = spawnSync(process.execPath, [path.join(dir, 'tools/hooks/hooks.mjs'), 'prompt'], { cwd: dir, encoding: 'utf8', input: JSON.stringify({ prompt: 'add a recipe card', session_id: 'trial-v2-load' }), env: { ...process.env, STARTER_ENGINE: 'v2' } });
+    check(name, 'an upgrade installs engine v2 in a project made before it, and its prompt hook loads',
+      !missing.length && !/\[hooks v2 \w+\] error/.test(p.stderr || ''), missing.length ? `missing: ${missing.join(', ')}` : (p.stderr || '').slice(0, 300));
+  }
   check(name, "an upgrade keeps a check marker the project put on an engine runbook's Done-when item",
     /Rule requests: every file was searched[^\n]*\(answer: \\d\+ hits\?\)/.test(fs.readFileSync(pmPath, 'utf8')), (/Rule requests: every file was searched[^\n]*/.exec(fs.readFileSync(pmPath, 'utf8')) || [''])[0].slice(-160));
   const pmNew = fs.readFileSync(pmPath, 'utf8'), dw = (/^## Done when[^\n]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(pmNew)?.[1] || '').split('\n').filter(l => /^\s*- \[[ x]\]/.test(l));
