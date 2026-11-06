@@ -258,6 +258,9 @@ report(earlier.some(s => /item 1/.test(s)) && earlier.some(s => /Open/.test(s)),
 report(missing({ runbook: null }, acts([user('fix it'), edit, say('Fixed.')])).length === 0, 'end: a turn no runbook fit, and that opened none, is not held to one');
 const chose = missing({ runbook: null }, acts([user('fix the orders file'), read, edit, say('Fixed.')]));
 report(chose.some(s => /export\.md item 1/.test(s)) && !chose.some(s => /^Open/.test(s)), 'end: with none routed, the runbook the agent opened is the one the turn is held to', chose);
+// (a runbook the turn wrote and read back is its work, not the procedure it chose. Lesson (trial v43))
+const wrote = missing({ runbook: null }, acts([user('set up the project'), call('Write', { file_path: path.join(dir, 'docs/playbooks/export.md'), content: 'x' }), read, edit, say('Set up.')]));
+report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and then read is not the one the turn is held to', wrote);
 { // (a skill the runbook hands the case to counts as opening it; any other skill does not. Lesson (trial v42))
   // (the sample skill's path is built here, so the reference sweep does not read it as a real reference)
   const sample = ['skills', 'ledger-rule', 'SKILL.md'].join('/');

@@ -4,9 +4,13 @@ import { runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, s
 
 // Check 1: the routed runbook was followed, and its checkable "Done when" items were met. With none routed, the
 // runbook the agent chose and opened is the one it is held to (the runbook itself, not a skill it names: reading the
-// debug skill does not make a turn a debug runbook turn. Lesson (replay): it added a block).
+// debug skill does not make a turn a debug runbook turn. Lesson (replay): it added a block). A runbook the turn wrote
+// or edited is its work, not the procedure it chose. Lesson (trial v43): a setup that wrote the vault-tidy runbook and
+// read it back was held to that runbook's items.
+const authored = (b, acts) => acts.calls.some(c => /^(Edit|Write|MultiEdit)$/.test(c.name) && String(c.input.file_path || '').replace(/\\/g, '/').endsWith(b.file));
+const chosen = (turn, acts, books) => (turn.runbook && books.find(b => b.file === turn.runbook)) || books.find(b => opened({ ...b, skills: [] }, acts) && !authored(b, acts));
 export function missing(turn, acts, books = runbooks()) {
-  const book = (turn.runbook && books.find(b => b.file === turn.runbook)) || books.find(b => opened({ ...b, skills: [] }, acts));
+  const book = chosen(turn, acts, books);
   if (!book || !worked(acts)) return [];
   const out = [];
   if (!opened(book, acts)) out.push(`Open ${book.file} and check the work against its steps.`);
@@ -18,7 +22,7 @@ export function missing(turn, acts, books = runbooks()) {
 // the end, in the same single block, so the whole list gets done, not only its checkable part. Lesson (the user,
 // 2026-11-05): the hook before reminds, the hook after has the agent verify that everything on the runbook was done.
 export function toVerify(turn, acts, books = runbooks()) {
-  const book = (turn.runbook && books.find(b => b.file === turn.runbook)) || books.find(b => opened({ ...b, skills: [] }, acts));
+  const book = chosen(turn, acts, books);
   if (!book || !worked(acts)) return null;
   const items = book.items.filter(it => applies(it, acts) && met(it, acts) === null);
   return items.length ? { file: book.file, items } : null;

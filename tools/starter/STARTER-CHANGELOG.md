@@ -6,6 +6,8 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-06 (engine): when no runbook was routed, the end check no longer holds a turn to a runbook that the same turn wrote or edited and then read back. That runbook is the turn's work, not the procedure it chose. Replay: 82 to 77 blocks in one real project, 11 to 11 in the other. Test: "end: with none routed, a runbook the turn wrote and then read is not the one the turn is held to".
+
 - 2026-11-06 (engine): fixes from trial round v38. Each one has a test that fails without it.
   - The letter draft check no longer fails a phrase the correspondence skill says to keep, such as a plain good wish. Test: "correspondence draft check: ... or with a good wish the skill says to keep, passes".
   - The vault link check fails a new note that links to no note, and the notes-vault skill no longer names a check that does not exist. Test: "vault backlinks: ... a new note that links to no note fails".
