@@ -225,6 +225,19 @@ export function callerTranscript(main, sid) {
   let best = null; try { for (const f of fs.readdirSync(dir).filter(f => /^agent-[\w-]+\.jsonl$/.test(f))) { const t = mt(path.join(dir, f)); if (!best || t > best.t) best = { f, t }; } } catch { }
   return best && best.t > mt(main) ? { file: path.join(dir, best.f), id: best.f.replace(/^agent-|\.jsonl$/g, '').slice(0, 40) } : { file: main, id: '' };
 }
+// The commands this session's helpers ran since the turn began (their transcripts sit in <session>/subagents), so a
+// test run, build or screenshot a helper made counts for the session's turn. Commands only: what the helper edited is
+// seen by its files' times. Lesson (trial v40): setup run in a helper as the engine says, then the end check asked
+// the session for the tests, build and screenshots the helper had already run.
+export function helperRuns(main, sid, since) {
+  const t = Date.parse(since || ''), dir = path.join(path.dirname(main), sid, 'subagents');
+  if (!t || path.basename(main, '.jsonl') !== sid) return [];
+  let fs_ = []; try { fs_ = fs.readdirSync(dir).filter(f => /^agent-[\w-]+\.jsonl$/.test(f) && fs.statSync(path.join(dir, f)).mtimeMs >= t); } catch { return []; }
+  return fs_.flatMap(f => {
+    const rows = codexRows(tail(path.join(dir, f)).split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean)).filter(r => (Date.parse(r.timestamp || '') || 0) >= t);
+    return turnActs(rows).calls.filter(c => /^(Bash|PowerShell)$/.test(c.name));
+  });
+}
 // Helper agents started in the background that have not reported back: a launch whose result says so, until a task
 // notice or the helper's hand-back names its id. Lesson (trial v33): the end check judged a turn while its reviewer
 // was still working, and the agent answered with filler about unfinished work.

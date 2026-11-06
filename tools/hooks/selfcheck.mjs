@@ -6726,9 +6726,17 @@ if (mineB() && !libMissing('notes-vault/scripts/vault.mjs')) { // vault backlink
     // new note with no links passed, and the user was told the check would catch exactly that)
     w('Tea/Cups.md', '# Cups\nThin ones.\n');
     const lone = spawnSync(process.execPath, [path.join(ROOT, 'library/skills/notes-vault/scripts/vault.mjs'), 'backlinks', 'Tea/Cups.md', '--root', dir], { encoding: 'utf8' });
+    // (a note named without its folder is found, a name that is no note fails, and a real file outside the note folders
+    // is still skipped. Lesson (trial v40): note names passed as "No notes to check ... PASS")
+    const vb = (...a) => spawnSync(process.execPath, [path.join(ROOT, 'library/skills/notes-vault/scripts/vault.mjs'), 'backlinks', ...a, '--root', dir], { encoding: 'utf8' });
+    w('README.md', '# Readme\n');
+    const byName = vb('Cups'), noSuch = vb('Teapot'), outside = vb('README.md');
     report(/No new links in 1 note\(s\) since the last commit, so none were checked\. Older links were not checked\.\nRESULT: PASS/.test(none) && /1 new link\(s\) in 1 note\(s\) checked: each links back\. Older links were not checked\.\nRESULT: PASS/.test(one)
-      && lone.status === 1 && /Tea\/Cups\.md is new and links to no note[\s\S]*RESULT: FAIL/.test(lone.stdout),
-      'vault backlinks: the PASS line says how many new links it checked, and that older links were not; a new note that links to no note fails', [none, one, lone.stdout].join(' | ').slice(0, 500));
+      && lone.status === 1 && /Tea\/Cups\.md is new and links to no note[\s\S]*RESULT: FAIL/.test(lone.stdout)
+      && byName.status === 1 && /Tea\/Cups\.md is new and links to no note/.test(byName.stdout)
+      && noSuch.status === 1 && /Teapot: no such note[\s\S]*RESULT: FAIL/.test(noSuch.stdout)
+      && outside.status === 0 && /No notes to check/.test(outside.stdout),
+      'vault backlinks: the PASS line says how many new links it checked, and that older links were not; a new note that links to no note fails; a note given by its name alone is checked, and a name that is no note fails', [none, one, lone.stdout, byName.stdout, noSuch.stdout, outside.stdout].join(' | ').slice(0, 700));
   } finally { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
 }
 

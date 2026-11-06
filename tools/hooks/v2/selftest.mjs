@@ -101,6 +101,21 @@ report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/
   put('docs/CHANGELOG.md', '- export: tidied\n');
   const b1 = onStop({ session_id: 'latestart', transcript_path: late }), b2 = onStop({ session_id: 'latestart', transcript_path: late });
   report(!!b1 && !/item 2/.test(b1.reason) && b2 === null, 'end: a turn with no saved start begins at its request, so a file a script wrote counts, and it is blocked once', [b1?.reason?.slice(0, 160), b2?.reason?.slice(0, 80)]);
+  { // (a test run made by one of the session's helpers this turn counts; one from before the turn does not)
+    const { saveTurn: sv } = await import('./lib.mjs');
+    put('package.json', JSON.stringify({ scripts: { test: 'node --test tests/*.test.mjs' } }));
+    const tdir = fs.mkdtempSync(path.join(dir, 'hr-')), sub = path.join(tdir, 'hrun', 'subagents'), main = path.join(tdir, 'hrun.jsonl');
+    fs.mkdirSync(sub, { recursive: true });
+    const lines = rows => rows.flat().map(r => JSON.stringify(r)).join('\n') + '\n';
+    const mainRows = [at(10, user('tidy the invoice totals')), at(11, call('Edit', { file_path: path.join(dir, 'src/a.js'), old_string: 'a', new_string: 'b' })),
+      at(12, call('Agent', { description: 'tests', prompt: 'run the tests' }, 'The tests pass.')), at(14, say('Tidied; the helper ran the tests.'))];
+    const ask = s => { sv('hrun', { at: T(10), runbook: null }); fs.writeFileSync(path.join(sub, 'agent-h1.jsonl'), lines([at(s, call('Bash', { command: 'npm test' }, 'Tests: 3 passed'))])); fs.writeFileSync(main, lines(mainRows));
+      return onStop({ session_id: 'hrun', transcript_path: main })?.reason || ''; };
+    const helped = ask(13), stale = ask(5);
+    report(!/Run the tests after the last code change/.test(helped) && /Run the tests after the last code change/.test(stale),
+      'end: a test run a helper made after the last change, in this turn, counts for the session; one from before the turn does not', [helped.slice(0, 160), stale.slice(0, 160)]);
+    fs.rmSync(path.join(dir, 'package.json'));
+  }
   // (a helper started this turn that has not reported back: no check yet, and the turn stays open for the next Stop)
   {
     const { saveTurn: sv, loadTurn: ld } = await import('./lib.mjs');

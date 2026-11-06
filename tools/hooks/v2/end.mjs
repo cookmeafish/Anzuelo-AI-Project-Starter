@@ -1,6 +1,6 @@
 // Engine v2 end hook (Stop): the one check. It judges only what this session did in this turn, from its own
 // transcript, and blocks at most once with a short plain list of what is really missing.
-import { runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, tail, helpersRunning, evidenceOf } from './lib.mjs';
+import { runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, tail, helpersRunning, helperRuns, evidenceOf } from './lib.mjs';
 
 // Check 1: the routed runbook was followed, and its checkable "Done when" items were met. With none routed, the
 // runbook the agent chose and opened is the one it is held to.
@@ -41,7 +41,10 @@ function judge(data, { shadow = false } = {}) {
   const saved = loadTurn(data.session_id), rows = turnRows(data.transcript_path || '', saved.at);
   if (helpersRunning(rows).length) { waiting = true; return null; }
   const found = turnActs(rows);
-  const turn = { ...saved, at: saved.at || found.started || '' }, acts = { ...found, at: turn.at };
+  const turn = { ...saved, at: saved.at || found.started || '' };
+  // (a helper's commands count too, in time order. Lesson (trial v40): tests a setup helper ran were asked for again)
+  const runs = helperRuns(data.transcript_path || '', data.session_id || '', turn.at);
+  const acts = { ...found, at: turn.at, calls: runs.length ? [...found.calls, ...runs].sort((a, b) => (a.at || 0) - (b.at || 0)) : found.calls };
   // (and per request: a turn that goes on after its block and stops again, with no new request, is not blocked again.
   // Lesson (trial): one request got the same list 3 times, each stop after a continuation the host did not mark)
   if (turn.at && turn.blocked === turn.at) return null;
