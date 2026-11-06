@@ -435,21 +435,9 @@ export function claimGaps(acts, history = '') {
   const missingFiles = paths.filter(p => /^[A-Za-z]:\//.test(p) ? !fs.existsSync(p) : top(p) && !fs.existsSync(path.join(ROOT, p)))
     .filter(p => !new RegExp(`(delet|remov|retir|renam|moved)\\w*[^.\\n]{0,80}${p.split('/').pop().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}|${p.split('/').pop().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^.\\n]{0,80}(delet|remov|retir|renam|moved|gone)`, 'i').test(a));
   if (missingFiles.length) out.push(`The answer names ${missingFiles.slice(0, 3).join(', ')}, which does not exist: check the path, or correct the answer.`);
-  // (it says, as done, that it committed or pushed the work, and no command this turn did or showed it. Only the
-  // first-person "done" forms: "will get committed", "pushed it further" or a game's "they committed" are not claims.
-  // Lesson (replay): a plain word match was wrong 6 times in 8. A condition ("until it is committed", "if it is
-  // committed") is no claim either. Lesson (live): a one-line "still running" answer was held for it)
-  for (const [word, rx] of [['committed', /\bgit\b[^|;&\n]*\bcommit\b|\[[\w./-]+ [0-9a-f]{7,}\]|\bcommitted\b/i], ['pushed', /\bgit\b[^|;&\n]*\bpush\b|\bTo (https?:|git@|[\w.-]+:)|\b[0-9a-f]{7,}\.\.[0-9a-f]{7,}\b/i]]) {
-    const claim = new RegExp(`\\b(I(?:'ve| have)?|it(?:'s| is)|(?:is|are|was|were|all|work|changes?) (?:now )?|and )\\s*(?:\\w+ )?${word}\\b(?! (earlier|before|last|in an earlier|yesterday|by))|^\\W*${word}\\b`, 'im');
-    if (!claim.test(a) || new RegExp(`\\b(not|never|nothing|no)\\b[^.\\n]{0,20}\\b${word}\\b|n't\\b[^.\\n]{0,20}\\b${word}\\b|\\b(will|to be|can be|get|gets|once)\\b[^.\\n]{0,15}\\b${word}\\b|\\b(until|unless|if)\\b[^.\\n]{0,40}\\b${word}\\b`, 'i').test(a)) continue;
-    // (also backed: a real commit the answer names, or, for "committed", any commit made here since the turn began, by
-    // a helper or a script included)
-    const since = acts.at || acts.started;
-    const backed = acts.calls.some(c => /^(Bash|PowerShell)$/.test(c.name) && !c.error && (rx.test(String(c.input.command || '')) || rx.test(c.out || '')))
-      || hashes.some(h => !unknown.includes(h))
-      || (word === 'committed' && !!since && !!String(spawnSync('git', ['log', `--after=${since}`, '--format=%h', '-1'], { cwd: ROOT, encoding: 'utf8', timeout: 5000 }).stdout || '').trim());
-    if (!backed) out.push(`The answer says it ${word}, but no command in this turn ${word === 'committed' ? 'committed' : 'pushed'}: check it, or correct the answer.`);
-  }
+  // (a "committed" or "pushed" claim is checked only by the commit it names, above, never by its wording. Lesson (live
+  // data and replay): word lists for which sentences claim a commit were wrong more often than right, and each miss
+  // grew the list)
   return out;
 }
 
