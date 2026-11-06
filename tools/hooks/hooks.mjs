@@ -5910,6 +5910,22 @@ export const CHECK_RUN = /\b(pytest|unittest|npm (run )?test|npx (jest|vitest|pl
 // (v2/lib.mjs backgroundRuns), not from what the commands say.
 let V2_RUNS = null;
 export const engineOf = () => envOf('ENGINE') || config().engine;
+// The engine runs in a project: its own prompt and Stop hooks, on a sample request, with the engine its config picks.
+// Returns the errors seen (none when it runs). The probe's session leaves no state behind. Lesson (two projects): an
+// upgrade reported success and a full self-test passed while the default engine could not load there.
+export const probeEngine = dir => {
+  const sid = `upgradeprobe${process.pid}`, env = { ...process.env };
+  for (const k of Object.keys(env)) if (/^(STARTER|ANZUELO)_ENGINE$|^ANZUELO_ROOT$/.test(k)) delete env[k];
+  const errs = [];
+  for (const cmd of ['prompt', 'stop']) {
+    const r = spawnSync(process.execPath, [path.join(dir, 'tools/hooks/hooks.mjs'), cmd], { cwd: dir, encoding: 'utf8', timeout: 60_000, env,
+      input: JSON.stringify({ session_id: sid, prompt: 'what does this project do?', stop_hook_active: true }) });
+    const bad = /\[hooks (v2 )?\w+\] error[^\n]*|CRASHED[^"\n]*/.exec(`${r.stderr || ''}\n${r.stdout || ''}`);
+    if (r.error || bad) errs.push(`${cmd}: ${(r.error?.message || bad[0]).slice(0, 200)}`);
+  }
+  try { for (const f of fs.readdirSync(path.join(dir, 'tools/hooks/state'))) if (f.includes(sid)) fs.rmSync(path.join(dir, 'tools/hooks/state', f), { recursive: true, force: true }); } catch { }
+  return errs;
+};
 export function runsNotice(data, runsOf) {
   if (!/^(Bash|PowerShell)$/.test(data.tool_name || '') || !data.transcript_path) return null;
   const shown = readJSON(stateFile('overlap-shown.json'), {}), runs = runsOf(data.transcript_path).filter(r => !(shown.ids || []).includes(r.id));
@@ -9643,7 +9659,18 @@ if (isMain) {
       process.env.ANZUELO_ROOT ||= ROOT;
       const v2 = cmd === 'prompt' ? (await import('./v2/start.mjs')).onPrompt(data) : (await import('./v2/end.mjs')).onStop(data);
       if (v2) process.stdout.write(JSON.stringify(v2));
-    } catch (e) { process.stderr.write(`[hooks v2 ${cmd}] error: ${e && e.stack || e}\n`); }
+    } catch (e) {
+      process.stderr.write(`[hooks v2 ${cmd}] error: ${e && e.stack || e}\n`);
+      // REQ: crash-visible, for v2 too: the agent sees the error once per session (prompt: as context; Stop: one
+      // block), so a broken engine is never taken for a quiet one. Lesson (two projects): v2 could not load after an
+      // upgrade, and for days no reminder or end check ran while everyone believed it was checking.
+      const seen = path.join(ROOT, 'tools/hooks/state', `v2-crash.${String(SID || 'x').replace(/[^\w-]/g, '').slice(0, 64)}.json`);
+      const what = `tools/hooks/v2 ${cmd} CRASHED (${String(e && e.message || e).split('\n')[0].slice(0, 200)}): the engine's ${cmd === 'prompt' ? 'reminder' : 'end check'} did not run. Tell the user, fix the engine (node tools/starter.mjs upgrade, or the starter session), then run node tools/hooks/selfcheck.mjs.`;
+      if (!fs.existsSync(seen) && !(cmd === 'stop' && data.stop_hook_active)) {
+        try { fs.mkdirSync(path.dirname(seen), { recursive: true }); fs.writeFileSync(seen, JSON.stringify({ at: new Date().toISOString(), cmd })); } catch { }
+        process.stdout.write(JSON.stringify(cmd === 'stop' ? { decision: 'block', reason: what } : { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: what } }));
+      }
+    }
     process.exit(0);
   }
   // (and in shadow beside v1: v2 logs what it would have done, prints nothing, and never fails the turn)

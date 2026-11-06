@@ -20,7 +20,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { CORE_SKILLS, today as localToday, usageOf, isEngineCheck, shippedChecks, checkKey, ENGINE_CHECKS_HISTORY, changelogSince, breakingItems, withReviewBlock, fastestBench } from './hooks/hooks.mjs';
+import { CORE_SKILLS, today as localToday, usageOf, isEngineCheck, shippedChecks, checkKey, ENGINE_CHECKS_HISTORY, changelogSince, breakingItems, withReviewBlock, fastestBench, probeEngine } from './hooks/hooks.mjs';
 import { wire } from './hooks/wire.mjs';
 
 const STARTER = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -686,6 +686,10 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   const stLine = ((st.stdout || '').match(/^selfcheck: .*$/m) || [''])[0];
   const stPassed = st.status === 0 && /ALL PASS/.test(stLine);
   items.push(stPassed ? `self-tests: node tools/hooks/selfcheck.mjs passes here||passed (${today}, run by the upgrade: ${stLine.replace(/^selfcheck:\s*/, '')})` : 'self-tests: node tools/hooks/selfcheck.mjs passes here');
+  // (the engine is proven to run here, not only installed: the project's own prompt and Stop hooks run once. Lesson (two
+  // projects): an upgrade and a full self-test passed while the default engine could not load in the project)
+  const probe = probeEngine(dest);
+  if (probe.length) { items.push(`engine: the hooks fail to run in this project (${probe.join('; ')}). Fix it before relying on the engine: tell the starter session`); console.log(`\nENGINE DOES NOT RUN HERE: ${probe.join('; ')}`); }
   const dp = path.join(dest, 'docs', 'DECISIONS.md');
   fs.mkdirSync(path.dirname(dp), { recursive: true });
   // each pack and skill in plain words: what it does and what the user will notice

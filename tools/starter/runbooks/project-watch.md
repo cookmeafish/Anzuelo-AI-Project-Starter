@@ -52,6 +52,10 @@ date. A project's own content is its session's; this runbook changes only the en
   shared machine, 2026-11-05). After the frozen run passes, commit its `tools/hooks/engine-proof.json` in the frozen
   worktree ("Engine proof", on top of the candidate), merge that commit into `main`, and fast-forward the linked
   copies to it.
+- A hook time or a quiet log is no proof the engine runs. A crashed hook is fast and silent: v2 could not load in two
+  projects for days while their reports showed a 67 ms Stop and no false asks (2026-11-05). A project's engine report
+  counts only with at least one real reminder or block seen in its newest transcript, and the transcripts are searched
+  for `[hooks` errors and `CRASHED` each round.
 - An upgrade run while the project's session works there rolls back under its load and can't put back files the
   session is writing.
 - A test that fails only in one project usually traces to what that project lacks (a skill the upgrade never

@@ -222,6 +222,12 @@ report(resumed.length === 5, 'end: the summary that resumes a session is not a n
     'end: live, the turn starts at the request the prompt hook saw, by its saved time, and a row arriving mid-turn does not split it', live);
   const mid = turnActs(turnRows(transcript([user('fix the export'), code, { type: 'attachment', attachment: { type: 'queued_command', prompt: 'a note' } }, hooked, say('Fixed.')])));
   report(worked(mid), 'end: a message from another session that arrives mid-turn does not split the turn', mid.calls.map(c => c.name));
+  // (a note written outside the project, such as the agent's memory or a scratch file, is not the project's work)
+  const away = path.join(os.tmpdir(), 'elsewhere', 'memory', 'note.md');
+  const outside = turnActs(turnRows(transcript([user('note the report'), call('Write', { file_path: away, content: 'x' }), call('Edit', { file_path: away, old_string: 'x', new_string: 'y' }), say('Noted.')])));
+  const relative = turnActs(turnRows(transcript([user('fix the export'), call('Edit', { file_path: 'src/a.js', old_string: 'a', new_string: 'b' }), say('Fixed.')])));
+  report(!worked(outside) && worked(relative) && worked(turnActs(turnRows(transcript([user('fix the export'), code, say('Fixed.')])))),
+    'end: an edit outside the project folder is not work for the end check; one inside it, by full or relative path, is');
 }
 fs.rmSync(path.join(dir, 'package.json')); put('pyproject.toml', '[project]\nname = "tool"\n');
 report(testGaps(acts([user('fix the total'), code, say('Fixed.')])).length === 0, 'end: a build file alone (pyproject.toml, no test setup) asks for no tests');
@@ -527,10 +533,41 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     fs.rmSync(f, { force: true }); fs.rmSync(g, { recursive: true, force: true });
     report(before === 1 && after === 0, 'guard: a session the v2 prompt hook recorded may commit; one no hook saw is refused (engine-bypassed)', [before, after]);
   }
+  // (a v2 hook that cannot run shows its error to the agent once per session, never only on stderr)
+  {
+    const { spawnSync } = await import('node:child_process');
+    const c = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-crash-'));
+    fs.mkdirSync(path.join(c, 'tools/hooks'), { recursive: true });
+    for (const f of ['hooks.mjs', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
+    const hook = (cmd, extra = {}) => (spawnSync(process.execPath, [path.join(c, 'tools/hooks/hooks.mjs'), cmd], { cwd: c, encoding: 'utf8',
+      input: JSON.stringify({ session_id: 'crashonce', prompt: 'add a recipe card', ...extra }), env: { ...process.env, STARTER_ENGINE: 'v2' } }).stdout || '').trim();
+    const p1 = hook('prompt'), s1 = hook('stop'), s2 = hook('stop', { session_id: 'crashother', stop_hook_active: true });
+    fs.rmSync(c, { recursive: true, force: true });
+    report(/CRASHED/.test(p1) && /additionalContext/.test(p1) && s1 === '' && s2 === '',
+      'crash: a v2 hook that cannot load tells the agent once per session; a Stop already held lets the session end', [p1.slice(0, 120), s1.slice(0, 80), s2.slice(0, 80)]);
+    const c2 = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-crash-'));
+    fs.mkdirSync(path.join(c2, 'tools/hooks'), { recursive: true });
+    for (const f of ['hooks.mjs', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c2, 'tools/hooks', f));
+    const st = (spawnSync(process.execPath, [path.join(c2, 'tools/hooks/hooks.mjs'), 'stop'], { cwd: c2, encoding: 'utf8', input: JSON.stringify({ session_id: 'crashstop' }), env: { ...process.env, STARTER_ENGINE: 'v2' } }).stdout || '');
+    fs.rmSync(c2, { recursive: true, force: true });
+    report(/"decision":"block"/.test(st) && /CRASHED/.test(st), 'crash: a v2 Stop hook that cannot load blocks once with the error', st.slice(0, 160));
+    // (an upgrade proves the engine runs in the project with its own hooks; the probe leaves no state behind)
+    const { probeEngine } = await import('../hooks.mjs');
+    const c3 = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-probe-'));
+    fs.mkdirSync(path.join(c3, 'tools/hooks'), { recursive: true });
+    for (const f of ['hooks.mjs', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c3, 'tools/hooks', f));
+    const broken = probeEngine(c3);
+    fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(c3, 'tools/hooks/v2'), { recursive: true });
+    fs.rmSync(path.join(c3, 'tools/hooks/state'), { recursive: true, force: true });
+    const fine = probeEngine(c3), left = (() => { try { return fs.readdirSync(path.join(c3, 'tools/hooks/state')).filter(f => /upgradeprobe/.test(f)); } catch { return []; } })();
+    fs.rmSync(c3, { recursive: true, force: true });
+    report(broken.length === 2 && broken.every(e => /v2|CRASHED/.test(e)) && !fine.length && !left.length,
+      'upgrade: the engine probe names a v2 that cannot load, passes one that runs, and leaves no probe state', [broken.join(' | ').slice(0, 200), fine.join(' | '), left.join(',')]);
+  }
   // (an upgrade's self-test never waits on other runs to time Stop, and the full run times v2's Stop, not only v1's)
   const np = fs.readFileSync(path.join(repo, 'tools/new-project.mjs'), 'utf8'), sc = fs.readFileSync(path.join(repo, 'tools/hooks/selfcheck.mjs'), 'utf8');
   const au = fs.readFileSync(path.join(repo, 'tools/audit.mjs'), 'utf8');
-  report(/selfcheck\.mjs'\)\][^\n]*STARTER_NO_TIMING_WAIT: '1'/.test(np) && /selfcheck\.mjs'\), \.\.\.args\][^\n]*STARTER_NO_TIMING_WAIT: '1'/.test(au) && /STARTER_NO_TIMING_WAIT \? 0 : 600_000/.test(sc) && /STARTER_ENGINE: 'v2'[\s\S]{0,400}stop-budget: engine v2/.test(sc.slice(sc.indexOf('const v2ms'))),
+  report(/selfcheck\.mjs'\)\][^\n]*STARTER_NO_TIMING_WAIT: '1'/.test(np) && /selfcheck\.mjs'\), \.\.\.args\][^\n]*STARTER_NO_TIMING_WAIT: '1'/.test(au) && /STARTER_NO_TIMING_WAIT \? 0 : 600_000/.test(sc) && /STARTER_ENGINE: 'v2'[\s\S]{0,1200}stop-budget: engine v2/.test(sc.slice(sc.indexOf('const v2ms'))),
     'simple: an upgrade\'s or setup audit\'s self-test does not wait for other runs to time Stop, and the full self-test times v2\'s Stop');
   report(dflt === 'v2' && pinned === 'v1' && !RECORD.test(V2_SESSION) && files.length > 20 && !asks.length,
     `simple: v2 is the default engine (v1 only when pinned), and the session text and ${files.length} rule, runbook and skill files ask for no record lines`, JSON.stringify({ dflt, pinned, asks: asks.slice(0, 8) }));

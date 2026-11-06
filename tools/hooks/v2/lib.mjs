@@ -447,7 +447,10 @@ export const opened = (book, acts) => acts.calls.some(c => (c.name === 'Read' &&
   || (/^(Bash|PowerShell)$/.test(c.name) && String(c.input.command || '').includes(book.file)));
 
 // Whether the turn did any work: a file changed, or a command that is not only a read.
-export const worked = acts => acts.calls.some(c => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name));
+// (an edit counts as the project's work only inside the project folder. Lesson (live): a turn whose one edit was a
+// memory note outside the project was held for every item of its runbook)
+const inRoot = f => { const r = path.relative(ROOT, path.resolve(ROOT, String(f || ''))); return !!f && !r.startsWith('..') && !path.isAbsolute(r); };
+export const worked = acts => acts.calls.some(c => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name) && inRoot(c.input?.file_path || c.input?.notebook_path));
 
 const STATE = () => path.join(ROOT, 'tools', 'hooks', 'state');
 const stateFile = sid => path.join(STATE(), `v2-turn.${String(sid || 'x').replace(/[^\w-]/g, '').slice(0, 64)}.json`);
