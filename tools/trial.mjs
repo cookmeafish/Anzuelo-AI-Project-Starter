@@ -17,6 +17,17 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const STARTER = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+// --help, or a flag it doesn't know, prints the usage and runs nothing. Lesson (2026-11-06): a mistyped flag in a
+// sibling tool started a 20-minute run.
+{
+  const odd = process.argv.slice(2).filter(a => /^-/.test(a) && a !== '--deep');
+  if (odd.length) {
+    const usage = fs.readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').slice(1).filter(l => /^\/\/ {2,}/.test(l)).map(l => l.replace(/^\/\/ /, '')).join('\n');
+    const help = odd.every(a => a === '--help' || a === '-h');
+    (help ? console.log : console.error)(`${help ? '' : `trial: unknown flag ${odd.join(', ')}; nothing was run. `}Usage:\n${usage}`);
+    process.exit(help ? 0 : 2);
+  }
+}
 const deep = process.argv.includes('--deep');
 const env = { ...process.env, STARTER_ALLOW_DEV: '1' };
 const run = (cmd, args, cwd, timeout = 300000) => spawnSync(cmd, args, { cwd, encoding: 'utf8', env, timeout });

@@ -24,6 +24,18 @@ if (process.argv.some(a => a === '--help' || a === '-h')) {
   console.log(own.slice(1).filter(l => /^\/\/ {2,}/.test(l)).map(l => l.replace(/^\/\/ /, '')).join('\n'));
   process.exit(0);
 }
+// An unknown flag prints the usage and runs nothing either (the text after --route or --explain is a message, not
+// flags). Lesson (2026-11-06): a mistyped "--only" started the whole suite, 20 minutes, and with a file stashed.
+{
+  const known = new Set(['--route', '--contract', '--tags', '--verbose', '--shard', '--fixture-base', '--fixture-manifest', '--proof-hash', '--ablation', '--explain', '--which-mode', '--full', '--deep', '--reuse-engine']);
+  const msg = process.argv.findIndex((a, i) => i > 1 && (a === '--route' || a === '--explain'));
+  const odd = process.argv.slice(2, msg > 0 ? msg + 1 : undefined).filter(a => /^-/.test(a) && !known.has(a.split('=')[0]));
+  if (odd.length) {
+    const own = fs.readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n');
+    console.error(`selfcheck: unknown flag ${odd.join(', ')}; nothing was run. Usage:\n${own.slice(1).filter(l => /^\/\/ {2,}/.test(l)).map(l => l.replace(/^\/\/ /, '')).join('\n')}`);
+    process.exit(2);
+  }
+}
 import { engineStamp, findPass, recordPass, localDay, SMOKE_EVERY, lockState, takeLock, releaseLock, otherSuites, registerSuite, markWaiting, timingLock, shardCount, failureCause, proofHash, readProof, writeProof, PROOF_FILE, PROOF_PATHS, mainCheckout } from './selftest-cache.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -5859,6 +5871,14 @@ if (mineB()) { // setup-complete people: one owner with qualifiers, or staff who
       'setup-complete people: a single owner with qualifiers or staff who are app accounts is one person (no profiles asked); a list of names or a count is several',
       `${wrong.join(' | ')} | single: ${single.slice(0, 200)} | list: ${list.slice(0, 200)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+if (mineB()) { // tool flags: an unknown flag prints the usage and runs nothing
+  // (Lesson (2026-11-06): "--only" and "--help" each started a 20-minute self-check run. The time limit fails the test
+  // instead of running a whole suite when a guard is missing)
+  const tools = ['tools/hooks/selfcheck.mjs', 'tools/audit.mjs', 'tools/trial.mjs'].filter(f => fs.existsSync(path.join(ROOT, f)));
+  const got = tools.map(f => { const r = spawnSync(process.execPath, [f, '--no-such-flag'], { cwd: ROOT, encoding: 'utf8', timeout: 20000, env: { ...process.env, STARTER_ENGINE: 'v1' } });
+    return { f, status: r.status, said: /unknown flag --no-such-flag; nothing was run/.test(r.stderr || '') }; });
+  report(got.length >= 2 && got.every(g => g.status === 2 && g.said), 'tool flags: selfcheck, audit and trial refuse an unknown flag with the usage and exit 2, running nothing', got);
 }
 if (mineB() && SPEED) { // setup interview: an assumed always/never answer is the agent's guess, not the user's rule
   // (Lesson (trial v42): setup failed until the agent's own guesses were written as "the user's standing preferences")

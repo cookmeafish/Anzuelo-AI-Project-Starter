@@ -16,6 +16,17 @@ import {
   nameFiles, nameProblems, match, VERBATIM_ENGINE
 } from './hooks/hooks.mjs';
 
+// --help, or a flag it doesn't know, prints the usage and runs nothing. Lesson (2026-11-06): a mistyped flag in a
+// sibling tool started a 20-minute run.
+{
+  const odd = process.argv.slice(2).filter(a => /^-/.test(a) && !['--full', '--setup'].includes(a));
+  if (odd.length) {
+    const usage = fs.readFileSync(path.join(ROOT, 'tools/audit.mjs'), 'utf8').split('\n').slice(1).filter(l => /^\/\/ {2,}/.test(l)).map(l => l.replace(/^\/\/ /, '')).join('\n');
+    const help = odd.every(a => a === '--help' || a === '-h');
+    (help ? console.log : console.error)(`${help ? '' : `audit: unknown flag ${odd.join(', ')}; nothing was run. `}Usage:\n${usage}`);
+    process.exit(help ? 0 : 2);
+  }
+}
 const cfg = config();
 const results = [];
 // An adopted project before setup keeps its own AGENTS.md / CLAUDE.md, with the starter's beside them as *.starter.md.
