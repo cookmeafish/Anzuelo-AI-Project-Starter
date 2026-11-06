@@ -186,8 +186,10 @@ const { upset } = await import('./start.mjs');
 report(/learn-from-upset/.test(reminder('WHY DID YOU BREAK THE EXPORT AGAIN').text) && /learn-from-upset/.test(reminder('ugh, you forgot the totals row').text)
   && upset('the export still has issues because ur not following the format') && upset('i dont think you understand the totals')
   && !upset('still working?') && !upset('why do you think the export is slow?') && !upset('B2 CSV export --path out/orders') && !upset('add a CSV export')
-  && upset('you made a new invoice without linking it to the order') && !upset('can you make the export work without the header row?'),
-  'start: an upset message (capitals, frustration words, or "you made X without Y") goes to the learn-from-upset skill; plain questions and codes do not');
+  && upset('you made a new invoice without linking it to the order') && !upset('can you make the export work without the header row?')
+  && upset('you keep putting the tax line under the total!! fix it') && upset('why does it keep rounding the prices') && upset('the totals are off again!!')
+  && !upset('keep the export as it is') && !upset('can you keep working on the totals?') && !upset('great, it works!!'),
+  'start: an upset message (capitals, frustration words, "you made X without Y", or "you keep doing X") goes to the learn-from-upset skill; plain questions and codes do not');
 { // a message relayed from another session gets its runbook only for when it asks for work
   const relay = reminder('Another Claude session sent a message:\n<cross-session-message from="x">The fix to export the orders landed in 1a2b3c. Nothing to change.</cross-session-message>');
   const asked = reminder('can you export the orders for this week');
