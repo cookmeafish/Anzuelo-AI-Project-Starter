@@ -6714,8 +6714,8 @@ if (mineB()) { // correspondence draft check: a draft that copies a phrase the s
     const check = text => { const f = path.join(dir, 'd.md'); fs.writeFileSync(f, text); return spawnSync(process.execPath, [path.join(ROOT, 'library/skills/correspondence/scripts/draft-check.mjs'), f], { encoding: 'utf8' }).stdout; };
     const copied = check('Hi Sam,\n\nI am writing to let you know that the rent goes up in spring.\n\nBest,\nAlex\n');
     const own = check('Hi Sam,\n\nSome news first: the rent goes up a little in spring.\n\nBest,\nAlex\n');
-    report(/copies the skill's own example "i am writing to let you know"/.test(copied) && /RESULT: FAIL .*copied from the skill's examples/.test(copied) && /RESULT: PASS/.test(own),
-      'correspondence draft check: a draft that copies a phrase the skill quotes as an example fails; one in its own words passes', [copied, own].map(s => String(s).trim().split('\n').pop()).join(' | ').slice(0, 400));
+    report(/copies the skill's own example "i am writing to let you know"/.test(copied) && /RESULT: FAIL .*copied from the skill's examples/.test(copied) && /RESULT: PASS \(figures only: .*statements in words were not checked\)/.test(own),
+      'correspondence draft check: a draft that copies a phrase the skill quotes as an example fails; one in its own words passes, and its PASS says it checked figures only', [copied, own].map(s => String(s).trim().split('\n').pop()).join(' | ').slice(0, 400));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 

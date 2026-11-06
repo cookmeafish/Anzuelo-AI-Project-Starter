@@ -69,5 +69,7 @@ const why = [];
 if (missing.length) why.push(`${missing.length} figure(s) not in the facts files: replace each with the sourced value or a [placeholder?]`);
 if (secrets.length) why.push(`secret-looking content (${secrets.join(', ')})`);
 if (copied.length) why.push(`${copied.length} phrase(s) copied from the skill's examples`);
-console.log(why.length ? `RESULT: FAIL ${why.join('; ')}` : 'RESULT: PASS');
+// (a PASS covers the figures only. Lesson (trial v37): "the fact check passed" was said of a letter whose claim about
+// the lease's terms nothing had checked)
+console.log(why.length ? `RESULT: FAIL ${why.join('; ')}` : `RESULT: PASS (figures only: ${found.length} found in the facts files${fromDerived.length ? `, ${fromDerived.length} worked out` : ''}; statements in words were not checked)`);
 process.exit(why.length ? 1 : 0);
