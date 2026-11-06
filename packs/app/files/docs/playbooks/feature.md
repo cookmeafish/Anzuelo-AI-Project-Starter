@@ -54,6 +54,9 @@ skills, when the project has them: **frontend-design** for screens, **backend-pa
      reviewer is a sub-agent (the Agent or Task tool) with a read-only brief; "no other reviewer" is never a reason to
      skip it (hook: review-excuse). Wait for its verdict in the same turn: never end the turn with "I'll finish once it
      comes back" (the user gets an unfinished answer, then a second one).
+     At most two review rounds: fix what the first finds, have it re-checked once, and put anything still open under
+     "still weak" in the answer instead of a third round. <!-- Lesson (trial v42): an open-ended "until it says SHIP"
+     ran four rounds and 21 minutes hardening one scanner, after the real fix already held. -->
 5. **Docs that people rely on,** updated in the same change, each written for its reader with the most useful part
    first:
    - the README, when setup, configuration or the first steps change (a newcomer reaches a first success in minutes);
@@ -68,7 +71,7 @@ skills, when the project has them: **frontend-design** for screens, **backend-pa
    get the user's OK first.
 
 ## Done when
-- [ ] A spec with numbered acceptance criteria exists and each criterion is marked PASS in it; the answer gives the count in one line and names any that failed (hook: spec-written).
+- [ ] A spec with numbered acceptance criteria exists and each criterion is marked PASS, FAIL or NOT VERIFIED in it (PASS only when a test or a run this turn showed it); the answer gives the counts in one line and names any that failed or were not verified (hook: spec-written). <!-- Lesson (trial v42): with PASS as the only mark, criteria were marked PASS while the tests could not run. -->
 - [ ] The Verification section covers automated, real app, independent review (SHIP) and still weak (hook: verification-report, review-verdict).
 - [ ] New behaviour was built test first: each slice's test was seen failing before its code, and the whole suite passes after the last edit (judgment: no check sees each test fail before its code).
 - [ ] Release notes written; version bumped as configured (hook: release-notes, version-bump).

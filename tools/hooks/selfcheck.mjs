@@ -6731,6 +6731,14 @@ if (mineB()) { // every test block that runs a library skill's script is gated b
   const bare = src.map((l, i) => [l, i]).filter(([l]) => l.includes(needle) && l.includes('spawnSync(')).filter(([, i]) => { let k = i; while (k > 0 && !/^if \(mineB\(\)/.test(src[k])) k--; return !src[k].includes('libMissing('); }).map(([, i]) => i + 1);
   report(bare.length === 0, 'selfcheck: every test of a library skill\'s script is skipped where the project has no library/', `ungated at lines ${bare.join(', ')}`);
 }
+if (mineB() && fs.existsSync(path.join(ROOT, 'packs/app/files/docs/playbooks/feature.md'))) { // feature runbook: review rounds capped, criteria can be NOT VERIFIED
+  // (Lesson (trial v42): "re-review until it says SHIP" ran four rounds in 21 minutes, and with PASS as the only mark
+  // criteria were marked PASS while the tests could not run)
+  const fr = fs.readFileSync(path.join(ROOT, 'packs/app/files/docs/playbooks/feature.md'), 'utf8').replace(/<!--[\s\S]*?-->/g, '');
+  const msg = JSON.parse(fs.readFileSync(path.join(ROOT, 'packs/app/pack.json'), 'utf8')).requirements?.find?.(r => r.tag === 'review-verdict')?.message || '';
+  report(/At most two review rounds/.test(fr) && /PASS, FAIL or NOT VERIFIED/.test(fr) && /PASS only when a test or a run this turn showed it/.test(fr) && /after two rounds/.test(msg) && !/until it does/.test(msg),
+    'feature runbook: at most two review rounds, then what is open goes under "still weak"; a criterion nothing ran is NOT VERIFIED, never PASS', { msg: msg.slice(0, 160) });
+}
 if (mineB() && fs.existsSync(path.join(ROOT, 'tools/starter/gitignore.project'))) { // new project's .gitignore: build output only at the top
   // (Lesson (trial v42): an unanchored build/ line kept a site generator in src/build/ out of git, and publishing failed)
   const gd = fs.mkdtempSync(path.join(os.tmpdir(), 'gitignore-')), gi = (...a) => spawnSync('git', a, { cwd: gd, encoding: 'utf8' });
