@@ -238,13 +238,41 @@ function shippedTexts(rel) {
 // The starter's new SKILL.md, plus the triggers the project added and its "## Project lessons" section. Lines the
 // project added to the file's "## Pitfalls" (in neither the new file nor any shipped version) move to "## Project
 // lessons". Lesson: project.md became an engine runbook, and the pitfalls a project had written into it were lost.
+// The check markers the project put on the Done-when items of an engine runbook ("(ran: ...)", "(when file: ...)" and
+// the like) stay on the same items of the new version, where that version ships no check of its own there. Items are
+// matched by their words without markers. Lesson (two field reports): upgrades dropped a project's markers, so the end
+// check's coverage fell back on every upgrade.
+function keepMarkers(theirs, mine) {
+  const V2 = /\((?:when\s+)?(?:file|ran|answer):[^)]*\)/gi;
+  const items = t => {
+    const m = /^## Done when[^\n]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(t), out = [];
+    let cur = null;
+    for (const l of m ? m[1].split(/\r?\n/) : []) {
+      if (/^\s*(?:\d+\.|[-*])\s+/.test(l)) out.push(cur = { lines: [l] });
+      else if (cur && /^\s+\S/.test(l)) cur.lines.push(l);
+      else cur = null;
+    }
+    return out;
+  };
+  const key = it => it.lines.join(' ').replace(/\([^)]*:[^)]*\)/g, '').replace(/^\s*(?:\d+\.|[-*])\s+(?:\[[ x]\]\s*)?/, '').replace(/[^a-z0-9]+/gi, ' ').trim().toLowerCase();
+  const own = new Map(items(mine).map(it => [key(it), it.lines.join(' ').match(V2) || []]));
+  let out = theirs;
+  for (const it of items(theirs)) {
+    const has = it.lines.join(' ').match(V2) || [], when = s => /^\(when/i.test(s);
+    const add = (own.get(key(it)) || []).filter(m => !has.some(h => when(h) === when(m)));
+    if (!add.length) continue;
+    const last = it.lines[it.lines.length - 1];
+    out = out.replace(last, () => `${last.replace(/\s*$/, '')} ${add.join(' ')}`);
+  }
+  return out;
+}
 function mergeSkill(theirs, mine, rel) {
   const trig = t => (/^triggers:\s*(.*)$/m.exec(t)?.[1] || '').split(',').map(s => s.trim()).filter(Boolean);
   // a trigger some release shipped is the starter's, not the project's: one the starter has since removed stays removed
   // Lesson: "remember, audit, skill, skills, hook, hooks" came back into project.md after the starter dropped them
   const everShipped = new Set(rel ? [...shippedLines(rel)].filter(l => /^triggers:/.test(l)).flatMap(l => trig(l)) : []);
   const extra = trig(mine).filter(t => !trig(theirs).includes(t) && !everShipped.has(t));
-  let out = theirs;
+  let out = keepMarkers(theirs, mine);
   if (extra.length) out = /^triggers:/m.test(out) ? out.replace(/^triggers:\s*(.*)$/m, (l, v) => `triggers: ${[v.trim(), ...extra].filter(Boolean).join(', ')}`)
     : out.replace(/^---\r?\n/, `---\ntriggers: ${extra.join(', ')}\n`);
   // the project's own marks in the frontmatter (skill-harden, skill-curate) stay, so a replaced runbook is not due again

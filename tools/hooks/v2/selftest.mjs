@@ -519,6 +519,18 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   // docs/plans/2026-11-05-engine-v2-agents-draft.md, under 60)
   const ruleLines = fs.readFileSync(path.join(repo, 'AGENTS.md'), 'utf8').split('\n').length;
   report(ruleLines <= 153, `simple: AGENTS.md stays at most 152 lines (${ruleLines - 1})`, ruleLines);
+  // (a session the v2 prompt hook (or begin) has seen may commit: the git guard reads v2's turn file too)
+  {
+    const { spawnSync } = await import('node:child_process');
+    const g = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-git-')), sidG = `v2gate${process.pid}`;
+    spawnSync('git', ['init', '-q'], { cwd: g });
+    const run = () => spawnSync(process.execPath, [path.join(repo, 'tools/hooks/git-guard.mjs'), 'pre-commit'], { cwd: g, encoding: 'utf8', env: { ...process.env, CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: sidG, ANZUELO_SESSION_GATE: '' } }).status;
+    const before = run(), f = path.join(repo, 'tools/hooks/state', `v2-turn.${sidG}.json`);
+    fs.writeFileSync(f, JSON.stringify({ at: new Date().toISOString(), runbook: null }));
+    const after = run();
+    fs.rmSync(f, { force: true }); fs.rmSync(g, { recursive: true, force: true });
+    report(before === 1 && after === 0, 'guard: a session the v2 prompt hook recorded may commit; one no hook saw is refused (engine-bypassed)', [before, after]);
+  }
   // (an upgrade's self-test never waits on other runs to time Stop, and the full run times v2's Stop, not only v1's)
   const np = fs.readFileSync(path.join(repo, 'tools/new-project.mjs'), 'utf8'), sc = fs.readFileSync(path.join(repo, 'tools/hooks/selfcheck.mjs'), 'utf8');
   const au = fs.readFileSync(path.join(repo, 'tools/audit.mjs'), 'utf8');

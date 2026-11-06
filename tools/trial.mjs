@@ -141,7 +141,9 @@ for (const [name, s] of Object.entries(SAMPLES)) {
     .replace(/^triggers:\s*(.*)$/m, 'triggers: $1, our quarterly tidy-up').replace(/^---\r?\n/, '---\nhardened: 2026-10-01\n')
     .replace(/^## Pitfalls[^\n]*\n/m, m => m + '- Our own pitfall: run the sweeps before a release.\n')
     // a numbered section of its own (Lesson, field report: "### §11b Performance" vanished in an upgrade)
-    .replace(/^### §12 /m, '### §11b Performance\n- Time the build after every change.\n\n### §12 ') + '\n## Project lessons\n- Keep the menu to one screen.\n';
+    .replace(/^### §12 /m, '### §11b Performance\n- Time the build after every change.\n\n### §12 ')
+    // a check marker of the project's own on a Done-when item (Lesson, two field reports: an upgrade dropped it)
+    .replace(/(Rule requests: every file was searched[^\n]*?)\.?\s*$/m, '$1 (answer: \\d+ hits?)') + '\n## Project lessons\n- Keep the menu to one screen.\n';
   // an older shipped version of a core check, from the starter's history, with no earlier engine-checks.json: never edited
   // here, so the upgrade refreshes it instead of keeping it as "custom". Lesson: older pack checks were all kept as edits.
   const firstRq = (() => { const g = git(['log', '--format=%H', '--reverse', '--', 'tools/hooks/requirements.json'], STARTER).stdout.split('\n')[0]; try { return JSON.parse(git(['show', `${g}:tools/hooks/requirements.json`], STARTER).stdout).requirements; } catch { return []; } })();
@@ -196,6 +198,8 @@ for (const [name, s] of Object.entries(SAMPLES)) {
   check(name, 'an upgrade keeps a section the project added to an engine runbook, under its Project lessons, and lists it in the review',
     /^## Project lessons[\s\S]*^### §11b Performance\n- Time the build after every change\./m.test(fs.readFileSync(pmPath, 'utf8')) && /- sections: docs\/playbooks\/project\.md is an engine file, so the section "§11b Performance"/.test(review), review.slice(-400));
   check(name, 'an upgrade runs without an error', u1.status === 0, (u1.stderr || u1.stdout).slice(-400));
+  check(name, "an upgrade keeps a check marker the project put on an engine runbook's Done-when item",
+    /Rule requests: every file was searched[^\n]*\(answer: \\d\+ hits\?\)/.test(fs.readFileSync(pmPath, 'utf8')), (/Rule requests: every file was searched[^\n]*/.exec(fs.readFileSync(pmPath, 'utf8')) || [''])[0].slice(-160));
   const pmNew = fs.readFileSync(pmPath, 'utf8'), dw = (/^## Done when[^\n]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(pmNew)?.[1] || '').split('\n').filter(l => /^\s*- \[[ x]\]/.test(l));
   check(name, "an upgrade refreshes the engine's project runbook (every Done when item labeled) and keeps its trigger, lessons and hardened mark",
     dw.length && dw.every(l => /\b(hooks?\s*:|judgment\b)/.test(l)) && /^triggers:.*our quarterly tidy-up/m.test(pmNew) && pmNew.includes('Keep the menu to one screen.') && /^hardened: 2026-10-01$/m.test(pmNew),

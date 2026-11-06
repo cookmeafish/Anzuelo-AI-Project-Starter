@@ -6,6 +6,32 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-05 (engine): engine v2 fixes from its first live use and trial round v32. Each one has a self-test that fails without it.
+  - The background-run notice works from the session's own running jobs, not from command text.
+  - Pasted text no longer routes a message or marks it as upset.
+  - Another session's file changes are no longer counted as this turn's.
+  - A turn started by a message from another session starts there. Before, it reached back to the last typed request, and a turn of read-only commands was held to that request's edits.
+  - An answer that relays a test result this turn heard or read (another session's message, a project's report file) is not asked to run the tests itself. A summary that also counts failures still backs nothing. The replay tool splits turns the same way the live check does.
+  - The end check no longer asks for tests that already passed after the last code change. The host's request copies in the transcript repeat each tool result with no time, and v2 read them, which erased when each run ended. Found in 4 trial projects (v32), in turns where a run passed after the change.
+  - The full self-test times engine v2's Stop hook too, as its own test with its own line ("stop timing (engine v2, the default)"). Before, it timed only v1's, which its own tests pin.
+  - An upgrade's self-test, and the setup audit's, no longer waits up to 10 minutes for other self-test runs to finish before timing the Stop hook. A shared machine only marks that timing as shared.
+  - A "Done when" check marker counts anywhere in its item, not only at the very end of a wrapped item.
+  - A "Done when" item for one branch of a runbook can say when it applies: `(when ran: <regex>)`, `(when file: <glob>)` or `(when answer: <regex>)`. On other turns it is neither checked nor listed to verify. The engine runbook uses it: an upgrade turn's items are all script-checked, so upgrade turns get no verify list (17 of 17 engine turns in one project's history had one).
+  - The end check takes the turn from the time the prompt hook saw the request, not from a guess based on kinds of transcript rows (that guess stays for replays). A message that arrives mid-turn joins the turn, keeping its start and runbook; the turn ends when its Stop passes. And one block per request: a turn that goes on after its block and stops again is not blocked again (a trial request got the same list 3 times).
+  - A helper agent's report back is not a request either: no reminder, and the turn keeps its runbook. Before, the words of a review helper's report routed the turn to the project runbook.
+  - A background job's notice that arrives mid-turn no longer clears the runbook the turn was routed to, and adds no reminder. Before, the end check held the turn to whichever runbook a command had read.
+  - An engine upgrade message goes to the engine runbook again, as under v1, whatever words its list of fixes uses. Under v2, 26 of 27 such messages in one project's history went to the project runbook.
+  - A request that opens with a runbook's trigger goes to that runbook, ahead of a longer trigger found later in the text.
+  - The health check asks only about failures in files the turn touched, or failures that name no file.
+  - A commit from a session that engine v2 recorded is no longer refused as "engine-bypassed". The git guard looked only for v1's turn record, so under v2 every commit from an agent session failed. Self-test: "guard: a session the v2 prompt hook recorded may commit".
+  - An upgrade keeps the check markers a project put on the "Done when" items of an engine runbook, where the new version ships no check of its own there. Before, each upgrade dropped them. Scenario (trial): "an upgrade keeps a check marker the project put on an engine runbook's Done-when item".
+  - `tools/starter/stop-found.mjs` reads v2's end-check blocks, line by line, for the 2026-11-08 decision. A self-test keeps AGENTS.md at 152 lines or fewer.
+- 2026-11-05 (engine): **engine v2 is now the default.** The engine reminds before the work, refuses only unsafe actions during it, and checks once after it, with the agent verifying the runbook's list itself.
+  - The rules, README, runbooks and skills no longer ask for record lines, turn notes or waivers.
+  - Session start is three plain sentences.
+  - `"engine": "v1"` brings the old engine back.
+  - v2's end check has the agent verify the runbook items no script can check, once at the end of a work turn, in its single block. Nothing is added during the work.
+  - A full self-test that passes on a frozen worktree of the commit now counts in the main folder. The pass is recorded there too, and the tested-files fingerprint ignores Windows line endings, so the end check stops asking for the run again.
 - 2026-11-05 (engine): engine v2 runs in shadow beside v1. It logs what it would have shown or blocked to tools/hooks/state/v2-shadow.jsonl and prints nothing, so nothing changes for the user. Off with `"v2shadow": false` in tools/hooks/config.json.
   - v2's start reminder: an upset message points to the learn-from-upset skill, and when no trigger fits, one line asks the agent to pick and open the fitting runbook. The end check then holds the turn to the runbook it opened.
   - v2's end check 3: when a screen file changed, screenshots taken after the change must be looked at (projects with tools/screenshot.mjs only). Tests and fixtures in a gui folder are not screens.
@@ -14,30 +40,6 @@ hooks:**, and an upgrade lists each one as its own review item.
   - v2's end check 6: new code matching the project's security pattern (requirements.json "security-code") asks for the security review unless the turn ran it or wrote its report.
   - v2's end check 7: the answer's commits exist or showed up in the session, the files it names exist, and "committed" or "pushed" stated as done is backed by a command or a commit made since the turn began.
   - Runbook "Done when" items can carry v2's check after v1's marker, as in "(hook: plan-saved) (file: docs/plans/*.md)". Four of the starter's runbooks now do (engine, plan, project, trigger-words). A project adopts this by hand: add `(file: ...)`, `(ran: ...)` or `(answer: ...)` only to items that hold on every work turn of that runbook. `node tools/starter/done-when-coverage.mjs <project> --list` shows the candidates.
-  - **Engine v2 is now the default.** The engine reminds before the work, refuses only unsafe actions during it, and checks once after it, with the agent verifying the runbook's list itself.
-    - The rules, README, runbooks and skills no longer ask for record lines, turn notes or waivers.
-    - Session start is three plain sentences.
-    - `"engine": "v1"` brings the old engine back.
-  - v2's end check has the agent verify the runbook items no script can check, once at the end of a work turn, in its single block. Nothing is added during the work.
-  - A full self-test that passes on a frozen worktree of the commit now counts in the main folder. The pass is recorded there too, and the tested-files fingerprint ignores Windows line endings, so the end check stops asking for the run again.
-  - v2 fixes:
-    - The background-run notice works from the session's own running jobs, not from command text.
-    - Pasted text no longer routes a message or marks it as upset.
-    - Another session's file changes are no longer counted as this turn's.
-    - A turn started by a message from another session starts there. Before, it reached back to the last typed request, and a turn of read-only commands was held to that request's edits.
-    - An answer that relays a test result this turn heard or read (another session's message, a project's report file) is not asked to run the tests itself. A summary that also counts failures still backs nothing. The replay tool splits turns the same way the live check does.
-    - The end check no longer asks for tests that already passed after the last code change. The host's request copies in the transcript repeat each tool result with no time, and v2 read them, which erased when each run ended. Found in 4 trial projects (v32), in turns where a run passed after the change.
-    - The full self-test times engine v2's Stop hook too, as its own test with its own line ("stop timing (engine v2, the default)"). Before, it timed only v1's, which its own tests pin.
-    - An upgrade's self-test, and the setup audit's, no longer waits up to 10 minutes for other self-test runs to finish before timing the Stop hook. A shared machine only marks that timing as shared.
-    - A "Done when" check marker counts anywhere in its item, not only at the very end of a wrapped item.
-    - A "Done when" item for one branch of a runbook can say when it applies: `(when ran: <regex>)`, `(when file: <glob>)` or `(when answer: <regex>)`. On other turns it is neither checked nor listed to verify. The engine runbook uses it: an upgrade turn's items are all script-checked, so upgrade turns get no verify list (17 of 17 engine turns in one project's history had one).
-    - The end check takes the turn from the time the prompt hook saw the request, not from a guess based on kinds of transcript rows (that guess stays for replays). A message that arrives mid-turn joins the turn, keeping its start and runbook; the turn ends when its Stop passes. And one block per request: a turn that goes on after its block and stops again is not blocked again (a trial request got the same list 3 times).
-    - A helper agent's report back is not a request either: no reminder, and the turn keeps its runbook. Before, the words of a review helper's report routed the turn to the project runbook.
-    - A background job's notice that arrives mid-turn no longer clears the runbook the turn was routed to, and adds no reminder. Before, the end check held the turn to whichever runbook a command had read.
-    - An engine upgrade message goes to the engine runbook again, as under v1, whatever words its list of fixes uses. Under v2, 26 of 27 such messages in one project's history went to the project runbook.
-    - A request that opens with a runbook's trigger goes to that runbook, ahead of a longer trigger found later in the text.
-    - The health check asks only about failures in files the turn touched, or failures that name no file.
-    - `tools/starter/stop-found.mjs` reads v2's end-check blocks, line by line, for the 2026-11-08 decision. A self-test keeps AGENTS.md at 152 lines or fewer.
   - The v2 plan's boxes now match the commits, and the plan has a replay baseline table for the 2026-11-08 decision.
   - v2 has its own guard module, which uses v1's safety refusals and does not copy them. Tests prove each refusal under v2 and silence on a busy ordinary turn.
   - v2 reads Codex transcripts, including the newer `exec` calls (commands and patches inside code), and reads long transcripts from their tail.
