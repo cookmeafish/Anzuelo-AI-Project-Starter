@@ -6713,6 +6713,13 @@ if (mineB()) { // every test block that runs a library skill's script is gated b
   const bare = src.map((l, i) => [l, i]).filter(([l]) => l.includes(needle) && l.includes('spawnSync(')).filter(([, i]) => { let k = i; while (k > 0 && !/^if \(mineB\(\)/.test(src[k])) k--; return !src[k].includes('libMissing('); }).map(([, i]) => i + 1);
   report(bare.length === 0, 'selfcheck: every test of a library skill\'s script is skipped where the project has no library/', `ungated at lines ${bare.join(', ')}`);
 }
+if (mineB() && fs.existsSync(path.join(ROOT, 'skills/obsidian/SKILL.md'))) { // obsidian skill: a vault that uses wikilinks keeps them
+  // (Lesson (trial v41): the skill said "not [[wikilinks]]" while the notes-vault skill says to keep a vault's own style,
+  // and the agent patched the project's copy of the skill)
+  const ob = fs.readFileSync(path.join(ROOT, 'skills/obsidian/SKILL.md'), 'utf8');
+  report(/already links with `\[\[wikilinks\]\]`, keep its style[^.]*never convert/.test(ob),
+    'obsidian skill: a vault that already links with [[wikilinks]] keeps its style, as the notes-vault skill says');
+}
 if (mineB() && !libMissing('notes-vault/scripts/vault.mjs')) { // vault backlinks: the PASS line says how many new links it checked, and that older links were not
   // Lesson (trial v36): a PASS that checked no new links was relayed as "every link has a link back"
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-vault-'));

@@ -13,6 +13,8 @@ the graph, so links are the relationships, and the agent follows the same links 
 - Write relative markdown links, `[Desk prices](desk-prices.md)`, not `[[wikilinks]]`. Obsidian, GitHub, editors and
   agents all follow them. A new project's `.obsidian/app.json` already creates links this way (`useMarkdownLinks`,
   `newLinkFormat: relative`) and updates them when a note moves.
+- In a vault the user brought that already links with `[[wikilinks]]`, keep its style for its notes and never convert
+  them (the notes-vault skill). The link check follows both kinds.
 - Link a word where it appears in the text when the relation matters there. Put the rest in a `## Related` section at
   the end, one line each with what connects them: `- [Desk prices](desk-prices.md): the budget this choice must fit`.
 - Link both ways when both sides benefit. Obsidian shows backlinks anyway, but other readers only see written links.
@@ -44,6 +46,7 @@ the links first (they are recorded relations), then the suggestions, labeled as 
 - [ ] "What is related" answers separate recorded links from suggestions (judgment: telling recorded links from suggestions needs reading the answer).
 
 ## Pitfalls
-- `[[wikilinks]]`: Obsidian follows them but GitHub and most tools don't. Use markdown links.
+- `[[wikilinks]]` in new notes of the project's own: Obsidian follows them but GitHub and most tools don't. Use markdown
+  links there; an existing vault keeps its own style.
 - Absolute paths (`C:\...`, `/home/...`) in links: they break on every other machine.
 - A "Related" list copied from search results without reading the notes: it fills the graph with false relations.
