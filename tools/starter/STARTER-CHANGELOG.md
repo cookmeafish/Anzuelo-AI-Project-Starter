@@ -6,6 +6,8 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-06 (engine): the end check's block now asks for the same answer again, changed only where a fix changed something and with nothing about the check in it. In trial round v43 every resent answer was reworded and gained lines about the checklist that meant nothing to the user. Test: "end: a block asks for the same whole answer again, in the user's language, changed only where a fix changed it and with nothing about the check".
+
 - 2026-11-06 (engine): a setup Branches answer the agent only assumed ("assumed - work on master directly") no longer asks to unprotect main, so the push guard stays on. The user's own answer still unprotects it. Test: "setup interview: a Branches answer marked "assumed" keeps main protected; the user's own "I work on master" still asks to unprotect it".
 
 - 2026-11-06 (engine): a rule stated as a sentence that ends ", always" or ", never" (in Spanish ", siempre", ", nunca") now routes to the project runbook, so its rule items get checked. Replay: no change in routed requests or blocks in either real project. Test: "start: a sentence that ends ", always" (", siempre") is a standing rule request; "always" inside a question is not".

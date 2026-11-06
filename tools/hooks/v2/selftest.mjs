@@ -169,8 +169,10 @@ report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/
     // (the user reads the last message: the block asks for the whole answer again, in the user's language, never for a
     // note of only what changed. Lesson (trials v33, v34): the last message became "nothing changed" or a checklist
     // report, in English to a Spanish-speaking user, and hid the result)
-    report(/answer[^.]*again[^.]*whole|whole[^.]*answer/i.test(made?.reason || '') && /their language|user's language/i.test(made?.reason || '') && !/only what changed/.test(made?.reason || ''),
-      'end: a block asks for the whole answer again, in the user\'s language', (made?.reason || '').split('\n').at(-1));
+    // (and the same answer: not reworded, and with no talk about the check. Lesson (trial v43))
+    report(/answer[^.]*again[^.]*whole|whole[^.]*answer/i.test(made?.reason || '') && /their language|user's language/i.test(made?.reason || '') && !/only what changed/.test(made?.reason || '')
+      && /the same answer, changed only where a fix changed something/.test(made?.reason || '') && /nothing about this check/.test(made?.reason || ''),
+      'end: a block asks for the same whole answer again, in the user\'s language, changed only where a fix changed it and with nothing about the check', (made?.reason || '').split('\n').at(-1));
   }
 }
 report(/4\. The output reads well for a person, which only a reader can judge$/m.test(r.text), 'start: an item that wraps onto a second line is shown whole, without its check marker', r.text);

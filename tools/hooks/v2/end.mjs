@@ -62,5 +62,7 @@ function judge(data, { shadow = false } = {}) {
   if (check) parts.push(`Check that these items of ${check.file} are really done (skip any that don't fit this work):\n${check.items.map(it => `${it.n}. ${it.text}`).join('\n')}`);
   // (the user reads the last message, so it carries the whole answer, in the user's language. Lesson (trials v33, v34):
   // "finish with only what changed" made it a note like "nothing changed", in English to a Spanish-speaking user)
-  return { decision: 'block', reason: `${parts.join('\n')}\nFix what isn't done. Then give your whole answer to the user again, in their language, with any fix in it: it is the message they read last.` };
+  // (the same answer, not a new one: lines no fix touched stay as they were, and the check itself stays out. Lesson
+  // (trial v43): each resent answer was reworded, and gained lines like "no skills were added" that meant nothing to the user)
+  return { decision: 'block', reason: `${parts.join('\n')}\nFix what isn't done. Then give your whole answer to the user again, in their language: the same answer, changed only where a fix changed something, with nothing about this check in it. It is the message they read last.` };
 }
