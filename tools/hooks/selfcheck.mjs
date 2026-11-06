@@ -5612,6 +5612,11 @@ if (mineB() && SPEED) { // engine-proof: a project whose engine is the one the s
     // a starter tool an upgrade never refreshes here (an old tools/new-project.mjs) is not the engine
     fs.appendFileSync(path.join(dir, 'tools/new-project.mjs'), '\n// an older copy left by the first setup\n');
     const staleTool = mode(dir);
+    // a changed engine v2 file is the engine too. Lesson: the proof left tools/hooks/v2 out, so a release that changed
+    // only v2 kept the last proof, and projects reused a run that never tested their v2 code
+    const v2 = path.join(dir, 'tools/hooks/v2/end.mjs'), v2Was = fs.readFileSync(v2);
+    fs.appendFileSync(v2, '\n// an engine v2 file changed\n');
+    const v2Changed = mode(dir); fs.writeFileSync(v2, v2Was);
     fs.appendFileSync(path.join(dir, 'tools/fit.mjs'), '\n// an engine file changed\n');
     const changed = mode(dir);
     // the proof file is written only when it changes
@@ -5623,9 +5628,10 @@ if (mineB() && SPEED) { // engine-proof: a project whose engine is the one the s
       && /^selfcheck mode: full, because --full asks for every test/.test(full) && /^selfcheck mode: full, because --deep asks for every test/.test(deep)
       && /^selfcheck mode: full, because .*not the engine the starter proved/.test(linkedOther) && /^selfcheck mode: engine results reused, because this engine is the one the starter shipped/.test(linkedSame)
       && /^selfcheck mode: engine results reused, because this engine is the one the starter shipped/.test(staleTool)
+      && /^selfcheck mode: full, because .*not the engine the starter proved \(changed here: tools\/hooks\/v2\/end\.mjs\)/.test(v2Changed)
       && /^selfcheck mode: full, because .*not the engine the starter proved \(changed here: tools\/fit\.mjs\)/.test(changed) && writes.join() === 'true,false,true',
-      'engine-proof: a project with the engine the starter proved reuses its run (smoke set only), also with an old copy of a starter tool upgrades leave alone; --full, --deep, a changed engine file or a linked starter that proved another engine run everything; the starter always runs everything',
-      JSON.stringify({ h, starter, shipped, full, deep, linkedOther, linkedSame, staleTool, changed, writes }).slice(0, 2000));
+      'engine-proof: a project with the engine the starter proved reuses its run (smoke set only), also with an old copy of a starter tool upgrades leave alone; --full, --deep, a changed engine file (engine v2 included) or a linked starter that proved another engine run everything; the starter always runs everything',
+      JSON.stringify({ h, starter, shipped, full, deep, linkedOther, linkedSame, staleTool, v2Changed, changed, writes }).slice(0, 2000));
   } finally { for (const d of [dir, other, tmp]) try { fs.rmSync(d, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); } catch { } }
 }
 if (mineB()) { // routing-only: a runbook whose only change this turn is its triggers line sets off no project check on changed
