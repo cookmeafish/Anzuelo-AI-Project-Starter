@@ -6690,7 +6690,16 @@ if (mineB()) { // selfcheck --help prints the usage and runs nothing (Lesson (tr
   report(r.status === 0 && /selfcheck\.mjs --full/.test(r.stdout) && !/^selfcheck mode:/m.test(r.stdout), 'selfcheck --help prints the usage and runs no test', `status ${r.status} ${String(r.stdout).slice(0, 200)}`);
 }
 
-if (mineB()) { // vault backlinks: the PASS line says how many new links it checked, and that older links were not
+// A library skill's script, tested only where the library is (the starter, or a copy that keeps it); elsewhere the
+// test is skipped like a pack's. Lesson (project report): a linked project has no library/, both spawns printed
+// nothing, and its full run failed on them.
+const libMissing = rel => { if (fs.existsSync(path.join(ROOT, 'library/skills', rel))) return false; skipped++; return true; };
+if (mineB()) { // every test block that runs a library skill's script is gated by libMissing, so a project without library/ skips it
+  const src = fs.readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n'), needle = "path.join(ROOT, 'library" + "/skills/";
+  const bare = src.map((l, i) => [l, i]).filter(([l]) => l.includes(needle) && l.includes('spawnSync(')).filter(([, i]) => { let k = i; while (k > 0 && !/^if \(mineB\(\)/.test(src[k])) k--; return !src[k].includes('libMissing('); }).map(([, i]) => i + 1);
+  report(bare.length === 0, 'selfcheck: every test of a library skill\'s script is skipped where the project has no library/', `ungated at lines ${bare.join(', ')}`);
+}
+if (mineB() && !libMissing('notes-vault/scripts/vault.mjs')) { // vault backlinks: the PASS line says how many new links it checked, and that older links were not
   // Lesson (trial v36): a PASS that checked no new links was relayed as "every link has a link back"
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-vault-'));
   try {
@@ -6707,7 +6716,7 @@ if (mineB()) { // vault backlinks: the PASS line says how many new links it chec
   } finally { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
 }
 
-if (mineB()) { // correspondence draft check: a draft that copies a phrase the skill quotes as an example fails
+if (mineB() && !libMissing('correspondence/scripts/draft-check.mjs')) { // correspondence draft check: a draft that copies a phrase the skill quotes as an example fails
   // Lesson (trials): the skill's own example lines were copied word for word into letters the user called cold
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-draft-'));
   try {
