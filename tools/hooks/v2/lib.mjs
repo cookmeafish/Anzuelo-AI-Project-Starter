@@ -90,7 +90,8 @@ export function route(prompt, books = runbooks()) {
   // v38): it named no runbook, and the rule went into a memory note with no check)
   // (and it comes before a trigger found mid-sentence; a trigger the request starts with still wins. Lesson (trials v38,
   // v41): "you forgot the new option ... every option has to be documented" went to the feature runbook on "new option")
-  const proj = books.find(b => b.file === 'docs/playbooks/project.md'), rule = proj && STANDING.test(String(prompt));
+  // ("that should never happen again" asks for a standing rule too. Lesson (trial v42): it named no runbook)
+  const proj = books.find(b => b.file === 'docs/playbooks/project.md'), rule = proj && (STANDING.test(String(prompt)) || /\b(that|this|it) (should|must|can) never happen again\b/i.test(String(prompt)));
   if (best && !(rule && best.score < 1000)) return { ...best.book, matched: best.phrase };
   return rule ? { ...proj, matched: 'standing rule' } : null;
 }

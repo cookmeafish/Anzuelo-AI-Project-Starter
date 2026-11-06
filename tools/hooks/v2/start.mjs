@@ -13,6 +13,9 @@ export const upset = p => { const s = String(p), letters = s.replace(/[^A-Za-z]/
   // (a repeated miss: "you keep making X", "why does it keep ...", "wrong again!!". Lesson (trial v41): a complaint with
   // "!!" got only the generic reminder)
   || /(?<!\b(?:can|could|would|will|should|to|please|and|if|let|make) )\b(you|u|it) keep(s)? (on )?\w+ing\b|\bwhy (do|does|did) (you|it) keep\b|\bagain\s*!!/i.test(s)
+  // (what was let through, and "that should never happen again". Lesson (trial v42): "you let any user delete ...! that
+  // should never happen again" got no notice and no runbook)
+  || /\byou (let|allowed) (any|anyone|anybody|everyone|everybody|every|all|the|a|other|staff|users?)\b[^.?!]{0,80}!|\b(that|this|it) (should|must|can) never happen again\b/i.test(s)
   || /\b(wtf|ugh|again\?!|why (did|would) you|you (forgot|missed|ignored|broke)|i (already )?told you|not what i asked|frustrat\w*|annoy\w*|(you|u|you're|ur|youre) (are )?not (following|listening)|i don'?t think you (understand|get it)|(is )?still (broken|wrong))\b/i.test(s)
   // (the Spanish forms. Lesson (trial v37): "otra vez pusiste texto en inglés" got no upset notice under v2)
   || /(?<!\p{L})(otra vez|de nuevo) (pusiste|hiciste|olvidaste|dejaste|metiste|usaste|escribiste|rompiste)|(?<!\p{L})(te (lo )?dije|(se te )?olvid(aste|ó)|por qu[eé] (lo )?hiciste|no me (escuchas|haces caso)|sigue (roto|mal|fallando))(?!\p{L})/iu.test(s); };
