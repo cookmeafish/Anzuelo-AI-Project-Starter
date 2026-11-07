@@ -62,7 +62,9 @@ export function reminder(prompt) {
   const book = route(prompt);
   // (a Spanish request: the whole answer in Spanish, labels too. Lesson (trial v37): a runbook item quoted an English
   // label, and it went into a Spanish answer twice, the second time in the reply to a complaint about English text)
-  const es = isSpanish(prompt) ? 'The user writes in Spanish: write the whole answer in Spanish, including any label a runbook quotes in English.' : '';
+  // (and the files the answer points them to. Lesson (trial v45): a Spanish answer sent the user to a spec and release
+  // notes written in English)
+  const es = isSpanish(prompt) ? 'The user writes in Spanish: write the whole answer in Spanish, including any label a runbook quotes in English, and any file you point them to.' : '';
   // (with no runbook routed, a skill whose own trigger phrase fits is named: the reminder only, the end check is
   // unchanged. Not beside a runbook, which names its own skills, and not on a one-word trigger. Lesson (replay of three
   // sources): beside a runbook it was mostly noise, like "compare" in a scheduled request, and every miss alone was one

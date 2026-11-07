@@ -236,9 +236,9 @@ report(/learn-from-upset/.test(reminder('WHY DID YOU BREAK THE EXPORT AGAIN').te
 { // a Spanish request routes like its English wording, gets a line to answer in Spanish, and its complaints count
   put('docs/playbooks/pages.md', '---\nname: pages\ntriggers: add a page, index page\n---\n## Done when\n1. The page is linked from the menu\n');
   const es = reminder('agrega una página de índice con todas las recetas ordenadas por categoría'), en = reminder('add a page for the recipes');
-  report(es.book?.name === 'pages' && /write the whole answer in Spanish/.test(es.text) && en.book?.name === 'pages' && !/Spanish/.test(en.text)
+  report(es.book?.name === 'pages' && /write the whole answer in Spanish/.test(es.text) && /and any file you point them to/.test(es.text) && en.book?.name === 'pages' && !/Spanish/.test(en.text)
     && upset('otra vez pusiste texto en inglés en la página, todo tiene que estar en español') && !upset('hazlo otra vez, por favor'),
-    'start: a Spanish request routes like its English wording and is told to answer in Spanish; a Spanish complaint is upset', { es: es.text, en: en.text });
+    'start: a Spanish request routes like its English wording and is told to answer in Spanish, files it points to too; a Spanish complaint is upset', { es: es.text, en: en.text });
   fs.rmSync(path.join(dir, 'docs/playbooks/pages.md'));
 }
 const long = reminder('start the long job now').text.split('\n');

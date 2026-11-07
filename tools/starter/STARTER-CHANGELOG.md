@@ -6,6 +6,8 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-06 (engine): the reminder's Spanish line also covers "any file you point them to", not only the answer (+30 characters on Spanish requests only). In trial round v45 Spanish answers sent the user to a spec and release notes written in English. Test: "start: a Spanish request routes like its English wording and is told to answer in Spanish, files it points to too; a Spanish complaint is upset".
+
 - 2026-11-06 (rules): AGENTS.md, Step 0 item 5 (installs): a held install stays held, "never script around the hold". In trial round v45 a setup helper wrote a script that ran the install the host had held five times, which the rule's "still run the project's own test command once" seemed to invite. Adopt by hand in each project's AGENTS.md (same sentence). Test: "rules: a held install is never scripted around".
 
 - 2026-11-06 (engine): a routed runbook the agent never opened, while it opened another runbook, gives way to that one in the end check (its items and its verify list); with no other runbook opened, the routed one is still asked for. In trial round v45 a page request routed to a recipe runbook on a broad trigger, the agent rightly followed the feature runbook, and the check held it to the recipe items. Replay: blocks unchanged in both real projects. Test: "end: a routed runbook the agent never opened gives way to the runbook it opened; with none opened it is still asked for".
