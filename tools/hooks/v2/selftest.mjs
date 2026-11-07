@@ -196,9 +196,10 @@ report(reminder('what time is it').text === '', 'start: a request no runbook fit
   put('skills/figures/SKILL.md', '---\nname: figures\ntriggers: best week, what drove, compare\n---\n# Figures\n');
   put('skills/mirror/SKILL.md', '---\nname: mirror\ngenerated: true\ntriggers: best week\n---\n# Mirror\n');
   const alone = reminder('what was our best week so far, and what drove it?'), beside = reminder('add a CSV export of our best week'), word = reminder('compare the two totals');
+  const later = reminder('Review the shop sessions every hour. If one went quiet, see what drove it and tell me.');
   report(/^Skill: open skills\/figures\/SKILL\.md and follow it\.$/m.test(alone.text) && !alone.book && beside.book?.name === 'export' && !/Skill:/.test(beside.text)
-    && !/Skill:/.test(word.text) && !/skills\/mirror/.test(alone.text) && !/Skill:/.test(reminder('what time is it').text),
-    'start: with no runbook routed, a skill whose trigger phrase of two or more words fits is named; beside a runbook, on one word, or a generated skill, not', [alone.text, beside.text, word.text]);
+    && !/Skill:/.test(word.text) && !/Skill:/.test(later.text) && !/skills\/mirror/.test(alone.text) && !/Skill:/.test(reminder('what time is it').text),
+    'start: with no runbook routed, a skill whose trigger phrase of two or more words fits the first sentence is named; beside a runbook, on one word, later in the request, or a generated skill, not', [alone.text, beside.text, word.text, later.text]);
   fs.rmSync(path.join(dir, 'skills/figures'), { recursive: true }); fs.rmSync(path.join(dir, 'skills/mirror'), { recursive: true });
 }
 put('DIRECTORY.md', '# Directory\n'); put('skills/learn-from-upset/SKILL.md', '# Learn from upset\n');

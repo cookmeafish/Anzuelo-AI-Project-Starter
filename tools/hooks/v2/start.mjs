@@ -67,7 +67,9 @@ export function reminder(prompt) {
   // unchanged. Not beside a runbook, which names its own skills, and not on a one-word trigger. Lesson (replay of three
   // sources): beside a runbook it was mostly noise, like "compare" in a scheduled request, and every miss alone was one
   // word, like "note" or "redundant")
-  const sk = book ? null : route(prompt, skillBooks());
+  // (and in the request's first sentence, where it says what it asks: everyday phrases like "find out" come up later in
+  // long instructions. Lesson (a scheduled review request): "if it is idle, find out why" named the research skill)
+  const sk = book ? null : route(String(prompt).trim().split(/(?<=[.?!])\s+|\n/)[0] || '', skillBooks());
   const skill = sk && /\s/.test(sk.matched || '') && !(sore && sk.name === 'learn-from-upset') ? `Skill: open ${sk.file} and follow it.` : '';
   if (sore && !book) return { book: null, text: [sore, skill, es].filter(Boolean).join('\n') };
   // (no trigger fits: the agent picks the runbook, and the end check holds the turn to the one it opened. Lesson
