@@ -365,9 +365,12 @@ const FAIL_OUT = /\b[1-9]\d* (tests? )?(failed|failing)\b|\bFAILED\b|\bnot ok\b/
 export const passedRun = c => /^(Bash|PowerShell)$/.test(c.name) && !c.error && (isTestRun(String(c.input.command || '')) || PASS_OUT.test(c.out || '')) && !FAIL_OUT.test(c.out || '');
 // (the project's own declared test and build commands, tools/hooks/config.json "test" and "build", count part by part.
 // Lesson (replay): a project's tests were a plain script run with node, which no runner name matched)
-const declared = () => { try { const c = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/hooks/config.json'), 'utf8')); return [c.test, c.build].filter(s => typeof s === 'string').flatMap(s => s.split(/\s*&&\s*/)).map(s => s.trim()).filter(Boolean); } catch { return []; } };
-// (the declared test command alone, tools/hooks/config.json "test")
-const ownTests = () => { try { const t = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/hooks/config.json'), 'utf8')).test; return typeof t === 'string' ? t.split(/\s*&&\s*/).map(s => s.trim()).filter(Boolean) : []; } catch { return []; } };
+// (the app pack keeps them under "app": { "test", "build" }. Lesson (trial v46): a Go project's test command was there,
+// v2 read only the top level, and a missing toolchain was asked for again)
+const cfgCmds = keys => { try { const c = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/hooks/config.json'), 'utf8')); return keys.flatMap(k => [c[k], c.app?.[k]]).filter(s => typeof s === 'string').flatMap(s => s.split(/\s*&&\s*/)).map(s => s.trim()).filter(Boolean); } catch { return []; } };
+const declared = () => cfgCmds(['test', 'build']);
+// (the declared test command alone, tools/hooks/config.json "test" or "app.test")
+const ownTests = () => cfgCmds(['test']);
 // (whether a program can start here: a shell word, a path, or a file on PATH)
 const SHELL_WORDS = new Set(['cd', 'echo', 'set', 'export', 'true', 'test']);
 export const installed = prog => SHELL_WORDS.has(prog) || /[\/\\]/.test(prog) || String(process.env.PATH || process.env.Path || '').split(path.delimiter).filter(Boolean)

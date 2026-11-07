@@ -452,6 +452,12 @@ report(testGaps(acts([user('fix the page'), page, say('Fixed.')])).length === 1
   put('tools/hooks/config.json', JSON.stringify({ test: 'node tests/run.mjs' }));
   const held = testGaps(acts([user('fix the page'), page, call('Bash', { command: 'pytest -q tests' }, 'This Bash command requires approval', true), say('Fixed; the tests could not run here.')]));
   const heldOwn = testGaps(acts([user('fix the page'), page, call('Bash', { command: 'node tests/run.mjs' }, 'This Bash command requires approval', true), say('Fixed; the tests could not run here.')])).length;
+  // (the app pack's layout, "app": { "test" }, counts the same. Lesson (trial v46))
+  put('tools/hooks/config.json', JSON.stringify({ app: { test: 'node tests/run.mjs' } }));
+  const app = testGaps(acts([user('fix the page'), page, say('Fixed.')]));
+  put('tools/hooks/config.json', JSON.stringify({ app: { test: 'no-such-runner-x test ./...' } }));
+  const appMissing = testGaps(acts([user('fix the page'), page, say('Fixed; the toolchain is not installed here.')])).length;
+  report(app.length === 1 && /this project's command: node tests\/run\.mjs/.test(app[0]) && appMissing === 0, 'end: the app pack\'s "app": { "test" } is the declared test command too', JSON.stringify({ app, appMissing }));
   put('tools/hooks/config.json', JSON.stringify({ test: 'no-such-runner-x test ./...' }));
   const missing = testGaps(acts([user('fix the page'), page, say('Fixed; the toolchain is not installed here.')])).length;
   report(held.length === 1 && /this project's command: node tests\/run\.mjs/.test(held[0]) && heldOwn === 0 && missing === 0,
