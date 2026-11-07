@@ -765,6 +765,10 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   // docs/plans/2026-11-05-engine-v2-agents-draft.md, under 60)
   const ruleLines = fs.readFileSync(path.join(repo, 'AGENTS.md'), 'utf8').split('\n').length;
   report(ruleLines <= 153, `simple: AGENTS.md stays at most 152 lines (${ruleLines - 1})`, ruleLines);
+  // (a held install stays held: the rules say not to script around it. Lesson (trial v45): a setup helper wrote a script
+  // that ran the install the host had held five times)
+  const rules = fs.readFileSync(path.join(repo, 'AGENTS.md'), 'utf8').replace(/\s+/g, ' ');
+  report(/If your tool holds that install, still run the project's own test command once, and never script around the hold\./.test(rules), 'rules: a held install is never scripted around');
   // (a session the v2 prompt hook (or begin) has seen may commit: the git guard reads v2's turn file too)
   {
     const { spawnSync } = await import('node:child_process');

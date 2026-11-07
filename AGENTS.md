@@ -36,7 +36,7 @@
    guess. Installing the project's own declared dependencies, or a widely used package from the official registry
    into the project folder, is part of the work: do it, so the code runs and gets tested, unless the project's own
    dependency rule (docs/foundation.md, docs/security.md) says to ask first. If your tool holds that install, still
-   run the project's own test command once. Each new one is vetted first: legitimate
+   run the project's own test command once, and never script around the hold. Each new one is vetted first: legitimate
    per at least two independent sources, truly free with a license that allows this use, maintained and well regarded,
    in one short `Vetted:` line, evidence in docs/DECISIONS.md (REQ: install-vetted). Security-sensitive parts
    (sessions, CSRF, password hashing, crypto, webhook signatures) use such a library, never hand-written code.
