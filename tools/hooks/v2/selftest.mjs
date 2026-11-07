@@ -191,13 +191,14 @@ report(reminder('what time is it').text === '', 'start: a request no runbook fit
   fs.rmSync(path.join(dir, 'docs/playbooks/orders-loop.md'));
 }
 {
-  // a skill with its own triggers is named when they fit, beside a runbook too; a runbook's generated mirror is not
-  put('skills/figures/SKILL.md', '---\nname: figures\ntriggers: best week, what drove\n---\n# Figures\n');
+  // a skill whose own trigger phrase fits is named when no runbook routed; not beside a runbook, not on one word, and
+  // not a runbook's generated mirror
+  put('skills/figures/SKILL.md', '---\nname: figures\ntriggers: best week, what drove, compare\n---\n# Figures\n');
   put('skills/mirror/SKILL.md', '---\nname: mirror\ngenerated: true\ntriggers: best week\n---\n# Mirror\n');
-  const alone = reminder('what was our best week so far, and what drove it?'), beside = reminder('add a CSV export of our best week');
-  report(/^Skill: open skills\/figures\/SKILL\.md and follow it\.$/m.test(alone.text) && !alone.book && beside.book?.name === 'export' && /Skill: open skills\/figures\/SKILL\.md/.test(beside.text)
-    && !/skills\/mirror/.test(alone.text + beside.text) && !/Skill:/.test(reminder('what time is it').text),
-    'start: a skill whose own triggers fit is named, alone or beside a runbook; a generated skill is not', [alone.text, beside.text]);
+  const alone = reminder('what was our best week so far, and what drove it?'), beside = reminder('add a CSV export of our best week'), word = reminder('compare the two totals');
+  report(/^Skill: open skills\/figures\/SKILL\.md and follow it\.$/m.test(alone.text) && !alone.book && beside.book?.name === 'export' && !/Skill:/.test(beside.text)
+    && !/Skill:/.test(word.text) && !/skills\/mirror/.test(alone.text) && !/Skill:/.test(reminder('what time is it').text),
+    'start: with no runbook routed, a skill whose trigger phrase of two or more words fits is named; beside a runbook, on one word, or a generated skill, not', [alone.text, beside.text, word.text]);
   fs.rmSync(path.join(dir, 'skills/figures'), { recursive: true }); fs.rmSync(path.join(dir, 'skills/mirror'), { recursive: true });
 }
 put('DIRECTORY.md', '# Directory\n'); put('skills/learn-from-upset/SKILL.md', '# Learn from upset\n');

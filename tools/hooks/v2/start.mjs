@@ -63,8 +63,12 @@ export function reminder(prompt) {
   // (a Spanish request: the whole answer in Spanish, labels too. Lesson (trial v37): a runbook item quoted an English
   // label, and it went into a Spanish answer twice, the second time in the reply to a complaint about English text)
   const es = isSpanish(prompt) ? 'The user writes in Spanish: write the whole answer in Spanish, including any label a runbook quotes in English.' : '';
-  // (a skill with its own triggers that fit is named too, beside any runbook: the reminder only, the end check is unchanged)
-  const sk = route(prompt, skillBooks()), skill = sk && !(sore && sk.name === 'learn-from-upset') ? `Skill: open ${sk.file} and follow it.` : '';
+  // (with no runbook routed, a skill whose own trigger phrase fits is named: the reminder only, the end check is
+  // unchanged. Not beside a runbook, which names its own skills, and not on a one-word trigger. Lesson (replay of three
+  // sources): beside a runbook it was mostly noise, like "compare" in a scheduled request, and every miss alone was one
+  // word, like "note" or "redundant")
+  const sk = book ? null : route(prompt, skillBooks());
+  const skill = sk && /\s/.test(sk.matched || '') && !(sore && sk.name === 'learn-from-upset') ? `Skill: open ${sk.file} and follow it.` : '';
   if (sore && !book) return { book: null, text: [sore, skill, es].filter(Boolean).join('\n') };
   // (no trigger fits: the agent picks the runbook, and the end check holds the turn to the one it opened. Lesson
   // (routing sample): plain requests used no trigger phrase; growing trigger lists forever is the old engine's path)
@@ -73,7 +77,7 @@ export function reminder(prompt) {
   // (a message relayed from another session may only report: its runbook is for when it asks for work. Lesson (project
   // report): a note that a fix had landed got the bugfix runbook and its list, though it asked for nothing)
   // (said in the runbook line itself: a line of its own was most of the reminders' growth on peer messages)
-  const lines = [...(sore ? [sore] : []), ...(es ? [es] : []), ...own, `Runbook${relayedRx.test(raw) ? ', only if this message asks for work here' : ''}: open ${book.file} and follow it.`, ...(skill && !book.skills.includes(sk.file) ? [skill] : [])];
+  const lines = [...(sore ? [sore] : []), ...(es ? [es] : []), ...own, `Runbook${relayedRx.test(raw) ? ', only if this message asks for work here' : ''}: open ${book.file} and follow it.`];
   if (book.items.length) {
     lines.push('Done when:');
     for (const it of book.items) lines.push(`${it.n}. ${it.text.length > 140 ? it.text.slice(0, it.text.lastIndexOf(' ', 137)) + '...' : it.text}`);
