@@ -339,6 +339,16 @@ report(testGaps(acts([user('fix the total'), code, call('Bash', { command: 'node
 report(testGaps(acts([user('fix the total'), call('Bash', { command: 'npm test' }), code, say('Fixed.')])).length === 1, 'end: a test run before the last change does not cover it');
 report(testGaps(acts([user('fix the total'), code, call('Bash', { command: 'npm test' }, 'Tests: 2 failed', true), say('Fixed.')])).length === 1, 'end: a failing test run does not count');
 report(testGaps(acts([user('is the export fine?'), say('Yes, all 12 tests passed.')])).some(s => /no test run passed in this turn/.test(s)), 'end: an answer that claims passing tests with no run this turn is named');
+// (a count an earlier turn's run printed backs the claim when this turn changed no code; with a code change, or a count
+// no run printed, it does not. Lesson (trial v45))
+{
+  const earlier = '{"type":"user","message":{"content":[{"type":"tool_result","content":"..........\\n12 passed in 3.1s"}]}}';
+  const now = new Date().toISOString();
+  const quiet = testGaps({ ...acts([user('is the export fine?'), say('Yes: no code changed since the 12 passed.')]), at: now }, earlier).length;
+  const other = testGaps({ ...acts([user('is the export fine?'), say('Yes: 14 passed.')]), at: now }, earlier).length;
+  const edited = testGaps(acts([user('fix the total'), code, say('Fixed; 12 passed.')]), earlier).length;
+  report(quiet === 0 && other === 1 && edited === 1, 'end: a pass count an earlier run in the session printed backs the claim on a turn with no code change; another count, or a code change, does not', JSON.stringify({ quiet, other, edited }));
+}
 // (only a pass count is a claim: wording about tests is not. Lesson (trial v34): "I don't know whether your tests pass"
 // and "a rule that tests pass before each commit" were held as claims that tests had passed)
 report(['Go is not installed, so I don\'t know whether your tests pass today.', 'Added a rule that tests, build and vet pass before each commit.', 'The health check passed (31 checks, 0 failed).']

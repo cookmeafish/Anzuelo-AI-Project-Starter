@@ -53,7 +53,8 @@ function judge(data, { shadow = false } = {}) {
   // (and per request: a turn that goes on after its block and stops again, with no new request, is not blocked again.
   // Lesson (trial): one request got the same list 3 times, each stop after a continuation the host did not mark)
   if (turn.at && turn.blocked === turn.at) return null;
-  const list = [...missing(turn, acts), ...testGaps(acts), ...gateGaps(acts), ...screenGaps(acts), ...healthGaps(acts, { run: !shadow }), ...knowledgeGaps(acts), ...securityGaps(acts), ...questionGaps(acts), ...claimGaps(acts, evidenceOf(tail(data.transcript_path, 5 << 20)))];
+  const history = evidenceOf(tail(data.transcript_path, 5 << 20));
+  const list = [...missing(turn, acts), ...testGaps(acts, history), ...gateGaps(acts), ...screenGaps(acts), ...healthGaps(acts, { run: !shadow }), ...knowledgeGaps(acts), ...securityGaps(acts), ...questionGaps(acts), ...claimGaps(acts, history)];
   const check = toVerify(turn, acts);
   if (!list.length && !check) return null;
   const parts = [];

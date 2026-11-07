@@ -425,7 +425,7 @@ export function gateGaps(acts) {
   return out;
 }
 // Check 2: code changed after the last passing test run, or the answer says tests passed and none did this turn.
-export function testGaps(acts) {
+export function testGaps(acts, history = '') {
   const out = [], i = acts.calls.map((c, k) => [c, k]);
   // (the project's code: not a scratch script in .cache or outside the project. Lesson (replay): helper scripts the
   // agent wrote in .cache asked for the project's tests)
@@ -456,8 +456,11 @@ export function testGaps(acts) {
   // (a result this turn read, in a message or a command's output, may be relayed. Lesson (replay): answers passing on
   // another session's or a project's test results were asked to run tests themselves)
   // (only a pass count is a claim. Lesson (trial v34): "I don't know whether your tests pass" was held as one)
+  // (nor, on a turn that changed no code, a count an earlier turn's run printed. Lesson (trial v45): "no code changed
+  // since the 81 passed" was true, and the block made the agent rerun the whole suite)
   else if (/\b\d+ (tests? )?passed\b/i.test(acts.answer) && !passes.length
-    && ![acts.heard || '', ...acts.calls.map(c => c.out)].join('\n').split('\n').some(l => /\b\d+ (tests? )?passed\b|\bALL PASS\b/i.test(l) && !/\b[1-9]\d* (tests? )?fail/i.test(l))) out.push('The answer says tests passed, but no test run passed in this turn: run them, or correct the answer.');
+    && ![acts.heard || '', ...acts.calls.map(c => c.out)].join('\n').split('\n').some(l => /\b\d+ (tests? )?passed\b|\bALL PASS\b/i.test(l) && !/\b[1-9]\d* (tests? )?fail/i.test(l))
+    && !(lastCode < 0 && !codeWrite && [...acts.answer.matchAll(/\b(\d+) (?:tests? )?passed\b/gi)].every(m => new RegExp(`(?<!\\d)${m[1]} (tests? )?passed\\b`, 'i').test(history)))) out.push('The answer says tests passed, but no test run passed in this turn: run them, or correct the answer.');
   return out;
 }
 
