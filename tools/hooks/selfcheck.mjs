@@ -6142,7 +6142,8 @@ if (mineB()) { // rule and prove commands: a standing rule written everywhere it
       && dup.status === 2 && /exists already/.test(dup.stdout) && bad.status === 2 && /lowercase words/.test(bad.stdout);
     // prove: the fix put back as git's last commit has it (the check fails), then the fix (it passes); the files come back
     const g = gitInit(dir);
-    write(dir, { 'src/del.js': 'export const del = () => true;\n', 'tools/del-check.mjs': "import fs from 'node:fs';\nconst ok = /owner/.test(fs.readFileSync('src/del.js', 'utf8'));\nconsole.log(ok ? 'RESULT: PASS' : 'RESULT: FAIL');\nprocess.exit(ok ? 0 : 1);\n" });
+    // (a passing run that says "0 FAIL" passes. Lesson (trial v46))
+    write(dir, { 'src/del.js': 'export const del = () => true;\n', 'tools/del-check.mjs': "import fs from 'node:fs';\nconst ok = /owner/.test(fs.readFileSync('src/del.js', 'utf8'));\nconsole.log(ok ? 'RESULT: PASS (3 PASS, 0 FAIL)' : 'RESULT: FAIL');\nprocess.exit(ok ? 0 : 1);\n" });
     g('add', '-A'); g('commit', '-q', '--no-verify', '-m', 'before');
     const fixed = 'export const del = user => user.role === "owner";\n';
     write(dir, { 'src/del.js': fixed });

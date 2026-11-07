@@ -6,6 +6,7 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-06 (engine): `hooks.mjs prove` counts a run as failed only on a failure count above 0, a line that starts with FAIL or "not ok", or "RESULT: FAIL". In trial round v46 a passing run's "0 FAIL" was read as a failure and took 3 prove runs. Test: the "rule and prove commands" fixture now prints "RESULT: PASS (3 PASS, 0 FAIL)" on a pass.
 - 2026-11-06 (engine): the end check's source test for new knowledge accepts "user reported" (and "the user says") as a source. In trial round v46 a note labelled "(user reported, <date>)" was asked for a source, and the fix wrote "Source: the user" beside the label. Test: "end: a link, a project file or the user as the source passes, "user reported" too".
 
 - 2026-11-06 (engine): the end check reads the app pack's `"app": { "test", "build" }` in `tools/hooks/config.json` as the project's declared commands, like the top-level `"test"` and `"build"`. In trial round v46 a Go project's test command was there, so the check named no command and asked for go test although Go is not installed. Replay: blocks unchanged in both real projects. Test: "end: the app pack's "app": { "test" } is the declared test command too".

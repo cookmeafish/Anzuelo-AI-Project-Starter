@@ -9565,7 +9565,9 @@ if (isMain) {
     const fixed = (git('diff', '--name-only', 'HEAD').stdout || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean)
       .filter(p => !named.has(p) && !TEST_FILE.test(p) && !CHECK_FILE.test(p) && !/^(docs\/|tools\/hooks\/|\.cache\/|memory\/)|(^|\/)(AGENTS|CLAUDE|README|SKILL)\.md$/.test(p) && exists(p));
     if (!fixed.length) { console.log('nothing to put back: this turn changed no tracked file the check governs (a new file, or a problem not in the project). Prove it on a sample of the problem instead: write one to .cache/, run the check on it (it fails), and on the real files (it passes).'); process.exit(2); }
-    const run = () => { const r = spawnSync(check, { shell: true, cwd: ROOT, encoding: 'utf8', timeout: 600000, maxBuffer: 64 * 1024 * 1024 }); const out = `${r.stdout || ''}${r.stderr || ''}`; return { out, ok: r.status === 0 && !/\b(FAIL(ED|S|URES?)?|not ok)\b|✖/.test(out) }; };
+    // (a passing run may say "0 FAIL" or name a test "fails on zero": only a failure count above 0, a line that starts
+    // with FAIL or "not ok", or a RESULT: FAIL fails it. Lesson (trial v46): a passing run's "0 FAIL" took 3 prove runs)
+    const run = () => { const r = spawnSync(check, { shell: true, cwd: ROOT, encoding: 'utf8', timeout: 600000, maxBuffer: 64 * 1024 * 1024 }); const out = `${r.stdout || ''}${r.stderr || ''}`; return { out, ok: r.status === 0 && !/\b[1-9]\d* (tests? )?(FAIL(ED|S|URES?|ING)?)\b|^\s*(FAIL(ED)?|not ok)\b|\bRESULT:\s*FAIL\b|✖/im.test(out) }; };
     const tail = s => s.trim().split(/\r?\n/).slice(-6).map(l => `  ${l.slice(0, 200)}`).join('\n');
     // (each file goes back with its own modification time too: the put-back is no change. Lesson (trial): the end check
     // took the put-back for code changed after the tests had passed, and asked for them again)
