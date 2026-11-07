@@ -8,7 +8,11 @@ import { runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, s
 // or edited is its work, not the procedure it chose. Lesson (trial v43): a setup that wrote the vault-tidy runbook and
 // read it back was held to that runbook's items.
 const authored = (b, acts) => acts.calls.some(c => /^(Edit|Write|MultiEdit)$/.test(c.name) && String(c.input.file_path || '').replace(/\\/g, '/').endsWith(b.file));
-const chosen = (turn, acts, books) => (turn.runbook && books.find(b => b.file === turn.runbook)) || books.find(b => opened({ ...b, skills: [] }, acts) && !authored(b, acts));
+// (a routed runbook the agent never opened, while it opened another one, gives way to that one: the router guessed, the
+// agent chose. Lesson (trial v45): a page request routed to a recipe runbook on a broad trigger, the agent followed the
+// feature runbook, and the end check held it to the recipe items)
+const picked = (acts, books) => books.find(b => opened({ ...b, skills: [] }, acts) && !authored(b, acts));
+const chosen = (turn, acts, books) => { const routed = turn.runbook && books.find(b => b.file === turn.runbook); return routed && !opened(routed, acts) ? picked(acts, books.filter(b => b !== routed)) || routed : routed || picked(acts, books); };
 export function missing(turn, acts, books = runbooks()) {
   const book = chosen(turn, acts, books);
   if (!book || !worked(acts)) return [];

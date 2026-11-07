@@ -278,6 +278,14 @@ report(chose.some(s => /export\.md item 1/.test(s)) && !chose.some(s => /^Open/.
 // (a runbook the turn wrote and read back is its work, not the procedure it chose. Lesson (trial v43))
 const wrote = missing({ runbook: null }, acts([user('set up the project'), call('Write', { file_path: path.join(dir, 'docs/playbooks/export.md'), content: 'x' }), read, edit, say('Set up.')]));
 report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and then read is not the one the turn is held to', wrote);
+{ // (a routed runbook never opened, while another was, gives way to the one opened. Lesson (trial v45))
+  put('docs/playbooks/recipes.md', '---\nname: recipes\ntriggers: recipe\n---\n## Done when\n1. The recipe card is filed\n');
+  const other = missing({ runbook: 'docs/playbooks/recipes.md' }, acts([user('add a page listing the recipes'), read, edit, say('Added.')]));
+  const none = missing({ runbook: 'docs/playbooks/recipes.md' }, acts([user('add a page listing the recipes'), edit, say('Added.')]));
+  fs.rmSync(path.join(dir, 'docs/playbooks/recipes.md'));
+  report(other.some(s => /export\.md item 1/.test(s)) && !other.some(s => /recipes\.md/.test(s)) && none.some(s => /^Open docs\/playbooks\/recipes\.md/.test(s)),
+    'end: a routed runbook the agent never opened gives way to the runbook it opened; with none opened it is still asked for', JSON.stringify({ other, none }));
+}
 { // (a skill the runbook hands the case to counts as opening it; any other skill does not. Lesson (trial v42))
   // (the sample skill's path is built here, so the reference sweep does not read it as a real reference)
   const sample = ['skills', 'ledger-rule', 'SKILL.md'].join('/');
