@@ -534,8 +534,9 @@ const plain = 'The spring tide at the north pier reaches 4.2 metres in March, an
 report(knowledgeGaps(acts([user('add the tide facts'), fact(plain), say('Added.')])).length === 1, 'end: new knowledge text with no source is named');
 report(knowledgeGaps(acts([user('add the tide facts'), fact(plain + ' Source: https://example.org/tides (read 2026-11-05).'), say('Added.')])).length === 0
   && knowledgeGaps(acts([user('add the tide facts'), fact(plain + ' (observed, 2026-11-05, from data/tides.csv)'), say('Added.')])).length === 0
-  && knowledgeGaps(acts([user('add the tide facts'), fact(plain + ' The user said this on 2026-11-05.'), say('Added.')])).length === 0,
-  'end: a link, a project file or the user as the source passes');
+  && knowledgeGaps(acts([user('add the tide facts'), fact(plain + ' The user said this on 2026-11-05.'), say('Added.')])).length === 0
+  && knowledgeGaps(acts([user('add the tide facts'), fact(plain + ' (user reported, 2026-11-05)'), say('Added.')])).length === 0,
+  'end: a link, a project file or the user as the source passes, "user reported" too');
 report(knowledgeGaps(acts([user('add the tide facts'), fact(plain), call('Edit', { file_path: path.join(dir, 'docs/knowledge/SOURCES.md'), old_string: 'a', new_string: '| tides | https://example.org |' }), say('Added.')])).length === 0,
   'end: a sources list edited in the same turn covers the new facts');
 report(knowledgeGaps(acts([user('fix a typo'), fact('Tides'), fact(plain, 'docs/knowledge/README.md'), fact(plain, 'notes/tides.md'), say('Fixed.')])).length === 0,

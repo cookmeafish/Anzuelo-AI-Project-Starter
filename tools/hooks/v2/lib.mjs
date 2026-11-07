@@ -521,7 +521,9 @@ export function healthGaps(acts, { run = true } = {}) {
 // knowledge edit's new text carries a source (a link, a project file, "source:", a footnote, "the user said"), or a
 // sources list edited in the same turn does. Replay: the old engine's ask found a real problem in 4 of 7 runs.
 const knowledgeDirs = () => { try { return JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/hooks/config.json'), 'utf8')).knowledgeDirs || ['docs/knowledge']; } catch { return ['docs/knowledge']; } };
-const SOURCED = /https?:\/\/|\bsources?\s*:|\[\^[^\]]+\]|\b(the )?user (said|told|gave|wrote)\b|\bobserved\b|\(from [\w./-]+\)|\b[\w-]+\/[\w./-]+\.(md|txt|csv|json|pdf)\b/i;
+// ("user reported" too. Lesson (trial v46): a note labelled "(user reported, <date>)" was asked for a source, and the
+// fix wrote "Source: the user" beside the label)
+const SOURCED = /https?:\/\/|\bsources?\s*:|\[\^[^\]]+\]|\b(the )?user[- ]?(said|told|gave|wrote|reported|says)\b|\bobserved\b|\(from [\w./-]+\)|\b[\w-]+\/[\w./-]+\.(md|txt|csv|json|pdf)\b/i;
 export function knowledgeGaps(acts) {
   const dirs = knowledgeDirs().map(d => d.replace(/\/+$/, '') + '/');
   const isK = r => dirs.some(d => r.startsWith(d)) && !/(^|\/)(README|SOURCES|INDEX)\.md$/i.test(r);
