@@ -1296,6 +1296,22 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   report(lines <= 1500 && checks >= 1 && checks <= 15, `size: the v2 engine is at most 1,500 lines (${lines}) and the end check runs at most 15 checks (${checks})`, { lines, checks });
 }
 
+// (one place finds the three roots: the engine's code, the project, and where project-made engine files live. In the
+// starter all three are the repository; in a project the engine sits in .anzuelo/engine and its own files in
+// .anzuelo/local. Plan: docs/plans/2026-11-07-engine-outside-the-project.md, Task 1)
+{
+  let roots = null; try { ({ roots } = await import('../paths.mjs')); } catch { }
+  const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-layout-')), eng = path.join(proj, '.anzuelo', 'engine');
+  fs.mkdirSync(path.join(eng, 'tools', 'hooks'), { recursive: true });
+  const inProject = roots?.(path.join(eng, 'tools', 'hooks'), {});
+  const inStarter = roots?.(path.join(dir, 'tools', 'hooks'), {});
+  const viaEnv = roots?.(path.join(dir, 'tools', 'hooks'), { ANZUELO_ROOT: proj });
+  report(!!roots && inProject.ENGINE === eng && inProject.PROJECT === proj && inProject.LOCAL === path.join(proj, '.anzuelo', 'local') && inProject.split
+    && inStarter.ENGINE === dir && inStarter.PROJECT === dir && inStarter.LOCAL === dir && !inStarter.split && viaEnv.PROJECT === proj && viaEnv.ENGINE === dir,
+    'paths: one module finds the engine, project and local roots, in the starter (one folder) and in a project (.anzuelo/engine, .anzuelo/local)', { inProject, inStarter, viaEnv });
+  fs.rmSync(proj, { recursive: true, force: true });
+}
+
 fs.rmSync(dir, { recursive: true, force: true });
 console.log(`v2 selftest: ${fail ? 'FAIL' : 'ALL PASS'} (${pass} passed, ${fail} failed)`);
 process.exit(fail ? 1 : 0);

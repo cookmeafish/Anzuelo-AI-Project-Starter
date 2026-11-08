@@ -80,12 +80,15 @@ A run that is stuck sets `status: blocked - <reason>` with `Tried:` and `Options
 ### Task 1: one paths module
 **Files:** tools/hooks/paths.mjs (new), `tools/hooks/selfcheck.mjs`
 **Uses / provides:** provides ENGINE, PROJECT, LOCAL to every later task
-- [ ] Add a new tools/hooks/paths.mjs exporting `ENGINE` (where the engine code is), `PROJECT` (the project root) and
+- [x] Add a new tools/hooks/paths.mjs exporting `ENGINE` (where the engine code is), `PROJECT` (the project root) and
       `LOCAL` (where project-made engine files live), found from the script's own location and the session's
       working folder. In the starter all three are the repository root, except `LOCAL`, which is the root too.
-- [ ] Test first: a self-test builds a temp project with the engine in `.anzuelo/engine/` and asserts the three roots;
-      it fails before the module exists.
-- [ ] Run `node tools/hooks/selfcheck.mjs`.
+      (2026-11-08: also `roots(hooksDir, env)` for tests and `split`; `ANZUELO_ROOT` names the project outright.
+      Added to the engine file list in tools/new-project.mjs so upgrades copy it.)
+- [x] Test first: a self-test builds a temp project with the engine in `.anzuelo/engine/` and asserts the three roots;
+      it fails before the module exists. (In tools/hooks/v2/selftest.mjs, which the chain runs first.)
+- [x] Run `node tools/hooks/selfcheck.mjs`. (Tags v2, engine, upgrade, new-project: all pass; the full run goes with
+      the next batch's frozen chain.)
 
 ### Task 2: every path through the module
 **Files:** `tools/hooks/hooks.mjs`, `tools/hooks/v2/*.mjs`, `tools/audit.mjs`, `tools/packs.mjs`, `tools/skills.mjs`, `tools/starter.mjs`, `tools/hooks/wire.mjs`, `skills/*/scripts/*.mjs`
