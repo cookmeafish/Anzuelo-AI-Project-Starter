@@ -77,7 +77,13 @@ no vendor.
   nothing in git that credits an AI agent.
 
 ## Start a project
-**After cloning this repository**, run `node tools/hooks/wire.mjs` once. It connects the folder to your agent
+**The easiest way:** clone this repository straight into your new project's folder (e.g. `C:\projects\My App`), then
+run `node tools/new-project.mjs --self-install --git` there (an agent does this itself when asked to set the folder
+up). The folder becomes the project, and the starter moves to its own copy beside it
+(`<repository name>-My-App`), which the project upgrades from. Restart the agent in the folder and say
+**"set up this project"**.
+
+**After cloning this repository** into a folder of its own, run `node tools/hooks/wire.mjs` once. It connects the folder to your agent
 (Claude Code, Codex and others) and switches on the git checks.
 
 | Agent | What wire sets up |

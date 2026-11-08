@@ -7510,6 +7510,32 @@ if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) {
   // the generator never puts a project inside the starter
   const g = spawnSync(process.execPath, [path.join(ROOT, 'tools/new-project.mjs'), path.join(ROOT, 'inside-test'), '--dry-run', '--dev'], { encoding: 'utf8' });
   report(g.status !== 0 && /must not be inside each other/.test(g.stderr) && !fs.existsSync(path.join(ROOT, 'inside-test')), 'starter: new-project refuses a project inside the starter', g.stderr.slice(0, 200));
+  // (REQ: self-install. A clone of the starter made in a project's folder becomes that project, and the starter moves
+  // to its own copy beside it that the project links to; the session there is told to do it. A clone with changes of
+  // its own is left alone. Lesson (a field report): the agent guessed where the starter belongs)
+  {
+    const box = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-self-')), proj = path.join(box, 'Garden Notes'), copy = path.join(box, 'Some-Starter-Garden-Notes');
+    const git = (cwd, ...a) => spawnSync('git', a, { cwd, encoding: 'utf8' });
+    try {
+      git(box, 'clone', '-q', ROOT, proj);
+      fs.copyFileSync(path.join(ROOT, 'tools/new-project.mjs'), path.join(proj, 'tools/new-project.mjs'));
+      fs.copyFileSync(path.join(ROOT, 'tools/hooks/hooks.mjs'), path.join(proj, 'tools/hooks/hooks.mjs'));
+      git(proj, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-qam', 'under test');
+      git(proj, 'remote', 'set-url', 'origin', 'https://example.com/x/Some-Starter.git');
+      const told = spawnSync(process.execPath, [path.join(proj, 'tools/hooks/hooks.mjs'), 'notices'], { cwd: proj, encoding: 'utf8', env: { ...process.env, CLAUDE_PROJECT_DIR: proj, ANZUELO_ROOT: '' } }).stdout || '';
+      fs.writeFileSync(path.join(proj, 'mine.txt'), 'x');
+      const held = spawnSync(process.execPath, [path.join(proj, 'tools/new-project.mjs'), '--self-install'], { cwd: proj, encoding: 'utf8' });
+      fs.rmSync(path.join(proj, 'mine.txt'));
+      const r = spawnSync(process.execPath, [path.join(proj, 'tools/new-project.mjs'), '--self-install', '--git'], { cwd: proj, encoding: 'utf8', timeout: 300000 });
+      const rd = p => { try { return fs.readFileSync(path.join(proj, p), 'utf8'); } catch { return ''; } };
+      const link = (() => { try { return JSON.parse(rd('tools/starter.local.json')).path; } catch { return ''; } })();
+      report(/SELF-INSTALL: .*--self-install/.test(told) && held.status !== 0 && /changes of its own/.test(held.stderr) && r.status === 0
+        && /^# <!--name:PROJECT_NAME-->Garden Notes<!--/m.test(rd('AGENTS.md')) && !fs.existsSync(path.join(proj, '.starter-template')) && path.resolve(link || '.') === copy
+        && fs.existsSync(path.join(copy, 'tools/new-project.mjs')) && /Some-Starter\.git/.test(git(copy, 'remote', 'get-url', 'origin').stdout),
+        'self-install: a starter clone in a project folder becomes that project, with the starter in its own linked copy beside it; one with changes of its own is left alone',
+        `told: ${told.slice(0, 150)} | held: ${held.stderr.slice(0, 150)} | run ${r.status}: ${(r.stderr || '').slice(-300)} | link ${link}`);
+    } finally { fs.rmSync(box, { recursive: true, force: true }); }
+  }
 }
 
 if (mineP()) { // check patterns keep their escapes. Lesson: a pattern written through a shell lost its backslashes ("[sS]*" for

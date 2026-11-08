@@ -4422,6 +4422,12 @@ function notices(cfg) {
   // folder lets commits skip the AI-credit and secret checks. Lesson (two field reports): a rolled-back move left it so.
   const wp = WIRING ? (() => { try { return WIRING(ROOT); } catch { return []; } })() : [];
   if (wp.length) out.push(`WIRING BROKEN: ${wp.join('; ')}. Run node ${path.relative(ROOT, fileURLToPath(new URL('./wire.mjs', import.meta.url))).split(path.sep).join('/')} (it repairs the engine's wiring), then tell the user in one line what was broken and that it is fixed. Anything it could not fix goes to the user with the exact line to run.`);
+  // REQ: self-install. A clone of the starter in a folder named for a project (not after the repository) is a project
+  // to make: the starter installs itself. Lesson (a field report): the agent guessed where the starter belongs.
+  if (template && !exists('.starter-dev')) {
+    const repo = path.basename((/\[remote "origin"\][^[]*?url\s*=\s*(\S+)/.exec(read(abs('.git/config'))) || [])[1]?.replace(/\.git$/, '') || '');
+    if (repo && !path.basename(ROOT).toLowerCase().startsWith(repo.toLowerCase())) out.push(`SELF-INSTALL: this folder is a fresh clone of the starter, named for a project. When the user asks to set it up (or to use the starter here), run node tools/new-project.mjs --self-install --git (--dry-run first): this folder becomes the project "${path.basename(ROOT)}", and the starter moves to its own copy beside it, which the project upgrades from. Ask nothing about where the starter goes. Then the user restarts the agent in this folder and says "set up this project".`);
+  }
   // REQ: unresolved-carryover. Lesson: after the block cap, a miss passed silently. It is announced once, and the next
   // work turn's Stop re-runs those checks (carryoverChecks), so it cannot just be read and forgotten.
   const un = readJSON(path.join(STATE, 'unresolved.json'), null);
@@ -4958,7 +4964,7 @@ export function namedEdits(prompt, cfg = config()) {
   }
   return [...new Set(out)];
 }
-const promptNotices = cfg => notices(cfg).filter(x => /^(BOOTSTRAP|SETUP|INBOX|LAST WORK TURN|STALE)/.test(x));
+const promptNotices = cfg => notices(cfg).filter(x => /^(BOOTSTRAP|SETUP|SELF-INSTALL|INBOX|LAST WORK TURN|STALE)/.test(x));
 
 const DIGEST = '[rules] route→open runbook · no runbook→create one · always/never→enforced rule · facts labeled+sourced+dated · ' +
   'questions get answers, not edits · originals/outputs protected · GUI change→screenshot loop · end with Finished + paths';
