@@ -6240,7 +6240,12 @@ export function upsetUnacknowledged(name, inp, tp = '') {
 }
 export function acknowledgedLine(p) {
   if (p !== '.cache/turn-notes.md') return '';
-  const turn = readJSON(stateFile('turn.json'), {}).at || '', was = readJSON(stateFile(ACKED), {});
+  // (under v2 the turn's start is in v2's own record, and with none no note is this turn's. Lesson (the user, in the
+  // desktop app): v2 writes no turn.json, so a new session read the whole shared notes file and showed another
+  // session's old "acknowledged" line at its first tool call)
+  const v2at = engineOf() === 'v2' ? (V2_TURN && SID ? V2_TURN(SID)?.at : '') || '' : null;
+  if (v2at === '') return '';
+  const turn = v2at || readJSON(stateFile('turn.json'), {}).at || '', was = readJSON(stateFile(ACKED), {});
   // (this turn's notes only, and an issue no earlier turn acknowledged: the notes file carries over between turns.
   // Lesson (probe): a later, unrelated turn showed the earlier turn's "acknowledged" at its first tool call)
   // (the problem, the runbook that will fix it, and what fixed means; shown only once all three are there)
@@ -9732,7 +9737,7 @@ if (isMain) {
   }
   // (under v2 the background-run notice comes from the runs this session started, never from command text)
   if (cmd === 'pretool' && ENGINE === 'v2') V2_PRETOOL = true;
-  if (cmd === 'session' && ENGINE === 'v2') try { V2_TURN = (await import('./v2/lib.mjs')).loadTurn; } catch { }
+  if (/^(session|pretool|posttool)$/.test(cmd) && ENGINE === 'v2') try { V2_TURN = (await import('./v2/lib.mjs')).loadTurn; } catch { }
   try {
     const fn = { session: cmdSession, prompt: cmdPrompt, pretool: cmdPretool, posttool: cmdPosttool, stop: cmdStop, subagentstop: cmdSubagentstop }[cmd];
     if (fn) fn(data);

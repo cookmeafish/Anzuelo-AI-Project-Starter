@@ -983,6 +983,27 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     let j = {}; try { j = JSON.parse(out); } catch { }
     report(j.decision === 'block' && !j.systemMessage, 'stop: a send-back adds no line of its own for the user', out.slice(0, 300));
   }
+  // (a new session never shows an "acknowledged" line from another session's old note; its own new one still shows.
+  // Lesson (the user, in the desktop app): a plain question's first tool call showed another session's old issue)
+  {
+    const { spawnSync } = await import('node:child_process');
+    const c = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-ack-'));
+    fs.mkdirSync(path.join(c, 'tools/hooks/state'), { recursive: true }); fs.mkdirSync(path.join(c, '.cache'), { recursive: true }); fs.mkdirSync(path.join(c, 'skills/learn-from-upset'), { recursive: true });
+    fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(c, 'tools/hooks/v2'), { recursive: true });
+    for (const f of ['hooks.mjs', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
+    fs.copyFileSync(path.join(repo, 'skills/learn-from-upset/SKILL.md'), path.join(c, 'skills/learn-from-upset/SKILL.md'));
+    const notes = path.join(c, '.cache/turn-notes.md'), old = new Date(Date.now() - 3600_000);
+    fs.writeFileSync(notes, 'Issue: the export dropped rows with commas | runbook: learn-from-upset | fixed when: every row is in the export\n'); fs.utimesSync(notes, old, old);
+    const env = { ...process.env, STARTER_ENGINE: 'v2', ANZUELO_ROOT: c, CLAUDE_PROJECT_DIR: c };
+    const run = (cmd, extra) => spawnSync(process.execPath, [path.join(c, 'tools/hooks/hooks.mjs'), cmd], { cwd: c, encoding: 'utf8', input: JSON.stringify({ session_id: 'freshack', transcript_path: path.join(c, 't.jsonl'), ...extra }), env }).stdout || '';
+    run('prompt', { prompt: 'what does the setup runbook do' });
+    const first = run('pretool', { tool_name: 'Bash', tool_input: { command: 'ls docs' } });
+    fs.appendFileSync(notes, 'Issue: the summary named a file that does not exist | runbook: learn-from-upset | fixed when: every file named in the answer exists\n');
+    const own = run('pretool', { tool_name: 'Bash', tool_input: { command: 'ls docs' } });
+    fs.rmSync(c, { recursive: true, force: true });
+    report(!/acknowledged/.test(first) && /acknowledged: the summary named a file/.test(own),
+      'pretool: a new session shows no other session\'s old "acknowledged" line; its own new Issue line still shows', { first: first.slice(0, 200), own: own.slice(0, 200) });
+  }
   // (the checks a project wrote itself are listed for its upgrade to turn into "Done when" lines; shipped ones are not)
   {
     const { projectChecks } = await import('../hooks.mjs');
