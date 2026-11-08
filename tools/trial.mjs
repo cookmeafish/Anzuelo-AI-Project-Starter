@@ -264,8 +264,12 @@ for (const [name, s] of Object.entries(SAMPLES)) {
     const pre = snapshot(dir, /^(\.git|tools\/hooks\/state|\.cache)(\/|$)/);
     const u3 = starterRun(dir, '--upgrade');
     const post = snapshot(dir, /^(\.git|tools\/hooks\/state|\.cache)(\/|$)/);
-    const moved = [...new Set([...Object.keys(pre), ...Object.keys(post)])].filter(f => pre[f] !== post[f]);
-    check(name, 'an upgrade that breaks a passing check rolls back to exactly the project it was', u3.status === 1 && /ROLLED BACK/.test(u3.stderr) && /exactly as it was/.test(u3.stderr) && !moved.length,
+    // (but for the one dated line that records the rollback at the end of docs/DECISIONS.md)
+    const decPath = path.join(dir, 'docs/DECISIONS.md'), dec = fs.existsSync(decPath) ? fs.readFileSync(decPath, 'utf8') : '';
+    const lastLine = /- \d{4}-\d\d-\d\d: engine rolled back: [^\n]*\n$/.exec(dec), rest = lastLine ? dec.slice(0, lastLine.index) : null;
+    const decOk = rest !== null && [rest, rest.replace(/\n$/, '')].some(t => crypto.createHash('sha1').update(t).digest('hex') === pre['docs/DECISIONS.md']);
+    const moved = [...new Set([...Object.keys(pre), ...Object.keys(post)])].filter(f => pre[f] !== post[f] && !(f === 'docs/DECISIONS.md' && decOk));
+    check(name, 'an upgrade that breaks a passing check rolls back to exactly the project it was, with its dated record line', u3.status === 1 && /ROLLED BACK/.test(u3.stderr) && /exactly as it was/.test(u3.stderr) && !moved.length,
       `status ${u3.status} | ${moved.slice(0, 6).join(', ')} | ${(u3.stderr || '').slice(0, 300)}`);
     // a rolled-back run never reads as a success: no change log ahead of the notice
     check(name, 'a rolled-back upgrade leads with ROLLED BACK and prints no change log', /^ROLLED BACK/.test(u3.stderr.trim()) && !/^(updated|created)\s/m.test(u3.stdout), u3.stdout.slice(0, 300));
