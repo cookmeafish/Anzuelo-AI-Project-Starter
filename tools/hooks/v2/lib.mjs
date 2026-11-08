@@ -611,10 +611,13 @@ export function evidenceGaps(acts) {
   // (each fact its own source, beside it: a list of facts whose sources sit in one list at the end can't be traced. The
   // user, 2026-11-07: every output must be accurate)
   const body = String(acts.answer || '').split('\n'), cut = body.findIndex(l => /^\W*(sources?|references?)\b\W*:?/i.test(l.trim()));
-  const facts = (cut >= 0 ? body.slice(0, cut) : body).filter(l => /^\s*(?:[-*•]|\d+[.)])\s+\S/.test(l) && l.replace(/[^\p{L}]/gu, '').length > 25);
+  // (every fact line, whatever the count; a line that states no fact, a question or a bare label, does not count)
+  const facts = (cut >= 0 ? body.slice(0, cut) : body).filter(l => /^\s*(?:[-*•]|\d+[.)])\s+\S/.test(l) && l.replace(/[^\p{L}]/gu, '').length > 25
+    && !/\?\s*$/.test(l) && !/^\s*(?:[-*•]|\d+[.)])\s+\*\*[^*]+\*\*:?\s*$/.test(l));
   const cites = l => /\[\d+\]|https?:\/\/|(?:[\w.-]+\/)+[\w.-]+\.\w+|\b[\w-]+\.(?:md|txt|csv|json|pdf)\b|\b(inference|inferred|not found|not covered)\b/i.test(l);
-  if (facts.length >= 3 && facts.filter(cites).length < facts.length / 2)
-    out.push('Give each fact its own source beside it (a [n] citation, the file or the link), not one list at the end, and label a statement with no source as inference.');
+  const bare = facts.filter(l => !cites(l));
+  if (bare.length)
+    out.push(`Give each fact its own source beside it (a [n] citation, the file or the link), or label it inference or not found; ${bare.length} fact line${bare.length > 1 ? 's have' : ' has'} neither, such as "${bare[0].trim().slice(0, 60)}".`);
   if (!cited.length && !files.length && !/\bnot (found|covered|in)\b[^.\n]{0,80}\b(in|the)\b|\bnothing recorded in\b/i.test(ans))
     out.push('The answer names no source: give each fact the file or link it came from, or say "not found in <sources searched>", and label anything else as inference.');
   return out;

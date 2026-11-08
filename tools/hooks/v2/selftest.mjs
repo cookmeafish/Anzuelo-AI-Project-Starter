@@ -371,6 +371,8 @@ report(noLog.length === 2 && noLog.some(s => /item 2/.test(s)) && noLog.some(s =
   const listAtEnd = eg(acts([user('tell me about the ferry'), src, say('- The ferry leaves the north pier at nine each day\n- It carries cars and bikes on every crossing\n- Tickets are sold on board only, cash or card\n\nSources: notes/ferry.md')]));
   const perFact = eg(acts([user('tell me about the ferry'), src, say('- The ferry leaves the north pier at nine each day (notes/ferry.md)\n- It carries cars and bikes on every crossing (notes/ferry.md)\n- Tickets are sold on board only (inference: no source says otherwise)')]));
   const guess = eg(acts([user('when does the bus leave?'), src, say('Probably around ten, like the ferry.')]));
+  const oneBare = eg(acts([user('tell me about the ferry'), src, say('**Ferry:**\n- The ferry leaves the north pier at nine each day (notes/ferry.md)\n- It carries cars and bikes on every crossing\n- Do you want the winter timetable too?')]));
+  report(oneBare.length === 1 && /1 fact line has neither/.test(oneBare[0]), 'end: a single fact line with no source or label is asked for; a heading and a question to the user are not facts', oneBare);
   report(listAtEnd.some(g => /its own source beside it/.test(g)) && perFact.length === 0 && guess.some(g => /names no source/.test(g)),
     'end: a list of facts with one source list at the end and a best guess with no source are asked for; per-fact sources pass', { listAtEnd, perFact, guess });
   const { reviewGaps } = await import('./end.mjs');
