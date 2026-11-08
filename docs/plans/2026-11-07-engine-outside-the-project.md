@@ -93,7 +93,9 @@ A run that is stuck sets `status: blocked - <reason>` with `Tried:` and `Options
 ### Task 2: every path through the module
 **Files:** `tools/hooks/hooks.mjs`, `tools/hooks/v2/*.mjs`, `tools/audit.mjs`, `tools/packs.mjs`, `tools/skills.mjs`, `tools/starter.mjs`, `tools/hooks/wire.mjs`, `skills/*/scripts/*.mjs`
 **Uses / provides:** uses Task 1
-- [ ] List every path builder (Context grep) into `.cache/paths-inventory.txt`, tagged engine, project or local.
+- [x] List every path builder (Context grep) into `.cache/paths-inventory.txt`, tagged engine, project or local.
+      (2026-11-08: 457 sites; they hang off 14 roots, tagged in `.cache/paths-roots.md`. The bulk is hooks.mjs `abs()`,
+      260 sites, used for both engine and project files: each needs its own tag when converted.)
 - [ ] Convert `hooks.mjs` and `v2/` (state files, runbooks, skills, config, records).
 - [ ] Convert `audit.mjs`, `packs.mjs`, `skills.mjs`, `starter.mjs`, `wire.mjs`, skill scripts.
 - [ ] Runbook and skill lookups read engine and local both, local winning on a name clash.
