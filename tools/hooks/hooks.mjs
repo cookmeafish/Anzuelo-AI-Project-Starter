@@ -5786,7 +5786,10 @@ function pretoolHits(data, cfg) {
     // so they need the user's OK in this request. Lesson: a mail send, an API POST and "gh issue create" all ran unasked.
     // (after the attribution check, so a PR that credits an AI is told that first: an OK would not make it right)
     const outward = outwardCommand(cmd);
-    if (outward && !isSuspended('check:outward-gate') && !re(cfg.outwardOk).test(req()))
+    // (a git push the user OK'd earlier in the session counts here too, as in git-safety: "pushOk" "session")
+    const pushOkEarlier = () => /\bgit\b[^;&|]*\bpush\b/i.test(outward) && cfg.pushOk !== 'request'
+      && askedPushEarlier(data.transcript_path, (/(?::|\s)([\w./-]+)\s*$/.exec(outward.replace(/\s+\d?>.*$/, '').trim()) || [])[1]?.replace(/^.*:/, '') || 'main');
+    if (outward && !isSuspended('check:outward-gate') && !re(cfg.outwardOk).test(req()) && !pushOkEarlier())
       add(`REQ: outward-gate. "${outward.trim().slice(0, 80)}" acts outside the project (${outwardWhat(outward)}). Rule 6: that needs the user's OK in this request. Draft it instead and ask, or run it once they say so.`);
     // REQ: setup-interview. During setup nothing is installed before the user has answered, and the starter's
     // leftovers go only once everything that fits is in (REQ: setup-complete).

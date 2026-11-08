@@ -222,6 +222,21 @@ report(/learn-from-upset/.test(reminder('WHY DID YOU BREAK THE EXPORT AGAIN').te
   const never = askedPushEarlier(tp([user('fix it, commit (never push)'), user('and the main page too')]), 'main');
   const pasted = askedPushEarlier(tp([user('what is this? <pasted_content id="1">Question: can I push to main now?</pasted_content id="1">')]), 'main');
   report(said && alias && !never && !pasted, 'pretool: a push to main OK\'d earlier in the session counts (main or master); "never push" and pasted text do not', JSON.stringify({ said, alias, never, pasted }));
+  // (the outward-action guard takes the same earlier OK; with none, it still refuses)
+  const { spawnSync } = await import('node:child_process');
+  const repo = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
+  const c = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-push-'));
+  fs.mkdirSync(path.join(c, 'tools/hooks/state'), { recursive: true }); fs.mkdirSync(path.join(c, '.cache'), { recursive: true });
+  fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(c, 'tools/hooks/v2'), { recursive: true });
+  for (const f of ['hooks.mjs', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
+  const pre = rows => { const t = path.join(c, `t${++id}.jsonl`); fs.writeFileSync(t, rows.flat().map(r => JSON.stringify(r)).join('\n') + '\n');
+    return spawnSync(process.execPath, [path.join(c, 'tools/hooks/hooks.mjs'), 'pretool'], { cwd: c, encoding: 'utf8',
+      input: JSON.stringify({ session_id: 'pushok', transcript_path: t, tool_name: 'Bash', tool_input: { command: 'git push origin HEAD:main' } }),
+      env: { ...process.env, STARTER_ENGINE: 'v2', ANZUELO_ROOT: c, CLAUDE_PROJECT_DIR: c } }).stdout || ''; };
+  const earlier = pre([user('when it all passes, commit and git push to main'), say('Will do.'), user('also fix the footer')]);
+  const none = pre([user('fix the footer'), say('Done.'), user('and the header')]);
+  fs.rmSync(c, { recursive: true, force: true });
+  report(!/outward-gate/.test(earlier) && /outward-gate|git-safety/.test(none), 'pretool: the outward-action guard lets a push OK\'d earlier in the session run, and still refuses one nobody OK\'d', JSON.stringify({ earlier: earlier.slice(0, 200), none: none.slice(0, 200) }));
 }
 { // an upset turn, likely to write a lesson, is told to write it in general terms; a plain request is not
   const cfgR = path.join(dir, 'tools/hooks/config.json'), hadR = fs.existsSync(cfgR) ? fs.readFileSync(cfgR, 'utf8') : null;
