@@ -23,9 +23,10 @@ checks:
 4. Run the finish checklist (`docs/checks/finish-checklist.md`).
 
 ## Done when
-<!-- Every item ends with how it is proven: "(hook: <tag>)" for its check in tools/hooks/requirements.json, or
+<!-- Every item ends with how it is proven: a marker the end check tests, "(file: <path or glob>)",
+"(ran: <regex>)" or "(answer: <regex>)", optionally with "(when ran: <regex>)" and the like, or
 "(judgment: <why no check can tell>)". -->
-- [ ] <Observable result> (hook: <tag>).
+- [ ] <Observable result> (file: <where the result lands>).
 - [ ] The answer ends with a Finished section (hook: finished-summary).
 
 ## Pitfalls

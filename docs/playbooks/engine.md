@@ -47,6 +47,13 @@ is: `node tools/starter.mjs upgrade`. No link: `node tools/starter.mjs link "<st
   self-test line: run `node tools/hooks/selfcheck.mjs` and end it with `passed`. Ask the user only about what is truly
   theirs (money, privacy, outward actions), in one question with choices. Tell the user in one line
   (`node tools/fit.mjs summary`).
+- **The project's own checks** (the entries in `tools/hooks/requirements.json` the project wrote, not the ones the
+  starter ships, which the upgrade itself manages: `node tools/hooks/hooks.mjs own-checks` lists them): the end check
+  does not run them, so each one becomes a checkable "Done when" line on the runbook of the task it guards
+  (`(file: ...)`, `(ran: ...)` or `(answer: ...)`, with `(when ...)` if it fits only some turns; project-rule step 5)
+  or a test in the project's suite. Count them before and the converted lines after, give each one not converted its
+  reason in the upgrade review (a guard in `config.json` already covers it, or it was pure judgment), then remove the
+  converted entries. Every rule stays enforced, and nothing runs during work (the user, 2026-11-07).
 - Commit the upgrade (§1) and say in the answer what changed for the user (the starter's changelog lines it printed).
 
 ### 4. Remove
@@ -72,6 +79,8 @@ is: `node tools/starter.mjs upgrade`. No link: `node tools/starter.mjs link "<st
 ## Done when
 - [ ] The project's own work was committed before the engine change, and the change is its own commit, or the answer
       says why not (judgment: whether the project keeps git history is the user's call) (when ran: starter\.mjs upgrade|starter\.mjs update|starter\.mjs uninstall) (ran: git commit).
+- [ ] Every check the project wrote in `requirements.json` became a "Done when" line or a test, or has its reason in
+      the upgrade review (judgment: which runbook a rule belongs to) (when ran: own-checks).
 - [ ] An install ended with the project-bootstrap skill started in that folder (judgment: setup is its own interview) (when ran: new-project\.mjs).
 - [ ] An upgrade's review lines each end with a decision (hook: upgrade-review) (when ran: starter\.mjs upgrade|starter\.mjs update) (file: docs/DECISIONS.md).
 - [ ] A removal was asked first, and the answer says where the backup is and how to put the engine back (judgment:

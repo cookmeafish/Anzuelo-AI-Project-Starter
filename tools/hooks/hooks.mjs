@@ -4402,6 +4402,13 @@ export function ignoreWord(kind, word, mode = 'add') {
 // tools/hooks/config.json itself; when the host refuses it that edit, the agent hands the user this one line (engine
 // runbook) and never runs the write itself (REQ: permission-respected). Lesson (a field report): the agent could only
 // tell the user to open config.json and add a line by hand, and the user had to take it to the starter's session.
+// The checks in tools/hooks/requirements.json the project wrote itself: every tag the starter does not ship
+// (tools/hooks/engine-checks.json). Under v2 the end check runs none of them, so an upgrade turns each into a "Done
+// when" line or a test. Lesson (2026-11-07): projects held 35 and 59 such checks, and no rule of theirs was checked.
+export function projectChecks(root = ROOT) {
+  const shipped = new Set((readJSON(path.join(root, 'tools/hooks/engine-checks.json'), {}).requirements || []).map(r => r.tag));
+  return (readJSON(path.join(root, 'tools/hooks/requirements.json'), {}).requirements || []).filter(r => r?.tag && !shipped.has(r.tag) && !isEngineCheck(r));
+}
 export function setting(key, value) {
   if (!Object.hasOwn(DEFAULTS, key)) return { ok: false, msg: `"${key}" is not a setting. Settings: ${Object.keys(DEFAULTS).join(', ')}` };
   const file = abs('tools/hooks/config.json'), raw = readJSON(file, {}), now = raw[key] ?? DEFAULTS[key], show = v => JSON.stringify(v);
@@ -5910,7 +5917,9 @@ function cmdPretool(data) {
   const acked = HOST === 'claude-code' ? acknowledgedLine(NOTES_FILE) : '';
   // REQ: quiet-work. Two notices only, each once, in the main session (a helper never started the session's runs and
   // never got the user's message): the agent's own test run still going, and a new user message while helpers run.
-  const notes = data.agent_id ? '' : [V2_RUNS ? runsNotice(data, V2_RUNS) : overlapNotice(data), (() => { try { return scopeNotice(data); } catch { return null; } })()].filter(Boolean).join('\n');
+  // (under v2, none: nothing during work but safety refusals. The user, 2026-11-07: a reminder at the start, quiet work,
+  // one check at the end, and only that)
+  const notes = data.agent_id || V2_PRETOOL ? '' : [overlapNotice(data), (() => { try { return scopeNotice(data); } catch { return null; } })()].filter(Boolean).join('\n');
   const ack = HOST === 'claude-code' ? [acked, runningLine(d)].filter(Boolean).map(l => visibleLines(l)).filter(Boolean).join('\n') : '';
   if (brief || bare || notes || ack) process.stdout.write(JSON.stringify({ ...(brief || bare || notes ? { hookSpecificOutput: { hookEventName: 'PreToolUse', ...(brief || bare ? { updatedInput: d.tool_input } : {}), ...(notes ? { additionalContext: notes } : {}) } } : {}), ...(ack ? { systemMessage: ack } : {}) }));
 }
@@ -5932,10 +5941,10 @@ export function cdDropped(data) {
 // Lesson (a field report): a sweep started while another sweep's background run was still making its temporary files
 // failed twice, and only a rerun on its own passed.
 export const CHECK_RUN = /\b(pytest|unittest|npm (run )?test|npx (jest|vitest|playwright)|go test|cargo test|dotnet test|mvn test|gradle test|selfcheck|audit|trial|sweeps?|validate|lint)\b|\b\w*(test|sweep|check|audit)\w*\.(py|mjs|js|ps1|sh)\b/i;
-// Engine v2's version: once per background shell run this session started and that has not finished, at the next
-// shell command, whatever that command is. Which runs are going comes from the transcript's launches and notices
-// (v2/lib.mjs backgroundRuns), not from what the commands say.
-let V2_RUNS = null;
+// Engine v2 says nothing about background runs during work: a run still going is the end check's to wait for
+// (helpersRunning). Lesson (2026-11-07): its once-per-run notice came about 5 times a turn, and the user wants
+// nothing during work but safety refusals.
+let V2_PRETOOL = false;
 let V2_TURN = null; // (under v2 a turn's end is in v2's own turn record: v2/lib.mjs loadTurn)
 export const engineOf = () => envOf('ENGINE') || config().engine;
 // The engine runs in a project: its own prompt and Stop hooks, on a sample request, with the engine its config picks.
@@ -5954,13 +5963,6 @@ export const probeEngine = dir => {
   try { for (const f of fs.readdirSync(path.join(dir, 'tools/hooks/state'))) if (f.includes(sid)) fs.rmSync(path.join(dir, 'tools/hooks/state', f), { recursive: true, force: true }); } catch { }
   return errs;
 };
-export function runsNotice(data, runsOf) {
-  if (!/^(Bash|PowerShell)$/.test(data.tool_name || '') || !data.transcript_path) return null;
-  const shown = readJSON(stateFile('overlap-shown.json'), {}), runs = runsOf(data.transcript_path).filter(r => !(shown.ids || []).includes(r.id));
-  if (!runs.length) return null;
-  writeState('overlap-shown.json', { ids: [...(shown.ids || []), ...runs.map(r => r.id)].slice(-50) });
-  return `Heads-up: ${runs.length === 1 ? 'a background command is' : `${runs.length} background commands are`} still running (${runs.map(r => `"${r.cmd.replace(/\s+/g, ' ').trim().slice(0, 80)}"`).join(', ')}). If this command uses the same files or tests, wait for its notice before reading failures as real.`;
-}
 export function overlapNotice(data) {
   const cmd = data.tool_input?.command;
   // (a part of the command that starts a check, not one that only names its file: REQ quiet-work. Lesson (the user): a
@@ -9611,6 +9613,12 @@ if (isMain) {
     if (!kind || !w.length) { console.log(`usage: node tools/hooks/hooks.mjs ignore-word <${WORD_KINDS.join('|')}> "<word or phrase>" [--remove]`); process.exit(2); }
     const r = ignoreWord(kind, w.join(' '), remove ? 'remove' : 'add'); console.log(r.msg); process.exit(r.ok ? 0 : 2);
   }
+  // the checks the project wrote itself, for an upgrade to turn into "Done when" lines (docs/playbooks/engine.md §3)
+  if (cmd === 'own-checks') {
+    const own = projectChecks();
+    console.log(own.length ? `${own.length} check(s) this project wrote in tools/hooks/requirements.json (each becomes a "Done when" line or a test):\n${own.map(r => `- ${r.tag}${r.disabled ? ' (switched off)' : ''}: ${String(r.message || '').replace(/\s+/g, ' ').slice(0, 160)}`).join('\n')}` : 'No checks of the project\'s own in tools/hooks/requirements.json.');
+    process.exit(0);
+  }
   if (cmd === 'setting') {
     const [key, ...v] = process.argv.slice(3);
     if (!key) { console.log(`usage: node tools/hooks/hooks.mjs setting <key> [<value>] (settings: ${Object.keys(DEFAULTS).join(', ')})`); process.exit(2); }
@@ -9716,7 +9724,7 @@ if (isMain) {
     try { process.env.ANZUELO_ROOT ||= ROOT; (await import('./v2/shadow.mjs')).shadow(cmd, data); } catch { }
   }
   // (under v2 the background-run notice comes from the runs this session started, never from command text)
-  if (cmd === 'pretool' && ENGINE === 'v2') try { V2_RUNS = (await import('./v2/lib.mjs')).backgroundRunsOf; } catch { }
+  if (cmd === 'pretool' && ENGINE === 'v2') V2_PRETOOL = true;
   if (cmd === 'session' && ENGINE === 'v2') try { V2_TURN = (await import('./v2/lib.mjs')).loadTurn; } catch { }
   try {
     const fn = { session: cmdSession, prompt: cmdPrompt, pretool: cmdPretool, posttool: cmdPosttool, stop: cmdStop, subagentstop: cmdSubagentstop }[cmd];

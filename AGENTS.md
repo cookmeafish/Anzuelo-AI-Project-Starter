@@ -57,8 +57,8 @@ followed to the end of its checklist with the outcome verified (only a false ala
    again in a session means patching failed, so the whole problem gets a plan in `docs/plans/` and a sweep over real
    data (2026-10-28: one display was "fixed" six times, each tested only on the moment shown). "Always / never / remember / from now on / update the project", or
    praise for something to repeat, go through the **project-rule** skill: the principle
-   and why it matters, with the date, a rule here, a row in `docs/checks/user-requirements.md`, a check in
-   `tools/hooks/requirements.json` (or "hook: N/A <reason>"), a memory note, a test, and the audit. If something would
+   and why it matters, with the date, a rule here, a row in `docs/checks/user-requirements.md`, a checkable
+   line on its runbook's "Done when" list or a test (or "hook: N/A <reason>"), a memory note, a test, and the audit. If something would
    have surprised the user, harden the project the same way without being asked. A requirement that has no check yet
    gets one now, without asking: never end an answer by offering to add checks, runbooks, tests or skills.
 4. **Accuracy over confidence.** Never invent facts, sources, numbers, quotes, file contents or results. Verify before

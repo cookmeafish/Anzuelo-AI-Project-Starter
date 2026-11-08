@@ -1,5 +1,5 @@
 // Engine v2 end hook (Stop): the one check. It judges only what this session did in this turn, from its own
-// transcript, and blocks at most once with a short plain list of what is really missing.
+// transcript, and blocks with a short plain list of what is really missing until it is done (at most MAX_BLOCKS times).
 import { runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, questionGaps, noteGaps, tail, helpersRunning, helperRuns, evidenceOf } from './lib.mjs';
 
 // Check 1: the routed runbook was followed, and its checkable "Done when" items were met. With none routed, the
@@ -43,27 +43,34 @@ export function onStop(data, opts = {}) {
   if (!out && !waiting && !opts.shadow) { const t = loadTurn(data.session_id); if (t.at) saveTurn(data.session_id, { ...t, ended: true }); }
   return out;
 }
+// A stop after a block re-checks only what a script can check, and blocks again with what is still missing, at most
+// MAX_BLOCKS times per request; the last one has the agent tell the user plainly what is not done. The verify list
+// comes once. Lesson (the user, 2026-11-07): the end check is there to make sure the work gets done, and one block
+// let an agent that ignored it end the turn with the work undone.
+export const MAX_BLOCKS = 3;
 function judge(data, { shadow = false } = {}) {
-  if (data.stop_hook_active) return null; // at most one block per turn
   // (with no saved start, the turn starts at its request's own time. Lesson (a field report): the first turn after an
   // upgrade installed v2 had no saved start, so a file a script wrote did not count, and the request was blocked twice)
   const saved = loadTurn(data.session_id), rows = turnRows(data.transcript_path || '', saved.at);
+  if (data.stop_hook_active && !saved.at) return null; // (no record of the request: its blocks can't be counted)
   if (helpersRunning(rows).length) { waiting = true; return null; }
   const found = turnActs(rows);
   const turn = { ...saved, at: saved.at || found.started || '' };
   // (a helper's commands count too, in time order. Lesson (trial v40): tests a setup helper ran were asked for again)
   const runs = helperRuns(data.transcript_path || '', data.session_id || '', turn.at);
   const acts = { ...found, at: turn.at, calls: runs.length ? [...found.calls, ...runs].sort((a, b) => (a.at || 0) - (b.at || 0)) : found.calls };
-  // (and per request: a turn that goes on after its block and stops again, with no new request, is not blocked again.
-  // Lesson (trial): one request got the same list 3 times, each stop after a continuation the host did not mark)
-  if (turn.at && turn.blocked === turn.at) return null;
+  // (counted per request: a turn that goes on after its block and stops again, with no new request, is the same request.
+  // Lesson (trial): a continuation the host did not mark as one restarted the count)
+  const again = Boolean(turn.at && turn.blocked === turn.at), rounds = again ? turn.rounds || 1 : 0;
+  if (rounds >= MAX_BLOCKS) return null;
   const history = evidenceOf(tail(data.transcript_path, 5 << 20));
   const list = [...missing(turn, acts), ...testGaps(acts, history), ...gateGaps(acts), ...screenGaps(acts), ...healthGaps(acts, { run: !shadow }), ...knowledgeGaps(acts), ...securityGaps(acts), ...questionGaps(acts), ...noteGaps(acts), ...claimGaps(acts, history)];
-  const check = toVerify(turn, acts);
+  const check = again ? null : toVerify(turn, acts);
   if (!list.length && !check) return null;
-  const parts = [];
-  if (list.length) parts.push(`Not done yet:\n${list.map(s => `- ${s}`).join('\n')}`);
-  if (turn.at && !shadow) saveTurn(data.session_id, { ...turn, blocked: turn.at });
+  const parts = [], last = rounds + 1 === MAX_BLOCKS;
+  if (list.length) parts.push(`${again ? 'Still not done' : 'Not done yet'}:\n${list.map(s => `- ${s}`).join('\n')}`);
+  if (last) parts.push('This is the last check for this request: whatever you can\'t do, say plainly in the answer that it is not done and why.');
+  if (turn.at && !shadow) saveTurn(data.session_id, { ...turn, blocked: turn.at, rounds: rounds + 1 });
   if (check) parts.push(`Check that these items of ${check.file} are really done (skip any that don't fit this work):\n${check.items.map(it => `${it.n}. ${it.text}`).join('\n')}`);
   // (the user reads the last message, so it carries the whole answer, in the user's language. Lesson (trials v33, v34):
   // "finish with only what changed" made it a note like "nothing changed", in English to a Spanish-speaking user)

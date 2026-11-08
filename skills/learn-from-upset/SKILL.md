@@ -75,7 +75,7 @@ upset-acknowledged).
    | one-off | A slip no procedure could prevent, that can't recur | `docs/lessons.md` (one dated line) |
    | lesson | A step of a skill or runbook was missing, vague or out of order | That skill's `## Project lessons` / runbook's `## Pitfalls`, and the step fixed |
    | rule | A standing preference the project didn't know | AGENTS.md + user-requirements row, via project-rule |
-   | check | It happened before, would be costly again, or a script can tell right from wrong | `tools/hooks/requirements.json` (or a `config.json` guard) with a blocked and a passing scenario, via project-rule step 5 |
+   | check | It happened before, would be costly again, or a script can tell right from wrong | A checkable "Done when" line on the runbook it belongs to (or a `config.json` guard, or a test in the project's suite), via project-rule step 5 |
    | skill | A whole kind of work had no procedure | A runbook and its check, via runbook-create |
    | engine | The starter's hooks, checks or skills were wrong | `node tools/starter.mjs feedback "<lesson>"` (in the starter: fix the engine, add a self-test) |
 

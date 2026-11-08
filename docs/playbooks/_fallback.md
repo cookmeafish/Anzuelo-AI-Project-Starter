@@ -17,8 +17,8 @@ question needs none of this.
    first, and name the reading you took. Build no runbook or trigger around a word whose meaning you have not checked.
 3. **Do the task carefully**, by the hard rules. Note the steps you actually take: that list is the draft runbook.
 4. **Leave it behind** (runbook-create skill): a runbook named after the task, with short trigger phrases for the task,
-   steps in order, a "Done when" list and pitfalls, plus at least one check in `tools/hooks/requirements.json`
-   (`"when": {"playbookUsed": "<name>"}`). The skill and the DIRECTORY row are generated. Add a menu code in
+   steps in order, a "Done when" list and pitfalls, with at least one item the end check can test (a `(file: ...)`,
+   `(ran: ...)` or `(answer: ...)` marker). The skill and the DIRECTORY row are generated. Add a menu code in
    `docs/MENU.md` if the task will be common.
 5. **Finish** with the finish checklist. Say in the answer that a runbook was created or extended, with its path.
 

@@ -17,8 +17,8 @@ what went wrong.
 1. **Scripts.** Each step that is the same every time (a calculation, a file layout, a validation, a fetch) becomes
    `skills/<name>/scripts/<step>.mjs`: Node, no dependencies, prints `RESULT: PASS` / `RESULT: FAIL` or its output.
    Test it once. Point the runbook step at it as `node skills/<name>/scripts/<step>.mjs`.
-2. **Checks.** Each "Done when" item that can now be checked gets a requirements.json entry. A script that validates the
-   result goes in `toolPassed` with `selfRun`, or `runEach`. Add test scenarios.
+2. **Checks.** Each "Done when" item that can now be checked gets a marker the end check tests: `(file: ...)`,
+   `(ran: ...)` or `(answer: ...)`. A script that validates the result is named in a `(ran: <script>)` marker.
 3. **Pitfalls.** Write down what went wrong in the uses so far, dated.
 4. **Notes for the skill.** Add skill-only material below the generated block in `SKILL.md` (it survives regeneration):
    what the scripts do and when to use them.

@@ -33,27 +33,22 @@ Copy `docs/playbooks/_TEMPLATE.md` to `docs/playbooks/<kebab-name>.md` (standard
 - `## Steps`: the steps that worked in this conversation, in order, with exact files, tools and commands.
 - `## Done when`: observable results. This list is the agent's checklist for the task: it is shown when the request
   arrives, the agent records each item as done or skipped, and the final check holds each record to its proof. So:
-  one outcome per item, worded so a stranger could tell whether it happened; every item ends with its proof,
-  `(hook: <check>)` naming a check that exists, or `(judgment: <why no check can tell>)`, used sparingly; and every
+  one outcome per item, worded so a stranger could tell whether it happened; every item ends with its proof, a
+  marker the end check tests (section 3), or `(judgment: <why no check can tell>)`, used sparingly; and every
   step whose result matters has an item. A missing item is work the final check never asks about; a wrong check
   name is an item that passes with no evidence (the audit names both).
 - `## Pitfalls`: what went wrong or nearly did, dated.
 
 ## 3. Write its check (mandatory)
-Add at least one entry to `tools/hooks/requirements.json` that tests a "Done when" item:
-```json
-{ "tag": "<name>-done", "rule": "2", "when": { "playbookUsed": "<name>", "toolRan": "<the command that makes the result>" },
-  "require": { "filesChanged": ["<where the result lands>"] },
-  "message": "What to do so this passes." }
-```
-Other evidence: `answerMatches` (a required answer section), `toolPassed` (a validator that must PASS; add `selfRun`),
-`runEach` (the hook re-runs a validator on each changed file). Make `when` fire on the work itself, not on the
-runbook being opened: a check that asks for a result file applies when the script that makes it ran (`toolRan`) or
-its inputs changed (`filesChanged`), so a request that reuses a result already made (this week's summary exists), a
-related request (an email about the summary) and the setup turn that writes the runbook pass without a waiver. Lesson:
-a "summary saved" check on `playbookUsed` needed waivers in setup and on a partner email. If nothing can be checked, set
-`checks: none - <reason>` in the runbook. Add test scenarios for the tag in `tools/hooks/project-scenarios.mjs` (upgrades keep it; in the starter itself: `tools/hooks/selfcheck.mjs`), one blocked and one realistic good sample that passes (hook: check-sampled), and a row in
-`docs/checks/rule-enforcement.md`.
+The check is a marker on at least one "Done when" item; the end check tests it on every turn this runbook covers and
+blocks until it is met: `(file: <path or glob>)` the turn changed that file, `(ran: <regex>)` a command matching it
+ran and passed (a validator script you write counts), `(answer: <regex>)` the final answer matches it. Make it fire on
+the work itself, not on the runbook being opened: add `(when ran: <the command that makes the result>)` or
+`(when file: <its inputs>)`, so a request that reuses a result already made, a related request and the setup turn that
+writes the runbook pass. A regex may not contain `)`. Example:
+`- [ ] The weekly summary is saved (when ran: make_summary) (file: reports/summary-*.md)`.
+If nothing can be checked, set `checks: none - <reason>` in the runbook. Never add an entry to
+`tools/hooks/requirements.json`: the end check does not run those (2026-11-07).
 
 A validator script you write for the check is run on real samples before you rely on it: it fails on a real bad
 case and passes on every existing file it governs (from the last commit) and on realistic good samples, one an edge

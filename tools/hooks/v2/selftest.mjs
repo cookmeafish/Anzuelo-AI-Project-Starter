@@ -295,14 +295,23 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
   fs.rmSync(path.join(dir, 'docs/playbooks/ledger.md'));
   report(!viaSkill.some(s => /^Open/.test(s)) && other.some(s => /^Open/.test(s)), 'end: reading a skill the runbook hands its steps to counts as opening the runbook; another skill does not', { viaSkill, other });
 }
-report(onStop({ stop_hook_active: true, transcript_path: transcript([user('add a csv export'), edit]), session_id: 's' }) === null, 'end: never blocks twice in one turn');
+report(onStop({ stop_hook_active: true, transcript_path: transcript([user('add a csv export'), edit]), session_id: 's' }) === null, 'end: a repeat stop with no record of its request is not blocked (its blocks cannot be counted)');
 {
-  // (a turn that goes on after its block and stops again, without a new request, is not blocked again)
+  // (an agent that ignores the block is blocked again with what is still missing, at most 3 times per request, the
+  // verify list only the first time; once the work is done the stop passes)
   const { onPrompt } = await import('./start.mjs');
   const loadTurnT = (await import('./lib.mjs')).loadTurn;
   onPrompt({ session_id: 'again', prompt: 'add a csv export' });
   const tp = transcript([user('add a csv export'), edit]);
-  const first = onStop({ transcript_path: tp, session_id: 'again' }), later = onStop({ transcript_path: tp, session_id: 'again' });
+  const first = onStop({ transcript_path: tp, session_id: 'again' }), later = onStop({ transcript_path: tp, session_id: 'again', stop_hook_active: true });
+  const third = onStop({ transcript_path: tp, session_id: 'again', stop_hook_active: true }), fourth = onStop({ transcript_path: tp, session_id: 'again', stop_hook_active: true });
+  report(/Not done yet:[\s\S]*export\.md item 1/.test(first?.reason || '') && /Check that these items/.test(first?.reason || '')
+    && /^Still not done:[\s\S]*export\.md item 1/.test(later?.reason || '') && !/Check that these items|last check/.test(later?.reason || '')
+    && /last check for this request/.test(third?.reason || '') && fourth === null,
+    'end: an agent that ignores the block gets a second naming the same item (no verify list), a third that says to report what is not done, and no fourth', [first?.reason, later?.reason, third?.reason, fourth]);
+  onPrompt({ session_id: 'fixed', prompt: 'add a csv export' });
+  const f1 = onStop({ transcript_path: tp, session_id: 'fixed' }), f2 = onStop({ transcript_path: transcript(good), session_id: 'fixed', stop_hook_active: true });
+  report(f1?.decision === 'block' && f2 === null, 'end: once the missing work is done, the next stop passes', [f1?.decision, f2]);
   onPrompt({ session_id: 'again', prompt: 'add a csv export' });
   const next = onStop({ transcript_path: tp, session_id: 'again' });
   // (a message typed while a turn runs joins it; after the turn's Stop passes, the next message starts a new turn)
@@ -314,7 +323,7 @@ report(onStop({ stop_hook_active: true, transcript_path: transcript([user('add a
   onPrompt({ session_id: 'join', prompt: 'rotate the logs' }); const t3 = loadTurnT('join');
   report(t2.at === t1.at && t2.runbook === 'docs/playbooks/export.md' && t3.at !== t1.at && t3.runbook === 'docs/playbooks/windows.md',
     'start: a message that arrives mid-turn joins the turn (same start, same runbook); after a passing Stop the next one starts a new turn', [t1, t2, t3]);
-  report(first?.decision === 'block' && later === null && next?.decision === 'block', 'end: one block per request, even when the turn stops again later without a new request', [first?.decision, later, next?.decision]);
+  report(next?.decision === 'block' && /^Not done yet/.test(next?.reason || ''), 'end: a new request starts its own count of blocks', next?.reason);
 }
 put('docs/CHANGELOG.md', '# Changelog\n');
 const turnStart = new Date(Date.now() + 50).toISOString();
@@ -810,6 +819,41 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     const done = resume(true), open = resume(false);
     fs.rmSync(c, { recursive: true, force: true });
     report(!/RESUMED|INTERRUPTED/.test(done) && /RESUMED|INTERRUPTED/.test(open), 'session: a resume after a turn that ended says nothing about an interruption; after one that never ended it does', [done.slice(-160), open.slice(-160)]);
+  }
+  // (during work v2 says nothing about a background run still going, even before another test run: REQ quiet-work)
+  {
+    const { spawnSync } = await import('node:child_process');
+    const c = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-quiet-'));
+    fs.mkdirSync(path.join(c, 'tools/hooks/state'), { recursive: true });
+    fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(c, 'tools/hooks/v2'), { recursive: true });
+    for (const f of ['hooks.mjs', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
+    const tp = path.join(c, 'transcript.jsonl'), at = new Date().toISOString();
+    fs.writeFileSync(tp, [
+      { type: 'user', timestamp: at, message: { role: 'user', content: 'run the tests and fix the export' } },
+      { type: 'assistant', timestamp: at, message: { role: 'assistant', content: [{ type: 'tool_use', id: 'bgq1', name: 'Bash', input: { command: 'node tools/run-tests.mjs > .cache/t.txt 2>&1', run_in_background: true } }] } },
+      { type: 'user', timestamp: at, message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'bgq1', content: 'Command running in background with ID: bq1. Output is being written to: C:\\x\\bq1.output' }] } },
+      { type: 'assistant', timestamp: at, message: { role: 'assistant', content: [{ type: 'tool_use', id: 'agq1', name: 'Agent', input: { description: 'review the export', prompt: 'Review the export change.', run_in_background: true } }] } },
+      { type: 'user', timestamp: at, message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'agq1', content: 'Async agent launched successfully. agentId: agq1' }] } },
+      { type: 'user', timestamp: at, message: { role: 'user', content: 'also add the totals row' } },
+    ].map(r => JSON.stringify(r)).join('\n') + '\n');
+    const hook = (cmd, tool_name, tool_input) => spawnSync(process.execPath, [path.join(c, 'tools/hooks/hooks.mjs'), cmd], { cwd: c, encoding: 'utf8',
+      input: JSON.stringify({ session_id: 'quietwork', transcript_path: tp, tool_name, tool_input }), env: { ...process.env, STARTER_ENGINE: 'v2', ANZUELO_ROOT: c } }).stdout || '';
+    const call = command => hook('pretool', 'Bash', { command });
+    const outs = [call('node tools/run-tests.mjs --only export'), call('ls src'), call('git status'), hook('pretool', 'Edit', { file_path: path.join(c, 'src/export.js'), old_string: 'a', new_string: 'b' }),
+      hook('posttool', 'Edit', { file_path: path.join(c, 'src/export.js'), old_string: 'a', new_string: 'b' })];
+    fs.rmSync(c, { recursive: true, force: true });
+    report(outs.every(o => !/additionalContext|Heads-up|still running/i.test(o)), 'pretool, posttool: with a background test run and a helper going and a new user message, no call during work gets a notice (quiet work)', outs.map(o => o.slice(0, 160)));
+  }
+  // (the checks a project wrote itself are listed for its upgrade to turn into "Done when" lines; shipped ones are not)
+  {
+    const { projectChecks } = await import('../hooks.mjs');
+    const c = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-own-'));
+    fs.mkdirSync(path.join(c, 'tools/hooks'), { recursive: true });
+    fs.writeFileSync(path.join(c, 'tools/hooks/engine-checks.json'), JSON.stringify({ requirements: [{ tag: 'shipped-one', pack: 'app' }] }));
+    fs.writeFileSync(path.join(c, 'tools/hooks/requirements.json'), JSON.stringify({ requirements: [{ tag: 'shipped-one', pack: 'app' }, { tag: 'totals-row-checked', message: 'Check the totals row.' }] }));
+    const own = projectChecks(c).map(r => r.tag);
+    fs.rmSync(c, { recursive: true, force: true });
+    report(own.join() === 'totals-row-checked', 'upgrade: own-checks lists the checks the project wrote, not the ones the starter ships', own);
   }
   // (a v2 hook that cannot run shows its error to the agent once per session, never only on stderr)
   {
