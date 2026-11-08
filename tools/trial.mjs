@@ -224,8 +224,8 @@ for (const [name, s] of Object.entries(SAMPLES)) {
     /Rule requests: every file was searched[^\n]*\(answer: \\d\+ hits\?\)/.test(fs.readFileSync(pmPath, 'utf8')), (/Rule requests: every file was searched[^\n]*/.exec(fs.readFileSync(pmPath, 'utf8')) || [''])[0].slice(-160));
   const pmNew = fs.readFileSync(pmPath, 'utf8'), dw = (/^## Done when[^\n]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(pmNew)?.[1] || '').split('\n').filter(l => /^\s*- \[[ x]\]/.test(l));
   check(name, "an upgrade refreshes the engine's project runbook (every Done when item labeled) and keeps its trigger, lessons and hardened mark",
-    dw.length && dw.every(l => /\b(hooks?\s*:|judgment\b)/.test(l)) && /^triggers:.*our quarterly tidy-up/m.test(pmNew) && pmNew.includes('Keep the menu to one screen.') && /^hardened: 2026-10-01$/m.test(pmNew),
-    dw.filter(l => !/\b(hooks?\s*:|judgment\b)/.test(l)).slice(0, 2).join(' | ') || pmNew.slice(0, 300));
+    dw.length && dw.every(l => /\b(hooks?\s*:|judgment\b)|\((?:file|ran|answer)\s*:/.test(l)) && /^triggers:.*our quarterly tidy-up/m.test(pmNew) && pmNew.includes('Keep the menu to one screen.') && /^hardened: 2026-10-01$/m.test(pmNew),
+    dw.filter(l => !/\b(hooks?\s*:|judgment\b)|\((?:file|ran|answer)\s*:/.test(l)).slice(0, 2).join(' | ') || pmNew.slice(0, 300));
   if (packSample) {
     const ruleMap = fs.readFileSync(path.join(dir, 'docs/checks/rule-enforcement.md'), 'utf8');
     const got = packTags.filter(t => rq1.some(r => r.tag === t && (r.pack === 'knowledge' || r.skill === 'frontend-design')));

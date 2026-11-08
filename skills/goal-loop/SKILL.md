@@ -9,6 +9,10 @@ triggers: goal loop, improve until, keep improving until, iterate until, loop un
 Each round makes one change, measures the real result (not a stand-in), and keeps the change only if the measure
 improved and nothing that passed before fails. The log in `docs/plans/` lets a later session resume.
 
+Off by default. It runs only when the user starts it, or asks to resume it, in the current chat: never on a timer,
+and a new chat leaves an open log alone until the user asks (2026-11-07). Each round's full checks run once, on the
+round's final change, not after each small edit.
+
 ## Steps
 1. **Set the goal with the user, in one message.** Take it from the request. A goal with no number ("until it loads
    fast") gets a proposed bar and measure in that message ("median load under 1 s, timed with ..."); with

@@ -64,7 +64,7 @@ Before answering, read the draft sentence by sentence:
 The end check also tests this (REQ: answer-traced).
 
 ## E. Record it (knowledge projects)
-Record what was confirmed with the knowledge-capture skill (knowledge pack: `packs/knowledge/files/skills/knowledge-capture/`): each fact with its label, source and date (`volatile: yes` for anything that changes), the sources in `docs/knowledge/SOURCES.md`. A deliverable is next: `docs/playbooks/deliverable.md` (knowledge pack).
+Record what was confirmed with the knowledge-capture skill (`skills/knowledge-capture/SKILL.md`, knowledge pack): each fact with its label, source and date (`volatile: yes` for anything that changes), the sources in `docs/knowledge/SOURCES.md`. A deliverable is next: `docs/playbooks/deliverable.md` (knowledge pack).
 
 ## Done when
 - [ ] Every fact has a numbered citation, and `Sources:` has a `[n] <link or project file>` line for each number used,

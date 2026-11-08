@@ -124,7 +124,7 @@ A run that is stuck sets `status: blocked - <reason>` with `Tried:` and `Options
 - [ ] The engine runbook and `starter.mjs upgrade` become: git pull in `.anzuelo/engine/` (an AI agent merges any
       conflict), then rewire. The upgrade review stays.
 - [ ] Test: hash `.anzuelo/local/` and the project's files, upgrade, hash again: identical, except the wiring files.
-- [ ] Changing a default runbook or skill (user's question of 2026-11-07): the engine keeps the defaults. Editing
+- [ ] Changing a default runbook or skill (user-approved 2026-11-07): the engine keeps the defaults. Editing
       one for this project saves a copy in `.anzuelo/local/` with a `based_on: <engine commit>` line; the copy wins
       over the default. A change useful to every project also goes to the starter (`docs/starter-feedback.md`).
 - [ ] After a pull, for each local copy whose default changed since `based_on`, the upgrade shows a three-way diff

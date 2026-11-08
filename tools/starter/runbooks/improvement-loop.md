@@ -13,6 +13,11 @@ Use it for any engine change meant to make projects better, a field report from 
 improves". A round costs about an hour and a fair share of the account's usage; rounds and judges stop at the usage
 limit, so check that a headless session runs (`claude -p "ok"`) before starting one.
 
+**Started by events, never by a clock (2026-11-07).** Off by default, and off again in every new chat: it runs only
+in a chat where the user started it by hand. There, a round starts only from something real: a
+project reports a problem, the end check keeps sending work back in a project, the user is upset, or the user asks.
+No timer runs it. The full chain and one trial round run once per batch of changes, never after each small fix.
+
 **Simpler, never busier (2026-11-05).** A round may not add an interruption during work or raise the number of
 checks. Prefer deleting: fix a miss in the start reminder or the end check, or record it and leave it. A fix must
 hold in two unrelated kinds of project; one that would add a gate is recorded and left. Fixes ship in the next

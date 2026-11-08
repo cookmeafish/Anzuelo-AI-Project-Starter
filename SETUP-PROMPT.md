@@ -31,6 +31,10 @@ The starter was added around work that already exists (`config.json` has `adopte
   behavior, easy to undo): decide it and write why. Big (changes their hooks, rules, workflow, code or layout,
   removes anything, or needs a closer look): the user decides `ok`, `no` or `explore`; ask about these together, once,
   in plain words. The setup check fails until every line is decided.
+  Collaborate without overwhelming (2026-11-07): open with one short overview the user can read in a minute (what the
+  project already has and keeps, what the engine adds, the small changes made, each in one line), then the big
+  questions, at most 5, the most important first; the rest wait for a later session. Small changes are reported, not
+  asked about.
 - **Keep what works.** Existing rules move into AGENTS.md / CLAUDE.md as principles with a user-requirements row.
   Existing scripts and tests become gates (`toolPassed` + `selfRun`, or `commitGate`). Existing procedures become
   runbooks. Merge each `*.starter.md` into the user's file (their README stays theirs), then delete it. The originals
