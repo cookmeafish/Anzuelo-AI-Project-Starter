@@ -44,7 +44,7 @@ const MARK = new RegExp(`⚓\\s*${NAME.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`)
 let lines = [];
 try { lines = fs.readFileSync(input.transcript_path || '', 'utf8').split('\n'); } catch { }
 
-let lastActivity = -1, lastReply = -1, lastStart = -1;
+let lastActivity = -1, lastReply = -1, lastStart = -1, startAt = '', lastApi = -1, away = -1;
 const stops = [], bg = new Set();
 lines.forEach((l, i) => {
   if (!l) return;
@@ -59,9 +59,12 @@ lines.forEach((l, i) => {
   if (j.type === 'user' && !j.isMeta && !j.isCompactSummary) {
     lastActivity = i;
     // anything but a tool result starts new work: a typed message, a notice, a message from another session
-    if (!(Array.isArray(content) && content.some(b => b.type === 'tool_result'))) lastStart = i;
+    if (!(Array.isArray(content) && content.some(b => b.type === 'tool_result'))) { lastStart = i; startAt = j.timestamp || ''; }
   }
-  if (j.type === 'attachment' && j.attachment?.type === 'queued_command') { lastActivity = i; lastStart = i; }
+  if (j.type === 'attachment' && j.attachment?.type === 'queued_command') { lastActivity = i; lastStart = i; startAt = j.timestamp || ''; }
+  // (the host's own marks: a call to the model, and its summary when the session sits idle)
+  if (j.type === 'api-request') lastApi = i;
+  if (j.type === 'system' && j.subtype === 'away_summary') away = i;
   // background agents and commands: started by a tool result, finished by a task-notification with the same id. (The
   // notice may sit in a plain message, a list of parts or a queued command, so the raw line is read; request copies
   // are skipped. Lesson (probe): only plain messages were read, and finished agents counted as running)
@@ -94,7 +97,11 @@ let state = '';
 if (lastActivity >= 0) {
   // done only when the newest activity is a final reply (Lesson (the user): the answer was there and the bar said
   // working; turn_duration alone comes after the bar's last refresh)
-  const ended = lastReply === lastActivity;
+  // (or a message that never started a turn: no call to the model after it, and the host marked the session idle or a
+  // minute passed. Lesson (the user): a helper's "finished" notice came after the last reply, no turn ran for it, and the
+  // bar said working for good)
+  const unheard = lastStart > lastReply && lastApi >= 0 && lastApi < lastStart && (away > lastStart || Date.now() - (Date.parse(startAt) || Date.now()) > 60000);
+  const ended = lastReply === lastActivity || unheard;
   // the Stop hook's message for this reply, or for the work in progress since the last new message
   const stop = [...stops].reverse().find(s => s.i > (ended ? lastReply : lastStart));
   if (!ended) state = stop && /almost done/i.test(result(stop)) ? result(stop) : '⏳ working';

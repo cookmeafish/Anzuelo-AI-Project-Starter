@@ -21,7 +21,13 @@ replaces that with "port each one, or ask"), [clean exit](2026-11-08-clean-exit.
    "answer first" note only arrives at the next tool call. To do: a long run (a full sweep, a whole test suite) goes in
    the background, so the agent stays reachable; and the starter's own test runs never pile up on the user's machine
    (three full runs at once slowed a project's work).
-6. The cause behind all five: "v2 only" was planned as keep, replace or delete per code name, and no step compared
+6. The status bar said "working" for good after a helper's "finished" notice that no turn picked up. Done (status
+   bar: no model call after it, and idle or a minute old, is not work).
+7. A project's helper reported two more costs (to confirm against its log): a written answer was held until it wrote
+   six "skip" lines for a runbook checklist that did not fit a text answer; and it writes record lines into a notes file
+   every turn. Both are retired kinds (forced checklists, record lines): find what still asks for them under v2 and
+   remove that.
+8. The cause behind all of these: "v2 only" was planned as keep, replace or delete per code name, and no step compared
    what the user gets under each engine. Rule 16 now says an upgrade never quietly takes away what the user saw
    working (REQ: engine-parity).
 
@@ -32,7 +38,13 @@ replaces that with "port each one, or ask"), [clean exit](2026-11-08-clean-exit.
 
 ## Task 2: each behavior gets a decision
 - [ ] For each group: port it (the v2 module it goes in, rewritten small), "v2 does it another way" (the v2 test that
-      shows it), or "ask the user" (what it did, why it might go). Nothing is marked delete without the user.
+      shows it), "retired by the user, <date>" (with the source line), or "ask the user" (what it did, why it might
+      go). Nothing is marked delete without a user decision.
+- [ ] Already retired by the user, never ported or asked again (each with its source line in the list):
+      notices and refusals during work that are not hard-to-undo safety (2026-11-05, 2026-11-07); record lines the
+      agent had to write; more than one block per request beyond the 3-round re-check; runbooks, skills and upset or
+      rule handling forced by keywords (2026-11-07: the agent picks). One exception the user asked for on 2026-11-08:
+      a message the user types while the agent works is handed to it once, to answer first (v2/midturn.mjs).
 - [ ] Ask the user once, in one list, about every "ask" item.
 
 ## Task 3: port, smallest first

@@ -5076,6 +5076,14 @@ if ((!TAGS || TAGS.includes('status-bar')) && mineB()) {
     // (a turn the usage limit cut ends with stop_sequence, not end_turn)
     [typed('one more change'), 'working'], [tool(), 'working'], [result(), 'working'],
     [{ type: 'assistant', timestamp: at(), message: { stop_reason: 'stop_sequence', content: [{ type: 'text', text: 'You\'ve hit your session limit' }] } }, ''],
+    // (a notice after the last reply that no turn picked up, with no call to the model after it, is not work: older
+    // than a minute, or once the host marks the session idle. One the model picked up is. Lesson (the user): a helper's
+    // "finished" notice left the bar on working for good)
+    [{ type: 'api-request', timestamp: at() }, ''],
+    [typed(notice('helper9')), ''],
+    [{ type: 'api-request', timestamp: at() }, 'working'], [reply(), ''],
+    [{ ...typed(notice('helper10')), timestamp: new Date().toISOString() }, 'working'],
+    [{ type: 'system', subtype: 'away_summary', timestamp: at() }, ''],
   ];
   // (a home of its own: the user's real bar stays out of the test)
   const home = path.join(dir, 'home'), env = { ...process.env, USERPROFILE: home, HOME: home };
@@ -5093,7 +5101,7 @@ if ((!TAGS || TAGS.includes('status-bar')) && mineB()) {
   fs.writeFileSync(path.join(home, '.claude', 'settings.json'), JSON.stringify({ statusLine: { type: 'command', command: `node -e "process.stdout.write('Opus ctx 12%')"` } }));
   let got = bar();
   if (got !== 'Opus ctx 12%') wrong.push(`finished, with the user's own bar: want only it, got "${got}"`);
-  lines.push(JSON.stringify(typed('one more')));
+  lines.push(JSON.stringify({ ...typed('one more'), timestamp: new Date().toISOString() }));
   fs.writeFileSync(tp, lines.join('\n') + '\n');
   got = bar();
   if (got !== 'Opus ctx 12%\n⏳ working') wrong.push(`working, with the user's own bar: want it then working, got "${got}"`);
