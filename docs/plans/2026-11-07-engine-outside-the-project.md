@@ -191,14 +191,19 @@ A run that is stuck sets `status: blocked - <reason>` with `Tried:` and `Options
       starter feedback); the rest of docs/ (security baseline, knowledge, specs, releases) stays in the project.)
 - [x] Update AGENTS.md, README, SETUP-PROMPT.md, DIRECTORY.md (generated), the engine runbook, layout standards.
       (DIRECTORY.md needed no change: it is generated from the runbooks.)
-- [ ] Full chain on a frozen copy: selfcheck, trial, audit.
-- [ ] Run `node tools/audit.mjs` and `node tools/writing-check.mjs AGENTS.md`. Expected: 0 failed, writing PASS.
+- [x] Full chain on a frozen copy: selfcheck, trial, audit.
+      (frozen b66de1f: v2 197/197, selfcheck 1684 passed, trial 143/143, audit PASS; pushed with b727d84.)
+- [x] Run `node tools/audit.mjs` and `node tools/writing-check.mjs AGENTS.md`. Expected: 0 failed, writing PASS.
 
 ### Task 7: move the two projects (no migration command)
 **Files:** none in the starter; each project moves its own files
 **Uses / provides:** uses Task 6
-- [ ] Commit and push the engine (push needs the user's OK at that time).
-- [ ] Send each project's session the exact move steps; each moves its own files, keeps its own hooks, runbooks and
+- [x] Commit and push the engine (push needs the user's OK at that time).
+      (b727d84, under the user's push OK for this session; both linked copies fast-forwarded.)
+- [x] Send each project's session the exact move steps; each moves its own files, keeps its own hooks, runbooks and
       skills, runs its checks and reports totals.
+      (2026-11-08: sent to both. The steps include a clean-tree check, a backup tag, a one-command rollback, tests and
+      audit before and after with counts compared, a transcript probe that the reminder and the end check fire from
+      `.anzuelo/engine`, the private-repository question to the user, and no push without the user's OK.)
 - [ ] Confirm in each: `git status` shows no engine files, and a work turn gets the reminder and the end check.
 - [ ] In each project, run `git status --porcelain` and its own selfcheck. Expected: no engine files listed, 0 failed.
