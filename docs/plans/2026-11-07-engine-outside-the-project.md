@@ -184,8 +184,11 @@ A run that is stuck sets `status: blocked - <reason>` with `Tried:` and `Options
 ### Task 6: records split and docs
 **Files:** `AGENTS.md`, `README.md`, `SETUP-PROMPT.md`, `DIRECTORY.md`, `docs/checks/layout-standards.md`, `docs/playbooks/engine.md`
 **Uses / provides:** uses Tasks 1 to 5
-- [ ] Move the engine's working notes to `.anzuelo/local/` per the Assumptions; CHANGELOG, BRIEF and DECISIONS stay.
-- [ ] Update AGENTS.md, README, SETUP-PROMPT.md, DIRECTORY.md (generated), the engine runbook, layout standards.
+- [x] Move the engine's working notes to `.anzuelo/local/` per the Assumptions; CHANGELOG, BRIEF and DECISIONS stay.
+      (2026-11-08: done by `kind()` in paths.mjs, which install and every hook follow; the starter itself stays one
+      folder, and the two projects move their own files in Task 7.)
+- [x] Update AGENTS.md, README, SETUP-PROMPT.md, DIRECTORY.md (generated), the engine runbook, layout standards.
+      (DIRECTORY.md needed no change: it is generated from the runbooks.)
 - [ ] Full chain on a frozen copy: selfcheck, trial, audit.
 - [ ] Run `node tools/audit.mjs` and `node tools/writing-check.mjs AGENTS.md`. Expected: 0 failed, writing PASS.
 

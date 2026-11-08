@@ -119,6 +119,9 @@
 - Any other agent, mandatory: `begin` first (Step 0), then
   `node tools/hooks/hooks.mjs check --answer-file .cache/answer.md` before finishing (exit 1 = not done).
 - Plain git: `.githooks/` rejects AI attribution in commits and pushes (`git config core.hooksPath .githooks`).
+- Engine in `.anzuelo/engine/` (installed that way): the hooks sit in `.claude/settings.local.json` and the rules come
+  in through `CLAUDE.local.md`. Commands above start with `.anzuelo/engine/`. Engine files are never edited: a
+  project's change to a default runbook, skill or these rules goes in its copy (`starter.mjs override <path>`).
 - `"engine": "v1"` in `tools/hooks/config.json` brings back the old engine, which checked and asked more. A crashing
   hook blocks once with the error, so it gets fixed.
 
