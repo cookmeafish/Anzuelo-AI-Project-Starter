@@ -883,14 +883,19 @@ const { questionGaps } = await import('./lib.mjs');
   setQ(undefined); const unset = lesson();
   setQ(false); const off = lesson();
   setQ(true);
+  put('src/export.js', '// Lesson (the user): "the totals row keeps vanishing every single time i export"\n');
   const quoted = lesson();
+  // (judged on the file as it is now: a quote already reworded in the same turn is not named again. Lesson (dogfood):
+  // the check named a reworded line three times, as it read only the turn's earlier edit)
+  put('src/export.js', '// Lesson: the export dropped the totals row; keep it as the last row\n');
+  const reworded = lesson();
   const general = quoteGaps(acts([user(said), w('src/export.js', '// Lesson: the export dropped the totals row; keep it as the last row'), say('Fixed.')]));
   const dictated = quoteGaps(acts([user('add a footer that reads thanks for shopping with us today friends'), w('src/footer.html', '<p>thanks for shopping with us today friends</p>'), say('Added.')]));
   const notes = quoteGaps(acts([user(said), w('.cache/turn-notes.md', 'Issue: "the totals row keeps vanishing every single time" | runbook: debug'), say('Fixed.')]));
   if (had === null) fs.rmSync(cfgFile); else fs.writeFileSync(cfgFile, had);
   report(!unset.length && !off.length, 'end: the quote check is off in a project until the user turns it on ("quoteCheck": true), and off again with false', JSON.stringify({ unset, off }));
-  report(quoted.length === 1 && /rule 14/.test(quoted[0]) && !general.length && !dictated.length && !notes.length,
-    'end: the user\'s own words written into a file as a quote are named once; a general lesson, a dictated line and a .cache note are not', JSON.stringify({ quoted, general, dictated, notes }));
+  report(quoted.length === 1 && /rule 14/.test(quoted[0]) && !reworded.length && !general.length && !dictated.length && !notes.length,
+    'end: the user\'s own words written into a file as a quote are named once; one reworded since, a general lesson, a dictated line and a .cache note are not', JSON.stringify({ quoted, reworded, general, dictated, notes }));
 }
 
 // end: an engine note shown to the user

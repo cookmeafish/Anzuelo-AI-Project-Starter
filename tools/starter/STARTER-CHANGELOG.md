@@ -6,6 +6,8 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-08 (quote check): the end check's "user's own words as a quote" finding judges each file as it is now, so a quote already reworded in the same turn is not named again at every re-check. Scenario: "end: the user's own words written into a file as a quote are named once; one reworded since...".
+
 - 2026-11-08 (self-install): a clone of the starter made straight into a new project's folder installs itself: `node tools/new-project.mjs --self-install --git` (run by the agent, which the session start now tells) turns that folder into the project, with everything of the engine in its `.anzuelo` folder (the engine's own clone in `.anzuelo/engine`, what it makes for the project in `.anzuelo/local`, as `starter.mjs install` does). `--beside` makes a classic project instead, linked to a starter copy next to it (`<repository>-<project>`). A clone with changes of its own, a development copy, or a folder named as a starter copy is left alone. Scenario: "self-install: a starter clone in a project folder becomes that project...".
 - 2026-11-08 (typed mid-task, round 2): each typed message is handed over once, told apart by its text as well as its time (two at the same moment are two), each session keeps its own record of what it was told, and a typed message that carries a picture is read too. Scenario: "late: two messages typed at the same time are both handed over...".
 

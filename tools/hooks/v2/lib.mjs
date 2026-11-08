@@ -353,12 +353,15 @@ export function quoteGaps(acts) {
     const file = String(c.input.file_path || '').replace(/\\/g, '/');
     if (!file || /(^|\/)\.cache\/|\/memory\/|turn-notes|\/scratchpad\//i.test(file)) continue;
     const text = [c.input.new_string, c.input.content, ...(c.input.edits || []).map(e => e.new_string)].filter(Boolean).join('\n');
+    // (judged on the file as it is now: a quote reworded later in the turn is gone. Lesson (dogfood): a reworded line
+    // was named again at every re-check)
+    let now = ''; try { now = ` ${words(fs.readFileSync(path.isAbsolute(file) ? file : at(file), 'utf8')).join(' ')} `; } catch { continue; }
     for (const line of text.split('\n')) {
       // (a quote on a line that names the user as its source: "Lesson (the user): ...", "the user said ...")
       if (!/\b(the user|user said|user asked|user wrote)\b/i.test(line)) continue;
       // (a quote may run on past the end of its line, as in a wrapped comment)
       const quotes = [...line.matchAll(/["“]([^"“”]{20,})(?:["”]|$)/g)].map(m => words(m[1]));
-      const run = quotes.flatMap(w => w.slice(5).map((_, i) => w.slice(i, i + 6).join(' '))).find(r => runs.has(r));
+      const run = quotes.flatMap(w => w.slice(5).map((_, i) => w.slice(i, i + 6).join(' '))).find(r => runs.has(r) && now.includes(` ${r} `));
       if (run) { hits.push(`${file.split('/').slice(-2).join('/')}: "${run}..."`); break; }
     }
   }
