@@ -48,8 +48,8 @@ is: `node tools/starter.mjs upgrade`. No link: `node tools/starter.mjs link "<st
   self-test line: run `node tools/hooks/selfcheck.mjs` and end it with `passed`. Ask the user only about what is truly
   theirs (money, privacy, outward actions), in one question with choices. Tell the user in one line
   (`node tools/fit.mjs summary`).
-- An optional check new in this upgrade (a setting in `tools/hooks/config.json`, such as `quoteCheck`) is named to the
-  user in one line with what it does: on unless they turn it off, and while on it runs every time.
+- An optional check new in this upgrade (a setting in `tools/hooks/config.json`, such as `quoteCheck`) stays off. Name
+  it to the user in one line: what it does, your recommendation for this project and why. While on, it runs every time.
 - **The project's own checks**, only if `node tools/hooks/hooks.mjs own-checks` lists entries (the entries in
   `tools/hooks/requirements.json` the project wrote, not the ones the starter ships, which the upgrade manages): the
   end check does not run them, so each becomes a checkable "Done when" line on the runbook of the task it guards

@@ -322,12 +322,15 @@ export function questionGaps(acts) {
 
 // An engine note ("Issue: ... | runbook: ..." or "Issue: none - ...") shown to the user: it belongs in the notes file,
 // and the answer says it in plain words. Lesson: an Issue line at the top of an answer read as gibberish to the user.
+// The quote check is offered, never forced: the user chooses at setup or upgrade, on the agent's recommendation
+// ("quoteCheck": true or false in tools/hooks/config.json). Unset, it is off in a project and on in the starter itself.
+// While on, it runs every time. Lesson: some knowledge projects must keep exact quotes and examples.
+export const quoteCheckOn = () => { let v; try { v = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/hooks/config.json'), 'utf8')).quoteCheck; } catch { } return v === true || (v === undefined && fs.existsSync(path.join(ROOT, '.starter-template'))); };
 // A file the turn wrote that copies six or more of the user's words in a row and presents them as the user's (in
 // quotes, or on a line naming the user): AGENTS.md rule 14 wants the lesson in general terms. Asked once, at the end,
 // only when it happened. Lesson: lessons were written down as the user's own sentences, over a hundred of them.
 export function quoteGaps(acts) {
-  // (a choice the user makes at setup or upgrade: tools/hooks/config.json "quoteCheck": false turns it off; on, it always runs)
-  try { if (JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/hooks/config.json'), 'utf8')).quoteCheck === false) return []; } catch { }
+  if (!quoteCheckOn()) return [];
   const words =s => String(s).toLowerCase().match(/[\p{L}\p{N}']+/gu) || [];
   // (only what the user typed: pasted text, relayed messages, notices and quoted blocks are someone else's words.
   // Lesson (a sweep of 1,799 real turns): pasted card text quoted in a review and file paths were flagged)

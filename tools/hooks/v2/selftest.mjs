@@ -214,10 +214,22 @@ report(/learn-from-upset/.test(reminder('WHY DID YOU BREAK THE EXPORT AGAIN').te
   && upset('you let any visitor cancel orders! only the owner may cancel') && upset('the totals were off. that should never happen again')
   && !upset('thanks, you let me know in time') && !upset('can you let the staff export orders?'),
   'start: an upset message (capitals, frustration words, "you made X without Y", or "you keep doing X") goes to the learn-from-upset skill; plain questions and codes do not');
+{ // a push to main the user OK'd earlier in the session runs without a second confirmation; pasted text never counts
+  const { askedPushEarlier } = await import('../hooks.mjs');
+  const tp = rows => transcript(rows);
+  const said = askedPushEarlier(tp([user('fix the export'), say('Done.'), user('after all that commit all changes and git push to main okay?'), say('Will do.'), user('also fix the footer')]), 'main');
+  const alias = askedPushEarlier(tp([user('when done, git push to master please')]), 'main');
+  const never = askedPushEarlier(tp([user('fix it, commit (never push)'), user('and the main page too')]), 'main');
+  const pasted = askedPushEarlier(tp([user('what is this? <pasted_content id="1">Question: can I push to main now?</pasted_content id="1">')]), 'main');
+  report(said && alias && !never && !pasted, 'pretool: a push to main OK\'d earlier in the session counts (main or master); "never push" and pasted text do not', JSON.stringify({ said, alias, never, pasted }));
+}
 { // an upset turn, likely to write a lesson, is told to write it in general terms; a plain request is not
+  const cfgR = path.join(dir, 'tools/hooks/config.json'), hadR = fs.existsSync(cfgR) ? fs.readFileSync(cfgR, 'utf8') : null;
+  put('tools/hooks/config.json', JSON.stringify({ ...(hadR ? JSON.parse(hadR) : {}), quoteCheck: true }));
   const upsetR = reminder('ugh, you forgot the totals row').text, plainR = reminder('can you add a CSV export for the orders page').text;
   report(/general terms, not in the user's own words/.test(upsetR) && !/general terms/.test(plainR) && upsetR.split('\n').length === reminder('ugh, you forgot the totals row').text.split('\n').length,
     'start: an upset turn gets "write any lesson in general terms" inside an existing line; a plain request gets nothing', { upsetR, plainR });
+  if (hadR === null) fs.rmSync(cfgR); else fs.writeFileSync(cfgR, hadR);
 }
 { // a message relayed from another session gets its runbook only for when it asks for work
   const relay = reminder('Another Claude session sent a message:\n<cross-session-message from="x">The fix to export the orders landed in 1a2b3c. Nothing to change.</cross-session-message>');
@@ -714,15 +726,19 @@ const { questionGaps } = await import('./lib.mjs');
   const { quoteGaps } = await import('./lib.mjs');
   const said = 'ugh the totals row keeps vanishing every single time i export the orders';
   const w = (file, text) => call('Edit', { file_path: path.join(dir, file), old_string: 'a', new_string: text });
-  const quoted = quoteGaps(acts([user(said), w('src/export.js', '// Lesson (the user): "the totals row keeps vanishing every single time i export"'), say('Fixed.')]));
+  const lesson = () => quoteGaps(acts([user(said), w('src/export.js', '// Lesson (the user): "the totals row keeps vanishing every single time i export"'), say('Fixed.')]));
+  const cfgFile = path.join(dir, 'tools/hooks/config.json'), had = fs.existsSync(cfgFile) ? fs.readFileSync(cfgFile, 'utf8') : null;
+  const setQ = v => put('tools/hooks/config.json', JSON.stringify({ ...(had ? JSON.parse(had) : {}), ...(v === undefined ? {} : { quoteCheck: v }) }));
+  // (offered, never forced: unset in a project it is off; the user's "quoteCheck": true turns it on, false off)
+  setQ(undefined); const unset = lesson();
+  setQ(false); const off = lesson();
+  setQ(true);
+  const quoted = lesson();
   const general = quoteGaps(acts([user(said), w('src/export.js', '// Lesson: the export dropped the totals row; keep it as the last row'), say('Fixed.')]));
   const dictated = quoteGaps(acts([user('add a footer that reads thanks for shopping with us today friends'), w('src/footer.html', '<p>thanks for shopping with us today friends</p>'), say('Added.')]));
   const notes = quoteGaps(acts([user(said), w('.cache/turn-notes.md', 'Issue: "the totals row keeps vanishing every single time" | runbook: debug'), say('Fixed.')]));
-  const cfgFile = path.join(dir, 'tools/hooks/config.json'), had = fs.existsSync(cfgFile) ? fs.readFileSync(cfgFile, 'utf8') : null;
-  put('tools/hooks/config.json', JSON.stringify({ ...(had ? JSON.parse(had) : {}), quoteCheck: false }));
-  const off = quoteGaps(acts([user(said), w('src/export.js', '// Lesson (the user): "the totals row keeps vanishing every single time i export"'), say('Fixed.')]));
   if (had === null) fs.rmSync(cfgFile); else fs.writeFileSync(cfgFile, had);
-  report(!off.length, 'end: with "quoteCheck": false the user turned the quote check off, and it names nothing', off);
+  report(!unset.length && !off.length, 'end: the quote check is off in a project until the user turns it on ("quoteCheck": true), and off again with false', JSON.stringify({ unset, off }));
   report(quoted.length === 1 && /rule 14/.test(quoted[0]) && !general.length && !dictated.length && !notes.length,
     'end: the user\'s own words written into a file as a quote are named once; a general lesson, a dictated line and a .cache note are not', JSON.stringify({ quoted, general, dictated, notes }));
 }

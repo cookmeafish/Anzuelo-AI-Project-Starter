@@ -39,7 +39,9 @@ updatedInput) is fixed in place.
    the 20 minutes: `git worktree add --detach ~/.anzuelo-frozen/<commit> <commit>`, then `node tools/hooks/wire.mjs`
    in it, then run there. Not in a temp folder (the link tests refuse one) and not without wire.mjs (the generated
    hook settings are not in git): each cost a failed run. A new worktree has no `.cache/`: create it before sending
-   any output there (2026-11-06: every step's redirect failed and the chain did not run). Copy its
+   any output there (2026-11-06: every step's redirect failed and the chain did not run). To release a tested commit
+   while newer work sits in the main folder, push from its frozen copy (`git push origin HEAD:main` there): the push
+   hook checks the proof against the folder it runs in (2026-11-07). Copy its
    `tools/hooks/engine-proof.json` back only when no engine file changed since that commit, and remove the copy
    afterwards (`git worktree remove <dir>`).
 2. **Run the round on a frozen copy.** `node tools/starter/trials/run.mjs --round <name> --freeze` (names go up:

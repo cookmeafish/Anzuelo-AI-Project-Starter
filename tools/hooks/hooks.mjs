@@ -315,7 +315,8 @@ const DEFAULTS = {
   forbiddenCommands: [],   // [{ "pattern": "regex", "reason": "why" }]
   codeRules: [],           // [{ "files": ["src/**/*.js"], "pattern": "regex", "message": "what to do instead" }]
   commitGate: [],          // [{ "cmd": "regex of a command that must have PASSED this turn", "pass": "regex", "when": ["globs of changed files"] }]
-  quoteCheck: true,        // the end check names the user's own words quoted into a file (rule 14); the user chooses at setup or upgrade
+  pushOk: 'session',       // a push to a protected branch needs the user's OK: "session" (given once in the session) or "request" (in the same message)
+  quoteCheck: false,       // the end check names the user's own words quoted into a file (rule 14); offered at setup or upgrade with a recommendation, never forced (unset: on only in the starter)
   subagentBrief: true,     // sub-agent prompts must point the sub-agent at AGENTS.md (the rules) so it follows them too
   instructionBudgetKB: 60, // audit warns when AGENTS.md / CLAUDE.md grows past this; split detail into docs/
   // Root stays small (docs/checks/layout-standards.md): files allowed directly in the project root. Folders are fine.
@@ -678,6 +679,23 @@ const HOOK_BLOCK = /^\s*(stop hook\b|almost done:)/i;
 // engine files an upgrade wrote were flagged for copying them (REQ: no-verbatim-examples).
 const RELAYED = /<(cross-session-message|agent-message|system-reminder|task-notification)\b[^>]*>[\s\S]*?(<\/\1>|$(?![\s\S]))/gi;
 export const relayedOut = s => String(s || '').replace(RELAYED, ' ');
+// A push to a protected branch the user OK'd earlier in this session, in their own typed words (a message, or one typed
+// mid-turn; never pasted or relayed text): "push" and the branch in one message ("main" and "master" name the same
+// default branch). The OK holds for the session. Lesson (the user, upset): a push queued with the work was refused at
+// the end and the user had to confirm it a second time.
+export function askedPushEarlier(transcriptPath, target) {
+  let raw = ''; try { const fd = fs.openSync(transcriptPath, 'r'), size = fs.fstatSync(fd).size, n = Math.min(size, 8 << 20), b = Buffer.alloc(n); fs.readSync(fd, b, 0, n, size - n); fs.closeSync(fd); raw = b.toString('utf8'); } catch { return false; }
+  const names = /^(main|master)$/i.test(target) ? 'main|master' : esc(target);
+  const ok = new RegExp(`\\bpush\\b[\\s\\S]{0,80}\\b(${names})\\b|\\b(${names})\\b[\\s\\S]{0,40}\\bpush`, 'i');
+  const clean = s => String(s).replace(/<(pasted_content|cross-session-message|agent-message|task-notification)\b[\s\S]*?<\/\1\b[^>]*>/g, ' ');
+  for (const line of raw.split('\n')) {
+    if (!line.includes('"type":"user"')) continue;
+    let r; try { r = JSON.parse(line); } catch { continue; }
+    const c = r.message?.content, texts = typeof c === 'string' ? [c] : Array.isArray(c) ? c.filter(x => x.type === 'text').map(x => (/The user sent a new message while you were working:\s*([\s\S]*?)(?:\n\s*This is how Claude Code surfaces|$)/.exec(x.text || '') || [])[1] || '') : [];
+    if (texts.some(t => ok.test(clean(t)))) return true;
+  }
+  return false;
+}
 export function userText(prompt) {
   const out = [];
   let inBlock = false; // a pasted Stop message: its numbered steps run until "For the agent: ... Names: ..." or a blank line
@@ -5697,7 +5715,8 @@ function pretoolHits(data, cfg) {
       const branchArg = cfg.protectedBranches.find(b => re(`(^|[\\s:/])${esc(b)}(\\s|$)`).test(pushTo[1]));
       const current = !branchArg && /\bpush\b\s*($|origin\s*$|-u\s+origin\s*$)/i.test(pushTo[0]) ? (spawnSync('git', ['branch', '--show-current'], { cwd: ROOT, encoding: 'utf8' }).stdout || '').trim() : '';
       const target = branchArg || (cfg.protectedBranches.includes(current) ? current : '');
-      if (target && !re(`\\b${esc(target)}\\b`).test(req()))
+      // (the user's OK holds for the session; "pushOk": "request" makes it count only in the same message)
+      if (target && !re(`\\b${esc(target)}\\b`).test(req()) && !(cfg.pushOk !== 'request' && askedPushEarlier(data.transcript_path, target)))
         add(`REQ: git-safety. This pushes to the protected branch "${target}", and the user didn't name it in this request. Push to the work branch, or ask first.`);
     }
     // REQ: gitignore-ready. A push waits until .gitignore keeps everything private out and everything needed in.

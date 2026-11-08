@@ -2,7 +2,7 @@
 // "Done when" list, which the end hook checks. Nothing about the engine itself.
 import fs from 'node:fs';
 import path from 'node:path';
-import { route, skillBooks, saveTurn, loadTurn, isSpanish, ROOT } from './lib.mjs';
+import { route, skillBooks, saveTurn, loadTurn, isSpanish, ROOT, quoteCheckOn } from './lib.mjs';
 
 export const MAX_LINES = 10;
 // (an upset message: mostly capitals, or the usual frustration words. Lesson (routing sample): complaints used no
@@ -60,7 +60,7 @@ export function reminder(prompt) {
   // (upset and a fitting runbook: both are named, so the fix still follows its runbook)
   const sore = upsetIn(prompt) && has('skills/learn-from-upset/SKILL.md') ? 'This sounds upset: open skills/learn-from-upset/SKILL.md and follow it.' : '';
   const book = route(prompt);
-  const quoteOn = (() => { try { return JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/hooks/config.json'), 'utf8')).quoteCheck !== false; } catch { return true; } })();
+  const quoteOn = quoteCheckOn();
   // (a Spanish request: the whole answer in Spanish, labels too. Lesson (trial v37): a runbook item quoted an English
   // label, and it went into a Spanish answer twice, the second time in the reply to a complaint about English text)
   // (and the files the answer points them to. Lesson (trial v45): a Spanish answer sent the user to a spec and release
@@ -84,7 +84,7 @@ export function reminder(prompt) {
   // (said in the runbook line itself: a line of its own was most of the reminders' growth on peer messages)
   // (a turn likely to write a lesson down, upset or a rule, lesson or runbook request, is told to write it in general
   // terms, in the runbook line itself: no extra line, and nothing on other turns. The end check catches a slip
-  // (quoteGaps). Off with the quote check, "quoteCheck": false)
+  // (quoteGaps). On only with the quote check, quoteCheckOn)
   const lesson = quoteOn && (sore || ['project', 'learn-from-upset', 'runbook-create', 'project-rule'].includes(book.name)) ? ' Write any lesson in general terms, not in the user\'s own words.' : '';
   const lines = [...(sore ? [sore] : []), ...(es ? [es] : []), ...own, `Runbook${relayedRx.test(raw) ? ', only if this message asks for work here' : ''}: open ${book.file} and follow it.${lesson}`];
   if (book.items.length) {
