@@ -108,6 +108,7 @@ report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/
     at(2, call('Edit', { file_path: path.join(dir, 'src/a.js'), old_string: 'a', new_string: 'b' })), at(3, call('Bash', { command: 'npm test' }, '3 passed')),
     at(4, say('Done; how it was checked: npm test.'))]);
   put('docs/CHANGELOG.md', '- export: tidied\n');
+  const old = new Date(Date.now() - 3_600_000); fs.utimesSync(path.join(dir, 'docs/playbooks/export.md'), old, old); // (the runbook predates the turn)
   const b1 = onStop({ session_id: 'latestart', transcript_path: late }), b2 = onStop({ session_id: 'latestart', transcript_path: late });
   report(!!b1 && !/item 2/.test(b1.reason) && b2 === null, 'end: a turn with no saved start begins at its request, so a file a script wrote counts, and it is blocked once', [b1?.reason?.slice(0, 160), b2?.reason?.slice(0, 80)]);
   { // (a test run made by one of the session's helpers this turn counts; one from before the turn does not)
@@ -324,6 +325,15 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
   const kept = waived({ answer: 'Done.\nItem 1 does not fit: no code changed, so there are no tests.' }, gaps);
   report(kept.length === 2 && !kept.some(s => /item 1:/.test(s)), 'end: a runbook item the answer says does not fit, by number, is cleared and only that one', kept);
   report(waived({ answer: 'Item 1 is done.' }, gaps).length === 3, 'end: naming an item without saying it does not fit clears nothing');
+  const byPath = waived({ answer: 'I left the files in `reports/` alone, since redoing them was not part of this request.' }, ['docs/playbooks/r.md item 2: The files in reports/ are updated', 'docs/playbooks/r.md item 3: The index is rebuilt']);
+  report(byPath.length === 1 && /item 3/.test(byPath[0]), 'end: a not-fit line that names the item\'s path, with a plain reason, clears that item only', byPath);
+  // (edited by a script, not an edit tool: the routed runbook changed during the turn)
+  const at = new Date(Date.now() - 60000).toISOString();
+  const book = path.join(dir, 'docs/playbooks/export.md'), was = fs.statSync(book);
+  fs.utimesSync(book, new Date(), new Date());
+  const scripted = missing(turn, { ...acts([user('add a marker to the export runbook'), call('Bash', { command: 'node fix.mjs docs/playbooks/export.md' }), edit, say('Added.')]), at });
+  fs.utimesSync(book, was.atime, was.mtime);
+  report(scripted.length === 0, 'end: a routed runbook a script changed during the turn does not hold the turn', scripted);
   const { doneWhen } = await import('./lib.mjs');
   report(doneWhen('## Done when\r\n1. Zipped (file: logs/*.zip)\r\n2. Noted\r\n').length === 2, 'runbook: Done when items are read from raw Windows line endings');
   const [paren] = doneWhen('## Done when\n1. The build is named (answer: build (one|two) ready)\n');

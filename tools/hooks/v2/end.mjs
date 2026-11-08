@@ -1,13 +1,18 @@
 // Engine v2 end hook (Stop): the one check. It judges only what this session did in this turn, from its own
 // transcript, and blocks with a short plain list of what is really missing until it is done (at most MAX_BLOCKS times).
-import { runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, questionGaps, noteGaps, quoteGaps, tail, helpersRunning, helperRuns, evidenceOf, skillBooks } from './lib.mjs';
+import fs from 'node:fs';
+import path from 'node:path';
+import { ROOT, runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, questionGaps, noteGaps, quoteGaps, tail, helpersRunning, helperRuns, evidenceOf, skillBooks } from './lib.mjs';
 
 // Check 1: the routed runbook was followed, and its checkable "Done when" items were met. With none routed, the
 // runbook the agent chose and opened is the one it is held to (the runbook itself, not a skill it names: reading the
 // debug skill does not make a turn a debug runbook turn. Lesson (replay): it added a block). A runbook the turn wrote
 // or edited is its work, not the procedure it chose. Lesson (trial v43): a setup that wrote the vault-tidy runbook and
 // read it back was held to that runbook's items.
-const authored = (b, acts) => acts.calls.some(c => /^(Edit|Write|MultiEdit)$/.test(c.name) && String(c.input.file_path || '').replace(/\\/g, '/').endsWith(b.file));
+// (by a script too: the file changed since the turn began. Lesson (a project's report): a runbook edited by a shell
+// script was "opened" by naming it and held the turn three times)
+const authored = (b, acts) => acts.calls.some(c => /^(Edit|Write|MultiEdit)$/.test(c.name) && String(c.input.file_path || '').replace(/\\/g, '/').endsWith(b.file))
+  || (() => { const since = Date.parse(acts.at || '') || 0; try { return since > 0 && fs.statSync(path.join(ROOT, b.file)).mtimeMs > since; } catch { return false; } })();
 // (a routed runbook the agent never opened, while it opened another one, gives way to that one: the router guessed, the
 // agent chose. Lesson (trial v45): a page request routed to a recipe runbook on a broad trigger, the agent followed the
 // feature runbook, and the end check held it to the recipe items)
@@ -17,10 +22,15 @@ const picked = (acts, books) => books.find(b => opened({ ...b, skills: [] }, act
 const chosen = (turn, acts, books) => { const routed = turn.runbook && books.find(b => b.file === turn.runbook && !authored(b, acts)); return routed && !opened(routed, acts) ? picked(acts, books.filter(b => b !== routed)) || routed : routed || picked(acts, books); };
 // A runbook item the answer says, in one line, does not fit this work is cleared: the line names it ("item 3") and
 // says why. Lesson (a project's report): the block offered that way out, and the line that took it was held again.
-const NOFIT = /\b(does(?:n['’]t| not) (?:fit|apply)|not (?:applicable|needed|relevant)|n\/a)\b/i;
+// (or names a path the item names, and says why in plain words: agents rarely write "item 3")
+const NOFIT = /\b(does(?:n['’]t| not) (?:fit|apply)|not (?:applicable|needed|relevant)|n\/a|(?:was|is)(?:n['’]t| not) part of|not part of|never asked|not asked)\b/i;
 const kept = acts => {
-  const lines = String(acts.answer || acts.said || '').split('\n').filter(l => NOFIT.test(l));
-  return s => { const m = /^\S+ item (\d+):/.exec(s); return !m || !lines.some(l => new RegExp(`\\bitems?\\s*(?:\\d+\\s*(?:,|and)\\s*)*${m[1]}\\b`, 'i').test(l)); };
+  const lines = String(acts.answer || acts.said || '').replace(/`/g, '').split('\n').filter(l => NOFIT.test(l));
+  return s => {
+    const m = /^\S+ item (\d+): (.*)$/.exec(s); if (!m) return true;
+    const paths = (m[2].match(/[\w.-]*[\w-]\/[\w./*-]*|\b[\w-]+\.(?:md|json|mjs|js|py|ts|csv)\b/g) || []);
+    return !lines.some(l => new RegExp(`\\bitems?\\s*(?:\\d+\\s*(?:,|and)\\s*)*${m[1]}\\b`, 'i').test(l) || paths.some(p => l.includes(p)));
+  };
 };
 export const waived = (acts, list) => list.filter(kept(acts));
 
