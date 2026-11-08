@@ -708,6 +708,19 @@ const { questionGaps } = await import('./lib.mjs');
     && /only what changed in the answer above/.test(real?.reason || '') && !/whole answer/.test(real?.reason || '') && /check --answer-file/.test(real?.reason || ''),
     'end: a preview on a draft records nothing (the real check comes fresh); a block asks for a short note on what changed, not the whole answer again', [pre?.decision, real?.reason]);
 }
+// (draft checks never count toward the cap: after two of them, the real stops still get all MAX_BLOCKS rounds, and the
+// "last check" line comes only on the last. Lesson (a project's report): three blocks in one request read as drafts counted)
+{
+  const { onPrompt } = await import('./start.mjs');
+  const { MAX_BLOCKS } = await import('./end.mjs');
+  onPrompt({ session_id: 'cap1', prompt: 'add a csv export' });
+  const tp = transcript([user('add a csv export'), edit]);
+  for (let i = 0; i < 2; i++) onStop({ transcript_path: tp, session_id: 'cap1', last_assistant_message: 'Draft.' }, { shadow: true });
+  const seen = Array.from({ length: MAX_BLOCKS + 1 }, () => onStop({ transcript_path: tp, session_id: 'cap1' }));
+  const lastAt = seen.findIndex(o => /last check for this request/.test(o?.reason || ''));
+  report(seen.slice(0, MAX_BLOCKS).every(o => o?.decision === 'block') && lastAt === MAX_BLOCKS - 1 && seen[MAX_BLOCKS] === null,
+    'end: draft checks never count toward the block cap; the real stops get every round, the last says so, then it lets go', seen.map(o => o?.decision || null));
+}
 // (the hooks are named by kind everywhere the user or agent reads about them: Reminder, Guard, Check)
 {
   const root = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
