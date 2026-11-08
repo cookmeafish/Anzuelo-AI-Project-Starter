@@ -100,7 +100,11 @@ function judge(data, { shadow = false } = {}) {
   if (again && turn.lastBlock) { const after = turnActs(rows.filter(r => (Date.parse(r.timestamp || '') || 0) > turn.lastBlock)); acts.said = after.said + (final && !after.said.includes(final) ? `${final}\n` : ''); acts.answer = final || after.answer || acts.answer; }
   const history = evidenceOf(tail(data.transcript_path, 5 << 20));
   const list = [...missing(turn, acts), ...skillMissing(acts), ...reviewGaps(turn, acts), ...testGaps(acts, history), ...gateGaps(acts), ...screenGaps(acts), ...healthGaps(acts, { run: !shadow }), ...knowledgeGaps(acts), ...securityGaps(acts), ...questionGaps(acts), ...noteGaps(acts), ...claimGaps(acts, history)];
-  const check = again ? null : toVerify(turn, acts);
+  // (a turn that ran the check on its draft has seen the verify list: the real stop does not send it back for it again.
+  // Lesson (the user, 2026-11-07): the list came in the draft check and then again as a send-back, and the user read a
+  // second round of the answer)
+  const previewed = !shadow && (acts.calls || []).some(c => /^(Bash|PowerShell)$/.test(c.name) && /hooks\.mjs["']?\s+check\b[^\n]*--answer-file/.test(String(c.input?.command || '')));
+  const check = again || previewed ? null : toVerify(turn, acts);
   if (!list.length && !check) return null;
   const parts = [], last = rounds + 1 === MAX_BLOCKS;
   // (a repeat block asks for the fix, or one line on why the item doesn't fit this work, never the same answer again.

@@ -259,6 +259,12 @@ report(missing(turn, acts(good)).length === 0, 'end: a turn that met every check
   report(toVerify(turn, acts([user('what does the csv export do?'), read, say('It writes one row per order.')])) === null && toVerify({ runbook: null }, acts([user('fix it'), edit, say('Fixed.')])) === null
     && onStop({ stop_hook_active: true, transcript_path: transcript(good), session_id: 'verify1' }) === null,
     'end: a question, a turn with no runbook, and the repeat Stop get no verify list');
+  // (a turn that ran the check on its draft saw the list there: the real stop does not send it back for it again, while
+  // the draft check itself still shows it)
+  const drafted = [...good.slice(0, -1), call('Bash', { command: 'node tools/hooks/hooks.mjs check --answer-file .cache/answer.md' }, 'CHECK: ...'), good.at(-1)];
+  const real = onStop({ transcript_path: transcript(drafted), session_id: 'verify2' }), preview = onStop({ transcript_path: transcript(drafted), session_id: 'verify3' }, { shadow: true });
+  report(real === null && /Check that these items of docs\/playbooks\/export\.md are really done/.test(preview?.reason || ''),
+    'end: after a check on the draft, the real stop does not send the verify list back again; the draft check shows it', { real, preview: preview?.reason });
 }
 const noRead = missing(turn, acts([user('add a csv export'), edit, call('Bash', { command: 'npm test' }), log, say('How it was checked: tests.')]));
 report(noRead.length === 1 && /Open docs\/playbooks\/export\.md/.test(noRead[0]), 'end: work done without opening the runbook is named', noRead);
