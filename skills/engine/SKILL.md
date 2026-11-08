@@ -19,6 +19,9 @@ Open `docs/playbooks/engine.md` and follow every step in order. It is the proced
 - [ ] An upgrade's review lines each end with a decision (hook: upgrade-review) (when ran: starter\.mjs upgrade [^-]|starter\.mjs upgrade$|starter\.mjs update [^-]|starter\.mjs update$|starter\.mjs update --keep-local) (file: docs/DECISIONS.md).
 - [ ] A removal was asked first, and the answer says where the backup is and how to put the engine back (judgment:
       plain wording for the user) (when ran: starter\.mjs uninstall).
+- [ ] A removal ran its dry run first, and after it the project's own test command ran and passed (ran: uninstall --dry-run) (when ran: starter\.mjs uninstall$|starter\.mjs uninstall [^-]).
+- [ ] After a removal, every `check` line it printed is fixed, AGENTS.md and CLAUDE.md keep only the project's own
+      rules, and the project's own hooks and skills were shown to still work (judgment: which rules are the project's) (when ran: starter\.mjs uninstall$|starter\.mjs uninstall [^-]).
 - [ ] A changed setting has its DECISIONS line; one the host refused went to the user as the line to paste, never
       written another way (hook: permission-respected) (when file: tools/hooks/config.json) (file: docs/DECISIONS.md).
 - [ ] The answer ends with a Finished section: what changed, each file's path, what was not verified (hook: finished-summary) (answer: Finished).
