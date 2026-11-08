@@ -74,7 +74,7 @@ Measured 2026-11-07 on HEAD (corrections to the draft are marked):
 **Uses / provides:** provides the v2 modules Tasks 2 to 5 build on
 - [x] 1a Inventory: every function in hooks.mjs that runs under v2 or that a tool imports, each marked keep (move),
       replace or delete, written into this plan. Nothing left unmarked. (2026-11-08: all 740 top-level names marked,
-      in "Task 1a inventory" below)
+      in "Inventory for step 1a" below)
 - [ ] 1b Modules: config and names, paths and host, the guards (code, not a re-export), user lines (status-lines
       toggle), the CLI. Point the 14 importers and secjudge.mjs at them; no module imports hooks.mjs.
 - [ ] 1c One entry: hook settings and the no-hooks CLI call one v2 entry for session, prompt, pretool, posttool and
@@ -85,7 +85,7 @@ Measured 2026-11-07 on HEAD (corrections to the draft are marked):
       removes files the starter no longer ships, after a backup.
 - [ ] Run `node tools/hooks/v2/selftest.mjs` and the full chain. Expected: 0 failed, and the grep in "Done when" empty.
 
-#### Task 1a inventory (2026-11-08, hooks.mjs at 6e96b72, 9,833 lines)
+#### Inventory for step 1a (2026-11-08, hooks.mjs at 6e96b72, 9,833 lines)
 How it was made: V8 coverage (NODE_V8_COVERAGE) over the v2 selftest, the audit and the trial forced onto v2
 (`STARTER_ENGINE=v2`; the trial pins v1 by default). A function counts as run when V8 counted at least one call; a
 constant counts when a function that ran names it. Static reach alone was no use: 721 of 740 names are reachable from
@@ -123,7 +123,7 @@ Done ahead of 1b (2026-11-08): the three v1 rules `pretoolHits` worked out on ev
 record: hooks.mjs 9,833 to 9,678 lines. v2 selftest test "rules no engine refuses during the work ... are not computed"
 fails on the old code.
 
-#### Task 1b budget (2026-11-08)
+#### Budget for step 1b (2026-11-08)
 "keep" means "still needed", not "port as is": 6,355 kept lines against a 2,000-line budget (Task 4) cannot move
 unchanged. Counted with the same inventory; line counts include comments (about 30% of hooks.mjs is comment-only lines).
 - Budget: 2,000 lines of engine code without tests, counted over tools/hooks/ (hooks entry, v2/, paths.mjs,
