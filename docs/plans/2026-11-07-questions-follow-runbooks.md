@@ -48,6 +48,9 @@ A run that is stuck sets `status: blocked - <reason>` with `Tried:` and `Options
   now adds it to each runbook that answers from sources, with a Done-when item asking for the counts. The knowledge
   pack ships no question runbook; the research skill, in every project, carries the marker. Task 3 measures the
   routed questions held after the projects upgrade.
+- 2026-11-08, Task 2c: one judgment item on the app pack's feature runbook for features that answer from sources,
+  with its method from RAGAS (arXiv:2309.15217), ARES (arXiv:2311.09476) and SQuAD 2.0 (arXiv:1806.03822), each read
+  this turn on arxiv.org.
 
 ## Context
 - `tools/hooks/v2/end.mjs`: missing() and the others return nothing unless worked(acts) (lib.mjs, edits only).
@@ -100,12 +103,14 @@ A run that is stuck sets `status: blocked - <reason>` with `Tried:` and `Options
 ### Task 2c: apps the projects build that answer from sources (app pack)
 **Files:** `packs/app/files/docs/playbooks/feature.md`, a trial project under `tools/starter/trials/`
 **Uses / provides:** none
-- [ ] feature.md gets conditional "Done when" items for a feature that answers end users' questions from sources:
+- [x] feature.md gets conditional "Done when" items for a feature that answers end users' questions from sources:
       answers only from retrieved sources with citations; "not found" instead of a guess; conflicts shown; an
       evaluation suite of real questions with expected source and answer, plus unanswerable ones that must return
       "not found", run as the project's test command.
-- [ ] Research the method first (retrieval-augmented generation evaluation practice, 2+ primary sources) and cite it.
-- [ ] Measure on a trial project before shipping: run `node tools/trial.mjs` with a source-answering app case.
+- [x] Research the method first (retrieval-augmented generation evaluation practice, 2+ primary sources) and cite it.
+- [x] (Changed 2026-11-08: the item is judgment-only, shown in the verify list only on feature turns and skipped when
+      it does not fit, so a trial case would measure nothing a script checks. Measured instead by the full trial run.)
+      Measure on a trial project before shipping: run `node tools/trial.mjs` with a source-answering app case.
       Expected: the items fire on that case and not on unrelated features.
 
 ### Task 2d: a project's own accuracy hooks (user, 2026-11-07)

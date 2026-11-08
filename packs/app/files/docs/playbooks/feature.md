@@ -83,12 +83,19 @@ Not a small change:
 - [ ] Release notes written; version bumped as configured (hook: release-notes, version-bump).
 - [ ] Docs that described the old behaviour were updated, or the answer says none did. Every new option, flag, setting or command the user can type is in the README or the user docs with what it does, and in `--help` for a CLI (judgment: which docs and what counts as user-facing needs reading the change).
 
+- [ ] Only for a feature that answers people's questions from documents or data (search, chat, Q&A). Every answer comes from retrieved sources and cites them. A question the sources don't answer gets "not found", never a guess. Sources that disagree are shown side by side, not merged. An evaluation set runs with the project's test command: real questions with their expected source and answer, plus unanswerable ones that must get "not found". It scores retrieval relevance, faithfulness to the sources and answer relevance (judgment: only such a feature; method below).
+
 ## Pitfalls
 - Declaring done from the code or from one screenshot. Verify in the real app, every state.
 - Checking only the criterion from the latest complaint. Check them all.
 
 Ideas in steps 2 and 5 come from the system-design, testing-strategy and documentation skills of
 anthropics/knowledge-work-plugins (Apache-2.0).
+
+The source-answering item follows two evaluation methods. RAGAS (Es et al., 2023, arXiv:2309.15217) scores context
+relevance, faithfulness and generation quality. ARES (Saad-Falcon et al., NAACL 2024, arXiv:2311.09476) scores context
+relevance, answer faithfulness and answer relevance. Its "not found" rule follows SQuAD 2.0 (Rajpurkar et al., ACL
+2018, arXiv:1806.03822): abstain when no answer is supported.
 
 Credits: the test-first slices in step 3 draw on "tdd" in mattpocock/skills (MIT) and "test-driven-development" in
 obra/superpowers (MIT).

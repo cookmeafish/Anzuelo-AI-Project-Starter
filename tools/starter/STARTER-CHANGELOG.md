@@ -6,6 +6,7 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-08 (app pack, feature runbook): a feature that answers people's questions from documents or data must answer only from cited sources, say "not found" instead of guessing, show disagreeing sources side by side, and run an evaluation set (expected source and answer, plus unanswerable questions) with the project's tests; method from RAGAS, ARES and SQuAD 2.0.
 - 2026-11-08 (engine runbook, upgrade): an upgrade adds `(evidence)` to each of the project's runbooks that answer questions from sources and reports the counts, so the evidence check reaches the projects (no project runbook had it).
 - 2026-11-08 (end check, evidence): an answer with 3 or more fact bullets is asked to put a source beside each fact (not one list at the end) or label it as inference; an answer from 2 or more sources on an answer runbook gets one fresh review for conflicts shown side by side and labeled inference.
 - 2026-11-08 (end check, misroutes): a question is held to its routed runbook only when that runbook is made for answers (it carries an `(evidence)` item), so routine and scheduled prompts on a broad route stay free; a line saying a runbook does not fit, naming it by path, file name or "the <name> runbook", clears the ask to open it and all its items.
