@@ -32,9 +32,14 @@ replaces that with "port each one, or ask"), [clean exit](2026-11-08-clean-exit.
    working (REQ: engine-parity).
 
 ## Task 1: the complete list of what v2 lacks (the sweep)
-- [ ] Run v1's own self-test (1,700 checks, each a behavior) with `STARTER_ENGINE=v2` on a copy of the last commit.
+- [x] Run v1's own self-test (1,700 checks, each a behavior) with `STARTER_ENGINE=v2` on a copy of the last commit.
       Every failing check is a behavior v2 lacks or does differently. Save the list in `docs/reviews/`.
-- [ ] Group the failures by behavior (one behavior often has several checks) and count them.
+      (2026-11-08, e67fa96: 750 passed, 630 failed, 9 skipped. The starter keeps its own reviews in
+      `tools/starter/reviews/`: [the list](../../tools/starter/reviews/2026-11-08-v2-sweep.md).)
+- [x] Group the failures by behavior (one behavior often has several checks) and count them.
+      (261 groups by hook and tag: stop 426, prompt 141, other 57, pretool 3, session 3. The biggest: claim-checked
+      16, check-preview 15 + 7, own-question 14, answer-traced 13, answer-resent 12, upset-learned 11, app-test-pass
+      11, route 10, route-precision 10, praise 9. Many fall in the retired categories, which Task 2 marks first.)
 
 ## Task 2: each behavior gets a decision
 - [ ] For each group: port it (the v2 module it goes in, rewritten small), "v2 does it another way" (the v2 test that
