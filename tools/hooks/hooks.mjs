@@ -9299,7 +9299,8 @@ async function v2Cli(cmd) {
   // the real end check still comes fresh. Lesson (the user, 2026-11-07): send the answer once, when it is ready, not
   // again after each block)
   const af = process.argv.indexOf('--answer-file'), draft = af > 0 ? (() => { try { return fs.readFileSync(path.resolve(ROOT, process.argv[af + 1] || ''), 'utf8'); } catch { return ''; } })() : '';
-  if (tp) { const who = lib.callerTranscript(tp, sid); const d = (await import('./v2/end.mjs')).onStop({ transcript_path: who.file, session_id: who.id ? `${sid}-${who.id}` : sid, ...(draft ? { last_assistant_message: draft } : {}) }, { shadow: true }); console.log(d ? `CHECK: ${d.reason.replace(/\nFix what isn't done\.[\s\S]*$/, '\nFix these, then send the answer once.')}` : 'CHECK: PASS'); return d ? 1 : 0; }
+  if (tp) { const who = lib.callerTranscript(tp, sid); const d = (await import('./v2/end.mjs')).onStop({ transcript_path: who.file, session_id: who.id ? `${sid}-${who.id}` : sid, ...(draft ? { last_assistant_message: draft } : {}) }, { shadow: true }); const text = d ? d.reason.replace(/^- \(the health check would run here\)\n/m, '').replace(/^Not done yet:\n(?=Check that|Fix what)/, '').replace(/\nFix what isn't done\.[\s\S]*$/, '\nFix these, then send the answer once.') : '';
+    const real = /^Not done yet:/.test(text); console.log(text ? `CHECK: ${text}` : 'CHECK: PASS'); return real ? 1 : 0; }
   const book = turn.runbook && lib.runbooks().find(b => b.file === turn.runbook);
   console.log(book?.items.length ? `CHECK: verify that each item of ${book.file} is really done (skip any that don't fit this work), fix what isn't, then answer:\n${book.items.map(it => `${it.n}. ${it.text}`).join('\n')}` : 'CHECK: PASS');
   return 0;
