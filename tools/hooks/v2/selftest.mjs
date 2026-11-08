@@ -315,6 +315,20 @@ report(chose.some(s => /export\.md item 1/.test(s)) && !chose.some(s => /^Open/.
 // (a runbook the turn wrote and read back is its work, not the procedure it chose. Lesson (trial v43))
 const wrote = missing({ runbook: null }, acts([user('set up the project'), call('Write', { file_path: path.join(dir, 'docs/playbooks/export.md'), content: 'x' }), read, edit, say('Set up.')]));
 report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and then read is not the one the turn is held to', wrote);
+{ // (a project's report: editing the routed runbook held the turn to its items; the one-line way out was held again;
+  // raw CRLF text had no items; a ")" in a marker's value cut it short)
+  const edited = missing(turn, acts([user('add a marker to the export runbook'), read, call('Edit', { file_path: path.join(dir, 'docs/playbooks/export.md'), old_string: 'a', new_string: 'b' }), say('Added.')]));
+  report(edited.length === 0, 'end: a turn that edited its own routed runbook is not held to that runbook', edited);
+  const { waived } = await import('./end.mjs');
+  const gaps = ['docs/playbooks/export.md item 1: The tests pass', 'docs/playbooks/export.md item 2: The change is in the changelog', 'Run the tests.'];
+  const kept = waived({ answer: 'Done.\nItem 1 does not fit: no code changed, so there are no tests.' }, gaps);
+  report(kept.length === 2 && !kept.some(s => /item 1:/.test(s)), 'end: a runbook item the answer says does not fit, by number, is cleared and only that one', kept);
+  report(waived({ answer: 'Item 1 is done.' }, gaps).length === 3, 'end: naming an item without saying it does not fit clears nothing');
+  const { doneWhen } = await import('./lib.mjs');
+  report(doneWhen('## Done when\r\n1. Zipped (file: logs/*.zip)\r\n2. Noted\r\n').length === 2, 'runbook: Done when items are read from raw Windows line endings');
+  const [paren] = doneWhen('## Done when\n1. The build is named (answer: build (one|two) ready)\n');
+  report(paren.kind === 'answer' && paren.arg === 'build (one|two) ready' && paren.text === 'The build is named', 'runbook: a marker value may hold a bracketed group', paren);
+}
 { // (a routed runbook never opened, while another was, gives way to the one opened. Lesson (trial v45))
   put('docs/playbooks/recipes.md', '---\nname: recipes\ntriggers: recipe\n---\n## Done when\n1. The recipe card is filed\n');
   const other = missing({ runbook: 'docs/playbooks/recipes.md' }, acts([user('add a page listing the recipes'), read, edit, say('Added.')]));

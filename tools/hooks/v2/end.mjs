@@ -12,7 +12,18 @@ const authored = (b, acts) => acts.calls.some(c => /^(Edit|Write|MultiEdit)$/.te
 // agent chose. Lesson (trial v45): a page request routed to a recipe runbook on a broad trigger, the agent followed the
 // feature runbook, and the end check held it to the recipe items)
 const picked = (acts, books) => books.find(b => opened({ ...b, skills: [] }, acts) && !authored(b, acts));
-const chosen = (turn, acts, books) => { const routed = turn.runbook && books.find(b => b.file === turn.runbook); return routed && !opened(routed, acts) ? picked(acts, books.filter(b => b !== routed)) || routed : routed || picked(acts, books); };
+// (the routed one too: a turn that edited its own routed runbook was changing the procedure, not following it. Lesson
+// (a project's report): adding a marker to the routed runbook held the turn to that runbook's items)
+const chosen = (turn, acts, books) => { const routed = turn.runbook && books.find(b => b.file === turn.runbook && !authored(b, acts)); return routed && !opened(routed, acts) ? picked(acts, books.filter(b => b !== routed)) || routed : routed || picked(acts, books); };
+// A runbook item the answer says, in one line, does not fit this work is cleared: the line names it ("item 3") and
+// says why. Lesson (a project's report): the block offered that way out, and the line that took it was held again.
+const NOFIT = /\b(does(?:n['’]t| not) (?:fit|apply)|not (?:applicable|needed|relevant)|n\/a)\b/i;
+const kept = acts => {
+  const lines = String(acts.answer || acts.said || '').split('\n').filter(l => NOFIT.test(l));
+  return s => { const m = /^\S+ item (\d+):/.exec(s); return !m || !lines.some(l => new RegExp(`\\bitems?\\s*(?:\\d+\\s*(?:,|and)\\s*)*${m[1]}\\b`, 'i').test(l)); };
+};
+export const waived = (acts, list) => list.filter(kept(acts));
+
 export function missing(turn, acts, books = runbooks()) {
   const book = chosen(turn, acts, books);
   if (!book || !worked(acts)) return [];
@@ -99,7 +110,7 @@ function judge(data, { shadow = false } = {}) {
   // Lesson (2026-11-07): an Issue line in the first answer re-blocked the corrected answer that had none)
   if (again && turn.lastBlock) { const after = turnActs(rows.filter(r => (Date.parse(r.timestamp || '') || 0) > turn.lastBlock)); acts.said = after.said + (final && !after.said.includes(final) ? `${final}\n` : ''); acts.answer = final || after.answer || acts.answer; }
   const history = evidenceOf(tail(data.transcript_path, 5 << 20));
-  const list = [...missing(turn, acts), ...skillMissing(acts), ...reviewGaps(turn, acts), ...testGaps(acts, history), ...gateGaps(acts), ...screenGaps(acts), ...healthGaps(acts, { run: !shadow }), ...knowledgeGaps(acts), ...securityGaps(acts), ...questionGaps(acts), ...noteGaps(acts), ...quoteGaps(acts), ...claimGaps(acts, history)];
+  const list = [...missing(turn, acts), ...skillMissing(acts), ...reviewGaps(turn, acts), ...testGaps(acts, history), ...gateGaps(acts), ...screenGaps(acts), ...healthGaps(acts, { run: !shadow }), ...knowledgeGaps(acts), ...securityGaps(acts), ...questionGaps(acts), ...noteGaps(acts), ...quoteGaps(acts), ...claimGaps(acts, history)].filter(kept(acts));
   // (a turn that ran the check on its draft has seen the verify list: the real stop does not send it back for it again.
   // Lesson (the user, 2026-11-07): the list came in the draft check and then again as a send-back, and the user read a
   // second round of the answer)

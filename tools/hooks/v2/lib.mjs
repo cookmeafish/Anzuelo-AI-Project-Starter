@@ -17,7 +17,9 @@ const read = f => { try { return fs.readFileSync(path.join(ROOT, f), 'utf8').rep
 //   (answer: <regex>)        the turn's final answer matches it
 // Anything else is shown at the start and not checked at the end.
 export function doneWhen(text) {
-  const m = /^##\s+Done when\s*$([\s\S]*?)(?=^##\s|(?![\s\S]))/im.exec(String(text));
+  // (Windows line endings too: "## Done when\r" matched nothing. Lesson (a project's report): any caller passing a
+  // runbook's raw text got no items)
+  const m = /^##\s+Done when\s*$([\s\S]*?)(?=^##\s|(?![\s\S]))/im.exec(String(text).replace(/\r\n?/g, '\n'));
   if (!m) return [];
   // (an item wraps onto indented lines: they belong to it)
   const items = [];
@@ -29,16 +31,18 @@ export function doneWhen(text) {
     else if (items.length && /^\s+\S/.test(l)) items[items.length - 1] += ' ' + l.trim();
   }
   return items.map((raw, i) => {
+    // (a marker's value may hold one level of brackets, such as a regex group. Lesson (a project's report): a ")" in
+    // the value cut the marker short)
     // (the last marker anywhere in the item. Lesson (a field report): a marker on the first line of a two-line item
     // was not read)
-    const c = [...raw.matchAll(/\((file|ran|answer):\s*([^)]+)\)/gi)].at(-1);
+    const c = [...raw.matchAll(/\((file|ran|answer):\s*((?:[^()]|\([^()]*\))+)\)/gi)].at(-1);
     // (an item that fits one branch of a runbook says when: "(when ran: <regex>)" and the like. On a turn where that
     // did not happen it is neither checked nor listed. Lesson (replay): an engine upgrade turn was asked to verify the
     // install, removal and setting items too)
-    const w = /\(when\s+(file|ran|answer):\s*([^)]+)\)/i.exec(raw);
+    const w = /\(when\s+(file|ran|answer):\s*((?:[^()]|\([^()]*\))+)\)/i.exec(raw);
     // (every marker goes from the shown text: an item may carry the old engine's "(hook: ...)" or "(judgment: ...)"
     // before v2's own)
-    const text = raw.replace(/\s*\((?:when\s+)?(?:file|ran|answer|hooks?|judgment):[^)]*\)/gi, '').replace(/\s*\.\s*$/, '').replace(/`/g, '').trim();
+    const text = raw.replace(/\s*\((?:when\s+)?(?:file|ran|answer|hooks?|judgment):(?:[^()]|\([^()]*\))*\)/gi, '').replace(/\s*\.\s*$/, '').replace(/`/g, '').trim();
     return { n: i + 1, text, kind: c ? c[1].toLowerCase() : null, arg: c ? c[2].trim() : null, when: w ? { kind: w[1].toLowerCase(), arg: w[2].trim() } : null };
   });
 }

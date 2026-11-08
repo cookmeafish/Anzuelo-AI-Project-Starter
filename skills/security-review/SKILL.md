@@ -1,6 +1,6 @@
 ---
 name: security-review
-description: Reviews any project, a change or a whole app for security problems (secrets, private data and what is shared, untrusted files and web content, downloads and third-party skills, and for software also input validation, injection, cross-site scripting and request forgery, sign-in and permissions, rate limits, uploads, dependencies, deployment), giving every area PASS, FAIL or N/A with evidence and fixing each FAIL. Use when setting up a project (the first review), when adding sign-in, permissions, an endpoint, an upload, payments, personal data, secrets or a third-party integration or download; before a release or before sharing or publishing anything; and whenever the user asks whether something is secure, private or safe.
+description: Reviews and hardens the security of any project, a change or a whole app (secrets, private data and what is shared, untrusted files and web content, downloads and third-party skills, and for software also input validation, injection, cross-site scripting and request forgery, sign-in and permissions, rate limits, uploads, dependencies, deployment), giving every area PASS, FAIL or N/A with evidence and fixing each FAIL. Use when the user asks to make something more secure, harden it or lock it down, when setting up a project (the first review), when adding sign-in, permissions, an endpoint, an upload, payments, personal data, secrets or a third-party integration or download; before a release or before sharing or publishing anything; and whenever the user asks whether something is secure, private or safe.
 triggers: security review, security audit, security check, is it secure, is it safe, is this safe, vulnerabilities, vulnerability, pentest, penetration test, owasp, private data, data leak, leaked key, safe to publish, safe to share
 ---
 # Security review: evidence for every item
@@ -20,6 +20,11 @@ review ran. Review only what changed, with the areas it touches.
 In app projects (app pack), the `security-review.md` runbook adds its own items. **This skill finds problems and
 fixes the few critical ones; the security-hardening library skill (when enabled) fixes a long list as a staged
 project.** Both use the same areas, severity scale and report table ([references.md](references.md)).
+
+**Asked to harden or make something more secure:** choose what fits the request. A change or one area: this skill.
+A whole app or server: this review first, then the security-hardening skill for the fixes. Not enabled yet: tell
+the user its gain and cost in one line and enable it (`node tools/skills.mjs enable security-hardening`), or work from
+[references.md](references.md) here. The project's baseline is `docs/security.md`.
 
 ## 1. Scope and threat model
 1. **Say what is in scope:** the change, a feature, or the whole project, and which parts are exposed: shared or

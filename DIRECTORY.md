@@ -37,7 +37,7 @@ others are the skill side of a runbook in §1. What each does and when: its SKIL
 | [project-sweeps](skills/project-sweeps/SKILL.md) | Runs the project's quality sweeps (tools/audit.mjs structure,... | via [project.md](docs/playbooks/project.md) | see §1 |
 | [research](skills/research/SKILL.md) | Get facts right, from the project's own files or from the web | own route | research-cited, research-ledger |
 | [runbook-create](skills/runbook-create/SKILL.md) | Creates a new runbook in docs/playbooks (or extends the closest... | via [project.md](docs/playbooks/project.md) | see §1 |
-| [security-review](skills/security-review/SKILL.md) | Reviews any project, a change or a whole app for security problems... | own route | security-report, security-logged, security-code, security-config, security-publish |
+| [security-review](skills/security-review/SKILL.md) | Reviews and hardens the security of any project, a change or a... | own route | security-report, security-logged, security-code, security-config, security-publish |
 | [session-handoff](skills/session-handoff/SKILL.md) | Keeps docs/STATUS.md (Now / Next / Open questions / Blocked) and... | via [project.md](docs/playbooks/project.md) | see §1 |
 | [skill-curate](skills/skill-curate/SKILL.md) | Keeps the project's skills and runbooks lean - reviews the ones... | via [project.md](docs/playbooks/project.md) | see §1 |
 | [skill-finder](skills/skill-finder/SKILL.md) | Searches for an existing agent skill that already does a job before... | own route | skill-finder-report, skill-compared |
