@@ -713,6 +713,11 @@ const { questionGaps } = await import('./lib.mjs');
   const general = quoteGaps(acts([user(said), w('src/export.js', '// Lesson: the export dropped the totals row; keep it as the last row'), say('Fixed.')]));
   const dictated = quoteGaps(acts([user('add a footer that reads thanks for shopping with us today friends'), w('src/footer.html', '<p>thanks for shopping with us today friends</p>'), say('Added.')]));
   const notes = quoteGaps(acts([user(said), w('.cache/turn-notes.md', 'Issue: "the totals row keeps vanishing every single time" | runbook: debug'), say('Fixed.')]));
+  const cfgFile = path.join(dir, 'tools/hooks/config.json'), had = fs.existsSync(cfgFile) ? fs.readFileSync(cfgFile, 'utf8') : null;
+  put('tools/hooks/config.json', JSON.stringify({ ...(had ? JSON.parse(had) : {}), quoteCheck: false }));
+  const off = quoteGaps(acts([user(said), w('src/export.js', '// Lesson (the user): "the totals row keeps vanishing every single time i export"'), say('Fixed.')]));
+  if (had === null) fs.rmSync(cfgFile); else fs.writeFileSync(cfgFile, had);
+  report(!off.length, 'end: with "quoteCheck": false the user turned the quote check off, and it names nothing', off);
   report(quoted.length === 1 && /rule 14/.test(quoted[0]) && !general.length && !dictated.length && !notes.length,
     'end: the user\'s own words written into a file as a quote are named once; a general lesson, a dictated line and a .cache note are not', JSON.stringify({ quoted, general, dictated, notes }));
 }

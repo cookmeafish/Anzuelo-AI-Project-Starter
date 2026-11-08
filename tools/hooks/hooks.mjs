@@ -315,6 +315,7 @@ const DEFAULTS = {
   forbiddenCommands: [],   // [{ "pattern": "regex", "reason": "why" }]
   codeRules: [],           // [{ "files": ["src/**/*.js"], "pattern": "regex", "message": "what to do instead" }]
   commitGate: [],          // [{ "cmd": "regex of a command that must have PASSED this turn", "pass": "regex", "when": ["globs of changed files"] }]
+  quoteCheck: true,        // the end check names the user's own words quoted into a file (rule 14); the user chooses at setup or upgrade
   subagentBrief: true,     // sub-agent prompts must point the sub-agent at AGENTS.md (the rules) so it follows them too
   instructionBudgetKB: 60, // audit warns when AGENTS.md / CLAUDE.md grows past this; split detail into docs/
   // Root stays small (docs/checks/layout-standards.md): files allowed directly in the project root. Folders are fine.

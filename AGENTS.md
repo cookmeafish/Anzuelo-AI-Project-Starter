@@ -110,7 +110,8 @@
     code reads the file. A rename is one edit.
 18. **Only improvements, never friction.** Helpers get no checklist and no gate. A fix for a miss never adds an
     interruption during work: it improves the reminder or the end check, or it is left out (2026-11-05: notices during
-    work and refused helper hand-backs made the work worse).
+    work and refused helper hand-backs made the work worse). Checks are offered, not forced: an optional one is named at
+  setup or upgrade and the user may turn it off; one that is on runs every time, without exception (2026-11-07).
 
 ## Enforcement, whatever the agent
 - Claude Code: `.claude/settings.json` runs `tools/hooks/hooks.mjs` on every hook event. Codex: `.codex/hooks.json`.

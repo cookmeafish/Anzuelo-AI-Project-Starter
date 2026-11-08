@@ -326,7 +326,9 @@ export function questionGaps(acts) {
 // quotes, or on a line naming the user): AGENTS.md rule 14 wants the lesson in general terms. Asked once, at the end,
 // only when it happened. Lesson: lessons were written down as the user's own sentences, over a hundred of them.
 export function quoteGaps(acts) {
-  const words = s => String(s).toLowerCase().match(/[\p{L}\p{N}']+/gu) || [];
+  // (a choice the user makes at setup or upgrade: tools/hooks/config.json "quoteCheck": false turns it off; on, it always runs)
+  try { if (JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/hooks/config.json'), 'utf8')).quoteCheck === false) return []; } catch { }
+  const words =s => String(s).toLowerCase().match(/[\p{L}\p{N}']+/gu) || [];
   // (only what the user typed: pasted text, relayed messages, notices and quoted blocks are someone else's words.
   // Lesson (a sweep of 1,799 real turns): pasted card text quoted in a review and file paths were flagged)
   const own = String(acts.heard || '').replace(/<(pasted_content|cross-session-message|agent-message|task-notification)\b[\s\S]*?<\/\1>/g, ' ')

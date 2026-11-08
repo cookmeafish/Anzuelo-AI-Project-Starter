@@ -111,6 +111,8 @@ conversation already answers, and say what you inferred so the user can correct 
 8. **Constraints:** budget, location or jurisdiction, deadlines, platforms, language.
 9. **Quality bar:** what a great result looks like (length, tone, format, certainty, testing).
 10. **Always / never:** anything the agent must always or never do.
+11. **Optional checks:** these are on unless you turn them off, and while on they run every time: the quote check
+    (the end check asks to rewrite the user's own words copied into a file as a general lesson). Keep all on?
 
 For software, also ask: the test, build, lint and run commands and the code folders; the work branch, and the
 branches, ports or running instances never to touch; whether visual or taste-driven work needs sign-off before commit;
@@ -132,6 +134,7 @@ how it is released.
 - Constraints: ...
 - Quality bar: ...
 - Always/never: ... | none
+- Optional checks: all on | off: <names>   (each one off is set to false in tools/hooks/config.json)
 - Commands: ...          (software only, and the next three)
 - Branches: ...
 - Sign-off: ...
