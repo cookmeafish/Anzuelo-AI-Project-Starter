@@ -107,6 +107,10 @@ When the user gives a time budget for testing, it is one session of steps 1 to 7
   change to a check's message, a pack's checks or test fixtures needs the whole self-check there first (`--tags` runs
   only scenarios, not the cross-checks such as message-example). Two chains in a row failed on the batch's own edits
   (a test's sample path the reference sweep read, a quoted example a message check rejected): 40 minutes lost.
+- A decision for the user is written for someone who has never seen the engine's insides: what happens today, what the
+  change would do, what it costs, and then the question. Never copy it from the plan's notes. Every internal name (the
+  end check, setup, Stop checks, sweep numbers, file names) gets a plain description or is left out. Lesson
+  (2026-11-07): a decision copied from the plan in engine words meant nothing to the user.
 - Judge counts swing by about 3 mediums between rounds from judge noise alone: compare highs, failed turns, setup
   minutes and blocked turns first.
 - Count Stop blocks from the trial records, not the judges: early judges did not count them.
