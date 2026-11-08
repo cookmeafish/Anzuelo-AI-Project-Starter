@@ -306,7 +306,7 @@ report(onStop({ stop_hook_active: true, transcript_path: transcript([user('add a
   const first = onStop({ transcript_path: tp, session_id: 'again' }), later = onStop({ transcript_path: tp, session_id: 'again', stop_hook_active: true });
   const third = onStop({ transcript_path: tp, session_id: 'again', stop_hook_active: true }), fourth = onStop({ transcript_path: tp, session_id: 'again', stop_hook_active: true });
   report(/Not done yet:[\s\S]*export\.md item 1/.test(first?.reason || '') && /Check that these items/.test(first?.reason || '')
-    && /^Still not done:[\s\S]*export\.md item 1/.test(later?.reason || '') && !/Check that these items|last check/.test(later?.reason || '')
+    && /^Still not done \(do it now, or say in one line[\s\S]*export\.md item 1/.test(later?.reason || '') && !/Check that these items|last check/.test(later?.reason || '')
     && /last check for this request/.test(third?.reason || '') && fourth === null,
     'end: an agent that ignores the block gets a second naming the same item (no verify list), a third that says to report what is not done, and no fourth', [first?.reason, later?.reason, third?.reason, fourth]);
   onPrompt({ session_id: 'fixed', prompt: 'add a csv export' });
@@ -595,6 +595,44 @@ const { questionGaps } = await import('./lib.mjs');
   report(plain === 0 && told === 1 && auto === 1 && none === 0, 'end: with "autonomy": "auto" or "do not ask me" in the request, any message of the turn that asks "Questions for you" is named; a heads-up is not', { plain, told, auto, none });
 }
 
+// (a repeat block reads what the agent said after the last block: an Issue line in the first answer, gone from the
+// corrected one, blocks no more)
+{
+  const { onPrompt } = await import('./start.mjs');
+  onPrompt({ session_id: 'issueclear', prompt: 'tidy the meeting notes' });
+  const t0 = new Date(Date.now() + 10).toISOString(), stamp = (r, t) => ({ ...r, timestamp: t });
+  await new Promise(r => setTimeout(r, 20));
+  const first = [stamp(user('tidy the meeting notes'), t0), ...call('Edit', { file_path: path.join(dir, 'notes/meeting.md'), old_string: 'a', new_string: 'b' }).map(r => stamp(r, t0)),
+    stamp(say('Issue: the notes were messy | runbook: debug | fixed when: the notes read cleanly\n\nTidied.'), t0)];
+  const b1 = onStop({ transcript_path: transcript(first), session_id: 'issueclear' });
+  await new Promise(r => setTimeout(r, 20));
+  const b2 = onStop({ transcript_path: transcript([...first, stamp(say('Tidied the meeting notes.'), new Date().toISOString())]), session_id: 'issueclear', stop_hook_active: true });
+  report(/Issue:/.test(b1?.reason || '') && b2 === null, 'end: after a block, an Issue line only in the answer before it blocks no more once the new answer drops it', [b1?.reason, b2?.reason]);
+}
+
+// end: in the starter itself the starter's changelog meets a docs/CHANGELOG.md item (that file is the template)
+{
+  const { met } = await import('./lib.mjs');
+  const item = { kind: 'file', arg: 'docs/CHANGELOG.md' }, wrote = acts([user('add a csv export'), call('Edit', { file_path: path.join(dir, 'tools/starter/STARTER-CHANGELOG.md'), old_string: 'a', new_string: 'b' })]);
+  const project = met(item, wrote);
+  put('.starter-dev', '');
+  const starter = met(item, wrote);
+  fs.rmSync(path.join(dir, '.starter-dev'));
+  report(project === false && starter === true, 'end: in the starter, its own changelog meets a docs/CHANGELOG.md item; in a project it does not', { project, starter });
+}
+
+// (the engine runbook's upgrade items fit a real upgrade, never a dry run, which writes nothing. Lesson (replay
+// 2026-11-07): most repeat blocks in one project were dry runs asked for an upgrade review and a commit)
+{
+  const here = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
+  const lines = fs.readFileSync(path.join(here, 'docs/playbooks/engine.md'), 'utf8').split('\n').filter(l => /\(when ran: starter\\\.mjs upgrade/.test(l));
+  const whens = lines.map(l => /\(when\s+ran:\s*([^)]+)\)/i.exec(l)?.[1]).filter(Boolean).map(s => new RegExp(s.trim(), 'i'));
+  const fits = c => whens.map(rx => rx.test(c));
+  const real = ['node tools/starter.mjs upgrade 2>&1', 'node tools/starter.mjs update', 'node tools/starter.mjs update --keep-local > .cache/u.txt'].map(fits).flat();
+  const dry = ['node tools/starter.mjs upgrade --dry-run 2>&1', 'node tools/starter.mjs update --dry-run', 'node tools/starter.mjs uninstall --dry-run'].map(fits).flat();
+  report(whens.length >= 2 && real.every(Boolean) && !dry.some(Boolean), 'engine runbook: its upgrade items fit a real upgrade and never a dry run', { whens: whens.map(String), real, dry });
+}
+
 // end: an engine note shown to the user
 const { noteGaps } = await import('./lib.mjs');
 {
@@ -602,6 +640,11 @@ const { noteGaps } = await import('./lib.mjs');
   const none = noteGaps(acts([user('why did you do that'), say('Issue: none - the list was right')])).length;
   const plain = noteGaps(acts([user('why did you do that'), say('You are right: the list missed two rows. The issue: a filter dropped them.')])).length;
   report(shown === 1 && none === 1 && plain === 0, 'end: an "Issue:" engine note in the answer is named; plain words about an issue are not', { shown, none, plain });
+  // (the rules say the same as the check: the Issue line goes to the notes file, never the answer)
+  const root = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
+  const rules = fs.readFileSync(path.join(root, 'AGENTS.md'), 'utf8').replace(/\s+/g, ' '), skill = fs.readFileSync(path.join(root, 'skills/learn-from-upset/SKILL.md'), 'utf8').replace(/\s+/g, ' ');
+  report(/Issue: <problem>[^.]*line in `\.cache\/turn-notes\.md` \(never in the answer/.test(rules) && /the answer never shows them/.test(skill),
+    'rules: AGENTS.md rule 3 and the learn-from-upset skill put the Issue line in the notes file, never the answer, as the end check expects');
 }
 
 // end: check 7, claims backed by the turn
@@ -617,6 +660,11 @@ report(claimGaps(acts([user('clean up'), code, say('Removed src/old.js, the colo
 report(claimGaps(acts([user('take in the orders'), code, say('Save next week\'s file in src/, for example src/orders-w43.csv. Last week\'s src/orders-w42.csv was taken in during setup and is now filed under src/a.js.')])).length === 0
   && claimGaps(acts([user('take in the orders'), code, say('The orders are in src/orders-w43.csv.')])).some(s => /orders-w43/.test(s)),
   'end: a path given as an example, or said to be filed or taken in elsewhere, asks for nothing; a missing path stated as fact still does');
+put('NOTES.md', 'x');
+report(claimGaps(acts([user('sync the rules'), code, say('Both files, NOTES.md/src/rules.md, are in sync.')])).length === 0
+  && claimGaps(acts([user('sync the rules'), code, say('See NOTES.md and src/rules-old.md.')])).some(s => /rules-old/.test(s)),
+  'end: two file names joined by a slash are a pair, not a missing path; a missing path still is named');
+fs.rmSync(path.join(dir, 'NOTES.md'));
 // (an answer with a Finished section names its files there: a path only mentioned above it, such as an example of a
 // report a later check would write, is not a file it claims. Lesson (trial v34): such an example was reported missing)
 {

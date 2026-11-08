@@ -111,6 +111,9 @@ When the user gives a time budget for testing, it is one session of steps 1 to 7
   change would do, what it costs, and then the question. Never copy it from the plan's notes. Every internal name (the
   end check, setup, Stop checks, sweep numbers, file names) gets a plain description or is left out. Lesson
   (2026-11-07): a decision copied from the plan in engine words meant nothing to the user.
+- After a safety refusal, change the content before trying again; never send the same edit twice, in sequence or in
+  parallel. Real projects are test data, not the subject: the starter's plans, commits, tests and messages give totals
+  over "real sessions" and never name a project (2026-11-07).
 - Judge counts swing by about 3 mediums between rounds from judge noise alone: compare highs, failed turns, setup
   minutes and blocked turns first.
 - Count Stop blocks from the trial records, not the judges: early judges did not count them.

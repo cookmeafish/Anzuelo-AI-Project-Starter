@@ -63,14 +63,19 @@ function judge(data, { shadow = false } = {}) {
   // Lesson (trial): a continuation the host did not mark as one restarted the count)
   const again = Boolean(turn.at && turn.blocked === turn.at), rounds = again ? turn.rounds || 1 : 0;
   if (rounds >= MAX_BLOCKS) return null;
+  // (on a repeat, what the agent said is read from after the last block: a message sent before it can't be taken back.
+  // Lesson (2026-11-07): an Issue line in the first answer re-blocked the corrected answer that had none)
+  if (again && turn.lastBlock) { const after = turnActs(rows.filter(r => (Date.parse(r.timestamp || '') || 0) > turn.lastBlock)); acts.said = after.said; acts.answer = after.answer || acts.answer; }
   const history = evidenceOf(tail(data.transcript_path, 5 << 20));
   const list = [...missing(turn, acts), ...testGaps(acts, history), ...gateGaps(acts), ...screenGaps(acts), ...healthGaps(acts, { run: !shadow }), ...knowledgeGaps(acts), ...securityGaps(acts), ...questionGaps(acts), ...noteGaps(acts), ...claimGaps(acts, history)];
   const check = again ? null : toVerify(turn, acts);
   if (!list.length && !check) return null;
   const parts = [], last = rounds + 1 === MAX_BLOCKS;
-  if (list.length) parts.push(`${again ? 'Still not done' : 'Not done yet'}:\n${list.map(s => `- ${s}`).join('\n')}`);
+  // (a repeat block asks for the fix, or one line on why the item doesn't fit this work, never the same answer again.
+  // Lesson (2026-11-07): an agent resent the same answer to each repeat block, and the false item was never looked at)
+  if (list.length) parts.push(`${again ? 'Still not done (do it now, or say in one line of the answer why it does not fit this work; resending the same answer does not count)' : 'Not done yet'}:\n${list.map(s => `- ${s}`).join('\n')}`);
   if (last) parts.push('This is the last check for this request: whatever you can\'t do, say plainly in the answer that it is not done and why.');
-  if (turn.at && !shadow) saveTurn(data.session_id, { ...turn, blocked: turn.at, rounds: rounds + 1 });
+  if (turn.at && !shadow) saveTurn(data.session_id, { ...turn, blocked: turn.at, rounds: rounds + 1, lastBlock: Date.now() });
   if (check) parts.push(`Check that these items of ${check.file} are really done (skip any that don't fit this work):\n${check.items.map(it => `${it.n}. ${it.text}`).join('\n')}`);
   // (the user reads the last message, so it carries the whole answer, in the user's language. Lesson (trials v33, v34):
   // "finish with only what changed" made it a note like "nothing changed", in English to a Spanish-speaking user)

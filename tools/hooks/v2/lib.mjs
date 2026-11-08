@@ -351,10 +351,14 @@ export function met(item, acts) {
   if (item.kind === 'ran') { const rx = new RegExp(item.arg, 'i'); return acts.calls.some(c => /^(Bash|PowerShell)$/.test(c.name) && rx.test(String(c.input.command || '')) && !c.error); }
   // (a file changed in this turn: edited by a tool, or written since the turn began by anything, a script included.
   // A command that only names the file does not count. Lesson (review): "cat docs/CHANGELOG.md" met "CHANGELOG updated")
+  // (in the starter itself, docs/CHANGELOG.md is the template every project gets and stays untouched: the starter's
+  // own changelog meets it. Lesson (2026-11-07): the end check re-blocked 3 times on a changelog line already written)
   if (item.kind === 'file') {
-    const rx = globRx(item.arg), since = Date.parse(acts.at || '') || 0;
-    return acts.calls.some(c => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name) && rx.test(relp(c.input.file_path || c.input.notebook_path || '')))
-      || (!!since && filesMatching(item.arg).some(f => { try { return fs.statSync(path.join(ROOT, f)).mtimeMs > since; } catch { return false; } }));
+    const since = Date.parse(acts.at || '') || 0;
+    const args = [item.arg, ...(/^docs\/CHANGELOG\.md$/i.test(item.arg) && fs.existsSync(path.join(ROOT, '.starter-dev')) ? ['tools/starter/STARTER-CHANGELOG.md'] : [])];
+    return args.some(arg => { const rx = globRx(arg);
+      return acts.calls.some(c => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name) && rx.test(relp(c.input.file_path || c.input.notebook_path || '')))
+        || (!!since && filesMatching(arg).some(f => { try { return fs.statSync(path.join(ROOT, f)).mtimeMs > since; } catch { return false; } })); });
   }
   return null;
 }
@@ -603,7 +607,11 @@ export function claimGaps(acts, history = '') {
     // Lesson (trial v40): "for example inbox/W43.csv" and "W42.csv was taken in ... filed as sources/..." were reported)
     .filter(p => { const n = p.split('/').pop().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), gone = 'delet|remov|retir|renam|moved|filed|archiv|taken in|copied';
       return !new RegExp(`(${gone})\\w*[^.\\n]{0,80}${n}|${n}[^.\\n]{0,80}(${gone}|gone)|(for example|e\\.g\\.|such as|named like|for instance|would be)[^.\\n]{0,30}${n}`, 'i').test(a); });
-  if (missingFiles.length) out.push(`The answer names ${missingFiles.slice(0, 3).join(', ')}, which does not exist: check the path, or correct the answer.`);
+  // (two file names joined by a slash, "CLAUDE.md/AGENTS.md", are a pair, not a path: a part before the last that is a
+  // file here. Lesson (replay 2026-11-07): it was reported missing)
+  const isFile = s => { try { return fs.statSync(path.join(ROOT, s)).isFile(); } catch { return false; } };
+  const real = missingFiles.filter(p => !p.split('/').slice(0, -1).some(s => /\.[A-Za-z]{1,5}$/.test(s) && isFile(s)));
+  if (real.length) out.push(`The answer names ${real.slice(0, 3).join(', ')}, which does not exist: check the path, or correct the answer.`);
   // (a "committed" or "pushed" claim is checked only by the commit it names, above, never by its wording. Lesson (live
   // data and replay): word lists for which sentences claim a commit were wrong more often than right, and each miss
   // grew the list)
