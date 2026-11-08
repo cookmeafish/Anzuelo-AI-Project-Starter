@@ -5536,7 +5536,7 @@ const PRETOOL_MAX = 6;
 // a protection the user set, a headless run left hanging. Style, cost, bookkeeping and an unacknowledged complaint wait
 // for the one check at Stop, which covers them. Lesson (the user): the engine is a reminder before the work and a check
 // after it; refusals and notices during the work made answers worse and kept helpers from doing their job.
-export const IN_WORK_GUARDS = /^REQ: (approval-gate|browser-guard|commit-gate|forbidden-command|forbidden-terms|git-safety|gitignore-ready|headless-no-wakeup|injection-guard|no-ai-attribution|no-overwrite|no-secrets|outward-gate|permission-respected|protect-originals|publish-gate|scope-separate|setup-[\w-]+|shell-hygiene|skill-mirror|subagent-brief|wakeup-left|whole-output|write-only-via)\b/;
+export const IN_WORK_GUARDS = /^REQ: (approval-gate|browser-guard|commit-gate|engine-readonly|forbidden-command|forbidden-terms|git-safety|gitignore-ready|headless-no-wakeup|injection-guard|no-ai-attribution|no-overwrite|no-secrets|outward-gate|permission-respected|protect-originals|publish-gate|scope-separate|setup-[\w-]+|shell-hygiene|skill-mirror|subagent-brief|wakeup-left|whole-output|write-only-via)\b/;
 export function pretoolDecision(data, cfg = config()) {
   const hits = pretoolHits(data, cfg).filter(h => IN_WORK_GUARDS.test(h));
   if (hits.length < 2) return hits[0] || null;
@@ -5669,6 +5669,12 @@ function pretoolHits(data, cfg) {
     // REQ: write-only-via. Some files may only be written by the tool that validates them.
     const via = cfg.writeOnlyVia.find(v => match(p, [v.glob]));
     if (via) add(`REQ: write-only-via. ${p} may only be created or changed with ${via.tool} (it validates the content). Run that tool instead of editing the file directly.`);
+    // REQ: engine-readonly. With the engine in .anzuelo/engine, its files are the starter's: a change there blocks the
+    // next upgrade (git pull) and is lost to it. A project's change goes in a local copy, which wins and is merged on
+    // upgrade. Plan: engine outside the project, Task 5.
+    const rawFile = String(inp.file_path || inp.notebook_path || '');
+    if (split && rawFile && !path.relative(ENGINE, path.resolve(ROOT, rawFile)).startsWith('..'))
+      add(`REQ: engine-readonly. ${rawFile} is in the engine (.anzuelo/engine), which upgrades replace. ${kind(p) === 'both' ? `Make this project's copy first: node .anzuelo/engine/tools/starter.mjs override ${p}, then edit .anzuelo/local/${p}.` : 'Engine code changes belong in the starter; note it in docs/starter-feedback.md.'}`);
     // REQ: skill-mirror. Mirrors are generated copies; edits there would be overwritten.
     if (cfg.skillMirrors.some(m => p.startsWith(m + '/')))
       add(`REQ: skill-mirror. ${p} is a generated copy. Edit ${p.replace(new RegExp(`^(${cfg.skillMirrors.map(esc).join('|')})/`), cfg.skillsDir + '/')} instead; the hooks copy it here.`);

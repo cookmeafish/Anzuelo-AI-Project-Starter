@@ -36,7 +36,7 @@ import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { ROOT, STARTER_LINK, starterLink, starterSources, syncAll, setupCompleteness, usageOf } from './hooks/hooks.mjs';
 import { registry } from './packs.mjs';
-import { where, whereWrite, split, kind, ENGINE, LOCAL } from './hooks/paths.mjs';
+import { where, whereWrite, split, kind, ENGINE, LOCAL, PROJECT } from './hooks/paths.mjs';
 
 // (each path goes where paths.mjs says: in the starter, all one folder; in a project, packs and library are the engine's)
 const CONFIG = where('tools/hooks/config.json');
@@ -128,6 +128,57 @@ if (process.argv[2] === 'feedback-status') {
 if (fs.existsSync(at('.starter-template')) && process.argv[2] !== 'install') { console.error('This is the starter itself. These commands are for projects made from it.'); process.exit(1); }
 
 const [cmd, arg] = process.argv.slice(2);
+// ---- the engine in .anzuelo/engine: an upgrade is a git pull there, and nothing the project made is touched ----
+// .anzuelo/local/based-on.json: { at: the engine commit of the last install or upgrade, files: { <path>: the engine
+// commit a local copy of a default was made from } }. A local copy with no entry was made since "at".
+const engineGit = (...a) => spawnSync('git', a, { cwd: ENGINE, encoding: 'utf8', timeout: 120000 });
+const engineHead = () => (engineGit('rev-parse', 'HEAD').stdout || '').trim();
+const BASED_ON = () => path.join(LOCAL, 'based-on.json');
+function basedOn() { let b = {}; try { b = JSON.parse(fs.readFileSync(BASED_ON(), 'utf8')); } catch { } return { at: b.at || '', files: b.files || {} }; }
+function saveBasedOn(b) { fs.mkdirSync(LOCAL, { recursive: true }); fs.writeFileSync(BASED_ON(), JSON.stringify(b, null, 2) + '\n'); }
+// every local copy of a file the engine also has (runbooks, skills, checklists, the rules, requirements)
+function localCopies() {
+  const out = [];
+  const walk = d => { let es = []; try { es = fs.readdirSync(path.join(LOCAL, d || '.'), { withFileTypes: true }); } catch { return; }
+    for (const e of es) { const p = d ? `${d}/${e.name}` : e.name; if (e.isDirectory()) { if (!/^(\.git|\.cache|state)$/.test(e.name)) walk(p); } else if (kind(p) === 'both' && fs.existsSync(path.join(ENGINE, p))) out.push(p); } };
+  walk('');
+  return out;
+}
+export function splitUpgrade() {
+  if (!fs.existsSync(path.join(ENGINE, '.git'))) { console.error(`${ENGINE} is not a git clone: install the engine again (starter.mjs install)`); return 1; }
+  const dirty = (engineGit('status', '--porcelain').stdout || '').trim();
+  if (dirty) { console.error(`the engine folder has changes of its own:\n${dirty}\nA project's changes belong in .anzuelo/local (starter.mjs override <path>). Move them there, then upgrade.`); return 1; }
+  const b = basedOn(), old = engineHead(), from = b.at || old;
+  // (a copy made since the last upgrade carries that commit from now on, before "at" moves forward)
+  for (const f of localCopies()) b.files[f] ||= from;
+  const pull = engineGit('pull', '--ff-only', '-q');
+  if (pull.status !== 0) { console.error(`git pull in ${ENGINE} failed:\n${pull.stderr}\nMerge it there by hand (an AI agent can), then run the upgrade again.`); saveBasedOn(b); return 1; }
+  const now = engineHead();
+  console.log(old === now ? `the engine is current (${now.slice(0, 7)})` : `engine ${old.slice(0, 7)} -> ${now.slice(0, 7)} (${(engineGit('rev-list', '--count', `${old}..${now}`).stdout || '').trim()} commit(s))`);
+  // each local copy whose default changed since it was made: a three-way merge (its base, the new default, the copy)
+  const merged = [], clash = [], tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-merge-'));
+  try {
+    for (const [f, base] of Object.entries(b.files)) {
+      const mine = path.join(LOCAL, f);
+      if (!fs.existsSync(mine) || !fs.existsSync(path.join(ENGINE, f))) { delete b.files[f]; continue; }
+      if (base === now || engineGit('diff', '--quiet', base, now, '--', f).status === 0) { b.files[f] = now; continue; }
+      const was = engineGit('show', `${base}:${f}`);
+      const baseFile = path.join(tmp, 'base'), oursFile = path.join(tmp, 'ours');
+      fs.writeFileSync(baseFile, was.status === 0 ? was.stdout : ''); fs.copyFileSync(mine, oursFile);
+      const m = spawnSync('git', ['merge-file', '-p', '-L', 'this project', '-L', 'old default', '-L', 'new default', oursFile, baseFile, path.join(ENGINE, f)], { encoding: 'utf8' });
+      if (m.status === 0) { fs.writeFileSync(mine, m.stdout); b.files[f] = now; merged.push(f); }
+      else { const out = path.join(LOCAL, '.cache', 'merge', f); fs.mkdirSync(path.dirname(out), { recursive: true }); fs.writeFileSync(out, m.stdout); clash.push(`${f} (both changed the same lines: ${path.relative(PROJECT, out).split(path.sep).join('/')} shows them; the project's copy is used until it is decided)`); }
+    }
+  } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+  b.at = now; saveBasedOn(b);
+  if (merged.length) console.log(`merged the default's changes into this project's copies: ${merged.join(', ')}`);
+  if (clash.length) console.log(`for the user to decide (the project's change and the default's meet):\n- ${clash.join('\n- ')}`);
+  const w = spawnSync(process.execPath, [path.join(ENGINE, 'tools', 'hooks', 'wire.mjs')], { cwd: PROJECT, encoding: 'utf8' });
+  process.stdout.write(w.stdout || '');
+  if (old !== now) console.log(`what changed: ${path.join(ENGINE, 'tools', 'starter', 'STARTER-CHANGELOG.md').split(path.sep).join('/')} (lines since ${old.slice(0, 7)}); review them in docs/DECISIONS.md as before`);
+  return w.status === 0 ? 0 : 1;
+}
+
 // The answer to "a private git repository for .anzuelo/local?", recorded in its config.json. Yes makes the repository
 // (never a remote: creating one is an outward action with its own OK); no leaves a plain folder.
 function setLocalRepo(loc, yes) {
@@ -195,6 +246,18 @@ if (cmd === 'link') {
   fs.rmSync(at(STARTER_LINK), { force: true });
   finish('remove', ['Removed the starter\'s leftovers and the link. This project carries only what it uses.',
     'To grow later: node tools/starter.mjs link "<starter folder>", or from the starter: node tools/new-project.mjs "<this folder>" --add-pack / --add-skill']);
+} else if (split && ['upgrade', 'update'].includes(cmd)) {
+  process.exit(splitUpgrade());
+} else if (split && cmd === 'override') {
+  // A default runbook, skill, checklist or the rules changed for this project: a copy in .anzuelo/local wins over the
+  // engine's, and remembers the engine commit it came from, so an upgrade can merge the default's later changes into it.
+  const rel = String(arg || '').replace(/\\/g, '/').replace(/^\.anzuelo\/(engine|local)\//, '');
+  if (!rel || kind(rel) !== 'both' || !fs.existsSync(path.join(ENGINE, rel))) { console.error('usage: node .anzuelo/engine/tools/starter.mjs override <runbook, skill, checklist or AGENTS.md path>, one the engine has'); process.exit(2); }
+  const to = path.join(LOCAL, rel);
+  if (fs.existsSync(to)) { console.log(`${path.relative(PROJECT, to)} already exists: edit it there`); process.exit(0); }
+  fs.mkdirSync(path.dirname(to), { recursive: true }); fs.copyFileSync(path.join(ENGINE, rel), to);
+  const b = basedOn(); b.files[rel] = engineHead(); saveBasedOn(b);
+  console.log(`copied to ${path.relative(PROJECT, to).split(path.sep).join('/')}: edit it there; it wins over the engine's. If the change would help every project, add a line to docs/starter-feedback.md too.`);
 } else if (cmd === 'upgrade') {
   const link = starterLink();
   if (!link) { console.error('No starter is linked. Run: node tools/starter.mjs link "<starter folder>" first.'); process.exit(1); }
@@ -270,6 +333,8 @@ if (cmd === 'link') {
   if (cl.status !== 0) { console.error(`git clone failed: ${cl.stderr}`); process.exit(1); }
   const origin = (g(['remote', 'get-url', 'origin'], ENGINE).stdout || '').trim();
   if (origin) g(['remote', 'set-url', 'origin', origin], eng);
+  // (the engine commit the project starts from: local copies of defaults made from now on are merged against it)
+  fs.mkdirSync(loc, { recursive: true }); fs.writeFileSync(path.join(loc, 'based-on.json'), JSON.stringify({ at: (g(['rev-parse', 'HEAD'], eng).stdout || '').trim(), files: {} }, null, 2) + '\n');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-install-'));
   try {
     const np = spawnSync(process.execPath, [path.join(eng, 'tools', 'new-project.mjs'), tmp, ...(val('--name') ? ['--name', val('--name')] : []), ...(val('--desc') ? ['--desc', val('--desc')] : []), ...(fs.existsSync(path.join(ENGINE, '.starter-dev')) ? ['--dev'] : [])], { encoding: 'utf8' });

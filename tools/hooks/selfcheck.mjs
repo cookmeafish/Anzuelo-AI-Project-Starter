@@ -4797,7 +4797,7 @@ const proves = s => TAGS.filter(t => (s.expect?.tags || []).includes(t) || (s.ex
 const SHARD = (() => { const i = process.argv.indexOf('--shard'), m = /^(\d+)\/(\d+)$/.exec(i > 0 ? process.argv[i + 1] || '' : ''); return m ? { i: Number(m[1]), n: Number(m[2]) } : null; })();
 const HELPER = !!SHARD;
 // tags a standalone test proves (it runs with --tags <tag>, outside the full-run-only block)
-const STANDALONE_TAGS = ['status-bar', 'usage-quiet', 'no-polling', 'trial-wording', 'upset-acknowledged', 'helper-turn-checked', 'starter-tested', 'begin-keeps-turn', 'helper-work-counts', 'upset-es', 'feedback-usage', 'session-checklist', 'engine-bypassed', 'transcript-tail', 'instructions-run', 'answer-traced', 'stop-follow-on', 'stop-reblock', 'check-preview', 'layout-split'];
+const STANDALONE_TAGS = ['status-bar', 'usage-quiet', 'no-polling', 'trial-wording', 'upset-acknowledged', 'helper-turn-checked', 'starter-tested', 'begin-keeps-turn', 'helper-work-counts', 'upset-es', 'feedback-usage', 'session-checklist', 'engine-bypassed', 'transcript-tail', 'instructions-run', 'answer-traced', 'stop-follow-on', 'stop-reblock', 'check-preview', 'layout-split', 'engine-readonly'];
 if (TAGS) {
   const all = [...STOP, ...PRETOOL, ...PROMPT];
   for (const t of TAGS) if (!HELPER && !TRIGGER_TAGS.includes(t) && !STANDALONE_TAGS.includes(t) && t !== 'selftest-speed' && !all.some(s => proves(s).includes(t))) report(false, `tags: a scenario proves ${t}`, `no scenario proves "${t}": add one to tools/hooks/project-scenarios.mjs (blocked when skipped, passes when followed)`);
@@ -8655,6 +8655,43 @@ if (mineB() && (!TAGS || TAGS.includes('layout-split')) && fs.existsSync(path.jo
       && asks(before) && yes.status === 0 && !asks(afterYes) && repo && no.status === 0 && !asks(afterNo) && cfg.privateRepo === false,
       'install: the engine is cloned into .anzuelo/engine, the project keeps its own files, and the setup gate asks about a private repository for .anzuelo/local until yes or no is recorded',
       JSON.stringify({ ins: [ins.status, (ins.stdout || '').slice(-300), (ins.stderr || '').slice(0, 300)], before: before.slice(0, 300), afterYes: afterYes.slice(0, 200), repo, afterNo: afterNo.slice(0, 200), cfg }));
+  } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+}
+if (mineB() && (!TAGS || TAGS.includes('layout-split') || TAGS.includes('engine-readonly')) && fs.existsSync(path.join(ROOT, '.starter-template'))) {
+  // an upgrade is a git pull in .anzuelo/engine: what the project made (.anzuelo/local and its own files) hashes the same
+  // before and after; an edit inside the engine is refused (REQ: engine-readonly) and points at a local copy; a local
+  // copy of a default gets the default's new change merged in, and one whose lines meet the default's is left for the
+  // user and still used. Plan: engine outside the project, Task 5.
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-upgrade-'));
+  try {
+    const g = (cwd, ...a) => spawnSync('git', ['-c', 'user.email=t@example.com', '-c', 'user.name=t', ...a], { cwd, encoding: 'utf8' });
+    const up = path.join(tmp, 'up'), proj = path.join(tmp, 'p'), eng = path.join(proj, '.anzuelo', 'engine'), loc = path.join(proj, '.anzuelo', 'local');
+    g(tmp, 'clone', '-q', ROOT, up);
+    fs.mkdirSync(proj); fs.writeFileSync(path.join(proj, 'main.py'), 'print("hi")\n');
+    const ins = spawnSync(process.execPath, [path.join(ROOT, 'tools/starter.mjs'), 'install', proj, '--private', 'no'], { encoding: 'utf8', timeout: 300000 });
+    g(eng, 'remote', 'set-url', 'origin', up);
+    const st = (cmd, ...a) => spawnSync(process.execPath, [path.join(eng, 'tools/starter.mjs'), cmd, ...a], { cwd: proj, encoding: 'utf8', timeout: 300000 });
+    const guard = spawnSync(process.execPath, [path.join(eng, 'tools/hooks/hooks.mjs'), 'pretool'], { cwd: proj, encoding: 'utf8', env: { ...process.env, STARTER_ENGINE: 'v2', CLAUDE_PROJECT_DIR: proj, ANZUELO_ROOT: '' },
+      input: JSON.stringify({ session_id: 'upg1', tool_name: 'Edit', tool_input: { file_path: path.join(eng, 'docs/playbooks/plan.md'), old_string: 'a', new_string: 'b' } }) }).stdout || '';
+    const o1 = st('override', 'docs/playbooks/plan.md'), o2 = st('override', 'AGENTS.md');
+    const planL = path.join(loc, 'docs/playbooks/plan.md'), agL = path.join(loc, 'AGENTS.md');
+    fs.appendFileSync(planL, '\n- recipes: the project\'s own lesson\n');
+    const ag = fs.readFileSync(agL, 'utf8').split('\n'); ag[0] = '# Our own title'; fs.writeFileSync(agL, ag.join('\n'));
+    const SKIPH = /^(\.anzuelo\/engine|\.anzuelo\/local\/(\.cache|tools\/hooks\/state|based-on\.json|docs\/playbooks\/plan\.md|AGENTS\.md)|\.git|\.claude|\.codex|\.agents|CLAUDE\.local\.md)(\/|$)/;
+    const hashAll = () => { const h = createHash('sha1'); const walk = r => { for (const e of fs.readdirSync(path.join(proj, r || '.'), { withFileTypes: true }).sort((a, b) => a.name < b.name ? -1 : 1)) { const p = r ? `${r}/${e.name}` : e.name; if (SKIPH.test(p)) continue; if (e.isDirectory()) walk(p); else h.update(p + '\0' + fs.readFileSync(path.join(proj, p))); } }; walk(''); return h.digest('hex'); };
+    const before = hashAll(), oldHead = (g(eng, 'rev-parse', 'HEAD').stdout || '').trim();
+    const upPlan = path.join(up, 'docs/playbooks/plan.md'), pl = fs.readFileSync(upPlan, 'utf8').split('\n'); pl[8] = 'An invoice line the default added.'; fs.writeFileSync(upPlan, pl.join('\n'));
+    const upAg = path.join(up, 'AGENTS.md'), ua = fs.readFileSync(upAg, 'utf8').split('\n'); ua[0] = '# The default\'s new title'; fs.writeFileSync(upAg, ua.join('\n'));
+    g(up, 'commit', '-qam', 'defaults changed');
+    const newHead = (g(up, 'rev-parse', 'HEAD').stdout || '').trim();
+    const upg = st('upgrade'), after = hashAll();
+    const plan = fs.readFileSync(planL, 'utf8'), agents = fs.readFileSync(agL, 'utf8'), b = (() => { try { return JSON.parse(fs.readFileSync(path.join(loc, 'based-on.json'), 'utf8')); } catch { return {}; } })();
+    report(ins.status === 0 && /engine-readonly[\s\S]*override docs\/playbooks\/plan\.md/.test(guard) && o1.status === 0 && o2.status === 0
+      && upg.status === 0 && (g(eng, 'rev-parse', 'HEAD').stdout || '').trim() === newHead && before === after
+      && /the project's own lesson/.test(plan) && /An invoice line the default added\./.test(plan) && /^# Our own title/.test(agents) && /AGENTS\.md \(both changed/.test(upg.stdout)
+      && fs.existsSync(path.join(loc, '.cache/merge/AGENTS.md')) && b.at === newHead && b.files?.['docs/playbooks/plan.md'] === newHead && b.files?.['AGENTS.md'] === oldHead,
+      'upgrade: with the engine in .anzuelo/engine an upgrade is a git pull that leaves what the project made unchanged; an edit inside the engine is refused (engine-readonly) and points at a local copy; a default\'s new change is merged into the project\'s copy, and a clash is left for the user while the copy stays in use',
+      JSON.stringify({ ins: ins.status, guard: guard.slice(0, 200), o1: o1.stdout, upg: [upg.status, (upg.stdout || '').slice(0, 600), (upg.stderr || '').slice(0, 300)], same: before === after, b }));
   } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
 }
 if (mineB() && (!TAGS || TAGS.includes('upset-learned'))) { // the user sees "acknowledged" as soon as the agent writes its
