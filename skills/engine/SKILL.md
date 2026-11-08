@@ -22,6 +22,7 @@ Open `docs/playbooks/engine.md` and follow every step in order. It is the proced
 - [ ] A changed setting has its DECISIONS line; one the host refused went to the user as the line to paste, never
       written another way (hook: permission-respected) (when file: tools/hooks/config.json) (file: docs/DECISIONS.md).
 - [ ] The answer ends with a Finished section: what changed, each file's path, what was not verified (hook: finished-summary) (answer: Finished).
+- [ ] An upgrade gave every runbook that answers questions from sources an `(evidence)` item, and the answer gives the counts (when ran: starter\.mjs upgrade [^-]|starter\.mjs upgrade$|starter\.mjs update [^-]|starter\.mjs update$|starter\.mjs update --keep-local) (answer: answer runbooks?).
 <!-- generated:end -->
 
 <!-- Skill-only material goes below: notes for scripts/ and assets/ in this folder. Hardening moves repeatable steps into scripts/. -->

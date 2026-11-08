@@ -44,6 +44,10 @@ A run that is stuck sets `status: blocked - <reason>` with `Tried:` and `Options
   it under Task 1, and a plain "the project runbook doesn't fit" never cleared the ask to open it (all 3 rounds used).
   Fixed: a question is held only to a routed runbook made for answers (one with an "(evidence)" item), and a not-fit
   line naming the runbook (path, file name or "the <name> runbook") clears its Open ask and all its items.
+- 2026-11-08: no project runbook carried "(evidence)", so the check reached nothing. The engine runbook's upgrade step
+  now adds it to each runbook that answers from sources, with a Done-when item asking for the counts. The knowledge
+  pack ships no question runbook; the research skill, in every project, carries the marker. Task 3 measures the
+  routed questions held after the projects upgrade.
 
 ## Context
 - `tools/hooks/v2/end.mjs`: missing() and the others return nothing unless worked(acts) (lib.mjs, edits only).

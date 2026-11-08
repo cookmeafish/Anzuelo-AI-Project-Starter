@@ -57,6 +57,10 @@ is: `node tools/starter.mjs upgrade`. No link: `node tools/starter.mjs link "<st
   or a test in the project's suite. Count them before and the converted lines after, give each one not converted its
   reason in the upgrade review (a guard in `config.json` already covers it, or it was pure judgment), then remove the
   converted entries. Every rule stays enforced, and nothing runs during work (2026-11-07).
+- **Runbooks that answer questions from sources** (a knowledge base, notes, the web): add `(evidence)` to the item
+  about sources in each one that lacks it (runbook-create step 3 says what it checks). Without it, a question routed
+  there is not held to the runbook or checked for evidence. Report the count added and the count of answer runbooks
+  (totals only). Keep the project's own wording of the item (2026-11-08).
 - Commit the upgrade (§1) and say in the answer what changed for the user (the starter's changelog lines it printed).
 
 ### 4. Remove
@@ -92,6 +96,7 @@ is: `node tools/starter.mjs upgrade`. No link: `node tools/starter.mjs link "<st
 - [ ] A changed setting has its DECISIONS line; one the host refused went to the user as the line to paste, never
       written another way (hook: permission-respected) (when file: tools/hooks/config.json) (file: docs/DECISIONS.md).
 - [ ] The answer ends with a Finished section: what changed, each file's path, what was not verified (hook: finished-summary) (answer: Finished).
+- [ ] An upgrade gave every runbook that answers questions from sources an `(evidence)` item, and the answer gives the counts (when ran: starter\.mjs upgrade [^-]|starter\.mjs upgrade$|starter\.mjs update [^-]|starter\.mjs update$|starter\.mjs update --keep-local) (answer: answer runbooks?).
 
 ## Pitfalls
 - 2026-10-27: an upgrade ran on top of a session's 27 uncommitted files, so the two could only be committed together.
