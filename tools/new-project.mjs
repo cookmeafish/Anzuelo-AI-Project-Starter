@@ -458,8 +458,16 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
     if (fs.existsSync(path.join(dest, skillsDir, sk, 'SKILL.md'))) for (const f of filesUnder(path.join(lib, sk))) refreshPayload(`library/skills/${sk}/${f}`, `${skillsDir}/${sk}/${f}`);
   // ignore lines added since the project was made (the starter link, a kept copy), and the link itself if missing
   const gi = path.join(dest, '.gitignore');
-  const have = fs.existsSync(gi) ? fs.readFileSync(gi, 'utf8').split(/\r?\n/) : [];
-  const tmpl = fs.readFileSync(path.join(STARTER, 'tools', 'starter', 'gitignore.project'), 'utf8').split(/\r?\n/), tmplNeg = tmpl.filter(l => l.startsWith('!'));
+  let have = fs.existsSync(gi) ? fs.readFileSync(gi, 'utf8').split(/\r?\n/) : [];
+  // (an older release shipped bare "build/" and "dist/", which also hide a folder of that name deeper down, such as a
+  // skill named build; one that hides such a folder is anchored to the top. Lesson (a field report): a project skill
+  // named build was left out of git)
+  if (fs.existsSync(path.join(dest, '.git'))) {
+    const hidden = (spawnSync('git', ['ls-files', '--others', '--ignored', '--exclude-standard', '--directory'], { cwd: dest, encoding: 'utf8' }).stdout || '').split(/\r?\n/);
+    const fix = ['build/', 'dist/'].filter(l => have.includes(l) && hidden.some(h => h.includes(`/${l}`) && !/(^|\/)node_modules\//.test(h)));
+    if (fix.length) { have = have.filter(l => !fix.includes(l) || !have.includes(`/${l}`)).map(l => fix.includes(l) ? `/${l}` : l); log.push(`anchored .gitignore ${fix.join(', ')} to the top folder (they also hid ${hidden.filter(h => fix.some(l => h.includes(`/${l}`))).slice(0, 3).join(', ')})`); if (!dry) fs.writeFileSync(gi, have.join(/\r\n/.test(fs.readFileSync(gi, 'utf8')) ? '\r\n' : '\n')); }
+  }
+  const tmpl =fs.readFileSync(path.join(STARTER, 'tools', 'starter', 'gitignore.project'), 'utf8').split(/\r?\n/), tmplNeg = tmpl.filter(l => l.startsWith('!'));
   const want = tmpl.filter(l => l && !l.startsWith('#') && !have.includes(l) && !['CLAUDE.md', '.claude/'].includes(l) && (l.startsWith('!') || !tracked(l, tmplNeg)));
   if (want.length) { log.push(`appended .gitignore (${want.join(', ')})`); if (!dry) fs.appendFileSync(gi, '\n# Project starter\n' + want.join('\n') + '\n'); }
   // Files the engine generates and an older release let into git (skill copies, hook state) leave the index; the files

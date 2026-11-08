@@ -7589,7 +7589,13 @@ if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade
     // the triggers line comes back (Lesson: an adopted project's narrowed triggers returned with every upgrade)
     const planPb = path.join(proj, 'docs/playbooks/plan.md');
     fs.writeFileSync(planPb, fs.readFileSync(planPb, 'utf8').replace(/^triggers:\s*(.*)$/m, (l, v) => `triggers_removed: make a plan\ntriggers: ${v.split(',').map(s => s.trim()).filter(t => !['make a plan', 'break this down'].includes(t)).join(', ')}`));
+    // (an older release's bare "build/" line hid a project skill named build: the upgrade anchors it to the top)
+    spawnSync('git', ['init', '-q'], { cwd: proj }); fs.appendFileSync(path.join(proj, '.gitignore'), '\nbuild/\n');
+    fs.mkdirSync(path.join(proj, 'skills/build'), { recursive: true }); fs.writeFileSync(path.join(proj, 'skills/build/SKILL.md'), '---\nname: build\n---\n# Build\n');
     const ok = np('--upgrade', '--no-selftest'), review = fs.readFileSync(path.join(proj, 'docs/DECISIONS.md'), 'utf8');
+    const giLines = fs.readFileSync(path.join(proj, '.gitignore'), 'utf8').split(/\r?\n/), seen = spawnSync('git', ['check-ignore', '-q', 'skills/build/SKILL.md'], { cwd: proj }).status;
+    report(!giLines.includes('build/') && giLines.filter(l => l === '/build/').length === 1 && seen === 1,
+      'upgrade: an old bare "build/" ignore line that hides a folder deeper down (a skill named build) is anchored to the top', `${giLines.filter(l => /build/.test(l)).join(' | ')} | check-ignore ${seen}`);
     report(r.status !== 0 && /ROLLED BACK/.test(r.stderr) && restored && ok.status === 0 && /## Upgrade review \(/.test(review) && /- self-tests: .*: \?/.test(review),
       'upgrade-review: an upgrade that breaks a passing check rolls back; a clean one writes the review', `${r.status} ${r.stderr.slice(0, 200)} | restored ${restored} | ${ok.status} ${ok.stderr.slice(0, 200)}`);
     // (each engine change leaves a dated line, the rollback's before the upgrade's. Lesson (a field report): a move and
@@ -8646,10 +8652,11 @@ if (mineB() && (!TAGS || TAGS.includes('layout-split') || TAGS.includes('engine-
     const upg = st('upgrade'), after = hashAll();
     const plan = fs.readFileSync(planL, 'utf8'), agents = fs.readFileSync(agL, 'utf8'), b = (() => { try { return JSON.parse(fs.readFileSync(path.join(loc, 'based-on.json'), 'utf8')); } catch { return {}; } })();
     report(ins.status === 0 && /engine-readonly[\s\S]*override docs\/playbooks\/plan\.md/.test(guard) && o1.status === 0 && o2.status === 0
-      && upg.status === 0 && (g(eng, 'rev-parse', 'HEAD').stdout || '').trim() === newHead && !diffs(before, after).length
+      && upg.status === 0 && (g(eng, 'rev-parse', 'HEAD').stdout || '').trim() === newHead && diffs(before, after).join() === 'docs/DECISIONS.md'
+      && new RegExp(`^- \\d{4}-\\d\\d-\\d\\d: engine upgraded to ${newHead.slice(0, 7)} \\(from ${oldHead.slice(0, 7)}\\)`, 'm').test(fs.readFileSync(path.join(proj, 'docs/DECISIONS.md'), 'utf8'))
       && /the project's own lesson/.test(plan) && /An invoice line the default added\./.test(plan) && /^# Our own title/.test(agents) && /AGENTS\.md \(both changed/.test(upg.stdout)
       && fs.existsSync(path.join(loc, '.cache/merge/AGENTS.md')) && b.at === newHead && b.files?.['docs/playbooks/plan.md'] === newHead && b.files?.['AGENTS.md'] === oldHead,
-      'upgrade: with the engine in .anzuelo/engine an upgrade is a git pull that leaves what the project made unchanged; an edit inside the engine is refused (engine-readonly) and points at a local copy; a default\'s new change is merged into the project\'s copy, and a clash is left for the user while the copy stays in use',
+      'upgrade: with the engine in .anzuelo/engine an upgrade is a git pull that leaves what the project made unchanged but for its dated line in docs/DECISIONS.md; an edit inside the engine is refused (engine-readonly) and points at a local copy; a default\'s new change is merged into the project\'s copy, and a clash is left for the user while the copy stays in use',
       JSON.stringify({ ins: ins.status, guard: guard.slice(0, 200), o1: o1.stdout, upg: [upg.status, (upg.stdout || '').slice(0, 600), (upg.stderr || '').slice(0, 300)], same: diffs(before, after), b }));
   } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
 }

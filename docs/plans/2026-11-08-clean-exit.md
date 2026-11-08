@@ -40,11 +40,14 @@ Each item gets a confirmed cause, a fix and a test; the reply names the commit.
       (`.claude/settings.json`, `.codex/hooks.json`), and uninstall puts them back. (2) Wiring sets the hooks path only
       to a folder that exists and holds the hook files. (3) The upgrade probe and every session start check that the
       hooks path points at an existing folder with the hook scripts, and tell the user once if not. (4) A test each.
-- [ ] .codex/hooks.json kept empty after the move; the rollback does not restore untracked wiring files.
+- [x] .codex/hooks.json kept empty after the move; the rollback does not restore untracked wiring files. (The empty
+  file does not reproduce at f6fe881: an install over a Codex file with the old engine's commands and a project hook
+  keeps the project hook and adds the new engine's. The restore is in uninstall, tested in the v2 removal test.)
 - [ ] Runbooks removed as engine copies still named by the menu and by relative links.
 - [ ] Audit resolves project scripts against the wrong folder.
 - [ ] The project's own scenarios file moved to local, so its REQ tags had no test.
-- [ ] Git hygiene crashed on a missing `.anzuelo/local/.cache`.
+- [x] Git hygiene crashed on a missing `.anzuelo/local/.cache`. (Does not reproduce at f6fe881: a fresh install with
+  that folder deleted runs the whole audit, git hygiene included. Most likely fixed by the split-layout audit change.)
 - [ ] Unclear engine files: the project's scenarios file and an edited `new-project.mjs`; step 4 names the version to
       compare against (the project's own engine version, not the newest).
 - [ ] A "does not fit" line for a routed runbook in a peer-message work turn did not clear its items.
@@ -57,7 +60,9 @@ Each item gets a confirmed cause, a fix and a test; the reply names the commit.
 - [ ] A project's code that calls engine scripts by path (its own hook setup, audit, allow-lists) is named by the
       install's dry run, so it is fixed before the move.
 - [x] Wiring leaves an existing `statusLine` on the old `tools/hooks/statusline.mjs` path.
-- [ ] A `build/` ignore line shipped by an upgrade hides a project skill named build.
+- [x] A `build/` ignore line shipped by an upgrade hides a project skill named build. (New projects get `/build/` since
+  2026-11-06; an upgrade now anchors an old bare `build/` or `dist/` line that hides a deeper folder. Test: selfcheck
+  upgrade test.)
 - [x] The rollback steps run into the engine's own git-safety guard; the uninstall replaces them.
 - [x] A move and its rollback left no trace in the project, so its next session did not know the engine changed. Every
   install, move, upgrade, rollback and removal now writes a dated `docs/DECISIONS.md` line, and the next session start
