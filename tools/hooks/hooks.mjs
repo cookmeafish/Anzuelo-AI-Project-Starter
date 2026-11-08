@@ -4598,9 +4598,9 @@ function notices(cfg) {
 }
 
 export const V2_SESSION = '# How this project\'s engine works (full rules in AGENTS.md / CLAUDE.md)\n' +
-  '- Before each request: a short reminder names the runbook that fits and its "Done when" list. Open it and follow it. Nothing named and it is real work: pick the fitting runbook in DIRECTORY.md.\n' +
-  '- During the work: nothing interrupts you, except refusals for safety (secrets, AI credit in git, protected files, outward actions, risky git, other people\'s data).\n' +
-  '- After the work: one check. It lists anything really missing, and the runbook items to verify yourself, once. Fix what isn\'t done and finish with what changed. No record lines are needed.';
+  '- Reminder, before each request: a short note names the runbook that fits and its "Done when" list. Open it and follow it. Nothing named and it is real work: pick the fitting runbook in DIRECTORY.md.\n' +
+  '- Guard, during the work: the only kind that stops you. It refuses one unsafe action as you try it (secrets, AI credit in git, protected files, forbidden words, outward actions, risky git, other people\'s data). Nothing else speaks.\n' +
+  '- Check, after the work: it lists anything really missing, and the runbook items to verify yourself, and asks again (at most 3 times) until each is done or the answer says plainly why not. No record lines are needed.';
 function cmdSession(data) {
   const cfg = config();
   syncAll(cfg);
@@ -9295,7 +9295,11 @@ async function v2Cli(cmd) {
   const turn = lib.loadTurn(sid);
   if (!turn.at) { console.log('CHECK: no request recorded. Run: node tools/hooks/hooks.mjs begin "<the user\'s request>" first.'); return 1; }
   // (a helper's check judges the helper's own transcript, as its own turn, and leaves the session's turn alone)
-  if (tp) { const who = lib.callerTranscript(tp, sid); const d = (await import('./v2/end.mjs')).onStop({ transcript_path: who.file, session_id: who.id ? `${sid}-${who.id}` : sid }); console.log(d ? `CHECK: ${d.reason}` : 'CHECK: PASS'); return d ? 1 : 0; }
+  // (a preview before the answer: the draft in --answer-file is judged as the final answer, and nothing is recorded, so
+  // the real end check still comes fresh. Lesson (the user, 2026-11-07): send the answer once, when it is ready, not
+  // again after each block)
+  const af = process.argv.indexOf('--answer-file'), draft = af > 0 ? (() => { try { return fs.readFileSync(path.resolve(ROOT, process.argv[af + 1] || ''), 'utf8'); } catch { return ''; } })() : '';
+  if (tp) { const who = lib.callerTranscript(tp, sid); const d = (await import('./v2/end.mjs')).onStop({ transcript_path: who.file, session_id: who.id ? `${sid}-${who.id}` : sid, ...(draft ? { last_assistant_message: draft } : {}) }, { shadow: true }); console.log(d ? `CHECK: ${d.reason.replace(/\nFix what isn't done\.[\s\S]*$/, '\nFix these, then send the answer once.')}` : 'CHECK: PASS'); return d ? 1 : 0; }
   const book = turn.runbook && lib.runbooks().find(b => b.file === turn.runbook);
   console.log(book?.items.length ? `CHECK: verify that each item of ${book.file} is really done (skip any that don't fit this work), fix what isn't, then answer:\n${book.items.map(it => `${it.n}. ${it.text}`).join('\n')}` : 'CHECK: PASS');
   return 0;

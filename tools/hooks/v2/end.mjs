@@ -1,6 +1,6 @@
 // Engine v2 end hook (Stop): the one check. It judges only what this session did in this turn, from its own
 // transcript, and blocks with a short plain list of what is really missing until it is done (at most MAX_BLOCKS times).
-import { runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, questionGaps, noteGaps, tail, helpersRunning, helperRuns, evidenceOf } from './lib.mjs';
+import { runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, questionGaps, noteGaps, tail, helpersRunning, helperRuns, evidenceOf, skillBooks } from './lib.mjs';
 
 // Check 1: the routed runbook was followed, and its checkable "Done when" items were met. With none routed, the
 // runbook the agent chose and opened is the one it is held to (the runbook itself, not a skill it names: reading the
@@ -20,6 +20,15 @@ export function missing(turn, acts, books = runbooks()) {
   if (!opened(book, acts)) out.push(`Open ${book.file} and check the work against its steps.`);
   for (const it of book.items) if (applies(it, acts) && met(it, acts) === false) out.push(`${book.file} item ${it.n}: ${it.text}`);
   return out;
+}
+
+// The checkable items of each skill with a route of its own that the turn opened (beside the runbook): a rule a skill
+// carries is held like a runbook's. Only marked items count; its judgment items stay the skill's own. Lesson
+// (2026-11-07): the skills' "Done when" lists were never read, so the rules the skills and packs carry went unchecked.
+export function skillMissing(acts, books = skillBooks()) {
+  if (!worked(acts)) return [];
+  return books.filter(s => opened({ ...s, skills: [] }, acts) && !authored(s, acts))
+    .flatMap(s => s.items.filter(it => it.kind && applies(it, acts) && met(it, acts) === false).map(it => `${s.file} item ${it.n}: ${it.text}`));
 }
 
 // The items of that runbook no script can check: on a turn that changed files, the agent itself goes over them once at
@@ -71,7 +80,7 @@ function judge(data, { shadow = false } = {}) {
   // Lesson (2026-11-07): an Issue line in the first answer re-blocked the corrected answer that had none)
   if (again && turn.lastBlock) { const after = turnActs(rows.filter(r => (Date.parse(r.timestamp || '') || 0) > turn.lastBlock)); acts.said = after.said + (final && !after.said.includes(final) ? `${final}\n` : ''); acts.answer = final || after.answer || acts.answer; }
   const history = evidenceOf(tail(data.transcript_path, 5 << 20));
-  const list = [...missing(turn, acts), ...testGaps(acts, history), ...gateGaps(acts), ...screenGaps(acts), ...healthGaps(acts, { run: !shadow }), ...knowledgeGaps(acts), ...securityGaps(acts), ...questionGaps(acts), ...noteGaps(acts), ...claimGaps(acts, history)];
+  const list = [...missing(turn, acts), ...skillMissing(acts), ...testGaps(acts, history), ...gateGaps(acts), ...screenGaps(acts), ...healthGaps(acts, { run: !shadow }), ...knowledgeGaps(acts), ...securityGaps(acts), ...questionGaps(acts), ...noteGaps(acts), ...claimGaps(acts, history)];
   const check = again ? null : toVerify(turn, acts);
   if (!list.length && !check) return null;
   const parts = [], last = rounds + 1 === MAX_BLOCKS;
@@ -85,5 +94,7 @@ function judge(data, { shadow = false } = {}) {
   // "finish with only what changed" made it a note like "nothing changed", in English to a Spanish-speaking user)
   // (the same answer, not a new one: lines no fix touched stay as they were, and the check itself stays out. Lesson
   // (trial v43): each resent answer was reworded, and gained lines like "no skills were added" that meant nothing to the user)
-  return { decision: 'block', reason: `${parts.join('\n')}\nFix what isn't done. Then give your whole answer to the user again, in their language: the same answer, changed only where a fix changed something, with nothing about this check in it. It is the message they read last.` };
+  // (and then a short note, not the whole answer again: the user's terminal shows the answer just above. Lesson (the
+  // user, 2026-11-07): each block made them read the same answer again; run the check before answering instead)
+  return { decision: 'block', reason: `${parts.join('\n')}\nFix what isn't done. Then tell the user in a line or two, in their language, only what changed in the answer above, with nothing about this check in it; if nothing changed for them, say nothing more. Next time, run node tools/hooks/hooks.mjs check --answer-file <your draft> before answering, so the answer goes out once.` };
 }

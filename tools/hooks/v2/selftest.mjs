@@ -166,13 +166,12 @@ report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/
     // (live, the session's evidence leaves out the agent's own words: the answer never backs its own made-up commit)
     const made = onStop({ session_id: 'madeup', transcript_path: transcript([at(0, user('save the invoice fix')), at(1, say('Saved as 9e8d7c6.'))]) });
     report(!!made && /9e8d7c6/.test(made.reason), 'end: live, a commit only the answer names is reported (the answer is not its own evidence)', made?.reason?.slice(0, 120));
-    // (the user reads the last message: the block asks for the whole answer again, in the user's language, never for a
-    // note of only what changed. Lesson (trials v33, v34): the last message became "nothing changed" or a checklist
-    // report, in English to a Spanish-speaking user, and hid the result)
-    // (and the same answer: not reworded, and with no talk about the check. Lesson (trial v43))
-    report(/answer[^.]*again[^.]*whole|whole[^.]*answer/i.test(made?.reason || '') && /their language|user's language/i.test(made?.reason || '') && !/only what changed/.test(made?.reason || '')
-      && /the same answer, changed only where a fix changed something/.test(made?.reason || '') && /nothing about this check/.test(made?.reason || ''),
-      'end: a block asks for the same whole answer again, in the user\'s language, changed only where a fix changed it and with nothing about the check', (made?.reason || '').split('\n').at(-1));
+    // (the user reads the answer once: a block asks for a line or two on only what changed, in the user's language, with
+    // no talk about the check, and says to run the check before answering next time. The user, 2026-11-07: each block
+    // made them read the same answer again. Earlier lesson kept: the note is in the user's language (trials v33, v34))
+    report(/only what changed in the answer above/.test(made?.reason || '') && /their language/i.test(made?.reason || '') && !/whole answer/.test(made?.reason || '')
+      && /nothing about this check/.test(made?.reason || '') && /check --answer-file/.test(made?.reason || ''),
+      'end: a block asks for a short note on only what changed, in the user\'s language, with nothing about the check, and for the check on a draft next time', (made?.reason || '').split('\n').at(-1));
   }
 }
 report(/4\. The output reads well for a person, which only a reader can judge$/m.test(r.text), 'start: an item that wraps onto a second line is shown whole, without its check marker', r.text);
@@ -608,6 +607,40 @@ const { questionGaps } = await import('./lib.mjs');
   await new Promise(r => setTimeout(r, 20));
   const b2 = onStop({ transcript_path: transcript([...first, stamp(say('Tidied the meeting notes.'), new Date().toISOString())]), session_id: 'issueclear', stop_hook_active: true });
   report(/Issue:/.test(b1?.reason || '') && b2 === null, 'end: after a block, an Issue line only in the answer before it blocks no more once the new answer drops it', [b1?.reason, b2?.reason]);
+}
+
+// (a skill with its own route that the turn opened is held to its checkable items; one it did not open is not)
+{
+  const { skillMissing } = await import('./end.mjs');
+  put('skills/letters/SKILL.md', '---\nname: letters\ndescription: x\ntriggers: write a letter\n---\n## Done when\n- [ ] The answer ends with the sign-off check (answer: sign-off checked)\n- [ ] The tone fits (judgment: a reader)\n');
+  const letter = call('Edit', { file_path: path.join(dir, 'letters/a.md'), old_string: 'a', new_string: 'b' });
+  const readIt = call('Read', { file_path: path.join(dir, 'skills/letters/SKILL.md') });
+  const opened = skillMissing(acts([user('write a letter to the landlord'), readIt, letter, say('Written.')]));
+  const met = skillMissing(acts([user('write a letter to the landlord'), readIt, letter, say('Written. Sign-off checked.')]));
+  const notOpened = skillMissing(acts([user('write a letter to the landlord'), letter, say('Written.')]));
+  fs.rmSync(path.join(dir, 'skills/letters'), { recursive: true });
+  report(opened.length === 1 && /letters\/SKILL\.md item 1/.test(opened[0]) && met.length === 0 && notOpened.length === 0,
+    'end: a skill the turn opened is held to its checkable items (not its judgment ones); met or not opened, nothing', { opened, met, notOpened });
+}
+
+// (a preview of the end check on a draft records nothing, so the real check still comes fresh; a block asks for a short
+// note on what changed, never the whole answer again)
+{
+  const { onPrompt } = await import('./start.mjs');
+  onPrompt({ session_id: 'preview1', prompt: 'add a csv export' });
+  const tp = transcript([user('add a csv export'), edit]);
+  const pre = onStop({ transcript_path: tp, session_id: 'preview1', last_assistant_message: 'Draft.' }, { shadow: true }), real = onStop({ transcript_path: tp, session_id: 'preview1' });
+  report(pre?.decision === 'block' && /^Not done yet/.test(real?.reason || '') && /Check that these items/.test(real?.reason || '')
+    && /only what changed in the answer above/.test(real?.reason || '') && !/whole answer/.test(real?.reason || '') && /check --answer-file/.test(real?.reason || ''),
+    'end: a preview on a draft records nothing (the real check comes fresh); a block asks for a short note on what changed, not the whole answer again', [pre?.decision, real?.reason]);
+}
+// (the hooks are named by kind everywhere the user or agent reads about them: Reminder, Guard, Check)
+{
+  const root = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
+  const { V2_SESSION } = await import('../hooks.mjs');
+  const docs = [fs.readFileSync(path.join(root, 'AGENTS.md'), 'utf8'), fs.readFileSync(path.join(root, 'HOW-TO-USE.md'), 'utf8'), V2_SESSION];
+  report(docs.every(t => /\bReminder\b/.test(t) && /\bGuard\b/.test(t) && /\bCheck\b/.test(t)) && /check --answer-file/.test(docs[0]),
+    'rules: AGENTS.md, HOW-TO-USE.md and the session note name the three kinds of hook (Reminder, Guard, Check), and the rules say to run the check on a draft first');
 }
 
 // (the final answer the host hands over counts when the transcript does not hold it yet)

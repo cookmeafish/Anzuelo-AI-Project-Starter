@@ -8,12 +8,12 @@
 > [docs/STATUS.md](docs/STATUS.md), and the map of what to use when is in [DIRECTORY.md](DIRECTORY.md).
 
 ## How the engine works: reminded before, free during, verified after
-- **Before the work:** a short reminder names the runbook that fits the request and its "Done when" list.
-- **During the work:** nothing interrupts you. Only what is unsafe is refused: secrets, AI credit in git, protected
-  files, outward actions, risky git, other people's data.
-- **After the work:** one check, once. It lists what is really missing, and the runbook items for you to verify
-  yourself. Fix what isn't done and finish with what changed. No record lines are ever needed: the check reads what
-  the session did.
+- **Reminder (before the work):** a short note names the runbook that fits and its "Done when" list.
+- **Guard (during the work, the only kind that stops you):** it refuses one unsafe action as you try it: secrets, AI
+  credit in git, protected files, forbidden words, outward actions, risky git, other people's data. Nothing else speaks.
+- **Check (after the work):** it lists what is really missing and the runbook items to verify yourself, and asks again
+  (at most 3 times) until each is done or the answer says plainly why not. On real work, run it first on your draft
+  (`node tools/hooks/hooks.mjs check --answer-file <draft>`) and fix what it lists, so the answer goes out once.
 
 ## Step 0, every message: route it (never skip)
 1. **Read the reminder** and follow it. If your agent has no hooks, run

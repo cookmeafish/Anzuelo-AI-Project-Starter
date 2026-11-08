@@ -68,7 +68,7 @@ export function skillBooks() {
     const file = `skills/${n}/SKILL.md`, text = read(file), fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text)?.[1] || '';
     if (!fm || /^generated:\s*true/m.test(fm) || /^runbook:/m.test(fm)) continue;
     const triggers = (/^triggers:\s*(.+)$/m.exec(fm)?.[1] || '').split(',').map(s => s.trim().toLowerCase()).filter(s => s.length > 2);
-    if (triggers.length) out.push({ name: n, file, triggers, menu: [], items: [], skills: [] });
+    if (triggers.length) out.push({ name: n, file, triggers, menu: [], items: doneWhen(text), skills: [] });
   }
   return out;
 }
