@@ -1502,13 +1502,20 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
 // Lesson: v1 grew to about 9,600 lines of hooks, most of it fixing friction it made itself.
 {
   const here = path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1'));
-  // (the budget of the v2-only plan: 2,000 lines of engine code without tests, over v2/ and the base modules beside it
-  // (paths, settings, repo, git-guard); hooks.mjs joins the count when 1e cuts it to the entry. Plan:
-  // docs/plans/2026-11-07-engine-v2-only.md, Task 4)
-  const engine = [...fs.readdirSync(here).filter(f => f.endsWith('.mjs') && f !== 'selftest.mjs').map(f => path.join(here, f)), ...['paths', 'settings', 'repo', 'git-guard'].map(n => path.join(here, '..', `${n}.mjs`))];
-  const lines = engine.reduce((n, f) => n + fs.readFileSync(f, 'utf8').split('\n').length, 0);
+  // (the budget by what runs and when, decided 2026-11-08 when the sweep showed parity cannot fit 2,000 lines: the guard
+  // and mid-task notes (every tool call) 600, the reminder (every message) 400, the end check (once per turn) 2,000, the
+  // base modules 700, all of it 4,000, tests not counted; hooks.mjs joins when 1e cuts it to the entry. Plan:
+  // docs/plans/2026-11-07-engine-v2-only.md, "Budget decision")
+  const size = f => fs.readFileSync(f, 'utf8').split('\n').length;
+  const v2 = f => path.join(here, f), base = n => path.join(here, '..', `${n}.mjs`);
+  const parts = { guard: [v2('guard.mjs'), v2('midturn.mjs')], reminder: [v2('start.mjs')], base: ['paths', 'settings', 'repo', 'git-guard'].map(base) };
+  parts.end = fs.readdirSync(here).filter(f => f.endsWith('.mjs') && f !== 'selftest.mjs' && !Object.values(parts).flat().includes(v2(f))).map(v2);
+  const cap = { guard: 600, reminder: 400, end: 2000, base: 700 };
+  const got = Object.fromEntries(Object.entries(parts).map(([k, fs_]) => [k, fs_.reduce((n, f) => n + size(f), 0)]));
+  const lines = Object.values(got).reduce((a, b) => a + b, 0);
   const checks = (/const list = \[([^\]]*)\]/.exec(fs.readFileSync(path.join(here, 'end.mjs'), 'utf8'))?.[1].match(/\.\.\.\w+\(/g) || []).length;
-  report(lines <= 2000 && checks >= 1 && checks <= 15, `size: the v2 engine (v2/, paths.mjs, git-guard.mjs) is at most 2,000 lines (${lines}) and the end check runs at most 15 checks (${checks})`, { lines, checks });
+  report(lines <= 4000 && Object.entries(cap).every(([k, c]) => got[k] <= c) && checks >= 1 && checks <= 15,
+    `size: each part of the engine within its budget (guard ${got.guard}/600, reminder ${got.reminder}/400, end ${got.end}/2,000, base ${got.base}/700), ${lines} of 4,000 lines in all; the end check runs at most 15 checks (${checks})`, { got, lines, checks });
 }
 
 // (one place finds the three roots: the engine's code, the project, and where project-made engine files live. In the

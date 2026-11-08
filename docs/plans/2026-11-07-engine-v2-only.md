@@ -133,6 +133,28 @@ Done ahead of 1b (2026-11-08): the three v1 rules `pretoolHits` worked out on ev
 record: hooks.mjs 9,833 to 9,678 lines. v2 selftest test "rules no engine refuses during the work ... are not computed"
 fails on the old code.
 
+#### Budget decision (2026-11-08, replaces the 2,000-line total below)
+The user asked for the best solution: efficient, effective and fully featured. The sweep
+([list](../../tools/starter/reviews/2026-11-08-v2-sweep.md)) showed the 2,000-line total cannot hold every behavior the
+user saw working (estimate: 3,500 to 4,500 lines ported compactly, 5,000 to 6,500 as is). Decided:
+Settled with the oversight session the same day (the user asked both sessions to work out the best solution together):
+- Budget by what runs and when, not one total, as ceilings during the migration: the safety guard and mid-task notes
+  (every tool call) at most 600 lines; the reminder (every message) at most 400; the end check (once per turn, loaded
+  only at Stop) at most 2,000; the shared base modules (settings, paths, repo, git-guard) at most 700; the whole
+  engine at most 4,000 lines without tests. The size test checks each part. After the migration each ceiling becomes
+  a ratchet at the measured size: anything that adds lines removes some first.
+- Parity first: every sweep group the user has not retired is ported with a v2 test, or shown to be done another way
+  by a v2 test. Only the retired kinds (each with its date) stay out.
+- Port by kind, not line for line: end checks that are a pattern, a condition and an item text become rows of one data
+  table walked by one evaluator; only what a row can't say gets code. One shared transcript reader, lesson comments
+  one line each.
+- Speed bars are hard: prompt, pretool and stop stay within 10% of today on the replay set, measured after each big
+  slice; a port that slows a hook is reworked, not accepted.
+- Effectiveness: each non-retired group is replayed on the real sessions (totals only): hits, real misses caught,
+  false asks. A group that never fired, or is mostly false asks, is not cut: it goes on one short list for the user
+  with its numbers (keep, simplify or retire). Everything else is ported without asking.
+- Order: Task 2 decisions (retired first, then table row or code), the replay numbers, then the porting slices.
+
 #### Budget for step 1b (2026-11-08)
 "keep" means "still needed", not "port as is": 6,355 kept lines against a 2,000-line budget (Task 4) cannot move
 unchanged. Counted with the same inventory; line counts include comments (about 30% of hooks.mjs is comment-only lines).
