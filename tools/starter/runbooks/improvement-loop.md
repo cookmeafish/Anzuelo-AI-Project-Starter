@@ -84,7 +84,9 @@ updatedInput) is fixed in place.
    A finding that is the model's own slip, with nothing the starter could do, is noted as such, not "fixed".
 6. **Green again, then commit.** Step 1's chain passes; commit the fix, then the engine proof
    (`tools/hooks/engine-proof.json`, subject "Engine proof") and `rounds.json`, with the user as the only author.
-   Push only with the user's OK in this session.
+   Push only with the user's OK in this session. After the push, fast-forward each project's linked starter copy
+   (the folder its `tools/starter.local.json` names) to the pushed proof commit before telling the project to upgrade
+   (2026-11-07: a project found its copy behind and could not upgrade).
 7. **Loop.** Start the next round on the fixed engine (step 2). Stop when a round is NOT WORSE against both the
    baseline and the previous round and has no high finding and no new medium finding the starter could prevent; or
    when the usage limit stops it, then say so and resume after the reset.
