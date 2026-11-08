@@ -79,9 +79,10 @@ no vendor.
 ## Start a project
 **The easiest way:** clone this repository straight into your new project's folder (e.g. `C:\projects\My App`), then
 run `node tools/new-project.mjs --self-install --git` there (an agent does this itself when asked to set the folder
-up). The folder then holds two folders: the starter's own copy (`My App\<repository name>`) and the project
-(`My App\My App`), which upgrades from that copy. Add `--beside` to make `My App` itself the project, with the copy
-next to it (`<repository name>-My-App`). Open the project folder with the agent and say **"set up this project"**.
+up). The folder becomes the project, with everything of the engine inside its `.anzuelo` folder (the engine in
+`.anzuelo\engine`, what it makes for the project in `.anzuelo\local`, all ignored by the project's git). Add `--beside`
+for a classic project instead, linked to a starter copy next to it (`<repository name>-My-App`). Restart the agent in
+the folder and say **"set up this project"**.
 
 **After cloning this repository** into a folder of its own, run `node tools/hooks/wire.mjs` once. It connects the folder to your agent
 (Claude Code, Codex and others) and switches on the git checks.

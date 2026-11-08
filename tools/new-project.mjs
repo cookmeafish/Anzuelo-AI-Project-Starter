@@ -14,11 +14,12 @@
 //   node tools/new-project.mjs "<folder>" --remove    take the engine out: unwire its hooks, remove its files (backed up
 //     in .cache/engine-removed/), keep everything the project wrote
 //   node "<a starter clone in a project's folder>/tools/new-project.mjs" --self-install [--git] [--beside]   that folder
-//     then holds the starter's own copy (named after the repository) and the project (named after the folder), which
-//     links to that copy; --beside makes the folder the project, with the copy next to it
+//     becomes the project, with the engine and all it makes in its .anzuelo/ folder; --beside makes a classic project
+//     there instead, linked to a starter copy next to it
 //   add --dry-run to see what would happen (a summary; --verbose lists every file); --dev allows a development copy (.starter-dev) for throwaway test projects
 // The AI installs packs during setup (SETUP-PROMPT.md): it asks what the project is about and picks only what fits.
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -90,13 +91,29 @@ if (flag('--self-install')) {
   const repo = path.basename(url.replace(/\.git$/, '').replace(/[\\/]+$/, '')) || 'starter';
   const proj = opt('--name') || path.basename(STARTER);
   if (proj.toLowerCase().startsWith(repo.toLowerCase())) fail(`${STARTER} is named as a starter copy, not a project: run its tools/new-project.mjs "<project folder>".`);
-  // (by default the folder holds both, side by side: the starter's copy, named after the repository, and the project,
-  // named after the folder. --beside makes the folder the project, with the copy next to it. The user, 2026-11-08: one
-  // folder per project, with its own starter and the project inside)
+  // (by default the folder becomes the project with everything of the engine in its .anzuelo/ folder: the engine's own
+  // clone in .anzuelo/engine, what it makes for the project in .anzuelo/local (starter.mjs install). --beside instead
+  // makes a classic project here, with the starter's copy next to it. The user, 2026-11-08: one folder per project,
+  // and everything of the engine inside it, in .anzuelo)
   const beside = flag('--beside');
-  const copy = beside ? path.join(path.dirname(STARTER), `${repo}-${proj.replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '')}`) : path.join(STARTER, repo);
-  const into = beside ? STARTER : path.join(STARTER, proj.replace(/[<>:"/\\|?*]+/g, '-').trim());
   const head = (git(STARTER, 'rev-parse', 'HEAD').stdout || '').trim();
+  if (!beside) {
+    console.log(`Self-install: ${STARTER} becomes the project "${proj}", with the engine (at ${head.slice(0, 7)}) and everything it makes in ${path.join(STARTER, '.anzuelo')}.`);
+    if (dry) { console.log('Dry run, nothing written.'); process.exit(0); }
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-self-')), src = path.join(tmp, repo);
+    try {
+      if (git(tmp, 'clone', '-q', STARTER, src).status !== 0) fail('Could not copy the starter aside; nothing was changed.');
+      if (url) git(src, 'remote', 'set-url', 'origin', url);
+      // (the clone here is exactly the commit just copied, with nothing of its own: the folder is emptied for the project)
+      for (const n of fs.readdirSync(STARTER)) fs.rmSync(path.join(STARTER, n), { recursive: true, force: true });
+      if (flag('--git')) git(STARTER, 'init', '-q');
+      const r = spawnSync(process.execPath, [path.join(src, 'tools/starter.mjs'), 'install', STARTER, '--name', proj, ...(opt('--desc') ? ['--desc', opt('--desc')] : [])], { stdio: 'inherit' });
+      if (r.status !== 0) fail(`Installing failed; clone the starter again into ${STARTER} and retry.`);
+    } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+    console.log(`\nOpen ${STARTER} with your agent and say "set up this project".`);
+    process.exit(0);
+  }
+  const copy = path.join(path.dirname(STARTER), `${repo}-${proj.replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '')}`), into = STARTER;
   console.log(`Self-install: the project "${proj}" goes to ${into}; the starter goes to ${copy} (at ${head.slice(0, 7)}), and the project links to it.`);
   if (dry) { console.log('Dry run, nothing written.'); process.exit(0); }
   if (fs.existsSync(copy)) {
@@ -108,7 +125,7 @@ if (flag('--self-install')) {
     if (url) git(copy, 'remote', 'set-url', 'origin', url);
   }
   // (the clone here is exactly the commit the copy now has, with nothing of its own: the folder is emptied for the project)
-  for (const n of fs.readdirSync(STARTER)) if (beside || n !== path.basename(copy)) fs.rmSync(path.join(STARTER, n), { recursive: true, force: true });
+  for (const n of fs.readdirSync(STARTER)) fs.rmSync(path.join(STARTER, n), { recursive: true, force: true });
   const pass = args.filter(a => !['--self-install', '--dry-run', '--beside'].includes(a));
   const r = spawnSync(process.execPath, [path.join(copy, 'tools/new-project.mjs'), into, ...(pass.includes('--name') ? [] : ['--name', proj]), ...pass], { stdio: 'inherit' });
   if (r.status !== 0) fail(`Making the project failed; the starter is safe in ${copy}. Retry: node "${path.join(copy, 'tools/new-project.mjs')}" "${into}"`);

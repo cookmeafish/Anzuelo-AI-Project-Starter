@@ -7534,10 +7534,13 @@ if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) {
       const held = install(top);
       fs.rmSync(path.join(top, 'mine.txt'));
       const r = install(top, '--git'), rb = install(side, '--git', '--beside');
+      const eng = path.join(top, '.anzuelo', 'engine');
       report(/SELF-INSTALL: .*--self-install/.test(told) && held.status !== 0 && /changes of its own/.test(held.stderr) && r.status === 0 && rb.status === 0
-        && made(path.join(top, 'Garden Notes'), path.join(top, 'Some-Starter')) && fs.readdirSync(top).length === 2
+        && fs.existsSync(path.join(eng, 'tools/hooks/hooks.mjs')) && /Some-Starter\.git/.test(git(eng, 'remote', 'get-url', 'origin').stdout)
+        && fs.existsSync(path.join(top, '.anzuelo', 'local', 'SETUP-PROMPT.md')) && !fs.existsSync(path.join(top, 'tools')) && !fs.existsSync(path.join(top, '.starter-template'))
+        && fs.existsSync(path.join(top, '.git')) && /\.anzuelo\/engine\/AGENTS\.md/.test(fs.readFileSync(path.join(top, 'CLAUDE.local.md'), 'utf8'))
         && made(side, path.join(box, 'side', 'Some-Starter-Garden-Notes')),
-        'self-install: a starter clone in a project folder sets it up, by default as the folder holding the starter\'s own copy and the project linked to it (--beside: the folder is the project, the copy next to it); one with changes of its own is left alone',
+        'self-install: a starter clone in a project folder becomes that project, by default with everything of the engine in its .anzuelo folder (--beside: a classic project linked to a starter copy next to it); one with changes of its own is left alone',
         `told: ${told.slice(0, 150)} | held: ${held.stderr.slice(0, 150)} | run ${r.status}: ${(r.stderr || '').slice(-300)} | beside ${rb.status}: ${(rb.stderr || '').slice(-300)} | top has ${fs.existsSync(top) ? fs.readdirSync(top).join(',') : '-'}`);
     } finally { fs.rmSync(box, { recursive: true, force: true }); }
   }
