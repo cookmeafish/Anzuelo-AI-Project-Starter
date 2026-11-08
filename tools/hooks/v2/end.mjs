@@ -4,22 +4,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { ROOT, at, runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, questionGaps, noteGaps, quoteGaps, tail, helpersRunning, backgroundRuns, helperRuns, evidenceGaps, evidenceOf, skillBooks } from './lib.mjs';
 
-// Check 1: the routed runbook was followed, and its checkable "Done when" items were met. With none routed, the
-// runbook the agent chose and opened is the one it is held to (the runbook itself, not a skill it names: reading the
-// debug skill does not make a turn a debug runbook turn. Lesson (replay): it added a block). A runbook the turn wrote
-// or edited is its work, not the procedure it chose. Lesson (trial v43): a setup that wrote the vault-tidy runbook and
-// read it back was held to that runbook's items.
-// (by a script too: the file changed since the turn began. Lesson (a project's report): a runbook edited by a shell
-// script was "opened" by naming it and held the turn three times)
+// Check 1: the routed runbook, else the one the agent opened (not a skill it names), was followed and its checkable
+// "Done when" items met. A runbook the turn wrote or changed, by a script too, is its work, not its procedure.
 const authored = (b, acts) => acts.calls.some(c => /^(Edit|Write|MultiEdit)$/.test(c.name) && String(c.input.file_path || '').replace(/\\/g, '/').endsWith(b.file))
   // (a command that writes: one that only reads the runbook, after an upgrade rewrote it, is following it. Lesson (a
   // project's report): an upgrade turn that read the engine runbook with Get-Content was held to the routed one)
   || (acts.calls.some(c => /^(Bash|PowerShell)$/.test(c.name) && String(c.input.command || '').replace(/\\/g, '/').includes(b.file)
     && /WriteAllText|Set-Content|Out-File|Add-Content|writeFileSync|\bsed\s+-i|\btee\b|>>?\s*["']?[\w./-]*\.md\b|\.Replace\(|\.replace\(/.test(String(c.input.command || '')))
     && (() => { const since = Date.parse(acts.at || '') || 0; try { return since > 0 && fs.statSync(at(b.file)).mtimeMs > since; } catch { return false; } })());
-// (a routed runbook the agent never opened, while it opened another one, gives way to that one: the router guessed, the
-// agent chose. Lesson (trial v45): a page request routed to a recipe runbook on a broad trigger, the agent followed the
-// feature runbook, and the end check held it to the recipe items)
+// (a routed runbook never opened gives way to the one the agent opened: the router guessed, the agent chose)
 const picked = (acts, books) => books.find(b => opened({ ...b, skills: [] }, acts) && !authored(b, acts));
 // (the routed one too: a turn that edited its own routed runbook was changing the procedure, not following it. Lesson
 // (a project's report): adding a marker to the routed runbook held the turn to that runbook's items)
@@ -45,23 +38,15 @@ const kept = acts => {
   };
 };
 export const waived = (acts, list) => list.filter(kept(acts));
-// (not a question the user asked: a note from another session, a helper's report, a task notice, or the summary that
-// continues a session after its context ran out. Replay (real sessions): most turns matching a research trigger were
-// such summaries)
-// (and its first sentence asks for facts: a question, or research, look up, find out, compare. Replay (real sessions):
-// praise and instructions that only named "research" were held as answers)
+// (a question the user typed whose first sentence asks for facts; not another session's note, a report or a summary.
+// Replay: most research-trigger turns were summaries, and praise naming "research" was held)
 const relayed = acts => /<(cross-session-message|agent-message|task-notification)\b|^This session is being continued from a previous conversation/m.test(acts.heard || '')
   || !(s => /\?|\b(research|look (it |this |that )?up|find out|compare|according to)\b/i.test(s) || /^\W*(?:\w+\W+){0,3}(what|which|who|when|where|how|is there|are there|tell me)\b/i.test(s))((/^\s*([^\n.!?]*[.!?]?)/.exec(String(acts.heard || '').replace(/<pasted_content[\s\S]*?<\/pasted_content>/g, ' ')) || [])[1] || '');
 
 export function missing(turn, acts, books = runbooks()) {
   const book = chosen(turn, acts, books);
-  // (a question its routed runbook fits follows it too, held only to opening it and to its answer items; an unrouted
-  // question stays free. Lesson (the user, 2026-11-07): knowledge questions route to runbooks so the answer comes from
-  // the best sources, and an answer that skipped the runbook went unchecked)
-  // (a typed question only: a report or note from another session is not one. Replay (real sessions): every routed
-  // turn this would have held was such a message)
-  // (and only a runbook made for answers, one with an "(evidence)" item: a broad route like the project runbook's caught
-  // routine and scheduled prompts. Lesson (a live false block))
+  // (a typed question routed to a runbook made for answers, one with an "(evidence)" item, is held to opening it and
+  // its answer items; others stay free. The user, 2026-11-07: knowledge answers come from the best sources)
   const asked = book && !worked(acts) && book.file === turn.runbook && book.items.some(it => it.kind === 'evidence') && !relayed(acts);
   if (!book || (!worked(acts) && !asked)) return [];
   const out = [];
@@ -84,11 +69,8 @@ export function skillMissing(acts, books = skillBooks()) {
       .map(it => `${s.file} item ${it.n}: ${it.kind === 'evidence' ? evidenceGaps(acts).join(' ') : it.text}`));
 }
 
-// A fresh reviewer, once per turn, before the answer, when it pays: the user was upset with the work (the agent's own
-// fix tends to cover only the case shown), risky work is about to be called done (security-sensitive code, a release
-// or publish), or the runbook asks for an outside read of its judgment items ("review: helper"). One helper covers all of
-// it, on a cheaper model, with only the facts it needs, never the agent's reasoning. Lesson (the user, 2026-11-07): a
-// second agent that hasn't seen the work finds what the first one is blind to, and its cost must stay small.
+// A fresh reviewer, once per turn, when it pays (the user was upset, risky work, or "review: helper" on the runbook):
+// one cheap helper given the facts, not the reasoning. The user, 2026-11-07: fresh eyes find what the first is blind to.
 const RELEASE = /\bgit\s+tag\s+(-[as]\s+)?v?\d|\bgh\s+release\s+create\b|\bnpm\s+publish\b|\bgit\s+push\b[^\n]*--tags\b/i;
 export function reviewGaps(turn, acts, books = runbooks()) {
   const book = chosen(turn, acts, books), why = [];
@@ -175,11 +157,7 @@ function judge(data, { shadow = false } = {}) {
   if (last) parts.push('This is the last check for this request: whatever you can\'t do, say plainly in the answer that it is not done and why.');
   if (turn.at && !shadow) saveTurn(data.session_id, { ...turn, blocked: turn.at, rounds: rounds + 1, lastBlock: Date.now() });
   if (check) parts.push(`Check that these items of ${check.file} are really done (skip any that don't fit this work):\n${check.items.map(it => `${it.n}. ${it.text}`).join('\n')}`);
-  // (the user reads the last message, so it carries the whole answer, in the user's language. Lesson (trials v33, v34):
-  // "finish with only what changed" made it a note like "nothing changed", in English to a Spanish-speaking user)
-  // (the same answer, not a new one: lines no fix touched stay as they were, and the check itself stays out. Lesson
-  // (trial v43): each resent answer was reworded, and gained lines like "no skills were added" that meant nothing to the user)
-  // (and then a short note, not the whole answer again: the user's terminal shows the answer just above. Lesson (the
-  // user, 2026-11-07): each block made them read the same answer again; run the check before answering instead)
+  // (after a block: a short note in the user's language of only what changed, the check left out, not the answer again.
+  // The user, 2026-11-07: run the check before answering instead)
   return { decision: 'block', reason: `${parts.join('\n')}\nFix what isn't done. Then tell the user in a line or two, in their language, only what changed in the answer above, with nothing about this check in it; if nothing changed for them, say nothing more. Next time, run node tools/hooks/hooks.mjs check --answer-file <your draft> before answering, so the answer goes out once.` };
 }

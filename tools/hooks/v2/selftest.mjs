@@ -1009,8 +1009,9 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
 // guard (design B): under "engine": "v2" each safety refusal still happens, the decision is the same as v1's, and an
 // ordinary busy turn gets no refusal at all. Lesson: the quiet engine's point is silence during the work, safety aside.
 {
-  const { guard, IN_WORK_GUARDS } = await import('./guard.mjs');
+  const { guard, IN_WORK_GUARDS, use } = await import('./guard.mjs');
   const { config, ROOT } = await import('../hooks.mjs');
+  use(await import('../hooks.mjs'));
   const R = ROOT.replace(/\\/g, '/') + '/', g = 'gi' + 't ', base = { ...config(), engine: 'v2' };
   const prot = { ...base, protectedOriginals: ['originals/**'] };
   const bash = command => ({ tool_name: 'Bash', tool_input: { command } });
@@ -1041,8 +1042,8 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   report(!loud.length, 'guard: a busy ordinary turn (reads, edits, writes, tests, a commit, a cache delete) gets no refusal under v2', loud);
   // (rules no engine refuses during the work are not computed on every tool call either: the em dash, the rerun and the
   // polling checks were worked out and thrown away. Lesson (engine-v2-only plan, 1a inventory))
-  const H = await import('../hooks.mjs');
-  const dash = H.pretoolHits({ session_id: '', tool_name: 'Write', tool_input: { file_path: R + 'docs/style.md', content: 'A dash — here.\n' } }, base);
+  const H = await import('../hooks.mjs'), G = await import('./guard.mjs');
+  const dash = G.pretoolHits({ session_id: '', tool_name: 'Write', tool_input: { file_path: R + 'docs/style.md', content: 'A dash — here.\n' } }, base);
   report(!dash.some(h => /^REQ: (plain-writing|no-repeat|no-polling)\b/.test(h)) && !['repeatRun', 'duplicateWork', 'pollWait'].some(n => n in H),
     'guard: rules no engine refuses during the work (em dash, rerun, polling) are not computed on each tool call', dash);
 }

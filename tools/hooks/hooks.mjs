@@ -11,6 +11,10 @@ import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 import { PROJECT, ENGINE, LOCAL, where, whereWrite, relOf, listAll, kind, split } from './paths.mjs';
+// (the safety guard is v2/guard.mjs, loaded by the pretool hook itself: a guard that cannot load is then reported, not
+// a hook that cannot start)
+let pretoolDecision = null;
+import * as SELF from './hooks.mjs';
 
 // ROOT is the project; engine files are found through abs() (paths.mjs decides the root per path, and in the starter
 // every root is this one folder).
@@ -29,10 +33,10 @@ export const rel = p => relOf(p);
 export const exists = p => { try { fs.statSync(abs(p)); return true; } catch { return false; } };
 // The rules: AGENTS.md is the shared file; CLAUDE.md is its local twin for Claude Code (a Codex-only machine has none).
 export const rulesText = () => read(abs('AGENTS.md')) || read(abs('CLAUDE.md'));
-const list = d => listAll(d);
+export const list = d => listAll(d);
 // A folder walk never follows a link or junction (it throws, and the walker skips the entry). Lesson: a workspace link
 // in packages/*/node_modules pointing back into the repo made the prompt hook loop past its timeout.
-const walkStat = p => { const s = fs.lstatSync(abs(p)); if (s.isSymbolicLink()) throw new Error('link'); return s; };
+export const walkStat = p => { const s = fs.lstatSync(abs(p)); if (s.isSymbolicLink()) throw new Error('link'); return s; };
 // Folders that are never the project's own work: installed dependencies, virtual environments (any name: they hold a
 // pyvenv.cfg), tool caches (CACHEDIR.TAG), and, for kind "all", build output. "target", "vendor", "out", "bin" and "obj"
 // count only next to the build file that makes them, since a project may name a folder of its own that way.
@@ -50,7 +54,7 @@ export function bulkDir(parentAbs, name, kind = 'all') {
   if (!/^(target|vendor|out|bin|obj)$/.test(name)) return false;
   try { return fs.readdirSync(parentAbs).some(n => BUILD_FILES.test(n)); } catch { return false; }
 }
-const esc = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+export const esc = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const localDate = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 export const today = () => localDate(); // the user's calendar day, not UTC
 // A tool's usage text: its whole header comment, so the help can never be cut short or include code.
@@ -89,9 +93,9 @@ const PER_SESSION = new Set(['turn.json', 'checklist-shown.json', 'acknowledged.
   'event-hints.json', 'plan-watch.json', 'friction-turn.json', 'ext-shown.json', 'wakeups.json', 'checklist.json', 'scope-shown.json', 'alive.json']);
 const stateName = n => SID && PER_SESSION.has(n) ? n.replace(/.json$/, `.${SID}.json`) : n;
 // a session's own file when it has one, else the shared one (written before sessions were told apart, or by a test)
-const stateFile = n => { const own = path.join(STATE, stateName(n)); return own !== path.join(STATE, n) && !fs.existsSync(own) ? path.join(STATE, n) : own; };
+export const stateFile = n => { const own = path.join(STATE, stateName(n)); return own !== path.join(STATE, n) && !fs.existsSync(own) ? path.join(STATE, n) : own; };
 const BENCH_CACHES = new Set(['mirror-stamps.json', 'names.json', 'fit-check.json', 'fit-later.json']);
-function writeState(name, obj) {
+export function writeState(name, obj) {
   // hooks.mjs bench times the hooks without touching the session's state; the caches it rebuilt it keeps (they hold no
   // session state), so the next timed run is not a cold one. Lesson (a field report): after an upgrade every timed run
   // rebuilt them, and Stop read 80 ms and the prompt hook up to 2 s slower than the same engine once warm
@@ -438,7 +442,7 @@ export function config() {
   out.ignoreForChanges = [...new Set([...out.ignoreForChanges, ...ignoredDirs])];
   return out;
 }
-const re = (s, f = 'i') => new RegExp(s, f);
+export const re = (s, f = 'i') => new RegExp(s, f);
 // The secret patterns, compiled. A pattern that starts with a letter or digit and has no boundary of its own gets one, so
 // an older project's own patterns (config.json extends the list) don't match inside words either. REQ: no-secrets
 export const secretRes = (cfg = config()) => [...new Set(cfg.secretPatterns)].map(s => {
@@ -1368,7 +1372,7 @@ function selfSentPrompt(p, tp) {
   if ((readJSON(stateFile(WAKE_STATE), {}).prompts || []).includes(want)) return true;
   return rows.some(r => r.type === 'assistant' && Array.isArray(r.message?.content) && r.message.content.some(x => x?.type === 'tool_use' && isWakeTool(x.name, x.input) && norm(x.input?.prompt) === want));
 }
-const WAKE_STATE = 'wakeups.json';
+export const WAKE_STATE = 'wakeups.json';
 function turnNotices(force, tp) {
   const shown = readJSON(stateFile(SHOWN), null), end = readJSON(stateFile(TURN_END), {});
   const mid = force ? false : transcriptMidTurn(tp);
@@ -2124,7 +2128,7 @@ export function flushEngineWrites(extra = []) {
 // the same, so only new or touched files are hashed) and keeps copies of the check files. At Stop, a file whose mtime
 // moved but whose content is the same as at the start did not change. Lesson: a build rewrote a generated page
 // byte for byte, and the unchanged page demanded a screenshot review.
-const SNAPSHOT = 'snapshot.json', HASH_MAX = 2 * 1024 * 1024;
+export const SNAPSHOT = 'snapshot.json', HASH_MAX = 2 * 1024 * 1024;
 const sha = p => { try { return createHash('sha1').update(fs.readFileSync(abs(p))).digest('hex'); } catch { return null; } };
 // a runbook or skill without its triggers line, so a change of routing words alone can be told apart (routingOnlyEdits)
 const ROUTED_DOC = /^docs\/playbooks\/[^/]+\.md$|(^|\/)SKILL\.md$/;
@@ -3386,11 +3390,11 @@ export function previewOf(reason) {
   return { text, real: /^(Not done yet|Still not done)/.test(text) };
 }
 // (the list itself and the engine's state never count)
-const FORBID_EXEMPT = /^(tools\/hooks\/config\.json|tools\/hooks\/state\/|\.cache\/|\.git\/)/;
-const countRe = (rx, s) => rx ? (String(s || '').match(rx) || []).length : 0;
+export const FORBID_EXEMPT =/^(tools\/hooks\/config\.json|tools\/hooks\/state\/|\.cache\/|\.git\/)/;
+export const countRe = (rx, s) => rx ? (String(s || '').match(rx) || []).length : 0;
 
 // Code that would drive the installed Chrome/Edge instead of a bundled browser.
-const BROWSER_CODE = /executablePath\s*[:=]|channel\s*:\s*['"](chrome|msedge|chrome-beta|msedge-beta)['"]|CHROME_BIN|(?<!chrome-win(64)?[\\/])(chrome|msedge)\.exe|Google[\\/]+Chrome[\\/]+Application|Microsoft[\\/]+Edge[\\/]+Application/i;
+export const BROWSER_CODE =/executablePath\s*[:=]|channel\s*:\s*['"](chrome|msedge|chrome-beta|msedge-beta)['"]|CHROME_BIN|(?<!chrome-win(64)?[\\/])(chrome|msedge)\.exe|Google[\\/]+Chrome[\\/]+Application|Microsoft[\\/]+Edge[\\/]+Application/i;
 
 // ---------- plain writing ----------
 // The lines of a letter, email or message to another person, where courtesy (cfg.courtesy) is warmth, not filler: the
@@ -3641,7 +3645,7 @@ export const personOf = (p, cfg = config()) => { const m = new RegExp(`^${esc(cf
 export const peopleIn = (text, ppl) => ppl.filter(x => x.words.some(w => re(`(^|[^a-z0-9])${esc(w)}($|[^a-z0-9])`).test(String(text).toLowerCase()))).map(x => x.name);
 // A follow-up that names nobody ("that letter sounds cold") is about whoever the previous request named.
 // Lesson: a complaint about one tenant's letter could not save the fix in that tenant's folder.
-const settingUp = () => exists('SETUP-PROMPT.md') && !exists('.starter-template');
+export const settingUp = () => exists('SETUP-PROMPT.md') && !exists('.starter-template');
 // The whole setup turn is setup, also after its last step deleted SETUP-PROMPT.md: the file was there when the turn
 // began (the turn's snapshot), or a command of the turn removed it.
 // Lesson: setup ends by deleting SETUP-PROMPT.md, so the final Stop judged the setup turn as ordinary work: it asked for
@@ -3664,7 +3668,7 @@ export const peopleFor = (prompt, allPrompts, ppl) => {
   for (let i = earlier.length - 1; i >= 0; i--) { const n = peopleIn(earlier[i], ppl); if (n.length) return n; }
   return [];
 };
-const pathsPeople = (s, cfg) => [...new Set([...String(s).replace(/\\/g, '/').matchAll(new RegExp(`(?:^|[\\s"'/=])${esc(cfg.scopesRoot)}/([^/\\s"']+)/`, 'gi'))].map(m => m[1]).filter(n => !/^[_.]/.test(n)))];
+export const pathsPeople = (s, cfg) => [...new Set([...String(s).replace(/\\/g, '/').matchAll(new RegExp(`(?:^|[\\s"'/=])${esc(cfg.scopesRoot)}/([^/\\s"']+)/`, 'gi'))].map(m => m[1]).filter(n => !/^[_.]/.test(n)))];
 
 // ---------- freshness ----------
 export function staleKnowledge(cfg = config()) {
@@ -4379,7 +4383,7 @@ const SAFEGUARDS = new Set(['check:no-secrets', 'check:no-ai-attribution', 'chec
   'check:research-cited', 'check:security-report', 'check:security-code', 'check:security-config', 'check:security-publish', 'check:publish-gate', 'check:verification-report', 'check:finished-summary', 'check:forbidden-command', 'check:instructions-run',
   'skill:research', 'skill:security-review', 'skill:project-rule', 'runbook:project', 'check:upset-learned', 'skill:learn-from-upset']);
 export const suspendedItems = () => (readJSON(CONFIG(), {}).suspended || []).filter(s => s && s.item);
-const isSuspended = item => suspendedItems().some(s => s.item === item);
+export const isSuspended = item => suspendedItems().some(s => s.item === item);
 // Stop: what this turn used and which checks blocked it, merged across the turn's stops.
 function noteFriction(key, x, missing) {
   const prev = readJSON(stateFile('friction-turn.json'), {});
@@ -4725,7 +4729,7 @@ function cmdSession(data) {
 // The user handing the work over: "without my input", "don't ask me", "keep going until it's finished", "go go go".
 // ("don't ask me for the api key again" is about one thing, not the whole job. Lesson: "you decide", "I trust you",
 // "no need to check with me" and "without stopping" were missed, and that one false alarm counted)
-const AUTONOMY_WORDS = /\byou decide\b|\bi trust you\b|\bno need to (ask|check with) me\b|\bwithout stopping\b|\bwithout (my|any) (input|approval|questions?|ok)\b|\bdon'?t (ask|bother) me\b(?!\s+(for|about)\b)|\bno (more )?questions\b|\bkeep going (until|till) (it'?s |you'?re |everything is )?(done|finished|complete)\b|\bgo,? go,? go\b|\bdon'?t stop (until|till|for)\b|\bdecide (everything|for me|yourself)\b|\bdon'?t want to be (bothered|asked|interrupted)\b|\b(handle|do|figure out) (it|this|everything|all of it|the rest) (yourself|on your own|without me)\b|\bwithout checking (in )?with me\b|\bi('?m| am) (going )?(away|offline|out)\b[^\n]{0,40}\b(keep|carry on|continue)\b|\bdo not (ask|bother) me\b(?!\s+(for|about)\b)|\b(not|won'?t be) (available|around) to (answer|reply|respond)\b|(?<![\p{L}])(decide (todo )?t[uú]|t[uú] decides|no me preguntes|sin preguntarme|no estoy disponible|no me molestes|sigue hasta (que )?(termines|acabes)|no pares hasta)(?![\p{L}])/iu;
+export const AUTONOMY_WORDS =/\byou decide\b|\bi trust you\b|\bno need to (ask|check with) me\b|\bwithout stopping\b|\bwithout (my|any) (input|approval|questions?|ok)\b|\bdon'?t (ask|bother) me\b(?!\s+(for|about)\b)|\bno (more )?questions\b|\bkeep going (until|till) (it'?s |you'?re |everything is )?(done|finished|complete)\b|\bgo,? go,? go\b|\bdon'?t stop (until|till|for)\b|\bdecide (everything|for me|yourself)\b|\bdon'?t want to be (bothered|asked|interrupted)\b|\b(handle|do|figure out) (it|this|everything|all of it|the rest) (yourself|on your own|without me)\b|\bwithout checking (in )?with me\b|\bi('?m| am) (going )?(away|offline|out)\b[^\n]{0,40}\b(keep|carry on|continue)\b|\bdo not (ask|bother) me\b(?!\s+(for|about)\b)|\b(not|won'?t be) (available|around) to (answer|reply|respond)\b|(?<![\p{L}])(decide (todo )?t[uú]|t[uú] decides|no me preguntes|sin preguntarme|no estoy disponible|no me molestes|sigue hasta (que )?(termines|acabes)|no pares hasta)(?![\p{L}])/iu;
 // Library skills the fit checklist left for later or skipped, whose own triggers the request matches.
 export function fitDueByRequest(text, cfg = config()) {
   if (!exists(FIT_FILE)) return [];
@@ -5376,122 +5380,8 @@ export function briefFileNamesRules(prompt) {
   }
   return false;
 }
-// Every path in a delete command that lies in the originals folder d was created during this turn: missing from the
-// turn-start snapshot (taken at the turn's first prompt) and not tracked by git. No snapshot, or a glob: not new.
-export function deletesOnlyNewFiles(cmd, d) {
-  const snap = readJSON(stateFile(SNAPSHOT), null), turnAt = Date.parse(readJSON(stateFile('turn.json'), {}).at || '');
-  if (!snap?.files || !turnAt || Date.parse(snap.at) < turnAt - 5000) return false;
-  const paths = [...String(cmd).matchAll(new RegExp(`(["']?)((?:[^\\s"';|&]*[\\\\/])?${esc(d)}[\\\\/](?:[^"';|&\\n]+?))\\1(?=$|[\\s;|&])`, 'g'))].map(m => rel(m[2].replace(/\\/g, '/')));
-  if (!paths.length) return false;
-  for (const p of paths) {
-    if (/[*?]/.test(p) || p.startsWith('..') || !exists(p) || snap.files[p]) return false;
-    let s; try { s = fs.statSync(abs(p)); } catch { return false; }
-    if (s.isDirectory()) return false;
-    if (exists('.git') && spawnSync('git', ['ls-files', '--error-unmatch', p], { cwd: ROOT, encoding: 'utf8' }).status === 0) return false;
-  }
-  return true;
-}
-// A file in a protected folder that this session itself brought in (its name is in the session's own tool calls, it is
-// newer than the session, not in git) and that nothing cites yet (no note, catalog or source list names it) is not
-// evidence yet: the session may remove an off-topic download or fix a wrong file name.
-// Lesson: helpers could not remove off-topic downloads or rename maps saved under the wrong maker, minutes after
-// downloading them, because the download happened in an earlier turn.
-export function sessionOwnFiles(cmd, d, t) {
-  if (!t?.sessionTools) return false;
-  const paths = [...String(cmd).matchAll(new RegExp(`(["']?)((?:[^\\s"';|&]*[\\\\/])?${esc(d)}[\\\\/](?:[^"';|&\\n]+?))\\1(?=$|[\\s;|&])`, 'g'))].map(m => rel(m[2].replace(/\\/g, '/')));
-  const there = paths.filter(p => exists(p));
-  if (!there.length) return false;
-  const citing = [];
-  const walk = dir => { for (const n of list(dir)) { const p = `${dir}/${n}`; let s; try { s = walkStat(p); } catch { continue; } if (s.isDirectory()) walk(p); else if (/\.(md|json|ya?ml|csv|txt|html?)$/i.test(n)) citing.push(p); } };
-  walk('docs'); walk(d); if (exists('outputs')) walk('outputs');
-  for (const p of there) {
-    if (/[*?]/.test(p) || p.startsWith('..')) return false;
-    let s; try { s = fs.statSync(abs(p)); } catch { return false; }
-    if (s.isDirectory() || s.mtimeMs < (t.sessionStart || Infinity) - 5000) return false;
-    const base = p.split('/').pop();
-    if (!t.sessionTools.includes(base)) return false;
-    if (exists('.git') && spawnSync('git', ['ls-files', '--error-unmatch', p], { cwd: ROOT, encoding: 'utf8' }).status === 0) return false;
-    if (citing.some(c => c !== p && read(abs(c)).includes(base))) return false;
-  }
-  return true;
-}
-// A file this turn created is the turn's own draft, not yet a delivered output or an original: it is missing from the
-// turn-start snapshot (taken at the turn's first prompt, and the path is not one the snapshot skips) and git does not
-// track it, or the agent's own Write created it this turn ("File created successfully"). Lesson: the no-overwrite guard
-// denied the fix of an outline and of a letter the agent had written seconds earlier in the same turn; one stiff line
-// shipped, and the other agent deleted its draft with rm and wrote it again to get past the guard.
-export function madeThisTurn(p, t, cfg = config()) {
-  if (p.startsWith('..')) return false;
-  const tracked = () => exists('.git') && spawnSync('git', ['ls-files', '--error-unmatch', p], { cwd: ROOT, encoding: 'utf8' }).status === 0;
-  const snap = readJSON(stateFile(SNAPSHOT), null), turnAt = Date.parse(readJSON(stateFile('turn.json'), {}).at || '');
-  const ign = (cfg.ignoreForChanges || []).map(globRe), parts = p.split('/');
-  const skipped = parts.some((_, i) => { const q = parts.slice(0, i + 1).join('/'); return ign.some(r => r.test(q) || r.test(q + '/')); });
-  if (snap?.files && turnAt && Date.parse(snap.at) >= turnAt - 5000 && !skipped) return !snap.files[p] && !tracked();
-  const entries = t?.entries || [], ids = new Set();
-  // (a copy the turn made with a shell command counts too: cp, copy, Copy-Item naming the file. Lesson (trial v42): a
-  // "v2" draft made with cp could be neither edited nor removed, and the user was left with a duplicate)
-  // (only as the copy's target, its last argument: copying the file away makes nothing new)
-  const base = p.split('/').pop(), copied = cmd => cmd.split(/&&|\|\||[;|\n]/).some(seg => {
-    const m = /^\s*(?:cp|copy|Copy-Item|cpi)\s+(.+)$/i.exec(seg); if (!m) return false;
-    const args = [...m[1].matchAll(/"([^"]+)"|'([^']+)'|(\S+)/g)].map(a => a[1] ?? a[2] ?? a[3]).filter(a => !/^-/.test(a));
-    return args.length >= 2 && args.at(-1).replace(/\\/g, '/').split('/').pop() === base; });
-  for (const r of entries) { const c = r.message?.content; if (r.type === 'assistant' && Array.isArray(c)) for (const x of c) if (x?.type === 'tool_use' && ((x.name === 'Write' && rel(x.input?.file_path || '') === p) || (/^(Bash|PowerShell)$/.test(x.name) && copied(String(x.input?.command || ''))))) ids.add(x.id); }
-  if (!ids.size) return false;
-  const writes = new Set(); for (const r of entries) { const c = r.message?.content; if (r.type === 'assistant' && Array.isArray(c)) for (const x of c) if (x?.type === 'tool_use' && x.name === 'Write') writes.add(x.id); }
-  for (const r of entries) { const c = r.message?.content; if (r.type === 'user' && Array.isArray(c)) for (const x of c) if (x?.type === 'tool_result' && ids.has(x.tool_use_id) && !x.is_error && (!writes.has(x.tool_use_id) || /^File created successfully\b/.test(textOf(x.content).trim()))) return !tracked(); }
-  return false;
-}
-// The files a command deletes or moves away, as they exist now: the file arguments of rm, del, erase, unlink, rmdir,
-// git rm and Remove-Item (ri), and the sources of mv, move, git mv, Move-Item and Rename-Item (ren). Quotes are removed
-// and flags skipped; a wildcard or a folder stands for the files in it.
-// With globs, only files they match are listed, folders none of them can reach are not entered, and at most 20000
-// entries are visited, so "rm -rf node_modules" costs the hook nothing.
-export function removedPaths(cmd, globs = null) {
-  const segs = [[]], args = [];
-  for (const m of String(cmd).matchAll(/"((?:\\.|[^"\\])*)"|'([^']*)'|(&&|\|\||[;|&\n])|([^\s;|&"']+)/g))
-    if (m[3]) segs.push([]); else segs[segs.length - 1].push(m[1] ?? m[2] ?? m[4]);
-  const RM = /^(rm|del|erase|unlink|rmdir|rd|remove-item|ri)$/i, MV = /^(mv|move|move-item|mi|rename-item|ren)$/i;
-  for (let words of segs) {
-    while (words.length && /^(sudo|command|\w+=\S*)$/.test(words[0])) words = words.slice(1);
-    if (/^git$/i.test(words[0] || '') && /^(rm|mv)$/i.test(words[1] || '')) words = words.slice(1);
-    const verb = words[0] || '';
-    if (!RM.test(verb) && !MV.test(verb)) continue;
-    // (PowerShell's -Destination and -NewName name the target, not a file that goes away)
-    const a = [];
-    for (let i = 1; i < words.length; i++) { if (/^-(destination|newname)$/i.test(words[i])) { i++; continue; } if (!/^-/.test(words[i]) && !/^\/[a-z]$/i.test(words[i])) a.push(words[i]); }
-    args.push(...(MV.test(verb) ? a.slice(0, -1) : a));
-  }
-  const files = [], gl = globs ? [].concat(globs) : null;
-  const want = q => !gl || match(q, gl);
-  const statics = gl && gl.map(g => g.split(/[*?{[]/)[0]);
-  const reach = dir => !statics || statics.some(s => (s === '' && !/(^|\/)(node_modules|\.git|\.venv|venv|dist|build|target)$/.test(dir)) || s.startsWith(dir + '/') || `${dir}/`.startsWith(s.replace(/[^/]*$/, '')) && s.replace(/[^/]*$/, '') !== '');
-  let visited = 0;
-  // (a wildcard without ** only reaches as deep as its own folders)
-  const walk = (d, keep = () => true, depth = Infinity) => {
-    if (d && !reach(d)) return;
-    for (const n of list(d)) {
-      if (++visited > 20000) return;
-      const q = d ? `${d}/${n}` : n; let s; try { s = walkStat(q); } catch { continue; }
-      if (s.isDirectory()) { if ((d || n !== '.git') && q.split('/').length < depth) walk(q, keep, depth); } else if (keep(q) && want(q)) files.push(q);
-    }
-  };
-  for (const p of args.map(x => rel(x.replace(/\\/g, '/')))) {
-    if (p.startsWith('..')) continue;
-    if (/[*?]/.test(p)) { const r = globRe(p); walk(p.replace(/(^|\/)[^/]*[*?].*$/, ''), q => r.test(q), p.includes('**') ? Infinity : p.split('/').length); continue; }
-    let s; try { s = fs.statSync(abs(p)); } catch { continue; }
-    if (s.isDirectory()) walk(p); else if (want(p)) files.push(p);
-  }
-  return [...new Set(files)];
-}
-// Secrets files: .env and its variants (not .env.example), private keys. Reading one is fine when the user asked for
-// that file in this request ("check my .env").
-const SECRET_FILE = /(^|[\\/])(\.env(\.(?!example$|sample$|template$)[\w.-]+)?|[^\\/]+\.(pem|key|p12|pfx)|id_(rsa|ed25519|ecdsa))$/i;
-const SECRET_IN_CMD = /(^|[\s"'/\\])(\.env(?:\.(?!example\b|sample\b|template\b)[\w.-]+)?|[\w.-]+\.(?:pem|key|p12|pfx)|id_(?:rsa|ed25519|ecdsa))(?=$|[\s"';|&)])/i;
-const SECRET_ASKED =/\.env\b|\b(env|environment) (file|variables?)\b|\b(private )?key file\b|\bsecrets? file\b/i;
-const secretReadMsg = f => `REQ: no-secrets. Reading ${f} would put its secrets into this conversation. Check .env.example for the names, test that a value is set without printing it, or ask the user if they want this file read.`;
 // Outward actions (rule 6) in a command: mail, messaging or web APIs written to (not localhost), GitHub issues, PRs,
 // comments and reviews, and any git push. Returns the matched text, or null.
-const OUTWARD_MCP = /(^|_)(send|post|reply|publish|tweet|email|mail|message|comment|submit|invite|share|upload|delete|remove|create_(issue|pull|pr|comment|event|page|post|message|release))/i;
 export function outwardCommand(cmd) {
   // (text a heredoc writes into a file is not a command that runs. Lesson, trial round 12: a DECISIONS.md entry saying
   // "git push to GitHub, then a workflow deploys" was blocked as a push)
@@ -5513,425 +5403,6 @@ export function outwardCommand(cmd) {
   }
   return null;
 }
-const outwardWhat = m => /mail|smtp/i.test(m) ? 'it sends an email' : /\bgh\b/i.test(m) ? 'it changes GitHub for other people to see' : /\bpush\b/i.test(m) ? 'it pushes to a shared repository' : 'it sends data to an outside service';
-// Codex edits files with apply_patch (tool_input.command holds the patch): each file in it gets the same guards as a
-// Write, Edit or delete. Lesson: an apply_patch that overwrote an original and added an em dash passed every guard.
-export function patchFiles(patch) {
-  const out = [];
-  let cur = null;
-  for (const line of String(patch || '').split(/\r?\n/)) {
-    const m = /^\*\*\*\s+(Add|Update|Delete) File:\s*(.+?)\s*$/.exec(line), mv = /^\*\*\*\s+Move to:\s*(.+?)\s*$/.exec(line);
-    if (m) { cur = { op: m[1].toLowerCase(), file: m[2], added: [] }; out.push(cur); continue; }
-    if (mv && cur) { out.push({ op: 'add', file: mv[1], added: cur.added }); continue; }
-    if (cur && /^\+(?!\+\+)/.test(line)) cur.added.push(line.slice(1));
-  }
-  return out.map(f => ({ ...f, added: f.added.join('\n') }));
-}
-// One denial names every rule the tool call breaks: one rule gives its own message unchanged, two or more are numbered
-// in one message (at most PRETOOL_MAX, then a count of the rest). Every rule is weighed once in a single pass, so a
-// denial costs no more than an allowed call. Lesson: a call that broke two rules was denied for the first only, and
-// the retry was denied again for the second.
-const PRETOOL_MAX = 6;
-// REQ: quiet-work. During the work a tool call is refused only for safety: what can't be undone, what leaks, what breaks
-// a protection the user set, a headless run left hanging. Style, cost, bookkeeping and an unacknowledged complaint wait
-// for the one check at Stop, which covers them. Lesson (the user): the engine is a reminder before the work and a check
-// after it; refusals and notices during the work made answers worse and kept helpers from doing their job.
-export const IN_WORK_GUARDS = /^REQ: (approval-gate|browser-guard|commit-gate|engine-readonly|forbidden-command|forbidden-terms|git-safety|gitignore-ready|headless-no-wakeup|injection-guard|no-ai-attribution|no-overwrite|no-secrets|outward-gate|permission-respected|protect-originals|publish-gate|scope-separate|setup-[\w-]+|shell-hygiene|skill-mirror|subagent-brief|wakeup-left|whole-output|write-only-via)\b/;
-export function pretoolDecision(data, cfg = config()) {
-  const hits = pretoolHits(data, cfg).filter(h => IN_WORK_GUARDS.test(h));
-  if (hits.length < 2) return hits[0] || null;
-  const shown = hits.slice(0, PRETOOL_MAX), more = hits.length - shown.length;
-  return `This tool call breaks ${hits.length} rules. Fix all of them before trying again:\n` +
-    shown.map((h, i) => `${i + 1}. ${h}`).join('\n') + (more ? `\n(${more} more not shown.)` : '');
-}
-// The parts of a command that run inside the project: a "cd" (chdir, Set-Location, pushd) to a folder outside it moves
-// the parts after it out, unless they name the project by its absolute path. A command starts in the project (a
-// cwd the host reports is not trusted to switch a guard off). Lesson: "cd <a scratch copy>; rm -rf items/x" was denied as a delete of the
-// project's own items.
-export function inProjectParts(cmd, cwd = ROOT) {
-  const unix = s => process.platform === 'win32' ? s.replace(/^\/([a-z])(?=\/|$)/i, '$1:') : s;
-  const norm = s => s.replace(/\\/g, '/').toLowerCase();
-  const roots = [norm(ROOT), norm(ROOT).replace(/^([a-z]):/, (_, d) => `/${d}`)];
-  let at = path.resolve(unix(String(cwd || ROOT))); const keep = [];
-  for (const seg of String(cmd).split(/\s*(?:&&|\|\||;|\r?\n)\s*/)) {
-    const m = /^(?:cd|chdir|Set-Location|sl|pushd)(?:\s+\/d)?\s+(?:-(?:Path|LiteralPath)\s+)?(["']?)([^"';&|]+?)\1\s*$/i.exec(seg.trim());
-    if (m) { at = path.resolve(at, unix(m[2].trim().replace(/^~(?=[\\/]|$)/, os.homedir()))); continue; }
-    const r = path.relative(ROOT, at);
-    if ((!r.startsWith('..') && !path.isAbsolute(r)) || roots.some(x => norm(seg).includes(x))) keep.push(seg);
-  }
-  return keep.join('; ');
-}
-// Every rule the call breaks, in the order the checks run (each message once).
-export function pretoolHits(data, cfg) {
-  const out = [], add = m => { if (m && !out.includes(m)) out.push(m); };
-  if (data.tool_name === 'apply_patch' || (/^(Bash|shell)$/.test(data.tool_name || '') && /^\s*apply_patch\b/.test(data.tool_input?.command || ''))) {
-    for (const f of patchFiles(data.tool_input?.command || data.tool_input?.patch || data.tool_input?.input || '')) {
-      const sub = f.op === 'delete' ? { tool_name: 'Bash', tool_input: { command: `rm "${f.file}"` } }
-        : { tool_name: f.op === 'add' ? 'Write' : 'Edit', tool_input: f.op === 'add' ? { file_path: f.file, content: f.added } : { file_path: f.file, old_string: '', new_string: f.added } };
-      pretoolHits({ ...data, ...sub }, cfg).forEach(add);
-    }
-    return out;
-  }
-  const name = data.tool_name || '', inp = data.tool_input || {};
-  add(upsetUnacknowledged(name, inp, data.transcript_path || ''));
-  // REQ: outward-gate (MCP tools). A connected service's tool that sends, posts, creates or deletes acts outside the
-  // project: it needs the user's OK in this request, like the commands below.
-  if (/^mcp__/.test(name) && OUTWARD_MCP.test(name.replace(/^mcp__[^_]+(?:_[^_]+)*?__/, '')) && !isSuspended('check:outward-gate')) {
-    const prompt = (turn(data.transcript_path || '') || {}).prompt || '';
-    if (!re(config().outwardOk).test(prompt)) add(`REQ: outward-gate. ${name} acts outside the project (it sends, posts, creates or deletes something). Rule 6: that needs the user's OK in this request. Draft it and ask first.`);
-  }
-  let _t;
-  const t = () => (_t ??= turn(data.transcript_path || '') || { prompt: '', entries: [] });
-  const req = () => t().prompt || '';
-  // REQ: wakeup-left (before the call). Its prompt is noted, so the prompt hook knows it when it fires (REQ:
-  // self-sent-prompt). In a headless run (claude -p, the SDK) a wakeup while a background job of the session still runs
-  // is refused: the job's notice re-invokes the session by itself, and a fallback wakeup left pending after the answer
-  // keeps the run from ending until its time limit kills it, with no answer for the caller. Not when the request asks
-  // for a reminder, a loop or a schedule. Lesson: a headless setup scheduled two "fallback" wakeups while its audit ran
-  // in the background, and the second one outlived the answer, so the run was killed at 60 minutes with nothing returned.
-  if (isWakeTool(name, inp)) {
-    if (typeof inp.prompt === 'string' && inp.prompt.trim()) {
-      const w = readJSON(stateFile(WAKE_STATE), {});
-      writeState(WAKE_STATE, { prompts: [...new Set([...(w.prompts || []), inp.prompt.trim().slice(0, 2000)])].slice(-20) });
-    }
-    const tt = t();
-    if ((tt.entries || []).some(r => /^sdk/.test(String(r.entrypoint || ''))) && (tt.bgRunning || []).length && !WAKE_ASK.test(req()) && !isSuspended('check:wakeup-left'))
-      add(`REQ: wakeup-left. This run is headless (claude -p or the SDK), and a background job of this session still runs: its notice wakes you by itself when it ends, so no fallback wakeup is needed. A wakeup still pending after your answer keeps the run from ending until its time limit stops it, and the caller then gets no answer. End this turn with a short status instead; you are re-invoked when the job ends.`);
-  }
-  const ppl = people(cfg);
-  // REQ: scope-separate. A request about one person never touches another person's folder (reads included: privacy).
-  // A waiver logged this turn ("hooks.mjs waive scope-separate <why>") counts here as it does at Stop: it covers the
-  // people its reason names, or, when it names nobody, a call that touches one person. Lesson: an agent confirmed with a
-  // waiver that "the letter" was one tenant's, and the save into that tenant's folder was still denied twice.
-  const waivedFor = () => {
-    const cmds = [...toolUses(t().entries || []).map(u => typeof u.input?.command === 'string' ? u.input.command : ''), ...loggedRuns(t().since).map(r => r.cmd)];
-    const why = cmds.flatMap(c => [...String(c).matchAll(/hooks\.mjs["']?\s+waive\s+scope-separate\s+(?:"([^"\n]+)"|'([^'\n]+)'|([^"'\n&;|]+))/gi)]).map(m => m[1] || m[2] || m[3] || '');
-    return why.length ? { any: why.some(w => !peopleIn(w, ppl).length), people: why.flatMap(w => peopleIn(w, ppl)) } : null;
-  };
-  const scopeCheck = (persons, writing) => {
-    // setup creates everyone's folder at once; there is no one else's data yet
-    if (!ppl.length || !persons.length || settingUp()) return null;
-    let named = peopleFor(req(), t().allPrompts, ppl);
-    const w = persons.some(x => !named.includes(x)) && waivedFor();
-    if (w) named = [...new Set([...named, ...w.people, ...(w.any && persons.length === 1 ? persons : [])])];
-    if (persons.length > 1 && !persons.every(x => named.includes(x)))
-      return `REQ: scope-separate. This touches several people's folders (${persons.join(', ')}) at once. Work on one person per tool run, and only the people this request is about.`;
-    const other = persons.find(x => named.length ? !named.includes(x) : writing && !re(cfg.ruleRequest).test(req()));
-    // the denial says how to go on without asking the user: work in the right folder, or confirm with a waiver
-    if (other) return `REQ: scope-separate. ${cfg.scopesRoot}/${other}/ belongs to ${other}, and this request is ${named.length ? `about ${named.join(', ')}` : 'not about them'}. Don't ${writing ? 'change' : 'read'} another person's data. ` +
-      `If the request is about ${other} after all (a follow-up to earlier work on them), confirm it and retry: node tools/hooks/hooks.mjs waive scope-separate "<why this is ${other}'s>". Otherwise ${named.length ? `work only in ${named.map(n => `${cfg.scopesRoot}/${n}/`).join(', ')}` : 'leave that folder alone'}.`;
-    return null;
-  };
-  // REQ: subagent-brief. A sub-agent only follows the rules it is shown: every brief points it at AGENTS.md.
-  if (/^(Agent|Task)$/.test(name) && cfg.subagentBrief && typeof inp.prompt === 'string' && inp.subagent_type !== 'fork' && !/AGENTS\.md|CLAUDE\.md/.test(inp.prompt) && !briefFileNamesRules(inp.prompt))
-    add('REQ: subagent-brief. Sub-agents follow only what their brief says. Add to the prompt: "Read AGENTS.md first and follow its rules (plain writing, no invented facts, no AI attribution, the runbook for this task: docs/playbooks/<name>.md)." A prompt that names a brief file saying it works too. Then re-check its output yourself before reporting it.');
-  // A headless run (claude -p, the SDK) ends with its answer: nothing wakes it later, and a helper's result reaches it
-  // by itself, inside this turn. Lesson (a field report): headless builds tried ScheduleWakeup to wait for a helper,
-  // were refused by the host and spent a step finding out why.
-  if (/^(ScheduleWakeup|CronCreate)$/.test(name) && /^sdk/.test(process.env.CLAUDE_CODE_ENTRYPOINT || ''))
-    add('REQ: headless-no-wakeup. This is a headless run: it ends with its answer, so nothing would wake it. A helper or background job you started reports back by itself in this turn when it ends: do other work meanwhile, or wait for it, then answer.');
-  if (name === 'Read' && inp.file_path) {
-    const who = personOf(rel(inp.file_path), cfg);
-    if (who) { const named = peopleFor(req(), t().allPrompts, ppl); if (named.length && !named.includes(who)) add(scopeCheck([who], false)); }
-    // REQ: no-secrets (reading). A secrets file read into the conversation leaves the machine with it.
-    if (SECRET_FILE.test(rel(inp.file_path)) && !SECRET_ASKED.test(req())) add(secretReadMsg(rel(inp.file_path)));
-    return out;
-  }
-  if (/^(Write|Edit|MultiEdit|NotebookEdit)$/.test(name)) {
-    const target = inp.file_path || inp.notebook_path || '';
-    if (!target) return out;
-    const p = rel(target);
-    if (p.startsWith('..')) return out;
-    // (a file this turn created is the turn's own draft: fixing it overwrites no delivered output and no original)
-    const there = exists(p) && !((match(p, cfg.noOverwrite) || match(p, cfg.newVersionOnly || []) || match(p, cfg.protectedOriginals)) && madeThisTurn(p, t(), cfg));
-    const who = personOf(p, cfg);
-    if (who) add(scopeCheck([who], true));
-    const incoming = [inp.content, inp.new_string, ...(inp.edits || []).map(e => e.new_string)].filter(s => typeof s === 'string').join('\n');
-    // REQ: no-secrets (writing). A key typed into a tracked file is one commit from leaking. Ignored secret stores are fine.
-    // Lesson: a live-looking key written into src/ was only caught at commit time.
-    const key = !SECRET_FILE.test(p) && secretHit(incoming, cfg);
-    if (key && spawnSync('git', ['check-ignore', '-q', p], { cwd: ROOT }).status !== 0)
-      add(`REQ: no-secrets. This writes something that looks like a secret (pattern ${key}) into ${p}. Keep secrets in .env (ignored by git) and read them from the environment; a test uses an obviously fake value.`);
-    // REQ: forbidden-terms. Only what this write adds counts: editing a line that already had the name is no new slip.
-    const fx = !FORBID_EXEMPT.test(p) && forbiddenRe(cfg);
-    if (fx) {
-      const outgoing = name === 'Write' ? (exists(p) ? read(abs(p)) : '') : [inp.old_string, ...(inp.edits || []).map(e => e.old_string)].filter(s => typeof s === 'string').join('\n');
-      const m = countRe(fx, incoming) > countRe(fx, outgoing) && new RegExp(fx.source, 'iu').exec(incoming);
-      if (m && spawnSync('git', ['check-ignore', '-q', p], { cwd: ROOT }).status !== 0)
-        add(`REQ: forbidden-terms. This writes "${m[1]}" into ${p}, a name the user asked to keep out of the project. Use a neutral word or example instead.`);
-    }
-    // REQ: browser-guard. Automating the INSTALLED Chrome/Edge can trigger failed OS sign-ins that lock the user's account.
-    if (!/\.md$/i.test(p) && !p.startsWith('tools/hooks/') && BROWSER_CODE.test(incoming))
-      add(`REQ: browser-guard. ${p} would drive the installed Chrome/Edge (executablePath / channel / CHROME_BIN / chrome.exe). Use Playwright's bundled Chromium (no executablePath, no channel) and --mute-audio, like tools/screenshot.mjs.`);
-    // (plain-writing, no-repeat and no-polling are not computed here: no engine refuses them during the work (REQ:
-    // quiet-work), and the end check covers what is still missing)
-    // REQ: write-only-via. Some files may only be written by the tool that validates them.
-    const via = cfg.writeOnlyVia.find(v => match(p, [v.glob]));
-    if (via) add(`REQ: write-only-via. ${p} may only be created or changed with ${via.tool} (it validates the content). Run that tool instead of editing the file directly.`);
-    // REQ: engine-readonly. With the engine in .anzuelo/engine, its files are the starter's: a change there blocks the
-    // next upgrade (git pull) and is lost to it. A project's change goes in a local copy, which wins and is merged on
-    // upgrade. Plan: engine outside the project, Task 5.
-    const rawFile = String(inp.file_path || inp.notebook_path || '');
-    if (split && rawFile && !path.relative(ENGINE, path.resolve(ROOT, rawFile)).startsWith('..'))
-      add(`REQ: engine-readonly. ${rawFile} is in the engine (.anzuelo/engine), which upgrades replace. ${kind(p) === 'both' ? `Make this project's copy first: node .anzuelo/engine/tools/starter.mjs override ${p}, then edit .anzuelo/local/${p}.` : 'Engine code changes belong in the starter; note it in docs/starter-feedback.md.'}`);
-    // REQ: skill-mirror. Mirrors are generated copies; edits there would be overwritten.
-    if (cfg.skillMirrors.some(m => p.startsWith(m + '/')))
-      add(`REQ: skill-mirror. ${p} is a generated copy. Edit ${p.replace(new RegExp(`^(${cfg.skillMirrors.map(esc).join('|')})/`), cfg.skillsDir + '/')} instead; the hooks copy it here.`);
-    // REQ: protect-originals. Originals are evidence: never changed, only added.
-    if (there && match(p, cfg.protectedOriginals) && !/(^|\/)README\.md$/i.test(p))
-      add(`REQ: protect-originals. ${p} is an original (protected: ${cfg.protectedOriginals.join(', ')}). Originals are never edited or overwritten. Put derived or corrected content in docs/ or outputs/ and link the original.`);
-    // REQ: no-overwrite. Delivered outputs keep their history: a new version is a new file.
-    if (there && match(p, cfg.newVersionOnly || []))
-      add(`REQ: no-overwrite. ${p} is kept as written: in this project every version is a new file (newVersionOnly). Write the change as a new file (e.g. "<name> v2${path.extname(p)}") and leave this one as it is.`);
-    else if (there && match(p, cfg.noOverwrite) && !re(cfg.overwriteWords).test(req()) && !asksToChange(p, req()))
-      add(`REQ: no-overwrite. ${p} is a delivered output, and the request does not name it as the file to change. If the user asked for a new version, write it as a new file (e.g. "<name> v2.md"). ` +
-        'If they did ask to change this file, in words the hook did not catch, make no copy: ask them in one line to confirm the change to this file.');
-  }
-  if (/^(Bash|PowerShell)$/.test(name) && typeof inp.command === 'string') {
-    const cmd = inp.command;
-    // REQ: permission-respected. A program the user's permission settings held this turn is not run another way (from a
-    // node, python or shell one-liner): that is the same command without the approval. Lesson (trial round 9): "go test"
-    // was held for approval, and the next call ran go test, build and vet through node's spawnSync.
-    const held = heldSidestep(cmd, () => runsOf(t().entries || []));
-    // (whether the program is there at all, so the answer gives the true reason. Lesson, trial round 12: the agent could
-    // not check, told the user Go only needed approval, and Go was not installed)
-    const there = held && onPath(held);
-    // (a hook setting written by the agent through the user's one-line command: the agent edits config.json itself, and
-    // when the host refuses that edit, the line goes to the user. Engine runbook, step "Settings")
-    // (a read followed by another command is no value: "setting autonomy; grep x" was refused as a write)
-    const set = cmd.match(/hooks\.mjs["']?\s+setting\s+([\w-]+)[ \t]+([^\s;&|].*)/);
-    if (set) add(`REQ: permission-respected. \`hooks.mjs setting\` with a value is the user's command. Edit tools/hooks/config.json yourself; if the host refused that edit, don't write it another way: end the answer with the line for the user to paste, \`! node tools/hooks/hooks.mjs setting ${set[1]} ${set[2].replace(/\s*(&&|;|\|).*$/, '').trim()}\` (docs/playbooks/engine.md).`);
-    if (held) add(`REQ: permission-respected. \`${held}\` was held for the user's approval earlier in this turn; running it through another program is the same command without that approval. ${there === false ? `It is also not installed here: \`${held}\` is not on PATH. Say so in the answer ("NOT VERIFIED: <what> - ${held} is not installed on this machine"), not that it only needs approval.` : `Leave it: say in the answer what was not verified ("NOT VERIFIED: <what> - ${held} was held for approval"), or ask the user to approve it.`}`);
-    // REQ: browser-guard (commands)
-    if (/(?<!chrome-win(64)?[\\/])(chrome|msedge)\.exe|\bstart\s+(chrome|msedge)\b|Start-Process\s+["']?(chrome|msedge)\b|google-chrome(-stable)?\b|CHROME_BIN=/i.test(cmd))
-      add('REQ: browser-guard. Don\'t launch or automate the installed Chrome/Edge (it can lock the user\'s OS account). Use node tools/screenshot.mjs or Playwright\'s bundled Chromium.');
-    // REQ: shell-hygiene. In Git Bash "> nul" creates a real file named nul that Windows can barely delete.
-    if (name === 'Bash' && /[12&]?>>?\s*nul\b/i.test(cmd))
-      add('REQ: shell-hygiene. In Bash, "> nul" creates a file literally named "nul". Use > /dev/null instead.');
-    // REQ: forbidden-command. Project-defined commands that must never run (e.g. killing the user's own app or port).
-    for (const f of cfg.forbiddenCommands) { try { if (re(f.pattern).test(cmd)) add(`REQ: forbidden-command. ${f.reason || 'This command is forbidden in this project.'} (pattern: ${f.pattern})`); } catch { } }
-    // REQ: git-safety. History rewrites and force operations need a fresh backup bundle and the user's explicit words.
-    const destructive = /\bgit\b[^;&|]*\b(filter-repo|filter-branch|reset\s+--hard|clean\s+-[a-z]*f|branch\s+-D|push\b[^;&|]*(--force|-f\b|\+\w)|rebase\b[^;&|]*-i|reflog\s+expire|gc\s+--prune)/i.exec(cmd);
-    if (destructive) {
-      const fresh = list(cfg.backupDir).some(n => /\.bundle$/.test(n) && Date.now() - fs.statSync(abs(`${cfg.backupDir}/${n}`)).mtimeMs < 3600_000);
-      const asked = re(`\\b(force|reset|rewrite|delete|drop|clean|filter|squash|rebase)\\b`).test(req());
-      if (!asked) add(`REQ: git-safety. "${destructive[0].trim()}" can destroy work and the user didn't ask for it in this request. Ask first.`);
-      else if (!fresh) add(`REQ: git-safety. Before "${destructive[0].trim()}", back up every ref: mkdir -p ${cfg.backupDir} && git bundle create ${cfg.backupDir}/backup-$(date +%Y%m%d-%H%M%S).bundle --all`);
-    }
-    // The git hooks are the last check for every agent: skipping or re-pointing them needs the user's own words.
-    // Lesson: a commit the pre-commit hook refused was retried with --no-verify.
-    // (reading the setting, "git config core.hooksPath && ...", sets nothing. Lesson, trial round 9: the operator after it
-    // was read as a new value, and two setups that had just turned the hooks on were denied)
-    const skipHooks = /\bgit\b[^;&|]*\b(commit|push|merge)\b[^;&|]*\s--no-verify\b|\bgit\b[^;&|]*\bcommit\b[^;&|]*\s-[a-zA-Z]*n[a-zA-Z]*\b|\bgit\s+-c\s+core\.hooksPath=|\bgit\s+config\b[^;&|]*\bcore\.hooksPath[ \t]+(?!["']?\.githooks\b)[^\s;&|]|\bHUSKY=0\b/i.exec(cmd);
-    if (skipHooks && !/\b(no-?verify|skip (the )?(git )?hooks|bypass (the )?hooks|without (the )?hooks|hooks ?path|husky)\b/i.test(req()))
-      add(`REQ: git-safety. "${skipHooks[0].trim().slice(0, 80)}" skips or re-points the git hooks (AI attribution, secrets and .gitignore checks). Fix what the hook reported instead; do this only when the user asks for it in their own words.`);
-    const pushTo = gitPush(cmd) && /\bgit(?:\s+-[cC]\s+\S+|\s+--?[\w-]+(?:=\S+)?)*\s+push\b([^;&|]*)/i.exec(cmd);
-    if (pushTo) {
-      const branchArg = cfg.protectedBranches.find(b => re(`(^|[\\s:/])${esc(b)}(\\s|$)`).test(pushTo[1]));
-      const current = !branchArg && /\bpush\b\s*($|origin\s*$|-u\s+origin\s*$)/i.test(pushTo[0]) ? (spawnSync('git', ['branch', '--show-current'], { cwd: ROOT, encoding: 'utf8' }).stdout || '').trim() : '';
-      const target = branchArg || (cfg.protectedBranches.includes(current) ? current : '');
-      // (the user's OK holds for the session; "pushOk": "request" makes it count only in the same message)
-      if (target && !re(`\\b${esc(target)}\\b`).test(req()) && !(cfg.pushOk !== 'request' && askedPushEarlier(data.transcript_path, target)))
-        add(`REQ: git-safety. This pushes to the protected branch "${target}", and the user didn't name it in this request. Push to the work branch, or ask first.`);
-    }
-    // REQ: gitignore-ready. A push waits until .gitignore keeps everything private out and everything needed in.
-    if (gitPush(cmd)) {
-      const gi = gitignoreProblems(cfg);
-      if (gi.length) add(`REQ: gitignore-ready. Fix .gitignore before pushing:\n- ${gi.join('\n- ')}`);
-    }
-    // REQ: publish-gate. Publishing or deploying waits for a security review this turn (or one logged today in
-    // docs/security.md): hard rule 15 says before, and a Stop check could only say it after the fact.
-    // Lesson: a package went public before anyone looked at what it contained.
-    const pub = /\b(npm|pnpm|yarn)\s+publish\b|\bgh\s+release\s+create\b|\bgh\s+repo\s+(create\b[^\n;&|]*--public|edit\b[^\n;&|]*--visibility[= ]public)|\b(vercel|netlify)\b[^\n;&|]*--prod\b|\bfirebase\s+deploy\b|\bdocker\s+push\b|\btwine\s+upload\b|\bcargo\s+publish\b|\b(dart|flutter)\s+pub\s+publish\b|\b(poetry|uv)\s+publish\b|\bgem\s+push\b|\bfastlane\s+\w*(deliver|release|upload|beta)\b|\bhf\s+upload\b|\bhuggingface-cli\s+upload\b|\bvsce\s+publish\b|\bflyctl?\s+deploy\b|\bwrangler\s+(deploy|publish)\b/i.exec(runText(cmd));
-    // (a heredoc that only writes "npm publish" into a file runs nothing, nor does a quoted argument such as a waive
-    // reason; "bash -c '...'" still runs what it quotes. Lessons: trial round 12, a release notes draft written with
-    // cat <<EOF was refused until a security review; field report, a waive reason naming the command was refused)
-    // a dry run publishes nothing: it is how the package-release skill previews the contents (Lesson: "cargo publish
-    // --dry-run" was refused until a security review, so the preview that the review needs could not run)
-    if (pub && !/(^|\s)--dry-run\b/.test(cmd) && !isSuspended('check:publish-gate')) {
-      const reviewed = toolUses(t().entries || []).some(u => (u.name === 'Skill' && /(^|:)security-review$/.test(String(u.input.skill || ''))) || (u.name === 'Read' && /skills[\\/]security-review[\\/]SKILL\.md$/i.test(String(u.input.file_path || ''))));
-      const loggedToday = new RegExp(`^\\|\\s*${esc(today())}\\s*\\|`, 'm').test(read(abs('docs/security.md')));
-      if (!reviewed && !loggedToday) add(`REQ: publish-gate. "${pub[0].trim()}" publishes or deploys. Run the security-review skill first (skills/security-review/SKILL.md) and log it in docs/security.md, then publish (hard rule 15). The user's OK to publish is needed too (rule 6).`);
-    }
-    // REQ: no-secrets (reading and force-adding). Printing a secrets file puts it in the conversation; "git add -f" puts
-    // an ignored one in the history. Lesson: "cat .env" and "git add -f .env" both ran without a word.
-    const readsSecret = new RegExp(`(^|[\\s;&|(])(cat|type|Get-Content|gc|less|more|head|tail|bat|nl|strings|xxd|od|findstr|sed\\s+-n|awk)\\b[^;&|\\n]*${SECRET_IN_CMD.source}`, 'i');
-    if ((readsSecret.test(cmd) || /open\(\s*\\?["'][^"']*\.env\\?["']/.test(cmd)) && !SECRET_ASKED.test(req())) add(secretReadMsg((SECRET_IN_CMD.exec(cmd) || [, , 'that file'])[2]));
-    if (/\bgit\s+add\b[^;&|\n]*(\s-f\b|--force)/i.test(cmd) && SECRET_IN_CMD.test(cmd))
-      add('REQ: no-secrets. "git add -f" on a secrets file puts it into the history even though .gitignore keeps it out. Commit .env.example with empty values instead.');
-    // REQ: no-secrets. Nothing that looks like a key or private key gets committed.
-    if (/\bgit\b[^;&|]*\b(commit|push)\b/i.test(cmd)) {
-      const staged = spawnSync('git', ['diff', '--cached', '-U0'], { cwd: ROOT, encoding: 'utf8' }).stdout || '';
-      const added = staged.split('\n').filter(l => l.startsWith('+') && !l.startsWith('+++')).join('\n');
-      const hit = secretHit(added, cfg) || secretHit(cmd, cfg);
-      if (hit) add(`REQ: no-secrets. The staged changes contain something that looks like a secret (pattern ${hit}). Unstage it, move it to an ignored file (.env), and make sure .gitignore covers it.`);
-      const names = /\bcommit\b/i.test(cmd) ? (spawnSync('git', ['diff', '--cached', '--name-only'], { cwd: ROOT, encoding: 'utf8' }).stdout || '').split(/\r?\n/).filter(Boolean) : [];
-      // REQ: approval-gate. Taste-driven work is committed only after the user has seen it and said yes.
-      const needOk = names.filter(n => match(n, cfg.approvalPaths));
-      if (needOk.length && !/\b(approve[sd]?|looks good|lgtm|ship it|commit (it|this|them)|go ahead|that's good|perfect)\b/i.test(req()))
-        add(`REQ: approval-gate. ${needOk.slice(0, 5).join(', ')} need the user's OK before commit. Show Before / Now and ask.`);
-      // REQ: commit-gate. Project gates (tests, build) must have PASSED this turn before a commit of the files they cover.
-      if (/\bcommit\b/i.test(cmd) && cfg.commitGate.length) {
-        const runs = runsOf(t().entries);
-        for (const g of cfg.commitGate) {
-          if (g.when && !names.some(n => match(n, g.when))) continue;
-          const last = runs.filter(r => re(g.cmd).test(cmdHead(r.cmd))).pop();
-          const res = last && gateResult(last, { pass: g.pass ?? '' });
-          if (t().toolsKnown && (!last || !res.ok)) {
-            // the gate shown as a command to run, not as its pattern, and its own && chain is the allowed form
-            // (Lesson: "run it as its own command, not chained with &&" was shown for a gate that is itself an && chain)
-            add(`REQ: commit-gate. Before committing, run this gate and get a PASS this turn: ${String(g.cmd).replace(/^\^|\$$/g, '').replace(/\\(.)/g, '$1')}` +
-              ` (exactly as written, its own && included; nothing else before or after it with ; or |)${last ? `. The last run did not pass: ${res.why}` : ''}.`);
-            break;
-          }
-        }
-      }
-    }
-    // REQ: no-ai-attribution. Commits, pushes, PRs, issues and releases are solely the user's: no AI co-author, trailer,
-    // "generated with" line, AI author identity or robot emoji, from any agent.
-    if (/\bgit\b[^;&|]*\bcommit\b|\bgh\s+(pr|issue|release)\s+(create|edit|comment|merge)\b|\bgit\b[^;&|]*\b(tag\s+-[am]|notes)\b/i.test(cmd) && re(cfg.aiAttribution).test(cmd))
-      add('REQ: no-ai-attribution. This text credits an AI agent (co-author trailer, "generated with", AI email or robot emoji). Remove it: commits, PRs and releases are solely the user\'s.');
-    if (/\bgit\b[^;&|]*\bcommit\b[^;&|]*--author[= ]["']?[^"']*/i.test(cmd) && re(cfg.aiAuthor).test(/--author[= ]["']?([^"']*)/i.exec(cmd)?.[1] || ''))
-      add('REQ: no-ai-attribution. Don\'t set an AI as the commit author. Commits are authored by the user\'s own git identity.');
-    if (gitPush(cmd)) {
-      const bad = aiAttributedCommits(cfg);
-      if (bad.length) add(`REQ: no-ai-attribution. Unpushed commits credit an AI agent: ${bad.slice(0, 5).join(', ')}. Reword them (message and author) before pushing. Ask the user first if rewriting history affects anyone else.`);
-    }
-    // REQ: outward-gate (commands). Rule 6: sending, posting, pushing and opening issues or PRs act outside the project,
-    // so they need the user's OK in this request. Lesson: a mail send, an API POST and "gh issue create" all ran unasked.
-    // (after the attribution check, so a PR that credits an AI is told that first: an OK would not make it right)
-    const outward = outwardCommand(cmd);
-    // (a git push the user OK'd earlier in the session counts here too, as in git-safety: "pushOk" "session")
-    const pushOkEarlier = () => /\bgit\b[^;&|]*\bpush\b/i.test(outward) && cfg.pushOk !== 'request'
-      && askedPushEarlier(data.transcript_path, (/(?::|\s)([\w./-]+)\s*$/.exec(outward.replace(/\s+\d?>.*$/, '').trim()) || [])[1]?.replace(/^.*:/, '') || 'main');
-    if (outward && !isSuspended('check:outward-gate') && !re(cfg.outwardOk).test(req()) && !pushOkEarlier())
-      add(`REQ: outward-gate. "${outward.trim().slice(0, 80)}" acts outside the project (${outwardWhat(outward)}). Rule 6: that needs the user's OK in this request. Draft it instead and ask, or run it once they say so.`);
-    // REQ: setup-interview. During setup nothing is installed before the user has answered, and the starter's
-    // leftovers go only once everything that fits is in (REQ: setup-complete).
-    if (exists('SETUP-PROMPT.md') && !exists('.starter-template')) {
-      // only a real run counts: node <path>/<tool>.mjs <step>, outside heredoc text and quoted strings
-      // Lesson: a heredoc that only wrote "starter.mjs link" into a doc was blocked.
-      const ran = cmd.replace(/<<-?\s*(['"]?)(\w+)\1[\s\S]*?\n\2\b/g, '').replace(/echo\s+(["'])[\s\S]*?\1/g, '');
-      const step = /\bnode\s+(?:"[^"\n]*?|'[^'\n]*?|[^\s"']*?)(packs\.mjs["']?\s+install|skills\.mjs["']?\s+enable|starter\.mjs["']?\s+(link|keep|remove))\b/.exec(ran);
-      if (step) {
-        // (answers this same command writes count: it records the interview, then installs. Lesson, trial rounds 10 and 11:
-        // the command that wrote the "## Setup interview" answers and installed the pack was denied for those answers)
-        const writes = /setup interview/i.test(cmd) ? new Set([...cmd.matchAll(/^\s*-\s*\*{0,2}([^:*\n]+?)\*{0,2}:\s*\S/gm)].map(m => m[1].trim().toLowerCase())) : new Set();
-        const LIST = /^docs\/DECISIONS\.md "## Setup interview": (?:record the user's answer for|decide and record) (.+?)(?: yourself)?\s*\("/;
-        const covered = p => { const m = LIST.exec(p); return !!m && m[1].split(/,\s*/).every(k => writes.has(k.trim().toLowerCase())); };
-        const probs = setupCompleteness(cfg, { final: /starter\.mjs/.test(step[1]), beforeStarter: true, decide: AUTONOMY_WORDS.test(req()) }).filter(p => !covered(p));
-        if (probs.length) add(`REQ: setup-${/starter\.mjs/.test(step[1]) ? 'complete' : 'interview'}. Not yet:\n- ${probs.join('\n- ')}`);
-      }
-    }
-    // REQ: setup-gate. SETUP-PROMPT.md is deleted only when the project is really set up and verified.
-    if (/(^|[\s;&|(])(rm|del|erase|Remove-Item|ri|unlink|mv|move|Move-Item|Rename-Item|ren|git\s+rm)\b[^;&|]*SETUP-PROMPT\.md/i.test(cmd)) {
-      if (exists('.starter-template')) add(`REQ: setup-gate. This is the ${names().STARTER_NAME || 'project'} starter itself: SETUP-PROMPT.md stays here (new projects get a copy).`);
-      else {
-        const probs = setupProblems(cfg);
-        // (an audit whose output went into a file is read from that file. Lesson, trial round 13: in three setups a
-        // passing audit sent to a file was run again, 1.5 to 3 minutes each, before the gate let the file go)
-        // (a helper agent's audit counts too, REQ helper-work-counts. Lesson, efficiency trials: a setup run in a helper
-        // passed its audit, the gate read only the main session, and the audit ran four times, about 6 minutes)
-        const audited = runsOf(inTimeOrder(t().entries, t().helperEntries)).some(r => /audit\.mjs/.test(r.cmd) && /--(full|setup)/.test(r.cmd) && /audit: PASS/.test((redirectedRun(r, /audit\.mjs/, t().since || 0) || r).out));
-        if (!audited) probs.push('run node tools/audit.mjs --setup in this turn and get "audit: PASS"');
-        if (probs.length) add('REQ: setup-gate. Setup is not finished, so SETUP-PROMPT.md stays:\n- ' + probs.join('\n- '));
-      }
-    }
-    // REQ: scope-separate (commands)
-    // (a waiver's reason may name the folder it is about: the waive command reads and writes no one's data)
-    const who = /^\s*node\s+["']?(\.\/)?tools[\\/]hooks[\\/]hooks\.mjs["']?\s+waive\s/.test(cmd) && !/[;&|<>`]|\$\(/.test(cmd.replace(/"[^"\n]*"|'[^'\n]*'/g, '')) ? [] : pathsPeople(cmd, cfg).filter(n => ppl.some(x => x.name === n));
-    if (who.length) { const writing = /(^|[\s;&|(])(rm|del|mv|move|cp|copy|Remove-Item|Move-Item|Copy-Item|Set-Content|Out-File|Add-Content|tee|sed\s+-i)\b|>/.test(cmd); add(scopeCheck(who, writing)); }
-    // REQ: whole-output. Lesson: piping a lookup tool into head/grep hid the part that mattered.
-    for (const tool of cfg.wholeOutputTools) {
-      const stripped = cmd.replace(/\s2>&1|\s2>\s*\/dev\/null|\s2>\$null/g, '');
-      // only when the tool itself runs (first word, or after an interpreter): a diff of the tool's file, or a message
-      // that names it, is not its output. Lesson: "diff tools/x.py backup | head" and a feedback note naming x.py were denied.
-      const runsTool = p => re(`^(?:\\w+=\\S*\\s+)*(?:(?:\\S*[\\\\/])?(?:python3?|py|node|bash|sh|pwsh|powershell|ruby|perl|deno|bun|tsx|uv\\s+run)(?:\\.exe)?\\s+(?:-\\S+\\s+)*)?["']?(?:\\.[\\\\/])?(?:\\S*[\\\\/])?${esc(tool.split('/').pop())}\\b`).test(p.trim());
-      const { parts, ops } = shellParts(stripped);
-      // (a tool's --help is its usage text, not its results. Lesson: "candidates.py --help | head" was denied)
-      const piped = parts.some((p, i) => runsTool(p) && p.includes(tool.split('/').pop()) && !/(^|\s)(-h|--help|-\?|\/\?)(\s|$)/.test(p) && ops[i] === '|' && /^(head|tail|grep|egrep|rg|cut|sed|awk|findstr|Select-String|Select-Object|sort|uniq|less|more)\b/i.test(parts[i + 1] || ''));
-      if (stripped.includes(tool) && piped)
-        add(`REQ: whole-output. Read the output of ${tool} whole: don't pipe it into a filter. Write it to a file in .cache/ and Read that if it is long.`);
-    }
-    // Adding files INTO a protected folder is fine (ingest moves inbox -> sources); deleting, moving out of, or writing
-    // over files in it is not. A path may be relative, ./-prefixed, absolute, or quoted. Only the parts that run in the
-    // project count (inProjectParts).
-    // (the folder itself, from the project root: "./sources" or "<project>/sources", not a "sources" folder nested
-    // elsewhere, such as test fixtures under .cache/; inline script code is no command. Lesson, trial round 15: a setup
-    // building fixtures in .cache/agtest/.../sources was denied twice)
-    // (quoted prose, a string of four or more words, is an argument: a feedback line that says "rm" deletes nothing.
-    // A quoted path with a space or two still counts. Lesson (a field report): a feedback command was denied because its
-    // quoted text described an rm)
-    const prose = c => String(c).replace(/(?<!(?:-c|-lc|\/c|eval|-Command)\s+)("[^"\n]*?(?:\s+[^\s"]+){3,}[^"\n]*"|'[^'\n]*?(?:\s+[^\s']+){3,}[^'\n]*')/gi, '""');
-    const here = cfg.protectedOriginals.length ? inProjectParts(prose(inlineCodeOut(cmd))) : cmd;
-    const rootP = [...new Set([ROOT, ROOT.replace(/\\/g, '/')])].map(r => esc(r.replace(/[\\/]+$/, ''))).join('|');
-    for (const g of here.trim() ? cfg.protectedOriginals : []) {
-      const d = g.replace(/\/?\*\*.*$/, ''), cmd = here;
-      if (!d) continue;
-      const P = `["']?(?:\\.[\\\\/]|(?:${rootP})[\\\\/])?${esc(d)}(?:[\\\\/]|["'\\s;|&]|$)`;
-      const hits = [
-        `(^|[\\s;&|(])(rm|del|erase|rmdir|rd|Remove-Item|ri|Clear-Content|truncate|shred|unlink)\\b[^;&|]*?(\\s|^)${P}`,
-        `(^|[\\s;&|(])(mv|move|Move-Item|Rename-Item|ren)\\s+(-{1,2}\\S+\\s+)*${P}`,
-        `(^|[^<>2&])>{1,2}\\s*${P}`,
-        `(^|[\\s;&|(])(Set-Content|Out-File|Add-Content|tee)\\b[^;&|]*?(\\s|^)${P}`
-      ].map(b => re(b).test(cmd));
-      // sed -i edits only its file arguments, not its script. Lesson: adding the line "owns: sources/trips/**" to a
-      // runbook with sed was denied, because the folder's name was in the replacement text.
-      hits.push(sedInPlaceFiles(cmd).some(f => re(`^${P}`).test(f)));
-      const bad = hits.some(Boolean);
-      // A glob narrower than its folder ("items/**/Original/**") protects only the paths it matches: a file elsewhere in
-      // the folder is not an original. A folder the command names still counts, as it may hold originals.
-      // Lesson (a field report): an append to items/<item>/CHANGELOG.md was denied while the Edit tool allowed it.
-      if (bad && !/^(\*\*(\/\*)?)?$/.test(g.slice(d.length + 1))) {
-        const top = `${ROOT.replace(/\\/g, '/').replace(/\/+$/, '')}/`.toLowerCase();
-        const named = [...cmd.matchAll(/"([^"\n]*)"|'([^'\n]*)'|([^\s;&|<>()]+)/g)].map(m => (m[1] ?? m[2] ?? m[3]).replace(/\\/g, '/'))
-          .map(p => (p.toLowerCase().startsWith(top) ? p.slice(top.length) : p).replace(/^\.\//, '')).filter(p => p === d || p.startsWith(`${d}/`));
-        if (named.length && !named.some(p => match(p, [g]) || match(`${p}/x`, [g]) || !/\.\w+$/.test(p.split('/').pop()))) continue;
-      }
-      // A file this turn created (not in the turn-start snapshot, not in git) is not an original yet: a helper may delete
-      // junk it just downloaded. Only a plain delete, and only when every file it names is new.
-      // Lesson: helpers could not remove a broken download and left it in the evidence folder.
-      if (bad && hits[0] && !hits.slice(1).some(Boolean) && deletesOnlyNewFiles(cmd, d)) continue;
-      // a delete or rename of the session's own, still uncited downloads
-      if (bad && (hits[0] || hits[1]) && !hits.slice(2).some(Boolean) && sessionOwnFiles(cmd, d, t())) continue;
-      if (bad && !re(cfg.deleteWords).test(req()))
-        add(`REQ: protect-originals. This command could delete, move or overwrite files in ${d}/ (originals). Only do that when the user asked for it in this request; copying new files INTO ${d}/ is fine. For exact duplicates, run node tools/dedupe.mjs (it keeps the oldest copy).`);
-    }
-    // Deleting or moving away a delivered output or an original that was there when the turn began is the same as
-    // writing over it: rm and then Write would get past the guards on edits. Files this turn created stay free.
-    // Lesson: an agent the no-overwrite guard denied removed the file with rm and wrote it again.
-    const strict = cfg.newVersionOnly || [];
-    if ((cfg.noOverwrite.length || strict.length || cfg.protectedOriginals.length) && /(^|[\s;&|(])(rm|del|erase|unlink|rmdir|rd|Remove-Item|ri|mv|move|Move-Item|mi|Rename-Item|ren)\b/i.test(prose(cmd))) {
-      const gone = removedPaths(prose(cmd), [...cfg.noOverwrite, ...strict, ...cfg.protectedOriginals]).filter(p => !madeThisTurn(p, t(), cfg));
-      // (a plain delete the user asked for in this request ("get rid of the old file") is theirs to ask, versioned files
-      // included; only rewriting a file under its old name stays blocked. Lesson (a field report): drafts the user never
-      // saw could not be removed after "get rid of the old file")
-      // (the request names the file, or the old files, versions or drafts: "remove the tulips from the spring list" names a
-      // change inside the file, not its deletion)
-      const OLD_ONES = /\b(old|older|previous|earlier|draft|unused|duplicate|extra|stale)\s+(files?|versions?|drafts?|cop(y|ies)|lists?)\b|\b(drafts|previous versions)\b/i;
-      const plainDelete0 = !/(^|[\s;&|(])(mv|move|Move-Item|mi|Rename-Item|ren)\b/i.test(prose(cmd));
-      const plainDelete = re(cfg.deleteWords).test(req()) && plainDelete0;
-      const FILE_DELETE = /\b(delete|remove|get rid of|trash|erase|clean ?up)\s+(the\s+|that\s+|this\s+|those\s+|these\s+|my\s+)?([\w.'-]+\s+){0,3}(files?|versions?|drafts?|cop(y|ies)|duplicates?)\b/i;
-      const askedDelete = () => plainDelete && (OLD_ONES.test(req()) || FILE_DELETE.test(req()));
-      // (an originals folder is checked above, with its own exceptions; this covers originals named by a pattern alone,
-      // such as "**/*.pdf")
-      const dirs = cfg.protectedOriginals.map(g => g.replace(/\/?\*\*.*$/, '')).filter(Boolean);
-      const orig = gone.filter(p => match(p, cfg.protectedOriginals) && !dirs.some(d => p.startsWith(d + '/')) && !/(^|\/)README\.md$/i.test(p));
-      if (orig.length && !re(cfg.deleteWords).test(req()))
-        add(`REQ: protect-originals. This command deletes or moves ${orig.slice(0, 3).join(', ')}${orig.length > 3 ? ` and ${orig.length - 3} more` : ''}, an original that was there before this turn. Originals are never removed unless the user asked for it in this request. Put derived or corrected content in docs/ or outputs/ and link the original.`);
-      // (config "deleteOk": globs the project declares deletable without asking, such as drafts the user never saw; a
-      // plain delete only. Lesson (a field report): every build ended asking the owner to OK a draft delete, after the
-      // owner had said "delete it, don't ask")
-      const deletable = p => plainDelete0 && match(p, cfg.deleteOk || []);
-      const outs = gone.filter(p => !askedDelete(p) && !deletable(p) && (match(p, strict) || (match(p, cfg.noOverwrite) && !re(cfg.overwriteWords).test(req()) && !asksToChange(p, req()))));
-      if (outs.length)
-        add(`REQ: no-overwrite. This command deletes or moves ${outs.slice(0, 3).join(', ')}${outs.length > 3 ? ` and ${outs.length - 3} more` : ''}, a delivered output that was there before this turn, and the request does not name it as a file to change or delete. ` +
-          'Removing it and writing it again is the same as writing over it. If the user asked for a new version, write it as a new file (e.g. "<name> v2.md"); if they asked to change or delete this file, in words the hook did not catch, ask them in one line to confirm.');
-    }
-  }
-  return out;
-}
-
 // The files each "sed -i" in a command edits: its words after the flags, minus the script (the first word, unless -e
 // or -f gave it). Quotes are removed, so a quoted path is still a file and a quoted script is never one.
 export function sedInPlaceFiles(cmd) {
@@ -7794,28 +7265,6 @@ function addedContentHit(x, spec, counted = () => true) {
   }
   return null;
 }
-// REQ: no-overwrite. The request asks to change this very file: it asks for a change, not for a new version or a copy,
-// and it names the file: its path or name, a distinctive word of its name ("forge" for chapters/01-forge.md), or its
-// folder's noun with its number ("chapter 1", "capítulo 1"). Lesson: a novel's chapter guard denied "make the ending of
-// chapter 2 sadder" and "polish chapter 1", and its message told the agent to write a "v2" copy of the chapter.
-const CHANGE_ASK = /\b(change|edit|fix|correct|polish|tighten|rewrite|revise|reword|tweak|update|improve|shorten|lengthen|expand|trim|cut|swap|replace|rename|remove|delete|add|adjust|redo|rework|make(?!\s+(a|an|another|new|copy|a copy|me a)\b)|cambi\w*|edit\w*|corrig\w*|arregl\w*|pul\w*|reescrib\w*|mejor\w*|ajust\w*|acort\w*|alarg\w*|quit\w*|añad\w*|agreg\w*|haz(?!\s+(un|una|otr[oa]))|hazlo)\b/i;
-// (a version number asks for a new copy only as one: "save it as v2", "make a v2", "v2 of it", "como v2", not as the
-// text to write. Lesson: "change the trip notes file to say v2" was read as a request for a new copy and denied)
-const NEW_COPY = /\b(new (version|file|copy)|another version|a copy|copy of|(?:as|a|into|como|una?)\s+v\d+\b|v\d+\s+(?:of|copy|file|de|copia)\b|nueva versi[oó]n|otra versi[oó]n|una copia|copia de)\b/i;
-const FOLDER_NOUN = { chapters: '(chapter|ch\\.?|cap[ií]tulo|cap\\.?)', capitulos: '(cap[ií]tulo|chapter|cap\\.?)' };
-export function asksToChange(p, prompt) {
-  const ask = String(prompt || '');
-  if (!CHANGE_ASK.test(ask) || NEW_COPY.test(ask)) return false;
-  const file = p.split('/').pop(), base = file.replace(/\.[^.]+$/, ''), dir = p.split('/').slice(-2, -1)[0] || '';
-  const said = s => new RegExp(`(?<![\\w\\u00C0-\\u024F])${esc(s)}(?![\\w\\u00C0-\\u024F])`, 'i').test(ask);
-  if (said(p) || said(file) || said(base)) return true;
-  const COMMON = /^(file|draft|final|copy|version|notes?|chapter|part|section|untitled|document|output|outputs|summary|report|index|readme)$/i;
-  if (base.split(/[^A-Za-zÀ-ɏ]+/).filter(w => w.length >= 4 && !COMMON.test(w)).some(said)) return true;
-  const n = /^0*(\d+)/.exec(base)?.[1] || /(?:^|[^a-z])(?:ch|chapter|part|cap)[-_ ]?0*(\d+)/i.exec(base)?.[1];
-  if (!n || !dir) return false;
-  const noun = FOLDER_NOUN[dir.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')] || esc(dir.replace(/e?s$/i, ''));
-  return new RegExp(`\\b${noun}s?\\s*(n[oº.]?\\s*|#\\s*)?0*${n}\\b`, 'i').test(ask);
-}
 // answerCites: the answer says where its facts come from in plain words ("from exports/2026-W42.csv"): it names a
 // project file opened this turn that the agent did not write this turn, or a web page opened this turn. Rules, runbooks,
 // skills and engine files are not sources. Without tool history, a named file that exists counts.
@@ -9663,6 +9112,16 @@ if (isMain) {
   }
   // (under v2 the background-run notice comes from the runs this session started, never from command text)
   if (cmd === 'pretool' && ENGINE === 'v2') V2_PRETOOL = true;
+  // REQ: crash-visible, for the guard: one that cannot load is told to the agent once per session, and the call goes on
+  if (cmd === 'pretool') try { const G = await import('./v2/guard.mjs'); G.use(SELF); pretoolDecision = G.pretoolDecision; } catch (e) {
+    process.stderr.write(`[hooks guard] error: ${e && e.stack || e}\n`);
+    const seen = path.join(STATE, `guard-crash.${String(SID || 'x').replace(/[^\w-]/g, '').slice(0, 64)}.json`);
+    if (!fs.existsSync(seen)) {
+      try { fs.mkdirSync(path.dirname(seen), { recursive: true }); fs.writeFileSync(seen, JSON.stringify({ at: new Date().toISOString() })); } catch { }
+      process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext: `tools/hooks/v2/guard.mjs CRASHED (${String(e && e.message || e).split('\n')[0].slice(0, 200)}): no safety guard runs. Tell the user, fix the engine (node tools/starter.mjs upgrade, or the starter session), then run node tools/hooks/selfcheck.mjs.` } }));
+    }
+    process.exit(0);
+  }
   if (/^(session|pretool|posttool)$/.test(cmd) && ENGINE === 'v2') try { V2_TURN = (await import('./v2/lib.mjs')).loadTurn; } catch { }
   try {
     const fn = { session: cmdSession, prompt: cmdPrompt, pretool: cmdPretool, posttool: cmdPosttool, stop: cmdStop, subagentstop: cmdSubagentstop }[cmd];

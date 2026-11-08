@@ -116,13 +116,8 @@ export function route(prompt, books = runbooks()) {
   // (a Spanish request with no trigger of its own routes like its English wording. Lesson (trial v37): Spanish requests
   // got no runbook under v2, while v1's router translated "agrega una página de índice" to "add a page, index page")
   const best = match(prompt) || (isSpanish(prompt) ? match(routeEnglish(prompt)) : null);
-  // (a standing rule stated plainly, "every new note links to ...", is a rule request like "from now on". Lesson (trial
-  // v38): it named no runbook, and the rule went into a memory note with no check)
-  // (and it comes before a trigger found mid-sentence; a trigger the request starts with still wins. Lesson (trials v38,
-  // v41): "you forgot the new option ... every option has to be documented" went to the feature runbook on "new option")
-  // ("that should never happen again" asks for a standing rule too. Lesson (trial v42): it named no runbook)
-  // (so does a sentence that ends ", always" or ", never", in Spanish ", siempre". Lesson (trial v43): "... tiene que
-  // estar en español, siempre" named no runbook, and the rule's items were never checked)
+  // (a standing rule said plainly ("every new note links to", "should never happen again", ", always", ", siempre") is a
+  // rule request, ahead of a trigger found mid-sentence. Lessons (trials v38 to v43): each went unrouted or misrouted)
   const said = isSpanish(prompt) ? `${prompt}\n${routeEnglish(prompt)}` : String(prompt);
   const proj = books.find(b => b.file === 'docs/playbooks/project.md'), rule = proj && (STANDING.test(said) || /\b(that|this|it) (should|must|can) never happen again\b/i.test(said) || /,\s*(always|never)\s*(?:[.!]+|$)/im.test(said));
   if (best && !(rule && best.score < 1000)) return { ...best.book, matched: best.phrase };
@@ -336,11 +331,8 @@ export function questionGaps(acts) {
   return ['The user asked for no questions: make each choice yourself and note it as "Assumed: <choice> - <why> - <cost if wrong>". A step only the user can take (an install, a sign-in, a name for git) goes under a Heads-up, not a question; ask only what the rules stop for (an outward action, anything irreversible).'];
 }
 
-// An engine note ("Issue: ... | runbook: ..." or "Issue: none - ...") shown to the user: it belongs in the notes file,
-// and the answer says it in plain words. Lesson: an Issue line at the top of an answer read as gibberish to the user.
-// The quote check is offered, never forced: the user chooses at setup or upgrade, on the agent's recommendation
-// ("quoteCheck": true or false in tools/hooks/config.json). Unset, it is off in a project and on in the starter itself.
-// While on, it runs every time. Lesson: some knowledge projects must keep exact quotes and examples.
+// The quote check is offered, not forced ("quoteCheck" in config.json; unset: off in a project, on in the starter), and
+// runs every time while on. Lesson: some knowledge projects must keep exact quotes.
 export const quoteCheckOn = () => { let v; try { v = JSON.parse(fs.readFileSync(at('tools/hooks/config.json'), 'utf8')).quoteCheck; } catch { } return v === true || (v === undefined && fs.existsSync(at('.starter-template'))); };
 // A file the turn wrote that copies six or more of the user's words in a row and presents them as the user's (in
 // quotes, or on a line naming the user): AGENTS.md rule 14 wants the lesson in general terms. Asked once, at the end,
@@ -373,16 +365,14 @@ export function quoteGaps(acts) {
   return hits.length ? [`The turn wrote the user's own words as a quote (${hits.slice(0, 3).join('; ')}): write the lesson in general terms instead (AGENTS.md rule 14), unless the user asked for that exact text.`] : [];
 }
 
+// An engine note ("Issue: ...") shown to the user belongs in the notes file; the answer says it in plain words.
 export function noteGaps(acts) {
   if (!/^\W*Issue:\s*(.*\|\s*runbook:|none\s+-)/im.test(acts.said || acts.answer || '')) return [];
   return ['An "Issue:" line is in the answer: it is a note for .cache/turn-notes.md only. Take it out and say in plain words what went wrong and what changes.'];
 }
 
-// The files a path or glob names: walked from its fixed part, at most 20,000. Bulk folders below it are skipped
-// (.git, node_modules, .cache, virtual environments, build output). Lesson: one project held 40,000 files in .cache, and
-// a 2,000-file cap hid every change outside it.
-// (build output too: a build rewrites it, and it is no change the agent made. Lesson (trial): a static site's build
-// rewrote _site/*.html and the end check asked for screenshots of it)
+// The files a path or glob names, walked from its fixed part, at most 20,000, skipping bulk folders and build output
+// (lessons: 40,000 cache files hid real changes; a site build's rewrite was asked to be screenshotted).
 const BULK = new Set(['.git', 'node_modules', '.cache', '.venv', 'venv', '__pycache__', 'dist', 'build', '.next', 'target', '_site', '.nuxt', '.output', '.svelte-kit', 'coverage', 'storybook-static']);
 function filesMatching(glob) {
   const g = glob.replace(/\\/g, '/'), rx = globRx(g), base = g.split('/').filter((s, i, a) => !/[*?]/.test(a.slice(0, i + 1).join('/'))).join('/');
@@ -405,10 +395,8 @@ export function met(item, acts) {
   if (item.kind === 'answer') return new RegExp(item.arg, 'i').test(acts.answer);
   if (item.kind === 'evidence') return evidenceGaps(acts).length === 0;
   if (item.kind === 'ran') { const rx = new RegExp(item.arg, 'i'); return acts.calls.some(c => /^(Bash|PowerShell)$/.test(c.name) && rx.test(String(c.input.command || '')) && !c.error); }
-  // (a file changed in this turn: edited by a tool, or written since the turn began by anything, a script included.
-  // A command that only names the file does not count. Lesson (review): "cat docs/CHANGELOG.md" met "CHANGELOG updated")
-  // (in the starter itself, docs/CHANGELOG.md is the template every project gets and stays untouched: the starter's
-  // own changelog meets it. Lesson (2026-11-07): the end check re-blocked 3 times on a changelog line already written)
+  // (changed this turn by a tool or anything since the turn began; only naming it does not count. In the starter its own
+  // changelog stands for docs/CHANGELOG.md, the template. Lessons: "cat" met "updated"; 3 re-blocks on a written line)
   if (item.kind === 'file') {
     const since = Date.parse(acts.at || '') || 0;
     const args = [item.arg, ...(/^docs\/CHANGELOG\.md$/i.test(item.arg) && fs.existsSync(at('.starter-dev')) ? ['tools/starter/STARTER-CHANGELOG.md'] : [])];
@@ -430,10 +418,8 @@ const testScript = () => { let s = ''; try { s = JSON.parse(fs.readFileSync(at('
 const PASS_OUT = /\b\d+ (tests? )?passed\b|\bALL PASS\b|\bRESULT:\s*PASS\b|\b0 (failed|failures)\b|\bRan \d+ tests?\b[\s\S]{0,200}\bOK\b|\b\d+ passing\b|\btests? passed\b/i;
 const FAIL_OUT = /\b[1-9]\d* (tests? )?(failed|failing)\b|\bFAILED\b|\bnot ok\b/;
 export const passedRun = c => /^(Bash|PowerShell)$/.test(c.name) && !c.error && (isTestRun(String(c.input.command || '')) || PASS_OUT.test(c.out || '')) && !FAIL_OUT.test(c.out || '');
-// (the project's own declared test and build commands, tools/hooks/config.json "test" and "build", count part by part.
-// Lesson (replay): a project's tests were a plain script run with node, which no runner name matched)
-// (the app pack keeps them under "app": { "test", "build" }. Lesson (trial v46): a Go project's test command was there,
-// v2 read only the top level, and a missing toolchain was asked for again)
+// (the project's declared "test" and "build" commands in config.json, top level or under "app", count part by part.
+// Lessons: a plain node script matched no runner name; a Go project's command under "app" was not read)
 const cfgCmds = keys => { try { const c = JSON.parse(fs.readFileSync(at('tools/hooks/config.json'), 'utf8')); return keys.flatMap(k => [c[k], c.app?.[k]]).filter(s => typeof s === 'string').flatMap(s => s.split(/\s*&&\s*/)).map(s => s.trim()).filter(Boolean); } catch { return []; } };
 const declared = () => cfgCmds(['test', 'build']);
 // (the declared test command alone, tools/hooks/config.json "test" or "app.test")
@@ -509,25 +495,15 @@ export function testGaps(acts, history = '') {
   const has = f => fs.existsSync(at(f)), pyproject = (() => { try { return fs.readFileSync(at('pyproject.toml'), 'utf8'); } catch { return ''; } })();
   const hasTests = anyRunner || !!testScript() || declared().length > 0 || ['pytest.ini', 'conftest.py', 'tests', 'test', '__tests__', 'spec'].some(has)
     || /\[tool\.pytest/.test(pyproject) || ['**/*_test.go', '**/test_*.py', '**/*_test.py', '**/*.test.js', '**/*.test.mjs', '**/*.test.ts'].some(g => filesMatching(g).length > 0);
-  // (a test run tried after the change that could not start, held for approval or with its program missing, is not asked
-  // for again: the end check cannot make it run. Lesson (trial v33): tests held for approval and a toolchain not
-  // installed were asked for turn after turn, about ten tries each)
-  // (any time in the turn: a run held for approval or missing its program stays so after more edits. Lesson (trial
-  // v37): tests held before the last edit were asked for again, and the retry was held again)
-  // (with a declared test command, only a try of that command counts, and the ask names it. Lesson (trial v44): four
-  // hand-made test commands were held for approval, and the project's own, which ran without approval, was never tried)
-  // (nor is a run asked for whose program is not installed here. Lesson (trial v44): go was missing, setup had said so,
-  // and the next turn was asked to run go test)
+  // (a run this turn that could not start, held for approval or missing its program, is not asked for again; with a
+  // declared test command only a try of that one counts. Lessons (trials v33 to v44): the same held run, ten times over)
   const mine = ownTests(), cmdOf = c => String(c.input.command || '');
   const cantRun = (mine.length ? i.some(([c]) => cantStart(c) && mine.some(t => cmdOf(c).includes(t))) : i.some(([c]) => cantStart(c) && isTestRun(cmdOf(c))))
     || (mine.length > 0 && mine.some(t => programs(t).some(p => !installed(p))));
   if ((lastCode >= 0 || codeWrite) && hasTests && !cantRun && !passes.some(k => k > lastCode && (!codeWrite || acts.calls[k].done > codeWrite)))
     out.push(mine.length ? `Run the tests after the last code change (this project's command: ${mine.join(' && ')}), and say the result.` : 'Run the tests after the last code change, and say the result.');
-  // (a result this turn read, in a message or a command's output, may be relayed. Lesson (replay): answers passing on
-  // another session's or a project's test results were asked to run tests themselves)
-  // (only a pass count is a claim. Lesson (trial v34): "I don't know whether your tests pass" was held as one)
-  // (nor, on a turn that changed no code, a count an earlier turn's run printed. Lesson (trial v45): "no code changed
-  // since the 81 passed" was true, and the block made the agent rerun the whole suite)
+  // (only a pass count is a claim; one read this turn may be relayed, and with no code changed an earlier run's count
+  // stands. Lessons: relayed results, "I don't know whether they pass", and a true "81 passed" were all held)
   else if (/\b\d+ (tests? )?passed\b/i.test(acts.answer) && !passes.length
     && ![acts.heard || '', ...acts.calls.map(c => c.out)].join('\n').split('\n').some(l => /\b\d+ (tests? )?passed\b|\bALL PASS\b/i.test(l) && !/\b[1-9]\d* (tests? )?fail/i.test(l))
     && !(lastCode < 0 && !codeWrite && [...acts.answer.matchAll(/\b(\d+) (?:tests? )?passed\b/gi)].every(m => new RegExp(`(?<!\\d)${m[1]} (tests? )?passed\\b`, 'i').test(history)))) out.push('The answer says tests passed, but no test run passed in this turn: run them, or correct the answer.');
@@ -569,10 +545,8 @@ export function healthGaps(acts, { run = true } = {}) {
   const t0 = Date.now(), r = spawnSync(process.execPath, [at('tools/audit.mjs')], { cwd: ROOT, encoding: 'utf8', timeout: 30_000 });
   const ms = Date.now() - t0;
   if (r.status === 0 || r.error) { saveTurn('health', { ...loadTurn('health'), ms }); return []; }
-  // (a failure already reported on an earlier turn is not this turn's: it is asked about once, not on every turn after.
-  // Lesson: a sweep waiting on the user's decision failed in every structural turn)
-  // (a failure whose every line names a file this turn did not change is not this turn's either. Lesson (live v2): the
-  // first structural turn under v2 had no earlier record, and a failure about three untouched files was asked about)
+  // (a failure reported on an earlier turn, or naming only files this turn did not change, is not this turn's. Lesson:
+  // a sweep waiting on the user failed every structural turn)
   const blocks = String(r.stdout || '').split(/\n(?=PASS|WARN|FAIL)/).filter(b => /^FAIL/.test(b));
   const touched = new Set([...acts.calls.filter(c => /^(Edit|Write|MultiEdit)$/.test(c.name)).map(c => relp(c.input.file_path || '')), ...changedSince(acts, { test: () => true })]);
   const others = b => { const named = [...b.matchAll(/^\s+- ([\w./-]+\.\w+):/gm)].map(m => m[1]); return named.length > 0 && named.every(f => !touched.has(f)); };
@@ -591,10 +565,8 @@ const knowledgeDirs = () => { try { return JSON.parse(fs.readFileSync(at('tools/
 // ("user reported" too. Lesson (trial v46): a note labelled "(user reported, <date>)" was asked for a source, and the
 // fix wrote "Source: the user" beside the label)
 const SOURCED = /https?:\/\/|\bsources?\s*:|\[\^[^\]]+\]|\b(the )?user[- ]?(said|told|gave|wrote|reported|says)\b|\bobserved\b|\(from [\w./-]+\)|\b[\w-]+\/[\w./-]+\.(md|txt|csv|json|pdf)\b/i;
-// An answer from sources ("(evidence)" on a runbook item): a source was read this turn, every file or link the answer
-// cites was read, every quote is in what was read (or in the user's message), and the answer names its sources or says
-// what was searched and not found. Lesson (the user, 2026-11-07): knowledge answers must be backed by evidence, not
-// inference.
+// An answer from sources ("(evidence)"): a source read this turn, every cited file or link read, every quote found, and
+// the sources named or the search said. The user (2026-11-07): knowledge answers are backed by evidence.
 const READS = c => /^(Read|Grep|Glob|WebFetch)$/.test(c.name) || (/^(Bash|PowerShell)$/.test(c.name) && /\b(cat|grep|rg|Get-Content|Select-String|head|tail|sed\s+-n|type)\b/.test(String(c.input.command || '')));
 export function evidenceGaps(acts) {
   // (the runbook or skill being followed is the procedure, not a source)
@@ -657,10 +629,8 @@ export function knowledgeGaps(acts) {
   return bare.length && !sourcesEdited && !sourcesWritten ? [`New facts in ${bare.slice(0, 3).join(', ')} name no source: add where each came from (a link read this turn, a project file, or the user).`] : [];
 }
 
-// Check 6: code that touches sign-in, secrets, commands, uploads, payments or personal data was written, and the turn
-// neither ran the security review nor wrote its report. The pattern and the files are the project's own
-// (tools/hooks/requirements.json, "security-code"), so a project tunes them in one place. Replay: the old engine's ask
-// found a real problem in 3 of 4 runs.
+// Check 6: security-sensitive code was written (the project's "security-code" pattern in requirements.json) and the
+// turn neither ran the security review nor wrote its report. Replay: the ask found a real problem in 3 of 4 runs.
 const securitySpec = () => { try { return JSON.parse(fs.readFileSync(at('tools/hooks/requirements.json'), 'utf8')).requirements.find(r => r.tag === 'security-code')?.when?.changedContentMatches || null; } catch { return null; } };
 export function securityGaps(acts) {
   const spec = securitySpec();
@@ -680,14 +650,9 @@ export function securityGaps(acts) {
   return reviewed ? [] : [`Security-sensitive code changed (${[...new Set(hit)].slice(0, 3).join(', ')}): run the security review (skills/security-review/SKILL.md) and say its result.`];
 }
 
-// Check 7: the answer claims nothing the turn can't back. A commit it names exists here or showed up in this turn's
-// tool output (another repository's commit, read in a log, counts). A file it names exists, unless it says the file
-// went. Only checkable facts: labels, wording and judgment are never read as claims. Lesson (an old check): the
-// "Corrected:" label the engine itself asked for was called a claim with no evidence. Evidence is the whole session so
-// far (`history`, the transcript's text), not only this turn: a version a message named two turns ago is known.
-// Lesson (replay): an engine version relayed by another session earlier was flagged as made up.
-// The session's evidence for check 7: every row but the agent's own words, so an answer never backs itself. Lesson
-// (a self-test): with the whole transcript as evidence, a made-up commit in the answer was found in the answer.
+// Check 7: the answer claims nothing the session can't back: a commit it names exists or appeared in tool output, a file
+// it names exists unless it says it went. Labels and judgment are no claims. Evidence is the whole session but the
+// agent's own words (lessons: a relayed version was flagged; a made-up commit was "found" in the answer itself).
 export const evidenceOf = text => String(text || '').split('\n').filter(Boolean).map(l => {
   try { const r = JSON.parse(l); return r.type === 'assistant' && Array.isArray(r.message?.content) ? JSON.stringify(r.message.content.filter(x => x?.type !== 'text' && x?.type !== 'thinking')) : l; } catch { return ''; }
 }).join('\n');

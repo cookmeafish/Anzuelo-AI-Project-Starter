@@ -153,6 +153,11 @@ unchanged. Counted with the same inventory; line counts include comments (about 
   tool must not grow there: each commit that moves some reports every receiving tool's line count before and after,
   and the moved total stays at or under 690. Tests are not counted, but a selfcheck or selftest scenario for deleted
   code goes in the same commit as the code.
+- Progress (2026-11-08), guards: the guard code is now `tools/hooks/v2/guard.mjs` (476 lines), taking hooks.mjs's
+  helpers through `use(hooks)` because a static import back would be a cycle; hooks.mjs 9,678 to 9,137. No guard was
+  dropped; upset-acknowledged no longer runs in the tool hook because only v1 ever sets it. v2 lib 744 to 709 and end
+  185 to 163 (lesson comments one line each). Still over the 420 target: the guard helpers left in hooks.mjs (secrets,
+  gitignore, push, held runs, browser, people's folders) move or shrink with the table rewrite.
 
 ### Task 2: one place for each rule
 **Files:** `AGENTS.md`, `docs/checks/user-requirements.md` (generated), `tools/hooks/requirements.json` (retired), `skills/project-rule/SKILL.md`, `tools/audit.mjs`

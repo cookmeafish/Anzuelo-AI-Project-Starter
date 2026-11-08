@@ -61,7 +61,7 @@ const walk = (d, pred, acc = [], skip = SKIPDIR) => {
 };
 const isTemplate = exists('.starter-template');
 const pbs = playbooks();
-const hooksSrc = read(abs('tools/hooks/hooks.mjs'));
+const hooksSrc = read(abs('tools/hooks/hooks.mjs')) + read(abs('tools/hooks/v2/guard.mjs'));
 // the project's own scenarios count too, and while an upgrade's move is pending, the ones kept from the old test file
 const legacyScenarios = read(abs('tools/hooks/legacy-scenarios.txt'));
 const testsSrc = read(abs('tools/hooks/selfcheck.mjs')) + read(abs('tools/hooks/project-scenarios.mjs')) + legacyScenarios;
