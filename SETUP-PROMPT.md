@@ -1,5 +1,10 @@
 # Setup prompt: build this project from the ground up
 
+**First, is this folder still a plain clone of the starter** (it has a `.starter-template` file)? Then no project
+exists yet: run `node tools/new-project.mjs --self-install --git` here (`--dry-run` first), without moving anything
+outside this folder. It puts the starter's own copy and the project side by side in this folder; the user opens the
+project folder it prints and says "set up this project". Ask nothing about where the starter goes.
+
 **To the AI agent:** this project was just made from the starter. Turn it into a project that knows its purpose, has
 runbooks, skills and checks for its work, and enforces its own rules. Work through the phases in order. The hooks
 enforce each gate:
