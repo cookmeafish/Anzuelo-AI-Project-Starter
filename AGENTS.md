@@ -101,8 +101,9 @@
 16. **Only what makes the project better** (`docs/checks/better-or-worse.md`). Before adding a skill, pack, tool,
     dependency or rule, weigh the gain, the cost (noise, upkeep, speed, conflicts, risk), the fit to this project, and
     whether its license allows commercial use. Tell the user gain and cost in one line; if the cost is bigger, don't
-    add it and say why. Engine upgrades are weighed item by item (upgrade review); hooks stay within their speed
-    budget. An established project gets surgery, not replacement (2026-11-07): its own hooks, runbooks, skills and
+    add it and say why. Engine upgrades are weighed item by item (upgrade review), and never quietly take away what
+    the user saw working: each line, guard or reminder is kept, dropped with a reason, or listed as open (2026-11-08);
+    hooks stay within their speed budget. An established project gets surgery, not replacement (2026-11-07): its own hooks, runbooks, skills and
     rules are kept and win where they overlap, and each improvement is proposed, the big ones decided by the user
     (`## Adoption review`, SETUP-PROMPT.md).
 17. **Every name is a variable** (`docs/names.json`). The project's name and every name that may change (products,

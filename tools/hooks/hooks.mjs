@@ -5255,8 +5255,17 @@ function cmdPretool(data) {
   // never got the user's message): the agent's own test run still going, and a new user message while helpers run.
   // (under v2, none: nothing during work but safety refusals. The user, 2026-11-07: a reminder at the start, quiet work,
   // one check at the end, and only that)
-  const notes = data.agent_id || V2_PRETOOL ? '' : [overlapNotice(data), (() => { try { return scopeNotice(data); } catch { return null; } })()].filter(Boolean).join('\n');
-  const ack = HOST === 'claude-code' ? [acked, runningLine(d)].filter(Boolean).map(l => visibleLines(l)).filter(Boolean).join('\n') : '';
+  // (but what the user typed while the agent works is the exception, once per message: it answers first, and pictures
+  // that reached a helper as text only are named by their saved files. v2/midturn.mjs)
+  const once = (name, key) => { if (!key || readJSON(stateFile(name), {}).key === key) return false; writeState(name, { key }); return true; };
+  // (each message once, by its time: the reply in the same step reaches the transcript only after this hook ran.
+  // Lesson (live): a second message brought back the first, already answered)
+  const late = MIDTURN ? (() => { try { const told = readJSON(stateFile('late-told.json'), {}).ats || [], ms = MIDTURN.lateMessages(data).filter(m => !told.includes(`${data.agent_id || ''}|${m.at}`));
+    if (ms.length) writeState('late-told.json', { ats: [...told, ...ms.map(m => `${data.agent_id || ''}|${m.at}`)].slice(-50) }); return ms.length ? MIDTURN.lateNote(ms) : ''; } catch { return ''; } })() : '';
+  const img = MIDTURN ? (() => { try { const m = MIDTURN.missingImages(data); return m && once('images-told.json', `${data.agent_id}|${m.at}`) ? MIDTURN.imagesNote(m) : ''; } catch { return ''; } })() : '';
+  const notes = [late, img, ...(data.agent_id || V2_PRETOOL ? [] : [overlapNotice(data), (() => { try { return scopeNotice(data); } catch { return null; } })()])].filter(Boolean).join('\n');
+  const heard = late ? `${brand()} 💬 your message reached ${data.agent_id ? 'the helper' : 'Claude'} mid-task: it answers you first` : '';
+  const ack = HOST === 'claude-code' ? [acked, heard, runningLine(d)].filter(Boolean).map(l => visibleLines(l)).filter(Boolean).join('\n') : '';
   if (brief || bare || notes || ack) process.stdout.write(JSON.stringify({ ...(brief || bare || notes ? { hookSpecificOutput: { hookEventName: 'PreToolUse', ...(brief || bare ? { updatedInput: d.tool_input } : {}), ...(notes ? { additionalContext: notes } : {}) } } : {}), ...(ack ? { systemMessage: ack } : {}) }));
 }
 // A command that starts by changing to the folder it already runs in ("cd <project> && ..."): the cd is dropped in
@@ -5282,6 +5291,7 @@ export const CHECK_RUN = /\b(pytest|unittest|npm (run )?test|npx (jest|vitest|pl
 // nothing during work but safety refusals.
 let V2_PRETOOL = false;
 let V2_TURN = null; // (under v2 a turn's end is in v2's own turn record: v2/lib.mjs loadTurn)
+let MIDTURN = null; // (v2/midturn.mjs, loaded for pretool)
 let WIRING = null; // (wire.mjs wiringProblems, loaded by the session hook)
 export const engineOf = () => envOf('ENGINE') || config().engine;
 // The engine runs in a project: its own prompt and Stop hooks, on a sample request, with the engine its config picks.
@@ -8896,7 +8906,8 @@ if (isMain) {
   if ((cmd === 'prompt' || cmd === 'stop') && ENGINE === 'v2') {
     try {
       process.env.ANZUELO_ROOT ||= ROOT;
-      const v2 = cmd === 'prompt' ? (await import('./v2/start.mjs')).onPrompt(data) : (await import('./v2/end.mjs')).onStop(data);
+      // (REQ: engine-parity: what the user saw under the old engine is shown, dropped with a reason, or open: v2/lines.mjs)
+      const v2 = cmd === 'prompt' ? (await import('./v2/start.mjs')).onPrompt(data) : (await import('./v2/end.mjs')).onStop(data, { show: HOST === 'claude-code' });
       if (v2) process.stdout.write(JSON.stringify(v2));
     } catch (e) {
       process.stderr.write(`[hooks v2 ${cmd}] error: ${e && e.stack || e}\n`);
@@ -8930,6 +8941,7 @@ if (isMain) {
     process.exit(0);
   }
   if (/^(session|pretool|posttool)$/.test(cmd) && ENGINE === 'v2') try { V2_TURN = (await import('./v2/lib.mjs')).loadTurn; } catch { }
+  if (cmd === 'pretool') try { MIDTURN = await import('./v2/midturn.mjs'); } catch { }
   if (/^(session|notices)$/.test(cmd)) try { WIRING = (await import('./wire.mjs')).wiringProblems; } catch { }
   try {
     const fn = { session: cmdSession, prompt: cmdPrompt, pretool: cmdPretool, posttool: cmdPosttool, stop: cmdStop, subagentstop: cmdSubagentstop }[cmd];

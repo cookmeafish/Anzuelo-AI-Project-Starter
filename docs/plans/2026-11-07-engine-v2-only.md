@@ -77,6 +77,11 @@ Measured 2026-11-07 on HEAD (corrections to the draft are marked):
       in "Inventory for step 1a" below)
 - [ ] 1b Modules: config and names, paths and host, the guards (code, not a re-export), user lines (status-lines
       toggle), the CLI. Point the 14 importers and secjudge.mjs at them; no module imports hooks.mjs.
+      (2026-11-08: user lines started in `tools/hooks/v2/lines.mjs`: the toggle and the end-of-turn line, which v2 had
+      dropped. Still in hooks.mjs: acknowledgedLine, runningLine, sessionUserLine. `V2_SHOWS` there lists each kind;
+      the "open" ones, not shown under v2 yet, are rule, praise, pause, scope, left-open, new-task, asking and not-fit:
+      each is brought over or dropped with the user's OK. "question" came back the same day as v2/midturn.mjs: a
+      message typed while the agent works is answered first.)
 - [ ] 1c One entry: hook settings and the no-hooks CLI call one v2 entry for session, prompt, pretool, posttool and
       stop. A test pipes every event through it as the claude-code host and checks the agent output and user line.
 - [ ] 1d Tests: port each scenario for behavior v2 keeps, unpinned; delete v1-only ones. Every user-requirements row

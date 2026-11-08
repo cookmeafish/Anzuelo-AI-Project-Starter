@@ -2,6 +2,7 @@
 // transcript, and blocks with a short plain list of what is really missing until it is done (at most MAX_BLOCKS times).
 import fs from 'node:fs';
 import path from 'node:path';
+import { passLine } from './lines.mjs';
 import { ROOT, at, runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, questionGaps, noteGaps, quoteGaps, tail, helpersRunning, backgroundRuns, helperRuns, evidenceGaps, evidenceOf, skillBooks } from './lib.mjs';
 
 // Check 1: the routed runbook, else the one the agent opened (not a skill it names), was followed and its checkable
@@ -104,12 +105,14 @@ export function toVerify(turn, acts, books = runbooks()) {
 // A Stop that passes ends the turn: the next request starts a new one, and a message before then joins this one.
 // (while a helper started this turn still works, the turn is not over: no check yet, and the turn stays open, so the
 // Stop after the helper reports back judges the whole of it)
-let waiting = false;
+let waiting = false, passed = null;
 export function onStop(data, opts = {}) {
-  waiting = false;
+  waiting = false; passed = null;
   const out = judge(data, opts);
   if (!out && !waiting && !opts.shadow) { const t = loadTurn(data.session_id); if (t.at) saveTurn(data.session_id, { ...t, ended: true }); }
-  return out;
+  // (a turn that passed tells the user what the engine did, where the host shows it: opts.show. REQ: prompt-visible)
+  const line = !out && passed && opts.show ? passLine(passed) : '';
+  return out || (line ? { systemMessage: line } : null);
 }
 // A stop after a block re-checks only what a script can check, and blocks again with what is still missing, at most
 // MAX_BLOCKS times per request; the last one has the agent tell the user plainly what is not done. The verify list
@@ -149,7 +152,7 @@ function judge(data, { shadow = false } = {}) {
   // second round of the answer)
   const previewed = !shadow && (acts.calls || []).some(c => /^(Bash|PowerShell)$/.test(c.name) && /hooks\.mjs["']?\s+check\b[^\n]*--answer-file/.test(String(c.input?.command || '')));
   const check = again || previewed ? null : toVerify(turn, acts);
-  if (!list.length && !check) return null;
+  if (!list.length && !check) { if (!shadow) passed = { acts, turn, rounds }; return null; }
   const parts = [], last = rounds + 1 === MAX_BLOCKS;
   // (a repeat block asks for the fix, or one line on why the item doesn't fit this work, never the same answer again.
   // Lesson (2026-11-07): an agent resent the same answer to each repeat block, and the false item was never looked at)

@@ -1275,6 +1275,62 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     const st = (spawnSync(process.execPath, [path.join(c2, 'tools/hooks/hooks.mjs'), 'stop'], { cwd: c2, encoding: 'utf8', input: JSON.stringify({ session_id: 'crashstop' }), env: { ...process.env, STARTER_ENGINE: 'v2' } }).stdout || '');
     fs.rmSync(c2, { recursive: true, force: true });
     report(/"decision":"block"/.test(st) && /CRASHED/.test(st), 'crash: a v2 Stop hook that cannot load blocks once with the error', st.slice(0, 160));
+    // (REQ: engine-parity. Every kind of line the old engine showed has a v2 entry: shown (by a function that exists),
+    // dropped with a reason, or open. Lesson (the user): a move to v2 lost the end-of-turn lines and nobody saw it)
+    {
+      const { LINE_KINDS, V2_SHOWS } = await import('./lines.mjs');
+      const src = ['../hooks.mjs', 'lines.mjs', 'end.mjs', 'guard.mjs', 'midturn.mjs'].map(f => fs.readFileSync(path.join(repo, 'tools/hooks/v2', f), 'utf8')).join('\n');
+      const bad = Object.keys(LINE_KINDS).filter(k => { const v = V2_SHOWS[k] || ''; return !/^(v2|dropped|open): \S/.test(v) || (v.startsWith('v2:') && v.slice(3).split(',').some(fn => !new RegExp(`function ${fn.trim()}\\b`).test(src))); });
+      report(!bad.length, 'parity: every kind of line the user saw under the old engine is shown by v2 (a function that exists), dropped with a reason, or open (engine-parity)', bad);
+    }
+    // (pictures pasted into a busy helper's chat reach it as text only: it is told the saved files, by number; a
+    // message whose pictures arrived, and the main session, get nothing. Lesson (a field report): a helper asked four
+    // times for screenshots that were on disk)
+    {
+      const { missingImages, imagesNote, lateMessages, lateNote } = await import('./midturn.mjs');
+      const box = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-img-')), tmp = path.join(box, 'tmp'), proj = path.join(box, 'projects', 'C--p');
+      const main = path.join(proj, 's1.jsonl'), sub = path.join(proj, 's1', 'subagents', 'agent-a1.jsonl'), imgs = path.join(tmp, 'claude', 'C--p', 's1', 'images');
+      fs.mkdirSync(path.dirname(sub), { recursive: true }); fs.mkdirSync(imgs, { recursive: true }); fs.writeFileSync(main, '');
+      for (const n of [7, 8]) fs.writeFileSync(path.join(imgs, `${n}.png`), 'x');
+      const msg = (text, pics = 0) => JSON.stringify({ type: 'user', timestamp: `2026-01-01T00:00:0${pics}Z`, message: { role: 'user', content: pics ? [{ type: 'text', text }, ...Array(pics).fill({ type: 'image' })] : text } });
+      fs.writeFileSync(sub, [msg('The user sent a new message while you were working:\n[Image #7] add this, cut [Image #8]')].join('\n') + '\n');
+      const lost = missingImages({ session_id: 's1', agent_id: 'a1', transcript_path: main }, tmp), note = lost ? imagesNote(lost) : '';
+      fs.appendFileSync(sub, msg('[Image #9] and this one', 1) + '\n');
+      const arrived = missingImages({ session_id: 's1', agent_id: 'a1', transcript_path: main }, tmp), mainOnly = missingImages({ session_id: 's1', transcript_path: main }, tmp);
+      // (a message typed while the agent works waits for its answer: the agent is told to answer first, until it writes
+      // to the user; background notices and other sessions' messages are not the user's)
+      const sayRow = JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'Working on it.' }] } });
+      const queued = (prompt, t) => JSON.stringify({ type: 'attachment', timestamp: t, attachment: { type: 'queued_command', prompt } });
+      fs.writeFileSync(main, [sayRow, queued('<task-notification>done</task-notification>', '2026-01-01T00:01:00Z'), queued('you said 1 board wipe but there are 2?', '2026-01-01T00:01:01Z'),
+        msg('The user sent a new message while you were working:\nwhat happened?\n\nThis is how Claude Code surfaces messages the user sends mid-turn')].join('\n') + '\n');
+      const waiting = lateMessages({ transcript_path: main }), lnote = lateNote(waiting);
+      fs.appendFileSync(main, sayRow + '\n'); const answered = lateMessages({ transcript_path: main });
+      fs.rmSync(box, { recursive: true, force: true });
+      report(lost?.files.length === 2 && /7\.png; .*8\.png/.test(note) && /Do not ask the user to send them again/.test(note) && arrived === null && mainOnly === null,
+        'images: pictures that reached a helper as text only are named by their saved files; arrived pictures and the main session get nothing', { lost, note: note.slice(0, 200), arrived, mainOnly });
+      report(waiting.map(m => m.text).join('|') === 'you said 1 board wipe but there are 2?|what happened?' && /Answer it now/.test(lnote) && !answered.length,
+        'late: messages the user typed while the agent works are handed to it to answer first, until it writes to the user; notices are not the user\'s', { waiting, answered });
+    }
+    // (REQ: prompt-visible. A work turn that passes shows the user what the engine did: the complaint fixed and the checks
+    // passed; a question turn shows nothing. Lesson (the user): under v2 these lines were gone, and the engine looked off)
+    const c4 = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-pass-'));
+    fs.cpSync(path.join(repo, 'tools/hooks'), path.join(c4, 'tools/hooks'), { recursive: true, filter: s => !/[\\/]state([\\/]|$)/.test(s) });
+    fs.mkdirSync(path.join(c4, '.cache'), { recursive: true }); fs.mkdirSync(path.join(c4, 'docs'), { recursive: true });
+    fs.writeFileSync(path.join(c4, 'docs/names.json'), JSON.stringify({ STARTER_NAME: 'Anzuelo' }));
+    const t0 = Date.now(), ts = k => new Date(t0 + k * 1000).toISOString(), stamp = (rows, k0) => rows.flat().map((r, i) => ({ ...r, timestamp: ts(k0 + i) }));
+    const tfile = (name, rows) => { const f = path.join(c4, `${name}.jsonl`); fs.writeFileSync(f, rows.map(r => JSON.stringify(r)).join('\n') + '\n'); return f; };
+    const stop = (sid, f, last) => (spawnSync(process.execPath, [path.join(c4, 'tools/hooks/hooks.mjs'), 'stop'], { cwd: c4, encoding: 'utf8',
+      input: JSON.stringify({ session_id: sid, transcript_path: f, last_assistant_message: last }), env: { ...process.env, STARTER_ENGINE: 'v2', CLAUDE_PROJECT_DIR: c4, ANZUELO_ROOT: '' } }).stdout || '').trim();
+    fs.writeFileSync(path.join(c4, '.cache/turn-notes.md'), 'Issue: the notes file had a typo | runbook: learn-from-upset | fixed when: the typo is gone\n');
+    fs.writeFileSync(path.join(c4, 'notes.md'), 'teh notes\n');
+    const workRows = stamp([user('UGH the notes have a typo AGAIN, fix it'), call('Edit', { file_path: path.join(c4, 'notes.md'), old_string: 'teh', new_string: 'the' }), say('Fixed the typo in notes.md.')], 0);
+    fs.writeFileSync(path.join(c4, 'notes.md'), 'the notes\n');
+    const w = stop('passwork', tfile('work', workRows), 'Fixed the typo in notes.md.');
+    const q = stop('passq', tfile('q', stamp([user('what does notes.md say?'), say('It says "the notes".')], 100)), 'It says "the notes".');
+    fs.rmSync(c4, { recursive: true, force: true });
+    const shownW = (() => { try { return JSON.parse(w).systemMessage || ''; } catch { return ''; } })();
+    report(/⚓ Anzuelo 🚨 fixed: the notes file had a typo/.test(shownW) && /⚓ Anzuelo ✅ checks passed/.test(shownW) && q === '',
+      'visible: under v2 a work turn that passes shows the issue fixed and the checks passed; a question shows nothing', [w.slice(0, 300), q.slice(0, 200)]);
     // (an upgrade proves the engine runs in the project with its own hooks; the probe leaves no state behind)
     const { probeEngine } = await import('../hooks.mjs');
     const c3 = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-probe-'));
@@ -1428,10 +1484,12 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
 // Lesson: v1 grew to about 9,600 lines of hooks, most of it fixing friction it made itself.
 {
   const here = path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1'));
-  const engine = fs.readdirSync(here).filter(f => f.endsWith('.mjs') && f !== 'selftest.mjs');
-  const lines = engine.reduce((n, f) => n + fs.readFileSync(path.join(here, f), 'utf8').split('\n').length, 0);
+  // (the budget of the v2-only plan: 2,000 lines of engine code without tests, over v2/, paths.mjs and git-guard.mjs;
+  // hooks.mjs joins the count when 1e cuts it to the entry. Plan: docs/plans/2026-11-07-engine-v2-only.md, Task 4)
+  const engine = [...fs.readdirSync(here).filter(f => f.endsWith('.mjs') && f !== 'selftest.mjs').map(f => path.join(here, f)), path.join(here, '..', 'paths.mjs'), path.join(here, '..', 'git-guard.mjs')];
+  const lines = engine.reduce((n, f) => n + fs.readFileSync(f, 'utf8').split('\n').length, 0);
   const checks = (/const list = \[([^\]]*)\]/.exec(fs.readFileSync(path.join(here, 'end.mjs'), 'utf8'))?.[1].match(/\.\.\.\w+\(/g) || []).length;
-  report(lines <= 1500 && checks >= 1 && checks <= 15, `size: the v2 engine is at most 1,500 lines (${lines}) and the end check runs at most 15 checks (${checks})`, { lines, checks });
+  report(lines <= 2000 && checks >= 1 && checks <= 15, `size: the v2 engine (v2/, paths.mjs, git-guard.mjs) is at most 2,000 lines (${lines}) and the end check runs at most 15 checks (${checks})`, { lines, checks });
 }
 
 // (one place finds the three roots: the engine's code, the project, and where project-made engine files live. In the
