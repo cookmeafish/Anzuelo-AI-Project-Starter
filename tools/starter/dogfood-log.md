@@ -46,3 +46,4 @@ self-test, then mark it fixed with the commit. New projects never get this file.
 
 - 2026-11-07: in the starter, the project runbook's changelog item asks for docs/CHANGELOG.md, which is the template every new project gets; the starter's own changelog is tools/starter/STARTER-CHANGELOG.md, so the item is a false demand here.
 - 2026-11-08: a scheduled status prompt in the starter was routed to the project runbook and held to it as a question for 3 rounds; a plain "the project runbook doesn't fit" never cleared the ask to open it. Fixed in 4b7a3cf (questions held only to runbooks with an (evidence) item; a not-fit line naming the runbook clears it), shipped in 0e1f09a.
+- 2026-11-08: the settings guard refused a plain read (`setting <key>; grep ...`) as a write, since the key match ran into the next command. Fixed in eae150d with a test in the permission-respected scenario.
