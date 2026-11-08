@@ -60,7 +60,9 @@ is: `node tools/starter.mjs upgrade`. No link: `node tools/starter.mjs link "<st
 - **Runbooks that answer questions from sources** (a knowledge base, notes, the web): add `(evidence)` to the item
   about sources in each one that lacks it (runbook-create step 3 says what it checks). Without it, a question routed
   there is not held to the runbook or checked for evidence. Report the count added and the count of answer runbooks
-  (totals only). Keep the project's own wording of the item (2026-11-08).
+  (totals only). Keep the project's own wording of the item (2026-11-08). A project's own hook that already checks
+  answers (outside `requirements.json`) is converted only when its sessions show the engine's marker is faster or uses
+  fewer tokens per answer turn and checks no less; otherwise it stays, with its reason in the upgrade review.
 - Commit the upgrade (§1) and say in the answer what changed for the user (the starter's changelog lines it printed).
 
 ### 4. Remove

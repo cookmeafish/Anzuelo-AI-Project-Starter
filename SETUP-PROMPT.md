@@ -61,6 +61,10 @@ The starter was added around work that already exists (`config.json` has `adopte
   for web lookups (sources and a date on a fixed line), put a regex for that line in `"researchCoveredBy"`, so an
   answer that follows it is not sent through the research ledger as well. Keep `AGENTS.md` and `CLAUDE.md` saying they "are
   twins" (keep the two identical) when you merge the project's rules into them.
+- **Its own accuracy checks** (hooks that check answers twice or three times): convert one to the engine's "Done when"
+  markers (`(evidence)`, `(answer: ...)`) only when the project's own sessions show it is faster or uses fewer tokens
+  per answer turn and it checks no less. Otherwise keep it as it is. Each conversion is an `- improve:` line in the
+  adoption review, with the measurement.
 - **Library skills:** `codebase-map` and `repo-setup` come first for an existing codebase.
 - The final summary lists what was added, kept, moved (only if approved), and the improvement backlog.
 

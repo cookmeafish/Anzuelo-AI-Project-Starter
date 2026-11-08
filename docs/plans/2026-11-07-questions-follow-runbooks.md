@@ -116,11 +116,11 @@ A run that is stuck sets `status: blocked - <reason>` with `Tried:` and `Options
 ### Task 2d: a project's own accuracy hooks (user, 2026-11-07)
 **Files:** `SETUP-PROMPT.md` (adoption review), `docs/playbooks/engine.md` (upgrade review)
 **Uses / provides:** uses Tasks 2 and 2b
-- [ ] Established knowledge projects may already double- or triple-check answers with their own hooks. Adoption and
+- [x] Established knowledge projects may already double- or triple-check answers with their own hooks. Adoption and
       upgrade list each one and convert it to the engine's end-check markers only when that is measurably more
       efficient (time and tokens per answer turn, from the project's own sessions) and checks no less; otherwise it
       stays as it is (surgery, rule 16). Each conversion is an `- improve:` line in the adoption review.
-- [ ] Run `node tools/writing-check.mjs SETUP-PROMPT.md`. Expected: PASS.
+- [x] Run `node tools/writing-check.mjs SETUP-PROMPT.md`. Expected: PASS.
 
 ### Task 3: replay and ship
 **Files:** none new
