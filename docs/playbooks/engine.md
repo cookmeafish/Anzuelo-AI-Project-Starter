@@ -81,17 +81,33 @@ else in the project (no sync, no runbook edits) until the upgrade prints its res
 - Commit the upgrade (§1) and say in the answer what changed for the user (the starter's changelog lines it printed).
 
 ### 4. Remove
+Goal: the engine leaves, and everything the project made keeps working: its own hooks, skills, scripts, runbooks,
+checks and records.
 1. Ask the user first, in one line: removing changes how every later session works. No → stop.
-2. `node tools/starter.mjs uninstall --dry-run`, check the list (§1), then `node tools/starter.mjs uninstall`. It
-   unwires the engine's hooks (other agent settings stay), removes the engine's files, core skills, the skills made from
-   its runbooks and their mirrors, and backs all of it up in `.cache/engine-removed/<time>/`. The project's own files
-   stay: AGENTS.md, docs, its runbooks, checks and code.
-3. Tell the user where the backup is and the command it printed to put the engine back, and offer to trim AGENTS.md
-   (and CLAUDE.md), which still describe the engine's rules.
+2. Commit the project's work (§1), and note what works today: the project's own test command and its own hooks (the
+   entries in `.claude/settings.json` or `.codex/hooks.json` that do not run `hooks.mjs`), and its skills
+   (`skills/`, plus `.anzuelo/local/skills/` with the engine in `.anzuelo/`).
+3. Dry run, and read every line:
+   - Engine in the project: `node tools/starter.mjs uninstall --dry-run` (needs the starter link; without one,
+     `node tools/starter.mjs link "<starter folder>"` first).
+   - Engine in `.anzuelo/`: `node .anzuelo/engine/tools/starter.mjs uninstall --dry-run` (no link needed).
+   `kept` lines are engine files the project's own code or hooks use (they stay, with what they load) and engine
+   runbooks or skills the project changed. `restored` lines are the project's files coming back from `.anzuelo/local/`.
+   A `check` line names project files that still point at `.anzuelo/`: fix each one after the removal (to the restored
+   path), or before if it would break the removal.
+4. Run it without `--dry-run`. Only the engine's own hook entries go; the project's hook commands, other settings and
+   git hooks of its own stay. Everything removed is backed up in `.cache/engine-removed/<time>/`.
+5. The rules: AGENTS.md (and CLAUDE.md, its copy for Claude Code) still describe the engine. Keep the project's own
+   part (its brief, standing preferences, project rules), remove the sections about the engine (hooks, runbook routing,
+   the engine's hard rules the project does not want), and make CLAUDE.md a copy of the result. Show the user the
+   sections to remove before removing them.
+6. Verify: run the project's own test command and one of its own hooks by hand; both behave as in step 2. List
+   `skills/` and the agent folders (`.claude/skills/`): the project's own skills are all there.
+7. Tell the user where the backup is and the command printed to put the engine back.
 
 ### 5. A setting
-- Read it: `node tools/hooks/hooks.mjs setting <key>`. Each key, its default and what it does are in `DEFAULTS` in
-  `tools/hooks/hooks.mjs` (the comment beside it). Values are JSON: `true`, `3`, `"text"`, `["a", "b"]`.
+- Read it: `node tools/hooks/hooks.mjs setting <key>`. Each key and what it does are in `tools/hooks/SETTINGS.md`, its
+  default in `tools/hooks/defaults.json`. Values are JSON: `true`, `3`, `"text"`, `["a", "b"]`.
 - Change it: edit `tools/hooks/config.json` yourself, then add a line to `docs/DECISIONS.md`:
   `<date>: setting <key> = <value> - <why>`.
 - **The agent host refuses the edit** (the edit tool returns a denial instead of a change, such as Claude Code's
@@ -110,6 +126,9 @@ else in the project (no sync, no runbook edits) until the upgrade prints its res
 - [ ] An upgrade's review lines each end with a decision (hook: upgrade-review) (when ran: starter\.mjs upgrade [^-]|starter\.mjs upgrade$|starter\.mjs update [^-]|starter\.mjs update$|starter\.mjs update --keep-local) (file: docs/DECISIONS.md).
 - [ ] A removal was asked first, and the answer says where the backup is and how to put the engine back (judgment:
       plain wording for the user) (when ran: starter\.mjs uninstall).
+- [ ] A removal ran its dry run first, and after it the project's own test command ran and passed (ran: uninstall --dry-run) (when ran: starter\.mjs uninstall$|starter\.mjs uninstall [^-]).
+- [ ] After a removal, every `check` line it printed is fixed, AGENTS.md and CLAUDE.md keep only the project's own
+      rules, and the project's own hooks and skills were shown to still work (judgment: which rules are the project's) (when ran: starter\.mjs uninstall$|starter\.mjs uninstall [^-]).
 - [ ] A changed setting has its DECISIONS line; one the host refused went to the user as the line to paste, never
       written another way (hook: permission-respected) (when file: tools/hooks/config.json) (file: docs/DECISIONS.md).
 - [ ] The answer ends with a Finished section: what changed, each file's path, what was not verified (hook: finished-summary) (answer: Finished).

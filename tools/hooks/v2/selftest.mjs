@@ -1319,6 +1319,70 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     `simple: v2 is the default engine (v1 only when pinned), and the session text and ${files.length} rule, runbook and skill files ask for no record lines`, JSON.stringify({ dflt, pinned, asks: asks.slice(0, 8) }));
 }
 
+// (leaving the engine keeps the project's own hooks, skills and scripts working: an engine file they use stays, with
+// what it loads; an engine runbook the project changed stays with its skill; the rest goes. Plan: clean exit, Task 1)
+{
+  const { spawnSync } = await import('node:child_process');
+  const repo = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
+  const box = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-exit-')), p = path.join(box, 'p'), at = (...a) => path.join(p, ...a);
+  const np = (...a) => spawnSync(process.execPath, [path.join(repo, 'tools/new-project.mjs'), p, ...a], { encoding: 'utf8', timeout: 120000 });
+  try {
+    np('--name', 'Demo', '--desc', 'a demo', '--dev');
+    spawnSync('git', ['init', '-q'], { cwd: p });
+    const plain = np('--remove', '--dev', '--dry-run').stdout;
+    fs.mkdirSync(at('scripts'), { recursive: true });
+    fs.writeFileSync(at('scripts/where.mjs'), "import { PROJECT } from '../tools/hooks/paths.mjs';\nconsole.log(PROJECT ? 'ok' : 'none');\n");
+    fs.mkdirSync(at('skills/mine/scripts'), { recursive: true });
+    fs.writeFileSync(at('skills/mine/SKILL.md'), '---\nname: mine\ndescription: the project\'s own skill\n---\n# Mine\n');
+    fs.writeFileSync(at('skills/mine/scripts/run.mjs'), "console.log('mine');\n");
+    const sp = at('.claude/settings.json'), s0 = JSON.parse(fs.readFileSync(sp, 'utf8'));
+    s0.hooks.Stop[0].hooks.push({ type: 'command', command: 'node scripts/own-stop.mjs' });
+    s0.hooks.SessionStart.push({ hooks: [{ type: 'command', command: 'node "$CLAUDE_PROJECT_DIR/tools/hooks/hooks.mjs" jobs x' }] });
+    fs.writeFileSync(sp, JSON.stringify(s0, null, 2));
+    fs.appendFileSync(at('docs/playbooks/status-lines.md'), '\n## Project lessons\n- 2026-11-08: a lesson this project learned.\n');
+    const r = np('--remove', '--dev'), s = JSON.parse(fs.readFileSync(sp, 'utf8'));
+    const where = spawnSync(process.execPath, [at('scripts/where.mjs')], { cwd: p, encoding: 'utf8' }).stdout.trim();
+    const cmds = JSON.stringify(s.hooks || {});
+    report(!/^kept/m.test(plain) && r.status === 0 && where === 'ok' && fs.existsSync(at('skills/mine/scripts/run.mjs'))
+      && fs.existsSync(at('tools/hooks/hooks.mjs')) && fs.existsSync(at('tools/hooks/defaults.json')) && fs.existsSync(at('tools/hooks/v2/guard.mjs'))
+      && fs.existsSync(at('docs/playbooks/status-lines.md')) && !fs.existsSync(at('tools/audit.mjs')) && !fs.existsSync(at('docs/playbooks/plan.md'))
+      && /own-stop\.mjs/.test(cmds) && /hooks\.mjs\\?" jobs x/.test(cmds) && !/hooks\.mjs\\?" (stop|pretool|session)\b/.test(cmds),
+      'remove: leaving the engine keeps what the project\'s own scripts and hooks use (with what it loads), and runbooks it changed; only the engine\'s own wiring goes',
+      { plainKept: (plain.match(/^kept.*$/gm) || []).slice(0, 3), status: r.status, where, out: r.stdout.split('\n').filter(l => /^kept/.test(l)).slice(0, 8), cmds: cmds.slice(0, 300), err: r.stderr.slice(0, 200) });
+  } finally { fs.rmSync(box, { recursive: true, force: true }); }
+}
+
+// (with the engine in .anzuelo/: uninstall needs no starter link, unwires only the engine, brings the project's own
+// runbooks, skills and records back from .anzuelo/local, names files that still mention .anzuelo/, and backs up.
+// Plan: clean exit, Task 2)
+{
+  const { spawnSync } = await import('node:child_process');
+  const repo = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
+  const box = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-exit-split-')), p = path.join(box, 'p'), at = (...a) => path.join(p, ...a), loc = at('.anzuelo', 'local');
+  const g = (...a) => spawnSync('git', ['-c', 'user.email=t@example.com', '-c', 'user.name=t', ...a], { cwd: p, encoding: 'utf8' });
+  try {
+    fs.mkdirSync(at('.claude'), { recursive: true }); fs.writeFileSync(at('main.py'), 'print("hi")\n');
+    const own = JSON.stringify({ hooks: { Stop: [{ hooks: [{ type: 'command', command: 'python own_check.py' }] }] } }, null, 2) + '\n';
+    fs.writeFileSync(at('.claude/settings.json'), own); fs.writeFileSync(at('notes.md'), 'Runbooks are in .anzuelo/local/docs/playbooks.\n');
+    g('init', '-q'); g('add', '-A'); g('commit', '-qm', 'project');
+    const ins = spawnSync(process.execPath, [path.join(repo, 'tools/starter.mjs'), 'install', p, '--private', 'no'], { encoding: 'utf8', timeout: 300000 });
+    fs.copyFileSync(path.join(repo, 'tools/starter.mjs'), at('.anzuelo/engine/tools/starter.mjs'));
+    for (const [f, t] of [['docs/playbooks/own.md', '# Own runbook\n'], ['skills/mine/SKILL.md', '---\nname: mine\n---\n# Mine\n'], ['docs/STATUS.md', '# Status\nours\n']]) { fs.mkdirSync(path.dirname(path.join(loc, f)), { recursive: true }); fs.writeFileSync(path.join(loc, f), t); }
+    const st = (...a) => spawnSync(process.execPath, [at('.anzuelo/engine/tools/starter.mjs'), 'uninstall', ...a], { cwd: p, encoding: 'utf8', timeout: 120000 });
+    const wired = fs.existsSync(at('.claude/settings.local.json')) && /hooks\.mjs/.test(fs.readFileSync(at('.claude/settings.local.json'), 'utf8'));
+    const dry = st('--dry-run'), dryLeft = fs.existsSync(at('.anzuelo/engine')), r = st();
+    const backups = (() => { try { return fs.readdirSync(at('.cache/engine-removed')); } catch { return []; } })();
+    const local = fs.existsSync(at('.claude/settings.local.json')) ? fs.readFileSync(at('.claude/settings.local.json'), 'utf8') : '';
+    report(ins.status === 0 && wired && dry.status === 0 && dryLeft && r.status === 0 && !fs.existsSync(at('.anzuelo'))
+      && fs.readFileSync(at('.claude/settings.json'), 'utf8') === own && !/hooks\.mjs/.test(local) && !fs.existsSync(at('CLAUDE.local.md'))
+      && fs.existsSync(at('docs/playbooks/own.md')) && fs.existsSync(at('skills/mine/SKILL.md')) && /ours/.test(fs.readFileSync(at('docs/STATUS.md'), 'utf8')) && fs.existsSync(at('main.py'))
+      && !/project engine and its wiring/.test(fs.readFileSync(at('.gitignore'), 'utf8')) && /notes\.md/.test(r.stdout) && !(g('config', '--get', 'core.hooksPath').stdout || '').trim()
+      && backups.length === 1 && fs.existsSync(at('.cache/engine-removed', backups[0], 'engine.json')) && fs.existsSync(at('.cache/engine-removed', backups[0], '.anzuelo/local/docs/playbooks/own.md')),
+      'remove (.anzuelo/): uninstall unwires only the engine, brings the project\'s own runbooks, skills and records back, names files still pointing at .anzuelo/, and backs up',
+      { ins: [ins.status, (ins.stderr || '').slice(0, 200)], wired, dry: (dry.stdout || dry.stderr || '').slice(-300), r: [r.status, (r.stdout || '').slice(-600), (r.stderr || '').slice(0, 300)], local: local.slice(0, 200) });
+  } finally { fs.rmSync(box, { recursive: true, force: true, maxRetries: 3 }); }
+}
+
 // size budget (docs/plans/2026-11-05-engine-v2.md): the engine stays small, and the end check has at most 15 checks.
 // Lesson: v1 grew to about 9,600 lines of hooks, most of it fixing friction it made itself.
 {

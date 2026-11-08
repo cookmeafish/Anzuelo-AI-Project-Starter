@@ -15,7 +15,9 @@
 //   node tools/starter.mjs status                the choice, the link, what can still be added, and how many commits the
 //                                                 linked starter is behind its git origin
 //   node tools/starter.mjs uninstall [--dry-run]  take the engine out of this project: its hooks unwired, its files
-//                                                 removed (backed up in .cache/engine-removed/), the project's own kept
+//                                                 removed (backed up in .cache/engine-removed/), the project's own kept,
+//                                                 and engine files its own code uses kept too; with the engine in
+//                                                 .anzuelo/, no link is needed and .anzuelo/local comes back to its paths
 //   node tools/starter.mjs update                 get the newest starter (git pull in the linked copy), then upgrade;
 //                                                 --keep-local keeps local changes in that copy on top
 //   node tools/starter.mjs upgrade                refresh the engine from the linked starter (new-project.mjs --upgrade):
@@ -178,6 +180,75 @@ export function splitUpgrade() {
   if (old !== now) console.log(`what changed: ${path.join(ENGINE, 'tools', 'starter', 'STARTER-CHANGELOG.md').split(path.sep).join('/')} (lines since ${old.slice(0, 7)}); review them in docs/DECISIONS.md as before`);
   return w.status === 0 ? 0 : 1;
 }
+// Leaving the engine with it in .anzuelo/: the project's own hooks, skills, scripts and records stay or come back to
+// their paths, and only the engine and its wiring go (backed up in .cache/engine-removed/). Plan: clean exit, Task 2.
+// Lesson (the user): leaving must be as easy as joining, with the project's own work intact.
+export function splitUninstall(dry) {
+  const at = (...p) => path.join(PROJECT, ...p), log = [], stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const backup = at('.cache', 'engine-removed', stamp), save = f => { if (!dry && fs.existsSync(at(f))) { fs.mkdirSync(path.dirname(path.join(backup, f)), { recursive: true }); fs.copyFileSync(at(f), path.join(backup, f)); } };
+  const isEngineCmd = h => /\.anzuelo[\\/]+engine[\\/]+tools[\\/]+hooks[\\/]+hooks\.mjs/.test(String(h?.command || ''));
+  // 1. the wiring: only the engine's entries go
+  for (const f of ['.claude/settings.local.json', '.codex/hooks.json']) {
+    let j; try { j = JSON.parse(fs.readFileSync(at(f), 'utf8')); } catch { continue; }
+    if (!Object.values(j.hooks || {}).flat().some(g => [].concat(g?.hooks || []).some(isEngineCmd))) continue;
+    for (const [ev, list] of Object.entries(j.hooks)) {
+      const keep = [].concat(list).flatMap(g => { const rest = [].concat(g?.hooks || []).filter(h => !isEngineCmd(h)); return rest.length ? [{ ...g, hooks: rest }] : []; });
+      if (keep.length) j.hooks[ev] = keep; else delete j.hooks[ev];
+    }
+    if (!Object.keys(j.hooks).length) delete j.hooks;
+    save(f);
+    const empty = !Object.keys(j).length;
+    if (!dry) empty ? fs.rmSync(at(f)) : fs.writeFileSync(at(f), JSON.stringify(j, null, 2) + '\n');
+    log.push(`unwired  ${f} (the engine's hooks${empty ? '; nothing else was in it, so it went' : '; the rest kept'})`);
+  }
+  if (fs.existsSync(at('CLAUDE.local.md'))) {
+    const t = fs.readFileSync(at('CLAUDE.local.md'), 'utf8'), rest = t.split(/\r?\n/).filter(l => !/^@\.anzuelo\/(local|engine)\/AGENTS\.md\s*$/.test(l)).join('\n').trim();
+    if (rest !== t.trim()) { save('CLAUDE.local.md'); if (!dry) rest ? fs.writeFileSync(at('CLAUDE.local.md'), rest + '\n') : fs.rmSync(at('CLAUDE.local.md')); log.push(`unwired  CLAUDE.local.md (the engine's rules${rest ? '; your own lines kept' : ''})`); }
+  }
+  const hp = (spawnSync('git', ['config', '--get', 'core.hooksPath'], { cwd: PROJECT, encoding: 'utf8' }).stdout || '').trim();
+  if (/^\.anzuelo\/engine\//.test(hp)) { if (!dry) spawnSync('git', ['config', '--unset', 'core.hooksPath'], { cwd: PROJECT }); log.push('unwired  git hooks (core.hooksPath)'); }
+  if (fs.existsSync(at('.gitignore'))) {
+    const gi = fs.readFileSync(at('.gitignore'), 'utf8'), MARK = '# The project engine and its wiring (made on each machine, never committed)';
+    const BLOCK = new Set(['.anzuelo/', 'CLAUDE.local.md', '.claude/settings.local.json', '.claude/skills/', '.agents/skills/', '.codex/hooks.json']);
+    const lines = gi.split(/\r?\n/), i = lines.indexOf(MARK);
+    if (i >= 0) {
+      let j = i + 1; while (j < lines.length && BLOCK.has(lines[j].trim())) j++;
+      // (a machine's own Claude Code settings stay out of git)
+      const out = [...lines.slice(0, i), ...(fs.existsSync(at('.claude/settings.local.json')) ? ['.claude/settings.local.json'] : []), ...lines.slice(j)].join('\n').replace(/\n{3,}/g, '\n\n');
+      save('.gitignore'); if (!dry) fs.writeFileSync(at('.gitignore'), out); log.push('updated  .gitignore (the engine\'s block removed)');
+    }
+  }
+  // 2. the project's own files in .anzuelo/local come back to their paths; one the project already has stays, and the
+  // local copy waits in the backup. The engine's state, settings and generated map do not come back.
+  const SKIP = /^(\.git|\.cache|\.starter|tools\/hooks\/(state|config\.json|requirements\.json)|tools\/starter|tools\/packs-registry\.json|based-on\.json|config\.json|DIRECTORY\.md|SETUP-PROMPT\.md|HOW-TO-USE\.md)(\/|$)/;
+  const back = [], clash = [];
+  const walk = d => { let es = []; try { es = fs.readdirSync(path.join(LOCAL, d || '.'), { withFileTypes: true }); } catch { return; }
+    for (const e of es) { const p = d ? `${d}/${e.name}` : e.name; if (SKIP.test(p)) continue; if (e.isDirectory()) walk(p); else (fs.existsSync(at(p)) ? clash : back).push(p); } };
+  walk('');
+  for (const p of back) { if (!dry) { fs.mkdirSync(path.dirname(at(p)), { recursive: true }); fs.copyFileSync(path.join(LOCAL, p), at(p)); } }
+  if (back.length) log.push(`restored ${back.length} file(s) of the project's own from .anzuelo/local to their paths (${back.slice(0, 5).join(', ')}${back.length > 5 ? ', ...' : ''})`);
+  for (const p of clash) log.push(`kept     ${p} (the project's copy; the one from .anzuelo/local is in the backup)`);
+  // (skill mirrors: the project's own skills keep theirs, the engine's go)
+  for (const m of ['.claude/skills', '.agents/skills']) for (const s of (() => { try { return fs.readdirSync(at(m)); } catch { return []; } })())
+    if (!fs.existsSync(at('skills', s)) && !back.some(p => p.startsWith(`skills/${s}/`)) && fs.existsSync(at(m, s, '.mirror'))) { if (!dry) fs.rmSync(at(m, s), { recursive: true, force: true }); log.push(`removed  ${m}/${s} (a copy of an engine skill)`); }
+  // 3. the project's files that still name .anzuelo/ break once it is gone: named, not changed
+  const tracked = (spawnSync('git', ['ls-files'], { cwd: PROJECT, encoding: 'utf8' }).stdout || '').split('\n').filter(f => f && f !== '.gitignore' && /\.(mjs|cjs|js|ts|py|sh|ps1|bat|cmd|json|toml|ya?ml|md)$/i.test(f));
+  const naming = tracked.filter(f => { try { return fs.readFileSync(at(f), 'utf8').includes('.anzuelo/'); } catch { return false; } });
+  if (naming.length) log.push(`check    ${naming.length} file(s) of the project still name .anzuelo/ and need changing: ${naming.slice(0, 8).join(', ')}${naming.length > 8 ? ', ...' : ''}`);
+  // 4. the engine goes; .anzuelo/local is backed up whole, and the engine's commit and origin are written down
+  const origin = (engineGit('remote', 'get-url', 'origin').stdout || '').trim(), head = engineHead();
+  if (!dry) {
+    fs.mkdirSync(backup, { recursive: true });
+    fs.cpSync(LOCAL, path.join(backup, '.anzuelo', 'local'), { recursive: true });
+    fs.writeFileSync(path.join(backup, 'engine.json'), JSON.stringify({ commit: head, origin }, null, 2) + '\n');
+    fs.rmSync(at('.anzuelo'), { recursive: true, force: true, maxRetries: 3 });
+  }
+  log.push('removed  .anzuelo/ (the engine and its local files)');
+  console.log(log.join('\n'));
+  console.log(dry ? `\nDry run: nothing changed (${log.length} item(s) above).` : `\nRemoved the engine: backed up in ${path.relative(PROJECT, backup).split(path.sep).join('/')}/ (.anzuelo/local whole, the changed wiring files, and the engine's commit ${head.slice(0, 7)}${origin ? ` from ${origin}` : ''}). ` +
+    `To put it back: clone the starter, run its tools/starter.mjs install "${PROJECT}", then copy .anzuelo/local back from the backup.`);
+  return 0;
+}
 
 // The answer to "a private git repository for .anzuelo/local?", recorded in its config.json. Yes makes the repository
 // (never a remote: creating one is an outward action with its own OK); no leaves a plain folder.
@@ -248,6 +319,8 @@ if (cmd === 'link') {
     'To grow later: node tools/starter.mjs link "<starter folder>", or from the starter: node tools/new-project.mjs "<this folder>" --add-pack / --add-skill']);
 } else if (split && ['upgrade', 'update'].includes(cmd)) {
   process.exit(splitUpgrade());
+} else if (split && cmd === 'uninstall') {
+  process.exit(splitUninstall(process.argv.includes('--dry-run')));
 } else if (split && cmd === 'override') {
   // A default runbook, skill, checklist or the rules changed for this project: a copy in .anzuelo/local wins over the
   // engine's, and remembers the engine commit it came from, so an upgrade can merge the default's later changes into it.

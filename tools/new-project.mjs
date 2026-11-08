@@ -326,12 +326,21 @@ const auto = !['--adopt', '--upgrade', '--add-pack', '--add-skill', '--remove'].
 if (flag('--remove')) {
   if (!madeFromStarter) { console.error(`${dest} has no engine to remove (no tools/hooks/hooks.mjs).`); process.exit(1); }
   const log = [], at = (...p) => path.join(dest, ...p), backupDir = at('.cache', 'engine-removed', stamp);
-  const ours = h => /tools[\\/]+hooks[\\/]+hooks\.mjs/.test(JSON.stringify(h));
+  // (only the engine's own event commands are its wiring: a project hook that runs "hooks.mjs jobs", or a group that
+  // also runs a project command, keeps that command)
+  const ENGINE_CMD = /^node\s+"?[^"]*tools[\\/]+hooks[\\/]+hooks\.mjs"?\s+(session|prompt|pretool|posttool|stop|subagentstop)\s*$/;
+  const isEngineCmd = h => ENGINE_CMD.test(String(h?.command || '').trim());
+  let ownWiring = '';
   // the hook wiring: only the engine's entries go, every other setting stays
   for (const f of ['.claude/settings.json', '.codex/hooks.json']) {
     let j; try { j = JSON.parse(fs.readFileSync(at(f), 'utf8')); } catch { continue; }
-    if (!j.hooks || !Object.values(j.hooks).flat().some(ours)) continue;
-    for (const [ev, list] of Object.entries(j.hooks)) { const keep = [].concat(list).filter(h => !ours(h)); if (keep.length) j.hooks[ev] = keep; else delete j.hooks[ev]; }
+    const groups = Object.values(j.hooks || {}).flat();
+    if (!groups.some(g => [].concat(g?.hooks || []).some(isEngineCmd))) { ownWiring += JSON.stringify(j.hooks || {}); continue; }
+    for (const [ev, list] of Object.entries(j.hooks)) {
+      const keep = [].concat(list).flatMap(g => { const rest = [].concat(g?.hooks || []).filter(h => !isEngineCmd(h)); return rest.length ? [{ ...g, hooks: rest }] : []; });
+      if (keep.length) j.hooks[ev] = keep; else delete j.hooks[ev];
+    }
+    ownWiring += JSON.stringify(j.hooks || {});
     if (!Object.keys(j.hooks).length) delete j.hooks;
     if (!dry) { fs.mkdirSync(path.join(backupDir, path.dirname(f)), { recursive: true }); fs.copyFileSync(at(f), path.join(backupDir, f)); fs.writeFileSync(at(f), JSON.stringify(j, null, 2) + '\n'); }
     log.push(`unwired  ${f} (the engine's hooks; other settings kept)`);
@@ -343,8 +352,28 @@ if (flag('--remove')) {
     const t = (() => { try { return fs.readFileSync(at('skills', s, 'SKILL.md'), 'utf8'); } catch { return ''; } })(), rb = /^runbook:\s*(\S+)/m.exec(t)?.[1];
     return /^generated:\s*true/m.test(t) && rb && ENGINE.includes(rb);
   });
-  const mirrors = [...CORE_SKILLS, ...generated].flatMap(s => ['.claude/skills', '.agents/skills'].map(m => `${m}/${s}`));
-  for (const f of [...ENGINE, ...generated.map(s => `skills/${s}`), ...mirrors, 'tools/hooks/state', 'tools/starter.local.json'].filter(f => fs.existsSync(at(f)))) {
+  // What the project still uses stays (Lesson (the user): leaving the engine must keep the project's own hooks, skills
+  // and scripts working): an engine file its own code or hook settings name, with the engine files that one loads, and
+  // an engine runbook, checklist or core skill it changed (its "## Project lessons", or text no shipped version has).
+  const lf = t => t.replace(/\r\n/g, '\n'), text = f => { try { return lf(fs.readFileSync(at(f), 'utf8')); } catch { return ''; } };
+  const engineSet = new Set(ENGINE.filter(f => fs.existsSync(at(f)))), kept = new Map();
+  const listed = spawnSync('git', ['ls-files', '--cached', '--others', '--exclude-standard'], { cwd: dest, encoding: 'utf8' });
+  const own = (listed.status === 0 ? listed.stdout : '').split('\n').filter(f => f && /\.(mjs|cjs|js|ts|py|sh|ps1|bat|cmd|json|toml|ya?ml)$/i.test(f) && !engineSet.has(f) && !fs.existsSync(path.join(STARTER, f)) && !/^(\.claude|\.agents|packs|library|\.starter|\.cache|node_modules)\//.test(f) && !/^tools\/hooks\/(state|config\.json|requirements\.json)/.test(f));
+  const refsIn = (from, t) => [...t.matchAll(/["'`](\.{1,2}\/[^"'`\s]+)["'`]/g)].map(m => path.posix.normalize(path.posix.join(path.posix.dirname(from), m[1])));
+  for (const [from, t] of [...own.map(f => [f, text(f)]), ['(hook settings)', ownWiring]])
+    for (const e of engineSet) if (t.includes(e) || (from !== '(hook settings)' && refsIn(from, t).includes(e))) kept.set(e, `used by ${[kept.get(e)?.replace(/^used by /, ''), from].filter(Boolean).join(', ')}`);
+  // (and what a kept engine file loads: its relative imports and files read next to it)
+  for (let grew = true; grew;) { grew = false; for (const k of [...kept.keys()]) for (const r of refsIn(k, text(k))) if (engineSet.has(r) && !kept.has(r)) { kept.set(r, `loaded by ${k}`); grew = true; } }
+  for (const f of engineSet) if (!kept.has(f) && /^(docs\/(playbooks|checks)\/[^/]+\.md|skills\/[^/]+\/SKILL\.md)$/.test(f)) {
+    const t = text(f);
+    if (/^## Project lessons[^\n]*\n+(?!## |$)\S/m.test(t) || (fs.existsSync(path.join(STARTER, '.git')) && !shippedTexts(f).some(s => lf(s) === t))) kept.set(f, 'this project changed it');
+  }
+  const keptSkills = new Set([...kept.keys()].map(f => /^skills\/([^/]+)\//.exec(f)?.[1] || /^docs\/playbooks\/([^/]+)\.md$/.exec(f)?.[1]).filter(Boolean));
+  // (a kept skill keeps its whole folder: its references and scripts)
+  for (const f of engineSet) { const s = /^skills\/([^/]+)\//.exec(f)?.[1]; if (s && keptSkills.has(s) && !kept.has(f)) kept.set(f, `part of the kept ${s} skill`); }
+  const mirrors = [...CORE_SKILLS, ...generated].filter(s => !keptSkills.has(s)).flatMap(s => ['.claude/skills', '.agents/skills'].map(m => `${m}/${s}`));
+  for (const [f, why] of kept) log.push(`kept     ${f} (${why})`);
+  for (const f of [...[...engineSet].filter(f => !kept.has(f)), ...generated.filter(s => !keptSkills.has(s)).map(s => `skills/${s}`), ...mirrors, 'tools/hooks/state', 'tools/starter.local.json'].filter(f => fs.existsSync(at(f)))) {
     if (!dry) { fs.cpSync(at(f), path.join(backupDir, f), { recursive: true }); fs.rmSync(at(f), { recursive: true, force: true }); }
     log.push(`removed  ${f}`);
   }
