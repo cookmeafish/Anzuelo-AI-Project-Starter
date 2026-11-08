@@ -12,7 +12,8 @@ import { ROOT, runbooks, turnRows, turnActs, met, applies, opened, worked, loadT
 // (by a script too: the file changed since the turn began. Lesson (a project's report): a runbook edited by a shell
 // script was "opened" by naming it and held the turn three times)
 const authored = (b, acts) => acts.calls.some(c => /^(Edit|Write|MultiEdit)$/.test(c.name) && String(c.input.file_path || '').replace(/\\/g, '/').endsWith(b.file))
-  || (() => { const since = Date.parse(acts.at || '') || 0; try { return since > 0 && fs.statSync(path.join(ROOT, b.file)).mtimeMs > since; } catch { return false; } })();
+  || (acts.calls.some(c => /^(Bash|PowerShell)$/.test(c.name) && String(c.input.command || '').replace(/\\/g, '/').includes(b.file))
+    && (() => { const since = Date.parse(acts.at || '') || 0; try { return since > 0 && fs.statSync(path.join(ROOT, b.file)).mtimeMs > since; } catch { return false; } })());
 // (a routed runbook the agent never opened, while it opened another one, gives way to that one: the router guessed, the
 // agent chose. Lesson (trial v45): a page request routed to a recipe runbook on a broad trigger, the agent followed the
 // feature runbook, and the end check held it to the recipe items)
@@ -25,10 +26,11 @@ const chosen = (turn, acts, books) => { const routed = turn.runbook && books.fin
 // (or names a path the item names, and says why in plain words: agents rarely write "item 3")
 const NOFIT = /\b(does(?:n['’]t| not) (?:fit|apply)|not (?:applicable|needed|relevant)|n\/a|(?:was|is)(?:n['’]t| not) part of|not part of|never asked|not asked)\b/i;
 const kept = acts => {
-  const lines = String(acts.answer || acts.said || '').replace(/`/g, '').split('\n').filter(l => NOFIT.test(l));
+  // (one clause at a time: "item 3 done; item 5 n/a" clears item 5 only)
+  const lines = String(acts.answer || acts.said || '').replace(/`/g, '').split(/\n|;|\.\s+/).filter(l => NOFIT.test(l));
   return s => {
     const m = /^\S+ item (\d+): (.*)$/.exec(s); if (!m) return true;
-    const paths = (m[2].match(/[\w.-]*[\w-]\/[\w./*-]*|\b[\w-]+\.(?:md|json|mjs|js|py|ts|csv)\b/g) || []);
+    const paths = (m[2].match(/[\w.-]*[\w-]\/[\w./*-]*|\b[\w-]+\.(?:md|json|mjs|js|py|ts|csv)\b/g) || []).filter(p => !/^(and|either)\/or$/i.test(p));
     return !lines.some(l => new RegExp(`\\bitems?\\s*(?:\\d+\\s*(?:,|and)\\s*)*${m[1]}\\b`, 'i').test(l) || paths.some(p => l.includes(p)));
   };
 };
@@ -105,7 +107,7 @@ function judge(data, { shadow = false } = {}) {
   // (a background command of this turn still running is waited for like a helper: its result is not in yet. A server
   // or watcher never ends, so it does not count. Lesson (a project's report): a turn waiting on its full self-test was
   // blocked three times and wrote its answer before the results existed)
-  const LIVE = /\b(dev|serve|server|start|watch|preview|tail\s+-f|http\.server|runserver|uvicorn|flask\s+run)\b/i;
+  const LIVE = /(?:^|&&|;|\|)\s*(?:cd\s+\S+\s*&&\s*)?(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?(?:dev|start|serve|preview|watch)\b|\b(?:vite|next\s+dev|nodemon|http\.server|runserver|uvicorn|flask\s+run|tail\s+-f)\b|\s--watch\b/i;
   if (helpersRunning(rows).length || backgroundRuns(rows).some(r => !LIVE.test(r.cmd))) { waiting = true; return null; }
   const found = turnActs(rows);
   const turn = { ...saved, at: saved.at || found.started || '' };

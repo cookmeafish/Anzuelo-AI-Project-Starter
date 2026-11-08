@@ -69,6 +69,8 @@ report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/
   // to the project runbook, and the end check held the upgrade to that runbook's items)
   const byHash = route('Please upgrade to 9f8e7d6 now. It fixes the audit sweep.', books)?.name;
   report(byHash === 'engine', 'start: "upgrade to <commit>" goes to the engine runbook', byHash);
+  const word = route('please update to defaced pages in the audit', books)?.name;
+  report(word !== 'engine', 'start: "update to <a word made of a-f letters>" is not an engine upgrade', word);
   put('.starter-template', ''); const inStarter = route(msg, books)?.name; fs.rmSync(path.join(dir, '.starter-template'));
   report(inStarter === 'project', 'start: in the starter itself an upgrade message is a report back and routes on its other words', inStarter);
   // (a standing rule stated plainly is a rule request; a plain request that only mentions "every" is not)
@@ -146,8 +148,8 @@ report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/
     const go = (sid, command) => { sv(sid, { at: T(0), runbook: 'docs/playbooks/export.md' }); return onStop({ session_id: sid, transcript_path: transcript([at(0, user('add a csv export')), at(0, call('Read', { file_path: path.join(dir, 'docs/playbooks/export.md') })),
       at(1, call('Edit', { file_path: path.join(dir, 'src/a.js'), old_string: 'a', new_string: 'b' })),
       at(2, call('Bash', { command, run_in_background: true }, 'Command running in background with ID: bg1. Output is being written to: x.output')), at(3, say('Waiting for it.'))]) }); };
-    const tests = go('bgwait', 'node tools/hooks/selfcheck.mjs --full'), server = go('bgserver', 'npm run dev');
-    report(tests === null && !!server, 'end: no check while a background command of the turn still runs; a dev server left running does not hold it off', [tests?.reason?.slice(0, 80), server]);
+    const tests = go('bgwait', 'node tools/hooks/selfcheck.mjs --full'), server = go('bgserver', 'npm run dev'), named = go('bgnamed', 'node --test test/server.test.mjs');
+    report(tests === null && !!server && named === null, 'end: no check while a background command of the turn still runs (a test named after a server included); a dev server left running does not hold it off', [tests?.reason?.slice(0, 80), server, named]);
   }
   // (a helper started this turn that has not reported back: no check yet, and the turn stays open for the next Stop)
   {
@@ -341,6 +343,9 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
   report(waived({ answer: 'Item 1 is done.' }, gaps).length === 3, 'end: naming an item without saying it does not fit clears nothing');
   const byPath = waived({ answer: 'I left the files in `reports/` alone, since redoing them was not part of this request.' }, ['docs/playbooks/r.md item 2: The files in reports/ are updated', 'docs/playbooks/r.md item 3: The index is rebuilt']);
   report(byPath.length === 1 && /item 3/.test(byPath[0]), 'end: a not-fit line that names the item\'s path, with a plain reason, clears that item only', byPath);
+  const clause = waived({ answer: 'Item 1 is done; item 2 does not apply here.' }, gaps);
+  report(clause.some(s => /item 1:/.test(s)) && !clause.some(s => /item 2:/.test(s)), 'end: a not-fit clause clears only the item it names, not another item on the same line', clause);
+  report(waived({ answer: 'Tests and/or docs were not needed.' }, ['docs/playbooks/r.md item 4: Tests and/or docs are updated']).length === 1, 'end: "and/or" is not a path that clears an item');
   // (edited by a script, not an edit tool: the routed runbook changed during the turn)
   const at = new Date(Date.now() - 60000).toISOString();
   const book = path.join(dir, 'docs/playbooks/export.md'), was = fs.statSync(book);
@@ -348,6 +353,10 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
   const scripted = missing(turn, { ...acts([user('add a marker to the export runbook'), call('Bash', { command: 'node fix.mjs docs/playbooks/export.md' }), edit, say('Added.')]), at });
   fs.utimesSync(book, was.atime, was.mtime);
   report(scripted.length === 0, 'end: a routed runbook a script changed during the turn does not hold the turn', scripted);
+  fs.utimesSync(book, new Date(), new Date());
+  const touched = missing(turn, { ...acts([user('add a csv export'), read, call('Bash', { command: 'node tools/hooks/hooks.mjs sync' }), edit, say('Done.')]), at });
+  fs.utimesSync(book, was.atime, was.mtime);
+  report(touched.length > 0, 'end: a routed runbook rewritten by a command that does not name it (a sync, a pull) still holds the turn', touched);
   const { doneWhen } = await import('./lib.mjs');
   report(doneWhen('## Done when\r\n1. Zipped (file: logs/*.zip)\r\n2. Noted\r\n').length === 2, 'runbook: Done when items are read from raw Windows line endings');
   const [paren] = doneWhen('## Done when\n1. The build is named (answer: build (one|two) ready)\n');

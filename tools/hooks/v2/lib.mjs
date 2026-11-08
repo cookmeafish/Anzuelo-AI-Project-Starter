@@ -90,7 +90,7 @@ export function route(prompt, books = runbooks()) {
   // the starter, where an upgrade message is a project's report back. Lesson (replay): every upgrade message the starter
   // sent a project routed to the project runbook on words like "audit" in its list of fixes)
   const eng = books.find(b => b.file === 'docs/playbooks/engine.md');
-  if (eng && !fs.existsSync(path.join(ROOT, '.starter-template')) && /\bstarter\.mjs\s+(update|upgrade)\b|\bengine upgrade\b|\b(upgrade|update)\s+(the\s+|this\s+|your\s+)?(engine|starter)\b|\b(upgrade|update)\s+to\s+(v?\d+\.\d+\S*|[0-9a-f]{7,40})\b|\bstarter copy\b|\bactualiza\w*\s+(el\s+)?(motor|starter)\b/i.test(String(prompt))) return { ...eng, matched: 'engine upgrade' };
+  if (eng && !fs.existsSync(path.join(ROOT, '.starter-template')) && /\bstarter\.mjs\s+(update|upgrade)\b|\bengine upgrade\b|\b(upgrade|update)\s+(the\s+|this\s+|your\s+)?(engine|starter)\b|\b(upgrade|update)\s+to\s+(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}\b|\blinked starter copy\b|\bactualiza\w*\s+(el\s+)?(motor|starter)\b/i.test(String(prompt))) return { ...eng, matched: 'engine upgrade' };
   const match = text => {
     const p = ` ${String(text).toLowerCase().replace(/[^\p{L}\p{N}' ]+/gu, ' ').replace(/\s+/g, ' ')} `;
     let best = null;
