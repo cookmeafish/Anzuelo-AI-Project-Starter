@@ -17,13 +17,13 @@ ones. Allowed root files are `rootAllowed` (defaults in `tools/hooks/hooks.mjs`,
 Everything else goes in a folder. When in doubt, use a folder.
 
 ## With the engine in `.anzuelo/` (a project installed with `starter.mjs install`)
-The project's git holds only the project: its own files, plus `docs/CHANGELOG.md`, `docs/BRIEF.md` and
-`docs/DECISIONS.md`, which describe it. `.gitignore` has one block for the rest. `tools/hooks/paths.mjs` decides
+The project's git holds only the project: its own files, and everything in `docs/` (changelog, brief, decisions,
+security baseline, knowledge, specs) except the engine's working notes. `.gitignore` has one block for the rest. `tools/hooks/paths.mjs` decides
 where each file lives; agents use the plain names below, and the hooks find the file.
 | Folder | What |
 |---|---|
 | `.anzuelo/engine/` | A git clone of the starter: hooks, tools, core runbooks and skills, packs, library. Upgraded by git pull, never edited (REQ: engine-readonly) |
-| `.anzuelo/local/` | Everything the engine made for this project: status, plans, glossary, reviews, menu, settings, hook state, its own runbooks and skills, and its copies of defaults (`starter.mjs override`), which win. Optionally a private git repository of its own (setup asks) |
+| `.anzuelo/local/` | Everything the engine made for this project: status, plans, glossary, reviews, menu, names, fit checklist, settings, hook state, its own runbooks and skills, and its copies of defaults (`starter.mjs override`), which win. Optionally a private git repository of its own (setup asks) |
 | Wiring, made on each machine | `CLAUDE.local.md`, `.claude/settings.local.json`, `.claude/skills/`, `.agents/skills/`, `.codex/hooks.json` |
 
 ## Core folders (every project)

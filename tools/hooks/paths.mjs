@@ -27,15 +27,15 @@ const ENGINE_ONLY = /^(tools|packs|library|\.githooks)(\/|$)/;
 // (tools/screenshot.mjs comes from a pack and is installed for this project)
 const LOCAL_ALWAYS = /^(tools\/hooks\/state|tools\/hooks\/config\.json|tools\/screenshot\.mjs|\.cache|\.starter|DIRECTORY\.md|SETUP-PROMPT\.md|HOW-TO-USE\.md)(\/|$)/;
 const BOTH = /^(skills|docs\/playbooks|docs\/checks|tools\/starter\/runbooks|AGENTS\.md|tools\/hooks\/requirements\.json|tools\/packs-registry\.json)(\/|$)/;
-const PROJECT_DOCS = /^docs\/(CHANGELOG|BRIEF|DECISIONS)\.md$/;
+// (only the engine's working notes leave the project's docs/: its knowledge, specs, releases, security baseline and
+// anything else it keeps there stay in its git)
+const ENGINE_NOTES = /^docs\/(STATUS\.md|plans|glossary\.md|reviews|MENU\.md|names\.json|recommended-tools\.md|starter-feedback\.md|fit-checklist\.md|lessons\.md|routines\.md)(\/|$)/;
 const norm = p => String(p || '').replace(/\\/g, '/').replace(/^\.\//, '');
 export function kind(p) {
   const r = norm(p);
-  if (LOCAL_ALWAYS.test(r)) return 'local';
+  if (LOCAL_ALWAYS.test(r) || ENGINE_NOTES.test(r)) return 'local';
   if (BOTH.test(r)) return 'both';
   if (ENGINE_ONLY.test(r)) return 'engine';
-  if (PROJECT_DOCS.test(r)) return 'project';
-  if (/^docs(\/|$)/.test(r)) return 'local';
   return 'project';
 }
 const exists = f => { try { fs.statSync(f); return true; } catch { return false; } };
@@ -69,7 +69,7 @@ export function resolver(r = { ENGINE, PROJECT, LOCAL }) {
     // (the project's top folder lists the local folder's entries in place of .anzuelo/, so a walk from the top finds
     // docs/STATUS.md under that name)
     const top = r0 === '.' || r0 === '';
-    const from = top ? [r.PROJECT, r.LOCAL] : k === 'both' ? [r.LOCAL, r.ENGINE] : k === 'engine' ? [r.ENGINE] : k === 'local' ? (r0 === 'docs' ? [r.LOCAL, r.PROJECT] : [r.LOCAL]) : [r.PROJECT];
+    const from = top || r0 === 'docs' ? [r.PROJECT, r.LOCAL] : k === 'both' ? [r.LOCAL, r.ENGINE] : k === 'engine' ? [r.ENGINE] : k === 'local' ? [r.LOCAL] : [r.PROJECT];
     for (const root of new Set(from)) { try { for (const n of fs.readdirSync(at(root, d || '.'))) if (!(top && r.LOCAL !== r.PROJECT && n === '.anzuelo')) out.add(n); } catch { } }
     return [...out];
   };

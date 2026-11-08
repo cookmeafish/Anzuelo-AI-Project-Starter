@@ -1330,7 +1330,8 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   const r = resolver?.({ ENGINE, PROJECT: proj, LOCAL }), one = resolver?.({ ENGINE: proj, PROJECT: proj, LOCAL: proj });
   const ok = !!r
     && r.where('tools/hooks/hooks.mjs') === path.join(ENGINE, 'tools', 'hooks', 'hooks.mjs')
-    && r.where('docs/CHANGELOG.md') === path.join(proj, 'docs', 'CHANGELOG.md') && r.where('src/app.js') === path.join(proj, 'src', 'app.js')
+    && r.where('docs/CHANGELOG.md') === path.join(proj, 'docs', 'CHANGELOG.md') && r.where('docs/knowledge/recipes.md') === path.join(proj, 'docs', 'knowledge', 'recipes.md')
+    && r.where('docs/security.md') === path.join(proj, 'docs', 'security.md') && r.where('docs/plans/a.md') === path.join(LOCAL, 'docs', 'plans', 'a.md') &&r.where('src/app.js') === path.join(proj, 'src', 'app.js')
     && r.where('docs/STATUS.md') === path.join(LOCAL, 'docs', 'STATUS.md') && r.where('tools/hooks/config.json') === path.join(LOCAL, 'tools', 'hooks', 'config.json')
     && r.where('docs/playbooks/shared.md') === path.join(LOCAL, 'docs', 'playbooks', 'shared.md') && r.where('docs/playbooks/core.md') === path.join(ENGINE, 'docs', 'playbooks', 'core.md')
     && r.whereWrite('docs/playbooks/core.md') === path.join(LOCAL, 'docs', 'playbooks', 'core.md') && r.where('docs/playbooks/new.md') === path.join(LOCAL, 'docs', 'playbooks', 'new.md')

@@ -186,7 +186,9 @@ A run that is stuck sets `status: blocked - <reason>` with `Tried:` and `Options
 **Uses / provides:** uses Tasks 1 to 5
 - [x] Move the engine's working notes to `.anzuelo/local/` per the Assumptions; CHANGELOG, BRIEF and DECISIONS stay.
       (2026-11-08: done by `kind()` in paths.mjs, which install and every hook follow; the starter itself stays one
-      folder, and the two projects move their own files in Task 7.)
+      folder, and the two projects move their own files in Task 7. Narrowed: only the engine's working notes go
+      local (STATUS, plans, glossary, reviews, MENU, names.json, fit checklist, lessons, routines, recommended tools,
+      starter feedback); the rest of docs/ (security baseline, knowledge, specs, releases) stays in the project.)
 - [x] Update AGENTS.md, README, SETUP-PROMPT.md, DIRECTORY.md (generated), the engine runbook, layout standards.
       (DIRECTORY.md needed no change: it is generated from the runbooks.)
 - [ ] Full chain on a frozen copy: selfcheck, trial, audit.
