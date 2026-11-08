@@ -610,6 +610,15 @@ const { questionGaps } = await import('./lib.mjs');
   report(/Issue:/.test(b1?.reason || '') && b2 === null, 'end: after a block, an Issue line only in the answer before it blocks no more once the new answer drops it', [b1?.reason, b2?.reason]);
 }
 
+// (the final answer the host hands over counts when the transcript does not hold it yet)
+{
+  const { onPrompt } = await import('./start.mjs');
+  const early = good.slice(0, -1), answer = 'Done. How it was checked: npm test, 4 pass.';
+  onPrompt({ session_id: 'lastmsg1', prompt: 'add a csv export' }); onPrompt({ session_id: 'lastmsg2', prompt: 'add a csv export' });
+  const without = onStop({ transcript_path: transcript(early), session_id: 'lastmsg1' }), handed = onStop({ transcript_path: transcript(early), session_id: 'lastmsg2', last_assistant_message: answer });
+  report(/item 3/.test(without?.reason || '') && !/item 3/.test(handed?.reason || ''), 'end: the final answer the host hands over meets an answer item the transcript does not hold yet', [without?.reason, handed?.reason]);
+}
+
 // end: in the starter itself the starter's changelog meets a docs/CHANGELOG.md item (that file is the template)
 {
   const { met } = await import('./lib.mjs');

@@ -59,13 +59,17 @@ function judge(data, { shadow = false } = {}) {
   // (a helper's commands count too, in time order. Lesson (trial v40): tests a setup helper ran were asked for again)
   const runs = helperRuns(data.transcript_path || '', data.session_id || '', turn.at);
   const acts = { ...found, at: turn.at, calls: runs.length ? [...found.calls, ...runs].sort((a, b) => (a.at || 0) - (b.at || 0)) : found.calls };
+  // (the final answer as the host hands it over: the transcript may not hold it yet when the Stop hook runs. Lesson
+  // (2026-11-07): an answer that ended with its Finished section was blocked for lacking one)
+  const final = typeof data.last_assistant_message === 'string' ? data.last_assistant_message.trim() : '';
+  if (final) { acts.answer = final; if (!String(acts.said || '').includes(final)) acts.said = `${acts.said || ''}${final}\n`; }
   // (counted per request: a turn that goes on after its block and stops again, with no new request, is the same request.
   // Lesson (trial): a continuation the host did not mark as one restarted the count)
   const again = Boolean(turn.at && turn.blocked === turn.at), rounds = again ? turn.rounds || 1 : 0;
   if (rounds >= MAX_BLOCKS) return null;
   // (on a repeat, what the agent said is read from after the last block: a message sent before it can't be taken back.
   // Lesson (2026-11-07): an Issue line in the first answer re-blocked the corrected answer that had none)
-  if (again && turn.lastBlock) { const after = turnActs(rows.filter(r => (Date.parse(r.timestamp || '') || 0) > turn.lastBlock)); acts.said = after.said; acts.answer = after.answer || acts.answer; }
+  if (again && turn.lastBlock) { const after = turnActs(rows.filter(r => (Date.parse(r.timestamp || '') || 0) > turn.lastBlock)); acts.said = after.said + (final && !after.said.includes(final) ? `${final}\n` : ''); acts.answer = final || after.answer || acts.answer; }
   const history = evidenceOf(tail(data.transcript_path, 5 << 20));
   const list = [...missing(turn, acts), ...testGaps(acts, history), ...gateGaps(acts), ...screenGaps(acts), ...healthGaps(acts, { run: !shadow }), ...knowledgeGaps(acts), ...securityGaps(acts), ...questionGaps(acts), ...noteGaps(acts), ...claimGaps(acts, history)];
   const check = again ? null : toVerify(turn, acts);
