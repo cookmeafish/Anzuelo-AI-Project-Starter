@@ -77,7 +77,7 @@ no vendor.
   nothing in git that credits an AI agent.
 
 ## Start a project
-**The easiest way:** clone this repository straight into your new project's folder (e.g. `C:\projects\My App`), then
+**The easiest way:** clone this repository straight into your new project's folder (e.g. `My App`), then
 run `node tools/new-project.mjs --self-install --git` there (an agent does this itself when asked to set the folder
 up). The folder becomes the project, with everything of the engine inside its `.anzuelo` folder (the engine in
 `.anzuelo\engine`, what it makes for the project in `.anzuelo\local`, all ignored by the project's git). Add `--beside`
