@@ -65,6 +65,10 @@ report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/
   const books = [{ file: 'docs/playbooks/engine.md', name: 'engine', triggers: ['upgrade the engine'], menu: [] }, { file: 'docs/playbooks/project.md', name: 'project', triggers: ['audit', 'sweep'], menu: [] }];
   const msg = 'Engine upgrade 1a2b3c is ready in your linked starter copy. It fixes the audit sweep. Run node tools/starter.mjs upgrade.';
   report(route(msg, books)?.name === 'engine', 'start: an engine upgrade message goes to the engine runbook, not to a runbook named by words in its list of fixes', route(msg, books)?.name);
+  // (named by its version alone. Lesson (a project's report): "upgrade to <hash>" with an audit in its list of fixes went
+  // to the project runbook, and the end check held the upgrade to that runbook's items)
+  const byHash = route('Please upgrade to 9f8e7d6 now. It fixes the audit sweep.', books)?.name;
+  report(byHash === 'engine', 'start: "upgrade to <commit>" goes to the engine runbook', byHash);
   put('.starter-template', ''); const inStarter = route(msg, books)?.name; fs.rmSync(path.join(dir, '.starter-template'));
   report(inStarter === 'project', 'start: in the starter itself an upgrade message is a report back and routes on its other words', inStarter);
   // (a standing rule stated plainly is a rule request; a plain request that only mentions "every" is not)
@@ -134,6 +138,16 @@ report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/
     fs.rmSync(path.join(dir, 'tools/screenshot.mjs'));
     report(!/A screen changed/.test(shots), 'end: screenshots a helper took and looked at after the last screen change count for the session', shots.slice(0, 160));
     fs.rmSync(path.join(dir, 'package.json'));
+  }
+  // (a background command of this turn still running: no check yet; a server left running does not hold it off.
+  // Lesson (a project's report): a turn waiting on its full self-test was blocked three times)
+  {
+    const { saveTurn: sv } = await import('./lib.mjs');
+    const go = (sid, command) => { sv(sid, { at: T(0), runbook: 'docs/playbooks/export.md' }); return onStop({ session_id: sid, transcript_path: transcript([at(0, user('add a csv export')), at(0, call('Read', { file_path: path.join(dir, 'docs/playbooks/export.md') })),
+      at(1, call('Edit', { file_path: path.join(dir, 'src/a.js'), old_string: 'a', new_string: 'b' })),
+      at(2, call('Bash', { command, run_in_background: true }, 'Command running in background with ID: bg1. Output is being written to: x.output')), at(3, say('Waiting for it.'))]) }); };
+    const tests = go('bgwait', 'node tools/hooks/selfcheck.mjs --full'), server = go('bgserver', 'npm run dev');
+    report(tests === null && !!server, 'end: no check while a background command of the turn still runs; a dev server left running does not hold it off', [tests?.reason?.slice(0, 80), server]);
   }
   // (a helper started this turn that has not reported back: no check yet, and the turn stays open for the next Stop)
   {

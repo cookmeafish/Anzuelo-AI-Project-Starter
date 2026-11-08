@@ -2,7 +2,7 @@
 // transcript, and blocks with a short plain list of what is really missing until it is done (at most MAX_BLOCKS times).
 import fs from 'node:fs';
 import path from 'node:path';
-import { ROOT, runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, questionGaps, noteGaps, quoteGaps, tail, helpersRunning, helperRuns, evidenceOf, skillBooks } from './lib.mjs';
+import { ROOT, runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, questionGaps, noteGaps, quoteGaps, tail, helpersRunning, backgroundRuns, helperRuns, evidenceOf, skillBooks } from './lib.mjs';
 
 // Check 1: the routed runbook was followed, and its checkable "Done when" items were met. With none routed, the
 // runbook the agent chose and opened is the one it is held to (the runbook itself, not a skill it names: reading the
@@ -102,7 +102,11 @@ function judge(data, { shadow = false } = {}) {
   // upgrade installed v2 had no saved start, so a file a script wrote did not count, and the request was blocked twice)
   const saved = loadTurn(data.session_id), rows = turnRows(data.transcript_path || '', saved.at);
   if (data.stop_hook_active && !saved.at) return null; // (no record of the request: its blocks can't be counted)
-  if (helpersRunning(rows).length) { waiting = true; return null; }
+  // (a background command of this turn still running is waited for like a helper: its result is not in yet. A server
+  // or watcher never ends, so it does not count. Lesson (a project's report): a turn waiting on its full self-test was
+  // blocked three times and wrote its answer before the results existed)
+  const LIVE = /\b(dev|serve|server|start|watch|preview|tail\s+-f|http\.server|runserver|uvicorn|flask\s+run)\b/i;
+  if (helpersRunning(rows).length || backgroundRuns(rows).some(r => !LIVE.test(r.cmd))) { waiting = true; return null; }
   const found = turnActs(rows);
   const turn = { ...saved, at: saved.at || found.started || '' };
   // (a helper's commands count too, in time order. Lesson (trial v40): tests a setup helper ran were asked for again)

@@ -107,7 +107,10 @@ Measured 2026-11-07 on HEAD (corrections to the draft are marked):
       outward actions, forbidden commands, the installed browser, the setup file, secrets, AI credit, private terms,
       the user's own words kept out of shared files.
 - [ ] Inventory every word match in the engine into this plan: keep each that passes, with its reason; turn the rest
-      into hints. Case to cover: a message that only mentions "trigger words" was routed to that runbook twice.
+      into hints. Cases to cover: a message that only mentions "trigger words" was routed to that runbook twice; an
+      upgrade message naming only the version ("upgrade to <hash>") went to the project runbook on words in its list
+      of fixes, and the end check held it to that runbook's items (patched with a pattern on 2026-11-08; the menu
+      should make that pattern unneeded).
 - [ ] Replay over real sessions (totals): picked-and-opened share, "why none" asks, false asks, against the keyword
       router on the same turns.
 - [ ] Run `node tools/hooks/v2/selftest.mjs`. Expected: ALL PASS, menu and ask cases included.
