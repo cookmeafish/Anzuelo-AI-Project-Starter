@@ -49,9 +49,9 @@
 3. **Standing instructions become enforced rules, and an upset user teaches the project.** When the user is upset or
    complains, the **learn-from-upset** skill fixes the miss, weighs how important the lesson is, and stores it where it
    stops the next one (the skill that missed it, a rule, a check, a new skill, or the starter for every project). The
-   user always sees "acknowledged" first: an upset,
-frustrated or all-caps message, a question or one typed mid-turn included, gets its
-`Issue: <problem> | runbook: <name> | fixed when: <outcome>` line before any change or command, and that runbook is
+   user always sees "acknowledged" first: an upset, frustrated or all-caps message, a question or one typed mid-turn
+included, gets its `Issue: <problem> | runbook: <name> | fixed when: <outcome>` line in `.cache/turn-notes.md` (never in
+the answer, which says it plainly) before any change or command, and that runbook is
 followed to the end of its checklist with the outcome verified (only a false alarm skips it, with
 `Issue: none - <why>`; 2026-10-29). It lists everything wrong before fixing; upset
    again in a session means patching failed, so the whole problem gets a plan in `docs/plans/` and a sweep over real

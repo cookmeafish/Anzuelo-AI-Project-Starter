@@ -318,6 +318,13 @@ export function questionGaps(acts) {
   return ['The user asked for no questions: make each choice yourself and note it as "Assumed: <choice> - <why> - <cost if wrong>". A step only the user can take (an install, a sign-in, a name for git) goes under a Heads-up, not a question; ask only what the rules stop for (an outward action, anything irreversible).'];
 }
 
+// An engine note ("Issue: ... | runbook: ..." or "Issue: none - ...") shown to the user: it belongs in the notes file,
+// and the answer says it in plain words. Lesson: an Issue line at the top of an answer read as gibberish to the user.
+export function noteGaps(acts) {
+  if (!/^\W*Issue:\s*(.*\|\s*runbook:|none\s+-)/im.test(acts.said || acts.answer || '')) return [];
+  return ['An "Issue:" line is in the answer: it is a note for .cache/turn-notes.md only. Take it out and say in plain words what went wrong and what changes.'];
+}
+
 // The files a path or glob names: walked from its fixed part, at most 20,000. Bulk folders below it are skipped
 // (.git, node_modules, .cache, virtual environments, build output). Lesson: one project held 40,000 files in .cache, and
 // a 2,000-file cap hid every change outside it.

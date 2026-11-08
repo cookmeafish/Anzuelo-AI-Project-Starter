@@ -22,7 +22,9 @@ upset-acknowledged).
 - **A real issue, or a repeat:** pick the runbook or skill that finds its root cause and fixes it (DIRECTORY.md;
   **debug** for anything that behaves wrong), and put
   `Issue: <the user's point in general terms, under 12 words> | runbook: <name> | fixed when: <a checkable outcome>` in
-  `.cache/turn-notes.md` before any fix, as your first step. Their example is one case of the point, not the point:
+  `.cache/turn-notes.md` before any fix, as your first step. These lines are notes for the engine: the answer never
+  shows them, and says in plain words what went wrong and what changes (Lesson: an `Issue:` line pasted at the top of
+  the answer read as gibberish to the user). Their example is one case of the point, not the point:
   before fixing, write `Scope: <the point in general terms> - <every case it covers>` and `Root cause: <why the
   earlier work missed it>` (hook: upset-acknowledged). <!-- Lesson (the user): an issue acknowledged as the user's
   example was fixed in that narrow form, and the user had to say twice that it meant every case -->

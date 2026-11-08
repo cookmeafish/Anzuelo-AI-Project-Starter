@@ -586,6 +586,15 @@ const { questionGaps } = await import('./lib.mjs');
   report(plain === 0 && told === 1 && auto === 1 && none === 0, 'end: with "autonomy": "auto" or "do not ask me" in the request, any message of the turn that asks "Questions for you" is named; a heads-up is not', { plain, told, auto, none });
 }
 
+// end: an engine note shown to the user
+const { noteGaps } = await import('./lib.mjs');
+{
+  const shown = noteGaps(acts([user('why did you do that'), say('Issue: the list was wrong | runbook: debug | fixed when: the list is right\n\nYou are right.')])).length;
+  const none = noteGaps(acts([user('why did you do that'), say('Issue: none - the list was right')])).length;
+  const plain = noteGaps(acts([user('why did you do that'), say('You are right: the list missed two rows. The issue: a filter dropped them.')])).length;
+  report(shown === 1 && none === 1 && plain === 0, 'end: an "Issue:" engine note in the answer is named; plain words about an issue are not', { shown, none, plain });
+}
+
 // end: check 7, claims backed by the turn
 const { claimGaps } = await import('./lib.mjs');
 put('src/a.js', 'x');

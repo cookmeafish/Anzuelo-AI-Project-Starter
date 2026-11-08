@@ -1,6 +1,6 @@
 // Engine v2 end hook (Stop): the one check. It judges only what this session did in this turn, from its own
 // transcript, and blocks at most once with a short plain list of what is really missing.
-import { runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, questionGaps, tail, helpersRunning, helperRuns, evidenceOf } from './lib.mjs';
+import { runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, questionGaps, noteGaps, tail, helpersRunning, helperRuns, evidenceOf } from './lib.mjs';
 
 // Check 1: the routed runbook was followed, and its checkable "Done when" items were met. With none routed, the
 // runbook the agent chose and opened is the one it is held to (the runbook itself, not a skill it names: reading the
@@ -58,7 +58,7 @@ function judge(data, { shadow = false } = {}) {
   // Lesson (trial): one request got the same list 3 times, each stop after a continuation the host did not mark)
   if (turn.at && turn.blocked === turn.at) return null;
   const history = evidenceOf(tail(data.transcript_path, 5 << 20));
-  const list = [...missing(turn, acts), ...testGaps(acts, history), ...gateGaps(acts), ...screenGaps(acts), ...healthGaps(acts, { run: !shadow }), ...knowledgeGaps(acts), ...securityGaps(acts), ...questionGaps(acts), ...claimGaps(acts, history)];
+  const list = [...missing(turn, acts), ...testGaps(acts, history), ...gateGaps(acts), ...screenGaps(acts), ...healthGaps(acts, { run: !shadow }), ...knowledgeGaps(acts), ...securityGaps(acts), ...questionGaps(acts), ...noteGaps(acts), ...claimGaps(acts, history)];
   const check = toVerify(turn, acts);
   if (!list.length && !check) return null;
   const parts = [];
