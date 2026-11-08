@@ -1302,14 +1302,15 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
       const sayRow = JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'Working on it.' }] } });
       const queued = (prompt, t) => JSON.stringify({ type: 'attachment', timestamp: t, attachment: { type: 'queued_command', prompt } });
       fs.writeFileSync(main, [sayRow, queued('<task-notification>done</task-notification>', '2026-01-01T00:01:00Z'), queued('you said 1 board wipe but there are 2?', '2026-01-01T00:01:01Z'),
-        msg('The user sent a new message while you were working:\nwhat happened?\n\nThis is how Claude Code surfaces messages the user sends mid-turn')].join('\n') + '\n');
+        msg('The user sent a new message while you were working:\nwhat happened?\n\nThis is how Claude Code surfaces messages the user sends mid-turn'),
+        queued([{ type: 'text', text: 'it did not reply here' }, { type: 'image' }], '2026-01-01T00:01:03Z')].join('\n') + '\n');
       const waiting = lateMessages({ transcript_path: main }), lnote = lateNote(waiting);
       fs.appendFileSync(main, sayRow + '\n'); const answered = lateMessages({ transcript_path: main });
       fs.rmSync(box, { recursive: true, force: true });
       report(lost?.files.length === 2 && /7\.png; .*8\.png/.test(note) && /Do not ask the user to send them again/.test(note) && arrived === null && mainOnly === null,
         'images: pictures that reached a helper as text only are named by their saved files; arrived pictures and the main session get nothing', { lost, note: note.slice(0, 200), arrived, mainOnly });
-      report(waiting.map(m => m.text).join('|') === 'you said 1 board wipe but there are 2?|what happened?' && /Answer it now/.test(lnote) && !answered.length,
-        'late: messages the user typed while the agent works are handed to it to answer first, until it writes to the user; notices are not the user\'s', { waiting, answered });
+      report(waiting.map(m => m.text).join('|') === 'you said 1 board wipe but there are 2?|what happened?|it did not reply here' && /Answer it now/.test(lnote) && /in this chat, where they asked/.test(lnote) && !answered.length,
+        'late: messages the user typed while the agent works (one with a picture too) are handed to it to answer first, in the chat where they asked, until it writes to the user; notices are not the user\'s', { waiting, answered });
     }
     // (REQ: prompt-visible. A work turn that passes shows the user what the engine did: the complaint fixed and the checks
     // passed; a question turn shows nothing. Lesson (the user): under v2 these lines were gone, and the engine looked off)

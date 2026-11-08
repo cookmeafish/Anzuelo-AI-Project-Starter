@@ -21,7 +21,10 @@ export function lateMessages(data) {
     let r; try { r = JSON.parse(l); } catch { continue; }
     const c = r.message?.content;
     if (r.type === 'assistant' && Array.isArray(c) && c.some(b => b.type === 'text' && b.text.trim())) out.length = 0;
-    const q = r.type === 'attachment' && r.attachment?.type === 'queued_command' ? String(r.attachment.prompt || '')
+    // (a message with a picture is a list of parts: its text parts are the message. Lesson (live): one showed as
+    // "[object Object]")
+    const words = p => Array.isArray(p) ? p.filter(b => b?.type === 'text').map(b => b.text).join('\n') : String(p || '');
+    const q = r.type === 'attachment' && r.attachment?.type === 'queued_command' ? words(r.attachment.prompt)
       : r.type === 'user' && typeof c === 'string' && LATE.test(c) ? c : '';
     const text = q.replace(LATE, '').replace(/\n*This is how Claude Code surfaces[\s\S]*$/, '').trim();
     if (text && !text.startsWith('<')) out.push({ at: r.timestamp || '', text });
@@ -48,8 +51,10 @@ export function missingImages(data, tmp = os.tmpdir()) {
 }
 
 // What the agent is told, once per message.
+// (answered where the user asked: a helper's hand-back shows only in the main chat. Lesson (the user): a question typed
+// into a helper's chat was answered in the main chat, and looked ignored where it was asked)
 export const lateNote = ms => `The user wrote while you work: ${ms.map(m => `"${m.text.replace(/\s+/g, ' ').slice(0, 300)}"`).join(' and ')}. `
-  + 'Answer it now in a line or two (a question first, in their language), then go on with the work; never leave it waiting until the work ends.';
+  + 'Answer it now in a line or two (a question first, in their language), as text in this chat, where they asked, then go on with the work; never leave it waiting until the work ends.';
 export const imagesNote = m => `The user's message names ${m.nums.map(n => `[Image #${n}]`).join(' ')}, but the pictures did not reach you (a message `
   + 'passed to a busy helper carries text only). Do not ask the user to send them again. '
   + (m.files.length ? `Open them with the Read tool: ${m.files.join('; ')}.` : `They were not found in ${m.dir}; look in the user's Pictures\\Screenshots folder, then ask once for what is still missing.`);
