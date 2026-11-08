@@ -11,6 +11,9 @@ import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 import { PROJECT, ENGINE, LOCAL, where, whereWrite, relOf, listAll, kind, split } from './paths.mjs';
+import { ROOT, read, readJSON, abs, exists, list, walkStat, esc, DEFAULTS, config, re, secretRes, secretHit, homeDir, privateTermsPath, privateTermsListFile, forbiddenTerms, forbiddenRe } from './settings.mjs';
+import { testInputsHash, aiAttributedCommits, gitignoreProblems } from './repo.mjs';
+export { ROOT, read, readJSON, abs, exists, list, walkStat, esc, config, re, secretRes, secretHit, privateTermsPath, privateTermsListFile, forbiddenTerms, forbiddenRe, testInputsHash, aiAttributedCommits, gitignoreProblems };
 // (the safety guard is v2/guard.mjs, loaded by the pretool hook itself: a guard that cannot load is then reported, not
 // a hook that cannot start)
 let pretoolDecision = null;
@@ -18,25 +21,16 @@ import * as SELF from './hooks.mjs';
 
 // ROOT is the project; engine files are found through abs() (paths.mjs decides the root per path, and in the starter
 // every root is this one folder).
-export const ROOT = PROJECT;
 const HOOKS = path.join(ENGINE, 'tools', 'hooks');
 const STATE = where('tools/hooks/state');
 const CONFIG = () => where('tools/hooks/config.json'), REQS = () => where('tools/hooks/requirements.json');
 
 // ---------- small helpers ----------
-export const read = (p, d = '') => { try { return fs.readFileSync(p, 'utf8'); } catch { return d; } };
-export const readJSON = (p, d) => { try { return JSON.parse(read(p)); } catch { return d; } };
-export const abs = p => where(p);
 // absw: where a write goes (an engine-made runbook, skill or rule changed for this project is the project's local copy)
 export const absw = p => whereWrite(p);
 export const rel = p => relOf(p);
-export const exists = p => { try { fs.statSync(abs(p)); return true; } catch { return false; } };
 // The rules: AGENTS.md is the shared file; CLAUDE.md is its local twin for Claude Code (a Codex-only machine has none).
 export const rulesText = () => read(abs('AGENTS.md')) || read(abs('CLAUDE.md'));
-export const list = d => listAll(d);
-// A folder walk never follows a link or junction (it throws, and the walker skips the entry). Lesson: a workspace link
-// in packages/*/node_modules pointing back into the repo made the prompt hook loop past its timeout.
-export const walkStat = p => { const s = fs.lstatSync(abs(p)); if (s.isSymbolicLink()) throw new Error('link'); return s; };
 // Folders that are never the project's own work: installed dependencies, virtual environments (any name: they hold a
 // pyvenv.cfg), tool caches (CACHEDIR.TAG), and, for kind "all", build output. "target", "vendor", "out", "bin" and "obj"
 // count only next to the build file that makes them, since a project may name a folder of its own that way.
@@ -54,7 +48,6 @@ export function bulkDir(parentAbs, name, kind = 'all') {
   if (!/^(target|vendor|out|bin|obj)$/.test(name)) return false;
   try { return fs.readdirSync(parentAbs).some(n => BUILD_FILES.test(n)); } catch { return false; }
 }
-export const esc = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const localDate = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 export const today = () => localDate(); // the user's calendar day, not UTC
 // A tool's usage text: its whole header comment, so the help can never be cut short or include code.
@@ -202,39 +195,6 @@ const splitList = s => String(s || '').split(',').map(x => x.trim().toLowerCase(
 // Lesson: an adopted project narrowed the knowledge pack's "make me a" and "import this", and every upgrade put them back.
 export const triggersOf = fm => { const off = new Set(splitList(fm?.triggers_removed)); return splitList(fm?.triggers).filter(t => !off.has(t)); };
 
-// ---------- configuration ----------
-// Every setting's default (what each does: SETTINGS.md); a project's tools/hooks/config.json overrides them.
-const DEFAULTS = JSON.parse(fs.readFileSync(new URL('./defaults.json', import.meta.url), 'utf8'));
-// List settings in config.json EXTEND the defaults (a pack adding root files must not drop AGENTS.md from the list).
-const EXTENDS = ['knowledgeDirs', 'gitignoreMustIgnore', 'gitignoreMustKeep', 'rootAllowed', 'namesIgnore', 'injectionIgnore', 'fluff', 'secretPatterns', 'userFacing', 'userFacingIgnore', 'verbatimAllowed', 'ignoreForChanges', 'guiFiles', 'guiIgnore', 'evidenceLabels', 'questionNoFileExempt', 'notWork'];
-let foundMirrors = null, ignoredDirs = null;
-export function config() {
-  const c = readJSON(CONFIG(), {});
-  const out = { ...DEFAULTS, ...c };
-  for (const k of EXTENDS) if (Array.isArray(c[k])) out[k] = [...new Set([...DEFAULTS[k], ...c[k]])];
-  // words that are filler elsewhere but real terms in the project's subject (a technical term that shares its name with a
-  // filler word). Lesson: an adopted project's docs and answers about such a rule were flagged as filler
-  if (Array.isArray(c.fluffAllowed)) out.fluff = out.fluff.filter(f => !c.fluffAllowed.includes(f));
-  // A skills folder the engine once generated (its skills carry a .mirror marker) stays a mirror, so it is refreshed,
-  // pruned and protected like the configured ones. Lesson: .agents/skills was left out of skillMirrors, and its copy
-  // of the plan skill kept a link that pointed one folder short.
-  foundMirrors ??= list('.').filter(d => /^\.[\w-]+$/.test(d) && d !== '.git').map(d => `${d}/skills`).filter(m => list(m).some(n => exists(`${m}/${n}/.mirror`)));
-  for (const m of foundMirrors) if (!out.skillMirrors.includes(m)) out.skillMirrors = [...out.skillMirrors, m];
-  // Plain folders the root .gitignore names ("dist/", "/target/") hold build output and caches: never walked for changes.
-  // Lesson: a monorepo's dist/ and nested caches were walked on every prompt and stop, which tripled the hook time.
-  ignoredDirs ??= read(abs('.gitignore')).split(/\r?\n/).map(l => l.trim()).filter(l => /^\/?[\w.-]+\/$/.test(l) && !l.startsWith('.') && !l.startsWith('/.'))
-    .map(l => l.startsWith('/') ? `${l.slice(1)}**` : `**/${l}**`);
-  out.ignoreForChanges = [...new Set([...out.ignoreForChanges, ...ignoredDirs])];
-  return out;
-}
-export const re = (s, f = 'i') => new RegExp(s, f);
-// The secret patterns, compiled. A pattern that starts with a letter or digit and has no boundary of its own gets one, so
-// an older project's own patterns (config.json extends the list) don't match inside words either. REQ: no-secrets
-export const secretRes = (cfg = config()) => [...new Set(cfg.secretPatterns)].map(s => {
-  const src = /^[A-Za-z0-9]/.test(s) ? `(?<![A-Za-z0-9])${s}` : s;
-  try { return { s, rx: new RegExp(src) }; } catch { return null; }
-}).filter(Boolean);
-export const secretHit = (text, cfg = config()) => secretRes(cfg).find(p => p.rx.test(text))?.s;
 // Personal or machine details that must not be published (the audit's publish-safety sweep, and a notice at the edit).
 // Addresses reserved for examples, documentation, private networks and special use are nobody's personal data: the
 // example domains and top-level names (RFC 2606, 6761), and the private, shared, loopback, link-local, documentation,
@@ -2020,23 +1980,6 @@ function readsOf(uses) {
 }
 
 // Each shell run with its output, in order: lets checks require that a validator PASSED, not just that it ran.
-// Everything the self-tests read, as one hash: the engine, the project's checks, rules, runbooks and skills, and its
-// decisions and security log as the test copies keep them. A full self-test pass stays valid while it is unchanged
-// (audit --setup reuses it). The test copies drop the setup interview, upgrade reviews and dropped rules from
-// DECISIONS.md, the review rows from security.md, and use a placeholder names.json, so those parts don't count.
-// Lesson: the setup interview and the security review changed the hash at every setup step, so the reuse never applied.
-export function testInputsHash() {
-  // (line endings don't count: git keeps a file the same with either, and a checkout may hold Windows ones. Lesson: a
-  // frozen worktree's pass of the exact commit hashed differently from the main folder over one CRLF runbook)
-  const h = createHash('sha1'), addText = (p, t) => { h.update(p + '\0'); h.update(String(t).replace(/\r\n/g, '\n')); }, add = p => { try { addText(p, fs.readFileSync(abs(p), 'utf8')); } catch { } };
-  const walk = (d, rx) => { for (const n of list(d).sort()) { const p = `${d}/${n}`; let s; try { s = walkStat(p); } catch { continue; } if (s.isDirectory()) { if (n !== 'state') walk(p, rx); } else if (rx.test(n) && !/\.local\.json$/.test(n) && n !== 'engine-proof.json') add(p); } }; // (machine-local files (*.local.json) are this machine's settings and watch lists, not test inputs: Lesson: updating the starter's watch list voided a fresh self-test pass) (the proof is a result of the tests, not an input)
-  walk('tools', /\.(mjs|json)$/); walk('docs/checks', /\.md$/); walk('docs/playbooks', /\.md$/); walk(config().skillsDir, /\.(md|mjs)$/);
-  add('AGENTS.md');
-  const tidy = t => t.replace(/[ \t]+$/gm, '').replace(/\n{3,}/g, '\n\n').trim();
-  addText('docs/DECISIONS.md', tidy(read(abs('docs/DECISIONS.md')).replace(/^## (Setup interview|Upgrade review|Dropped rules)[^\n]*\n(?:(?!## )[^\n]*\n?)*/gm, '')));
-  addText('docs/security.md', tidy(read(abs('docs/security.md')).replace(/^\|\s*\d{4}-\d{2}-\d{2}\s*\|.*$/gm, '')));
-  return h.digest('hex').slice(0, 16);
-}
 // The run log: commands with their results, for agents whose tool history can't be read. The audit and the self-tests
 // record themselves; any other command is recorded by running it through "hooks.mjs run <command>". Checks then judge
 // real runs instead of running the validators themselves. Lesson: without a transcript, the Stop hook ran the whole
@@ -3007,16 +2950,6 @@ export function knowledgeFromFiles(x, cfg = config()) {
   return judged ? '' : 'no labeled fact was written';
 }
 
-// ---------- git: no AI attribution, ever ----------
-// Commits not yet on any remote (or made since `sinceMs`), with message + author + committer, that credit an AI.
-export function aiAttributedCommits(cfg = config(), sinceMs = null) {
-  const range = sinceMs ? ['--since', new Date(sinceMs - 1000).toISOString(), 'HEAD'] : ['HEAD', '--not', '--remotes'];
-  const r = spawnSync('git', ['log', '-n', '200', '--format=%H%x1f%an <%ae>%x1f%cn <%ce>%x1f%B%x1e', ...range], { cwd: ROOT, encoding: 'utf8' });
-  if (r.status !== 0 || !r.stdout) return [];
-  return r.stdout.split('\x1e').map(s => s.trim()).filter(Boolean).map(s => { const [h, a, c, m] = s.split('\x1f'); return { h, a, c, m: m || '' }; })
-    .filter(x => re(cfg.aiAttribution).test(x.m) || re(cfg.aiAuthor).test(x.a) || re(cfg.aiAuthor).test(x.c))
-    .map(x => `${x.h.slice(0, 8)} "${x.m.split('\n')[0].slice(0, 60)}"`);
-}
 
 // The engine's own files (what tools/new-project.mjs --upgrade replaces): written by the starter, not from the user's words.
 export const VERBATIM_ENGINE = ['tools/**', '.githooks/**', 'HOW-TO-USE.md', 'docs/recommended-tools.md', 'docs/playbooks/_TEMPLATE.md', 'docs/playbooks/_fallback.md',
@@ -3141,30 +3074,6 @@ function exampleNameHits(x, cfg) {
   return [...new Set(hits)];
 }
 
-// REQ: forbidden-terms. Names and words the user said must never appear in the project (a client, a project, a person):
-// "forbiddenTerms" in config.json, and private ones in a list outside the repository ("privateTermsFile"; the starter
-// itself reads ~/.anzuelo/private-terms.txt), so the project never holds the names it must avoid. Writing one is denied
-// (pretool), a file a command changed is checked at Stop, and the audit sweeps every shared file. Lesson (the user,
-// 2026-10-25): a rule written only as prose was forgotten: "projects with anzuelo will also forget things".
-const homeDir = () => process.env.USERPROFILE || process.env.HOME || '';
-export const privateTermsPath = (cfg = config()) => cfg.privateTermsFile ? String(cfg.privateTermsFile).replace(/^~(?=[\\/])/, homeDir())
-  : exists('.starter-template') && homeDir() ? path.join(homeDir(), '.anzuelo', 'private-terms.txt') : '';
-// The folder's .private-terms, or in a git worktree without one (the file is git-ignored) the main folder's.
-export function privateTermsListFile(root) {
-  const own = path.join(root, '.private-terms');
-  if (fs.existsSync(own)) return own;
-  const c = spawnSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd: root, encoding: 'utf8' });
-  return c.status === 0 && c.stdout.trim() ? path.join(path.dirname(c.stdout.trim()), '.private-terms') : own;
-}
-export function forbiddenTerms(cfg = config()) {
-  const list = [].concat(cfg.forbiddenTerms || []), f = privateTermsPath(cfg);
-  if (f) { try { list.push(...fs.readFileSync(f, 'utf8').split(/\r?\n/).map(l => l.trim()).filter(l => l && !l.startsWith('#'))); } catch { } }
-  return [...new Set(list.map(String).filter(Boolean))];
-}
-export function forbiddenRe(cfg = config()) {
-  const t = forbiddenTerms(cfg);
-  return t.length ? new RegExp(`(?<![\\p{L}\\p{N}_-])(${t.map(esc).join('|')})(?![\\p{L}\\p{N}_-])`, 'giu') : null;
-}
 // The draft check's text from the end check's reason: the health line (not run in a preview) left out, and real = an
 // item is still missing (a first or a repeat block). Lessons (live): the health line read as a miss; with only that line
 // a repeat's heading stood empty; and a repeat's real items exited 0
@@ -4106,55 +4015,6 @@ export function openPlans() {
   }).filter(x => x.left && !x.closed);
 }
 
-// ---------- .gitignore: ready before every push (REQ: gitignore-ready) ----------
-// What must never leave the machine is ignored (secrets, local state, caches, the private-terms list), what the project
-// needs is not, and nothing already committed matches an ignore rule. Checked by the pretool hook and the git pre-push
-// hook, so it holds for every agent and for manual pushes. Lesson in advance: a .gitignore written once and never
-// checked drifts, and the first sign is a key or someone's notes on GitHub.
-export function gitignoreProblems(cfg = config()) {
-  const git = (args, input) => spawnSync('git', args, { cwd: ROOT, encoding: 'utf8', input, maxBuffer: 256 * 1024 * 1024 });
-  if (git(['rev-parse', '--is-inside-work-tree']).status !== 0) return [];
-  if (!exists('.gitignore')) return ['.gitignore is missing: start from the starter\'s tools/starter/gitignore.project'];
-  const probs = [];
-  // (with the engine in .anzuelo/, only the project's own files are the project git's business: the engine's records
-  // and state sit in .anzuelo/, which the project ignores as a whole)
-  const mine = p => !split || kind(p) === 'project';
-  cfg = { ...cfg, gitignoreMustIgnore: cfg.gitignoreMustIgnore.filter(mine), gitignoreMustKeep: cfg.gitignoreMustKeep.filter(mine) };
-  const all = [...cfg.gitignoreMustIgnore, ...cfg.gitignoreMustKeep];
-  const ignored = new Set((git(['check-ignore', '--no-index', '--stdin'], all.join('\n')).stdout || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean));
-  // a vault the user keeps in git owns its .obsidian settings (Lesson: adopting a tracked vault failed hygiene over them)
-  const ownVault = (git(['ls-files', '.obsidian']).stdout || '').trim() !== '';
-  const leak = cfg.gitignoreMustIgnore.filter(p => !ignored.has(p) && !(ownVault && p.startsWith('.obsidian/')));
-  if (leak.length) probs.push(`.gitignore does not cover: ${leak.join(', ')} (secrets, local state or caches would be pushed)`);
-  // (the starter never ships its own hook state: that state is from working on the starter, not a project's)
-  const hidden = cfg.gitignoreMustKeep.filter(p => ignored.has(p) && exists(p) && !(exists('.starter-template') && p.startsWith('tools/hooks/state/')));
-  if (hidden.length) probs.push(`.gitignore hides files the project needs: ${hidden.join(', ')}`);
-  // (the same exception here: a tracked vault's .obsidian settings are meant to be committed, even where .gitignore
-  // lists .obsidian/ for other projects. Lesson: an adopted vault's setup failed on "already committed but meant to be
-  // ignored: .obsidian/app.json", and 20 minutes went into reruns of the self-test)
-  // (every private file the engine keeps, as it is on disk now, not only the sample names above: its state, caches and
-  // turn notes, upgrade backups, the private word list, the machine's own settings. One that git would push, or that is
-  // already committed, is named; gitignoreMustKeep is how the user chooses to share one. Lesson (the user): "make sure
-  // all anzuelo files are on .gitignore unless the user wants to intentionally include it", "solid steel proof")
-  // (git lists the untracked files it would add itself: a folder of thousands of files never passes through a buffer.
-  // Lesson: a list of 16,000 cache files overflowed the output and read as "none ignored")
-  const keep = new Set(cfg.gitignoreMustKeep), PRIVATE = ['.cache', 'tools/hooks/state', '.starter', '.private-terms', 'tools/starter.local.json', '.claude/settings.local.json', '.claude/skills', '.codex', '.gemini', '.agents'];
-  const exposed = (git(['ls-files', '--others', '--exclude-standard', '--', ...PRIVATE]).stdout || '').split(/\r?\n/).map(s => s.trim())
-    .filter(f => f && !keep.has(f) && !(exists('.starter-template') && f.startsWith('tools/hooks/state/')));
-  if (exposed.length) probs.push(`the engine's private files would be pushed: ${exposed.slice(0, 6).join(', ')}${exposed.length > 6 ? ` +${exposed.length - 6} more` : ''} (add their folders to .gitignore; to share one on purpose, list it in "gitignoreMustKeep" in tools/hooks/config.json and un-ignore it: the folder as <folder>/* plus !<path> in .gitignore)`);
-  const tracked = (git(['ls-files', '-ci', '--exclude-standard']).stdout || '').split(/\r?\n/).filter(f => f && !(ownVault && f.startsWith('.obsidian/')));
-  const privTracked = (git(['ls-files', '--', ...PRIVATE]).stdout || '').split(/\r?\n/).filter(f => f && !keep.has(f) && !tracked.includes(f));
-  if (privTracked.length) probs.push(`the engine's private files are committed: ${privTracked.slice(0, 6).join(', ')}${privTracked.length > 6 ? ' ...' : ''} (git rm --cached <file>, then commit; to share one on purpose, list it in "gitignoreMustKeep")`);
-  if (tracked.length) probs.push(`already committed but meant to be ignored: ${tracked.slice(0, 6).join(', ')}${tracked.length > 6 ? ' ...' : ''} (git rm --cached <file>, then commit)`);
-  // generated folders no project commits on purpose (dist/ and build/ are left out: some sites publish from them).
-  // Lesson, trial round 13/14: an Eleventy blog's _site/ went into git, and the Pages workflow builds it anyway
-  const lsAll = (git(['ls-files']).stdout || '').split(/\r?\n/);
-  const built = [...new Set(lsAll.map(f => /^(?:.*\/)?(_site|\.next|\.nuxt|\.svelte-kit|\.astro|__pycache__|\.pytest_cache|node_modules|\.parcel-cache|\.turbo)\//.exec(f)?.[0]).filter(Boolean))];
-  if (built.length) probs.push(`generated folders are committed: ${built.slice(0, 4).join(', ')} (add them to .gitignore, then git rm -r --cached <folder> and commit)`);
-  const secretish = lsAll.filter(f => /(^|\/)\.env(\.(?!example$)[^/]+)?$|\.(pem|key|p12|pfx)$|(^|\/)id_(rsa|ed25519|ecdsa)$/i.test(f));
-  if (secretish.length) probs.push(`committed files that look like secrets: ${secretish.slice(0, 6).join(', ')} (remove them from git and rotate the secrets)`);
-  return probs;
-}
 
 // ---------- friction: what keeps frustrating the user is removed (REQ: friction-suspend) ----------
 // Each turn's runbooks, skills and blocking checks are scored by the user's next message: frustrated or not. One that

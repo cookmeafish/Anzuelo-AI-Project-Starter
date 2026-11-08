@@ -7,7 +7,8 @@
 //                                                              or while .gitignore lets private files out
 //   node tools/hooks/git-guard.mjs scan                        list unpushed commits that credit an AI
 import fs from 'node:fs';
-import { config, aiAttributedCommits, gitignoreProblems, secretHit, testInputsHash, forbiddenRe } from './hooks.mjs';
+import { config, secretHit, forbiddenRe } from './settings.mjs';
+import { aiAttributedCommits, gitignoreProblems, testInputsHash } from './repo.mjs';
 
 const cfg = config();
 const [mode, file] = process.argv.slice(2);
