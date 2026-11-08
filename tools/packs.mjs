@@ -14,15 +14,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { starterSources, findLibrary, setupCompleteness, usageOf, flushEngineWrites, TEST_GLOBS, onPath } from './hooks/hooks.mjs';
+import { PROJECT, where, whereWrite } from './hooks/paths.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const PACKS = path.join(ROOT, 'packs');
-const REGISTRY = path.join(ROOT, 'tools', 'packs-registry.json');
-const CONFIG = path.join(ROOT, 'tools', 'hooks', 'config.json');
-const REQS = path.join(ROOT, 'tools', 'hooks', 'requirements.json');
-const rd = (p, d = '') => { try { return fs.readFileSync(p, 'utf8'); } catch { return d; } };
+// (pack sources come from the engine; what a pack installs, and the settings it changes, go to the project's own
+// copies: paths.mjs says where each one is)
+const ROOT = PROJECT;
+const PACKS = where('packs');
+const REGISTRY = 'tools/packs-registry.json', CONFIG = 'tools/hooks/config.json', REQS = 'tools/hooks/requirements.json';
+const rd = (p, d = '') => { try { return fs.readFileSync(where(p), 'utf8'); } catch { return d; } };
 const rj = (p, d) => { try { return JSON.parse(rd(p)); } catch { return d; } };
-const wj = (p, o) => fs.writeFileSync(p, JSON.stringify(o, null, 2) + '\n');
+const wj = (p, o) => { fs.mkdirSync(path.dirname(whereWrite(p)), { recursive: true }); fs.writeFileSync(whereWrite(p), JSON.stringify(o, null, 2) + '\n'); };
 const rel = p => path.relative(ROOT, p).split(path.sep).join('/');
 
 function filesOf(dir) {
@@ -75,7 +76,7 @@ function insertRows(file, heading, rows) {
 
 // REQ: setup-interview. During setup nothing is installed before the user has answered, for agents without hooks too.
 export function setupGate() {
-  if (!fs.existsSync(path.join(ROOT, 'SETUP-PROMPT.md')) || fs.existsSync(path.join(ROOT, '.starter-template'))) return;
+  if (!fs.existsSync(where('SETUP-PROMPT.md')) || fs.existsSync(where('.starter-template'))) return;
   const probs = setupCompleteness();
   if (probs.length) { console.error('Not yet: setup asks the user first.\n- ' + probs.join('\n- ')); process.exit(1); }
 }
@@ -89,7 +90,7 @@ function install(names) {
     const p = all.find(x => x.name === n);
     if (!p) { console.log(`unknown pack "${n}". Available: ${all.map(x => x.name).join(', ') || '(none: payloads were pruned; reinstall from the starter)'}`); process.exit(1); }
     for (const f of p.files) {
-      const to = path.join(ROOT, f);
+      const to = whereWrite(f.split(path.sep).join('/'));
       if (fs.existsSync(to)) { console.log(`kept     ${f} (exists)`); continue; }
       fs.mkdirSync(path.dirname(to), { recursive: true });
       fs.copyFileSync(path.join(p.src, 'files', f), to);
@@ -98,10 +99,10 @@ function install(names) {
     }
     for (const [k, v] of Object.entries(p.config || {})) cfg[k] = Array.isArray(v) ? mergeArrays(cfg[k], v) : (cfg[k] ?? v);
     for (const q of p.requirements || []) if (!reqs.requirements.some(r => r.tag === q.tag)) { reqs.requirements.push({ ...q, pack: n }); console.log(`check    ${q.tag}`); }
-    insertRows(path.join(ROOT, 'docs', 'MENU.md'), 'Codes', p.menu || []);
-    insertRows(path.join(ROOT, 'docs', 'MENU.md'), 'Flags', p.flags || []);
-    insertRows(path.join(ROOT, 'DIRECTORY.md'), 'Precedence', (p.precedence || []).map(l => `- ${l}`));
-    insertRows(path.join(ROOT, 'DIRECTORY.md'), 'Where things live', (p.layout || []).map(r => `| ${r.join(' | ')} |`));
+    insertRows(whereWrite('docs/MENU.md'), 'Codes', p.menu || []);
+    insertRows(whereWrite('docs/MENU.md'), 'Flags', p.flags || []);
+    insertRows(whereWrite('DIRECTORY.md'), 'Precedence', (p.precedence || []).map(l => `- ${l}`));
+    insertRows(whereWrite('DIRECTORY.md'), 'Where things live', (p.layout || []).map(r => `| ${r.join(' | ')} |`));
     cfg.packs = mergeArrays(cfg.packs, [n]);
     console.log(`installed pack: ${n}`);
   }
@@ -113,7 +114,7 @@ function install(names) {
   try { flushEngineWrites(copied); } catch { }
   // a new pack can make library skills fit (gui → frontend-design): name them, so nothing that fits is missed
   const lib = findLibrary();
-  const fits = lib ? rj(path.join(lib.dir, 'catalog.json'), { skills: [] }).skills.filter(e => names.includes(e.for) && !fs.existsSync(path.join(ROOT, 'skills', e.name, 'SKILL.md'))) : [];
+  const fits = lib ? rj(path.join(lib.dir, 'catalog.json'), { skills: [] }).skills.filter(e => names.includes(e.for) && !fs.existsSync(where(`skills/${e.name}/SKILL.md`))) : [];
   if (fits.length) console.log(`\nLibrary skills that now fit: ${fits.map(e => e.name).join(', ')}. Enable each one that is worth it: node tools/skills.mjs enable <name>`);
   console.log('\nSkills, mirrors and DIRECTORY.md are regenerated. Next: node tools/audit.mjs' + (names.includes('app') ? '\nThen wire the app gates: node tools/packs.mjs configure app --test "<test command>" --build "<build command>" --code "<source globs>"' : ''));
 }
@@ -130,7 +131,7 @@ function configureApp(argv) {
   if (/(^|[\\/,])(go\.(mod|sum)|requirements[\w.-]*\.txt|Gemfile|Pipfile|package-lock\.json|yarn\.lock|pnpm-lock\.yaml)$/i.test(String(opt('--version-file') || '').trim())) {
     console.log(`${opt('--version-file')} holds no version number to raise. Name the file that does (package.json, pyproject.toml, Cargo.toml, a VERSION file), or --version-file none if releases are named by git tags.`); process.exit(1);
   }
-  if (opt('--version-file') && opt('--version-file') !== 'none' && !/[*,]/.test(opt('--version-file')) && !fs.existsSync(path.join(ROOT, opt('--version-file')))) console.log(`note: ${opt('--version-file')} does not exist yet; the version-bump check will ask for it once code changes.`);
+  if (opt('--version-file') && opt('--version-file') !== 'none' && !/[*,]/.test(opt('--version-file')) && !fs.existsSync(where(opt('--version-file')))) console.log(`note: ${opt('--version-file')} does not exist yet; the version-bump check will ask for it once code changes.`);
   const app = cfg.app || {};
   for (const k of ['test', 'build', 'lint', 'typecheck', 'run']) if (opt('--' + k) !== undefined) app[k] = opt('--' + k);
   // A gate's own pass line, so a gate run in one line with other commands is judged by its own result.

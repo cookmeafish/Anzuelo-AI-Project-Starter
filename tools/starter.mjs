@@ -30,13 +30,15 @@ import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { ROOT, STARTER_LINK, starterLink, starterSources, syncAll, setupCompleteness, usageOf } from './hooks/hooks.mjs';
 import { registry } from './packs.mjs';
+import { where, whereWrite, split } from './hooks/paths.mjs';
 
-const CONFIG = path.join(ROOT, 'tools', 'hooks', 'config.json');
-const at = (...p) => path.join(ROOT, ...p);
+// (each path goes where paths.mjs says: in the starter, all one folder; in a project, packs and library are the engine's)
+const CONFIG = where('tools/hooks/config.json');
+const at = (...p) => where(path.join(...p));
 const readCfg = () => { try { return JSON.parse(fs.readFileSync(CONFIG, 'utf8')); } catch { return {}; } };
 const setMode = mode => { const c = readCfg(); c.starter = mode; fs.writeFileSync(CONFIG, JSON.stringify(c, null, 2) + '\n'); };
 const node = (...a) => spawnSync(process.execPath, a, { cwd: ROOT, encoding: 'utf8' });
-const leftovers = () => ['packs', 'library'].filter(d => fs.existsSync(at(d)));
+const leftovers = () => split ? [] : ['packs', 'library'].filter(d => fs.existsSync(at(d)));
 // Lessons about the engine found in this project travel back to the starter. Lesson: engine-level lessons stayed in
 // the project where they were found, so every other project hit them again.
 const FEEDBACK = 'docs/starter-feedback.md';
@@ -127,7 +129,7 @@ if (['link', 'keep', 'remove'].includes(cmd) && fs.existsSync(at('SETUP-PROMPT.m
 }
 
 // Records what every pack owns before the payloads leave, so the audit can still check pack purity.
-function saveRegistry() { fs.writeFileSync(at('tools', 'packs-registry.json'), JSON.stringify(registry(), null, 2) + '\n'); }
+function saveRegistry() { fs.writeFileSync(whereWrite('tools/packs-registry.json'), JSON.stringify(registry(), null, 2) + '\n'); }
 
 function clearHere() {
   saveRegistry();

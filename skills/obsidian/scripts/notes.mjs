@@ -11,7 +11,9 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
+// (the project root: three folders up, or above .anzuelo/ when this skill sits in .anzuelo/engine or .anzuelo/local)
+const UP = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
+const ROOT = path.basename(path.dirname(UP)) === '.anzuelo' ? path.dirname(path.dirname(UP)) : UP;
 // the starter's own records and templates are not notes: they are linked from the rules, not from each other.
 // Lesson: a new project's audit listed BRIEF, DECISIONS, security and the spec template as orphan notes.
 const NOT_NOTES = /^(docs\/(CHANGELOG|STATUS|MENU|BRIEF|DECISIONS|security|foundation|lessons|fit-checklist|recommended-tools|glossary)\.md|docs\/(specs|releases)\/_TEMPLATE\.md|docs\/(plans|knowledge)\/README\.md|docs\/knowledge\/SOURCES\.md|docs\/feedback-inbox\/|docs\/playbooks\/_|docs\/checks\/|DIRECTORY\.md|CLAUDE\.md|AGENTS\.md|SETUP-PROMPT\.md|HOW-TO-USE\.md)/;

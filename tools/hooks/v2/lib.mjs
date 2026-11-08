@@ -4,12 +4,21 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { roots, resolver } from '../paths.mjs';
 
 export const ROOT = process.env.ANZUELO_ROOT || process.cwd();
+// (where each file is: in a project with the engine in .anzuelo/engine, runbooks and skills come from the local copy
+// and the engine's, the records from .anzuelo/local; anywhere else every path is under ROOT, as before. Plan:
+// docs/plans/2026-11-07-engine-outside-the-project.md)
+const HERE = roots(path.join(path.dirname(fileURLToPath(import.meta.url)), '..'), {});
+export const LAYOUT = HERE.split ? { ENGINE: HERE.ENGINE, PROJECT: ROOT, LOCAL: path.join(ROOT, '.anzuelo', 'local'), split: true } : { ENGINE: ROOT, PROJECT: ROOT, LOCAL: ROOT, split: false };
+const { where: at, relOf, listAll } = resolver(LAYOUT);
+export { at };
 const RUNBOOK_DIRS = ['docs/playbooks', 'tools/starter/runbooks'];
 // (Windows line endings read as plain ones: a runbook saved with CRLF had no header the router could see. Lesson
 // (replay): most of a project's runbooks were invisible to routing)
-const read = f => { try { return fs.readFileSync(path.join(ROOT, f), 'utf8').replace(/\r\n?/g, '\n'); } catch { return ''; } };
+const read = f => { try { return fs.readFileSync(at(f), 'utf8').replace(/\r\n?/g, '\n'); } catch { return ''; } };
 
 // "## Done when" items. A checkable item ends with one of:
 //   (file: <path or glob>)   the turn changed that file (Edit, Write, or a command that names it as its output)
@@ -53,7 +62,7 @@ export function doneWhen(text) {
 export function runbooks() {
   const out = [];
   for (const d of RUNBOOK_DIRS) {
-    let names = []; try { names = fs.readdirSync(path.join(ROOT, d)); } catch { continue; }
+    let names = []; try { names = listAll(d); } catch { continue; }
     for (const f of names.filter(f => f.endsWith('.md') && !f.startsWith('_'))) {
       const file = `${d}/${f}`, text = read(file), fm = /^---\n([\s\S]*?)\n---/.exec(text)?.[1] || '';
       const triggers = (/^triggers:\s*(.+)$/m.exec(fm)?.[1] || '').split(',').map(s => s.trim().toLowerCase()).filter(s => s.length > 2);
@@ -70,7 +79,7 @@ export function runbooks() {
 // data-analysis skill's own triggers, and the reminder named nothing, as v2 read only the runbooks.
 export function skillBooks() {
   const own = new Set(runbooks().map(b => b.name)), out = [];
-  let names = []; try { names = fs.readdirSync(path.join(ROOT, 'skills')); } catch { return out; }
+  let names = []; try { names = listAll('skills'); } catch { return out; }
   for (const n of names.filter(n => !own.has(n))) {
     const file = `skills/${n}/SKILL.md`, text = read(file), fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text)?.[1] || '';
     if (!fm || /^generated:\s*true/m.test(fm) || /^runbook:/m.test(fm)) continue;
@@ -93,7 +102,7 @@ export function route(prompt, books = runbooks()) {
   // the starter, where an upgrade message is a project's report back. Lesson (replay): every upgrade message the starter
   // sent a project routed to the project runbook on words like "audit" in its list of fixes)
   const eng = books.find(b => b.file === 'docs/playbooks/engine.md');
-  if (eng && !fs.existsSync(path.join(ROOT, '.starter-template')) && /\bstarter\.mjs\s+(update|upgrade)\b|\bengine upgrade\b|\b(upgrade|update)\s+(the\s+|this\s+|your\s+)?(engine|starter)\b|\b(upgrade|update)\s+to\s+(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}\b|\blinked starter copy\b|\bactualiza\w*\s+(el\s+)?(motor|starter)\b/i.test(String(prompt))) return { ...eng, matched: 'engine upgrade' };
+  if (eng && !fs.existsSync(at('.starter-template')) && /\bstarter\.mjs\s+(update|upgrade)\b|\bengine upgrade\b|\b(upgrade|update)\s+(the\s+|this\s+|your\s+)?(engine|starter)\b|\b(upgrade|update)\s+to\s+(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}\b|\blinked starter copy\b|\bactualiza\w*\s+(el\s+)?(motor|starter)\b/i.test(String(prompt))) return { ...eng, matched: 'engine upgrade' };
   const match = text => {
     const p = ` ${String(text).toLowerCase().replace(/[^\p{L}\p{N}' ]+/gu, ' ').replace(/\s+/g, ' ')} `;
     let best = null;
@@ -321,7 +330,7 @@ export function turnActs(rows) {
 // this turn still asks some. Every message counts: the user sees each one. Lesson (trial v44): three setups told
 // "do not ask me anything" ended a message with "Questions for you", choices the agent was to make itself.
 export function questionGaps(acts) {
-  const auto = (() => { try { return JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/hooks/config.json'), 'utf8')).autonomy === 'auto'; } catch { return false; } })();
+  const auto = (() => { try { return JSON.parse(fs.readFileSync(at('tools/hooks/config.json'), 'utf8')).autonomy === 'auto'; } catch { return false; } })();
   if (!auto && !/\b(do not|don'?t|never) ask me\b|\bno me preguntes\b/i.test(acts.heard || '')) return [];
   if (!/^\W*Questions? for you\b|^\W*Preguntas? para (ti|usted)\b/im.test(acts.said || acts.answer || '')) return [];
   return ['The user asked for no questions: make each choice yourself and note it as "Assumed: <choice> - <why> - <cost if wrong>". A step only the user can take (an install, a sign-in, a name for git) goes under a Heads-up, not a question; ask only what the rules stop for (an outward action, anything irreversible).'];
@@ -332,7 +341,7 @@ export function questionGaps(acts) {
 // The quote check is offered, never forced: the user chooses at setup or upgrade, on the agent's recommendation
 // ("quoteCheck": true or false in tools/hooks/config.json). Unset, it is off in a project and on in the starter itself.
 // While on, it runs every time. Lesson: some knowledge projects must keep exact quotes and examples.
-export const quoteCheckOn = () => { let v; try { v = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/hooks/config.json'), 'utf8')).quoteCheck; } catch { } return v === true || (v === undefined && fs.existsSync(path.join(ROOT, '.starter-template'))); };
+export const quoteCheckOn = () => { let v; try { v = JSON.parse(fs.readFileSync(at('tools/hooks/config.json'), 'utf8')).quoteCheck; } catch { } return v === true || (v === undefined && fs.existsSync(at('.starter-template'))); };
 // A file the turn wrote that copies six or more of the user's words in a row and presents them as the user's (in
 // quotes, or on a line naming the user): AGENTS.md rule 14 wants the lesson in general terms. Asked once, at the end,
 // only when it happened. Lesson: lessons were written down as the user's own sentences, over a hundred of them.
@@ -377,14 +386,16 @@ export function noteGaps(acts) {
 const BULK = new Set(['.git', 'node_modules', '.cache', '.venv', 'venv', '__pycache__', 'dist', 'build', '.next', 'target', '_site', '.nuxt', '.output', '.svelte-kit', 'coverage', 'storybook-static']);
 function filesMatching(glob) {
   const g = glob.replace(/\\/g, '/'), rx = globRx(g), base = g.split('/').filter((s, i, a) => !/[*?]/.test(a.slice(0, i + 1).join('/'))).join('/');
-  if (!/[*?]/.test(g)) return fs.existsSync(path.join(ROOT, g)) ? [g] : [];
-  const out = [], walk = d => { if (out.length > 20000) return; let es = []; try { es = fs.readdirSync(path.join(ROOT, d), { withFileTypes: true }); } catch { return; }
-    for (const e of es) { if (e.isDirectory() && BULK.has(e.name)) continue; const p = d ? `${d}/${e.name}` : e.name; if (e.isDirectory()) walk(p); else if (rx.test(p)) out.push(p); } };
-  walk(base);
-  return out;
+  if (!/[*?]/.test(g)) return fs.existsSync(at(g)) ? [g] : [];
+  // (in a project with the engine in .anzuelo/, the project walk skips it and the local folder is walked under the same
+  // names; the engine's own files are no project work)
+  const out = new Set(), walk = (root, d) => { if (out.size > 20000) return; let es = []; try { es = fs.readdirSync(path.join(root, d), { withFileTypes: true }); } catch { return; }
+    for (const e of es) { if (e.isDirectory() && (BULK.has(e.name) || (LAYOUT.split && root === ROOT && !d && e.name === '.anzuelo'))) continue; const p = d ? `${d}/${e.name}` : e.name; if (e.isDirectory()) walk(root, p); else if (rx.test(p)) out.add(p); } };
+  for (const root of new Set([ROOT, LAYOUT.LOCAL])) walk(root, base);
+  return [...out];
 }
 const globRx = g => new RegExp('^' + g.replace(/\\/g, '/').replace(/[.+^${}()|[\]]/g, '\\$&').replace(/\*\*/g, '\u0000').replace(/\*/g, '[^/]*').replace(/\u0000/g, '.*') + '$', 'i');
-const relp = p => path.relative(ROOT, path.resolve(ROOT, String(p))).replace(/\\/g, '/');
+const relp = p => relOf(p);
 
 // Whether a checkable item was met by what the turn did. Null means it can't be checked here.
 // Whether an item fits this turn: always, or when its "(when ...)" condition held.
@@ -400,10 +411,10 @@ export function met(item, acts) {
   // own changelog meets it. Lesson (2026-11-07): the end check re-blocked 3 times on a changelog line already written)
   if (item.kind === 'file') {
     const since = Date.parse(acts.at || '') || 0;
-    const args = [item.arg, ...(/^docs\/CHANGELOG\.md$/i.test(item.arg) && fs.existsSync(path.join(ROOT, '.starter-dev')) ? ['tools/starter/STARTER-CHANGELOG.md'] : [])];
+    const args = [item.arg, ...(/^docs\/CHANGELOG\.md$/i.test(item.arg) && fs.existsSync(at('.starter-dev')) ? ['tools/starter/STARTER-CHANGELOG.md'] : [])];
     return args.some(arg => { const rx = globRx(arg);
       return acts.calls.some(c => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name) && rx.test(relp(c.input.file_path || c.input.notebook_path || '')))
-        || (!!since && filesMatching(arg).some(f => { try { return fs.statSync(path.join(ROOT, f)).mtimeMs > since; } catch { return false; } })); });
+        || (!!since && filesMatching(arg).some(f => { try { return fs.statSync(at(f)).mtimeMs > since; } catch { return false; } })); });
   }
   return null;
 }
@@ -412,7 +423,7 @@ export function met(item, acts) {
 // package.json's "test", so either form counts). Lesson (trial v31): the tests passed through npm test and the check
 // still asked three times for its mapped command.
 const RUNNERS = /\btest_\w+\.py\b|\b\w+_test\.(py|go)\b|\.test\.(m?js|ts)\b|\b(npm (run )?test|pnpm (run )?test|yarn test|pytest|python -m (pytest|unittest)|go test|cargo test|dotnet test|node --test|vitest|jest|mvn test|gradle test|phpunit|rspec|bundle exec rake test)\b/i;
-const testScript = () => { let s = ''; try { s = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).scripts?.test || ''; } catch { } return /no test specified/.test(s) ? '' : s.trim(); };
+const testScript = () => { let s = ''; try { s = JSON.parse(fs.readFileSync(at('package.json'), 'utf8')).scripts?.test || ''; } catch { } return /no test specified/.test(s) ? '' : s.trim(); };
 // (a run whose output shows a passing test summary is a test run, whatever the command is called: a project's own
 // self-test, a check script. Lesson (replay): answers that truly reported "1655 passed" from a project's self-test
 // were flagged, because the command was not a known runner)
@@ -423,7 +434,7 @@ export const passedRun = c => /^(Bash|PowerShell)$/.test(c.name) && !c.error && 
 // Lesson (replay): a project's tests were a plain script run with node, which no runner name matched)
 // (the app pack keeps them under "app": { "test", "build" }. Lesson (trial v46): a Go project's test command was there,
 // v2 read only the top level, and a missing toolchain was asked for again)
-const cfgCmds = keys => { try { const c = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/hooks/config.json'), 'utf8')); return keys.flatMap(k => [c[k], c.app?.[k]]).filter(s => typeof s === 'string').flatMap(s => s.split(/\s*&&\s*/)).map(s => s.trim()).filter(Boolean); } catch { return []; } };
+const cfgCmds = keys => { try { const c = JSON.parse(fs.readFileSync(at('tools/hooks/config.json'), 'utf8')); return keys.flatMap(k => [c[k], c.app?.[k]]).filter(s => typeof s === 'string').flatMap(s => s.split(/\s*&&\s*/)).map(s => s.trim()).filter(Boolean); } catch { return []; } };
 const declared = () => cfgCmds(['test', 'build']);
 // (the declared test command alone, tools/hooks/config.json "test" or "app.test")
 const ownTests = () => cfgCmds(['test']);
@@ -450,11 +461,11 @@ const ranAt = (acts, t) => {
   if (runs.some(c => !c.at)) return true;
   return runs.some(c => t >= c.at - 2000 && t <= (BG.test(c.out) || !c.done ? Infinity : c.done + 2000));
 };
-const changedSince = (acts, rx) => { const since = Date.parse(acts.at || '') || 0; if (!since) return []; if (!walked.has(acts)) walked.set(acts, filesMatching('**/*')); return walked.get(acts).filter(f => rx.test(f) && !/^(\.cache|tools\/hooks\/state)\//.test(f) && (() => { try { const t = fs.statSync(path.join(ROOT, f)).mtimeMs; return t > since && ranAt(acts, t); } catch { return false; } })()); };
-const mtime = f => { try { return fs.statSync(path.join(ROOT, f)).mtimeMs; } catch { return 0; } };
+const changedSince = (acts, rx) => { const since = Date.parse(acts.at || '') || 0; if (!since) return []; if (!walked.has(acts)) walked.set(acts, filesMatching('**/*')); return walked.get(acts).filter(f => rx.test(f) && !/^(\.cache|tools\/hooks\/state)\//.test(f) && (() => { try { const t = fs.statSync(at(f)).mtimeMs; return t > since && ranAt(acts, t); } catch { return false; } })()); };
+const mtime = f => { try { return fs.statSync(at(f)).mtimeMs; } catch { return 0; } };
 // The project's own declared checks: tools/hooks/config.json "commitGate" entries, a command (a regex) and the files it
 // covers. A change to those files asks for that command to pass afterwards.
-const gates = () => { try { return JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/hooks/config.json'), 'utf8')).commitGate || []; } catch { return []; } };
+const gates = () => { try { return JSON.parse(fs.readFileSync(at('tools/hooks/config.json'), 'utf8')).commitGate || []; } catch { return []; } };
 // A run that could not start: held for approval, or its program missing.
 const CANT_START = /requires? approval|permission|denied|not recognized|command not found|not found|not installed|ENOENT|executable file not found/i;
 const cantStart = c => /^(Bash|PowerShell)$/.test(c.name) && c.error && CANT_START.test(c.out || '');
@@ -495,7 +506,7 @@ export function testGaps(acts, history = '') {
   const anyRunner = i.some(([c]) => /^(Bash|PowerShell)$/.test(c.name) && isTestRun(String(c.input.command || '')));
   // (a project has tests when a runner was seen this turn or a test setup exists, not just a build file. Lesson
   // (review): pyproject.toml and go.mod are in many projects with no tests at all)
-  const has = f => fs.existsSync(path.join(ROOT, f)), pyproject = (() => { try { return fs.readFileSync(path.join(ROOT, 'pyproject.toml'), 'utf8'); } catch { return ''; } })();
+  const has = f => fs.existsSync(at(f)), pyproject = (() => { try { return fs.readFileSync(at('pyproject.toml'), 'utf8'); } catch { return ''; } })();
   const hasTests = anyRunner || !!testScript() || declared().length > 0 || ['pytest.ini', 'conftest.py', 'tests', 'test', '__tests__', 'spec'].some(has)
     || /\[tool\.pytest/.test(pyproject) || ['**/*_test.go', '**/test_*.py', '**/*_test.py', '**/*.test.js', '**/*.test.mjs', '**/*.test.ts'].some(g => filesMatching(g).length > 0);
   // (a test run tried after the change that could not start, held for approval or with its program missing, is not asked
@@ -530,7 +541,7 @@ const SCREEN = /\.(html?|css|scss|jsx|tsx|vue|svelte|xaml|qml)$|(^|\/)(gui|ui|te
 // for screenshots)
 const NOT_SCREEN = /^(\.cache|docs|skills|packs|library|tools\/hooks)\/|(^|\/)(node_modules|dist|build|_site|\.next|\.nuxt|\.output|\.svelte-kit|coverage|storybook-static)\/|\.md$|(^|\/)(tests?|fixtures|__tests__)\/|(^|\/)test_[^/]*$|[._-]test\.\w+$/i;
 export function screenGaps(acts) {
-  if (!fs.existsSync(path.join(ROOT, 'tools/screenshot.mjs'))) return [];
+  if (!fs.existsSync(at('tools/screenshot.mjs'))) return [];
   const screen = p => { const r = relp(p); return SCREEN.test(r) && !NOT_SCREEN.test(r) && !/^(\.\.|[a-z]:)/i.test(r); };
   const i = acts.calls.map((c, k) => [c, k]);
   const lastEdit = Math.max(-1, ...i.filter(([c]) => /^(Edit|Write|MultiEdit)$/.test(c.name) && screen(c.input.file_path || '')).map(([, k]) => k));
@@ -546,7 +557,7 @@ export function screenGaps(acts) {
 // engine's ask found a real problem in 5 of 8 runs.
 const STRUCTURE = /^(CLAUDE\.md|AGENTS\.md|docs\/MENU\.md|docs\/playbooks\/|docs\/checks\/|skills\/|tools\/hooks\/(requirements|config)\.json$)/;
 export function healthGaps(acts, { run = true } = {}) {
-  if (!fs.existsSync(path.join(ROOT, 'tools/audit.mjs'))) return [];
+  if (!fs.existsSync(at('tools/audit.mjs'))) return [];
   const own = p => STRUCTURE.test(relp(p));
   const i = acts.calls.map((c, k) => [c, k]);
   const lastEdit = Math.max(-1, ...i.filter(([c]) => /^(Edit|Write|MultiEdit)$/.test(c.name) && own(c.input.file_path || '')).map(([, k]) => k));
@@ -555,7 +566,7 @@ export function healthGaps(acts, { run = true } = {}) {
   if (i.some(([c, k]) => k > lastEdit && /^(Bash|PowerShell)$/.test(c.name) && !c.error && /audit\.mjs/.test(String(c.input.command || '')) && /audit: PASS/.test(c.out || '') && (!lastWrite || c.done > lastWrite))) return [];
   if (!run) return ['(the health check would run here)'];
   // (a hard limit: a slow audit never holds the end of a turn. Its time is kept, to see what it costs)
-  const t0 = Date.now(), r = spawnSync(process.execPath, ['tools/audit.mjs'], { cwd: ROOT, encoding: 'utf8', timeout: 30_000 });
+  const t0 = Date.now(), r = spawnSync(process.execPath, [at('tools/audit.mjs')], { cwd: ROOT, encoding: 'utf8', timeout: 30_000 });
   const ms = Date.now() - t0;
   if (r.status === 0 || r.error) { saveTurn('health', { ...loadTurn('health'), ms }); return []; }
   // (a failure already reported on an earlier turn is not this turn's: it is asked about once, not on every turn after.
@@ -576,7 +587,7 @@ export function healthGaps(acts, { run = true } = {}) {
 // Check 5: new facts written into the knowledge base name where they came from. The outcome, not the process: each
 // knowledge edit's new text carries a source (a link, a project file, "source:", a footnote, "the user said"), or a
 // sources list edited in the same turn does. Replay: the old engine's ask found a real problem in 4 of 7 runs.
-const knowledgeDirs = () => { try { return JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/hooks/config.json'), 'utf8')).knowledgeDirs || ['docs/knowledge']; } catch { return ['docs/knowledge']; } };
+const knowledgeDirs = () => { try { return JSON.parse(fs.readFileSync(at('tools/hooks/config.json'), 'utf8')).knowledgeDirs || ['docs/knowledge']; } catch { return ['docs/knowledge']; } };
 // ("user reported" too. Lesson (trial v46): a note labelled "(user reported, <date>)" was asked for a source, and the
 // fix wrote "Source: the user" beside the label)
 const SOURCED = /https?:\/\/|\bsources?\s*:|\[\^[^\]]+\]|\b(the )?user[- ]?(said|told|gave|wrote|reported|says)\b|\bobserved\b|\(from [\w./-]+\)|\b[\w-]+\/[\w./-]+\.(md|txt|csv|json|pdf)\b/i;
@@ -600,11 +611,11 @@ export function evidenceGaps(acts) {
   // (made up: a file that does not exist, or a link nothing in the turn fetched or found; a file read in an earlier turn
   // is fine. Replay (real sessions): "not read this turn" flagged most answers falsely)
   const found = acts.calls.filter(c => c.name === 'WebSearch').map(c => c.out || '').join('\n');
-  const unread = [...cited.filter(u => !seen.includes(norm(u)) && !found.includes(norm(u))), ...files.filter(p => !seen.includes(norm(p)) && !fs.existsSync(path.resolve(ROOT, p)) && !filesMatching(`**/${path.basename(p)}`).some(f => f.endsWith(p)))];
+  const unread = [...cited.filter(u => !seen.includes(norm(u)) && !found.includes(norm(u))), ...files.filter(p => !seen.includes(norm(p)) && !fs.existsSync(at(p)) && !filesMatching(`**/${path.basename(p)}`).some(f => f.endsWith(p)))];
   const out = [];
   if (unread.length) out.push(`The answer cites ${unread.slice(0, 3).join(', ')}, which this turn never read or found and which does not exist here: cite only real sources you read.`);
   // (a quote is checked when it sits on a line with a source the turn read: then it must be that source's words)
-  const corpus = (reads.map(c => c.out || '').join('\n') + '\n' + reads.filter(c => c.name === 'Read').map(c => { try { return fs.readFileSync(path.resolve(ROOT, c.input.file_path), 'utf8').slice(0, 2e6); } catch { return ''; } }).join('\n')).replace(/\s+/g, ' ').toLowerCase();
+  const corpus = (reads.map(c => c.out || '').join('\n') + '\n' + reads.filter(c => c.name === 'Read').map(c => { try { return fs.readFileSync(at(c.input.file_path), 'utf8').slice(0, 2e6); } catch { return ''; } }).join('\n')).replace(/\s+/g, ' ').toLowerCase();
   const sourced = l => [...l.matchAll(/https?:\/\/[^\s)>\]"'`]+|(?:[\w.-]+\/)+[\w.-]+\.\w+/g)].some(m => seen.includes(norm(m[0].replace(/[.,;:]+$/, ''))));
   const quotes = ans.split('\n').filter(sourced).flatMap(l => [...l.matchAll(/["“]([^"“”\n]{25,})["”]/g)].map(m => m[1].replace(/\s+/g, ' ').trim())).filter(q => !corpus.includes(q.toLowerCase()));
   if (quotes.length) out.push(`The quote "${quotes[0].slice(0, 60)}" is not in the source cited beside it: quote it word for word, or say it in your own words without quote marks.`);
@@ -650,7 +661,7 @@ export function knowledgeGaps(acts) {
 // neither ran the security review nor wrote its report. The pattern and the files are the project's own
 // (tools/hooks/requirements.json, "security-code"), so a project tunes them in one place. Replay: the old engine's ask
 // found a real problem in 3 of 4 runs.
-const securitySpec = () => { try { return JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/hooks/requirements.json'), 'utf8')).requirements.find(r => r.tag === 'security-code')?.when?.changedContentMatches || null; } catch { return null; } };
+const securitySpec = () => { try { return JSON.parse(fs.readFileSync(at('tools/hooks/requirements.json'), 'utf8')).requirements.find(r => r.tag === 'security-code')?.when?.changedContentMatches || null; } catch { return null; } };
 export function securityGaps(acts) {
   const spec = securitySpec();
   if (!spec?.pattern) return [];
@@ -686,19 +697,19 @@ export function claimGaps(acts, history = '') {
   const hashes = [...new Set([...a.matchAll(/(?<![\w/#-])([0-9a-f]{7,40})(?![\w-])/g)].map(m => m[1]).filter(h => /\d/.test(h) && /[a-f]/.test(h)))];
   const unknown = hashes.filter(h => !seen.includes(h) && spawnSync('git', ['cat-file', '-e', `${h}^{commit}`], { cwd: ROOT, timeout: 5000 }).status !== 0);
   if (unknown.length) out.push(`The answer names commit ${unknown.slice(0, 3).join(', ')}, which no command in this turn showed and this repository does not have: check it, or correct the answer.`);
-  const top = p => { try { return fs.existsSync(path.join(ROOT, p.split('/')[0])); } catch { return false; } };
+  const top = p => { try { return fs.existsSync(at(p.split('/')[0])); } catch { return false; } };
   // (an answer with a Finished section names its files there; a path above it may be an example. Lesson (trial v34): a
   // report a later check would write, given as an example, was reported missing)
   const fin = /^\s*(#+\s*|\*\*)Finished\b/im.exec(a), listed = fin ? a.slice(fin.index) : a;
   const paths = [...new Set([...listed.matchAll(/(?:[A-Za-z]:[\\/]|(?<![\w.:/\\-]))((?:[\w.-]+[\\/])+[\w.-]+\.[A-Za-z]{1,5})\b/g)].map(m => m[0].replace(/\\/g, '/')))];
-  const missingFiles = paths.filter(p => /^[A-Za-z]:\//.test(p) ? !fs.existsSync(p) : top(p) && !fs.existsSync(path.join(ROOT, p)))
+  const missingFiles = paths.filter(p => /^[A-Za-z]:\//.test(p) ? !fs.existsSync(p) : top(p) && !fs.existsSync(at(p)))
     // (a path given as an example, or one the answer says was filed or taken in elsewhere, is no claim that it exists.
     // Lesson (trial v40): "for example inbox/W43.csv" and "W42.csv was taken in ... filed as sources/..." were reported)
     .filter(p => { const n = p.split('/').pop().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), gone = 'delet|remov|retir|renam|moved|filed|archiv|taken in|copied';
       return !new RegExp(`(${gone})\\w*[^.\\n]{0,80}${n}|${n}[^.\\n]{0,80}(${gone}|gone)|(for example|e\\.g\\.|such as|named like|for instance|would be)[^.\\n]{0,30}${n}`, 'i').test(a); });
   // (two file names joined by a slash, "CLAUDE.md/AGENTS.md", are a pair, not a path: a part before the last that is a
   // file here. Lesson (replay 2026-11-07): it was reported missing)
-  const isFile = s => { try { return fs.statSync(path.join(ROOT, s)).isFile(); } catch { return false; } };
+  const isFile = s => { try { return fs.statSync(at(s)).isFile(); } catch { return false; } };
   const real = missingFiles.filter(p => !p.split('/').slice(0, -1).some(s => /\.[A-Za-z]{1,5}$/.test(s) && isFile(s)));
   if (real.length) out.push(`The answer names ${real.slice(0, 3).join(', ')}, which does not exist: check the path, or correct the answer.`);
   // (a "committed" or "pushed" claim is checked only by the commit it names, above, never by its wording. Lesson (live
@@ -720,7 +731,7 @@ export const opened = (book, acts) => acts.calls.some(c => (c.name === 'Read' &&
 const inRoot = f => { const r = path.relative(ROOT, path.resolve(ROOT, String(f || ''))); return !!f && !r.startsWith('..') && !path.isAbsolute(r); };
 export const worked = acts => acts.calls.some(c => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name) && inRoot(c.input?.file_path || c.input?.notebook_path));
 
-const STATE = () => path.join(ROOT, 'tools', 'hooks', 'state');
+const STATE = () => at('tools/hooks/state');
 const stateFile = sid => path.join(STATE(), `v2-turn.${String(sid || 'x').replace(/[^\w-]/g, '').slice(0, 64)}.json`);
 // (no session, no record: a run without a session id (the hook timing, a hand run) would share one made-up record)
 export const saveTurn = (sid, v) => { if (!sid) return; try { fs.mkdirSync(STATE(), { recursive: true }); fs.writeFileSync(stateFile(sid), JSON.stringify(v)); } catch { } };

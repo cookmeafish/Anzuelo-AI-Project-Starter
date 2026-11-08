@@ -16,9 +16,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { ROOT, config, syncAll, findLibrary, CORE_SKILLS, today, usageOf, flushEngineWrites, bulkDir } from './hooks/hooks.mjs';
+import { where, whereWrite, relOf } from './hooks/paths.mjs';
 
 const cfg = config();
-const dir = n => path.join(ROOT, cfg.skillsDir, n);
+// (a skill this project adds, enables or removes is its own local copy; one it reads may be the engine's: paths.mjs)
+const dir = n => whereWrite(`${cfg.skillsDir}/${n}`), has = n => fs.existsSync(where(`${cfg.skillsDir}/${n}/SKILL.md`));
 const recommended = cfg.recommendedSkills || [];
 
 function add(source, skill) {
@@ -45,7 +47,7 @@ function add(source, skill) {
     fs.writeFileSync(path.join(dir(skill), 'SOURCE.md'), `Installed from https://github.com/${source} (skill "${skill}") on ${today()} ` +
       `with tools/skills.mjs. Third-party: update by re-running the same command, not by editing these files.\n`);
     const files = [];
-    (function walk(d) { for (const n of fs.readdirSync(d)) { const p = path.join(d, n); fs.statSync(p).isDirectory() ? walk(p) : files.push(path.relative(ROOT, p).split(path.sep).join('/')); } })(dir(skill));
+    (function walk(d) { for (const n of fs.readdirSync(d)) { const p = path.join(d, n); fs.statSync(p).isDirectory() ? walk(p) : files.push(relOf(p)); } })(dir(skill));
     console.log(`installed ${skill} from ${source} into ${cfg.skillsDir}/${skill}/. Read every file, then adapt it (rewrite in the project's style, keep LICENSE, credit in SOURCE.md):\n${files.map(f => '  ' + f).join('\n')}`);
     return true;
   } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
@@ -55,25 +57,25 @@ const [cmd, a, b] = process.argv.slice(2);
 if (cmd === 'add') process.exitCode = add(a, b) ? 0 : 1;
 else if (cmd === 'recommended') {
   let ok = true;
-  for (const s of recommended) if (!fs.existsSync(path.join(dir(s.skill), 'SKILL.md'))) ok = add(s.source, s.skill) && ok;
+  for (const s of recommended) if (!has(s.skill)) ok = add(s.source, s.skill) && ok;
   process.exitCode = ok ? 0 : 1;
 } else if (cmd === 'list') {
-  for (const s of recommended) console.log(`${fs.existsSync(path.join(dir(s.skill), 'SKILL.md')) ? 'installed' : 'MISSING  '}  ${s.skill}  (${s.source})  ${s.why || ''}`);
+  for (const s of recommended) console.log(`${has(s.skill) ? 'installed' : 'MISSING  '}  ${s.skill}  (${s.source})  ${s.why || ''}`);
 } else if (cmd === 'library') {
   const cat = libraryCatalog();
   const lib = findLibrary();
   if (!cat.length) console.log('no skill library: the starter\'s leftovers were removed and no starter is linked. To grow later: node tools/starter.mjs link "<starter folder>"');
   else if (lib.kind !== 'project') console.log(`(from the ${lib.kind})`);
-  for (const e of cat) console.log(`${fs.existsSync(path.join(dir(e.name), 'SKILL.md')) ? 'enabled ' : '        '} ${e.plain || e.name} (skill: ${e.name}, fits: ${e.for})\n${' '.repeat(9)}What it does: ${e.does || e.summary}\n${' '.repeat(9)}What you'll notice: ${e.outcome || '-'}\n${' '.repeat(9)}Good when: ${e.good || '-'}\n${' '.repeat(9)}Costs: ${e.costs || '-'}\n${' '.repeat(9)}Question: ${e.ask}`);
+  for (const e of cat) console.log(`${has(e.name) ? 'enabled ' : '        '} ${e.plain || e.name} (skill: ${e.name}, fits: ${e.for})\n${' '.repeat(9)}What it does: ${e.does || e.summary}\n${' '.repeat(9)}What you'll notice: ${e.outcome || '-'}\n${' '.repeat(9)}Good when: ${e.good || '-'}\n${' '.repeat(9)}Costs: ${e.costs || '-'}\n${' '.repeat(9)}Question: ${e.ask}`);
 } else if (cmd === 'enable') {
   (await import('./packs.mjs')).setupGate();
   const names = process.argv.slice(3).map(skillName);
   for (const n of names) {
-    const from = path.join(findLibrary()?.dir || path.join(ROOT, 'library'), 'skills', n);
+    const from = path.join(findLibrary()?.dir || where('library'), 'skills', n);
     if (!fs.existsSync(path.join(from, 'SKILL.md'))) { console.error(`no library skill "${n}". See: node tools/skills.mjs library`); process.exitCode = 1; continue; }
     fs.cpSync(from, dir(n), { recursive: true });
     // copied from the library as it is: not the agent's own new skill (no skill-reuse or name-var on it)
-    try { const walk = d => fs.readdirSync(d, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(d, e.name)) : [path.relative(ROOT, path.join(d, e.name)).split(path.sep).join('/')]); flushEngineWrites(walk(dir(n))); } catch { }
+    try { const walk = d => fs.readdirSync(d, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(d, e.name)) : [relOf(path.join(d, e.name))]); flushEngineWrites(walk(dir(n))); } catch { }
     // its checks come with it: the skill routes by its own triggers and the Stop hook proves it was followed
     const reqs = (libraryCatalog().find(e => e.name === n) || {}).requirements || [];
     const added = setRequirements(reqs.map(r => ({ ...r, skill: n })), []);
@@ -81,7 +83,7 @@ else if (cmd === 'recommended') {
   }
 } else if (cmd === 'disable') {
   for (const n of process.argv.slice(3).map(skillName)) {
-    if (!fs.existsSync(path.join(dir(n), 'SKILL.md'))) { console.error(`no skill "${n}" in ${cfg.skillsDir}/`); process.exitCode = 1; continue; }
+    if (!has(n)) { console.error(`no skill "${n}" in ${cfg.skillsDir}/`); process.exitCode = 1; continue; }
     fs.rmSync(dir(n), { recursive: true, force: true });
     const removed = setRequirements([], [n]);
     console.log(`disabled ${n}: removed ${cfg.skillsDir}/${n}/${removed.length ? ` and its checks ${removed.join(', ')}` : ''}.`);
@@ -89,7 +91,7 @@ else if (cmd === 'recommended') {
 } else if (cmd === 'retire') {
   // skill-curate: delete a runbook or skill nobody uses, with its generated files, checks and menu codes
   for (const n of process.argv.slice(3).map(skillName)) {
-    const pb = path.join(ROOT, 'docs', 'playbooks', `${n}.md`);
+    const pb = whereWrite(`docs/playbooks/${n}.md`);
     // a project runbook that shares its name with an engine skill (the skill took over its job) goes; the skill stays
     const core = CORE_SKILLS.includes(n);
     if ((core && !fs.existsSync(pb)) || ['project', 'plan'].includes(n)) { console.error(`${n} is part of the engine and is never retired.`); process.exitCode = 1; continue; }
@@ -98,21 +100,21 @@ else if (cmd === 'recommended') {
     if (!core && fs.existsSync(dir(n))) { fs.rmSync(dir(n), { recursive: true, force: true }); gone.push(`${cfg.skillsDir}/${n}/`); }
     if (!gone.length) { console.error(`no runbook or skill named "${n}"`); process.exitCode = 1; continue; }
     // its checks: tagged with the skill, or triggered by using it
-    const rq = path.join(ROOT, 'tools', 'hooks', 'requirements.json');
+    const rq = where('tools/hooks/requirements.json');
     const j = JSON.parse(fs.readFileSync(rq, 'utf8'));
     const mine = r => r.when?.playbookUsed === n || (!core && (r.skill === n || r.when?.skillUsed === n || r.forces === n));
     const tags = j.requirements.filter(mine).map(r => r.tag);
     j.requirements = j.requirements.filter(r => !mine(r));
-    fs.writeFileSync(rq, JSON.stringify(j, null, 2) + '\n');
+    fs.writeFileSync(whereWrite('tools/hooks/requirements.json'), JSON.stringify(j, null, 2) + '\n');
     // the rule-to-check map no longer lists them (a row whose last tag goes stays, for the rule it describes)
-    const map = path.join(ROOT, 'docs', 'checks', 'rule-enforcement.md');
-    if (tags.length && fs.existsSync(map)) fs.writeFileSync(map, fs.readFileSync(map, 'utf8').split('\n').map(l => {
+    const map = where('docs/checks/rule-enforcement.md');
+    if (tags.length && fs.existsSync(map)) fs.writeFileSync(whereWrite('docs/checks/rule-enforcement.md'), fs.readFileSync(map, 'utf8').split('\n').map(l => {
       if (!l.startsWith('| ')) return l;
       const cells = l.split('|'), i = cells.length - 2;
       cells[i] = ' ' + cells[i].split(',').map(t => t.trim()).filter(t => t && !tags.includes(t)).join(', ') + ' ';
       return cells.join('|');
     }).join('\n'));
-    const menu = path.join(ROOT, 'docs', 'MENU.md');
+    const menu = where('docs/MENU.md');
     if (fs.existsSync(menu)) fs.writeFileSync(menu, fs.readFileSync(menu, 'utf8').split('\n').filter(l => !new RegExp(`^\\|\\s*[A-Z]\\d+\\s*\\|[^|]*\\|\\s*${n}\\.md\\s*\\|`).test(l)).join('\n'));
     console.log(`retired ${n}: removed ${gone.join(' and ')}${tags.length ? `, checks ${tags.join(', ')}` : ''}. Log it in docs/CHANGELOG.md.`);
     // files that still point at it: fix or remove each mention (the audit fails on broken links and references)
@@ -156,26 +158,26 @@ if (['add', 'recommended', 'enable', 'disable', 'retire', 'refresh'].includes(cm
 // The "Library" row of the rule-to-check map lists exactly the checks of the library skills this project enabled
 // (the requirements that carry a "skill" field), and disappears when there are none.
 function syncLibraryRow() {
-  const f = path.join(ROOT, 'docs', 'checks', 'rule-enforcement.md');
+  const f = where('docs/checks/rule-enforcement.md');
   if (!fs.existsSync(f)) return;
   let reqs = [];
-  try { reqs = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools', 'hooks', 'requirements.json'), 'utf8')).requirements || []; } catch { return; }
+  try { reqs = JSON.parse(fs.readFileSync(where('tools/hooks/requirements.json'), 'utf8')).requirements || []; } catch { return; }
   const mine = reqs.filter(r => r.skill);
   const lines = fs.readFileSync(f, 'utf8').split(/\r?\n/);
   const i = lines.findIndex(l => l.startsWith('| Library |'));
   const row = `| Library | Each enabled library skill proves its own "Done when" (added by \`tools/skills.mjs enable\`) | the skill's SKILL.md | stop, when the skill was used or its event happened: ${[...new Set(mine.map(r => r.skill))].join(', ')} | ${mine.map(r => r.tag).join(', ')} |`;
   if (!mine.length) { if (i >= 0) lines.splice(i, 1); }
   else if (i >= 0) lines[i] = row; else lines.push(row);
-  fs.writeFileSync(f, lines.join('\n').replace(/\n*$/, '\n'));
+  fs.writeFileSync(whereWrite('docs/checks/rule-enforcement.md'), lines.join('\n').replace(/\n*$/, '\n'));
 }
 
 // Adds checks (replacing any with the same tag) and drops the checks a removed skill brought. Returns the tags touched.
 function setRequirements(add, dropSkills) {
-  const f = path.join(ROOT, 'tools', 'hooks', 'requirements.json');
+  const f = where('tools/hooks/requirements.json');
   const j = JSON.parse(fs.readFileSync(f, 'utf8'));
   const before = j.requirements.map(r => r.tag);
   j.requirements = j.requirements.filter(r => !dropSkills.includes(r.skill) && !add.some(a => a.tag === r.tag)).concat(add);
-  fs.writeFileSync(f, JSON.stringify(j, null, 2) + '\n');
+  fs.writeFileSync(whereWrite('tools/hooks/requirements.json'), JSON.stringify(j, null, 2) + '\n');
   return add.length ? add.map(a => a.tag) : before.filter(t => !j.requirements.some(r => r.tag === t));
 }
 

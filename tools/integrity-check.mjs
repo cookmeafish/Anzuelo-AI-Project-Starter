@@ -11,7 +11,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const { PROJECT: ROOT } = await import('./hooks/paths.mjs');
 const args = process.argv.slice(2);
 const hi = args.indexOf('--hours');
 const hours = hi >= 0 ? Number(args[hi + 1]) : 24;

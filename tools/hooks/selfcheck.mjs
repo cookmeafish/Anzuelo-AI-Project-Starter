@@ -4797,7 +4797,7 @@ const proves = s => TAGS.filter(t => (s.expect?.tags || []).includes(t) || (s.ex
 const SHARD = (() => { const i = process.argv.indexOf('--shard'), m = /^(\d+)\/(\d+)$/.exec(i > 0 ? process.argv[i + 1] || '' : ''); return m ? { i: Number(m[1]), n: Number(m[2]) } : null; })();
 const HELPER = !!SHARD;
 // tags a standalone test proves (it runs with --tags <tag>, outside the full-run-only block)
-const STANDALONE_TAGS = ['status-bar', 'usage-quiet', 'no-polling', 'trial-wording', 'upset-acknowledged', 'helper-turn-checked', 'starter-tested', 'begin-keeps-turn', 'helper-work-counts', 'upset-es', 'feedback-usage', 'session-checklist', 'engine-bypassed', 'transcript-tail', 'instructions-run', 'answer-traced', 'stop-follow-on', 'stop-reblock', 'check-preview'];
+const STANDALONE_TAGS = ['status-bar', 'usage-quiet', 'no-polling', 'trial-wording', 'upset-acknowledged', 'helper-turn-checked', 'starter-tested', 'begin-keeps-turn', 'helper-work-counts', 'upset-es', 'feedback-usage', 'session-checklist', 'engine-bypassed', 'transcript-tail', 'instructions-run', 'answer-traced', 'stop-follow-on', 'stop-reblock', 'check-preview', 'layout-split'];
 if (TAGS) {
   const all = [...STOP, ...PRETOOL, ...PROMPT];
   for (const t of TAGS) if (!HELPER && !TRIGGER_TAGS.includes(t) && !STANDALONE_TAGS.includes(t) && t !== 'selftest-speed' && !all.some(s => proves(s).includes(t))) report(false, `tags: a scenario proves ${t}`, `no scenario proves "${t}": add one to tools/hooks/project-scenarios.mjs (blocked when skipped, passes when followed)`);
@@ -8581,13 +8581,44 @@ if (mineB() && (!TAGS || TAGS.includes('permission-respected'))) { // engine run
     const read0 = cli('setting', 'runbookLedger'), set = cli('setting', 'runbookLedger', 'false'), cfg = JSON.parse(fs.readFileSync(path.join(dir, 'tools/hooks/config.json'), 'utf8'));
     const unknown = cli('setting', 'runbookLedgr', 'true'), wrong = cli('setting', 'runbookLedger', '"yes"');
     const agent = run(dir, 'pretool', { tool_name: 'Bash', tool_input: { command: 'node tools/hooks/hooks.mjs setting runbookLedger false' } }).out;
-    const look = run(dir, 'pretool', { tool_name: 'Bash', tool_input: { command: 'node tools/hooks/hooks.mjs setting runbookLedger' } }).out;
+    const look = run(dir, 'pretool', { tool_name: 'Bash', tool_input: { command: 'node tools/hooks/hooks.mjs setting runbookLedger' } }).out
+      + run(dir, 'pretool', { tool_name: 'Bash', tool_input: { command: 'node tools/hooks/hooks.mjs setting runbookLedger; grep -n "x" tools/hooks/config.json' } }).out;
     report(/runbookLedger: true \(the default\)/.test(read0.stdout) && set.status === 0 && /true -> false/.test(set.stdout) && cfg.runbookLedger === false
       && unknown.status === 2 && /not a setting/.test(unknown.stdout) && wrong.status === 2 && /takes a boolean/.test(wrong.stdout)
       && /permission-respected[\s\S]*! node tools\/hooks\/hooks\.mjs setting runbookLedger false/.test(agent) && !/permission-respected/.test(look),
       'engine runbook: "setting" reads and writes one hook setting, refuses an unknown key or a wrong type; the agent\'s write is denied with the line for the user, a read is not',
       JSON.stringify([read0.stdout, set.stdout, unknown.stdout, wrong.stdout, agent.slice(0, 300), look.slice(0, 100)]));
   } finally { giveBack(dir); }
+}
+if (mineB() && (!TAGS || TAGS.includes('layout-split')) && fs.existsSync(path.join(ROOT, '.starter-template'))) {
+  // the engine in .anzuelo/engine of a project: every tracked file sorted to its root by paths.mjs, then the hooks and
+  // the audit run from there with the session in the project. The reminder, a guard, sync and the audit work, sync
+  // writes nothing into the engine, and the hook state lands in .anzuelo/local. Plan: engine outside the project, Task 2.
+  const { kind } = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/paths.mjs')).href);
+  const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-split-')), eng = path.join(proj, '.anzuelo', 'engine'), loc = path.join(proj, '.anzuelo', 'local');
+  try {
+    const cp = (f, to) => { const t = path.join(to, f); fs.mkdirSync(path.dirname(t), { recursive: true }); fs.copyFileSync(path.join(ROOT, f), t); };
+    for (const f of (spawnSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8' }).stdout || '').split('\n').filter(Boolean)) {
+      if (/^\.starter-(template|dev)$/.test(f) || !fs.existsSync(path.join(ROOT, f))) continue;
+      const k = kind(f);
+      cp(f, k === 'engine' || k === 'both' ? eng : k === 'local' ? loc : proj);
+    }
+    spawnSync('git', ['init', '-q'], { cwd: proj }); fs.appendFileSync(path.join(proj, '.gitignore'), '\n.anzuelo/\n');
+    const sum = d => { const h = createHash('sha1'); const walk = r => { for (const e of fs.readdirSync(path.join(d, r), { withFileTypes: true }).sort((a, b) => a.name < b.name ? -1 : 1)) { const p = r ? `${r}/${e.name}` : e.name; if (e.isDirectory()) { if (e.name !== 'state') walk(p); } else h.update(p + fs.readFileSync(path.join(d, p))); } }; walk(''); return h.digest('hex'); };
+    const env = { ...process.env, STARTER_ENGINE: 'v2', CLAUDE_PROJECT_DIR: proj }; delete env.ANZUELO_ROOT;
+    const hk = (cmd, input) => spawnSync(process.execPath, [path.join(eng, 'tools/hooks/hooks.mjs'), cmd], { cwd: proj, encoding: 'utf8', input: input && JSON.stringify(input), env, timeout: 120000 });
+    const before = sum(eng);
+    const session = hk('session', { session_id: 'split1', source: 'startup' });
+    const prompt = hk('prompt', { session_id: 'split1', prompt: 'proofread this paragraph for me' }).stdout || '';
+    const secret = hk('pretool', { session_id: 'split1', tool_name: 'Write', tool_input: { file_path: path.join(proj, 'src/a.js'), content: 'const k = "sk-ant-api03-' + 'A'.repeat(90) + '";' } }).stdout || '';
+    const sync = hk('sync'), same = before === sum(eng);
+    const audit = spawnSync(process.execPath, [path.join(eng, 'tools/audit.mjs')], { cwd: proj, encoding: 'utf8', env, timeout: 300000 });
+    const stateAt = { local: fs.existsSync(path.join(loc, 'tools/hooks/state')), project: fs.existsSync(path.join(proj, 'tools')), engine: fs.existsSync(path.join(eng, 'tools/hooks/state')) };
+    report(session.status === 0 && /docs\/playbooks\/revise-text\.md/.test(prompt) && /permissionDecision\\?"?:\s*\\?"?deny[\s\S]*no-secrets/.test(secret) && sync.status === 0 && same
+      && audit.status === 0 && stateAt.local && !stateAt.project && !stateAt.engine,
+      'layout: with the engine in .anzuelo/engine the reminder, a guard, sync and the audit work from there, sync leaves the engine as it was, and hook state lands in .anzuelo/local',
+      JSON.stringify({ session: session.status, prompt: prompt.slice(0, 200), secret: secret.slice(0, 200), sync: [sync.status, (sync.stderr || '').slice(0, 300)], same, audit: [audit.status, (audit.stdout || '').split('\n').filter(l => /FAIL|^\s+-/.test(l)).slice(0, 12)], stateAt }));
+  } finally { fs.rmSync(proj, { recursive: true, force: true }); }
 }
 if (mineB() && (!TAGS || TAGS.includes('upset-learned'))) { // the user sees "acknowledged" as soon as the agent writes its
   // Issue line, once (Lesson (the user): it should show as soon as the agent decides it is a real issue to fix)

@@ -245,7 +245,7 @@ report(/learn-from-upset/.test(reminder('WHY DID YOU BREAK THE EXPORT AGAIN').te
   const c = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-push-'));
   fs.mkdirSync(path.join(c, 'tools/hooks/state'), { recursive: true }); fs.mkdirSync(path.join(c, '.cache'), { recursive: true });
   fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(c, 'tools/hooks/v2'), { recursive: true });
-  for (const f of ['hooks.mjs', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
+  for (const f of ['hooks.mjs', 'paths.mjs', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
   const pre = rows => { const t = path.join(c, `t${++id}.jsonl`); fs.writeFileSync(t, rows.flat().map(r => JSON.stringify(r)).join('\n') + '\n');
     return spawnSync(process.execPath, [path.join(c, 'tools/hooks/hooks.mjs'), 'pretool'], { cwd: c, encoding: 'utf8',
       input: JSON.stringify({ session_id: 'pushok', transcript_path: t, tool_name: 'Bash', tool_input: { command: 'git push origin HEAD:main' } }),
@@ -1120,11 +1120,14 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     const c = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-resume-'));
     fs.mkdirSync(path.join(c, 'tools/hooks/state'), { recursive: true });
     fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(c, 'tools/hooks/v2'), { recursive: true });
-    for (const f of ['hooks.mjs', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
+    for (const f of ['hooks.mjs', 'paths.mjs', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
     const resume = ended => { const sid = ended ? 'resumedone' : 'resumeopen';
       fs.writeFileSync(path.join(c, `tools/hooks/state/v2-turn.${sid}.json`), JSON.stringify({ at: new Date().toISOString(), runbook: null, ...(ended ? { ended: true } : {}) }));
       return spawnSync(process.execPath, [path.join(c, 'tools/hooks/hooks.mjs'), 'session'], { cwd: c, encoding: 'utf8', input: JSON.stringify({ session_id: sid, source: 'resume' }), env: { ...process.env, STARTER_ENGINE: 'v2', ANZUELO_ROOT: c } }).stdout || ''; };
     const done = resume(true), open = resume(false);
+    // (the starter's development copy alone gets the line about file changes at session start; a project never does)
+    fs.writeFileSync(path.join(c, '.starter-dev'), 'dev copy\n'); const dev = resume(true); fs.rmSync(path.join(c, '.starter-dev'));
+    report(/Edit\/Write only; never sed, heredoc or shell redirection/.test(dev) && !/never sed, heredoc/.test(done), 'session: the starter\'s development copy is told at session start to change files with Edit/Write only; a project is not', [dev.slice(-200), done.slice(-120)]);
     fs.rmSync(c, { recursive: true, force: true });
     report(!/RESUMED|INTERRUPTED/.test(done) && /RESUMED|INTERRUPTED/.test(open), 'session: a resume after a turn that ended says nothing about an interruption; after one that never ended it does', [done.slice(-160), open.slice(-160)]);
   }
@@ -1134,7 +1137,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     const c = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-quiet-'));
     fs.mkdirSync(path.join(c, 'tools/hooks/state'), { recursive: true });
     fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(c, 'tools/hooks/v2'), { recursive: true });
-    for (const f of ['hooks.mjs', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
+    for (const f of ['hooks.mjs', 'paths.mjs', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
     const tp = path.join(c, 'transcript.jsonl'), at = new Date().toISOString();
     fs.writeFileSync(tp, [
       { type: 'user', timestamp: at, message: { role: 'user', content: 'run the tests and fix the export' } },
@@ -1159,7 +1162,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     const c = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-mark-'));
     fs.mkdirSync(path.join(c, 'tools/hooks/state'), { recursive: true }); fs.mkdirSync(path.join(c, 'docs/playbooks'), { recursive: true });
     fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(c, 'tools/hooks/v2'), { recursive: true });
-    for (const f of ['hooks.mjs', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
+    for (const f of ['hooks.mjs', 'paths.mjs', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
     fs.writeFileSync(path.join(c, 'docs/playbooks/export.md'), '---\nname: export\ntriggers: csv export\n---\n## Done when\n1. The answer says how it was checked (answer: How it was checked)\n');
     const tp = path.join(c, 't.jsonl'), at = new Date(Date.now() + 1000).toISOString();
     const env = { ...process.env, STARTER_ENGINE: 'v2', ANZUELO_ROOT: c, CLAUDE_PROJECT_DIR: c };
@@ -1180,7 +1183,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     const c = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-ack-'));
     fs.mkdirSync(path.join(c, 'tools/hooks/state'), { recursive: true }); fs.mkdirSync(path.join(c, '.cache'), { recursive: true }); fs.mkdirSync(path.join(c, 'skills/learn-from-upset'), { recursive: true });
     fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(c, 'tools/hooks/v2'), { recursive: true });
-    for (const f of ['hooks.mjs', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
+    for (const f of ['hooks.mjs', 'paths.mjs', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
     fs.copyFileSync(path.join(repo, 'skills/learn-from-upset/SKILL.md'), path.join(c, 'skills/learn-from-upset/SKILL.md'));
     const notes = path.join(c, '.cache/turn-notes.md'), old = new Date(Date.now() - 3600_000);
     fs.writeFileSync(notes, 'Issue: the export dropped rows with commas | runbook: learn-from-upset | fixed when: every row is in the export\n'); fs.utimesSync(notes, old, old);
@@ -1208,7 +1211,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     const { spawnSync } = await import('node:child_process'), c = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-brief-'));
     fs.mkdirSync(path.join(c, 'tools/hooks/state'), { recursive: true }); fs.mkdirSync(path.join(c, '.cache'), { recursive: true }); fs.mkdirSync(path.join(c, 'docs/playbooks'), { recursive: true });
     fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(c, 'tools/hooks/v2'), { recursive: true });
-    for (const f of ['hooks.mjs', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
+    for (const f of ['hooks.mjs', 'paths.mjs', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
     fs.writeFileSync(path.join(c, 'docs/playbooks/export.md'), '---\nname: export\n---\n# Export\n## Done when\n- [ ] The tests pass (ran: npm test)\n');
     const brief = engine => {
       const at = new Date(Date.now() - 2000).toISOString();
@@ -1239,7 +1242,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     const { spawnSync } = await import('node:child_process');
     const c = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-crash-'));
     fs.mkdirSync(path.join(c, 'tools/hooks'), { recursive: true });
-    for (const f of ['hooks.mjs', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
+    for (const f of ['hooks.mjs', 'paths.mjs', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
     const hook = (cmd, extra = {}) => (spawnSync(process.execPath, [path.join(c, 'tools/hooks/hooks.mjs'), cmd], { cwd: c, encoding: 'utf8',
       input: JSON.stringify({ session_id: 'crashonce', prompt: 'add a recipe card', ...extra }), env: { ...process.env, STARTER_ENGINE: 'v2' } }).stdout || '').trim();
     const p1 = hook('prompt'), s1 = hook('stop'), s2 = hook('stop', { session_id: 'crashother', stop_hook_active: true });
@@ -1248,7 +1251,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
       'crash: a v2 hook that cannot load tells the agent once per session; a Stop already held lets the session end', [p1.slice(0, 120), s1.slice(0, 80), s2.slice(0, 80)]);
     const c2 = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-crash-'));
     fs.mkdirSync(path.join(c2, 'tools/hooks'), { recursive: true });
-    for (const f of ['hooks.mjs', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c2, 'tools/hooks', f));
+    for (const f of ['hooks.mjs', 'paths.mjs', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c2, 'tools/hooks', f));
     const st = (spawnSync(process.execPath, [path.join(c2, 'tools/hooks/hooks.mjs'), 'stop'], { cwd: c2, encoding: 'utf8', input: JSON.stringify({ session_id: 'crashstop' }), env: { ...process.env, STARTER_ENGINE: 'v2' } }).stdout || '');
     fs.rmSync(c2, { recursive: true, force: true });
     report(/"decision":"block"/.test(st) && /CRASHED/.test(st), 'crash: a v2 Stop hook that cannot load blocks once with the error', st.slice(0, 160));
@@ -1256,7 +1259,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     const { probeEngine } = await import('../hooks.mjs');
     const c3 = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-probe-'));
     fs.mkdirSync(path.join(c3, 'tools/hooks'), { recursive: true });
-    for (const f of ['hooks.mjs', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c3, 'tools/hooks', f));
+    for (const f of ['hooks.mjs', 'paths.mjs', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c3, 'tools/hooks', f));
     const broken = probeEngine(c3);
     fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(c3, 'tools/hooks/v2'), { recursive: true });
     fs.rmSync(path.join(c3, 'tools/hooks/state'), { recursive: true, force: true });
@@ -1267,7 +1270,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     {
       const g = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-prove-'));
       fs.mkdirSync(path.join(g, 'tools/hooks'), { recursive: true });
-      for (const f of ['hooks.mjs', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(g, 'tools/hooks', f));
+      for (const f of ['hooks.mjs', 'paths.mjs', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(g, 'tools/hooks', f));
       const gg = (...a) => spawnSync('git', a, { cwd: g, encoding: 'utf8' });
       gg('init', '-q'); fs.writeFileSync(path.join(g, 'menu.js'), 'broken\n'); gg('add', '-A'); gg('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'x');
       fs.writeFileSync(path.join(g, 'menu.js'), 'fixed\n');
@@ -1313,6 +1316,49 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   report(!!roots && inProject.ENGINE === eng && inProject.PROJECT === proj && inProject.LOCAL === path.join(proj, '.anzuelo', 'local') && inProject.split
     && inStarter.ENGINE === dir && inStarter.PROJECT === dir && inStarter.LOCAL === dir && !inStarter.split && viaEnv.PROJECT === proj && viaEnv.ENGINE === dir,
     'paths: one module finds the engine, project and local roots, in the starter (one folder) and in a project (.anzuelo/engine, .anzuelo/local)', { inProject, inStarter, viaEnv });
+  fs.rmSync(proj, { recursive: true, force: true });
+}
+
+// (every file goes to its root: the engine's code to the engine, the records that describe the project to the project,
+// what the engine makes for the project to local; runbooks and skills are read from local first, then the engine,
+// and a change to one is written locally, so an upgrade never meets it. Plan: engine outside the project, Task 2)
+{
+  let resolver = null; try { ({ resolver } = await import('../paths.mjs')); } catch { }
+  const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-where-')), ENGINE = path.join(proj, '.anzuelo', 'engine'), LOCAL = path.join(proj, '.anzuelo', 'local');
+  const put = (f, t = 'x') => { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, t); };
+  put(path.join(ENGINE, 'docs/playbooks/shared.md')); put(path.join(ENGINE, 'docs/playbooks/core.md')); put(path.join(LOCAL, 'docs/playbooks/shared.md')); put(path.join(LOCAL, 'docs/playbooks/mine.md'));
+  const r = resolver?.({ ENGINE, PROJECT: proj, LOCAL }), one = resolver?.({ ENGINE: proj, PROJECT: proj, LOCAL: proj });
+  const ok = !!r
+    && r.where('tools/hooks/hooks.mjs') === path.join(ENGINE, 'tools', 'hooks', 'hooks.mjs')
+    && r.where('docs/CHANGELOG.md') === path.join(proj, 'docs', 'CHANGELOG.md') && r.where('src/app.js') === path.join(proj, 'src', 'app.js')
+    && r.where('docs/STATUS.md') === path.join(LOCAL, 'docs', 'STATUS.md') && r.where('tools/hooks/config.json') === path.join(LOCAL, 'tools', 'hooks', 'config.json')
+    && r.where('docs/playbooks/shared.md') === path.join(LOCAL, 'docs', 'playbooks', 'shared.md') && r.where('docs/playbooks/core.md') === path.join(ENGINE, 'docs', 'playbooks', 'core.md')
+    && r.whereWrite('docs/playbooks/core.md') === path.join(LOCAL, 'docs', 'playbooks', 'core.md') && r.where('docs/playbooks/new.md') === path.join(LOCAL, 'docs', 'playbooks', 'new.md')
+    && r.relOf(path.join(LOCAL, 'docs', 'STATUS.md')) === 'docs/STATUS.md' && r.relOf(path.join(ENGINE, 'tools', 'audit.mjs')) === 'tools/audit.mjs' && r.relOf(path.join(proj, 'src', 'a.js')) === 'src/a.js'
+    && r.listAll('docs/playbooks').sort().join() === 'core.md,mine.md,shared.md' && r.listAll('.').sort().join() === 'docs'
+    && one.where('docs/playbooks/core.md') === path.join(proj, 'docs', 'playbooks', 'core.md') && one.where('tools/hooks/hooks.mjs') === path.join(proj, 'tools', 'hooks', 'hooks.mjs');
+  report(ok, 'paths: each file resolves to its root (engine code, project records, local records); runbooks read local then engine, written locally; in one folder nothing moves',
+    r && { hooks: r.where('tools/hooks/hooks.mjs'), core: r.where('docs/playbooks/core.md'), write: r.whereWrite('docs/playbooks/core.md'), list: r.listAll('docs/playbooks') });
+  fs.rmSync(proj, { recursive: true, force: true });
+}
+
+// (the hooks run from .anzuelo/engine with the session in the project: the reminder names a runbook from the local
+// copy and from the engine, and the turn record lands in local, never in the project or the engine)
+{
+  const { spawnSync } = await import('node:child_process');
+  const repo = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
+  const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-split-')), eng = path.join(proj, '.anzuelo', 'engine'), loc = path.join(proj, '.anzuelo', 'local');
+  fs.mkdirSync(path.join(eng, 'tools', 'hooks'), { recursive: true });
+  fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(eng, 'tools/hooks/v2'), { recursive: true });
+  for (const f of ['hooks.mjs', 'paths.mjs', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(eng, 'tools/hooks', f));
+  const book = (root, name, trig) => { fs.mkdirSync(path.join(root, 'docs/playbooks'), { recursive: true }); fs.writeFileSync(path.join(root, 'docs/playbooks', `${name}.md`), `---\nname: ${name}\nsummary: s\ntriggers: ${trig}\n---\n# ${name}\n\n## Done when\n- [ ] ${name} item one\n`); };
+  book(eng, 'invoice', 'send the invoice'); book(loc, 'harvest', 'plan the harvest');
+  const ask = (prompt, sid) => spawnSync(process.execPath, [path.join(eng, 'tools/hooks/hooks.mjs'), 'prompt'], { cwd: proj, encoding: 'utf8', input: JSON.stringify({ session_id: sid, prompt }),
+    env: { ...process.env, STARTER_ENGINE: 'v2', ANZUELO_ROOT: proj, CLAUDE_PROJECT_DIR: proj } }).stdout || '';
+  const a = ask('plan the harvest for next week', 'splitone'), b = ask('send the invoice to the shop', 'splittwo');
+  const state = d => { try { return fs.readdirSync(d).filter(f => f.startsWith('v2-turn.')); } catch { return []; } };
+  report(/harvest item one/.test(a) && /invoice item one/.test(b) && state(path.join(loc, 'tools/hooks/state')).length === 2 && !state(path.join(proj, 'tools/hooks/state')).length && !state(path.join(eng, 'tools/hooks/state')).length,
+    'paths: hooks run from .anzuelo/engine name local and engine runbooks, and keep their turn records in .anzuelo/local', { a: a.slice(0, 300), b: b.slice(0, 300), local: state(path.join(loc, 'tools/hooks/state')) });
   fs.rmSync(proj, { recursive: true, force: true });
 }
 

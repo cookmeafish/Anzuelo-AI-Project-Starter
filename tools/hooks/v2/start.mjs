@@ -2,7 +2,7 @@
 // "Done when" list, which the end hook checks. Nothing about the engine itself.
 import fs from 'node:fs';
 import path from 'node:path';
-import { route, skillBooks, saveTurn, loadTurn, isSpanish, ROOT, quoteCheckOn } from './lib.mjs';
+import { route, skillBooks, saveTurn, loadTurn, isSpanish, ROOT, at, quoteCheckOn } from './lib.mjs';
 
 export const MAX_LINES = 10;
 // (an upset message: mostly capitals, or the usual frustration words. Lesson (routing sample): complaints used no
@@ -19,10 +19,10 @@ export const upset = p => { const s = String(p), letters = s.replace(/[^A-Za-z]/
   || /\b(wtf|ugh|again\?!|why (did|would) you|you (forgot|missed|ignored|broke)|i (already )?told you|not what i asked|frustrat\w*|annoy\w*|(you|u|you're|ur|youre) (are )?not (following|listening)|i don'?t think you (understand|get it)|(is )?still (broken|wrong))\b/i.test(s)
   // (the Spanish forms. Lesson (trial v37): "otra vez pusiste texto en inglés" got no upset notice under v2)
   || /(?<!\p{L})(otra vez|de nuevo) (pusiste|hiciste|olvidaste|dejaste|metiste|usaste|escribiste|rompiste)|(?<!\p{L})(te (lo )?dije|(se te )?olvid(aste|ó)|por qu[eé] (lo )?hiciste|no me (escuchas|haces caso)|sigue (roto|mal|fallando))(?!\p{L})/iu.test(s); };
-const has = f => fs.existsSync(path.join(ROOT, f));
+const has = f => fs.existsSync(at(f));
 // (a word only mentioned ("the word ugh", a word in quotes) or on the user's ignore list, config "ignoreWords": {"upset":
 // [...]}, is no complaint. Lesson (end-to-end run): a request to whitelist a word was itself read as upset)
-const ignored = () => { try { return [].concat(JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/hooks/config.json'), 'utf8')).ignoreWords?.upset || []).map(String).filter(Boolean); } catch { return []; } };
+const ignored = () => { try { return [].concat(JSON.parse(fs.readFileSync(at('tools/hooks/config.json'), 'utf8')).ignoreWords?.upset || []).map(String).filter(Boolean); } catch { return []; } };
 const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 export const upsetIn = p => {
   let s = String(p).replace(/(["'`“‘])[^"'`”’\n]{1,40}["'`”’]/g, ' ').replace(/\b(?:the |that |this )?words?\s+\S+/gi, ' ');
@@ -34,7 +34,7 @@ export const upsetIn = p => {
 // (who may delete, who manages accounts); the rule was in the rules file, not in front of them at that moment.
 const STOP = new Set(['about', 'after', 'again', 'their', 'there', 'these', 'thing', 'which', 'would', 'could', 'should', 'please', 'every', 'other', 'where', 'while', 'project', 'always', 'never', 'until', 'because', 'stays', 'without']);
 export function rulesFor(prompt) {
-  let text = ''; try { text = fs.readFileSync(path.join(ROOT, 'AGENTS.md'), 'utf8'); } catch { return []; }
+  let text = ''; try { text = fs.readFileSync(at('AGENTS.md'), 'utf8'); } catch { return []; }
   const sec = /^##\s+The user's standing preferences\s*$([\s\S]*?)(?=^##\s|(?![\s\S]))/im.exec(text)?.[1] || '';
   const stem = w => w.toLowerCase().slice(0, 5);
   // (a short request only: a long one shares words with most rules. Lesson (replay): on long requests and relayed

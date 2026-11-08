@@ -2,7 +2,7 @@
 // transcript, and blocks with a short plain list of what is really missing until it is done (at most MAX_BLOCKS times).
 import fs from 'node:fs';
 import path from 'node:path';
-import { ROOT, runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, questionGaps, noteGaps, quoteGaps, tail, helpersRunning, backgroundRuns, helperRuns, evidenceGaps, evidenceOf, skillBooks } from './lib.mjs';
+import { ROOT, at, runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, questionGaps, noteGaps, quoteGaps, tail, helpersRunning, backgroundRuns, helperRuns, evidenceGaps, evidenceOf, skillBooks } from './lib.mjs';
 
 // Check 1: the routed runbook was followed, and its checkable "Done when" items were met. With none routed, the
 // runbook the agent chose and opened is the one it is held to (the runbook itself, not a skill it names: reading the
@@ -16,7 +16,7 @@ const authored = (b, acts) => acts.calls.some(c => /^(Edit|Write|MultiEdit)$/.te
   // project's report): an upgrade turn that read the engine runbook with Get-Content was held to the routed one)
   || (acts.calls.some(c => /^(Bash|PowerShell)$/.test(c.name) && String(c.input.command || '').replace(/\\/g, '/').includes(b.file)
     && /WriteAllText|Set-Content|Out-File|Add-Content|writeFileSync|\bsed\s+-i|\btee\b|>>?\s*["']?[\w./-]*\.md\b|\.Replace\(|\.replace\(/.test(String(c.input.command || '')))
-    && (() => { const since = Date.parse(acts.at || '') || 0; try { return since > 0 && fs.statSync(path.join(ROOT, b.file)).mtimeMs > since; } catch { return false; } })());
+    && (() => { const since = Date.parse(acts.at || '') || 0; try { return since > 0 && fs.statSync(at(b.file)).mtimeMs > since; } catch { return false; } })());
 // (a routed runbook the agent never opened, while it opened another one, gives way to that one: the router guessed, the
 // agent chose. Lesson (trial v45): a page request routed to a recipe runbook on a broad trigger, the agent followed the
 // feature runbook, and the end check held it to the recipe items)

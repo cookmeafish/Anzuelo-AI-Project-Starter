@@ -6,6 +6,10 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-08 (settings guard): reading a setting followed by another command (`setting <key>; ...`) is no longer refused as a write.
+- 2026-11-08 (starter development copy only): session start says to change files with Edit/Write only, never sed, a heredoc or shell redirection. Projects do not get this line.
+- 2026-11-08 (audit, split layout): the audit walks folders by project names and resolves links from them, and git hygiene checks only the project's own files when the engine sits in `.anzuelo/`.
+- 2026-11-08 (paths, engine outside the project): every engine tool finds its files through tools/hooks/paths.mjs. With the engine in `.anzuelo/engine/`, engine code is read there, the changelog, brief and decisions stay in the project, the engine's records and settings go to `.anzuelo/local/`, and runbooks, skills, checklists and the rules are read from the local copy first and written only there. In the starter and in projects on the current layout every path is where it was.
 - 2026-11-08 (setup, upgrade): a project's own accuracy hooks are converted to the engine's markers only when its sessions show that is faster or cheaper per answer turn and checks no less; otherwise they stay.
 - 2026-11-08 (app pack, feature runbook): a feature that answers people's questions from documents or data must answer only from cited sources, say "not found" instead of guessing, show disagreeing sources side by side, and run an evaluation set (expected source and answer, plus unanswerable questions) with the project's tests; method from RAGAS, ARES and SQuAD 2.0.
 - 2026-11-08 (engine runbook, upgrade): an upgrade adds `(evidence)` to each of the project's runbooks that answer questions from sources and reports the counts, so the evidence check reaches the projects (no project runbook had it).

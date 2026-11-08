@@ -14,7 +14,9 @@ import { fileURLToPath } from 'node:url';
 
 const args = process.argv.slice(2);
 const opt = k => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : undefined; };
-const ROOT = path.resolve(opt('--root') || path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..'));
+// (the project root: three folders up, or above .anzuelo/ when this skill sits in .anzuelo/engine or .anzuelo/local)
+const UP = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
+const ROOT = path.resolve(opt('--root') || (path.basename(path.dirname(UP)) === '.anzuelo' ? path.dirname(path.dirname(UP)) : UP));
 const [cmd, ...rest] = args.filter((a, i) => !a.startsWith('--') && args[i - 1] !== '--root');
 const usage = () => { console.error('usage: node vault.mjs scan [--root <dir>] | node vault.mjs find <topic> [--root <dir>]'); process.exit(2); };
 

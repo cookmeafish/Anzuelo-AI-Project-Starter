@@ -10,19 +10,26 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
-export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const HOOKS = path.join(ROOT, 'tools', 'hooks');
-const STATE = path.join(HOOKS, 'state');
+import { PROJECT, ENGINE, where, whereWrite, relOf, listAll, kind, split } from './paths.mjs';
+
+// ROOT is the project; engine files are found through abs() (paths.mjs decides the root per path, and in the starter
+// every root is this one folder).
+export const ROOT = PROJECT;
+const HOOKS = path.join(ENGINE, 'tools', 'hooks');
+const STATE = where('tools/hooks/state');
+const CONFIG = () => where('tools/hooks/config.json'), REQS = () => where('tools/hooks/requirements.json');
 
 // ---------- small helpers ----------
 export const read = (p, d = '') => { try { return fs.readFileSync(p, 'utf8'); } catch { return d; } };
 export const readJSON = (p, d) => { try { return JSON.parse(read(p)); } catch { return d; } };
-export const abs = p => path.resolve(ROOT, p);
-export const rel = p => path.relative(ROOT, path.resolve(ROOT, String(p || ''))).split(path.sep).join('/');
+export const abs = p => where(p);
+// absw: where a write goes (an engine-made runbook, skill or rule changed for this project is the project's local copy)
+export const absw = p => whereWrite(p);
+export const rel = p => relOf(p);
 export const exists = p => { try { fs.statSync(abs(p)); return true; } catch { return false; } };
 // The rules: AGENTS.md is the shared file; CLAUDE.md is its local twin for Claude Code (a Codex-only machine has none).
 export const rulesText = () => read(abs('AGENTS.md')) || read(abs('CLAUDE.md'));
-const list = d => { try { return fs.readdirSync(abs(d || '.')); } catch { return []; } };
+const list = d => listAll(d);
 // A folder walk never follows a link or junction (it throws, and the walker skips the entry). Lesson: a workspace link
 // in packages/*/node_modules pointing back into the repo made the prompt hook loop past its timeout.
 const walkStat = p => { const s = fs.lstatSync(abs(p)); if (s.isSymbolicLink()) throw new Error('link'); return s; };
@@ -413,7 +420,7 @@ const DEFAULTS = {
 const EXTENDS = ['knowledgeDirs', 'gitignoreMustIgnore', 'gitignoreMustKeep', 'rootAllowed', 'namesIgnore', 'injectionIgnore', 'fluff', 'secretPatterns', 'userFacing', 'userFacingIgnore', 'verbatimAllowed', 'ignoreForChanges', 'guiFiles', 'guiIgnore', 'evidenceLabels', 'questionNoFileExempt', 'notWork'];
 let foundMirrors = null, ignoredDirs = null;
 export function config() {
-  const c = readJSON(path.join(HOOKS, 'config.json'), {});
+  const c = readJSON(CONFIG(), {});
   const out = { ...DEFAULTS, ...c };
   for (const k of EXTENDS) if (Array.isArray(c[k])) out[k] = [...new Set([...DEFAULTS[k], ...c[k]])];
   // words that are filler elsewhere but real terms in the project's subject (a technical term that shares its name with a
@@ -1379,7 +1386,7 @@ const noticeKey = h => /^[A-Z][A-Z /-]{3,}?(?=[:(]|\s+for\b|$)/.exec(h)?.[0].tri
 // editing it is not writing one. Lesson: the skill-reuse check asked for a search of skill marketplaces for the app
 // pack's own runbooks and an enabled library skill, and agents had to waive it during setup.
 function shippedByStarter(file, cfg = config()) {
-  const reg = readJSON(path.join(ROOT, 'tools', 'packs-registry.json'), {});
+  const reg = readJSON(abs('tools/packs-registry.json'), {});
   if (Object.values(reg.packs || {}).some(p => (p.files || []).includes(file))) return true;
   // (before the payloads are pruned, the registry may not exist yet: the pack payloads themselves say it)
   for (const s of starterSources()) for (const p of (() => { try { return fs.readdirSync(path.join(s.dir, 'packs')); } catch { return []; } })()) if (fs.existsSync(path.join(s.dir, 'packs', p, 'files', file))) return true;
@@ -2148,7 +2155,7 @@ export function takeSnapshot(cfg = config()) {
   walk('');
   writeState(SNAPSHOT, { at: new Date().toISOString(), files });
   // the check files as they were, so hooks-tested can see which checks a change touched
-  for (const f of ['requirements.json', 'config.json']) { try { if (!envOf('BENCH')) { fs.mkdirSync(path.join(STATE, 'turn-start'), { recursive: true }); fs.copyFileSync(path.join(HOOKS, f), path.join(STATE, 'turn-start', f)); } } catch { } }
+  for (const f of ['requirements.json', 'config.json']) { try { if (!envOf('BENCH')) { fs.mkdirSync(path.join(STATE, 'turn-start'), { recursive: true }); fs.copyFileSync(abs(`tools/hooks/${f}`), path.join(STATE, 'turn-start', f)); } } catch { } }
 }
 function sameAsTurnStart(p, since) {
   const snap = sameAsTurnStart.snap ??= readJSON(stateFile(SNAPSHOT), {});
@@ -2789,7 +2796,7 @@ const mirrorFresh = (src, dst) => {
 // every mirror file after a fresh clone, which looked like the turn's work to other tools watching file times)
 const stampMirror = (dst, src) => { try { ENGINE_MTIME ||= fs.statSync(fileURLToPath(import.meta.url)).mtimeMs; const s = fs.statSync(abs(src)); stamps()[dst] = { t: fs.statSync(abs(dst)).mtimeMs, s: s.mtimeMs, z: s.size, e: ENGINE_MTIME }; STAMPS_DIRTY = true; } catch { } };
 const saveStamps = () => { if (STAMPS_DIRTY) { writeState('mirror-stamps.json', MIRROR_STAMPS); STAMPS_DIRTY = false; } };
-const writeIfChanged = (p, text) => { if (read(abs(p)) === text) return false; fs.mkdirSync(path.dirname(abs(p)), { recursive: true }); fs.writeFileSync(abs(p), text); GENERATED_WRITES.add(p); return true; };
+const writeIfChanged = (p, text) => { if (read(abs(p)) === text) return false; fs.mkdirSync(path.dirname(absw(p)), { recursive: true }); fs.writeFileSync(absw(p), text); GENERATED_WRITES.add(p); return true; };
 const firstHeading = text => (/^#\s+(.+)$/m.exec(text || '') || [, ''])[1].replace(/^Playbook:\s*/i, '').trim();
 const doneWhen = text => (/^##\s+Done when[^\n]*\n([\s\S]*?)(?=^##\s|(?![\s\S]))/im.exec(text || '') || [, ''])[1].trim();
 
@@ -2835,7 +2842,7 @@ export function syncSkills(cfg = config()) {
   }
   // a generated skill whose runbook is gone, or now names a skill of its own, is removed (it would route twice)
   const own = new Set(playbooks().filter(pb => pb.skillName && !pb.fm.skill).map(pb => pb.skillName));
-  for (const n of list(cfg.skillsDir)) if (!own.has(n) && /^generated:\s*true/m.test(read(abs(`${cfg.skillsDir}/${n}/SKILL.md`)))) { fs.rmSync(abs(`${cfg.skillsDir}/${n}`), { recursive: true, force: true }); changed.push(`${cfg.skillsDir}/${n}/SKILL.md`); }
+  for (const n of list(cfg.skillsDir)) if (!own.has(n) && /^generated:\s*true/m.test(read(abs(`${cfg.skillsDir}/${n}/SKILL.md`)))) { fs.rmSync(absw(`${cfg.skillsDir}/${n}`), { recursive: true, force: true }); changed.push(`${cfg.skillsDir}/${n}/SKILL.md`); }
   // mirrors: exact copies where an agent discovers skills natively; each mirrored folder carries a marker
   const names = list(cfg.skillsDir).filter(n => exists(`${cfg.skillsDir}/${n}/SKILL.md`));
   for (const m of cfg.skillMirrors) {
@@ -2853,10 +2860,10 @@ export function syncSkills(cfg = config()) {
       // Lesson: files removed from a skill stayed in its mirror, so agents kept loading a script or reference that was gone.
       const prune = d => { for (const f of list(`${m}/${n}${d}`)) { const p = `${m}/${n}${d}/${f}`, src = `${cfg.skillsDir}/${n}${d}/${f}`; if (!d && f === '.mirror') continue;
         let s; try { s = walkStat(p); } catch { continue; }
-        if (!exists(src) || fs.statSync(abs(src)).isDirectory() !== s.isDirectory()) fs.rmSync(abs(p), { recursive: true, force: true }); else if (s.isDirectory()) prune(`${d}/${f}`); } };
+        if (!exists(src) || fs.statSync(abs(src)).isDirectory() !== s.isDirectory()) fs.rmSync(absw(p), { recursive: true, force: true }); else if (s.isDirectory()) prune(`${d}/${f}`); } };
       prune('');
     }
-    for (const n of list(m)) if (!names.includes(n) && exists(`${m}/${n}/.mirror`)) fs.rmSync(abs(`${m}/${n}`), { recursive: true, force: true });
+    for (const n of list(m)) if (!names.includes(n) && exists(`${m}/${n}/.mirror`)) fs.rmSync(absw(`${m}/${n}`), { recursive: true, force: true });
   }
   saveStamps();
   return changed;
@@ -3090,7 +3097,7 @@ export function checkKey(r) {
 export const ENGINE_CHECKS_HISTORY = 'tools/hooks/engine-checks-history.json';
 function syncEngineChecks() {
   if (!exists('.starter-template')) return;
-  const own = readJSON(path.join(HOOKS, 'requirements.json'), null);
+  const own = readJSON(REQS(), null);
   if (!own || !Array.isArray(own.requirements)) return;
   const now = shippedChecks();
   writeIfChanged(ENGINE_CHECKS, JSON.stringify({ _comment: 'Generated by tools/hooks/hooks.mjs sync in the starter: every check as shipped (core skills, packs with "pack", library skills with "skill"). Upgrades compare a project\'s entries with this copy (a 3-way merge), so local edits are kept. Do not edit.', requirements: now }, null, 2) + '\n');
@@ -3721,7 +3728,7 @@ export function setupProblems(cfg = config()) {
   probs.push(...lostRules());
   if (!exists('tools/hooks/state/last-session.json')) probs.push('the hooks have never run in a live session here (open the project with your agent so its session start runs them, or run node tools/hooks/hooks.mjs begin "<a request>")');
   if (exists('CLAUDE.md') && read(abs('CLAUDE.md')) !== read(abs('AGENTS.md'))) probs.push('CLAUDE.md and AGENTS.md differ');
-  const own = readJSON(path.join(HOOKS, 'config.json'), {});
+  const own = readJSON(CONFIG(), {});
   if (!(own.packs || []).length && !/core only/i.test(read(abs('docs/DECISIONS.md'))))
     probs.push('choose the packs: node tools/packs.mjs install <packs> (or record "core only" and why in docs/DECISIONS.md)');
   if ((own.packs || []).includes('app') && !(own.app && (own.app.test || own.app.build)))
@@ -3829,7 +3836,7 @@ export function peopleAnswer(raw) {
 // it, not to ask. Lesson, trial rounds 14 to 16: setups whose user said not to ask were told "ask the user the setup
 // questions and wait", were denied twice each, and one agent read the engine to find the setting.
 export function setupCompleteness(cfg = config(), { final = false, beforeStarter = false, decide = false } = {}) {
-  const probs = [], f = setupInterview(), own = readJSON(path.join(HOOKS, 'config.json'), {});
+  const probs = [], f = setupInterview(), own = readJSON(CONFIG(), {});
   const packs = own.packs || [];
   const auto = cfg.autonomy === 'auto';
   if (!auto && decide) probs.push('the user said not to ask: set "autonomy": "auto" in tools/hooks/config.json and record that choice in docs/DECISIONS.md, then decide the setup answers yourself');
@@ -3853,7 +3860,7 @@ export function setupCompleteness(cfg = config(), { final = false, beforeStarter
   for (const p of want.filter(p => !packs.includes(p))) probs.push(`the answers call for the ${p} pack and it is not installed: node tools/packs.mjs install ${p}`);
   for (const p of packs.filter(p => !want.includes(p))) probs.push(`the ${p} pack is installed but the answers don't call for it: fix the "Kind of work" / "Visual interface" answer or remove the pack`);
   // every file each installed pack owns is really here (nothing dropped on the way)
-  const reg = readJSON(path.join(ROOT, 'tools', 'packs-registry.json'), { packs: {} }).packs;
+  const reg = readJSON(abs('tools/packs-registry.json'), { packs: {} }).packs;
   for (const p of packs) { const gone = (reg[p]?.files || []).filter(x => !exists(x)); if (gone.length) probs.push(`the ${p} pack is incomplete, missing: ${gone.slice(0, 5).join(', ')}${gone.length > 5 ? ', ...' : ''} (node tools/packs.mjs install ${p})`); }
   if (peopleAnswer(f['people']) === 'several' && list(cfg.scopesRoot).filter(n => exists(`${cfg.scopesRoot}/${n}/PROFILE.md`)).length < 2)
     probs.push(`several people: create ${cfg.scopesRoot}/<name>/PROFILE.md for each, so their data stays separate`);
@@ -3882,7 +3889,7 @@ export function setupCompleteness(cfg = config(), { final = false, beforeStarter
 // What fits but is missing after an upgrade: packs the setup answers call for, and library skills for those packs that
 // were never enabled or declined. Lesson: upgrades refreshed the engine but never offered what had been added since.
 export function fitGaps(cfg = config()) {
-  const f = setupInterview(), packs = readJSON(path.join(HOOKS, 'config.json'), {}).packs || [], gaps = [];
+  const f = setupInterview(), packs = readJSON(CONFIG(), {}).packs || [], gaps = [];
   for (const p of packsFor(f).filter(p => !packs.includes(p))) gaps.push(`pack: ${p}`);
   const lib = findLibrary(), decided = read(abs('docs/DECISIONS.md')) + read(abs(FIT_FILE)); // the fit checklist decides skills too
   if (lib) for (const e of readJSON(path.join(lib.dir, 'catalog.json'), { skills: [] }).skills)
@@ -3901,7 +3908,7 @@ export function upgradeReview() {
 export function upgradeProblems(cfg = config()) {
   const r = upgradeReview(), probs = [];
   if (!r) return probs;
-  const own = readJSON(path.join(HOOKS, 'config.json'), {}), claude = rulesText();
+  const own = readJSON(CONFIG(), {}), claude = rulesText();
   for (const { kind, item, decision } of r.items) {
     const at = `"- ${kind}: ${item}"`;
     if (kind === 'self-tests' && /^\?|^$/.test(decision)) { probs.push(`${at}: run node tools/hooks/selfcheck.mjs until it passes, then write "passed"`); continue; }
@@ -4064,7 +4071,7 @@ export function fitSignals(sv = projectSurvey()) {
 // them "later - when: the first code file appears" itself. Lesson: a notes-only project had 63 code tools to decide.
 const FIT_CODE_SECTIONS = /code quality|testing|environment managers|task runners/i;
 export function fitCandidates(cfg = config()) {
-  const own = readJSON(path.join(HOOKS, 'config.json'), {}), out = [], known = { pack: false, skill: false };
+  const own = readJSON(CONFIG(), {}), out = [], known = { pack: false, skill: false };
   const packNames = new Set(own.packs || []);
   for (const s of starterSources()) { let ns = []; try { ns = fs.readdirSync(path.join(s.dir, 'packs')); } catch { } for (const n of ns) if (fs.existsSync(path.join(s.dir, 'packs', n, 'pack.json'))) { packNames.add(n); known.pack = true; } }
   for (const n of [...packNames].sort()) {
@@ -4216,7 +4223,7 @@ export function fitProblems(cfg = config(), { sv = null, text = null } = {}) {
     const at = `${r.kind} ${r.item}`, key = fitKey(r.kind, r.item), d = fitDecision(r.decision);
     let c = byKey.get(key);
     // a pack or skill row is kept when the starter can't be reached to list them; it is still checked against the project
-    if (!c && ['pack', 'skill'].includes(r.kind) && !known[r.kind]) c = r.kind === 'pack' ? { kind: 'pack', item: r.item, present: () => (readJSON(path.join(HOOKS, 'config.json'), {}).packs || []).includes(r.item), how: `node tools/packs.mjs install ${r.item}` }
+    if (!c && ['pack', 'skill'].includes(r.kind) && !known[r.kind]) c = r.kind === 'pack' ? { kind: 'pack', item: r.item, present: () => (readJSON(CONFIG(), {}).packs || []).includes(r.item), how: `node tools/packs.mjs install ${r.item}` }
       : { kind: 'skill', item: r.item, present: () => exists(`${cfg.skillsDir}/${r.item}/SKILL.md`), how: `node tools/skills.mjs enable ${r.item}` };
     if (!c) { probs.push(`${at}: no longer a candidate: run node tools/fit.mjs`); continue; }
     if (!d) { probs.push(/^\?*$/.test(r.decision.trim()) ? `${at}: not decided yet (add, skip or "later - when: <condition>", with the reason)` : `${at}: the decision must be add, skip or later`); continue; }
@@ -4310,6 +4317,10 @@ export function gitignoreProblems(cfg = config()) {
   if (git(['rev-parse', '--is-inside-work-tree']).status !== 0) return [];
   if (!exists('.gitignore')) return ['.gitignore is missing: start from the starter\'s tools/starter/gitignore.project'];
   const probs = [];
+  // (with the engine in .anzuelo/, only the project's own files are the project git's business: the engine's records
+  // and state sit in .anzuelo/, which the project ignores as a whole)
+  const mine = p => !split || kind(p) === 'project';
+  cfg = { ...cfg, gitignoreMustIgnore: cfg.gitignoreMustIgnore.filter(mine), gitignoreMustKeep: cfg.gitignoreMustKeep.filter(mine) };
   const all = [...cfg.gitignoreMustIgnore, ...cfg.gitignoreMustKeep];
   const ignored = new Set((git(['check-ignore', '--no-index', '--stdin'], all.join('\n')).stdout || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean));
   // a vault the user keeps in git owns its .obsidian settings (Lesson: adopting a tracked vault failed hygiene over them)
@@ -4357,7 +4368,7 @@ const SAFEGUARDS = new Set(['check:no-secrets', 'check:no-ai-attribution', 'chec
   'check:setup-interview', 'check:setup-complete', 'check:setup-gate', 'check:answer-traced', 'check:research-verified', 'check:research-ledger',
   'check:research-cited', 'check:security-report', 'check:security-code', 'check:security-config', 'check:security-publish', 'check:publish-gate', 'check:verification-report', 'check:finished-summary', 'check:forbidden-command', 'check:instructions-run',
   'skill:research', 'skill:security-review', 'skill:project-rule', 'runbook:project', 'check:upset-learned', 'skill:learn-from-upset']);
-export const suspendedItems = () => (readJSON(path.join(HOOKS, 'config.json'), {}).suspended || []).filter(s => s && s.item);
+export const suspendedItems = () => (readJSON(CONFIG(), {}).suspended || []).filter(s => s && s.item);
 const isSuspended = item => suspendedItems().some(s => s.item === item);
 // Stop: what this turn used and which checks blocked it, merged across the turn's stops.
 function noteFriction(key, x, missing) {
@@ -4495,7 +4506,7 @@ export function capsWeight(prompt) {
 // itself there is nowhere to send it: the engine is fixed there directly.
 // Lesson: a check one project found annoying was suspended there, and every other project kept the same problem.
 // a check the project wrote itself (in requirements.json, not shipped by the starter) is the project's own business
-const projectOwnCheck = tag => readJSON(path.join(HOOKS, 'requirements.json'), { requirements: [] }).requirements.some(r => r?.tag === tag)
+const projectOwnCheck = tag => readJSON(REQS(), { requirements: [] }).requirements.some(r => r?.tag === tag)
   && !readJSON(abs(ENGINE_CHECKS), { requirements: [] }).requirements.some(r => r?.tag === tag);
 export function noteEngineFeedback(text) {
   if (exists('.starter-template') || envOf('BENCH')) return false;
@@ -4503,8 +4514,8 @@ export function noteEngineFeedback(text) {
   const old = read(abs(f));
   if (old.includes(line.slice(14))) return false;
   try {
-    fs.mkdirSync(path.dirname(abs(f)), { recursive: true });
-    fs.writeFileSync(abs(f), (old || '# Feedback for the starter\nLessons about the engine itself (hooks, checks, tools), one dated line each. Upgrades keep this file;\n`node tools/starter.mjs report` copies new lines to the linked starter.\n\n').replace(/\n*$/, '\n') + line + '\n');
+    fs.mkdirSync(path.dirname(absw(f)), { recursive: true });
+    fs.writeFileSync(absw(f), (old || '# Feedback for the starter\nLessons about the engine itself (hooks, checks, tools), one dated line each. Upgrades keep this file;\n`node tools/starter.mjs report` copies new lines to the linked starter.\n\n').replace(/\n*$/, '\n') + line + '\n');
     flushEngineWrites([f]);
   } catch { return false; }
   return true;
@@ -4518,9 +4529,9 @@ export function scoreFriction(prompt, cfg = config()) {
     const h = hist[item] = [...(hist[item] || []), frustrated ? 1 : 0].slice(-FRICTION_WINDOW);
     if (!frustrated || h.filter(Boolean).length < FRICTION_LIMIT || isSuspended(item)) continue;
     if (SAFEGUARDS.has(item)) { out.push(`FRICTION ON A SAFEGUARD: ${item} preceded the user's frustration in ${h.filter(Boolean).length} of its last ${h.length} turns. It protects safety or honesty, so it stays: tell the user, and make it less annoying (a clearer message, a narrower trigger) through the project-rule skill.`); continue; }
-    const own = readJSON(path.join(HOOKS, 'config.json'), {});
+    const own = readJSON(CONFIG(), {});
     own.suspended = [...(own.suspended || []), { item, at: today(), why: `the user was frustrated after ${h.filter(Boolean).length} of its last ${h.length} turns` }];
-    try { fs.writeFileSync(path.join(HOOKS, 'config.json'), JSON.stringify(own, null, 2) + '\n'); flushEngineWrites(['tools/hooks/config.json']); } catch { }
+    try { fs.writeFileSync(CONFIG(), JSON.stringify(own, null, 2) + '\n'); flushEngineWrites(['tools/hooks/config.json']); } catch { }
     // an engine item (a core skill, an engine runbook or check) that annoys users is the starter's problem too
     const name = item.replace(/^(skill|runbook|check):/, '');
     if (item.startsWith('check:') ? !projectOwnCheck(name) : (CORE_SKILLS.includes(name) || CORE_RUNBOOKS.includes(name)))
@@ -4635,7 +4646,7 @@ function notices(cfg) {
   if (susp.length) out.push(`SUSPENDED FOR FRUSTRATING THE USER: ${susp.map(s => `${s.item} (${s.at}: ${s.why})`).join('; ')}. They don't route or block. Fix each one and restore it (node tools/hooks/hooks.mjs restore <item>), or retire it with the user's OK (skill-curate).`);
   if (idle.length) out.push(`SKILL CLEANUP DUE: ${idle.map(p => `${p.name} (unused ${p.days} days)`).join(', ')}. When the user's request allows, use the skill-curate skill: keep each one with a reason, merge it into another, or retire it with the user's OK.`);
   if (!syncTwin()) out.push('CLAUDE.md and AGENTS.md differ and could not be synced: make them identical.');
-  const r = read(path.join(HOOKS, 'requirements.json'));
+  const r = read(REQS());
   try { JSON.parse(r); } catch (e) { out.push(`tools/hooks/requirements.json does not parse (${e.message}): project checks are OFF until fixed.`); }
   return out;
 }
@@ -4644,6 +4655,7 @@ export const V2_SESSION = '# How this project\'s engine works (full rules in AGE
   '- Reminder, before each request: a short note names the runbook that fits and its "Done when" list. Open it and follow it. Nothing named and it is real work: pick the fitting runbook in DIRECTORY.md.\n' +
   '- Guard, during the work: the only kind that stops you. It refuses one unsafe action as you try it (secrets, AI credit in git, protected files, forbidden words, outward actions, risky git, other people\'s data). Nothing else speaks.\n' +
   '- Check, after the work: it lists anything really missing, and the runbook items to verify yourself, and asks again (at most 3 times) until each is done or the answer says plainly why not. No record lines are needed.';
+export const DEV_EDIT_LINE = 'File changes: Edit/Write only; never sed, heredoc or shell redirection on source files.';
 function cmdSession(data) {
   const cfg = config();
   syncAll(cfg);
@@ -4655,7 +4667,7 @@ function cmdSession(data) {
   if (!exists('.starter-template') && exists('tools/starter.local.json') && !envOf('BENCH')) {
     const lines = read(abs('docs/starter-feedback.md')).split(/\r?\n/).filter(l => /^- \d{4}-\d\d-\d\d: \S/.test(l)).map(l => l.trim());
     const sent = new Set(readJSON(path.join(STATE, 'feedback-reported.json'), []));
-    if (lines.some(l => !sent.has(l))) spawnSync(process.execPath, [path.join(ROOT, 'tools', 'starter.mjs'), 'report'], { cwd: ROOT, encoding: 'utf8', timeout: 20000 });
+    if (lines.some(l => !sent.has(l))) spawnSync(process.execPath, [abs('tools/starter.mjs'), 'report'], { cwd: ROOT, encoding: 'utf8', timeout: 20000 });
   }
   // A resumed session that was already shown the checklist still has it in its conversation: one line instead.
   // (Lesson, trial rounds 4 to 9: every resumed turn got the 2,300-character checklist again, the largest part of the
@@ -4663,6 +4675,9 @@ function cmdSession(data) {
   const seen = SID && /resume/i.test(data.source || '') && fs.existsSync(path.join(STATE, stateName('checklist.json')));
   // (engine v2: the old checklist asked for record lines nothing checks any more; three plain sentences instead)
   const parts = [seen ? 'Session checklist: as shown at this session\'s start (full rules in AGENTS.md / CLAUDE.md).' : engineOf() === 'v2' ? V2_SESSION : read(abs('docs/checks/session-checklist.md')).trim()];
+  // (the starter's development copy only, never a project: a shell edit (sed, heredoc, redirection) stripped regex
+  // backslashes from source files over and over; a memory note read once did not stop it)
+  if (exists('.starter-dev')) parts.push(DEV_EDIT_LINE);
   // (the prompt's rules digest says the same in short: this session has the whole checklist, so the prompts skip it)
   if (SID && parts[0] && !seen) writeState('checklist.json', { at: new Date().toISOString() });
   const status = read(abs('docs/STATUS.md')).split(/\r?\n/).slice(0, 40).join('\n').trim();
@@ -4681,7 +4696,7 @@ function cmdSession(data) {
   const v2turn = V2_TURN && data.session_id ? V2_TURN(data.session_id) : null;
   const end = readJSON(stateFile(TURN_END), {}), ended = v2turn ? !v2turn.at || !!v2turn.ended : end.clean && (end.at || '') >= (readJSON(stateFile('turn.json'), {}).at || '');
   if (/compact/i.test(data.source || '') || (/resume/i.test(data.source || '') && !ended)) {
-    const r = spawnSync(process.execPath, [path.join(ROOT, 'tools', 'integrity-check.mjs'), '--hours', '12'], { cwd: ROOT, encoding: 'utf8', timeout: 60000 });
+    const r = spawnSync(process.execPath, [abs('tools/integrity-check.mjs'), '--hours', '12'], { cwd: ROOT, encoding: 'utf8', timeout: 60000 });
     const out = (r.stdout || '').trim().split(/\r?\n/);
     // said as what it means (Lesson: "INTERRUPTED WORK: RESULT: PASS (235 file(s) checked)" read like a failure)
     const n0 = /(\d+)\s+file/.exec(out[out.length - 1] || '')?.[1];
@@ -5679,7 +5694,8 @@ function pretoolHits(data, cfg) {
     const there = held && onPath(held);
     // (a hook setting written by the agent through the user's one-line command: the agent edits config.json itself, and
     // when the host refuses that edit, the line goes to the user. Engine runbook, step "Settings")
-    const set = cmd.match(/hooks\.mjs["']?\s+setting\s+(\S+)\s+(\S.*)/);
+    // (a read followed by another command is no value: "setting autonomy; grep x" was refused as a write)
+    const set = cmd.match(/hooks\.mjs["']?\s+setting\s+([\w-]+)[ \t]+([^\s;&|].*)/);
     if (set) add(`REQ: permission-respected. \`hooks.mjs setting\` with a value is the user's command. Edit tools/hooks/config.json yourself; if the host refused that edit, don't write it another way: end the answer with the line for the user to paste, \`! node tools/hooks/hooks.mjs setting ${set[1]} ${set[2].replace(/\s*(&&|;|\|).*$/, '').trim()}\` (docs/playbooks/engine.md).`);
     if (held) add(`REQ: permission-respected. \`${held}\` was held for the user's approval earlier in this turn; running it through another program is the same command without that approval. ${there === false ? `It is also not installed here: \`${held}\` is not on PATH. Say so in the answer ("NOT VERIFIED: <what> - ${held} is not installed on this machine"), not that it only needs approval.` : `Leave it: say in the answer what was not verified ("NOT VERIFIED: <what> - ${held} was held for approval"), or ask the user to approve it.`}`);
     // REQ: no-repeat. A check run again with nothing changed since gives the same answer (see repeatRun).
@@ -6276,7 +6292,7 @@ export function upsetUnacknowledged(name, inp, tp = '') {
       .flatMap(r => Array.isArray(r.message?.content) ? r.message.content.filter(c => c?.type === 'text').map(c => c.text) : []).join('\n');
     const shown = lastIssue(said);
     if (shown && issueParts(shown).ok) {
-      try { fs.mkdirSync(path.dirname(abs(NOTES_FILE)), { recursive: true }); fs.appendFileSync(abs(NOTES_FILE), `\nIssue: ${shown.replace(/\*+/g, '').trim()}\n`); } catch { }
+      try { fs.mkdirSync(path.dirname(absw(NOTES_FILE)), { recursive: true }); fs.appendFileSync(absw(NOTES_FILE), `\nIssue: ${shown.replace(/\*+/g, '').trim()}\n`); } catch { }
       writeState(UPSET_PENDING, {}); return null;
     }
   }
@@ -8218,7 +8234,7 @@ export const DEV_REQUIREMENTS = [
 ];
 
 export function loadRequirements() {
-  const raw = read(path.join(HOOKS, 'requirements.json'));
+  const raw = read(REQS());
   let j;
   try { j = JSON.parse(raw || '{}'); } catch (e) { return { reqs: [...BASE_REQUIREMENTS], error: e.message, disabled: [] }; }
   const file = Array.isArray(j.requirements) ? j.requirements : [];
@@ -9509,10 +9525,10 @@ if (isMain) {
   if (cmd === 'check') cmdCheck();
   if (cmd === 'cost') cmdCost();
   if (cmd === 'restore') {
-    const item = process.argv[3] || '', own = readJSON(path.join(HOOKS, 'config.json'), {});
+    const item = process.argv[3] || '', own = readJSON(CONFIG(), {});
     if (!(own.suspended || []).some(s => s.item === item)) { console.log(`not suspended: ${item || '(none given)'}. Suspended: ${(own.suspended || []).map(s => s.item).join(', ') || 'nothing'}`); process.exit(1); }
     own.suspended = own.suspended.filter(s => s.item !== item);
-    fs.writeFileSync(path.join(HOOKS, 'config.json'), JSON.stringify(own, null, 2) + '\n');
+    fs.writeFileSync(CONFIG(), JSON.stringify(own, null, 2) + '\n');
     flushEngineWrites(['tools/hooks/config.json']);
     const hist = readJSON(path.join(STATE, 'friction.json'), {}); delete hist[item]; writeState('friction.json', hist);
     console.log(`restored ${item}: it routes and checks again, with a fresh friction count.`); process.exit(0);
@@ -9588,7 +9604,7 @@ if (isMain) {
       const sec = ag.slice(at, end).replace(/\n- \(none yet\)[^\n]*/, '').replace(/\s*$/, '');
       out = ag.slice(0, at) + `${sec}\n${line}\n` + (next < 0 ? '' : ag.slice(next));
     }
-    fs.writeFileSync(abs('AGENTS.md'), out);
+    fs.writeFileSync(absw('AGENTS.md'), out);
     syncTwin();
     const wrote = ['AGENTS.md (standing preferences; CLAUDE.md synced)'];
     // docs/checks/user-requirements.md: the next numbered row, after the last one
@@ -9597,15 +9613,15 @@ if (isMain) {
     const cell = s => String(s).replace(/\|/g, '/');
     const row = `| ${n} | ${d} | ${cell(principle)} | standing preferences | ${cell(check ? check.tag : how)} |`;
     const last = rows[rows.length - 1];
-    fs.mkdirSync(path.dirname(abs(UR)), { recursive: true });
-    fs.writeFileSync(abs(UR), last ? ur.slice(0, last.index + last[0].length) + '\n' + row + ur.slice(last.index + last[0].length) : `${ur.replace(/\s*$/, '')}\n${row}\n`);
+    fs.mkdirSync(path.dirname(absw(UR)), { recursive: true });
+    fs.writeFileSync(absw(UR), last ? ur.slice(0, last.index + last[0].length) + '\n' + row + ur.slice(last.index + last[0].length) : `${ur.replace(/\s*$/, '')}\n${row}\n`);
     wrote.push(`${UR} row ${n}`);
     if (check) {
       const RF = 'tools/hooks/requirements.json', reqs = readJSON(abs(RF), { requirements: [] });
       (reqs.requirements ||= []).push(check);
-      fs.writeFileSync(abs(RF), JSON.stringify(reqs, null, 2) + '\n');
+      fs.writeFileSync(absw(RF), JSON.stringify(reqs, null, 2) + '\n');
       const RE = 'docs/checks/rule-enforcement.md';
-      fs.appendFileSync(abs(RE), `${/\n$/.test(read(abs(RE)) || '\n') ? '' : '\n'}| Project | ${cell(principle)} (standing preference, ${d}) | \`${RF}\` | stop, when ${cell(Object.keys(check.when).join(' + '))}: ${cell(Object.keys(check.require).join(' + '))} | ${check.tag} |\n`);
+      fs.appendFileSync(absw(RE), `${/\n$/.test(read(abs(RE)) || '\n') ? '' : '\n'}| Project | ${cell(principle)} (standing preference, ${d}) | \`${RF}\` | stop, when ${cell(Object.keys(check.when).join(' + '))}: ${cell(Object.keys(check.require).join(' + '))} | ${check.tag} |\n`);
       wrote.push(`${RF} check ${check.tag}`, `${RE} row`);
     }
     console.log(`rule written: ${wrote.join(', ')}.`);
@@ -9637,9 +9653,9 @@ if (isMain) {
     const keep = new Map(fixed.map(p => [p, [fs.readFileSync(abs(p)), fs.statSync(abs(p))]]));
     let before;
     try {
-      for (const p of fixed) { const old = spawnSync('git', ['show', `HEAD:${p}`], { cwd: ROOT, maxBuffer: 64 * 1024 * 1024 }); if (old.status === 0) fs.writeFileSync(abs(p), old.stdout); }
+      for (const p of fixed) { const old = spawnSync('git', ['show', `HEAD:${p}`], { cwd: ROOT, maxBuffer: 64 * 1024 * 1024 }); if (old.status === 0) fs.writeFileSync(absw(p), old.stdout); }
       before = run();
-    } finally { for (const [p, [b, st]] of keep) { fs.writeFileSync(abs(p), b); try { fs.utimesSync(abs(p), st.atime, st.mtime); } catch { } } }
+    } finally { for (const [p, [b, st]] of keep) { fs.writeFileSync(absw(p), b); try { fs.utimesSync(absw(p), st.atime, st.mtime); } catch { } } }
     const after = run();
     const list = fixed.slice(0, 4).join(', ') + (fixed.length > 4 ? ` +${fixed.length - 4} more` : '');
     console.log(`BEFORE THE FIX (git HEAD version of ${list}): ${before.ok ? 'PASS' : 'FAIL'}\n${tail(before.out)}`);
@@ -9651,7 +9667,7 @@ if (isMain) {
     if (before.ok) { console.log('NOT PROVEN: the check passes on the state before the fix, so it would not have caught the problem. Make it test what went wrong.'); process.exit(1); }
     if (!after.ok) { console.log('NOT PROVEN: the check fails on the fixed files. Fix the code or the check.'); process.exit(1); }
     const proven = `Proven: fails on the version before the fix (git HEAD: ${list}); passes on all ${fixed.length} fixed file(s) and the files it covers, ${edge ? `and an edge case: ${edge}` : 'and an edge case: <one from this project\'s own words>'}`;
-    if (edge) { fs.mkdirSync(path.dirname(abs(NOTES_FILE)), { recursive: true }); fs.appendFileSync(abs(NOTES_FILE), `${proven}\n`); console.log(`PROVEN. Written to ${NOTES_FILE}: ${proven}`); }
+    if (edge) { fs.mkdirSync(path.dirname(absw(NOTES_FILE)), { recursive: true }); fs.appendFileSync(absw(NOTES_FILE), `${proven}\n`); console.log(`PROVEN. Written to ${NOTES_FILE}: ${proven}`); }
     else console.log(`PROVEN on the earlier state. Add the edge case and write this line to ${NOTES_FILE}: ${proven}`);
     process.exit(0);
   }
@@ -9770,7 +9786,7 @@ if (isMain) {
       // REQ: crash-visible, for v2 too: the agent sees the error once per session (prompt: as context; Stop: one
       // block), so a broken engine is never taken for a quiet one. Lesson (two projects): v2 could not load after an
       // upgrade, and for days no reminder or end check ran while everyone believed it was checking.
-      const seen = path.join(ROOT, 'tools/hooks/state', `v2-crash.${String(SID || 'x').replace(/[^\w-]/g, '').slice(0, 64)}.json`);
+      const seen = path.join(STATE, `v2-crash.${String(SID || 'x').replace(/[^\w-]/g, '').slice(0, 64)}.json`);
       const what = `tools/hooks/v2 ${cmd} CRASHED (${String(e && e.message || e).split('\n')[0].slice(0, 200)}): the engine's ${cmd === 'prompt' ? 'reminder' : 'end check'} did not run. Tell the user, fix the engine (node tools/starter.mjs upgrade, or the starter session), then run node tools/hooks/selfcheck.mjs.`;
       if (!fs.existsSync(seen) && !(cmd === 'stop' && data.stop_hook_active)) {
         try { fs.mkdirSync(path.dirname(seen), { recursive: true }); fs.writeFileSync(seen, JSON.stringify({ at: new Date().toISOString(), cmd })); } catch { }

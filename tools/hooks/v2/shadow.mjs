@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { onPrompt } from './start.mjs';
 import { onStop } from './end.mjs';
-import { ROOT } from './lib.mjs';
+import { ROOT, at } from './lib.mjs';
 
 const MAX_BYTES = 2_000_000;
 export function shadow(cmd, data) {
@@ -15,7 +15,7 @@ export function shadow(cmd, data) {
   const row = { at: new Date().toISOString(), sid: String(data.session_id || '').slice(0, 64), event: cmd };
   if (cmd === 'prompt') row.reminder = out?.hookSpecificOutput?.additionalContext || '';
   else row.block = out?.reason || '';
-  const file = path.join(ROOT, 'tools', 'hooks', 'state', 'v2-shadow.jsonl');
+  const file = at('tools/hooks/state/v2-shadow.jsonl');
   fs.mkdirSync(path.dirname(file), { recursive: true });
   // (the log stays small: past the limit, the older half goes)
   try { if (fs.statSync(file).size > MAX_BYTES) { const t = fs.readFileSync(file, 'utf8'); fs.writeFileSync(file, t.slice(t.indexOf('\n', t.length / 2) + 1)); } } catch { }

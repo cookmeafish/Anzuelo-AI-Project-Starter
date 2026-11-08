@@ -96,9 +96,20 @@ A run that is stuck sets `status: blocked - <reason>` with `Tried:` and `Options
 - [x] List every path builder (Context grep) into `.cache/paths-inventory.txt`, tagged engine, project or local.
       (2026-11-08: 457 sites; they hang off 14 roots, tagged in `.cache/paths-roots.md`. The bulk is hooks.mjs `abs()`,
       260 sites, used for both engine and project files: each needs its own tag when converted.)
-- [ ] Convert `hooks.mjs` and `v2/` (state files, runbooks, skills, config, records).
-- [ ] Convert `audit.mjs`, `packs.mjs`, `skills.mjs`, `starter.mjs`, `wire.mjs`, skill scripts.
-- [ ] Runbook and skill lookups read engine and local both, local winning on a name clash.
+- [x] Convert `hooks.mjs` and `v2/` (state files, runbooks, skills, config, records).
+      (2026-11-08: one classifier in paths.mjs, `kind(path)`, instead of 260 hand tags: `abs()` asks it, so each call
+      site kept its project-relative name. engine = tools, packs, library, .githooks; project = changelog, brief,
+      decisions and anything unknown; local = the rest of docs, state, config, .cache, .starter, DIRECTORY.md,
+      SETUP-PROMPT.md, the pack's screenshot tool; both = skills, playbooks, checks, starter runbooks, AGENTS.md,
+      requirements.json, packs-registry.json. Writes go through `absw()` (local). `rel()` maps any root back to the
+      project-relative name. v2 lib uses the same resolver only in the split layout, so replay tools aimed at another
+      folder behave as before. The engine's scripts ignore an inherited ANZUELO_ROOT.)
+- [x] Convert `audit.mjs`, `packs.mjs`, `skills.mjs`, `starter.mjs`, `wire.mjs`, skill scripts.
+      (audit goes through hooks `abs()`; wire.mjs only finds engine files here, its new wiring is Task 3; the pack
+      prune and restore of `packs/` and `library/` do nothing in the split layout, where they are the engine's.)
+- [x] Runbook and skill lookups read engine and local both, local winning on a name clash.
+      (v2 selftest: a resolver test, and a project with the engine in `.anzuelo/engine/` where the reminder names a
+      local runbook and an engine one and the turn record lands in `.anzuelo/local/`. Both fail on the old code.)
 - [ ] Selfcheck runs its scenarios in both layouts; both pass. Trial and audit pass in the starter.
 - [ ] Run `node tools/hooks/selfcheck.mjs`, `node tools/trial.mjs` and `node tools/audit.mjs`. Expected: 0 failed in each.
 

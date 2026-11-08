@@ -16,6 +16,7 @@ import {
   nameFiles, nameProblems, match, VERBATIM_ENGINE,
   starterOnlyChars,
 } from './hooks/hooks.mjs';
+import { listAll } from './hooks/paths.mjs';
 
 // --help, or a flag it doesn't know, prints the usage and runs nothing. Lesson (2026-11-06): a mistyped flag in a
 // sibling tool started a 20-minute run.
@@ -45,8 +46,9 @@ const sweep = (name, fn) => {
 const SKIPDIR = /^(\.git|node_modules|state|\.cache|\.starter|\.agents|\.codex|\.gemini|dist|build|__pycache__)$/;
 // Dependency folders and virtual environments are skipped by every walk (hooks.mjs bulkDir); build output too, except
 // in the sweeps with their own skip list (publish and browser safety), which still read what could be published.
+// (names are the project's: with the engine in .anzuelo/, a folder lists its local and engine entries under one name)
 const walk = (d, pred, acc = [], skip = SKIPDIR) => {
-  let names = []; try { names = fs.readdirSync(abs(d || '.')); } catch { return acc; }
+  const names = listAll(d || '.');
   for (const n of names) {
     const p = d ? `${d}/${n}` : n;
     if (skip.test(n)) continue;
@@ -215,7 +217,8 @@ sweep('relative links resolve', () => {
     for (const m of text.matchAll(/\]\(([^)\s]+)\)/g)) {
       const link = m[1].split('#')[0];
       if (!link || /^[a-z]+:/i.test(link) || /[<{]/.test(link)) continue;
-      const target = path.relative(ROOT, path.resolve(path.dirname(abs(f)), decodeURI(link))).split(path.sep).join('/');
+      // (from the file's project name, not where it sits: an engine runbook links to the project's docs/plans/)
+      const target = path.posix.normalize(path.posix.join(path.posix.dirname(f), decodeURI(link)));
       if (!exists(target)) fail.push(`${f}: broken link ${m[1]}`);
     }
   }

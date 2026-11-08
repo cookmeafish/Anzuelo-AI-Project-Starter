@@ -10,18 +10,21 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { roots, resolver } from './paths.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 export function wire(dir, { dry = false } = {}) {
-  const log = [], at = (...p) => path.join(dir, ...p), write = (p, text) => { if (!dry) { fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, text); } };
+  // (engine files (the hooks, the shared rules, settings) are found where paths.mjs says, for this folder's layout)
+  const eh = path.join(dir, '.anzuelo', 'engine', 'tools', 'hooks'), { where } = resolver(fs.existsSync(eh) ? roots(eh, {}) : { ENGINE: dir, PROJECT: dir, LOCAL: dir });
+  const log = [], at = (...p) => path.join(dir, ...p), eng = (...p) => where(path.join(...p)), write = (p, text) => { if (!dry) { fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, text); } };
   // Which agents to wire on this project: "wireAgents" in tools/hooks/config.json (default: all). Lesson: a Codex-only
   // user got CLAUDE.md and .claude/ back on every upgrade, with no way to say no.
   let agents = ['claude', 'codex', 'gemini'];
-  try { const w = JSON.parse(fs.readFileSync(at('tools', 'hooks', 'config.json'), 'utf8')).wireAgents; if (Array.isArray(w)) agents = w.map(String); } catch { }
+  try { const w = JSON.parse(fs.readFileSync(eng('tools', 'hooks', 'config.json'), 'utf8')).wireAgents; if (Array.isArray(w)) agents = w.map(String); } catch { }
   const on = a => agents.includes(a);
   // CLAUDE.md: Claude Code reads only this name. It starts as a copy of AGENTS.md; the hooks keep the twins in sync.
-  if (on('claude') && !fs.existsSync(at('CLAUDE.md')) && fs.existsSync(at('AGENTS.md'))) { write(at('CLAUDE.md'), fs.readFileSync(at('AGENTS.md'), 'utf8')); log.push('created  CLAUDE.md (a copy of AGENTS.md for Claude Code)'); }
+  if (on('claude') && !fs.existsSync(at('CLAUDE.md')) && fs.existsSync(eng('AGENTS.md'))) { write(at('CLAUDE.md'), fs.readFileSync(eng('AGENTS.md'), 'utf8')); log.push('created  CLAUDE.md (a copy of AGENTS.md for Claude Code)'); }
   // Claude Code's hooks: merged into any settings the folder already has
   const sp = at('.claude', 'settings.json');
   let mine = {};
@@ -109,7 +112,7 @@ export function wire(dir, { dry = false } = {}) {
       // already had under one of those names stays visible; for docs/, then only the engine's own docs are hidden.
       // Lesson: an adopted vault showed AGENTS.md, CLAUDE.md, DIRECTORY.md, HOW-TO-USE.md, README.md, docs/, inbox/,
       // outputs/ and sources/ among the user's notes, and they topped its search and related-note suggestions.
-      const orig = (() => { try { return fs.readFileSync(at('.starter', 'original-files.txt'), 'utf8').split(/\r?\n/).filter(Boolean); } catch { return []; } })();
+      const orig = (() => { try { return fs.readFileSync(eng('.starter', 'original-files.txt'), 'utf8').split(/\r?\n/).filter(Boolean); } catch { return []; } })();
       if (orig.some(f => f.startsWith('.obsidian/'))) {
         const users = e => orig.some(f => e.endsWith('/') ? f.startsWith(e) : f === e);
         const ROOT_FILES = ['AGENTS.md', 'CLAUDE.md', 'DIRECTORY.md', 'HOW-TO-USE.md', 'README.md', 'SETUP-PROMPT.md', 'AGENTS.starter.md', 'CLAUDE.starter.md', 'README.starter.md'];
@@ -124,12 +127,12 @@ export function wire(dir, { dry = false } = {}) {
   }
   if (!fs.existsSync(at('.obsidian'))) { write(at('.obsidian', 'app.json'), JSON.stringify({ useMarkdownLinks: true, newLinkFormat: 'relative', alwaysUpdateLinks: true }, null, 2) + '\n'); log.push('created  .obsidian/app.json (Obsidian: markdown links, relative paths)'); }
   // the generated skill mirrors and DIRECTORY.md
-  if (!dry && fs.existsSync(at('tools', 'hooks', 'hooks.mjs'))) spawnSync(process.execPath, [at('tools', 'hooks', 'hooks.mjs'), 'sync'], { cwd: dir, encoding: 'utf8' });
+  if (!dry && fs.existsSync(eng('tools', 'hooks', 'hooks.mjs'))) spawnSync(process.execPath, [eng('tools', 'hooks', 'hooks.mjs'), 'sync'], { cwd: dir, encoding: 'utf8' });
   return log;
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const dir = path.resolve(HERE, '..', '..');
+  const dir = roots(HERE, {}).PROJECT;
   try { const log = wire(dir); console.log(log.length ? log.join('\n') : 'wire: everything was already connected'); console.log('wire: this folder works with Claude Code, Codex, Gemini CLI and any agent that reads AGENTS.md'); }
   catch (e) { console.error(`wire: ${e.message}`); process.exit(1); }
 }
