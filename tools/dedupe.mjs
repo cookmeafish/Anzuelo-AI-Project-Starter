@@ -14,7 +14,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { ROOT, config, usageOf, bulkDir } from './hooks/hooks.mjs';
+import { ROOT, config, usageOf, bulkDir } from './hooks/settings.mjs';
 
 const args = process.argv.slice(2);
 if (args.includes('--help')) { console.log(usageOf(import.meta.url)); process.exit(0); }

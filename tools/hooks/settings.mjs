@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { PROJECT, where, listAll } from './paths.mjs';
 
 // ROOT is the project; engine files are found through abs() (paths.mjs decides the root per path, and in the starter
@@ -21,6 +22,27 @@ export const list = d => listAll(d);
 // in packages/*/node_modules pointing back into the repo made the prompt hook loop past its timeout.
 export const walkStat = p => { const s = fs.lstatSync(abs(p)); if (s.isSymbolicLink()) throw new Error('link'); return s; };
 export const esc = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// Folders that are never the project's own work: installed dependencies, virtual environments (any name: they hold a
+// pyvenv.cfg), tool caches (CACHEDIR.TAG), and, for kind "all", build output. "target", "vendor", "out", "bin" and "obj"
+// count only next to the build file that makes them, since a project may name a folder of its own that way.
+// Lesson: two setup audits walked a Python project's .venv for 19 minutes, and the session-start check reported merge
+// markers inside it.
+const DEP_DIRS = /^(node_modules|\.venv|venv|__pycache__|\.tox|\.nox|\.mypy_cache|\.pytest_cache|\.ruff_cache|\.gradle|\.dart_tool|\.terraform|\.next|\.nuxt|\.svelte-kit|\.turbo|\.parcel-cache|\.eggs|bower_components|jspm_packages|site-packages)$/;
+const BUILD_FILES = /^(Cargo\.toml|pom\.xml|build\.gradle(\.kts)?|settings\.gradle(\.kts)?|go\.mod|composer\.json|Gemfile|[^.]+\.(csproj|fsproj|vbproj|sln))$/;
+export function bulkDir(parentAbs, name, kind = 'all') {
+  if (DEP_DIRS.test(name)) return true;
+  const at = path.join(parentAbs, name);
+  if (fs.existsSync(path.join(at, 'pyvenv.cfg')) || fs.existsSync(path.join(at, 'CACHEDIR.TAG'))) return true;
+  if (/^vendor$/.test(name) && (fs.existsSync(path.join(at, 'modules.txt')) || fs.existsSync(path.join(at, 'autoload.php')))) return true;
+  if (kind !== 'all') return false;
+  if (/^(dist|build)$/.test(name)) return true;
+  if (!/^(target|vendor|out|bin|obj)$/.test(name)) return false;
+  try { return fs.readdirSync(parentAbs).some(n => BUILD_FILES.test(n)); } catch { return false; }
+}
+const localDate = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+export const today = () => localDate(); // the user's calendar day, not UTC
+// A tool's usage text: its whole header comment, so the help can never be cut short or include code.
+export const usageOf = url => { const out = []; for (const l of read(fileURLToPath(url)).split(/\r?\n/).slice(1)) { if (!l.startsWith('//')) break; out.push(l); } return out.join('\n'); };
 
 // ---------- configuration ----------
 // Every setting's default (what each does: SETTINGS.md); a project's tools/hooks/config.json overrides them.

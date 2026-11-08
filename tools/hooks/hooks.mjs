@@ -11,9 +11,9 @@ import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 import { PROJECT, ENGINE, LOCAL, where, whereWrite, relOf, listAll, kind, split } from './paths.mjs';
-import { ROOT, read, readJSON, abs, exists, list, walkStat, esc, DEFAULTS, config, re, secretRes, secretHit, homeDir, privateTermsPath, privateTermsListFile, forbiddenTerms, forbiddenRe } from './settings.mjs';
+import { ROOT, bulkDir, today, usageOf, read, readJSON, abs, exists, list, walkStat, esc, DEFAULTS, config, re, secretRes, secretHit, homeDir, privateTermsPath, privateTermsListFile, forbiddenTerms, forbiddenRe } from './settings.mjs';
 import { testInputsHash, aiAttributedCommits, gitignoreProblems } from './repo.mjs';
-export { ROOT, read, readJSON, abs, exists, list, walkStat, esc, config, re, secretRes, secretHit, privateTermsPath, privateTermsListFile, forbiddenTerms, forbiddenRe, testInputsHash, aiAttributedCommits, gitignoreProblems };
+export { ROOT, bulkDir, today, usageOf, read, readJSON, abs, exists, list, walkStat, esc, config, re, secretRes, secretHit, privateTermsPath, privateTermsListFile, forbiddenTerms, forbiddenRe, testInputsHash, aiAttributedCommits, gitignoreProblems };
 // (the safety guard is v2/guard.mjs, loaded by the pretool hook itself: a guard that cannot load is then reported, not
 // a hook that cannot start)
 let pretoolDecision = null;
@@ -31,27 +31,6 @@ export const absw = p => whereWrite(p);
 export const rel = p => relOf(p);
 // The rules: AGENTS.md is the shared file; CLAUDE.md is its local twin for Claude Code (a Codex-only machine has none).
 export const rulesText = () => read(abs('AGENTS.md')) || read(abs('CLAUDE.md'));
-// Folders that are never the project's own work: installed dependencies, virtual environments (any name: they hold a
-// pyvenv.cfg), tool caches (CACHEDIR.TAG), and, for kind "all", build output. "target", "vendor", "out", "bin" and "obj"
-// count only next to the build file that makes them, since a project may name a folder of its own that way.
-// Lesson: two setup audits walked a Python project's .venv for 19 minutes, and the session-start check reported merge
-// markers inside it.
-const DEP_DIRS = /^(node_modules|\.venv|venv|__pycache__|\.tox|\.nox|\.mypy_cache|\.pytest_cache|\.ruff_cache|\.gradle|\.dart_tool|\.terraform|\.next|\.nuxt|\.svelte-kit|\.turbo|\.parcel-cache|\.eggs|bower_components|jspm_packages|site-packages)$/;
-const BUILD_FILES = /^(Cargo\.toml|pom\.xml|build\.gradle(\.kts)?|settings\.gradle(\.kts)?|go\.mod|composer\.json|Gemfile|[^.]+\.(csproj|fsproj|vbproj|sln))$/;
-export function bulkDir(parentAbs, name, kind = 'all') {
-  if (DEP_DIRS.test(name)) return true;
-  const at = path.join(parentAbs, name);
-  if (fs.existsSync(path.join(at, 'pyvenv.cfg')) || fs.existsSync(path.join(at, 'CACHEDIR.TAG'))) return true;
-  if (/^vendor$/.test(name) && (fs.existsSync(path.join(at, 'modules.txt')) || fs.existsSync(path.join(at, 'autoload.php')))) return true;
-  if (kind !== 'all') return false;
-  if (/^(dist|build)$/.test(name)) return true;
-  if (!/^(target|vendor|out|bin|obj)$/.test(name)) return false;
-  try { return fs.readdirSync(parentAbs).some(n => BUILD_FILES.test(n)); } catch { return false; }
-}
-const localDate = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-export const today = () => localDate(); // the user's calendar day, not UTC
-// A tool's usage text: its whole header comment, so the help can never be cut short or include code.
-export const usageOf = url => { const out = []; for (const l of read(fileURLToPath(url)).split(/\r?\n/).slice(1)) { if (!l.startsWith('//')) break; out.push(l); } return out.join('\n'); };
 // Environment switches use the neutral STARTER_ prefix. Lesson: names from the starter's old name (KS_) outlived the
 // rename; the old names are still read for one release so nothing breaks mid-upgrade.
 export const envOf = n => process.env[`STARTER_${n}`] ?? process.env[`KS_${n}`];
