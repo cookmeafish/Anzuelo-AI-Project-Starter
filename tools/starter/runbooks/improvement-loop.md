@@ -31,9 +31,11 @@ updatedInput) is fixed in place.
    on this work goes in `tools/starter/dogfood-log.md` (the inside view, alongside the trial rounds' outside view).
 1. **Green first.** Everything committed. Pre-flight in the main folder: a scratch upgrade, `node tools/audit.mjs`,
    `node tools/hooks/v2/selftest.mjs`, and `node tools/hooks/selfcheck.mjs --tags <each check the batch touched>`. A
-   change to a check's message, a pack's checks or test fixtures needs the whole self-check there first (`--tags` runs
+   change to a check's message, a pack's checks, test fixtures, or what an install, upgrade or removal writes into
+   projects (changes to upgrade output) needs the whole self-check there first (`--tags` runs
    only scenarios, not cross-checks such as message-example); two chains in a row failed on the batch's own edits (a
-   test's sample path the reference sweep read, a quoted example a message check rejected): 40 minutes lost. Then
+   test's sample path the reference sweep read, a quoted example a message check rejected): 40 minutes lost. 2026-11-08: a new line an upgrade writes into
+   the project's records failed an older upgrade test that expected no change, found only by the frozen chain. Then
    `node tools/hooks/selfcheck.mjs`, `node tools/trial.mjs` and `node tools/audit.mjs` pass, each gated on its exit
    code (never `| tail`). Run the long ones on a frozen copy of the commit, so work in the main folder goes on during
    the 20 minutes: `git worktree add --detach ~/.anzuelo-frozen/<commit> <commit>`, then `node tools/hooks/wire.mjs`
