@@ -123,11 +123,18 @@ A run that is stuck sets `status: blocked - <reason>` with `Tried:` and `Options
 ### Task 3: wiring through local settings
 **Files:** `tools/hooks/wire.mjs`, `tools/starter/gitignore.project`, `tools/hooks/selfcheck.mjs`
 **Uses / provides:** uses Task 2; provides the wiring Task 4 calls
-- [ ] `wire.mjs` writes `.claude/settings.local.json` hooks pointing at `.anzuelo/engine/tools/hooks/hooks.mjs`,
+- [x] `wire.mjs` writes `.claude/settings.local.json` hooks pointing at `.anzuelo/engine/tools/hooks/hooks.mjs`,
       `CLAUDE.local.md` importing `@.anzuelo/engine/AGENTS.md` and the local rules file, the `.claude/skills/` mirror,
       and `.codex/hooks.json`; it adds the `.gitignore` block once. A project's own `.claude/settings.json` hooks are
       left alone.
-- [ ] Test: in a temp project, `git status --porcelain` after wiring lists only `.gitignore`.
+      (2026-11-08: the local rules file is `.anzuelo/local/AGENTS.md`, imported only when it exists. The block also
+      lists `.agents/skills/` (the Codex mirror). git's core.hooksPath points at `.anzuelo/engine/.githooks`. No
+      CLAUDE.md copy, no twin sync, no Gemini settings and no new `.obsidian/` in this layout. The block lives in
+      wire.mjs (`GITIGNORE_BLOCK`), so `gitignore.project` stays the old layout's template. The audit's twin and
+      wiring sweeps read the local files here.)
+- [x] Test: in a temp project, `git status --porcelain` after wiring lists only `.gitignore`.
+      (selfcheck `layout-split`: a committed project with its own Stop hook; after wiring twice, status is
+      `M .gitignore` alone, its settings.json is unchanged, and the hooks and audit pass from the engine.)
 - [ ] Run `node tools/hooks/selfcheck.mjs`. Expected: 0 failed, the wiring test included.
 
 ### Task 4: install, setup and the private-repository question

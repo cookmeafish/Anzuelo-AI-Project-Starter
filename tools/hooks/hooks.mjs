@@ -2716,6 +2716,9 @@ export function context(t, cfg, answerOverride) {
 
 // ---------- shared checks ----------
 export function syncTwin() {
+  // (with the engine in .anzuelo/engine there is no twin: CLAUDE.local.md imports the rules, and a project's own
+  // CLAUDE.md is its own)
+  if (split) return true;
   // CLAUDE.md (Claude Code) and AGENTS.md (Codex and other agents) are twins: the newer one wins.
   // Only files that both declare the twin contract are synced. Lesson-in-advance: an adopted folder may have its own,
   // different CLAUDE.md and AGENTS.md, and an automatic "newer wins" copy would destroy one of them.

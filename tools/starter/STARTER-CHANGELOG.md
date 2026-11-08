@@ -6,6 +6,7 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-08 (wiring, engine outside the project): with the engine in `.anzuelo/engine/`, `wire.mjs` puts the hooks in `.claude/settings.local.json`, brings the rules in through `CLAUDE.local.md` (`@.anzuelo/engine/AGENTS.md`, plus `.anzuelo/local/AGENTS.md` when there is one), points git at the engine's `.githooks`, and adds one block to `.gitignore`, once. A project's own `.claude/settings.json` and `CLAUDE.md` are left alone, no CLAUDE.md copy or Obsidian setting is made, and git status after wiring shows only `.gitignore`. The audit checks the wiring there. Scenario: layout-split.
 - 2026-11-08 (settings guard): reading a setting followed by another command (`setting <key>; ...`) is no longer refused as a write.
 - 2026-11-08 (starter development copy only): session start says to change files with Edit/Write only, never sed, a heredoc or shell redirection. Projects do not get this line.
 - 2026-11-08 (audit, split layout): the audit walks folders by project names and resolves links from them, and git hygiene checks only the project's own files when the engine sits in `.anzuelo/`.

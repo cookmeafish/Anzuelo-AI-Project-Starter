@@ -13,24 +13,38 @@ import { fileURLToPath } from 'node:url';
 import { roots, resolver } from './paths.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
+export const GITIGNORE_MARK = '# The project engine and its wiring (made on each machine, never committed)';
+export const GITIGNORE_BLOCK = `${GITIGNORE_MARK}\n.anzuelo/\nCLAUDE.local.md\n.claude/settings.local.json\n.claude/skills/\n.agents/skills/\n.codex/hooks.json\n`;
 
 export function wire(dir, { dry = false } = {}) {
   // (engine files (the hooks, the shared rules, settings) are found where paths.mjs says, for this folder's layout)
-  const eh = path.join(dir, '.anzuelo', 'engine', 'tools', 'hooks'), { where } = resolver(fs.existsSync(eh) ? roots(eh, {}) : { ENGINE: dir, PROJECT: dir, LOCAL: dir });
+  // With the engine in .anzuelo/engine (split), every file made here is one the project's git ignores: the hooks go
+  // in .claude/settings.local.json, the rules come in through CLAUDE.local.md, and .gitignore gets one block, once.
+  // A project's own .claude/settings.json is never touched. Plan: engine outside the project, Task 3.
+  const eh = path.join(dir, '.anzuelo', 'engine', 'tools', 'hooks'), split = fs.existsSync(eh), { where } = resolver(split ? roots(eh, {}) : { ENGINE: dir, PROJECT: dir, LOCAL: dir });
   const log = [], at = (...p) => path.join(dir, ...p), eng = (...p) => where(path.join(...p)), write = (p, text) => { if (!dry) { fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, text); } };
+  const HOOKS_REL = split ? '.anzuelo/engine/tools/hooks/hooks.mjs' : 'tools/hooks/hooks.mjs', GITHOOKS = split ? '.anzuelo/engine/.githooks' : '.githooks';
+  if (split) {
+    const gi = at('.gitignore'), have = fs.existsSync(gi) ? fs.readFileSync(gi, 'utf8') : '';
+    if (!have.includes(GITIGNORE_MARK)) { write(gi, `${have}${have && !have.endsWith('\n') ? '\n' : ''}${have ? '\n' : ''}${GITIGNORE_BLOCK}`); log.push('updated  .gitignore (the engine and its wiring stay out of git)'); }
+  }
   // Which agents to wire on this project: "wireAgents" in tools/hooks/config.json (default: all). Lesson: a Codex-only
   // user got CLAUDE.md and .claude/ back on every upgrade, with no way to say no.
   let agents = ['claude', 'codex', 'gemini'];
   try { const w = JSON.parse(fs.readFileSync(eng('tools', 'hooks', 'config.json'), 'utf8')).wireAgents; if (Array.isArray(w)) agents = w.map(String); } catch { }
   const on = a => agents.includes(a);
   // CLAUDE.md: Claude Code reads only this name. It starts as a copy of AGENTS.md; the hooks keep the twins in sync.
-  if (on('claude') && !fs.existsSync(at('CLAUDE.md')) && fs.existsSync(eng('AGENTS.md'))) { write(at('CLAUDE.md'), fs.readFileSync(eng('AGENTS.md'), 'utf8')); log.push('created  CLAUDE.md (a copy of AGENTS.md for Claude Code)'); }
+  // (split: CLAUDE.local.md imports the engine's rules and the project's own local rules file, so nothing is copied)
+  if (split && on('claude')) {
+    const text = `@.anzuelo/engine/AGENTS.md\n${fs.existsSync(path.join(dir, '.anzuelo', 'local', 'AGENTS.md')) ? '@.anzuelo/local/AGENTS.md\n' : ''}`;
+    if (!fs.existsSync(at('CLAUDE.local.md')) || fs.readFileSync(at('CLAUDE.local.md'), 'utf8') !== text) { write(at('CLAUDE.local.md'), text); log.push('wrote    CLAUDE.local.md (Claude Code reads the engine\'s rules from here; it may ask once to allow the import)'); }
+  } else if (on('claude') && !fs.existsSync(at('CLAUDE.md')) && fs.existsSync(eng('AGENTS.md'))) { write(at('CLAUDE.md'), fs.readFileSync(eng('AGENTS.md'), 'utf8')); log.push('created  CLAUDE.md (a copy of AGENTS.md for Claude Code)'); }
   // Claude Code's hooks: merged into any settings the folder already has
-  const sp = at('.claude', 'settings.json');
+  const sp = at('.claude', split ? 'settings.local.json' : 'settings.json');
   let mine = {};
   if (on('claude') && fs.existsSync(sp)) { try { mine = JSON.parse(fs.readFileSync(sp, 'utf8')); } catch (e) { throw new Error(`${sp} does not parse (${e.message}); fix it, then run wire again`); } }
   // Claude Code expands $CLAUDE_PROJECT_DIR itself, so its wiring is the same on every machine
-  const cc = (cmd, timeout, extra = {}) => [{ ...extra, hooks: [{ type: 'command', command: `node "$CLAUDE_PROJECT_DIR/tools/hooks/hooks.mjs" ${cmd}`, timeout }] }];
+  const cc = (cmd, timeout, extra = {}) => [{ ...extra, hooks: [{ type: 'command', command: `node "$CLAUDE_PROJECT_DIR/${HOOKS_REL}" ${cmd}`, timeout }] }];
   // (the tools that schedule a prompt back into the session, too: their prompt is noted, and a headless run gets no
   // fallback wakeup. Lesson: a wakeup left pending kept a headless run alive until its time limit killed it.)
   const theirs = { hooks: { SessionStart: cc('session', 60), UserPromptSubmit: cc('prompt', 30), PreToolUse: cc('pretool', 30, { matcher: 'Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell|Read|Skill|Agent|Task|SubagentHandback|mcp__.*|ScheduleWakeup|CronCreate|.*(Wake|Schedule|Remind|Alarm|Timer).*' }),
@@ -45,7 +59,7 @@ export function wire(dir, { dry = false } = {}) {
   }
   if (on('claude') && JSON.stringify(mine) !== before) write(sp, JSON.stringify(mine, null, 2) + '\n');
   // Codex can't expand a project variable in hook commands, so its wiring carries this folder's real path.
-  const hp = at('tools', 'hooks', 'hooks.mjs').split(path.sep).join('/');
+  const hp = at(...HOOKS_REL.split('/')).split(path.sep).join('/');
   const ev = (cmd, extra = {}) => [{ ...extra, hooks: [{ type: 'command', command: `node "${hp}" ${cmd}`, timeout: cmd === 'stop' ? 300 : 30 }] }];
   const codex = JSON.stringify({ hooks: { SessionStart: ev('session'), UserPromptSubmit: ev('prompt'), PreToolUse: ev('pretool', { matcher: 'apply_patch|Write|Edit|MultiEdit|Bash|PowerShell|Read|Agent|Task|mcp__.*' }), PostToolUse: ev('posttool', { matcher: 'apply_patch|Write|Edit|MultiEdit' }), Stop: ev('stop') } }, null, 2) + '\n';
   const cp = at('.codex', 'hooks.json');
@@ -79,7 +93,8 @@ export function wire(dir, { dry = false } = {}) {
   // Its hooks are not wired: their input format isn't documented. A Gemini agent runs hooks.mjs begin / check by hand.
   const gp = at('.gemini', 'settings.json');
   let gem = {}; if (fs.existsSync(gp)) { try { gem = JSON.parse(fs.readFileSync(gp, 'utf8')); } catch { gem = null; } }
-  if (on('gemini') && gem && !JSON.stringify(gem.context?.fileName || gem.contextFileName || '').includes('AGENTS.md')) {
+  // (split: Gemini reads context files by name, and the rules sit in .anzuelo/engine; a Gemini agent runs begin / check)
+  if (!split && on('gemini') && gem &&!JSON.stringify(gem.context?.fileName || gem.contextFileName || '').includes('AGENTS.md')) {
     gem.context = { ...(gem.context || {}), fileName: [...new Set(['AGENTS.md', ...[].concat(gem.context?.fileName || gem.contextFileName || 'GEMINI.md')])] };
     write(gp, JSON.stringify(gem, null, 2) + '\n'); log.push('wired    .gemini/settings.json (Gemini CLI reads AGENTS.md)');
   }
@@ -88,11 +103,11 @@ export function wire(dir, { dry = false } = {}) {
   // .githooks would silently disable them. Then the starter's checks are offered to chain in, not forced.
   const hooksPath = fs.existsSync(at('.git')) ? (spawnSync('git', ['config', 'core.hooksPath'], { cwd: dir, encoding: 'utf8' }).stdout || '').trim() : null;
   const ownHooks = hooksPath === '' && fs.existsSync(at('.git', 'hooks')) && fs.readdirSync(at('.git', 'hooks')).some(n => !n.endsWith('.sample'));
-  if (hooksPath !== null && hooksPath !== '.githooks') {
-    if (hooksPath || ownHooks) log.push(`kept     your git hooks (${hooksPath || '.git/hooks'}). To add the starter's checks (AI attribution, secrets, .gitignore), call .githooks/pre-commit, commit-msg and pre-push from yours.`);
+  if (hooksPath !== null && hooksPath !== GITHOOKS) {
+    if ((hooksPath && hooksPath !== '.githooks') || ownHooks) log.push(`kept     your git hooks (${hooksPath || '.git/hooks'}). To add the starter's checks (AI attribution, secrets, .gitignore), call .githooks/pre-commit, commit-msg and pre-push from yours.`);
     else {
-      if (!dry) spawnSync('git', ['config', 'core.hooksPath', '.githooks'], { cwd: dir });
-      log.push('git      core.hooksPath = .githooks (commits and pushes are checked for AI attribution, secrets and .gitignore)');
+      if (!dry) spawnSync('git', ['config', 'core.hooksPath', GITHOOKS], { cwd: dir });
+      log.push(`git      core.hooksPath = ${GITHOOKS} (commits and pushes are checked for AI attribution, secrets and .gitignore)`);
     }
   }
   // Obsidian (obsidian skill): new links are relative markdown links, which GitHub and every agent follow too
@@ -125,7 +140,8 @@ export function wire(dir, { dry = false } = {}) {
       if (add.length) { log.push(`updated  .obsidian/app.json (the engine's folders hidden from the vault's search and graph: ${add.length})`); if (!dry) write(op, JSON.stringify({ ...app, userIgnoreFilters: [...have, ...add] }, null, 2) + '\n'); }
     } catch { }
   }
-  if (!fs.existsSync(at('.obsidian'))) { write(at('.obsidian', 'app.json'), JSON.stringify({ useMarkdownLinks: true, newLinkFormat: 'relative', alwaysUpdateLinks: true }, null, 2) + '\n'); log.push('created  .obsidian/app.json (Obsidian: markdown links, relative paths)'); }
+  // (split: a vault setting would be a new project file; only a vault the project already has is adjusted)
+  if (!split && !fs.existsSync(at('.obsidian'))) { write(at('.obsidian', 'app.json'), JSON.stringify({ useMarkdownLinks: true, newLinkFormat: 'relative', alwaysUpdateLinks: true }, null, 2) + '\n'); log.push('created  .obsidian/app.json (Obsidian: markdown links, relative paths)'); }
   // the generated skill mirrors and DIRECTORY.md
   if (!dry && fs.existsSync(eng('tools', 'hooks', 'hooks.mjs'))) spawnSync(process.execPath, [eng('tools', 'hooks', 'hooks.mjs'), 'sync'], { cwd: dir, encoding: 'utf8' });
   return log;

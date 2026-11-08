@@ -8603,7 +8603,22 @@ if (mineB() && (!TAGS || TAGS.includes('layout-split')) && fs.existsSync(path.jo
       const k = kind(f);
       cp(f, k === 'engine' || k === 'both' ? eng : k === 'local' ? loc : proj);
     }
-    spawnSync('git', ['init', '-q'], { cwd: proj }); fs.appendFileSync(path.join(proj, '.gitignore'), '\n.anzuelo/\n');
+    // (the project has its own Claude Code hook, committed; wiring adds only git-ignored files and the one .gitignore
+    // block, leaves the project's settings alone, and a second run changes nothing. Plan Task 3)
+    const own = { hooks: { Stop: [{ hooks: [{ type: 'command', command: 'node scripts/own-check.mjs' }] }] } };
+    fs.mkdirSync(path.join(proj, '.claude'), { recursive: true }); fs.writeFileSync(path.join(proj, '.claude/settings.json'), JSON.stringify(own, null, 2) + '\n');
+    const g = (...a) => spawnSync('git', a, { cwd: proj, encoding: 'utf8' });
+    g('init', '-q'); g('config', 'user.email', 't@example.com'); g('config', 'user.name', 't'); g('add', '-A', '--', '.', ':!.anzuelo'); g('commit', '-q', '-m', 'project');
+    const wireRun = () => spawnSync(process.execPath, [path.join(eng, 'tools/hooks/wire.mjs')], { cwd: proj, encoding: 'utf8', timeout: 120000 });
+    const w1 = wireRun(), status1 = (g('status', '--porcelain').stdout || '').trim(), gi1 = fs.readFileSync(path.join(proj, '.gitignore'), 'utf8');
+    const w2 = wireRun(), status2 = (g('status', '--porcelain').stdout || '').trim(), gi2 = fs.readFileSync(path.join(proj, '.gitignore'), 'utf8');
+    const local = (() => { try { return JSON.parse(fs.readFileSync(path.join(proj, '.claude/settings.local.json'), 'utf8')); } catch { return {}; } })();
+    const claudeLocal = (() => { try { return fs.readFileSync(path.join(proj, 'CLAUDE.local.md'), 'utf8'); } catch { return ''; } })();
+    report(w1.status === 0 && w2.status === 0 && status1 === 'M .gitignore' && status2 === 'M .gitignore' && gi1 === gi2 && /^\.anzuelo\/$/m.test(gi1)
+      && (local.hooks?.Stop || []).some(m => (m.hooks || []).some(h => /\.anzuelo\/engine\/tools\/hooks\/hooks\.mjs" stop$/.test(h.command || ''))) && JSON.stringify(JSON.parse(fs.readFileSync(path.join(proj, '.claude/settings.json'), 'utf8'))) === JSON.stringify(own)
+      && /^@\.anzuelo\/engine\/AGENTS\.md$/m.test(claudeLocal) && !fs.existsSync(path.join(proj, 'CLAUDE.md')),
+      'layout: wiring a project with the engine in .anzuelo/engine leaves git status at the .gitignore block alone: hooks in settings.local.json, rules through CLAUDE.local.md, the project\'s own settings untouched, a second run changes nothing',
+      JSON.stringify({ w1: [w1.status, (w1.stdout || '').slice(0, 400), (w1.stderr || '').slice(0, 300)], status1, status2, local: JSON.stringify(local).slice(0, 200), claudeLocal, sameGi: gi1 === gi2, claudeMd: fs.existsSync(path.join(proj, 'CLAUDE.md')), ownSettings: fs.readFileSync(path.join(proj, '.claude/settings.json'), 'utf8').slice(0, 200) }));
     const sum = d => { const h = createHash('sha1'); const walk = r => { for (const e of fs.readdirSync(path.join(d, r), { withFileTypes: true }).sort((a, b) => a.name < b.name ? -1 : 1)) { const p = r ? `${r}/${e.name}` : e.name; if (e.isDirectory()) { if (e.name !== 'state') walk(p); } else h.update(p + fs.readFileSync(path.join(d, p))); } }; walk(''); return h.digest('hex'); };
     const env = { ...process.env, STARTER_ENGINE: 'v2', CLAUDE_PROJECT_DIR: proj }; delete env.ANZUELO_ROOT;
     const hk = (cmd, input) => spawnSync(process.execPath, [path.join(eng, 'tools/hooks/hooks.mjs'), cmd], { cwd: proj, encoding: 'utf8', input: input && JSON.stringify(input), env, timeout: 120000 });

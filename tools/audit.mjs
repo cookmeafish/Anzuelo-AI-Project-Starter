@@ -16,7 +16,7 @@ import {
   nameFiles, nameProblems, match, VERBATIM_ENGINE,
   starterOnlyChars,
 } from './hooks/hooks.mjs';
-import { listAll } from './hooks/paths.mjs';
+import { listAll, split } from './hooks/paths.mjs';
 
 // --help, or a flag it doesn't know, prints the usage and runs nothing. Lesson (2026-11-06): a mistyped flag in a
 // sibling tool started a 20-minute run.
@@ -106,22 +106,25 @@ sweep('shared files name no private project or person', () => {
   }
   return { fail };
 });
-sweep('AGENTS.md and CLAUDE.md are identical twins', () => !exists('CLAUDE.md') ? { warn: ['CLAUDE.md is made on each machine: run node tools/hooks/wire.mjs'] } :
+// (with the engine in .anzuelo/engine there are no twins: CLAUDE.local.md imports the engine's rules, and the hooks sit
+// in .claude/settings.local.json, both made by wire.mjs and ignored by git. Plan: engine outside the project, Task 3)
+const SETTINGS = split ? '.claude/settings.local.json' : '.claude/settings.json', GITHOOKS = split ? '.anzuelo/engine/.githooks' : '.githooks';
+sweep('AGENTS.md and CLAUDE.md are identical twins', () => split ? (/^@\.anzuelo\/engine\/AGENTS\.md$/m.test(read(abs('CLAUDE.local.md'))) ? {} : { warn: ['CLAUDE.local.md is made on each machine: run node .anzuelo/engine/tools/hooks/wire.mjs'] }) : !exists('CLAUDE.md') ?{ warn: ['CLAUDE.md is made on each machine: run node tools/hooks/wire.mjs'] } :
   read(abs('CLAUDE.md')) && read(abs('CLAUDE.md')) === read(abs('AGENTS.md')) ? {} : { fail: ['AGENTS.md and CLAUDE.md differ or one is missing. Run node tools/hooks/hooks.mjs sync (both must say they "are twins").'] });
 
 sweep('hooks wired for every agent', () => {
   const fail = [], warn = [];
   const want = { SessionStart: 'session', UserPromptSubmit: 'prompt', PreToolUse: 'pretool', PostToolUse: 'posttool', Stop: 'stop' };
-  if (!exists('.claude/settings.json')) return { warn: ['the agent wiring is made on each machine: run node tools/hooks/wire.mjs'] };
-  let j; try { j = JSON.parse(read(abs('.claude/settings.json'))); } catch (e) { return { fail: [`.claude/settings.json does not parse: ${e.message}`] }; }
-  for (const [ev, arg] of Object.entries(want)) if (!(j.hooks?.[ev] || []).flatMap(m => m.hooks || []).some(h => (h.command || '').includes('hooks.mjs') && new RegExp(`\\b${arg}\\b`).test(h.command))) fail.push(`.claude/settings.json: ${ev} does not run hooks.mjs ${arg}`);
+  if (!exists(SETTINGS)) return { warn: ['the agent wiring is made on each machine: run node tools/hooks/wire.mjs'] };
+  let j; try { j = JSON.parse(read(abs(SETTINGS))); } catch (e) { return { fail: [`${SETTINGS} does not parse: ${e.message}`] }; }
+  for (const [ev, arg] of Object.entries(want)) if (!(j.hooks?.[ev] || []).flatMap(m => m.hooks || []).some(h => (h.command || '').includes('hooks.mjs') && new RegExp(`\\b${arg}\\b`).test(h.command))) fail.push(`${SETTINGS}: ${ev} does not run hooks.mjs ${arg}`);
   const pre = (j.hooks?.PreToolUse || []).map(m => m.matcher || '').join('|');
-  for (const t of ['Write', 'Edit', 'Bash', 'PowerShell', 'Read', 'Agent']) if (!pre.includes(t)) warn.push(`.claude/settings.json: PreToolUse matcher lacks ${t}`);
+  for (const t of ['Write', 'Edit', 'Bash', 'PowerShell', 'Read', 'Agent']) if (!pre.includes(t)) warn.push(`${SETTINGS}: PreToolUse matcher lacks ${t}`);
   if (exists('.codex/hooks.json')) { try { const c = JSON.parse(read(abs('.codex/hooks.json'))); if (!JSON.stringify(c).includes('hooks.mjs')) fail.push('.codex/hooks.json does not run hooks.mjs'); } catch (e) { fail.push(`.codex/hooks.json does not parse: ${e.message}`); } }
-  if (j.includeCoAuthoredBy !== false) warn.push('.claude/settings.json: set "includeCoAuthoredBy": false (no AI attribution)');
+  if (j.includeCoAuthoredBy !== false) warn.push(`${SETTINGS}: set "includeCoAuthoredBy": false (no AI attribution)`);
   for (const g of ['commit-msg', 'pre-push', 'pre-commit']) if (!exists(`.githooks/${g}`)) fail.push(`.githooks/${g} is missing`);
-  const hp = isRepo ? (git('config', 'core.hooksPath').stdout || '').trim() : '.githooks';
-  if (hp !== '.githooks') {
+  const hp = isRepo ? (git('config', 'core.hooksPath').stdout || '').trim() : GITHOOKS;
+  if (hp !== GITHOOKS) {
     // the project's own hooks are kept (wire.mjs); they pass when they call ours
     const own = hp || '.git/hooks', calls = ['commit-msg', 'pre-push', 'pre-commit'].every(g => /\.githooks\//.test(read(abs(`${own}/${g}`)) || ''));
     const real = hp || (exists('.git/hooks') && fs.readdirSync(abs('.git/hooks')).some(n => !n.endsWith('.sample')));
