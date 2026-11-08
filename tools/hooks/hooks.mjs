@@ -4403,9 +4403,21 @@ export function dueRoutines(text, now = today()) {
   return out;
 }
 
+// Every engine change (install, move, upgrade, rollback, removal) leaves one dated line in the project's
+// docs/DECISIONS.md, and the next session start shows the newest one once. Lesson (a field report): a move and its
+// rollback left no trace, so the project's main session never knew its engine had changed.
+export const ENGINE_CHANGE = /^- \d{4}-\d\d-\d\d: engine (installed|moved|upgraded|rolled back|removed)\b.*$/;
+export function noteEngineChange(dir, text) {
+  const f = path.join(dir, 'docs', 'DECISIONS.md');
+  try { fs.mkdirSync(path.dirname(f), { recursive: true }); const t = fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : '# Decisions\n'; fs.writeFileSync(f, `${t}${t.endsWith('\n') ? '' : '\n'}- ${today()}: engine ${text}\n`); } catch { }
+}
+const ENGINE_SEEN = () => path.join(STATE, 'engine-change-seen.json');
+const lastEngineChange = () => read(abs('docs/DECISIONS.md')).split(/\r?\n/).filter(l => ENGINE_CHANGE.test(l)).pop() || '';
 function notices(cfg) {
   const out = [];
   const template = exists('.starter-template');
+  const ec = lastEngineChange();
+  if (ec && readJSON(ENGINE_SEEN(), {}).line !== ec) out.push(`ENGINE CHANGED: ${ec.replace(/^- /, '')}. Say it to the user in one line at the start of your first answer.`);
   // REQ: wiring-sound. Broken wiring is said at every session start, with its repair: git's hooks path at a missing
   // folder lets commits skip the AI-credit and secret checks. Lesson (two field reports): a rolled-back move left it so.
   const wp = WIRING ? (() => { try { return WIRING(ROOT); } catch { return []; } })() : [];
@@ -4491,6 +4503,8 @@ function cmdSession(data) {
   // (v2 has no carried-over checks: its one end check happens in the turn itself)
   const n = notices(cfg).filter(x => !before.has(noticeKey(x)) && !(engineOf() === 'v2' && x.startsWith('LAST WORK TURN')));
   writeState('reminders-shown.json', { keys: [...new Set([...before, ...n.map(noticeKey).filter(Boolean)])] });
+  // (the engine change is shown once, to the first session that starts after it)
+  if (n.some(x => x.startsWith('ENGINE CHANGED')) && !envOf('BENCH')) try { fs.mkdirSync(STATE, { recursive: true }); fs.writeFileSync(ENGINE_SEEN(), JSON.stringify({ line: lastEngineChange() }) + '\n'); } catch { }
   // REQ: interrupted-work. After a compaction, or a resume of a turn that never ended, prove the files edited before
   // the interruption are intact. (Lesson (probe): a resume after a turn that ended normally told the user files from
   // "before the interruption" were intact)

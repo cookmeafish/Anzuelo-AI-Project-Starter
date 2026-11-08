@@ -20,10 +20,11 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { CORE_SKILLS, today as localToday, usageOf, isEngineCheck, shippedChecks, checkKey, ENGINE_CHECKS_HISTORY, changelogSince, breakingItems, withReviewBlock, fastestBench, probeEngine } from './hooks/hooks.mjs';
+import { CORE_SKILLS, today as localToday, usageOf, isEngineCheck, shippedChecks, checkKey, ENGINE_CHECKS_HISTORY, changelogSince, breakingItems, withReviewBlock, fastestBench, probeEngine, noteEngineChange } from './hooks/hooks.mjs';
 import { wire } from './hooks/wire.mjs';
 
 const STARTER = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const starterHead = () => (spawnSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: STARTER, encoding: 'utf8' }).stdout || '').trim() || 'the newest starter';
 
 // Engine: generic machinery, replaced on --upgrade. Everything else is the project's own content.
 const ENGINE = [
@@ -379,6 +380,7 @@ if (flag('--remove')) {
   }
   if (!dry) for (const s of CORE_SKILLS) try { fs.rmdirSync(at('skills', s)); } catch { }
   console.log(log.join('\n'));
+  if (!dry) noteEngineChange(dest, `removed (backed up in .cache/engine-removed/${stamp}/${kept.size ? `; ${kept.size} engine file(s) kept because the project uses them` : ''})`);
   console.log(dry ? `\nDry run: nothing changed (${log.length} item(s) above).` : `\nRemoved the engine from ${dest}: ${log.length} item(s), backed up in .cache/engine-removed/${stamp}/. ` +
     'The project\'s own files stay. AGENTS.md (and CLAUDE.md) still describe the engine\'s rules: edit them to what the project keeps. ' +
     `To put the engine back: node "${path.join(STARTER, 'tools', 'new-project.mjs')}" "${dest}" --adopt`);
@@ -626,6 +628,7 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
       (differ.length ? `${differ.length} file(s) could not be put back exactly: ${differ.slice(0, 8).join(', ')} (copies in .cache/upgrade-backup/${stamp}/).\n` : 'The project is exactly as it was (every file checked).\n') +
       broke.map(b => (after.details?.[b] || []).slice(0, 8).map(l => `  ${b}: ${l}`).join('\n')).filter(Boolean).join('\n') + '\n' +
       `The new engine checks more or checks differently. Upgrade with --accept-findings to keep it anyway: each of these goes into the upgrade review, to fix.`);
+    noteEngineChange(dest, `rolled back: the upgrade to ${starterHead()} was undone, because checks that passed before failed after it (${broke.join(', ')})`);
     process.exit(1);
   }
   done(); console.log(synced);
@@ -737,6 +740,8 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
     `"fixed - <how>" or "declined - <why>". Adopt only what makes this project better. -->\n` + items.map(i => { const [it, done] = i.split('||'); return `- ${it}: ${done || '?'}${plainOf(it)}`; }).join('\n') + '\n';
   // (nothing to decide: the last review that also held only the self-tests is updated in place, not repeated)
   fs.writeFileSync(dp, withReviewBlock(fs.existsSync(dp) ? fs.readFileSync(dp, 'utf8') : '', block, items.length === 1 && stPassed));
+  const toDecide = items.filter(i => !i.includes('||')).length;
+  if (!dry) noteEngineChange(dest, `upgraded to ${starterHead()}: ${toDecide ? `${toDecide} item(s) to decide in "## Upgrade review (${today})"` : 'nothing to decide'}`);
   // what changed in the starter since the last review, to explain the items
   const last = [...decided.matchAll(/^## Upgrade review \((\d{4}-\d\d-\d\d)\)/gm)].pop()?.[1] || '';
   // (the same entries as the breaking notes: new since this project's engine commit. Lesson: "- 2026-10-20 (re-check)"

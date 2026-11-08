@@ -36,7 +36,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { spawnSync } from 'node:child_process';
-import { ROOT, STARTER_LINK, starterLink, starterSources, syncAll, setupCompleteness, usageOf } from './hooks/hooks.mjs';
+import { ROOT, STARTER_LINK, starterLink, starterSources, syncAll, setupCompleteness, usageOf, noteEngineChange } from './hooks/hooks.mjs';
 import { registry } from './packs.mjs';
 import { where, whereWrite, split, kind, keepList, ENGINE, LOCAL, PROJECT } from './hooks/paths.mjs';
 import { scriptsIn } from './hooks/wire.mjs';
@@ -179,6 +179,7 @@ export function splitUpgrade() {
   const w = spawnSync(process.execPath, [path.join(ENGINE, 'tools', 'hooks', 'wire.mjs')], { cwd: PROJECT, encoding: 'utf8' });
   process.stdout.write(w.stdout || '');
   if (old !== now) console.log(`what changed: ${path.join(ENGINE, 'tools', 'starter', 'STARTER-CHANGELOG.md').split(path.sep).join('/')} (lines since ${old.slice(0, 7)}); review them in docs/DECISIONS.md as before`);
+  if (old !== now) noteEngineChange(PROJECT, `upgraded to ${now.slice(0, 7)} (from ${old.slice(0, 7)}): what changed is in .anzuelo/engine/tools/starter/STARTER-CHANGELOG.md`);
   return w.status === 0 ? 0 : 1;
 }
 // Leaving the engine with it in .anzuelo/: the project's own hooks, skills, scripts and records stay or come back to
@@ -266,6 +267,7 @@ export function splitUninstall(dry) {
     fs.rmSync(at('.anzuelo'), { recursive: true, force: true, maxRetries: 3 });
   }
   log.push('removed  .anzuelo/ (the engine and its local files)');
+  if (!dry) noteEngineChange(PROJECT, `removed from .anzuelo/ (backed up in ${path.relative(PROJECT, backup).split(path.sep).join('/')}/; ${back.length} file(s) of the project's own brought back${naming.length ? `; ${naming.length} file(s) still name .anzuelo/` : ''})`);
   console.log(log.join('\n'));
   console.log(dry ? `\nDry run: nothing changed (${log.length} item(s) above).` : `\nRemoved the engine: backed up in ${path.relative(PROJECT, backup).split(path.sep).join('/')}/ (.anzuelo/local whole, the changed wiring files, and the engine's commit ${head.slice(0, 7)}${origin ? ` from ${origin}` : ''}). ` +
     `To put it back: clone the starter, run its tools/starter.mjs install "${PROJECT}", then copy .anzuelo/local back from the backup.`);
@@ -423,6 +425,7 @@ if (cmd === 'link') {
   if (priv && !/^(yes|no)$/.test(priv)) { console.error('--private takes yes or no'); process.exit(2); }
   const g = (args, cwd) => spawnSync('git', args, { cwd, encoding: 'utf8' });
   const had = fs.existsSync(dest) ? fs.readdirSync(dest).filter(n => n !== '.git') : [];
+  const moved = fs.existsSync(path.join(dest, 'tools', 'hooks', 'hooks.mjs'));
   fs.mkdirSync(path.dirname(eng), { recursive: true });
   const cl = g(['clone', '-q', ENGINE, eng]);
   if (cl.status !== 0) { console.error(`git clone failed: ${cl.stderr}`); process.exit(1); }
@@ -463,6 +466,7 @@ if (cmd === 'link') {
   if (priv) console.log(setLocalRepo(loc, priv === 'yes'));
   const w = spawnSync(process.execPath, [path.join(eng, 'tools', 'hooks', 'wire.mjs')], { cwd: dest, encoding: 'utf8' });
   process.stdout.write(w.stdout || ''); if (w.status !== 0) { process.stderr.write(w.stderr || ''); process.exit(1); }
+  noteEngineChange(dest, `${moved ? 'moved' : 'installed'} into .anzuelo/engine at ${(g(['rev-parse', '--short', 'HEAD'], eng).stdout || '').trim()}`);
   if (!priv) console.log('next: setup asks the user whether .anzuelo/local gets a private git repository of its own (starter.mjs local-repo yes|no)');
   console.log('Claude Code may ask once to allow the CLAUDE.local.md import of .anzuelo/engine/AGENTS.md.');
 } else if (cmd === 'local-repo') {

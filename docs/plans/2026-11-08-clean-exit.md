@@ -59,6 +59,9 @@ Each item gets a confirmed cause, a fix and a test; the reply names the commit.
 - [x] Wiring leaves an existing `statusLine` on the old `tools/hooks/statusline.mjs` path.
 - [ ] A `build/` ignore line shipped by an upgrade hides a project skill named build.
 - [x] The rollback steps run into the engine's own git-safety guard; the uninstall replaces them.
+- [x] A move and its rollback left no trace in the project, so its next session did not know the engine changed. Every
+  install, move, upgrade, rollback and removal now writes a dated `docs/DECISIONS.md` line, and the next session start
+  says it once (tests: v2 selftest removal test, selfcheck upgrade-review test).
 - [ ] End check: "a screen changed" held a turn whose screen edits a reset had undone; judge by the net change against
       the turn's start, not by edits seen during the turn.
 

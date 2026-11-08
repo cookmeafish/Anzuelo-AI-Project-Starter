@@ -1400,7 +1400,11 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     fs.mkdirSync(at('.codex')); fs.writeFileSync(at('.codex/hooks.json'), codex); fs.writeFileSync(at('.gitignore'), '.codex/\n');
     g('init', '-q'); g('add', '-A'); g('commit', '-qm', 'project'); g('config', 'core.hooksPath', '.githooks');
     const ins = spawnSync(process.execPath, [path.join(repo, 'tools/starter.mjs'), 'install', p, '--private', 'no'], { encoding: 'utf8', timeout: 300000 });
-    for (const f of ['tools/starter.mjs', 'tools/hooks/wire.mjs']) fs.copyFileSync(path.join(repo, f), at('.anzuelo/engine', f));
+    for (const f of ['tools/starter.mjs', 'tools/hooks/wire.mjs', 'tools/hooks/hooks.mjs']) fs.copyFileSync(path.join(repo, f), at('.anzuelo/engine', f));
+    // (the install is recorded, and session start says it once: the next start is quiet)
+    const sess = () => spawnSync(process.execPath, [at('.anzuelo/engine/tools/hooks/hooks.mjs'), 'session'], { cwd: p, encoding: 'utf8', timeout: 60000, input: '{}', env: { ...process.env, CLAUDE_PROJECT_DIR: p, ANZUELO_ROOT: '' } }).stdout || '';
+    const s1 = sess(), s2 = sess(), dec = () => { try { return fs.readFileSync(at('docs/DECISIONS.md'), 'utf8'); } catch { return ''; } };
+    const told = /ENGINE CHANGED: \d{4}-\d\d-\d\d: engine installed into \.anzuelo\/engine at [0-9a-f]{7}/.test(s1) && !/ENGINE CHANGED/.test(s2);
     for (const [f, t] of [['docs/playbooks/own.md', '# Own runbook\n'], ['skills/mine/SKILL.md', '---\nname: mine\n---\n# Mine\n'], ['docs/STATUS.md', '# Status\nours\n']]) { fs.mkdirSync(path.dirname(path.join(loc, f)), { recursive: true }); fs.writeFileSync(path.join(loc, f), t); }
     const st = (...a) => spawnSync(process.execPath, [at('.anzuelo/engine/tools/starter.mjs'), 'uninstall', ...a], { cwd: p, encoding: 'utf8', timeout: 120000 });
     const wired = fs.existsSync(at('.claude/settings.local.json')) && /hooks\.mjs/.test(fs.readFileSync(at('.claude/settings.local.json'), 'utf8'));
@@ -1412,10 +1416,11 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
       fs.existsSync(at('docs/playbooks/own.md')) && fs.existsSync(at('skills/mine/SKILL.md')) && /ours/.test(fs.readFileSync(at('docs/STATUS.md'), 'utf8')) && fs.existsSync(at('main.py')),
       !/project engine and its wiring/.test(fs.readFileSync(at('.gitignore'), 'utf8')) && /notes\.md/.test(r.stdout), (g('config', '--get', 'core.hooksPath').stdout || '').trim() === '.githooks',
       fs.readFileSync(at('.codex/hooks.json'), 'utf8') === codex,
-      backups.length === 1 && fs.existsSync(at('.cache/engine-removed', backups[0], 'engine.json')) && fs.existsSync(at('.cache/engine-removed', backups[0], '.anzuelo/local/docs/playbooks/own.md'))];
+      backups.length === 1 && fs.existsSync(at('.cache/engine-removed', backups[0], 'engine.json')) && fs.existsSync(at('.cache/engine-removed', backups[0], '.anzuelo/local/docs/playbooks/own.md')),
+      told, /^- \d{4}-\d\d-\d\d: engine removed from \.anzuelo\/ \(backed up in \.cache\/engine-removed\//m.test(dec())];
     report(conds.every(Boolean),
-      'remove (.anzuelo/): uninstall unwires only the engine, puts back git\'s hooks path and the wiring files as they were before the install, brings the project\'s own runbooks, skills and records back, names files still pointing at .anzuelo/, and backs up',
-      JSON.stringify({ conds, ins: [ins.status, (ins.stderr || '').slice(0, 200)], wired, hp: (g('config', '--get', 'core.hooksPath').stdout || '').trim(), codex: fs.existsSync(at('.codex/hooks.json')) && fs.readFileSync(at('.codex/hooks.json'), 'utf8').slice(0, 200), dry: (dry.stdout || dry.stderr || '').slice(-300), r: [r.status, (r.stdout || '').slice(-600), (r.stderr || '').slice(0, 300)], local: local.slice(0, 200) }));
+      'remove (.anzuelo/): uninstall unwires only the engine, puts back git\'s hooks path and the wiring files as they were before the install, brings the project\'s own runbooks, skills and records back, names files still pointing at .anzuelo/, and backs up; the install and the removal each leave a dated line in docs/DECISIONS.md, and session start says the install once',
+      JSON.stringify({ conds, ins: [ins.status, (ins.stderr || '').slice(0, 200)], wired, s1: s1.slice(0, 300), dec: dec().slice(-400), hp: (g('config', '--get', 'core.hooksPath').stdout || '').trim(), codex: fs.existsSync(at('.codex/hooks.json')) && fs.readFileSync(at('.codex/hooks.json'), 'utf8').slice(0, 200), dry: (dry.stdout || dry.stderr || '').slice(-300), r: [r.status, (r.stdout || '').slice(-600), (r.stderr || '').slice(0, 300)], local: local.slice(0, 200) }));
   } finally { fs.rmSync(box, { recursive: true, force: true, maxRetries: 3 }); }
 }
 

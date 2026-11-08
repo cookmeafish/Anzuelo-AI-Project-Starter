@@ -7592,6 +7592,11 @@ if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade
     const ok = np('--upgrade', '--no-selftest'), review = fs.readFileSync(path.join(proj, 'docs/DECISIONS.md'), 'utf8');
     report(r.status !== 0 && /ROLLED BACK/.test(r.stderr) && restored && ok.status === 0 && /## Upgrade review \(/.test(review) && /- self-tests: .*: \?/.test(review),
       'upgrade-review: an upgrade that breaks a passing check rolls back; a clean one writes the review', `${r.status} ${r.stderr.slice(0, 200)} | restored ${restored} | ${ok.status} ${ok.stderr.slice(0, 200)}`);
+    // (each engine change leaves a dated line, the rollback's before the upgrade's. Lesson (a field report): a move and
+    // its rollback left no trace, so the project's next session never knew its engine had changed)
+    const changes = review.split(/\r?\n/).filter(l => /^- \d{4}-\d\d-\d\d: engine /.test(l));
+    report(changes.length === 2 && /engine rolled back: the upgrade to .+ was undone, because checks that passed before failed after it \(.+\)$/.test(changes[0]) && /engine upgraded to .+: (\d+ item\(s\) to decide|nothing to decide)/.test(changes[1]),
+      'engine-change: a rolled-back upgrade and a clean one each leave a dated line in docs/DECISIONS.md', changes.join(' || ') || 'no line');
     // the last line says it all: which starter, regressions, decisions left (a rolled-back run has no such line)
     const lastLine = (ok.stdout || '').trim().split(/\r?\n/).pop();
     report(/^Upgrade \S+( the starter copy)?: 0 regressions, [1-9]\d* decisions? needed/.test(lastLine) && !/^Upgrade .*regressions?,/m.test(r.stdout || ''),
