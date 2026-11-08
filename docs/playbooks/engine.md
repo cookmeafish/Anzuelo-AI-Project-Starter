@@ -31,6 +31,12 @@ From the starter's folder (a project without the engine has no tools for this):
 adopted (no file of it is overwritten); a folder that has the engine is upgraded (§3). Then follow
 `skills/project-bootstrap/SKILL.md` in that folder.
 
+**Moving an established project's engine into `.anzuelo/`** (`starter.mjs install "<folder>"`): first find what the
+project's own code reads by path (its hooks, scripts, app: runbooks, checklists, status, menus). List those paths in
+`.anzuelo/local/config.json` as `"keepInProject": ["docs/playbooks", "docs/STATUS.md", ...]` (a file or a folder)
+before the install. Kept paths stay where they are, are read from there, and are written there, so the project's
+readers keep working. Without the list they move to `.anzuelo/local/` and every such reader breaks.
+
 ### 3. Upgrade
 **With the engine in `.anzuelo/engine/`:** `node .anzuelo/engine/tools/starter.mjs upgrade` is a git pull there, then
 the wiring is made again. It never writes the project's files or `.anzuelo/local/`, except to merge a default's new

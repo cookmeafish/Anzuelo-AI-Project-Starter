@@ -1307,6 +1307,9 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   // (an upgrade's self-test never waits on other runs to time Stop, and the full run times v2's Stop, not only v1's)
   const np = fs.readFileSync(path.join(repo, 'tools/new-project.mjs'), 'utf8'), sc = fs.readFileSync(path.join(repo, 'tools/hooks/selfcheck.mjs'), 'utf8');
   const au = fs.readFileSync(path.join(repo, 'tools/audit.mjs'), 'utf8');
+  // (a project's agent learns of keepInProject from the engine runbook before a move, not from the changelog)
+  report(/keepInProject[\s\S]{0,400}before the install/.test(fs.readFileSync(path.join(repo, 'docs/playbooks/engine.md'), 'utf8')),
+    'install: the engine runbook tells a project moving into .anzuelo/ to list the paths its own code reads in keepInProject first');
   // (a file hooks.mjs reads next to itself goes to every project with it: a missing one stops every hook)
   const besides = [...fs.readFileSync(path.join(repo, 'tools/hooks/hooks.mjs'), 'utf8').matchAll(/new URL\('\.\/([\w.-]+)', import\.meta\.url\)/g)].map(m => `tools/hooks/${m[1]}`);
   report(besides.length && besides.every(f => np.includes(`'${f}'`)), 'upgrade: every file hooks.mjs reads next to itself is in the engine list new projects and upgrades copy', besides);
