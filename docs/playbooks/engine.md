@@ -34,7 +34,8 @@ adopted (no file of it is overwritten); a folder that has the engine is upgraded
 ### 3. Upgrade
 `node tools/starter.mjs update` pulls the newest starter into the linked copy, then upgrades. It stops when that copy
 has local changes: rerun with `--keep-local` to keep them on top, or ask the user. To upgrade from the linked copy as it
-is: `node tools/starter.mjs upgrade`. No link: `node tools/starter.mjs link "<starter folder>"` first.
+is: `node tools/starter.mjs upgrade`. No link: `node tools/starter.mjs link "<starter folder>"` first. Run nothing
+else in the project (no sync, no runbook edits) until the upgrade prints its result.
 - Only engine files are replaced (hooks, tests, audit, tools, core skills, core runbooks and checklists). The
   project's content is never touched, and an engine skill or runbook keeps the triggers and "## Project lessons" it
   added. Pack and library files are refreshed only where this project never edited them.

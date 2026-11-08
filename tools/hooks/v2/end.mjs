@@ -12,7 +12,10 @@ import { ROOT, runbooks, turnRows, turnActs, met, applies, opened, worked, loadT
 // (by a script too: the file changed since the turn began. Lesson (a project's report): a runbook edited by a shell
 // script was "opened" by naming it and held the turn three times)
 const authored = (b, acts) => acts.calls.some(c => /^(Edit|Write|MultiEdit)$/.test(c.name) && String(c.input.file_path || '').replace(/\\/g, '/').endsWith(b.file))
-  || (acts.calls.some(c => /^(Bash|PowerShell)$/.test(c.name) && String(c.input.command || '').replace(/\\/g, '/').includes(b.file))
+  // (a command that writes: one that only reads the runbook, after an upgrade rewrote it, is following it. Lesson (a
+  // project's report): an upgrade turn that read the engine runbook with Get-Content was held to the routed one)
+  || (acts.calls.some(c => /^(Bash|PowerShell)$/.test(c.name) && String(c.input.command || '').replace(/\\/g, '/').includes(b.file)
+    && /WriteAllText|Set-Content|Out-File|Add-Content|writeFileSync|\bsed\s+-i|\btee\b|>>?\s*["']?[\w./-]*\.md\b|\.Replace\(|\.replace\(/.test(String(c.input.command || '')))
     && (() => { const since = Date.parse(acts.at || '') || 0; try { return since > 0 && fs.statSync(path.join(ROOT, b.file)).mtimeMs > since; } catch { return false; } })());
 // (a routed runbook the agent never opened, while it opened another one, gives way to that one: the router guessed, the
 // agent chose. Lesson (trial v45): a page request routed to a recipe runbook on a broad trigger, the agent followed the

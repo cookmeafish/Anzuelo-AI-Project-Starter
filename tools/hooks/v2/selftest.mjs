@@ -421,13 +421,17 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
   const at = new Date(Date.now() - 60000).toISOString();
   const book = path.join(dir, 'docs/playbooks/export.md'), was = fs.statSync(book);
   fs.utimesSync(book, new Date(), new Date());
-  const scripted = missing(turn, { ...acts([user('add a marker to the export runbook'), call('Bash', { command: 'node fix.mjs docs/playbooks/export.md' }), edit, say('Added.')]), at });
+  const scripted = missing(turn, { ...acts([user('add a marker to the export runbook'), call('PowerShell', { command: "$p='docs/playbooks/export.md'; [IO.File]::WriteAllText($p, (Get-Content $p -Raw).Replace('a','b'))" }), edit, say('Added.')]), at });
   fs.utimesSync(book, was.atime, was.mtime);
   report(scripted.length === 0, 'end: a routed runbook a script changed during the turn does not hold the turn', scripted);
   fs.utimesSync(book, new Date(), new Date());
   const touched = missing(turn, { ...acts([user('add a csv export'), read, call('Bash', { command: 'node tools/hooks/hooks.mjs sync' }), edit, say('Done.')]), at });
   fs.utimesSync(book, was.atime, was.mtime);
   report(touched.length > 0, 'end: a routed runbook rewritten by a command that does not name it (a sync, a pull) still holds the turn', touched);
+  fs.utimesSync(book, new Date(), new Date());
+  const readOnly = missing(turn, { ...acts([user('upgrade the export tool'), call('PowerShell', { command: 'Get-Content docs/playbooks/export.md | Select-Object -First 40' }), edit, say('Done.')]), at });
+  fs.utimesSync(book, was.atime, was.mtime);
+  report(readOnly.length > 0 && !readOnly.some(s => /^Open/.test(s)), 'end: a runbook an upgrade rewrote and the turn only read by a command is the one followed, not the turn\'s own work', readOnly);
   const { doneWhen } = await import('./lib.mjs');
   report(doneWhen('## Done when\r\n1. Zipped (file: logs/*.zip)\r\n2. Noted\r\n').length === 2, 'runbook: Done when items are read from raw Windows line endings');
   const [paren] = doneWhen('## Done when\n1. The build is named (answer: build (one|two) ready)\n');
