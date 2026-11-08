@@ -13,8 +13,9 @@
 //   node tools/new-project.mjs "<folder>" --add-skill <name>  copy a skill from the starter's library into a project's skills/
 //   node tools/new-project.mjs "<folder>" --remove    take the engine out: unwire its hooks, remove its files (backed up
 //     in .cache/engine-removed/), keep everything the project wrote
-//   node "<a starter clone in a project's folder>/tools/new-project.mjs" --self-install [--git]   that folder becomes the
-//     project; the starter moves to its own copy beside it, which the project links to
+//   node "<a starter clone in a project's folder>/tools/new-project.mjs" --self-install [--git] [--beside]   that folder
+//     then holds the starter's own copy (named after the repository) and the project (named after the folder), which
+//     links to that copy; --beside makes the folder the project, with the copy next to it
 //   add --dry-run to see what would happen (a summary; --verbose lists every file); --dev allows a development copy (.starter-dev) for throwaway test projects
 // The AI installs packs during setup (SETUP-PROMPT.md): it asks what the project is about and picks only what fits.
 import fs from 'node:fs';
@@ -75,9 +76,8 @@ const flag = f => args.includes(f);
 const opt = f => { const i = args.indexOf(f); return i >= 0 ? args[i + 1] : undefined; };
 const target = args.find((a, i) => !a.startsWith('--') && !['--name', '--desc', '--add-pack', '--add-skill'].includes(args[i - 1]));
 const dry = flag('--dry-run');
-// Self-install: a clone of the starter made straight into a project's folder becomes that project. The starter moves
-// to its own copy beside it (named after the repository and the project), and the project is made from that copy and
-// linked to it, so it upgrades from it. Lesson (a field report): a clone into a new project's folder left the agent
+// Self-install: a clone of the starter made straight into a project's folder sets that project up. The starter moves
+// to its own copy, and the project is made from that copy and linked to it, so it upgrades from it. Lesson (a field report): a clone into a new project's folder left the agent
 // guessing where the starter belongs, and the user had to know the layout.
 if (flag('--self-install')) {
   const git = (cwd, ...a) => spawnSync('git', a, { cwd, encoding: 'utf8' });
@@ -90,9 +90,14 @@ if (flag('--self-install')) {
   const repo = path.basename(url.replace(/\.git$/, '').replace(/[\\/]+$/, '')) || 'starter';
   const proj = opt('--name') || path.basename(STARTER);
   if (proj.toLowerCase().startsWith(repo.toLowerCase())) fail(`${STARTER} is named as a starter copy, not a project: run its tools/new-project.mjs "<project folder>".`);
-  const copy = path.join(path.dirname(STARTER), `${repo}-${proj.replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '')}`);
+  // (by default the folder holds both, side by side: the starter's copy, named after the repository, and the project,
+  // named after the folder. --beside makes the folder the project, with the copy next to it. The user, 2026-11-08: one
+  // folder per project, with its own starter and the project inside)
+  const beside = flag('--beside');
+  const copy = beside ? path.join(path.dirname(STARTER), `${repo}-${proj.replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '')}`) : path.join(STARTER, repo);
+  const into = beside ? STARTER : path.join(STARTER, proj.replace(/[<>:"/\\|?*]+/g, '-').trim());
   const head = (git(STARTER, 'rev-parse', 'HEAD').stdout || '').trim();
-  console.log(`Self-install: ${STARTER} becomes the project "${proj}"; the starter goes to ${copy} (at ${head.slice(0, 7)}), and the project links to it.`);
+  console.log(`Self-install: the project "${proj}" goes to ${into}; the starter goes to ${copy} (at ${head.slice(0, 7)}), and the project links to it.`);
   if (dry) { console.log('Dry run, nothing written.'); process.exit(0); }
   if (fs.existsSync(copy)) {
     if (fs.existsSync(path.join(copy, '.starter-dev')) || !fs.existsSync(path.join(copy, 'tools/new-project.mjs'))) fail(`${copy} exists and is no stable starter copy: move it away first.`);
@@ -103,10 +108,11 @@ if (flag('--self-install')) {
     if (url) git(copy, 'remote', 'set-url', 'origin', url);
   }
   // (the clone here is exactly the commit the copy now has, with nothing of its own: the folder is emptied for the project)
-  for (const n of fs.readdirSync(STARTER)) fs.rmSync(path.join(STARTER, n), { recursive: true, force: true });
-  const pass = args.filter(a => a !== '--self-install' && a !== '--dry-run');
-  const r = spawnSync(process.execPath, [path.join(copy, 'tools/new-project.mjs'), STARTER, ...(pass.includes('--name') ? [] : ['--name', proj]), ...pass], { stdio: 'inherit' });
-  if (r.status !== 0) fail(`Making the project failed; the folder is empty and the starter is safe in ${copy}. Retry: node "${path.join(copy, 'tools/new-project.mjs')}" "${STARTER}"`);
+  for (const n of fs.readdirSync(STARTER)) if (beside || n !== path.basename(copy)) fs.rmSync(path.join(STARTER, n), { recursive: true, force: true });
+  const pass = args.filter(a => !['--self-install', '--dry-run', '--beside'].includes(a));
+  const r = spawnSync(process.execPath, [path.join(copy, 'tools/new-project.mjs'), into, ...(pass.includes('--name') ? [] : ['--name', proj]), ...pass], { stdio: 'inherit' });
+  if (r.status !== 0) fail(`Making the project failed; the starter is safe in ${copy}. Retry: node "${path.join(copy, 'tools/new-project.mjs')}" "${into}"`);
+  console.log(`\nOpen the project folder with your agent: ${into}`);
   process.exit(0);
 }
 if (!target) { console.log(usageOf(import.meta.url)); process.exit(1); }

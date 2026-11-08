@@ -7514,26 +7514,31 @@ if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) {
   // to its own copy beside it that the project links to; the session there is told to do it. A clone with changes of
   // its own is left alone. Lesson (a field report): the agent guessed where the starter belongs)
   {
-    const box = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-self-')), proj = path.join(box, 'Garden Notes'), copy = path.join(box, 'Some-Starter-Garden-Notes');
+    const box = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-self-'));
     const git = (cwd, ...a) => spawnSync('git', a, { cwd, encoding: 'utf8' });
-    try {
-      git(box, 'clone', '-q', ROOT, proj);
-      fs.copyFileSync(path.join(ROOT, 'tools/new-project.mjs'), path.join(proj, 'tools/new-project.mjs'));
-      fs.copyFileSync(path.join(ROOT, 'tools/hooks/hooks.mjs'), path.join(proj, 'tools/hooks/hooks.mjs'));
-      git(proj, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-qam', 'under test');
-      git(proj, 'remote', 'set-url', 'origin', 'https://example.com/x/Some-Starter.git');
-      const told = spawnSync(process.execPath, [path.join(proj, 'tools/hooks/hooks.mjs'), 'notices'], { cwd: proj, encoding: 'utf8', env: { ...process.env, CLAUDE_PROJECT_DIR: proj, ANZUELO_ROOT: '' } }).stdout || '';
-      fs.writeFileSync(path.join(proj, 'mine.txt'), 'x');
-      const held = spawnSync(process.execPath, [path.join(proj, 'tools/new-project.mjs'), '--self-install'], { cwd: proj, encoding: 'utf8' });
-      fs.rmSync(path.join(proj, 'mine.txt'));
-      const r = spawnSync(process.execPath, [path.join(proj, 'tools/new-project.mjs'), '--self-install', '--git'], { cwd: proj, encoding: 'utf8', timeout: 300000 });
-      const rd = p => { try { return fs.readFileSync(path.join(proj, p), 'utf8'); } catch { return ''; } };
+    const cloneAt = dir => { git(box, 'clone', '-q', ROOT, dir);
+      for (const f of ['tools/new-project.mjs', 'tools/hooks/hooks.mjs']) fs.copyFileSync(path.join(ROOT, f), path.join(dir, f));
+      git(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-qam', 'under test');
+      git(dir, 'remote', 'set-url', 'origin', 'https://example.com/x/Some-Starter.git'); };
+    const install = (dir, ...a) => spawnSync(process.execPath, [path.join(dir, 'tools/new-project.mjs'), '--self-install', ...a], { cwd: dir, encoding: 'utf8', timeout: 300000 });
+    // the project is made, named after the folder, and linked to a working starter copy that points at the repository
+    const made = (proj, copy) => { const rd = p => { try { return fs.readFileSync(path.join(proj, p), 'utf8'); } catch { return ''; } };
       const link = (() => { try { return JSON.parse(rd('tools/starter.local.json')).path; } catch { return ''; } })();
-      report(/SELF-INSTALL: .*--self-install/.test(told) && held.status !== 0 && /changes of its own/.test(held.stderr) && r.status === 0
-        && /^# <!--name:PROJECT_NAME-->Garden Notes<!--/m.test(rd('AGENTS.md')) && !fs.existsSync(path.join(proj, '.starter-template')) && path.resolve(link || '.') === copy
-        && fs.existsSync(path.join(copy, 'tools/new-project.mjs')) && /Some-Starter\.git/.test(git(copy, 'remote', 'get-url', 'origin').stdout),
-        'self-install: a starter clone in a project folder becomes that project, with the starter in its own linked copy beside it; one with changes of its own is left alone',
-        `told: ${told.slice(0, 150)} | held: ${held.stderr.slice(0, 150)} | run ${r.status}: ${(r.stderr || '').slice(-300)} | link ${link}`);
+      return /^# <!--name:PROJECT_NAME-->Garden Notes<!--/m.test(rd('AGENTS.md')) && !fs.existsSync(path.join(proj, '.starter-template')) && path.resolve(link || '.') === copy
+        && fs.existsSync(path.join(copy, 'tools/new-project.mjs')) && /Some-Starter\.git/.test(git(copy, 'remote', 'get-url', 'origin').stdout); };
+    try {
+      const top = path.join(box, 'Garden Notes'), side = path.join(box, 'side', 'Garden Notes');
+      cloneAt(top); fs.mkdirSync(path.dirname(side)); cloneAt(side);
+      const told = spawnSync(process.execPath, [path.join(top, 'tools/hooks/hooks.mjs'), 'notices'], { cwd: top, encoding: 'utf8', env: { ...process.env, CLAUDE_PROJECT_DIR: top, ANZUELO_ROOT: '' } }).stdout || '';
+      fs.writeFileSync(path.join(top, 'mine.txt'), 'x');
+      const held = install(top);
+      fs.rmSync(path.join(top, 'mine.txt'));
+      const r = install(top, '--git'), rb = install(side, '--git', '--beside');
+      report(/SELF-INSTALL: .*--self-install/.test(told) && held.status !== 0 && /changes of its own/.test(held.stderr) && r.status === 0 && rb.status === 0
+        && made(path.join(top, 'Garden Notes'), path.join(top, 'Some-Starter')) && fs.readdirSync(top).length === 2
+        && made(side, path.join(box, 'side', 'Some-Starter-Garden-Notes')),
+        'self-install: a starter clone in a project folder sets it up, by default as the folder holding the starter\'s own copy and the project linked to it (--beside: the folder is the project, the copy next to it); one with changes of its own is left alone',
+        `told: ${told.slice(0, 150)} | held: ${held.stderr.slice(0, 150)} | run ${r.status}: ${(r.stderr || '').slice(-300)} | beside ${rb.status}: ${(rb.stderr || '').slice(-300)} | top has ${fs.existsSync(top) ? fs.readdirSync(top).join(',') : '-'}`);
     } finally { fs.rmSync(box, { recursive: true, force: true }); }
   }
 }
