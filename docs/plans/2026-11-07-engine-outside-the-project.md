@@ -110,8 +110,15 @@ A run that is stuck sets `status: blocked - <reason>` with `Tried:` and `Options
 - [x] Runbook and skill lookups read engine and local both, local winning on a name clash.
       (v2 selftest: a resolver test, and a project with the engine in `.anzuelo/engine/` where the reminder names a
       local runbook and an engine one and the turn record lands in `.anzuelo/local/`. Both fail on the old code.)
-- [ ] Selfcheck runs its scenarios in both layouts; both pass. Trial and audit pass in the starter.
-- [ ] Run `node tools/hooks/selfcheck.mjs`, `node tools/trial.mjs` and `node tools/audit.mjs`. Expected: 0 failed in each.
+- [x] Selfcheck runs its scenarios in both layouts; both pass. Trial and audit pass in the starter.
+      (2026-11-08, changed: the 1,681 scenarios write their fixtures under one folder (thousands of literal paths),
+      so they run in the starter layout only. The split layout gets its own scenario, `layout-split`: every tracked
+      file sorted to its root, then session, reminder, a guard, sync and the full audit run from `.anzuelo/engine/`;
+      sync leaves the engine unchanged and state lands in `.anzuelo/local/`. Assumed: one split scenario now, the
+      full port when Task 6 really moves the files - cost if wrong: a path missed outside what the scenario touches.
+      It found three real bugs, fixed: audit walk, audit links, git hygiene.)
+- [x] Run `node tools/hooks/selfcheck.mjs`, `node tools/trial.mjs` and `node tools/audit.mjs`. Expected: 0 failed in each.
+      (frozen copy of eae150d: v2 197/197, selfcheck 1681 passed, trial 143/143, audit PASS; pushed with 89ac2a2.)
 
 ### Task 3: wiring through local settings
 **Files:** `tools/hooks/wire.mjs`, `tools/starter/gitignore.project`, `tools/hooks/selfcheck.mjs`
