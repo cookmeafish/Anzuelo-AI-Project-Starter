@@ -51,6 +51,11 @@ A run that is stuck sets `status: blocked - <reason>` with `Tried:` and `Options
 - 2026-11-08, Task 2c: one judgment item on the app pack's feature runbook for features that answer from sources,
   with its method from RAGAS (arXiv:2309.15217), ARES (arXiv:2311.09476) and SQuAD 2.0 (arXiv:1806.03822), each read
   this turn on arxiv.org.
+- 2026-11-08, before the push: replay of typed no-change questions matching the research skill's triggers. Of 65
+  matches, most were session-continuation summaries and pastes; of the 7 typed ones about half were not fact
+  requests. Narrowed: summaries are never questions, and the first sentence must ask for facts. After: 3 held (2 real,
+  1 where helpers did the reading, which the live check waits for), 0 clearly false. None opened the skill, so 0 were
+  held under the live rule.
 
 ## Context
 - `tools/hooks/v2/end.mjs`: missing() and the others return nothing unless worked(acts) (lib.mjs, edits only).

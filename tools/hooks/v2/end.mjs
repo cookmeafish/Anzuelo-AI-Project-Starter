@@ -42,6 +42,13 @@ const kept = acts => {
   };
 };
 export const waived = (acts, list) => list.filter(kept(acts));
+// (not a question the user asked: a note from another session, a helper's report, a task notice, or the summary that
+// continues a session after its context ran out. Replay (real sessions): most turns matching a research trigger were
+// such summaries)
+// (and its first sentence asks for facts: a question, or research, look up, find out, compare. Replay (real sessions):
+// praise and instructions that only named "research" were held as answers)
+const relayed = acts => /<(cross-session-message|agent-message|task-notification)\b|^This session is being continued from a previous conversation/m.test(acts.heard || '')
+  || !(s => /\?|\b(research|look (it |this |that )?up|find out|compare|according to)\b/i.test(s) || /^\W*(?:\w+\W+){0,3}(what|which|who|when|where|how|is there|are there|tell me)\b/i.test(s))((/^\s*([^\n.!?]*[.!?]?)/.exec(String(acts.heard || '').replace(/<pasted_content[\s\S]*?<\/pasted_content>/g, ' ')) || [])[1] || '');
 
 export function missing(turn, acts, books = runbooks()) {
   const book = chosen(turn, acts, books);
@@ -52,7 +59,7 @@ export function missing(turn, acts, books = runbooks()) {
   // turn this would have held was such a message)
   // (and only a runbook made for answers, one with an "(evidence)" item: a broad route like the project runbook's caught
   // routine and scheduled prompts. Lesson (a live false block))
-  const asked = book && !worked(acts) && book.file === turn.runbook && book.items.some(it => it.kind === 'evidence') && !/<(cross-session-message|agent-message|task-notification)\b/.test(acts.heard || '');
+  const asked = book && !worked(acts) && book.file === turn.runbook && book.items.some(it => it.kind === 'evidence') && !relayed(acts);
   if (!book || (!worked(acts) && !asked)) return [];
   const out = [];
   if (!opened(book, acts)) out.push(`Open ${book.file} and ${asked ? 'answer by' : 'check the work against'} its steps.`);
@@ -68,7 +75,7 @@ export function missing(turn, acts, books = runbooks()) {
 export function skillMissing(acts, books = skillBooks()) {
   // (a typed question that opened a skill is held to its evidence items only; a work turn to all but those)
   const work = worked(acts);
-  if (!work && /<(cross-session-message|agent-message|task-notification)\b/.test(acts.heard || '')) return [];
+  if (!work && relayed(acts)) return [];
   return books.filter(s => opened({ ...s, skills: [] }, acts) && !authored(s, acts))
     .flatMap(s => s.items.filter(it => it.kind && (work ? it.kind !== 'evidence' : it.kind === 'evidence') && applies(it, acts) && met(it, acts) === false)
       .map(it => `${s.file} item ${it.n}: ${it.kind === 'evidence' ? evidenceGaps(acts).join(' ') : it.text}`));

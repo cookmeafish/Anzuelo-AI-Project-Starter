@@ -345,6 +345,13 @@ report(noLog.length === 2 && noLog.some(s => /item 2/.test(s)) && noLog.some(s =
   const openSk = call('Read', { file_path: path.join(dir, 'skills/facts/SKILL.md') });
   const asked = skillMissing(acts([user('when is high tide?'), openSk, say('About forty minutes after the gauge.')]), sk);
   const built = skillMissing(acts([user('add the tide table'), openSk, edit, say('Added the table.')]), sk);
+  const resumed = skillMissing(acts([user('This session is being continued from a previous conversation that ran out of context. The summary below covers the research so far.'), openSk, say('Continuing.')]), sk);
+  report(resumed.length === 0, 'end: the summary that continues a session is not a question held to evidence', resumed);
+  const praise = skillMissing(acts([user('Great job! The research you did last week really helped.'), openSk, say('Glad it helped.')]), sk);
+  const order = [...skillMissing(acts([user('Only the two cards I named. Keep the rest of the research as it is'), openSk, say('Kept.')]), sk),
+    ...skillMissing(acts([user('only the two cards i named, which are the green ones.'), openSk, say('Kept.')]), sk)];
+  const ask = skillMissing(acts([user('Please research the best tide tables for the bay'), openSk, say('The gauge is best.')]), sk);
+  report(praise.length === 0 && order.length === 0 && ask.length === 1, 'end: praise and instructions that only mention research are not answers held to evidence; a request for facts is', { praise, order, ask });
   report(asked.length === 1 && /skills\/facts\/SKILL\.md item 1: Read the sources/.test(asked[0]) && built.length === 0,
     'end: a skill\'s evidence item holds a typed question that opened it, never a work turn', { asked, built });
 }
