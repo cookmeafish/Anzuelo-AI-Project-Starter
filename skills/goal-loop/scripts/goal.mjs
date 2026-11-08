@@ -19,7 +19,7 @@ if (cmd === 'new' && arg) {
   const file = path.join('docs', 'plans', `${day}-goal-${slug}.md`);
   if (fs.existsSync(file)) { console.log(`${file} already exists: resume it, or pick another wording`); process.exit(2); }
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, `# Goal loop: ${arg}\n\nGoal: ${arg}\nMeasure: \nBar: \nLimit: 5\nGuard: \n\n- [ ] Goal met, or the loop stopped with its reason (the Result section)\n\n## Rounds\n\n## Result\n`);
+  fs.writeFileSync(file, `# Goal loop: ${arg}\n\nGoal: ${arg}\nMeasure: \nRubric: (only for a measure a helper scores)\nBar: \nLimit: 5\nGuard: \n\n- [ ] Goal met, or the loop stopped with its reason (the Result section)\n\n## Rounds\n\n## Result\n`);
   console.log(file);
   process.exit(0);
 }
@@ -36,6 +36,8 @@ const lines = text.split(/\r?\n/);
 const base = lines.findIndex(l => /^\s*-\s*Baseline:/i.test(l));
 const rounds = lines.map((l, i) => ({ l, i })).filter(x => /^\s*-\s*Round\s+\d+:/i.test(x.l));
 if (rounds.length && (base < 0 || base > rounds[0].i)) problems.push('no "- Baseline:" line before the first round');
+if (base >= 0 && !/\|\s*guard:\s*(pass|fail)/i.test(lines[base])) problems.push('the Baseline line needs "<value> | guard: pass|fail"');
+rounds.forEach(({ l }, k) => { if (Number(/Round\s+(\d+)/i.exec(l)[1]) !== k + 1) problems.push(`the rounds are not numbered 1, 2, 3 in order (found "${l.trim().slice(0, 30)}" as round ${k + 1})`); });
 for (const { l } of rounds) {
   const n = /Round\s+(\d+)/i.exec(l)[1], parts = l.split('|').map(s => s.trim());
   const guard = /guard:\s*(pass|fail)/i.exec(l)?.[1]?.toLowerCase(), verdict = /\|\s*(kept|undone)\b/i.exec(l)?.[1]?.toLowerCase();
@@ -46,5 +48,6 @@ if (limit && rounds.length > limit) problems.push(`${rounds.length} rounds, over
 const closed = /^\s*[-*] \[[xX]\]/m.test(text), status = /^status:\s*(done|dropped)\b.*$/im.exec(text)?.[0];
 if (closed && !status) problems.push('the box is ticked but the Result section has no "status: done - <met, limit or stalled>" line');
 if (status && !closed) problems.push('the Result has its status line but the box is not ticked');
+if (status && !/^status:\s*(done\s*-\s*(met\b.*\S|limit\b|stalled:\s*\S)|dropped\s*-\s*\S)/i.test(status)) problems.push('the status line must be "status: done - met <value>", "done - limit", "done - stalled: <why>" or "dropped - <why>"');
 console.log(problems.length ? `RESULT: FAIL\n${problems.map(p => `- ${p}`).join('\n')}` : `RESULT: PASS (${rounds.length} round(s)${status ? `, ${status}` : ', open'})`);
 process.exit(problems.length ? 1 : 0);

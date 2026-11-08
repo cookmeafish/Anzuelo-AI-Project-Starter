@@ -11,32 +11,39 @@ measures the real result (not a stand-in for it), and keeps the change only if t
 passed before fails. The log in `docs/plans/` lets any later session pick up where the last one stopped.
 
 ## Steps
-1. **Set the goal with the user, in one message.** Take it from the request. If the request has no goal ("make the
-   project better"), suggest at most 4, then wait for the choice:
+1. **Set the goal with the user, in one message.** Take it from the request. A goal with no number ("until it loads
+   fast") gets a proposed bar and measure in that message ("median load under 1 s, timed with ..."); with
+   `"autonomy": "auto"`, use the proposal and record it as `Assumed:`. If the request has no goal ("make the project
+   better"), suggest at most 4, then wait for the choice:
    - **Fitted to this project:** read `docs/BRIEF.md` and the installed packs (`docs/playbooks/`). Software: a failing
      or flaky test suite made green, a slow page or command made faster, a bug class removed. Knowledge work: reports
      that a reader rates higher on a fixed rubric, facts with sources. Screens: a review loop round with no findings.
    - **Any project:** fewer wasted steps per turn (`node skills/efficiency-review/scripts/efficiency.mjs`), fewer
      end-check send-backs, the project's full checks passing (`node tools/audit.mjs`).
 2. **Write the log** with `node skills/goal-loop/scripts/goal.mjs new "<goal>"`. It creates
-   `docs/plans/YYYY-MM-DD-goal-<slug>.md`. Fill its five lines:
+   `docs/plans/YYYY-MM-DD-goal-<slug>.md` with these lines to fill (`Limit:` starts at 5):
    - `Goal:` the result in the user's words.
-   - `Measure:` a command that prints the number (preferred), or a fixed rubric of 3 to 5 questions that a fresh helper
-     scores 1 to 5. The helper gets only the result and the rubric, never the change or your reasoning, and uses the
-     same rubric every round.
-   - `Bar:` the value that means done (for example "0 failing tests", "median under 2 s", "every rubric score 4+").
-   - `Limit:` the number of rounds, 5 unless the user says otherwise.
-   - `Guard:` the commands that must keep passing: the project's tests (`docs/foundation.md` or the package file) and
-     `node tools/audit.mjs`.
-3. **Baseline.** Run the measure and the guard before any change. Write `- Baseline: <value> | guard: pass` (or
-   `fail - <what>`: fix or note that first, since a red guard hides what a change breaks).
+   - `Measure:` a command that prints the number (preferred: a test run, a timing script, a count), run 3 times for
+     anything timed, the median counted. Without one, a fixed rubric of 3 to 5 questions, written in the log's
+     `Rubric:` line, that a fresh helper agent (the Agent tool, a cheaper model) scores 1 to 5. The helper gets only the
+     result and the rubric, never the change or your reasoning.
+   - `Bar:` the value that means done (for example "0 failing tests", "median under 1 s", "every rubric score 4+").
+   - `Limit:` the number of rounds: 5 unless the user gives one.
+   - `Guard:` the commands that must keep passing: the project's test command (from `docs/foundation.md`, the package
+     file or the README) and `node tools/audit.mjs`. A project with no tests has the audit alone; say so in the line.
+3. **Baseline.** Commit or stash any open work first, so each round can be undone cleanly. Run the measure and the
+   guard. Write `- Baseline: <value> | guard: pass` (or `guard: fail - <what>`: fix that first, or note it, since a red
+   guard hides what a change breaks).
 4. **One round.** Pick the change most likely to close the biggest gap, smallest first. Make it, run the measure, then
-   the guard. Write `- Round N: <the change> | <value> | guard: pass|fail | kept|undone`. Keep it only if the value moved
-   toward the bar and the guard passes; otherwise undo it (`git checkout -- <files>` or reverse the edit) and write why.
+   the guard. Write `- Round N: <the change> | <value> | guard: pass|fail | kept|undone`. A gain counts when it beats
+   the baseline (or the last kept round) by more than the spread of its 3 timed runs, or by at least 1 rubric point.
+   Keep it only with a gain and the guard passing, and commit it; otherwise undo it (`git checkout -- <files>`, and
+   delete new files) and write why.
 5. **Repeat step 4** until the bar is met, the limit is reached, or two rounds in a row brought no gain (stalled: the
    next change needs a different approach or the user's input).
-6. **Close the log:** a `## Result` section with `status: done - met <value>`, `status: done - limit`, or
-   `status: done - stalled: <why>`, and tick the box. Check it: `node skills/goal-loop/scripts/goal.mjs check <log>`.
+6. **Close the log:** under `## Result`, one line `status: done - met <value>`, `status: done - limit`, or
+   `status: done - stalled: <why>` (`status: dropped - <why>` if the user stops it), and tick the box at the top of the
+   log. Check it: `node skills/goal-loop/scripts/goal.mjs check <log>`.
 7. **Answer** with the goal, the baseline and final values, each kept change in one line, what was undone and why,
    and the log's path. A goal not met says so plainly and names the next approach.
 

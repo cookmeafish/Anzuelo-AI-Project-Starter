@@ -6126,6 +6126,10 @@ if (mineB() && fs.existsSync(path.join(ROOT, 'skills/goal-loop/scripts/goal.mjs'
     const noBase = run('check', f);
     fill('- Baseline: 480 ms | guard: pass\n- Round 1: cache the index | 210 ms | guard: fail | undone\n- Round 2: index once at start | 190 ms | guard: pass | kept');
     const good = run('check', f);
+    fs.writeFileSync(f, fs.readFileSync(f, 'utf8').replace('- [ ]', '- [x]').replace('Round 2:', 'Round 3:') + 'status: done\n');
+    const badClose = run('check', f);
+    report(badClose.status === 1 && /not numbered 1, 2, 3/.test(badClose.stdout) && /status line must be/.test(badClose.stdout),
+      'goal-loop: the log check fails rounds out of order and a closing status that says neither met, limit nor stalled', badClose.stdout.slice(0, 300));
     report(made.status === 0 && /docs[\\/]plans[\\/]\d{4}-\d\d-\d\d-goal-faster-search-page\.md/.test(made.stdout) && empty.status === 1 && /"Measure:" is empty/.test(empty.stdout)
       && brokeKept.status === 1 && /kept with the guard failing/.test(brokeKept.stdout) && noBase.status === 1 && /no "- Baseline:"/.test(noBase.stdout) && good.status === 0 && /RESULT: PASS \(2 round/.test(good.stdout),
       'goal-loop: the log check fails an unfilled log, a change kept while the guard failed, and rounds with no baseline; a filled log with measured rounds passes', [empty.stdout, brokeKept.stdout, noBase.stdout, good.stdout].join(' | ').slice(0, 600));
