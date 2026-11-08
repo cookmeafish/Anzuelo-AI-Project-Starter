@@ -53,7 +53,7 @@ export function runbooks() {
       const menu = (/^menu:\s*(.+)$/m.exec(fm)?.[1] || '').split(/[,\s]+/).map(s => s.trim().toUpperCase()).filter(s => /^[A-Z]\d{1,2}$/.test(s));
       // (the skills it hands its steps to: its own mirror, and each skills/<name>/SKILL.md its text names)
       const skills = [...new Set([`skills/${f.replace(/\.md$/, '')}/SKILL.md`, ...[...text.matchAll(/\bskills\/[\w-]+\/SKILL\.md\b/g)].map(m => m[0])])];
-      out.push({ name: f.replace(/\.md$/, ''), file, triggers, menu, items: doneWhen(text), skills });
+      out.push({ name: f.replace(/\.md$/, ''), file, triggers, menu, items: doneWhen(text), skills, front: fm });
     }
   }
   return out;
@@ -574,6 +574,7 @@ export function securityGaps(acts) {
     .map(c => relp(c.input.file_path));
   if (!hit.length) return [];
   const reviewed = acts.calls.some(c => (c.name === 'Skill' && /security-review$/.test(String(c.input.skill || '')))
+    || (/^(Agent|Task)$/.test(c.name) && /security-review/.test(String(c.input.prompt || '')))
     || (c.name === 'Read' && /skills[\\/]security-review[\\/]SKILL\.md$/i.test(String(c.input.file_path || '')))
     || (/^(Edit|Write)$/.test(c.name) && /^docs\/reviews\/security[^/]*\.md$/i.test(relp(c.input.file_path || ''))))
     || changedSince(acts, { test: r => /^docs\/reviews\/security[^/]*\.md$/i.test(r) }).length > 0;

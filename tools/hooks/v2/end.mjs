@@ -31,6 +31,25 @@ export function skillMissing(acts, books = skillBooks()) {
     .flatMap(s => s.items.filter(it => it.kind && applies(it, acts) && met(it, acts) === false).map(it => `${s.file} item ${it.n}: ${it.text}`));
 }
 
+// A fresh reviewer, once per turn, before the answer, when it pays: the user was upset with the work (the agent's own
+// fix tends to cover only the case shown), risky work is about to be called done (security-sensitive code, a release
+// or publish), or the runbook asks for an outside read of its judgment items ("review: helper"). One helper covers all of
+// it, on a cheaper model, with only the facts it needs, never the agent's reasoning. Lesson (the user, 2026-11-07): a
+// second agent that hasn't seen the work finds what the first one is blind to, and its cost must stay small.
+const RELEASE = /\bgit\s+tag\s+(-[as]\s+)?v?\d|\bgh\s+release\s+create\b|\bnpm\s+publish\b|\bgit\s+push\b[^\n]*--tags\b/i;
+export function reviewGaps(turn, acts, books = runbooks()) {
+  if (!worked(acts)) return [];
+  const book = chosen(turn, acts, books), why = [];
+  if (turn.upset) why.push('the user\'s complaint, and every file the fix touched: find every case of the same problem, not only the one named');
+  if (securityGaps(acts).length || acts.calls.some(c => /^(Bash|PowerShell)$/.test(c.name) && RELEASE.test(String(c.input.command || '')) && !/--dry-run/.test(String(c.input.command || ''))))
+    why.push('the changed files: follow skills/security-review/SKILL.md on them and report each FAIL');
+  const judged = book && /^review:\s*helper\b/m.test(book.front || '') ? book.items.filter(it => applies(it, acts) && met(it, acts) === null) : [];
+  if (judged.length) why.push(`what the work produced, against these items of ${book.file}: ${judged.map(it => it.n).join(', ')}`);
+  if (!why.length) return [];
+  const asked = acts.calls.some(c => /^(Agent|Task)$/.test(c.name) && /\b(fresh|independent|blind|outside)\b[^\n]{0,40}\breview|has not seen/i.test(`${c.input.description || ''} ${c.input.prompt || ''}`));
+  return asked ? [] : [`Before the answer, have one fresh reviewer check the work (one helper for all of it; a cheaper model such as "sonnet"; the word "fresh review" in its brief). Give it only ${why.join('; and ')}. Never your reasoning. Ask for each problem with its file and line, in under 150 words, then check what it reports and fix what holds.`];
+}
+
 // The items of that runbook no script can check: on a turn that changed files, the agent itself goes over them once at
 // the end, in the same single block, so the whole list gets done, not only its checkable part. Lesson (the user,
 // 2026-11-05): the hook before reminds, the hook after has the agent verify that everything on the runbook was done.
@@ -80,7 +99,7 @@ function judge(data, { shadow = false } = {}) {
   // Lesson (2026-11-07): an Issue line in the first answer re-blocked the corrected answer that had none)
   if (again && turn.lastBlock) { const after = turnActs(rows.filter(r => (Date.parse(r.timestamp || '') || 0) > turn.lastBlock)); acts.said = after.said + (final && !after.said.includes(final) ? `${final}\n` : ''); acts.answer = final || after.answer || acts.answer; }
   const history = evidenceOf(tail(data.transcript_path, 5 << 20));
-  const list = [...missing(turn, acts), ...skillMissing(acts), ...testGaps(acts, history), ...gateGaps(acts), ...screenGaps(acts), ...healthGaps(acts, { run: !shadow }), ...knowledgeGaps(acts), ...securityGaps(acts), ...questionGaps(acts), ...noteGaps(acts), ...claimGaps(acts, history)];
+  const list = [...missing(turn, acts), ...skillMissing(acts), ...reviewGaps(turn, acts), ...testGaps(acts, history), ...gateGaps(acts), ...screenGaps(acts), ...healthGaps(acts, { run: !shadow }), ...knowledgeGaps(acts), ...securityGaps(acts), ...questionGaps(acts), ...noteGaps(acts), ...claimGaps(acts, history)];
   const check = again ? null : toVerify(turn, acts);
   if (!list.length && !check) return null;
   const parts = [], last = rounds + 1 === MAX_BLOCKS;

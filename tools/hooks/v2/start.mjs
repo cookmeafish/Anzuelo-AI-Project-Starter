@@ -83,7 +83,9 @@ export function reminder(prompt) {
   // (said in the runbook line itself: a line of its own was most of the reminders' growth on peer messages)
   const lines = [...(sore ? [sore] : []), ...(es ? [es] : []), ...own, `Runbook${relayedRx.test(raw) ? ', only if this message asks for work here' : ''}: open ${book.file} and follow it.`];
   if (book.items.length) {
-    lines.push('Done when:');
+    // (and how to hold the answer until it passes, in the same line. Lesson (the user, 2026-11-07): an answer sent back
+    // by the end check reached the user twice; the first version must already be the final one)
+    lines.push('Done when (before answering, check your draft: node tools/hooks/hooks.mjs check --answer-file <draft>):');
     for (const it of book.items) lines.push(`${it.n}. ${it.text.length > 140 ? it.text.slice(0, it.text.lastIndexOf(' ', 137)) + '...' : it.text}`);
   }
   // (more items than fit: the runbook has the rest)
@@ -102,7 +104,9 @@ export function onPrompt(data) {
   // its runbook. A turn ends when its Stop passes; one left open over 12 hours, as after a crash, does not hold.
   // Lesson (live): a mid-turn message moved the turn's start, and the end check lost the work done before it)
   const prev = loadTurn(data.session_id);
-  if (prev.at && !prev.ended && Date.now() - Date.parse(prev.at) < 12 * 3600_000) saveTurn(data.session_id, { ...prev, runbook: prev.runbook || book?.file || null });
-  else saveTurn(data.session_id, { at: new Date().toISOString(), runbook: book?.file || null });
+  // (an upset message from the user, not a relay, marks the turn: its end check asks for a fresh reviewer)
+  const sore = upsetIn(data.prompt || '') && !relayedRx.test(String(data.prompt || '')) ? { upset: true } : {};
+  if (prev.at && !prev.ended && Date.now() - Date.parse(prev.at) < 12 * 3600_000) saveTurn(data.session_id, { ...prev, runbook: prev.runbook || book?.file || null, ...sore });
+  else saveTurn(data.session_id, { at: new Date().toISOString(), runbook: book?.file || null, ...sore });
   return text ? { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: text } } : null;
 }

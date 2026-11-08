@@ -58,7 +58,7 @@ const acts = rows => turnActs(turnRows(transcript(rows)));
     'start: a "(when ...)" item applies only on turns where its condition held, and its own check still counts there', [install, upg]);
 }
 const r = reminder('can you add a CSV export for the orders page');
-report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/.test(r.text) && /Done when:\n1\. The tests pass/.test(r.text) && !/ran:|file:|answer:|judgment:|REQ/.test(r.text),
+report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/.test(r.text) && /Done when \(before answering, check your draft: node tools\/hooks\/hooks\.mjs check --answer-file <draft>\):\n1\. The tests pass/.test(r.text) && !/ran:|file:|answer:|judgment:|REQ/.test(r.text),
   'start: a matching request gets the runbook and its Done-when list, in plain words', r.text);
 {
   const { route } = await import('./lib.mjs');
@@ -623,6 +623,28 @@ const { questionGaps } = await import('./lib.mjs');
     'end: a skill the turn opened is held to its checkable items (not its judgment ones); met or not opened, nothing', { opened, met, notOpened });
 }
 
+// (a fresh reviewer is asked for once, before the answer, only when it pays: an upset turn, risky work, or a runbook
+// that asks for an outside read of its judgment items; a turn that launched one is done)
+{
+  const { reviewGaps } = await import('./end.mjs');
+  const fix = call('Edit', { file_path: path.join(dir, 'notes/menu.md'), old_string: 'a', new_string: 'b' });
+  const helper = call('Agent', { description: 'fresh review of the fix', prompt: 'You have not seen this work. Find every case of ...' });
+  const upsetAsk = reviewGaps({ upset: true, runbook: null }, acts([user('you broke the menu again'), fix, say('Fixed.')]));
+  const upsetDone = reviewGaps({ upset: true, runbook: null }, acts([user('you broke the menu again'), fix, helper, say('Fixed.')]));
+  const calm = reviewGaps({ runbook: null }, acts([user('update the menu'), fix, say('Updated.')]));
+  const release = reviewGaps({ runbook: null }, acts([user('ship it'), fix, call('Bash', { command: 'git tag v1.2.0' }), say('Tagged.')]));
+  const dry = reviewGaps({ runbook: null }, acts([user('ship it'), fix, call('Bash', { command: 'gh release create v1.2.0 --dry-run' }), say('Checked.')]));
+  put('docs/playbooks/letters.md', '---\nname: letters\ntriggers: write a letter\nreview: helper\n---\n## Done when\n1. The letter is saved (file: letters/**)\n2. The tone fits the reader (judgment: a reader)\n');
+  const judged = reviewGaps({ runbook: 'docs/playbooks/letters.md' }, acts([user('write a letter'), call('Read', { file_path: path.join(dir, 'docs/playbooks/letters.md') }), call('Write', { file_path: path.join(dir, 'letters/a.md'), content: 'x' }), say('Written.')]));
+  fs.rmSync(path.join(dir, 'docs/playbooks/letters.md'));
+  const { onPrompt } = await import('./start.mjs'), { loadTurn: lt } = await import('./lib.mjs');
+  onPrompt({ session_id: 'soreturn', prompt: 'WHY DID YOU BREAK THE MENU AGAIN' }); onPrompt({ session_id: 'relayturn', prompt: 'Another Claude session sent a message: WHY DID YOU BREAK THE MENU AGAIN' });
+  if (!(lt('soreturn').upset === true && !lt('relayturn').upset)) report(false, 'start: an upset message from the user marks the turn; a relayed one does not', [lt('soreturn'), lt('relayturn')]);
+  report(upsetAsk.length === 1 && /complaint[\s\S]*every case/.test(upsetAsk[0]) && /sonnet/.test(upsetAsk[0]) && /Never your reasoning/.test(upsetAsk[0]) && upsetDone.length === 0 && calm.length === 0
+    && release.length === 1 && /security-review/.test(release[0]) && dry.length === 0 && judged.length === 1 && /letters\.md: 2\b/.test(judged[0]),
+    'end: a fresh reviewer is asked for on an upset turn, a release and a runbook with "review: helper" (one brief, a cheaper model, no reasoning); not on a calm turn or a dry run, nor once one ran', { upsetAsk, upsetDone, calm, release, dry, judged });
+}
+
 // (a preview of the end check on a draft records nothing, so the real check still comes fresh; a block asks for a short
 // note on what changed, never the whole answer again)
 {
@@ -933,6 +955,27 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
       hook('posttool', 'Edit', { file_path: path.join(c, 'src/export.js'), old_string: 'a', new_string: 'b' })];
     fs.rmSync(c, { recursive: true, force: true });
     report(outs.every(o => !/additionalContext|Heads-up|still running/i.test(o)), 'pretool, posttool: with a background test run and a helper going and a new user message, no call during work gets a notice (quiet work)', outs.map(o => o.slice(0, 160)));
+  }
+  // (a send-back adds no line of its own for the user: they see one answer, not a notice and then a second one. Lesson
+  // (the user, 2026-11-07): the answer goes out once, in its final version)
+  {
+    const { spawnSync } = await import('node:child_process');
+    const c = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-mark-'));
+    fs.mkdirSync(path.join(c, 'tools/hooks/state'), { recursive: true }); fs.mkdirSync(path.join(c, 'docs/playbooks'), { recursive: true });
+    fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(c, 'tools/hooks/v2'), { recursive: true });
+    for (const f of ['hooks.mjs', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
+    fs.writeFileSync(path.join(c, 'docs/playbooks/export.md'), '---\nname: export\ntriggers: csv export\n---\n## Done when\n1. The answer says how it was checked (answer: How it was checked)\n');
+    const tp = path.join(c, 't.jsonl'), at = new Date(Date.now() + 1000).toISOString();
+    const env = { ...process.env, STARTER_ENGINE: 'v2', ANZUELO_ROOT: c, CLAUDE_PROJECT_DIR: c };
+    const run = (cmd, extra) => spawnSync(process.execPath, [path.join(c, 'tools/hooks/hooks.mjs'), cmd], { cwd: c, encoding: 'utf8', input: JSON.stringify({ session_id: 'markline', transcript_path: tp, ...extra }), env }).stdout || '';
+    run('prompt', { prompt: 'add a csv export' });
+    fs.writeFileSync(tp, [{ type: 'user', timestamp: at, message: { role: 'user', content: 'add a csv export' } },
+      { type: 'assistant', timestamp: at, message: { role: 'assistant', content: [{ type: 'tool_use', id: 'mk1', name: 'Read', input: { file_path: path.join(c, 'docs/playbooks/export.md') } }, { type: 'tool_use', id: 'mk2', name: 'Write', input: { file_path: path.join(c, 'src/export.js'), content: 'x' } }] } },
+      { type: 'assistant', timestamp: at, message: { role: 'assistant', content: [{ type: 'text', text: 'Added.' }] } }].map(r => JSON.stringify(r)).join('\n') + '\n');
+    const out = run('stop', { last_assistant_message: 'Added.' });
+    fs.rmSync(c, { recursive: true, force: true });
+    let j = {}; try { j = JSON.parse(out); } catch { }
+    report(j.decision === 'block' && !j.systemMessage, 'stop: a send-back adds no line of its own for the user', out.slice(0, 300));
   }
   // (the checks a project wrote itself are listed for its upgrade to turn into "Done when" lines; shipped ones are not)
   {
