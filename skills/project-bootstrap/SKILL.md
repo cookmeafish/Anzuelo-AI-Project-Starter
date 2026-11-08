@@ -10,6 +10,8 @@ With `"autonomy": "auto"`: decide, record `Assumed:` lines, and still stop befor
 1. **`SETUP-PROMPT.md` exists:** follow it. It is the full procedure, from the interview to verification, including
    an existing project. Delete it only after `node tools/audit.mjs --setup` passes; the hooks deny it earlier
    (REQ: setup-gate).
+   With the engine in `.anzuelo/engine/`, setup holds until the user's answer about a private repository for
+   `.anzuelo/local/` is recorded (`node .anzuelo/engine/tools/starter.mjs local-repo yes|no`; question 12).
 2. **It is gone and the focus changes:**
    - Ask the setup questions again, only for what changed, and wait for the answers before installing anything. The
      questions are in Phase 2 of `SETUP-PROMPT.md`; if it is deleted, restore it from git history (`git log --diff-filter=D

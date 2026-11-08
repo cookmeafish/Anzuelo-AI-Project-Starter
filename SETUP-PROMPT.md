@@ -120,6 +120,12 @@ conversation already answers, and say what you inferred so the user can correct 
     to rewrite the user's own words copied into a file as a general lesson, so the agent has to understand the issue
     rather than copy it. Recommend no where exact quotes or examples are the point (a knowledge base of sources,
     interviews or records).
+12. **Only when the engine sits in `.anzuelo/engine/`** (and install did not already get the answer): should the
+    files made for this project (`.anzuelo/local/`: its runbooks, skills, rules, status and plans) be a private git
+    repository of their own? Yes gives them history and a backup, and they never go into the project's pushes. No
+    leaves a plain folder with no history or backup. Record it with
+    `node .anzuelo/engine/tools/starter.mjs local-repo yes|no`. Making a remote for it is a separate outward step that
+    needs its own OK.
 
 For software, also ask: the test, build, lint and run commands and the code folders; the work branch, and the
 branches, ports or running instances never to touch; whether visual or taste-driven work needs sign-off before commit;

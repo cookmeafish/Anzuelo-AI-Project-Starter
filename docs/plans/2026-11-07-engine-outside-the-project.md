@@ -140,12 +140,19 @@ A run that is stuck sets `status: blocked - <reason>` with `Tried:` and `Options
 ### Task 4: install, setup and the private-repository question
 **Files:** `tools/starter.mjs`, `SETUP-PROMPT.md`, `skills/project-bootstrap/SKILL.md`, `tools/hooks/hooks.mjs` (setup gate)
 **Uses / provides:** uses Task 3
-- [ ] `starter.mjs install` clones the engine into `.anzuelo/engine/` and wires it.
-- [ ] Setup (SETUP-PROMPT.md, project-bootstrap) and install ask once: keep the files made for this project in a
+- [x] `starter.mjs install` clones the engine into `.anzuelo/engine/` and wires it.
+      (2026-11-08: run from the starter: `install "<folder>" [--private yes|no]`. It clones the starter's committed
+      HEAD and points origin at the starter's own origin. The templates come from new-project.mjs in a scratch folder,
+      sorted by kind(): project records only where missing, the rest into local; AGENTS.md is not copied, so the
+      engine's rules keep getting upgrades. Name refills never touch an engine file, which would copy it into local.)
+- [x] Setup (SETUP-PROMPT.md, project-bootstrap) and install ask once: keep the files made for this project in a
       private git repository of their own (history and backup, never in the project's pushes)? Yes runs `git init`
       in `.anzuelo/local/`; no leaves a plain folder and says it has no backup. The answer is recorded in
       `.anzuelo/local/config.json`. Creating a remote for it is an outward action and needs its own OK.
-- [ ] Test: the setup gate fails until the answer is recorded; both answers pass.
+      (`starter.mjs local-repo yes|no`; SETUP-PROMPT question 12; the setup gate in setupCompleteness.)
+- [x] Test: the setup gate fails until the answer is recorded; both answers pass.
+      (selfcheck `layout-split`, install scenario: an existing README is kept, the gate asks, yes makes the repository,
+      no records false, and each clears the gate.)
 - [ ] Run `node tools/hooks/selfcheck.mjs`. Expected: 0 failed, both answers tested.
 
 ### Task 5: upgrades never touch what the project made
