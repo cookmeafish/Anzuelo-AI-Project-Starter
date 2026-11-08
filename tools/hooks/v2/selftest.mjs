@@ -348,15 +348,31 @@ report(noLog.length === 2 && noLog.some(s => /item 2/.test(s)) && noLog.some(s =
   report(asked.length === 1 && /skills\/facts\/SKILL\.md item 1: Read the sources/.test(asked[0]) && built.length === 0,
     'end: a skill\'s evidence item holds a typed question that opened it, never a work turn', { asked, built });
 }
-{ // (a question its routed runbook fits is held to opening it and to its answer items only; an unrouted one is free)
-  const skipped = missing(turn, acts([user('what does the csv export do?'), say('It writes one row per order.')]));
-  const followed = missing(turn, acts([user('what does the csv export do?'), read, say('It writes one row per order; how it was checked: the code.')]));
-  const loose = missing(turn, acts([user('what does the csv export do?'), read, say('It writes one row per order.')]));
-  const free = [...missing({ runbook: null }, acts([user('what does the csv export do?'), say('It writes one row per order.')])),
-    ...missing(turn, acts([user('Another Claude session sent a message:\n<cross-session-message from="x">The csv export is upgraded; totals as usual.</cross-session-message>'), say('Noted.')]))];
-  report(skipped.length === 2 && /^Open docs\/playbooks\/export\.md and answer by its steps/.test(skipped[0]) && /item 3/.test(skipped[1])
-    && followed.length === 0 && loose.length === 1 && /item 3/.test(loose[0]) && free.length === 0,
-    'end: a question its routed runbook fits must open it and meet its answer items (never its file or command items); an unrouted question, or a note from another session, is free', { skipped, followed, loose, free });
+{ // (a question is held only to a routed runbook made for answers, one with an "(evidence)" item: opening it and its
+  // answer and evidence items, never its file or command items. Any other routed runbook, an unrouted question and a
+  // note from another session are free. Lesson (a live false block): a scheduled status prompt was held to the broad
+  // project runbook)
+  const { doneWhen } = await import('./lib.mjs');
+  put('notes/ferry.md', 'The ferry leaves the north pier at nine.\n');
+  const items = doneWhen('## Done when\n1. The answer says how it was checked (answer: how it was checked)\n2. Every fact traces to a source (evidence)\n3. The notes index is rebuilt (file: notes/INDEX.md)\n');
+  const books = [{ file: 'docs/playbooks/ferry.md', name: 'ferry', triggers: [], menu: [], skills: [], items }];
+  const rt = { runbook: 'docs/playbooks/ferry.md' }, openIt = call('Read', { file_path: path.join(dir, 'docs/playbooks/ferry.md') }), src = call('Read', { file_path: path.join(dir, 'notes/ferry.md') }, 'The ferry leaves the north pier at nine.');
+  const skipped = missing(rt, acts([user('when does the ferry leave?'), say('At nine.')]), books);
+  const followed = missing(rt, acts([user('when does the ferry leave?'), openIt, src, say('At nine (notes/ferry.md); how it was checked: the notes.')]), books);
+  const loose = missing(rt, acts([user('when does the ferry leave?'), openIt, src, say('At nine (notes/ferry.md).')]), books);
+  const free = [...missing(turn, acts([user('what does the csv export do?'), say('It writes one row per order.')])),
+    ...missing({ runbook: null }, acts([user('when does the ferry leave?'), say('At nine.')]), books),
+    ...missing(rt, acts([user('Another Claude session sent a message:\n<cross-session-message from="x">Ferry notes are updated.</cross-session-message>'), say('Noted.')]), books)];
+  report(skipped.length === 3 && /^Open docs\/playbooks\/ferry\.md and answer by its steps/.test(skipped[0]) && followed.length === 0
+    && loose.length === 1 && /ferry\.md item 1/.test(loose[0]) && free.length === 0,
+    'end: a question is held only to a routed answer runbook (open it, its answer and evidence items); any other routed runbook, an unrouted question and a note from another session are free', { skipped, followed, loose, free });
+  // (a not-fit line naming the runbook, by path, file name or "the <name> runbook", clears its Open ask and its items)
+  const { waived } = await import('./end.mjs');
+  const gaps = ['Open docs/playbooks/project.md and check the work against its steps.', 'docs/playbooks/project.md item 2: The rule has a check', 'docs/playbooks/other.md item 1: Done'];
+  const byName = waived({ answer: 'The project runbook doesn\'t fit a routine status check, so I didn\'t follow it.' }, gaps);
+  const byPath = waived({ answer: 'docs/playbooks/project.md does not fit this work: it is for project rules and setup.' }, gaps);
+  report(byName.length === 1 && byPath.length === 1 && /other\.md/.test(byName[0]) && waived({ answer: 'Followed the project runbook.' }, gaps).length === 3,
+    'end: a not-fit line naming the runbook clears its Open ask and all its items, and only that runbook\'s', { byName, byPath });
 }
 const earlier = missing(turn, acts([user('add a csv export'), read, edit, call('Bash', { command: 'npm test' }), log, say('How it was checked: tests.'), user('and the totals row?'), edit, say('Added.')]));
 report(earlier.some(s => /item 1/.test(s)) && earlier.some(s => /Open/.test(s)), 'end: only this turn counts, not what an earlier turn did', earlier);

@@ -24,12 +24,19 @@ const chosen = (turn, acts, books) => { const routed = turn.runbook && books.fin
 // A runbook item the answer says, in one line, does not fit this work is cleared: the line names it ("item 3") and
 // says why. Lesson (a project's report): the block offered that way out, and the line that took it was held again.
 // (or names a path the item names, and says why in plain words: agents rarely write "item 3")
-const NOFIT = /\b(does(?:n['’]t| not) (?:fit|apply)|not (?:applicable|needed|relevant)|n\/a|(?:was|is)(?:n['’]t| not) part of|not part of|never asked|not asked)\b/i;
+const NOFIT = /\b(does(?:n['’]t| not) (?:fit|apply)|not (?:applicable|needed|relevant)|n\/a|(?:was|is)(?:n['’]t| not) part of|not part of|never asked|not asked|(?:is|was)(?:n['’]t| not) for (?:this|that|a|an)|not for this|(?:does|did)(?:n['’]t| not) (?:follow|use) it because)\b/i;
 const kept = acts => {
   // (one clause at a time: "item 3 done; item 5 n/a" clears item 5 only)
   const lines = String(acts.answer || acts.said || '').replace(/`/g, '').split(/\n|;|\.\s+/).filter(l => NOFIT.test(l));
+  // (a line that names the runbook itself, by path, file name or "the <name> runbook", clears its "Open" ask and all
+  // its items: the route was a guess. Lesson (a live false block): three rounds went on a misrouted runbook, and a plain
+  // "the project runbook doesn't fit this" never cleared the ask to open it)
+  const named = file => { const name = file.replace(/^.*\//, '').replace(/\.md$/, ''); return lines.some(l => l.includes(file) || l.includes(`${name}.md`) || new RegExp(`\\b${name}\\s+(runbook|playbook|skill)\\b`, 'i').test(l)); };
   return s => {
-    const m = /^\S+ item (\d+): (.*)$/.exec(s); if (!m) return true;
+    const o = /^Open (\S+\.md) and\b/.exec(s); if (o) return !named(o[1]);
+    const m = /^(\S+) item (\d+): (.*)$/.exec(s); if (!m) return true;
+    if (named(m[1])) return false;
+    m.splice(1, 1);
     const paths = (m[2].match(/[\w.-]*[\w-]\/[\w./*-]*|\b[\w-]+\.(?:md|json|mjs|js|py|ts|csv)\b/g) || []).filter(p => !/^(and|either)\/or$/i.test(p));
     return !lines.some(l => new RegExp(`\\bitems?\\s*(?:\\d+\\s*(?:,|and)\\s*)*${m[1]}\\b`, 'i').test(l) || paths.some(p => l.includes(p)));
   };
@@ -43,7 +50,9 @@ export function missing(turn, acts, books = runbooks()) {
   // the best sources, and an answer that skipped the runbook went unchecked)
   // (a typed question only: a report or note from another session is not one. Replay (real sessions): every routed
   // turn this would have held was such a message)
-  const asked = book && !worked(acts) && book.file === turn.runbook && !/<(cross-session-message|agent-message|task-notification)\b/.test(acts.heard || '');
+  // (and only a runbook made for answers, one with an "(evidence)" item: a broad route like the project runbook's caught
+  // routine and scheduled prompts. Lesson (a live false block))
+  const asked = book && !worked(acts) && book.file === turn.runbook && book.items.some(it => it.kind === 'evidence') && !/<(cross-session-message|agent-message|task-notification)\b/.test(acts.heard || '');
   if (!book || (!worked(acts) && !asked)) return [];
   const out = [];
   if (!opened(book, acts)) out.push(`Open ${book.file} and ${asked ? 'answer by' : 'check the work against'} its steps.`);

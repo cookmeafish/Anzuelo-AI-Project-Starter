@@ -40,6 +40,10 @@ A run that is stuck sets `status: blocked - <reason>` with `Tried:` and `Options
   read in earlier turns, quotes of the user or of screens, status notes). After narrowing: 9 "made up" citations (files
   missing now, maybe deleted since; can't be settled) and 54 "names no source", which apply only where a runbook asks
   for evidence. Real routed or research-skill question turns in the data: 0, so measure live after the next upgrade.
+- 2026-11-08, after Task 2: a live false block. A scheduled status prompt routed to the broad project runbook was held to
+  it under Task 1, and a plain "the project runbook doesn't fit" never cleared the ask to open it (all 3 rounds used).
+  Fixed: a question is held only to a routed runbook made for answers (one with an "(evidence)" item), and a not-fit
+  line naming the runbook (path, file name or "the <name> runbook") clears its Open ask and all its items.
 
 ## Context
 - `tools/hooks/v2/end.mjs`: missing() and the others return nothing unless worked(acts) (lib.mjs, edits only).
