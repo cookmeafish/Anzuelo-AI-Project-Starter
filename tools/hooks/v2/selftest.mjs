@@ -925,6 +925,19 @@ report(claimGaps(acts([user('sync the rules'), code, say('Both files, NOTES.md/s
   && claimGaps(acts([user('sync the rules'), code, say('See NOTES.md and src/rules-old.md.')])).some(s => /rules-old/.test(s)),
   'end: two file names joined by a slash are a pair, not a missing path; a missing path still is named');
 fs.rmSync(path.join(dir, 'NOTES.md'));
+// (a path git ignores is a machine's own file that may exist only elsewhere: naming what an install writes there is no
+// made-up path; a missing path git tracks still is)
+{
+  const { spawnSync } = await import('node:child_process');
+  const hadGit = fs.existsSync(path.join(dir, '.git'));
+  if (!hadGit) spawnSync('git', ['init', '-q'], { cwd: dir });
+  put('.gitignore', 'src/settings.local.json\n');
+  const ign = claimGaps(acts([user('wire it'), code, say('Each trip project gets its hooks in src/settings.local.json.')]));
+  const real = claimGaps(acts([user('wire it'), code, say('Each trip project gets its hooks in src/settings.shared.json.')]));
+  report(ign.length === 0 && real.some(s => /settings\.shared/.test(s)), 'end: a missing path git ignores (a machine\'s own file) is not held as made up; a missing tracked path still is', { ign, real });
+  fs.rmSync(path.join(dir, '.gitignore'));
+  if (!hadGit) fs.rmSync(path.join(dir, '.git'), { recursive: true, force: true });
+}
 // (an answer with a Finished section names its files there: a path only mentioned above it, such as an example of a
 // report a later check would write, is not a file it claims. Lesson (trial v34): such an example was reported missing)
 {
@@ -1338,6 +1351,13 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     && r.relOf(path.join(LOCAL, 'docs', 'STATUS.md')) === 'docs/STATUS.md' && r.relOf(path.join(ENGINE, 'tools', 'audit.mjs')) === 'tools/audit.mjs' && r.relOf(path.join(proj, 'src', 'a.js')) === 'src/a.js'
     && r.listAll('docs/playbooks').sort().join() === 'core.md,mine.md,shared.md' && r.listAll('.').sort().join() === 'docs'
     && one.where('docs/playbooks/core.md') === path.join(proj, 'docs', 'playbooks', 'core.md') && one.where('tools/hooks/hooks.mjs') === path.join(proj, 'tools', 'hooks', 'hooks.mjs');
+  // (a project whose own scripts read its runbooks and status by path keeps them in place: keepInProject)
+  put(path.join(LOCAL, 'config.json'), JSON.stringify({ keepInProject: ['docs/playbooks/', 'docs/STATUS.md'] })); put(path.join(proj, 'docs/playbooks/own.md'));
+  const k = resolver?.({ ENGINE, PROJECT: proj, LOCAL });
+  const keptOk = !!k && k.where('docs/playbooks/own.md') === path.join(proj, 'docs', 'playbooks', 'own.md') && k.where('docs/playbooks/core.md') === path.join(ENGINE, 'docs', 'playbooks', 'core.md')
+    && k.whereWrite('docs/playbooks/core.md') === path.join(proj, 'docs', 'playbooks', 'core.md') && k.where('docs/STATUS.md') === path.join(proj, 'docs', 'STATUS.md')
+    && k.where('docs/plans/a.md') === path.join(LOCAL, 'docs', 'plans', 'a.md') && k.listAll('docs/playbooks').sort().join() === 'core.md,own.md,shared.md';
+  report(keptOk, 'paths: keepInProject keeps runbooks and status the project\'s own code reads by path in the project, falling back to the engine\'s defaults', k && { own: k.where('docs/playbooks/own.md'), list: k.listAll('docs/playbooks') });
   report(ok, 'paths: each file resolves to its root (engine code, project records, local records); runbooks read local then engine, written locally; in one folder nothing moves',
     r && { hooks: r.where('tools/hooks/hooks.mjs'), core: r.where('docs/playbooks/core.md'), write: r.whereWrite('docs/playbooks/core.md'), list: r.listAll('docs/playbooks') });
   fs.rmSync(proj, { recursive: true, force: true });

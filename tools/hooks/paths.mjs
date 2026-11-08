@@ -39,19 +39,28 @@ export function kind(p) {
   return 'project';
 }
 const exists = f => { try { fs.statSync(f); return true; } catch { return false; } };
+// Paths the project keeps in its own folder although the engine would put them in .anzuelo/local: "keepInProject" in
+// .anzuelo/local/config.json, each a file or a folder ("docs/playbooks"). The project's own code may read them by path.
+// A kept runbook or checklist is read from the project, else from the engine, and written in the project.
+// Lesson (a field report): a project's own scripts read its runbooks, checklists and status by path, so moving them
+// to .anzuelo/local would have broken every one of those readers.
+export const keepList = local => { try { return [].concat(JSON.parse(fs.readFileSync(path.join(local, 'config.json'), 'utf8')).keepInProject || []).map(s => norm(s).replace(/\/+$/, '')).filter(Boolean); } catch { return []; } };
 // resolver(r) gives where(p) (to read: local copy, else engine copy, else local) and whereWrite(p) (always local for
 // engine-made files, so an upgrade never meets a change of the project's).
 export function resolver(r = { ENGINE, PROJECT, LOCAL }) {
   const at = (root, p) => path.resolve(root, norm(p));
+  const keep = r.keep || (r.LOCAL !== r.PROJECT ? keepList(r.LOCAL) : []);
+  const kept = p => { const q = norm(p); return keep.some(k => q === k || q.startsWith(k + '/')); };
   const where = p => {
     if (path.isAbsolute(String(p))) return path.resolve(String(p));
     const k = kind(p);
+    if (kept(p) && k !== 'project') return k === 'both' && !exists(at(r.PROJECT, p)) && exists(at(r.ENGINE, p)) ? at(r.ENGINE, p) : at(r.PROJECT, p);
     if (k === 'engine') return at(r.ENGINE, p);
     if (k === 'project') return at(r.PROJECT, p);
     if (k === 'both' && r.LOCAL !== r.ENGINE && !exists(at(r.LOCAL, p)) && exists(at(r.ENGINE, p))) return at(r.ENGINE, p);
     return at(r.LOCAL, p);
   };
-  const whereWrite = p => path.isAbsolute(String(p)) ? path.resolve(String(p)) : kind(p) === 'project' ? at(r.PROJECT, p) : kind(p) === 'engine' ? at(r.ENGINE, p) : at(r.LOCAL, p);
+  const whereWrite = p => path.isAbsolute(String(p)) ? path.resolve(String(p)) : kind(p) === 'project' || kept(p) ?at(r.PROJECT, p) : kind(p) === 'engine' ? at(r.ENGINE, p) : at(r.LOCAL, p);
   // The project-relative name of an absolute path under any root (the most specific root first: local and engine sit
   // inside the project).
   const relOf = a => {
@@ -69,10 +78,10 @@ export function resolver(r = { ENGINE, PROJECT, LOCAL }) {
     // (the project's top folder lists the local folder's entries in place of .anzuelo/, so a walk from the top finds
     // docs/STATUS.md under that name)
     const top = r0 === '.' || r0 === '';
-    const from = top || r0 === 'docs' ? [r.PROJECT, r.LOCAL] : k === 'both' ? [r.LOCAL, r.ENGINE] : k === 'engine' ? [r.ENGINE] : k === 'local' ? [r.LOCAL] : [r.PROJECT];
+    const from = top || r0 === 'docs' ? [r.PROJECT, r.LOCAL] : kept(r0) ? [r.PROJECT, ...(k === 'both' ? [r.ENGINE] : [])] : k === 'both' ? [r.LOCAL, r.ENGINE] : k === 'engine' ? [r.ENGINE] : k === 'local' ? [r.LOCAL] : [r.PROJECT];
     for (const root of new Set(from)) { try { for (const n of fs.readdirSync(at(root, d || '.'))) if (!(top && r.LOCAL !== r.PROJECT && n === '.anzuelo')) out.add(n); } catch { } }
     return [...out];
   };
-  return { where, whereWrite, relOf, listAll };
+  return { where, whereWrite, relOf, listAll, kept };
 }
-export const { where, whereWrite, relOf, listAll } = resolver();
+export const { where, whereWrite, relOf, listAll, kept } = resolver();

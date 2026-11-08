@@ -710,7 +710,13 @@ export function claimGaps(acts, history = '') {
   // (two file names joined by a slash, "CLAUDE.md/AGENTS.md", are a pair, not a path: a part before the last that is a
   // file here. Lesson (replay 2026-11-07): it was reported missing)
   const isFile = s => { try { return fs.statSync(at(s)).isFile(); } catch { return false; } };
-  const real = missingFiles.filter(p => !p.split('/').slice(0, -1).some(s => /\.[A-Za-z]{1,5}$/.test(s) && isFile(s)));
+  // (a path git ignores is a file of each machine (agent settings, local rules) that may exist only elsewhere: an
+  // answer describing what an install writes there is no claim it is here. Lesson (dogfood): an answer naming the
+  // local settings file a project gets was held as made up)
+  const ignored = (() => { const rel = missingFiles.filter(p => !/^[A-Za-z]:\//.test(p)); if (!rel.length) return new Set();
+    const r = spawnSync('git', ['check-ignore', '--no-index', '--stdin'], { cwd: ROOT, input: rel.join('\n'), encoding: 'utf8', timeout: 5000 });
+    return new Set((r.stdout || '').split(/\r?\n/).map(s => s.trim().replace(/\\/g, '/')).filter(Boolean)); })();
+  const real = missingFiles.filter(p => !ignored.has(p) && !p.split('/').slice(0, -1).some(s => /\.[A-Za-z]{1,5}$/.test(s) && isFile(s)));
   if (real.length) out.push(`The answer names ${real.slice(0, 3).join(', ')}, which does not exist: check the path, or correct the answer.`);
   // (a "committed" or "pushed" claim is checked only by the commit it names, above, never by its wording. Lesson (live
   // data and replay): word lists for which sentences claim a commit were wrong more often than right, and each miss

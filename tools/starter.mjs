@@ -36,7 +36,7 @@ import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { ROOT, STARTER_LINK, starterLink, starterSources, syncAll, setupCompleteness, usageOf } from './hooks/hooks.mjs';
 import { registry } from './packs.mjs';
-import { where, whereWrite, split, kind, ENGINE, LOCAL, PROJECT } from './hooks/paths.mjs';
+import { where, whereWrite, split, kind, keepList, ENGINE, LOCAL, PROJECT } from './hooks/paths.mjs';
 
 // (each path goes where paths.mjs says: in the starter, all one folder; in a project, packs and library are the engine's)
 const CONFIG = where('tools/hooks/config.json');
@@ -343,11 +343,13 @@ if (cmd === 'link') {
     // own files, which sit in the ignored .anzuelo/ here)
     const SKIP = /^(\.git|\.claude|\.codex|\.gemini|\.agents|\.obsidian)(\/|$)|^(CLAUDE\.md|AGENTS\.md|\.gitignore|\.gitattributes|[A-Z]+\.starter\.md)$/;
     const counts = { local: 0, project: 0, kept: 0 };
+    // (paths the project keeps in its own folder, set before install in .anzuelo/local/config.json "keepInProject")
+    const keep = keepList(loc), keepIt = f => keep.some(k => f === k || f.startsWith(k + '/'));
     const walk = d => { for (const e of fs.readdirSync(path.join(tmp, d || '.'), { withFileTypes: true })) {
       const f = d ? `${d}/${e.name}` : e.name;
       if (SKIP.test(f)) continue;
       if (e.isDirectory()) { walk(f); continue; }
-      const k = kind(f), from = path.join(tmp, f), same = p => { try { return fs.readFileSync(p).equals(fs.readFileSync(from)); } catch { return false; } };
+      const k = keepIt(f) ? 'project' : kind(f), from = path.join(tmp, f), same = p => { try { return fs.readFileSync(p).equals(fs.readFileSync(from)); } catch { return false; } };
       if (k === 'engine' || (k === 'both' && same(path.join(eng, f)))) continue;
       const to = path.join(k === 'project' ? dest : loc, f);
       if (fs.existsSync(to)) { counts.kept++; continue; }
