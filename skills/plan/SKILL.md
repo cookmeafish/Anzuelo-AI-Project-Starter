@@ -84,7 +84,7 @@ later step makes pointless (a helper on the old scope, a check that will rerun a
 stopped, not finished.
 
 **Check once, at the end of each batch of edits.** Tests, builds, audits and self-tests run after the last edit of a
-batch, not after each small edit, and not again when nothing changed since (the no-repeat hook refuses that rerun).
+batch, not after each small edit, and not again when nothing changed since.
 
 ## 5. Write it
 ```markdown

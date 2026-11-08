@@ -1039,6 +1039,12 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   ];
   const loud = busy.map(d => [d.tool_input.command || d.tool_input.file_path || d.tool_input.pattern, guard({ session_id: '', ...d }, prot)]).filter(([, r]) => r);
   report(!loud.length, 'guard: a busy ordinary turn (reads, edits, writes, tests, a commit, a cache delete) gets no refusal under v2', loud);
+  // (rules no engine refuses during the work are not computed on every tool call either: the em dash, the rerun and the
+  // polling checks were worked out and thrown away. Lesson (engine-v2-only plan, 1a inventory))
+  const H = await import('../hooks.mjs');
+  const dash = H.pretoolHits({ session_id: '', tool_name: 'Write', tool_input: { file_path: R + 'docs/style.md', content: 'A dash — here.\n' } }, base);
+  report(!dash.some(h => /^REQ: (plain-writing|no-repeat|no-polling)\b/.test(h)) && !['repeatRun', 'duplicateWork', 'pollWait'].some(n => n in H),
+    'guard: rules no engine refuses during the work (em dash, rerun, polling) are not computed on each tool call', dash);
 }
 
 {

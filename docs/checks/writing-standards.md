@@ -1,7 +1,7 @@
 # Writing standards (everything the user reads)
 
 Covers answers, guides, reports, READMEs, docs, HTML pages and UI text. The Stop hook checks answers and every changed
-user-facing file (REQ: plain-writing), and the pretool hook rejects em dashes before they are written. Check a file
+user-facing file (REQ: plain-writing). Check a file
 with `node tools/writing-check.mjs <file>`.
 
 ## Mechanically enforced

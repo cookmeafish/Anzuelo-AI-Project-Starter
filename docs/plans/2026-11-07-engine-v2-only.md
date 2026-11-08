@@ -118,6 +118,38 @@ Totals: keep 549 (6,355 lines), replace 5 (36 lines), delete 186 (3,427 lines); 
 - **delete** (v1's prompt, stop, begin and check handlers, or only they call it): 8 names, 1,652 lines.
   promptHints, cmdPrompt, coreChecks, carryoverChecks, stopDecision, cmdStop, cmdBegin, cmdCheck
 
+Done ahead of 1b (2026-11-08): the three v1 rules `pretoolHits` worked out on every tool call and threw away
+(plain-writing, no-repeat, no-polling) are gone, with repeatRun, duplicateWork, pollWait and the after-edit write
+record: hooks.mjs 9,833 to 9,678 lines. v2 selftest test "rules no engine refuses during the work ... are not computed"
+fails on the old code.
+
+#### Task 1b budget (2026-11-08)
+"keep" means "still needed", not "port as is": 6,355 kept lines against a 2,000-line budget (Task 4) cannot move
+unchanged. Counted with the same inventory; line counts include comments (about 30% of hooks.mjs is comment-only lines).
+- Budget: 2,000 lines of engine code without tests, counted over tools/hooks/ (hooks entry, v2/, paths.mjs,
+  git-guard.mjs). Code only another tool uses moves into that tool and counts there, not here: 59 names, 690 lines
+  (audit, fit, survey, recall and new-project helpers).
+- Already spent: v2 lib 744, start 117, end 185, paths 87, git-guard 90 = 1,223 (shadow.mjs and the guard re-export go
+  in 1e). Room left for what comes out of hooks.mjs: 777 lines, unless v2's own files shrink.
+- The 5,665 kept lines on the hook path, by job, with the target each is rewritten to:
+
+| Part | Kind | Now (lines) | Target | How |
+|---|---|---|---|---|
+| Safety guards (pretoolHits and its helpers) | (a) must keep | 1,034 | 420 | one table of guard rules, one lesson line each; special cases only with a test |
+| Paths, config, state, transcript reading | (a) must keep | 575 | 150 | DEFAULTS (218 lines) becomes a JSON file; transcript readers shared with v2 lib, not copied |
+| CLI commands projects or tools call | (a) must keep | 425 | 110 | a dispatch table in place of the 300-line main block; v1-only commands go |
+| The user's lines (acknowledged, running, session) | (a) must keep | 183 | 70 | one line builder with the status-lines toggle |
+| Session start (notices, status, setup questions) | (b) simplify | 517 | 80 | the reminder text and STATUS head; setup and upgrade checks stay in audit |
+| Generated files (skill mirrors, DIRECTORY, names) | (b) simplify | 530 | 0 here | moves to tools/skills.mjs, run by the session hook as a command |
+| Everything else the hook path reaches (v1 end-check, routing and claim helpers kept by the safe-side rules) | (c) used only by (b) or by leftovers | 2,401 | 0 | deleted with the code that uses it; any piece a v2 test needs moves into v2 lib inside the targets above |
+| Total from hooks.mjs | | 5,665 | 830 | |
+
+- 1,223 + 830 = 2,053: 53 over. v2's own files give it back: shadow.mjs (23) and lib.mjs's long lesson comments
+  become one line each (Task 4), at least 60 lines. If a target can't be met without losing a guard, the guard wins and
+  the overrun is reported, not hidden.
+- Order: (a) moves first, each part rewritten small with its tests ported; (b) next; (c) is deleted last, after the
+  full chain shows nothing still calls it.
+
 ### Task 2: one place for each rule
 **Files:** `AGENTS.md`, `docs/checks/user-requirements.md` (generated), `tools/hooks/requirements.json` (retired), `skills/project-rule/SKILL.md`, `tools/audit.mjs`
 **Uses / provides:** uses Task 1

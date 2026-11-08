@@ -4797,7 +4797,7 @@ const proves = s => TAGS.filter(t => (s.expect?.tags || []).includes(t) || (s.ex
 const SHARD = (() => { const i = process.argv.indexOf('--shard'), m = /^(\d+)\/(\d+)$/.exec(i > 0 ? process.argv[i + 1] || '' : ''); return m ? { i: Number(m[1]), n: Number(m[2]) } : null; })();
 const HELPER = !!SHARD;
 // tags a standalone test proves (it runs with --tags <tag>, outside the full-run-only block)
-const STANDALONE_TAGS = ['status-bar', 'usage-quiet', 'no-polling', 'trial-wording', 'upset-acknowledged', 'helper-turn-checked', 'starter-tested', 'begin-keeps-turn', 'helper-work-counts', 'upset-es', 'feedback-usage', 'session-checklist', 'engine-bypassed', 'transcript-tail', 'instructions-run', 'answer-traced', 'stop-follow-on', 'stop-reblock', 'check-preview', 'layout-split', 'engine-readonly'];
+const STANDALONE_TAGS = ['status-bar', 'usage-quiet','trial-wording', 'upset-acknowledged', 'helper-turn-checked', 'starter-tested', 'begin-keeps-turn', 'helper-work-counts', 'upset-es', 'feedback-usage', 'session-checklist', 'engine-bypassed', 'transcript-tail', 'instructions-run', 'answer-traced', 'stop-follow-on', 'stop-reblock', 'check-preview', 'layout-split', 'engine-readonly'];
 if (TAGS) {
   const all = [...STOP, ...PRETOOL, ...PROMPT];
   for (const t of TAGS) if (!HELPER && !TRIGGER_TAGS.includes(t) && !STANDALONE_TAGS.includes(t) && t !== 'selftest-speed' && !all.some(s => proves(s).includes(t))) report(false, `tags: a scenario proves ${t}`, `no scenario proves "${t}": add one to tools/hooks/project-scenarios.mjs (blocked when skipped, passes when followed)`);
@@ -5388,41 +5388,6 @@ if (mineB() && (!TAGS || TAGS.includes('hooks-tested'))) {
     report(!!a && a === b && b !== c && c === d, label + '; Windows line endings keep it', JSON.stringify([a, b, c, d]));
   } catch (e) { report(false, label, e.message); }
   finally { fs.rmSync(dir, { recursive: true, force: true }); }
-}
-// no-polling: waiting on background work by sleeping or re-reading its output is refused; the first read, a read a
-// minute later, a short pause and a read after the notice are not. Lesson (trial v29): setup helpers slept and polled.
-if (mineB() && (!TAGS || TAGS.includes('no-polling'))) {
-  const label = 'no-polling: a helper\'s background helper, a sleep while a job runs and a quick re-read of its output are refused; first reads, short pauses and reads after the notice pass';
-  try {
-    const H = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks.mjs')).href + '?np=1');
-    if (typeof H.pollWait !== 'function') throw new Error('pollWait is not exported');
-    const T0 = Date.parse('2026-11-05T08:00:00Z'), at = s => new Date(T0 + s * 1000).toISOString();
-    const use = (s, id, name, input) => ({ type: 'assistant', timestamp: at(s), message: { content: [{ type: 'tool_use', id, name, input }] } });
-    const res = (s, id, text) => ({ type: 'user', timestamp: at(s), message: { content: [{ type: 'tool_result', tool_use_id: id, content: text }] } });
-    const note = (s, id) => ({ type: 'user', timestamp: at(s), message: { content: `<task-notification>\n<task-id>${id}</task-id>\n<status>completed</status>\n</task-notification>` } });
-    const job = [use(0, 'b1', 'Bash', { command: 'node tools/audit.mjs > .cache/audit.txt 2>&1', run_in_background: true }),
-      res(1, 'b1', 'Command running in background with ID: bx91. Output is being written to: C:/t/tasks/bx91.output'),
-      use(10, 'r1', 'Read', { file_path: 'C:/p/.cache/audit.txt' }), res(11, 'r1', '')];
-    const kid = [use(0, 'a1', 'Agent', { description: 'cold read', prompt: 'read the runbook cold', run_in_background: true }), res(1, 'a1', 'Async agent launched successfully. agentId: ag77')];
-    const now = s => ({ now: T0 + s * 1000 });
-    const got = {
-      helperBg: !!H.pollWait('Agent', { prompt: 'review it', run_in_background: true }, [], { helper: true }),
-      mainBg: !!H.pollWait('Agent', { prompt: 'review it', run_in_background: true }, [], {}),
-      helperSleep: !!H.pollWait('Bash', { command: 'node -e "setTimeout(() => {}, 110000)"' }, kid, { helper: true, ...now(20) }),
-      helperLoop: !!H.pollWait('Bash', { command: 'until [ -s .cache/cold.txt ]; do sleep 5; done' }, kid, { helper: true, ...now(20) }),
-      mainSleep: !!H.pollWait('Bash', { command: 'sleep 300' }, job, now(20)),
-      shortPause: !!H.pollWait('Bash', { command: 'sleep 2' }, job, now(20)),
-      reread: !!H.pollWait('Read', { file_path: 'C:/p/.cache/audit.txt' }, job, now(30)),
-      rereadCat: !!H.pollWait('Bash', { command: 'tail -5 .cache/audit.txt' }, job, now(30)),
-      rereadLater: !!H.pollWait('Read', { file_path: 'C:/p/.cache/audit.txt' }, job, now(90)),
-      firstReadTask: !!H.pollWait('Read', { file_path: 'C:/t/tasks/bx91.output' }, job, now(30)),
-      otherFile: !!H.pollWait('Read', { file_path: 'C:/p/src/app.js' }, job, now(30)),
-      afterNotice: !!H.pollWait('Read', { file_path: 'C:/p/.cache/audit.txt' }, [...job, note(25, 'bx91')], now(30)),
-      echoOnly: !!H.pollWait('Bash', { command: 'echo "sleep 300 while waiting"' }, job, now(20)),
-    };
-    const want = { helperBg: true, mainBg: false, helperSleep: true, helperLoop: true, mainSleep: true, shortPause: false, reread: true, rereadCat: true, rereadLater: false, firstReadTask: false, otherFile: false, afterNotice: false, echoOnly: false };
-    report(JSON.stringify(got) === JSON.stringify(want), label, JSON.stringify(Object.fromEntries(Object.entries(got).filter(([k, v]) => want[k] !== v))));
-  } catch (e) { report(false, label, e.message); }
 }
 // usage-quiet: the committed usage file changes only when what its readers use changes (a use under the hardening
 // count, a new day, a new session), not on every turn. Lesson (a field report): one project made 15 commits of it alone.
@@ -7863,18 +7828,6 @@ if (mineB()) { // generated files: an edit to the shipped-checks files names the
     const project = e('tools/hooks/engine-checks.json');
     report([starter, other, project].every(o => !String(o).trim()), 'generated-file: an edit to engine-checks.json adds no notice during work (REQ quiet-work)', [starter, project, other].map(o => o.slice(0, 80)).join(' | '));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
-}
-
-if (mineB()) { // no-repeat: a file written after the last run, by the after-edit hook's record, though the transcript does
-  // not show it yet (Lesson, trial round 18: Claude Code writes the transcript a moment late, and a rerun after three
-  // edits was refused)
-  const { repeatRun } = await import('./hooks.mjs');
-  const ts = s => `2026-10-24T18:44:${String(s).padStart(2, '0')}.000Z`;
-  const entries = [{ type: 'assistant', timestamp: ts(31), message: { content: [{ type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'npm test' } }] } },
-    { type: 'user', timestamp: ts(32), message: { content: [{ type: 'tool_result', tool_use_id: 't1', content: 'pass 17 fail 1' }] } }];
-  const written = repeatRun('npm test', entries, Date.parse(ts(40))), before = repeatRun('npm test', entries, Date.parse(ts(20))), none = repeatRun('npm test', entries, 0);
-  report(written === null && before === 'npm test' && none === 'npm test',
-    'no-repeat: a write the after-edit hook recorded after the last run lets it run again; one from before it does not', JSON.stringify({ written, before, none }));
 }
 
 if (mineB()) { // cost: tokens, time, tool calls and helper tokens per request, from the transcripts (Lesson, field report:

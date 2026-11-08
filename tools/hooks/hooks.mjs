@@ -5562,7 +5562,7 @@ export function inProjectParts(cmd, cwd = ROOT) {
   return keep.join('; ');
 }
 // Every rule the call breaks, in the order the checks run (each message once).
-function pretoolHits(data, cfg) {
+export function pretoolHits(data, cfg) {
   const out = [], add = m => { if (m && !out.includes(m)) out.push(m); };
   if (data.tool_name === 'apply_patch' || (/^(Bash|shell)$/.test(data.tool_name || '') && /^\s*apply_patch\b/.test(data.tool_input?.command || ''))) {
     for (const f of patchFiles(data.tool_input?.command || data.tool_input?.patch || data.tool_input?.input || '')) {
@@ -5663,9 +5663,8 @@ function pretoolHits(data, cfg) {
     // REQ: browser-guard. Automating the INSTALLED Chrome/Edge can trigger failed OS sign-ins that lock the user's account.
     if (!/\.md$/i.test(p) && !p.startsWith('tools/hooks/') && BROWSER_CODE.test(incoming))
       add(`REQ: browser-guard. ${p} would drive the installed Chrome/Edge (executablePath / channel / CHROME_BIN / chrome.exe). Use Playwright's bundled Chromium (no executablePath, no channel) and --mute-audio, like tools/screenshot.mjs.`);
-    // REQ: plain-writing (fast path): no em dashes go into anything the user reads.
-    if (match(p, cfg.userFacing) && !match(p, cfg.userFacingIgnore) && /—/.test(incoming.replace(/```[\s\S]*?```/g, '').replace(/\.html?$/i.test(p) ? /<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>|`[^`]*`/gi : /$^/g, '')))
-      add(`REQ: plain-writing. ${p} is user-facing and this text contains an em dash ("—"). Rewrite those spots with a period, comma, colon or parentheses (docs/checks/writing-standards.md).`);
+    // (plain-writing, no-repeat and no-polling are not computed here: no engine refuses them during the work (REQ:
+    // quiet-work), and the end check covers what is still missing)
     // REQ: write-only-via. Some files may only be written by the tool that validates them.
     const via = cfg.writeOnlyVia.find(v => match(p, [v.glob]));
     if (via) add(`REQ: write-only-via. ${p} may only be created or changed with ${via.tool} (it validates the content). Run that tool instead of editing the file directly.`);
@@ -5688,17 +5687,6 @@ function pretoolHits(data, cfg) {
       add(`REQ: no-overwrite. ${p} is a delivered output, and the request does not name it as the file to change. If the user asked for a new version, write it as a new file (e.g. "<name> v2.md"). ` +
         'If they did ask to change this file, in words the hook did not catch, make no copy: ask them in one line to confirm the change to this file.');
   }
-  // REQ: no-repeat (work already going): see duplicateWork
-  if (/^(Agent|Task|Bash|PowerShell)$/.test(name) && data.transcript_path) {
-    const dup = duplicateWork(name, inp, t());
-    if (dup) add(`REQ: no-repeat. ${dup}: the same work twice. Wait for its result (its notice arrives on its own), or stop it first (TaskStop) if this one replaces it. ${/^(Agent|Task)$/.test(name) ? 'If this helper does different work, say how in its brief: "not a duplicate: <how>".' : 'If it truly must run beside it, end the command with "# rerun: <why>".'}`);
-  }
-  // REQ: no-polling: see pollWait
-  if (/^(Agent|Task|Bash|PowerShell|Read)$/.test(name) && data.transcript_path && !isSuspended('check:no-polling')) {
-    const own = data.agent_id ? helperTranscript(data) : String(data.transcript_path);
-    const why = pollWait(name, inp, own && fs.existsSync(own) ? transcriptRows(own) : [], { helper: !!data.agent_id });
-    if (why) add(`REQ: no-polling. ${why}.`);
-  }
   if (/^(Bash|PowerShell)$/.test(name) && typeof inp.command === 'string') {
     const cmd = inp.command;
     // REQ: permission-respected. A program the user's permission settings held this turn is not run another way (from a
@@ -5714,11 +5702,6 @@ function pretoolHits(data, cfg) {
     const set = cmd.match(/hooks\.mjs["']?\s+setting\s+([\w-]+)[ \t]+([^\s;&|].*)/);
     if (set) add(`REQ: permission-respected. \`hooks.mjs setting\` with a value is the user's command. Edit tools/hooks/config.json yourself; if the host refused that edit, don't write it another way: end the answer with the line for the user to paste, \`! node tools/hooks/hooks.mjs setting ${set[1]} ${set[2].replace(/\s*(&&|;|\|).*$/, '').trim()}\` (docs/playbooks/engine.md).`);
     if (held) add(`REQ: permission-respected. \`${held}\` was held for the user's approval earlier in this turn; running it through another program is the same command without that approval. ${there === false ? `It is also not installed here: \`${held}\` is not on PATH. Say so in the answer ("NOT VERIFIED: <what> - ${held} is not installed on this machine"), not that it only needs approval.` : `Leave it: say in the answer what was not verified ("NOT VERIFIED: <what> - ${held} was held for approval"), or ask the user to approve it.`}`);
-    // REQ: no-repeat. A check run again with nothing changed since gives the same answer (see repeatRun).
-    // (unless the user asked for the repeat in this request: "run the tests again", "twice", "otra vez")
-    const asked = /\b(again|twice|re-?run|one more time|another run|re-?check|re-?test)\b|(?<!\p{L})(otra vez|de nuevo|vuelve a|repite|dos veces)(?!\p{L})/iu.test(req());
-    const again = !asked && repeatRun(cmd, t().entries || []);
-    if (again) add(`REQ: no-repeat. \`${again.slice(0, 80)}\` already ran this turn, and nothing it checks has changed since (no file written or edited, no command that changes files): its result stands, so use it instead of running it again. If it truly must run again (a flaky test, output that was cut off), end the command with "# rerun: <why>".`);
     // REQ: browser-guard (commands)
     if (/(?<!chrome-win(64)?[\\/])(chrome|msedge)\.exe|\bstart\s+(chrome|msedge)\b|Start-Process\s+["']?(chrome|msedge)\b|google-chrome(-stable)?\b|CHROME_BIN=/i.test(cmd))
       add('REQ: browser-guard. Don\'t launch or automate the installed Chrome/Edge (it can lock the user\'s OS account). Use node tools/screenshot.mjs or Playwright\'s bundled Chromium.');
@@ -6159,8 +6142,6 @@ export function askingOnly(p, cfg) {
 // ---------- PostToolUse ----------
 function cmdPosttool(data) {
   const p = rel((data.tool_input || {}).file_path || '');
-  // (when a file was last written, for the no-repeat guard: the transcript may not hold the edit yet. See repeatRun)
-  if (p) writeState(LAST_WRITE, { at: Date.now(), p });
   if (p === 'CLAUDE.md' || p === 'AGENTS.md') syncTwin();
   if (/^(docs\/(playbooks|checks|knowledge|MENU\.md)|skills\/|tools\/hooks\/requirements\.json)/.test(p)) syncAll();
   // (a shell command that names such a file may have changed it: a script, sed -i or a redirect. Lesson (a field report):
@@ -8296,144 +8277,8 @@ export function overlappingCalls(entries, nameRx) {
   }
   return most;
 }
-// REQ: no-repeat. The checks a turn runs (tests, build, lint, type check, the audit, the self-tests, the answer
-// pre-check) give the same result when nothing changed since their last run: a rerun costs minutes and tokens for no
-// news. A rerun is refused when the same check ran earlier this turn and, after it, no file was written or edited, no
-// command that can change files ran, and the conversation was not compacted. A run that was refused, timed out or never
-// started may go again; "# rerun: <why>" lets a real rerun through. Lesson, trial rounds 13 to 16 and the user's own
-// words ("never do redundant things ... it will take too long and waste tokens"): setups ran the full audit three to
-// six times, test suites and self-tests ran again with nothing changed, and proofs were run twice.
-const REPEAT_CHECK = /\b(npm|pnpm|yarn|bun)\s+(run\s+)?(test|build|lint|typecheck|type-check|check)\b|\bnpx\s+(vitest|jest|tsc|eslint|biome|prettier\s+--check)\b|\b(pytest|go\s+(test|build|vet)|cargo\s+(test|build|clippy|check)|dotnet\s+(test|build)|ruff\s+check|mypy|pyright|flutter\s+(test|analyze))\b|\bpython3?\s+-m\s+(pytest|unittest)\b|\bnode\s+["']?\S*(audit|selfcheck|trial)\.mjs\b|\bhooks\.mjs["']?\s+check\b|\bfit\.mjs["']?\s+check\b|\bclaims\.mjs["']?\s+check\b|\bplan-tasks\.mjs["']?\s+check\b/i;
-// commands that only read: running them between two checks changes nothing either
+// commands that only read
 const READ_ONLY = /^\s*(git\s+(status|log|diff|show|branch|rev-parse|ls-files)|ls|dir|cat|type|head|tail|grep|rg|findstr|find|wc|pwd|echo|Get-Content|Get-ChildItem|Select-String|Test-Path|where|which|node\s+--version|npm\s+(ls|view))\b/i;
-// The after-edit hook's record of the last file write. Lesson, trial round 18: Claude Code writes the transcript a moment
-// late, so three edits made just before a test run were not in it yet, and the rerun was refused as "nothing changed".
-const LAST_WRITE = 'last-write.json';
-export function repeatRun(cmd, entries, lastWrite = readJSON(stateFile(LAST_WRITE), null)?.at || 0) {
-  if (/#\s*rerun:\s*\S/i.test(cmd) || !REPEAT_CHECK.test(gateText(cmd))) return null;
-  // the check itself, without the output trimming around it ("2>&1 | tail -12")
-  const key = c => gateText(c).replace(/\s*\d?>&\d/g, '').replace(/\s*\|\s*(tail|head|grep|findstr|Select-Object|Out-String)\b[^;&]*$/i, '').replace(/\s+/g, ' ').trim();
-  const want = key(cmd), uses = new Map(), events = [];
-  for (const r of entries) {
-    if (r.isCompactSummary) { events.push({ reset: true }); continue; }
-    const c = r.message?.content;
-    if (!Array.isArray(c)) continue;
-    for (const u of c) {
-      if (u?.type === 'tool_use') { uses.set(u.id, u); events.push({ use: u }); }
-      if (u?.type === 'tool_result' && uses.has(u.tool_use_id)) events.push({ result: u, use: uses.get(u.tool_use_id), at: Date.parse(r.timestamp || '') || 0 });
-    }
-  }
-  let last = -1;
-  // (a call the tool refused before it started never ran. Lesson (trial v28q): a PowerShell call refused as "the command
-  // line is too long" was taken for the test run, and the same tests sent again in Bash were refused as a repeat)
-  events.forEach((e, i) => { if (e.result && /^(Bash|PowerShell)$/.test(e.use.name) && typeof e.use.input?.command === 'string' && key(e.use.input.command) === want
-    && !neverRan({ error: !!e.result.is_error, out: textOf(e.result.content) })) last = i; });
-  if (last < 0) return null;
-  const res = events[last].result, out = textOf(res.content);
-  // (a file written after that run, by the after-edit hook's record, though the transcript may not show it yet)
-  if (lastWrite && (!events[last].at || lastWrite > events[last].at)) return null;
-  // a run that did not really happen, or was cut short, may go again
-  if (/requires approval|was denied|permission|not allowed|timed out|timeout|ETIMEDOUT|killed|interrupted|Exit code 124|could not (start|run)|is not recognized|command not found/i.test(out)) return null;
-  for (const e of events.slice(last + 1)) {
-    if (e.reset) return null;
-    const u = e.use;
-    if (!u || e.result) continue;
-    if (/^(Write|Edit|MultiEdit|NotebookEdit)$/.test(u.name)) return null;
-    if (/^(Bash|PowerShell)$/.test(u.name)) { const c = String(u.input?.command || ''); if (!REPEAT_CHECK.test(gateText(c)) && !c.split(/&&|\|\||;|\n/).every(p => READ_ONLY.test(p.trim()) || !p.trim())) return null; }
-    if (/^(Agent|Task)$/.test(u.name)) return null; // a helper may have changed files
-  }
-  return want;
-}
-// REQ: no-repeat (work already going). A helper launched with the brief of a helper that is still running, or a check
-// started while the same check still runs in the background, does the same work twice. Returns what it repeats, or
-// null. "not a duplicate:" in a brief says how it differs. Lesson, the user: "if the ai agent has things going that are
-// redundant or will be redundant then fix it"; an earlier session ran three judges on a scope the user had just changed.
-export function duplicateWork(name, inp, t) {
-  const running = new Set(t?.bgRunning || []);
-  if (!running.size) return null;
-  const uses = [];
-  // (only launches whose result came back: the call being checked is already in the transcript, with none yet. Lesson,
-  // trial round 18: a session's first helper was refused as a duplicate of itself)
-  const started = new Set();
-  for (const r of t.entries || []) for (const u of Array.isArray(r.message?.content) ? r.message.content : []) if (u?.type === 'tool_result') started.add(u.tool_use_id);
-  for (const r of t.entries || []) for (const u of Array.isArray(r.message?.content) ? r.message.content : []) if (u?.type === 'tool_use' && running.has(u.id) && started.has(u.id)) uses.push(u);
-  if (/^(Agent|Task)$/.test(name)) {
-    const brief = String(inp.prompt || inp.description || '');
-    if (/not a duplicate\s*:/i.test(brief)) return null;
-    const words = s => new Set(keyWords(s).filter(w => w.length > 3));
-    const mine = words(brief);
-    if (mine.size < 4) return null;
-    // (two numbered rounds, passes or parts of one procedure are different work, though their briefs share most words.
-    // Lesson (a field report): "Justification round 3: adversarial" was refused twice while round 2 ran)
-    const nth = s => (String(s).match(/\b(round|pass|part|step|phase|batch|chunk|section)\s*#?\d+\b/gi) || []).map(x => x.toLowerCase().replace(/\s+/g, ' ')).sort().join('|');
-    // (briefs that each name a file or folder the other does not work on different targets, though they share a brief
-    // file and most words. Lesson (a field report): one helper per folder was refused beside the first one running)
-    const paths = s => new Set((String(s).match(/(?:[\w.-]+[\\/])+[\w.-]*/g) || []).map(x => x.toLowerCase().replace(/\\/g, '/').replace(/\/+$/, '')).filter(x => !/^https?:/.test(x)));
-    const myPaths = paths(brief);
-    for (const u of uses.filter(u => /^(Agent|Task)$/.test(u.name))) {
-      const other = `${u.input?.description || ''} ${u.input?.prompt || ''}`;
-      if (nth(`${inp.description || ''} ${brief}`) !== nth(other)) continue;
-      const theirPaths = paths(other);
-      if ([...myPaths].some(p => !theirPaths.has(p)) && [...theirPaths].some(p => !myPaths.has(p))) continue;
-      const theirs = words(u.input?.prompt || u.input?.description || '');
-      const shared = [...mine].filter(w => theirs.has(w)).length;
-      if (theirs.size >= 4 && shared / Math.min(mine.size, theirs.size) >= 0.85) return `a helper still running has nearly the same brief ("${String(u.input?.description || u.input?.prompt || '').replace(/\s+/g, ' ').slice(0, 70)}")`;
-    }
-  }
-  if (/^(Bash|PowerShell)$/.test(name) && typeof inp.command === 'string' && REPEAT_CHECK.test(gateText(inp.command)) && !/#\s*rerun:\s*\S/i.test(inp.command)) {
-    const key = c => gateText(c).replace(/\s*\d?>&\d/g, '').replace(/\s*\|\s*(tail|head|grep|findstr|Select-Object|Out-String)\b[^;&]*$/i, '').replace(/\s+/g, ' ').trim();
-    const same = uses.find(u => /^(Bash|PowerShell)$/.test(u.name) && typeof u.input?.command === 'string' && key(u.input.command) === key(inp.command));
-    if (same) return `the same check is still running in the background ("${key(inp.command).slice(0, 70)}")`;
-  }
-  return null;
-}
-// REQ: no-polling. Waiting on work that runs in the background by sleeping or by reading its output again and again
-// spends minutes on nothing: the main session gets a notice when the work ends, and a helper gets a foreground helper's
-// result directly. Refused: a helper launching a helper in the background; a sleep or wait loop while a job this agent
-// started still runs; a read of a running job's output file within a minute of the last read. Returns why, or null.
-// Lesson (trial v29): setup helpers launched a reviewer in the background, then slept 110 s, 180 s and 300 s, ran a
-// 600 s wait loop on the wrong signal, and read an empty audit output four times in a minute.
-const WAIT_CMD = c => {
-  const n = (rx, min) => [...c.matchAll(rx)].some(m => Number(m[1]) >= min);
-  return n(/\b(?:sleep|Start-Sleep(?:\s+-s(?:econds)?)?)\s+(\d+)/gi, 20) || n(/\bStart-Sleep\s+-m(?:illiseconds)?\s+(\d+)/gi, 20000)
-    || n(/\bsetTimeout\s*\([^]*?,\s*(\d+)\s*\)/g, 20000) || n(/\btimeout\s+\/t\s+(\d+)/gi, 20) || /\b(until|while)\b[^]*\b(sleep|Start-Sleep|setTimeout)\b/i.test(c);
-};
-export function pollWait(name, inp, rows, { helper = false, now = Date.now() } = {}) {
-  if (helper && /^(Agent|Task)$/.test(name) && inp.run_in_background)
-    return 'a helper launching a helper in the background has no way to hear when it ends, so it sleeps or polls. Launch it in the foreground (run_in_background: false): its result comes back directly, and several foreground helpers in one message still run at once';
-  const running = new Set(backgroundRunning(rows));
-  if (!running.size) return null;
-  const jobs = [], results = new Map();
-  for (const r of rows) for (const x of Array.isArray(r.message?.content) ? r.message.content : []) {
-    if (x?.type === 'tool_use' && running.has(x.id)) jobs.push({ id: x.id, helper: /^(Agent|Task)$/.test(x.name), cmd: String(x.input?.command || ''), at: Date.parse(r.timestamp || '') || 0 });
-    if (x?.type === 'tool_result') results.set(x.tool_use_id, textOf(x.content));
-  }
-  const live = jobs.filter(j => results.has(j.id));
-  if (!live.length) return null;
-  const wake = helper ? 'Next time run it in the foreground; now do the work that does not need it, and read its output once when that is done'
-    : 'Its notice wakes you when it ends: do the work that does not need it, or end the turn and continue from the notice';
-  if (/^(Bash|PowerShell)$/.test(name) && WAIT_CMD(runPart(String(inp.command || ''))) && (!helper || live.some(j => j.helper)))
-    return `this waits by sleeping while work started in the background still runs. ${wake}`;
-  const files = j => [...j.cmd.matchAll(/(?:^|[^\d&])>{1,2}\s*["']?([^\s;&|>"')]+)/g).map(m => m[1]),
-    ...(results.get(j.id).match(/(?:written to:?|output[-_ ]file>?)\s*["']?([^\s<"']+)/gi) || []).map(s => s.replace(/^(?:written to:?|output[-_ ]file>?)\s*["']?/i, ''))]
-    .map(f => path.basename(f.replace(/\\/g, '/'))).filter(b => b.length >= 5);
-  const target = name === 'Read' ? String(inp.file_path || '') : /^(Bash|PowerShell)$/.test(name) && READ_ONLY.test(String(inp.command || '')) ? String(inp.command) : '';
-  if (!target) return null;
-  const has = s => b => new RegExp(`(?<![\\w.-])${esc(b)}(?![\\w.-])`).test(s.replace(/\\/g, '/'));
-  for (const j of live) {
-    const bs = files(j).filter(has(target));
-    if (!bs.length) continue;
-    let last = 0;
-    for (const r of rows) for (const x of Array.isArray(r.message?.content) ? r.message.content : []) {
-      const at = Date.parse(r.timestamp || '') || 0;
-      if (x?.type !== 'tool_use' || at < j.at) continue;
-      const s = x.name === 'Read' ? String(x.input?.file_path || '') : /^(Bash|PowerShell)$/.test(x.name) && READ_ONLY.test(String(x.input?.command || '')) ? String(x.input.command) : '';
-      if (s && bs.some(has(s))) last = Math.max(last, at);
-    }
-    if (last && now - last < 60000) return `${bs[0]} belongs to work still running in the background, read ${Math.round((now - last) / 1000)} s ago. ${wake}`;
-  }
-  return null;
-}
 // Test files anywhere: a change to one asks for the app's test gate even when no code folder changed. Lesson, trial
 // round 14: a node:test file under tools/ made vitest fail, so npm test and npm publish broke, and nothing asked for a run.
 export const TEST_GLOBS = ['**/*.test.*', '**/*.spec.*', '**/test/**', '**/tests/**', '**/__tests__/**', '**/*_test.*', '**/test_*.*', 'vitest.config.*', 'jest.config.*', 'pytest.ini', 'conftest.py'];
