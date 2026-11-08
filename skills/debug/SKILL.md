@@ -10,13 +10,15 @@ guessing, even for simple bugs and in a hurry. Propose no fix until Phase 1 is d
 skipping it.
 
 Use it for any technical problem: failing tests, bugs, wrong output, slowness, build or install failures, broken hooks
-or scripts, parts that don't work together. Finish each phase before the next.
+or scripts, parts that don't work together. Finish each phase before the next. Keep a running note of each
+hypothesis, what you ran and what it showed, failed tries included: a negative result rules something out.
 
 **Most needed when it feels least needed:** a deadline, an obvious-looking fix, someone senior wanting a fix now, a
 problem you don't fully understand, or a fix that already failed once.
 
 **Live users hurt right now?** Stop the harm first (the **incident-response** skill when enabled, or a rollback with
-the user's OK), then come back here. The mitigation is never the fix.
+the user's OK), keeping the evidence (logs, error text, the failing state or a copy) for the root cause, then come
+back here. The mitigation is never the fix.
 
 ## Phase 1: Investigate
 0. **List everything wrong first**, as a checklist: every symptom the user reported, in every message of the
@@ -33,7 +35,9 @@ the user's OK), then come back here. The mitigation is never the fix.
    (versions, config, data, traffic, permissions).
 4. **Check what changed** around that start time: the diff, recent commits and merges that touched the failing path,
    new dependencies, config, environment, and how this machine differs from one where it works. If log, metrics or
-   error-tracking tools are connected, read them from just before the start.
+   error-tracking tools are connected, read them from just before the start. An older version worked: bisect
+   (`git bisect` binary-searches the commits between good and bad for the one that broke it). The same halving works
+   on inputs, config and layers.
 5. **Find where it breaks** when several parts are involved (UI → API → database, build → package → install): log
    what goes into and out of each boundary, and whether each setting and environment value actually arrives there.
    Run once, see which boundary has bad data, then look only there ([references.md](references.md), boundary
@@ -59,7 +63,8 @@ Leave Phase 2 with the list of differences.
    Until the cause is proven by a reproduction, the answer says "likely cause", not "fixed".
 2. Test it with the smallest possible change, one variable at a time.
 3. It held: go to Phase 4. It didn't: form a new hypothesis. Never stack another fix on top.
-4. If you don't understand something, say so. Read more or ask the user.
+4. If you don't understand something, say so. Read more, ask the user, or hand the symptoms (not your theory) to a
+   fresh reviewer or sub-agent.
 
 ## Phase 4: Fix
 1. **A failing test first:** the smallest reproduction, automated if possible, a one-off script if not. It must fail

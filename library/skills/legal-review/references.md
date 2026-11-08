@@ -104,7 +104,7 @@ Not legal advice: an organized first read for a qualified lawyer to check.
 **Laws that often come up** (confirm scope, thresholds and deadlines with the research skill):
 | Law | Where | Usually matters when |
 |---|---|---|
-| GDPR | EU and EEA | Handling personal data of people there, wherever the business sits |
+| GDPR | EU and EEA | A business in the EU, or one outside it that offers goods or services to people there or monitors their behaviour (a site merely reachable from the EU is not enough) |
 | UK GDPR | United Kingdom | The same for people in the UK |
 | CCPA as amended by CPRA | California | A business above the size or data thresholds handles California residents' data |
 | LGPD | Brazil | Personal data of people in Brazil |

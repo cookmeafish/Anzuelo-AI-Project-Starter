@@ -4348,7 +4348,7 @@ PROMPT.push(
   hintRoute('runbook-ledger: the routed runbook\'s checklist comes with the route', 'Write a detailed report to anzuelo with recommendations on how to improve it',
     { routes: 1, removeMarker: true, has: ['ROUTE: project', 'CHECKLIST (docs/playbooks/project.md', 'need nothing'], hasNot: ['Skip N:', 'Done N:'], setupFn: { ...STARTER_IS, 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) } }),
   hintRoute('prompt-visible: a routed runbook shows the user the book line, with its checklist count', 'Write a detailed report to anzuelo with recommendations on how to improve it',
-    { routes: 1, removeMarker: true, env: { CLAUDE_PROJECT_DIR: '.' }, has: ['⚓ Anzuelo 📖 pulled up the project runbook (✅ 6 items to check off)'], setupFn: { ...STARTER_IS, 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) } }),
+    { routes: 1, removeMarker: true, env: { CLAUDE_PROJECT_DIR: '.' }, has: ['⚓ Anzuelo 📖 pulled up the project runbook (✅ 8 items to check off)'], setupFn: { ...STARTER_IS, 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), runbookLedger: true }) } }),
   hintRoute('runbook-ledger: off by default, no checklist', 'Write a detailed report to anzuelo with recommendations on how to improve it', { routes: 1, removeMarker: true, has: ['ROUTE: project'], hasNot: ['CHECKLIST ('] }),
   hintRoute('a report to the starter on how to improve it routes to the project runbook only','Write a detailed report to anzuelo with recommendations on how to improve it', { routes: 1, removeMarker: true, has: ['ROUTE: project'], hasNot: NOT_DOMAIN }),
   hintRoute('feedback to the starter with a review of the report step routes to the project runbook only', 'report to anzuelo how to improve the review of each report', { routes: 1, removeMarker: true, has: ['ROUTE: project'], hasNot: NOT_DOMAIN }),
@@ -6163,6 +6163,15 @@ const t = m => '---\\nname: zz\\n---\\n## Done when\\n- [ ] The thing is saved '
 console.log(JSON.stringify([s({ name: 'zzq', fm: {}, text: t('(file: out/**)') }), r({ name: 'zzq', fm: {}, text: t('(when ran: build) (ran: test)') }), s({ name: 'zzq', fm: {}, text: t('(when file: out/**)') }), r({ name: 'zzq', fm: {}, text: t('(judgment: a reader)') })]));`;
   const o = spawnSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf8' });
   report(o.stdout.trim() === '[true,true,false,false]', 'skills-valid, runbooks-checked: a "Done when" marker (file:, ran:, answer:) is a check; a when condition or a judgment alone is not', o.stdout.trim() || o.stderr.slice(0, 300));
+}
+
+if (mineB()) { // the starter's size warning leaves out DIRECTORY.md's section 5, which no project starts with
+  const code = `import { starterOnlyChars as f } from ${JSON.stringify(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks.mjs')).href)};
+const five = '## 5. What this starter can add (packs)\\n| a | b |\\n';
+console.log(JSON.stringify([f('# D\\n' + five + '## Where things live\\nx\\n'), five.length, f('# D\\n' + five), f('# D\\n## 1. Runbooks\\n')]));`;
+  const o = spawnSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf8' });
+  let r = []; try { r = JSON.parse(o.stdout.trim()); } catch { }
+  report(r.length === 4 && r[0] === r[1] && r[2] === r[1] && r[3] === 0, 'audit size: only the starter-only section 5 is left out of the starter\'s size warning, not the sections after it', o.stdout.trim() || o.stderr.slice(0, 300));
 }
 
 if (mineB()) { // rule --forbid: a name the user wants kept out becomes an enforced term in one step; --private keeps the name

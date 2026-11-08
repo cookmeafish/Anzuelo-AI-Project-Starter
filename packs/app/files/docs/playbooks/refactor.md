@@ -14,9 +14,13 @@ version bump: users see nothing.
 
 ## Steps
 0. **Checkpoint first,** so every step can be undone: `git branch backup/<yyyymmdd-hhmm>`, and with uncommitted work
-   also `git stash push -u -m "checkpoint <stamp>"` then `git stash apply` (the work stays, the stash keeps a copy).
-   Undo one step: `git restore <file>`; undo all: `git restore .` then `git stash apply`. No git: copy the files you
-   will touch into `.cache/backups/<stamp>/` first.
+   also `git stash push -u -m "checkpoint <stamp>"` then `git stash apply --index` (the work stays, staged parts
+   stay staged, the stash keeps a copy). Then `git add -A`, and again after each green step, so the index is the last
+   green state (say so in the answer). Undo a red step: `git restore <file>` (restores from the index, so only that
+   step goes). Undo all: `git stash push -u -m "discarded attempt <stamp>"` (keeps the attempt), then, if a
+   checkpoint stash was made, `git stash apply --index stash@{1}` (check `git stash list` first). Never
+   `git restore .` or `reset --hard` for this. No git: copy the files you will touch into `.cache/backups/<stamp>/`
+   first.
 1. **Name the measure and the boundary:** what gets better, as a number you can count now (lines in the file,
    duplicate blocks, function length, files over the modular-code limits of 400 lines a file or 60 a function), and what must not change (the public
    interface, outputs, stored data). Write both in one line each in the answer.

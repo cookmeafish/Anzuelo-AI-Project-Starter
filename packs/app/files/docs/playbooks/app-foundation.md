@@ -40,7 +40,8 @@ or when the user wants the security, performance or usability baseline revisited
      which part it times; extend it in the turn that builds the real path.
    - **Usability:** only if the app has screens: a design-token file (colours, spacing, type) with both themes,
      shared components for the empty, loading and error states and for confirm/undo, and an i18n layer if the app
-     will be translated. Add a contrast check if the stack allows it.
+     will be translated. Add a contrast check if the stack allows it: 4.5:1 for text, 3:1 for large
+     text (18 pt, or 14 pt bold) and for icons, borders and focus rings (WCAG 2.2 AA).
    - **Layout and the start file:** organize the code into folders (docs/checks/layout-standards.md) and create ONE
      obvious start file in the root (e.g. `Start <App>.bat` plus `start.sh`) that calls `scripts/`. The README's first
      instruction points at it. A PowerShell script the user runs with `powershell` works in Windows PowerShell 5.1

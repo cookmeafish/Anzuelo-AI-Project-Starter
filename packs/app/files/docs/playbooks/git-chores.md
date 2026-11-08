@@ -17,10 +17,13 @@ outward actions that need the user's OK in this conversation.
 
 ## Steps
 1. **Look first:** `git status` and `git log --oneline -10`. Name the branch, what is uncommitted and what is pushed
-   (`git status -sb`). `<default>` below is `git symbolic-ref --short refs/remotes/origin/HEAD` (no remote: ask).
+   (`git status -sb`). `<default>` below is `git symbolic-ref --short refs/remotes/origin/HEAD`, after a `git fetch`
+   (it names a remote-tracking branch). When it fails, run `git remote set-head origin --auto` and try again; no
+   remote, or still failing: ask.
 2. **Backup branch first,** before any merge, rebase, reset, amend, revert or branch delete:
-   `git branch backup/<yyyymmdd-hhmm>` (uncommitted work: `git stash push -m "backup <date>"` first). Before a history
-   rewrite (`reset --hard`, `branch -D`, force push) also make a bundle, which the safety hook requires:
+   `git branch backup/<yyyymmdd-hhmm>` (uncommitted work: `git stash push -u -m "backup <date>"` first,
+   `git stash pop --index` once the operation is done, and name the stash in the answer; a bundle does not hold
+   uncommitted work). Before a history rewrite (`reset --hard`, `branch -D`, force push) also make a bundle, which the safety hook requires:
    `git bundle create .cache/git-backups/backup-<stamp>.bundle --all`. Name the backup in the answer.
 3. **Merge conflict:** `git diff --name-only --diff-filter=U` lists the files. A merge or rebase already under way
    (`git status` says "unmerged paths"): do not restart it; take the backup branch and the copies below, then go on.
@@ -34,16 +37,19 @@ outward actions that need the user's OK in this conversation.
    `git diff --check` (leftover markers), run the project's tests, `git add`, and only then `git merge --continue`
    (or `git rebase --continue`). The way out is `git merge --abort` / `git rebase --abort`.
 4. **Commit message:** follow the style in `git log --oneline -20` (Conventional Commits when used: `type(scope): `,
-   `!` or `BREAKING CHANGE:` for breaks). A summary line under 72 characters in the imperative, a blank line, a body
-   saying why. No AI credit.
+   `!` or `BREAKING CHANGE:` for breaks). A summary line of about 50 characters in the imperative, a blank line, a body
+   wrapped at about 72 saying why. No AI credit.
 5. **Undo, by situation:**
    - last commit, not pushed, keep the changes: `git reset --soft HEAD~1`;
    - fix the last commit's message or add a file, not pushed: `git commit --amend`;
-   - a pushed commit: `git revert <sha>` (a new commit, history stays);
+   - a pushed commit: `git revert <sha>` on a clean working tree (a new commit, history stays); a merge commit
+     needs `git revert -m 1 <sha>` and the user's OK, since later merges of that branch will not bring its changes
+     back;
    - lost commits or a bad reset: `git reflog`, then `git branch rescue/<date> <sha>`;
    - throwing away uncommitted work or `reset --hard`: only when the user asks in their own words.
 6. **Rebase and branches:** `git rebase <default>` (non-interactive; `-i` is not available here). Clean-up lists
-   `git branch --merged <default>` and deletes those with `git branch -d`; an unmerged branch (`-D`) or a remote branch
+   `git branch --merged <default>` and deletes those with `git branch -d`, never the current branch, the default branch or `backup/` and `rescue/`
+   branches (they show up in that list too); an unmerged branch (`-D`) or a remote branch
    needs the user's OK.
 7. **Report:** the backup's name, what changed, the test result, and the push command for the user to approve.
 

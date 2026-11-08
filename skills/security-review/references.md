@@ -60,7 +60,8 @@ Score each FAIL on three factors, the same ones the hardening plan ranks by:
 - [ ] Every database query uses parameters or a query builder. No input concatenated into query text. Column and sort
   names come from an allowlist. The ORM's raw-query escape hatches get the same scrutiny as hand-written SQL.
 - [ ] No shell command is built from input. Use argument arrays without a shell; never pass input to eval or a
-  template compiler.
+  template compiler. Arguments from input cannot start with `-` and follow `--` where the command supports it
+  (argument injection).
 - [ ] Windows batch files (`.cmd`, `.bat`) cannot run without a shell: run them through one with fixed arguments only,
   or call the real program directly (`docs/checks/app-standards.md`). Every spawned process has an error handler.
 - [ ] No code is built from strings at runtime (`eval`, function constructors, timers given a string), and untrusted
@@ -69,34 +70,58 @@ Score each FAIL on three factors, the same ones the hardening plan ranks by:
   prototype-free object, so input cannot change every object's defaults.
 - [ ] No file path is built from input. Map ids to paths on the server, resolve, and check the result stays inside the
   allowed folder.
-- [ ] Outbound requests to user-supplied URLs are limited to an allowlist of hosts (no internal or metadata addresses,
-  checked after redirects and name resolution).
+- [ ] Outbound requests to user-supplied URLs are limited to an allowlist of hosts. The resolved address is checked
+  (no private, loopback or metadata ranges) and the request connects to that checked address, since a second lookup
+  can be rebound. Redirects are off, or each hop is checked again.
+- [ ] Redirect targets never come from input: map an id to the URL on the server, or allowlist external destinations.
+- [ ] XML parsers run with DTDs and external entities off.
 
 ## Output and XSS
 - [ ] Templates and UI frameworks escape by default, and every raw-HTML escape hatch is reviewed.
 - [ ] Untrusted HTML or markdown goes through a sanitizer with an allowlist of tags and attributes.
 - [ ] Rendered content cannot load remote resources by itself (images, frames, scripts) unless intended. Try a
   markdown image that points at an outside server.
-- [ ] A content security policy is set, starting strict (`default-src 'self'`, `object-src 'none'`, `base-uri 'self'`,
-  `frame-ancestors 'none'`, and `connect-src` listing only the APIs the page calls). `unsafe-inline` and `unsafe-eval`
-  are treated as debt with a plan to remove them.
+- [ ] A content security policy is set. Prefer a strict one: `script-src` with a fresh nonce per response (or hashes
+  for static pages), optionally `'strict-dynamic'`, plus `object-src 'none'` and `base-uri 'none'`. Send
+  `frame-ancestors 'none'` in the header (a `<meta>` tag ignores it). Roll out with
+  `Content-Security-Policy-Report-Only` first. A host allowlist (`default-src 'self'` and listed sources) is a weaker
+  fallback. `unsafe-inline` and `unsafe-eval` are debt with a plan to remove them. CSP is a second layer, not the main
+  XSS defense.
 
 ## Request forgery (and local servers)
-- [ ] State-changing requests need a CSRF token (synchronizer or double-submit cookie) or a same-site cookie policy
-  plus an Origin check.
-- [ ] Session cookies are `HttpOnly`, `Secure`, and `SameSite=Lax` or `Strict`, with an expiry.
+- [ ] State-changing requests need a CSRF defense: a synchronizer token, a signed double-submit cookie (never the plain
+  one), or a Fetch Metadata check (refuse `Sec-Fetch-Site: cross-site`) with an Origin check as fallback, where a
+  missing Origin or `Origin: null` counts as cross-site. `SameSite` is extra protection, not the defense. No state
+  change on GET.
+- [ ] Session cookies are `HttpOnly`, `Secure`, `SameSite=Strict` (or `Lax` when needed), host-only (no `Domain`,
+  ideally a `__Host-` name with `Path=/`), and non-persistent unless the user chose to stay signed in. The server ends
+  sessions after an idle timeout and an absolute lifetime set by risk (OWASP: 15-30 minutes idle and 4-8 hours for an
+  ordinary app; NIST AAL2: at most 1 hour idle and 24 hours).
 - [ ] A local server listens on loopback only, checks Host and Origin, and caps request size, so a web page cannot
   call it (`docs/checks/app-standards.md`).
-- [ ] CORS allows only known origins, never a wildcard with credentials.
+- [ ] CORS allows only known origins, never a wildcard with credentials. A changing origin comes from an allowlist
+  (never echoed back unchecked, never `null`) and the response carries `Vary: Origin`.
 
 ## Authentication
 - [ ] A vetted library or provider handles passwords, tokens and sessions. No hand-rolled crypto or token parsing.
-- [ ] Passwords hashed with a slow, salted algorithm made for passwords. Older fast hashes are upgraded at the user's
-  next sign-in.
+- [ ] Passwords hashed with a slow, salted algorithm made for passwords: Argon2id first (at least 19 MiB, 2 iterations,
+  1 lane), others per the security-hardening references; bcrypt input stops at 72 bytes. Older fast hashes are
+  upgraded at the user's next sign-in.
 - [ ] No default or shared credentials; generated keys and first-run passwords come from a cryptographic random source.
 - [ ] Tokens are short-lived, verified on every request (signature, expiry, audience), and can be revoked.
 - [ ] In browsers, session tokens live in `HttpOnly` cookies rather than script-readable storage.
 - [ ] Sign-in, reset and sign-up have rate limits and do not reveal whether an account exists.
+- [ ] The session id is replaced at sign-in and on any change of rights, and sign-out ends the session on the server
+  (deleting the cookie is not enough).
+- [ ] Passwords: at least 15 characters when the password is the only factor (8 with MFA), at least 64 allowed, no
+  character-class rules, no forced periodic change, paste and password managers allowed, new ones checked against
+  common and breached lists (NIST SP 800-63B).
+- [ ] Multi-factor sign-in is offered, and required for admin and other high-risk accounts.
+- [ ] Changing email, phone, password or MFA asks for the current credentials first.
+- [ ] Reset links and codes come from a cryptographic random source, work once and expire soon; a reset does not sign
+  the person in, and other sessions are ended or the user is offered to end them.
+- [ ] JWTs: the expected algorithm is fixed on the server (never taken from the token header, `alg: none` refused),
+  and `iss`, `aud` and `exp` are checked.
 
 ## Authorization
 - [ ] Every operation checks permission on the server, per record, not only "signed in". Deny when no rule allows.
@@ -111,6 +136,7 @@ Score each FAIL on three factors, the same ones the hardening plan ranks by:
 - [ ] Users see generic errors with a request id; details and stacks stay in server logs.
 - [ ] Responses return only the fields the caller needs, not whole database rows.
 - [ ] Personal data is encrypted in transit (HTTPS) and at rest where stored by the app; backups too.
+- [ ] Responses with personal or account data send `Cache-Control: no-store`.
 
 ## Abuse limits
 - [ ] Rate limits on every public endpoint, stricter on sign-in, search, uploads and anything that costs money.
@@ -124,13 +150,16 @@ Score each FAIL on three factors, the same ones the hardening plan ranks by:
   trusted.
 - [ ] Stored under generated names, outside the served folder, and served with a safe content type.
 - [ ] Archives are checked for path traversal and size before extracting.
+- [ ] Uploads from untrusted sources go through a malware scan or a sandbox where available.
 
 ## Money and signed actions
 - [ ] Prices, totals and discounts are computed on the server; amounts from the client are checked, never trusted.
 - [ ] Before money or value moves: the recipient is the expected one, the amount is within limits, the balance or
   credit covers it, and the request is idempotent so a retry does not pay twice.
-- [ ] Signed messages (webhooks, wallet signatures, signed links) are verified with the library against the expected
-  key, message and expiry before acting. Nothing is signed for a user without showing them what it does.
+- [ ] Signed messages (webhooks, wallet signatures, signed links) are verified with the provider's library against the
+  expected key, over the raw unparsed body, with a constant-time compare and a timestamp tolerance (a few minutes,
+  never 0), before acting. Processed event ids are stored so a repeat is ignored. Nothing is signed for a user
+  without showing them what it does.
 
 ## Dependencies and updates (supply chain)
 - [ ] Lock file committed; installs in CI use it exactly (the clean-install command of the package manager).
@@ -144,7 +173,8 @@ Score each FAIL on three factors, the same ones the hardening plan ranks by:
 - [ ] HTTPS enforced; HTTP redirects; the connection from the edge or CDN to the server is encrypted and its
   certificate checked. Certificate checks are never turned off in code.
 - [ ] Security headers set: `X-Content-Type-Options: nosniff`, a referrer policy, frame protection or
-  `frame-ancestors`, a permissions policy that turns off unused browser features, and HSTS.
+  `frame-ancestors`, a permissions policy that turns off unused browser features, and HSTS. `X-Powered-By` removed,
+  `Server` uninformative, and no `X-XSS-Protection`.
 - [ ] Databases, caches and admin panels are not reachable from the public internet. Remote admin ports (SSH, RDP)
   only through a VPN or a bastion host.
 - [ ] Firewall rules allow only the ports and sources needed, in both directions; network flow logs on where offered.
@@ -165,13 +195,15 @@ Score each FAIL on three factors, the same ones the hardening plan ranks by:
 ## Build pipeline
 - [ ] CI tokens have the minimum permissions; cloud access uses short-lived federated credentials, not stored keys.
 - [ ] Secret scanning and the dependency audit run in CI; container images are scanned when the app ships in one.
-- [ ] Third-party CI steps are pinned to a fixed version or commit, not a moving branch.
+- [ ] Third-party CI steps are pinned to a full-length commit SHA (a version tag can be moved), and the CI token
+  defaults to read-only.
 - [ ] The main branch is protected: review required before merge, no force pushes; signed commits where the team
   uses them.
 
 ## Logging and recovery
 - [ ] Security events (sign-ins and failures, permission denials, admin actions, secret access) are logged with time,
-  actor, source address, target and result, never the secret itself.
+  actor, source address, target and result, never the secret itself. Entries are structured (for example JSON) and
+  CR/LF in user values is escaped, so input cannot forge log lines.
 - [ ] Logs are collected in one place the app cannot rewrite, kept for a set period chosen on purpose (legal or
   contract needs first), and alerts fire on unusual patterns.
 - [ ] Backups run automatically, with a set retention, point-in-time recovery where the data warrants it, and
@@ -181,7 +213,7 @@ Score each FAIL on three factors, the same ones the hardening plan ranks by:
   that apply are named, and the user confirms them.
 
 ## Extra checks per area
-- Injection: a spreadsheet export (CSV, XLSX) neutralizes cells that start with = + - @ or a tab, so a name like "=HYPERLINK(...)" is text, not a formula.
+- Injection: a spreadsheet export (CSV, XLSX) neutralizes cells that start with = + - @ or a tab (prefix a single quote), so a name like "=HYPERLINK(...)" is text, not a formula.
 - Output and XSS: a page check, where the project has one, catches `<script>`, inline event attributes (`onerror=`, `onclick=`), `javascript:` links and scripts inside SVG files, not only script tags.
 - Authentication: a signed-in person can sign out. Owner and admin pages get a session login with sign-out from the start (plain HTTP Basic has no session to end). A login with one owner is rate limited, not locked out (a lockout lets anyone lock the owner out). Cookies are HttpOnly, SameSite and Secure (Secure on whenever the site runs on HTTPS, not left to a setting someone must remember).
 - Authorization: each destructive or sensitive action (delete, change other people's data, money, settings) is limited to the owner or a role the user named and granted it.

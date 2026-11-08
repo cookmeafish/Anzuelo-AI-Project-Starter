@@ -72,16 +72,19 @@ reproduce every time? Easier to find and reliable to repeat goes first.
   generated names outside the served folder, and check archives for traversal before extracting.
 
 ## 4. Authentication, authorization and money
-- Passwords: a slow, salted hash made for passwords (Argon2, scrypt or bcrypt) with a work factor set to current
-  guidance, or a trusted identity provider. Old fast hashes are replaced when each user next signs in, and accounts
-  that never return get a forced reset.
+- Passwords: Argon2id (at least 19 MiB memory, 2 iterations, 1 lane); scrypt only where Argon2id is unavailable;
+  bcrypt only in legacy systems (cost 10 or more, passwords over 72 bytes refused, never silently cut); PBKDF2 when
+  FIPS-140 is required (parameters: OWASP Password Storage Cheat Sheet). Or a trusted identity provider. Old fast
+  hashes are replaced when each user next signs in, and accounts that never return get a forced reset.
 - Default, shared or hardcoded credentials are removed and replaced with generated ones.
-- Sessions and tokens: random, expiring, revocable; cookies `HttpOnly`, `Secure`, `SameSite`; CSRF protection for
-  cookie-based state changes.
+- Sessions and tokens: random, expiring (idle and absolute timeouts on the server), revocable; a new session id at
+  sign-in; sign-out ends the session on the server; cookies `HttpOnly`, `Secure`, `SameSite`, ideally `__Host-`;
+  CSRF protection for cookie-based state changes.
 - Every server action checks who the caller is and whether they may touch this specific object. Deny by default;
   when rules conflict, a deny wins over an allow.
-- Rate-limit logins and other expensive or sensitive endpoints, per address and per account. Lock or slow down
-  repeated failures.
+- Rate-limit logins and other expensive or sensitive endpoints, per address and per account, and slow down repeated
+  failures (growing delays, a challenge). Avoid hard lockouts, which let anyone lock a user out; if an account must
+  lock, the user can still recover it through password reset.
 - Money and signed actions: compute prices on the server, check recipient, amount limits and balance before value
   moves, make payment calls idempotent, and verify every signature against the expected key and message.
 
@@ -112,7 +115,8 @@ reproduce every time? Easier to find and reliable to repeat goes first.
 - Storage buckets private unless meant to be public.
 - Infrastructure files reviewed like code and scanned for open ports, public storage and wildcard permissions.
 - Pipeline: minimal token permissions, federated short-lived cloud credentials, secret scan and dependency audit on
-  every run, image scans for containers, third-party steps pinned, protected main branch with required review.
+  every run, image scans for containers, third-party steps pinned to a full commit SHA, protected main branch with
+  required review.
 - Recovery: automatic backups with set retention and deletion protection, a restore tested and timed, the acceptable
   data loss and downtime written down, and a short incident plan (who decides, how keys get revoked, how users hear).
 

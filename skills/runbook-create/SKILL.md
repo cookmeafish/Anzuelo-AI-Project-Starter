@@ -80,5 +80,7 @@ the answer.
 - A check that fails every fixture yet passes the real miss, or blocks good work: test it on real samples (step 3).
 - Steps the agent would do anyway, or a measure-less verb ("pick a good one"): name the measure or cut the step.
 - A step whose result matters but has no "Done when" item: the end check never asks about it.
+- A new "Done when" item inserted mid-list renumbers the rest, and notes and tests that cite items by number then
+  point at the wrong one: add new items at the end (2026-11-07).
 
 What makes a runbook good (exact, decided, complete, short, proven): `docs/checks/runbook-standards.md`.

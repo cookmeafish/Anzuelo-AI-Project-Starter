@@ -24,7 +24,8 @@ wants the gist, key points, decisions or action items. **Not when:** a new repor
 1. **Read all of it.** Note what it is, who wrote it or took part, and its date.
 2. **Pick the location format** the source allows: page (`p. 4`), timestamp (`[12:30]`), message (`msg 7` or
    sender and time), or section heading. Every claim gets one.
-3. **Write in this order:**
+3. **Write in this order,** under a first line naming the source (what it is, its title, who wrote it or took
+   part, its date):
    1. **Decisions:** (heading `Decisions:`) what was decided, by whom when stated.
    2. **Action items:** owner, task, due date ("no date given" when none).
    3. **Open questions:** what was raised and not settled.

@@ -83,8 +83,12 @@ checks they moved together. Per-platform commands: [references.md](references.md
    archive, or `eas build`) and install it on an emulator or a device once. A release build can fail where a debug
    build did not (code shrinking, missing entitlements).
 2. Prepare the store text as files the user can review: what is new, the description, screenshots from **B**, and the
-   data-safety or privacy answers matching the permissions in **C**.
-3. Uploading to TestFlight, Play Console or any store, and submitting for review, are outward actions: only with the
+   data-safety or privacy answers covering every kind of data the app and its third-party SDKs collect or share, not
+   only the permissions in **C** (iOS also needs a privacy manifest for required-reason APIs).
+3. Check the store rules that reject builds, through the research skill for current dates: an app that lets people
+   create an account offers account deletion in the app (and, for Google Play, a web link to request deletion); the
+   Android target API level meets Google Play's current minimum.
+4. Uploading to TestFlight, Play Console or any store, and submitting for review, are outward actions: only with the
    user's OK in this conversation. Prefer a draft or internal test track the user sends.
 
 ## Done when
@@ -97,7 +101,8 @@ checks they moved together. Per-platform commands: [references.md](references.md
 ## Pitfalls
 - Checking a screen only in a web preview or a desktop window, where notches, keyboards and font scaling do not exist.
 - Asking for every permission on first launch, then crashing or showing a blank screen when one is refused.
-- Raising the version but not the build number, so the store rejects the upload.
+- Reusing a build number, so the store rejects the upload (Google Play refuses any version code already used,
+  whatever the version name).
 - A release build that crashes because code shrinking removed a class used only by reflection.
 - An API key in the app bundle, treated as secret because it is not in the source code.
 - Testing only on fast office Wi-Fi.

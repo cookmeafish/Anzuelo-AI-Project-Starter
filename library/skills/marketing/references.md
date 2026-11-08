@@ -92,7 +92,7 @@ exist, and what worked before (the user's data).
 |---|---|
 | Blog post | Headline with the main phrase; an opening that names the reader's problem and what the post will give them; 3 to 5 sections under descriptive subheadings, one idea each with an example or sourced data point; a close with the takeaway and one call to action; a meta description |
 | Social post | A first line that earns the next; 2 to 4 short points or a mini story; one ask (comment, click, save); a few relevant tags where the platform uses them. Fit the platform's length and habits |
-| Newsletter | Subject line; preview text that adds to it; a one-line value statement up top; 2 or 3 scannable blocks; one main button; footer with unsubscribe and contact |
+| Newsletter | Subject line; preview text that adds to it; a one-line value statement up top; 2 or 3 scannable blocks; one main button; footer with a working unsubscribe link and the sender's physical postal address (US CAN-SPAM) |
 | Landing page | Headline with the main benefit; a subheadline that explains it; the main button near the top; 3 or 4 benefit blocks; proof (quotes, logos, numbers, all real); answers to objections; the button again at the end |
 | Press release | A factual headline; place and date; a first paragraph with who, what, when, where and why; detail and quotes (real, approved); company boilerplate; media contact |
 | Case study | "<Customer> got <result> with <product>"; a snapshot (industry, size, result); the challenge; what was done; results with real numbers; an approved quote; next step |

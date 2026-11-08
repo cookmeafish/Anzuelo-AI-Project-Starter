@@ -13,14 +13,18 @@ menu: A8
 - Paths are relative to the app, and survive spaces and accented characters.
 - Updates come only from the release branch or channel, never over local changes or unpublished commits, and must
   survive a retracted release.
+- An update is verified before it is installed or run (a signature checked against a key shipped with the app, or a
+  hash from signed release metadata). A download that fails is deleted and logged; the installed version keeps running.
 - Updates never prompt for credentials (non-interactive), never block when offline, and log every decision to a file.
 - A dependency fingerprint at launch decides whether dependencies need reinstalling. A pending-install marker makes an
   interrupted install resume.
 - The agent never runs the installer for real on the user's machine; sandbox runs and syntax checks are fine (step 3).
   The user runs the test matrix.
 - On Windows, a script the user is told to run with `powershell` works in Windows PowerShell 5.1, the version every
-  Windows has; otherwise the instruction says `pwsh` and the script starts with `#Requires -Version 7`. 5.1 has none
-  of these: `-Encoding utf8NoBOM` (use `[IO.File]::WriteAllText(path, text)` for UTF-8 without a BOM), the `??` and
+  Windows has; otherwise the instruction says `pwsh` and the script starts with `#Requires -Version 7.1` (`?.` was
+  experimental in 7.0). 5.1 has none of these: `-Encoding utf8NoBOM` (use `[IO.File]::WriteAllText(path, text)` for
+  UTF-8 without a BOM, with a full path such as `(Join-Path $PSScriptRoot '.env')`: .NET resolves a relative path
+  against the process folder, not the PowerShell location), the `??` and
   `?.` operators, the ternary `a ? b : c`, and `&&` / `||` between commands. Lesson: a setup script wrote `.env` with
   `-Encoding utf8NoBOM`, the answer said to run it with `powershell`, and 5.1 stopped there, so no `.env` was made.
 - Every script, launcher or command the answer tells the user to run, made or changed this turn, runs here the way

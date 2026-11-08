@@ -18,7 +18,8 @@ The project-wide baseline is `docs/security.md`. These rows add what an app need
 | Secrets: how the app reads them (environment or secret store), and it fails fast when one is missing | <...> |
 | Network surface: what listens or calls out (local server: loopback only, Host + Origin checks, request size cap; public API: auth and rate limits; none) | <...> |
 | Untrusted input: paths never built from it; HTML/markdown sanitized; no remote loads from rendered content | <...> |
-| Dependencies: how they are audited (npm audit, pip-audit, cargo audit, dotnet list package --vulnerable, flutter pub outdated) and how often | <...> |
+| Dependencies: how they are audited (npm audit, pip-audit, cargo audit, dotnet list package --vulnerable --include-transitive, flutter pub get advisory warnings) and how often | <...> |
+| Sign-in (or N/A - no accounts): provider or library, password rules (15+ characters alone, 8+ with MFA, breached-list check, no forced rotation), MFA for admins, session idle and absolute timeouts | <...> |
 | Updates and distribution: signed or from one trusted source only (store, registry, release page) | <...> |
 | Data the app keeps about people: what, where, for how long, and how it is deleted | <...> |
 | Files people add or the project publishes: type checked by content, size cap, photo metadata (EXIF location) stripped, exports to spreadsheets neutralize formula cells (or N/A - none) | <...> |

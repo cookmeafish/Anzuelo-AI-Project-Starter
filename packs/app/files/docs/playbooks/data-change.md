@@ -16,6 +16,11 @@ one still needs steps 1, 2 and 6). The data-safety rules are in `docs/checks/app
    `docs/foundation.md` names) before touching anything, and refuses to run if the backup fails.
 3. **Migrate without deleting:** old data is kept until the new data is verified. Collisions go to a dated backup
    folder. A failed or partial read stops the migration, and never writes "empty".
+   Each change is a numbered migration script in the repo, applied only by the migration tool. Run schema changes in
+   a transaction where the database allows it (PostgreSQL does; MySQL and Oracle commit DDL at once), set a lock
+   timeout, and build large indexes without blocking writes (PostgreSQL `CREATE INDEX CONCURRENTLY`).
+   **A live app with old and new versions running at once:** expand (add the new field and write both), backfill old
+   records, switch reads once both match, stop writing the old field, then remove it, each as its own release.
 4. **Test on copies:** real-shaped sample data, including empty, corrupt and huge cases (10x the largest real size, or
    100k records if unknown). Test the **restore** too.
 5. **Sandbox folders only,** never the user's real data during development. The answer names the sandbox path used.

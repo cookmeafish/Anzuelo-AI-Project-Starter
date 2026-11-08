@@ -25,12 +25,13 @@ feature, app pack); a reply drafted from scratch (correspondence, when enabled).
 2. **List what must survive:** every number, name, date, link, quote, unit and "not" in the original.
 3. **Revise for the reader** (`docs/checks/writing-standards.md`): answer first, plain words, short sentences, one
    idea per sentence, every heading says what is under it, no em dashes. Keep the user's voice unless asked to change it.
-   - Proofread only: fix spelling, grammar and punctuation; change nothing else.
+   - Proofread only: fix spelling, grammar and punctuation, one pass per kind of error; change nothing else.
    - Shorten: cut repetition and filler first, then detail; stop at the target length (count the words before and
      after).
    - Tone: change wording and register, not content.
    - Translate: keep a short term list (names, product terms, units), keep formatting and numbers as written, and
-     translate the riskiest 2 or 3 sentences back to check the meaning held.
+     reread the translation against the original sentence by sentence. Translating the riskiest 2 or 3 sentences
+     back is a quick extra check, not proof.
 4. **Check the facts:** tick each item from step 2 in the revision. Anything cut on purpose goes in the change note.
 5. **Writing check** on a new file: `node tools/writing-check.mjs "<name> v2.<ext>"`. Fix what it lists (in a
    letter, courtesy lines stay).

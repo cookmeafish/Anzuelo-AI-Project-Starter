@@ -13,24 +13,33 @@ test across the app (`qa.md` §4), or a test fails every time because the code i
 
 ## Steps
 0. **Checkpoint first,** so every change can be undone: `git branch backup/<yyyymmdd-hhmm>`, and with uncommitted
-   work also `git stash push -u -m "checkpoint <stamp>"` then `git stash apply` (the work stays, the stash keeps a
-   copy). Undo: `git restore <file>` for one file, or `git restore .` then `git stash apply` for all. No git: copy
-   the files you will touch into `.cache/backups/<stamp>/` first. Find the test command in `docs/foundation.md`, the
-   package file (`scripts.test` in package.json, pyproject.toml) or the README. No test framework at all: say so and
-   ask before adding one.
+   work also `git stash push -u -m "checkpoint <stamp>"` then `git stash apply --index` (the work stays, staged
+   parts stay staged, the stash keeps a copy). Then `git add -A`, so the index holds the starting point (say so in
+   the answer). Undo one file: `git restore <file>` (it restores from the index, so the user's edits stay). Undo
+   all: `git stash push -u -m "discarded attempt <stamp>"` (keeps the attempt), then, if a checkpoint stash was
+   made, `git stash apply --index stash@{1}` (check `git stash list` first). Never `git restore .` or
+   `reset --hard` for this. No git: copy the files you will touch into `.cache/backups/<stamp>/` first. Find the
+   test command in `docs/foundation.md`, the package file (`scripts.test` in package.json, pyproject.toml) or the
+   README. No test framework at all: say so and ask before adding one.
 1. **List the behaviours worth protecting,** riskiest first, in the `qa.md` §4 order (money, data, security, main
    flows, error handling). Read the existing tests first and skip what they already cover.
 2. **Write each test through the public interface:** call what callers call and check the resulting state or output,
    not which private methods ran or in what order. One behaviour per test.
 3. **Keep each test plain:** no loops or branching logic in the test, the inputs and the expected value written out,
    and a name that says the behaviour and its outcome (`rejects_empty_email`, not `test_validate_2`).
+3a. **Characterization tests** (code with no tests, before a refactor): call the code with a real input, assert a
+    value you know is wrong, run it, and put the actual result from the failure in as the expected value. The test
+    pins what the code does today, even when that looks wrong; list a likely bug as a separate task.
 4. **Prove each test can fail:** break the code under test briefly (or flip the expected value), run the test, see it
-   fail for the expected reason, then restore the code (`git restore <file>`). Note it as `Seen failing: <test> - <how it was broken>`. A test
+   fail for the expected reason, then undo exactly that break (by hand, or `git restore <file>` after the step 0
+   `git add -A`, which keeps the user's edits). Note it as `Seen failing: <test> - <how it was broken>`. A test
    that never failed proves nothing.
 5. **Flaky test:** run it in a loop (20 runs, or until it fails twice) to reproduce it, then find the cause with the
    debug skill: shared state between tests, timing, test order, real clock or network, random data. Fix the cause
-   (isolate the state, wait on a condition, inject the clock, seed the randomness). Never add a retry, a sleep or a
-   skip. Then run it the same number of times again and state the count.
+   (isolate the state, poll for the condition with a timeout, inject the clock, seed the randomness). Never add a
+   retry or a fixed sleep as the fix. Cause not found this session: ask the user before quarantining the test, name
+   it and why, and list it as open work; never skip or delete it silently. Then run it the same number of times
+   again and state the count.
 6. **UI flows:** script the real page (`tools/screenshot.mjs --steps`, gui pack, or Playwright) instead of testing
    markup strings.
 7. **Run the whole suite** after the last edit. Report coverage as a hint, never as the goal.

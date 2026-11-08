@@ -13,7 +13,8 @@ import {
   setupProblems, upgradeProblems, bench, gitignoreProblems, writingProblems, aiAttributedCommits, BASE_REQUIREMENTS, routableSkills, skillHasCheck, curateDue,
   FIT_FILE, fitProblems, fitRows, fitDecision, fitWhenOf, doneWhenItems, DONE_LABEL, findLibrary, secretHit, mirrorText, logRun, testInputsHash, deadTriggers, rulesText, route, personalDetails,
   externalHookSizes, HOOK_OUTPUT_MAX, gitignoreTest, today, bulkDir, checkRe, RETIRED_TAGS, forbiddenRe, privateTermsPath, privateTermsListFile,
-  nameFiles, nameProblems, match, VERBATIM_ENGINE
+  nameFiles, nameProblems, match, VERBATIM_ENGINE,
+  starterOnlyChars,
 } from './hooks/hooks.mjs';
 
 // --help, or a flag it doesn't know, prints the usage and runs nothing. Lesson (2026-11-06): a mistyped flag in a
@@ -543,7 +544,10 @@ sweep('always-loaded files stay small', () => {
   const sizes = ['CLAUDE.md', 'DIRECTORY.md'].map(f => [f, read(abs(f)).length]), total = sizes.reduce((a, [, n]) => a + n, 0);
   const prefs = (/^## The user's standing preferences[^\n]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(read(abs('AGENTS.md'))) || [, ''])[1].length;
   const warn = [];
-  if (isTemplate && total > cfg.starterLoadedMaxChars) warn.push(`the starter's own AGENTS.md and DIRECTORY.md are ${total} characters, over ${cfg.starterLoadedMaxChars}: every project starts with them, so trim the starter's text`);
+  // (DIRECTORY.md's section 5, the packs and library the starter can add, is written only in the starter itself, so a
+  // project never starts with it. Lesson: the warning counted it and asked to trim rules every project needs)
+  const starterOnly = starterOnlyChars(read(abs('DIRECTORY.md')));
+  if (isTemplate && total - starterOnly > cfg.starterLoadedMaxChars) warn.push(`the starter's own AGENTS.md and DIRECTORY.md are ${total - starterOnly} characters (without its starter-only section 5), over ${cfg.starterLoadedMaxChars}: every project starts with them, so trim the starter's text`);
   if (!isTemplate && prefs > cfg.alwaysLoadedOwnMaxChars) warn.push(`the standing preferences in AGENTS.md are ${prefs} characters, over ${cfg.alwaysLoadedOwnMaxChars}: merge repeated ones and move detail into the runbook or skill each one is about`);
   // CLAUDE.md is loaded at every session start; DIRECTORY.md is read when routing, unless CLAUDE.md @imports it.
   // Each gets its own ceiling. Lesson: the sum of both was held to one limit though only one is loaded every time.

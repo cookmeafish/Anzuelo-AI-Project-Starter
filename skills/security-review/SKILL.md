@@ -54,7 +54,7 @@ project.** Both use the same areas, severity scale and report table ([references
 | Injection | Does any input reach a query, shell command, file path, template, eval or spreadsheet export without parameters or escaping? |
 | Output and XSS | Is untrusted text rendered as HTML anywhere without a sanitizer? Is there a strict content security policy? |
 | Request forgery | Can another site or page trigger a state change with the user's cookies, or call a local server? |
-| Authentication | Are sessions and tokens issued, stored, expired and revoked with a vetted library, with a sign-out and safe cookies? |
+| Authentication | Are sessions and tokens issued, stored, expired and revoked with a vetted library, with a new session id at sign-in, a sign-out that ends the session on the server, and safe cookies? Do password rules and multi-factor follow current guidance? |
 | Authorization | Does every operation check, on the server, that this caller may do this to this record, with a test that another user is refused? Is any role or right one the user did not grant? |
 | Sensitive data | Do errors, logs, responses or analytics expose secrets, stack traces or more personal data than needed? |
 | Abuse limits | Are there rate limits, size caps and timeouts, stricter on sign-in, expensive operations and public forms? |

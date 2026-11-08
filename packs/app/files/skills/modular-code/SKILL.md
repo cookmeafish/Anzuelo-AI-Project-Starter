@@ -19,8 +19,10 @@ makes the code side concrete.
 1. **One feature, one module.** A feature (orders, invoices, the map screen) lives in its own folder with its code,
    its tests and its private parts together. Adding a feature means adding a folder, not editing ten files across
    the app.
-2. **One public entry per module.** Other modules import only from its entry (`index.ts`, `__init__.py`, `mod.rs`, a
-   barrel file, a package's public API). Its insides can change without breaking anything else.
+2. **One public entry per module.** Other modules import only from its entry (`index.ts`, `__init__.py`, the Rust
+   `<name>.rs` next to its folder rather than the older `mod.rs`, a package's public API). In JavaScript or TypeScript
+   keep that entry small, exporting only the public API; avoid barrel files that re-export whole folders (Vite
+   advises against them: they slow builds and cause import cycles). Its insides can change without breaking anything else.
 3. **Depend on interfaces, not on details.** Storage, network, payment, mail and clock sit behind a small interface
    the feature receives (dependency injection, a provider, a constructor argument). A test passes a fake; a new
    provider is a new implementation, not a rewrite.

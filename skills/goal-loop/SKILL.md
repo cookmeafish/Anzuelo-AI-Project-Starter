@@ -22,9 +22,11 @@ improved and nothing that passed before fails. The log in `docs/plans/` lets a l
 2. **Write the log** with `node skills/goal-loop/scripts/goal.mjs new "<goal>"`. It creates
    `docs/plans/YYYY-MM-DD-goal-<slug>.md` with these lines to fill (`Limit:` starts at 5):
    - `Goal:` the result in the user's words.
-   - `Measure:` a command that prints the number (preferred: a test run, a timing script, a count), run 3 times for
-     anything timed, the median counted. Without one, a fixed rubric of 3 to 5 questions, written in the log's
-     `Rubric:` line, that a fresh helper agent (the Agent tool, a cheaper model) scores 1 to 5. The helper gets only the
+   - `Measure:` a command that prints the number (preferred: a test run, a timing script, a count), for anything
+     timed, one warm-up run thrown away, then at least 10 runs (a tool such as hyperfine does this; a measure slower
+     than about a minute may use 5, with the reason in the line), the median counted. Without one, a fixed rubric of 3
+     to 5 questions, written in the log's `Rubric:` line, that a fresh helper agent (the Agent tool, a cheaper model)
+     scores 1 to 5; each question says what a 1 and a 5 look like. The helper gets only the
      result and the rubric, never the change or your reasoning.
    - `Bar:` the value that means done (for example "0 failing tests", "median under 1 s", "every rubric score 4+").
    - `Limit:` the number of rounds: 5 unless the user gives one.
@@ -32,10 +34,11 @@ improved and nothing that passed before fails. The log in `docs/plans/` lets a l
      package file or the README) and `node tools/audit.mjs`. A project with no tests has the audit alone; say so in the line.
 3. **Baseline.** Commit or stash any open work first, so each round can be undone cleanly. Run the measure and the
    guard. Write `- Baseline: <value> | guard: pass` (or `guard: fail - <what>`: fix that first, or note it, since a red
-   guard hides what a change breaks).
+   guard hides what a change breaks). A loop resumed in a new session re-runs the baseline before its next round.
 4. **One round.** Pick the change most likely to close the biggest gap, smallest first. Make it, run the measure, then
-   the guard. Write `- Round N: <the change> | <value> | guard: pass|fail | kept|undone`. A gain counts when it beats
-   the baseline (or the last kept round) by more than the spread of its 3 timed runs, or by at least 1 rubric point.
+   the guard. Write `- Round N: <the change> | <value> | guard: pass|fail | kept|undone`. A timed gain counts when the
+   new runs' range lies wholly below the baseline's (or the last kept round's), both measured in the same session and
+   conditions; a rubric gain needs at least 1 point.
    Keep it only with a gain and the guard passing, and commit it; otherwise undo it (`git checkout -- <files>`, and
    delete new files) and write why.
 5. **Repeat step 4** until the bar is met, the limit is reached, or two rounds in a row brought no gain (stalled: the

@@ -1,7 +1,7 @@
 ---
 name: project
 summary: The project itself - new rules, complaints about misses, praise to repeat, sweeps, gaps, runbooks, skills, hooks, packs, status
-triggers: clean up skills, prune skills, unused skills, retire a skill, show me the menu, menu codes, set up this project, enable a skill, remove a skill, library skills, update the project, update this project, from now on, new rule, make it a rule, remember to always, remember from now on, you forgot, i told you, i shouldn't have to, sweeps, audit the project, run the audit, gap review, what's missing, project skills, harden a skill, harden the skill, hook change, add a pack, install a pack, where are we, where were we, what's next, to-do list, todo list, remind me, handoff for the next session, what's on my plate, what am i waiting on, daily summary, standup update, share these skills, package skills, skill bundle, make a plugin, customize a plugin, where did we leave off, where we left off, what's left to do, project health, add a hook, which skills, stop forgetting, keeps forgetting
+triggers: clean up skills, prune skills, unused skills, retire a skill, show me the menu, menu codes, set up this project, enable a skill, remove a skill, library skills, update the project, update this project, from now on, new rule, make it a rule, remember to always, remember from now on, you forgot, i told you, i shouldn't have to, sweeps, audit the project, run the audit, gap review, what's missing, project skills, harden a skill, harden the skill, hook change, add a pack, install a pack, where are we, where were we, what's next, to-do list, todo list, remind me, handoff for the next session, what's on my plate, what am i waiting on, daily summary, standup update, share these skills, package skills, skill bundle, make a plugin, customize a plugin, where did we leave off, where we left off, what's left to do, project health, add a hook, which skills, stop forgetting, keeps forgetting, why did you, sweep, gaps, runbook, runbooks, playbook, the skills, the hooks, packs, project status
 menu: E1
 checks: core: rule-request, rule-memory, hooks-tested, runbook-complete
 ---
@@ -90,10 +90,10 @@ SKILL CLEANUP DUE, and the skill-curate skill keeps it with a reason, merges it,
 - [ ] The original miss behind a complaint is fixed, not just prevented (judgment: whether the miss itself is fixed needs a look at the result).
 - [ ] Rule requests: every file was searched for wording or behavior that says the opposite, each hit fixed or kept with a reason, and the answer says how many (judgment: what counts as the opposite needs a reader).
 - [ ] Skills added or removed: each one belongs to a runbook or has its own triggers and a check (hook: skill-complete).
-- [ ] The audit ran after a pack or skill was installed, enabled, added or disabled (ran: audit\.mjs) (when ran: packs\.mjs install|skills\.mjs enable|skills\.mjs disable|skills\.mjs add).
-- [ ] A skill decision is recorded in the fit checklist (file: docs/fit-checklist.md) (when ran: fit\.mjs decide).
 - [ ] Skills due for cleanup: each kept with a reason, merged, or retired with the user's OK (skill-curate; hook: skill-prune).
 - [ ] CHANGELOG updated; Finished section (hooks: changelog, finished-summary) (file: docs/CHANGELOG.md).
+- [ ] The audit ran after a pack or skill was installed, enabled, added or disabled (ran: audit\.mjs) (when ran: packs\.mjs install|skills\.mjs enable|skills\.mjs disable|skills\.mjs add).
+- [ ] A skill decision is recorded in the fit checklist (file: docs/fit-checklist.md) (when ran: fit\.mjs decide).
 
 ## Pitfalls
 - A rule written only in the docs gets forgotten. Every checkable rule needs a check.

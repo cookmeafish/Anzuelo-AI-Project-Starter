@@ -34,6 +34,8 @@ Outward steps (posting, resolving, pushing) need the user's OK (rule 6): draft, 
    meet.
 2. **Read all of it,** with enough of the surrounding code to see how it is called. Run the tests.
 3. **Look through each lens,** most harmful first:
+   - **Design:** the change belongs here and fits the rest of the system; it is no more complex than the goal needs,
+     with nothing built for a future nobody asked for.
    - **Does it work:** it meets the stated goal; odd inputs (empty, missing, very large, negative, duplicate,
      non-English text); boundaries and counting off by one; errors caught and passed on, never swallowed; two
      requests or retries at the same time; missing values and wrong types.
@@ -62,20 +64,22 @@ Outward steps (posting, resolving, pushing) need the user's OK (rule 6): draft, 
 
    | What | Tests |
    |---|---|
-   | API | Unit tests for the rules; request-level tests for each endpoint, including refused and bad requests; contract tests when other apps call it |
+   | API | Unit tests for the rules; request-level tests for each endpoint, including refused and bad requests; contract tests when other apps call it, and scheduled ones that check your test doubles still match each outside service the app calls |
    | Data jobs | Bad input rejected; output correct for known input; safe to run twice |
    | Screens | Component and interaction tests; every state (empty, loading, error); accessibility; screenshots |
    | Running service | A quick check of the key flows after each deploy; a load test against the `docs/foundation.md` budgets; switch off a dependency and see it recover |
 3. **Find the gaps:** compare the list with the tests that exist. A coverage report is a hint, not a target. Flaky
-   tests count as gaps (debug skill, waiting on a condition).
+   tests count as gaps (debug skill, waiting on a condition). Until fixed, move a flaky test out of the main run into a
+   quarantine list with a deadline, so the main run stays trusted.
 4. **Write the plan** into the spec's Plan section (`feature.md`) or `docs/specs/<area>-tests.md`: the risk, the test
    type, example cases and status. Report the gaps as findings, then write the tests in priority order.
 
 ### §5 Answer review comments and fix failing CI
 CI (continuous integration) is the build server that runs the checks on every push or pull request.
 1. **Collect everything first:** every open review comment and thread, and the log of every failing check, read to
-   the first real error. The GitHub CLI (`gh pr view --comments`, `gh pr checks`, `gh run view --log-failed`) makes
-   this quick but is optional (`docs/recommended-tools.md`); the code host's web page works too. A check run by an
+   the first real error. The GitHub CLI makes this quick but is optional: `gh pr view --comments` for the conversation
+   and reviews, `gh api repos/{owner}/{repo}/pulls/<number>/comments` for inline line comments (`gh pr view` omits
+   them), `gh pr checks` and `gh run view --log-failed` for failing checks (`docs/recommended-tools.md`); the code host's web page works too. A check run by an
    outside service: note its link and what it says.
 2. **List them as findings,** one line each: the comment or check, what it claims, and what a fix would take.
 3. **Verify each claim before agreeing.** Reproduce the bug the reviewer describes, or read the code path they point

@@ -57,7 +57,8 @@ below first: it shows the user "acknowledged", and the end-of-turn check looks f
      result) against facts read independently, and say in the answer what ran over what, how many were checked and how
      many were wrong. The moments in the user's screenshots are a sample, not the test.
    - Turn the sweep into a self-test, so the next change can't break it again.
-2. **Find the cause** in one sentence: "The <skill/runbook/check> did not <step>, so <what went wrong>."
+2. **Find the cause:** ask why until the answer is a step, check or rule you can change (often 3 to 5 whys), and
+   note when several causes combined: "The <skill/runbook/check> did not <step>, so <what went wrong>."
    **Learned before?** Search the earlier lessons for this complaint's subject (`docs/lessons.md`,
    `docs/checks/user-requirements.md`, the skills' `## Project lessons`). If one covers it, its fix did not
    hold: the cause is why that rule or check let this through (it counted instead of judging each item, it let a

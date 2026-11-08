@@ -97,7 +97,8 @@ the build backend's settings) and rerun the dry run.
 ## G. A bad version is out
 1. Publish a fixed version first; most users will pick that up.
 2. Then deprecate or yank the bad one, with the user's OK: `npm deprecate <pkg>@<version> "<why>"`,
-   `cargo yank --version <v>`, a yank on PyPI's web page, `dart pub` retract within 7 days, `dotnet nuget delete`
+   `cargo yank --version <v>`, a yank on PyPI's web page, a retract from the package's Admin tab on
+   pub.dev within 7 days of publishing, `dotnet nuget delete`
    (unlists). These are outward actions too.
 3. Say in the changelog what was wrong and which version to use.
 

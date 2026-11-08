@@ -43,7 +43,8 @@ small.
    verified. A feature that adds a service, a data store or a new API gets designed first (the **architecture**
    skill, part B, when enabled). Pick its tests by `qa.md` §4.
 3. **Build test first, one thin slice at a time.** A slice is one behaviour carried through every layer it needs
-   (screen, logic, storage), small enough to finish and check on its own. For each slice:
+   (screen, logic, storage), small enough to finish and check on its own. First list the test cases from the
+   acceptance criteria and edge cases; add new ones as you find them. For each slice:
    - **Red:** a failing test first, for one acceptance criterion or edge case from the spec. Run it and see it fail
      for the reason you expect (the same bar as the debug skill's Phase 4). A test that passes at once proves nothing.
    - **Green:** the least code that makes it pass. Run it, then the rest of the suite.
@@ -70,7 +71,8 @@ small.
    Link to a doc instead of copying it, and delete text that is no longer true.
 6. **Release notes** in `docs/releases/<version or date>.md` (copy `docs/releases/_TEMPLATE.md`): what changed, how to
    try it fast, and how to try it for real.
-7. **Version** bump as configured, then commit on the work branch. Where `approvalPaths` apply, show Before / Now and
+7. **Version** bump as configured (semantic versioning: MAJOR breaks existing users, MINOR adds a compatible feature,
+   PATCH only fixes), then commit on the work branch. Where `approvalPaths` apply, show Before / Now and
    get the user's OK first.
 
 ## Done when

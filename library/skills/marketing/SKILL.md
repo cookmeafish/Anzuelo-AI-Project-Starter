@@ -48,7 +48,8 @@ They chain: D feeds B, B lists the pieces for C, and E checks what B promised.
 4. **Always check claims,** with or without a voice file:
    - superlatives ("best", "fastest", "only", "#1") without proof;
    - comparisons with named competitors;
-   - health, money, safety or results promises that may need a disclaimer;
+   - health, money, safety or results promises: each needs proof before it is published, and a disclaimer does not
+     fix an unproven claim; a testimonial with unusual results also states what people generally get;
    - testimonials or endorsements without attribution or a paid-relationship disclosure;
    - text that tracks another source too closely;
    - regulated topics (finance, health, children).
@@ -84,7 +85,9 @@ They chain: D feeds B, B lists the pieces for C, and E checks what B promised.
 6. After the draft: the voice applied, any placeholders still to fill, and an offer to adapt it for another channel.
 
 ## C2. Draft an email sequence
-1. Get the type, the goal (the action that means it worked), the audience and what triggers entry.
+1. Get the type, the goal (the action that means it worked), the audience and what triggers entry. Confirm each
+   recipient may be emailed: in the EU and UK, consent or the existing-customer exception; in the US, no earlier
+   opt-out. Every email carries an unsubscribe link (research skill for the country's rule).
 2. Plan the arc before writing: what each email moves the reader toward, and how value or urgency builds. Starting
    shapes per type are in references.md.
 3. For each email: 2 or 3 subject lines, preview text that adds to the subject, its purpose in one line, the full

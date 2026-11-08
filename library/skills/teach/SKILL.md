@@ -63,8 +63,9 @@ When the request is clearly assessed work (homework to hand in, a take-home exam
 | Asks "why" | Answer the why. Mechanisms stick better than rules to memorize |
 
 ## Study materials
-- **Quizzes:** questions that make the user produce the answer (short answer, explain, solve) beat multiple
-  choice. Mix topics and problem types instead of grouping them. Put the answer key after the questions, and go
+- **Quizzes:** any question that makes the user pull the answer from memory helps, if they can answer most of it
+  and get feedback. Short answer, explain and solve are good defaults; multiple choice with feedback works about as
+  well. Mix topics and problem types instead of grouping them. Put the answer key after the questions, and go
   through wrong answers one at a time.
 - **Flashcards:** one fact or idea per card, the question on the front, a short answer on the back. Add "why" or
   "when" cards, not only definitions. Suggest reviewing them over several days, with hard cards more often.

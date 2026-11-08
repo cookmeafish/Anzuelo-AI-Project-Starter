@@ -2,7 +2,7 @@
 name: efficiency-review
 description: Finds where this project's turns spend time and tokens, from its own sessions, and traces each cost to what asks for it - a project rule in CLAUDE.md, a runbook step, a project hook or check, or the starter's engine. Proposes changes ranked by the time they save, each with what it would lose, changes the project's own rules only with the user's OK, and sends engine costs back to the starter. Use when the user says the project is slow, wasteful, does too many sweeps or checks, takes too long for small fixes, burns tokens, repeats work, or asks why something takes so long.
 checks: none - its evidence is the report command's output, and tracing costs to their sources and weighing what a change loses are judgment
-triggers: too slow, so slow, takes too long, taking too long, took too long, too many sweeps, so many sweeps, too many checks, wasting tokens, waste of tokens, token waste, doing things twice, why does it take, why is it slow, speed it up, make it faster, lento, muy lento, tarda mucho, demasiado tiempo, demasiadas comprobaciones, gasta tokens, ineficiente, redundante
+triggers: too slow, so slow, takes too long, taking too long, took too long, too many sweeps, so many sweeps, too many checks, wasting tokens, waste of tokens, token waste, inefficient, efficiency, efficient, too long for, 20 minutes, doing things twice, over and over, why does it take, why is it slow, speed it up, make it faster, lento, muy lento, tarda mucho, demasiado tiempo, demasiadas comprobaciones, gasta tokens, ineficiente, redundante
 ---
 # Efficiency review: find what makes turns slow, and who asks for it
 

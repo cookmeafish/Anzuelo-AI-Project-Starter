@@ -83,7 +83,8 @@ Put state in the lowest place every reader can reach, and nowhere else:
    user's OK.
 
 ## G. Bundle size and first load
-1. Measure first: the build's own size report (`npx vite build` prints each chunk; `next build` prints each route),
+1. Measure first: the build's own size report (`npx vite build` prints each chunk; Next.js 16 and later no longer print sizes in `next build`, so use
+   `npx next analyze` or Lighthouse),
    against the budget in `docs/foundation.md`, section 2.
 2. Split by route, and load heavy, rarely used parts (charts, editors, maps) only when they are opened.
 3. Import only what you use (`import { debounce } from 'lodash-es'`, not the whole library).
@@ -91,9 +92,9 @@ Put state in the lowest place every reader can reach, and nowhere else:
    installed only with the user's OK.
 
 ## H. Settings and secrets
-1. **Everything in the client bundle is public.** Variables with a public prefix (`VITE_`, `NEXT_PUBLIC_`,
-   `REACT_APP_`, `PUBLIC_` in SvelteKit, `NUXT_PUBLIC_`, `EXPO_PUBLIC_`) are copied into the files every visitor
-   downloads. Keys, tokens, passwords and database URLs never go there. A call that needs a secret goes through the
+1. **Everything in the client bundle is public.** Variables marked public (`VITE_`, `NEXT_PUBLIC_`, `REACT_APP_`,
+   `PUBLIC_` in SvelteKit 2 or `public: true` in SvelteKit 3's `src/env.ts`, keys in Nuxt's `runtimeConfig.public`
+   (set by `NUXT_PUBLIC_*`), `EXPO_PUBLIC_`) are sent to every visitor. Keys, tokens, passwords and database URLs never go there. A call that needs a secret goes through the
    app's own server (backend-patterns).
 2. Some keys are public on purpose (a payment provider's publishable key, an anonymous database key protected by
    row rules, a map key restricted to your domain). Say which ones and why in the answer.

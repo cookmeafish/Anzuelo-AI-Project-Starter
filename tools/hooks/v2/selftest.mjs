@@ -1013,6 +1013,26 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     report(!a.real && !a.text && !b.real && !b.text && c2.real && /Run the tests/.test(c2.text) && !d.real && /really done/.test(d.text) && !e.real,
       'check preview: the health line alone passes on a first or a repeat check; a repeat\'s real item fails; a verify list alone does not', { a, b, c2, d });
   }
+  // (a helper gets the rules line but never the parent's runbook checklist under v2; v1 still hands it over)
+  {
+    const { spawnSync } = await import('node:child_process'), c = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-brief-'));
+    fs.mkdirSync(path.join(c, 'tools/hooks/state'), { recursive: true }); fs.mkdirSync(path.join(c, '.cache'), { recursive: true }); fs.mkdirSync(path.join(c, 'docs/playbooks'), { recursive: true });
+    fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(c, 'tools/hooks/v2'), { recursive: true });
+    for (const f of ['hooks.mjs', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
+    fs.writeFileSync(path.join(c, 'docs/playbooks/export.md'), '---\nname: export\n---\n# Export\n## Done when\n- [ ] The tests pass (ran: npm test)\n');
+    const brief = engine => {
+      const at = new Date(Date.now() - 2000).toISOString();
+      fs.writeFileSync(path.join(c, 'tools/hooks/state/turn.json'), JSON.stringify({ at }));
+      fs.writeFileSync(path.join(c, 'tools/hooks/state/checklist-shown.json'), JSON.stringify({ at, files: ['docs/playbooks/export.md'] }));
+      return spawnSync(process.execPath, [path.join(c, 'tools/hooks/hooks.mjs'), 'pretool'], { cwd: c, encoding: 'utf8',
+        input: JSON.stringify({ session_id: 'brief', transcript_path: path.join(c, 't.jsonl'), tool_name: 'Agent', tool_input: { prompt: 'Check these five sources.', subagent_type: 'general-purpose' } }),
+        env: { ...process.env, STARTER_ENGINE: engine, ANZUELO_ROOT: c, CLAUDE_PROJECT_DIR: c } }).stdout || '';
+    };
+    const v2 = brief('v2'), v1 = brief('v1');
+    fs.rmSync(c, { recursive: true, force: true });
+    report(/AGENTS\.md/.test(v2) && !/CHECKLIST/.test(v2) && /CHECKLIST/.test(v1),
+      'subagent brief: under v2 a helper gets the rules line and no parent checklist; v1 still hands it over', JSON.stringify({ v2: v2.slice(-300), v1: v1.slice(-300) }));
+  }
   // (the checks a project wrote itself are listed for its upgrade to turn into "Done when" lines; shipped ones are not)
   {
     const { projectChecks } = await import('../hooks.mjs');

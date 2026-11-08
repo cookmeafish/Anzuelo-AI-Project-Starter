@@ -2843,6 +2843,9 @@ export function syncSkills(cfg = config()) {
   return changed;
 }
 
+// The size of DIRECTORY.md's section 5 (the packs and library the starter can add), which only the starter writes.
+export const starterOnlyChars = text => (/^## 5\. What this starter can add[\s\S]*?(?=^## |(?![\s\S]))/m.exec(String(text || '')) || [''])[0].length;
+
 export function directoryBlock(cfg = config()) {
   const pbs = playbooks().filter(pb => !pb.name.startsWith('_'));
   const { reqs } = loadRequirements();
@@ -6043,7 +6046,9 @@ export function briefLine(data, cfg = config()) {
   const inp = data.tool_input || {};
   if (!/^(Agent|Task)$/.test(data.tool_name || '') || !cfg.subagentBrief || typeof inp.prompt !== 'string' || inp.subagent_type === 'fork') return null;
   const head = /AGENTS\.md|CLAUDE\.md/.test(inp.prompt) || briefFileNamesRules(inp.prompt) ? '' : BRIEF_LINE;
-  const at = readJSON(stateFile('turn.json'), {}).at || '', st = cfg.runbookLedger ? readJSON(stateFile(CHECKLIST_SHOWN), {}) : {};
+  // (the simple engine gives helpers no checklist, AGENTS.md rule 18. Lesson: read-only helpers ended every report
+  // with a list of "N/A" evidence lines for the parent's runbook, which cost tokens and proved nothing)
+  const at = readJSON(stateFile('turn.json'), {}).at || '', st = cfg.runbookLedger && engineOf() !== 'v2' ? readJSON(stateFile(CHECKLIST_SHOWN), {}) : {};
   const lists = (st.at === at ? st.files || [] : []).filter(f => !inp.prompt.includes(f) && ledgerItems(read(abs(f))).length);
   const tail = lists.length ? `CHECKLIST: this work follows ${lists.join(', ')} ("Done when"). Read the items that apply to your part, and end your report with one line per item: "Evidence N: <the file, command or output that proves it>" or "Not done N: <why>". Your report is checked against them, item by item.` : '';
   if (!head && !tail) return null;

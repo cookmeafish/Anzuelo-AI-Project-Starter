@@ -11,7 +11,9 @@ helpers on the same topic share one. Give every helper the same `--slug`.
    "specification", "study", "regulation"), one for the opposite view ("problems", "criticism", "recall", "<x> vs
    <y>"), and one for independent tests or reporting. Never put the user's private details in a query.
 3. **Screen every source** before using it: owner, type, incentive, date, and use (`evidence`, `lead only` or
-   `excluded`). The red flags are in [references.md](../references.md).
+   `excluded`). The red flags are in [references.md](../references.md). Read laterally: for an owner you don't
+   already know, search its name in a new query (leaving out its own site) and see what independent sources say about
+   it before trusting what it says about itself.
 
    | Kind | Use |
    |---|---|

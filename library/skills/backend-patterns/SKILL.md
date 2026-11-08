@@ -56,7 +56,8 @@ Keep three jobs apart, even when they live in one file in a small app:
 1. **Ask only for what you need:** named columns, a limit, an index behind every filter and sort used in a hot path.
 2. **No query inside a loop (N+1).** Fetch the parents, collect the ids, fetch the children in one query, join in
    memory with a map. Or use the ORM's eager loading on purpose.
-3. **Parameters, never string building**, for every query, including ORDER BY and LIMIT values (allowlist column names).
+3. **Parameters, never string building**, for every value in every query, including LIMIT and OFFSET. Column names and ASC or
+   DESC in ORDER BY cannot be parameters: map the caller's choice to a fixed allowlist and reject anything else.
 4. **Transactions around changes that must land together.** Keep them short, never wait on the network inside one, and
    let the database enforce what it can (unique, foreign keys, not null, checks). When the client library cannot hold a
    transaction open (some hosted or HTTP database APIs), put the multi-step write in one database function or stored

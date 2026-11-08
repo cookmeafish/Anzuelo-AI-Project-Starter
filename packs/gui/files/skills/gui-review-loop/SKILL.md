@@ -27,7 +27,8 @@ been opened, and the answer gives a verdict. Any edit after a round makes that r
      Shoot a small and a large screen, light and dark, and the states you changed (empty, loading, error, offline).
    - The defaults are desktop 1400x900 and phone 390x844, each in light and dark. Use `--full` for long pages. A page
      with a main button or Next/Back controls is also shot at a laptop size (`--sizes 1366x768,390x844`), without
-     `--full`: the button must be in the shot.
+     `--full`: the button must be in the shot. Once per review, also shoot the main page at 320 px wide
+     (`--sizes 320x640`), the width WCAG reflow is tested at.
 2. **Look.** Open each `SHEET:` image (a contact sheet: up to 8 screenshots of the round, captioned); with no sheet,
    open every `SCREENSHOT:` image. Open at most 2 screenshots full size per round, only for a detail the sheet can't
    show (small text, a 1-pixel border). Read the `WARN` lines too (sideways scroll, console errors, broken images,

@@ -12,14 +12,15 @@ crashes or hangs for good (`bugfix.md`).
 ## Steps
 1. **Measure before**, with a fixed, repeatable tool: the project's budget script if it exists (made by
    `app-foundation.md`), else your own script. Use conditions that match the user's (their screen, refresh rate, data
-   size, device); if unknown, use the `docs/foundation.md` section 2 budgets and say so. Write the numbers down.
+   size, device); if unknown, use the `docs/foundation.md` section 2 budgets and say so. Run each measurement at least 5 times and write down the median and the
+   spread (lowest to highest); for real-user page metrics use the 75th percentile.
    Measure what the user waits for, end to end (the real command on real-sized input, a real page load), not an inner
    function: a PASS on part of the path says nothing about the rest.
 2. **Find the real cost** (profile; don't guess). If smoothing the pipeline doesn't change what the user sees, check
    the content: data size, image size, item count. Report what you find as an option.
 3. **Change one thing at a time.** Follow the performance rules in `docs/checks/app-standards.md`.
-4. **Measure after** with the same tool and the same input size. Keep the change only if the numbers improve and
-   nothing else gets slower. Stop when the `docs/foundation.md` budget is met.
+4. **Measure after** with the same tool and the same input size. Keep the change only if the numbers improve (by more
+   than the run-to-run spread) and nothing else gets slower. Stop when the `docs/foundation.md` budget is met.
 5. **Verify the experience** in the real app (the gui-review-loop from the gui pack for anything visible).
 
 ## Done when

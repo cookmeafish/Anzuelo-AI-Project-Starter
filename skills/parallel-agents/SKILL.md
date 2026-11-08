@@ -15,6 +15,9 @@ by part of the codebase. Then split only when every answer is yes:
 - No two parts edit the same files or use the same running resource (a port, a database, a device, a build folder).
 - Fixing one part is unlikely to fix or break another.
 - The order doesn't matter.
+- It is worth the cost: each sub-agent spends its own tokens (multi-agent runs use many times the tokens of one chat)
+  and must rebuild context you already have, so it can be slower. Split for parallel speed, a clean context or a fresh
+  reviewer, not by habit.
 
 | Situation | Do this |
 |---|---|
@@ -52,8 +55,8 @@ example is in [references.md](references.md).
 Launch all the sub-agents in the same step so they run at the same time; one per step runs them in order. A handful
 of focused agents beats many overlapping ones.
 - Pick the model per part. Mechanical (rename, grep, format, copy) = the smallest model; review, design and debugging
-  = the default. Set it with the Agent tool's `model` parameter (other agents: their equivalent), or every agent runs
-  on the most expensive default.
+  = the default. Set it with the Agent tool's `model` parameter (other agents: their equivalent). Without it, each
+  agent runs on its definition's model or else the main session's model.
 - While they run, do your own work. Don't poll in a tight loop. If one is silent far longer than the others, check
   on it.
 

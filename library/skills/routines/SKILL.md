@@ -81,7 +81,8 @@ costs, and set it up only after the user agrees.
    - cron (Linux, macOS): `crontab -e`, then a line like `0 8 * * 1 cd <project> && <command>` (minute, hour,
      day of month, month, weekday). Remove the line to stop it.
    - launchd (macOS): a plist in `~/Library/LaunchAgents/` with `StartCalendarInterval` (Weekday 1, Hour 8), loaded
-     with `launchctl load <plist>`; `launchctl unload <plist>` stops it.
+     with `launchctl bootstrap gui/$(id -u) <plist>`; `launchctl bootout gui/$(id -u) <plist>` stops it (`load` and
+     `unload` are legacy).
 5. Write in the routine's runbook that it is scheduled, where, and how to remove it.
 6. The row in docs/routines.md stays: the session announcement is the backup when the computer was off.
 

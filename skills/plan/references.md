@@ -78,8 +78,10 @@ for two verdicts:
 - **Well built:** clear structure, error handling, no duplicated logic, tests that test behavior.
 
 The reviewer treats the report as claims to check, not as facts, and doesn't rerun the whole suite. It may list
-points it couldn't judge from the change alone; settle each of those yourself. Never tell a reviewer what not to
-flag. If you think a finding will be wrong, let it be raised and decide then.
+points it couldn't judge from the change alone; settle each of those yourself. Scope it to gaps that affect
+correctness or the task, and say to skip style: a reviewer asked for problems always finds some, and fixing every one
+adds layers and tests for cases that can't happen. Inside that scope, don't pre-judge: let a doubtful finding be
+raised and decide then.
 
 **Fix rounds:** important findings go back to the same builder with the findings word for word. After each fix, a
 review of only the fix. At most 5 rounds per task; from round 4, use a fresh builder on a stronger model, told what
@@ -88,8 +90,8 @@ and move on), or real and later tasks depend on it (make the smallest change tha
 Small findings never start a round; list them in the plan as deferred.
 
 **Models:** the cheapest model that can do the job for mechanical tasks, a standard one for tasks that need judgment
-across files, the strongest one for design work and the final review. Name the model each time, or every sub-agent
-runs on the most expensive default.
+across files, the strongest one for design work and the final review. Name the model each time: without one, a sub-agent
+runs on its definition's model or else the main session's model, usually the expensive one.
 
 ## Straight through: you do every task
 Same rules for each task as above. Your own tests are the check after each task; the review at the end is the second

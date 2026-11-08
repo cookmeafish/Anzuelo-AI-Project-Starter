@@ -25,7 +25,8 @@ prose to revise-text, and STATUS or CHANGELOG to the session-handoff skill.
 3. **README:** keep the old one. When it has uncommitted changes or is not in git, copy it to
    `.cache/backups/README <stamp>.md` first (a committed one is kept by git). It covers, in this order: what this is
    in one or two lines, how to install and run it to a first success, which files to read first, how to test, who
-   maintains it, and links to the detailed docs.
+   maintains it and where to get help, its status when it is deprecated or not released, and links to the detailed
+   docs.
 4. **Docstrings and reference** come from the public interface: every parameter, return value, error raised and side
    effect, with one short example. Private helpers get a comment only where the reason is not obvious.
 5. **Link instead of copying.** Fix or delete every passage the change makes untrue (`git grep -n "<old name>"` for

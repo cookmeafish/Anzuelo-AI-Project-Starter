@@ -23,7 +23,9 @@ runbook and the gui-review-loop then prove the result.
 1. **Read before changing:** the files involved, how the app runs (README or tools/), and existing styles and components.
    Reuse them; don't fork a second design system.
 2. **Make the change.** Plain words in the main UI, options shown progressively (main task first, details behind
-   expanders). Support both themes, phone width without sideways scrolling, keyboard use, and readable contrast.
+   expanders). Support both themes, phone width without sideways scrolling down to 320 CSS px, text enlarged to 200%
+   without losing content, keyboard use with a visible focus, contrast of at least 4.5:1 for text (3:1 for large text,
+   icons and borders), and touch targets of at least 44x44 px on phone (WCAG minimum 24x24).
 3. **Run the review loop:** follow the **gui-review-loop** skill (`skills/gui-review-loop/SKILL.md`) until a full
    round finds nothing.
 4. **Test behaviour, not just looks:** drive the main flow with `--steps` (type, click, check the result with `eval`).
