@@ -31,12 +31,17 @@ that every time, and the user can't see why. Measure first, then trace each cost
 4. **Ask the user** which to apply: the project's rules are theirs. With `"autonomy": "auto"`, apply the ones that lose
    nothing and list the rest as questions.
 5. **Apply** each approved change at its source (the rule, the runbook step, the hook's condition), with its tests, and
-   a CHANGELOG line. Then **measure again** after a few turns and report before and after.
+   a CHANGELOG line.
+6. **Prove it made nothing worse.** Before the first change, run the project's own tests and its full checks
+   (`node tools/audit.mjs`, and the test command in `docs/foundation.md` or the package file) and note the result. Run
+   the same after the changes. A change after which something fails that passed before is undone, or fixed before the
+   answer. Then **measure again** after a few turns and report before and after: time and steps, and the test results.
 
 ## Done when
 - [ ] The report ran this turn and the answer gives its main numbers (judgment: which numbers matter depends on the report).
 - [ ] Each cost proposed for change names its source file and line, its time per turn, and what changing it loses (judgment: tracing needs reading the sources).
 - [ ] The project's own rules changed only with the user's OK or within "autonomy": "auto" for changes that lose nothing (judgment: the OK is in the conversation).
+- [ ] When changes were applied, the project's tests and full checks ran before and after them and nothing that passed before fails now (when file: CLAUDE.md|AGENTS.md|docs/playbooks/**|tools/hooks/**) (ran: audit\.mjs)
 - [ ] Engine costs went to the starter with `starter.mjs feedback` (judgment: which costs are the engine's needs the trace).
 
 ## Pitfalls
