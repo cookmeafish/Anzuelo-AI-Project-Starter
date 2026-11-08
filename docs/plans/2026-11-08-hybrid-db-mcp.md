@@ -101,7 +101,9 @@ Done when (measured on a trial knowledge project, the numbers in docs/reviews/):
   200,000 tokens can go whole into the prompt (anthropic.com/news/contextual-retrieval). FTS5's bm25() ranks smaller
   as better, with per-column weights; tokenizers unicode61, porter, trigram; external-content tables are the caller's
   to keep in sync (sqlite.org/fts5.html). Tested here: Node 24.18.0 bundles SQLite 3.53.1, with FTS5, porter and
-  trigram working without a flag; it prints an ExperimentalWarning.
+  trigram working without a flag; it prints an ExperimentalWarning. This machine now runs Node 26.13.0 with SQLite
+  3.54.0 (checked 2026-11-08), FTS5 with trigram working. The runtime minimums stay Node 22.16 and SQLite 3.51.3, with
+  the JSON fallback below them.
 - SQLite in Node: node:sqlite is "Release candidate" since v25.7.0, out from behind its flag but "still experimental"
   since v22.13.0; the busy `timeout` option exists since v22.16.0 and v24.0.0 (default 0); `DatabaseSync` is now an
   alias of `Database` (nodejs.org/api/sqlite.html). WAL: one writer at a time, readers and writers don't block each
