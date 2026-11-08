@@ -8677,8 +8677,9 @@ if (mineB() && (!TAGS || TAGS.includes('layout-split') || TAGS.includes('engine-
     const planL = path.join(loc, 'docs/playbooks/plan.md'), agL = path.join(loc, 'AGENTS.md');
     fs.appendFileSync(planL, '\n- recipes: the project\'s own lesson\n');
     const ag = fs.readFileSync(agL, 'utf8').split('\n'); ag[0] = '# Our own title'; fs.writeFileSync(agL, ag.join('\n'));
-    const SKIPH = /^(\.anzuelo\/engine|\.anzuelo\/local\/(\.cache|tools\/hooks\/state|based-on\.json|docs\/playbooks\/plan\.md|AGENTS\.md)|\.git|\.claude|\.codex|\.agents|CLAUDE\.local\.md)(\/|$)/;
-    const hashAll = () => { const h = createHash('sha1'); const walk = r => { for (const e of fs.readdirSync(path.join(proj, r || '.'), { withFileTypes: true }).sort((a, b) => a.name < b.name ? -1 : 1)) { const p = r ? `${r}/${e.name}` : e.name; if (SKIPH.test(p)) continue; if (e.isDirectory()) walk(p); else h.update(p + '\0' + fs.readFileSync(path.join(proj, p))); } }; walk(''); return h.digest('hex'); };
+    const SKIPH = /^(\.anzuelo\/engine|\.anzuelo\/local\/(\.cache|tools\/hooks\/state|based-on\.json|docs\/playbooks\/plan\.md|AGENTS\.md|DIRECTORY\.md)|\.git|\.claude|\.codex|\.agents|CLAUDE\.local\.md)(\/|$)/;
+    const hashAll = () => { const out = {}; const walk = r => { for (const e of fs.readdirSync(path.join(proj, r || '.'), { withFileTypes: true })) { const p = r ? `${r}/${e.name}` : e.name; if (SKIPH.test(p)) continue; if (e.isDirectory()) walk(p); else out[p] = createHash('sha1').update(fs.readFileSync(path.join(proj, p))).digest('hex'); } }; walk(''); return out; };
+    const diffs = (a, c) => [...new Set([...Object.keys(a), ...Object.keys(c)])].filter(k => a[k] !== c[k]);
     const before = hashAll(), oldHead = (g(eng, 'rev-parse', 'HEAD').stdout || '').trim();
     const upPlan = path.join(up, 'docs/playbooks/plan.md'), pl = fs.readFileSync(upPlan, 'utf8').split('\n'); pl[8] = 'An invoice line the default added.'; fs.writeFileSync(upPlan, pl.join('\n'));
     const upAg = path.join(up, 'AGENTS.md'), ua = fs.readFileSync(upAg, 'utf8').split('\n'); ua[0] = '# The default\'s new title'; fs.writeFileSync(upAg, ua.join('\n'));
@@ -8687,11 +8688,11 @@ if (mineB() && (!TAGS || TAGS.includes('layout-split') || TAGS.includes('engine-
     const upg = st('upgrade'), after = hashAll();
     const plan = fs.readFileSync(planL, 'utf8'), agents = fs.readFileSync(agL, 'utf8'), b = (() => { try { return JSON.parse(fs.readFileSync(path.join(loc, 'based-on.json'), 'utf8')); } catch { return {}; } })();
     report(ins.status === 0 && /engine-readonly[\s\S]*override docs\/playbooks\/plan\.md/.test(guard) && o1.status === 0 && o2.status === 0
-      && upg.status === 0 && (g(eng, 'rev-parse', 'HEAD').stdout || '').trim() === newHead && before === after
+      && upg.status === 0 && (g(eng, 'rev-parse', 'HEAD').stdout || '').trim() === newHead && !diffs(before, after).length
       && /the project's own lesson/.test(plan) && /An invoice line the default added\./.test(plan) && /^# Our own title/.test(agents) && /AGENTS\.md \(both changed/.test(upg.stdout)
       && fs.existsSync(path.join(loc, '.cache/merge/AGENTS.md')) && b.at === newHead && b.files?.['docs/playbooks/plan.md'] === newHead && b.files?.['AGENTS.md'] === oldHead,
       'upgrade: with the engine in .anzuelo/engine an upgrade is a git pull that leaves what the project made unchanged; an edit inside the engine is refused (engine-readonly) and points at a local copy; a default\'s new change is merged into the project\'s copy, and a clash is left for the user while the copy stays in use',
-      JSON.stringify({ ins: ins.status, guard: guard.slice(0, 200), o1: o1.stdout, upg: [upg.status, (upg.stdout || '').slice(0, 600), (upg.stderr || '').slice(0, 300)], same: before === after, b }));
+      JSON.stringify({ ins: ins.status, guard: guard.slice(0, 200), o1: o1.stdout, upg: [upg.status, (upg.stdout || '').slice(0, 600), (upg.stderr || '').slice(0, 300)], same: diffs(before, after), b }));
   } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
 }
 if (mineB() && (!TAGS || TAGS.includes('upset-learned'))) { // the user sees "acknowledged" as soon as the agent writes its

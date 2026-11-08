@@ -158,17 +158,27 @@ A run that is stuck sets `status: blocked - <reason>` with `Tried:` and `Options
 ### Task 5: upgrades never touch what the project made
 **Files:** `tools/starter.mjs`, `docs/playbooks/engine.md`, `tools/hooks/selfcheck.mjs`
 **Uses / provides:** uses Tasks 3 and 4
-- [ ] The engine runbook and `starter.mjs upgrade` become: git pull in `.anzuelo/engine/` (an AI agent merges any
+- [x] The engine runbook and `starter.mjs upgrade` become: git pull in `.anzuelo/engine/` (an AI agent merges any
       conflict), then rewire. The upgrade review stays.
-- [ ] Test: hash `.anzuelo/local/` and the project's files, upgrade, hash again: identical, except the wiring files.
-- [ ] Changing a default runbook or skill (user-approved 2026-11-07): the engine keeps the defaults. Editing
+      (2026-11-08: `upgrade` and `update` both do it in this layout; `--ff-only`, and a failed pull is merged by hand
+      in the engine folder. An engine folder with changes of its own stops the upgrade and says to move them local.)
+- [x] Test: hash `.anzuelo/local/` and the project's files, upgrade, hash again: identical, except the wiring files.
+      (DIRECTORY.md counts as generated: it lists the engine's runbooks, so it changes when they do.)
+- [x] Changing a default runbook or skill (user-approved 2026-11-07): the engine keeps the defaults. Editing
       one for this project saves a copy in `.anzuelo/local/` with a `based_on: <engine commit>` line; the copy wins
       over the default. A change useful to every project also goes to the starter (`docs/starter-feedback.md`).
-- [ ] After a pull, for each local copy whose default changed since `based_on`, the upgrade shows a three-way diff
+      (Changed: `based_on` lives in `.anzuelo/local/based-on.json`, not in the file, so frontmatter, JSON and AGENTS.md
+      all work alike. `starter.mjs override <path>` makes the copy; a copy the hooks write themselves is dated by the
+      file's `at` (the last install or upgrade). An Edit or Write inside `.anzuelo/engine` is refused, REQ:
+      engine-readonly, and the refusal names the override command.)
+- [x] After a pull, for each local copy whose default changed since `based_on`, the upgrade shows a three-way diff
       (old default, new default, the project's copy). Small improvements are merged into the copy and listed; a
       clash with the project's own change is the user's call. `based_on` is then moved forward.
-- [ ] Test: a local copy of a default runbook survives an upgrade that changes the default, the upgrade lists it for
+      (git merge-file: a clean merge is written and listed; a clash leaves the copy, writes the merge view to
+      `.anzuelo/local/.cache/merge/<path>` and keeps the old `based_on` until it is decided.)
+- [x] Test: a local copy of a default runbook survives an upgrade that changes the default, the upgrade lists it for
       a merge, and the copy is used until merged. Run `node tools/hooks/selfcheck.mjs`. Expected: 0 failed.
+      (selfcheck, engine-readonly scenario: one copy merged, one clash listed and kept, the guard, the hashes.)
 - [ ] Run `node tools/hooks/selfcheck.mjs`. Expected: 0 failed, the hash test included.
 
 ### Task 6: records split and docs

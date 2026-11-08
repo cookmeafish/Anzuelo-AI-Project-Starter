@@ -32,7 +32,15 @@ adopted (no file of it is overwritten); a folder that has the engine is upgraded
 `skills/project-bootstrap/SKILL.md` in that folder.
 
 ### 3. Upgrade
-`node tools/starter.mjs update` pulls the newest starter into the linked copy, then upgrades. It stops when that copy
+**With the engine in `.anzuelo/engine/`:** `node .anzuelo/engine/tools/starter.mjs upgrade` is a git pull there, then
+the wiring is made again. It never writes the project's files or `.anzuelo/local/`, except to merge a default's new
+change into this project's copy of it. A copy whose lines meet the default's is listed for the user (the merge view
+is in `.anzuelo/local/.cache/merge/`), and the copy stays in use until it is decided. A failed pull is merged by hand
+in `.anzuelo/engine/`, then the upgrade runs again. To change a default runbook, skill, checklist or the rules for this
+project, run `node .anzuelo/engine/tools/starter.mjs override <path>` and edit the copy in `.anzuelo/local/`; the
+engine's own files are never edited (REQ: engine-readonly). The upgrade review below still applies.
+
+**Otherwise:** `node tools/starter.mjs update` pulls the newest starter into the linked copy, then upgrades. It stops when that copy
 has local changes: rerun with `--keep-local` to keep them on top, or ask the user. To upgrade from the linked copy as it
 is: `node tools/starter.mjs upgrade`. No link: `node tools/starter.mjs link "<starter folder>"` first. Run nothing
 else in the project (no sync, no runbook edits) until the upgrade prints its result.
