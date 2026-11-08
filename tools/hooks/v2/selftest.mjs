@@ -214,6 +214,11 @@ report(/learn-from-upset/.test(reminder('WHY DID YOU BREAK THE EXPORT AGAIN').te
   && upset('you let any visitor cancel orders! only the owner may cancel') && upset('the totals were off. that should never happen again')
   && !upset('thanks, you let me know in time') && !upset('can you let the staff export orders?'),
   'start: an upset message (capitals, frustration words, "you made X without Y", or "you keep doing X") goes to the learn-from-upset skill; plain questions and codes do not');
+{ // an upset turn, likely to write a lesson, is told to write it in general terms; a plain request is not
+  const upsetR = reminder('ugh, you forgot the totals row').text, plainR = reminder('can you add a CSV export for the orders page').text;
+  report(/general terms, not in the user's own words/.test(upsetR) && !/general terms/.test(plainR) && upsetR.split('\n').length === reminder('ugh, you forgot the totals row').text.split('\n').length,
+    'start: an upset turn gets "write any lesson in general terms" inside an existing line; a plain request gets nothing', { upsetR, plainR });
+}
 { // a message relayed from another session gets its runbook only for when it asks for work
   const relay = reminder('Another Claude session sent a message:\n<cross-session-message from="x">The fix to export the orders landed in 1a2b3c. Nothing to change.</cross-session-message>');
   const asked = reminder('can you export the orders for this week');

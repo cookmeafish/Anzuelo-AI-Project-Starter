@@ -60,6 +60,7 @@ export function reminder(prompt) {
   // (upset and a fitting runbook: both are named, so the fix still follows its runbook)
   const sore = upsetIn(prompt) && has('skills/learn-from-upset/SKILL.md') ? 'This sounds upset: open skills/learn-from-upset/SKILL.md and follow it.' : '';
   const book = route(prompt);
+  const quoteOn = (() => { try { return JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/hooks/config.json'), 'utf8')).quoteCheck !== false; } catch { return true; } })();
   // (a Spanish request: the whole answer in Spanish, labels too. Lesson (trial v37): a runbook item quoted an English
   // label, and it went into a Spanish answer twice, the second time in the reply to a complaint about English text)
   // (and the files the answer points them to. Lesson (trial v45): a Spanish answer sent the user to a spec and release
@@ -73,7 +74,7 @@ export function reminder(prompt) {
   // long instructions. Lesson (a scheduled review request): "if it is idle, find out why" named the research skill)
   const sk = book ? null : route(String(prompt).trim().split(/(?<=[.?!])\s+|\n/)[0] || '', skillBooks());
   const skill = sk && /\s/.test(sk.matched || '') && !(sore && sk.name === 'learn-from-upset') ? `Skill: open ${sk.file} and follow it.` : '';
-  if (sore && !book) return { book: null, text: [sore, skill, es].filter(Boolean).join('\n') };
+  if (sore && !book) return { book: null, text: [sore + (quoteOn ? ' Write any lesson in general terms, not in the user\'s own words.' : ''), skill, es].filter(Boolean).join('\n') };
   // (no trigger fits: the agent picks the runbook, and the end check holds the turn to the one it opened. Lesson
   // (routing sample): plain requests used no trigger phrase; growing trigger lists forever is the old engine's path)
   if (!book) return { book: null, text: [skill, has('DIRECTORY.md') ? 'If this is real work, pick the runbook in DIRECTORY.md that fits and open it.' : '', es, ...rulesFor(prompt).map(r => `The project's own rule here: ${r}`)].filter(Boolean).join('\n') };
@@ -81,7 +82,11 @@ export function reminder(prompt) {
   // (a message relayed from another session may only report: its runbook is for when it asks for work. Lesson (project
   // report): a note that a fix had landed got the bugfix runbook and its list, though it asked for nothing)
   // (said in the runbook line itself: a line of its own was most of the reminders' growth on peer messages)
-  const lines = [...(sore ? [sore] : []), ...(es ? [es] : []), ...own, `Runbook${relayedRx.test(raw) ? ', only if this message asks for work here' : ''}: open ${book.file} and follow it.`];
+  // (a turn likely to write a lesson down, upset or a rule, lesson or runbook request, is told to write it in general
+  // terms, in the runbook line itself: no extra line, and nothing on other turns. The end check catches a slip
+  // (quoteGaps). Off with the quote check, "quoteCheck": false)
+  const lesson = quoteOn && (sore || ['project', 'learn-from-upset', 'runbook-create', 'project-rule'].includes(book.name)) ? ' Write any lesson in general terms, not in the user\'s own words.' : '';
+  const lines = [...(sore ? [sore] : []), ...(es ? [es] : []), ...own, `Runbook${relayedRx.test(raw) ? ', only if this message asks for work here' : ''}: open ${book.file} and follow it.${lesson}`];
   if (book.items.length) {
     // (and how to hold the answer until it passes, in the same line. Lesson (the user, 2026-11-07): an answer sent back
     // by the end check reached the user twice; the first version must already be the final one)
