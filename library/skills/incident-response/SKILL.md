@@ -10,7 +10,7 @@ cause: a rollback is not a fix, and the problem returns with the next release.
 
 Say at the start: "Handling this as an incident (incident-response skill)."
 
-**Not for:** a bug seen in development, a test run or by one user with nothing live at stake: the `bugfix` runbook.
+**Not for:** a bug seen in development, a test run or by one user with nothing live at stake: the `bugfix` runbook (app pack).
 A suspected breach or leaked key is an incident too, and also goes through the **security-review** skill (revoke and
 rotate, not just delete).
 
@@ -45,7 +45,7 @@ command, what it does and how to undo it.
    (the rollback plan in its release notes), switch off a feature flag, block the abusive traffic, add capacity, turn
    on a maintenance page, or fail over.
 2. **Data at risk:** stop the writes first, and snapshot the current state before any repair (the `data-change`
-   runbook). A repair without a snapshot can make the loss permanent.
+   runbook, app pack). A repair without a snapshot can make the loss permanent.
 3. **Ask for the OK** for each production action, then log it with its time.
 4. **Confirm it worked** with the same measurement used in triage. Status becomes "monitoring".
 
@@ -77,7 +77,7 @@ Write it in the incident file within a few days, for every level 1 or 2 incident
 5. **Actions,** each with an owner, a due date and its type: prevent, notice sooner, or recover faster. Prefer actions
    that become checks (a test, a `tools/hooks/requirements.json` check, a codeRule, an alert) over reminders.
 6. **Blameless:** describe the decisions and what people knew at the time. Never name a person as the cause.
-7. **Close the loop:** a row in `docs/lessons.md`, the actions in `docs/STATUS.md` (Next), and any missing runbook
+7. **Close the loop:** a row in `docs/lessons.md` (app pack; create it if missing), the actions in `docs/STATUS.md` (Next), and any missing runbook
    step written into that runbook (AGENTS.md rule 2). Review it with the user.
 
 ## Done when

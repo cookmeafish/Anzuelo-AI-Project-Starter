@@ -17,15 +17,19 @@ triggers: note that, write this down, add this to the knowledge base, save this 
 ## Steps
 1. **Find the home.** Grep `docs/knowledge/` for the topic. Extend the existing file if there is one. Create
    `<topic>.md` only for a genuinely new topic. It is listed in `DIRECTORY.md` §4 automatically.
-2. **Write each fact** as a row: fact | label | source | date. Use the labels from
-   `docs/checks/evidence-standards.md` exactly. One fact per row, and specific (numbers, names, scope: where, which
+2. **Write each fact** as a row in the format of `docs/knowledge/README.md`, with a label from
+   `docs/checks/evidence-standards.md` exactly. One fact per row, specific (numbers, names, scope: where, which
    version, for whom).
 3. **Set `checked:`** to today and `volatile: yes` if the facts change over time.
 4. **Superseded facts** move to the file's History section with the date. Don't delete them.
 5. **Conflicts:** keep both, label unresolved, and add an Open question.
 6. **Update the Summary** (2–5 lines) so the file can be understood at a glance.
-7. Register new sources in SOURCES.md, and add a CHANGELOG line.
+7. Register new sources in SOURCES.md. Add a CHANGELOG line only for a new topic file or a new source.
 
 ## Never
 - Record a guess as a fact, or omit the label because it "seems obvious".
 - Copy a private detail into a file that is shared or published without the user's OK.
+
+## Done when
+- [ ] Every fact row has a label, a source and a date (file: docs/knowledge/**) (hook: knowledge-labels).
+- [ ] New sources are in SOURCES.md (when file: docs/knowledge/**) (file: docs/knowledge/SOURCES.md)

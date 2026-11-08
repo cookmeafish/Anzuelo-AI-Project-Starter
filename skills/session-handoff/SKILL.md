@@ -1,6 +1,6 @@
 ---
 name: session-handoff
-description: Keeps docs/STATUS.md (Now / Next / Open questions / Blocked) and docs/CHANGELOG.md current so a brand-new session or another AI agent can continue the work cold, tracks the to-dos and commitments the user mentions, drafts a daily summary or standup update, keeps docs/glossary.md of the user's shorthand, and answers "where are we" questions. Use when substantial work ends, before stopping for the day, when the hooks ask for status-handoff, or when the user asks "where are we", "what's next", "status", "what's on my plate", "what am I waiting on", "add a to-do", "daily summary", "standup", "what does X mean", or menu code E5.
+description: Keeps docs/STATUS.md (Now / Next / Open questions / Blocked) and docs/CHANGELOG.md current so a brand-new session or another AI agent can continue the work cold, tracks the to-dos and commitments the user mentions, drafts a daily summary or standup update, keeps docs/glossary.md of the user's shorthand, and answers "where are we" questions. Use when substantial work ends, before stopping for the day, when the hooks ask for status-handoff, or when the user asks "where are we", "what's next for the project", "project status", "what's on my plate", "what am I waiting on", "add a to-do", "daily summary", "standup", "what does X mean", or menu code E5.
 runbook: docs/playbooks/project.md
 ---
 # Session handoff
@@ -32,7 +32,8 @@ Updated: YYYY-MM-DD.
 - Multi-step work lives in its plan. STATUS links it under "Now" and doesn't copy its boxes.
 
 ## 2. Update `docs/CHANGELOG.md`
-One line per change, newest first: `- YYYY-MM-DD: what changed (paths), and why`.
+One line per change, newest first: `- YYYY-MM-DD: what changed (paths), and why`. A decision made goes in
+`docs/DECISIONS.md` (AGENTS.md rule 12).
 
 ## 3. To-dos the user mentions
 - **"Add / remind me / I need to":** a line under "Next" (or "Later" if it has no date), with who it is for and the due
@@ -43,32 +44,16 @@ One line per change, newest first: `- YYYY-MM-DD: what changed (paths), and why`
 - **Bigger than a few steps:** it gets a plan (plan skill), and STATUS links the plan.
 
 ## 4. Refresh a stale status
-Do this when STATUS is older than the newest CHANGELOG entry, before answering from it, or when asked to tidy it.
-1. Rebuild from CHANGELOG, DECISIONS, recently changed files and `node skills/plan/scripts/plan-tasks.mjs status
-   <plan>` for each open plan.
-2. Flag, and ask about each: due dates that have passed, items with no owner or no clear next step, things blocked
-   for more than 2 weeks, and plans with no ticks for a long time (resume, or `status: dropped - <why>`).
-3. If the project uses an issue tracker the agent can read (for example `gh issue list --assignee @me` in a git
-   repository), compare it with STATUS and offer to add what is missing or close what is finished. Changing the tracker
-   itself (comments, closing issues) is an outward action: only with the user's OK (AGENTS.md rule 6).
+When STATUS is older than the newest CHANGELOG entry, before answering from it, or when asked to tidy it: follow
+[references.md](references.md), "Refresh a stale status".
 
 ## 5. Answering "where are we"
 Lead with Now and Next from STATUS, then open plans with their progress. If STATUS is stale, refresh it first (§4).
 "What's on my plate": Now and Next, overdue items first. "What am I waiting on": Blocked, with how long each has waited.
 
 ## 6. Daily summary or standup update
-A short draft the user can paste anywhere:
-```markdown
-## Update, YYYY-MM-DD
-**Done:** finished items since the last update, one line each, with the file or issue they touched.
-**Next:** the top items from Next, in order.
-**Blocked:** each blocker, since when, and who can help.
-```
-- Take "Done" from CHANGELOG lines since the last update and, in a git repository, `git log --since=<date> --oneline`.
-  Take "Next" and "Blocked" from STATUS. If the user describes their day in their own words, shape that instead.
-- Keep it to what a teammate needs: results, not process. Mention numbers and names that matter.
-- It is a draft. Posting it to a chat, email or tracker needs the user's OK (AGENTS.md rule 6). Reformat it for a
-  specific place when asked.
+A short draft the user can paste anywhere (never posted without the user's OK, AGENTS.md rule 6): the template and
+sources are in [references.md](references.md), "Daily summary or standup update".
 
 ## 7. The user's shorthand: `docs/glossary.md`
 When a request uses a term you can't place (an abbreviation, a nickname, a project codename, a team's own word):

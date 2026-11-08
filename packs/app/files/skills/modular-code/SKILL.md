@@ -10,16 +10,10 @@ An app that needs a rewrite to add the next feature, or a search-and-replace to 
 wrong shape. This skill keeps the shape right from the first file. The check runs by itself on every changed code
 file (hook: modular-code), and names are checked everywhere (hook: name-var).
 
-Say at the start: "Keeping it modular (modular-code skill)."
-
-## What the other skills already cover
-- **Names:** every name the user may change lives in `docs/names.json` (hard rule 17). Docs show it in a marker; code
-  reads the file (or a constants module generated from it). This skill makes the code side concrete.
-- **Folder layout of the whole project:** `docs/checks/layout-standards.md`.
-- **The look of screens:** the gui runbook and the frontend-design skill (design tokens are the visual version of
-  this skill: no raw colors or sizes in screens).
-- **Server code patterns, web client patterns, mobile, games:** the backend-patterns, web-app-patterns, mobile-app
-  and game-dev library skills, when enabled. They apply these principles to their stack.
+Related: project folder layout is `docs/checks/layout-standards.md`; screens' look is the gui runbook and the
+frontend-design skill (tokens: no raw colors or sizes); stack patterns are the backend-patterns, web-app-patterns,
+mobile-app and game-dev library skills, when enabled. Names follow hard rule 17 (`docs/names.json`); this skill
+makes the code side concrete.
 
 ## The principles
 1. **One feature, one module.** A feature (orders, invoices, the map screen) lives in its own folder with its code,
@@ -42,7 +36,8 @@ Say at the start: "Keeping it modular (modular-code skill)."
 7. **Small units.** A file over 400 lines or a function over 60 lines is doing several jobs: split it by job. The
    check fails a change that makes an oversized file longer, and warns when a function grows past 60 lines.
 8. **No reaching across.** A module never imports another module's private files (the check fails imports from
-   `internal/`, `private/` or `_private/`), and two modules never import each other. A shared need moves into a shared module both depend on.
+   `internal/`, `private/` or `_private/`), and two modules never import each other (the check covers only the private-folder imports; the rest is judgment). A
+shared need moves into a shared module both depend on.
 
 ## Steps
 ### A. Starting an app (with the app-foundation runbook)
@@ -58,8 +53,8 @@ Say at the start: "Keeping it modular (modular-code skill)."
 2. Outside services behind an interface; config values from the config module; names from the names module.
 3. If it is "one more of" something, register it in the existing registry. No registry yet and this is the second
    one: create the registry now and move the first one into it.
-4. Run `node skills/modular-code/scripts/modularity.mjs <changed files>` and fix what it reports (the Stop hook also
-   runs it on each changed code file).
+4. Run `node skills/modular-code/scripts/modularity.mjs <changed files>` and fix what it reports. The Stop hook runs it on each
+   changed code file, so run it by hand only after a large change.
 
 ### C. A file or module that grew too big
 1. List its jobs (one line each). Each job becomes its own file or module with a clear name.
@@ -69,9 +64,10 @@ Say at the start: "Keeping it modular (modular-code skill)."
 ## Done when
 - [ ] Every changed code file passes the modularity script (hook: modular-code).
 - [ ] No name the user may change is typed into code or docs (hook: name-var).
-- [ ] A new feature lives in its own module and other code reaches it only through its entry (judgment: read the
-      imports of the changed files).
-- [ ] Settings that differ between machines or deployments come from config, with one place for defaults (judgment).
+- [ ] The feature has its own folder and a public entry file, and nothing imports another module's private path
+      (judgment: read the imports of the changed files).
+- [ ] Settings that differ between machines or deployments come from config, with one place for defaults (judgment:
+      grep the changed files for typed-in URLs, hosts and ports).
 
 ## Pitfalls
 - Rewriting correct code just to get past the script. A line that truly must stay (a protocol constant, a fixed

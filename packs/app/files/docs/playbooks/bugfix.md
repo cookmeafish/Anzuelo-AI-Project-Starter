@@ -7,25 +7,25 @@ menu: A2
 ---
 # Playbook: fix a bug
 
-**Use when:** something behaves wrongly. **Not when:** the behaviour is right but unwanted (`feature.md`).
+**Use when:** something behaves wrongly. **Not when:** the behaviour is right but unwanted (`feature.md`), or it only
+runs slowly with no wrong result (`perf.md`).
 
 ## Steps
 1. **Find and fix the cause with the debug skill** (`skills/debug/SKILL.md`): reproduce it, find the root cause and
    write it as `Root cause: <what and why>`, write a failing test (for UI, a scripted run with
    `tools/screenshot.mjs --steps`, gui pack), fix at the source, then run the new test and the whole suite.
-2. **Look for siblings:** the same mistake elsewhere (search for the pattern), and fix or list them.
-   Anything else whose output changes with the fix (another function, a default, an edge case) is a change in
-   behaviour: name it in the answer and the changelog as a change, not only as the fix, and keep it out unless it is
-   needed. <!-- Lesson, trial round 15: an emoji fix also changed what truncate returned, shipped as "Breaking: None"
-   in 1.0.0, and the user found it. -->
-3. **Triple check** as in `docs/checks/qa-standards.md`, scaled to the risk. A one-line logic fix still needs (1);
-   anything visible needs (2).
+2. **Look for siblings:** the same mistake elsewhere (search for the pattern), and fix or list them. Anything else
+   whose output changes with the fix (another function, a default, an edge case) is a change in behaviour: keep it
+   out unless needed, and name it in the answer and the changelog as a change, not only as the fix.
+3. **Triple check** as in `docs/checks/qa-standards.md`, scaled to the risk. Up to 3 files and 40 lines: check (1),
+   plus (2) if anything is visible. Larger: all three.
 4. **Lesson:** if the bug escaped QA, add a line to `docs/lessons.md` and a check that would have caught it.
 
 ## Done when
 - [ ] A regression test exists and passes (hook: bugfix-regression-test).
 - [ ] The answer states the root cause (hook: root-cause-stated), the fix, the test, and the siblings checked (hook:
   verification-report).
+- [ ] Any other changed output is named as a change in the answer and `docs/CHANGELOG.md`, or the answer says there was none (judgment: needs reading the diff).
 
 ## Pitfalls
 - Fixing what the error message points at instead of why it happened.

@@ -1,6 +1,7 @@
 ---
 name: plan
 description: Writes a step-by-step plan for multi-step work before starting it, as small tasks with exact files, interfaces, checks and expected results, plus the project context a newcomer needs and a confidence score, so any agent or sub-agent can carry it out without guessing, and then carries it out box by box. The plan is a checklist file in docs/plans/ that any later session or other AI agent can resume. Use when a spec or request needs several steps, touches several files, adds several new files, or will be handed to sub-agents, and when asked to carry out, resume or close an existing plan, including without check-ins when autonomy is auto.
+triggers: make a plan, write a plan, plan this, plan it, resume the plan, close the plan, carry out the plan, run the plan, haz un plan, hacer un plan, arma un plan, plan para, retoma el plan, cierra el plan
 ---
 # Plan before multi-step work
 
@@ -78,11 +79,9 @@ scope mid-way, stop the helpers working on the old one before starting new work.
 
 **Shared steps once.** When a request lists several tasks, write each task's steps first, then merge. A step one task
 already contains is done once and serves every task that needs it ("x1 already runs the migration that x3 asks for:
-done once, in x1"). Its result is reused, not produced again. Do a step twice only when the user asked for that in
-their own words ("run it again", "twice"). Work already going that a later step makes pointless (a helper on the old
-scope, a check that will rerun after the next edit anyway) is stopped, not finished. <!-- Lesson, the user: "never do
-redundant things even if the user says to do x and also x2 and x3 and x4 but then to do x1 it must do x3 ... My worry
-is that it will take too long and waste tokens." -->
+done once, in x1"). Do a step twice only when the user asked for that in their own words. Work already going that a
+later step makes pointless (a helper on the old scope, a check that will rerun after the next edit anyway) is
+stopped, not finished.
 
 **Check once, at the end of each batch of edits.** Tests, builds, audits and self-tests run after the last edit of a
 batch, not after each small edit, and not again when nothing changed since (the no-repeat hook refuses that rerun).
@@ -133,18 +132,10 @@ Write "none found" only after looking.
 - [ ] 4. Run `<command>`: passes. Run the style check: no errors.
 - [ ] 5. CHANGELOG line (commit only if the user asked for commits).
 ```
-**Why the status line:** it sits at the start of a line, unformatted, so the hooks and any agent can read it. The
-session-start hook lists every plan that still has unticked boxes and no `status: done` or `status: dropped` line as
-an OPEN PLAN.
-
-**Why "Context":** the builder may be a fresh sub-agent, a different AI agent, or you after a reset. Pointing at the
-file to copy and the trap to avoid saves them the search you already did.
-
-**Why "Watch for":** a spec describes what the work should do, not every input it will meet. A case the spec doesn't
-mention still shouldn't break it. The final review checks each line.
-
-**Why "Uses / provides":** whoever carries out a task may see only that task. This line tells them the exact names
-and types the other tasks expect.
+The status line sits at the start of a line, unformatted, so the hooks can read it: the session-start hook lists every
+plan with unticked boxes and no `status: done` or `status: dropped` line as an OPEN PLAN. "Context" saves a fresh
+builder the search you already did. "Watch for" covers cases the spec doesn't mention; the final review checks each
+line. "Uses / provides" gives whoever sees only one task the exact names the other tasks expect.
 
 **Knowledge work** fits the same frame. The "test" is the bar the result must clear: every claim sourced, the
 question actually answered, the file saved in `outputs/`. The steps become gather, record, write, verify, and the
@@ -186,12 +177,9 @@ tasks are, how many there are, what a mistake would cost):
 - **Straight through:** you do every task in this session, with one independent review at the end. Quicker and
   cheaper. A detailed plan carries the design, so a mid-level model can do this well.
 
-Then do the work by its own runbook (feature, bugfix, research...), ticking the plan as you go. In short:
-1. `plan-tasks.mjs next <plan>` shows where to start and the brief for that task.
-2. Work its steps in order and compare every run with the expected result.
-3. Tick each box in the same edit that finishes it, and record any change of course as a dated note.
-4. After the last task, run every command under "Checks for this project", re-read "Done when", and set
-   `status: done`.
+Then do the work by its own runbook (feature, bugfix, research...), ticking the plan as you go: `plan-tasks.mjs next
+<plan>` shows where to start. Step 9 holds the rules for running it. After the last task, run every command under
+"Checks for this project", re-read "Done when", and set `status: done`.
 
 The full procedure (each way of running it, resuming after a break, a plan that turns out wrong, the final review,
 closing the plan): [references.md](references.md).
@@ -224,7 +212,7 @@ Examples and the reasons behind each rule: [references.md](references.md), "With
 ## Done when
 - [ ] Open questions were settled before writing (judgment: only the conversation shows what was open): asked one at a time, or written as assumptions (step 0). Any spike
   is deleted and its answer is in "Context".
-- [ ] The plan is saved and linked (hooks: plan-saved, plan-checked), and `node skills/plan/scripts/plan-tasks.mjs check` passes or each warning has a
+- [ ] The plan is saved and linked (hooks: plan-saved, plan-checked) (file: docs/plans/*.md), and `node skills/plan/scripts/plan-tasks.mjs check` passes (ran: plan-tasks\.mjs check) or each warning has a
   reason.
 - [ ] It has a status line, a "How to resume" line, "Context", the project's real check commands and a confidence score (hook: plan-checked).
 - [ ] Every spec requirement maps to a task, and every task ends with a check that has an expected result (hook: plan-checked for the checks; judgment: whether every spec item is covered).

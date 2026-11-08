@@ -23,8 +23,7 @@ the user's OK), then come back here. The mitigation is never the fix.
    conversation (also the ones typed while you worked), plus any you find. Each one is fixed and checked off before the
    answer says "fixed". Then write **the rule** the behavior must follow, and the table of every state or input kind it
    has to handle (empty, one, many, in progress, finished, interrupted, from another source). A state missing from the
-   table is usually the bug. <!-- Lesson (the user): a display was "fixed" six times, each time for the one moment in
-   the screenshot, because no one wrote down the states it had to show -->
+   table is usually the bug.
 1. **Read the error completely:** the whole message and stack trace, line numbers, paths, codes and warnings. The
    answer is often there. When the user reports it, ask for the exact text pasted, not retold.
 2. **Reproduce it reliably.** Write down the exact steps. If it doesn't happen every time, gather more data; don't
@@ -57,8 +56,6 @@ Leave Phase 2 with the list of differences.
 1. Write it down: "I think X is the cause because Y." Be specific. Before that, list every code path that ends in the
    reported symptom exactly ("the page just sat there": a slow request, a silent reject, a spam trap, a swallowed
    error) and rule each out by reading or trying it. A cause that only fits part of the symptom is not the cause.
-   <!-- Lesson (website trials): "the form sat there" was blamed on a slow request; a spam-trap path that returns the
-   same form with no message, which browsers' autofill can set off, was never checked, and the answer said "fixed" -->
    Until the cause is proven by a reproduction, the answer says "likely cause", not "fixed".
 2. Test it with the smallest possible change, one variable at a time.
 3. It held: go to Phase 4. It didn't: form a new hypothesis. Never stack another fix on top.
@@ -70,15 +67,14 @@ Leave Phase 2 with the list of differences.
 2. **One fix, at the root cause, and the simplest one that removes it.** Change one thing in the right place rather
    than add layers or special cases. No "while I'm here" changes and no bundled refactoring.
 3. **Verify:** the new test passes, every other test still passes, and the original problem is gone in the real app
-   (app projects: `docs/checks/qa-standards.md`).
+   (app pack: `docs/checks/qa-standards.md`).
    - **Over all the real data, not the one case:** run the fixed code over every case there is (every line of the
      real log, every file, every state in the table from Phase 1) against facts read independently, and say in the
      answer what ran over what, how many were checked and how many were wrong. 0 wrong, or it isn't fixed. Sweep more
      than one data set when there are several.
    - **Nothing the user already had is broken:** list what the change touches that the user or other tools rely on
      (their settings, things another app installed, files they edit, outputs they open) and check each still works.
-     Add to the user's setup, never replace it. <!-- Lesson (the user): a project setting replaced a status bar the
-     user had installed with another app, and model, context and folder vanished -->
+     Add to the user's setup, never replace it.
    - **The promised outcome:** check the "fixed when" from the Issue line exactly as the user would see it, and say
      in the answer what you ran or opened and what it showed.
 4. **Make it impossible, not just fixed:** where bad data caused it, add checks at the layers it passes through
@@ -87,7 +83,8 @@ Leave Phase 2 with the list of differences.
 5. **The fix didn't work?** Stop and count. Fewer than 3 attempts: back to Phase 1 with what you learned. **3 or more:
    stop fixing.** See below.
 
-State the root cause in the answer: `Root cause: <what and why>`, then the fix and how it was verified.
+State the root cause in the answer: `Root cause: <what and why>`, then the fix and how it was verified. A one-line
+fix whose cause the error message names needs only Phases 1 and 4.
 
 ## After 3 failed fixes: question the design
 Signs that the design is wrong, not the latest hypothesis:
@@ -99,6 +96,7 @@ Then ask: is this approach sound at all, or are we keeping it out of habit? Woul
 more patches? Explain it to the user and agree on the way forward before a fourth attempt.
 
 ## Stop and go back to Phase 1 when you catch yourself:
+(Excuses that lead here, and the answers to them: [references.md](references.md), "Excuses".)
 - planning a "quick fix for now, investigate later";
 - trying a change "to see if it works", or several changes at once;
 - skipping the test to "check by hand";
@@ -116,19 +114,6 @@ The user's reactions are signals too:
 | asks you to think harder about it | question the basics, not just the symptom |
 | sounds stuck or frustrated | the approach isn't working |
 
-## Excuses and answers
-| The thought | Why it is wrong |
-|---|---|
-| "Too simple to need the process." | Simple bugs have causes too, and the process is quick for them. |
-| "No time, it's urgent." | Guessing and re-guessing takes longer than finding the cause once. |
-| "I'll try this one thing, then investigate." | The first change sets the habit for the rest. Start right. |
-| "I'll add the test once the fix works." | A fix that was never seen failing proves nothing. |
-| "Several changes at once saves time." | You can't tell which one worked, and the others add new bugs. |
-| "The reference is long, I'll adapt the idea." | Half-understood patterns produce bugs. Read all of it. |
-| "I can see the problem." | You can see a symptom. The cause is still to be found. |
-| "An expert says the fix is obvious." | Experience suggests where to look. It isn't evidence. Check it the same way. |
-| "Just one more try." (after 2 failures) | Three failures point at the design. Stop and rethink. |
-
 ## When there really is no code cause
 If careful investigation shows the cause is outside (timing, the environment, another service): write down what you
 checked, add handling (a retry, a timeout, a clear error message) and logging for next time. Most "no root cause"
@@ -136,7 +121,7 @@ findings are unfinished investigations, so be sure first.
 
 ## Done when
 - [ ] Everything wrong is listed (every message), with the rule and the table of states, and each item is fixed (judgment: whether the list is complete needs a reader).
-- [ ] The answer states `Root cause: <what and why>`, with the evidence that shows it (hook: debug-root-cause).
+- [ ] The answer states `Root cause: <what and why>`, with the evidence that shows it (hook: debug-root-cause) (when ran: test|build|spec|jest|pytest|vitest) (answer: Root cause:).
 - [ ] A test that failed before the fix now passes, and the rest of the suite still passes (hook: debug-test-added sees a test change with the code; judgment: that it failed before the fix).
 - [ ] The original problem is gone where it was seen (the real app, the build, the script) (judgment: where the problem showed differs per bug).
 - [ ] A sweep over all the real data shows 0 wrong, and the answer gives the count (judgment: the data differs per bug).

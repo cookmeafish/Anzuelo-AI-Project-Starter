@@ -6,9 +6,8 @@ triggers: goal loop, improve until, keep improving until, iterate until, loop un
 ---
 # Goal loop: measured rounds toward the user's goal
 
-A goal is only reachable when its result can be measured the same way every round. Each round makes one change,
-measures the real result (not a stand-in for it), and keeps the change only if the measure improved and nothing that
-passed before fails. The log in `docs/plans/` lets any later session pick up where the last one stopped.
+Each round makes one change, measures the real result (not a stand-in), and keeps the change only if the measure
+improved and nothing that passed before fails. The log in `docs/plans/` lets a later session resume.
 
 ## Steps
 1. **Set the goal with the user, in one message.** Take it from the request. A goal with no number ("until it loads
@@ -29,8 +28,8 @@ passed before fails. The log in `docs/plans/` lets any later session pick up whe
      result and the rubric, never the change or your reasoning.
    - `Bar:` the value that means done (for example "0 failing tests", "median under 1 s", "every rubric score 4+").
    - `Limit:` the number of rounds: 5 unless the user gives one.
-   - `Guard:` the commands that must keep passing: the project's test command (from `docs/foundation.md`, the package
-     file or the README) and `node tools/audit.mjs`. A project with no tests has the audit alone; say so in the line.
+   - `Guard:` the commands that must keep passing: the project's test command (from `docs/foundation.md` (app pack), the
+     package file or the README) and `node tools/audit.mjs`. A project with no tests has the audit alone; say so in the line.
 3. **Baseline.** Commit or stash any open work first, so each round can be undone cleanly. Run the measure and the
    guard. Write `- Baseline: <value> | guard: pass` (or `guard: fail - <what>`: fix that first, or note it, since a red
    guard hides what a change breaks).
@@ -56,5 +55,5 @@ passed before fails. The log in `docs/plans/` lets any later session pick up whe
 - A measure that is easy to move without helping the goal (counting lines, a score you give yourself). Measure the real
   result, the way the user would judge it.
 - Several changes in one round: when the value moves, nobody knows which change did it. One change per round.
-- A long loop beside other heavy work: measures that time things read slower under load. Run timing measures alone.
+- Timing measures beside other heavy work read slower: run them alone.
 - Don't use it for one fix with a known cause: that is the debug skill. A loop is for goals that take several tries.

@@ -2,7 +2,7 @@
 name: obsidian
 description: Keeps the project's notes linked to each other so Obsidian's graph shows what is related and what isn't, and the agent can follow the same links. Every note links to its related notes, orphans get connected, likely relations are suggested from shared words, and a note opens in Obsidian with one command. Use when writing or reorganizing notes, when the user asks what is related to something, about Obsidian, the graph, backlinks or orphans.
 checks: core note-linked
-triggers: obsidian, open in obsidian, graph view, notes graph, backlinks, what is related, related notes, how is this connected, orphan notes, link the notes, cross reference, cross-reference, connect the notes
+triggers: obsidian, open in obsidian, graph view, notes graph, backlinks, what is related, related notes, orphan notes, connect the notes
 ---
 # Linked notes (Obsidian)
 
@@ -10,11 +10,11 @@ The project folder is an Obsidian vault as it is ("Open folder as vault"). Each 
 the graph, so links are the relationships, and the agent follows the same links to everything related.
 
 ## Links that work everywhere
-- Write relative markdown links, `[Desk prices](desk-prices.md)`, not `[[wikilinks]]`. Obsidian, GitHub, editors and
+- Write relative markdown links, `[Desk prices](desk-prices.md)`, not `[[wikilinks]]`: Obsidian, GitHub, editors and
   agents all follow them. A new project's `.obsidian/app.json` already creates links this way (`useMarkdownLinks`,
   `newLinkFormat: relative`) and updates them when a note moves.
 - In a vault the user brought that already links with `[[wikilinks]]`, keep its style for its notes and never convert
-  them (the notes-vault skill). The link check follows both kinds.
+  them (the notes-vault library skill, when enabled). The link check follows both kinds.
 - Link a word where it appears in the text when the relation matters there. Put the rest in a `## Related` section at
   the end, one line each with what connects them: `- [Desk prices](desk-prices.md): the budget this choice must fit`.
 - Link both ways when both sides benefit. Obsidian shows backlinks anyway, but other readers only see written links.
@@ -35,18 +35,16 @@ the links first (they are recorded relations), then the suggestions, labeled as 
 ## Keeping the graph useful
 - `notes.mjs orphans`: notes with no links in or out. Connect each one, merge it into a related note, or leave it
   with the reason under `## Related`. The audit warns about orphans.
-- Don't link everything to everything. A link means "read this too when working on that"; a fully connected graph
-  shows nothing.
+- Link B from A only if reading B changes how someone works on A. More than about 8 links in one note: group or
+  cut.
 - `notes.mjs open <note>` opens it in Obsidian (through the `obsidian://` link). It needs Obsidian installed and the
   folder opened as a vault once.
 
 ## Done when
 - [ ] Every new note links to a related note, or says under `## Related` why it stands alone (hook: note-linked).
-- [ ] Links are relative markdown links that resolve (judgment: the audit's link sweep checks it, but no hook runs it for notes yet).
+- [ ] Links are relative markdown links that resolve (when file: **/*.md) (ran: notes.mjs check|audit.mjs)
 - [ ] "What is related" answers separate recorded links from suggestions (judgment: telling recorded links from suggestions needs reading the answer).
 
 ## Pitfalls
-- `[[wikilinks]]` in new notes of the project's own: Obsidian follows them but GitHub and most tools don't. Use markdown
-  links there; an existing vault keeps its own style.
 - Absolute paths (`C:\...`, `/home/...`) in links: they break on every other machine.
 - A "Related" list copied from search results without reading the notes: it fills the graph with false relations.

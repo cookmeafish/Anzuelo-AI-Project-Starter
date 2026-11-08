@@ -9,7 +9,7 @@ An MCP server is an interface for a model, not a programmer. The model sees only
 results, and chooses what to call from those alone. A good server is small, clearly named, safe by default, and
 returns what the next step needs. The test: can an agent finish real tasks with it?
 
-Read `docs/security.md` and `docs/foundation.md` first. The server is part of the app, so its security baseline,
+Read `docs/security.md` and `docs/foundation.md` (app pack) first. The server is part of the app, so its security baseline,
 budgets and quality gates apply. Debugging a broken server: use the debug skill.
 
 ## 1. Decide what to build

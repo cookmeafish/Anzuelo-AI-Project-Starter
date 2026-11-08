@@ -11,15 +11,21 @@ runbook: docs/playbooks/project.md
 2. Report every sweep: PASS / WARN / FAIL plus one line. If the user asked for a number of sweeps, report exactly that
    many, adding gaps-review sweeps to reach it.
 3. **Fix every FAIL** in the project or the hook. Never weaken a test or delete a check to make it pass. Re-run until
-   PASS. Fix WARNs that are cheap to fix or risky to leave.
+   PASS. Fix WARNs that are cheap (one file, under 10 lines) or risky (touching secrets, publish safety or other people's data).
 4. **SKILL CLEANUP DUE** in the session notice: handle it with the skill-curate skill.
-5. **Gaps review** (E3, or when the sweeps are asked for in depth):
+5. **Gaps review** (E3, or the user says "gaps", "what's missing" or "in depth"):
    - Is every typical request in `docs/BRIEF.md` and every row of `docs/checks/user-requirements.md` routed to a
      runbook and enforced by a tag?
    - Does every runbook "Done when" item that could be checked have a check?
-   - Route the user's last ~10 real requests: `node tools/hooks/selfcheck.mjs --route "<request>"`. Any that match
+   - Route the user's last 10 requests from this session's messages (fewer if fewer exist): `node tools/hooks/selfcheck.mjs --route "<request>"`. Any that match
      nothing, or the wrong runbook, need triggers.
    - Which rules are judgment-only (`doc`)? Could any be checked now?
    - Rank gaps by likelihood × harm, and fix the top ones (runbook-create, project-rule) unless the user only wants
      the list.
-6. Add a CHANGELOG line, update STATUS if anything changed, and end with a Finished section.
+6. Only when something changed: add a CHANGELOG line and update STATUS. End with a Finished section.
+
+## Done when
+- [ ] The full audit ran (ran: audit.mjs --full)
+- [ ] No FAIL is left (answer: FAIL: 0|no FAIL)
+- [ ] A change made during the sweeps has a CHANGELOG line (when file: tools/**|skills/**|docs/playbooks/**) (file: docs/CHANGELOG.md)
+- [ ] The answer ends with a Finished section (hook: finished-summary)

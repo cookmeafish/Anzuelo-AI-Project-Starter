@@ -5,11 +5,15 @@ runbook: docs/playbooks/project.md
 ---
 # Bootstrap or re-scope a project
 
+With `"autonomy": "auto"`: decide, record `Assumed:` lines, and still stop before installing software.
+
 1. **`SETUP-PROMPT.md` exists:** follow it. It is the full procedure, from the interview to verification, including
    an existing project. Delete it only after `node tools/audit.mjs --setup` passes; the hooks deny it earlier
    (REQ: setup-gate).
 2. **It is gone and the focus changes:**
-   - Ask the setup questions again, only for what changed, and wait for the answers before installing anything.
+   - Ask the setup questions again, only for what changed, and wait for the answers before installing anything. The
+     questions are in Phase 2 of `SETUP-PROMPT.md`; if it is deleted, restore it from git history (`git log --diff-filter=D
+     -- SETUP-PROMPT.md`) or ask what the project is for, what data is sensitive, and which tools it uses.
      Update `docs/BRIEF.md` and the "## Setup interview" section of `docs/DECISIONS.md`, with the date.
    - Install what the new answers call for (project.md §8): knowledge work → `knowledge`, software → `app`, a visual
      interface → `gui`. Never add the app pack to a pure knowledge project.
@@ -24,6 +28,12 @@ runbook: docs/playbooks/project.md
 3. **Adopting a folder that already had files** (`*.starter.md` exist):
    - Merge the old CLAUDE.md / AGENTS.md rules into the starter's, as dated principles with the reason, each with a
      user-requirements row.
-   - Keep the originals as `sources/YYYY-MM-DD original CLAUDE.md` (or in `docs/` without the knowledge pack).
+   - Keep the originals as `sources/YYYY-MM-DD original CLAUDE.md` (without the knowledge pack: `docs/sources/YYYY-MM-DD original CLAUDE.md`).
    - Write the merged text to BOTH AGENTS.md and CLAUDE.md, keeping the line that says to "keep the two identical"
      (the hooks only sync files that carry it), then delete the `*.starter.md` files.
+
+## Done when
+- [ ] BRIEF and DECISIONS are updated (when file: docs/BRIEF.md) (file: docs/DECISIONS.md)
+- [ ] `fit.mjs check` printed FIT: PASS (when file: docs/BRIEF.md) (ran: fit.mjs check)
+- [ ] The audit ran after the last change (when file: docs/BRIEF.md) (ran: audit.mjs)
+- [ ] An adopted folder has AGENTS.md and CLAUDE.md identical and no `*.starter.md` left (judgment: needs a look at the files)

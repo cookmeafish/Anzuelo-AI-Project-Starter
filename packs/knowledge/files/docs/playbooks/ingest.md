@@ -1,8 +1,8 @@
 ---
 name: ingest
 summary: Process files the user provides - preserve originals in sources/, extract facts into docs/knowledge, register sources
-triggers: inbox, i dropped, i added a file, i added some files, added to the inbox, here's a file, here is a file, attached, i uploaded, new files, process these, import this, read this document, here is a screenshot, this screenshot, here is an export, this export, exported file, spreadsheet
-trigger_regex: \b(here (are|is)|attach(ing|ed)|uploaded|i (added|dropped|put|saved|copied)|process|import|read)\b[^.\n]{0,60}\.(pdf|docx?|xlsx?|csv|txt|png|jpe?g|json|md)\b|\.(pdf|docx?|xlsx?|csv|txt|png|jpe?g|json|md)\b[^.\n]{0,30}\b(attached|is in the inbox|are in the inbox|in the inbox)\b|\b(here (are|is)|attach(ing|ed)|uploaded|came in|just (got|dropped|sent))\b[^.\n]{0,40}\b(statements?|invoices?|receipts?|scans?|photos?|pdfs?|files?|exports?|lists?|reports?)\b|\b(statements?|invoices?|receipts?|scans?|photos?|pdfs?|files?|exports?|lists?|reports?)\b[^.\n]{0,30}\bcame in\b|\bdropped (a|the|some) \w+ in\b
+triggers: inbox, i dropped, i added a file, i added some files, added to the inbox, here's a file, here is a file, attached, i uploaded, new files, process these, import this, read this document, here is a screenshot, this screenshot, here is an export, this export, exported file, this spreadsheet, attached spreadsheet
+trigger_regex: \b(here (are|is)|attach(ing|ed)|uploaded|i (added|dropped|put|saved|copied)|process|import|read)\b[^.\n]{0,60}\.(pdf|docx?|xlsx?|csv|png|jpe?g)\b|\b(inbox|attached|uploaded|dropped)\b[^.\n]{0,60}\.(txt|json|md)\b|\.(pdf|docx?|xlsx?|csv|txt|png|jpe?g|json|md)\b[^.\n]{0,30}\b(attached|is in the inbox|are in the inbox|in the inbox)\b|\b(here (are|is)|attach(ing|ed)|uploaded|came in|just (got|dropped|sent))\b[^.\n]{0,40}\b(statements?|invoices?|receipts?|scans?|photos?|pdfs?|files?|exports?|lists?|reports?)\b|\b(statements?|invoices?|receipts?|scans?|photos?|pdfs?|files?|exports?|lists?|reports?)\b[^.\n]{0,30}\bcame in\b|\bdropped (a|the|some) \w+ in\b
 menu: K3
 ---
 # Playbook: ingest files
@@ -12,7 +12,8 @@ menu: K3
 
 ## Steps
 1. **List** what arrived (`inbox/`, attachments, pasted text). Read each one fully (PDF: the pdf skill; spreadsheets:
-   the xlsx skill; images: look at them).
+   the xlsx skill; images: look at them). Over about 50 pages, read by section and note in SOURCES.md which parts
+   were read.
 2. **Preserve.** Move each file from `inbox/` to `sources/` named `YYYY-MM-DD <short description>.<ext>`. Never alter the
    content. Pasted text worth keeping goes in `sources/YYYY-MM-DD <description>.md` verbatim. If a file with that name
    already exists, add ` (2)`; never overwrite.
@@ -21,13 +22,14 @@ menu: K3
    it might mean.
 4. **Register** each file in `docs/knowledge/SOURCES.md`.
 5. **Reconcile.** If new facts contradict existing ones, keep both, mark them unresolved, and tell the user.
-6. **Report** what was in each file in a line or two, what changed in the knowledge base, and any questions the files
-   raised. Then do the request that came with the files.
+6. **Report** each file in a line or two, what changed in the knowledge base, and any questions raised. Then do the
+   request that came with the files.
 
 ## Done when
-- [ ] `inbox/` holds only README.md; originals are in `sources/`, unchanged (hook: protect-originals keeps them
+- [ ] `inbox/` holds only README.md; originals are in `sources/`, unchanged (file: sources/**) (hook: protect-originals keeps them
       unchanged; judgment: the INBOX session notice lists any file still in `inbox/`).
-- [ ] Facts are in docs/knowledge with labels, sources and dates; SOURCES.md is updated (hook: knowledge-labels).
+- [ ] Facts are in docs/knowledge with labels, sources and dates; SOURCES.md is updated (file: docs/knowledge/SOURCES.md) (hook: knowledge-labels).
+- [ ] The report names each file's contents, what changed and any open questions (judgment: the answer is the record).
 - [ ] Followed whenever new originals land in sources/, even unasked (hook: ingest-trigger).
 
 ## Pitfalls

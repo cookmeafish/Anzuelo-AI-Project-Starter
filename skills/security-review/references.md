@@ -180,6 +180,16 @@ Score each FAIL on three factors, the same ones the hardening plan ranks by:
 - [ ] There is a short incident plan: who decides, how to revoke keys, how to tell users. Privacy or industry rules
   that apply are named, and the user confirms them.
 
+## Extra checks per area
+- Injection: a spreadsheet export (CSV, XLSX) neutralizes cells that start with = + - @ or a tab, so a name like "=HYPERLINK(...)" is text, not a formula.
+- Output and XSS: a page check, where the project has one, catches `<script>`, inline event attributes (`onerror=`, `onclick=`), `javascript:` links and scripts inside SVG files, not only script tags.
+- Authentication: a signed-in person can sign out. Owner and admin pages get a session login with sign-out from the start (plain HTTP Basic has no session to end). A login with one owner is rate limited, not locked out (a lockout lets anyone lock the owner out). Cookies are HttpOnly, SameSite and Secure (Secure on whenever the site runs on HTTPS, not left to a setting someone must remember).
+- Authorization: each destructive or sensitive action (delete, change other people's data, money, settings) is limited to the owner or a role the user named and granted it.
+- Sensitive data: force an error at every stage, not only a missing page: an oversized body, a malformed one, a bad token, a thrown error. These fail before the app's own setup runs. No response holds a stack trace or a file path, and the app runs in production mode by default (Express prints stack traces in development mode).
+- Abuse limits: a public form refuses repeats (one reply per email per event) and bots. Ask: can one person send it 300 times with different made-up values? If so, cap it per connection and per target (per event, per item), not only overall. A spam trap (a hidden field) must not silently drop a real person: browsers autofill hidden fields, so give it a name no autofill uses, `tabindex="-1"` and `autocomplete="off"`, and show the same success message a person would see while logging the catch.
+- File handling: SVG refused or sanitized; uploads decoded, not judged by name or claimed type; photo metadata (EXIF: GPS location, camera serial) stripped before an image is stored or published, the project's own photos included.
+- Deployment: security headers (CSP, X-Content-Type-Options, frame-ancestors, Referrer-Policy) are set by the app or the host config the project ships (a static site ships its host's headers file). A setting that is only safe online (Secure cookies, trusted proxy) is checked at start: the app refuses to start on a public address with it off.
+
 ## Security tests worth having
 - A protected route without credentials returns 401.
 - A protected record requested by another user returns 404 or 403.

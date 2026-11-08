@@ -3713,6 +3713,15 @@ export function setupProblems(cfg = config()) {
   const sec = read(abs('docs/security.md')).replace(/`[^`\n]*`/g, '');
   if (!/status:\s*set\b/i.test(sec) || /<\.\.\.>/.test(sec)) probs.push('set the security baseline with the user: docs/security.md still has <...> values or no "status: set"');
   if (own.adopted && !section(read(abs('docs/STATUS.md')), 'Current state').trim()) probs.push('docs/STATUS.md: add a "## Current state" section describing the existing project before setup changed it');
+  // (an established project is improved like surgery: what it has is listed and kept, and each improvement is a
+  // decided proposal, the big ones the user's call. Lesson (the user, 2026-11-07): the engine must never override an
+  // established project's own hooks, runbooks and skills or make it worse, and asks only about what changes it a lot)
+  if (own.adopted) {
+    const rev = section(read(abs('docs/DECISIONS.md')), 'Adoption review'), lines = rev.split(/\r?\n/).filter(l => /^\s*-\s+\S/.test(l));
+    if (!lines.some(l => /^\s*-\s+keep:/i.test(l))) probs.push('docs/DECISIONS.md: add a "## Adoption review" listing what the project already has (its hooks, runbooks, skills, rules, commands), one "- keep: <item> - <what the engine does instead of overriding it>" line each');
+    const open = lines.filter(l => /^\s*-\s+improve:/i.test(l) && (!/\|\s*(small|big)\s*\|/i.test(l) || /\|\s*\??\s*$/.test(l)));
+    if (open.length) probs.push(`docs/DECISIONS.md "## Adoption review": ${open.length} improvement line(s) need "| small|big | <decision>" (a big one is the user's: ok, no or explore): ${open[0].trim().slice(0, 80)}`);
+  }
   probs.push(...setupCompleteness(cfg, { final: true }));
   // REQ: fit-checklist. Every candidate is decided by the AI with a reason that holds (node tools/fit.mjs check)
   const fit = fitProblems(cfg);

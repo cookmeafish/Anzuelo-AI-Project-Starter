@@ -32,8 +32,9 @@ Every kind of task the project handles has three parts:
 - **## Steps:** numbered, in order, each one checkable. Name the exact files, tools and commands. Branches go inline as
   sub-steps.
 - **## Done when:** observable results. Each one that can be checked becomes a requirements.json entry with
-  `"when": {"playbookUsed": "<name>"}`. Every item ends with `(hook: <tags>)` or `(judgment: <why no check can tell>)`
-  (REQ: done-when-labeled).
+  `"when": {"playbookUsed": "<name>"}`. Every item ends with a marker: `(hook: <tags>)`, a direct proof
+  (`(file: <path>)`, `(ran: <command regex>)`, `(answer: <regex>)`, optionally behind `(when ...)`), or
+  `(judgment: <why no check can tell>)` (REQ: done-when-labeled).
 - **## Pitfalls:** mistakes made before, dated, each as what went wrong and why, in general terms.
 - Short and scannable. Long reference material goes in `docs/checks/` or the skill's `references/` folder, linked.
 

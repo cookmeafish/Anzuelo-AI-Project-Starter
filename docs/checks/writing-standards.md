@@ -154,8 +154,9 @@ project writes itself prints the way the engine's Stop hook does:
 1. One headline that says what it is: "Almost done: N steps are left before this answer is complete (round X of 3)."
 2. Numbered steps, one short plain line each (about 10 words, no tags or rule numbers), merged so one fix is one step,
    at most about 6, then "... and N more".
-3. The full instructions (commands, blocks to add, why) in a file, with one last line that names it: "Full steps:
-   .cache/stop-details.md". Agent-only words stay on one line ("For the agent: ...").
+3. The full instructions (commands, blocks to add, why) in a file or command, with one last line that names it. The
+   engine says "Full steps: `node tools/hooks/hooks.mjs why`"; a project's hook names its own file, such as
+   `.cache/stop-details.md`. Agent-only words stay on one line ("For the agent: ...").
 Lesson (a field report): a project's own Stop hook printed 14 long tagged lines, three for one step, cut off mid-word.
 
 Credits: the idea of giving each kind of output its own look, the numbered sources and the activity lines come from

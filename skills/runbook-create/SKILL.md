@@ -6,17 +6,10 @@ runbook: docs/playbooks/project.md
 # Create or extend a runbook
 
 ## 0. Look for an existing skill first
-Follow the **skill-finder** skill: search the project's own skills and library (`node tools/skills.mjs library`), the
-agent's installed skills, official repositories and marketplaces, and reputable community collections. A
-downloaded skill is third-party code: read every file, check it doesn't drive the installed browser, phone home or
-touch files outside the project, and install it only with the user's OK (`node tools/skills.mjs add <owner/repo>
-<skill>`). Then make it ours: rewrite it in the project's style, keep its LICENSE, credit the source in SOURCE.md, and
-tell the user its gain and cost in one line (REQ: worth-it). Never ship it unchanged.
-
-Write the runbook around it (the runbook keeps the routing and "Done when"; its `skill:` points at the skill). Report
-it in the answer: `Existing skills checked: <where you looked> - <what you found and used, or none fit>` (hook:
-skill-reuse). A procedure only this project can have skips the search: put `reuse: none - project-specific: <why>`
-in its frontmatter.
+Follow the **skill-finder** skill, including its report line (hook: skill-reuse): `Existing skills checked: <where you
+looked> - <what you found and used, or none fit>`. Write the runbook around the skill it finds (the runbook keeps the
+routing and "Done when"; its `skill:` points at the skill). A procedure only this project can have skips the search:
+put `reuse: none - project-specific: <why>` in its frontmatter.
 
 ## 1. Extend or create?
 Read `DIRECTORY.md` §1 and the frontmatter of every runbook in `docs/playbooks/`.
@@ -29,7 +22,8 @@ Copy `docs/playbooks/_TEMPLATE.md` to `docs/playbooks/<kebab-name>.md` (standard
 - `triggers`: the phrases the user actually used (copy them from the conversation) plus 3 to 8 likely variants. Only
   words whose meaning you checked (`docs/glossary.md`, the project's sources): a trigger built on a misread word routes
   the wrong job every time.
-  Lowercase, comma-separated. Avoid single common words that would match everything.
+  Lowercase, comma-separated. After the sync in step 5, run `selfcheck.mjs --route` on three unrelated past requests;
+  none may route to the new runbook.
 - `## Steps`: the steps that worked in this conversation, in order, with exact files, tools and commands.
 - `## Done when`: observable results. This list is the agent's checklist for the task: it is shown when the request
   arrives, the agent records each item as done or skipped, and the final check holds each record to its proof. So:
@@ -50,15 +44,24 @@ writes the runbook pass. A regex may not contain `)`. Example:
 If nothing can be checked, set `checks: none - <reason>` in the runbook. Never add an entry to
 `tools/hooks/requirements.json`: the end check does not run those (2026-11-07).
 
-A validator script you write for the check is run on real samples before you rely on it: it fails on a real bad
-case and passes on every existing file it governs (from the last commit) and on realistic good samples, one an edge
-case made from the project's own words (names, addresses, headings, quoted text). Made-up junk alone proves
-little: a check can fail every fixture and still pass the real miss, or block good work (hook: check-proven, when it
-answers a complaint or a rule). The validator's own tests keep their samples in their own files (copied from the
-real ones), never read the project's live data: a later turn that edits that data as asked must not break them.
-Lesson (a trial): a test needed one row of the live data to stay unfinished; filling it in as asked broke the tests.
+Run a validator script you write on real samples before you rely on it: it fails on a real bad case and passes on
+every existing file it governs (from the last commit) and on realistic good samples, one an edge case made from the
+project's own words (names, addresses, headings, quoted text). Made-up junk alone proves little (hook: check-proven,
+when it answers a complaint or a rule). Its tests keep their samples in their own files (copied from the real ones)
+and never read the project's live data, so a later turn that edits that data as asked doesn't break them.
 
-## 4. Route and verify
+## 4. Read it cold (mandatory for a new runbook or skill; before step 5, which then runs once)
+The next agent has only the text. Give one helper agent, launched in the foreground, only the new file and the
+request it is for (no conversation, no hints), and ask it for:
+- every step it could not do exactly as written: a file, command or tool that is missing or unnamed, a word the
+  project never defines, a choice the step leaves open ("pick a good one": by what measure?);
+- every "Done when" item it could not tell how to prove;
+- every step whose result has no "Done when" item.
+Fix each gap in the file (or say in one line why it is not one) (hook: runbook-cold-read). A rewrite of most of a
+runbook gets the same read. If no helper can be started, reread the file alone, list what you assumed, and say so in
+the answer.
+
+## 5. Route and verify
 - The skill (`skills/<name>/SKILL.md`) and the `DIRECTORY.md` row are generated. Run `node tools/hooks/hooks.mjs sync`.
 - Add a menu code in `docs/MENU.md` if the task will be common, and a precedence line in `DIRECTORY.md` if it overlaps
   another runbook.
@@ -66,21 +69,16 @@ Lesson (a trial): a test needed one row of the live data to stay unfinished; fil
 - Run `node tools/hooks/selfcheck.mjs --tags <its checks>` (only the scenarios for what changed; the Stop hook names the
   tags) and `node tools/audit.mjs`. Add a CHANGELOG line. Name the runbook in the answer.
 
-## 5. Read it cold (mandatory for a new runbook or skill)
-You know what you meant; the next agent has only the text. Give one helper agent, launched in the foreground so its
-answer comes straight back (no sleeping or polling), only the new file and the request it
-is for (no conversation, no hints), and ask it for:
-- every step it could not do exactly as written: a file, command or tool that is missing or unnamed, a word the
-  project never defines, a choice the step leaves open ("pick a good one": by what measure?);
-- every "Done when" item it could not tell how to prove;
-- every step whose result has no "Done when" item.
-Fix each gap in the file (or say in one line why it is not one) (hook: runbook-cold-read). A rewrite of most of a
-runbook gets the same read.
+## Done when
+- [ ] The runbook is written (when file: docs/playbooks/*.md) (file: docs/playbooks/*.md)
+- [ ] A new runbook or skill was read cold and each gap fixed (hook: runbook-cold-read).
+- [ ] The sync ran, and the route test shows the runbook for the user's original message (when file: docs/playbooks/*.md) (ran: hooks.mjs sync)
+- [ ] The audit passed after the last edit (when file: docs/playbooks/*.md) (ran: audit.mjs)
+- [ ] The CHANGELOG has a line for it (when file: docs/playbooks/*.md) (file: docs/CHANGELOG.md)
 
-## What makes a runbook or skill good
-- **Exact:** every step names its file, command or tool and what "done" looks like for that step. No "as needed".
-- **Decided:** where a step needs judgment, it gives the measure ("the supplier that fills more of the orders on time,
-  compared with every approved supplier for that item"), not just the verb ("pick the best").
-- **Complete:** every result that matters has a "Done when" item with a real check, so the final check asks about it.
-- **Short:** steps the agent would do anyway without being told are left out; long background goes in a linked file.
-- **Proven:** it was read cold, and its checks fail on a real miss and pass on real good work (step 3).
+## Pitfalls
+- A check that fails every fixture yet passes the real miss, or blocks good work: test it on real samples (step 3).
+- Steps the agent would do anyway, or a measure-less verb ("pick a good one"): name the measure or cut the step.
+- A step whose result matters but has no "Done when" item: the end check never asks about it.
+
+What makes a runbook good (exact, decided, complete, short, proven): `docs/checks/runbook-standards.md`.

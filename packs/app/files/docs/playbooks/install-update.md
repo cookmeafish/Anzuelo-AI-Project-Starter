@@ -6,6 +6,8 @@ menu: A8
 ---
 # Playbook: install, launch and update
 
+**Use when:** installer, launcher or updater files change, or an install or update fails.
+
 ## Rules
 - One file the user runs. Every step is idempotent (safe to re-run) and fails soft, with a clear message.
 - Paths are relative to the app, and survive spaces and accented characters.
@@ -14,7 +16,8 @@ menu: A8
 - Updates never prompt for credentials (non-interactive), never block when offline, and log every decision to a file.
 - A dependency fingerprint at launch decides whether dependencies need reinstalling. A pending-install marker makes an
   interrupted install resume.
-- The agent never runs the installer or the real app on the user's machine. The user runs the test matrix.
+- The agent never runs the installer for real on the user's machine; sandbox runs and syntax checks are fine (step 3).
+  The user runs the test matrix.
 - On Windows, a script the user is told to run with `powershell` works in Windows PowerShell 5.1, the version every
   Windows has; otherwise the instruction says `pwsh` and the script starts with `#Requires -Version 7`. 5.1 has none
   of these: `-Encoding utf8NoBOM` (use `[IO.File]::WriteAllText(path, text)` for UTF-8 without a BOM), the `??` and
@@ -25,8 +28,10 @@ menu: A8
   instructions-run). The installing steps can be skipped by a dry-run flag; the lines after them still run.
 
 ## Steps
-1. Change the scripts. Unit-test the pure decision logic (what to do in each state).
-2. Write the test matrix into the release notes, for the user to run:
+1. Change the scripts. Unit-test the pure decision logic (the function that picks install, skip or update in each
+   state) with the project test command.
+2. Write the test matrix into the release notes, for the user to run. A change that only touches wording needs only
+   the cases it can affect:
    - fresh install;
    - update from the previous version;
    - offline;
@@ -34,8 +39,10 @@ menu: A8
    - double launch;
    - folder with spaces or accents;
    - interrupted install.
-3. Verify what the agent can verify safely: script syntax, decision tests, logs from a sandbox run if one exists.
+3. Verify what the agent can verify safely: script syntax, decision tests, logs from a sandbox run if one exists;
+   otherwise state NOT VERIFIED for the sandbox run.
 
 ## Done when
 - [ ] Decision logic tested; the test matrix is in the release notes, with each case marked tested, or to be run by the user (hook: install-matrix).
+- [ ] Scripts changed this turn ran as the user is told to run them, or the answer states NOT VERIFIED (hook: instructions-run).
 - [ ] Followed whenever installer, launcher or updater files change, even unasked (hook: install-trigger).

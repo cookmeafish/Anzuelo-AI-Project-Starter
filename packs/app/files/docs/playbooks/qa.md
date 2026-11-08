@@ -8,6 +8,8 @@ menu: A3
 # Playbook: QA incidents, sweeps, change reviews, test plans and review follow-up
 
 ## Steps
+Outward steps (posting, resolving, pushing) need the user's OK (rule 6): draft, then ask.
+
 ### §1 QA missed something (QA incident: "QA failed", "the tests missed it", "did you test this?", a bug in checked work)
 1. **Find the miss:** what is wrong, and why QA didn't catch it (which of the three checks was skipped, too shallow,
    or measuring the wrong thing).
@@ -17,14 +19,14 @@ menu: A3
 4. **Report** under these labels: What slipped, Why QA missed it, Fix, Process change.
 
 ### §2 QA sweep of the app ("bug sweep", "audit the app")
-1. Split the app into areas. For each area, an independent auditor (a fresh agent with AGENTS.md, the area's specs and
-   `app-standards.md`) looks for real problems.
+1. Split the app into areas: one per top-level module or screen group, at most 6 auditors. For each area, an
+   independent auditor (a fresh agent with AGENTS.md, the area's specs and `app-standards.md`) looks for real problems.
 2. **Every finding needs evidence:** a reproduction, a failing test, or the exact code path with the input that
    breaks it. Findings without evidence are dropped. False findings are retracted openly.
 3. Each new round includes a review of the previous round's fixes.
 4. Fix by priority (data loss and security first), each fix by `bugfix.md`. Record the sweep in `docs/lessons.md`
    (one line per real finding class).
-5. Stop when a full round finds nothing new, or report what is left.
+5. Stop when a full round finds nothing new, or after 3 rounds; list what is left.
 
 ### §3 Review a change before it is merged (a diff, branch or pull request)
 1. **Get the change and its goal:** the diff against the base branch (`git diff <base>...HEAD`), or the pull request
@@ -49,7 +51,7 @@ menu: A3
    finding.
 5. **Verdict:** SHIP, FIX (with the blockers listed) or DISCUSS (a design question for the user). Name briefly what
    is good, so it is kept.
-6. Comments on a pull request are outward actions: draft them, and post only with the user's OK.
+6. Comments on a pull request are outward actions (see §5, step 7): draft them, and post only with the user's OK.
 
 ### §4 Plan the tests ("how should we test this", "what tests do we need")
 1. **List what would hurt most if it broke:** money, data, security, the main user flows, error handling and the
@@ -87,11 +89,11 @@ CI (continuous integration) is the build server that runs the checks on every pu
    check that passes locally but fails in CI is a difference to list (versions, environment values, caching, order).
    Never skip, disable or loosen a check to make it pass without the user's OK.
 6. **Re-run the checks** locally, then confirm the CI results after the push.
-7. **Outward steps need the user's OK** (rule 6): posting replies, resolving threads, pushing and re-running CI on the
-   host. Draft the replies and show them with the diff first.
+7. **Show the drafted replies with the diff first.** Posting replies, resolving threads, pushing and re-running CI on
+   the host wait for the user's OK.
 
 ## Done when
-- [ ] Incident: the answer has "What slipped", "Why QA missed it", "Fix", "Process change", and a lessons line was added (hook: qa-incident).
+- [ ] Incident: the answer has "What slipped", "Why QA missed it", "Fix", "Process change", and a lessons line was added (hook: qa-incident) (when answer: What slipped) (file: docs/lessons.md).
 - [ ] Sweep: every finding has evidence; the answer lists rounds, findings, fixes and what is left (hook: qa-report).
 - [ ] Change review: every finding has a file, line, evidence and level, and the answer ends with SHIP, FIX or DISCUSS (hook: qa-report).
 - [ ] Test plan: risks ranked, a test type for each, and the gaps listed as findings (hook: qa-report).

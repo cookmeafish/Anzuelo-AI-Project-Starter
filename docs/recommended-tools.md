@@ -1,8 +1,8 @@
 # Recommended tools
 
 Optional tools the agent can recommend during setup. Each is a row of the fit checklist (`node tools/fit.mjs`). The
-starter never installs any of them itself. Licenses and install commands were checked on 2026-10-18 (see
-[Sources](#sources)).
+starter never installs any of them itself. The tools under [Sources](#sources) had their license and install command
+checked on 2026-10-18; for the rest, confirm both on the linked official page before installing.
 
 ## How to use this directory
 1. **Fit is not enough.** Recommend a tool only when it fits this project AND makes it better.

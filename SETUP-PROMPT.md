@@ -24,6 +24,13 @@ The starter was added around work that already exists (`config.json` has `adopte
 - **Learn it first:** the README, docs and old instruction files (`*.starter.md` are the starter's versions, the
   others are the user's), the layout, the build and test commands, recent git history, open TODOs. Write a
   `## Current state` section in `docs/STATUS.md` before changing anything (the setup gate checks it).
+- **Surgery, not replacement.** List what the project already has in a `## Adoption review` in `docs/DECISIONS.md`:
+  its hooks, runbooks, skills, rules and commands, one `- keep: <item> - <what the engine does instead>` line each.
+  Where theirs and the engine's do the same job, theirs wins: the engine's copy is left out or routes to theirs.
+  Each improvement is one line, `- improve: <what and why> | small|big | <decision>`. Small (adds only, changes no
+  behavior, easy to undo): decide it and write why. Big (changes their hooks, rules, workflow, code or layout,
+  removes anything, or needs a closer look): the user decides `ok`, `no` or `explore`; ask about these together, once,
+  in plain words. The setup check fails until every line is decided.
 - **Keep what works.** Existing rules move into AGENTS.md / CLAUDE.md as principles with a user-requirements row.
   Existing scripts and tests become gates (`toolPassed` + `selfRun`, or `commitGate`). Existing procedures become
   runbooks. Merge each `*.starter.md` into the user's file (their README stays theirs), then delete it. The originals

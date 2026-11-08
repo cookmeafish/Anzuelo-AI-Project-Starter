@@ -1,12 +1,12 @@
 ---
 name: research
-description: Get facts right, from the project's own files or from the web. Every fact traces to a source read this turn, research uses several independent sources with sponsored and biased ones screened out and weighs them together into one verdict, and a check catches anything made up. Use when answering from the knowledge base, looking something up, researching, comparing or fact-checking, and for every web search.
-triggers: research, research online, look up, look into, look online, find out, compare, comparison, what are the options, best option, which is better, latest version, current version, up to date, is it true, is this true, is that real, verify this, verify the claim, fact check, fact-check, check online, search the web, web search, search online, google it, duckduckgo, find sources, what do we know, what do i know, what did we decide, what was decided, what is our policy, look in the project, according to, summarize what we know, is it safe, how much should, what dose, evidence for, studies show, what do studies, investiga, busca, averigua, que dicen, qué dicen, compara, fuentes, what is the best, best budget, how much does it cost, go for these days, these days, dig up, is it true that, which is cheaper, is it cheaper, price of, what do sources say, sources say, current prices
+description: Get facts right, from the project's own files or from the web. Every fact traces to a source read this turn, research uses several independent sources with sponsored and biased ones screened out and weighs them together into one verdict, and a check catches anything made up. Use when answering from the knowledge base, researching, fact-checking or comparing options online, and for every web search.
+triggers: research, research online, look into, look online, what are the options, latest version, current version, is it true, is this true, is that real, verify this, verify the claim, fact check, fact-check, check online, search the web, web search, search online, google it, duckduckgo, find sources, what do we know, what do i know, what did we decide, what was decided, what is our policy, look in the project, summarize what we know, how much should, what dose, evidence for, studies show, what do studies, investiga, busca, averigua, que dicen, qué dicen, compara, fuentes, what is the best, best budget, how much does it cost, go for these days, these days, dig up, is it true that, which is cheaper, is it cheaper, what do sources say, sources say, current prices
 ---
 # Research: facts that are real
 
-One rule covers every situation: **every fact in the answer traces to a source read this turn.** Memory doesn't
-count. Find it and cite it, leave it out, or mark it "(not verified)".
+**Every fact in the answer traces to a source read this turn.** Memory doesn't count. Find it and cite it, leave
+it out, or mark it "(not verified)".
 
 ## Pick the situation
 | Situation | Do |
@@ -15,7 +15,7 @@ count. Find it and cite it, leave it out, or mark it "(not verified)".
 | One quick fact for the work at hand, like a library's docs or a command's flags. Not in a knowledge project | **B** |
 | Research, comparisons, "is it true", anything the user will rely on or the project will record. Every web lookup in a knowledge project | **C** |
 | No built-in web search, or a second engine to cross-check | [search-tool.md](search-tool.md) |
-| Learning from people: interviews, surveys, usability tests, or turning their notes and feedback into findings | The **user-research** library skill (it uses **D** and **E** below) |
+| Learning from people: interviews, surveys, usability tests, or turning their notes and feedback into findings | The **user-research** library skill, when enabled (`node tools/skills.mjs enable user-research`); it uses **D** and **E** below |
 
 Then always **D** (did I make that up?), and in a knowledge project, **E** (record it).
 
@@ -43,13 +43,12 @@ Sources:
 [2] docs/knowledge/desks.md
 ```
 
-**Activity lines** while a longer research turn runs: one short line per step, an emoji and then the words, never an
-emoji alone: `🔍 search: <query>`, `📖 read: <page or file>`, `🧮 compute: <what>`, `🧩 skill: research`. Skip them for
-a quick answer. Details in `docs/checks/writing-standards.md`, "Activity lines".
+**Activity lines** on a longer research turn: one short line per step, such as `search: <query>`, `read: <page or
+file>`, `compute: <what>`. An emoji before the words is optional, never alone. Skip them for a quick answer. Details:
+`docs/checks/writing-standards.md`, "Activity lines".
 
 ## Sections A to C
-Read only the one the situation needs (the table above): each file read stays in the conversation and is sent
-again with every later step. D and E below apply to every situation.
+Read only the one the situation needs. D and E below apply to every situation.
 
 - **A. From the project:** [sections/a.md](sections/a.md)
 - **B. A quick lookup:** [sections/b.md](sections/b.md)
@@ -62,13 +61,10 @@ Before answering, read the draft sentence by sentence:
 2. Every number, name, date, unit and quote matches its source character by character.
 3. A number you worked out yourself says so on its line: "(calculated: ...)" or "(estimate)".
 
-The Stop hook checks this too (REQ: answer-traced): in a knowledge project, and after a ledger check, every number in
-the answer and every number written into `docs/knowledge/` must appear in something read this turn, and every cited
-project file must have been opened.
+The end check also tests this (REQ: answer-traced).
 
 ## E. Record it (knowledge projects)
-Record what was confirmed with the knowledge-capture skill: each fact with its label, source and date (`volatile: yes`
-for anything that changes), the sources in `docs/knowledge/SOURCES.md`. A deliverable is next: `deliverable.md`.
+Record what was confirmed with the knowledge-capture skill (knowledge pack: `packs/knowledge/files/skills/knowledge-capture/`): each fact with its label, source and date (`volatile: yes` for anything that changes), the sources in `docs/knowledge/SOURCES.md`. A deliverable is next: `docs/playbooks/deliverable.md` (knowledge pack).
 
 ## Done when
 - [ ] Every fact has a numbered citation, and `Sources:` has a `[n] <link or project file>` line for each number used,
@@ -79,7 +75,7 @@ for anything that changes), the sources in `docs/knowledge/SOURCES.md`. A delive
       `Sources limit:` line, and the answer ends with the Verified line (hooks: research-ledger, research-verified).
 - [ ] **D:** every number and cited file is traced (hook: answer-traced).
 - [ ] **E**, in a knowledge project: the findings are recorded (hook: research-recorded).
-- [ ] Facts written into docs/knowledge come through this skill, knowledge-capture or ingest (or, read from the project's own files, each carries its label, date and source file), and their numbers trace to a source read this turn (hook: knowledge-source-trigger, answer-traced).
+- [ ] Facts written into docs/knowledge come through this skill, knowledge-capture or ingest (knowledge pack) (or, read from the project's own files, each carries its label, date and source file), and their numbers trace to a source read this turn (hook: knowledge-source-trigger, answer-traced).
 
 ## Pitfalls
 - Answering from general knowledge while implying it came from the project or a source. Say which is which.

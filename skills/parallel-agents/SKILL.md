@@ -1,13 +1,12 @@
 ---
 name: parallel-agents
 description: Splits work into independent parts and runs one sub-agent per part at the same time, each with a focused, self-contained brief, then checks and merges the results. Use when there are 2 or more tasks that share no files, state or order, such as unrelated failures, separate research questions, or reviews of different areas. Not for related problems or work that edits the same files.
-triggers: in parallel, parallel agents, sub-agents, subagents, fan out, split the work, several agents, multiple agents, parallel
+triggers: in parallel, parallel agents, sub-agents, subagents, fan out, split the work, several agents, multiple agents
 ---
 # Run independent work in parallel
 
-Unrelated problems handled one after another waste time, and one agent holding all of them loses focus. Give each
-independent part its own sub-agent, run them at once, and keep your context for checking and merging. A sub-agent
-does not inherit your session: its brief gives it exactly what its part needs.
+Give each independent part its own sub-agent, run them at once, and keep your context for checking and merging. A
+sub-agent does not inherit your session: its brief gives it exactly what its part needs.
 
 ## 1. Is it really independent?
 First group the work by what it concerns: failures by the area or feature that breaks, research by question, reviews
@@ -38,23 +37,23 @@ Each brief carries:
 - **Approach hints**, when you have them: where to look first, and the tempting shortcut to avoid, named ("don't just
   raise the timeout; find out why it is slow").
 - **Limits:** what it must not touch ("change only the tests", "don't edit shared config", "no commits"), and no
-  sub-agents of its own. Read the brief once for contradictions: a file it may not touch can still be read; say
-  "read-only" rather than "don't open", if its data is needed.
-- **Today's date**, from the system (`date`), not from memory or an earlier brief: helpers judge "current" and "new"
-  by it.
+  sub-agents of its own. Read the brief once for contradictions: say
+  "read-only" rather than "don't open" for files it may read but not change.
+- **Today's date**, from the session context or the system clock (`Get-Date` or `date`), not from memory or an earlier
+  brief: helpers judge "current" and "new" by it.
 - **Return:** a status (done, done with concerns, needs information, blocked) and a short report: the cause found,
   what changed (file paths), what was verified, what is still open, and a `Friction:` line naming any tool, runbook or
   hook that slowed it or got in its way (or "none"). Long output goes in a file it names.
 
-A good brief is focused (one area), self-contained (no "as discussed") and clear about what comes back. Weak briefs
-are too broad ("fix all the tests"), missing context ("fix the race condition"), unbounded (nothing stops a rewrite),
-or vague about the result ("fix it"). A filled-in example is in [references.md](references.md).
+A good brief is focused (one area), self-contained (no "as discussed") and clear about what comes back. A filled-in
+example is in [references.md](references.md).
 
 ## 3. Start them together
 Launch all the sub-agents in the same step so they run at the same time; one per step runs them in order. A handful
 of focused agents beats many overlapping ones.
-- Pick the model per part where your agent allows it: the cheapest capable one for mechanical work, a stronger one
-  for judgment. Say it explicitly, or every agent runs on the most expensive default.
+- Pick the model per part. Mechanical (rename, grep, format, copy) = the smallest model; review, design and debugging
+  = the default. Set it with the Agent tool's `model` parameter (other agents: their equivalent), or every agent runs
+  on the most expensive default.
 - While they run, do your own work. Don't poll in a tight loop. If one is silent far longer than the others, check
   on it.
 
@@ -75,12 +74,11 @@ When they report back:
 - [ ] Every brief pointed at AGENTS.md and had scope, goal, facts, limits and a return format (hook: subagent-brief for AGENTS.md; judgment: whether the rest of the brief is clear).
 - [ ] Every report was read and its status acted on (judgment: acting on each report needs reading it).
 - [ ] The full checks passed on the combined result, after the last change (hook: parallel-merged).
-- [ ] Also unasked: a turn with two or more sub-agents checks their results together and reports it (hook: parallel-trigger).
+- [ ] A turn with 2 or more sub-agents has a combined check and a per-part report (hook: parallel-trigger).
+- [ ] Each `Friction:` line is fixed or sent with `starter.mjs feedback` (judgment: needs reading the reports).
 
 ## Pitfalls
-- Splitting connected problems: the agents each patch a symptom of one shared cause.
-- Two agents editing the same file: the last one silently undoes the other.
+- Splitting connected problems: each agent patches a symptom of one shared cause.
 - Pasting your whole session history into each brief: it costs context and blurs the scope.
-- Merging without running the full checks on the combined result.
 
 Adapted from "dispatching-parallel-agents" in obra/superpowers (MIT, see LICENSE and [SOURCE.md](SOURCE.md)).

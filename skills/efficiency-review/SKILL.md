@@ -2,12 +2,11 @@
 name: efficiency-review
 description: Finds where this project's turns spend time and tokens, from its own sessions, and traces each cost to what asks for it - a project rule in CLAUDE.md, a runbook step, a project hook or check, or the starter's engine. Proposes changes ranked by the time they save, each with what it would lose, changes the project's own rules only with the user's OK, and sends engine costs back to the starter. Use when the user says the project is slow, wasteful, does too many sweeps or checks, takes too long for small fixes, burns tokens, repeats work, or asks why something takes so long.
 checks: none - its evidence is the report command's output, and tracing costs to their sources and weighing what a change loses are judgment
-triggers: too slow, so slow, takes too long, taking too long, took too long, too many sweeps, so many sweeps, too many checks, wasting tokens, waste of tokens, token waste, inefficient, efficiency, efficient, too long for, 20 minutes, redundant, doing things twice, over and over, why does it take, why is it slow, speed it up, make it faster, lento, muy lento, tarda mucho, demasiado tiempo, demasiadas comprobaciones, gasta tokens, ineficiente, redundante
+triggers: too slow, so slow, takes too long, taking too long, took too long, too many sweeps, so many sweeps, too many checks, wasting tokens, waste of tokens, token waste, doing things twice, why does it take, why is it slow, speed it up, make it faster, lento, muy lento, tarda mucho, demasiado tiempo, demasiadas comprobaciones, gasta tokens, ineficiente, redundante
 ---
 # Efficiency review: find what makes turns slow, and who asks for it
 
-The user pays for every step in time and tokens. A rule that runs four minutes of sweeps after a one-line fix costs
-that every time, and the user can't see why. Measure first, then trace each cost to the file that asks for it.
+The user pays for every step in time and tokens. Measure first, then trace each cost to the file that asks for it.
 
 ## Steps
 1. **Measure** the recent turns: `node skills/efficiency-review/scripts/efficiency.mjs --turns 30` (more turns for a
@@ -29,19 +28,24 @@ that every time, and the user can't see why. Measure first, then trace each cost
    - **Make it a tool:** a step the agent rebuilds by hand each time becomes one command.
    Never propose dropping a check that guards correctness, security or the user's data without saying so plainly.
 4. **Ask the user** which to apply: the project's rules are theirs. With `"autonomy": "auto"`, apply the ones that lose
-   nothing and list the rest as questions.
+   nothing and list the rest as questions. "Lose nothing" = removes no check guarding correctness, security or user data,
+   and no record a later session needs.
 5. **Apply** each approved change at its source (the rule, the runbook step, the hook's condition), with its tests, and
    a CHANGELOG line.
-6. **Prove it made nothing worse.** Before the first change, run the project's own tests and its full checks
-   (`node tools/audit.mjs`, and the test command in `docs/foundation.md` or the package file) and note the result. Run
-   the same after the changes. A change after which something fails that passed before is undone, or fixed before the
-   answer. Then **measure again** after a few turns and report before and after: time and steps, and the test results.
+6. **Prove it made nothing worse** (only when changes were applied; a report with nothing applied skips this). Before
+   the first change, run the project's tests (the test command named in its docs or package file, or none) and, if a
+   change touches hooks or checks, `node tools/audit.mjs`; note the results. After the changes, run the tests and
+   `node tools/audit.mjs` once. A change after which something fails that passed before is undone, or fixed before the
+   answer.
+7. **Measure again** a few turns later: put a `docs/STATUS.md` Next line with the baseline numbers (time and steps), and
+   report before and after.
 
 ## Done when
 - [ ] The report ran this turn and the answer gives its main numbers (judgment: which numbers matter depends on the report).
 - [ ] Each cost proposed for change names its source file and line, its time per turn, and what changing it loses (judgment: tracing needs reading the sources).
 - [ ] The project's own rules changed only with the user's OK or within "autonomy": "auto" for changes that lose nothing (judgment: the OK is in the conversation).
-- [ ] When changes were applied, the project's tests and full checks ran before and after them and nothing that passed before fails now (when file: CLAUDE.md|AGENTS.md|docs/playbooks/**|tools/hooks/**) (ran: audit\.mjs)
+- [ ] When changes were applied, the tests and the audit ran before and after them and nothing that passed before fails now (judgment: the comparison needs both results) (when file: CLAUDE.md|AGENTS.md|docs/playbooks/**|tools/hooks/**) (ran: audit\.mjs)
+- [ ] When changes were applied, `docs/STATUS.md` has a Next line with the baseline numbers for the later re-measure (when file: CLAUDE.md|AGENTS.md|docs/playbooks/**) (file: docs/STATUS.md)
 - [ ] Engine costs went to the starter with `starter.mjs feedback` (judgment: which costs are the engine's needs the trace).
 
 ## Pitfalls

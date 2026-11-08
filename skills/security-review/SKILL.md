@@ -11,23 +11,21 @@ verified") until evidence says otherwise.
 
 Every project gets this skill, not only apps: notes and research projects hold secrets, private data and untrusted
 files too. Review a single change (what it touches) or the whole project. Run it at setup (the first review), before
-anything is shared, published or released (hard rule 15), and when the user asks.
+anything is shared, published or released (hard rule 15), and when the user asks. Run it **asked or not whenever the
+work touches security**: code for sign-in, passwords, tokens, secrets, permissions, sessions, cookies, CORS, uploads,
+endpoints, shell or eval, query building, deserializing, crypto, payments or personal data; `.env`, CI, Docker or
+hosting settings; a publish or deploy command. The end check asks for it once when such code was written and no
+review ran. Review only what changed, with the areas it touches.
 
-**It is also mandatory, asked or not, when the work touches security.** That means code for sign-in, passwords,
-tokens, secrets, permissions, sessions, cookies, CORS, uploads, endpoints, shell or eval, query building,
-deserializing, crypto, payments or personal data. It also means `.env`, CI, Docker or hosting settings, or a publish
-or deploy command. The end check asks
-for it once when such code was written and no review ran. Review only what changed, with the areas it touches.
-
-In app projects, the `security-review.md` runbook adds its own items. **This skill finds problems and fixes the few
-critical ones; the security-hardening library skill fixes a long list as a staged project.** Both use the same areas,
-severity scale and report table ([references.md](references.md)), so one's report is the other's input.
+In app projects (app pack), the `security-review.md` runbook adds its own items. **This skill finds problems and
+fixes the few critical ones; the security-hardening library skill (when enabled) fixes a long list as a staged
+project.** Both use the same areas, severity scale and report table ([references.md](references.md)).
 
 ## 1. Scope and threat model
 1. **Say what is in scope:** the change, a feature, or the whole project, and which parts are exposed: shared or
    published files, outside services and models the project sends data to, and for software the public web, local
    server, CLI, desktop, background jobs, build pipeline, hosting and infrastructure files.
-2. **Read the baseline:** `docs/security.md` (every project), plus for apps the security baseline in
+2. **Read the baseline:** `docs/security.md` (every project), plus for apps (app pack) the security baseline in
    `docs/foundation.md` and the Security section of `docs/checks/app-standards.md`. If a baseline is empty, write
    down your assumptions and tell the user.
 3. **Name what needs protecting and from whom**, in a few lines: the data, keys, the user's machine, other users; and
@@ -53,20 +51,22 @@ severity scale and report table ([references.md](references.md)), so one's repor
 | Untrusted content | Are files, web pages, emails and model output treated as data, so instructions inside them are never followed? |
 | Downloads and third-party skills | Was every downloaded script, package or skill read before use, from a trusted source, and run only with the user's OK? |
 | Input validation | Is every input checked against an allowlist schema (type, length, range, format) at the edge? |
-| Injection | Does any input reach a query, shell command, file path, template or eval without parameters or escaping? Does an export to a spreadsheet (CSV, XLSX) neutralize cells that start with = + - @ or a tab, so a name like "=HYPERLINK(...)" is text, not a formula? |
-| Output and XSS | Is untrusted text rendered as HTML anywhere without a sanitizer? Is there a strict content security policy? A page check, where the project has one, catches `<script>`, inline event attributes (`onerror=`, `onclick=`), `javascript:` links and scripts inside SVG files, not only script tags. |
+| Injection | Does any input reach a query, shell command, file path, template, eval or spreadsheet export without parameters or escaping? |
+| Output and XSS | Is untrusted text rendered as HTML anywhere without a sanitizer? Is there a strict content security policy? |
 | Request forgery | Can another site or page trigger a state change with the user's cookies, or call a local server? |
-| Authentication | Are sessions and tokens issued, stored, expired and revoked with a vetted library? Can a signed-in person sign out? Owner and admin pages get a session login with a sign-out from the start (plain HTTP Basic has no session to end). A login with one owner is rate limited, not locked out (a lockout lets anyone lock the owner out). Are cookies HttpOnly, SameSite and Secure (Secure on whenever the site runs on HTTPS, not left to a setting someone must remember)? |
-| Authorization | Does every operation check, on the server, that this caller may do this to this record? Is each destructive or sensitive action (delete, change other people's data, money, settings) limited to the owner, or to a role the user named and granted it, with a test that another signed-in user is refused? A role or right the agent chose itself (a "manager" who may delete, written into `docs/foundation.md` during setup) is not the user's decision: FAIL -> open until the user decides. |
-| Sensitive data | Do errors, logs, responses or analytics expose secrets, stack traces or more personal data than needed? Force an error at every stage, not only a missing page: an oversized body, a malformed one, a bad token, a thrown error. These fail before the app's own setup runs. Check that no response holds a stack trace or a file path, and that the app runs in production mode by default (Express prints stack traces in development mode). |
-| Abuse limits | Are there rate limits, size caps and timeouts, stricter on sign-in and expensive operations? Does a public form refuse repeats (one reply per email per event) and bots? Ask of every public form: can one person send it 300 times with different made-up values? If so, cap it per connection and per target (per event, per item), not only overall. A spam trap (a hidden field) must not silently drop a real person: browsers autofill hidden fields, so give it a name no autofill uses, `tabindex="-1"` and `autocomplete="off"`, and show the same success message a person would see while logging the catch. |
-| File handling | Are uploads checked for size, type and content (decoded, not by name or claimed type; SVG refused or sanitized), stored outside the web root, under generated names? Is photo metadata (EXIF: GPS location, camera serial) stripped before an image is stored or published, the project's own photos included? |
+| Authentication | Are sessions and tokens issued, stored, expired and revoked with a vetted library, with a sign-out and safe cookies? |
+| Authorization | Does every operation check, on the server, that this caller may do this to this record, with a test that another user is refused? Is any role or right one the user did not grant? |
+| Sensitive data | Do errors, logs, responses or analytics expose secrets, stack traces or more personal data than needed? |
+| Abuse limits | Are there rate limits, size caps and timeouts, stricter on sign-in, expensive operations and public forms? |
+| File handling | Are uploads checked for size, type and content, stored outside the web root under generated names, with photo metadata stripped? |
 | Money and signed actions | Are amounts, recipients, prices and signatures checked on the server before anything is charged or sent? |
 | Dependencies and updates | Is the lock file committed, the audit free of high-severity issues, and every update from one trusted, signed source? |
-| Deployment | HTTPS only, security headers (CSP, X-Content-Type-Options, frame-ancestors, Referrer-Policy) set by the app or the host config the project ships (a static site ships its host's headers file), CORS limited to known origins, no admin panel or data store reachable from outside? A setting that is only safe online (Secure cookies, trusted proxy) is checked at start: the app refuses to start on a public address with it off. "Not online yet" is NOT RUN with the release step that checks it, never N/A. |
+| Deployment | HTTPS only, security headers, CORS limited to known origins, no admin panel or data store reachable from outside, online-only settings checked at start? |
 | Access to infrastructure | Least privilege and multi-factor for people, short-lived roles for services, no shared or owner accounts in daily use? |
 | Build pipeline | Minimal token rights, short-lived credentials, secret and dependency scans, a reviewed and protected main branch? |
 | Logging and recovery | Are security events logged, kept and alerted on, and is there a tested restore and an incident plan? |
+
+Extra checks per area (spreadsheet cells, hidden-field traps, forced errors, sign-in rules, headers): [references.md](references.md), "Extra checks per area". "Not online yet" for a deployment check is NOT RUN with the release step that checks it, never N/A. A role or right the agent chose itself (written into `docs/foundation.md` during setup) is not the user's decision: FAIL -> open until the user decides.
 
 ## 3. Try the attacks
 Reading code misses things. Against an isolated instance (never the user's real data or a live production system
@@ -86,7 +86,7 @@ Write down each attempt and its result. A blocked attack is evidence for PASS.
    severity (critical, high, medium, low; scale in [references.md](references.md)). Fix the critical ones first, and
    tell the user right away about anything already exposed (a leaked key must be revoked and rotated, not just
    deleted).
-2. **Fix each FAIL as a bug** (debug skill; `bugfix.md` in app projects): a failing test or check that shows the
+2. **Fix each FAIL as a bug** (debug skill; `bugfix.md` in the app pack): a failing test or check that shows the
    hole, then the fix at the source, then the test passes.
 3. **Look for siblings:** the same pattern elsewhere in the code.
 4. **Make it automatic where possible:** a `codeRules` entry (file globs, a pattern, a message) in
@@ -107,11 +107,7 @@ It gives one plain sentence near the end that names the result and the file, and
   `<area>: FAIL -> open (<severity>, where it went)`).
 - a check that could not run here (an attack test held for approval, a tool not installed): `<area>: NOT RUN (<why>)`,
   never FAIL, which says the problem is real (`Security review: 1 not run - details in ...`).
-Lesson: "Security review: PASS" sat on top of two "FAIL -> open" lines, and the user could not tell what held.
-Lesson (trial round 17): an attack test that never ran was written "FAIL -> open" right after a complaint, and read as
-proof of the problem.
-Lesson: a 27-row table in a setup answer buried the one row the user had to act on. The count of areas and the list
-of N/A ones stay in the file.
+The count of areas and the list of N/A ones stay in the file, never the answer.
 Write it in the user's language (Spanish: "La revisión de seguridad salió bien - detalles en ...", `FALLA ->
 corregido`, `FALLA -> abierto`). The table, in this shape:
 
@@ -131,13 +127,13 @@ apps, `docs/foundation.md`), and any risk the user must decide on.
 - [ ] Scope, assets, attackers and entry points are written down, with the six questions asked at each entry point (judgment: whether the threat model is complete needs a reviewer).
 - [ ] The pattern sweep, the dependency audit and (where available) a history secret scan were run (judgment: no check sees these runs yet), and every lead
   was read in context.
-- [ ] Every area has PASS, FAIL or N/A with evidence; no area is skipped silently (hook: security-report).
+- [ ] Every area has PASS, FAIL or N/A with evidence; no area is skipped silently (hook: security-report) (file: docs/reviews/security-*.md).
 - [ ] The attacks in step 3 were tried for what is in scope, with results recorded (judgment: which attacks fit the scope needs a reviewer).
 - [ ] Every FAIL is fixed with a test that failed before and passes now (judgment: severity and fix quality need a reviewer), or is reported as open with its severity
   and where it went (the security-hardening plan, or a risk the user accepted).
 - [ ] Any exposed secret was reported for revocation and rotation (judgment: only a reviewer knows a secret was exposed).
 - [ ] Automatic checks were added where a pattern can be caught by a tool (judgment: which patterns a tool can catch needs a reviewer).
-- [ ] Tests and checks pass after the last edit (app projects: `docs/checks/qa-standards.md`) (judgment: each project has its own test commands).
+- [ ] Tests and checks pass after the last edit (app pack: `docs/checks/qa-standards.md`) (judgment: each project has its own test commands).
 - [ ] The review is logged in the Reviews table of `docs/security.md` (hook: security-logged).
 - [ ] Before anything is pushed or shared, no private file of the engine goes with it (its state, caches and notes, backups, the private word list, this machine's settings), checked on every file on disk; one is shared only when listed in `gitignoreMustKeep` (hook: gitignore-ready).
 - [ ] Run unasked whenever the turn wrote security-sensitive code (sign-in, passwords, tokens, secrets, permissions, sessions, uploads, endpoints, shell or eval, query building, crypto, payments, personal data), changed secrets or deployment settings, or published something (hook: security-code, security-config, security-publish).
@@ -146,9 +142,7 @@ apps, `docs/foundation.md`), and any risk the user must decide on.
 - Checking that a user is signed in but not that the record is theirs. This is the most common real hole.
 - Passing a permission because `docs/foundation.md` lists it, when the agent wrote that row itself. Check each grant
   against what the user said or decided: a role the user didn't name gets no destructive rights, and any right the
-  user didn't grant is FAIL -> open (a question for the user), even under "autonomy": "auto". Lesson: setups of the
-  same API invented a delete-capable role three rounds in a row, the review passed it, and the user complained each
-  time that someone other than the owner could delete.
+  user didn't grant is FAIL -> open (a question for the user), even under "autonomy": "auto".
 - Validating in the browser only. Every check that matters runs on the server.
 - Deleting a leaked secret from the code and calling it fixed. It is still in history and in whoever copied it; revoke it.
 - Blocklists ("strip `<script>`") instead of allowlists and proper escaping.

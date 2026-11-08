@@ -10,7 +10,7 @@ every other generated screen; choices drawn from the subject look like they belo
 purpose, write them down, check them against real criteria, and hand them on so nothing has to be guessed.
 
 Works for any stack: web, desktop or mobile. The gui-review-loop skill proves any built result with screenshots, and
-the gui runbook (`docs/playbooks/gui.md`) wraps both.
+the gui runbook (`docs/playbooks/gui.md`, gui pack) wraps both.
 
 ## Pick the situation
 | Situation | Do |
@@ -124,7 +124,7 @@ not feedback.
 1. **Get the context first:** what it is, who it is for, the one job it must do, and how far along it is (rough
    idea, being refined, nearly final). Ask once if it is unknown. Ask whether to focus on one area.
 2. **Look at the real thing.** Open the screenshot, file or connected frame. For something already built, take
-   screenshots with `node tools/screenshot.mjs` (desktop and phone, light and dark) and open every one.
+   screenshots with `node tools/screenshot.mjs` (gui pack; desktop and phone, light and dark) and open every one.
 3. **Glance test (about 3 seconds):** note what a newcomer sees first, whether that is the right thing, and whether
    the purpose of the screen is clear without reading.
 4. **Walk the main task** as that user would: count steps, find dead ends, unclear controls, things that look

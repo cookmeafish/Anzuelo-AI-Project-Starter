@@ -1,14 +1,15 @@
 ---
 name: project
 summary: The project itself - new rules, complaints about misses, praise to repeat, sweeps, gaps, runbooks, skills, hooks, packs, status
-triggers: clean up skills, prune skills, unused skills, retire a skill, show me the menu, menu codes, set up this project, enable a skill, remove a skill, library skills, update the project, update this project, from now on, new rule, make it a rule, remember to always, remember from now on, you forgot, i told you, why did you, i shouldn't have to, sweeps, sweep, audit the project, run the audit, gaps, gap review, what's missing, runbook, runbooks, playbook, project skills, the skills, harden a skill, harden the skill, the hooks, hook change, add a pack, install a pack, packs, where are we, where were we, what's next, to-do list, todo list, remind me, handoff for the next session, what's on my plate, what am i waiting on, daily summary, standup update, share these skills, package skills, skill bundle, make a plugin, customize a plugin, where did we leave off, where we left off, what's left to do, project health, add a hook, which skills, project status, stop forgetting, keeps forgetting
+triggers: clean up skills, prune skills, unused skills, retire a skill, show me the menu, menu codes, set up this project, enable a skill, remove a skill, library skills, update the project, update this project, from now on, new rule, make it a rule, remember to always, remember from now on, you forgot, i told you, i shouldn't have to, sweeps, audit the project, run the audit, gap review, what's missing, project skills, harden a skill, harden the skill, hook change, add a pack, install a pack, where are we, where were we, what's next, to-do list, todo list, remind me, handoff for the next session, what's on my plate, what am i waiting on, daily summary, standup update, share these skills, package skills, skill bundle, make a plugin, customize a plugin, where did we leave off, where we left off, what's left to do, project health, add a hook, which skills, stop forgetting, keeps forgetting
 menu: E1
 checks: core: rule-request, rule-memory, hooks-tested, runbook-complete
 ---
 # Playbook: the project itself
 
-**Use when:** the request is about how the project works rather than its subject. Menu codes E1 to E7 and E9.
-**After a complaint**, also fix the original miss by its own runbook. A new rule only prevents the next miss.
+**Use when:** the request is about how the project works rather than its subject (menu codes E1 to E5, E7 and E9; E6
+is `engine.md`, E8 is `plan.md`). **After a complaint**, also fix the original miss by its own runbook: a new rule only
+prevents the next one.
 
 ## Steps
 ### §1 A rule, a complaint, or "keep doing this" (E2)
@@ -17,11 +18,11 @@ the miss and decides where the lesson goes. A standing rule or praise: follow th
 (`skills/project-rule/SKILL.md`).
 
 ### §2 A new kind of task (no runbook)
-Follow the **runbook-create** skill: `_fallback.md`, then a runbook plus a check. The skill and the DIRECTORY row are
-generated.
+Follow the **runbook-create** skill: `docs/playbooks/_fallback.md`, then a runbook plus a check. The skill and the
+DIRECTORY row are generated.
 
 ### §3 Sweeps (E1)
-Follow the **project-sweeps** skill.
+Follow the **project-sweeps** skill (`node tools/audit.mjs --full` is the full run).
 
 ### §4 Gaps review (E3)
 Follow the **project-sweeps** skill, step 5.
@@ -50,7 +51,8 @@ asks the focus questions, picks the packs and library skills, and routes every t
 ### §10 Skills: add, enable, remove
 - **A library skill** (the starter's ready-made ones): `node tools/skills.mjs library` lists them (from `library/`
   during setup, then from the kept copy or the linked starter), and `node tools/skills.mjs enable <name>` adds one.
-  Its triggers and checks come with it. Record the decision in `docs/fit-checklist.md` (`node tools/fit.mjs decide`).
+  Its triggers and checks come with it. Record the decision with `node tools/fit.mjs decide` (the first `node tools/fit.mjs` run creates
+  `docs/fit-checklist.md`).
 - **A skill from elsewhere:** the skill-finder skill (search, vet, bring in with `node tools/skills.mjs add`, rewrite
   in the project's style until `node tools/skills.mjs compare` finds no shared text).
 - **Remove one:** `node tools/skills.mjs disable <name>` removes a library skill and the checks it brought.
@@ -73,10 +75,10 @@ SKILL CLEANUP DUE, and the skill-curate skill keeps it with a reason, merges it,
 - `node tools/hooks/selfcheck.mjs`: the whole self-test. With the engine files the starter shipped and proved
   (`tools/hooks/engine-proof.json`), or an engine that already passed in full on this machine today, it reuses that
   result and runs only this project's own scenarios and checks plus a smoke set (1 to 2 minutes); its first line says
-  which mode ran and why, and `--full` (or `--deep`) runs everything. A full run can take 5 to 20 minutes: if
-  your agent stops commands after a time limit, start it in the background with its output in a file
-  (`> .cache/selfcheck.txt 2>&1`) and wait for it (its end wakes you: no timer or wakeup needed). A second run started meanwhile waits for the first and prints its
-  result, so never start another. `node tools/audit.mjs --setup` runs the self-tests itself: run it alone, not both.
+  which mode ran and why. `--full` (or `--deep`) runs everything, which can take 5 to 20 minutes: if your agent stops
+  commands after a time limit, start it in the background with its output in a file (`> .cache/selfcheck.txt 2>&1`)
+  and wait for it (its end wakes you: no timer needed). A second run started meanwhile waits for the first and prints
+  its result, so never start another. `node tools/audit.mjs --setup` runs the self-tests itself: run it alone, not both.
 - `node tools/fit.mjs` / `check` / `summary` / `decide "<item>" <add|skip|later> "<reason>"`: the add-or-skip checklist.
 - `node tools/starter.mjs feedback "<text>"`, then `report`: send a lesson about the engine back to the starter.
 - `node tools/dedupe.mjs` (then `--apply`): remove exact duplicates from originals folders, keeping the referenced copy.
@@ -84,10 +86,12 @@ SKILL CLEANUP DUE, and the skill-curate skill keeps it with a reason, merges it,
   (also `--lint`, `--typecheck`, `--run`, `--code`, `--version-file`): the app pack's gates.
 
 ## Done when
-- [ ] Rule requests: AGENTS/CLAUDE + user-requirements + rule-enforcement + a check (or hook: N/A) + memory; tests and audit PASS (hook: rule-request, rule-memory, hooks-tested, audit-run).
+- [ ] Rule requests: AGENTS/CLAUDE + user-requirements + rule-enforcement + a check (or hook: N/A) + memory; tests and audit PASS (hook: rule-request, rule-memory, hooks-tested, audit-run) (when file: docs/checks/user-requirements.md).
 - [ ] The original miss behind a complaint is fixed, not just prevented (judgment: whether the miss itself is fixed needs a look at the result).
 - [ ] Rule requests: every file was searched for wording or behavior that says the opposite, each hit fixed or kept with a reason, and the answer says how many (judgment: what counts as the opposite needs a reader).
 - [ ] Skills added or removed: each one belongs to a runbook or has its own triggers and a check (hook: skill-complete).
+- [ ] The audit ran after a pack or skill was installed, enabled, added or disabled (ran: audit\.mjs) (when ran: packs\.mjs install|skills\.mjs enable|skills\.mjs disable|skills\.mjs add).
+- [ ] A skill decision is recorded in the fit checklist (file: docs/fit-checklist.md) (when ran: fit\.mjs decide).
 - [ ] Skills due for cleanup: each kept with a reason, merged, or retired with the user's OK (skill-curate; hook: skill-prune).
 - [ ] CHANGELOG updated; Finished section (hooks: changelog, finished-summary) (file: docs/CHANGELOG.md).
 

@@ -148,3 +148,17 @@ investigates first. Useful kinds of pressure:
 A pass is an answer that names the shortcut, says why it is risky, and proposes the smallest real investigation step.
 Where the situation is truly urgent, a pass may first limit the damage (for example a rollback), but it never calls the
 mitigation the fix and keeps the root-cause work on the list.
+
+## Excuses
+| The thought | Why it is wrong |
+|---|---|
+| "Too simple to need the process." | Simple bugs have causes too, and the process is quick for them. |
+| "No time, it's urgent." | Guessing and re-guessing takes longer than finding the cause once. |
+| "I'll try this one thing, then investigate." | The first change sets the habit for the rest. Start right. |
+| "I'll add the test once the fix works." | A fix that was never seen failing proves nothing. |
+| "Several changes at once saves time." | You can't tell which one worked, and the others add new bugs. |
+| "The reference is long, I'll adapt the idea." | Half-understood patterns produce bugs. Read all of it. |
+| "I can see the problem." | You can see a symptom. The cause is still to be found. |
+| "An expert says the fix is obvious." | Experience suggests where to look. It isn't evidence. Check it the same way. |
+| "Just one more try." (after 2 failures) | Three failures point at the design. Stop and rethink. |
+

@@ -12,11 +12,11 @@ Open `docs/playbooks/status-lines.md` and follow every step in order. It is the 
 ## Done when
 - [ ] `"userLines"` in tools/hooks/config.json changed from its old value (git diff shows both) only by what the user
       asked: `false` for all off, `true` for all on, otherwise a `hide` list with exactly the named kinds added or
-      removed (judgment: which kinds the user meant needs a reader).
+      removed (judgment: which kinds the user meant needs a reader) (file: tools/hooks/config.json).
 - [ ] The answer says which lines are hidden now and how to bring them back (judgment: plain wording for the user).
-- [ ] A change to the status bar (below): its self-test passes and failed before the fix (hook: hooks-tested).
-- [ ] A change to the status bar: a sweep over real session logs shows 0 wrong, and the answer gives the count (judgment: the log is the user's, outside the project).
-- [ ] A change to the status bar: every other status line (the project's, the user's) still shows first and unchanged, in the status-bar self-test (hook: hooks-tested).
+- [ ] A change to the status bar (below): its self-test passes and failed before the fix (hook: hooks-tested) (when file: tools/hooks/statusline.mjs).
+- [ ] A change to the status bar: a sweep over real session logs shows 0 wrong, and the answer gives the count (judgment: the log is the user's, outside the project) (when file: tools/hooks/statusline.mjs).
+- [ ] A change to the status bar: every other status line (the project's, the user's) still shows first and unchanged, in the status-bar self-test (hook: hooks-tested) (when file: tools/hooks/statusline.mjs).
 <!-- generated:end -->
 
 <!-- Skill-only material goes below: notes for scripts/ and assets/ in this folder. Hardening moves repeatable steps into scripts/. -->

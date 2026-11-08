@@ -6136,6 +6136,27 @@ if (mineB() && fs.existsSync(path.join(ROOT, 'skills/goal-loop/scripts/goal.mjs'
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
+if (mineB()) { // adoption review: an established project's own pieces are listed and kept, each improvement decided
+  // Lesson (the user, 2026-11-07): surgery on an established project, never overriding it; the big changes are the user's
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'adopt-review-'));
+  try {
+    fs.cpSync(path.join(ROOT, 'tools/hooks'), path.join(dir, 'tools/hooks'), { recursive: true, filter: s => !/[\\/]state([\\/]|$)/.test(s) });
+    fs.mkdirSync(path.join(dir, 'docs'), { recursive: true });
+    const cfgP = path.join(dir, 'tools/hooks/config.json');
+    fs.writeFileSync(cfgP, JSON.stringify({ ...JSON.parse(fs.readFileSync(cfgP, 'utf8')), adopted: '2026-11-07' }, null, 2));
+    const probs = decisions => {
+      fs.writeFileSync(path.join(dir, 'docs/DECISIONS.md'), `# Decisions\n${decisions}`);
+      const o = spawnSync(process.execPath, ['--input-type=module', '-e', `import { setupProblems } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; console.log(JSON.stringify(setupProblems().filter(p => /Adoption review/.test(p))));`], { cwd: dir, encoding: 'utf8' });
+      try { return JSON.parse(o.stdout.trim().split('\n').pop()); } catch { return [`(no output) ${o.stderr.slice(0, 200)}`]; }
+    };
+    const none = probs(''), undecided = probs('## Adoption review\n- keep: its pre-commit lint hook - the engine adds no lint gate\n- improve: add a release runbook | small | adopted - adds only\n- improve: replace its test script with the engine gate | big | ?\n');
+    const unsized = probs('## Adoption review\n- keep: its deploy skill - routes deploy requests to it\n- improve: route bug reports to the debug skill | ok\n');
+    const good = probs('## Adoption review\n- keep: its deploy skill - routes deploy requests to it\n- improve: add a release runbook | small | adopted - adds only\n- improve: replace its test script with the engine gate | big | no - the user keeps theirs\n');
+    report(none.length === 1 && /- keep:/.test(none[0]) && undecided.length === 1 && /1 improvement line/.test(undecided[0]) && unsized.length === 1 && /small\|big/.test(unsized[0]) && good.length === 0,
+      'adoption-review: an adopted project\'s setup fails with no list of what it already has, or an improvement with no size or no decision; a decided review passes', { none, undecided, unsized, good });
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
 if (mineB()) { // a skill or runbook checked by a "Done when" marker has a check; a when condition alone is none
   const code = `import { skillHasCheck as s, runbookHasCheck as r } from ${JSON.stringify(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks.mjs')).href)};
 const t = m => '---\\nname: zz\\n---\\n## Done when\\n- [ ] The thing is saved ' + m + '\\n';

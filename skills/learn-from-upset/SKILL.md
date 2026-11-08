@@ -13,25 +13,22 @@ a rule is the **project-rule** skill; a lesson in a followed skill goes under it
 **Decide first: is anything actually wrong?** Use this skill when the user is upset at the work, or when the same issue
 keeps coming up even if they say it calmly (check `docs/lessons.md`, `tools/hooks/state/triggers.jsonl` and
 `node tools/recall.mjs "<the issue>"` for earlier cases). Strong words alone are not a miss. Decide this before
-anything else, also for a message typed while you work and for one asked as a question ("WHY DID YOU ...???"), and
-write the `Issue:` line below first: it shows the user "acknowledged", and the end-of-turn check looks for it (hook:
-upset-acknowledged).
+anything else, also for a message typed while you work and for one asked as a question, and write the `Issue:` line
+below first: it shows the user "acknowledged", and the end-of-turn check looks for it (hook: upset-acknowledged).
 - **False alarm** (venting, a test of the hooks, something outside this work, nothing here went wrong): put
   `Issue: none - <why>` in `.cache/turn-notes.md`, say nothing about it, do what they asked, and stop following this
   skill. The user sees nothing.
 - **A real issue, or a repeat:** pick the runbook or skill that finds its root cause and fixes it (DIRECTORY.md;
-  **debug** for anything that behaves wrong), and put
-  `Issue: <the user's point in general terms, under 12 words> | runbook: <name> | fixed when: <a checkable outcome>` in
-  `.cache/turn-notes.md` before any fix, as your first step. These lines are notes for the engine: the answer never
-  shows them, and says in plain words what went wrong and what changes (Lesson: an `Issue:` line pasted at the top of
-  the answer read as gibberish to the user). Their example is one case of the point, not the point:
-  before fixing, write `Scope: <the point in general terms> - <every case it covers>` and `Root cause: <why the
-  earlier work missed it>` (hook: upset-acknowledged). <!-- Lesson (the user): an issue acknowledged as the user's
-  example was fixed in that narrow form, and the user had to say twice that it meant every case -->
- The user is shown "acknowledged" with all three at once,
-  and "fixed" when the turn ends. Then follow that runbook to the end, and verify the outcome by running or opening
-  what shows it; the end check has you go over the runbook's list. Follow the steps below alongside it. A new
-  complaint in the same turn gets its own new line.
+  **debug** for anything that behaves wrong). Put these in `.cache/turn-notes.md` before any fix, as your first step:
+  1. `Issue: <the user's point in general terms, under 12 words> | runbook: <name> | fixed when: <a checkable outcome>`
+  2. `Scope: <the point in general terms> - <every case it covers>` (their example is one case of the point, not the
+     point)
+  3. `Root cause: <why the earlier work missed it>` (hook: upset-acknowledged)
+
+  These lines are notes for the engine: the answer never shows them, and says in plain words what went wrong and what
+  changes. The user is shown "acknowledged" with all three at once, and "fixed" when the turn ends. Then follow that
+  runbook to the end, and verify the outcome by running or opening what shows it; the end check has you go over the
+  runbook's list. A new complaint in the same turn gets its own new lines.
 
 0. **Check the complaint first, before you agree.** Open what the user saw: the last commit or what was delivered
    (`git log -- <file>`, `git show HEAD:<file>`), not only the working copy, and never from memory. Never say git has
@@ -45,39 +42,36 @@ upset-acknowledged).
    **The example the user named is one case, not the whole miss:** find every other case of the same miss in the same
    result (every item of that kind, every slot it fills, every page it is on) and fix them all in this turn, before the
    answer says it is fixed or can't happen again. A check written for the lesson runs over the whole result, and passes
-   on it, before you say so. Lesson: one weak pick was swapped and a narrow check added, while the same result still
-   held other weak picks of the same kind, and the user found them next.
+   on it, before you say so.
    **The simplest fix that removes the cause:** change one thing in the right place rather than add layers; extend an
    existing step, tool or check rather than add a new one. If the fix needs much more than that, say why in one line.
 1a. **List everything wrong before fixing anything.** Write the user's complaint, every part of it and every message
    they sent while you worked, as a checklist (in the plan below, or your own notes): each item, what you
-   checked, its root cause, and what will stop it. Fix from the list, so the answer covers all of it, not the latest
-   message only.
+   checked, its root cause, and what will stop it. Fix from the list, so the answer covers all of it.
 1b. **Upset again in the same session** (the hook knows; hook: upset-learned): patching has failed, so stop patching.
    - Write a plan in `docs/plans/` (plan skill) with everything wrong this session, each item's root cause, and the
      runbook, hook, check, skill or engine change that stops it. Work it box by box.
-   - Write the rule the behavior must follow ("the newest entry decides"), not a fix for the moment shown. List every
-     state and every kind of input it must handle, including the ones nobody complained about yet.
-   - Prove it over real data, every case: run the fix over the whole real record (every line of a log, every file,
-     every saved result) against facts read independently, and say in the answer what ran over what, how many were
-     checked and how many were wrong. The moments in the user's screenshots are a sample, not the test.
+   - Write the rule the behavior must follow, not a fix for the moment shown. List every state and every kind of input
+     it must handle, including the ones nobody complained about yet.
+   - Sweep as in debug Phase 4: run the fix over the whole real record (every line of a log, every file, every saved
+     result) against facts read independently, and say in the answer what ran over what, how many were checked and how
+     many were wrong. The moments in the user's screenshots are a sample, not the test.
    - Turn the sweep into a self-test, so the next change can't break it again.
 2. **Find the cause** in one sentence: "The <skill/runbook/check> did not <step>, so <what went wrong>."
    **Learned before?** Search the earlier lessons for this complaint's subject (`docs/lessons.md`,
    `docs/checks/user-requirements.md`, the skills' `## Project lessons`). If one covers it, its fix did not
    hold: the cause is why that rule or check let this through (it counted instead of judging each item, it let a
-   generic case pass), and that is what gets fixed. Lesson (a field report): the same lesson was learned four times in
-   nine days, each time treated as new, while the check it got only counted items against a bar.
+   generic case pass), and that is what gets fixed.
 3. **Pick the lowest level that will reliably stop it:**
 
    | Level | When | Where it goes |
    |---|---|---|
-   | one-off | A slip no procedure could prevent, that can't recur | `docs/lessons.md` (one dated line) |
+   | one-off | A slip no procedure could prevent, that can't recur | `docs/lessons.md` (one dated line; create the file if missing) |
    | lesson | A step of a skill or runbook was missing, vague or out of order | That skill's `## Project lessons` / runbook's `## Pitfalls`, and the step fixed |
    | rule | A standing preference the project didn't know | AGENTS.md + user-requirements row, via project-rule |
    | check | It happened before, would be costly again, or a script can tell right from wrong | A checkable "Done when" line on the runbook it belongs to (or a `config.json` guard, or a test in the project's suite), via project-rule step 5 |
    | skill | A whole kind of work had no procedure | A runbook and its check, via runbook-create |
-   | engine | The starter's hooks, checks or skills were wrong | `node tools/starter.mjs feedback "<lesson>"` (in the starter: fix the engine, add a self-test) |
+   | engine | The starter's hooks, checks or skills were wrong | `node tools/starter.mjs feedback "<lesson>"` (in the starter itself: fix the engine and add a self-test) |
 
    Go up a level for "again", real cost, safety, privacy or anything sent outside, or the same line already in
    `docs/lessons.md`.
@@ -91,7 +85,8 @@ upset-acknowledged).
    `node tools/hooks/selfcheck.mjs --tags <tag>`.
 6. **Tell the user** in one sentence what changes from now on and where the lesson went. A complaint that didn't hold
    gets the evidence and no made-up lesson. Upset about something outside the project: say so. "Reported" means
-   `node tools/starter.mjs report` ran; otherwise say "noted in docs/starter-feedback.md".
+   `node tools/starter.mjs report` ran (it creates `docs/starter-feedback.md`); otherwise say "noted in
+   docs/starter-feedback.md".
 
 ## Done when
 - [ ] The answer opens with whether the complaint holds, in full, in part or not, with the evidence (judgment: the
@@ -114,11 +109,9 @@ upset-acknowledged).
 ## Pitfalls
 - A "lesson" that only says "be more careful": name the step and what to do differently.
 - A rule for a one-off, or a one-off note for something that already happened twice.
-- Fixing a complaint without checking it, or conceding a false one (trial agents "fixed" work that was right and
-  blamed internal files).
-- A check tried only on made-up cases: trial checks passed the very work complained about and blocked a warm letter
-  whose building name held a flagged word.
-- Fixing the screenshot, not the behavior: six complaints about one status display in one session, each fix tested
-  only on the moment shown, while the cause (a guess about where a turn starts) broke every other kind of moment. A
-  sweep over the whole real log found 95 wrong moments in the first fix.
+- Fixing a complaint without checking it, or conceding a false one.
+- A check tried only on made-up cases: it can pass the very work complained about and block good work that holds a
+  flagged word.
+- Fixing the screenshot, not the behavior: each fix tested only on the moment shown, while the cause breaks every
+  other kind of moment. Sweep the whole real record.
 - Waiving a check because another hook blocked the work: say the work is blocked, by what, and leave it for the user.

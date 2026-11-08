@@ -4,7 +4,7 @@ Its hooks catch the agent whenever it skips a step, cuts a corner or makes somet
 
 It works with any agent (Claude Code, Codex, Cursor, Copilot, Gemini and others). Each project enforces its own way
 of working with hooks and checks, so you don't have to keep reminding the agent. The rules live in `AGENTS.md`, the
-shared standard. `node tools/hooks/wire.mjs` makes each agent's own files on your machine, so the repository favors
+shared standard; `node tools/hooks/wire.mjs` makes each agent's own files on your machine, so the repository favors
 no vendor.
 
 > **For AI agents: you were pointed here to set up a project.** Do exactly this:
@@ -31,15 +31,15 @@ no vendor.
 - **An upset user teaches the project.** When you are annoyed, the agent fixes the miss, weighs the lesson, and stores
   it where it stops the next one (the skill that missed it, a rule, a check, or a new skill), telling you where.
   Lessons about the engine itself go back to the starter, and its next upgrade fixes every project.
-- **Only what makes it better.** Every added skill, pack or dependency comes with its gain and cost, weighed.
-  Upgrades roll back if a passing check breaks. The agent weighs each new item and tells you what it added or skipped,
-  asking only about money, privacy or outward actions. The audit enforces a speed budget for the hooks.
+- **Only what makes it better.** The agent weighs the gain and cost of every added skill, pack or dependency and
+  tells you what it added or skipped, asking only about money, privacy or outward actions. Upgrades roll back if a
+  passing check breaks. The audit enforces a speed budget for the hooks.
 - **Reminded before, free during, verified after.** Before each request the agent gets a short reminder of the
-  runbook that fits and its checklist. During the work nothing interrupts it, except refusals of what is unsafe. After
-  the work one check, once, lists what is really missing and the checklist items for the agent to verify itself, so
-  everything on the runbook actually gets done.
+  runbook that fits and its checklist. During the work nothing interrupts it except refusals of what is unsafe. After
+  the work one check lists what is really missing and the items for the agent to verify itself, and sends it back (at
+  most 3 times) until everything on the runbook is done or plainly reported as not done.
 - **Facts that are real.** One research skill covers answers from the project's own files, quick lookups, and full
-  research across independent sources with sponsored and biased ones screened out. A check traces every number in an
+  research across independent sources, sponsored and biased ones screened out. A check traces every number in an
   answer to something read that turn and catches cited files that were never opened.
 - **Linked notes for Obsidian.** Notes link to what they relate to, so the graph shows how the project connects. The
   folder opens as a vault with the right link settings.
@@ -49,8 +49,8 @@ no vendor.
   assumes and records answers instead of asking. Outward actions and third-party installs still need your OK.
 - **Apps built to grow.** The app pack's modular-code skill keeps each feature in its own module with one public
   entry, settings in config, and extension points for what will multiply. A check runs on every changed code file.
-- **Every name is a variable.** The project's name and every other name live in `docs/names.json`, so a rename is one
-  edit. A check catches names typed out anywhere else.
+- **Every name is a variable.** The project's name and every other name that may change live in `docs/names.json`,
+  so a rename is one edit. A check catches names typed out anywhere else.
 - **Secure by default,** whatever the project is: a security baseline, a security-review skill, no secrets in
   commits or in the conversation, untrusted files treated as data, and the installed browser is never automated.
 - **Nothing leaves the project without your OK.** Sending mail, posting, opening issues or pull requests, pushing,
@@ -90,7 +90,7 @@ no vendor.
 `"wireAgents"` in `tools/hooks/config.json` (for example `["codex"]`) limits the wiring to the agents you use. Two
 sessions can work in one folder at once: each keeps its own record of its turn.
 
-**The easy way:** open your project folder (new or existing) with your AI agent and say:
+**The easy way:** open your project folder (new or existing) with your AI agent and say
 **"Set up this project with the starter at `<this starter folder>`."** The agent follows the box above, then the
 setup prompt.
 

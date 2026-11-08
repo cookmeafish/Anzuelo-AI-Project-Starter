@@ -29,24 +29,22 @@ been opened, and the answer gives a verdict. Any edit after a round makes that r
      with a main button or Next/Back controls is also shot at a laptop size (`--sizes 1366x768,390x844`), without
      `--full`: the button must be in the shot.
 2. **Look.** Open each `SHEET:` image (a contact sheet: up to 8 screenshots of the round, captioned); with no sheet,
-   open every `SCREENSHOT:` image. Open a single screenshot full size only to check a detail the sheet can't show
-   (small text, a 1-pixel border). Read the `WARN` lines too (sideways scroll, console errors, broken images, blank
-   page). Each image you open stays in the conversation and is sent again with every later step, so open what you need.
+   open every `SCREENSHOT:` image. Open at most 2 screenshots full size per round, only for a detail the sheet can't
+   show (small text, a 1-pixel border). Read the `WARN` lines too (sideways scroll, console errors, broken images,
+   blank page). Every image you open is sent again with each later step, so open only what you need.
 3. **Judge** against `docs/checks/visual-review.md`. Write the round line: `Round N: <problems seen> → <fixes>`.
    A screenshot can't show keyboard use or what a screen reader says. If the project enabled the frontend-design
-   skill, its section E (accessibility review) covers those, and section B is the deeper design critique.
+   skill, its section E (accessibility) covers those, section B is the deeper design critique, and F is the developer spec.
 4. **Fix** every problem, then start the next round. Never declare PASS from memory of an earlier round.
    A fix round shoots again only what the fix could change: the pages and states it touched, at all four looks (a
    change to a shared stylesheet, layout or component touches every page that uses it). Pages a fix could not reach
-   keep their last round's verdict. <!-- Lesson, trial rounds 14 and 15: every round re-shot and re-read the whole
-   flow, 292 image reads over three turns, six rounds for one new page. -->
-   A preview server you start yourself listens on 127.0.0.1 only, and is stopped before the answer (`--launch` does
-   both). <!-- Lesson, trial round 15: an `eleventy --serve` left running on all network addresses stayed reachable
-   from the network, and its old pages were what the user later saw on port 8080. -->
+   keep their last verdict. <!-- Lesson, trial rounds 14 and 15: re-shooting the whole flow every round cost 292 image reads. -->
+   A preview server you start yourself listens on 127.0.0.1 only and is stopped before the answer (`--launch` does
+   both). <!-- Lesson, trial round 15: a preview server left on all addresses stayed reachable and served stale pages. -->
 
 ## Ending
-- **PASS:** a full round found nothing and printed no WARN (or each WARN is explained: "warnings accepted: ..."). Write
-  `Visual review: PASS after N rounds`.
+- **PASS:** every touched page has a clean round taken after its last edit, at all four looks, with no WARN (or each
+  WARN explained: "warnings accepted: ..."). Write `Visual review: PASS after N rounds`.
 - **STOPPED:** only after 10 rounds. Write `Visual review: STOPPED after N rounds - remaining: ...` and tell the user
   what is left.
 

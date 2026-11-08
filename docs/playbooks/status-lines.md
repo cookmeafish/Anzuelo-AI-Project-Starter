@@ -24,19 +24,16 @@ The user decides which ones stay.
    | praise | 🌟 | what the user praised is kept |
    | pause | ⏸️ | the user asked to pause |
    | scope | 🔒 | one person's files are kept apart from another's |
-   | left-open | 📌 | (not shown: the agent picks up what was left open itself) |
    | new-task | 🌱 | a new runbook was made for a new kind of task |
-   | session | 🟢 | (not shown: being on duty is implied) |
-   | resumed | 🔁 | (not shown: intact files are implied; ❗ shows when they are broken) |
    | critical | ❗ | a critical guard stopped an action |
    | blocked | 🛡️ | another guard stopped an action |
-   | upgrade, plan, routine, inbox, feedback, stale | 🔄 🗺️ ⏰ 📥 📨 🕰️ | (not shown: session reminders go to the agent, which acts on them) |
    | harden | 🔧 | the agent changes a runbook or skill ("improving the X runbook") |
    | not-fit | 🚫 | a runbook or skill the hooks pulled up didn't fit, and why |
    | lesson | 🧠 | a lesson was saved, or a word was whitelisted |
    | asking | ❓ | the answer asks the user something |
 
-   "The reminders" means the six session-reminder kinds. "✅" alone is open (checklist count or the whole "checks
+   Never shown, so nothing to hide: left-open, session, resumed, and the six session-reminder kinds (upgrade, plan,
+   routine, inbox, feedback, stale: they go to the agent, which acts on them). "The reminders" means those six. "✅" alone is open (checklist count or the whole "checks
    passed" line): ask in one line which. "Too many icons" names no kind: ask in one line which to keep, offering
    this table's icons.
 2. Read the current value: `"userLines"` in `tools/hooks/config.json`; when the key is missing, it is `true` (all on).
@@ -51,11 +48,11 @@ The user decides which ones stay.
 ## Done when
 - [ ] `"userLines"` in tools/hooks/config.json changed from its old value (git diff shows both) only by what the user
       asked: `false` for all off, `true` for all on, otherwise a `hide` list with exactly the named kinds added or
-      removed (judgment: which kinds the user meant needs a reader).
+      removed (judgment: which kinds the user meant needs a reader) (file: tools/hooks/config.json).
 - [ ] The answer says which lines are hidden now and how to bring them back (judgment: plain wording for the user).
-- [ ] A change to the status bar (below): its self-test passes and failed before the fix (hook: hooks-tested).
-- [ ] A change to the status bar: a sweep over real session logs shows 0 wrong, and the answer gives the count (judgment: the log is the user's, outside the project).
-- [ ] A change to the status bar: every other status line (the project's, the user's) still shows first and unchanged, in the status-bar self-test (hook: hooks-tested).
+- [ ] A change to the status bar (below): its self-test passes and failed before the fix (hook: hooks-tested) (when file: tools/hooks/statusline.mjs).
+- [ ] A change to the status bar: a sweep over real session logs shows 0 wrong, and the answer gives the count (judgment: the log is the user's, outside the project) (when file: tools/hooks/statusline.mjs).
+- [ ] A change to the status bar: every other status line (the project's, the user's) still shows first and unchanged, in the status-bar self-test (hook: hooks-tested) (when file: tools/hooks/statusline.mjs).
 
 ## Pitfalls
 - Hiding a line never turns off the check behind it: the guard, the checklist and the end-of-turn checks still run.

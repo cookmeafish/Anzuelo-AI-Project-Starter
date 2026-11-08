@@ -1,15 +1,16 @@
 ---
 name: feature
 summary: Build a new feature or change behaviour - spec with acceptance criteria, written plan, build, triple-check QA, independent review, release notes
-triggers: add a feature, new feature, implement, make it so, i want the app to, add support for, change how, new screen, new mode, new option, new setting, feature request, refactor, rename the function, rename the variable, rename the app, restructure, clean up the code, login, sign in, sign up, endpoint, rate limiting, add a column, new page, add a page, index page, add a section, add sorting, sort by, add a filter, add search, new field, new endpoint, add a button, add an option, add a setting, token expiry
+triggers: add a feature, new feature, implement, make it so, i want the app to, add support for, change how, new screen, new mode, new option, new setting, feature request, login, sign in, endpoint, add a column, new page, add a page, index page, add a section, add sorting, sort by, add a filter, add search, new field, new endpoint, add a button, add an option, add a setting
 trigger_regex: \b(let|allow) (users|people|customers|members|me)\b|\b(should|could) be able to\b|\ba way to\b|\b(it'?d|it would) be (nice|great|cool|good) if\b|\badd (a|an) (search|filter|sort|export|toggle|tab|field|button)\b|\bmake the app (remember|show|save|send|support|handle|keep|accept|let|do)\b
 menu: A1
 ---
 # Playbook: build a feature
 
 **Use when:** the app should do something new or behave differently. **Not when:** something is broken (`bugfix.md`),
-only speed changes (`perf.md`), or only the look changes (`gui.md`, gui pack). Screens changed here still go
-through the gui-review-loop.
+only speed changes (`perf.md`), only the look changes (`gui.md`, gui pack), or stored data changes shape
+(`data-change.md`; a feature that adds a column also follows it). Screens changed here still go through the
+gui-review-loop.
 
 ## Inputs
 - What the user asked for and why, earlier preferences (AGENTS.md, `docs/checks/user-requirements.md`) and
@@ -19,12 +20,15 @@ through the gui-review-loop.
 ## Steps
 **A small change** (up to 3 files and 40 edited lines: a label, a guard, one option): test it and check it in the real
 app, then answer. Skip the spec, plan, review, verification section, release notes and version bump; the hooks don't
-ask for them (REQ: small-change). Lesson: simple fixes took 20 minutes of a feature's ceremony.
+ask for them (REQ: small-change). Step 0 still applies. The "Done when" items below are for a change that is not
+small.
 
-Always: the **modular-code** skill (`skills/modular-code/SKILL.md`): the feature in its own module with one public entry,
-names from `docs/names.json`, settings from config, an extension point when there will be "more of these". Library
-skills, when the project has them: **frontend-design** for screens, **backend-patterns** for server code,
-**mcp-builder** for an MCP server.
+**A refactor with no behaviour change:** use `refactor.md` instead (no spec, the same tests green before and after).
+
+0. **Always (small changes too):** the **modular-code** skill (`skills/modular-code/SKILL.md`): the feature in its
+   own module with one public entry, names from `docs/names.json`, settings from config, an extension point when
+   there will be "more of these". Library skills, when the project has them: **frontend-design** for screens,
+   **backend-patterns** for server code, **mcp-builder** for an MCP server.
 1. **Spec** in `docs/specs/<feature>.md` (copy `docs/specs/_TEMPLATE.md`):
    - what the user wants and why, as principles in your own words, dated;
    - numbered acceptance criteria (each one PASS/FAIL-able);
@@ -34,10 +38,10 @@ skills, when the project has them: **frontend-design** for screens, **backend-pa
    Ask ONE question if a criterion can't be written without guessing. With `"autonomy": "auto"` (the user asked not to
    be asked) don't ask: take the safest choice (the narrower permission, the reversible change), write it into the spec
    as `Assumed: <choice> - <why> - <cost if wrong>`, build it, and name it in the answer.
-2. **Plan:** for work with several tasks, use the plan skill (`docs/plans/`). Otherwise plan in the spec: the
-   smallest set of changes, one sentence per part, what must be preserved, and how each criterion will be verified.
-   A feature that adds a service, a data store or a new API, or crosses many modules, gets designed first (the
-   **architecture** skill, part B, when enabled). Pick its tests by `qa.md` §4.
+2. **Plan:** 4 or more tasks, or more than 5 files: use the plan skill (`docs/plans/`). Otherwise plan in the spec:
+   the smallest set of changes, one sentence per part, what must be preserved, and how each criterion will be
+   verified. A feature that adds a service, a data store or a new API gets designed first (the **architecture**
+   skill, part B, when enabled). Pick its tests by `qa.md` §4.
 3. **Build test first, one thin slice at a time.** A slice is one behaviour carried through every layer it needs
    (screen, logic, storage), small enough to finish and check on its own. For each slice:
    - **Red:** a failing test first, for one acceptance criterion or edge case from the spec. Run it and see it fail
@@ -50,13 +54,12 @@ skills, when the project has them: **frontend-design** for screens, **backend-pa
 4. **Triple check** (`docs/checks/qa-standards.md`):
    - (1) automated: tests, build, lint and checks pass after the last edit;
    - (2) the real app, isolated, every state touched (screens through the gui-review-loop);
-   - (3) an independent review against the acceptance criteria until it says SHIP. With no person at hand, the
-     reviewer is a sub-agent (the Agent or Task tool) with a read-only brief; "no other reviewer" is never a reason to
-     skip it (hook: review-excuse). Wait for its verdict in the same turn: never end the turn with "I'll finish once it
-     comes back" (the user gets an unfinished answer, then a second one).
-     At most two review rounds: fix what the first finds, have it re-checked once, and put anything still open under
-     "still weak" in the answer instead of a third round. <!-- Lesson (trial v42): an open-ended "until it says SHIP"
-     ran four rounds and 21 minutes hardening one scanner, after the real fix already held. -->
+   - (3) an independent review against the acceptance criteria. With no person at hand, the reviewer is a sub-agent
+     (the Agent or Task tool) with a read-only brief; "no other reviewer" is never a reason to skip it (hook:
+     review-excuse). Wait for its verdict in the same turn: never end the turn with "I'll finish once it comes back"
+     (the user gets an unfinished answer, then a second one).
+     At most two review rounds: fix what the first finds, have it re-checked once, then stop at SHIP, or put anything
+     still open under "still weak" in the answer instead of a third round.
 5. **Docs that people rely on,** updated in the same change, each written for its reader with the most useful part
    first:
    - the README, when setup, configuration or the first steps change (a newcomer reaches a first success in minutes);
@@ -71,12 +74,12 @@ skills, when the project has them: **frontend-design** for screens, **backend-pa
    get the user's OK first.
 
 ## Done when
-- [ ] A spec with numbered acceptance criteria exists and each criterion is marked PASS, FAIL or NOT VERIFIED in it (PASS only when a test or a run this turn showed it); the answer gives the counts in one line and names any that failed or were not verified (hook: spec-written). <!-- Lesson (trial v42): with PASS as the only mark, criteria were marked PASS while the tests could not run. -->
+Not a small change:
+- [ ] A spec with numbered acceptance criteria exists and each criterion is marked PASS, FAIL or NOT VERIFIED in it (PASS only when a test or a run this turn showed it); the answer gives the counts in one line and names any that failed or were not verified (hook: spec-written).
 - [ ] The Verification section covers automated, real app, independent review (SHIP) and still weak (hook: verification-report, review-verdict).
 - [ ] New behaviour was built test first: each slice's test was seen failing before its code, and the whole suite passes after the last edit (judgment: no check sees each test fail before its code).
 - [ ] Release notes written; version bumped as configured (hook: release-notes, version-bump).
-- [ ] Docs that described the old behaviour were updated, or the answer says none did (judgment: which docs described the old behaviour needs reading them).
-- [ ] Every new option, flag, setting or command the user can type is in the README or the user docs with what it does, and in `--help` for a CLI (judgment: what counts as user-facing needs reading the change). <!-- Lesson, trial round 15: --dry-run shipped without a README entry, and the user had to complain. -->
+- [ ] Docs that described the old behaviour were updated, or the answer says none did. Every new option, flag, setting or command the user can type is in the README or the user docs with what it does, and in `--help` for a CLI (judgment: which docs and what counts as user-facing needs reading the change).
 
 ## Pitfalls
 - Declaring done from the code or from one screenshot. Verify in the real app, every state.
