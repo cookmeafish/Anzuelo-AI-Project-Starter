@@ -717,7 +717,8 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   items.push(stPassed ? `self-tests: node tools/hooks/selfcheck.mjs passes here||passed (${today}, run by the upgrade: ${stLine.replace(/^selfcheck:\s*/, '')})` : 'self-tests: node tools/hooks/selfcheck.mjs passes here');
   // (the engine is proven to run here, not only installed: the project's own prompt and Stop hooks run once. Lesson (two
   // projects): an upgrade and a full self-test passed while the default engine could not load in the project)
-  const engineErrs = probeEngine(dest);
+  const probed = probeEngine(dest), wiringErrs = probed.filter(e => e.startsWith('wiring: ')), engineErrs = probed.filter(e => !e.startsWith('wiring: '));
+  if (wiringErrs.length) { items.push(`wiring: ${wiringErrs.map(e => e.slice(8)).join('; ')}. Fix each (a broken git hooks path means commits go unchecked)`); console.log(`\nWIRING BROKEN: ${wiringErrs.map(e => e.slice(8)).join('; ')}`); }
   if (engineErrs.length) { items.push(`engine: the hooks fail to run in this project (${engineErrs.join('; ')}). Fix it before relying on the engine: tell the starter session`); console.log(`\nENGINE DOES NOT RUN HERE: ${engineErrs.join('; ')}`); }
   const dp = path.join(dest, 'docs', 'DECISIONS.md');
   fs.mkdirSync(path.dirname(dp), { recursive: true });

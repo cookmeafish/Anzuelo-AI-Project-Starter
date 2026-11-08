@@ -1352,6 +1352,36 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   } finally { fs.rmSync(box, { recursive: true, force: true }); }
 }
 
+// (REQ: wiring-sound. Session start and the upgrade probe say when git's hooks path points at a missing folder or an
+// agent's hook or status line runs a missing file; wire repairs the engine's part and never points git at a folder
+// with no hooks. Lesson (two field reports): a rolled-back move left commits running with no AI-credit or secret checks)
+{
+  const { spawnSync } = await import('node:child_process');
+  const repo = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
+  const box = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-wiring-')), p = path.join(box, 'p'), at = (...a) => path.join(p, ...a);
+  const g = (...a) => spawnSync('git', a, { cwd: p, encoding: 'utf8' }), hp = () => (g('config', '--get', 'core.hooksPath').stdout || '').trim();
+  const node = (...a) => spawnSync(process.execPath, a, { cwd: p, encoding: 'utf8', timeout: 60000, env: { ...process.env, CLAUDE_PROJECT_DIR: p, ANZUELO_ROOT: '' } });
+  try {
+    spawnSync(process.execPath, [path.join(repo, 'tools/new-project.mjs'), p, '--name', 'Demo', '--desc', 'a demo', '--dev'], { encoding: 'utf8', timeout: 120000 });
+    g('init', '-q'); g('config', 'core.hooksPath', '.anzuelo/engine/.githooks');
+    const sp = at('.claude/settings.json'), s = JSON.parse(fs.readFileSync(sp, 'utf8'));
+    s.hooks.Stop.push({ hooks: [{ type: 'command', command: 'python own_check.py' }] }); fs.writeFileSync(at('own_check.py'), 'pass\n');
+    fs.writeFileSync(sp, JSON.stringify({ ...s, statusLine: { type: 'command', command: 'node "$CLAUDE_PROJECT_DIR/tools/hooks/gone.mjs"' } }, null, 2));
+    const check = node('tools/hooks/wire.mjs', '--check'), session = node('tools/hooks/hooks.mjs', 'session');
+    const { pathToFileURL } = await import('node:url');
+    const { probeEngine } = await import(pathToFileURL(path.join(repo, 'tools/hooks/hooks.mjs')).href), probed = probeEngine(p);
+    const fixed = node('tools/hooks/wire.mjs'), afterFix = hp();
+    fs.writeFileSync(sp, JSON.stringify(s, null, 2));
+    const sound = node('tools/hooks/wire.mjs', '--check');
+    fs.rmSync(at('.githooks'), { recursive: true, force: true }); g('config', '--unset', 'core.hooksPath'); node('tools/hooks/wire.mjs');
+    report(check.status === 1 && /\.anzuelo\/engine\/\.githooks" points at a folder that does not exist/.test(check.stdout) && /gone\.mjs, which does not exist/.test(check.stdout) && !/own_check/.test(check.stdout)
+      && /WIRING BROKEN: git's hooks path/.test(session.stdout) && probed.some(e => /^wiring: git's hooks path/.test(e))
+      && afterFix === '.githooks' && sound.status === 0 && hp() === '',
+      'wiring: session start and the upgrade probe name a git hooks path at a missing folder and a hook that runs a missing file; wire repairs the path, and never points git at a folder with no hooks',
+      { check: check.stdout.slice(0, 300), session: (session.stdout || '').slice(0, 300), probed, afterFix, sound: sound.stdout, last: hp(), fixed: (fixed.stdout || '').slice(0, 300) });
+  } finally { fs.rmSync(box, { recursive: true, force: true, maxRetries: 3 }); }
+}
+
 // (with the engine in .anzuelo/: uninstall needs no starter link, unwires only the engine, brings the project's own
 // runbooks, skills and records back from .anzuelo/local, names files that still mention .anzuelo/, and backs up.
 // Plan: clean exit, Task 2)
@@ -1364,22 +1394,28 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     fs.mkdirSync(at('.claude'), { recursive: true }); fs.writeFileSync(at('main.py'), 'print("hi")\n');
     const own = JSON.stringify({ hooks: { Stop: [{ hooks: [{ type: 'command', command: 'python own_check.py' }] }] } }, null, 2) + '\n';
     fs.writeFileSync(at('.claude/settings.json'), own); fs.writeFileSync(at('notes.md'), 'Runbooks are in .anzuelo/local/docs/playbooks.\n');
-    g('init', '-q'); g('add', '-A'); g('commit', '-qm', 'project');
+    // (the wiring before the install: the project's own git hooks folder, and an untracked Codex file with its own hook)
+    fs.mkdirSync(at('.githooks')); fs.writeFileSync(at('.githooks/pre-commit'), '#!/bin/sh\nexit 0\n'); fs.writeFileSync(at('own_codex.py'), 'pass\n');
+    const codex = JSON.stringify({ hooks: { Stop: [{ hooks: [{ type: 'command', command: 'python own_codex.py' }] }] } }, null, 2) + '\n';
+    fs.mkdirSync(at('.codex')); fs.writeFileSync(at('.codex/hooks.json'), codex); fs.writeFileSync(at('.gitignore'), '.codex/\n');
+    g('init', '-q'); g('add', '-A'); g('commit', '-qm', 'project'); g('config', 'core.hooksPath', '.githooks');
     const ins = spawnSync(process.execPath, [path.join(repo, 'tools/starter.mjs'), 'install', p, '--private', 'no'], { encoding: 'utf8', timeout: 300000 });
-    fs.copyFileSync(path.join(repo, 'tools/starter.mjs'), at('.anzuelo/engine/tools/starter.mjs'));
+    for (const f of ['tools/starter.mjs', 'tools/hooks/wire.mjs']) fs.copyFileSync(path.join(repo, f), at('.anzuelo/engine', f));
     for (const [f, t] of [['docs/playbooks/own.md', '# Own runbook\n'], ['skills/mine/SKILL.md', '---\nname: mine\n---\n# Mine\n'], ['docs/STATUS.md', '# Status\nours\n']]) { fs.mkdirSync(path.dirname(path.join(loc, f)), { recursive: true }); fs.writeFileSync(path.join(loc, f), t); }
     const st = (...a) => spawnSync(process.execPath, [at('.anzuelo/engine/tools/starter.mjs'), 'uninstall', ...a], { cwd: p, encoding: 'utf8', timeout: 120000 });
     const wired = fs.existsSync(at('.claude/settings.local.json')) && /hooks\.mjs/.test(fs.readFileSync(at('.claude/settings.local.json'), 'utf8'));
     const dry = st('--dry-run'), dryLeft = fs.existsSync(at('.anzuelo/engine')), r = st();
     const backups = (() => { try { return fs.readdirSync(at('.cache/engine-removed')); } catch { return []; } })();
     const local = fs.existsSync(at('.claude/settings.local.json')) ? fs.readFileSync(at('.claude/settings.local.json'), 'utf8') : '';
-    report(ins.status === 0 && wired && dry.status === 0 && dryLeft && r.status === 0 && !fs.existsSync(at('.anzuelo'))
-      && fs.readFileSync(at('.claude/settings.json'), 'utf8') === own && !/hooks\.mjs/.test(local) && !fs.existsSync(at('CLAUDE.local.md'))
-      && fs.existsSync(at('docs/playbooks/own.md')) && fs.existsSync(at('skills/mine/SKILL.md')) && /ours/.test(fs.readFileSync(at('docs/STATUS.md'), 'utf8')) && fs.existsSync(at('main.py'))
-      && !/project engine and its wiring/.test(fs.readFileSync(at('.gitignore'), 'utf8')) && /notes\.md/.test(r.stdout) && !(g('config', '--get', 'core.hooksPath').stdout || '').trim()
-      && backups.length === 1 && fs.existsSync(at('.cache/engine-removed', backups[0], 'engine.json')) && fs.existsSync(at('.cache/engine-removed', backups[0], '.anzuelo/local/docs/playbooks/own.md')),
-      'remove (.anzuelo/): uninstall unwires only the engine, brings the project\'s own runbooks, skills and records back, names files still pointing at .anzuelo/, and backs up',
-      { ins: [ins.status, (ins.stderr || '').slice(0, 200)], wired, dry: (dry.stdout || dry.stderr || '').slice(-300), r: [r.status, (r.stdout || '').slice(-600), (r.stderr || '').slice(0, 300)], local: local.slice(0, 200) });
+    const conds = [ins.status === 0 && wired && dry.status === 0 && dryLeft && r.status === 0 && !fs.existsSync(at('.anzuelo')),
+      fs.readFileSync(at('.claude/settings.json'), 'utf8') === own, !/hooks\.mjs/.test(local), !fs.existsSync(at('CLAUDE.local.md')),
+      fs.existsSync(at('docs/playbooks/own.md')) && fs.existsSync(at('skills/mine/SKILL.md')) && /ours/.test(fs.readFileSync(at('docs/STATUS.md'), 'utf8')) && fs.existsSync(at('main.py')),
+      !/project engine and its wiring/.test(fs.readFileSync(at('.gitignore'), 'utf8')) && /notes\.md/.test(r.stdout), (g('config', '--get', 'core.hooksPath').stdout || '').trim() === '.githooks',
+      fs.readFileSync(at('.codex/hooks.json'), 'utf8') === codex,
+      backups.length === 1 && fs.existsSync(at('.cache/engine-removed', backups[0], 'engine.json')) && fs.existsSync(at('.cache/engine-removed', backups[0], '.anzuelo/local/docs/playbooks/own.md'))];
+    report(conds.every(Boolean),
+      'remove (.anzuelo/): uninstall unwires only the engine, puts back git\'s hooks path and the wiring files as they were before the install, brings the project\'s own runbooks, skills and records back, names files still pointing at .anzuelo/, and backs up',
+      JSON.stringify({ conds, ins: [ins.status, (ins.stderr || '').slice(0, 200)], wired, hp: (g('config', '--get', 'core.hooksPath').stdout || '').trim(), codex: fs.existsSync(at('.codex/hooks.json')) && fs.readFileSync(at('.codex/hooks.json'), 'utf8').slice(0, 200), dry: (dry.stdout || dry.stderr || '').slice(-300), r: [r.status, (r.stdout || '').slice(-600), (r.stderr || '').slice(0, 300)], local: local.slice(0, 200) }));
   } finally { fs.rmSync(box, { recursive: true, force: true, maxRetries: 3 }); }
 }
 

@@ -35,7 +35,7 @@ Related: [engine outside the project](2026-11-07-engine-outside-the-project.md),
 
 ## Task 4: the failed move (field report)
 Each item gets a confirmed cause, a fix and a test; the reply names the commit.
-- [ ] Safety first: a rollback left git's hooks path at the deleted `.anzuelo/engine/.githooks`, so commits ran with no
+- [x] Safety first: a rollback left git's hooks path at the deleted `.anzuelo/engine/.githooks`, so commits ran with no
       AI-credit or secret checks. (1) The install saves the old `core.hooksPath` and the wiring files
       (`.claude/settings.json`, `.codex/hooks.json`), and uninstall puts them back. (2) Wiring sets the hooks path only
       to a folder that exists and holds the hook files. (3) The upgrade probe and every session start check that the
@@ -56,9 +56,9 @@ Each item gets a confirmed cause, a fix and a test; the reply names the commit.
       does not have at those paths.
 - [ ] A project's code that calls engine scripts by path (its own hook setup, audit, allow-lists) is named by the
       install's dry run, so it is fixed before the move.
-- [ ] Wiring leaves an existing `statusLine` on the old `tools/hooks/statusline.mjs` path.
-- [ ] A `build/` ignore line shipped by an upgrade hides `skills/build/`.
-- [ ] The rollback steps run into the engine's own git-safety guard; the uninstall replaces them.
+- [x] Wiring leaves an existing `statusLine` on the old `tools/hooks/statusline.mjs` path.
+- [ ] A `build/` ignore line shipped by an upgrade hides a project skill named build.
+- [x] The rollback steps run into the engine's own git-safety guard; the uninstall replaces them.
 - [ ] End check: "a screen changed" held a turn whose screen edits a reset had undone; judge by the net change against
       the turn's start, not by edits seen during the turn.
 

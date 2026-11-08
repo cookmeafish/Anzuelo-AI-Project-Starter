@@ -64,7 +64,8 @@ const pbs = playbooks();
 const hooksSrc = read(abs('tools/hooks/hooks.mjs')) + read(abs('tools/hooks/v2/guard.mjs'));
 // the project's own scenarios count too, and while an upgrade's move is pending, the ones kept from the old test file
 const legacyScenarios = read(abs('tools/hooks/legacy-scenarios.txt'));
-const testsSrc = read(abs('tools/hooks/selfcheck.mjs')) + read(abs('tools/hooks/project-scenarios.mjs')) + legacyScenarios;
+// (and the v2 engine's own tests, which new checks get as the old scenarios move there: plan engine v2 only, 1d)
+const testsSrc = read(abs('tools/hooks/selfcheck.mjs')) + read(abs('tools/hooks/v2/selftest.mjs')) + read(abs('tools/hooks/project-scenarios.mjs')) + legacyScenarios;
 const { reqs, fileReqs = [], error: reqError, disabled = [] } = loadRequirements();
 const baseTags = new Set(BASE_REQUIREMENTS.map(b => b.tag));
 // pack checks count as known even when the pack is not installed here (the starter keeps them in packs/*/pack.json)

@@ -16,6 +16,32 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const GITIGNORE_MARK = '# The project engine and its wiring (made on each machine, never committed)';
 export const GITIGNORE_BLOCK = `${GITIGNORE_MARK}\n.anzuelo/\nCLAUDE.local.md\n.claude/settings.local.json\n.claude/skills/\n.agents/skills/\n.codex/hooks.json\n`;
 
+const HOOK_FILES = ['pre-commit', 'commit-msg', 'pre-push'];
+// The script files a hook command runs: a quoted path, or a bare word, ending in a script extension ("$CLAUDE_PROJECT_DIR/"
+// read as the project folder). "python own_check.py" runs own_check.py, never "python own_check.py".
+export const scriptsIn = cmd => [...String(cmd || '').matchAll(/"([^"]+\.(?:mjs|cjs|js|py|sh|ps1))"|(?:^|\s)([^\s"]+\.(?:mjs|cjs|js|py|sh|ps1))(?=\s|$)/g)]
+  .map(m => (m[1] ?? m[2]).replace(/^\$CLAUDE_PROJECT_DIR[\\/]/, ''));
+const gitHooksDir = (dir, hp) => path.resolve(dir, hp);
+const hasHooks = d => HOOK_FILES.some(f => fs.existsSync(path.join(d, f)));
+// What is broken in this folder's wiring: git's hooks path at a folder that is gone or holds no hooks (commits then run
+// without the AI-credit and secret checks), and agent settings whose hook or status-line command runs a file that is
+// not there. Read at every session start and by the upgrade probe. Lesson (two field reports): a rolled-back move left
+// git's hooks path at a deleted folder, and nothing said so, so commits went unchecked.
+export function wiringProblems(dir) {
+  const out = [], at = (...p) => path.join(dir, ...p);
+  if (fs.existsSync(at('.git'))) {
+    const hp = (spawnSync('git', ['config', 'core.hooksPath'], { cwd: dir, encoding: 'utf8' }).stdout || '').trim();
+    if (hp && !(fs.existsSync(gitHooksDir(dir, hp)) && hasHooks(gitHooksDir(dir, hp))))
+      out.push(`git's hooks path "${hp}" ${fs.existsSync(gitHooksDir(dir, hp)) ? 'holds no hook scripts' : 'points at a folder that does not exist'}, so commits run without the AI-credit and secret checks`);
+  }
+  for (const f of ['.claude/settings.json', '.claude/settings.local.json', '.codex/hooks.json']) {
+    let j; try { j = JSON.parse(fs.readFileSync(at(f), 'utf8')); } catch { continue; }
+    const cmds = [...Object.values(j.hooks || {}).flat().flatMap(g => [].concat(g?.hooks || [])).map(h => h?.command), j.statusLine?.command].filter(c => typeof c === 'string');
+    for (const p of cmds.flatMap(scriptsIn)) if (!fs.existsSync(path.isAbsolute(p) ? p : at(p))) out.push(`${f} runs ${p}, which does not exist`);
+  }
+  return [...new Set(out)];
+}
+
 export function wire(dir, { dry = false } = {}) {
   // (engine files (the hooks, the shared rules, settings) are found where paths.mjs says, for this folder's layout)
   // With the engine in .anzuelo/engine (split), every file made here is one the project's git ignores: the hooks go
@@ -54,6 +80,10 @@ export function wire(dir, { dry = false } = {}) {
   mine.includeCoAuthoredBy = false;
   mine.attribution = { commit: '', pr: '' };
   mine.hooks ||= {};
+  // (split: a status line left on the in-project engine path moves to the engine's. Lesson (a field report): it kept
+  // running a file the move had removed)
+  const SL = /(?<!engine[\\/])tools[\\/]hooks[\\/]statusline\.mjs/;
+  if (split && typeof mine.statusLine?.command === 'string' && SL.test(mine.statusLine.command)) { mine.statusLine = { ...mine.statusLine, command: mine.statusLine.command.replace(SL, '.anzuelo/engine/tools/hooks/statusline.mjs') }; log.push('repointed the status line at .anzuelo/engine'); }
   if (on('claude')) for (const [ev, v] of Object.entries(theirs.hooks)) {
     if (!JSON.stringify(mine.hooks[ev] || []).includes('hooks.mjs')) { mine.hooks[ev] = [...(mine.hooks[ev] || []), ...v]; log.push(`wired    ${ev} hook (Claude Code)`); }
     else if (ev === 'PreToolUse') mine.hooks[ev] = mine.hooks[ev].map(m => JSON.stringify(m).includes('hooks.mjs') ? { ...m, matcher: v[0].matcher } : m);
@@ -102,10 +132,18 @@ export function wire(dir, { dry = false } = {}) {
   // git checks commits and pushes for every agent and for manual git use
   // A project's own git hooks (another hooks folder, or real hooks in .git/hooks) are never switched off: pointing git at
   // .githooks would silently disable them. Then the starter's checks are offered to chain in, not forced.
-  const hooksPath = fs.existsSync(at('.git')) ? (spawnSync('git', ['config', 'core.hooksPath'], { cwd: dir, encoding: 'utf8' }).stdout || '').trim() : null;
+  // (a hooks path at a folder that is gone, or holds no hooks, is no one's hooks: it is repaired; and git is pointed only
+  // at a folder that exists and holds the hook files. Lesson (two field reports): a rolled-back move left the path at a
+  // deleted folder, and commits ran unchecked)
+  let hooksPath = fs.existsSync(at('.git')) ? (spawnSync('git', ['config', 'core.hooksPath'], { cwd: dir, encoding: 'utf8' }).stdout || '').trim() : null;
+  if (hooksPath && !hasHooks(gitHooksDir(dir, hooksPath))) {
+    if (!dry) spawnSync('git', ['config', '--unset', 'core.hooksPath'], { cwd: dir });
+    log.push(`repaired git's hooks path (it pointed at ${hooksPath}, which has no hook scripts)`); hooksPath = '';
+  }
   const ownHooks = hooksPath === '' && fs.existsSync(at('.git', 'hooks')) && fs.readdirSync(at('.git', 'hooks')).some(n => !n.endsWith('.sample'));
   if (hooksPath !== null && hooksPath !== GITHOOKS) {
     if ((hooksPath && hooksPath !== '.githooks') || ownHooks) log.push(`kept     your git hooks (${hooksPath || '.git/hooks'}). To add the starter's checks (AI attribution, secrets, .gitignore), call .githooks/pre-commit, commit-msg and pre-push from yours.`);
+    else if (!hasHooks(at(GITHOOKS))) log.push(`not set  git's hooks path: ${GITHOOKS} holds no hook scripts here`);
     else {
       if (!dry) spawnSync('git', ['config', 'core.hooksPath', GITHOOKS], { cwd: dir });
       log.push(`git      core.hooksPath = ${GITHOOKS} (commits and pushes are checked for AI attribution, secrets and .gitignore)`);
@@ -150,6 +188,8 @@ export function wire(dir, { dry = false } = {}) {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const dir = roots(HERE, {}).PROJECT;
+  // --check: list what is broken in the wiring, change nothing (exit 1 when something is)
+  if (process.argv.includes('--check')) { const p = wiringProblems(dir); console.log(p.length ? p.map(x => `broken   ${x}`).join('\n') : 'wire: the wiring is sound'); process.exit(p.length ? 1 : 0); }
   try { const log = wire(dir); console.log(log.length ? log.join('\n') : 'wire: everything was already connected'); console.log('wire: this folder works with Claude Code, Codex, Gemini CLI and any agent that reads AGENTS.md'); }
   catch (e) { console.error(`wire: ${e.message}`); process.exit(1); }
 }

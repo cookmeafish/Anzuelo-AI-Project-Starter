@@ -39,6 +39,7 @@ import { spawnSync } from 'node:child_process';
 import { ROOT, STARTER_LINK, starterLink, starterSources, syncAll, setupCompleteness, usageOf } from './hooks/hooks.mjs';
 import { registry } from './packs.mjs';
 import { where, whereWrite, split, kind, keepList, ENGINE, LOCAL, PROJECT } from './hooks/paths.mjs';
+import { scriptsIn } from './hooks/wire.mjs';
 
 // (each path goes where paths.mjs says: in the starter, all one folder; in a project, packs and library are the engine's)
 const CONFIG = where('tools/hooks/config.json');
@@ -205,8 +206,29 @@ export function splitUninstall(dry) {
     const t = fs.readFileSync(at('CLAUDE.local.md'), 'utf8'), rest = t.split(/\r?\n/).filter(l => !/^@\.anzuelo\/(local|engine)\/AGENTS\.md\s*$/.test(l)).join('\n').trim();
     if (rest !== t.trim()) { save('CLAUDE.local.md'); if (!dry) rest ? fs.writeFileSync(at('CLAUDE.local.md'), rest + '\n') : fs.rmSync(at('CLAUDE.local.md')); log.push(`unwired  CLAUDE.local.md (the engine's rules${rest ? '; your own lines kept' : ''})`); }
   }
+  // (what install saved: git's hooks path and the agent files as they were before it; a file install made, holding only
+  // what wiring adds, goes. Lesson (two field reports): a rollback left git's hooks path at the deleted engine)
+  const pre = (() => { try { return JSON.parse(fs.readFileSync(path.join(LOCAL, 'pre-install.json'), 'utf8')); } catch { return null; } })();
+  // (an engine hook command in the saved file whose script is gone now, such as an older in-project engine's, stays
+  // out; the project's own commands always come back)
+  const live = h => !/hooks[\\/]+hooks\.mjs/.test(String(h?.command || '')) || scriptsIn(h?.command).every(p => fs.existsSync(path.isAbsolute(p) ? p : at(p)));
+  const prune = t => { let j; try { j = JSON.parse(t); } catch { return t; } if (!j.hooks) return t;
+    for (const [ev, list] of Object.entries(j.hooks)) { const keep = [].concat(list).flatMap(g => { const rest = [].concat(g?.hooks || []).filter(live); return rest.length ? [{ ...g, hooks: rest }] : []; }); if (keep.length) j.hooks[ev] = keep; else delete j.hooks[ev]; }
+    if (!Object.keys(j.hooks).length) delete j.hooks; return JSON.stringify(j, null, 2) + '\n'; };
+  for (const [f, saved] of Object.entries(pre?.files || {})) {
+    const now = fs.existsSync(at(f)) ? fs.readFileSync(at(f), 'utf8') : null, was = saved === null ? null : /\.json$/.test(f) ? prune(saved) : saved;
+    if (was !== null && now !== was && !dry) { save(f); fs.mkdirSync(path.dirname(at(f)), { recursive: true }); fs.writeFileSync(at(f), was); }
+    if (was !== null && now !== was) log.push(`restored ${f} (as it was before the install)`);
+    let left = null; try { left = JSON.parse(now); } catch { }
+    if (was === null && now !== null && left && Object.keys(left).every(k => ['includeCoAuthoredBy', 'attribution'].includes(k))) { save(f); if (!dry) fs.rmSync(at(f)); log.push(`removed  ${f} (the install made it; nothing of the project's is in it)`); }
+  }
   const hp = (spawnSync('git', ['config', '--get', 'core.hooksPath'], { cwd: PROJECT, encoding: 'utf8' }).stdout || '').trim();
-  if (/^\.anzuelo\/engine\//.test(hp)) { if (!dry) spawnSync('git', ['config', '--unset', 'core.hooksPath'], { cwd: PROJECT }); log.push('unwired  git hooks (core.hooksPath)'); }
+  const sound = p => p && ['pre-commit', 'commit-msg', 'pre-push'].some(h => fs.existsSync(path.join(path.resolve(PROJECT, p), h)));
+  if (/^\.anzuelo\/engine\//.test(hp) || (hp && !sound(hp))) {
+    const back = sound(pre?.hooksPath) ? pre.hooksPath : '';
+    if (!dry) spawnSync('git', ['config', ...(back ? ['core.hooksPath', back] : ['--unset', 'core.hooksPath'])], { cwd: PROJECT });
+    log.push(back ? `restored git's hooks path (${back}, as before the install)` : 'unwired  git hooks (core.hooksPath)');
+  }
   if (fs.existsSync(at('.gitignore'))) {
     const gi = fs.readFileSync(at('.gitignore'), 'utf8'), MARK = '# The project engine and its wiring (made on each machine, never committed)';
     const BLOCK = new Set(['.anzuelo/', 'CLAUDE.local.md', '.claude/settings.local.json', '.claude/skills/', '.agents/skills/', '.codex/hooks.json']);
@@ -408,6 +430,11 @@ if (cmd === 'link') {
   if (origin) g(['remote', 'set-url', 'origin', origin], eng);
   // (the engine commit the project starts from: local copies of defaults made from now on are merged against it)
   fs.mkdirSync(loc, { recursive: true }); fs.writeFileSync(path.join(loc, 'based-on.json'), JSON.stringify({ at: (g(['rev-parse', 'HEAD'], eng).stdout || '').trim(), files: {} }, null, 2) + '\n');
+  // (the wiring as it was, for uninstall to put back: git's hooks path and the untracked agent files. Lesson (two field
+  // reports): a rollback restored neither, and git's hooks path was left at the deleted engine)
+  const PRE = ['.claude/settings.json', '.claude/settings.local.json', '.codex/hooks.json', 'CLAUDE.local.md'];
+  fs.writeFileSync(path.join(loc, 'pre-install.json'), JSON.stringify({ hooksPath: (g(['config', '--get', 'core.hooksPath'], dest).stdout || '').trim(),
+    files: Object.fromEntries(PRE.map(f => [f, fs.existsSync(path.join(dest, f)) ? fs.readFileSync(path.join(dest, f), 'utf8') : null])) }, null, 2) + '\n');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-install-'));
   try {
     const np = spawnSync(process.execPath, [path.join(eng, 'tools', 'new-project.mjs'), tmp, ...(val('--name') ? ['--name', val('--name')] : []), ...(val('--desc') ? ['--desc', val('--desc')] : []), ...(fs.existsSync(path.join(ENGINE, '.starter-dev')) ? ['--dev'] : [])], { encoding: 'utf8' });

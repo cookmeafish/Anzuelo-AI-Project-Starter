@@ -4406,6 +4406,10 @@ export function dueRoutines(text, now = today()) {
 function notices(cfg) {
   const out = [];
   const template = exists('.starter-template');
+  // REQ: wiring-sound. Broken wiring is said at every session start, with its repair: git's hooks path at a missing
+  // folder lets commits skip the AI-credit and secret checks. Lesson (two field reports): a rolled-back move left it so.
+  const wp = WIRING ? (() => { try { return WIRING(ROOT); } catch { return []; } })() : [];
+  if (wp.length) out.push(`WIRING BROKEN: ${wp.join('; ')}. Run node ${path.relative(ROOT, fileURLToPath(new URL('./wire.mjs', import.meta.url))).split(path.sep).join('/')} (it repairs the engine's wiring), then tell the user in one line what was broken and that it is fixed. Anything it could not fix goes to the user with the exact line to run.`);
   // REQ: unresolved-carryover. Lesson: after the block cap, a miss passed silently. It is announced once, and the next
   // work turn's Stop re-runs those checks (carryoverChecks), so it cannot just be read and forgotten.
   const un = readJSON(path.join(STATE, 'unresolved.json'), null);
@@ -5264,6 +5268,7 @@ export const CHECK_RUN = /\b(pytest|unittest|npm (run )?test|npx (jest|vitest|pl
 // nothing during work but safety refusals.
 let V2_PRETOOL = false;
 let V2_TURN = null; // (under v2 a turn's end is in v2's own turn record: v2/lib.mjs loadTurn)
+let WIRING = null; // (wire.mjs wiringProblems, loaded by the session hook)
 export const engineOf = () => envOf('ENGINE') || config().engine;
 // The engine runs in a project: its own prompt and Stop hooks, on a sample request, with the engine its config picks.
 // Returns the errors seen (none when it runs). The probe's session leaves no state behind. Lesson (two projects): an
@@ -5278,6 +5283,9 @@ export const probeEngine = dir => {
     const bad = /\[hooks (v2 )?\w+\] error[^\n]*|CRASHED[^"\n]*/.exec(`${r.stderr || ''}\n${r.stdout || ''}`);
     if (r.error || bad) errs.push(`${cmd}: ${(r.error?.message || bad[0]).slice(0, 200)}`);
   }
+  // (and the wiring: git's hooks path and the agents' hook commands point at files that exist)
+  const w = spawnSync(process.execPath, [path.join(dir, 'tools/hooks/wire.mjs'), '--check'], { cwd: dir, encoding: 'utf8', timeout: 30_000 });
+  if (w.status === 1) errs.push(...(w.stdout || '').split(/\r?\n/).filter(l => l.startsWith('broken')).map(l => `wiring: ${l.replace(/^broken\s+/, '')}`));
   try { for (const f of fs.readdirSync(path.join(dir, 'tools/hooks/state'))) if (f.includes(sid)) fs.rmSync(path.join(dir, 'tools/hooks/state', f), { recursive: true, force: true }); } catch { }
   return errs;
 };
@@ -8908,6 +8916,7 @@ if (isMain) {
     process.exit(0);
   }
   if (/^(session|pretool|posttool)$/.test(cmd) && ENGINE === 'v2') try { V2_TURN = (await import('./v2/lib.mjs')).loadTurn; } catch { }
+  if (/^(session|notices)$/.test(cmd)) try { WIRING = (await import('./wire.mjs')).wiringProblems; } catch { }
   try {
     const fn = { session: cmdSession, prompt: cmdPrompt, pretool: cmdPretool, posttool: cmdPosttool, stop: cmdStop, subagentstop: cmdSubagentstop }[cmd];
     if (fn) fn(data);
