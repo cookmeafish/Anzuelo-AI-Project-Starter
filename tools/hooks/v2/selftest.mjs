@@ -322,8 +322,16 @@ report(failed.length === 1 && /item 1: The tests pass/.test(failed[0]), 'end: te
 const noLog = missing(turn, acts([user('add a csv export'), read, edit, call('Bash', { command: 'pytest -q' }), say('Shipped.')]));
 report(noLog.length === 2 && noLog.some(s => /item 2/.test(s)) && noLog.some(s => /item 3/.test(s)) && !noLog.some(s => /item 4/.test(s)),
   'end: a missing changelog and answer line are named; a judgment item never is', noLog);
-report(missing(turn, acts([user('what does the csv export do?'), say('It writes one row per order.')])).length === 0,
-  'end: a text-only answer is never checked against the runbook');
+{ // (a question its routed runbook fits is held to opening it and to its answer items only; an unrouted one is free)
+  const skipped = missing(turn, acts([user('what does the csv export do?'), say('It writes one row per order.')]));
+  const followed = missing(turn, acts([user('what does the csv export do?'), read, say('It writes one row per order; how it was checked: the code.')]));
+  const loose = missing(turn, acts([user('what does the csv export do?'), read, say('It writes one row per order.')]));
+  const free = [...missing({ runbook: null }, acts([user('what does the csv export do?'), say('It writes one row per order.')])),
+    ...missing(turn, acts([user('Another Claude session sent a message:\n<cross-session-message from="x">The csv export is upgraded; totals as usual.</cross-session-message>'), say('Noted.')]))];
+  report(skipped.length === 2 && /^Open docs\/playbooks\/export\.md and answer by its steps/.test(skipped[0]) && /item 3/.test(skipped[1])
+    && followed.length === 0 && loose.length === 1 && /item 3/.test(loose[0]) && free.length === 0,
+    'end: a question its routed runbook fits must open it and meet its answer items (never its file or command items); an unrouted question, or a note from another session, is free', { skipped, followed, loose, free });
+}
 const earlier = missing(turn, acts([user('add a csv export'), read, edit, call('Bash', { command: 'npm test' }), log, say('How it was checked: tests.'), user('and the totals row?'), edit, say('Added.')]));
 report(earlier.some(s => /item 1/.test(s)) && earlier.some(s => /Open/.test(s)), 'end: only this turn counts, not what an earlier turn did', earlier);
 report(missing({ runbook: null }, acts([user('fix it'), edit, say('Fixed.')])).length === 0, 'end: a turn no runbook fit, and that opened none, is not held to one');
@@ -402,7 +410,7 @@ report(onStop({ stop_hook_active: true, transcript_path: transcript([user('add a
   onPrompt({ session_id: 'join', prompt: 'add a csv export' }); const t1 = loadTurnT('join');
   await new Promise(r => setTimeout(r, 5));
   onPrompt({ session_id: 'join', prompt: 'rotate the logs too' }); const t2 = loadTurnT('join');
-  onStop({ transcript_path: transcript([user('add a csv export'), say('Done.')]), session_id: 'join' });
+  onStop({ transcript_path: transcript([user('add a csv export'), read, say('Done; how it was checked: tests.')]), session_id: 'join' });
   await new Promise(r => setTimeout(r, 5));
   onPrompt({ session_id: 'join', prompt: 'rotate the logs' }); const t3 = loadTurnT('join');
   report(t2.at === t1.at && t2.runbook === 'docs/playbooks/export.md' && t3.at !== t1.at && t3.runbook === 'docs/playbooks/windows.md',

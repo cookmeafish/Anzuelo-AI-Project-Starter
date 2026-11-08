@@ -38,10 +38,16 @@ export const waived = (acts, list) => list.filter(kept(acts));
 
 export function missing(turn, acts, books = runbooks()) {
   const book = chosen(turn, acts, books);
-  if (!book || !worked(acts)) return [];
+  // (a question its routed runbook fits follows it too, held only to opening it and to its answer items; an unrouted
+  // question stays free. Lesson (the user, 2026-11-07): knowledge questions route to runbooks so the answer comes from
+  // the best sources, and an answer that skipped the runbook went unchecked)
+  // (a typed question only: a report or note from another session is not one. Replay (real sessions): every routed
+  // turn this would have held was such a message)
+  const asked = book && !worked(acts) && book.file === turn.runbook && !/<(cross-session-message|agent-message|task-notification)\b/.test(acts.heard || '');
+  if (!book || (!worked(acts) && !asked)) return [];
   const out = [];
-  if (!opened(book, acts)) out.push(`Open ${book.file} and check the work against its steps.`);
-  for (const it of book.items) if (applies(it, acts) && met(it, acts) === false) out.push(`${book.file} item ${it.n}: ${it.text}`);
+  if (!opened(book, acts)) out.push(`Open ${book.file} and ${asked ? 'answer by' : 'check the work against'} its steps.`);
+  for (const it of book.items) if ((!asked || it.kind === 'answer') && applies(it, acts) && met(it, acts) === false) out.push(`${book.file} item ${it.n}: ${it.text}`);
   return out;
 }
 

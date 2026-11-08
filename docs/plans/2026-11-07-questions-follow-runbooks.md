@@ -27,6 +27,12 @@ first unticked box by hand. Read the dated notes first. Ticked boxes are done; n
 ticked and the checks pass, change the status line to `status: done`; to stop for good, `status: dropped - <why>`.
 A run that is stuck sets `status: blocked - <reason>` with `Tried:` and `Options:` notes; read those first.
 
+## Notes
+- 2026-11-08, Task 1: a routed question is held to opening its runbook and to its answer items only (never file or
+  command items). Replay over real project sessions: all 13 routed no-work turns it would have held were notes from
+  another session (all false), so those are excluded; typed routed questions held: 0. Little real data yet on typed
+  questions: measure again after the next upgrade.
+
 ## Context
 - `tools/hooks/v2/end.mjs`: missing() and the others return nothing unless worked(acts) (lib.mjs, edits only).
 - `tools/hooks/v2/lib.mjs`: knowledgeGaps checks only facts written into knowledge files.
@@ -48,10 +54,10 @@ A run that is stuck sets `status: blocked - <reason>` with `Tried:` and `Options
 ### Task 1: questions are held to a routed runbook
 **Files:** `tools/hooks/v2/end.mjs`, `tools/hooks/v2/selftest.mjs`, `AGENTS.md`
 **Uses / provides:** provides the question-turn path Task 2 uses
-- [ ] Test first: routed knowledge-answer runbook, answer turn that never opened it: one block naming the runbook.
-- [ ] With a runbook routed, missing() runs whether or not files changed; no verify list on question turns.
-- [ ] Reword step 0.4: a question no runbook matches needs none; a question a runbook matches follows it.
-- [ ] Run `node tools/hooks/v2/selftest.mjs`. Expected: ALL PASS, the flipped test included.
+- [x] Test first: routed knowledge-answer runbook, answer turn that never opened it: one block naming the runbook.
+- [x] With a runbook routed, missing() runs whether or not files changed; no verify list on question turns.
+- [x] Reword step 0.4: a question no runbook matches needs none; a question a runbook matches follows it.
+- [x] Run `node tools/hooks/v2/selftest.mjs`. Expected: ALL PASS, the flipped test included.
 
 ### Task 2: evidence checks for knowledge answers
 **Files:** `tools/hooks/v2/lib.mjs`, `tools/hooks/v2/end.mjs`, `packs/knowledge/files/docs/playbooks/*.md`, `tools/hooks/v2/selftest.mjs`

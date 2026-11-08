@@ -25,8 +25,8 @@
    `skills/<name>/SKILL.md` and follow it alongside any runbook. This project's skills beat global ones.
 3. **No runbook fits a real task:** follow `docs/playbooks/_fallback.md`, then leave a runbook and a check behind
    (runbook-create skill).
-4. **A quick question** answered from what the project has needs no runbook. Real work (files changed, or 15+ tool
-   calls) does.
+4. **A question** no runbook matches needs none; a question a runbook matches (such as a knowledge answer) follows
+   it. Real work (files changed, or 15+ tool calls) always does.
 5. **An unclear request** gets ONE focused question, not a guess; check `docs/glossary.md` first and add each answer
    there (session-handoff skill). Small, reversible details: decide and say what you assumed. Under
    `"autonomy": "auto"` (`tools/hooks/config.json`) ask nothing: decide, go on, and record
