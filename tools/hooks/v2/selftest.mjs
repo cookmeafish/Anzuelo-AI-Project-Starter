@@ -1303,13 +1303,14 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
       const queued = (prompt, t) => JSON.stringify({ type: 'attachment', timestamp: t, attachment: { type: 'queued_command', prompt } });
       fs.writeFileSync(main, [sayRow, queued('<task-notification>done</task-notification>', '2026-01-01T00:01:00Z'), queued('you said 1 board wipe but there are 2?', '2026-01-01T00:01:01Z'),
         msg('The user sent a new message while you were working:\nwhat happened?\n\nThis is how Claude Code surfaces messages the user sends mid-turn'),
-        queued([{ type: 'text', text: 'it did not reply here' }, { type: 'image' }], '2026-01-01T00:01:03Z')].join('\n') + '\n');
+        queued([{ type: 'text', text: 'it did not reply here' }, { type: 'image' }], '2026-01-01T00:01:03Z'),
+        msg('The user sent a new message while you were working:\nsee this one', 1)].join('\n') + '\n');
       const waiting = lateMessages({ transcript_path: main }), lnote = lateNote(waiting);
       fs.appendFileSync(main, sayRow + '\n'); const answered = lateMessages({ transcript_path: main });
       fs.rmSync(box, { recursive: true, force: true });
       report(lost?.files.length === 2 && /7\.png; .*8\.png/.test(note) && /Do not ask the user to send them again/.test(note) && arrived === null && mainOnly === null,
         'images: pictures that reached a helper as text only are named by their saved files; arrived pictures and the main session get nothing', { lost, note: note.slice(0, 200), arrived, mainOnly });
-      report(waiting.map(m => m.text).join('|') === 'you said 1 board wipe but there are 2?|what happened?|it did not reply here' && /Answer it now/.test(lnote) && /in this chat, where they asked/.test(lnote) && !answered.length,
+      report(waiting.map(m => m.text).join('|') === 'you said 1 board wipe but there are 2?|what happened?|it did not reply here|see this one' && /Answer it now/.test(lnote) && /in this chat, where they asked/.test(lnote) && !answered.length,
         'late: messages the user typed while the agent works (one with a picture too) are handed to it to answer first, in the chat where they asked, until it writes to the user; notices are not the user\'s', { waiting, answered });
     }
     // (REQ: prompt-visible. A work turn that passes shows the user what the engine did: the complaint fixed and the checks
@@ -1322,6 +1323,17 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     const tfile = (name, rows) => { const f = path.join(c4, `${name}.jsonl`); fs.writeFileSync(f, rows.map(r => JSON.stringify(r)).join('\n') + '\n'); return f; };
     const stop = (sid, f, last) => (spawnSync(process.execPath, [path.join(c4, 'tools/hooks/hooks.mjs'), 'stop'], { cwd: c4, encoding: 'utf8',
       input: JSON.stringify({ session_id: sid, transcript_path: f, last_assistant_message: last }), env: { ...process.env, STARTER_ENGINE: 'v2', CLAUDE_PROJECT_DIR: c4, ANZUELO_ROOT: '' } }).stdout || '').trim();
+    // (each typed message is handed over once, told apart by its text too: two with the same time are two, and each
+    // session keeps its own record. Lesson (a fresh review): the time alone merged them, and sessions shared one record)
+    {
+      const pre = (sid, f) => (spawnSync(process.execPath, [path.join(c4, 'tools/hooks/hooks.mjs'), 'pretool'], { cwd: c4, encoding: 'utf8',
+        input: JSON.stringify({ session_id: sid, transcript_path: f, tool_name: 'Bash', tool_input: { command: 'ls' } }), env: { ...process.env, STARTER_ENGINE: 'v2', CLAUDE_PROJECT_DIR: c4, ANZUELO_ROOT: '' } }).stdout || '');
+      const q = text => ({ type: 'attachment', timestamp: '2026-01-01T00:00:00Z', attachment: { type: 'queued_command', prompt: text } });
+      const fq = tfile('late-q', [q('first question'), q('second question')]);
+      const one = pre('sq1', fq), again = pre('sq1', fq), other = pre('sq2', fq);
+      report(/first question/.test(one) && /second question/.test(one) && !/additionalContext/.test(again) && /first question/.test(other),
+        'late: two messages typed at the same time are both handed over, once each, and each session keeps its own record', { one: one.slice(0, 300), again: again.slice(0, 200), other: other.slice(0, 200) });
+    }
     fs.writeFileSync(path.join(c4, '.cache/turn-notes.md'), 'Issue: the notes file had a typo | runbook: learn-from-upset | fixed when: the typo is gone\n');
     fs.writeFileSync(path.join(c4, 'notes.md'), 'teh notes\n');
     const workRows = stamp([user('UGH the notes have a typo AGAIN, fix it'), call('Edit', { file_path: path.join(c4, 'notes.md'), old_string: 'teh', new_string: 'the' }), say('Fixed the typo in notes.md.')], 0);

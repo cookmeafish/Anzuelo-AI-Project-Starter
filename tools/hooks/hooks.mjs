@@ -90,7 +90,7 @@ export function transcriptState(tp) {
 // (the stop round count, the checks that failed earlier in the turn, hints shown, the plan nudge and the frustration
 // record are a turn's too. Lesson: a second session reset the first one's block count and lost its earlier failures.)
 const PER_SESSION = new Set(['turn.json', 'checklist-shown.json', 'acknowledged.json', 'reminders-shown.json', 'snapshot.json', 'turn-end.json', 'notices-shown.json', 'stop-blocks.json', 'stop-failed.json',
-  'event-hints.json', 'plan-watch.json', 'friction-turn.json', 'ext-shown.json', 'wakeups.json', 'checklist.json', 'scope-shown.json', 'alive.json']);
+  'event-hints.json', 'plan-watch.json', 'friction-turn.json', 'ext-shown.json', 'wakeups.json', 'checklist.json', 'scope-shown.json', 'alive.json', 'late-told.json', 'images-told.json']);
 const stateName = n => SID && PER_SESSION.has(n) ? n.replace(/.json$/, `.${SID}.json`) : n;
 // a session's own file when it has one, else the shared one (written before sessions were told apart, or by a test)
 export const stateFile = n => { const own = path.join(STATE, stateName(n)); return own !== path.join(STATE, n) && !fs.existsSync(own) ? path.join(STATE, n) : own; };
@@ -5257,12 +5257,14 @@ function cmdPretool(data) {
   // one check at the end, and only that)
   // (but what the user typed while the agent works is the exception, once per message: it answers first, and pictures
   // that reached a helper as text only are named by their saved files. v2/midturn.mjs)
-  const once = (name, key) => { if (!key || readJSON(stateFile(name), {}).key === key) return false; writeState(name, { key }); return true; };
-  // (each message once, by its time: the reply in the same step reaches the transcript only after this hook ran.
-  // Lesson (live): a second message brought back the first, already answered)
-  const late = MIDTURN ? (() => { try { const told = readJSON(stateFile('late-told.json'), {}).ats || [], ms = MIDTURN.lateMessages(data).filter(m => !told.includes(`${data.agent_id || ''}|${m.at}`));
-    if (ms.length) writeState('late-told.json', { ats: [...told, ...ms.map(m => `${data.agent_id || ''}|${m.at}`)].slice(-50) }); return ms.length ? MIDTURN.lateNote(ms) : ''; } catch { return ''; } })() : '';
-  const img = MIDTURN ? (() => { try { const m = MIDTURN.missingImages(data); return m && once('images-told.json', `${data.agent_id}|${m.at}`) ? MIDTURN.imagesNote(m) : ''; } catch { return ''; } })() : '';
+  // (each message once, by its agent, time and text: the reply in the same step reaches the transcript only after this
+  // hook ran. Lessons: a second message brought back the first, already answered (live); two messages with the same
+  // time, or none, counted as one, and helpers taking turns re-told each other's pictures (a fresh review))
+  const fresh = (name, items, key) => { const told = readJSON(stateFile(name), {}).ats || [], out = items.filter(m => !told.includes(key(m)));
+    if (out.length) writeState(name, { ats: [...told, ...out.map(key)].slice(-50) }); return out; };
+  const late = MIDTURN ? (() => { try { const ms = fresh('late-told.json', MIDTURN.lateMessages(data), m => `${data.agent_id || ''}|${m.at}|${m.text.slice(0, 80)}`);
+    return ms.length ? MIDTURN.lateNote(ms) : ''; } catch { return ''; } })() : '';
+  const img = MIDTURN ? (() => { try { const m = MIDTURN.missingImages(data); return m && fresh('images-told.json', [m], x => `${data.agent_id}|${x.at}|${x.nums.join(',')}`).length ? MIDTURN.imagesNote(m) : ''; } catch { return ''; } })() : '';
   const notes = [late, img, ...(data.agent_id || V2_PRETOOL ? [] : [overlapNotice(data), (() => { try { return scopeNotice(data); } catch { return null; } })()])].filter(Boolean).join('\n');
   const heard = late ? `${brand()} 💬 your message reached ${data.agent_id ? 'the helper' : 'Claude'} mid-task: it answers you first` : '';
   const ack = HOST === 'claude-code' ? [acked, heard, runningLine(d)].filter(Boolean).map(l => visibleLines(l)).filter(Boolean).join('\n') : '';

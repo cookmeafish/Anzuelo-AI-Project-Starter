@@ -25,7 +25,7 @@ export function lateMessages(data) {
     // "[object Object]")
     const words = p => Array.isArray(p) ? p.filter(b => b?.type === 'text').map(b => b.text).join('\n') : String(p || '');
     const q = r.type === 'attachment' && r.attachment?.type === 'queued_command' ? words(r.attachment.prompt)
-      : r.type === 'user' && typeof c === 'string' && LATE.test(c) ? c : '';
+      : r.type === 'user' && LATE.test(words(c)) ? words(c) : '';
     const text = q.replace(LATE, '').replace(/\n*This is how Claude Code surfaces[\s\S]*$/, '').trim();
     if (text && !text.startsWith('<')) out.push({ at: r.timestamp || '', text });
   }
