@@ -896,6 +896,13 @@ const STOP = [
   { name: 'done-when-labeled: a wrapped item labeled on its last line, and several tags in one label: passes that check', prompt: 'every zorbl answer must cite its zorbl file', tools: [pb('project'), bash('node tools/audit.mjs')],
     files: { 'docs/playbooks/zorbl-answer.md': '---\nname: zorbl-answer\nsummary: answer a zorbl question\ntriggers: zorbl question\n---\n# Playbook: zorbl answer\n## Steps\n1. Answer.\n## Done when\n- [ ] The answer cites the zorbl file, and every number in it comes from that file or is\n      marked as calculated (hook: answer-traced).\n- [ ] It is named and summed up (hooks: runbook-read, finished-summary).\n', 'docs/CHANGELOG.md': 'x' },
     answer: 'Playbook: project.md. Added the citation rule.' + FIN, expect: { block: true, not: ['done-when-labeled'] } },
+  // (a marker the end check tests is a proof too, as the runbook template asks; a condition alone is not)
+  { name: 'done-when-labeled: items proven by markers (file:, ran:, answer:, with a when condition): passes that check', prompt: 'every zorbl answer must cite its zorbl file', tools: [pb('project'), bash('node tools/audit.mjs')],
+    files: { 'docs/playbooks/zorbl-answer.md': '---\nname: zorbl-answer\nsummary: answer a zorbl question\ntriggers: zorbl question\n---\n# Playbook: zorbl answer\n## Steps\n1. Answer.\n## Done when\n- [ ] The answer cites the zorbl file (answer: zorbl/).\n- [ ] The index is rebuilt (when file: zorbl/**) (ran: index\\.mjs).\n- [ ] The notes are saved (file: notes/**).\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Playbook: project.md. Added the citation rule.' + FIN, expect: { block: true, not: ['done-when-labeled'] } },
+  { name: 'done-when-labeled: an item with only a when condition and no proof: blocked', prompt: 'every zorbl answer must cite its zorbl file', tools: [pb('project'), bash('node tools/audit.mjs')],
+    files: { 'docs/playbooks/zorbl-answer.md': '---\nname: zorbl-answer\nsummary: answer a zorbl question\ntriggers: zorbl question\n---\n# Playbook: zorbl answer\n## Steps\n1. Answer.\n## Done when\n- [ ] The index is rebuilt (when file: zorbl/**).\n', 'docs/CHANGELOG.md': 'x' },
+    answer: 'Playbook: project.md. Added the citation rule.' + FIN, expect: { block: true, tags: ['done-when-labeled'] } },
   // the project improves itself: no asking whether to add checks for what the user already asked for
   { name: 'self-improve: offering to add checks instead of adding them: blocked', prompt: 'are these requirements enforced', tools: [],
     answer: 'Two of them have no check yet.\n\n**Question for you:** should I add those checks now?', expect: { block: true, tags: ['self-improve'] } },

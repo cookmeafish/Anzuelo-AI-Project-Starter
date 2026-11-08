@@ -131,7 +131,7 @@ sweep('hooks wired for every agent', () => {
 // a warning, never a failure: older runbooks get labeled when they are next changed (the stop check then requires it)
 sweep('every "Done when" item says how it is proven', () => {
   const files = walk('', p => /^(docs\/playbooks\/[^/_][^/]*\.md|(skills|library\/skills|packs\/[^/]+\/files\/skills)\/[^/]+\/SKILL\.md|packs\/[^/]+\/files\/docs\/playbooks\/[^/_][^/]*\.md)$/.test(p));
-  const warn = files.flatMap(p => { const n = doneWhenItems(read(abs(p))).filter(i => !DONE_LABEL.test(i)).length; return n ? [`${p}: ${n} item(s) without "(hook: <tag>)" or "(judgment: <why>)"`] : []; });
+  const warn = files.flatMap(p => { const n = doneWhenItems(read(abs(p))).filter(i => !DONE_LABEL.test(i)).length; return n ? [`${p}: ${n} item(s) without a marker ("(file: ...)", "(ran: ...)", "(answer: ...)"), "(hook: <tag>)" or "(judgment: <why>)"`] : []; });
   return { warn, note: `${files.length} files` };
 });
 

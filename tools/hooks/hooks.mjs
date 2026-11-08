@@ -7569,7 +7569,9 @@ export function doneWhenItems(text) {
   return items;
 }
 // one or more tags: "(hook: a)", "(hook: a, b)", "(hooks: a, b)"
-export const DONE_LABEL = /\bhooks?\s*:\s*`?[a-z][\w-]*(?:`?\s*,\s*`?[a-z][\w-]*)*|\bjudgment\b|\bjudgement\b/i;
+// (or a marker the end check tests, "(file: ...)", "(ran: ...)", "(answer: ...)"; "(when file: ...)" alone is a condition,
+// not a proof. Lesson (audit): the runbook template asks for markers, and an item written that way was called unproven)
+export const DONE_LABEL = /\bhooks?\s*:\s*`?[a-z][\w-]*(?:`?\s*,\s*`?[a-z][\w-]*)*|\bjudgment\b|\bjudgement\b|\((?:file|ran|answer)\s*:/i;
 
 // ---------- runbook ledger (config "runbookLedger") ----------
 // The routed runbook's "Done when" list is the turn's checklist: given at the prompt, kept by the agent as a record in
