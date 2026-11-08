@@ -37,6 +37,9 @@ never get this file.
      every test names `--full`).
    - d. It reports back. Upgrade from here only when no session works there and it has nothing uncommitted (engine
      runbook, Pitfalls).
+   - e. Never ask the user to start an upgrade: this job is the authority for it. Check the project's processes that
+     the upgrade started; if its session has not picked it up, chase it, or run it from here when the rule in d allows.
+     Lesson (2026-11-08): the answer told the user to type the upgrade into a project, and they were upset.
 5. **Confirm** each project's report: new engine commit, no checks failing that passed before, hook times. A
    regression is a new problem: back to step 2.
 6. **Repeat until a round finds nothing:** every issue found goes back through step 2 (the matching runbook or
