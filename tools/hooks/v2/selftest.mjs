@@ -1004,6 +1004,15 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     report(!/acknowledged/.test(first) && /acknowledged: the summary named a file/.test(own),
       'pretool: a new session shows no other session\'s old "acknowledged" line; its own new Issue line still shows', { first: first.slice(0, 200), own: own.slice(0, 200) });
   }
+  // (the draft check: the health line alone is a pass on a first or a repeat check; a repeat's real item still fails)
+  {
+    const { previewOf } = await import('../hooks.mjs');
+    const tail = '\nFix what isn\'t done. Then tell the user ...';
+    const a = previewOf(`Not done yet:\n- (the health check would run here)${tail}`), b = previewOf(`Still not done (do it now):\n- (the health check would run here)${tail}`);
+    const c2 = previewOf(`Still not done (do it now):\n- Run the tests${tail}`), d = previewOf(`Check that these items of x.md are really done:\n1. y${tail}`), e = previewOf(undefined);
+    report(!a.real && !a.text && !b.real && !b.text && c2.real && /Run the tests/.test(c2.text) && !d.real && /really done/.test(d.text) && !e.real,
+      'check preview: the health line alone passes on a first or a repeat check; a repeat\'s real item fails; a verify list alone does not', { a, b, c2, d });
+  }
   // (the checks a project wrote itself are listed for its upgrade to turn into "Done when" lines; shipped ones are not)
   {
     const { projectChecks } = await import('../hooks.mjs');

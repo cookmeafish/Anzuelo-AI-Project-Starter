@@ -3338,6 +3338,15 @@ export function forbiddenRe(cfg = config()) {
   const t = forbiddenTerms(cfg);
   return t.length ? new RegExp(`(?<![\\p{L}\\p{N}_-])(${t.map(esc).join('|')})(?![\\p{L}\\p{N}_-])`, 'giu') : null;
 }
+// The draft check's text from the end check's reason: the health line (not run in a preview) left out, and real = an
+// item is still missing (a first or a repeat block). Lessons (live): the health line read as a miss; with only that line
+// a repeat's heading stood empty; and a repeat's real items exited 0
+export function previewOf(reason) {
+  const text = String(reason || '').replace(/^- \(the health check would run here\)\n/m, '').replace(/^(Not done yet|Still not done[^\n]*):\n(?=This is the last|Check that|Fix what)/, '')
+    .replace(/(^|\n)Fix what isn't done\.[\s\S]*$/, '$1Fix these, then send the answer once.');
+  if (!reason || text.replace(/^This is the last check[^\n]*\n/m, '').trim() === 'Fix these, then send the answer once.') return { text: '', real: false };
+  return { text, real: /^(Not done yet|Still not done)/.test(text) };
+}
 // (the list itself and the engine's state never count)
 const FORBID_EXEMPT = /^(tools\/hooks\/config\.json|tools\/hooks\/state\/|\.cache\/|\.git\/)/;
 const countRe = (rx, s) => rx ? (String(s || '').match(rx) || []).length : 0;
@@ -9306,8 +9315,8 @@ async function v2Cli(cmd) {
   // the real end check still comes fresh. Lesson (the user, 2026-11-07): send the answer once, when it is ready, not
   // again after each block)
   const af = process.argv.indexOf('--answer-file'), draft = af > 0 ? (() => { try { return fs.readFileSync(path.resolve(ROOT, process.argv[af + 1] || ''), 'utf8'); } catch { return ''; } })() : '';
-  if (tp) { const who = lib.callerTranscript(tp, sid); const d = (await import('./v2/end.mjs')).onStop({ transcript_path: who.file, session_id: who.id ? `${sid}-${who.id}` : sid, ...(draft ? { last_assistant_message: draft } : {}) }, { shadow: true }); const text = d ? d.reason.replace(/^- \(the health check would run here\)\n/m, '').replace(/^Not done yet:\n(?=Check that|Fix what)/, '').replace(/\nFix what isn't done\.[\s\S]*$/, '\nFix these, then send the answer once.') : '';
-    const real = /^Not done yet:/.test(text); console.log(text ? `CHECK: ${text}` : 'CHECK: PASS'); return real ? 1 : 0; }
+  if (tp) { const who = lib.callerTranscript(tp, sid); const d = (await import('./v2/end.mjs')).onStop({ transcript_path: who.file, session_id: who.id ? `${sid}-${who.id}` : sid, ...(draft ? { last_assistant_message: draft } : {}) }, { shadow: true });
+    const { text, real } = previewOf(d?.reason); console.log(text ? `CHECK: ${text}` : 'CHECK: PASS'); return real ? 1 : 0; }
   const book = turn.runbook && lib.runbooks().find(b => b.file === turn.runbook);
   console.log(book?.items.length ? `CHECK: verify that each item of ${book.file} is really done (skip any that don't fit this work), fix what isn't, then answer:\n${book.items.map(it => `${it.n}. ${it.text}`).join('\n')}` : 'CHECK: PASS');
   return 0;
