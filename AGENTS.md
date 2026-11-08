@@ -76,7 +76,9 @@
    reports and tables go in a file (`docs/reviews/`, the spec), one line in the answer. No record lines, check names
    or waivers in the answer. Shortening keeps paths, names, commands, code, numbers and every "not" exact
    (compress-for-ai).
-8. **The whole request, exactly.** Messages typed while you work are part of it. "Give me 5" means 5. A redo says what
+8. **The whole request, exactly.** Messages typed while you work are part of it: a question typed then is answered
+   in a line before the next command, and runs over about a minute go in the background so nothing waits behind
+   them (2026-11-08). "Give me 5" means 5. A redo says what
    changed. **And nothing twice:** a step two tasks share is done once; a check, test, read or helper is not repeated
    when nothing changed, unless the user asked (plan skill, "Shared steps once").
 9. **GUI changes pass the screenshot loop** (gui pack, gui-review-loop skill): shoot, look at every screenshot, fix,

@@ -61,7 +61,8 @@ const walk = (d, pred, acc = [], skip = SKIPDIR) => {
 };
 const isTemplate = exists('.starter-template');
 const pbs = playbooks();
-const hooksSrc = read(abs('tools/hooks/hooks.mjs')) + read(abs('tools/hooks/v2/guard.mjs'));
+// (every v2 module counts, not only the guard: a REQ the end check or the mid-task notes enforce is enforced)
+const hooksSrc = read(abs('tools/hooks/hooks.mjs')) + (() => { try { return fs.readdirSync(abs('tools/hooks/v2')).filter(f => f.endsWith('.mjs') && f !== 'selftest.mjs').map(f => read(abs(`tools/hooks/v2/${f}`))).join('\n'); } catch { return ''; } })();
 // the project's own scenarios count too, and while an upgrade's move is pending, the ones kept from the old test file
 const legacyScenarios = read(abs('tools/hooks/legacy-scenarios.txt'));
 // (and the v2 engine's own tests, which new checks get as the old scenarios move there: plan engine v2 only, 1d)

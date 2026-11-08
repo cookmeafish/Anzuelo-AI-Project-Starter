@@ -27,6 +27,12 @@ replaces that with "port each one, or ask"), [clean exit](2026-11-08-clean-exit.
    six "skip" lines for a runbook checklist that did not fit a text answer; and it writes record lines into a notes file
    every turn. Both are retired kinds (forced checklists, record lines): find what still asks for them under v2 and
    remove that.
+7b. A regression that reached users (2026-11-08): REQ queued-messages (row 3, 2026-10-17) lost its end-of-turn
+   enforcement under v2; only a one-time hint at the next tool call was rebuilt, and a question typed mid-task waited
+   behind a long run. Root cause: the parity list covered only lines the user sees, not what the end check held, and
+   it was never cross-checked against user-requirements.md; the audit also counted REQ tags only in v2's guard. Done:
+   the v2 end check holds it, the hint repeats once, the audit reads every v2 module (REQ: late-answered). Task 2 now
+   cross-checks every REQ id.
 8. The cause behind all of these: "v2 only" was planned as keep, replace or delete per code name, and no step compared
    what the user gets under each engine. Rule 16 now says an upgrade never quietly takes away what the user saw
    working (REQ: engine-parity).

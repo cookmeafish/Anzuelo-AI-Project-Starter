@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { passLine } from './lines.mjs';
+import { unansweredLate } from './midturn.mjs';
 import { ROOT, at, runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, questionGaps, noteGaps, quoteGaps, tail, helpersRunning, backgroundRuns, helperRuns, evidenceGaps, evidenceOf, skillBooks } from './lib.mjs';
 
 // Check 1: the routed runbook, else the one the agent opened (not a skill it names), was followed and its checkable
@@ -22,9 +23,18 @@ const chosen = (turn, acts, books) => { const routed = turn.runbook && books.fin
 // says why. Lesson (a project's report): the block offered that way out, and the line that took it was held again.
 // (or names a path the item names, and says why in plain words: agents rarely write "item 3")
 const NOFIT = /\b(does(?:n['’]t| not) (?:fit|apply)|not (?:applicable|needed|relevant)|n\/a|(?:was|is)(?:n['’]t| not) part of|not part of|never asked|not asked|(?:is|was)(?:n['’]t| not) for (?:this|that|a|an)|not for this|(?:does|did)(?:n['’]t| not) (?:follow|use) it because)\b/i;
+// A plain "not run yet" with its reason in the same or the next sentence clears the item that shares at least two of
+// its words (stems). Lesson (2026-11-08): "the full suite hasn't run; it runs before the release" was held 3 rounds.
+const NOTDONE = /\b(?:has|have|was|were|is|are|did)(?:n['’]t| not)(?: yet)? (?:been )?(?:run|done|pushed|committed|started)\b|\bnot (?:yet )?(?:run|pushed|committed)\b|\bdeferred\b/i;
+const REASON = /\b(because|since|until|before|after|waits? (?:for|until)|so that)\b|\s[-–:]\s/i;
+const STOP = new Set(['user', 'only', 'this', 'that', 'with', 'from', 'have', 'been', 'work', 'done', 'what', 'when', 'your', 'they', 'then', 'than', 'item', 'answer']);
+const stems = s => new Set((s.toLowerCase().match(/[a-z]{4,}/g) || []).filter(w => !STOP.has(w)).map(w => w.slice(0, 4)));
 const kept = acts => {
   // (one clause at a time: "item 3 done; item 5 n/a" clears item 5 only)
-  const lines = String(acts.answer || acts.said || '').replace(/`/g, '').split(/\n|;|\.\s+/).filter(l => NOFIT.test(l));
+  const all = String(acts.answer || acts.said || '').replace(/`/g, '').split(/\n|;|\.\s+/);
+  const lines = all.filter(l => NOFIT.test(l));
+  const later = all.flatMap((l, i) => NOTDONE.test(l) && (REASON.test(l) || REASON.test(all[i + 1] || '')) ? [stems(`${l} ${all[i + 1] || ''}`)] : []);
+  const about = text => { const w = stems(text); return later.some(s => [...w].filter(x => s.has(x)).length >= 2); };
   // (a line that names the runbook itself, by path, file name or "the <name> runbook", clears its "Open" ask and all
   // its items: the route was a guess. Lesson (a live false block): three rounds went on a misrouted runbook, and a plain
   // "the project runbook doesn't fit this" never cleared the ask to open it)
@@ -32,7 +42,7 @@ const kept = acts => {
   return s => {
     const o = /^Open (\S+\.md) and\b/.exec(s); if (o) return !named(o[1]);
     const m = /^(\S+) item (\d+): (.*)$/.exec(s); if (!m) return true;
-    if (named(m[1])) return false;
+    if (named(m[1]) || about(m[3])) return false;
     m.splice(1, 1);
     const paths = (m[2].match(/[\w.-]*[\w-]\/[\w./*-]*|\b[\w-]+\.(?:md|json|mjs|js|py|ts|csv)\b/g) || []).filter(p => !/^(and|either)\/or$/i.test(p));
     return !lines.some(l => new RegExp(`\\bitems?\\s*(?:\\d+\\s*(?:,|and)\\s*)*${m[1]}\\b`, 'i').test(l) || paths.some(p => l.includes(p)));
@@ -146,7 +156,9 @@ function judge(data, { shadow = false } = {}) {
   // Lesson (2026-11-07): an Issue line in the first answer re-blocked the corrected answer that had none)
   if (again && turn.lastBlock) { const after = turnActs(rows.filter(r => (Date.parse(r.timestamp || '') || 0) > turn.lastBlock)); acts.said = after.said + (final && !after.said.includes(final) ? `${final}\n` : ''); acts.answer = final || after.answer || acts.answer; }
   const history = evidenceOf(tail(data.transcript_path, 5 << 20));
-  const list = [...missing(turn, acts), ...skillMissing(acts), ...reviewGaps(turn, acts), ...testGaps(acts, history), ...gateGaps(acts), ...screenGaps(acts), ...healthGaps(acts, { run: !shadow }), ...knowledgeGaps(acts), ...securityGaps(acts), ...questionGaps(acts), ...noteGaps(acts), ...quoteGaps(acts), ...claimGaps(acts, history)].filter(kept(acts));
+  const late = unansweredLate(rows, final).map(m => `Answer the user's message typed at ${String(m.at).slice(11, 16) || 'mid-task'}: "${m.text.replace(/\s+/g, ' ').slice(0, 200)}"`);
+  const extra = (turn.also || []).flatMap(f => missing({ ...turn, runbook: f }, acts, runbooks().filter(b => b.file === f)));
+  const list = [...late, ...missing(turn, acts), ...extra, ...skillMissing(acts), ...reviewGaps(turn, acts), ...testGaps(acts, history), ...gateGaps(acts), ...screenGaps(acts), ...healthGaps(acts, { run: !shadow }), ...knowledgeGaps(acts), ...securityGaps(acts), ...questionGaps(acts), ...noteGaps(acts), ...quoteGaps(acts), ...claimGaps(acts, history)].filter((s, i, all) => all.indexOf(s) === i).filter(kept(acts));
   // (a turn that ran the check on its draft has seen the verify list: the real stop does not send it back for it again.
   // Lesson (the user, 2026-11-07): the list came in the draft check and then again as a send-back, and the user read a
   // second round of the answer)

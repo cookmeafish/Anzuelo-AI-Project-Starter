@@ -111,7 +111,10 @@ export function onPrompt(data) {
   const prev = loadTurn(data.session_id);
   // (an upset message from the user, not a relay, marks the turn: its end check asks for a fresh reviewer)
   const sore = upsetIn(data.prompt || '') && !relayedRx.test(String(data.prompt || '')) ? { upset: true } : {};
-  if (prev.at && !prev.ended && Date.now() - Date.parse(prev.at) < 12 * 3600_000) saveTurn(data.session_id, { ...prev, runbook: prev.runbook || book?.file || null, ...sore });
+  // (REQ: queued-messages: a request typed mid-turn that fits another runbook adds it, and its "Done when" is checked
+  // too. Lesson (2026-11-08): v2 kept only the first runbook, and a typed request's own checks were dropped)
+  const also = prev.runbook && book?.file && book.file !== prev.runbook && !(prev.also || []).includes(book.file) ? [...(prev.also || []), book.file] : prev.also;
+  if (prev.at && !prev.ended && Date.now() - Date.parse(prev.at) < 12 * 3600_000) saveTurn(data.session_id, { ...prev, runbook: prev.runbook || book?.file || null, ...(also ? { also } : {}), ...sore });
   else saveTurn(data.session_id, { at: new Date().toISOString(), runbook: book?.file || null, ...sore });
   return text ? { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: text } } : null;
 }

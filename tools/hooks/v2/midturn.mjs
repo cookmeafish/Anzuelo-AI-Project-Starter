@@ -32,6 +32,36 @@ export function lateMessages(data) {
   return out;
 }
 
+// REQ: queued-messages (2026-10-17). A question the user typed mid-turn is part of the request: the turn is held until
+// a later text of the agent's answers it (shares a quarter of its key words, at least one, or a yes/no opens the reply
+// to a yes/no question). The final answer counts. Lesson (2026-11-08): v2 kept only the hint at the next tool call, and
+// a question waited unanswered while a long run went on.
+// (an instruction is not a question: "do this one", "do multiple checks" asks for work; "do you", "does it" asks.
+// Replay of real sessions: imperatives opening with "do" were held as unanswered questions)
+const ASK = /^\s*(?:what|why|how|which|who|where|when|should|is|are|was|were|can|could|would|will|has|have|any|tell me|show me|qu[eé]|por ?qu[eé]|c[oó]mo|cu[aá]l|d[oó]nde|cu[aá]ndo|es|est[aá])\b|^\s*(?:do|does|did)\s+(?:you|i|we|they|it|he|she|this|that|these|those|there|anyone)\b(?!\s+(?:one|for|and|now|first)\b)/i;
+const YES =/^[\s*_>#-]*(?:yes|no|yeah|yep|nope|not (?:really|quite|fully|yet)|s[ií])\b/i;
+const STOPW = new Set(['what', 'that', 'this', 'with', 'from', 'have', 'there', 'they', 'then', 'than', 'your', 'about', 'still', 'does', 'were', 'when', 'which', 'would', 'could', 'should', 'tell', 'show', 'need', 'needs', 'some', 'things', 'thing']);
+const keys = s => [...new Set((s.toLowerCase().match(/[\p{L}\d]{4,}/gu) || []).filter(w => !STOPW.has(w)))];
+export function unansweredLate(rows, final = '') {
+  const qs = [], texts = [];
+  rows.forEach((r, i) => {
+    const c = r.message?.content, words = p => Array.isArray(p) ? p.filter(b => b?.type === 'text').map(b => b.text).join('\n') : String(p || '');
+    const q = (r.type === 'attachment' && r.attachment?.type === 'queued_command' ? words(r.attachment.prompt) : r.type === 'user' && LATE.test(words(c)) ? words(c) : '')
+      .replace(LATE, '').replace(/\n*This is how Claude Code surfaces[\s\S]*$/, '').trim();
+    if (q && !q.startsWith('<') && q.length < 1500 && (/[?？]\s*$/.test(q) || ASK.test(q))) qs.push({ q, i, at: r.timestamp || '' });
+    if (r.type === 'assistant' && Array.isArray(c)) for (const b of c) if (b?.type === 'text' && b.text.trim()) texts.push({ t: b.text, i });
+  });
+  if (final) texts.push({ t: final, i: rows.length });
+  return qs.filter(({ q, i }) => {
+    const later = texts.filter(t => t.i > i);
+    // (a reply that opens with yes or no answers a question however it was worded: "I thought you would ...?" "Yes.")
+    if (later.some(t => YES.test(t.t))) return false;
+    const w = keys(q); if (!w.length) return !later.length;
+    const need = Math.max(1, Math.round(w.length / 4));
+    return !later.some(t => { const k = new Set(keys(t.t)); return w.filter(x => k.has(x)).length >= need; });
+  }).map(({ q, at }) => ({ at, text: q }));
+}
+
 // For a helper: the newest typed message that names more pictures than it carries, with the saved files for them.
 export function missingImages(data, tmp = os.tmpdir()) {
   if (!data.agent_id || !data.transcript_path) return null;
@@ -50,10 +80,26 @@ export function missingImages(data, tmp = os.tmpdir()) {
   return { ...last, dir, files: last.nums.map(n => names.find(f => new RegExp(`^${n}\\.\\w+$`).test(f))).filter(Boolean).map(f => path.join(dir, f)) };
 }
 
+// REQ: late-answered. Which messages to tell the agent about at this tool call, given what was told before ({ key: calls since told }):
+// each once, and once more after 2 further tool calls with no reply; and which told ones have their reply now.
+// Lesson (2026-11-08): one note was not enough; the agent made 4 more calls and started a long run, and the question
+// waited minutes.
+export function lateDue(told, ms, key) {
+  const now = Object.fromEntries(ms.map(m => [key(m), m])), next = {}, say = [], answered = [];
+  for (const [k, n] of Object.entries(told)) if (!(k in now)) { if (n !== 'done') answered.push(k); } else next[k] = n;
+  for (const [k, m] of Object.entries(now)) {
+    if (!(k in next)) { next[k] = 0; say.push(m); }
+    else if (typeof next[k] === 'number' && ++next[k] >= 2) { next[k] = 'again'; say.push(m); }
+  }
+  for (const k of answered) next[k] = 'done';
+  return { say, again: say.some(m => next[key(m)] === 'again'), answered: answered.length, told: next };
+}
+
 // What the agent is told, once per message.
 // (answered where the user asked: a helper's hand-back shows only in the main chat. Lesson (the user): a question typed
 // into a helper's chat was answered in the main chat, and looked ignored where it was asked)
-export const lateNote = ms => `The user wrote while you work: ${ms.map(m => `"${m.text.replace(/\s+/g, ' ').slice(0, 300)}"`).join(' and ')}. `
+export const lateNote = (ms, again = false) => `${again ? 'Still unanswered: the' : 'The'} user wrote while you work: ${ms.map(m => `"${m.text.replace(/\s+/g, ' ').slice(0, 300)}"`).join(' and ')}. `
+  + (again ? 'Write the answer as text now, before this or any other command; start long runs in the background. ' : '')
   + 'Answer it now in a line or two (a question first, in their language), as text in this chat, where they asked, then go on with the work; never leave it waiting until the work ends.';
 export const imagesNote = m => `The user's message names ${m.nums.map(n => `[Image #${n}]`).join(' ')}, but the pictures did not reach you (a message `
   + 'passed to a busy helper carries text only). Do not ask the user to send them again. '

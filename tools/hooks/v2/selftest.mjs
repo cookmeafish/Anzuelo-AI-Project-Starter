@@ -417,6 +417,12 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
   const clause = waived({ answer: 'Item 1 is done; item 2 does not apply here.' }, gaps);
   report(clause.some(s => /item 1:/.test(s)) && !clause.some(s => /item 2:/.test(s)), 'end: a not-fit clause clears only the item it names, not another item on the same line', clause);
   report(waived({ answer: 'Tests and/or docs were not needed.' }, ['docs/playbooks/r.md item 4: Tests and/or docs are updated']).length === 1, 'end: "and/or" is not a path that clears an item');
+  // (oversight, 2026-11-08: a plain "not run yet" with its reason in the next sentence was held 3 rounds)
+  const chain = ['r.md item 5: The full chain passed and was committed with the user as the only author; pushed only with the user\'s OK', 'r.md item 6: The project got a reply'];
+  const deferred = waived({ answer: 'The full test suite hasn\'t run on today\'s local commits yet. It runs right before the next release, and that push waits for your OK.' }, chain);
+  report(deferred.length === 1 && /item 6/.test(deferred[0]), 'end: a plain "not run yet" with its reason clears the item it is about, by its words, and only that one', deferred);
+  report(waived({ answer: 'The full suite has not run yet.' }, chain).length === 2 && waived({ answer: 'The export has not run yet because the server was down.' }, chain).length === 2,
+    'end: "not run" with no reason, or about something else, clears nothing');
   // (edited by a script, not an edit tool: the routed runbook changed during the turn)
   const at = new Date(Date.now() - 60000).toISOString();
   const book = path.join(dir, 'docs/playbooks/export.md'), was = fs.statSync(book);
@@ -483,6 +489,13 @@ report(onStop({ stop_hook_active: true, transcript_path: transcript([user('add a
   report(t2.at === t1.at && t2.runbook === 'docs/playbooks/export.md' && t3.at !== t1.at && t3.runbook === 'docs/playbooks/windows.md',
     'start: a message that arrives mid-turn joins the turn (same start, same runbook); after a passing Stop the next one starts a new turn', [t1, t2, t3]);
   report(next?.decision === 'block' && /^Not done yet/.test(next?.reason || ''), 'end: a new request starts its own count of blocks', next?.reason);
+  // (REQ: queued-messages: a request typed mid-turn that fits another runbook is checked against it too)
+  onPrompt({ session_id: 'join2', prompt: 'add a csv export' }); onPrompt({ session_id: 'join2', prompt: 'rotate the logs too' });
+  const both = onStop({ transcript_path: transcript(good), session_id: 'join2' });
+  onPrompt({ session_id: 'join3', prompt: 'add a csv export' });
+  const alone = onStop({ transcript_path: transcript(good), session_id: 'join3' });
+  report(loadTurnT('join2').also?.includes('docs/playbooks/windows.md') && /windows\.md/.test(both?.reason || '') && !/windows\.md/.test(alone?.reason || ''),
+    'end: a request typed mid-turn that fits another runbook adds it, and its steps are checked too (queued-messages)', [both?.reason, alone?.reason]);
 }
 put('docs/CHANGELOG.md', '# Changelog\n');
 const turnStart = new Date(Date.now() + 50).toISOString();
@@ -1338,6 +1351,27 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
       const one = pre('sq1', fq), again = pre('sq1', fq), other = pre('sq2', fq);
       report(/first question/.test(one) && /second question/.test(one) && !/additionalContext/.test(again) && /first question/.test(other),
         'late: two messages typed at the same time are both handed over, once each, and each session keeps its own record', { one: one.slice(0, 300), again: again.slice(0, 200), other: other.slice(0, 200) });
+      // (told once more after 2 further calls with no reply, then never; the user's line promises nothing, and says
+      // "answered" once the reply exists. Lesson (2026-11-08): one note, then 4 calls and a long run, no answer)
+      const third = pre('sq1', fq), fourth = pre('sq1', fq);
+      fs.appendFileSync(fq, JSON.stringify({ type: 'assistant', timestamp: '2026-01-01T00:00:05Z', message: { content: [{ type: 'text', text: 'Here is the answer.' }] } }) + '\n');
+      const fifth = pre('sq1', fq), sixth = pre('sq1', fq);
+      report(/Still unanswered/.test(third) && !/additionalContext/.test(fourth) && /answered your message/.test(fifth) && !/💬/.test(sixth) && ![one, third].some(o => /answers you first/.test(o)),
+        'late: an unanswered message is told once more after 2 more tool calls, then not again; the user\'s line promises nothing and says answered once the reply exists (late-answered)', { third: third.slice(0, 300), fourth: fourth.slice(0, 200), fifth: fifth.slice(0, 300), sixth: sixth.slice(0, 200) });
+    }
+    // (REQ: queued-messages, a regression that reached users: v2 kept only the hint, and the end check never held a
+    // question typed mid-turn. Held until a later text answers it; an answer clears it; the message is part of the request)
+    {
+      const { turnActs } = await import('./lib.mjs');
+      const rows = [{ type: 'user', message: { role: 'user', content: 'tidy the export folder' } },
+        { type: 'assistant', message: { content: [{ type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'ls' } }] } },
+        { type: 'attachment', attachment: { type: 'queued_command', prompt: 'which files did you move so far?' } },
+        { type: 'attachment', attachment: { type: 'queued_command', prompt: '<task-notification>done</task-notification>' } },
+        { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 't1', content: 'a b' }] } }];
+      const f = tfile('late-stop', stamp([rows], 0));
+      const held = stop('ls1', f, 'Tidied the export folder.'), freed = stop('ls2', f, 'So far I moved two files: a and b. Tidied the export folder.');
+      report(/Answer the user's message typed at \d\d:\d\d: \W*which files did you move so far\?/.test(held) && !/Answer the user's message/.test(freed) && /which files/.test(turnActs(rows).heard) && !/task-notification/.test(turnActs(rows).heard),
+        'stop: a question typed mid-turn holds the turn until a text answers it; an answer clears it; it is part of the request, notices are not (queued-messages)', JSON.stringify({ held: held.slice(0, 300), freed: freed.slice(0, 300) }));
     }
     fs.writeFileSync(path.join(c4, '.cache/turn-notes.md'), 'Issue: the notes file had a typo | runbook: learn-from-upset | fixed when: the typo is gone\n');
     fs.writeFileSync(path.join(c4, 'notes.md'), 'teh notes\n');

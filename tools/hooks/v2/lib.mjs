@@ -301,6 +301,10 @@ export function turnActs(rows) {
     started ||= r.timestamp || '';
     // (what the hooks and the host showed the agent this turn: evidence too, like a version a status line named)
     if (r.attachment) context += JSON.stringify(r.attachment.content ?? r.attachment).slice(0, 20000) + '\n';
+    // (REQ: queued-messages: a message typed mid-turn that waited in the queue is part of the request too)
+    const qp = r.attachment?.type === 'queued_command' ? r.attachment.prompt : null;
+    const qt = Array.isArray(qp) ? qp.filter(b => b?.type === 'text').map(b => b.text).join('\n') : String(qp || '');
+    if (qt.trim() && !qt.trim().startsWith('<')) heard += qt.slice(0, 20000) + '\n';
     // (only the conversation's own rows: the host's request copies repeat results with no time. Lesson (trial): a copy
     // erased when each test run ended, and runs that passed after the last change were asked for again)
     if (r.type !== 'user' && r.type !== 'assistant') continue;

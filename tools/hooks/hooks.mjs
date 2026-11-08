@@ -5107,11 +5107,15 @@ function cmdPretool(data) {
   // time, or none, counted as one, and helpers taking turns re-told each other's pictures (a fresh review))
   const fresh = (name, items, key) => { const told = readJSON(stateFile(name), {}).ats || [], out = items.filter(m => !told.includes(key(m)));
     if (out.length) writeState(name, { ats: [...told, ...out.map(key)].slice(-50) }); return out; };
-  const late = MIDTURN ? (() => { try { const ms = fresh('late-told.json', MIDTURN.lateMessages(data), m => `${data.agent_id || ''}|${m.at}|${m.text.slice(0, 80)}`);
-    return ms.length ? MIDTURN.lateNote(ms) : ''; } catch { return ''; } })() : '';
+  // (told again once after 2 more tool calls with no reply; the user's line says only what is true: told, then answered)
+  let replied = 0;
+  const late = MIDTURN ? (() => { try { const r = MIDTURN.lateDue(readJSON(stateFile('late-told.json'), {}).told || {}, MIDTURN.lateMessages(data), m => `${data.agent_id || ''}|${m.at}|${m.text.slice(0, 80)}`);
+    writeState('late-told.json', { told: Object.fromEntries(Object.entries(r.told).slice(-50)) }); replied = r.answered;
+    return r.say.length ? MIDTURN.lateNote(r.say, r.again) : ''; } catch { return ''; } })() : '';
   const img = MIDTURN ? (() => { try { const m = MIDTURN.missingImages(data); return m && fresh('images-told.json', [m], x => `${data.agent_id}|${x.at}|${x.nums.join(',')}`).length ? MIDTURN.imagesNote(m) : ''; } catch { return ''; } })() : '';
   const notes = [late, img, ...(data.agent_id || V2_PRETOOL ? [] : [overlapNotice(data), (() => { try { return scopeNotice(data); } catch { return null; } })()])].filter(Boolean).join('\n');
-  const heard = late ? `${brand()} 💬 your message reached ${data.agent_id ? 'the helper' : 'Claude'} mid-task: it answers you first` : '';
+  const who = data.agent_id ? 'the helper' : 'Claude';
+  const heard = late ? `${brand()} 💬 your message reached ${who} mid-task` : replied ? `${brand()} 💬 ${who} answered your message` : '';
   const ack = HOST === 'claude-code' ? [acked, heard, runningLine(d)].filter(Boolean).map(l => visibleLines(l)).filter(Boolean).join('\n') : '';
   if (brief || bare || notes || ack) process.stdout.write(JSON.stringify({ ...(brief || bare || notes ? { hookSpecificOutput: { hookEventName: 'PreToolUse', ...(brief || bare ? { updatedInput: d.tool_input } : {}), ...(notes ? { additionalContext: notes } : {}) } } : {}), ...(ack ? { systemMessage: ack } : {}) }));
 }

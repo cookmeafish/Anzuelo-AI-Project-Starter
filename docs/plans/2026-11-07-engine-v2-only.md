@@ -142,7 +142,9 @@ Settled with the oversight session the same day (the user asked both sessions to
   (every tool call) at most 600 lines; the reminder (every message) at most 400; the end check (once per turn, loaded
   only at Stop) at most 2,000; the shared base modules (settings, paths, repo, git-guard) at most 700; the whole
   engine at most 4,000 lines without tests. The size test checks each part. After the migration each ceiling becomes
-  a ratchet at the measured size: anything that adds lines removes some first.
+  a ratchet at the measured size: anything that adds lines removes some first. If parity truly needs more than a
+  ceiling after compacting, the overrun is reported to the user with the parts that cause it; behavior is never cut
+  to fit.
 - Parity first: every sweep group the user has not retired is ported with a v2 test, or shown to be done another way
   by a v2 test. Only the retired kinds (each with its date) stay out.
 - Port by kind, not line for line: end checks that are a pattern, a condition and an item text become rows of one data
