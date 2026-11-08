@@ -8635,6 +8635,28 @@ if (mineB() && (!TAGS || TAGS.includes('layout-split')) && fs.existsSync(path.jo
       JSON.stringify({ session: session.status, prompt: prompt.slice(0, 200), secret: secret.slice(0, 200), sync: [sync.status, (sync.stderr || '').slice(0, 300)], same, audit: [audit.status, (audit.stdout || '').split('\n').filter(l => /FAIL|^\s+-/.test(l)).slice(0, 12)], stateAt }));
   } finally { fs.rmSync(proj, { recursive: true, force: true }); }
 }
+if (mineB() && (!TAGS || TAGS.includes('layout-split')) && fs.existsSync(path.join(ROOT, '.starter-template'))) {
+  // install from the starter (its committed engine): the engine is a clone in .anzuelo/engine, an existing project
+  // keeps its files, and setup asks once whether .anzuelo/local gets a private repository: the gate holds until the
+  // answer is recorded, and yes and no both clear it. Plan: engine outside the project, Task 4.
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-install-'));
+  try {
+    const proj = path.join(tmp, 'p'); fs.mkdirSync(proj); fs.writeFileSync(path.join(proj, 'README.md'), '# Their own readme\n');
+    const ins = spawnSync(process.execPath, [path.join(ROOT, 'tools/starter.mjs'), 'install', proj], { encoding: 'utf8', timeout: 300000 });
+    const eng = path.join(proj, '.anzuelo', 'engine'), loc = path.join(proj, '.anzuelo', 'local');
+    const gate = () => { const r = spawnSync(process.execPath, ['--input-type=module', '-e', `const m = await import(${JSON.stringify(pathToFileURL(path.join(eng, 'tools/hooks/hooks.mjs')).href)}); console.log(JSON.stringify(m.setupCompleteness()));`], { cwd: proj, encoding: 'utf8', timeout: 60000 }); try { return JSON.parse(r.stdout).join('\n'); } catch { return `ERR ${r.stderr}`; } };
+    const asks = q => /private git repository of their own/.test(q);
+    const before = gate();
+    const answer = a => spawnSync(process.execPath, [path.join(eng, 'tools/starter.mjs'), 'local-repo', a], { cwd: proj, encoding: 'utf8' });
+    const yes = answer('yes'), afterYes = gate(), repo = fs.existsSync(path.join(loc, '.git'));
+    const no = answer('no'), afterNo = gate(), cfg = (() => { try { return JSON.parse(fs.readFileSync(path.join(loc, 'config.json'), 'utf8')); } catch { return {}; } })();
+    report(ins.status === 0 && fs.existsSync(path.join(eng, '.git')) && fs.existsSync(path.join(eng, 'tools/hooks/hooks.mjs')) && fs.readFileSync(path.join(proj, 'README.md'), 'utf8') === '# Their own readme\n'
+      && fs.existsSync(path.join(loc, 'docs/STATUS.md')) && !fs.existsSync(path.join(loc, 'AGENTS.md')) && fs.existsSync(path.join(proj, 'CLAUDE.local.md'))
+      && asks(before) && yes.status === 0 && !asks(afterYes) && repo && no.status === 0 && !asks(afterNo) && cfg.privateRepo === false,
+      'install: the engine is cloned into .anzuelo/engine, the project keeps its own files, and the setup gate asks about a private repository for .anzuelo/local until yes or no is recorded',
+      JSON.stringify({ ins: [ins.status, (ins.stdout || '').slice(-300), (ins.stderr || '').slice(0, 300)], before: before.slice(0, 300), afterYes: afterYes.slice(0, 200), repo, afterNo: afterNo.slice(0, 200), cfg }));
+  } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+}
 if (mineB() && (!TAGS || TAGS.includes('upset-learned'))) { // the user sees "acknowledged" as soon as the agent writes its
   // Issue line, once (Lesson (the user): it should show as soon as the agent decides it is a real issue to fix)
   const dir = takeCopy();

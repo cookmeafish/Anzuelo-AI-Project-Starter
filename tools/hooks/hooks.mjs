@@ -10,7 +10,7 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
-import { PROJECT, ENGINE, where, whereWrite, relOf, listAll, kind, split } from './paths.mjs';
+import { PROJECT, ENGINE, LOCAL, where, whereWrite, relOf, listAll, kind, split } from './paths.mjs';
 
 // ROOT is the project; engine files are found through abs() (paths.mjs decides the root per path, and in the starter
 // every root is this one folder).
@@ -3042,7 +3042,10 @@ export function syncNames(cfg = config(), { force = false } = {}) {
   const nm = names(), key = JSON.stringify(nm), stampFile = path.join(STATE, 'names.json');
   if (!force && readJSON(stampFile, {}).names === key) return [];
   const changed = [];
-  for (const p of nameFiles(cfg)) { const t = read(abs(p)); if (NAME_DOCS.test(p) && t.includes('<!--name:') && writeIfChanged(p, stampNames(t, nm))) changed.push(p); }
+  // (an engine file read from .anzuelo/engine keeps its markers as shipped: refilling one would copy it into local, and
+  // the local copy would no longer get the engine's updates)
+  const engines = p => split && !path.relative(ENGINE, abs(p)).startsWith('..');
+  for (const p of nameFiles(cfg)) { if (engines(p)) continue; const t = read(abs(p)); if (NAME_DOCS.test(p) && t.includes('<!--name:') && writeIfChanged(p, stampNames(t, nm))) changed.push(p); }
   writeState('names.json', { names: key });
   return changed;
 }
@@ -3838,6 +3841,7 @@ export function peopleAnswer(raw) {
 // decide: the request says not to ask ("don't ask me, decide everything"). Until "autonomy" is set, the step says to set
 // it, not to ask. Lesson, trial rounds 14 to 16: setups whose user said not to ask were told "ask the user the setup
 // questions and wait", were denied twice each, and one agent read the engine to find the setting.
+export const localRepoAnswer = () => readJSON(path.join(LOCAL, 'config.json'), {}).privateRepo;
 export function setupCompleteness(cfg = config(), { final = false, beforeStarter = false, decide = false } = {}) {
   const probs = [], f = setupInterview(), own = readJSON(CONFIG(), {});
   const packs = own.packs || [];
@@ -3849,6 +3853,9 @@ export function setupCompleteness(cfg = config(), { final = false, beforeStarter
   const missing = keys.filter(k => unanswered(f[k.toLowerCase()]));
   if (missing.length) probs.push(auto || decide ? `docs/DECISIONS.md "## Setup interview": decide and record ${missing.join(', ')} yourself ("- Key: assumed - <answer> - <why>")`
     : `docs/DECISIONS.md "## Setup interview": record the user's answer for ${missing.join(', ')} ("- Key: answer")`);
+  // (the engine in .anzuelo/engine: whether the files made for this project get a private git repository of their own
+  // is asked once, at install or setup. Plan: engine outside the project, Task 4)
+  if (split && typeof localRepoAnswer() !== 'boolean') probs.push('ask the user once: keep the files made for this project (.anzuelo/local) in a private git repository of their own, for history and backup, never part of the project\'s pushes? Record it: node .anzuelo/engine/tools/starter.mjs local-repo yes|no');
   if (!final) return probs;
   // "Let the AI decide everything" holds after setup too: later choices don't ask either
   if (/^decide/i.test(f.involvement || '') && cfg.autonomy !== 'auto') probs.push('Setup interview "Involvement: decide": set "autonomy": "auto" in tools/hooks/config.json, so later choices don\'t ask either');

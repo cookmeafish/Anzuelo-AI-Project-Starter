@@ -109,7 +109,7 @@ sweep('shared files name no private project or person', () => {
 // (with the engine in .anzuelo/engine there are no twins: CLAUDE.local.md imports the engine's rules, and the hooks sit
 // in .claude/settings.local.json, both made by wire.mjs and ignored by git. Plan: engine outside the project, Task 3)
 const SETTINGS = split ? '.claude/settings.local.json' : '.claude/settings.json', GITHOOKS = split ? '.anzuelo/engine/.githooks' : '.githooks';
-sweep('AGENTS.md and CLAUDE.md are identical twins', () => split ? (/^@\.anzuelo\/engine\/AGENTS\.md$/m.test(read(abs('CLAUDE.local.md'))) ? {} : { warn: ['CLAUDE.local.md is made on each machine: run node .anzuelo/engine/tools/hooks/wire.mjs'] }) : !exists('CLAUDE.md') ?{ warn: ['CLAUDE.md is made on each machine: run node tools/hooks/wire.mjs'] } :
+sweep('AGENTS.md and CLAUDE.md are identical twins', () => split ? (/^@\.anzuelo\/(engine|local)\/AGENTS\.md$/m.test(read(abs('CLAUDE.local.md'))) ? {} : { warn: ['CLAUDE.local.md is made on each machine: run node .anzuelo/engine/tools/hooks/wire.mjs'] }) : !exists('CLAUDE.md') ?{ warn: ['CLAUDE.md is made on each machine: run node tools/hooks/wire.mjs'] } :
   read(abs('CLAUDE.md')) && read(abs('CLAUDE.md')) === read(abs('AGENTS.md')) ? {} : { fail: ['AGENTS.md and CLAUDE.md differ or one is missing. Run node tools/hooks/hooks.mjs sync (both must say they "are twins").'] });
 
 sweep('hooks wired for every agent', () => {

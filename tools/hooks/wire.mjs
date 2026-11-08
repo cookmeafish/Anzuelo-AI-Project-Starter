@@ -34,9 +34,10 @@ export function wire(dir, { dry = false } = {}) {
   try { const w = JSON.parse(fs.readFileSync(eng('tools', 'hooks', 'config.json'), 'utf8')).wireAgents; if (Array.isArray(w)) agents = w.map(String); } catch { }
   const on = a => agents.includes(a);
   // CLAUDE.md: Claude Code reads only this name. It starts as a copy of AGENTS.md; the hooks keep the twins in sync.
-  // (split: CLAUDE.local.md imports the engine's rules and the project's own local rules file, so nothing is copied)
+  // (split: CLAUDE.local.md imports the rules, so nothing is copied: the project's local copy when it changed them, as
+  // the hooks read it (local wins), else the engine's)
   if (split && on('claude')) {
-    const text = `@.anzuelo/engine/AGENTS.md\n${fs.existsSync(path.join(dir, '.anzuelo', 'local', 'AGENTS.md')) ? '@.anzuelo/local/AGENTS.md\n' : ''}`;
+    const text = `@.anzuelo/${fs.existsSync(path.join(dir, '.anzuelo', 'local', 'AGENTS.md')) ? 'local' : 'engine'}/AGENTS.md\n`;
     if (!fs.existsSync(at('CLAUDE.local.md')) || fs.readFileSync(at('CLAUDE.local.md'), 'utf8') !== text) { write(at('CLAUDE.local.md'), text); log.push('wrote    CLAUDE.local.md (Claude Code reads the engine\'s rules from here; it may ask once to allow the import)'); }
   } else if (on('claude') && !fs.existsSync(at('CLAUDE.md')) && fs.existsSync(eng('AGENTS.md'))) { write(at('CLAUDE.md'), fs.readFileSync(eng('AGENTS.md'), 'utf8')); log.push('created  CLAUDE.md (a copy of AGENTS.md for Claude Code)'); }
   // Claude Code's hooks: merged into any settings the folder already has

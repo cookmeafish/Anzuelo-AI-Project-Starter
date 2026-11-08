@@ -5,8 +5,14 @@
 //   node tools/starter.mjs keep                   move the pack payloads and the skill library into .starter/ (ignored by
 //                                                 git), so the project can grow later even without the starter folder
 //   node tools/starter.mjs remove                 remove the leftovers and forget the starter
+// With the engine outside the project (plan: docs/plans/2026-11-07-engine-outside-the-project.md):
+//   node tools/starter.mjs install "<folder>" [--private yes|no] [--name ..] [--desc ..]   (from the starter) clone the
+//                                                 engine into <folder>/.anzuelo/engine, the files made for the project
+//                                                 into .anzuelo/local, and wire it through git-ignored local settings
+//   node .anzuelo/engine/tools/starter.mjs local-repo yes|no   record the setup answer: .anzuelo/local as a private git
+//                                                 repository of its own (yes: git init, no remote) or a plain folder
 // Later:
-//   node tools/starter.mjs status                 the choice, the link, what can still be added, and how many commits the
+//   node tools/starter.mjs status                the choice, the link, what can still be added, and how many commits the
 //                                                 linked starter is behind its git origin
 //   node tools/starter.mjs uninstall [--dry-run]  take the engine out of this project: its hooks unwired, its files
 //                                                 removed (backed up in .cache/engine-removed/), the project's own kept
@@ -30,7 +36,7 @@ import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { ROOT, STARTER_LINK, starterLink, starterSources, syncAll, setupCompleteness, usageOf } from './hooks/hooks.mjs';
 import { registry } from './packs.mjs';
-import { where, whereWrite, split } from './hooks/paths.mjs';
+import { where, whereWrite, split, kind, ENGINE, LOCAL } from './hooks/paths.mjs';
 
 // (each path goes where paths.mjs says: in the starter, all one folder; in a project, packs and library are the engine's)
 const CONFIG = where('tools/hooks/config.json');
@@ -118,9 +124,19 @@ if (process.argv[2] === 'feedback-status') {
   process.exit(n.bad ? 1 : 0);
 }
 
-if (fs.existsSync(at('.starter-template'))) { console.error('This is the starter itself. These commands are for projects made from it.'); process.exit(1); }
+// (install runs from the starter: it puts this engine into another folder)
+if (fs.existsSync(at('.starter-template')) && process.argv[2] !== 'install') { console.error('This is the starter itself. These commands are for projects made from it.'); process.exit(1); }
 
 const [cmd, arg] = process.argv.slice(2);
+// The answer to "a private git repository for .anzuelo/local?", recorded in its config.json. Yes makes the repository
+// (never a remote: creating one is an outward action with its own OK); no leaves a plain folder.
+function setLocalRepo(loc, yes) {
+  const f = path.join(loc, 'config.json'); let c = {}; try { c = JSON.parse(fs.readFileSync(f, 'utf8')); } catch { }
+  fs.mkdirSync(loc, { recursive: true }); fs.writeFileSync(f, JSON.stringify({ ...c, privateRepo: yes }, null, 2) + '\n');
+  if (yes && !fs.existsSync(path.join(loc, '.git'))) spawnSync('git', ['init', '-q'], { cwd: loc });
+  return yes ? `${loc} is a private git repository of its own (history and backup, never in the project's pushes; no remote was made)`
+    : `${loc} is a plain folder: it has no history or backup of its own`;
+}
 
 // REQ: setup-complete. During setup the leftovers go only once everything that fits the project is in, so nothing is lost.
 if (['link', 'keep', 'remove'].includes(cmd) && fs.existsSync(at('SETUP-PROMPT.md'))) {
@@ -236,6 +252,56 @@ if (cmd === 'link') {
   console.log(before === after ? 'Upgrading from the current starter (--force).' : `Got the newest starter (${g('rev-list', '--count', `${before}..${after}`).stdout.trim()} new change(s)). Upgrading this project from it.`);
   const r = spawnSync(process.execPath, [path.join(link, 'tools', 'new-project.mjs'), ROOT, '--upgrade', ...upgradeFlags()], { encoding: 'utf8', stdio: 'inherit' });
   process.exit(r.status ?? 1);
+} else if (cmd === 'install') {
+  // The engine goes into <folder>/.anzuelo/engine as a git clone of this starter, the files made for the project into
+  // .anzuelo/local, and only files the project does not have yet into the project (none replaced); then it is wired
+  // through git-ignored local settings. The templates are new-project.mjs's, made in a scratch folder and sorted by
+  // paths.mjs kind(). Plan: engine outside the project, Task 4.
+  const val = k => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : undefined; };
+  if (!arg) { console.error('usage: node tools/starter.mjs install "<project folder>" [--private yes|no] [--name "Name"] [--desc "one line"]'); process.exit(2); }
+  const dest = path.resolve(arg), eng = path.join(dest, '.anzuelo', 'engine'), loc = path.join(dest, '.anzuelo', 'local');
+  if (fs.existsSync(eng)) { console.error(`${eng} exists: upgrade it instead (git pull there)`); process.exit(1); }
+  const priv = val('--private');
+  if (priv && !/^(yes|no)$/.test(priv)) { console.error('--private takes yes or no'); process.exit(2); }
+  const g = (args, cwd) => spawnSync('git', args, { cwd, encoding: 'utf8' });
+  const had = fs.existsSync(dest) ? fs.readdirSync(dest).filter(n => n !== '.git') : [];
+  fs.mkdirSync(path.dirname(eng), { recursive: true });
+  const cl = g(['clone', '-q', ENGINE, eng]);
+  if (cl.status !== 0) { console.error(`git clone failed: ${cl.stderr}`); process.exit(1); }
+  const origin = (g(['remote', 'get-url', 'origin'], ENGINE).stdout || '').trim();
+  if (origin) g(['remote', 'set-url', 'origin', origin], eng);
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-install-'));
+  try {
+    const np = spawnSync(process.execPath, [path.join(eng, 'tools', 'new-project.mjs'), tmp, ...(val('--name') ? ['--name', val('--name')] : []), ...(val('--desc') ? ['--desc', val('--desc')] : []), ...(fs.existsSync(path.join(ENGINE, '.starter-dev')) ? ['--dev'] : [])], { encoding: 'utf8' });
+    if (np.status !== 0) { console.error(`making the project files failed: ${np.stderr || np.stdout}`); process.exit(1); }
+    // (wiring and agent copies are made again by wire.mjs; the starter's ignore list and line-ending rules are for its
+    // own files, which sit in the ignored .anzuelo/ here)
+    const SKIP = /^(\.git|\.claude|\.codex|\.gemini|\.agents|\.obsidian)(\/|$)|^(CLAUDE\.md|AGENTS\.md|\.gitignore|\.gitattributes|[A-Z]+\.starter\.md)$/;
+    const counts = { local: 0, project: 0, kept: 0 };
+    const walk = d => { for (const e of fs.readdirSync(path.join(tmp, d || '.'), { withFileTypes: true })) {
+      const f = d ? `${d}/${e.name}` : e.name;
+      if (SKIP.test(f)) continue;
+      if (e.isDirectory()) { walk(f); continue; }
+      const k = kind(f), from = path.join(tmp, f), same = p => { try { return fs.readFileSync(p).equals(fs.readFileSync(from)); } catch { return false; } };
+      if (k === 'engine' || (k === 'both' && same(path.join(eng, f)))) continue;
+      const to = path.join(k === 'project' ? dest : loc, f);
+      if (fs.existsSync(to)) { counts.kept++; continue; }
+      fs.mkdirSync(path.dirname(to), { recursive: true }); fs.copyFileSync(from, to); counts[k === 'project' ? 'project' : 'local']++;
+    } };
+    walk('');
+    // (an adopted folder: the files it had before, so setup never asks to rewrite them)
+    if (had.length) { fs.mkdirSync(path.join(loc, '.starter'), { recursive: true }); fs.writeFileSync(path.join(loc, '.starter', 'original-files.txt'), had.join('\n') + '\n'); }
+    console.log(`installed the engine in ${eng}; ${counts.local} file(s) made for the project in ${loc}; ${counts.project} new project file(s); ${counts.kept} kept as they were`);
+  } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+  if (priv) console.log(setLocalRepo(loc, priv === 'yes'));
+  const w = spawnSync(process.execPath, [path.join(eng, 'tools', 'hooks', 'wire.mjs')], { cwd: dest, encoding: 'utf8' });
+  process.stdout.write(w.stdout || ''); if (w.status !== 0) { process.stderr.write(w.stderr || ''); process.exit(1); }
+  if (!priv) console.log('next: setup asks the user whether .anzuelo/local gets a private git repository of its own (starter.mjs local-repo yes|no)');
+  console.log('Claude Code may ask once to allow the CLAUDE.local.md import of .anzuelo/engine/AGENTS.md.');
+} else if (cmd === 'local-repo') {
+  if (!split) { console.error('local-repo is for a project with the engine in .anzuelo/engine'); process.exit(1); }
+  if (!/^(yes|no)$/.test(arg || '')) { console.error('usage: node .anzuelo/engine/tools/starter.mjs local-repo yes|no'); process.exit(2); }
+  console.log(setLocalRepo(LOCAL, arg === 'yes'));
 } else if (cmd === 'status' || !cmd) {
   const mode = readCfg().starter;
   console.log(`choice: ${mode || 'not made yet (setup asks the user: link, keep or remove)'}`);

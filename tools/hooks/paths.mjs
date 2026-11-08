@@ -25,7 +25,7 @@ export const { ENGINE, PROJECT, LOCAL, split } = roots(path.dirname(fileURLToPat
 // skills, checklists and the rules exist in both, the local copy winning and every new or changed one going local.
 const ENGINE_ONLY = /^(tools|packs|library|\.githooks)(\/|$)/;
 // (tools/screenshot.mjs comes from a pack and is installed for this project)
-const LOCAL_ALWAYS = /^(tools\/hooks\/state|tools\/hooks\/config\.json|tools\/screenshot\.mjs|\.cache|\.starter|DIRECTORY\.md|SETUP-PROMPT\.md)(\/|$)/;
+const LOCAL_ALWAYS = /^(tools\/hooks\/state|tools\/hooks\/config\.json|tools\/screenshot\.mjs|\.cache|\.starter|DIRECTORY\.md|SETUP-PROMPT\.md|HOW-TO-USE\.md)(\/|$)/;
 const BOTH = /^(skills|docs\/playbooks|docs\/checks|tools\/starter\/runbooks|AGENTS\.md|tools\/hooks\/requirements\.json|tools\/packs-registry\.json)(\/|$)/;
 const PROJECT_DOCS = /^docs\/(CHANGELOG|BRIEF|DECISIONS)\.md$/;
 const norm = p => String(p || '').replace(/\\/g, '/').replace(/^\.\//, '');
