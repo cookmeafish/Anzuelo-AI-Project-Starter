@@ -11,11 +11,11 @@ Open `docs/playbooks/engine.md` and follow every step in order. It is the proced
 
 ## Done when
 - [ ] The project's own work was committed before the engine change, and the change is its own commit, or the answer
-      says why not (judgment: whether the project keeps git history is the user's call) (when ran: starter\.mjs upgrade|starter\.mjs update|starter\.mjs uninstall) (ran: git commit).
+      says why not (judgment: whether the project keeps git history is the user's call) (when ran: starter\.mjs upgrade [^-]|starter\.mjs upgrade$|starter\.mjs update [^-]|starter\.mjs update$|starter\.mjs update --keep-local|starter\.mjs uninstall [^-]|starter\.mjs uninstall$) (ran: git commit).
 - [ ] Every check the project wrote in `requirements.json` became a "Done when" line or a test, or has its reason in
       the upgrade review (judgment: which runbook a rule belongs to) (when ran: own-checks).
 - [ ] An install ended with the project-bootstrap skill started in that folder (judgment: setup is its own interview) (when ran: new-project\.mjs).
-- [ ] An upgrade's review lines each end with a decision (hook: upgrade-review) (when ran: starter\.mjs upgrade|starter\.mjs update) (file: docs/DECISIONS.md).
+- [ ] An upgrade's review lines each end with a decision (hook: upgrade-review) (when ran: starter\.mjs upgrade [^-]|starter\.mjs upgrade$|starter\.mjs update [^-]|starter\.mjs update$|starter\.mjs update --keep-local) (file: docs/DECISIONS.md).
 - [ ] A removal was asked first, and the answer says where the backup is and how to put the engine back (judgment:
       plain wording for the user) (when ran: starter\.mjs uninstall).
 - [ ] A changed setting has its DECISIONS line; one the host refused went to the user as the line to paste, never
