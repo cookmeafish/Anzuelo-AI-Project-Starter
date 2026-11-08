@@ -85,13 +85,13 @@ A run that is stuck sets `status: blocked - <reason>` with `Tried:` and `Options
 ### Task 2b: answers from several sources (user, 2026-11-07: "very critical all output is accurate")
 **Files:** `tools/hooks/v2/lib.mjs`, `tools/hooks/v2/end.mjs`, `packs/knowledge/files/docs/playbooks/*.md`, `tools/hooks/v2/selftest.mjs`
 **Uses / provides:** uses Task 2
-- [ ] Checkable: each factual sentence or bullet carries its own source (not one list at the bottom); when no read
+- [x] Checkable: each factual sentence or bullet carries its own source (not one list at the bottom); when no read
       this turn matched the question, the answer says "not found in <sources searched>".
-- [ ] Reviewer-judged (knowledge-runbook turns only): conflicting sources shown side by side with their sources, never
+- [x] Reviewer-judged (knowledge-runbook turns only): conflicting sources shown side by side with their sources, never
       merged or picked silently; inference only when labeled and kept apart from sourced facts.
-- [ ] Tests: one source list for a whole answer, a best guess where nothing was found, each block; a per-fact sourced
+- [x] Tests: one source list for a whole answer, a best guess where nothing was found, each block; a per-fact sourced
       answer and a correct "not found" pass.
-- [ ] Run `node tools/hooks/v2/selftest.mjs`. Expected: ALL PASS.
+- [x] Run `node tools/hooks/v2/selftest.mjs`. Expected: ALL PASS.
 
 ### Task 2c: apps the projects build that answer from sources (app pack)
 **Files:** `packs/app/files/docs/playbooks/feature.md`, a trial project under `tools/starter/trials/`

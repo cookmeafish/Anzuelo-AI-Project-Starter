@@ -366,6 +366,18 @@ report(noLog.length === 2 && noLog.some(s => /item 2/.test(s)) && noLog.some(s =
   report(skipped.length === 3 && /^Open docs\/playbooks\/ferry\.md and answer by its steps/.test(skipped[0]) && followed.length === 0
     && loose.length === 1 && /ferry\.md item 1/.test(loose[0]) && free.length === 0,
     'end: a question is held only to a routed answer runbook (open it, its answer and evidence items); any other routed runbook, an unrouted question and a note from another session are free', { skipped, followed, loose, free });
+  // (each fact its own source; a multi-source answer gets one fresh read for conflicts and inference)
+  const { evidenceGaps: eg } = await import('./lib.mjs');
+  const listAtEnd = eg(acts([user('tell me about the ferry'), src, say('- The ferry leaves the north pier at nine each day\n- It carries cars and bikes on every crossing\n- Tickets are sold on board only, cash or card\n\nSources: notes/ferry.md')]));
+  const perFact = eg(acts([user('tell me about the ferry'), src, say('- The ferry leaves the north pier at nine each day (notes/ferry.md)\n- It carries cars and bikes on every crossing (notes/ferry.md)\n- Tickets are sold on board only (inference: no source says otherwise)')]));
+  const guess = eg(acts([user('when does the bus leave?'), src, say('Probably around ten, like the ferry.')]));
+  report(listAtEnd.some(g => /its own source beside it/.test(g)) && perFact.length === 0 && guess.some(g => /names no source/.test(g)),
+    'end: a list of facts with one source list at the end and a best guess with no source are asked for; per-fact sources pass', { listAtEnd, perFact, guess });
+  const { reviewGaps } = await import('./end.mjs');
+  put('notes/tides.md', 'High tide comes about forty minutes after the harbor gauge.\n');
+  const two = reviewGaps(rt, acts([user('when does the ferry leave?'), openIt, src, say('At nine (notes/ferry.md), though notes/tides.md says the timetable moves with the tide.')]), books);
+  const one = reviewGaps(rt, acts([user('when does the ferry leave?'), openIt, src, say('At nine (notes/ferry.md).')]), books);
+  report(two.length === 1 && /conflict between sources/.test(two[0]) && one.length === 0, 'end: an answer from 2 or more sources on an answer runbook gets one fresh review for conflicts and inference; one source does not', { two, one });
   // (a not-fit line naming the runbook, by path, file name or "the <name> runbook", clears its Open ask and its items)
   const { waived } = await import('./end.mjs');
   const gaps = ['Open docs/playbooks/project.md and check the work against its steps.', 'docs/playbooks/project.md item 2: The rule has a check', 'docs/playbooks/other.md item 1: Done'];

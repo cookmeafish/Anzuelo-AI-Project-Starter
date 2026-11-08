@@ -81,8 +81,13 @@ export function skillMissing(acts, books = skillBooks()) {
 // second agent that hasn't seen the work finds what the first one is blind to, and its cost must stay small.
 const RELEASE = /\bgit\s+tag\s+(-[as]\s+)?v?\d|\bgh\s+release\s+create\b|\bnpm\s+publish\b|\bgit\s+push\b[^\n]*--tags\b/i;
 export function reviewGaps(turn, acts, books = runbooks()) {
-  if (!worked(acts)) return [];
   const book = chosen(turn, acts, books), why = [];
+  // (an answer from 2 or more sources, on a runbook made for answers: a fresh reader checks what no script can, conflicts
+  // shown side by side with their sources and inference labeled. Only then, so it stays cheap)
+  const ans = String(acts.answer || ''), srcs = new Set([...ans.matchAll(/https?:\/\/[^\s)>\]"'`]+|(?:[\w.-]+\/)+[\w.-]+\.\w+/g)].map(m => m[0]));
+  const answers = !worked(acts) && book && book.file === turn.runbook && book.items.some(it => it.kind === 'evidence') && srcs.size >= 2;
+  if (!worked(acts) && !answers) return [];
+  if (answers) why.push('the answer and the sources it cites: any conflict between sources shown side by side with each source, never merged or picked silently; inference labeled and kept apart from sourced facts');
   if (turn.upset) why.push('the user\'s complaint, and every file the fix touched: find every case of the same problem, not only the one named');
   if (securityGaps(acts).length || acts.calls.some(c => /^(Bash|PowerShell)$/.test(c.name) && RELEASE.test(String(c.input.command || '')) && !/--dry-run/.test(String(c.input.command || ''))))
     why.push('the changed files: follow skills/security-review/SKILL.md on them and report each FAIL');

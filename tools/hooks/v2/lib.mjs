@@ -608,6 +608,13 @@ export function evidenceGaps(acts) {
   const sourced = l => [...l.matchAll(/https?:\/\/[^\s)>\]"'`]+|(?:[\w.-]+\/)+[\w.-]+\.\w+/g)].some(m => seen.includes(norm(m[0].replace(/[.,;:]+$/, ''))));
   const quotes = ans.split('\n').filter(sourced).flatMap(l => [...l.matchAll(/["“]([^"“”\n]{25,})["”]/g)].map(m => m[1].replace(/\s+/g, ' ').trim())).filter(q => !corpus.includes(q.toLowerCase()));
   if (quotes.length) out.push(`The quote "${quotes[0].slice(0, 60)}" is not in the source cited beside it: quote it word for word, or say it in your own words without quote marks.`);
+  // (each fact its own source, beside it: a list of facts whose sources sit in one list at the end can't be traced. The
+  // user, 2026-11-07: every output must be accurate)
+  const body = String(acts.answer || '').split('\n'), cut = body.findIndex(l => /^\W*(sources?|references?)\b\W*:?/i.test(l.trim()));
+  const facts = (cut >= 0 ? body.slice(0, cut) : body).filter(l => /^\s*(?:[-*•]|\d+[.)])\s+\S/.test(l) && l.replace(/[^\p{L}]/gu, '').length > 25);
+  const cites = l => /\[\d+\]|https?:\/\/|(?:[\w.-]+\/)+[\w.-]+\.\w+|\b[\w-]+\.(?:md|txt|csv|json|pdf)\b|\b(inference|inferred|not found|not covered)\b/i.test(l);
+  if (facts.length >= 3 && facts.filter(cites).length < facts.length / 2)
+    out.push('Give each fact its own source beside it (a [n] citation, the file or the link), not one list at the end, and label a statement with no source as inference.');
   if (!cited.length && !files.length && !/\bnot (found|covered|in)\b[^.\n]{0,80}\b(in|the)\b|\bnothing recorded in\b/i.test(ans))
     out.push('The answer names no source: give each fact the file or link it came from, or say "not found in <sources searched>", and label anything else as inference.');
   return out;
