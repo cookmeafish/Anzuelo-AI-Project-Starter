@@ -25,6 +25,7 @@ others are the skill side of a runbook in §1. What each does and when: its SKIL
 |---|---|---|---|
 | [debug](skills/debug/SKILL.md) | Finds the root cause of a bug, failing test, broken build, wrong... | own route | debug-root-cause, debug-test-added, debug-trigger |
 | [efficiency-review](skills/efficiency-review/SKILL.md) | Finds where this project's turns spend time and tokens, from its... | own route | (none) |
+| [goal-loop](skills/goal-loop/SKILL.md) | Works toward a goal the user sets for this project in measured... | own route | the log's form is checked by its script (ran marker); whether a measure fits the goal is judgment |
 | [learn-from-upset](skills/learn-from-upset/SKILL.md) | When the user is upset, annoyed or complains, fixes the miss, says... | via [project.md](docs/playbooks/project.md) | see §1 |
 | [obsidian](skills/obsidian/SKILL.md) | Keeps the project's notes linked to each other so Obsidian's graph... | own route | note-linked |
 | [parallel-agents](skills/parallel-agents/SKILL.md) | Splits work into independent parts and runs one sub-agent per part... | own route | parallel-merged, parallel-trigger |

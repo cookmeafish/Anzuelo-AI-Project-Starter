@@ -4210,6 +4210,9 @@ PROMPT.push(
   { name: 'efficiency-review: "so many sweeps for something simple" routes to the review', prompt: 'why are you doing so many sweeps for something simple?', has: ['SKILL: efficiency-review'] },
   { name: 'efficiency-review: "simple fixes turn into 20 minute things" routes to the review', prompt: 'anzuelo makes my project simple fixes turn into 20 minute things which is super token inefficient', has: ['SKILL: efficiency-review'] },
   { name: 'efficiency-review: an ordinary request does not', prompt: 'add a csv export with tests', hasNot: ['efficiency-review'] },
+  { name: 'goal-loop: "keep improving it until the tests never flake" routes to the loop', prompt: 'keep improving it until the tests never flake', has: ['SKILL: goal-loop'] },
+  { name: 'goal-loop: "iterate until the report is good enough" routes to the loop', prompt: 'iterate until the report is good enough for the client', has: ['SKILL: goal-loop'] },
+  { name: 'goal-loop: an ordinary request does not', prompt: 'fix the typo in the footer', hasNot: ['goal-loop'] },
   { name: 'check-preview: 2 checks give no self-check clause', prompt: 'rename the vendor files to use dates', has: ['CHECKS: this turn will be held to runbook-exists, finished-summary (met once it follows a runbook);'], hasNot: ['Self-check first'] }
 );
 // pretool-combined: one denial names every rule a tool call breaks (Lesson: the retry was denied again for the second)
@@ -6107,6 +6110,34 @@ if (mineB() && fs.existsSync(path.join(ROOT, 'skills/efficiency-review/scripts/e
       && /blocks: 1 from the starter's engine, 1 from the project's own hooks/.test(o) && /Run the sweeps again \[project\]/.test(o) && /Note the change in docs\/CHANGELOG\.md \[engine\]/.test(o),
       'efficiency-review: the report reads the project\'s sessions: the slowest command with the file that asks for it, a run repeated with nothing changed, and end-of-answer blocks by source (engine or project hook)', o.slice(0, 900));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+if (mineB() && fs.existsSync(path.join(ROOT, 'skills/goal-loop/scripts/goal.mjs'))) { // goal-loop: the log's check
+  // Lesson (the user, 2026-11-07): a loop toward the user's goal for every project, where a change that breaks something
+  // is undone; the log is how a later session and the end check know each round was measured
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'goal-'));
+  try {
+    const run = (...a) => spawnSync(process.execPath, [path.join(ROOT, 'skills/goal-loop/scripts/goal.mjs'), ...a], { cwd: dir, encoding: 'utf8' });
+    const made = run('new', 'Faster search page'), f = path.join(dir, made.stdout.trim()), empty = run('check', f);
+    const fill = rounds => fs.writeFileSync(f, fs.readFileSync(f, 'utf8').replace(/^Measure: .*$/m, 'Measure: node bench.mjs, median ms').replace(/^Bar: .*$/m, 'Bar: under 200 ms').replace(/^Guard: .*$/m, 'Guard: npm test').replace(/## Rounds\n[\s\S]*?(?=## Result)/, `## Rounds\n${rounds}\n`));
+    fill('- Baseline: 480 ms | guard: pass\n- Round 1: cache the index | 210 ms | guard: fail | kept');
+    const brokeKept = run('check', f);
+    fill('- Round 1: cache the index | 210 ms | guard: pass | kept');
+    const noBase = run('check', f);
+    fill('- Baseline: 480 ms | guard: pass\n- Round 1: cache the index | 210 ms | guard: fail | undone\n- Round 2: index once at start | 190 ms | guard: pass | kept');
+    const good = run('check', f);
+    report(made.status === 0 && /docs[\\/]plans[\\/]\d{4}-\d\d-\d\d-goal-faster-search-page\.md/.test(made.stdout) && empty.status === 1 && /"Measure:" is empty/.test(empty.stdout)
+      && brokeKept.status === 1 && /kept with the guard failing/.test(brokeKept.stdout) && noBase.status === 1 && /no "- Baseline:"/.test(noBase.stdout) && good.status === 0 && /RESULT: PASS \(2 round/.test(good.stdout),
+      'goal-loop: the log check fails an unfilled log, a change kept while the guard failed, and rounds with no baseline; a filled log with measured rounds passes', [empty.stdout, brokeKept.stdout, noBase.stdout, good.stdout].join(' | ').slice(0, 600));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+if (mineB()) { // a skill or runbook checked by a "Done when" marker has a check; a when condition alone is none
+  const code = `import { skillHasCheck as s, runbookHasCheck as r } from ${JSON.stringify(pathToFileURL(path.join(ROOT, 'tools/hooks/hooks.mjs')).href)};
+const t = m => '---\\nname: zz\\n---\\n## Done when\\n- [ ] The thing is saved ' + m + '\\n';
+console.log(JSON.stringify([s({ name: 'zzq', fm: {}, text: t('(file: out/**)') }), r({ name: 'zzq', fm: {}, text: t('(when ran: build) (ran: test)') }), s({ name: 'zzq', fm: {}, text: t('(when file: out/**)') }), r({ name: 'zzq', fm: {}, text: t('(judgment: a reader)') })]));`;
+  const o = spawnSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf8' });
+  report(o.stdout.trim() === '[true,true,false,false]', 'skills-valid, runbooks-checked: a "Done when" marker (file:, ran:, answer:) is a check; a when condition or a judgment alone is not', o.stdout.trim() || o.stderr.slice(0, 300));
 }
 
 if (mineB()) { // rule --forbid: a name the user wants kept out becomes an enforced term in one step; --private keeps the name

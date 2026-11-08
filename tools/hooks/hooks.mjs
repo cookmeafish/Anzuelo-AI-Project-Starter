@@ -593,9 +593,12 @@ const routableSkillsRead = (skillsDir) => {
   return out;
 }
 
+// A "Done when" item with a marker the end check tests is a check. Lesson (audit, 2026-11-07): the rules say checks are
+// markers, never new requirements.json entries, and a skill checked by a marker was called unchecked
+const markerChecked = text => doneWhenItems(String(text || '')).some(i => /\((?:file|ran|answer)\s*:/i.test(i));
 export function skillHasCheck(s) {
   const c = (s.fm.checks || '').trim();
-  if (/^core\b:?\s*\S/i.test(c) || /^none\s*-\s*\S/i.test(c)) return true;
+  if (/^core\b:?\s*\S/i.test(c) || /^none\s*-\s*\S/i.test(c) || markerChecked(s.text)) return true;
   // a check the skill brought with it ("skill": its name, set by skills.mjs enable) counts even when it fires on an event
   // rather than on the skill being used (Lesson: the routines check, on docs/routines.md changing, was not recognized)
   return loadRequirements().reqs.some(q => q && q.enabled !== false && (q.when?.skillUsed === s.name || q.skill === s.name));
@@ -2711,7 +2714,7 @@ export function usage() { return readJSON(path.join(STATE, 'runbook-usage.json')
 // and "Done when" items become checks. Marked "hardened: YYYY-MM-DD" (or "harden: never - <reason>") in the runbook.
 // The engine's own skills and runbooks: upgraded from the starter, never pruned.
 export const CORE_SKILLS = ['project-bootstrap', 'project-rule', 'runbook-create', 'skill-harden', 'skill-curate', 'project-sweeps',
-  'session-handoff', 'security-review', 'plan', 'debug', 'parallel-agents', 'research', 'skill-finder', 'obsidian', 'learn-from-upset', 'efficiency-review'];
+  'session-handoff', 'security-review', 'plan', 'debug', 'parallel-agents', 'research', 'skill-finder', 'obsidian', 'learn-from-upset', 'efficiency-review', 'goal-loop'];
 const CORE_RUNBOOKS = ['project', 'plan', 'status-lines', 'trigger-words', 'engine'];
 // REQ: skill-prune. Runbooks and skills nobody uses are reviewed: keep (with a reason), merge, or retire. Each one's
 // clock starts when the hooks first see it, restarts on every use, and "keep: YYYY-MM-DD - <reason>" restarts it too.
@@ -2909,7 +2912,7 @@ export function directoryBlock(cfg = config()) {
 // "checks: none - <reason>" in its frontmatter.
 export function runbookHasCheck(pb) {
   const c = (pb.fm.checks || '').trim();
-  if (/^core\b:?\s*\S/i.test(c) || /^none\s*-\s*\S/i.test(c)) return true;
+  if (/^core\b:?\s*\S/i.test(c) || /^none\s*-\s*\S/i.test(c) || markerChecked(pb.text ?? read(abs(pb.file)))) return true;
   return loadRequirements().reqs.some(q => q && q.enabled !== false && [q.when?.playbookUsed, q.when?.playbookRouted].includes(pb.name));
 }
 
