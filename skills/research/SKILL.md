@@ -68,7 +68,7 @@ Record what was confirmed with the knowledge-capture skill (`skills/knowledge-ca
 
 ## Done when
 - [ ] Every fact has a numbered citation, and `Sources:` has a `[n] <link or project file>` line for each number used,
-      or the answer says "nothing recorded in the project" (hook: research-cited).
+      or the answer says "nothing recorded in the project" (hook: research-cited) (evidence).
 - [ ] The answer comes first, with no preamble or filler, answers everything asked and adds nothing unasked (judgment:
       only a reader can tell what was asked and what is padding).
 - [ ] **C:** the ledger passes `claims.mjs check`, with at least three independent evidence sources or a

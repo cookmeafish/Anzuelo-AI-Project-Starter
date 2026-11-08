@@ -2,7 +2,7 @@
 // transcript, and blocks with a short plain list of what is really missing until it is done (at most MAX_BLOCKS times).
 import fs from 'node:fs';
 import path from 'node:path';
-import { ROOT, runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, questionGaps, noteGaps, quoteGaps, tail, helpersRunning, backgroundRuns, helperRuns, evidenceOf, skillBooks } from './lib.mjs';
+import { ROOT, runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, questionGaps, noteGaps, quoteGaps, tail, helpersRunning, backgroundRuns, helperRuns, evidenceGaps, evidenceOf, skillBooks } from './lib.mjs';
 
 // Check 1: the routed runbook was followed, and its checkable "Done when" items were met. With none routed, the
 // runbook the agent chose and opened is the one it is held to (the runbook itself, not a skill it names: reading the
@@ -47,7 +47,9 @@ export function missing(turn, acts, books = runbooks()) {
   if (!book || (!worked(acts) && !asked)) return [];
   const out = [];
   if (!opened(book, acts)) out.push(`Open ${book.file} and ${asked ? 'answer by' : 'check the work against'} its steps.`);
-  for (const it of book.items) if ((!asked || it.kind === 'answer') && applies(it, acts) && met(it, acts) === false) out.push(`${book.file} item ${it.n}: ${it.text}`);
+  // (evidence is for answers: on a work turn, facts written into files have their own check, knowledgeGaps)
+  for (const it of book.items) if ((asked ? it.kind === 'answer' || it.kind === 'evidence' : it.kind !== 'evidence') && applies(it, acts) && met(it, acts) === false)
+    out.push(`${book.file} item ${it.n}: ${it.kind === 'evidence' ? evidenceGaps(acts).join(' ') : it.text}`);
   return out;
 }
 
@@ -55,9 +57,12 @@ export function missing(turn, acts, books = runbooks()) {
 // carries is held like a runbook's. Only marked items count; its judgment items stay the skill's own. Lesson
 // (2026-11-07): the skills' "Done when" lists were never read, so the rules the skills and packs carry went unchecked.
 export function skillMissing(acts, books = skillBooks()) {
-  if (!worked(acts)) return [];
+  // (a typed question that opened a skill is held to its evidence items only; a work turn to all but those)
+  const work = worked(acts);
+  if (!work && /<(cross-session-message|agent-message|task-notification)\b/.test(acts.heard || '')) return [];
   return books.filter(s => opened({ ...s, skills: [] }, acts) && !authored(s, acts))
-    .flatMap(s => s.items.filter(it => it.kind && applies(it, acts) && met(it, acts) === false).map(it => `${s.file} item ${it.n}: ${it.text}`));
+    .flatMap(s => s.items.filter(it => it.kind && (work ? it.kind !== 'evidence' : it.kind === 'evidence') && applies(it, acts) && met(it, acts) === false)
+      .map(it => `${s.file} item ${it.n}: ${it.kind === 'evidence' ? evidenceGaps(acts).join(' ') : it.text}`));
 }
 
 // A fresh reviewer, once per turn, before the answer, when it pays: the user was upset with the work (the agent's own

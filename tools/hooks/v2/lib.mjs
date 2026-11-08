@@ -15,6 +15,7 @@ const read = f => { try { return fs.readFileSync(path.join(ROOT, f), 'utf8').rep
 //   (file: <path or glob>)   the turn changed that file (Edit, Write, or a command that names it as its output)
 //   (ran: <regex>)           the turn ran a command matching it, and the run did not fail
 //   (answer: <regex>)        the turn's final answer matches it
+//   (evidence)               the answer is backed by sources read this turn (evidenceGaps)
 // Anything else is shown at the start and not checked at the end.
 export function doneWhen(text) {
   // (Windows line endings too: "## Done when\r" matched nothing. Lesson (a project's report): any caller passing a
@@ -42,8 +43,10 @@ export function doneWhen(text) {
     const w = /\(when\s+(file|ran|answer):\s*((?:[^()]|\([^()]*\))+)\)/i.exec(raw);
     // (every marker goes from the shown text: an item may carry the old engine's "(hook: ...)" or "(judgment: ...)"
     // before v2's own)
-    const text = raw.replace(/\s*\((?:when\s+)?(?:file|ran|answer|hooks?|judgment):(?:[^()]|\([^()]*\))*\)/gi, '').replace(/\s*\.\s*$/, '').replace(/`/g, '').trim();
-    return { n: i + 1, text, kind: c ? c[1].toLowerCase() : null, arg: c ? c[2].trim() : null, when: w ? { kind: w[1].toLowerCase(), arg: w[2].trim() } : null };
+    // ("(evidence)": the answer is backed by sources read this turn, checked by evidenceGaps)
+    const ev = !c && /\(evidence\)/i.test(raw);
+    const text = raw.replace(/\s*\((?:when\s+)?(?:file|ran|answer|hooks?|judgment):(?:[^()]|\([^()]*\))*\)|\s*\(evidence\)/gi, '').replace(/\s*\.\s*$/, '').replace(/`/g, '').trim();
+    return { n: i + 1, text, kind: c ? c[1].toLowerCase() : ev ? 'evidence' : null, arg: c ? c[2].trim() : null, when: w ? { kind: w[1].toLowerCase(), arg: w[2].trim() } : null };
   });
 }
 
@@ -389,6 +392,7 @@ export const applies = (item, acts) => !item.when || met(item.when, acts) === tr
 export function met(item, acts) {
   if (!item.kind) return null;
   if (item.kind === 'answer') return new RegExp(item.arg, 'i').test(acts.answer);
+  if (item.kind === 'evidence') return evidenceGaps(acts).length === 0;
   if (item.kind === 'ran') { const rx = new RegExp(item.arg, 'i'); return acts.calls.some(c => /^(Bash|PowerShell)$/.test(c.name) && rx.test(String(c.input.command || '')) && !c.error); }
   // (a file changed in this turn: edited by a tool, or written since the turn began by anything, a script included.
   // A command that only names the file does not count. Lesson (review): "cat docs/CHANGELOG.md" met "CHANGELOG updated")
@@ -576,6 +580,39 @@ const knowledgeDirs = () => { try { return JSON.parse(fs.readFileSync(path.join(
 // ("user reported" too. Lesson (trial v46): a note labelled "(user reported, <date>)" was asked for a source, and the
 // fix wrote "Source: the user" beside the label)
 const SOURCED = /https?:\/\/|\bsources?\s*:|\[\^[^\]]+\]|\b(the )?user[- ]?(said|told|gave|wrote|reported|says)\b|\bobserved\b|\(from [\w./-]+\)|\b[\w-]+\/[\w./-]+\.(md|txt|csv|json|pdf)\b/i;
+// An answer from sources ("(evidence)" on a runbook item): a source was read this turn, every file or link the answer
+// cites was read, every quote is in what was read (or in the user's message), and the answer names its sources or says
+// what was searched and not found. Lesson (the user, 2026-11-07): knowledge answers must be backed by evidence, not
+// inference.
+const READS = c => /^(Read|Grep|Glob|WebFetch)$/.test(c.name) || (/^(Bash|PowerShell)$/.test(c.name) && /\b(cat|grep|rg|Get-Content|Select-String|head|tail|sed\s+-n|type)\b/.test(String(c.input.command || '')));
+export function evidenceGaps(acts) {
+  // (the runbook or skill being followed is the procedure, not a source)
+  const all = acts.calls.filter(c => READS(c) && !c.error);
+  const reads = all.filter(c => !/(docs\/playbooks|tools\/starter\/runbooks)\/[^/]+\.md$|\/SKILL\.md$/.test(String(c.input.file_path || '').replace(/\\/g, '/')));
+  if (!reads.length) return ['Read the sources before answering: nothing was read this turn, so the answer is not backed by evidence.'];
+  // (every message of the turn: after a block, the last one is only a note on what changed)
+  const ans = String(acts.said || acts.answer || '').replace(/\\/g, '/');
+  // (a file the turn changed, or a helper read, is known to it too: only a citation nothing in the turn touched is made up)
+  const seen = acts.calls.map(c => [c.input.file_path, c.input.path, c.input.url, c.input.pattern, c.input.command, c.input.prompt].filter(Boolean).join(' ')).join('\n').replace(/\\/g, '/');
+  const norm = s => String(s).replace(/[`'"]/g, '').replace(/\/+$/, '');
+  const cited = [...new Set([...ans.matchAll(/https?:\/\/[^\s)>\]"'`]+/g)].map(m => m[0].replace(/[.,;:]+$/, '')))];
+  const files = [...new Set([...ans.replace(/https?:\/\/\S+/g, ' ').matchAll(/(?:[\w.-]+\/)+[\w.-]+\.(?:md|txt|json|csv|pdf|html?|ya?ml)\b/g)].map(m => m[0]))];
+  // (made up: a file that does not exist, or a link nothing in the turn fetched or found; a file read in an earlier turn
+  // is fine. Replay (real sessions): "not read this turn" flagged most answers falsely)
+  const found = acts.calls.filter(c => c.name === 'WebSearch').map(c => c.out || '').join('\n');
+  const unread = [...cited.filter(u => !seen.includes(norm(u)) && !found.includes(norm(u))), ...files.filter(p => !seen.includes(norm(p)) && !fs.existsSync(path.resolve(ROOT, p)) && !filesMatching(`**/${path.basename(p)}`).some(f => f.endsWith(p)))];
+  const out = [];
+  if (unread.length) out.push(`The answer cites ${unread.slice(0, 3).join(', ')}, which this turn never read or found and which does not exist here: cite only real sources you read.`);
+  // (a quote is checked when it sits on a line with a source the turn read: then it must be that source's words)
+  const corpus = (reads.map(c => c.out || '').join('\n') + '\n' + reads.filter(c => c.name === 'Read').map(c => { try { return fs.readFileSync(path.resolve(ROOT, c.input.file_path), 'utf8').slice(0, 2e6); } catch { return ''; } }).join('\n')).replace(/\s+/g, ' ').toLowerCase();
+  const sourced = l => [...l.matchAll(/https?:\/\/[^\s)>\]"'`]+|(?:[\w.-]+\/)+[\w.-]+\.\w+/g)].some(m => seen.includes(norm(m[0].replace(/[.,;:]+$/, ''))));
+  const quotes = ans.split('\n').filter(sourced).flatMap(l => [...l.matchAll(/["“]([^"“”\n]{25,})["”]/g)].map(m => m[1].replace(/\s+/g, ' ').trim())).filter(q => !corpus.includes(q.toLowerCase()));
+  if (quotes.length) out.push(`The quote "${quotes[0].slice(0, 60)}" is not in the source cited beside it: quote it word for word, or say it in your own words without quote marks.`);
+  if (!cited.length && !files.length && !/\bnot (found|covered|in)\b[^.\n]{0,80}\b(in|the)\b|\bnothing recorded in\b/i.test(ans))
+    out.push('The answer names no source: give each fact the file or link it came from, or say "not found in <sources searched>", and label anything else as inference.');
+  return out;
+}
+
 export function knowledgeGaps(acts) {
   const dirs = knowledgeDirs().map(d => d.replace(/\/+$/, '') + '/');
   const isK = r => dirs.some(d => r.startsWith(d)) && !/(^|\/)(README|SOURCES|INDEX)\.md$/i.test(r);

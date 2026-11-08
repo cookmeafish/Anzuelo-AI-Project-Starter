@@ -322,6 +322,32 @@ report(failed.length === 1 && /item 1: The tests pass/.test(failed[0]), 'end: te
 const noLog = missing(turn, acts([user('add a csv export'), read, edit, call('Bash', { command: 'pytest -q' }), say('Shipped.')]));
 report(noLog.length === 2 && noLog.some(s => /item 2/.test(s)) && noLog.some(s => /item 3/.test(s)) && !noLog.some(s => /item 4/.test(s)),
   'end: a missing changelog and answer line are named; a judgment item never is', noLog);
+{ // (an answer from sources: read first, cite only what was read, quote word for word, name the source or say not found)
+  const { evidenceGaps, doneWhen } = await import('./lib.mjs');
+  put('notes/tides.md', 'High tide at the north pier comes about forty minutes after the harbor gauge.\n');
+  const src = call('Read', { file_path: path.join(dir, 'notes/tides.md') }, '1\tHigh tide at the north pier comes about forty minutes after the harbor gauge.');
+  const ev = rows => evidenceGaps(acts(rows));
+  const good = ev([user('when is high tide at the pier?'), src, say('About forty minutes after the harbor gauge (notes/tides.md).')]);
+  const none = ev([user('when is high tide at the pier?'), say('About forty minutes after the harbor gauge (notes/tides.md).')]);
+  const madeUp = ev([user('when is high tide at the pier?'), src, say('About forty minutes after the gauge (notes/tides.md, notes/moon.md).')]);
+  const misquote = ev([user('when is high tide at the pier?'), src, say('The notes say "high tide comes an hour after the harbor gauge" (notes/tides.md).')]);
+  const bare = ev([user('when is high tide at the pier?'), src, say('About forty minutes after the harbor gauge.')]);
+  const notFound = ev([user('when is the ferry?'), src, say('The ferry times are not found in notes/tides.md, the only source searched.')]);
+  const [item] = doneWhen('## Done when\n1. Every fact traces to a source read this turn (evidence)\n');
+  report(good.length === 0 && /nothing was read/.test(none[0] || '') && madeUp.length === 1 && /notes\/moon\.md/.test(madeUp[0]) && /not in the source cited beside it/.test(misquote[0] || '')
+    && /names no source/.test(bare[0] || '') && notFound.length === 0 && item.kind === 'evidence' && item.text === 'Every fact traces to a source read this turn',
+    'end: an answer from sources is held to evidence: nothing read, a cited file not read, a misquote and no source each named; a sourced answer and an honest "not found" pass', JSON.stringify({ good, none, madeUp, misquote, bare, notFound }));
+  const books = [{ file: 'docs/playbooks/tides.md', name: 'tides', triggers: [], menu: [], skills: [], items: [item] }];
+  const held = missing({ runbook: 'docs/playbooks/tides.md' }, acts([user('when is high tide?'), call('Read', { file_path: path.join(dir, 'docs/playbooks/tides.md') }), say('About forty minutes after the gauge.')]), books);
+  report(held.length === 1 && /tides\.md item 1: Read the sources/.test(held[0]), 'end: a routed question whose runbook asks for evidence is held to it, with what is missing named', held);
+  const { skillMissing } = await import('./end.mjs');
+  const sk = [{ file: 'skills/facts/SKILL.md', name: 'facts', triggers: [], menu: [], skills: [], items: [item] }];
+  const openSk = call('Read', { file_path: path.join(dir, 'skills/facts/SKILL.md') });
+  const asked = skillMissing(acts([user('when is high tide?'), openSk, say('About forty minutes after the gauge.')]), sk);
+  const built = skillMissing(acts([user('add the tide table'), openSk, edit, say('Added the table.')]), sk);
+  report(asked.length === 1 && /skills\/facts\/SKILL\.md item 1: Read the sources/.test(asked[0]) && built.length === 0,
+    'end: a skill\'s evidence item holds a typed question that opened it, never a work turn', { asked, built });
+}
 { // (a question its routed runbook fits is held to opening it and to its answer items only; an unrouted one is free)
   const skipped = missing(turn, acts([user('what does the csv export do?'), say('It writes one row per order.')]));
   const followed = missing(turn, acts([user('what does the csv export do?'), read, say('It writes one row per order; how it was checked: the code.')]));

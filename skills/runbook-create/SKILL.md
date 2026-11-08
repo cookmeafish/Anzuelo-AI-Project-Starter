@@ -36,10 +36,14 @@ Copy `docs/playbooks/_TEMPLATE.md` to `docs/playbooks/<kebab-name>.md` (standard
 ## 3. Write its check (mandatory)
 The check is a marker on at least one "Done when" item; the end check tests it on every turn this runbook covers and
 blocks until it is met: `(file: <path or glob>)` the turn changed that file, `(ran: <regex>)` a command matching it
-ran and passed (a validator script you write counts), `(answer: <regex>)` the final answer matches it. Make it fire on
+ran and passed (a validator script you write counts), `(answer: <regex>)` the final answer matches it. A runbook that
+answers questions from sources (a knowledge base, the web) gets `(evidence)` on one item: a source was read this turn,
+every file or link the answer cites was read, every quote is in what was read, and the answer names its sources or
+says "not found in <sources searched>". A routed question is held to its runbook's `(answer: ...)` and `(evidence)`
+items only. Make it fire on
 the work itself, not on the runbook being opened: add `(when ran: <the command that makes the result>)` or
 `(when file: <its inputs>)`, so a request that reuses a result already made, a related request and the setup turn that
-writes the runbook pass. A regex may not contain `)`. Example:
+writes the runbook pass. A regex may hold one level of brackets, like `(one|two)`. Example:
 `- [ ] The weekly summary is saved (when ran: make_summary) (file: reports/summary-*.md)`.
 If nothing can be checked, set `checks: none - <reason>` in the runbook. Never add an entry to
 `tools/hooks/requirements.json`: the end check does not run those (2026-11-07).

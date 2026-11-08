@@ -32,6 +32,14 @@ A run that is stuck sets `status: blocked - <reason>` with `Tried:` and `Options
   command items). Replay over real project sessions: all 13 routed no-work turns it would have held were notes from
   another session (all false), so those are excluded; typed routed questions held: 0. Little real data yet on typed
   questions: measure again after the next upgrade.
+- 2026-11-08, Task 2: the "(evidence)" marker on a runbook or skill item (the research skill has it; runbook-create
+  explains it). It applies to typed questions only, never work turns (facts written into files keep knowledgeGaps).
+  Checks: something was read; a cited file or link exists or was read, fetched or found by a search this turn; a quote on
+  a line with a source the turn read is that source's words; the answer names a source or says "not found in ...".
+  Replay of the strict first version on every question turn of two projects: 94 of 113 flagged, mostly false (files
+  read in earlier turns, quotes of the user or of screens, status notes). After narrowing: 9 "made up" citations (files
+  missing now, maybe deleted since; can't be settled) and 54 "names no source", which apply only where a runbook asks
+  for evidence. Real routed or research-skill question turns in the data: 0, so measure live after the next upgrade.
 
 ## Context
 - `tools/hooks/v2/end.mjs`: missing() and the others return nothing unless worked(acts) (lib.mjs, edits only).
@@ -62,13 +70,13 @@ A run that is stuck sets `status: blocked - <reason>` with `Tried:` and `Options
 ### Task 2: evidence checks for knowledge answers
 **Files:** `tools/hooks/v2/lib.mjs`, `tools/hooks/v2/end.mjs`, `packs/knowledge/files/docs/playbooks/*.md`, `tools/hooks/v2/selftest.mjs`
 **Uses / provides:** uses Task 1
-- [ ] Read before answering: a knowledge or web source was read (Read, Grep, WebFetch) before the final answer.
-- [ ] Every file path or URL the answer cites was read this turn; quoted text appears in what was read.
-- [ ] No source named in a factual answer: one ask to cite each fact, or label it as inference or not found.
-- [ ] Knowledge pack question runbooks get these as "Done when" items; judgment beyond them goes to the fresh reviewer
+- [x] Read before answering: a knowledge or web source was read (Read, Grep, WebFetch) before the final answer.
+- [x] Every file path or URL the answer cites was read this turn; quoted text appears in what was read.
+- [x] No source named in a factual answer: one ask to cite each fact, or label it as inference or not found.
+- [x] Knowledge pack question runbooks get these as "Done when" items; judgment beyond them goes to the fresh reviewer
       on knowledge-runbook turns only.
-- [ ] Tests: made-up citation, no source read, quote not in the source each block; a sourced answer passes.
-- [ ] Run `node tools/hooks/v2/selftest.mjs`. Expected: ALL PASS.
+- [x] Tests: made-up citation, no source read, quote not in the source each block; a sourced answer passes.
+- [x] Run `node tools/hooks/v2/selftest.mjs`. Expected: ALL PASS.
 
 ### Task 2b: answers from several sources (user, 2026-11-07: "very critical all output is accurate")
 **Files:** `tools/hooks/v2/lib.mjs`, `tools/hooks/v2/end.mjs`, `packs/knowledge/files/docs/playbooks/*.md`, `tools/hooks/v2/selftest.mjs`
