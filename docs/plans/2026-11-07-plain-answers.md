@@ -17,6 +17,9 @@ The user was upset twice in one session about answers they could not understand.
 - [x] The plain rewrite still leaned on internal terms (setup, the end step, project-made checks). Cause: the same
       habit as the first item. Fix: the answer explains with an everyday example, no internal names.
 
+- [x] "The old engine" was used as if the user knew it. Cause: the same habit; covered by the improvement-loop
+      pitfall (every internal name gets a plain description or is left out). Fix: explained in the answer.
+
 ## Sweep
 `noteGaps` over every assistant message in the starter's own transcripts: 2525 messages, 3 with an Issue note, all
 this session's.
