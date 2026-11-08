@@ -4403,7 +4403,7 @@ export function dueRoutines(text, now = today()) {
   return out;
 }
 
-// Every engine change (install, move, upgrade, rollback, removal) leaves one dated line in the project's
+// REQ: engine-change. Every engine change (install, move, upgrade, rollback, removal) leaves one dated line in the project's
 // docs/DECISIONS.md, and the next session start shows the newest one once. Lesson (a field report): a move and its
 // rollback left no trace, so the project's main session never knew its engine had changed.
 export const ENGINE_CHANGE = /^- \d{4}-\d\d-\d\d: engine (installed|moved|upgraded|rolled back|removed)\b.*$/;

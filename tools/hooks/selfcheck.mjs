@@ -2423,7 +2423,7 @@ PRETOOL.push(
   // a message from the user while helpers launched before it still run: name them, once (Lesson, a field report: three
   // helpers judged a stock-only order after the user allowed substitutes, and their 447,423 tokens were thrown away)
   ...[['while a helper launched before it runs gets a heads-up to stop the obsolete ones', [{ type: 'attachment', attachment: { type: 'queued_command', prompt: 'you can use substitutes now' } }], { context: /stop the ones it makes obsolete \(TaskStop\)/ }],
-    ['after the helper reported back gets no heads-up', [{ type: 'user', message: { role: 'user', content: '<task-notification><task-id>a7c1d2e3f4</task-id><status>completed</status></task-notification>' } }, { type: 'attachment', attachment: { type: 'queued_command', prompt: 'you can use substitutes now' } }], { noContext: true }],
+    ['after the helper reported back gets no heads-up, only the message to answer first', [{ type: 'user', message: { role: 'user', content: '<task-notification><task-id>a7c1d2e3f4</task-id><status>completed</status></task-notification>' } }, { type: 'attachment', attachment: { type: 'queued_command', prompt: 'you can use substitutes now' } }], { context: /^The user wrote while you work: "you can use substitutes now"\. Answer it now[^\n]*$/ }],
     ['with no new message from the user gets no heads-up', [], { noContext: true }]].map(([what, rows, want]) => ({ name: `scope-change: a user message ${what}`, tool: 'Bash', input: { command: 'ls docs' },
       tools: [{ name: 'Agent', input: { prompt: 'Read AGENTS.md first. Judge the stock-only order.', description: 'judge stock order' }, result: 'Async agent launched successfully.\nagentId: a7c1d2e3f4 (use SendMessage to continue)' }], rows, deny: false, ...want })),
   { name: 'sub-agent brief that already names AGENTS.md: left as it is', tool: 'Agent', input: { prompt: 'Read AGENTS.md first. Review the export feature.', subagent_type: 'general-purpose' }, deny: false },
@@ -8792,7 +8792,10 @@ if (mineB() && (!TAGS || TAGS.includes('upset-acknowledged'))) { // REQ: upset-a
     fs.writeFileSync(path.join(helperDir, 'agent-h4.jsonl'), hRow('The user sent a new message while you were working:\nWHY DID YOU SKIP THE CHECK AGAIN? THIS IS SUPER BAD') + '\n');
     const hUpset = inH('h4', 'Read', { file_path: path.join(dir, 'README.md') });
     fs.writeFileSync(path.join(dir, 'tools/hooks/state/upset-pending.json'), '{}');
-    report([hRouted, hHeld, hFreed, hOther, hUpset].every(o => !isDeny(o) && !/additionalContext/.test(o)) && !String(hStop).trim(), 'helper-turn-checked: a helper is never routed, held or given notices, even when the user writes to it (REQ quiet-work: its result is checked with the main turn)',
+    // (the one note a helper gets: the user's own message, to answer first, once. The user, 2026-11-08: a question typed
+    // into a busy helper waited unanswered)
+    const onlyAnswerFirst = o => { let ctx = ''; try { ctx = JSON.parse(o).hookSpecificOutput?.additionalContext || ''; } catch { } return !ctx || (/^The user wrote while you work: /.test(ctx) && !ctx.includes('\n')); };
+    report([hRouted, hHeld, hFreed, hOther, hUpset].every(o => !isDeny(o) && onlyAnswerFirst(o)) && !String(hStop).trim(), 'helper-turn-checked: a helper is never routed, held or given notices, even when the user writes to it (REQ quiet-work: its result is checked with the main turn)',
       JSON.stringify([hRouted, hHeld, hFreed, hOther, hStop, hUpset].map(o => String(o).slice(0, 160))));
     // (a record may cover several items, and only this turn's records count. Lesson (the user): a turn recorded
     // "Done 1-12", the count read item 1 alone and took 11 more from earlier turns' lines, and showed "11/12" on a pass)
