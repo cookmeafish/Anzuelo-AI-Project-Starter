@@ -149,6 +149,10 @@ unchanged. Counted with the same inventory; line counts include comments (about 
   the overrun is reported, not hidden.
 - Order: (a) moves first, each part rewritten small with its tests ported; (b) next; (c) is deleted last, after the
   full chain shows nothing still calls it.
+- Conditions (confirmed 2026-11-08): the scope is tools/hooks/, what runs on hook events. Code moved into another
+  tool must not grow there: each commit that moves some reports every receiving tool's line count before and after,
+  and the moved total stays at or under 690. Tests are not counted, but a selfcheck or selftest scenario for deleted
+  code goes in the same commit as the code.
 
 ### Task 2: one place for each rule
 **Files:** `AGENTS.md`, `docs/checks/user-requirements.md` (generated), `tools/hooks/requirements.json` (retired), `skills/project-rule/SKILL.md`, `tools/audit.mjs`
