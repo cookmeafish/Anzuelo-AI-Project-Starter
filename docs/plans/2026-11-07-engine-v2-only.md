@@ -100,10 +100,14 @@ Measured 2026-11-07 on HEAD (corrections to the draft are marked):
       one that fits, or none". Upset and question hints stay; safety reminders unchanged.
 - [ ] End: held to the runbook(s) opened; a work turn, or a knowledge question, that opened none is asked once to
       open the closest (listed) or say in one line why none fits. Triggers shrink to a few phrases that rank the menu.
-- [ ] Ease off trigger words (user, 2026-11-07): word matches force behavior only in the safety guards (private and
-      forbidden terms, the user's own words kept out of shared files, secrets, AI credit). They never force a runbook,
-      a skill, the upset or the rule handling; those become hints the agent may ignore. Case to cover: a message that
-      only mentions "trigger words" was routed to the trigger-words runbook twice.
+- [ ] Ease off trigger words (user, 2026-11-07). Principle: a word match may force (refuse or require) something only
+      where skipping it could cause harm that is hard to undo: safety, privacy, other people, or an irreversible or
+      outward action. Everything else is a hint the agent may ignore (runbooks, skills, upset and rule handling).
+      Guards that pass today: protected and versioned files, generated mirrors, mixing people's data, risky git,
+      outward actions, forbidden commands, the installed browser, the setup file, secrets, AI credit, private terms,
+      the user's own words kept out of shared files.
+- [ ] Inventory every word match in the engine into this plan: keep each that passes, with its reason; turn the rest
+      into hints. Case to cover: a message that only mentions "trigger words" was routed to that runbook twice.
 - [ ] Replay over real sessions (totals): picked-and-opened share, "why none" asks, false asks, against the keyword
       router on the same turns.
 - [ ] Run `node tools/hooks/v2/selftest.mjs`. Expected: ALL PASS, menu and ask cases included.
