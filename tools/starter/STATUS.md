@@ -4,6 +4,10 @@ Where work on the starter itself stands, for the next session. Projects never ge
 docs/STATUS.md, which here is the template new projects start from).
 
 ## Now
+- 2026-11-07: runbook use measured on real project sessions since 2026-11-05 (totals): 34 work turns. 6 were routed: 2
+  opened the runbook that turn, 3 earlier in the session, 1 never. 28 were not routed: 25 opened a runbook that turn,
+  3 earlier in the session. Turns that worked with no runbook at all: 1 of 34 (3%), under the 10% bar, so no end ask
+  is added. Measure again after the next batch upgrade.
 - 2026-11-05: Quiet work shipped (45a94c2, local, not pushed): during work only safety guards refuse, helpers are
   never held, no done/skip lines. Both projects upgraded to 299f45a (all tests pass). Engine v2 is in
   tools/hooks/v2 and off by default. It has the start reminder and end checks 1 (runbook Done-when) and 2 (tests),
