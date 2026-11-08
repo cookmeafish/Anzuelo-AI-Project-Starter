@@ -296,6 +296,8 @@ export function turnActs(rows) {
     if (r.type === 'user' && typeof r.message?.content === 'string') { context += r.message.content.slice(0, 20000) + '\n'; heard += r.message.content.slice(0, 20000) + '\n'; }
     const c = r.message?.content;
     if (!Array.isArray(c)) continue;
+    // (a message the user typed mid-turn comes as a text item beside tool results: heard too)
+    if (r.type === 'user') for (const x of c) { const m = x.type === 'text' && /The user sent a new message while you were working:\s*([\s\S]*?)(?:\n\s*This is how Claude Code surfaces|$)/.exec(x.text || ''); if (m) heard += m[1].slice(0, 20000) + '\n'; }
     for (const x of c) {
       if (r.type === 'assistant' && x.type === 'tool_use') { const call = { name: x.name, input: x.input || {}, error: false, out: '', done: 0, at: Date.parse(r.timestamp || '') || 0 }; calls.push(call); byId.set(x.id, call); }
       if (x.type === 'tool_result' && byId.has(x.tool_use_id)) {
@@ -320,6 +322,36 @@ export function questionGaps(acts) {
 
 // An engine note ("Issue: ... | runbook: ..." or "Issue: none - ...") shown to the user: it belongs in the notes file,
 // and the answer says it in plain words. Lesson: an Issue line at the top of an answer read as gibberish to the user.
+// A file the turn wrote that copies six or more of the user's words in a row and presents them as the user's (in
+// quotes, or on a line naming the user): AGENTS.md rule 14 wants the lesson in general terms. Asked once, at the end,
+// only when it happened. Lesson: lessons were written down as the user's own sentences, over a hundred of them.
+export function quoteGaps(acts) {
+  const words = s => String(s).toLowerCase().match(/[\p{L}\p{N}']+/gu) || [];
+  // (only what the user typed: pasted text, relayed messages, notices and quoted blocks are someone else's words.
+  // Lesson (a sweep of 1,799 real turns): pasted card text quoted in a review and file paths were flagged)
+  const own = String(acts.heard || '').replace(/<(pasted_content|cross-session-message|agent-message|task-notification)\b[\s\S]*?<\/\1>/g, ' ')
+    .split('\n').filter(l => !/^\s*>/.test(l)).join('\n');
+  const heard = words(own);
+  if (heard.length < 6) return [];
+  const runs = new Set(heard.slice(5).map((_, i) => heard.slice(i, i + 6).join(' ')).filter(r => !/\d/.test(r)));
+  const hits = [];
+  for (const c of acts.calls || []) {
+    if (!/^(Edit|Write|MultiEdit)$/.test(c.name) || c.error) continue;
+    const file = String(c.input.file_path || '').replace(/\\/g, '/');
+    if (!file || /(^|\/)\.cache\/|\/memory\/|turn-notes|\/scratchpad\//i.test(file)) continue;
+    const text = [c.input.new_string, c.input.content, ...(c.input.edits || []).map(e => e.new_string)].filter(Boolean).join('\n');
+    for (const line of text.split('\n')) {
+      // (a quote on a line that names the user as its source: "Lesson (the user): ...", "the user said ...")
+      if (!/\b(the user|user said|user asked|user wrote)\b/i.test(line)) continue;
+      // (a quote may run on past the end of its line, as in a wrapped comment)
+      const quotes = [...line.matchAll(/["“]([^"“”]{20,})(?:["”]|$)/g)].map(m => words(m[1]));
+      const run = quotes.flatMap(w => w.slice(5).map((_, i) => w.slice(i, i + 6).join(' '))).find(r => runs.has(r));
+      if (run) { hits.push(`${file.split('/').slice(-2).join('/')}: "${run}..."`); break; }
+    }
+  }
+  return hits.length ? [`The turn wrote the user's own words as a quote (${hits.slice(0, 3).join('; ')}): write the lesson in general terms instead (AGENTS.md rule 14), unless the user asked for that exact text.`] : [];
+}
+
 export function noteGaps(acts) {
   if (!/^\W*Issue:\s*(.*\|\s*runbook:|none\s+-)/im.test(acts.said || acts.answer || '')) return [];
   return ['An "Issue:" line is in the answer: it is a note for .cache/turn-notes.md only. Take it out and say in plain words what went wrong and what changes.'];

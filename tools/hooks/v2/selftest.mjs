@@ -703,6 +703,20 @@ const { questionGaps } = await import('./lib.mjs');
   report(whens.length >= 2 && real.every(Boolean) && !dry.some(Boolean), 'engine runbook: its upgrade items fit a real upgrade and never a dry run', { whens: whens.map(String), real, dry });
 }
 
+// end: the user's own words written into a file as a quote are named once; a general lesson, a dictated line and a
+// note in .cache are not (AGENTS.md rule 14)
+{
+  const { quoteGaps } = await import('./lib.mjs');
+  const said = 'ugh the totals row keeps vanishing every single time i export the orders';
+  const w = (file, text) => call('Edit', { file_path: path.join(dir, file), old_string: 'a', new_string: text });
+  const quoted = quoteGaps(acts([user(said), w('src/export.js', '// Lesson (the user): "the totals row keeps vanishing every single time i export"'), say('Fixed.')]));
+  const general = quoteGaps(acts([user(said), w('src/export.js', '// Lesson: the export dropped the totals row; keep it as the last row'), say('Fixed.')]));
+  const dictated = quoteGaps(acts([user('add a footer that reads thanks for shopping with us today friends'), w('src/footer.html', '<p>thanks for shopping with us today friends</p>'), say('Added.')]));
+  const notes = quoteGaps(acts([user(said), w('.cache/turn-notes.md', 'Issue: "the totals row keeps vanishing every single time" | runbook: debug'), say('Fixed.')]));
+  report(quoted.length === 1 && /rule 14/.test(quoted[0]) && !general.length && !dictated.length && !notes.length,
+    'end: the user\'s own words written into a file as a quote are named once; a general lesson, a dictated line and a .cache note are not', JSON.stringify({ quoted, general, dictated, notes }));
+}
+
 // end: an engine note shown to the user
 const { noteGaps } = await import('./lib.mjs');
 {
