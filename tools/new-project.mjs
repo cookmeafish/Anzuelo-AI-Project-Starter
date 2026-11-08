@@ -33,7 +33,7 @@ const ENGINE = [
   'docs/checks/session-checklist.md', 'docs/checks/finish-checklist.md', 'docs/checks/runbook-standards.md',
   'docs/checks/writing-standards.md', 'docs/checks/layout-standards.md', 'docs/recommended-tools.md', 'docs/checks/better-or-worse.md',
   'docs/playbooks/_TEMPLATE.md', 'docs/playbooks/_fallback.md', 'docs/playbooks/project.md', 'docs/playbooks/plan.md', 'docs/playbooks/status-lines.md', 'docs/playbooks/trigger-words.md', 'docs/playbooks/engine.md', 'HOW-TO-USE.md', 'tools/skills.mjs', 'tools/starter.mjs', 'tools/recall.mjs', 'tools/hooks/wire.mjs', 'tools/survey.mjs', 'tools/dedupe.mjs', 'tools/fit.mjs',
-  'tools/hooks/engine-checks.json', 'tools/hooks/engine-checks-history.json',
+  'tools/hooks/engine-checks.json', 'tools/hooks/engine-checks-history.json', 'tools/hooks/defaults.json', 'tools/hooks/SETTINGS.md',
   // the starter's proof that its full self-test passed on this engine: a project with the same engine reuses it
   // (selftest-cache.mjs PROOF_FILE). Lesson: each new project's setup ran the whole engine suite again first.
   'tools/hooks/engine-proof.json',

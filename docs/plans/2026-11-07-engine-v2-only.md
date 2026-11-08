@@ -158,6 +158,11 @@ unchanged. Counted with the same inventory; line counts include comments (about 
   dropped; upset-acknowledged no longer runs in the tool hook because only v1 ever sets it. v2 lib 744 to 709 and end
   185 to 163 (lesson comments one line each). Still over the 420 target: the guard helpers left in hooks.mjs (secrets,
   gitignore, push, held runs, browser, people's folders) move or shrink with the table rewrite.
+- Guards, decision (2026-11-08): 569 lines (guard.mjs 477 + 92 of helpers in hooks.mjs) against 420. Every remaining
+  line is a refusal or a special case with its own scenario; a table form would save under 50 lines and lose none of
+  them only by moving text into data. Overrun of about 150 reported; the guard wins.
+- Paths/config (2026-11-08): DEFAULTS became tools/hooks/defaults.json (86 settings, checked equal to the old object),
+  with one line per setting in tools/hooks/SETTINGS.md: hooks.mjs 9,137 to 8,922.
 
 ### Task 2: one place for each rule
 **Files:** `AGENTS.md`, `docs/checks/user-requirements.md` (generated), `tools/hooks/requirements.json` (retired), `skills/project-rule/SKILL.md`, `tools/audit.mjs`
