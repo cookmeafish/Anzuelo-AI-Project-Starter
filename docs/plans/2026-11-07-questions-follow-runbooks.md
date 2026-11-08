@@ -130,5 +130,9 @@ A run that is stuck sets `status: blocked - <reason>` with `Tried:` and `Options
 ### Task 3: replay and ship
 **Files:** none new
 **Uses / provides:** uses Tasks 1 and 2
-- [ ] Replay real sessions: extra question-turn blocks as totals, real vs false; tighten broad triggers behind false ones.
-- [ ] Run `node tools/hooks/selfcheck.mjs`, `node tools/trial.mjs` and `node tools/audit.mjs` on a frozen copy. Expected: 0 failed.
+- [x] Replay real sessions: extra question-turn blocks as totals, real vs false; tighten broad triggers behind false ones.
+      (Done before the push, 2026-11-08: see the notes.)
+- [x] Run `node tools/hooks/selfcheck.mjs`, `node tools/trial.mjs` and `node tools/audit.mjs` on a frozen copy. Expected: 0 failed.
+      (7b1c7b0: v2 192, selfcheck 1680, trial 143/143, audit PASS; pushed as 0e1f09a.)
+- [ ] After both projects upgrade and add "(evidence)" to their answer runbooks: replay the routed questions held,
+      real vs false (totals); the plan closes when that count is above 0 in a project with answer runbooks.
