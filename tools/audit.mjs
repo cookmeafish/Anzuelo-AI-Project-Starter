@@ -20,7 +20,7 @@ import { listAll, split } from './hooks/paths.mjs';
 import { pending as alwaysPendingIn } from './always.mjs';
 // The v2 parity ratchet (see "every REQ tag is enforced and tested"): requirement tags no v2 test names yet, and the day
 // it began. Each port lowers the number in the same commit.
-const V2_UNTESTED = 130, V2_RATCHET_DAY = '2026-11-08';
+const V2_UNTESTED = 128, V2_RATCHET_DAY = '2026-11-08';
 // Engine checks that hold only on the user's words, retired with the date the user retired keyword forcing; and the
 // requirement keys v2's evaluator does not read yet ("<tag>.<key>"), which may only shrink.
 const PROMPT_ONLY_RETIRED = { 'incident-trigger': '2026-11-07, v2-only plan, Spec line: the agent picks, no keyword forcing',
