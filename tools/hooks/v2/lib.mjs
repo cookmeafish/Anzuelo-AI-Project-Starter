@@ -488,7 +488,18 @@ const ranAt = (acts, t) => {
   if (runs.some(c => !c.at)) return true;
   return runs.some(c => t >= c.at - 2000 && t <= (BG.test(c.out) || !c.done ? Infinity : c.done + 2000));
 };
-const changedSince = (acts, rx) => { const since = Date.parse(acts.at || '') || 0; if (!since) return []; if (!walked.has(acts)) walked.set(acts, filesMatching('**/*')); return walked.get(acts).filter(f => rx.test(f) && !/^(\.cache|tools\/hooks\/state)\//.test(f) && (() => { try { const t = fs.statSync(at(f)).mtimeMs; return t > since && ranAt(acts, t); } catch { return false; } })()); };
+// The files written since the turn began, each with its time: walked and stat'ed once per turn, however many checks
+// ask. A turn whose calls can't write (reads, searches, questions) skips the walk. Lesson (a project's upgrade): every
+// check walked and stat'ed the whole tree again, and Stop on a plain question took 74 ms more in a large project.
+const READ_ONLY = /^(Read|Grep|Glob|LS|WebFetch|WebSearch|ToolSearch|ListAgents|TodoWrite|TaskList|TaskGet|TaskOutput|AskUserQuestion|ScheduleWakeup|CronList|SendMessage|Skill)$/;
+export function touchedSince(acts) {
+  if (walked.has(acts)) return walked.get(acts);
+  const since = Date.parse(acts.at || '') || 0;
+  const out = !since || acts.calls.every(c => READ_ONLY.test(c.name)) ? [] : filesMatching('**/*').map(f => ({ f, t: mtime(f) })).filter(x => x.t > since);
+  walked.set(acts, out);
+  return out;
+}
+const changedSince = (acts, rx) => touchedSince(acts).filter(({ f, t }) => rx.test(f) && !/^(\.cache|tools\/hooks\/state)\//.test(f) && ranAt(acts, t)).map(x => x.f);
 const mtime = f => { try { return fs.statSync(at(f)).mtimeMs; } catch { return 0; } };
 // REQ: scope-separate (rule 11). One person's data never mixes with another's: files of someone the request is not
 // about changed this turn, or an answer about one person brings in another's details. A follow-up that names nobody is
@@ -719,8 +730,8 @@ export function securityGaps(acts) {
   // know it. Lesson (the old suite under v2): code a script wrote was never read)
   // (a file the turn edited with a tool is judged by those edits only)
   const since = Date.parse(acts.at || '') || 0, viaTool = new Set(acts.calls.filter(c => /^(Edit|Write|MultiEdit)$/.test(c.name)).map(c => relp(c.input.file_path || '')));
-  if (since) { if (!walked.has(acts)) walked.set(acts, filesMatching('**/*'));
-    for (const f of walked.get(acts).filter(f => covered(f) && !viaTool.has(f) && mtime(f) > since)) {
+  if (since) {
+    for (const f of touchedSince(acts).map(x => x.f).filter(f => covered(f) && !viaTool.has(f))) {
       // (a file made this turn is read whole; one that was there is read by what git says it gained, or not at all)
       const made = (() => { try { return fs.statSync(at(f)).birthtimeMs > since; } catch { return false; } })();
       const d = made ? null : spawnSync('git', ['diff', '-U0', '--', f], { cwd: ROOT, encoding: 'utf8', timeout: 5000 });
@@ -733,7 +744,7 @@ export function securityGaps(acts) {
   const reviewed = acts.calls.some(c => (c.name === 'Skill' && /security-review$/.test(String(c.input.skill || '')))
     || (/^(Agent|Task)$/.test(c.name) && /security-review/.test(String(c.input.prompt || '')))
     || (/^(Edit|Write)$/.test(c.name) && /^docs\/reviews\/security[^/]*\.md$/i.test(relp(c.input.file_path || ''))))
-    || (since && walked.get(acts).some(f => /^docs\/reviews\/security[^/]*\.md$/i.test(f) && mtime(f) > since))
+    || (since && touchedSince(acts).some(({ f }) => /^docs\/reviews\/security[^/]*\.md$/i.test(f)))
     // (or the skill read and its result given: logged in docs/security.md, or a results table in the answer)
     || (acts.calls.some(c => c.name === 'Read' && /skills[\\/]security-review[\\/]SKILL\.md$/i.test(String(c.input.file_path || '')))
       && ((since && mtime('docs/security.md') > since) || /\|\s*(PASS|FAIL|N\/?A)\b/.test(acts.answer || '')));
@@ -805,9 +816,7 @@ export const unknownKeys = c => !c || typeof c !== 'object' ? [] : Object.entrie
 // The files this turn changed: by the edit tools, and (with a turn start) any whose time is after it, so a command's
 // writes count too. Walked once per turn.
 function changedOf(acts) {
-  const since = Date.parse(acts.at || '') || 0;
-  if (since && !walked.has(acts)) walked.set(acts, filesMatching('**/*'));
-  return [...new Set([...acts.calls.filter(c => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name)).map(c => relp(c.input.file_path || '')), ...(since ? walked.get(acts).filter(f => !/^(\.cache|tools\/hooks\/state)\//.test(f) && mtime(f) > since) : [])])];
+  return [...new Set([...acts.calls.filter(c => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name)).map(c => relp(c.input.file_path || '')), ...touchedSince(acts).map(x => x.f).filter(f => !/^(\.cache|tools\/hooks\/state)\//.test(f))])];
 }
 // REQ: forbidden-terms (files a command changed: the guard sees only the edit tools). A name the file already had at
 // git's last commit is no new slip; ignored files and the engine's own list and state don't count.

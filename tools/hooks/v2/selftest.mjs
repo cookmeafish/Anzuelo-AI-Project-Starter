@@ -573,6 +573,23 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
       kept === null ? fs.rmSync(cf, { force: true }) : fs.writeFileSync(cf, kept); fs.rmSync(path.join(dir, 'src'), { recursive: true, force: true });
       report(cg.length === 1 && /src\/soup\.js:2: Set text with textContent/.test(cg[0]) && !/soup\.test/.test(cg[0]),
         'end: code-rules: a changed file that breaks a project code rule is held with its line; a test file\'s payload is not', JSON.stringify(cg));
+      // (speed: a question turn walks no files, however large the project, and its end check stays within budget; a turn
+      // that ran a command walks once and finds what it wrote. Lesson (a project's upgrade): each check walked the tree
+      // again, and Stop on a plain question took 74 ms more)
+      {
+        const L = await import('./lib.mjs');
+        const wAt = new Date(Date.now() - 2000).toISOString();
+        fs.mkdirSync(path.join(dir, 'bulkwalk'), { recursive: true });
+        for (let i = 0; i < 3000; i++) fs.writeFileSync(path.join(dir, 'bulkwalk', `n${i}.md`), 'x');
+        const q = acts([user('what does the brief say'), call('Read', { file_path: path.join(dir, 'docs/BRIEF.md') }, 'The brief.'), say('It says what the project is for.')]); q.at = wAt;
+        const t0 = performance.now();
+        for (const n of ['testGaps', 'gateGaps', 'screenGaps', 'knowledgeGaps', 'securityGaps', 'claimGaps', 'questionGaps', 'noteGaps', 'quoteGaps', 'scopeGaps', 'alwaysGaps', 'engineCheckGaps', 'forbiddenGaps', 'codeRuleGaps', 'injectionGaps']) L[n](q, '');
+        const qMs = performance.now() - t0;
+        const b = acts([user('make the notes'), call('Bash', { command: 'node tools/notes.mjs' }, 'ok'), say('Done.')]); b.at = wAt;
+        const sp = { question: L.touchedSince(q).length, ran: L.touchedSince(b).filter(x => /^bulkwalk\//.test(x.f)).length, qMs: Math.round(qMs) };
+        fs.rmSync(path.join(dir, 'bulkwalk'), { recursive: true, force: true });
+        report(sp.question === 0 && sp.ran === 3000 && sp.qMs < 60, 'speed: a question turn in a 3,000-file project walks no files and its whole end check takes under 60 ms; a turn that ran a command walks once and finds what it wrote', JSON.stringify(sp));
+      }
       // (REQ: injection-guard / injection-flagged: a kept file left holding text aimed at an AI is held; something read
       // from outside that carries such text needs a warning in the answer; the project's own security notes don't count)
       const { injectionGaps } = await import('./lib.mjs');
