@@ -13,8 +13,11 @@ export function makeLaunchers(io) {
   const RUN_WORDS = /\b(run|running|double[- ]?click|open|start|launch|execute|type|paste)\b|(?<!\p{L})(ejecut[aeo]\w*|corr[ae]|correr|haz doble ?clic|doble ?clic|abr[ae]|abrir|lanz[ae]|inici[ae]|escrib[ae]|pega)(?!\p{L})/iu;
   const LAUNCHER = /[\w.\\/~:-]*[\w-]\.(?:ps1|bat|cmd|sh|command|py|mjs|cjs|js|ts|rb|pl)\b/gi;
   const EXECUTOR = /^(powershell(\.exe)?|pwsh(\.exe)?|cmd(\.exe)?|bash|sh|zsh|node(\.exe)?|python\d*(\.\d+)?(\.exe)?|py|call|start|&|\.|source|ruby|perl|deno|bun|tsx|ts-node|-file|\/c|\/k|-c|-command)$/i;
-  // (the verb is read outside code and file names: "start" in `start.bat` is no instruction)
-  const runSaid = l => RUN_WORDS.test(String(l).replace(/`[^`\n]*`/g, ' ').replace(/[\w.\\/~:-]*[\w-]\.[A-Za-z]{1,8}\b/g, ' '));
+  // (the verb is read outside code and file names: "start" in `start.bat` is no instruction; nor is a verb whose subject
+  // is a thing, "modules both engines run", "the tests run", "which runs": that describes code. Lesson (this starter's
+  // own answer): "shared modules both engines run: `proof.mjs`, `trace.mjs`" asked the user to run those files)
+  const DESCRIBES_RUN = /\b(engines?|both|they|it|that|which|who|tests?|checks?|hooks?|modules?|code|scripts?|jobs?|servers?|tools?|everything|nothing)\s+(also\s+|now\s+|still\s+)?(runs?|running|starts?|opens?|launch(es)?|executes?)\b/gi;
+  const runSaid = l => RUN_WORDS.test(String(l).replace(/`[^`\n]*`/g, ' ').replace(/[\w.\\/~:-]*[\w-]\.[A-Za-z]{1,8}\b/g, ' ').replace(DESCRIBES_RUN, ' '));
   // The launchers an answer tells the user to run that this turn created or changed: { id, base, npm, make, ps51, said }.
   function instructedLaunchers(answer, changed) {
     // (the whole answer: some put everything under "## Finished". A list of files, "Start and setup: `start.bat`,

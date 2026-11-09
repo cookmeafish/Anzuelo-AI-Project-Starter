@@ -3768,6 +3768,12 @@ STOP.push(
     files: { 'start.cmd': '@echo off\ncall npm start\n', 'docs/CHANGELOG.md': 'x' }, answer: '**Hecho:** el blog está listo.\n- **Ver el blog:** doble clic en `start.cmd` y abre http://127.0.0.1:8080/.' + ES_FIN, expect: { not: ['instructions-run'] } },
   { name: 'instructions-run: a script this turn did not touch, and a launcher only listed in Finished: passes', prompt: 'set up the api', tools: [W('start.bat', '@echo off\n')],
     files: { 'start.bat': '@echo off\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done. Run `node tools/audit.mjs` any time to check the project.\n\n## Finished\n- Files: `start.bat`', expect: { not: ['instructions-run'] } },
+  // (a "run" whose subject is a thing describes code, it tells the user nothing. Lesson (this starter's own answer):
+  // "shared modules both engines run: `proof.mjs`, `trace.mjs`" was held as telling the user to run them)
+  ...[['The checks moved into shared modules both engines run: `scripts/a.mjs` and `scripts/b.mjs`.', { not: ['instructions-run'] }, 'describes code that runs: passes'],
+    ['The checks moved into shared modules. Run `node scripts/a.mjs` once to see them.', { block: true, tags: ['instructions-run'] }, 'tells the user to run one: blocked']].map(([said, expect, says]) => ({
+    name: `instructions-run: an answer that ${says}`, prompt: 'move the checks into shared modules', tools: [W('scripts/a.mjs', 'console.log(1)\n'), W('scripts/b.mjs', 'console.log(2)\n')],
+    files: { 'scripts/a.mjs': 'console.log(1)\n', 'scripts/b.mjs': 'console.log(2)\n', 'docs/CHANGELOG.md': 'x' }, answer: `Done. ${said}` + FIN, expect })),
   // Lesson (the starter's own work): "run" as a noun in a Finished entry for a changed file asked for that file to be run
   ...[['how a test run of the menu is judged', { not: ['instructions-run'] }, 'describes it with "run" as a noun: passes'],
     ['sets up the menu; run it once before the first start', { block: true, tags: ['instructions-run'] }, 'says to run it: blocked']].map(([desc, expect, says]) => ({
