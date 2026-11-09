@@ -4978,6 +4978,7 @@ const V2_ASKS = {
   'upgrade-review': /^- Upgrade review in docs\/DECISIONS\.md: /m,
   'empty-answer': /^- The answer is empty:/m,
   'question-no-file': /^- This was a question, but files changed/m,
+  'instructions-run': /^- The answer tells the user to run /m,
   'headless-resume': /^- This run is headless/m,
   'notice-answer': /^- This run is headless \(claude -p or the SDK\): its caller gets only the last message/m,
   'data-valid': /docs\/checks\/always\.md item \d+: The validator passes/,

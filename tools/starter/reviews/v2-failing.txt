@@ -311,15 +311,6 @@ stop: incident-response: the Root cause line stated: passes
 stop: incident-response: the incident file named: passes
 stop: incident-trigger: production down without the incident skill: blocked
 stop: ingest-trigger: a file moved into sources/ (old time, new since the turn began): blocked
-stop: instructions-run: a Finished entry for a script changed this turn that says to run it: blocked
-stop: instructions-run: a NOT VERIFIED line about something else (the tests) does not cover the script: blocked
-stop: instructions-run: a Spanish "doble clic en start.cmd" for a launcher written this turn and never run: blocked
-stop: instructions-run: an npm script added this turn and never run: blocked
-stop: instructions-run: its run failed (5.1 rejects utf8NoBOM): blocked
-stop: instructions-run: its run was refused: asks once for the NOT VERIFIED line, not another run
-stop: instructions-run: run only under pwsh, while the user is told "powershell" (5.1): still blocked
-stop: instructions-run: the answer sends the user to run a setup script written this turn that never ran: blocked
-stop: instructions-run: the same reworded answer after a failed pre-check: blocked
 stop: invalid skill frontmatter: blocked
 stop: knowledge file without label/source/date: blocked
 stop: maintaining a runbook (read, then edit) is not following it: its checks stay off
