@@ -376,8 +376,6 @@ stop: request about alice changed only alice's files: passes
 stop: requirement-enforced: a requirement said in passing, during work, with nothing enforcing it: blocked
 stop: requirement-enforced: a requirement written only into a runbook: blocked
 stop: requirement-enforced: the check and its test were added: passes that check
-stop: research-cited: [2] used in the text but missing from Sources: blocked
-stop: research-cited: unnumbered links nothing opened: the unopened link is named
 stop: research-verified: curl to a site on the web still counts: blocked
 stop: research-verified: the same line without the config: blocked
 stop: research-verified: web research with no ledger: blocked

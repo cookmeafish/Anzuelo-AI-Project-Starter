@@ -987,8 +987,24 @@ function citesOpened(acts, x) {
   if (files.some(p => reads.has(p) || ran.includes(p))) return true;
   const urls = (a.match(/https?:\/\/[^\s)>\]]+/g) || []).map(u => u.replace(/^https?:\/\/(www\.)?/i, '').replace(/[)\].,;>]+$/, '').replace(/\/$/, ''));
   if (!urls.length) return false;
-  const seen = acts.calls.filter(c => /^(WebFetch|WebSearch|mcp__)/.test(c.name) || /^(Bash|PowerShell)$/.test(c.name)).map(c => `${JSON.stringify(c.input)}\n${c.out || ''}`).join('\n').replace(/\\\//g, '/');
-  return urls.some(u => seen.includes(u));
+  return urls.some(u => openedText(acts).includes(u));
+}
+const openedText = acts => acts.calls.filter(c => /^(WebFetch|WebSearch|mcp__)/.test(c.name) || /^(Bash|PowerShell)$/.test(c.name)).map(c => `${JSON.stringify(c.input)}\n${c.out || ''}`).join('\n').replace(/\\\//g, '/');
+// Why the answer's citations don't count, in words the agent can act on (the old engine's): numbered markers with no
+// source line, links nothing opened this turn, files it wrote itself. Lesson (the old suite under v2): a held research
+// answer was not told which marker or link failed.
+const usesCites = c => !!c && typeof c === 'object' && (!!c.answerCites || (c.anyOf || []).some(usesCites));
+export function citeWhy(acts, x) {
+  const a = String(acts.answer || ''), out = [], seen = openedText(acts), key = u => u.replace(/^https?:\/\/(www\.)?/i, '').replace(/\/$/, '');
+  const lonely = [...new Set([...a.matchAll(/(?<!^[ \t]*[-*]?[ \t]*)\[(\d+)\]/gm)].map(m => m[1]))].filter(n => !new RegExp(`^[ \\t]*[-*]?[ \\t]*\\[${n}\\][ \\t]+\\S`, 'm').test(a));
+  if (lonely.length) out.push(`marker${lonely.length > 1 ? 's' : ''} ${lonely.map(n => `[${n}]`).join(', ')} ha${lonely.length > 1 ? 've' : 's'} no "[n] <link or file>" line in the Sources list`);
+  const urls = (a.match(/https?:\/\/[^\s)>\]]+/g) || []).map(u => u.replace(/[)\].,;>]+$/, '')), unread = urls.filter(u => !seen.includes(key(u)));
+  if (unread.length) out.push(`no link it gives was opened this turn (${unread.slice(0, 3).join(', ')}${unread.length > 3 ? ', ...' : ''}): open one with WebFetch, or cite the page that was opened`);
+  const own = (x.changed || []).filter(p => a.includes(p) && !NOT_A_SOURCE.test(p));
+  if (own.length) out.push(`${own.slice(0, 3).join(', ')} ${own.length > 1 ? 'were' : 'was'} written this turn, so ${own.length > 1 ? 'they are' : 'it is'} no source: cite what ${own.length > 1 ? 'they came' : 'it came'} from`);
+  if (!urls.length && !out.length) out.push('it names no file opened this turn and no link');
+  if (!out.length) out.push('the links need numbers: a [n] after each fact, and a "Sources:" line followed by one "[n] <link>" line per number');
+  return out.join('; ');
 }
 export function holdsReq(c, acts, x) {
   const read = n => acts.calls.some(k => (k.name === 'Read' && n.test(String(k.input.file_path || '').replace(/\\/g, '/'))));
@@ -1250,7 +1266,7 @@ export function engineCheckGaps(acts) {
   for (const r0 of engineChecks()) {
     const own = r0.forces ? ownedBy(r0.forces) : [], r = own.length ? { ...r0, when: ignoreOwned(r0.when, own) } : r0;
     read.detail = '';
-    try { if (!(small && SMALL_SKIP.test(r.tag)) && !promptOnly(r.when) && holdsReq(r.when, read, x) === true && holdsReq(r.require, read, xr) === false && !draftMet(r.require, read, xr) && !waivedTag(r.tag, acts) && !(r.tag === 'version-bump' && bumpedEarlier(acts.prior, r.require?.filesChanged))) out.push(`Check: ${r.message}${read.detail ? ` (${read.detail})` : ''}`); }
+    try { if (!(small && SMALL_SKIP.test(r.tag)) && !promptOnly(r.when) && holdsReq(r.when, read, x) === true && holdsReq(r.require, read, xr) === false && !draftMet(r.require, read, xr) && !waivedTag(r.tag, acts) && !(r.tag === 'version-bump' && bumpedEarlier(acts.prior, r.require?.filesChanged))) { const why = read.detail || (usesCites(r.require) ? citeWhy(read, x) : ''); out.push(`Check: ${r.message}${why ? ` (${why})` : ''}`); } }
     catch (e) { out.push(crashLine(r.tag, e)); }
   }
   return out;

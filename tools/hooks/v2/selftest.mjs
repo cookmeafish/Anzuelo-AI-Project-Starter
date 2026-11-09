@@ -817,6 +817,12 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
         const fgr = { ok: fg('Week 42 with 692, up 213 on week 41 (479).'), bad: fg('Week 42 with 692, and the average order was 37.5.') };
         report(fgr.ok[0] === true && fgr.bad[0] === false && /37\.5 appears in no output/.test(fgr.bad[1]),
           'end: answerFiguresComputed: figures printed this turn, or following from them, hold; one from nowhere does not, and is named', JSON.stringify(fgr));
+        // (a held research answer is told why: the marker with no source line, the link nothing opened)
+        const { citeWhy } = await import('./lib.mjs');
+        const cw = { marker: citeWhy(acts([user('look it up'), say('Most hold 100 kg.[1] Some 150 kg.[2]\n\nSources:\n[1] https://example.com/desks')]), x),
+          unread: citeWhy(acts([user('look it up'), say('Most hold 100 kg.\n\nSources:\nhttps://example.com/desks')]), x) };
+        report(/marker \[2\] has no/.test(cw.marker) && /no link it gives was opened this turn \(https:\/\/example\.com\/desks\)/.test(cw.unread),
+          'end: a held research answer is told why its citations don\'t count: the marker with no source line, the link nothing opened', JSON.stringify(cw));
         const T = par.toolPassed; cites.toolPassedOk = cites.skillsOk && T.toFile === true && T.oldFile === false && T.selfOk === true && T.selfBad === false && T.audit === null;
         report(cites.toolPassedOk && par.seq === false && par.bg === true && par.plain === true && cites.plain && cites.ticks && cites.printed && !cites.unopened && !cites.own && cites.unknownBranch === null && cites.otherHolds === true,
           'end: answer-cites: a source opened (or printed) this turn named in the answer meets it, an unopened or self-written file does not; an unread branch leaves an anyOf unjudged unless another holds; helpers run one after another are not parallel work, two in the background are; the output of a gate in a file written this turn counts, an older log does not, and a declared self-test never run is run here (the audit left to the health check)', JSON.stringify(cites));

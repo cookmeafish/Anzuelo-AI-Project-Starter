@@ -1496,13 +1496,16 @@ STOP.push(
   { name: 'research-cited: [2] used in the text but missing from Sources: blocked', prompt: 'search the web for standing desk weight limits', tools: [sk('research')],
     answer: 'Skill: research. Most hold 100 kg.[1] Some hold 150 kg.[2]\n\nSources:\n[1] https://example.com/desks', expect: { block: true, tags: ['research-cited'] },
     // (it says which: Lesson, trial round 13, the general message alone cost six check runs and a read of the engine)
-    after: (dir, reason) => /marker \[2\] has no/.test(readOr(path.join(dir, 'tools/hooks/state/stop-details.md'))) || 'no reason named for [2]' },
+    after: (dir, reason) => /marker \[2\] has no/.test(readOr(path.join(dir, 'tools/hooks/state/stop-details.md'))) || 'no reason named for [2]',
+    // (v2 names it in the block message itself, not a details file)
+    v2: { after: (dir, reason) => /marker \[2\] has no/.test(reason || '') || 'no reason named for [2]' } },
   // (Lesson, trial rounds 13 to 15: a bold label line with a marker was copied after the Sources list and failed)
   { name: 'research-cited: a bold "**Done:**" line with markers, sources listed below: passes', prompt: 'search the web for standing desk weight limits', tools: [sk('research'), { name: 'WebFetch', input: { url: 'https://example.com/desks' }, result: 'Rated load: 100 kg.' }],
     answer: 'Skill: research.\n\n**Done:** most desks hold 100 kg.[1]\n\nSources:\n[1] https://example.com/desks', expect: { not: ['research-cited'] } },
   { name: 'research-cited: unnumbered links nothing opened: the unopened link is named', prompt: 'search the web for standing desk weight limits', tools: [sk('research')],
     answer: 'Skill: research. Most hold 100 kg.\n\nSources:\nhttps://example.com/desks', expect: { block: true, tags: ['research-cited'] },
-    after: (dir) => /no link it gives was opened this turn \(https:\/\/example\.com\/desks\)/.test(readOr(path.join(dir, 'tools/hooks/state/stop-details.md'))) || 'the unopened link was not named' },
+    after: (dir) => /no link it gives was opened this turn \(https:\/\/example\.com\/desks\)/.test(readOr(path.join(dir, 'tools/hooks/state/stop-details.md'))) || 'the unopened link was not named',
+    v2: { after: (dir, reason) => /no link it gives was opened this turn \(https:\/\/example\.com\/desks\)/.test(reason || '') || 'the unopened link was not named' } },
   { name: 'research-cited: [1] and [2] each with a Sources line: passes', edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), packs: (JSON.parse(s).packs || []).filter(p => p !== 'knowledge') }), 'tools/hooks/requirements.json': s => JSON.stringify({ ...JSON.parse(s), requirements: JSON.parse(s).requirements.filter(r => r.pack !== 'knowledge') }) }, prompt: 'search the web for standing desk weight limits',
     tools: [sk('research'), { name: 'WebFetch', input: { url: 'https://example.com/desks' }, result: 'Rated load: 100 kg.' }, { name: 'WebFetch', input: { url: 'https://example.org/loads' }, result: 'Heavy-duty models: 150 kg.' }],
     answer: 'Skill: research. Quick lookup: most hold 100 kg.[1] Heavy-duty models hold 150 kg.[2]\n\nSources:\n[1] https://example.com/desks - Desk specs, 2026-10-17\n[2] https://example.org/loads', expect: { block: false, not: ['research-cited'] } },
