@@ -563,6 +563,16 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
       const fg = forbiddenGaps(fa);
       kept === null ? fs.rmSync(cf, { force: true }) : fs.writeFileSync(cf, kept);
       ['docs/soup-notes.md', 'docs/plain-notes.md', '.cache/scratch.md'].forEach(f => fs.rmSync(path.join(dir, f), { force: true }));
+      // (REQ: code-rules: a changed file breaking a project rule is held with its line; a test file's payload is data)
+      const { codeRuleGaps } = await import('./lib.mjs');
+      put('tools/hooks/config.json', JSON.stringify({ ...(kept ? JSON.parse(kept) : {}), codeRules: [{ pattern: '\\.innerHTML\\s*=', files: ['src/**'], message: 'Set text with textContent' }] }));
+      const cAt = new Date(Date.now() - 2000).toISOString();
+      put('src/soup.js', 'const a = 1;\nel.innerHTML = userText;\n'); put('src/soup.test.js', 'el.innerHTML = "<script>alert(1)</script>";\n');
+      const ca = acts([user('show the soup name'), call('Bash', { command: 'node tools/gen.mjs' }, 'ok'), say('Finished: src/soup.js')]); ca.at = cAt;
+      const cg = codeRuleGaps(ca);
+      kept === null ? fs.rmSync(cf, { force: true }) : fs.writeFileSync(cf, kept); fs.rmSync(path.join(dir, 'src'), { recursive: true, force: true });
+      report(cg.length === 1 && /src\/soup\.js:2: Set text with textContent/.test(cg[0]) && !/soup\.test/.test(cg[0]),
+        'end: code-rules: a changed file that breaks a project code rule is held with its line; a test file\'s payload is not', JSON.stringify(cg));
       report(fg.length === 1 && /docs\/soup-notes\.md \("Quillmora"\)/.test(fg[0]) && !/plain-notes|scratch/.test(fg[0]),
         'end: forbidden-terms: a banned name a command wrote into a file is held, naming the file; files without it and the engine\'s own state are not', JSON.stringify(fg));
     }

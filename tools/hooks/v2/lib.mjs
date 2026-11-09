@@ -825,6 +825,25 @@ export function forbiddenGaps(acts) {
   }
   return bad.length ? [`These files now hold a name the user asked to keep out of the project: ${bad.slice(0, 5).join('; ')}. Replace each with a neutral word or example.`] : [];
 }
+// REQ: code-rules. Patterns the project says must not appear in changed code (config codeRules, filled by packs and
+// setup): each changed file a rule covers is read, and its first matching line named. Test files hold attack payloads
+// as data, so they are skipped unless the rule says "tests": true or gives its own "ignore".
+const TEST_FILES = ['**/*.test.*', '**/*.spec.*', '**/test/**', '**/tests/**', '**/__tests__/**', '**/*_test.*', '**/test_*.*', 'vitest.config.*', 'jest.config.*', 'pytest.ini', 'conftest.py'];
+const inGlobs = (p, gs) => [].concat(gs).some(g => globRx(g).test(p) || (g.startsWith('**/') && globRx(g.slice(3)).test(p)));
+export function codeRuleGaps(acts) {
+  const rules = [].concat(projectConfig().codeRules || []);
+  if (!rules.length) return [];
+  const changed = changedOf(acts), hits = [];
+  for (const rule of rules) {
+    let rx; try { rx = new RegExp(rule.pattern, 'im'); } catch { continue; }
+    for (const p of changed.filter(p => p && inGlobs(p, rule.files || ['**']) && !inGlobs(p, rule.ignore || (rule.tests ? [] : TEST_FILES)))) {
+      let lines; try { lines = fs.readFileSync(path.join(ROOT, p), 'utf8').split(/\r?\n/); } catch { continue; }
+      const i = lines.findIndex(l => rx.test(l));
+      if (i >= 0) hits.push(`${p}:${i + 1}: ${rule.message || rule.pattern}`);
+    }
+  }
+  return hits.length ? [`Code rules broken: ${hits.slice(0, 8).join('; ')}${hits.length > 8 ? `; +${hits.length - 8} more` : ''}`] : [];
+}
 export function engineCheckGaps(acts) {
   const x = { changed: changedOf(acts), runbook: acts.runbook || '' };
   // (an answer in the user's language meets the checks with its own labels: each label line is read in English too)
