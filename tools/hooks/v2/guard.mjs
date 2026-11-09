@@ -9,7 +9,7 @@ let H = null;
 export const use = h => { H = h; };
 
 // REQ: quiet-work. Refused during work: the irreversible, leaks, a user's protection, a hung headless run. Rest: end check.
-export const IN_WORK_GUARDS = /^REQ: (approval-gate|browser-guard|commit-gate|engine-readonly|forbidden-command|forbidden-terms|git-safety|gitignore-ready|headless-no-wakeup|injection-guard|no-ai-attribution|no-overwrite|no-secrets|outward-gate|permission-respected|protect-originals|publish-gate|scope-separate|setup-[\w-]+|shell-hygiene|skill-mirror|subagent-brief|wakeup-left|whole-output|write-only-via)\b/;
+export const IN_WORK_GUARDS = /^REQ: (approval-gate|browser-guard|claim-checked|commit-gate|engine-readonly|forbidden-command|forbidden-terms|git-safety|gitignore-ready|headless-no-wakeup|injection-guard|no-ai-attribution|no-overwrite|no-secrets|outward-gate|permission-respected|protect-originals|publish-gate|scope-separate|setup-[\w-]+|shell-hygiene|skill-mirror|subagent-brief|wakeup-left|whole-output|write-only-via)\b/;
 // A path pattern in an approved list as a regex: "**/" is any number of folders, none included; "**" anything; "*"
 // within one folder. Lesson (a sweep for the root-file glob bug): "old/**" covered one level only, "**/*.bak" no root file
 export const wildRx = g => new RegExp(`(^|/)${String(g).split('**/').map(a => a.split('**').map(b => b.split('*').map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[^/]*')).join('.*')).join('(?:.*/)?')}$`, 'i');
@@ -219,6 +219,21 @@ export function pretoolHits(data, cfg) {
     return paths.length > 0 && paths.every(p => lines.some(l => has(l, p)));
   };
   // REQ: wakeup-left. A headless run with a job running needs no wakeup (one pending kept a run from ever answering).
+  // REQ: claim-checked (messages). A message to another session that names a commit the repository does not have, and
+  // that no tool output or received message in this session showed, is refused before it goes: it can't be taken back.
+  // Lesson (2026-11-08): two made-up commit ids were sent to a peer session within an hour, each written before the
+  // commit had returned.
+  if (name === 'SendMessage' && typeof inp.message === 'string') {
+    const ids = [...new Set([...inp.message.matchAll(/(?<![\w/#.-])([0-9a-f]{7,40})(?![\w-])/g)].map(m => m[1]).filter(h => /\d/.test(h) && /[a-f]/.test(h)))];
+    const missing = ids.filter(h => spawnSync('git', ['cat-file', '-e', `${h}^{commit}`], { cwd: ROOT, timeout: 5000 }).status !== 0);
+    if (missing.length) {
+      // (the session's evidence: tool results and the messages it received, never its own text)
+      // (user rows only: tool results and received messages; a message's own text, or an earlier one, is no evidence)
+      let seen = ''; try { seen = fs.readFileSync(data.transcript_path || '', 'utf8').split('\n').filter(l => /^\{"(?:[^"]+":[^,]*,"){0,6}type":"user"|"type":"user"/.test(l) && !/"type":"assistant"/.test(l)).join('\n'); } catch { }
+      const bad = missing.filter(h => !seen.includes(h));
+      if (bad.length) add(`REQ: claim-checked. This message names commit ${bad.join(', ')}, which this repository does not have and no command here showed: read the id from the command's output (git log -1 --format=%h) and send it again.`);
+    }
+  }
   if (isWakeTool(name, inp)) {
     if (typeof inp.prompt === 'string' && inp.prompt.trim()) {
       const w = readJSON(stateFile(WAKE_STATE), {});

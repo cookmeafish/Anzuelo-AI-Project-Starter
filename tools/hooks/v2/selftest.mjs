@@ -1394,6 +1394,21 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   const { guard, IN_WORK_GUARDS, use } = await import('./guard.mjs');
   const { config, ROOT } = await import('../hooks.mjs');
   use(await import('../hooks.mjs'));
+  { // (REQ: claim-checked (messages): a message to another session naming a commit this repository does not have, that no
+    // tool output or received message showed, is refused before it goes; a real commit, or one a received message named,
+    // goes. Lesson (2026-11-08): two made-up commit ids were sent to a peer)
+    const { spawnSync } = await import('node:child_process');
+    const head = spawnSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).stdout.trim();
+    let fake = 'a1b2c3d'; for (let i = 0; spawnSync('git', ['cat-file', '-e', `${fake}^{commit}`], { cwd: ROOT }).status === 0 && i < 50; i++) fake = (0x1000000 + Math.floor(Math.random() * 0xeffffff)).toString(16).replace(/^/, 'a').slice(0, 7);
+    const tp = path.join(dir, 'msg-claims.jsonl');
+    fs.writeFileSync(tp, [{ type: 'user', message: { role: 'user', content: `The project upgraded to its commit c0ffee${fake.slice(6)}9 locally.` } }, { type: 'assistant', message: { content: [{ type: 'text', text: `Pushed ${fake}.` }] } }].map(r => JSON.stringify(r)).join('\n') + '\n');
+    const send = message => guard({ session_id: '', tool_name: 'SendMessage', tool_input: { to: 'peer', message }, transcript_path: tp }, { ...config(), engine: 'v2' }) || '';
+    const msg = { made: send(`Pushed: the fix is ${fake}.`), real: send(`Pushed: the fix is ${head}.`), relayed: send(`The project is at c0ffee${fake.slice(6)}9 now.`) };
+    const { claimGaps } = await import('./lib.mjs');
+    msg.answer = claimGaps(acts([user('push it'), call('SendMessage', { to: 'peer', message: `Pushed ${fake}.` }, 'sent'), say(`Pushed ${fake}.`)])).join(' ');
+    report(/REQ: claim-checked\. This message names commit/.test(msg.made) && !msg.real && !msg.relayed && !!head && new RegExp(`names commit ${fake}`).test(msg.answer),
+      'pretool: a message naming a commit this repository lacks, that nothing here showed, is refused before it goes; a real one or one a received message named goes', JSON.stringify({ head, fake, made: msg.made.slice(0, 90), real: msg.real.slice(0, 60), relayed: msg.relayed.slice(0, 60) }));
+  }
   const R = ROOT.replace(/\\/g, '/') + '/', g = 'gi' + 't ', base = { ...config(), engine: 'v2' };
   const prot = { ...base, protectedOriginals: ['originals/**'] };
   const bash = command => ({ tool_name: 'Bash', tool_input: { command } });

@@ -950,7 +950,8 @@ export const evidenceOf = text => String(text || '').split('\n').filter(Boolean)
   try { const r = JSON.parse(l); return r.type === 'assistant' && Array.isArray(r.message?.content) ? JSON.stringify(r.message.content.filter(x => x?.type !== 'text' && x?.type !== 'thinking')) : l; } catch { return ''; }
 }).join('\n');
 export function claimGaps(acts, history = '') {
-  const a = String(acts.answer || ''), seen = acts.calls.map(c => JSON.stringify(c.input) + '\n' + (c.out || '')).join('\n') + (acts.context || '') + history;
+  // (a message the agent sent is its own words, not evidence: an id it made up there proves nothing in the answer)
+  const a = String(acts.answer || ''), seen = acts.calls.map(c => (c.name === 'SendMessage' ? '' : JSON.stringify(c.input)) + '\n' + (c.out || '')).join('\n') + (acts.context || '') + history;
   const out = [];
   const hashes = [...new Set([...a.matchAll(/(?<![\w/#-])([0-9a-f]{7,40})(?![\w-])/g)].map(m => m[1]).filter(h => /\d/.test(h) && /[a-f]/.test(h)))];
   const unknown = hashes.filter(h => !seen.includes(h) && spawnSync('git', ['cat-file', '-e', `${h}^{commit}`], { cwd: ROOT, timeout: 5000 }).status !== 0);
