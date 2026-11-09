@@ -2035,7 +2035,7 @@ STOP.push(
   { name: 'grant-decided: a long quote of the user\'s decision in the row is not a copied example: passes', prompt: 'yes, my staff members should be able to delete books from the shelf list too', tools: [pb('project')],
     files: { 'docs/foundation.md': '| Area | Decision |\n|---|---|\n| Who may do what | Staff may add, edit and delete books (the user decided 2026-10-26: "my staff members should be able to delete books from the shelf list too") |\n', 'docs/CHANGELOG.md': 'x' },
     answer: 'Playbook: project.md.' + FIN, expect: { not: ['grant-decided', 'no-verbatim-examples'] } },
-  { name: 'grant-decided: the same words copied outside the row still count as a copied example: blocked', prompt: 'yes, my staff members should be able to delete books from the shelf list too', tools: [pb('project')],
+  { name: 'grant-decided: the same words copied outside the row still count as a copied example: blocked', prompt: 'yes, my staff members should be able to delete books from the shelf list too', tools: [pb('project'), bash('node tools/notes.mjs')],
     files: { 'docs/foundation.md': '| Area | Decision |\n|---|---|\n| Who may do what | Owner only |\n\nNote: my staff members should be able to delete books from the shelf list too.\n', 'docs/CHANGELOG.md': 'x' },
     answer: 'Playbook: project.md.' + FIN, expect: { block: true, tags: ['no-verbatim-examples'] } },
   // REQ: waiver-tally. Lesson, field report: the same checks were waived build after build and nothing said so
@@ -3088,9 +3088,12 @@ STOP.push(
     files: { 'docs/DECISIONS.md': '# Decisions\n| Date | Decision | Why |\n|---|---|---|\n| 2026-11-05 | Autonomy is auto | The user said: decide everything yourself and do not ask me anything |\n', 'docs/CHANGELOG.md': 'x' },
     answer: 'Done.' + FIN, expect: { not: ['no-verbatim-examples'] } },
   { name: 'no-verbatim-examples: a sample sentence from the request copied into the brief is still caught', prompt: 'set up this project. It is my blog of family recipes. For example a post starts like this: grandma always soaked the chickpeas overnight in salted water',
+    tools: [bash('node tools/setup-notes.mjs')], // (written by a command this turn)
     files: { 'docs/BRIEF.md': '# Brief\n## Purpose\nA blog of family recipes. Posts open like: grandma always soaked the chickpeas overnight in salted water.\n', 'docs/CHANGELOG.md': 'x' },
     answer: 'Done.' + FIN, expect: { tags: ['no-verbatim-examples'] } },
   { name: 'no-verbatim-examples: the project\'s description copied into another doc is still caught', prompt: 'set up this project. It is my Obsidian vault of notes on baking and gardening; I want help keeping it tidy.',
+    // (the file is written by a command this turn: a turn of reads only changes nothing under v2)
+    tools: [bash('node tools/setup-notes.mjs')],
     files: { 'docs/playbooks/notes-tidy.md': '# Tidy\nUse for an Obsidian vault of notes on baking and gardening.\n', 'docs/CHANGELOG.md': 'x' },
     answer: 'Done.' + FIN, expect: { tags: ['no-verbatim-examples'] } },
   { name: 'no-verbatim-examples: engine files are never scanned for the user\'s words: passes', prompt: 'please make every chart in the monthly report use the warm colour palette',
@@ -4880,6 +4883,7 @@ const V2_ASKS = {
   'forbidden-terms': /^- These files now hold a name the user asked to keep out of the project: /m,
   'code-rules': /^- Code rules broken: /m,
   'injection-guard': /^- \S.* contain text that reads as instructions to an AI /m,
+  'no-verbatim-examples': /^- These files copy the user's own words: /m,
   'injection-flagged': /^- Something read this turn carries instructions aimed at an AI /m,
 };
 // (an engine check from requirements.json is recognized by its own message, which v2's evaluator gives as "Check: ...")

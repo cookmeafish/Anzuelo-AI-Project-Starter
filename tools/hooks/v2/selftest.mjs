@@ -593,6 +593,24 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
         fs.rmSync(path.join(dir, 'bulkwalk'), { recursive: true, force: true });
         report(sp.question === 0 && sp.ran === 3000 && sp.cat && sp.helper && sp.qMs < 60, 'speed: a question turn in a 3,000-file project walks no files and its whole end check takes under 60 ms; a turn that ran any shell command (even cat) or a helper walks once and finds what was written', JSON.stringify(sp));
       }
+      // (REQ: no-verbatim-examples: a run of the user's words a command copied into a root file is held (root files count
+      // as changed: "**/" may be no folder); a name from the user's message written into a runbook is held; the
+      // project's own description in the brief is not)
+      {
+        const { verbatimGaps } = await import('./lib.mjs');
+        const vAt = new Date(Date.now() - 2000).toISOString();
+        const ask = 'never let the weekly soup report show the raw kitchen error to the guests again please';
+        put('CLAUDE.md', `# Rules\n- ${ask}\n`); put('docs/BRIEF.md', '# Brief\nIt is my blog of family soup recipes for the winter months at home.\n');
+        const va = rows => { const a = acts(rows); a.at = vAt; return verbatimGaps(a); };
+        const copied = va([user(ask), call('Bash', { command: 'node tools/rules.mjs' }, 'ok'), say('Done.')]);
+        const brief = va([user('set up this project. It is my blog of family soup recipes for the winter months at home.'), call('Bash', { command: 'node tools/setup.mjs' }, 'ok'), say('Done.')]);
+        const exf = path.join(dir, 'docs/playbooks/export.md'), exKept = fs.existsSync(exf) ? fs.readFileSync(exf, 'utf8') : null;
+        put('docs/playbooks/export.md', '# Export\nCheck dates (as for Brindlewood Pantry).\n');
+        const named = va([user('the export broke on my customer Brindlewood Pantry because the dates were wrong'), call('Write', { file_path: path.join(dir, 'docs/playbooks/export.md'), content: '# Export\nCheck dates (as for Brindlewood Pantry).\n' }, 'ok'), say('Done.')]);
+        fs.rmSync(path.join(dir, 'CLAUDE.md'), { force: true }); fs.rmSync(path.join(dir, 'docs/BRIEF.md'), { force: true }); exKept === null ? fs.rmSync(exf, { force: true }) : fs.writeFileSync(exf, exKept);
+        report(/CLAUDE\.md \("/.test(copied[0] || '') && !brief.some(s => /BRIEF/.test(s)) && /docs\/playbooks\/export\.md \(the user's example "Brindlewood Pantry"/.test(named[0] || ''),
+          'end: no-verbatim-examples: the user\'s words a command copied into a root file are held; a name from the user\'s message in a runbook is held; the project\'s description in its brief is not', JSON.stringify({ copied, brief, named }));
+      }
       // (REQ: injection-guard / injection-flagged: a kept file left holding text aimed at an AI is held; something read
       // from outside that carries such text needs a warning in the answer; the project's own security notes don't count)
       const { injectionGaps } = await import('./lib.mjs');
