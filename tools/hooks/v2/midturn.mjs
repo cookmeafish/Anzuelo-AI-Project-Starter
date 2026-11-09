@@ -39,7 +39,12 @@ export function lateMessages(data) {
 // (an instruction is not a question: "do this one", "do multiple checks" asks for work; "do you", "does it" asks.
 // Replay of real sessions: imperatives opening with "do" were held as unanswered questions)
 const ASK = /^\s*(?:what|why|how|which|who|where|when|should|is|are|was|were|can|could|would|will|has|have|any|tell me|show me|qu[eé]|por ?qu[eé]|c[oó]mo|cu[aá]l|d[oó]nde|cu[aá]ndo|es|est[aá])\b|^\s*(?:do|does|did)\s+(?:you|i|we|they|it|he|she|this|that|these|those|there|anyone)\b(?!\s+(?:one|for|and|now|first)\b)/i;
-const YES =/^[\s*_>#-]*(?:yes|no|yeah|yep|nope|not (?:really|quite|fully|yet)|s[ií])\b/i;
+// (a reply may open with a short label first: "Short answer first: no". Replay: such answers were held)
+const YES = /^[\s*_>#-]*(?:[\w ]{0,25}:\s*[*_]*)?(?:yes|no|yeah|yep|nope|not (?:really|quite|fully|yet)|s[ií]|understood|got it)\b/i;
+// (an instruction with a check-in tag is not a question: "commit it all, okay?", "... understand?". Nor is one that
+// opens with a request ("also make it a requirement ..."). Replay: 3 of 31 holds were such instructions)
+const TAG = /[\s,.]*\b(?:ok(?:ay)?|understand|understood|got it|alright|all right|k)\s*[?？]+\s*$/i;
+const ORDER = /^\s*(?:(?:also|and|so|now|please|then|ok(?:ay)?|like)[\s,]+)*(?:add|make|fix|commit|push|update|run|move|create|write|build|remove|change|rename|install|enable|apply|check|go|keep|use|put|stop|start|once you)\b/i;
 const STOPW = new Set(['what', 'that', 'this', 'with', 'from', 'have', 'there', 'they', 'then', 'than', 'your', 'about', 'still', 'does', 'were', 'when', 'which', 'would', 'could', 'should', 'tell', 'show', 'need', 'needs', 'some', 'things', 'thing']);
 const keys = s => [...new Set((s.toLowerCase().match(/[\p{L}\d]{4,}/gu) || []).filter(w => !STOPW.has(w)))];
 export function unansweredLate(rows, final = '') {
@@ -48,7 +53,9 @@ export function unansweredLate(rows, final = '') {
     const c = r.message?.content, words = p => Array.isArray(p) ? p.filter(b => b?.type === 'text').map(b => b.text).join('\n') : String(p || '');
     const q = (r.type === 'attachment' && r.attachment?.type === 'queued_command' ? words(r.attachment.prompt) : r.type === 'user' && LATE.test(words(c)) ? words(c) : '')
       .replace(LATE, '').replace(/\n*This is how Claude Code surfaces[\s\S]*$/, '').trim();
-    if (q && !q.startsWith('<') && q.length < 1500 && (/[?？]\s*$/.test(q) || ASK.test(q))) qs.push({ q, i, at: r.timestamp || '' });
+    // ("keep X but cut Y, right?" asks for a check: it stays a question)
+    const asks = s => (/[?？]\s*$/.test(s) && !TAG.test(s) && (!ORDER.test(s) || /\bright\s*[?？]+\s*$/i.test(s))) || ASK.test(s);
+    if (q && !q.startsWith('<') && q.length < 1500 && asks(q)) qs.push({ q, i, at: r.timestamp || '' });
     if (r.type === 'assistant' && Array.isArray(c)) for (const b of c) if (b?.type === 'text' && b.text.trim()) texts.push({ t: b.text, i });
   });
   if (final) texts.push({ t: final, i: rows.length });

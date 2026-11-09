@@ -1368,6 +1368,14 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
         { type: 'attachment', attachment: { type: 'queued_command', prompt: 'which files did you move so far?' } },
         { type: 'attachment', attachment: { type: 'queued_command', prompt: '<task-notification>done</task-notification>' } },
         { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 't1', content: 'a b' }] } }];
+      // (replay of real sessions: instructions with a check-in tag, and answers opening "Understood." or with a short
+      // label before "no", were held falsely; a real "..., right?" stays a question)
+      const { unansweredLate } = await import('./midturn.mjs');
+      const q1 = t => ({ type: 'attachment', attachment: { type: 'queued_command', prompt: t } }), a1 = t => ({ type: 'assistant', message: { content: [{ type: 'text', text: t }] } });
+      const falseKinds = [[q1('once you are done, commit everything and update the notes okay?'), a1('Working.')], [q1('also make it a rule to look for a recipe first?'), a1('Working.')],
+        [q1('understand?'), a1('Working.')], [q1('the menu needs a plain layout, understand?'), a1('Understood. Plain layout it is.')], [q1('but did you check the oven before?'), a1('Short answer first: **no**, not before.')]];
+      const realKind = unansweredLate([q1('keep the soup but drop the salad, right?'), a1('Working.')]);
+      report(falseKinds.every(r => unansweredLate(r).length === 0) && realKind.length === 1, 'late: check-in tags, instructions and "Understood." or labeled yes/no answers are not held; "..., right?" is (queued-messages)', falseKinds.map(r => unansweredLate(r).length).concat(realKind.length));
       const f = tfile('late-stop', stamp([rows], 0));
       const held = stop('ls1', f, 'Tidied the export folder.'), freed = stop('ls2', f, 'So far I moved two files: a and b. Tidied the export folder.');
       report(/Answer the user's message typed at \d\d:\d\d: \W*which files did you move so far\?/.test(held) && !/Answer the user's message/.test(freed) && /which files/.test(turnActs(rows).heard) && !/task-notification/.test(turnActs(rows).heard),
