@@ -19,7 +19,7 @@ import { LABELS_ES, WORTH_IT, plainLabel, EN_COPIES, inEnglish, labelsEsHint, LA
 export { labelsEsHint, LABELS_ES_HINT };
 import { BASE_REQUIREMENTS, FAILED_RUN, MISSING_TOOL, PROBLEM_WORDS } from './base-checks.mjs';
 import { knowledgeFromFiles as sharedKnowledgeFromFiles, figureProblems as sharedFigureProblems } from './knowledge.mjs';
-import { claimSentences, byHandClaim, describesClaim, IMPROVE_CLAIM, REPORTED, NOT_IN_GIT, gitHolds as sharedGitHolds, namedPaths as sharedNamedPaths, gitClaimContradicted as sharedGitClaim } from './claims.mjs';
+import { claimSentences, byHandClaim, describesClaim, groupVerdictClaim, IMPROVE_CLAIM, REPORTED, NOT_IN_GIT, gitHolds as sharedGitHolds, namedPaths as sharedNamedPaths, gitClaimContradicted as sharedGitClaim } from './claims.mjs';
 export { ROOT, bulkDir, today, usageOf, read, readJSON, abs, exists, list, walkStat, esc, config, re, secretRes, secretHit, privateTermsPath, privateTermsListFile, forbiddenTerms, forbiddenRe, testInputsHash, aiAttributedCommits, gitignoreProblems, people, personOf, peopleIn, peopleFor, pathsPeople, LABELS_ES, WORTH_IT, plainLabel, EN_COPIES, inEnglish, BASE_REQUIREMENTS };
 // (the safety guard is v2/guard.mjs, loaded by the pretool hook itself: a guard that cannot load is then reported, not
 // a hook that cannot start)
@@ -1294,27 +1294,6 @@ export const ENFORCED = /\b(is|are|gets?|will be|now) (already )?(checked|enforc
 export function enforcedClaim(answer) {
   const all = new RegExp(ENFORCED.source, 'giu');
   return claimSentences(answer).find(s => ENFORCED.test(s) && !/\b(not|n'?t|never|no longer|if|unless|whether|would|could|might|how)\b|(?<!\p{L})(si|no|nunca)(?!\p{L})/iu.test(s.replace(all, ' '))) || '';
-}
-// A sentence that says a group of items passed or is fine ("21 were fine", "the other 21 menus passed"), not a test
-// run, and not one that says who judged them or what the check behind it tests. In a session where helpers did work,
-// such a verdict may be theirs, or a check that only found a note for each item. Lesson (a field report): an answer
-// said the rest "passed" after a check that only confirmed each item had a note written by a helper; asked later,
-// the agent said it had never checked whether those verdicts were right.
-const GROUP_VERDICT = /\b(all|every|each|the (other|rest|remaining)|remaining|\d+)\b.{0,80}?\b(passed|pass(es)?|(were|are|was|is) (all )?(fine|ok|okay|good|correct|right|verified|sound)|checked out|hold up|deserve[sd]?|earned)\b|(?<!\p{L})(todos?|todas?|cada|los dem[aá]s|las dem[aá]s|\d+)(?!\p{L}).{0,80}?(?<!\p{L})(pasaron|est[aá]n bien|estaban bien|son correct[oa]s|verificad[oa]s)(?!\p{L})/iu;
-// (a pass count beside a fail count is a test run's result, also in a table row with no word for tests. Lesson,
-// dogfood: a row "| 1522 passed, 0 failed |" was flagged)
-const TEST_RUN = /\b(tests?|self-?tests?|selfcheck|suites?|builds?|lint|type-?checks?|audit|trial|CI|scenarios?)\b|\b\d+ passed\b.{0,30}\b\d+ fail(ed|ures?)\b|(?<!\p{L})pruebas?(?!\p{L})/iu;
-// (what the user said is no verdict of the agent's, and a date, time or version is no count of items. Lesson (a field
-// report): "on 2026-10-26 you said its draw was fine at 9" was blocked three times in one turn)
-// ("I ran every check myself" says who judged. Lesson (a field report): it was flagged until the turn's last round)
-const JUDGED_BY = /\b(you (said|wrote|told me|asked)|I (re-?)?ran [^.\n]{0,60}\bmyself|the user (said|wrote)|helpers?|sub-?agents?|agents?|I (re-?)?(checked|judged|read|compared|reviewed|scored) (each|every|all|them|it|this|these|that|those|one by one)|only (checks?|confirms?|found|means)|not (re-?)?(checked|judged|verified|read))\b|(?<!\p{L})(ayudantes?|sub-?agentes?|agentes?)(?!\p{L})/iu;
-export function groupVerdictClaim(answer) {
-  // (a phrase in quotes is named, not claimed. Lesson, dogfood: an answer that quoted the misleading claims was flagged)
-  const quoted = /"[^"\n]{1,600}"|“[^”\n]{1,600}”|«[^»\n]{1,600}»/g, notCount = /\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}:\d{2}\b|\bv?\d+(\.\d+)+\b/g;
-  // (the sentence right after the verdict may say who judged it. Lesson (a field report): "The list passes the new checks.
-  // I judged this myself this turn, with no helper." was flagged for two rounds after the correction said so)
-  const ss = claimSentences(answer), clean = s => String(s || '').replace(quoted, ' ').replace(notCount, ' ');
-  return ss.find((s, i) => { const t = clean(s); return GROUP_VERDICT.test(t) && !TEST_RUN.test(t) && !JUDGED_BY.test(t) && !JUDGED_BY.test(clean(ss[i + 1])); }) || '';
 }
 // The checks that run on their own when a file changes, with their file scope: the project's validators
 // (requirements.json entries that run something or match changed content, with no skill, runbook or prompt condition)

@@ -1574,6 +1574,20 @@ const { questionGaps } = await import('./lib.mjs');
   report(took && capped && cleaned && JSON.stringify(got) === '[false,true,true,false,true,true]', 'end: a file marker counts a file whose content changed this turn, or was committed this turn, not one only touched: unchanged since a commit made before the turn, or since the turn began for one already changed then (the prompt hook\'s background snapshot; not for a file written while it ran; none past 2,000 files; day-old ones removed)', JSON.stringify({ took, capped, cleaned, got, err: (out.stderr || '').slice(0, 300) }));
 }
 
+// (claim-checked: in a session where helpers worked, "the other 21 menus passed" is held unless it says who judged them
+// or the turn's own run passed with nothing missing; a description of the check is not held)
+{
+  const { claimGaps } = await import('./lib.mjs');
+  const helper = call('Agent', { prompt: 'review the menus' }, 'reviewed 21 menus');
+  const gv = (rows, prior = []) => { const a = acts(rows); a.prior = prior; return claimGaps(a).some(s => /but helpers worked this session/.test(s)); };
+  const g = { earlier: gv([user('are the menus done?'), say('The other 21 menus passed.')], [{ name: 'Agent', input: {} }]),
+    none: gv([user('are the menus done?'), say('The other 21 menus passed.')]),
+    judged: gv([user('are the menus done?'), helper, say('The other 21 menus passed: I checked each one myself.')]),
+    missing: gv([user('are the menus done?'), helper, call('Bash', { command: 'node check-menus.mjs' }, 'PASS 21 menus, 4 missing notes'), say('All 21 menus passed.')]),
+    own: gv([user('are the menus done?'), helper, call('Bash', { command: 'node check-menus.mjs' }, 'PASS: 21 menus'), say('All 21 menus passed.')]),
+    describes: gv([user('what changed?'), helper, say('The check holds an answer that says all 21 menus passed.')]) };
+  report(g.earlier && !g.none && !g.judged && g.missing && !g.own && !g.describes, 'end: claim-checked: after helpers, "all 21 passed" says who judged them, unless the turn\'s own run passed with nothing missing; a description of the check is not held', JSON.stringify(g));
+}
 // (claim-checked: a test "done by hand" is held, in Spanish too; data "written by hand", asking the user to try it, or an
 // automated browser is not)
 {
@@ -2820,12 +2834,13 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   // (2026-11-09, the oversight review under the user's "everything works in the new engine": no check is retired for
   // size; while the old checks move over (rows first) the end check may grow to 3,200 and all of it to 4,800, the speed
   // tests being the hard limit; when the move ends, both ceilings come down to the measured size. The shared modules both
-  // engines read grow with them, to 900)
+  // engines read grow with them, to 1,100: code moved out of hooks.mjs into them, so both engines share one copy, adds
+  // here what hooks.mjs (not counted yet) loses)
   const size = f => fs.readFileSync(f, 'utf8').split('\n').length;
   const v2 = f => path.join(here, f), base = n => path.join(here, '..', `${n}.mjs`);
   const parts = { guard: [v2('guard.mjs'), v2('midturn.mjs')], reminder: [v2('start.mjs')], base: ['paths', 'settings', 'repo', 'people', 'labels', 'base-checks', 'wakeups', 'injection', 'claims', 'knowledge', 'git-guard'].map(base) };
   parts.end = fs.readdirSync(here).filter(f => f.endsWith('.mjs') && f !== 'selftest.mjs' && !Object.values(parts).flat().includes(v2(f))).map(v2);
-  const cap = { guard: 600, reminder: 400, end: 3200, base: 900 }, ALL = 4800;
+  const cap = { guard: 600, reminder: 400, end: 3200, base: 1100 }, ALL = 4800;
   const got = Object.fromEntries(Object.entries(parts).map(([k, fs_]) => [k, fs_.reduce((n, f) => n + size(f), 0)]));
   const lines = Object.values(got).reduce((a, b) => a + b, 0);
   const checks = (/const list = \[([^\]]*)\]/.exec(fs.readFileSync(path.join(here, 'end.mjs'), 'utf8'))?.[1].match(/\.\.\.\w+\(/g) || []).length;
