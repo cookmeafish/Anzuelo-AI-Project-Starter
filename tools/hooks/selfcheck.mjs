@@ -2561,9 +2561,9 @@ STOP.push(
     answer: 'Playbook: feature.md.\n' + VERIF + FIN, expect: { not: ['app-test-pass'] } },
   // (npm pointed at the project's own folder is the same command. Lesson, trial round 11: "npm --prefix <project> test"
   // passed and Stop asked for the tests again)
-  { pack: 'app', name: 'app-test-pass: npm --prefix <the project> test passed: passes', prompt: 'add a feature to export reports as csv', tools: [pb('feature'), bash('npm --prefix . test', 'Tests: 12 passed, 12 total')], files: SPEC, ...testGate,
+  { pack: 'app', name: 'app-test-pass: npm --prefix <the project> test passed: passes', prompt: 'add a feature to export reports as csv', tools: [pb('feature'), bash('npm --prefix . test', 'Tests: 12 passed, 12 total')], files: { ...SPEC, 'docs/x.md': 'x' }, mtimes: { 'docs/x.md': -3600_000 }, ...testGate,
     answer: 'Playbook: feature.md.\n' + VERIF + FIN, expect: { block: false, not: ['app-test-pass'] } },
-  { pack: 'app', name: 'app-test-pass: npm --prefix <a subfolder> test is another package: still blocked', prompt: 'add a feature to export reports as csv', tools: [pb('feature'), bash('npm --prefix tools/site test', 'Tests: 3 passed, 3 total')], files: SPEC, ...testGate,
+  { pack: 'app', name: 'app-test-pass: npm --prefix <a subfolder> test is another package: still blocked', prompt: 'add a feature to export reports as csv', tools: [pb('feature'), bash('npm --prefix tools/site test', 'Tests: 3 passed, 3 total')], files: { ...SPEC, 'docs/x.md': 'x' }, mtimes: { 'docs/x.md': -3600_000 }, ...testGate,
     answer: 'Playbook: feature.md.\n' + VERIF + FIN, expect: { block: true, tags: ['app-test-pass'] } },
   { name: 'changelog: a check list changed without a CHANGELOG line: blocked', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
     answer: 'Playbook: project.md. Added the line.' + FIN, expect: { block: true, tags: ['changelog'] } },
@@ -4888,6 +4888,7 @@ const V2_ASKS = {
   'no-verbatim-examples': /^- These files copy the user's own words: /m,
   'waiver-tally': /waived in 3\+ earlier turns here/,
   'injection-flagged': /^- Something read this turn carries instructions aimed at an AI /m,
+  'app-test-pass': /^- Run the tests after the last code change\b/m,
 };
 // (an engine check from requirements.json is recognized by its own message, which v2's evaluator gives as "Check: ...")
 const ENGINE_MSG = await (async () => { const out = {}; try { for (const q of (await import(pathToFileURL(path.join(ROOT, 'tools/hooks/base-checks.mjs')).href)).BASE_REQUIREMENTS) out[q.tag] = q.message; } catch { }

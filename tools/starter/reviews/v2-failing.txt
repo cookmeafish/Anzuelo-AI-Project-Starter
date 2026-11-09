@@ -294,10 +294,8 @@ stop: app-test-pass: a multi-line node -e script that only writes "npm test" int
 stop: app-test-pass: a refused gate whose program is not installed, answered "needs your approval": asks for the true reason
 stop: app-test-pass: after a ||, an echo can print although the tests never ran: blocked
 stop: app-test-pass: code changed and the tests never ran: blocked
-stop: app-test-pass: only a test file changed, in a project whose gate predates test files: the tests are still asked
 stop: app-test-pass: refused only for its form (several commands in one line): still asks to run it on its own
 stop: app-test-pass: refused, then a real run that failed: the failure stands
-stop: app-test-pass: run with "; echo" after it: its own result is unknown, blocked
 stop: app-test-pass: the gate named only in a configure line, never run: still asks for a run
 stop: app-test-pass: the same, never tried and silent about it: asks for the NOT VERIFIED line, not a run
 stop: app-test-pass: the test command was refused (approval): round 1 asks for the NOT VERIFIED line, not another run
@@ -612,7 +610,4 @@ upset-learned: an Issue line written from the shell shows "acknowledged" at the 
 upset-learned: writing the Issue line shows the user "acknowledged" at once, and only once
 waive command: an agent without hooks waives a step with the command, and check no longer asks for it
 # Known open regressions: already live in the pushed version (since 596ac27, checked by name on b8ca1db); listed so the fixes can ship; each comes off when fixed:
-stop: answer-resent: a draft that passed the pre-check counts, when the sent answer rewords it: passes
-stop: app-test-pass: npm --prefix <a subfolder> test is another package: still blocked
-stop: app-test-pass: npm --prefix <the project> test passed: passes
 stop: upgrade-review: "later - when: <moment>" is a decision; a bare "later" is not

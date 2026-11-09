@@ -63,6 +63,13 @@ const acts = rows => turnActs(turnRows(transcript(rows)));
   report(install.when?.arg === 'tool install' && install.kind === null && install.text === 'An install started setup' && upg.kind === 'ran'
     && !applies(install, upTurn) && applies(upg, upTurn) && met(upg, upTurn) === false,
     'start: a "(when ...)" item applies only on turns where its condition held, and its own check still counts there', [install, upg]);
+  // (what the answer must say, a draft that passed the pre-check said: the sent answer may reword it; a failed pre-check
+  // or no pre-check does not count)
+  const item = { kind: 'answer', arg: 'Root cause:' }, draft = { name: 'Write', input: { file_path: '.cache/answer.md', content: 'Root cause: the parser read 03/04 as March.' } };
+  const pre = out => ({ name: 'Bash', input: { command: 'node tools/hooks/hooks.mjs check --answer-file .cache/answer.md' }, out });
+  const said = calls => met(item, { answer: 'The parser read 03/04 as March; that broke it.', calls });
+  const drafts = { passed: said([draft, pre('CHECK: PASS - send this text as your answer as it stands')]), failed: said([draft, pre('CHECK: FAIL\nAlmost done: 1 step')]), none: said([draft]) };
+  report(drafts.passed === true && drafts.failed === false && drafts.none === false, 'end: an answer item is met by a draft that passed the pre-check, not by one that failed or was never checked', drafts);
 }
 const r = reminder('can you add a CSV export for the orders page');
 report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/.test(r.text) && /Done when \(before answering, check your draft: node tools\/hooks\/hooks\.mjs check --answer-file <draft>\):\n1\. The tests pass/.test(r.text) && !/ran:|file:|answer:|judgment:|REQ/.test(r.text),
@@ -1407,6 +1414,26 @@ report(claimGaps(acts([user('commit it'), call('Bash', { command: 'git commit -m
   'end: a commit shown by this turn\'s output and a file that exists pass; an engine label is not a claim');
 const madeUp = claimGaps(acts([user('commit it'), code, say('Committed as 9f8e7d6, see src/missing.js and C:/nowhere/at/all.md.')]));
 report(madeUp.length === 2 && /9f8e7d6/.test(madeUp[0]) && /src\/missing\.js/.test(madeUp[1]) && /C:\/nowhere/.test(madeUp[1]), 'end: a commit nothing showed and files that do not exist are named', madeUp);
+{ // (a package manager pointed at the project's own folder runs the project's tests; at a subfolder, another package's.
+  // A run that failed for a missing module after a refused install cannot pass yet: not asked again. A check shipped
+  // off ("enabled": false) stays off)
+  const { testGaps, passedRun, engineChecks } = await import('./lib.mjs');
+  const run = (c, out) => ({ name: 'Bash', input: { command: c }, out });
+  const prefix = { own: passedRun(run('npm --prefix . test', 'Tests: 12 passed, 12 total')), sub: passedRun(run('npm --prefix tools/site test', 'Tests: 3 passed, 3 total')) };
+  const noInstall = testGaps(acts([user('add the export'), code, call('Bash', { command: 'npm ci' }, 'This command requires approval', true), call('Bash', { command: 'npm test' }, "Error: Cannot find module 'jest'", true), say('NOT VERIFIED: the install needs your approval.')]));
+  const noTry = testGaps(acts([user('add the export'), code, call('Bash', { command: 'npm test' }, "Error: Cannot find module 'jest'", true), say('Done.')]));
+  const keep = ['tools/hooks/engine-checks.json', 'tools/hooks/requirements.json'].map(p => [p, (() => { try { return fs.readFileSync(path.join(dir, p), 'utf8'); } catch { return null; } })()]);
+  put('tools/hooks/engine-checks.json', JSON.stringify({ requirements: [{ tag: 'zz-off' }, { tag: 'zz-on' }] }));
+  put('tools/hooks/requirements.json', JSON.stringify({ requirements: [{ tag: 'zz-off', enabled: false, when: {}, require: {}, message: 'off' }, { tag: 'zz-on', when: {}, require: {}, message: 'on' }] }));
+  const tags = engineChecks().map(r => r.tag), off = tags.includes('zz-off') || !tags.includes('zz-on');
+  for (const [p, t] of keep) t === null ? fs.rmSync(path.join(dir, p), { force: true }) : fs.writeFileSync(path.join(dir, p), t);
+  report(prefix.own && !prefix.sub && !noInstall.length && noTry.length === 1 && !off, 'end: "npm --prefix ." is the project\'s run, a subfolder\'s is not; a missing module after a refused install is not asked again, one never installed is; a check shipped off stays off', { prefix, noInstall, noTry, off });
+}
+// (a Finished section naming a changed file that is not there is an unbacked claim, rule 4: held. The old engine let it
+// pass; v2's stricter verdict is the one kept: tools/starter/reviews/2026-11-08-v2-triage.md, settled conflicts)
+const finNone = claimGaps(acts([user('add the export'), code, say('Done.\n\n## Finished\n- Files: src/export-never-written.js')]));
+report(finNone.length === 1 && /src\/export-never-written\.js/.test(finNone[0]) && claimGaps(acts([user('add the export'), code, say('Done.\n\n## Finished\n- Files: src/a.js')])).length === 0,
+  'end: a Finished section naming a changed file that does not exist is held; one that exists passes', finNone);
 report(claimGaps(acts([user('clean up'), code, say('Removed src/old.js, the color is #a1b2c3d, and see other-project/notes/a.md for the record.')])).length === 0,
   'end: a file said to be removed, a colour code and a path in another folder ask for nothing');
 // (Lesson (trial v40): an example name for next week's file and a file the answer says was filed elsewhere were reported)

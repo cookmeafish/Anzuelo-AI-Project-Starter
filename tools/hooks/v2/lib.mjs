@@ -437,6 +437,20 @@ export const globRx = g => new RegExp('^' + g.replace(/\\/g, '/').replace(/[.+^$
 const relp = p => relOf(p);
 
 // Whether a checkable item was met by what the turn did. Null means it can't be checked here.
+// The answer drafts "hooks.mjs check --answer-file <f>" passed this turn ("CHECK: PASS"): the text last written to <f>
+// before each passing run, or the file as it is. What the answer must say, a passed draft said: the sent answer may
+// reword it. Lesson (trial round 14, again under v2): a Stop round right after a passing pre-check, only to put a label
+// back into a reworded answer.
+export function passedDrafts(acts) {
+  if (acts._drafts) return acts._drafts;
+  const wrote = new Map(), out = [], key = f => path.resolve(ROOT, String(f || '')).toLowerCase();
+  for (const c of acts.calls || []) {
+    if (c.name === 'Write' && typeof c.input?.content === 'string') wrote.set(key(c.input.file_path), c.input.content);
+    const f = /^(Bash|PowerShell)$/.test(c.name) && /hooks\.mjs["']?\s+check\b[^\n]*--answer-file\s+["']?([^"'\s;&|]+)/.exec(String(c.input?.command || ''));
+    if (f && /^CHECK: PASS/m.test(String(c.out || ''))) out.push(wrote.get(key(f[1])) ?? (() => { try { return fs.readFileSync(path.resolve(ROOT, f[1]), 'utf8'); } catch { return ''; } })());
+  }
+  return Object.defineProperty(acts, '_drafts', { value: out.filter(Boolean), enumerable: false, configurable: true })._drafts;
+}
 // Whether an item fits this turn: always, or when its "(when ...)" condition held.
 export const applies = (item, acts) => (item.whens || (item.when ? [item.when] : [])).every(w => met(w, acts) === true);
 export function met(item, acts) {
@@ -444,7 +458,7 @@ export function met(item, acts) {
   // (a marker whose regex does not compile is not checked, never a crash of the whole end check. Lesson (replay of a
   // project's converted rules): one bad pattern stopped every check of the turn)
   if (/^(answer|prompt|tool|ran)$/.test(item.kind)) try { new RegExp(item.arg); } catch { return null; }
-  if (item.kind === 'answer') return new RegExp(item.arg, 'i').test(acts.answer);
+  if (item.kind === 'answer') { const rx = new RegExp(item.arg, 'i'); return rx.test(acts.answer) || passedDrafts(acts).some(d => rx.test(d)); }
   // (prompt: what the user typed this turn, mid-turn messages too; tool: a tool call whose name and input match)
   if (item.kind === 'prompt') return new RegExp(item.arg, 'i').test(acts.heard || '');
   if (item.kind === 'tool') { const rx = new RegExp(item.arg, 'i'); return acts.calls.some(c => rx.test(`${c.name} ${JSON.stringify(c.input || {})}`)); }
@@ -478,7 +492,13 @@ const testScript = () => { let s = ''; try { s = JSON.parse(fs.readFileSync(at('
 // were flagged, because the command was not a known runner)
 const PASS_OUT = /\b\d+ (tests? )?passed\b|\bALL PASS\b|\bRESULT:\s*PASS\b|\b0 (failed|failures)\b|\bRan \d+ tests?\b[\s\S]{0,200}\bOK\b|\b\d+ passing\b|\btests? passed\b/i;
 const FAIL_OUT = /\b[1-9]\d* (tests? )?(failed|failing)\b|\bFAILED\b|\bnot ok\b/;
-export const passedRun = c => /^(Bash|PowerShell)$/.test(c.name) && !c.error && (isTestRun(String(c.input.command || '')) || PASS_OUT.test(c.out || '')) && !FAIL_OUT.test(c.out || '');
+// A package manager pointed at a folder ("npm --prefix <dir> test", "pnpm -C <dir>", "yarn --cwd <dir>"): the project's
+// own folder is the plain command; another folder is another package, whose tests are not the project's. Lesson (trial
+// round 11, again under v2): "npm --prefix <project> test" passed and the tests were asked for again.
+const AT_DIR = /\b(npm|pnpm|yarn)\s+(?:--prefix|-C|--dir|--cwd)(?:\s+|=)("[^"]*"|'[^']*'|[^\s;&|]+)\s*/gi;
+export const otherPackage = cmd => [...String(cmd).matchAll(AT_DIR)].some(m => path.resolve(ROOT, m[2].replace(/^["']|["']$/g, '')) !== path.resolve(ROOT));
+export const ownCmd = cmd => String(cmd).replace(AT_DIR, (all, tool, dir) => path.resolve(ROOT, dir.replace(/^["']|["']$/g, '')) === path.resolve(ROOT) ? `${tool} ` : all);
+export const passedRun = c => /^(Bash|PowerShell)$/.test(c.name) && !c.error && !otherPackage(c.input.command || '') && (isTestRun(String(c.input.command || '')) || PASS_OUT.test(c.out || '')) && !FAIL_OUT.test(c.out || '');
 // (the project's declared "test" and "build" commands in config.json, top level or under "app", count part by part.
 // Lessons: a plain node script matched no runner name; a Go project's command under "app" was not read)
 const cfgCmds = keys => { try { const c = JSON.parse(fs.readFileSync(at('tools/hooks/config.json'), 'utf8')); return keys.flatMap(k => [c[k], c.app?.[k]]).filter(s => typeof s === 'string').flatMap(s => s.split(/\s*&&\s*/)).map(s => s.trim()).filter(Boolean); } catch { return []; } };
@@ -490,6 +510,8 @@ const SHELL_WORDS = new Set(['cd', 'echo', 'set', 'export', 'true', 'test']);
 export const installed = prog => SHELL_WORDS.has(prog) || /[\/\\]/.test(prog) || String(process.env.PATH || process.env.Path || '').split(path.delimiter).filter(Boolean)
   .some(d => ['', ...(process.platform === 'win32' ? String(process.env.PATHEXT || '.EXE;.CMD;.BAT;.COM').toLowerCase().split(';') : [])].some(x => { try { return fs.statSync(path.join(d, prog + x)).isFile(); } catch { return false; } }));
 export function isTestRun(cmd) {
+  if (otherPackage(cmd)) return false;
+  cmd = ownCmd(cmd);
   if (RUNNERS.test(cmd)) return true;
   const script = testScript();
   return (!!script && String(cmd).includes(script)) || declared().some(d => String(cmd).includes(d));
@@ -582,8 +604,8 @@ export function gateGaps(acts) {
       let rx; try { rx = new RegExp(part, 'i'); } catch { continue; }
       // (a step that is itself a test run is met by any passing test run after the change, however it is spelled.
       // Lesson (trial v34): the declared glob was quoted, the agent's run was not, and passing tests were asked for)
-      const after = (c, k) => k > lastEdit && (!lastWrite || c.done > lastWrite), asTest = isTestRun(part.replace(/\\(.)/g, '$1'));
-      const ok = acts.calls.some((c, k) => after(c, k) && ((/^(Bash|PowerShell)$/.test(c.name) && !c.error && rx.test(String(c.input.command || ''))) || (asTest && passedRun(c))));
+      const after = (c, k) => k > lastEdit && (!lastWrite || !c.done || c.done > lastWrite), asTest = isTestRun(part.replace(/\\(.)/g, '$1'));
+      const ok = acts.calls.some((c, k) => after(c, k) && ((/^(Bash|PowerShell)$/.test(c.name) && !c.error && !otherPackage(c.input.command || '') && rx.test(ownCmd(c.input.command || ''))) || (asTest && passedRun(c))));
       if (!ok && !programs(part.replace(/\\(.)/g, '$1')).some(p => missing.has(p))) out.push(`Run the project's check \`${part.replace(/\\(.)/g, '$1')}\` after the change, and say the result.`);
     }
   }
@@ -607,9 +629,13 @@ export function testGaps(acts, history = '') {
   // (a run this turn that could not start, held for approval or missing its program, is not asked for again; with a
   // declared test command only a try of that one counts. Lessons (trials v33 to v44): the same held run, ten times over)
   const mine = ownTests(), cmdOf = c => String(c.input.command || '');
+  // (nor one that failed for a missing module after the install was refused: it cannot pass until the user allows the
+  // install. Lesson (the old suite under v2): a refused "npm ci" and a "Cannot find module" run were asked for again)
+  const noInstall = i.some(([c]) => cantStart(c) && /\b(npm\s+(ci|i|install)|pnpm\s+(i|install)|yarn(\s+install)?|pip3?\s+install|poetry\s+install|uv\s+(sync|pip\s+install)|bundle\s+install|go\s+mod\s+download)\b/i.test(cmdOf(c)));
+  const missingModule = i.some(([c]) => /^(Bash|PowerShell)$/.test(c.name) && isTestRun(cmdOf(c)) && /Cannot find module|ModuleNotFoundError|No module named|ERR_MODULE_NOT_FOUND/i.test(c.out || ''));
   const cantRun = (mine.length ? i.some(([c]) => cantStart(c) && mine.some(t => cmdOf(c).includes(t))) : i.some(([c]) => cantStart(c) && isTestRun(cmdOf(c))))
-    || (mine.length > 0 && mine.some(t => programs(t).some(p => !installed(p))));
-  if ((lastCode >= 0 || codeWrite) && hasTests && !cantRun && !passes.some(k => k > lastCode && (!codeWrite || acts.calls[k].done > codeWrite)))
+    || (mine.length > 0 && mine.some(t => programs(t).some(p => !installed(p)))) || (noInstall && missingModule);
+  if ((lastCode >= 0 || codeWrite) && hasTests && !cantRun && !passes.some(k => k > lastCode && (!codeWrite || !acts.calls[k].done || acts.calls[k].done > codeWrite)))
     out.push(mine.length ? `Run the tests after the last code change (this project's command: ${mine.join(' && ')}), and say the result.` : 'Run the tests after the last code change, and say the result.');
   // (only a pass count is a claim; one read this turn may be relayed, and with no code changed an earlier run's count
   // stands. Lessons: relayed results, "I don't know whether they pass", and a true "81 passed" were all held)
@@ -632,7 +658,7 @@ export function screenGaps(acts) {
   const lastEdit = Math.max(-1, ...i.filter(([c]) => /^(Edit|Write|MultiEdit)$/.test(c.name) && screen(c.input.file_path || '')).map(([, k]) => k));
   const lastWrite = Math.max(0, ...changedSince(acts, { test: screen }).map(mtime));
   if (lastEdit < 0 && !lastWrite) return [];
-  const shot = i.find(([c, k]) => k > lastEdit && /^(Bash|PowerShell)$/.test(c.name) && !c.error && /screenshot/i.test(String(c.input.command || '')) && (!lastWrite || c.done > lastWrite));
+  const shot = i.find(([c, k]) => k > lastEdit && /^(Bash|PowerShell)$/.test(c.name) && !c.error && /screenshot/i.test(String(c.input.command || '')) && (!lastWrite || !c.done || c.done > lastWrite));
   const looked = shot && i.some(([c, k]) => k > shot[1] && c.name === 'Read' && /\.(png|jpe?g|webp)$/i.test(String(c.input.file_path || '')));
   return looked ? [] : ['A screen changed: take screenshots after the last change (node tools/screenshot.mjs) and look at them.'];
 }
@@ -648,7 +674,7 @@ export function healthGaps(acts, { run = true } = {}) {
   const lastEdit = Math.max(-1, ...i.filter(([c]) => /^(Edit|Write|MultiEdit)$/.test(c.name) && own(c.input.file_path || '')).map(([, k]) => k));
   const lastWrite = Math.max(0, ...changedSince(acts, { test: own }).map(mtime));
   if (lastEdit < 0 && !lastWrite) return [];
-  if (i.some(([c, k]) => k > lastEdit && /^(Bash|PowerShell)$/.test(c.name) && !c.error && /audit\.mjs/.test(String(c.input.command || '')) && /audit: PASS/.test(c.out || '') && (!lastWrite || c.done > lastWrite))) return [];
+  if (i.some(([c, k]) => k > lastEdit && /^(Bash|PowerShell)$/.test(c.name) && !c.error && /audit\.mjs/.test(String(c.input.command || '')) && /audit: PASS/.test(c.out || '') && (!lastWrite || !c.done || c.done > lastWrite))) return [];
   if (!run) return ['(the health check would run here)'];
   // (a hard limit: a slow audit never holds the end of a turn. Its time is kept, to see what it costs)
   const t0 = Date.now(), r = spawnSync(process.execPath, [at('tools/audit.mjs')], { cwd: ROOT, encoding: 'utf8', timeout: 30_000 });
@@ -795,11 +821,13 @@ export function securityGaps(acts) {
 const reqRe = s => String(s).startsWith('(?c)') ? new RegExp(String(s).slice(4), 'm') : new RegExp(s, 'im');
 // (the built-in checks first, each replaced by a requirements.json entry with its tag, minus the "disabled" ones, as the
 // old engine merged them)
-const engineChecks = () => {
+export const engineChecks = () => {
   const j = f => { try { return JSON.parse(fs.readFileSync(at(f), 'utf8')); } catch { return {}; } };
   const file = j('tools/hooks/requirements.json'), tags = new Set((j('tools/hooks/engine-checks.json').requirements || []).map(r => r.tag)), off = new Set((file.disabled || []).map(d => d.tag));
   const own = (file.requirements || []).filter(r => r && tags.has(r.tag));
-  return [...BASE_REQUIREMENTS.filter(b => !own.some(r => r.tag === b.tag)), ...own].filter(r => r.tag !== 'security-code' && !off.has(r.tag));
+  // (a check shipped off, "enabled": false, stays off until configured on, as under the old engine. Lesson (the old suite
+  // under v2): every app-pack project was asked to raise its version number with no version file set)
+  return [...BASE_REQUIREMENTS.filter(b => !own.some(r => r.tag === b.tag)), ...own].filter(r => r.tag !== 'security-code' && !off.has(r.tag) && r.enabled !== false);
 };
 const REFUSED_RUN = /\b(requires approval|was (denied|rejected|refused)|permission (was )?denied|user (denied|rejected|declined)|not allowed to run|blocked by (a )?hook)\b/i;
 const skillSurvey = acts => (fs.existsSync(at('SETUP-PROMPT.md')) && !fs.existsSync(at('.starter-template')))
@@ -986,6 +1014,10 @@ export function smallChange(acts, changed) {
   lines += files.filter(p => !viaTools.has(p)).length * 10;
   return lines <= (cfg.smallLines ?? 40);
 }
+// (a requirement on what the answer says is met by a draft that passed the pre-check; one on what it must not say is
+// judged on the answer sent)
+const draftMet = (req, read, xr) => { const s = JSON.stringify(req || {}); return s.includes('"answerMatches"') && !s.includes('answerNotMatches')
+  && passedDrafts(read).some(d => holdsReq(req, { ...read, answer: inEnglish(d, projectConfig()) }, xr) === true); };
 export function engineCheckGaps(acts) {
   const x = { changed: changedOf(acts), runbook: acts.runbook || '' };
   // (what a check requires is met by any file written since the turn began, even in a turn of reads only: the walk
@@ -999,7 +1031,7 @@ export function engineCheckGaps(acts) {
   // run. Lesson (a peer's review): one check's crash took the whole end check down, or could read as a false ask)
   const out = [];
   for (const r of engineChecks()) {
-    try { if (!(small && SMALL_SKIP.test(r.tag)) && !promptOnly(r.when) && holdsReq(r.when, read, x) === true && holdsReq(r.require, read, xr) === false && !waivedTag(r.tag, acts)) out.push(`Check: ${r.message}`); }
+    try { if (!(small && SMALL_SKIP.test(r.tag)) && !promptOnly(r.when) && holdsReq(r.when, read, x) === true && holdsReq(r.require, read, xr) === false && !draftMet(r.require, read, xr) && !waivedTag(r.tag, acts)) out.push(`Check: ${r.message}`); }
     catch (e) { out.push(crashLine(r.tag, e)); }
   }
   return out;
