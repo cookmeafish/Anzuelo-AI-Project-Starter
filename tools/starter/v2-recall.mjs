@@ -4,6 +4,7 @@
 // usage: node tools/starter/v2-recall.mjs <project folder> <transcript folder> [--since YYYY-MM-DD]
 import fs from 'node:fs';
 import path from 'node:path';
+import { readRows } from '../hooks/jsonl.mjs';
 
 const args = process.argv.slice(2), [project, tdir] = args;
 const since = args.includes('--since') ? args[args.indexOf('--since') + 1] : '2000';
@@ -30,7 +31,7 @@ const kindsOf = text => KINDS.filter(([, rx]) => rx.test(text)).map(([k]) => k);
 const NOTES = /turn-notes|hooks\.mjs\s+waive|answer\.md/;
 const tally = new Map(), add = (k, hit) => { const e = tally.get(k) || { n: 0, x: 0 }; e.n++; if (hit) e.x++; tally.set(k, e); };
 for (const f of fs.readdirSync(tdir).filter(f => f.endsWith('.jsonl')).map(f => path.join(tdir, f))) {
-  const rows = fs.readFileSync(f, 'utf8').split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+  const rows = readRows(f);
   const starts = rows.map((r, i) => typed(r) && r.timestamp >= since ? i : -1).filter(i => i >= 0);
   starts.forEach((s, k) => {
     const slice = rows.slice(s, starts[k + 1] ?? rows.length);

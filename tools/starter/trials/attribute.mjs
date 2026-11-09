@@ -6,6 +6,7 @@
 //   node tools/starter/trials/attribute.mjs <round> [bareRound] [--turns 2-] [--project id]
 import fs from 'node:fs';
 import path from 'node:path';
+import { readRows } from '../../hooks/jsonl.mjs';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 
@@ -58,7 +59,7 @@ export function attributeRound(name) {
     const turns = rec.turns || [];
     for (let ti = fromTurn - 1; ti < turns.length; ti++) {
       const t = turns[ti], file = t?.sid && findT(t.sid); if (!file) continue;
-      const rows = turnRows(fs.readFileSync(file, 'utf8').split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean), t.prompt, turns[ti + 1]?.prompt);
+      const rows = turnRows(readRows(file), t.prompt, turns[ti + 1]?.prompt);
       out.turns++;
       // one request = one message id: Claude Code writes its text and each tool call as separate rows sharing the id
       // and usage, so the rows are grouped first and the request takes the category of its first tool call

@@ -5,6 +5,7 @@
 //   node tools/starter/trials/overhead.mjs <round> [--turns 2-]     (--turns 2- skips setup; --turns 1 is setup only)
 import fs from 'node:fs';
 import path from 'node:path';
+import { readRows } from '../../hooks/jsonl.mjs';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 
@@ -23,7 +24,7 @@ const ENGINE = [
   ['engine notes', /\.cache\/(turn-notes|answer|stop-details)|tools\/hooks\/(requirements\.json|config\.json|hooks\.mjs|state\/)/],
 ];
 const root = path.join(os.homedir(), '.claude', 'projects');
-const rowsOf = sid => { for (const d of fs.readdirSync(root)) { const f = path.join(root, d, `${sid}.jsonl`); if (fs.existsSync(f)) return fs.readFileSync(f, 'utf8').split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean); } return []; };
+const rowsOf = sid => { for (const d of fs.readdirSync(root)) { const f = path.join(root, d, `${sid}.jsonl`); if (fs.existsSync(f)) return readRows(f); } return []; };
 const dir = path.join(TRIALS, `results-${round}`);
 const agg = {}; let totalSec = 0, totalCalls = 0, totalChars = 0;
 const add = (k, sec, chars) => { const a = agg[k] ||= { calls: 0, sec: 0, chars: 0 }; a.calls++; a.sec += sec; a.chars += chars; totalSec += sec; totalCalls++; totalChars += chars; };

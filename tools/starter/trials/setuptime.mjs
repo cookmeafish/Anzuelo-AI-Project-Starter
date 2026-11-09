@@ -3,12 +3,13 @@
 // node tools/starter/trials/setuptime.mjs <round> [project]
 import fs from 'node:fs';
 import path from 'node:path';
+import { readRows } from '../../hooks/jsonl.mjs';
 import os from 'node:os';
 const [round, only] = process.argv.slice(2);
 const res = path.join('.cache', 'trials', `results-${round}`);
 const projDir = path.join(os.homedir(), '.claude', 'projects');
 const find = sid => { for (const d of fs.readdirSync(projDir)) { const f = path.join(projDir, d, `${sid}.jsonl`); if (fs.existsSync(f)) return f; } return null; };
-const rowsOf = f => fs.readFileSync(f, 'utf8').split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+const rowsOf = f => readRows(f);
 const kindOf = (name, inp) => {
   if (!/^(Bash|PowerShell)$/.test(name)) return name === 'Agent' ? 'Agent (helper)' : name;
   const c = String(inp.command || '');

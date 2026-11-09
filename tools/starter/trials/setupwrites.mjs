@@ -2,6 +2,7 @@
 // touched. node tools/starter/trials/setupwrites.mjs <round> [project]
 import fs from 'node:fs';
 import path from 'node:path';
+import { readLines } from '../../hooks/jsonl.mjs';
 import os from 'node:os';
 const [round, only] = process.argv.slice(2);
 const res = path.join('.cache', 'trials', `results-${round}`);
@@ -16,7 +17,7 @@ for (const file of fs.readdirSync(res).filter(f => f.endsWith('.json'))) {
   if (!main) continue;
   const sub = path.join(path.dirname(main), t.sid, 'subagents');
   const all = [main, ...(fs.existsSync(sub) ? fs.readdirSync(sub).filter(f => f.endsWith('.jsonl')).map(f => path.join(sub, f)) : [])];
-  for (const f of all) for (const l of fs.readFileSync(f, 'utf8').split('\n')) {
+  for (const f of all) for (const l of readLines(f)) {
     let r; try { r = JSON.parse(l); } catch { continue; }
     if (r?.type !== 'assistant') continue;
     for (const c of Array.isArray(r.message?.content) ? r.message.content : []) {

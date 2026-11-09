@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { PROJECT, ENGINE, LOCAL, where, whereWrite, relOf, listAll, kind, split } from './paths.mjs';
 import { ROOT, bulkDir, today, localDate, usageOf, read, readJSON, abs, exists, list, walkStat, esc, DEFAULTS, config, re, secretRes, secretHit, homeDir, privateTermsPath, privateTermsListFile, forbiddenTerms, forbiddenRe } from './settings.mjs';
 import { testInputsHash, aiAttributedCommits, gitignoreProblems } from './repo.mjs';
+import { lines as jsonlLines } from './jsonl.mjs';
 import { people, personOf, peopleIn, peopleFor, pathsPeople } from './people.mjs';
 import { LABELS_ES, WORTH_IT, plainLabel, EN_COPIES, inEnglish } from './labels.mjs';
 import { BASE_REQUIREMENTS } from './base-checks.mjs';
@@ -425,8 +426,9 @@ export const relayedOut = s => String(s || '').replace(RELAYED, ' ');
 // default branch). The OK holds for the session. Lesson (the user, upset): a push queued with the work was refused at
 // the end and the user had to confirm it a second time.
 export function askedPushEarlier(transcriptPath, target) {
-  // (the whole session, up to 64 MB: a standing OK given early in a long session still holds)
-  let raw = ''; try { const fd = fs.openSync(transcriptPath, 'r'), size = fs.fstatSync(fd).size, n = Math.min(size, 64 << 20), b = Buffer.alloc(n); fs.readSync(fd, b, 0, n, size - n); fs.closeSync(fd); raw = b.toString('utf8'); } catch { return false; }
+  // (the whole session, read line by line at any size: a standing OK given early in a long session still holds. It
+  // runs only for a push the request does not name. Lesson: a 64 MB tail missed what came before it)
+  let raw; try { fs.accessSync(transcriptPath); raw = jsonlLines(transcriptPath); } catch { return false; }
   const names = /^(main|master)$/i.test(target) ? 'main|master' : esc(target);
   const ok = new RegExp(`\\bpush\\b[\\s\\S]{0,80}\\b(${names})\\b|\\b(${names})\\b[\\s\\S]{0,40}\\bpush`, 'i');
   // (a standing OK for any push this session, "you have permission to git push whenever you can"; and a plain "yes" to
@@ -437,7 +439,7 @@ export function askedPushEarlier(transcriptPath, target) {
   const asked = new RegExp(`\\bpush\\b[^?]{0,120}\\?|\\b(${names})\\b[^?]{0,80}\\?`, 'i');
   const clean = s => String(s).replace(/<(pasted_content|cross-session-message|agent-message|task-notification)\b[\s\S]*?<\/\1\b[^>]*>/g, ' ');
   let lastSaid = '';
-  for (const line of raw.split('\n')) {
+  for (const line of raw) {
     if (line.includes('"type":"assistant"')) { try { const a = JSON.parse(line).message?.content; const t = Array.isArray(a) ? a.filter(x => x.type === 'text').map(x => x.text).join('\n') : ''; if (t.trim()) lastSaid = t; } catch { } continue; }
     if (!line.includes('"type":"user"')) continue;
     let r; try { r = JSON.parse(line); } catch { continue; }

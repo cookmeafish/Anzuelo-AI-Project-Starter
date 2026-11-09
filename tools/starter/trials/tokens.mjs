@@ -5,6 +5,7 @@
 //   node tools/starter/trials/tokens.mjs <round> [project]
 import fs from 'node:fs';
 import path from 'node:path';
+import { readRows } from '../../hooks/jsonl.mjs';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 
@@ -14,7 +15,7 @@ const [round, only] = process.argv.slice(2);
 if (!round) { console.error('usage: tokens.mjs <round> [project]'); process.exit(1); }
 const root = path.join(os.homedir(), '.claude', 'projects');
 const filesOf = sid => { for (const d of fs.readdirSync(root)) { const f = path.join(root, d, `${sid}.jsonl`); if (fs.existsSync(f)) { const sub = path.join(root, d, sid, 'subagents'); return { main: f, subs: fs.existsSync(sub) ? fs.readdirSync(sub).filter(n => n.endsWith('.jsonl')).map(n => path.join(sub, n)) : [] }; } } return { main: null, subs: [] }; };
-const rowsOf = f => f ? fs.readFileSync(f, 'utf8').split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean) : [];
+const rowsOf = f => f ? readRows(f) : [];
 const usage = rows => { const seen = new Set(); let req = 0, ctx = 0, out = 0, first = 0; for (const r of rows) { const u = r.message?.usage, id = r.message?.id; if (r.type !== 'assistant' || !u || seen.has(id)) continue; seen.add(id); req++; const c = (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0); if (!first) first = c; ctx += c; out += u.output_tokens || 0; } return { req, ctx, out, first }; };
 const k = n => `${Math.round(n / 1000)}k`;
 const dir = path.join(TRIALS, `results-${round}`);

@@ -4,6 +4,7 @@
 // usage: node tools/starter/route-compare.mjs <project folder> <transcript folder> [--since YYYY-MM-DD] [--list]
 import fs from 'node:fs';
 import path from 'node:path';
+import { readRows } from '../hooks/jsonl.mjs';
 
 const args = process.argv.slice(2), [project, tdir] = args;
 const since = args.includes('--since') ? args[args.indexOf('--since') + 1] : '2000';
@@ -11,7 +12,7 @@ process.env.ANZUELO_ROOT = path.resolve(project);
 const { route, typed } = await import('../hooks/v2/lib.mjs');
 const c = { both: 0, same: 0, differ: 0, v1only: 0, v2only: 0, none: 0 }, list = [];
 for (const f of fs.readdirSync(tdir).filter(f => f.endsWith('.jsonl')).map(f => path.join(tdir, f))) {
-  const rows = fs.readFileSync(f, 'utf8').split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+  const rows = readRows(f);
   rows.forEach((r, i) => {
     if (!typed(r) || r.timestamp < since) return;
     // v1's hint for this prompt: the prompt hook's context recorded right after it

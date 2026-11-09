@@ -3,6 +3,7 @@
 // added to the context (every later request carries it):  node tools/starter/trials/reads.mjs <round> [--turns 2-]
 import fs from 'node:fs';
 import path from 'node:path';
+import { readRows } from '../../hooks/jsonl.mjs';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 
@@ -12,7 +13,7 @@ const round = process.argv[2];
 const ti = process.argv.indexOf('--turns'), from = ti > 0 ? parseInt(process.argv[ti + 1], 10) || 1 : 2;
 if (!round) { console.error('usage: reads.mjs <round> [--turns 2-]'); process.exit(1); }
 const root = path.join(os.homedir(), '.claude', 'projects');
-const rowsOf = sid => { for (const d of fs.readdirSync(root)) { const f = path.join(root, d, `${sid}.jsonl`); if (fs.existsSync(f)) return fs.readFileSync(f, 'utf8').split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean); } return []; };
+const rowsOf = sid => { for (const d of fs.readdirSync(root)) { const f = path.join(root, d, `${sid}.jsonl`); if (fs.existsSync(f)) return readRows(f); } return []; };
 const DOC = /docs\/playbooks\/|SKILL\.md|docs\/checks\/|AGENTS\.md|CLAUDE\.md|docs\/foundation\.md|DIRECTORY\.md|SETUP-PROMPT\.md/;
 const cnt = {};
 const dir = path.join(TRIALS, `results-${round}`);

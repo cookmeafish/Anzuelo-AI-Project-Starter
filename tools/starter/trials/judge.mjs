@@ -8,6 +8,7 @@
 // .cache/trials/judge/<round>-<k>.json. Then: node tools/starter/trials/compare.mjs <round> --record
 import fs from 'node:fs';
 import path from 'node:path';
+import { readLines } from '../../hooks/jsonl.mjs';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { isVoid } from './compare.mjs';
@@ -66,7 +67,7 @@ if (cmd === 'dump') {
   j.turns.forEach((t, i) => console.log(`\n######## TURN ${i + 1}: ${t.prompt}\nmin=${t.min} error=${t.error} blockTags=${JSON.stringify(t.blockTags)} waivers=${JSON.stringify(t.waivers)} newChecks=${JSON.stringify(t.newChecks)} learned=${JSON.stringify(t.learned)}\nchangedFiles=${JSON.stringify(t.changedFiles)}\n--- ANSWER:\n${t.answer}`));
   console.log('\nVERDICT', JSON.stringify(j.verdict));
 } else if (cmd === 'texts') {
-  for (const l of fs.readFileSync(process.argv[3], 'utf8').split('\n').filter(Boolean)) {
+  for (const l of readLines(process.argv[3]).filter(Boolean)) {
     let o; try { o = JSON.parse(l); } catch { continue; }
     if (o.type === 'user' && typeof o.message?.content === 'string') console.log('\n>>>> USER: ' + o.message.content.slice(0, 600));
     if (o.type === 'assistant') for (const c of o.message?.content || []) if (c.type === 'text' && c.text.length > 200) console.log('\n---- ASSIST: ' + c.text.slice(0, 4000));

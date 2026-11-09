@@ -4,6 +4,7 @@
 // usage: node tools/starter/interrupts.mjs <transcript folder> [--since YYYY-MM-DD] [--kinds]
 import fs from 'node:fs';
 import path from 'node:path';
+import { readLines } from '../hooks/jsonl.mjs';
 
 const args = process.argv.slice(2), dir = args.find(a => !a.startsWith('--') && args[args.indexOf(a) - 1] !== '--since');
 const since = args.includes('--since') ? args[args.indexOf('--since') + 1] : '2000';
@@ -19,7 +20,7 @@ const z = () => ({ turns: 0, calls: 0, promptLines: 0, promptChars: 0, notices: 
 const stat = { main: z(), helper: z() }, kinds = new Map();
 for (const f of files) {
   const who = /[\\/]subagents[\\/]/.test(f) ? 'helper' : 'main', s = stat[who];
-  for (const l of fs.readFileSync(f, 'utf8').split('\n')) {
+  for (const l of readLines(f)) {
     let r; try { r = JSON.parse(l); } catch { continue; }
     if (!r.timestamp || r.timestamp < since) continue;
     const c = r.message?.content;

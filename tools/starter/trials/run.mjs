@@ -11,6 +11,7 @@
 // <temp>/anzuelo-new/<id>-<round>.
 import fs from 'node:fs';
 import path from 'node:path';
+import { readRows } from '../../hooks/jsonl.mjs';
 import os from 'node:os';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -117,7 +118,7 @@ async function one(id) {
     return { prompt, min: Math.round((Date.now() - t0) / 6000) / 10, sid: j.session_id || sid, answer: j.result || '', turns: j.num_turns, cost: j.total_cost_usd, error: j.error || (r.status ? `exit ${r.status}` : '') };
   };
   const root = path.join(os.homedir(), '.claude', 'projects');
-  const rowsOf = sid => { for (const d of fs.readdirSync(root)) { const f = path.join(root, d, `${sid}.jsonl`); if (fs.existsSync(f)) return fs.readFileSync(f, 'utf8').split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean); } return []; };
+  const rowsOf = sid => { for (const d of fs.readdirSync(root)) { const f = path.join(root, d, `${sid}.jsonl`); if (fs.existsSync(f)) return readRows(f); } return []; };
   const text = r => JSON.stringify(r.message?.content ?? r.attachment ?? r.content ?? '');
   const node = (...a) => spawnSync(process.execPath, a, { cwd: dir, encoding: 'utf8', maxBuffer: 64 << 20, timeout: 20 * 60_000 });
   const readJ = p => { try { return JSON.parse(fs.readFileSync(path.join(dir, p), 'utf8')); } catch { return {}; } };

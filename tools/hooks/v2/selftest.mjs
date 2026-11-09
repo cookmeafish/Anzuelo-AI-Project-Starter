@@ -278,7 +278,7 @@ report(/learn-from-upset/.test(reminder('WHY DID YOU BREAK THE EXPORT AGAIN').te
   const c = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-push-'));
   fs.mkdirSync(path.join(c, 'tools/hooks/state'), { recursive: true }); fs.mkdirSync(path.join(c, '.cache'), { recursive: true });
   fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(c, 'tools/hooks/v2'), { recursive: true });
-  for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
+  for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
   const pre = rows => { const t = path.join(c, `t${++id}.jsonl`); fs.writeFileSync(t, rows.flat().map(r => JSON.stringify(r)).join('\n') + '\n');
     return spawnSync(process.execPath, [path.join(c, 'tools/hooks/hooks.mjs'), 'pretool'], { cwd: c, encoding: 'utf8',
       input: JSON.stringify({ session_id: 'pushok', transcript_path: t, tool_name: 'Bash', tool_input: { command: 'git push origin HEAD:main' } }),
@@ -744,11 +744,40 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
         const run = (...a) => spawnSync(process.execPath, [tool, ...a], { encoding: 'utf8', env: { ...process.env, V2_SWEEP_LIST: list } });
         const wrote = run('--from', path.join(sw, 'r1.txt'), '--write').status, same = run('--from', path.join(sw, 'r1.txt')), worse = run('--from', path.join(sw, 'r2.txt')), grow = run('--from', path.join(sw, 'r2.txt'), '--write');
         fs.rmSync(sw, { recursive: true, force: true });
-        // (the sweep's run under v2 fails by design, so it must never write the push gate's pass record)
-        const sc = fs.readFileSync(path.resolve(path.dirname(tool), '..', 'hooks', 'selfcheck.mjs'), 'utf8');
-        const gated = /const GATE_RUN = process\.env\.STARTER_ENGINE === 'v1';/.test(sc) && [...sc.matchAll(/^if \(([^)]*)\) try \{[^\n]*state\/selftest\.json/gm)].every(m => /GATE_RUN/.test(m[1]));
+        // (the sweep's run under v2 fails by design, so the push gate reads no record a run on this machine writes: only
+        // the proof inside the pushed commit, whatever the engine)
+        const gg = fs.readFileSync(path.resolve(path.dirname(tool), '..', 'hooks', 'git-guard.mjs'), 'utf8');
+        const gated = !/selftest\.json|STARTER_ENGINE/.test(gg) && /proofCovers\(/.test(gg);
         report(gated && wrote === 0 && same.status === 0 && worse.status === 1 && /not on the list[\s\S]*- stop: d/.test(worse.stdout) && /pass now[\s\S]*- stop: a/.test(worse.stdout) && grow.status === 1,
-          'chain: the v2 sweep fails on a new v2 failure and on a listed test that passes now; its list only shrinks; a run under v2 never writes the push gate record', JSON.stringify({ wrote, same: same.status, worse: worse.status, grow: grow.status }));
+          'chain: the v2 sweep fails on a new v2 failure and on a listed test that passes now; its list only shrinks; the push gate reads only the pushed commit\'s proof, no record a run writes', JSON.stringify({ wrote, same: same.status, worse: worse.status, grow: grow.status }));
+      }
+      // (replays read transcripts line by line in chunks, so no session is skipped for its size: the reader gives the
+      // same lines at any chunk size, a character split across chunks included, and no replay tool reads a transcript
+      // into one string. Lesson: an 833 MB session went past Node's largest string and a replay left it out)
+      {
+        const { lines, readRows } = await import('../jsonl.mjs');
+        const d = fs.mkdtempSync(path.join(os.tmpdir(), 'jsonl-')), f = path.join(d, 't.jsonl');
+        const want = ['{"a":"ñandú ✓ 𝄞"}', '', 'broken {', '{"b":2}', '{"c":"x"}'];
+        fs.writeFileSync(f, want.join('\r\n'));
+        const same = [1, 2, 3, 7, 1 << 20].every(n => JSON.stringify([...lines(f, n)]) === JSON.stringify(want)), parsed = readRows(f).length;
+        fs.rmSync(d, { recursive: true, force: true });
+        const repo = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
+        const walk = p => fs.readdirSync(p, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(p, e.name)) : e.name.endsWith('.mjs') ? [path.join(p, e.name)] : []);
+        const tools = [...walk(path.join(repo, 'tools/starter')), ...fs.readdirSync(path.join(repo, 'skills')).flatMap(s => { try { return walk(path.join(repo, 'skills', s, 'scripts')); } catch { return []; } })]
+          .filter(t => /\.jsonl\b/.test(fs.readFileSync(t, 'utf8')));
+        const whole = tools.filter(t => /readFileSync\([^()]*\)\s*\.split\(/.test(fs.readFileSync(t, 'utf8'))).map(t => path.relative(repo, t));
+        report(same && parsed === 3 && tools.length >= 10 && !whole.length, 'replays: transcripts are read line by line at any size (same lines at every chunk size); no replay tool reads one whole', JSON.stringify({ same, parsed, tools: tools.length, whole }));
+      }
+      // (every engine module the hooks import is in the engine proof's hash and in what new projects get: a module left
+      // out of the hash lets a project reuse a pass its changed code never had; one left out of the copy breaks the hooks.
+      // Lesson: base-checks, settings, wakeups and others were missing from the proof's file list)
+      {
+        const repo = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
+        const src = ['tools/hooks/hooks.mjs', ...fs.readdirSync(path.join(repo, 'tools/hooks/v2')).filter(f => f.endsWith('.mjs') && f !== 'selftest.mjs').map(f => `tools/hooks/v2/${f}`)].map(f => fs.readFileSync(path.join(repo, f), 'utf8')).join('\n');
+        const mods = [...new Set([...src.matchAll(/from '\.{1,2}\/([\w-]+\.mjs)'/g)].map(m => `tools/hooks/${m[1]}`))].filter(m => fs.existsSync(path.join(repo, m)));
+        const { PROOF_PATHS } = await import('../selftest-cache.mjs'), np = fs.readFileSync(path.join(repo, 'tools/new-project.mjs'), 'utf8');
+        const unhashed = mods.filter(m => !PROOF_PATHS.test(m)), uncopied = mods.filter(m => !np.includes(`'${m}'`));
+        report(mods.length >= 8 && !unhashed.length && !uncopied.length, 'engine modules: each module the hooks import is in the engine proof\'s hash and in the files a new project gets', JSON.stringify({ mods: mods.length, unhashed, uncopied }));
       }
       // (every glob converter in v2 reads "**/" as any number of folders, none included: a root file and a nested one both
       // match. Lesson (the old suite under v2): "**/*" missed CLAUDE.md, and an approved "old/**" covered one level only)
@@ -1493,9 +1522,11 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
       standing: push([u('yes, you have permission to git push whenever you can'), a('Done.'), u('carry on with the fixes')]),
       none: push([u('carry on with the fixes')]),
       otherYes: push([a('Should I delete the old notes?'), u('yes')]),
+      // (a standing OK given before 70 MB of later session still holds: the whole transcript is read, line by line)
+      early: push([u('yes, you have permission to git push whenever you can'), ...Array.from({ length: 70 }, () => a('x'.repeat(1 << 20))), u('carry on')]),
     };
-    report(!ok.yes && !ok.standing && /REQ: (git-safety|outward-gate)/.test(ok.none) && /REQ: (git-safety|outward-gate)/.test(ok.otherYes),
-      'pretool: a push goes after a "yes" to the agent\'s own push question or a standing OK earlier in the session; with neither, or a "yes" to another question, it is refused', JSON.stringify(Object.fromEntries(Object.entries(ok).map(([k, v]) => [k, v.slice(0, 60)]))));
+    report(!ok.yes && !ok.standing && !ok.early && /REQ: (git-safety|outward-gate)/.test(ok.none) && /REQ: (git-safety|outward-gate)/.test(ok.otherYes),
+      'pretool: a push goes after a "yes" to the agent\'s own push question or a standing OK earlier in the session, however long the session; with neither, or a "yes" to another question, it is refused', JSON.stringify(Object.fromEntries(Object.entries(ok).map(([k, v]) => [k, v.slice(0, 60)]))));
   }
   const R = ROOT.replace(/\\/g, '/') + '/', g = 'gi' + 't ', base = { ...config(), engine: 'v2' };
   const prot = { ...base, protectedOriginals: ['originals/**'] };
@@ -1641,7 +1672,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     const c = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-resume-'));
     fs.mkdirSync(path.join(c, 'tools/hooks/state'), { recursive: true });
     fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(c, 'tools/hooks/v2'), { recursive: true });
-    for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
+    for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
     const resume = ended => { const sid = ended ? 'resumedone' : 'resumeopen';
       fs.writeFileSync(path.join(c, `tools/hooks/state/v2-turn.${sid}.json`), JSON.stringify({ at: new Date().toISOString(), runbook: null, ...(ended ? { ended: true } : {}) }));
       return spawnSync(process.execPath, [path.join(c, 'tools/hooks/hooks.mjs'), 'session'], { cwd: c, encoding: 'utf8', input: JSON.stringify({ session_id: sid, source: 'resume' }), env: { ...process.env, STARTER_ENGINE: 'v2', ANZUELO_ROOT: c } }).stdout || ''; };
@@ -1658,7 +1689,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     const c = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-quiet-'));
     fs.mkdirSync(path.join(c, 'tools/hooks/state'), { recursive: true });
     fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(c, 'tools/hooks/v2'), { recursive: true });
-    for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
+    for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
     const tp = path.join(c, 'transcript.jsonl'), at = new Date().toISOString();
     fs.writeFileSync(tp, [
       { type: 'user', timestamp: at, message: { role: 'user', content: 'run the tests and fix the export' } },
@@ -1683,7 +1714,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     const c = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-mark-'));
     fs.mkdirSync(path.join(c, 'tools/hooks/state'), { recursive: true }); fs.mkdirSync(path.join(c, 'docs/playbooks'), { recursive: true });
     fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(c, 'tools/hooks/v2'), { recursive: true });
-    for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
+    for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
     fs.writeFileSync(path.join(c, 'docs/playbooks/export.md'), '---\nname: export\ntriggers: csv export\n---\n## Done when\n1. The answer says how it was checked (answer: How it was checked)\n');
     const tp = path.join(c, 't.jsonl'), at = new Date(Date.now() + 1000).toISOString();
     const env = { ...process.env, STARTER_ENGINE: 'v2', ANZUELO_ROOT: c, CLAUDE_PROJECT_DIR: c };
@@ -1704,7 +1735,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     const c = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-ack-'));
     fs.mkdirSync(path.join(c, 'tools/hooks/state'), { recursive: true }); fs.mkdirSync(path.join(c, '.cache'), { recursive: true }); fs.mkdirSync(path.join(c, 'skills/learn-from-upset'), { recursive: true });
     fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(c, 'tools/hooks/v2'), { recursive: true });
-    for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
+    for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
     fs.copyFileSync(path.join(repo, 'skills/learn-from-upset/SKILL.md'), path.join(c, 'skills/learn-from-upset/SKILL.md'));
     const notes = path.join(c, '.cache/turn-notes.md'), old = new Date(Date.now() - 3600_000);
     fs.writeFileSync(notes, 'Issue: the export dropped rows with commas | runbook: learn-from-upset | fixed when: every row is in the export\n'); fs.utimesSync(notes, old, old);
@@ -1732,7 +1763,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     const { spawnSync } = await import('node:child_process'), c = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-brief-'));
     fs.mkdirSync(path.join(c, 'tools/hooks/state'), { recursive: true }); fs.mkdirSync(path.join(c, '.cache'), { recursive: true }); fs.mkdirSync(path.join(c, 'docs/playbooks'), { recursive: true });
     fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(c, 'tools/hooks/v2'), { recursive: true });
-    for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
+    for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
     fs.writeFileSync(path.join(c, 'docs/playbooks/export.md'), '---\nname: export\n---\n# Export\n## Done when\n- [ ] The tests pass (ran: npm test)\n');
     const brief = engine => {
       const at = new Date(Date.now() - 2000).toISOString();
@@ -1763,7 +1794,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     const { spawnSync } = await import('node:child_process');
     const c = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-crash-'));
     fs.mkdirSync(path.join(c, 'tools/hooks'), { recursive: true });
-    for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
+    for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
     const hook = (cmd, extra = {}) => (spawnSync(process.execPath, [path.join(c, 'tools/hooks/hooks.mjs'), cmd], { cwd: c, encoding: 'utf8',
       input: JSON.stringify({ session_id: 'crashonce', prompt: 'add a recipe card', ...extra }), env: { ...process.env, STARTER_ENGINE: 'v2' } }).stdout || '').trim();
     const p1 = hook('prompt'), s1 = hook('stop'), s2 = hook('stop', { session_id: 'crashother', stop_hook_active: true });
@@ -1772,7 +1803,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
       'crash: a v2 hook that cannot load tells the agent once per session; a Stop already held lets the session end', [p1.slice(0, 120), s1.slice(0, 80), s2.slice(0, 80)]);
     const c2 = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-crash-'));
     fs.mkdirSync(path.join(c2, 'tools/hooks'), { recursive: true });
-    for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c2, 'tools/hooks', f));
+    for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c2, 'tools/hooks', f));
     const st = (spawnSync(process.execPath, [path.join(c2, 'tools/hooks/hooks.mjs'), 'stop'], { cwd: c2, encoding: 'utf8', input: JSON.stringify({ session_id: 'crashstop' }), env: { ...process.env, STARTER_ENGINE: 'v2' } }).stdout || '');
     fs.rmSync(c2, { recursive: true, force: true });
     report(/"decision":"block"/.test(st) && /CRASHED/.test(st), 'crash: a v2 Stop hook that cannot load blocks once with the error', st.slice(0, 160));
@@ -1879,7 +1910,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     const { probeEngine } = await import('../hooks.mjs');
     const c3 = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-probe-'));
     fs.mkdirSync(path.join(c3, 'tools/hooks'), { recursive: true });
-    for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c3, 'tools/hooks', f));
+    for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c3, 'tools/hooks', f));
     const broken = probeEngine(c3);
     fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(c3, 'tools/hooks/v2'), { recursive: true });
     fs.rmSync(path.join(c3, 'tools/hooks/state'), { recursive: true, force: true });
@@ -1890,7 +1921,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     {
       const g = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-prove-'));
       fs.mkdirSync(path.join(g, 'tools/hooks'), { recursive: true });
-      for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(g, 'tools/hooks', f));
+      for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(g, 'tools/hooks', f));
       const gg = (...a) => spawnSync('git', a, { cwd: g, encoding: 'utf8' });
       gg('init', '-q'); fs.writeFileSync(path.join(g, 'menu.js'), 'broken\n'); gg('add', '-A'); gg('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'x');
       fs.writeFileSync(path.join(g, 'menu.js'), 'fixed\n');
@@ -2000,7 +2031,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     fs.mkdirSync(at('.codex')); fs.writeFileSync(at('.codex/hooks.json'), codex); fs.writeFileSync(at('.gitignore'), '.codex/\n');
     g('init', '-q'); g('add', '-A'); g('commit', '-qm', 'project'); g('config', 'core.hooksPath', '.githooks');
     const ins = spawnSync(process.execPath, [path.join(repo, 'tools/starter.mjs'), 'install', p, '--private', 'no'], { encoding: 'utf8', timeout: 300000 });
-    for (const f of ['tools/starter.mjs', 'tools/hooks/wire.mjs', 'tools/hooks/hooks.mjs']) fs.copyFileSync(path.join(repo, f), at('.anzuelo/engine', f));
+    for (const f of ['tools/starter.mjs', 'tools/hooks/wire.mjs', 'tools/hooks/hooks.mjs', 'tools/hooks/jsonl.mjs']) fs.copyFileSync(path.join(repo, f), at('.anzuelo/engine', f));
     // (the install is recorded, and session start says it once: the next start is quiet)
     const sess = () => spawnSync(process.execPath, [at('.anzuelo/engine/tools/hooks/hooks.mjs'), 'session'], { cwd: p, encoding: 'utf8', timeout: 60000, input: '{}', env: { ...process.env, CLAUDE_PROJECT_DIR: p, ANZUELO_ROOT: '' } }).stdout || '';
     const s1 = sess(), s2 = sess(), dec = () => { try { return fs.readFileSync(at('docs/DECISIONS.md'), 'utf8'); } catch { return ''; } };
@@ -2111,7 +2142,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-split-')), eng = path.join(proj, '.anzuelo', 'engine'), loc = path.join(proj, '.anzuelo', 'local');
   fs.mkdirSync(path.join(eng, 'tools', 'hooks'), { recursive: true });
   fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(eng, 'tools/hooks/v2'), { recursive: true });
-  for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(eng, 'tools/hooks', f));
+  for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(eng, 'tools/hooks', f));
   const book = (root, name, trig) => { fs.mkdirSync(path.join(root, 'docs/playbooks'), { recursive: true }); fs.writeFileSync(path.join(root, 'docs/playbooks', `${name}.md`), `---\nname: ${name}\nsummary: s\ntriggers: ${trig}\n---\n# ${name}\n\n## Done when\n- [ ] ${name} item one\n`); };
   book(eng, 'invoice', 'send the invoice'); book(loc, 'harvest', 'plan the harvest');
   const ask = (prompt, sid) => spawnSync(process.execPath, [path.join(eng, 'tools/hooks/hooks.mjs'), 'prompt'], { cwd: proj, encoding: 'utf8', input: JSON.stringify({ session_id: sid, prompt }),

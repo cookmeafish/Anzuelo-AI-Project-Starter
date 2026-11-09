@@ -6,6 +6,7 @@
 // usage: node tools/starter/v2-replay.mjs <project folder> <transcript folder> [--since YYYY-MM-DD] [--show]
 import fs from 'node:fs';
 import path from 'node:path';
+import { readRows } from '../hooks/jsonl.mjs';
 
 const [project, tdir] = process.argv.slice(2), args = process.argv.slice(2);
 const since = args.includes('--since') ? args[args.indexOf('--since') + 1] : '2000';
@@ -21,7 +22,7 @@ import { firstTry, withShellEdits } from './replay-lib.mjs';
 let turns = 0, routed = 0, lines = 0, chars = 0, blocks = 0;
 const kinds = new Map();
 for (const f of fs.readdirSync(tdir).filter(f => f.endsWith('.jsonl')).map(f => path.join(tdir, f))) {
-  const rows = fs.readFileSync(f, 'utf8').split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+  const rows = readRows(f);
   const starts = rows.map((r, i) => startsTurn(rows, i) && r.timestamp >= since ? i : -1).filter(i => i >= 0);
   starts.forEach((s, k) => {
     const prompt = rows[s].message.content, slice = rows.slice(s, starts[k + 1] ?? rows.length);

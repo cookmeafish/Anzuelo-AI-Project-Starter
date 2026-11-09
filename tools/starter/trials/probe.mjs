@@ -8,6 +8,7 @@
 // Prints JSON: { session, answer, lines: [{ event, text }] }. Files to set up first go in the folder with any tool.
 import fs from 'node:fs';
 import path from 'node:path';
+import { readRows } from '../../hooks/jsonl.mjs';
 import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -32,7 +33,7 @@ const args = ['-p', b, '--output-format', 'json', '--permission-mode', 'acceptEd
 const r = spawnSync('claude', args, { cwd: a, encoding: 'utf8', timeout: 30 * 60_000, maxBuffer: 64 << 20 });
 let j = {}; try { j = JSON.parse(r.stdout); } catch { j = { result: (r.stdout || '').slice(-2000), error: (r.stderr || '').slice(-1000) }; }
 const root = path.join(os.homedir(), '.claude', 'projects'), sid = j.session_id;
-const rows = (() => { for (const d of sid ? fs.readdirSync(root) : []) { const f = path.join(root, d, `${sid}.jsonl`); if (fs.existsSync(f)) return fs.readFileSync(f, 'utf8').split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean); } return []; })();
+const rows = (() => { for (const d of sid ? fs.readdirSync(root) : []) { const f = path.join(root, d, `${sid}.jsonl`); if (fs.existsSync(f)) return readRows(f); } return []; })();
 // (this turn only: a resumed session's transcript also holds the earlier turns. The session-start lines are written
 // just before the prompt, so the turn starts after the last assistant message before it. Lesson (probe): every
 // session-start line was missed)

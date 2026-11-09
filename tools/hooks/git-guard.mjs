@@ -8,7 +8,9 @@
 //   node tools/hooks/git-guard.mjs scan                        list unpushed commits that credit an AI
 import fs from 'node:fs';
 import { config, secretHit, forbiddenRe } from './settings.mjs';
-import { aiAttributedCommits, gitignoreProblems, testInputsHash } from './repo.mjs';
+import { fileURLToPath } from 'node:url';
+import { aiAttributedCommits, gitignoreProblems } from './repo.mjs';
+import { proofCovers, PROOF_FILE } from './selftest-cache.mjs';
 
 const cfg = config();
 const [mode, file] = process.argv.slice(2);
@@ -64,14 +66,17 @@ if (mode === 'pre-commit') {
 }
 if (mode === 'pre-push' || mode === 'scan') {
   if (mode === 'pre-push') { const sid = unseenSession(); if (sid) { console.error(UNSEEN('push', sid)); process.exit(1); } }
-  // REQ: starter-tested. The starter is pushed only when its whole self-test passed on exactly what it tests now. Every
-  // project gets this engine. Lesson: a push ran in the same command as a failing self-test run, and an engine with a
-  // failing test reached main.
+  // REQ: starter-tested. The starter is pushed only when the commit pushed is the one its whole self-test passed on
+  // (the proof inside that commit names it; proofCovers). Every project gets this engine. Lesson: a push ran in the
+  // same command as a failing self-test run, and an engine with a failing test reached main.
   if (mode === 'pre-push' && fs.existsSync(new URL('../../.starter-template', import.meta.url)) && process.env.ANZUELO_SESSION_GATE !== 'off') {
-    let st = {}; try { st = JSON.parse(fs.readFileSync(new URL('./state/selftest.json', import.meta.url), 'utf8')); } catch { }
-    if (!(st.passed === true && st.inputs && st.inputs === testInputsHash())) {
-      console.error(`push rejected (starter-tested): the starter's whole self-test has not passed on this engine${st.inputs && st.inputs !== testInputsHash() ? ' (files it tests changed since its last run)' : st.passed === false ? ' (its last run failed)' : ''}. Run node tools/hooks/selfcheck.mjs until it prints ALL PASS, then push.`);
-      process.exit(1);
+    // (git gives each pushed ref as "<local ref> <local sha> <remote ref> <remote sha>"; a deletion pushes no commit)
+    let lines = ''; try { lines = fs.readFileSync(0, 'utf8'); } catch { }
+    const shas = lines.split('\n').map(l => l.trim().split(/\s+/)[1]).filter(s => s && !/^0+$/.test(s));
+    const dir = fileURLToPath(new URL('../..', import.meta.url));
+    for (const sha of shas) {
+      const v = proofCovers(dir, sha);
+      if (!v.ok) { console.error(`push rejected (starter-tested): ${v.why}. Run the whole self-test on that exact commit (a clean checkout) until it prints ALL PASS, commit the proof it writes (${PROOF_FILE}), then push.`); process.exit(1); }
     }
   }
   const bad = aiAttributedCommits(cfg);

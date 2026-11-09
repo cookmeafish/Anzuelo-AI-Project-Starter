@@ -80,7 +80,9 @@ export const PROOF_FILE = 'tools/hooks/engine-proof.json';
 // What the proof covers, in a fixtures base: the engine's code, checks, core runbooks and checklists, the core skills,
 // every pack and library payload, and the settings the fixtures run with (without the pack list, which only decides
 // which scenarios apply). The project's own content never reaches the base, and the hash leaves it out anyway.
-export const PROOF_PATHS = /^(tools\/hooks\/(hooks|selfcheck|selftest-cache|trigger-cases|git-guard|wire)\.mjs|tools\/hooks\/v2\/[^/]+\.mjs|tools\/hooks\/engine-checks\.json|tools\/(audit|packs|writing-check|integrity-check|skills|starter|recall|survey|dedupe|fit)\.mjs|\.githooks\/[^/]+|docs\/checks\/(session-checklist|finish-checklist|runbook-standards|writing-standards|layout-standards|better-or-worse)\.md|docs\/playbooks\/(_TEMPLATE|_fallback|project|plan)\.md|packs\/.+|library\/.+)$/;
+// (every engine module the hooks import is in it: a changed base-checks.mjs with the old proof would reuse a pass the
+// new code never had)
+export const PROOF_PATHS = /^(tools\/hooks\/(hooks|selfcheck|selftest-cache|trigger-cases|git-guard|wire|paths|settings|repo|people|labels|base-checks|wakeups|injection|claims|jsonl|statusline)\.mjs|tools\/hooks\/v2\/[^/]+\.mjs|tools\/hooks\/engine-checks\.json|tools\/(audit|packs|writing-check|integrity-check|skills|starter|recall|survey|dedupe|fit)\.mjs|\.githooks\/[^/]+|docs\/checks\/(session-checklist|finish-checklist|runbook-standards|writing-standards|layout-standards|better-or-worse)\.md|docs\/playbooks\/(_TEMPLATE|_fallback|project|plan)\.md|packs\/.+|library\/.+)$/;
 export function proofHash(baseDir, coreSkills = []) {
   const h = createHash('sha256');
   const core = new RegExp(`^skills\\/(${coreSkills.map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') || '(?!)'})\\/`);
@@ -94,12 +96,36 @@ export function proofHash(baseDir, coreSkills = []) {
   return h.digest('hex').slice(0, 24);
 }
 export function readProof(dir) { try { const j = JSON.parse(fs.readFileSync(path.join(dir, PROOF_FILE), 'utf8')); return j && typeof j.engine === 'string' ? j : null; } catch { return null; } }
-// written only when it changes, so a passing run on an unchanged engine leaves the file as it was
-export function writeProof(dir, engine, tests) {
+// written only when it changes, so a passing run on an unchanged engine leaves the file as it was. `commit` is the
+// commit the run tested, when its files were exactly that commit's (testedCommit); a run on changed files leaves it out.
+export function writeProof(dir, engine, tests, commit = null) {
   const now = readProof(dir);
-  if (now && now.engine === engine && now.tests === tests) return false;
-  fs.writeFileSync(path.join(dir, PROOF_FILE), JSON.stringify({ _comment: 'Written by tools/hooks/selfcheck.mjs in the starter when every test passes: the hash of the engine those tests ran on. A project whose engine hashes the same reuses that result (tools/hooks/selftest-cache.mjs). Do not edit.', engine, tests }, null, 2) + '\n');
+  if (now && now.engine === engine && now.tests === tests && (!commit || now.commit === commit)) return false;
+  fs.writeFileSync(path.join(dir, PROOF_FILE), JSON.stringify({ _comment: 'Written by tools/hooks/selfcheck.mjs in the starter when every test passes: the hash of the engine those tests ran on, and the commit they tested when the files were exactly that commit. A project whose engine hashes the same reuses that result (tools/hooks/selftest-cache.mjs); the starter is pushed only for that commit (git-guard.mjs pre-push). Do not edit.', engine, tests, ...(commit ? { commit } : {}) }, null, 2) + '\n');
   return true;
+}
+// The starter's records a passing run or a release writes after the tests: no engine change, so a commit that differs
+// from the tested one only in these is still the tested engine.
+export const PROOF_RECORDS = ['tools/hooks/engine-proof.json', 'tools/starter/STATUS.md', 'tools/starter/dogfood-log.md', 'tools/starter/STARTER-CHANGELOG.md', 'tools/starter/trials/rounds.json'];
+const gitIn = (dir, ...a) => { const r = spawnSync('git', ['-C', dir, ...a], { encoding: 'utf8' }); return r.status === 0 ? r.stdout : null; };
+// The commit a run tests: HEAD, when nothing but the records differs from it (tracked or new files). Otherwise null.
+export function testedCommit(dir) {
+  const head = gitIn(dir, 'rev-parse', 'HEAD')?.trim(), st = gitIn(dir, 'status', '--porcelain');
+  if (!head || st == null) return null;
+  const changed = st.split('\n').filter(Boolean).map(l => l.slice(3).replace(/^"|"$/g, '').replace(/^.* -> /, ''));
+  return changed.every(f => PROOF_RECORDS.includes(f)) ? head : null;
+}
+// REQ: starter-tested. Is the commit `sha` proved? Its own copy of the proof must name a tested commit whose files differ
+// from `sha` only in the records. Read from the commit itself, so nothing a later or partial run writes can make it
+// pass or fail. Lesson: the push gate read a record of the last run on this machine, and a run of the old suite under
+// the new engine (failing by design) overwrote it, so a tested release was refused until the whole suite ran again.
+export function proofCovers(dir, sha) {
+  let proof = null; try { proof = JSON.parse(gitIn(dir, 'show', `${sha}:${PROOF_FILE}`) || 'null'); } catch { }
+  if (!proof?.commit) return { ok: false, why: `no proof of a passing whole self-test names a tested commit in ${sha.slice(0, 7)}` };
+  const diff = gitIn(dir, 'diff', '--name-only', proof.commit, sha);
+  if (diff == null) return { ok: false, why: `the tested commit ${String(proof.commit).slice(0, 7)} is not in this repository` };
+  const extra = diff.split('\n').filter(f => f && !PROOF_RECORDS.includes(f));
+  return extra.length ? { ok: false, why: `${sha.slice(0, 7)} changed ${extra.length} file(s) since the tested commit ${proof.commit.slice(0, 7)}: ${extra.slice(0, 3).join(', ')}` } : { ok: true };
 }
 
 // --- who has to fix a failing test ------------------------------------------------------------------------------------

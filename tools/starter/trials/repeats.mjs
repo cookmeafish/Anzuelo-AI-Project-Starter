@@ -8,6 +8,7 @@
 //   node tools/starter/trials/repeats.mjs <round> [project]   lists them
 import fs from 'node:fs';
 import path from 'node:path';
+import { readRows } from '../../hooks/jsonl.mjs';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 
@@ -49,7 +50,7 @@ export function repeatsOf(record) {
     let helpers = []; try { helpers = fs.readdirSync(sub).filter(f => f.endsWith('.jsonl')).map(f => path.join(sub, f)); } catch { }
     for (const f of [main, ...helpers]) {
       if (seen.has(f)) continue; seen.add(f);
-      const rows = fs.readFileSync(f, 'utf8').split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+      const rows = readRows(f);
       out.push(...repeatsIn(rows));
     }
   }

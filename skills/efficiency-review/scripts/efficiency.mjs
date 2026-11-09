@@ -7,6 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { StringDecoder } from 'node:string_decoder';
 
 const ROOT = process.cwd();
 const args = process.argv.slice(2), opt = (n, d) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : d; };
@@ -15,7 +16,15 @@ const LAST = Number(opt('--turns', 30)) || 30;
 const DIR = opt('--sessions', path.join(os.homedir(), '.claude', 'projects', ROOT.replace(/[^A-Za-z0-9]/g, '-')));
 if (!fs.existsSync(DIR)) { console.log(`no sessions found for this project (looked in ${DIR}); pass --sessions <dir>`); process.exit(2); }
 
-const rowsOf = f => fs.readFileSync(f, 'utf8').split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+// (read in chunks, line by line, so a transcript of any size is read whole: one string tops out near 512 MB, and a
+// session past it was skipped. Kept here, not imported, so the skill works on its own wherever it is installed.)
+const rowsOf = f => {
+  const out = []; let fd; try { fd = fs.openSync(f, 'r'); } catch { return out; }
+  const buf = Buffer.alloc(1 << 20), dec = new StringDecoder('utf8'); let rest = '';
+  const take = l => { if (!l) return; try { const r = JSON.parse(l); if (r) out.push(r); } catch { } };
+  try { for (let n; (n = fs.readSync(fd, buf, 0, buf.length, null)) > 0;) { const p = (rest + dec.write(buf.subarray(0, n))).split('\n'); rest = p.pop(); p.forEach(take); } take(rest + dec.end()); } finally { fs.closeSync(fd); }
+  return out;
+};
 const textOf = c => typeof c === 'string' ? c : Array.isArray(c) ? c.map(x => x?.text || (typeof x?.content === 'string' ? x.content : '')).join('\n') : '';
 const NOTICE = /^\s*(<(task-notification|system-reminder|command-|local-command)|\[SYSTEM NOTIFICATION|Caveat:|This session is being continued)/i;
 const isPrompt = r => r.type === 'user' && typeof r.message?.content === 'string' && !r.isMeta && !r.isCompactSummary && !NOTICE.test(r.message.content);

@@ -50,6 +50,8 @@ process.env.ANZUELO_SESSION_GATE = 'off';
 delete process.env.CLAUDE_CODE_SESSION_ID; delete process.env.CLAUDECODE;
 // what the tests depend on, as the run starts (audit --setup reuses a full pass while it is unchanged)
 const INPUTS0 = await (async () => { try { return (await import('./hooks.mjs')).testInputsHash(); } catch { return null; } })();
+// the commit the run tests, when its files are exactly that commit's (the proof names it; the push gate reads it)
+const TESTED0 = await (async () => { try { return (await import('./selftest-cache.mjs')).testedCommit(ROOT); } catch { return null; } })();
 const CORE_SKILLS = await (async () => { try { return (await import('./hooks.mjs')).CORE_SKILLS || []; } catch { return []; } })();
 
 if (process.argv[2] === '--route') {
@@ -8555,25 +8557,32 @@ if (mineB() && INSTALLED.includes('app') && (!TAGS || TAGS.includes('version-bum
       'version-bump: configure refuses a file that holds no version (go.mod), and --version-file none turns the check off', `${gomod.stdout} | ${afterGo} ${onNow} ${offNow}`.slice(0, 300));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
-if (mineB() && (!TAGS || TAGS.includes('starter-tested'))) { // starter-tested: the starter is pushed only after its whole
-  // self-test passed on exactly what it tests now (Lesson: a push ran in the same command as a failing self-test run)
+if (mineB() && (!TAGS || TAGS.includes('starter-tested'))) { // starter-tested: the starter is pushed only for the commit
+  // its whole self-test passed on, read from the proof inside the pushed commit (Lesson: a push ran in the same command
+  // as a failing self-test run; and a later failing run under v2 overwrote a machine record, refusing a tested release)
   const dir = copyProject();
   try {
-    const guard = () => { const e = { ...process.env }; delete e.ANZUELO_SESSION_GATE; const r = spawnSync(process.execPath, [path.join(dir, 'tools/hooks/git-guard.mjs'), 'pre-push'], { cwd: dir, encoding: 'utf8', env: e, input: '' }); return r.stderr || ''; };
-    const st = path.join(dir, 'tools/hooks/state/selftest.json');
-    fs.rmSync(st, { force: true });
-    const none = guard();
-    const h = spawnSync(process.execPath, ['--input-type=module', '-e', `import { testInputsHash } from ${JSON.stringify(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href)}; console.log(testInputsHash());`], { cwd: dir, encoding: 'utf8' }).stdout.trim();
-    fs.mkdirSync(path.dirname(st), { recursive: true });
-    fs.writeFileSync(st, JSON.stringify({ at: localDay(), passed: false, count: 9, inputs: h }));
-    const failed = guard();
-    fs.writeFileSync(st, JSON.stringify({ at: localDay(), passed: true, count: 9, inputs: h }));
-    const passed = guard();
-    fs.writeFileSync(st, JSON.stringify({ at: localDay(), passed: true, count: 9, inputs: 'other' }));
-    const stale = guard();
-    report(/starter-tested/.test(none) && /last run failed/.test(failed) && !/starter-tested/.test(passed) && /changed since/.test(stale),
-      'starter-tested: the starter is not pushed without a passing whole self-test on its current files (none, a failed run, a stale pass); a current pass lets it through',
-      JSON.stringify({ none: none.slice(0, 80), failed: failed.slice(0, 80), passed: passed.slice(0, 80), stale: stale.slice(0, 80) }));
+    const git = (...a) => spawnSync('git', ['-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', '-c', 'core.hooksPath=/dev/null', ...a], { encoding: 'utf8' }).stdout.trim();
+    const commit = m => { git('add', '-A'); git('commit', '-q', '-m', m); return git('rev-parse', 'HEAD'); };
+    const guard = sha => { const e = { ...process.env }; delete e.ANZUELO_SESSION_GATE; const r = spawnSync(process.execPath, [path.join(dir, 'tools/hooks/git-guard.mjs'), 'pre-push'], { cwd: dir, encoding: 'utf8', env: e, input: `refs/heads/main ${sha} refs/heads/main ${'0'.repeat(40)}\n` }); return r.stderr || ''; };
+    const pf = path.join(dir, 'tools/hooks/engine-proof.json'), proof = c => fs.writeFileSync(pf, JSON.stringify({ engine: 'e', tests: 9, ...(c ? { commit: c } : {}) }));
+    const { testedCommit } = await import(pathToFileURL(path.join(dir, 'tools/hooks/selftest-cache.mjs')).href);
+    git('init', '-q'); proof(null);
+    const a = commit('a'), none = guard(a), cleanA = testedCommit(dir) === a;
+    fs.appendFileSync(path.join(dir, 'tools/hooks/hooks.mjs'), '\n// x\n');
+    const dirty = testedCommit(dir);
+    git('checkout', '-q', '--', 'tools/hooks/hooks.mjs'); proof(a);
+    const recordsOnly = testedCommit(dir) === a;
+    const b = commit('proof'), proved = guard(b);
+    fs.appendFileSync(path.join(dir, 'tools/hooks/hooks.mjs'), '\n// x\n');
+    const c = commit('change'), changed = guard(c);
+    // (whatever a later run writes on this machine, the pushed commit's own proof decides)
+    fs.mkdirSync(path.join(dir, 'tools/hooks/state'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'tools/hooks/state/selftest.json'), JSON.stringify({ at: localDay(), passed: false, count: 1 }));
+    const afterFail = guard(b), del = guard('0'.repeat(40));
+    report(/starter-tested/.test(none) && cleanA && dirty === null && recordsOnly && !/starter-tested/.test(proved) && /starter-tested[^\n]*changed 1 file/.test(changed) && !/starter-tested/.test(afterFail) && !/starter-tested/.test(del),
+      'starter-tested: a push goes only for the commit the proof inside it names (or one differing only in the records); no proof, or an engine change since, is refused; a failed run recorded later changes nothing',
+      JSON.stringify({ none: none.slice(0, 90), cleanA, dirty, recordsOnly, proved: proved.slice(0, 90), changed: changed.slice(0, 120), afterFail: afterFail.slice(0, 90) }));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 if (mineB() && (!TAGS || TAGS.includes('question-no-file'))) { // classifiers on real prompt shapes (field reports):
@@ -9274,13 +9283,10 @@ if (FAILED.length && !HELPER && !IS_STARTER) for (const l of failureCause({ engi
 try { const { logRun } = await import('./hooks.mjs'); logRun(`node tools/hooks/selfcheck.mjs ${process.argv.slice(2).join(' ')}`.trim(), `selfcheck: ${fail ? 'FAIL' : 'ALL PASS'}${TAGS ? ` for ${TAGS.join(', ')}` : ''} (${pass} passed, ${fail} failed)`, !!fail); } catch { }
 // a whole run is what the upgrade review asks for (REQ: upgrade-review); with engine results reused it counts too, since
 // the engine passed in full under the same stamp
-// (only a whole run under the default engine is the push gate's record: a run under v2, which the release chain makes to
-// compare against its list, fails by design. Lesson (2026-11-08): it overwrote the chain's pass, and an approved push
-// was refused)
-const GATE_RUN = process.env.STARTER_ENGINE === 'v1';
-if (!TAGS && GATE_RUN) try { fs.mkdirSync(path.join(ROOT, 'tools/hooks/state'), { recursive: true }); fs.writeFileSync(path.join(ROOT, 'tools/hooks/state/selftest.json'), JSON.stringify({ at: localDay(), passed: !fail, count: pass, inputs: INPUTS0, mode: REUSE ? 'reused' : 'full' })); } catch { }
+// (this record is not the push gate: a push reads the proof inside the pushed commit, git-guard.mjs pre-push)
+if (!TAGS) try { fs.mkdirSync(path.join(ROOT, 'tools/hooks/state'), { recursive: true }); fs.writeFileSync(path.join(ROOT, 'tools/hooks/state/selftest.json'), JSON.stringify({ at: localDay(), passed: !fail, count: pass, inputs: INPUTS0, mode: REUSE ? 'reused' : 'full' })); } catch { }
 // (a whole pass in a frozen worktree is recorded in the main checkout too: see mainCheckout)
-if (!TAGS && GATE_RUN && !fail && !HELPER) try { const main = mainCheckout(ROOT); if (main && fs.existsSync(path.join(main, 'tools/hooks/hooks.mjs'))) { fs.mkdirSync(path.join(main, 'tools/hooks/state'), { recursive: true }); fs.writeFileSync(path.join(main, 'tools/hooks/state/selftest.json'), JSON.stringify({ at: localDay(), passed: true, count: pass, inputs: INPUTS0, mode: REUSE ? 'reused' : 'full', from: ROOT })); } } catch { }
+if (!TAGS && !fail && !HELPER) try { const main = mainCheckout(ROOT); if (main && fs.existsSync(path.join(main, 'tools/hooks/hooks.mjs'))) { fs.mkdirSync(path.join(main, 'tools/hooks/state'), { recursive: true }); fs.writeFileSync(path.join(main, 'tools/hooks/state/selftest.json'), JSON.stringify({ at: localDay(), passed: true, count: pass, inputs: INPUTS0, mode: REUSE ? 'reused' : 'full', from: ROOT })); } } catch { }
 // a tagged run records itself too, so a pass whose output went to a file or ran in the background counts for the checks
 // it covered (Lesson, trial round 18: a background tagged run passed, and hooks-tested asked for it again: 1m42s)
 if (TAGS) try { fs.mkdirSync(path.join(ROOT, 'tools/hooks/state'), { recursive: true }); fs.writeFileSync(path.join(ROOT, 'tools/hooks/state/selftest-tags.json'), JSON.stringify({ at: new Date().toISOString(), passed: !fail, tags: TAGS, inputs: INPUTS0 })); } catch { }
@@ -9288,5 +9294,5 @@ if (TAGS) try { fs.mkdirSync(path.join(ROOT, 'tools/hooks/state'), { recursive: 
 if (WHOLE_RUN) try { fs.writeFileSync(LAST, JSON.stringify({ pid: process.pid, at: new Date().toISOString(), code: fail ? 1 : 0, mode: REUSE ? 'reused' : 'full', lines: [...FAIL_LINES.slice(0, 40), summary] })); } catch { }
 // In the starter, a whole run where every test passed proves this engine for the projects made from it (PROOF_FILE,
 // hashed from the base the tests ran in, as the run started). A project made from it, or upgraded to it, reuses it.
-if (IS_STARTER && WHOLE_RUN && !fail) try { if (writeProof(ROOT, proofHash(B, CORE_SKILLS), pass)) console.log(`proof: ${PROOF_FILE} now names this engine (${pass} tests passed)`); } catch (e) { console.log(`proof: ${PROOF_FILE} could not be written (${e.message})`); }
+if (IS_STARTER && WHOLE_RUN && !fail) try { if (writeProof(ROOT, proofHash(B, CORE_SKILLS), pass, TESTED0)) console.log(`proof: ${PROOF_FILE} now names this engine (${pass} tests passed${TESTED0 ? `, commit ${TESTED0.slice(0, 7)}` : ''})`); } catch (e) { console.log(`proof: ${PROOF_FILE} could not be written (${e.message})`); }
 process.exit(fail ? 1 : 0);

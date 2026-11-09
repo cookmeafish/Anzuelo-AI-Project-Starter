@@ -4,6 +4,7 @@
 // usage: node tools/starter/stop-value.mjs <transcript folder> [--since YYYY-MM-DD]
 import fs from 'node:fs';
 import path from 'node:path';
+import { readRows } from '../hooks/jsonl.mjs';
 
 const args = process.argv.slice(2), dir = args[0], since = args.includes('--since') ? args[args.indexOf('--since') + 1] : '2000';
 if (!dir || !fs.existsSync(dir)) { console.error('usage: node tools/starter/stop-value.mjs <transcript folder> [--since YYYY-MM-DD]'); process.exit(2); }
@@ -12,7 +13,7 @@ const NOTES = /turn-notes|hooks\.mjs\s+waive|answer\.md/;
 const steps = new Map(), bump = (k, real) => { const e = steps.get(k) || { asked: 0, real: 0 }; e.asked++; if (real) e.real++; steps.set(k, e); };
 let blocks = 0, realBlocks = 0;
 for (const f of files) {
-  const rows = fs.readFileSync(f, 'utf8').split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(r => r && r.timestamp >= since);
+  const rows = readRows(f, r => r.timestamp >= since);
   rows.forEach((r, i) => {
     const a = r.attachment;
     if (!a || a.type !== 'hook_additional_context' || a.hookEvent !== 'Stop') return;

@@ -3,6 +3,7 @@
 // starter adds.   node tools/starter/trials/steplist.mjs <round> <category> [--from-turn 2]
 import fs from 'node:fs';
 import path from 'node:path';
+import { readRows } from '../../hooks/jsonl.mjs';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { category } from './attribute.mjs';
@@ -18,7 +19,7 @@ for (const f of fs.readdirSync(dir).filter(f => f.endsWith('.json'))) {
   rec.turns.forEach((t, ti) => {
     if (ti === 0) return;
     const file = t.sid && findT(t.sid); if (!file) return;
-    const rows = fs.readFileSync(file, 'utf8').split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+    const rows = readRows(file);
     const isP = (r, p) => r.type === 'user' && typeof r.message?.content === 'string' && p && r.message.content.trim() === String(p).trim();
     let s = -1; rows.forEach((r, i) => { if (isP(r, t.prompt)) s = i; });
     let e = rows.length; for (let i = s + 1; i < rows.length; i++) if (isP(rows[i], rec.turns[ti + 1]?.prompt)) { e = i; break; }

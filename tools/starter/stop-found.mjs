@@ -4,6 +4,7 @@
 // Read-only. usage: node tools/starter/stop-found.mjs <transcript folder> [--since YYYY-MM-DD]
 import fs from 'node:fs';
 import path from 'node:path';
+import { readRows } from '../hooks/jsonl.mjs';
 
 const args = process.argv.slice(2), dir = args[0], since = args.includes('--since') ? args[args.indexOf('--since') + 1] : '2000';
 const RUN = /\b(test|tests|pytest|selfcheck|audit|check|verify|build|lint)\b|test_\w+\.py|\.test\./i;
@@ -12,7 +13,7 @@ let blocks = 0, withRun = 0, found = 0, confirmed = 0;
 const v2 = { blocks: 0, acted: 0, kinds: new Map() };
 const kinds = new Map(), bump = (k, f) => { const e = kinds.get(k) || { runs: 0, found: 0 }; e.runs++; if (f) e.found++; kinds.set(k, e); };
 for (const f of fs.readdirSync(dir).filter(f => f.endsWith('.jsonl')).map(f => path.join(dir, f))) {
-  const rows = fs.readFileSync(f, 'utf8').split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(r => r && r.timestamp >= since);
+  const rows = readRows(f, r => r.timestamp >= since);
   rows.forEach((r, i) => {
     const a = r.attachment;
     // (engine v2's one block: "Not done yet:" lines and the items to verify, as a hook_blocking_error. Each line is its

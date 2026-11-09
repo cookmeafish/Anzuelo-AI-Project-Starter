@@ -3,6 +3,7 @@
 // steps the starter caused.   node tools/starter/trials/steps.mjs <round> <project> <turn number>
 import fs from 'node:fs';
 import path from 'node:path';
+import { readRows } from '../../hooks/jsonl.mjs';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 
@@ -14,7 +15,7 @@ const j = JSON.parse(fs.readFileSync(path.join(TRIALS, `results-${round}`, `${id
 const t = j.turns[Number(n) - 1], next = j.turns[Number(n)];
 const root = path.join(os.homedir(), '.claude', 'projects');
 let rows = [];
-for (const d of fs.readdirSync(root)) { const f = path.join(root, d, `${t.sid}.jsonl`); if (fs.existsSync(f)) { rows = fs.readFileSync(f, 'utf8').split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean); break; } }
+for (const d of fs.readdirSync(root)) { const f = path.join(root, d, `${t.sid}.jsonl`); if (fs.existsSync(f)) { rows = readRows(f); break; } }
 const starts = p => rows.findIndex(r => r.type === 'user' && typeof r.message?.content === 'string' && r.message.content.startsWith(String(p || '').slice(0, 30)));
 const s = starts(t.prompt), e = next && next.sid === t.sid ? starts(next.prompt) : rows.length;
 console.log(`PROMPT: ${String(t.prompt).slice(0, 160)}`);
