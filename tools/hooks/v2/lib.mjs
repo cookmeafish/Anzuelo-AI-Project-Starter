@@ -1325,6 +1325,13 @@ export function claimGaps(acts, history = '') {
   // v2): "nothing is committed" passed while the last commit had the file)
   const gc = gitClaimContradicted(a, { root: ROOT, exists: f => fs.existsSync(at(f)), pathKey: s => relp(s).replace(/\/+$/, '') });
   if (gc) out.push(`The answer says git holds no earlier version ("${gc.sentence.slice(0, 90)}"), but git has commits (last: ${gc.head})${gc.had.length ? `, including ${gc.had.join(', ')}` : ''}. Open the version the user saw (git log -- <file>, then git show HEAD:<file>) and say what it shows, or leave the claim out.`);
+  // (a turn that waived its own test or build gate cannot say the work ships or passes: one NOT VERIFIED line instead. A
+  // condition is no claim, nor a claim about the hook self-tests. Lesson (the old engine): with no toolchain nothing
+  // compiled, and the review still said "Verdict: SHIP")
+  const waivedRun = [...new Set([...String(acts.said || a).matchAll(/N\/A\((app-test-pass|app-build-pass|app-lint-pass)\)/gi)].map(m => m[1]))];
+  const shipClaims = waivedRun.length ? a.split(/(?<=[.!?\n])\s+/).filter(s => /\b(verdict:\s*ship|ship(ped)? it|ready to (ship|release)|all tests pass|tests (all )?pass(ed)?|build (passes|passed|succeeds))\b/i.test(s)
+    && !/\b(not|n't|unverified|not verified|would|once|after|until|unless|whether|if)\b/i.test(s) && !/\b(hook|self-?tests?|selfcheck|audit|scenarios?)\b/i.test(s)) : [];
+  if (shipClaims.length && !/\bnot verified\b/i.test(a)) out.push(`This turn waived ${waivedRun.join(', ')}, so the code did not run, but the answer says "${shipClaims[0].trim().slice(0, 60)}". Take that claim out and say once, in one line for the whole answer, "NOT VERIFIED: <what did not run> - <the command or toolchain that would verify it>". One such line is enough; don't repeat the label.`);
   const hashes = [...new Set(hexIds(a))];
   const unknown = hashes.filter(h => !seen.includes(h) && spawnSync('git', ['cat-file', '-e', `${h}^{commit}`], { cwd: ROOT, timeout: 5000 }).status !== 0);
   if (unknown.length) out.push(`The answer names commit ${unknown.slice(0, 3).join(', ')}, which no command in this turn showed and this repository does not have: check it, or correct the answer.`);

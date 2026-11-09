@@ -4964,7 +4964,7 @@ const V2_ASKS = {
   'headless-resume': /^- This run is headless/m,
   'notice-answer': /^- This run is headless \(claude -p or the SDK\): its caller gets only the last message/m,
   'data-valid': /docs\/checks\/always\.md item \d+: The validator passes/,
-  'claim-checked': /^- The answer says (the (push|commit) happened, but the last git|git holds no earlier version)/m,
+  'claim-checked': /^- (The answer says (the (push|commit) happened, but the last git|git holds no earlier version)|This turn waived app-\w+-pass)/m,
   'watched-inputs': /^- \S+ was updated while you worked/m,
   'decision-logged': /item \d+: A choice the user made is logged in docs\/DECISIONS\.md/,
   'rule-request': /^- (Write the rule down|Say how the rule is enforced|Save the rule to memory)/m,

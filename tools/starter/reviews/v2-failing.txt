@@ -284,8 +284,6 @@ stop: claim-checked: "you made a new note without linking it" is a complaint: th
 stop: claim-checked: a Spanish promise after a complaint with no check behind it: blocked
 stop: claim-checked: in the starter, "only makes projects better" with no judged round this turn: blocked
 stop: claim-checked: the claim about vault notes no check covers (their folder is not in knowledgeDirs), even with a passing run: blocked
-stop: claim-checked: the tests were waived and "all tests pass": blocked, and one NOT VERIFIED line is asked for
-stop: claim-checked: the tests were waived and the answer says it ships: blocked
 stop: commit archaeology backed by commit hashes: passes
 stop: commit archaeology with a confidence label: passes
 stop: crash blocks once, then releases

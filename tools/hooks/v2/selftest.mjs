@@ -1574,6 +1574,16 @@ const { questionGaps } = await import('./lib.mjs');
   report(took && capped && cleaned && JSON.stringify(got) === '[false,true,true,false,true,true]', 'end: a file marker counts a file whose content changed this turn, or was committed this turn, not one only touched: unchanged since a commit made before the turn, or since the turn began for one already changed then (the prompt hook\'s background snapshot; not for a file written while it ran; none past 2,000 files; day-old ones removed)', JSON.stringify({ took, capped, cleaned, got, err: (out.stderr || '').slice(0, 300) }));
 }
 
+// (claim-checked (verification): a turn that waived its test gate saying it ships is held; with one NOT VERIFIED line,
+// or a condition ("until the tests pass"), it is not)
+{
+  const { claimGaps } = await import('./lib.mjs');
+  const w = ans => claimGaps({ ...acts([user('add the endpoint'), say(ans)]), said: ans }).some(s => /^This turn waived app-test-pass/.test(s));
+  const wv = { ship: w('Added the endpoint. Verdict: SHIP. N/A(app-test-pass): Go is not installed.'),
+    noted: w('Added the endpoint. N/A(app-test-pass): Go is not installed. NOT VERIFIED: the handler - go test ./... once Go is installed.'),
+    cond: w('Added the endpoint. N/A(app-test-pass): Go is not installed. It stays a draft until the tests pass.') };
+  report(wv.ship && !wv.noted && !wv.cond, 'end: claim-checked (verification): a waived test gate with "Verdict: SHIP" is held; a NOT VERIFIED line or a condition is not', JSON.stringify(wv));
+}
 // (claim-checked (git): "nothing is committed" about the saved version, while git has the file, is contradicted; a
 // file git never had, or a folder that is no repository, is not)
 {
