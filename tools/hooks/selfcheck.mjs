@@ -39,6 +39,9 @@ if (process.argv.some(a => a === '--help' || a === '-h')) {
 import { engineStamp, findPass, recordPass, localDay, SMOKE_EVERY, lockState, takeLock, releaseLock, otherSuites, registerSuite, markWaiting, timingLock, shardCount, failureCause, proofHash, readProof, writeProof, PROOF_FILE, PROOF_PATHS, mainCheckout } from './selftest-cache.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+// (a state file a test inspects may not exist, e.g. under another engine: that test fails, the rest of its share runs.
+// Lesson (2026-11-08): 6 shares crashed on a missing state file, and their remaining tests were never counted)
+const readOr = (f, empty = '') => { try { return fs.readFileSync(f, 'utf8'); } catch { return empty; } };
 // The self-tests make throwaway projects from this copy on purpose, even when it is a development copy (.starter-dev).
 process.env.STARTER_ALLOW_DEV = '1';
 // (sample projects commit from this process: the engine-bypassed git gate is for real sessions, not test copies)
@@ -1483,13 +1486,13 @@ STOP.push(
   { name: 'research-cited: [2] used in the text but missing from Sources: blocked', prompt: 'search the web for standing desk weight limits', tools: [sk('research')],
     answer: 'Skill: research. Most hold 100 kg.[1] Some hold 150 kg.[2]\n\nSources:\n[1] https://example.com/desks', expect: { block: true, tags: ['research-cited'] },
     // (it says which: Lesson, trial round 13, the general message alone cost six check runs and a read of the engine)
-    after: (dir, reason) => /marker \[2\] has no/.test(fs.readFileSync(path.join(dir, 'tools/hooks/state/stop-details.md'), 'utf8')) || 'no reason named for [2]' },
+    after: (dir, reason) => /marker \[2\] has no/.test(readOr(path.join(dir, 'tools/hooks/state/stop-details.md'))) || 'no reason named for [2]' },
   // (Lesson, trial rounds 13 to 15: a bold label line with a marker was copied after the Sources list and failed)
   { name: 'research-cited: a bold "**Done:**" line with markers, sources listed below: passes', prompt: 'search the web for standing desk weight limits', tools: [sk('research'), { name: 'WebFetch', input: { url: 'https://example.com/desks' }, result: 'Rated load: 100 kg.' }],
     answer: 'Skill: research.\n\n**Done:** most desks hold 100 kg.[1]\n\nSources:\n[1] https://example.com/desks', expect: { not: ['research-cited'] } },
   { name: 'research-cited: unnumbered links nothing opened: the unopened link is named', prompt: 'search the web for standing desk weight limits', tools: [sk('research')],
     answer: 'Skill: research. Most hold 100 kg.\n\nSources:\nhttps://example.com/desks', expect: { block: true, tags: ['research-cited'] },
-    after: (dir) => /no link it gives was opened this turn \(https:\/\/example\.com\/desks\)/.test(fs.readFileSync(path.join(dir, 'tools/hooks/state/stop-details.md'), 'utf8')) || 'the unopened link was not named' },
+    after: (dir) => /no link it gives was opened this turn \(https:\/\/example\.com\/desks\)/.test(readOr(path.join(dir, 'tools/hooks/state/stop-details.md'))) || 'the unopened link was not named' },
   { name: 'research-cited: [1] and [2] each with a Sources line: passes', edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), packs: (JSON.parse(s).packs || []).filter(p => p !== 'knowledge') }), 'tools/hooks/requirements.json': s => JSON.stringify({ ...JSON.parse(s), requirements: JSON.parse(s).requirements.filter(r => r.pack !== 'knowledge') }) }, prompt: 'search the web for standing desk weight limits',
     tools: [sk('research'), { name: 'WebFetch', input: { url: 'https://example.com/desks' }, result: 'Rated load: 100 kg.' }, { name: 'WebFetch', input: { url: 'https://example.org/loads' }, result: 'Heavy-duty models: 150 kg.' }],
     answer: 'Skill: research. Quick lookup: most hold 100 kg.[1] Heavy-duty models hold 150 kg.[2]\n\nSources:\n[1] https://example.com/desks - Desk specs, 2026-10-17\n[2] https://example.org/loads', expect: { block: false, not: ['research-cited'] } },
@@ -5223,7 +5226,7 @@ if (mineB() && (!TAGS || TAGS.includes('stop-reblock'))) {
       notice('rbj2'); say('Done.'); stop(false);                // 3 blocked
       say('Done.'); const r4 = stop(true);                      // the cap: the turn ends
       rows.push({ type: 'user', timestamp: iso(t0 + ++k * 1000), message: { role: 'user', content: P[1] } }); say('Done.'); const r5 = stop(false); // a new request: round 1
-      const log = fs.readFileSync(path.join(dir, 'tools/hooks/state/stop-log.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l)).map(e => `${e.round} ${e.result}`);
+      const log = readOr(path.join(dir, 'tools/hooks/state/stop-log.jsonl')).trim().split('\n').filter(Boolean).map(l => JSON.parse(l)).map(e => `${e.round} ${e.result}`);
       const want = ['1 blocked', '2 waiting', '2 blocked', '3 waiting', '3 blocked', '4 ended-unresolved', '1 blocked'];
       const last = spawnSync(process.execPath, [path.join(dir, 'tools/hooks/hooks.mjs'), 'last', '10'], { cwd: dir, encoding: 'utf8' }).stdout;
       report(JSON.stringify(log) === JSON.stringify(want) && /round 2 of 3/.test(r2) && !r4 && /round 1 of 3/.test(r5) && /round 2\s+waiting/.test(last) && /round 3\s+blocked/.test(last),
@@ -5266,7 +5269,7 @@ if (mineB() && (!TAGS || TAGS.includes('records-once'))) {
       say(`${A}\nLearned (lesson): answer a question asked mid-turn first → answer-questions-first.md`);
       const r2 = stop(true);
       const n2 = names(r2);
-      const log = fs.readFileSync(path.join(dir, 'tools/hooks/state/stop-log.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l));
+      const log = readOr(path.join(dir, 'tools/hooks/state/stop-log.jsonl')).trim().split('\n').filter(Boolean).map(l => JSON.parse(l));
       const un = (() => { try { return JSON.parse(fs.readFileSync(path.join(dir, 'tools/hooks/state/unresolved.json'), 'utf8')); } catch { return null; } })();
       const carried = un?.tags || [];
       ask('ok, finish that then');
@@ -5480,9 +5483,9 @@ if (mineB() && (!TAGS || TAGS.includes('begin-keeps-turn'))) {
     const tp = path.join(dir, '.cache', 'session-bk.jsonl');
     write(dir, { '.cache/session-bk.jsonl': JSON.stringify({ type: 'user', timestamp: new Date().toISOString(), message: { role: 'user', content: 'add a login page' } }) + '\n' });
     run(dir, 'prompt', { prompt: 'add a login page', session_id: 'hookedbk', transcript_path: tp });
-    const at0 = JSON.parse(fs.readFileSync(path.join(st, 'turn.hookedbk.json'), 'utf8')).at;
+    const at0 = JSON.parse(readOr(path.join(st, 'turn.hookedbk.json'), '{}')).at;
     const b = spawnSync(process.execPath, ['tools/hooks/hooks.mjs', 'begin', 'add a login page with passwords'], { cwd: dir, encoding: 'utf8', env: { ...process.env, CLAUDE_CODE_SESSION_ID: 'hookedbk' } });
-    const at1 = JSON.parse(fs.readFileSync(path.join(st, 'turn.hookedbk.json'), 'utf8')).at;
+    const at1 = JSON.parse(readOr(path.join(st, 'turn.hookedbk.json'), '{}')).at;
     const n = spawnSync(process.execPath, ['tools/hooks/hooks.mjs', 'begin', 'add a login page'], { cwd: dir, encoding: 'utf8', env: { ...process.env, CLAUDE_CODE_SESSION_ID: 'freshbk' } });
     const fresh = fs.existsSync(path.join(st, 'turn.freshbk.json'));
     report(at0 === at1 && /keeps that start/.test(b.stdout) && /security-review/.test(b.stdout) && fresh && !/keeps that start/.test(n.stdout),
@@ -7393,7 +7396,7 @@ if (mineB()) { // hooks-tested without a transcript: the Stop hook never runs th
     const t0 = Date.now(), c1 = node('check', '--answer-file', path.join(dir, '.cache/answer.md')), ms = Date.now() - t0;
     node('run', 'node -e "console.log(\'selfcheck: ALL PASS (1 passed, 0 failed)\')" && echo node tools/hooks/selfcheck.mjs');
     const { logRun } = await import(pathToFileURL(path.join(dir, 'tools/hooks/hooks.mjs')).href);
-    const logged = fs.readFileSync(path.join(dir, 'tools/hooks/state/runs.jsonl'), 'utf8');
+    const logged = readOr(path.join(dir, 'tools/hooks/state/runs.jsonl'));
     fs.appendFileSync(path.join(dir, 'tools/hooks/state/runs.jsonl'), JSON.stringify({ at: new Date().toISOString(), cmd: 'node tools/hooks/selfcheck.mjs', out: 'selfcheck: ALL PASS (430 passed, 0 failed)', error: false }) + '\n');
     const c2 = node('check', '--answer-file', path.join(dir, '.cache/answer.md'));
     report(ms < 15000 && /hooks-tested/.test(c1.stdout) && /selfcheck\.mjs/.test(c1.stdout) && typeof logRun === 'function' && /"cmd":"node -e/.test(logged) && !/hooks-tested/.test(c2.stdout),
@@ -8572,7 +8575,7 @@ if (mineB() && (!TAGS || TAGS.includes('trigger-words'))) { // trigger-words: th
     report(add.status === 0 && /whitelisted: "sick"/.test(add.stdout) && cfgAfter.ignoreWords?.upset?.includes('sick') && again.status === 2 && off.status === 0 && !cfgOff.ignoreWords.upset.includes('sick'),
       'trigger-words: "ignore-word" whitelists a word in config.json, refuses a repeat, and --remove takes it off', JSON.stringify([add.stdout, again.stdout, off.stdout]));
     run(dir, 'prompt', { prompt: 'WHY DID YOU SKIP THE SOURCES AGAIN' });
-    const log = fs.readFileSync(path.join(dir, 'tools/hooks/state/triggers.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l)).pop();
+    const log = readOr(path.join(dir, 'tools/hooks/state/triggers.jsonl')).trim().split('\n').filter(Boolean).map(l => JSON.parse(l)).pop();
     report(log?.kinds?.includes('upset') && /SKIP THE SOURCES/.test(log.text), 'trigger-words: a message that sets off the upset handling goes to the trigger log', JSON.stringify(log));
   } finally { giveBack(dir); }
 }
