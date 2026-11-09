@@ -675,8 +675,24 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
           bg: holdsReq({ toolCount: { name: '^(Agent|Task)$', min: 2, overlap: true } }, acts([user('review it'), agBg(1), agBg(2), say('Started.')]), x),
           plain: holdsReq({ toolCount: { name: '^(Agent|Task)$', min: 2 } }, acts([user('review it'), ag(1), ag(2), say('Done.')]), x) };
         cites.parallel = par;
-        report(par.seq === false && par.bg === true && par.plain === true && cites.plain && cites.ticks && cites.printed && !cites.unopened && !cites.own && cites.unknownBranch === null && cites.otherHolds === true,
-          'end: answer-cites: a source opened (or printed) this turn named in the answer meets it, an unopened or self-written file does not; an unread branch leaves an anyOf unjudged unless another holds; helpers run one after another are not parallel work, two in the background are', JSON.stringify(cites));
+        // (toolPassed: a run's output in a file it wrote this turn counts; an older log does not; a declared self-test the
+        // turn never ran is run here (selfRun, selfAuto) and judged on its output; the audit is left to the health check)
+        const tAt = new Date(Date.now() - 2000).toISOString();
+        put('.cache/old-gate.txt', 'RESULT: PASS\n'); const old = new Date(Date.now() - 3_600_000); fs.utimesSync(path.join(dir, '.cache/old-gate.txt'), old, old);
+        put('.cache/gate.txt', 'RESULT: PASS\n'); put('tools/selftest-ok.mjs', 'console.log("RESULT: PASS")\n'); put('tools/selftest-bad.mjs', 'console.log("RESULT: FAIL")\n');
+        const tp = (rows, spec) => { const a = acts(rows); a.at = tAt; return holdsReq({ toolPassed: spec }, a, x); };
+        const gate = { cmd: 'gate\\.mjs', pass: 'RESULT: PASS' };
+        par.toolPassed = {
+          toFile: tp([user('check it'), call('Bash', { command: 'node tools/gate.mjs > .cache/gate.txt 2>&1' }, ''), say('Done.')], gate),
+          oldFile: tp([user('check it'), call('Bash', { command: 'node tools/gate.mjs > .cache/old-gate.txt' }, ''), say('Done.')], gate),
+          selfOk: tp([user('fix it'), say('Done.')], { cmd: 'selftest-ok', pass: 'RESULT: PASS', selfRun: 'node tools/selftest-ok.mjs', selfAuto: true }),
+          selfBad: tp([user('fix it'), say('Done.')], { cmd: 'selftest-bad', pass: 'RESULT: PASS', selfRun: 'node tools/selftest-bad.mjs', selfAuto: true }),
+          audit: tp([user('fix it'), say('Done.')], { cmd: 'audit\\.mjs', pass: 'audit: PASS', selfRun: 'node tools/audit.mjs', selfAuto: true }),
+        };
+        ['.cache/old-gate.txt', '.cache/gate.txt', 'tools/selftest-ok.mjs', 'tools/selftest-bad.mjs'].forEach(f => fs.rmSync(path.join(dir, f), { force: true }));
+        const T = par.toolPassed; cites.toolPassedOk = T.toFile === true && T.oldFile === false && T.selfOk === true && T.selfBad === false && T.audit === null;
+        report(cites.toolPassedOk && par.seq === false && par.bg === true && par.plain === true && cites.plain && cites.ticks && cites.printed && !cites.unopened && !cites.own && cites.unknownBranch === null && cites.otherHolds === true,
+          'end: answer-cites: a source opened (or printed) this turn named in the answer meets it, an unopened or self-written file does not; an unread branch leaves an anyOf unjudged unless another holds; helpers run one after another are not parallel work, two in the background are; the output of a gate in a file written this turn counts, an older log does not, and a declared self-test never run is run here (the audit left to the health check)', JSON.stringify(cites));
       }
       // (the release chain's v2 sweep: a test failing under v2 that is not on the list fails it, a listed test that passes
       // fails it, and the list is rewritten only to shrink)

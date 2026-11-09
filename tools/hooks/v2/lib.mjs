@@ -787,6 +787,15 @@ const engineChecks = () => {
   const own = (file.requirements || []).filter(r => r && tags.has(r.tag));
   return [...BASE_REQUIREMENTS.filter(b => !own.some(r => r.tag === b.tag)), ...own].filter(r => r.tag !== 'security-code' && !off.has(r.tag));
 };
+// The files a command sent its output to ("> f", ">> f", "| tee f"), inside the project.
+const redirectedTo = cmd => [...String(cmd || '').matchAll(/(?:\d?>>?|\|\s*tee(?:\s+-a)?)\s*["']?([\w./\\-]+)["']?/g)].map(m => m[1].replace(/\\/g, '/').replace(/^\.\//, '')).filter(f => !/^(\/dev\/null|nul|&\d)$/i.test(f) && !/^\.\./.test(f));
+// A declared self-test run by the end check, once per turn per command, within two minutes.
+const selfRuns = new WeakMap();
+function selfRunOnce(acts, cmd) {
+  const m = selfRuns.get(acts) || new Map(); selfRuns.set(acts, m);
+  if (!m.has(cmd)) { const r = spawnSync(cmd, { cwd: ROOT, shell: true, encoding: 'utf8', timeout: 120000, maxBuffer: 1 << 24 }); m.set(cmd, `${r.stdout || ''}\n${r.stderr || ''}`); }
+  return m.get(cmd);
+}
 const NOT_A_SOURCE = /^(AGENTS|CLAUDE|DIRECTORY|README)\.md$|^(docs\/(playbooks|checks)|skills|tools|\.claude|\.codex|\.cache)\//;
 function citesOpened(acts, x) {
   const a = String(acts.answer || '');
@@ -811,7 +820,18 @@ export function holdsReq(c, acts, x) {
     answerMatches: v => reqRe(v).test(acts.answer || ''), answerNotMatches: v => !reqRe(v).test(acts.answer || ''),
     promptMatches: v => reqRe(v).test(acts.heard || ''), promptNotMatches: v => !reqRe(v).test(acts.heard || ''),
     toolRan: v => acts.calls.some(k => /^(Bash|PowerShell)$/.test(k.name) && reqRe(v).test(ranText(k.input.command))),
-    toolPassed: v => { const cmd = typeof v === 'string' ? v : v?.cmd; return !!cmd && acts.calls.some(k => /^(Bash|PowerShell)$/.test(k.name) && reqRe(cmd).test(String(k.input.command || '')) && !k.error && (!v?.pass || reqRe(v.pass).test(k.out || ''))); },
+    // (a run whose output went to a file passes by that file; a declared self-test the turn never ran is run here once,
+    // selfRun with selfAuto, except the audit, which the health check runs itself. Lessons (the old suite under v2): an
+    // audit logged to a file by a finished background job was asked for again; a project's own self-test was never run)
+    toolPassed: v => { const cmd = typeof v === 'string' ? v : v?.cmd; if (!cmd) return false;
+      const ok = out => !v?.pass || reqRe(v.pass).test(out || '');
+      const runs = acts.calls.filter(k => /^(Bash|PowerShell)$/.test(k.name) && reqRe(cmd).test(String(k.input.command || '')) && !k.error);
+      // (only a file written since the turn began is this run's output: an older log is an older run)
+      const since = Date.parse(acts.at || '') || 0, file = f => { try { return !since || fs.statSync(at(f)).mtimeMs > since ? fs.readFileSync(at(f), 'utf8') : ''; } catch { return ''; } };
+      if (runs.some(k => ok(k.out) || redirectedTo(k.input.command).some(f => ok(file(f))))) return true;
+      if (runs.length || !v?.selfRun || !v?.selfAuto) return false;
+      if (/tools[\\/]+audit\.mjs/.test(v.selfRun)) return null;
+      return ok(selfRunOnce(acts, v.selfRun)); },
     workTurn: v => !v || x.changed.length > 0,
     minToolCalls: v => acts.calls.length >= v,
     // (a branch the evaluator can't read may be the one that holds: then the whole anyOf can't be judged, unless another
