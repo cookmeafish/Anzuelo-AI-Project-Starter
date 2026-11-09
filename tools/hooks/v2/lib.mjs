@@ -181,7 +181,10 @@ export function route(prompt, books = runbooks()) {
   // (a standing rule said plainly ("every new note links to", "should never happen again", ", always", ", siempre") is a
   // rule request, ahead of a trigger found mid-sentence. Lessons (trials v38 to v43): each went unrouted or misrouted)
   const said = isSpanish(prompt) ? `${prompt}\n${routeEnglish(prompt)}` : String(prompt);
-  const proj = books.find(b => b.file === 'docs/playbooks/project.md'), rule = proj && (STANDING.test(said) || RULE_CUE.test(String(prompt)) || capsWeight(String(prompt)).rule || /\b(that|this|it) (should|must|can) never happen again\b/i.test(said) || /,\s*(always|never)\s*(?:[.!]+|$)/im.test(said));
+  // (a message relayed from another session, a helper or a task notice sets no standing rule: its rule words are not the
+  // user's. Lesson (a peer session, live): a status report quoting a capital "NEVER" read as a rule)
+  const relayedMsg = /^\s*Another Claude session sent a message|<(cross-session-message|agent-message|task-notification)\b/.test(String(prompt));
+  const proj = books.find(b => b.file === 'docs/playbooks/project.md'), rule = proj && !relayedMsg && (STANDING.test(said) || RULE_CUE.test(String(prompt)) || capsWeight(String(prompt)).rule || /\b(that|this|it) (should|must|can) never happen again\b/i.test(said) || /,\s*(always|never)\s*(?:[.!]+|$)/im.test(said));
   if (best && !(rule && best.score < 1000)) return { ...best.book, matched: best.phrase };
   return rule ? { ...proj, matched: 'standing rule' } : null;
 }

@@ -61,7 +61,9 @@ export function rulesFor(prompt) {
     .filter(l => [...stemsOf(l)].filter(s => words.has(s) && seen.get(s) === 1).length >= 2)
     .slice(0, 2).map(l => l.replace(/^\s*-\s+/, '').trim()).map(l => l.length > 200 ? l.slice(0, l.lastIndexOf(' ', 197)) + '...' : l);
 }
-const relayedRx = /^\s*Another Claude session sent a message|<cross-session-message\b/;
+// (a message relayed from another session, a helper or a task notice is not the user's: it is never upset and sets no
+// rule. Lesson (a peer session, live): a status report quoting a capital "NEVER" got "This sounds upset")
+const relayedRx = /^\s*Another Claude session sent a message|<(cross-session-message|agent-message|task-notification)\b/;
 export function reminder(prompt, { midTurn = false } = {}) {
   const raw = String(prompt || '');
   // (REQ: pause-stops: a request to pause, stop or restart wraps up now, whatever else the message says)
@@ -77,7 +79,7 @@ function remind(prompt) {
   // pasted text set off the complaint handling)
   prompt = String(prompt || '').replace(/<pasted_content\b[^>]*>[\s\S]*?<\/pasted_content(?:\s[^>]*)?>|<pasted_content\b[^>]*\/>/gi, ' ');
   // (upset and a fitting runbook: both are named, so the fix still follows its runbook)
-  const sore = upsetIn(prompt) && has('skills/learn-from-upset/SKILL.md') ? 'This sounds upset: open skills/learn-from-upset/SKILL.md and follow it.' : '';
+  const sore = !relayedRx.test(raw) && upsetIn(prompt) && has('skills/learn-from-upset/SKILL.md') ? 'This sounds upset: open skills/learn-from-upset/SKILL.md and follow it.' : '';
   const book = route(prompt);
   const quoteOn = quoteCheckOn();
   // (a Spanish request: the whole answer in Spanish, labels too. Lesson (trial v37): a runbook item quoted an English

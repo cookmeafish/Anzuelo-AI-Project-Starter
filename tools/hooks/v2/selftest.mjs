@@ -1692,6 +1692,22 @@ report(madeUp.length === 2 && /9f8e7d6/.test(madeUp[0]) && /src\/missing\.js/.te
   b.prior = priorCalls([line('2026-01-01T10:00:00Z', bump), line('2026-01-01T12:00:00Z', { name: 'Bash', input: { command: 'git tag v1.2.0' } })].join('\n'), '2026-01-01T11:00:00Z').length;
   report(b.bumped && !b.released && !b.readOnly && b.npm && b.prior === 1, 'end: version-bump: a version raised in an earlier turn with nothing released since covers this turn; a release since, or a read, does not', b);
 }
+{ // (a message relayed from another session, a helper or a task notice is not the user's: quoting "NEVER" and "WHY" it gets
+  // no upset line and no standing-rule route; the same words typed by the user get both)
+  const skillAt = path.join(dir, 'skills/learn-from-upset/SKILL.md'), hadSkill = fs.existsSync(skillAt);
+  if (!hadSkill) put('skills/learn-from-upset/SKILL.md', '---\nname: learn-from-upset\n---\n');
+  const said = 'WHY IS THE TOTAL STILL WRONG AGAIN. NEVER round it down again.';
+  const out = t => reminder(t).text;
+  const v = { cross: out(`<cross-session-message from="x">${said}</cross-session-message>`), agent: out(`<agent-message from="h">${said}</agent-message>`),
+    notice: out(`<task-notification>${said}</task-notification>`), relayed: out(`Another Claude session sent a message:\n${said}`), user: out(said) };
+  if (!hadSkill) fs.rmSync(skillAt, { force: true });
+  const quiet = s => !/This sounds upset/.test(s) && !/docs\/playbooks\/project\.md/.test(s);
+  // (the rule route, with a project runbook to route to)
+  const { route } = await import('./lib.mjs'), pj = [{ file: 'docs/playbooks/project.md', name: 'project', triggers: ['from now on'], menu: [] }];
+  v.ruleUser = route(said, pj)?.name || null; v.ruleCross = route(`<cross-session-message from="x">${said}</cross-session-message>`, pj)?.name || null;
+  report(quiet(v.cross) && quiet(v.agent) && quiet(v.notice) && quiet(v.relayed) && /This sounds upset/.test(v.user) && v.ruleUser === 'project' && v.ruleCross === null,
+    'start: a message from another session, a helper or a task notice that quotes "NEVER" and "WHY" gets no upset line and no rule route; typed by the user it gets both', JSON.stringify(Object.fromEntries(Object.entries(v).map(([k, s]) => [k, String(s).slice(0, 200)]))));
+}
 { // (route-precision: in a project, a message that names the starter goes to the project runbook, whatever generic word
   // a domain runbook's triggers share with it; a message to pass on to another session routes nowhere, unless it is a
   // standing rule or also asks for work here; in the starter itself the starter's name says nothing)
