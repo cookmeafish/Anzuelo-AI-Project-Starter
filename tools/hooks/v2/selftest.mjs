@@ -1659,6 +1659,8 @@ report(madeUp.length === 2 && /9f8e7d6/.test(madeUp[0]) && /src\/missing\.js/.te
     calm: u('add the allergens to the menu', edit('src/a.js'), 'Added.', null, true),
     // (an Issue line written, nothing changed, only an apology: the verdict is still owed)
     noWork: u(COMPLAINT, [], 'Sorry about that, I will be careful from now on.'),
+    // (an Issue line in the agent's own text, not the notes, starts it too)
+    inText: upsetGaps({}, acts([user(COMPLAINT), say('Issue: the allergens were missing | runbook: learn-from-upset | fixed when: every item lists them'), ...edit('src/a.js'), say('Added.')])),
     again: u(COMPLAINT, edit('src/a.js', edit('docs/playbooks/menu.md')), 'You\'re right: the croissant had none. Checked: the menu page. Added them.' + WHY, ['THE ALLERGENS ARE MISSING!!']),
     againDone: u(COMPLAINT, edit('src/a.js', [...edit('docs/playbooks/menu.md'), ...edit('docs/plans/zz-plan.md')]), 'You\'re right: the croissant had none. Checked: the menu page. Sweep: all 40 menu items - 40 checked, 0 wrong. Root cause: the menu runbook had no allergen step.', ['THE ALLERGENS ARE MISSING!!']),
     // (from a replay of real sessions: owning the miss in plain words, "you were right"; a shouted new rule; a relayed
@@ -1679,7 +1681,7 @@ report(madeUp.length === 2 && /9f8e7d6/.test(madeUp[0]) && /src\/missing\.js/.te
   for (const [p, t] of keep) t === null ? fs.rmSync(path.join(dir, p), { force: true }) : fs.writeFileSync(path.join(dir, p), t);
   const has = (l, rx) => l.some(s => rx.test(s));
   report(has(r.nothing, /Say first whether it holds/) && has(r.nothing, /Write the lesson/) && has(r.lessonOnly, /Say first whether/) && !has(r.lessonOnly, /Write the lesson/)
-    && has(r.agreeNoCheck, /Say what you checked/) && !r.good.length && has(r.noWork, /Say first whether it holds/) &&has(r.unopened, /names, learn-from-upset, was not opened this turn/) && r.unopened.length === 1
+    && has(r.agreeNoCheck, /Say what you checked/) && !r.good.length && has(r.noWork, /Say first whether it holds/) && has(r.inText, /Say first whether it holds/) && has(r.unopened, /names, learn-from-upset, was not opened this turn/) && r.unopened.length === 1
     && has(r.oneCase, /Scope: <the point in general terms>/) && r.oneCase.length === 1 && has(r.noCause, /Root cause: <what in the process/) && r.noCause.length === 1 &&!r.notHeld.length && !r.calm.length && has(r.again, /upset again in this session/) && !r.againDone.length
     && !r.owned.length && !r.were.length && !r.rule.length && !r.relayed.length && !has(r.summary, /about the engine/) && !has(r.ownHooks, /about the engine/) && !r.wordsOnly.length && !r.none.length && has(r.skill, /Say first whether it holds/),
     'end: after a complaint, the answer says whether it holds and what was checked and a lesson goes where it stops the next miss; a complaint shown not to hold or a calm request owes nothing; upset again needs a plan and a sweep', JSON.stringify(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v.map(s => s.slice(0, 30))]))));

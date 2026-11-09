@@ -288,7 +288,9 @@ export function upsetGaps(turn, acts) {
   // citing the retirement of keyword-forced handling on 2026-11-07): a word match misread shouted rules and requests)
   const notes = turnNotes(acts);
   if (ISSUE_NONE.test(notes)) return []; // (the agent's own call: a false alarm, said with why)
-  if (!(ISSUE.test(notes) || acts.calls.some(issueWritten) || acts.calls.some(c => c.name === 'Read' && /learn-from-upset[\\/]+SKILL\.md$/i.test(String(c.input?.file_path || ''))))) return [];
+  // (an Issue line the agent wrote in its own text counts as one in the notes: the note check asks it to move it there)
+  const inText = /^\W*Issue:\s*(?!none\b|<)[^\n]*\|\s*runbook:/im.test(acts.said || '');
+  if (!(ISSUE.test(notes) || inText || acts.calls.some(issueWritten) || acts.calls.some(c => c.name === 'Read' && /learn-from-upset[\\/]+SKILL\.md$/i.test(String(c.input?.file_path || ''))))) return [];
   const changed = changedOf(acts, true);
   // (a turn that changed nothing owes it too once the agent wrote an Issue line: it took the complaint on, and "sorry, I'll
   // be careful" is no fix and no verdict. Only the skill opened, on a turn of no work, is a look at it. Lesson (the old
