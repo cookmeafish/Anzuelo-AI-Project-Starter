@@ -25,7 +25,7 @@ const chosen = (turn, acts, books) => { const routed = turn.runbook && books.fin
 const NOFIT = /\b(does(?:n['’]t| not) (?:fit|apply)|not (?:applicable|needed|relevant)|n\/a|(?:was|is)(?:n['’]t| not) part of|not part of|never asked|not asked|(?:is|was)(?:n['’]t| not) for (?:this|that|a|an)|not for this|(?:does|did)(?:n['’]t| not) (?:follow|use) it because)\b/i;
 // A plain "not run yet" with its reason in the same or the next sentence clears the item that shares at least two of
 // its words (stems). Lesson (2026-11-08): "the full suite hasn't run; it runs before the release" was held 3 rounds.
-const NOTDONE = /\b(?:has|have|was|were|is|are|did)(?:n['’]t| not)(?: yet)? (?:been )?(?:run|done|pushed|committed|started)\b|\bnot (?:yet )?(?:run|pushed|committed)\b|\bdeferred\b/i;
+const NOTDONE = /\b(?:has|have|was|were|is|are|did)(?:n['’]t| not)(?: yet)? (?:been )?(?:run|done|pushed|committed|started)\b|\bnot (?:yet )?(?:run|pushed|committed|done|verified)\b|\bdeferred\b/i;
 const REASON = /\b(because|since|until|before|after|waits? (?:for|until)|so that)\b|\s[-–:]\s/i;
 const STOP = new Set(['user', 'only', 'this', 'that', 'with', 'from', 'have', 'been', 'work', 'done', 'what', 'when', 'your', 'they', 'then', 'than', 'item', 'answer']);
 const stems = s => new Set((s.toLowerCase().match(/[a-z]{4,}/g) || []).filter(w => !STOP.has(w)).map(w => w.slice(0, 4)));

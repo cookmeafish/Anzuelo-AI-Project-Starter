@@ -421,6 +421,9 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
   const chain = ['r.md item 5: The full chain passed and was committed with the user as the only author; pushed only with the user\'s OK', 'r.md item 6: The project got a reply'];
   const deferred = waived({ answer: 'The full test suite hasn\'t run on today\'s local commits yet. It runs right before the next release, and that push waits for your OK.' }, chain);
   report(deferred.length === 1 && /item 6/.test(deferred[0]), 'end: a plain "not run yet" with its reason clears the item it is about, by its words, and only that one', deferred);
+  // (rule 7 and row 42 together: "Not done: <thing> - <why>", no check name, clears the item it names)
+  const plainNot = waived({ answer: 'Done: the reply went out.\nNot done: the full chain - it runs right before the release.' }, chain);
+  report(plainNot.length === 1 && /item 6/.test(plainNot[0]), 'end: a plain "Not done: <thing> - <why>" line clears the item it is about', plainNot);
   // (a field report: a project's own rule in requirements.json was never read by v2. The project-wide "always" list is
   // checked every turn, with conditions on the answer, the prompt, a tool call or a changed file)
   const { alwaysGaps } = await import('./lib.mjs');
