@@ -467,17 +467,6 @@ stop: unrouted work turn that creates + indexes a runbook: runbook-exists passes
 stop: unrouted work turn with no runbook created: blocked
 stop: upgrade-review: every item decided with its reason: passes
 stop: upset-acknowledged: the runbook opened, its checklist not recorded to the end: blocked
-stop: upset-learned: "Learned (none)" for a complaint the answer agreed with: blocked
-stop: upset-learned: "Learned (none)" with no verdict at all in the answer or notes: blocked
-stop: upset-learned: "again" with only a one-off note: blocked
-stop: upset-learned: a complaint fixed but nothing learned: blocked
-stop: upset-learned: a mid-turn "the work falls short" complaint, fixed with a lesson but no check: blocked
-stop: upset-learned: agrees with the whole complaint without saying what was checked: blocked
-stop: upset-learned: an engine lesson kept in one project: blocked
-stop: upset-learned: fixed and learned, but never said whether the complaint held: blocked
-stop: upset-learned: the lesson named, but its file never changed: blocked
-stop: upset-learned: the same natural lead with no Checked line: blocked, and the message offers the no-concession form
-stop: upset-learned: upset again in the same session, fixed with a lesson but no plan or sweep: blocked
 stop: user-facing file with filler: blocked
 stop: waiting end: what the full check would ask stays on record for the next Stop
 stop: waive: a waiver the waive command refused does not count

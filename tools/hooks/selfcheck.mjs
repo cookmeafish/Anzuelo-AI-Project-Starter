@@ -554,7 +554,7 @@ const STOP = [
     expect: { block: true, tags: ['rule-request'] }, v2: { tools: [sk('project-rule')] } },
   // Lesson: complaints were answered with an apology and a fix, and the same miss came back the next week
   { name: 'upset-learned: a complaint fixed but nothing learned: blocked', prompt: 'you forgot to add the allergens again!!', files: { 'docs/menu.md': 'Croissant (gluten, milk)' },
-    answer: 'Added the allergens to the menu.' + FIN, expect: { block: true, tags: ['upset-learned'], not: ['runbook-exists', 'rule-request'] } },
+    answer: 'Added the allergens to the menu.' + FIN, expect: { block: true, tags: ['upset-learned'], not: ['runbook-exists', 'rule-request'] }, v2: { issue: true } },
   // (strong words, nothing wrong: the agent decides and owes no verdict or lesson. Lesson (the user): "the user is solely
   // explaining but there is nothing wrong here")
   { name: 'upset-learned: strong words about something else, recorded as nothing wrong: passes that check', prompt: 'ugh the printer at the office is shit today. anyway add the croissant to the menu',
@@ -567,7 +567,7 @@ const STOP = [
     answer: 'There are three items on the menu.', expect: { block: false },
     after: (dir, reason, d) => !/🚨/.test(d?.systemMessage || '') || `showed a line for no issue: ${d.systemMessage}` },
   { name: 'upset-learned: the lesson named, but its file never changed: blocked', prompt: 'you forgot to add the allergens again!!', files: { 'docs/menu.md': 'Croissant (gluten, milk)' },
-    answer: 'Added the allergens to the menu.\nLearned (rule): every menu item lists its allergens → AGENTS.md' + FIN, expect: { block: true, tags: ['upset-learned'] } },
+    answer: 'Added the allergens to the menu.\nLearned (rule): every menu item lists its allergens → AGENTS.md' + FIN, expect: { block: true, tags: ['upset-learned'] }, v2: { issue: true } },
   // (a lesson in the agent's memory notes, outside the project, written this turn counts. Lesson (a field report))
   { name: 'upset-learned: a lesson written to the memory notes outside the project this turn: passes that check', prompt: 'you forgot to add the allergens',
     tools: [{ name: 'Write', input: { file_path: path.join(os.homedir(), '.claude', 'projects', 'x', 'memory', 'allergens-every-item.md'), content: 'Every menu item lists its allergens.' } }],
@@ -579,7 +579,9 @@ const STOP = [
     files: { 'tools/hooks/state/triggers.jsonl': JSON.stringify({ at: new Date(Date.now() - 600_000).toISOString(), kinds: ['upset'], text: 'the invoice total is wrong' }) + '\n',
       'docs/invoice.md': 'Total: 42.00', 'docs/playbooks/invoice.md': '# Invoice\n## Pitfalls\n- totals round half up\n' },
     answer: 'You\'re right: the total rounded down.\nChecked: docs/invoice.md - 41.99 shown for 42.00. Fixed.\nLearned (lesson): totals round half up → docs/playbooks/invoice.md' + FIN,
-    expect: { block: true, tags: ['upset-learned'], says: /upset again in this session/ } },
+    expect: { block: true, tags: ['upset-learned'], says: /upset again in this session/ },
+    // (under v2, "again in this session" is an Issue line the agent wrote in an earlier turn)
+    v2: { issue: true, before: [bash("printf 'Issue: the invoice total is wrong | runbook: debug | fixed when: totals round half up\\n' >> .cache/turn-notes.md")] } },
   { name: 'upset-learned: upset again in the same session, with a plan of everything wrong and a sweep: passes that check', prompt: 'UGH, IT STILL ROUNDS THE TOTAL DOWN AGAIN',
     files: { 'tools/hooks/state/triggers.jsonl': JSON.stringify({ at: new Date(Date.now() - 600_000).toISOString(), kinds: ['upset'], text: 'the invoice total is wrong' }) + '\n',
       'docs/invoice.md': 'Total: 42.00', 'docs/playbooks/invoice.md': '# Invoice\n## Pitfalls\n- totals round half up\n',
@@ -614,22 +616,22 @@ const STOP = [
     ];
   })(),
   { name: 'upset-learned: "again" with only a one-off note: blocked', prompt: 'you forgot to add the allergens again!!', files: { 'docs/menu.md': 'Croissant (gluten, milk)', 'docs/lessons.md': '- 2026-10-19: allergens missed' },
-    answer: 'Added the allergens to the menu.\nLearned (one-off): allergens were missed → docs/lessons.md' + FIN, expect: { block: true, tags: ['upset-learned'] } },
+    answer: 'Added the allergens to the menu.\nLearned (one-off): allergens were missed → docs/lessons.md' + FIN, expect: { block: true, tags: ['upset-learned'] }, v2: { issue: true } },
   // Lesson: complaints sent mid-turn as questions or verdicts (a disbelieving question, a one-word verdict) got no upset
   // handling, and the check came only when the user asked whether anything forced it
   { name: 'upset-learned: a mid-turn "the work falls short" complaint, fixed with a lesson but no check: blocked', prompt: 'make the zorbl page', queued: ['seriously no photos for these steps??? you found none'],
     files: { 'docs/zorbl.md': '# Zorbl\n![boss](boss.png)', 'docs/lessons.md': '- 2026-10-19: pictures were missing' },
-    answer: 'Added photos for every step.\nLearned (lesson): every step needs a photo → docs/lessons.md' + FIN, expect: { block: true, tags: ['upset-learned'] } },
+    answer: 'Added photos for every step.\nLearned (lesson): every step needs a photo → docs/lessons.md' + FIN, expect: { block: true, tags: ['upset-learned'] }, v2: { issue: true } },
   // (the lesson is work, not a record: a second round still asks for it. Lesson (the user): the turn ended "with 1 step
   // not done", the lesson, after one block)
   { name: 'records-once: the lesson from an upset user is still asked for in round 2', prompt: 'make the zorbl page', queued: ['seriously no photos for these steps??? you found none'],
     files: { 'docs/zorbl.md': '# Zorbl\n![boss](boss.png)', 'docs/lessons.md': '- 2026-10-19: pictures were missing' }, blocks: 1, active: true,
-    answer: 'Added photos for every step.\nLearned (lesson): every step needs a photo → docs/lessons.md' + FIN, expect: { block: true, tags: ['upset-learned'] } },
+    answer: 'Added photos for every step.\nLearned (lesson): every step needs a photo → docs/lessons.md' + FIN, expect: { block: true, tags: ['upset-learned'] }, v2: { issue: true } },
   { name: 'upset-learned: a "the work falls short" complaint enforced with a judgment item: passes that check', prompt: 'the photos are weak, same ones everywhere and some wrong',
     files: { 'docs/zorbl.md': '# Zorbl\n![boss](boss.png)', 'docs/playbooks/zorbl.md': '---\nname: zorbl\nsummary: zorbl pages\ntriggers: zorbl page\nchecks: none - a test runbook\n---\n# Playbook: zorbl\n## Done when\n- [ ] Every step shows varied, accurate photos (judgment: only a person can judge accuracy)\n', 'docs/CHANGELOG.md': 'x' },
     answer: 'You\'re right: the pictures repeated.\nChecked: docs/zorbl.md - one photo used for every step.\nAdded varied photos.\nLearned (rule): every step shows varied, accurate photos → docs/playbooks/zorbl.md\nDone when item: "(judgment: only a person can judge accuracy)"' + FIN, expect: { not: ['upset-learned'] } },
   { name: 'upset-learned: an engine lesson kept in one project: blocked', removeMarker: true, prompt: 'ugh, that check fired for nothing again', files: { 'docs/lessons.md': '- 2026-10-19: the check misfires' },
-    answer: 'Learned (engine): the check misfires on menus → docs/lessons.md' + FIN, expect: { block: true, tags: ['upset-learned'] } },
+    answer: 'Learned (engine): the check misfires on menus → docs/lessons.md' + FIN, expect: { block: true, tags: ['upset-learned'] }, v2: { issue: true } },
   { name: 'upset-learned: fixed, and the lesson written where it stops the next miss: passes', prompt: 'you forgot to add the allergens again!!', tools: [pb('project')],
     files: { 'docs/menu.md': 'Croissant (gluten, milk)', 'docs/playbooks/menu.md': '---\nname: menu\nsummary: menus\ntriggers: menu card\nchecks: none - a test runbook\n---\n# Playbook: menu\n## Pitfalls\n- Every item lists its allergens.\n', 'docs/CHANGELOG.md': 'x' },
     answer: 'You\'re right: the croissant had no allergens.\nChecked: docs/menu.md - the croissant line had no allergens.\nAdded the allergens to the menu. Playbook: project.md.\nLearned (lesson): every menu item lists its allergens, a step the menu runbook lacked → docs/playbooks/menu.md' + FIN, expect: { not: ['upset-learned', 'rule-request'] } },
@@ -643,14 +645,14 @@ const STOP = [
   // Lesson: an agent agreed that the README never described a new option before opening it; it did describe it
   { name: 'upset-learned: agrees with the whole complaint without saying what was checked: blocked', prompt: 'you forgot to add the allergens again!!', tools: [pb('project')],
     files: { 'docs/menu.md': 'Croissant (gluten, milk)', 'docs/playbooks/menu.md': '---\nname: menu\nsummary: menus\ntriggers: menu card\nchecks: none - a test runbook\n---\n# Playbook: menu\n## Pitfalls\n- Every item lists its allergens.\n', 'docs/CHANGELOG.md': 'x' },
-    answer: 'You\'re right: the croissant had no allergens. Added them. Playbook: project.md.\nLearned (lesson): every menu item lists its allergens, a step the menu runbook lacked → docs/playbooks/menu.md' + FIN, expect: { tags: ['upset-learned'], says: /Checked: <the file/ } },
+    answer: 'You\'re right: the croissant had no allergens. Added them. Playbook: project.md.\nLearned (lesson): every menu item lists its allergens, a step the menu runbook lacked → docs/playbooks/menu.md' + FIN, expect: { tags: ['upset-learned'], says: /Checked: <the file/ }, v2: { issue: true } },
   { name: 'upset-learned: a Spanish "Tienes razón" with its "Comprobado:" line: passes that part', prompt: 'otra vez olvidaste los alérgenos!!', tools: [pb('project')],
     files: { 'docs/menu.md': 'Croissant (gluten, leche)', 'docs/playbooks/menu.md': '---\nname: menu\nsummary: menus\ntriggers: menu card\nchecks: none - a test runbook\n---\n# Playbook: menu\n## Pitfalls\n- Cada plato lista sus alérgenos.\n', 'docs/CHANGELOG.md': 'x' },
     answer: 'Tienes razón: el croissant no tenía alérgenos.\nComprobado: docs/menu.md - la línea del croissant no los tenía.\nGuía: project.md.\nAprendido (lección): cada plato lista sus alérgenos → docs/playbooks/menu.md' + FIN, expect: { not: ['upset-learned'] } },
   // Lesson: reviewers found complaints conceded and "fixed" without checking whether the thing was already there
   { name: 'upset-learned: fixed and learned, but never said whether the complaint held: blocked', prompt: 'you forgot to add the allergens again!!', tools: [pb('project')],
     files: { 'docs/menu.md': 'Croissant (gluten, milk)', 'docs/playbooks/menu.md': '---\nname: menu\nsummary: menus\ntriggers: menu card\nchecks: none - a test runbook\n---\n# Playbook: menu\n## Pitfalls\n- Every item lists its allergens.\n', 'docs/CHANGELOG.md': 'x' },
-    answer: 'Added the allergens to the menu. Playbook: project.md.\nLearned (lesson): every menu item lists its allergens, a step the menu runbook lacked → docs/playbooks/menu.md' + FIN, expect: { tags: ['upset-learned'], says: /whether it holds/ } },
+    answer: 'Added the allergens to the menu. Playbook: project.md.\nLearned (lesson): every menu item lists its allergens, a step the menu runbook lacked → docs/playbooks/menu.md' + FIN, expect: { tags: ['upset-learned'], says: /whether it holds/ }, v2: { issue: true } },
   { name: 'upset-learned: a complaint that does not hold, said so with the evidence: passes that part', prompt: 'you forgot to add the allergens again!!', tools: [pb('project')],
     files: { 'docs/playbooks/menu.md': '---\nname: menu\nsummary: menus\ntriggers: menu card\nchecks: none - a test runbook\n---\n# Playbook: menu\n## Pitfalls\n- Say where the allergens are when asked.\n', 'docs/CHANGELOG.md': 'x' },
     answer: 'That isn\'t what happened: docs/menu.md already lists them (Croissant: gluten, milk). Playbook: project.md.\nLearned (lesson): point to where the allergens are listed when asked → docs/playbooks/menu.md' + FIN, expect: { not: ['upset-learned'] } },
@@ -662,7 +664,7 @@ const STOP = [
   { name: 'upset-learned: the same natural lead with no Checked line: blocked, and the message offers the no-concession form', prompt: 'you forgot to add the allergens again!!', tools: [pb('project')],
     files: { 'docs/playbooks/menu.md': '---\nname: menu\nsummary: menus\ntriggers: menu card\nchecks: none - a test runbook\n---\n# Playbook: menu\n## Pitfalls\n- Say where the allergens are when asked.\n', 'docs/CHANGELOG.md': 'x' },
     answer: 'The croissant lists its allergens in every file here. Playbook: project.md.\nLearned (lesson): point to where the allergens are listed when asked → docs/playbooks/menu.md' + FIN,
-    expect: { tags: ['upset-learned'], says: /in your own words and with no concession \("Checked: <what you opened> - <what it showed>"\)[\s\S]*never blame files the user doesn't see/ } },
+    expect: { tags: ['upset-learned'], says: /in your own words and with no concession \("Checked: <what you opened> - <what it showed>"\)[\s\S]*never blame files the user doesn't see/ }, v2: { issue: true } },
   // Lesson: after a complaint, an answer got a "Root cause" paragraph about its own new check's scenario that first ran
   // in an empty test folder: the agent's tooling in progress, not a failure the user saw.
   { name: 'debug-trigger: after a complaint, the new check\'s own scenario failed while being written: no root cause asked', prompt: 'you keep making Bram left-handed!! he is right-handed',
@@ -2866,7 +2868,11 @@ PROMPT.push(
   { name: 'check-preview: work hears that a plan comes first once it adds many files', prompt: 'add a csv export to the app', has: ['CHECKS:', 'plan-required (a plan in docs/plans/ first)'] },
   { name: 'check-preview: small talk hears nothing about plans', prompt: 'thanks, that looks great', hasNot: ['plan-required'] }
 );
+// (v2 starts complaint handling from the agent's own Issue line, never the user's words: a scenario about a complaint the
+// agent took on records that judgment under v2, "issue: true", as the old engine read it from the prompt)
+const ISSUE_LINE = 'Issue: the complaint in this request | runbook: learn-from-upset | fixed when: the miss is fixed and its lesson written\n';
 function runStop(s0) {
+  if (s0.issue) s0 = { ...s0, files: { ...(s0.files || {}), '.cache/turn-notes.md': ISSUE_LINE + ((s0.files || {})['.cache/turn-notes.md'] || '') } };
   // (a fixture file is written after the turn starts, so the old engine counts it as this turn's work. v2 counts a file
   // only when a call of the turn wrote it (a file changed with no writer is another session's), so under v2 each fixture
   // file no call names gets the Write that made it, unless its time is set back to before the turn ("mtimes"). Lesson
@@ -3990,7 +3996,7 @@ STOP.push(
     answer: 'Every item on the menu lists its allergens.\nChecked: docs/menu.md and its last commit - the complaint doesn\'t hold: the croissant line says gluten, milk.' + FIN, expect: { not: ['upset-learned', 'playbook-named'] } },
   { name: 'upset-learned: "Learned (none)" for a complaint the answer agreed with: blocked', prompt: 'you forgot to add the allergens again!!', tools: [pb('project')],
     files: { 'docs/menu.md': 'Croissant (gluten, milk)', 'docs/CHANGELOG.md': 'x', ...NOTES('Playbook: project.md\nLearned (none): nothing to learn here, it was a slip\n') },
-    answer: 'You\'re right: the croissant had no allergens.\nChecked: docs/menu.md - the croissant line had none. Added them.' + FIN, expect: { tags: ['upset-learned'], says: /only for a complaint that did not hold/ } },
+    answer: 'You\'re right: the croissant had no allergens.\nChecked: docs/menu.md - the croissant line had none. Added them.' + FIN, expect: { tags: ['upset-learned'], says: /only for a complaint that did not hold/ }, v2: { issue: true } },
   // (Lesson: the notes' own "didn't hold" did not count, and agents pasted "the complaint doesn't hold:" into every bullet)
   { name: 'upset-learned: a disproved complaint in plain words, "didn\'t hold" in the notes, no fixed phrase in the answer: passes', prompt: 'you keep making Bram left-handed!! he is right-handed, it is in characters.md', tools: [pb('project')],
     files: { ...NOTES('Playbook: project.md\nLearned (none): the complaint didn\'t hold - characters.md, chapter 1 and the outline all give Bram as right-handed\n') },
@@ -4000,7 +4006,7 @@ STOP.push(
     answer: 'Revisé las 14 páginas del sitio y no encontré ningún texto en inglés.\n\n## Terminado\n- Hecho. Archivos: _site/index.html', expect: { not: ['upset-learned'] } },
   { name: 'upset-learned: "Learned (none)" with no verdict at all in the answer or notes: blocked', prompt: 'you keep making Bram left-handed!! he is right-handed, it is in characters.md', tools: [pb('project')],
     files: { ...NOTES('Playbook: project.md\nLearned (none): no lesson this time\n') },
-    answer: 'Sorry about that. I will be careful with his hands from now on.' + FIN, expect: { tags: ['upset-learned'] } },
+    answer: 'Sorry about that. I will be careful with his hands from now on.' + FIN, expect: { tags: ['upset-learned'] }, v2: { issue: true } },
   // turn-notes: the lines the checks read live in .cache/turn-notes.md, written this turn; last turn's notes don't count
   { name: 'turn-notes: the runbook named and the lesson placed only in the notes file: passes', prompt: 'you forgot to add the allergens again!!', tools: [pb('project')],
     files: { 'docs/menu.md': 'Croissant (gluten, milk)', 'docs/playbooks/menu.md': '# Menu\n- every item lists its allergens\n', 'docs/CHANGELOG.md': 'x', ...NOTES('Playbook: project.md\nLearned (lesson): every menu item lists its allergens → docs/playbooks/menu.md\n') },

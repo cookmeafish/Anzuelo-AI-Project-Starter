@@ -290,7 +290,10 @@ export function upsetGaps(turn, acts) {
   if (ISSUE_NONE.test(notes)) return []; // (the agent's own call: a false alarm, said with why)
   if (!(ISSUE.test(notes) || acts.calls.some(issueWritten) || acts.calls.some(c => c.name === 'Read' && /learn-from-upset[\\/]+SKILL\.md$/i.test(String(c.input?.file_path || ''))))) return [];
   const changed = changedOf(acts, true);
-  if (!worked(acts) && !changed.length) return [];
+  // (a turn that changed nothing owes it too once the agent wrote an Issue line: it took the complaint on, and "sorry, I'll
+  // be careful" is no fix and no verdict. Only the skill opened, on a turn of no work, is a look at it. Lesson (the old
+  // suite under v2): an apology with "Learned (none)" and no verdict passed)
+  if (!worked(acts) && !changed.length && !(ISSUE.test(notes) || acts.calls.some(issueWritten))) return [];
   const ans = String(acts.answer || ''), lead = ans.slice(0, 400), both = `${ans}\n${notes}`;
   // (the answer or the notes saying it did not hold, in words: a bare "Learned (none)" says nothing about it)
   if (NOT_HELD.test(both)) return [];
