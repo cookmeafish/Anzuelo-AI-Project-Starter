@@ -236,7 +236,6 @@ stop: app-test-pass: a refused gate whose program is not installed, answered "ne
 stop: app-test-pass: the same, never tried and silent about it: asks for the NOT VERIFIED line, not a run
 stop: asked for 5 options, answer gives no 5: blocked
 stop: audit-run self-run: a broken runbook link: the hooks run the audit, and its FAIL is the step
-stop: audit-run: a later command that ran and mentions the audit, and failed, is the last run: blocked
 stop: autonomy-decide: autonomy auto, a labeled question after the Finished section: blocked
 stop: autonomy-decide: autonomy auto, a labeled question with options and "reply with a number": blocked
 stop: autonomy-decide: autonomy auto, a plain question after the Finished section: blocked
@@ -267,7 +266,6 @@ stop: final answer not yet in the transcript: last_assistant_message is used
 stop: fit-checklist: a turn adds a data file that a decided skip never answered: blocked
 stop: gate with no pass pattern chained to other commands: run it alone: blocked
 stop: gate-redirect: a foreground run into a file that says FAIL: blocked
-stop: gate-redirect: the same log file with a failing audit is blocked, with the log's lines as the evidence
 stop: grant-decided: a row changed this turn that grants staff deletes on a "decision" the user never wrote: blocked
 stop: gui-flows: a page with a saved flow, flow not rerun: blocked
 stop: gui-review-loop: a Flutter screen changed with no screenshots: blocked
