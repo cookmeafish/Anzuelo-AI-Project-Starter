@@ -1202,6 +1202,18 @@ report(resumed.length === 5, 'end: the summary that resumes a session is not a n
   const relative = turnActs(turnRows(transcript([user('fix the export'), call('Edit', { file_path: 'src/a.js', old_string: 'a', new_string: 'b' }), say('Fixed.')])));
   report(!worked(outside) && worked(relative) && worked(turnActs(turnRows(transcript([user('fix the export'), code, say('Fixed.')])))),
     'end: an edit outside the project folder is not work for the end check; one inside it, by full or relative path, is');
+  // (a file the turn's own command wrote is work too; with no command or helper, a recent file is not this turn's work;
+  // and a Spanish answer meets an answer marker read in English)
+  {
+    const { met } = await import('./lib.mjs');
+    fs.mkdirSync(path.join(dir, 'gen'), { recursive: true }); fs.writeFileSync(path.join(dir, 'gen/page.html'), '<h1>x</h1>');
+    const t = rows => { const a = turnActs(turnRows(transcript(rows))); a.at = new Date(Date.now() - 5000).toISOString(); return a; };
+    const byCmd = worked(t([user('regenerate the page'), call('Bash', { command: 'node tools/gen.mjs' }, 'ok'), say('Done.')]));
+    const byRead = worked(t([user('what is on the page'), call('Read', { file_path: path.join(dir, 'gen/page.html') }, 'x'), say('A heading.')]));
+    fs.rmSync(path.join(dir, 'gen'), { recursive: true, force: true });
+    const es = met({ kind: 'answer', arg: String.raw`Visual review:\**\s*\**[A-Z]+ after [0-9]+ rounds?` }, { calls: [], answer: '- **Revisión visual:** correcta tras 2 rondas.' });
+    report(byCmd === true && byRead === false && es === true, 'end: a file the turn\'s own command wrote is work; a turn of reads is not; a Spanish answer meets an answer marker read in English', JSON.stringify({ byCmd, byRead, es }));
+  }
 }
 fs.rmSync(path.join(dir, 'package.json')); put('pyproject.toml', '[project]\nname = "tool"\n');
 report(testGaps(acts([user('fix the total'), code, say('Fixed.')])).length === 0, 'end: a build file alone (pyproject.toml, no test setup) asks for no tests');

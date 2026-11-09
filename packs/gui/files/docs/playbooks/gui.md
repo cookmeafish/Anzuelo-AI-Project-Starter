@@ -37,7 +37,7 @@ runbook and the gui-review-loop then prove the result.
 
 ## Done when
 - [ ] Fresh screenshots of the final state, taken after the last edit, all opened and looked at (hook: gui-review-loop).
-- [ ] "Visual review: PASS after N rounds" in one line; tool warnings fixed or explained (hook: gui-review-report, gui-warnings) (answer: Visual review: [A-Z]+ after [0-9]+ rounds)
+- [ ] "Visual review: PASS after N rounds" in one line; tool warnings fixed or explained (hook: gui-review-report, gui-warnings) (answer: Visual review:\**\s*\**[A-Z]+ after [0-9]+ rounds?)
 - [ ] The main flow works when driven, not just when looked at (judgment: which flow is the main one, and that it works, needs a person to drive it).
 - [ ] Every saved flow of a changed page (docs/checks/flows/<page>.json) was rerun in the last round (hook: gui-flows).
 

@@ -526,7 +526,8 @@ export function met(item, acts) {
   // (a marker whose regex does not compile is not checked, never a crash of the whole end check. Lesson (replay of a
   // project's converted rules): one bad pattern stopped every check of the turn)
   if (/^(answer|prompt|tool|ran)$/.test(item.kind)) try { new RegExp(item.arg); } catch { return null; }
-  if (item.kind === 'answer') { const rx = new RegExp(item.arg, 'i'); return rx.test(acts.answer) || passedDrafts(acts).some(d => rx.test(d)); }
+  // (an answer in the user's language meets it too, read with its labels in English, as the end checks read it)
+  if (item.kind === 'answer') { const rx = new RegExp(item.arg, 'i'); return rx.test(acts.answer) || rx.test(inEnglish(acts.answer || '', projectConfig())) || passedDrafts(acts).some(d => rx.test(d)); }
   // (prompt: what the user typed this turn, mid-turn messages too; tool: a tool call whose name and input match)
   if (item.kind === 'prompt') return new RegExp(item.arg, 'i').test(acts.heard || '');
   if (item.kind === 'tool') { const rx = new RegExp(item.arg, 'i'); return acts.calls.some(c => rx.test(`${c.name} ${JSON.stringify(c.input || {})}`)); }
@@ -1347,7 +1348,11 @@ export const opened = (book, acts) => acts.calls.some(c => (c.name === 'Read' &&
 // (an edit counts as the project's work only inside the project folder. Lesson (live): a turn whose one edit was a
 // memory note outside the project was held for every item of its runbook)
 const inRoot = f => { const r = path.relative(ROOT, path.resolve(ROOT, String(f || ''))); return !!f && !r.startsWith('..') && !path.isAbsolute(r); };
-export const worked = acts => acts.calls.some(c => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name) && inRoot(c.input?.file_path || c.input?.notebook_path));
+// (a file the turn's own commands changed is work too (changedOf: not .cache or the engine's state, and only while one of
+// its commands ran). Lesson (the old suite under v2): a page changed and screenshotted by commands was never held to
+// its runbook's verdict line)
+export const worked = acts => acts.calls.some(c => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name) && inRoot(c.input?.file_path || c.input?.notebook_path))
+  || (acts.calls.some(c => /^(Bash|PowerShell|Agent|Task)$/.test(c.name)) && changedOf(acts).length > 0);
 
 const STATE = () => at('tools/hooks/state');
 const stateFile = sid => path.join(STATE(), `v2-turn.${String(sid || 'x').replace(/[^\w-]/g, '').slice(0, 64)}.json`);

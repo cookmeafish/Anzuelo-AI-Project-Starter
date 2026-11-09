@@ -4946,6 +4946,7 @@ const helpers = HELPER ? [] : Array.from({ length: SHARDS - 1 }, (_, k) => new P
 // Each behavior ported to v2, by what its end-check message asks (one line per port, with the port's commit).
 const V2_ASKS = {
   'data-computed': /appears? in no output of this turn|does not add up|which did not run this turn|but the sentence with the other results/,
+  'gui-review-report': /gui\.md item \d+: "Visual review: PASS after N rounds"/,
   'scope-separate': /Keep each person's details apart|^- Files of .+ changed, but this request is/m, // 617f3ec
   'question-answered': /^- Answer the user's message typed at /m, // f715d31
   'security-code': /^- Check: Security-sensitive code changed /m,
