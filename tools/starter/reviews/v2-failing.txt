@@ -228,19 +228,9 @@ stop: answer-resent: round 1 of a long answer asks for only what changed, not th
 stop: answer-resent: round 1 of a short answer still asks for the whole answer
 stop: answer-resent: the earlier full answer is still checked: a missing marker blocks
 stop: answer-resent: the last round asked for changes to the answer itself: blocked
-stop: answer-traced: a figure in a data file in docs/knowledge, beside layout, is still traced: blocked
 stop: answer-traced: a figure that is no sum, difference or change of the read ones: blocked
-stop: answer-traced: a link whose only fetch got a redirect back was not read: blocked
-stop: answer-traced: a note written this turn with a price no page had: blocked
-stop: answer-traced: a number found in nothing read this turn: blocked
-stop: answer-traced: a number typed into docs/knowledge outside research: blocked
-stop: answer-traced: a price the cited file does not have: blocked
 stop: answer-traced: a round figure that no tool output rounds to is still flagged
-stop: answer-traced: a web source cited that a search only listed: blocked
-stop: answer-traced: an outline cites characters.md for an inference the file does not hold: blocked
-stop: answer-traced: citing a knowledge file never opened: blocked
 stop: answer-traced: figures for the project's own numbers, with no file read: blocked
-stop: answer-traced: the API address itself cited as the source: flagged, with the page to cite instead
 stop: answer-traced: the short step names the cited claim it doubts
 stop: app-test-pass: a missing module with no install tried: still asks to install and run it
 stop: app-test-pass: a multi-line node -e script that only writes "npm test" into a doc is no test run: blocked

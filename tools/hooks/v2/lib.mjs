@@ -16,6 +16,7 @@ import { INJ_PLANTED, INJ_AIMED, INJ_WARNED } from '../injection.mjs';
 import { verbatimHits } from './verbatim.mjs';
 import { hexIds, gitClaimContradicted, REPORTED, IMPROVE_CLAIM, byHandClaim, describesClaim, groupVerdictClaim, namedPaths as sharedNamedPaths } from '../claims.mjs';
 import { makeProof } from '../proof.mjs';
+import { makeTrace } from '../trace.mjs';
 import { SELF_KEY, approvedBefore } from '../selfcmds.mjs';
 import { capsWeight } from '../caps.mjs';
 import { toOtherSession } from '../relay.mjs';
@@ -1381,7 +1382,7 @@ export function claimGaps(acts, history = '') {
   // (a "committed" or "pushed" claim is checked only by the commit it names, above, never by its wording. Lesson (live
   // data and replay): word lists for which sentences claim a commit were wrong more often than right, and each miss
   // grew the list)
-  out.push(...proofGaps(acts));
+  out.push(...proofGaps(acts), ...traceGapsV2(acts, history));
   return out;
 }
 
@@ -1452,6 +1453,39 @@ export function proofGaps(acts) {
         complaint && !g.proven && 'nothing this turn showed the check failing on the case: run its scenarios (node tools/hooks/selfcheck.mjs --tags <check>), or run it on a sample of what it should stop and see it fail'].filter(Boolean).join('; and ') +
       '. Or say plainly what is checked and what is not, without the promise.');
   return out;
+}
+
+// REQ: answer-traced, under v2: the shared tools/hooks/trace.mjs, as the old engine judges it ("Did I make that up?"),
+// from v2's turn record. The session's tool results and the agent's own writes stay apart: a figure written into a note
+// never traces to its own write. The path the prompt's words started (a question about the project's numbers) is left
+// out: no check starts from the user's words (retired 2026-11-07).
+let traceMemo = null;
+const textOfContent = c => typeof c === 'string' ? c : Array.isArray(c) ? c.map(b => (typeof b?.text === 'string' ? b.text : typeof b?.content === 'string' ? b.content : '')).join('\n') : '';
+const traceOf = () => traceMemo ||= makeTrace({ read: f => { try { return fs.readFileSync(f, 'utf8'); } catch { return ''; } }, abs: f => at(f), exists: f => fs.existsSync(at(f)), rel: p => relp(p),
+  esc: s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), today: () => new Date().toISOString().slice(0, 10), textOf: textOfContent,
+  knowledgeRe: cfg => `(?:${[].concat(cfg.knowledgeDirs || ['docs/knowledge']).map(d => String(d).replace(/\/+$/, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '/').join('|')})`,
+  noteDirs: cfg => [...new Set(['docs/knowledge', ...[].concat(cfg.knowledgeDirs || [])].map(d => String(d).replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+$/, '')).filter(Boolean))] });
+export function traceTurn(acts, history = '') {
+  const calls = acts.calls || [], sessionResults = [], sessionWrites = [];
+  for (const l of String(history).split('\n')) {
+    let r = null; try { r = JSON.parse(l); } catch { continue; }
+    if (Array.isArray(r)) sessionWrites.push(...r.filter(x => x?.type === 'tool_use').map(x => JSON.stringify(x.input || {})));
+    else if (r?.type === 'user') sessionResults.push(textOfContent(r.message?.content));
+  }
+  const entries = [{ type: 'user', message: { content: String(acts.heard || '') } }, ...calls.flatMap(c => [
+    { type: 'assistant', message: { content: [{ type: 'tool_use', id: c.id, name: c.name, input: c.input || {} }] } },
+    { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: c.id, content: c.out || '', is_error: !!c.error }] } }])];
+  const runs = calls.filter(c => /^(Bash|PowerShell)$/.test(c.name)).map(c => ({ cmd: String(c.input.command || ''), out: c.out || '', error: !!c.error }));
+  return { answer: String(acts.answer || ''), said: String(acts.said || acts.answer || ''), prompt: String(acts.heard || ''), allPrompts: [...(acts.earlier || []), acts.heard || ''],
+    toolsKnown: true, uses: calls.map(c => ({ name: c.name, input: c.input || {} })), results: calls.map(c => c.out || '').join('\n'), resultsList: calls.map(c => c.out || ''),
+    sessionResults: sessionResults.join('\n'), sessionWrites: sessionWrites.join('\n'), reads: new Set(calls.filter(c => c.name === 'Read').map(c => relp(c.input.file_path || ''))),
+    cmds: runs.map(r => r.cmd), runs, entries, changed: changedOf(acts) };
+}
+export function traceGapsV2(acts, history = '') {
+  const x = traceTurn(acts, history), cfg = projectConfig();
+  const ledgerRuns = x.runs.filter(r => /claims\.mjs\s+check\b/.test(r.cmd));
+  const researched = (acts.calls || []).some(c => (c.name === 'Read' && /skills[\\/]+research[\\/]+SKILL\.md$/i.test(String(c.input?.file_path || ''))) || (c.name === 'Skill' && /^research$/i.test(String(c.input?.skill || ''))));
+  return traceOf().traceGaps(x, cfg, { ledgerRuns, knowledge: [].concat(cfg.packs || []).includes('knowledge'), researched, promptWords: false }).map(g => g.msg);
 }
 
 // Whether the turn opened the runbook (read it, or ran its skill).

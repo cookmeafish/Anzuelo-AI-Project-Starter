@@ -13,7 +13,8 @@ import { esc } from './settings.mjs';
 export function makeProof(io) {
   const { read, abs, exists, rel, match, bornThisTurn, loadRequirements, namedPaths } = io;
   // REQ: claim-checked. Promises that a miss can't come back, and claims that a lesson was sent to the starter's makers.
-  const NEVER_AGAIN = /\b(can(?:no|')?t|cannot|won'?t|will not|will never|doesn'?t|does not)\s+(happen|recur|come back|slip (?:through|by|past)|repeat)\b[^.\n]{0,25}\bagain\b|\bnow enforces (this|it)\b|\benforces (this|it) on its own\b|\b(stops?|prevents?|blocks?) (this|it|that) from (ever )?(happening|recurring|coming back)\b/i;
+  // (Spanish too: "para que no vuelva a pasar". Lesson (the old suite under v2): the Spanish promise went unchecked)
+  const NEVER_AGAIN = /\b(can(?:no|')?t|cannot|won'?t|will not|will never|doesn'?t|does not)\s+(happen|recur|come back|slip (?:through|by|past)|repeat)\b[^.\n]{0,25}\bagain\b|\bnow enforces (this|it)\b|\benforces (this|it) on its own\b|\b(stops?|prevents?|blocks?) (this|it|that) from (ever )?(happening|recurring|coming back)\b|\bno (vuelva|volver[aá]) a (pasar|ocurrir|suceder|repetirse)|\bya no (puede|podr[aá]) (volver a )?(pasar|ocurrir)/i;
   // REQ: claim-checked (enforced). "This is checked automatically", "an unlinked note can't get through", "it is
   // enforced" (Spanish too) is a claim about a check: one that runs on its own (not only when a skill or runbook is used)
   // and whose scope holds the files the claim is about, shown failing on the case this turn.
