@@ -20,7 +20,7 @@ import { listAll, split } from './hooks/paths.mjs';
 import { pending as alwaysPendingIn } from './always.mjs';
 // The v2 parity ratchet (see "every REQ tag is enforced and tested"): requirement tags no v2 test names yet, and the day
 // it began. Each port lowers the number in the same commit.
-const V2_UNTESTED = 133, V2_RATCHET_DAY = '2026-11-08';
+const V2_UNTESTED = 131, V2_RATCHET_DAY = '2026-11-08';
 // Engine checks that hold only on the user's words, retired with the date the user retired keyword forcing; and the
 // requirement keys v2's evaluator does not read yet ("<tag>.<key>"), which may only shrink.
 const PROMPT_ONLY_RETIRED = { 'incident-trigger': '2026-11-07, v2-only plan, Spec line: the agent picks, no keyword forcing',
@@ -74,7 +74,7 @@ const walk = (d, pred, acc = [], skip = SKIPDIR) => {
 const isTemplate = exists('.starter-template');
 const pbs = playbooks();
 // (every v2 module counts, not only the guard: a REQ the end check or the mid-task notes enforce is enforced)
-const hooksSrc = read(abs('tools/hooks/hooks.mjs')) + ['people', 'labels', 'base-checks', 'wakeups'].map(n => read(abs(`tools/hooks/${n}.mjs`))).join('\n') + (() => { try { return fs.readdirSync(abs('tools/hooks/v2')).filter(f => f.endsWith('.mjs') && f !== 'selftest.mjs').map(f => read(abs(`tools/hooks/v2/${f}`))).join('\n'); } catch { return ''; } })();
+const hooksSrc = read(abs('tools/hooks/hooks.mjs')) + ['people', 'labels', 'base-checks', 'wakeups', 'injection'].map(n => read(abs(`tools/hooks/${n}.mjs`))).join('\n') + (() => { try { return fs.readdirSync(abs('tools/hooks/v2')).filter(f => f.endsWith('.mjs') && f !== 'selftest.mjs').map(f => read(abs(`tools/hooks/v2/${f}`))).join('\n'); } catch { return ''; } })();
 // the project's own scenarios count too, and while an upgrade's move is pending, the ones kept from the old test file
 const legacyScenarios = read(abs('tools/hooks/legacy-scenarios.txt'));
 // (and the v2 engine's own tests, which new checks get as the old scenarios move there: plan engine v2 only, 1d)

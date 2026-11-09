@@ -6,6 +6,7 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-08 (injection under v2, harm 1): v2's end check holds a kept file (docs, skills, profiles, the rule files) left holding text aimed at an AI or invisible characters, and a turn that read such text from outside the project's own rules and tools without warning the user in the answer. The patterns moved to `tools/hooks/injection.mjs`, read by both engines.
 - 2026-11-08 (code rules under v2, harm 1): v2's end check holds a turn whose changed files break one of the project's code rules (config `codeRules`, from packs and setup), naming the file and line; test files are skipped unless the rule says `"tests": true` or gives its own `ignore`.
 - 2026-11-08 (release checks, both engines): release-ready and release-rollback (app pack) hold on a release action (a tag, gh release, a publish or deploy), or when the release runbook was opened for a request that asks for a release; opening it to read it, or for a question, holds nothing. Projects with the app pack pick it up on upgrade.
 - 2026-11-08 (routed means opened, under v2): a check's `playbookRouted` now means the agent opened that runbook this turn (keyword routing is retired, 2026-11-07); the audit fails a check routed by its runbook alone with no action key (toolRan, filesChanged, ...).

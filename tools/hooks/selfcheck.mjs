@@ -4879,6 +4879,8 @@ const V2_ASKS = {
   'wakeup-left': /^- (A wakeup you scheduled is|\d+ wakeups you scheduled are) still pending: /m,
   'forbidden-terms': /^- These files now hold a name the user asked to keep out of the project: /m,
   'code-rules': /^- Code rules broken: /m,
+  'injection-guard': /^- \S.* contain text that reads as instructions to an AI /m,
+  'injection-flagged': /^- Something read this turn carries instructions aimed at an AI /m,
 };
 // (an engine check from requirements.json is recognized by its own message, which v2's evaluator gives as "Check: ...")
 const ENGINE_MSG = await (async () => { const out = {}; try { for (const q of (await import(pathToFileURL(path.join(ROOT, 'tools/hooks/base-checks.mjs')).href)).BASE_REQUIREMENTS) out[q.tag] = q.message; } catch { }
