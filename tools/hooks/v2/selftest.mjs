@@ -1580,8 +1580,10 @@ const { questionGaps } = await import('./lib.mjs');
   const { claimGaps } = await import('./lib.mjs');
   const hand = ans => claimGaps(acts([user('fix the index'), say(ans)])).some(s => /a test was done by hand/.test(s));
   const bh = { en: hand('I tested the page by hand: the links work.'), es: hand('- **Lo probé a mano:** en el navegador, la página salta a su sección.'),
-    data: hand('Tested with the merge script: it keeps the rows written by hand.'), user: hand('Try it by hand on your phone when you like.'), auto: hand('Con un navegador automatizado, la página salta a su sección.') };
-  report(bh.en && bh.es && !bh.data && !bh.user && !bh.auto, 'end: claim-checked: a test "done by hand" is held (Spanish too); data written by hand, the user asked to try it, or an automated browser is not', JSON.stringify(bh));
+    data: hand('Tested with the merge script: it keeps the rows written by hand.'), user: hand('Try it by hand on your phone when you like.'), auto: hand('Con un navegador automatizado, la página salta a su sección.'),
+    // (a sentence describing the check, not claiming a hand test. Lesson (a peer's live false hold))
+    describes: hand('The latest makes an answer that says a test was done by hand explain how it was run.'), third: hand('The page was tested by hand last week.') };
+  report(bh.en && bh.es && !bh.data && !bh.user && !bh.auto && !bh.describes && !bh.third, 'end: claim-checked: a test "done by hand" is held (Spanish too); data written by hand, the user asked to try it, an automated browser, or a sentence describing the check is not', JSON.stringify(bh));
 }
 // (claim-checked: "reported to the makers" with no report sent is held, one with a message sent to the starter's session
 // is not; in the starter, "only makes projects better" with no judged round is held, one with NOT WORSE printed is not)
@@ -1593,9 +1595,12 @@ const { questionGaps } = await import('./lib.mjs');
   const rp = { claimed: has([user('note the bug'), say('I reported it to the starter.')], /the lesson was reported/),
     sent: has([user('note the bug'), call('SendMessage', { to: 'starter', message: 'the bug' }, 'sent'), say('I reported it to the starter.')], /the lesson was reported/),
     better: has([user('tune the engine'), say('This only makes projects better.')], /only makes projects better/),
-    judged: has([user('tune the engine'), call('Bash', { command: 'node tools/starter/trials/compare.mjs 12' }, 'VERDICT: NOT WORSE'), say('This only makes projects better.')], /only makes projects better/) };
+    judged: has([user('tune the engine'), call('Bash', { command: 'node tools/starter/trials/compare.mjs 12' }, 'VERDICT: NOT WORSE'), say('This only makes projects better.')], /only makes projects better/),
+    // (sentences describing the checks are no claims. Lesson (a peer's live false hold on the hand-test claim))
+    describedReport: has([user('what changed?'), say('The check holds an answer that says the lesson was reported to the starter.')], /the lesson was reported/),
+    describedBetter: has([user('what changed?'), say('It now holds an answer that says the change only makes projects better with no judged round.')], /only makes projects better/) };
   fs.rmSync(marker, { force: true }); fs.rmSync(path.join(dir, 'tools/starter'), { recursive: true, force: true });
-  report(rp.claimed && !rp.sent && rp.better && !rp.judged, 'end: claim-checked: "reported to the starter" needs a report sent or a message to its session; "only makes projects better" needs a judged round', JSON.stringify(rp));
+  report(rp.claimed && !rp.sent && rp.better && !rp.judged && !rp.describedReport && !rp.describedBetter, 'end: claim-checked: "reported to the starter" needs a report sent or a message to its session; "only makes projects better" needs a judged round', JSON.stringify(rp));
 }
 // (claim-checked (verification): a turn that waived its test gate saying it ships is held; with one NOT VERIFIED line,
 // or a condition ("until the tests pass"), it is not)

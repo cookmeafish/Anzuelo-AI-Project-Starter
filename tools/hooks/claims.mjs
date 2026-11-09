@@ -78,6 +78,14 @@ export function byHandClaim(answer) {
   const made = /\b(written|wrote|entered|typed|added|edited|filled( in)?|drawn|copied|kept|curated|maintained|labell?ed|sorted|made|created|built|set)\s+(in\s+)?(by hand|manually)\b|(?<!\p{L})(escrit|añadid|introducid|copiad|editad|hech)[oa]s?\s+(a mano|manualmente)(?!\p{L})/giu;
   // (a phrase in quotes is named, not claimed. Lesson, dogfood: an answer describing this check quoted the phrase)
   const quoted = /"[^"\n]{1,120}"|“[^”\n]{1,120}”|«[^»\n]{1,120}»/g;
-  return lines.map((_, i) => at(i)).find(full => { const s = full.replace(quoted, ' ').replace(made, ' '); return BY_HAND.test(s) && UI_TEST.test(s)
+  // (only a claim about this turn's own work: in the first person ("I tested", "lo probé") or as a result label ("Tested by
+  // hand: works"), never a sentence describing a claim or a check. Lesson (a peer's live false hold): "makes an answer that
+  // says a test was done by hand explain how it was run" was held as a hand test)
+  const mine = /\b(I|I've|I'd|we|we've)\b|(?<!\p{L})(prob[eé]|comprob[eé]|verifiqu[eé]|revis[eé]|hice|abr[ií]|toqu[eé])(?!\p{L})|^[\s>*_-]*(tested|tried|checked|verified|probado|comprobado)\b[^:\n]{0,30}:/iu;
+  return lines.map((_, i) => at(i)).find(full => { const s = full.replace(quoted, ' ').replace(made, ' '); return BY_HAND.test(s) && UI_TEST.test(s) && mine.test(s) && !describesClaim(s)
     && !/\b(you|your|the user|not|n't|never|nothing|should|could|can)\b|(?<!\p{L})(t[uú]|usted|puedes|prueba t[uú]|pru[eé]balo|no|nunca|nada)(?!\p{L})/iu.test(s.replace(BY_HAND, ' ')); }) || '';
 }
+// A sentence that describes a claim, a check or a rule rather than making the claim: "an answer that says...", "a claim
+// like...", "checks that...", "the check holds...". Lesson (a peer's live false hold): a report of the engine's new checks
+// was held for the claims it described.
+export const describesClaim = s => /\b(an? (answer|reply|message|sentence|turn) (that|which|saying|says)|says? (that )?(a|the) (test|lesson|change|claim)|a claim (like|that)|claims? such as|checks? (that|whether|for)|the (check|rule|guard) (holds|asks|says|catches|flags)|is held for|holds? an answer)\b/i.test(String(s || ''));

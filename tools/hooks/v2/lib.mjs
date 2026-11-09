@@ -14,7 +14,7 @@ import { knowledgeFromFiles as knowledgeFromFilesOf, figureProblems as figurePro
 import { forbiddenRe, secretHit } from '../settings.mjs';
 import { INJ_PLANTED, INJ_AIMED, INJ_WARNED } from '../injection.mjs';
 import { verbatimHits } from './verbatim.mjs';
-import { hexIds, gitClaimContradicted, REPORTED, IMPROVE_CLAIM, byHandClaim } from '../claims.mjs';
+import { hexIds, gitClaimContradicted, REPORTED, IMPROVE_CLAIM, byHandClaim, describesClaim } from '../claims.mjs';
 import { SELF_KEY, approvedBefore } from '../selfcmds.mjs';
 import { capsWeight } from '../caps.mjs';
 import { toOtherSession } from '../relay.mjs';
@@ -1332,12 +1332,12 @@ export function claimGaps(acts, history = '') {
   // (engine feedback reaches the starter only by "starter.mjs report" or a message to its session; "feedback" only writes
   // the note. Lesson (the old engine): an engine bug was "reported to the tool's makers" when the report never ran)
   const sents = a.split(/(?<=[.!?\n])\s+/), ran = re => acts.calls.some(c => /^(Bash|PowerShell)$/.test(c.name) && re.test(`${c.input.command || ''}\n${c.out || ''}`));
-  const reportClaim = sents.find(s => REPORTED.test(s) && !/\b(not|n'?t|no|nothing|never|will|once|when|until)\b/i.test(s.replace(REPORTED, '')));
+  const reportClaim = sents.find(s => REPORTED.test(s) && !describesClaim(s) && !/\b(not|n'?t|no|nothing|never|will|once|when|until)\b/i.test(s.replace(REPORTED, '')));
   if (reportClaim && !acts.calls.some(c => c.name === 'SendMessage' && String(c.input?.message || '').trim()) && !ran(/\bstarter\.mjs["']?\s+report\b[\s\S]*\breport: (sent|nothing new)\b/i))
     out.push(`The answer says the lesson was reported ("${reportClaim.trim().slice(0, 70)}"), but node tools/starter.mjs report did not send it this turn. Say "noted in docs/starter-feedback.md for the starter", or run node tools/starter.mjs report and say what it printed.`);
   // (in the starter, "only makes projects better" is a judged trial round's verdict. Lesson (the old engine): engine
   // changes were called improvements on self-tests alone, before any round judged them)
-  const better = fs.existsSync(at('.starter-template')) && fs.existsSync(at('tools/starter/trials/compare.mjs')) && sents.find(s => IMPROVE_CLAIM.test(s) && !/\b(not yet|until|once|whether|if|still to|unverified|not verified|can'?t say)\b/i.test(s));
+  const better = fs.existsSync(at('.starter-template')) && fs.existsSync(at('tools/starter/trials/compare.mjs')) && sents.find(s => IMPROVE_CLAIM.test(s) && !describesClaim(s) && !/\b(not yet|until|once|whether|if|still to|unverified|not verified|can'?t say)\b/i.test(s));
   if (better && !ran(/trials[\\/]compare\.mjs[\s\S]*^VERDICT: NOT WORSE\b/m))
     out.push(`The answer says the change only makes projects better ("${better.trim().slice(0, 70)}"), but no judged trial round said so this turn. Run node tools/starter/trials/compare.mjs <round> and give its verdict, or say what was tested and that the judged round is still to come (tools/starter/runbooks/improvement-loop.md).`);
   // (a turn that waived its own test or build gate cannot say the work ships or passes: one NOT VERIFIED line instead. A

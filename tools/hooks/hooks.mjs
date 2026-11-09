@@ -19,7 +19,7 @@ import { LABELS_ES, WORTH_IT, plainLabel, EN_COPIES, inEnglish, labelsEsHint, LA
 export { labelsEsHint, LABELS_ES_HINT };
 import { BASE_REQUIREMENTS, FAILED_RUN, MISSING_TOOL, PROBLEM_WORDS } from './base-checks.mjs';
 import { knowledgeFromFiles as sharedKnowledgeFromFiles, figureProblems as sharedFigureProblems } from './knowledge.mjs';
-import { claimSentences, byHandClaim, IMPROVE_CLAIM, REPORTED, NOT_IN_GIT, gitHolds as sharedGitHolds, namedPaths as sharedNamedPaths, gitClaimContradicted as sharedGitClaim } from './claims.mjs';
+import { claimSentences, byHandClaim, describesClaim, IMPROVE_CLAIM, REPORTED, NOT_IN_GIT, gitHolds as sharedGitHolds, namedPaths as sharedNamedPaths, gitClaimContradicted as sharedGitClaim } from './claims.mjs';
 export { ROOT, bulkDir, today, usageOf, read, readJSON, abs, exists, list, walkStat, esc, config, re, secretRes, secretHit, privateTermsPath, privateTermsListFile, forbiddenTerms, forbiddenRe, testInputsHash, aiAttributedCommits, gitignoreProblems, people, personOf, peopleIn, peopleFor, pathsPeople, LABELS_ES, WORTH_IT, plainLabel, EN_COPIES, inEnglish, BASE_REQUIREMENTS };
 // (the safety guard is v2/guard.mjs, loaded by the pretool hook itself: a guard that cannot load is then reported, not
 // a hook that cannot start)
@@ -6021,7 +6021,7 @@ export function coreChecks(x, cfg) {
   // REQ: claim-checked. Engine feedback reaches the starter only through "node tools/starter.mjs report"; "feedback"
   // only writes docs/starter-feedback.md. Lesson: an answer said an engine bug was "reported to the tool's makers" when
   // the report command never ran.
-  const reportClaim = x.answer.split(/(?<=[.!?\n])\s+/).find(s => REPORTED.test(s) && !/\b(not|n'?t|no|nothing|never|will|once|when|until)\b/i.test(s.replace(REPORTED, '')));
+  const reportClaim = x.answer.split(/(?<=[.!?\n])\s+/).find(s => REPORTED.test(s) && !describesClaim(s) && !/\b(not|n'?t|no|nothing|never|will|once|when|until)\b/i.test(s.replace(REPORTED, '')));
   // (a message sent to the starter's session this request reaches the starter too. Lesson: a report sent with
   // SendMessage was called unsent because the report command did not run)
   const sentToStarter = (x.entries || []).some(r => r.type === 'assistant' && Array.isArray(r.message?.content) && r.message.content.some(c => c?.type === 'tool_use' && c.name === 'SendMessage' && String(c.input?.message || '').trim()));
@@ -6033,7 +6033,7 @@ export function coreChecks(x, cfg) {
   // projects is a judged trial round's verdict: compare.mjs ran this turn and printed NOT WORSE. Lesson: engine changes
   // were called improvements on self-tests alone, before any round had judged them (tools/starter/runbooks/improvement-loop.md).
   if (exists('.starter-template') && exists('tools/starter/trials/compare.mjs')) {
-    const better = x.answer.split(/(?<=[.!?\n])\s+/).find(s => IMPROVE_CLAIM.test(s) && !/\b(not yet|until|once|whether|if|still to|unverified|not verified|can'?t say)\b/i.test(s));
+    const better = x.answer.split(/(?<=[.!?\n])\s+/).find(s => IMPROVE_CLAIM.test(s) && !describesClaim(s) && !/\b(not yet|until|once|whether|if|still to|unverified|not verified|can'?t say)\b/i.test(s));
     const judged = (x.runs || []).some(r => /trials[\\/]compare\.mjs/.test(String(r.cmd)) && /^VERDICT: NOT WORSE\b/m.test(r.out || ''));
     if (better && !judged)
       add('claim-checked', `The answer says the change only makes projects better ("${better.trim().slice(0, 70)}"), but no judged trial round said so this turn. ` +
