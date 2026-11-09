@@ -4876,6 +4876,7 @@ const V2_ASKS = {
   'scope-separate': /Keep each person's details apart|^- Files of .+ changed, but this request is/m, // 617f3ec
   'question-answered': /^- Answer the user's message typed at /m, // f715d31
   'security-code': /^- Check: Security-sensitive code changed /m,
+  'wakeup-left': /^- (A wakeup you scheduled is|\d+ wakeups you scheduled are) still pending: /m,
 };
 // (an engine check from requirements.json is recognized by its own message, which v2's evaluator gives as "Check: ...")
 const ENGINE_MSG = await (async () => { const out = {}; try { for (const q of (await import(pathToFileURL(path.join(ROOT, 'tools/hooks/base-checks.mjs')).href)).BASE_REQUIREMENTS) out[q.tag] = q.message; } catch { }

@@ -21,6 +21,8 @@ export { ROOT, bulkDir, today, usageOf, read, readJSON, abs, exists, list, walkS
 // a hook that cannot start)
 let pretoolDecision = null;
 import * as SELF from './hooks.mjs';
+import { WAKE_KNOWN, isWakeTool, WAKE_ASK, wakeFamily, wakeupsPending } from './wakeups.mjs';
+export { isWakeTool, WAKE_ASK, wakeupsPending };
 
 // ROOT is the project; engine files are found through abs() (paths.mjs decides the root per path, and in the starter
 // every root is this one folder).
@@ -898,61 +900,6 @@ export function watchersArmed(rows) {
   return [...armed.values()];
 }
 
-// Wakeups the agent scheduled for itself that have not fired or been cancelled: ScheduleWakeup, CronCreate, and any
-// later tool that sends a prompt back into this session at a later time (a name with wake, cron, schedule, timer,
-// remind or alarm in it, and a "prompt" to send). Like a watcher, one left pending after the answer re-invokes the
-// session later. A headless run (claude -p, the SDK) does not even end while one is pending: its caller waits until the
-// run's time limit kills it, and gets no answer at all.
-// Lesson: a setup scheduled a "just in case" 20-minute wakeup while its audit ran in the background, wrote the whole
-// answer, and the headless run was killed at its 60-minute limit with the wakeup still pending: the user got nothing.
-// Not counted: cloud routines (RemoteTrigger) and connected services' tools (mcp__...), which run elsewhere and keep
-// nothing here alive. A wakeup has ended when its prompt came back (it fired), when its time is past (one-time only),
-// or when it was cancelled: ScheduleWakeup with stop: true, or a delete or cancel tool given its id (CronDelete).
-const WAKE_KNOWN = { ScheduleWakeup: { kind: 'wakeup', cancel: 'call ScheduleWakeup with stop: true' }, CronCreate: { kind: 'cron', cancel: 'call CronDelete with its id' } };
-const WAKE_TOOL = /wake|cron|schedul|timer|remind|alarm/i, WAKE_NOT = /^mcp__|list|delete|cancel|stop|get|read|remove|clear|remote|trigger/i;
-const WAKE_CANCEL = /delete|cancel|stop|remove|clear/i;
-export const isWakeTool = (name, input = {}) => !!name && !(input?.stop || input?.cancel) &&
-  (WAKE_KNOWN[name] ? true : WAKE_TOOL.test(name) && !WAKE_NOT.test(name) && typeof input?.prompt === 'string');
-// the request asks for a reminder, a loop or a schedule: a wakeup it leaves is the work itself
-export const WAKE_ASK = /(^|\s)\/loop\b|\b(remind me|wake me|every \d+\s*(s|secs?|seconds?|m|mins?|minutes?|h|hours?|days?)\b|on a schedule|schedul(e|ed|ing)\b|cron\b|recu[eé]rdame|av[ií]same|cada \d+\s*(min|minutos?|horas?|segundos?|d[ií]as?)\b)/i;
-const wakeFamily = n => String(n).replace(/Create|Delete|Cancel|Stop|Remove|Clear|Add|Set|Schedule|Unschedule/g, '');
-export function wakeupsPending(rows, now = Date.now()) {
-  const pending = [], results = new Map();
-  rows.forEach(r => { const c = r.message?.content; if (r.type === 'user' && Array.isArray(c)) for (const x of c) if (x?.type === 'tool_result') results.set(x.tool_use_id, { text: textOf(x.content) || String(typeof x.content === 'string' ? x.content : ''), err: !!x.is_error, extra: r.toolUseResult }); });
-  rows.forEach((r, i) => {
-    const c = r.message?.content, ts = Date.parse(r.timestamp || '') || 0;
-    if (r.type === 'assistant' && Array.isArray(c)) for (const x of c) {
-      if (x?.type !== 'tool_use') continue;
-      const input = x.input || {}, res = results.get(x.id), known = WAKE_KNOWN[x.name];
-      if (isWakeTool(x.name, input)) {
-        // (a call that was refused or failed scheduled nothing)
-        if (!res || res.err || /\b(error|denied|refused|failed|invalid|not (allowed|available|scheduled))\b/i.test(res.text)) continue;
-        // one wakeup at a time: a new ScheduleWakeup replaces the one before it
-        if (known?.kind === 'wakeup') for (let k = pending.length - 1; k >= 0; k--) if (pending[k].tool === x.name) pending.splice(k, 1);
-        const id = /\bid\b\W{0,3}([\w-]{4,})/i.exec(res.text)?.[1] || (typeof res.extra?.id === 'string' ? res.extra.id : '');
-        const delay = Number(input.delaySeconds ?? input.delay_seconds ?? /\bin (\d+)\s*s\b/.exec(res.text)?.[1] ?? NaN);
-        const at = Number(res.extra?.scheduledFor) || (ts && delay > 0 ? ts + delay * 1000 : 0);
-        const recurring = known?.kind === 'cron' ? input.recurring !== false : !known && !at;
-        pending.push({ tool: x.name, id, prompt: String(input.prompt || ''), at, recurring, i, cancel: known?.cancel || 'cancel it with the tool that deletes or cancels it, given its id' });
-      } else if (known && (input.stop || input.cancel)) {
-        for (let k = pending.length - 1; k >= 0; k--) if (pending[k].tool === x.name) pending.splice(k, 1);
-      } else if (WAKE_CANCEL.test(x.name) && res && !res.err) {
-        const s = JSON.stringify(input);
-        for (let k = pending.length - 1; k >= 0; k--) {
-          const p = pending[k];
-          if (p.id ? s.includes(p.id) : wakeFamily(p.tool) && wakeFamily(p.tool) === wakeFamily(x.name)) pending.splice(k, 1);
-        }
-      }
-    }
-    // it fired: its prompt came back as a message (Claude Code adds it as a meta user row)
-    if (r.type === 'user' && !isToolResult(c)) {
-      const t = textOf(c).trim();
-      if (t) for (let k = pending.length - 1; k >= 0; k--) if (pending[k].i < i && t === pending[k].prompt.trim()) { if (pending[k].recurring) pending[k].fired = true; else pending.splice(k, 1); }
-    }
-  });
-  // a one-time wakeup whose time is past has fired (its prompt may not be in the transcript yet)
-  return pending.filter(p => p.recurring || !p.at || now < p.at + 60_000).map(({ i, ...p }) => p);
-}
 // A message the session sent itself (a wakeup's or a cron job's prompt) or a background task's notice: not the user's.
 // Claude Code marks them (isMeta, turnOrigin "scheduled", promptSource "system", origin.kind "task-notification").
 const selfSent = r => !!r && r.type === 'user' && !isToolResult(r.message?.content) &&
