@@ -347,10 +347,6 @@ stop: instructions-run: the answer sends the user to run a setup script written 
 stop: instructions-run: the same reworded answer after a failed pre-check: blocked
 stop: invalid skill frontmatter: blocked
 stop: knowledge file without label/source/date: blocked
-stop: knowledge-source-trigger: a labeled fact whose source file does not exist: blocked
-stop: knowledge-source-trigger: a labeled fact without a date: blocked
-stop: knowledge-source-trigger: a row with no evidence label: blocked
-stop: knowledge-source-trigger: facts written without research or capture: blocked
 stop: maintaining a runbook (read, then edit) is not following it: its checks stay off
 stop: maintaining a runbook the answer names as followed: its checks apply: blocked
 stop: modular-code: a URL typed into code and a private import: blocked

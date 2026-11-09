@@ -10,6 +10,7 @@ import { roots, resolver } from '../paths.mjs';
 import { people, personOf, peopleIn, peopleFor } from '../people.mjs';
 import { inEnglish } from '../labels.mjs';
 import { BASE_REQUIREMENTS, FAILED_RUN, MISSING_TOOL, PROBLEM_WORDS } from '../base-checks.mjs';
+import { knowledgeFromFiles as knowledgeFromFilesOf } from '../knowledge.mjs';
 import { forbiddenRe, secretHit } from '../settings.mjs';
 import { INJ_PLANTED, INJ_AIMED, INJ_WARNED } from '../injection.mjs';
 import { verbatimHits } from './verbatim.mjs';
@@ -1026,6 +1027,9 @@ export function holdsReq(c, acts, x) {
     anyOf: v => { const r = v.map(sub => holdsReq(sub, acts, x)); return r.includes(true) ? true : r.includes(null) ? null : false; },
     // (a command matching it ran and failed; N or more calls of a tool; a file read; a runbook routed or read; a screen
     // file changed; what the turn added to matching files)
+    // (facts written into the knowledge files each labeled, dated and sourced from a project file that exists: the
+    // shared knowledge.mjs. Lesson (the old suite under v2): the key was unknown, so the knowledge source check never ran)
+    knowledgeFromFiles: () => !knowledgeFromFilesOf({ changed: x.changed, uses: acts.calls, toolsKnown: true }, { evidenceLabels: projectConfig().evidenceLabels || [], knowledgeDirs: knowledgeDirs() }, { read: f => { try { return fs.readFileSync(at(f), 'utf8'); } catch { return ''; } }, exists: f => fs.existsSync(at(f)), match: inGlobs, rel: relp }),
     // (a run the host refused never ran: it failed nothing. Lesson (the v2 re-sweep): a test run held for approval was
     // taken for a failing one, and the turn was asked for a root cause)
     // (as the old engine: a failure line counts like an error exit, a missing tool does not; the failure was found, not
@@ -1068,7 +1072,7 @@ export const ranText = cmd => String(cmd || '')
   .replace(/(\b(?:node|deno|bun)(?:\.exe)?\s+(?:-e|--eval|-p|--print)|\b(?:python3?|py)(?:\.exe)?\s+-c)\s+("(?:[^"\\]|\\.)*"|'[^']*')/gi,
     (m, head, code) => /\b(execSync|execFileSync|spawnSync|spawn|exec|execFile|fork|subprocess|os\.system|system|Popen)\s*\(/.test(code) ? m : `${head} ""`)
   .replace(/(?<!(?:-c|-lc|\/c|eval|-Command|-EncodedCommand|--command)\s+)("[^"\n]*\s[^"\n]*"|'[^'\n]*\s[^'\n]*')/gi, '""');
-export const REQ_KEYS = ['skillUsed', 'playbookUsed', 'filesChanged', 'filesIgnore', 'answerMatches', 'answerNotMatches', 'promptMatches', 'promptNotMatches', 'toolRan', 'toolPassed', 'workTurn', 'minToolCalls', 'anyOf', 'answerCites', 'ranFailing', 'toolCount', 'fileRead', 'playbookRouted', 'guiChanged', 'changedContentMatches', 'checkedAfterAgents'];
+export const REQ_KEYS = ['skillUsed', 'playbookUsed', 'filesChanged', 'filesIgnore', 'answerMatches', 'answerNotMatches', 'promptMatches', 'promptNotMatches', 'toolRan', 'toolPassed', 'workTurn', 'minToolCalls', 'anyOf', 'answerCites', 'ranFailing', 'toolCount', 'fileRead', 'playbookRouted', 'guiChanged', 'changedContentMatches', 'checkedAfterAgents', 'knowledgeFromFiles'];
 export const promptOnly = c => { const ks = Object.keys(c || {}); return ks.length > 0 && ks.every(k => /^(promptMatches|promptNotMatches|filesIgnore)$/.test(k)); };
 // a check routed by its runbook alone, with no action that shows the work (the audit fails it)
 const ACTION_KEYS = ['toolRan', 'toolPassed', 'filesChanged', 'ranFailing', 'guiChanged', 'changedContentMatches', 'toolCount'];
