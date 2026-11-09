@@ -12,6 +12,7 @@ import { BASE_REQUIREMENTS } from '../base-checks.mjs';
 import { forbiddenRe } from '../settings.mjs';
 import { INJ_PLANTED, INJ_AIMED, INJ_WARNED } from '../injection.mjs';
 import { verbatimHits } from './verbatim.mjs';
+import { hexIds } from '../claims.mjs';
 
 export const ROOT = process.env.ANZUELO_ROOT || process.cwd();
 // (where each file is: in a project with the engine in .anzuelo/engine, runbooks and skills come from the local copy
@@ -953,7 +954,7 @@ export function claimGaps(acts, history = '') {
   // (a message the agent sent is its own words, not evidence: an id it made up there proves nothing in the answer)
   const a = String(acts.answer || ''), seen = acts.calls.map(c => (c.name === 'SendMessage' ? '' : JSON.stringify(c.input)) + '\n' + (c.out || '')).join('\n') + (acts.context || '') + history;
   const out = [];
-  const hashes = [...new Set([...a.matchAll(/(?<![\w/#-])([0-9a-f]{7,40})(?![\w-])/g)].map(m => m[1]).filter(h => /\d/.test(h) && /[a-f]/.test(h)))];
+  const hashes = [...new Set(hexIds(a))];
   const unknown = hashes.filter(h => !seen.includes(h) && spawnSync('git', ['cat-file', '-e', `${h}^{commit}`], { cwd: ROOT, timeout: 5000 }).status !== 0);
   if (unknown.length) out.push(`The answer names commit ${unknown.slice(0, 3).join(', ')}, which no command in this turn showed and this repository does not have: check it, or correct the answer.`);
   const top = p => { try { return fs.existsSync(at(p.split('/')[0])); } catch { return false; } };

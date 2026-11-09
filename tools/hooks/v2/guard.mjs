@@ -4,6 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { ENGINE, split, kind } from '../paths.mjs';
+import { commitIds } from '../claims.mjs';
+export { commitIds };
 // Shared helpers come from the loader (use(hooksModule)): an import cycle left the hook waiting forever.
 let H = null;
 export const use = h => { H = h; };
@@ -13,14 +15,6 @@ export const IN_WORK_GUARDS = /^REQ: (approval-gate|browser-guard|claim-checked|
 // A path pattern in an approved list as a regex: "**/" is any number of folders, none included; "**" anything; "*"
 // within one folder. Lesson (a sweep for the root-file glob bug): "old/**" covered one level only, "**/*.bak" no root file
 export const wildRx = g => new RegExp(`(^|/)${String(g).split('**/').map(a => a.split('**').map(b => b.split('*').map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[^/]*')).join('.*')).join('(?:.*/)?')}$`, 'i');
-// A message's commit ids: hex in commit context only ("commit", "pushed", "HEAD", "main is", "in", a git-log line), never
-// after "#", in a path, after "sha256"/"hash": a refusal during work must never be a false one (hashes, colors, GUIDs)
-export const commitIds = text => [...new Set([...String(text || '').matchAll(/(?<![\w/#.:-])([0-9a-f]{7,40})(?![\w/.-]*\/)(?![\w-])/g)].filter(m => {
-  const h = m[1]; if (!/\d/.test(h) || !/[a-f]/.test(h)) return false;
-  const before = text.slice(Math.max(0, m.index - 40), m.index), line = before.slice(before.lastIndexOf('\n') + 1);
-  if (/\b(sha-?256|sha-?1|hash|digest|checksum|uuid|guid|id:)\W{0,3}$/i.test(line)) return false;
-  return /\b(commits?|committed(?: as)?|pushed(?: as)?|push|head(?: is| at)?|merged?(?: as)?|landed in|lands in|main is|main at|is at|in|at|on top of|reverts?|cherry-picked|commit id is|commit is|the id is)\W{0,4}(?:the )?(?:commit )?$/i.test(line) || /^\s*[-*]?\s*$/.test(line) && /^[0-9a-f]{7,40} \S/.test(text.slice(m.index));
-}).map(m => m[1]))];
 // One denial names every rule the call breaks, numbered, at most PRETOOL_MAX (a retry was once denied rule by rule).
 const PRETOOL_MAX = 6;
 export function pretoolDecision(data, cfg = H.config()) {
