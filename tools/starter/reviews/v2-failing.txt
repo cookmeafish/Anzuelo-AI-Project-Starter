@@ -562,7 +562,6 @@ stop: unresolved-carryover: block cap reached: the user is told at once that the
 stop: unresolved-carryover: the same work continues and last turn's CHANGELOG line is still missing: blocked
 stop: unrouted work turn that creates + indexes a runbook: runbook-exists passes
 stop: unrouted work turn with no runbook created: blocked
-stop: upgrade-review: an undecided item and an adopted pack that is not installed: blocked
 stop: upgrade-review: every item decided with its reason: passes
 stop: upset-acknowledged: checklist and outcome done, but no general point with every case it covers: blocked
 stop: upset-acknowledged: checklist, outcome and scope done, but no root cause for the miss: blocked
@@ -609,5 +608,3 @@ upset-learned: a later complaint appended below an earlier Issue line is acknowl
 upset-learned: an Issue line written from the shell shows "acknowledged" at the next tool call, once
 upset-learned: writing the Issue line shows the user "acknowledged" at once, and only once
 waive command: an agent without hooks waives a step with the command, and check no longer asks for it
-# Known open regressions: already live in the pushed version (since 596ac27, checked by name on b8ca1db); listed so the fixes can ship; each comes off when fixed:
-stop: upgrade-review: "later - when: <moment>" is a decision; a bare "later" is not

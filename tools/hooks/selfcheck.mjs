@@ -777,6 +777,7 @@ const STOP = [
     answer: 'Playbook: project.md.' + FIN, expect: { not: ['rule-request'] },
     after: dir => { const sp = path.join(dir, 'tools/hooks/state/snapshot.json'), h = p => createHash('sha1').update(fs.readFileSync(path.join(dir, p))).digest('hex');
       const files = {}; for (const p of ['CLAUDE.md', 'AGENTS.md', 'docs/checks/user-requirements.md', 'tools/hooks/requirements.json', 'docs/CHANGELOG.md']) files[p] = [1, fs.statSync(path.join(dir, p)).size, h(p)];
+      fs.mkdirSync(path.dirname(sp), { recursive: true }); // (a Stop that held nothing may have made no state folder yet)
       fs.writeFileSync(sp, JSON.stringify({ at: new Date(Date.now() + 120_000).toISOString(), files }));
       const r = run(dir, 'stop', { transcript_path: path.join(dir, 'transcript.jsonl'), stop_hook_active: false, last_assistant_message: 'Added: the rule is in place.' });
       return /rule-request|standing rule/.test(r.out) ? `the rule's files were dropped as unchanged since a mid-turn snapshot: ${r.out.slice(0, 200)}` : true; } },
@@ -4889,6 +4890,7 @@ const V2_ASKS = {
   'waiver-tally': /waived in 3\+ earlier turns here/,
   'injection-flagged': /^- Something read this turn carries instructions aimed at an AI /m,
   'app-test-pass': /^- Run the tests after the last code change\b/m,
+  'upgrade-review': /^- Upgrade review in docs\/DECISIONS\.md: /m,
 };
 // (an engine check from requirements.json is recognized by its own message, which v2's evaluator gives as "Check: ...")
 const ENGINE_MSG = await (async () => { const out = {}; try { for (const q of (await import(pathToFileURL(path.join(ROOT, 'tools/hooks/base-checks.mjs')).href)).BASE_REQUIREMENTS) out[q.tag] = q.message; } catch { }
@@ -7328,7 +7330,9 @@ if (mineB() && (!TAGS || TAGS.includes('stop-log'))) { // stop-log: "hooks.mjs l
     const since = Date.now() - 1000;
     const tp = transcript(dir, { prompt: 'add a section about screenshots to the notes', tools: [{ name: 'Write', input: { file_path: 'docs/notes-screens.md' } }], answer: 'Added it.' }, since);
     write(dir, { 'docs/notes-screens.md': '# Screens\nA section.\n' });
-    run(dir, 'stop', { transcript_path: tp, session_id: 'log1', last_assistant_message: 'Added it. N/A(plan-saved): a one-file note needs no plan' });
+    // (the first Stop must hold under either engine, so there is a round 1 and a round 2 to log: the answer also names a
+    // file never written, an unbacked claim v2 holds; the old engine holds the unlinked note. Triage: settled conflicts)
+    run(dir, 'stop', { transcript_path: tp, session_id: 'log1', last_assistant_message: 'Added it, see docs/notes-never-written.md. N/A(plan-saved): a one-file note needs no plan' });
     run(dir, 'stop', { transcript_path: tp, session_id: 'log1', stop_hook_active: true, last_assistant_message: 'Added it.' });
     const rows = (() => { try { return JSON.parse(nodeIn('last', '5', '--json').stdout); } catch { return []; } })(), text = nodeIn('last', '5').stdout;
     // the log stays capped

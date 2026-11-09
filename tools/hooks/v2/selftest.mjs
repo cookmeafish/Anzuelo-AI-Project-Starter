@@ -1429,6 +1429,22 @@ report(madeUp.length === 2 && /9f8e7d6/.test(madeUp[0]) && /src\/missing\.js/.te
   for (const [p, t] of keep) t === null ? fs.rmSync(path.join(dir, p), { force: true }) : fs.writeFileSync(path.join(dir, p), t);
   report(prefix.own && !prefix.sub && !noInstall.length && noTry.length === 1 && !off, 'end: "npm --prefix ." is the project\'s run, a subfolder\'s is not; a missing module after a refused install is not asked again, one never installed is; a check shipped off stays off', { prefix, noInstall, noTry, off });
 }
+{ // (REQ: upgrade-review: each item decided with its reason, "later" with its moment, an adopted pack installed; held on a
+  // turn about the project once a day, never on the user's own work)
+  const { upgradeGaps } = await import('./lib.mjs'), nag = path.join(dir, 'tools/hooks/state/v2-upgrade-nag.json'), was = fs.existsSync(path.join(dir, 'docs/DECISIONS.md')) ? fs.readFileSync(path.join(dir, 'docs/DECISIONS.md'), 'utf8') : null;
+  const review = lines => { put('docs/DECISIONS.md', `# Decisions\n## Upgrade review (2026-10-18)\n${lines.join('\n')}\n`); fs.rmSync(nag, { force: true }); };
+  const proj = { runbook: 'docs/playbooks/project.md' }, edit = acts([user('tidy the project notes'), call('Edit', { file_path: path.join(dir, 'docs/DECISIONS.md'), old_string: 'a', new_string: 'b' }), say('Done.')]);
+  const own = acts([user('add a line to my menu notes'), call('Edit', { file_path: path.join(dir, 'src/a.js'), old_string: 'a', new_string: 'b' }), say('Done.')]);
+  review(['- skill: orchestrate: later - when: the next multi-agent job', '- pack: gui: later', '- pack: zz-pack: adopted - Worth it: x / y']);
+  const bad = upgradeGaps(proj, edit), again = upgradeGaps(proj, edit);
+  review(['- skill: orchestrate: declined - this project never runs long multi-agent jobs', '- skill: other: later - when: the next multi-agent job']);
+  const good = upgradeGaps(proj, edit);
+  review(['- skill: orchestrate: ?']);
+  const ownWork = upgradeGaps({}, own);
+  was === null ? fs.rmSync(path.join(dir, 'docs/DECISIONS.md'), { force: true }) : put('docs/DECISIONS.md', was); fs.rmSync(nag, { force: true });
+  report(bad.length === 1 && /"- pack: gui": "later" needs "later - when/.test(bad[0]) && /zz-pack": adopted but not installed/.test(bad[0]) && !/orchestrate/.test(bad[0]) && !again.length && !good.length && !ownWork.length,
+    'end: the upgrade review holds an undecided "later" and an adopted pack not installed, once a day, on a turn about the project; decided items and the user\'s own work pass', { bad, again, good, ownWork });
+}
 // (a Finished section naming a changed file that is not there is an unbacked claim, rule 4: held. The old engine let it
 // pass; v2's stricter verdict is the one kept: tools/starter/reviews/2026-11-08-v2-triage.md, settled conflicts)
 const finNone = claimGaps(acts([user('add the export'), code, say('Done.\n\n## Finished\n- Files: src/export-never-written.js')]));

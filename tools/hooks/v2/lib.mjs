@@ -1014,6 +1014,36 @@ export function smallChange(acts, changed) {
   lines += files.filter(p => !viaTools.has(p)).length * 10;
   return lines <= (cfg.smallLines ?? 40);
 }
+// REQ: upgrade-review. After an engine upgrade every item of the latest "## Upgrade review (<date>)" in docs/DECISIONS.md
+// is decided with its reason ("adopted - Worth it: <gain> / <cost>", "fixed - <how>", "declined - <why>", "later - when:
+// <moment>"), and an adopted pack, skill or rule is really in. Held only on a work turn about the project itself (the
+// project runbook, or the decisions file, tools/ or the rules changed), and at most once a day: a pending review never
+// stalls the user's own work. Lesson (the old suite under v2): v2 had no upgrade review at all.
+export function upgradeGaps(turn, acts) {
+  const text = read('docs/DECISIONS.md'), all = [...text.matchAll(/^## Upgrade review \((\d{4}-\d\d-\d\d)\)[^\n]*\n((?:(?!## )[^\n]*\n?)*)/gm)], m = all[all.length - 1];
+  const changed = m ? changedOf(acts, true) : [];
+  if (!m || !(worked(acts) || changed.length)) return [];
+  const about = turn.runbook === 'docs/playbooks/project.md' || changed.some(p => p === 'docs/DECISIONS.md' || /^(tools\/|AGENTS\.md$|CLAUDE\.md$|docs\/playbooks\/project\.md$)/.test(p));
+  const nag = path.join(STATE(), 'v2-upgrade-nag.json'), day = new Date().toISOString().slice(0, 10);
+  if (!about || (() => { try { return JSON.parse(fs.readFileSync(nag, 'utf8')).at === day; } catch { return false; } })()) return [];
+  const cfg = projectConfig(), rules = read('AGENTS.md') || read('CLAUDE.md'), probs = [];
+  for (const [, kind, item0, d0] of m[2].matchAll(/^- ([a-z-]+): (.+?): (.*)$/gm)) {
+    const item = item0.trim(), d = d0.trim(), it = `"- ${kind}: ${item}"`, open = /^\?|^$/.test(d);
+    if (open) { probs.push(kind === 'self-tests' ? `${it}: run node tools/hooks/selfcheck.mjs until it passes, then write "passed"` : kind === 'fit' ? `${it}: decide the new rows in the fit checklist until node tools/fit.mjs check passes, then write "decided"` : `${it}: decide it ("adopted - Worth it: <gain> / <cost>", "fixed - <how>" or "declined - <why>")`); continue; }
+    if (kind === 'self-tests' || kind === 'fit') continue;
+    if (/^declined\b/i.test(d)) { if (d.replace(/^declined\W*/i, '').length < 8) probs.push(`${it}: say why it was declined`); continue; }
+    if (/^fixed\b/i.test(d)) { if (d.replace(/^fixed\W*/i, '').length < 8) probs.push(`${it}: say how it was fixed`); continue; }
+    if (/^later\b/i.test(d)) { if (!/^later\W+when\s*:\s*\S.{3,}/i.test(d)) probs.push(`${it}: "later" needs "later - when: <the moment it is decided>"`); continue; }
+    if (!/^adopted\b/i.test(d)) { probs.push(`${it}: the decision must start with adopted, fixed, declined or "later - when: <moment>"`); continue; }
+    if (!/worth it\s*:\s*\S[^/]*\/\s*\S/i.test(d)) probs.push(`${it}: adopted needs "Worth it: <gain> / <cost>"`);
+    if (kind === 'pack' && !(cfg.packs || []).includes(item)) probs.push(`${it}: adopted but not installed (node tools/packs.mjs install ${item})`);
+    if (kind === 'skill' && !fs.existsSync(at(`${cfg.skillsDir || 'skills'}/${item}/SKILL.md`))) probs.push(`${it}: adopted but not enabled (node tools/skills.mjs enable ${item})`);
+    if (kind === 'rule' && !rules.includes(item)) probs.push(`${it}: adopted but the rules file has no rule "${item}" (project-rule skill)`);
+  }
+  if (!probs.length) return [];
+  try { fs.mkdirSync(STATE(), { recursive: true }); fs.writeFileSync(nag, JSON.stringify({ at: day })); } catch { }
+  return [`Upgrade review in docs/DECISIONS.md: ${probs.slice(0, 4).join('; ')}${probs.length > 4 ? `; and ${probs.length - 4} more` : ''}.`];
+}
 // (a requirement on what the answer says is met by a draft that passed the pre-check; one on what it must not say is
 // judged on the answer sent)
 const draftMet = (req, read, xr) => { const s = JSON.stringify(req || {}); return s.includes('"answerMatches"') && !s.includes('answerNotMatches')
