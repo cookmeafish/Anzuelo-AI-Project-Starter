@@ -14,7 +14,8 @@ import { knowledgeFromFiles as knowledgeFromFilesOf, figureProblems as figurePro
 import { forbiddenRe, secretHit } from '../settings.mjs';
 import { INJ_PLANTED, INJ_AIMED, INJ_WARNED } from '../injection.mjs';
 import { verbatimHits } from './verbatim.mjs';
-import { hexIds, gitClaimContradicted, REPORTED, IMPROVE_CLAIM, byHandClaim, describesClaim, groupVerdictClaim } from '../claims.mjs';
+import { hexIds, gitClaimContradicted, REPORTED, IMPROVE_CLAIM, byHandClaim, describesClaim, groupVerdictClaim, namedPaths as sharedNamedPaths } from '../claims.mjs';
+import { makeProof } from '../proof.mjs';
 import { SELF_KEY, approvedBefore } from '../selfcmds.mjs';
 import { capsWeight } from '../caps.mjs';
 import { toOtherSession } from '../relay.mjs';
@@ -1380,6 +1381,76 @@ export function claimGaps(acts, history = '') {
   // (a "committed" or "pushed" claim is checked only by the commit it names, above, never by its wording. Lesson (live
   // data and replay): word lists for which sentences claim a commit were wrong more often than right, and each miss
   // grew the list)
+  out.push(...proofGaps(acts));
+  return out;
+}
+
+// REQ: claim-checked (never again, enforced) and check-proven, under v2, as the old engine judged them: in a complaint
+// turn (acts.complaint: the agent's Issue line, this turn or earlier this session, never prompt words) a check written
+// this turn is proven, and a promise that the miss can't come back needs that proof; in any turn, a claim that
+// something is enforced automatically names files a check that runs on its own covers. The shared proof code
+// (tools/hooks/proof.mjs) judges it from the turn's runs alone: no record line ("Proven:", "Learned (...)") is asked
+// for. Lesson (the old engine): an answer said "the project now enforces this on its own" about a check that passed the
+// very code the user had complained about. (Parity with the old engine, oversight 2026-11-09: a promise in an ordinary
+// explanation is not judged outside a complaint.)
+// (a file whose first touch this turn was an edit, not a write, was there before the turn, as was one git had in a
+// commit before it or the turn-start snapshot listed. Lesson (the old suite under v2): a fixed file only the old engine's
+// snapshot knew was taken for one born this turn, so no fix was seen and a check tried on made-up junk passed as proven)
+let proofPure = null;
+const proofOf = (acts = {}) => {
+  const first = new Map();
+  for (const c of acts.calls || []) if (/^(Write|Edit|MultiEdit|NotebookEdit)$/.test(c.name)) { const f = relp(c.input.file_path || c.input.notebook_path || ''); if (!first.has(f)) first.set(f, c.name); }
+  const snap = acts.startHashes?.files || {};
+  return makeProof({
+  ROOT, read: f => { try { return fs.readFileSync(f, 'utf8'); } catch { return ''; } }, abs: f => at(f), exists: f => fs.existsSync(at(f)), rel: p => relp(p),
+  match: (p, gs) => [].concat(gs || []).some(g => globRx(g).test(p)),
+  bornThisTurn: (f, since) => { if (/^(Edit|MultiEdit|NotebookEdit)$/.test(first.get(f) || '') || Object.hasOwn(snap, f) || inGitBefore(f, since)) return false;
+    try { return fs.statSync(at(f)).birthtimeMs > (since || 0) - 1000; } catch { return false; } },
+  loadRequirements: () => { let j = {}; try { j = JSON.parse(fs.readFileSync(at('tools/hooks/requirements.json'), 'utf8')); } catch { }
+    const file = Array.isArray(j.requirements) ? j.requirements : [], off = new Set([...file.map(r => r && r.tag), ...(j.disabled || []).map(d => d && d.tag)]);
+    return { reqs: [...BASE_REQUIREMENTS.filter(b => !off.has(b.tag)), ...file] }; },
+  namedPaths: s => sharedNamedPaths(s, { root: ROOT, exists: f => fs.existsSync(at(f)), pathKey: s2 => relp(s2).replace(/\/+$/, '') }),
+  LEARNED_NONE: /$^/, NOT_A_SOURCE: /^(AGENTS|CLAUDE|DIRECTORY|README)\.md$|^(docs\/(playbooks|checks)|skills|tools|\.claude|\.codex|\.cache)\//, NOTES_FILE: '.cache/turn-notes.md' });
+};
+// (a file git had in a commit made before the turn was not born this turn, whatever its creation time says)
+const inGitBefore = (f, since) => { const r = spawnSync('git', ['log', '-1', '--format=%H', `--before=${Math.floor((since || 0) / 1000)}`, '--', f], { cwd: ROOT, encoding: 'utf8', timeout: 5000 }); return !!String(r.stdout || '').trim(); };
+// The old engine's turn record, made from v2's: the commands in order with the files edited before each, the edits as
+// transcript rows (removedLines and written samples read them), and the files changed.
+export function proofTurn(acts) {
+  const since = (t => Number.isNaN(+t) ? Date.parse(t) || 0 : +t)(acts.at || acts.started || 0), edited = [], runs = [];
+  for (const c of acts.calls || []) {
+    if (/^(Write|Edit|MultiEdit|NotebookEdit)$/.test(c.name)) edited.push(relp(c.input.file_path || c.input.notebook_path || ''));
+    else if (/^(Bash|PowerShell)$/.test(c.name) && typeof c.input.command === 'string') runs.push({ cmd: c.input.command, out: c.out || '', error: !!c.error, editedBefore: edited.slice() });
+  }
+  const entries = (acts.calls || []).map(c => ({ type: 'assistant', message: { content: [{ type: 'tool_use', name: c.name, input: c.input || {} }] } }));
+  return { answer: String(acts.answer || ''), said: String(acts.said || acts.answer || ''), notes: '', since, runs, cmds: runs.map(r => r.cmd), entries, changed: changedOf(acts) };
+}
+export function proofGaps(acts) {
+  // (the claim patterns need no io: built once, and the turn's io only when the answer has a claim)
+  const a = String(acts.answer || ''), R = proofPure ||= makeProof({});
+  const neverAgain = a.split(/(?<=[.!?\n])\s+/).find(s => R.NEVER_AGAIN.test(s) && !describesClaim(s) && !/\b(make sure|making sure|to keep|try to|helps?|less likely)\b/i.test(s));
+  const enforced = neverAgain ? '' : R.enforcedClaim(a), complaint = !!acts.complaint;
+  if (!complaint && !enforced) return [];
+  const x = proofTurn(acts);
+  // (in the starter itself, an engine fix is proven by its new self-test scenarios)
+  if (fs.existsSync(at('.starter-template')) && x.changed.includes('tools/hooks/selfcheck.mjs')) return [];
+  const P = proofOf(acts), out = [];
+  const proof = complaint ? P.checkProof(x, { lines: false }) : { checks: [], missing: [] };
+  const how = 'Run the check on the version before the fix (git show HEAD:<file> > .cache/before-<file>, or a saved copy) and see it fail, then on the fixed files and every file it governs and see it pass (node tools/hooks/hooks.mjs prove "<the check\'s command>" does both)';
+  if (proof.missing.length) out.push(`The new check (${proof.checks.slice(0, 3).join(', ')}) is not proven: ${proof.missing.join('; ')}. Seen: ${proof.seen.join('; ') || 'no run of it'}. ${how}; if it truly cannot run on samples, say why in one line.`);
+  if (complaint && neverAgain && (!proof.checks.length || proof.missing.length))
+    out.push(`The answer promises it can't happen again ("${neverAgain.trim().slice(0, 70)}"), but ${proof.checks.length ? 'the new check is not proven yet (above)' : 'no new check was shown failing on what went wrong and passing on good samples'}. ` +
+      `${proof.checks.length ? 'Prove it' : how}, or say what was put in place and what it does not catch, without the promise.`);
+  if (!enforced) return out;
+  // (the files the claim is about: in a complaint turn the ones it or the answer names and the turn changed, shown failing
+  // on the case; otherwise only the ones its sentence names. A setup answer's "Rules, each checked automatically" is about
+  // the engine's guards)
+  const g = P.enforcementGaps(x, projectConfig(), enforced, complaint, { lines: false });
+  if (g.uncovered.length || (complaint && !g.proven))
+    out.push(`The answer says this is enforced ("${enforced.trim().slice(0, 80)}"), but ` +
+      [g.uncovered.length && `no check that runs on its own covers ${g.uncovered.slice(0, 3).join(', ')} (a check that runs only when a skill or runbook is used does not count; tools/hooks/requirements.json and the knowledgeDirs in tools/hooks/config.json set what is covered)`,
+        complaint && !g.proven && 'nothing this turn showed the check failing on the case: run its scenarios (node tools/hooks/selfcheck.mjs --tags <check>), or run it on a sample of what it should stop and see it fail'].filter(Boolean).join('; and ') +
+      '. Or say plainly what is checked and what is not, without the promise.');
   return out;
 }
 

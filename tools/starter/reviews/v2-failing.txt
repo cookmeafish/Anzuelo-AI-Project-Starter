@@ -266,20 +266,8 @@ stop: broken requirements.json: blocked
 stop: changelog: a check list changed without a CHANGELOG line: blocked
 stop: check-proven: a "**Probado:**" label alone, with no full line anywhere: blocked, and the message gives the line filled in from the runs
 stop: check-proven: a "Proven:" line with only one good sample: blocked
-stop: check-proven: a copy made after the fix is no earlier state, and the message says what it saw: blocked
-stop: check-proven: a made-up sample that is not the text the fix took out: blocked
-stop: check-proven: a new blocking check never run on the existing files it governs: blocked, and the message names them
-stop: check-proven: a new check tried only on made-up junk after the fix, and a promise: blocked
-stop: check-proven: a new ts file named like a test after a complaint is a check: blocked
-stop: check-proven: a run that printed its failure count and exit code, its last command succeeding: a run with a failure is no passing run: blocked
-stop: check-proven: a written sample fails after the fix, but the answer does not say the problem was missing: blocked, and the runs read plainly
 stop: check-proven: good samples with no edge case from the project's own words: blocked
 stop: check-proven: the existing files covered but no count in the "Proven:" line: blocked
-stop: check-proven: the same Spanish-named check, run only after the fix, is counted as the check: blocked
-stop: claim-checked: "checked automatically, can't get through" in a complaint turn with no proof run: blocked
-stop: claim-checked: "you made a new note without linking it" is a complaint: the unproven claim is blocked
-stop: claim-checked: a Spanish promise after a complaint with no check behind it: blocked
-stop: claim-checked: the claim about vault notes no check covers (their folder is not in knowledgeDirs), even with a passing run: blocked
 stop: commit archaeology backed by commit hashes: passes
 stop: commit archaeology with a confidence label: passes
 stop: crash blocks once, then releases

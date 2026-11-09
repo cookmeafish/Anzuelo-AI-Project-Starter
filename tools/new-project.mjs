@@ -24,7 +24,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { CORE_SKILLS, today as localToday, usageOf, isEngineCheck, shippedChecks, checkKey, ENGINE_CHECKS_HISTORY, changelogSince, breakingItems, withReviewBlock, fastestBench, probeEngine, noteEngineChange } from './hooks/hooks.mjs';
+import { CORE_SKILLS, today as localToday, usageOf, isEngineCheck, shippedChecks, checkKey, ENGINE_CHECKS_HISTORY, changelogSince, breakingItems, upgradeReport, withReviewBlock, fastestBench, probeEngine, noteEngineChange } from './hooks/hooks.mjs';
 import { wire } from './hooks/wire.mjs';
 
 const STARTER = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -32,7 +32,7 @@ const starterHead = () => (spawnSync('git', ['rev-parse', '--short', 'HEAD'], { 
 
 // Engine: generic machinery, replaced on --upgrade. Everything else is the project's own content.
 const ENGINE = [
-  'tools/hooks/hooks.mjs', 'tools/hooks/selfcheck.mjs', 'tools/hooks/selftest-cache.mjs', 'tools/hooks/trigger-cases.mjs', 'tools/hooks/git-guard.mjs', 'tools/hooks/statusline.mjs', 'tools/hooks/paths.mjs', 'tools/hooks/settings.mjs', 'tools/hooks/repo.mjs', 'tools/hooks/people.mjs', 'tools/hooks/labels.mjs', 'tools/hooks/base-checks.mjs', 'tools/hooks/wakeups.mjs', 'tools/hooks/injection.mjs', 'tools/hooks/jsonl.mjs', 'tools/hooks/selfcmds.mjs', 'tools/hooks/pause.mjs', 'tools/hooks/caps.mjs', 'tools/hooks/relay.mjs', 'tools/hooks/claims.mjs', 'tools/hooks/knowledge.mjs', 'tools/audit.mjs', 'tools/always.mjs', 'tools/packs.mjs',
+  'tools/hooks/hooks.mjs', 'tools/hooks/selfcheck.mjs', 'tools/hooks/selftest-cache.mjs', 'tools/hooks/trigger-cases.mjs', 'tools/hooks/git-guard.mjs', 'tools/hooks/statusline.mjs', 'tools/hooks/paths.mjs', 'tools/hooks/settings.mjs', 'tools/hooks/repo.mjs', 'tools/hooks/people.mjs', 'tools/hooks/labels.mjs', 'tools/hooks/base-checks.mjs', 'tools/hooks/wakeups.mjs', 'tools/hooks/injection.mjs', 'tools/hooks/jsonl.mjs', 'tools/hooks/selfcmds.mjs', 'tools/hooks/pause.mjs', 'tools/hooks/caps.mjs', 'tools/hooks/relay.mjs', 'tools/hooks/claims.mjs', 'tools/hooks/proof.mjs', 'tools/hooks/knowledge.mjs', 'tools/audit.mjs', 'tools/always.mjs', 'tools/packs.mjs',
   'tools/writing-check.mjs', 'tools/integrity-check.mjs',
   '.githooks/commit-msg', '.githooks/pre-commit', '.githooks/pre-push',
   'docs/checks/session-checklist.md', 'docs/checks/finish-checklist.md', 'docs/checks/runbook-standards.md',
@@ -840,9 +840,7 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   const named = after.failed.map(s => `${s}${onlyNew(s) ? ' (expected: new candidates to decide in the review)' : before.failed.includes(s) ? ' (failed before too)' : ''}`);
   console.log(`\nChecks: ${before.failed.length} failing before, ${after.failed.length} after${named.length ? `: ${named.join('; ')}` : ''}. Hooks: ${Object.entries(after.speed).map(([k, v]) => `${k} ${before.speed[k] ?? '?'} → ${v} ms`).join(', ') || 'not timed'}.`);
   const open = items.filter(i => !i.includes('||'));
-  console.log(open.length ? `\nUPGRADE REVIEW: ${open.length} item(s) to decide with the user, in docs/DECISIONS.md "## Upgrade review (${today})${revTo}":\n` + open.map(i => `  - ${i}`).join('\n')
-    : `\nUPGRADE REVIEW: nothing to decide (the self-tests ran here and passed: ${stLine.replace(/^selfcheck:\s*/, '')}).`);
-  if (news.length) console.log(`\nWhat changed in the starter since ${last || 'this project was made'} (tools/starter/STARTER-CHANGELOG.md):\n` + news.map(e => e.split('\n')[0]).join('\n'));
+  console.log(upgradeReport({ open, news, last, today, revTo, stLine }));
   console.log(summary(open.length));
   process.exit(0);
 }
