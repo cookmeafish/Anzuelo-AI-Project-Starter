@@ -39,7 +39,7 @@ export function bulkDir(parentAbs, name, kind = 'all') {
   if (!/^(target|vendor|out|bin|obj)$/.test(name)) return false;
   try { return fs.readdirSync(parentAbs).some(n => BUILD_FILES.test(n)); } catch { return false; }
 }
-const localDate = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+export const localDate = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 export const today = () => localDate(); // the user's calendar day, not UTC
 // A tool's usage text: its whole header comment, so the help can never be cut short or include code.
 export const usageOf = url => { const out = []; for (const l of read(fileURLToPath(url)).split(/\r?\n/).slice(1)) { if (!l.startsWith('//')) break; out.push(l); } return out.join('\n'); };

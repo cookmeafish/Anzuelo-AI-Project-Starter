@@ -8829,9 +8829,9 @@ if (mineB() && (!TAGS || TAGS.includes('upset-acknowledged'))) { // REQ: upset-a
     fs.writeFileSync(path.join(helperDir, 'agent-h4.jsonl'), hRow('The user sent a new message while you were working:\nWHY DID YOU SKIP THE CHECK AGAIN? THIS IS SUPER BAD') + '\n');
     const hUpset = inH('h4', 'Read', { file_path: path.join(dir, 'README.md') });
     fs.writeFileSync(path.join(dir, 'tools/hooks/state/upset-pending.json'), '{}');
-    // (the one note a helper gets: the user's own message, to answer first, once. The user, 2026-11-08: a question typed
-    // into a busy helper waited unanswered)
-    const onlyAnswerFirst = o => { let ctx = ''; try { ctx = JSON.parse(o).hookSpecificOutput?.additionalContext || ''; } catch { } return !ctx || (/^The user wrote while you work: /.test(ctx) && !ctx.includes('\n')); };
+    // (the one note a helper gets: the user's own message, to answer first, and once more if still unanswered two tool
+    // calls later (late-answered). The user, 2026-11-08: a question typed into a busy helper waited unanswered)
+    const onlyAnswerFirst = o => { let ctx = ''; try { ctx = JSON.parse(o).hookSpecificOutput?.additionalContext || ''; } catch { } return !ctx || (/^(Still unanswered: the|The) user wrote while you work: /.test(ctx) && !ctx.includes('\n')); };
     report([hRouted, hHeld, hFreed, hOther, hUpset].every(o => !isDeny(o) && onlyAnswerFirst(o)) && !String(hStop).trim(), 'helper-turn-checked: a helper is never routed, held or given notices, even when the user writes to it (REQ quiet-work: its result is checked with the main turn)',
       JSON.stringify([hRouted, hHeld, hFreed, hOther, hStop, hUpset].map(o => String(o).slice(0, 160))));
     // (a record may cover several items, and only this turn's records count. Lesson (the user): a turn recorded

@@ -11,7 +11,7 @@ import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 import { PROJECT, ENGINE, LOCAL, where, whereWrite, relOf, listAll, kind, split } from './paths.mjs';
-import { ROOT, bulkDir, today, usageOf, read, readJSON, abs, exists, list, walkStat, esc, DEFAULTS, config, re, secretRes, secretHit, homeDir, privateTermsPath, privateTermsListFile, forbiddenTerms, forbiddenRe } from './settings.mjs';
+import { ROOT, bulkDir, today, localDate, usageOf, read, readJSON, abs, exists, list, walkStat, esc, DEFAULTS, config, re, secretRes, secretHit, homeDir, privateTermsPath, privateTermsListFile, forbiddenTerms, forbiddenRe } from './settings.mjs';
 import { testInputsHash, aiAttributedCommits, gitignoreProblems } from './repo.mjs';
 export { ROOT, bulkDir, today, usageOf, read, readJSON, abs, exists, list, walkStat, esc, config, re, secretRes, secretHit, privateTermsPath, privateTermsListFile, forbiddenTerms, forbiddenRe, testInputsHash, aiAttributedCommits, gitignoreProblems };
 // (the safety guard is v2/guard.mjs, loaded by the pretool hook itself: a guard that cannot load is then reported, not
