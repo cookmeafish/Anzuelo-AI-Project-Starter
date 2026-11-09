@@ -542,6 +542,20 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
       decided: [...bg([user('we decided to use leeks'), say('Noted.')]), ...bg([user('perfect, keep doing this'), say('Thanks.')])].map(s => s.slice(0, 50)),
     };
     put('tools/hooks/requirements.json', JSON.stringify(BASE_OFF));
+    { // (REQ: forbidden-terms: a name the user banned that a command wrote into a file is held, naming the file; a file
+      // without it, or one the engine keeps its own state in, is not)
+      const { forbiddenGaps } = await import('./lib.mjs');
+      const cf = path.join(dir, 'tools/hooks/config.json'), kept = fs.existsSync(cf) ? fs.readFileSync(cf, 'utf8') : null;
+      put('tools/hooks/config.json', JSON.stringify({ ...(kept ? JSON.parse(kept) : {}), forbiddenTerms: ['Quillmora'] }));
+      const turnStart = new Date(Date.now() - 2000).toISOString();
+      put('docs/soup-notes.md', 'Soup for Quillmora tonight.\n'); put('docs/plain-notes.md', 'Soup tonight.\n'); put('.cache/scratch.md', 'Quillmora\n');
+      const fa = acts([user('write the soup notes'), call('Bash', { command: 'node tools/notes.mjs soup' }, 'ok'), say('Finished: docs/soup-notes.md')]); fa.at = turnStart;
+      const fg = forbiddenGaps(fa);
+      kept === null ? fs.rmSync(cf, { force: true }) : fs.writeFileSync(cf, kept);
+      ['docs/soup-notes.md', 'docs/plain-notes.md', '.cache/scratch.md'].forEach(f => fs.rmSync(path.join(dir, f), { force: true }));
+      report(fg.length === 1 && /docs\/soup-notes\.md \("Quillmora"\)/.test(fg[0]) && !/plain-notes|scratch/.test(fg[0]),
+        'end: forbidden-terms: a banned name a command wrote into a file is held, naming the file; files without it and the engine\'s own state are not', JSON.stringify(fg));
+    }
     report(base.vetNo && !base.vetYes && !base.quoted && base.viaC && base.finNo && !base.finYes && base.logNo && base.redoNo && !base.redoYes && base.askNo && !base.decided.length,
       'end: the built-in checks hold under v2 (install-vetted, an install named inside a quoted reason is not one but one run through bash -c is, finished-summary, changelog, redo-changes, self-improve); decision-logged and praise-captured, prompt words alone, never hold', JSON.stringify(base));
     report(!newKeys.kwHeld && newKeys.failHeld && newKeys.helpersUnchecked && !newKeys.helpersChecked && newKeys.promptOnly && newKeys.unknown === 'fooBar',

@@ -4877,6 +4877,7 @@ const V2_ASKS = {
   'question-answered': /^- Answer the user's message typed at /m, // f715d31
   'security-code': /^- Check: Security-sensitive code changed /m,
   'wakeup-left': /^- (A wakeup you scheduled is|\d+ wakeups you scheduled are) still pending: /m,
+  'forbidden-terms': /^- These files now hold a name the user asked to keep out of the project: /m,
 };
 // (an engine check from requirements.json is recognized by its own message, which v2's evaluator gives as "Check: ...")
 const ENGINE_MSG = await (async () => { const out = {}; try { for (const q of (await import(pathToFileURL(path.join(ROOT, 'tools/hooks/base-checks.mjs')).href)).BASE_REQUIREMENTS) out[q.tag] = q.message; } catch { }

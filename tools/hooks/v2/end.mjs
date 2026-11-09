@@ -5,9 +5,10 @@ import path from 'node:path';
 import { passLine } from './lines.mjs';
 import { unansweredLate } from './late.mjs';
 import { wakeGaps } from '../wakeups.mjs';
+import { forbiddenGaps } from './lib.mjs';
 import { ROOT, at, runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, questionGaps, noteGaps, quoteGaps, tail, helpersRunning, backgroundRuns, helperRuns, evidenceGaps, evidenceOf, skillBooks, alwaysGaps, scopeGaps, earlierPrompts, ALWAYS, engineCheckGaps } from './lib.mjs';
 // (the two data tables, one evaluator each: the project's always list and the engine's own checks)
-const tableGaps = acts => [...alwaysGaps(acts), ...engineCheckGaps(acts)];
+const tableGaps = acts => [...alwaysGaps(acts), ...engineCheckGaps(acts), ...forbiddenGaps(acts)];
 
 // Check 1: the routed runbook, else the one the agent opened (not a skill it names), was followed and its checkable
 // "Done when" items met. A runbook the turn wrote or changed, by a script too, is its work, not its procedure.

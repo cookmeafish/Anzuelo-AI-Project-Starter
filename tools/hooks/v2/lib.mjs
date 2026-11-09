@@ -9,6 +9,7 @@ import { roots, resolver } from '../paths.mjs';
 import { people, personOf, peopleIn, peopleFor } from '../people.mjs';
 import { inEnglish } from '../labels.mjs';
 import { BASE_REQUIREMENTS } from '../base-checks.mjs';
+import { forbiddenRe } from '../settings.mjs';
 
 export const ROOT = process.env.ANZUELO_ROOT || process.cwd();
 // (where each file is: in a project with the engine in .anzuelo/engine, runbooks and skills come from the local copy
@@ -794,11 +795,32 @@ export const ranText = cmd => String(cmd || '')
 export const REQ_KEYS = ['skillUsed', 'playbookUsed', 'filesChanged', 'filesIgnore', 'answerMatches', 'answerNotMatches', 'promptMatches', 'promptNotMatches', 'toolRan', 'toolPassed', 'workTurn', 'minToolCalls', 'anyOf', 'ranFailing', 'toolCount', 'fileRead', 'playbookRouted', 'guiChanged', 'changedContentMatches', 'checkedAfterAgents'];
 export const promptOnly = c => { const ks = Object.keys(c || {}); return ks.length > 0 && ks.every(k => /^(promptMatches|promptNotMatches|filesIgnore)$/.test(k)); };
 export const unknownKeys = c => !c || typeof c !== 'object' ? [] : Object.entries(c).flatMap(([k, v]) => k === 'anyOf' ? v.flatMap(unknownKeys) : REQ_KEYS.includes(k) ? [] : [k]);
-export function engineCheckGaps(acts) {
+// The files this turn changed: by the edit tools, and (with a turn start) any whose time is after it, so a command's
+// writes count too. Walked once per turn.
+function changedOf(acts) {
   const since = Date.parse(acts.at || '') || 0;
   if (since && !walked.has(acts)) walked.set(acts, filesMatching('**/*'));
-  const changed = [...new Set([...acts.calls.filter(c => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name)).map(c => relp(c.input.file_path || '')), ...(since ? walked.get(acts).filter(f => !/^(\.cache|tools\/hooks\/state)\//.test(f) && mtime(f) > since) : [])])];
-  const x = { changed, runbook: acts.runbook || '' };
+  return [...new Set([...acts.calls.filter(c => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name)).map(c => relp(c.input.file_path || '')), ...(since ? walked.get(acts).filter(f => !/^(\.cache|tools\/hooks\/state)\//.test(f) && mtime(f) > since) : [])])];
+}
+// REQ: forbidden-terms (files a command changed: the guard sees only the edit tools). A name the file already had at
+// git's last commit is no new slip; ignored files and the engine's own list and state don't count.
+const FORBID_FREE = /^(tools\/hooks\/config\.json|tools\/hooks\/state\/|\.cache\/|\.git\/)/;
+export function forbiddenGaps(acts) {
+  // (the project's own config: settings.mjs reads the folder it sits in, not ANZUELO_ROOT)
+  const rx = forbiddenRe(projectConfig());
+  if (!rx) return [];
+  const n = s => (String(s || '').match(rx) || []).length, bad = [];
+  for (const p of changedOf(acts).filter(p => p && !FORBID_FREE.test(p) && !/\.(png|jpe?g|gif|ico|webp|pdf|zip|woff2?|ttf|mp[34])$/i.test(p)).slice(0, 200)) {
+    let now = ''; try { now = fs.readFileSync(path.join(ROOT, p), 'utf8'); } catch { continue; }
+    if (!n(now)) continue;
+    const before = spawnSync('git', ['show', `HEAD:${p}`], { cwd: ROOT, encoding: 'utf8' });
+    if (n(now) > n(before.status === 0 ? before.stdout : '') && spawnSync('git', ['check-ignore', '-q', p], { cwd: ROOT }).status !== 0)
+      bad.push(`${p} ("${new RegExp(rx.source, 'iu').exec(now)[1]}")`);
+  }
+  return bad.length ? [`These files now hold a name the user asked to keep out of the project: ${bad.slice(0, 5).join('; ')}. Replace each with a neutral word or example.`] : [];
+}
+export function engineCheckGaps(acts) {
+  const x = { changed: changedOf(acts), runbook: acts.runbook || '' };
   // (an answer in the user's language meets the checks with its own labels: each label line is read in English too)
   const read = { ...acts, answer: inEnglish(acts.answer || '', projectConfig()) };
   return engineChecks().filter(r => !promptOnly(r.when) && holdsReq(r.when, read, x) === true && holdsReq(r.require, read, x) === false && !waivedTag(r.tag, acts)).map(r => `Check: ${r.message}`);
