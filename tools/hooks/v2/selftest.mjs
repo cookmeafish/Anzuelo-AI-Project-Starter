@@ -2830,6 +2830,16 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   report(quiet === 0 && asked && reads === quiet + 1, 'speed: a plain answer\'s trace check never reads the session history; the history is read once, when the check asks for it',
     JSON.stringify({ quiet, asked, reads }));
 }
+// (the end check's own send-back is no word of the user's: the copied-words check, the upset check and the rest read
+// only what the user typed. Lesson (this starter's own session): the engine's message strings in its own files were
+// flagged as the user's words, because its send-back was read as typed)
+{
+  const { turnActs } = await import('./lib.mjs');
+  const a = turnActs([{ type: 'user', message: { content: 'add a csv export' } },
+    { type: 'user', message: { content: 'Stop hook feedback:\n- Check: End the answer with a Finished section: what was done' } }]);
+  report(/add a csv export/.test(a.heard) && !/Stop hook feedback|Finished section/.test(a.heard) && /Finished section/.test(a.context) && a.parts.length === 1,
+    'end: the end check\'s own send-back is context, not the user\'s words (heard and parts leave it out)', JSON.stringify({ heard: a.heard, parts: a.parts }));
+}
 
 // size budget (docs/plans/2026-11-05-engine-v2.md): the engine stays small, and the end check has at most 15 checks.
 // Lesson: v1 grew to about 9,600 lines of hooks, most of it fixing friction it made itself.

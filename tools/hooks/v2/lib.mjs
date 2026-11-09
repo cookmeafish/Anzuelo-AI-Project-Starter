@@ -429,7 +429,10 @@ export function turnActs(rows) {
     // (only the conversation's own rows: the host's request copies repeat results with no time. Lesson (trial): a copy
     // erased when each test run ended, and runs that passed after the last change were asked for again)
     if (r.type !== 'user' && r.type !== 'assistant') continue;
-    if (r.type === 'user' && userText(r) !== null) { const t = userText(r).slice(0, 20000); context += t + '\n'; heard += t + '\n'; if (typed(r)) parts.push(t); }
+    // (the end check's own send-back arrives as a user row, but the user did not type it: it is context, never the user's
+    // words. Lesson (this starter's own session): its message text, which the engine's files hold, was flagged as the
+    // user's words copied into them)
+    if (r.type === 'user' && userText(r) !== null) { const t = userText(r).slice(0, 20000); context += t + '\n'; if (/^\s*Stop hook feedback\b/.test(t)) continue; heard += t + '\n'; if (typed(r)) parts.push(t); }
     const c = r.message?.content;
     if (!Array.isArray(c)) continue;
     // (a message the user typed mid-turn comes as a text item beside tool results: heard too)
