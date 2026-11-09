@@ -14,7 +14,7 @@ import { knowledgeFromFiles as knowledgeFromFilesOf, figureProblems as figurePro
 import { forbiddenRe, secretHit } from '../settings.mjs';
 import { INJ_PLANTED, INJ_AIMED, INJ_WARNED } from '../injection.mjs';
 import { verbatimHits } from './verbatim.mjs';
-import { hexIds, gitClaimContradicted, REPORTED, IMPROVE_CLAIM } from '../claims.mjs';
+import { hexIds, gitClaimContradicted, REPORTED, IMPROVE_CLAIM, byHandClaim } from '../claims.mjs';
 import { SELF_KEY, approvedBefore } from '../selfcmds.mjs';
 import { capsWeight } from '../caps.mjs';
 import { toOtherSession } from '../relay.mjs';
@@ -1325,6 +1325,10 @@ export function claimGaps(acts, history = '') {
   // v2): "nothing is committed" passed while the last commit had the file)
   const gc = gitClaimContradicted(a, { root: ROOT, exists: f => fs.existsSync(at(f)), pathKey: s => relp(s).replace(/\/+$/, '') });
   if (gc) out.push(`The answer says git holds no earlier version ("${gc.sentence.slice(0, 90)}"), but git has commits (last: ${gc.head})${gc.had.length ? `, including ${gc.had.join(', ')}` : ''}. Open the version the user saw (git log -- <file>, then git show HEAD:<file>) and say what it shows, or leave the claim out.`);
+  // (a test "done by hand": nobody here tests by hand, so it says how it ran, or that it is for the user to try. Lesson
+  // (the old engine): "Lo probé a mano" described a run a script drove)
+  const handClaim = byHandClaim(a);
+  if (handClaim) out.push(`The answer says a test was done by hand ("${handClaim.trim().slice(0, 80)}"), but nobody here tests by hand: say how it ran ("with an automated browser", "con un navegador automatizado", and the tool), or that it is for the user to try.`);
   // (engine feedback reaches the starter only by "starter.mjs report" or a message to its session; "feedback" only writes
   // the note. Lesson (the old engine): an engine bug was "reported to the tool's makers" when the report never ran)
   const sents = a.split(/(?<=[.!?\n])\s+/), ran = re => acts.calls.some(c => /^(Bash|PowerShell)$/.test(c.name) && re.test(`${c.input.command || ''}\n${c.out || ''}`));

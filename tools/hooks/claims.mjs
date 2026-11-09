@@ -63,3 +63,21 @@ export function gitClaimContradicted(answer, io) {
 // the starter's makers ("reported to the makers", Spanish too): both engines check them (claim-checked).
 export const IMPROVE_CLAIM = /\bonly (makes? (it|things|projects?|the projects?) )?(better|improve(s|ments?)?)\b|\b(isn'?t|is not|aren'?t|are not|never|nothing|no) (any |made |got )?worse\b|\bnot (any )?worse\b|\b(makes?|made) (new |every )?(projects?|it) (only )?better\b|\bsolo mejora|\bno (lo |la )?empeora/i;
 export const REPORTED = /\b(reported|sent|passed on|forwarded|submitted|filed)\b[^.\n]{0,40}\bto the (tool'?s |starter'?s |engine'?s )?(makers?|authors?|developers?|maintainers?|starter)\b|\b(the )?(makers?|developers?|maintainers?) (were|was|have been|has been) (told|notified|informed)\b|\b(report[eé]|reportad[oa]|envi[eé]|enviad[oa]|avis[eé])\b[^.\n]{0,40}\b(a los|al) (creador(es)?|autor(es)?|desarrollador(es)?|starter)\b/i;
+
+// The sentences of an answer that can make a claim: not its label lines ("Playbook:", "Learned:", "Proven:"...).
+export const claimSentences = answer => String(answer || '').replace(/<!--[\s\S]*?-->/g, ' ').split(/(?<=[.!?])\s+|\r?\n/)
+  .filter(s => !/^[\s>*_-]*(playbook|skill|worth it|learned|proven|gu[ií]a|habilidad|vale la pena|aprendido|probado)s?\b[^:\n]{0,20}:/i.test(s));
+// A sentence in which the agent says it tested a page or app by hand (not one that asks the user to, nor a negation).
+const BY_HAND = /\b(by hand|manually|hand-tested)\b|(?<!\p{L})(a mano|manualmente)(?!\p{L})/iu;
+const UI_TEST = /\b(test(ed|ing)?|tried|clicked|clicking|browser|page|screen|mobile|desktop)\b|(?<!\p{L})(prob[eé]|probad[oa]|navegador|p[aá]gina|clic|m[oó]vil|escritorio|pantalla)(?!\p{L})/iu;
+export function byHandClaim(answer) {
+  // (a label line, "Lo probé a mano:", is read with the line after it)
+  const lines = claimSentences(answer), at = i => /:\**\s*$/.test(lines[i]) ? `${lines[i]} ${lines[i + 1] || ''}` : lines[i];
+  // ("by hand" after a word for making data says how the data was made, not how it was tested. Lesson (a field report):
+  // "tested: ... keeps the rows written by hand" was blocked twice)
+  const made = /\b(written|wrote|entered|typed|added|edited|filled( in)?|drawn|copied|kept|curated|maintained|labell?ed|sorted|made|created|built|set)\s+(in\s+)?(by hand|manually)\b|(?<!\p{L})(escrit|añadid|introducid|copiad|editad|hech)[oa]s?\s+(a mano|manualmente)(?!\p{L})/giu;
+  // (a phrase in quotes is named, not claimed. Lesson, dogfood: an answer describing this check quoted the phrase)
+  const quoted = /"[^"\n]{1,120}"|“[^”\n]{1,120}”|«[^»\n]{1,120}»/g;
+  return lines.map((_, i) => at(i)).find(full => { const s = full.replace(quoted, ' ').replace(made, ' '); return BY_HAND.test(s) && UI_TEST.test(s)
+    && !/\b(you|your|the user|not|n't|never|nothing|should|could|can)\b|(?<!\p{L})(t[uú]|usted|puedes|prueba t[uú]|pru[eé]balo|no|nunca|nada)(?!\p{L})/iu.test(s.replace(BY_HAND, ' ')); }) || '';
+}

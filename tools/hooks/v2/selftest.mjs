@@ -1574,6 +1574,15 @@ const { questionGaps } = await import('./lib.mjs');
   report(took && capped && cleaned && JSON.stringify(got) === '[false,true,true,false,true,true]', 'end: a file marker counts a file whose content changed this turn, or was committed this turn, not one only touched: unchanged since a commit made before the turn, or since the turn began for one already changed then (the prompt hook\'s background snapshot; not for a file written while it ran; none past 2,000 files; day-old ones removed)', JSON.stringify({ took, capped, cleaned, got, err: (out.stderr || '').slice(0, 300) }));
 }
 
+// (claim-checked: a test "done by hand" is held, in Spanish too; data "written by hand", asking the user to try it, or an
+// automated browser is not)
+{
+  const { claimGaps } = await import('./lib.mjs');
+  const hand = ans => claimGaps(acts([user('fix the index'), say(ans)])).some(s => /a test was done by hand/.test(s));
+  const bh = { en: hand('I tested the page by hand: the links work.'), es: hand('- **Lo probé a mano:** en el navegador, la página salta a su sección.'),
+    data: hand('Tested with the merge script: it keeps the rows written by hand.'), user: hand('Try it by hand on your phone when you like.'), auto: hand('Con un navegador automatizado, la página salta a su sección.') };
+  report(bh.en && bh.es && !bh.data && !bh.user && !bh.auto, 'end: claim-checked: a test "done by hand" is held (Spanish too); data written by hand, the user asked to try it, or an automated browser is not', JSON.stringify(bh));
+}
 // (claim-checked: "reported to the makers" with no report sent is held, one with a message sent to the starter's session
 // is not; in the starter, "only makes projects better" with no judged round is held, one with NOT WORSE printed is not)
 {

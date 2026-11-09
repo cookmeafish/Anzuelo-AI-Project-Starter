@@ -274,9 +274,7 @@ stop: check-proven: a written sample fails after the fix, but the answer does no
 stop: check-proven: good samples with no edge case from the project's own words: blocked
 stop: check-proven: the existing files covered but no count in the "Proven:" line: blocked
 stop: check-proven: the same Spanish-named check, run only after the fix, is counted as the check: blocked
-stop: claim-checked: "Lo probé a mano" about a browser run: blocked
 stop: claim-checked: "checked automatically, can't get through" in a complaint turn with no proof run: blocked
-stop: claim-checked: "tested by hand" next to data written by hand: blocked
 stop: claim-checked: "the checks passed" when the agent's own run reports items missing, after helpers worked: blocked
 stop: claim-checked: "the other 21 menus passed" after helpers reviewed them in an earlier turn: blocked
 stop: claim-checked: "you made a new note without linking it" is a complaint: the unproven claim is blocked

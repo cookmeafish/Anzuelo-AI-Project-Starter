@@ -19,7 +19,7 @@ import { LABELS_ES, WORTH_IT, plainLabel, EN_COPIES, inEnglish, labelsEsHint, LA
 export { labelsEsHint, LABELS_ES_HINT };
 import { BASE_REQUIREMENTS, FAILED_RUN, MISSING_TOOL, PROBLEM_WORDS } from './base-checks.mjs';
 import { knowledgeFromFiles as sharedKnowledgeFromFiles, figureProblems as sharedFigureProblems } from './knowledge.mjs';
-import { IMPROVE_CLAIM, REPORTED, NOT_IN_GIT, gitHolds as sharedGitHolds, namedPaths as sharedNamedPaths, gitClaimContradicted as sharedGitClaim } from './claims.mjs';
+import { claimSentences, byHandClaim, IMPROVE_CLAIM, REPORTED, NOT_IN_GIT, gitHolds as sharedGitHolds, namedPaths as sharedNamedPaths, gitClaimContradicted as sharedGitClaim } from './claims.mjs';
 export { ROOT, bulkDir, today, usageOf, read, readJSON, abs, exists, list, walkStat, esc, config, re, secretRes, secretHit, privateTermsPath, privateTermsListFile, forbiddenTerms, forbiddenRe, testInputsHash, aiAttributedCommits, gitignoreProblems, people, personOf, peopleIn, peopleFor, pathsPeople, LABELS_ES, WORTH_IT, plainLabel, EN_COPIES, inEnglish, BASE_REQUIREMENTS };
 // (the safety guard is v2/guard.mjs, loaded by the pretool hook itself: a guard that cannot load is then reported, not
 // a hook that cannot start)
@@ -1291,8 +1291,6 @@ export function launcherGaps(x) {
 export const ENFORCED = /\b(is|are|gets?|will be|now) (already )?(checked|enforced|blocked|caught|validated|rejected) (automatically|on (its|their) own|by (a|the|its) (hook|check)s?)\b|\b(checked|enforced|caught|blocked|rejected) automatically\b|\bautomatically (checked|enforced|caught|blocked|rejected)\b|\b(can(no|')?t|cannot|won'?t|will not) (get|slip|go) (through|past|by)\b|\b(is|are) (already )?enforced\b|\bthe (hooks?|checks?) (already )?(enforces?|blocks?|catch(es)?) (this|it|that|them)\b|(?<!\p{L})(se (comprueba|verifica|revisa|bloquea)n? (sol[oa]s?|autom[aá]ticamente)|ya no (puede|pueden|podr[aá]n?) (pasar|colarse)|no (puede|pueden|podr[aá]n?) (pasar|colarse)|(est[aá]|queda) (ya )?(garantizad|forzad|bloquead)[oa])(?!\p{L})/iu;
 // The answer's sentences that speak to the user: one per sentence or line, without the markers lines the checks read
 // ("Playbook:", "Skill:", "Worth it:", "Learned (...)", "Proven:", Spanish too) or HTML comments.
-const claimSentences = answer => String(answer || '').replace(/<!--[\s\S]*?-->/g, ' ').split(/(?<=[.!?])\s+|\r?\n/)
-  .filter(s => !/^[\s>*_-]*(playbook|skill|worth it|learned|proven|gu[ií]a|habilidad|vale la pena|aprendido|probado)s?\b[^:\n]{0,20}:/i.test(s));
 export function enforcedClaim(answer) {
   const all = new RegExp(ENFORCED.source, 'giu');
   return claimSentences(answer).find(s => ENFORCED.test(s) && !/\b(not|n'?t|never|no longer|if|unless|whether|would|could|might|how)\b|(?<!\p{L})(si|no|nunca)(?!\p{L})/iu.test(s.replace(all, ' '))) || '';
@@ -1317,20 +1315,6 @@ export function groupVerdictClaim(answer) {
   // I judged this myself this turn, with no helper." was flagged for two rounds after the correction said so)
   const ss = claimSentences(answer), clean = s => String(s || '').replace(quoted, ' ').replace(notCount, ' ');
   return ss.find((s, i) => { const t = clean(s); return GROUP_VERDICT.test(t) && !TEST_RUN.test(t) && !JUDGED_BY.test(t) && !JUDGED_BY.test(clean(ss[i + 1])); }) || '';
-}
-// A sentence in which the agent says it tested a page or app by hand (not one that asks the user to, nor a negation).
-const BY_HAND = /\b(by hand|manually|hand-tested)\b|(?<!\p{L})(a mano|manualmente)(?!\p{L})/iu;
-const UI_TEST = /\b(test(ed|ing)?|tried|clicked|clicking|browser|page|screen|mobile|desktop)\b|(?<!\p{L})(prob[eé]|probad[oa]|navegador|p[aá]gina|clic|m[oó]vil|escritorio|pantalla)(?!\p{L})/iu;
-export function byHandClaim(answer) {
-  // (a label line, "Lo probé a mano:", is read with the line after it)
-  const lines = claimSentences(answer), at = i => /:\**\s*$/.test(lines[i]) ? `${lines[i]} ${lines[i + 1] || ''}` : lines[i];
-  // ("by hand" after a word for making data says how the data was made, not how it was tested. Lesson (a field report):
-  // "tested: ... keeps the rows written by hand" was blocked twice)
-  const made = /\b(written|wrote|entered|typed|added|edited|filled( in)?|drawn|copied|kept|curated|maintained|labell?ed|sorted|made|created|built|set)\s+(in\s+)?(by hand|manually)\b|(?<!\p{L})(escrit|añadid|introducid|copiad|editad|hech)[oa]s?\s+(a mano|manualmente)(?!\p{L})/giu;
-  // (a phrase in quotes is named, not claimed. Lesson, dogfood: an answer describing this check quoted the phrase)
-  const quoted = /"[^"\n]{1,120}"|“[^”\n]{1,120}”|«[^»\n]{1,120}»/g;
-  return lines.map((_, i) => at(i)).find(full => { const s = full.replace(quoted, ' ').replace(made, ' '); return BY_HAND.test(s) && UI_TEST.test(s)
-    && !/\b(you|your|the user|not|n't|never|nothing|should|could|can)\b|(?<!\p{L})(t[uú]|usted|puedes|prueba t[uú]|pru[eé]balo|no|nunca|nada)(?!\p{L})/iu.test(s.replace(BY_HAND, ' ')); }) || '';
 }
 // The checks that run on their own when a file changes, with their file scope: the project's validators
 // (requirements.json entries that run something or match changed content, with no skill, runbook or prompt condition)
