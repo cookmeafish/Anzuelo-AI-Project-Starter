@@ -48,15 +48,16 @@ replaces that with "port each one, or ask"), [clean exit](2026-11-08-clean-exit.
       11, route 10, route-precision 10, praise 9. Many fall in the retired categories, which Task 2 marks first.)
 
 ## Task 2: each behavior gets a decision
-- [ ] For each group: port it (the v2 module it goes in, rewritten small), "v2 does it another way" (the v2 test that
+- [x] For each group: port it (the v2 module it goes in, rewritten small), "v2 does it another way" (the v2 test that
       shows it), "retired by the user, <date>" (with the source line), or "ask the user" (what it did, why it might
-      go). Nothing is marked delete without a user decision.
-- [ ] Already retired by the user, never ported or asked again (each with its source line in the list):
+      go). Nothing is marked delete without a user decision. (2026-11-08: every group in the triage, below)
+- [x] Already retired by the user, never ported or asked again (each with its source line in the list):
       notices and refusals during work that are not hard-to-undo safety (2026-11-05, 2026-11-07); record lines the
       agent had to write; more than one block per request beyond the 3-round re-check; runbooks, skills and upset or
       rule handling forced by keywords (2026-11-07: the agent picks). One exception the user asked for on 2026-11-08:
       a message the user types while the agent works is handed to it once, to answer first (v2/midturn.mjs).
-- [ ] Ask the user once, in one list, about every "ask" item.
+- [x] Ask the user once, in one list, about every "ask" item. (none: the user, 2026-11-08, "everything works in the new
+      engine", so no item went to an "ask" bucket)
 
 - 2026-11-08 progress: every group triaged, split where one group mixed behaviors:
   [the triage](../../tools/starter/reviews/2026-11-08-v2-triage.md).
@@ -74,6 +75,11 @@ replaces that with "port each one, or ask"), [clean exit](2026-11-08-clean-exit.
   v1's wording gone) or "another way" (the v2 test that proves it). Every rewritten or "another way" test must fail
   with the port switched off too. One line per old test in the triage's "Ported" table. Progress is the old suite
   under v2: 734 failing (2026-11-08 re-sweep, a floor until the last crashed share runs) → N.
+- 2026-11-09 progress: the list of old tests v2 still fails (tools/starter/reviews/v2-failing.txt) went 503 → 434
+  committed on main (harm 1 and 2 done, harm 3 under way) → 403 in this change. Done in harm 3 so far: claim-checked
+  (git, reported, improve, by hand, helpers' verdicts), check-proven and the never-again and enforced claims (shared
+  proof.mjs), answer-traced (shared trace.mjs), instructions-run (shared launchers.mjs). Next: app-test-pass (the gate
+  judgment moving to a shared gates.mjs), stop-follow-on, hooks-tested, done-when-labeled.
 - [ ] Port each group into its v2 module, with its test run under v2. The size budget (2,000 lines) still holds:
       when it does not fit, the overrun is reported, never solved by dropping behavior.
 - [ ] `V2_SHOWS` in `tools/hooks/v2/lines.mjs` has no "open" kind left.
