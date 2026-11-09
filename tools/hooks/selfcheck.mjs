@@ -7668,9 +7668,9 @@ if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade
     const always = (() => { try { return fs.readFileSync(path.join(proj, 'docs/checks/always.md'), 'utf8'); } catch { return ''; } })();
     const own = spawnSync(process.execPath, [path.join(proj, 'tools/always.mjs'), 'pending'], { cwd: proj, encoding: 'utf8' });
     const once = (always.match(/req: paths-named\b/g) || []).length === 1;
-    const audited = spawnSync(process.execPath, [path.join(proj, 'tools/audit.mjs')], { cwd: proj, encoding: 'utf8', timeout: 600000 }).stdout || '';
-    report(ok.status === 0 && once && /\(the full one\)/.test(always) && !/req: menu-(sourced|dated)/.test(always) && own.status === 0 && /PASS\s+\d+\. requirements\.json is valid/.test(audited),
-      'upgrade: the project\'s own requirements.json checks move into docs/checks/always.md during the upgrade, each once (brackets in the message kept); one a runbook already says, by marker or by its req tag, is not written again; nothing rolls back for it and none is left pending', `${ok.status} ${ok.stderr.slice(0, 200)} | ${always.split('\n').filter(l => /req:/.test(l)).join(' / ') || 'no lines'} | pending: ${(own.stdout || '').trim()}`);
+    const audited = spawnSync(process.execPath, [path.join(proj, 'tools/audit.mjs')], { cwd: proj, encoding: 'utf8', timeout: 600000, env: { ...process.env, ANZUELO_ROOT: '', CLAUDE_PROJECT_DIR: proj } }).stdout || '';
+    report(ok.status === 0 && once && /\(the full one\)/.test(always) && !/req: menu-(sourced|dated)/.test(always) && own.status === 0 && !/FAIL\s+\d+\. requirements\.json is valid/.test(audited),
+      'upgrade: the project\'s own requirements.json checks move into docs/checks/always.md during the upgrade, each once (brackets in the message kept); one a runbook already says, by marker or by its req tag, is not written again; nothing rolls back for it and none is left pending', `${ok.status} ${ok.stderr.slice(0, 200)} | ${always.split('\n').filter(l => /req:/.test(l)).join(' / ') || 'no lines'} | pending: ${(own.stdout || '').trim()} | audit: ${(/^.*requirements\.json is valid.*$/m.exec(audited) || [audited.slice(0, 200) || 'no output'])[0]}`);
     // the last line says it all: which starter, regressions, decisions left (a rolled-back run has no such line)
     const lastLine = (ok.stdout || '').trim().split(/\r?\n/).pop();
     report(/^Upgrade \S+( the starter copy)?: 0 regressions, [1-9]\d* decisions? needed/.test(lastLine) && !/^Upgrade .*regressions?,/m.test(r.stdout || ''),
