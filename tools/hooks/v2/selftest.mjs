@@ -88,6 +88,14 @@ report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/
   const withFeature = [...books, { file: 'docs/playbooks/feature.md', name: 'feature', triggers: ['new field'], menu: [] }];
   const mid = route('you forgot the new field in the guide. every field has to be documented', withFeature)?.name, lead = route('new field for the due date. every field has a label', withFeature)?.name;
   report(mid === 'project' && lead === 'feature', 'start: a standing rule stated plainly comes before a work trigger found mid-sentence; a trigger the request starts with still wins', { mid, lead });
+  // (a request to change a runbook itself goes to the project runbook; one that uses it goes to it; a Spanish rule cue
+  // that leads the sentence once in English beats a trigger found mid-sentence in the Spanish)
+  const tune = [...books, { file: 'docs/playbooks/zorbel-tune.md', name: 'zorbel-tune', triggers: ['zorbel tune', 'tune my zorbel', 'el playbook de zorbel'], menu: [] }, { file: 'docs/playbooks/project.md', name: 'project', triggers: ['from now on'], menu: [] }];
+  const edits = { en: route('Fix the zorbel-tune playbook so flux requests mention grobbles', tune)?.name, es: route('Arregla el playbook de zorbel-tune para que las peticiones mencionen los grobbles', tune)?.name,
+    uses: route('fix the flux on my zorbel with the zorbel-tune runbook', tune)?.name, follow: route('follow the zorbel-tune playbook and tune my zorbel', tune)?.name,
+    esRule: route('de ahora en adelante el playbook de zorbel-tune debe mencionar siempre los grobbles', tune)?.name, other: route('fix the flux playbook typo', tune)?.name };
+  report(edits.en === 'project' && edits.es === 'project' && edits.uses === 'zorbel-tune' && edits.follow === 'zorbel-tune' && edits.esRule === 'project' && edits.other !== 'project',
+    'start: "fix the <runbook> playbook" (and in Spanish) goes to the project runbook; "with"/"follow" the runbook uses it; a Spanish rule cue beats a trigger mid-sentence; a name that is no runbook is no edit', edits);
   const never = route('you let any visitor cancel orders! only the owner may cancel. that should never happen again', withFeature)?.name;
   report(never === 'project', 'start: "that should never happen again" is a standing rule request and routes to the project runbook', never);
   const tailEs = route('otra vez quedó una fecha en otro formato. toda fecha que vea el cliente tiene que ir en formato largo, siempre', withFeature)?.name;
@@ -136,6 +144,16 @@ report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/
   const old = new Date(Date.now() - 3_600_000); fs.utimesSync(path.join(dir, 'docs/playbooks/export.md'), old, old); // (the runbook predates the turn)
   const b1 = onStop({ session_id: 'latestart', transcript_path: late }), b2 = onStop({ session_id: 'latestart', transcript_path: late });
   report(!!b1 && !/item 2/.test(b1.reason) && b2 === null, 'end: a turn with no saved start begins at its request, so a file a script wrote counts, and it is blocked once', [b1?.reason?.slice(0, 160), b2?.reason?.slice(0, 80)]);
+  { // (each Stop decision is in the Stop log "hooks.mjs last" reads: round, result, steps, the request's start; capped)
+    const { logStop } = await import('./lib.mjs'), logf = path.join(dir, 'tools/hooks/state/stop-log.jsonl');
+    const mine = () => { try { return fs.readFileSync(logf, 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l)).filter(e => e.session === 'latestart'); } catch { return []; } };
+    const got = mine();
+    fs.appendFileSync(logf, Array.from({ length: 1500 }, (_, i) => JSON.stringify({ at: new Date().toISOString(), session: 'filler', round: 1, result: 'passed', steps: [], note: `filler ${i}` })).join('\n') + '\n');
+    logStop('latestart', { round: 9, result: 'passed', steps: [] });
+    const lines = fs.readFileSync(logf, 'utf8').split('\n').filter(Boolean).length;
+    report(got.length === 2 && got[0].result === 'blocked' && got[0].round === 1 && got[0].steps.length > 0 && /^\d{4}-/.test(got[0].request) && got[1].round === 2 && got[1].result !== 'blocked' && lines <= 200 && lines > 100,
+      'end: each Stop decision goes in the capped Stop log with its round, result, steps and request start', { got: got.map(e => [e.round, e.result, e.steps.length]), lines });
+  }
   { // (REQ: wakeup-left: a wakeup left pending after the work is held; cancelled, or explained interactively, it is not;
     // headless, explaining is not enough)
     const wake = call('ScheduleWakeup', { delaySeconds: 1200, prompt: 'check the review again', reason: 'fallback' }, 'Next wakeup scheduled for 17:39:00 (in 1254s).');

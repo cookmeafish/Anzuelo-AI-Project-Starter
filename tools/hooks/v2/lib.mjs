@@ -127,6 +127,14 @@ export function route(prompt, books = runbooks()) {
   // sent a project routed to the project runbook on words like "audit" in its list of fixes)
   const eng = books.find(b => b.file === 'docs/playbooks/engine.md');
   if (eng && !fs.existsSync(at('.starter-template')) && /\bstarter\.mjs\s+(update|upgrade)\b|\bengine upgrade\b|\b(upgrade|update)\s+(the\s+|this\s+|your\s+)?(engine|starter)\b|\b(upgrade|update)\s+to\s+(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}\b|\blinked starter copy\b|\bactualiza\w*\s+(el\s+)?(motor|starter)\b/i.test(String(prompt))) return { ...eng, matched: 'engine upgrade' };
+  // (a request to change a runbook itself, "fix the <name> playbook so ...", "arregla el playbook de <name>", is project
+  // upkeep: the project runbook, not that runbook's own job. "with the <name> runbook" or "follow the <name> playbook"
+  // uses it. Lesson (the old suite under v2): an edit to a runbook was sent to follow that runbook)
+  const named = n => books.some(b => b.name.toLowerCase() === String(n).toLowerCase());
+  const editEn = /\b(?:fix|change|update|edit|improve|rewrite|reword|tweak|adjust|correct|amend|extend|shorten)\s+(?:the\s+|my\s+|this\s+|our\s+)?([\w-]+)\s+(?:playbook|runbook)\b/i.exec(String(prompt));
+  const editEs = /\b(?:arregla|corrige|cambia|modifica|actualiza|edita|mejora|ampl[ií]a|acorta)r?\s+(?:el|mi|este|nuestro)\s+(?:playbook|runbook|procedimiento)\s+de\s+([\w-]+)/i.exec(String(prompt));
+  const project = books.find(b => b.file === 'docs/playbooks/project.md'), edited = [editEn, editEs].find(m => m && named(m[1]));
+  if (project && edited) return { ...project, matched: 'runbook edit' };
   const match = text => {
     const p = ` ${String(text).toLowerCase().replace(/[^\p{L}\p{N}' ]+/gu, ' ').replace(/\s+/g, ' ')} `;
     let best = null;
@@ -139,7 +147,9 @@ export function route(prompt, books = runbooks()) {
   };
   // (a Spanish request with no trigger of its own routes like its English wording. Lesson (trial v37): Spanish requests
   // got no runbook under v2, while v1's router translated "agrega una página de índice" to "add a page, index page")
-  const best = match(prompt) || (isSpanish(prompt) ? match(routeEnglish(prompt)) : null);
+  // (the better of the two: a trigger found mid-sentence in the Spanish text does not hide a phrase that leads it once in
+  // English. Lesson (the old suite under v2): "de ahora en adelante el playbook de <name> debe..." went to that runbook)
+  const best = [match(prompt), isSpanish(prompt) ? match(routeEnglish(prompt)) : null].filter(Boolean).sort((a, b) => b.score - a.score)[0] || null;
   // (a standing rule said plainly ("every new note links to", "should never happen again", ", always", ", siempre") is a
   // rule request, ahead of a trigger found mid-sentence. Lessons (trials v38 to v43): each went unrouted or misrouted)
   const said = isSpanish(prompt) ? `${prompt}\n${routeEnglish(prompt)}` : String(prompt);
@@ -1056,4 +1066,16 @@ const STATE = () => at('tools/hooks/state');
 const stateFile = sid => path.join(STATE(), `v2-turn.${String(sid || 'x').replace(/[^\w-]/g, '').slice(0, 64)}.json`);
 // (no session, no record: a run without a session id (the hook timing, a hand run) would share one made-up record)
 export const saveTurn = (sid, v) => { if (!sid) return; try { fs.mkdirSync(STATE(), { recursive: true }); fs.writeFileSync(stateFile(sid), JSON.stringify(v)); } catch { } };
+// The Stop log: one line per Stop decision (time, session, request start, round, result, steps), capped at 64 KB (the
+// last 200 kept), read with "hooks.mjs last [N]". No session (a timing or hand run): nothing. Lesson (the old suite
+// under v2): v2 Stops were never logged, so "last" said none had run while every turn was being checked.
+export const logStop = (sid, entry) => {
+  if (!sid || process.env.STARTER_BENCH || process.env.KS_BENCH) return;
+  try {
+    fs.mkdirSync(STATE(), { recursive: true });
+    const f = path.join(STATE(), 'stop-log.jsonl');
+    fs.appendFileSync(f, JSON.stringify({ at: new Date().toISOString(), session: sid, ...entry }) + '\n');
+    if (fs.statSync(f).size > 64 * 1024) fs.writeFileSync(f, fs.readFileSync(f, 'utf8').split('\n').filter(Boolean).slice(-200).join('\n') + '\n');
+  } catch { }
+};
 export const loadTurn = sid => { if (!sid) return {}; try { return JSON.parse(fs.readFileSync(stateFile(sid), 'utf8')); } catch { return {}; } };

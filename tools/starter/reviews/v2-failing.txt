@@ -180,9 +180,6 @@ prompt: rule-request: a lasting rule fires ("from now on always tell the other s
 prompt: rule-request: a lasting rule fires ("never use em dashes again")
 prompt: rule-request: a lasting rule fires ("nunca más uses guiones largos")
 prompt: rules digest on every prompt
-prompt: runbook-edit: Spanish, a real rule cue still asks for the rule checks
-prompt: runbook-edit: a real rule cue on a runbook edit still asks for the rule checks
-prompt: runbook-edit: using a runbook on the user's thing still routes to it
 prompt: scope hint names the person (alias works)
 prompt: scope-general: text between two contractions still counts ("doesn't ... don't")
 prompt: scope-general: the prompt hint names it for "there might be other ones too"
@@ -615,10 +612,6 @@ upset-learned: an Issue line written from the shell shows "acknowledged" at the 
 upset-learned: writing the Issue line shows the user "acknowledged" at once, and only once
 waive command: an agent without hooks waives a step with the command, and check no longer asks for it
 # Known open regressions: already live in the pushed version (since 596ac27, checked by name on b8ca1db); listed so the fixes can ship; each comes off when fixed:
-prompt: runbook-edit: "fix the <name> playbook so ..." routes to the project runbook, not to that runbook's job, with no rule checks
-prompt: runbook-edit: "with the <name> runbook" uses it, it does not edit it
-prompt: runbook-edit: Spanish, "arregla el playbook de <name>" routes to the project runbook, with no rule checks
-stop-log: "hooks.mjs last" lists each Stop decision with its round, result and steps, from a capped log
 stop: answer-resent: a draft that passed the pre-check counts, when the sent answer rewords it: passes
 stop: app-test-pass: npm --prefix <a subfolder> test is another package: still blocked
 stop: app-test-pass: npm --prefix <the project> test passed: passes

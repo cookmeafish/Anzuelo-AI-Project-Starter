@@ -4527,13 +4527,13 @@ PROMPT.push(
   // a request to edit a runbook file is maintenance (the project runbook), not that runbook's job, and no rule check
   // without a rule cue
   hostHint('runbook-edit: "fix the <name> playbook so ..." routes to the project runbook, not to that runbook\'s job, with no rule checks',
-    'Fix the zorbel-tune playbook so flux-fix requests mention grobbles', { routes: 1, has: ['ROUTE: project', 'CHECKS: this turn will be held to'], hasNot: ['ROUTE: zorbel-tune', ...NOT_RULE] }),
+    'Fix the zorbel-tune playbook so flux-fix requests mention grobbles', { routes: 1, has: ['ROUTE: project', 'CHECKS: this turn will be held to'], hasNot: ['ROUTE: zorbel-tune', ...NOT_RULE], v2: { routes: undefined, has: ['Runbook: open docs/playbooks/project.md'], hasNot: ['docs/playbooks/zorbel-tune.md', ...NOT_RULE] } }),
   hostHint('runbook-edit: Spanish, "arregla el playbook de <name>" routes to the project runbook, with no rule checks',
-    'Arregla el playbook de zorbel-tune para que las peticiones de flux mencionen los grobbles', { routes: 1, has: ['ROUTE: project', 'CHECKS: this turn will be held to'], hasNot: ['ROUTE: zorbel-tune', ...NOT_RULE] }),
-  hostHint('runbook-edit: using a runbook on the user\'s thing still routes to it', 'follow the zorbel-tune playbook and fix the flux on my zorbel', { has: ['ROUTE: zorbel-tune'] }),
-  hostHint('runbook-edit: "with the <name> runbook" uses it, it does not edit it', 'fix the flux on my zorbel with the zorbel-tune runbook', { has: ['ROUTE: zorbel-tune'] }),
-  hostHint('runbook-edit: a real rule cue on a runbook edit still asks for the rule checks', 'from now on the zorbel-tune playbook must always mention grobbles', { has: ['RULE REQUEST', 'rule-request'] }),
-  hostHint('runbook-edit: Spanish, a real rule cue still asks for the rule checks', 'de ahora en adelante el playbook de zorbel-tune debe mencionar siempre los grobbles', { has: ['RULE REQUEST'] }),
+    'Arregla el playbook de zorbel-tune para que las peticiones de flux mencionen los grobbles', { routes: 1, has: ['ROUTE: project', 'CHECKS: this turn will be held to'], hasNot: ['ROUTE: zorbel-tune', ...NOT_RULE], v2: { routes: undefined, has: ['Runbook: open docs/playbooks/project.md'], hasNot: ['docs/playbooks/zorbel-tune.md', ...NOT_RULE] } }),
+  hostHint('runbook-edit: using a runbook on the user\'s thing still routes to it', 'follow the zorbel-tune playbook and fix the flux on my zorbel', { has: ['ROUTE: zorbel-tune'], v2: { has: ['Runbook: open docs/playbooks/zorbel-tune.md'] } }),
+  hostHint('runbook-edit: "with the <name> runbook" uses it, it does not edit it', 'fix the flux on my zorbel with the zorbel-tune runbook', { has: ['ROUTE: zorbel-tune'], v2: { has: ['Runbook: open docs/playbooks/zorbel-tune.md'] } }),
+  hostHint('runbook-edit: a real rule cue on a runbook edit still asks for the rule checks', 'from now on the zorbel-tune playbook must always mention grobbles', { has: ['RULE REQUEST', 'rule-request'], v2: { has: ['Runbook: open docs/playbooks/project.md'], hasNot: ['docs/playbooks/zorbel-tune.md'] } }),
+  hostHint('runbook-edit: Spanish, a real rule cue still asks for the rule checks', 'de ahora en adelante el playbook de zorbel-tune debe mencionar siempre los grobbles', { has: ['RULE REQUEST'], v2: { has: ['Runbook: open docs/playbooks/project.md'], hasNot: ['docs/playbooks/zorbel-tune.md'] } }),
   // work relayed from another session or agent gets the routing and check preview a typed request gets, and nothing
   // that only the user's own words set off
   hostHint('relay-preview: relayed work gets its route and the check preview, no rule checks', '<cross-session-message from="other">Fix the zorbel-tune playbook so flux requests mention grobbles, then commit</cross-session-message>',
@@ -4805,7 +4805,7 @@ const proves = s => TAGS.filter(t => (s.expect?.tags || []).includes(t) || (s.ex
 const SHARD = (() => { const i = process.argv.indexOf('--shard'), m = /^(\d+)\/(\d+)$/.exec(i > 0 ? process.argv[i + 1] || '' : ''); return m ? { i: Number(m[1]), n: Number(m[2]) } : null; })();
 const HELPER = !!SHARD;
 // tags a standalone test proves (it runs with --tags <tag>, outside the full-run-only block)
-const STANDALONE_TAGS = ['status-bar', 'usage-quiet','trial-wording', 'upset-acknowledged', 'helper-turn-checked', 'starter-tested', 'begin-keeps-turn', 'helper-work-counts', 'upset-es', 'feedback-usage', 'session-checklist', 'engine-bypassed', 'transcript-tail', 'instructions-run', 'answer-traced', 'stop-follow-on', 'stop-reblock', 'check-preview', 'layout-split', 'engine-readonly'];
+const STANDALONE_TAGS = ['status-bar', 'stop-log', 'usage-quiet','trial-wording', 'upset-acknowledged', 'helper-turn-checked', 'starter-tested', 'begin-keeps-turn', 'helper-work-counts', 'upset-es', 'feedback-usage', 'session-checklist', 'engine-bypassed', 'transcript-tail', 'instructions-run', 'answer-traced', 'stop-follow-on', 'stop-reblock', 'check-preview', 'layout-split', 'engine-readonly'];
 if (TAGS) {
   const all = [...STOP, ...PRETOOL, ...PROMPT];
   for (const t of TAGS) if (!HELPER && !TRIGGER_TAGS.includes(t) && !STANDALONE_TAGS.includes(t) && t !== 'selftest-speed' && !all.some(s => proves(s).includes(t))) report(false, `tags: a scenario proves ${t}`, `no scenario proves "${t}": add one to tools/hooks/project-scenarios.mjs (blocked when skipped, passes when followed)`);
@@ -4952,8 +4952,10 @@ for (const s of PRETOOL) {
   } finally { giveBack(dir, !!s.own); }
 }
 
-for (const s of PROMPT) {
+for (const s0 of PROMPT) {
   if (!mine()) continue;
+  // (under v2, a scenario's own v2 expectations, in v2's wording: "Runbook: open docs/playbooks/<name>.md", not "ROUTE: <name>")
+  const s = process.env.STARTER_ENGINE === 'v2' && s0.v2 ? { ...s0, ...s0.v2 } : s0;
   const routes = (s.has || []).map(h => /^ROUTE: ([\w-]+)$/.exec(h)?.[1]).filter(Boolean);
   if (!packOk(s) || routes.some(r => !fs.existsSync(path.join(baseOf(s), 'docs/playbooks', r + '.md')) && !(s.setup || {})[`docs/playbooks/${r}.md`])) {
     if (s.own) { report(false, 'prompt: ' + s.name, `could not run: ${packOk(s) ? 'it expects a route to a runbook this project does not have' : ownSkipWhy(s)}`); continue; }
@@ -7317,7 +7319,7 @@ if (mineB()) { // state-hygiene: per-session state older than 7 days goes at ses
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-if (mineB()) { // stop-log: "hooks.mjs last" shows each Stop decision (round, result, steps, waivers) from a capped log
+if (mineB() && (!TAGS || TAGS.includes('stop-log'))) { // stop-log: "hooks.mjs last" shows each Stop decision (round, result, steps, waivers) from a capped log
   const dir = copyProject();
   try {
     const nodeIn = (...a) => spawnSync(process.execPath, ['tools/hooks/hooks.mjs', ...a], { cwd: dir, encoding: 'utf8' });
@@ -7335,7 +7337,7 @@ if (mineB()) { // stop-log: "hooks.mjs last" shows each Stop decision (round, re
     run(dir, 'stop', { transcript_path: tp, session_id: 'log1', last_assistant_message: 'Added it.' });
     const lines = readOr(logf).split('\n').filter(Boolean).length;
     report(/no Stop decisions logged yet/.test(empty) && rows.length === 2 && rows[0].result === 'blocked' && rows[0].round === 1 && rows[0].steps.length > 0 && rows[0].session === 'log1' && /^\d{4}-/.test(rows[0].request || '')
-      && rows[1].round === 2 && /round 1 {2}blocked: [a-z]/.test(text) && lines <= 201 && lines > 100,
+      && rows[1].round === 2 && /round 1 {2}blocked: [A-Za-z]/.test(text) && lines <= 201 && lines > 100,
       'stop-log: "hooks.mjs last" lists each Stop decision with its round, result and steps, from a capped log', `${empty.trim()} | ${JSON.stringify(rows).slice(0, 300)} | ${text.slice(0, 200)} | ${lines} lines`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
