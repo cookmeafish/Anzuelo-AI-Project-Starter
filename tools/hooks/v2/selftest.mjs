@@ -458,6 +458,24 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
   const odd = asItems({ tag: 'x', message: 'm', when: { guiChanged: true }, require: { answerMatches: 'a' } });
   report(/\(when answer: OK to delete\) \(answer: \\w\+\/\\S\+\) <!-- req: listed-paths -->/.test(conv.lines?.[0] || '') && odd.bad?.includes('when.guiChanged'),
     'always: a requirements.json check converts to a Done-when line with its tag; one no marker can say is listed, never dropped', JSON.stringify({ conv, odd }));
+  // (replay of two projects' own checks: a test that must print its pass line, a work-turn condition, a "not this"
+  // pattern and a bracket inside a character class all convert, and read back exactly as written)
+  const { doneWhen: dwRead, met } = await import('./lib.mjs');
+  const rt = r => { const a = asItems(r); const it = a.lines && dwRead(`## Done when\n${a.lines[0]}\n`)[0]; return { a, it }; };
+  const passed = rt({ tag: 'p', message: 'Run the soup test', when: { filesChanged: ['soup.py'] }, require: { toolPassed: { cmd: 'test_soup\\.py', pass: 'RESULT: PASS' } } });
+  const workT = rt({ tag: 'w', message: 'Say what changed', when: { workTurn: true }, require: { answerMatches: 'Changed:' } });
+  const notT = rt({ tag: 'n', message: 'No routine asks', when: { promptNotMatches: 'just (ask|check)' }, require: { answerNotMatches: 'Shall I \\w+\\?' } });
+  const cls = rt({ tag: 'c', message: 'Cite the file', require: { answerMatches: 'recipes/[^\\s)]+\\.md' } });
+  report(passed.it?.arg === 'test_soup\\.py => RESULT: PASS' && workT.it?.whens[0]?.kind === 'tool' && notT.it?.whens[0]?.arg === '^(?![\\s\\S]*(?:just (ask|check)))' && notT.it?.arg === '^(?![\\s\\S]*(?:Shall I \\w+\\?))'
+    && new RegExp(cls.it?.arg || '^$').test('see recipes/soup.md') && !new RegExp(cls.it?.arg || 'x').test('see recipes/so)up.md'),
+    'always: a pass line, a work turn, a "not this" pattern and a bracket in a character class convert and read back exactly', JSON.stringify({ passed: passed.it?.arg, workT: workT.it?.whens, notT: [notT.it?.whens?.[0]?.arg, notT.it?.arg], cls: cls.it?.arg, bad: [passed.a.bad, workT.a.bad, notT.a.bad, cls.a.bad] }));
+  put('.cache/soup-test.txt', 'ok 1\nRESULT: PASS\n');
+  const runOk = met({ kind: 'ran', arg: 'test_soup\\.py => RESULT: PASS' }, acts([user('fix the soup'), call('Bash', { command: 'python test_soup.py' }, 'ok 1\nRESULT: PASS')]));
+  const runNoLine = met({ kind: 'ran', arg: 'test_soup\\.py => RESULT: PASS' }, acts([user('fix the soup'), call('Bash', { command: 'python test_soup.py' }, 'ok 1')]));
+  const runToFile = met({ kind: 'ran', arg: 'test_soup\\.py => RESULT: PASS' }, acts([user('fix the soup'), call('Bash', { command: 'python test_soup.py > .cache/soup-test.txt 2>&1' }, '')]));
+  const badRx = met({ kind: 'answer', arg: 'recipes/[^\\s' }, acts([user('x'), say('y')]));
+  report(runOk === true && runNoLine === false && runToFile === true && badRx === null,
+    'end: "(ran: cmd => line)" needs the run to print that line (read from the file its output went to, too); a marker whose regex does not compile is skipped, not a crash', JSON.stringify({ runOk, runNoLine, runToFile, badRx }));
   report(waived({ answer: 'The full suite has not run yet.' }, chain).length === 2 && waived({ answer: 'The export has not run yet because the server was down.' }, chain).length === 2,
     'end: "not run" with no reason, or about something else, clears nothing');
   // (edited by a script, not an edit tool: the routed runbook changed during the turn)

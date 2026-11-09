@@ -23,6 +23,7 @@ const read = f => { try { return fs.readFileSync(at(f), 'utf8').replace(/\r\n?/g
 // "## Done when" items. A checkable item ends with one of:
 //   (file: <path or glob>)   the turn changed that file (Edit, Write, or a command that names it as its output)
 //   (ran: <regex>)           the turn ran a command matching it, and the run did not fail
+//                            ("<regex> => <output regex>": and it printed that, e.g. a test's pass line)
 //   (answer: <regex>)        the turn's final answer matches it
 //   (prompt: <regex>)        what the user typed this turn matches it (mid-turn messages too)
 //   (tool: <regex>)          a tool call's name and input match it
@@ -54,16 +55,19 @@ export function doneWhen(text) {
     // the value cut the marker short)
     // (the last marker anywhere in the item. Lesson (a field report): a marker on the first line of a two-line item
     // was not read)
-    const c = [...raw.matchAll(/\((file|ran|answer|prompt|tool):\s*((?:[^()]|\([^()]*\))+)\)/gi)].at(-1);
+    // (three levels: a "not this" pattern around a group, ^(?![\s\S]*(?:a (b|c))), needs them. Lesson (a project's
+    // converted rules))
+    const VAL = String.raw`((?:[^()]|\((?:[^()]|\((?:[^()]|\([^()]*\))*\))*\))+)`;
+    const c = [...raw.matchAll(new RegExp(String.raw`\((file|ran|answer|prompt|tool):\s*${VAL}\)`, 'gi'))].at(-1);
     // (an item that fits one branch of a runbook says when: "(when ran: <regex>)" and the like. On a turn where that
     // did not happen it is neither checked nor listed. Several "when" markers must all hold. Lesson (replay): an engine
     // upgrade turn was asked to verify the install, removal and setting items too)
-    const w = [...raw.matchAll(/\(when\s+(file|ran|answer|prompt|tool):\s*((?:[^()]|\([^()]*\))+)\)/gi)];
+    const w = [...raw.matchAll(new RegExp(String.raw`\(when\s+(file|ran|answer|prompt|tool):\s*${VAL}\)`, 'gi'))];
     // (every marker goes from the shown text: an item may carry the old engine's "(hook: ...)" or "(judgment: ...)"
     // before v2's own)
     // ("(evidence)": the answer is backed by sources read this turn, checked by evidenceGaps)
     const ev = !c && /\(evidence\)/i.test(raw);
-    const text = raw.replace(/\s*\((?:when\s+)?(?:file|ran|answer|prompt|tool|hooks?|judgment):(?:[^()]|\([^()]*\))*\)|\s*\(evidence\)/gi, '').replace(/\s*\.\s*$/, '').replace(/`/g, '').trim();
+    const text = raw.replace(new RegExp(String.raw`\s*\((?:when\s+)?(?:file|ran|answer|prompt|tool|hooks?|judgment):${VAL.replace('+)', '*)')}\)|\s*\(evidence\)`, 'gi'), '').replace(/\s*\.\s*$/, '').replace(/`/g, '').trim();
     const whens = w.map(x => ({ kind: x[1].toLowerCase(), arg: x[2].trim() }));
     return { n: i + 1, text, kind: c ? c[1].toLowerCase() : ev ? 'evidence' : null, arg: c ? c[2].trim() : null, when: whens[0] || null, whens };
   });
@@ -412,12 +416,20 @@ const relp = p => relOf(p);
 export const applies = (item, acts) => (item.whens || (item.when ? [item.when] : [])).every(w => met(w, acts) === true);
 export function met(item, acts) {
   if (!item.kind) return null;
+  // (a marker whose regex does not compile is not checked, never a crash of the whole end check. Lesson (replay of a
+  // project's converted rules): one bad pattern stopped every check of the turn)
+  if (/^(answer|prompt|tool|ran)$/.test(item.kind)) try { new RegExp(item.arg); } catch { return null; }
   if (item.kind === 'answer') return new RegExp(item.arg, 'i').test(acts.answer);
   // (prompt: what the user typed this turn, mid-turn messages too; tool: a tool call whose name and input match)
   if (item.kind === 'prompt') return new RegExp(item.arg, 'i').test(acts.heard || '');
   if (item.kind === 'tool') { const rx = new RegExp(item.arg, 'i'); return acts.calls.some(c => rx.test(`${c.name} ${JSON.stringify(c.input || {})}`)); }
   if (item.kind === 'evidence') return evidenceGaps(acts).length === 0;
-  if (item.kind === 'ran') { const rx = new RegExp(item.arg, 'i'); return acts.calls.some(c => /^(Bash|PowerShell)$/.test(c.name) && rx.test(String(c.input.command || '')) && !c.error); }
+  // ("<command> => <output>": the run also printed that, such as a test's pass line)
+  if (item.kind === 'ran') { const [cmd, out] = item.arg.split(/\s+=>\s+/); try { new RegExp(out || ''); } catch { return null; } const rx = new RegExp(cmd, 'i');
+    // (output sent to a file, "> .cache/t.txt", is read from that file. Replay: a test run redirected that way passed
+    // and was still asked for)
+    const printed = c => { const f = /(?:^|\s)1?>{1,2}\s*(["']?)([^\s"'&|;<>]+)\1/.exec(String(c.input.command || ''))?.[2]; return `${c.out || ''}\n${f ? read(f) : ''}`; };
+    return acts.calls.some(c => /^(Bash|PowerShell)$/.test(c.name) && rx.test(String(c.input.command || '')) && !c.error && (!out || new RegExp(out).test(printed(c)))); }
   // (changed this turn by a tool or anything since the turn began; only naming it does not count. In the starter its own
   // changelog stands for docs/CHANGELOG.md, the template. Lessons: "cat" met "updated"; 3 re-blocks on a written line)
   if (item.kind === 'file') {

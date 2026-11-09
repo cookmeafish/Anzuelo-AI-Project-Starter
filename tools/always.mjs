@@ -9,7 +9,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const ROOT = process.env.CLAUDE_PROJECT_DIR || path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+import { ROOT } from './hooks/settings.mjs';
+import { doneWhen } from './hooks/v2/lib.mjs';
+// (the project's folder, also when the engine sits in .anzuelo/engine)
 const at = f => path.join(ROOT, f);
 // (a caller with its own layout, such as the audit, passes how it reads a project file)
 const readText = f => { try { return fs.readFileSync(at(f), 'utf8'); } catch { return ''; } };
@@ -24,20 +26,37 @@ export function ownChecks(rd = readText) {
 }
 const not = x => `^(?![\\s\\S]*(?:${x}))`;
 const files = v => [].concat(v).join('|');
-const plain = s => String(s).replace(/^\(\?c\)/, '');
+// (a bracket inside a character class is written as its code, so the marker's own parentheses stay balanced)
+const plain = s => String(s).replace(/^\(\?c\)/, '').replace(/\[(?:\\.|[^\]\\])*\]/g, cls => cls.replace(/\(/g, '\\x28').replace(/\)/g, '\\x29'));
+const cmdOf = v => typeof v === 'string' ? v : v?.cmd;
 const WHEN = { answerMatches: x => `(when answer: ${plain(x)})`, answerNotMatches: x => `(when answer: ${not(plain(x))})`, promptMatches: x => `(when prompt: ${plain(x)})`,
   promptNotMatches: x => `(when prompt: ${not(plain(x))})`, filesChanged: x => `(when file: ${files(x)})`, toolRan: x => `(when ran: ${plain(x)})`,
-  skillUsed: x => `(when tool: skills[\\\\/]${x}[\\\\/]SKILL\\.md)`, playbookUsed: x => `(when tool: playbooks[\\\\/]${x}\\.md)` };
-const REQUIRE = { answerMatches: x => `(answer: ${plain(x)})`, answerNotMatches: x => `(answer: ${not(plain(x))})`, filesChanged: x => `(file: ${files(x)})`, toolRan: x => `(ran: ${plain(x)})` };
+  skillUsed: x => `(when tool: skills[\\\\/]${x}[\\\\/]SKILL\\.md)`, playbookUsed: x => `(when tool: playbooks[\\\\/]${x}\\.md)`,
+  // (a work turn is one that changed files, as the end check counts work)
+  workTurn: x => x ? '(when tool: ^(Edit|Write|MultiEdit|NotebookEdit) )' : null };
+// (toolPassed: a command matching it ran and did not fail, which is what "ran" checks)
+const REQUIRE = { answerMatches: x => `(answer: ${plain(x)})`, answerNotMatches: x => `(answer: ${not(plain(x))})`, filesChanged: x => `(file: ${files(x)})`, toolRan: x => `(ran: ${plain(x)})`,
+  toolPassed: x => cmdOf(x) ? `(ran: ${plain(cmdOf(x))}${x?.pass ? ` => ${plain(x.pass)}` : ''})` : null };
 
 // One check as Done-when lines (one per required thing), or the keys no marker can say.
 export function asItems(r) {
   const w = r.when || {}, q = r.require || {};
   const bad = [...Object.keys(w).filter(k => !WHEN[k]).map(k => `when.${k}`), ...Object.keys(q).filter(k => !REQUIRE[k]).map(k => `require.${k}`)];
   if (bad.length || !Object.keys(q).length) return { bad: bad.length ? bad : ['no require'] };
+  if (Object.entries(w).some(([k, v]) => !WHEN[k](v))) return { bad: Object.entries(w).filter(([k, v]) => !WHEN[k](v)).map(([k]) => `when.${k} (false)`) };
   const cond = Object.entries(w).map(([k, v]) => WHEN[k](v)).join(' ');
   const text = String(r.message || r.tag).replace(/\s+/g, ' ').replace(/[()]/g, '').trim();
-  return { lines: Object.entries(q).map(([k, v]) => `- [ ] ${text} ${cond ? `${cond} ` : ''}${REQUIRE[k](v)} <!-- req: ${r.tag} -->`) };
+  const req = Object.entries(q).map(([k, v]) => [k, REQUIRE[k](v)]);
+  if (req.some(([, m]) => !m)) return { bad: req.filter(([, m]) => !m).map(([k]) => `require.${k} (no command)`) };
+  // (a line whose markers read back differently, a regex nested deeper than a marker holds, is listed, not written)
+  const marks = [...cond.matchAll(/\(when (\w+): /g)].length;
+  const lines = req.map(([, m]) => `- [ ] ${text} ${cond ? `${cond} ` : ''}${m} <!-- req: ${r.tag} -->`);
+  // (read back the way the end check reads it)
+  const back = lines.map(l => { const it = doneWhen(`## Done when\n${l}\n`)[0] || {}; return [...(it.whens || []).map(x => x.arg), it.arg].filter(Boolean); });
+  const inner = s => s.replace(/^\((?:when\s+)?\w+:\s*/, '').replace(/\)$/, '').trim();
+  const want = req.map(([, m]) => [...Object.keys(w).map(k => WHEN[k](w[k])), m].map(inner));
+  if (back.some((b, i) => b.length !== marks + 1 || b.some((x, j) => x !== want[i][j]))) return { bad: ['a regex nested deeper than a marker can hold'] };
+  return { lines };
 }
 export const pending = (rd = readText) => { const have = rd(ALWAYS_FILE); return ownChecks(rd).filter(r => !new RegExp(`req: ${r.tag.replace(/[^\w-]/g, '')}(?![\\w-])`).test(have)); };
 
