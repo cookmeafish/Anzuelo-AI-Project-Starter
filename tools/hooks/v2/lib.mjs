@@ -543,9 +543,20 @@ export function met(item, acts) {
     const args = item.arg.split('|').map(s => s.trim()).flatMap(a => [a, ...(/^docs\/CHANGELOG\.md$/i.test(a) && fs.existsSync(at('.starter-dev')) ? ['tools/starter/STARTER-CHANGELOG.md'] : [])]);
     return args.some(arg => { const rx = globRx(arg);
       return acts.calls.some(c => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name) && rx.test(relp(c.input.file_path || c.input.notebook_path || '')))
-        || (!!since && filesMatching(arg).some(f => { try { return fs.statSync(at(f)).mtimeMs > since; } catch { return false; } })); });
+        || (!!since && filesMatching(arg).some(f => { try { return fs.statSync(at(f)).mtimeMs > since && !onlyTouched(f, since); } catch { return false; } })); });
   }
   return null;
+}
+// A file whose time moved this turn but whose content is git's last commit, made before the turn: touched, not changed
+// (a test that touches its own files, a tool that rewrites a file the same). One edited and committed this turn still
+// counts; outside git nothing is known, so it counts. Lesson (a project's upgrade report): the upgrade ran the
+// project's own test, which touches itself, and the end check held the turn to run that test again for a file nobody
+// changed.
+function onlyTouched(f, since) {
+  const g = a => spawnSync('git', a, { cwd: ROOT, encoding: 'utf8', timeout: 5000 });
+  if (g(['ls-files', '--error-unmatch', '--', f]).status !== 0 || g(['diff', '--quiet', 'HEAD', '--', f]).status !== 0) return false;
+  const ct = Number(String(g(['log', '-1', '--format=%ct', '--', f]).stdout || '').trim()) * 1000;
+  return !!ct && ct < since;
 }
 
 // A test run: the usual runners, or the project's own test script under any name it is called by (npm test runs

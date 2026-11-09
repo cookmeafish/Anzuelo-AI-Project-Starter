@@ -1444,6 +1444,27 @@ const { questionGaps } = await import('./lib.mjs');
   fs.rmSync(path.join(dir, '.starter-dev'));
   report(project === false && starter === true, 'end: in the starter, its own changelog meets a docs/CHANGELOG.md item; in a project it does not', { project, starter });
 }
+// end: a "(when file: ...)" marker: a file only touched this turn (its content is still the commit made before the turn,
+// as when a test touches its own files) is not changed; one whose content differs, or one edited and committed this
+// turn, is (Lesson (a project's upgrade report): the upgrade ran the project's test, which touches itself, and the
+// end check held the turn for a file nobody changed)
+{
+  const { spawnSync } = await import('node:child_process');
+  const g = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-touch-'));
+  const git = (a, env = {}) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', '-c', 'core.hooksPath=/dev/null', ...a], { cwd: g, encoding: 'utf8', env: { ...process.env, ...env } });
+  const hourAgo = new Date(Date.now() - 3600_000).toISOString();
+  for (const f of ['touched.txt', 'edited.txt', 'committed.txt']) fs.writeFileSync(path.join(g, f), 'one\n');
+  git(['init', '-q']); git(['add', '-A']); git(['commit', '-q', '-m', 'before the turn'], { GIT_AUTHOR_DATE: hourAgo, GIT_COMMITTER_DATE: hourAgo });
+  const now = new Date(); fs.utimesSync(path.join(g, 'touched.txt'), now, now);
+  fs.writeFileSync(path.join(g, 'edited.txt'), 'two\n'); fs.writeFileSync(path.join(g, 'committed.txt'), 'two\n');
+  git(['commit', '-q', '-am', 'during the turn', '--', 'committed.txt']);
+  const probe = `const { met } = await import(${JSON.stringify(new URL('./lib.mjs', import.meta.url).href)}); const a = { calls: [], at: new Date(Date.now() - 600000).toISOString() };
+    console.log(JSON.stringify(['touched.txt', 'edited.txt', 'committed.txt'].map(f => met({ kind: 'file', arg: f }, a))));`;
+  const out = spawnSync(process.execPath, ['--input-type=module', '-e', probe], { cwd: g, encoding: 'utf8', env: { ...process.env, ANZUELO_ROOT: g } });
+  let got = null; try { got = JSON.parse(out.stdout.trim().split('\n').pop()); } catch { }
+  fs.rmSync(g, { recursive: true, force: true });
+  report(JSON.stringify(got) === '[false,true,true]', 'end: a file marker counts a file whose content changed this turn, or was committed this turn, not one only touched (same content as a commit made before the turn)', { got, err: (out.stderr || '').slice(0, 200) });
+}
 
 // (the engine runbook's upgrade items fit a real upgrade, never a dry run, which writes nothing. Lesson (replay
 // 2026-11-07): most repeat blocks in one project were dry runs asked for an upgrade review and a commit)
@@ -1588,7 +1609,9 @@ report(madeUp.length === 2 && /9f8e7d6/.test(madeUp[0]) && /src\/missing\.js/.te
   const p = fs.mkdtempSync(path.join(os.tmpdir(), 'selfrun-upg-')), w = (f, t) => { fs.mkdirSync(path.dirname(path.join(p, f)), { recursive: true }); fs.writeFileSync(path.join(p, f), t); };
   const g = (...a) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', '-c', 'core.hooksPath=/dev/null', ...a], { cwd: p, encoding: 'utf8' });
   w('tools/hooks/config.json', '{"autonomy":"ask"}\n'); w('docs/DECISIONS.md', '# Decisions\n'); w('check-ok.mjs', "console.log('RESULT: PASS')\n"); w('src/a.js', 'a\n');
-  w('tools/hooks/requirements.json', JSON.stringify({ requirements: [{ tag: 'app-test-pass', pack: 'app', message: 'tests', when: { filesChanged: ['src/**'] }, require: { toolPassed: { cmd: 'node check-ok\\.mjs', pass: 'RESULT: PASS', selfRun: 'node check-ok.mjs', selfAuto: true } } }] }));
+  w('tools/hooks/requirements.json', JSON.stringify({ requirements: [{ tag: 'app-test-pass', pack: 'app', message: 'tests', when: { filesChanged: ['src/**'] }, require: { toolPassed: { cmd: 'node check-ok\\.mjs', pass: 'RESULT: PASS', selfRun: 'node check-ok.mjs', selfAuto: true } } },
+    // (and one own check not yet in always.md, so the converter has one to convert)
+    { tag: 'notes-linked', message: 'Each new note links to a related note', when: { filesChanged: ['notes/**'] }, require: { toolPassed: { cmd: 'node link-check\\.mjs' } } }] }));
   // (the project's own copy of the engine runs the convert, as an upgrade does: the converter works on the folder it is in)
   for (const f of spawnSync('git', ['ls-files', 'tools/always.mjs', 'tools/hooks/*.mjs', 'tools/hooks/v2/*.mjs', 'tools/hooks/defaults.json', 'tools/hooks/engine-checks.json'], { cwd: repo, encoding: 'utf8' }).stdout.split('\n').filter(Boolean))
     if (!fs.existsSync(path.join(p, f))) w(f, fs.readFileSync(path.join(repo, f), 'utf8'));
@@ -1605,8 +1628,9 @@ report(madeUp.length === 2 && /9f8e7d6/.test(madeUp[0]) && /src\/missing\.js/.te
   fs.rmSync(p, { recursive: true, force: true });
   // (and the converter's count names the pack check the project set, kept as it is, so it matches own-checks)
   report(listed.join() === 'node check-ok.mjs' && /kept approved for the end check to run itself[^\n]*node check-ok\.mjs/.test(dec) && JSON.stringify(ran.ran) === '[["node check-ok.mjs",false]]' && !ran.out?.length
-    && /1 pack check\(s\) this project set \(such as its test gate\) kept as they are/.test(conv.stdout || ''),
-    'upgrade: a committed self-run (selfRun + selfAuto) is put on the approved list with its decisions line, and after the upgrade commit it still runs in the next session, with no step for the user; the converter names the pack check it keeps', JSON.stringify({ listed, conv: (conv.stdout || conv.stderr || '').slice(-200), ran, err: (next.stderr || '').slice(0, 200) }));
+    && /1 pack check\(s\) this project set \(such as its test gate\) kept as they are/.test(conv.stdout || '')
+    && ((m => !!m && Number(m[2]) + Number(m[3]) === Number(m[1]) && Number(m[3]) > 0)((conv.stdout || '').match(/(\d+) own check\(s\): (\d+) already there .*?, (\d+) to convert/))),
+    'upgrade: a committed self-run (selfRun + selfAuto) is put on the approved list with its decisions line, and after the upgrade commit it still runs in the next session, with no step for the user; the converter names the pack check it keeps, and its "already there" and "to convert" add up to its own checks', JSON.stringify({ listed, conv: (conv.stdout || conv.stderr || '').slice(-200), ran, err: (next.stderr || '').slice(0, 200) }));
 }
 { // (REQ: self-commands: the agent cannot add a command to the approved list: an edit or a write of the config that
   // adds one, the user's self-allow command, or a shell write naming the list. Other config edits, reads and searches

@@ -117,7 +117,9 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   if (mig.n && !dry) fs.writeFileSync(at(ALWAYS_FILE), mig.text);
   // (what was there already, so a report needs no hand count: in always.md by its tag, or in a runbook)
   const books = listDir('docs/playbooks').filter(n => n.endsWith('.md')).map(n => readText(`docs/playbooks/${n}`)).join('\n');
-  const there = all.filter(r => !todo.includes(r)), inBooks = there.filter(r => new RegExp(`req: ${r.tag.replace(/[^\w-]/g, '')}(?![\\w-])`).test(books)).length;
+  // (by tag: ownChecks and pending build their own objects. Lesson (a project's upgrade report): compared as objects,
+  // every check counted as "already there" and "to convert" at once)
+  const todoTags = new Set(todo.map(r => r.tag)), there = all.filter(r => !todoTags.has(r.tag)), inBooks = there.filter(r => new RegExp(`req: ${r.tag.replace(/[^\w-]/g, '')}(?![\\w-])`).test(books)).length;
   // (a pack's check the project set, such as its app test gate, is not its own check: it stays as it is and runs as an
   // approved self-run. Said, so the count matches "hooks.mjs own-checks", which lists them too. Lesson (a project's
   // upgrade report): 8 own checks here against 10 there, with no reason given)
