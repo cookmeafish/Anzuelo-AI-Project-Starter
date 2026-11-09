@@ -320,7 +320,6 @@ stop: records-once: the lesson from an upset user is still asked for in round 2
 stop: request about alice changed only alice's files: passes
 stop: requirement-enforced: a requirement said in passing, during work, with nothing enforcing it: blocked
 stop: requirement-enforced: a requirement written only into a runbook: blocked
-stop: requirement-enforced: the check and its test were added: passes that check
 stop: research-verified: curl to a site on the web still counts: blocked
 stop: research-verified: the same line without the config: blocked
 stop: research-verified: web research with no ledger: blocked
