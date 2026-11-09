@@ -3,7 +3,8 @@
 // transcript (never the git state of a shared folder). Plan: docs/plans/2026-11-05-engine-v2.md.
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import os from 'node:os';
+import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { roots, resolver } from '../paths.mjs';
 import { people, personOf, peopleIn, peopleFor } from '../people.mjs';
@@ -543,20 +544,18 @@ export function met(item, acts) {
     const args = item.arg.split('|').map(s => s.trim()).flatMap(a => [a, ...(/^docs\/CHANGELOG\.md$/i.test(a) && fs.existsSync(at('.starter-dev')) ? ['tools/starter/STARTER-CHANGELOG.md'] : [])]);
     return args.some(arg => { const rx = globRx(arg);
       return acts.calls.some(c => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name) && rx.test(relp(c.input.file_path || c.input.notebook_path || '')))
-        || (!!since && filesMatching(arg).some(f => { try { return fs.statSync(at(f)).mtimeMs > since && !onlyTouched(f, since); } catch { return false; } })); });
+        || (!!since && filesMatching(arg).some(f => { try { return fs.statSync(at(f)).mtimeMs > since && !onlyTouched(f, since, acts.startHashes); } catch { return false; } })); });
   }
   return null;
 }
-// A file whose time moved this turn but whose content is git's last commit, made before the turn: touched, not changed
-// (a test that touches its own files, a tool that rewrites a file the same). One edited and committed this turn still
-// counts; outside git nothing is known, so it counts. Lesson (a project's upgrade report): the upgrade ran the
-// project's own test, which touches itself, and the end check held the turn to run that test again for a file nobody
-// changed.
-function onlyTouched(f, since) {
+// A file as it was at turn start (start hash, or a commit before the turn; git's whole seconds) was only touched.
+// Lesson (a project's report): a test that touches itself, run by the upgrade, held a turn for an unchanged file.
+function onlyTouched(f, since, start) {
   const g = a => spawnSync('git', a, { cwd: ROOT, encoding: 'utf8', timeout: 5000 });
+  if (start && start[f]) return String(g(['hash-object', '--', f]).stdout || '').trim() === start[f];
   if (g(['ls-files', '--error-unmatch', '--', f]).status !== 0 || g(['diff', '--quiet', 'HEAD', '--', f]).status !== 0) return false;
   const ct = Number(String(g(['log', '-1', '--format=%ct', '--', f]).stdout || '').trim()) * 1000;
-  return !!ct && ct < since;
+  return !!ct && ct + 1000 <= since;
 }
 
 // A test run: the usual runners, or the project's own test script under any name it is called by (npm test runs
@@ -650,15 +649,12 @@ const mtime = f => { try { return fs.statSync(at(f)).mtimeMs; } catch { return 0
 export const earlierPrompts = (text, before) => String(text || '').split('\n').flatMap(l => { let r; try { r = JSON.parse(l); } catch { return []; }
   const c = userText(r); return r.type === 'user' && c !== null && !c.startsWith('<') && (!before || String(r.timestamp || '') < before) ? [c] : []; }).slice(-5);
 // (the settings as this project has them: the engine's defaults, then the project's config.json)
-// (read once per state of the two files, keyed by their time and size, so a config edited mid-run is read again.
-// Lesson (a project's upgrade report): about 15 reads per Stop, 11 ms, the largest part of a slower end check)
-let configMemo = { key: null, v: null };
+// (read once per state (time, size) of the two files. Lesson (a project's report): 15 reads per Stop took 11 ms)
+let configMemo = {};
 export const projectConfig = () => {
-  const files = [fileURLToPath(new URL('../defaults.json', import.meta.url)), at('tools/hooks/config.json')];
+  const files = [fileURLToPath(new URL('../defaults.json', import.meta.url)), at('tools/hooks/config.json')], j = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return {}; } };
   const key = files.map(f => { try { const s = fs.statSync(f); return `${s.mtimeMs}:${s.size}`; } catch { return '-'; } }).join('|');
-  if (configMemo.key === key) return { ...configMemo.v };
-  const j = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return {}; } };
-  configMemo = { key, v: { ...j(files[0]), ...j(files[1]) } };
+  if (configMemo.key !== key) configMemo = { key, v: { ...j(files[0]), ...j(files[1]) } };
   return { ...configMemo.v };
 };
 export function scopeGaps(acts) {
@@ -1336,3 +1332,17 @@ export const logStop = (sid, entry) => {
   } catch { }
 };
 export const loadTurn = sid => { if (!sid) return {}; try { return JSON.parse(fs.readFileSync(stateFile(sid), 'utf8')); } catch { return {}; } };
+
+// The uncommitted files' git hashes at a turn's start, taken by a detached process so the prompt waits on nothing (git
+// repos only; not in timing runs or V2_NO_SNAPSHOT tests). Lesson (a peer's review): HEAD missed a file edited earlier.
+const dirtyFile = sid => path.join(STATE(), `v2-dirty.${String(sid || 'x').replace(/[^\w-]/g, '').slice(0, 64)}.json`);
+export const snapshotLater = (sid, at0) => { if (sid && !process.env.STARTER_BENCH && !process.env.V2_NO_SNAPSHOT && fs.existsSync(path.join(ROOT, '.git'))) try { spawn(process.execPath, [fileURLToPath(import.meta.url), '--snapshot-dirty', sid, at0], { cwd: os.tmpdir(), detached: true, stdio: 'ignore', windowsHide: true, env: { ...process.env, ANZUELO_ROOT: ROOT } }).unref(); } catch { } };
+export function snapshotDirty(sid, at0) {
+  const g = (a, input) => String(spawnSync('git', ['-C', ROOT, ...a], { encoding: 'utf8', timeout: 15000, maxBuffer: 1 << 26, input }).stdout || '').split('\n').map(s => s.trim());
+  const names = [...new Set([...g(['diff', '--name-only', 'HEAD']), ...g(['ls-files', '--others', '--exclude-standard'])])].filter(f => { try { return fs.statSync(path.join(ROOT, f)).isFile(); } catch { return false; } }).slice(0, 5000);
+  const hashes = names.length ? g(['hash-object', '--stdin-paths'], names.join('\n') + '\n') : [];
+  try { fs.mkdirSync(STATE(), { recursive: true }); fs.writeFileSync(dirtyFile(sid), JSON.stringify({ at: at0, files: Object.fromEntries(names.map((f, i) => [f, hashes[i]]).filter(([, h]) => /^[0-9a-f]{40,64}$/.test(h || ''))) })); } catch { }
+}
+// (this turn's snapshot only)
+export const loadDirty = (sid, at0) => { try { const j = JSON.parse(fs.readFileSync(dirtyFile(sid), 'utf8')); return j.at === at0 ? j.files || {} : null; } catch { return null; } };
+if (process.argv[2] === '--snapshot-dirty' && process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) snapshotDirty(process.argv[3], process.argv[4]);

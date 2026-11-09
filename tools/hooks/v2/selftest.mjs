@@ -6,6 +6,8 @@ import path from 'node:path';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-'));
 process.env.ANZUELO_ROOT = dir;
+// (no turn-start snapshots in the background while tests run: the one test of them turns them on for its own run)
+process.env.V2_NO_SNAPSHOT = '1';
 const put = (f, s) => { fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true }); fs.writeFileSync(path.join(dir, f), s); };
 // (the built-in record checks, the Finished section and the changelog among them, are off in this test project, the
 // way a project turns one off ("disabled"): the tests below are about other behaviors, and the built-in ones have
@@ -1472,18 +1474,31 @@ const { questionGaps } = await import('./lib.mjs');
   const { spawnSync } = await import('node:child_process');
   const g = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-touch-'));
   const git = (a, env = {}) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', '-c', 'core.hooksPath=/dev/null', ...a], { cwd: g, encoding: 'utf8', env: { ...process.env, ...env } });
-  const hourAgo = new Date(Date.now() - 3600_000).toISOString();
-  for (const f of ['touched.txt', 'edited.txt', 'committed.txt']) fs.writeFileSync(path.join(g, f), 'one\n');
+  const hourAgo = new Date(Date.now() - 3600_000).toISOString(), FILES = ['touched.txt', 'edited.txt', 'committed.txt', 'early-touched.txt', 'early-edited.txt'];
+  for (const f of FILES) fs.writeFileSync(path.join(g, f), 'one\n');
   git(['init', '-q']); git(['add', '-A']); git(['commit', '-q', '-m', 'before the turn'], { GIT_AUTHOR_DATE: hourAgo, GIT_COMMITTER_DATE: hourAgo });
-  const now = new Date(); fs.utimesSync(path.join(g, 'touched.txt'), now, now);
-  fs.writeFileSync(path.join(g, 'edited.txt'), 'two\n'); fs.writeFileSync(path.join(g, 'committed.txt'), 'two\n');
-  git(['commit', '-q', '-am', 'during the turn', '--', 'committed.txt']);
-  const probe = `const { met } = await import(${JSON.stringify(new URL('./lib.mjs', import.meta.url).href)}); const a = { calls: [], at: new Date(Date.now() - 600000).toISOString() };
-    console.log(JSON.stringify(['touched.txt', 'edited.txt', 'committed.txt'].map(f => met({ kind: 'file', arg: f }, a))));`;
+  // (two files changed before the turn and left uncommitted)
+  const minAgo = new Date(Date.now() - 60_000);
+  for (const f of ['early-touched.txt', 'early-edited.txt']) { fs.writeFileSync(path.join(g, f), 'two\n'); fs.utimesSync(path.join(g, f), minAgo, minAgo); }
+  // (the turn starts as the prompt hook starts it: its snapshot of the uncommitted files is taken in the background)
+  const lib = JSON.stringify(new URL('./lib.mjs', import.meta.url).href), start = JSON.stringify(new URL('./start.mjs', import.meta.url).href);
+  spawnSync(process.execPath, ['--input-type=module', '-e', `const S = await import(${start}); S.onPrompt({ session_id: 'snap1', prompt: 'tidy the notes' });`], { cwd: g, encoding: 'utf8', env: { ...process.env, ANZUELO_ROOT: g, V2_NO_SNAPSHOT: '' } });
+  const snap = path.join(g, 'tools/hooks/state/v2-dirty.snap1.json');
+  for (let i = 0; i < 100 && !fs.existsSync(snap); i++) spawnSync(process.execPath, ['-e', 'setTimeout(() => {}, 100)']);
+  const later = new Date(Date.now() + 2000);
+  for (const f of ['touched.txt', 'early-touched.txt']) fs.utimesSync(path.join(g, f), later, later);
+  fs.writeFileSync(path.join(g, 'edited.txt'), 'two\n'); fs.writeFileSync(path.join(g, 'committed.txt'), 'two\n'); fs.writeFileSync(path.join(g, 'early-edited.txt'), 'three\n');
+  // (committed in the turn's first second: git keeps whole seconds, so it reads as the turn's start, and still counts)
+  let turnAt = ''; try { turnAt = JSON.parse(fs.readFileSync(path.join(g, 'tools/hooks/state/v2-turn.snap1.json'), 'utf8')).at; } catch { }
+  const sec = `@${Math.floor(Date.parse(turnAt) / 1000)} +0000`;
+  git(['commit', '-q', '-m', 'during the turn', '--', 'committed.txt'], { GIT_AUTHOR_DATE: sec, GIT_COMMITTER_DATE: sec });
+  const probe = `const { met, loadTurn, loadDirty } = await import(${lib}); const at = loadTurn('snap1').at, a = { calls: [], at, startHashes: loadDirty('snap1', at) };
+    console.log(JSON.stringify(${JSON.stringify(FILES)}.map(f => met({ kind: 'file', arg: f }, a))));`;
   const out = spawnSync(process.execPath, ['--input-type=module', '-e', probe], { cwd: g, encoding: 'utf8', env: { ...process.env, ANZUELO_ROOT: g } });
   let got = null; try { got = JSON.parse(out.stdout.trim().split('\n').pop()); } catch { }
+  const took = fs.existsSync(snap);
   fs.rmSync(g, { recursive: true, force: true });
-  report(JSON.stringify(got) === '[false,true,true]', 'end: a file marker counts a file whose content changed this turn, or was committed this turn, not one only touched (same content as a commit made before the turn)', { got, err: (out.stderr || '').slice(0, 200) });
+  report(took && JSON.stringify(got) === '[false,true,true,false,true]', 'end: a file marker counts a file whose content changed this turn, or was committed this turn, not one only touched: unchanged since a commit made before the turn, or since the turn began for one already changed then (the prompt hook\'s background snapshot)', JSON.stringify({ took, got, err: (out.stderr || '').slice(0, 300) }));
 }
 
 // (the engine runbook's upgrade items fit a real upgrade, never a dry run, which writes nothing. Lesson (replay

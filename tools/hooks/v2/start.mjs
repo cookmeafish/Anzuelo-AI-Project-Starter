@@ -2,7 +2,7 @@
 // "Done when" list, which the end hook checks. Nothing about the engine itself.
 import fs from 'node:fs';
 import path from 'node:path';
-import { route, skillBooks, saveTurn, loadTurn, isSpanish, ROOT, at, quoteCheckOn, projectConfig } from './lib.mjs';
+import { route, skillBooks, saveTurn, loadTurn, isSpanish, ROOT, at, quoteCheckOn, projectConfig, snapshotLater } from './lib.mjs';
 import { asksOnly } from './late.mjs';
 import { PAUSE_ASK, PAUSE_HINT } from '../pause.mjs';
 import { capsUpset } from '../caps.mjs';
@@ -137,6 +137,8 @@ export function onPrompt(data) {
   // too. Lesson (2026-11-08): v2 kept only the first runbook, and a typed request's own checks were dropped)
   const also = prev.runbook && book?.file && book.file !== prev.runbook && !(prev.also || []).includes(book.file) ? [...(prev.also || []), book.file] : prev.also;
   if (prev.at && !prev.ended && Date.now() - Date.parse(prev.at) < 12 * 3600_000) saveTurn(data.session_id, { ...prev, runbook: prev.runbook || book?.file || null, ...(also ? { also } : {}), ...sore });
-  else saveTurn(data.session_id, { at: new Date().toISOString(), runbook: book?.file || null, ...sore });
+  // (a new turn notes its uncommitted files' contents in the background, so the end check can tell a file it only
+  // touched from one it changed)
+  else { const at0 = new Date().toISOString(); saveTurn(data.session_id, { at: at0, runbook: book?.file || null, ...sore }); snapshotLater(data.session_id, at0); }
   return text ? { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: text } } : null;
 }

@@ -7,7 +7,7 @@ import { unansweredLate, asksOnly } from './late.mjs';
 import { PAUSE_ASK } from '../pause.mjs';
 import { wakeGaps } from '../wakeups.mjs';
 import { forbiddenGaps, codeRuleGaps, injectionGaps, verbatimGaps, CRASHED, crashLine, logStop, upgradeGaps, autoRuns, sessionStart, changedOf, projectConfig, inGlobs, priorCalls, filesMatching, withBackgroundOutputs } from './lib.mjs';
-import { ROOT, at, runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, questionGaps, noteGaps, quoteGaps, tail, helpersRunning, backgroundRuns, helperRuns, evidenceGaps, evidenceOf, skillBooks, alwaysGaps, scopeGaps, earlierPrompts, ALWAYS, engineCheckGaps } from './lib.mjs';
+import { ROOT, at, runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, questionGaps, noteGaps, quoteGaps, tail, helpersRunning, backgroundRuns, helperRuns, evidenceGaps, evidenceOf, skillBooks, alwaysGaps, scopeGaps, earlierPrompts, ALWAYS, engineCheckGaps, loadDirty } from './lib.mjs';
 // (the two data tables, one evaluator each: the project's always list and the engine's own checks)
 // (each check runs on its own: one that throws is named once with its error, and the rest still run)
 const S = (name, f) => { try { return f(); } catch (e) { return [crashLine(name, e)]; } };
@@ -351,6 +351,7 @@ function judge(data, { shadow = false } = {}) {
   // (a helper's commands count too, in time order. Lesson (trial v40): tests a setup helper ran were asked for again)
   const runs = helperRuns(data.transcript_path || '', data.session_id || '', turn.at);
   const acts = withBackgroundOutputs({ ...found, at: turn.at, calls: runs.length ? [...found.calls, ...runs].sort((a, b) => (a.at || 0) - (b.at || 0)) : found.calls }, rows);
+  acts.startHashes = loadDirty(data.session_id || '', saved.at || '');
   // (the final answer as the host hands it over: the transcript may not hold it yet when the Stop hook runs. Lesson
   // (2026-11-07): an answer that ended with its Finished section was blocked for lacking one)
   const final = typeof data.last_assistant_message === 'string' ? data.last_assistant_message.trim() : '';
