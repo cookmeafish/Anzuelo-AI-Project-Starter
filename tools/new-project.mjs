@@ -91,6 +91,20 @@ if (flag('--self-install')) {
   const url = (git(STARTER, 'remote', 'get-url', 'origin').stdout || '').trim();
   const repo = path.basename(url.replace(/\.git$/, '').replace(/[\\/]+$/, '')) || 'starter';
   const proj = opt('--name') || path.basename(STARTER);
+  // (a clone in a folder named after the repository is what "git clone" makes inside the project's folder: the parent is
+  // the project, and the engine goes into its .anzuelo/; the clean clone is removed after. Lesson (the user, 2026-11-08):
+  // a clone made inside a new project's folder was taken for a starter copy, and the agent asked where the project goes)
+  if (proj.toLowerCase().startsWith(repo.toLowerCase()) && !opt('--name') && !flag('--beside')) {
+    const parent = path.dirname(STARTER), name = path.basename(parent);
+    console.log(`Self-install: ${STARTER} is a clone inside ${parent}, so ${parent} becomes the project "${name}", with the engine in ${path.join(parent, '.anzuelo')}; this clone is removed after.`);
+    if (dry) { console.log('Dry run, nothing written.'); process.exit(0); }
+    if (flag('--git') && !fs.existsSync(path.join(parent, '.git'))) git(parent, 'init', '-q');
+    const r = spawnSync(process.execPath, [path.join(STARTER, 'tools/starter.mjs'), 'install', parent, '--name', name, ...(opt('--desc') ? ['--desc', opt('--desc')] : [])], { stdio: 'inherit' });
+    if (r.status !== 0) fail(`Installing failed; ${parent} keeps its files, and this clone is left as it is.`);
+    try { process.chdir(parent); fs.rmSync(STARTER, { recursive: true, force: true }); } catch { console.log(`(remove ${STARTER} by hand: it is no longer needed)`); }
+    console.log(`\nOpen ${parent} with your agent and say "set up this project".`);
+    process.exit(0);
+  }
   if (proj.toLowerCase().startsWith(repo.toLowerCase())) fail(`${STARTER} is named as a starter copy, not a project: run its tools/new-project.mjs "<project folder>".`);
   // (by default the folder becomes the project with everything of the engine in its .anzuelo/ folder: the engine's own
   // clone in .anzuelo/engine, what it makes for the project in .anzuelo/local (starter.mjs install). --beside instead

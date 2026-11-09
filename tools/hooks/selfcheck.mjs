@@ -7571,6 +7571,15 @@ if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) {
         && made(side, path.join(box, 'side', 'Some-Starter-Garden-Notes')),
         'self-install: a starter clone in a project folder becomes that project, by default with everything of the engine in its .anzuelo folder (--beside: a classic project linked to a starter copy next to it); one with changes of its own is left alone',
         `told: ${told.slice(0, 150)} | held: ${held.stderr.slice(0, 150)} | run ${r.status}: ${(r.stderr || '').slice(-300)} | beside ${rb.status}: ${(rb.stderr || '').slice(-300)} | top has ${fs.existsSync(top) ? fs.readdirSync(top).join(',') : '-'}`);
+      // (a plain "git clone" inside the project's folder makes a subfolder named after the repository: the parent is the
+      // project, its engine goes in its .anzuelo, its own files stay, and the clone goes. Lesson (the user, 2026-11-08))
+      const home = path.join(box, 'Kitchen Log'), inner = path.join(home, 'Some-Starter');
+      fs.mkdirSync(home); fs.writeFileSync(path.join(home, 'recipes.txt'), 'leek soup\n'); cloneAt(inner);
+      const n = install(inner, '--git');
+      report(n.status === 0 && fs.existsSync(path.join(home, '.anzuelo', 'engine', 'tools/hooks/hooks.mjs')) && fs.existsSync(path.join(home, '.anzuelo', 'local', 'SETUP-PROMPT.md'))
+        && fs.readFileSync(path.join(home, 'recipes.txt'), 'utf8') === 'leek soup\n' && !fs.existsSync(inner) && fs.existsSync(path.join(home, '.git')),
+        'self-install: a clone made inside the project folder (named after the repository) installs the engine into that folder\'s .anzuelo, keeps its files and removes the clone',
+        `status ${n.status}: ${(n.stdout || '').slice(0, 200)} ${(n.stderr || '').slice(-300)} | home has ${fs.existsSync(home) ? fs.readdirSync(home).join(',') : '-'}`);
     } finally { fs.rmSync(box, { recursive: true, force: true }); }
   }
 }
