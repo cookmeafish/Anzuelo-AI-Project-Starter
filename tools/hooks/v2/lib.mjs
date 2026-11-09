@@ -17,6 +17,7 @@ import { verbatimHits } from './verbatim.mjs';
 import { hexIds, gitClaimContradicted, REPORTED, IMPROVE_CLAIM, byHandClaim, describesClaim, groupVerdictClaim, namedPaths as sharedNamedPaths } from '../claims.mjs';
 import { makeProof } from '../proof.mjs';
 import { makeTrace } from '../trace.mjs';
+import { makeLaunchers } from '../launchers.mjs';
 import { SELF_KEY, approvedBefore } from '../selfcmds.mjs';
 import { capsWeight } from '../caps.mjs';
 import { toOtherSession } from '../relay.mjs';
@@ -1382,8 +1383,24 @@ export function claimGaps(acts, history = '') {
   // (a "committed" or "pushed" claim is checked only by the commit it names, above, never by its wording. Lesson (live
   // data and replay): word lists for which sentences claim a commit were wrong more often than right, and each miss
   // grew the list)
-  out.push(...proofGaps(acts), ...traceGapsV2(acts, history));
+  out.push(...proofGaps(acts), ...traceGapsV2(acts, history), ...launchGaps(acts));
   return out;
+}
+
+// REQ: instructions-run, under v2: the shared tools/hooks/launchers.mjs. What the answer tells the user to run, made or
+// changed this turn, ran here the way the user is told and worked, or the answer says it is not verified. Lesson (the
+// old engine): an answer's first step ran a setup script that was never run here and failed under the shell it named.
+let launchMemo = null;
+export function launchGaps(acts) {
+  const P = proofPure ||= makeProof({});
+  const L = launchMemo ||= makeLaunchers({ shellParts: P.shellParts, cmdHead: P.cmdHead, wordsOf: P.wordsOf, neverRan: P.neverRan, esc: s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') });
+  const runs = (acts.calls || []).filter(c => /^(Bash|PowerShell)$/.test(c.name)).map(c => ({ cmd: String(c.input.command || ''), out: c.out || '', error: !!c.error }));
+  const of = answer => L.launcherGaps({ answer, changed, runs }), changed = changedOf(acts);
+  const gaps = of(String(acts.answer || ''));
+  // (a draft that passed the pre-check answers it too, when the sent answer rewords it. Lesson (the old engine, trial
+  // round 17): Stop rounds only put labels back into a reworded answer that had passed)
+  if (!gaps.length || passedDrafts(acts).some(d => !of(d).length)) return [];
+  return [L.launcherMessage(gaps)];
 }
 
 // REQ: claim-checked (never again, enforced) and check-proven, under v2, as the old engine judged them: in a complaint
