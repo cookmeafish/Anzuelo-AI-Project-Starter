@@ -611,6 +611,20 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
         report(/CLAUDE\.md \("/.test(copied[0] || '') && !brief.some(s => /BRIEF/.test(s)) && /docs\/playbooks\/export\.md \(the user's example "Brindlewood Pantry"/.test(named[0] || ''),
           'end: no-verbatim-examples: the user\'s words a command copied into a root file are held; a name from the user\'s message in a runbook is held; the project\'s description in its brief is not', JSON.stringify({ copied, brief, named }));
       }
+      // (REQ: waiver-tally: a gap cleared with a reason in 3 earlier turns is named in the next block that lists it; two
+      // earlier turns, or the same turn counted again, are not enough)
+      {
+        const { tally } = await import('./end.mjs');
+        const tf = path.join(dir, 'tools/hooks/state/waivers.json'), tKept = fs.existsSync(tf) ? fs.readFileSync(tf, 'utf8') : null; fs.rmSync(tf, { force: true });
+        const g = 'Code rules broken: src/soup.js:2: Set text with textContent';
+        tally([g], [], 's|1'); tally([g], [], 's|2');
+        // (turn 3 clears it in its first round, and it comes back in the second: still two earlier turns)
+        tally([g], [], 's|3');
+        const two = tally([g], [g], 's|3');
+        const three = tally([g], [g], 's|4');
+        tKept === null ? fs.rmSync(tf, { force: true }) : fs.writeFileSync(tf, tKept);
+        report(!two && /^code-rules was waived in 3\+ earlier turns here/.test(three), 'end: waiver-tally: a check cleared with a reason in 3 earlier turns is named when it comes back; 2, or one turn counted twice, are not', JSON.stringify({ two, three: three.slice(0, 80) }));
+      }
       // (every glob converter in v2 reads "**/" as any number of folders, none included: a root file and a nested one both
       // match. Lesson (the old suite under v2): "**/*" missed CLAUDE.md, and an approved "old/**" covered one level only)
       {

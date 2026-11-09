@@ -57,6 +57,25 @@ const kept = acts => {
   };
 };
 export const waived = (acts, list) => list.filter(kept(acts));
+// REQ: waiver-tally. The turns that waved each check away (cleared by "doesn't fit" or "not done, because"), the last
+// 20 per check in tools/hooks/state/waivers.json, the old engine's file: a check waived in 3+ earlier turns doesn't fit
+// some kind of work here, and the next block says so, so it gets fixed instead of skipped. Lesson (a field report): the
+// same checks were waived build after build, and nothing pointed at a lasting fix.
+const GAP_TAG = [[/^(A wakeup you scheduled is|\d+ wakeups you scheduled are) still pending/, 'wakeup-left'], [/^These files now hold a name the user asked/, 'forbidden-terms'],
+  [/^Code rules broken/, 'code-rules'], [/ contain text that reads as instructions to an AI /, 'injection-guard'], [/^Something read this turn carries instructions/, 'injection-flagged'],
+  [/^These files copy the user's own words/, 'no-verbatim-examples'], [/^Security-sensitive code changed /, 'security-code']];
+const gapKey = s => GAP_TAG.find(([rx]) => rx.test(s))?.[1] || s.replace(/\s+/g, ' ').slice(0, 80);
+export function tally(full, left, id) {
+  const f = at('tools/hooks/state/waivers.json');
+  let t = {}; try { t = JSON.parse(fs.readFileSync(f, 'utf8')) || {}; } catch { }
+  const gone = [...new Set(full.filter(s => !left.includes(s)).map(gapKey))];
+  if (id && gone.length) {
+    for (const k of gone) { const ks = t[k] ||= []; if (!ks.includes(id)) { ks.push(id); if (ks.length > 20) ks.shift(); } }
+    try { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, JSON.stringify(t)); } catch { }
+  }
+  const often = [...new Set(left.map(gapKey))].filter(k => (t[k] || []).filter(x => x !== id).length >= 3);
+  return often.length ? `${often.join(', ')} ${often.length > 1 ? 'were' : 'was'} waived in 3+ earlier turns here: if ${often.length > 1 ? 'they never fit' : 'it never fits'} this kind of task, don't waive it again: tell the user in one line (the check, how often it was waived, and why), so the check gets fixed instead of skipped. Otherwise do the step.` : '';
+}
 // (a question the user typed whose first sentence asks for facts; not another session's note, a report or a summary.
 // Replay: most research-trigger turns were summaries, and praise naming "research" was held)
 const relayed = acts => /<(cross-session-message|agent-message|task-notification)\b|^This session is being continued from a previous conversation/m.test(acts.heard || '')
@@ -169,7 +188,10 @@ function judge(data, { shadow = false } = {}) {
   // (wakeups scheduled in any turn of the session count: one left from earlier still re-invokes it later)
   const wakes = wakeGaps(raw.split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean), final || acts.answer || '', acts.heard || '');
   const extra = (turn.also || []).flatMap(f => missing({ ...turn, runbook: f }, acts, runbooks().filter(b => b.file === f)));
-  const list = [...late, ...wakes, ...missing(turn, acts), ...extra, ...skillMissing(acts), ...reviewGaps(turn, acts), ...testGaps(acts, history), ...gateGaps(acts), ...screenGaps(acts), ...healthGaps(acts, { run: !shadow }), ...knowledgeGaps(acts), ...securityGaps(acts), ...questionGaps(acts), ...noteGaps(acts), ...quoteGaps(acts), ...claimGaps(acts, history), ...scopeGaps(acts), ...tableGaps(acts)].filter((s, i, all) => all.indexOf(s) === i).filter(kept(acts));
+  const list = [...late, ...wakes, ...missing(turn, acts), ...extra, ...skillMissing(acts), ...reviewGaps(turn, acts), ...testGaps(acts, history), ...gateGaps(acts), ...screenGaps(acts), ...healthGaps(acts, { run: !shadow }), ...knowledgeGaps(acts), ...securityGaps(acts), ...questionGaps(acts), ...noteGaps(acts), ...quoteGaps(acts), ...claimGaps(acts, history), ...scopeGaps(acts), ...tableGaps(acts)].filter((s, i, all) => all.indexOf(s) === i);
+  // (the waiver tally: what this turn cleared with a reason is recorded; a check cleared in 3+ earlier turns is named)
+  const full = list.splice(0, list.length); list.push(...full.filter(kept(acts)));
+  const often = shadow ? '' : tally(full, list, turn.at ? `${data.session_id || 'x'}|${turn.at}` : '');
   // (a turn that ran the check on its draft has seen the verify list: the real stop does not send it back for it again.
   // Lesson (the user, 2026-11-07): the list came in the draft check and then again as a send-back, and the user read a
   // second round of the answer)
@@ -180,6 +202,7 @@ function judge(data, { shadow = false } = {}) {
   // (a repeat block asks for the fix, or one line on why the item doesn't fit this work, never the same answer again.
   // Lesson (2026-11-07): an agent resent the same answer to each repeat block, and the false item was never looked at)
   if (list.length) parts.push(`${again ? 'Still not done (do it now, or say in one line of the answer why it does not fit this work; resending the same answer does not count)' : 'Not done yet'}:\n${list.map(s => `- ${s}`).join('\n')}`);
+  if (often && list.length) parts.push(often);
   if (last) parts.push('This is the last check for this request: whatever you can\'t do, say plainly in the answer that it is not done and why.');
   if (turn.at && !shadow) saveTurn(data.session_id, { ...turn, blocked: turn.at, rounds: rounds + 1, lastBlock: Date.now() });
   if (check) parts.push(`Check that these items of ${check.file} are really done (skip any that don't fit this work):\n${check.items.map(it => `${it.n}. ${it.text}`).join('\n')}`);

@@ -4884,6 +4884,7 @@ const V2_ASKS = {
   'code-rules': /^- Code rules broken: /m,
   'injection-guard': /^- \S.* contain text that reads as instructions to an AI /m,
   'no-verbatim-examples': /^- These files copy the user's own words: /m,
+  'waiver-tally': /waived in 3\+ earlier turns here/,
   'injection-flagged': /^- Something read this turn carries instructions aimed at an AI /m,
 };
 // (an engine check from requirements.json is recognized by its own message, which v2's evaluator gives as "Check: ...")
