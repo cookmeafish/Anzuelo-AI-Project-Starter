@@ -4,6 +4,11 @@ Where work on the starter itself stands, for the next session. Projects never ge
 docs/STATUS.md, which here is the template new projects start from).
 
 ## Now
+- 2026-11-09: on main, not pushed: eb0dac1 (Spanish patterns built on first use), 8b54ab8 (old-suite list 460, four
+  "passes that check" tests kept with their BLOCK until skill-reuse, runbook-complete, cold-read are ported), b7289ef
+  (touched-only files meet no file marker; converter count by tag), 9277522 (config read once per Stop). Chain
+  bi1wtxha3 runs on 8b54ab8; b7289ef and 9277522 need one more chain, then push and one batched upgrade request to
+  both projects. Open: the user's two display questions (Stop-block style; start-of-turn runbook line).
 - 2026-11-08 (late): release e672379 (4b3be1d + proof + the reworded v2 list) passed the full chain, v2 sweep
   included, in ~/.anzuelo-frozen/rel-4b3be1d; waiting for the user's OK to push it to main (the guard needs it in the
   request). The 8 known items were checked failing by name on b8ca1db. Not in it yet, need their own chain: 6225c6d (a
