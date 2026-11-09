@@ -548,11 +548,11 @@ export function met(item, acts) {
   }
   return null;
 }
-// A file as it was at turn start (start hash, or a commit before the turn; git's whole seconds) was only touched.
-// Lesson (a project's report): a test that touches itself, run by the upgrade, held a turn for an unchanged file.
+// A file as it was at turn start (start hash unless written while that ran, or a commit before the turn; whole seconds)
+// was only touched. Lesson (a project's report): a self-touching test run by the upgrade held a turn for no change.
 function onlyTouched(f, since, start) {
   const g = a => spawnSync('git', a, { cwd: ROOT, encoding: 'utf8', timeout: 5000 });
-  if (start && start[f]) return String(g(['hash-object', '--', f]).stdout || '').trim() === start[f];
+  if (start?.files?.[f] && fs.statSync(at(f)).mtimeMs >= (start.done || Infinity)) return String(g(['hash-object', '--', f]).stdout || '').trim() === start.files[f];
   if (g(['ls-files', '--error-unmatch', '--', f]).status !== 0 || g(['diff', '--quiet', 'HEAD', '--', f]).status !== 0) return false;
   const ct = Number(String(g(['log', '-1', '--format=%ct', '--', f]).stdout || '').trim()) * 1000;
   return !!ct && ct + 1000 <= since;
@@ -1333,16 +1333,16 @@ export const logStop = (sid, entry) => {
 };
 export const loadTurn = sid => { if (!sid) return {}; try { return JSON.parse(fs.readFileSync(stateFile(sid), 'utf8')); } catch { return {}; } };
 
-// The uncommitted files' git hashes at a turn's start, taken by a detached process so the prompt waits on nothing (git
-// repos only; not in timing runs or V2_NO_SNAPSHOT tests). Lesson (a peer's review): HEAD missed a file edited earlier.
+// The uncommitted files' git hashes at turn start, by a detached process (git repos; not in timing runs or V2_NO_SNAPSHOT
+// tests; none past 2,000 files or 5 s; "done": when it ended; day-old ones removed). Lesson: HEAD missed earlier edits.
 const dirtyFile = sid => path.join(STATE(), `v2-dirty.${String(sid || 'x').replace(/[^\w-]/g, '').slice(0, 64)}.json`);
 export const snapshotLater = (sid, at0) => { if (sid && !process.env.STARTER_BENCH && !process.env.V2_NO_SNAPSHOT && fs.existsSync(path.join(ROOT, '.git'))) try { spawn(process.execPath, [fileURLToPath(import.meta.url), '--snapshot-dirty', sid, at0], { cwd: os.tmpdir(), detached: true, stdio: 'ignore', windowsHide: true, env: { ...process.env, ANZUELO_ROOT: ROOT } }).unref(); } catch { } };
 export function snapshotDirty(sid, at0) {
-  const g = (a, input) => String(spawnSync('git', ['-C', ROOT, ...a], { encoding: 'utf8', timeout: 15000, maxBuffer: 1 << 26, input }).stdout || '').split('\n').map(s => s.trim());
-  const names = [...new Set([...g(['diff', '--name-only', 'HEAD']), ...g(['ls-files', '--others', '--exclude-standard'])])].filter(f => { try { return fs.statSync(path.join(ROOT, f)).isFile(); } catch { return false; } }).slice(0, 5000);
-  const hashes = names.length ? g(['hash-object', '--stdin-paths'], names.join('\n') + '\n') : [];
-  try { fs.mkdirSync(STATE(), { recursive: true }); fs.writeFileSync(dirtyFile(sid), JSON.stringify({ at: at0, files: Object.fromEntries(names.map((f, i) => [f, hashes[i]]).filter(([, h]) => /^[0-9a-f]{40,64}$/.test(h || ''))) })); } catch { }
+  const t0 = Date.now(), g = (a, input) => String(spawnSync('git', ['-C', ROOT, ...a], { encoding: 'utf8', timeout: 5000, maxBuffer: 1 << 26, input }).stdout || '').split('\n').map(s => s.trim());
+  try { for (const f of fs.readdirSync(STATE()).filter(n => n.startsWith('v2-dirty.'))) if (t0 - fs.statSync(path.join(STATE(), f)).mtimeMs > 864e5) fs.rmSync(path.join(STATE(), f), { force: true }); } catch { }
+  const names = [...new Set([...g(['diff', '--name-only', 'HEAD']), ...g(['ls-files', '--others', '--exclude-standard'])])].filter(f => { try { return fs.statSync(path.join(ROOT, f)).isFile(); } catch { return false; } });
+  const hashes = names.length && names.length <= 2000 ? g(['hash-object', '--stdin-paths'], names.join('\n') + '\n') : [];
+  if (names.length <= 2000 && Date.now() - t0 <= 5000) try { fs.mkdirSync(STATE(), { recursive: true }); fs.writeFileSync(dirtyFile(sid), JSON.stringify({ at: at0, done: Date.now(), files: Object.fromEntries(names.map((f, i) => [f, hashes[i]]).filter(([, h]) => /^[0-9a-f]{40,64}$/.test(h || ''))) })); } catch { }
 }
-// (this turn's snapshot only)
-export const loadDirty = (sid, at0) => { try { const j = JSON.parse(fs.readFileSync(dirtyFile(sid), 'utf8')); return j.at === at0 ? j.files || {} : null; } catch { return null; } };
+export const loadDirty = (sid, at0) => { try { const j = JSON.parse(fs.readFileSync(dirtyFile(sid), 'utf8')); return j.at === at0 ? j : null; } catch { return null; } };
 if (process.argv[2] === '--snapshot-dirty' && process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) snapshotDirty(process.argv[3], process.argv[4]);

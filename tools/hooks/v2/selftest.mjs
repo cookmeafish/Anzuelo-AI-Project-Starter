@@ -1493,12 +1493,20 @@ const { questionGaps } = await import('./lib.mjs');
   const sec = `@${Math.floor(Date.parse(turnAt) / 1000)} +0000`;
   git(['commit', '-q', '-m', 'during the turn', '--', 'committed.txt'], { GIT_AUTHOR_DATE: sec, GIT_COMMITTER_DATE: sec });
   const probe = `const { met, loadTurn, loadDirty } = await import(${lib}); const at = loadTurn('snap1').at, a = { calls: [], at, startHashes: loadDirty('snap1', at) };
-    console.log(JSON.stringify(${JSON.stringify(FILES)}.map(f => met({ kind: 'file', arg: f }, a))));`;
+    // (a snapshot still running when the file was last written may hold that write: it says nothing about the file)
+    const raced = met({ kind: 'file', arg: 'early-touched.txt' }, { ...a, startHashes: { ...a.startHashes, done: Date.now() + 3600000 } });
+    console.log(JSON.stringify([...${JSON.stringify(FILES)}.map(f => met({ kind: 'file', arg: f }, a)), raced]));`;
   const out = spawnSync(process.execPath, ['--input-type=module', '-e', probe], { cwd: g, encoding: 'utf8', env: { ...process.env, ANZUELO_ROOT: g } });
   let got = null; try { got = JSON.parse(out.stdout.trim().split('\n').pop()); } catch { }
   const took = fs.existsSync(snap);
+  // (no snapshot past 2,000 uncommitted files; one more than a day old is removed when the next is taken)
+  const old = path.join(g, 'tools/hooks/state/v2-dirty.old.json'), dayAgo = new Date(Date.now() - 2 * 864e5);
+  fs.writeFileSync(old, '{}'); fs.utimesSync(old, dayAgo, dayAgo);
+  fs.mkdirSync(path.join(g, 'many')); for (let i = 0; i < 2001; i++) fs.writeFileSync(path.join(g, 'many', `n${i}.txt`), 'x');
+  spawnSync(process.execPath, ['--input-type=module', '-e', `const L = await import(${lib}); L.snapshotDirty('big', 'x');`], { cwd: g, encoding: 'utf8', env: { ...process.env, ANZUELO_ROOT: g } });
+  const capped = !fs.existsSync(path.join(g, 'tools/hooks/state/v2-dirty.big.json')), cleaned = !fs.existsSync(old);
   fs.rmSync(g, { recursive: true, force: true });
-  report(took && JSON.stringify(got) === '[false,true,true,false,true]', 'end: a file marker counts a file whose content changed this turn, or was committed this turn, not one only touched: unchanged since a commit made before the turn, or since the turn began for one already changed then (the prompt hook\'s background snapshot)', JSON.stringify({ took, got, err: (out.stderr || '').slice(0, 300) }));
+  report(took && capped && cleaned && JSON.stringify(got) === '[false,true,true,false,true,true]', 'end: a file marker counts a file whose content changed this turn, or was committed this turn, not one only touched: unchanged since a commit made before the turn, or since the turn began for one already changed then (the prompt hook\'s background snapshot; not for a file written while it ran; none past 2,000 files; day-old ones removed)', JSON.stringify({ took, capped, cleaned, got, err: (out.stderr || '').slice(0, 300) }));
 }
 
 // (the engine runbook's upgrade items fit a real upgrade, never a dry run, which writes nothing. Lesson (replay
