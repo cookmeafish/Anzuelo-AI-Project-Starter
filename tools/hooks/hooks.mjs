@@ -857,7 +857,9 @@ export function turn(transcript) {
   // self-test chain started one turn and passed the next was asked for again, and waived in 3 turns running.
   return {
     get carriedEntries() { return backgroundLaunches(rows.slice(0, start + 1)); },
-    get sessionResults() { return readCache ??= toolResults(rows); }, since, entries, get helperEntries() { return helpers(); }, prompt: [prompt, ...queued].map(userText).filter(s => s.trim()).join('\n'), parts: [prompt, ...queued].map(userText).filter(s => s.trim()), queued, toolsKnown: true, allPrompts, bgRunning: backgroundRunning(rows), watchers: watchersArmed(rows), wakeups: wakeupsPending(rows),
+    get sessionResults() { return readCache ??= toolResults(rows); }, since, entries, raw: [prompt, ...queued].join('\n'),
+    // (the agent's own last text before the request: the list a short typed "do it" approves)
+    get before() { for (let i = start - 1; i >= 0; i--) { const c = rows[i].message?.content; if (rows[i].type === 'assistant' && Array.isArray(c)) { const s = c.filter(b => b?.type === 'text').map(b => b.text).join('\n'); if (s.trim()) return s; } } return ''; }, get helperEntries() { return helpers(); }, prompt: [prompt, ...queued].map(userText).filter(s => s.trim()).join('\n'), parts: [prompt, ...queued].map(userText).filter(s => s.trim()), queued, toolsKnown: true, allPrompts, bgRunning: backgroundRunning(rows), watchers: watchersArmed(rows), wakeups: wakeupsPending(rows),
     get sessionWrites() { const h = helpers(); return h.length ? `${mainWrites}\n${writesOf(h)}` : mainWrites; }, sessionTools, sessionStart, sessionHelpers };
 }
 

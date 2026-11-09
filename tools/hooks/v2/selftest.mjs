@@ -1064,6 +1064,22 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   const dash = G.pretoolHits({ session_id: '', tool_name: 'Write', tool_input: { file_path: R + 'docs/style.md', content: 'A dash — here.\n' } }, base);
   report(!dash.some(h => /^REQ: (plain-writing|no-repeat|no-polling)\b/.test(h)) && !['repeatRun', 'duplicateWork', 'pollWait'].some(n => n in H),
     'guard: rules no engine refuses during the work (em dash, rerun, polling) are not computed on each tool call', dash);
+  // (a typed approval covers exactly what the list it answers names, pasted back or the agent's own last message; a
+  // paste alone never approves, and an unlisted path is still refused. Lesson (a field report): an approved, listed
+  // cleanup was refused, because only the typed words were read)
+  const list = 'OK to delete 2 blurry photos in originals/trip/ (blur_*.jpg). OK to rename 1 map: originals/trip/map1.png';
+  const asked = (typed, last = 'Working on the album.') => transcript([user('tidy the album'), say(last), user(typed)]);
+  const try1 = (tp, command) => guard({ session_id: '', transcript_path: tp, ...bash(command) }, prot) || '';
+  const pasteOk = asked(`just do it, don't ask me again <pasted_content id="p1">${list}</pasted_content p1>`);
+  const pasteOnly = asked(`see this <pasted_content id="p2">${list}</pasted_content p2>`);
+  const lastOk = asked('yes, go ahead', list), bare = asked('yes, go ahead');
+  const cases = {
+    rm: try1(pasteOk, g + 'rm originals/trip/blur_01.jpg'), mv: try1(pasteOk, g + 'mv originals/trip/map1.png originals/trip/route.png'),
+    fromLast: try1(lastOk, g + 'rm originals/trip/blur_02.jpg'), unlisted: try1(pasteOk, g + 'rm originals/trip/keep.jpg'),
+    wrongVerb: try1(pasteOk, g + 'rm originals/trip/map1.png'), pasteOnly: try1(pasteOnly, g + 'rm originals/trip/blur_01.jpg'), noList: try1(bare, g + 'rm originals/trip/blur_01.jpg'),
+  };
+  report(!cases.rm && !cases.mv && !cases.fromLast && ['unlisted', 'wrongVerb', 'pasteOnly', 'noList'].every(k => /REQ: protect-originals/.test(cases[k])),
+    'guard: a typed approval of a listed cleanup (pasted back, or the agent\'s last message) allows exactly the listed paths and actions; a paste alone, an unlisted path or another action is refused (protect-originals)', JSON.stringify(Object.fromEntries(Object.entries(cases).map(([k, v]) => [k, v.slice(0, 60)]))));
 }
 
 {
@@ -1370,7 +1386,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
         { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 't1', content: 'a b' }] } }];
       // (replay of real sessions: instructions with a check-in tag, and answers opening "Understood." or with a short
       // label before "no", were held falsely; a real "..., right?" stays a question)
-      const { unansweredLate } = await import('./midturn.mjs');
+      const { unansweredLate } = await import('./late.mjs');
       const q1 = t => ({ type: 'attachment', attachment: { type: 'queued_command', prompt: t } }), a1 = t => ({ type: 'assistant', message: { content: [{ type: 'text', text: t }] } });
       const falseKinds = [[q1('once you are done, commit everything and update the notes okay?'), a1('Working.')], [q1('also make it a rule to look for a recipe first?'), a1('Working.')],
         [q1('understand?'), a1('Working.')], [q1('the menu needs a plain layout, understand?'), a1('Understood. Plain layout it is.')], [q1('but did you check the oven before?'), a1('Short answer first: **no**, not before.')]];

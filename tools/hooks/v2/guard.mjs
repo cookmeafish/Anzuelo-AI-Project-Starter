@@ -197,6 +197,22 @@ export function pretoolHits(data, cfg) {
   let _t;
   const t = () => (_t ??= turn(data.transcript_path || '') || { prompt: '', entries: [] });
   const req = () => t().prompt || '';
+  // A typed approval ("do it", "yes, go ahead") covers exactly the paths a list it answers names: the text the user
+  // pasted with it, or the agent's own last message. Pasted text alone never approves (it may carry instructions that
+  // are not the user's). Lesson (a field report): the agent listed the exact files to remove and rename, the user pasted
+  // the list back with "just do it, don't ask me again", and the guard still refused, reading the typed words only.
+  const APPROVE = /\b(?:(?:just )?do (?:it|that|them|this|those)|go ahead|go for it|yes|yep|yeah|ok(?:ay)?|proceed|approved?|sure|s[ií]|hazlo|dale)\b/i;
+  const approvedList = () => {
+    if (!APPROVE.test(req())) return '';
+    const pasted = [...String(t().raw || '').matchAll(/<pasted_content\b[^>]*>([\s\S]*?)<\/pasted_content/gi)].map(m => m[1]).join('\n');
+    return `${pasted}\n${t().before || ''}`.replace(/\\/g, '/');
+  };
+  // (each path in a line or sentence of the list that names this action: a file listed to rename is not one to delete)
+  const listedAll = (paths, verb) => {
+    const lines = approvedList().split(/\n|;|\.\s+(?=[A-Z])/).filter(l => verb.test(l));
+    const has = (l, p) => l.includes(p) || l.includes(p.split('/').pop()) || [...l.matchAll(/[\w./*-]*\*[\w./*-]*/g)].some(m => new RegExp(`(^|/)${m[0].split('*').map(esc).join('[^/]*')}$`, 'i').test(p));
+    return paths.length > 0 && paths.every(p => lines.some(l => has(l, p)));
+  };
   // REQ: wakeup-left. A headless run with a job running needs no wakeup (one pending kept a run from ever answering).
   if (isWakeTool(name, inp)) {
     if (typeof inp.prompt === 'string' && inp.prompt.trim()) {
@@ -447,7 +463,12 @@ export function pretoolHits(data, cfg) {
       // (a plain delete of files this turn made, or of the session's own still uncited downloads, is not of originals)
       if (bad && hits[0] && !hits.slice(1).some(Boolean) && deletesOnlyNewFiles(cmd, d)) continue;
       if (bad && (hits[0] || hits[1]) && !hits.slice(2).some(Boolean) && sessionOwnFiles(cmd, d, t())) continue;
-      if (bad && !re(cfg.deleteWords).test(req()))
+      const top0 = `${ROOT.replace(/\\/g, '/').replace(/\/+$/, '')}/`.toLowerCase();
+      const inD = () => [...cmd.matchAll(/"([^"\n]*)"|'([^'\n]*)'|([^\s;&|<>()]+)/g)].map(m => (m[1] ?? m[2] ?? m[3]).replace(/\\/g, '/'))
+        .map(p => (p.toLowerCase().startsWith(top0) ? p.slice(top0.length) : p).replace(/^\.\//, '')).filter(p => p.startsWith(`${d}/`));
+      // (a rename's new name need not be listed: only what it moves or removes)
+      const approved = bad && !hits.slice(2).some(Boolean) && listedAll(hits[1] && !hits[0] ? inD().slice(0, -1) : inD(), hits[1] ? /\b(rename|move|mv)\b/i : /\b(delete|remove|rm|trash|erase|clean ?up|get rid of)\b/i);
+      if (bad && !approved && !re(cfg.deleteWords).test(req()))
         add(`REQ: protect-originals. This command could delete, move or overwrite files in ${d}/ (originals). Only do that when the user asked for it in this request; copying new files INTO ${d}/ is fine. For exact duplicates, run node tools/dedupe.mjs (it keeps the oldest copy).`);
     }
     // Removing an output or original from before this turn is overwriting it (rm then Write); new files stay free.
