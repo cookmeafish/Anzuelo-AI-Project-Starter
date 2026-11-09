@@ -690,7 +690,13 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
           audit: tp([user('fix it'), say('Done.')], { cmd: 'audit\\.mjs', pass: 'audit: PASS', selfRun: 'node tools/audit.mjs', selfAuto: true }),
         };
         ['.cache/old-gate.txt', '.cache/gate.txt', 'tools/selftest-ok.mjs', 'tools/selftest-bad.mjs'].forEach(f => fs.rmSync(path.join(dir, f), { force: true }));
-        const T = par.toolPassed; cites.toolPassedOk = T.toFile === true && T.oldFile === false && T.selfOk === true && T.selfBad === false && T.audit === null;
+        // (a skill read counts as used, unless the turn read 3 or more skills: then only if the answer names it)
+        const sr = n => call('Read', { file_path: path.join(dir, `skills/${n}/SKILL.md`) }, `# ${n}`);
+        const su = (rows) => holdsReq({ skillUsed: 'research' }, acts(rows), x);
+        par.skills = { one: su([user('look it up'), sr('research'), say('Found it.')]), survey: su([user('add the note'), sr('notes-vault'), sr('knowledge-capture'), sr('research'), say('Saved.')]),
+          named: su([user('add the note'), sr('notes-vault'), sr('knowledge-capture'), sr('research'), say('Skill: research. Found it.')]) };
+        cites.skillsOk = par.skills.one === true && par.skills.survey === false && par.skills.named === true;
+        const T = par.toolPassed; cites.toolPassedOk = cites.skillsOk && T.toFile === true && T.oldFile === false && T.selfOk === true && T.selfBad === false && T.audit === null;
         report(cites.toolPassedOk && par.seq === false && par.bg === true && par.plain === true && cites.plain && cites.ticks && cites.printed && !cites.unopened && !cites.own && cites.unknownBranch === null && cites.otherHolds === true,
           'end: answer-cites: a source opened (or printed) this turn named in the answer meets it, an unopened or self-written file does not; an unread branch leaves an anyOf unjudged unless another holds; helpers run one after another are not parallel work, two in the background are; the output of a gate in a file written this turn counts, an older log does not, and a declared self-test never run is run here (the audit left to the health check)', JSON.stringify(cites));
       }

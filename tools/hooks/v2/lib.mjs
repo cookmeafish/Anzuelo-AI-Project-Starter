@@ -787,6 +787,8 @@ const engineChecks = () => {
   const own = (file.requirements || []).filter(r => r && tags.has(r.tag));
   return [...BASE_REQUIREMENTS.filter(b => !own.some(r => r.tag === b.tag)), ...own].filter(r => r.tag !== 'security-code' && !off.has(r.tag));
 };
+const skillSurvey = acts => (fs.existsSync(at('SETUP-PROMPT.md')) && !fs.existsSync(at('.starter-template')))
+  || new Set(acts.calls.filter(k => k.name === 'Read').map(k => (/skills[\\/]+([\w-]+)[\\/]+SKILL\.md$/i.exec(String(k.input.file_path || '')) || [])[1]).filter(Boolean)).size >= 3;
 // The files a command sent its output to ("> f", ">> f", "| tee f"), inside the project.
 const redirectedTo = cmd => [...String(cmd || '').matchAll(/(?:\d?>>?|\|\s*tee(?:\s+-a)?)\s*["']?([\w./\\-]+)["']?/g)].map(m => m[1].replace(/\\/g, '/').replace(/^\.\//, '')).filter(f => !/^(\/dev\/null|nul|&\d)$/i.test(f) && !/^\.\./.test(f));
 // A declared self-test run by the end check, once per turn per command, within two minutes.
@@ -813,7 +815,11 @@ function citesOpened(acts, x) {
 export function holdsReq(c, acts, x) {
   const read = n => acts.calls.some(k => (k.name === 'Read' && n.test(String(k.input.file_path || '').replace(/\\/g, '/'))));
   const tests = {
-    skillUsed: v => read(new RegExp(`skills/${v}/SKILL\\.md$`, 'i')) || acts.calls.some(k => (k.name === 'Skill' && String(k.input.skill || '').endsWith(v)) || (/^(Agent|Task)$/.test(k.name) && String(k.input.prompt || '').includes(`skills/${v}/`))),
+    // (a skill read counts as used, except during setup or in a turn that read 3 or more skills (a survey, or one skill's
+    // chain of others): then only when the answer names it or one of its scripts ran. Lessons (the v2 re-sweep): setup
+    // was held to a letter skill's draft; a note the user dictated was held to the research skill's sources)
+    skillUsed: v => (read(new RegExp(`skills/${v}/SKILL\\.md$`, 'i')) && (!(skillSurvey(acts)) || new RegExp(`(?<![\\w-])skills?\\s*:\\s*\`?(skills/)?${v.replace(/[^\w-]/g, '')}(?![\\w-])`, 'i').test(acts.answer || '')
+      || acts.calls.some(k => /^(Bash|PowerShell)$/.test(k.name) && String(k.input.command || '').replace(/\\/g, '/').includes(`skills/${v}/`)))) || acts.calls.some(k => (k.name === 'Skill' && String(k.input.skill || '').endsWith(v)) || (/^(Agent|Task)$/.test(k.name) && String(k.input.prompt || '').includes(`skills/${v}/`))),
     playbookUsed: v => read(new RegExp(`playbooks/${v}\\.md$`, 'i')),
     filesChanged: v => x.changed.some(f => [].concat(v).some(g => globRx(g).test(f)) && ![].concat(c.filesIgnore || []).some(g => globRx(g).test(f))),
     filesIgnore: () => true,
