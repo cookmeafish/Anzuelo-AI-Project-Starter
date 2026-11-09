@@ -58,7 +58,17 @@ replaces that with "port each one, or ask"), [clean exit](2026-11-08-clean-exit.
       a message the user types while the agent works is handed to it once, to answer first (v2/midturn.mjs).
 - [ ] Ask the user once, in one list, about every "ask" item.
 
-## Task 3: port, smallest first
+- 2026-11-08 progress: every group triaged, split where one group mixed behaviors:
+  [the triage](../../tools/starter/reviews/2026-11-08-v2-triage.md).
+  - Behaviors: 313. Port 211, another way 60 (each names its v2 test), retired 32 (each with its date), open 10.
+  - Ports by harm: 1 safety and privacy 19, 2 messages and upset 31, 3 accuracy 34, 4 tests and GUI 40, rest 87.
+  - The user, 2026-11-08: everything works in the new engine. No "ask" bucket, no v1 fallback. The open 10 are
+    conflicts with a deliberate v2 choice, listed at the top of the triage, and get settled one by one, not dropped.
+  - Done when: the old suite run under v2 fails only the dated-retired tests, and every REQ id has a passing v2 test.
+  - Before calling the list complete, rerun the 6 old-suite shards that crashed under v2 (their tests were never
+    counted).
+
+## Task 3: port, by harm first (the user, 2026-11-08: harm order, not smallest first)
 - [ ] Port each group into its v2 module, with its test run under v2. The size budget (2,000 lines) still holds:
       when it does not fit, the overrun is reported, never solved by dropping behavior.
 - [ ] `V2_SHOWS` in `tools/hooks/v2/lines.mjs` has no "open" kind left.
