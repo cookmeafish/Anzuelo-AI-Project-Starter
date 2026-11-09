@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { roots, resolver } from '../paths.mjs';
 import { people, personOf, peopleIn, peopleFor } from '../people.mjs';
+import { inEnglish } from '../labels.mjs';
 
 export const ROOT = process.env.ANZUELO_ROOT || process.cwd();
 // (where each file is: in a project with the engine in .anzuelo/engine, runbooks and skills come from the local copy
@@ -697,6 +698,10 @@ export function knowledgeGaps(acts) {
 
 // Check 6: security-sensitive code was written (the project's "security-code" pattern in requirements.json) and the
 // turn neither ran the security review nor wrote its report. Replay: the ask found a real problem in 3 of 4 runs.
+// A check waived outside the answer, for runs with no one to answer to (headless): "N/A(<tag>): <a specific reason>"
+// in .cache/turn-notes.md, written this turn, the reason at least 4 words. Rule 7 keeps waivers out of the answer.
+export const waivedTag = (tag, acts) => { const since = Date.parse(acts.at || '') || 0; if (!since || mtime('.cache/turn-notes.md') <= since) return false;
+  return read('.cache/turn-notes.md').split('\n').some(l => { const m = /^\s*N\/A\(([\w-]+)\):\s*(.+)$/.exec(l); return m && m[1] === tag && m[2].trim().split(/\s+/).length >= 4; }); };
 const securitySpec = () => { try { return JSON.parse(fs.readFileSync(at('tools/hooks/requirements.json'), 'utf8')).requirements.find(r => r.tag === 'security-code')?.when?.changedContentMatches || null; } catch { return null; } };
 export function securityGaps(acts) {
   const spec = securitySpec();
@@ -704,16 +709,67 @@ export function securityGaps(acts) {
   let rx; try { rx = new RegExp(spec.pattern, 'i'); } catch { return []; }
   const files = (spec.files || []).map(globRx), ignore = (spec.ignore || []).map(globRx);
   const covered = r => files.some(x => x.test(r)) && !ignore.some(x => x.test(r)) && !/^(\.\.|[a-z]:)/i.test(r);
-  const hit = acts.calls.filter(c => /^(Edit|Write|MultiEdit)$/.test(c.name) && covered(relp(c.input.file_path || '')))
-    .filter(c => rx.test(String(c.input.new_string ?? c.input.content ?? (c.input.edits || []).map(e => e.new_string).join('\n'))))
-    .map(c => relp(c.input.file_path));
+  const text = c => String(c.input.new_string ?? c.input.content ?? (c.input.edits || []).map(e => e.new_string).join('\n'));
+  // (the file and the words that set it off, so the agent can tell a real hit from a false one. Lesson (the old engine))
+  const hit = acts.calls.filter(c => /^(Edit|Write|MultiEdit)$/.test(c.name) && covered(relp(c.input.file_path || ''))).map(c => ({ f: relp(c.input.file_path), w: rx.exec(text(c))?.[0] })).filter(h => h.w);
+  // (a covered file changed another way since the turn began: its added lines, or the whole file when git does not
+  // know it. Lesson (the old suite under v2): code a script wrote was never read)
+  // (a file the turn edited with a tool is judged by those edits only)
+  const since = Date.parse(acts.at || '') || 0, viaTool = new Set(acts.calls.filter(c => /^(Edit|Write|MultiEdit)$/.test(c.name)).map(c => relp(c.input.file_path || '')));
+  if (since) { if (!walked.has(acts)) walked.set(acts, filesMatching('**/*'));
+    for (const f of walked.get(acts).filter(f => covered(f) && !viaTool.has(f) && mtime(f) > since)) {
+      // (a file made this turn is read whole; one that was there is read by what git says it gained, or not at all)
+      const made = (() => { try { return fs.statSync(at(f)).birthtimeMs > since; } catch { return false; } })();
+      const d = made ? null : spawnSync('git', ['diff', '-U0', '--', f], { cwd: ROOT, encoding: 'utf8', timeout: 5000 });
+      const added = made ? read(f) : d.status === 0 ? d.stdout.split('\n').filter(l => /^\+(?!\+\+)/.test(l)).join('\n') : '';
+      const w = rx.exec(added)?.[0]; if (w) hit.push({ f, w });
+    } }
   if (!hit.length) return [];
+  // (the review carried out: the skill run, a helper given it, or its report written. Only opening it is not a review.
+  // Lesson (the old engine): a turn that only read the skill counted as reviewed)
   const reviewed = acts.calls.some(c => (c.name === 'Skill' && /security-review$/.test(String(c.input.skill || '')))
     || (/^(Agent|Task)$/.test(c.name) && /security-review/.test(String(c.input.prompt || '')))
-    || (c.name === 'Read' && /skills[\\/]security-review[\\/]SKILL\.md$/i.test(String(c.input.file_path || '')))
     || (/^(Edit|Write)$/.test(c.name) && /^docs\/reviews\/security[^/]*\.md$/i.test(relp(c.input.file_path || ''))))
-    || changedSince(acts, { test: r => /^docs\/reviews\/security[^/]*\.md$/i.test(r) }).length > 0;
-  return reviewed ? [] : [`Security-sensitive code changed (${[...new Set(hit)].slice(0, 3).join(', ')}): run the security review (skills/security-review/SKILL.md) and say its result.`];
+    || (since && walked.get(acts).some(f => /^docs\/reviews\/security[^/]*\.md$/i.test(f) && mtime(f) > since))
+    // (or the skill read and its result given: logged in docs/security.md, or a results table in the answer)
+    || (acts.calls.some(c => c.name === 'Read' && /skills[\\/]security-review[\\/]SKILL\.md$/i.test(String(c.input.file_path || '')))
+      && ((since && mtime('docs/security.md') > since) || /\|\s*(PASS|FAIL|N\/?A)\b/.test(acts.answer || '')));
+  if (!reviewed && waivedTag('security-code', acts)) return [];
+  const seen = [...new Map(hit.map(h => [h.f, h])).values()].slice(0, 3);
+  return reviewed ? [] : [`Check: Security-sensitive code changed (${seen.map(h => `${h.f}: "${h.w}"`).join(', ')}): run the security review (skills/security-review/SKILL.md) and say its result, or say in one line why it does not apply (a specific reason).`];
+}
+
+// The engine's own checks (tools/hooks/engine-checks.json tags, as requirements.json holds them: one table, one
+// evaluator). Each holds when its "when" does and its "require" does not, with its own message. The project's own checks
+// are in docs/checks/always.md, and security-code has its own gap above. A key this evaluator does not know makes the
+// check skip, never block. Lesson (the old suite under v2): v2 read one engine check, and the rest were never enforced.
+const reqRe = s => String(s).startsWith('(?c)') ? new RegExp(String(s).slice(4), 'm') : new RegExp(s, 'im');
+const engineChecks = () => { try { const tags = new Set(JSON.parse(fs.readFileSync(at('tools/hooks/engine-checks.json'), 'utf8')).requirements.map(r => r.tag)); return JSON.parse(fs.readFileSync(at('tools/hooks/requirements.json'), 'utf8')).requirements.filter(r => tags.has(r.tag) && r.tag !== 'security-code'); } catch { return []; } };
+export function holdsReq(c, acts, x) {
+  const read = n => acts.calls.some(k => (k.name === 'Read' && n.test(String(k.input.file_path || '').replace(/\\/g, '/'))));
+  const tests = {
+    skillUsed: v => read(new RegExp(`skills/${v}/SKILL\\.md$`, 'i')) || acts.calls.some(k => (k.name === 'Skill' && String(k.input.skill || '').endsWith(v)) || (/^(Agent|Task)$/.test(k.name) && String(k.input.prompt || '').includes(`skills/${v}/`))),
+    playbookUsed: v => read(new RegExp(`playbooks/${v}\\.md$`, 'i')),
+    filesChanged: v => x.changed.some(f => [].concat(v).some(g => globRx(g).test(f)) && ![].concat(c.filesIgnore || []).some(g => globRx(g).test(f))),
+    filesIgnore: () => true,
+    answerMatches: v => reqRe(v).test(acts.answer || ''), answerNotMatches: v => !reqRe(v).test(acts.answer || ''),
+    promptMatches: v => reqRe(v).test(acts.heard || ''), promptNotMatches: v => !reqRe(v).test(acts.heard || ''),
+    toolRan: v => acts.calls.some(k => /^(Bash|PowerShell)$/.test(k.name) && reqRe(v).test(String(k.input.command || ''))),
+    toolPassed: v => { const cmd = typeof v === 'string' ? v : v?.cmd; return !!cmd && acts.calls.some(k => /^(Bash|PowerShell)$/.test(k.name) && reqRe(cmd).test(String(k.input.command || '')) && !k.error && (!v?.pass || reqRe(v.pass).test(k.out || ''))); },
+    workTurn: v => !v || x.changed.length > 0,
+    anyOf: v => v.some(sub => holdsReq(sub, acts, x) === true),
+  };
+  for (const [k, v] of Object.entries(c || {})) { if (!tests[k]) return null; if (!tests[k](v)) return false; }
+  return true;
+}
+export function engineCheckGaps(acts) {
+  const since = Date.parse(acts.at || '') || 0;
+  if (since && !walked.has(acts)) walked.set(acts, filesMatching('**/*'));
+  const changed = [...new Set([...acts.calls.filter(c => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name)).map(c => relp(c.input.file_path || '')), ...(since ? walked.get(acts).filter(f => !/^(\.cache|tools\/hooks\/state)\//.test(f) && mtime(f) > since) : [])])];
+  const x = { changed };
+  // (an answer in the user's language meets the checks with its own labels: each label line is read in English too)
+  const read = { ...acts, answer: inEnglish(acts.answer || '', projectConfig()) };
+  return engineChecks().filter(r => holdsReq(r.when, read, x) === true && holdsReq(r.require, read, x) === false && !waivedTag(r.tag, acts)).map(r => `Check: ${r.message}`);
 }
 
 // Check 7: the answer claims nothing the session can't back: a commit it names exists or appeared in tool output, a file

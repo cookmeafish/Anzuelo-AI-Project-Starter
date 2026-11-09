@@ -3027,7 +3027,7 @@ STOP.push(
     files: { '.cache/verdicts.js': 'const password = process.argv[2];\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Checked.' + FIN, expect: { not: ['security-code'] } },
   { name: 'security-code: the review followed and logged: passes', prompt: 'make the form check the user', tools: [sk('security-review')], files: { ...AUTH, ...SEC_LOG, 'docs/CHANGELOG.md': 'x' }, answer: SEC_TABLE + FIN, expect: { not: ['security-code', 'security-report', 'security-logged'] } },
   { name: 'security-code: a waiver needs a specific reason: blocked', prompt: 'make the form check the user', files: { ...AUTH, 'docs/CHANGELOG.md': 'x' }, answer: 'Done. N/A(security-code): no' + FIN, expect: { tags: ['security-code'] } },
-  { name: 'security-code: a specific waiver holds: passes', prompt: 'make the form check the user', files: { ...AUTH, 'docs/CHANGELOG.md': 'x' }, answer: 'Done. N/A(security-code): the word is only a label in a sample screen, nothing checks it' + FIN, expect: { not: ['security-code'] } },
+  { name: 'security-code: a specific waiver holds: passes', prompt: 'make the form check the user', files: { ...AUTH, 'docs/CHANGELOG.md': 'x' }, answer: 'Done. The security review does not apply: the word is only a label in a sample screen, nothing checks it. N/A(security-code): the word is only a label in a sample screen, nothing checks it' + FIN, expect: { not: ['security-code'] } }, // (the plain line for v2, rule 7; the N/A form until v1 goes, step 1e)
   { name: 'security-code: tests and engine files never trigger it: passes', prompt: 'add a test', files: { 'tests/auth.test.js': 'test("password", () => bcrypt.compare("a", "b"));\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { not: ['security-code'] } },
   { name: 'security-code: only what this turn added counts, not what the file already had: passes', prompt: 'rename a variable', tools: [{ name: 'Edit', input: { file_path: 'src/auth.js', old_string: 'u', new_string: 'const total = 1;' } }],
     files: { ...AUTH, 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { not: ['security-code'] } },
@@ -4875,7 +4875,10 @@ const helpers = HELPER ? [] : Array.from({ length: SHARDS - 1 }, (_, k) => new P
 const V2_ASKS = {
   'scope-separate': /Keep each person's details apart|^- Files of .+ changed, but this request is/m, // 617f3ec
   'question-answered': /^- Answer the user's message typed at /m, // f715d31
+  'security-code': /^- Check: Security-sensitive code changed /m,
 };
+// (an engine check from requirements.json is recognized by its own message, which v2's evaluator gives as "Check: ...")
+const ENGINE_MSG = (() => { try { return Object.fromEntries(JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/hooks/requirements.json'), 'utf8')).requirements.map(q => [q.tag, q.message])); } catch { return {}; } })();
 for (const s of STOP) {
   if (!mine()) continue;
   if (!applies(s)) { if (s.own) { report(false, 'stop: ' + s.name, `could not run: ${ownSkipWhy(s)}`); continue; } skipped++; if (process.env.SHOW_SKIPS) console.log('SKIP  stop: ' + s.name); continue; }
@@ -4889,7 +4892,8 @@ for (const s of STOP) {
   // the stop message lists the check names once, on its last line: "Names: a, b."
   // (the v2 end check names no check: a behavior ported to v2 is recognized by what its message asks, V2_ASKS. The
   // scenario and its verdict stay as they were; only v1's wording goes. Plan: migrate every behavior, Task 3)
-  const named = t => (/Names: ([^\n]*)\.\s*$/.exec(r.reason || '')?.[1] || '').split(', ').includes(t) || (!!V2_ASKS[t] && /^(Not done yet|Still not done)/.test(r.reason || '') && V2_ASKS[t].test(r.reason || ''));
+  const v2 = /^(Not done yet|Still not done)/.test(r.reason || '');
+  const named = t => (/Names: ([^\n]*)\.\s*$/.exec(r.reason || '')?.[1] || '').split(', ').includes(t) || (v2 && ((!!V2_ASKS[t] && V2_ASKS[t].test(r.reason || '')) || (!!ENGINE_MSG[t] && (r.reason || '').includes(`- Check: ${ENGINE_MSG[t]}`))));
   for (const t of s.expect.tags || []) if (!named(t)) why ||= `missing tag [${t}] in: ${r.reason || `(no block)${r.err ? ' stderr: ' + r.err.slice(0, 300) : ''}`}`;
   for (const t of s.expect.not || []) if (named(t)) why ||= `unexpected tag [${t}]`;
   // a scenario with nothing to judge would always pass. Lesson: a project scenario meant as a pass had only a name.

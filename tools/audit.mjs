@@ -20,7 +20,7 @@ import { listAll, split } from './hooks/paths.mjs';
 import { pending as alwaysPendingIn } from './always.mjs';
 // The v2 parity ratchet (see "every REQ tag is enforced and tested"): requirement tags no v2 test names yet, and the day
 // it began. Each port lowers the number in the same commit.
-const V2_UNTESTED = 142, V2_RATCHET_DAY = '2026-11-08';
+const V2_UNTESTED = 141, V2_RATCHET_DAY = '2026-11-08';
 const alwaysPending = () => alwaysPendingIn(f => read(abs(f)), d => { try { return listAll(d); } catch { return []; } });
 
 // --help, or a flag it doesn't know, prints the usage and runs nothing. Lesson (2026-11-06): a mistyped flag in a

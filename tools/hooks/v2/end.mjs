@@ -4,7 +4,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { passLine } from './lines.mjs';
 import { unansweredLate } from './late.mjs';
-import { ROOT, at, runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, questionGaps, noteGaps, quoteGaps, tail, helpersRunning, backgroundRuns, helperRuns, evidenceGaps, evidenceOf, skillBooks, alwaysGaps, scopeGaps, earlierPrompts, ALWAYS } from './lib.mjs';
+import { ROOT, at, runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, questionGaps, noteGaps, quoteGaps, tail, helpersRunning, backgroundRuns, helperRuns, evidenceGaps, evidenceOf, skillBooks, alwaysGaps, scopeGaps, earlierPrompts, ALWAYS, engineCheckGaps } from './lib.mjs';
+// (the two data tables, one evaluator each: the project's always list and the engine's own checks)
+const tableGaps = acts => [...alwaysGaps(acts), ...engineCheckGaps(acts)];
 
 // Check 1: the routed runbook, else the one the agent opened (not a skill it names), was followed and its checkable
 // "Done when" items met. A runbook the turn wrote or changed, by a script too, is its work, not its procedure.
@@ -33,7 +35,8 @@ const kept = acts => {
   // (one clause at a time: "item 3 done; item 5 n/a" clears item 5 only)
   const all = String(acts.answer || acts.said || '').replace(/`/g, '').split(/\n|;|\.\s+/);
   const lines = all.filter(l => NOFIT.test(l));
-  const later = all.flatMap((l, i) => NOTDONE.test(l) && (REASON.test(l) || REASON.test(all[i + 1] || '')) ? [stems(`${l} ${all[i + 1] || ''}`)] : []);
+  // (or "does not apply: <a reason of 3 words or more>" in one line)
+  const later = all.flatMap((l, i) => (NOTDONE.test(l) && (REASON.test(l) || REASON.test(all[i + 1] || ''))) || (NOFIT.test(l) && l.slice(l.search(NOFIT)).split(/\s+/).length >= 6) ? [stems(`${l} ${all[i + 1] || ''}`)] : []);
   const about = text => { const w = stems(text); return later.some(s => [...w].filter(x => s.has(x)).length >= 2); };
   // (a line that names the runbook itself, by path, file name or "the <name> runbook", clears its "Open" ask and all
   // its items: the route was a guess. Lesson (a live false block): three rounds went on a misrouted runbook, and a plain
@@ -41,6 +44,8 @@ const kept = acts => {
   const named = file => { const name = file.replace(/^.*\//, '').replace(/\.md$/, ''); return lines.some(l => l.includes(file) || l.includes(`${name}.md`) || new RegExp(`\\b${name}\\s+(runbook|playbook|skill)\\b`, 'i').test(l)); };
   return s => {
     const o = /^Open (\S+\.md) and\b/.exec(s); if (o) return !named(o[1]);
+    // (an engine check, "Check: <message>": a plain "not done, because ..." about it clears it, as for runbook items)
+    if (/^Check: /.test(s)) return !about(s.slice(7));
     const m = /^(\S+) item (\d+): (.*)$/.exec(s); if (!m) return true;
     // (naming the always list does not clear all of it: it is standing rules, not a runbook that may not fit)
     if ((named(m[1]) && m[1] !== ALWAYS) || about(m[3])) return false;
@@ -160,7 +165,7 @@ function judge(data, { shadow = false } = {}) {
   acts.earlier = earlierPrompts(raw, turn.at);
   const late = unansweredLate(rows, final).map(m => `Answer the user's message typed at ${String(m.at).slice(11, 16) || 'mid-task'}: "${m.text.replace(/\s+/g, ' ').slice(0, 200)}"`);
   const extra = (turn.also || []).flatMap(f => missing({ ...turn, runbook: f }, acts, runbooks().filter(b => b.file === f)));
-  const list = [...late, ...missing(turn, acts), ...extra, ...alwaysGaps(acts), ...skillMissing(acts), ...reviewGaps(turn, acts), ...testGaps(acts, history), ...gateGaps(acts), ...screenGaps(acts), ...healthGaps(acts, { run: !shadow }), ...knowledgeGaps(acts), ...securityGaps(acts), ...questionGaps(acts), ...noteGaps(acts), ...quoteGaps(acts), ...claimGaps(acts, history), ...scopeGaps(acts)].filter((s, i, all) => all.indexOf(s) === i).filter(kept(acts));
+  const list = [...late, ...missing(turn, acts), ...extra, ...skillMissing(acts), ...reviewGaps(turn, acts), ...testGaps(acts, history), ...gateGaps(acts), ...screenGaps(acts), ...healthGaps(acts, { run: !shadow }), ...knowledgeGaps(acts), ...securityGaps(acts), ...questionGaps(acts), ...noteGaps(acts), ...quoteGaps(acts), ...claimGaps(acts, history), ...scopeGaps(acts), ...tableGaps(acts)].filter((s, i, all) => all.indexOf(s) === i).filter(kept(acts));
   // (a turn that ran the check on its draft has seen the verify list: the real stop does not send it back for it again.
   // Lesson (the user, 2026-11-07): the list came in the draft check and then again as a send-back, and the user read a
   // second round of the answer)
