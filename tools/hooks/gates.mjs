@@ -62,7 +62,8 @@ export function makeGates(io) {
   const NOT_RUN_SAID = /\b(not (been |yet )?(run|ran|compiled|built|tested|verified|checked)|n'?t (been )?(run|ran|compiled|built|tested)|nothing (has been |was |got )?(run|compiled|built|tested)|never (ran|run|compiled|built)|none (of (them|the \w+) )?(has|have) (been )?(run|ran)|could ?n[o']t (run|be run)|can'?t (run|be run)|requires? (an )?approval|needs? (your |an )?approval|wait(s|ed|ing)? for (an |your )?approval|(is|are)n'?t installed|not installed)\b/i;
   function saysNotRun(text, cmd = '') {
     const t = String(text || '');
-    if (/\bnot verified\b|\bunverified\b/i.test(t)) return true;
+    // ("Not done: <what> - <why>", the plain form rule 7 gives, counts as the honest line too. Oversight, 2026-11-09)
+    if (/\bnot verified\b|\bunverified\b|^\W*not done\s*:/im.test(t)) return true;
     // (the program: "pytest" in ".venv/Scripts/python -m pytest -q", "go" in "go test ./...", "audit" in "node tools/audit.mjs")
     const prog = String(cmd).split(/\s+/).filter(w => !/^-/.test(w)).map(w => w.replace(/^["']|["']$/g, '').split(/[\\/]/).pop().replace(/\.(exe|cmd|bat|ps1|mjs|cjs|js|py)$/i, ''))
       .find(w => /^[A-Za-z][\w-]*$/.test(w) && !/^(python3?|py|node|npx|bash|sh|cmd|pwsh|uv|run)$/i.test(w)) || '';

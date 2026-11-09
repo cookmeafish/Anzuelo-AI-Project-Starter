@@ -708,7 +708,18 @@ export function gateGaps(acts) {
       // Lesson (trial v34): the declared glob was quoted, the agent's run was not, and passing tests were asked for)
       const after = (c, k) => k > lastEdit && (!lastWrite || !c.done || c.done > lastWrite), asTest = isTestRun(part.replace(/\\(.)/g, '$1'));
       const ok = acts.calls.some((c, k) => after(c, k) && ((/^(Bash|PowerShell)$/.test(c.name) && !c.error && !otherPackage(c.input.command || '') && rx.test(ownCmd(c.input.command || ''))) || (asTest && passedRun(c))));
-      if (!ok && !programs(part.replace(/\\(.)/g, '$1')).some(p => missing.has(p))) out.push(`Run the project's check \`${part.replace(/\\(.)/g, '$1')}\` after the change, and say the result.`);
+      // (the run itself is judged as the old engine judges a gate, tools/hooks/gates.mjs: by its own result, not an echo
+      // after "||" or a script that only names it; a gate that can't start here (refused, or its program missing) is
+      // asked once for an honest line, "NOT VERIFIED: <what> - <why>" or "Not done: <what> - <why>", and never for
+      // another run. Oversight, 2026-11-09: parity with the old engine)
+      const plain = part.replace(/\\(.)/g, '$1'), gx = gateTurn(acts);
+      const res = gatesOf().toolPassed({ toolPassed: { cmd: part, pass: g.pass || '', selfRun: plain } }, gx, reqRe);
+      // (another passing test run counts only when it is one: not a script or a configure line that names the command.
+      // Lesson (the old suite under v2): a node -e script that wrote "npm test" into a doc read as the tests passing)
+      const viaOther = acts.calls.some((c, k) => after(c, k) && asTest && passedRun(c) && isTestRun(gatesOf().gateText(String(c.input.command || '')))) && /^no run of/.test(gx.detail || '');
+      if (res === false && gx.override) out.push(`The project's check \`${plain}\` can't run here: say so once in the answer, "NOT VERIFIED: <what> - <why>" or "Not done: <what> - <why>". ${gx.override}`);
+      else if (res === false && !viaOther) out.push(`Run the project's check \`${plain}\` after the change, and say the result (${gx.detail || 'it did not pass'}).`);
+      else if (!ok && !programs(plain).some(p => missing.has(p))) out.push(`Run the project's check \`${plain}\` after the change, and say the result.`);
     }
   }
   return out;

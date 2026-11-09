@@ -232,15 +232,8 @@ stop: answer-traced: a figure that is no sum, difference or change of the read o
 stop: answer-traced: a round figure that no tool output rounds to is still flagged
 stop: answer-traced: figures for the project's own numbers, with no file read: blocked
 stop: answer-traced: the short step names the cited claim it doubts
-stop: app-test-pass: a missing module with no install tried: still asks to install and run it
-stop: app-test-pass: a multi-line node -e script that only writes "npm test" into a doc is no test run: blocked
 stop: app-test-pass: a refused gate whose program is not installed, answered "needs your approval": asks for the true reason
-stop: app-test-pass: after a ||, an echo can print although the tests never ran: blocked
-stop: app-test-pass: refused only for its form (several commands in one line): still asks to run it on its own
-stop: app-test-pass: refused, then a real run that failed: the failure stands
-stop: app-test-pass: the gate named only in a configure line, never run: still asks for a run
 stop: app-test-pass: the same, never tried and silent about it: asks for the NOT VERIFIED line, not a run
-stop: app-test-pass: the test command was refused (approval): round 1 asks for the NOT VERIFIED line, not another run
 stop: asked for 5 options, answer gives no 5: blocked
 stop: audit-run self-run: a broken runbook link: the hooks run the audit, and its FAIL is the step
 stop: audit-run: a later command that ran and mentions the audit, and failed, is the last run: blocked
