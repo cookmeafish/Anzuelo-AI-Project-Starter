@@ -41,6 +41,8 @@ export function userNames(prompts) {
 // t = { root, cfg, prompts (every message of the session), changed (files changed this turn), calls (the turn's tool calls) }
 export function verbatimHits(t) {
   const { root, cfg } = t, n = cfg.verbatimWords;
+  // (a turn that changed nothing copied nothing: no file is read. Speed: Stop on a plain question)
+  if (!t.changed.length && !t.calls.some(c => /^(Write|Edit|MultiEdit)$/.test(c.name))) return [];
   const rel = p => path.relative(root, path.resolve(root, String(p || ''))).split(path.sep).join('/');
   const read = f => { try { return fs.readFileSync(path.join(root, f), 'utf8'); } catch { return ''; } };
   const exists = f => fs.existsSync(path.join(root, f));
