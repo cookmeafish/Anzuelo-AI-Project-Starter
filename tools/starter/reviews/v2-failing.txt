@@ -11,7 +11,6 @@ check-preview guard: a runbook fix: Stop's round 1 holds only what the CHECKS li
 check-preview: the advertised self-check runs in a hook-wired session, finds its request, and leaves its Stop state alone
 codex: a Codex transcript gives the request, the tool calls and their failures to the checks
 covers: agent-neutral is proven by "agent-neutral: begin routes"
-covers: app-test-pass is proven by "app-test-pass: code changed and the tests never ran"
 covers: autonomy-recorded is proven by "autonomy-recorded: "don't ask me" left only in the answer"
 covers: changelog is proven by "changelog: a check list changed without a CHANGELOG line"
 covers: crash-visible is proven by "crash blocks once"
@@ -111,9 +110,6 @@ prompt: own-question: the same with "notes" in lower case
 prompt: paste-routing: a short angry message is still upset
 prompt: paste-routing: a short closing paragraph after the material still routes
 prompt: paste-routing: the same words in a short message still suggest the skill
-prompt: pause-stops: "get to a good pausing point, I will restart the computer" asks to wrap up
-prompt: pause-stops: "why did you tell me it was okay to restart" keeps the pause
-prompt: pause-stops: Spanish, "voy a reiniciar la computadora" asks to wrap up
 prompt: praise hint
 prompt: praise hint: praise followed by a question is still praise
 prompt: praise: a praise word on the work is praise ("amazing!")
@@ -125,8 +121,6 @@ prompt: praise: real praise fires ("great job, keep doing this")
 prompt: praise: real praise fires ("perfect, that is exactly what i wanted")
 prompt: praise: real praise fires ("perfecto, sigue así")
 prompt: praise: real praise fires ("well done!")
-prompt: prompt-visible: a possible rule is handled but no guess is shown to the user
-prompt: prompt-visible: shouting is handled but no guess is shown to the user
 prompt: question-answered: a question typed mid-turn is to be answered next, with no route or fix work; an upset one is acknowledged first
 prompt: recall: Spanish, a close earlier request is recalled
 prompt: recall: a close earlier request is recalled
@@ -235,20 +229,13 @@ stop: a helper skill counts as its runbook
 stop: a loose new file in the project root: blocked
 stop: a new hand-written skill without triggers or a check: blocked
 stop: a new runbook gets its skill and DIRECTORY row generated
-stop: a question that changed files without being asked: blocked
 stop: a question that only updated STATUS: passes
-stop: a question with a second one queued mid-turn, files changed: still blocked
 stop: a runbook used through its generated skill counts as followed: passes
-stop: a11y-checked: accessibility only promised: blocked
-stop: a11y-checked: screens changed without an accessibility line: blocked
 stop: answer relies on a stale knowledge file without saying so: blocked
 stop: answer with an em dash: blocked
 stop: answer with filler: blocked
-stop: answer-language: a Spanish Verification section with no real run: blocked
 stop: answer-language: a Spanish answer without the root cause is still held, and told the Spanish labels: blocked
 stop: answer-language: a Spanish visual review with no verdict: blocked
-stop: answer-length: Verification that never says what is still unverified: blocked
-stop: answer-length: the count line without a spec file: blocked
 stop: answer-noise: a re-sent answer still missing what the round asked for: blocked
 stop: answer-noise: the Stop text steers waivers to the waive command, never to an N/A line in the answer
 stop: answer-noise: the re-answer instruction asks for no note about the steps or an earlier version
@@ -257,7 +244,6 @@ stop: answer-resent: "Added:" with no full answer earlier in the turn: blocked
 stop: answer-resent: a Corrected: line that leaves the answer still wrong: blocked
 stop: answer-resent: a Corrected: line whose old text the answer does not hold: blocked
 stop: answer-resent: a first answer that is only "answer unchanged": blocked
-stop: answer-resent: a headless run is not offered the short line
 stop: answer-resent: a round of file steps offers the short line
 stop: answer-resent: a round of file-only steps asks for "Answer unchanged; also updated", not a resend
 stop: answer-resent: no full answer was sent earlier in this turn: blocked
@@ -283,7 +269,6 @@ stop: app-test-pass: a missing module with no install tried: still asks to insta
 stop: app-test-pass: a multi-line node -e script that only writes "npm test" into a doc is no test run: blocked
 stop: app-test-pass: a refused gate whose program is not installed, answered "needs your approval": asks for the true reason
 stop: app-test-pass: after a ||, an echo can print although the tests never ran: blocked
-stop: app-test-pass: code changed and the tests never ran: blocked
 stop: app-test-pass: refused only for its form (several commands in one line): still asks to run it on its own
 stop: app-test-pass: refused, then a real run that failed: the failure stands
 stop: app-test-pass: the gate named only in a configure line, never run: still asks for a run
@@ -302,7 +287,6 @@ stop: bg-moved: a foreground command moved to the background holds the Stop whil
 stop: bg-moved: a moved command whose notice says it "will be stopped" after a time limit still holds the Stop while it runs
 stop: bg-moved: after its notice, a failing output fails the gate: blocked
 stop: bg-moved: the same with a failing output file: blocked
-stop: big work turn without STATUS update: blocked
 stop: block cap reached: a check that waits on background agents is not carried over
 stop: block cap reached: unresolved checks are saved for the next prompt
 stop: broken requirements.json: blocked
@@ -343,18 +327,14 @@ stop: compress-verified: notes between agents checked with protect-check: passes
 stop: compress-verified: the protect check ran on the backup and passed: passes
 stop: compression with the guard check: passes
 stop: crash blocks once, then releases
-stop: data-change-trigger: a migration without backup and restore: blocked
 stop: data-computed: a "(calculated: ...)" whose arithmetic gives another figure: blocked
 stop: data-computed: a figure no run printed and none follows from: blocked
 stop: data-computed: a worked sum that does not give the figure it stands for (315 for 315 + 125): blocked
 stop: debug skill followed, root cause stated: passes
 stop: debug skill matched but not opened: blocked
-stop: debug-test-added: code fixed without any test change: blocked
 stop: debug-trigger: a failing test fixed with no root cause: blocked
 stop: debug-trigger: a reported crash whose test the turn wrote first: blocked
 stop: debug-trigger: after a complaint, a self-test that failed before any check was edited still asks for the root cause: blocked
-stop: deliverable-trigger: a report written to outputs/ is a deliverable: fired
-stop: deliverable-trigger: an output written without the deliverable runbook: blocked
 stop: dev mode: an engine change with no self-tests, changelog or proof it works: blocked
 stop: dev mode: without .starter-dev the dev checks stay off (projects never get them)
 stop: dev-new-project: project making changed in a development copy without the trial: blocked
@@ -364,15 +344,9 @@ stop: done-when-labeled: an item with only a when condition and no proof: blocke
 stop: external-stop: a project Stop command that crashes is one step
 stop: external-stop: a project Stop command that runs past its time limit is named as out of time, to rerun, not to remove
 stop: feature done right: passes
-stop: feature without verification, review, spec or notes: blocked
-stop: feature-noop: the same request that did build code: the spec and the review are asked
-stop: files changed without a Finished section: blocked
 stop: final answer not yet in the transcript: last_assistant_message is used
-stop: finished-summary: no Finished section: blocked, and the records need no list
-stop: first round: the same status step is listed: blocked
 stop: fit-checklist: a turn adds a data file that a decided skip never answered: blocked
 stop: foundation set and summarized: passes the foundation check
-stop: game script changed without export or tests: blocked
 stop: gate with a pass line: judged by its own line, not by a later command in the same shell line: passes
 stop: gate with no pass pattern chained to other commands: run it alone: blocked
 stop: gate with no pass pattern run alone: its exit code decides: passes
@@ -404,10 +378,7 @@ stop: incident-response: the Root cause line stated: passes
 stop: incident-response: the incident file named: passes
 stop: incident-trigger: production down without the incident skill: blocked
 stop: ingest-trigger: a file moved into sources/ (old time, new since the turn began): blocked
-stop: ingest-trigger: a new original without the ingest runbook: blocked
-stop: ingest-trigger: the owned folder without its runbook followed: blocked
 stop: injection-guard: plain notes: passes
-stop: install-trigger: the installer changed without its runbook: blocked
 stop: instructions-run: a Finished entry for a script changed this turn that says to run it: blocked
 stop: instructions-run: a NOT VERIFIED line about something else (the tests) does not cover the script: blocked
 stop: instructions-run: a Spanish "doble clic en start.cmd" for a launcher written this turn and never run: blocked
@@ -423,16 +394,12 @@ stop: knowledge-source-trigger: a labeled fact whose source file does not exist:
 stop: knowledge-source-trigger: a labeled fact without a date: blocked
 stop: knowledge-source-trigger: a row with no evidence label: blocked
 stop: knowledge-source-trigger: facts written without research or capture: blocked
-stop: legal-trigger: a privacy policy written without the legal review: blocked
 stop: maintaining a runbook (read, then edit) is not following it: its checks stay off
 stop: maintaining a runbook the answer names as followed: its checks apply: blocked
-stop: mcp-trigger: MCP server code without the mcp-builder skill: blocked
-stop: mobile screen changed without analyzer or tests: blocked
 stop: modular-code: a URL typed into code and a private import: blocked
 stop: name-var: a name typed out in a doc and in code: blocked
 stop: name-var: the name in its marker and read from the file in code: passes
 stop: name-var: the name typed in code that is not the package's own name: blocked
-stop: new pipeline input without the schema check: blocked
 stop: new runbook missing triggers and sections: blocked
 stop: new runbook without a check: blocked
 stop: new runbook without checking for existing skills: blocked
@@ -441,18 +408,14 @@ stop: note-linked: a new note in a knowledgeDirs folder that links to nothing: b
 stop: note-linked: a new note that links to nothing: blocked
 stop: note-linked: a new note with its related notes: passes
 stop: notes-vault: a new note links to two notes and only one links back: blocked
-stop: notes-vault: a note changed without the link check: blocked
 stop: notice-answer: a headless short reply to a notice after a clean end: blocked
 stop: notice-answer: a headless short reply to a wakeup that fired after a clean end: blocked
-stop: package version set without a dry run: blocked
 stop: parallel work in the background, with a project check written before "waitsForAgents" existed: still waits
 stop: parallel work still running in the background: the merge check waits
 stop: pause-stops: code changed without a CHANGELOG line: blocked (the control)
-stop: pause-stops: the same turn, then "get to a good pausing point, I will restart": the turn ends, nothing more asked
 stop: plain-writing: "I hope you" in a guide is still filler: blocked
 stop: plain-writing: a long run-on sentence in a real answer: blocked
 stop: plain-writing: the short step names the file with the problem
-stop: plan saved but never checked: blocked
 stop: plan saved in docs/plans: passes
 stop: plan-open: "keep going" continues the open plan: blocked
 stop: plan-open: a request naming the plan's own subject is still held to it: blocked
@@ -461,15 +424,10 @@ stop: plan-open: an open plan ignored during a work turn: blocked
 stop: plan-required: a setup that wrote five app files itself has its plan asked: blocked
 stop: plan-required: five new files and no plan: blocked
 stop: plan-required: five new files with their plan: passes the plan check
-stop: project change without CHANGELOG: blocked
-stop: prompt-visible: a runbook made this turn whose triggers match the request shows 🌱, not "pulled up"
 stop: prompt-visible: a work turn that passes shows the user a ✅ line with its runbook
-stop: prompt-visible: lines the user turned off stay off
 stop: promptMatches: the same words typed by the user still count: blocked
-stop: question-no-file: "what should we do?" about a problem, autonomy ask, fixed: blocked
 stop: queued mid-turn rule request is enforced: blocked
 stop: records-once: the lesson from an upset user is still asked for in round 2
-stop: redo without saying what changed: blocked
 stop: request about alice changed only alice's files: passes
 stop: requirement-enforced: a one-off instruction is not a lasting requirement
 stop: requirement-enforced: a requirement said in passing, during work, with nothing enforcing it: blocked
@@ -483,10 +441,8 @@ stop: research-verified: web research with no ledger: blocked
 stop: research-verified: web use in a knowledge project without the ledger: blocked
 stop: review-excuse: review skipped as "no other reviewer" where sub-agents exist: blocked
 stop: review-excuse: the same excuse in Spanish: blocked
-stop: review-verdict: a report whose verdict is "not ready to ship" does not count
 stop: root-tidy: a Go file with no go.mod in the root: blocked
 stop: routed task that never opened its runbook: blocked
-stop: routines: docs/routines.md changed without the check: blocked
 stop: rule request fully enforced: passes
 stop: rule request that cannot be checked, with hook: N/A: passes
 stop: runEach: the hook re-validates changed files itself (invalid JSON): blocked
@@ -497,13 +453,8 @@ stop: runbook-exists: work that names an existing runbook it never opened is ask
 stop: runbook-ledger: a skip without a real reason does not drop a failing check
 stop: runbook-ledger: an item marked done whose evidence is missing comes back under its item
 stop: runbook-ledger: off by default, a skip line covers nothing
-stop: runbook-look: feature.md opened for unrouted code work: the review is still asked
-stop: runbook-look: setup that names feature.md as followed: the review is still asked
 stop: scope-general: "or something else that doesn't fit" changed with no Scope line: blocked
 stop: security review without the item table: blocked
-stop: security-config: a CI workflow changed without the review: blocked
-stop: security-logged: a full review not logged in docs/security.md: blocked
-stop: server code changed without tests: blocked
 stop: setup: the same runbook followed in a later turn: its checks apply
 stop: skill followed after a blocked draft, not its fault: passes with a stated reason
 stop: skill followed after a blocked draft, the skill's own check failed, no lesson: blocked
@@ -525,7 +476,6 @@ stop: stop-follow-on: a lesson placed in CLAUDE.md names the audit in round 1
 stop: stop-follow-on: a new rule names the hook self-tests, the audit and the changelog in round 1
 stop: stop-follow-on: an upset turn that changed no file names no changelog or audit after upset-learned
 stop: stop-follow-on: round 2 still holds the named audit when it did not run: blocked
-stop: stop-wait: the resumed reviewer reported back: the steps are asked
 stop: the same rule written as a principle: passes
 stop: toolPassed: a two-command gate run as one group with its output sent to a file is judged on that file (not built): blocked
 stop: toolPassed: only a waiver named the validator, it never ran: blocked
@@ -553,22 +503,12 @@ stop: upset-learned: fixed and learned, but never said whether the complaint hel
 stop: upset-learned: the lesson named, but its file never changed: blocked
 stop: upset-learned: the same natural lead with no Checked line: blocked, and the message offers the no-concession form
 stop: upset-learned: upset again in the same session, fixed with a lesson but no plan or sweep: blocked
-stop: user decision not logged: blocked
-stop: user updated a watched input mid-turn, answer silent: blocked
 stop: user-facing file with filler: blocked
-stop: verification-report: a bullet with no label: blocked
-stop: verification-report: a section with no real-app line at all: blocked
-stop: version bump required once configured: blocked
-stop: version-bump: the version file only read earlier in the session: blocked
-stop: version-bump: the version raised earlier, then tagged and released: blocked
 stop: waiting end: what the full check would ask stays on record for the next Stop
-stop: waive command: without it the same answer is held: blocked
 stop: waive: a waiver the waive command refused does not count
 stop: waive: the same command with no record in the run log waives nothing
 stop: watcher-left: a watcher still armed after the work is done: blocked
 stop: watcher-left: a watcher that only reported an event is still armed: blocked
-stop: web-app-patterns: client code changed without tests or a type check: blocked
-stop: work turn with an empty answer: blocked
 stop: worth-it: a dependency installed without weighing it: blocked
 stop: worth-it: a dependency typed into a manifest without weighing it: blocked
 stop: worth-it: a sentence with no cost named: blocked

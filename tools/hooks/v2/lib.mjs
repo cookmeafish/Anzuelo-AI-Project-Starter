@@ -14,6 +14,7 @@ import { INJ_PLANTED, INJ_AIMED, INJ_WARNED } from '../injection.mjs';
 import { verbatimHits } from './verbatim.mjs';
 import { hexIds } from '../claims.mjs';
 import { SELF_KEY, approvedBefore } from '../selfcmds.mjs';
+import { capsWeight } from '../caps.mjs';
 // The time a session began: the first timestamp in its transcript (read from its start, never the whole file).
 export const sessionStart = file => { try { const fd = fs.openSync(file, 'r'), b = Buffer.alloc(65536), n = fs.readSync(fd, b, 0, b.length, 0); fs.closeSync(fd);
   return /"timestamp":"(\d{4}-\d\d-\d\dT[^"]+)"/.exec(b.toString('utf8', 0, n))?.[1] || null; } catch { return null; } };
@@ -164,7 +165,7 @@ export function route(prompt, books = runbooks()) {
   // (a standing rule said plainly ("every new note links to", "should never happen again", ", always", ", siempre") is a
   // rule request, ahead of a trigger found mid-sentence. Lessons (trials v38 to v43): each went unrouted or misrouted)
   const said = isSpanish(prompt) ? `${prompt}\n${routeEnglish(prompt)}` : String(prompt);
-  const proj = books.find(b => b.file === 'docs/playbooks/project.md'), rule = proj && (STANDING.test(said) || RULE_CUE.test(String(prompt)) || /\b(that|this|it) (should|must|can) never happen again\b/i.test(said) || /,\s*(always|never)\s*(?:[.!]+|$)/im.test(said));
+  const proj = books.find(b => b.file === 'docs/playbooks/project.md'), rule = proj && (STANDING.test(said) || RULE_CUE.test(String(prompt)) || capsWeight(String(prompt)).rule || /\b(that|this|it) (should|must|can) never happen again\b/i.test(said) || /,\s*(always|never)\s*(?:[.!]+|$)/im.test(said));
   if (best && !(rule && best.score < 1000)) return { ...best.book, matched: best.phrase };
   return rule ? { ...proj, matched: 'standing rule' } : null;
 }

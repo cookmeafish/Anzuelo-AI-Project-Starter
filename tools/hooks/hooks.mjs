@@ -466,9 +466,9 @@ export const deadTriggers = triggers => triggers.filter(t => !/\s/.test(String(t
 // passages don't route. Lesson: "reply to this customer: 'the app keeps crashing when I log in'" routed to bugfix.
 // (an apostrophe inside a word is no quote mark. Lesson (a field report): the text between "doesn't" and "don't" was
 // taken for a quotation and dropped, and with it the request's "there might be other ones too")
-export const unquoted = s => String(s || '').replace(/```[\s\S]*?(```|$(?![\s\S]))/g, ' ').replace(/^\s*>.*$/gm, ' ')
-  .replace(/["“][^"”\n]{40,}["”]/g, ' ')
-  .replace(/(?<![\p{L}\p{N}])['‘](?:[^'’\n]|(?<=\p{L})['’](?=\p{L})){40,}?['’](?![\p{L}\p{N}])/gu, ' ');
+// (one definition, in caps.mjs, shared with engine v2)
+export { unquoted, capsWeight } from './caps.mjs';
+import { unquoted, capsWeight, TROUBLE, ACRONYM, CAPS_UPSET } from './caps.mjs';
 // The fewest consecutive key words of the message that hold every key word of a trigger (Infinity if none).
 const keySpan = (seq, k) => {
   let best = Infinity;
@@ -3880,7 +3880,7 @@ export function isUpset(prompt, cfg = config()) {
 // or for being misunderstood (Lesson (a field report): a reply shouted as "you don't understand" read as calm).
 // ("!!" after a word of delight is excitement. Lesson (a field report): a rule explained with "which is crazy!!" and
 // words in capitals for emphasis read as upset, and its rule hint was dropped)
-const TROUBLE = /\?\?|(?<!\b(crazy|awesome|amazing|great|cool|nice|wow|yes|yay|insane|love it|so good))!!|\b(again|(you )?(don'?t|do not|didn'?t|did not) (understand|get it|listen)|not listening|missed (my|the) point|still|why|stop|wrong|broke|broken|bug|bugs|error|errors|fail|fails|failed|failing|crash\w*|issue|issues|problem|ignor\w*|forgot|forget|supposed to|this time|hold up|wait|seriously|wtf|shit(?!\s*(tons?|loads?)\b)|fuck\w*|damn|hell|angry|pissed|pissing|unacceptable|terrible|sloppy|horrible|awful|ridiculous|dumb|stupid|useless|i (already )?(said|told you|asked)|what i (said|told you|asked)|not working|doesn'?t work|should not happen|no my|otra vez|por qu[eé]|basta|mal)\b/i;
+// (TROUBLE: in caps.mjs)
 // ---------- the user's whitelist and the trigger log (REQ: trigger-words) ----------
 // Words that set nothing off by themselves for this user, per kind (config "ignoreWords": {"upset": [...], "praise":
 // [...], "rule": [...]}), kept in tools/hooks/config.json so upgrades keep them. Capitals and every other trigger word
@@ -3971,19 +3971,7 @@ export const wordChangesSince = since => read(path.join(STATE, 'words-changed.js
 // or an upset word in capitals ("AGAIN", "WHY") is shouting; a rule word in capitals ("NEVER", "ALWAYS", "MUST") marks a
 // standing rule the user means. Acronyms (API, JSON, README) are not emphasis. Lesson, the user: "ALL CAPS tend to
 // signify frustration too or something that should be taken seriously"; only a message almost all in capitals counted.
-const ACRONYM = /^(API|GUI|UI|UX|AI|CLI|SDK|JSON|YAML|TOML|XML|HTML|CSS|JS|TS|URL|URI|PDF|CSV|SQL|DB|ID|IDS|OK|PR|CI|CD|OS|USB|HTTP|HTTPS|SSH|DNS|IP|VPN|GPU|CPU|RAM|SSD|NPM|LLM|GPT|MCP|TODO|FYI|ASAP|README|CHANGELOG|STATUS|AGENTS|CLAUDE|BRIEF|DECISIONS|DIRECTORY|SKILL|PASS|FAIL|N\/A|US|UK|EU|UTC|PST|PDT|AM|PM|RPG|FAQ|PNG|JPG|JPEG|SVG|GIF|MP3|MP4|ENV|LTS|ESM|II|III|IV|VI)$/;
-const CAPS_UPSET = /^(AGAIN|WHY|STOP|WRONG|SERIOUSLY|WTF|OTRA|VEZ|POR|QU[EÉ]|BASTA|MAL)$/;
-export function capsWeight(prompt) {
-  // (code and names in it are no emphasis: `quoted`, MAX_FILE_SIZE, H264)
-  const words = unquoted(String(prompt || '')).replace(/`[^`]*`/g, ' ').replace(/[\w$]*[_\d][\w$]*/g, ' ').match(/[A-Za-zÁÉÍÓÚÑáéíóúñ'\/]+/g) || [];
-  const caps = w => w.length >= 2 && w === w.toUpperCase() && /[A-ZÁÉÍÓÚÑ]{2}/.test(w) && !ACRONYM.test(w);
-  let run = 0, longest = 0;
-  for (const w of words) { run = caps(w) ? run + 1 : 0; longest = Math.max(longest, run); }
-  const capped = words.filter(caps);
-  // (a message almost all in capitals is judged by isUpset's share test; a short one-word "OK" or "NO" is no emphasis)
-  // (only "never" and "always" mark a standing rule: "change ONLY the header" or "it MUST work" is about this request)
-  return { shouted: longest >= 3 || capped.some(w => CAPS_UPSET.test(w)), rule: capped.some(w => /^(NEVER|ALWAYS|NUNCA|SIEMPRE)$/.test(w)) };
-}
+// (ACRONYM, CAPS_UPSET and capsWeight: in caps.mjs)
 // A lesson about the engine itself, written where the starter collects it (docs/starter-feedback.md). The session
 // start reports new lines to the linked starter, and its upgrades bring the fix to every project. In the starter
 // itself there is nowhere to send it: the engine is fixed there directly.

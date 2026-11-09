@@ -4473,18 +4473,18 @@ PROMPT.push(
   { name: 'status-first: "is it done?" asks for the status first', prompt: 'is it done?', has: ['STATUS QUESTION'] },
   // capitals for weight inside a normal message (Lesson, the user: "ALL CAPS tend to signify frustration too or something
   // that should be taken seriously")
-  { name: 'caps-weight: a run of words in capitals is shouting', prompt: 'the export broke and DO NOT TOUCH THE CONFIG this time', has: ['THE USER SOUNDS UPSET'] },
-  { name: 'caps-weight: "AGAIN" in capitals is frustration', prompt: 'the totals are off AGAIN, fix them', has: ['THE USER SOUNDS UPSET'] },
-  { name: 'caps-weight: "NEVER" in capitals sets a standing rule', prompt: 'push the fix, and NEVER add attribution to any AI agent', has: ['RULE REQUEST'] },
-  { name: 'caps-weight: acronyms and constant names are no emphasis', prompt: 'update the README and the API docs, and raise MAX_FILE_SIZE in the CLI', hasNot: ['THE USER SOUNDS UPSET', 'RULE REQUEST'] },
+  { name: 'caps-weight: a run of words in capitals is shouting', prompt: 'the export broke and DO NOT TOUCH THE CONFIG this time', has: ['THE USER SOUNDS UPSET'], v2: { has: ['This sounds upset: open skills/learn-from-upset/SKILL.md'] } },
+  { name: 'caps-weight: "AGAIN" in capitals is frustration', prompt: 'the totals are off AGAIN, fix them', has: ['THE USER SOUNDS UPSET'], v2: { has: ['This sounds upset: open skills/learn-from-upset/SKILL.md'] } },
+  { name: 'caps-weight: "NEVER" in capitals sets a standing rule', prompt: 'push the fix, and NEVER add attribution to any AI agent', has: ['RULE REQUEST'], v2: { has: ['Runbook: open docs/playbooks/project.md'] } },
+  { name: 'caps-weight: acronyms and constant names are no emphasis', prompt: 'update the README and the API docs, and raise MAX_FILE_SIZE in the CLI', hasNot: ['THE USER SOUNDS UPSET', 'RULE REQUEST'], v2: { hasNot: ['This sounds upset', 'docs/playbooks/project.md'] } },
   // (capitals that stress what the user wants are no anger: shouting needs a sign of trouble too. Lesson (two projects'
   // trigger logs): "GO ALL OUT" and other eager requests read as upset, and held all work until an Issue line)
   ...['i need you to GO ALL OUT on the guide so it is full featured but never overwhelming', 'make a version of this chart that GOES ALL THE WAY OUT',
     'add a --since YYYY-MM-DD option to the export', 'PUSH THE FIX TO THE BRANCH AND RUN THE APP', 'every page MUST SEPARATE ONE PERSON FROM THE NEXT']
-    .map(p => ({ name: `caps-weight: capitals that stress a wish are not upset ("${p.slice(0, 50)}")`, prompt: p, hasNot: ['THE USER SOUNDS UPSET'] })),
+    .map(p => ({ name: `caps-weight: capitals that stress a wish are not upset ("${p.slice(0, 50)}")`, prompt: p, hasNot: ['THE USER SOUNDS UPSET'], v2: { hasNot: ['This sounds upset'] } })),
   ...['HOLD UP, IT IS LISTING EVERY POST AGAIN WHICH SHOULD NOT HAPPEN', 'CAN YOU JUST DO WHAT I SAID', 'NO MY ISSUE IS NOT WITH THE PRINTER',
     'the chart is still not readable. it NEEDS TO BE CLEAR AT EVERY SIZE', 'WHY DOES THE TOTAL SKIP THE FIRST ROW']
-    .map(p => ({ name: `caps-weight: capitals with a sign of trouble are upset ("${p.slice(0, 50)}")`, prompt: p, has: ['THE USER SOUNDS UPSET'] })),
+    .map(p => ({ name: `caps-weight: capitals with a sign of trouble are upset ("${p.slice(0, 50)}")`, prompt: p, has: ['THE USER SOUNDS UPSET'], v2: { has: ['This sounds upset: open skills/learn-from-upset/SKILL.md'] } })),
   // (a praise word on a thing or a goal is no praise of the work. Lesson (two projects' trigger logs): "another amazing
   // card", "until everything is ... amazing" and "until you believe it's perfect" read as praise)
   ...['this is another amazing recipe for the list btw', 'keep going until everything is fully featured and amazing', 'take screenshots on a loop until you believe its perfect.',

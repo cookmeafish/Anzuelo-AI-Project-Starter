@@ -5,6 +5,7 @@ import path from 'node:path';
 import { route, skillBooks, saveTurn, loadTurn, isSpanish, ROOT, at, quoteCheckOn, projectConfig } from './lib.mjs';
 import { asksOnly } from './late.mjs';
 import { PAUSE_ASK, PAUSE_HINT } from '../pause.mjs';
+import { capsUpset } from '../caps.mjs';
 
 // REQ: question-answered (as it arrives). A message that only asks is answered first, in plain words; one typed while a
 // turn runs is answered in the very next message and starts no work of its own. Lesson (a study of 117 real questions):
@@ -13,9 +14,10 @@ const Q_NOW = 'QUESTION (typed while you work): answer it in your very next mess
 const Q_FIRST = 'QUESTION: answer it directly, first, in plain words. A runbook or skill named below is where the answer may be, not steps to run, unless the user asks for the work.';
 
 export const MAX_LINES = 10;
-// (an upset message: mostly capitals, or the usual frustration words. Lesson (routing sample): complaints used no
-// trigger phrase, so they reached no runbook)
-export const upset = p => { const s = String(p), letters = s.replace(/[^A-Za-z]/g, ''); return (letters.length >= 12 && letters.replace(/[^A-Z]/g, '').length / letters.length > 0.6)
+// (an upset message: capitals with a sign of trouble (caps.mjs, shared with the old engine), or the usual frustration
+// words. Lesson (routing sample): complaints used no trigger phrase, so they reached no runbook. Lesson (two projects'
+// trigger logs): capitals alone are emphasis, "GO ALL OUT" is eager; "it NEEDS TO BE CLEAR" with "still" is upset)
+export const upset = p => { const s = String(p); return capsUpset(s)
   // (a complaint about what was done: "you made a new note without linking it". Lesson (trial v38): it got no notice)
   || /\byou (made|wrote|added|created|built|saved|left|put|did)\b[^.?!]{0,80}\bwithout\b/i.test(s)
   // (a repeated miss: "you keep making X", "why does it keep ...", "wrong again!!". Lesson (trial v41): a complaint with
@@ -24,7 +26,7 @@ export const upset = p => { const s = String(p), letters = s.replace(/[^A-Za-z]/
   // (what was let through, and "that should never happen again". Lesson (trial v42): "you let any user delete ...! that
   // should never happen again" got no notice and no runbook)
   || /\byou (let|allowed) (any|anyone|anybody|everyone|everybody|every|all|the|a|other|staff|users?)\b[^.?!]{0,80}!|\b(that|this|it) (should|must|can) never happen again\b/i.test(s)
-  || /\b(wtf|ugh|again\?!|why (did|would) you|you (forgot|missed|ignored|broke)|i (already )?told you|not what i asked|frustrat\w*|annoy\w*|(you|u|you're|ur|youre) (are )?not (following|listening)|i don'?t think you (understand|get it)|(is )?still (broken|wrong))\b/i.test(s)
+  || /\b(wtf|ugh|again\?!|why (did|would) you|you (forgot|missed|ignored|broke)|i (already )?told you|not what i asked|frustrat\w*|annoy\w*|(you|u|you're|ur|youre) (are )?not (following|listening)|i don'?t think you (understand|get it)|(is )?still (broken|wrong)|do you (ever|even) (think|read|check|look|listen|test|consider|care))\b/i.test(s)
   // (the Spanish forms. Lesson (trial v37): "otra vez pusiste texto en inglés" got no upset notice under v2)
   || /(?<!\p{L})(otra vez|de nuevo) (pusiste|hiciste|olvidaste|dejaste|metiste|usaste|escribiste|rompiste)|(?<!\p{L})(te (lo )?dije|(se te )?olvid(aste|ó)|por qu[eé] (lo )?hiciste|no me (escuchas|haces caso)|sigue (roto|mal|fallando))(?!\p{L})/iu.test(s); };
 const has = f => fs.existsSync(at(f));
