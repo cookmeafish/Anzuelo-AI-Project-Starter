@@ -416,7 +416,7 @@ function filesMatching(glob) {
 }
 // ("**/" is any number of folders, none included, as in the old engine. Lesson (the old suite under v2): "**/*" never
 // matched a file at the root, so CLAUDE.md or README.md a command wrote was not counted as changed)
-const globRx = g => new RegExp('^' + g.replace(/\\/g, '/').replace(/[.+^${}()|[\]]/g, '\\$&').replace(/\*\*\//g, '\u0001').replace(/\*\*/g, '\u0000').replace(/\*/g, '[^/]*').replace(/\u0001/g, '(?:.*/)?').replace(/\u0000/g, '.*') + '$', 'i');
+export const globRx = g => new RegExp('^' + g.replace(/\\/g, '/').replace(/[.+^${}()|[\]]/g, '\\$&').replace(/\*\*\//g, '\u0001').replace(/\*\*/g, '\u0000').replace(/\*/g, '[^/]*').replace(/\u0001/g, '(?:.*/)?').replace(/\u0000/g, '.*') + '$', 'i');
 const relp = p => relOf(p);
 
 // Whether a checkable item was met by what the turn did. Null means it can't be checked here.

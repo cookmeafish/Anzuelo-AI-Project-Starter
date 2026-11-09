@@ -611,6 +611,14 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
         report(/CLAUDE\.md \("/.test(copied[0] || '') && !brief.some(s => /BRIEF/.test(s)) && /docs\/playbooks\/export\.md \(the user's example "Brindlewood Pantry"/.test(named[0] || ''),
           'end: no-verbatim-examples: the user\'s words a command copied into a root file are held; a name from the user\'s message in a runbook is held; the project\'s description in its brief is not', JSON.stringify({ copied, brief, named }));
       }
+      // (every glob converter in v2 reads "**/" as any number of folders, none included: a root file and a nested one both
+      // match. Lesson (the old suite under v2): "**/*" missed CLAUDE.md, and an approved "old/**" covered one level only)
+      {
+        const { globRx } = await import('./lib.mjs'), { globRe } = await import('./verbatim.mjs'), { wildRx } = await import('./guard.mjs');
+        const paths = ['README.md', 'a.bak', 'x/y/a.bak', 'old/a/b.md', 'old/a.md'], want = 'README.md,a.bak,x/y/a.bak,old/a/b.md,old/a.md | a.bak,x/y/a.bak | old/a/b.md,old/a.md';
+        const got = Object.fromEntries([['lib', globRx], ['verbatim', globRe], ['guard', wildRx]].map(([n, f]) => [n, ['**/*', '**/*.bak', 'old/**'].map(g => paths.filter(p => f(g).test(p)).join(',')).join(' | ')]));
+        report(Object.values(got).every(v => v === want), 'globs: every v2 glob converter matches root files and nested ones alike ("**/*", "**/*.bak", "old/**")', JSON.stringify(got));
+      }
       // (REQ: injection-guard / injection-flagged: a kept file left holding text aimed at an AI is held; something read
       // from outside that carries such text needs a warning in the answer; the project's own security notes don't count)
       const { injectionGaps } = await import('./lib.mjs');

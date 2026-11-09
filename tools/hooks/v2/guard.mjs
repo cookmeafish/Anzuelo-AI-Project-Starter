@@ -10,6 +10,9 @@ export const use = h => { H = h; };
 
 // REQ: quiet-work. Refused during work: the irreversible, leaks, a user's protection, a hung headless run. Rest: end check.
 export const IN_WORK_GUARDS = /^REQ: (approval-gate|browser-guard|commit-gate|engine-readonly|forbidden-command|forbidden-terms|git-safety|gitignore-ready|headless-no-wakeup|injection-guard|no-ai-attribution|no-overwrite|no-secrets|outward-gate|permission-respected|protect-originals|publish-gate|scope-separate|setup-[\w-]+|shell-hygiene|skill-mirror|subagent-brief|wakeup-left|whole-output|write-only-via)\b/;
+// A path pattern in an approved list as a regex: "**/" is any number of folders, none included; "**" anything; "*"
+// within one folder. Lesson (a sweep for the root-file glob bug): "old/**" covered one level only, "**/*.bak" no root file
+export const wildRx = g => new RegExp(`(^|/)${String(g).split('**/').map(a => a.split('**').map(b => b.split('*').map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[^/]*')).join('.*')).join('(?:.*/)?')}$`, 'i');
 // One denial names every rule the call breaks, numbered, at most PRETOOL_MAX (a retry was once denied rule by rule).
 const PRETOOL_MAX = 6;
 export function pretoolDecision(data, cfg = H.config()) {
@@ -210,7 +213,9 @@ export function pretoolHits(data, cfg) {
   // (each path in a line or sentence of the list that names this action: a file listed to rename is not one to delete)
   const listedAll = (paths, verb) => {
     const lines = approvedList().split(/\n|;|\.\s+(?=[A-Z])/).filter(l => verb.test(l));
-    const has = (l, p) => l.includes(p) || l.includes(p.split('/').pop()) || [...l.matchAll(/[\w./*-]*\*[\w./*-]*/g)].some(m => new RegExp(`(^|/)${m[0].split('*').map(esc).join('[^/]*')}$`, 'i').test(p));
+    // ("**/" is any number of folders, none included; "**" anything; "*" within one folder. Lesson (a sweep for the root-file
+    // glob bug): "old/**" covered only one level, and "**/*.bak" no file at the root)
+    const has = (l, p) => l.includes(p) || l.includes(p.split('/').pop()) || [...l.matchAll(/[\w./*-]*\*[\w./*-]*/g)].some(m => wildRx(m[0]).test(p));
     return paths.length > 0 && paths.every(p => lines.some(l => has(l, p)));
   };
   // REQ: wakeup-left. A headless run with a job running needs no wakeup (one pending kept a run from ever answering).

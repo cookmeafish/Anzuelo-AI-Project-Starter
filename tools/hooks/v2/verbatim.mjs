@@ -15,7 +15,7 @@ const CORE_SKILLS = ['project-bootstrap', 'project-rule', 'runbook-create', 'ski
   'session-handoff', 'security-review', 'plan', 'debug', 'parallel-agents', 'research', 'skill-finder', 'obsidian', 'learn-from-upset', 'efficiency-review', 'goal-loop'];
 
 const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const globRe = g => { let s = ''; for (let i = 0; i < g.length; i++) { const c = g[i]; if (c === '*') { if (g[i + 1] === '*') { i++; if (g[i + 1] === '/') { s += '(?:.*/)?'; i++; } else s += '.*'; } else s += '[^/]*'; } else if (c === '?') s += '[^/]'; else s += esc(c); } return new RegExp('^' + s + '$', 'i'); };
+export const globRe = g => { let s = ''; for (let i = 0; i < g.length; i++) { const c = g[i]; if (c === '*') { if (g[i + 1] === '*') { i++; if (g[i + 1] === '/') { s += '(?:.*/)?'; i++; } else s += '.*'; } else s += '[^/]*'; } else if (c === '?') s += '[^/]'; else s += esc(c); } return new RegExp('^' + s + '$', 'i'); };
 const match = (p, globs) => [].concat(globs || []).some(g => globRe(g).test(p));
 const words = s => String(s || '').toLowerCase().replace(/[`*_>#|"'“”‘’()[\]{}]/g, ' ').match(/[a-z0-9]+(?:'[a-z]+)?/g) || [];
 // the subject sentence: where the user says what the project is ("it is my ...", "será un ...")
