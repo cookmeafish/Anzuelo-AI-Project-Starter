@@ -736,9 +736,11 @@ export function testGaps(acts, history = '') {
   const anyRunner = i.some(([c]) => /^(Bash|PowerShell)$/.test(c.name) && isTestRun(String(c.input.command || '')));
   // (a project has tests when a runner was seen this turn or a test setup exists, not just a build file. Lesson
   // (review): pyproject.toml and go.mod are in many projects with no tests at all)
-  const has = f => fs.existsSync(at(f)), pyproject = (() => { try { return fs.readFileSync(at('pyproject.toml'), 'utf8'); } catch { return ''; } })();
-  const hasTests = anyRunner || !!testScript() || declared().length > 0 || ['pytest.ini', 'conftest.py', 'tests', 'test', '__tests__', 'spec'].some(has)
-    || /\[tool\.pytest/.test(pyproject) || ['**/*_test.go', '**/test_*.py', '**/*_test.py', '**/*.test.js', '**/*.test.mjs', '**/*.test.ts'].some(g => filesMatching(g).length > 0);
+  // (worked out only when code changed: a question turn walks no files for it. Lesson (the speed self-test): a plain
+  // question's end check walked the whole tree for test files it never needed)
+  const has = f => fs.existsSync(at(f)), pyproject = () => { try { return fs.readFileSync(at('pyproject.toml'), 'utf8'); } catch { return ''; } };
+  const hasTests = () => anyRunner || !!testScript() || declared().length > 0 || ['pytest.ini', 'conftest.py', 'tests', 'test', '__tests__', 'spec'].some(has)
+    || /\[tool\.pytest/.test(pyproject()) || ['**/*_test.go', '**/test_*.py', '**/*_test.py', '**/*.test.js', '**/*.test.mjs', '**/*.test.ts'].some(g => filesMatching(g).length > 0);
   // (a run this turn that could not start, held for approval or missing its program, is not asked for again; with a
   // declared test command only a try of that one counts. Lessons (trials v33 to v44): the same held run, ten times over)
   const mine = ownTests(), cmdOf = c => String(c.input.command || '');
@@ -746,9 +748,9 @@ export function testGaps(acts, history = '') {
   // install. Lesson (the old suite under v2): a refused "npm ci" and a "Cannot find module" run were asked for again)
   const noInstall = i.some(([c]) => cantStart(c) && /\b(npm\s+(ci|i|install)|pnpm\s+(i|install)|yarn(\s+install)?|pip3?\s+install|poetry\s+install|uv\s+(sync|pip\s+install)|bundle\s+install|go\s+mod\s+download)\b/i.test(cmdOf(c)));
   const missingModule = i.some(([c]) => /^(Bash|PowerShell)$/.test(c.name) && isTestRun(cmdOf(c)) && /Cannot find module|ModuleNotFoundError|No module named|ERR_MODULE_NOT_FOUND/i.test(c.out || ''));
-  const cantRun = (mine.length ? i.some(([c]) => cantStart(c) && mine.some(t => cmdOf(c).includes(t))) : i.some(([c]) => cantStart(c) && isTestRun(cmdOf(c))))
+  const cantRun = () => (mine.length ? i.some(([c]) => cantStart(c) && mine.some(t => cmdOf(c).includes(t))) : i.some(([c]) => cantStart(c) && isTestRun(cmdOf(c))))
     || (mine.length > 0 && mine.some(t => programs(t).some(p => !installed(p)))) || (noInstall && missingModule);
-  if ((lastCode >= 0 || codeWrite) && hasTests && !cantRun && !passes.some(k => k > lastCode && (!codeWrite || !acts.calls[k].done || acts.calls[k].done > codeWrite)))
+  if ((lastCode >= 0 || codeWrite) && hasTests() && !cantRun() && !passes.some(k => k > lastCode && (!codeWrite || !acts.calls[k].done || acts.calls[k].done > codeWrite)))
     out.push(mine.length ? `Run the tests after the last code change (this project's command: ${mine.join(' && ')}), and say the result.` : 'Run the tests after the last code change, and say the result.');
   // (only a pass count is a claim; one read this turn may be relayed, and with no code changed an earlier run's count
   // stands. Lessons: relayed results, "I don't know whether they pass", and a true "81 passed" were all held)
