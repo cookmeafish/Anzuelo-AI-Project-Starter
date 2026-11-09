@@ -200,6 +200,7 @@ stop: GUI PASS while the tool reported warnings: blocked
 stop: GUI changed, no screenshots: blocked
 stop: GUI edited AFTER the last screenshots (unchecked round): blocked
 stop: GUI files changed in a project without the gui pack: blocked
+stop: GUI reviewed but no Visual review verdict: blocked
 stop: GUI screenshots taken but not looked at: blocked
 stop: GUI warning on one address, a later clean run on another: still blocked
 stop: a commit made this turn credits an AI: blocked
@@ -211,6 +212,7 @@ stop: a runbook used through its generated skill counts as followed: passes
 stop: answer relies on a stale knowledge file without saying so: blocked
 stop: answer with an em dash: blocked
 stop: answer with filler: blocked
+stop: answer-language: a Spanish visual review with no verdict: blocked
 stop: answer-noise: a re-sent answer still missing what the round asked for: blocked
 stop: answer-noise: the Stop text steers waivers to the waive command, never to an N/A line in the answer
 stop: answer-noise: the re-answer instruction asks for no note about the steps or an earlier version
@@ -305,6 +307,7 @@ stop: gui-review-loop: a debug shot taken after a full round whose contact sheet
 stop: gui-review-loop: an older round's contact sheet opened, the newer shots not: blocked
 stop: gui-review-loop: the page written again after a reviewed round, with other content: blocked
 stop: gui-review-loop: two runs after the last edit, only the older one looked at: blocked
+stop: gui-review-report: a bold "Revisión visual" list item with no verdict still asks for the line
 stop: helpers still running, but the answer claims they finished and pushed: still checked
 stop: hook tests ran but FAILED: blocked
 stop: hooks changed without running the tests: blocked
@@ -340,7 +343,6 @@ stop: new runbook without a check: blocked
 stop: new runbook without checking for existing skills: blocked
 stop: note-linked: a new note in a knowledgeDirs folder that links to nothing: blocked
 stop: note-linked: a new note that links to nothing: blocked
-stop: notes-vault: a new note links to two notes and only one links back: blocked
 stop: parallel work in the background, with a project check written before "waitsForAgents" existed: still waits
 stop: parallel work still running in the background: the merge check waits
 stop: pause-stops: code changed without a CHANGELOG line: blocked (the control)

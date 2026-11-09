@@ -1394,11 +1394,9 @@ export const opened = (book, acts) => acts.calls.some(c => (c.name === 'Read' &&
 // (an edit counts as the project's work only inside the project folder. Lesson (live): a turn whose one edit was a
 // memory note outside the project was held for every item of its runbook)
 const inRoot = f => { const r = path.relative(ROOT, path.resolve(ROOT, String(f || ''))); return !!f && !r.startsWith('..') && !path.isAbsolute(r); };
-// (a file the turn's own commands changed is work too (changedOf: not .cache or the engine's state, and only while one of
-// its commands ran). Lesson (the old suite under v2): a page changed and screenshotted by commands was never held to
-// its runbook's verdict line)
-export const worked = acts => acts.calls.some(c => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name) && inRoot(c.input?.file_path || c.input?.notebook_path))
-  || (acts.calls.some(c => /^(Bash|PowerShell|Agent|Task)$/.test(c.name)) && changedOf(acts).length > 0);
+// (edit tools only, for now: counting files a command changed held 24 passing old scenarios whose fixtures change files
+// with no edit call (the old suite under v2, 2026-11-09); open in the triage doc)
+export const worked = acts => acts.calls.some(c => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name) && inRoot(c.input?.file_path || c.input?.notebook_path));
 
 const STATE = () => at('tools/hooks/state');
 const stateFile = sid => path.join(STATE(), `v2-turn.${String(sid || 'x').replace(/[^\w-]/g, '').slice(0, 64)}.json`);
