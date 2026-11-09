@@ -1692,6 +1692,19 @@ report(madeUp.length === 2 && /9f8e7d6/.test(madeUp[0]) && /src\/missing\.js/.te
   b.prior = priorCalls([line('2026-01-01T10:00:00Z', bump), line('2026-01-01T12:00:00Z', { name: 'Bash', input: { command: 'git tag v1.2.0' } })].join('\n'), '2026-01-01T11:00:00Z').length;
   report(b.bumped && !b.released && !b.readOnly && b.npm && b.prior === 1, 'end: version-bump: a version raised in an earlier turn with nothing released since covers this turn; a release since, or a read, does not', b);
 }
+{ // (REQ: headless-resume: a headless run with a helper it resumed still running is held, naming the agent; an interactive
+  // session, a helper started fresh, or one that reported back is not)
+  const { headlessResumed } = await import('./end.mjs'), { helpersRunning } = await import('./lib.mjs');
+  const sdk = { type: 'system', entrypoint: 'sdk-cli', content: 'headless' };
+  const send = { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'r1', name: 'SendMessage', input: { to: 'a1b2c3d4', message: 'Review again.' } }] } };
+  const res = { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'r1', content: '{"success":true,"message":"Resuming agent a1b2c3d4","resumedAgentId":"a1b2c3d4"}' }] } };
+  const fresh = { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'f1', content: 'Async agent launched successfully. agentId: f9e8d7c6' }] } };
+  const back = { type: 'user', message: { content: [{ type: 'text', text: '<task-notification><task-id>a1b2c3d4</task-id> done</task-notification>' }] } };
+  const h = rows => headlessResumed(rows, helpersRunning(rows));
+  const hr = { headless: h([sdk, send, res]), interactive: h([send, res]), fresh: h([sdk, fresh]), back: h([sdk, send, res, back]) };
+  report(hr.headless.join() === 'a1b2c3d4' && !hr.interactive.length && !hr.fresh.length && !hr.back.length,
+    'end: headless-resume: a headless run whose resumed helper still runs is held with its agent named; interactive, a fresh helper, or one that reported back is not', JSON.stringify(hr));
+}
 { // (a message relayed from another session, a helper or a task notice is not the user's: quoting "NEVER" and "WHY" it gets
   // no upset line and no standing-rule route; the same words typed by the user get both)
   const skillAt = path.join(dir, 'skills/learn-from-upset/SKILL.md'), hadSkill = fs.existsSync(skillAt);

@@ -113,7 +113,6 @@ prompt: praise: real praise fires ("great job, keep doing this")
 prompt: praise: real praise fires ("perfect, that is exactly what i wanted")
 prompt: praise: real praise fires ("perfecto, sigue así")
 prompt: praise: real praise fires ("well done!")
-prompt: question-answered: a question typed mid-turn is to be answered next, with no route or fix work; an upset one is acknowledged first
 prompt: recall: Spanish, a close earlier request is recalled
 prompt: recall: a close earlier request is recalled
 prompt: relay-preview: Spanish, relayed small talk gets nothing
@@ -130,16 +129,7 @@ prompt: requirement hint: the same words as the user's own requirement still cou
 prompt: requirement: a lasting requirement fires ("cada factura debe mostrar el número de impuesto")
 prompt: requirement: a lasting requirement fires ("every invoice must show the tax number")
 prompt: research skill routes on its own
-prompt: route-precision: Spanish: a generic word alone still routes
-prompt: route-precision: Spanish: a report for the user still routes to the deliverable runbook
-prompt: route-precision: Spanish: a report to the starter routes to the project runbook only
-prompt: route-precision: a generic word alone still routes
-prompt: route-precision: a generic word gives way to a specific match, named as weak
-prompt: route-precision: a report for the user still routes to the deliverable runbook, with the domain runbook as secondary
-prompt: route-precision: a report to the starter on how to improve it routes to the project runbook only
-prompt: route-precision: feedback to the starter with a review of the report step routes to the project runbook only
 prompt: route-precision: prompt-visible: a routed runbook shows the user the book line, with its checklist count
-prompt: route-precision: runbook-ledger: off by default, no checklist
 prompt: route-precision: runbook-ledger: the routed runbook's checklist comes with the route
 prompt: route: "add an index page" routes to the feature runbook
 prompt: route: "add the starter to this folder" still routes to the engine runbook
@@ -171,8 +161,6 @@ prompt: starter-runbooks: a project never routes to the starter's own runbooks
 prompt: starter-runbooks: in the starter, "test it many times so nothing gets worse" routes to the improvement loop
 prompt: starter-runbooks: in the starter, "tests for hours, did it keep it on track or forget things" routes to the improvement loop
 prompt: starter-runbooks: in the starter, a report from another session routes to the field-report runbook
-prompt: status-first: "is it done?" asks for the status first
-prompt: status-first: Spanish "¿ya terminó?" asks for the status first
 prompt: trigger-words: the same word in capitals with other words still does
 prompt: unknown menu code asks
 prompt: unresolved checks from the last turn are announced
@@ -352,7 +340,6 @@ stop: gui-review-loop: an older round's contact sheet opened, the newer shots no
 stop: gui-review-loop: the page written again after a reviewed round, with other content: blocked
 stop: gui-review-loop: two runs after the last edit, only the older one looked at: blocked
 stop: gui-review-report: a bold "Revisión visual" list item with no verdict still asks for the line
-stop: headless-resume: a headless run ending while a resumed helper runs: blocked
 stop: helpers still running, but the answer claims they finished and pushed: still checked
 stop: hook tests ran but FAILED: blocked
 stop: hooks changed without running the tests: blocked

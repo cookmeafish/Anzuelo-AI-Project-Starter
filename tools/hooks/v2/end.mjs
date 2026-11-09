@@ -215,6 +215,15 @@ export function watchedGaps(acts, cfg = null) {
   return [...new Set(globs.flatMap(g => filesMatching(g)))].filter(f => mt(f) > since && !own.has(f) && !ans.includes(f) && !ans.includes(path.basename(f)))
     .slice(0, 3).map(f => `${f} was updated while you worked. Re-run what depends on it and say in the answer what the new data changed (name the file).`);
 }
+// The helpers this headless run resumed with SendMessage that are still running (none in an interactive session).
+export function headlessResumed(rows, running) {
+  if (!rows.some(r => /^sdk/.test(String(r.entrypoint || '')))) return [];
+  const text = x => typeof x.content === 'string' ? x.content : JSON.stringify(x.content || '');
+  const resumed = new Set(rows.flatMap(r => (Array.isArray(r.message?.content) ? r.message.content : []).filter(x => x?.type === 'tool_result')
+    .map(x => /resumedAgentId\\?"?\s*:\s*\\?"([\w-]+)/.exec(text(x))?.[1]).filter(Boolean)));
+  return running.filter(id => resumed.has(id));
+}
+export const headlessLine = ids => `This run is headless (claude -p or the SDK): it ends with this answer, and a helper resumed with SendMessage stops with it, so its work never comes back (agent ${ids.join(', ')}). Do the rest of its work yourself, or start a new helper with the Agent tool and wait for its result, then end with the whole answer.`;
 // The agent's notes file, when this turn wrote it.
 const turnNotes = acts => { try { const f = at('.cache/turn-notes.md'), st = fs.statSync(f); return st.mtimeMs >= (Date.parse(acts.at || '') || 0) - 2000 ? fs.readFileSync(f, 'utf8') : ''; } catch { return ''; } };
 // REQ: rule-request. A standing rule the agent took on is written where every later turn reads it and enforced, not only
@@ -310,7 +319,11 @@ function judge(data, { shadow = false } = {}) {
   // or watcher never ends, so it does not count. Lesson (a project's report): a turn waiting on its full self-test was
   // blocked three times and wrote its answer before the results existed)
   const LIVE = /(?:^|&&|;|\|)\s*(?:cd\s+\S+\s*&&\s*)?(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?(?:dev|start|serve|preview|watch)\b|\b(?:vite|next\s+dev|nodemon|http\.server|runserver|uvicorn|flask\s+run|tail\s+-f)\b|\s--watch\b/i;
-  if (helpersRunning(rows).length || backgroundRuns(rows).some(r => !LIVE.test(r.cmd))) { waiting = true; return null; }
+  // REQ: headless-resume. A headless run (claude -p or the SDK) ends with its answer, and a helper resumed by a message
+  // (SendMessage) stops with it, so waiting for it loses its work: the turn is held instead. Lesson (the old engine, trial
+  // round 23): a headless setup resumed its helper, answered "still running", and the user never got the result.
+  const running = helpersRunning(rows), lost = headlessResumed(rows, running);
+  if (!lost.length && (running.length || backgroundRuns(rows).some(r => !LIVE.test(r.cmd)))) { waiting = true; return null; }
   const found = turnActs(rows);
   const turn = { ...saved, at: saved.at || found.started || '' };
   // (a helper's commands count too, in time order. Lesson (trial v40): tests a setup helper ran were asked for again)
@@ -344,7 +357,8 @@ function judge(data, { shadow = false } = {}) {
   // (wakeups scheduled in any turn of the session count: one left from earlier still re-invokes it later)
   const wakes = wakeGaps(raw.split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean), final || acts.answer || '', acts.heard || '');
   const extra = (turn.also || []).flatMap(f => missing({ ...turn, runbook: f }, acts, runbooks().filter(b => b.file === f)));
-  const list = [...late, ...autos, ...wakes, ...S('missing', () => [...emptyGaps(acts), ...missing(turn, acts), ...upsetGaps(turn, acts), ...ruleGaps(acts), ...watchedGaps(acts)]), ...extra, ...S('skillMissing', () => skillMissing(acts)), ...S('reviewGaps', () => reviewGaps(turn, acts)), ...S('testGaps', () => testGaps(acts, history)), ...S('gateGaps', () => gateGaps(acts)), ...S('screenGaps', () => screenGaps(acts)), ...S('healthGaps', () => [...healthGaps(acts, { run: !shadow }), ...upgradeGaps(turn, acts)]), ...S('knowledgeGaps', () => knowledgeGaps(acts)), ...S('securityGaps', () => securityGaps(acts)), ...S('questionGaps', () => [...questionGaps(acts), ...questionFileGaps(acts)]), ...S('noteGaps', () => noteGaps(acts)), ...S('quoteGaps', () => quoteGaps(acts)), ...S('claimGaps', () => claimGaps(acts, history)), ...S('scopeGaps', () => scopeGaps(acts)), ...S('tableGaps', () => tableGaps(acts))].filter((s, i, all) => all.indexOf(s) === i);
+  const resumedLost = lost.length ? [headlessLine(lost)] : [];
+  const list = [...resumedLost, ...late, ...autos, ...wakes, ...S('missing', () => [...emptyGaps(acts), ...missing(turn, acts), ...upsetGaps(turn, acts), ...ruleGaps(acts), ...watchedGaps(acts)]), ...extra, ...S('skillMissing', () => skillMissing(acts)), ...S('reviewGaps', () => reviewGaps(turn, acts)), ...S('testGaps', () => testGaps(acts, history)), ...S('gateGaps', () => gateGaps(acts)), ...S('screenGaps', () => screenGaps(acts)), ...S('healthGaps', () => [...healthGaps(acts, { run: !shadow }), ...upgradeGaps(turn, acts)]), ...S('knowledgeGaps', () => knowledgeGaps(acts)), ...S('securityGaps', () => securityGaps(acts)), ...S('questionGaps', () => [...questionGaps(acts), ...questionFileGaps(acts)]), ...S('noteGaps', () => noteGaps(acts)), ...S('quoteGaps', () => quoteGaps(acts)), ...S('claimGaps', () => claimGaps(acts, history)), ...S('scopeGaps', () => scopeGaps(acts)), ...S('tableGaps', () => tableGaps(acts))].filter((s, i, all) => all.indexOf(s) === i);
   // (the waiver tally: what this turn cleared with a reason is recorded; a check cleared in 3+ earlier turns is named)
   const full = list.splice(0, list.length); list.push(...full.filter(kept(acts)).filter(s => !(again && CRASHED.test(s))));
   const often = shadow ? '' : tally(full, list, turn.at ? `${data.session_id || 'x'}|${turn.at}` : '');

@@ -2847,7 +2847,9 @@ STOP.push(
     rows: [{ type: 'system', entrypoint: 'sdk-cli', content: 'headless' }], files: { 'src/rename.js': 'x' }, answer: 'Still running in the background.', expect: { block: true, tags: ['headless-resume'], says: /a1b2c3d4/ },
     // (the short line carries what to do: a headless run sees only the short lines. Lesson, trial round 24: the step read
     // "This run is headless", and the agent ended three rounds with "not done yet")
-    after: (dir, reason) => /^\s*\d+\. [^\n]*(yourself|Agent tool)[^\n]*/m.test(reason) || `the short step says nothing to do: ${reason.slice(0, 300)}` },
+    after: (dir, reason) => /^\s*\d+\. [^\n]*(yourself|Agent tool)[^\n]*/m.test(reason) || `the short step says nothing to do: ${reason.slice(0, 300)}`,
+    // (v2's steps are one "- " line each, and that line says what to do)
+    v2: { after: (dir, reason) => /^- [^\n]*(yourself|Agent tool)[^\n]*/m.test(reason) || `the step says nothing to do: ${reason.slice(0, 300)}` } },
   { name: 'headless-resume: the same in an interactive session waits, no steps asked', prompt: 'add the rename command', tools: [RESUMED],
     files: { 'src/rename.js': 'x' }, answer: 'Still running in the background.', expect: { block: false, not: ['headless-resume'] } },
   // review-excuse: "no other reviewer" where sub-agents exist
@@ -4932,6 +4934,7 @@ const V2_ASKS = {
   'upgrade-review': /^- Upgrade review in docs\/DECISIONS\.md: /m,
   'empty-answer': /^- The answer is empty:/m,
   'question-no-file': /^- This was a question, but files changed/m,
+  'headless-resume': /^- This run is headless/m,
   'watched-inputs': /^- \S+ was updated while you worked/m,
   'decision-logged': /item \d+: A choice the user made is logged in docs\/DECISIONS\.md/,
   'rule-request': /^- (Write the rule down|Say how the rule is enforced|Save the rule to memory)/m,
