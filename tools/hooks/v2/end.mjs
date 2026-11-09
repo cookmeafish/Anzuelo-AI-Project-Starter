@@ -5,7 +5,7 @@ import path from 'node:path';
 import { passLine } from './lines.mjs';
 import { unansweredLate } from './late.mjs';
 import { wakeGaps } from '../wakeups.mjs';
-import { forbiddenGaps, codeRuleGaps, injectionGaps, verbatimGaps, CRASHED, crashLine, logStop, upgradeGaps, autoRuns, sessionStart } from './lib.mjs';
+import { forbiddenGaps, codeRuleGaps, injectionGaps, verbatimGaps, CRASHED, crashLine, logStop, upgradeGaps, autoRuns, sessionStart, changedOf } from './lib.mjs';
 import { ROOT, at, runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, questionGaps, noteGaps, quoteGaps, tail, helpersRunning, backgroundRuns, helperRuns, evidenceGaps, evidenceOf, skillBooks, alwaysGaps, scopeGaps, earlierPrompts, ALWAYS, engineCheckGaps } from './lib.mjs';
 // (the two data tables, one evaluator each: the project's always list and the engine's own checks)
 // (each check runs on its own: one that throws is named once with its error, and the rest still run)
@@ -160,6 +160,65 @@ export function onStop(data, opts = {}) {
 // comes once. Lesson (the user, 2026-11-07): the end check is there to make sure the work gets done, and one block
 // let an agent that ignored it end the turn with the work undone.
 export const MAX_BLOCKS = 3;
+// REQ: upset-learned. A complaint (this turn's request upset, or one typed during it) on a turn that changed files: the
+// answer says whether it held, and when it did, what was checked; a lesson is written where it stops the next miss (a
+// skill, runbook, rule, check, test or the agent's memory notes, changed this turn); an engine lesson in a project goes
+// to the starter; upset again in the session needs a plan in docs/plans/ and a sweep of the real data. A complaint
+// shown not to hold, or strong words about nothing wrong, owes none of it. Lesson (the old suite under v2): v2 checked
+// none of the learn-from-upset items, whose markers it strips, and the same miss could come back unlearned.
+const NOT_HELD = /\b(does(?:n'?t| not)|did(?:n'?t| not)) hold\b|\bis(?:n'?t| not) what happened\b|\balready (?:lists?|has|have|there|in place|does|shows?)\b|\bnot (?:actually |really )?(?:wrong|an? (?:issue|problem|mistake))\b|\bnothing (?:was )?wrong\b|\b(?:is|was) (?:already )?(?:there|correct|right)\b[^.\n]{0,40}\b(?:already|in fact|actually)\b|no (?:se sostiene|era (?:un )?(?:error|problema))|\bno encontr[eé]\b|\bnada (?:estaba )?mal\b/i;
+// (a partial verdict, or a lead that is itself the evidence, "Checked: <what> - <what was wrong>", says it too)
+const PARTLY = /^\W*(?:partly|in part|en parte|parcialmente)\b/im, LEAD_CHECKED = /^\s*(?:checked|comprobado|verificado)\s*:/im;
+// (owning the miss in plain words says it held too: "I should have ...", "my mistake". Lesson (replay of real sessions):
+// good answers that owned the miss without a set phrase were asked for a verdict)
+const HELD = /\bI (?:should have|shouldn'?t have|missed|forgot|got [^.\n]{0,30}wrong|was wrong|broke|left out|skipped)\b|\bmy (?:mistake|fault|bad)\b|\b(?:that|it) was (?:wrong|my fault)\b|\byou(?:'re| are| were) (?:right|correct)\b|\b(?:it|the complaint|that) (?:holds|held)\b|\b(?:holds|held) in (?:full|part)\b|\bpartly right\b|\btienes raz[oó]n\b|\bten[ií]as raz[oó]n\b|\bes cierto\b/i;
+const CHECKED = /^\s*(?:checked|comprobado|verificado)\s*:|\b(?:i )?(?:checked|verified|compared|looked (?:at|through)|went through|revis[eé]|comprob[eé])\b/im;
+const LESSON_AT = /^(skills|docs\/playbooks|tools\/starter\/runbooks|docs\/checks|tools\/hooks|tests?)\/|^(AGENTS|CLAUDE)\.md$|^docs\/starter-feedback\.md$/;
+const MEMORY = /[\\/]\.claude[\\/]projects[\\/][^\\/]+[\\/]memory[\\/]/i;
+// An Issue line the agent wrote: "Issue: <problem> | runbook: ... | fixed when: ...", never the template's "<...>" and
+// never "Issue: none" (a false alarm). In the notes file, or in the call that wrote it.
+const ISSUE = /^\s*Issue:\s*(?!none\b|<)\S/im, ISSUE_NONE = /^\s*Issue:\s*none\b/im;
+const issueWritten = c => /^(Bash|PowerShell|Write|Edit|MultiEdit)$/.test(c.name) && /turn-notes\.md/.test(JSON.stringify(c.input || {})) && /(^|\\n|["'])\s*Issue:\s*(?!none\b|<)\S/i.test(JSON.stringify(c.input || {}));
+// How many Issue lines the agent wrote in this session before the turn (in the transcript's earlier tool calls).
+export const issuesBefore = (raw, before) => String(raw || '').split('\n').filter(l => { if (!l.includes('turn-notes') || !l.includes('Issue:')) return false;
+  try { const r = JSON.parse(l); return r.type === 'assistant' && (!before || String(r.timestamp || '') < before) && (r.message?.content || []).some(x => x.type === 'tool_use' && issueWritten({ name: x.name, input: x.input })); } catch { return false; } }).length;
+export function upsetGaps(turn, acts) {
+  // (what the user typed this turn, messages typed mid-turn included; a message relayed from another session or a helper
+  // is not theirs. Lesson (replay of real sessions): a helper's report was read as the user's complaint)
+  // (nor is a summary of an earlier conversation, or the engine's own status lines quoted back. Lesson (replay): a
+  // resumed session's summary named the starter, and every complaint after it read as about the engine)
+  const said = String(acts.heard || '').replace(/<(cross-session-message|agent-message|task-notification|system-reminder)\b[\s\S]*?(?:<\/\1>|$(?![\s\S]))/gi, ' ')
+    .split(/^\s*Another Claude session sent a message/m)[0].split(/This session is being continued from a previous conversation/)[0]
+    .split('\n').filter(l => !/⚓|^\s*(?:Stop hook feedback|PreToolUse|PostToolUse|UserPromptSubmit)\b/i.test(l)).join('\n');
+  // (the trigger is the agent's own judgment, never the user's words: an Issue line it wrote this turn (rule 3), or the
+  // learn-from-upset skill it opened. Words in the request only feed the reminder's hint. Lesson (a peer's review,
+  // citing the retirement of keyword-forced handling on 2026-11-07): a word match misread shouted rules and requests)
+  const notes = (() => { try { const f = at('.cache/turn-notes.md'), st = fs.statSync(f); return st.mtimeMs >= (Date.parse(acts.at || '') || 0) - 2000 ? fs.readFileSync(f, 'utf8') : ''; } catch { return ''; } })();
+  if (ISSUE_NONE.test(notes)) return []; // (the agent's own call: a false alarm, said with why)
+  if (!(ISSUE.test(notes) || acts.calls.some(issueWritten) || acts.calls.some(c => c.name === 'Read' && /learn-from-upset[\\/]+SKILL\.md$/i.test(String(c.input?.file_path || ''))))) return [];
+  const changed = changedOf(acts, true);
+  if (!worked(acts) && !changed.length) return [];
+  const ans = String(acts.answer || ''), lead = ans.slice(0, 400), both = `${ans}\n${notes}`;
+  // (the answer or the notes saying it did not hold, in words: a bare "Learned (none)" says nothing about it)
+  if (NOT_HELD.test(both)) return [];
+  const out = [];
+  // (a standing rule said with emphasis, "UPDATE THE PROJECT TO NEVER ...", "... MUST ...", is a rule request, which the
+  // project-rule skill handles: no verdict on a complaint is owed. Lesson (replay of real sessions))
+  const ruleAsk = /\b(?:update the project to|from now on|going forward|make (?:it|this) a rule|(?:always|never) (?:do|name|use|make|put|add|ask|check)|must (?:always|never)?\s*\w+)\b/i.test(said);
+  if (PARTLY.test(lead) || LEAD_CHECKED.test(lead) || ruleAsk) { /* a verdict with its evidence, or a rule request */ }
+  else if (!HELD.test(lead)) out.push('Say first whether it holds: the complaint in full, in part, or not. Agreeing: "You\'re right: <what was wrong>". Not agreeing: in your own words and with no concession ("Checked: <what you opened> - <what it showed>"); never blame files the user doesn\'t see.');
+  else if (!CHECKED.test(ans)) out.push('Say what you checked to know it holds ("Checked: <the file or result you opened> - <what was wrong>"), not only that you agree.');
+  const memo = acts.calls.some(c => /^(Edit|Write|MultiEdit)$/.test(c.name) && MEMORY.test(String(c.input?.file_path || '')));
+  if (!changed.some(f => LESSON_AT.test(f)) && !memo) out.push(`Write the lesson where it stops the next miss, in this turn: the skill, runbook, rule or check that missed it (learn-from-upset skill), not only a note.${/Learned \(none\)/i.test(notes) ? ' "Learned (none)" is only for a complaint that did not hold.' : ''}`);
+  const engine = !fs.existsSync(at('.starter-template')) && /\b(?:anzuelo|the engine|the starter|(?:stop|end|pretool|prompt) hooks?|end check)\b/i.test(said); // (the engine named, not any "check": "do 20 more sweeps to check the app" is the user's work. Lesson (replay))
+  if (engine && !changed.includes('docs/starter-feedback.md') && !acts.calls.some(c => /starter\.mjs["']?\s+feedback\b/.test(String(c.input?.command || '')))) out.push('This is about the engine: send the lesson to the starter (node tools/starter.mjs feedback "<what went wrong and why>"), not only into this project.');
+  // (a new rule said with emphasis is no failed patch: the plan and sweep are for the same kind of miss coming back)
+  if (!ruleAsk && acts.issuesBefore > 0) {
+    const plan = changed.some(f => /^docs\/plans\/[^/]+\.md$/.test(f)), swept = /\b\d+\s+(?:checked|checks|items|records|files)\b[^\n]{0,80}\b0 wrong\b|\bsweep\b[^\n]{0,120}\b0 wrong\b/i.test(both);
+    if (!plan || !swept) out.push('The user is upset again in this session: patching failed. Write a plan in docs/plans/ listing everything wrong, each with its root cause and fix, and run the fix over the whole real record, saying how many were checked and that 0 are wrong.');
+  }
+  return out;
+}
 function judge(data, { shadow = false } = {}) {
   // (with no saved start, the turn starts at its request's own time. Lesson (a field report): the first turn after an
   // upgrade installed v2 had no saved start, so a file a script wrote did not count, and the request was blocked twice)
@@ -190,6 +249,7 @@ function judge(data, { shadow = false } = {}) {
   if (again && turn.lastBlock) { const after = turnActs(rows.filter(r => (Date.parse(r.timestamp || '') || 0) > turn.lastBlock)); acts.said = after.said + (final && !after.said.includes(final) ? `${final}\n` : ''); acts.answer = final || after.answer || acts.answer; }
   const raw = tail(data.transcript_path, 5 << 20), history = evidenceOf(raw);
   acts.earlier = earlierPrompts(raw, turn.at); acts.runbook = turn.runbook || '';
+  acts.issuesBefore = issuesBefore(raw, turn.at);
   // (a declared self-test the turn needed and never ran is run here first, so every check below judges its output;
   // never in a preview)
   let autos = []; if (!shadow) try { acts.sessionStart = sessionStart(data.transcript_path || '') || turn.at || null; autos = autoRuns(acts); } catch (e) { autos = [crashLine('self-run', e)]; }
@@ -197,7 +257,7 @@ function judge(data, { shadow = false } = {}) {
   // (wakeups scheduled in any turn of the session count: one left from earlier still re-invokes it later)
   const wakes = wakeGaps(raw.split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean), final || acts.answer || '', acts.heard || '');
   const extra = (turn.also || []).flatMap(f => missing({ ...turn, runbook: f }, acts, runbooks().filter(b => b.file === f)));
-  const list = [...late, ...autos, ...wakes, ...S('missing', () => missing(turn, acts)), ...extra, ...S('skillMissing', () => skillMissing(acts)), ...S('reviewGaps', () => reviewGaps(turn, acts)), ...S('testGaps', () => testGaps(acts, history)), ...S('gateGaps', () => gateGaps(acts)), ...S('screenGaps', () => screenGaps(acts)), ...S('healthGaps', () => [...healthGaps(acts, { run: !shadow }), ...upgradeGaps(turn, acts)]), ...S('knowledgeGaps', () => knowledgeGaps(acts)), ...S('securityGaps', () => securityGaps(acts)), ...S('questionGaps', () => questionGaps(acts)), ...S('noteGaps', () => noteGaps(acts)), ...S('quoteGaps', () => quoteGaps(acts)), ...S('claimGaps', () => claimGaps(acts, history)), ...S('scopeGaps', () => scopeGaps(acts)), ...S('tableGaps', () => tableGaps(acts))].filter((s, i, all) => all.indexOf(s) === i);
+  const list = [...late, ...autos, ...wakes, ...S('missing', () => [...missing(turn, acts), ...upsetGaps(turn, acts)]), ...extra, ...S('skillMissing', () => skillMissing(acts)), ...S('reviewGaps', () => reviewGaps(turn, acts)), ...S('testGaps', () => testGaps(acts, history)), ...S('gateGaps', () => gateGaps(acts)), ...S('screenGaps', () => screenGaps(acts)), ...S('healthGaps', () => [...healthGaps(acts, { run: !shadow }), ...upgradeGaps(turn, acts)]), ...S('knowledgeGaps', () => knowledgeGaps(acts)), ...S('securityGaps', () => securityGaps(acts)), ...S('questionGaps', () => questionGaps(acts)), ...S('noteGaps', () => noteGaps(acts)), ...S('quoteGaps', () => quoteGaps(acts)), ...S('claimGaps', () => claimGaps(acts, history)), ...S('scopeGaps', () => scopeGaps(acts)), ...S('tableGaps', () => tableGaps(acts))].filter((s, i, all) => all.indexOf(s) === i);
   // (the waiver tally: what this turn cleared with a reason is recorded; a check cleared in 3+ earlier turns is named)
   const full = list.splice(0, list.length); list.push(...full.filter(kept(acts)).filter(s => !(again && CRASHED.test(s))));
   const often = shadow ? '' : tally(full, list, turn.at ? `${data.session_id || 'x'}|${turn.at}` : '');

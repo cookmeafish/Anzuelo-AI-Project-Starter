@@ -9,7 +9,7 @@ import { roots, resolver } from '../paths.mjs';
 import { people, personOf, peopleIn, peopleFor } from '../people.mjs';
 import { inEnglish } from '../labels.mjs';
 import { BASE_REQUIREMENTS } from '../base-checks.mjs';
-import { forbiddenRe } from '../settings.mjs';
+import { forbiddenRe, secretHit } from '../settings.mjs';
 import { INJ_PLANTED, INJ_AIMED, INJ_WARNED } from '../injection.mjs';
 import { verbatimHits } from './verbatim.mjs';
 import { hexIds } from '../claims.mjs';
@@ -532,10 +532,23 @@ const walked = new WeakMap();
 // turn's. A run in the background counts until the turn ends. Lesson (the old engine): a peer session's edits in the
 // same folder were blamed on the turn. Calls with no times, as in hand-made transcripts, keep the whole turn.)
 const RUNNER = /^(Bash|PowerShell|Agent|Task|Skill)$/, BG = /^\s*(Command running in background|Command[^\n]*moved to the background|Async agent launched)/i;
-const ranAt = (acts, t) => {
+// (and a shell command only when it can write: a redirect or tee, an in-place edit, a copy, move or delete, a git
+// command that changes files, a package or build tool; or one that names the file or its folder. A read (git log,
+// cat, grep, a script reading a transcript) running while another session in the folder edits is no writer. Lesson (a
+// peer session's live false hold): a turn of git log and a transcript read was held for the other session's edits)
+const WRITER = /(^|[^<\d&=-])>>?\s*[^\s&]|\btee\b|\bsed\b[^|;&]*\s-i|\b(?:cp|mv|rm|rmdir|mkdir|touch|ln|unzip|tar|wget|Copy-Item|Move-Item|Remove-Item|New-Item|Set-Content|Add-Content|Out-File|Rename-Item)\b|\bcurl\b[^|;&]*\s-[oO]\b|\bgit\s+(?:checkout|switch|merge|pull|reset|stash|apply|am|rebase|restore|clone|cherry-pick|revert|worktree)\b|\b(?:npm|npx|pnpm|yarn|bun|make|cargo|go|gradle|mvn|dotnet|pip|uv|poetry|pytest)\b/i;
+// (a command reads only when every part of it is a known reader and none redirects: anything else, an unknown program,
+// a build script, a PowerShell cmdlet that writes, counts as writing. A script reading a session transcript (.jsonl)
+// reads. Lesson (a peer's review): a list of writers misses the commands it does not know)
+const READER = /^(?:cd|git\s+(?:log|status|diff|show|branch|rev-parse|ls-files|blame|grep|remote|describe|shortlog|reflog|cat-file|fetch|config\s+--get)|cat|head|tail|less|more|grep|rg|ls|dir|find(?![^|;&]*\s-(?:delete|exec|execdir|ok|fprint))|wc|echo|printf|pwd|which|where|type|stat|du|df|date|sleep|true|sort|uniq|cut|tr|jq|file|Get-Content|Get-ChildItem|Select-String|Test-Path|Get-Item|gc|gci)\b/i;
+const SCRIPT_READS = /^(?:node|python3?|py)\s+\S+\.(?:mjs|js|cjs|py)\b[^|;&]*\.jsonl\b/i;
+const writes = cmd => WRITER.test(cmd) || !String(cmd).split(/&&|\|\||;|\|/).map(s => s.trim()).filter(Boolean).every(s => READER.test(s) || SCRIPT_READS.test(s));
+const namesFile = (cmd, f) => { const s = String(cmd || '').replace(/\\/g, '/'), d = path.posix.dirname(f); return !!f && (s.includes(path.posix.basename(f)) || (d !== '.' && s.includes(d))); };
+const ranAt = (acts, t, f) => {
   const runs = acts.calls.filter(c => RUNNER.test(c.name));
   if (runs.some(c => !c.at)) return true;
-  return runs.some(c => t >= c.at - 2000 && t <= (BG.test(c.out) || !c.done ? Infinity : c.done + 2000));
+  return runs.some(c => t >= c.at - 2000 && t <= (BG.test(c.out) || !c.done ? Infinity : c.done + 2000)
+    && (!/^(Bash|PowerShell)$/.test(c.name) || writes(String(c.input?.command || '')) || namesFile(c.input?.command, f)));
 };
 // The files written since the turn began, each with its time: walked and stat'ed once per turn, however many checks
 // ask. A turn whose calls can't write (reads, searches, questions) skips the walk. Lesson (a project's upgrade): every
@@ -553,10 +566,10 @@ export function touchedSince(acts, any = false) {
   if (!since) return [];
   const all = () => { if (!walkedAll.has(acts)) walkedAll.set(acts, filesMatching('**/*').map(f => ({ f, t: mtime(f) })).filter(x => x.t > since)); return walkedAll.get(acts); };
   if (any) return all();
-  if (!walked.has(acts)) walked.set(acts, acts.calls.every(c => READ_ONLY.test(c.name)) ? [] : all().filter(x => ranAt(acts, x.t)));
+  if (!walked.has(acts)) walked.set(acts, acts.calls.every(c => READ_ONLY.test(c.name)) ? [] : all().filter(x => ranAt(acts, x.t, x.f)));
   return walked.get(acts);
 }
-const changedSince = (acts, rx) => touchedSince(acts).filter(({ f, t }) => rx.test(f) && !/^(\.cache|tools\/hooks\/state)\//.test(f) && ranAt(acts, t)).map(x => x.f);
+const changedSince = (acts, rx) => touchedSince(acts).filter(({ f, t }) => rx.test(f) && !/^(\.cache|tools\/hooks\/state)\//.test(f) && ranAt(acts, t, f)).map(x => x.f);
 const mtime = f => { try { return fs.statSync(at(f)).mtimeMs; } catch { return 0; } };
 // REQ: scope-separate (rule 11). One person's data never mixes with another's: files of someone the request is not
 // about changed this turn, or an answer about one person brings in another's details. A follow-up that names nobody is
@@ -799,7 +812,7 @@ export function securityGaps(acts) {
   // (a file the turn edited with a tool is judged by those edits only)
   const since = Date.parse(acts.at || '') || 0, viaTool = new Set(acts.calls.filter(c => /^(Edit|Write|MultiEdit)$/.test(c.name)).map(c => relp(c.input.file_path || '')));
   if (since) {
-    for (const f of touchedSince(acts).map(x => x.f).filter(f => covered(f) && !viaTool.has(f))) {
+    for (const f of touchedSince(acts, true).map(x => x.f).filter(f => covered(f) && !viaTool.has(f))) {
       // (a file made this turn is read whole; one that was there is read by what git says it gained, or not at all)
       const made = (() => { try { return fs.statSync(at(f)).birthtimeMs > since; } catch { return false; } })();
       const d = made ? null : spawnSync('git', ['diff', '-U0', '--', f], { cwd: ROOT, encoding: 'utf8', timeout: 5000 });
@@ -977,25 +990,33 @@ export const routedOnly = c => hasKey(c, ['playbookRouted']) && !hasKey(c, ACTIO
 export const unknownKeys = c => !c || typeof c !== 'object' ? [] : Object.entries(c).flatMap(([k, v]) => k === 'anyOf' ? v.flatMap(unknownKeys) : REQ_KEYS.includes(k) ? [] : [k]);
 // The files this turn changed: by the edit tools, and (with a turn start) any whose time is after it, so a command's
 // writes count too. Walked once per turn.
-function changedOf(acts, any = false) {
+export function changedOf(acts, any = false) {
   return [...new Set([...acts.calls.filter(c => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name)).map(c => relp(c.input.file_path || '')), ...touchedSince(acts, any).map(x => x.f).filter(f => !/^(\.cache|tools\/hooks\/state)\//.test(f))])];
 }
 // REQ: forbidden-terms (files a command changed: the guard sees only the edit tools). A name the file already had at
 // git's last commit is no new slip; ignored files and the engine's own list and state don't count.
 const FORBID_FREE = /^(tools\/hooks\/config\.json|tools\/hooks\/state\/|\.cache\/|\.git\/)/;
+// (safety checks read every file changed since the turn began, whatever wrote it, never only the turn's own writers:
+// a command the writer list does not know must not slip content past them. Lesson (a peer's review))
+// REQ: no-secrets (files a command wrote: the guard reads only the edit tools and staged changes). A tracked or
+// trackable file (not ignored, not a secrets store) that now holds something that looks like a key is named.
+const SECRET_STORE = /(^|\/)(\.env(\.(?!example$|sample$|template$)[\w.-]+)?|[^/]+\.(pem|key|p12|pfx)|id_(rsa|ed25519|ecdsa))$/i;
 export function forbiddenGaps(acts) {
   // (the project's own config: settings.mjs reads the folder it sits in, not ANZUELO_ROOT)
-  const rx = forbiddenRe(projectConfig());
-  if (!rx) return [];
-  const n = s => (String(s || '').match(rx) || []).length, bad = [];
-  for (const p of changedOf(acts).filter(p => p && !FORBID_FREE.test(p) && !/\.(png|jpe?g|gif|ico|webp|pdf|zip|woff2?|ttf|mp[34])$/i.test(p)).slice(0, 200)) {
+  const cfg = projectConfig(), rx = forbiddenRe(cfg);
+  const n = s => rx ? (String(s || '').match(rx) || []).length : 0, bad = [], keys = [];
+  const ignored = p => spawnSync('git', ['check-ignore', '-q', p], { cwd: ROOT }).status === 0;
+  for (const p of changedOf(acts, true).filter(p => p && !FORBID_FREE.test(p) && !/\.(png|jpe?g|gif|ico|webp|pdf|zip|woff2?|ttf|mp[34])$/i.test(p)).slice(0, 200)) {
     let now = ''; try { now = fs.readFileSync(path.join(ROOT, p), 'utf8'); } catch { continue; }
+    const key = !SECRET_STORE.test(p) && secretHit(now, cfg);
+    if (key && !ignored(p)) keys.push(`${p} (${key})`);
     if (!n(now)) continue;
     const before = spawnSync('git', ['show', `HEAD:${p}`], { cwd: ROOT, encoding: 'utf8' });
-    if (n(now) > n(before.status === 0 ? before.stdout : '') && spawnSync('git', ['check-ignore', '-q', p], { cwd: ROOT }).status !== 0)
+    if (n(now) > n(before.status === 0 ? before.stdout : '') && !ignored(p))
       bad.push(`${p} ("${new RegExp(rx.source, 'iu').exec(now)[1]}")`);
   }
-  return bad.length ? [`These files now hold a name the user asked to keep out of the project: ${bad.slice(0, 5).join('; ')}. Replace each with a neutral word or example.`] : [];
+  return [...(bad.length ? [`These files now hold a name the user asked to keep out of the project: ${bad.slice(0, 5).join('; ')}. Replace each with a neutral word or example.`] : []),
+    ...(keys.length ? [`These files now hold something that looks like a secret: ${keys.slice(0, 5).join('; ')}. Move it to .env (ignored by git) and read it from the environment; if it was ever committed or shared, revoke it.`] : [])];
 }
 // REQ: code-rules. Patterns the project says must not appear in changed code (config codeRules, filled by packs and
 // setup): each changed file a rule covers is read, and its first matching line named. Test files hold attack payloads
@@ -1005,7 +1026,7 @@ const inGlobs = (p, gs) => [].concat(gs).some(g => globRx(g).test(p) || (g.start
 export function codeRuleGaps(acts) {
   const rules = [].concat(projectConfig().codeRules || []);
   if (!rules.length) return [];
-  const changed = changedOf(acts), hits = [];
+  const changed = changedOf(acts, true), hits = [];
   for (const rule of rules) {
     let rx; try { rx = new RegExp(rule.pattern, 'im'); } catch { continue; }
     for (const p of changed.filter(p => p && inGlobs(p, rule.files || ['**']) && !inGlobs(p, rule.ignore || (rule.tests ? [] : TEST_FILES)))) {
@@ -1022,7 +1043,7 @@ export function codeRuleGaps(acts) {
 // (where, what it asked, that none of it was done), in this answer, not when they ask.
 export function injectionGaps(acts) {
   const ign = [].concat(projectConfig().injectionIgnore || []), out = [];
-  const kept = changedOf(acts).filter(p => p && /\.(md|json|txt)$/i.test(p) && (/^(docs|skills|profiles)\//.test(p) || /^(CLAUDE|AGENTS|DIRECTORY)\.md$/.test(p)) && !inGlobs(p, ign));
+  const kept = changedOf(acts, true).filter(p => p && /\.(md|json|txt)$/i.test(p) && (/^(docs|skills|profiles)\//.test(p) || /^(CLAUDE|AGENTS|DIRECTORY)\.md$/.test(p)) && !inGlobs(p, ign));
   const planted = kept.filter(p => { try { return INJ_PLANTED.test(fs.readFileSync(path.join(ROOT, p), 'utf8')); } catch { return false; } });
   if (planted.length) out.push(`${planted.slice(0, 4).join(', ')} contain text that reads as instructions to an AI ("ignore previous instructions", fake system tags) or invisible characters. Kept files are read by every future session: remove it, or quote it as data in a code block if it must stay.`);
   const own = f => inGlobs(f, ign) || /^(skills|docs\/checks|docs\/playbooks|tools)\//.test(f) || /^(AGENTS|CLAUDE|DIRECTORY|HOW-TO-USE)\.md$/.test(f) || /^(\.anzuelo\/engine|\.githooks)\/|^docs\/recommended-tools\.md$/.test(f);
@@ -1032,8 +1053,12 @@ export function injectionGaps(acts) {
   return out;
 }
 // REQ: no-verbatim-examples (v2/verbatim.mjs): files changed this turn copy the user's own words or names.
+// The user's own words in what was said: a message relayed from another session, a helper or the host is not theirs.
+// Lesson (the old suite under v2, once the safety checks read every changed file): a helper's sentence written into a
+// note was flagged as the user's words copied.
+export const ownWords = s => String(s || '').replace(/<(cross-session-message|agent-message|task-notification|system-reminder)\b[\s\S]*?(?:<\/\1>|$(?![\s\S]))/gi, ' ').split(/^\s*Another Claude session sent a message/m)[0];
 export function verbatimGaps(acts) {
-  const hits = verbatimHits({ root: ROOT, cfg: projectConfig(), prompts: [...(acts.earlier || []), acts.heard].filter(Boolean), changed: changedOf(acts), calls: acts.calls });
+  const hits = verbatimHits({ root: ROOT, cfg: projectConfig(), prompts: [...(acts.earlier || []), acts.heard].filter(Boolean).map(ownWords), changed: changedOf(acts, true), calls: acts.calls });
   return hits.length ? [`These files copy the user's own words: ${hits.slice(0, 5).join('; ')}. Rephrase each as the general principle and why it matters (what goes wrong, for whom), without the user's examples, names or details.`] : [];
 }
 // REQ: small-change. A small fix (config smallFiles files, smallLines lines, counted from this turn's own edits; a file a

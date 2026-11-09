@@ -4891,6 +4891,7 @@ const V2_ASKS = {
   'injection-flagged': /^- Something read this turn carries instructions aimed at an AI /m,
   'app-test-pass': /^- Run the tests after the last code change\b/m,
   'upgrade-review': /^- Upgrade review in docs\/DECISIONS\.md: /m,
+  'upset-learned': /^- (Say first whether it holds|Say what you checked to know it holds|Write the lesson where it stops the next miss|This is about the engine: send the lesson|The user is upset again in this session)/m,
 };
 // (an engine check from requirements.json is recognized by its own message, which v2's evaluator gives as "Check: ...")
 const ENGINE_MSG = await (async () => { const out = {}; try { for (const q of (await import(pathToFileURL(path.join(ROOT, 'tools/hooks/base-checks.mjs')).href)).BASE_REQUIREMENTS) out[q.tag] = q.message; } catch { }

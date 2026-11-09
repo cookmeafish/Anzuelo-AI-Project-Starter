@@ -678,9 +678,26 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
         put('docs/peer-notes.md', 'edited by the other session\n');
         const b = acts(bRows); b.at = bAt;
         const bg = acts([ts(0, user('run the export')), ts(1, call('Bash', { command: 'node tools/export.mjs', run_in_background: true }, 'Command running in background with ID: x1')), ts(2, say('Started.'))]); bg.at = bAt;
-        const two = { peer: L.touchedSince(b).some(x => x.f === 'docs/peer-notes.md'), required: L.touchedSince(b, true).some(x => x.f === 'docs/peer-notes.md'), ownBg: L.touchedSince(bg).some(x => x.f === 'docs/peer-notes.md') };
+        // (B's reads still running while A edits are no writers: a git log, a script reading a session transcript, a
+        // search. A command that names the file, or a redirect, still counts. Lesson (a peer session's live false hold))
+        const running = cmd => { const a = acts([ts(0, user('what changed today?')), ts(1, call('Bash', { command: cmd, run_in_background: true }, 'Command running in background with ID: r1')), ts(2, say('Looking.'))]); a.at = bAt; return L.touchedSince(a).some(x => x.f === 'docs/peer-notes.md'); };
+        const reads = { log: running('git log --all --stat'), reader: running('node tools/starter/stop-value.mjs sessions/s.jsonl'), grep: running('grep -rn total src') };
+        const writers = { redirect: running('git log --all > .cache/log.txt'), named: running('cat docs/peer-notes.md'), sed: running("sed -i 's/a/b/' docs/x.md"),
+          // (a command not known as a reader writes: a shell script, a Python script, a PowerShell copy, an unknown tool)
+          sh: running('./build.sh'), py: running('python gen.py'), copy: running('Copy-Item a.txt b.txt'), unknown: running('mytool generate --all') };
+        const two = { peer: L.touchedSince(b).some(x => x.f === 'docs/peer-notes.md'), required: L.touchedSince(b, true).some(x => x.f === 'docs/peer-notes.md'), ownBg: L.touchedSince(bg).some(x => x.f === 'docs/peer-notes.md'), reads, writers };
         fs.rmSync(path.join(dir, 'docs/peer-notes.md'), { force: true });
-        report(!two.peer && two.required && two.ownBg, 'end: two sessions in one folder: a turn is not held for files another session wrote while none of its own commands ran; its own background command counts them; a requirement still sees them', JSON.stringify(two));
+        // (the safety checks read every file changed since the turn began, whatever wrote it: a secret a PowerShell
+        // Set-Content wrote is named, and so is one written while only a read of this turn ran)
+        const sk = ['s', 'k', '-'].join('') + 'Z9q'.repeat(9);
+        put('config/app.json', `{"key":"${sk}"}\n`);
+        const ps = acts([ts(0, user('set the key')), ts(1, call('PowerShell', { command: `Set-Content config/app.json '{"key":"${sk}"}'` }, '')), ts(2, say('Set.'))]); ps.at = bAt;
+        const rd = acts([ts(0, user('what changed?')), ts(1, call('Bash', { command: 'git log -3' }, 'abc fix')), ts(2, say('Three commits.'))]); rd.at = bAt;
+        const safety = { ps: L.forbiddenGaps(ps).some(s => /looks like a secret[^\n]*config\/app\.json/.test(s)), readOnly: L.forbiddenGaps(rd).some(s => /looks like a secret/.test(s)) };
+        fs.rmSync(path.join(dir, 'config'), { recursive: true, force: true });
+        two.safety = safety;
+        report(!two.peer && two.required && two.ownBg && !Object.values(reads).some(Boolean) && Object.values(writers).every(Boolean) && safety.ps && safety.readOnly,
+          'end: two sessions in one folder: a turn is not held for files another session wrote while none of its own commands ran, or while only its reads ran (git log, a transcript reader, a search); its own background script, a redirect, an in-place edit or a command naming the file counts them; a requirement still sees them', JSON.stringify(two));
       }
       // (REQ: answer-cites: a file opened this turn named in the answer, plain or in backticks, or printed by the command
       // that read it, meets answerCites; one never opened, or one written this turn, does not. An anyOf with a branch v2
@@ -1549,6 +1566,66 @@ report(madeUp.length === 2 && /9f8e7d6/.test(madeUp[0]) && /src\/missing\.js/.te
   report(g.editAdd && g.writeAdd && g.multiAdd && !g.otherKey && !g.remove && !g.otherFile && g.cli && g.sedW && g.escaped && g.psWrite && g.escEdit && !g.grep && !g.read && !g.arrow && a1.added && !a2.added && kept.autonomy === 'ask' && kept.selfCommands.join() === 'npm test' && conv === 'npm test,node walk.mjs',
     'guard: an agent edit, write or shell write that adds an approved self-run command, or runs self-allow, is refused; other config edits, removals and reads pass; self-allow adds once; the converter keeps only self-runs in the last commit', { ...g, a1: a1.msg, conv });
 }
+{ // (REQ: upset-learned: after a complaint that held, the answer says so and what was checked, and the lesson is written
+  // where it stops the next miss; a complaint shown not to hold owes none of it; upset again needs a plan and a sweep)
+  const { upsetGaps, issuesBefore } = await import('./end.mjs');
+  { // (a helper's or another session's message is not the user's words: a note that copies it is no verbatim copy)
+    const { verbatimGaps } = await import('./lib.mjs');
+    const words = 'every chart in the monthly report should use the warm colour palette';
+    put('docs/notes-a.md', `# Notes\n${words}\n`);
+    const T0 = new Date(Date.now() - 60_000).toISOString();
+    const relayed = Object.assign(acts([user(`tidy up\n<agent-message from="helper">${words}</agent-message>`), call('Write', { file_path: path.join(dir, 'docs/notes-a.md'), content: words }), say('Done.')]), { at: T0 });
+    const typedT = Object.assign(acts([user(`tidy up: ${words}`), call('Write', { file_path: path.join(dir, 'docs/notes-a.md'), content: words }), say('Done.')]), { at: T0 });
+    const got = { relayed: verbatimGaps(relayed).length, typed: verbatimGaps(typedT).length };
+    fs.rmSync(path.join(dir, 'docs/notes-a.md'), { force: true });
+    report(got.relayed === 0 && got.typed > 0, 'end: a note copying a relayed helper message is not the user\'s words; one copying what the user typed is', got);
+  }
+  { // (Issue lines the agent wrote in earlier turns of the session count; the template's "<problem>", "none", and lines
+    // after the turn's start do not)
+    const line = (t, cmd) => JSON.stringify({ type: 'assistant', timestamp: t, message: { content: [{ type: 'tool_use', name: 'Bash', input: { command: cmd } }] } });
+    const raw = [line('2026-01-01T10:00:00Z', "printf 'Issue: totals round down | runbook: debug\\n' >> .cache/turn-notes.md"), line('2026-01-01T10:05:00Z', "printf 'Issue: none - venting\\n' >> .cache/turn-notes.md"),
+      line('2026-01-01T10:06:00Z', "echo 'Issue: <problem> | runbook: <name>' >> .cache/turn-notes.md"), line('2026-01-01T11:00:00Z', "printf 'Issue: later one\\n' >> .cache/turn-notes.md")].join('\n');
+    const n = issuesBefore(raw, '2026-01-01T10:30:00Z');
+    report(n === 1, 'end: upset again is an Issue line the agent wrote in an earlier turn of the session (not "none", not the template, not this turn\'s)', n);
+  }
+  const keep = ['docs/playbooks/menu.md', 'docs/plans/zz-plan.md'].map(p => [p, (() => { try { return fs.readFileSync(path.join(dir, p), 'utf8'); } catch { return null; } })()]);
+  const edit = (f, extra = []) => [call('Edit', { file_path: path.join(dir, f), old_string: 'a', new_string: 'b' }), ...extra];
+  // (the agent's own judgment starts it: the Issue line it writes (rule 3); "again" is an Issue line in an earlier turn)
+  const issue = call('Bash', { command: "printf 'Issue: the allergens were missing | runbook: learn-from-upset | fixed when: every item lists them\\n' >> .cache/turn-notes.md" });
+  const u = (prompt, calls, answer, earlier, noIssue) => upsetGaps({}, Object.assign(acts([user(prompt), ...(noIssue ? [] : [issue]), ...calls, say(answer)]), { issuesBefore: earlier ? earlier.length : 0 }));
+  put('docs/playbooks/menu.md', '# Menu\n'); put('docs/plans/zz-plan.md', '# Plan\n');
+  const COMPLAINT = 'you forgot the allergens AGAIN!!';
+  const r = {
+    nothing: u(COMPLAINT, edit('src/a.js'), 'Added the allergens.'),
+    lessonOnly: u(COMPLAINT, edit('src/a.js', edit('docs/playbooks/menu.md')), 'Added the allergens.'),
+    agreeNoCheck: u(COMPLAINT, edit('src/a.js', edit('docs/playbooks/menu.md')), 'You\'re right, sorry. Added them.'),
+    good: u(COMPLAINT, edit('src/a.js', edit('docs/playbooks/menu.md')), 'You\'re right: the croissant had none. Checked: the menu page - two items lacked allergens. Added them.'),
+    notHeld: u(COMPLAINT, edit('src/a.js'), 'Checked: the menu page - every item already lists its allergens, so the complaint doesn\'t hold.'),
+    calm: u('add the allergens to the menu', edit('src/a.js'), 'Added.', null, true),
+    again: u(COMPLAINT, edit('src/a.js', edit('docs/playbooks/menu.md')), 'You\'re right: the croissant had none. Checked: the menu page. Added them.', ['THE ALLERGENS ARE MISSING!!']),
+    againDone: u(COMPLAINT, edit('src/a.js', [...edit('docs/playbooks/menu.md'), ...edit('docs/plans/zz-plan.md')]), 'You\'re right: the croissant had none. Checked: the menu page. Sweep: all 40 menu items - 40 checked, 0 wrong.', ['THE ALLERGENS ARE MISSING!!']),
+    // (from a replay of real sessions: owning the miss in plain words, "you were right"; a shouted new rule; a relayed
+    // helper report; a resumed session's summary naming the starter; the user's own project hooks: none of these is
+    // a missing verdict, a failed patch or an engine lesson)
+    owned: u(COMPLAINT, edit('src/a.js', edit('docs/playbooks/menu.md')), 'I should have listed them. Checked: the menu page - two items lacked them. Added.'),
+    were: u(COMPLAINT, edit('src/a.js', edit('docs/playbooks/menu.md')), 'Done. You were right: the croissant had none, I checked every item.'),
+    rule: u('UPDATE THE PROJECT TO NEVER NAME A DISH SOMETHING VAGUE', edit('src/a.js', edit('docs/playbooks/menu.md')), 'Renamed it and made the naming rule part of the menu runbook.', ['WHY IS THE NAME SO BAD']),
+    relayed: u('<agent-message from="x">THE TESTS FAILED AGAIN!!</agent-message>', edit('src/a.js'), 'Fixed.', null, true),
+    summary: u('This session is being continued from a previous conversation. Summary: the starter session got the report. WHY IS THE TOTAL WRONG AGAIN', edit('src/a.js', edit('docs/playbooks/menu.md')), 'You\'re right: it rounded down. Checked: the invoice page.'),
+    ownHooks: u('YES DO THE HOOKS AND SCRIPTS IN EVERY PART OF THIS PROJECT, IT KEEPS MISSING THINGS', edit('src/a.js', edit('docs/playbooks/menu.md')), 'You\'re right: the menu folder had no check. Checked: every folder. Added hooks to each.'),
+    // (prompt words alone never start it: an angry-sounding request with no Issue line and the skill not opened)
+    wordsOnly: u('WHY IS THIS STILL BROKEN AGAIN?!! UGH', edit('src/a.js'), 'Added.', ['WHAT AGAIN'], true),
+    // (an Issue line marked a false alarm owes nothing; opening the skill starts it as an Issue line does)
+    none: upsetGaps({}, acts([user(COMPLAINT), call('Bash', { command: "printf 'Issue: none - venting about the printer\\n' >> .cache/turn-notes.md" }), ...edit('src/a.js'), say('Added.')])),
+    skill: upsetGaps({}, acts([user('the allergens are missing'), call('Read', { file_path: path.join(dir, 'skills/learn-from-upset/SKILL.md') }), ...edit('src/a.js'), say('Added.')])),
+  };
+  for (const [p, t] of keep) t === null ? fs.rmSync(path.join(dir, p), { force: true }) : fs.writeFileSync(path.join(dir, p), t);
+  const has = (l, rx) => l.some(s => rx.test(s));
+  report(has(r.nothing, /Say first whether it holds/) && has(r.nothing, /Write the lesson/) && has(r.lessonOnly, /Say first whether/) && !has(r.lessonOnly, /Write the lesson/)
+    && has(r.agreeNoCheck, /Say what you checked/) && !r.good.length && !r.notHeld.length && !r.calm.length && has(r.again, /upset again in this session/) && !r.againDone.length
+    && !r.owned.length && !r.were.length && !r.rule.length && !r.relayed.length && !has(r.summary, /about the engine/) && !has(r.ownHooks, /about the engine/) && !r.wordsOnly.length && !r.none.length && has(r.skill, /Say first whether it holds/),
+    'end: after a complaint, the answer says whether it holds and what was checked and a lesson goes where it stops the next miss; a complaint shown not to hold or a calm request owes nothing; upset again needs a plan and a sweep', JSON.stringify(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v.map(s => s.slice(0, 30))]))));
+}
 // (a Finished section naming a changed file that is not there is an unbacked claim, rule 4: held. The old engine let it
 // pass; v2's stricter verdict is the one kept: tools/starter/reviews/2026-11-08-v2-triage.md, settled conflicts)
 const finNone = claimGaps(acts([user('add the export'), code, say('Done.\n\n## Finished\n- Files: src/export-never-written.js')]));
@@ -2071,9 +2148,12 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     }
     fs.writeFileSync(path.join(c4, '.cache/turn-notes.md'), 'Issue: the notes file had a typo | runbook: learn-from-upset | fixed when: the typo is gone\n');
     fs.writeFileSync(path.join(c4, 'notes.md'), 'teh notes\n');
-    const workRows = stamp([user('UGH the notes have a typo AGAIN, fix it'), call('Edit', { file_path: path.join(c4, 'notes.md'), old_string: 'teh', new_string: 'the' }), say('Fixed the typo in notes.md.')], 0);
-    fs.writeFileSync(path.join(c4, 'notes.md'), 'the notes\n');
-    const w = stop('passwork', tfile('work', workRows), 'Fixed the typo in notes.md.');
+    // (an upset turn done the learn-from-upset way: whether it held and what was checked, and the lesson in a check)
+    const fixed = 'You\'re right: notes.md said "teh". Checked: notes.md - one typo. Fixed it, and the spelling check now covers the notes.';
+    const workRows = stamp([user('UGH the notes have a typo AGAIN, fix it'), call('Edit', { file_path: path.join(c4, 'notes.md'), old_string: 'teh', new_string: 'the' }),
+      call('Write', { file_path: path.join(c4, 'docs/checks/spelling.md'), content: '# Spelling\nThe notes are spell-checked.\n' }), say(fixed)], 0);
+    fs.writeFileSync(path.join(c4, 'notes.md'), 'the notes\n'); fs.mkdirSync(path.join(c4, 'docs/checks'), { recursive: true }); fs.writeFileSync(path.join(c4, 'docs/checks/spelling.md'), '# Spelling\nThe notes are spell-checked.\n');
+    const w = stop('passwork', tfile('work', workRows), fixed);
     const q = stop('passq', tfile('q', stamp([user('what does notes.md say?'), say('It says "the notes".')], 100)), 'It says "the notes".');
     fs.rmSync(c4, { recursive: true, force: true });
     const shownW = (() => { try { return JSON.parse(w).systemMessage || ''; } catch { return ''; } })();

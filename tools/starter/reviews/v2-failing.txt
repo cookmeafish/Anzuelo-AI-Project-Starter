@@ -312,7 +312,6 @@ stop: big work turn without STATUS update: blocked
 stop: block cap reached: a check that waits on background agents is not carried over
 stop: block cap reached: unresolved checks are saved for the next prompt
 stop: broken requirements.json: blocked
-stop: changed code breaks a code rule: blocked
 stop: changelog: a check list changed without a CHANGELOG line: blocked
 stop: check-proven: a "**Probado:**" label alone, with no full line anywhere: blocked, and the message gives the line filled in from the runs
 stop: check-proven: a "Proven:" line with only one good sample: blocked
@@ -394,7 +393,6 @@ stop: gui-review-loop: the page written again after a reviewed round, with other
 stop: gui-review-loop: two runs after the last edit, only the older one looked at: blocked
 stop: gui-review-report: a bold "Revisión visual" list item with no verdict still asks for the line
 stop: headless-resume: a headless run ending while a resumed helper runs: blocked
-stop: headless: the block offers a waiver that needs no shell (a line in the turn notes)
 stop: helpers still running, but the answer claims they finished and pushed: still checked
 stop: hook tests ran but FAILED: blocked
 stop: hooks changed without running the tests: blocked
@@ -489,7 +487,6 @@ stop: research-verified: curl to a site on the web still counts: blocked
 stop: research-verified: the same line without the config: blocked
 stop: research-verified: web research with no ledger: blocked
 stop: research-verified: web use in a knowledge project without the ledger: blocked
-stop: review-evidence: the review only opened, nothing carried out: security-code still blocks
 stop: review-excuse: review skipped as "no other reviewer" where sub-agents exist: blocked
 stop: review-excuse: the same excuse in Spanish: blocked
 stop: review-verdict: a report whose verdict is "not ready to ship" does not count
@@ -513,12 +510,6 @@ stop: runbook-look: feature.md opened for unrouted code work: the review is stil
 stop: runbook-look: setup that names feature.md as followed: the review is still asked
 stop: scope-general: "or something else that doesn't fit" changed with no Scope line: blocked
 stop: security review without the item table: blocked
-stop: security-code: a Go web handler: fired
-stop: security-code: a real exec, child_process call or os.system still fires
-stop: security-code: a waiver needs a specific reason: blocked
-stop: security-code: sign-in code written without the security review: blocked
-stop: security-code: the formidable upload library imported: fired
-stop: security-code: the step names the file and the words that set it off
 stop: security-config: a CI workflow changed without the review: blocked
 stop: security-logged: a full review not logged in docs/security.md: blocked
 stop: server code changed without tests: blocked
