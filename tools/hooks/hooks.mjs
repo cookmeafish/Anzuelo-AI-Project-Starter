@@ -4229,7 +4229,9 @@ export function dueRoutines(text, now = today()) {
 export const ENGINE_CHANGE = /^- \d{4}-\d\d-\d\d: engine (installed|moved|upgraded|rolled back|removed)\b.*$/;
 export function noteEngineChange(dir, text) {
   const f = path.join(dir, 'docs', 'DECISIONS.md');
-  try { fs.mkdirSync(path.dirname(f), { recursive: true }); const t = fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : '# Decisions\n'; fs.writeFileSync(f, `${t}${t.endsWith('\n') ? '' : '\n'}- ${today()}: engine ${text}\n`); } catch { }
+  // (the same line on the same day is written once. Lesson (a field report): three refused upgrades wrote three
+  // identical rolled-back lines)
+  try { fs.mkdirSync(path.dirname(f), { recursive: true }); const t = fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : '# Decisions\n', line = `- ${today()}: engine ${text}`; if (t.split(/\r?\n/).includes(line)) return; fs.writeFileSync(f, `${t}${t.endsWith('\n') ? '' : '\n'}${line}\n`); } catch { }
 }
 const ENGINE_SEEN = () => path.join(STATE, 'engine-change-seen.json');
 const lastEngineChange = () => read(abs('docs/DECISIONS.md')).split(/\r?\n/).filter(l => ENGINE_CHANGE.test(l)).pop() || '';

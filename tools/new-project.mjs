@@ -668,13 +668,19 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   // regenerate the project's skills, mirrors and DIRECTORY.md with its new engine, so nothing is left stale
   const sync = () => { const r = spawnSync(process.execPath, [path.join(dest, 'tools', 'hooks', 'hooks.mjs'), 'sync'], { cwd: dest, encoding: 'utf8' }); return (r.stdout || r.stderr || '').trim(); };
   const synced = sync();
+  // (the project's own requirements.json checks move into docs/checks/always.md before the after-check, so the new
+  // engine enforces them. Lesson (a field report): the after-check asked for the convert, which only the upgrade
+  // brings, and every plain upgrade rolled back)
+  const conv = spawnSync(process.execPath, [path.join(dest, 'tools', 'always.mjs'), 'convert'], { cwd: dest, encoding: 'utf8', env: { ...process.env, ANZUELO_ROOT: dest } });
+  if (/converted [1-9]|NOT converted/.test(conv.stdout || '')) log.push(...String(conv.stdout).trim().split('\n').map(l => `always   ${l}`));
   // Never worse: a check that passed before and fails now rolls the whole upgrade back, unless the user accepts the
   // findings as work to do. New checks that fail and slower hooks go into the review, to fix or decide.
   const after = probe('after');
   // a sweep that now fails only because the new release brought new candidates to decide (new tools or skills in the
   // fit checklist) is a finding for the upgrade review, not a break. Lesson: adding tools to the catalog rolled back a
   // real project's upgrade, and would have rolled back every project's
-  const onlyNew = s => (after.details?.[s] || []).length > 0 && after.details[s].every(l => /not decided yet|candidate\(s\) are not in the checklist yet|fit\.mjs check still fails \(\d+ problem\(s\), first: [^)]*not decided yet/.test(l));
+  // (an own check the convert could not say as markers is work for the review too: it is listed, never dropped)
+  const onlyNew = s => (after.details?.[s] || []).length > 0 && after.details[s].every(l => /not decided yet|candidate\(s\) are not in the checklist yet|fit\.mjs check still fails \(\d+ problem\(s\), first: [^)]*not decided yet|the engine does not read requirements\.json for it/.test(l));
   const broke = after.failed.filter(s => before.swept.includes(s) && !before.failed.includes(s) && !onlyNew(s));
   if (broke.length && !flag('--accept-findings')) {
     for (const f of created) fs.rmSync(path.join(dest, f), { force: true });

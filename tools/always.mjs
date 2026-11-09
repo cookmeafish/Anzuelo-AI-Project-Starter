@@ -45,7 +45,9 @@ export function asItems(r) {
   if (bad.length || !Object.keys(q).length) return { bad: bad.length ? bad : ['no require'] };
   if (Object.entries(w).some(([k, v]) => !WHEN[k](v))) return { bad: Object.entries(w).filter(([k, v]) => !WHEN[k](v)).map(([k]) => `when.${k} (false)`) };
   const cond = Object.entries(w).map(([k, v]) => WHEN[k](v)).join(' ');
-  const text = String(r.message || r.tag).replace(/\s+/g, ' ').replace(/[()]/g, '').trim();
+  // (the message keeps its own brackets; only one that looks like a marker would be read as one. Lesson (a field
+  // report): dropping every bracket broke the sentences)
+  const text = String(r.message || r.tag).replace(/\s+/g, ' ').replace(/\((when\s+)?(file|ran|answer|prompt|tool|evidence)\b/gi, '[$1$2').trim();
   const req = Object.entries(q).map(([k, v]) => [k, REQUIRE[k](v)]);
   if (req.some(([, m]) => !m)) return { bad: req.filter(([, m]) => !m).map(([k]) => `require.${k} (no command)`) };
   // (a line whose markers read back differently, a regex nested deeper than a marker holds, is listed, not written)
@@ -58,7 +60,14 @@ export function asItems(r) {
   if (back.some((b, i) => b.length !== marks + 1 || b.some((x, j) => x !== want[i][j]))) return { bad: ['a regex nested deeper than a marker can hold'] };
   return { lines };
 }
-export const pending = (rd = readText) => { const have = rd(ALWAYS_FILE); return ownChecks(rd).filter(r => !new RegExp(`req: ${r.tag.replace(/[^\w-]/g, '')}(?![\\w-])`).test(have)); };
+// (a check already said by a runbook's "Done when" with the same markers is there already, not converted twice.
+// Lesson (a field report): two checks moved into a runbook by hand were written again into always.md)
+const listDir = d => { try { return fs.readdirSync(at(d)); } catch { return []; } };
+export const pending = (rd = readText, ls = listDir) => {
+  const have = rd(ALWAYS_FILE), books = ls('docs/playbooks').filter(n => n.endsWith('.md')).map(n => rd(`docs/playbooks/${n}`)).join('\n');
+  const inBook = r => { const a = asItems(r); return !!a.lines && a.lines.every(l => { const m = [...l.matchAll(/\((?:file|ran|answer|prompt|tool): /g)].pop(); return m && books.includes(l.slice(m.index, l.lastIndexOf(' <!--'))); }); };
+  return ownChecks(rd).filter(r => !new RegExp(`req: ${r.tag.replace(/[^\w-]/g, '')}(?![\\w-])`).test(have) && !inBook(r));
+};
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const cmd = process.argv[2];

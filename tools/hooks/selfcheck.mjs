@@ -7627,9 +7627,17 @@ if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade
     const oldAudit = "console.log('PASS  1. tools compile');\n";
     fs.writeFileSync(path.join(proj, 'tools/audit.mjs'), oldAudit);
     fs.writeFileSync(path.join(proj, 'tools/broken.mjs'), 'export const x = ;\n');
-    const r = np('--upgrade');
+    const r = np('--upgrade'), rAgain = np('--upgrade');
     const restored = fs.readFileSync(path.join(proj, 'tools/audit.mjs'), 'utf8') === oldAudit;
     fs.rmSync(path.join(proj, 'tools/broken.mjs'));
+    // (the project's own requirements.json checks move into docs/checks/always.md during the upgrade, not after it; one a
+    // runbook already says is not written twice; a message keeps its brackets. Lesson (a field report): the after-check
+    // asked for a convert only the upgrade brings, and every plain upgrade rolled back)
+    const rq = path.join(proj, 'tools/hooks/requirements.json'), rj = JSON.parse(fs.readFileSync(rq, 'utf8'));
+    rj.requirements.push({ tag: 'paths-named', rule: '4', when: { answerMatches: 'OK to (delete|rename)' }, require: { answerMatches: '\\w+/\\S+' }, message: 'Name each path (the full one) in an offer to delete' },
+      { tag: 'menu-sourced', rule: '4', when: { answerMatches: 'menu' }, require: { answerMatches: 'Source:' }, message: 'Cite the menu source' });
+    fs.writeFileSync(rq, JSON.stringify(rj, null, 2));
+    fs.writeFileSync(path.join(proj, 'docs/playbooks/menu.md'), '---\nname: menu\nsummary: Answer menu questions\ntriggers: the menu\n---\n# Menu\n\n## Steps\n1. Read the menu.\n\n## Done when\n- [ ] The source is cited (answer: Source:)\n');
     // a starter trigger the project took out with "triggers_removed:" stays out after the upgrade; one only deleted from
     // the triggers line comes back (Lesson: an adopted project's narrowed triggers returned with every upgrade)
     const planPb = path.join(proj, 'docs/playbooks/plan.md');
@@ -7646,8 +7654,11 @@ if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade
     // (each engine change leaves a dated line, the rollback's before the upgrade's. Lesson (a field report): a move and
     // its rollback left no trace, so the project's next session never knew its engine had changed)
     const changes = review.split(/\r?\n/).filter(l => /^- \d{4}-\d\d-\d\d: engine /.test(l));
-    report(changes.length === 2 && /engine rolled back: the upgrade to .+ was undone, because checks that passed before failed after it \(.+\)$/.test(changes[0]) && /engine upgraded to .+: (\d+ item\(s\) to decide|nothing to decide)/.test(changes[1]),
-      'engine-change: a rolled-back upgrade and a clean one each leave a dated line in docs/DECISIONS.md', changes.join(' || ') || 'no line');
+    report(changes.length === 2 && rAgain.status !== 0 && /engine rolled back: the upgrade to .+ was undone, because checks that passed before failed after it \(.+\)$/.test(changes[0]) && /engine upgraded to .+: (\d+ item\(s\) to decide|nothing to decide)/.test(changes[1]),
+      'engine-change: a rolled-back upgrade and a clean one each leave a dated line in docs/DECISIONS.md, a repeated rollback the same day only once', changes.join(' || ') || 'no line');
+    const always = (() => { try { return fs.readFileSync(path.join(proj, 'docs/checks/always.md'), 'utf8'); } catch { return ''; } })();
+    report(ok.status === 0 && /req: paths-named/.test(always) && /\(the full one\)/.test(always) && !/req: menu-sourced/.test(always),
+      'upgrade: the project\'s own requirements.json checks move into docs/checks/always.md during the upgrade (brackets in the message kept), one a runbook already says is not written twice, and nothing rolls back for it', `${ok.status} ${ok.stderr.slice(0, 200)} | ${always.split('\n').filter(l => /req:/.test(l)).join(' / ') || 'no lines'}`);
     // the last line says it all: which starter, regressions, decisions left (a rolled-back run has no such line)
     const lastLine = (ok.stdout || '').trim().split(/\r?\n/).pop();
     report(/^Upgrade \S+( the starter copy)?: 0 regressions, [1-9]\d* decisions? needed/.test(lastLine) && !/^Upgrade .*regressions?,/m.test(r.stdout || ''),
