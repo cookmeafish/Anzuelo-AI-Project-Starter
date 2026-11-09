@@ -498,9 +498,15 @@ export const earlierPrompts = (text, before) => String(text || '').split('\n').f
 const projectConfig = () => { const j = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return {}; } }; return { ...j(new URL('../defaults.json', import.meta.url)), ...j(at('tools/hooks/config.json')) }; };
 export function scopeGaps(acts) {
   const cfg = projectConfig(), ppl = people(cfg, { list: d => { try { return listAll(d); } catch { return []; } }, read, path: at });
-  if (!ppl.length || fs.existsSync(at('SETUP-PROMPT.md')) || acts.calls.some(c => /SETUP-PROMPT\.md/.test(String(c.input.command || '')) && /\b(rm|del|Remove-Item|unlink)\b/.test(String(c.input.command || '')))) return [];
+  // (setup: the setup prompt is there in a project, not the starter's own template, or this turn removed it. Lesson
+  // (the old suite under v2): a template copy that still holds the prompt skipped every check)
+  const setup = (fs.existsSync(at('SETUP-PROMPT.md')) && !fs.existsSync(at('.starter-template'))) || acts.calls.some(c => /SETUP-PROMPT\.md/.test(String(c.input.command || c.input.file_path || '')));
+  if (!ppl.length || setup) return [];
   const named = peopleFor(acts.heard || '', acts.earlier || [], ppl);
-  const changed = [...acts.calls.filter(c => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name)).map(c => relp(c.input.file_path || c.input.notebook_path || '')), ...changedSince(acts, new RegExp(`^${cfg.scopesRoot.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/`, 'i'))];
+  // (any file under a person's folder changed since the turn began, as the file markers count it: a script's or a
+  // tool's alike)
+  const since = Date.parse(acts.at || '') || 0;
+  const changed = [...acts.calls.filter(c => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name)).map(c => relp(c.input.file_path || c.input.notebook_path || '')), ...(since ? filesMatching(`${cfg.scopesRoot}/**`).filter(f => mtime(f) > since) : [])];
   const touched = [...new Set(changed.map(p => personOf(p, cfg)).filter(Boolean))];
   const wrong = touched.filter(n => named.length ? !named.includes(n) : !new RegExp(cfg.ruleRequest, 'i').test(acts.heard || ''));
   if (wrong.length) return [`Files of ${wrong.join(', ')} changed, but this request is ${named.length ? `about ${named.join(', ')}` : 'not about them'}. Undo those changes, or ask the user before keeping them (rule 11: one person's data never mixes with another's).`];

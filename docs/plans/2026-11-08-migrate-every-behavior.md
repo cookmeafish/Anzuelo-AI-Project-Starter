@@ -69,6 +69,11 @@ replaces that with "port each one, or ask"), [clean exit](2026-11-08-clean-exit.
     counted).
 
 ## Task 3: port, by harm first (the user, 2026-11-08: harm order, not smallest first)
+- Each port, in its own commit: the v2 code, a v2 test that fails with the port switched off (mutation), the
+  ratchet lowered, and each old test of that behavior settled: kept, rewritten (its exact scenario and verdict, only
+  v1's wording gone) or "another way" (the v2 test that proves it). Every rewritten or "another way" test must fail
+  with the port switched off too. One line per old test in the triage's "Ported" table. Progress is the old suite
+  under v2: 734 failing (2026-11-08 re-sweep, a floor until the last crashed share runs) → N.
 - [ ] Port each group into its v2 module, with its test run under v2. The size budget (2,000 lines) still holds:
       when it does not fit, the overrun is reported, never solved by dropping behavior.
 - [ ] `V2_SHOWS` in `tools/hooks/v2/lines.mjs` has no "open" kind left.

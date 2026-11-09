@@ -4871,6 +4871,11 @@ const helpers = HELPER ? [] : Array.from({ length: SHARDS - 1 }, (_, k) => new P
   let out = ''; c.stdout.on('data', d => { out += d; }); c.stderr.on('data', d => { out += d; }); c.on('close', code => done({ out, code }));
 }));
 
+// Each behavior ported to v2, by what its end-check message asks (one line per port, with the port's commit).
+const V2_ASKS = {
+  'scope-separate': /Keep each person's details apart|^- Files of .+ changed, but this request is/m, // 617f3ec
+  'question-answered': /^- Answer the user's message typed at /m, // f715d31
+};
 for (const s of STOP) {
   if (!mine()) continue;
   if (!applies(s)) { if (s.own) { report(false, 'stop: ' + s.name, `could not run: ${ownSkipWhy(s)}`); continue; } skipped++; if (process.env.SHOW_SKIPS) console.log('SKIP  stop: ' + s.name); continue; }
@@ -4882,7 +4887,9 @@ for (const s of STOP) {
   const blockedBy = () => [...String(r.details || '').matchAll(/^\d+\. \[([^\]]+)\] (.*)$/gm)].map(m => `[${m[1]}] ${m[2].slice(0, 200)}`).join(' | ');
   if (s.expect.block !== undefined && r.blocked !== s.expect.block) why = `expected ${s.expect.block ? 'BLOCK' : 'PASS'}, got ${r.blocked ? `BLOCK by ${blockedBy() || r.reason}` : 'PASS'}${r.err ? ' stderr: ' + r.err.slice(0, 300) : ''}`;
   // the stop message lists the check names once, on its last line: "Names: a, b."
-  const named = t => (/Names: ([^\n]*)\.\s*$/.exec(r.reason || '')?.[1] || '').split(', ').includes(t);
+  // (the v2 end check names no check: a behavior ported to v2 is recognized by what its message asks, V2_ASKS. The
+  // scenario and its verdict stay as they were; only v1's wording goes. Plan: migrate every behavior, Task 3)
+  const named = t => (/Names: ([^\n]*)\.\s*$/.exec(r.reason || '')?.[1] || '').split(', ').includes(t) || (!!V2_ASKS[t] && /^(Not done yet|Still not done)/.test(r.reason || '') && V2_ASKS[t].test(r.reason || ''));
   for (const t of s.expect.tags || []) if (!named(t)) why ||= `missing tag [${t}] in: ${r.reason || `(no block)${r.err ? ' stderr: ' + r.err.slice(0, 300) : ''}`}`;
   for (const t of s.expect.not || []) if (named(t)) why ||= `unexpected tag [${t}]`;
   // a scenario with nothing to judge would always pass. Lesson: a project scenario meant as a pass had only a name.
