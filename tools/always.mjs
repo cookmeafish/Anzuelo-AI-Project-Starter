@@ -73,14 +73,38 @@ export const pending = (rd = readText, ls = listDir) => {
   return ownChecks(rd).filter(r => !new RegExp(`req: ${r.tag.replace(/[^\w-]/g, '')}(?![\\w-])`).test(`${have}\n${books}`) && !inBook(r));
 };
 
+// An older convert wrote "runbook used" as "(when tool: playbooks[\\/]<name>\.md)", which an edit of the runbook also
+// met; it means read now. Lines written that way are rewritten to the read form, once. Lesson (a field report): every
+// project converted before the change kept the old markers, and they were fixed by hand.
+const OLD_FORMS = [['(when tool: playbooks[\\\\/]', '(when tool: ^Read\\b.*playbooks[\\\\/]+'], ['(when tool: skills[\\\\/]', '(when tool: ^Read\\b.*skills[\\\\/]+']];
+export function migrate(text) {
+  let n = 0;
+  const out = String(text).split('\n').map(l => {
+    let s = l;
+    for (const [from, to] of OLD_FORMS) if (s.includes(from)) { s = s.split(from).join(to); if (to.includes('skills')) s = s.split('[\\\\/]SKILL\\.md').join('[\\\\/]+SKILL\\.md'); }
+    if (s !== l) n++;
+    return s;
+  }).join('\n');
+  return { text: out, n };
+}
+
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const cmd = process.argv[2];
   if (cmd === 'pending') { const p = pending(); console.log(p.length ? `not in ${ALWAYS_FILE}: ${p.map(r => r.tag).join(', ')}` : 'none pending'); process.exit(p.length ? 1 : 0); }
   if (cmd !== 'convert') { console.log('usage: node tools/always.mjs convert [--dry-run] | pending'); process.exit(2); }
-  const out = [], left = [];
-  for (const r of pending()) { const a = asItems(r); if (a.lines) out.push(...a.lines); else left.push(`${r.tag} (${a.bad.join(', ')})`); }
-  if (out.length && !process.argv.includes('--dry-run')) {
-    let text = ''; try { text = fs.readFileSync(at(ALWAYS_FILE), 'utf8'); } catch { }
+  const out = [], left = [], dry = process.argv.includes('--dry-run');
+  const all = ownChecks(), todo = pending();
+  for (const r of todo) { const a = asItems(r); if (a.lines) out.push(...a.lines); else left.push(`${r.tag} (${a.bad.join(', ')})`); }
+  // (old "runbook used" markers in always.md become the read form)
+  let have = ''; try { have = fs.readFileSync(at(ALWAYS_FILE), 'utf8'); } catch { }
+  const mig = migrate(have);
+  if (mig.n && !dry) fs.writeFileSync(at(ALWAYS_FILE), mig.text);
+  // (what was there already, so a report needs no hand count: in always.md by its tag, or in a runbook)
+  const books = listDir('docs/playbooks').filter(n => n.endsWith('.md')).map(n => readText(`docs/playbooks/${n}`)).join('\n');
+  const there = all.filter(r => !todo.includes(r)), inBooks = there.filter(r => new RegExp(`req: ${r.tag.replace(/[^\w-]/g, '')}(?![\\w-])`).test(books)).length;
+  console.log(`${all.length} own check(s): ${there.length} already there (${there.length - inBooks} in ${ALWAYS_FILE}, ${inBooks} in a runbook), ${todo.length} to convert; ${mig.n} old "runbook used" marker(s) rewritten to the read form${dry ? ' (dry run)' : ''}`);
+  if (out.length && !dry) {
+    let text = mig.text;
     if (!/^##\s+Done when\s*$/m.test(text)) text = (text.trim() ? `${text.trim()}\n\n` : HEAD.replace('## Done when\n', '')) + '## Done when\n';
     fs.mkdirSync(path.dirname(at(ALWAYS_FILE)), { recursive: true });
     fs.writeFileSync(at(ALWAYS_FILE), `${text.replace(/\s*$/, '\n')}${out.join('\n')}\n`);

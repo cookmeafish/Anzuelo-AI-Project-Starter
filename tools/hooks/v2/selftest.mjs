@@ -647,6 +647,15 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
     const readIt = applies(used.it, acts([user('what goes in the soup?'), call('Read', { file_path: 'C:\\p\\docs\\playbooks\\soup.md' }, 'x'), say('Leeks.')]));
     const editIt = applies(used.it, acts([user('upgrade the engine'), call('Edit', { file_path: 'C:\\p\\docs\\playbooks\\soup.md', old_string: 'a', new_string: 'b' }, 'ok'), say('Upgraded.')]));
     report(readIt === true && editIt === false, 'always: a converted "runbook used" condition holds when the runbook was read, not when it was only edited', JSON.stringify({ readIt, editIt, when: used.it?.whens }));
+    // (a line an older convert wrote in the edit-or-read form is rewritten to the read form, once, and then reads the same
+    // as a fresh conversion. Lesson (a field report): old markers stayed after an upgrade and were fixed by hand)
+    const { migrate } = await import('../../always.mjs');
+    const freshLine = used.it ? asItems({ tag: 'u', message: 'Cite the soup file', when: { playbookUsed: 'soup' }, require: { answerMatches: 'Source:' } }).lines[0] : '';
+    const oldLine = freshLine.split('(when tool: ^Read\\b.*playbooks[\\\\/]+').join('(when tool: playbooks[\\\\/]');
+    const oldSkill = '- [ ] Cite it (when tool: skills[\\\\/]research[\\\\/]SKILL\\.md) (answer: Source:) <!-- req: r -->';
+    const m1 = migrate(`# Always\n${oldLine}\n${oldSkill}\n`), m2 = migrate(m1.text);
+    report(oldLine !== freshLine && m1.n === 2 && m1.text.includes(freshLine) && m1.text.includes('(when tool: ^Read\\b.*skills[\\\\/]+research[\\\\/]+SKILL\\.md)') && m2.n === 0,
+      'always: an old "runbook or skill used" marker (edit or read) is rewritten to the read form once, matching a fresh conversion', JSON.stringify({ oldLine, n: [m1.n, m2.n], text: m1.text.split('\n').slice(1, 3) }));
   }
   put('.cache/soup-test.txt', 'ok 1\nRESULT: PASS\n');
   const runOk = met({ kind: 'ran', arg: 'test_soup\\.py => RESULT: PASS' }, acts([user('fix the soup'), call('Bash', { command: 'python test_soup.py' }, 'ok 1\nRESULT: PASS')]));
