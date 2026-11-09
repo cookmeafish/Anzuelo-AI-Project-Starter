@@ -2,7 +2,14 @@
 // "Done when" list, which the end hook checks. Nothing about the engine itself.
 import fs from 'node:fs';
 import path from 'node:path';
-import { route, skillBooks, saveTurn, loadTurn, isSpanish, ROOT, at, quoteCheckOn } from './lib.mjs';
+import { route, skillBooks, saveTurn, loadTurn, isSpanish, ROOT, at, quoteCheckOn, projectConfig } from './lib.mjs';
+import { asksOnly } from './late.mjs';
+
+// REQ: question-answered (as it arrives). A message that only asks is answered first, in plain words; one typed while a
+// turn runs is answered in the very next message and starts no work of its own. Lesson (a study of 117 real questions):
+// runbook hints on "why"/"is it" questions sent agents into fix work, and questions typed mid-turn went unanswered.
+const Q_NOW = 'QUESTION (typed while you work): answer it in your very next message, plainly and first, then carry on. Never defer it ("I\'ll answer once ..."), and start no other work for it unless it asks for work.';
+const Q_FIRST = 'QUESTION: answer it directly, first, in plain words. A runbook or skill named below is where the answer may be, not steps to run, unless the user asks for the work.';
 
 export const MAX_LINES = 10;
 // (an upset message: mostly capitals, or the usual frustration words. Lesson (routing sample): complaints used no
@@ -52,7 +59,14 @@ export function rulesFor(prompt) {
     .slice(0, 2).map(l => l.replace(/^\s*-\s+/, '').trim()).map(l => l.length > 200 ? l.slice(0, l.lastIndexOf(' ', 197)) + '...' : l);
 }
 const relayedRx = /^\s*Another Claude session sent a message|<cross-session-message\b/;
-export function reminder(prompt) {
+export function reminder(prompt, { midTurn = false } = {}) {
+  const raw = String(prompt || '');
+  const asking = !relayedRx.test(raw) && asksOnly(raw.replace(/<pasted_content\b[\s\S]*?(<\/pasted_content[^>]*>|\/>)/gi, ' '), projectConfig().changeWords);
+  if (asking && midTurn) return { book: null, text: [Q_NOW, upsetIn(raw) && has('skills/learn-from-upset/SKILL.md') ? 'This sounds upset: open skills/learn-from-upset/SKILL.md and follow it.' : ''].filter(Boolean).join('\n') };
+  const r = remind(prompt);
+  return asking ? { book: r.book, text: [Q_FIRST, r.text].filter(Boolean).join('\n') } : r;
+}
+function remind(prompt) {
   const raw = String(prompt || '');
   // (pasted text is not the user's words: it never routes and is never upset. Lesson (the old engine): words inside a
   // pasted text set off the complaint handling)
@@ -104,11 +118,12 @@ export function onPrompt(data) {
   // (so is a helper's report back: the words of its report route nowhere. Lesson (live): a review helper's report
   // routed to the project runbook, and the end check asked for its rule-request items)
   if (/^\s*(<(task-notification|system-reminder)\b|\[SYSTEM NOTIFICATION)/i.test(String(data.prompt || '')) || /<agent-message\b[^>]*>\s*\[Subagent hand-back\]/.test(String(data.prompt || ''))) return null;
-  const { book, text } = reminder(data.prompt || '');
   // (a message that arrives while a turn runs joins that turn: it gets its reminder, and the turn keeps its start and
   // its runbook. A turn ends when its Stop passes; one left open over 12 hours, as after a crash, does not hold.
   // Lesson (live): a mid-turn message moved the turn's start, and the end check lost the work done before it)
   const prev = loadTurn(data.session_id);
+  const open = !!(prev.at && !prev.ended && Date.now() - Date.parse(prev.at) < 12 * 3600_000);
+  const { book, text } = reminder(data.prompt || '', { midTurn: open });
   // (an upset message from the user, not a relay, marks the turn: its end check asks for a fresh reviewer)
   const sore = upsetIn(data.prompt || '') && !relayedRx.test(String(data.prompt || '')) ? { upset: true } : {};
   // (REQ: queued-messages: a request typed mid-turn that fits another runbook adds it, and its "Done when" is checked

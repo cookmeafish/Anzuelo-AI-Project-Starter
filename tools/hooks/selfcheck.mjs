@@ -1386,10 +1386,10 @@ const PROMPT = [
   // (an upset one is still acknowledged first: REQ upset-acknowledged. Lesson (the user): "always do acknowledged if you
   // sense the user is upset ... only skip it if false alarm")
   { name: 'question-answered: a question typed mid-turn is to be answered next, with no route or fix work; an upset one is acknowledged first', prompt: 'WHY DO YOU KEEP IGNORING ME, does the order even have bulbs??',
-    setup: { 'tools/hooks/state/notices-shown.json': JSON.stringify({ at: new Date().toISOString(), shown: [] }) },
+    sid: 'mid', setup: { 'tools/hooks/state/notices-shown.json': JSON.stringify({ at: new Date().toISOString(), shown: [] }), 'tools/hooks/state/v2-turn.mid.json': JSON.stringify({ at: new Date().toISOString(), runbook: null }) },
     has: ['QUESTION (typed while you work): answer it in your very next message', 'THE USER SOUNDS UPSET: write "Issue:'], hasNot: ['ROUTE:', 'THE USER SOUNDS UPSET (maybe)', 'SKILL:'] },
   { name: 'question-answered: a calm question typed mid-turn gets no upset line', prompt: 'does the order even have bulbs?',
-    setup: { 'tools/hooks/state/notices-shown.json': JSON.stringify({ at: new Date().toISOString(), shown: [] }) },
+    sid: 'mid', setup: { 'tools/hooks/state/notices-shown.json': JSON.stringify({ at: new Date().toISOString(), shown: [] }), 'tools/hooks/state/v2-turn.mid.json': JSON.stringify({ at: new Date().toISOString(), runbook: null }) },
     has: ['QUESTION (typed while you work)'], hasNot: ['THE USER SOUNDS UPSET'] },
   { name: 'question-answered: a question that opens a turn is answered first', prompt: 'why does the csv export skip empty rows?', has: ['QUESTION: answer it directly, first'] },
   { name: 'question-answered: a request is no question', prompt: 'add a csv export with tests', hasNot: ['QUESTION'] },
@@ -4914,7 +4914,7 @@ for (const s of STOP) {
     why ||= 'this scenario checks nothing: a pass scenario needs block: false (a block scenario needs block: true and its tags, or "not" to judge it on tags only)';
   if (s.expect.says && !s.expect.says.test(`${r.reason || ''}\n${r.details || ''}`)) why ||= `the message does not say ${s.expect.says}: ${r.reason || '(no block)'}`;
   if (!why && r.after !== true) why = r.after;
-  report(!why, 'stop: ' + s.name, why);
+  report(!why, 'stop: ' + s.name, why && process.env.DBG_REASON ? `${why} DBG ${String(r.reason || '').replace(/\n/g, ' / ').slice(0, 600)}` : why);
 }
 
 for (const s of PRETOOL) {
@@ -4964,7 +4964,8 @@ for (const s of PROMPT) {
     for (const r of s.remove || []) fs.rmSync(path.join(dir, r), { force: true });
     if (s.removeMarker) fs.rmSync(path.join(dir, '.starter-template'), { force: true });
     // session: the session-start notices too (the prompt hook alone doesn't print them)
-    const pr = run(dir, 'prompt', { prompt: s.prompt }, s.env || {}), ss =s.session ? run(dir, 'session', { source: 'startup' }) : { out: '', err: '' };
+    // (s.sid: v2 knows a running turn by its session's turn record; the old engine by its own notices record)
+    const pr = run(dir, 'prompt', { prompt: s.prompt, ...(s.sid && process.env.STARTER_ENGINE === 'v2' ? { session_id: s.sid } : {}) }, s.env || {}), ss =s.session ? run(dir, 'session', { source: 'startup' }) : { out: '', err: '' };
     const out = ss.out + pr.out, err = ss.err + pr.err;
     let why = '';
     if (s.none && out.trim()) why = 'expected no output, got: ' + out.slice(0, 200);

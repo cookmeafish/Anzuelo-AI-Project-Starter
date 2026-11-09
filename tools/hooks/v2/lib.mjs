@@ -485,7 +485,7 @@ const walked = new WeakMap();
 // (only while one of the turn's own commands or helpers ran: a file another session changed meanwhile is not this
 // turn's. A run in the background counts until the turn ends. Lesson (the old engine): a peer session's edits in the
 // same folder were blamed on the turn. Calls with no times, as in hand-made transcripts, keep the whole turn.)
-const RUNNER = /^(Bash|PowerShell|Agent|Task)$/, BG = /^\s*(Command running in background|Command[^\n]*moved to the background|Async agent launched)/i;
+const RUNNER = /^(Bash|PowerShell|Agent|Task|Skill)$/, BG = /^\s*(Command running in background|Command[^\n]*moved to the background|Async agent launched)/i;
 const ranAt = (acts, t) => {
   const runs = acts.calls.filter(c => RUNNER.test(c.name));
   if (runs.some(c => !c.at)) return true;
@@ -494,13 +494,21 @@ const ranAt = (acts, t) => {
 // The files written since the turn began, each with its time: walked and stat'ed once per turn, however many checks
 // ask. A turn whose calls can't write (reads, searches, questions) skips the walk. Lesson (a project's upgrade): every
 // check walked and stat'ed the whole tree again, and Stop on a plain question took 74 ms more in a large project.
-const READ_ONLY = /^(Read|Grep|Glob|LS|WebFetch|WebSearch|ToolSearch|ListAgents|TodoWrite|TaskList|TaskGet|TaskOutput|AskUserQuestion|ScheduleWakeup|CronList|SendMessage|Skill)$/;
-export function touchedSince(acts) {
-  if (walked.has(acts)) return walked.get(acts);
+// (not Skill, which may run its skill in a helper that writes. Messages can't write: a resumed helper's writes show in
+// its own record. Lesson (the v2 re-sweep): a security review run through Skill wrote its report, and it was not counted)
+const READ_ONLY = /^(Read|Grep|Glob|LS|WebFetch|WebSearch|ToolSearch|ListAgents|SendMessage|TodoWrite|TaskList|TaskGet|TaskOutput|AskUserQuestion|ScheduleWakeup|CronList)$/;
+// (this turn's work: only what changed while one of its own commands or helpers ran, so another session's edits in the
+// same folder are never this turn's. Lesson (a peer session's live false hold): a turn of git log and messages was held
+// for a Finished section and a changelog line for the other session's edits. any: every file written since the turn
+// began, for what a check requires, so a file that is there always counts)
+const walkedAll = new WeakMap();
+export function touchedSince(acts, any = false) {
   const since = Date.parse(acts.at || '') || 0;
-  const out = !since || acts.calls.every(c => READ_ONLY.test(c.name)) ? [] : filesMatching('**/*').map(f => ({ f, t: mtime(f) })).filter(x => x.t > since);
-  walked.set(acts, out);
-  return out;
+  if (!since) return [];
+  const all = () => { if (!walkedAll.has(acts)) walkedAll.set(acts, filesMatching('**/*').map(f => ({ f, t: mtime(f) })).filter(x => x.t > since)); return walkedAll.get(acts); };
+  if (any) return all();
+  if (!walked.has(acts)) walked.set(acts, acts.calls.every(c => READ_ONLY.test(c.name)) ? [] : all().filter(x => ranAt(acts, x.t)));
+  return walked.get(acts);
 }
 const changedSince = (acts, rx) => touchedSince(acts).filter(({ f, t }) => rx.test(f) && !/^(\.cache|tools\/hooks\/state)\//.test(f) && ranAt(acts, t)).map(x => x.f);
 const mtime = f => { try { return fs.statSync(at(f)).mtimeMs; } catch { return 0; } };
@@ -513,7 +521,7 @@ const mtime = f => { try { return fs.statSync(at(f)).mtimeMs; } catch { return 0
 export const earlierPrompts = (text, before) => String(text || '').split('\n').flatMap(l => { let r; try { r = JSON.parse(l); } catch { return []; }
   const c = r.message?.content; return r.type === 'user' && typeof c === 'string' && !c.startsWith('<') && (!before || String(r.timestamp || '') < before) ? [c] : []; }).slice(-5);
 // (the settings as this project has them: the engine's defaults, then the project's config.json)
-const projectConfig = () => { const j = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return {}; } }; return { ...j(new URL('../defaults.json', import.meta.url)), ...j(at('tools/hooks/config.json')) }; };
+export const projectConfig = () => { const j = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return {}; } }; return { ...j(new URL('../defaults.json', import.meta.url)), ...j(at('tools/hooks/config.json')) }; };
 export function scopeGaps(acts) {
   const cfg = projectConfig(), ppl = people(cfg, { list: d => { try { return listAll(d); } catch { return []; } }, read, path: at });
   // (setup: the setup prompt is there in a project, not the starter's own template, or this turn removed it. Lesson
@@ -717,7 +725,10 @@ export function knowledgeGaps(acts) {
 // turn neither ran the security review nor wrote its report. Replay: the ask found a real problem in 3 of 4 runs.
 // A check waived outside the answer, for runs with no one to answer to (headless): "N/A(<tag>): <a specific reason>"
 // in .cache/turn-notes.md, written this turn, the reason at least 4 words. Rule 7 keeps waivers out of the answer.
-export const waivedTag = (tag, acts) => { const since = Date.parse(acts.at || '') || 0; if (!since || mtime('.cache/turn-notes.md') <= since) return false;
+// (or by the waive command, counted by the confirmation it printed this turn, one per step, so a loop or a chain of
+// waivers counts each, and a refused one none. Lesson (the v2 re-sweep): "hooks.mjs waive <step>" was not read)
+const waivedByCommand = (tag, acts) => acts.calls.some(c => /^(Bash|PowerShell)$/.test(c.name) && !c.error && new RegExp(`^waived for this turn: ${tag.replace(/[^\w-]/g, '')}\\b`, 'm').test(c.out || ''));
+export const waivedTag = (tag, acts) => { if (waivedByCommand(tag, acts)) return true; const since = Date.parse(acts.at || '') || 0; if (!since || mtime('.cache/turn-notes.md') <= since) return false;
   return read('.cache/turn-notes.md').split('\n').some(l => { const m = /^\s*N\/A\(([\w-]+)\):\s*(.+)$/.exec(l); return m && m[1] === tag && m[2].trim().split(/\s+/).length >= 4; }); };
 const securitySpec = () => { try { return JSON.parse(fs.readFileSync(at('tools/hooks/requirements.json'), 'utf8')).requirements.find(r => r.tag === 'security-code')?.when?.changedContentMatches || null; } catch { return null; } };
 export function securityGaps(acts) {
@@ -818,8 +829,8 @@ export const routedOnly = c => hasKey(c, ['playbookRouted']) && !hasKey(c, ACTIO
 export const unknownKeys = c => !c || typeof c !== 'object' ? [] : Object.entries(c).flatMap(([k, v]) => k === 'anyOf' ? v.flatMap(unknownKeys) : REQ_KEYS.includes(k) ? [] : [k]);
 // The files this turn changed: by the edit tools, and (with a turn start) any whose time is after it, so a command's
 // writes count too. Walked once per turn.
-function changedOf(acts) {
-  return [...new Set([...acts.calls.filter(c => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name)).map(c => relp(c.input.file_path || '')), ...touchedSince(acts).map(x => x.f).filter(f => !/^(\.cache|tools\/hooks\/state)\//.test(f))])];
+function changedOf(acts, any = false) {
+  return [...new Set([...acts.calls.filter(c => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name)).map(c => relp(c.input.file_path || '')), ...touchedSince(acts, any).map(x => x.f).filter(f => !/^(\.cache|tools\/hooks\/state)\//.test(f))])];
 }
 // REQ: forbidden-terms (files a command changed: the guard sees only the edit tools). A name the file already had at
 // git's last commit is no new slip; ignored files and the engine's own list and state don't count.
@@ -879,9 +890,13 @@ export function verbatimGaps(acts) {
 }
 export function engineCheckGaps(acts) {
   const x = { changed: changedOf(acts), runbook: acts.runbook || '' };
+  // (what a check requires is met by any file written since the turn began, even in a turn of reads only: the walk
+  // is skipped to decide whether a check applies, never to hold a turn for a file that is there. Lesson (the v2
+  // re-sweep): a security report on disk was not counted after a turn of reads, and 22 turns were falsely held)
+  const xr = { ...x, get changed() { return changedOf(acts, true); } };
   // (an answer in the user's language meets the checks with its own labels: each label line is read in English too)
   const read = { ...acts, answer: inEnglish(acts.answer || '', projectConfig()) };
-  return engineChecks().filter(r => !promptOnly(r.when) && holdsReq(r.when, read, x) === true && holdsReq(r.require, read, x) === false && !waivedTag(r.tag, acts)).map(r => `Check: ${r.message}`);
+  return engineChecks().filter(r => !promptOnly(r.when) && holdsReq(r.when, read, x) === true && holdsReq(r.require, read, xr) === false && !waivedTag(r.tag, acts)).map(r => `Check: ${r.message}`);
 }
 
 // Check 7: the answer claims nothing the session can't back: a commit it names exists or appeared in tool output, a file

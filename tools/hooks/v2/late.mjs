@@ -16,6 +16,16 @@ const TAG = /[\s,.]*\b(?:ok(?:ay)?|understand|understood|got it|alright|all righ
 const ORDER = /^\s*(?:(?:also|and|so|now|please|then|ok(?:ay)?|like)[\s,]+)*(?:add|make|fix|commit|push|update|run|move|create|write|build|remove|change|rename|install|enable|apply|check|go|keep|use|put|stop|start|once you)\b/i;
 const STOPW = new Set(['what', 'that', 'this', 'with', 'from', 'have', 'there', 'they', 'then', 'than', 'your', 'about', 'still', 'does', 'were', 'when', 'which', 'would', 'could', 'should', 'tell', 'show', 'need', 'needs', 'some', 'things', 'thing']);
 const keys = s => [...new Set((s.toLowerCase().match(/[\p{L}\d]{4,}/gu) || []).filter(w => !STOPW.has(w)))];
+// REQ: question-answered (as it arrives). A message that only asks, no work: a question mark at its end, or a question
+// opener, and no instruction or change word ("can you add ..." asks for work). The reminder says to answer it first.
+const INSTRUCTS = /(^|[.!?:\n]\s*)(please\s+)?(add|fix|make|update|upgrade|run|move|create|write|build|remove|change|rename|install|enable|implement|apply|check|go|analy[sz]e|review|test|organi[sz]e|verify|redo)\b/i;
+export function asksOnly(p, changeWords = '') {
+  const t = String(p || '').trim();
+  if (!t || t.length >= 1500 || INSTRUCTS.test(t) || ORDER.test(t) || TAG.test(t)) return false;
+  if (/(^|[.!?:\n]\s*)(please\s+)?do\b(?!\s+(you|i|we|they|it|he|she|this|that|these|those|there|anyone|anybody)\b)/i.test(t) && !/\?\s*$/.test(t)) return false;
+  if (!(/[?？]\s*$/.test(t) || /^\s*any\b/i.test(t) || ASK.test(t))) return false;
+  try { return !(changeWords && new RegExp(changeWords, 'i').test(t)); } catch { return true; }
+}
 export function unansweredLate(rows, final = '') {
   const qs = [], texts = [];
   rows.forEach((r, i) => {

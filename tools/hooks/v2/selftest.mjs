@@ -94,6 +94,18 @@ report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/
   const tailEn = route('every label the customer sees must be in plain words, always.', withFeature)?.name, notRule = route('why does the export always fail on empty rows', withFeature)?.name;
   report(tailEs === 'project' && tailEn === 'project' && notRule !== 'project', 'start: a sentence that ends ", always" (", siempre") is a standing rule request; "always" inside a question is not', { tailEs, tailEn, notRule });
 }
+{ // (REQ: question-answered: a question that opens a turn is answered first; one typed while a turn runs is answered in
+  // the next message and gets no runbook; a request, even one phrased "can you ...?", is no question)
+  const { onPrompt } = await import('./start.mjs');
+  const ctx = o => o?.hookSpecificOutput?.additionalContext || '';
+  const first = ctx(onPrompt({ session_id: 'qa1', prompt: 'why does the csv export skip empty rows?' }));
+  const work = ctx(onPrompt({ session_id: 'qa2', prompt: 'add a csv export with tests' }));
+  const canYou = ctx(onPrompt({ session_id: 'qa3', prompt: 'can you add a CSV export for the orders page?' }));
+  onPrompt({ session_id: 'qa4', prompt: 'add a CSV export for the orders page' });
+  const mid = ctx(onPrompt({ session_id: 'qa4', prompt: 'does the order even have bulbs?' }));
+  report(/^QUESTION: answer it directly, first/.test(first) && !/QUESTION/.test(work) && !/QUESTION/.test(canYou) && /^QUESTION \(typed while you work\): answer it in your very next message/.test(mid) && !/Runbook/.test(mid),
+    'start: a question that opens a turn is answered first; one typed while a turn runs is answered next, with no runbook; a request (even "can you ...?") is no question', JSON.stringify({ first: first.slice(0, 50), work: work.slice(0, 40), canYou: canYou.slice(0, 40), mid: mid.slice(0, 60) }));
+}
 {
   const { onPrompt } = await import('./start.mjs');
   const { loadTurn } = await import('./lib.mjs');
@@ -217,7 +229,8 @@ const win = reminder('please rotate the logs tonight');
 report(win.book?.name === 'windows' && reminder('W1').book?.name === 'windows' && /1\. The old logs are zipped$/m.test(win.text), 'start: a runbook saved with Windows line endings routes and shows its list', win.text);
 const { typed } = await import('./lib.mjs');
 report(!typed({ type: 'user', message: { content: '<local-command-stdout>Login successful.</local-command-stdout>' } }) && typed({ type: 'user', message: { content: 'export the orders' } }), 'start: terminal output from a local command is not a typed request');
-report(reminder('what time is it').text === '', 'start: a request no runbook fits gets nothing');
+// (not a question: a question gets the question line, "start: a question that opens a turn is answered first")
+report(reminder('tidy the desk drawer tonight').text === '', 'start: a request no runbook fits gets nothing');
 {
   // a phrase that opens the request names its job, even when a longer phrase of another runbook comes later
   put('docs/playbooks/orders-loop.md', '---\nname: orders-loop\ntriggers: orders loop\n---\n## Done when\n1. The loop ran\n');
@@ -288,7 +301,7 @@ report(/learn-from-upset/.test(reminder('WHY DID YOU BREAK THE EXPORT AGAIN').te
   const asked = reminder('can you export the orders for this week');
   // (in the runbook line itself, not a line of its own: peer messages are frequent. Lesson (replay): the extra line was
   // most of the reminders' growth, on 136 and 89 peer messages)
-  report(/^Runbook, only if this message asks for work here: open docs\/playbooks\/export\.md and follow it\./m.test(relay.text) && relay.text.split('\n').length === reminder('can you export the orders for this week').text.split('\n').length && !/only if/.test(asked.text),
+  report(/^Runbook, only if this message asks for work here: open docs\/playbooks\/export\.md and follow it\./m.test(relay.text) && relay.text.split('\n').length === reminder('export the orders for this week').text.split('\n').length && !/only if/.test(asked.text),
     'start: a relayed message gets its runbook only for when it asks for work, in the runbook line itself; a typed request gets it plainly', { relay: relay.text, asked: asked.text });
 }
 { // the project's own standing rule that shares two words with the request is named in the reminder; others are not
@@ -624,6 +637,21 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
         const three = tally([g], [g], 's|4');
         tKept === null ? fs.rmSync(tf, { force: true }) : fs.writeFileSync(tf, tKept);
         report(!two && /^code-rules was waived in 3\+ earlier turns here/.test(three), 'end: waiver-tally: a check cleared with a reason in 3 earlier turns is named when it comes back; 2, or one turn counted twice, are not', JSON.stringify({ two, three: three.slice(0, 80) }));
+      }
+      // (two sessions in one folder: B's turn of a finished git log and a message is not held for the file A writes later;
+      // a command of B's still running in the background does count it; what a check requires still sees it)
+      {
+        const L = await import('./lib.mjs');
+        const T = s => new Date(Date.now() - 60_000 + s * 1000).toISOString(), ts = (s, r) => [r].flat().map(x => ({ ...x, timestamp: T(s) }));
+        const bAt = T(0);
+        const gitLog = call('Bash', { command: 'git log -3 --oneline' }, 'abc123 fix'), msg = call('SendMessage', { to: 'peer', message: 'done' }, 'sent');
+        const bRows = [ts(0, user('what changed today?')), ts(1, gitLog), ts(2, msg), ts(3, say('Three commits.'))];
+        put('docs/peer-notes.md', 'edited by the other session\n');
+        const b = acts(bRows); b.at = bAt;
+        const bg = acts([ts(0, user('run the export')), ts(1, call('Bash', { command: 'node tools/export.mjs', run_in_background: true }, 'Command running in background with ID: x1')), ts(2, say('Started.'))]); bg.at = bAt;
+        const two = { peer: L.touchedSince(b).some(x => x.f === 'docs/peer-notes.md'), required: L.touchedSince(b, true).some(x => x.f === 'docs/peer-notes.md'), ownBg: L.touchedSince(bg).some(x => x.f === 'docs/peer-notes.md') };
+        fs.rmSync(path.join(dir, 'docs/peer-notes.md'), { force: true });
+        report(!two.peer && two.required && two.ownBg, 'end: two sessions in one folder: a turn is not held for files another session wrote while none of its own commands ran; its own background command counts them; a requirement still sees them', JSON.stringify(two));
       }
       // (every glob converter in v2 reads "**/" as any number of folders, none included: a root file and a nested one both
       // match. Lesson (the old suite under v2): "**/*" missed CLAUDE.md, and an approved "old/**" covered one level only)
