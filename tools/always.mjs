@@ -118,7 +118,11 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   // (what was there already, so a report needs no hand count: in always.md by its tag, or in a runbook)
   const books = listDir('docs/playbooks').filter(n => n.endsWith('.md')).map(n => readText(`docs/playbooks/${n}`)).join('\n');
   const there = all.filter(r => !todo.includes(r)), inBooks = there.filter(r => new RegExp(`req: ${r.tag.replace(/[^\w-]/g, '')}(?![\\w-])`).test(books)).length;
-  console.log(`${all.length} own check(s): ${there.length} already there (${there.length - inBooks} in ${ALWAYS_FILE}, ${inBooks} in a runbook), ${todo.length} to convert; ${mig.n} old "runbook used" marker(s) rewritten to the read form${dry ? ' (dry run)' : ''}`);
+  // (a pack's check the project set, such as its app test gate, is not its own check: it stays as it is and runs as an
+  // approved self-run. Said, so the count matches "hooks.mjs own-checks", which lists them too. Lesson (a project's
+  // upgrade report): 8 own checks here against 10 there, with no reason given)
+  const packSet = (json(readText, 'tools/hooks/requirements.json', {}).requirements || []).filter(r => r && r.tag && r.pack).length;
+  console.log(`${all.length} own check(s): ${there.length} already there (${there.length - inBooks} in ${ALWAYS_FILE}, ${inBooks} in a runbook), ${todo.length} to convert; ${mig.n} old "runbook used" marker(s) rewritten to the read form${packSet ? `; ${packSet} pack check(s) this project set (such as its test gate) kept as they are` : ''}${dry ? ' (dry run)' : ''}`);
   if (out.length && !dry) {
     let text = mig.text;
     if (!/^##\s+Done when\s*$/m.test(text)) text = (text.trim() ? `${text.trim()}\n\n` : HEAD.replace('## Done when\n', '')) + '## Done when\n';

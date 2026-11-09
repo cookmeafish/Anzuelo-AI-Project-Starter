@@ -1583,8 +1583,10 @@ report(madeUp.length === 2 && /9f8e7d6/.test(madeUp[0]) && /src\/missing\.js/.te
   const next = spawnSync(process.execPath, ['--input-type=module', '-e', probe], { cwd: p, encoding: 'utf8', env: { ...process.env, ANZUELO_ROOT: p } });
   let ran = {}; try { ran = JSON.parse(next.stdout.trim().split('\n').pop()); } catch { }
   fs.rmSync(p, { recursive: true, force: true });
-  report(listed.join() === 'node check-ok.mjs' && /kept approved for the end check to run itself[^\n]*node check-ok\.mjs/.test(dec) && JSON.stringify(ran.ran) === '[["node check-ok.mjs",false]]' && !ran.out?.length,
-    'upgrade: a committed self-run (selfRun + selfAuto) is put on the approved list with its decisions line, and after the upgrade commit it still runs in the next session, with no step for the user', JSON.stringify({ listed, conv: (conv.stdout || conv.stderr || '').slice(-200), ran, err: (next.stderr || '').slice(0, 200) }));
+  // (and the converter's count names the pack check the project set, kept as it is, so it matches own-checks)
+  report(listed.join() === 'node check-ok.mjs' && /kept approved for the end check to run itself[^\n]*node check-ok\.mjs/.test(dec) && JSON.stringify(ran.ran) === '[["node check-ok.mjs",false]]' && !ran.out?.length
+    && /1 pack check\(s\) this project set \(such as its test gate\) kept as they are/.test(conv.stdout || ''),
+    'upgrade: a committed self-run (selfRun + selfAuto) is put on the approved list with its decisions line, and after the upgrade commit it still runs in the next session, with no step for the user; the converter names the pack check it keeps', JSON.stringify({ listed, conv: (conv.stdout || conv.stderr || '').slice(-200), ran, err: (next.stderr || '').slice(0, 200) }));
 }
 { // (REQ: self-commands: the agent cannot add a command to the approved list: an edit or a write of the config that
   // adds one, the user's self-allow command, or a shell write naming the list. Other config edits, reads and searches
