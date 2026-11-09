@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { roots, resolver } from '../paths.mjs';
 import { people, personOf, peopleIn, peopleFor } from '../people.mjs';
 import { inEnglish } from '../labels.mjs';
+import { BASE_REQUIREMENTS } from '../base-checks.mjs';
 
 export const ROOT = process.env.ANZUELO_ROOT || process.cwd();
 // (where each file is: in a project with the engine in .anzuelo/engine, runbooks and skills come from the local copy
@@ -744,7 +745,14 @@ export function securityGaps(acts) {
 // are in docs/checks/always.md, and security-code has its own gap above. A key this evaluator does not know makes the
 // check skip, never block. Lesson (the old suite under v2): v2 read one engine check, and the rest were never enforced.
 const reqRe = s => String(s).startsWith('(?c)') ? new RegExp(String(s).slice(4), 'm') : new RegExp(s, 'im');
-const engineChecks = () => { try { const tags = new Set(JSON.parse(fs.readFileSync(at('tools/hooks/engine-checks.json'), 'utf8')).requirements.map(r => r.tag)); return JSON.parse(fs.readFileSync(at('tools/hooks/requirements.json'), 'utf8')).requirements.filter(r => tags.has(r.tag) && r.tag !== 'security-code'); } catch { return []; } };
+// (the built-in checks first, each replaced by a requirements.json entry with its tag, minus the "disabled" ones, as the
+// old engine merged them)
+const engineChecks = () => {
+  const j = f => { try { return JSON.parse(fs.readFileSync(at(f), 'utf8')); } catch { return {}; } };
+  const file = j('tools/hooks/requirements.json'), tags = new Set((j('tools/hooks/engine-checks.json').requirements || []).map(r => r.tag)), off = new Set((file.disabled || []).map(d => d.tag));
+  const own = (file.requirements || []).filter(r => r && tags.has(r.tag));
+  return [...BASE_REQUIREMENTS.filter(b => !own.some(r => r.tag === b.tag)), ...own].filter(r => r.tag !== 'security-code' && !off.has(r.tag));
+};
 export function holdsReq(c, acts, x) {
   const read = n => acts.calls.some(k => (k.name === 'Read' && n.test(String(k.input.file_path || '').replace(/\\/g, '/'))));
   const tests = {
@@ -754,9 +762,10 @@ export function holdsReq(c, acts, x) {
     filesIgnore: () => true,
     answerMatches: v => reqRe(v).test(acts.answer || ''), answerNotMatches: v => !reqRe(v).test(acts.answer || ''),
     promptMatches: v => reqRe(v).test(acts.heard || ''), promptNotMatches: v => !reqRe(v).test(acts.heard || ''),
-    toolRan: v => acts.calls.some(k => /^(Bash|PowerShell)$/.test(k.name) && reqRe(v).test(String(k.input.command || ''))),
+    toolRan: v => acts.calls.some(k => /^(Bash|PowerShell)$/.test(k.name) && reqRe(v).test(ranText(k.input.command))),
     toolPassed: v => { const cmd = typeof v === 'string' ? v : v?.cmd; return !!cmd && acts.calls.some(k => /^(Bash|PowerShell)$/.test(k.name) && reqRe(cmd).test(String(k.input.command || '')) && !k.error && (!v?.pass || reqRe(v.pass).test(k.out || ''))); },
     workTurn: v => !v || x.changed.length > 0,
+    minToolCalls: v => acts.calls.length >= v,
     anyOf: v => v.some(sub => holdsReq(sub, acts, x) === true),
     // (a command matching it ran and failed; N or more calls of a tool; a file read; a runbook routed or read; a screen
     // file changed; what the turn added to matching files)
@@ -775,7 +784,14 @@ export function holdsReq(c, acts, x) {
 }
 // The keys the evaluator reads, and the ones that only name the user's words: a check whose condition is words in the
 // prompt alone would force work by keyword, which the user retired (2026-11-07, v2-only plan, Spec line).
-export const REQ_KEYS = ['skillUsed', 'playbookUsed', 'filesChanged', 'filesIgnore', 'answerMatches', 'answerNotMatches', 'promptMatches', 'promptNotMatches', 'toolRan', 'toolPassed', 'workTurn', 'anyOf', 'ranFailing', 'toolCount', 'fileRead', 'playbookRouted', 'guiChanged', 'changedContentMatches', 'checkedAfterAgents'];
+// What a command runs, for "toolRan": quoted text with a space is an argument (a reason, a message), not a command,
+// unless a shell runs it (bash -c, eval, -Command); inline script code that starts no process runs nothing either.
+// Lesson (the old suite under v2): a recorded reason saying "pip install pillow adds a C build" counted as an install.
+export const ranText = cmd => String(cmd || '')
+  .replace(/(\b(?:node|deno|bun)(?:\.exe)?\s+(?:-e|--eval|-p|--print)|\b(?:python3?|py)(?:\.exe)?\s+-c)\s+("(?:[^"\\]|\\.)*"|'[^']*')/gi,
+    (m, head, code) => /\b(execSync|execFileSync|spawnSync|spawn|exec|execFile|fork|subprocess|os\.system|system|Popen)\s*\(/.test(code) ? m : `${head} ""`)
+  .replace(/(?<!(?:-c|-lc|\/c|eval|-Command|-EncodedCommand|--command)\s+)("[^"\n]*\s[^"\n]*"|'[^'\n]*\s[^'\n]*')/gi, '""');
+export const REQ_KEYS = ['skillUsed', 'playbookUsed', 'filesChanged', 'filesIgnore', 'answerMatches', 'answerNotMatches', 'promptMatches', 'promptNotMatches', 'toolRan', 'toolPassed', 'workTurn', 'minToolCalls', 'anyOf', 'ranFailing', 'toolCount', 'fileRead', 'playbookRouted', 'guiChanged', 'changedContentMatches', 'checkedAfterAgents'];
 export const promptOnly = c => { const ks = Object.keys(c || {}); return ks.length > 0 && ks.every(k => /^(promptMatches|promptNotMatches|filesIgnore)$/.test(k)); };
 export const unknownKeys = c => !c || typeof c !== 'object' ? [] : Object.entries(c).flatMap(([k, v]) => k === 'anyOf' ? v.flatMap(unknownKeys) : REQ_KEYS.includes(k) ? [] : [k]);
 export function engineCheckGaps(acts) {

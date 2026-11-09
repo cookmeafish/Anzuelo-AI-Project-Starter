@@ -1,0 +1,52 @@
+// The engine's built-in checks, the same table form as requirements.json, read by both engines (v2's evaluator,
+// v2/lib.mjs holdsReq). Moved from hooks.mjs (plan: engine v2 only, step 1b). A base module like settings.mjs.
+
+// The baseline checks live here, not in requirements.json, so they can't be switched off by editing that file
+// (found by the ablation tests: an emptied requirements.json silently disabled every declarative check).
+// requirements.json adds checks or overrides one of these by tag; turning one off takes an explicit
+// "disabled": [{ "tag": "...", "reason": "..." }] entry, which the audit reports.
+// REQ: finished-summary, REQ: changelog, REQ: status-handoff, REQ: audit-run, REQ: decision-logged, REQ: redo-changes, REQ: praise-captured
+export const BASE_REQUIREMENTS = [
+  // REQ: install-vetted. A new package or tool is vetted before it is used: legitimate per independent sources, truly free, maintained.
+  // Reinstalling the declared requirements (-r, -e ., npm install / npm ci) is not a new tool.
+  // The evidence goes in docs/DECISIONS.md and the answer gets one short line for all of them. Lesson: three 250-character
+  // "Vetted:" lines (stars, release dates, sources) filled a setup answer with detail the user does not act on.
+  { tag: 'install-vetted', rule: '15', when: { toolRan: String.raw`\b(pip3?|python3?\s+-m\s+pip|uv\s+pip)\s+install\s+(?!(?:[^\n;&|]*\s)?(-r|--requirement|-e)\s)(?!--upgrade\s+pip\b)(-\S+\s+)*[A-Za-z]|\b(npm|pnpm|yarn)\s+(install|i|add)\s+(-\S+\s+)*[@A-Za-z]|\bInstall-Module\b|\bwinget\s+install\b|\bchoco\s+install\b|\bcargo\s+install\b|\bgo\s+install\b` },
+    require: { answerMatches: String.raw`[Vv]etted:[^\n]*([Ll]icen[cs]e|\b(MIT|BSD|Apache|GPL|LGPL|AGPL|MPL|ISC|HPND|ZPL|PSF|Unlicense|CC0|0BSD|Zlib)\b)` }, // (a license named by its id counts. Lesson (a trial): "Vetted: <tool> (BSD-3-Clause)" was refused twice for lacking the word "license")
+    message: 'A tool or package was installed this turn. Vet each one first: legitimate per 2+ independent sources, free with a license that allows this use, maintained and well regarded. Write that evidence in docs/DECISIONS.md, and give the user one short line for all of them: "Vetted: <tool> <version> (license <name>), <tool> <version> (license <name>) - details in docs/DECISIONS.md". A tool that fails any of these is removed again and not used.' },
+  { tag: 'finished-summary', rule: '7', when: { filesChanged: ['**'], filesIgnore: ['docs/fit-checklist.md'] }, require: { answerMatches: String.raw`^\s*(#{1,6}\s*|\*\*)?finished\b` },
+    // (Lesson: a setup answer listed about 40 files one by one, burying the few the user would open)
+    // (Lesson: complaint answers listed STATUS, CHANGELOG, plans and rule files one by one around a one-line fix.)
+    message: "End the answer with a 'Finished' section: what was done, and the exact path of each file the user will open or care about. With more than about 10, group the rest by folder with a count (\"docs/playbooks/: 6 runbooks\"). The project's own records (docs/STATUS.md, docs/CHANGELOG.md, docs/DECISIONS.md, plans, specs, reviews, the rule and check files) need no list: \"plus the usual records\" is enough." },
+  // (in the starter itself, docs/CHANGELOG.md and docs/STATUS.md are the templates new projects start from: its own
+  // records are under tools/starter/, which projects never get. Lesson (dogfood): both checks asked to edit the templates)
+  { tag: 'changelog', rule: '12', when: { filesChanged: ['CLAUDE.md', 'AGENTS.md', 'docs/playbooks/**', 'docs/checks/**', 'skills/**', 'tools/**'] }, require: { filesChanged: ['docs/CHANGELOG.md', 'tools/starter/STARTER-CHANGELOG.md'] },
+    message: 'Add a dated line to docs/CHANGELOG.md for what changed in the project (rules, runbooks, checks, skills, tools). In the starter itself: tools/starter/STARTER-CHANGELOG.md.' },
+  // (only when work is left open: finished work is in the CHANGELOG, and a handoff with nothing to hand off is churn.
+  // Lesson (efficiency trials): STATUS.md was edited on nearly every turn, two or three times in one feature turn)
+  { tag: 'status-handoff', rule: '12', when: { workTurn: true, minToolCalls: 15, answerMatches: String.raw`\b(still open|not (yet )?(done|finished|fixed|tested|verified)|left to do|to do next|next steps?|unfinished|remaining (work|items?|steps?)|blocked (on|by)|waiting (on|for) (you|the user|your)|NOT VERIFIED|pendiente|falta(n)? por|sin terminar|queda(n)? por)\b` }, require: { filesChanged: ['docs/STATUS.md', 'tools/starter/STATUS.md'] },
+    message: 'Work is left open: update docs/STATUS.md (Now / Next / Open questions) so the next session can pick it up cold. In the starter itself: tools/starter/STATUS.md.' },
+  { tag: 'audit-run', rule: '12', when: { filesChanged: ['CLAUDE.md', 'AGENTS.md', 'docs/MENU.md', 'docs/playbooks/**', 'docs/checks/**', 'skills/**', 'tools/hooks/requirements.json', 'tools/hooks/config.json'] },
+    require: { toolPassed: { cmd: String.raw`audit\.mjs`, pass: 'audit: PASS', selfRun: 'node tools/audit.mjs', selfAuto: true } },
+    message: 'Project structure changed, and the audit (run by the hooks at the end) reports a FAIL: fix each one; the hooks run it again when you finish.' },
+  // REQ: self-improve. Turning what the user already asked for into checks, runbooks, tests or skills is the agent's
+  // job (rule 3), not a question for the user. Lesson: an agent listed six unenforced requirements and asked "should I add
+  // those checks?", and the user had to point out that the project is meant to improve itself.
+  { tag: 'self-improve', rule: '3', when: { answerMatches: String.raw`\b(should|shall|can|may) i\b[^\n?]{0,60}\b(add|create|write|set up|turn)\b[^\n?]{0,80}\b(checks?|runbooks?|tests?|skills?|hooks?|rules?)\b[^\n]*\?|\b(want|like) me to\b[^\n?]{0,60}\b(add|create|write|set up|turn)\b[^\n?]{0,80}\b(checks?|runbooks?|tests?|skills?|hooks?|rules?)\b[^\n]*\?` },
+    require: { answerNotMatches: String.raw`\b(should|shall|can|may) i\b[^\n?]{0,60}\b(add|create|write|set up|turn)\b[^\n?]{0,80}\b(checks?|runbooks?|tests?|skills?|hooks?|rules?)\b[^\n]*\?|\b(want|like) me to\b[^\n?]{0,60}\b(add|create|write|set up|turn)\b[^\n?]{0,80}\b(checks?|runbooks?|tests?|skills?|hooks?|rules?)\b[^\n]*\?` },
+    message: "Don't ask whether to add checks, runbooks, tests or skills for what the user already asked for: add them now, then say what you added (hard rule 3). Ask only about money, privacy or outward actions." },
+  // (Lesson: "ok we'll use stripe", "decided: postgres", "go with the blue one", "I pick the second design" and "fine,
+  // monthly billing it is" were decisions nobody logged)
+  { tag: 'decision-logged', rule: '12', when: { promptMatches: String.raw`\b(we|i)('ve| have)? decided\b|\bdecided\s*:|\blet'?s go with\b|\bfinal decision\b|\bi('m| am) going with\b|\b(we'?ll|we will|let'?s) (use|go with|pick|stick with)\b|(^|[.!,]\s*)(ok,?\s*)?go with\b|\bi('ll)? (pick|choose|chose) (the|option)\b|\b\w+ it is\s*[.!]?\s*$` },
+    require: { filesChanged: ['docs/DECISIONS.md'] }, message: 'The user made a decision: record it in docs/DECISIONS.md (date, decision, why, what it rules out, what would reopen it).' },
+  // (re-run / re-check count only for the last answer's work: "rerun the pipeline on the new batch" is a new run.
+  // Lesson: a monthly pipeline run was asked to say what changed from the last answer)
+  // (Lesson: "have another go at it" and "verify your answer" were redos that never said what changed)
+  { tag: 'redo-changes', rule: '8', when: { workTurn: true, promptMatches: String.raw`\b(redo|re-do|double.?check|try again|one more time|second look|another (go|try|look|pass)|verify (it|this|that|them|your (work|answer))|re-?(run|check) (it|this|that|them|your (work|answer|check))\b|(do|check|look|go|run|try) (it |this |that |them )?(over |through )?again)\b` },
+    require: { answerMatches: 'what changed|changes from (the|my) (earlier|previous|last)|same result|nothing changed|no changes|differences from' },
+    message: "This is a redo or re-check: add 'What changed from the earlier answer, and why' (old → new → reason for each change), or say 'same result' if nothing changed." },
+  // (Lesson: "more like this please", "stick with this style" and "this format is great, use it from now on" were lost)
+  { tag: 'praise-captured', rule: '3', when: { promptMatches: String.raw`\bkeep (doing|making) (this|that|these|it)\b|\b(do|make) (it|them) like this (every time|from now on)\b|\bthis is (exactly )?how i want\b|\bmore like (this|that|these)\b|\bstick with (this|that|these)\b|\b(great|perfect|love|awesome)\b[^.!?\n]{0,30}\b(from now on|every time|going forward)\b` },
+    require: { filesChanged: ['docs/playbooks/**', 'skills/**', 'CLAUDE.md', 'AGENTS.md', 'docs/checks/**'] },
+    message: "The user wants this repeated: write down what exactly worked (as steps or a 'What works' line) in the runbook or skill it came from, or in the standing preferences." }
+];
