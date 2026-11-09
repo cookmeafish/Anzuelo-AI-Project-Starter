@@ -1696,6 +1696,27 @@ report(madeUp.length === 2 && /9f8e7d6/.test(madeUp[0]) && /src\/missing\.js/.te
   b.prior = priorCalls([line('2026-01-01T10:00:00Z', bump), line('2026-01-01T12:00:00Z', { name: 'Bash', input: { command: 'git tag v1.2.0' } })].join('\n'), '2026-01-01T11:00:00Z').length;
   report(b.bumped && !b.released && !b.readOnly && b.npm && b.prior === 1, 'end: version-bump: a version raised in an earlier turn with nothing released since covers this turn; a release since, or a read, does not', b);
 }
+{ // (claim-checked, narrow form: a refused or failed push or commit, against an answer saying it happened, is held; said
+  // plainly not to have happened, or run again and it worked, is not)
+  const { gitClaimGaps } = await import('./lib.mjs');
+  const res = (cmd, out, isErr) => [{ type: 'assistant', message: { content: [{ type: 'tool_use', id: 'g' + cmd.length + String(isErr), name: 'Bash', input: { command: cmd } }] } },
+    { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'g' + cmd.length + String(isErr), content: out, is_error: !!isErr }] } }];
+  const g = (rows, answer) => gitClaimGaps(acts([user('push my work'), ...rows, say(answer)])).length;
+  const DENY = 'REQ: git-safety. This pushes to the protected branch "main"';
+  const c = {
+    pushDenied: g(res('git push origin main', DENY, true), 'Pushed. Everything is on GitHub now.'),
+    pushSaid: g(res('git push origin main', DENY, true), 'The push was refused by the guard, so nothing is on GitHub yet.'),
+    commitFatal: g(res('git commit -am "wip"; echo done', 'fatal: unable to auto-detect email address\ndone'), 'Committed the work.'),
+    commitEs: g(res('git commit -am "wip"', 'REQ: no-ai-attribution. denied', true), 'Listo, hice commit de todo.'),
+    retried: g([...res('git push origin main', DENY, true), ...res('git push origin feature', 'To github.com:x/y.git\n * [new branch] feature -> feature')], 'Pushed the feature branch.'),
+    noRun: g([], 'Pushed it earlier today.'),
+    hereDoc: g(res("cat > .cache/x.mjs <<'EOF'\n// the git hook checks each commit\nEOF\nnode .cache/x.mjs", 'refused', true), 'The notes were committed by you this morning.'),
+    hereDocLine: g(res("cat > .cache/steps.txt <<'EOF'\ngit commit -am done\nEOF\nnode .cache/run.mjs", 'refused', true), 'The steps were committed by you this morning.'),
+    nothing: g(res('git commit -am "wip"', 'REQ: no-ai-attribution. denied', true), 'It needs your OK, so nothing was committed.'),
+  };
+  report(c.pushDenied === 1 && !c.pushSaid && c.commitFatal === 1 && c.commitEs === 1 && !c.retried && !c.noRun && !c.hereDoc && !c.hereDocLine && !c.nothing,
+    'end: claim-checked: a refused or failed push or commit against an answer saying it happened is held (Spanish too); said plainly, or run again and it worked, or no run this turn, is not', c);
+}
 { // (bg-moved: a command moved to the background, or run there, is judged by its output file once its notice says it
   // completed: a non-zero exit fails it; before the notice nothing changes)
   const { withBackgroundOutputs } = await import('./lib.mjs');

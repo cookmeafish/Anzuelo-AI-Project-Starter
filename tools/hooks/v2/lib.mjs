@@ -1227,10 +1227,30 @@ export const crashLine = (tag, e) => `A check crashed (${tag}): ${String(e?.mess
 export const evidenceOf = text => String(text || '').split('\n').filter(Boolean).map(l => {
   try { const r = JSON.parse(l); return r.type === 'assistant' && Array.isArray(r.message?.content) ? JSON.stringify(r.message.content.filter(x => x?.type !== 'text' && x?.type !== 'thinking')) : l; } catch { return ''; }
 }).join('\n');
+// REQ: claim-checked (narrow form, triage: settled). A git push or commit refused or failed this turn (the guard or host
+// refused it, it exited with an error, or git printed "fatal:"/"error:"/"rejected"), with no later run of it that worked,
+// against an answer saying it happened. Lesson (the old engine): an answer said "Pushed. Everything is on GitHub" after
+// the push was refused, and "Committed" after git printed a fatal line with no error mark.
+const GIT_FAILED = /^\s*(fatal|error):|\[rejected\]|\brejected\b.*->|\bfailed to push\b/im;
+const CLAIMED = { push: /\b(pushed|is on (github|the remote|origin)|subido|sub[ií]|hice push|empuj[eé])\b/i, commit: /\b(committed|commit (is )?(made|done|created)|hice (el )?commit|commite[eé])\b/i };
+const DENIED_SAID = /\bnothing (was |got |is )?(committed|pushed)\b|\b(not|never|n'?t|couldn'?t|could not|wasn'?t|was not|didn'?t|did not|no (se )?(pudo|pude|hice)|refused|denied|blocked|failed|rechaz)\b[^.\n]{0,40}\b(push|commit|github|remote)|\b(push|commit)\w*\b[^.\n]{0,40}\b(was |got )?(refused|denied|blocked|rejected|failed|rechazad)/i;
+export function gitClaimGaps(acts) {
+  const a = String(acts.answer || ''), out = [];
+  for (const kind of ['push', 'commit']) {
+    // (git run as a command, at the start of a line or after ;, && or ||: not words inside a here-document or a quoted
+    // string. Lesson (the old engine): a refused script whose text said "git ... commit" was taken for a commit)
+    const cmdText = c => ranText(String(c.input?.command || '').replace(/<<-?\s*['"]?(\w+)['"]?[\s\S]*?^\s*\1\s*$/gm, ' '));
+    const runs = acts.calls.filter(c => /^(Bash|PowerShell)$/.test(c.name) && new RegExp(`(?:^|[;&|]\\s*|\\n\\s*)(?:cd\\s+\\S+\\s*&&\\s*)?git\\s+(?:-\\S+\\s+(?:\\S+\\s+)?)*${kind}\\b`, 'm').test(cmdText(c)));
+    const last = runs[runs.length - 1];
+    if (!last || !(last.error || GIT_FAILED.test(last.out || ''))) continue;
+    if (CLAIMED[kind].test(a) && !DENIED_SAID.test(a)) out.push(`The answer says the ${kind} happened, but the last git ${kind} this turn was refused or failed: run it again and say the result, or say plainly it did not happen.`);
+  }
+  return out;
+}
 export function claimGaps(acts, history = '') {
   // (a message the agent sent is its own words, not evidence: an id it made up there proves nothing in the answer)
   const a = String(acts.answer || ''), seen = acts.calls.map(c => (c.name === 'SendMessage' ? '' : JSON.stringify(c.input)) + '\n' + (c.out || '')).join('\n') + (acts.context || '') + history;
-  const out = [];
+  const out = [...gitClaimGaps(acts)];
   const hashes = [...new Set(hexIds(a))];
   const unknown = hashes.filter(h => !seen.includes(h) && spawnSync('git', ['cat-file', '-e', `${h}^{commit}`], { cwd: ROOT, timeout: 5000 }).status !== 0);
   if (unknown.length) out.push(`The answer names commit ${unknown.slice(0, 3).join(', ')}, which no command in this turn showed and this repository does not have: check it, or correct the answer.`);

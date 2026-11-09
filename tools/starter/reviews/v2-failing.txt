@@ -291,12 +291,8 @@ stop: claim-checked: "the other 21 menus passed" after helpers reviewed them in 
 stop: claim-checked: "the version in git lacks it, nothing is committed" while git has the file: blocked
 stop: claim-checked: "you made a new note without linking it" is a complaint: the unproven claim is blocked
 stop: claim-checked: a Spanish promise after a complaint with no check behind it: blocked
-stop: claim-checked: git printed a fatal line though the tool did not mark an error, and the answer says committed: blocked
 stop: claim-checked: in the starter, "only makes projects better" with no judged round this turn: blocked
 stop: claim-checked: the claim about vault notes no check covers (their folder is not in knowledgeDirs), even with a passing run: blocked
-stop: claim-checked: the commit was denied and the Spanish answer says "hice commit": blocked
-stop: claim-checked: the commit was denied and the answer says "Committed, no problems": blocked
-stop: claim-checked: the push was denied and the answer says pushed: blocked
 stop: claim-checked: the tests were waived and "all tests pass": blocked, and one NOT VERIFIED line is asked for
 stop: claim-checked: the tests were waived and the answer says it ships: blocked
 stop: commit archaeology backed by commit hashes: passes

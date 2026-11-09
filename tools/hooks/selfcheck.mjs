@@ -2873,6 +2873,11 @@ PROMPT.push(
 const ISSUE_LINE = 'Issue: the complaint in this request | runbook: learn-from-upset | fixed when: the miss is fixed and its lesson written\n';
 function runStop(s0) {
   if (s0.issue) s0 = { ...s0, files: { ...(s0.files || {}), '.cache/turn-notes.md': ISSUE_LINE + ((s0.files || {})['.cache/turn-notes.md'] || '') } };
+  // (the shared Finished line names docs/x.md; under v2 a claimed file that is not there is held (rule 4, triage: settled),
+  // so a scenario using it gets that file, dated before the turn so it is no work of the turn. A scenario's own claim
+  // of a file that is not there is still held)
+  if (process.env.STARTER_ENGINE === 'v2' && String(s0.answer || '').includes(FIN) && !(s0.files || {})['docs/x.md'])
+    s0 = { ...s0, files: { ...(s0.files || {}), 'docs/x.md': '# x\n' }, mtimes: { ...(s0.mtimes || {}), 'docs/x.md': -3_600_000 } };
   // (a fixture file is written after the turn starts, so the old engine counts it as this turn's work. v2 counts a file
   // only when a call of the turn wrote it (a file changed with no writer is another session's), so under v2 each fixture
   // file no call names gets the Write that made it, unless its time is set back to before the turn ("mtimes"). Lesson
@@ -4951,6 +4956,7 @@ const V2_ASKS = {
   'headless-resume': /^- This run is headless/m,
   'notice-answer': /^- This run is headless \(claude -p or the SDK\): its caller gets only the last message/m,
   'data-valid': /docs\/checks\/always\.md item \d+: The validator passes/,
+  'claim-checked': /^- The answer says the (push|commit) happened, but the last git/m,
   'watched-inputs': /^- \S+ was updated while you worked/m,
   'decision-logged': /item \d+: A choice the user made is logged in docs\/DECISIONS\.md/,
   'rule-request': /^- (Write the rule down|Say how the rule is enforced|Save the rule to memory)/m,
