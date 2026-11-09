@@ -927,6 +927,9 @@ export const engineChecks = () => {
   // under v2): every app-pack project was asked to raise its version number with no version file set)
   return [...BASE_REQUIREMENTS.filter(b => !own.some(r => r.tag === b.tag)), ...own].filter(r => r.tag !== 'security-code' && !off.has(r.tag) && r.enabled !== false);
 };
+// (the runEach commands the engine ships, the only ones the end check runs on its own)
+const shippedRunEach = () => new Set((() => { try { return JSON.parse(fs.readFileSync(at('tools/hooks/engine-checks.json'), 'utf8')).requirements || []; } catch { return []; } })()
+  .flatMap(r => [r?.require?.runEach?.cmd, ...((r?.require?.anyOf) || []).map(b => b?.runEach?.cmd)]).filter(Boolean));
 const REFUSED_RUN = /\b(requires approval|was (denied|rejected|refused)|permission (was )?denied|user (denied|rejected|declined)|not allowed to run|blocked by (a )?hook)\b/i;
 const setupTurn = acts => (fs.existsSync(at('SETUP-PROMPT.md')) && !fs.existsSync(at('.starter-template'))) || acts.calls.some(c => /SETUP-PROMPT\.md/.test(String(c.input.command || c.input.file_path || '')));
 const skillSurvey = acts => (fs.existsSync(at('SETUP-PROMPT.md')) && !fs.existsSync(at('.starter-template')))
@@ -1079,6 +1082,17 @@ export function holdsReq(c, acts, x) {
     // backticks or a link, or a web page opened this turn; rules, runbooks, skills and engine files are no sources. A path
     // a command printed was opened by it. The old engine's answerCites)
     answerCites: v => !v || citesOpened(acts, x),
+    // (runEach: a validator run on each changed file that matches, by the end check itself; a crash is a fail. Only a
+    // command the engine ships runs, never one a project file adds or rewrites. Lesson (the old suite under v2): the key
+    // was unknown, so the modularity and backlink checks never ran)
+    runEach: spec => {
+      if (!spec?.cmd || !shippedRunEach().has(spec.cmd)) return null;
+      for (const f of (x.changed || []).filter(p => inGlobs(p, [].concat(spec.files || [])) && fs.existsSync(at(p)))) {
+        const cmd = spec.cmd.replaceAll('{file}', f), res = spawnSync(cmd, { shell: true, cwd: ROOT, encoding: 'utf8', timeout: (spec.timeout || 60) * 1000 }), out = `${res.stdout || ''}${res.stderr || ''}`;
+        if (res.status !== 0 || (spec.pass && !reqRe(spec.pass).test(out))) { acts.detail = `${cmd} -> ${res.status === null ? 'timed out' : `exit ${res.status}`}: ${out.trim().split(/\r?\n/).slice(-3).join(' | ').slice(0, 300)}`; return false; }
+      }
+      return true;
+    },
     // (after the last helper finished, the turn looked at what it made: a read, a run or a diff)
     checkedAfterAgents: v => { const last = acts.calls.map(k => /^(Agent|Task)$/.test(k.name)).lastIndexOf(true); return !v || last < 0 || acts.calls.slice(last + 1).some(k => /^(Read|Bash|PowerShell|Grep)$/.test(k.name)); },
   };
@@ -1095,7 +1109,7 @@ export const ranText = cmd => String(cmd || '')
   .replace(/(\b(?:node|deno|bun)(?:\.exe)?\s+(?:-e|--eval|-p|--print)|\b(?:python3?|py)(?:\.exe)?\s+-c)\s+("(?:[^"\\]|\\.)*"|'[^']*')/gi,
     (m, head, code) => /\b(execSync|execFileSync|spawnSync|spawn|exec|execFile|fork|subprocess|os\.system|system|Popen)\s*\(/.test(code) ? m : `${head} ""`)
   .replace(/(?<!(?:-c|-lc|\/c|eval|-Command|-EncodedCommand|--command)\s+)("[^"\n]*\s[^"\n]*"|'[^'\n]*\s[^'\n]*')/gi, '""');
-export const REQ_KEYS = ['skillUsed', 'playbookUsed', 'filesChanged', 'filesIgnore', 'answerMatches', 'answerNotMatches', 'promptMatches', 'promptNotMatches', 'toolRan', 'toolPassed', 'workTurn', 'minToolCalls', 'anyOf', 'answerCites', 'ranFailing', 'toolCount', 'fileRead', 'playbookRouted', 'guiChanged', 'changedContentMatches', 'checkedAfterAgents', 'knowledgeFromFiles', 'answerFiguresComputed'];
+export const REQ_KEYS = ['skillUsed', 'playbookUsed', 'filesChanged', 'filesIgnore', 'answerMatches', 'answerNotMatches', 'promptMatches', 'promptNotMatches', 'toolRan', 'toolPassed', 'workTurn', 'minToolCalls', 'anyOf', 'answerCites', 'ranFailing', 'toolCount', 'fileRead', 'playbookRouted', 'guiChanged', 'changedContentMatches', 'checkedAfterAgents', 'knowledgeFromFiles', 'answerFiguresComputed', 'runEach'];
 export const promptOnly = c => { const ks = Object.keys(c || {}); return ks.length > 0 && ks.every(k => /^(promptMatches|promptNotMatches|filesIgnore)$/.test(k)); };
 // a check routed by its runbook alone, with no action that shows the work (the audit fails it)
 const ACTION_KEYS = ['toolRan', 'toolPassed', 'filesChanged', 'ranFailing', 'guiChanged', 'changedContentMatches', 'toolCount'];

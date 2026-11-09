@@ -823,6 +823,19 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
           unread: citeWhy(acts([user('look it up'), say('Most hold 100 kg.\n\nSources:\nhttps://example.com/desks')]), x) };
         report(/marker \[2\] has no/.test(cw.marker) && /no link it gives was opened this turn \(https:\/\/example\.com\/desks\)/.test(cw.unread),
           'end: a held research answer is told why its citations don\'t count: the marker with no source line, the link nothing opened', JSON.stringify(cw));
+        // (runEach: a command the engine ships runs on each matching changed file and judges it, naming the failing run; a
+        // command a project file adds is never run)
+        {
+          const ec = path.join(dir, 'tools/hooks/engine-checks.json'), keptEc = fs.existsSync(ec) ? fs.readFileSync(ec, 'utf8') : null, cmd = 'node each-check.cjs "{file}"';
+          fs.writeFileSync(ec, JSON.stringify({ requirements: [{ tag: 'each-ok', require: { runEach: { files: ['notes/**'], cmd, pass: 'RESULT: PASS' } } }] }));
+          fs.writeFileSync(path.join(dir, 'each-check.cjs'), "const t = require('fs').readFileSync(process.argv[2], 'utf8'); console.log(/\\[\\[/.test(t) ? 'RESULT: PASS' : 'RESULT: FAIL no link');");
+          fs.mkdirSync(path.join(dir, 'notes'), { recursive: true });
+          const each = (text, c = cmd) => { fs.writeFileSync(path.join(dir, 'notes/n.md'), text); const a = acts([user('add the note'), say('Saved.')]); return [holdsReq({ runEach: { files: ['notes/**'], cmd: c, pass: 'RESULT: PASS' } }, a, { ...x, changed: ['notes/n.md'] }), a.detail || '']; };
+          const re = { linked: each('see [[other]]'), bare: each('no link here'), foreign: each('no link here', 'node evil.mjs "{file}"') };
+          keptEc === null ? fs.rmSync(ec, { force: true }) : fs.writeFileSync(ec, keptEc); fs.rmSync(path.join(dir, 'notes'), { recursive: true, force: true }); fs.rmSync(path.join(dir, 'each-check.cjs'), { force: true });
+          report(re.linked[0] === true && re.bare[0] === false && /RESULT: FAIL no link/.test(re.bare[1]) && re.foreign[0] === null,
+            'end: runEach: a shipped validator runs on each matching changed file (a failing one named); a command a project file adds never runs', JSON.stringify(re));
+        }
         const T = par.toolPassed; cites.toolPassedOk = cites.skillsOk && T.toFile === true && T.oldFile === false && T.selfOk === true && T.selfBad === false && T.audit === null;
         report(cites.toolPassedOk && par.seq === false && par.bg === true && par.plain === true && cites.plain && cites.ticks && cites.printed && !cites.unopened && !cites.own && cites.unknownBranch === null && cites.otherHolds === true,
           'end: answer-cites: a source opened (or printed) this turn named in the answer meets it, an unopened or self-written file does not; an unread branch leaves an anyOf unjudged unless another holds; helpers run one after another are not parallel work, two in the background are; the output of a gate in a file written this turn counts, an older log does not, and a declared self-test never run is run here (the audit left to the health check)', JSON.stringify(cites));

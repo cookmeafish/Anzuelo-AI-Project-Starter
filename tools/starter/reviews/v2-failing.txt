@@ -343,7 +343,6 @@ stop: invalid skill frontmatter: blocked
 stop: knowledge file without label/source/date: blocked
 stop: maintaining a runbook (read, then edit) is not following it: its checks stay off
 stop: maintaining a runbook the answer names as followed: its checks apply: blocked
-stop: modular-code: a URL typed into code and a private import: blocked
 stop: name-var: a name typed out in a doc and in code: blocked
 stop: name-var: the name typed in code that is not the package's own name: blocked
 stop: new runbook missing triggers and sections: blocked
