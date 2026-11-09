@@ -18,6 +18,7 @@ import { hexIds, gitClaimContradicted, REPORTED, IMPROVE_CLAIM, byHandClaim, des
 import { makeProof } from '../proof.mjs';
 import { makeTrace } from '../trace.mjs';
 import { makeLaunchers } from '../launchers.mjs';
+import { makeGates } from '../gates.mjs';
 import { SELF_KEY, approvedBefore } from '../selfcmds.mjs';
 import { capsWeight } from '../caps.mjs';
 import { toOtherSession } from '../relay.mjs';
@@ -1034,15 +1035,16 @@ export function holdsReq(c, acts, x) {
     // (a run whose output went to a file passes by that file; a declared self-test the turn never ran is run here once,
     // selfRun with selfAuto, except the audit, which the health check runs itself. Lessons (the old suite under v2): an
     // audit logged to a file by a finished background job was asked for again; a project's own self-test was never run)
+    // (a gate that ran is judged as the old engine judges it, tools/hooks/gates.mjs: its own result, not a later echo or a
+    // part after "||"; a refused or missing program asks once for the honest line. Lesson (the old suite under v2): "git
+    // pull || npm test && echo TESTS-OK" passed the test gate though the tests never ran)
     toolPassed: v => { const cmd = typeof v === 'string' ? v : v?.cmd; if (!cmd) return false;
       const ok = out => !v?.pass || reqRe(v.pass).test(out || '');
-      const runs = acts.calls.filter(k => /^(Bash|PowerShell)$/.test(k.name) && reqRe(cmd).test(String(k.input.command || '')) && !k.error);
-      // (only a file written since the turn began is this run's output: an older log is an older run)
-      const since = Date.parse(acts.at || '') || 0, file = f => { try { return !since || fs.statSync(at(f)).mtimeMs > since ? fs.readFileSync(at(f), 'utf8') : ''; } catch { return ''; } };
-      if (runs.some(k => ok(k.out) || redirectedTo(k.input.command).some(f => ok(file(f))))) return true;
-      if (runs.length || !v?.selfRun || !v?.selfAuto) return false;
-      if (/tools[\\/]+audit\.mjs/.test(v.selfRun)) return null;
-      return ok(selfRunOnce(acts, v.selfRun).out); },
+      const tried = acts.calls.some(k => /^(Bash|PowerShell)$/.test(k.name) && reqRe(cmd).test(String(k.input.command || '')));
+      if (!tried && v?.selfRun && v?.selfAuto) { if (/tools[\\/]+audit\.mjs/.test(v.selfRun)) return null; return ok(selfRunOnce(acts, v.selfRun).out); }
+      const gx = gateTurn(acts), g = gatesOf().toolPassed({ toolPassed: typeof v === 'string' ? v : { ...v, selfAuto: false } }, gx, reqRe);
+      if (g === false) { acts.detail = gx.override || gx.detail || ''; return false; }
+      return true; },
     workTurn: v => !v || x.changed.length > 0,
     minToolCalls: v => acts.calls.length >= v,
     // (a branch the evaluator can't read may be the one that holds: then the whole anyOf can't be judged, unless another
@@ -1390,10 +1392,26 @@ export function claimGaps(acts, history = '') {
 // REQ: instructions-run, under v2: the shared tools/hooks/launchers.mjs. What the answer tells the user to run, made or
 // changed this turn, ran here the way the user is told and worked, or the answer says it is not verified. Lesson (the
 // old engine): an answer's first step ran a setup script that was never run here and failed under the shell it named.
-let launchMemo = null;
+let launchMemo = null, gatesMemo = null;
+const escRe = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const launchersOf = () => { const P = proofPure ||= makeProof({}); return launchMemo ||= makeLaunchers({ shellParts: P.shellParts, cmdHead: P.cmdHead, wordsOf: P.wordsOf, neverRan: P.neverRan, esc: escRe }); };
+// The gate judgment shared with the old engine (tools/hooks/gates.mjs), with v2's root.
+const gatesOf = () => { const P = proofPure ||= makeProof({}); return gatesMemo ||= makeGates({ ROOT, rel: p => relp(p), re: (s, f = 'i') => new RegExp(s, f), esc: escRe,
+  shellParts: P.shellParts, cmdHead: P.cmdHead, neverRan: P.neverRan, refusedOutright: r => launchersOf().refusedOutright(r), MISSING_TOOL, envOf: n => process.env[`STARTER_${n}`] ?? process.env[`KS_${n}`] }); };
+// The old engine's turn record for a gate: the commands in order with the files edited before each, the tools used, the
+// answer and what was said, and when the turn began.
+export function gateTurn(acts) {
+  const edited = [], runs = [];
+  for (const c of acts.calls || []) {
+    if (/^(Write|Edit|MultiEdit|NotebookEdit)$/.test(c.name)) edited.push(relp(c.input.file_path || c.input.notebook_path || ''));
+    else if (/^(Bash|PowerShell)$/.test(c.name) && typeof c.input.command === 'string') runs.push({ cmd: c.input.command, out: c.out || '', error: !!c.error, editedBefore: edited.slice(), pending: !c.done && !c.out });
+  }
+  const t = acts.at || acts.started || 0;
+  return { runs, uses: (acts.calls || []).map(c => ({ name: c.name, input: c.input || {} })), toolsKnown: true, answer: String(acts.answer || ''), said: String(acts.said || acts.answer || ''),
+    since: Number.isNaN(+t) ? Date.parse(t) || 0 : +t };
+}
 export function launchGaps(acts) {
-  const P = proofPure ||= makeProof({});
-  const L = launchMemo ||= makeLaunchers({ shellParts: P.shellParts, cmdHead: P.cmdHead, wordsOf: P.wordsOf, neverRan: P.neverRan, esc: s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') });
+  const L = launchersOf();
   const runs = (acts.calls || []).filter(c => /^(Bash|PowerShell)$/.test(c.name)).map(c => ({ cmd: String(c.input.command || ''), out: c.out || '', error: !!c.error }));
   const of = answer => L.launcherGaps({ answer, changed, runs }), changed = changedOf(acts);
   const gaps = of(String(acts.answer || ''));
