@@ -328,6 +328,26 @@ report(/learn-from-upset/.test(reminder('WHY DID YOU BREAK THE EXPORT AGAIN').te
       env: { ...process.env, STARTER_ENGINE: 'v2', ANZUELO_ROOT: c, CLAUDE_PROJECT_DIR: c } }).stdout || ''; };
   const earlier = pre([user('when it all passes, commit and git push to main'), say('Will do.'), user('also fix the footer')]);
   const none = pre([user('fix the footer'), say('Done.'), user('and the header')]);
+  // (speed: the prompt and pretool hooks, run as the host runs them, stay within budget over a bare node start, fastest
+  // of 5; loading the engine builds no Spanish routing patterns until a Spanish request needs them. Lesson (a
+  // project's upgrade): prompt went 131 -> 160 ms and pretool 86 -> 96 ms; 15 ms of each run compiled those patterns)
+  {
+    const tq = path.join(c, 'tq.jsonl'); fs.writeFileSync(tq, [user('fix the label on the builder page')].flat().map(r => JSON.stringify(r)).join('\n') + '\n');
+    const env = { ...process.env, STARTER_ENGINE: 'v2', ANZUELO_ROOT: c, CLAUDE_PROJECT_DIR: c };
+    const ms = (args, input) => { const t0 = performance.now(); spawnSync(process.execPath, args, { cwd: c, encoding: 'utf8', input, env }); return performance.now() - t0; };
+    const best = (args, input) => Math.min(...Array.from({ length: 5 }, () => ms(args, input)));
+    const bare = best(['-e', '']);
+    const prompt = best([path.join(c, 'tools/hooks/hooks.mjs'), 'prompt'], JSON.stringify({ session_id: 'speedp', transcript_path: tq, prompt: 'fix the label on the builder page' })) - bare;
+    const pretool = best([path.join(c, 'tools/hooks/hooks.mjs'), 'pretool'], JSON.stringify({ session_id: 'speedt', transcript_path: tq, tool_name: 'Bash', tool_input: { command: 'git status' } })) - bare;
+    const u = f => JSON.stringify(new URL(`file:///${path.join(c, f).replace(/\\/g, '/').replace(/^\//, '')}`).href);
+    const probe = `const H = await import(${u('tools/hooks/hooks.mjs')}), L = await import(${u('tools/hooks/v2/lib.mjs')});
+      const before = [H.routeEsBuilt(), L.routeEsBuilt()]; const en = [H.routeEnglish('agrega una página'), L.routeEnglish('agrega una página')];
+      console.log(JSON.stringify({ before, en, after: [H.routeEsBuilt(), L.routeEsBuilt()] }));`;
+    const lazy = JSON.parse((spawnSync(process.execPath, ['--input-type=module', '-e', probe], { cwd: c, encoding: 'utf8', env }).stdout || '{}').trim().split('\n').pop() || '{}');
+    const sp = { bare: Math.round(bare), prompt: Math.round(prompt), pretool: Math.round(pretool), lazy };
+    report(prompt < Math.max(75, 2.8 * bare) && pretool < Math.max(60, 2.2 * bare) && lazy.before?.join() === 'false,false' && lazy.after?.join() === 'true,true' && lazy.en?.every(x => x === 'add a page'),
+      'speed: the prompt and pretool hooks stay within budget over a bare node start (fastest of 5), and the Spanish routing patterns are built on first use, not at load', JSON.stringify(sp));
+  }
   fs.rmSync(c, { recursive: true, force: true });
   report(!/outward-gate/.test(earlier) && /outward-gate|git-safety/.test(none), 'pretool: the outward-action guard lets a push OK\'d earlier in the session run, and still refuses one nobody OK\'d', JSON.stringify({ earlier: earlier.slice(0, 200), none: none.slice(0, 200) }));
 }

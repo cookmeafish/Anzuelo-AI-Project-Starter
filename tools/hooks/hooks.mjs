@@ -696,8 +696,11 @@ const ROUTE_ES = [
 ];
 // (\b with letters such as á, í, ñ: a boundary between a letter of any alphabet and anything else)
 const UB = String.raw`(?:(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])|(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_]))`;
-const ROUTE_ES_U = ROUTE_ES.map(([r, v]) => [new RegExp(r.source.replaceAll(String.raw`\b`, UB), 'giu'), v]);
-export const routeEnglish = text => ROUTE_ES_U.reduce((s, [r, v]) => s.replace(r, v), String(text || ''));
+// (built on first use: compiling them took about 15 ms of every hook run, though only a Spanish request needs them)
+let routeEsU = null;
+export const routeEsBuilt = () => routeEsU !== null;
+const ROUTE_ES_U = () => routeEsU ||= ROUTE_ES.map(([r, v]) => [new RegExp(r.source.replaceAll(String.raw`\b`, UB), 'giu'), v]);
+export const routeEnglish = text => ROUTE_ES_U().reduce((s, [r, v]) => s.replace(r, v), String(text || ''));
 
 // ---------- transcript ----------
 // (the host's own notices about other sessions are no request either. Lesson: "[Cross-session idle notice] ... is idle

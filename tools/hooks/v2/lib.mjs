@@ -194,7 +194,11 @@ const EN_WORDS = /\b(the|and|to|of|is|that|it|for|with|my|this|you|on|are|please
 export const isSpanish = text => { const s = String(text || '').slice(0, 2000), es = (s.match(ES_WORDS) || []).length, en = (s.match(EN_WORDS) || []).length; return es >= 3 && es > en * 2; };
 // A Spanish request's common task words in English, for routing only, so runbooks need no Spanish triggers (the old
 // engine's map, phrases before the words in them; no word with two common senses, like "carta": letter and menu)
-const ROUTE_ES = [
+// Built on first use: compiling these Unicode patterns took about 15 ms, paid by every hook run that loads this file
+// (prompt, pretool, stop) though only a Spanish request needs them.
+let routeEs = null;
+export const routeEsBuilt = () => routeEs !== null;
+const ROUTE_ES = () => routeEs ||= [
   [/\b(configura|prepara|monta|inicializa)r? (este|el|mi) proyecto\b/, 'set up this project'], [/\b(de ahora en adelante|a partir de ahora|desde ahora)\b/, 'from now on'],
   [/\bnueva regla\b/, 'new rule'], [/\bte (lo )?dije\b/, 'i told you'], [/\b(olvidaste|se te olvid[oó])\b/, 'you forgot'], [/\bpor qu[eé] (lo )?hiciste\b/, 'why did you'],
   [/\b(agrega|añade|agregar|añadir|incluye|pon)\b/, 'add'], [/\b(arregla|corrige|repara|arreglar|corregir)\b/, 'fix'], [/\b(crea|crear|haz|hacer)\b/, 'make'],
@@ -206,7 +210,7 @@ const ROUTE_ES = [
   [/\bnotas?\b/, 'note'], [/\b(plan|planes)\b/, 'plan'], [/\b(dise[nñ]o)\b/, 'design'], [/\b(datos)\b/, 'data'], [/\b(regla)s?\b/, 'rule'],
   [/\b(una?|el|la|los|las)\b/, 'a'], [/\b(siempre)\b/, 'always'], [/\b(nunca)\b/, 'never'],
 ].map(([r, v]) => [new RegExp(r.source.replaceAll(String.raw`\b`, String.raw`(?:(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])|(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_]))`), 'giu'), v]);
-export const routeEnglish = text => ROUTE_ES.reduce((s, [r, v]) => s.replace(r, v), String(text || ''));
+export const routeEnglish = text => ROUTE_ES().reduce((s, [r, v]) => s.replace(r, v), String(text || ''));
 
 // A message the user typed: not a notice, a relayed message, or the summary that resumes a session.
 // The text of a user row the user wrote: a plain string, or the text parts of a message sent with images or files (never
