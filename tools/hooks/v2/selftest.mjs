@@ -1692,6 +1692,20 @@ report(madeUp.length === 2 && /9f8e7d6/.test(madeUp[0]) && /src\/missing\.js/.te
   b.prior = priorCalls([line('2026-01-01T10:00:00Z', bump), line('2026-01-01T12:00:00Z', { name: 'Bash', input: { command: 'git tag v1.2.0' } })].join('\n'), '2026-01-01T11:00:00Z').length;
   report(b.bumped && !b.released && !b.readOnly && b.npm && b.prior === 1, 'end: version-bump: a version raised in an earlier turn with nothing released since covers this turn; a release since, or a read, does not', b);
 }
+{ // (bg-moved: a command moved to the background, or run there, is judged by its output file once its notice says it
+  // completed: a non-zero exit fails it; before the notice nothing changes)
+  const { withBackgroundOutputs } = await import('./lib.mjs');
+  const outFile = n => path.join(dir, `.cache/bg-${n}.output`).replace(/\\/g, '/');
+  put('.cache/bg-f.output', 'checked 3 files\nRESULT: FAIL\n'); put('.cache/bg-p.output', 'checked 3 files\nRESULT: PASS\n');
+  const run = (id, n, how) => [{ type: 'assistant', message: { content: [{ type: 'tool_use', id: 't' + id, name: 'Bash', input: { command: 'node tools/validate.mjs', ...(how === 'bg' ? { run_in_background: true } : {}) } }] } },
+    { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 't' + id, content: how === 'bg' ? `Command running in background with ID: ${id}. Output is being written to: ${outFile(n)}. You will be notified when it completes.` : `Command did not complete within its 120s timeout and was moved to the background (ID: ${id}). Output is being written to: ${outFile(n)}` }] } }];
+  const done = (id, code) => ({ type: 'user', message: { content: `<task-notification>\n<task-id>${id}</task-id>\n<status>completed</status>\n<summary>Background command completed (exit code ${code})</summary>\n</task-notification>` } });
+  const one = rows => { const c = withBackgroundOutputs(turnActs(rows), rows).calls[0]; return { fail: /RESULT: FAIL/.test(c.out), pass: /RESULT: PASS/.test(c.out), error: c.error }; };
+  const b = { movedFail: one([...run('m1', 'f'), done('m1', 1)]), bgPass: one([...run('b1', 'p', 'bg'), done('b1', 0)]), running: one(run('m2', 'f')) };
+  fs.rmSync(path.join(dir, '.cache/bg-f.output'), { force: true }); fs.rmSync(path.join(dir, '.cache/bg-p.output'), { force: true });
+  report(b.movedFail.fail && b.movedFail.error && b.bgPass.pass && !b.bgPass.error && !b.running.fail && !b.running.error,
+    'end: bg-moved: a moved or background run is judged by its output file once its notice says it completed; a non-zero exit fails it; before the notice nothing changes', JSON.stringify(b));
+}
 { // (REQ: notice-answer: in a headless run, a short reply to a notice or a fired wakeup after the answer is held; the whole
   // answer again, an interactive session, a send-back, or no notice is not)
   const { noticeAnswerGaps } = await import('./end.mjs');

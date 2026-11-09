@@ -4167,23 +4167,29 @@ PRETOOL.push(
 // A foreground command past its timeout is moved to the background: it runs on, like a background launch, and its
 // result is its output file and the notice's exit code. Files a running job makes are not this turn's.
 const SIX = Object.fromEntries(Array.from({ length: 6 }, (_, i) => [`fixtures/zz-sweep-${i + 1}.txt`, 'x']));
+// (under v2 a project's own check is a "Done when" line in docs/checks/always.md, and the data file is the agent's own
+// edit, then validated: the validator reads it, it does not write it)
+const VALIDATOR_V2 = { 'docs/checks/always.md': () => '# Always\n\n## Done when\n- [ ] The validator passes on the changed data (when file: data/**) (ran: validate => RESULT: PASS)\n' };
+const gateV2 = run => ({ v2: { edit: VALIDATOR_V2, tools: [editTool('data/a.json'), run] } });
 STOP.push(
   { name: 'bg-moved: a foreground command moved to the background holds the Stop while it runs', prompt: 'run the full sweep over the notes', tools: [bash('node tools/sweep.mjs', MOVED('buj1w44ls', BG_OUT('a')))],
     files: { 'docs/rota.md': 'r' }, answer: 'Started the sweep.', expect: { block: false },
     after: dir => { let j = {}; try { j = JSON.parse(fs.readFileSync(path.join(dir, 'tools/hooks/state/turn-end.json'), 'utf8')); } catch { } return j.pending >= 1 || `not held: ${JSON.stringify(j)}`; } },
   { name: 'bg-moved: after its notice, the run counts by its output file: passes', edit: VALIDATOR, prompt: 'validate the data files', prep: () => fs.writeFileSync(BG_OUT('b'), 'checked 3 files\nRESULT: PASS\n'),
-    tools: [bash('node tools/validate.mjs', MOVED('bv2a', BG_OUT('b')))], rows: [MOVED_DONE('bv2a', 0)], files: { 'data/a.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Validated.' + FIN, expect: { not: ['data-valid'] } },
+    tools: [bash('node tools/validate.mjs', MOVED('bv2a', BG_OUT('b')))], rows: [MOVED_DONE('bv2a', 0)], files: { 'data/a.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Validated.' + FIN, expect: { not: ['data-valid'] },
+    ...gateV2(bash('node tools/validate.mjs', MOVED('bv2a', BG_OUT('b')))) },
   // (the notice as a queued attachment, as a host records one that arrives while the turn runs)
   { name: 'bg-moved: a run_in_background gate whose notice is a queued attachment counts by its output file: passes', edit: VALIDATOR, prompt: 'validate the data files',
     prep: () => fs.writeFileSync(BG_OUT('k'), 'checked 3 files\nRESULT: PASS\n'), tools: [BG_JOB('bk1', 'node tools/validate.mjs', BG_OUT('k'))],
     rows: [{ type: 'attachment', attachment: { type: 'queued_command', prompt: MOVED_DONE('bk1', 0).message.content } }],
-    files: { 'data/a.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Validated.' + FIN, expect: { not: ['data-valid'] } },
+    files: { 'data/a.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Validated.' + FIN, expect: { not: ['data-valid'] }, ...gateV2(BG_JOB('bk1', 'node tools/validate.mjs', BG_OUT('k'))) },
   { name: 'bg-moved: the same with a failing output file: blocked', edit: VALIDATOR, prompt: 'validate the data files',
     prep: () => fs.writeFileSync(BG_OUT('l'), 'checked 3 files\nRESULT: FAIL\n'), tools: [BG_JOB('bl1', 'node tools/validate.mjs', BG_OUT('l'))],
     rows: [{ type: 'attachment', attachment: { type: 'queued_command', prompt: MOVED_DONE('bl1', 1).message.content } }],
-    files: { 'data/a.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Validated.' + FIN, expect: { block: true, tags: ['data-valid'] } },
+    files: { 'data/a.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Validated.' + FIN, expect: { block: true, tags: ['data-valid'] }, ...gateV2(BG_JOB('bl1', 'node tools/validate.mjs', BG_OUT('l'))) },
   { name: 'bg-moved: after its notice, a failing output fails the gate: blocked', edit: VALIDATOR, prompt: 'validate the data files', prep: () => fs.writeFileSync(BG_OUT('c'), 'checked 3 files\nRESULT: FAIL\n'),
-    tools: [bash('node tools/validate.mjs', MOVED('bv3a', BG_OUT('c')))], rows: [MOVED_DONE('bv3a', 1)], files: { 'data/a.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Validated.' + FIN, expect: { block: true, tags: ['data-valid'] } },
+    tools: [bash('node tools/validate.mjs', MOVED('bv3a', BG_OUT('c')))], rows: [MOVED_DONE('bv3a', 1)], files: { 'data/a.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Validated.' + FIN, expect: { block: true, tags: ['data-valid'] },
+    ...gateV2(bash('node tools/validate.mjs', MOVED('bv3a', BG_OUT('c')))) },
   { name: 'bg-moved: plan-required does not count files a running job makes', prompt: 'run the full sweep over the notes', tools: [bash('node tools/sweep.mjs', MOVED('bz3a', BG_OUT('d')))],
     files: SIX, answer: 'The sweep is running.', expect: { block: false, not: ['plan-required'] } },
   { name: 'bg-moved: plan-required does not count files a finished job made and deleted', prompt: 'run the full sweep over the notes', tools: [bash('node tools/sweep.mjs', MOVED('bz4a', BG_OUT('e')))],
@@ -4199,6 +4205,8 @@ const RULES_EDIT = { 'docs/checks/house-style.md': '# House style\nShort lines.\
 STOP.push(
   { name: 'bg-moved: a moved command whose notice says it "will be stopped" after a time limit still holds the Stop while it runs', prompt: 'run the full sweep over the notes',
     tools: [bash('node tools/sweep.mjs', MOVED_FULL('bq1a', BG_OUT('f')))], files: { 'docs/rota.md': 'r' }, answer: 'Started the sweep.', expect: { block: false },
+    // (under v2 a hold is the Stop log's "waiting" entry, which needs a session)
+    v2: { hookInput: { session_id: 'bgm-hold' }, after: dir => { let last = {}; try { last = JSON.parse(fs.readFileSync(path.join(dir, 'tools/hooks/state/stop-log.jsonl'), 'utf8').trim().split('\n').pop()); } catch { } return last.result === 'waiting' || `not held: ${JSON.stringify(last)}`; } },
     after: dir => { let j = {}; try { j = JSON.parse(fs.readFileSync(path.join(dir, 'tools/hooks/state/turn-end.json'), 'utf8')); } catch { } return j.pending >= 1 || `not held: ${JSON.stringify(j)}`; } },
   { name: 'bg-moved: a moved command stopped by the agent no longer holds the Stop: blocked', prompt: 'run the full sweep over the notes',
     tools: [bash('node tools/sweep.mjs', MOVED_FULL('bq2a', BG_OUT('g'))), { name: 'TaskStop', input: { task_id: 'bq2a' }, result: '{"message":"Successfully stopped task: bq2a (node tools/sweep.mjs)"}' }],
@@ -4936,6 +4944,7 @@ const V2_ASKS = {
   'question-no-file': /^- This was a question, but files changed/m,
   'headless-resume': /^- This run is headless/m,
   'notice-answer': /^- This run is headless \(claude -p or the SDK\): its caller gets only the last message/m,
+  'data-valid': /docs\/checks\/always\.md item \d+: The validator passes/,
   'watched-inputs': /^- \S+ was updated while you worked/m,
   'decision-logged': /item \d+: A choice the user made is logged in docs\/DECISIONS\.md/,
   'rule-request': /^- (Write the rule down|Say how the rule is enforced|Save the rule to memory)/m,

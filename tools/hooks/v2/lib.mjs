@@ -367,6 +367,30 @@ export function helpersRunning(rows) {
   return [...runs];
 }
 export const backgroundRunsOf = transcript => backgroundRuns(codexRows(tail(transcript).split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean)));
+// A command run in the background, or moved there after its time limit, printed only where its output goes: once its
+// notice says it completed, its output file is added to its output, and a non-zero exit code marks it failed, so every
+// check that judges runs reads its real result. Lesson (the old suite under v2): a validator moved to the background
+// that printed "RESULT: FAIL" into its file was never judged by it.
+export function withBackgroundOutputs(acts, rows) {
+  const file = new Map(), code = new Map();
+  for (const r of rows) {
+    for (const x of Array.isArray(r.message?.content) ? r.message.content : []) {
+      if (x?.type !== 'tool_result') continue;
+      const out = typeof x.content === 'string' ? x.content : (Array.isArray(x.content) ? x.content.map(c => c?.text || '').join('\n') : '');
+      const m = /^\s*Command (?:running in background with ID:|[^\n]*?moved to the background \(ID:?)\s*([\w-]+)[\s\S]*?Output is being written to:\s*(\S+?)[.\s]*(?:\s|$)/i.exec(out);
+      if (m) file.set(x.tool_use_id, { id: m[1], path: m[2] });
+    }
+    // (the completion notice, as a row or as a queued attachment)
+    const s = JSON.stringify(r);
+    for (const m of s.matchAll(/<task-id>([\w-]+)<\/task-id>[\s\S]{0,400}?exit code (-?\d+)/g)) code.set(m[1], Number(m[2]));
+  }
+  for (const c of acts.calls || []) {
+    const f = file.get(c.id); if (!f || !code.has(f.id)) continue;
+    let text = ''; try { text = fs.readFileSync(f.path, 'utf8').slice(-200000); } catch { }
+    c.out = `${c.out || ''}\n${text}`; if (code.get(f.id) !== 0) c.error = true;
+  }
+  return acts;
+}
 
 // What the turn did: tool calls with their results, and the last text the agent wrote.
 export function turnActs(rows) {
@@ -392,7 +416,7 @@ export function turnActs(rows) {
     // (a message the user typed mid-turn comes as a text item beside tool results: heard too)
     if (r.type === 'user') for (const x of c) { const m = x.type === 'text' && /The user sent a new message while you were working:\s*([\s\S]*?)(?:\n\s*This is how Claude Code surfaces|$)/.exec(x.text || ''); if (m) { heard += m[1].slice(0, 20000) + '\n'; parts.push(m[1].slice(0, 20000)); } }
     for (const x of c) {
-      if (r.type === 'assistant' && x.type === 'tool_use') { const call = { name: x.name, input: x.input || {}, error: false, out: '', done: 0, at: Date.parse(r.timestamp || '') || 0, i: seq, j: Infinity }; calls.push(call); byId.set(x.id, call); }
+      if (r.type === 'assistant' && x.type === 'tool_use') { const call = { id: x.id, name: x.name, input: x.input || {}, error: false, out: '', done: 0, at: Date.parse(r.timestamp || '') || 0, i: seq, j: Infinity }; calls.push(call); byId.set(x.id, call); }
       if (x.type === 'tool_result' && byId.has(x.tool_use_id)) {
         const out = typeof x.content === 'string' ? x.content : Array.isArray(x.content) ? x.content.map(b => b?.text || '').join('\n') : '';
         Object.assign(byId.get(x.tool_use_id), { out: out.slice(-4000), error: !!x.is_error || /\bexit code [1-9]|^Exit code [1-9]/m.test(out), done: Date.parse(r.timestamp || '') || 0, j: seq });

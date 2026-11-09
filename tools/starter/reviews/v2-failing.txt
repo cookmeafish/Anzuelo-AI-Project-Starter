@@ -265,8 +265,6 @@ stop: autonomy-decide: autonomy auto, the answer ends asking a design question: 
 stop: autonomy-recorded: "don't ask me" left only in the answer: blocked
 stop: bg-moved: a foreground command moved to the background holds the Stop while it runs
 stop: bg-moved: a moved command whose notice says it "will be stopped" after a time limit still holds the Stop while it runs
-stop: bg-moved: after its notice, a failing output fails the gate: blocked
-stop: bg-moved: the same with a failing output file: blocked
 stop: block cap reached: a check that waits on background agents is not carried over
 stop: block cap reached: unresolved checks are saved for the next prompt
 stop: broken requirements.json: blocked
