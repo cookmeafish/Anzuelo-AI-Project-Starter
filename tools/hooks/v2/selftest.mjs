@@ -1574,6 +1574,19 @@ const { questionGaps } = await import('./lib.mjs');
   report(took && capped && cleaned && JSON.stringify(got) === '[false,true,true,false,true,true]', 'end: a file marker counts a file whose content changed this turn, or was committed this turn, not one only touched: unchanged since a commit made before the turn, or since the turn began for one already changed then (the prompt hook\'s background snapshot; not for a file written while it ran; none past 2,000 files; day-old ones removed)', JSON.stringify({ took, capped, cleaned, got, err: (out.stderr || '').slice(0, 300) }));
 }
 
+// (claim-checked (git): "nothing is committed" about the saved version, while git has the file, is contradicted; a
+// file git never had, or a folder that is no repository, is not)
+{
+  const { spawnSync } = await import('node:child_process'), { gitClaimContradicted } = await import('../claims.mjs');
+  const repoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-gc-')), plain = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-gcp-'));
+  const g = (...a) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...a], { cwd: repoDir, encoding: 'utf8' });
+  fs.writeFileSync(path.join(repoDir, 'notes.md'), 'x'); g('init', '-q'); g('add', '-A'); g('commit', '-q', '-m', 'notes');
+  const io = d => ({ root: d, exists: f => fs.existsSync(path.join(d, f)), pathKey: s => String(s).replace(/\\/g, '/') });
+  const said = 'The version saved in git lacks it, because nothing is committed yet for notes.md.';
+  const gcr = { held: !!gitClaimContradicted(said, io(repoDir)), never: !!gitClaimContradicted('The saved version of other.md: nothing is committed yet.', io(repoDir)), norepo: !!gitClaimContradicted(said, io(plain)) };
+  fs.rmSync(repoDir, { recursive: true, force: true }); fs.rmSync(plain, { recursive: true, force: true });
+  report(gcr.held && !gcr.never && !gcr.norepo, 'end: claim-checked (git): "nothing is committed" about a file git has is contradicted; a file git never had, or no repository, is not', JSON.stringify(gcr));
+}
 // (upgrade: a starter copy whose refs are stale still learns it is behind, by asking its upstream once; an up-to-date
 // copy is not. Lesson (a field report): "nothing changed" from a copy 20 commits behind)
 {

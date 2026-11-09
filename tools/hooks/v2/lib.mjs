@@ -14,7 +14,7 @@ import { knowledgeFromFiles as knowledgeFromFilesOf, figureProblems as figurePro
 import { forbiddenRe, secretHit } from '../settings.mjs';
 import { INJ_PLANTED, INJ_AIMED, INJ_WARNED } from '../injection.mjs';
 import { verbatimHits } from './verbatim.mjs';
-import { hexIds } from '../claims.mjs';
+import { hexIds, gitClaimContradicted } from '../claims.mjs';
 import { SELF_KEY, approvedBefore } from '../selfcmds.mjs';
 import { capsWeight } from '../caps.mjs';
 import { toOtherSession } from '../relay.mjs';
@@ -1321,6 +1321,10 @@ export function claimGaps(acts, history = '') {
   // (a message the agent sent is its own words, not evidence: an id it made up there proves nothing in the answer)
   const a = String(acts.answer || ''), seen = acts.calls.map(c => (c.name === 'SendMessage' ? '' : JSON.stringify(c.input)) + '\n' + (c.out || '')).join('\n') + (acts.context || '') + history;
   const out = [...gitClaimGaps(acts)];
+  // (a claim that git holds no earlier version, while git has commits, the shared claims.mjs. Lesson (the old suite under
+  // v2): "nothing is committed" passed while the last commit had the file)
+  const gc = gitClaimContradicted(a, { root: ROOT, exists: f => fs.existsSync(at(f)), pathKey: s => relp(s).replace(/\/+$/, '') });
+  if (gc) out.push(`The answer says git holds no earlier version ("${gc.sentence.slice(0, 90)}"), but git has commits (last: ${gc.head})${gc.had.length ? `, including ${gc.had.join(', ')}` : ''}. Open the version the user saw (git log -- <file>, then git show HEAD:<file>) and say what it shows, or leave the claim out.`);
   const hashes = [...new Set(hexIds(a))];
   const unknown = hashes.filter(h => !seen.includes(h) && spawnSync('git', ['cat-file', '-e', `${h}^{commit}`], { cwd: ROOT, timeout: 5000 }).status !== 0);
   if (unknown.length) out.push(`The answer names commit ${unknown.slice(0, 3).join(', ')}, which no command in this turn showed and this repository does not have: check it, or correct the answer.`);
