@@ -438,6 +438,21 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
     ag([user('fix the soup'), recipe, say('Fixed; serves 4.')]), ag([user('summarize the notes'), say('Summary: soup.')]), ag([user('hello'), say('Hi.')])].map(g => g.length);
   fs.rmSync(path.join(dir, 'docs/checks/always.md'));
   report(fired.every(n => n === 1) && quiet.every(n => n === 0), 'end: the project-wide always list is checked every turn, with answer, tool, file and prompt conditions', JSON.stringify({ fired, quiet }));
+  // (retiring keyword-forced upset and rule handling removed the forcing, not the handling: a skill that is part of a
+  // runbook, once the agent opens it, holds its checkable items, such as the lesson stored in a file)
+  {
+    const { skillMissing } = await import('./end.mjs');
+    put('skills/learn-from-misses/SKILL.md', '---\nname: learn-from-misses\ndescription: x\nrunbook: docs/playbooks/export.md\n---\n# Learn\n\n## Done when\n- [ ] The lesson is written in the skill that missed it (file: skills/**|docs/checks/**)\n- [ ] The answer says what held (judgment: a reader)\n');
+    const readSkill = call('Read', { file_path: path.join(dir, 'skills/learn-from-misses/SKILL.md') }, '# Learn');
+    const fix = call('Edit', { file_path: path.join(dir, 'src/soup.js'), old_string: 'a', new_string: 'b' }, 'ok');
+    const lesson = call('Edit', { file_path: path.join(dir, 'skills/soup/SKILL.md'), old_string: 'a', new_string: 'b' }, 'ok');
+    const noLesson = skillMissing(acts([user('WHY IS THE SOUP SALTY AGAIN'), readSkill, fix, say('Fixed.')]));
+    const stored = skillMissing(acts([user('WHY IS THE SOUP SALTY AGAIN'), readSkill, fix, lesson, say('Fixed; lesson in the soup skill.')]));
+    const unopened = skillMissing(acts([user('WHY IS THE SOUP SALTY AGAIN'), fix, say('Fixed.')]));
+    fs.rmSync(path.join(dir, 'skills/learn-from-misses'), { recursive: true, force: true });
+    report(noLesson.some(s => /learn-from-misses\/SKILL\.md item 1/.test(s)) && !stored.length && !unopened.length,
+      'end: a skill that is part of a runbook, once the agent opens it, holds its checkable items (an upset turn\'s lesson stored); the agent picks it, nothing forces it', JSON.stringify({ noLesson, stored, unopened }));
+  }
   const { asItems } = await import('../../always.mjs');
   const conv = asItems({ tag: 'listed-paths', message: 'Name each path', when: { answerMatches: 'OK to delete' }, require: { answerMatches: '\\w+/\\S+' } });
   const odd = asItems({ tag: 'x', message: 'm', when: { guiChanged: true }, require: { answerMatches: 'a' } });

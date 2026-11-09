@@ -71,7 +71,7 @@ export function missing(turn, acts, books = runbooks()) {
 // The checkable items of each skill with a route of its own that the turn opened (beside the runbook): a rule a skill
 // carries is held like a runbook's. Only marked items count; its judgment items stay the skill's own. Lesson
 // (2026-11-07): the skills' "Done when" lists were never read, so the rules the skills and packs carry went unchecked.
-export function skillMissing(acts, books = skillBooks()) {
+export function skillMissing(acts, books = skillBooks({ parts: true })) {
   // (a typed question that opened a skill is held to its evidence items only; a work turn to all but those)
   const work = worked(acts);
   if (!work && relayed(acts)) return [];

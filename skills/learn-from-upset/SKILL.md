@@ -98,7 +98,7 @@ below first: it shows the user "acknowledged", and the end-of-turn check looks f
 - [ ] Each part of the complaint was checked on its own, and the answer says which parts held (judgment: whether a
       complaint has several parts needs a reader).
 - [ ] The lesson is written in a file that changed this turn (the skill, runbook, rule or check that missed it), or
-      the answer shows the complaint did not hold (hook: upset-learned).
+      the answer shows the complaint did not hold (hook: upset-learned) (file: skills/**|docs/playbooks/**|tools/starter/runbooks/**|AGENTS.md|CLAUDE.md|docs/checks/**|docs/starter-feedback.md|tools/hooks/**|tests/**|test/**).
 - [ ] A lesson at level check has its scenarios and they pass (hook: hooks-tested).
 - [ ] A new check failed on the complained-about state, passed on every existing file it governs and on good samples
       with an edge case from the project's own words (hook: check-proven).

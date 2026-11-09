@@ -87,14 +87,17 @@ export function runbooks() {
 // The skills with a route of their own (skills/<name>/SKILL.md with triggers): not a runbook's mirror, not generated,
 // not a part of a runbook ("runbook:"). Lesson (trial v44): "what was our best week, and what drove it?" matched the
 // data-analysis skill's own triggers, and the reminder named nothing, as v2 read only the runbooks.
-export function skillBooks() {
+// ({ parts: true }: also a skill that is part of a runbook and has checkable items, for the end check. The agent picks
+// it, and once opened its items hold. Lesson (2026-11-08): the upset and rule skills are parts of a runbook, so once
+// keyword forcing was retired, nothing checked that their lesson or rule was stored)
+export function skillBooks({ parts = false } = {}) {
   const own = new Set(runbooks().map(b => b.name)), out = [];
   let names = []; try { names = listAll('skills'); } catch { return out; }
   for (const n of names.filter(n => !own.has(n))) {
     const file = `skills/${n}/SKILL.md`, text = read(file), fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text)?.[1] || '';
-    if (!fm || /^generated:\s*true/m.test(fm) || /^runbook:/m.test(fm)) continue;
-    const triggers = (/^triggers:\s*(.+)$/m.exec(fm)?.[1] || '').split(',').map(s => s.trim().toLowerCase()).filter(s => s.length > 2);
-    if (triggers.length) out.push({ name: n, file, triggers, menu: [], items: doneWhen(text), skills: [] });
+    if (!fm || /^generated:\s*true/m.test(fm)) continue;
+    const triggers = (/^triggers:\s*(.+)$/m.exec(fm)?.[1] || '').split(',').map(s => s.trim().toLowerCase()).filter(s => s.length > 2), items = doneWhen(text);
+    if (/^runbook:/m.test(fm) ? parts && items.some(it => it.kind) : triggers.length) out.push({ name: n, file, triggers, menu: [], items, skills: [] });
   }
   return out;
 }
