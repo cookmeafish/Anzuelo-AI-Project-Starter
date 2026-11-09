@@ -1,4 +1,4 @@
-# Always
+# Always (the project's standing rules, checked every turn)
 
 The project's own standing rules that belong to no single runbook. The end check reads this "Done when" list every
 turn. Give each line one marker: `(file: a|b)`, `(ran: <regex>)`, `(answer: <regex>)`, `(prompt: <regex>)` or

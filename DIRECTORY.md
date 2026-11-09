@@ -46,6 +46,7 @@ others are the skill side of a runbook in §1. What each does and when: its SKIL
 ## 3. Checks and standards
 | File | What it is |
 |---|---|
+| [always.md](docs/checks/always.md) | Always (the project's standing rules, checked every turn) |
 | [better-or-worse.md](docs/checks/better-or-worse.md) | Better or worse? |
 | [finish-checklist.md](docs/checks/finish-checklist.md) | Finish checklist (before every answer that did real work) |
 | [layout-standards.md](docs/checks/layout-standards.md) | Layout standards (where things go) |
