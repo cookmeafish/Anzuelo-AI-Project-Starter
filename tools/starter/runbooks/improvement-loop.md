@@ -136,7 +136,8 @@ One session of steps 1 to 7, run back to back:
 - [ ] Every high and medium finding of the last round is fixed with a test or noted as the model's own slip (judgment)
 - [ ] A testing session with a time budget ran rounds until its end time or a clean round, and the answer lists rounds, verdicts, fixes and what is open (judgment: the budget and the rounds differ each time)
 - [ ] A status or batch report never ends the work: the next task's first tool call goes out in the same response, and
-      the answer names the next task started, or says what blocks it (answer: \b(next|started|now on|blocked|blocks)\b)
+      the answer names the next task started, or says what blocks it (judgment: only a tool call after the report shows
+      the next task started; any answer can say "next", so a word marker passed a turn that stopped)
 
 ## Pitfalls
 

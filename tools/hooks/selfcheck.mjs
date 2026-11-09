@@ -1690,25 +1690,38 @@ STOP.push(
   // said the project now enforced it on its own.
   // Lesson (a field report): drawing files named "*.spec.json" were taken for new tests to prove
   ...[['docs/images/menu.spec.json', '{ "box": [0.2, 0.4] }', { not: ['check-proven'] }, 'data, not a check: passes'], ['tests/menu.spec.ts', 'test("price", () => {})', { tags: ['check-proven'] }, 'a check: blocked']].map(([file, body, expect, says]) => ({
-    name: `check-proven: a new ${file.split('.').pop()} file named like a test after a complaint is ${says}`, prompt: 'you forgot the soup picture again!!',
+    v2: { issue: true }, name: `check-proven: a new ${file.split('.').pop()} file named like a test after a complaint is ${says}`, prompt: 'you forgot the soup picture again!!',
     files: { [file]: body, 'docs/CHANGELOG.md': 'x' }, tools: [{ name: 'Write', input: { file_path: file, content: body } }],
     answer: 'You\'re right: the soup had no picture. Added it.\nLearned (skill): every dish gets a picture → docs/playbooks/menu.md' + FIN, expect })),
-  { name: 'check-proven: a new check tried only on made-up junk after the fix, and a promise: blocked', prompt: 'you forgot to validate the links again!!', prep: preexisting('links.go'),
+  { v2: { issue: true }, name: 'check-proven: a new check tried only on made-up junk after the fix, and a promise: blocked', prompt: 'you forgot to validate the links again!!', prep: preexisting('links.go'),
     files: { 'links.go': 'package main\nfunc validateURL(s string) bool { return strict(s) }\n', 'tools/input-check.mjs': '// fails a handler that skips validation\n', 'docs/CHANGELOG.md': 'x' },
     tools: [editTool('links.go'), bash('node tools/input-check.mjs .cache/ic/h.go', 'h.go: reads input with no validate call\nRESULT: FAIL'), bash('node tools/input-check.mjs links.go', 'RESULT: PASS')],
     answer: 'Partly: links were checked, but only the scheme. Fixed. The project now enforces this on its own.\nLearned (check): every input is validated → tools/input-check.mjs' + FIN,
     expect: { tags: ['check-proven', 'claim-checked'], says: /failed on the state the user complained about/ } },
-  { name: 'check-proven: the check failed on the version from git and passed on 2 good samples: passes', prompt: 'you forgot to validate the links again!!', prep: preexisting('links.go'),
+  { v2: { issue: true }, name: 'check-proven: the check failed on the version from git and passed on 2 good samples: passes', prompt: 'you forgot to validate the links again!!', prep: preexisting('links.go'),
     files: { 'links.go': 'package main\nfunc validateURL(s string) bool { return strict(s) }\n', 'tools/input-check.mjs': '// fails a handler that skips validation\n', 'docs/CHANGELOG.md': 'x' },
     tools: [editTool('links.go'), bash('git show HEAD:links.go > .cache/before-links.go', 'ok'), bash('node tools/input-check.mjs .cache/before-links.go', 'before-links.go: javascript: URL accepted\nRESULT: FAIL'),
       bash('node tools/input-check.mjs links.go .cache/good/idn-host.go', 'RESULT: PASS')],
     answer: 'Partly: links were checked, but only the scheme. Fixed, and it can\'t happen again.\nProven: fails on links.go as it was before the fix; passes on links.go now and an edge case: a handler with an international host and a port\nLearned (check): every input is validated → tools/input-check.mjs' + FIN,
     expect: { not: ['check-proven', 'claim-checked'] } },
+  // (v2 reads no record lines: the same runs prove the promise with no "Proven:" or "Learned" line; the old engine still
+  // asks for its line)
+  { name: 'check-proven: the same runs, the promise and no "Proven:" line: the old engine asks for the line, v2 passes', prompt: 'you forgot to validate the links again!!', prep: preexisting('links.go'),
+    files: { 'links.go': 'package main\nfunc validateURL(s string) bool { return strict(s) }\n', 'tools/input-check.mjs': '// fails a handler that skips validation\n', 'docs/CHANGELOG.md': 'x' },
+    tools: [editTool('links.go'), bash('git show HEAD:links.go > .cache/before-links.go', 'ok'), bash('node tools/input-check.mjs .cache/before-links.go', 'before-links.go: javascript: URL accepted\nRESULT: FAIL'),
+      bash('node tools/input-check.mjs links.go .cache/good/idn-host.go', 'RESULT: PASS')],
+    answer: 'Partly: links were checked, but only the scheme. Fixed, and it can\'t happen again: the new link check failed on the old file and passes on the fixed one.' + FIN,
+    expect: { block: true, tags: ['check-proven'] }, v2: { issue: true, expect: { not: ['check-proven', 'claim-checked'] } } },
+  { name: 'check-proven: the same promise with the check run only after the fix: v2 holds it too, with no record line asked', prompt: 'you forgot to validate the links again!!', prep: preexisting('links.go'),
+    files: { 'links.go': 'package main\nfunc validateURL(s string) bool { return strict(s) }\n', 'tools/input-check.mjs': '// fails a handler that skips validation\n', 'docs/CHANGELOG.md': 'x' },
+    tools: [editTool('links.go'), bash('node tools/input-check.mjs .cache/ic/h.go', 'h.go: reads input with no validate call\nRESULT: FAIL'), bash('node tools/input-check.mjs links.go', 'RESULT: PASS')],
+    answer: 'Partly: links were checked, but only the scheme. Fixed, and it can\'t happen again.' + FIN,
+    expect: { block: true, tags: ['check-proven', 'claim-checked'] }, v2: { issue: true, expect: { block: true, tags: ['check-proven', 'claim-checked'], says: /^(?![\s\S]*Proven:)[\s\S]*failed on the state the user complained about/ } } },
   // Lesson (a field report): a run sent to a file printed "exit 1" and "45 passed, 2 failed" and read as a pass, since
   // the command's last part succeeded; a run with failures is no passing run either
   ...[[['exit 1\n45 passed, 2 failed', '47 passed, 0 failed'], { not: ['check-proven'] }, 'its failing run counts: passes'],
     [['exit 1\n45 passed, 2 failed', '46 passed, 1 failed'], { tags: ['check-proven'], says: /no run of the check passed/ }, 'a run with a failure is no passing run: blocked']].map(([[bad, good], expect, says]) => ({
-    name: `check-proven: a run that printed its failure count and exit code, its last command succeeding: ${says}`, prompt: 'you forgot to validate the links again!!', prep: preexisting('links.go'),
+    v2: { issue: true }, name: `check-proven: a run that printed its failure count and exit code, its last command succeeding: ${says}`, prompt: 'you forgot to validate the links again!!', prep: preexisting('links.go'),
     files: { 'links.go': 'package main\nfunc validateURL(s string) bool { return strict(s) }\n', 'tools/input-check.mjs': '// fails a handler that skips validation\n', 'docs/CHANGELOG.md': 'x' },
     tools: [editTool('links.go'), bash('git show HEAD:links.go > .cache/before-links.go', 'ok'), bash('node tools/input-check.mjs .cache/before-links.go > .cache/out.txt 2>&1; echo "exit $?"; tail -1 .cache/out.txt', bad),
       bash('node tools/input-check.mjs links.go .cache/good/idn-host.go', good)],
@@ -1720,7 +1733,7 @@ STOP.push(
     tools: [bash('node tools/letter-check.mjs drafts/rent.md', 'legal wording\nRESULT: FAIL'), bash('node tools/letter-check.mjs drafts/rent-v2.md', 'RESULT: PASS')],
     answer: 'You\'re right: it read like a warning.\nChecked: drafts/rent.md - it named the tribunal twice.\nProven: fails on the rent letter as it was; passes on the rewritten rent letter\nLearned (check): tenant letters pass a tone check → tools/letter-check.mjs' + FIN,
     expect: { tags: ['check-proven'], says: /fewer than 2 good samples/ } },
-  { name: 'check-proven: Spanish, run before the fix, "Probado:" with 2 good samples, and the promise: passes', prompt: 'otra vez pusiste texto en inglés en la página. todo lo que vea el lector tiene que estar en español, siempre',
+  { v2: { issue: true }, name: 'check-proven: Spanish, run before the fix, "Probado:" with 2 good samples, and the promise: passes', prompt: 'otra vez pusiste texto en inglés en la página. todo lo que vea el lector tiene que estar en español, siempre',
     prep: preexisting('content/receta.md'), files: { 'scripts/check-language.mjs': '// idioma\n', 'content/receta.md': 'Solo para las pruebas', 'docs/CHANGELOG.md': 'x' },
     tools: [bash('node scripts/check-language.mjs', 'MAL content/receta.md "tests"\nRESULT: FAIL'), editTool('content/receta.md'),
       bash('node scripts/check-language.mjs content/receta.md .cache/muestras/torrijas.md .cache/muestras/menu.md', 'RESULT: PASS')],
@@ -1728,7 +1741,7 @@ STOP.push(
     expect: { not: ['check-proven', 'claim-checked'] } },
   // Lesson: agents saved the files with cp before the fix, ran the new check on that copy after the fix (FAIL) and on
   // the fixed file (PASS), and were blocked until they waived the check, once with a false reason.
-  { name: 'check-proven: a copy saved with cp before the fix fails after it, the fixed file passes: passes', prompt: 'you forgot to validate the links again!!', prep: preexisting('links.go'),
+  { v2: { issue: true }, name: 'check-proven: a copy saved with cp before the fix fails after it, the fixed file passes: passes', prompt: 'you forgot to validate the links again!!', prep: preexisting('links.go'),
     files: { 'links.go': 'package main\nfunc validateURL(s string) bool { return strict(s) }\n', 'tools/input-check.mjs': '// fails a handler that skips validation\n', 'docs/CHANGELOG.md': 'x' },
     tools: [bash('mkdir -p .cache/before && cp links.go links_test.go .cache/before/', ''), editTool('links.go'), bash('node tools/input-check.mjs .cache/before/links.go', '.cache/before/links.go: javascript: URL accepted\nRESULT: FAIL'),
       bash('cp .cache/before/links.go .cache/before-links.go && node tools/input-check.mjs .cache/before-links.go', 'RESULT: FAIL'), bash('node tools/input-check.mjs links.go .cache/good/idn-host.go', 'RESULT: PASS')],
@@ -1739,7 +1752,7 @@ STOP.push(
     tools: [bash('Copy-Item links.go -Destination .cache\\links-before.go'), editTool('links.go'), bash('node tools/input-check.mjs .cache\\links-before.go', 'RESULT: FAIL'), bash('node tools/input-check.mjs links.go .cache/good/idn-host.go', 'RESULT: PASS')],
     answer: 'Partly: links were checked, but only the scheme. Fixed.\nProven: fails on links.go as it was before the fix; passes on links.go now and an edge case: a handler with an international host\nLearned (check): every input is validated → tools/input-check.mjs' + FIN,
     expect: { not: ['check-proven'] } },
-  { name: 'check-proven: a copy made after the fix is no earlier state, and the message says what it saw: blocked', prompt: 'you forgot to validate the links again!!', prep: preexisting('links.go'),
+  { v2: { issue: true }, name: 'check-proven: a copy made after the fix is no earlier state, and the message says what it saw: blocked', prompt: 'you forgot to validate the links again!!', prep: preexisting('links.go'),
     files: { 'links.go': 'package main\nfunc validateURL(s string) bool { return strict(s) }\n', 'tools/input-check.mjs': '// fails a handler that skips validation\n', 'docs/CHANGELOG.md': 'x' },
     tools: [editTool('links.go'), bash('cp links.go .cache/before-links.go'), bash('node tools/input-check.mjs .cache/before-links.go', 'RESULT: FAIL'), bash('node tools/input-check.mjs links.go .cache/good/idn-host.go', 'RESULT: PASS')],
     answer: 'Partly: links were checked, but only the scheme. Fixed.\nProven: fails on links.go as it was before the fix; passes on links.go now and an edge case: a handler with an international host\nLearned (check): every input is validated → tools/input-check.mjs' + FIN,
@@ -1753,7 +1766,7 @@ STOP.push(
     tools: [bash('node tools/revisar-idioma.mjs', 'FAIL src/aviso.njk: palabras en inglés: true\nRESULT: FAIL'), editTool('src/aviso.njk'), bash('node tools/revisar-idioma.mjs', 'RESULT: PASS'), bash('node --test tests/idioma.test.mjs', '✔ x\nℹ pass 3')],
     answer: 'Tienes razón en parte: el aviso de borrador decía "true".\nProbado: falla con el aviso anterior; pasa con el aviso nuevo y un caso límite: un texto con "once" y "he"\nAprendido (comprobación): todo lo que ve el lector va en español → tools/revisar-idioma.mjs\n\n## Terminado\n- Hecho. Archivos: docs/x.md',
     expect: { not: ['check-proven'] } },
-  { name: 'check-proven: the same Spanish-named check, run only after the fix, is counted as the check: blocked', prompt: 'otra vez pusiste texto en inglés en la página. todo lo que vea el lector tiene que estar en español, siempre',
+  { v2: { issue: true }, name: 'check-proven: the same Spanish-named check, run only after the fix, is counted as the check: blocked', prompt: 'otra vez pusiste texto en inglés en la página. todo lo que vea el lector tiene que estar en español, siempre',
     prep: dir => { preexisting('src/aviso.njk')(dir); const f = path.join(dir, 'tools/hooks/requirements.json'), j = JSON.parse(fs.readFileSync(f, 'utf8'));
       j.requirements.push({ tag: 'lector-espanol', rule: 'standing preference', when: { filesChanged: ['nada/**'] }, require: { toolPassed: 'node tools/revisar-idioma.mjs' }, message: 'Todo en español.' }); fs.writeFileSync(f, JSON.stringify(j, null, 2)); },
     files: { 'tools/revisar-idioma.mjs': '// idioma\n', 'tests/idioma.test.mjs': 'test("x", () => {});\n', 'src/aviso.njk': 'Borrador: todavía no se publica', 'docs/CHANGELOG.md': 'x' },
@@ -1761,7 +1774,7 @@ STOP.push(
     answer: 'Tienes razón en parte: el aviso de borrador decía "true".\nProbado: falla con el aviso anterior; pasa con el aviso nuevo y un caso límite: un texto con "once" y "he"\nAprendido (comprobación): todo lo que ve el lector va en español → tools/revisar-idioma.mjs\n\n## Terminado\n- Hecho. Archivos: docs/x.md',
     expect: { tags: ['check-proven'], says: /tools\/revisar-idioma\.mjs[\s\S]*FAIL, but after the fix/ } },
   // a sample file holding the text the fix took out is the complained-about text
-  { name: 'check-proven: a sample written with the text the fix took out fails, good samples pass: passes', prompt: 'otra vez pusiste texto en inglés en la página!! todo en español',
+  { v2: { issue: true }, name: 'check-proven: a sample written with the text the fix took out fails, good samples pass: passes', prompt: 'otra vez pusiste texto en inglés en la página!! todo en español',
     prep: preexisting('src/aviso.njk'), files: { 'tools/check-aviso.mjs': '// idioma\n', 'src/aviso.njk': 'Borrador: todavía no se publica', 'docs/CHANGELOG.md': 'x' },
     tools: [{ name: 'Edit', input: { file_path: 'src/aviso.njk', old_string: 'Borrador: no se publica hasta quitar «borrador: true».', new_string: 'Borrador: todavía no se publica.' } },
       { name: 'Write', input: { file_path: '.cache/antes.html', content: '<p class="aviso">Borrador: no se publica hasta quitar «borrador: true».</p>\n' } },
@@ -1769,14 +1782,14 @@ STOP.push(
     answer: 'Tienes razón en parte: el aviso decía "true".\nProbado: falla con el aviso anterior; pasa con el aviso nuevo y un caso límite: un texto con "once" y "he"\n\n## Terminado\n- Hecho. Archivos: docs/x.md',
     expect: { not: ['check-proven'] } },
   // (Lesson, trial round 16: the same sample written with a shell command did not count until it was rewritten with Write)
-  { name: 'check-proven: a sample with the text the fix took out, written by a shell command: passes', prompt: 'otra vez pusiste texto en inglés en la página!! todo en español',
+  { v2: { issue: true }, name: 'check-proven: a sample with the text the fix took out, written by a shell command: passes', prompt: 'otra vez pusiste texto en inglés en la página!! todo en español',
     prep: preexisting('src/aviso.njk'), files: { 'tools/check-aviso.mjs': '// idioma\n', 'src/aviso.njk': 'Borrador: todavía no se publica', 'samples/antes.html': '<p class="aviso">Borrador: no se publica hasta quitar «borrador: true».</p>\n', 'docs/CHANGELOG.md': 'x' },
     tools: [{ name: 'Edit', input: { file_path: 'src/aviso.njk', old_string: 'Borrador: no se publica hasta quitar «borrador: true».', new_string: 'Borrador: todavía no se publica.' } },
       bash("cat > samples/antes.html <<'X'\n<p class=\"aviso\">Borrador: no se publica hasta quitar «borrador: true».</p>\nX", ''),
       bash('node tools/check-aviso.mjs samples/antes.html', 'RESULT: FAIL'), bash('node tools/check-aviso.mjs src/aviso.njk .cache/buena.html', 'RESULT: PASS')],
     answer: 'Tienes razón en parte: el aviso decía "true".\nProbado: falla con el aviso anterior; pasa con el aviso nuevo y un caso límite: un texto con "once" y "he"\n\n## Terminado\n- Hecho. Archivos: docs/x.md',
     expect: { not: ['check-proven'] } },
-  { name: 'check-proven: a made-up sample that is not the text the fix took out: blocked', prompt: 'otra vez pusiste texto en inglés en la página!! todo en español',
+  { v2: { issue: true }, name: 'check-proven: a made-up sample that is not the text the fix took out: blocked', prompt: 'otra vez pusiste texto en inglés en la página!! todo en español',
     prep: preexisting('src/aviso.njk'), files: { 'tools/check-aviso.mjs': '// idioma\n', 'src/aviso.njk': 'Borrador: todavía no se publica', 'docs/CHANGELOG.md': 'x' },
     tools: [{ name: 'Edit', input: { file_path: 'src/aviso.njk', old_string: 'Borrador: no se publica hasta quitar «borrador: true».', new_string: 'Borrador: todavía no se publica.' } },
       { name: 'Write', input: { file_path: '.cache/antes.html', content: '<p>Click here to read more</p>\n' } },
@@ -1810,7 +1823,10 @@ STOP.push(
   { name: 'check-proven: a test added in a plain feature request is not asked to be proven', prompt: 'add a csv export',
     files: { 'src/export.js': 'export const csv = r => r.join(",");\n', 'tests/export.test.js': 'test("csv", () => {});\n', 'docs/CHANGELOG.md': 'x' },
     tools: [bash('npm test', '1 passed')], answer: 'Added the export, so a missing column can\'t happen again.' + FIN, expect: { not: ['check-proven', 'claim-checked'] } },
-  { name: 'claim-checked: a Spanish promise after a complaint with no check behind it: blocked', prompt: 'otra vez pusiste texto en inglés!! ya te lo dije',
+  { name: 'check-proven: a test added in a feature request, with no promise in the answer, is not asked to be proven', prompt: 'add a csv export',
+    files: { 'src/export.js': 'export const csv = r => r.join(",");\n', 'tests/export.test.js': 'test("csv", () => {});\n', 'docs/CHANGELOG.md': 'x' },
+    tools: [bash('npm test', '1 passed')], answer: 'Added the export and a test for its columns.' + FIN, expect: { not: ['check-proven', 'claim-checked'] } },
+  { v2: { issue: true }, name: 'claim-checked: a Spanish promise after a complaint with no check behind it: blocked', prompt: 'otra vez pusiste texto en inglés!! ya te lo dije',
     files: { 'docs/CHANGELOG.md': 'x', 'docs/checks/writing-standards.md': 'x' },
     answer: 'En parte: la receta de prueba decía "tests". La corregí para que no vuelva a pasar.\nAprendido (regla): todo en español → docs/checks/writing-standards.md' + FIN,
     expect: { tags: ['claim-checked'], says: /can't happen again/ } },
@@ -3657,7 +3673,7 @@ STOP.push(
     tools: [sk('security-review'), editTool('skills/security-review/scripts/risky-patterns.mjs'), bash('node skills/security-review/scripts/risky-patterns.mjs src', 'scanned 1 file(s) under src; 0 lead(s) to check by hand.')],
     files: { ...AUTH, 'docs/CHANGELOG.md': 'x' }, answer: 'The form checks the user now.' + FIN, expect: { block: true, tags: ['security-code'] } },
   // check-proven: the problem the user named is not in the project, the answer says so, and a written sample of it fails
-  { name: 'check-proven: the problem is not in the project, the answer says so, a written sample fails and real pages pass: passes', prompt: 'otra vez pusiste texto en inglés en la página!! todo en español',
+  { v2: { issue: true }, name: 'check-proven: the problem is not in the project, the answer says so, a written sample fails and real pages pass: passes', prompt: 'otra vez pusiste texto en inglés en la página!! todo en español',
     prep: preexisting('src/aviso.njk', 'tests/build.mjs'), files: { 'tools/check-aviso.mjs': '// idioma\n', 'src/aviso.njk': 'Borrador: todavía no se publica', 'tests/build.mjs': 'x', 'docs/CHANGELOG.md': 'x' },
     tools: [editTool('tests/build.mjs'), { name: 'Write', input: { file_path: '.cache/muestras/ingles.html', content: '<a href="#c">Skip to content</a>\n' } },
       { ...bash('cd "/c/x" && node tools/check-aviso.mjs .cache/muestras/ingles.html', 'FAIL .cache/muestras/ingles.html: skip, content\nRESULT: FAIL'), error: true }, bash('node tools/check-aviso.mjs src/aviso.njk _site/index.html', 'RESULT: PASS')],
@@ -3665,13 +3681,13 @@ STOP.push(
     expect: { not: ['check-proven'] } },
   // (run on the folder that holds the sample. Lesson, trial round 17: "check-spanish.mjs .cache/muestra-ingles" read as
   // "after the fix, not on a saved copy" for 3 rounds)
-  { name: 'check-proven: the check run on a folder holding the written sample: passes', prompt: 'otra vez pusiste texto en inglés en la página!! todo en español',
+  { v2: { issue: true }, name: 'check-proven: the check run on a folder holding the written sample: passes', prompt: 'otra vez pusiste texto en inglés en la página!! todo en español',
     prep: preexisting('src/aviso.njk', 'tests/build.mjs'), files: { 'tools/check-aviso.mjs': '// idioma\n', 'src/aviso.njk': 'Borrador: todavía no se publica', 'tests/build.mjs': 'x', 'docs/CHANGELOG.md': 'x' },
     tools: [editTool('tests/build.mjs'), { name: 'Write', input: { file_path: '.cache/muestra-ingles/index.html', content: '<a href="#c">Skip to content</a>\n' } },
       { ...bash('node tools/check-aviso.mjs .cache/muestra-ingles', 'index.html: "Skip" en: Skip to content\nRESULT: FAIL'), error: true }, bash('node tools/check-aviso.mjs src/aviso.njk _site/index.html', 'RESULT: PASS')],
     answer: 'No encontré texto en inglés en ninguna página del blog. Aun así, una comprobación nueva lo impide desde ahora.\nProbado: falla con una página con "Skip to content"; pasa con src/aviso.njk, _site/index.html y un caso límite: "Menú: total y error de horno" (palabras que el inglés comparte)\n\n## Terminado\n- Hecho. Archivos: docs/x.md',
     expect: { not: ['check-proven'] } },
-  { name: 'check-proven: a written sample fails after the fix, but the answer does not say the problem was missing: blocked, and the runs read plainly', prompt: 'otra vez pusiste texto en inglés en la página!! todo en español',
+  { v2: { issue: true }, name: 'check-proven: a written sample fails after the fix, but the answer does not say the problem was missing: blocked, and the runs read plainly', prompt: 'otra vez pusiste texto en inglés en la página!! todo en español',
     prep: preexisting('src/aviso.njk', 'tests/build.mjs'), files: { 'tools/check-aviso.mjs': '// idioma\n', 'src/aviso.njk': 'Borrador: todavía no se publica', 'tests/build.mjs': 'x', 'docs/CHANGELOG.md': 'x' },
     tools: [editTool('tests/build.mjs'), { name: 'Write', input: { file_path: '.cache/muestras/ingles.html', content: '<a href="#c">Skip to content</a>\n' } },
       { ...bash('cd "/c/x" && node tools/check-aviso.mjs .cache/muestras/ingles.html', 'FAIL .cache/muestras/ingles.html: skip, content\nRESULT: FAIL'), error: true }, bash('node tools/check-aviso.mjs src/aviso.njk _site/index.html', 'RESULT: PASS')],
@@ -3756,16 +3772,16 @@ STOP.push(
   { name: 'instructions-run: an npm script added this turn and never run: blocked', prompt: 'add a seed script', tools: [W('package.json', '{"scripts":{"seed":"node seed.js"}}')],
     files: { 'package.json': '{"scripts":{"seed":"node seed.js"}}', 'docs/CHANGELOG.md': 'x' }, answer: 'Done. Run `npm run seed` to fill the database.' + FIN, expect: { block: true, tags: ['instructions-run'] } },
   // claim-checked (enforced): "this is checked automatically" needs a check that covers it, shown failing on the case
-  { name: 'claim-checked: "checked automatically, can\'t get through" in a complaint turn with no proof run: blocked', prompt: VAULT_UPSET, edit: VAULT, tools: [{ name: 'Read', input: { file_path: 'Garden/Basil.md' } }],
+  { v2: { issue: true }, name: 'claim-checked: "checked automatically, can\'t get through" in a complaint turn with no proof run: blocked', prompt: VAULT_UPSET, edit: VAULT, tools: [{ name: 'Read', input: { file_path: 'Garden/Basil.md' } }],
     files: VAULT_NOTE, mtimes: { 'Garden/Basil.md': -3_000_000 }, answer: VAULT_CLAIM, expect: { block: true, tags: ['claim-checked'], says: /says this is enforced[\s\S]*failing on the case/ } },
   { name: 'claim-checked: the same claim after the covering check\'s scenarios passed this turn: passes', prompt: VAULT_UPSET, edit: VAULT, tools: [{ name: 'Read', input: { file_path: 'Garden/Basil.md' } }, bash('node tools/hooks/selfcheck.mjs --tags note-linked', 'selfcheck: ALL PASS (4 passed, 0 failed)')],
     files: VAULT_NOTE, mtimes: { 'Garden/Basil.md': -3_000_000 }, answer: VAULT_CLAIM, expect: { not: ['claim-checked'] } },
-  { name: 'claim-checked: the claim about vault notes no check covers (their folder is not in knowledgeDirs), even with a passing run: blocked', prompt: VAULT_UPSET, edit: { 'Garden/Tomatoes.md': VAULT['Garden/Tomatoes.md'] },
+  { v2: { issue: true }, name: 'claim-checked: the claim about vault notes no check covers (their folder is not in knowledgeDirs), even with a passing run: blocked', prompt: VAULT_UPSET, edit: { 'Garden/Tomatoes.md': VAULT['Garden/Tomatoes.md'] },
     tools: [{ name: 'Read', input: { file_path: 'Garden/Basil.md' } }, bash('node tools/hooks/selfcheck.mjs --tags note-linked', 'selfcheck: ALL PASS (4 passed, 0 failed)')],
     files: VAULT_NOTE, mtimes: { 'Garden/Basil.md': -3_000_000 }, answer: VAULT_CLAIM, expect: { block: true, tags: ['claim-checked'], says: /no check that runs on its own covers Garden\/Basil\.md/ } },
   // Lesson, trial round 13: "you made a new note without linking it ... every new note links to" was seen as neither a
   // complaint nor a rule, so the false "checked automatically" went through
-  { name: 'claim-checked: "you made a new note without linking it" is a complaint: the unproven claim is blocked', prompt: 'you made a new note without linking it to the related ones. every new note links to the notes it relates to', edit: VAULT, tools: [{ name: 'Read', input: { file_path: 'Garden/Basil.md' } }],
+  { v2: { issue: true }, name: 'claim-checked: "you made a new note without linking it" is a complaint: the unproven claim is blocked', prompt: 'you made a new note without linking it to the related ones. every new note links to the notes it relates to', edit: VAULT, tools: [{ name: 'Read', input: { file_path: 'Garden/Basil.md' } }],
     files: VAULT_NOTE, mtimes: { 'Garden/Basil.md': -3_000_000 }, answer: 'The note `Garden/Basil.md` is linked both ways.\n\nYour rule is already in place and checked automatically. I can\'t finish an answer until both checks pass.' + FIN, expect: { block: true, tags: ['claim-checked'] } },
   { name: 'claim-checked: a setup answer\'s list of rules "each checked automatically", naming no files: passes', prompt: 'set up this project for my letters',
     answer: 'Done: the project is set up.\n\n**Rules, each checked automatically:**\n- Letters are only ever drafts.\n- Your original leases are never edited.', expect: { not: ['claim-checked'] } },
@@ -3966,11 +3982,12 @@ const NOTES = t => ({ '.cache/turn-notes.md': t });
 const WEEKLY_REQ = { tag: 'weekly-report-saved', rule: '5', when: { playbookUsed: 'weekly-report' }, require: { filesChanged: ['outputs/reports/**'] }, message: 'Save the weekly report.' };
 const WEEKLY_PB = '---\nname: weekly-report\nsummary: Make the weekly report for the partner\ntriggers: weekly report, report for my partner\nreuse: none - project-specific: our own report\n---\n# Playbook: weekly report\n## Steps\n1. Run the report script.\n## Done when\n- [ ] The report is saved (hook: weekly-report-saved)\n';
 STOP.push(
-  { name: 'check-proven: a new blocking check never run on the existing files it governs: blocked, and the message names them', prompt: 'the letter sounds cold again!! letters to tenants are friendly, always',
+  { v2: { issue: true }, name: 'check-proven: a new blocking check never run on the existing files it governs: blocked, and the message names them', prompt: 'the letter sounds cold again!! letters to tenants are friendly, always',
     prep: TONE_REQ, mtimes: OLD_DRAFTS, tools: TONE_RUNS,
     files: { ...TONE_FILES, ...NOTES('Proven: fails on drafts/c.md; passes on the new letter and an edge case: a letter to Flat 2, Rose Court\nLearned (check): tenant letters pass a tone check → tools/tone-check.mjs\n') },
     answer: TONE_ANSWER, expect: { tags: ['check-proven'], says: /no passing run covers 2 of the 2 existing file\(s\) it governs \(drafts\/a\.md, drafts\/b\.md\)/ } },
-  { name: 'check-proven: run on all the existing files it governs, with the count and an edge case in the notes: passes', prompt: 'the letter sounds cold again!! letters to tenants are friendly, always',
+  // (under v2 its "no upset-learned" leaned on the notes' "Learned" record line, which v2 does not read: v2 judges the proof)
+  { v2: { issue: true, expect: { not: ['check-proven'] } }, name: 'check-proven: run on all the existing files it governs, with the count and an edge case in the notes: passes', prompt: 'the letter sounds cold again!! letters to tenants are friendly, always',
     prep: TONE_REQ, mtimes: OLD_DRAFTS, tools: [...TONE_RUNS, bash('node tools/tone-check.mjs drafts/a.md drafts/b.md', 'RESULT: PASS (2 drafts)')],
     files: { ...TONE_FILES, ...NOTES('Proven: fails on drafts/c.md; passes on all 2 existing drafts, the new letter, and an edge case: a letter to Flat 2, Rose Court\nLearned (check): tenant letters pass a tone check → tools/tone-check.mjs\n') },
     answer: TONE_ANSWER, expect: { not: ['check-proven', 'upset-learned'] } },
@@ -3997,7 +4014,7 @@ STOP.push(
     answer: TONE_ANSWER.replace(FIN, '') + '\n\n## Verificación\n- **Probado:**\n  - **Falla** con la carta de antes.' + FIN,
     expect: { tags: ['check-proven'], says: /that line is: "Proven: fails on drafts\/c\.md; passes on all 2 existing files it governs, drafts\/c-v2\.md, \.cache\/edge-rose-court\.md, drafts\/a\.md[^"]*, and an edge case: </ } },
   // a complaint the answer showed does not hold has no complained-about state: a failing sample proves the check
-  { name: 'check-proven: a disproved complaint, the rule kept and its check failing on a sample: passes', prompt: 'otra vez pusiste texto en inglés en la página!! todo en español',
+  { v2: { issue: true }, name: 'check-proven: a disproved complaint, the rule kept and its check failing on a sample: passes', prompt: 'otra vez pusiste texto en inglés en la página!! todo en español',
     prep: preexisting('src/aviso.njk'), files: { 'tools/check-aviso.mjs': '// idioma\n', 'docs/CHANGELOG.md': 'x', ...NOTES('Probado: falla con una página de muestra con "Skip to content"; pasa con la portada, el índice y un caso límite: "Tiempo total: 30 minutos"\nAprendido (nada): la queja no se sostiene - ninguna página tiene texto en inglés\n') },
     tools: [bash('node tools/check-aviso.mjs .cache/muestra-ingles.html', 'RESULT: FAIL'), bash('node tools/check-aviso.mjs _site/index.html _site/indice/index.html .cache/caso.html', 'RESULT: PASS')],
     answer: 'Revisé todas las páginas: ninguna tiene texto en inglés.\nComprobado: _site/*.html - la queja no se sostiene: todo el texto está en español.' + '\n\n## Terminado\n- Hecho. Archivos: docs/x.md', expect: { not: ['check-proven', 'upset-learned'] } },
@@ -4961,10 +4978,13 @@ const V2_ASKS = {
   'upgrade-review': /^- Upgrade review in docs\/DECISIONS\.md: /m,
   'empty-answer': /^- The answer is empty:/m,
   'question-no-file': /^- This was a question, but files changed/m,
+  'answer-traced': /^- (Did you make that up\?|\S+ cites \S+ for ")/m,
+  'instructions-run': /^- The answer tells the user to run /m,
   'headless-resume': /^- This run is headless/m,
   'notice-answer': /^- This run is headless \(claude -p or the SDK\): its caller gets only the last message/m,
   'data-valid': /docs\/checks\/always\.md item \d+: The validator passes/,
-  'claim-checked': /^- (The answer says (the (push|commit) happened, but the last git|git holds no earlier version|the lesson was reported|the change only makes projects better|a test was done by hand|"[^"\n]*", but helpers worked this session)|This turn waived app-\w+-pass)/m,
+  'claim-checked': /^- (The answer says (the (push|commit) happened, but the last git|git holds no earlier version|the lesson was reported|the change only makes projects better|a test was done by hand|this is enforced|"[^"\n]*", but helpers worked this session)|The answer promises it can't happen again|This turn waived app-\w+-pass)/m,
+  'check-proven': /^- The new check \([^\n]*\) is not proven/m,
   'watched-inputs': /^- \S+ was updated while you worked/m,
   'decision-logged': /item \d+: A choice the user made is logged in docs\/DECISIONS\.md/,
   'rule-request': /^- (Write the rule down|Say how the rule is enforced|Save the rule to memory)/m,
@@ -7194,6 +7214,12 @@ if (mineB()) { // upgrade-breaking: the review lists each "Breaking for project 
     && own.items.length === 2 && own.items.every(i => i.startsWith('breaking: ') && !i.slice(10).includes(': ')) && none.items.length === 0 && none.shown.length === 2 && again.items.length === 1,
     'upgrade-breaking: notes new since the engine commit are listed (a re-check entry dated before the last review too), old ones are not; review items only with "externalHooks", once',
     JSON.stringify({ got, byDate: byDate.breaking, same, own, none, again }).slice(0, 900));
+  // (Lesson (a field report): changelog entries printed after the items, bulleted like them, read as more items to decide)
+  const { upgradeReport } = await import(pathToFileURL(path.join(B, 'tools/hooks/hooks.mjs')).href);
+  const rep = upgradeReport({ open: ['docs/playbooks/menu.md: the default changed'], news: got.entries, last: '2026-10-21', today: '2026-10-22', revTo: ' to abc1234' });
+  const afterReview = rep.slice(rep.indexOf('UPGRADE REVIEW'));
+  report(/^UPGRADE REVIEW: 1 item\(s\) to decide[^\n]*\n  - docs\/playbooks\/menu\.md: the default changed$/.test(afterReview) && /\n  changelog: 2026-10-22: Third\./.test(rep) && !/^\s*- \d{4}-/m.test(rep),
+    'upgrade-report: the changelog comes first as plain lines marked as no decision, and the items to decide come last, alone under their heading', rep.slice(0, 600));
 }
 
 if (mineB()) { // relay-route-text: a relayed message routes on its own words; quotes, code and commands are left out, a starter upgrade kept

@@ -180,6 +180,15 @@ const MEMORY = /[\\/]\.claude[\\/]projects[\\/][^\\/]+[\\/]memory[\\/]/i;
 // An Issue line the agent wrote: "Issue: <problem> | runbook: ... | fixed when: ...", never the template's "<...>" and
 // never "Issue: none" (a false alarm). In the notes file, or in the call that wrote it.
 const ISSUE = /^\s*Issue:\s*(?!none\b|<)\S/im, ISSUE_NONE = /^\s*Issue:\s*none\b/im;
+// A complaint turn, by the agent's own judgment, never the user's words: an Issue line it wrote this turn (the notes, its
+// text or a write to the notes), the learn-from-upset skill opened, or an Issue line earlier this session; not when it
+// called the complaint a false alarm ("Issue: none"). The proof checks are judged in such turns, as the old engine did.
+export const complaintTurn = acts => {
+  const notes = turnNotes(acts);
+  if (ISSUE_NONE.test(notes)) return false;
+  return ISSUE.test(notes) || /^\W*Issue:\s*(?!none\b|<)[^\n]*\|\s*runbook:/im.test(acts.said || '') || (acts.calls || []).some(issueWritten)
+    || (acts.calls || []).some(c => c.name === 'Read' && /learn-from-upset[\\/]+SKILL\.md$/i.test(String(c.input?.file_path || ''))) || acts.issuesBefore > 0;
+};
 const issueWritten = c => /^(Bash|PowerShell|Write|Edit|MultiEdit)$/.test(c.name) && /turn-notes\.md/.test(JSON.stringify(c.input || {})) && /(^|\\n|["'])\s*Issue:\s*(?!none\b|<)\S/i.test(JSON.stringify(c.input || {}));
 // How many Issue lines the agent wrote in this session before the turn (in the transcript's earlier tool calls).
 export const issuesBefore = (raw, before) => String(raw || '').split('\n').filter(l => { if (!l.includes('turn-notes') || !l.includes('Issue:')) return false;
@@ -373,7 +382,7 @@ function judge(data, { shadow = false } = {}) {
   if (again && turn.lastBlock) { const after = turnActs(rows.filter(r => (Date.parse(r.timestamp || '') || 0) > turn.lastBlock)); acts.said = after.said + (final && !after.said.includes(final) ? `${final}\n` : ''); acts.answer = final || after.answer || acts.answer; }
   const raw = tail(data.transcript_path, 5 << 20), history = evidenceOf(raw);
   acts.earlier = earlierPrompts(raw, turn.at); acts.runbook = turn.runbook || '';
-  acts.issuesBefore = issuesBefore(raw, turn.at); acts.prior = priorCalls(raw, turn.at);
+  acts.issuesBefore = issuesBefore(raw, turn.at); acts.prior = priorCalls(raw, turn.at); acts.complaint = complaintTurn(acts);
   // (a declared self-test the turn needed and never ran is run here first, so every check below judges its output;
   // never in a preview)
   let autos = []; if (!shadow) try { acts.sessionStart = sessionStart(data.transcript_path || '') || turn.at || null; autos = autoRuns(acts); } catch (e) { autos = [crashLine('self-run', e)]; }

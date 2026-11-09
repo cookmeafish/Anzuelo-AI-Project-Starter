@@ -87,6 +87,10 @@ Measured 2026-11-07 on HEAD (corrections to the draft are marked):
       paths.mjs and outside v2/, so a v2 that cannot load is still reported. git-guard.mjs no longer imports hooks.mjs;
       hooks.mjs re-exports the moved names for the other importers until their slices. Engine count with them: 1,958 of
       2,000 lines; hooks.mjs 8,965 to 8,825.)
+      (2026-11-09, still open: more of hooks.mjs moved whole into shared modules both engines run, while the old suite
+      moves to v2: base-checks, labels, knowledge, claims, repo, then proof.mjs, trace.mjs and launchers.mjs in this
+      change, gates.mjs next. Size: base modules about 1,606 of 1,700, the whole engine within 4,800, both raised for
+      the move by the 2026-11-09 oversight decision and to come down to the measured size when it ends.)
 - [ ] 1c One entry: hook settings and the no-hooks CLI call one v2 entry for session, prompt, pretool, posttool and
       stop. A test pipes every event through it as the claude-code host and checks the agent output and user line.
 - [ ] 1d Tests: port each scenario for behavior v2 keeps, unpinned; delete v1-only ones. Every user-requirements row
