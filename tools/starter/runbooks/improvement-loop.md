@@ -41,11 +41,14 @@ updatedInput) is fixed in place.
    the 20 minutes: `git worktree add --detach ~/.anzuelo-frozen/<commit> <commit>`, then `node tools/hooks/wire.mjs`
    in it, then run there. Not in a temp folder (the link tests refuse one) and not without wire.mjs (the generated
    hook settings are not in git): each cost a failed run. A new worktree has no `.cache/`: create it before sending
-   any output there (2026-11-06: every step's redirect failed and the chain did not run). To release a tested commit
-   while newer work sits in the main folder, push from its frozen copy (`git push origin HEAD:main` there): the push
-   hook checks the proof against the folder it runs in (2026-11-07). Copy its
-   `tools/hooks/engine-proof.json` back only when no engine file changed since that commit, and remove the copy
-   afterwards (`git worktree remove <dir>`).
+   any output there (2026-11-06: every step's redirect failed and the chain did not run). **While the chain runs, start
+   the next task in the same turn:** read-only measurements (on a clone, never the main folder's state), the next port
+   or fix in the main folder. Never wait idle for the notification (2026-11-09: three idle waits of 16 to 23 minutes in
+   one day). The push hook reads the proof inside each pushed commit (`git-guard.mjs pre-push`, `proofCovers`): the
+   chain's whole passing run on the clean frozen copy writes the commit it tested into
+   `tools/hooks/engine-proof.json`; commit that file on top of the tested commit and push. A commit that changed any
+   engine file since then is refused, so newer work in the main folder needs its own chain. Remove the copy afterwards
+   (`git worktree remove <dir>`).
 2. **Run the round on a frozen copy.** `node tools/starter/trials/run.mjs --round <name> --freeze` (names go up:
    v9, v10, ...). Eight standard projects, four at a time: code in three languages, a Spanish-speaking user, letters,
    spreadsheets, a notes vault, a manuscript (`run.mjs --list` marks them). The frozen copy is this commit, so

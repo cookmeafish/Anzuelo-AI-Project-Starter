@@ -38,7 +38,9 @@ const WHEN = { answerMatches: x => `(when answer: ${plain(x)})`, answerNotMatche
   workTurn: x => x ? '(when tool: ^(Edit|Write|MultiEdit|NotebookEdit) )' : null };
 // (toolPassed: a command matching it ran and did not fail, which is what "ran" checks)
 const REQUIRE = { answerMatches: x => `(answer: ${plain(x)})`, answerNotMatches: x => `(answer: ${not(plain(x))})`, filesChanged: x => `(file: ${files(x)})`, toolRan: x => `(ran: ${plain(x)})`,
-  toolPassed: x => cmdOf(x) ? `(ran: ${plain(cmdOf(x))}${x?.pass ? ` => ${plain(x.pass)}` : ''})` : null };
+  // (a declared self-test the end check may run itself keeps that: "(self: <command>)". Lesson (a real project): the
+  // conversion dropped selfRun, so a converted check was asked for and never run)
+  toolPassed: x => cmdOf(x) ? `(ran: ${plain(cmdOf(x))}${x?.pass ? ` => ${plain(x.pass)}` : ''})${x?.selfRun && x?.selfAuto ? ` (self: ${x.selfRun})` : ''}` : null };
 
 // One check as Done-when lines (one per required thing), or the keys no marker can say.
 export function asItems(r) {
@@ -56,10 +58,13 @@ export function asItems(r) {
   const marks = [...cond.matchAll(/\(when (\w+): /g)].length;
   const lines = req.map(([, m]) => `- [ ] ${text} ${cond ? `${cond} ` : ''}${m} <!-- req: ${r.tag} -->`);
   // (read back the way the end check reads it)
-  const back = lines.map(l => { const it = doneWhen(`## Done when\n${l}\n`)[0] || {}; return [...(it.whens || []).map(x => x.arg), it.arg].filter(Boolean); });
+  // (a "(self: <command>)" after the marker is read back on its own: it.self)
+  const selfOf = m => / \(self: (.*)\)$/.exec(m)?.[1] || null, core = m => m.replace(/ \(self: .*\)$/, '');
+  const read = lines.map(l => doneWhen(`## Done when\n${l}\n`)[0] || {});
+  const back = read.map(it => [...(it.whens || []).map(x => x.arg), it.arg].filter(Boolean));
   const inner = s => s.replace(/^\((?:when\s+)?\w+:\s*/, '').replace(/\)$/, '').trim();
-  const want = req.map(([, m]) => [...Object.keys(w).map(k => WHEN[k](w[k])), m].map(inner));
-  if (back.some((b, i) => b.length !== marks + 1 || b.some((x, j) => x !== want[i][j]))) return { bad: ['a regex nested deeper than a marker can hold'] };
+  const want = req.map(([, m]) => [...Object.keys(w).map(k => WHEN[k](w[k])), core(m)].map(inner));
+  if (back.some((b, i) => b.length !== marks + 1 || b.some((x, j) => x !== want[i][j]) || (read[i].self || null) !== selfOf(req[i][1]))) return { bad: ['a regex nested deeper than a marker can hold'] };
   return { lines };
 }
 // (a check already said by a runbook's "Done when" with the same markers is there already, not converted twice.

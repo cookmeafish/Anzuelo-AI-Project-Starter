@@ -867,6 +867,14 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
   const odd = asItems({ tag: 'x', message: 'm', when: { guiChanged: true }, require: { answerMatches: 'a' } });
   report(/\(when answer: OK to delete\) \(answer: \\w\+\/\\S\+\) <!-- req: listed-paths -->/.test(conv.lines?.[0] || '') && odd.bad?.includes('when.guiChanged'),
     'always: a requirements.json check converts to a Done-when line with its tag; one no marker can say is listed, never dropped', JSON.stringify({ conv, odd }));
+  { // (a declared self-test the end check may run keeps its command through the conversion, and the item reads it back)
+    const { doneWhen: dw2 } = await import('./lib.mjs');
+    const sr = asItems({ tag: 'walk', message: 'Verify the walkthrough', when: { filesChanged: ['walkthrough/**'] }, require: { toolPassed: { cmd: 'walkthrough/verify\\.py', pass: 'RESULT: PASS', selfRun: 'python walkthrough/build.py && python walkthrough/verify.py', selfAuto: true } } });
+    const manual = asItems({ tag: 'walk2', message: 'm', when: { filesChanged: ['w/**'] }, require: { toolPassed: { cmd: 'v\\.py', selfRun: 'python v.py' } } });
+    const item = dw2(`## Done when\n- [ ] ${sr.lines?.[0] || ''}\n`)[0];
+    report(item?.self === 'python walkthrough/build.py && python walkthrough/verify.py' && item.kind === 'ran' && !/self:/.test(item.text) && !/\(self:/.test(manual.lines?.[0] || ''),
+      'always: a converted check with selfRun and selfAuto keeps "(self: <command>)", read back as the item\'s self-run; one without selfAuto gets none', { sr: sr.lines?.[0], item, manual: manual.lines?.[0] });
+  }
   // (replay of two projects' own checks: a test that must print its pass line, a work-turn condition, a "not this"
   // pattern and a bracket inside a character class all convert, and read back exactly as written)
   const { doneWhen: dwRead, met } = await import('./lib.mjs');
@@ -1444,6 +1452,27 @@ report(madeUp.length === 2 && /9f8e7d6/.test(madeUp[0]) && /src\/missing\.js/.te
   was === null ? fs.rmSync(path.join(dir, 'docs/DECISIONS.md'), { force: true }) : put('docs/DECISIONS.md', was); fs.rmSync(nag, { force: true });
   report(bad.length === 1 && /"- pack: gui": "later" needs "later - when/.test(bad[0]) && /zz-pack": adopted but not installed/.test(bad[0]) && !/orchestrate/.test(bad[0]) && !again.length && !good.length && !ownWork.length,
     'end: the upgrade review holds an undecided "later" and an adopted pack not installed, once a day, on a turn about the project; decided items and the user\'s own work pass', { bad, again, good, ownWork });
+}
+{ // (REQ: self-run, in a real project's shape: its own app-test-pass with selfRun and selfAuto, a pack check v2 replaced
+  // with its own, and an always.md "(self: ...)" item. A code turn that never ran them gets them run by the end check,
+  // judged by their output; a failing one is named; one the turn already ran, or one that is not selfAuto, is not run)
+  const { autoRuns, met: metItem, doneWhen: dw } = await import('./lib.mjs');
+  const keep = ['tools/hooks/requirements.json', 'docs/checks/always.md', 'check-ok.mjs', 'check-bad.mjs'].map(p => [p, (() => { try { return fs.readFileSync(path.join(dir, p), 'utf8'); } catch { return null; } })()]);
+  put('check-ok.mjs', "console.log('RESULT: PASS')\n"); put('check-bad.mjs', "console.log('RESULT: FAIL 2 broken'); process.exit(1)\n");
+  const req = (selfRun, selfAuto = true) => put('tools/hooks/requirements.json', JSON.stringify({ requirements: [{ tag: 'app-test-pass', when: { filesChanged: ['src/**'] }, require: { toolPassed: { cmd: 'node check-(ok|bad)\\.mjs', pass: 'RESULT: PASS', selfRun, selfAuto } } }] }));
+  const turn = (rows = []) => acts([user('fix the label'), code, ...rows, say('Done.')]);
+  put('docs/checks/always.md', '# Always\n## Done when\n');
+  req('node check-ok.mjs'); const okT = turn(), okOut = autoRuns(okT), okRun = okT.calls.find(c => c.auto);
+  req('node check-bad.mjs'); const badT = turn(), badOut = autoRuns(badT);
+  req('node check-ok.mjs', false); const offT = turn(), offOut = autoRuns(offT);
+  req('node check-ok.mjs'); const ranT = turn([call('Bash', { command: 'node check-ok.mjs' }, 'RESULT: PASS')]); autoRuns(ranT);
+  put('tools/hooks/requirements.json', '{"requirements":[]}');
+  put('docs/checks/always.md', '# Always\n## Done when\n- [ ] The walkthrough verifies (when file: src/**) (ran: check-ok\\.mjs => RESULT: PASS) (self: node check-ok.mjs)\n');
+  const alT = turn(), alOut = autoRuns(alT), alItem = dw(fs.readFileSync(path.join(dir, 'docs/checks/always.md'), 'utf8'))[0];
+  for (const [p, t] of keep) t === null ? fs.rmSync(path.join(dir, p), { force: true }) : fs.writeFileSync(path.join(dir, p), t);
+  const got = { ok: [okOut.length, !!okRun && !okRun.error && /RESULT: PASS/.test(okRun.out)], bad: [badOut.length, /RESULT: FAIL 2 broken/.test(badOut[0] || '')], off: offT.calls.some(c => c.auto), ran: ranT.calls.some(c => c.auto), always: [alOut.length, alT.calls.some(c => c.auto && !c.error), metItem(alItem, alT), alItem.text] };
+  report(got.ok[0] === 0 && got.ok[1] && got.bad[0] === 1 && got.bad[1] && !got.off && !got.ran && got.always[0] === 0 && got.always[1] && got.always[2] === true && !/self:/.test(got.always[3]),
+    'end: a project\'s own declared self-test (requirements.json selfRun + selfAuto, or always.md "(self: ...)") that a code turn never ran is run by the end check and judged by its output; a failure is named; not selfAuto or already run: not run', got);
 }
 // (a Finished section naming a changed file that is not there is an unbacked claim, rule 4: held. The old engine let it
 // pass; v2's stricter verdict is the one kept: tools/starter/reviews/2026-11-08-v2-triage.md, settled conflicts)

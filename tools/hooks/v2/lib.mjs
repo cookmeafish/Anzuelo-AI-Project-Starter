@@ -74,9 +74,12 @@ export function doneWhen(text) {
     // before v2's own)
     // ("(evidence)": the answer is backed by sources read this turn, checked by evidenceGaps)
     const ev = !c && /\(evidence\)/i.test(raw);
-    const text = raw.replace(new RegExp(String.raw`\s*\((?:when\s+)?(?:file|ran|answer|prompt|tool|hooks?|judgment):${VAL.replace('+)', '*)')}\)|\s*\(evidence\)`, 'gi'), '').replace(/\s*\.\s*$/, '').replace(/`/g, '').trim();
+    const text = raw.replace(new RegExp(String.raw`\s*\((?:when\s+)?(?:file|ran|answer|prompt|tool|hooks?|judgment|self):${VAL.replace('+)', '*)')}\)|\s*\(evidence\)`, 'gi'), '').replace(/\s*\.\s*$/, '').replace(/`/g, '').trim();
     const whens = w.map(x => ({ kind: x[1].toLowerCase(), arg: x[2].trim() }));
-    return { n: i + 1, text, kind: c ? c[1].toLowerCase() : ev ? 'evidence' : null, arg: c ? c[2].trim() : null, when: whens[0] || null, whens };
+    // ("(self: <command>)": the command the end check runs itself when the item applies and is not met, as a declared
+    // self-test with selfAuto in requirements.json; its output is then judged like a run of the agent's)
+    const self = [...raw.matchAll(new RegExp(String.raw`\(self:\s*${VAL}\)`, 'gi'))].at(-1)?.[1]?.trim() || null;
+    return { n: i + 1, text, kind: c ? c[1].toLowerCase() : ev ? 'evidence' : null, arg: c ? c[2].trim() : null, when: whens[0] || null, whens, self };
   });
 }
 
@@ -838,8 +841,36 @@ const redirectedTo = cmd => [...String(cmd || '').matchAll(/(?:\d?>>?|\|\s*tee(?
 const selfRuns = new WeakMap();
 function selfRunOnce(acts, cmd) {
   const m = selfRuns.get(acts) || new Map(); selfRuns.set(acts, m);
-  if (!m.has(cmd)) { const r = spawnSync(cmd, { cwd: ROOT, shell: true, encoding: 'utf8', timeout: 120000, maxBuffer: 1 << 24 }); m.set(cmd, `${r.stdout || ''}\n${r.stderr || ''}`); }
+  if (!m.has(cmd)) { const r = spawnSync(cmd, { cwd: ROOT, shell: true, encoding: 'utf8', timeout: 120000, maxBuffer: 1 << 24 }); m.set(cmd, { out: `${r.stdout || ''}\n${r.stderr || ''}`, status: r.status }); }
   return m.get(cmd);
+}
+// REQ: self-run. A declared self-test the turn needed and never ran is run by the end check, once, and its result
+// becomes a run of the turn (acts.calls), so the test, gate, engine and always.md checks all judge it by its output, as
+// they would the agent's own run. Declared as requirements.json toolPassed { cmd, pass, selfRun, selfAuto: true }, any
+// tag, a pack check's project override included (whose "when" must hold), or as an always.md item's "(self: <command>)"
+// (when the item applies and is not met). Returns a line for each run that failed. Not in a preview (shadow): only the
+// real end check runs commands. Lesson (a real project, profiled): a project's own app-test-pass with selfRun and
+// selfAuto was never run under v2, because v2 replaced that check with its own and dropped the project's; the unit test
+// had only tried an engine tag.
+export function autoRuns(acts) {
+  const j = (() => { try { return JSON.parse(fs.readFileSync(at('tools/hooks/requirements.json'), 'utf8')); } catch { return {}; } })();
+  const x = { changed: changedOf(acts), runbook: acts.runbook || '' }, xr = { ...x, get changed() { return changedOf(acts, true); } };
+  const want = [];
+  const tp = c => !c || typeof c !== 'object' ? [] : [...(c.toolPassed && typeof c.toolPassed === 'object' ? [c.toolPassed] : []), ...(c.anyOf || []).flatMap(tp)];
+  for (const r of j.requirements || []) for (const v of tp(r.require)) {
+    if (!v.selfRun || !v.selfAuto || /tools[\\/]+audit\.mjs/.test(v.selfRun)) continue;
+    let applies = false; try { applies = holdsReq(r.when || {}, acts, x) === true && holdsReq({ toolRan: v.cmd || v.selfRun }, acts, xr) !== true; } catch { }
+    if (applies) want.push({ cmd: v.selfRun, pass: v.pass });
+  }
+  for (const it of doneWhen(read(ALWAYS))) if (it.self && it.kind && applies(it, acts) && met(it, acts) === false) want.push({ cmd: it.self, pass: it.kind === 'ran' && / => /.test(it.arg) ? it.arg.split(' => ').pop() : null });
+  const out = [];
+  for (const w of [...new Map(want.map(w => [w.cmd, w])).values()]) {
+    const r = selfRunOnce(acts, w.cmd), passRx = (() => { try { return w.pass ? reqRe(w.pass) : null; } catch { return null; } })();
+    const failed = r.status !== 0 || (passRx && !passRx.test(r.out));
+    acts.calls.push({ name: 'Bash', input: { command: w.cmd }, out: r.out, error: failed, done: Date.now(), auto: true });
+    if (failed) out.push(`The end check ran \`${w.cmd}\` itself, and it failed: ${r.out.trim().split('\n').slice(-2).join(' / ').slice(0, 200)}. Fix it, run it again, and say the result.`);
+  }
+  return out;
 }
 const NOT_A_SOURCE = /^(AGENTS|CLAUDE|DIRECTORY|README)\.md$|^(docs\/(playbooks|checks)|skills|tools|\.claude|\.codex|\.cache)\//;
 function citesOpened(acts, x) {
@@ -880,7 +911,7 @@ export function holdsReq(c, acts, x) {
       if (runs.some(k => ok(k.out) || redirectedTo(k.input.command).some(f => ok(file(f))))) return true;
       if (runs.length || !v?.selfRun || !v?.selfAuto) return false;
       if (/tools[\\/]+audit\.mjs/.test(v.selfRun)) return null;
-      return ok(selfRunOnce(acts, v.selfRun)); },
+      return ok(selfRunOnce(acts, v.selfRun).out); },
     workTurn: v => !v || x.changed.length > 0,
     minToolCalls: v => acts.calls.length >= v,
     // (a branch the evaluator can't read may be the one that holds: then the whole anyOf can't be judged, unless another
