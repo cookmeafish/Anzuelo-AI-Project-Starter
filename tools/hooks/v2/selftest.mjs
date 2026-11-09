@@ -1574,6 +1574,20 @@ const { questionGaps } = await import('./lib.mjs');
   report(took && capped && cleaned && JSON.stringify(got) === '[false,true,true,false,true,true]', 'end: a file marker counts a file whose content changed this turn, or was committed this turn, not one only touched: unchanged since a commit made before the turn, or since the turn began for one already changed then (the prompt hook\'s background snapshot; not for a file written while it ran; none past 2,000 files; day-old ones removed)', JSON.stringify({ took, capped, cleaned, got, err: (out.stderr || '').slice(0, 300) }));
 }
 
+// (claim-checked: "reported to the makers" with no report sent is held, one with a message sent to the starter's session
+// is not; in the starter, "only makes projects better" with no judged round is held, one with NOT WORSE printed is not)
+{
+  const { claimGaps } = await import('./lib.mjs');
+  const has = (rows, re) => claimGaps(acts(rows)).some(s => re.test(s));
+  const marker = path.join(dir, '.starter-template'), cmp = path.join(dir, 'tools/starter/trials/compare.mjs');
+  fs.writeFileSync(marker, ''); fs.mkdirSync(path.dirname(cmp), { recursive: true }); fs.writeFileSync(cmp, '');
+  const rp = { claimed: has([user('note the bug'), say('I reported it to the starter.')], /the lesson was reported/),
+    sent: has([user('note the bug'), call('SendMessage', { to: 'starter', message: 'the bug' }, 'sent'), say('I reported it to the starter.')], /the lesson was reported/),
+    better: has([user('tune the engine'), say('This only makes projects better.')], /only makes projects better/),
+    judged: has([user('tune the engine'), call('Bash', { command: 'node tools/starter/trials/compare.mjs 12' }, 'VERDICT: NOT WORSE'), say('This only makes projects better.')], /only makes projects better/) };
+  fs.rmSync(marker, { force: true }); fs.rmSync(path.join(dir, 'tools/starter'), { recursive: true, force: true });
+  report(rp.claimed && !rp.sent && rp.better && !rp.judged, 'end: claim-checked: "reported to the starter" needs a report sent or a message to its session; "only makes projects better" needs a judged round', JSON.stringify(rp));
+}
 // (claim-checked (verification): a turn that waived its test gate saying it ships is held; with one NOT VERIFIED line,
 // or a condition ("until the tests pass"), it is not)
 {

@@ -19,7 +19,7 @@ import { LABELS_ES, WORTH_IT, plainLabel, EN_COPIES, inEnglish, labelsEsHint, LA
 export { labelsEsHint, LABELS_ES_HINT };
 import { BASE_REQUIREMENTS, FAILED_RUN, MISSING_TOOL, PROBLEM_WORDS } from './base-checks.mjs';
 import { knowledgeFromFiles as sharedKnowledgeFromFiles, figureProblems as sharedFigureProblems } from './knowledge.mjs';
-import { NOT_IN_GIT, gitHolds as sharedGitHolds, namedPaths as sharedNamedPaths, gitClaimContradicted as sharedGitClaim } from './claims.mjs';
+import { IMPROVE_CLAIM, REPORTED, NOT_IN_GIT, gitHolds as sharedGitHolds, namedPaths as sharedNamedPaths, gitClaimContradicted as sharedGitClaim } from './claims.mjs';
 export { ROOT, bulkDir, today, usageOf, read, readJSON, abs, exists, list, walkStat, esc, config, re, secretRes, secretHit, privateTermsPath, privateTermsListFile, forbiddenTerms, forbiddenRe, testInputsHash, aiAttributedCommits, gitignoreProblems, people, personOf, peopleIn, peopleFor, pathsPeople, LABELS_ES, WORTH_IT, plainLabel, EN_COPIES, inEnglish, BASE_REQUIREMENTS };
 // (the safety guard is v2/guard.mjs, loaded by the pretool hook itself: a guard that cannot load is then reported, not
 // a hook that cannot start)
@@ -1184,9 +1184,8 @@ export function actionAttempts(entries) {
 }
 // REQ: claim-checked. Promises that a miss can't come back, and claims that a lesson was sent to the starter's makers.
 const NEVER_AGAIN = /\b(can(?:no|')?t|cannot|won'?t|will not|will never|doesn'?t|does not)\s+(happen|recur|come back|slip (?:through|by|past)|repeat)\b[^.\n]{0,25}\bagain\b|\bnow enforces (this|it)\b|\benforces (this|it) on its own\b|\b(stops?|prevents?|blocks?) (this|it|that) from (ever )?(happening|recurring|coming back)\b/i;
-// a claim that a change only makes projects better: "only improvements", "not worse", "makes projects better"
-const IMPROVE_CLAIM = /\bonly (makes? (it|things|projects?|the projects?) )?(better|improve(s|ments?)?)\b|\b(isn'?t|is not|aren'?t|are not|never|nothing|no) (any |made |got )?worse\b|\bnot (any )?worse\b|\b(makes?|made) (new |every )?(projects?|it) (only )?better\b|\bsolo mejora|\bno (lo |la )?empeora/i;
-const REPORTED = /\b(reported|sent|passed on|forwarded|submitted|filed)\b[^.\n]{0,40}\bto the (tool'?s |starter'?s |engine'?s )?(makers?|authors?|developers?|maintainers?|starter)\b|\b(the )?(makers?|developers?|maintainers?) (were|was|have been|has been) (told|notified|informed)\b|\b(report[eé]|reportad[oa]|envi[eé]|enviad[oa]|avis[eé])\b[^.\n]{0,40}\b(a los|al) (creador(es)?|autor(es)?|desarrollador(es)?|starter)\b/i;
+// (IMPROVE_CLAIM, a claim that a change only makes projects better, and REPORTED, a claim that a lesson reached the
+// starter: in claims.mjs, shared with engine v2)
 // (the git-claim check, REQ: claim-checked (git): in claims.mjs, shared with engine v2)
 const GIT_IO = { root: ROOT, exists, pathKey: s => pathKey(s) };
 export { NOT_IN_GIT };

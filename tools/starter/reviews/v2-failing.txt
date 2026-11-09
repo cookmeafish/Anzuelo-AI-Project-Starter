@@ -276,13 +276,11 @@ stop: check-proven: the existing files covered but no count in the "Proven:" lin
 stop: check-proven: the same Spanish-named check, run only after the fix, is counted as the check: blocked
 stop: claim-checked: "Lo probé a mano" about a browser run: blocked
 stop: claim-checked: "checked automatically, can't get through" in a complaint turn with no proof run: blocked
-stop: claim-checked: "reported to the makers" with only the feedback note: blocked
 stop: claim-checked: "tested by hand" next to data written by hand: blocked
 stop: claim-checked: "the checks passed" when the agent's own run reports items missing, after helpers worked: blocked
 stop: claim-checked: "the other 21 menus passed" after helpers reviewed them in an earlier turn: blocked
 stop: claim-checked: "you made a new note without linking it" is a complaint: the unproven claim is blocked
 stop: claim-checked: a Spanish promise after a complaint with no check behind it: blocked
-stop: claim-checked: in the starter, "only makes projects better" with no judged round this turn: blocked
 stop: claim-checked: the claim about vault notes no check covers (their folder is not in knowledgeDirs), even with a passing run: blocked
 stop: commit archaeology backed by commit hashes: passes
 stop: commit archaeology with a confidence label: passes

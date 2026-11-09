@@ -58,3 +58,8 @@ export function gitClaimContradicted(answer, io) {
   if (paths.length && !had.length) return null;
   return { sentence: s.trim(), head: git.head, had: had.map(p => `${p} (${git.files[p]})`) };
 }
+
+// A claim that a change only makes projects better ("only improvements", "not worse"), and one that a lesson reached
+// the starter's makers ("reported to the makers", Spanish too): both engines check them (claim-checked).
+export const IMPROVE_CLAIM = /\bonly (makes? (it|things|projects?|the projects?) )?(better|improve(s|ments?)?)\b|\b(isn'?t|is not|aren'?t|are not|never|nothing|no) (any |made |got )?worse\b|\bnot (any )?worse\b|\b(makes?|made) (new |every )?(projects?|it) (only )?better\b|\bsolo mejora|\bno (lo |la )?empeora/i;
+export const REPORTED = /\b(reported|sent|passed on|forwarded|submitted|filed)\b[^.\n]{0,40}\bto the (tool'?s |starter'?s |engine'?s )?(makers?|authors?|developers?|maintainers?|starter)\b|\b(the )?(makers?|developers?|maintainers?) (were|was|have been|has been) (told|notified|informed)\b|\b(report[eé]|reportad[oa]|envi[eé]|enviad[oa]|avis[eé])\b[^.\n]{0,40}\b(a los|al) (creador(es)?|autor(es)?|desarrollador(es)?|starter)\b/i;
