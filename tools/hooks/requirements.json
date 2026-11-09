@@ -260,6 +260,8 @@
             "tools/integrity-check.mjs",
             "tools/screenshot.mjs",
             "tools/trial.mjs",
+            "tools/always.mjs",
+            "tools/starter/**",
             "skills/**",
             "library/**",
             "packs/**",

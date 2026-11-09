@@ -724,6 +724,15 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
         report(!!crash && g1.some(s => /Name the soup source/.test(s)) && !g1.some(s => /Never shown/.test(s)) && /A check crashed \(boom-check\)/.test(r1) && !/A check crashed/.test(r2),
           'end: a check that throws is named once with its error and place, never as unmet; the other checks still run; a repeat round drops it', JSON.stringify({ g1: g1.map(s => s.slice(0, 90)), r1: r1.slice(0, 120), r2: r2.slice(0, 120) }));
       }
+      // (the starter's own release and test tooling, fixed commands with no outside input, sets off no security review;
+      // a project's code does. Lesson (a peer's review): a status turn was held three rounds for a test-runner script)
+      {
+        const { globRx } = await import('./lib.mjs');
+        const spec = JSON.parse(fs.readFileSync(new URL('../requirements.json', import.meta.url), 'utf8')).requirements.find(r => r.tag === 'security-code').when.changedContentMatches;
+        const cov = p => spec.files.some(g => globRx(g).test(p)) && !(spec.ignore || []).some(g => globRx(g).test(p));
+        const tooling = ['tools/starter/v2-sweep.mjs', 'tools/starter/v2-replay.mjs', 'tools/always.mjs', 'tools/hooks/v2/lib.mjs', 'tools/trial.mjs'].filter(cov);
+        report(!tooling.length && cov('src/auth.js') && cov('tools/report.mjs'), 'security: the starter\'s own release and test tooling sets off no security review; a project\'s code, and its own tools, still do', JSON.stringify({ tooling }));
+      }
       // (the release chain's v2 sweep: a test failing under v2 that is not on the list fails it, a listed test that passes
       // fails it, and the list is rewritten only to shrink)
       {

@@ -230,11 +230,13 @@
     ],
     "release-ready": [
       "4ef3d3f32dc6",
-      "e0bca545f75f"
+      "e0bca545f75f",
+      "c35cf62b4519"
     ],
     "release-rollback": [
       "3fa00272685a",
-      "609c9c6d860b"
+      "609c9c6d860b",
+      "b371157b0ee0"
     ],
     "release-trigger": [
       "0b4eafe24756",
@@ -289,7 +291,8 @@
       "86487307f48a",
       "fd0d680bacc4",
       "3aa5bf564b47",
-      "7065fbe713dd"
+      "7065fbe713dd",
+      "333cb5addc3a"
     ],
     "security-config": [
       "d9de339b2500",
