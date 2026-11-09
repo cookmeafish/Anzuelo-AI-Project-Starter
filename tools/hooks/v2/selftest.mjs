@@ -1611,6 +1611,18 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   } finally { fs.rmSync(box, { recursive: true, force: true, maxRetries: 3 }); }
 }
 
+// (a name moved out of hooks.mjs into a base module is imported where hooks.mjs still uses it. Lesson (2026-11-08):
+// localDate moved to settings.mjs, the "last" command crashed, and only the full suite found it)
+{
+  const here = path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1'));
+  const top = src => [...src.matchAll(/^(?:export\s+)?(?:async\s+)?(?:function\*?\s+([\w$]+)|(?:const|let|var)\s+([\w$]+))/gm)].map(m => m[1] || m[2]);
+  const hooks = fs.readFileSync(path.join(here, '..', 'hooks.mjs'), 'utf8'), mine = new Set(top(hooks));
+  const imported = new Set([...hooks.matchAll(/^import\s*\{([^}]*)\}/gm)].flatMap(m => m[1].split(',').map(s => s.trim().split(/\s+as\s+/).pop())));
+  const loose = ['settings', 'repo', 'people'].filter(n => fs.existsSync(path.join(here, '..', `${n}.mjs`))).flatMap(n => top(fs.readFileSync(path.join(here, '..', `${n}.mjs`), 'utf8'))
+    .filter(x => !imported.has(x) && !mine.has(x) && new RegExp(`(?<![\\w$.'"])${x.replace(/\$/g, '\\$')}\\s*\\(`).test(hooks)).map(x => `${n}.mjs: ${x}`));
+  report(!loose.length, 'base: every function hooks.mjs still calls from a base module is imported there', loose);
+}
+
 // size budget (docs/plans/2026-11-05-engine-v2.md): the engine stays small, and the end check has at most 15 checks.
 // Lesson: v1 grew to about 9,600 lines of hooks, most of it fixing friction it made itself.
 {
