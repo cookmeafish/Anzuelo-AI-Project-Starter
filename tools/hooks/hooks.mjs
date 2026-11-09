@@ -425,13 +425,24 @@ export const relayedOut = s => String(s || '').replace(RELAYED, ' ');
 // default branch). The OK holds for the session. Lesson (the user, upset): a push queued with the work was refused at
 // the end and the user had to confirm it a second time.
 export function askedPushEarlier(transcriptPath, target) {
-  let raw = ''; try { const fd = fs.openSync(transcriptPath, 'r'), size = fs.fstatSync(fd).size, n = Math.min(size, 8 << 20), b = Buffer.alloc(n); fs.readSync(fd, b, 0, n, size - n); fs.closeSync(fd); raw = b.toString('utf8'); } catch { return false; }
+  // (the whole session, up to 64 MB: a standing OK given early in a long session still holds)
+  let raw = ''; try { const fd = fs.openSync(transcriptPath, 'r'), size = fs.fstatSync(fd).size, n = Math.min(size, 64 << 20), b = Buffer.alloc(n); fs.readSync(fd, b, 0, n, size - n); fs.closeSync(fd); raw = b.toString('utf8'); } catch { return false; }
   const names = /^(main|master)$/i.test(target) ? 'main|master' : esc(target);
   const ok = new RegExp(`\\bpush\\b[\\s\\S]{0,80}\\b(${names})\\b|\\b(${names})\\b[\\s\\S]{0,40}\\bpush`, 'i');
+  // (a standing OK for any push this session, "you have permission to git push whenever you can"; and a plain "yes" to
+  // the agent's own question about this push. Lesson (the user, 2026-11-08): an approved push took four rounds; the
+  // standing OK named no branch, and a "yes" to "push it to main?" was asked again)
+  const standing = /\b(permission|allowed|free|ok|okay)\b[^.\n]{0,40}\b(git\s+)?push\b|\bpush\b[^.\n]{0,40}\b(whenever|any ?time|every time|each time)\b/i;
+  const yes = /^\W*(yes|yep|yeah|y|ok|okay|sure|go|go ahead|do it|please do|push it)\b[\s.!]*$/i;
+  const asked = new RegExp(`\\bpush\\b[^?]{0,120}\\?|\\b(${names})\\b[^?]{0,80}\\?`, 'i');
   const clean = s => String(s).replace(/<(pasted_content|cross-session-message|agent-message|task-notification)\b[\s\S]*?<\/\1\b[^>]*>/g, ' ');
+  let lastSaid = '';
   for (const line of raw.split('\n')) {
+    if (line.includes('"type":"assistant"')) { try { const a = JSON.parse(line).message?.content; const t = Array.isArray(a) ? a.filter(x => x.type === 'text').map(x => x.text).join('\n') : ''; if (t.trim()) lastSaid = t; } catch { } continue; }
     if (!line.includes('"type":"user"')) continue;
     let r; try { r = JSON.parse(line); } catch { continue; }
+    const said = typeof r.message?.content === 'string' ? clean(r.message.content) : '';
+    if (said && (standing.test(said) || (yes.test(said.trim()) && asked.test(lastSaid) && /\bpush\b/i.test(lastSaid)))) return true;
     const c = r.message?.content, texts = typeof c === 'string' ? [c] : Array.isArray(c) ? c.filter(x => x.type === 'text').map(x => (/The user sent a new message while you were working:\s*([\s\S]*?)(?:\n\s*This is how Claude Code surfaces|$)/.exec(x.text || '') || [])[1] || '') : [];
     if (texts.some(t => ok.test(clean(t)))) return true;
   }

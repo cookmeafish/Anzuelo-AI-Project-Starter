@@ -9274,9 +9274,13 @@ if (FAILED.length && !HELPER && !IS_STARTER) for (const l of failureCause({ engi
 try { const { logRun } = await import('./hooks.mjs'); logRun(`node tools/hooks/selfcheck.mjs ${process.argv.slice(2).join(' ')}`.trim(), `selfcheck: ${fail ? 'FAIL' : 'ALL PASS'}${TAGS ? ` for ${TAGS.join(', ')}` : ''} (${pass} passed, ${fail} failed)`, !!fail); } catch { }
 // a whole run is what the upgrade review asks for (REQ: upgrade-review); with engine results reused it counts too, since
 // the engine passed in full under the same stamp
-if (!TAGS) try { fs.mkdirSync(path.join(ROOT, 'tools/hooks/state'), { recursive: true }); fs.writeFileSync(path.join(ROOT, 'tools/hooks/state/selftest.json'), JSON.stringify({ at: localDay(), passed: !fail, count: pass, inputs: INPUTS0, mode: REUSE ? 'reused' : 'full' })); } catch { }
+// (only a whole run under the default engine is the push gate's record: a run under v2, which the release chain makes to
+// compare against its list, fails by design. Lesson (2026-11-08): it overwrote the chain's pass, and an approved push
+// was refused)
+const GATE_RUN = process.env.STARTER_ENGINE === 'v1';
+if (!TAGS && GATE_RUN) try { fs.mkdirSync(path.join(ROOT, 'tools/hooks/state'), { recursive: true }); fs.writeFileSync(path.join(ROOT, 'tools/hooks/state/selftest.json'), JSON.stringify({ at: localDay(), passed: !fail, count: pass, inputs: INPUTS0, mode: REUSE ? 'reused' : 'full' })); } catch { }
 // (a whole pass in a frozen worktree is recorded in the main checkout too: see mainCheckout)
-if (!TAGS && !fail && !HELPER) try { const main = mainCheckout(ROOT); if (main && fs.existsSync(path.join(main, 'tools/hooks/hooks.mjs'))) { fs.mkdirSync(path.join(main, 'tools/hooks/state'), { recursive: true }); fs.writeFileSync(path.join(main, 'tools/hooks/state/selftest.json'), JSON.stringify({ at: localDay(), passed: true, count: pass, inputs: INPUTS0, mode: REUSE ? 'reused' : 'full', from: ROOT })); } } catch { }
+if (!TAGS && GATE_RUN && !fail && !HELPER) try { const main = mainCheckout(ROOT); if (main && fs.existsSync(path.join(main, 'tools/hooks/hooks.mjs'))) { fs.mkdirSync(path.join(main, 'tools/hooks/state'), { recursive: true }); fs.writeFileSync(path.join(main, 'tools/hooks/state/selftest.json'), JSON.stringify({ at: localDay(), passed: true, count: pass, inputs: INPUTS0, mode: REUSE ? 'reused' : 'full', from: ROOT })); } } catch { }
 // a tagged run records itself too, so a pass whose output went to a file or ran in the background counts for the checks
 // it covered (Lesson, trial round 18: a background tagged run passed, and hooks-tested asked for it again: 1m42s)
 if (TAGS) try { fs.mkdirSync(path.join(ROOT, 'tools/hooks/state'), { recursive: true }); fs.writeFileSync(path.join(ROOT, 'tools/hooks/state/selftest-tags.json'), JSON.stringify({ at: new Date().toISOString(), passed: !fail, tags: TAGS, inputs: INPUTS0 })); } catch { }

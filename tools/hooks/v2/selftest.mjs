@@ -744,8 +744,11 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
         const run = (...a) => spawnSync(process.execPath, [tool, ...a], { encoding: 'utf8', env: { ...process.env, V2_SWEEP_LIST: list } });
         const wrote = run('--from', path.join(sw, 'r1.txt'), '--write').status, same = run('--from', path.join(sw, 'r1.txt')), worse = run('--from', path.join(sw, 'r2.txt')), grow = run('--from', path.join(sw, 'r2.txt'), '--write');
         fs.rmSync(sw, { recursive: true, force: true });
-        report(wrote === 0 && same.status === 0 && worse.status === 1 && /not on the list[\s\S]*- stop: d/.test(worse.stdout) && /pass now[\s\S]*- stop: a/.test(worse.stdout) && grow.status === 1,
-          'chain: the v2 sweep fails on a new v2 failure and on a listed test that passes now; its list only shrinks', JSON.stringify({ wrote, same: same.status, worse: worse.status, grow: grow.status }));
+        // (the sweep's run under v2 fails by design, so it must never write the push gate's pass record)
+        const sc = fs.readFileSync(path.resolve(path.dirname(tool), '..', 'hooks', 'selfcheck.mjs'), 'utf8');
+        const gated = /const GATE_RUN = process\.env\.STARTER_ENGINE === 'v1';/.test(sc) && [...sc.matchAll(/^if \(([^)]*)\) try \{[^\n]*state\/selftest\.json/gm)].every(m => /GATE_RUN/.test(m[1]));
+        report(gated && wrote === 0 && same.status === 0 && worse.status === 1 && /not on the list[\s\S]*- stop: d/.test(worse.stdout) && /pass now[\s\S]*- stop: a/.test(worse.stdout) && grow.status === 1,
+          'chain: the v2 sweep fails on a new v2 failure and on a listed test that passes now; its list only shrinks; a run under v2 never writes the push gate record', JSON.stringify({ wrote, same: same.status, worse: worse.status, grow: grow.status }));
       }
       // (every glob converter in v2 reads "**/" as any number of folders, none included: a root file and a nested one both
       // match. Lesson (the old suite under v2): "**/*" missed CLAUDE.md, and an approved "old/**" covered one level only)
@@ -1478,6 +1481,21 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     msg.answer = claimGaps(acts([user('push it'), call('SendMessage', { to: 'peer', message: `Pushed ${fake}.` }, 'sent'), say(`Pushed ${fake}.`)])).join(' ');
     report(/REQ: claim-checked\. This message names commit/.test(msg.made) && msg.falseRefusals === 0 && msg.exampleRefusals === 0 && msg.exampleHolds === 0 && msg.plainHeld === 1 && !msg.real && !msg.relayed && !!head && new RegExp(`names commit ${fake}`).test(msg.answer),
       'pretool: a message naming a commit this repository lacks, that nothing here showed, is refused before it goes; a real one or one a received message named goes; a hex string outside commit context (anchor, color, hash, path, GUID, word) is never refused; placeholders and quoted examples are neither refused nor held', JSON.stringify({ head, fake, made: msg.made.slice(0, 90), real: msg.real.slice(0, 60), relayed: msg.relayed.slice(0, 60) }));
+  }
+  { // (a push to main goes after a "yes" to the agent's own push question, or a standing OK to push given earlier in the
+    // session; with neither, or a "yes" to another question, it is refused. Lesson (the user, 2026-11-08): an approved
+    // push took four rounds)
+    const u = s => ({ type: 'user', message: { role: 'user', content: s } }), a = s => ({ type: 'assistant', message: { content: [{ type: 'text', text: s }] } });
+    const tp = rows => { const f = path.join(dir, `push-${Math.random().toString(36).slice(2)}.jsonl`); fs.writeFileSync(f, rows.map(r => JSON.stringify(r)).join('\n') + '\n'); return f; };
+    const push = (rows, prompt) => guard({ session_id: '', tool_name: 'Bash', tool_input: { command: 'gi' + 't push origin HEAD:main' }, transcript_path: tp(rows), prompt }, { ...config(), engine: 'v2' }) || '';
+    const ok = {
+      yes: push([u('ship the release'), a('Question for you: should I push the release to main now?'), u('yes')]),
+      standing: push([u('yes, you have permission to git push whenever you can'), a('Done.'), u('carry on with the fixes')]),
+      none: push([u('carry on with the fixes')]),
+      otherYes: push([a('Should I delete the old notes?'), u('yes')]),
+    };
+    report(!ok.yes && !ok.standing && /REQ: (git-safety|outward-gate)/.test(ok.none) && /REQ: (git-safety|outward-gate)/.test(ok.otherYes),
+      'pretool: a push goes after a "yes" to the agent\'s own push question or a standing OK earlier in the session; with neither, or a "yes" to another question, it is refused', JSON.stringify(Object.fromEntries(Object.entries(ok).map(([k, v]) => [k, v.slice(0, 60)]))));
   }
   const R = ROOT.replace(/\\/g, '/') + '/', g = 'gi' + 't ', base = { ...config(), engine: 'v2' };
   const prot = { ...base, protectedOriginals: ['originals/**'] };
