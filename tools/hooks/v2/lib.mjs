@@ -10,7 +10,7 @@ import { roots, resolver } from '../paths.mjs';
 import { people, personOf, peopleIn, peopleFor } from '../people.mjs';
 import { inEnglish } from '../labels.mjs';
 import { BASE_REQUIREMENTS, FAILED_RUN, MISSING_TOOL, PROBLEM_WORDS } from '../base-checks.mjs';
-import { knowledgeFromFiles as knowledgeFromFilesOf } from '../knowledge.mjs';
+import { knowledgeFromFiles as knowledgeFromFilesOf, figureProblems as figureProblemsOf } from '../knowledge.mjs';
 import { forbiddenRe, secretHit } from '../settings.mjs';
 import { INJ_PLANTED, INJ_AIMED, INJ_WARNED } from '../injection.mjs';
 import { verbatimHits } from './verbatim.mjs';
@@ -1030,6 +1030,12 @@ export function holdsReq(c, acts, x) {
     // (facts written into the knowledge files each labeled, dated and sourced from a project file that exists: the
     // shared knowledge.mjs. Lesson (the old suite under v2): the key was unknown, so the knowledge source check never ran)
     knowledgeFromFiles: () => !knowledgeFromFilesOf({ changed: x.changed, uses: acts.calls, toolsKnown: true }, { evidenceLabels: projectConfig().evidenceLabels || [], knowledgeDirs: knowledgeDirs() }, { read: f => { try { return fs.readFileSync(at(f), 'utf8'); } catch { return ''; } }, exists: f => fs.existsSync(at(f)), match: inGlobs, rel: relp }),
+    // (every figure in the answer printed or read this turn, or following from its other figures; a named script ran;
+    // worked sums add up: the shared knowledge.mjs. Lesson (the old suite under v2): the key was unknown, so it never ran)
+    // (the problems found go into the check's message, as the old engine named them)
+    answerFiguresComputed: () => (acts.detail = figureProblemsOf({ answer: acts.answer, prompt: acts.heard, results: acts.calls.filter(k => !/^(Bash|PowerShell)$/.test(k.name)).map(k => k.out || '').join('\n'),
+      runs: acts.calls.filter(k => /^(Bash|PowerShell)$/.test(k.name)).map(k => ({ cmd: String(k.input.command || ''), out: k.out || '', error: !!k.error })), toolsKnown: true },
+    { neverRan: r => !!r.error && REFUSED_RUN.test(r.out || ''), cmdHead: c => String(c || '').replace(/<<-?\s*(['"]?)(\w+)\1[^\n]*\n[\s\S]*?\n\s*\2\b/g, '<<$2') }).join('; ')) === '',
     // (a run the host refused never ran: it failed nothing. Lesson (the v2 re-sweep): a test run held for approval was
     // taken for a failing one, and the turn was asked for a root cause)
     // (as the old engine: a failure line counts like an error exit, a missing tool does not; the failure was found, not
@@ -1072,7 +1078,7 @@ export const ranText = cmd => String(cmd || '')
   .replace(/(\b(?:node|deno|bun)(?:\.exe)?\s+(?:-e|--eval|-p|--print)|\b(?:python3?|py)(?:\.exe)?\s+-c)\s+("(?:[^"\\]|\\.)*"|'[^']*')/gi,
     (m, head, code) => /\b(execSync|execFileSync|spawnSync|spawn|exec|execFile|fork|subprocess|os\.system|system|Popen)\s*\(/.test(code) ? m : `${head} ""`)
   .replace(/(?<!(?:-c|-lc|\/c|eval|-Command|-EncodedCommand|--command)\s+)("[^"\n]*\s[^"\n]*"|'[^'\n]*\s[^'\n]*')/gi, '""');
-export const REQ_KEYS = ['skillUsed', 'playbookUsed', 'filesChanged', 'filesIgnore', 'answerMatches', 'answerNotMatches', 'promptMatches', 'promptNotMatches', 'toolRan', 'toolPassed', 'workTurn', 'minToolCalls', 'anyOf', 'answerCites', 'ranFailing', 'toolCount', 'fileRead', 'playbookRouted', 'guiChanged', 'changedContentMatches', 'checkedAfterAgents', 'knowledgeFromFiles'];
+export const REQ_KEYS = ['skillUsed', 'playbookUsed', 'filesChanged', 'filesIgnore', 'answerMatches', 'answerNotMatches', 'promptMatches', 'promptNotMatches', 'toolRan', 'toolPassed', 'workTurn', 'minToolCalls', 'anyOf', 'answerCites', 'ranFailing', 'toolCount', 'fileRead', 'playbookRouted', 'guiChanged', 'changedContentMatches', 'checkedAfterAgents', 'knowledgeFromFiles', 'answerFiguresComputed'];
 export const promptOnly = c => { const ks = Object.keys(c || {}); return ks.length > 0 && ks.every(k => /^(promptMatches|promptNotMatches|filesIgnore)$/.test(k)); };
 // a check routed by its runbook alone, with no action that shows the work (the audit fails it)
 const ACTION_KEYS = ['toolRan', 'toolPassed', 'filesChanged', 'ranFailing', 'guiChanged', 'changedContentMatches', 'toolCount'];
@@ -1243,7 +1249,8 @@ export function engineCheckGaps(acts) {
   const ignoreOwned = (w, own) => w && typeof w === 'object' ? { ...w, ...(w.filesChanged ? { filesIgnore: [...[].concat(w.filesIgnore || []), ...own] } : {}), ...(w.anyOf ? { anyOf: w.anyOf.map(s => ignoreOwned(s, own)) } : {}) } : w;
   for (const r0 of engineChecks()) {
     const own = r0.forces ? ownedBy(r0.forces) : [], r = own.length ? { ...r0, when: ignoreOwned(r0.when, own) } : r0;
-    try { if (!(small && SMALL_SKIP.test(r.tag)) && !promptOnly(r.when) && holdsReq(r.when, read, x) === true && holdsReq(r.require, read, xr) === false && !draftMet(r.require, read, xr) && !waivedTag(r.tag, acts) && !(r.tag === 'version-bump' && bumpedEarlier(acts.prior, r.require?.filesChanged))) out.push(`Check: ${r.message}`); }
+    read.detail = '';
+    try { if (!(small && SMALL_SKIP.test(r.tag)) && !promptOnly(r.when) && holdsReq(r.when, read, x) === true && holdsReq(r.require, read, xr) === false && !draftMet(r.require, read, xr) && !waivedTag(r.tag, acts) && !(r.tag === 'version-bump' && bumpedEarlier(acts.prior, r.require?.filesChanged))) out.push(`Check: ${r.message}${read.detail ? ` (${read.detail})` : ''}`); }
     catch (e) { out.push(crashLine(r.tag, e)); }
   }
   return out;

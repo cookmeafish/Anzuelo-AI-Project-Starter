@@ -293,9 +293,6 @@ stop: claim-checked: the tests were waived and the answer says it ships: blocked
 stop: commit archaeology backed by commit hashes: passes
 stop: commit archaeology with a confidence label: passes
 stop: crash blocks once, then releases
-stop: data-computed: a "(calculated: ...)" whose arithmetic gives another figure: blocked
-stop: data-computed: a figure no run printed and none follows from: blocked
-stop: data-computed: a worked sum that does not give the figure it stands for (315 for 315 + 125): blocked
 stop: debug skill matched but not opened: blocked
 stop: dev mode: an engine change with no self-tests, changelog or proof it works: blocked
 stop: dev-new-project: project making changed in a development copy without the trial: blocked

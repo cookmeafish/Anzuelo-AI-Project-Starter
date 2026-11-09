@@ -3702,6 +3702,9 @@ const VAULT_NOTE = { 'Garden/Basil.md': '# Basil\nPlant it next to the tomatoes.
 const MISSING_GATE = withReqs({ tag: 'zz-gate', when: { filesChanged: ['data/**'] }, require: { toolPassed: { cmd: 'zzq-missing-tool test', pass: 'ok', selfRun: 'zzq-missing-tool test' } }, message: 'Run the tests.' });
 const SALES_OUT = '2026-W40.csv: rows 3, revenue 440\n  mugs: revenue 315\n  plates: revenue 125\n2026-W41.csv: rows 3, revenue 479\n  mugs: revenue 225\n  bowls: revenue 154\n  plates: revenue 100\n2026-W42.csv: rows 3, revenue 692\n  mugs: revenue 300\n  bowls: revenue 242\n  plates: revenue 150';
 const FIGS = withReqs({ tag: 'data-computed', when: { promptMatches: 'best week' }, require: { answerMatches: 'how it was computed:', answerFiguresComputed: true }, message: 'Compute every number with code run this turn.' });
+// (v2 starts no check from prompt words alone (keyword forcing retired 2026-11-07): the same check, started by the
+// turn's own computation run, so the figures are still judged; the verdicts are unchanged)
+const FIGS_V2 = withReqs({ tag: 'data-computed', when: { toolRan: 'compare-weeks' }, require: { answerMatches: 'how it was computed:', answerFiguresComputed: true }, message: 'Compute every number with code run this turn.' });
 const FIG_RUN = bash('node .cache/data/compare-weeks.mjs', SALES_OUT);
 const FIG_HOW = '\nHow it was computed: `.cache/data/compare-weeks.mjs` over the three exports. The figures without bowls: 300 + 150, 225 + 100 and 315 + 125.';
 const CHARS = { 'characters.md': '# Characters\n- **Bram Oaken**: smith, right-handed, scar over the left eye.\n' };
@@ -3846,15 +3849,15 @@ STOP.push(
   { name: 'app-test-pass: the same, never tried and silent about it: asks for the NOT VERIFIED line, not a run', prompt: 'add the vendor data', edit: MISSING_GATE, tools: [],
     files: { 'data/v.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Added the data.' + FIN, expect: { block: true, tags: ['zz-gate'], says: /zzq-missing-tool` is not installed[\s\S]*NOT VERIFIED/ } },
   // data-computed: each figure comes from the run, or follows from the answer's other figures
-  { name: 'data-computed: a worked sum that does not give the figure it stands for (315 for 315 + 125): blocked', prompt: 'what was our best week so far?', edit: FIGS, tools: [FIG_RUN],
+  { name: 'data-computed: a worked sum that does not give the figure it stands for (315 for 315 + 125): blocked', prompt: 'what was our best week so far?', edit: FIGS, v2: { edit: FIGS_V2 }, tools: [FIG_RUN],
     answer: 'Your best week was week 42 with 692. Revenue rose 213 on week 41 (479). Bowls rose 88 (154 to 242), 41% of the gain. Without bowls, week 42 still beats both earlier weeks (450 against 315 and 325).' + FIG_HOW,
     expect: { block: true, tags: ['data-computed'], says: /315 \+ 125 = 440/ } },
-  { name: 'data-computed: every figure printed by the run or worked out from them (sum, change, share): passes', prompt: 'what was our best week so far?', edit: FIGS, tools: [FIG_RUN],
+  { name: 'data-computed: every figure printed by the run or worked out from them (sum, change, share): passes', prompt: 'what was our best week so far?', edit: FIGS, v2: { edit: FIGS_V2 }, tools: [FIG_RUN],
     answer: 'Your best week was week 42 with 692. Revenue rose 213 on week 41 (479). Bowls rose 88 (154 to 242), 41% of the gain. Without bowls, week 42 still beats both earlier weeks (450 against 440 and 325).' + FIG_HOW,
     expect: { not: ['data-computed'] } },
-  { name: 'data-computed: a figure no run printed and none follows from: blocked', prompt: 'what was our best week so far?', edit: FIGS, tools: [FIG_RUN],
+  { name: 'data-computed: a figure no run printed and none follows from: blocked', prompt: 'what was our best week so far?', edit: FIGS, v2: { edit: FIGS_V2 }, tools: [FIG_RUN],
     answer: 'Your best week was week 42 with 692, and the average order was 37.5.' + FIG_HOW, expect: { block: true, tags: ['data-computed'], says: /37\.5 appears in no output/ } },
-  { name: 'data-computed: a "(calculated: ...)" whose arithmetic gives another figure: blocked', prompt: 'what was our best week so far?', edit: FIGS, tools: [FIG_RUN],
+  { name: 'data-computed: a "(calculated: ...)" whose arithmetic gives another figure: blocked', prompt: 'what was our best week so far?', edit: FIGS, v2: { edit: FIGS_V2 }, tools: [FIG_RUN],
     answer: 'Your best week was week 42 with 692, about 230.7 a day (calculated: 692 / 4).' + FIG_HOW, expect: { block: true, tags: ['data-computed'], says: /does not add up \(the arithmetic gives 173\)/ } },
   // answer-traced (cited claims): a claim cited to a file shares its key words with it
   { name: 'answer-traced: an outline cites characters.md for an inference the file does not hold: blocked', prompt: 'write a one-page outline for chapter 3', files: OUTLINE('Scar: left eye, so a blind or weaker side is on the left'),
@@ -4939,6 +4942,7 @@ const helpers = HELPER ? [] : Array.from({ length: SHARDS - 1 }, (_, k) => new P
 
 // Each behavior ported to v2, by what its end-check message asks (one line per port, with the port's commit).
 const V2_ASKS = {
+  'data-computed': /appears? in no output of this turn|does not add up|which did not run this turn|but the sentence with the other results/,
   'scope-separate': /Keep each person's details apart|^- Files of .+ changed, but this request is/m, // 617f3ec
   'question-answered': /^- Answer the user's message typed at /m, // f715d31
   'security-code': /^- Check: Security-sensitive code changed /m,

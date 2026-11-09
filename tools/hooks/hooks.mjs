@@ -18,7 +18,7 @@ import { people, personOf, peopleIn, peopleFor, pathsPeople } from './people.mjs
 import { LABELS_ES, WORTH_IT, plainLabel, EN_COPIES, inEnglish, labelsEsHint, LABELS_ES_HINT } from './labels.mjs';
 export { labelsEsHint, LABELS_ES_HINT };
 import { BASE_REQUIREMENTS, FAILED_RUN, MISSING_TOOL, PROBLEM_WORDS } from './base-checks.mjs';
-import { knowledgeFromFiles as sharedKnowledgeFromFiles } from './knowledge.mjs';
+import { knowledgeFromFiles as sharedKnowledgeFromFiles, figureProblems as sharedFigureProblems } from './knowledge.mjs';
 export { ROOT, bulkDir, today, usageOf, read, readJSON, abs, exists, list, walkStat, esc, config, re, secretRes, secretHit, privateTermsPath, privateTermsListFile, forbiddenTerms, forbiddenRe, testInputsHash, aiAttributedCommits, gitignoreProblems, people, personOf, peopleIn, peopleFor, pathsPeople, LABELS_ES, WORTH_IT, plainLabel, EN_COPIES, inEnglish, BASE_REQUIREMENTS };
 // (the safety guard is v2/guard.mjs, loaded by the pretool hook itself: a guard that cannot load is then reported, not
 // a hook that cannot start)
@@ -6796,74 +6796,8 @@ export function citedClaimGaps(texts, readFile = p => (exists(p) ? read(abs(p)) 
   }
   return out;
 }
-// answerFiguresComputed: a "How it was computed" line is not enough; the figures must come from the computation.
-// Each figure in the answer appears in what this turn's tools printed or read, or follows from the answer's other
-// figures (their sum, difference, product, ratio, share or change in percent); the script the line names ran this
-// turn; and a sum the answer works out ("315 + 125") gives the figure it stands for. Single digits, years and dates are
-// left out. Returns the problems, [] when it holds.
-// Lesson: an answer said week 40 without bowls made 315 (it made 440: 315 + 125, as its own "How it was computed" line
-// listed), and that line pointed to a script that never printed the figure.
-const FIG = /(?<![\w.])([$€£]?)(\d[\d,]*(?:\.\d+)?)(\s?%)?(?![\w])/g;
-const figNum = s => Number(String(s).replace(/[$€£%\s]/g, '').replace(/,(?=\d{3}\b)/g, ''));
-export function figureProblems(x) {
-  const out = [];
-  const body = String(x.answer || '').replace(/^---\n[\s\S]*?\n---\n/, '').split(/^#{1,6}\s*\**(?:finished|terminado)\b|^\**(?:finished|terminado)\**\s*$/im)[0];
-  const how = /^.*\b(how it was computed|c[oó]mo se calcul[oó])\s*:.*$/im.exec(body)?.[0] || '';
-  // the script the line names ran this turn
-  const script = /[\w.\\/-]*[\w-]\.(?:mjs|cjs|js|ts|py|r|sql|sh|ps1)\b/i.exec(how.replace(/`/g, ' '))?.[0];
-  if (script && x.toolsKnown) {
-    const base = script.replace(/\\/g, '/').split('/').pop().toLowerCase();
-    if (!(x.runs || []).some(r => !neverRan(r) && cmdHead(r.cmd).replace(/\\/g, '/').toLowerCase().includes(base))) out.push(`the "How it was computed" line names ${script}, which did not run this turn`);
-  }
-  const clean = l => l.replace(/https?:\/\/\S+|`[^`]*`|\b[\w.-]+\/[\w./-]+|\b\d{4}-\d\d-\d\d\b|\b\d{1,2}[/:]\d{2}([/:]\d{2,4})?\b|\b[Ww]\d{1,2}\b|\[\d+\]/g, ' ').replace(/^\s*(\d+\.|-|\*)\s+/, '');
-  // A figure followed by its worked arithmetic, "42.5 (calculated: (40 + 45) / 2)", is checked by doing the arithmetic;
-  // a "(calculated: ...)" in words leaves its line to the reader.
-  const calc = [];
-  for (const l of body.split(/\r?\n/)) for (const m of l.matchAll(/(?<![\w.])([$€£]?\d[\d,]*(?:\.\d+)?)\s?%?(?:\s+[^\d\s()]+){0,4}\s*\((?:calculated|calculado)\s*:\s*([^()]*(?:\([^()]*\)[^()]*)*)\)/gi)) {
-    const expr = m[2].replace(/(\d),(?=\d{3}\b)/g, '$1').replace(/×/g, '*').replace(/÷/g, '/');
-    if (!/^[\d\s.+\-*/()]+$/.test(expr)) continue;
-    let v; try { v = Function(`"use strict"; return (${expr});`)(); } catch { continue; }
-    const want = figNum(m[1]), dec = (m[1].split('.')[1] || '').length;
-    if (Number.isFinite(v) && Math.abs(v - want) > 0.5 * 10 ** -dec + 1e-9) out.push(`"${m[0].trim().slice(0, 60)}" does not add up (the arithmetic gives ${+v.toFixed(4)})`);
-    calc.push(m[1]);
-  }
-  const lines = body.split(/\r?\n/).filter(l => !/\b(estimate|approx|not verified|my (guess|inference)|rounded|inferid[oa]|estimad[oa])\b/i.test(l) && l !== how
-    && !(/\((calculated|calculado)\s*:/i.test(l) && !calc.some(c => l.includes(c))));
-  const figs = [];
-  for (const l of lines) for (const m of clean(l).matchAll(FIG)) {
-    const n = figNum(m[0]);
-    if (!Number.isFinite(n) || (!m[1] && !m[3] && Number.isInteger(n) && (n < 10 || (n >= 1900 && n <= 2099 && !m[2].includes(','))))) continue;
-    figs.push({ s: m[0].trim(), n, pct: !!m[3], dec: (m[2].split('.')[1] || '').length });
-  }
-  // what the turn's tools printed or read, and the request itself
-  const corpus = `${x.results || ''}\n${(x.runs || []).map(r => r.out || '').join('\n')}\n${x.prompt || ''}`.replace(/(\d),(?=\d{3}\b)/g, '$1');
-  const inCorpus = f => new RegExp(`(?<![\\d.])${esc(String(f.n))}(?![\\d])`).test(corpus) || (f.dec && new RegExp(`(?<![\\d.])${esc(f.n.toFixed(f.dec))}(?![\\d])`).test(corpus));
-  const close = (f, v) => Math.abs(f.n - v) <= (f.dec || f.pct ? 0.5 * 10 ** -f.dec + 1e-9 : (Number.isInteger(v) ? 0 : 0.5));
-  // (worked out in two steps at most: "up 88 (154 to 242), 41% of the 213 gain" takes 88 from 242 - 154 first)
-  let known = [...new Set(figs.filter(inCorpus).map(f => f.n))];
-  const derived = f => known.some(a => known.some(b => a !== b && (close(f, a + b) || close(f, a - b) || close(f, a * b) || (b && (close(f, a / b) || (f.pct && (close(f, (a / b) * 100) || close(f, ((a - b) / b) * 100))))))));
-  for (let i = 0; i < 2; i++) known = [...new Set([...known, ...figs.filter(f => !f.pct && !known.includes(f.n) && derived(f)).map(f => f.n)])];
-  const bad = [...new Set(figs.filter(f => !inCorpus(f) && !derived(f) && !calc.some(c => figNum(c) === f.n)).map(f => f.s))];
-  if (bad.length) out.push(`${bad.slice(0, 6).join(', ')} ${bad.length > 1 ? 'appear' : 'appears'} in no output of this turn and ${bad.length > 1 ? 'do' : 'does'} not follow from the answer's other figures`);
-  // a sum the answer works out gives the figure it stands for: "a + b = c" adds up, and in a list of sums, the
-  // sentence that gives most of their results gives them all
-  // (a number is "1,240" or "15.5"; the comma after "150, 225" is the list's)
-  const N = String.raw`\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?`;
-  const sumsIn = t => [...t.matchAll(new RegExp(String.raw`(?<![\w.,])(${N})((?:\s*\+\s*(?:${N}))+)(\s*=\s*(${N}))?(?![\w])`, 'g'))]
-    .map(m => ({ s: m[0].trim(), v: [m[1], ...m[2].split('+').slice(1)].reduce((a, b) => a + figNum(b), 0), eq: m[4] != null ? figNum(m[4]) : null }));
-  const sents = body.split(/(?<=[.!?])\s+|\r?\n/);
-  for (const s of sents) {
-    const sums = sumsIn(s.replace(/`/g, ''));
-    for (const q of sums) if (q.eq != null && Math.abs(q.eq - q.v) > 1e-6) out.push(`"${q.s}" does not add up (it makes ${+q.v.toFixed(4)})`);
-    const open = sums.filter(q => q.eq == null);
-    if (open.length < 2) continue;
-    const has = (t, v) => new RegExp(`(?<![\\d.])${esc(String(+v.toFixed(4)))}(?![\\d])`).test(t.replace(/(\d),(?=\d{3}\b)/g, '$1'));
-    const best = sents.filter(t => t !== s && !sumsIn(t).length).map(t => ({ t, k: open.filter(q => has(t, q.v)).length })).sort((a, b) => b.k - a.k)[0];
-    if (best && best.k >= 2 && best.k * 2 >= open.length) for (const q of open.filter(q => !has(best.t, q.v)))
-      out.push(`the answer works out ${q.s} = ${+q.v.toFixed(4)}, but the sentence with the other results ("${best.t.trim().slice(0, 90)}") does not give ${+q.v.toFixed(4)}`);
-  }
-  return out;
-}
+// (answerFiguresComputed, figureProblems: in knowledge.mjs, shared with engine v2)
+export const figureProblems = x => sharedFigureProblems(x, { neverRan, cmdHead });
 // Runbooks and skills this turn changed only in their "triggers:" line, against the last commit made before the turn
 // (no git, a later commit, or any other changed line: none). Lesson: a project question taught a runbook its Spanish
 // wording, and the project's sweeps for changed runbooks then held the turn for 30 minutes.

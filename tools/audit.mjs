@@ -26,7 +26,7 @@ const V2_UNTESTED = 119, V2_RATCHET_DAY = '2026-11-08';
 const PROMPT_ONLY_RETIRED = { 'incident-trigger': '2026-11-07, v2-only plan, Spec line: the agent picks, no keyword forcing',
   'decision-logged': '2026-11-07, v2-only plan, Spec line: the agent picks; a decision is logged when the agent follows project-rule or the plan',
   'praise-captured': '2026-11-07, v2-only plan, Spec line: the agent picks; praise to repeat goes through project-rule, whose items hold once opened' };
-const V2_KEYS_TO_PORT = ['modular-code.runEach', 'vault-backlinks.runEach', 'data-computed.answerFiguresComputed', 'data-computed-trigger.answerFiguresComputed'];
+const V2_KEYS_TO_PORT = ['modular-code.runEach', 'vault-backlinks.runEach'];
 const v2Eval = await import('./hooks/v2/lib.mjs');
 const alwaysPending = () => alwaysPendingIn(f => read(abs(f)), d => { try { return listAll(d); } catch { return []; } });
 
