@@ -5053,14 +5053,15 @@ for (const s0 of PROMPT) {
     // session: the session-start notices too (the prompt hook alone doesn't print them)
     // (s.sid: v2 knows a running turn by its session's turn record; the old engine by its own notices record)
     const pr = run(dir, 'prompt', { prompt: s.prompt, ...(s.sid && process.env.STARTER_ENGINE === 'v2' ? { session_id: s.sid } : {}) }, s.env || {}), ss =s.session ? run(dir, 'session', { source: 'startup' }) : { out: '', err: '' };
-    // (v2 prints its reminder as JSON, where a quote is \": the decoded text is compared too)
+    // (v2 prints its reminder as JSON, where a quote is \": expected text is looked for in the decoded text too, never
+    // counted twice. Lesson: appending it to the output doubled every ROUTE line a count reads)
     const ctx = t => { try { return '\n' + (JSON.parse(t).hookSpecificOutput?.additionalContext || ''); } catch { return ''; } };
-    const out = ss.out + pr.out + ctx(pr.out), err = ss.err + pr.err;
+    const out = ss.out + pr.out, seen = out + ctx(pr.out), err = ss.err + pr.err;
     let why = '';
     if (s.none && out.trim()) why = 'expected no output, got: ' + out.slice(0, 200);
-    for (const h of s.hasNot || []) if (out.includes(h)) why ||= 'unexpected "' + h + '"';
+    for (const h of s.hasNot || []) if (seen.includes(h)) why ||= 'unexpected "' + h + '"';
     // (the CHECKS line, when there is one, is shown whole: it comes after the rules digest)
-    for (const h of s.has || []) if (!out.includes(h)) why ||= `missing "${h}" in: ${out.slice(0, 400) || '(empty)'}${/CHECKS: /.test(out) && !out.slice(0, 400).includes('CHECKS: ') ? ` ... ${/CHECKS: .*/.exec(out)[0]}` : ''} ${err.slice(0, 200)}`;
+    for (const h of s.has || []) if (!seen.includes(h)) why ||= `missing "${h}" in: ${out.slice(0, 400) || '(empty)'}${/CHECKS: /.test(out) && !out.slice(0, 400).includes('CHECKS: ') ? ` ... ${/CHECKS: .*/.exec(out)[0]}` : ''} ${err.slice(0, 200)}`;
     // routes: how many primary ROUTE lines (secondary ones say "ALSO ROUTE"); under v2, its "Runbook: open" lines
     const primary = (out.match(process.env.STARTER_ENGINE === 'v2' ? /Runbook: open docs\/playbooks\/[\w-]+\.md/g : /(?<!ALSO )\bROUTE: [\w-]+/g) || []).length;
     if (s.routes !== undefined && primary !== s.routes) why ||= `expected ${s.routes} primary ROUTE line(s), got ${primary}: ${out.slice(0, 400)}`;
