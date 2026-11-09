@@ -2831,11 +2831,14 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   // engines read grow with them, to 1,100: code moved out of hooks.mjs into them, so both engines share one copy, adds
   // here what hooks.mjs (not counted yet) loses; the proof code, 348 lines moved whole, raised it to 1,400, and the trace
   // code, 235, to 1,600, and the launchers code, 112, to 1,700)
+  // (2026-11-09, oversight, set once for the rest of the move instead of a raise per port: base 2,600 and the whole
+  // engine 6,000, from the size projection with headroom, hooks.mjs to be deleted at step 1e; the speed tests are the
+  // hard limits, and at 1e both ceilings come down to the measured size)
   const size = f => fs.readFileSync(f, 'utf8').split('\n').length;
   const v2 = f => path.join(here, f), base = n => path.join(here, '..', `${n}.mjs`);
-  const parts = { guard: [v2('guard.mjs'), v2('midturn.mjs')], reminder: [v2('start.mjs')], base: ['paths', 'settings', 'repo', 'people', 'labels', 'base-checks', 'wakeups', 'injection', 'claims', 'knowledge', 'proof', 'trace', 'launchers', 'git-guard'].map(base) };
+  const parts = { guard: [v2('guard.mjs'), v2('midturn.mjs')], reminder: [v2('start.mjs')], base: ['paths', 'settings', 'repo', 'people', 'labels', 'base-checks', 'wakeups', 'injection', 'claims', 'knowledge', 'proof', 'trace', 'launchers', 'gates', 'git-guard'].map(base) };
   parts.end = fs.readdirSync(here).filter(f => f.endsWith('.mjs') && f !== 'selftest.mjs' && !Object.values(parts).flat().includes(v2(f))).map(v2);
-  const cap = { guard: 600, reminder: 400, end: 3200, base: 1700 }, ALL = 4800;
+  const cap = { guard: 600, reminder: 400, end: 3200, base: 2600 }, ALL = 6000;
   const got = Object.fromEntries(Object.entries(parts).map(([k, fs_]) => [k, fs_.reduce((n, f) => n + size(f), 0)]));
   const lines = Object.values(got).reduce((a, b) => a + b, 0);
   const checks = (/const list = \[([^\]]*)\]/.exec(fs.readFileSync(path.join(here, 'end.mjs'), 'utf8'))?.[1].match(/\.\.\.\w+\(/g) || []).length;
