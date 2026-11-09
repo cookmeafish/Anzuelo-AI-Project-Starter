@@ -67,7 +67,9 @@ else in the project (no sync, no runbook edits) until the upgrade prints its res
   it to the user in one line: what it does, your recommendation for this project and why. While on, it runs every time.
 - **The project's own checks**, only if `node tools/hooks/hooks.mjs own-checks` lists entries (the entries in
   `tools/hooks/requirements.json` the project wrote, not the ones the starter ships, which the upgrade manages): the
-  end check does not run them, so each becomes a checkable "Done when" line on the runbook of the task it guards
+  end check does not run them. First `node tools/always.mjs convert`: it writes each one it can into
+  `docs/checks/always.md` (read every turn) and lists the rest, and the audit fails while any is left. Then each
+  listed one becomes a checkable "Done when" line on the runbook of the task it guards
   (`(file: ...)`, `(ran: ...)` or `(answer: ...)`, with `(when ...)` if it fits only some turns; project-rule step 5)
   or a test in the project's suite. Count them before and the converted lines after, give each one not converted its
   reason in the upgrade review (a guard in `config.json` already covers it, or it was pure judgment), then remove the

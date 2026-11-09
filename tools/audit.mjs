@@ -17,6 +17,8 @@ import {
   starterOnlyChars,
 } from './hooks/hooks.mjs';
 import { listAll, split } from './hooks/paths.mjs';
+import { pending as alwaysPendingIn } from './always.mjs';
+const alwaysPending = () => alwaysPendingIn(f => read(abs(f)));
 
 // --help, or a flag it doesn't know, prints the usage and runs nothing. Lesson (2026-11-06): a mistyped flag in a
 // sibling tool started a 20-minute run.
@@ -159,6 +161,9 @@ sweep('requirements.json is valid', () => {
     if (coreTags.has(r.tag) && !baseTags.has(r.tag)) fail.push(`${r.tag}: tag is also a core check in hooks.mjs (use another tag)`);
     if (r.pack && !installed.includes(r.pack) && !isTemplate) fail.push(`${r.tag}: belongs to pack "${r.pack}", which is not installed (pack purity)`);
   }
+  // (the project's own checks run only from docs/checks/always.md or a runbook's "Done when": one left only in
+  // requirements.json is never enforced. Lesson (a field report): such a rule looked enforced and was not)
+  for (const r of alwaysPending()) fail.push(`${r.tag}: the engine does not read requirements.json for it; run node tools/always.mjs convert, or move it by hand into a "Done when" list with <!-- req: ${r.tag} -->`);
   return { fail, warn, note: `${BASE_REQUIREMENTS.length} baseline + ${fileReqs.length} project checks` };
 });
 function part2(r) { try { const tp = r.require?.toolPassed; if (tp && typeof tp === 'object') new RegExp(tp.cmd); return false; } catch { return true; } }

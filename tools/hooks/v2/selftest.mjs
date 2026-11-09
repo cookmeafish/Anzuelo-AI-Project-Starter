@@ -421,6 +421,28 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
   const chain = ['r.md item 5: The full chain passed and was committed with the user as the only author; pushed only with the user\'s OK', 'r.md item 6: The project got a reply'];
   const deferred = waived({ answer: 'The full test suite hasn\'t run on today\'s local commits yet. It runs right before the next release, and that push waits for your OK.' }, chain);
   report(deferred.length === 1 && /item 6/.test(deferred[0]), 'end: a plain "not run yet" with its reason clears the item it is about, by its words, and only that one', deferred);
+  // (a field report: a project's own rule in requirements.json was never read by v2. The project-wide "always" list is
+  // checked every turn, with conditions on the answer, the prompt, a tool call or a changed file)
+  const { alwaysGaps } = await import('./lib.mjs');
+  put('docs/checks/always.md', '# Always\n\n## Done when\n'
+    + '- [ ] An offer to delete files names each path (when answer: OK to (delete|remove)) (answer: \\w+/\\S+\\.\\w+) <!-- req: listed-paths -->\n'
+    + '- [ ] A web lookup names its source (when tool: ^WebFetch) (answer: https?://)\n'
+    + '- [ ] Recipe edits note the serving size (when file: recipes/**) (answer: serves \\d)\n'
+    + '- [ ] A request for a summary gets one (when prompt: \\bsummar) (answer: ^Summary)\n');
+  const ag = rows => alwaysGaps(acts(rows));
+  const fetch = call('WebFetch', { url: 'https://example.com/soup' }, 'soup');
+  const recipe = call('Write', { file_path: path.join(dir, 'recipes/soup.md'), content: 'x' }, 'ok');
+  const fired = [ag([user('tidy the photos'), say('OK to delete the blurry ones?')]), ag([user('look up soup'), fetch, say('Found it.')]),
+    ag([user('fix the soup'), recipe, say('Fixed.')]), ag([user('summarize the notes'), say('The notes cover soup.')])].map(g => g.length);
+  const quiet = [ag([user('tidy the photos'), say('OK to delete photos/blur1.jpg?')]), ag([user('look up soup'), fetch, say('From https://example.com/soup.')]),
+    ag([user('fix the soup'), recipe, say('Fixed; serves 4.')]), ag([user('summarize the notes'), say('Summary: soup.')]), ag([user('hello'), say('Hi.')])].map(g => g.length);
+  fs.rmSync(path.join(dir, 'docs/checks/always.md'));
+  report(fired.every(n => n === 1) && quiet.every(n => n === 0), 'end: the project-wide always list is checked every turn, with answer, tool, file and prompt conditions', JSON.stringify({ fired, quiet }));
+  const { asItems } = await import('../../always.mjs');
+  const conv = asItems({ tag: 'listed-paths', message: 'Name each path', when: { answerMatches: 'OK to delete' }, require: { answerMatches: '\\w+/\\S+' } });
+  const odd = asItems({ tag: 'x', message: 'm', when: { guiChanged: true }, require: { answerMatches: 'a' } });
+  report(/\(when answer: OK to delete\) \(answer: \\w\+\/\\S\+\) <!-- req: listed-paths -->/.test(conv.lines?.[0] || '') && odd.bad?.includes('when.guiChanged'),
+    'always: a requirements.json check converts to a Done-when line with its tag; one no marker can say is listed, never dropped', JSON.stringify({ conv, odd }));
   report(waived({ answer: 'The full suite has not run yet.' }, chain).length === 2 && waived({ answer: 'The export has not run yet because the server was down.' }, chain).length === 2,
     'end: "not run" with no reason, or about something else, clears nothing');
   // (edited by a script, not an edit tool: the routed runbook changed during the turn)

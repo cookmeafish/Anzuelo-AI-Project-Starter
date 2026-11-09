@@ -32,7 +32,7 @@ const starterHead = () => (spawnSync('git', ['rev-parse', '--short', 'HEAD'], { 
 
 // Engine: generic machinery, replaced on --upgrade. Everything else is the project's own content.
 const ENGINE = [
-  'tools/hooks/hooks.mjs', 'tools/hooks/selfcheck.mjs', 'tools/hooks/selftest-cache.mjs', 'tools/hooks/trigger-cases.mjs', 'tools/hooks/git-guard.mjs', 'tools/hooks/statusline.mjs', 'tools/hooks/paths.mjs', 'tools/hooks/settings.mjs', 'tools/hooks/repo.mjs', 'tools/audit.mjs', 'tools/packs.mjs',
+  'tools/hooks/hooks.mjs', 'tools/hooks/selfcheck.mjs', 'tools/hooks/selftest-cache.mjs', 'tools/hooks/trigger-cases.mjs', 'tools/hooks/git-guard.mjs', 'tools/hooks/statusline.mjs', 'tools/hooks/paths.mjs', 'tools/hooks/settings.mjs', 'tools/hooks/repo.mjs', 'tools/audit.mjs', 'tools/always.mjs', 'tools/packs.mjs',
   'tools/writing-check.mjs', 'tools/integrity-check.mjs',
   '.githooks/commit-msg', '.githooks/pre-commit', '.githooks/pre-push',
   'docs/checks/session-checklist.md', 'docs/checks/finish-checklist.md', 'docs/checks/runbook-standards.md',

@@ -24,8 +24,17 @@ const read = f => { try { return fs.readFileSync(at(f), 'utf8').replace(/\r\n?/g
 //   (file: <path or glob>)   the turn changed that file (Edit, Write, or a command that names it as its output)
 //   (ran: <regex>)           the turn ran a command matching it, and the run did not fail
 //   (answer: <regex>)        the turn's final answer matches it
+//   (prompt: <regex>)        what the user typed this turn matches it (mid-turn messages too)
+//   (tool: <regex>)          a tool call's name and input match it
 //   (evidence)               the answer is backed by sources read this turn (evidenceGaps)
+// Each kind also works as a condition, "(when answer: <regex>)"; several conditions must all hold.
 // Anything else is shown at the start and not checked at the end.
+// The project's own standing rules that belong to no single runbook live in ALWAYS's "## Done when", checked every
+// turn. Lesson (a field report): a project's rule kept in requirements.json looked enforced and was not read by v2.
+export const ALWAYS = 'docs/checks/always.md';
+export function alwaysGaps(acts) {
+  return doneWhen(read(ALWAYS)).filter(it => it.kind && it.kind !== 'evidence' && applies(it, acts) && met(it, acts) === false).map(it => `${ALWAYS} item ${it.n}: ${it.text}`);
+}
 export function doneWhen(text) {
   // (Windows line endings too: "## Done when\r" matched nothing. Lesson (a project's report): any caller passing a
   // runbook's raw text got no items)
@@ -45,17 +54,18 @@ export function doneWhen(text) {
     // the value cut the marker short)
     // (the last marker anywhere in the item. Lesson (a field report): a marker on the first line of a two-line item
     // was not read)
-    const c = [...raw.matchAll(/\((file|ran|answer):\s*((?:[^()]|\([^()]*\))+)\)/gi)].at(-1);
+    const c = [...raw.matchAll(/\((file|ran|answer|prompt|tool):\s*((?:[^()]|\([^()]*\))+)\)/gi)].at(-1);
     // (an item that fits one branch of a runbook says when: "(when ran: <regex>)" and the like. On a turn where that
-    // did not happen it is neither checked nor listed. Lesson (replay): an engine upgrade turn was asked to verify the
-    // install, removal and setting items too)
-    const w = /\(when\s+(file|ran|answer):\s*((?:[^()]|\([^()]*\))+)\)/i.exec(raw);
+    // did not happen it is neither checked nor listed. Several "when" markers must all hold. Lesson (replay): an engine
+    // upgrade turn was asked to verify the install, removal and setting items too)
+    const w = [...raw.matchAll(/\(when\s+(file|ran|answer|prompt|tool):\s*((?:[^()]|\([^()]*\))+)\)/gi)];
     // (every marker goes from the shown text: an item may carry the old engine's "(hook: ...)" or "(judgment: ...)"
     // before v2's own)
     // ("(evidence)": the answer is backed by sources read this turn, checked by evidenceGaps)
     const ev = !c && /\(evidence\)/i.test(raw);
-    const text = raw.replace(/\s*\((?:when\s+)?(?:file|ran|answer|hooks?|judgment):(?:[^()]|\([^()]*\))*\)|\s*\(evidence\)/gi, '').replace(/\s*\.\s*$/, '').replace(/`/g, '').trim();
-    return { n: i + 1, text, kind: c ? c[1].toLowerCase() : ev ? 'evidence' : null, arg: c ? c[2].trim() : null, when: w ? { kind: w[1].toLowerCase(), arg: w[2].trim() } : null };
+    const text = raw.replace(/\s*\((?:when\s+)?(?:file|ran|answer|prompt|tool|hooks?|judgment):(?:[^()]|\([^()]*\))*\)|\s*\(evidence\)/gi, '').replace(/\s*\.\s*$/, '').replace(/`/g, '').trim();
+    const whens = w.map(x => ({ kind: x[1].toLowerCase(), arg: x[2].trim() }));
+    return { n: i + 1, text, kind: c ? c[1].toLowerCase() : ev ? 'evidence' : null, arg: c ? c[2].trim() : null, when: whens[0] || null, whens };
   });
 }
 
@@ -396,17 +406,21 @@ const relp = p => relOf(p);
 
 // Whether a checkable item was met by what the turn did. Null means it can't be checked here.
 // Whether an item fits this turn: always, or when its "(when ...)" condition held.
-export const applies = (item, acts) => !item.when || met(item.when, acts) === true;
+export const applies = (item, acts) => (item.whens || (item.when ? [item.when] : [])).every(w => met(w, acts) === true);
 export function met(item, acts) {
   if (!item.kind) return null;
   if (item.kind === 'answer') return new RegExp(item.arg, 'i').test(acts.answer);
+  // (prompt: what the user typed this turn, mid-turn messages too; tool: a tool call whose name and input match)
+  if (item.kind === 'prompt') return new RegExp(item.arg, 'i').test(acts.heard || '');
+  if (item.kind === 'tool') { const rx = new RegExp(item.arg, 'i'); return acts.calls.some(c => rx.test(`${c.name} ${JSON.stringify(c.input || {})}`)); }
   if (item.kind === 'evidence') return evidenceGaps(acts).length === 0;
   if (item.kind === 'ran') { const rx = new RegExp(item.arg, 'i'); return acts.calls.some(c => /^(Bash|PowerShell)$/.test(c.name) && rx.test(String(c.input.command || '')) && !c.error); }
   // (changed this turn by a tool or anything since the turn began; only naming it does not count. In the starter its own
   // changelog stands for docs/CHANGELOG.md, the template. Lessons: "cat" met "updated"; 3 re-blocks on a written line)
   if (item.kind === 'file') {
     const since = Date.parse(acts.at || '') || 0;
-    const args = [item.arg, ...(/^docs\/CHANGELOG\.md$/i.test(item.arg) && fs.existsSync(at('.starter-dev')) ? ['tools/starter/STARTER-CHANGELOG.md'] : [])];
+    // ("a|b": either path or glob)
+    const args = item.arg.split('|').map(s => s.trim()).flatMap(a => [a, ...(/^docs\/CHANGELOG\.md$/i.test(a) && fs.existsSync(at('.starter-dev')) ? ['tools/starter/STARTER-CHANGELOG.md'] : [])]);
     return args.some(arg => { const rx = globRx(arg);
       return acts.calls.some(c => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name) && rx.test(relp(c.input.file_path || c.input.notebook_path || '')))
         || (!!since && filesMatching(arg).some(f => { try { return fs.statSync(at(f)).mtimeMs > since; } catch { return false; } })); });

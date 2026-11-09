@@ -29,7 +29,9 @@ cheapest level that holds; every extra file and run costs the user time now and 
       turn that runbook covers, and blocks until it is met). Give the line one marker; the grammar is in
       `docs/checks/runbook-standards.md` and runbook-create step 3: `(file: ...)`, `(ran: ...)`, `(answer: ...)`, with
       `(when ...)` when the rule fits only some turns. A regex may not contain `)`. Example:
-      `- [ ] Each new chart names its data source (when file: charts/**) (answer: Source:)`. Never write a new check in
+      `- [ ] Each new chart names its data source (when file: charts/**) (answer: Source:)`. A rule about every answer
+      or turn, whatever the task, goes in `docs/checks/always.md`'s "Done when" (read every turn), with the same
+      markers plus `(prompt: ...)` and `(tool: ...)`. Never write a new check in
       `tools/hooks/requirements.json`: the end check does not run those (2026-11-07, the user chose the "Done when"
       lists, so the engine stays a reminder, quiet work and one end check).
    5. **Pure judgment:** `--enforced "N/A <reason>"`, and `hook: N/A <reason>` in the answer.
