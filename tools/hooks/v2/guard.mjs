@@ -13,6 +13,14 @@ export const IN_WORK_GUARDS = /^REQ: (approval-gate|browser-guard|claim-checked|
 // A path pattern in an approved list as a regex: "**/" is any number of folders, none included; "**" anything; "*"
 // within one folder. Lesson (a sweep for the root-file glob bug): "old/**" covered one level only, "**/*.bak" no root file
 export const wildRx = g => new RegExp(`(^|/)${String(g).split('**/').map(a => a.split('**').map(b => b.split('*').map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[^/]*')).join('.*')).join('(?:.*/)?')}$`, 'i');
+// A message's commit ids: hex in commit context only ("commit", "pushed", "HEAD", "main is", "in", a git-log line), never
+// after "#", in a path, after "sha256"/"hash": a refusal during work must never be a false one (hashes, colors, GUIDs)
+export const commitIds = text => [...new Set([...String(text || '').matchAll(/(?<![\w/#.:-])([0-9a-f]{7,40})(?![\w/.-]*\/)(?![\w-])/g)].filter(m => {
+  const h = m[1]; if (!/\d/.test(h) || !/[a-f]/.test(h)) return false;
+  const before = text.slice(Math.max(0, m.index - 40), m.index), line = before.slice(before.lastIndexOf('\n') + 1);
+  if (/\b(sha-?256|sha-?1|hash|digest|checksum|uuid|guid|id:)\W{0,3}$/i.test(line)) return false;
+  return /\b(commits?|committed(?: as)?|pushed(?: as)?|push|head(?: is| at)?|merged?(?: as)?|landed in|lands in|main is|main at|is at|in|at|on top of|reverts?|cherry-picked|commit id is|commit is|the id is)\W{0,4}(?:the )?(?:commit )?$/i.test(line) || /^\s*[-*]?\s*$/.test(line) && /^[0-9a-f]{7,40} \S/.test(text.slice(m.index));
+}).map(m => m[1]))];
 // One denial names every rule the call breaks, numbered, at most PRETOOL_MAX (a retry was once denied rule by rule).
 const PRETOOL_MAX = 6;
 export function pretoolDecision(data, cfg = H.config()) {
@@ -22,7 +30,6 @@ export function pretoolDecision(data, cfg = H.config()) {
   return `This tool call breaks ${hits.length} rules. Fix all of them before trying again:\n` +
     shown.map((h, i) => `${i + 1}. ${h}`).join('\n') + (more ? `\n(${more} more not shown.)` : '');
 }
-
 export { pretoolDecision as guard };
 
 // Every path a delete names in originals folder d is new this turn (not in the turn-start snapshot, not in git).
@@ -219,16 +226,13 @@ export function pretoolHits(data, cfg) {
     return paths.length > 0 && paths.every(p => lines.some(l => has(l, p)));
   };
   // REQ: wakeup-left. A headless run with a job running needs no wakeup (one pending kept a run from ever answering).
-  // REQ: claim-checked (messages). A message to another session that names a commit the repository does not have, and
-  // that no tool output or received message in this session showed, is refused before it goes: it can't be taken back.
-  // Lesson (2026-11-08): two made-up commit ids were sent to a peer session within an hour, each written before the
-  // commit had returned.
+  // REQ: claim-checked (messages). A commit the repository lacks, that nothing here showed, is refused before the message
+  // goes. Lesson (2026-11-08): two made-up commit ids were sent to a peer, each written before the commit returned.
   if (name === 'SendMessage' && typeof inp.message === 'string') {
-    const ids = [...new Set([...inp.message.matchAll(/(?<![\w/#.-])([0-9a-f]{7,40})(?![\w-])/g)].map(m => m[1]).filter(h => /\d/.test(h) && /[a-f]/.test(h)))];
+    const ids = commitIds(inp.message);
     const missing = ids.filter(h => spawnSync('git', ['cat-file', '-e', `${h}^{commit}`], { cwd: ROOT, timeout: 5000 }).status !== 0);
     if (missing.length) {
-      // (the session's evidence: tool results and the messages it received, never its own text)
-      // (user rows only: tool results and received messages; a message's own text, or an earlier one, is no evidence)
+      // (evidence is user rows only: tool results and received messages, never the agent's own text or messages)
       let seen = ''; try { seen = fs.readFileSync(data.transcript_path || '', 'utf8').split('\n').filter(l => /^\{"(?:[^"]+":[^,]*,"){0,6}type":"user"|"type":"user"/.test(l) && !/"type":"assistant"/.test(l)).join('\n'); } catch { }
       const bad = missing.filter(h => !seen.includes(h));
       if (bad.length) add(`REQ: claim-checked. This message names commit ${bad.join(', ')}, which this repository does not have and no command here showed: read the id from the command's output (git log -1 --format=%h) and send it again.`);

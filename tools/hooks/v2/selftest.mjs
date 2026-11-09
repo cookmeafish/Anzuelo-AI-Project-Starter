@@ -1403,11 +1403,14 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     const tp = path.join(dir, 'msg-claims.jsonl');
     fs.writeFileSync(tp, [{ type: 'user', message: { role: 'user', content: `The project upgraded to its commit c0ffee${fake.slice(6)}9 locally.` } }, { type: 'assistant', message: { content: [{ type: 'text', text: `Pushed ${fake}.` }] } }].map(r => JSON.stringify(r)).join('\n') + '\n');
     const send = message => guard({ session_id: '', tool_name: 'SendMessage', tool_input: { to: 'peer', message }, transcript_path: tp }, { ...config(), engine: 'v2' }) || '';
-    const msg = { made: send(`Pushed: the fix is ${fake}.`), real: send(`Pushed: the fix is ${head}.`), relayed: send(`The project is at c0ffee${fake.slice(6)}9 now.`) };
+    const msg = { made: send(`Pushed: the fix is in ${fake}.`), real: send(`Pushed: the fix is in ${head}.`), relayed: send(`The project is at c0ffee${fake.slice(6)}9 now.`) };
+    // (no commit context, no refusal: a citation anchor, a color, a sha256 or hash, a path, a GUID part, hex-looking words)
+    const notCommits = ['see tools/x.mjs:10-20#ab12cd34', 'the color #a1b2c3 and #ffaa00', `sha256 ${fake}e5f6a7b8`, `hash: ${fake}`, `files in cache/${fake}/out.txt`, 'id: 3f2504e0-4f89-11d3', 'deadbeef and facade1 were seen', `the token ${fake} appeared`];
+    msg.falseRefusals = notCommits.filter(m => send(m)).length;
     const { claimGaps } = await import('./lib.mjs');
     msg.answer = claimGaps(acts([user('push it'), call('SendMessage', { to: 'peer', message: `Pushed ${fake}.` }, 'sent'), say(`Pushed ${fake}.`)])).join(' ');
-    report(/REQ: claim-checked\. This message names commit/.test(msg.made) && !msg.real && !msg.relayed && !!head && new RegExp(`names commit ${fake}`).test(msg.answer),
-      'pretool: a message naming a commit this repository lacks, that nothing here showed, is refused before it goes; a real one or one a received message named goes', JSON.stringify({ head, fake, made: msg.made.slice(0, 90), real: msg.real.slice(0, 60), relayed: msg.relayed.slice(0, 60) }));
+    report(/REQ: claim-checked\. This message names commit/.test(msg.made) && msg.falseRefusals === 0 && !msg.real && !msg.relayed && !!head && new RegExp(`names commit ${fake}`).test(msg.answer),
+      'pretool: a message naming a commit this repository lacks, that nothing here showed, is refused before it goes; a real one or one a received message named goes; a hex string outside commit context (anchor, color, hash, path, GUID, word) is never refused', JSON.stringify({ head, fake, made: msg.made.slice(0, 90), real: msg.real.slice(0, 60), relayed: msg.relayed.slice(0, 60) }));
   }
   const R = ROOT.replace(/\\/g, '/') + '/', g = 'gi' + 't ', base = { ...config(), engine: 'v2' };
   const prot = { ...base, protectedOriginals: ['originals/**'] };
