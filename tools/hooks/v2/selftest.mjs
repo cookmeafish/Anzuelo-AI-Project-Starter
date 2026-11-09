@@ -1692,6 +1692,18 @@ report(madeUp.length === 2 && /9f8e7d6/.test(madeUp[0]) && /src\/missing\.js/.te
   b.prior = priorCalls([line('2026-01-01T10:00:00Z', bump), line('2026-01-01T12:00:00Z', { name: 'Bash', input: { command: 'git tag v1.2.0' } })].join('\n'), '2026-01-01T11:00:00Z').length;
   report(b.bumped && !b.released && !b.readOnly && b.npm && b.prior === 1, 'end: version-bump: a version raised in an earlier turn with nothing released since covers this turn; a release since, or a read, does not', b);
 }
+{ // (REQ: notice-answer: in a headless run, a short reply to a notice or a fired wakeup after the answer is held; the whole
+  // answer again, an interactive session, a send-back, or no notice is not)
+  const { noticeAnswerGaps } = await import('./end.mjs');
+  const FULL = 'Yes: the reviewer read the change and approved it, with no must-fix problems.\nIt checked the input limits, the error messages and the tests.\nTwo small notes from it are in the review file, for later.';
+  const sdk = { type: 'system', entrypoint: 'sdk-cli' }, ans = { type: 'assistant', message: { content: [{ type: 'text', text: FULL }] } };
+  const note = { type: 'user', message: { content: '<task-notification>\n<task-id>b1</task-id>\n<event>[Monitor expired]</event>\n</task-notification>' } };
+  const wake = { type: 'user', isMeta: true, turnOrigin: 'scheduled', message: { content: 'Check the audit result.' } };
+  const SHORT = 'Nothing has changed: that notice came from a watcher that timed out.';
+  const n = { short: noticeAnswerGaps([sdk, ans, note], SHORT).length, wake: noticeAnswerGaps([sdk, ans, wake], SHORT).length, whole: noticeAnswerGaps([sdk, ans, note], FULL).length,
+    interactive: noticeAnswerGaps([ans, note], SHORT).length, again: noticeAnswerGaps([sdk, ans, note], SHORT, true).length, noNotice: noticeAnswerGaps([sdk, ans], SHORT).length };
+  report(n.short === 1 && n.wake === 1 && !n.whole && !n.interactive && !n.again && !n.noNotice, 'end: notice-answer: a headless short reply to a notice or a wakeup after the answer is held; the whole answer again, interactive, a send-back or no notice is not', n);
+}
 { // (REQ: headless-resume: a headless run with a helper it resumed still running is held, naming the agent; an interactive
   // session, a helper started fresh, or one that reported back is not)
   const { headlessResumed } = await import('./end.mjs'), { helpersRunning } = await import('./lib.mjs');

@@ -4935,6 +4935,7 @@ const V2_ASKS = {
   'empty-answer': /^- The answer is empty:/m,
   'question-no-file': /^- This was a question, but files changed/m,
   'headless-resume': /^- This run is headless/m,
+  'notice-answer': /^- This run is headless \(claude -p or the SDK\): its caller gets only the last message/m,
   'watched-inputs': /^- \S+ was updated while you worked/m,
   'decision-logged': /item \d+: A choice the user made is logged in docs\/DECISIONS\.md/,
   'rule-request': /^- (Write the rule down|Say how the rule is enforced|Save the rule to memory)/m,

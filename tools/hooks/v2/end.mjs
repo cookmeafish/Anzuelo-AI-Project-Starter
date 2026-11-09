@@ -224,6 +224,23 @@ export function headlessResumed(rows, running) {
   return running.filter(id => resumed.has(id));
 }
 export const headlessLine = ids => `This run is headless (claude -p or the SDK): it ends with this answer, and a helper resumed with SendMessage stops with it, so its work never comes back (agent ${ids.join(', ')}). Do the rest of its work yourself, or start a new helper with the Agent tool and wait for its result, then end with the whole answer.`;
+// REQ: notice-answer. In a headless run the caller gets only the last message: a reply to a background notice or a fired
+// wakeup, after the turn already answered, replaces that answer. Unless it carries the answer again (most of its lines,
+// or as long as 60% of it), the turn is held, once (not on a send-back). Interactive sessions show the answer above, so
+// a short reply is fine. Lesson (the old engine): a headless run's result was a three-line reply to a leftover watcher's
+// notice, with none of the answer.
+export function noticeAnswerGaps(rows, final, again = false) {
+  if (again || !final || !rows.some(r => /^sdk/.test(String(r.entrypoint || '')))) return [];
+  const notice = r => r.type === 'user' && (r.turnOrigin === 'scheduled' || /<task-notification>/.test(typeof r.message?.content === 'string' ? r.message.content : JSON.stringify(r.message?.content || '')));
+  const at = rows.map(notice).lastIndexOf(true);
+  if (at < 0) return [];
+  const prev = rows.slice(0, at).filter(r => r.type === 'assistant').flatMap(r => (Array.isArray(r.message?.content) ? r.message.content : []).filter(x => x?.type === 'text').map(x => String(x.text || ''))).filter(t => t.trim()).pop() || '';
+  const norm = s => String(s || '').toLowerCase().replace(/[*_`#>|]+/g, ' ').replace(/\s+/g, ' ').trim(), r = norm(final), p = norm(prev);
+  if (!p || r.length >= p.length * 0.6) return [];
+  const lines = prev.split(/\r?\n/).map(norm).filter(l => l.length >= 25);
+  if (lines.length ? lines.filter(l => r.includes(l)).length / lines.length >= 0.5 : r.includes(p.slice(0, 60))) return [];
+  return ['This run is headless (claude -p or the SDK): its caller gets only the last message, and this reply to a background notice is now that message, so the answer given before is lost. End with that whole answer again, then any news from the notice.'];
+}
 // The agent's notes file, when this turn wrote it.
 const turnNotes = acts => { try { const f = at('.cache/turn-notes.md'), st = fs.statSync(f); return st.mtimeMs >= (Date.parse(acts.at || '') || 0) - 2000 ? fs.readFileSync(f, 'utf8') : ''; } catch { return ''; } };
 // REQ: rule-request. A standing rule the agent took on is written where every later turn reads it and enforced, not only
@@ -357,7 +374,7 @@ function judge(data, { shadow = false } = {}) {
   // (wakeups scheduled in any turn of the session count: one left from earlier still re-invokes it later)
   const wakes = wakeGaps(raw.split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean), final || acts.answer || '', acts.heard || '');
   const extra = (turn.also || []).flatMap(f => missing({ ...turn, runbook: f }, acts, runbooks().filter(b => b.file === f)));
-  const resumedLost = lost.length ? [headlessLine(lost)] : [];
+  const resumedLost = [...(lost.length ? [headlessLine(lost)] : []), ...noticeAnswerGaps(rows, final || acts.answer, data.stop_hook_active)];
   const list = [...resumedLost, ...late, ...autos, ...wakes, ...S('missing', () => [...emptyGaps(acts), ...missing(turn, acts), ...upsetGaps(turn, acts), ...ruleGaps(acts), ...watchedGaps(acts)]), ...extra, ...S('skillMissing', () => skillMissing(acts)), ...S('reviewGaps', () => reviewGaps(turn, acts)), ...S('testGaps', () => testGaps(acts, history)), ...S('gateGaps', () => gateGaps(acts)), ...S('screenGaps', () => screenGaps(acts)), ...S('healthGaps', () => [...healthGaps(acts, { run: !shadow }), ...upgradeGaps(turn, acts)]), ...S('knowledgeGaps', () => knowledgeGaps(acts)), ...S('securityGaps', () => securityGaps(acts)), ...S('questionGaps', () => [...questionGaps(acts), ...questionFileGaps(acts)]), ...S('noteGaps', () => noteGaps(acts)), ...S('quoteGaps', () => quoteGaps(acts)), ...S('claimGaps', () => claimGaps(acts, history)), ...S('scopeGaps', () => scopeGaps(acts)), ...S('tableGaps', () => tableGaps(acts))].filter((s, i, all) => all.indexOf(s) === i);
   // (the waiver tally: what this turn cleared with a reason is recorded; a check cleared in 3+ earlier turns is named)
   const full = list.splice(0, list.length); list.push(...full.filter(kept(acts)).filter(s => !(again && CRASHED.test(s))));
