@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { route, skillBooks, saveTurn, loadTurn, isSpanish, ROOT, at, quoteCheckOn, projectConfig } from './lib.mjs';
 import { asksOnly } from './late.mjs';
+import { PAUSE_ASK, PAUSE_HINT } from '../pause.mjs';
 
 // REQ: question-answered (as it arrives). A message that only asks is answered first, in plain words; one typed while a
 // turn runs is answered in the very next message and starts no work of its own. Lesson (a study of 117 real questions):
@@ -61,6 +62,8 @@ export function rulesFor(prompt) {
 const relayedRx = /^\s*Another Claude session sent a message|<cross-session-message\b/;
 export function reminder(prompt, { midTurn = false } = {}) {
   const raw = String(prompt || '');
+  // (REQ: pause-stops: a request to pause, stop or restart wraps up now, whatever else the message says)
+  if (!relayedRx.test(raw) && PAUSE_ASK.test(raw)) return { book: null, text: [PAUSE_HINT, upsetIn(raw) && has('skills/learn-from-upset/SKILL.md') ? 'This sounds upset: open skills/learn-from-upset/SKILL.md and follow it.' : ''].filter(Boolean).join('\n') };
   const asking = !relayedRx.test(raw) && asksOnly(raw.replace(/<pasted_content\b[\s\S]*?(<\/pasted_content[^>]*>|\/>)/gi, ' '), projectConfig().changeWords);
   if (asking && midTurn) return { book: null, text: [Q_NOW, upsetIn(raw) && has('skills/learn-from-upset/SKILL.md') ? 'This sounds upset: open skills/learn-from-upset/SKILL.md and follow it.' : ''].filter(Boolean).join('\n') };
   const r = remind(prompt);

@@ -7425,8 +7425,10 @@ const clock = iso => { const d = new Date(iso); return Number.isNaN(+d) ? '?' : 
 export const stopLogLine = e => `${clock(e.at)}  request ${e.request ? clock(e.request).slice(11) : '?'}  round ${e.round ?? '?'}  ${e.result}` +
   `${(e.steps || []).length ? `: ${e.steps.join(', ')}` : ''}${(e.waived || []).length ? `  (waived: ${e.waived.join(', ')})` : ''}${e.pending ? `  (${e.pending} background job(s) running)` : ''}${e.session ? `  [${e.session.slice(0, 8)}]` : ''}`;
 
-// A request to pause, stop or restart (in the request or a message typed during the turn): see REQ pause-stops.
-export const PAUSE_ASK = /\b(good|safe|clean) (pausing|stopping|stop|break(ing)?) (point|piont|place)\b|\b(ok(ay)?|safe|fine|alright) to (restart|reboot|shut ?down|turn (it )?off)\b(?! (the |my |this |your )?(server|app|service|bot|game|program|process|container|database|site|page|test|tests|build|watcher)\b)|\b(pause|stop|halt) (here|now|working|for now|the work|everything)\b|\b(i'?ll|i will|i'?m going to|going to|gonna|need to|have to|about to|let me) (restart|reboot|shut ?down|turn off|power off|update) (my |the )?(computer|pc|laptop|machine|mac|windows)\b|\b(restart|reboot|shut ?down|turn off) (my |the )?(computer|pc|laptop|machine)\b|(?<!\p{L})(punto (bueno )?para parar|det[eé]n(te)?( todo| aqu[ií]| ya)|para(r)? (aqu[ií]|ya|de trabajar)|(voy a|tengo que) (reiniciar|apagar) (la |mi |el )?(computadora|compu|pc|ordenador|laptop|port[aá]til))(?!\p{L})/iu;
+// A request to pause, stop or restart (in the request or a message typed during the turn): see REQ pause-stops. One
+// definition, in pause.mjs, shared with engine v2.
+export { PAUSE_ASK } from './pause.mjs';
+import { PAUSE_ASK } from './pause.mjs';
 const paused0 = x => PAUSE_ASK.test(userText(x.prompt || ''));
 // REQ: external-stop. The project's own Stop command, run with this Stop's input; its numbered steps become steps here.
 // A command that crashes is one step (so the project sees it broke); one that passes adds nothing.

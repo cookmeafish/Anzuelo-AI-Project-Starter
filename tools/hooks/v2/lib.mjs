@@ -123,6 +123,10 @@ export function skillBooks({ parts = false } = {}) {
 // The runbook whose trigger phrase matches the request best: a phrase that opens the request wins, then the longest
 // whole-phrase match. (Lesson (live v2): a request that opened with its job's name went to another runbook because a
 // longer phrase of a sub-step appeared later in it)
+// (a rule said as an order, "never <do X> again", "de ahora en adelante ...", "nunca más ...", short Spanish ones too,
+// which the language test misses. The reminder's hint only: the end check never starts from these words. Lesson (the
+// old suite under v2): three such rules got no runbook in the reminder)
+const RULE_CUE = /(?:^|[.!?;¡]\s*)(?:never|don'?t ever|do not ever)\s+\w+\b[^.!?\n]{0,80}\bagain\b|\b(?:de ahora en adelante|a partir de ahora|desde ahora)\b|(?:^|[.!?;¡]\s*)nunca m[aá]s\s/imu;
 const STANDING = /(?:^|[.!?;]\s+)(?:every|each|all|no) (?:new |single )?[\p{L}-]+ (?:links?|has|have|gets?|goes|go|must|should|needs?|stays?|uses?|keeps?|ends?|starts?|names?|includes?|is always|are always|is never|are never)\b/iu;
 export function route(prompt, books = runbooks()) {
   // (a menu code at the start, "B4 <args>", names its runbook outright)
@@ -160,7 +164,7 @@ export function route(prompt, books = runbooks()) {
   // (a standing rule said plainly ("every new note links to", "should never happen again", ", always", ", siempre") is a
   // rule request, ahead of a trigger found mid-sentence. Lessons (trials v38 to v43): each went unrouted or misrouted)
   const said = isSpanish(prompt) ? `${prompt}\n${routeEnglish(prompt)}` : String(prompt);
-  const proj = books.find(b => b.file === 'docs/playbooks/project.md'), rule = proj && (STANDING.test(said) || /\b(that|this|it) (should|must|can) never happen again\b/i.test(said) || /,\s*(always|never)\s*(?:[.!]+|$)/im.test(said));
+  const proj = books.find(b => b.file === 'docs/playbooks/project.md'), rule = proj && (STANDING.test(said) || RULE_CUE.test(String(prompt)) || /\b(that|this|it) (should|must|can) never happen again\b/i.test(said) || /,\s*(always|never)\s*(?:[.!]+|$)/im.test(said));
   if (best && !(rule && best.score < 1000)) return { ...best.book, matched: best.phrase };
   return rule ? { ...proj, matched: 'standing rule' } : null;
 }
@@ -185,8 +189,14 @@ const ROUTE_ES = [
 export const routeEnglish = text => ROUTE_ES.reduce((s, [r, v]) => s.replace(r, v), String(text || ''));
 
 // A message the user typed: not a notice, a relayed message, or the summary that resumes a session.
-export const typed = r => r.type === 'user' && !r.isMeta && !r.isCompactSummary && typeof r.message?.content === 'string'
-  && !/^\s*<(task-notification|system-reminder|cross-session-message|agent-message|command-|local-command-)|^This session is being continued from a previous conversation/.test(r.message.content);
+// The text of a user row the user wrote: a plain string, or the text parts of a message sent with images or files (never
+// a row of tool results). Lesson (the old suite under v2): a message with a screenshot and text started no turn, and
+// its text was never heard.
+export const userText = r => { const c = r?.message?.content; if (typeof c === 'string') return c;
+  if (!Array.isArray(c) || !c.length || c.some(x => x?.type === 'tool_result')) return null;
+  const t = c.filter(x => x?.type === 'text').map(x => String(x.text || '')); return t.length ? t.join('\n') : null; };
+export const typed = r => r.type === 'user' && !r.isMeta && !r.isCompactSummary && userText(r) !== null
+  && !/^\s*<(task-notification|system-reminder|cross-session-message|agent-message|command-|local-command-)|^This session is being continued from a previous conversation/.test(userText(r));
 // A transcript's last part, from a line start, at most `max` bytes. Lesson (the old engine): a 568 MB transcript was
 // over the largest string a file can be read into, and every hook lost the session's history.
 export function tail(transcript, max = 32 << 20) {
@@ -246,7 +256,7 @@ codexRows.patch = (out, timestamp, id, patch) => {
 export const startsTurn = (rows, i) => {
   const r = rows[i];
   if (typed(r)) return true;
-  if (r.type !== 'user' || typeof r.message?.content !== 'string' || r.isCompactSummary) return false;
+  if (r.type !== 'user' || userText(r) === null || r.isCompactSummary) return false;
   for (let j = i + 1; j < rows.length && j <= i + 3; j++) if (rows[j].attachment?.hookEvent === 'UserPromptSubmit') return true;
   return false;
 };
@@ -259,7 +269,7 @@ export function turnRows(transcript, at = '') {
     let s = rows.findIndex(r => Date.parse(r.timestamp || '') >= t);
     if (s < 0) s = rows.length;
     for (let j = s - 1; j >= 0 && t - (Date.parse(rows[j].timestamp || '') || 0) < 30_000; j--)
-      if (rows[j].type === 'user' && typeof rows[j].message?.content === 'string') { s = j; break; }
+      if (rows[j].type === 'user' && userText(rows[j]) !== null) { s = j; break; }
     if (rows.some(r => r.timestamp)) return rows.slice(s);
   }
   // (with no saved time, as in a replay: a row the host wrote, such as a message from another session, starts a turn
@@ -342,6 +352,7 @@ export const backgroundRunsOf = transcript => backgroundRuns(codexRows(tail(tran
 export function turnActs(rows) {
   const calls = [], byId = new Map();
   let answer = '', context = '', started = '', heard = '', said = '';
+  const parts = []; // (each message the user typed this turn, the request and those typed mid-turn, one by one)
   let seq = 0;
   for (const r of rows) {
     seq++;
@@ -351,15 +362,15 @@ export function turnActs(rows) {
     // (REQ: queued-messages: a message typed mid-turn that waited in the queue is part of the request too)
     const qp = r.attachment?.type === 'queued_command' ? r.attachment.prompt : null;
     const qt = Array.isArray(qp) ? qp.filter(b => b?.type === 'text').map(b => b.text).join('\n') : String(qp || '');
-    if (qt.trim() && !qt.trim().startsWith('<')) heard += qt.slice(0, 20000) + '\n';
+    if (qt.trim() && !qt.trim().startsWith('<')) { heard += qt.slice(0, 20000) + '\n'; parts.push(qt.slice(0, 20000)); }
     // (only the conversation's own rows: the host's request copies repeat results with no time. Lesson (trial): a copy
     // erased when each test run ended, and runs that passed after the last change were asked for again)
     if (r.type !== 'user' && r.type !== 'assistant') continue;
-    if (r.type === 'user' && typeof r.message?.content === 'string') { context += r.message.content.slice(0, 20000) + '\n'; heard += r.message.content.slice(0, 20000) + '\n'; }
+    if (r.type === 'user' && userText(r) !== null) { const t = userText(r).slice(0, 20000); context += t + '\n'; heard += t + '\n'; if (typed(r)) parts.push(t); }
     const c = r.message?.content;
     if (!Array.isArray(c)) continue;
     // (a message the user typed mid-turn comes as a text item beside tool results: heard too)
-    if (r.type === 'user') for (const x of c) { const m = x.type === 'text' && /The user sent a new message while you were working:\s*([\s\S]*?)(?:\n\s*This is how Claude Code surfaces|$)/.exec(x.text || ''); if (m) heard += m[1].slice(0, 20000) + '\n'; }
+    if (r.type === 'user') for (const x of c) { const m = x.type === 'text' && /The user sent a new message while you were working:\s*([\s\S]*?)(?:\n\s*This is how Claude Code surfaces|$)/.exec(x.text || ''); if (m) { heard += m[1].slice(0, 20000) + '\n'; parts.push(m[1].slice(0, 20000)); } }
     for (const x of c) {
       if (r.type === 'assistant' && x.type === 'tool_use') { const call = { name: x.name, input: x.input || {}, error: false, out: '', done: 0, at: Date.parse(r.timestamp || '') || 0, i: seq, j: Infinity }; calls.push(call); byId.set(x.id, call); }
       if (x.type === 'tool_result' && byId.has(x.tool_use_id)) {
@@ -369,7 +380,7 @@ export function turnActs(rows) {
       if (r.type === 'assistant' && x.type === 'text' && x.text.trim()) { answer = x.text; said += x.text + '\n'; }
     }
   }
-  return { calls, answer, context, started, heard, said };
+  return { calls, answer, context, started, heard, said, parts };
 }
 
 // The user asked for no questions ("autonomy": "auto", or "don't ask me" in this turn's request), and a message of
@@ -578,7 +589,7 @@ const mtime = f => { try { return fs.statSync(at(f)).mtimeMs; } catch { return 0
 // but nothing stopped their data in the answer.
 // The session's requests before this turn (the user's typed prompts in the transcript tail), newest last.
 export const earlierPrompts = (text, before) => String(text || '').split('\n').flatMap(l => { let r; try { r = JSON.parse(l); } catch { return []; }
-  const c = r.message?.content; return r.type === 'user' && typeof c === 'string' && !c.startsWith('<') && (!before || String(r.timestamp || '') < before) ? [c] : []; }).slice(-5);
+  const c = userText(r); return r.type === 'user' && c !== null && !c.startsWith('<') && (!before || String(r.timestamp || '') < before) ? [c] : []; }).slice(-5);
 // (the settings as this project has them: the engine's defaults, then the project's config.json)
 export const projectConfig = () => { const j = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return {}; } }; return { ...j(new URL('../defaults.json', import.meta.url)), ...j(at('tools/hooks/config.json')) }; };
 export function scopeGaps(acts) {
@@ -1022,7 +1033,7 @@ export function forbiddenGaps(acts) {
 // setup): each changed file a rule covers is read, and its first matching line named. Test files hold attack payloads
 // as data, so they are skipped unless the rule says "tests": true or gives its own "ignore".
 const TEST_FILES = ['**/*.test.*', '**/*.spec.*', '**/test/**', '**/tests/**', '**/__tests__/**', '**/*_test.*', '**/test_*.*', 'vitest.config.*', 'jest.config.*', 'pytest.ini', 'conftest.py'];
-const inGlobs = (p, gs) => [].concat(gs).some(g => globRx(g).test(p) || (g.startsWith('**/') && globRx(g.slice(3)).test(p)));
+export const inGlobs = (p, gs) => [].concat(gs).some(g => globRx(g).test(p) || (g.startsWith('**/') && globRx(g.slice(3)).test(p)));
 export function codeRuleGaps(acts) {
   const rules = [].concat(projectConfig().codeRules || []);
   if (!rules.length) return [];
@@ -1117,6 +1128,20 @@ export function upgradeGaps(turn, acts) {
 // judged on the answer sent)
 const draftMet = (req, read, xr) => { const s = JSON.stringify(req || {}); return s.includes('"answerMatches"') && !s.includes('answerNotMatches')
   && passedDrafts(read).some(d => holdsReq(req, { ...read, answer: inEnglish(d, projectConfig()) }, xr) === true); };
+// The tool calls of this session's earlier turns (name and input), from the transcript before the turn began.
+export const priorCalls = (raw, before) => String(raw || '').split('\n').flatMap(l => { if (!l.includes('"tool_use"')) return [];
+  try { const r = JSON.parse(l); return r.type === 'assistant' && (!before || String(r.timestamp || '') < before) ? (r.message?.content || []).filter(x => x?.type === 'tool_use').map(x => ({ name: x.name, input: x.input || {} })) : []; } catch { return []; } });
+// version-bump: the version was already raised earlier in this session and nothing was released since (no tag, release
+// or publish), so this turn's change goes out in that same new version. Lesson (the old engine): a fix a turn after the
+// feature that raised the version was made to cut another version with its own release notes.
+const BUMP_CMD = /\b(npm|pnpm|yarn)\s+version\b|\b(poetry|hatch|uv)\s+version\b|\bcargo\s+set-version\b|\bbump(2version|version|-my-version)\b/i;
+const RELEASED = /\bgit\s+tag\s+\S|\b(npm|pnpm|yarn)\s+publish\b|\bgh\s+release\b|\bcargo\s+publish\b|\btwine\s+upload\b/i;
+export function bumpedEarlier(calls, versionFiles) {
+  const cmds = (calls || []).map(c => /^(Bash|PowerShell)$/.test(c.name) ? String(c.input.command || '') : '').filter(Boolean);
+  if (!versionFiles || cmds.some(c => RELEASED.test(c))) return false;
+  const wrote = i => [i.content, i.new_string, ...(i.edits || []).map(e => e?.new_string)].some(s => typeof s === 'string' && /\bversion\b/i.test(s));
+  return (calls || []).some(c => /^(Edit|Write|MultiEdit)$/.test(c.name) && inGlobs(relOf(String(c.input.file_path || '')).replace(/\\/g, '/'), [].concat(versionFiles)) && wrote(c.input)) || cmds.some(c => BUMP_CMD.test(c));
+}
 export function engineCheckGaps(acts) {
   const x = { changed: changedOf(acts), runbook: acts.runbook || '' };
   // (what a check requires is met by any file written since the turn began, even in a turn of reads only: the walk
@@ -1130,7 +1155,7 @@ export function engineCheckGaps(acts) {
   // run. Lesson (a peer's review): one check's crash took the whole end check down, or could read as a false ask)
   const out = [];
   for (const r of engineChecks()) {
-    try { if (!(small && SMALL_SKIP.test(r.tag)) && !promptOnly(r.when) && holdsReq(r.when, read, x) === true && holdsReq(r.require, read, xr) === false && !draftMet(r.require, read, xr) && !waivedTag(r.tag, acts)) out.push(`Check: ${r.message}`); }
+    try { if (!(small && SMALL_SKIP.test(r.tag)) && !promptOnly(r.when) && holdsReq(r.when, read, x) === true && holdsReq(r.require, read, xr) === false && !draftMet(r.require, read, xr) && !waivedTag(r.tag, acts) && !(r.tag === 'version-bump' && bumpedEarlier(acts.prior, r.require?.filesChanged))) out.push(`Check: ${r.message}`); }
     catch (e) { out.push(crashLine(r.tag, e)); }
   }
   return out;

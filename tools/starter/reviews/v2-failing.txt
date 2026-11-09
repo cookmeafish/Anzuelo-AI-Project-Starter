@@ -21,7 +21,6 @@ covers: plan-open is proven by "plan-open: an open plan ignored during a work tu
 covers: playbook-format is proven by "missing triggers and sections"
 covers: queued-messages is proven by "queued mid-turn rule request is enforced"
 covers: requirements-valid is proven by "broken requirements.json"
-covers: rule-memory is proven by "rule request without memory"
 covers: runbook-read is proven by "never opened its runbook"
 covers: skill-valid is proven by "invalid skill frontmatter"
 covers: twin-sync is proven by "twin-sync: one twin lost its twin note"
@@ -173,11 +172,6 @@ prompt: routing: a question-word trigger routes with its question mark
 prompt: routing: the triggers left after triggers_removed still route
 prompt: rule request hint
 prompt: rule request hint: asks for the new check's own scenarios, not the whole self-test
-prompt: rule-request: a lasting rule fires ("de ahora en adelante usa siempre euros")
-prompt: rule-request: a lasting rule fires ("from now on always give prices in euros")
-prompt: rule-request: a lasting rule fires ("from now on always tell the other session when you")
-prompt: rule-request: a lasting rule fires ("never use em dashes again")
-prompt: rule-request: a lasting rule fires ("nunca más uses guiones largos")
 prompt: rules digest on every prompt
 prompt: scope hint names the person (alias works)
 prompt: scope-general: text between two contractions still counts ("doesn't ... don't")
@@ -495,9 +489,6 @@ stop: routed task that never opened its runbook: blocked
 stop: routines: docs/routines.md changed without the check: blocked
 stop: rule request fully enforced: passes
 stop: rule request that cannot be checked, with hook: N/A: passes
-stop: rule request with nothing written: blocked
-stop: rule request without memory: blocked
-stop: rule-request: the same test changed, but no check runs it: blocked
 stop: runEach: the hook re-validates changed files itself (invalid JSON): blocked
 stop: runEach: valid JSON passes
 stop: runbook-cold-read: a new runbook no helper read cold: blocked
@@ -550,9 +541,6 @@ stop: unresolved-carryover: the same work continues and last turn's CHANGELOG li
 stop: unrouted work turn that creates + indexes a runbook: runbook-exists passes
 stop: unrouted work turn with no runbook created: blocked
 stop: upgrade-review: every item decided with its reason: passes
-stop: upset-acknowledged: checklist and outcome done, but no general point with every case it covers: blocked
-stop: upset-acknowledged: checklist, outcome and scope done, but no root cause for the miss: blocked
-stop: upset-acknowledged: the runbook "acknowledged" named was never opened: blocked
 stop: upset-acknowledged: the runbook opened, its checklist not recorded to the end: blocked
 stop: upset-learned: "Learned (none)" for a complaint the answer agreed with: blocked
 stop: upset-learned: "Learned (none)" with no verdict at all in the answer or notes: blocked

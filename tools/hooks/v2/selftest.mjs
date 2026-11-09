@@ -108,6 +108,11 @@ report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/
   const tailEs = route('otra vez quedó una fecha en otro formato. toda fecha que vea el cliente tiene que ir en formato largo, siempre', withFeature)?.name;
   const tailEn = route('every label the customer sees must be in plain words, always.', withFeature)?.name, notRule = route('why does the export always fail on empty rows', withFeature)?.name;
   report(tailEs === 'project' && tailEn === 'project' && notRule !== 'project', 'start: a sentence that ends ", always" (", siempre") is a standing rule request; "always" inside a question is not', { tailEs, tailEn, notRule });
+  // (a rule said as an order, short Spanish ones included, gets the project runbook in the reminder; an apology or
+  // "always" in passing does not)
+  const orders = ['never use em dashes again', 'de ahora en adelante usa siempre euros', 'nunca más uses guiones largos'].map(p => route(p, withFeature)?.name);
+  const asides = ['I will never do that again, sorry', 'no lo vuelvo a hacer nunca más', 'I always forget where the menu file is, can you open it'].map(p => route(p, withFeature)?.name);
+  report(orders.every(n => n === 'project') && asides.every(n => n !== 'project'), 'start: "never <do X> again", "de ahora en adelante ...", "nunca más ..." route to the project runbook; an apology or "always" in passing does not', { orders, asides });
 }
 { // (REQ: question-answered: a question that opens a turn is answered first; one typed while a turn runs is answered in
   // the next message and gets no runbook; a request, even one phrased "can you ...?", is no question)
@@ -254,6 +259,19 @@ const win = reminder('please rotate the logs tonight');
 report(win.book?.name === 'windows' && reminder('W1').book?.name === 'windows' && /1\. The old logs are zipped$/m.test(win.text), 'start: a runbook saved with Windows line endings routes and shows its list', win.text);
 const { typed } = await import('./lib.mjs');
 report(!typed({ type: 'user', message: { content: '<local-command-stdout>Login successful.</local-command-stdout>' } }) && typed({ type: 'user', message: { content: 'export the orders' } }), 'start: terminal output from a local command is not a typed request');
+{ // (a request sent with an image is typed: it starts the turn and its text is heard; a row of tool results is not)
+  const t0 = Date.now() - 60_000, ts = k => new Date(t0 + k * 1000).toISOString();
+  const rows = [{ type: 'user', timestamp: ts(0), message: { content: 'earlier request' } }, { type: 'assistant', timestamp: ts(1), message: { content: [{ type: 'text', text: 'Done.' }] } },
+    { type: 'user', timestamp: ts(2), message: { content: [{ type: 'text', text: 'the header overlaps the logo here, fix it' }, { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AA==' } }] } },
+    { type: 'assistant', timestamp: ts(3), message: { content: [{ type: 'tool_use', id: 't1', name: 'Read', input: { file_path: 'a.css' } }] } },
+    { type: 'user', timestamp: ts(4), message: { content: [{ type: 'tool_result', tool_use_id: 't1', content: 'body {}' }, { type: 'text', text: 'not a request' }] } }];
+  const tf = path.join(dir, 'image-turn.jsonl'); fs.writeFileSync(tf, rows.map(r => JSON.stringify(r)).join('\n') + '\n');
+  const turn = turnRows(tf), { heard, parts } = turnActs(turn);
+  fs.rmSync(tf, { force: true });
+  // (and it is the turn's one typed message, the list question-no-file reads)
+  report(turn.length === 3 && /header overlaps the logo/.test(heard) && !/earlier request|not a request/.test(heard) && !typed(rows[4]) && parts.length === 1 && /header overlaps/.test(parts[0]),
+    'start: a request sent with an image starts the turn and its text is heard; a row of tool results is no request', JSON.stringify({ n: turn.length, heard }));
+}
 // (not a question: a question gets the question line, "start: a question that opens a turn is answered first")
 report(reminder('tidy the desk drawer tonight').text === '', 'start: a request no runbook fits gets nothing');
 {
@@ -303,7 +321,7 @@ report(/learn-from-upset/.test(reminder('WHY DID YOU BREAK THE EXPORT AGAIN').te
   const c = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-push-'));
   fs.mkdirSync(path.join(c, 'tools/hooks/state'), { recursive: true }); fs.mkdirSync(path.join(c, '.cache'), { recursive: true });
   fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(c, 'tools/hooks/v2'), { recursive: true });
-  for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
+  for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'pause.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
   const pre = rows => { const t = path.join(c, `t${++id}.jsonl`); fs.writeFileSync(t, rows.flat().map(r => JSON.stringify(r)).join('\n') + '\n');
     return spawnSync(process.execPath, [path.join(c, 'tools/hooks/hooks.mjs'), 'pretool'], { cwd: c, encoding: 'utf8',
       input: JSON.stringify({ session_id: 'pushok', transcript_path: t, tool_name: 'Bash', tool_input: { command: 'git push origin HEAD:main' } }),
@@ -785,7 +803,36 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
         const tool = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', 'starter', 'v2-sweep.mjs');
         const run = (...a) => spawnSync(process.execPath, [tool, ...a], { encoding: 'utf8', env: { ...process.env, V2_SWEEP_LIST: list } });
         const wrote = run('--from', path.join(sw, 'r1.txt'), '--write').status, same = run('--from', path.join(sw, 'r1.txt')), worse = run('--from', path.join(sw, 'r2.txt')), grow = run('--from', path.join(sw, 'r2.txt'), '--write');
+        // (the sweep runs on a frozen copy of the folder as it is now, uncommitted and new files included, so the main folder
+        // stays free to edit; inside a frozen copy it runs in place)
+        const repo = path.join(sw, 'repo'), frozenBase = path.join(sw, 'frozen'), g = (a, cwd = repo) => spawnSync('git', a, { cwd, encoding: 'utf8' });
+        fs.mkdirSync(path.join(repo, 'tools/starter'), { recursive: true }); fs.copyFileSync(tool, path.join(repo, 'tools/starter/v2-sweep.mjs'));
+        fs.writeFileSync(path.join(repo, 'engine.mjs'), 'v1\n');
+        g(['init', '-q']); g(['add', '-A']); g(['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'base']);
+        fs.writeFileSync(path.join(repo, 'engine.mjs'), 'v2 uncommitted\n'); fs.writeFileSync(path.join(repo, 'new-file.mjs'), 'new\n');
+        const fz = (cwd) => spawnSync(process.execPath, ['tools/starter/v2-sweep.mjs', '--freeze-only'], { cwd, encoding: 'utf8', env: { ...process.env, V2_SWEEP_FROZEN: frozenBase } }).stdout.trim();
+        const fdir = fz(repo), rd = f => { try { return fs.readFileSync(path.join(fdir, f), 'utf8').replace(/\r\n/g, '\n'); } catch { return null; } }; // (git may check out with Windows line endings)
+        const froze = { engine: rd('engine.mjs'), added: rd('new-file.mjs'), inPlace: fdir && fs.existsSync(fdir) ? fz(fdir) : null };
+        fs.writeFileSync(path.join(repo, 'engine.mjs'), 'edited during the run\n');
+        froze.after = rd('engine.mjs');
+        froze.branch = g(['rev-parse', '--abbrev-ref', 'HEAD'], fdir).stdout.trim(); // (on a branch: a clone of a detached copy cannot pull)
+        g(['worktree', 'remove', '--force', fdir]);
+        // (a finished run leaves no copy behind; a failed one keeps its copy until the next failed run replaces it)
+        fs.writeFileSync(path.join(repo, 'suite.mjs'), "console.log(require('fs').existsSync('fail.flag') ? 'FAIL  stop: new\\nselfcheck: FAIL (0 passed, 1 failed)' : 'PASS  stop: x\\nselfcheck: ALL PASS (1 passed, 0 failed)')\n");
+        fs.renameSync(path.join(repo, 'suite.mjs'), path.join(repo, 'suite.cjs'));
+        const sweepRun = () => spawnSync(process.execPath, ['tools/starter/v2-sweep.mjs'], { cwd: repo, encoding: 'utf8', env: { ...process.env, V2_SWEEP_FROZEN: frozenBase, V2_SWEEP_SUITE: 'suite.cjs', V2_SWEEP_LIST: path.join(sw, 'empty-list.txt') } });
+        const copies = () => fs.readdirSync(frozenBase).filter(n => n.startsWith('sweep-'));
+        // (a killed run's copy, older than any live run, goes at the next start)
+        const stale = path.join(frozenBase, 'sweep-killed'); fs.mkdirSync(stale, { recursive: true }); const old = (Date.now() - 4 * 3600_000) / 1000; fs.utimesSync(stale, old, old);
+        const passRun = sweepRun(); froze.afterPass = copies().length; froze.passStatus = passRun.status;
+        fs.writeFileSync(path.join(repo, 'fail.flag'), '1');
+        sweepRun(); const first = copies(); sweepRun(); const second = copies();
+        froze.afterFail = first.length; froze.afterTwoFails = second.length; froze.replaced = second[0] !== first[0];
+        for (const n of second) g(['worktree', 'remove', '--force', path.join(frozenBase, n)]);
         fs.rmSync(sw, { recursive: true, force: true });
+        report(froze.engine === 'v2 uncommitted\n' && froze.added === 'new\n' && froze.inPlace === 'in place' && froze.after === 'v2 uncommitted\n' && froze.branch === 'v2-sweep'
+          && froze.passStatus === 0 && froze.afterPass === 0 && froze.afterFail === 1 && froze.afterTwoFails === 1 && froze.replaced,
+          'chain: the v2 sweep runs on a frozen copy holding the uncommitted and new files, which edits in the main folder do not reach; inside a frozen copy it runs in place; a passing run leaves no copy, and only the last failed run\'s copy is kept', JSON.stringify({ ...froze, fdir }));
         // (the sweep's run under v2 fails by design, so the push gate reads no record a run on this machine writes: only
         // the proof inside the pushed commit, whatever the engine)
         const gg = fs.readFileSync(path.resolve(path.dirname(tool), '..', 'hooks', 'git-guard.mjs'), 'utf8');
@@ -1592,23 +1639,31 @@ report(madeUp.length === 2 && /9f8e7d6/.test(madeUp[0]) && /src\/missing\.js/.te
   const edit = (f, extra = []) => [call('Edit', { file_path: path.join(dir, f), old_string: 'a', new_string: 'b' }), ...extra];
   // (the agent's own judgment starts it: the Issue line it writes (rule 3); "again" is an Issue line in an earlier turn)
   const issue = call('Bash', { command: "printf 'Issue: the allergens were missing | runbook: learn-from-upset | fixed when: every item lists them\\n' >> .cache/turn-notes.md" });
-  const u = (prompt, calls, answer, earlier, noIssue) => upsetGaps({}, Object.assign(acts([user(prompt), ...(noIssue ? [] : [issue]), ...calls, say(answer)]), { issuesBefore: earlier ? earlier.length : 0 }));
+  // (the runbook the Issue line names is opened, as the agent that wrote it does)
+  const book = call('Read', { file_path: path.join(dir, 'skills/learn-from-upset/SKILL.md') });
+  const u = (prompt, calls, answer, earlier, noIssue, closed) => upsetGaps({}, Object.assign(acts([user(prompt), ...(noIssue ? [] : [issue]), ...(closed || noIssue ? [] : [book]), ...calls, say(answer)]), { issuesBefore: earlier ? earlier.length : 0 }));
   put('docs/playbooks/menu.md', '# Menu\n'); put('docs/plans/zz-plan.md', '# Plan\n');
   const COMPLAINT = 'you forgot the allergens AGAIN!!';
+  // (the general point with every case, and why it was missed)
+  const WHY = ' Scope: every menu item lists its allergens - all 40 checked. Root cause: the menu runbook had no allergen step.';
   const r = {
     nothing: u(COMPLAINT, edit('src/a.js'), 'Added the allergens.'),
     lessonOnly: u(COMPLAINT, edit('src/a.js', edit('docs/playbooks/menu.md')), 'Added the allergens.'),
     agreeNoCheck: u(COMPLAINT, edit('src/a.js', edit('docs/playbooks/menu.md')), 'You\'re right, sorry. Added them.'),
-    good: u(COMPLAINT, edit('src/a.js', edit('docs/playbooks/menu.md')), 'You\'re right: the croissant had none. Checked: the menu page - two items lacked allergens. Added them.'),
+    good: u(COMPLAINT, edit('src/a.js', edit('docs/playbooks/menu.md')), 'You\'re right: the croissant had none. Checked: the menu page - two items lacked allergens. Added them.' + WHY),
+    // (upset-acknowledged: the runbook named not opened; no general point; no root cause)
+    unopened: u(COMPLAINT, edit('src/a.js', edit('docs/playbooks/menu.md')), 'You\'re right: the croissant had none. Checked: the menu page - two items lacked allergens. Added them.' + WHY, null, false, true),
+    oneCase: u(COMPLAINT, edit('src/a.js', edit('docs/playbooks/menu.md')), 'You\'re right: the croissant had none. Checked: the menu page - it lacked allergens. Added them. Root cause: the menu runbook had no allergen step.'),
+    noCause: u(COMPLAINT, edit('src/a.js', edit('docs/playbooks/menu.md')), 'You\'re right: the croissant had none. Checked: the menu page - two items lacked allergens. Added them to every item.'),
     notHeld: u(COMPLAINT, edit('src/a.js'), 'Checked: the menu page - every item already lists its allergens, so the complaint doesn\'t hold.'),
     calm: u('add the allergens to the menu', edit('src/a.js'), 'Added.', null, true),
-    again: u(COMPLAINT, edit('src/a.js', edit('docs/playbooks/menu.md')), 'You\'re right: the croissant had none. Checked: the menu page. Added them.', ['THE ALLERGENS ARE MISSING!!']),
-    againDone: u(COMPLAINT, edit('src/a.js', [...edit('docs/playbooks/menu.md'), ...edit('docs/plans/zz-plan.md')]), 'You\'re right: the croissant had none. Checked: the menu page. Sweep: all 40 menu items - 40 checked, 0 wrong.', ['THE ALLERGENS ARE MISSING!!']),
+    again: u(COMPLAINT, edit('src/a.js', edit('docs/playbooks/menu.md')), 'You\'re right: the croissant had none. Checked: the menu page. Added them.' + WHY, ['THE ALLERGENS ARE MISSING!!']),
+    againDone: u(COMPLAINT, edit('src/a.js', [...edit('docs/playbooks/menu.md'), ...edit('docs/plans/zz-plan.md')]), 'You\'re right: the croissant had none. Checked: the menu page. Sweep: all 40 menu items - 40 checked, 0 wrong. Root cause: the menu runbook had no allergen step.', ['THE ALLERGENS ARE MISSING!!']),
     // (from a replay of real sessions: owning the miss in plain words, "you were right"; a shouted new rule; a relayed
     // helper report; a resumed session's summary naming the starter; the user's own project hooks: none of these is
     // a missing verdict, a failed patch or an engine lesson)
-    owned: u(COMPLAINT, edit('src/a.js', edit('docs/playbooks/menu.md')), 'I should have listed them. Checked: the menu page - two items lacked them. Added.'),
-    were: u(COMPLAINT, edit('src/a.js', edit('docs/playbooks/menu.md')), 'Done. You were right: the croissant had none, I checked every item.'),
+    owned: u(COMPLAINT, edit('src/a.js', edit('docs/playbooks/menu.md')), 'I should have listed them. Checked: the menu page - two items lacked them. Added.' + WHY),
+    were: u(COMPLAINT, edit('src/a.js', edit('docs/playbooks/menu.md')), 'Done. You were right: the croissant had none, I checked every item. It was missed because the runbook had no allergen step.'),
     rule: u('UPDATE THE PROJECT TO NEVER NAME A DISH SOMETHING VAGUE', edit('src/a.js', edit('docs/playbooks/menu.md')), 'Renamed it and made the naming rule part of the menu runbook.', ['WHY IS THE NAME SO BAD']),
     relayed: u('<agent-message from="x">THE TESTS FAILED AGAIN!!</agent-message>', edit('src/a.js'), 'Fixed.', null, true),
     summary: u('This session is being continued from a previous conversation. Summary: the starter session got the report. WHY IS THE TOTAL WRONG AGAIN', edit('src/a.js', edit('docs/playbooks/menu.md')), 'You\'re right: it rounded down. Checked: the invoice page.'),
@@ -1622,9 +1677,101 @@ report(madeUp.length === 2 && /9f8e7d6/.test(madeUp[0]) && /src\/missing\.js/.te
   for (const [p, t] of keep) t === null ? fs.rmSync(path.join(dir, p), { force: true }) : fs.writeFileSync(path.join(dir, p), t);
   const has = (l, rx) => l.some(s => rx.test(s));
   report(has(r.nothing, /Say first whether it holds/) && has(r.nothing, /Write the lesson/) && has(r.lessonOnly, /Say first whether/) && !has(r.lessonOnly, /Write the lesson/)
-    && has(r.agreeNoCheck, /Say what you checked/) && !r.good.length && !r.notHeld.length && !r.calm.length && has(r.again, /upset again in this session/) && !r.againDone.length
+    && has(r.agreeNoCheck, /Say what you checked/) && !r.good.length && has(r.unopened, /names, learn-from-upset, was not opened this turn/) && r.unopened.length === 1
+    && has(r.oneCase, /Scope: <the point in general terms>/) && r.oneCase.length === 1 && has(r.noCause, /Root cause: <what in the process/) && r.noCause.length === 1 &&!r.notHeld.length && !r.calm.length && has(r.again, /upset again in this session/) && !r.againDone.length
     && !r.owned.length && !r.were.length && !r.rule.length && !r.relayed.length && !has(r.summary, /about the engine/) && !has(r.ownHooks, /about the engine/) && !r.wordsOnly.length && !r.none.length && has(r.skill, /Say first whether it holds/),
     'end: after a complaint, the answer says whether it holds and what was checked and a lesson goes where it stops the next miss; a complaint shown not to hold or a calm request owes nothing; upset again needs a plan and a sweep', JSON.stringify(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v.map(s => s.slice(0, 30))]))));
+}
+{ // (version-bump: the version raised in an earlier turn of the session, nothing released since, covers this turn; a
+  // release since, or only a read of the version file, does not)
+  const { bumpedEarlier, priorCalls } = await import('./lib.mjs');
+  const bump = { name: 'Edit', input: { file_path: path.join(dir, 'package.json'), old_string: '"version": "1.1.0"', new_string: '"version": "1.2.0"' } };
+  const b = { bumped: bumpedEarlier([bump], ['package.json']), released: bumpedEarlier([bump, { name: 'Bash', input: { command: 'git tag v1.2.0' } }], ['package.json']),
+    readOnly: bumpedEarlier([{ name: 'Read', input: { file_path: 'package.json' } }], ['package.json']), npm: bumpedEarlier([{ name: 'Bash', input: { command: 'npm version minor' } }], ['package.json']) };
+  const line = (t, x) => JSON.stringify({ type: 'assistant', timestamp: t, message: { content: [{ type: 'tool_use', id: 'u' + t, name: x.name, input: x.input }] } });
+  b.prior = priorCalls([line('2026-01-01T10:00:00Z', bump), line('2026-01-01T12:00:00Z', { name: 'Bash', input: { command: 'git tag v1.2.0' } })].join('\n'), '2026-01-01T11:00:00Z').length;
+  report(b.bumped && !b.released && !b.readOnly && b.npm && b.prior === 1, 'end: version-bump: a version raised in an earlier turn with nothing released since covers this turn; a release since, or a read, does not', b);
+}
+{ // (prompt-visible: a runbook the turn wrote new shows as made, not as "pulled up"; one opened and followed still shows
+  // as pulled up)
+  const { passText: passLine } = await import('./lines.mjs');
+  const made = passLine({ acts: acts([user('make a shopping list'), call('Write', { file_path: path.join(dir, 'docs/playbooks/shopping-list.md'), content: 'x' }), call('Write', { file_path: path.join(dir, 'lists/shopping-list.md'), content: 'x' }), say('Saved.')]), turn: { runbook: 'docs/playbooks/shopping-list.md' } });
+  const used = passLine({ acts: acts([user('make a plan'), call('Read', { file_path: path.join(dir, 'docs/playbooks/plan.md') }), call('Write', { file_path: path.join(dir, 'docs/plans/p.md'), content: 'x' }), say('Saved.')]), turn: { runbook: 'docs/playbooks/plan.md' } });
+  report(/🌱 new runbook made: docs\/playbooks\/shopping-list\.md/.test(made) && !/pulled up/.test(made) && /📖 the plan runbook it pulled up was followed/.test(used) && !/🌱/.test(used),
+    'visible: a runbook the turn wrote new shows as made, not as pulled up; one opened and followed shows as pulled up', JSON.stringify({ made, used }));
+}
+{ // (REQ: pause-stops: a request to pause, stop or restart, typed first or mid-turn, ends the turn with nothing more asked
+  // and the reminder says to wrap up; a request about a restart feature or a question about restarting a server does not)
+  const { pausedTurn } = await import('./end.mjs');
+  const p = {
+    mid: pausedTurn({ parts: ['add a csv export', 'get to a good pausing point, i will restart the computer'] }),
+    es: pausedTurn({ parts: ['para aquí, voy a reiniciar la computadora'] }),
+    feature: pausedTurn({ parts: ['add a button that restarts the game'] }), server: pausedTurn({ parts: ['is it okay to restart the server?'] }),
+    hint: /^PAUSE: the user asked to pause/.test(reminder('Get to a good pausing point. i will restart computer.').text),
+    upset: /learn-from-upset/.test(reminder('WHY DID YOU TELL ME IT WAS OKAY TO RESTART BEFORE BUT YOU WERE STILL CODING').text),
+    noHint: !/PAUSE/.test(reminder('add a button that restarts the game').text),
+  };
+  report(p.mid && p.es && !p.feature && !p.server && p.hint && p.noHint, 'end/start: pause-stops: a request to pause or restart, first or mid-turn, ends the turn with nothing more asked and gets the wrap-up reminder; a restart feature or a question about a server restart does not', p);
+}
+{ // (REQ: question-no-file: a turn of questions only gets an answer, not edits; records are exempt, a quoted ask clears
+  // it, "what should we do?" under autonomy auto asks for the fix, and news typed first is no question)
+  const { questionFileGaps } = await import('./end.mjs');
+  const ed = f => call('Edit', { file_path: path.join(dir, f), old_string: 'a', new_string: 'b' });
+  const cfg = { changeWords: '\\b(make|add|fix|change)\\b', questionNoFileExempt: ['docs/CHANGELOG.md'] };
+  const q = (parts, calls, answer, c = cfg) => questionFileGaps({ ...acts([user(parts[0]), ...calls, say(answer)]), parts }, c).length;
+  const r = {
+    asked: q(['what do you think of the plan?'], [ed('outputs/plan.md')], 'It is fine.'),
+    records: q(['what do you think of the plan?'], [ed('docs/CHANGELOG.md')], 'It is fine.'),
+    quoted: q(['what do you think of the plan? tighten it if needed?'], [ed('outputs/plan.md')], 'Asked for: "tighten it if needed". Tightened.'),
+    decideAsk: q(['the menu breaks on phones. what do you think we should do?'], [ed('site/menu.css')], 'Made it wrap.'),
+    decideAuto: q(['the menu breaks on phones. what do you think we should do?'], [ed('site/menu.css')], 'Made it wrap.', { ...cfg, autonomy: 'auto' }),
+    news: q(['i bought the blue vase', 'are you done with the shelf list?'], [ed('data/vases.csv')], 'Yes; the vase is recorded.'),
+    twoQ: q(['what is in the plan?', 'and is it final?'], [ed('outputs/plan.md')], 'It lists three steps.'),
+    work: q(['make the plan shorter'], [ed('outputs/plan.md')], 'Shortened.'),
+  };
+  report(r.asked === 1 && !r.records && !r.quoted && r.decideAsk === 1 && !r.decideAuto && !r.news && r.twoQ === 1 && !r.work,
+    'end: question-no-file: a turn of questions only that changed files is held; records, a quoted ask, "what should we do?" under autonomy auto, news typed first, or a request for work are not', r);
+}
+{ // (REQ: empty-answer: a turn that changed files ends with an answer; a question turn or a turn with an answer does not)
+  const { emptyGaps } = await import('./end.mjs');
+  const ed = call('Edit', { file_path: path.join(dir, 'docs/rota.md'), old_string: 'a', new_string: 'b' });
+  const e = { empty: emptyGaps(acts([user('build a rota'), ed, say('')])).length, blank: emptyGaps(acts([user('build a rota'), ed, say('  \n ')])).length,
+    answered: emptyGaps(acts([user('build a rota'), ed, say('Made the rota.')])).length, question: emptyGaps(acts([user('what is a rota?'), say('')])).length };
+  report(e.empty === 1 && e.blank === 1 && !e.answered && !e.question, 'end: empty-answer: a turn that changed files and ends with no answer is held; one with an answer, or a turn that changed nothing, is not', e);
+}
+{ // (REQ: rule-request: a rule the agent took on is written down and enforced. It starts from the agent's judgment only:
+  // the project-rule skill opened, `hooks.mjs rule` run, or a rule recorded in its notes or answer; never prompt words)
+  const { ruleGaps } = await import('./end.mjs');
+  const reqFile = path.join(dir, 'tools/hooks/requirements.json'), reqBefore = (() => { try { return fs.readFileSync(reqFile, 'utf8'); } catch { return null; } })();
+  const ed = (...fs_) => fs_.map(f => call('Edit', { file_path: path.join(dir, f), old_string: 'a', new_string: 'b' }));
+  const skill = call('Read', { file_path: path.join(dir, 'skills/project-rule/SKILL.md') });
+  const written = ed('AGENTS.md', 'docs/checks/user-requirements.md');
+  const g = (prompt, calls, answer, cfg = {}) => ruleGaps(acts([user(prompt), ...calls, say(answer)]), cfg);
+  const RULE = 'from now on always give prices in euros';
+  const r = {
+    // ("always" in passing, the skill not opened, nothing recorded: no rule handling at all)
+    passing: g('I always forget where the menu file is, can you open it', ed('src/a.js'), 'Opened it.'),
+    ruleWordsOnly: g(RULE, ed('src/a.js'), 'Changed the prices.'),
+    promised: g(RULE, [skill], 'Got it, I will.'),
+    saidOnly: g('prices in euros please', ed('src/a.js'), 'Rule added.'),
+    full: g(RULE, [skill, ...written], 'Prices are in euros from now on. hook: N/A a style choice.'),
+    na: g(RULE, [...written], 'Rule: prices in euros. hook: N/A judgment.'),
+    cmd: g(RULE, [call('Bash', { command: 'node tools/hooks/hooks.mjs rule "Prices are given in euros" --why "the user asked" --enforced "N/A judgment"' }, 'ok')], 'Rule: prices in euros. hook: N/A judgment.'),
+    none: g(RULE, [skill], 'Changed this one price. Rule: none - the user meant this message only.'),
+    testNoCheck: g(RULE, [...written, ...ed('tools/summary.test.mjs')], 'Rule: no percentage against zero; the summary test covers it.'),
+  };
+  fs.mkdirSync(path.dirname(reqFile), { recursive: true });
+  fs.writeFileSync(reqFile, JSON.stringify({ requirements: [{ tag: 'summary-tested', require: { toolPassed: { cmd: 'summary\\.test\\.mjs', selfRun: 'node tools/summary.test.mjs' } } }] }));
+  r.testWithCheck = g(RULE, [...written, ...ed('tools/summary.test.mjs')], 'Rule: no percentage against zero; the summary test covers it.');
+  reqBefore === null ? fs.rmSync(reqFile, { force: true }) : fs.writeFileSync(reqFile, reqBefore);
+  r.memoryOwed = g(RULE, [skill, ...written], 'Done. hook: N/A judgment.', { memoryOnRuleRequest: true });
+  r.memorySaved = g(RULE, [skill, ...written, call('Write', { file_path: 'agent-home/.claude/projects/p/memory/euros.md', content: 'x' })], 'Done. hook: N/A judgment.', { memoryOnRuleRequest: true });
+  const has = (l, rx) => l.some(s => rx.test(s));
+  report(!r.passing.length && !r.ruleWordsOnly.length && has(r.promised, /Write the rule down/) && has(r.saidOnly, /Write the rule down/) && has(r.saidOnly, /Say how the rule is enforced/)
+    && !r.full.length && !r.na.length && !r.cmd.length && !r.none.length && has(r.testNoCheck, /Say how the rule is enforced/) && !r.testWithCheck.length
+    && has(r.memoryOwed, /Save the rule to memory/) && !r.memorySaved.length,
+    'end: rule-request: a rule the agent took on (skill opened, rule command, or recorded) is written down and enforced; "always" in passing with the skill not opened, or rule words alone, is not held; a test counts only when a check runs it',
+    JSON.stringify(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v.map(s => s.slice(0, 30))]))));
 }
 // (a Finished section naming a changed file that is not there is an unbacked claim, rule 4: held. The old engine let it
 // pass; v2's stricter verdict is the one kept: tools/starter/reviews/2026-11-08-v2-triage.md, settled conflicts)
@@ -1922,7 +2069,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     const c = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-resume-'));
     fs.mkdirSync(path.join(c, 'tools/hooks/state'), { recursive: true });
     fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(c, 'tools/hooks/v2'), { recursive: true });
-    for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
+    for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'pause.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
     const resume = ended => { const sid = ended ? 'resumedone' : 'resumeopen';
       fs.writeFileSync(path.join(c, `tools/hooks/state/v2-turn.${sid}.json`), JSON.stringify({ at: new Date().toISOString(), runbook: null, ...(ended ? { ended: true } : {}) }));
       return spawnSync(process.execPath, [path.join(c, 'tools/hooks/hooks.mjs'), 'session'], { cwd: c, encoding: 'utf8', input: JSON.stringify({ session_id: sid, source: 'resume' }), env: { ...process.env, STARTER_ENGINE: 'v2', ANZUELO_ROOT: c } }).stdout || ''; };
@@ -1939,7 +2086,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     const c = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-quiet-'));
     fs.mkdirSync(path.join(c, 'tools/hooks/state'), { recursive: true });
     fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(c, 'tools/hooks/v2'), { recursive: true });
-    for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
+    for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'pause.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
     const tp = path.join(c, 'transcript.jsonl'), at = new Date().toISOString();
     fs.writeFileSync(tp, [
       { type: 'user', timestamp: at, message: { role: 'user', content: 'run the tests and fix the export' } },
@@ -1964,7 +2111,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     const c = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-mark-'));
     fs.mkdirSync(path.join(c, 'tools/hooks/state'), { recursive: true }); fs.mkdirSync(path.join(c, 'docs/playbooks'), { recursive: true });
     fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(c, 'tools/hooks/v2'), { recursive: true });
-    for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
+    for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'pause.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
     fs.writeFileSync(path.join(c, 'docs/playbooks/export.md'), '---\nname: export\ntriggers: csv export\n---\n## Done when\n1. The answer says how it was checked (answer: How it was checked)\n');
     const tp = path.join(c, 't.jsonl'), at = new Date(Date.now() + 1000).toISOString();
     const env = { ...process.env, STARTER_ENGINE: 'v2', ANZUELO_ROOT: c, CLAUDE_PROJECT_DIR: c };
@@ -1985,7 +2132,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     const c = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-ack-'));
     fs.mkdirSync(path.join(c, 'tools/hooks/state'), { recursive: true }); fs.mkdirSync(path.join(c, '.cache'), { recursive: true }); fs.mkdirSync(path.join(c, 'skills/learn-from-upset'), { recursive: true });
     fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(c, 'tools/hooks/v2'), { recursive: true });
-    for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
+    for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'pause.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
     fs.copyFileSync(path.join(repo, 'skills/learn-from-upset/SKILL.md'), path.join(c, 'skills/learn-from-upset/SKILL.md'));
     const notes = path.join(c, '.cache/turn-notes.md'), old = new Date(Date.now() - 3600_000);
     fs.writeFileSync(notes, 'Issue: the export dropped rows with commas | runbook: learn-from-upset | fixed when: every row is in the export\n'); fs.utimesSync(notes, old, old);
@@ -2013,7 +2160,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     const { spawnSync } = await import('node:child_process'), c = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-brief-'));
     fs.mkdirSync(path.join(c, 'tools/hooks/state'), { recursive: true }); fs.mkdirSync(path.join(c, '.cache'), { recursive: true }); fs.mkdirSync(path.join(c, 'docs/playbooks'), { recursive: true });
     fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(c, 'tools/hooks/v2'), { recursive: true });
-    for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
+    for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'pause.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
     fs.writeFileSync(path.join(c, 'docs/playbooks/export.md'), '---\nname: export\n---\n# Export\n## Done when\n- [ ] The tests pass (ran: npm test)\n');
     const brief = engine => {
       const at = new Date(Date.now() - 2000).toISOString();
@@ -2044,7 +2191,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     const { spawnSync } = await import('node:child_process');
     const c = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-crash-'));
     fs.mkdirSync(path.join(c, 'tools/hooks'), { recursive: true });
-    for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
+    for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'pause.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
     const hook = (cmd, extra = {}) => (spawnSync(process.execPath, [path.join(c, 'tools/hooks/hooks.mjs'), cmd], { cwd: c, encoding: 'utf8',
       input: JSON.stringify({ session_id: 'crashonce', prompt: 'add a recipe card', ...extra }), env: { ...process.env, STARTER_ENGINE: 'v2' } }).stdout || '').trim();
     const p1 = hook('prompt'), s1 = hook('stop'), s2 = hook('stop', { session_id: 'crashother', stop_hook_active: true });
@@ -2053,7 +2200,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
       'crash: a v2 hook that cannot load tells the agent once per session; a Stop already held lets the session end', [p1.slice(0, 120), s1.slice(0, 80), s2.slice(0, 80)]);
     const c2 = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-crash-'));
     fs.mkdirSync(path.join(c2, 'tools/hooks'), { recursive: true });
-    for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c2, 'tools/hooks', f));
+    for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'pause.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c2, 'tools/hooks', f));
     const st = (spawnSync(process.execPath, [path.join(c2, 'tools/hooks/hooks.mjs'), 'stop'], { cwd: c2, encoding: 'utf8', input: JSON.stringify({ session_id: 'crashstop' }), env: { ...process.env, STARTER_ENGINE: 'v2' } }).stdout || '');
     fs.rmSync(c2, { recursive: true, force: true });
     report(/"decision":"block"/.test(st) && /CRASHED/.test(st), 'crash: a v2 Stop hook that cannot load blocks once with the error', st.slice(0, 160));
@@ -2149,7 +2296,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     fs.writeFileSync(path.join(c4, '.cache/turn-notes.md'), 'Issue: the notes file had a typo | runbook: learn-from-upset | fixed when: the typo is gone\n');
     fs.writeFileSync(path.join(c4, 'notes.md'), 'teh notes\n');
     // (an upset turn done the learn-from-upset way: whether it held and what was checked, and the lesson in a check)
-    const fixed = 'You\'re right: notes.md said "teh". Checked: notes.md - one typo. Fixed it, and the spelling check now covers the notes.';
+    const fixed = 'You\'re right: notes.md said "teh". Checked: notes.md - one typo. Fixed it, and the spelling check now covers the notes. Scope: every note file is spelled right - all 3 checked. Root cause: the spelling check skipped the notes.';
     const workRows = stamp([user('UGH the notes have a typo AGAIN, fix it'), call('Edit', { file_path: path.join(c4, 'notes.md'), old_string: 'teh', new_string: 'the' }),
       call('Write', { file_path: path.join(c4, 'docs/checks/spelling.md'), content: '# Spelling\nThe notes are spell-checked.\n' }), say(fixed)], 0);
     fs.writeFileSync(path.join(c4, 'notes.md'), 'the notes\n'); fs.mkdirSync(path.join(c4, 'docs/checks'), { recursive: true }); fs.writeFileSync(path.join(c4, 'docs/checks/spelling.md'), '# Spelling\nThe notes are spell-checked.\n');
@@ -2163,7 +2310,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     const { probeEngine } = await import('../hooks.mjs');
     const c3 = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-probe-'));
     fs.mkdirSync(path.join(c3, 'tools/hooks'), { recursive: true });
-    for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c3, 'tools/hooks', f));
+    for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'pause.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c3, 'tools/hooks', f));
     const broken = probeEngine(c3);
     fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(c3, 'tools/hooks/v2'), { recursive: true });
     fs.rmSync(path.join(c3, 'tools/hooks/state'), { recursive: true, force: true });
@@ -2174,7 +2321,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     {
       const g = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-prove-'));
       fs.mkdirSync(path.join(g, 'tools/hooks'), { recursive: true });
-      for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(g, 'tools/hooks', f));
+      for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'pause.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(g, 'tools/hooks', f));
       const gg = (...a) => spawnSync('git', a, { cwd: g, encoding: 'utf8' });
       gg('init', '-q'); fs.writeFileSync(path.join(g, 'menu.js'), 'broken\n'); gg('add', '-A'); gg('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'x');
       fs.writeFileSync(path.join(g, 'menu.js'), 'fixed\n');
@@ -2395,7 +2542,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-split-')), eng = path.join(proj, '.anzuelo', 'engine'), loc = path.join(proj, '.anzuelo', 'local');
   fs.mkdirSync(path.join(eng, 'tools', 'hooks'), { recursive: true });
   fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(eng, 'tools/hooks/v2'), { recursive: true });
-  for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(eng, 'tools/hooks', f));
+  for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'pause.mjs', 'claims.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(eng, 'tools/hooks', f));
   const book = (root, name, trig) => { fs.mkdirSync(path.join(root, 'docs/playbooks'), { recursive: true }); fs.writeFileSync(path.join(root, 'docs/playbooks', `${name}.md`), `---\nname: ${name}\nsummary: s\ntriggers: ${trig}\n---\n# ${name}\n\n## Done when\n- [ ] ${name} item one\n`); };
   book(eng, 'invoice', 'send the invoice'); book(loc, 'harvest', 'plan the harvest');
   const ask = (prompt, sid) => spawnSync(process.execPath, [path.join(eng, 'tools/hooks/hooks.mjs'), 'prompt'], { cwd: proj, encoding: 'utf8', input: JSON.stringify({ session_id: sid, prompt }),

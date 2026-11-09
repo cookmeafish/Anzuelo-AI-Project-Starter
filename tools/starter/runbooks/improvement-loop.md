@@ -42,7 +42,16 @@ updatedInput) is fixed in place.
    in it, then run there. Not in a temp folder (the link tests refuse one) and not without wire.mjs (the generated
    hook settings are not in git): each cost a failed run. A new worktree has no `.cache/`: create it before sending
    any output there (2026-11-06: every step's redirect failed and the chain did not run). **While the chain runs, start
-   the next task in the same turn:** read-only measurements (on a clone, never the main folder's state), the next port
+   the next task in the same turn:** every long suite runs on a frozen copy, never in the main folder, so editing there
+   is always safe: `node tools/starter/v2-sweep.mjs` freezes the folder as it is (uncommitted and new files included)
+   by default; never wait to edit because a run reads the main folder (2026-11-09: sweeps run there kept the next fix
+   waiting). It removes its copy when the run ends and keeps only the last failed one; remove each chain's copy once
+   its proof is pushed (`git worktree remove`, then `git worktree prune`): 2026-11-09, 31 old copies held 4.5 GB.
+   **The main folder's engine is live:** every session there runs it on each hook. A change to the engine that takes
+   more than one edit is made in a worktree and brought into the main folder only once `node tools/hooks/v2/selftest.mjs`
+   passes there. A single edit in the main folder defines before it uses (a new function first, then its call), and
+   the v2 selftest runs after each edit to start, end, guard or lib before the next (2026-11-09: a call added one edit
+   before its function crashed another session's end check). Then: read-only measurements (on a clone, never the main folder's state), the next port
    or fix in the main folder. Never wait idle for the notification (2026-11-09: three idle waits of 16 to 23 minutes in
    one day). The push hook reads the proof inside each pushed commit (`git-guard.mjs pre-push`, `proofCovers`): the
    chain's whole passing run on the clean frozen copy writes the commit it tested into

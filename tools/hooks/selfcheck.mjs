@@ -551,7 +551,7 @@ const STOP = [
     files: { 'outputs/weekly/2026-W42 summary.md': '# Week 42\n\nSales were 1,200.\n' },
     answer: 'Skill: research. Sources: https://a.com' + FIN, expect: { not: ['knowledge-changelog'] } },
   { name: 'rule request with nothing written: blocked', prompt: 'from now on always include a budget table in plans', answer: 'Got it, I will.',
-    expect: { block: true, tags: ['rule-request'] } },
+    expect: { block: true, tags: ['rule-request'] }, v2: { tools: [sk('project-rule')] } },
   // Lesson: complaints were answered with an apology and a fix, and the same miss came back the next week
   { name: 'upset-learned: a complaint fixed but nothing learned: blocked', prompt: 'you forgot to add the allergens again!!', files: { 'docs/menu.md': 'Croissant (gluten, milk)' },
     answer: 'Added the allergens to the menu.' + FIN, expect: { block: true, tags: ['upset-learned'], not: ['runbook-exists', 'rule-request'] } },
@@ -765,7 +765,7 @@ const STOP = [
   { name: 'rule request without memory: blocked', prompt: 'from now on always include a budget table in plans', tools: [pb('project'), bash('node tools/hooks/selfcheck.mjs'), bash('node tools/audit.mjs')],
     edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), memoryOnRuleRequest: true }) },
     files: { 'CLAUDE.md': TWIN, 'docs/checks/user-requirements.md': 'row', 'tools/hooks/requirements.json': '{"requirements":[]}', 'docs/CHANGELOG.md': 'x' },
-    answer: 'Playbook: project.md.' + FIN, expect: { block: true, tags: ['rule-request'] } },
+    answer: 'Playbook: project.md.' + FIN, expect: { block: true, tags: ['rule-request'] }, v2: { tools: [sk('project-rule'), bash('node tools/hooks/selfcheck.mjs'), bash('node tools/audit.mjs')] } },
   // (by default the rule in AGENTS.md is enough: the memory note repeated it. Lesson, efficiency trials)
   { name: 'rule-request: by default no memory note is asked for', prompt: 'from now on always include a budget table in plans', tools: [pb('project'), bash('node tools/hooks/selfcheck.mjs'), bash('node tools/audit.mjs')],
     files: { 'CLAUDE.md': TWIN, 'docs/checks/user-requirements.md': 'row', 'tools/hooks/requirements.json': '{"requirements":[]}', 'docs/CHANGELOG.md': 'x' },
@@ -861,11 +861,13 @@ const STOP = [
       'lists/shopping-list.md': '# Shopping list\n- pasta\n', 'docs/CHANGELOG.md': '# Changelog\n- 2026-10-27: a runbook for shopping lists\n',
       '.cache/turn-notes.md': 'Playbook: shopping-list.md\nCold read: docs/playbooks/shopping-list.md - 0 gaps\n' },
     host: { CLAUDE_PROJECT_DIR: '.' }, answer: 'Playbook: shopping-list.md. Saved the list in lists/shopping-list.md.' + FIN, expect: {},
+    // (under v2 the Finished line names the real file: one that is not there is an unbacked claim, held; triage, settled)
+    v2: { answer: 'Playbook: shopping-list.md. Saved the list in lists/shopping-list.md.\n\n## Finished\n- Done. Files: lists/shopping-list.md, docs/playbooks/shopping-list.md' },
     after: (dir, reason, d) => (/🌱 new runbook made: docs\/playbooks\/shopping-list\.md/.test(d?.systemMessage || '') && !/shopping-list runbook it pulled up/.test(d?.systemMessage || '')) || `got ${JSON.stringify(d).slice(0, 400)}` },
   // REQ: prompt-visible. A work turn that passes shows the user what the hooks confirmed.
   { name: 'prompt-visible: a work turn that passes shows the user a ✅ line with its runbook', prompt: 'make a plan for the csv export',
     tools: [pb('plan'), bash('node skills/plan/scripts/plan-tasks.mjs check docs/plans/2026-10-17-export.md')], files: { 'docs/plans/2026-10-17-export.md': '# Export: plan' },
-    host: { CLAUDE_PROJECT_DIR: '.' }, answer: 'Playbook: plan.md. Saved.' + FIN, expect: { block: false },
+    host: { CLAUDE_PROJECT_DIR: '.' }, answer: 'Playbook: plan.md. Saved.' + FIN, expect: { block: false }, v2: { answer: 'Playbook: plan.md. Saved.\n\n## Finished\n- Done. Files: docs/plans/2026-10-17-export.md' },
     after: (dir, reason, d) => /^⚓ .+? ✅ checks passed · 📖 the plan runbook it pulled up was followed/.test(d?.systemMessage || '') || `no pass line: ${JSON.stringify(d).slice(0, 200)}` },
   { name: 'prompt-visible: a runbook the agent opened on its own is not credited to Anzuelo', prompt: 'tidy up the csv export notes',
     tools: [pb('plan'), bash('node skills/plan/scripts/plan-tasks.mjs check docs/plans/2026-10-17-export.md')], files: { 'docs/plans/2026-10-17-export.md': '# Export: plan' },
@@ -874,7 +876,7 @@ const STOP = [
   { name: 'prompt-visible: lines the user turned off stay off', prompt: 'make a plan for the csv export',
     tools: [pb('plan'), bash('node skills/plan/scripts/plan-tasks.mjs check docs/plans/2026-10-17-export.md')], files: { 'docs/plans/2026-10-17-export.md': '# Export: plan' },
     edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), userLines: { hide: ['passed'] } }) },
-    host: { CLAUDE_PROJECT_DIR: '.' }, answer: 'Playbook: plan.md. Saved.' + FIN, expect: { block: false },
+    host: { CLAUDE_PROJECT_DIR: '.' }, answer: 'Playbook: plan.md. Saved.' + FIN, expect: { block: false }, v2: { answer: 'Playbook: plan.md. Saved.\n\n## Finished\n- Done. Files: docs/plans/2026-10-17-export.md' },
     after: (dir, reason, d) => !d?.systemMessage || `a hidden line was shown: ${d.systemMessage}` },
   // a requirement written into a runbook says how it is proven, so none stays unenforced unnoticed
   { name: 'done-when-labeled: a runbook changed with an item that names no check or judgment: blocked', prompt: 'every zorbl answer must cite its zorbl file', tools: [pb('project'), bash('node tools/audit.mjs')],
@@ -1352,8 +1354,10 @@ const PROMPT = [
   // REQ: prompt-visible. The user sees that the hooks heard them. (Lesson (the user): "i didn't see the hook icon")
   // (a guess from words is never shown: only what the agent confirms, at the end of the turn. Lesson (the user): "hide
   // the trigger alert ... and only display the 2nd one that acknowledges ONLY IF ITS ACTUALLY AN ISSUE")
-  { name: 'prompt-visible: shouting is handled but no guess is shown to the user', prompt: 'WHY DID YOU SKIP THE SOURCES AGAIN', env: { CLAUDE_PROJECT_DIR: '.' }, has: ['THE USER SOUNDS UPSET'], hasNot: ['🚨'] },
-  { name: 'prompt-visible: a possible rule is handled but no guess is shown to the user', prompt: 'from now on always cite the source file in every desk note', env: { CLAUDE_PROJECT_DIR: '.' }, has: ['RULE REQUEST'], hasNot: ['📜'] },
+  { name: 'prompt-visible: shouting is handled but no guess is shown to the user', prompt: 'WHY DID YOU SKIP THE SOURCES AGAIN', env: { CLAUDE_PROJECT_DIR: '.' }, has: ['THE USER SOUNDS UPSET'], hasNot: ['🚨'],
+    v2: { has: ['This sounds upset: open skills/learn-from-upset/SKILL.md'], hasNot: ['🚨', 'systemMessage'] } },
+  { name: 'prompt-visible: a possible rule is handled but no guess is shown to the user', prompt: 'from now on always cite the source file in every desk note', env: { CLAUDE_PROJECT_DIR: '.' }, has: ['RULE REQUEST'], hasNot: ['📜'],
+    v2: { has: ['Runbook: open docs/playbooks/project.md'], hasNot: ['📜', 'systemMessage'] } },
   // REQ: trigger-words. A whitelisted word sets nothing off by itself.
   { name: 'trigger-words: a whitelisted word alone gets no upset handling', prompt: 'wtf nice work on the export', setupFn: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), ignoreWords: { upset: ['wtf'] } }) }, hasNot: ['THE USER SOUNDS UPSET'] },
   { name: 'trigger-words: the same word in capitals with other words still does', prompt: 'WTF THIS IS WRONG AGAIN', setupFn: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), ignoreWords: { upset: ['wtf'] } }) }, has: ['THE USER SOUNDS UPSET'] },
@@ -2563,7 +2567,9 @@ STOP.push(
   // (npm pointed at the project's own folder is the same command. Lesson, trial round 11: "npm --prefix <project> test"
   // passed and Stop asked for the tests again)
   { pack: 'app', name: 'app-test-pass: npm --prefix <the project> test passed: passes', prompt: 'add a feature to export reports as csv', tools: [pb('feature'), bash('npm --prefix . test', 'Tests: 12 passed, 12 total')], files: { ...SPEC, 'docs/x.md': 'x' }, mtimes: { 'docs/x.md': -3600_000 }, ...testGate,
-    answer: 'Playbook: feature.md.\n' + VERIF + FIN, expect: { block: false, not: ['app-test-pass'] } },
+    answer: 'Playbook: feature.md.\n' + VERIF + FIN, expect: { block: false, not: ['app-test-pass'] },
+    // (v2 sends a work turn's runbook items no script can check once, to verify: that list is no app-test-pass hold)
+    v2: { expect: { not: ['app-test-pass'] } } },
   { pack: 'app', name: 'app-test-pass: npm --prefix <a subfolder> test is another package: still blocked', prompt: 'add a feature to export reports as csv', tools: [pb('feature'), bash('npm --prefix tools/site test', 'Tests: 3 passed, 3 total')], files: { ...SPEC, 'docs/x.md': 'x' }, mtimes: { 'docs/x.md': -3600_000 }, ...testGate,
     answer: 'Playbook: feature.md.\n' + VERIF + FIN, expect: { block: true, tags: ['app-test-pass'] } },
   { name: 'changelog: a check list changed without a CHANGELOG line: blocked', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
@@ -2857,7 +2863,14 @@ PROMPT.push(
   { name: 'check-preview: work hears that a plan comes first once it adds many files', prompt: 'add a csv export to the app', has: ['CHECKS:', 'plan-required (a plan in docs/plans/ first)'] },
   { name: 'check-preview: small talk hears nothing about plans', prompt: 'thanks, that looks great', hasNot: ['plan-required'] }
 );
-function runStop(s) {
+function runStop(s0) {
+  // (a fixture file is written after the turn starts, so the old engine counts it as this turn's work. v2 counts a file
+  // only when a call of the turn wrote it (a file changed with no writer is another session's), so under v2 each fixture
+  // file no call names gets the Write that made it, unless its time is set back to before the turn ("mtimes"). Lesson
+  // (the old suite under v2): tests whose work was only fixture files read as turns that changed nothing)
+  // (not a file git ignores, such as build output, nor one already there with the same content: neither is a change
+  // under the old engine either)
+  let s = s0;
   const dir = takeCopy(!!s.own);
   try {
     if (!s.own) ownChecksOff(dir);
@@ -2866,6 +2879,17 @@ function runStop(s) {
     if (s.removeMarker) fs.rmSync(path.join(dir, '.starter-template'), { force: true }); // a project, not the starter
     applyEdits(dir, s.edit, since - 3600_000);
     if (s.prep) s.prep(dir);
+    // (a scenario with a command or a helper keeps its files on that path: a command may have written them, and the run
+    // window and writer rule are what such a scenario tests. Lesson (a peer's review): a synthetic Write would hide it)
+    if (process.env.STARTER_ENGINE === 'v2' && !(s0.tools || []).some(t => /^(Bash|PowerShell|Agent|Task)$/.test(t.name))) {
+      const named = new Set(JSON.stringify(s0.tools || []).match(/[\w./-]+\.\w+/g) || []);
+      const same = p => { try { return fs.readFileSync(path.join(dir, p), 'utf8') === String(s0.files[p]); } catch { return false; } };
+      const ignored = p => spawnSync('git', ['check-ignore', '-q', '--no-index', p], { cwd: ROOT }).status === 0; // (the fixture copy has no git: the starter's own ignore rules, which it carries)
+      const wrote = Object.keys(s0.files || {}).filter(p => !named.has(p) && !((s0.mtimes || {})[p] < 0) && !/^(\.cache|tools\/hooks\/state)\//.test(p) && !same(p) && !ignored(p));
+      // (written first, with the fixture's own content, as the work the scenario's calls then test or review: a stub edit
+      // after them read as code changed after its tests ran and hid the content the security check reads)
+      if (wrote.length) s = { ...s0, tools: [...wrote.map(p => ({ name: 'Write', input: { file_path: p, content: String(s0.files[p]) } })), ...(s0.tools || [])] };
+    }
     const tp = transcript(dir, s, since);
     // the fixture's transcript sits in the project (a real one lives outside it): it was there before the turn
     const sp = path.join(dir, 'tools/hooks/state/snapshot.json');
@@ -3989,11 +4013,13 @@ STOP.push(
     edit: withReqs({ tag: 'summary-tested', rule: '4', when: { filesChanged: ['tools/summary.mjs'] }, require: { toolPassed: { cmd: 'summary\\.test\\.mjs', pass: 'RESULT: PASS', selfRun: 'node tools/summary.test.mjs' } }, message: 'Run the summary test.' }),
     tools: [pb('project'), editTool('tools/summary.test.mjs'), bash('node tools/summary.test.mjs', 'RESULT: PASS')],
     files: { ...MEM, 'CLAUDE.md': TWIN, 'docs/checks/user-requirements.md': 'row', 'tools/summary.test.mjs': '// zero cases\n', 'docs/CHANGELOG.md': 'x' },
-    answer: 'A change from zero is never a percentage now; the summary test covers it.' + FIN, expect: { not: ['rule-request'] } },
+    answer: 'A change from zero is never a percentage now; the summary test covers it.' + FIN, expect: { not: ['rule-request'] },
+    v2: { answer: 'Rule: a change from zero is never a percentage; the summary test covers it.' + FIN } },
   { name: 'rule-request: the same test changed, but no check runs it: blocked', prompt: 'a percentage against zero is meaningless, never do that',
     prep: preexisting('tools/summary.test.mjs'), tools: [pb('project'), editTool('tools/summary.test.mjs'), bash('node tools/summary.test.mjs', 'RESULT: PASS')],
     files: { ...MEM, 'CLAUDE.md': TWIN, 'docs/checks/user-requirements.md': 'row', 'tools/summary.test.mjs': '// zero cases\n', 'docs/CHANGELOG.md': 'x' },
-    answer: 'A change from zero is never a percentage now; the summary test covers it.' + FIN, expect: { tags: ['rule-request'] } },
+    answer: 'A change from zero is never a percentage now; the summary test covers it.' + FIN, expect: { tags: ['rule-request'] },
+    v2: { answer: 'Rule: a change from zero is never a percentage; the summary test covers it.' + FIN } },
   // skill-learn: after a disproved complaint, the checks the complaint set off are no lesson for the runbook
   { name: 'skill-learn: a disproved complaint with "Learned (none)": no lesson demanded', prompt: 'you forgot the allergens again!! from now on every item lists them',
     tools: [pb('project')], active: true, blocks: 1, failed: ['rule-request'],
@@ -4385,7 +4411,7 @@ PROMPT.push(
     'tell the other session to always run more tests', 'dile que pruebe más y que se asegure de que funciona', 'dile a la otra sesión que de ahora en adelante pruebe siempre']
     .map(p => ({ name: `rule-request: a one-off message to pass on is no rule ("${p.slice(0, 50)}")`, prompt: p, setupFn: STARTER_IS, hasNot: ['RULE REQUEST', 'REQUIREMENT'] })),
   ...['from now on always give prices in euros', 'never use em dashes again', 'from now on always tell the other session when you finish', 'de ahora en adelante usa siempre euros', 'nunca más uses guiones largos']
-    .map(p => ({ name: `rule-request: a lasting rule fires ("${p.slice(0, 50)}")`, prompt: p, has: ['RULE REQUEST'] })),
+    .map(p => ({ name: `rule-request: a lasting rule fires ("${p.slice(0, 50)}")`, prompt: p, has: ['RULE REQUEST'], v2: { has: ['Runbook: open docs/playbooks/project.md'] } })),
   ...['every invoice must show the tax number', 'cada factura debe mostrar el número de impuesto']
     .map(p => ({ name: `requirement: a lasting requirement fires ("${p.slice(0, 50)}")`, prompt: p, has: ['REQUIREMENT'] })),
   // a message relayed from another session is not the user's words: it sets no rule, requirement or praise, and its
@@ -4891,15 +4917,21 @@ const V2_ASKS = {
   'injection-flagged': /^- Something read this turn carries instructions aimed at an AI /m,
   'app-test-pass': /^- Run the tests after the last code change\b/m,
   'upgrade-review': /^- Upgrade review in docs\/DECISIONS\.md: /m,
-  'upset-learned': /^- (Say first whether it holds|Say what you checked to know it holds|Write the lesson where it stops the next miss|This is about the engine: send the lesson|The user is upset again in this session)/m,
+  'empty-answer': /^- The answer is empty:/m,
+  'question-no-file': /^- This was a question, but files changed/m,
+  'rule-request': /^- (Write the rule down|Say how the rule is enforced|Save the rule to memory)/m,
+  'upset-learned': /^- (The runbook your Issue line names|Give the point in general terms|Say the root cause|Say first whether it holds|Say what you checked to know it holds|Write the lesson where it stops the next miss|This is about the engine: send the lesson|The user is upset again in this session)/m,
 };
 // (an engine check from requirements.json is recognized by its own message, which v2's evaluator gives as "Check: ...")
 const ENGINE_MSG = await (async () => { const out = {}; try { for (const q of (await import(pathToFileURL(path.join(ROOT, 'tools/hooks/base-checks.mjs')).href)).BASE_REQUIREMENTS) out[q.tag] = q.message; } catch { }
   // (pack checks are listed in engine-checks.json; a project gets them in its requirements.json when the pack is in)
   for (const f of ['tools/hooks/engine-checks.json', 'tools/hooks/requirements.json']) try { for (const q of JSON.parse(fs.readFileSync(path.join(ROOT, f), 'utf8')).requirements) out[q.tag] = q.message; } catch { }
   return out; })();
-for (const s of STOP) {
+for (const s0 of STOP) {
   if (!mine()) continue;
+  // (under v2, a scenario's own v2 setup or expectations, as prompt scenarios have: v2 starts rule and complaint handling
+  // from the agent's own judgment, so a scenario that tests it records that judgment, such as the skill it opened)
+  const s = process.env.STARTER_ENGINE === 'v2' && s0.v2 ? { ...s0, ...s0.v2 } : s0;
   if (!applies(s)) { if (s.own) { report(false, 'stop: ' + s.name, `could not run: ${ownSkipWhy(s)}`); continue; } skipped++; if (process.env.SHOW_SKIPS) console.log('SKIP  stop: ' + s.name); continue; }
   const r = runStop(s);
   let why = '';

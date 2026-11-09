@@ -43,15 +43,20 @@ const LEARNED = /^[\s>*_-]*learned\s*\((?:one-off|lesson|rule|check|skill|engine
 // The line for a turn that passed the end check: the issue fixed (or only acknowledged, on a turn that changed
 // nothing), the checks passed, the runbook it pulled up followed, a lesson saved. A question with no issue shows
 // nothing. Lesson (the user): after a project moved to v2 these lines were gone, and the engine looked switched off.
-export function passLine({ acts = {}, turn = {}, rounds = 0 } = {}) {
+export const passLine = arg => visible(passText(arg));
+// The pass line's text, before the user's settings hide any part of it.
+export function passText({ acts = {}, turn = {}, rounds = 0 } = {}) {
   const A = brand(), calls = acts.calls || [], notes = notesSince(Date.parse(turn.at || '') || 0);
   const work = calls.some(c => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name)
     || (/^(Bash|PowerShell)$/.test(c.name) && /\b(git\s+commit|writeFileSync|Set-Content|Out-File)\b|>\s*[\w./"'-]+\.\w+/.test(String(c.input?.command || ''))));
   const issue = issueOf(notes);
-  const book = turn.runbook && calls.some(c => String(c.input?.file_path || c.input?.command || '').replace(/\\/g, '/').includes(turn.runbook))
+  // (a runbook the turn wrote new is shown as made, never as "pulled up": it was not there to pull up. Lesson (the old
+  // suite under v2): a runbook made this turn whose triggers fit the request read as followed)
+  const made = [...new Set(calls.filter(c => c.name === 'Write').map(c => String(c.input?.file_path || '').replace(/\\/g, '/').replace(/^.*?(docs\/playbooks\/[\w-]+\.md)$/, '$1')).filter(f => /^docs\/playbooks\/[\w-]+\.md$/.test(f)))];
+  const book = turn.runbook && !made.some(f => String(turn.runbook).replace(/\\/g, '/').endsWith(f)) && calls.some(c => String(c.input?.file_path || c.input?.command || '').replace(/\\/g, '/').includes(turn.runbook))
     ? turn.runbook.replace(/^.*?([\w-]+)(?:\/SKILL)?\.md$/, '$1') : '';
   const learned = [...new Set([...`${acts.said || ''}\n${notes}`.matchAll(LEARNED)].map(m => m[1]))];
   const passed = [`${A} ✅ checks passed${rounds ? ` after ${rounds} fix round${rounds > 1 ? 's' : ''}` : ''}`,
-    ...(book ? [`📖 the ${book} runbook it pulled up was followed`] : []), ...(learned.length ? [`🧠 lesson saved in ${learned.slice(0, 2).join(', ')}`] : [])];
-  return visible([issue ? `${A} 🚨 ${work ? 'fixed' : 'acknowledged'}: ${issue}` : '', work ? passed.join(' · ') : ''].filter(Boolean).join('\n'));
+    ...(book ? [`📖 the ${book} runbook it pulled up was followed`] : []), ...made.slice(0, 2).map(f => `🌱 new runbook made: ${f}`), ...(learned.length ? [`🧠 lesson saved in ${learned.slice(0, 2).join(', ')}`] : [])];
+  return [issue ? `${A} 🚨 ${work ? 'fixed' : 'acknowledged'}: ${issue}` : '', work ? passed.join(' · ') : ''].filter(Boolean).join('\n');
 }

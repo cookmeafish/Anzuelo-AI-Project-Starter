@@ -3,9 +3,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { passLine } from './lines.mjs';
-import { unansweredLate } from './late.mjs';
+import { unansweredLate, asksOnly } from './late.mjs';
+import { PAUSE_ASK } from '../pause.mjs';
 import { wakeGaps } from '../wakeups.mjs';
-import { forbiddenGaps, codeRuleGaps, injectionGaps, verbatimGaps, CRASHED, crashLine, logStop, upgradeGaps, autoRuns, sessionStart, changedOf } from './lib.mjs';
+import { forbiddenGaps, codeRuleGaps, injectionGaps, verbatimGaps, CRASHED, crashLine, logStop, upgradeGaps, autoRuns, sessionStart, changedOf, projectConfig, inGlobs, priorCalls } from './lib.mjs';
 import { ROOT, at, runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, questionGaps, noteGaps, quoteGaps, tail, helpersRunning, backgroundRuns, helperRuns, evidenceGaps, evidenceOf, skillBooks, alwaysGaps, scopeGaps, earlierPrompts, ALWAYS, engineCheckGaps } from './lib.mjs';
 // (the two data tables, one evaluator each: the project's always list and the engine's own checks)
 // (each check runs on its own: one that throws is named once with its error, and the rest still run)
@@ -182,6 +183,60 @@ const issueWritten = c => /^(Bash|PowerShell|Write|Edit|MultiEdit)$/.test(c.name
 // How many Issue lines the agent wrote in this session before the turn (in the transcript's earlier tool calls).
 export const issuesBefore = (raw, before) => String(raw || '').split('\n').filter(l => { if (!l.includes('turn-notes') || !l.includes('Issue:')) return false;
   try { const r = JSON.parse(l); return r.type === 'assistant' && (!before || String(r.timestamp || '') < before) && (r.message?.content || []).some(x => x.type === 'tool_use' && issueWritten({ name: x.name, input: x.input })); } catch { return false; } }).length;
+// REQ: empty-answer. A turn that changed files ends with an answer the user can read. Lesson (the old suite under v2):
+// a work turn whose answer was empty was asked only for a Finished section.
+export const emptyGaps = acts => !String(acts.answer || '').trim() && changedOf(acts).length ? ['The answer is empty: tell the user what was done and what is left, then the Finished section.'] : [];
+// REQ: question-no-file. A turn whose every typed message only asks gets an answer, not edits (rule 5): a changed file
+// outside "questionNoFileExempt" (the records, notes, knowledge) is held, unless the answer quotes the words that asked
+// for it ("Asked for: "...""). With "autonomy": "auto", "what should we do?" asks for the fix done. News typed first
+// and a question queued after it is no question. Lesson (the old suite under v2): v2 let a question end with edits.
+const DECIDE = /\bwhat (do you think |would you suggest |would you )?((should|shall|could|can|do) (we|i)|(we|i) (should|could|can)) do\b|\bhow (should|shall|do|can|could) (we|i) (fix|solve|handle|deal with|improve|address)\b/i;
+export function questionFileGaps(acts, cfg = null) {
+  const parts = (acts.parts || []).filter(p => String(p).trim());
+  if (!parts.length) return [];
+  const c = cfg || projectConfig();
+  if (!parts.every(p => asksOnly(p, c.changeWords || ''))) return [];
+  if (c.autonomy === 'auto' && parts.some(p => DECIDE.test(p))) return [];
+  if (/asked for:\s*["“]/i.test(`${acts.said || ''}\n${acts.answer || ''}`)) return [];
+  const unasked = changedOf(acts).filter(f => !inGlobs(f, c.questionNoFileExempt || []));
+  return unasked.length ? [`This was a question, but files changed (${unasked.slice(0, 5).join(', ')}). Questions get answers, not edits: undo the changes nobody asked for, or quote the words that asked for them ("Asked for: "...").`] : [];
+}
+// A message the user typed this turn (the request, or one typed mid-turn) asks to pause, stop or restart.
+export const pausedTurn = acts => (acts.parts || []).some(p => PAUSE_ASK.test(p));
+// The agent's notes file, when this turn wrote it.
+const turnNotes = acts => { try { const f = at('.cache/turn-notes.md'), st = fs.statSync(f); return st.mtimeMs >= (Date.parse(acts.at || '') || 0) - 2000 ? fs.readFileSync(f, 'utf8') : ''; } catch { return ''; } };
+// REQ: rule-request. A standing rule the agent took on is written where every later turn reads it and enforced, not only
+// promised: the principle in AGENTS.md (CLAUDE.md), its dated row in docs/checks/user-requirements.md, how it is
+// enforced (a check, a test a check runs, a "Done when" line, a guard, or "hook: N/A <reason>"), and with
+// "memoryOnRuleRequest" a memory note. The trigger is the agent's own judgment: it opened the project-rule skill, ran
+// `hooks.mjs rule`, or its notes or answer record a rule ("Rule: ...", "rule added"). Never "always", "never" or "from
+// now on" in the prompt: keyword-forced rule handling was retired on 2026-11-07, and those words only feed the
+// reminder's hint. "Rule: none - <why>" (or "not a rule") is the agent's call that nothing is owed. Lesson (the old suite
+// under v2): a rule taken on and only promised was never written down or enforced.
+const RULE_SAID = /^\s*(?:[-*]\s*)?(?:new |standing )?rule\s*:\s*(?!none\b|<)\S|\b(?:new|standing) rule (?:added|saved|written|set)\b|\brule (?:added|saved|written|is in place)\b/im;
+const RULE_NONE = /\brule\s*:\s*none\b|\bnot a (?:standing |lasting )?rule\b|N\/A\(rule-request\)/im;
+const RULE_TEST = /(^|\/)(tests?|__tests__|spec)\/|\.(test|spec)\.\w+$/i;
+export function ruleGaps(acts, cfg = null) {
+  const notes = turnNotes(acts), both = `${acts.answer || ''}\n${notes}`;
+  if (RULE_NONE.test(both)) return [];
+  const cmd = c => /^(Bash|PowerShell)$/.test(c.name) ? String(c.input?.command || '') : '';
+  const skill = acts.calls.some(c => (c.name === 'Read' && /project-rule[\\/]+SKILL\.md$/i.test(String(c.input?.file_path || ''))) || (c.name === 'Skill' && /(^|:)project-rule$/.test(String(c.input?.skill || ''))));
+  const ran = acts.calls.some(c => /\bhooks\.mjs["']?\s+rule\s/.test(cmd(c)) && !c.error);
+  if (!skill && !ran && !RULE_SAID.test(both)) return [];
+  const changed = changedOf(acts, true), out = [];
+  if (!ran && (!changed.some(f => /^(AGENTS|CLAUDE)\.md$/.test(f)) || !changed.includes('docs/checks/user-requirements.md')))
+    out.push('Write the rule down: node tools/hooks/hooks.mjs rule "<the principle, in your own words>" --why "<why>" --enforced "<how>" (its AGENTS.md line and dated row in docs/checks/user-requirements.md), or say "Rule: none - <why>" if it is no standing rule.');
+  // (enforcement: the project-rule skill's own list asks for it when the skill was opened. A test file counts only when a
+  // check runs it. Lesson (old suite): a rule added as cases to a test no check ran looked enforced and was not)
+  const runBy = f => { const j = (() => { try { return JSON.parse(fs.readFileSync(at('tools/hooks/requirements.json'), 'utf8')); } catch { return {}; } })();
+    const cmds = JSON.stringify(j.requirements || []) + (() => { try { return fs.readFileSync(at(ALWAYS), 'utf8'); } catch { return ''; } })();
+    return cmds.includes(path.basename(f)); };
+  const enforced = /\bhook:\s*\S|\bDone when\b/i.test(both) || changed.some(f => /^(docs\/playbooks\/[^/]+\.md|docs\/checks\/always\.md|tools\/hooks\/(config|requirements)\.json|skills\/[^/]+\/SKILL\.md)$/.test(f) || (RULE_TEST.test(f) && runBy(f)));
+  if (!skill && !enforced) out.push('Say how the rule is enforced: "hook: <the check or test that runs it>" (a test only counts when a check runs it), a "Done when" line on its runbook, a guard, or "hook: N/A <why it cannot be checked>".');
+  if ((cfg || projectConfig()).memoryOnRuleRequest && !acts.calls.some(c => /^(Edit|Write|MultiEdit)$/.test(c.name) && MEMORY.test(String(c.input?.file_path || ''))))
+    out.push('Save the rule to memory too: a feedback note with the rule, **Why:** and **How to apply:**, and its line in MEMORY.md.');
+  return out;
+}
 export function upsetGaps(turn, acts) {
   // (what the user typed this turn, messages typed mid-turn included; a message relayed from another session or a helper
   // is not theirs. Lesson (replay of real sessions): a helper's report was read as the user's complaint)
@@ -193,7 +248,7 @@ export function upsetGaps(turn, acts) {
   // (the trigger is the agent's own judgment, never the user's words: an Issue line it wrote this turn (rule 3), or the
   // learn-from-upset skill it opened. Words in the request only feed the reminder's hint. Lesson (a peer's review,
   // citing the retirement of keyword-forced handling on 2026-11-07): a word match misread shouted rules and requests)
-  const notes = (() => { try { const f = at('.cache/turn-notes.md'), st = fs.statSync(f); return st.mtimeMs >= (Date.parse(acts.at || '') || 0) - 2000 ? fs.readFileSync(f, 'utf8') : ''; } catch { return ''; } })();
+  const notes = turnNotes(acts);
   if (ISSUE_NONE.test(notes)) return []; // (the agent's own call: a false alarm, said with why)
   if (!(ISSUE.test(notes) || acts.calls.some(issueWritten) || acts.calls.some(c => c.name === 'Read' && /learn-from-upset[\\/]+SKILL\.md$/i.test(String(c.input?.file_path || ''))))) return [];
   const changed = changedOf(acts, true);
@@ -208,6 +263,21 @@ export function upsetGaps(turn, acts) {
   if (PARTLY.test(lead) || LEAD_CHECKED.test(lead) || ruleAsk) { /* a verdict with its evidence, or a rule request */ }
   else if (!HELD.test(lead)) out.push('Say first whether it holds: the complaint in full, in part, or not. Agreeing: "You\'re right: <what was wrong>". Not agreeing: in your own words and with no concession ("Checked: <what you opened> - <what it showed>"); never blame files the user doesn\'t see.');
   else if (!CHECKED.test(ans)) out.push('Say what you checked to know it holds ("Checked: <the file or result you opened> - <what was wrong>"), not only that you agree.');
+  // REQ: upset-acknowledged. The runbook the Issue line names is opened (its own items are then held like any runbook's),
+  // and the answer gives the user's point in general terms with every case it covers, and the root cause of the miss,
+  // in words or as "Scope:" / "Root cause:" (no done or skipped record lines: row 40). Lesson (the user): the agent
+  // "acknowledged", followed no runbook, and fixed the one example shown without finding why it was missed.
+  const issueText = [notes, ...acts.calls.filter(issueWritten).map(c => JSON.stringify(c.input || {}))].join('\n');
+  const named = /\bIssue:[^\n]*?\|\s*runbook:\s*([\w-]+)/i.exec(issueText)?.[1];
+  const files = named ? [`docs/playbooks/${named}.md`, `skills/${named}/SKILL.md`, `tools/starter/runbooks/${named}.md`] : [];
+  if (named && files.some(f => fs.existsSync(at(f))) && !acts.calls.some(c => (c.name === 'Read' && files.some(f => String(c.input?.file_path || '').replace(/\\/g, '/').endsWith(f))) || (c.name === 'Skill' && new RegExp(`(^|:)${named}$`).test(String(c.input?.skill || '')))))
+    out.push(`The runbook your Issue line names, ${named}, was not opened this turn: open it and follow it to the end before the answer.`);
+  if (!ruleAsk) {
+    if (!/^\s*Scope\s*:\s*\S|\bevery (?:case|place|one|item|line|row|file|page|screen|amount)\b|\ball \d+\b|\b\d+ (?:checked|cases|places|items|lines|rows|files)\b/im.test(both))
+      out.push('Give the point in general terms with every case it covers ("Scope: <the point in general terms> - <every case it covers, checked>"), not only the example the user showed.');
+    if (!/\broot cause\b|\bcaused by\b|\bbecause\b|\bcame from\b|\bwas missed since\b/i.test(both))
+      out.push('Say the root cause ("Root cause: <what in the process let the miss through>"), not only the fix.');
+  }
   const memo = acts.calls.some(c => /^(Edit|Write|MultiEdit)$/.test(c.name) && MEMORY.test(String(c.input?.file_path || '')));
   if (!changed.some(f => LESSON_AT.test(f)) && !memo) out.push(`Write the lesson where it stops the next miss, in this turn: the skill, runbook, rule or check that missed it (learn-from-upset skill), not only a note.${/Learned \(none\)/i.test(notes) ? ' "Learned (none)" is only for a complaint that did not hold.' : ''}`);
   const engine = !fs.existsSync(at('.starter-template')) && /\b(?:anzuelo|the engine|the starter|(?:stop|end|pretool|prompt) hooks?|end check)\b/i.test(said); // (the engine named, not any "check": "do 20 more sweeps to check the app" is the user's work. Lesson (replay))
@@ -244,12 +314,17 @@ function judge(data, { shadow = false } = {}) {
   const t0 = turn.at && new Date(Number.isNaN(+turn.at) ? turn.at : +turn.at);
   decided = { request: t0 && !Number.isNaN(+t0) ? t0.toISOString() : '', round: rounds + 1 };
   if (rounds >= MAX_BLOCKS) return null;
+  // REQ: pause-stops. The user asked to pause, stop or restart (in the request or a message typed during the turn): the
+  // turn ends now, nothing more asked; the next session's checks pick up what is open (the guard still refused anything
+  // unsafe during the work). Lesson (a field report): after "get to a good pausing point, I will restart the computer",
+  // the end check held the turn 3 rounds and the work went on while the user restarted.
+  if (pausedTurn(acts)) return null;
   // (on a repeat, what the agent said is read from after the last block: a message sent before it can't be taken back.
   // Lesson (2026-11-07): an Issue line in the first answer re-blocked the corrected answer that had none)
   if (again && turn.lastBlock) { const after = turnActs(rows.filter(r => (Date.parse(r.timestamp || '') || 0) > turn.lastBlock)); acts.said = after.said + (final && !after.said.includes(final) ? `${final}\n` : ''); acts.answer = final || after.answer || acts.answer; }
   const raw = tail(data.transcript_path, 5 << 20), history = evidenceOf(raw);
   acts.earlier = earlierPrompts(raw, turn.at); acts.runbook = turn.runbook || '';
-  acts.issuesBefore = issuesBefore(raw, turn.at);
+  acts.issuesBefore = issuesBefore(raw, turn.at); acts.prior = priorCalls(raw, turn.at);
   // (a declared self-test the turn needed and never ran is run here first, so every check below judges its output;
   // never in a preview)
   let autos = []; if (!shadow) try { acts.sessionStart = sessionStart(data.transcript_path || '') || turn.at || null; autos = autoRuns(acts); } catch (e) { autos = [crashLine('self-run', e)]; }
@@ -257,7 +332,7 @@ function judge(data, { shadow = false } = {}) {
   // (wakeups scheduled in any turn of the session count: one left from earlier still re-invokes it later)
   const wakes = wakeGaps(raw.split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean), final || acts.answer || '', acts.heard || '');
   const extra = (turn.also || []).flatMap(f => missing({ ...turn, runbook: f }, acts, runbooks().filter(b => b.file === f)));
-  const list = [...late, ...autos, ...wakes, ...S('missing', () => [...missing(turn, acts), ...upsetGaps(turn, acts)]), ...extra, ...S('skillMissing', () => skillMissing(acts)), ...S('reviewGaps', () => reviewGaps(turn, acts)), ...S('testGaps', () => testGaps(acts, history)), ...S('gateGaps', () => gateGaps(acts)), ...S('screenGaps', () => screenGaps(acts)), ...S('healthGaps', () => [...healthGaps(acts, { run: !shadow }), ...upgradeGaps(turn, acts)]), ...S('knowledgeGaps', () => knowledgeGaps(acts)), ...S('securityGaps', () => securityGaps(acts)), ...S('questionGaps', () => questionGaps(acts)), ...S('noteGaps', () => noteGaps(acts)), ...S('quoteGaps', () => quoteGaps(acts)), ...S('claimGaps', () => claimGaps(acts, history)), ...S('scopeGaps', () => scopeGaps(acts)), ...S('tableGaps', () => tableGaps(acts))].filter((s, i, all) => all.indexOf(s) === i);
+  const list = [...late, ...autos, ...wakes, ...S('missing', () => [...emptyGaps(acts), ...missing(turn, acts), ...upsetGaps(turn, acts), ...ruleGaps(acts)]), ...extra, ...S('skillMissing', () => skillMissing(acts)), ...S('reviewGaps', () => reviewGaps(turn, acts)), ...S('testGaps', () => testGaps(acts, history)), ...S('gateGaps', () => gateGaps(acts)), ...S('screenGaps', () => screenGaps(acts)), ...S('healthGaps', () => [...healthGaps(acts, { run: !shadow }), ...upgradeGaps(turn, acts)]), ...S('knowledgeGaps', () => knowledgeGaps(acts)), ...S('securityGaps', () => securityGaps(acts)), ...S('questionGaps', () => [...questionGaps(acts), ...questionFileGaps(acts)]), ...S('noteGaps', () => noteGaps(acts)), ...S('quoteGaps', () => quoteGaps(acts)), ...S('claimGaps', () => claimGaps(acts, history)), ...S('scopeGaps', () => scopeGaps(acts)), ...S('tableGaps', () => tableGaps(acts))].filter((s, i, all) => all.indexOf(s) === i);
   // (the waiver tally: what this turn cleared with a reason is recorded; a check cleared in 3+ earlier turns is named)
   const full = list.splice(0, list.length); list.push(...full.filter(kept(acts)).filter(s => !(again && CRASHED.test(s))));
   const often = shadow ? '' : tally(full, list, turn.at ? `${data.session_id || 'x'}|${turn.at}` : '');
