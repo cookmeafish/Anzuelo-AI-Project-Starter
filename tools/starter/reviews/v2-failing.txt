@@ -614,3 +614,12 @@ upset-learned: a later complaint appended below an earlier Issue line is acknowl
 upset-learned: an Issue line written from the shell shows "acknowledged" at the next tool call, once
 upset-learned: writing the Issue line shows the user "acknowledged" at once, and only once
 waive command: an agent without hooks waives a step with the command, and check no longer asks for it
+# Known open regressions (pushed by the user's decision, 2026-11-08; each comes off when fixed):
+prompt: runbook-edit: "fix the <name> playbook so ..." routes to the project runbook, not to that runbook's job, with no rule checks
+prompt: runbook-edit: "with the <name> runbook" uses it, it does not edit it
+prompt: runbook-edit: Spanish, "arregla el playbook de <name>" routes to the project runbook, with no rule checks
+stop-log: "hooks.mjs last" lists each Stop decision with its round, result and steps, from a capped log
+stop: answer-resent: a draft that passed the pre-check counts, when the sent answer rewords it: passes
+stop: app-test-pass: npm --prefix <a subfolder> test is another package: still blocked
+stop: app-test-pass: npm --prefix <the project> test passed: passes
+stop: upgrade-review: "later - when: <moment>" is a decision; a bare "later" is not
