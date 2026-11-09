@@ -18,6 +18,9 @@ import {
 } from './hooks/hooks.mjs';
 import { listAll, split } from './hooks/paths.mjs';
 import { pending as alwaysPendingIn } from './always.mjs';
+// The v2 parity ratchet (see "every REQ tag is enforced and tested"): requirement tags no v2 test names yet, and the day
+// it began. Each port lowers the number in the same commit.
+const V2_UNTESTED = 143, V2_RATCHET_DAY = '2026-11-08';
 const alwaysPending = () => alwaysPendingIn(f => read(abs(f)));
 
 // --help, or a flag it doesn't know, prints the usage and runs nothing. Lesson (2026-11-06): a mistyped flag in a
@@ -363,6 +366,18 @@ sweep('every REQ tag is enforced and tested', () => {
   const enf = read(abs('docs/checks/rule-enforcement.md'));
   for (const t of reqTags) if (!enf.includes(t) && !reqs.find(r => r.tag === t)?.pack && !reqs.find(r => r.tag === t)?.appGate) fail.push(`requirements.json tag ${t} has no row in docs/checks/rule-enforcement.md`);
   for (const t of [...coreTags, ...reqTags, ...packTags]) if (!testsSrc.includes(t) && !reqs.find(r => r.tag === t)?.appGate) fail.push(`tag ${t} has no test scenario in tools/hooks/selfcheck.mjs`);
+  // REQ: engine-parity, a ratchet while the old engine's behaviors move to v2: the count of requirement tags no v2 test
+  // names may only go down (each port lowers V2_UNTESTED in the same commit), and a requirement row dated after the
+  // ratchet began needs its v2 test at once. At 0 it is a plain rule. (The user, 2026-11-08: everything works in v2)
+  if (isTemplate && exists('tools/hooks/v2/selftest.mjs')) {
+    const v2tests = read(abs('tools/hooks/v2/selftest.mjs')), untested = [...docTags].filter(t => !v2tests.includes(t));
+    if (untested.length > V2_UNTESTED) fail.push(`${untested.length} requirement tags have no v2 test, more than the ${V2_UNTESTED} allowed (tools/audit.mjs V2_UNTESTED): add the v2 test for the new one`);
+    if (untested.length < V2_UNTESTED) fail.push(`only ${untested.length} requirement tags lack a v2 test now: lower V2_UNTESTED in tools/audit.mjs from ${V2_UNTESTED} to ${untested.length} in this commit`);
+    for (const line of read(abs('docs/checks/user-requirements.md')).split(/\r?\n/)) {
+      const c = line.split('|').map(x => x.trim()), day = /^\d{4}-\d{2}-\d{2}$/.test(c[2] || '') ? c[2] : '';
+      if (day > V2_RATCHET_DAY) for (const t of (c[c.length - 2] || '').split(/[,\s]+/).filter(x => /^[a-z][a-z0-9-]+$/.test(x))) if (!v2tests.includes(t)) fail.push(`requirement row ${c[1]} (${day}) tag ${t} has no v2 test`);
+    }
+  }
   const warn = legacyScenarios ? ['tools/hooks/legacy-scenarios.txt still holds scenarios from the retired test-hooks.mjs: move them into tools/hooks/project-scenarios.mjs (they do not run until then), then delete it'] : [];
   return { fail, warn, note: `${coreTags.size} core + ${reqTags.size} project tags` };
 });
