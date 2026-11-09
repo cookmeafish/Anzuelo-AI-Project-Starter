@@ -257,10 +257,7 @@ stop: crash blocks once, then releases
 stop: debug skill matched but not opened: blocked
 stop: dev mode: an engine change with no self-tests, changelog or proof it works: blocked
 stop: dev-new-project: project making changed in a development copy without the trial: blocked
-stop: done-when-labeled: a runbook changed with an item that names no check or judgment: blocked
 stop: done-when-labeled: a wrapped item labeled on its last line, and several tags in one label: passes that check
-stop: done-when-labeled: an item naming a check that does not exist: blocked
-stop: done-when-labeled: an item with only a when condition and no proof: blocked
 stop: done-when-labeled: each item names its check or why only judgment can tell: passes that check
 stop: done-when-labeled: items proven by markers (file:, ran:, answer:, with a when condition): passes that check
 stop: external-stop: a project Stop command that crashes is one step

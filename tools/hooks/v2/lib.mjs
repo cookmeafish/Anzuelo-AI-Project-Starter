@@ -19,6 +19,15 @@ import { makeProof } from '../proof.mjs';
 import { makeTrace } from '../trace.mjs';
 import { makeLaunchers } from '../launchers.mjs';
 import { makeGates } from '../gates.mjs';
+import { doneWhenGaps } from '../donewhen.mjs';
+// A check name some part of the engine defines: in engine-checks.json, the project's requirements.json, or a hook
+// module's code or "REQ: <tag>" line, as the old engine reads it. Read once per run, and only when a runbook changed.
+let checkText = null;
+const knownCheck = tag => {
+  checkText ??= ['tools/hooks/engine-checks.json', 'tools/hooks/requirements.json', ...(() => { try { return fs.readdirSync(at('tools/hooks')).filter(n => /\.(mjs|js|py|ps1|sh)$/.test(n) && !/^selfcheck/.test(n)).map(n => `tools/hooks/${n}`); } catch { return []; } })()]
+    .map(f => { try { return fs.readFileSync(at(f), 'utf8'); } catch { return ''; } }).join('\n');
+  return new RegExp(`["'\`]${String(tag).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["'\`]|REQ: ${String(tag).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(checkText);
+};
 import { SELF_KEY, approvedBefore } from '../selfcmds.mjs';
 import { capsWeight } from '../caps.mjs';
 import { toOtherSession } from '../relay.mjs';
@@ -1399,6 +1408,9 @@ export function claimGaps(acts, history = '') {
   // data and replay): word lists for which sentences claim a commit were wrong more often than right, and each miss
   // grew the list)
   out.push(...proofGaps(acts), ...traceGapsV2(acts, history), ...launchGaps(acts));
+  // (REQ: done-when-labeled, the shared tools/hooks/donewhen.mjs: a runbook or skill changed this turn labels every
+  // "Done when" item with its proof, and names only checks that exist)
+  out.push(...doneWhenGaps(changedOf(acts), { read: f => { try { return fs.readFileSync(at(f), 'utf8'); } catch { return ''; } }, exists: f => fs.existsSync(at(f)), knownCheck }));
   return out;
 }
 
@@ -1514,19 +1526,27 @@ const traceOf = () => traceMemo ||= makeTrace({ read: f => { try { return fs.rea
   knowledgeRe: cfg => `(?:${[].concat(cfg.knowledgeDirs || ['docs/knowledge']).map(d => String(d).replace(/\/+$/, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '/').join('|')})`,
   noteDirs: cfg => [...new Set(['docs/knowledge', ...[].concat(cfg.knowledgeDirs || [])].map(d => String(d).replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+$/, '')).filter(Boolean))] });
 export function traceTurn(acts, history = '') {
-  const calls = acts.calls || [], sessionResults = [], sessionWrites = [];
-  for (const l of String(history).split('\n')) {
-    let r = null; try { r = JSON.parse(l); } catch { continue; }
-    if (Array.isArray(r)) sessionWrites.push(...r.filter(x => x?.type === 'tool_use').map(x => JSON.stringify(x.input || {})));
-    else if (r?.type === 'user') sessionResults.push(textOfContent(r.message?.content));
-  }
+  // (the session's results and writes are parsed from the history only when the check reads them: a turn with nothing
+  // to trace pays nothing. Lesson (a project's upgrade report): every Stop of a long session parsed megabytes for it)
+  const calls = acts.calls || [];
+  let parsed = null;
+  const session = () => {
+    if (parsed) return parsed;
+    const sessionResults = [], sessionWrites = [];
+    for (const l of String(history).split('\n')) {
+      let r = null; try { r = JSON.parse(l); } catch { continue; }
+      if (Array.isArray(r)) sessionWrites.push(...r.filter(x => x?.type === 'tool_use').map(x => JSON.stringify(x.input || {})));
+      else if (r?.type === 'user') sessionResults.push(textOfContent(r.message?.content));
+    }
+    return (parsed = { sessionResults: sessionResults.join('\n'), sessionWrites: sessionWrites.join('\n') });
+  };
   const entries = [{ type: 'user', message: { content: String(acts.heard || '') } }, ...calls.flatMap(c => [
     { type: 'assistant', message: { content: [{ type: 'tool_use', id: c.id, name: c.name, input: c.input || {} }] } },
     { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: c.id, content: c.out || '', is_error: !!c.error }] } }])];
   const runs = calls.filter(c => /^(Bash|PowerShell)$/.test(c.name)).map(c => ({ cmd: String(c.input.command || ''), out: c.out || '', error: !!c.error }));
   return { answer: String(acts.answer || ''), said: String(acts.said || acts.answer || ''), prompt: String(acts.heard || ''), allPrompts: [...(acts.earlier || []), acts.heard || ''],
     toolsKnown: true, uses: calls.map(c => ({ name: c.name, input: c.input || {} })), results: calls.map(c => c.out || '').join('\n'), resultsList: calls.map(c => c.out || ''),
-    sessionResults: sessionResults.join('\n'), sessionWrites: sessionWrites.join('\n'), reads: new Set(calls.filter(c => c.name === 'Read').map(c => relp(c.input.file_path || ''))),
+    get sessionResults() { return session().sessionResults; }, get sessionWrites() { return session().sessionWrites; }, reads: new Set(calls.filter(c => c.name === 'Read').map(c => relp(c.input.file_path || ''))),
     cmds: runs.map(r => r.cmd), runs, entries, changed: changedOf(acts) };
 }
 export function traceGapsV2(acts, history = '') {

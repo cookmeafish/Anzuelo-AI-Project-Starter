@@ -25,6 +25,8 @@ export { ROOT, bulkDir, today, usageOf, read, readJSON, abs, exists, list, walkS
 // a hook that cannot start)
 let pretoolDecision = null;
 import * as SELF from './hooks.mjs';
+import { doneWhenItems, DONE_LABEL, ledgerItems, doneWhenGaps } from './donewhen.mjs';
+export { doneWhenItems, DONE_LABEL, ledgerItems };
 import { makeProof } from './proof.mjs';
 import { makeTrace } from './trace.mjs';
 const TRACE = makeTrace({ read: (...a) => read(...a), abs: (...a) => abs(...a), exists: (...a) => exists(...a), rel: (...a) => rel(...a), esc: (...a) => esc(...a),
@@ -4758,20 +4760,10 @@ export function coreChecks(x, cfg) {
   if ((newSkills.length || added.length) && !WORTH_IT.test(inEnglish(x.answer + '\n' + turnText(x.entries), cfg) + '\n' + (x.notes || '')))
     add('worth-it', `You added ${[...newSkills.map(n => `the ${n} skill`), ...added].slice(0, 4).join(', ')}. Say why it makes this project better and what it costs ` +
       `(noise, upkeep, speed, conflicts, risk, and whether its license lets a project that uses it be sold): "Worth it: <gain> / <cost>" in ${NOTES_FILE}, or a plain sentence in the answer. If the cost is bigger, undo it and say why (hard rule 16).`);
-  // REQ: done-when-labeled. Every "Done when" item in a runbook or skill changed this turn says how it is proven: the
-  // check that enforces it ("hook: <tag>") or why only judgment can ("judgment: <why>"). Lesson: the user's requirements
-  // were written into a runbook as plain items, nothing enforced them, and the agent moved on until the user asked.
-  const unlabeled = x.changed.filter(p => /^(docs\/playbooks\/[^/_][^/]*\.md|(skills|library\/skills|packs\/[^/]+\/files\/skills)\/[^/]+\/SKILL\.md|packs\/[^/]+\/files\/docs\/playbooks\/[^/_][^/]*\.md)$/.test(p) && exists(p))
-    .flatMap(p => doneWhenItems(read(abs(p))).filter(i => !DONE_LABEL.test(i)).map(i => `${p}: "${i.slice(0, 60)}"`));
-  if (unlabeled.length)
-    add('done-when-labeled', `Every "Done when" item needs its proof: add a check and write "(hook: <tag>)" (one or more tags: "(hook: a, b)"), or write "(judgment: <why no check can tell>)". ` +
-      `Unlabeled: ${unlabeled.slice(0, 4).join('; ')}${unlabeled.length > 4 ? ` and ${unlabeled.length - 4} more` : ''}. Add the checks now; don't ask (hard rule 3).`);
-  // (a check name no hook defines is an item that passes with no evidence: the runbook's checklist would lie. Lesson
-  // (the user): "the runbooks must be accurate")
+  // (REQ: done-when-labeled: tools/hooks/donewhen.mjs, shared with engine v2)
+  for (const msg of doneWhenGaps(x.changed, { read: p => read(abs(p)), exists, knownCheck })) add('done-when-labeled', msg);
+  // (the runbooks and skills changed this turn, read by the checks below)
   const procs = x.changed.filter(p => /^(docs\/playbooks\/[^/_][^/]*\.md|(skills|library\/skills|packs\/[^/]+\/files\/skills)\/[^/]+\/SKILL\.md|packs\/[^/]+\/files\/docs\/playbooks\/[^/_][^/]*\.md)$/.test(p) && exists(p));
-  const badNames = procs.flatMap(p => ledgerItems(read(abs(p))).flatMap(it => it.tags.filter(tg => !knownCheck(tg)).map(tg => `${p} item ${it.n}: "${tg}"`)));
-  if (badNames.length)
-    add('done-when-labeled', `A "Done when" item names a check that doesn't exist, so it would pass with no evidence: ${badNames.slice(0, 4).join('; ')}. Fix the name, or add the check (runbook-create skill, step 3).`);
   // REQ: runbook-cold-read. A new runbook or skill is read cold before it is relied on: one helper with no context gets
   // only the file and the request it is for, and lists every step it could not do exactly as written and every "Done
   // when" item it could not prove. The writer knows what was meant; the next agent only has the text.
@@ -5696,24 +5688,6 @@ export function touchedChecks(files) {
   return { tags: [...tags] };
 }
 
-// The checklist items under "## Done when" in a runbook or skill (REQ: done-when-labeled)
-export function doneWhenItems(text) {
-  const sec = (/^##\s+Done when[^\n]*\n([\s\S]*?)(?=^##\s|(?![\s\S]))/m.exec(text) || [])[1] || '';
-  // an item's wrapped continuation lines (indented, until the next item, a blank line or a heading) belong to it,
-  // so a label at the end of a wrapped item counts. Lesson: labels on a wrapped item's last line were reported missing.
-  const items = [];
-  let cur = null;
-  for (const l of sec.split(/\r?\n/)) {
-    if (/^\s*[-*] \[[ xX]\]/.test(l)) { cur = l.replace(/^\s*[-*] \[[ xX]\]\s*/, '').trim(); items.push(cur); continue; }
-    if (cur !== null && /^\s+\S/.test(l) && !/^\s*[-*] /.test(l) && !/^\s*#/.test(l)) { items[items.length - 1] = cur = `${cur} ${l.trim()}`; continue; }
-    cur = null;
-  }
-  return items;
-}
-// one or more tags: "(hook: a)", "(hook: a, b)", "(hooks: a, b)"
-// (or a marker the end check tests, "(file: ...)", "(ran: ...)", "(answer: ...)"; "(when file: ...)" alone is a condition,
-// not a proof. Lesson (audit): the runbook template asks for markers, and an item written that way was called unproven)
-export const DONE_LABEL = /\bhooks?\s*:\s*`?[a-z][\w-]*(?:`?\s*,\s*`?[a-z][\w-]*)*|\bjudgment\b|\bjudgement\b|\((?:file|ran|answer)\s*:/i;
 
 // ---------- runbook ledger (config "runbookLedger") ----------
 // The routed runbook's "Done when" list is the turn's checklist: given at the prompt, kept by the agent as a record in
@@ -5721,12 +5695,6 @@ export const DONE_LABEL = /\bhooks?\s*:\s*`?[a-z][\w-]*(?:`?\s*,\s*`?[a-z][\w-]*
 // evidence: the checks each item names. The agent works without being stopped for what its record covers; a step whose
 // evidence fails comes back, and the always-on checks (ALWAYS_ON, guards) are never covered. Lesson (the user): "the
 // hooks are there to save the day", but steps sent back one check at a time interrupted the work and cost rounds.
-export function ledgerItems(text) {
-  return doneWhenItems(text).map((raw, i) => {
-    const tags = (/\bhooks?\s*:\s*([^)]*)/i.exec(raw)?.[1] || '').split(',').map(s => s.replace(/`/g, '').trim()).filter(s => /^[a-z][\w-]*$/.test(s));
-    return { n: i + 1, text: raw.replace(/\s*\((hooks?|judge?ment)\s*:[^)]*\)\s*/gi, ' ').trim(), tags, judgment: /\bjudge?ment\b/i.test(raw) };
-  });
-}
 // The record lines in the turn notes: N -> { kind: 'done' | 'skip', why }
 // (a line may name its runbook, "Done debug 3:", when a turn keeps two checklists; it then counts only for that one.
 // Lesson: an upset turn's runbook and the routed one shared their numbers)
