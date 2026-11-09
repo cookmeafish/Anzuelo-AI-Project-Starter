@@ -787,6 +787,7 @@ const engineChecks = () => {
   const own = (file.requirements || []).filter(r => r && tags.has(r.tag));
   return [...BASE_REQUIREMENTS.filter(b => !own.some(r => r.tag === b.tag)), ...own].filter(r => r.tag !== 'security-code' && !off.has(r.tag));
 };
+const REFUSED_RUN = /\b(requires approval|was (denied|rejected|refused)|permission (was )?denied|user (denied|rejected|declined)|not allowed to run|blocked by (a )?hook)\b/i;
 const skillSurvey = acts => (fs.existsSync(at('SETUP-PROMPT.md')) && !fs.existsSync(at('.starter-template')))
   || new Set(acts.calls.filter(k => k.name === 'Read').map(k => (/skills[\\/]+([\w-]+)[\\/]+SKILL\.md$/i.exec(String(k.input.file_path || '')) || [])[1]).filter(Boolean)).size >= 3;
 // The files a command sent its output to ("> f", ">> f", "| tee f"), inside the project.
@@ -845,7 +846,9 @@ export function holdsReq(c, acts, x) {
     anyOf: v => { const r = v.map(sub => holdsReq(sub, acts, x)); return r.includes(true) ? true : r.includes(null) ? null : false; },
     // (a command matching it ran and failed; N or more calls of a tool; a file read; a runbook routed or read; a screen
     // file changed; what the turn added to matching files)
-    ranFailing: v => acts.calls.some(k => /^(Bash|PowerShell)$/.test(k.name) && reqRe(v).test(String(k.input.command || '')) && k.error),
+    // (a run the host refused never ran: it failed nothing. Lesson (the v2 re-sweep): a test run held for approval was
+    // taken for a failing one, and the turn was asked for a root cause)
+    ranFailing: v => acts.calls.some(k => /^(Bash|PowerShell)$/.test(k.name) && reqRe(v).test(String(k.input.command || '')) && k.error && !REFUSED_RUN.test(k.out || '')),
     // (overlap: that many running at once, each from its call to its result, or to the turn's end when started in the
     // background; refused ones never ran. Lesson (the old engine): three reviews run one after another were taken for
     // parallel work)
