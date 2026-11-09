@@ -653,6 +653,20 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
         fs.rmSync(path.join(dir, 'docs/peer-notes.md'), { force: true });
         report(!two.peer && two.required && two.ownBg, 'end: two sessions in one folder: a turn is not held for files another session wrote while none of its own commands ran; its own background command counts them; a requirement still sees them', JSON.stringify(two));
       }
+      // (the release chain's v2 sweep: a test failing under v2 that is not on the list fails it, a listed test that passes
+      // fails it, and the list is rewritten only to shrink)
+      {
+        const sw = fs.mkdtempSync(path.join(os.tmpdir(), 'v2sweep-')), list = path.join(sw, 'list.txt');
+        fs.writeFileSync(path.join(sw, 'r1.txt'), 'FAIL  stop: a  -> one\nPASS  stop: b\nFAIL  stop: c  -> x\nselfcheck: FAIL (1 passed, 2 failed)\n');
+        fs.writeFileSync(path.join(sw, 'r2.txt'), 'PASS  stop: a\nPASS  stop: b\nFAIL  stop: c  -> y\nFAIL  stop: d  -> z\nselfcheck: FAIL (2 passed, 2 failed)\n');
+        const { spawnSync } = await import('node:child_process');
+        const tool = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', 'starter', 'v2-sweep.mjs');
+        const run = (...a) => spawnSync(process.execPath, [tool, ...a], { encoding: 'utf8', env: { ...process.env, V2_SWEEP_LIST: list } });
+        const wrote = run('--from', path.join(sw, 'r1.txt'), '--write').status, same = run('--from', path.join(sw, 'r1.txt')), worse = run('--from', path.join(sw, 'r2.txt')), grow = run('--from', path.join(sw, 'r2.txt'), '--write');
+        fs.rmSync(sw, { recursive: true, force: true });
+        report(wrote === 0 && same.status === 0 && worse.status === 1 && /not on the list[\s\S]*- stop: d/.test(worse.stdout) && /pass now[\s\S]*- stop: a/.test(worse.stdout) && grow.status === 1,
+          'chain: the v2 sweep fails on a new v2 failure and on a listed test that passes now; its list only shrinks', JSON.stringify({ wrote, same: same.status, worse: worse.status, grow: grow.status }));
+      }
       // (every glob converter in v2 reads "**/" as any number of folders, none included: a root file and a nested one both
       // match. Lesson (the old suite under v2): "**/*" missed CLAUDE.md, and an approved "old/**" covered one level only)
       {
