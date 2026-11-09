@@ -1543,6 +1543,22 @@ const { questionGaps } = await import('./lib.mjs');
   report(took && capped && cleaned && JSON.stringify(got) === '[false,true,true,false,true,true]', 'end: a file marker counts a file whose content changed this turn, or was committed this turn, not one only touched: unchanged since a commit made before the turn, or since the turn began for one already changed then (the prompt hook\'s background snapshot; not for a file written while it ran; none past 2,000 files; day-old ones removed)', JSON.stringify({ took, capped, cleaned, got, err: (out.stderr || '').slice(0, 300) }));
 }
 
+// (upgrade: a starter copy whose refs are stale still learns it is behind, by asking its upstream once; an up-to-date
+// copy is not. Lesson (a field report): "nothing changed" from a copy 20 commits behind)
+{
+  const { spawnSync } = await import('node:child_process'), { behindUpstream } = await import('../repo.mjs');
+  const box = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-up-')), g = (cwd, ...a) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', '-c', 'init.defaultBranch=main', ...a], { cwd, encoding: 'utf8' });
+  const origin = path.join(box, 'origin.git'), copy = path.join(box, 'copy'), dev = path.join(box, 'dev');
+  g(box, 'init', '-q', '--bare', origin); g(box, 'clone', '-q', origin, dev);
+  fs.writeFileSync(path.join(dev, 'a.txt'), '1'); g(dev, 'add', '-A'); g(dev, 'commit', '-q', '-m', 'one'); g(dev, 'push', '-q', 'origin', 'HEAD:main');
+  g(box, 'clone', '-q', origin, copy);
+  const fresh = behindUpstream(copy);
+  fs.writeFileSync(path.join(dev, 'a.txt'), '2'); g(dev, 'commit', '-q', '-am', 'two'); g(dev, 'push', '-q', 'origin', 'HEAD:main');
+  const stale = behindUpstream(copy);
+  fs.rmSync(box, { recursive: true, force: true });
+  report(fresh.behind === 0 && /^origin\/main$/.test(stale.up) && stale.behind !== 0, 'upgrade: a starter copy with stale refs still learns it is behind its upstream (asked once, no fetch); an up-to-date one is not', JSON.stringify({ fresh, stale }));
+}
+
 // (the engine runbook's upgrade items fit a real upgrade, never a dry run, which writes nothing. Lesson (replay
 // 2026-11-07): most repeat blocks in one project were dry runs asked for an upgrade review and a commit)
 {

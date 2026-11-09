@@ -38,6 +38,7 @@ import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { ROOT, STARTER_LINK, starterLink, starterSources, syncAll, setupCompleteness, usageOf, noteEngineChange } from './hooks/hooks.mjs';
 import { registry } from './packs.mjs';
+import { behindUpstream } from './hooks/repo.mjs';
 import { where, whereWrite, split, kind, keepList, ENGINE, LOCAL, PROJECT } from './hooks/paths.mjs';
 import { scriptsIn } from './hooks/wire.mjs';
 
@@ -358,13 +359,12 @@ if (cmd === 'link') {
 } else if (cmd === 'upgrade') {
   const link = starterLink();
   if (!link) { console.error('No starter is linked. Run: node tools/starter.mjs link "<starter folder>" first.'); process.exit(1); }
-  // Which starter version this upgrades from, and whether that copy is behind its own upstream (from refs already on
-  // disk: no network). Lesson (a field report): upgrade said "nothing changed" from a clone two releases behind, and
-  // nothing said why.
+  // Which starter version this upgrades from, and whether that copy is behind its own upstream (repo.mjs behindUpstream:
+  // the refs on disk, else the upstream asked once). Lessons (field reports): upgrade said "nothing changed" from a clone
+  // two releases behind, and again from one 20 commits behind whose refs were stale.
   if (fs.existsSync(path.join(link, '.git'))) {
-    const g = (...a) => (spawnSync('git', a, { cwd: link, encoding: 'utf8', timeout: 15000 }).stdout || '').trim();
-    const head = g('log', '-1', '--format=%h (%cs)'), up = g('rev-parse', '--abbrev-ref', '@{u}'), behind = up ? Number(g('rev-list', '--count', 'HEAD..@{u}')) || 0 : 0;
-    if (head) console.log(`starter copy: ${link} at ${head}${behind ? `, ${behind} commit(s) behind ${up}: node tools/starter.mjs update gets the newest and upgrades from it` : ''}`);
+    const { head, up, behind } = behindUpstream(link);
+    if (head) console.log(`starter copy: ${link} at ${head}${behind ? `, ${behind > 0 ? `${behind} commit(s) behind` : 'behind (newer commits on)'} ${up}: node tools/starter.mjs update gets the newest and upgrades from it` : ''}`);
   }
   const r = spawnSync(process.execPath, [path.join(link, 'tools', 'new-project.mjs'), ROOT, '--upgrade', ...upgradeFlags()], { encoding: 'utf8', stdio: 'inherit' });
   process.exit(r.status ?? 1);

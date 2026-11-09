@@ -84,3 +84,17 @@ export function gitignoreProblems(cfg = config()) {
   if (secretish.length) probs.push(`committed files that look like secrets: ${secretish.slice(0, 6).join(', ')} (remove them from git and rotate the secrets)`);
   return probs;
 }
+
+// How far a starter copy is behind its upstream: from the refs on disk, and when they show nothing, the upstream asked
+// once (ls-remote, 10 s, no fetch; nothing when offline). behind: a count, -1 when it has newer commits not yet here.
+// Lesson (a field report): a plain upgrade said "nothing changed" from a copy 20 commits behind, whose refs were stale.
+export function behindUpstream(dir) {
+  const g = (...a) => spawnSync('git', a, { cwd: dir, encoding: 'utf8', timeout: 10000 }), o = (...a) => (g(...a).stdout || '').trim();
+  const head = o('log', '-1', '--format=%h (%cs)'), up = o('rev-parse', '--abbrev-ref', '@{u}');
+  let behind = up ? Number(o('rev-list', '--count', 'HEAD..@{u}')) || 0 : 0;
+  if (up && !behind) {
+    const [remote, ...branch] = up.split('/'), sha = o('ls-remote', remote, `refs/heads/${branch.join('/')}`).split(/\s/)[0];
+    if (/^[0-9a-f]{40}$/.test(sha) && g('merge-base', '--is-ancestor', sha, 'HEAD').status !== 0) behind = Number(o('rev-list', '--count', `HEAD..${sha}`)) || -1;
+  }
+  return { head, up, behind };
+}
