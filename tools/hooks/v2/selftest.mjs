@@ -783,6 +783,16 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
         par.refused = holdsReq({ ranFailing: 'npm test' }, acts([user('fix it'), call('Bash', { command: 'npm test' }, 'This command requires approval', true), say('Fixed.')]), x);
         par.failed = holdsReq({ ranFailing: 'npm test' }, acts([user('fix it'), call('Bash', { command: 'npm test' }, 'Exit code 1\n1 failing', true), say('Fixed.')]), x);
         cites.skillsOk = par.refused === false && par.failed === true && par.skills.one === true && par.skills.survey === false && par.skills.named === true;
+        // (as the old engine: a failure line counts like an error exit, a missing tool does not; a failure the turn found
+        // (no edit before the run) or one in a request that reports a problem counts, one its own edits caused mid-work
+        // does not)
+        const rf = rows => holdsReq({ ranFailing: 'npm test' }, acts(rows), x), ed = call('Edit', { file_path: path.join(dir, 'src/a.js'), old_string: 'a', new_string: 'b' }, 'ok');
+        const rfg = { line: rf([user('add the rows'), call('Bash', { command: 'npm test' }, 'not ok 1 rows\n1 failed'), say('Done.')]),
+          missing: rf([user('add the rows'), call('Bash', { command: 'npm test' }, 'npm: command not found', true), say('Done.')]),
+          caused: rf([user('add the rows'), ed, call('Bash', { command: 'npm test' }, '1 failed', true), say('Done.')]),
+          reported: rf([user('the export is broken'), ed, call('Bash', { command: 'npm test' }, '1 failed', true), say('Done.')]) };
+        report(rfg.line === true && rfg.missing === false && rfg.caused === false && rfg.reported === true,
+          'end: ranFailing: a failure line counts like an error exit, a missing tool does not; a failure found before any edit, or in a request reporting a problem, counts; one the turn\'s own edits caused does not', JSON.stringify(rfg));
         const T = par.toolPassed; cites.toolPassedOk = cites.skillsOk && T.toFile === true && T.oldFile === false && T.selfOk === true && T.selfBad === false && T.audit === null;
         report(cites.toolPassedOk && par.seq === false && par.bg === true && par.plain === true && cites.plain && cites.ticks && cites.printed && !cites.unopened && !cites.own && cites.unknownBranch === null && cites.otherHolds === true,
           'end: answer-cites: a source opened (or printed) this turn named in the answer meets it, an unopened or self-written file does not; an unread branch leaves an anyOf unjudged unless another holds; helpers run one after another are not parallel work, two in the background are; the output of a gate in a file written this turn counts, an older log does not, and a declared self-test never run is run here (the audit left to the health check)', JSON.stringify(cites));
@@ -2683,16 +2693,19 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   // and mid-task notes (every tool call) 600, the reminder (every message) 400, the end check (once per turn) 2,000, the
   // base modules 700, all of it 4,000, tests not counted; hooks.mjs joins when 1e cuts it to the entry. Plan:
   // docs/plans/2026-11-07-engine-v2-only.md, "Budget decision")
+  // (2026-11-09, the oversight review under the user's "everything works in the new engine": no check is retired for
+  // size; while the old checks move over (rows first) the end check may grow to 3,200 and all of it to 4,800, the speed
+  // tests being the hard limit; when the move ends, both ceilings come down to the measured size)
   const size = f => fs.readFileSync(f, 'utf8').split('\n').length;
   const v2 = f => path.join(here, f), base = n => path.join(here, '..', `${n}.mjs`);
   const parts = { guard: [v2('guard.mjs'), v2('midturn.mjs')], reminder: [v2('start.mjs')], base: ['paths', 'settings', 'repo', 'people', 'labels', 'base-checks', 'wakeups', 'injection', 'claims', 'git-guard'].map(base) };
   parts.end = fs.readdirSync(here).filter(f => f.endsWith('.mjs') && f !== 'selftest.mjs' && !Object.values(parts).flat().includes(v2(f))).map(v2);
-  const cap = { guard: 600, reminder: 400, end: 2000, base: 700 };
+  const cap = { guard: 600, reminder: 400, end: 3200, base: 700 }, ALL = 4800;
   const got = Object.fromEntries(Object.entries(parts).map(([k, fs_]) => [k, fs_.reduce((n, f) => n + size(f), 0)]));
   const lines = Object.values(got).reduce((a, b) => a + b, 0);
   const checks = (/const list = \[([^\]]*)\]/.exec(fs.readFileSync(path.join(here, 'end.mjs'), 'utf8'))?.[1].match(/\.\.\.\w+\(/g) || []).length;
-  report(lines <= 4000 && Object.entries(cap).every(([k, c]) => got[k] <= c) && checks >= 1 && checks <= 15,
-    `size: each part of the engine within its budget (guard ${got.guard}/600, reminder ${got.reminder}/400, end ${got.end}/2,000, base ${got.base}/700), ${lines} of 4,000 lines in all; the end check runs at most 15 checks (${checks})`, { got, lines, checks });
+  report(lines <= ALL && Object.entries(cap).every(([k, c]) => got[k] <= c) && checks >= 1 && checks <= 15,
+    `size: each part of the engine within its budget (guard ${got.guard}/${cap.guard}, reminder ${got.reminder}/${cap.reminder}, end ${got.end}/${cap.end}, base ${got.base}/${cap.base}), ${lines} of ${ALL} lines in all; the end check runs at most 15 checks (${checks})`, JSON.stringify({ got, lines, checks }));
 }
 
 // (one place finds the three roots: the engine's code, the project, and where project-made engine files live. In the

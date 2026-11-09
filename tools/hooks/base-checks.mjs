@@ -1,6 +1,12 @@
 // The engine's built-in checks, the same table form as requirements.json, read by both engines (v2's evaluator,
 // v2/lib.mjs holdsReq). Moved from hooks.mjs (plan: engine v2 only, step 1b). A base module like settings.mjs.
 
+// What a failed run and a reported problem look like, for both engines' "ranFailing": a failure line in the output
+// counts like an error exit; a missing tool is setup, not a bug; problem words in the request make it a fix.
+export const FAILED_RUN = /^\s*(FAIL(ED)?\b|not ok\b)|\b[1-9]\d* (tests? )?(failed|failing|errors?)\b|Traceback \(most recent call last\)|AssertionError|\bERR!/m;
+export const MISSING_TOOL = /is not recognized as (an internal|the name)|command not found|: not found\b|No such file or directory.*(node_modules|bin)|Cannot find module|No module named|ModuleNotFoundError|could not determine executable|not installed/i;
+export const PROBLEM_WORDS = /\b(bugs?|broken|breaks?|crash(es|ed|ing)?|errors?|exceptions?|traceback|fail(s|ed|ing|ures?)?|doesn'?t work|does not work|not working|wrong|regression|fix(es)?|make (the )?(tests?|build) pass)\b|\b(falla|fallan|fallo|errores|roto|rota|no funciona|arregla|corrige)\b/i;
+
 // The baseline checks live here, not in requirements.json, so they can't be switched off by editing that file
 // (found by the ablation tests: an emptied requirements.json silently disabled every declarative check).
 // requirements.json adds checks or overrides one of these by tag; turning one off takes an explicit

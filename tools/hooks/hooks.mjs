@@ -16,7 +16,7 @@ import { testInputsHash, aiAttributedCommits, gitignoreProblems } from './repo.m
 import { lines as jsonlLines } from './jsonl.mjs';
 import { people, personOf, peopleIn, peopleFor, pathsPeople } from './people.mjs';
 import { LABELS_ES, WORTH_IT, plainLabel, EN_COPIES, inEnglish } from './labels.mjs';
-import { BASE_REQUIREMENTS } from './base-checks.mjs';
+import { BASE_REQUIREMENTS, FAILED_RUN, MISSING_TOOL, PROBLEM_WORDS } from './base-checks.mjs';
 export { ROOT, bulkDir, today, usageOf, read, readJSON, abs, exists, list, walkStat, esc, config, re, secretRes, secretHit, privateTermsPath, privateTermsListFile, forbiddenTerms, forbiddenRe, testInputsHash, aiAttributedCommits, gitignoreProblems, people, personOf, peopleIn, peopleFor, pathsPeople, LABELS_ES, WORTH_IT, plainLabel, EN_COPIES, inEnglish, BASE_REQUIREMENTS };
 // (the safety guard is v2/guard.mjs, loaded by the pretool hook itself: a guard that cannot load is then reported, not
 // a hook that cannot start)
@@ -6736,12 +6736,9 @@ export const waitsForAgents = q => q.waitsForAgents ?? WAITS_FOR_AGENTS.has(q.ta
 // A failed test or build run: its output, beyond the exit code (a runner piped through another command exits 0).
 // The request reports a problem to fix: it routes to the bugfix runbook or the debug skill, the user is upset, or it
 // names a fault (bug, error, crash, failing, broken, wrong, fix), in English or Spanish.
-const PROBLEM_WORDS = /\b(bugs?|broken|breaks?|crash(es|ed|ing)?|errors?|exceptions?|traceback|fail(s|ed|ing|ures?)?|doesn'?t work|does not work|not working|wrong|regression|fix(es)?|make (the )?(tests?|build) pass)\b|\b(falla|fallan|fallo|errores|roto|rota|no funciona|arregla|corrige)\b/i;
+// (PROBLEM_WORDS, FAILED_RUN and MISSING_TOOL are in base-checks.mjs, shared with v2)
 export const reportsProblem = x => (x.routed || []).some(pb => pb.name === 'bugfix') || (x.routedSkills || []).some(s => s.name === 'debug') ||
   isUpset(x.prompt || '') || PROBLEM_WORDS.test(userText(x.prompt || ''));
-const FAILED_RUN = /^\s*(FAIL(ED)?\b|not ok\b)|\b[1-9]\d* (tests? )?(failed|failing|errors?)\b|Traceback \(most recent call last\)|AssertionError|\bERR!/m;
-// A run that failed because its tool or dependencies aren't installed (setup, not a bug in the code)
-const MISSING_TOOL = /is not recognized as (an internal|the name)|command not found|: not found\b|No such file or directory.*(node_modules|bin)|Cannot find module|No module named|ModuleNotFoundError|could not determine executable|not installed/i;
 // What this turn added to each changed file that the spec covers: the text the agent's own edits wrote (Write, Edit) when
 // the tool history shows them, else the whole file. Capped, so it stays cheap on a big turn. Returns "<file>: <match>".
 const ADDED_MAX_FILES = 300, ADDED_MAX_BYTES = 512 * 1024;

@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { roots, resolver } from '../paths.mjs';
 import { people, personOf, peopleIn, peopleFor } from '../people.mjs';
 import { inEnglish } from '../labels.mjs';
-import { BASE_REQUIREMENTS } from '../base-checks.mjs';
+import { BASE_REQUIREMENTS, FAILED_RUN, MISSING_TOOL, PROBLEM_WORDS } from '../base-checks.mjs';
 import { forbiddenRe, secretHit } from '../settings.mjs';
 import { INJ_PLANTED, INJ_AIMED, INJ_WARNED } from '../injection.mjs';
 import { verbatimHits } from './verbatim.mjs';
@@ -661,7 +661,7 @@ export function scopeGaps(acts) {
   const cfg = projectConfig(), ppl = people(cfg, { list: d => { try { return listAll(d); } catch { return []; } }, read, path: at });
   // (setup: the setup prompt is there in a project, not the starter's own template, or this turn removed it. Lesson
   // (the old suite under v2): a template copy that still holds the prompt skipped every check)
-  const setup = (fs.existsSync(at('SETUP-PROMPT.md')) && !fs.existsSync(at('.starter-template'))) || acts.calls.some(c => /SETUP-PROMPT\.md/.test(String(c.input.command || c.input.file_path || '')));
+  const setup = setupTurn(acts);
   if (!ppl.length || setup) return [];
   const named = peopleFor(acts.heard || '', acts.earlier || [], ppl);
   // (any file under a person's folder changed since the turn began, as the file markers count it: a script's or a
@@ -926,6 +926,7 @@ export const engineChecks = () => {
   return [...BASE_REQUIREMENTS.filter(b => !own.some(r => r.tag === b.tag)), ...own].filter(r => r.tag !== 'security-code' && !off.has(r.tag) && r.enabled !== false);
 };
 const REFUSED_RUN = /\b(requires approval|was (denied|rejected|refused)|permission (was )?denied|user (denied|rejected|declined)|not allowed to run|blocked by (a )?hook)\b/i;
+const setupTurn = acts => (fs.existsSync(at('SETUP-PROMPT.md')) && !fs.existsSync(at('.starter-template'))) || acts.calls.some(c => /SETUP-PROMPT\.md/.test(String(c.input.command || c.input.file_path || '')));
 const skillSurvey = acts => (fs.existsSync(at('SETUP-PROMPT.md')) && !fs.existsSync(at('.starter-template')))
   || new Set(acts.calls.filter(k => k.name === 'Read').map(k => (/skills[\\/]+([\w-]+)[\\/]+SKILL\.md$/i.exec(String(k.input.file_path || '')) || [])[1]).filter(Boolean)).size >= 3;
 // The files a command sent its output to ("> f", ">> f", "| tee f"), inside the project.
@@ -1027,7 +1028,13 @@ export function holdsReq(c, acts, x) {
     // file changed; what the turn added to matching files)
     // (a run the host refused never ran: it failed nothing. Lesson (the v2 re-sweep): a test run held for approval was
     // taken for a failing one, and the turn was asked for a root cause)
-    ranFailing: v => acts.calls.some(k => /^(Bash|PowerShell)$/.test(k.name) && reqRe(v).test(String(k.input.command || '')) && k.error && !REFUSED_RUN.test(k.out || '')),
+    // (as the old engine: a failure line counts like an error exit, a missing tool does not; the failure was found, not
+    // caused (no edit before the run), or the request reports a problem; a self-test run after editing the project's own
+    // checks is that work in progress. Lesson (the old suite under v2): a failed test then fixed was never asked why)
+    ranFailing: v => { const edits = (i, rx) => acts.calls.slice(0, i).some(e => /^(Edit|Write|MultiEdit)$/.test(e.name) && rx.test(relp(e.input.file_path || '')));
+      const fails = acts.calls.map((k, i) => [k, i]).filter(([k, i]) => /^(Bash|PowerShell)$/.test(k.name) && reqRe(v).test(String(k.input.command || '')) && (k.error || FAILED_RUN.test(k.out || '')) && !REFUSED_RUN.test(k.out || '') && !MISSING_TOOL.test(k.out || '')
+        && !(/selfcheck\.mjs/.test(String(k.input.command || '')) && edits(i, /^tools\/hooks\/(requirements\.json|project-scenarios\.mjs)$/)));
+      return fails.length > 0 && !setupTurn(acts) && (PROBLEM_WORDS.test(acts.heard || '') || fails.some(([, i]) => !edits(i, /./))); },
     // (overlap: that many running at once, each from its call to its result, or to the turn's end when started in the
     // background; refused ones never ran. Lesson (the old engine): three reviews run one after another were taken for
     // parallel work)
