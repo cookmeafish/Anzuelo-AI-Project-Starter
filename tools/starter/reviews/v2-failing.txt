@@ -49,14 +49,6 @@ prompt: autonomy-hint: "do not ask me anything" asks to set autonomy auto
 prompt: autonomy-hint: "without my input" asks to set autonomy auto
 prompt: autonomy-hint: a Spanish setup request that says not to ask routes to the project runbook and gets AUTONOMY
 prompt: bootstrap hint when setup prompt is gone but brief is empty
-prompt: caps-weight: "AGAIN" in capitals is frustration
-prompt: caps-weight: "NEVER" in capitals sets a standing rule
-prompt: caps-weight: a run of words in capitals is shouting
-prompt: caps-weight: capitals with a sign of trouble are upset ("CAN YOU JUST DO WHAT I SAID")
-prompt: caps-weight: capitals with a sign of trouble are upset ("HOLD UP, IT IS LISTING EVERY POST AGAIN WHICH SHOU")
-prompt: caps-weight: capitals with a sign of trouble are upset ("NO MY ISSUE IS NOT WITH THE PRINTER")
-prompt: caps-weight: capitals with a sign of trouble are upset ("WHY DOES THE TOTAL SKIP THE FIRST ROW")
-prompt: caps-weight: capitals with a sign of trouble are upset ("the chart is still not readable. it NEEDS TO BE CL")
 prompt: check-preview: 2 checks give no self-check clause
 prompt: check-preview: Spanish, a route question with a line for its NOTES gets the CHECKS line with status-handoff
 prompt: check-preview: Spanish, a runbook fix names the same checks

@@ -15,6 +15,7 @@ import { verbatimHits } from './verbatim.mjs';
 import { hexIds } from '../claims.mjs';
 import { SELF_KEY, approvedBefore } from '../selfcmds.mjs';
 import { capsWeight } from '../caps.mjs';
+import { toOtherSession } from '../relay.mjs';
 // The time a session began: the first timestamp in its transcript (read from its start, never the whole file).
 export const sessionStart = file => { try { const fd = fs.openSync(file, 'r'), b = Buffer.alloc(65536), n = fs.readSync(fd, b, 0, b.length, 0); fs.closeSync(fd);
   return /"timestamp":"(\d{4}-\d\d-\d\dT[^"]+)"/.exec(b.toString('utf8', 0, n))?.[1] || null; } catch { return null; } };
@@ -147,6 +148,21 @@ export function route(prompt, books = runbooks()) {
   const editEs = /\b(?:arregla|corrige|cambia|modifica|actualiza|edita|mejora|ampl[ií]a|acorta)r?\s+(?:el|mi|este|nuestro)\s+(?:playbook|runbook|procedimiento)\s+de\s+([\w-]+)/i.exec(String(prompt));
   const project = books.find(b => b.file === 'docs/playbooks/project.md'), edited = [editEn, editEs].find(m => m && named(m[1]));
   if (project && edited) return { ...project, matched: 'runbook edit' };
+  // (a message that names the starter is about the project itself, in a project (in the starter every message is):
+  // the project runbook, whatever a generic word like "report" or "improve" matches. Unless the project is about a real
+  // thing of that name ("_subjects" in docs/names.json). Lesson (the old engine): "a report to <starter> on how to improve
+  // it" went to the project's own runbook on its generic words)
+  if (project && !fs.existsSync(at('.starter-template'))) {
+    let nm = {}; try { nm = JSON.parse(fs.readFileSync(at('docs/names.json'), 'utf8')); } catch { }
+    const st = String(nm.STARTER_NAME || '').trim();
+    if (st.length >= 3 && !/\{\{/.test(st) && ![].concat(nm._subjects || []).includes('STARTER_NAME')
+      && new RegExp(`(^|[^\\p{L}\\p{N}])${st.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|[^\\p{L}\\p{N}])`, 'iu').test(String(prompt))) return { ...project, matched: 'starter named' };
+  }
+  // (a message to pass on to another session or agent, asking for no work here, is no runbook's job: its words describe
+  // the other session's work. Lesson (the old engine): "tell the other session to improve its report" was routed to the
+  // domain runbook on "improve" and "report")
+  // (a standing rule about telling it, "from now on always tell the other session ...", is a rule, not a message to pass on)
+  if (toOtherSession(prompt) && !/^\W*(from now on|going forward|de ahora en adelante|a partir de ahora|always|never|siempre|nunca)\b/i.test(String(prompt))) return null;
   const match = text => {
     const p = ` ${String(text).toLowerCase().replace(/[^\p{L}\p{N}' ]+/gu, ' ').replace(/\s+/g, ' ')} `;
     let best = null;

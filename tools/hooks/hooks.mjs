@@ -383,18 +383,10 @@ const GENERIC = new Set(['fix', 'add', 'added', 'save', 'make', 'get', 'use', 'c
 // Questions that ask for the agent's own view, or talk about the conversation itself, are not a runbook's task.
 // Lesson: "do you think ..." and "based on what we have" routed to research and demanded sources for an opinion.
 const OPINION = /\b(do|did|would|will) you (think|reckon|believe|feel|agree|prefer|suggest|recommend)\b|\bwhat do you (think|reckon|make of|suggest|recommend)\b|\bin your (opinion|view)\b|\byour (honest )?(opinion|view|take|thoughts)\b|\bhow do you feel\b|\bbased on what (we|you|i) (have|know|discussed|did|said)\b/i;
-// Passing a message to another session or agent is not a new kind of task. Lesson: "tell the other terminal" got NO RUNBOOK.
-const RELAY = /\b(tell|ask|message|ping|notify|update|let)\b[^.?!\n]{0,40}\b(terminal|session|agent|window|instance|other claude)\b|\bpass (this|it|that|them) (on|along)\b|\brelay (this|it|that)\b/i;
-// ...unless it also asks for work ("tell the terminal, then fix the export")
-const isRelay = t => (RELAY.test(t) || toPeer(t)) && !/\b(and|then|also|but)\b[^.?!\n]{0,15}\b(fix|add|make|build|write|create|change|update|edit|remove|run)\b/i.test(t);
-// A message meant for someone else: another session, terminal or agent, or the starter itself ("a report to <starter>",
-// "dile a la otra sesión"). What it asks for is that message, not a file for the user in outputs/ and not the domain job
-// its words describe. Lesson: "write a report to <starter> on how to improve it" routed to the deliverable runbook
-// (outputs/) and to a project runbook whose triggers had "improve".
-const PEER_NOUN = String.raw`(terminal|session|agent|window|instance|chat|sesi[oó]n|agente|ventana)`;
-const PEER = new RegExp(String.raw`\b(to|for|with|para|a|al|con)\s+(the\s+|la\s+|el\s+)?(other|another|otra|otro)\s+(\w+\s+)?${PEER_NOUN}` +
-  String.raw`|\b(to|for|para|a|al)\s+(the\s+|la\s+|el\s+)?\w+\s+${PEER_NOUN}s?\s+(coding|working|running|that|que)\b` +
-  String.raw`|(^|[^\wáéíóú])(dile|diles|p[ií]dele|p[ií]deles|av[ií]sale|av[ií]sales|cu[eé]ntale|menci[oó]nale|recu[eé]rdale)(?![\wáéíóú])`, 'i');
+// (RELAY, PEER_NOUN, PEER and the "also asks for work" test: in relay.mjs, shared with engine v2)
+import { RELAY, PEER_NOUN, PEER, ALSO_WORK } from './relay.mjs';
+// ...a relay unless it also asks for work ("tell the terminal, then fix the export"); toPeer adds the starter by name
+const isRelay = t => (RELAY.test(t) || toPeer(t)) && !ALSO_WORK.test(t);
 // An upgrade of this project's engine from its starter: the starter command, or "upgrade/update the engine/starter".
 const STARTER_UPGRADE = /\bstarter\.mjs\s+(update|upgrade)\b|\b(upgrade|update)\s+(the\s+|this\s+|your\s+)?(engine|starter)\b|\bactualiza\w*\s+(el\s+)?(motor|starter)\b/i;
 // The starter's own name (docs/names.json STARTER_NAME), unless the project's content is about a real thing of that name.

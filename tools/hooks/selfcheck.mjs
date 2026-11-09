@@ -1394,7 +1394,8 @@ const PROMPT = [
   // sense the user is upset ... only skip it if false alarm")
   { name: 'question-answered: a question typed mid-turn is to be answered next, with no route or fix work; an upset one is acknowledged first', prompt: 'WHY DO YOU KEEP IGNORING ME, does the order even have bulbs??',
     sid: 'mid', setup: { 'tools/hooks/state/notices-shown.json': JSON.stringify({ at: new Date().toISOString(), shown: [] }), 'tools/hooks/state/v2-turn.mid.json': JSON.stringify({ at: new Date().toISOString(), runbook: null }) },
-    has: ['QUESTION (typed while you work): answer it in your very next message', 'THE USER SOUNDS UPSET: write "Issue:'], hasNot: ['ROUTE:', 'THE USER SOUNDS UPSET (maybe)', 'SKILL:'] },
+    has: ['QUESTION (typed while you work): answer it in your very next message', 'THE USER SOUNDS UPSET: write "Issue:'], hasNot: ['ROUTE:', 'THE USER SOUNDS UPSET (maybe)', 'SKILL:'],
+    v2: { has: ['QUESTION (typed while you work): answer it in your very next message', 'This sounds upset: open skills/learn-from-upset/SKILL.md'], hasNot: ['Runbook:', 'SKILL:'] } },
   { name: 'question-answered: a calm question typed mid-turn gets no upset line', prompt: 'does the order even have bulbs?',
     sid: 'mid', setup: { 'tools/hooks/state/notices-shown.json': JSON.stringify({ at: new Date().toISOString(), shown: [] }), 'tools/hooks/state/v2-turn.mid.json': JSON.stringify({ at: new Date().toISOString(), runbook: null }) },
     has: ['QUESTION (typed while you work)'], hasNot: ['THE USER SOUNDS UPSET'] },
@@ -4376,7 +4377,17 @@ const HINT_FIX = {
   'docs/playbooks/deliverable.md': '---\nname: deliverable\nsummary: Produce a document the user will use or share as a new versioned file in outputs/\ntriggers: write a report, write up, a report on, escribe un informe, redacta un informe\n---\n# Deliverable\n1. Write it in outputs/.\n'
 };
 const STARTER_IS = { 'docs/names.json': s => JSON.stringify({ ...JSON.parse(s || '{}'), STARTER_NAME: 'Anzuelo', _subjects: [] }) };
-const hintRoute = (name, prompt, more) => ({ name: 'route-precision: ' + name, prompt, setup: HINT_FIX, setupFn: STARTER_IS, ...more });
+// (under v2, the same expectations in v2's wording: "ROUTE: x" is "Runbook: open docs/playbooks/x.md", the checklist is
+// its "Done when" list (v2 always shows it with the route), and v2 names one runbook, so the old engine's weak-match and
+// also-route notes are not looked for. A scenario expecting anything else gets no v2 form and stays as it is)
+const V1_ONLY = /^(WEAK MATCH|ALSO ROUTE|Several runbooks matched|CHECKLIST \()/;
+const v2Route = m => {
+  const has = [].concat(m.has || []), not = [].concat(m.hasNot || []);
+  if (has.some(h => !/^ROUTE: /.test(h) && !V1_ONLY.test(h)) || not.some(h => !/^ROUTE: /.test(h) && !V1_ONLY.test(h) && h !== 'NO RUNBOOK')) return {};
+  return { v2: { has: [...has.filter(h => /^ROUTE: /.test(h)).map(h => `Runbook: open docs/playbooks/${h.slice(7)}.md`), ...(has.some(h => /^CHECKLIST \(/.test(h)) ? ['Done when'] : [])],
+    hasNot: not.filter(h => /^ROUTE: /.test(h)).map(h => `docs/playbooks/${h.slice(7)}.md`) } };
+};
+const hintRoute = (name, prompt, more) => ({ name: 'route-precision: ' + name, prompt, setup: HINT_FIX, setupFn: STARTER_IS, ...more, ...v2Route(more || {}) });
 const NOT_DOMAIN = ['ROUTE: zorbel-tune', 'ROUTE: deliverable', 'Several runbooks matched'];
 const HIST = (prompt, changed) => ({ 'tools/hooks/state/history.jsonl': JSON.stringify({ key: 'k', at: '2026-10-01', prompt, used: [], changed, answer: 'Done.' }) + '\n' });
 PROMPT.push(
@@ -4470,7 +4481,7 @@ PROMPT.push(
     prompt: '<cross-session-message from="other">Both are fixed. Separate note: your usage file changed in your own session. Upgrade when convenient: node tools/starter.mjs update.</cross-session-message>',
     setup: HINT_FIX, setupFn: STARTER_IS, has: ['ROUTE: engine'], hasNot: ['SKILL: knowledge-capture'] },
   // status-first (Lesson, field report: "is it done?" got a long account first, and the user was upset)
-  { name: 'status-first: "is it done?" asks for the status first', prompt: 'is it done?', has: ['STATUS QUESTION'] },
+  { name: 'status-first: "is it done?" asks for the status first', prompt: 'is it done?', has: ['STATUS QUESTION'], v2: { has: ['QUESTION: answer it directly, first'] } },
   // capitals for weight inside a normal message (Lesson, the user: "ALL CAPS tend to signify frustration too or something
   // that should be taken seriously")
   { name: 'caps-weight: a run of words in capitals is shouting', prompt: 'the export broke and DO NOT TOUCH THE CONFIG this time', has: ['THE USER SOUNDS UPSET'], v2: { has: ['This sounds upset: open skills/learn-from-upset/SKILL.md'] } },
@@ -4492,7 +4503,7 @@ PROMPT.push(
     .map(p => ({ name: `praise: a praise word on a thing or a goal is not praise ("${p.slice(0, 50)}")`, prompt: p, hasNot: ['PRAISE'] })),
   ...['the new dashboard is amazing. make the labels bigger', 'you are amazing now at writing these', 'awesome work on the export', 'amazing!']
     .map(p => ({ name: `praise: a praise word on the work is praise ("${p.slice(0, 50)}")`, prompt: p, has: ['PRAISE'] })),
-  { name: 'status-first: Spanish "¿ya terminó?" asks for the status first', prompt: '¿ya terminó?', has: ['STATUS QUESTION'] },
+  { name: 'status-first: Spanish "¿ya terminó?" asks for the status first', prompt: '¿ya terminó?', has: ['STATUS QUESTION'], v2: { has: ['QUESTION: answer it directly, first'] } },
   { name: 'status-first: a request that starts like a question is no status question', prompt: 'is it possible to add a dark mode to the settings page and keep the old colors as an option?', hasNot: ['STATUS QUESTION'] },
   // shared steps once (Lesson, the user: a request with x1..x4 where x1 already needs x3 had x3 done twice)
   { name: 'shared-steps: a request with several tasks asks to merge their shared steps', prompt: 'add a csv export and also a pdf export, and also write the tests and update the README', has: ['SHARED STEPS'] },
@@ -5016,8 +5027,8 @@ for (const s0 of PROMPT) {
     for (const h of s.hasNot || []) if (out.includes(h)) why ||= 'unexpected "' + h + '"';
     // (the CHECKS line, when there is one, is shown whole: it comes after the rules digest)
     for (const h of s.has || []) if (!out.includes(h)) why ||= `missing "${h}" in: ${out.slice(0, 400) || '(empty)'}${/CHECKS: /.test(out) && !out.slice(0, 400).includes('CHECKS: ') ? ` ... ${/CHECKS: .*/.exec(out)[0]}` : ''} ${err.slice(0, 200)}`;
-    // routes: how many primary ROUTE lines (secondary ones say "ALSO ROUTE")
-    const primary = (out.match(/(?<!ALSO )\bROUTE: [\w-]+/g) || []).length;
+    // routes: how many primary ROUTE lines (secondary ones say "ALSO ROUTE"); under v2, its "Runbook: open" lines
+    const primary = (out.match(process.env.STARTER_ENGINE === 'v2' ? /Runbook: open docs\/playbooks\/[\w-]+\.md/g : /(?<!ALSO )\bROUTE: [\w-]+/g) || []).length;
     if (s.routes !== undefined && primary !== s.routes) why ||= `expected ${s.routes} primary ROUTE line(s), got ${primary}: ${out.slice(0, 400)}`;
     report(!why, 'prompt: ' + s.name, why);
   } finally { giveBack(dir, !!s.own); }
