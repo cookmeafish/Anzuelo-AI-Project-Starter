@@ -4,6 +4,14 @@ Where work on the starter itself stands, for the next session. Projects never ge
 docs/STATUS.md, which here is the template new projects start from).
 
 ## Now
+- 2026-11-08 (late): release f5b7847 (4b3be1d + proof) passed the full chain, v2 sweep included, in
+  ~/.anzuelo-frozen/rel-4b3be1d; waiting for the user's OK to push it to main (the guard needs it in the request).
+  Not in it yet, need their own chain: 6225c6d (a clone inside the project folder installs into its .anzuelo),
+  222c5fb (security check skips skill mirrors). Open: the 8 known v2 regressions on the v2 list (runbook-edit routing
+  x3, stop-log, answer-resent draft, app-test-pass npm --prefix x2, upgrade-review "later - when"); the end check
+  asking for Finished again after the short "what changed" note, and calling a follow-up a redo; files outside the
+  project counted by the copied-words check; the user's question on showing blocks as "Stop hook feedback"; the second
+  project's upgrade report; the Stop re-profile.
 - 2026-11-07: runbook use measured on real project sessions since 2026-11-05 (totals): 34 work turns. 6 were routed: 2
   opened the runbook that turn, 3 earlier in the session, 1 never. 28 were not routed: 25 opened a runbook that turn,
   3 earlier in the session. Turns that worked with no runbook at all: 1 of 34 (3%), under the 10% bar, so no end ask
