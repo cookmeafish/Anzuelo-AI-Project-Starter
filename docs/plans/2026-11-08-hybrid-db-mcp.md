@@ -16,7 +16,7 @@ the oversight session; facts and fit checked here on 2026-11-08.
   It is a cache: it can always be rebuilt from the session logs and the repo.
 - Enforcement stays in the hooks. MCP only serves: the engine works fully with MCP off, and MCP adds precision.
 
-## Task A: SQLite for engine data
+### Task 1: SQLite for engine data (A)
 - [ ] A1. Gate: use `node:sqlite` only on Node 22.16 or newer (the busy `timeout` option) and bundled SQLite 3.51.3 or
       newer (the WAL-reset bug with concurrent writers is fixed there); check both at runtime. Otherwise, and when the
       state folder is on a network or cloud-synced path (WAL needs one host), keep the JSON state files and say so
@@ -39,7 +39,7 @@ Done when (each bar measured, the numbers in docs/reviews/):
 - Locking: 8 hook processes writing at once give 0 lock errors in a stress test on Windows.
 - No hook reads a state JSON file any more where the database is in use; the JSON fallback passes the same tests.
 
-## Task B: MCP server (optional, per project)
+### Task 2: MCP server, optional per project (B)
 - [ ] B1. Transport: stdio only (no HTTP server, so no auth to manage and no DNS-rebinding surface). SDK: the official
       TypeScript SDK if it supports the current spec and passes the install vetting (two independent sources,
       license, maintained); otherwise a small hand-written stdio JSON-RPC loop, as the tool set is small and read-only.
