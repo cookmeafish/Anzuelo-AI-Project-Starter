@@ -103,3 +103,17 @@ export function inEnglish(text, cfg = config()) {
   });
   return extra.length ? `${text}${EN_COPIES}${extra.join('\n')}` : String(text);
 }
+// Each Spanish label with the checks that read it (null: every turn), for both engines' hint; only the labels of the
+// checks a turn is held to are listed. Lessons: a 1,400-character hint of labels for packs the project lacked; "Lo probé
+// a mano" offered where a script had driven the browser.
+const ES_LABELS = [[null, '"## Terminado" (Finished)'], [/root-cause/, '"Causa raíz:"'], [/gui|visual|screen/, '"Revisión visual: correcta tras N rondas" (one line can be the only place the rounds appear)'],
+  [/a11y/, '"Accesibilidad: <qué revisé> - correcta"'], [/security-/, '"La revisión de seguridad salió bien - detalles en docs/reviews/security-AAAA-MM-DD.md"'], [/foundation/, '"Seguridad: ... Rendimiento: ... Facilidad de uso: ..." (the app foundation)'],
+  [/verification|release-ready|client-verified|qa-/, '"## Verificación" with "Pruebas automáticas:", "Sitio real:" (saying how: "con un navegador automatizado" when a script drove it; "a mano" only for what a person did), "Revisión independiente:", "Puntos débiles:"'],
+  [/upset|self-improve|skill-learn/, '"Aprendido (regla): <lección> → <archivo>"'], [/install/, '"Evaluado: <herramienta> ... licencia <nombre>"'], [/skill-finder|skill-compared/, '"Habilidades existentes revisadas:"'],
+  [/data-computed/, '"Cómo se calculó:"'], [/research|answer-cites|sourced/, '"Fuentes:"'], [/legal/, '"No es asesoramiento legal"'], [null, '"**Aviso:**" (Heads-up), "**Hecho:**", "**Problema:**", "**Pregunta para ti:**"'],
+  [/review-verdict|release-/, '"Revisión independiente: lista para publicar" (SHIP) or "veredicto: corregir" (FIX)'], [/claim-checked/, '"Comprobado: <qué abrí> - <qué mostraba>"'],
+  [/check-proven|claim-checked/, '"Probado: falla con <muestra de la queja>; pasa con <buena 1>, <buena 2>"'], [null, '"Guía: <runbook>.md · Habilidad: <nombre> · Vale la pena: <ganancia> / <coste>"']];
+// scope: the text naming this turn's checks (tags, or the held items' words); without it, every label
+export const esLabelList = (scope = null) => ES_LABELS.filter(([r]) => !r || scope == null || r.test(scope)).map(([, l]) => l).join(', ');
+export const labelsEsHint = (scope = null) => `Write in Spanish: the whole answer, its labels and your progress updates while you work; the checks accept these labels: ${esLabelList(scope)}.`;
+export const LABELS_ES_HINT = labelsEsHint();

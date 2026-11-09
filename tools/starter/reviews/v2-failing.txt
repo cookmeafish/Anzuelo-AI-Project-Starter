@@ -43,7 +43,6 @@ prompt: NO RUNBOOK hint for an unrouted task
 prompt: QA routes to the qa runbook
 prompt: a context summary that resumes the turn gets no hints
 prompt: a fact check routes to the research skill
-prompt: answer-language: a Spanish task gets the Spanish labels hint, with only its own checks' labels
 prompt: autonomy-hint: "I don't want to be bothered" asks to set autonomy auto
 prompt: autonomy-hint: "do not ask me anything" asks to set autonomy auto
 prompt: autonomy-hint: "without my input" asks to set autonomy auto
@@ -213,7 +212,6 @@ stop: a runbook used through its generated skill counts as followed: passes
 stop: answer relies on a stale knowledge file without saying so: blocked
 stop: answer with an em dash: blocked
 stop: answer with filler: blocked
-stop: answer-language: a Spanish answer without the root cause is still held, and told the Spanish labels: blocked
 stop: answer-language: a Spanish visual review with no verdict: blocked
 stop: answer-noise: a re-sent answer still missing what the round asked for: blocked
 stop: answer-noise: the Stop text steers waivers to the waive command, never to an N/A line in the answer

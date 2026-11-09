@@ -168,6 +168,14 @@ report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/
     report(got.length === 2 && got[0].result === 'blocked' && got[0].round === 1 && got[0].steps.length > 0 && /^\d{4}-/.test(got[0].request) && got[1].round === 2 && got[1].result !== 'blocked' && lines <= 200 && lines > 100,
       'end: each Stop decision goes in the capped Stop log with its round, result, steps and request start', { got: got.map(e => [e.round, e.result, e.steps.length]), lines });
   }
+  { // (a Spanish request held at the end is told the Spanish labels of what it is held to; an English one is not. Lesson
+    // (the old suite under v2): a Spanish answer was held for its root cause and only the English label was named)
+    const wake = call('ScheduleWakeup', { delaySeconds: 1200, prompt: 'revisa otra vez', reason: 'fallback' }, 'Next wakeup scheduled.');
+    const held = (sid, ask) => onStop({ session_id: sid, transcript_path: transcript([at(0, user(ask)), at(1, wake), at(2, say('Listo.'))]) })?.reason || '';
+    const es = held('es1', '¿está terminada la revisión de la página del panel?'), en = held('en1', 'is the review of the account page done?');
+    report(/Write in Spanish/.test(es) && /"## Terminado"/.test(es) && !/Causa raíz/.test(es) && /wakeup/.test(en) && !/Write in Spanish/.test(en),
+      'end: a held Spanish turn is told the Spanish labels of what it is held to (not others); an English one gets none', JSON.stringify({ es: es.slice(-300), en: en.slice(-120) }));
+  }
   { // (REQ: wakeup-left: a wakeup left pending after the work is held; cancelled, or explained interactively, it is not;
     // headless, explaining is not enough)
     const wake = call('ScheduleWakeup', { delaySeconds: 1200, prompt: 'check the review again', reason: 'fallback' }, 'Next wakeup scheduled for 17:39:00 (in 1254s).');

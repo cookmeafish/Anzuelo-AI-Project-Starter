@@ -3,11 +3,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { passLine } from './lines.mjs';
+import { labelsEsHint } from '../labels.mjs';
 import { unansweredLate, asksOnly } from './late.mjs';
 import { PAUSE_ASK } from '../pause.mjs';
 import { wakeGaps } from '../wakeups.mjs';
 import { forbiddenGaps, codeRuleGaps, injectionGaps, verbatimGaps, CRASHED, crashLine, logStop, upgradeGaps, autoRuns, sessionStart, changedOf, projectConfig, inGlobs, priorCalls, filesMatching, withBackgroundOutputs } from './lib.mjs';
-import { ROOT, at, runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, questionGaps, noteGaps, quoteGaps, tail, helpersRunning, backgroundRuns, helperRuns, evidenceGaps, evidenceOf, skillBooks, alwaysGaps, scopeGaps, earlierPrompts, ALWAYS, engineCheckGaps, loadDirty } from './lib.mjs';
+import { ROOT, at, runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, questionGaps, noteGaps, quoteGaps, tail, helpersRunning, backgroundRuns, helperRuns, evidenceGaps, evidenceOf, skillBooks, alwaysGaps, scopeGaps, earlierPrompts, ALWAYS, engineCheckGaps, loadDirty, isSpanish } from './lib.mjs';
 // (the two data tables, one evaluator each: the project's always list and the engine's own checks)
 // (each check runs on its own: one that throws is named once with its error, and the rest still run)
 const S = (name, f) => { try { return f(); } catch (e) { return [crashLine(name, e)]; } };
@@ -398,6 +399,8 @@ function judge(data, { shadow = false } = {}) {
   if (list.length) parts.push(`${again ? 'Still not done (do it now, or say in one line of the answer why it does not fit this work; resending the same answer does not count)' : 'Not done yet'}:\n${list.map(s => `- ${s}`).join('\n')}`);
   if (often && list.length) parts.push(often);
   if (last) parts.push('This is the last check for this request: whatever you can\'t do, say plainly in the answer that it is not done and why.');
+  // (a Spanish request is told the Spanish labels of what it is held to, as the old engine did)
+  if (list.length && isSpanish(acts.heard || '')) parts.push(labelsEsHint(list.join(' ').toLowerCase().replace(/\s+/g, '-')));
   if (turn.at && !shadow) saveTurn(data.session_id, { ...turn, blocked: turn.at, rounds: rounds + 1, lastBlock: Date.now() });
   if (check) parts.push(`Check that these items of ${check.file} are really done (skip any that don't fit this work):\n${check.items.map(it => `${it.n}. ${it.text}`).join('\n')}`);
   // (after a block: a short note in the user's language of only what changed, the check left out, not the answer again.

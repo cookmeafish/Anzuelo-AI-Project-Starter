@@ -15,7 +15,8 @@ import { ROOT, bulkDir, today, localDate, usageOf, read, readJSON, abs, exists, 
 import { testInputsHash, aiAttributedCommits, gitignoreProblems } from './repo.mjs';
 import { lines as jsonlLines } from './jsonl.mjs';
 import { people, personOf, peopleIn, peopleFor, pathsPeople } from './people.mjs';
-import { LABELS_ES, WORTH_IT, plainLabel, EN_COPIES, inEnglish } from './labels.mjs';
+import { LABELS_ES, WORTH_IT, plainLabel, EN_COPIES, inEnglish, labelsEsHint, LABELS_ES_HINT } from './labels.mjs';
+export { labelsEsHint, LABELS_ES_HINT };
 import { BASE_REQUIREMENTS, FAILED_RUN, MISSING_TOOL, PROBLEM_WORDS } from './base-checks.mjs';
 export { ROOT, bulkDir, today, usageOf, read, readJSON, abs, exists, list, walkStat, esc, config, re, secretRes, secretHit, privateTermsPath, privateTermsListFile, forbiddenTerms, forbiddenRe, testInputsHash, aiAttributedCommits, gitignoreProblems, people, personOf, peopleIn, peopleFor, pathsPeople, LABELS_ES, WORTH_IT, plainLabel, EN_COPIES, inEnglish, BASE_REQUIREMENTS };
 // (the safety guard is v2/guard.mjs, loaded by the pretool hook itself: a guard that cannot load is then reported, not
@@ -3140,34 +3141,7 @@ export const isSpanish = text => {
 export const assumedHint = es => es
   ? 'a plain sentence in the answer, like "Supuse <decisión> porque <por qué>; si no es así, <lo que cuesta cambiarlo>" (in a plan: "Supuesto: <decisión> - <por qué> - <coste si me equivoco>")'
   : 'a plain sentence in the answer, like "I assumed <choice> because <why>; if that\'s wrong, <what it costs to change>" (in a plan: "Assumed: <choice> - <why> - <cost if wrong>")';
-// Each label with the checks that read it (null: every turn). Only the labels of the checks this turn is held to are
-// listed. Lesson: the hint ran to about 1,400 characters, mostly labels of packs the project did not have.
-const ES_LABELS = [
-  [null, '"## Terminado" (Finished)'],
-  [/root-cause/, '"Causa raíz:"'],
-  [/gui|visual|screen/, '"Revisión visual: correcta tras N rondas" (one line can be the only place the rounds appear)'],
-  [/a11y/, '"Accesibilidad: <qué revisé> - correcta"'],
-  [/security-/, '"La revisión de seguridad salió bien - detalles en docs/reviews/security-AAAA-MM-DD.md"'],
-  [/foundation/, '"Seguridad: ... Rendimiento: ... Facilidad de uso: ..." (the app foundation)'],
-  // (Lesson: this hint offered "Lo probé a mano:", and an answer said a check was done by hand when a script had driven
-  // the browser)
-  [/verification|release-ready|client-verified|qa-/, '"## Verificación" with "Pruebas automáticas:", "Sitio real:" (saying how: "con un navegador automatizado" when a script drove it; "a mano" only for what a person did), "Revisión independiente:", "Puntos débiles:"'],
-  [/upset|self-improve|skill-learn/, '"Aprendido (regla): <lección> → <archivo>"'],
-  [/install/, '"Evaluado: <herramienta> ... licencia <nombre>"'],
-  [/skill-finder|skill-compared/, '"Habilidades existentes revisadas:"'],
-  [/data-computed/, '"Cómo se calculó:"'],
-  [/research|answer-cites|sourced/, '"Fuentes:"'],
-  [/legal/, '"No es asesoramiento legal"'],
-  [null, '"**Aviso:**" (Heads-up), "**Hecho:**", "**Problema:**", "**Pregunta para ti:**"'],
-  [/review-verdict|release-/, '"Revisión independiente: lista para publicar" (SHIP) or "veredicto: corregir" (FIX)'],
-  [/claim-checked/, '"Comprobado: <qué abrí> - <qué mostraba>"'],
-  [/check-proven|claim-checked/, '"Probado: falla con <muestra de la queja>; pasa con <buena 1>, <buena 2>"'],
-  [null, '"Guía: <runbook>.md · Habilidad: <nombre> · Vale la pena: <ganancia> / <coste>"'],
-];
-// scope: the text naming this turn's checks (the CHECKS line, the steps left); without it, every label
-export const labelsEsHint = (scope = null) => 'Write in Spanish: the whole answer, its labels and your progress updates while you work; the checks accept these labels: ' +
-  ES_LABELS.filter(([r]) => !r || scope == null || r.test(scope)).map(([, l]) => l).join(', ') + '.';
-export const LABELS_ES_HINT = labelsEsHint();
+// (the Spanish labels hint, labelsEsHint and LABELS_ES_HINT, is in labels.mjs, shared with v2)
 
 // ---------- people / scopes ---------- (people, personOf, peopleIn, peopleFor, pathsPeople: people.mjs)
 export const settingUp = () => exists('SETUP-PROMPT.md') && !exists('.starter-template');

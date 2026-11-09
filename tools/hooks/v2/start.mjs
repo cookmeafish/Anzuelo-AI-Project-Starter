@@ -6,6 +6,7 @@ import { route, skillBooks, saveTurn, loadTurn, isSpanish, ROOT, at, quoteCheckO
 import { asksOnly } from './late.mjs';
 import { PAUSE_ASK, PAUSE_HINT } from '../pause.mjs';
 import { capsUpset } from '../caps.mjs';
+import { esLabelList } from '../labels.mjs';
 
 // REQ: question-answered (as it arrives). A message that only asks is answered first, in plain words; one typed while a
 // turn runs is answered in the very next message and starts no work of its own. Lesson (a study of 117 real questions):
@@ -86,7 +87,8 @@ function remind(prompt) {
   // label, and it went into a Spanish answer twice, the second time in the reply to a complaint about English text)
   // (and the files the answer points them to. Lesson (trial v45): a Spanish answer sent the user to a spec and release
   // notes written in English)
-  const es = isSpanish(prompt) ? 'The user writes in Spanish: write the whole answer in Spanish, including any label a runbook quotes in English, and any file you point them to.' : '';
+  // (with the labels every answer may use, in Spanish; the end check names the rest when it holds a turn)
+  const es = isSpanish(prompt) ? `LANGUAGE: the user writes in Spanish: write the whole answer in Spanish, including any label a runbook quotes in English, and any file you point them to. The checks accept these labels: ${esLabelList('')}.` : '';
   // (with no runbook routed, a skill whose own trigger phrase fits is named: the reminder only, the end check is
   // unchanged. Not beside a runbook, which names its own skills, and not on a one-word trigger. Lesson (replay of three
   // sources): beside a runbook it was mostly noise, like "compare" in a scheduled request, and every miss alone was one

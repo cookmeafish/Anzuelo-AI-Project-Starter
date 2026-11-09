@@ -5046,7 +5046,9 @@ for (const s0 of PROMPT) {
     // session: the session-start notices too (the prompt hook alone doesn't print them)
     // (s.sid: v2 knows a running turn by its session's turn record; the old engine by its own notices record)
     const pr = run(dir, 'prompt', { prompt: s.prompt, ...(s.sid && process.env.STARTER_ENGINE === 'v2' ? { session_id: s.sid } : {}) }, s.env || {}), ss =s.session ? run(dir, 'session', { source: 'startup' }) : { out: '', err: '' };
-    const out = ss.out + pr.out, err = ss.err + pr.err;
+    // (v2 prints its reminder as JSON, where a quote is \": the decoded text is compared too)
+    const ctx = t => { try { return '\n' + (JSON.parse(t).hookSpecificOutput?.additionalContext || ''); } catch { return ''; } };
+    const out = ss.out + pr.out + ctx(pr.out), err = ss.err + pr.err;
     let why = '';
     if (s.none && out.trim()) why = 'expected no output, got: ' + out.slice(0, 200);
     for (const h of s.hasNot || []) if (out.includes(h)) why ||= 'unexpected "' + h + '"';
