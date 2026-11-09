@@ -162,7 +162,7 @@ function judge(data, { shadow = false } = {}) {
   // Lesson (2026-11-07): an Issue line in the first answer re-blocked the corrected answer that had none)
   if (again && turn.lastBlock) { const after = turnActs(rows.filter(r => (Date.parse(r.timestamp || '') || 0) > turn.lastBlock)); acts.said = after.said + (final && !after.said.includes(final) ? `${final}\n` : ''); acts.answer = final || after.answer || acts.answer; }
   const raw = tail(data.transcript_path, 5 << 20), history = evidenceOf(raw);
-  acts.earlier = earlierPrompts(raw, turn.at);
+  acts.earlier = earlierPrompts(raw, turn.at); acts.runbook = turn.runbook || '';
   const late = unansweredLate(rows, final).map(m => `Answer the user's message typed at ${String(m.at).slice(11, 16) || 'mid-task'}: "${m.text.replace(/\s+/g, ' ').slice(0, 200)}"`);
   const extra = (turn.also || []).flatMap(f => missing({ ...turn, runbook: f }, acts, runbooks().filter(b => b.file === f)));
   const list = [...late, ...missing(turn, acts), ...extra, ...skillMissing(acts), ...reviewGaps(turn, acts), ...testGaps(acts, history), ...gateGaps(acts), ...screenGaps(acts), ...healthGaps(acts, { run: !shadow }), ...knowledgeGaps(acts), ...securityGaps(acts), ...questionGaps(acts), ...noteGaps(acts), ...quoteGaps(acts), ...claimGaps(acts, history), ...scopeGaps(acts), ...tableGaps(acts)].filter((s, i, all) => all.indexOf(s) === i).filter(kept(acts));

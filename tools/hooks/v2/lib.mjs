@@ -758,18 +758,34 @@ export function holdsReq(c, acts, x) {
     toolPassed: v => { const cmd = typeof v === 'string' ? v : v?.cmd; return !!cmd && acts.calls.some(k => /^(Bash|PowerShell)$/.test(k.name) && reqRe(cmd).test(String(k.input.command || '')) && !k.error && (!v?.pass || reqRe(v.pass).test(k.out || ''))); },
     workTurn: v => !v || x.changed.length > 0,
     anyOf: v => v.some(sub => holdsReq(sub, acts, x) === true),
+    // (a command matching it ran and failed; N or more calls of a tool; a file read; a runbook routed or read; a screen
+    // file changed; what the turn added to matching files)
+    ranFailing: v => acts.calls.some(k => /^(Bash|PowerShell)$/.test(k.name) && reqRe(v).test(String(k.input.command || '')) && k.error),
+    toolCount: v => acts.calls.filter(k => new RegExp(v.name).test(k.name)).length >= (v.min || 1),
+    fileRead: v => acts.calls.some(k => k.name === 'Read' && [].concat(v).some(g => globRx(g).test(relp(k.input.file_path || '')))),
+    playbookRouted: v => read(new RegExp(`playbooks/${v}\\.md$`, 'i')) || x.runbook === `docs/playbooks/${v}.md`,
+    guiChanged: v => !v || x.changed.some(f => (projectConfig().guiFiles || []).some(g => globRx(g).test(f))),
+    changedContentMatches: v => { const spec = typeof v === 'string' ? { pattern: v } : v, rx = reqRe(spec.pattern), fs2 = (spec.files || ['**/*']).map(globRx);
+      return acts.calls.some(k => /^(Edit|Write|MultiEdit)$/.test(k.name) && fs2.some(g => g.test(relp(k.input.file_path || ''))) && rx.test(String(k.input.new_string ?? k.input.content ?? (k.input.edits || []).map(e => e.new_string).join('\n')))); },
+    // (after the last helper finished, the turn looked at what it made: a read, a run or a diff)
+    checkedAfterAgents: v => { const last = acts.calls.map(k => /^(Agent|Task)$/.test(k.name)).lastIndexOf(true); return !v || last < 0 || acts.calls.slice(last + 1).some(k => /^(Read|Bash|PowerShell|Grep)$/.test(k.name)); },
   };
   for (const [k, v] of Object.entries(c || {})) { if (!tests[k]) return null; if (!tests[k](v)) return false; }
   return true;
 }
+// The keys the evaluator reads, and the ones that only name the user's words: a check whose condition is words in the
+// prompt alone would force work by keyword, which the user retired (2026-11-07, v2-only plan, Spec line).
+export const REQ_KEYS = ['skillUsed', 'playbookUsed', 'filesChanged', 'filesIgnore', 'answerMatches', 'answerNotMatches', 'promptMatches', 'promptNotMatches', 'toolRan', 'toolPassed', 'workTurn', 'anyOf', 'ranFailing', 'toolCount', 'fileRead', 'playbookRouted', 'guiChanged', 'changedContentMatches', 'checkedAfterAgents'];
+export const promptOnly = c => { const ks = Object.keys(c || {}); return ks.length > 0 && ks.every(k => /^(promptMatches|promptNotMatches|filesIgnore)$/.test(k)); };
+export const unknownKeys = c => !c || typeof c !== 'object' ? [] : Object.entries(c).flatMap(([k, v]) => k === 'anyOf' ? v.flatMap(unknownKeys) : REQ_KEYS.includes(k) ? [] : [k]);
 export function engineCheckGaps(acts) {
   const since = Date.parse(acts.at || '') || 0;
   if (since && !walked.has(acts)) walked.set(acts, filesMatching('**/*'));
   const changed = [...new Set([...acts.calls.filter(c => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name)).map(c => relp(c.input.file_path || '')), ...(since ? walked.get(acts).filter(f => !/^(\.cache|tools\/hooks\/state)\//.test(f) && mtime(f) > since) : [])])];
-  const x = { changed };
+  const x = { changed, runbook: acts.runbook || '' };
   // (an answer in the user's language meets the checks with its own labels: each label line is read in English too)
   const read = { ...acts, answer: inEnglish(acts.answer || '', projectConfig()) };
-  return engineChecks().filter(r => holdsReq(r.when, read, x) === true && holdsReq(r.require, read, x) === false && !waivedTag(r.tag, acts)).map(r => `Check: ${r.message}`);
+  return engineChecks().filter(r => !promptOnly(r.when) && holdsReq(r.when, read, x) === true && holdsReq(r.require, read, x) === false && !waivedTag(r.tag, acts)).map(r => `Check: ${r.message}`);
 }
 
 // Check 7: the answer claims nothing the session can't back: a commit it names exists or appeared in tool output, a file

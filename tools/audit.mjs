@@ -21,6 +21,11 @@ import { pending as alwaysPendingIn } from './always.mjs';
 // The v2 parity ratchet (see "every REQ tag is enforced and tested"): requirement tags no v2 test names yet, and the day
 // it began. Each port lowers the number in the same commit.
 const V2_UNTESTED = 141, V2_RATCHET_DAY = '2026-11-08';
+// Engine checks that hold only on the user's words, retired with the date the user retired keyword forcing; and the
+// requirement keys v2's evaluator does not read yet ("<tag>.<key>"), which may only shrink.
+const PROMPT_ONLY_RETIRED = { 'incident-trigger': '2026-11-07, v2-only plan, Spec line: the agent picks, no keyword forcing' };
+const V2_KEYS_TO_PORT = ['research-cited.answerCites', 'answer-cites.answerCites', 'modular-code.runEach', 'vault-backlinks.runEach', 'knowledge-source-trigger.knowledgeFromFiles', 'data-computed.answerFiguresComputed', 'data-computed-trigger.answerFiguresComputed'];
+const v2Eval = await import('./hooks/v2/lib.mjs');
 const alwaysPending = () => alwaysPendingIn(f => read(abs(f)), d => { try { return listAll(d); } catch { return []; } });
 
 // --help, or a flag it doesn't know, prints the usage and runs nothing. Lesson (2026-11-06): a mistyped flag in a
@@ -166,6 +171,16 @@ sweep('requirements.json is valid', () => {
   }
   // (the project's own checks run only from docs/checks/always.md or a runbook's "Done when": one left only in
   // requirements.json is never enforced. Lesson (a field report): such a rule looked enforced and was not)
+  // (v2's evaluator: a check whose condition is the user's words alone forces work by keyword, retired by the user on
+  // 2026-11-07 unless named here as retired or a safety case; a key the evaluator does not read is a silent gap, so the
+  // ones still to port are listed and the list may only shrink. Lesson (a field report): a check that looked enforced
+  // and was not)
+  const engineAll = (() => { try { return JSON.parse(read(abs('tools/hooks/engine-checks.json'))).requirements; } catch { return []; } })();
+  for (const r of [...engineAll, ...fileReqs.filter(q => q && !engineAll.some(e => e.tag === q.tag))]) {
+    if (r?.when && v2Eval.promptOnly(r.when) && !PROMPT_ONLY_RETIRED[r.tag]) fail.push(`${r.tag}: holds only on the user's words (keyword forcing, retired 2026-11-07): give it an action condition, or retire it in PROMPT_ONLY_RETIRED (tools/audit.mjs) with its date`);
+    for (const k of new Set([...v2Eval.unknownKeys(r?.when), ...v2Eval.unknownKeys(r?.require)])) if (!V2_KEYS_TO_PORT.includes(`${r.tag}.${k}`)) fail.push(`${r.tag}: the v2 end check does not read "${k}", so this check is never enforced: port the key to holdsReq (tools/hooks/v2/lib.mjs) or reword the check`);
+  }
+  for (const p of V2_KEYS_TO_PORT) { const [t, k] = p.split('.'); const r = engineAll.find(q => q.tag === t); if (r && ![...v2Eval.unknownKeys(r.when), ...v2Eval.unknownKeys(r.require)].includes(k)) fail.push(`${p} is read by v2 now: take it out of V2_KEYS_TO_PORT in tools/audit.mjs`); }
   for (const r of alwaysPending()) fail.push(`${r.tag}: the engine does not read requirements.json for it; run node tools/always.mjs convert, or move it by hand into a "Done when" list with <!-- req: ${r.tag} -->`);
   return { fail, warn, note: `${BASE_REQUIREMENTS.length} baseline + ${fileReqs.length} project checks` };
 });
