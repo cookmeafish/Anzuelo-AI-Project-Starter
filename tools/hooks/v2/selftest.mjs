@@ -1688,7 +1688,9 @@ report(madeUp.length === 2 && /9f8e7d6/.test(madeUp[0]) && /src\/missing\.js/.te
   w('tools/hooks/config.json', '{"autonomy":"ask"}\n'); w('docs/DECISIONS.md', '# Decisions\n'); w('check-ok.mjs', "console.log('RESULT: PASS')\n"); w('src/a.js', 'a\n');
   w('tools/hooks/requirements.json', JSON.stringify({ requirements: [{ tag: 'app-test-pass', pack: 'app', message: 'tests', when: { filesChanged: ['src/**'] }, require: { toolPassed: { cmd: 'node check-ok\\.mjs', pass: 'RESULT: PASS', selfRun: 'node check-ok.mjs', selfAuto: true } } },
     // (and one own check not yet in always.md, so the converter has one to convert)
-    { tag: 'notes-linked', message: 'Each new note links to a related note', when: { filesChanged: ['notes/**'] }, require: { toolPassed: { cmd: 'node link-check\\.mjs' } } }] }));
+    { tag: 'notes-linked', message: 'Each new note links to a related note', when: { filesChanged: ['notes/**'] }, require: { toolPassed: { cmd: 'node link-check\\.mjs' } } },
+    // (and a pack row the engine ships, copied in by the pack's install: not one the project set)
+    { tag: 'spec-written', pack: 'app', message: 'Write the spec.', when: { filesChanged: ['src/**'] }, require: { filesChanged: ['docs/specs/**'] } }] }));
   // (the project's own copy of the engine runs the convert, as an upgrade does: the converter works on the folder it is in)
   for (const f of spawnSync('git', ['ls-files', 'tools/always.mjs', 'tools/hooks/*.mjs', 'tools/hooks/v2/*.mjs', 'tools/hooks/defaults.json', 'tools/hooks/engine-checks.json'], { cwd: repo, encoding: 'utf8' }).stdout.split('\n').filter(Boolean))
     if (!fs.existsSync(path.join(p, f))) w(f, fs.readFileSync(path.join(repo, f), 'utf8'));

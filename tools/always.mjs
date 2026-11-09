@@ -122,8 +122,11 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const todoTags = new Set(todo.map(r => r.tag)), there = all.filter(r => !todoTags.has(r.tag)), inBooks = there.filter(r => new RegExp(`req: ${r.tag.replace(/[^\w-]/g, '')}(?![\\w-])`).test(books)).length;
   // (a pack's check the project set, such as its app test gate, is not its own check: it stays as it is and runs as an
   // approved self-run. Said, so the count matches "hooks.mjs own-checks", which lists them too. Lesson (a project's
-  // upgrade report): 8 own checks here against 10 there, with no reason given)
-  const packSet = (json(readText, 'tools/hooks/requirements.json', {}).requirements || []).filter(r => r && r.tag && r.pack).length;
+  // upgrade report): 8 own checks here against 10 there, with no reason given). Only a pack check the engine does not ship
+  // (as own-checks counts them), not every pack row the install copied. Lesson (a project's upgrade report): "32 pack
+  // checks this project set" where it had set 2.
+  const shipped = new Set((json(readText, 'tools/hooks/engine-checks.json', {}).requirements || []).map(r => r && r.tag));
+  const packSet = (json(readText, 'tools/hooks/requirements.json', {}).requirements || []).filter(r => r && r.tag && r.pack && !shipped.has(r.tag)).length;
   console.log(`${all.length} own check(s): ${there.length} already there (${there.length - inBooks} in ${ALWAYS_FILE}, ${inBooks} in a runbook), ${todo.length} to convert; ${mig.n} old "runbook used" marker(s) rewritten to the read form${packSet ? `; ${packSet} pack check(s) this project set (such as its test gate) kept as they are` : ''}${dry ? ' (dry run)' : ''}`);
   if (out.length && !dry) {
     let text = mig.text;
