@@ -491,10 +491,6 @@ const SETUP_DONE = { 'docs/BRIEF.md': () => SETUP_BRIEF, 'CLAUDE.md': () => SETU
 // the user's note when an answer is held back: a heading with the count and round, then one short line per step
 // with an icon, at most eight lines, nothing cut mid-word
 const userNote = m => typeof m === 'string' && /^⚓ \S[^:\n]*: almost done, \d+ steps? left \(round \d+ of \d+\)(\n {3}\S+ [^\n]{3,90}){1,7}$/u.test(m);
-// (under v2, a "passes that check" scenario is judged only on that check staying quiet: its old-engine block came from
-// other checks on a new runbook (skill-reuse, runbook-complete, runbook-cold-read), ported or not on their own rows.
-// Lesson (the old suite under v2): these passed only while a missing docs record held the turn anyway)
-const DWL_V2 = { expect: { not: ['done-when-labeled'] } };
 const STOP = [
   { name: 'small talk, no tools: passes', prompt: 'thanks, that looks great', answer: 'Glad it helps.', expect: { block: false } },
   { pack: 'knowledge', name: 'quick KB question with few tools: no runbook needed', prompt: 'hey whats the price we found for desk x', tools: [{ name: 'Read', input: { file_path: 'docs/knowledge/desks.md' } }, ...many(2)], edit: { 'docs/knowledge/desks.md': () => KNOW }, answer: '$300 (docs/knowledge/desks.md)', expect: { block: false } },
@@ -851,7 +847,7 @@ const STOP = [
   { name: 'requirement-enforced: the check and its test were added: passes that check', prompt: 'every zorbl picture must have a paired diagram', tools: [pb('project'), bash('node tools/audit.mjs'), bash('node tools/hooks/selfcheck.mjs --tags diagram-paired', 'selfcheck: ALL PASS (2 passed, 0 failed)')],
     files: { 'docs/playbooks/zorbl-research.md': '---\nname: zorbl-research\nsummary: research a zorbl\ntriggers: research a zorbl\nchecks: none - test\n---\n# Playbook: zorbl research\n## Steps\n1. Research.\n## Done when\n- [ ] Every picture has a paired diagram (hook: diagram-paired).\n',
       'tools/hooks/project-scenarios.mjs': 'export default () => ({ stop: [] });\n', 'docs/CHANGELOG.md': 'x' },
-    answer: 'Playbook: project.md. Added the requirement, its check and its test.' + FIN, expect: { block: true, not: ['requirement-enforced'] }, v2: { expect: { not: ['requirement-enforced'] } } },
+    answer: 'Playbook: project.md. Added the requirement, its check and its test.' + FIN, expect: { block: true, not: ['requirement-enforced'] } },
   // Lesson, field report: a "(judgment: why)" item written as the hint said still needed a waive
   { name: 'requirement-enforced: a "(judgment: why)" Done when item in a runbook outside docs/playbooks, plain bullet: passes that check', prompt: 'every zorbl plan must order its helpers for cost', tools: [pb('project'), bash('node tools/audit.mjs')],
     files: { 'runbooks/zorbl-plan.md': '# zorbl plan\n## Steps\n1. Plan.\n## Done when\n- Helpers are ordered for cost (judgment: only a reader can tell whether the order is cheapest).\n', 'docs/CHANGELOG.md': 'x' },
@@ -890,7 +886,7 @@ const STOP = [
     answer: 'Playbook: project.md. Added the citation rule.' + FIN, expect: { block: true, tags: ['done-when-labeled'] } },
   { name: 'done-when-labeled: each item names its check or why only judgment can tell: passes that check', prompt: 'every zorbl answer must cite its zorbl file', tools: [pb('project'), bash('node tools/audit.mjs')],
     files: { 'docs/playbooks/zorbl-answer.md': '---\nname: zorbl-answer\nsummary: answer a zorbl question\ntriggers: zorbl question\n---\n# Playbook: zorbl answer\n## Steps\n1. Answer.\n## Done when\n- [ ] The answer cites the zorbl file (hook: answer-traced).\n- [ ] The tone fits a new customer (judgment: no script can tell tone).\n', 'docs/CHANGELOG.md': 'x' },
-    answer: 'Playbook: project.md. Added the citation rule.' + FIN, expect: { block: true, not: ['done-when-labeled'] }, v2: DWL_V2 },
+    answer: 'Playbook: project.md. Added the citation rule.' + FIN, expect: { block: true, not: ['done-when-labeled'] } },
   // (a check name no hook defines lets the item pass with no evidence. Lesson (the user): "the runbooks must be accurate")
   { name: 'done-when-labeled: an item naming a check that does not exist: blocked', prompt: 'every zorbl answer must cite its zorbl file', tools: [pb('project'), bash('node tools/audit.mjs')],
     files: { 'docs/playbooks/zorbl-answer.md': '---\nname: zorbl-answer\nsummary: answer a zorbl question\ntriggers: zorbl question\n---\n# Playbook: zorbl answer\n## Steps\n1. Answer.\n## Done when\n- [ ] The answer cites the zorbl file (hook: zorbl-citd).\n', 'docs/CHANGELOG.md': 'x' },
@@ -909,11 +905,11 @@ const STOP = [
     answer: 'Playbook: project.md. Added the citation rule.' + FIN, expect: { not: ['runbook-cold-read'] } },
   { name: 'done-when-labeled: a wrapped item labeled on its last line, and several tags in one label: passes that check', prompt: 'every zorbl answer must cite its zorbl file', tools: [pb('project'), bash('node tools/audit.mjs')],
     files: { 'docs/playbooks/zorbl-answer.md': '---\nname: zorbl-answer\nsummary: answer a zorbl question\ntriggers: zorbl question\n---\n# Playbook: zorbl answer\n## Steps\n1. Answer.\n## Done when\n- [ ] The answer cites the zorbl file, and every number in it comes from that file or is\n      marked as calculated (hook: answer-traced).\n- [ ] It is named and summed up (hooks: runbook-read, finished-summary).\n', 'docs/CHANGELOG.md': 'x' },
-    answer: 'Playbook: project.md. Added the citation rule.' + FIN, expect: { block: true, not: ['done-when-labeled'] }, v2: DWL_V2 },
+    answer: 'Playbook: project.md. Added the citation rule.' + FIN, expect: { block: true, not: ['done-when-labeled'] } },
   // (a marker the end check tests is a proof too, as the runbook template asks; a condition alone is not)
   { name: 'done-when-labeled: items proven by markers (file:, ran:, answer:, with a when condition): passes that check', prompt: 'every zorbl answer must cite its zorbl file', tools: [pb('project'), bash('node tools/audit.mjs')],
     files: { 'docs/playbooks/zorbl-answer.md': '---\nname: zorbl-answer\nsummary: answer a zorbl question\ntriggers: zorbl question\n---\n# Playbook: zorbl answer\n## Steps\n1. Answer.\n## Done when\n- [ ] The answer cites the zorbl file (answer: zorbl/).\n- [ ] The index is rebuilt (when file: zorbl/**) (ran: index\\.mjs).\n- [ ] The notes are saved (file: notes/**).\n', 'docs/CHANGELOG.md': 'x' },
-    answer: 'Playbook: project.md. Added the citation rule.' + FIN, expect: { block: true, not: ['done-when-labeled'] }, v2: DWL_V2 },
+    answer: 'Playbook: project.md. Added the citation rule.' + FIN, expect: { block: true, not: ['done-when-labeled'] } },
   { name: 'done-when-labeled: an item with only a when condition and no proof: blocked', prompt: 'every zorbl answer must cite its zorbl file', tools: [pb('project'), bash('node tools/audit.mjs')],
     files: { 'docs/playbooks/zorbl-answer.md': '---\nname: zorbl-answer\nsummary: answer a zorbl question\ntriggers: zorbl question\n---\n# Playbook: zorbl answer\n## Steps\n1. Answer.\n## Done when\n- [ ] The index is rebuilt (when file: zorbl/**).\n', 'docs/CHANGELOG.md': 'x' },
     answer: 'Playbook: project.md. Added the citation rule.' + FIN, expect: { block: true, tags: ['done-when-labeled'] } },

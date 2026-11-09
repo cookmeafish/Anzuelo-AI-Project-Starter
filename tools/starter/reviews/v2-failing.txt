@@ -305,8 +305,11 @@ stop: debug-trigger: after a complaint, a self-test that failed before any check
 stop: dev mode: an engine change with no self-tests, changelog or proof it works: blocked
 stop: dev-new-project: project making changed in a development copy without the trial: blocked
 stop: done-when-labeled: a runbook changed with an item that names no check or judgment: blocked
+stop: done-when-labeled: a wrapped item labeled on its last line, and several tags in one label: passes that check
 stop: done-when-labeled: an item naming a check that does not exist: blocked
 stop: done-when-labeled: an item with only a when condition and no proof: blocked
+stop: done-when-labeled: each item names its check or why only judgment can tell: passes that check
+stop: done-when-labeled: items proven by markers (file:, ran:, answer:, with a when condition): passes that check
 stop: external-stop: a project Stop command that crashes is one step
 stop: external-stop: a project Stop command that runs past its time limit is named as out of time, to rerun, not to remove
 stop: feature done right: passes
@@ -384,6 +387,7 @@ stop: records-once: the lesson from an upset user is still asked for in round 2
 stop: request about alice changed only alice's files: passes
 stop: requirement-enforced: a requirement said in passing, during work, with nothing enforcing it: blocked
 stop: requirement-enforced: a requirement written only into a runbook: blocked
+stop: requirement-enforced: the check and its test were added: passes that check
 stop: research-cited: [2] used in the text but missing from Sources: blocked
 stop: research-cited: unnumbered links nothing opened: the unopened link is named
 stop: research-verified: curl to a site on the web still counts: blocked
