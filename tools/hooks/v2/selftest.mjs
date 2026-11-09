@@ -694,6 +694,25 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
         report(cites.toolPassedOk && par.seq === false && par.bg === true && par.plain === true && cites.plain && cites.ticks && cites.printed && !cites.unopened && !cites.own && cites.unknownBranch === null && cites.otherHolds === true,
           'end: answer-cites: a source opened (or printed) this turn named in the answer meets it, an unopened or self-written file does not; an unread branch leaves an anyOf unjudged unless another holds; helpers run one after another are not parallel work, two in the background are; the output of a gate in a file written this turn counts, an older log does not, and a declared self-test never run is run here (the audit left to the health check)', JSON.stringify(cites));
       }
+      // (a check that throws is named once, with its error and where, never as an unmet requirement; the others still run,
+      // and a repeat round drops it)
+      {
+        const { engineCheckGaps: eg2 } = await import('./lib.mjs'), { onStop: stop2 } = await import('./end.mjs');
+        const rq = path.join(dir, 'tools/hooks/requirements.json'), ec = path.join(dir, 'tools/hooks/engine-checks.json');
+        const kept2 = [rq, ec].map(f => fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : null);
+        const boom = { tag: 'boom-check', when: { toolCount: { name: '(', min: 1 } }, require: { answerMatches: 'x' }, message: 'Never shown.' };
+        const fine = { tag: 'fine-check', when: { answerMatches: 'soup' }, require: { answerMatches: 'Source:' }, message: 'Name the soup source.' };
+        put('tools/hooks/requirements.json', JSON.stringify({ requirements: [boom, fine], disabled: BASE_OFF.disabled })); put('tools/hooks/engine-checks.json', JSON.stringify({ requirements: [boom, fine] }));
+        const rd = call('Read', { file_path: path.join(dir, 'docs/soups.md') }, 'leek');
+        const g1 = eg2(acts([user('what soup?'), rd, say('Leek soup.')]));
+        const tpc = transcript([user('what soup?'), rd, say('Leek soup.')]);
+        const r1 = stop2({ session_id: 'crash1', transcript_path: tpc, last_assistant_message: 'Leek soup.' })?.reason || '';
+        const r2 = stop2({ session_id: 'crash1', transcript_path: tpc, stop_hook_active: true, last_assistant_message: 'Leek soup.' })?.reason || '';
+        [rq, ec].forEach((f, i) => kept2[i] === null ? fs.rmSync(f, { force: true }) : fs.writeFileSync(f, kept2[i]));
+        const crash = g1.find(s => /^A check crashed \(boom-check\): .+, \S+\.mjs:\d+/.test(s));
+        report(!!crash && g1.some(s => /Name the soup source/.test(s)) && !g1.some(s => /Never shown/.test(s)) && /A check crashed \(boom-check\)/.test(r1) && !/A check crashed/.test(r2),
+          'end: a check that throws is named once with its error and place, never as unmet; the other checks still run; a repeat round drops it', JSON.stringify({ g1: g1.map(s => s.slice(0, 90)), r1: r1.slice(0, 120), r2: r2.slice(0, 120) }));
+      }
       // (the release chain's v2 sweep: a test failing under v2 that is not on the list fails it, a listed test that passes
       // fails it, and the list is rewritten only to shrink)
       {

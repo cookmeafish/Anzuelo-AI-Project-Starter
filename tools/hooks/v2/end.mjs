@@ -5,9 +5,11 @@ import path from 'node:path';
 import { passLine } from './lines.mjs';
 import { unansweredLate } from './late.mjs';
 import { wakeGaps } from '../wakeups.mjs';
-import { forbiddenGaps, codeRuleGaps, injectionGaps, verbatimGaps } from './lib.mjs';
+import { forbiddenGaps, codeRuleGaps, injectionGaps, verbatimGaps, CRASHED, crashLine } from './lib.mjs';
 import { ROOT, at, runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, questionGaps, noteGaps, quoteGaps, tail, helpersRunning, backgroundRuns, helperRuns, evidenceGaps, evidenceOf, skillBooks, alwaysGaps, scopeGaps, earlierPrompts, ALWAYS, engineCheckGaps } from './lib.mjs';
 // (the two data tables, one evaluator each: the project's always list and the engine's own checks)
+// (each check runs on its own: one that throws is named once with its error, and the rest still run)
+const S = (name, f) => { try { return f(); } catch (e) { return [crashLine(name, e)]; } };
 const tableGaps = acts => [...alwaysGaps(acts), ...engineCheckGaps(acts), ...forbiddenGaps(acts), ...codeRuleGaps(acts), ...injectionGaps(acts), ...verbatimGaps(acts)];
 
 // Check 1: the routed runbook, else the one the agent opened (not a skill it names), was followed and its checkable
@@ -188,9 +190,9 @@ function judge(data, { shadow = false } = {}) {
   // (wakeups scheduled in any turn of the session count: one left from earlier still re-invokes it later)
   const wakes = wakeGaps(raw.split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean), final || acts.answer || '', acts.heard || '');
   const extra = (turn.also || []).flatMap(f => missing({ ...turn, runbook: f }, acts, runbooks().filter(b => b.file === f)));
-  const list = [...late, ...wakes, ...missing(turn, acts), ...extra, ...skillMissing(acts), ...reviewGaps(turn, acts), ...testGaps(acts, history), ...gateGaps(acts), ...screenGaps(acts), ...healthGaps(acts, { run: !shadow }), ...knowledgeGaps(acts), ...securityGaps(acts), ...questionGaps(acts), ...noteGaps(acts), ...quoteGaps(acts), ...claimGaps(acts, history), ...scopeGaps(acts), ...tableGaps(acts)].filter((s, i, all) => all.indexOf(s) === i);
+  const list = [...late, ...wakes, ...S('missing', () => missing(turn, acts)), ...extra, ...S('skillMissing', () => skillMissing(acts)), ...S('reviewGaps', () => reviewGaps(turn, acts)), ...S('testGaps', () => testGaps(acts, history)), ...S('gateGaps', () => gateGaps(acts)), ...S('screenGaps', () => screenGaps(acts)), ...S('healthGaps', () => healthGaps(acts, { run: !shadow })), ...S('knowledgeGaps', () => knowledgeGaps(acts)), ...S('securityGaps', () => securityGaps(acts)), ...S('questionGaps', () => questionGaps(acts)), ...S('noteGaps', () => noteGaps(acts)), ...S('quoteGaps', () => quoteGaps(acts)), ...S('claimGaps', () => claimGaps(acts, history)), ...S('scopeGaps', () => scopeGaps(acts)), ...S('tableGaps', () => tableGaps(acts))].filter((s, i, all) => all.indexOf(s) === i);
   // (the waiver tally: what this turn cleared with a reason is recorded; a check cleared in 3+ earlier turns is named)
-  const full = list.splice(0, list.length); list.push(...full.filter(kept(acts)));
+  const full = list.splice(0, list.length); list.push(...full.filter(kept(acts)).filter(s => !(again && CRASHED.test(s))));
   const often = shadow ? '' : tally(full, list, turn.at ? `${data.session_id || 'x'}|${turn.at}` : '');
   // (a turn that ran the check on its draft has seen the verify list: the real stop does not send it back for it again.
   // Lesson (the user, 2026-11-07): the list came in the draft check and then again as a send-back, and the user read a

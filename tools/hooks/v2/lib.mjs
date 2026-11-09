@@ -972,8 +972,19 @@ export function engineCheckGaps(acts) {
   // (an answer in the user's language meets the checks with its own labels: each label line is read in English too)
   const read = { ...acts, answer: inEnglish(acts.answer || '', projectConfig()) };
   const small = smallChange(acts, x.changed);
-  return engineChecks().filter(r => !(small && SMALL_SKIP.test(r.tag)) && !promptOnly(r.when) && holdsReq(r.when, read, x) === true && holdsReq(r.require, read, xr) === false && !waivedTag(r.tag, acts)).map(r => `Check: ${r.message}`);
+  // (a check that throws is never an unmet requirement: it is named once, with its error and where, and the others still
+  // run. Lesson (a peer's review): one check's crash took the whole end check down, or could read as a false ask)
+  const out = [];
+  for (const r of engineChecks()) {
+    try { if (!(small && SMALL_SKIP.test(r.tag)) && !promptOnly(r.when) && holdsReq(r.when, read, x) === true && holdsReq(r.require, read, xr) === false && !waivedTag(r.tag, acts)) out.push(`Check: ${r.message}`); }
+    catch (e) { out.push(crashLine(r.tag, e)); }
+  }
+  return out;
 }
+// "A check crashed (<tag>): <error>, <file:line>": shown once, in the first round, never asked again (end.mjs drops it on
+// a repeat), like a crashing hook that blocks once with its error.
+export const CRASHED = /^A check crashed \(/;
+export const crashLine = (tag, e) => `A check crashed (${tag}): ${String(e?.message || e).slice(0, 160)}, ${(/(?:file:\/\/\/?)?([^\s()]+\.mjs:\d+)/.exec(String(e?.stack || '').split('\n').slice(1).join('\n')) || [])[1]?.replace(/^.*[\\/](tools[\\/])/, '$1') || 'unknown place'}. It counts as passed: fix the check, not the work.`;
 
 // Check 7: the answer claims nothing the session can't back: a commit it names exists or appeared in tool output, a file
 // it names exists unless it says it went. Labels and judgment are no claims. Evidence is the whole session but the
