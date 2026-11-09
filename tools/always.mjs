@@ -31,7 +31,9 @@ const plain = s => String(s).replace(/^\(\?c\)/, '').replace(/\[(?:\\.|[^\]\\])*
 const cmdOf = v => typeof v === 'string' ? v : v?.cmd;
 const WHEN = { answerMatches: x => `(when answer: ${plain(x)})`, answerNotMatches: x => `(when answer: ${not(plain(x))})`, promptMatches: x => `(when prompt: ${plain(x)})`,
   promptNotMatches: x => `(when prompt: ${not(plain(x))})`, filesChanged: x => `(when file: ${files(x)})`, toolRan: x => `(when ran: ${plain(x)})`,
-  skillUsed: x => `(when tool: skills[\\\\/]${x}[\\\\/]SKILL\\.md)`, playbookUsed: x => `(when tool: playbooks[\\\\/]${x}\\.md)`,
+  // (used means read: an edit of the runbook, as in an engine upgrade, is not using it. Lesson (a field report): an
+  // upgrade turn that edited a runbook was held to that runbook's answer checks)
+  skillUsed: x => `(when tool: ^Read\\b.*skills[\\\\/]+${x}[\\\\/]+SKILL\\.md)`, playbookUsed: x => `(when tool: ^Read\\b.*playbooks[\\\\/]+${x}\\.md)`,
   // (a work turn is one that changed files, as the end check counts work)
   workTurn: x => x ? '(when tool: ^(Edit|Write|MultiEdit|NotebookEdit) )' : null };
 // (toolPassed: a command matching it ran and did not fail, which is what "ran" checks)
@@ -66,7 +68,9 @@ const listDir = d => { try { return fs.readdirSync(at(d)); } catch { return []; 
 export const pending = (rd = readText, ls = listDir) => {
   const have = rd(ALWAYS_FILE), books = ls('docs/playbooks').filter(n => n.endsWith('.md')).map(n => rd(`docs/playbooks/${n}`)).join('\n');
   const inBook = r => { const a = asItems(r); return !!a.lines && a.lines.every(l => { const m = [...l.matchAll(/\((?:file|ran|answer|prompt|tool): /g)].pop(); return m && books.includes(l.slice(m.index, l.lastIndexOf(' <!--'))); }); };
-  return ownChecks(rd).filter(r => !new RegExp(`req: ${r.tag.replace(/[^\w-]/g, '')}(?![\\w-])`).test(have) && !inBook(r));
+  // (a "<!-- req: <tag> -->" on a runbook's item counts like one in always.md: moved by hand, it is there. Lesson (a
+  // field report): a check moved into a runbook with its tag was still called missing)
+  return ownChecks(rd).filter(r => !new RegExp(`req: ${r.tag.replace(/[^\w-]/g, '')}(?![\\w-])`).test(`${have}\n${books}`) && !inBook(r));
 };
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

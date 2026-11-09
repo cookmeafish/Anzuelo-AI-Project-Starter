@@ -251,6 +251,24 @@ for (const [name, s] of Object.entries(SAMPLES)) {
   const diff = [...new Set([...Object.keys(prev), ...Object.keys(again)])].filter(f => prev[f] !== again[f]);
   check(name, 'a second upgrade changes nothing', u2.status === 0 && !diff.length, diff.slice(0, 8).join(', '));
 
+  // "are my own saved checks still enforced after a plain upgrade?" One in requirements.json only, one a runbook already
+  // says by marker, one moved to a runbook with its tag: a plain upgrade (no --accept-findings) moves the first into
+  // docs/checks/always.md once, leaves the others, and does not roll back. Lesson (a field report): the after-check asked
+  // for a convert only the upgrade brings, so every plain upgrade of a project with its own checks rolled back.
+  if (s.files['package.json']) {
+    const rqP = path.join(dir, 'tools/hooks/requirements.json'), own = JSON.parse(fs.readFileSync(rqP, 'utf8'));
+    own.requirements.push({ tag: 'prices-tested', rule: '4', when: { answerMatches: 'price' }, require: { answerMatches: 'tested (with|by)' }, message: 'Say how a price change was tested (the test name)' },
+      { tag: 'units-named', rule: '4', when: { answerMatches: 'weight' }, require: { answerMatches: '\\bkg\\b' }, message: 'Name the units' },
+      { tag: 'stock-dated', rule: '4', when: { answerMatches: 'stock' }, require: { answerMatches: 'As of \\d' }, message: 'Date the stock count' });
+    fs.writeFileSync(rqP, JSON.stringify(own, null, 2) + '\n');
+    write(dir, { 'docs/playbooks/stock.md': '---\nname: stock\nsummary: Answer stock questions\ntriggers: the stock count\nchecks: none - a sample runbook in the trial\n---\n# Stock\n## Steps\n1. Count.\n## Done when\n- [ ] Units named (answer: \\bkg\\b)\n- [ ] Dated (answer: As of). <!-- req: stock-dated -->\n' });
+    const u4 = starterRun(dir, '--upgrade'), al = (() => { try { return fs.readFileSync(path.join(dir, 'docs/checks/always.md'), 'utf8'); } catch { return ''; } })();
+    const left = node(['tools/always.mjs', 'pending'], dir), engineLines = (fs.readFileSync(path.join(dir, 'docs/DECISIONS.md'), 'utf8').match(/^- \d{4}-\d\d-\d\d: engine rolled back/gm) || []).length;
+    check(name, "a plain upgrade moves the project's own saved checks into docs/checks/always.md once each, skips the ones its runbooks already hold, and does not roll back",
+      u4.status === 0 && (al.match(/req: prices-tested\b/g) || []).length === 1 && /\(the test name\)/.test(al) && !/req: (units-named|stock-dated)/.test(al) && left.status === 0 && engineLines === 0,
+      `status ${u4.status} ${(u4.stderr || '').slice(0, 300)} | ${al.split('\n').filter(l => /req:/.test(l)).join(' / ') || 'no lines'} | pending ${left.stdout.trim()} | rollbacks ${engineLines}`);
+  }
+
   // "if an upgrade breaks something, is my project exactly as it was?" A project file names the old self-test file, which
   // the upgrade retires (a doc names it too, which the upgrade rewrites): the references sweep then fails, the upgrade
   // rolls back, and every file must match. Lesson: a rollback left rewritten docs and new skill copies behind.

@@ -422,6 +422,9 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
   const deferred = waived({ answer: 'The full test suite hasn\'t run on today\'s local commits yet. It runs right before the next release, and that push waits for your OK.' }, chain);
   report(deferred.length === 1 && /item 6/.test(deferred[0]), 'end: a plain "not run yet" with its reason clears the item it is about, by its words, and only that one', deferred);
   // (rule 7 and row 42 together: "Not done: <thing> - <why>", no check name, clears the item it names)
+  // (always.md items by number, with "don't fit". Lesson (a field report): a plain not-fit line cleared nothing)
+  const alwaysNot = waived({ answer: 'Upgraded.\nThe soup items 8 and 9 of docs/checks/always.md don\'t fit: no soup question was answered.' }, ['docs/checks/always.md item 8: Cite the soup file', 'docs/checks/always.md item 9: Run the soup finder', 'docs/checks/always.md item 3: Name the units']);
+  report(alwaysNot.length === 1 && /item 3/.test(alwaysNot[0]), 'end: "items 8 and 9 of docs/checks/always.md don\'t fit: <why>" clears those always items and only them', alwaysNot);
   const plainNot = waived({ answer: 'Done: the reply went out.\nNot done: the full chain - it runs right before the release.' }, chain);
   report(plainNot.length === 1 && /item 6/.test(plainNot[0]), 'end: a plain "Not done: <thing> - <why>" line clears the item it is about', plainNot);
   // (a field report: a project's own rule in requirements.json was never read by v2. The project-wide "always" list is
@@ -474,7 +477,15 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
     report(noLesson.some(s => /learn-from-misses\/SKILL\.md item 1/.test(s)) && !stored.length && !unopened.length,
       'end: a skill that is part of a runbook, once the agent opens it, holds its checkable items (an upset turn\'s lesson stored); the agent picks it, nothing forces it', JSON.stringify({ noLesson, stored, unopened }));
   }
-  const { asItems } = await import('../../always.mjs');
+  const { asItems, pending: alwaysPending } = await import('../../always.mjs');
+  {
+    // (a check moved by hand into a runbook with its tag, or said there with the same marker, is not pending; one in
+    // neither is. Lesson (a field report): the tag on a runbook item was not read, and deleting the doubled lines failed)
+    const reqs = { requirements: [{ tag: 'by-tag', message: 'a', when: { answerMatches: 'x' }, require: { answerMatches: 'Tagged:' } }, { tag: 'by-marker', message: 'b', when: { answerMatches: 'y' }, require: { answerMatches: 'Same:' } }, { tag: 'loose', message: 'c', when: { answerMatches: 'z' }, require: { answerMatches: 'Loose:' } }] };
+    const files = { 'tools/hooks/requirements.json': JSON.stringify(reqs), 'docs/playbooks/soup.md': '## Done when\n- [ ] Tagged (hook: by-tag) (answer: Tagged-in-book:). <!-- req: by-tag -->\n- [ ] Same (answer: Same:)\n' };
+    const left = alwaysPending(f => files[f] || '', d => d === 'docs/playbooks' ? ['soup.md'] : []).map(r => r.tag);
+    report(left.join(',') === 'loose', 'always: a check tagged on a runbook item, or said there with the same marker, is not pending; one in neither is', left);
+  }
   const conv = asItems({ tag: 'listed-paths', message: 'Name each path', when: { answerMatches: 'OK to delete' }, require: { answerMatches: '\\w+/\\S+' } });
   const odd = asItems({ tag: 'x', message: 'm', when: { guiChanged: true }, require: { answerMatches: 'a' } });
   report(/\(when answer: OK to delete\) \(answer: \\w\+\/\\S\+\) <!-- req: listed-paths -->/.test(conv.lines?.[0] || '') && odd.bad?.includes('when.guiChanged'),
@@ -490,6 +501,15 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
   report(passed.it?.arg === 'test_soup\\.py => RESULT: PASS' && workT.it?.whens[0]?.kind === 'tool' && notT.it?.whens[0]?.arg === '^(?![\\s\\S]*(?:just (ask|check)))' && notT.it?.arg === '^(?![\\s\\S]*(?:Shall I \\w+\\?))'
     && new RegExp(cls.it?.arg || '^$').test('see recipes/soup.md') && !new RegExp(cls.it?.arg || 'x').test('see recipes/so)up.md'),
     'always: a pass line, a work turn, a "not this" pattern and a bracket in a character class convert and read back exactly', JSON.stringify({ passed: passed.it?.arg, workT: workT.it?.whens, notT: [notT.it?.whens?.[0]?.arg, notT.it?.arg], cls: cls.it?.arg, bad: [passed.a.bad, workT.a.bad, notT.a.bad, cls.a.bad] }));
+  // (a runbook "used" means read, not edited. Lesson (a field report): an upgrade turn that edited a runbook was held to
+  // that runbook's converted answer checks)
+  {
+    const used = rt({ tag: 'u', message: 'Cite the soup file', when: { playbookUsed: 'soup' }, require: { answerMatches: 'Source:' } });
+    const { applies } = await import('./lib.mjs');
+    const readIt = applies(used.it, acts([user('what goes in the soup?'), call('Read', { file_path: 'C:\\p\\docs\\playbooks\\soup.md' }, 'x'), say('Leeks.')]));
+    const editIt = applies(used.it, acts([user('upgrade the engine'), call('Edit', { file_path: 'C:\\p\\docs\\playbooks\\soup.md', old_string: 'a', new_string: 'b' }, 'ok'), say('Upgraded.')]));
+    report(readIt === true && editIt === false, 'always: a converted "runbook used" condition holds when the runbook was read, not when it was only edited', JSON.stringify({ readIt, editIt, when: used.it?.whens }));
+  }
   put('.cache/soup-test.txt', 'ok 1\nRESULT: PASS\n');
   const runOk = met({ kind: 'ran', arg: 'test_soup\\.py => RESULT: PASS' }, acts([user('fix the soup'), call('Bash', { command: 'python test_soup.py' }, 'ok 1\nRESULT: PASS')]));
   const runNoLine = met({ kind: 'ran', arg: 'test_soup\\.py => RESULT: PASS' }, acts([user('fix the soup'), call('Bash', { command: 'python test_soup.py' }, 'ok 1')]));

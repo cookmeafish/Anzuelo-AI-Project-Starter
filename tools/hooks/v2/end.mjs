@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { passLine } from './lines.mjs';
 import { unansweredLate } from './late.mjs';
-import { ROOT, at, runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, questionGaps, noteGaps, quoteGaps, tail, helpersRunning, backgroundRuns, helperRuns, evidenceGaps, evidenceOf, skillBooks, alwaysGaps, scopeGaps, earlierPrompts } from './lib.mjs';
+import { ROOT, at, runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, questionGaps, noteGaps, quoteGaps, tail, helpersRunning, backgroundRuns, helperRuns, evidenceGaps, evidenceOf, skillBooks, alwaysGaps, scopeGaps, earlierPrompts, ALWAYS } from './lib.mjs';
 
 // Check 1: the routed runbook, else the one the agent opened (not a skill it names), was followed and its checkable
 // "Done when" items met. A runbook the turn wrote or changed, by a script too, is its work, not its procedure.
@@ -22,7 +22,7 @@ const chosen = (turn, acts, books) => { const routed = turn.runbook && books.fin
 // A runbook item the answer says, in one line, does not fit this work is cleared: the line names it ("item 3") and
 // says why. Lesson (a project's report): the block offered that way out, and the line that took it was held again.
 // (or names a path the item names, and says why in plain words: agents rarely write "item 3")
-const NOFIT = /\b(does(?:n['’]t| not) (?:fit|apply)|not (?:applicable|needed|relevant)|n\/a|(?:was|is)(?:n['’]t| not) part of|not part of|never asked|not asked|(?:is|was)(?:n['’]t| not) for (?:this|that|a|an)|not for this|(?:does|did)(?:n['’]t| not) (?:follow|use) it because)\b/i;
+const NOFIT = /\b((?:do|does)(?:n['’]t| not) (?:fit|apply)|not (?:applicable|needed|relevant)|n\/a|(?:was|is)(?:n['’]t| not) part of|not part of|never asked|not asked|(?:is|was)(?:n['’]t| not) for (?:this|that|a|an)|not for this|(?:does|did)(?:n['’]t| not) (?:follow|use) it because)\b/i;
 // A plain "not run yet" with its reason in the same or the next sentence clears the item that shares at least two of
 // its words (stems). Lesson (2026-11-08): "the full suite hasn't run; it runs before the release" was held 3 rounds.
 const NOTDONE = /\b(?:has|have|was|were|is|are|did)(?:n['’]t| not)(?: yet)? (?:been )?(?:run|done|pushed|committed|started)\b|\bnot (?:yet )?(?:run|pushed|committed|done|verified)\b|\bdeferred\b/i;
@@ -42,7 +42,8 @@ const kept = acts => {
   return s => {
     const o = /^Open (\S+\.md) and\b/.exec(s); if (o) return !named(o[1]);
     const m = /^(\S+) item (\d+): (.*)$/.exec(s); if (!m) return true;
-    if (named(m[1]) || about(m[3])) return false;
+    // (naming the always list does not clear all of it: it is standing rules, not a runbook that may not fit)
+    if ((named(m[1]) && m[1] !== ALWAYS) || about(m[3])) return false;
     m.splice(1, 1);
     const paths = (m[2].match(/[\w.-]*[\w-]\/[\w./*-]*|\b[\w-]+\.(?:md|json|mjs|js|py|ts|csv)\b/g) || []).filter(p => !/^(and|either)\/or$/i.test(p));
     return !lines.some(l => new RegExp(`\\bitems?\\s*(?:\\d+\\s*(?:,|and)\\s*)*${m[1]}\\b`, 'i').test(l) || paths.some(p => l.includes(p)));

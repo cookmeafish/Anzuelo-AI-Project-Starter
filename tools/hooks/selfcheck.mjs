@@ -7303,9 +7303,10 @@ if (mineB()) { // stop-log: "hooks.mjs last" shows each Stop decision (round, re
     const rows = (() => { try { return JSON.parse(nodeIn('last', '5', '--json').stdout); } catch { return []; } })(), text = nodeIn('last', '5').stdout;
     // the log stays capped
     const logf = path.join(dir, 'tools/hooks/state/stop-log.jsonl');
+    fs.mkdirSync(path.dirname(logf), { recursive: true }); // (under another engine the folder may not exist yet: this test fails, its share runs on)
     fs.appendFileSync(logf, Array.from({ length: 1500 }, (_, i) => JSON.stringify({ at: new Date().toISOString(), round: 1, result: 'passed', steps: [], note: `filler ${i}` })).join('\n') + '\n');
     run(dir, 'stop', { transcript_path: tp, session_id: 'log1', last_assistant_message: 'Added it.' });
-    const lines = fs.readFileSync(logf, 'utf8').split('\n').filter(Boolean).length;
+    const lines = readOr(logf).split('\n').filter(Boolean).length;
     report(/no Stop decisions logged yet/.test(empty) && rows.length === 2 && rows[0].result === 'blocked' && rows[0].round === 1 && rows[0].steps.length > 0 && rows[0].session === 'log1' && /^\d{4}-/.test(rows[0].request || '')
       && rows[1].round === 2 && /round 1 {2}blocked: [a-z]/.test(text) && lines <= 201 && lines > 100,
       'stop-log: "hooks.mjs last" lists each Stop decision with its round, result and steps, from a capped log', `${empty.trim()} | ${JSON.stringify(rows).slice(0, 300)} | ${text.slice(0, 200)} | ${lines} lines`);
@@ -7635,9 +7636,10 @@ if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade
     // asked for a convert only the upgrade brings, and every plain upgrade rolled back)
     const rq = path.join(proj, 'tools/hooks/requirements.json'), rj = JSON.parse(fs.readFileSync(rq, 'utf8'));
     rj.requirements.push({ tag: 'paths-named', rule: '4', when: { answerMatches: 'OK to (delete|rename)' }, require: { answerMatches: '\\w+/\\S+' }, message: 'Name each path (the full one) in an offer to delete' },
-      { tag: 'menu-sourced', rule: '4', when: { answerMatches: 'menu' }, require: { answerMatches: 'Source:' }, message: 'Cite the menu source' });
+      { tag: 'menu-sourced', rule: '4', when: { answerMatches: 'menu' }, require: { answerMatches: 'Source:' }, message: 'Cite the menu source' },
+      { tag: 'menu-dated', rule: '4', when: { answerMatches: 'menu' }, require: { answerMatches: 'As of \\d' }, message: 'Date the menu' });
     fs.writeFileSync(rq, JSON.stringify(rj, null, 2));
-    fs.writeFileSync(path.join(proj, 'docs/playbooks/menu.md'), '---\nname: menu\nsummary: Answer menu questions\ntriggers: the menu\n---\n# Menu\n\n## Steps\n1. Read the menu.\n\n## Done when\n- [ ] The source is cited (answer: Source:)\n');
+    fs.writeFileSync(path.join(proj, 'docs/playbooks/menu.md'), '---\nname: menu\nsummary: Answer menu questions\ntriggers: the menu\n---\n# Menu\n\n## Steps\n1. Read the menu.\n\n## Done when\n- [ ] The source is cited (answer: Source:)\n- [ ] The menu is dated (hook: menu-dated) (answer: Dated). <!-- req: menu-dated -->\n');
     // a starter trigger the project took out with "triggers_removed:" stays out after the upgrade; one only deleted from
     // the triggers line comes back (Lesson: an adopted project's narrowed triggers returned with every upgrade)
     const planPb = path.join(proj, 'docs/playbooks/plan.md');
@@ -7657,8 +7659,11 @@ if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) { // upgrade
     report(changes.length === 2 && rAgain.status !== 0 && /engine rolled back: the upgrade to .+ was undone, because checks that passed before failed after it \(.+\)$/.test(changes[0]) && /engine upgraded to .+: (\d+ item\(s\) to decide|nothing to decide)/.test(changes[1]),
       'engine-change: a rolled-back upgrade and a clean one each leave a dated line in docs/DECISIONS.md, a repeated rollback the same day only once', changes.join(' || ') || 'no line');
     const always = (() => { try { return fs.readFileSync(path.join(proj, 'docs/checks/always.md'), 'utf8'); } catch { return ''; } })();
-    report(ok.status === 0 && /req: paths-named/.test(always) && /\(the full one\)/.test(always) && !/req: menu-sourced/.test(always),
-      'upgrade: the project\'s own requirements.json checks move into docs/checks/always.md during the upgrade (brackets in the message kept), one a runbook already says is not written twice, and nothing rolls back for it', `${ok.status} ${ok.stderr.slice(0, 200)} | ${always.split('\n').filter(l => /req:/.test(l)).join(' / ') || 'no lines'}`);
+    const own = spawnSync(process.execPath, [path.join(proj, 'tools/always.mjs'), 'pending'], { cwd: proj, encoding: 'utf8' });
+    const once = (always.match(/req: paths-named\b/g) || []).length === 1;
+    const audited = spawnSync(process.execPath, [path.join(proj, 'tools/audit.mjs')], { cwd: proj, encoding: 'utf8', timeout: 600000 }).stdout || '';
+    report(ok.status === 0 && once && /\(the full one\)/.test(always) && !/req: menu-(sourced|dated)/.test(always) && own.status === 0 && /PASS\s+\d+\. requirements\.json is valid/.test(audited),
+      'upgrade: the project\'s own requirements.json checks move into docs/checks/always.md during the upgrade, each once (brackets in the message kept); one a runbook already says, by marker or by its req tag, is not written again; nothing rolls back for it and none is left pending', `${ok.status} ${ok.stderr.slice(0, 200)} | ${always.split('\n').filter(l => /req:/.test(l)).join(' / ') || 'no lines'} | pending: ${(own.stdout || '').trim()}`);
     // the last line says it all: which starter, regressions, decisions left (a rolled-back run has no such line)
     const lastLine = (ok.stdout || '').trim().split(/\r?\n/).pop();
     report(/^Upgrade \S+( the starter copy)?: 0 regressions, [1-9]\d* decisions? needed/.test(lastLine) && !/^Upgrade .*regressions?,/m.test(r.stdout || ''),
