@@ -780,6 +780,20 @@ const engineChecks = () => {
   const own = (file.requirements || []).filter(r => r && tags.has(r.tag));
   return [...BASE_REQUIREMENTS.filter(b => !own.some(r => r.tag === b.tag)), ...own].filter(r => r.tag !== 'security-code' && !off.has(r.tag));
 };
+const NOT_A_SOURCE = /^(AGENTS|CLAUDE|DIRECTORY|README)\.md$|^(docs\/(playbooks|checks)|skills|tools|\.claude|\.codex|\.cache)\//;
+function citesOpened(acts, x) {
+  const a = String(acts.answer || '');
+  const named = [...a.matchAll(/(?<![\w/.-])(?:[\w.-]+\/)+[\w.-]*\w\.\w{1,5}\b|`([^`\n]+\.\w{1,5})`|\]\(<?([^)>\s]+)>?\)/g)]
+    .map(m => (m[1] || m[2] || m[0]).replace(/\\/g, '/').replace(/^\.\//, '').replace(/[.,;:)]+$/, ''));
+  const files = [...new Set(named)].filter(p => !/^https?:/i.test(p) && !NOT_A_SOURCE.test(p) && !(x.changed || []).includes(p));
+  const reads = new Set(acts.calls.filter(c => c.name === 'Read').map(c => relp(c.input.file_path || '')));
+  const ran = acts.calls.filter(c => /^(Bash|PowerShell)$/.test(c.name)).map(c => `${c.input.command || ''}\n${c.out || ''}`).join('\n').replace(/\\/g, '/');
+  if (files.some(p => reads.has(p) || ran.includes(p))) return true;
+  const urls = (a.match(/https?:\/\/[^\s)>\]]+/g) || []).map(u => u.replace(/^https?:\/\/(www\.)?/i, '').replace(/[)\].,;>]+$/, '').replace(/\/$/, ''));
+  if (!urls.length) return false;
+  const seen = acts.calls.filter(c => /^(WebFetch|WebSearch|mcp__)/.test(c.name) || /^(Bash|PowerShell)$/.test(c.name)).map(c => `${JSON.stringify(c.input)}\n${c.out || ''}`).join('\n').replace(/\\\//g, '/');
+  return urls.some(u => seen.includes(u));
+}
 export function holdsReq(c, acts, x) {
   const read = n => acts.calls.some(k => (k.name === 'Read' && n.test(String(k.input.file_path || '').replace(/\\/g, '/'))));
   const tests = {
@@ -793,7 +807,9 @@ export function holdsReq(c, acts, x) {
     toolPassed: v => { const cmd = typeof v === 'string' ? v : v?.cmd; return !!cmd && acts.calls.some(k => /^(Bash|PowerShell)$/.test(k.name) && reqRe(cmd).test(String(k.input.command || '')) && !k.error && (!v?.pass || reqRe(v.pass).test(k.out || ''))); },
     workTurn: v => !v || x.changed.length > 0,
     minToolCalls: v => acts.calls.length >= v,
-    anyOf: v => v.some(sub => holdsReq(sub, acts, x) === true),
+    // (a branch the evaluator can't read may be the one that holds: then the whole anyOf can't be judged, unless another
+    // branch holds. Lesson (the v2 re-sweep): answers citing their files were held, the cite branch being unread)
+    anyOf: v => { const r = v.map(sub => holdsReq(sub, acts, x)); return r.includes(true) ? true : r.includes(null) ? null : false; },
     // (a command matching it ran and failed; N or more calls of a tool; a file read; a runbook routed or read; a screen
     // file changed; what the turn added to matching files)
     ranFailing: v => acts.calls.some(k => /^(Bash|PowerShell)$/.test(k.name) && reqRe(v).test(String(k.input.command || '')) && k.error),
@@ -805,11 +821,16 @@ export function holdsReq(c, acts, x) {
     guiChanged: v => !v || x.changed.some(f => (projectConfig().guiFiles || []).some(g => globRx(g).test(f))),
     changedContentMatches: v => { const spec = typeof v === 'string' ? { pattern: v } : v, rx = reqRe(spec.pattern), fs2 = (spec.files || ['**/*']).map(globRx);
       return acts.calls.some(k => /^(Edit|Write|MultiEdit)$/.test(k.name) && fs2.some(g => g.test(relp(k.input.file_path || ''))) && rx.test(String(k.input.new_string ?? k.input.content ?? (k.input.edits || []).map(e => e.new_string).join('\n')))); },
+    // (the answer names where its facts come from: a project file opened this turn that it did not write, in plain words,
+    // backticks or a link, or a web page opened this turn; rules, runbooks, skills and engine files are no sources. A path
+    // a command printed was opened by it. The old engine's answerCites)
+    answerCites: v => !v || citesOpened(acts, x),
     // (after the last helper finished, the turn looked at what it made: a read, a run or a diff)
     checkedAfterAgents: v => { const last = acts.calls.map(k => /^(Agent|Task)$/.test(k.name)).lastIndexOf(true); return !v || last < 0 || acts.calls.slice(last + 1).some(k => /^(Read|Bash|PowerShell|Grep)$/.test(k.name)); },
   };
-  for (const [k, v] of Object.entries(c || {})) { if (!tests[k]) return null; if (!tests[k](v)) return false; }
-  return true;
+  let unknown = false;
+  for (const [k, v] of Object.entries(c || {})) { if (!tests[k]) return null; const r = tests[k](v); if (r === null) unknown = true; else if (!r) return false; }
+  return unknown ? null : true;
 }
 // The keys the evaluator reads, and the ones that only name the user's words: a check whose condition is words in the
 // prompt alone would force work by keyword, which the user retired (2026-11-07, v2-only plan, Spec line).
@@ -820,7 +841,7 @@ export const ranText = cmd => String(cmd || '')
   .replace(/(\b(?:node|deno|bun)(?:\.exe)?\s+(?:-e|--eval|-p|--print)|\b(?:python3?|py)(?:\.exe)?\s+-c)\s+("(?:[^"\\]|\\.)*"|'[^']*')/gi,
     (m, head, code) => /\b(execSync|execFileSync|spawnSync|spawn|exec|execFile|fork|subprocess|os\.system|system|Popen)\s*\(/.test(code) ? m : `${head} ""`)
   .replace(/(?<!(?:-c|-lc|\/c|eval|-Command|-EncodedCommand|--command)\s+)("[^"\n]*\s[^"\n]*"|'[^'\n]*\s[^'\n]*')/gi, '""');
-export const REQ_KEYS = ['skillUsed', 'playbookUsed', 'filesChanged', 'filesIgnore', 'answerMatches', 'answerNotMatches', 'promptMatches', 'promptNotMatches', 'toolRan', 'toolPassed', 'workTurn', 'minToolCalls', 'anyOf', 'ranFailing', 'toolCount', 'fileRead', 'playbookRouted', 'guiChanged', 'changedContentMatches', 'checkedAfterAgents'];
+export const REQ_KEYS = ['skillUsed', 'playbookUsed', 'filesChanged', 'filesIgnore', 'answerMatches', 'answerNotMatches', 'promptMatches', 'promptNotMatches', 'toolRan', 'toolPassed', 'workTurn', 'minToolCalls', 'anyOf', 'answerCites', 'ranFailing', 'toolCount', 'fileRead', 'playbookRouted', 'guiChanged', 'changedContentMatches', 'checkedAfterAgents'];
 export const promptOnly = c => { const ks = Object.keys(c || {}); return ks.length > 0 && ks.every(k => /^(promptMatches|promptNotMatches|filesIgnore)$/.test(k)); };
 // a check routed by its runbook alone, with no action that shows the work (the audit fails it)
 const ACTION_KEYS = ['toolRan', 'toolPassed', 'filesChanged', 'ranFailing', 'guiChanged', 'changedContentMatches', 'toolCount'];
@@ -888,6 +909,28 @@ export function verbatimGaps(acts) {
   const hits = verbatimHits({ root: ROOT, cfg: projectConfig(), prompts: [...(acts.earlier || []), acts.heard].filter(Boolean), changed: changedOf(acts), calls: acts.calls });
   return hits.length ? [`These files copy the user's own words: ${hits.slice(0, 5).join('; ')}. Rephrase each as the general principle and why it matters (what goes wrong, for whom), without the user's examples, names or details.`] : [];
 }
+// REQ: small-change. A small fix (config smallFiles files, smallLines lines, counted from this turn's own edits; a file a
+// command changed counts 10 lines) is held to being right, not to a feature's ceremony: no spec, review, release notes,
+// plan, STATUS handoff, changelog line, new runbook or lesson. Lesson (the user, 2026-10-25): simple fixes took 20 minutes.
+const SMALL_SKIP = /^(spec-written|review-verdict|verification-report|release-notes|release-ready|version-bump|plan-required|plan-saved|plan-checked|status-handoff|changelog|app-changelog|knowledge-changelog|skill-learn|runbook-exists|runbook-complete|done-when-labeled|playbook-format|worth-it|decision-logged|skill-harden|qa-report|install-matrix|perf-numbers|architecture-recorded|architecture-trigger)$/;
+export function smallChange(acts, changed) {
+  // (STARTER_NO_SMALL turns it off, as in the old engine: the self-tests' scenarios are judged as full work)
+  if (process.env.STARTER_NO_SMALL ?? process.env.KS_NO_SMALL) return false;
+  const cfg = projectConfig(), notWork = [].concat(cfg.notWork || []);
+  const files = changed.filter(p => !notWork.some(g => globRx(g).test(p)) && !/^(\.cache\/|tools\/hooks\/state\/|memory\/|docs\/(CHANGELOG|STATUS|DECISIONS)\.md$)/.test(p));
+  if (!files.length || files.length > (cfg.smallFiles ?? 3)) return false;
+  const n = s => String(s ?? '').split(/\r?\n/).length, viaTools = new Set();
+  let lines = 0;
+  for (const u of acts.calls) {
+    const p = relp(u.input?.file_path || u.input?.notebook_path || '');
+    if (u.name === 'Write') { lines += n(u.input?.content); viaTools.add(p); }
+    else if (u.name === 'Edit') { lines += Math.max(n(u.input?.old_string), n(u.input?.new_string)); viaTools.add(p); }
+    else if (u.name === 'MultiEdit') { for (const e of u.input?.edits || []) lines += Math.max(n(e.old_string), n(e.new_string)); viaTools.add(p); }
+    else if (u.name === 'NotebookEdit') { lines += n(u.input?.new_source); viaTools.add(p); }
+  }
+  lines += files.filter(p => !viaTools.has(p)).length * 10;
+  return lines <= (cfg.smallLines ?? 40);
+}
 export function engineCheckGaps(acts) {
   const x = { changed: changedOf(acts), runbook: acts.runbook || '' };
   // (what a check requires is met by any file written since the turn began, even in a turn of reads only: the walk
@@ -896,7 +939,8 @@ export function engineCheckGaps(acts) {
   const xr = { ...x, get changed() { return changedOf(acts, true); } };
   // (an answer in the user's language meets the checks with its own labels: each label line is read in English too)
   const read = { ...acts, answer: inEnglish(acts.answer || '', projectConfig()) };
-  return engineChecks().filter(r => !promptOnly(r.when) && holdsReq(r.when, read, x) === true && holdsReq(r.require, read, xr) === false && !waivedTag(r.tag, acts)).map(r => `Check: ${r.message}`);
+  const small = smallChange(acts, x.changed);
+  return engineChecks().filter(r => !(small && SMALL_SKIP.test(r.tag)) && !promptOnly(r.when) && holdsReq(r.when, read, x) === true && holdsReq(r.require, read, xr) === false && !waivedTag(r.tag, acts)).map(r => `Check: ${r.message}`);
 }
 
 // Check 7: the answer claims nothing the session can't back: a commit it names exists or appeared in tool output, a file

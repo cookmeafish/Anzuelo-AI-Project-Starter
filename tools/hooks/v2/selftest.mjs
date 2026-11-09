@@ -548,7 +548,9 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
     // their case and pass the good one; decision-logged and praise-captured, prompt words alone, never hold)
     put('tools/hooks/requirements.json', JSON.stringify({ requirements: [] }));
     // (no turn start: only this turn's tool calls count as changes, not files other tests wrote)
-    const bg = rows => { const x = acts(rows); x.at = ''; return engineCheckGaps(x).map(s => s.slice(7)); };
+    // (judged as full work: a one-line edit is a small fix, which skips the changelog step, REQ small-change)
+    const bg = rows => { const x = acts(rows); x.at = ''; const k = process.env.STARTER_NO_SMALL; process.env.STARTER_NO_SMALL = '1'; try { return engineCheckGaps(x).map(s => s.slice(7)); } finally { if (k === undefined) delete process.env.STARTER_NO_SMALL; else process.env.STARTER_NO_SMALL = k; } };
+    const small = (() => { const x = acts([user('rename the soup limit'), call('Edit', { file_path: path.join(dir, 'tools/soup.mjs'), old_string: 'MAX', new_string: 'LIMIT' }, 'ok'), say('Finished: tools/soup.mjs')]); x.at = ''; return engineCheckGaps(x).some(s => /CHANGELOG/.test(s)); })();
     const pip = call('Bash', { command: 'pip install requests' }, 'ok'), tool = call('Write', { file_path: path.join(dir, 'tools/soup.mjs'), content: 'x' }, 'ok');
     const log = call('Edit', { file_path: path.join(dir, 'docs/CHANGELOG.md'), old_string: 'a', new_string: 'b' }, 'ok');
     const base = {
@@ -653,6 +655,23 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
         fs.rmSync(path.join(dir, 'docs/peer-notes.md'), { force: true });
         report(!two.peer && two.required && two.ownBg, 'end: two sessions in one folder: a turn is not held for files another session wrote while none of its own commands ran; its own background command counts them; a requirement still sees them', JSON.stringify(two));
       }
+      // (REQ: answer-cites: a file opened this turn named in the answer, plain or in backticks, or printed by the command
+      // that read it, meets answerCites; one never opened, or one written this turn, does not. An anyOf with a branch v2
+      // can't read is not judged unless another branch holds)
+      {
+        const { holdsReq } = await import('./lib.mjs');
+        const opened = call('Read', { file_path: path.join(dir, 'exports/2026-W42.csv') }, 'a,b'), x = { changed: ['notes/mine.md'], runbook: '' };
+        const c = (ans, extra = []) => holdsReq({ answerCites: true }, acts([user('what sold best?'), ...extra, say(ans)]), x);
+        const cites = {
+          plain: c('Leeks sold best (from exports/2026-W42.csv).', [opened]), ticks: c('Leeks sold best (from `exports/2026-W42.csv`).', [opened]),
+          printed: c('Leeks sold best, from exports/2026-W43.csv.', [call('Bash', { command: 'node tools/totals.mjs' }, 'reading exports/2026-W43.csv')]),
+          unopened: c('Leeks sold best (from exports/2026-W44.csv).', [opened]), own: c('See notes/mine.md.', [call('Read', { file_path: path.join(dir, 'notes/mine.md') }, 'x')]),
+          unknownBranch: holdsReq({ anyOf: [{ fooBar: true }, { answerMatches: 'never written' }] }, acts([user('x'), say('y')]), x),
+          otherHolds: holdsReq({ anyOf: [{ fooBar: true }, { answerMatches: 'y' }] }, acts([user('x'), say('y')]), x),
+        };
+        report(cites.plain && cites.ticks && cites.printed && !cites.unopened && !cites.own && cites.unknownBranch === null && cites.otherHolds === true,
+          'end: answer-cites: a source opened (or printed) this turn named in the answer meets it, an unopened or self-written file does not; an unread branch leaves an anyOf unjudged unless another holds', JSON.stringify(cites));
+      }
       // (the release chain's v2 sweep: a test failing under v2 that is not on the list fails it, a listed test that passes
       // fails it, and the list is rewritten only to shrink)
       {
@@ -695,8 +714,8 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
       report(fg.length === 1 && /docs\/soup-notes\.md \("Quillmora"\)/.test(fg[0]) && !/plain-notes|scratch/.test(fg[0]),
         'end: forbidden-terms: a banned name a command wrote into a file is held, naming the file; files without it and the engine\'s own state are not', JSON.stringify(fg));
     }
-    report(base.vetNo && !base.vetYes && !base.quoted && base.viaC && base.finNo && !base.finYes && base.logNo && base.redoNo && !base.redoYes && base.askNo && !base.decided.length,
-      'end: the built-in checks hold under v2 (install-vetted, an install named inside a quoted reason is not one but one run through bash -c is, finished-summary, changelog, redo-changes, self-improve); decision-logged and praise-captured, prompt words alone, never hold', JSON.stringify(base));
+    report(!small && base.vetNo && !base.vetYes && !base.quoted && base.viaC && base.finNo && !base.finYes && base.logNo && base.redoNo && !base.redoYes && base.askNo && !base.decided.length,
+      'end: the built-in checks hold under v2 (install-vetted, an install named inside a quoted reason is not one but one run through bash -c is, finished-summary, changelog, redo-changes, self-improve), a small fix skips the changelog step; decision-logged and praise-captured, prompt words alone, never hold', JSON.stringify({ ...base, small }));
     report(newKeys.routedOpened && !newKeys.routedByWords && newKeys.routedOnly && newKeys.release.asked.every(Boolean) && !newKeys.release.tidy.some(Boolean) && !newKeys.release.question.some(Boolean) && newKeys.release.tagged.every(Boolean) && !newKeys.kwHeld && newKeys.failHeld && newKeys.helpersUnchecked && !newKeys.helpersChecked && newKeys.promptOnly && newKeys.unknown === 'fooBar',
       'end: an engine check never holds on the prompt\'s words alone (keyword forcing retired); playbookRouted means the runbook was opened, and one with no action key is flagged; the release checks hold on a release action or the runbook opened for a release, not for reading it or a question; a failed run and two helpers are read; a key the evaluator does not know is named', JSON.stringify(newKeys));
     report(res.noResult === 1 && !res.table && !res.spanish && !res.notUsed && /src\/auth\.js: "password"/.test(opened[0] || '') && !reported.length && !plain.length && vague.length === 1 && !headless.length,
