@@ -13,7 +13,8 @@ import { fileURLToPath } from 'node:url';
 import { PROJECT, ENGINE, LOCAL, where, whereWrite, relOf, listAll, kind, split } from './paths.mjs';
 import { ROOT, bulkDir, today, localDate, usageOf, read, readJSON, abs, exists, list, walkStat, esc, DEFAULTS, config, re, secretRes, secretHit, homeDir, privateTermsPath, privateTermsListFile, forbiddenTerms, forbiddenRe } from './settings.mjs';
 import { testInputsHash, aiAttributedCommits, gitignoreProblems } from './repo.mjs';
-export { ROOT, bulkDir, today, usageOf, read, readJSON, abs, exists, list, walkStat, esc, config, re, secretRes, secretHit, privateTermsPath, privateTermsListFile, forbiddenTerms, forbiddenRe, testInputsHash, aiAttributedCommits, gitignoreProblems };
+import { people, personOf, peopleIn, peopleFor, pathsPeople } from './people.mjs';
+export { ROOT, bulkDir, today, usageOf, read, readJSON, abs, exists, list, walkStat, esc, config, re, secretRes, secretHit, privateTermsPath, privateTermsListFile, forbiddenTerms, forbiddenRe, testInputsHash, aiAttributedCommits, gitignoreProblems, people, personOf, peopleIn, peopleFor, pathsPeople };
 // (the safety guard is v2/guard.mjs, loaded by the pretool hook itself: a guard that cannot load is then reported, not
 // a hook that cannot start)
 let pretoolDecision = null;
@@ -3309,17 +3310,7 @@ export const labelsEsHint = (scope = null) => 'Write in Spanish: the whole answe
   ES_LABELS.filter(([r]) => !r || scope == null || r.test(scope)).map(([, l]) => l).join(', ') + '.';
 export const LABELS_ES_HINT = labelsEsHint();
 
-// ---------- people / scopes ----------
-export function people(cfg = config()) {
-  return list(cfg.scopesRoot).filter(n => !/^[_.]/.test(n) && !/\.md$/i.test(n)).filter(n => { try { return fs.statSync(abs(`${cfg.scopesRoot}/${n}`)).isDirectory(); } catch { return false; } })
-    // (a folder name's hyphens and underscores read as spaces too: profiles/flat-1 is "flat 1". Lesson (trials): "flat 1"
-    // named nobody, and the guard refused the work for that flat)
-    .map(n => ({ name: n, words: [...new Set([n.toLowerCase(), n.toLowerCase().replace(/[-_]+/g, ' ')])].filter(Boolean).concat(splitList((frontmatter(read(abs(`${cfg.scopesRoot}/${n}/PROFILE.md`))) || {}).aliases)) }));
-}
-export const personOf = (p, cfg = config()) => { const m = new RegExp(`^${esc(cfg.scopesRoot)}/([^/]+)/`, 'i').exec(p); return m && !/^[_.]/.test(m[1]) ? m[1] : null; };
-export const peopleIn = (text, ppl) => ppl.filter(x => x.words.some(w => re(`(^|[^a-z0-9])${esc(w)}($|[^a-z0-9])`).test(String(text).toLowerCase()))).map(x => x.name);
-// A follow-up that names nobody ("that letter sounds cold") is about whoever the previous request named.
-// Lesson: a complaint about one tenant's letter could not save the fix in that tenant's folder.
+// ---------- people / scopes ---------- (people, personOf, peopleIn, peopleFor, pathsPeople: people.mjs)
 export const settingUp = () => exists('SETUP-PROMPT.md') && !exists('.starter-template');
 // The whole setup turn is setup, also after its last step deleted SETUP-PROMPT.md: the file was there when the turn
 // began (the turn's snapshot), or a command of the turn removed it.
@@ -3332,18 +3323,6 @@ export function setupTurn(x = {}) {
   if (snap.files?.['SETUP-PROMPT.md'] && x.since && Date.parse(snap.at) >= x.since - 5000) return true;
   return (x.cmds || []).some(c => /SETUP-PROMPT\.md/.test(c) && /(^|[\s;&|(])(rm|del|erase|unlink|Remove-Item|ri|git\s+rm)\s/i.test(c));
 }
-// The follow-up looks back past requests that name nobody (a question in between) to the latest one that named someone,
-// at most FOLLOW_BACK requests back. Lesson: "the letter sounds cold" came two requests after the letter for one tenant,
-// with a question about a lease clause in between, so the fix could not be saved in that tenant's folder.
-const FOLLOW_BACK = 3;
-export const peopleFor = (prompt, allPrompts, ppl) => {
-  const named = peopleIn(prompt, ppl);
-  if (named.length) return named;
-  const earlier = (allPrompts || []).filter(p => p && p.trim() !== String(prompt).trim()).slice(-FOLLOW_BACK);
-  for (let i = earlier.length - 1; i >= 0; i--) { const n = peopleIn(earlier[i], ppl); if (n.length) return n; }
-  return [];
-};
-export const pathsPeople = (s, cfg) => [...new Set([...String(s).replace(/\\/g, '/').matchAll(new RegExp(`(?:^|[\\s"'/=])${esc(cfg.scopesRoot)}/([^/\\s"']+)/`, 'gi'))].map(m => m[1]).filter(n => !/^[_.]/.test(n)))];
 
 // ---------- freshness ----------
 export function staleKnowledge(cfg = config()) {

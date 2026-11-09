@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { passLine } from './lines.mjs';
 import { unansweredLate } from './late.mjs';
-import { ROOT, at, runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, questionGaps, noteGaps, quoteGaps, tail, helpersRunning, backgroundRuns, helperRuns, evidenceGaps, evidenceOf, skillBooks, alwaysGaps } from './lib.mjs';
+import { ROOT, at, runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, questionGaps, noteGaps, quoteGaps, tail, helpersRunning, backgroundRuns, helperRuns, evidenceGaps, evidenceOf, skillBooks, alwaysGaps, scopeGaps, earlierPrompts } from './lib.mjs';
 
 // Check 1: the routed runbook, else the one the agent opened (not a skill it names), was followed and its checkable
 // "Done when" items met. A runbook the turn wrote or changed, by a script too, is its work, not its procedure.
@@ -155,10 +155,11 @@ function judge(data, { shadow = false } = {}) {
   // (on a repeat, what the agent said is read from after the last block: a message sent before it can't be taken back.
   // Lesson (2026-11-07): an Issue line in the first answer re-blocked the corrected answer that had none)
   if (again && turn.lastBlock) { const after = turnActs(rows.filter(r => (Date.parse(r.timestamp || '') || 0) > turn.lastBlock)); acts.said = after.said + (final && !after.said.includes(final) ? `${final}\n` : ''); acts.answer = final || after.answer || acts.answer; }
-  const history = evidenceOf(tail(data.transcript_path, 5 << 20));
+  const raw = tail(data.transcript_path, 5 << 20), history = evidenceOf(raw);
+  acts.earlier = earlierPrompts(raw, turn.at);
   const late = unansweredLate(rows, final).map(m => `Answer the user's message typed at ${String(m.at).slice(11, 16) || 'mid-task'}: "${m.text.replace(/\s+/g, ' ').slice(0, 200)}"`);
   const extra = (turn.also || []).flatMap(f => missing({ ...turn, runbook: f }, acts, runbooks().filter(b => b.file === f)));
-  const list = [...late, ...missing(turn, acts), ...extra, ...alwaysGaps(acts), ...skillMissing(acts), ...reviewGaps(turn, acts), ...testGaps(acts, history), ...gateGaps(acts), ...screenGaps(acts), ...healthGaps(acts, { run: !shadow }), ...knowledgeGaps(acts), ...securityGaps(acts), ...questionGaps(acts), ...noteGaps(acts), ...quoteGaps(acts), ...claimGaps(acts, history)].filter((s, i, all) => all.indexOf(s) === i).filter(kept(acts));
+  const list = [...late, ...missing(turn, acts), ...extra, ...alwaysGaps(acts), ...skillMissing(acts), ...reviewGaps(turn, acts), ...testGaps(acts, history), ...gateGaps(acts), ...screenGaps(acts), ...healthGaps(acts, { run: !shadow }), ...knowledgeGaps(acts), ...securityGaps(acts), ...questionGaps(acts), ...noteGaps(acts), ...quoteGaps(acts), ...claimGaps(acts, history), ...scopeGaps(acts)].filter((s, i, all) => all.indexOf(s) === i).filter(kept(acts));
   // (a turn that ran the check on its draft has seen the verify list: the real stop does not send it back for it again.
   // Lesson (the user, 2026-11-07): the list came in the draft check and then again as a send-back, and the user read a
   // second round of the answer)
