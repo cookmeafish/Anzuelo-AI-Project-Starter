@@ -6,7 +6,7 @@ import { passLine } from './lines.mjs';
 import { unansweredLate, asksOnly } from './late.mjs';
 import { PAUSE_ASK } from '../pause.mjs';
 import { wakeGaps } from '../wakeups.mjs';
-import { forbiddenGaps, codeRuleGaps, injectionGaps, verbatimGaps, CRASHED, crashLine, logStop, upgradeGaps, autoRuns, sessionStart, changedOf, projectConfig, inGlobs, priorCalls } from './lib.mjs';
+import { forbiddenGaps, codeRuleGaps, injectionGaps, verbatimGaps, CRASHED, crashLine, logStop, upgradeGaps, autoRuns, sessionStart, changedOf, projectConfig, inGlobs, priorCalls, filesMatching } from './lib.mjs';
 import { ROOT, at, runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, questionGaps, noteGaps, quoteGaps, tail, helpersRunning, backgroundRuns, helperRuns, evidenceGaps, evidenceOf, skillBooks, alwaysGaps, scopeGaps, earlierPrompts, ALWAYS, engineCheckGaps } from './lib.mjs';
 // (the two data tables, one evaluator each: the project's always list and the engine's own checks)
 // (each check runs on its own: one that throws is named once with its error, and the rest still run)
@@ -203,6 +203,18 @@ export function questionFileGaps(acts, cfg = null) {
 }
 // A message the user typed this turn (the request, or one typed mid-turn) asks to pause, stop or restart.
 export const pausedTurn = acts => (acts.parts || []).some(p => PAUSE_ASK.test(p));
+// REQ: watched-inputs. Data the user updates while the agent works ("watchedInputs" globs in config.json) changes the
+// answer: a watched file changed since the turn began, not by the turn's own edits, is named in the answer with what
+// the new data changed. Only the watched globs are read, so a project without them pays nothing. Lesson (the old
+// engine): an answer built on the old export said nothing of the new one the user had just saved.
+export function watchedGaps(acts, cfg = null) {
+  const globs = [].concat((cfg || projectConfig()).watchedInputs || []), since = Date.parse(acts.at || '') || 0;
+  if (!globs.length || !since) return [];
+  const own = new Set(changedOf(acts)), ans = String(acts.answer || '');
+  const mt = f => { try { return fs.statSync(at(f)).mtimeMs; } catch { return 0; } };
+  return [...new Set(globs.flatMap(g => filesMatching(g)))].filter(f => mt(f) > since && !own.has(f) && !ans.includes(f) && !ans.includes(path.basename(f)))
+    .slice(0, 3).map(f => `${f} was updated while you worked. Re-run what depends on it and say in the answer what the new data changed (name the file).`);
+}
 // The agent's notes file, when this turn wrote it.
 const turnNotes = acts => { try { const f = at('.cache/turn-notes.md'), st = fs.statSync(f); return st.mtimeMs >= (Date.parse(acts.at || '') || 0) - 2000 ? fs.readFileSync(f, 'utf8') : ''; } catch { return ''; } };
 // REQ: rule-request. A standing rule the agent took on is written where every later turn reads it and enforced, not only
@@ -332,7 +344,7 @@ function judge(data, { shadow = false } = {}) {
   // (wakeups scheduled in any turn of the session count: one left from earlier still re-invokes it later)
   const wakes = wakeGaps(raw.split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean), final || acts.answer || '', acts.heard || '');
   const extra = (turn.also || []).flatMap(f => missing({ ...turn, runbook: f }, acts, runbooks().filter(b => b.file === f)));
-  const list = [...late, ...autos, ...wakes, ...S('missing', () => [...emptyGaps(acts), ...missing(turn, acts), ...upsetGaps(turn, acts), ...ruleGaps(acts)]), ...extra, ...S('skillMissing', () => skillMissing(acts)), ...S('reviewGaps', () => reviewGaps(turn, acts)), ...S('testGaps', () => testGaps(acts, history)), ...S('gateGaps', () => gateGaps(acts)), ...S('screenGaps', () => screenGaps(acts)), ...S('healthGaps', () => [...healthGaps(acts, { run: !shadow }), ...upgradeGaps(turn, acts)]), ...S('knowledgeGaps', () => knowledgeGaps(acts)), ...S('securityGaps', () => securityGaps(acts)), ...S('questionGaps', () => [...questionGaps(acts), ...questionFileGaps(acts)]), ...S('noteGaps', () => noteGaps(acts)), ...S('quoteGaps', () => quoteGaps(acts)), ...S('claimGaps', () => claimGaps(acts, history)), ...S('scopeGaps', () => scopeGaps(acts)), ...S('tableGaps', () => tableGaps(acts))].filter((s, i, all) => all.indexOf(s) === i);
+  const list = [...late, ...autos, ...wakes, ...S('missing', () => [...emptyGaps(acts), ...missing(turn, acts), ...upsetGaps(turn, acts), ...ruleGaps(acts), ...watchedGaps(acts)]), ...extra, ...S('skillMissing', () => skillMissing(acts)), ...S('reviewGaps', () => reviewGaps(turn, acts)), ...S('testGaps', () => testGaps(acts, history)), ...S('gateGaps', () => gateGaps(acts)), ...S('screenGaps', () => screenGaps(acts)), ...S('healthGaps', () => [...healthGaps(acts, { run: !shadow }), ...upgradeGaps(turn, acts)]), ...S('knowledgeGaps', () => knowledgeGaps(acts)), ...S('securityGaps', () => securityGaps(acts)), ...S('questionGaps', () => [...questionGaps(acts), ...questionFileGaps(acts)]), ...S('noteGaps', () => noteGaps(acts)), ...S('quoteGaps', () => quoteGaps(acts)), ...S('claimGaps', () => claimGaps(acts, history)), ...S('scopeGaps', () => scopeGaps(acts)), ...S('tableGaps', () => tableGaps(acts))].filter((s, i, all) => all.indexOf(s) === i);
   // (the waiver tally: what this turn cleared with a reason is recorded; a check cleared in 3+ earlier turns is named)
   const full = list.splice(0, list.length); list.push(...full.filter(kept(acts)).filter(s => !(again && CRASHED.test(s))));
   const often = shadow ? '' : tally(full, list, turn.at ? `${data.session_id || 'x'}|${turn.at}` : '');

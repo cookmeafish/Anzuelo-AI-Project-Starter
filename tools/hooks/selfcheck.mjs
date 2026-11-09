@@ -2885,7 +2885,9 @@ function runStop(s0) {
       const named = new Set(JSON.stringify(s0.tools || []).match(/[\w./-]+\.\w+/g) || []);
       const same = p => { try { return fs.readFileSync(path.join(dir, p), 'utf8') === String(s0.files[p]); } catch { return false; } };
       const ignored = p => spawnSync('git', ['check-ignore', '-q', '--no-index', p], { cwd: ROOT }).status === 0; // (the fixture copy has no git: the starter's own ignore rules, which it carries)
-      const wrote = Object.keys(s0.files || {}).filter(p => !named.has(p) && !((s0.mtimes || {})[p] < 0) && !/^(\.cache|tools\/hooks\/state)\//.test(p) && !same(p) && !ignored(p));
+      // (a file whose time the scenario sets says itself when it changed and by whom, before the turn or by the user during
+      // it: never the turn's own write)
+      const wrote = Object.keys(s0.files || {}).filter(p => !named.has(p) && !(p in (s0.mtimes || {})) && !/^(\.cache|tools\/hooks\/state)\//.test(p) && !same(p) && !ignored(p));
       // (written first, with the fixture's own content, as the work the scenario's calls then test or review: a stub edit
       // after them read as code changed after its tests ran and hid the content the security check reads)
       if (wrote.length) s = { ...s0, tools: [...wrote.map(p => ({ name: 'Write', input: { file_path: p, content: String(s0.files[p]) } })), ...(s0.tools || [])] };
@@ -4919,6 +4921,8 @@ const V2_ASKS = {
   'upgrade-review': /^- Upgrade review in docs\/DECISIONS\.md: /m,
   'empty-answer': /^- The answer is empty:/m,
   'question-no-file': /^- This was a question, but files changed/m,
+  'watched-inputs': /^- \S+ was updated while you worked/m,
+  'decision-logged': /item \d+: A choice the user made is logged in docs\/DECISIONS\.md/,
   'rule-request': /^- (Write the rule down|Say how the rule is enforced|Save the rule to memory)/m,
   'upset-learned': /^- (The runbook your Issue line names|Give the point in general terms|Say the root cause|Say first whether it holds|Say what you checked to know it holds|Write the lesson where it stops the next miss|This is about the engine: send the lesson|The user is upset again in this session)/m,
 };
@@ -8802,6 +8806,9 @@ if (mineB() && (!TAGS || TAGS.includes('layout-split') || TAGS.includes('engine-
       && fs.existsSync(path.join(loc, '.cache/merge/AGENTS.md')) && b.at === newHead && b.files?.['docs/playbooks/plan.md'] === newHead && b.files?.['AGENTS.md'] === oldHead,
       'upgrade: with the engine in .anzuelo/engine an upgrade is a git pull that leaves what the project made unchanged but for its dated line in docs/DECISIONS.md; an edit inside the engine is refused (engine-readonly) and points at a local copy; a default\'s new change is merged into the project\'s copy, and a clash is left for the user while the copy stays in use',
       JSON.stringify({ ins: ins.status, guard: guard.slice(0, 200), o1: o1.stdout, upg: [upg.status, (upg.stdout || '').slice(0, 600), (upg.stderr || '').slice(0, 300)], same: diffs(before, after), b }));
+  // (a step that throws fails this test, never the whole suite. Lesson (2026-11-09): an install from a commit missing a
+  // new engine file left no local copy, and the throw ended the suite with no total)
+  } catch (e) { report(false, 'upgrade: with the engine in .anzuelo/engine an upgrade is a git pull that leaves what the project made unchanged but for its dated line in docs/DECISIONS.md; an edit inside the engine is refused (engine-readonly) and points at a local copy; a default\'s new change is merged into the project\'s copy, and a clash is left for the user while the copy stays in use', `threw: ${String(e?.message || e).slice(0, 300)}`);
   } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
 }
 if (mineB() && (!TAGS || TAGS.includes('upset-learned'))) { // the user sees "acknowledged" as soon as the agent writes its

@@ -48,6 +48,7 @@ spreadsheet, write the .md by steps 1 to 5, then convert it with that format's s
 - [ ] Facts in the document carry numbered citations with a matching `Sources:` list (judgment: no check reads the
       file's citations; research-cited only reads the chat answer).
 - [ ] Followed whenever a file is written to outputs/, even unasked (hook: deliverable-trigger).
+- [ ] A choice the user made is logged in docs/DECISIONS.md with its reason (when prompt: we decided|i decided|we've decided|decided:|let's go with|lets go with|final decision|i'm going with|we'll go with|we will use|let's use|go with) (file: docs/DECISIONS.md) (hook: decision-logged).
 
 ## Pitfalls
 - Padding: process narration, restating the question, generic advice. Keep only what the reader needs.

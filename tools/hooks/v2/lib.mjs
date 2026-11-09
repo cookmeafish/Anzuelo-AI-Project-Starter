@@ -439,7 +439,7 @@ export function noteGaps(acts) {
 // The files a path or glob names, walked from its fixed part, at most 20,000, skipping bulk folders and build output
 // (lessons: 40,000 cache files hid real changes; a site build's rewrite was asked to be screenshotted).
 const BULK = new Set(['.git', 'node_modules', '.cache', '.venv', 'venv', '__pycache__', 'dist', 'build', '.next', 'target', '_site', '.nuxt', '.output', '.svelte-kit', 'coverage', 'storybook-static']);
-function filesMatching(glob) {
+export function filesMatching(glob) {
   const g = glob.replace(/\\/g, '/'), rx = globRx(g), base = g.split('/').filter((s, i, a) => !/[*?]/.test(a.slice(0, i + 1).join('/'))).join('/');
   if (!/[*?]/.test(g)) return fs.existsSync(at(g)) ? [g] : [];
   // (in a project with the engine in .anzuelo/, the project walk skips it and the local folder is walked under the same
@@ -931,7 +931,11 @@ export function holdsReq(c, acts, x) {
     // was held to a letter skill's draft; a note the user dictated was held to the research skill's sources)
     skillUsed: v => (read(new RegExp(`skills/${v}/SKILL\\.md$`, 'i')) && (!(skillSurvey(acts)) || new RegExp(`(?<![\\w-])skills?\\s*:\\s*\`?(skills/)?${v.replace(/[^\w-]/g, '')}(?![\\w-])`, 'i').test(acts.answer || '')
       || acts.calls.some(k => /^(Bash|PowerShell)$/.test(k.name) && String(k.input.command || '').replace(/\\/g, '/').includes(`skills/${v}/`)))) || acts.calls.some(k => (k.name === 'Skill' && String(k.input.skill || '').endsWith(v)) || (/^(Agent|Task)$/.test(k.name) && String(k.input.prompt || '').includes(`skills/${v}/`))),
-    playbookUsed: v => read(new RegExp(`playbooks/${v}\\.md$`, 'i')),
+    // (in setup, a runbook only opened is the dry run's walk-through, not followed, unless the answer names it as followed.
+    // Lesson (the old engine, trial round 13): setup read feature.md for its dry run, built the app, and was held to the
+    // feature's review, spec and release notes)
+    playbookUsed: v => read(new RegExp(`playbooks/${v}\\.md$`, 'i')) && (!(fs.existsSync(at('SETUP-PROMPT.md')) && !fs.existsSync(at('.starter-template')))
+      || new RegExp(`\\b(?:playbook|runbook)s?\\s*:\\s*\`?(?:docs/playbooks/)?${v.replace(/[^\w-]/g, '')}(?:\\.md)?\\b`, 'i').test(`${acts.answer || ''}\n${acts.said || ''}`)),
     filesChanged: v => x.changed.some(f => [].concat(v).some(g => globRx(g).test(f)) && ![].concat(c.filesIgnore || []).some(g => globRx(g).test(f))),
     filesIgnore: () => true,
     answerMatches: v => reqRe(v).test(acts.answer || ''), answerNotMatches: v => !reqRe(v).test(acts.answer || ''),
@@ -1154,7 +1158,15 @@ export function engineCheckGaps(acts) {
   // (a check that throws is never an unmet requirement: it is named once, with its error and where, and the others still
   // run. Lesson (a peer's review): one check's crash took the whole end check down, or could read as a false ask)
   const out = [];
-  for (const r of engineChecks()) {
+  // (a runbook opened this turn owns the folders in its "owns:" frontmatter: another runbook's trigger ("forces") does
+  // not count files there, in each "anyOf" branch too. Lesson (the old engine): a trip-research runbook saved downloads
+  // into sources/trips/, and the ingest trigger asked for ingest on every one)
+  let books = null;
+  const ownedBy = forces => (books ||= runbooks()).filter(b => b.name !== forces && /^owns:\s*\S/m.test(b.front || '') && opened(b, acts))
+    .flatMap(b => /^owns:\s*(.+)$/m.exec(b.front)[1].split(',').map(s => s.trim()).filter(Boolean));
+  const ignoreOwned = (w, own) => w && typeof w === 'object' ? { ...w, ...(w.filesChanged ? { filesIgnore: [...[].concat(w.filesIgnore || []), ...own] } : {}), ...(w.anyOf ? { anyOf: w.anyOf.map(s => ignoreOwned(s, own)) } : {}) } : w;
+  for (const r0 of engineChecks()) {
+    const own = r0.forces ? ownedBy(r0.forces) : [], r = own.length ? { ...r0, when: ignoreOwned(r0.when, own) } : r0;
     try { if (!(small && SMALL_SKIP.test(r.tag)) && !promptOnly(r.when) && holdsReq(r.when, read, x) === true && holdsReq(r.require, read, xr) === false && !draftMet(r.require, read, xr) && !waivedTag(r.tag, acts) && !(r.tag === 'version-bump' && bumpedEarlier(acts.prior, r.require?.filesChanged))) out.push(`Check: ${r.message}`); }
     catch (e) { out.push(crashLine(r.tag, e)); }
   }

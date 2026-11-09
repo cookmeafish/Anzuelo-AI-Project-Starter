@@ -1713,6 +1713,17 @@ report(madeUp.length === 2 && /9f8e7d6/.test(madeUp[0]) && /src\/missing\.js/.te
   };
   report(p.mid && p.es && !p.feature && !p.server && p.hint && p.noHint, 'end/start: pause-stops: a request to pause or restart, first or mid-turn, ends the turn with nothing more asked and gets the wrap-up reminder; a restart feature or a question about a server restart does not', p);
 }
+{ // (REQ: watched-inputs: a watched file updated during the turn, not by the turn's own edit, is named in the answer)
+  const { watchedGaps } = await import('./end.mjs');
+  put('data/export.csv', 'a,b\n');
+  const T0 = new Date(Date.now() - 60_000).toISOString(), cfg = { watchedInputs: ['data/*.csv'] };
+  const w = (calls, answer, c = cfg) => watchedGaps(Object.assign(acts([user('summarize my spending'), ...calls, say(answer)]), { at: T0 }), c).length;
+  const r = { silent: w([], 'You spent $10.'), named: w([], 'You spent $10; the new data/export.csv added two rows.'), own: w([call('Edit', { file_path: path.join(dir, 'data/export.csv'), old_string: 'a', new_string: 'b' })], 'Fixed the header.'),
+    unwatched: w([], 'You spent $10.', {}) };
+  const old = (Date.now() - 120_000) / 1000; fs.utimesSync(path.join(dir, 'data/export.csv'), old, old); r.before = w([], 'You spent $10.');
+  fs.rmSync(path.join(dir, 'data/export.csv'), { force: true });
+  report(r.silent === 1 && !r.named && !r.own && !r.unwatched && !r.before, 'end: watched-inputs: a watched file updated during the turn is named in the answer; one named, edited by the turn itself, not watched, or older than the turn is not held', r);
+}
 { // (REQ: question-no-file: a turn of questions only gets an answer, not edits; records are exempt, a quoted ask clears
   // it, "what should we do?" under autonomy auto asks for the fix, and news typed first is no question)
   const { questionFileGaps } = await import('./end.mjs');
