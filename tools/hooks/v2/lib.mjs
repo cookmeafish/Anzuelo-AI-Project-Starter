@@ -303,14 +303,18 @@ export function helperRuns(main, sid, since, until = '') {
 export function helpersRunning(rows) {
   // (in order: a helper resumed after its report runs again until its next one. Lesson (trial v36): a reviewer resumed
   // with SendMessage still counted as done from its first report, and the answer went out before its second)
+  // (a launch that printed no id runs until any notice that came after it, as in the old engine. Lesson (the v2
+  // re-sweep): a helper started with no id was taken as done, and the Finished section was asked before its result)
   const runs = new Set();
   for (const r of rows) {
-    for (const m of JSON.stringify(r).matchAll(/<task-id>([\w-]+)<\/task-id>|<agent-message from=\\?"([\w-]+)\\?"/g)) runs.delete(m[1] || m[2]);
+    const s = JSON.stringify(r);
+    for (const m of s.matchAll(/<task-id>([\w-]+)<\/task-id>|<agent-message from=\\?"([\w-]+)\\?"/g)) runs.delete(m[1] || m[2]);
+    if (/<task-notification>|<agent-message\b/.test(s)) for (const k of [...runs]) if (k.startsWith('noid:')) runs.delete(k);
     for (const x of Array.isArray(r.message?.content) ? r.message.content : []) {
       if (x?.type !== 'tool_result') continue;
       const out = typeof x.content === 'string' ? x.content : (Array.isArray(x.content) ? x.content.map(c => c?.text || '').join('\n') : '');
       const m = /^\s*Async agent launched successfully[\s\S]{0,400}?agentId:\s*([\w-]+)/i.exec(out) || /"resumedAgentId"\s*:\s*"([\w-]+)"/.exec(out);
-      if (m) runs.add(m[1]);
+      if (m) runs.add(m[1]); else if (/^\s*Async agent launched successfully/i.test(out)) runs.add(`noid:${x.tool_use_id}`);
     }
   }
   return [...runs];
@@ -321,7 +325,9 @@ export const backgroundRunsOf = transcript => backgroundRuns(codexRows(tail(tran
 export function turnActs(rows) {
   const calls = [], byId = new Map();
   let answer = '', context = '', started = '', heard = '', said = '';
+  let seq = 0;
   for (const r of rows) {
+    seq++;
     started ||= r.timestamp || '';
     // (what the hooks and the host showed the agent this turn: evidence too, like a version a status line named)
     if (r.attachment) context += JSON.stringify(r.attachment.content ?? r.attachment).slice(0, 20000) + '\n';
@@ -338,10 +344,10 @@ export function turnActs(rows) {
     // (a message the user typed mid-turn comes as a text item beside tool results: heard too)
     if (r.type === 'user') for (const x of c) { const m = x.type === 'text' && /The user sent a new message while you were working:\s*([\s\S]*?)(?:\n\s*This is how Claude Code surfaces|$)/.exec(x.text || ''); if (m) heard += m[1].slice(0, 20000) + '\n'; }
     for (const x of c) {
-      if (r.type === 'assistant' && x.type === 'tool_use') { const call = { name: x.name, input: x.input || {}, error: false, out: '', done: 0, at: Date.parse(r.timestamp || '') || 0 }; calls.push(call); byId.set(x.id, call); }
+      if (r.type === 'assistant' && x.type === 'tool_use') { const call = { name: x.name, input: x.input || {}, error: false, out: '', done: 0, at: Date.parse(r.timestamp || '') || 0, i: seq, j: Infinity }; calls.push(call); byId.set(x.id, call); }
       if (x.type === 'tool_result' && byId.has(x.tool_use_id)) {
         const out = typeof x.content === 'string' ? x.content : Array.isArray(x.content) ? x.content.map(b => b?.text || '').join('\n') : '';
-        Object.assign(byId.get(x.tool_use_id), { out: out.slice(-4000), error: !!x.is_error || /\bexit code [1-9]|^Exit code [1-9]/m.test(out), done: Date.parse(r.timestamp || '') || 0 });
+        Object.assign(byId.get(x.tool_use_id), { out: out.slice(-4000), error: !!x.is_error || /\bexit code [1-9]|^Exit code [1-9]/m.test(out), done: Date.parse(r.timestamp || '') || 0, j: seq });
       }
       if (r.type === 'assistant' && x.type === 'text' && x.text.trim()) { answer = x.text; said += x.text + '\n'; }
     }
@@ -814,7 +820,12 @@ export function holdsReq(c, acts, x) {
     // (a command matching it ran and failed; N or more calls of a tool; a file read; a runbook routed or read; a screen
     // file changed; what the turn added to matching files)
     ranFailing: v => acts.calls.some(k => /^(Bash|PowerShell)$/.test(k.name) && reqRe(v).test(String(k.input.command || '')) && k.error),
-    toolCount: v => acts.calls.filter(k => new RegExp(v.name).test(k.name)).length >= (v.min || 1),
+    // (overlap: that many running at once, each from its call to its result, or to the turn's end when started in the
+    // background; refused ones never ran. Lesson (the old engine): three reviews run one after another were taken for
+    // parallel work)
+    toolCount: v => { const ks = acts.calls.filter(k => new RegExp(v.name).test(k.name)); if (!v.overlap) return ks.length >= (v.min || 1);
+      const live = ks.filter(k => !(k.error && /\b(denied|refused|rejected|not allowed)\b/i.test(k.out))).map(k => [k.i ?? 0, k.input.run_in_background || /\b(running in (the )?background|async agent launched|launched in the background)\b/i.test(k.out) ? Infinity : k.j ?? Infinity]);
+      return Math.max(0, ...live.map(([a]) => live.filter(([b, e]) => b <= a && e > a).length)) >= (v.min || 1); },
     fileRead: v => acts.calls.some(k => k.name === 'Read' && [].concat(v).some(g => globRx(g).test(relp(k.input.file_path || '')))),
     // (routed means opened this turn: the agent picks its runbook, and keyword routing is retired (2026-11-07). An
     // unmistakable release, publish or deploy is the check's own action key, such as toolRan)

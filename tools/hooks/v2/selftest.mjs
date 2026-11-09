@@ -669,8 +669,14 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
           unknownBranch: holdsReq({ anyOf: [{ fooBar: true }, { answerMatches: 'never written' }] }, acts([user('x'), say('y')]), x),
           otherHolds: holdsReq({ anyOf: [{ fooBar: true }, { answerMatches: 'y' }] }, acts([user('x'), say('y')]), x),
         };
-        report(cites.plain && cites.ticks && cites.printed && !cites.unopened && !cites.own && cites.unknownBranch === null && cites.otherHolds === true,
-          'end: answer-cites: a source opened (or printed) this turn named in the answer meets it, an unopened or self-written file does not; an unread branch leaves an anyOf unjudged unless another holds', JSON.stringify(cites));
+        // (toolCount with overlap: three helpers run one after another are not parallel work; two in the background are)
+        const ag = n => call('Agent', { prompt: `review part ${n}` }, 'done'), agBg = n => call('Agent', { prompt: `review part ${n}`, run_in_background: true }, 'Async agent launched');
+        const par = { seq: holdsReq({ toolCount: { name: '^(Agent|Task)$', min: 2, overlap: true } }, acts([user('review it'), ag(1), ag(2), ag(3), say('Done.')]), x),
+          bg: holdsReq({ toolCount: { name: '^(Agent|Task)$', min: 2, overlap: true } }, acts([user('review it'), agBg(1), agBg(2), say('Started.')]), x),
+          plain: holdsReq({ toolCount: { name: '^(Agent|Task)$', min: 2 } }, acts([user('review it'), ag(1), ag(2), say('Done.')]), x) };
+        cites.parallel = par;
+        report(par.seq === false && par.bg === true && par.plain === true && cites.plain && cites.ticks && cites.printed && !cites.unopened && !cites.own && cites.unknownBranch === null && cites.otherHolds === true,
+          'end: answer-cites: a source opened (or printed) this turn named in the answer meets it, an unopened or self-written file does not; an unread branch leaves an anyOf unjudged unless another holds; helpers run one after another are not parallel work, two in the background are', JSON.stringify(cites));
       }
       // (the release chain's v2 sweep: a test failing under v2 that is not on the list fails it, a listed test that passes
       // fails it, and the list is rewritten only to shrink)
