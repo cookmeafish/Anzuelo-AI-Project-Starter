@@ -586,9 +586,12 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
         for (const n of ['testGaps', 'gateGaps', 'screenGaps', 'knowledgeGaps', 'securityGaps', 'claimGaps', 'questionGaps', 'noteGaps', 'quoteGaps', 'scopeGaps', 'alwaysGaps', 'engineCheckGaps', 'forbiddenGaps', 'codeRuleGaps', 'injectionGaps']) L[n](q, '');
         const qMs = performance.now() - t0;
         const b = acts([user('make the notes'), call('Bash', { command: 'node tools/notes.mjs' }, 'ok'), say('Done.')]); b.at = wAt;
-        const sp = { question: L.touchedSince(q).length, ran: L.touchedSince(b).filter(x => /^bulkwalk\//.test(x.f)).length, qMs: Math.round(qMs) };
+        // (any shell command or helper may write, whatever its text: "cat" or "git log" too)
+        const cat = acts([user('show the notes'), call('Bash', { command: 'cat docs/BRIEF.md' }, 'x'), say('Here.')]); cat.at = wAt;
+        const helper = acts([user('tidy the notes'), call('Agent', { prompt: 'tidy the notes' }, 'done'), say('Done.')]); helper.at = wAt;
+        const sp = { question: L.touchedSince(q).length, ran: L.touchedSince(b).filter(x => /^bulkwalk\//.test(x.f)).length, cat: L.touchedSince(cat).length >= 3000, helper: L.touchedSince(helper).length >= 3000, qMs: Math.round(qMs) };
         fs.rmSync(path.join(dir, 'bulkwalk'), { recursive: true, force: true });
-        report(sp.question === 0 && sp.ran === 3000 && sp.qMs < 60, 'speed: a question turn in a 3,000-file project walks no files and its whole end check takes under 60 ms; a turn that ran a command walks once and finds what it wrote', JSON.stringify(sp));
+        report(sp.question === 0 && sp.ran === 3000 && sp.cat && sp.helper && sp.qMs < 60, 'speed: a question turn in a 3,000-file project walks no files and its whole end check takes under 60 ms; a turn that ran any shell command (even cat) or a helper walks once and finds what was written', JSON.stringify(sp));
       }
       // (REQ: injection-guard / injection-flagged: a kept file left holding text aimed at an AI is held; something read
       // from outside that carries such text needs a warning in the answer; the project's own security notes don't count)
