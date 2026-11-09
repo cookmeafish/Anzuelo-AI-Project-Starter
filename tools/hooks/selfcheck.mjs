@@ -4881,7 +4881,9 @@ const V2_ASKS = {
 };
 // (an engine check from requirements.json is recognized by its own message, which v2's evaluator gives as "Check: ...")
 const ENGINE_MSG = await (async () => { const out = {}; try { for (const q of (await import(pathToFileURL(path.join(ROOT, 'tools/hooks/base-checks.mjs')).href)).BASE_REQUIREMENTS) out[q.tag] = q.message; } catch { }
-  try { for (const q of JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/hooks/requirements.json'), 'utf8')).requirements) out[q.tag] = q.message; } catch { } return out; })();
+  // (pack checks are listed in engine-checks.json; a project gets them in its requirements.json when the pack is in)
+  for (const f of ['tools/hooks/engine-checks.json', 'tools/hooks/requirements.json']) try { for (const q of JSON.parse(fs.readFileSync(path.join(ROOT, f), 'utf8')).requirements) out[q.tag] = q.message; } catch { }
+  return out; })();
 for (const s of STOP) {
   if (!mine()) continue;
   if (!applies(s)) { if (s.own) { report(false, 'stop: ' + s.name, `could not run: ${ownSkipWhy(s)}`); continue; } skipped++; if (process.env.SHOW_SKIPS) console.log('SKIP  stop: ' + s.name); continue; }

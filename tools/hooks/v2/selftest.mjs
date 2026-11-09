@@ -496,14 +496,19 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
     const kw = { tag: 'kw-only', when: { promptMatches: 'form' }, require: { answerMatches: 'Never written' }, message: 'Keyword only.' };
     const failed = { tag: 'ran-failing', when: { ranFailing: 'npm test' }, require: { answerMatches: 'Root cause:' }, message: 'A failing run needs its root cause.' };
     const many = { tag: 'many-helpers', when: { toolCount: { name: '^(Agent|Task)$', min: 2 } }, require: { checkedAfterAgents: true }, message: 'Check what the helpers made.' };
-    put('tools/hooks/requirements.json', JSON.stringify({ requirements: [sec, rep, kw, failed, many], disabled: BASE_OFF.disabled })); put('tools/hooks/engine-checks.json', JSON.stringify({ requirements: [sec, rep, kw, failed, many] }));
-    const { promptOnly, unknownKeys } = await import('./lib.mjs');
+    // (playbookRouted means the runbook was opened this turn, not that the request's words matched it: keyword routing retired)
+    const routed = { tag: 'routed-plan', when: { playbookRouted: 'release' }, require: { answerMatches: 'roll ?-?back' }, message: 'Name the way back.' };
+    put('tools/hooks/requirements.json', JSON.stringify({ requirements: [sec, rep, kw, failed, many, routed], disabled: BASE_OFF.disabled })); put('tools/hooks/engine-checks.json', JSON.stringify({ requirements: [sec, rep, kw, failed, many, routed] }));
+    const { promptOnly, unknownKeys, routedOnly } = await import('./lib.mjs');
     const helper = call('Agent', { prompt: 'look' }, 'done');
     const newKeys = {
       kwHeld: engineCheckGaps(acts([user('make the form check the user'), say('Done.')])).some(s => /Keyword only/.test(s)),
       failHeld: engineCheckGaps(acts([user('fix it'), call('Bash', { command: 'npm test' }, 'Exit code 1\n1 failing', true), say('Fixed.')])).some(s => /root cause/.test(s)),
       helpersUnchecked: engineCheckGaps(acts([user('split it'), helper, helper, say('Done.')])).some(s => /helpers made/.test(s)),
       helpersChecked: engineCheckGaps(acts([user('split it'), helper, helper, call('Read', { file_path: path.join(dir, 'a.md') }, 'x'), say('Done.')])).some(s => /helpers made/.test(s)),
+      routedOpened: engineCheckGaps(acts([user('tidy it'), call('Read', { file_path: path.join(dir, 'docs/playbooks/release.md') }, '# Release'), say('Done.')])).some(s => /way back/.test(s)),
+      routedByWords: engineCheckGaps(acts([user('prepare a release'), say('Done.')])).some(s => /way back/.test(s)),
+      routedOnly: routedOnly(routed.when) && !routedOnly({ anyOf: [{ playbookRouted: 'release' }, { toolRan: 'git tag' }] }),
       promptOnly: promptOnly(kw.when) && !promptOnly(failed.when), unknown: unknownKeys({ anyOf: [{ fooBar: 1 }, { toolRan: 'x' }] }).join(','),
     };
     const readSec = call('Read', { file_path: path.join(dir, 'skills/security-review/SKILL.md') }, '# Security review');
@@ -558,8 +563,8 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
     }
     report(base.vetNo && !base.vetYes && !base.quoted && base.viaC && base.finNo && !base.finYes && base.logNo && base.redoNo && !base.redoYes && base.askNo && !base.decided.length,
       'end: the built-in checks hold under v2 (install-vetted, an install named inside a quoted reason is not one but one run through bash -c is, finished-summary, changelog, redo-changes, self-improve); decision-logged and praise-captured, prompt words alone, never hold', JSON.stringify(base));
-    report(!newKeys.kwHeld && newKeys.failHeld && newKeys.helpersUnchecked && !newKeys.helpersChecked && newKeys.promptOnly && newKeys.unknown === 'fooBar',
-      'end: an engine check never holds on the prompt\'s words alone (keyword forcing retired); a failed run and two helpers are read; a key the evaluator does not know is named', JSON.stringify(newKeys));
+    report(newKeys.routedOpened && !newKeys.routedByWords && newKeys.routedOnly && !newKeys.kwHeld && newKeys.failHeld && newKeys.helpersUnchecked && !newKeys.helpersChecked && newKeys.promptOnly && newKeys.unknown === 'fooBar',
+      'end: an engine check never holds on the prompt\'s words alone (keyword forcing retired); playbookRouted means the runbook was opened, and one with no action key is flagged; a failed run and two helpers are read; a key the evaluator does not know is named', JSON.stringify(newKeys));
     report(res.noResult === 1 && !res.table && !res.spanish && !res.notUsed && /src\/auth\.js: "password"/.test(opened[0] || '') && !reported.length && !plain.length && vague.length === 1 && !headless.length,
       'end: engine checks from requirements.json hold (a Spanish answer read with English labels); security-sensitive code names the file and words, only opening the review is no review, and a specific "does not apply" line or a headless turn-notes waiver clears it', JSON.stringify({ res, opened, reported, plain, vague, headless }));
   }

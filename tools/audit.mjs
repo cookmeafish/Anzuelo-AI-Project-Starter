@@ -179,6 +179,7 @@ sweep('requirements.json is valid', () => {
   // and was not)
   const engineAll = (() => { try { return JSON.parse(read(abs('tools/hooks/engine-checks.json'))).requirements; } catch { return []; } })();
   for (const r of [...engineAll, ...BASE_REQUIREMENTS, ...fileReqs.filter(q => q && !engineAll.some(e => e.tag === q.tag))]) {
+    if (r?.when && v2Eval.routedOnly(r.when)) fail.push(`${r.tag}: "playbookRouted" means only that the runbook was opened (routing by keyword is retired, 2026-11-07): give the check an action key too (toolRan, filesChanged, ...)`);
     if (r?.when && v2Eval.promptOnly(r.when) && !PROMPT_ONLY_RETIRED[r.tag]) fail.push(`${r.tag}: holds only on the user's words (keyword forcing, retired 2026-11-07): give it an action condition, or retire it in PROMPT_ONLY_RETIRED (tools/audit.mjs) with its date`);
     for (const k of new Set([...v2Eval.unknownKeys(r?.when), ...v2Eval.unknownKeys(r?.require)])) if (!V2_KEYS_TO_PORT.includes(`${r.tag}.${k}`)) fail.push(`${r.tag}: the v2 end check does not read "${k}", so this check is never enforced: port the key to holdsReq (tools/hooks/v2/lib.mjs) or reword the check`);
   }

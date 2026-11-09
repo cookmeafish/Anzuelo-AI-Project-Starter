@@ -773,7 +773,9 @@ export function holdsReq(c, acts, x) {
     ranFailing: v => acts.calls.some(k => /^(Bash|PowerShell)$/.test(k.name) && reqRe(v).test(String(k.input.command || '')) && k.error),
     toolCount: v => acts.calls.filter(k => new RegExp(v.name).test(k.name)).length >= (v.min || 1),
     fileRead: v => acts.calls.some(k => k.name === 'Read' && [].concat(v).some(g => globRx(g).test(relp(k.input.file_path || '')))),
-    playbookRouted: v => read(new RegExp(`playbooks/${v}\\.md$`, 'i')) || x.runbook === `docs/playbooks/${v}.md`,
+    // (routed means opened this turn: the agent picks its runbook, and keyword routing is retired (2026-11-07). An
+    // unmistakable release, publish or deploy is the check's own action key, such as toolRan)
+    playbookRouted: v => read(new RegExp(`playbooks/${v}\\.md$`, 'i')),
     guiChanged: v => !v || x.changed.some(f => (projectConfig().guiFiles || []).some(g => globRx(g).test(f))),
     changedContentMatches: v => { const spec = typeof v === 'string' ? { pattern: v } : v, rx = reqRe(spec.pattern), fs2 = (spec.files || ['**/*']).map(globRx);
       return acts.calls.some(k => /^(Edit|Write|MultiEdit)$/.test(k.name) && fs2.some(g => g.test(relp(k.input.file_path || ''))) && rx.test(String(k.input.new_string ?? k.input.content ?? (k.input.edits || []).map(e => e.new_string).join('\n')))); },
@@ -794,6 +796,10 @@ export const ranText = cmd => String(cmd || '')
   .replace(/(?<!(?:-c|-lc|\/c|eval|-Command|-EncodedCommand|--command)\s+)("[^"\n]*\s[^"\n]*"|'[^'\n]*\s[^'\n]*')/gi, '""');
 export const REQ_KEYS = ['skillUsed', 'playbookUsed', 'filesChanged', 'filesIgnore', 'answerMatches', 'answerNotMatches', 'promptMatches', 'promptNotMatches', 'toolRan', 'toolPassed', 'workTurn', 'minToolCalls', 'anyOf', 'ranFailing', 'toolCount', 'fileRead', 'playbookRouted', 'guiChanged', 'changedContentMatches', 'checkedAfterAgents'];
 export const promptOnly = c => { const ks = Object.keys(c || {}); return ks.length > 0 && ks.every(k => /^(promptMatches|promptNotMatches|filesIgnore)$/.test(k)); };
+// a check routed by its runbook alone, with no action that shows the work (the audit fails it)
+const ACTION_KEYS = ['toolRan', 'toolPassed', 'filesChanged', 'ranFailing', 'guiChanged', 'changedContentMatches', 'toolCount'];
+const hasKey = (c, ks) => !!c && typeof c === 'object' && (ks.some(k => k in c) || (c.anyOf || []).some(s => hasKey(s, ks)));
+export const routedOnly = c => hasKey(c, ['playbookRouted']) && !hasKey(c, ACTION_KEYS);
 export const unknownKeys = c => !c || typeof c !== 'object' ? [] : Object.entries(c).flatMap(([k, v]) => k === 'anyOf' ? v.flatMap(unknownKeys) : REQ_KEYS.includes(k) ? [] : [k]);
 // The files this turn changed: by the edit tools, and (with a turn start) any whose time is after it, so a command's
 // writes count too. Walked once per turn.
