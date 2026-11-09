@@ -535,6 +535,8 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
     const authEdit = call('Write', { file_path: path.join(dir, 'src/auth.js'), content: 'export const check = (u, password) => bcrypt.compare(password, u.hash);\n' }, 'ok');
     const sg = rows => securityGaps(acts(rows));
     const opened = sg([user('make the form check the user'), readSec, authEdit, say('Done.')]);
+    // (the engine's skill scripts copied into a generated mirror by an install are not this project's code)
+    const mirrored = sg([user('install the engine here'), call('Write', { file_path: path.join(dir, '.agents/skills/debug/scripts/find.js'), content: 'export const check = (u, password) => bcrypt.compare(password, u.hash);\n' }, 'ok'), say('Installed.')]).length;
     const reported = sg([user('make the form check the user'), readSec, authEdit, say('Done.\n| Sign-in | PASS |')]);
     const plain = wv({ answer: 'Done. The security review does not apply: the word is only a label in a sample screen, nothing checks it.' }, sg([user('make the form check the user'), authEdit, say('Done.')]));
     const vague = wv({ answer: 'Done. The security review does not apply.' }, sg([user('make the form check the user'), authEdit, say('Done.')]));
@@ -768,8 +770,8 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
       'end: the built-in checks hold under v2 (install-vetted, an install named inside a quoted reason is not one but one run through bash -c is, finished-summary, changelog, redo-changes, self-improve), a small fix skips the changelog step; decision-logged and praise-captured, prompt words alone, never hold', JSON.stringify({ ...base, small }));
     report(newKeys.routedOpened && !newKeys.routedByWords && newKeys.routedOnly && newKeys.release.asked.every(Boolean) && !newKeys.release.tidy.some(Boolean) && !newKeys.release.question.some(Boolean) && newKeys.release.tagged.every(Boolean) && !newKeys.kwHeld && newKeys.failHeld && newKeys.helpersUnchecked && !newKeys.helpersChecked && newKeys.promptOnly && newKeys.unknown === 'fooBar',
       'end: an engine check never holds on the prompt\'s words alone (keyword forcing retired); playbookRouted means the runbook was opened, and one with no action key is flagged; the release checks hold on a release action or the runbook opened for a release, not for reading it or a question; a failed run and two helpers are read; a key the evaluator does not know is named', JSON.stringify(newKeys));
-    report(res.noResult === 1 && !res.table && !res.spanish && !res.notUsed && /src\/auth\.js: "password"/.test(opened[0] || '') && !reported.length && !plain.length && vague.length === 1 && !headless.length,
-      'end: engine checks from requirements.json hold (a Spanish answer read with English labels); security-sensitive code names the file and words, only opening the review is no review, and a specific "does not apply" line or a headless turn-notes waiver clears it', JSON.stringify({ res, opened, reported, plain, vague, headless }));
+    report(res.noResult === 1 && !res.table && !res.spanish && !res.notUsed && /src\/auth\.js: "password"/.test(opened[0] || '') && !reported.length && !plain.length && vague.length === 1 && !headless.length && mirrored === 0,
+      'end: engine checks from requirements.json hold (a Spanish answer read with English labels); security-sensitive code names the file and words, only opening the review is no review, and a specific "does not apply" line or a headless turn-notes waiver clears it; the engine code an install copies into a skill mirror is not checked', JSON.stringify({ res, opened, reported, plain, vague, headless, mirrored }));
   }
   // (retiring keyword-forced upset and rule handling removed the forcing, not the handling: a skill that is part of a
   // runbook, once the agent opens it, holds its checkable items, such as the lesson stored in a file)

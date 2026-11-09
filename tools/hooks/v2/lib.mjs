@@ -743,7 +743,11 @@ export function securityGaps(acts) {
   if (!spec?.pattern) return [];
   let rx; try { rx = new RegExp(spec.pattern, 'i'); } catch { return []; }
   const files = (spec.files || []).map(globRx), ignore = (spec.ignore || []).map(globRx);
-  const covered = r => files.some(x => x.test(r)) && !ignore.some(x => x.test(r)) && !/^(\.\.|[a-z]:)/i.test(r);
+  // (generated skill mirrors and the engine's own folder are copies of the engine's code, not this project's: an install
+  // writes them. Lesson (the user, 2026-11-08): an install turn was held three rounds for a security review of the
+  // engine's own skill scripts copied into .agents/skills)
+  const mirrors = [...[].concat(projectConfig().skillMirrors || ['.claude/skills', '.agents/skills']), '.anzuelo/engine'].map(m => m.replace(/\\/g, '/').replace(/\/+$/, '') + '/');
+  const covered = r => files.some(x => x.test(r)) && !ignore.some(x => x.test(r)) && !/^(\.\.|[a-z]:)/i.test(r) && !mirrors.some(m => r.startsWith(m));
   const text = c => String(c.input.new_string ?? c.input.content ?? (c.input.edits || []).map(e => e.new_string).join('\n'));
   // (the file and the words that set it off, so the agent can tell a real hit from a false one. Lesson (the old engine))
   const hit = acts.calls.filter(c => /^(Edit|Write|MultiEdit)$/.test(c.name) && covered(relp(c.input.file_path || ''))).map(c => ({ f: relp(c.input.file_path), w: rx.exec(text(c))?.[0] })).filter(h => h.w);

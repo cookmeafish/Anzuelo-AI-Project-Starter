@@ -6,6 +6,7 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-08 (an install held for a security review, the user): the security check no longer reads generated skill mirrors (.claude/skills, .agents/skills) or .anzuelo/engine: an install copies the engine's own skill scripts there, and the turn was held three rounds for them.
 - 2026-11-08 (starting a project from a plain clone, the user): `git clone` inside a new project's folder makes a subfolder named after the repository; `new-project.mjs --self-install` now takes its parent as the project, installs the engine into the parent's `.anzuelo` (keeping the folder's own files) and removes the clone, where it used to stop and the agent asked where the project should go.
 - 2026-11-08 (refused runs, from the v2 re-sweep): a test or build run the host refused (it needs an approval, or it was denied) never ran, so it is no failing run under v2, and no root cause is asked for it.
 - 2026-11-08 (skills only read, from the v2 re-sweep): a skill read counts as used, except during setup or in a turn that read 3 or more skills; then only when the answer names it ("Skill: x") or one of its scripts ran (setup was held to a letter skill's draft; a dictated note to the research skill's sources).
