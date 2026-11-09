@@ -13,7 +13,10 @@ import { forbiddenRe } from '../settings.mjs';
 import { INJ_PLANTED, INJ_AIMED, INJ_WARNED } from '../injection.mjs';
 import { verbatimHits } from './verbatim.mjs';
 import { hexIds } from '../claims.mjs';
-import { SELF_KEY } from '../selfcmds.mjs';
+import { SELF_KEY, approvedBefore } from '../selfcmds.mjs';
+// The time a session began: the first timestamp in its transcript (read from its start, never the whole file).
+export const sessionStart = file => { try { const fd = fs.openSync(file, 'r'), b = Buffer.alloc(65536), n = fs.readSync(fd, b, 0, b.length, 0); fs.closeSync(fd);
+  return /"timestamp":"(\d{4}-\d\d-\d\dT[^"]+)"/.exec(b.toString('utf8', 0, n))?.[1] || null; } catch { return null; } };
 
 export const ROOT = process.env.ANZUELO_ROOT || process.cwd();
 // (where each file is: in a project with the engine in .anzuelo/engine, runbooks and skills come from the local copy
@@ -870,7 +873,9 @@ export function autoRuns(acts) {
   // the user adds to (hooks.mjs self-allow, refused to the agent by the guard). Any other is not run, and its check
   // asks the agent to run it, as before. Lesson (a peer's security review): an always.md line is markdown agents edit,
   // so injected text could have the end check run any command)
-  const allowed = new Set(selfCommands());
+  // (and on the list as committed before this session began, so nothing added during it, by any route, counts; one the
+  // user took off since, uncommitted, is off at once)
+  const allowed = new Set(want.length ? approvedBefore(at('tools/hooks/config.json'), acts.sessionStart || null).filter(c => selfCommands().includes(c)) : []);
   const out = [];
   for (const w of [...new Map(want.filter(w => allowed.has(w.cmd.trim())).map(w => [w.cmd, w])).values()]) {
     const r = selfRunOnce(acts, w.cmd), passRx = (() => { try { return w.pass ? reqRe(w.pass) : null; } catch { return null; } })();

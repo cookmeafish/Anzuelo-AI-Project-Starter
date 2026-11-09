@@ -1347,7 +1347,7 @@ const PROMPT = [
   // (Lesson (trial v30): "run the hook tests" sent agents to the whole multi-minute self-test after one new check)
   { name: 'rule request hint: asks for the new check\'s own scenarios, not the whole self-test', prompt: 'from now on always give prices in euros', has: ['RULE REQUEST', 'selfcheck.mjs --tags <tag>, not the whole self-test'] },
   { name: 'word routing: key words in any order and with endings still route', prompt: 'please search for the latest version on the web', has: ['SKILL: research'] },
-  { name: 'upset-learned: shouting in capitals sends the agent to the learn-from-upset skill', prompt: 'WHY DID YOU SKIP THE SOURCES AGAIN', has: ['THE USER SOUNDS UPSET', 'learn-from-upset'] },
+  { name: 'upset-learned: shouting in capitals sends the agent to the learn-from-upset skill', prompt: 'WHY DID YOU SKIP THE SOURCES AGAIN', has: ['THE USER SOUNDS UPSET', 'learn-from-upset'], v2: { has: ['This sounds upset: open skills/learn-from-upset/SKILL.md'] } },
   { name: 'upset-learned: a calm request gets no upset hint', prompt: 'please add the sources to the desk note', hasNot: ['THE USER SOUNDS UPSET', '"systemMessage"'] },
   // REQ: prompt-visible. The user sees that the hooks heard them. (Lesson (the user): "i didn't see the hook icon")
   // (a guess from words is never shown: only what the agent confirms, at the end of the turn. Lesson (the user): "hide
@@ -2472,8 +2472,8 @@ PROMPT.push(
   { name: 'route: "the same every time" and "at the same time, ..." do not route to parallel-agents', prompt: 'at the same time, the soups taste the same every time, check the salt', hasNot: ['SKILL: parallel-agents'] },
   // upset-learned: complaints the patterns missed. Lesson (a field report): a calm "still has a ton of issues because
   // you're not following" and a shouted "DO YOU EVER THINK ABOUT THESE THINGS?" read as calm
-  { name: 'upset-learned: "still has a ton of issues ... because you\'re not following" is upset', prompt: 'the spring menu still has a ton of issues and its because ur not following the season', has: ['THE USER SOUNDS UPSET'] },
-  { name: 'upset-learned: "DO YOU EVER THINK ABOUT THESE THINGS?" is upset', prompt: 'DO YOU EVER THINK ABOUT THESE THINGS?', has: ['THE USER SOUNDS UPSET'] },
+  { name: 'upset-learned: "still has a ton of issues ... because you\'re not following" is upset', prompt: 'the spring menu still has a ton of issues and its because ur not following the season', has: ['THE USER SOUNDS UPSET'], v2: { has: ['This sounds upset: open skills/learn-from-upset/SKILL.md'] } },
+  { name: 'upset-learned: "DO YOU EVER THINK ABOUT THESE THINGS?" is upset', prompt: 'DO YOU EVER THINK ABOUT THESE THINGS?', has: ['THE USER SOUNDS UPSET'], v2: { has: ['This sounds upset: open skills/learn-from-upset/SKILL.md'] } },
   // (excitement and an intensifier are not anger. Lesson (a field report): a rule explained with "crazy!!", "a shit ton"
   // and words in capitals for emphasis read as upset, and its rule hint was dropped)
   { name: 'upset-learned: emphasis with "crazy!!" and "a shit ton of" in capitals is no upset', prompt: 'this stock is crazy!! a soup needs a shit ton of herbs, REALLY FRESH HERBS NOT DRIED ONES', hasNot: ['THE USER SOUNDS UPSET'] },

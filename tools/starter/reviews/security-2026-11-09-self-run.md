@@ -48,15 +48,22 @@ Pattern sweep (`skills/security-review/scripts/risky-patterns.mjs` over the new 
    grow and nothing new runs; not refused, and correctly so.
 5. A search or read naming the list (`grep`, `cat`): not refused.
 
+## Fixed after the first pass (same day, a peer's review)
+
+- **A script the agent writes, then runs, could change the config without naming the list** (a file written with the
+  Write tool, then `node that-file.mjs`). FAIL -> fixed: the end check honors only commands on the list as it stood in
+  the last commit made before the session began (`selfcmds.mjs` approvedBefore, `git rev-list --before=<session start>`)
+  and still on it now. An edit, a script or a commit made during the session approves nothing in that session. v2 test:
+  an uncommitted addition, and one committed after the session began, are not run; the next session runs the committed
+  one. Mutation: with the current list used instead, the test fails.
+- **Upgrades:** the converter carries every self-run the last commit held onto the list, with a DECISIONS line, so a
+  project's self-run keeps working after an upgrade with no step for the user (v2 upgrade test on a fixture project).
+
 ## Open, for the user to decide
 
-- **A script the agent writes, then runs, could change the config without naming the list in the command** (for example
-  a file written with the Write tool, then `node that-file.mjs`). The guard sees neither step as a change to the list.
-  That run still goes through the host's own permission prompt for shell commands, like any command the agent runs, so
-  it is no worse than the agent running the command itself. Severity: low. A stronger form (only commands that were on
-  the list in the last commit run) would also stop it within a session; not done.
-- **The converter keeps a self-run that is in the last commit.** A commit the agent made earlier in the same session
-  counts. Severity: low; the commit and its DECISIONS line are visible to the user.
+- **What is committed counts from the next session.** An agent that commits a changed list in one session gets it
+  honored in later ones; the commit and the change to `tools/hooks/config.json` are in the git history for the user to
+  see. Severity: low. No signal in a repository tells the user's commits from the agent's.
 
 ## Not run
 

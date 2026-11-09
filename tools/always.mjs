@@ -68,11 +68,15 @@ export function asItems(r) {
   if (back.some((b, i) => b.length !== marks + 1 || b.some((x, j) => x !== want[i][j]) || (read[i].self || null) !== selfOf(req[i][1]))) return { bad: ['a regex nested deeper than a marker can hold'] };
   return { lines };
 }
-// The selfRun commands with selfAuto among these checks that the project's last commit already held, word for word.
-export function committedSelfRuns(checks, headText = (() => { const r = spawnSync('git', ['show', 'HEAD:tools/hooks/requirements.json'], { cwd: ROOT, encoding: 'utf8' }); return r.status === 0 ? r.stdout : ''; })()) {
+// Every self-run the project's last commit held, word for word: a requirements.json toolPassed with selfRun and selfAuto
+// (any tag, a pack check's own version included) and an always.md item's "(self: <command>)". An upgrade runs this
+// before its own commit, so the last commit is the project as the user had it. Lesson (a peer's review): an upgrade must
+// keep a project's working self-runs running, with no step for the user.
+const atHead = f => { const r = spawnSync('git', ['show', `HEAD:${f}`], { cwd: ROOT, encoding: 'utf8' }); return r.status === 0 ? r.stdout : ''; };
+export function committedSelfRuns(reqText = atHead('tools/hooks/requirements.json'), alwaysText = atHead(ALWAYS_FILE)) {
   const runs = c => !c || typeof c !== 'object' ? [] : [...(c.toolPassed?.selfRun && c.toolPassed?.selfAuto ? [String(c.toolPassed.selfRun).trim()] : []), ...(c.anyOf || []).flatMap(runs)];
-  let head = []; try { head = (JSON.parse(headText).requirements || []).flatMap(r => runs(r?.require)); } catch { }
-  return [...new Set(checks.flatMap(r => runs(r?.require)).filter(c => head.includes(c)))];
+  let fromReq = []; try { fromReq = (JSON.parse(reqText).requirements || []).flatMap(r => runs(r?.require)); } catch { }
+  return [...new Set([...fromReq, ...doneWhen(alwaysText).map(it => it.self).filter(Boolean)])];
 }
 // (a check already said by a runbook's "Done when" with the same markers is there already, not converted twice.
 // Lesson (a field report): two checks moved into a runbook by hand were written again into always.md)
@@ -124,9 +128,10 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   console.log(`converted ${out.length} line(s) into ${ALWAYS_FILE}${process.argv.includes('--dry-run') ? ' (dry run)' : ''}`);
   // (a self-run the project already had, in its last commit, stays approved: it goes on the user's list, recorded in the
   // decisions file. One added since, by anyone, is not approved here: only the user's self-allow adds it. REQ: self-commands)
-  if (!dry) { const approved = committedSelfRuns(todo);
+  if (!dry) { const approved = committedSelfRuns();
     if (approved.length) { const { allowSelf } = await import('./hooks/selfcmds.mjs');
-      for (const c of approved) if (allowSelf(ROOT, c).added) fs.appendFileSync(at('docs/DECISIONS.md'), `\n- ${new Date().toISOString().slice(0, 10)}: kept approved for the end check to run itself (converted from requirements.json, in the last commit): \`${c}\`\n`);
-      console.log(`kept ${approved.length} self-run command(s) approved (they were in the last commit)`); } }
+      let added = 0;
+      for (const c of approved) if (allowSelf(ROOT, c).added && ++added) fs.appendFileSync(at('docs/DECISIONS.md'), `\n- ${new Date().toISOString().slice(0, 10)}: kept approved for the end check to run itself (converted from requirements.json, in the last commit): \`${c}\`\n`);
+      if (added) console.log(`kept ${added} self-run command(s) approved (they were in the last commit)`); } }
   if (left.length) { console.log(`NOT converted, move each by hand into a runbook's or ${ALWAYS_FILE}'s "Done when" (add <!-- req: <tag> --> to it):\n- ${left.join('\n- ')}`); process.exit(1); }
 }

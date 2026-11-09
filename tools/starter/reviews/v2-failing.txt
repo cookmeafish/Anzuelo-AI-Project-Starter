@@ -1,5 +1,4 @@
 # Old-suite tests engine v2 still fails (tools/starter/v2-sweep.mjs). It only shrinks: a port takes its names off.
-# Built 2026-11-08 from a2678ef: the failures that also failed at 496355d. A failure not listed here fails the chain.
 agent-neutral: begin routes, check fails an incomplete answer and passes a complete one
 begin-keeps-turn: a mid-turn begin in a hooked session shows the routing and keeps the turn start; a session without a hook record starts its turn
 bench-caches: a timing run keeps the caches it rebuilt and writes no session state
@@ -197,9 +196,6 @@ prompt: status-first: Spanish "¿ya terminó?" asks for the status first
 prompt: trigger-words: the same word in capitals with other words still does
 prompt: unknown menu code asks
 prompt: unresolved checks from the last turn are announced
-prompt: upset-learned: "DO YOU EVER THINK ABOUT THESE THINGS?" is upset
-prompt: upset-learned: "still has a ton of issues ... because you're not following" is upset
-prompt: upset-learned: shouting in capitals sends the agent to the learn-from-upset skill
 prompt: word routing: key words in any order and with endings still route
 recall-hint: a request like an earlier one gets how it was solved; an unrelated one gets nothing; recall.mjs finds it
 records-once flow (check change): round 1 lists each step once; round 2 has no record step (the check still needs its proof); the lesson in memory counts; the open records reach the next related turn
