@@ -52,7 +52,8 @@ const ENGINE = [
 // hardened/harden/keep marks (mergeSkill). Lesson: project.md was in neither list, so upgraded projects kept an old copy
 // whose "Done when" items had no (hook:)/(judgment:) labels, and done-when-labeled fired on the engine's own runbook.
 // Added on upgrade only when missing: the project may have tuned them.
-const ENGINE_IF_MISSING = ['tools/hooks/project-scenarios.mjs', 'docs/plans/README.md', 'docs/security.md', 'docs/names.json', 'docs/glossary.md'];
+// (docs/checks/always.md holds the project's own standing rules: made once, never replaced)
+const ENGINE_IF_MISSING = ['tools/hooks/project-scenarios.mjs', 'docs/plans/README.md', 'docs/security.md', 'docs/names.json', 'docs/glossary.md', 'docs/checks/always.md'];
 // Core skills are engine too: an upgrade replaces each whole folder (SKILL.md, references, scripts, LICENSE, SOURCE).
 // Engine skills merged into another (the old folder and its checks go on upgrade), and pack runbooks whose job an engine
 // skill took over (the upgrade review offers to merge them; the project may have tuned them).
