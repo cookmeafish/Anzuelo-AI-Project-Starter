@@ -387,8 +387,6 @@ stop: note-linked: a new note in a knowledgeDirs folder that links to nothing: b
 stop: note-linked: a new note that links to nothing: blocked
 stop: note-linked: a new note with its related notes: passes
 stop: notes-vault: a new note links to two notes and only one links back: blocked
-stop: notice-answer: a headless short reply to a notice after a clean end: blocked
-stop: notice-answer: a headless short reply to a wakeup that fired after a clean end: blocked
 stop: parallel work in the background, with a project check written before "waitsForAgents" existed: still waits
 stop: parallel work still running in the background: the merge check waits
 stop: pause-stops: code changed without a CHANGELOG line: blocked (the control)
