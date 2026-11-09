@@ -650,7 +650,17 @@ const mtime = f => { try { return fs.statSync(at(f)).mtimeMs; } catch { return 0
 export const earlierPrompts = (text, before) => String(text || '').split('\n').flatMap(l => { let r; try { r = JSON.parse(l); } catch { return []; }
   const c = userText(r); return r.type === 'user' && c !== null && !c.startsWith('<') && (!before || String(r.timestamp || '') < before) ? [c] : []; }).slice(-5);
 // (the settings as this project has them: the engine's defaults, then the project's config.json)
-export const projectConfig = () => { const j = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return {}; } }; return { ...j(new URL('../defaults.json', import.meta.url)), ...j(at('tools/hooks/config.json')) }; };
+// (read once per state of the two files, keyed by their time and size, so a config edited mid-run is read again.
+// Lesson (a project's upgrade report): about 15 reads per Stop, 11 ms, the largest part of a slower end check)
+let configMemo = { key: null, v: null };
+export const projectConfig = () => {
+  const files = [fileURLToPath(new URL('../defaults.json', import.meta.url)), at('tools/hooks/config.json')];
+  const key = files.map(f => { try { const s = fs.statSync(f); return `${s.mtimeMs}:${s.size}`; } catch { return '-'; } }).join('|');
+  if (configMemo.key === key) return { ...configMemo.v };
+  const j = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return {}; } };
+  configMemo = { key, v: { ...j(files[0]), ...j(files[1]) } };
+  return { ...configMemo.v };
+};
 export function scopeGaps(acts) {
   const cfg = projectConfig(), ppl = people(cfg, { list: d => { try { return listAll(d); } catch { return []; } }, read, path: at });
   // (setup: the setup prompt is there in a project, not the starter's own template, or this turn removed it. Lesson

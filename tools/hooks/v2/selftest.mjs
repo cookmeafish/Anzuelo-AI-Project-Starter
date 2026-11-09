@@ -1444,6 +1444,26 @@ const { questionGaps } = await import('./lib.mjs');
   fs.rmSync(path.join(dir, '.starter-dev'));
   report(project === false && starter === true, 'end: in the starter, its own changelog meets a docs/CHANGELOG.md item; in a project it does not', { project, starter });
 }
+// (speed: the project's config is read once per state of its files, not by every check; an edit is still seen at once.
+// Lesson (a project's upgrade report): about 15 reads per Stop made the end check slower than the engine before it)
+{
+  const { projectConfig } = await import('./lib.mjs');
+  const cf = path.join(dir, 'tools/hooks/config.json'), kept = fs.existsSync(cf) ? fs.readFileSync(cf, 'utf8') : null;
+  fs.mkdirSync(path.dirname(cf), { recursive: true }); fs.writeFileSync(cf, JSON.stringify({ autonomy: 'ask', memoProbe: 1 }));
+  const real = fs.readFileSync; let reads = 0;
+  fs.readFileSync = function (f, ...a) { if (/config\.json$|defaults\.json$/.test(String(f))) reads++; return real.call(this, f, ...a); };
+  let first, again, edited;
+  try {
+    first = projectConfig().memoProbe; reads = 0;
+    for (let i = 0; i < 10; i++) again = projectConfig().memoProbe;
+    const repeat = reads;
+    fs.writeFileSync(cf, JSON.stringify({ autonomy: 'ask', memoProbe: 22 }));
+    edited = projectConfig().memoProbe;
+    reads = repeat;
+  } finally { fs.readFileSync = real; }
+  kept === null ? fs.rmSync(cf, { force: true }) : fs.writeFileSync(cf, kept);
+  report(first === 1 && again === 1 && reads === 0 && edited === 22, 'speed: the project config is read once per state of its files, however many checks ask, and an edited config is read again', { first, again, reads, edited });
+}
 // end: a "(when file: ...)" marker: a file only touched this turn (its content is still the commit made before the turn,
 // as when a test touches its own files) is not changed; one whose content differs, or one edited and committed this
 // turn, is (Lesson (a project's upgrade report): the upgrade ran the project's test, which touches itself, and the
