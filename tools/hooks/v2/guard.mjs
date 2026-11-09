@@ -5,13 +5,14 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { ENGINE, split, kind } from '../paths.mjs';
 import { commitIds } from '../claims.mjs';
+import { selfListGrows, selfCmdWrites } from '../selfcmds.mjs';
 export { commitIds };
 // Shared helpers come from the loader (use(hooksModule)): an import cycle left the hook waiting forever.
 let H = null;
 export const use = h => { H = h; };
 
 // REQ: quiet-work. Refused during work: the irreversible, leaks, a user's protection, a hung headless run. Rest: end check.
-export const IN_WORK_GUARDS = /^REQ: (approval-gate|browser-guard|claim-checked|commit-gate|engine-readonly|forbidden-command|forbidden-terms|git-safety|gitignore-ready|headless-no-wakeup|injection-guard|no-ai-attribution|no-overwrite|no-secrets|outward-gate|permission-respected|protect-originals|publish-gate|scope-separate|setup-[\w-]+|shell-hygiene|skill-mirror|subagent-brief|wakeup-left|whole-output|write-only-via)\b/;
+export const IN_WORK_GUARDS = /^REQ: (approval-gate|self-commands|browser-guard|claim-checked|commit-gate|engine-readonly|forbidden-command|forbidden-terms|git-safety|gitignore-ready|headless-no-wakeup|injection-guard|no-ai-attribution|no-overwrite|no-secrets|outward-gate|permission-respected|protect-originals|publish-gate|scope-separate|setup-[\w-]+|shell-hygiene|skill-mirror|subagent-brief|wakeup-left|whole-output|write-only-via)\b/;
 // A path pattern in an approved list as a regex: "**/" is any number of folders, none included; "**" anything; "*"
 // within one folder. Lesson (a sweep for the root-file glob bug): "old/**" covered one level only, "**/*.bak" no root file
 export const wildRx = g => new RegExp(`(^|/)${String(g).split('**/').map(a => a.split('**').map(b => b.split('*').map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[^/]*')).join('.*')).join('(?:.*/)?')}$`, 'i');
@@ -183,6 +184,9 @@ export function pretoolHits(data, cfg) {
     gitignoreProblems, runText, today, aiAttributedCommits, outwardCommand, AUTONOMY_WORDS, setupCompleteness, setupProblems,
     names, inTimeOrder, redirectedRun, pathsPeople, shellParts, inlineCodeOut, sedInPlaceFiles, cmdHead, gateResult } = H;
   const out = [], add = m => { if (m && !out.includes(m)) out.push(m); };
+  // REQ: self-commands. Only the user adds a command the end check may run itself (selfcmds.mjs).
+  if (selfListGrows(data.tool_name, data.tool_input, ROOT) || (/^(Bash|PowerShell)$/.test(data.tool_name || '') && selfCmdWrites(data.tool_input?.command)))
+    add('REQ: self-commands. Only the user approves a command for the end check to run itself. Run the check yourself instead, and if it should run on its own, give the user the line to paste: `! node tools/hooks/hooks.mjs self-allow "<the exact command>"`.');
   if (data.tool_name === 'apply_patch' || (/^(Bash|shell)$/.test(data.tool_name || '') && /^\s*apply_patch\b/.test(data.tool_input?.command || ''))) {
     for (const f of patchFiles(data.tool_input?.command || data.tool_input?.patch || data.tool_input?.input || '')) {
       const sub = f.op === 'delete' ? { tool_name: 'Bash', tool_input: { command: `rm "${f.file}"` } }

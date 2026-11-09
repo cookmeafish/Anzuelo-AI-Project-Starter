@@ -8,6 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
 
 import { ROOT } from './hooks/settings.mjs';
 import { doneWhen } from './hooks/v2/lib.mjs';
@@ -67,6 +68,12 @@ export function asItems(r) {
   if (back.some((b, i) => b.length !== marks + 1 || b.some((x, j) => x !== want[i][j]) || (read[i].self || null) !== selfOf(req[i][1]))) return { bad: ['a regex nested deeper than a marker can hold'] };
   return { lines };
 }
+// The selfRun commands with selfAuto among these checks that the project's last commit already held, word for word.
+export function committedSelfRuns(checks, headText = (() => { const r = spawnSync('git', ['show', 'HEAD:tools/hooks/requirements.json'], { cwd: ROOT, encoding: 'utf8' }); return r.status === 0 ? r.stdout : ''; })()) {
+  const runs = c => !c || typeof c !== 'object' ? [] : [...(c.toolPassed?.selfRun && c.toolPassed?.selfAuto ? [String(c.toolPassed.selfRun).trim()] : []), ...(c.anyOf || []).flatMap(runs)];
+  let head = []; try { head = (JSON.parse(headText).requirements || []).flatMap(r => runs(r?.require)); } catch { }
+  return [...new Set(checks.flatMap(r => runs(r?.require)).filter(c => head.includes(c)))];
+}
 // (a check already said by a runbook's "Done when" with the same markers is there already, not converted twice.
 // Lesson (a field report): two checks moved into a runbook by hand were written again into always.md)
 const listDir = d => { try { return fs.readdirSync(at(d)); } catch { return []; } };
@@ -115,5 +122,11 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     fs.writeFileSync(at(ALWAYS_FILE), `${text.replace(/\s*$/, '\n')}${out.join('\n')}\n`);
   }
   console.log(`converted ${out.length} line(s) into ${ALWAYS_FILE}${process.argv.includes('--dry-run') ? ' (dry run)' : ''}`);
+  // (a self-run the project already had, in its last commit, stays approved: it goes on the user's list, recorded in the
+  // decisions file. One added since, by anyone, is not approved here: only the user's self-allow adds it. REQ: self-commands)
+  if (!dry) { const approved = committedSelfRuns(todo);
+    if (approved.length) { const { allowSelf } = await import('./hooks/selfcmds.mjs');
+      for (const c of approved) if (allowSelf(ROOT, c).added) fs.appendFileSync(at('docs/DECISIONS.md'), `\n- ${new Date().toISOString().slice(0, 10)}: kept approved for the end check to run itself (converted from requirements.json, in the last commit): \`${c}\`\n`);
+      console.log(`kept ${approved.length} self-run command(s) approved (they were in the last commit)`); } }
   if (left.length) { console.log(`NOT converted, move each by hand into a runbook's or ${ALWAYS_FILE}'s "Done when" (add <!-- req: <tag> --> to it):\n- ${left.join('\n- ')}`); process.exit(1); }
 }

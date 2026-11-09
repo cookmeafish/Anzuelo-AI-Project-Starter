@@ -13,6 +13,7 @@ import { forbiddenRe } from '../settings.mjs';
 import { INJ_PLANTED, INJ_AIMED, INJ_WARNED } from '../injection.mjs';
 import { verbatimHits } from './verbatim.mjs';
 import { hexIds } from '../claims.mjs';
+import { SELF_KEY } from '../selfcmds.mjs';
 
 export const ROOT = process.env.ANZUELO_ROOT || process.cwd();
 // (where each file is: in a project with the engine in .anzuelo/engine, runbooks and skills come from the local copy
@@ -844,6 +845,8 @@ function selfRunOnce(acts, cmd) {
   if (!m.has(cmd)) { const r = spawnSync(cmd, { cwd: ROOT, shell: true, encoding: 'utf8', timeout: 120000, maxBuffer: 1 << 24 }); m.set(cmd, { out: `${r.stdout || ''}\n${r.stderr || ''}`, status: r.status }); }
   return m.get(cmd);
 }
+// The commands the user approved for the end check to run itself (tools/hooks/config.json "selfCommands": selfcmds.mjs).
+export const selfCommands = () => [].concat(projectConfig()[SELF_KEY] || []).map(s => String(s).trim()).filter(Boolean);
 // REQ: self-run. A declared self-test the turn needed and never ran is run by the end check, once, and its result
 // becomes a run of the turn (acts.calls), so the test, gate, engine and always.md checks all judge it by its output, as
 // they would the agent's own run. Declared as requirements.json toolPassed { cmd, pass, selfRun, selfAuto: true }, any
@@ -863,8 +866,13 @@ export function autoRuns(acts) {
     if (applies) want.push({ cmd: v.selfRun, pass: v.pass });
   }
   for (const it of doneWhen(read(ALWAYS))) if (it.self && it.kind && applies(it, acts) && met(it, acts) === false) want.push({ cmd: it.self, pass: it.kind === 'ran' && / => /.test(it.arg) ? it.arg.split(' => ').pop() : null });
+  // (only a command on the user's approved list runs, matched exactly: tools/hooks/config.json "selfCommands", which only
+  // the user adds to (hooks.mjs self-allow, refused to the agent by the guard). Any other is not run, and its check
+  // asks the agent to run it, as before. Lesson (a peer's security review): an always.md line is markdown agents edit,
+  // so injected text could have the end check run any command)
+  const allowed = new Set(selfCommands());
   const out = [];
-  for (const w of [...new Map(want.map(w => [w.cmd, w])).values()]) {
+  for (const w of [...new Map(want.filter(w => allowed.has(w.cmd.trim())).map(w => [w.cmd, w])).values()]) {
     const r = selfRunOnce(acts, w.cmd), passRx = (() => { try { return w.pass ? reqRe(w.pass) : null; } catch { return null; } })();
     const failed = r.status !== 0 || (passRx && !passRx.test(r.out));
     acts.calls.push({ name: 'Bash', input: { command: w.cmd }, out: r.out, error: failed, done: Date.now(), auto: true });

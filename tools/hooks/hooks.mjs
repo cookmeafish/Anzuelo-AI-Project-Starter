@@ -8478,6 +8478,13 @@ if (isMain) {
     if (!key) { console.log(`usage: node tools/hooks/hooks.mjs setting <key> [<value>] (settings: ${Object.keys(DEFAULTS).join(', ')})`); process.exit(2); }
     const r = setting(key, v.length ? v.join(' ') : undefined); console.log(r.msg); process.exit(r.ok ? 0 : 2);
   }
+  // REQ: self-commands. The user's own command: approve one exact command for the end check to run itself, recorded in
+  // the decisions file. The guard refuses it to the agent.
+  if (cmd === 'self-allow') {
+    const { allowSelf } = await import('./selfcmds.mjs'), c = process.argv.slice(3).join(' '), r = allowSelf(ROOT, c);
+    if (r.added) try { fs.appendFileSync(abs('docs/DECISIONS.md'), `\n- ${today()}: approved for the end check to run itself (self-allow): \`${c.trim()}\`\n`); } catch { }
+    console.log(r.msg); process.exit(r.ok ? 0 : 2);
+  }
   if (cmd === 'notices') { console.log(notices(config()).join('\n') || 'no notices.'); process.exit(0); }
   // one line per check of the project (requirements.json and enabled packs): its tag and what it asks, so an agent
   // learns them without reading the whole file. Lesson, efficiency trials: setups read the ~60,000-character file whole.
