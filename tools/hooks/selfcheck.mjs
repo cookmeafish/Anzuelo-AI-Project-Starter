@@ -2935,14 +2935,18 @@ function runStop(s0) {
     if (s.turnEnd) write(dir, { 'tools/hooks/state/turn-end.json': JSON.stringify({ at: new Date().toISOString(), key: `${tp}|${since}`, clean: true, ...s.turnEnd }) });
     write(dir, s.files);
     for (const [p, off] of Object.entries(s.mtimes || {})) { const t = (Date.now() + off) / 1000; fs.utimesSync(path.join(dir, p), t, t); }
-    const { out, err } = run(dir, 'stop', { transcript_path: tp, stop_hook_active: !!s.active, ...(s.last ? { last_assistant_message: s.last } : {}), ...(s.hookInput || {}) }, s.host);
+    // (under v2 each scenario has a session, so its Stop decision is logged and a failing scenario says which way it went:
+    // judged and passed, waiting on a background run, or ended early. Lesson: an intermittent wrong pass left no trace)
+    const V2SID = process.env.STARTER_ENGINE === 'v2' ? { session_id: 'scenario' } : {};
+    const { out, err } = run(dir, 'stop', { transcript_path: tp, stop_hook_active: !!s.active, ...V2SID, ...(s.last ? { last_assistant_message: s.last } : {}), ...(s.hookInput || {}) }, s.host);
+    let decision = ''; try { decision = fs.readFileSync(path.join(dir, 'tools/hooks/state/stop-log.jsonl'), 'utf8').trim().split('\n').pop() || ''; } catch { }
     let d = null; try { d = out.trim() ? JSON.parse(out) : null; } catch { }
     // either form asks for more work: the classic block, or the calm feedback form (stopStyle)
     const reason = d ? d.reason || d.hookSpecificOutput?.additionalContext || '' : '';
     const after = s.after ? s.after(dir, reason, d) : true;
     // the full steps behind the short message (hooks.mjs why)
     let details = ''; try { details = fs.readFileSync(path.join(dir, 'tools/hooks/state/stop-details.md'), 'utf8'); } catch { }
-    return { blocked: !!(d && (d.decision === 'block' || d.hookSpecificOutput?.additionalContext)), reason, details, err, after };
+    return { blocked: !!(d && (d.decision === 'block' || d.hookSpecificOutput?.additionalContext)), reason, details, err, after, decision };
   } finally { giveBack(dir, !!s.own); }
 }
 
@@ -5051,7 +5055,7 @@ for (const s0 of STOP) {
     why ||= 'this scenario checks nothing: a pass scenario needs block: false (a block scenario needs block: true and its tags, or "not" to judge it on tags only)';
   if (s.expect.says && !s.expect.says.test(`${r.reason || ''}\n${r.details || ''}`)) why ||= `the message does not say ${s.expect.says}: ${r.reason || '(no block)'}`;
   if (!why && r.after !== true) why = r.after;
-  report(!why, 'stop: ' + s.name, why && process.env.DBG_REASON ? `${why} DBG ${String(r.reason || '').replace(/\n/g, ' / ').slice(0, 600)}` : why);
+  report(!why, 'stop: ' + s.name, why && process.env.DBG_REASON ? `${why} DBG ${String(r.reason || '').replace(/\n/g, ' / ').slice(0, 600)}` : why && r.decision && !r.blocked ? `${why} [v2 decision: ${r.decision.slice(0, 300)}]` : why);
 }
 
 for (const s of PRETOOL) {
