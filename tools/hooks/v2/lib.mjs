@@ -114,7 +114,16 @@ export function doneWhen(text) {
   });
 }
 
+// (each runbook is read and parsed once per hook run: several checks ask for the list. Keyed on every file's full path,
+// time and size, so a file a step rewrites, or another project root, is read fresh. Lesson (oversight bench,
+// 2026-11-10): the runbooks were read and parsed again by each check, about 38 ms of every Stop)
+const sigOf = files => files.map(f => { try { const s = fs.statSync(at(f)); return `${at(f)}:${s.mtimeMs}:${s.size}`; } catch { return `${at(f)}:-`; } }).join('|');
+let booksMemo = { sig: null, out: null };
 export function runbooks() {
+  const files = [];
+  for (const d of RUNBOOK_DIRS) { let names = []; try { names = listAll(d); } catch { continue; } files.push(...names.filter(f => f.endsWith('.md') && !f.startsWith('_')).map(f => `${d}/${f}`)); }
+  const sig = sigOf(files);
+  if (booksMemo.sig === sig) return booksMemo.out.map(b => ({ ...b }));
   const out = [];
   for (const d of RUNBOOK_DIRS) {
     let names = []; try { names = listAll(d); } catch { continue; }
@@ -127,7 +136,8 @@ export function runbooks() {
       out.push({ name: f.replace(/\.md$/, ''), file, triggers, menu, items: doneWhen(text), skills, front: fm });
     }
   }
-  return out;
+  booksMemo = { sig, out };
+  return out.map(b => ({ ...b }));
 }
 // The skills with a route of their own (skills/<name>/SKILL.md with triggers): not a runbook's mirror, not generated,
 // not a part of a runbook ("runbook:"). Lesson (trial v44): "what was our best week, and what drove it?" matched the
@@ -1576,6 +1586,14 @@ export function scopeGeneralGaps(acts) {
 export function aiCreditGaps(acts) {
   const since = Date.parse(acts.at || '') || 0;
   if (!since || !fs.existsSync(at('.git'))) return [];
+  // (lazy: every commit, whoever makes it, writes git's reflog, so a reflog untouched since the turn began means no commit
+  // to scan, and the git log is skipped (a worktree's ".git" file names its git folder). A repository without the reflog
+  // is scanned as before. Lesson (oversight bench, 2026-11-10): the scan cost 21 ms of every Stop, the most of v2's new
+  // per-turn checks)
+  try {
+    const g = fs.statSync(at('.git')).isDirectory() ? at('.git') : path.resolve(ROOT, /^gitdir:\s*(.+)$/m.exec(fs.readFileSync(at('.git'), 'utf8'))[1].trim());
+    if (fs.statSync(path.join(g, 'logs', 'HEAD')).mtimeMs < since - 1000) return [];
+  } catch { }
   const bad = aiAttributedCommits(projectConfig(), since);
   return bad.length ? [`Commits made this turn credit an AI agent: ${bad.join(', ')}. Reword them (git commit --amend for the last one) so they are solely the user's, and don't push until fixed.`] : [];
 }

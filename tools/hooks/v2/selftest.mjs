@@ -62,6 +62,20 @@ const { turnRows, turnActs, worked } = await import('./lib.mjs');
 
 let pass = 0, fail = 0;
 const report = (ok, name, detail = '') => { if (ok) pass++; else { fail++; console.log(`FAIL  ${name}  -> ${detail}`); } };
+// (the runbook list is parsed once per run, but a runbook rewritten in that run, or a new one, is read fresh)
+{
+  const { runbooks } = await import('./lib.mjs');
+  const first = runbooks().find(b => b.name === 'long');
+  put('docs/playbooks/long.md', '---\ntriggers: long job, much longer job\n---\n## Done when\n1. Only one step now\n');
+  const again = runbooks().find(b => b.name === 'long');
+  put('docs/playbooks/zz-new.md', '---\ntriggers: brand new job\n---\n## Done when\n1. A step\n');
+  const added = runbooks().some(b => b.name === 'zz-new');
+  fs.rmSync(path.join(dir, 'docs/playbooks/zz-new.md'));
+  put('docs/playbooks/long.md', `---\ntriggers: long job\n---\n## Done when\n${Array.from({ length: 14 }, (_, i) => `${i + 1}. Step number ${i + 1} is done`).join('\n')}\n`);
+  const back = runbooks().find(b => b.name === 'long');
+  report(first?.items.length === 14 && again?.items.length === 1 && again.triggers.includes('much longer job') && added && back?.items.length === 14 && !runbooks().some(b => b.name === 'zz-new'),
+    'runbooks: parsed once per run, and a runbook changed, added or removed in that run is read fresh', JSON.stringify([first?.items.length, again?.items.length, again?.triggers, added, back?.items.length]));
+}
 let id = 0;
 const user = text => ({ type: 'user', message: { role: 'user', content: text } });
 const call = (name, input, result = 'ok', error = false) => { const k = `t${++id}`; return [

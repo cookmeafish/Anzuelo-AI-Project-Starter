@@ -36,7 +36,10 @@ import { forbiddenGaps, codeRuleGaps, injectionGaps, verbatimGaps, CRASHED, cras
 import { ROOT, at, runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, questionGaps, noteGaps, quoteGaps, tail, helpersRunning, backgroundRuns, helperRuns, evidenceGaps, evidenceOf, skillBooks, alwaysGaps, scopeGaps, earlierPrompts, ALWAYS, engineCheckGaps, loadDirty, isSpanish } from './lib.mjs';
 // (the two data tables, one evaluator each: the project's always list and the engine's own checks)
 // (each check runs on its own: one that throws is named once with its error, and the rest still run)
-const S = (name, f) => { try { return f(); } catch (e) { return [crashLine(name, e)]; } };
+// (ANZUELO_V2_TIMING=1 prints each step's time to stderr, to find what a slower Stop spends; off, it costs nothing)
+const TIMES = process.env.ANZUELO_V2_TIMING ? [] : null;
+const laps = () => { let t = TIMES ? performance.now() : 0; return name => { if (!TIMES) return; const n = performance.now(); TIMES.push([name, Math.round((n - t) * 10) / 10]); t = n; }; };
+const S = (name, f) => { const t = TIMES ? performance.now() : 0; try { return f(); } catch (e) { return [crashLine(name, e)]; } finally { if (TIMES) TIMES.push([name, Math.round((performance.now() - t) * 10) / 10]); } };
 const tableGaps = acts => [...alwaysGaps(acts), ...engineCheckGaps(acts), ...forbiddenGaps(acts), ...codeRuleGaps(acts), ...injectionGaps(acts), ...verbatimGaps(acts), ...planGaps(acts)];
 // REQ: plan-required, under v2: the shared tools/hooks/planreq.mjs. A file is new this turn when git's last commit and
 // the turn-start snapshot do not have it and it was made after the turn began. The git lookup runs only when the cheap
@@ -189,7 +192,9 @@ export function toVerify(turn, acts, books = runbooks()) {
 let waiting = false, passed = null, decided = {};
 export function onStop(data, opts = {}) {
   waiting = false; passed = null; decided = {};
+  const t0 = TIMES ? (TIMES.length = 0, performance.now()) : 0;
   const out = judge(data, opts);
+  if (TIMES) process.stderr.write(`V2-STOP-TIMING ${JSON.stringify({ total: Math.round(performance.now() - t0), parts: TIMES.filter(([, ms]) => ms >= 0.5) })}\n`);
   // (each decision goes in the Stop log, "hooks.mjs last": its round, result and the steps it asked for)
   if (!opts.shadow) logStop(data.session_id, { request: decided.request || '', round: decided.round ?? null, result: out ? 'blocked' : waiting ? 'waiting' : decided.round ? 'passed' : 'ended', steps: out ? decided.steps || [] : [] });
   if (!out && !waiting && !opts.shadow) { const t = loadTurn(data.session_id); if (t.at) saveTurn(data.session_id, { ...t, ended: true }); }
@@ -505,7 +510,9 @@ function answerBeforeBlock(rows) {
 function judge(data, { shadow = false } = {}) {
   // (with no saved start, the turn starts at its request's own time. Lesson (a field report): the first turn after an
   // upgrade installed v2 had no saved start, so a file a script wrote did not count, and the request was blocked twice)
+  const lap = laps();
   const saved = loadTurn(data.session_id), rows = turnRows(data.transcript_path || '', saved.at);
+  lap('turn rows');
   if (data.stop_hook_active && !saved.at) return null; // (no record of the request: its blocks can't be counted)
   // (a background command of this turn still running is waited for like a helper: its result is not in yet. A server
   // or watcher never ends, so it does not count. Lesson (a project's report): a turn waiting on its full self-test was
@@ -522,6 +529,7 @@ function judge(data, { shadow = false } = {}) {
   const runs = helperRuns(data.transcript_path || '', data.session_id || '', turn.at);
   const acts = withBackgroundOutputs({ ...found, at: turn.at, calls: runs.length ? [...found.calls, ...runs].sort((a, b) => (a.at || 0) - (b.at || 0)) : found.calls }, rows);
   acts.startHashes = loadDirty(data.session_id || '', saved.at || '');
+  lap('acts (turn, helpers, start hashes)');
   // (the final answer as the host hands it over: the transcript may not hold it yet when the Stop hook runs. Lesson
   // (2026-11-07): an answer that ended with its Finished section was blocked for lacking one)
   const final = typeof data.last_assistant_message === 'string' ? data.last_assistant_message.trim() : '';
@@ -567,6 +575,7 @@ function judge(data, { shadow = false } = {}) {
   const raw = tail(data.transcript_path, 5 << 20), history = evidenceOf(raw);
   acts.earlier = earlierPrompts(raw, turn.at); acts.runbook = turn.runbook || ''; acts.transcriptPath = data.transcript_path || '';
   acts.issuesBefore = issuesBefore(raw, turn.at); acts.prior = priorCalls(raw, turn.at); acts.complaint = complaintTurn(acts);
+  lap('session transcript (tail, history, earlier)');
   // (a declared self-test the turn needed and never ran is run here first, so every check below judges its output;
   // never in a preview)
   let autos = []; if (!shadow) try { acts.sessionStart = sessionStart(data.transcript_path || '') || turn.at || null; autos = autoRuns(acts); } catch (e) { autos = [crashLine('self-run', e)]; }
@@ -578,6 +587,7 @@ function judge(data, { shadow = false } = {}) {
   // (REQ: watcher-left, the shared wakeups.mjs: a watcher armed in the session and not ended or named in the answer is
   // stopped before the answer, or its notice's reply replaces it. Lesson (the old suite under v2): v2 let one stay armed)
   const wakes = [...wakeGaps(sessionRows, final || acts.answer || '', acts.heard || ''), ...(checkOff('watcher-left') ? [] : watcherLeft(watchersArmed(sessionRows), final || acts.answer || ''))];
+  lap('self-runs, late, session rows, wakeups');
   const extra = (turn.also || []).flatMap(f => missing({ ...turn, runbook: f }, acts, runbooks().filter(b => b.file === f)));
   const resumedLost = [...(lost.length ? [headlessLine(lost)] : []), ...noticeAnswerGaps(rows, final || acts.answer, data.stop_hook_active)];
   const list = [...resent, ...resumedLost, ...late, ...autos, ...wakes, ...S('missing', () => [...emptyGaps(acts), ...missing(turn, acts), ...upsetGaps(turn, acts), ...ruleGaps(acts), ...watchedGaps(acts)]), ...extra, ...S('skillMissing', () => skillMissing(acts)), ...S('reviewGaps', () => reviewGaps(turn, acts)), ...S('testGaps', () => testGaps(acts, history)), ...S('gateGaps', () => gateGaps(acts)), ...S('screenGaps', () => screenGaps(acts)), ...S('healthGaps', () => [...healthGaps(acts, { run: !shadow }), ...upgradeGaps(turn, acts)]), ...S('knowledgeGaps', () => knowledgeGaps(acts)), ...S('securityGaps', () => securityGaps(acts)), ...S('questionGaps', () => [...questionGaps(acts), ...questionFileGaps(acts)]), ...S('noteGaps', () => noteGaps(acts)), ...S('quoteGaps', () => quoteGaps(acts)), ...S('claimGaps', () => claimGaps(acts, history)), ...S('scopeGaps', () => scopeGaps(acts)), ...S('tableGaps', () => tableGaps(acts)), ...S('planOpen', () => planOpenGaps(turn, acts, again)), ...S('externalStop', () => externalV2(data)), ...S('reviewExcuse', () => excuseV2(acts, rows)), ...S('friction', () => frictionV2(acts))].filter((s, i, all) => all.indexOf(s) === i);
