@@ -8,10 +8,11 @@ import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { roots, resolver } from '../paths.mjs';
 import { people, personOf, peopleIn, peopleFor } from '../people.mjs';
-import { inEnglish } from '../labels.mjs';
+import { inEnglish, EN_COPIES } from '../labels.mjs';
+import { writingProblems, plainWritingMsg } from '../writing.mjs';
 import { BASE_REQUIREMENTS, FAILED_RUN, MISSING_TOOL, PROBLEM_WORDS, DEV_NEW_PROJECT } from '../base-checks.mjs';
 import { knowledgeFromFiles as knowledgeFromFilesOf, figureProblems as figureProblemsOf } from '../knowledge.mjs';
-import { forbiddenRe, secretHit } from '../settings.mjs';
+import { forbiddenRe, secretHit, config as engineConfig } from '../settings.mjs';
 import { INJ_PLANTED, INJ_AIMED, INJ_WARNED } from '../injection.mjs';
 import { verbatimHits } from './verbatim.mjs';
 import { hexIds, gitClaimContradicted, REPORTED, IMPROVE_CLAIM, byHandClaim, describesClaim, groupVerdictClaim, namedPaths as sharedNamedPaths } from '../claims.mjs';
@@ -1464,7 +1465,19 @@ export function claimGaps(acts, history = '') {
   out.push(...worthV2(acts));
   out.push(...aiCreditGaps(acts));
   out.push(...scopeGeneralGaps(acts));
+  out.push(...plainWritingGaps(acts));
   return out;
+}
+
+// REQ: plain-writing, under v2 (rule 7): the shared tools/hooks/writing.mjs on the answer as written (not its English
+// label copies) and on every user-facing file the turn changed: em dashes, filler, walls of text, run-on sentences. With
+// the old engine's settings reader (extended lists, "fluffAllowed"). Lesson (the old suite under v2): v2 ran none of it
+export function plainWritingGaps(acts) {
+  if (checkOff('plain-writing') || waivedTag('plain-writing', acts)) return [];
+  const cfg = engineConfig();
+  const wp = [...writingProblems(String(acts.answer || '').split(EN_COPIES)[0], cfg, 'answer'),
+    ...changedOf(acts).filter(p => inGlobs(p, [].concat(cfg.userFacing || [])) && !inGlobs(p, [].concat(cfg.userFacingIgnore || [])) && fs.existsSync(at(p))).flatMap(p => writingProblems(read(p), cfg, p))];
+  return wp.length ? [plainWritingMsg(wp)] : [];
 }
 
 // REQ: scope-general, under v2. A request naming examples of a wider point ("or something else", "there might be

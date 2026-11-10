@@ -156,9 +156,6 @@ stop: note-linked: a new note in a knowledgeDirs folder that links to nothing: b
 stop: note-linked: a new note that links to nothing: blocked
 stop: parallel work in the background, with a project check written before "waitsForAgents" existed: still waits
 stop: parallel work still running in the background: the merge check waits
-stop: plain-writing: "I hope you" in a guide is still filler: blocked
-stop: plain-writing: a long run-on sentence in a real answer: blocked
-stop: plain-writing: the short step names the file with the problem
 stop: promptMatches: the same words typed by the user still count: blocked
 stop: queued mid-turn rule request is enforced: blocked
 stop: request about alice changed only alice's files: passes

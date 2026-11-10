@@ -2070,7 +2070,9 @@ STOP.push(
   // trial round 24: "Make the writing plain" held a turn for 3 rounds, and the answer was rewritten each time)
   { name: 'plain-writing: the short step names the file with the problem', prompt: 'make a runbook for meal planning', tools: [pb('project'), bash('node tools/audit.mjs')],
     files: { 'docs/playbooks/meal-plan.md': NEWPB + '\nIt is important to note that meals matter.\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.' + FIN,
-    expect: { block: true, tags: ['plain-writing'] }, after: (dir, reason) => /^\s*\d+\. Make the writing plain[^\n]*meal-plan\.md/m.test(reason) || `the short step names no file: ${reason.slice(0, 300)}` },
+    expect: { block: true, tags: ['plain-writing'] }, after: (dir, reason) => /^\s*\d+\. Make the writing plain[^\n]*meal-plan\.md/m.test(reason) || `the short step names no file: ${reason.slice(0, 300)}`,
+    // (v2 lists each step as one line: the same point, the file named in it)
+    v2: { after: (dir, reason) => /^- Make it plain and direct[^\n]*\(seen in [^\n]*meal-plan\.md\)/m.test(reason) || `the step names no file: ${reason.slice(0, 300)}` } },
   // runbooks
   { name: 'new runbook without a check: blocked', prompt: 'make a runbook for meal planning', tools: [pb('project'), bash('node tools/audit.mjs')],
     files: { 'docs/playbooks/meal-plan.md': NEWPB.replace('checks: none - a test runbook\n', ''), 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.' + FIN, expect: { block: true, tags: ['runbook-complete'] } },
@@ -5128,6 +5130,7 @@ const V2_ASKS = {
   'no-ai-attribution': /^- Commits made this turn credit an AI agent: /m,
   'scope-general': /^- The user named examples of a wider point/m,
   'external-stop': /^- The project's own Stop command \(/m,
+  'plain-writing': /^- Make it plain and direct \(docs\/checks\/writing-standards\.md\): /m,
   'watcher-left': /^- (A watcher you started is|Watchers you started are) still armed: /m,
   'review-excuse': /^- The answer skips the independent review because no other reviewer is available/m,
   'autonomy-decide': /^- The user asked for no questions: make each choice yourself/m,
