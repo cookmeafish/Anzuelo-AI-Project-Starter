@@ -5058,6 +5058,7 @@ const V2_ASKS = {
   'rule-request': /^- (Write the rule down|Say how the rule is enforced|Save the rule to memory)/m,
   'skill-learn': /^- This turn followed \S+ and its own check failed this turn\. Write the lesson into it/m,
   'plan-required': /^- This turn added \d+ new files \([^\n]*\) without a plan\./m,
+  'research-verified': /^- This turn used the web(?: in a knowledge project)?\. Follow the research skill/m,
   'upset-learned': /^- (The runbook your Issue line names|Give the point in general terms|Say the root cause|Say first whether it holds|Say what you checked to know it holds|Write the lesson where it stops the next miss|This is about the engine: send the lesson|The user is upset again in this session)/m,
 };
 // (an engine check from requirements.json is recognized by its own message, which v2's evaluator gives as "Check: ...")

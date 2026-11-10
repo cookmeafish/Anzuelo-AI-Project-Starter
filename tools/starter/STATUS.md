@@ -4,6 +4,13 @@ Where work on the starter itself stands, for the next session. Projects never ge
 docs/STATUS.md, which here is the template new projects start from).
 
 ## Now
+- 2026-11-10 (later): main and GitHub at 77e164d (release of 69df17f: check preview line, v2 plan-required, skill
+  hint on the user's own words; chain passed with time limits judged). Both projects sent the upgrade notice. Branch
+  app-port at 883fb67, not released: the plan rule in the preview line, v2 honoring switched-off checks, praise hint
+  (praise.mjs), relayed messages routed on what they ask (relay.mjs). Next: the v2 sweep on 883fb67 to shorten the
+  list, then a chain when quiet; then the skill check preview (a routed skill shows no "Done when" list under v2:
+  5 note-skill tests), route, answer-resent. The old count-honored switched-off test passes vacuously under v2 (v2 runs
+  no count check). Open: answer-traced intermittent; the stray branch app-port-head (deleting needs the user's OK).
 - 2026-11-10: main and GitHub at 52f2f42 (no-transcript check, stop-follow-on, honest v2 judging, release speed rule,
   plans as records, hooks-tested). Both projects upgraded, 0 regressions. Branch app-port (~/.anzuelo-work/app) at
   d679a28, not pushed: skill-learn (lesson named in round 1), the shrink-only v2 list rule, and v2 routing as the old

@@ -16,7 +16,7 @@ import { INJ_PLANTED, INJ_AIMED, INJ_WARNED } from '../injection.mjs';
 import { verbatimHits } from './verbatim.mjs';
 import { hexIds, gitClaimContradicted, REPORTED, IMPROVE_CLAIM, byHandClaim, describesClaim, groupVerdictClaim, namedPaths as sharedNamedPaths } from '../claims.mjs';
 import { makeProof } from '../proof.mjs';
-import { makeTrace } from '../trace.mjs';
+import { makeTrace, researchVerified } from '../trace.mjs';
 import { makeLaunchers } from '../launchers.mjs';
 import { makeGates } from '../gates.mjs';
 import { doneWhenGaps } from '../donewhen.mjs';
@@ -1591,9 +1591,13 @@ export function traceTurn(acts, history = '') {
 }
 export function traceGapsV2(acts, history = '') {
   const x = traceTurn(acts, history), cfg = projectConfig();
-  const ledgerRuns = x.runs.filter(r => /claims\.mjs\s+check\b/.test(r.cmd));
+  const ledgerRuns = x.runs.filter(r => /claims\.mjs\s+check\b/.test(gatesOf().runPart(r.cmd)));
   const researched = (acts.calls || []).some(c => (c.name === 'Read' && /skills[\\/]+research[\\/]+SKILL\.md$/i.test(String(c.input?.file_path || ''))) || (c.name === 'Skill' && /^research$/i.test(String(c.input?.skill || ''))));
-  return traceOf().traceGaps(x, cfg, { ledgerRuns, knowledge: [].concat(cfg.packs || []).includes('knowledge'), researched, promptWords: false }).map(g => g.msg);
+  const knowledge = [].concat(cfg.packs || []).includes('knowledge');
+  // (REQ: research-verified: web use goes through the research ledger, the shared trace.mjs rule. Lesson (the old suite
+  // under v2): v2 let web facts through with no ledger)
+  const web = checkOff('research-verified') ? null : researchVerified(x, cfg, { ledgerRuns, knowledge, researched });
+  return [...(web ? [web] : []), ...traceOf().traceGaps(x, cfg, { ledgerRuns, knowledge, researched, promptWords: false }).map(g => g.msg)];
 }
 
 // Whether the turn opened the runbook (read it, or ran its skill).

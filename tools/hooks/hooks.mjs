@@ -44,7 +44,7 @@ const HOOKTESTS = makeHookTests({ read: f => read(abs(f)), exists: (...a) => exi
   testInputsHash: (...a) => testInputsHash(...a), esc: (...a) => esc(...a), cmdHead: (...a) => cmdHead(...a), neverRan: (...a) => neverRan(...a), runsScript: (...a) => runsScript(...a),
   engineNote: (...a) => engineNote(...a), refusedOutright: (...a) => refusedOutright(...a), saysNotRun: (...a) => saysNotRun(...a), cantRunStep: (...a) => cantRunStep(...a) });
 export const { touchedChecks } = HOOKTESTS;
-import { makeTrace } from './trace.mjs';
+import { makeTrace, researchVerified } from './trace.mjs';
 const TRACE = makeTrace({ read: (...a) => read(...a), abs: (...a) => abs(...a), exists: (...a) => exists(...a), rel: (...a) => rel(...a), esc: (...a) => esc(...a),
   today: (...a) => today(...a), knowledgeRe: (...a) => knowledgeRe(...a), textOf: (...a) => textOf(...a), noteDirs: (...a) => noteDirs(...a) });
 export const { citedFile, citedClaimGaps, openedText } = TRACE;
@@ -4727,26 +4727,12 @@ export function coreChecks(x, cfg) {
   // paid and biased ones screened out. A knowledge project has no quick lookups; elsewhere "Quick lookup:" marks one.
   // (a curl to this machine, such as the project's own app server, is not the web. Lesson, field report: polling the
   // app's local API with curl set off the whole research ledger)
-  const web = x.toolsKnown && (x.uses.some(u => /^(WebSearch|WebFetch)$/.test(u.name)) || x.cmds.some(c => /\bddgs\s|search\.mjs|\bcurl\b[^|;&]*https?:\/\/(?!(localhost|127\.\d+\.\d+\.\d+|0\.0\.0\.0|\[::1\])(?![\w.-]))/.test(c)));
+  // (tools/hooks/trace.mjs researchVerified, shared with engine v2)
   // (a notes line written with printf that names the ledger check runs nothing. Lesson (trial v28): "Done 3: ... claims.mjs
   // check PASS" appended to the notes was taken for the last ledger run, and a passing ledger was asked for again)
   const ledgerRuns = x.runs.filter(r => /claims\.mjs\s+check\b/.test(runPart(r.cmd)) && !r.pending);
-  const ledgerOk = ledgerRuns.length && /CLAIMS: PASS/.test(ledgerRuns[ledgerRuns.length - 1].out || '');
   const knowledge = (cfg.packs || []).includes('knowledge'), researched = x.usedSkills.some(s => s.name === 'research');
-  // a search that found nothing has no claims to verify: it says what was searched, where, and when
-  // ("Searched: <what> - nothing found (<where>, 2026-10-20)"). Lesson: a "no proven list found" lookup was sent through
-  // the whole three-source ledger.
-  const nothingFound = /\bsearched:[^\n]*\b(nothing|no \w+( \w+)? found|not found|none found)\b[^\n]*\(\s*[^)\n]*\d{4}-\d\d-\d\d\s*\)/i.test(x.said);
-  // a project whose own research rule already asks for sources and a date names that rule's line in config
-  // ("researchCoveredBy": "<regex>"); an answer that carries it has met the project's rule instead. Lesson: an adopted
-  // project's market lookups, with their own source and date line, were sent through the whole ledger too.
-  const ownRule = (() => { try { return !!cfg.researchCoveredBy && new RegExp(cfg.researchCoveredBy, 'im').test(x.said); } catch { return false; } })();
-  if (web && (knowledge || researched) && !nothingFound && !ownRule &&!(ledgerOk && /verified:\s*\d+\s+claims/i.test(x.said)) && !(!knowledge && /\bquick lookup:/i.test(x.said)))
-    add('research-verified', `This turn used the web${knowledge ? ' in a knowledge project' : ''}. Follow the research skill, situation C: a ledger (node skills/research/scripts/claims.mjs new "<question>"), ` +
-      'at least three independent sources with sponsored and biased ones screened out, claims.mjs check passing, and the answer ending with "Verified: <n> claims ..."' +
-      (knowledge ? '.' : '. A one-fact lookup for the work at hand instead says so: "Quick lookup:" with its link.') +
-      ' A search that found nothing says "Searched: <what> - nothing found (<where>, <date>)".' +
-      (cfg.researchCoveredBy ? ` The project's own research rule counts too: its line (config researchCoveredBy: ${cfg.researchCoveredBy}).` : ''));
+  { const msg = researchVerified(x, cfg, { ledgerRuns, knowledge, researched }); if (msg) add('research-verified', msg); }
   // (REQ: answer-traced: tools/hooks/trace.mjs, shared with engine v2)
   for (const g of TRACE.traceGaps(x, cfg, { ledgerRuns, knowledge, researched })) add(g.tag, g.msg, g.short);
   lap('note-linked .. answer-traced');

@@ -233,3 +233,28 @@ export function makeTrace(io) {
   }
   return { traceGaps, citedFile, citedClaimGaps, openedText };
 }
+
+// REQ: research-verified, shared by both engines (moved from hooks.mjs unchanged). Facts from the web go through the
+// research skill's ledger: several independent sources, paid and biased ones screened out. A knowledge project has no
+// quick lookups; elsewhere "Quick lookup:" marks one. x: { toolsKnown, uses: [{ name }], cmds: [cmd], said };
+// ledgerRuns: the claims.mjs check runs ({ out }), oldest first. The message, or null.
+export function researchVerified(x, cfg, { ledgerRuns = [], knowledge = false, researched = false } = {}) {
+  // (a curl to this machine, such as the project's own app server, is not the web. Lesson, field report: polling the
+  // app's local API with curl set off the whole research ledger)
+  const web = x.toolsKnown && (x.uses.some(u => /^(WebSearch|WebFetch)$/.test(u.name)) || x.cmds.some(c => /\bddgs\s|search\.mjs|\bcurl\b[^|;&]*https?:\/\/(?!(localhost|127\.\d+\.\d+\.\d+|0\.0\.0\.0|\[::1\])(?![\w.-]))/.test(c)));
+  const ledgerOk = ledgerRuns.length && /CLAIMS: PASS/.test(ledgerRuns[ledgerRuns.length - 1].out || '');
+  // a search that found nothing has no claims to verify: it says what was searched, where, and when
+  // ("Searched: <what> - nothing found (<where>, 2026-10-20)"). Lesson: a "no proven list found" lookup was sent through
+  // the whole three-source ledger.
+  const nothingFound = /\bsearched:[^\n]*\b(nothing|no \w+( \w+)? found|not found|none found)\b[^\n]*\(\s*[^)\n]*\d{4}-\d\d-\d\d\s*\)/i.test(x.said);
+  // a project whose own research rule already asks for sources and a date names that rule's line in config
+  // ("researchCoveredBy": "<regex>"); an answer that carries it has met the project's rule instead. Lesson: an adopted
+  // project's market lookups, with their own source and date line, were sent through the whole ledger too.
+  const ownRule = (() => { try { return !!cfg.researchCoveredBy && new RegExp(cfg.researchCoveredBy, 'im').test(x.said); } catch { return false; } })();
+  if (!(web && (knowledge || researched) && !nothingFound && !ownRule && !(ledgerOk && /verified:\s*\d+\s+claims/i.test(x.said)) && !(!knowledge && /\bquick lookup:/i.test(x.said)))) return null;
+  return `This turn used the web${knowledge ? ' in a knowledge project' : ''}. Follow the research skill, situation C: a ledger (node skills/research/scripts/claims.mjs new "<question>"), ` +
+    'at least three independent sources with sponsored and biased ones screened out, claims.mjs check passing, and the answer ending with "Verified: <n> claims ..."' +
+    (knowledge ? '.' : '. A one-fact lookup for the work at hand instead says so: "Quick lookup:" with its link.') +
+    ' A search that found nothing says "Searched: <what> - nothing found (<where>, <date>)".' +
+    (cfg.researchCoveredBy ? ` The project's own research rule counts too: its line (config researchCoveredBy: ${cfg.researchCoveredBy}).` : '');
+}
