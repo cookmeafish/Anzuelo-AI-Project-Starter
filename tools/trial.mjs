@@ -198,9 +198,13 @@ for (const [name, s] of Object.entries(SAMPLES)) {
   const mine = snapshot(dir);
   // the dry run's summary names the refreshed checks and their file, never a "(root)" file. Lesson (two field reports):
   // a refreshed check showed as "(root) 1", which reads as a file outside tools/, a reason to stop the upgrade
-  if (cited && !noPrev) {
-    const d = starterRun(dir, '--upgrade', '--dry-run'), out = d.stdout || '';
-    check(name, 'a dry-run upgrade lists refreshed checks by name and file, not as a root file', !/\(root\)/.test(out) && /refresh .*research-cited.* in tools\/hooks\/requirements\.json/.test(out), out.slice(0, 400));
+  // (and a dry run writes nothing: every file of the project, the engine's own included, hashes the same after it.
+  // Lesson (a field report, 2026-11-10): in the other layout a dry run upgraded for real; this layout gets the same proof)
+  {
+    const d = starterRun(dir, '--upgrade', '--dry-run'), out = d.stdout || '', after = snapshot(dir);
+    const changed = [...new Set([...Object.keys(mine), ...Object.keys(after)])].filter(k => mine[k] !== after[k]);
+    check(name, 'a dry-run upgrade changes no file of the project', d.status === 0 && !changed.length, `${d.status} ${changed.slice(0, 5).join(', ')} ${(d.stderr || '').slice(0, 200)}`);
+    if (cited && !noPrev) check(name, 'a dry-run upgrade lists refreshed checks by name and file, not as a root file', !/\(root\)/.test(out) && /refresh .*research-cited.* in tools\/hooks\/requirements\.json/.test(out), out.slice(0, 400));
   }
   const u1 = starterRun(dir, '--upgrade', '--accept-findings');
   const rq1 = JSON.parse(fs.readFileSync(rqPath, 'utf8')).requirements, starterRq = JSON.parse(fs.readFileSync(path.join(STARTER, 'tools/hooks/requirements.json'), 'utf8')).requirements;
