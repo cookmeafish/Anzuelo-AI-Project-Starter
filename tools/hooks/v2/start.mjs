@@ -16,10 +16,14 @@ import { openPlansOf } from '../planreq.mjs';
 export function alsoChecked(names = []) {
   const files = c => JSON.stringify(c || {}).includes('"filesChanged"');
   const mine = engineChecks().filter(r => files(r.when) && [r.when?.playbookUsed, r.when?.playbookRouted, r.when?.skillUsed].some(n => n && names.includes(n))).map(r => r.tag.replace(/-/g, ' '));
-  let own = []; try { own = doneWhen(fs.readFileSync(at(ALWAYS), 'utf8')).filter(it => it.kind && (it.whens || []).some(w => w.kind === 'file')).map(it => it.text.length <= 60 ? it.text : it.text.slice(0, it.text.lastIndexOf(' ', 57)) + '...'); } catch { }
+  let own = []; try { own = doneWhen(fs.readFileSync(at(ALWAYS), 'utf8')).filter(it => it.kind && (it.whens || []).some(w => w.kind === 'file')).map(it => it.text); } catch { }
   // (plan-required applies to any task: named as the old engine named it, with the project's own new-file limit)
   const plan = checkOff('plan-required') ? [] : [`plan required (a plan in docs/plans/ first) if it adds ${Number(projectConfig().planNewFiles) || 5}+ new files`];
-  const all = [...new Set([...mine, ...own, ...plan])];
+  // (an item is cut at about 60 characters only when the line would run long; a short line is left whole. Lesson (the
+  // old suite under v2): one item was cut mid-sentence with room to spare)
+  const cut = s => s.length <= 60 ? s : s.slice(0, s.lastIndexOf(' ', 57)) + '...';
+  const whole = [...new Set([...mine, ...own, ...plan])], fits = whole.slice(0, 4).join('; ').length <= 300;
+  const all = fits ? whole : [...new Set(whole.map(cut))];
   return all.length ? `Also checked at the end if files change: ${all.slice(0, 4).join('; ')}${all.length > 4 ? `; +${all.length - 4} more` : ''}.` : '';
 }
 import { toOtherSession, RELAY_START, HANDBACK, relayedBody, relayRouteText, relayRequestText } from '../relay.mjs';

@@ -2,7 +2,6 @@
 agent-neutral: begin routes, check fails an incomplete answer and passes a complete one
 begin-keeps-turn: a mid-turn begin in a hooked session shows the routing and keeps the turn start; a session without a hook record starts its turn
 bench-caches: a timing run keeps the caches it rebuilt and writes no session state
-check-preview guard: a line held to many checks stays within 400 characters (grouped, the rest as "+N more"), and a short line is left whole
 codex: a Codex transcript gives the request, the tool calls and their failures to the checks
 covers: agent-neutral is proven by "agent-neutral: begin routes"
 engine-bypassed: a commit or push from a Claude Code session the hooks never saw is refused with the way through; after begin records the session it passes; a person's commit and a test harness never meet it
@@ -21,14 +20,6 @@ prompt-digest: a session whose start gave the session checklist gets no rules di
 prompt: QA routes to the qa runbook
 prompt: a context summary that resumes the turn gets no hints
 prompt: bootstrap hint when setup prompt is gone but brief is empty
-prompt: check-preview: Spanish, a route question with a line for its NOTES gets the CHECKS line with status-handoff
-prompt: check-preview: Spanish, a runbook fix names the same checks
-prompt: check-preview: a check that applies only once files change is named under "If it changes files"
-prompt: check-preview: a data check keyed on the request, and the data check its fix sets off
-prompt: check-preview: a new rule names what its fixes set off
-prompt: check-preview: a request that names no file lists the project's own file checks as "if it changes"
-prompt: check-preview: a runbook fix names the project's own check on that runbook and the writing check, not checks it can't set off
-prompt: check-preview: the same play question in English gets the same CHECKS line
 prompt: check-preview: with the project's own hooks, runbook-exists says a runbook they name counts
 prompt: check-preview: without them, runbook-exists says nothing about the project's hooks
 prompt: closest runbook: a request sharing one word or none still gets NO RUNBOOK

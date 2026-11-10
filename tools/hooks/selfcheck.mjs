@@ -4464,13 +4464,21 @@ PROMPT.push(
   // self-check command in its header; a Spanish request also told to answer in Spanish)
   { name: 'check-preview: a routed request names its runbook\'s checks before work starts', prompt: 'make a plan for the csv export', has: ['CHECKS: this turn will be held to plan-saved', 'finished-summary', 'Do them all in the first pass'],
     v2: { has: ['Runbook: open docs/playbooks/plan.md', 'Done when (before answering, check your draft: node tools/hooks/hooks.mjs check --answer-file <draft>):\n1. '] } },
-  { name: 'check-preview: a new rule names what its fixes set off', prompt: 'from now on always include a budget table in plans', has: ['CHECKS: this turn will be held to', 'rule-request', 'audit-run', 'changelog'] },
+  { name: 'check-preview: a new rule names what its fixes set off', prompt: 'from now on always include a budget table in plans', has: ['CHECKS: this turn will be held to', 'rule-request', 'audit-run', 'changelog'],
+    // (v2: the rule's runbook and its own items, the rule's files and the changelog among them, are the preview)
+    v2: { has: ['Runbook: open docs/playbooks/project.md', 'Rule requests: AGENTS/CLAUDE + user-requirements', 'CHANGELOG updated'], hasNot: [] } },
   { name: 'check-preview: a Spanish request is previewed too', prompt: 'crea un plan para exportar los informes a csv', has: ['CHECKS: this turn will be held to', 'finished-summary'],
     v2: { has: ['Runbook: open docs/playbooks/plan.md', 'Done when (before answering', 'LANGUAGE: the user writes in Spanish'] } },
-  { name: 'check-preview: a data check keyed on the request, and the data check its fix sets off', setupFn: CATALOG_REQS, prompt: 'update the catalog with the new plants', has: ['CHECKS:', 'catalog-updated', 'set off data-valid'] },
+  { name: 'check-preview: a data check keyed on the request, and the data check its fix sets off', setupFn: CATALOG_REQS, prompt: 'update the catalog with the new plants', has: ['CHECKS:', 'catalog-updated', 'set off data-valid'],
+    // (v2: a project's own checks are its always.md items, as the upgrade converts them; both are previewed by their text)
+    v2: { setupFn: { 'docs/checks/always.md': () => '# Always\n\n## Done when\n- [ ] The catalog changes are written into data/ (when file: notes/catalog-*.md) (file: data/**)\n- [ ] The validator passes on the changed data (when file: data/**) (ran: validate => RESULT: PASS)\n' },
+      has: ['Also checked at the end if files change:', 'The catalog changes are written into data/', 'The validator passes on the changed data'], hasNot: [] } },
   // (a check that needs a file change is "if it changes files", not "held to": a turn that changes nothing meets none.
   // Lesson (efficiency trials): an already-done feature was told it would need a spec, review and notes, and waived six)
-  { name: 'check-preview: a check that applies only once files change is named under "If it changes files"', setupFn: CATALOG_NOTED, prompt: 'update the catalog with the new plants', has: ['If it changes files: catalog-noted'], hasNot: ['held to catalog-noted'] },
+  { name: 'check-preview: a check that applies only once files change is named under "If it changes files"', setupFn: CATALOG_NOTED, prompt: 'update the catalog with the new plants', has: ['If it changes files: catalog-noted'], hasNot: ['held to catalog-noted'],
+    // (v2: its "Also checked at the end if files change" line, the item by its text)
+    v2: { setupFn: { 'docs/checks/always.md': () => '# Always\n\n## Done when\n- [ ] Note the catalog change in docs/catalog-notes.md (when file: data/**) (file: docs/catalog-notes.md)\n' },
+      has: ['Also checked at the end if files change:', 'Note the catalog change in docs/catalog-notes.md'], hasNot: ['Done when (before answering'] } },
   { name: 'check-preview: small talk gets no preview', prompt: 'thanks, that looks great', hasNot: ['CHECKS:'] },
   // a project whose own hooks route: the runbook they name counts (the engine cannot see their hint)
   { name: 'check-preview: with the project\'s own hooks, runbook-exists says a runbook they name counts', prompt: 'tidy up the tulip order notes and sort them by bloom date',
@@ -4860,23 +4868,35 @@ const HOST_SELFTEST = { tag: 'zorbel-hooks-selftest', when: { filesChanged: ['to
 SCENARIO_TAGS.add(HOST_SWEEPS.tag); SCENARIO_TAGS.add(HOST_SELFTEST.tag);
 const HOST_REQS = { 'tools/hooks/requirements.json': s => JSON.stringify({ requirements: [...JSON.parse(s).requirements, HOST_SWEEPS, HOST_SELFTEST] }) };
 const HOST_SETUP = { ...cfgEdit({ externalHooks: ['tools/hooks/own_hooks.py'] }), ...HOST_REQS };
-const hostChecks = (name, prompt, more) => ({ ...hostHint(name, prompt, more), setupFn: HOST_SETUP });
+const hostChecks = (name, prompt, more, v2) => ({ ...hostHint(name, prompt, more), setupFn: HOST_SETUP, ...(v2 ? { v2: { setupFn: HOST_SETUP_V2, hasNot: [], ...v2 } } : {}) });
+// (under v2 the project's own checks are always.md items, converted as an upgrade converts them (tools/always.mjs), and
+// the reminder's "Also checked at the end if files change" line names each by its text, as the Stop guard below proves)
+const { asItems: asItemsHost } = await import('../always.mjs');
+const HOST_SETUP_V2 = { ...cfgEdit({ externalHooks: ['tools/hooks/own_hooks.py'] }), 'docs/checks/always.md': () => '# Always\n\n## Done when\n' + [HOST_SWEEPS, HOST_SELFTEST].flatMap(r => asItemsHost(r).lines || []).join('\n') + '\n' };
+const SWEEPS_V2 = 'A zorbel runbook or the zorbel rules changed';
 const CANT_FIRE = ['hooks-tested', 'runbook-complete', 'zorbel-hooks-selftest', 'If it changes'];
 PROMPT.push(
   // a request that names the runbook to fix: the project's own check on that file and the writing check are held now,
   // and the checks that edit can't set off are left out
   hostChecks('check-preview: a runbook fix names the project\'s own check on that runbook and the writing check, not checks it can\'t set off',
-    'Fix the zorbel-tune playbook so flux-fix requests mention grobbles', { has: ['CHECKS: this turn will be held to', 'zorbel-sweeps-after-change', 'plain-writing', 'audit-run', 'status-handoff'], hasNot: CANT_FIRE }),
+    'Fix the zorbel-tune playbook so flux-fix requests mention grobbles', { has: ['CHECKS: this turn will be held to', 'zorbel-sweeps-after-change', 'plain-writing', 'audit-run', 'status-handoff'], hasNot: CANT_FIRE },
+    { has: ['Also checked at the end if files change:', SWEEPS_V2] }),
   hostChecks('check-preview: Spanish, a runbook fix names the same checks',
-    'Arregla el playbook de zorbel-tune para que las peticiones de flux mencionen los grobbles', { has: ['CHECKS: this turn will be held to', 'zorbel-sweeps-after-change', 'plain-writing', 'audit-run', 'status-handoff'], hasNot: CANT_FIRE }),
+    'Arregla el playbook de zorbel-tune para que las peticiones de flux mencionen los grobbles', { has: ['CHECKS: this turn will be held to', 'zorbel-sweeps-after-change', 'plain-writing', 'audit-run', 'status-handoff'], hasNot: CANT_FIRE },
+    { has: ['Also checked at the end if files change:', SWEEPS_V2, 'LANGUAGE: the user writes in Spanish'] }),
   // naming no file: the project's own file checks are named with the files that set them off, and no writing check
   hostChecks('check-preview: a request that names no file lists the project\'s own file checks as "if it changes"',
-    'make my zorbel better', { has: ['CHECKS: this turn will be held to', 'If it changes docs/playbooks/zorbel-tune.md', ': zorbel-sweeps-after-change'], hasNot: ['plain-writing'] }),
+    'make my zorbel better', { has: ['CHECKS: this turn will be held to', 'If it changes docs/playbooks/zorbel-tune.md', ': zorbel-sweeps-after-change'], hasNot: ['plain-writing'] },
+    { has: ['Also checked at the end if files change:', SWEEPS_V2] }),
   // a request in Spanish (or any language) is previewed like English, with status-handoff
+  // (v2: a one-line NOTES edit is a small change, held to no handoff (the user's rule of 2026-10-25, lib.mjs SMALL_SKIP),
+  // so the line names none; the route and the language are the same in both)
   hostChecks('check-preview: Spanish, a route question with a line for its NOTES gets the CHECKS line with status-handoff',
-    '¿Cuál es la mejor ruta para el día 3 de mi zorbel? Añade una línea a sus NOTES (reglas generales).', { has: ['CHECKS: this turn will be held to', 'status-handoff if it leaves work open'], hasNot: ['plain-writing', ...NOT_FACTS] }),
+    '¿Cuál es la mejor ruta para el día 3 de mi zorbel? Añade una línea a sus NOTES (reglas generales).', { has: ['CHECKS: this turn will be held to', 'status-handoff if it leaves work open'], hasNot: ['plain-writing', ...NOT_FACTS] },
+    { has: ['docs/playbooks/zorbel-route.md', 'LANGUAGE: the user writes in Spanish'], hasNot: ['status-handoff', 'plain writing'] }),
   hostChecks('check-preview: the same play question in English gets the same CHECKS line',
-    "What's the best day-3 route in my zorbel? Add a line to its NOTES (rules of thumb).", { has: ['CHECKS: this turn will be held to', 'status-handoff if it leaves work open'], hasNot: ['plain-writing', ...NOT_FACTS] }),
+    "What's the best day-3 route in my zorbel? Add a line to its NOTES (rules of thumb).", { has: ['CHECKS: this turn will be held to', 'status-handoff if it leaves work open'], hasNot: ['plain-writing', ...NOT_FACTS] },
+    { has: ['docs/playbooks/zorbel-route.md'], hasNot: ['status-handoff', 'plain writing', 'LANGUAGE:'] }),
   hostChecks('check-preview: Spanish, a question with no task gets no CHECKS line', '¿Cuál es la mejor ruta para el día 3 de mi zorbel?', { hasNot: ['CHECKS:'] }),
   hostChecks('check-preview: a question with no task gets no CHECKS line', "What's the best day-3 route in my zorbel?", { hasNot: ['CHECKS:'] })
 );
