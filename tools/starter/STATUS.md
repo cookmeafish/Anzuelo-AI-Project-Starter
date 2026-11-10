@@ -4,6 +4,27 @@ Where work on the starter itself stands, for the next session. Projects never ge
 docs/STATUS.md, which here is the template new projects start from).
 
 ## Now
+- 2026-11-09 (night): chain on 8369080 (list 390) in trial and audit; push it when it passes, committing the list with
+  the proof. Then one chain on a99dc31 (the sweep now shortens the list itself and fails only on a new failure; the
+  copied-words false hold fixed, bba3057), push, and one batched upgrade request. Next: hooks-tested, by extending the
+  turn-start snapshot (lib.mjs snapshotDirty) to save requirements.json, config.json and always.md as they were, and
+  comparing them at Stop (oversight's design).
+- 2026-11-09 (evening): branch app-port at bc5acb3, not pushed. It has app-test-pass (gates.mjs, 7 of 9), the
+  instructions-run false hold on "engines run", the lazy test-file walk (a question's end check back under 60 ms), the
+  lazy trace history (Stop 7-10 ms on long sessions), and done-when-labeled (donewhen.mjs, 3 of 6). List 394. Chain on
+  c647cd8 is running; then push it, run the chain on bc5acb3, push, and send one batched upgrade request to both
+  projects (their 7f3ed03 timing reports are answered). Next: fix the copied-words false hold (the end check's own
+  feedback, arriving as a user message, is read as the user's words, so engine message strings in files are flagged);
+  then hooks-tested; stop-follow-on only after checking it against row 42 and the open display question.
+- 2026-11-09 (later): pushed 7f3ed03 (chain 5/5 on 69b8201): the old-suite list 434 to 403. proof.mjs (check-proven,
+  never-again and enforced claims, complaint turns only, as the old engine), trace.mjs (answer-traced) and
+  launchers.mjs (instructions-run) moved whole out of hooks.mjs and run in both engines. Upgrade request sent to both
+  projects. Branch app-port (~/.anzuelo-work/app, a8d548c + merges): gates.mjs (the gate judgment) and app-test-pass
+  parity, 7 of 9 off the list (to 397); ships after the size ceilings are set (base 2,600, all 6,000, oversight
+  2026-11-09) and its chain passes. Next groups: stop-follow-on (7, needs a design: v2 items are messages, not tags
+  with fix files), hooks-tested, done-when-labeled. Open: the user's two display questions; whether this session may
+  schedule its own wakeups. Known false hold: the old engine's instructions-run read "modules both engines run:
+  `x.mjs`" as telling the user to run those files.
 - 2026-11-09: on main, not pushed: eb0dac1 (Spanish patterns built on first use), 8b54ab8 (old-suite list 460, four
   "passes that check" tests kept with their BLOCK until skill-reuse, runbook-complete, cold-read are ported), b7289ef
   (touched-only files meet no file marker; converter count by tag), 9277522 (config read once per Stop). Chain
