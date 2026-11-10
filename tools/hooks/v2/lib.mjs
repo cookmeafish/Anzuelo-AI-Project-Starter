@@ -23,6 +23,7 @@ import { makeGates } from '../gates.mjs';
 import { doneWhenGaps } from '../donewhen.mjs';
 import { worthGaps } from '../worth.mjs';
 import { endsAsking, OUTWARD } from '../decide.mjs';
+import { aiAttributedCommits } from '../repo.mjs';
 import { makeHookTests } from '../hooktests.mjs';
 import { testInputsHash as repoInputsHash } from '../repo.mjs';
 // A check name some part of the engine defines: in engine-checks.json, the project's requirements.json, or a hook
@@ -1457,7 +1458,19 @@ export function claimGaps(acts, history = '') {
   out.push(...doneWhenGaps(changedOf(acts), { read: f => { try { return fs.readFileSync(at(f), 'utf8'); } catch { return ''; } }, exists: f => fs.existsSync(at(f)), knownCheck }));
   out.push(...hookTestsGaps(acts));
   out.push(...worthV2(acts));
+  out.push(...aiCreditGaps(acts));
   return out;
+}
+
+// REQ: no-ai-attribution (at the end, always on). A commit made this turn that credits an AI (message or author), made
+// around the guard (an alias, an editor, another tool, a helper), is named before the turn ends, as the old engine: an
+// amend now costs less than a rewrite after more commits. The same scan as the push guard (tools/hooks/repo.mjs).
+// Oversight 2026-11-10: hard rule 10, harm 1.
+export function aiCreditGaps(acts) {
+  const since = Date.parse(acts.at || '') || 0;
+  if (!since || !fs.existsSync(at('.git'))) return [];
+  const bad = aiAttributedCommits(projectConfig(), since);
+  return bad.length ? [`Commits made this turn credit an AI agent: ${bad.join(', ')}. Reword them (git commit --amend for the last one) so they are solely the user's, and don't push until fixed.`] : [];
 }
 
 // REQ: worth-it, under v2: the shared tools/hooks/worth.mjs. A new skill, pack or dependency comes with its gain and its

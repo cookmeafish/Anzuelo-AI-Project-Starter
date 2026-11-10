@@ -4510,6 +4510,11 @@ PROMPT.push(
   { name: 'event-hint: a question that asks for a change still does', prompt: 'can you add a Stripe payment page?', has: ['MUST FOLLOW: security-review'] },
   // Lesson: a customer's words quoted in a reply request routed as if the user had asked for them
   { name: 'event-hint: a long quote in the request is what it is about, not the request', prompt: 'write a reply to this customer: "I cannot log in with my password since the update, please help me"', hasNot: ['MUST FOLLOW: security-review'] },
+  // (under v2 "Must follow" only for a check an action sets off; one that can apply on words alone is a "Likely fits"
+  // hint. Oversight 2026-11-10)
+  { name: 'event-hint: a check that can apply on the request\'s words alone is only named as likely to fit (v2)', prompt: 'make the flaky import pass again',
+    setupFn: { 'tools/hooks/requirements.json': s => { const j = JSON.parse(s); j.requirements.push({ tag: 'flaky-words', rule: '1', forces: 'debug', hint: '\\bflaky\\b', when: { anyOf: [{ promptMatches: '\\bflaky\\b' }, { ranFailing: true }] }, require: { skillUsed: 'debug' }, message: 'Flaky work follows the debug skill.' }); return JSON.stringify(j, null, 2); } },
+    has: ['MUST FOLLOW: debug'], v2: { has: ['Likely fits: debug (the request mentions "flaky")'], hasNot: ['Must follow: debug'] } },
   { name: 'autonomy-hint: "I don\'t want to be bothered" asks to set autonomy auto', prompt: 'I dont want to be bothered, handle the rest yourself', has: ['AUTONOMY'] },
   { name: 'autonomy-hint: "without my input" asks to set autonomy auto', prompt: 'go go go without my input until it is finished', has: ['AUTONOMY'] },
   // (Spanish, and the plain English "do not ask me": Lesson, trial round 10: a Spanish setup request that said "decide
@@ -5111,6 +5116,7 @@ const V2_ASKS = {
   'answer-resent': /^- (The last message is only a note on an answer|The correction quotes text the earlier answer does not hold)/m,
   'plan-open': /^- This turn started with (an open plan|open plans) \(/m,
   'gui-review-loop': /^- (A screen changed: take screenshots|GUI files changed \([^\n]*\) and (were edited again|no screenshots)|Look at the latest round before judging it)/m,
+  'no-ai-attribution': /^- Commits made this turn credit an AI agent: /m,
   'autonomy-decide': /^- The user asked for no questions: make each choice yourself/m,
   'worth-it': /^- You added [^\n]*\. Say why it makes this project better and what it costs/m,
   'gui-pack': /^- GUI files changed \([^\n]*\) but this project has no gui pack/m,

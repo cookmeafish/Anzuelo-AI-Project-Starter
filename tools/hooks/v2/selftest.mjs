@@ -2963,6 +2963,8 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   const got = Object.fromEntries(Object.entries(parts).map(([k, fs_]) => [k, fs_.reduce((n, f) => n + size(f), 0)]));
   const lines = got.guard + got.reminder + got.end;
   const checks = (/const list = \[([^\]]*)\]/.exec(fs.readFileSync(path.join(here, 'end.mjs'), 'utf8'))?.[1].match(/\.\.\.\w+\(/g) || []).length;
+  // (printed on every run, pass or fail, so a batch report has the measured numbers. Oversight 2026-11-10)
+  console.log(`sizes: guard ${got.guard}/${cap.guard}, reminder ${got.reminder}/${cap.reminder}, end ${got.end}/${cap.end}, base ${got.base}/${cap.base}, v2's own ${lines}/${ALL}, end checks ${checks}/15`);
   report(lines <= ALL && Object.entries(cap).every(([k, c]) => got[k] <= c) && checks >= 1 && checks <= 15,
     `size: each part of the engine within its budget (guard ${got.guard}/${cap.guard}, reminder ${got.reminder}/${cap.reminder}, end ${got.end}/${cap.end}, base ${got.base}/${cap.base}), ${lines} of ${ALL} lines in v2's own files; the end check runs at most 15 checks (${checks})`, JSON.stringify({ got, lines, checks }));
 }

@@ -90,6 +90,11 @@ export function rulesFor(prompt) {
 // (a message relayed from another session, a helper or a task notice is not the user's: it is never upset and sets no
 // rule. Lesson (a peer session, live): a status report quoting a capital "NEVER" got "This sounds upset")
 const relayedRx = /^\s*Another Claude session sent a message|<(cross-session-message|agent-message|task-notification)\b/;
+// (a check is held on what the turn does when every way it can apply needs an action: a file changed, its content, a
+// command run or failed. One that can apply on the request's or answer's words alone is only likely to fit. Oversight
+// (2026-11-10), per the 2026-11-07 decision: "Must" only for checks an action sets off)
+const ACTION = new Set(['filesChanged', 'changedContentMatches', 'toolRan', 'ranFailing', 'toolCount']);
+const acted = w => !!w && typeof w === 'object' && (Object.keys(w).some(k => ACTION.has(k)) || (Array.isArray(w.anyOf) && w.anyOf.length > 0 && w.anyOf.every(acted)) || (Array.isArray(w.allOf) && w.allOf.some(acted)));
 // The skills and runbooks a check makes mandatory on what the request says (a requirement with "forces" and a "hint"
 // pattern, built-in or the project's own, minus the ones switched off), each once, with the words that set it off.
 function forcedBy(p) {
@@ -101,7 +106,7 @@ function forcedBy(p) {
     let hit = null; try { hit = new RegExp(q.hint, 'i').exec(text); } catch { }
     if (!hit) continue;
     const f = has(`${cfg.skillsDir || 'skills'}/${q.forces}/SKILL.md`) ? `${cfg.skillsDir || 'skills'}/${q.forces}/SKILL.md` : `docs/playbooks/${q.forces}.md`;
-    if (has(f)) out.set(q.forces, { name: q.forces, file: f, word: hit[0].trim() });
+    if (has(f)) out.set(q.forces, { name: q.forces, file: f, word: hit[0].trim(), acted: acted(q.when) });
   }
   return [...out.values()];
 }
@@ -193,7 +198,8 @@ function remind(prompt) {
   // it is coming, so the work follows it from the start, as the old engine. Not for a request that only asks, nor a
   // relayed one, nor for words inside quotes. Lesson (the old suite under v2): v2 named it only at the end
   const must = relayedRx.test(raw) || asksOnly(String(userWords(prompt)), projectConfig().changeWords) ? [] : forcedBy(String(userWords(prompt)));
-  const mustLines = must.filter(m => m.name !== book?.name).map(m => `Must follow: ${m.name} (the request mentions "${m.word.slice(0, 40)}"): open ${m.file} now and follow it from the start; the end check holds it.`);
+  const mustLines = must.filter(m => m.name !== book?.name).map(m => m.acted ? `Must follow: ${m.name} (the request mentions "${m.word.slice(0, 40)}"): open ${m.file} now and follow it from the start; the end check holds it once the work does what it covers.`
+    : `Likely fits: ${m.name} (the request mentions "${m.word.slice(0, 40)}"): open ${m.file} if the work turns out to need it.`);
   if (!book) return { book: null, text: [...mustLines, skill, praise, figures, autonomy, pick, es, ...rulesFor(prompt).map(r => `The project's own rule here: ${r}`), isTaskRequest(prompt, taskVerbs, toOtherSession(prompt)) ? alsoChecked(sk && skill ? [sk.name] : []) : ''].filter(Boolean).slice(0, MAX_LINES).join('\n') };
   const own = rulesFor(prompt).map(r => `The project's own rule here: ${r}`);
   // (a message relayed from another session may only report: its runbook is for when it asks for work. Lesson (project
