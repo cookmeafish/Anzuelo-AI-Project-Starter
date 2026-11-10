@@ -135,7 +135,6 @@ stop: gui-review-report: a bold "Revisión visual" list item with no verdict sti
 stop: helpers still running, but the answer claims they finished and pushed: still checked
 stop: image + text prompt is a real prompt
 stop: incident-trigger: production down without the incident skill: blocked
-stop: ingest-trigger: a file moved into sources/ (old time, new since the turn began): blocked
 stop: invalid skill frontmatter: blocked
 stop: knowledge file without label/source/date: blocked
 stop: maintaining a runbook (read, then edit) is not following it: its checks stay off

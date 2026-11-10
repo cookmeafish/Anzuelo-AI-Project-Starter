@@ -1193,10 +1193,33 @@ const ACTION_KEYS = ['toolRan', 'toolPassed', 'filesChanged', 'ranFailing', 'gui
 const hasKey = (c, ks) => !!c && typeof c === 'object' && (ks.some(k => k in c) || (c.anyOf || []).some(s => hasKey(s, ks)));
 export const routedOnly = c => hasKey(c, ['playbookRouted']) && !hasKey(c, ACTION_KEYS);
 export const unknownKeys = c => !c || typeof c !== 'object' ? [] : Object.entries(c).flatMap(([k, v]) => k === 'anyOf' ? v.flatMap(unknownKeys) : REQ_KEYS.includes(k) ? [] : [k]);
+// (a file a command of this turn moved or copied into place keeps its old time, so the time walk misses it: the
+// destination of mv, cp, git mv, Move-Item or Copy-Item counts, when it is there now. Lesson (the old suite under v2): a
+// scan moved into sources/ set off no ingest check)
+const shellWords = s => [...String(s).matchAll(/"([^"]*)"|'([^']*)'|(\S+)/g)].map(m => m[1] ?? m[2] ?? m[3]);
+export function movedInto(acts) {
+  const out = [];
+  for (const c of acts.calls || []) {
+    if (!/^(Bash|PowerShell)$/.test(c.name) || c.error) continue;
+    for (const part of String(c.input?.command || '').split(/&&|\|\||;|\n|\|/)) {
+      const w = shellWords(part.trim()), i = w[0] === 'git' && w[1] === 'mv' ? 2 : /^(mv|cp|Move-Item|Copy-Item|move|copy)$/i.test(w[0] || '') ? 1 : -1;
+      if (i < 0) continue;
+      const args = w.slice(i).filter(a => !/^-/.test(a));
+      if (args.length < 2) continue;
+      const dest = args[args.length - 1].replace(/\\/g, '/');
+      for (const src of args.slice(0, -1)) {
+        const into = (() => { try { return fs.statSync(at(dest)).isDirectory(); } catch { return /\/$/.test(dest); } })();
+        const f = relp(into ? `${dest.replace(/\/$/, '')}/${src.replace(/\\/g, '/').split('/').pop()}` : dest);
+        if (f && fs.existsSync(at(f))) out.push(f);
+      }
+    }
+  }
+  return out;
+}
 // The files this turn changed: by the edit tools, and (with a turn start) any whose time is after it, so a command's
 // writes count too. Walked once per turn.
 export function changedOf(acts, any = false) {
-  return [...new Set([...acts.calls.filter(c => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name)).map(c => relp(c.input.file_path || '')), ...touchedSince(acts, any).map(x => x.f).filter(f => !/^(\.cache|tools\/hooks\/state)\//.test(f))])];
+  return [...new Set([...acts.calls.filter(c => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name)).map(c => relp(c.input.file_path || '')), ...movedInto(acts), ...touchedSince(acts, any).map(x => x.f).filter(f => !/^(\.cache|tools\/hooks\/state)\//.test(f))])];
 }
 // REQ: forbidden-terms (files a command changed: the guard sees only the edit tools). A name the file already had at
 // git's last commit is no new slip; ignored files and the engine's own list and state don't count.
