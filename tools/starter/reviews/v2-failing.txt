@@ -173,7 +173,6 @@ stop: answer-resent: the last round asked for changes to the answer itself: bloc
 stop: answer-traced: a figure that is no sum, difference or change of the read ones: blocked
 stop: answer-traced: a round figure that no tool output rounds to is still flagged
 stop: answer-traced: figures for the project's own numbers, with no file read: blocked
-stop: answer-traced: the short step names the cited claim it doubts
 stop: app-test-pass: a refused gate whose program is not installed, answered "needs your approval": asks for the true reason
 stop: app-test-pass: the same, never tried and silent about it: asks for the NOT VERIFIED line, not a run
 stop: asked for 5 options, answer gives no 5: blocked

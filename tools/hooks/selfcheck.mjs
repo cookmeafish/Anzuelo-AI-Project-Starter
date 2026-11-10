@@ -3938,7 +3938,9 @@ STOP.push(
   // (the short step names the claim it doubts. Lesson, trial round 23: the step read "...cites characters.md for", the
   // quoted claim cut away, and the agent guessed the wrong claim and spent a second Stop round)
   { name: 'answer-traced: the short step names the cited claim it doubts', prompt: 'write a one-page outline for chapter 3', files: OUTLINE('Scar: left eye, so a blind or weaker side is on the left'),
-    answer: 'The outline is in `outputs/chapter-03-outline.md`.' + FIN, expect: { block: true, tags: ['answer-traced'] }, after: (dir, reason) => /^\s*\d+\. [^\n]*claim "[^"\n]*weaker side/m.test(reason) || `no short step names the claim: ${reason.slice(0, 400)}` },
+    answer: 'The outline is in `outputs/chapter-03-outline.md`.' + FIN, expect: { block: true, tags: ['answer-traced'] }, after: (dir, reason) => /^\s*\d+\. [^\n]*claim "[^"\n]*weaker side/m.test(reason) || `no short step names the claim: ${reason.slice(0, 400)}`,
+    // (v2 has no short steps: its one line per gap names the claim whole, in quotes)
+    v2: { after: (dir, reason) => /^- [^\n]*"[^"\n]*weaker side[^"\n]*"/m.test(reason) || `no line names the claim: ${reason.slice(0, 400)}` } },
   { name: 'answer-traced: the same inference marked as the agent\'s own ("my guess:"): passes', prompt: 'write a one-page outline for chapter 3', files: OUTLINE('My guess: the scar may leave a blind side on his left'),
     answer: 'The outline is in `outputs/chapter-03-outline.md`.' + FIN, expect: { not: ['answer-traced'] } }
 );
