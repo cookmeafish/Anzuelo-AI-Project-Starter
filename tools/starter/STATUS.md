@@ -4,6 +4,24 @@ Where work on the starter itself stands, for the next session. Projects never ge
 docs/STATUS.md, which here is the template new projects start from).
 
 ## Now
+- 2026-11-10 (pause for a restart): main and GitHub at a8a0575 (release of e30446c: Stop as non-error feedback on
+  Claude Code, the changelog rule with dataDirs, friction reported, the new end checks). All 3 engine projects notified
+  (the list is now rebuilt per notice: scan C:/projects plus ListAgents; tools/starter/watch.local.json). Two upgraded
+  with 0 regressions; their full self-tests were cut by the restart and they rerun them. Branch app-port at 7d4dd38,
+  not released, its chain stopped for the restart (rerun: frozen-chain.sh 7d4dd38; the script now stops on any
+  pre-audit FAIL): the commit gate for REQ tags with no test (req-tested), Stop speed (AI-credit scan skipped by the
+  reflog, runbook list parsed once; ANZUELO_V2_TIMING), the false "pushed" claim held while helpers run, the count check
+  skipping described numbers. Next, in order:
+  1. Field report, high: in the .anzuelo/engine layout `starter.mjs upgrade --dry-run` ignored the flag and upgraded
+     for real. Reproduce, fix, failing-first test that a dry run writes nothing in both layouts; then that project runs
+     its post-upgrade checks (selfcheck, audit, tests, own checks, fit, upgrade review).
+  2. AI-credit skip: use the newest time under the git folder's logs/ (HEAD and refs/heads/*), not logs/HEAD alone, and
+     scan all branches (git log --all --since); test a commit to a branch that is not HEAD's (oversight).
+  3. Chain on the head, release, notice from git log a8a0575..<sha> to every engine project.
+  4. Data-dirs guess: a folder full of per-item CHANGELOG.md files, or one in newVersionOnly/protectedOriginals, is a
+     data signal (a project's field note: its main content folder was missed).
+  5. Remaining v2 list in triage order. Open: answer-traced intermittent; stray branch app-port-head and the rel-*
+     branches (deleting needs the user's OK).
 - 2026-11-10 (night): main and GitHub at 1241407 (release of 248cd38: autonomy hint, worth-it, autonomy-decide,
   event-hint with "Likely fits" for word-only checks, AI-credit commits at the end, upset read on a long message's
   ends, scope-general, the gui pack by packs). Both projects upgraded, 0 regressions. Branch app-port at 4cd95e7, its
