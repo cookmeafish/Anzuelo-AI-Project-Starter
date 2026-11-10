@@ -1,6 +1,6 @@
 // Engine v2 end hook (Stop): the one check. It judges only what this session did in this turn, from its own
 // transcript, and blocks with a short plain list of what is really missing until it is done (at most MAX_BLOCKS times).
-import { withNote } from '../correct.mjs';
+import { withNote, correctionsOf } from '../correct.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -502,11 +502,22 @@ function judge(data, { shadow = false } = {}) {
   // judges the answer sent before the block together with that note ("Added: ...", "Corrected: ...", a line or two), not
   // the note alone. Lesson (the old suite under v2): the note alone lacked the Finished section and the root cause, and
   // the turn was held again for what the first answer had.
-  if (again) { const prev = answerBeforeBlock(rows), note = acts.answer || '';
-    if (prev && note && !note.includes(prev.trim().slice(0, 200)) && (/^\s*(added|corrected|añadido|corregido)\s*:/im.test(note) || (note.length <= 600 && !/^\s*(#{1,6}\s*|\*\*)?finished\b/im.test(note))))
+  // (a note stands for the answer only beside a full answer sent earlier in this turn; a correction must quote that
+  // answer word for word. Otherwise the user reads a note about an answer they never got, or a correction of words that
+  // are not there. As the old engine. Lesson (the old suite under v2): "Answer unchanged" and "Added: ..." with no answer
+  // before them passed, and the user never got the answer)
+  const resent = [], sentNote = String(acts.answer || '').trim();
+  const isNote = /^\W{0,4}(added|añadido|corrected|correction|corregido|correcci[oó]n)\s*:|^\W{0,4}(answer unchanged|respuesta sin cambios)\b/i.test(sentNote);
+  const prevAnswer = again ? answerBeforeBlock(rows) : '';
+  if (isNote && !String(prevAnswer).trim()) resent.push('The last message is only a note on an answer ("Added:", "Corrected:" or "Answer unchanged"), but no full answer was sent earlier in this turn. End with the whole answer to the request.');
+  if (again) { const prev = prevAnswer, note = acts.answer || '';
+    if (prev && note && !note.includes(prev.trim().slice(0, 200)) && (/^\s*(added|corrected|añadido|corregido)\s*:/im.test(note) || (note.length <= 600 && !/^\s*(#{1,6}\s*|\*\*)?finished\b/im.test(note)))) {
       // (its "Corrected:" lines are applied to the earlier answer, as the old engine does (correct.mjs): the withdrawn text
       // is no longer part of the answer. Lesson (the old suite under v2): a corrected-away figure was traced as made up)
-      acts.answer = withNote(prev, note) ?? `${prev.trim()}\n\n${note}`; }
+      const applied = withNote(prev, note);
+      if (applied === null) { const lost = note.split(/\r?\n/).flatMap(l => correctionsOf(l) || []).filter(f => !prev.includes(f.old));
+        resent.push(`The correction quotes text the earlier answer does not hold word for word (${lost.map(f => `"${f.old.slice(0, 60)}"`).join(', ')}). Quote it exactly, or end with the whole answer again, corrected.`); }
+      acts.answer = applied ?? `${prev.trim()}\n\n${note}`; } }
   const raw = tail(data.transcript_path, 5 << 20), history = evidenceOf(raw);
   acts.earlier = earlierPrompts(raw, turn.at); acts.runbook = turn.runbook || ''; acts.transcriptPath = data.transcript_path || '';
   acts.issuesBefore = issuesBefore(raw, turn.at); acts.prior = priorCalls(raw, turn.at); acts.complaint = complaintTurn(acts);
@@ -520,7 +531,7 @@ function judge(data, { shadow = false } = {}) {
   const wakes = wakeGaps(raw.split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean), final || acts.answer || '', acts.heard || '');
   const extra = (turn.also || []).flatMap(f => missing({ ...turn, runbook: f }, acts, runbooks().filter(b => b.file === f)));
   const resumedLost = [...(lost.length ? [headlessLine(lost)] : []), ...noticeAnswerGaps(rows, final || acts.answer, data.stop_hook_active)];
-  const list = [...resumedLost, ...late, ...autos, ...wakes, ...S('missing', () => [...emptyGaps(acts), ...missing(turn, acts), ...upsetGaps(turn, acts), ...ruleGaps(acts), ...watchedGaps(acts)]), ...extra, ...S('skillMissing', () => skillMissing(acts)), ...S('reviewGaps', () => reviewGaps(turn, acts)), ...S('testGaps', () => testGaps(acts, history)), ...S('gateGaps', () => gateGaps(acts)), ...S('screenGaps', () => screenGaps(acts)), ...S('healthGaps', () => [...healthGaps(acts, { run: !shadow }), ...upgradeGaps(turn, acts)]), ...S('knowledgeGaps', () => knowledgeGaps(acts)), ...S('securityGaps', () => securityGaps(acts)), ...S('questionGaps', () => [...questionGaps(acts), ...questionFileGaps(acts)]), ...S('noteGaps', () => noteGaps(acts)), ...S('quoteGaps', () => quoteGaps(acts)), ...S('claimGaps', () => claimGaps(acts, history)), ...S('scopeGaps', () => scopeGaps(acts)), ...S('tableGaps', () => tableGaps(acts))].filter((s, i, all) => all.indexOf(s) === i);
+  const list = [...resent, ...resumedLost, ...late, ...autos, ...wakes, ...S('missing', () => [...emptyGaps(acts), ...missing(turn, acts), ...upsetGaps(turn, acts), ...ruleGaps(acts), ...watchedGaps(acts)]), ...extra, ...S('skillMissing', () => skillMissing(acts)), ...S('reviewGaps', () => reviewGaps(turn, acts)), ...S('testGaps', () => testGaps(acts, history)), ...S('gateGaps', () => gateGaps(acts)), ...S('screenGaps', () => screenGaps(acts)), ...S('healthGaps', () => [...healthGaps(acts, { run: !shadow }), ...upgradeGaps(turn, acts)]), ...S('knowledgeGaps', () => knowledgeGaps(acts)), ...S('securityGaps', () => securityGaps(acts)), ...S('questionGaps', () => [...questionGaps(acts), ...questionFileGaps(acts)]), ...S('noteGaps', () => noteGaps(acts)), ...S('quoteGaps', () => quoteGaps(acts)), ...S('claimGaps', () => claimGaps(acts, history)), ...S('scopeGaps', () => scopeGaps(acts)), ...S('tableGaps', () => tableGaps(acts))].filter((s, i, all) => all.indexOf(s) === i);
   // (the waiver tally: what this turn cleared with a reason is recorded; a check cleared in 3+ earlier turns is named)
   const full = list.splice(0, list.length); list.push(...full.filter(kept(acts)).filter(s => !(again && CRASHED.test(s))));
   list.push(...S('followOn', () => followOn(turn, acts, list)).filter(kept(acts)));

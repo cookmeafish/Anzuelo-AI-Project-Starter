@@ -474,6 +474,10 @@ const PEOPLE = { 'profiles/alice/PROFILE.md': () => '---\naliases: ali\n---\n# A
 const SCENARIO_TAGS = new Set();
 const withReqs = extra => { SCENARIO_TAGS.add(extra.tag); return { 'tools/hooks/requirements.json': s => JSON.stringify({ requirements: [...JSON.parse(s).requirements, extra] }) }; };
 const VALIDATOR = withReqs({ tag: 'data-valid', when: { filesChanged: ['data/**'] }, require: { toolPassed: { cmd: 'validate', pass: 'RESULT: PASS' } }, message: 'Run the validator until it passes.' });
+// (under v2 every block asks for a line or two on only what changed, never the answer again, whatever its length: the
+// user's rule of 2026-11-07, docs/checks/user-requirements.md row 44, "the user reads each answer once". A deliberate
+// difference from the old engine, which asked short answers to be sent whole again)
+const V2_ONLY_CHANGED = /only what changed in the answer above/;
 // (under v2 a project's own check is a "Done when" line in docs/checks/always.md, and the data file is the agent's own
 // edit, then validated: the validator reads it, it does not write it)
 const VALIDATOR_V2 = { 'docs/checks/always.md': () => '# Always\n\n## Done when\n- [ ] The validator passes on the changed data (when file: data/**) (ran: validate => RESULT: PASS)\n' };
@@ -3367,7 +3371,9 @@ STOP.push(
   { ...DEBUG_TURN, name: 'answer-resent: a round of file-only steps asks for "Answer unchanged; also updated", not a resend', files: { 'scratch-work/import.md': 'x', 'docs/CHANGELOG.md': 'x', 'stray-notes.txt': 'x' },
     answer: DEBUG_OK, expect: { block: true, says: /end with one line, not the answer again: "Answer unchanged; also updated/ } },
   { ...DEBUG_TURN, name: 'answer-resent: the last round asked for changes to the answer itself: blocked', active: true, blocks: 1, failed: ['debug-root-cause'],
-    failedExtra: { shortOk: false, answer: 'Skill: debug. Fixed.' + FIN }, drafts: ['Skill: debug. Fixed.' + FIN], answer: 'Answer unchanged; done: root cause.', expect: { block: true, tags: ['answer-resent'] } },
+    failedExtra: { shortOk: false, answer: 'Skill: debug. Fixed.' + FIN }, drafts: ['Skill: debug. Fixed.' + FIN], answer: 'Answer unchanged; done: root cause.', expect: { block: true, tags: ['answer-resent'] },
+    // (v2 reads the earlier answer with the note, so the step the round asked for in the answer is held by its own check)
+    v2: { expect: { block: true, tags: ['debug-root-cause'] } } },
   // Lesson, trial round 14: Stop rounds right after a passing pre-check, only to put a label back into a reworded answer
   { ...DEBUG_TURN, name: 'answer-resent: a draft that passed the pre-check counts, when the sent answer rewords it: passes',
     tools: [sk('debug'), { name: 'Write', input: { file_path: '.cache/answer.md', content: 'Skill: debug. Root cause: the date parser read 03/04 as March.' + FIN } }, bash('node tools/hooks/hooks.mjs check --answer-file .cache/answer.md', 'CHECK: PASS - send this text as your answer as it stands')],
@@ -3415,9 +3421,11 @@ STOP.push(
   { ...DEBUG_TURN, name: 'answer-resent: "Added:" with no full answer earlier in the turn: blocked', active: true, blocks: 1, failed: ['debug-root-cause'],
     failedExtra: { shortOk: false, answer: '' }, answer: 'Added: Root cause: the date parser.', expect: { block: true, tags: ['answer-resent'] } },
   { ...DEBUG_TURN, name: 'answer-resent: round 1 of a long answer asks for only what changed, not the answer again', answer: `Skill: debug. Fixed it. ${'The import now reads every row of the sheet and keeps the totals. '.repeat(20)}` + FIN,
-    expect: { block: true, tags: ['debug-root-cause'], says: /end with only what changed, not the answer again/ } },
+    expect: { block: true, tags: ['debug-root-cause'], says: /end with only what changed, not the answer again/ },
+    v2: { expect: { block: true, tags: ['debug-root-cause'], says: V2_ONLY_CHANGED } } },
   { ...DEBUG_TURN, name: 'answer-resent: round 1 of a short answer still asks for the whole answer', answer: 'Skill: debug. Fixed it.' + FIN,
-    expect: { block: true, tags: ['debug-root-cause'], says: /end with the whole answer again/ } },
+    expect: { block: true, tags: ['debug-root-cause'], says: /end with the whole answer again/ },
+    v2: { expect: { block: true, tags: ['debug-root-cause'], says: V2_ONLY_CHANGED } } },
   // (a project's own Stop command runs inside this Stop: one list, one instruction; its steps block in round 1 only)
   { ...DEBUG_TURN, name: 'external-stop: the project\'s own Stop steps join this list in round 1', answer: DEBUG_OK, edit: cfgEdit({ externalStop: 'node tools/fake-stop.cjs stop' }),
     files: { ...DEBUG_TURN.files, 'tools/fake-stop.cjs': FAKE_STOP, '.cache/stop-mode.txt': 'block' },
@@ -3444,7 +3452,8 @@ STOP.push(
     failedExtra: { shortOk: true, answer: 'Root cause: the date parser.' + FIN }, drafts: ['Root cause: the date parser.' + FIN], answer: 'Answer unchanged; done: changelog (docs/CHANGELOG.md).',
     expect: { block: false } },
   { ...DEBUG_TURN, name: 'answer-resent: a round of file steps offers the short line', tools: [sk('debug'), ...many(16)], answer: DEBUG_OK + '\nStill open: the test for empty files.',
-    expect: { block: true, tags: ['status-handoff'], says: /Answer unchanged; also updated:/ } },
+    expect: { block: true, tags: ['status-handoff'], says: /Answer unchanged; also updated:/ },
+    v2: { expect: { block: true, tags: ['status-handoff'], says: V2_ONLY_CHANGED } } },
   // a headless run (claude -p, the SDK) hands its caller only the last message, so that one is always the whole answer
   { ...DEBUG_TURN, name: 'answer-resent: a headless run is not offered the short line', tools: [sk('debug'), ...many(16)], answer: DEBUG_OK + '\nStill open: the test for empty files.',
     rows: [{ type: 'system', entrypoint: 'sdk-cli', content: 'headless' }],
@@ -5067,6 +5076,7 @@ const V2_ASKS = {
   'skill-learn': /^- This turn followed \S+ and its own check failed this turn\. Write the lesson into it/m,
   'plan-required': /^- This turn added \d+ new files \([^\n]*\) without a plan\./m,
   'research-verified': /^- This turn used the web(?: in a knowledge project)?\. Follow the research skill/m,
+  'answer-resent': /^- (The last message is only a note on an answer|The correction quotes text the earlier answer does not hold)/m,
   'upset-learned': /^- (The runbook your Issue line names|Give the point in general terms|Say the root cause|Say first whether it holds|Say what you checked to know it holds|Write the lesson where it stops the next miss|This is about the engine: send the lesson|The user is upset again in this session)/m,
 };
 // (an engine check from requirements.json is recognized by its own message, which v2's evaluator gives as "Check: ...")

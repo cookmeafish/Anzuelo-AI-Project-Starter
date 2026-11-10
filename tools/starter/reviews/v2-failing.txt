@@ -145,15 +145,7 @@ stop: answer with filler: blocked
 stop: answer-language: a Spanish visual review with no verdict: blocked
 stop: answer-noise: the Stop text steers waivers to the waive command, never to an N/A line in the answer
 stop: answer-noise: the re-answer instruction asks for no note about the steps or an earlier version
-stop: answer-resent: "Added:" with no full answer earlier in the turn: blocked
-stop: answer-resent: a Corrected: line whose old text the answer does not hold: blocked
-stop: answer-resent: a first answer that is only "answer unchanged": blocked
-stop: answer-resent: a round of file steps offers the short line
 stop: answer-resent: a round of file-only steps asks for "Answer unchanged; also updated", not a resend
-stop: answer-resent: no full answer was sent earlier in this turn: blocked
-stop: answer-resent: round 1 of a long answer asks for only what changed, not the answer again
-stop: answer-resent: round 1 of a short answer still asks for the whole answer
-stop: answer-resent: the last round asked for changes to the answer itself: blocked
 stop: app-test-pass: a refused gate whose program is not installed, answered "needs your approval": asks for the true reason
 stop: app-test-pass: the same, never tried and silent about it: asks for the NOT VERIFIED line, not a run
 stop: asked for 5 options, answer gives no 5: blocked
