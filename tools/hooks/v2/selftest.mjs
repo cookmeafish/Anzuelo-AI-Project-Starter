@@ -2543,9 +2543,13 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     const bare = run();
     fs.writeFileSync(path.join(g, 'tools/hooks/v2/selftest.mjs'), `// test for ${tag}\n`); sh('add', '-A');
     const tested = run();
+    // (the tag's test already committed, its REQ comment moved to another module: the index still holds the test)
+    sh('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--no-verify', '-m', 'base');
+    fs.rmSync(path.join(g, 'tools/hooks/v2/demo.mjs')); fs.writeFileSync(path.join(g, 'tools/hooks/v2/other.mjs'), `// ${'REQ'}: ${tag}. Moved here.\n`); sh('add', '-A');
+    const moved = run();
     fs.rmSync(st, { force: true }); fs.rmSync(g, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
-    report(bare.status === 1 && /req-tested/.test(bare.stderr) && bare.stderr.includes(tag) && tested.status === 0,
-      'guard: a starter commit adding a REQ tag with no test naming it is refused; with its test staged it goes through (req-tested)', [bare.status, bare.stderr.slice(0, 200), tested.status, tested.stderr.slice(0, 200)]);
+    report(bare.status === 1 && /req-tested/.test(bare.stderr) && bare.stderr.includes(tag) && tested.status === 0 && moved.status === 0,
+      'guard: a starter commit adding a REQ tag with no test naming it is refused; with its test staged, or already committed and the tag moved, it goes through (req-tested)', [bare.status, bare.stderr.slice(0, 200), tested.status, moved.status, moved.stderr.slice(0, 200)]);
   }
   // (a resumed session whose last turn ended gets no "interrupted" notice; one whose last turn never ended does)
   {
