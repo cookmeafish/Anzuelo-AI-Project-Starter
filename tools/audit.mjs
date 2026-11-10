@@ -286,7 +286,11 @@ sweep('references point at real files, commands and skills', () => {
   // folders that work fills in, files tools create at runtime, and the starter folder's own files (tools/starter/)
   const RUNTIME = /^(outputs|inbox|sources|profiles|logs|src|app|lib|server|packages|data|site|\.cache|\.codex|\.claude|\.starter|tools\/hooks\/state|tools\/starter|docs\/(knowledge|plans|specs|releases|reviews|retired|incidents|feedback-inbox))(\/|$)|^tools\/(starter\.local|packs-registry)\.json$|^docs\/(codebase-map|tech-debt|glossary|legal-positions|brand-voice|fit-checklist|routines|starter-feedback|lessons)\.md$/;
   const real = p => { p = p.replace(/\/$/, ''); return exists(p) || provided.has(p) || RUNTIME.test(p); };
-  const skillNames = new Set([...fs.readdirSync(abs(cfg.skillsDir)), ...libNames, ...[...provided].map(p => /^skills\/([^/]+)/.exec(p)?.[1]).filter(Boolean),
+  // (every skill folder the project can use: with the engine in .anzuelo/engine, its skills are there and in
+  // .anzuelo/local, not in the project's own skills folder. Lesson (a field report, 2026-11-10): in that layout the
+  // engine's own skills were "does not exist" and the audit failed)
+  const ownSkills = (() => { try { return fs.readdirSync(abs(cfg.skillsDir)); } catch { return []; } })(), allSkills = (() => { try { return listAll('skills'); } catch { return []; } })();
+  const skillNames = new Set([...ownSkills, ...allSkills, ...libNames, ...[...provided].map(p => /^skills\/([^/]+)/.exec(p)?.[1]).filter(Boolean),
     ...pbs.map(p => p.name), ...[...provided].map(p => /^docs\/playbooks\/([^/_][^/]*)\.md$/.exec(p)?.[1]).filter(Boolean)]);
   const files = walk('', p => /\.(md|mjs|json)$/.test(p) && !/(^|\/)(CHANGELOG|STARTER-CHANGELOG|SOURCE|LICENSE)[^/]*$/.test(p) && !/^(\.claude|library\/skills\/[^/]+\/LICENSE)/.test(p));
   for (const f of files) {
