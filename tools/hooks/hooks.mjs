@@ -28,6 +28,7 @@ let pretoolDecision = null;
 import * as SELF from './hooks.mjs';
 import { doneWhenItems, DONE_LABEL, ledgerItems, doneWhenGaps } from './donewhen.mjs';
 import { worthGaps } from './worth.mjs';
+import { endsAsking } from './decide.mjs';
 export { doneWhenItems, DONE_LABEL, ledgerItems };
 import { makeProof } from './proof.mjs';
 import { makeHookTests } from './hooktests.mjs';
@@ -4985,26 +4986,9 @@ export function coreChecks(x, cfg) {
   lap('plain-writing .. code-rules');
   // REQ: empty-answer
   if (x.workTurn && !x.answer.trim()) add('empty-answer', 'The turn did work but the final answer is empty. Tell the user what was done (and the Finished section).');
-  // REQ: autonomy-decide. A user who asked not to be asked gets decisions, not a closing question, except for what
-  // AGENTS.md step 0.5 keeps for them (outward actions, installs, anything irreversible, security, money).
-  // Lesson: under autonomy auto an answer ended by asking whether to keep or archive deleted records.
-  if (cfg.autonomy === 'auto' && x.workTurn) {
-    // (the whole answer: the writing rules put a question last, after the Finished section. Lesson (a trial): two
-    // answers to a user who said "do not ask me anything" ended with "Question for you:" below Finished, unseen)
-    const body = x.answer.split(EN_COPIES)[0].trim(), parts = body.split(/^(?=#{1,6}\s*\**finished\b)/im);
-    const lastOf = s => s.split(/\n\s*\n/).filter(b => b.trim() && !/^\s*(playbook|skill|n\/a\(|worth it|#{1,6}\s*\**finished\b)/i.test(b)).pop() || '';
-    // (the last block before Finished, or a question after it)
-    const after = parts.length > 1 ? lastOf(parts.slice(1).join('')) : '', tail = /\?\s*\**\s*$/.test(after) ? after : lastOf(parts[0]);
-    // (a labeled question, or a closing "reply with a number", asks too; what it is about is the question itself, not
-    // the options under it. Lesson, trial round 9: "Question for you: who should be able to delete a book?" with four
-    // options and "Reply with a number" stalled a turn the user had said to decide, and an option's mention of a leaked
-    // password would have exempted it anyway)
-    const labeled = /\*\*\s*(question for you|pregunta para ti)\s*:?\s*\*\*\s*:?\s*([^\n]*)/i.exec(body);
-    const asks = /\?\s*\**\s*$/.test(tail) || !!labeled || /^\W*(reply|answer|tell me|choose|pick|let me know|responde|dime|elige)\b[^\n]*$/im.test(tail.split('\n').pop() || '');
-    const about = labeled ? `${labeled[2]} ${tail.split('\n').pop()}` : tail;
-    if (asks && !/\b(publish|push|send|deploy|release|install|irreversible|money|pay|buy|password|secret|security|legal)\w*|\b(delete|wipe|erase) (it|them|this|that|your|all|the \w+ now)\b/i.test(about))
-      add('autonomy-decide', `The user asked not to be asked (autonomy auto), and the answer ends with a question. Decide it yourself, do it, and record it as ${assumedHint(isSpanish(x.prompt))}. Ask only about outward actions, installs, money, security or something irreversible.`);
-  }
+  // (REQ: autonomy-decide: tools/hooks/decide.mjs, shared with engine v2)
+  if (cfg.autonomy === 'auto' && x.workTurn && endsAsking(x.answer))
+    add('autonomy-decide', `The user asked not to be asked (autonomy auto), and the answer ends with a question. Decide it yourself, do it, and record it as ${assumedHint(isSpanish(x.prompt))}. Ask only about outward actions, installs, money, security or something irreversible.`);
   // REQ: claim-checked (verification). A turn that waived its own test or build gate (the code never ran) cannot say
   // the work ships or passes: the verdict is NOT VERIFIED, with what would verify it. Lesson: two trial projects had no
   // toolchain, so nothing compiled, and the review still said "Verdict: SHIP".

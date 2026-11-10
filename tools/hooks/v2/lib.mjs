@@ -22,6 +22,7 @@ import { makeLaunchers } from '../launchers.mjs';
 import { makeGates } from '../gates.mjs';
 import { doneWhenGaps } from '../donewhen.mjs';
 import { worthGaps } from '../worth.mjs';
+import { endsAsking, OUTWARD } from '../decide.mjs';
 import { makeHookTests } from '../hooktests.mjs';
 import { testInputsHash as repoInputsHash } from '../repo.mjs';
 // A check name some part of the engine defines: in engine-checks.json, the project's requirements.json, or a hook
@@ -468,7 +469,13 @@ export function turnActs(rows) {
 export function questionGaps(acts) {
   const auto = (() => { try { return JSON.parse(fs.readFileSync(at('tools/hooks/config.json'), 'utf8')).autonomy === 'auto'; } catch { return false; } })();
   if (!auto && !/\b(do not|don'?t|never) ask me\b|\bno me preguntes\b/i.test(acts.heard || '')) return [];
-  if (!/^\W*Questions? for you\b|^\W*Preguntas? para (ti|usted)\b/im.test(acts.said || acts.answer || '')) return [];
+  // (a work answer that ends by asking counts too, as the old engine judged it (tools/hooks/decide.mjs): a closing
+  // question, one after the Finished section, or "reply with a number". Lesson (the old suite under v2): "Which town is
+  // the bed in?" closed a work turn under autonomy auto and passed)
+  // (a labeled question about what stays the user's (an outward action, an install, money, security) is no question to
+  // decide. Lesson (the old suite under v2): "Question for you: shall I deploy it?" was held under autonomy auto)
+  const labeled = [...String(acts.said || acts.answer || '').matchAll(/^\W*(?:Questions? for you|Preguntas? para (?:ti|usted))\b([^\n]*(?:\n(?!\s*\n)[^\n]*)?)/gim)];
+  if (!labeled.some(m => !OUTWARD.test(m[1])) && !(auto && worked(acts) && endsAsking(acts.answer))) return [];
   return ['The user asked for no questions: make each choice yourself and note it as "Assumed: <choice> - <why> - <cost if wrong>". A step only the user can take (an install, a sign-in, a name for git) goes under a Heads-up, not a question; ask only what the rules stop for (an outward action, anything irreversible).'];
 }
 
