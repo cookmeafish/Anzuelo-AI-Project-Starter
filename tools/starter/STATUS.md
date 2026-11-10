@@ -4,6 +4,17 @@ Where work on the starter itself stands, for the next session. Projects never ge
 docs/STATUS.md, which here is the template new projects start from).
 
 ## Now
+- 2026-11-10: main and GitHub at 52f2f42 (no-transcript check, stop-follow-on, honest v2 judging, release speed rule,
+  plans as records, hooks-tested). Both projects upgraded, 0 regressions. Branch app-port (~/.anzuelo-work/app) at
+  d679a28, not pushed: skill-learn (lesson named in round 1), the shrink-only v2 list rule, and v2 routing as the old
+  engine (near.mjs). Its release run waits for a quiet machine (5a7d341's proof was "time limits NOT judged" under my
+  own load, so it was not pushed); hold until the larger project's quiet full run reports. Next: check-preview (e)/(f) as approved by
+  oversight 2026-11-10 (one "Also checked at the end if files change" line, last, labels from the checks, dropped
+  first under the cap; the round-1 test as proposed); take (d) off the list as a deliberate difference (the self-check
+  shown in every session, per the rule "run it on your draft first"); run the new check-preview v2 tests (uncommitted
+  in selfcheck.mjs). Open: the answer-traced intermittent (now logs v2's decision when it passes wrongly); the larger
+  project's quiet old-engine Stop reading (sync is size, about 180 ms at 54 skills; make sync skip unchanged inputs if over
+  about 450 ms).
 - 2026-11-09 (night): chain on 8369080 (list 390) in trial and audit; push it when it passes, committing the list with
   the proof. Then one chain on a99dc31 (the sweep now shortens the list itself and fails only on a new failure; the
   copied-words false hold fixed, bba3057), push, and one batched upgrade request. Next: hooks-tested, by extending the

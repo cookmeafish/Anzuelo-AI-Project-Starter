@@ -4312,9 +4312,13 @@ STOP.push(
 );
 // check-preview: work learns at the prompt which checks its Stop will hold it to
 PROMPT.push(
-  { name: 'check-preview: a routed request names its runbook\'s checks before work starts', prompt: 'make a plan for the csv export', has: ['CHECKS: this turn will be held to plan-saved', 'finished-summary', 'Do them all in the first pass'] },
+  // (v2, another way (triage check-preview a, b, c): the runbook and its "Done when" list before work starts, with the
+  // self-check command in its header; a Spanish request also told to answer in Spanish)
+  { name: 'check-preview: a routed request names its runbook\'s checks before work starts', prompt: 'make a plan for the csv export', has: ['CHECKS: this turn will be held to plan-saved', 'finished-summary', 'Do them all in the first pass'],
+    v2: { has: ['Runbook: open docs/playbooks/plan.md', 'Done when (before answering, check your draft: node tools/hooks/hooks.mjs check --answer-file <draft>):\n1. '] } },
   { name: 'check-preview: a new rule names what its fixes set off', prompt: 'from now on always include a budget table in plans', has: ['CHECKS: this turn will be held to', 'rule-request', 'audit-run', 'changelog'] },
-  { name: 'check-preview: a Spanish request is previewed too', prompt: 'crea un plan para exportar los informes a csv', has: ['CHECKS: this turn will be held to', 'finished-summary'] },
+  { name: 'check-preview: a Spanish request is previewed too', prompt: 'crea un plan para exportar los informes a csv', has: ['CHECKS: this turn will be held to', 'finished-summary'],
+    v2: { has: ['Runbook: open docs/playbooks/plan.md', 'Done when (before answering', 'LANGUAGE: the user writes in Spanish'] } },
   { name: 'check-preview: a data check keyed on the request, and the data check its fix sets off', setupFn: CATALOG_REQS, prompt: 'update the catalog with the new plants', has: ['CHECKS:', 'catalog-updated', 'set off data-valid'] },
   // (a check that needs a file change is "if it changes files", not "held to": a turn that changes nothing meets none.
   // Lesson (efficiency trials): an already-done feature was told it would need a spec, review and notes, and waived six)
@@ -4328,11 +4332,17 @@ PROMPT.push(
     has: ['runbook-exists'], hasNot: ["project's own hooks name"] },
   { name: 'check-preview: a question gets no preview', prompt: 'what is the price of desk x?', hasNot: ['CHECKS:'] },
   // held to more than 2 checks, the line offers the self-check; held to 2, it does not
-  { name: 'check-preview: more than 2 checks offer the self-check command', prompt: 'add a hook check for budget tables', has: ['CHECKS: this turn will be held to hooks-tested', 'Self-check first: node tools/hooks/hooks.mjs check --answer-file'] },
+  { name: 'check-preview: more than 2 checks offer the self-check command', prompt: 'add a hook check for budget tables', has: ['CHECKS: this turn will be held to hooks-tested', 'Self-check first: node tools/hooks/hooks.mjs check --answer-file'],
+    v2: { has: ['Done when (before answering, check your draft: node tools/hooks/hooks.mjs check --answer-file <draft>)'] } },
   // (in a Claude Code session the user watches, the Stop hook checks for free: no pre-check, which wrote every answer
   // twice. Headless runs keep it. Lesson, efficiency trials)
-  { name: 'check-preview: in an interactive Claude Code session no self-check is offered', prompt: 'add a hook check for budget tables', env: { CLAUDE_CODE_ENTRYPOINT: 'cli' }, has: ['CHECKS: this turn will be held to hooks-tested'], hasNot: ['Self-check first'] },
-  { name: 'check-preview: a headless Claude Code run still gets the self-check', prompt: 'add a hook check for budget tables', env: { CLAUDE_CODE_ENTRYPOINT: 'sdk-cli' }, has: ['Self-check first: node tools/hooks/hooks.mjs check --answer-file'] },
+  { name: 'check-preview: in an interactive Claude Code session no self-check is offered', prompt: 'add a hook check for budget tables', env: { CLAUDE_CODE_ENTRYPOINT: 'cli' }, has: ['CHECKS: this turn will be held to hooks-tested'], hasNot: ['Self-check first'],
+    // (v2, a deliberate difference: the self-check is shown in every session, interactive too, since the rule "On real
+    // work, run it on your draft first (check --answer-file)" holds in every session; the reminder goes to the agent, not
+    // the user. Oversight, 2026-11-10)
+    v2: { has: ['Done when (before answering, check your draft: node tools/hooks/hooks.mjs check --answer-file <draft>)'] } },
+  { name: 'check-preview: a headless Claude Code run still gets the self-check', prompt: 'add a hook check for budget tables', env: { CLAUDE_CODE_ENTRYPOINT: 'sdk-cli' }, has: ['Self-check first: node tools/hooks/hooks.mjs check --answer-file'],
+    v2: { has: ['Done when (before answering, check your draft: node tools/hooks/hooks.mjs check --answer-file <draft>)'] } },
   // (REQ small-change, said before the work. Lesson (the user, 2026-10-25): simple fixes turned into 20 minute things)
   { name: 'small-change: a request whose checks include a record step hears that a small fix skips them', prompt: 'add a hook check for budget tables', has: ['SMALL FIX: if the change stays within 3 files and 40 edited lines'] },
   // (a complaint about slow or wasteful turns routes to the efficiency review, which traces each cost to its source)
@@ -4342,7 +4352,9 @@ PROMPT.push(
   { name: 'goal-loop: "keep improving it until the tests never flake" routes to the loop', prompt: 'keep improving it until the tests never flake', has: ['SKILL: goal-loop'] },
   { name: 'goal-loop: "iterate until the report is good enough" routes to the loop', prompt: 'iterate until the report is good enough for the client', has: ['SKILL: goal-loop'] },
   { name: 'goal-loop: an ordinary request does not', prompt: 'fix the typo in the footer', hasNot: ['goal-loop'] },
-  { name: 'check-preview: 2 checks give no self-check clause', prompt: 'rename the vendor files to use dates', has: ['CHECKS: this turn will be held to runbook-exists, finished-summary (met once it follows a runbook);'], hasNot: ['Self-check first'] }
+  { name: 'check-preview: 2 checks give no self-check clause', prompt: 'rename the vendor files to use dates', has: ['CHECKS: this turn will be held to runbook-exists, finished-summary (met once it follows a runbook);'], hasNot: ['Self-check first'],
+    // (v2: with no runbook, no list and no self-check line: the generic pick-a-runbook line only)
+    v2: { has: ['DIRECTORY.md'], hasNot: ['check --answer-file', 'Done when'] } }
 );
 // pretool-combined: one denial names every rule a tool call breaks (Lesson: the retry was denied again for the second)
 const NO_OVERWRITE_OUT = { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), noOverwrite: ['outputs/**'] }) };
