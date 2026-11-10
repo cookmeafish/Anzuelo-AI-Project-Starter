@@ -73,7 +73,7 @@ const PROOF = makeProof({ get ROOT() { return ROOT; }, read: (...a) => read(...a
 // (the proof machinery, shared with engine v2: tools/hooks/proof.mjs)
 export const { ENFORCED, enforcedClaim, autoScopes, noteDirs, enforcementGaps, newProjectChecks, savedCopies, governedFiles, checkProof, COMPLAINT_DOESNT_HOLD, complaintDisproved, cmdHead, neverRan, shellParts } = PROOF;
 const { NEVER_AGAIN, CHECK_FILE, TEST_FILE, requirementScripts, wordsOf, pathKey } = PROOF;
-import { WAKE_KNOWN, isWakeTool, WAKE_ASK, wakeFamily, wakeupsPending } from './wakeups.mjs';
+import { WAKE_KNOWN, isWakeTool, WAKE_ASK, wakeFamily, wakeupsPending, watchersArmed, watcherLeft } from './wakeups.mjs';
 import { INJ_PLANTED, INJ_AIMED, INJ_WARNED } from './injection.mjs';
 export { isWakeTool, WAKE_ASK, wakeupsPending };
 
@@ -845,37 +845,7 @@ export function turn(transcript) {
     get sessionWrites() { const h = helpers(); return h.length ? `${mainWrites}\n${writesOf(h)}` : mainWrites; }, sessionTools, sessionStart, sessionHelpers };
 }
 
-// Watchers the agent armed (the Monitor tool: "Monitor started (task <id>, expires in 10m ...)") that have not ended yet.
-// A watcher does no work of its own: it only waits for something and wakes the session when it sees it. One left armed
-// after the turn ends wakes the session later, and the agent's reply to that notice becomes the last message the user
-// reads. Lesson: a reviewer's watcher outlived the review, expired 7 minutes after a clean end, and "Nothing has
-// changed, that notice came from a leftover watcher" replaced the whole answer of a headless run.
-// It has ended when a notice names it with a final status or says it expired or its stream ended, or when the agent
-// stopped it (TaskStop, KillShell) by its id.
-const WATCHER_TOOL = /^Monitor$/;
-const WATCH_END = /<status>\s*(completed|stopped|failed|killed|cancell?ed)\s*<\/status>|\bMonitor expired\b|\bstream ended\b/i;
-export function watchersArmed(rows) {
-  const armed = new Map(), results = new Map();
-  rows.forEach(r => { const c = r.message?.content; if (r.type === 'user' && Array.isArray(c)) for (const x of c) if (x?.type === 'tool_result') results.set(x.tool_use_id, textOf(x.content)); });
-  rows.forEach(r => {
-    const c = r.message?.content;
-    if (r.type === 'assistant' && Array.isArray(c)) for (const x of c) {
-      if (x?.type !== 'tool_use') continue;
-      const res = results.get(x.id) || '';
-      if (WATCHER_TOOL.test(x.name)) {
-        // (a watcher that never started, refused or failed, is not armed)
-        const m = /\btask[ _]?(?:id)?\s*[:(]?\s*["']?([\w-]{4,})/i.exec(res);
-        if (m && /\b(started|armed|watching)\b/i.test(res)) armed.set(m[1], { id: m[1], toolUseId: x.id, desc: String(x.input?.description || '').slice(0, 80) });
-      } else if (/^(TaskStop|KillShell|KillBash)$/.test(x.name)) {
-        const s = JSON.stringify(x.input || {});
-        for (const id of [...armed.keys()]) if (s.includes(id)) armed.delete(id);
-      }
-    }
-    const t = r.type === 'attachment' ? textOf(r.attachment?.prompt ?? r.attachment?.content ?? '') : r.type === 'user' ? textOf(c) : '';
-    if (/<task-notification>/.test(t) && WATCH_END.test(t)) for (const [id, w] of [...armed]) if (t.includes(id) || t.includes(w.toolUseId)) armed.delete(id);
-  });
-  return [...armed.values()];
-}
+// (watchersArmed, REQ: watcher-left: tools/hooks/wakeups.mjs, shared with engine v2)
 
 // A message the session sent itself (a wakeup's or a cron job's prompt) or a background task's notice: not the user's.
 // Claude Code marks them (isMeta, turnOrigin "scheduled", promptSource "system", origin.kind "task-notification").
@@ -6039,10 +6009,8 @@ export function stopDecision(data, cfg = config()) {
   // waits for is over, it only wakes the session later, and the reply to its notice replaces the answer. A watcher the
   // answer names (its id or what it watches) is kept on purpose. While a background job still runs, the watcher on it
   // is part of the wait (see waiting below).
-  const leftWatchers = t.toolsKnown && !(t.bgRunning || []).length ? (t.watchers || []).filter(w => !raw.includes(w.id) && !(w.desc.length >= 8 && raw.toLowerCase().includes(w.desc.toLowerCase()))) : [];
-  const watcherStep = leftWatchers.length ? [{ tag: 'watcher-left', msg: `${leftWatchers.length > 1 ? 'Watchers you started are' : 'A watcher you started is'} still armed: ${leftWatchers.map(w => `${w.desc ? `"${w.desc}" ` : ''}(task ${w.id})`).join(', ')}. ` +
-    'A watcher left armed after the turn wakes the session later, and the reply to its notice becomes the last message the user reads. Stop it now (TaskStop with its id), then end with the whole answer. ' +
-    'If it must keep running on purpose, say in the answer what it watches and why.' }] : [];
+  const leftWatchers = t.toolsKnown && !(t.bgRunning || []).length ? t.watchers || [] : [];
+  const watcherStep = watcherLeft(leftWatchers, raw).map(msg => ({ tag: 'watcher-left', msg }));
   // REQ: wakeup-left. The same for a wakeup or cron job the session scheduled for itself (wakeupsPending): once the
   // turn's own work is done, it is cancelled, or the answer says what it will do and when. In a headless run saying so
   // is not enough: the run does not end while it is pending, so the caller gets nothing until the time limit kills it.

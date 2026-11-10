@@ -73,3 +73,44 @@ export function wakeGaps(rows, answer = '', prompt = '', now = Date.now()) {
     (forced ? 'This run is headless (claude -p or the SDK): it does not end while a wakeup is pending, so its caller waits until the time limit stops the run and gets no answer at all. Cancel it now, then end with the whole answer. Background jobs and helpers wake you by themselves when they end; they need no fallback wakeup.'
       : 'It re-invokes the session later, and the reply to it becomes the last message the user reads. Cancel it now, then end with the whole answer. If it must stay on purpose, say in the answer what it will do and when.')];
 }
+
+// Watchers the agent armed (the Monitor tool: "Monitor started (task <id>, expires in 10m ...)") that have not ended yet.
+// A watcher does no work of its own: it only waits for something and wakes the session when it sees it. One left armed
+// after the turn ends wakes the session later, and the agent's reply to that notice becomes the last message the user
+// reads. Lesson: a reviewer's watcher outlived the review, expired 7 minutes after a clean end, and "Nothing has
+// changed, that notice came from a leftover watcher" replaced the whole answer of a headless run.
+// It has ended when a notice names it with a final status or says it expired or its stream ended, or when the agent
+// stopped it (TaskStop, KillShell) by its id.
+const WATCHER_TOOL = /^Monitor$/;
+const WATCH_END = /<status>\s*(completed|stopped|failed|killed|cancell?ed)\s*<\/status>|\bMonitor expired\b|\bstream ended\b/i;
+export function watchersArmed(rows) {
+  const armed = new Map(), results = new Map();
+  rows.forEach(r => { const c = r.message?.content; if (r.type === 'user' && Array.isArray(c)) for (const x of c) if (x?.type === 'tool_result') results.set(x.tool_use_id, textOf(x.content)); });
+  rows.forEach(r => {
+    const c = r.message?.content;
+    if (r.type === 'assistant' && Array.isArray(c)) for (const x of c) {
+      if (x?.type !== 'tool_use') continue;
+      const res = results.get(x.id) || '';
+      if (WATCHER_TOOL.test(x.name)) {
+        // (a watcher that never started, refused or failed, is not armed)
+        const m = /\btask[ _]?(?:id)?\s*[:(]?\s*["']?([\w-]{4,})/i.exec(res);
+        if (m && /\b(started|armed|watching)\b/i.test(res)) armed.set(m[1], { id: m[1], toolUseId: x.id, desc: String(x.input?.description || '').slice(0, 80) });
+      } else if (/^(TaskStop|KillShell|KillBash)$/.test(x.name)) {
+        const s = JSON.stringify(x.input || {});
+        for (const id of [...armed.keys()]) if (s.includes(id)) armed.delete(id);
+      }
+    }
+    const t = r.type === 'attachment' ? textOf(r.attachment?.prompt ?? r.attachment?.content ?? '') : r.type === 'user' ? textOf(c) : '';
+    if (/<task-notification>/.test(t) && WATCH_END.test(t)) for (const [id, w] of [...armed]) if (t.includes(id) || t.includes(w.toolUseId)) armed.delete(id);
+  });
+  return [...armed.values()];
+}
+
+// REQ: watcher-left. The watchers the answer does not name (its id or what it watches), as one step: stop each, or say
+// in the answer why it keeps running. A watcher the answer names is kept on purpose.
+export function watcherLeft(watchers, raw = '') {
+  const left = (watchers || []).filter(w => !raw.includes(w.id) && !(w.desc.length >= 8 && raw.toLowerCase().includes(w.desc.toLowerCase())));
+  return left.length ? [`${left.length > 1 ? 'Watchers you started are' : 'A watcher you started is'} still armed: ${left.map(w => `${w.desc ? `"${w.desc}" ` : ''}(task ${w.id})`).join(', ')}. ` +
+    'A watcher left armed after the turn wakes the session later, and the reply to its notice becomes the last message the user reads. Stop it now (TaskStop with its id), then end with the whole answer. ' +
+    'If it must keep running on purpose, say in the answer what it watches and why.'] : [];
+}

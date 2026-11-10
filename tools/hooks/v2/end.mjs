@@ -28,7 +28,7 @@ import { PAUSE_ASK } from '../pause.mjs';
 import { externalStopSteps } from '../extstop.mjs';
 import { reviewExcuse } from '../excuse.mjs';
 import { waivedTag } from './lib.mjs';
-import { wakeGaps } from '../wakeups.mjs';
+import { wakeGaps, watchersArmed, watcherLeft } from '../wakeups.mjs';
 import { makeSkillLearn } from '../skilllearn.mjs';
 import { makeProof } from '../proof.mjs';
 import { forbiddenGaps, codeRuleGaps, injectionGaps, verbatimGaps, CRASHED, crashLine, logStop, upgradeGaps, autoRuns, sessionStart, changedOf, projectConfig, checkOff, inGlobs, priorCalls, filesMatching, withBackgroundOutputs, hookTestsGaps, engineChecks, doneWhen } from './lib.mjs';
@@ -566,7 +566,10 @@ function judge(data, { shadow = false } = {}) {
   // answered, as the old engine did. Lesson (the old suite under v2): it was asked in every round)
   const late = (again ? [] : unansweredLate(rows, final)).map(m => `Answer the user's message typed at ${String(m.at).slice(11, 16) || 'mid-task'}: "${m.text.replace(/\s+/g, ' ').slice(0, 200)}"`);
   // (wakeups scheduled in any turn of the session count: one left from earlier still re-invokes it later)
-  const wakes = wakeGaps(raw.split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean), final || acts.answer || '', acts.heard || '');
+  const sessionRows = raw.split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+  // (REQ: watcher-left, the shared wakeups.mjs: a watcher armed in the session and not ended or named in the answer is
+  // stopped before the answer, or its notice's reply replaces it. Lesson (the old suite under v2): v2 let one stay armed)
+  const wakes = [...wakeGaps(sessionRows, final || acts.answer || '', acts.heard || ''), ...(checkOff('watcher-left') ? [] : watcherLeft(watchersArmed(sessionRows), final || acts.answer || ''))];
   const extra = (turn.also || []).flatMap(f => missing({ ...turn, runbook: f }, acts, runbooks().filter(b => b.file === f)));
   const resumedLost = [...(lost.length ? [headlessLine(lost)] : []), ...noticeAnswerGaps(rows, final || acts.answer, data.stop_hook_active)];
   const list = [...resent, ...resumedLost, ...late, ...autos, ...wakes, ...S('missing', () => [...emptyGaps(acts), ...missing(turn, acts), ...upsetGaps(turn, acts), ...ruleGaps(acts), ...watchedGaps(acts)]), ...extra, ...S('skillMissing', () => skillMissing(acts)), ...S('reviewGaps', () => reviewGaps(turn, acts)), ...S('testGaps', () => testGaps(acts, history)), ...S('gateGaps', () => gateGaps(acts)), ...S('screenGaps', () => screenGaps(acts)), ...S('healthGaps', () => [...healthGaps(acts, { run: !shadow }), ...upgradeGaps(turn, acts)]), ...S('knowledgeGaps', () => knowledgeGaps(acts)), ...S('securityGaps', () => securityGaps(acts)), ...S('questionGaps', () => [...questionGaps(acts), ...questionFileGaps(acts)]), ...S('noteGaps', () => noteGaps(acts)), ...S('quoteGaps', () => quoteGaps(acts)), ...S('claimGaps', () => claimGaps(acts, history)), ...S('scopeGaps', () => scopeGaps(acts)), ...S('tableGaps', () => tableGaps(acts)), ...S('planOpen', () => planOpenGaps(turn, acts, again)), ...S('externalStop', () => externalV2(data)), ...S('reviewExcuse', () => excuseV2(acts, rows))].filter((s, i, all) => all.indexOf(s) === i);
