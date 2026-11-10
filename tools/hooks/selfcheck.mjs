@@ -6325,9 +6325,22 @@ if (mineB() && (!TAGS || TAGS.includes('interrupted-work'))) { // interrupted-wo
 if (mineB()) { // agent-neutral: an agent without hooks uses begin / check
   const dir = copyProject();
   try {
-    const node = (...a) => spawnSync(process.execPath, [path.join(dir, 'tools', 'hooks', 'hooks.mjs'), ...a], { cwd: dir, encoding: 'utf8', env: { ...process.env, STARTER_MEMORY_DIR: path.join(dir, '.memtest') } });
+    // (an agent without hooks has no host session: the tester's own session id is not passed on, or v2's begin and check
+    // would judge the tester's real transcript)
+    const env = { ...process.env, STARTER_MEMORY_DIR: path.join(dir, '.memtest') }; delete env.CLAUDE_CODE_SESSION_ID;
+    const node = (...a) => spawnSync(process.execPath, [path.join(dir, 'tools', 'hooks', 'hooks.mjs'), ...a], { cwd: dir, encoding: 'utf8', env });
     // core runbook only (plan), so this holds in every project whatever packs it has
     const b = node('begin', 'make a plan for the csv export');
+    if (process.env.STARTER_ENGINE === 'v2') {
+      // (under v2: begin names the runbook in v2's words; check holds the incomplete answer with its "Not done yet" list
+      // and passes the complete one; nothing names the host)
+      write(dir, { 'docs/plans/2026-10-17-export.md': '# Export: plan', '.cache/answer.md': 'Playbook: plan.md. Here it is.' });
+      const v1 = node('check', '--answer-file', path.join(dir, '.cache/answer.md'));
+      write(dir, { '.cache/answer.md': 'Playbook: plan.md. Saved docs/plans/2026-10-17-export.md.' + FIN });
+      const v2c = node('check', '--answer-file', path.join(dir, '.cache/answer.md'));
+      report(/open docs\/playbooks\/plan\.md and follow it/.test(b.stdout) && v1.status === 1 && /CHECK: Not done yet:\n- /.test(v1.stdout) && !/Claude/.test(v1.stdout) && v2c.status === 0 && /CHECK: PASS/.test(v2c.stdout),
+        'agent-neutral: begin routes, check fails an incomplete answer and passes a complete one', `begin: ${b.stdout.slice(0, 160)} | c1: ${v1.stdout.slice(0, 300)} | c2: ${v2c.stdout.slice(0, 300)}`);
+    } else {
     write(dir, { 'docs/plans/2026-10-17-export.md': '# Export: plan' });
     write(dir, { '.cache/answer.md': 'Playbook: plan.md. Here it is.' });
     const c1 = node('check', '--answer-file', path.join(dir, '.cache/answer.md'));
@@ -6335,6 +6348,7 @@ if (mineB()) { // agent-neutral: an agent without hooks uses begin / check
     const c2 = node('check', '--answer-file', path.join(dir, '.cache/answer.md'));
     report(b.stdout.includes('ROUTE: plan') && c1.status === 1 && /CHECK: FAIL\nAlmost done: [^\n]*\n1\. [^\n]+/.test(c1.stdout) && /Names: [a-z]/.test(c1.stdout) && !/round 1 of/.test(c1.stdout) && /Full steps:/.test(c1.stdout) && !/Claude/.test(c1.stdout) && c2.status === 0 && /CHECK: PASS - send this text as your answer as it stands/.test(c2.stdout),
       'agent-neutral: begin routes, check fails an incomplete answer and passes a complete one', `begin: ${b.stdout.slice(0, 120)} | c1: ${c1.stdout.slice(0, 200)} | c2: ${c2.stdout.slice(0, 300)}`);
+    }
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
