@@ -47,7 +47,7 @@ const HOOKTESTS = makeHookTests({ read: f => read(abs(f)), exists: (...a) => exi
 export const { touchedChecks } = HOOKTESTS;
 import { makeTrace, researchVerified } from './trace.mjs';
 import { correctionsOf } from './correct.mjs';
-import { guiReview } from './gui.mjs';
+import { guiReview, guiRound } from './gui.mjs';
 const TRACE = makeTrace({ read: (...a) => read(...a), abs: (...a) => abs(...a), exists: (...a) => exists(...a), rel: (...a) => rel(...a), esc: (...a) => esc(...a),
   today: (...a) => today(...a), knowledgeRe: (...a) => knowledgeRe(...a), textOf: (...a) => textOf(...a), noteDirs: (...a) => noteDirs(...a) });
 export const { citedFile, citedClaimGaps, openedText } = TRACE;
@@ -5221,42 +5221,8 @@ export function coreChecks(x, cfg) {
     shown: () => readJSON(path.join(STATE, 'gui-shot.json'), {}), saveShown: v => writeState('gui-shot.json', v) });
   for (const g of G.gaps) add(g.tag, g.msg);
   const gui = G.gui;
-  if (G.reviewed) {
-      // REQ: gui-review-report
-      const verdict = /visual review:\s*(pass|stopped)/i.exec(x.afterChange);
-      if (!verdict || !/\bround|\bfirst (try|round|pass|attempt)\b/i.test(x.afterChange))
-        // (one line may be the only place the rounds appear. Lesson: answers listed the rounds, then repeated "Visual
-        // review: PASS after 5 rounds" right under them.)
-        add('gui-review-report', 'Say how the visual review went in one line: "Visual review: PASS after N round(s) - <what the rounds fixed>" ' +
-          `(a full round found nothing) or, only after ${cfg.guiMaxRounds} rounds, "Visual review: STOPPED after N rounds - remaining: ...". That line can be the only place the rounds appear; a list of rounds is optional. ` +
-          'Write it in the user\'s language (Spanish: "Revisión visual: correcta tras N rondas" / "detenida tras N rondas").');
-      // REQ: gui-flows. A page with a saved flow (docs/checks/flows/<page>.json) gets that flow rerun when it changes, so a
-      // fix can't quietly break a click path checked earlier. Lesson: flows driven once were never driven again.
-      const flowFor = [...new Set(gui.map(p => p.split('/').pop().replace(/\.[^.]+$/, '')))].filter(n => exists(`docs/checks/flows/${n}.json`));
-      const shotRuns = x.runs.filter(r => re(cfg.guiShotCommand).test(r.cmd));
-      const rerun = n => shotRuns.some(r => (/--flows\b/.test(r.cmd) && (!/--pages\b/.test(r.cmd) || new RegExp(`--pages[= ]["']?[\\w.,-]*\\b${esc(n)}\\b`).test(r.cmd))) || new RegExp(`--steps[= ]["']?[^\\s"']*flows[\\\\/]${esc(n)}\\.json`).test(r.cmd));
-      const stale = x.toolsKnown ? flowFor.filter(n => !rerun(n)) : [];
-      if (stale.length) add('gui-flows', `Saved flows exist for the pages you changed (${stale.map(n => `docs/checks/flows/${n}.json`).join(', ')}): rerun them in this round with node tools/screenshot.mjs --flows --pages ${stale.join(',')} (plus --url or --file), and look at their screenshots.`);
-      // REQ: gui-warnings. Measured problems (sideways scroll, console errors, broken images) from the latest run are fixed or answered.
-      const runs = x.results.split(/GUI-SHOT:/);
-      const lastRun = runs.length > 1 ? runs[runs.length - 2].split(/NEXT: Read every screenshot/).pop() : '';
-      // the run's own summary says how many were its warnings; other tools' WARN lines in between are not
-      // (Lesson: an audit warning printed between two screenshot runs was counted as a screenshot warning.)
-      const counted = [...x.results.matchAll(/GUI-SHOT: \d+ screenshot\(s\), (\d+) warning/g)].pop();
-      let w = counted && +counted[1] ? [...lastRun.matchAll(/^WARN (.+)$/gm)].map(m => m[1]).slice(-counted[1]) : [];
-      // (each address keeps its own latest run: a clean run of the preview server does not clear a warning the same
-      // site gave opened as files. Lesson (trial v30): a blank page seen as files was hidden by a later clean run, and
-      // the user found it)
-      const target = cmd => (/--url[= ]["']?([^\s"']+)/.exec(cmd) || [])[1] || '';
-      const latest = new Map();
-      for (const r of shotRuns) if (/GUI-SHOT:/.test(r.out || '')) latest.set(target(r.cmd), r);
-      for (const [t, r] of latest) {
-        const n = +((/GUI-SHOT: \d+ screenshot\(s\), (\d+) warning/.exec(r.out || '') || [])[1] || 0);
-        if (n && t && r !== shotRuns.filter(q => /GUI-SHOT:/.test(q.out || '')).pop()) w = [...w, ...[...String(r.out).matchAll(/^WARN (.+)$/gm)].map(m => `${m[1]} (${t})`).slice(-n)];
-      }
-      if (verdict && /pass/i.test(verdict[1]) && w.length && !/warn(ing)?s?\b[^\n]*(accepted|expected|not a problem|intentional|n\/a)/i.test(x.said))
-        add('gui-warnings', `The latest screenshot run reported ${w.length} warning(s) (e.g. ${w[0].slice(0, 140)}). Fix them and re-shoot, or say in the answer why each is accepted ("warnings accepted: ...").`);
-  }
+  // (the reviewed round's verdict line, flows and warnings: tools/hooks/gui.mjs guiRound, shared with engine v2)
+  if (G.reviewed) for (const g of guiRound(x, cfg, gui, exists)) add(g.tag, g.msg);
   lap('gui-review-loop .. gui-warnings');
   // (REQ: hooks-tested: tools/hooks/hooktests.mjs, shared with engine v2)
   for (const g of HOOKTESTS.hooksTestedGaps(x)) (g.short ? miss.push(g) : add(g.tag, g.msg));

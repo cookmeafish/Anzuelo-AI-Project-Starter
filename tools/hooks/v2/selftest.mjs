@@ -2956,12 +2956,15 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   for (const f of fs.readdirSync(here).filter(f => f.endsWith('.mjs') && f !== 'selftest.mjs')) follow(v2(f));
   const parts = { guard: [v2('guard.mjs'), v2('midturn.mjs')], reminder: [v2('start.mjs')], base: [...baseNames].filter(n => fs.existsSync(base(n))).sort().map(base) };
   parts.end = fs.readdirSync(here).filter(f => f.endsWith('.mjs') && f !== 'selftest.mjs' && !Object.values(parts).flat().includes(v2(f))).map(v2);
-  const cap = { guard: 600, reminder: 400, end: 3200, base: 2600 }, ALL = 6000;
+  // (base: 3,500 from 2026-11-10, set once for the whole move of the old engine's rules into shared modules, which takes
+  // the same lines out of hooks.mjs; oversight's decision, no raise asked during the move, a ratchet at step 1e. ALL
+  // counts v2's own files only, guard, reminder and end, and stays 6,000. It had been 2,600 and counted base in ALL)
+  const cap = { guard: 600, reminder: 400, end: 3200, base: 3500 }, ALL = 6000;
   const got = Object.fromEntries(Object.entries(parts).map(([k, fs_]) => [k, fs_.reduce((n, f) => n + size(f), 0)]));
-  const lines = Object.values(got).reduce((a, b) => a + b, 0);
+  const lines = got.guard + got.reminder + got.end;
   const checks = (/const list = \[([^\]]*)\]/.exec(fs.readFileSync(path.join(here, 'end.mjs'), 'utf8'))?.[1].match(/\.\.\.\w+\(/g) || []).length;
   report(lines <= ALL && Object.entries(cap).every(([k, c]) => got[k] <= c) && checks >= 1 && checks <= 15,
-    `size: each part of the engine within its budget (guard ${got.guard}/${cap.guard}, reminder ${got.reminder}/${cap.reminder}, end ${got.end}/${cap.end}, base ${got.base}/${cap.base}), ${lines} of ${ALL} lines in all; the end check runs at most 15 checks (${checks})`, JSON.stringify({ got, lines, checks }));
+    `size: each part of the engine within its budget (guard ${got.guard}/${cap.guard}, reminder ${got.reminder}/${cap.reminder}, end ${got.end}/${cap.end}, base ${got.base}/${cap.base}), ${lines} of ${ALL} lines in v2's own files; the end check runs at most 15 checks (${checks})`, JSON.stringify({ got, lines, checks }));
 }
 
 // (one place finds the three roots: the engine's code, the project, and where project-made engine files live. In the

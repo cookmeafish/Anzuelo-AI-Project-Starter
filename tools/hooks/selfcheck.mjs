@@ -5100,6 +5100,9 @@ const V2_ASKS = {
   'plan-open': /^- This turn started with (an open plan|open plans) \(/m,
   'gui-review-loop': /^- (A screen changed: take screenshots|GUI files changed \([^\n]*\) and (were edited again|no screenshots)|Look at the latest round before judging it)/m,
   'gui-pack': /^- GUI files changed \([^\n]*\) but this project has no gui pack/m,
+  'gui-review-report': /^- Say how the visual review went in one line/m,
+  'gui-flows': /^- Saved flows exist for the pages you changed/m,
+  'gui-warnings': /^- The latest screenshot run reported \d+ warning/m,
   'upset-learned': /^- (The runbook your Issue line names|Give the point in general terms|Say the root cause|Say first whether it holds|Say what you checked to know it holds|Write the lesson where it stops the next miss|This is about the engine: send the lesson|The user is upset again in this session)/m,
 };
 // (an engine check from requirements.json is recognized by its own message, which v2's evaluator gives as "Check: ...")

@@ -17,7 +17,7 @@ import { verbatimHits } from './verbatim.mjs';
 import { hexIds, gitClaimContradicted, REPORTED, IMPROVE_CLAIM, byHandClaim, describesClaim, groupVerdictClaim, namedPaths as sharedNamedPaths } from '../claims.mjs';
 import { makeProof } from '../proof.mjs';
 import { makeTrace, researchVerified } from '../trace.mjs';
-import { guiReview } from '../gui.mjs';
+import { guiReview, guiRound } from '../gui.mjs';
 import { makeLaunchers } from '../launchers.mjs';
 import { makeGates } from '../gates.mjs';
 import { doneWhenGaps } from '../donewhen.mjs';
@@ -810,7 +810,14 @@ export function screenGaps(acts) {
   if (!looked) return ['A screen changed: take screenshots after the last change (node tools/screenshot.mjs) and look at them.'];
   // (REQ: gui-review-loop: the round looked at is the newest, by the shared gui.mjs rule. Lesson (the old suite under v2):
   // any image opened after any shot passed)
-  return guiReview(turnX(), { ...cfg, packs: [...new Set([...[].concat(cfg.packs || []), 'gui'])] }, io).gaps.filter(g => g.tag === 'gui-review-loop').map(g => g.msg);
+  const G = guiReview(turnX(), { ...cfg, packs: [...new Set([...[].concat(cfg.packs || []), 'gui'])] }, io), loop = G.gaps.filter(g => g.tag === 'gui-review-loop');
+  if (loop.length || !G.reviewed) return loop.map(g => g.msg);
+  // (REQ: gui-review-report, gui-flows, gui-warnings: a reviewed round's verdict line, saved flows rerun and measured
+  // warnings answered, by the shared gui.mjs rule. Lesson (the old suite under v2): a PASS over the tool's warnings passed)
+  const runs = acts.calls.filter(c => /^(Bash|PowerShell)$/.test(c.name)).map(c => ({ cmd: String(c.input?.command || ''), out: c.out || '' }));
+  return guiRound({ afterChange: inEnglish(String(acts.answer || ''), cfg), runs, results: acts.calls.map(c => c.out || '').join('\n'), toolsKnown: true, said: String(acts.said || '') }, cfg, G.gui, io.exists)
+    // (the gui runbook's own item holds the verdict line when the turn opened it: not asked twice)
+    .filter(g => !checkOff(g.tag) && !(g.tag === 'gui-review-report' && acts.calls.some(c => c.name === 'Read' && /docs\/playbooks\/gui\.md$/.test(relp(c.input?.file_path || ''))))).map(g => g.msg);
 }
 
 // Check 4: the project's structure changed (rules, runbooks, checks, skills, hook settings) and no passing health
