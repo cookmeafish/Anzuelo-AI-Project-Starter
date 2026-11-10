@@ -9215,7 +9215,7 @@ if (mineB() && (!TAGS || TAGS.includes('layout-split')) && fs.existsSync(path.jo
     // (a project note that names the engine's own skills: they exist, in .anzuelo/engine, with the project's own skills
     // in a folder of its own ("skillsDir"). Lesson (a field report, 2026-11-10): the audit read only that folder and
     // called the engine's skills missing)
-    fs.mkdirSync(path.join(proj, 'docs'), { recursive: true }); fs.writeFileSync(path.join(proj, 'docs/team-notes.md'), '# Team notes\n\nAt the end of a day, the session-handoff skill; for a new rule, the **project-rule** skill; for invoices, the invoice-check skill.\n');
+    fs.mkdirSync(path.join(proj, 'docs'), { recursive: true }); fs.writeFileSync(path.join(proj, 'docs/team-notes.md'), `# Team notes\n\nAt the end of a day, the session-handoff skill; for a new rule, the **project-rule** skill; for invoices, the ${'invoice-check'} skill.\n`);
     fs.mkdirSync(path.join(proj, 'agent-skills/invoice-check'), { recursive: true }); fs.writeFileSync(path.join(proj, 'agent-skills/invoice-check/SKILL.md'), '---\nname: invoice-check\ndescription: Checks an invoice\'s totals. Use when an invoice comes in.\ntriggers: check the invoice\nchecks: none - a reading aid with no output to verify\n---\n# Invoice check\n');
     { const cf = path.join(loc, 'tools/hooks/config.json'), c = JSON.parse(fs.readFileSync(cf, 'utf8')); fs.writeFileSync(cf, JSON.stringify({ ...c, skillsDir: 'agent-skills' }, null, 2) + '\n'); }
     const sync = hk('sync'), same = before === sum(eng);
