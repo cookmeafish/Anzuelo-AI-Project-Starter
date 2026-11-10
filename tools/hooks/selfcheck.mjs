@@ -2238,6 +2238,13 @@ STOP.push(
   { name: 'count-honored: a count inside pasted text is not a request: passes', prompt: 'what does this line mean?\n<pasted_content source="terminal">audit: PASS (26 sweeps, 0 failed, 0 warnings)</pasted_content>',
     answer: 'Every check passed.', expect: { block: false, not: ['count-honored'] } },
   { name: 'count-honored: a pasted hook line without tags is not a request: passes', prompt: 'what does this mean\naudit: FAIL (26 sweeps, 1 failed)', answer: 'One check failed.', expect: { block: false, not: ['count-honored'] } },
+  // (a number that describes existing items is no count asked for: "all 261 sweep groups", "the 4 drafts", "these 3
+  // checks"; a plural number before a singular noun makes it a modifier ("12 check results"). Lesson (a live false hold,
+  // 2026-11-10, a scheduled prompt judged as typed): "port all 261 sweep groups to v2" was held for "261 sweep")
+  { name: 'count-honored: a number describing existing items is not a count asked for: passes', prompt: 'keep going: port all 261 sweep groups to v2, then fix the 4 drafts and check these 3 options again',
+    answer: 'Ported the next group.', expect: { not: ['count-honored'] } },
+  { name: 'count-honored: a count asked for beside a described one is still held: blocked', prompt: 'look at all 12 check results and give me 3 options',
+    answer: 'Here are some: A, B.', expect: { block: true, tags: ['count-honored'], says: /asked for 3 options/ } },
   { name: 'promptMatches: a check never fires on pasted text: passes', prompt: 'what is this note?\n<pasted_content>deploy now</pasted_content>', edit: SAID, answer: 'A note from the release list.', expect: { block: false, not: ['deploy-said'] } },
   { name: 'promptMatches: the same words typed by the user still count: blocked', prompt: 'deploy now', edit: SAID, answer: 'Starting.', expect: { block: true, tags: ['deploy-said'] } },
   // the block cap ends the turn quietly; a check that waits on background helpers is not carried over as a miss
