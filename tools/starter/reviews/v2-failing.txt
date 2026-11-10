@@ -5,8 +5,6 @@ bench-caches: a timing run keeps the caches it rebuilt and writes no session sta
 check-preview guard: a line held to many checks stays within 400 characters (grouped, the rest as "+N more"), and a short line is left whole
 codex: a Codex transcript gives the request, the tool calls and their failures to the checks
 covers: agent-neutral is proven by "agent-neutral: begin routes"
-covers: changelog is proven by "changelog: a check list changed without a CHANGELOG line"
-covers: dev-new-project is proven by "dev-new-project: project making changed in a development copy without the trial"
 engine-bypassed: a commit or push from a Claude Code session the hooks never saw is refused with the way through; after begin records the session it passes; a person's commit and a test harness never meet it
 engine-cache: a project reuses a recorded engine pass despite new notes and own scenarios, still runs those scenarios and a smoke set (once a day), and runs everything with --full or a changed engine file
 friction-suspend: 3 frustrated turns of 6 suspend a check, a safeguard stays and is flagged, 1 of 6 changes nothing, restore undoes it
@@ -42,7 +40,6 @@ prompt: goal-loop: "keep improving it until the tests never flake" routes to the
 prompt: inbox files are announced
 prompt: menu codes: codes joined by a comma or "and" both expand, an unknown one among them is asked about
 prompt: menu codes: two codes in one message both expand
-prompt: paste-routing: a short angry message is still upset
 prompt: paste-routing: a short closing paragraph after the material still routes
 prompt: paste-routing: the same words in a short message still suggest the skill
 prompt: recall: Spanish, a close earlier request is recalled
@@ -99,9 +96,7 @@ stop-reblock: blocks count per request across waits for background jobs, the cap
 stop: "keep doing this" with nothing written down: blocked
 stop: 2nd block in a turn still blocks
 stop: DIRECTORY.md lost its generated block: blocked
-stop: GUI PASS while the tool reported warnings: blocked
 stop: GUI reviewed but no Visual review verdict: blocked
-stop: GUI warning on one address, a later clean run on another: still blocked
 stop: a loose new file in the project root: blocked
 stop: a new hand-written skill without triggers or a check: blocked
 stop: a new runbook gets its skill and DIRECTORY row generated
@@ -141,7 +136,6 @@ stop: fit-checklist: a turn adds a data file that a decided skip never answered:
 stop: gate with no pass pattern chained to other commands: run it alone: blocked
 stop: gate-redirect: a foreground run into a file that says FAIL: blocked
 stop: grant-decided: a row changed this turn that grants staff deletes on a "decision" the user never wrote: blocked
-stop: gui-flows: a page with a saved flow, flow not rerun: blocked
 stop: gui-review-report: a bold "Revisión visual" list item with no verdict still asks for the line
 stop: helpers still running, but the answer claims they finished and pushed: still checked
 stop: image + text prompt is a real prompt
