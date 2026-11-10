@@ -3,17 +3,26 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { otherSuites, registerSuite } from '../selftest-cache.mjs';
+import { otherSuites, registerSuite, waitQuiet, releaseLock, timingLock, testedCommit, SPEED_RECORD } from '../selftest-cache.mjs';
 
 // (this run is listed with the machine's self-test runs, as the old suite's are, and a time limit is judged strictly
 // only when no other run shares the machine; with others, an over-limit time is printed, not failed. What a time
 // cannot hide (files walked, patterns built at load) is judged always. Lesson (oversight, 2026-11-09): a fixed limit
 // failed at 62 to 77 ms beside a release run, so every test run waited 30 to 40 minutes for the release run to end)
+// (release mode, ANZUELO_RELEASE=1: first waits up to 10 minutes, adding no load, for the machine to itself and the turn
+// to time, holds that turn for the run, and records in SPEED_RECORD whether every limit was judged; the whole self-test
+// puts it in the proof, and a push needs it. Oversight, 2026-11-09)
 const unregister = registerSuite({ suite: 'v2-selftest' });
-process.on('exit', unregister);
+const RELEASE = !!process.env.ANZUELO_RELEASE;
+const quiet = RELEASE ? await waitQuiet(Number(process.env.ANZUELO_QUIET_WAIT_MS) || 600_000) : false;
+if (RELEASE && !quiet) console.log('NOTE  release: no quiet window in time (other self-test runs kept working); the time limits are noted, not judged, and the proof will not allow a push');
+process.on('exit', () => { if (quiet) releaseLock(timingLock()); unregister(); });
+let noted = 0;
 const timeVerdict = (within, what, numbers) => {
+  // (a time within its limit beside other runs still proves it: load only adds time)
   if (within) return true;
   const others = otherSuites(undefined, { busy: true });
+  if (others) noted++;
   if (others) console.log(`NOTE  ${what}: over its limit (${numbers}) while ${others} other self-test run(s) share the machine; not judged`);
   return others > 0;
 };
@@ -2971,7 +2980,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   const reg = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-reg-')), was = process.env.STARTER_SELFTEST_RUNNING;
   process.env.STARTER_SELFTEST_RUNNING = reg;
   const log = console.log; let said = ''; console.log = s => { said += s; };
-  let got;
+  let got; const notedBefore = noted;
   try {
     const alone = timeVerdict(false, 'probe', '99 ms'), fine = timeVerdict(true, 'probe', '1 ms');
     fs.writeFileSync(path.join(reg, `${process.ppid}.json`), JSON.stringify({ waiting: true }));
@@ -2979,10 +2988,21 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     fs.writeFileSync(path.join(reg, `${process.ppid}.json`), JSON.stringify({}));
     const shared = timeVerdict(false, 'probe', '99 ms');
     got = { alone, fine, waiting, shared, noted: /NOTE {2}probe: over its limit \(99 ms\) while 1 other/.test(said) };
-  } finally { console.log = log; process.env.STARTER_SELFTEST_RUNNING = was ?? ''; if (was === undefined) delete process.env.STARTER_SELFTEST_RUNNING; fs.rmSync(reg, { recursive: true, force: true }); }
+  } finally { console.log = log; noted = notedBefore; process.env.STARTER_SELFTEST_RUNNING = was ?? ''; if (was === undefined) delete process.env.STARTER_SELFTEST_RUNNING; fs.rmSync(reg, { recursive: true, force: true }); }
   report(!got.alone && got.fine && !got.waiting && got.shared && got.noted, 'speed: a time over its limit fails when the run is alone (or beside a run that only waits), and is printed, not failed, beside another working self-test run', JSON.stringify(got));
 }
 
 fs.rmSync(dir, { recursive: true, force: true });
+// (the release verdict on the time limits, for the proof: judged only with a quiet window, nothing noted, and every test
+// passing, on the exact commit tested)
+{
+  const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
+  const rec = path.join(repoRoot, SPEED_RECORD);
+  if (RELEASE) {
+    const judged = quiet && !noted && !fail;
+    try { fs.mkdirSync(path.dirname(rec), { recursive: true }); fs.writeFileSync(rec, JSON.stringify({ commit: testedCommit(repoRoot), judged, quiet, noted, failed: fail })); } catch { }
+    console.log(`speed: ${judged ? 'judged with the machine to itself' : `NOT judged (${!quiet ? 'no quiet window' : noted ? `${noted} limit(s) only noted beside other runs` : 'tests failed'})`}`);
+  }
+}
 console.log(`v2 selftest: ${fail ? 'FAIL' : 'ALL PASS'} (${pass} passed, ${fail} failed)`);
 process.exit(fail ? 1 : 0);

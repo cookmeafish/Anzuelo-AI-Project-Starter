@@ -36,7 +36,7 @@ if (process.argv.some(a => a === '--help' || a === '-h')) {
     process.exit(2);
   }
 }
-import { engineStamp, findPass, recordPass, localDay, SMOKE_EVERY, lockState, takeLock, releaseLock, otherSuites, registerSuite, markWaiting, timingLock, shardCount, failureCause, proofHash, readProof, writeProof, PROOF_FILE, PROOF_PATHS, mainCheckout } from './selftest-cache.mjs';
+import { engineStamp, findPass, recordPass, localDay, SMOKE_EVERY, lockState, takeLock, releaseLock, otherSuites, registerSuite, markWaiting, timingLock, shardCount, failureCause, proofHash, readProof, writeProof, SPEED_RECORD,PROOF_FILE, PROOF_PATHS, mainCheckout } from './selftest-cache.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 // (a state file a test inspects may not exist, e.g. under another engine: that test fails, the rest of its share runs.
@@ -5278,7 +5278,10 @@ if ((!TAGS || TAGS.includes('status-bar')) && mineB()) {
 // (Stop rounds) and without them (check --answer-file). Lesson: a round-1 fix set off the audit only in round 2.
 if (mineB() && (!TAGS || TAGS.includes('stop-follow-on'))) {
   // (the first "Names:" line: without hooks, the full steps follow it)
-  const names = r => (/Names: ([^\n]*?)\.[ \t]*(\n|$)/.exec(r || '')?.[1] || '').split(', ').filter(Boolean);
+  // (v2 names no check: its listed items stand for them, each by its opening words, numbers left out, so a count that
+  // went down is the same item)
+  const v2Items = r => /^(Not done yet|Still not done)/.test(r || '') ? [...String(r).split(/\nFix what isn't done\./)[0].matchAll(/^- (.+)$/gm)].map(m => m[1].replace(/\d+/g, 'N').slice(0, 48)) : null;
+  const names = r => v2Items(r) || (/Names: ([^\n]*?)\.[ \t]*(\n|$)/.exec(r || '')?.[1] || '').split(', ').filter(Boolean);
   const LINE = '\n- Plans show what the work costs before it starts, so spending is never a surprise (2026-10-21).\n';
   const MEMORY = { '.memtest/plan-costs.md': () => '---\nname: plan-costs\n---\nPlans show costs.\n**Why:** no surprises.\n**How to apply:** a cost table in each plan.\n' };
   const NA = '\nN/A(runbook-exists): a test fixture';
@@ -8696,7 +8699,7 @@ if (mineB() && (!TAGS || TAGS.includes('starter-tested'))) { // starter-tested: 
     const git = (...a) => spawnSync('git', ['-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', '-c', 'core.hooksPath=/dev/null', ...a], { encoding: 'utf8' }).stdout.trim();
     const commit = m => { git('add', '-A'); git('commit', '-q', '-m', m); return git('rev-parse', 'HEAD'); };
     const guard = sha => { const e = { ...process.env }; delete e.ANZUELO_SESSION_GATE; const r = spawnSync(process.execPath, [path.join(dir, 'tools/hooks/git-guard.mjs'), 'pre-push'], { cwd: dir, encoding: 'utf8', env: e, input: `refs/heads/main ${sha} refs/heads/main ${'0'.repeat(40)}\n` }); return r.stderr || ''; };
-    const pf = path.join(dir, 'tools/hooks/engine-proof.json'), proof = c => fs.writeFileSync(pf, JSON.stringify({ engine: 'e', tests: 9, ...(c ? { commit: c } : {}) }));
+    const pf = path.join(dir, 'tools/hooks/engine-proof.json'), proof = (c, speed = { stop: true, v2: true }) => fs.writeFileSync(pf, JSON.stringify({ engine: 'e', tests: 9, ...(c ? { commit: c } : {}), ...(speed ? { speed } : {}) }));
     const { testedCommit } = await import(pathToFileURL(path.join(dir, 'tools/hooks/selftest-cache.mjs')).href);
     git('init', '-q'); proof(null);
     const a = commit('a'), none = guard(a), cleanA = testedCommit(dir) === a;
@@ -8711,9 +8714,14 @@ if (mineB() && (!TAGS || TAGS.includes('starter-tested'))) { // starter-tested: 
     fs.mkdirSync(path.join(dir, 'tools/hooks/state'), { recursive: true });
     fs.writeFileSync(path.join(dir, 'tools/hooks/state/selftest.json'), JSON.stringify({ at: localDay(), passed: false, count: 1 }));
     const afterFail = guard(b), del = guard('0'.repeat(40));
-    report(/starter-tested/.test(none) && cleanA && dirty === null && recordsOnly && !/starter-tested/.test(proved) && /starter-tested[^\n]*changed 1 file/.test(changed) && !/starter-tested/.test(afterFail) && !/starter-tested/.test(del),
-      'starter-tested: a push goes only for the commit the proof inside it names (or one differing only in the records); no proof, or an engine change since, is refused; a failed run recorded later changes nothing',
-      JSON.stringify({ none: none.slice(0, 90), cleanA, dirty, recordsOnly, proved: proved.slice(0, 90), changed: changed.slice(0, 120), afterFail: afterFail.slice(0, 90) }));
+    // (a release whose time limits were only noted beside other runs, or never recorded, is refused: the speed bar is
+    // judged once with the machine to itself before a push. Oversight, 2026-11-09)
+    fs.rmSync(path.join(dir, 'tools/hooks/state/selftest.json'), { force: true }); proof(c, { stop: true, v2: false }); const d = commit('proof, v2 speed only noted'), notedV2 = guard(d);
+    proof(c, null); const e = commit('proof, no speed record'), noSpeed = guard(e);
+    report(/starter-tested/.test(none) && cleanA && dirty === null && recordsOnly && !/starter-tested/.test(proved) && /starter-tested[^\n]*changed 1 file/.test(changed) && !/starter-tested/.test(afterFail) && !/starter-tested/.test(del)
+      && /starter-tested[^\n]*never had its time limits judged[^\n]*\(v2:/.test(notedV2) && /starter-tested[^\n]*never had its time limits judged[^\n]*\(stop, v2:/.test(noSpeed),
+      'starter-tested: a push goes only for the commit the proof inside it names (or one differing only in the records), with its time limits judged; no proof, an engine change since, or time limits only noted beside other runs is refused; a failed run recorded later changes nothing',
+      JSON.stringify({ none: none.slice(0, 90), cleanA, dirty, recordsOnly, proved: proved.slice(0, 90), changed: changed.slice(0, 120), afterFail: afterFail.slice(0, 90), notedV2: notedV2.slice(0, 160), noSpeed: noSpeed.slice(0, 160) }));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 if (mineB() && (!TAGS || TAGS.includes('question-no-file'))) { // classifiers on real prompt shapes (field reports):
@@ -9324,6 +9332,8 @@ function prevEngineStop(dir, tp) {
   } finally { fs.writeFileSync(at, mine); }
   return times.length ? Math.min(...times) : null;
 }
+// (whether the Stop limits were judged with the machine to itself, for the proof: see writeProof's speed)
+let STOP_JUDGED = false;
 if (!TAGS && !HELPER && !REUSE) {
   const dir = copyProject();
   try {
@@ -9371,6 +9381,9 @@ if (!TAGS && !HELPER && !REUSE) {
     const v2best = Math.min(...v2ms);
     console.log(`stop timing (engine v2, the default): ${v2best} ms (fastest of 5: ${v2ms.join(', ')}; budget ${budget} ms)`);
     report(v2best <= budget || others > 0, `stop-budget: engine v2's Stop hook stays within its ${budget} ms budget on a realistic work turn`, `${v2best} ms`);
+    // (proven: both engines within budget; beside other runs that still proves it, load only adds. Over budget is never
+    // proof, whatever excused it: other runs, or a previous engine as slow)
+    STOP_JUDGED = !!v && v.total <= budget && v2best <= budget;
     // and the verdict names the slowest checks when the budget is missed
     const tight = v ? stopVerdict(samples, 1) : null;
     report(!!tight && !tight.ok && tight.slow.length === 3 && tight.slow.every(s => /^[\w(][^]* \d+(\.\d)? ms$/.test(s)) && samples[0].parts.some(([l]) => /^check /.test(l)) && samples[0].parts.some(([l]) => /^core /.test(l)),
@@ -9428,5 +9441,7 @@ if (TAGS) try { fs.mkdirSync(path.join(ROOT, 'tools/hooks/state'), { recursive: 
 if (WHOLE_RUN) try { fs.writeFileSync(LAST, JSON.stringify({ pid: process.pid, at: new Date().toISOString(), code: fail ? 1 : 0, mode: REUSE ? 'reused' : 'full', lines: [...FAIL_LINES.slice(0, 40), summary] })); } catch { }
 // In the starter, a whole run where every test passed proves this engine for the projects made from it (PROOF_FILE,
 // hashed from the base the tests ran in, as the run started). A project made from it, or upgraded to it, reuses it.
-if (IS_STARTER && WHOLE_RUN && !fail) try { if (writeProof(ROOT, proofHash(B, CORE_SKILLS), pass, TESTED0)) console.log(`proof: ${PROOF_FILE} now names this engine (${pass} tests passed${TESTED0 ? `, commit ${TESTED0.slice(0, 7)}` : ''})`); } catch (e) { console.log(`proof: ${PROOF_FILE} could not be written (${e.message})`); }
+// (the time limits proven: this run's Stop timing, and the v2 self-test's release run on the same commit, SPEED_RECORD)
+const TIME_PROOF = (() => { let r = null; try { r = JSON.parse(fs.readFileSync(path.join(ROOT, SPEED_RECORD), 'utf8')); } catch { } return { stop: STOP_JUDGED, v2: !!TESTED0 && r?.commit === TESTED0 && r?.judged === true }; })();
+if (IS_STARTER && WHOLE_RUN && !fail) try { if (writeProof(ROOT, proofHash(B, CORE_SKILLS), pass, TESTED0, TIME_PROOF)) console.log(`proof: ${PROOF_FILE} now names this engine (${pass} tests passed${TESTED0 ? `, commit ${TESTED0.slice(0, 7)}` : ''}; time limits ${TIME_PROOF.stop && TIME_PROOF.v2 ? 'judged' : `NOT judged (${['stop', 'v2'].filter(k => !TIME_PROOF[k]).join(', ')}): a push of this commit will be refused`})`); } catch (e) { console.log(`proof: ${PROOF_FILE} could not be written (${e.message})`); }
 process.exit(fail ? 1 : 0);

@@ -98,10 +98,11 @@ export function proofHash(baseDir, coreSkills = []) {
 export function readProof(dir) { try { const j = JSON.parse(fs.readFileSync(path.join(dir, PROOF_FILE), 'utf8')); return j && typeof j.engine === 'string' ? j : null; } catch { return null; } }
 // written only when it changes, so a passing run on an unchanged engine leaves the file as it was. `commit` is the
 // commit the run tested, when its files were exactly that commit's (testedCommit); a run on changed files leaves it out.
-export function writeProof(dir, engine, tests, commit = null) {
+// `speed`: whether each suite's time limits were judged with the machine to itself ({ stop, v2 }), not only noted.
+export function writeProof(dir, engine, tests, commit = null, speed = null) {
   const now = readProof(dir);
-  if (now && now.engine === engine && now.tests === tests && (!commit || now.commit === commit)) return false;
-  fs.writeFileSync(path.join(dir, PROOF_FILE), JSON.stringify({ _comment: 'Written by tools/hooks/selfcheck.mjs in the starter when every test passes: the hash of the engine those tests ran on, and the commit they tested when the files were exactly that commit. A project whose engine hashes the same reuses that result (tools/hooks/selftest-cache.mjs); the starter is pushed only for that commit (git-guard.mjs pre-push). Do not edit.', engine, tests, ...(commit ? { commit } : {}) }, null, 2) + '\n');
+  if (now && now.engine === engine && now.tests === tests && (!commit || now.commit === commit) && JSON.stringify(now.speed ?? null) === JSON.stringify(speed)) return false;
+  fs.writeFileSync(path.join(dir, PROOF_FILE), JSON.stringify({ _comment: 'Written by tools/hooks/selfcheck.mjs in the starter when every test passes: the hash of the engine those tests ran on, and the commit they tested when the files were exactly that commit. A project whose engine hashes the same reuses that result (tools/hooks/selftest-cache.mjs); the starter is pushed only for that commit (git-guard.mjs pre-push). Do not edit.', engine, tests, ...(commit ? { commit } : {}), ...(speed ? { speed } : {}) }, null, 2) + '\n');
   return true;
 }
 // The starter's records a passing run or a release writes after the tests: no engine change, so a commit that differs
@@ -122,6 +123,11 @@ export function testedCommit(dir) {
 export function proofCovers(dir, sha) {
   let proof = null; try { proof = JSON.parse(gitIn(dir, 'show', `${sha}:${PROOF_FILE}`) || 'null'); } catch { }
   if (!proof?.commit) return { ok: false, why: `no proof of a passing whole self-test names a tested commit in ${sha.slice(0, 7)}` };
+  // (the time limits judged once with the machine to itself: a limit only noted beside other runs proves no speed.
+  // Lesson (oversight, 2026-11-09): with limits noted, not failed, under load, a machine always busy during the release
+  // run would never judge them, and a slow engine could ship)
+  const unjudged = ['stop', 'v2'].filter(k => proof.speed?.[k] !== true);
+  if (unjudged.length) return { ok: false, why: `the tested commit ${String(proof.commit).slice(0, 7)} never had its time limits judged with the machine to itself (${unjudged.join(', ')}: only noted beside other self-test runs, or not run). Run the release chain again when no other self-test runs` };
   const diff = gitIn(dir, 'diff', '--name-only', proof.commit, sha);
   if (diff == null) return { ok: false, why: `the tested commit ${String(proof.commit).slice(0, 7)} is not in this repository` };
   const extra = diff.split('\n').filter(f => f && !PROOF_RECORDS.includes(f));
@@ -198,6 +204,19 @@ export function markWaiting(waiting, dir = runningDir()) {
   if (cur) try { fs.writeFileSync(f, JSON.stringify({ ...cur, waiting: !!waiting })); } catch { }
 }
 export const timingLock = (dir = runningDir()) => path.join(dir, 'timing.lock');
+// Waits, as a run that adds no load, until no other self-test run is working and the turn to time is this run's, up to
+// `ms`. True when it got both (the caller releases the lock); false when the wait ran out.
+export async function waitQuiet(ms, { dir = runningDir(), step = 5000 } = {}) {
+  markWaiting(true, dir);
+  try {
+    for (const t0 = Date.now(); ; await new Promise(r => setTimeout(r, step))) {
+      if (!otherSuites(dir, { busy: true }) && takeLock(timingLock(dir), { what: 'v2 timing' }).taken) return true;
+      if (Date.now() - t0 >= ms) return false;
+    }
+  } finally { markWaiting(false, dir); }
+}
+// The v2 self-test's release-mode verdict on its time limits, read by the whole self-test into the proof: { commit, judged }
+export const SPEED_RECORD = '.cache/speed-judged.json';
 export function registerSuite(info, dir = runningDir()) {
   try { fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(path.join(dir, `${process.pid}.json`), JSON.stringify({ at: new Date().toISOString(), ...info })); } catch { }
   return () => { try { fs.rmSync(path.join(dir, `${process.pid}.json`), { force: true }); } catch { } };
