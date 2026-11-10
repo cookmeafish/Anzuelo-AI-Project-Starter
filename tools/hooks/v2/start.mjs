@@ -112,7 +112,9 @@ function remind(prompt) {
   // word, like "note" or "redundant")
   // (and in the request's first sentence, where it says what it asks: everyday phrases like "find out" come up later in
   // long instructions. Lesson (a scheduled review request): "if it is idle, find out why" named the research skill)
-  const sk = book ? null : route(String(prompt).trim().split(/(?<=[.?!])\s+|\n/)[0] || '', skillBooks());
+  // (on the user's own words only: a message relayed from another session suggests no skill, its words describe that
+  // session's work. Lesson (the old suite under v2): a relayed "ran in parallel" status named the parallel-agents skill)
+  const sk = book ? null : route(String(userWords(prompt)).trim().split(/(?<=[.?!])\s+|\n/)[0] || '', skillBooks());
   // (a one-word trigger counts as the request's first word, an imperative ("research ...", "investiga ...") or a label
   // typed as one ("note: ..."): the noise one-word triggers made came from words later in long requests)
   const first = (String(prompt).trim().toLowerCase().match(/^[^\s]+/) || [''])[0];
