@@ -5902,6 +5902,17 @@ if (mineB() && (!TAGS || TAGS.includes('check-preview'))) {
 // scaled to the load, the audit's self-test sweep, the audit's reuse hash, and walks that skip dependency folders.
 const SPEED = !TAGS || TAGS.includes('selftest-speed');
 const nodeIn = (dir, args, env = {}, timeout = 300_000) => spawnSync(process.execPath, args, { cwd: dir, encoding: 'utf8', timeout, maxBuffer: 64 * 1024 * 1024, env: { ...process.env, STARTER_MEMORY_DIR: path.join(dir, '.memtest'), ...env } });
+// (the trial registers as a running suite, so another suite's hook timing sees its load: it runs sample projects' hooks.
+// Lesson (a project's report): a timing taken during a release run's trial printed no "shared the machine" note)
+// (read from its source: starting a real trial to watch it would leave its sample projects' processes running when
+// stopped. Registered before its first sample is made, and stepped aside only around its own child suite)
+if (mineB() && SPEED && fs.existsSync(path.join(ROOT, 'tools/trial.mjs'))) {
+  const src = fs.readFileSync(path.join(ROOT, 'tools/trial.mjs'), 'utf8');
+  const regAt = src.indexOf("registerSuite({ suite: 'trial' })"), firstRun = src.search(/^[^/\n]*\b(starterRun|node)\(\[/m);
+  const child = /unregisterTrial\(\);\s*\n\s*const t = node\(\['tools\/hooks\/selfcheck\.mjs'/.test(src) && /unregisterTrial = registerSuite\(\{ suite: 'trial' \}\)/.test(src);
+  report(regAt > 0 && (firstRun < 0 || regAt < firstRun) && /process\.on\('exit', \(\) => unregisterTrial\(\)\)/.test(src) && child,
+    'selftest-speed: the trial registers as a running suite before it works, so another suite\'s hook timing sees its load; it steps aside only while its own child suite runs', JSON.stringify({ regAt, firstRun, child }));
+}
 if (mineB() && SPEED) { // engine-cache: the stamp follows the base's files, Node major, platform and day; a pass is found for its stamp only
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-test-'));
   try {

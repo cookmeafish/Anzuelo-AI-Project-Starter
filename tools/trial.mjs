@@ -15,6 +15,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { registerSuite } from './hooks/selftest-cache.mjs';
 
 const STARTER = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // --help, or a flag it doesn't know, prints the usage and runs nothing. Lesson (2026-11-06): a mistyped flag in a
@@ -28,6 +29,9 @@ const STARTER = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
     process.exit(help ? 0 : 2);
   }
 }
+// (the trial runs on the machine as a test suite: another suite's hook timing sees it and says so, or waits. Lesson (a
+// project's report): a timing taken during a release run's trial printed no "shared the machine" note)
+let unregisterTrial = registerSuite({ suite: 'trial' }); process.on('exit', () => unregisterTrial());
 const deep = process.argv.includes('--deep');
 const env = { ...process.env, STARTER_ALLOW_DEV: '1' };
 const run = (cmd, args, cwd, timeout = 300000) => spawnSync(cmd, args, { cwd, encoding: 'utf8', env, timeout });
@@ -348,7 +352,10 @@ if (deep) {
   fs.writeFileSync(path.join(WORK, 'deep-fit.json'), JSON.stringify(fitRows));
   node(['tools/fit.mjs', 'decide', '--file', path.join(WORK, 'deep-fit.json')], dir);
   // (--full: --deep is for the whole engine suite in a real project, not the starter's proof of it)
+  // (the trial steps aside while its own child suite runs, which registers itself: it would otherwise wait on its parent)
+  unregisterTrial();
   const t = node(['tools/hooks/selfcheck.mjs', '--full'], dir, 1800000);
+  unregisterTrial = registerSuite({ suite: 'trial' });
   check('deep', "the engine's self-tests pass inside an adopted project mid-setup", fs.existsSync(path.join(dir, 'SETUP-PROMPT.md')) && /ALL PASS/.test(t.stdout), t.stdout.split('\n').filter(l => /^FAIL/.test(l)).slice(0, 5).join(' | '));
 }
 
