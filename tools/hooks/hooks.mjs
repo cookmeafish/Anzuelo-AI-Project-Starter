@@ -79,7 +79,7 @@ const PROOF = makeProof({ get ROOT() { return ROOT; }, read: (...a) => read(...a
 // (the proof machinery, shared with engine v2: tools/hooks/proof.mjs)
 export const { ENFORCED, enforcedClaim, autoScopes, noteDirs, enforcementGaps, newProjectChecks, savedCopies, governedFiles, checkProof, COMPLAINT_DOESNT_HOLD, complaintDisproved, cmdHead, neverRan, shellParts } = PROOF;
 const { NEVER_AGAIN, CHECK_FILE, TEST_FILE, requirementScripts, wordsOf, pathKey } = PROOF;
-import { WAKE_KNOWN, isWakeTool, WAKE_ASK, wakeFamily, wakeupsPending, watchersArmed, watcherLeft } from './wakeups.mjs';
+import { WAKE_KNOWN, isWakeTool, WAKE_ASK, WAKE_SAID, wakeFamily, wakeupsPending, watchersArmed, watcherLeft } from './wakeups.mjs';
 import { INJ_PLANTED, INJ_AIMED, INJ_WARNED } from './injection.mjs';
 export { isWakeTool, WAKE_ASK, wakeupsPending };
 
@@ -5896,7 +5896,7 @@ export function stopDecision(data, cfg = config()) {
   // is not enough: the run does not end while it is pending, so the caller gets nothing until the time limit kills it.
   // It must be cancelled, unless the request asked for a reminder, a loop or a schedule.
   const wantsWake = WAKE_ASK.test(x.prompt || '');
-  const WAKE_SAID = /\b(wake-?ups?|reminders?|cron|scheduled|recurring|recordatorios?|programad[oa]s?)\b/i;
+  // (WAKE_SAID: the shared wakeups.mjs, so both engines accept the same "stays on, every half hour, next run" answer)
   // (interactive, a recurring job that has fired already is a standing schedule, kept on purpose. Lesson (dogfood): an
   // hourly job the user asked for was flagged at the end of every short turn between its runs)
   const leftWakes = t.toolsKnown && !(t.bgRunning || []).length ? (t.wakeups || []).filter(w => headless && !wantsWake ? true : !(w.recurring && w.fired) && !((w.id && raw.includes(w.id)) || WAKE_SAID.test(raw))) : [];
@@ -6267,10 +6267,36 @@ export function stopOutput(d, cfg = config(), host = HOST) {
 // hosts get the classic block. "stopStyle" ("feedback" or "block") in config.json forces either. Lesson (the user): the
 // classic block showed as a "Stop hook blocking error", which the user asked not to see. Oversight 2026-11-10, checked
 // against the Claude Code hooks documentation that day.
-export function v2StopForm(out, cfg = config(), host = HOST) {
-  if (!out || out.decision !== 'block') return out;
+// The text itself is short and plain, since the host shows it to the user ("Stop hook feedback") and has no way to hide
+// it: a heading line and at most 3 short items, the full steps and instructions in tools/hooks/state/stop-details.md
+// ("hooks.mjs why" prints them), as the old engine kept them. A Stop that passes clears that file. Lesson (the user,
+// 2026-11-10, many times): the block of instructions there read as noise; Claude Code cannot hide it (checked that day).
+export function v2StopForm(out, cfg = config(), host = HOST, state = STATE) {
+  const details = path.join(state, 'stop-details.md');
+  if (!out || out.decision !== 'block') { try { fs.rmSync(details, { force: true }); } catch { } return out; }
+  try { fs.mkdirSync(state, { recursive: true }); fs.writeFileSync(details, `# What is left before this is done\n\n${out.reason}\n`); } catch { }
+  const where = path.relative(PROJECT, details).split(path.sep).join('/');
+  const reason = shortStop(out.reason, where);
   const style = cfg.stopStyle === 'feedback' || cfg.stopStyle === 'block' ? cfg.stopStyle : host === 'claude-code' ? 'feedback' : 'block';
-  return style === 'feedback' ? { hookSpecificOutput: { hookEventName: 'Stop', additionalContext: out.reason } } : { decision: 'block', reason: out.reason };
+  return style === 'feedback' ? { hookSpecificOutput: { hookEventName: 'Stop', additionalContext: reason } } : { decision: 'block', reason };
+}
+// The short form: one plain line per open item, cut at its first sentence, at most 3 (the rest counted), then where the
+// full steps are. The runbook items to verify are one item; the last round says so.
+export function shortStop(full, where = 'tools/hooks/state/stop-details.md') {
+  const text = String(full || ''), items = [];
+  for (const l of text.split('\n')) if (/^- \S/.test(l)) items.push(l.slice(2));
+  const book = /Check that these items of (\S+) are really done/.exec(text)?.[1];
+  if (book) items.push(`check the items of ${book} are really done`);
+  const plain = s => { let t = s.replace(/^Then, once [^:]+? (?:is|are) written:\s*/i, '').replace(/^Check:\s*/i, '').replace(/\s+/g, ' ').trim();
+    const end = /^(.{20,}?[.!?])(\s|$)/.exec(t); if (end) t = end[1].replace(/[.!?]$/, '');
+    if (t.length > 90 && t.indexOf(' (') > 30) t = t.slice(0, t.indexOf(' ('));
+    if (t.length > 90) t = t.slice(0, 88).replace(/\s+\S*$/, '') + '…';
+    return t.charAt(0).toLowerCase() + t.slice(1); };
+  const n = items.length || 1, last = /This is the last check for this request/.test(text);
+  const shown = items.slice(0, items.length > 3 ? 2 : 3).map(s => `- ${plain(s)}`);
+  if (items.length > 3) shown.push(`- and ${items.length - 2} more`);
+  if (!items.length) shown.push(`- ${plain(text.split('\n')[0] || 'see the details')}`);
+  return `⚓ ${names().STARTER_NAME || 'Project checks'}: ${n} thing${n === 1 ? '' : 's'} left before this is done${last ? ' (last check: say plainly what is not done)' : ''}\n${shown.join('\n')}\n(details: ${where})`;
 }
 // Session and prompt notices: kept out of the visible chat where the host documents a way (Claude Code's
 // additionalContext); plain text elsewhere, which Codex documents as added to the agent's context.

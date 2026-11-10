@@ -3582,6 +3582,13 @@ STOP.push(
     answer: 'Done: a reminder (a scheduled wakeup) fires in 20 minutes.', expect: { block: false, not: ['wakeup-left'] } },
   { name: 'wakeup-left: a recurring cron job left behind: blocked', prompt: 'is the review done?', tools: [{ name: 'CronCreate', input: { cron: '*/7 * * * *', prompt: 'check the review' }, result: 'Scheduled recurring job id cr8a91f2 (next run 17:07).' }],
     answer: 'Yes: the reviewer approved it.', expect: { block: true, tags: ['wakeup-left'], says: /CronDelete[\s\S]*cr8a91f2|cr8a91f2[\s\S]*CronDelete/ } },
+  // (an answer that says the job stays on, what it does and when it runs next keeps it on purpose, as the check's own
+  // message asks. Lesson (a live false hold, 2026-11-10): "checks on the work every half hour; next run 11:58" was held
+  // twice, since only the words wakeup, reminder, cron or scheduled counted)
+  { name: 'wakeup-left: a job the answer says stays on, with what it does and its next run: passes', prompt: 'keep an eye on the other session', tools: [{ name: 'CronCreate', input: { cron: '*/30 * * * *', prompt: 'check on the other session' }, result: 'Scheduled recurring job id cr8a91f5 (next run 11:58).' }],
+    answer: 'The oversight job stays on: it checks on the coding session every half hour; next run 11:58.', expect: { not: ['wakeup-left'] } },
+  { name: 'wakeup-left: a schedule named with no word that it stays on: blocked', prompt: 'keep an eye on the other session', tools: [{ name: 'CronCreate', input: { cron: '*/30 * * * *', prompt: 'check on the other session' }, result: 'Scheduled recurring job id cr8a91f6 (next run 11:58).' }],
+    answer: 'Done for now, the session looks fine.', expect: { block: true, tags: ['wakeup-left'] } },
   // (a recurring job that has fired already is a standing schedule, set up on purpose, not one left behind. Lesson
   // (dogfood): an hourly job the user asked for was flagged at the end of every short turn between its runs)
   { name: 'wakeup-left: a recurring cron job that has fired already is a standing schedule: passes', prompt: 'is the review done?', tools: [{ name: 'CronCreate', input: { cron: '0 * * * *', prompt: 'check the review' }, result: 'Scheduled recurring job id cr8a91f4 (next run 18:00).' }],
@@ -5204,9 +5211,10 @@ for (const s0 of STOP) {
   // the stop message lists the check names once, on its last line: "Names: a, b."
   // (the v2 end check names no check: a behavior ported to v2 is recognized by what its message asks, V2_ASKS. The
   // scenario and its verdict stay as they were; only v1's wording goes. Plan: migrate every behavior, Task 3)
-  const v2 = /^(Not done yet|Still not done)/.test(r.reason || '');
+  const v2 = /^(Not done yet|Still not done)|^⚓ [^\n]* left before this is done/.test(r.reason || '');
   // (a follow-on v2 names in this round, "Then, once <files> are written: <the ask>", names that ask, as v1's "Then:")
-  const v2r = String(r.reason || '').replace(/^- Then, once .+? (?:is|are) written: /gm, '- ');
+  // (v2 shows a short text and keeps the full steps in tools/hooks/state/stop-details.md: both are read)
+  const v2r = `${r.reason || ''}\n${v2 ? r.details || '' : ''}`.replace(/^- Then, once .+? (?:is|are) written: /gm, '- ');
   const named = t => (/Names: ([^\n]*)\.\s*$/.exec(r.reason || '')?.[1] || '').split(', ').includes(t) || (v2 && ((!!V2_ASKS[t] && V2_ASKS[t].test(v2r)) || (!!ENGINE_MSG[t] && v2r.includes(`- Check: ${ENGINE_MSG[t]}`))));
   for (const t of s.expect.tags || []) if (!named(t)) why ||= `missing tag [${t}] in: ${r.reason || `(no block)${r.err ? ' stderr: ' + r.err.slice(0, 300) : ''}`}`;
   for (const t of s.expect.not || []) if (named(t)) why ||= `unexpected tag [${t}]`;
@@ -5494,6 +5502,9 @@ if ((!TAGS || TAGS.includes('status-bar')) && mineB()) {
 // (Stop rounds) and without them (check --answer-file). Lesson: a round-1 fix set off the audit only in round 2.
 if (mineB() && (!TAGS || TAGS.includes('stop-follow-on'))) {
   // (the first "Names:" line: without hooks, the full steps follow it)
+  // (v2's Stop text is short; its full steps are in tools/hooks/state/stop-details.md, read here in its place)
+  const v2Full = (dir, d) => { const t = d ? d.reason || d.hookSpecificOutput?.additionalContext || '' : ''; if (!/^⚓ [^\n]* left before this is done/.test(t)) return t;
+    try { return fs.readFileSync(path.join(dir, 'tools/hooks/state/stop-details.md'), 'utf8').replace(/^# What is left before this is done\n\n/, '').trim(); } catch { return t; } };
   // (v2 names no check: its listed items stand for them, each by its opening words, numbers left out, so a count that
   // went down is the same item)
   const v2Items = r => /^(Not done yet|Still not done)/.test(r || '') ? [...String(r).split(/\nFix what isn't done\./)[0].matchAll(/^- (.+)$/gm)].map(m => m[1].replace(/^Then, once .+? (?:is|are) written: /, '').replace(/\d+/g, 'N').slice(0, 48)) : null;
@@ -5534,7 +5545,7 @@ if (mineB() && (!TAGS || TAGS.includes('stop-follow-on'))) {
       const sp = path.join(dir, 'tools/hooks/state/snapshot.json');
       if (fs.existsSync(sp)) { try { const j = JSON.parse(fs.readFileSync(sp, 'utf8')); j.files['transcript.jsonl'] = [0, 0, null]; fs.writeFileSync(sp, JSON.stringify(j)); } catch { } }
       write(dir, c.files);
-      const stop = active => { const { out } = run(dir, 'stop', { transcript_path: tp, stop_hook_active: active }); let d = null; try { d = out.trim() ? JSON.parse(out) : null; } catch { } return d ? d.reason || d.hookSpecificOutput?.additionalContext || '' : ''; };
+      const stop = active => { const { out } = run(dir, 'stop', { transcript_path: tp, stop_hook_active: active }); let d = null; try { d = out.trim() ? JSON.parse(out) : null; } catch { } return v2Full(dir, d); };
       const r1 = stop(false), n1 = names(r1);
       applyEdits(dir, c.fix.edit, Date.now());
       transcript(dir, { ...c, drafts: [c.answer], later: c.fix.tools || [], answer: c.fix.answer }, since);
@@ -5590,7 +5601,7 @@ if (mineB() && (!TAGS || TAGS.includes('stop-reblock'))) {
       const sp = path.join(dir, 'tools/hooks/state/snapshot.json');
       if (fs.existsSync(sp)) { try { const j = JSON.parse(fs.readFileSync(sp, 'utf8')); j.files['transcript.jsonl'] = [0, 0, null]; fs.writeFileSync(sp, JSON.stringify(j)); } catch { } }
       write(dir, { 'docs/rota.md': 'r' });
-      const stop = active => { save(); const { out } = run(dir, 'stop', { transcript_path: tp, stop_hook_active: active }); let d = null; try { d = out.trim() ? JSON.parse(out) : null; } catch { } return d ? d.reason || d.hookSpecificOutput?.additionalContext || 'blocked' : ''; };
+      const stop = active => { save(); const { out } = run(dir, 'stop', { transcript_path: tp, stop_hook_active: active }); let d = null; try { d = out.trim() ? JSON.parse(out) : null; } catch { } return d ? v2Full(dir, d) || 'blocked' : ''; };
       say('Done.'); stop(false);                              // 1 blocked (no Finished section)
       launch('rbj1'); say('Running the sweep.'); stop(true);   // waiting
       notice('rbj1'); say('Done.'); const r2 = stop(false);     // the notice wakes the session: 2 blocked

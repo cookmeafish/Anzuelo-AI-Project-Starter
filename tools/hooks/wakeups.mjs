@@ -62,7 +62,10 @@ export function wakeupsPending(rows, now = Date.now()) {
 // itself is cancelled, or the answer says what it will do (its id, or the words wakeup, reminder, cron, scheduled). In
 // a headless run saying so is not enough (the run does not end while it is pending), unless the request asked for a
 // reminder, a loop or a schedule. A recurring job that has fired already is a standing schedule, kept on purpose.
-const WAKE_SAID = /\b(wake-?ups?|reminders?|cron|scheduled|recurring|recordatorios?|programad[oa]s?)\b/i;
+// (or says that it stays on and when it runs: "stays on", "keeps running", "every half hour", "every 30 minutes", "next
+// run 11:58", "sigue activo", "cada 30 minutos". Lesson (a live false hold, 2026-11-10): "checks on the work every half
+// hour; next run 11:58" was held twice, though it said what the job does and when, as the message asks)
+export const WAKE_SAID = /\b(wake-?ups?|reminders?|cron|scheduled|recurring|recordatorios?|programad[oa]s?)\b|\b(stays? on|keeps? (running|going|checking)|next (run|check)|runs? again|every (half (an )?hour|hour|day|week|\d+\s*(min(ute)?s?|h(ours?)?|days?))|sigue (activ[oa]|corriendo)|cada (media hora|hora|d[ií]a|\d+\s*(min(utos)?|horas?)))\b/i;
 export function wakeGaps(rows, answer = '', prompt = '', now = Date.now()) {
   const headless = rows.some(r => /^sdk/.test(String(r?.entrypoint || ''))), forced = headless && !WAKE_ASK.test(prompt);
   const left = wakeupsPending(rows, now).filter(w => forced || (!(w.recurring && w.fired) && !((w.id && answer.includes(w.id)) || WAKE_SAID.test(answer))));

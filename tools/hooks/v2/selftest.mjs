@@ -2630,7 +2630,8 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
       run('prompt', { prompt: 'add a csv export' });
       const out = run('stop', { last_assistant_message: 'Added.' });
       let j = {}; try { j = JSON.parse(out); } catch { }
-      return { j, out };
+      let details = ''; try { details = fs.readFileSync(path.join(c, 'tools/hooks/state/stop-details.md'), 'utf8'); } catch { }
+      return { j, out, details };
     };
     const cc = held('mark-cc', { claude: true }), cx = held('mark-cx', { extra: { turn_id: 't1' } }), other = held('mark-other'), forced = held('mark-forced', { claude: true, style: 'block' });
     fs.rmSync(c, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
@@ -2639,6 +2640,13 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
       'stop: a send-back adds no line of its own for the user (Claude Code: non-error Stop feedback, no block, no systemMessage)', cc.out.slice(0, 300));
     report([cx, other, forced].every(r => r.j.decision === 'block' && r.j.reason && !r.j.hookSpecificOutput && !r.j.systemMessage),
       'stop: Codex, an unknown host and "stopStyle": "block" get the classic block, with no line of their own', [cx, other, forced].map(r => r.out.slice(0, 160)));
+    // (the text the host shows is short and plain: a heading, at most 3 items, where the details are; no instructions
+    // to the agent. The full steps and instructions are in tools/hooks/state/stop-details.md. Lesson (the user,
+    // 2026-11-10, many times): the instruction block shown there read as noise, and Claude Code cannot hide it)
+    const shown = [ctx, cx.j.reason || ''];
+    report(shown.every(t => t.split('\n').length <= 5 && /^⚓ [^\n]* left before this is done\n- /.test(t) && /\(details: tools\/hooks\/state\/stop-details\.md\)$/.test(t) && !/Fix what isn't done|Next time, run|resending the same answer|tell the user in a line/i.test(t))
+      && /docs\/playbooks\/export\.md/.test(cc.details) && /Fix what isn't done/.test(cc.details),
+      'stop: the text the user sees is at most 5 short lines with no instructions to the agent; the full steps are in the details file', JSON.stringify({ shown, details: cc.details.slice(0, 300) }));
   }
   // (a new session never shows an "acknowledged" line from another session's old note; its own new one still shows.
   // Lesson (the user, in the desktop app): a plain question's first tool call showed another session's old issue)
@@ -2805,7 +2813,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
       report(falseKinds.every(r => unansweredLate(r).length === 0) && realKind.length === 1, 'late: check-in tags, instructions and "Understood." or labeled yes/no answers are not held; "..., right?" is (queued-messages)', falseKinds.map(r => unansweredLate(r).length).concat(realKind.length));
       const f = tfile('late-stop', stamp([rows], 0));
       const held = stop('ls1', f, 'Tidied the export folder.'), freed = stop('ls2', f, 'So far I moved two files: a and b. Tidied the export folder.');
-      report(/Answer the user's message typed at \d\d:\d\d: \W*which files did you move so far\?/.test(held) && !/Answer the user's message/.test(freed) && /which files/.test(turnActs(rows).heard) && !/task-notification/.test(turnActs(rows).heard),
+      report(/Answer the user's message typed at \d\d:\d\d: \W*which files did you move so far\?/i.test(held) && !/Answer the user's message/i.test(freed) && /which files/.test(turnActs(rows).heard) && !/task-notification/.test(turnActs(rows).heard),
         'stop: a question typed mid-turn holds the turn until a text answers it; an answer clears it; it is part of the request, notices are not (queued-messages)', JSON.stringify({ held: held.slice(0, 300), freed: freed.slice(0, 300) }));
     }
     fs.writeFileSync(path.join(c4, '.cache/turn-notes.md'), 'Issue: the notes file had a typo | runbook: learn-from-upset | fixed when: the typo is gone\n');
