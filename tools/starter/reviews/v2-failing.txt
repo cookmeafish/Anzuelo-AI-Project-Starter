@@ -100,17 +100,6 @@ prompt: own-question: the same with "notes" in lower case
 prompt: paste-routing: a short angry message is still upset
 prompt: paste-routing: a short closing paragraph after the material still routes
 prompt: paste-routing: the same words in a short message still suggest the skill
-prompt: praise hint
-prompt: praise hint: praise followed by a question is still praise
-prompt: praise: a praise word on the work is praise ("amazing!")
-prompt: praise: a praise word on the work is praise ("awesome work on the export")
-prompt: praise: a praise word on the work is praise ("the new dashboard is amazing. make the labels bigg")
-prompt: praise: a praise word on the work is praise ("you are amazing now at writing these")
-prompt: praise: real praise fires ("buen trabajo, me encanta")
-prompt: praise: real praise fires ("great job, keep doing this")
-prompt: praise: real praise fires ("perfect, that is exactly what i wanted")
-prompt: praise: real praise fires ("perfecto, sigue así")
-prompt: praise: real praise fires ("well done!")
 prompt: recall: Spanish, a close earlier request is recalled
 prompt: recall: a close earlier request is recalled
 prompt: relay-preview: Spanish, relayed small talk gets nothing

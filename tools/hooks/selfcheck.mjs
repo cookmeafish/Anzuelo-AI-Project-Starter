@@ -5149,6 +5149,7 @@ for (const s0 of PROMPT) {
     if ((m = /^CLOSEST RUNBOOK: no trigger phrase matched, but (\S+)$/.exec(h))) return `Closest runbook: ${m[1]}`;
     if (/^NO RUNBOOK\b/.test(h)) return 'If this is real work, pick the runbook in DIRECTORY.md';
     if (/^CHECKS: this turn will be held to\b/.test(h)) return 'Done when (before answering';
+    if (h === 'PRAISE') return 'Praise: the user liked something';
     return h; };
   const s = process.env.STARTER_ENGINE === 'v2' && !(s0.v2 && (s0.v2.has || s0.v2.hasNot)) ? { ...s1, has: (s1.has || []).map(V2_SAY), hasNot: (s1.hasNot || []).map(h => V2_SAY(h, true)), v1has: s1.has } : s1;
   const routes = (s.v1has || s.has || []).map(h => /^ROUTE: ([\w-]+)$/.exec(h)?.[1]).filter(Boolean);

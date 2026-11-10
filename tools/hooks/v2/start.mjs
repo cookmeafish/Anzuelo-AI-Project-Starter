@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { route, skillBooks, saveTurn, loadTurn, isSpanish, ROOT, at, quoteCheckOn, projectConfig, checkOff, snapshotLater, runbooks, routeEnglish, engineChecks, doneWhen, ALWAYS } from './lib.mjs';
 import { closestRunbook, coreRunbook, isTaskRequest, userWords } from '../near.mjs';
+import { isPraise } from '../praise.mjs';
 
 // REQ: check-preview. What the end check will also ask for if the work changes files, beyond the runbook's own list: the
 // engine checks that name this runbook or skill and apply once files change, and the project's own always.md items that
@@ -137,7 +138,12 @@ function remind(prompt) {
     ? closestRunbook(prompt, runbooks().map(b => ({ name: b.name, file: b.file, triggers: b.triggers || [], fm: { summary: (/^summary:\s*(.+)$/m.exec(b.front || '') || [])[1] || '' } })), coreRunbook) : null;
   const pick = near ? `Closest runbook: ${near.file} (shared words: ${near.words.join(', ')}). If it fits this job, open and follow it; if not, pick the one in DIRECTORY.md that fits.`
     : has('DIRECTORY.md') ? 'If this is real work, pick the runbook in DIRECTORY.md that fits and open it.' : '';
-  if (!book) return { book: null, text: [skill, pick, es, ...rulesFor(prompt).map(r => `The project's own rule here: ${r}`), isTaskRequest(prompt, taskVerbs, toOtherSession(prompt)) ? alsoChecked(sk && skill ? [sk.name] : []) : ''].filter(Boolean).slice(0, MAX_LINES).join('\n') };
+  // REQ: praise-captured (at the request, a hint only). Praise in the user's own words (praise.mjs, shared with the old
+  // engine) names what to do with it; the end check never holds a turn for praise on its own. Oversight (2026-11-10):
+  // "detection from the user's words is a reminder hint only". Lesson (the old suite under v2): v2 said nothing on praise,
+  // so what the user liked was never written down to repeat.
+  const praise = !sore && isPraise(userWords(prompt), projectConfig()) ? 'Praise: the user liked something. If it should repeat, write what exactly worked into the runbook or skill it came from (a "What works" line); "keep doing this" is a standing rule (project-rule).' : '';
+  if (!book) return { book: null, text: [skill, praise, pick, es, ...rulesFor(prompt).map(r => `The project's own rule here: ${r}`), isTaskRequest(prompt, taskVerbs, toOtherSession(prompt)) ? alsoChecked(sk && skill ? [sk.name] : []) : ''].filter(Boolean).slice(0, MAX_LINES).join('\n') };
   const own = rulesFor(prompt).map(r => `The project's own rule here: ${r}`);
   // (a message relayed from another session may only report: its runbook is for when it asks for work. Lesson (project
   // report): a note that a fix had landed got the bugfix runbook and its list, though it asked for nothing)
@@ -146,7 +152,7 @@ function remind(prompt) {
   // terms, in the runbook line itself: no extra line, and nothing on other turns. The end check catches a slip
   // (quoteGaps). On only with the quote check, quoteCheckOn)
   const lesson = quoteOn && (sore || ['project', 'learn-from-upset', 'runbook-create', 'project-rule'].includes(book.name)) ? ' Write any lesson in general terms, not in the user\'s own words.' : '';
-  const lines = [...(sore ? [sore] : []), ...(es ? [es] : []), ...own, `Runbook${relayedRx.test(raw) ? ', only if this message asks for work here' : ''}: open ${book.file} and follow it.${lesson}`];
+  const lines = [...(sore ? [sore] : []), ...(es ? [es] : []), ...(praise ? [praise] : []), ...own, `Runbook${relayedRx.test(raw) ? ', only if this message asks for work here' : ''}: open ${book.file} and follow it.${lesson}`];
   if (book.items.length) {
     // (and how to hold the answer until it passes, in the same line. Lesson (the user, 2026-11-07): an answer sent back
     // by the end check reached the user twice; the first version must already be the final one)

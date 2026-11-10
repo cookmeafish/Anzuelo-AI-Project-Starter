@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 
 import { PROJECT, ENGINE, LOCAL, where, whereWrite, relOf, listAll, kind, split } from './paths.mjs';
 import { ROOT, bulkDir, today, localDate, usageOf, read, readJSON, abs, exists, list, walkStat, esc, DEFAULTS, config, re, secretRes, secretHit, homeDir, privateTermsPath, privateTermsListFile, forbiddenTerms, forbiddenRe } from './settings.mjs';
+import { WORD_KINDS, ignoredWords as ignoredWordsOf, withoutIgnored as withoutIgnoredOf, isPraise as isPraiseOf } from './praise.mjs';
 import { testInputsHash, aiAttributedCommits, gitignoreProblems } from './repo.mjs';
 import { lines as jsonlLines } from './jsonl.mjs';
 import { people, personOf, peopleIn, peopleFor, pathsPeople } from './people.mjs';
@@ -3081,10 +3082,10 @@ export function isUpset(prompt, cfg = config()) {
 // against a real user's messages, and the log below is the evidence for trimming them further. Lesson (the user): "have
 // a way to whitelist words ... make whitelisting easy peasy and actually work and respected"; on learning new words: "im
 // almost thinking of scrapping the trigger word thing because it might catch things that aren't issues" (no learning).
-export const WORD_KINDS = ['upset', 'praise', 'rule'];
-const wordsRe = (list, flags = 'iu') => list.length ? new RegExp(list.map(w => `(?<![\\p{L}\\p{N}])${esc(w)}(?![\\p{L}\\p{N}])`).join('|'), flags) : null;
-export const ignoredWords = (kind, cfg = config()) => [].concat(cfg.ignoreWords?.[kind] || []).map(String).filter(Boolean);
-export function withoutIgnored(text, kind, cfg = config()) { const r = wordsRe(ignoredWords(kind, cfg), 'giu'); return r ? String(text).replace(r, ' ') : String(text); }
+// (the whitelist and the praise detector live in tools/hooks/praise.mjs, shared with engine v2)
+export { WORD_KINDS };
+export const ignoredWords = (kind, cfg = config()) => ignoredWordsOf(kind, cfg);
+export const withoutIgnored = (text, kind, cfg = config()) => withoutIgnoredOf(text, kind, cfg);
 // The trigger log (tools/hooks/state/triggers.jsonl, which git ignores): each message a word hook fired on, and what the
 // agent decided at the end of the turn ("yes": upset and fixed, rule saved, praise kept; "no": nothing wrong, didn't
 // hold, not lasting). A word that keeps showing up in "no" rows is one to whitelist or trim. Lesson (the user): "analyze
@@ -3444,22 +3445,8 @@ export const isRuleRequest = (p, cfg = config()) => re(cfg.ruleRequest).test(wit
 // question set off the lasting-requirement detector)
 export const isWhQuestion = p => { const t = userText(p).trim(); return QUESTION_LED.test(t) && /[?？]\s*$/.test(t) && !/[.!:;]\s+\S/.test(t); };
 export const isRequirement = (p, cfg = config()) => !isWhQuestion(p) && re(cfg.requirementWords).test(ownWords(p));
-// Praise is a statement. The same words in a question ("is it doing a good job?", "¿lo está haciendo bien?") or after
-// "if"/"whether" ask for a verdict. Lesson: PRAISE fired on "is it doing a good job or a bad job?".
-export function isPraise(p, cfg = config()) {
-  for (const c of String(p || '').split(/(?<=[.!?\n])/)) {
-    const s = c.trim();
-    if (!s || /\?\s*$/.test(s) || /^¿/.test(s) || /^(is|are|was|were|do|does|did|has|have|had|can|could|would|will|should|how|what|why|which|whether|am i|was it)\b/i.test(s)) continue;
-    // (the user's whitelisted words don't count: REQ trigger-words)
-    const t = withoutIgnored(s, 'praise', cfg), m = re(cfg.praise).exec(t);
-    // (a praise word on a thing ("an amazing recipe") or a goal ("until it is amazing", "make it perfect") praises no
-    // work. Lesson (two projects' trigger logs): both read as praise and asked for a rule to keep)
-    if (m && /^(amazing|awesome|perfect)$/i.test(m[0]) && (/^\s+(?!(job|work|stuff|now|too|and|so|as|btw|thanks|thank|man|dude|lol)\b)[a-z]/i.test(t.slice(m.index + m[0].length))
-      || /\b(until|till|so (that|it)|make (it|them|this|that|everything)|to be|should be|must be|needs? to be|want (it|them|this)|believe|hope|wish|could be|would be|will be)\b/i.test(t.slice(0, m.index)))) continue;
-    if (m && !/\b(if|whether|unless|si)\b/i.test(t.slice(0, m.index))) return true;
-  }
-  return false;
-}
+// (praise: tools/hooks/praise.mjs, shared with engine v2)
+export const isPraise = (p, cfg = config()) => isPraiseOf(p, cfg);
 // A message relayed from another session or agent, as the whole prompt: "<cross-session-message ...>BODY</...>",
 // "<agent-message ...>BODY</...>" or "Another Claude session sent a message: BODY". Its body ('' if it is not one).
 const RELAY_START = /^\s*(<(cross-session-message|agent-message)\b[^>]*>|Another Claude session sent a message\b[:.]?)/i;
