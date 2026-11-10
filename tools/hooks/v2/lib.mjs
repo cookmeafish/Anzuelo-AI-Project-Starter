@@ -1361,7 +1361,13 @@ export function engineCheckGaps(acts) {
   const bgHelpers = (acts.calls || []).some(c => /^(Agent|Task)$/.test(c.name) && c.input?.run_in_background);
   for (const r0 of engineChecks()) {
     if (bgHelpers && (r0.waitsForAgents ?? ['parallel-merged', 'research-cited'].includes(r0.tag))) continue;
-    const own = r0.forces ? ownedBy(r0.forces) : [], r = own.length ? { ...r0, when: ignoreOwned(r0.when, own) } : r0;
+    // (a branch of "anyOf" that is the request's words alone sets nothing off: keyword forcing is retired (2026-11-07),
+    // and a check whose message says what happened would claim it from words. Lesson (the old suite under v2): "before we
+    // make it public" set off "Something was published or deployed this turn" with nothing published)
+    const branches = Array.isArray(r0.when?.anyOf) ? r0.when.anyOf.filter(b => !promptOnly(b)) : null;
+    if (branches && !branches.length) continue;
+    const r1 = branches ? { ...r0, when: { ...r0.when, anyOf: branches } } : r0;
+    const own = r1.forces ? ownedBy(r1.forces) : [], r = own.length ? { ...r1, when: ignoreOwned(r1.when, own) } : r1;
     read.detail = '';
     try { if (!(small && SMALL_SKIP.test(r.tag)) && !promptOnly(r.when) && holdsReq(r.when, read, x) === true && holdsReq(r.require, read, xr) === false && !draftMet(r.require, read, xr) && !waivedTag(r.tag, acts) && !(r.tag === 'version-bump' && bumpedEarlier(acts.prior, r.require?.filesChanged))) { const why = read.detail || (usesCites(r.require) ? citeWhy(read, x) : ''); out.push(`Check: ${r.message}${why ? ` (${why})` : ''}`); } }
     catch (e) { out.push(crashLine(r.tag, e)); }

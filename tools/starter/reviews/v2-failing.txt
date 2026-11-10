@@ -163,7 +163,6 @@ stop: runbook-exists: work that names an existing runbook it never opened is ask
 stop: runbook-ledger: a skip without a real reason does not drop a failing check
 stop: runbook-ledger: an item marked done whose evidence is missing comes back under its item
 stop: runbook-ledger: off by default, a skip line covers nothing
-stop: security review without the item table: blocked
 stop: setup: the same runbook followed in a later turn: its checks apply
 stop: skill-reuse: a hand-written runbook made in the same turn is still new: blocked
 stop: skill-reuse: a new hand-written skill without a search: blocked
