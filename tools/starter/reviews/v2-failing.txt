@@ -116,9 +116,6 @@ stop: check-proven: the existing files covered but no count in the "Proven:" lin
 stop: crash blocks once, then releases
 stop: debug skill matched but not opened: blocked
 stop: dev mode: an engine change with no self-tests, changelog or proof it works: blocked
-stop: done-when-labeled: a wrapped item labeled on its last line, and several tags in one label: passes that check
-stop: done-when-labeled: each item names its check or why only judgment can tell: passes that check
-stop: done-when-labeled: items proven by markers (file:, ran:, answer:, with a when condition): passes that check
 stop: feature done right: passes
 stop: fit-checklist: a turn adds a data file that a decided skip never answered: blocked
 stop: gate with no pass pattern chained to other commands: run it alone: blocked
@@ -133,7 +130,6 @@ stop: name-var: a name typed out in a doc and in code: blocked
 stop: name-var: the name typed in code that is not the package's own name: blocked
 stop: note-linked: a new note in a knowledgeDirs folder that links to nothing: blocked
 stop: note-linked: a new note that links to nothing: blocked
-stop: parallel work still running in the background: the merge check waits
 stop: promptMatches: the same words typed by the user still count: blocked
 stop: queued mid-turn rule request is enforced: blocked
 stop: requirement-enforced: a requirement said in passing, during work, with nothing enforcing it: blocked
