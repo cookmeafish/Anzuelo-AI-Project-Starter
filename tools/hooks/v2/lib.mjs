@@ -24,6 +24,7 @@ import { makeGates } from '../gates.mjs';
 import { doneWhenGaps } from '../donewhen.mjs';
 import { worthGaps } from '../worth.mjs';
 import { endsAsking, OUTWARD } from '../decide.mjs';
+import { countGaps } from '../count.mjs';
 import { aiAttributedCommits } from '../repo.mjs';
 import { makeHookTests } from '../hooktests.mjs';
 import { testInputsHash as repoInputsHash } from '../repo.mjs';
@@ -1501,6 +1502,9 @@ export function claimGaps(acts, history = '') {
   out.push(...scopeGeneralGaps(acts));
   out.push(...plainWritingGaps(acts));
   out.push(...workChangelogGaps(acts));
+  // (REQ: count-honored, rule 8: "give me 5" means 5, said with the number. The shared tools/hooks/count.mjs on what the
+  // user typed this turn against the agent's words. Lesson (the old suite under v2): a count asked for was never checked)
+  if (!checkOff('count-honored') && !waivedTag('count-honored', acts)) out.push(...countGaps(userWords(String(acts.heard || '')), `${acts.said || ''}\n${acts.answer || ''}`));
   return out;
 }
 

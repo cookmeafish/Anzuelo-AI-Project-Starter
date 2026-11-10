@@ -5145,6 +5145,7 @@ const V2_ASKS = {
   'plain-writing': /^- Make it plain and direct \(docs\/checks\/writing-standards\.md\): /m,
   'watcher-left': /^- (A watcher you started is|Watchers you started are) still armed: /m,
   'review-excuse': /^- The answer skips the independent review because no other reviewer is available/m,
+  'count-honored': /^- The user asked for \d+ [^\n]*\. Deliver exactly that many/m,
   'autonomy-decide': /^- The user asked for no questions: make each choice yourself/m,
   'worth-it': /^- You added [^\n]*\. Say why it makes this project better and what it costs/m,
   'gui-pack': /^- GUI files changed \([^\n]*\) but this project has no gui pack/m,
