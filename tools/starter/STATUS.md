@@ -4,6 +4,16 @@ Where work on the starter itself stands, for the next session. Projects never ge
 docs/STATUS.md, which here is the template new projects start from).
 
 ## Now
+- 2026-11-10 (night): main and GitHub at 1241407 (release of 248cd38: autonomy hint, worth-it, autonomy-decide,
+  event-hint with "Likely fits" for word-only checks, AI-credit commits at the end, upset read on a long message's
+  ends, scope-general, the gui pack by packs). Both projects upgraded, 0 regressions. Branch app-port at 4cd95e7, its
+  chain running: externalStop, review-excuse, watcher-left, shared steps, plain writing, waitsForAgents, word-only
+  anyOf branches, moved files as changes, rule 12's changelog in any folder ("dataDirs", setup and upgrade offer it),
+  friction reported not suspended (auto-suspend retired), temp cleanup retries. v2 list 192. Next: after the chain,
+  release and a notice built from git log of the range; bench Stop on a quiet machine (433a5f7 vs 1241407) for one
+  project's timing question; then the remaining single tests in triage order. Guard is at 598 of 600 lines: raise to
+  800 once when a port needs it (oversight). Open: answer-traced intermittent; the stray branch app-port-head (deleting
+  needs the user's OK).
 - 2026-11-10 (evening): main and GitHub at 433a5f7 (answer figures traced on the answer itself, research-verified,
   toolPassed, answer-resent, praise, relay, plan-required, check-preview guard, self-check session fix). Both projects
   sent the upgrade notice. Branch app-port at eae6e3e (plan-open, the v2-test counter as a record the audit lowers
