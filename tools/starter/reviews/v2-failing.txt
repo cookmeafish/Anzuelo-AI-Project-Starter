@@ -72,7 +72,6 @@ prompt: starter-runbooks: a project never routes to the starter's own runbooks
 prompt: starter-runbooks: in the starter, "test it many times so nothing gets worse" routes to the improvement loop
 prompt: starter-runbooks: in the starter, "tests for hours, did it keep it on track or forget things" routes to the improvement loop
 prompt: starter-runbooks: in the starter, a report from another session routes to the field-report runbook
-prompt: trigger-words: the same word in capitals with other words still does
 prompt: unknown menu code asks
 prompt: unresolved checks from the last turn are announced
 recall-hint: a request like an earlier one gets how it was solved; an unrelated one gets nothing; recall.mjs finds it

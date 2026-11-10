@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { route, skillBooks, saveTurn, loadTurn, isSpanish, ROOT, at, quoteCheckOn, projectConfig, checkOff, snapshotLater, runbooks, routeEnglish, engineChecks, doneWhen, ALWAYS } from './lib.mjs';
-import { closestRunbook, coreRunbook, isTaskRequest, userWords, AUTONOMY_WORDS } from '../near.mjs';
+import { closestRunbook, coreRunbook, isTaskRequest, userWords, AUTONOMY_WORDS, ownEnds } from '../near.mjs';
 import { isPraise } from '../praise.mjs';
 import { NUMBERS_ASK } from '../trace.mjs';
 import { openPlansOf } from '../planreq.mjs';
@@ -59,7 +59,9 @@ const has = f => fs.existsSync(at(f));
 const ignored = () => { try { return [].concat(JSON.parse(fs.readFileSync(at('tools/hooks/config.json'), 'utf8')).ignoreWords?.upset || []).map(String).filter(Boolean); } catch { return []; } };
 const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 export const upsetIn = p => {
-  let s = String(p).replace(/(["'`“‘])[^"'`”’\n]{1,40}["'`”’]/g, ' ').replace(/\b(?:the |that |this )?words?\s+\S+/gi, ' ');
+  // (a long message: only its start and end are the user's words, the rest is pasted material, as the old engine.
+  // Lesson (the old suite under v2): complaint words in the middle of a pasted log read as an upset user)
+  let s = ownEnds(p).replace(/(["'`“‘])[^"'`”’\n]{1,40}["'`”’]/g, ' ').replace(/\b(?:the |that |this )?words?\s+\S+/gi, ' ');
   for (const w of ignored()) s = s.replace(new RegExp(`\\b${esc(w)}\\b`, 'gi'), ' ');
   return upset(s);
 };

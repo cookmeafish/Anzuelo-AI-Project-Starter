@@ -36,7 +36,7 @@ import { makeSkillLearn } from './skilllearn.mjs';
 import { STOP_STEMS, fold, STOP, stem, keyWords, AUTONOMY_WORDS, ES_EN, closestRunbook as closestOf, OPINION, QUESTION_LED, TASK_ES, isTaskEs, coreRunbook } from './near.mjs';
 export { AUTONOMY_WORDS };
 export { keyWords };
-import { MAKE_REQUEST, HOOK_MARK, HOOK_LINE, HOOK_BLOCK, RELAYED, relayedOut, userWords as userText } from './near.mjs';
+import { MAKE_REQUEST, HOOK_MARK, HOOK_LINE, HOOK_BLOCK, RELAYED, relayedOut, userWords as userText, PASTE_LONG, ownEnds } from './near.mjs';
 export { relayedOut, userText };
 export { fold, isTaskEs };
 export const closestRunbook = prompt => closestOf(prompt, playbooks(), coreRunbook);
@@ -3041,7 +3041,7 @@ function noteFriction(key, x, missing) {
 export function isUpset(prompt, cfg = config()) {
   // (a long message is mostly pasted material: its start and end hold the user's own words. Lesson (a field report): a
   // pasted session transcript with two calm lines read as an upset user)
-  const full = userText(prompt), p = full.length > PASTE_LONG ? `${full.slice(0, 600)} ... ${full.slice(-600)}` : full, letters = p.replace(/[^A-Za-z]/g, '');
+  const p = ownEnds(userText(prompt)), letters = p.replace(/[^A-Za-z]/g, '');
   // (the user's whitelisted words set nothing off by themselves: the word patterns read the message without them, while
   // capitals and every other word still count. Lesson (the user): "if the whitelisted word comes up and the user does all
   // caps then it should trigger regardless or if there is another trigger word ... it should trigger anyway")
@@ -3430,7 +3430,7 @@ export const isPraise = (p, cfg = config()) => isPraiseOf(p, cfg);
 // (relayed messages: relayedBody, relayRouteText, relayRequestText, typedRouteText in tools/hooks/relay.mjs, shared with engine v2)
 // A short question about whether the work is done (English, Spanish), under 80 characters.
 const STATUS_ASK = /^(?=.{1,80}$)(?:(?:so|ok(?:ay)?|and|well|hey)[,\s]+)?(?:is|are|was) (?:it|that|this|everything|the \w+|they|we) (?:done|finished|ready|working|complete|still running)\b|^(?=.{1,80}$)(?:did|has|have) (?:it|that|this|the \w+|they|you) (?:finish(?:ed)?|complete(?:d)?|work(?:ed)?|pass(?:ed)?|end(?:ed)?)\b|^(?=.{1,80}$)(?:how(?:'s| is) it going|any (?:news|progress|update)|status\??$|where are we)|^(?=.{1,80}$)¿?\s*(?:ya )?(?:termin(?:ó|aste|aron)|acab(?:ó|aste|aron)|est[aá] (?:listo|lista|hecho|terminado))/i;
-const PASTE_LONG = 3000;
+// (PASTE_LONG and ownEnds: tools/hooks/near.mjs, shared with engine v2)
 // The host passes its tool calls to the hooks (Claude Code sets these for every hook it runs): what the agent opened,
 // ran and wrote is seen, so it never has to report it in the notes.
 export const hostSeesTools = () => !!(process.env.CLAUDECODE || process.env.CLAUDE_CODE_ENTRYPOINT);
