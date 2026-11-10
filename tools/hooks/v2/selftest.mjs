@@ -2651,7 +2651,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     // to the agent. The full steps and instructions are in tools/hooks/state/stop-details.md. Lesson (the user,
     // 2026-11-10, many times): the instruction block shown there read as noise, and Claude Code cannot hide it)
     const shown = [ctx, cx.j.reason || ''];
-    report(shown.every(t => t.split('\n').length <= 5 && /^⚓ [^\n]* left before this is done\n- /.test(t) && /\(details: tools\/hooks\/state\/stop-details\.md\)$/.test(t) && !/Fix what isn't done|Next time, run|resending the same answer|tell the user in a line/i.test(t))
+    report(shown.every(t => t.split('\n').length <= 5 && /^⚓ [^\n]* left before this is done\n- /.test(t) && !/\bitem \d+:/.test(t) && t.split('\n').slice(1, -1).every(l => l.length <= 82) && /\(details: tools\/hooks\/state\/stop-details\.md\)$/.test(t) && !/Fix what isn't done|Next time, run|resending the same answer|tell the user in a line/i.test(t))
       && /docs\/playbooks\/export\.md/.test(cc.details) && /Fix what isn't done/.test(cc.details),
       'stop: the text the user sees is at most 5 short lines with no instructions to the agent; the full steps are in the details file', JSON.stringify({ shown, details: cc.details.slice(0, 300) }));
   }

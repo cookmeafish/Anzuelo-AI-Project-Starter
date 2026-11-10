@@ -6289,10 +6289,11 @@ export function shortStop(full, where = 'tools/hooks/state/stop-details.md') {
   for (const l of text.split('\n')) if (/^- \S/.test(l)) items.push(l.slice(2));
   const book = /Check that these items of (\S+) are really done/.exec(text)?.[1];
   if (book) items.push(`check the items of ${book} are really done`);
-  const plain = s => { let t = s.replace(/^Then, once [^:]+? (?:is|are) written:\s*/i, '').replace(/^Check:\s*/i, '').replace(/\s+/g, ' ').trim();
+  // (the item's own words only: "docs/playbooks/x.md item 8: " stays in the details file, for the agent)
+  const plain = s => { let t = s.replace(/^Then, once [^:]+? (?:is|are) written:\s*/i, '').replace(/^Check:\s*/i, '').replace(/^\S+\.md item \d+:\s*/i, '').replace(/\s+/g, ' ').trim();
     const end = /^(.{20,}?[.!?])(\s|$)/.exec(t); if (end) t = end[1].replace(/[.!?]$/, '');
-    if (t.length > 90 && t.indexOf(' (') > 30) t = t.slice(0, t.indexOf(' ('));
-    if (t.length > 90) t = t.slice(0, 88).replace(/\s+\S*$/, '') + '…';
+    if (t.length > 80 && t.indexOf(' (') > 30) t = t.slice(0, t.indexOf(' ('));
+    if (t.length > 80) t = t.slice(0, 78).replace(/\s+\S*$/, '') + '…';
     return t.charAt(0).toLowerCase() + t.slice(1); };
   const n = items.length || 1, last = /This is the last check for this request/.test(text);
   const shown = items.slice(0, items.length > 3 ? 2 : 3).map(s => `- ${plain(s)}`);
