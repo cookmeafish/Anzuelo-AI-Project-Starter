@@ -166,8 +166,6 @@ stop: queued mid-turn rule request is enforced: blocked
 stop: request about alice changed only alice's files: passes
 stop: requirement-enforced: a requirement said in passing, during work, with nothing enforcing it: blocked
 stop: requirement-enforced: a requirement written only into a runbook: blocked
-stop: review-excuse: review skipped as "no other reviewer" where sub-agents exist: blocked
-stop: review-excuse: the same excuse in Spanish: blocked
 stop: root-tidy: a Go file with no go.mod in the root: blocked
 stop: routed task that never opened its runbook: blocked
 stop: runEach: the hook re-validates changed files itself (invalid JSON): blocked

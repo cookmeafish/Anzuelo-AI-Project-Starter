@@ -26,6 +26,8 @@ import { labelsEsHint } from '../labels.mjs';
 import { unansweredLate, asksOnly } from './late.mjs';
 import { PAUSE_ASK } from '../pause.mjs';
 import { externalStopSteps } from '../extstop.mjs';
+import { reviewExcuse } from '../excuse.mjs';
+import { waivedTag } from './lib.mjs';
 import { wakeGaps } from '../wakeups.mjs';
 import { makeSkillLearn } from '../skilllearn.mjs';
 import { makeProof } from '../proof.mjs';
@@ -248,12 +250,22 @@ export function questionFileGaps(acts, cfg = null) {
   const unasked = changedOf(acts).filter(f => !inGlobs(f, c.questionNoFileExempt || []));
   return unasked.length ? [`This was a question, but files changed (${unasked.slice(0, 5).join(', ')}). Questions get answers, not edits: undo the changes nobody asked for, or quote the words that asked for them ("Asked for: "...").`] : [];
 }
-// A message the user typed this turn (the request, or one typed mid-turn) asks to pause, stop or restart.
 // REQ: external-stop, under v2: the shared tools/hooks/extstop.mjs. A project's own Stop command (config "externalStop")
 // runs inside this end check: its numbered steps join this list, a crash is one step, and a run out of time is named as
 // one to rerun, never to remove. Lesson (the old suite under v2): v2 never ran it, so a project that merged its own Stop
 // hook lost those checks
 const externalV2 = data => externalStopSteps(data, projectConfig(), { ROOT, bench: !!(process.env.STARTER_BENCH ?? process.env.KS_BENCH) }).map(s => s.msg);
+// REQ: review-excuse, under v2: the shared tools/hooks/excuse.mjs. Where sub-agents exist (config "subagents", a host
+// whose transcript names its entry point, or a helper used this turn), "no other reviewer" is no reason to skip a review.
+// Lesson (the old suite under v2): the excuse passed
+const excuseV2 = (acts, rows) => {
+  const cfg = projectConfig();
+  if (checkOff('review-excuse') || waivedTag('review-excuse', acts)) return [];
+  const subagents = cfg.subagents === true || (cfg.subagents !== false && ((rows || []).some(r => typeof r?.entrypoint === 'string') || (acts.calls || []).some(c => /^(Agent|Task)$/.test(c.name))));
+  const m = reviewExcuse(acts.answer, subagents);
+  return m ? [m] : [];
+};
+// A message the user typed this turn (the request, or one typed mid-turn) asks to pause, stop or restart.
 export const pausedTurn = acts => (acts.parts || []).some(p => PAUSE_ASK.test(p));
 // REQ: watched-inputs. Data the user updates while the agent works ("watchedInputs" globs in config.json) changes the
 // answer: a watched file changed since the turn began, not by the turn's own edits, is named in the answer with what
@@ -557,7 +569,7 @@ function judge(data, { shadow = false } = {}) {
   const wakes = wakeGaps(raw.split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean), final || acts.answer || '', acts.heard || '');
   const extra = (turn.also || []).flatMap(f => missing({ ...turn, runbook: f }, acts, runbooks().filter(b => b.file === f)));
   const resumedLost = [...(lost.length ? [headlessLine(lost)] : []), ...noticeAnswerGaps(rows, final || acts.answer, data.stop_hook_active)];
-  const list = [...resent, ...resumedLost, ...late, ...autos, ...wakes, ...S('missing', () => [...emptyGaps(acts), ...missing(turn, acts), ...upsetGaps(turn, acts), ...ruleGaps(acts), ...watchedGaps(acts)]), ...extra, ...S('skillMissing', () => skillMissing(acts)), ...S('reviewGaps', () => reviewGaps(turn, acts)), ...S('testGaps', () => testGaps(acts, history)), ...S('gateGaps', () => gateGaps(acts)), ...S('screenGaps', () => screenGaps(acts)), ...S('healthGaps', () => [...healthGaps(acts, { run: !shadow }), ...upgradeGaps(turn, acts)]), ...S('knowledgeGaps', () => knowledgeGaps(acts)), ...S('securityGaps', () => securityGaps(acts)), ...S('questionGaps', () => [...questionGaps(acts), ...questionFileGaps(acts)]), ...S('noteGaps', () => noteGaps(acts)), ...S('quoteGaps', () => quoteGaps(acts)), ...S('claimGaps', () => claimGaps(acts, history)), ...S('scopeGaps', () => scopeGaps(acts)), ...S('tableGaps', () => tableGaps(acts)), ...S('planOpen', () => planOpenGaps(turn, acts, again)), ...S('externalStop', () => externalV2(data))].filter((s, i, all) => all.indexOf(s) === i);
+  const list = [...resent, ...resumedLost, ...late, ...autos, ...wakes, ...S('missing', () => [...emptyGaps(acts), ...missing(turn, acts), ...upsetGaps(turn, acts), ...ruleGaps(acts), ...watchedGaps(acts)]), ...extra, ...S('skillMissing', () => skillMissing(acts)), ...S('reviewGaps', () => reviewGaps(turn, acts)), ...S('testGaps', () => testGaps(acts, history)), ...S('gateGaps', () => gateGaps(acts)), ...S('screenGaps', () => screenGaps(acts)), ...S('healthGaps', () => [...healthGaps(acts, { run: !shadow }), ...upgradeGaps(turn, acts)]), ...S('knowledgeGaps', () => knowledgeGaps(acts)), ...S('securityGaps', () => securityGaps(acts)), ...S('questionGaps', () => [...questionGaps(acts), ...questionFileGaps(acts)]), ...S('noteGaps', () => noteGaps(acts)), ...S('quoteGaps', () => quoteGaps(acts)), ...S('claimGaps', () => claimGaps(acts, history)), ...S('scopeGaps', () => scopeGaps(acts)), ...S('tableGaps', () => tableGaps(acts)), ...S('planOpen', () => planOpenGaps(turn, acts, again)), ...S('externalStop', () => externalV2(data)), ...S('reviewExcuse', () => excuseV2(acts, rows))].filter((s, i, all) => all.indexOf(s) === i);
   // (the waiver tally: what this turn cleared with a reason is recorded; a check cleared in 3+ earlier turns is named)
   const full = list.splice(0, list.length); list.push(...full.filter(kept(acts)).filter(s => !(again && CRASHED.test(s))));
   list.push(...S('followOn', () => followOn(turn, acts, list)).filter(kept(acts)));

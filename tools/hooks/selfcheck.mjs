@@ -5128,6 +5128,7 @@ const V2_ASKS = {
   'no-ai-attribution': /^- Commits made this turn credit an AI agent: /m,
   'scope-general': /^- The user named examples of a wider point/m,
   'external-stop': /^- The project's own Stop command \(/m,
+  'review-excuse': /^- The answer skips the independent review because no other reviewer is available/m,
   'autonomy-decide': /^- The user asked for no questions: make each choice yourself/m,
   'worth-it': /^- You added [^\n]*\. Say why it makes this project better and what it costs/m,
   'gui-pack': /^- GUI files changed \([^\n]*\) but this project has no gui pack/m,
