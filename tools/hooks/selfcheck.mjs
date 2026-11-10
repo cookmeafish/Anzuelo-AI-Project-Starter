@@ -5116,8 +5116,22 @@ for (const s of PRETOOL) {
 for (const s0 of PROMPT) {
   if (!mine()) continue;
   // (under v2, a scenario's own v2 expectations, in v2's wording: "Runbook: open docs/playbooks/<name>.md", not "ROUTE: <name>")
-  const s = process.env.STARTER_ENGINE === 'v2' && s0.v2 ? { ...s0, ...s0.v2 } : s0;
-  const routes = (s.has || []).map(h => /^ROUTE: ([\w-]+)$/.exec(h)?.[1]).filter(Boolean);
+  const s1 = process.env.STARTER_ENGINE === 'v2' && s0.v2 ? { ...s0, ...s0.v2 } : s0;
+  // (with no v2 expectations of its own, the old reminder's labels are read in v2's words: the behavior is the scenario's,
+  // only the wording is v1's, as V2_ASKS does for the end check. Plan: migrate every behavior, Task 3)
+  // (in "hasNot", NO RUNBOOK stays as it is: v2's generic line is shown for every request with no route, so it says
+  // nothing about the old engine's NO RUNBOOK; a bare CLOSEST RUNBOOK is v2's closest-runbook hint)
+  const V2_SAY = (h, not = false) => { let m;
+    if (not && /^NO RUNBOOK\b/.test(h)) return h;
+    if (/^CLOSEST RUNBOOK$/.test(h)) return 'Closest runbook:';
+    if ((m = /^SKILL: ([\w-]+)$/.exec(h))) return `skills/${m[1]}/SKILL.md`;
+    if ((m = /^ROUTE: ([\w-]+)$/.exec(h))) return `Runbook: open docs/playbooks/${m[1]}.md`;
+    if ((m = /^CLOSEST RUNBOOK: no trigger phrase matched, but (\S+)$/.exec(h))) return `Closest runbook: ${m[1]}`;
+    if (/^NO RUNBOOK\b/.test(h)) return 'If this is real work, pick the runbook in DIRECTORY.md';
+    if (/^CHECKS: this turn will be held to\b/.test(h)) return 'Done when (before answering';
+    return h; };
+  const s = process.env.STARTER_ENGINE === 'v2' && !(s0.v2 && (s0.v2.has || s0.v2.hasNot)) ? { ...s1, has: (s1.has || []).map(V2_SAY), hasNot: (s1.hasNot || []).map(h => V2_SAY(h, true)), v1has: s1.has } : s1;
+  const routes = (s.v1has || s.has || []).map(h => /^ROUTE: ([\w-]+)$/.exec(h)?.[1]).filter(Boolean);
   if (!packOk(s) || routes.some(r => !fs.existsSync(path.join(baseOf(s), 'docs/playbooks', r + '.md')) && !(s.setup || {})[`docs/playbooks/${r}.md`])) {
     if (s.own) { report(false, 'prompt: ' + s.name, `could not run: ${packOk(s) ? 'it expects a route to a runbook this project does not have' : ownSkipWhy(s)}`); continue; }
     skipped++; continue;

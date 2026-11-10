@@ -33,6 +33,7 @@ const knownCheck = tag => {
 import { SELF_KEY, approvedBefore } from '../selfcmds.mjs';
 import { capsWeight } from '../caps.mjs';
 import { toOtherSession } from '../relay.mjs';
+import { MAKE_REQUEST } from '../near.mjs';
 // The time a session began: the first timestamp in its transcript (read from its start, never the whole file).
 export const sessionStart = file => { try { const fd = fs.openSync(file, 'r'), b = Buffer.alloc(65536), n = fs.readSync(fd, b, 0, b.length, 0); fs.closeSync(fd);
   return /"timestamp":"(\d{4}-\d\d-\d\dT[^"]+)"/.exec(b.toString('utf8', 0, n))?.[1] || null; } catch { return null; } };
@@ -136,7 +137,12 @@ export function skillBooks({ parts = false } = {}) {
     const triggers = (/^triggers:\s*(.+)$/m.exec(fm)?.[1] || '').split(',').map(s => s.trim().toLowerCase()).filter(s => s.length > 2), items = doneWhen(text);
     if (/^runbook:/m.test(fm) ? parts && items.some(it => it.kind) : triggers.length) out.push({ name: n, file, triggers, menu: [], items, skills: [] });
   }
-  return out;
+  // (the project's own skills first: one a pack or the library ships comes after, so on equal triggers the project's
+  // wins, as "this project's skills beat global ones". Lesson (the old suite under v2): a pack's note skill took a
+  // project's own note skill's request)
+  const shipped = n => { try { return fs.existsSync(at(`library/skills/${n}`)) || listAll('packs').some(p => fs.existsSync(at(`packs/${p}/files/skills/${n}`))); } catch { return false; } };
+  const rank = new Map(out.map(s => [s.name, shipped(s.name) ? 1 : 0]));
+  return out.sort((a, b) => rank.get(a.name) - rank.get(b.name));
 }
 
 // The runbook whose trigger phrase matches the request best: a phrase that opens the request wins, then the longest
@@ -186,7 +192,7 @@ export function route(prompt, books = runbooks()) {
     for (const b of books) for (const t of b.triggers) {
       const phrase = t.replace(/[^\p{L}\p{N}' ]+/gu, ' ').replace(/\s+/g, ' ').trim();
       const score = !phrase || !p.includes(` ${phrase} `) ? 0 : (p.startsWith(` ${phrase} `) ? 1000 : 0) + phrase.length;
-      if (score && (!best || score > best.score)) best = { book: b, score, phrase };
+      if (score && (!best || score > best.score)) best = { book: b, score, phrase, trigger: t };
     }
     return best;
   };
@@ -202,7 +208,10 @@ export function route(prompt, books = runbooks()) {
   // user's. Lesson (a peer session, live): a status report quoting a capital "NEVER" read as a rule)
   const relayedMsg = /^\s*Another Claude session sent a message|<(cross-session-message|agent-message|task-notification)\b/.test(String(prompt));
   const proj = books.find(b => b.file === 'docs/playbooks/project.md'), rule = proj && !relayedMsg && (STANDING.test(said) || RULE_CUE.test(String(prompt)) || capsWeight(String(prompt)).rule || /\b(that|this|it) (should|must|can) never happen again\b/i.test(said) || /,\s*(always|never)\s*(?:[.!]+|$)/im.test(said));
-  if (best && !(rule && best.score < 1000)) return { ...best.book, matched: best.phrase };
+  // (a question that asks to make nothing does not route on a one-word trigger alone: "no images in any guide???" asks no
+  // guide. As the old engine. Lesson (the old suite under v2): a frustrated question routed to the deliverable runbook)
+  const askOnly = best && !/\s/.test(best.phrase) && /\?/.test(String(prompt)) && !MAKE_REQUEST.test(String(prompt));
+  if (best && !askOnly && !(rule && best.score < 1000)) return { ...best.book, matched: best.phrase, trigger: best.trigger };
   return rule ? { ...proj, matched: 'standing rule' } : null;
 }
 // Spanish: the common short words outnumber the English ones (as the old engine tells them apart).
@@ -220,7 +229,7 @@ const ROUTE_ES = () => routeEs ||= [
   [/\bnueva regla\b/, 'new rule'], [/\bte (lo )?dije\b/, 'i told you'], [/\b(olvidaste|se te olvid[oó])\b/, 'you forgot'], [/\bpor qu[eé] (lo )?hiciste\b/, 'why did you'],
   [/\b(agrega|añade|agregar|añadir|incluye|pon)\b/, 'add'], [/\b(arregla|corrige|repara|arreglar|corregir)\b/, 'fix'], [/\b(crea|crear|haz|hacer)\b/, 'make'],
   [/\b(cambia|cambiar|modifica)\b/, 'change'], [/\b(quita|elimina|borra|quitar|eliminar|borrar)\b/, 'remove'], [/\b(revisa|revisar|revisión)\b/, 'review'],
-  [/\b(publica|publicar|despliega|desplegar)\b/, 'publish'], [/\b(escribe|redacta|escribir|redactar)\b/, 'write'], [/\b(resume|resumir|resumen)\b/, 'summary'],
+  [/\b(publica|publicar|despliega|desplegar)\b/, 'publish'], [/\b(escribe|redacta|escribir|redactar)\b/, 'write'], [/\b(resume|resumir|resumen)\b/, 'summary'], [/\b(investiga|investigar)\b/, 'research'],
   [/\b(nuev[oa]s?)\b/, 'new'], [/\bp[aá]ginas?\b/, 'page'], [/\bbot[oó]n(es)?\b/, 'button'], [/\bcolumnas?\b/, 'column'], [/\bcampos?\b/, 'field'],
   [/\bpantallas?\b/, 'screen'], [/\binicio de sesi[oó]n\b/, 'login'], [/\bopci[oó]n(es)?\b/, 'option'], [/\bfunci[oó]n(es)?\b/, 'feature'], [/\b[ií]ndice\b/, 'index'],
   [/\b(error|errores|fallo|fallos)\b/, 'bug'], [/\bpruebas?\b/, 'tests'], [/\bseguridad\b/, 'security'], [/\b(informe|reporte)s?\b/, 'report'],

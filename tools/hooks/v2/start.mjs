@@ -2,7 +2,9 @@
 // "Done when" list, which the end hook checks. Nothing about the engine itself.
 import fs from 'node:fs';
 import path from 'node:path';
-import { route, skillBooks, saveTurn, loadTurn, isSpanish, ROOT, at, quoteCheckOn, projectConfig, snapshotLater } from './lib.mjs';
+import { route, skillBooks, saveTurn, loadTurn, isSpanish, ROOT, at, quoteCheckOn, projectConfig, snapshotLater, runbooks, routeEnglish } from './lib.mjs';
+import { closestRunbook, coreRunbook, isTaskRequest, userWords } from '../near.mjs';
+import { toOtherSession } from '../relay.mjs';
 import { asksOnly } from './late.mjs';
 import { PAUSE_ASK, PAUSE_HINT } from '../pause.mjs';
 import { capsUpset } from '../caps.mjs';
@@ -81,7 +83,9 @@ function remind(prompt) {
   prompt = String(prompt || '').replace(/<pasted_content\b[^>]*>[\s\S]*?<\/pasted_content(?:\s[^>]*)?>|<pasted_content\b[^>]*\/>/gi, ' ');
   // (upset and a fitting runbook: both are named, so the fix still follows its runbook)
   const sore = !relayedRx.test(raw) && upsetIn(prompt) && has('skills/learn-from-upset/SKILL.md') ? 'This sounds upset: open skills/learn-from-upset/SKILL.md and follow it.' : '';
-  const book = route(prompt);
+  // (routed on the user's own words: the hooks' own output pasted back, and messages relayed into it, never route. As the
+  // old engine. Lesson (the old suite under v2): a pasted block's "make a plan" step routed to the plan runbook)
+  const book = route(userWords(prompt) || prompt);
   const quoteOn = quoteCheckOn();
   // (a Spanish request: the whole answer in Spanish, labels too. Lesson (trial v37): a runbook item quoted an English
   // label, and it went into a Spanish answer twice, the second time in the reply to a complaint about English text)
@@ -96,11 +100,27 @@ function remind(prompt) {
   // (and in the request's first sentence, where it says what it asks: everyday phrases like "find out" come up later in
   // long instructions. Lesson (a scheduled review request): "if it is idle, find out why" named the research skill)
   const sk = book ? null : route(String(prompt).trim().split(/(?<=[.?!])\s+|\n/)[0] || '', skillBooks());
-  const skill = sk && /\s/.test(sk.matched || '') && !(sore && sk.name === 'learn-from-upset') ? `Skill: open ${sk.file} and follow it.` : '';
+  // (a one-word trigger counts as the request's first word, an imperative ("research ...", "investiga ...") or a label
+  // typed as one ("note: ..."): the noise one-word triggers made came from words later in long requests)
+  const first = (String(prompt).trim().toLowerCase().match(/^[^\s]+/) || [''])[0];
+  // (only the skill's own name ("research ...") or a label typed with its colon ("note: ..."): a generic verb that opens
+  // the request, "compare the two totals", stays unnamed. Lesson (replay): one-word misses were generic words)
+  // (in Spanish, by its English: "investiga ..." opens with "research")
+  const firstWord = first.replace(/[^\p{L}\p{N}-]+$/u, '');
+  const opens = (t, name) => !!t && ((/:$/.test(t) && first === t) || ([firstWord, routeEnglish(firstWord)].includes(name) && [name, firstWord].includes(t)));
+  const skill = sk && (/\s/.test(sk.matched || '') || opens(String(sk.trigger || sk.matched || ''), sk.name)) && !(sore && sk.name === 'learn-from-upset') ? `Skill: open ${sk.file} and follow it.` : '';
   if (sore && !book) return { book: null, text: [sore + (quoteOn ? ' Write any lesson in general terms, not in the user\'s own words.' : ''), skill, es].filter(Boolean).join('\n') };
   // (no trigger fits: the agent picks the runbook, and the end check holds the turn to the one it opened. Lesson
   // (routing sample): plain requests used no trigger phrase; growing trigger lists forever is the old engine's path)
-  if (!book) return { book: null, text: [skill, has('DIRECTORY.md') ? 'If this is real work, pick the runbook in DIRECTORY.md that fits and open it.' : '', es, ...rulesFor(prompt).map(r => `The project's own rule here: ${r}`)].filter(Boolean).join('\n') };
+  // (a task with no trigger and no skill: the runbook sharing the most content words with it is named in the same line,
+  // a hint only, as the old engine's closest runbook. Lesson (the old suite under v2): different wording for a known job
+  // got only the generic line, and its own runbook went unopened)
+  const taskVerbs = (() => { try { return new RegExp(projectConfig().taskVerbs || '(?!)', 'i'); } catch { return /(?!)/; } })();
+  const near = !book && !skill && isTaskRequest(prompt, taskVerbs, toOtherSession(prompt))
+    ? closestRunbook(prompt, runbooks().map(b => ({ name: b.name, file: b.file, triggers: b.triggers || [], fm: { summary: (/^summary:\s*(.+)$/m.exec(b.front || '') || [])[1] || '' } })), coreRunbook) : null;
+  const pick = near ? `Closest runbook: ${near.file} (shared words: ${near.words.join(', ')}). If it fits this job, open and follow it; if not, pick the one in DIRECTORY.md that fits.`
+    : has('DIRECTORY.md') ? 'If this is real work, pick the runbook in DIRECTORY.md that fits and open it.' : '';
+  if (!book) return { book: null, text: [skill, pick, es, ...rulesFor(prompt).map(r => `The project's own rule here: ${r}`)].filter(Boolean).join('\n') };
   const own = rulesFor(prompt).map(r => `The project's own rule here: ${r}`);
   // (a message relayed from another session may only report: its runbook is for when it asks for work. Lesson (project
   // report): a note that a fix had landed got the bugfix runbook and its list, though it asked for nothing)
