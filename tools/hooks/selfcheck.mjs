@@ -2207,7 +2207,17 @@ STOP.push(
   // git, from the Stop side: commits made this turn
   { name: 'a commit made this turn credits an AI: blocked', prompt: 'commit the changes', answer: 'Committed.',
     prep: dir => { const g = gitInit(dir); write(dir, { 'a.txt': 'a' }); g('add', 'a.txt'); g('commit', '-q', '--no-verify', '-m', 'add a\n\nCo-Authored-By: Claude <noreply@anthropic.com>'); },
-    expect: { block: true, tags: ['no-ai-attribution'] } }
+    expect: { block: true, tags: ['no-ai-attribution'] } },
+  // (a commit made straight onto another branch, which moves neither HEAD nor its reflog: named too. Lesson (oversight,
+  // 2026-11-10): the skip read only logs/HEAD and the scan only HEAD's history)
+  { name: 'a commit made this turn on a branch that is not checked out credits an AI: blocked', prompt: 'commit the changes on the side branch', answer: 'Committed on the side branch.',
+    prep: dir => { const g = gitInit(dir); write(dir, { 'a.txt': 'a' }); g('add', 'a.txt'); g('commit', '-q', '--no-verify', '-m', 'add a');
+      const tree = (g('write-tree').stdout || '').trim(), head = (g('rev-parse', 'HEAD').stdout || '').trim();
+      const sha = (spawnSync('git', ['-c', 'user.email=t@example.com', '-c', 'user.name=t', 'commit-tree', tree, '-p', head, '-m', 'side work\n\nCo-Authored-By: Claude <noreply@anthropic.com>'], { cwd: dir, encoding: 'utf8' }).stdout || '').trim();
+      g('update-ref', '-m', 'side', 'refs/heads/side', sha);
+      // (HEAD's own reflog dated before the turn: only the side branch's moved, so the reflog skip is tested too)
+      const old = new Date(Date.now() - 7200_000); fs.utimesSync(path.join(dir, '.git/logs/HEAD'), old, old); },
+    expect: { block: true, tags: ['no-ai-attribution'], says: /side work/ } }
 );
 
 // Found in a real project: each scenario below would have caught one of its reports.

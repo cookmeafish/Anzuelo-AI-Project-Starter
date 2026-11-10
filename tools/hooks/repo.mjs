@@ -27,7 +27,9 @@ export function testInputsHash() {
 // ---------- git: no AI attribution, ever ----------
 // Commits not yet on any remote (or made since `sinceMs`), with message + author + committer, that credit an AI.
 export function aiAttributedCommits(cfg = config(), sinceMs = null) {
-  const range = sinceMs ? ['--since', new Date(sinceMs - 1000).toISOString(), 'HEAD'] : ['HEAD', '--not', '--remotes'];
+  // (since a time: every local branch, not only HEAD's, so a commit made onto another branch is seen. Lesson (oversight,
+  // 2026-11-10): one made with update-ref on a side branch passed the end check)
+  const range = sinceMs ? ['--since', new Date(sinceMs - 1000).toISOString(), 'HEAD', '--branches'] : ['HEAD', '--not', '--remotes'];
   const r = spawnSync('git', ['log', '-n', '200', '--format=%H%x1f%an <%ae>%x1f%cn <%ce>%x1f%B%x1e', ...range], { cwd: ROOT, encoding: 'utf8' });
   if (r.status !== 0 || !r.stdout) return [];
   return r.stdout.split('\x1e').map(s => s.trim()).filter(Boolean).map(s => { const [h, a, c, m] = s.split('\x1f'); return { h, a, c, m: m || '' }; })

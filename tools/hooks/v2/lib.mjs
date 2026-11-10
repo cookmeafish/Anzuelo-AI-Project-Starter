@@ -1596,7 +1596,10 @@ export function aiCreditGaps(acts) {
   // per-turn checks)
   try {
     const g = fs.statSync(at('.git')).isDirectory() ? at('.git') : path.resolve(ROOT, /^gitdir:\s*(.+)$/m.exec(fs.readFileSync(at('.git'), 'utf8'))[1].trim());
-    if (fs.statSync(path.join(g, 'logs', 'HEAD')).mtimeMs < since - 1000) return [];
+    // (the newest reflog: HEAD's and every local branch's, since a commit made onto another branch moves only its own)
+    let newest = 0; const walk = d => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walk(p); else newest = Math.max(newest, fs.statSync(p).mtimeMs); } };
+    newest = fs.statSync(path.join(g, 'logs', 'HEAD')).mtimeMs; try { walk(path.join(g, 'logs', 'refs', 'heads')); } catch { }
+    if (newest < since - 1000) return [];
   } catch { }
   const bad = aiAttributedCommits(projectConfig(), since);
   return bad.length ? [`Commits made this turn credit an AI agent: ${bad.join(', ')}. Reword them (git commit --amend for the last one) so they are solely the user's, and don't push until fixed.`] : [];
