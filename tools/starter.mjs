@@ -148,13 +148,41 @@ function localCopies() {
   walk('');
   return out;
 }
-export function splitUpgrade() {
+// (dry: nothing in the project, .anzuelo/local or the engine's checkout changes; only a git fetch updates the engine
+// clone's record of its remote, to see what an upgrade would take. Lesson (a field report, 2026-11-10): with the engine
+// in .anzuelo/engine, "upgrade --dry-run" ignored the flag, pulled and merged for real, and printed no list, so the
+// runbook's "dry run first" could not be followed)
+export function splitUpgrade(dry = false) {
   if (!fs.existsSync(path.join(ENGINE, '.git'))) { console.error(`${ENGINE} is not a git clone: install the engine again (starter.mjs install)`); return 1; }
   const dirty = (engineGit('status', '--porcelain').stdout || '').trim();
   if (dirty) { console.error(`the engine folder has changes of its own:\n${dirty}\nA project's changes belong in .anzuelo/local (starter.mjs override <path>). Move them there, then upgrade.`); return 1; }
   const b = basedOn(), old = engineHead(), from = b.at || old;
   // (a copy made since the last upgrade carries that commit from now on, before "at" moves forward)
   for (const f of localCopies()) b.files[f] ||= from;
+  if (dry) {
+    const fetch = engineGit('fetch', '-q');
+    if (fetch.status !== 0) { console.error(`git fetch in ${ENGINE} failed:\n${fetch.stderr}\nDry run: nothing changed.`); return 1; }
+    const up = (engineGit('rev-parse', '@{u}').stdout || '').trim();
+    if (!up) { console.error(`the engine clone in ${ENGINE} follows no remote branch: nothing to upgrade from.\nDry run: nothing changed.`); return 1; }
+    const ff = engineGit('merge-base', '--is-ancestor', old, up).status === 0;
+    const n = (engineGit('rev-list', '--count', `${old}..${up}`).stdout || '').trim();
+    const log = [];
+    log.push(old === up ? `the engine is current (${up.slice(0, 7)})` : ff ? `would upgrade the engine ${old.slice(0, 7)} -> ${up.slice(0, 7)} (${n} commit(s))` : `the engine's history and its remote's have split: the real upgrade stops at the pull, to be merged by hand in ${ENGINE}`);
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-merge-'));
+    try {
+      for (const [f, base] of Object.entries(b.files)) {
+        const mine = path.join(LOCAL, f), next = engineGit('show', `${up}:${f}`);
+        if (!fs.existsSync(mine) || next.status !== 0 || base === up || engineGit('diff', '--quiet', base, up, '--', f).status === 0) continue;
+        const was = engineGit('show', `${base}:${f}`), baseFile = path.join(tmp, 'base'), oursFile = path.join(tmp, 'ours'), theirs = path.join(tmp, 'theirs');
+        fs.writeFileSync(baseFile, was.status === 0 ? was.stdout : ''); fs.copyFileSync(mine, oursFile); fs.writeFileSync(theirs, next.stdout);
+        const m = spawnSync('git', ['merge-file', '-p', oursFile, baseFile, theirs], { encoding: 'utf8' });
+        log.push(m.status === 0 ? `would merge the default's change into this project's copy: ${f}` : `would list for the user (the project's change and the default's meet): ${f}`);
+      }
+    } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+    if (old !== up && ff) log.push('would make the wiring again (wire.mjs), and note the change in the project\'s engine log');
+    console.log(`${log.join('\n')}\n\nDry run: nothing changed (${log.length} item(s) above).`);
+    return 0;
+  }
   const pull = engineGit('pull', '--ff-only', '-q');
   if (pull.status !== 0) { console.error(`git pull in ${ENGINE} failed:\n${pull.stderr}\nMerge it there by hand (an AI agent can), then run the upgrade again.`); saveBasedOn(b); return 1; }
   const now = engineHead();
@@ -343,7 +371,7 @@ if (cmd === 'link') {
   finish('remove', ['Removed the starter\'s leftovers and the link. This project carries only what it uses.',
     'To grow later: node tools/starter.mjs link "<starter folder>", or from the starter: node tools/new-project.mjs "<this folder>" --add-pack / --add-skill']);
 } else if (split && ['upgrade', 'update'].includes(cmd)) {
-  process.exit(splitUpgrade());
+  process.exit(splitUpgrade(process.argv.includes('--dry-run')));
 } else if (split && cmd === 'uninstall') {
   process.exit(splitUninstall(process.argv.includes('--dry-run')));
 } else if (split && cmd === 'override') {

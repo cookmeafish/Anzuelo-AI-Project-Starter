@@ -9211,6 +9211,16 @@ if (mineB() && (!TAGS || TAGS.includes('layout-split') || TAGS.includes('engine-
     const upAg = path.join(up, 'AGENTS.md'), ua = fs.readFileSync(upAg, 'utf8').split('\n'); ua[0] = '# The default\'s new title'; fs.writeFileSync(upAg, ua.join('\n'));
     g(up, 'commit', '-qam', 'defaults changed');
     const newHead = (g(up, 'rev-parse', 'HEAD').stdout || '').trim();
+    // (REQ: dry-run-writes-nothing, this layout: the dry run lists what the upgrade would do, and nothing in the project,
+    // .anzuelo/local or the engine's checkout changes. Lesson (a field report, 2026-11-10): it ignored the flag here)
+    {
+      const keep = () => JSON.stringify([hashAll(), ...[planL, agL, path.join(loc, 'based-on.json')].map(f => { try { return fs.readFileSync(f, 'utf8'); } catch { return null; } }), (g(eng, 'rev-parse', 'HEAD').stdout || '').trim(), (g(eng, 'status', '--porcelain').stdout || '').trim(), fs.existsSync(path.join(loc, '.cache/merge/AGENTS.md'))]);
+      const was = keep(), dry = st('upgrade', '--dry-run'), now = keep();
+      report(dry.status === 0 && was === now && /Dry run: nothing changed/.test(dry.stdout) && new RegExp(`would upgrade the engine ${oldHead.slice(0, 7)} -> ${newHead.slice(0, 7)}`).test(dry.stdout)
+        && /would merge the default's change into this project's copy: docs\/playbooks\/plan\.md/.test(dry.stdout) && /would list for the user[^\n]*: AGENTS\.md/.test(dry.stdout),
+        'upgrade --dry-run with the engine in .anzuelo/engine lists the commits, merges and clashes it would make, and changes nothing in the project, .anzuelo/local or the engine\'s checkout',
+        JSON.stringify({ status: dry.status, out: (dry.stdout || '').slice(0, 600), err: (dry.stderr || '').slice(0, 300), same: was === now }));
+    }
     const upg = st('upgrade'), after = hashAll();
     const plan = fs.readFileSync(planL, 'utf8'), agents = fs.readFileSync(agL, 'utf8'), b = (() => { try { return JSON.parse(fs.readFileSync(path.join(loc, 'based-on.json'), 'utf8')); } catch { return {}; } })();
     report(ins.status === 0 && /engine-readonly[\s\S]*override docs\/playbooks\/plan\.md/.test(guard) && o1.status === 0 && o2.status === 0
