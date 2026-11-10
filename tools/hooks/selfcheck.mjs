@@ -4864,7 +4864,11 @@ process.on('exit', () => unregisterSuite());
 // A scenario for a pack this project doesn't have (it names a runbook or a check that isn't here) is skipped, so a
 // knowledge-only project still runs every test that applies to it. The starter installs every pack, so it runs all.
 const B = base();
-const srcIn = b => fs.readFileSync(path.join(b, 'tools/hooks/hooks.mjs'), 'utf8') + fs.readFileSync(path.join(b, 'tools/hooks/requirements.json'), 'utf8');
+// (every shared engine module, not only hooks.mjs: a rule moved to one, with its tag, still has its scenarios run.
+// Lesson (the move to shared modules): dev-new-project moved to base-checks.mjs, and its blocking scenario was skipped
+// as "packs not installed here" until the covers test noticed)
+const srcIn = b => [...fs.readdirSync(path.join(b, 'tools/hooks')).filter(f => f.endsWith('.mjs') && f !== 'selfcheck.mjs').map(f => fs.readFileSync(path.join(b, 'tools/hooks', f), 'utf8')),
+  fs.readFileSync(path.join(b, 'tools/hooks/requirements.json'), 'utf8')].join('\n');
 const hereSrc = srcIn(B);
 const INSTALLED = (() => { try { return JSON.parse(fs.readFileSync(path.join(B, 'tools/hooks/config.json'), 'utf8')).packs || []; } catch { return []; } })();
 const packOk = s => !s.pack || INSTALLED.includes(s.pack);
