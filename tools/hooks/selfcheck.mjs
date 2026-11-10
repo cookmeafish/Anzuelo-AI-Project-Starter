@@ -1118,7 +1118,8 @@ const STOP = [
     answer: 'Playbook: gui.md\nVisual review: PASS after 1 round\nAccessibility: keyboard, focus and contrast checked - PASS' + FIN, expect: { not: ['gui-review-loop'] },
     after: dir => { fs.writeFileSync(path.join(dir, 'site/index.html'), html);
       const r = run(dir, 'stop', { transcript_path: path.join(dir, 'transcript.jsonl'), stop_hook_active: false, last_assistant_message: 'Added: the build ran again.' });
-      const asked = /Screenshot the changed screens/.test(r.out);
+      // (v2's words: the shared rule's "were edited again after the last screenshots", or its own "take screenshots after")
+      const asked = /Screenshot the changed screens|were edited again after the last screenshots|take screenshots after the last change/.test(r.out);
       return asked === blocked ? true : `after the page was written again with ${what.replace(/:.*/, '')}, the screenshot round was ${asked ? '' : 'not '}asked for again: ${r.out.slice(0, 200)}`; } })),
   // Lesson, trial round 12: an older run's folder was asked for as "the latest round" while a newer run took the same shots
   { pack: 'gui', name: 'gui-review-loop: two runs after the last edit, the newer one looked at: passes', prompt: 'make the dashboard page look cleaner', tools: [pb('gui'), bash('node tools/screenshot.mjs --url x', GUISHOT(0)), { name: 'Read', input: { file_path: SHOT.replace('/r1/', '/r2/') } }],
@@ -5097,6 +5098,8 @@ const V2_ASKS = {
   'research-verified': /^- This turn used the web(?: in a knowledge project)?\. Follow the research skill/m,
   'answer-resent': /^- (The last message is only a note on an answer|The correction quotes text the earlier answer does not hold)/m,
   'plan-open': /^- This turn started with (an open plan|open plans) \(/m,
+  'gui-review-loop': /^- (A screen changed: take screenshots|GUI files changed \([^\n]*\) and (were edited again|no screenshots)|Look at the latest round before judging it)/m,
+  'gui-pack': /^- GUI files changed \([^\n]*\) but this project has no gui pack/m,
   'upset-learned': /^- (The runbook your Issue line names|Give the point in general terms|Say the root cause|Say first whether it holds|Say what you checked to know it holds|Write the lesson where it stops the next miss|This is about the engine: send the lesson|The user is upset again in this session)/m,
 };
 // (an engine check from requirements.json is recognized by its own message, which v2's evaluator gives as "Check: ...")

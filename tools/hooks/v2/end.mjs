@@ -525,7 +525,11 @@ function judge(data, { shadow = false } = {}) {
   const resent = [], sentNote = String(acts.answer || '').trim();
   const isNote = /^\W{0,4}(added|añadido|corrected|correction|corregido|correcci[oó]n)\s*:|^\W{0,4}(answer unchanged|respuesta sin cambios)\b/i.test(sentNote);
   const prevAnswer = again ? answerBeforeBlock(rows) : '';
-  if (isNote && !String(prevAnswer).trim()) resent.push('The last message is only a note on an answer ("Added:", "Corrected:" or "Answer unchanged"), but no full answer was sent earlier in this turn. End with the whole answer to the request.');
+  // (any text the agent sent earlier in this turn that is not itself a note is an answer the note can stand beside, with
+  // or without a block between them. Lesson (the gui port): an "Added:" after a passing answer was called answer-less)
+  const textOf = r => { const c = r?.message?.content; return Array.isArray(c) ? c.filter(x => x?.type === 'text').map(x => x.text).join('\n') : typeof c === 'string' ? c : ''; };
+  const earlier = rows.filter(r => r?.type === 'assistant').map(textOf).map(t => t.trim()).filter(t => t && t !== sentNote && !/^\W{0,4}(added|añadido|corrected|correction|corregido|correcci[oó]n|answer unchanged|respuesta sin cambios)\b/i.test(t));
+  if (isNote && !String(prevAnswer).trim() && !earlier.length) resent.push('The last message is only a note on an answer ("Added:", "Corrected:" or "Answer unchanged"), but no full answer was sent earlier in this turn. End with the whole answer to the request.');
   if (again) { const prev = prevAnswer, note = acts.answer || '';
     if (prev && note && !note.includes(prev.trim().slice(0, 200)) && (/^\s*(added|corrected|añadido|corregido)\s*:/im.test(note) || (note.length <= 600 && !/^\s*(#{1,6}\s*|\*\*)?finished\b/im.test(note)))) {
       // (its "Corrected:" lines are applied to the earlier answer, as the old engine does (correct.mjs): the withdrawn text

@@ -17,6 +17,7 @@ import { verbatimHits } from './verbatim.mjs';
 import { hexIds, gitClaimContradicted, REPORTED, IMPROVE_CLAIM, byHandClaim, describesClaim, groupVerdictClaim, namedPaths as sharedNamedPaths } from '../claims.mjs';
 import { makeProof } from '../proof.mjs';
 import { makeTrace, researchVerified } from '../trace.mjs';
+import { guiReview } from '../gui.mjs';
 import { makeLaunchers } from '../launchers.mjs';
 import { makeGates } from '../gates.mjs';
 import { doneWhenGaps } from '../donewhen.mjs';
@@ -787,12 +788,18 @@ export function testGaps(acts, history = '') {
 
 // Check 3: a screen changed, and no screenshot taken after the change was looked at. Only in a project that can take
 // them (tools/screenshot.mjs). Replay: the old engine's screenshot ask found a real problem in 7 of 13 runs.
-const SCREEN = /\.(html?|css|scss|jsx|tsx|vue|svelte|xaml|qml)$|(^|\/)(gui|ui|templates|components)\//i;
+// (Flutter screens too, as the gui pack's guiFiles. Lesson (the old suite under v2): a Flutter screen change passed)
+const SCREEN = /\.(html?|css|scss|jsx|tsx|vue|svelte|xaml|qml)$|(^|\/)(gui|ui|templates|components)\/|(^|\/)lib\/(.+\/)?(screens|widgets|pages)\/.+\.dart$|_screen\.dart$/i;
 // (tests and their fixtures in a gui folder show nothing on screen. Lesson (replay): edits to a gui folder's tests asked
 // for screenshots)
 const NOT_SCREEN = /^(\.cache|docs|skills|packs|library|tools\/hooks)\/|(^|\/)(node_modules|dist|build|_site|\.next|\.nuxt|\.output|\.svelte-kit|coverage|storybook-static)\/|\.md$|(^|\/)(tests?|fixtures|__tests__)\/|(^|\/)test_[^/]*$|[._-]test\.\w+$/i;
 export function screenGaps(acts) {
-  if (!fs.existsSync(at('tools/screenshot.mjs'))) return [];
+  const cfg = projectConfig();
+  const io = { list: d => { try { return fs.readdirSync(at(d)); } catch { return []; } }, stat: p => fs.statSync(at(p)), read: p => { try { return fs.readFileSync(at(p)); } catch { return null; } },
+    exists: p => fs.existsSync(at(p)), match: (p, globs) => inGlobs(p, [].concat(globs || [])), shown: () => loadTurn('gui-shot'), saveShown: v => saveTurn('gui-shot', v) };
+  const turnX = () => ({ changed: changedOf(acts), since: Date.parse(acts.at || '') || 0, reads: new Set(acts.calls.filter(c => c.name === 'Read').map(c => relp(c.input?.file_path || ''))), toolsKnown: true, said: String(acts.said || '') });
+  // (REQ: gui-pack, by the shared gui.mjs rule. Lesson (the old suite under v2): screens changed with no gui pack, unsaid)
+  if (!fs.existsSync(at('tools/screenshot.mjs'))) return checkOff('gui-pack') || [].concat(cfg.packs || []).includes('gui') ? [] : guiReview(turnX(), cfg, io).gaps.filter(g => g.tag === 'gui-pack').map(g => g.msg);
   const screen = p => { const r = relp(p); return SCREEN.test(r) && !NOT_SCREEN.test(r) && !/^(\.\.|[a-z]:)/i.test(r); };
   const i = acts.calls.map((c, k) => [c, k]);
   const lastEdit = Math.max(-1, ...i.filter(([c]) => /^(Edit|Write|MultiEdit)$/.test(c.name) && screen(c.input.file_path || '')).map(([, k]) => k));
@@ -800,7 +807,10 @@ export function screenGaps(acts) {
   if (lastEdit < 0 && !lastWrite) return [];
   const shot = i.find(([c, k]) => k > lastEdit && /^(Bash|PowerShell)$/.test(c.name) && !c.error && /screenshot/i.test(String(c.input.command || '')) && (!lastWrite || !c.done || c.done > lastWrite));
   const looked = shot && i.some(([c, k]) => k > shot[1] && c.name === 'Read' && /\.(png|jpe?g|webp)$/i.test(String(c.input.file_path || '')));
-  return looked ? [] : ['A screen changed: take screenshots after the last change (node tools/screenshot.mjs) and look at them.'];
+  if (!looked) return ['A screen changed: take screenshots after the last change (node tools/screenshot.mjs) and look at them.'];
+  // (REQ: gui-review-loop: the round looked at is the newest, by the shared gui.mjs rule. Lesson (the old suite under v2):
+  // any image opened after any shot passed)
+  return guiReview(turnX(), { ...cfg, packs: [...new Set([...[].concat(cfg.packs || []), 'gui'])] }, io).gaps.filter(g => g.tag === 'gui-review-loop').map(g => g.msg);
 }
 
 // Check 4: the project's structure changed (rules, runbooks, checks, skills, hook settings) and no passing health
@@ -967,9 +977,8 @@ export const engineChecks = () => {
   const own = (file.requirements || []).filter(r => r && tags.has(r.tag));
   // (a check shipped off, "enabled": false, stays off until configured on, as under the old engine. Lesson (the old suite
   // under v2): every app-pack project was asked to raise its version number with no version file set)
-  // (a check the project switched off after friction (friction-suspend) is skipped too, as the old engine skips it.
+  // (a check switched off after friction is skipped, and a development copy adds the trial check, as the old engine.
   // Lesson (the plan-required port): v2 read only "disabled", so a suspended check still held turns)
-  // (a development copy of the starter (.starter-dev) adds the trial check on how projects are made, as the old engine)
   const dev = fs.existsSync(at('.starter-dev')) ? [DEV_NEW_PROJECT] : [];
   return [...BASE_REQUIREMENTS.filter(b => !own.some(r => r.tag === b.tag)), ...dev, ...own].filter(r => r.tag !== 'security-code' && !off.has(r.tag) && r.enabled !== false && !checkOff(r.tag));
 };
@@ -1603,9 +1612,8 @@ export function traceGapsV2(acts, history = '') {
   const web = checkOff('research-verified') ? null : researchVerified(x, cfg, { ledgerRuns, knowledge, researched });
   const opts = { ledgerRuns, knowledge, researched, promptWords: false, answerFigures: true };
   let gaps = traceOf().traceGaps(x, cfg, opts).map(g => g.msg);
-  // (about to hold a figure as found in nothing read: the whole session is read first, not only the tail the end check
-  // keeps. Rare, so the cost is paid only then. Lesson (the answer-figure replay): figures read more than 5 MB back in a
-  // long session were asked for again)
+  // (before holding a figure, the whole session is read, not only the kept tail; rare, so cheap. Lesson (the answer-figure
+  // replay): figures read more than 5 MB back in a long session were asked for again)
   if (gaps.some(g => /The answer states /.test(g)) && acts.transcriptPath && history) {
     let whole = ''; try { const st = fs.statSync(acts.transcriptPath); if (st.size > String(history).length) whole = evidenceOf(fs.readFileSync(acts.transcriptPath, 'utf8')); } catch { }
     if (whole) gaps = traceOf().traceGaps(traceTurn(acts, whole), cfg, opts).map(g => g.msg);
