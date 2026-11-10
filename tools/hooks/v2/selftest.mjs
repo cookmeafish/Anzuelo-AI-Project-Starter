@@ -254,6 +254,22 @@ report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/
     const helped = ask(13), stale = ask(5);
     report(!/Run the tests after the last code change/.test(helped) && /Run the tests after the last code change/.test(stale),
       'end: a test run a helper made after the last change, in this turn, counts for the session; one from before the turn does not', [helped.slice(0, 160), stale.slice(0, 160)]);
+    // (a test run in the background counts until it ends, not from its start: files the suite itself rewrites while it
+    // runs (a self-test that sets files aside and puts them back) are no code changed after it. A file written after
+    // it ended still is. Lesson (a field report, 2026-11-10): a passing background test run was asked for again)
+    {
+      const outF = path.join(tdir, 'bg-out.txt'); fs.writeFileSync(outF, 'Tests: 3 passed\n');
+      const bgRows = (late) => [at(10, user('tidy the invoice totals')), at(11, call('Edit', { file_path: path.join(dir, 'src/a.js'), old_string: 'a', new_string: 'b' })),
+        at(12, call('Bash', { command: 'npm test', run_in_background: true }, `Command running in background with ID: bgt1. Output is being written to: ${outF}`)),
+        at(20, user('<task-notification>\n<task-id>bgt1</task-id>\n<status>completed</status>\n<summary>Background command "npm test" completed (exit code 0)</summary>\n</task-notification>')),
+        at(late ? 23 : 21, say('Tidied; the tests pass.'))];
+      const bgAsk = (sid, writeAt) => { put('src/b.js', 'x'); const t = new Date(Date.parse(T(writeAt))); fs.utimesSync(path.join(dir, 'src/b.js'), t, t);
+        sv(sid, { at: T(10), runbook: null }); fs.writeFileSync(main, lines(bgRows(writeAt > 20))); return onStop({ session_id: sid, transcript_path: main })?.reason || ''; };
+      const during = bgAsk('bgrun1', 15), after = bgAsk('bgrun2', 22);
+      fs.rmSync(path.join(dir, 'src/b.js'), { force: true });
+      report(!/Run the tests after the last code change/.test(during) && /Run the tests after the last code change/.test(after),
+        'end: a background test run counts until it ends: a file written while it ran is no change after it; one written after it ended is', [during.slice(0, 160), after.slice(0, 160)]);
+    }
     // (and the screenshots a helper took and looked at. Lesson (trial v41))
     put('tools/screenshot.mjs', '// shots');
     mainRows[1] = at(11, call('Edit', { file_path: path.join(dir, 'src/page.html'), old_string: 'a', new_string: 'b' }));

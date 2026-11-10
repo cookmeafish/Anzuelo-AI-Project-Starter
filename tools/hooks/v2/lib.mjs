@@ -419,7 +419,7 @@ export const backgroundRunsOf = transcript => backgroundRuns(codexRows(tail(tran
 // check that judges runs reads its real result. Lesson (the old suite under v2): a validator moved to the background
 // that printed "RESULT: FAIL" into its file was never judged by it.
 export function withBackgroundOutputs(acts, rows) {
-  const file = new Map(), code = new Map();
+  const file = new Map(), code = new Map(), ended = new Map();
   for (const r of rows) {
     for (const x of Array.isArray(r.message?.content) ? r.message.content : []) {
       if (x?.type !== 'tool_result') continue;
@@ -429,12 +429,16 @@ export function withBackgroundOutputs(acts, rows) {
     }
     // (the completion notice, as a row or as a queued attachment)
     const s = JSON.stringify(r);
-    for (const m of s.matchAll(/<task-id>([\w-]+)<\/task-id>[\s\S]{0,400}?exit code (-?\d+)/g)) code.set(m[1], Number(m[2]));
+    for (const m of s.matchAll(/<task-id>([\w-]+)<\/task-id>[\s\S]{0,400}?exit code (-?\d+)/g)) { code.set(m[1], Number(m[2])); const t = Date.parse(r.timestamp || ''); if (t) ended.set(m[1], t); }
   }
   for (const c of acts.calls || []) {
     const f = file.get(c.id); if (!f || !code.has(f.id)) continue;
     let text = ''; try { text = fs.readFileSync(f.path, 'utf8').slice(-200000); } catch { }
     c.out = `${c.out || ''}\n${text}`; if (code.get(f.id) !== 0) c.error = true;
+    // (it is done when its completion notice came, not when it started: what it wrote while running is its own.
+    // Lesson (a field report, 2026-11-10): a self-test that set files aside and put them back, run in the background,
+    // read as code changed after the tests)
+    if (ended.has(f.id)) c.done = ended.get(f.id);
   }
   return acts;
 }
