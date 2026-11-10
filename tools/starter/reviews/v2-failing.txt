@@ -147,7 +147,6 @@ stop: new runbook without a check: blocked
 stop: new runbook without checking for existing skills: blocked
 stop: note-linked: a new note in a knowledgeDirs folder that links to nothing: blocked
 stop: note-linked: a new note that links to nothing: blocked
-stop: parallel work in the background, with a project check written before "waitsForAgents" existed: still waits
 stop: parallel work still running in the background: the merge check waits
 stop: promptMatches: the same words typed by the user still count: blocked
 stop: queued mid-turn rule request is enforced: blocked

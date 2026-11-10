@@ -1355,7 +1355,12 @@ export function engineCheckGaps(acts) {
   const ownedBy = forces => (books ||= runbooks()).filter(b => b.name !== forces && /^owns:\s*\S/m.test(b.front || '') && opened(b, acts))
     .flatMap(b => /^owns:\s*(.+)$/m.exec(b.front)[1].split(',').map(s => s.trim()).filter(Boolean));
   const ignoreOwned = (w, own) => w && typeof w === 'object' ? { ...w, ...(w.filesChanged ? { filesIgnore: [...[].concat(w.filesIgnore || []), ...own] } : {}), ...(w.anyOf ? { anyOf: w.anyOf.map(s => ignoreOwned(s, own)) } : {}) } : w;
+  // (a check on results that helpers started in the background this turn will deliver later waits for them, flagged
+  // "waitsForAgents", or by its tag in a project's copy written before the flag existed, as the old engine. Lesson (the
+  // old suite under v2): such a copy was asked for the merged result while the helpers still ran)
+  const bgHelpers = (acts.calls || []).some(c => /^(Agent|Task)$/.test(c.name) && c.input?.run_in_background);
   for (const r0 of engineChecks()) {
+    if (bgHelpers && (r0.waitsForAgents ?? ['parallel-merged', 'research-cited'].includes(r0.tag))) continue;
     const own = r0.forces ? ownedBy(r0.forces) : [], r = own.length ? { ...r0, when: ignoreOwned(r0.when, own) } : r0;
     read.detail = '';
     try { if (!(small && SMALL_SKIP.test(r.tag)) && !promptOnly(r.when) && holdsReq(r.when, read, x) === true && holdsReq(r.require, read, xr) === false && !draftMet(r.require, read, xr) && !waivedTag(r.tag, acts) && !(r.tag === 'version-bump' && bumpedEarlier(acts.prior, r.require?.filesChanged))) { const why = read.detail || (usesCites(r.require) ? citeWhy(read, x) : ''); out.push(`Check: ${r.message}${why ? ` (${why})` : ''}`); } }
