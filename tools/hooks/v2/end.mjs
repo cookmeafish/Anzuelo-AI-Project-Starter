@@ -372,7 +372,10 @@ const FIX_FILES = [
 const sampleOf = g => String(g).replace(/\{([^,}]*)[^}]*\}/g, '$1').replace(/\*\*/g, 'x').replace(/[*?]/g, 'x');
 export function followOn(turn, acts, list) {
   const done = new Set(changedOf(acts));
-  const files = [...new Set(list.flatMap(s => FIX_FILES.filter(([rx]) => rx.test(s)).flatMap(([, f]) => f(turn, acts, s))))].filter(f => !done.has(f));
+  // (a record line, the changelog, status or decisions, is the step itself, not work that sets off more. Lesson (the old
+  // suite under v2): a runbook's changelog item set off the Finished section on a turn that only re-decided a checklist row)
+  const RECORD = /^(docs\/(CHANGELOG|STATUS|DECISIONS)\.md|tools\/starter\/(STARTER-CHANGELOG|STATUS)\.md)$/;
+  const files = [...new Set(list.flatMap(s => FIX_FILES.filter(([rx]) => rx.test(s)).flatMap(([, f]) => f(turn, acts, s))))].filter(f => !done.has(f) && !RECORD.test(f));
   if (!files.length) return [];
   const sim = { ...acts, calls: [...acts.calls, ...files.map(f => ({ name: 'Edit', input: { file_path: at(f) } }))] };
   const now = new Set(list);
@@ -384,6 +387,16 @@ export function followOn(turn, acts, list) {
   if ((files.some(f => HOOKISH.test(f)) || list.some(s => /^Write the rule down\b/.test(s))) && ![...done].some(f => HOOKISH.test(f)) && !list.some(s => /^The (hook logic|checks\b[^\n]*) changed: run/.test(s)))
     out.push('Then, if the fix changes the hook engine or its checks (tools/hooks/): run node tools/hooks/selfcheck.mjs (or --tags <the new or changed check>) until it prints ALL PASS.');
   return out;
+}
+// The last answer the agent sent before the latest block (the host shows the block as a "Stop hook feedback" message).
+function answerBeforeBlock(rows) {
+  let last = '', prev = '';
+  for (const r of rows) {
+    const c = r?.message?.content;
+    if (r?.type === 'assistant') { const t = Array.isArray(c) ? c.filter(x => x?.type === 'text').map(x => x.text).join('\n') : typeof c === 'string' ? c : ''; if (t.trim()) last = t; }
+    else if (r?.type === 'user' && /^\s*Stop hook feedback\b/.test(typeof c === 'string' ? c : Array.isArray(c) ? c.filter(x => x?.type === 'text').map(x => x.text).join('\n') : '')) prev = last;
+  }
+  return prev;
 }
 function judge(data, { shadow = false } = {}) {
   // (with no saved start, the turn starts at its request's own time. Lesson (a field report): the first turn after an
@@ -423,13 +436,21 @@ function judge(data, { shadow = false } = {}) {
   // (on a repeat, what the agent said is read from after the last block: a message sent before it can't be taken back.
   // Lesson (2026-11-07): an Issue line in the first answer re-blocked the corrected answer that had none)
   if (again && turn.lastBlock) { const after = turnActs(rows.filter(r => (Date.parse(r.timestamp || '') || 0) > turn.lastBlock)); acts.said = after.said + (final && !after.said.includes(final) ? `${final}\n` : ''); acts.answer = final || after.answer || acts.answer; }
+  // REQ: answer-resent. After a block the agent is told to send only a short note of what changed, so a repeat round
+  // judges the answer sent before the block together with that note ("Added: ...", "Corrected: ...", a line or two), not
+  // the note alone. Lesson (the old suite under v2): the note alone lacked the Finished section and the root cause, and
+  // the turn was held again for what the first answer had.
+  if (again) { const prev = answerBeforeBlock(rows), note = acts.answer || '';
+    if (prev && note && !note.includes(prev.trim().slice(0, 200)) && (/^\s*(added|corrected|añadido|corregido)\s*:/im.test(note) || (note.length <= 600 && !/^\s*(#{1,6}\s*|\*\*)?finished\b/im.test(note)))) acts.answer = `${prev.trim()}\n\n${note}`; }
   const raw = tail(data.transcript_path, 5 << 20), history = evidenceOf(raw);
   acts.earlier = earlierPrompts(raw, turn.at); acts.runbook = turn.runbook || '';
   acts.issuesBefore = issuesBefore(raw, turn.at); acts.prior = priorCalls(raw, turn.at); acts.complaint = complaintTurn(acts);
   // (a declared self-test the turn needed and never ran is run here first, so every check below judges its output;
   // never in a preview)
   let autos = []; if (!shadow) try { acts.sessionStart = sessionStart(data.transcript_path || '') || turn.at || null; autos = autoRuns(acts); } catch (e) { autos = [crashLine('self-run', e)]; }
-  const late = unansweredLate(rows, final).map(m => `Answer the user's message typed at ${String(m.at).slice(11, 16) || 'mid-task'}: "${m.text.replace(/\s+/g, ' ').slice(0, 200)}"`);
+  // (a message typed during the work is asked about once: a repeat round does not hold it again, however it was
+  // answered, as the old engine did. Lesson (the old suite under v2): it was asked in every round)
+  const late = (again ? [] : unansweredLate(rows, final)).map(m => `Answer the user's message typed at ${String(m.at).slice(11, 16) || 'mid-task'}: "${m.text.replace(/\s+/g, ' ').slice(0, 200)}"`);
   // (wakeups scheduled in any turn of the session count: one left from earlier still re-invokes it later)
   const wakes = wakeGaps(raw.split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean), final || acts.answer || '', acts.heard || '');
   const extra = (turn.also || []).flatMap(f => missing({ ...turn, runbook: f }, acts, runbooks().filter(b => b.file === f)));

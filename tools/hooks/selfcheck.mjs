@@ -2938,6 +2938,18 @@ function runStop(s0) {
     // (under v2 each scenario has a session, so its Stop decision is logged and a failing scenario says which way it went:
     // judged and passed, waiting on a background run, or ended early. Lesson: an intermittent wrong pass left no trace)
     const V2SID = process.env.STARTER_ENGINE === 'v2' ? { session_id: 'scenario' } : {};
+    // (the fixtures' Finished section names docs/x.md; v2 checks that a named file exists, the old engine did not: the
+    // file is there, from before the turn, unless the scenario is about it)
+    if (V2SID.session_id && [s.answer, ...(s.drafts || [])].some(t => String(t || '').includes('docs/x.md')) && !fs.existsSync(path.join(dir, 'docs/x.md'))) {
+      write(dir, { 'docs/x.md': '# x\n' }); const old = (since - 3600_000) / 1000; fs.utimesSync(path.join(dir, 'docs/x.md'), old, old);
+    }
+    // (a repeat round, under v2, is the turn v2 recorded as blocked already: without that record v2 lets the Stop end
+    // unjudged, and a scenario expecting a pass passed by not running. Oversight, 2026-11-10)
+    if (V2SID.session_id && s.active && !(s.hookInput || {}).session_id && !fs.existsSync(path.join(dir, 'tools/hooks/state/v2-turn.scenario.json'))) {
+      const at0 = new Date(since).toISOString();
+      // (blocks made while waiting on helpers count toward the cap too, as the old engine counted them)
+      write(dir, { 'tools/hooks/state/v2-turn.scenario.json': JSON.stringify({ at: at0, runbook: null, blocked: at0, rounds: ((s.blocks || 0) + (s.waitBlocks || 0)) || 1 }) });
+    }
     const { out, err } = run(dir, 'stop', { transcript_path: tp, stop_hook_active: !!s.active, ...V2SID, ...(s.last ? { last_assistant_message: s.last } : {}), ...(s.hookInput || {}) }, s.host);
     let decision = ''; try { decision = fs.readFileSync(path.join(dir, 'tools/hooks/state/stop-log.jsonl'), 'utf8').trim().split('\n').pop() || ''; } catch { }
     let d = null; try { d = out.trim() ? JSON.parse(out) : null; } catch { }
@@ -5055,6 +5067,11 @@ for (const s0 of STOP) {
     why ||= 'this scenario checks nothing: a pass scenario needs block: false (a block scenario needs block: true and its tags, or "not" to judge it on tags only)';
   if (s.expect.says && !s.expect.says.test(`${r.reason || ''}\n${r.details || ''}`)) why ||= `the message does not say ${s.expect.says}: ${r.reason || '(no block)'}`;
   if (!why && r.after !== true) why = r.after;
+  // (under v2 a scenario must be judged: a Stop that ended before judging passes nothing, unless the scenario is about
+  // ending early (ends: true, such as a pause or the block limit). Oversight, 2026-11-10: about 50 repeat-round scenarios
+  // passed unjudged)
+  if (!why && process.env.STARTER_ENGINE === 'v2' && !r.blocked && !s.ends && (!r.decision || /"result":"ended"/.test(r.decision)))
+    why = `v2 did not judge this turn (${r.decision ? 'it ended before judging' : 'no decision was logged'}${r.err ? `; stderr: ${r.err.slice(0, 200)}` : ''}): give the scenario the record v2 needs, or mark it ends: true if ending early is what it tests`;
   report(!why, 'stop: ' + s.name, why && process.env.DBG_REASON ? `${why} DBG ${String(r.reason || '').replace(/\n/g, ' / ').slice(0, 600)}` : why && r.decision && !r.blocked ? `${why} [v2 decision: ${r.decision.slice(0, 300)}]` : why);
 }
 
@@ -7585,7 +7602,9 @@ if (mineB()) { // hooks-tested without a transcript: the Stop hook never runs th
     const logged = readOr(path.join(dir, 'tools/hooks/state/runs.jsonl'));
     fs.appendFileSync(path.join(dir, 'tools/hooks/state/runs.jsonl'), JSON.stringify({ at: new Date().toISOString(), cmd: 'node tools/hooks/selfcheck.mjs', out: 'selfcheck: ALL PASS (430 passed, 0 failed)', error: false }) + '\n');
     const c2 = node('check', '--answer-file', path.join(dir, '.cache/answer.md'));
-    report(ms < 15000 && /hooks-tested/.test(c1.stdout) && /selfcheck\.mjs/.test(c1.stdout) && typeof logRun === 'function' && /"cmd":"node -e/.test(logged) && !/hooks-tested/.test(c2.stdout),
+    // (v2 names no check: its ask for the self-tests is recognized by its words, V2_ASKS)
+    const asksTests = t => /hooks-tested/.test(t) || V2_ASKS['hooks-tested'].test(t);
+    report(ms < 15000 && asksTests(c1.stdout) && /selfcheck\.mjs/.test(c1.stdout) && typeof logRun === 'function' && /"cmd":"node -e/.test(logged) && !asksTests(c2.stdout),
       'hooks-tested: without a transcript the Stop hook reads the run log instead of running the self-tests', `${ms} ms | c1: ${c1.stdout.slice(0, 300)} | c2: ${c2.stdout.slice(0, 300)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
