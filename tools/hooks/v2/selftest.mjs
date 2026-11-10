@@ -1451,6 +1451,10 @@ const before = ranCount();
 report(healthGaps(acts([user('add a step'), rule, call('Bash', { command: 'node tools/audit.mjs' }, 'audit: PASS (30 sweeps)'), say('Added.')])).length === 0 && ranCount() === before,
   'end: a passing health check the agent ran after the change is enough; it is not run again');
 report(/would run/.test(healthGaps(acts([user('add a step'), rule, say('Added.')]), { run: false })[0] || '') && ranCount() === before, 'end: in shadow the health check is only noted, never run');
+{ // (the agent's own audit run after the change that failed is the result: named from its output, not run again)
+  const own = healthGaps(acts([user('add a step'), rule, call('Bash', { command: 'node tools/audit.mjs' }, 'FAIL   9. runbooks are well-formed, routed and checked\n        - docs/playbooks/export.md: no check\naudit: FAIL (30 sweeps, 1 failed)'), say('Added.')]));
+  report(own.length === 1 && /runbooks are well-formed/.test(own[0]) && ranCount() === before, 'end: a failing health check the agent ran after the change is named from its own output; it is not run again', JSON.stringify(own));
+}
 fs.rmSync(path.join(dir, 'tools/audit.mjs'));
 
 // end: check 5, knowledge sources

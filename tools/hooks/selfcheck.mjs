@@ -463,6 +463,9 @@ const KNOW = '---\ntopic: Desks\nchecked: 2026-10-17\nvolatile: yes\n---\n# Desk
 const KNOW_LOCAL = (src, label, date) => `---\ntopic: Style\nchecked: 2026-10-21\nvolatile: no\n---\n# Style\n| Fact | Label | Source | Date |\n|---|---|---|---|\n| Narration is in the past tense | ${label} | ${src} | ${date} |\n\n## Related\n- [Desks](desks.md)\n`;
 const TWIN = '# changed twin\nCLAUDE.md and AGENTS.md are twins.\n';
 const NEWPB = '---\nname: meal-plan\nsummary: Plan meals\ntriggers: meal plan, plan meals\nchecks: none - a test runbook\n---\n# Playbook\n## Steps\n1. a\n## Done when\n- [ ] b (judgment: a test runbook)\n';
+// (under v2 a new runbook or skill that is not well-formed is named by the project's health check: the agent's own audit
+// run, in the audit's own format, is what the end check reads)
+const AUDIT_FAIL = (sweep, file, why) => ({ tools: [pb('project'), bash('node tools/audit.mjs', `FAIL   6. ${sweep}\n        - ${file}: ${why}\naudit: FAIL (32 sweeps, 1 failed, 0 warnings)`)] });
 // the new runbook's cold read, recorded (REQ: runbook-cold-read)
 const COLD_MEAL = { '.cache/turn-notes.md': 'Cold read: playbooks/meal-plan.md - 1 gap (which week the plan covers), fixed\n' };
 
@@ -724,10 +727,10 @@ const STOP = [
     expect: { block: true, tags: ['requirements-valid'] } },
   { name: 'invalid skill frontmatter: blocked', prompt: 'make a skill for meal planning', tools: [pb('project'), bash('node tools/audit.mjs')],
     files: { 'skills/meal-plan/SKILL.md': '---\nname: Meal Plan\n---\nbody', 'docs/CHANGELOG.md': 'x' },
-    answer: 'Playbook: project.md.' + FIN, expect: { block: true, tags: ['skill-valid'] } },
+    answer: 'Playbook: project.md.' + FIN, expect: { block: true, tags: ['skill-valid'] }, v2: AUDIT_FAIL('skills are valid', 'skills/meal-plan/SKILL.md', 'name "Meal Plan" must be lowercase letters, digits and hyphens') },
   { name: 'new runbook missing triggers and sections: blocked', prompt: 'make a runbook for meal planning', tools: [pb('project'), bash('node tools/audit.mjs')],
     files: { 'docs/playbooks/meal-plan.md': '---\nname: meal-plan\n---\n# x', 'docs/CHANGELOG.md': 'x' },
-    answer: 'Playbook: project.md.' + FIN, expect: { block: true, tags: ['playbook-format'] } },
+    answer: 'Playbook: project.md.' + FIN, expect: { block: true, tags: ['playbook-format'] }, v2: AUDIT_FAIL('runbooks are well-formed, routed and checked', 'docs/playbooks/meal-plan.md', 'no triggers, no "## Steps" or "## Done when"') },
   { name: '3rd use of a runbook: skill hardening due, blocked', prompt: 'plan meals for the week', tools: [pb('meal-plan')], usage: { 'meal-plan': { uses: 2 } },
     edit: { 'docs/playbooks/meal-plan.md': () => NEWPB }, answer: 'Playbook: meal-plan.md. Meals planned.', expect: { block: true, tags: ['skill-harden'] } },
   // Lesson: skills were hardened in the one session that made them, before any second real use
@@ -1944,7 +1947,8 @@ STOP.push(
     answer: 'Playbook: plan.md. Saved.' + FIN, expect: { block: true, tags: ['plan-checked'] } },
   { name: 'a new hand-written skill without triggers or a check: blocked', prompt: 'make a skill for meal planning', tools: [pb('project'), bash('node tools/audit.mjs')],
     files: { 'skills/meal-plan/SKILL.md': '---\nname: meal-plan\ndescription: Plans meals for the week. Use when asked to plan meals.\n---\n# Meal plan\n', 'docs/CHANGELOG.md': 'x' },
-    answer: 'Playbook: project.md. Existing skills checked: installed skills - none fit.' + FIN, expect: { block: true, tags: ['skill-complete'] } },
+    answer: 'Playbook: project.md. Existing skills checked: installed skills - none fit.' + FIN, expect: { block: true, tags: ['skill-complete'] },
+    v2: AUDIT_FAIL('skills are valid', 'skills/meal-plan/SKILL.md', 'no triggers and no check (a requirements.json entry with "when": {"skillUsed": "meal-plan"}, or "checks: none - <reason>")') },
   { pack: 'knowledge', name: 'knowledge captured only in the answer: blocked', prompt: 'note that the shop closes at 6 on Sundays', tools: [sk('knowledge-capture')],
     answer: 'Skill: knowledge-capture. Noted: the shop closes at 6 on Sundays.', expect: { block: true, tags: ['knowledge-captured'] } },
   { name: 'a helper skill counts as its runbook', prompt: 'from now on always include a budget table in plans',
@@ -2077,7 +2081,8 @@ STOP.push(
     v2: { after: (dir, reason) => /^- Make it plain and direct[^\n]*\(seen in [^\n]*meal-plan\.md\)/m.test(reason) || `the step names no file: ${reason.slice(0, 300)}` } },
   // runbooks
   { name: 'new runbook without a check: blocked', prompt: 'make a runbook for meal planning', tools: [pb('project'), bash('node tools/audit.mjs')],
-    files: { 'docs/playbooks/meal-plan.md': NEWPB.replace('checks: none - a test runbook\n', ''), 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.' + FIN, expect: { block: true, tags: ['runbook-complete'] } },
+    files: { 'docs/playbooks/meal-plan.md': NEWPB.replace('checks: none - a test runbook\n', ''), 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.' + FIN, expect: { block: true, tags: ['runbook-complete'] },
+    v2: AUDIT_FAIL('runbooks are well-formed, routed and checked', 'docs/playbooks/meal-plan.md', 'no check (a requirements.json entry with playbookUsed "meal-plan", or "checks: none - <reason>")') },
   { name: 'a new runbook gets its skill and DIRECTORY row generated', prompt: 'make a runbook for meal planning', tools: [pb('project'), bash('node tools/audit.mjs')],
     files: { 'docs/playbooks/meal-plan.md': NEWPB, 'docs/CHANGELOG.md': 'x', ...COLD_MEAL }, answer: 'Playbook: project.md. Existing skills checked: installed skills - none fit.' + FIN, expect: { block: false },
     after: dir => (fs.existsSync(path.join(dir, 'skills/meal-plan/SKILL.md')) && fs.existsSync(path.join(dir, '.claude/skills/meal-plan/SKILL.md')) && fs.readFileSync(path.join(dir, 'DIRECTORY.md'), 'utf8').includes('meal-plan.md')) || 'skill, mirror or directory row not generated' },
@@ -5149,6 +5154,11 @@ const V2_ASKS = {
   'review-excuse': /^- The answer skips the independent review because no other reviewer is available/m,
   'count-honored': /^- The user asked for \d+ [^\n]*\. Deliver exactly that many/m,
   'skill-reuse': /^- New runbook or skill [^\n]*: first look for an existing skill/m,
+  // (a new runbook or skill that is not well-formed: named by the health check, by the audit sweep that failed)
+  'runbook-complete': /^- The project's health check \(node tools\/audit\.mjs\) fails after this change: [^\n]*runbooks are well-formed/m,
+  'playbook-format': /^- The project's health check \(node tools\/audit\.mjs\) fails after this change: [^\n]*runbooks are well-formed/m,
+  'skill-valid': /^- The project's health check \(node tools\/audit\.mjs\) fails after this change: [^\n]*skills are valid/m,
+  'skill-complete': /^- The project's health check \(node tools\/audit\.mjs\) fails after this change: [^\n]*skills are valid/m,
   'autonomy-decide': /^- The user asked for no questions: make each choice yourself/m,
   'worth-it': /^- You added [^\n]*\. Say why it makes this project better and what it costs/m,
   'gui-pack': /^- GUI files changed \([^\n]*\) but this project has no gui pack/m,

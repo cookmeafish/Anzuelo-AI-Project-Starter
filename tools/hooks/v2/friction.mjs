@@ -5,9 +5,12 @@
 // the old engine's automatic suspension is retired; its report and its offer are kept.
 import fs from 'node:fs';
 import path from 'node:path';
+import { at, ROOT } from './lib.mjs';
 
 const WINDOW = 6, TIMES = 3;
-const file = root => path.join(root, 'tools/hooks/state/v2-friction.json');
+// (the project's state folder as v2 maps it: tools/hooks/state, or .anzuelo/local/... with the engine outside the project.
+// Lesson (a release run): a direct path wrote hook state into a project whose engine sits in .anzuelo/engine)
+const file = root => root === ROOT ? at('tools/hooks/state/v2-friction.json') : path.join(root, 'tools/hooks/state/v2-friction.json');
 const load = root => { try { return JSON.parse(fs.readFileSync(file(root), 'utf8')); } catch { return { turns: [], asked: [], offered: [] }; } };
 const save = (root, s) => { try { fs.mkdirSync(path.dirname(file(root)), { recursive: true }); fs.writeFileSync(file(root), JSON.stringify(s)); } catch { } };
 // (a check is named by its tag, or by its tag's words: "plain-writing" or "plain writing")
@@ -23,7 +26,7 @@ export function frictionGaps(root, turnAt, text, tags) {
   const at = s.turns.findIndex(t => t.at === turnAt);
   if (at >= 0) s.turns[at].tags = [...new Set([...s.turns[at].tags, ...here])]; else s.turns.push({ at: turnAt, tags: here });
   s.turns = s.turns.slice(-WINDOW);
-  let feedback = ''; try { feedback = fs.readFileSync(path.join(root, 'docs/starter-feedback.md'), 'utf8'); } catch { }
+  let feedback = ''; try { feedback = fs.readFileSync(root === ROOT ? at('docs/starter-feedback.md') : path.join(root, 'docs/starter-feedback.md'), 'utf8'); } catch { }
   const due = sore(s).filter(g => !s.asked.includes(g) && !named(feedback, [g]).length);
   s.asked = [...new Set([...s.asked, ...due])];
   save(root, s);

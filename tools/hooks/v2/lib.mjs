@@ -847,9 +847,12 @@ export function healthGaps(acts, { run = true } = {}) {
   const lastWrite = Math.max(0, ...changedSince(acts, { test: own }).map(mtime));
   if (lastEdit < 0 && !lastWrite) return [];
   if (i.some(([c, k]) => k > lastEdit && /^(Bash|PowerShell)$/.test(c.name) && !c.error && /audit\.mjs/.test(String(c.input.command || '')) && /audit: PASS/.test(c.out || '') && (!lastWrite || !c.done || c.done > lastWrite))) return [];
-  if (!run) return ['(the health check would run here)'];
+  // (the agent's own audit run after the last change that printed a failure is the result: it is not run again. Lesson
+  // (the old suite under v2): the rerun hit its time limit and a failing new runbook passed, and a rerun costs seconds)
+  const ownFail = i.filter(([c, k]) => k > lastEdit && /^(Bash|PowerShell)$/.test(c.name) && /audit\.mjs/.test(String(c.input.command || '')) && /audit: FAIL/.test(c.out || '') && (!lastWrite || !c.done || c.done > lastWrite)).pop()?.[0];
+  if (!run && !ownFail) return ['(the health check would run here)'];
   // (a hard limit: a slow audit never holds the end of a turn. Its time is kept, to see what it costs)
-  const t0 = Date.now(), r = spawnSync(process.execPath, [at('tools/audit.mjs')], { cwd: ROOT, encoding: 'utf8', timeout: 30_000 });
+  const t0 = Date.now(), r = ownFail ? { status: 1, stdout: String(ownFail.out || '') } : spawnSync(process.execPath, [at('tools/audit.mjs')], { cwd: ROOT, encoding: 'utf8', timeout: 30_000 });
   const ms = Date.now() - t0;
   if (r.status === 0 || r.error) { saveTurn('health', { ...loadTurn('health'), ms }); return []; }
   // (a failure reported on an earlier turn, or naming only files this turn did not change, is not this turn's. Lesson:
