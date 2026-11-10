@@ -6294,7 +6294,7 @@ export function shortStop(full, where = 'tools/hooks/state/stop-details.md') {
     const end = /^(.{20,}?[.!?])(\s|$)/.exec(t); if (end) t = end[1].replace(/[.!?]$/, '');
     if (t.length > 80 && t.indexOf(' (') > 30) t = t.slice(0, t.indexOf(' ('));
     if (t.length > 80) t = t.slice(0, 78).replace(/\s+\S*$/, '') + '…';
-    return t.charAt(0).toLowerCase() + t.slice(1); };
+    return /^[A-Z][a-z]/.test(t) ? t.charAt(0).toLowerCase() + t.slice(1) : t; };
   const n = items.length || 1, last = /This is the last check for this request/.test(text);
   const shown = items.slice(0, items.length > 3 ? 2 : 3).map(s => `- ${plain(s)}`);
   if (items.length > 3) shown.push(`- and ${items.length - 2} more`);

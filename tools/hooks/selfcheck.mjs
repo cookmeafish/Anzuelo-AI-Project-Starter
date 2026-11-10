@@ -1133,7 +1133,9 @@ const STOP = [
     after: dir => { fs.writeFileSync(path.join(dir, 'site/index.html'), html);
       const r = run(dir, 'stop', { transcript_path: path.join(dir, 'transcript.jsonl'), stop_hook_active: false, last_assistant_message: 'Added: the build ran again.' });
       // (v2's words: the shared rule's "were edited again after the last screenshots", or its own "take screenshots after")
-      const asked = /Screenshot the changed screens|were edited again after the last screenshots|take screenshots after the last change/.test(r.out);
+      // (and v2's short text points at the full steps in its details file)
+      let full = r.out; try { full = v2Full(dir, JSON.parse(r.out)); } catch { }
+      const asked = /Screenshot the changed screens|were edited again after the last screenshots|take screenshots after the last change/.test(full);
       return asked === blocked ? true : `after the page was written again with ${what.replace(/:.*/, '')}, the screenshot round was ${asked ? '' : 'not '}asked for again: ${r.out.slice(0, 200)}`; } })),
   // Lesson, trial round 12: an older run's folder was asked for as "the latest round" while a newer run took the same shots
   { pack: 'gui', name: 'gui-review-loop: two runs after the last edit, the newer one looked at: passes', prompt: 'make the dashboard page look cleaner', tools: [pb('gui'), bash('node tools/screenshot.mjs --url x', GUISHOT(0)), { name: 'Read', input: { file_path: SHOT.replace('/r1/', '/r2/') } }],
@@ -3064,7 +3066,8 @@ function runStop(s0) {
     let decision = ''; try { decision = fs.readFileSync(path.join(dir, 'tools/hooks/state/stop-log.jsonl'), 'utf8').trim().split('\n').pop() || ''; } catch { }
     let d = null; try { d = out.trim() ? JSON.parse(out) : null; } catch { }
     // either form asks for more work: the classic block, or the calm feedback form (stopStyle)
-    const reason = d ? d.reason || d.hookSpecificOutput?.additionalContext || '' : '';
+    // (v2's short text stands for the full steps in tools/hooks/state/stop-details.md: the scenarios judge those)
+    const reason = v2Full(dir, d);
     const after = s.after ? s.after(dir, reason, d) : true;
     // the full steps behind the short message (hooks.mjs why)
     let details = ''; try { details = fs.readFileSync(path.join(dir, 'tools/hooks/state/stop-details.md'), 'utf8'); } catch { }
@@ -5533,8 +5536,9 @@ if ((!TAGS || TAGS.includes('status-bar')) && mineB()) {
 // (Stop rounds) and without them (check --answer-file). Lesson: a round-1 fix set off the audit only in round 2.
 // (v2's Stop text is short; its full steps are in tools/hooks/state/stop-details.md, read here in its place. At file
 // level: the tests of several blocks use it. Lesson (chain 871c7b7): defined in one block, another's shard crashed)
-const v2Full = (dir, d) => { const t = d ? d.reason || d.hookSpecificOutput?.additionalContext || '' : ''; if (!/^⚓ [^\n]* left before this is done/.test(t)) return t;
-  try { return fs.readFileSync(path.join(dir, 'tools/hooks/state/stop-details.md'), 'utf8').replace(/^# What is left before this is done\n\n/, '').trim(); } catch { return t; } };
+// (a function declaration, so the scenario runner above can use it too: its own checks read the full steps)
+function v2Full(dir, d) { const t = d ? d.reason || d.hookSpecificOutput?.additionalContext || '' : ''; if (!/^⚓ [^\n]* left before this is done/.test(t)) return t;
+  try { return fs.readFileSync(path.join(dir, 'tools/hooks/state/stop-details.md'), 'utf8').replace(/^# What is left before this is done\n\n/, '').trim(); } catch { return t; } }
 if (mineB() && (!TAGS || TAGS.includes('stop-follow-on'))) {
   // (the first "Names:" line: without hooks, the full steps follow it)
   // (v2 names no check: its listed items stand for them, each by its opening words, numbers left out, so a count that
@@ -5958,7 +5962,7 @@ if (mineB() && (!TAGS || TAGS.includes('check-preview'))) {
         const tp = transcript(dir, c, since);
         const { out } = run(dir, 'stop', { transcript_path: tp, stop_hook_active: false, session_id: 'scenario' });
         let d = null; try { d = out.trim() ? JSON.parse(out) : null; } catch { }
-        const reason = d ? d.reason || '' : '';
+        const reason = v2Full(dir, d);
         const held = [...reason.matchAll(/^- (.+)$/gm)].map(m => m[1]);
         // (a held line is named when the reminder lists its runbook's items, or holds its always.md item's opening words)
         const named = l => { const rb = /(docs\/playbooks\/[\w-]+\.md|tools\/starter\/runbooks\/[\w-]+\.md|skills\/[\w-]+\/SKILL\.md) item \d+/.exec(l)?.[1];
@@ -5987,7 +5991,7 @@ if (mineB() && (!TAGS || TAGS.includes('check-preview'))) {
       if (fs.existsSync(sp)) { try { const j = JSON.parse(fs.readFileSync(sp, 'utf8')); j.files['transcript.jsonl'] = [0, 0, null]; fs.writeFileSync(sp, JSON.stringify(j)); } catch { } }
       const { out } = run(dir, 'stop', { transcript_path: tp, stop_hook_active: false });
       let d = null; try { d = out.trim() ? JSON.parse(out) : null; } catch { }
-      const r1 = names(d ? d.reason || d.hookSpecificOutput?.additionalContext || '' : '');
+      const r1 = names(v2Full(dir, d));
       const has = (t, line = preview) => new RegExp(`(^|[^\\w-])${t}($|[^\\w-])`).test(line);
       // (a check named as "if it changes <files>" is said to fire only on those files: it is no claim about this turn)
       const held = preview.replace(/ If it changes .*?(?= Do them all)/, '');
