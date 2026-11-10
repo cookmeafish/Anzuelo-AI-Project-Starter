@@ -28,7 +28,7 @@ import { PAUSE_ASK } from '../pause.mjs';
 import { externalStopSteps } from '../extstop.mjs';
 import { reviewExcuse } from '../excuse.mjs';
 import { frictionGaps } from './friction.mjs';
-import { waivedTag } from './lib.mjs';
+import { waivedTag, gitClaimGaps } from './lib.mjs';
 import { wakeGaps, watchersArmed, watcherLeft } from '../wakeups.mjs';
 import { makeSkillLearn } from '../skilllearn.mjs';
 import { makeProof } from '../proof.mjs';
@@ -522,7 +522,19 @@ function judge(data, { shadow = false } = {}) {
   // (SendMessage) stops with it, so waiting for it loses its work: the turn is held instead. Lesson (the old engine, trial
   // round 23): a headless setup resumed its helper, answered "still running", and the user never got the result.
   const running = helpersRunning(rows), lost = headlessResumed(rows, running);
-  if (!lost.length && (running.length || backgroundRuns(rows).some(r => !LIVE.test(r.cmd)))) { waiting = true; return null; }
+  if (!lost.length && (running.length || backgroundRuns(rows).some(r => !LIVE.test(r.cmd)))) {
+    // REQ: claim-checked, while helpers run: the work is not over, so nothing else is asked yet, but an answer that says
+    // a git push or commit happened when this turn's last one was refused or failed is held now, once, as the old
+    // engine did. Lesson (the old suite under v2): "Pushed. Everything is on GitHub" passed while a helper still ran
+    // and the push had been refused.
+    const said = typeof data.last_assistant_message === 'string' && data.last_assistant_message.trim() ? data.last_assistant_message.trim() : '';
+    const early = data.stop_hook_active ? [] : S('claimGaps', () => { const a = turnActs(rows); return waivedTag('claim-checked', a) ? [] : gitClaimGaps({ ...a, answer: said || a.answer }); });
+    if (early.length) {
+      decided = { request: '', round: 1, steps: early.map(s => s.replace(/\s+/g, ' ').slice(0, 80)) };
+      return { decision: 'block', reason: `Not done yet:\n${early.map(s => `- ${s}`).join('\n')}\nFix it in the answer now; the helpers' results are checked when they report back. Tell the user in a line, in their language, only what changed, with nothing about this check in it.` };
+    }
+    waiting = true; return null;
+  }
   const found = turnActs(rows);
   const turn = { ...saved, at: saved.at || found.started || '' };
   // (a helper's commands count too, in time order. Lesson (trial v40): tests a setup helper ran were asked for again)

@@ -6,6 +6,8 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-10 (the old suite under v2: a false "pushed" while helpers run): while helpers or a background command of the turn still run, v2 still asks nothing else, but now holds an answer saying a git push or commit happened when the turn's last one was refused or failed, once, as the old engine did. 1 test left the v2 list.
+
 - 2026-11-10 (v2 Stop speed): a quiet bench found v2's Stop 17% slower than at 433a5f7 (191 vs 163 ms, fastest of 6), over the 10% bar. Two costs are cut. The AI-credit scan now skips its git log when git's reflog shows no commit since the turn began (any commit, whoever makes it, writes the reflog; a worktree's git folder is followed). The runbook list is parsed once per hook run instead of once per check, keyed on each file's path, time and size, so a changed, added or removed runbook is read fresh. The end check's own time on the bench sample went from 149 to 94 ms. New: ANZUELO_V2_TIMING=1 prints each end-check step's time to stderr (off by default). New v2 self-test; mutation caught.
 
 - 2026-11-10 (starter only: a REQ tag needs its test at commit time): the starter's pre-commit guard now refuses a commit that adds a "REQ: <tag>" to engine code under tools/hooks/ with no test naming the tag in the same commit (tools/hooks/v2/selftest.mjs, selfcheck.mjs or the project scenarios), the audit's own rule checked on the staged files. Projects are not affected. A release run lost about 35 minutes to such a tag. New v2 self-test; it failed before the change.
