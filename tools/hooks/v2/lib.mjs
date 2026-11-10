@@ -839,7 +839,9 @@ export function screenGaps(acts) {
 // Check 4: the project's structure changed (rules, runbooks, checks, skills, hook settings) and no passing health
 // check (tools/audit.mjs) ran after it. The end check runs it itself and asks only when it fails. Replay: the old
 // engine's ask found a real problem in 5 of 8 runs.
-const STRUCTURE = /^(CLAUDE\.md|AGENTS\.md|docs\/MENU\.md|docs\/playbooks\/|docs\/checks\/|skills\/|tools\/hooks\/(requirements|config)\.json$)/;
+// (DIRECTORY.md too: its generated block is the map every agent reads first, and the audit says when it is lost or old.
+// Lesson (the old suite under v2): a DIRECTORY.md that lost its generated block passed)
+const STRUCTURE = /^(CLAUDE\.md|AGENTS\.md|DIRECTORY\.md|docs\/MENU\.md|docs\/playbooks\/|docs\/checks\/|skills\/|tools\/hooks\/(requirements|config)\.json$)/;
 export function healthGaps(acts, { run = true } = {}) {
   if (!fs.existsSync(at('tools/audit.mjs'))) return [];
   const own = p => STRUCTURE.test(relp(p));
