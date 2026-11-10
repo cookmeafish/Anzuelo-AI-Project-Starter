@@ -48,7 +48,6 @@ prompt: check-preview: a runbook fix names the project's own check on that runbo
 prompt: check-preview: the same play question in English gets the same CHECKS line
 prompt: check-preview: with the project's own hooks, runbook-exists says a runbook they name counts
 prompt: check-preview: without them, runbook-exists says nothing about the project's hooks
-prompt: check-preview: work hears that a plan comes first once it adds many files
 prompt: closest runbook: a request sharing one word or none still gets NO RUNBOOK
 prompt: debug skill routes on its own
 prompt: efficiency-review: "simple fixes turn into 20 minute things" routes to the review
