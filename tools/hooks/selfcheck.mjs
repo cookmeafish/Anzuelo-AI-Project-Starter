@@ -3824,6 +3824,8 @@ STOP.push({ pack: 'knowledge', name: 'research-cited: a note the user dictated, 
 const VAULT_UPSET = 'you made a new note without linking it to the related ones!! every new note links to the notes it relates to';
 const VAULT_CLAIM = 'Checked: `Garden/Basil.md` - the complaint doesn\'t hold: it links to [[Tomatoes]].\nYour rule is already part of the project. This is checked automatically whenever a note changes, so an unlinked new note can\'t get through.';
 const VAULT_NOTE = { 'Garden/Basil.md': '# Basil\nPlant it next to the tomatoes.\n\n## Related\n- [[Tomatoes]]\n', '.cache/turn-notes.md': 'Learned (none): the complaint didn\'t hold - Garden/Basil.md links to Garden/Tomatoes.md and back\n' };
+// (under v2 the project's gate is declared in config.json, "commitGate", and judged by the shared gate code)
+const MISSING_GATE_V2 = cfgEdit({ commitGate: [{ cmd: 'zzq-missing-tool test', pass: 'ok', when: ['data/**'] }] });
 const MISSING_GATE = withReqs({ tag: 'zz-gate', when: { filesChanged: ['data/**'] }, require: { toolPassed: { cmd: 'zzq-missing-tool test', pass: 'ok', selfRun: 'zzq-missing-tool test' } }, message: 'Run the tests.' });
 const SALES_OUT = '2026-W40.csv: rows 3, revenue 440\n  mugs: revenue 315\n  plates: revenue 125\n2026-W41.csv: rows 3, revenue 479\n  mugs: revenue 225\n  bowls: revenue 154\n  plates: revenue 100\n2026-W42.csv: rows 3, revenue 692\n  mugs: revenue 300\n  bowls: revenue 242\n  plates: revenue 150';
 const FIGS = withReqs({ tag: 'data-computed', when: { promptMatches: 'best week' }, require: { answerMatches: 'how it was computed:', answerFiguresComputed: true }, message: 'Compute every number with code run this turn.' });
@@ -3970,15 +3972,19 @@ STOP.push(
     files: { 'Garden/Basil.md': '# Basil\nPlant it next to the [[Tomatoes]].\n', 'Garden/templates/daily.md': '# {{date}}\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Added the note.' + FIN, expect: { not: ['note-linked'] } },
   // a gate that can't run: "not installed" is checked, not guessed
   { name: 'app-test-pass: a refused gate whose program is not installed, answered "needs your approval": asks for the true reason', prompt: 'add the vendor data', edit: MISSING_GATE, tools: [REFUSE('zzq-missing-tool test')],
-    files: { 'data/v.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Added the data.\nNOT VERIFIED: the tests - zzq-missing-tool test needs your approval.' + FIN, expect: { block: true, tags: ['zz-gate'], says: /zzq-missing-tool` is not installed/ } },
+    files: { 'data/v.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Added the data.\nNOT VERIFIED: the tests - zzq-missing-tool test needs your approval.' + FIN, expect: { block: true, tags: ['zz-gate'], says: /zzq-missing-tool` is not installed/ },
+    // (under v2 a project's gate is declared in config.json, and its step is the app-test-pass kind: the same gate in that form)
+    v2: { edit: MISSING_GATE_V2, tools: [editTool('data/v.json'), REFUSE('zzq-missing-tool test')], expect: { block: true, tags: ['app-test-pass'], says: /zzq-missing-tool` is not installed/ } } },
   { name: 'app-test-pass: the same gate, answered "not installed": passes', prompt: 'add the vendor data', edit: MISSING_GATE, tools: [REFUSE('zzq-missing-tool test')],
-    files: { 'data/v.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Added the data.\nNOT VERIFIED: the tests - zzq-missing-tool is not installed on this machine.' + FIN, expect: { not: ['zz-gate'] } },
+    files: { 'data/v.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Added the data.\nNOT VERIFIED: the tests - zzq-missing-tool is not installed on this machine.' + FIN, expect: { not: ['zz-gate'] },
+    v2: { edit: MISSING_GATE_V2, tools: [editTool('data/v.json'), REFUSE('zzq-missing-tool test')], expect: { not: ['app-test-pass'] } } },
   // a gate whose program is not on this machine needs no doomed attempt first (Lesson, trial round 12: later turns ran
   // "go test" again and again, each refused, to show a tool everyone knew was missing)
   { name: 'app-test-pass: a gate whose program is not installed, never tried, answered "not installed": passes', prompt: 'add the vendor data', edit: MISSING_GATE, tools: [],
     files: { 'data/v.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Added the data.\nNOT VERIFIED: the tests - zzq-missing-tool is not installed on this machine.' + FIN, expect: { not: ['zz-gate'] } },
   { name: 'app-test-pass: the same, never tried and silent about it: asks for the NOT VERIFIED line, not a run', prompt: 'add the vendor data', edit: MISSING_GATE, tools: [],
-    files: { 'data/v.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Added the data.' + FIN, expect: { block: true, tags: ['zz-gate'], says: /zzq-missing-tool` is not installed[\s\S]*NOT VERIFIED/ } },
+    files: { 'data/v.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Added the data.' + FIN, expect: { block: true, tags: ['zz-gate'], says: /zzq-missing-tool` is not installed[\s\S]*NOT VERIFIED/ },
+    v2: { edit: MISSING_GATE_V2, tools: [editTool('data/v.json')], expect: { block: true, tags: ['app-test-pass'], says: /zzq-missing-tool` is not installed[\s\S]*NOT VERIFIED/ } } },
   // data-computed: each figure comes from the run, or follows from the answer's other figures
   { name: 'data-computed: a worked sum that does not give the figure it stands for (315 for 315 + 125): blocked', prompt: 'what was our best week so far?', edit: FIGS, v2: { edit: FIGS_V2 }, tools: [FIG_RUN],
     answer: 'Your best week was week 42 with 692. Revenue rose 213 on week 41 (479). Bowls rose 88 (154 to 242), 41% of the gain. Without bowls, week 42 still beats both earlier weeks (450 against 315 and 325).' + FIG_HOW,

@@ -107,8 +107,6 @@ stop: answer-language: a Spanish visual review with no verdict: blocked
 stop: answer-noise: the Stop text steers waivers to the waive command, never to an N/A line in the answer
 stop: answer-noise: the re-answer instruction asks for no note about the steps or an earlier version
 stop: answer-resent: a round of file-only steps asks for "Answer unchanged; also updated", not a resend
-stop: app-test-pass: a refused gate whose program is not installed, answered "needs your approval": asks for the true reason
-stop: app-test-pass: the same, never tried and silent about it: asks for the NOT VERIFIED line, not a run
 stop: asked for 5 options, answer gives no 5: blocked
 stop: audit-run self-run: a broken runbook link: the hooks run the audit, and its FAIL is the step
 stop: autonomy-recorded: "don't ask me" left only in the answer: blocked
