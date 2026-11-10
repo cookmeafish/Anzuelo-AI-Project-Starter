@@ -49,7 +49,11 @@ export function passText({ acts = {}, turn = {}, rounds = 0 } = {}) {
   const A = brand(), calls = acts.calls || [], notes = notesSince(Date.parse(turn.at || '') || 0);
   const work = calls.some(c => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name)
     || (/^(Bash|PowerShell)$/.test(c.name) && /\b(git\s+commit|writeFileSync|Set-Content|Out-File)\b|>\s*[\w./"'-]+\.\w+/.test(String(c.input?.command || ''))));
-  const issue = issueOf(notes);
+  // (REQ: upset-acknowledged: an Issue line the agent wrote in its own text, with none in the notes, is acknowledged too,
+  // as the old engine did by copying it to the notes. The end check still reads only the notes and file writes, so a line
+  // dropped after a block holds nothing. Lesson (the old suite under v2): the line was in the chat, and the user saw no
+  // "acknowledged")
+  const issue = issueOf(notes) || issueOf(String(acts.said || '').replace(/\*\*/g, ''));
   // (a runbook the turn wrote new is shown as made, never as "pulled up": it was not there to pull up. Lesson (the old
   // suite under v2): a runbook made this turn whose triggers fit the request read as followed)
   const made = [...new Set(calls.filter(c => c.name === 'Write').map(c => String(c.input?.file_path || '').replace(/\\/g, '/').replace(/^.*?(docs\/playbooks\/[\w-]+\.md)$/, '$1')).filter(f => /^docs\/playbooks\/[\w-]+\.md$/.test(f)))];

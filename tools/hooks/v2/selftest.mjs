@@ -191,6 +191,21 @@ report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/
     report(got.length === 2 && got[0].result === 'blocked' && got[0].round === 1 && got[0].steps.length > 0 && /^\d{4}-/.test(got[0].request) && got[1].round === 2 && got[1].result !== 'blocked' && lines <= 200 && lines > 100,
       'end: each Stop decision goes in the capped Stop log with its round, result, steps and request start', { got: got.map(e => [e.round, e.result, e.steps.length]), lines });
   }
+  { // (REQ: upset-acknowledged: an Issue line the agent wrote in its own text, with none in the notes, still gives the user
+    // "acknowledged"; the notes' own line wins; "Issue: none" in the text shows nothing)
+    const nf = path.join(dir, '.cache/turn-notes.md'), keep = fs.existsSync(nf) ? fs.readFileSync(nf, 'utf8') : null;
+    const { passText } = await import('./lines.mjs');
+    try {
+      fs.rmSync(nf, { force: true });
+      const turnA = { at: new Date(Date.now() - 60_000).toISOString() };
+      const chat = passText({ acts: { said: '**Issue:** the export drops the last row again | runbook: debug | fixed when: the export file has every row\nLooking into it.', calls: [] }, turn: turnA });
+      const none = passText({ acts: { said: 'Issue: none - the file was opened from an old folder', calls: [] }, turn: turnA });
+      fs.mkdirSync(path.dirname(nf), { recursive: true }); fs.writeFileSync(nf, 'Issue: the totals row is missing | runbook: debug | fixed when: the totals row is there\n');
+      const both = passText({ acts: { said: 'Issue: something else | runbook: debug | fixed when: x', calls: [] }, turn: turnA });
+      report(/acknowledged: the export drops the last row again/.test(chat) && !/acknowledged/.test(none) && /acknowledged: the totals row is missing/.test(both) && !/something else/.test(both),
+        'lines: an Issue line in the agent\'s own text gives the user "acknowledged" when the notes hold none; the notes\' line wins; "Issue: none" shows nothing', JSON.stringify({ chat, none, both }));
+    } finally { keep === null ? fs.rmSync(nf, { force: true }) : fs.writeFileSync(nf, keep); }
+  }
   { // (a Spanish request held at the end is told the Spanish labels of what it is held to; an English one is not. Lesson
     // (the old suite under v2): a Spanish answer was held for its root cause and only the English label was named)
     const wake = call('ScheduleWakeup', { delaySeconds: 1200, prompt: 'revisa otra vez', reason: 'fallback' }, 'Next wakeup scheduled.');
