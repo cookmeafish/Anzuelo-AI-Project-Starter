@@ -1196,7 +1196,9 @@ const STOP = [
   { name: 'request about alice changed bob\'s files: blocked', prompt: 'update alice notes with her new budget', tools: [pb('project')], edit: PEOPLE,
     files: { 'profiles/alice/notes.md': 'x', 'profiles/bob/notes.md': 'x', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md' + FIN, expect: { block: true, tags: ['scope-separate'] } },
   { name: 'request about alice changed only alice\'s files: passes', prompt: 'update alice notes with her new budget', tools: [pb('project')], edit: PEOPLE,
-    files: { 'profiles/alice/notes.md': 'x', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md' + FIN, expect: { block: false } },
+    files: { 'profiles/alice/notes.md': 'x', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md' + FIN, expect: { block: false, not: ['scope-separate'] },
+    // (under v2 a work turn that checked its draft gets no separate runbook-items round: what is left is the scope rule)
+    v2: { tools: [pb('project'), bash('node tools/hooks/hooks.mjs check --answer-file .cache/answer.md', 'PASS')] } },
   // freshness
   { name: 'user updated a watched input mid-turn, answer silent: blocked', prompt: 'summarize my spending', edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), watchedInputs: ['data/*.csv'] }) },
     files: { 'data/export.csv': 'a,b' }, mtimes: { 'data/export.csv': 5000 }, answer: 'You spent $10. N/A(runbook-exists): test. N/A(finished-summary): test', expect: { block: true, tags: ['watched-inputs'] } },

@@ -139,7 +139,6 @@ stop: note-linked: a new note that links to nothing: blocked
 stop: parallel work still running in the background: the merge check waits
 stop: promptMatches: the same words typed by the user still count: blocked
 stop: queued mid-turn rule request is enforced: blocked
-stop: request about alice changed only alice's files: passes
 stop: requirement-enforced: a requirement said in passing, during work, with nothing enforcing it: blocked
 stop: requirement-enforced: a requirement written only into a runbook: blocked
 stop: root-tidy: a Go file with no go.mod in the root: blocked
