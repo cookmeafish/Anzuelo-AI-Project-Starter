@@ -223,10 +223,6 @@ stop: waive: a waiver the waive command refused does not count
 stop: waive: the same command with no record in the run log waives nothing
 stop: watcher-left: a watcher still armed after the work is done: blocked
 stop: watcher-left: a watcher that only reported an event is still armed: blocked
-stop: worth-it: a dependency installed without weighing it: blocked
-stop: worth-it: a dependency typed into a manifest without weighing it: blocked
-stop: worth-it: a sentence with no cost named: blocked
-stop: worth-it: flutter pub add without weighing it: blocked
 trigger-words: a message that sets off the upset handling goes to the trigger log
 unresolved-carryover: notices once per turn, none for a mid-turn message, last turn's misses once
 unresolved-carryover: the first prompt does not repeat the session start's notices

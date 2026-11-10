@@ -5103,6 +5103,7 @@ const V2_ASKS = {
   'answer-resent': /^- (The last message is only a note on an answer|The correction quotes text the earlier answer does not hold)/m,
   'plan-open': /^- This turn started with (an open plan|open plans) \(/m,
   'gui-review-loop': /^- (A screen changed: take screenshots|GUI files changed \([^\n]*\) and (were edited again|no screenshots)|Look at the latest round before judging it)/m,
+  'worth-it': /^- You added [^\n]*\. Say why it makes this project better and what it costs/m,
   'gui-pack': /^- GUI files changed \([^\n]*\) but this project has no gui pack/m,
   'gui-review-report': /^- Say how the visual review went in one line/m,
   'gui-flows': /^- Saved flows exist for the pages you changed/m,

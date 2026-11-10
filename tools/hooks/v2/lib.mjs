@@ -21,6 +21,7 @@ import { guiReview, guiRound } from '../gui.mjs';
 import { makeLaunchers } from '../launchers.mjs';
 import { makeGates } from '../gates.mjs';
 import { doneWhenGaps } from '../donewhen.mjs';
+import { worthGaps } from '../worth.mjs';
 import { makeHookTests } from '../hooktests.mjs';
 import { testInputsHash as repoInputsHash } from '../repo.mjs';
 // A check name some part of the engine defines: in engine-checks.json, the project's requirements.json, or a hook
@@ -1448,7 +1449,26 @@ export function claimGaps(acts, history = '') {
   // "Done when" item with its proof, and names only checks that exist)
   out.push(...doneWhenGaps(changedOf(acts), { read: f => { try { return fs.readFileSync(at(f), 'utf8'); } catch { return ''; } }, exists: f => fs.existsSync(at(f)), knownCheck }));
   out.push(...hookTestsGaps(acts));
+  out.push(...worthV2(acts));
   return out;
+}
+
+// REQ: worth-it, under v2: the shared tools/hooks/worth.mjs. A new skill, pack or dependency comes with its gain and its
+// cost, in the answer, a message of this turn or the turn notes. Lesson (the old suite under v2): v2 let a dependency in
+// with no weighing.
+export function worthV2(acts) {
+  if (checkOff('worth-it') || waivedTag('worth-it', acts)) return [];
+  const cfg = projectConfig(), since = Date.parse(acts.at || '') || 0, calls = acts.calls || [];
+  const first = new Map();
+  for (const c of calls) if (/^(Write|Edit|MultiEdit|NotebookEdit)$/.test(c.name)) { const f = relp(c.input.file_path || c.input.notebook_path || ''); if (!first.has(f)) first.set(f, c.name); }
+  const snap = acts.startHashes?.files || {};
+  const born = f => { if (/^(Edit|MultiEdit|NotebookEdit)$/.test(first.get(f) || '') || Object.hasOwn(snap, f) || inGitBefore(f, since)) return false;
+    try { return fs.statSync(at(f)).birthtimeMs > since - 1000; } catch { return false; } };
+  const notes = since && mtime('.cache/turn-notes.md') > since ? read('.cache/turn-notes.md') : '';
+  const runs = calls.filter(c => /^(Bash|PowerShell)$/.test(c.name) && typeof c.input?.command === 'string').map(c => ({ cmd: c.input.command, error: !!c.error }));
+  return worthGaps({ changed: changedOf(acts), runs, uses: calls, toolsKnown: true, text: inEnglish(String(acts.answer || '') + '\n' + String(acts.said || ''), cfg) + '\n' + notes },
+    { ...cfg, skillsDir: cfg.skillsDir || 'skills' },
+    { list: d => { try { return fs.readdirSync(at(d)); } catch { return []; } }, read: f => { try { return fs.readFileSync(at(f), 'utf8'); } catch { return ''; } }, born, rel: p => relp(p), notesFile: '.cache/turn-notes.md' }).map(g => g.msg);
 }
 
 // REQ: instructions-run, under v2: the shared tools/hooks/launchers.mjs. What the answer tells the user to run, made or
