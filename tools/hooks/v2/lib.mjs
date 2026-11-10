@@ -808,7 +808,11 @@ export function screenGaps(acts) {
     exists: p => fs.existsSync(at(p)), match: (p, globs) => inGlobs(p, [].concat(globs || [])), shown: () => loadTurn('gui-shot'), saveShown: v => saveTurn('gui-shot', v) };
   const turnX = () => ({ changed: changedOf(acts), since: Date.parse(acts.at || '') || 0, reads: new Set(acts.calls.filter(c => c.name === 'Read').map(c => relp(c.input?.file_path || ''))), toolsKnown: true, said: String(acts.said || '') });
   // (REQ: gui-pack, by the shared gui.mjs rule. Lesson (the old suite under v2): screens changed with no gui pack, unsaid)
-  if (!fs.existsSync(at('tools/screenshot.mjs'))) return checkOff('gui-pack') || [].concat(cfg.packs || []).includes('gui') ? [] : guiReview(turnX(), cfg, io).gaps.filter(g => g.tag === 'gui-pack').map(g => g.msg);
+  // (by the packs the project has, as the old engine, not by whether a screenshot tool is on disk: a copied or leftover
+  // tool is no gui pack. Lesson (a release run): a project with the tool but without the pack was asked for screenshots,
+  // never for the pack)
+  if (!checkOff('gui-pack') && ![].concat(cfg.packs || []).includes('gui')) { const p = guiReview(turnX(), cfg, io).gaps.filter(g => g.tag === 'gui-pack'); if (p.length) return p.map(g => g.msg); }
+  if (!fs.existsSync(at('tools/screenshot.mjs'))) return [];
   const screen = p => { const r = relp(p); return SCREEN.test(r) && !NOT_SCREEN.test(r) && !/^(\.\.|[a-z]:)/i.test(r); };
   const i = acts.calls.map((c, k) => [c, k]);
   const lastEdit = Math.max(-1, ...i.filter(([c]) => /^(Edit|Write|MultiEdit)$/.test(c.name) && screen(c.input.file_path || '')).map(([, k]) => k));

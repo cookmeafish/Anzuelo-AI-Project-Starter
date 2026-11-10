@@ -877,7 +877,11 @@ const STOP = [
   // REQ: prompt-visible. A work turn that passes shows the user what the hooks confirmed.
   { name: 'prompt-visible: a work turn that passes shows the user a ✅ line with its runbook', prompt: 'make a plan for the csv export',
     tools: [pb('plan'), bash('node skills/plan/scripts/plan-tasks.mjs check docs/plans/2026-10-17-export.md')], files: { 'docs/plans/2026-10-17-export.md': '# Export: plan' },
-    host: { CLAUDE_PROJECT_DIR: '.' }, answer: 'Playbook: plan.md. Saved.' + FIN, expect: { block: false }, v2: { answer: 'Playbook: plan.md. Saved.\n\n## Finished\n- Done. Files: docs/plans/2026-10-17-export.md' },
+    host: { CLAUDE_PROJECT_DIR: '.' }, answer: 'Playbook: plan.md. Saved.' + FIN, expect: { block: false }, v2: { answer: 'Playbook: plan.md. Saved.\n\n## Finished\n- Done. Files: docs/plans/2026-10-17-export.md',
+      // (under v2 a file is the turn's work when a call of the turn wrote it: the plan is written, then checked, and the
+      // draft checked before answering, as the rules ask, so the turn passes in one round)
+      tools: [pb('plan'), { name: 'Write', input: { file_path: 'docs/plans/2026-10-17-export.md', content: '# Export: plan' } }, bash('node skills/plan/scripts/plan-tasks.mjs check docs/plans/2026-10-17-export.md'),
+        bash('node tools/hooks/hooks.mjs check --answer-file .cache/answer.md', 'PASS')], prep: promptPrep('make a plan for the csv export') },
     after: (dir, reason, d) => /^⚓ .+? ✅ checks passed · 📖 the plan runbook it pulled up was followed/.test(d?.systemMessage || '') || `no pass line: ${JSON.stringify(d).slice(0, 200)}` },
   { name: 'prompt-visible: a runbook the agent opened on its own is not credited to Anzuelo', prompt: 'tidy up the csv export notes',
     tools: [pb('plan'), bash('node skills/plan/scripts/plan-tasks.mjs check docs/plans/2026-10-17-export.md')], files: { 'docs/plans/2026-10-17-export.md': '# Export: plan' },
