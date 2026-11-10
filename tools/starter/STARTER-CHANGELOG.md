@@ -6,6 +6,7 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-09 (the release chain): the v2 sweep takes a listed test that now passes off the list in the same run and passes; only a test that fails and is not listed fails it, and a failing run leaves the list as it was. The list still only shrinks.
 - 2026-11-09 (a false hold, v2): the end check's own send-back, which arrives as a user message, is no longer read as the user's words, so the copied-words check stops flagging the engine's own message strings in its files (the old engine already skipped it).
 - 2026-11-09 (a project's upgrade report, speed): v2's trace check reads the session's history only when the turn has something to trace; on a long session that was 7 to 10 ms of every Stop (measured 0.1 ms now). Side by side with the release before it, prompt and pretool did not move here; Stop was 5 to 15 ms slower, and this takes most of it back.
 - 2026-11-09 (the old suite under v2: done-when-labeled): a runbook or skill changed this turn labels every "Done when" item with its proof, a check that exists or a judgment, in v2 too. The check and its item parser moved whole into the shared tools/hooks/donewhen.mjs.

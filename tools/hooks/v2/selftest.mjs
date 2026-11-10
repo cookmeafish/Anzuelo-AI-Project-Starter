@@ -878,6 +878,12 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
         const tool = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', 'starter', 'v2-sweep.mjs');
         const run = (...a) => spawnSync(process.execPath, [tool, ...a], { encoding: 'utf8', env: { ...process.env, V2_SWEEP_LIST: list } });
         const wrote = run('--from', path.join(sw, 'r1.txt'), '--write').status, same = run('--from', path.join(sw, 'r1.txt')), worse = run('--from', path.join(sw, 'r2.txt')), grow = run('--from', path.join(sw, 'r2.txt'), '--write');
+        // (a run where a listed test passes and nothing new fails passes, and takes that test off the list. Oversight,
+        // 2026-11-09: chains failed only because ports made listed tests pass)
+        fs.writeFileSync(path.join(sw, 'r3.txt'), 'PASS  stop: a\nPASS  stop: b\nFAIL  stop: c  -> y\nselfcheck: FAIL (2 passed, 1 failed)\n');
+        const shrink = run('--from', path.join(sw, 'r3.txt')), shrunk = fs.readFileSync(list, 'utf8').split('\n').filter(l => l && !l.startsWith('#'));
+        report(shrink.status === 0 && JSON.stringify(shrunk) === '["stop: c"]' && /taken off the list \(2 -> 1\)/.test(shrink.stdout) && worse.status === 1,
+          'chain: a sweep where a listed test passes and nothing new fails passes and takes that test off the list; a new failure still fails it and leaves the list as it was', JSON.stringify({ shrink: shrink.status, shrunk, out: shrink.stdout.slice(0, 200) }));
         // (the sweep runs on a frozen copy of the folder as it is now, uncommitted and new files included, so the main folder
         // stays free to edit; inside a frozen copy it runs in place)
         const repo = path.join(sw, 'repo'), frozenBase = path.join(sw, 'frozen'), g = (a, cwd = repo) => spawnSync('git', a, { cwd, encoding: 'utf8' });

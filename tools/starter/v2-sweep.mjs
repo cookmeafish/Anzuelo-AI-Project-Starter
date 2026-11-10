@@ -86,8 +86,17 @@ if (args.includes('--write')) {
   console.log(`v2-sweep: wrote ${failing.length} name(s) (${total[1]} passed, ${total[2]} failed)`);
   process.exit(0);
 }
-if (newFails.length) console.log(`FAIL v2-sweep: ${newFails.length} test(s) fail under v2 that are not on the list (regressions):\n- ${newFails.slice(0, 40).join('\n- ')}`);
-if (fixed.length) console.log(`FAIL v2-sweep: ${fixed.length} listed test(s) pass now: take them off tools/starter/reviews/v2-failing.txt in this commit (node tools/starter/v2-sweep.mjs --from .cache/v2-sweep.txt --write):\n- ${fixed.slice(0, 40).join('\n- ')}`);
-release(!!(newFails.length || fixed.length));
-console.log(`v2-sweep: ${newFails.length || fixed.length ? 'FAIL' : 'PASS'} (${total[1]} passed, ${total[2]} failed; ${listed.length} on the list)`);
-process.exit(newFails.length || fixed.length ? 1 : 0);
+// (a listed test that passes now is taken off the list by this run, which proves it: the list only shrinks, and only a
+// new failure fails the sweep. Lesson (oversight, 2026-11-09): two release chains, an hour of machine time, failed only
+// because ports made listed tests pass, good news read as a failure)
+if (newFails.length) {
+  console.log(`FAIL v2-sweep: ${newFails.length} test(s) fail under v2 that are not on the list (regressions):\n- ${newFails.slice(0, 40).join('\n- ')}`);
+  if (fixed.length) console.log(`(also, ${fixed.length} listed test(s) pass now; a failing run leaves the list as it was):\n- ${fixed.slice(0, 40).join('\n- ')}`);
+} else if (fixed.length) {
+  const keep = listed.filter(n => now.has(n));
+  fs.writeFileSync(LIST, `# Old-suite tests engine v2 still fails (tools/starter/v2-sweep.mjs). It only shrinks: a port takes its names off.\n${keep.join('\n')}\n`);
+  console.log(`v2-sweep: ${fixed.length} listed test(s) pass now and are taken off the list (${listed.length} -> ${keep.length}):\n- ${fixed.slice(0, 40).join('\n- ')}`);
+}
+release(!!newFails.length);
+console.log(`v2-sweep: ${newFails.length ? 'FAIL' : 'PASS'} (${total[1]} passed, ${total[2]} failed; ${newFails.length ? listed.length : listed.filter(n => now.has(n)).length} on the list)`);
+process.exit(newFails.length ? 1 : 0);
