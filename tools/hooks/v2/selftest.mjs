@@ -3022,6 +3022,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   const ALWAYS_FILE = 'docs/checks/always.md';
   const keepReq = fs.readFileSync(path.join(dir, 'tools/hooks/requirements.json'), 'utf8'), eng = path.join(dir, 'tools/hooks/engine-checks.json');
   const keepEng = fs.existsSync(eng) ? fs.readFileSync(eng, 'utf8') : null, alw = path.join(dir, ALWAYS_FILE), keepAlw = fs.existsSync(alw) ? fs.readFileSync(alw, 'utf8') : null;
+  const { engineChecks } = await import('./lib.mjs');
   const cfgFile = path.join(dir, 'tools/hooks/config.json'), keepCfg = fs.existsSync(cfgFile) ? fs.readFileSync(cfgFile, 'utf8') : null;
   const noted = { tag: 'export-noted', when: { playbookUsed: 'export', filesChanged: ['src/**'] }, require: { answerMatches: 'noted' }, message: 'Note the export.' };
   let got = {};
@@ -3032,9 +3033,11 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     const work = reminder('rename the vendor files to use dates').text;
     const lastLine = t => t.split('\n').at(-1);
     // (a project that switched plan-required off is not told of it)
-    put('tools/hooks/config.json', JSON.stringify({ ...JSON.parse(keepCfg || '{}'), suspended: [{ item: 'check:plan-required', why: 'fixture' }] }));
-    const off = lastLine(reminder('rename the vendor files to use dates').text);
-    got = { routed: lastLine(routed), work: lastLine(work), question, lines: routed.split('\n').length, off };
+    // (nor of an engine check it switched off: the end check reads the same list, engineChecks())
+    put('tools/hooks/config.json', JSON.stringify({ ...JSON.parse(keepCfg || '{}'), suspended: [{ item: 'check:plan-required', why: 'fixture' }, { item: 'check:export-noted', why: 'fixture' }] }));
+    const off = lastLine(reminder('rename the vendor files to use dates').text), routedOff = lastLine(reminder('can you add a CSV export for the orders page').text);
+    const endOff = engineChecks().some(r => r.tag === 'export-noted');
+    got = { routed: lastLine(routed), work: lastLine(work), question, lines: routed.split('\n').length, off, routedOff, endOff };
   } finally {
     put('tools/hooks/requirements.json', keepReq); keepEng === null ? fs.rmSync(eng, { force: true }) : put('tools/hooks/engine-checks.json', keepEng);
     keepAlw === null ? fs.rmSync(alw, { force: true }) : put(ALWAYS_FILE, keepAlw);
@@ -3044,6 +3047,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   report(new RegExp(`^Also checked at the end if files change: export noted; The data validator passes on the changed data; ${plan}\\.$`).test(got.routed || '')
     && new RegExp(`^Also checked at the end if files change: The data validator passes on the changed data; ${plan}\\.$`).test(got.work || '')
     && /^Also checked at the end if files change: The data validator passes on the changed data\.$/.test(got.off || '')
+    && /^Also checked at the end if files change: The data validator passes on the changed data\.$/.test(got.routedOff || '') && got.endOff === false
     && !/Also checked/.test(got.question || '') && got.lines <= MAX_LINES,
     'start: the reminder\'s last line names what the end check also asks if files change (an engine check naming the runbook, the project\'s own file items, the plan rule unless switched off), not for a question, within the line cap', JSON.stringify(got));
 }

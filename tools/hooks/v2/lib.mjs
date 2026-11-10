@@ -967,7 +967,9 @@ export const engineChecks = () => {
   const own = (file.requirements || []).filter(r => r && tags.has(r.tag));
   // (a check shipped off, "enabled": false, stays off until configured on, as under the old engine. Lesson (the old suite
   // under v2): every app-pack project was asked to raise its version number with no version file set)
-  return [...BASE_REQUIREMENTS.filter(b => !own.some(r => r.tag === b.tag)), ...own].filter(r => r.tag !== 'security-code' && !off.has(r.tag) && r.enabled !== false);
+  // (a check the project switched off after friction (friction-suspend) is skipped too, as the old engine skips it.
+  // Lesson (the plan-required port): v2 read only "disabled", so a suspended check still held turns)
+  return [...BASE_REQUIREMENTS.filter(b => !own.some(r => r.tag === b.tag)), ...own].filter(r => r.tag !== 'security-code' && !off.has(r.tag) && r.enabled !== false && !checkOff(r.tag));
 };
 // (the runEach commands the engine ships, the only ones the end check runs on its own)
 const shippedRunEach = () => new Set((() => { try { return JSON.parse(fs.readFileSync(at('tools/hooks/engine-checks.json'), 'utf8')).requirements || []; } catch { return []; } })()
