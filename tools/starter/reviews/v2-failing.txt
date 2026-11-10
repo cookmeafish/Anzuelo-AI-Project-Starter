@@ -300,9 +300,6 @@ stop: plan-open: "keep going" continues the open plan: blocked
 stop: plan-open: a request naming the plan's own subject is still held to it: blocked
 stop: plan-open: a request naming two words of an open task is held to the plan: blocked
 stop: plan-open: an open plan ignored during a work turn: blocked
-stop: plan-required: a setup that wrote five app files itself has its plan asked: blocked
-stop: plan-required: five new files and no plan: blocked
-stop: plan-required: five new files with their plan: passes the plan check
 stop: prompt-visible: a work turn that passes shows the user a ✅ line with its runbook
 stop: promptMatches: the same words typed by the user still count: blocked
 stop: queued mid-turn rule request is enforced: blocked

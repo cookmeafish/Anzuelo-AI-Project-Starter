@@ -2,7 +2,9 @@
 // transcript, and blocks with a short plain list of what is really missing until it is done (at most MAX_BLOCKS times).
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { passLine } from './lines.mjs';
+import { planRequired, OPEN_WORK } from '../planreq.mjs';
 import { labelsEsHint } from '../labels.mjs';
 import { unansweredLate, asksOnly } from './late.mjs';
 import { PAUSE_ASK } from '../pause.mjs';
@@ -14,7 +16,22 @@ import { ROOT, at, runbooks, turnRows, turnActs, met, applies, opened, worked, l
 // (the two data tables, one evaluator each: the project's always list and the engine's own checks)
 // (each check runs on its own: one that throws is named once with its error, and the rest still run)
 const S = (name, f) => { try { return f(); } catch (e) { return [crashLine(name, e)]; } };
-const tableGaps = acts => [...alwaysGaps(acts), ...engineCheckGaps(acts), ...forbiddenGaps(acts), ...codeRuleGaps(acts), ...injectionGaps(acts), ...verbatimGaps(acts)];
+const tableGaps = acts => [...alwaysGaps(acts), ...engineCheckGaps(acts), ...forbiddenGaps(acts), ...codeRuleGaps(acts), ...injectionGaps(acts), ...verbatimGaps(acts), ...planGaps(acts)];
+// REQ: plan-required, under v2: the shared tools/hooks/planreq.mjs. A file is new this turn when git's last commit and
+// the turn-start snapshot do not have it and it was made after the turn began. The git lookup runs only when the cheap
+// conditions already hold (enough changed files, open work said, no plan or status recorded).
+function planGaps(acts) {
+  const cfg = projectConfig(), changed = changedOf(acts), n = Number(cfg.planNewFiles) || 5, said = String(acts.said || acts.answer || '');
+  if (changed.length < n || !OPEN_WORK.test(said) || changed.some(p => /^docs\/plans\/.+\.md$/.test(p) || p === 'docs/STATUS.md')) return [];
+  const since = Date.parse(acts.at || '') || 0, start = acts.startHashes?.files || {};
+  let head = null; const inHead = p => { if (head === null) { const r = spawnSync('git', ['ls-tree', '-r', '--name-only', 'HEAD'], { cwd: ROOT, encoding: 'utf8', timeout: 5000, maxBuffer: 1 << 26 }); head = new Set(r.status === 0 ? r.stdout.split('\n') : []); } return head.has(p); };
+  const born = p => { if (start[p] || inHead(p)) return false; try { return fs.statSync(at(p)).birthtimeMs > since - 1000; } catch { return false; } };
+  const wroteSelf = new Set(acts.calls.filter(c => /^(Write|NotebookEdit)$/.test(c.name)).map(c => path.relative(ROOT, String(c.input?.file_path || c.input?.notebook_path || '')).replace(/\\/g, '/')));
+  // (new files made by a command count as work too, as the old engine counted them: v2's worked() sees the edit tools only)
+  const msg = planRequired({ changed, said, workTurn: true, setup: fs.existsSync(at('SETUP-PROMPT.md')) && !fs.existsSync(at('.starter-template')), wroteSelf, born,
+    generated: new Set(), notWork: p => inGlobs(p, cfg.notWork || []), exists: p => fs.existsSync(at(p)) }, n);
+  return msg ? [msg] : [];
+}
 
 // Check 1: the routed runbook, else the one the agent opened (not a skill it names), was followed and its checkable
 // "Done when" items met. A runbook the turn wrote or changed, by a script too, is its work, not its procedure.

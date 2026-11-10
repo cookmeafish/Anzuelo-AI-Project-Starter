@@ -985,7 +985,9 @@ const STOP = [
   { name: 'plan-required: five new files with their plan: passes the plan check', prompt: 'add an export feature with its helpers', tools: [pb('project'), bash('node tools/audit.mjs')],
     files: { 'src/export/a.mjs': 'x', 'src/export/b.mjs': 'x', 'src/export/c.mjs': 'x', 'src/export/d.mjs': 'x', 'src/export/e.mjs': 'x', 'docs/CHANGELOG.md': 'x',
       'docs/plans/2026-10-18-export.md': '# Export: plan\n- [x] helpers\n- [ ] wire it up\n' },
-    answer: 'Playbook: project.md. Added the export, plan in docs/plans/2026-10-18-export.md.\nN/A(verification-report): a test fixture.' + FIN, expect: { block: false } },
+    answer: 'Playbook: project.md. Added the export, plan in docs/plans/2026-10-18-export.md.\nN/A(verification-report): a test fixture.' + FIN, expect: { block: false },
+    // (v2 clears a step that does not apply on a plain reason, not a tag: the same answer with its reason in words)
+    v2: { answer: 'Playbook: project.md. Added the export, plan in docs/plans/2026-10-18-export.md.\nThe verification section does not apply here: this is a test fixture with no app to run.' + FIN } },
   // notes link to what they relate to (obsidian)
   { name: 'note-linked: a new note that links to nothing: blocked', prompt: 'write a note about desk cable management', tools: [pb('project'), bash('node tools/audit.mjs')],
     files: { 'docs/cables.md': '# Cables\nUse trays under the desk.', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md. Wrote the note.' + FIN, expect: { block: true, tags: ['note-linked'] } },
@@ -5050,6 +5052,7 @@ const V2_ASKS = {
   'decision-logged': /item \d+: A choice the user made is logged in docs\/DECISIONS\.md/,
   'rule-request': /^- (Write the rule down|Say how the rule is enforced|Save the rule to memory)/m,
   'skill-learn': /^- This turn followed \S+ and its own check failed this turn\. Write the lesson into it/m,
+  'plan-required': /^- This turn added \d+ new files \([^\n]*\) without a plan\./m,
   'upset-learned': /^- (The runbook your Issue line names|Give the point in general terms|Say the root cause|Say first whether it holds|Say what you checked to know it holds|Write the lesson where it stops the next miss|This is about the engine: send the lesson|The user is upset again in this session)/m,
 };
 // (an engine check from requirements.json is recognized by its own message, which v2's evaluator gives as "Check: ...")

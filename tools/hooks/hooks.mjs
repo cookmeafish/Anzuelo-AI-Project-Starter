@@ -4513,7 +4513,7 @@ export function ps51Notice(p, inp) {
 // needs a plan, so the plan comes before the work, not after. Lesson: reviewers found plans written once the work
 // was done, only to satisfy the Stop check.
 // What setup writes for itself (the starter's files, rules, packs, notes, dot-folders, root docs): not app work to plan.
-const SETUP_OWN = /^(\.[^/]*(\/|$)|(tools|skills|docs|library|packs|inbox|outputs|sources|profiles)\/|[^/]+\.md$)/;
+import { SETUP_OWN, planRequired } from './planreq.mjs';
 export function planNotice(p, inp) {
   if (!p || p.startsWith('..') || !('content' in inp)) return null;
   // Setup counts too, but only the app files it writes (Lesson: a setup built a whole app with the notice silent, so
@@ -4725,24 +4725,10 @@ export function coreChecks(x, cfg) {
     add('runbook-cold-read', `Read ${uncold.join(', ')} cold before relying on ${uncold.length > 1 ? 'them' : 'it'}: give one helper agent only the file and the request it is for, and ask for every step it could not do exactly as written ` +
       '(a missing file or command, an undefined word, a choice left open), every "Done when" item it could not prove, and every step whose result has no item. Fix each one, then add ' +
       `"Cold read: <file> - <how many gaps it found>, fixed" to ${NOTES_FILE} (runbook-create skill, step 5).`);
-  // REQ: plan-required. A bigger addition (many new files) has a checklist in docs/plans/, so nothing is left half done
-  // and the next session or another agent can finish it. Setup has its own checklist (SETUP-PROMPT.md) for the rest.
-  // (the records a runbook itself asks for, like a spec, a review, release notes or a new runbook's skill, are not the
-  // work being planned. Lesson: a feature's own spec, review and notes tipped it over the limit after the fact.)
-  const born0 = x.changed.filter(p => !match(p, cfg.notWork) && !/^(AGENTS\.md$|CLAUDE\.md$|docs\/checks\/|docs\/plans\/|docs\/(specs|releases|reviews|incidents|knowledge)\/|docs\/playbooks\/|skills\/[^/]+\/SKILL\.md$|\.cache\/|tools\/hooks\/state\/|\.memtest\/|\.claude\/|\.codex\/|\.agents\/)/.test(p) && !GENERATED_WRITES.has(p) && exists(p) && bornThisTurn(p, x.since));
-  // In setup only the app files the agent itself wrote count (the starter's own files, packs and scripts are the setup's
-  // checklist). Lesson: a setup that built a whole app got its plan demanded only after the work, when the final step
-  // deleted SETUP-PROMPT.md; the plan notice had stayed silent all through setup.
-  const wroteSelf = new Set((x.uses || []).filter(u => /^(Write|NotebookEdit)$/.test(u.name)).map(u => rel(u.input.file_path || u.input.notebook_path || '')));
-  const born = setupTurn(x) ? born0.filter(p => !SETUP_OWN.test(p) && wroteSelf.has(p)) : born0;
-  // (at Stop the work is done: a plan written now only describes it. It is still owed when the answer leaves work open
-  // and nothing records it, no plan and no STATUS.md line; during the work the PLAN notice asks for it in time. Lesson
-  // (a field report): a finished build was blocked for a plan, and the agent wrote one about work already done)
-  const OPEN_WORK = /\b(still open|not (yet )?(done|finished)|left to do|to do next|next steps?|unfinished|remaining work|pendiente|falta(n)? por)\b/i;
-  const recorded = x.changed.some(p => /^docs\/plans\/.+\.md$/.test(p) || p === 'docs/STATUS.md');
-  if (x.workTurn && born.length >= cfg.planNewFiles && OPEN_WORK.test(x.said) && !recorded)
-    add('plan-required', `This turn added ${born.length} new files (${born.slice(0, 4).join(', ')}${born.length > 4 ? ', ...' : ''}) without a plan. Write or update one in docs/plans/ with the plan skill ` +
-      '(a checkbox per task, ticked as they finish), so nothing is left half done and the next session can continue it.');
+  // (REQ: plan-required: tools/hooks/planreq.mjs, shared with engine v2)
+  { const msg = planRequired({ changed: x.changed, said: x.said, workTurn: x.workTurn, setup: setupTurn(x), notWork: p => match(p, cfg.notWork), generated: GENERATED_WRITES, exists: p => exists(p),
+      born: p => bornThisTurn(p, x.since), wroteSelf: new Set((x.uses || []).filter(u => /^(Write|NotebookEdit)$/.test(u.name)).map(u => rel(u.input.file_path || u.input.notebook_path || ''))) }, cfg.planNewFiles);
+    if (msg) add('plan-required', msg); }
   // REQ: plan-open. A plan left open says "before new work, resume or close it": a work turn that started with one open
   // either works on a plan (a docs/plans/ file changed, or plan-tasks.mjs ran) or is stopped once to say why not.
   // Lesson: the OPEN PLANS notice said "before new work", nothing held the agent to it, and plans were left half done.
