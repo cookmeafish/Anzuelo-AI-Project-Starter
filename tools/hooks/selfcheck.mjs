@@ -4993,6 +4993,7 @@ const V2_ASKS = {
   'answer-traced': /^- (Did you make that up\?|\S+ cites \S+ for ")/m,
   'instructions-run': /^- The answer tells the user to run /m,
   'done-when-labeled': /^- (Every "Done when" item needs its proof|A "Done when" item names a check that doesn't exist)/m,
+  'hooks-tested': /^- (The hook logic changed: run|The checks [^\n]* changed: run|The last run of node tools\/hooks\/selfcheck\.mjs|the permission system refused `node tools\/hooks\/selfcheck|tools\/hooks\/config\.json does not parse)/m,
   'headless-resume': /^- This run is headless/m,
   'notice-answer': /^- This run is headless \(claude -p or the SDK\): its caller gets only the last message/m,
   'data-valid': /docs\/checks\/always\.md item \d+: The validator passes/,

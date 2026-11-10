@@ -27,7 +27,6 @@ covers: unresolved-carryover is proven by "unresolved checks are saved for the n
 engine-bypassed: a commit or push from a Claude Code session the hooks never saw is refused with the way through; after begin records the session it passes; a person's commit and a test harness never meet it
 engine-cache: a project reuses a recorded engine pass despite new notes and own scenarios, still runs those scenarios and a smoke set (once a day), and runs everything with --full or a changed engine file
 friction-suspend: 3 frustrated turns of 6 suspend a check, a safeguard stays and is flagged, 1 of 6 changes nothing, restore undoes it
-hooks-tested: without a transcript the Stop hook reads the run log instead of running the self-tests
 host-fixtures: in a host project the engine's scenarios run without its own runbooks, skills, triggers, checks and hook files ("externalHooks"); its own scenarios keep them
 manual path: hooks.mjs begin prints the same ROUTE, PRAISE, RULE REQUEST, REQUIREMENT and RECALL hints as the prompt hook
 notice replies: a short reply to a task notice after a clean end gets no new stop list; new work after it does
@@ -275,15 +274,6 @@ stop: gui-review-loop: the page written again after a reviewed round, with other
 stop: gui-review-loop: two runs after the last edit, only the older one looked at: blocked
 stop: gui-review-report: a bold "Revisión visual" list item with no verdict still asks for the line
 stop: helpers still running, but the answer claims they finished and pushed: still checked
-stop: hook tests ran but FAILED: blocked
-stop: hooks changed without running the tests: blocked
-stop: hooks-tested: a changed check needs its own scenarios (selfcheck --tags): blocked
-stop: hooks-tested: a grep of selfcheck.mjs is no run, and a failed record counts for nothing: blocked
-stop: hooks-tested: a tagged run, out of sight, that recorded a failure for meal-ok: blocked
-stop: hooks-tested: a tagged run, out of sight, that recorded a pass for other: blocked
-stop: hooks-tested: an audit --setup whose self-tests timed out does not count: blocked
-stop: hooks-tested: audit --setup whose self-tests failed, after an earlier pass: blocked
-stop: hooks-tested: the self-tests were refused and the answer is silent about it: asks for the NOT VERIFIED line
 stop: image + text prompt is a real prompt
 stop: incident-response: the Root cause line stated: passes
 stop: incident-response: the incident file named: passes

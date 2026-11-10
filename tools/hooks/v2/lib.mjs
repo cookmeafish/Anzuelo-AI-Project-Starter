@@ -20,6 +20,8 @@ import { makeTrace } from '../trace.mjs';
 import { makeLaunchers } from '../launchers.mjs';
 import { makeGates } from '../gates.mjs';
 import { doneWhenGaps } from '../donewhen.mjs';
+import { makeHookTests } from '../hooktests.mjs';
+import { testInputsHash as repoInputsHash } from '../repo.mjs';
 // A check name some part of the engine defines: in engine-checks.json, the project's requirements.json, or a hook
 // module's code or "REQ: <tag>" line, as the old engine reads it. Read once per run, and only when a runbook changed.
 let checkText = null;
@@ -1414,6 +1416,7 @@ export function claimGaps(acts, history = '') {
   // (REQ: done-when-labeled, the shared tools/hooks/donewhen.mjs: a runbook or skill changed this turn labels every
   // "Done when" item with its proof, and names only checks that exist)
   out.push(...doneWhenGaps(changedOf(acts), { read: f => { try { return fs.readFileSync(at(f), 'utf8'); } catch { return ''; } }, exists: f => fs.existsSync(at(f)), knownCheck }));
+  out.push(...hookTestsGaps(acts));
   return out;
 }
 
@@ -1437,6 +1440,27 @@ export function gateTurn(acts) {
   const t = acts.at || acts.started || 0;
   return { runs, uses: (acts.calls || []).map(c => ({ name: c.name, input: c.input || {} })), toolsKnown: true, answer: String(acts.answer || ''), said: String(acts.said || acts.answer || ''),
     since: Number.isNaN(+t) ? Date.parse(t) || 0 : +t };
+}
+// REQ: hooks-tested, under v2: the shared tools/hooks/hooktests.mjs, as the old engine judges it. The checks' files as
+// they were at the turn's start come from the turn-start snapshot, or from git's last commit when there is none.
+const hookTestsOf = acts => {
+  const P = proofPure ||= makeProof({}), G = gatesOf(), texts = acts.startHashes?.texts || {};
+  const headText = f => { const r = spawnSync('git', ['show', `HEAD:${f}`], { cwd: ROOT, encoding: 'utf8', timeout: 5000 }); return r.status === 0 ? r.stdout : null; };
+  return makeHookTests({ read: f => { try { return fs.readFileSync(at(f), 'utf8'); } catch { return ''; } }, exists: f => fs.existsSync(at(f)),
+    // (last, the old engine's turn-start copy, which only its prompt hook writes: the old suite's scenarios hold their
+    // "before" there)
+    before: f => Object.hasOwn(texts, f) ? texts[f] : headText(f) ?? (() => { try { return fs.readFileSync(path.join(STATE(), 'turn-start', f.split('/').pop()), 'utf8'); } catch { return null; } })(),
+    engineChecks: () => { try { return JSON.parse(fs.readFileSync(at('tools/hooks/engine-checks.json'), 'utf8')); } catch { return { requirements: [] }; } },
+    stateFile: n => path.join(STATE(), n), readJSON: (f, d) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return d; } }, statSync: f => fs.statSync(f), testInputsHash: () => repoInputsHash(),
+    esc: escRe, cmdHead: P.cmdHead, neverRan: P.neverRan, engineNote: G.engineNote, refusedOutright: r => launchersOf().refusedOutright(r), saysNotRun: G.saysNotRun, cantRunStep: G.cantRunStep,
+    // (a real run of a node script, as the old engine reads it: node, then the script's path)
+    runsScript: (cmd, name) => new RegExp(`(^|[\\s;&|(])node(\\.exe)?["']?\\s+(--\\S+\\s+)*["']?[^\\s"';&|]*${escRe(name)}\\b`).test(P.cmdHead(cmd)) });
+};
+export function hookTestsGaps(acts) {
+  const changed = changedOf(acts);
+  if (!changed.some(p => /^tools\/hooks\/((hooks|selfcheck|wire)\.mjs|(requirements|config)\.json)$/.test(p))) return [];
+  const t = acts.at || acts.started || 0, x = { ...gateTurn(acts), changed, since: Number.isNaN(+t) ? Date.parse(t) || 0 : +t };
+  return hookTestsOf(acts).hooksTestedGaps(x).map(g => g.msg);
 }
 export function launchGaps(acts) {
   const L = launchersOf();
@@ -1596,12 +1620,16 @@ export const loadTurn = sid => { if (!sid) return {}; try { return JSON.parse(fs
 // tests; none past 2,000 files or 5 s; "done": when it ended; day-old ones removed). Lesson: HEAD missed earlier edits.
 const dirtyFile = sid => path.join(STATE(), `v2-dirty.${String(sid || 'x').replace(/[^\w-]/g, '').slice(0, 64)}.json`);
 export const snapshotLater = (sid, at0) => { if (sid && !process.env.STARTER_BENCH && !process.env.V2_NO_SNAPSHOT && fs.existsSync(path.join(ROOT, '.git'))) try { spawn(process.execPath, [fileURLToPath(import.meta.url), '--snapshot-dirty', sid, at0], { cwd: os.tmpdir(), detached: true, stdio: 'ignore', windowsHide: true, env: { ...process.env, ANZUELO_ROOT: ROOT } }).unref(); } catch { } };
+const SNAP_TEXTS = ['tools/hooks/requirements.json', 'tools/hooks/config.json', 'docs/checks/always.md'];
 export function snapshotDirty(sid, at0) {
   const t0 = Date.now(), g = (a, input) => String(spawnSync('git', ['-C', ROOT, ...a], { encoding: 'utf8', timeout: 5000, maxBuffer: 1 << 26, input }).stdout || '').split('\n').map(s => s.trim());
   try { for (const f of fs.readdirSync(STATE()).filter(n => n.startsWith('v2-dirty.'))) if (t0 - fs.statSync(path.join(STATE(), f)).mtimeMs > 864e5) fs.rmSync(path.join(STATE(), f), { force: true }); } catch { }
   const names = [...new Set([...g(['diff', '--name-only', 'HEAD']), ...g(['ls-files', '--others', '--exclude-standard'])])].filter(f => { try { return fs.statSync(path.join(ROOT, f)).isFile(); } catch { return false; } });
   const hashes = names.length && names.length <= 2000 ? g(['hash-object', '--stdin-paths'], names.join('\n') + '\n') : [];
-  if (names.length <= 2000 && Date.now() - t0 <= 5000) try { fs.mkdirSync(STATE(), { recursive: true }); fs.writeFileSync(dirtyFile(sid), JSON.stringify({ at: at0, done: Date.now(), files: Object.fromEntries(names.map((f, i) => [f, hashes[i]]).filter(([, h]) => /^[0-9a-f]{40,64}$/.test(h || ''))) })); } catch { }
+  // (the checks' own files as they were at the turn's start, each up to 256 KB: a change to them is judged against this
+  // copy (REQ: hooks-tested). Oversight's design, 2026-11-09: the turn-start snapshot, no new hook)
+  const texts = Object.fromEntries(SNAP_TEXTS.map(f => { try { const p = path.join(ROOT, f); return fs.statSync(p).size <= 256 << 10 ? [f, fs.readFileSync(p, 'utf8')] : null; } catch { return null; } }).filter(Boolean));
+  if (names.length <= 2000 && Date.now() - t0 <= 5000) try { fs.mkdirSync(STATE(), { recursive: true }); fs.writeFileSync(dirtyFile(sid), JSON.stringify({ at: at0, done: Date.now(), files: Object.fromEntries(names.map((f, i) => [f, hashes[i]]).filter(([, h]) => /^[0-9a-f]{40,64}$/.test(h || ''))), texts })); } catch { }
 }
 export const loadDirty = (sid, at0) => { try { const j = JSON.parse(fs.readFileSync(dirtyFile(sid), 'utf8')); return j.at === at0 ? j : null; } catch { return null; } };
 if (process.argv[2] === '--snapshot-dirty' && process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) snapshotDirty(process.argv[3], process.argv[4]);
