@@ -5531,11 +5531,12 @@ if ((!TAGS || TAGS.includes('status-bar')) && mineB()) {
 // (a lesson in a runbook or a skill, a new rule in CLAUDE.md and the hook, a data file), and round 2 is judged on the same
 // turn. Every check round 2 shows must have been named in round 1, and once those are done the turn passes. With hooks
 // (Stop rounds) and without them (check --answer-file). Lesson: a round-1 fix set off the audit only in round 2.
+// (v2's Stop text is short; its full steps are in tools/hooks/state/stop-details.md, read here in its place. At file
+// level: the tests of several blocks use it. Lesson (chain 871c7b7): defined in one block, another's shard crashed)
+const v2Full = (dir, d) => { const t = d ? d.reason || d.hookSpecificOutput?.additionalContext || '' : ''; if (!/^⚓ [^\n]* left before this is done/.test(t)) return t;
+  try { return fs.readFileSync(path.join(dir, 'tools/hooks/state/stop-details.md'), 'utf8').replace(/^# What is left before this is done\n\n/, '').trim(); } catch { return t; } };
 if (mineB() && (!TAGS || TAGS.includes('stop-follow-on'))) {
   // (the first "Names:" line: without hooks, the full steps follow it)
-  // (v2's Stop text is short; its full steps are in tools/hooks/state/stop-details.md, read here in its place)
-  const v2Full = (dir, d) => { const t = d ? d.reason || d.hookSpecificOutput?.additionalContext || '' : ''; if (!/^⚓ [^\n]* left before this is done/.test(t)) return t;
-    try { return fs.readFileSync(path.join(dir, 'tools/hooks/state/stop-details.md'), 'utf8').replace(/^# What is left before this is done\n\n/, '').trim(); } catch { return t; } };
   // (v2 names no check: its listed items stand for them, each by its opening words, numbers left out, so a count that
   // went down is the same item)
   const v2Items = r => /^(Not done yet|Still not done)/.test(r || '') ? [...String(r).split(/\nFix what isn't done\./)[0].matchAll(/^- (.+)$/gm)].map(m => m[1].replace(/^Then, once .+? (?:is|are) written: /, '').replace(/\d+/g, 'N').slice(0, 48)) : null;
