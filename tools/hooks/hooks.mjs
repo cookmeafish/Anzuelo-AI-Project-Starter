@@ -6978,6 +6978,8 @@ async function v2Cli(cmd) {
     const req = process.argv.slice(3).join(' ').trim();
     if (!req) { console.log('usage: node tools/hooks/hooks.mjs begin "<the user\'s request>"'); return 1; }
     const r = (await import('./v2/start.mjs')).onPrompt({ prompt: req, session_id: sid });
+    // (kept for a check with no transcript, which judges the turn from this request, v2/manual.mjs)
+    if (!tp) { const t = lib.loadTurn(sid); if (t.at) lib.saveTurn(sid, { ...t, request: req.slice(0, 4000) }); }
     console.log(r?.hookSpecificOutput?.additionalContext || 'BEGIN: recorded. No runbook named for this request.');
     return 0;
   }
@@ -6990,6 +6992,12 @@ async function v2Cli(cmd) {
   const af = process.argv.indexOf('--answer-file'), draft = af > 0 ? (() => { try { return fs.readFileSync(path.resolve(ROOT, process.argv[af + 1] || ''), 'utf8'); } catch { return ''; } })() : '';
   if (tp) { const who = lib.callerTranscript(tp, sid); const d = (await import('./v2/end.mjs')).onStop({ transcript_path: who.file, session_id: who.id ? `${sid}-${who.id}` : sid, ...(draft ? { last_assistant_message: draft } : {}) }, { shadow: true });
     const { text, real } = previewOf(d?.reason); console.log(text ? `CHECK: ${text}` : 'CHECK: PASS'); return real ? 1 : 0; }
+  // (no transcript: the turn as the run log and the changed files show it, judged by the same end check)
+  try {
+    const mt = (await import('./v2/manual.mjs')).manualTranscript(turn);
+    if (mt) { const d = (await import('./v2/end.mjs')).onStop({ transcript_path: mt, session_id: sid, ...(draft ? { last_assistant_message: draft } : {}) }, { shadow: true });
+      const { text, real } = previewOf(d?.reason); if (text) { console.log(`CHECK: ${text}`); return real ? 1 : 0; } }
+  } catch (e) { console.log(`CHECK: the no-transcript check failed (${String(e?.message || e).slice(0, 160)}); judge the work against the runbook yourself.`); }
   const book = turn.runbook && lib.runbooks().find(b => b.file === turn.runbook);
   console.log(book?.items.length ? `CHECK: verify that each item of ${book.file} is really done (skip any that don't fit this work), fix what isn't, then answer:\n${book.items.map(it => `${it.n}. ${it.text}`).join('\n')}` : 'CHECK: PASS');
   return 0;

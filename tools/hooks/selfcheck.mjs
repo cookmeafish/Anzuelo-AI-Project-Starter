@@ -3246,6 +3246,13 @@ const CATALOG_REQS = (() => {
   SCENARIO_TAGS.add(a.tag); SCENARIO_TAGS.add(b.tag);
   return { 'tools/hooks/requirements.json': s => JSON.stringify({ requirements: [...JSON.parse(s).requirements, a, b] }) };
 })();
+// (under v2 the same catalog check starts from what the turn did, its catalog notes, not the request's words: v2 starts
+// no check from prompt words alone (keyword forcing retired 2026-11-07). Same follow-on: data/ written sets off the validator)
+// (a project's own checks are items of docs/checks/always.md under v2)
+const CATALOG_V2 = {
+  edit: { 'docs/checks/always.md': () => '# Always\n\n## Done when\n- [ ] The catalog changes are written into data/ (when file: notes/catalog-*.md) (file: data/**)\n- [ ] The validator passes on the changed data (when file: data/**) (ran: validate => RESULT: PASS)\n' },
+  tools: [{ name: 'Write', input: { file_path: 'notes/catalog-notes.md' } }],
+  expect: { block: true, tags: ['data-valid'], says: /always\.md item 1: The catalog changes[\s\S]*Then, once data\/x is written: docs\/checks\/always\.md item 2: The validator passes/ } };
 // the runbooks and skills there at the turn start, as the prompt hook records them (a fixture's copies are all new)
 const KNOWN = dir => write(dir, { 'tools/hooks/state/turn.json': JSON.stringify({ at: new Date(Date.now() - 7200_000).toISOString(), prompt: 'earlier', runbooks: fs.readdirSync(path.join(dir, 'docs/playbooks')), skills: fs.readdirSync(path.join(dir, 'skills')) }) });
 const MEAL_TURN = { edit: MEAL_CHECK, prompt: 'plan meals for the week', tools: [pb('meal-plan')], prep: KNOWN };
@@ -3267,22 +3274,30 @@ STOP.push(
   { name: 'stop-follow-on: a lesson for a skill names the audit and the changelog in round 1', prompt: 'debug the failing import', tools: [sk('debug')], files: { 'scratch-work/import.md': 'x', 'src/import.mjs': 'export const x = 1;\n' }, answer: 'Skill: debug. Fixed it.' + FIN,
     expect: { block: true, tags: ['debug-test-added', 'skill-learn', 'audit-run', 'changelog'] } },
   { name: 'stop-follow-on: a new rule names the hook self-tests, the audit and the changelog in round 1', prompt: 'from now on always include a budget table in plans', tools: [pb('project')], answer: 'Playbook: project.md. Noted.',
-    expect: { block: true, tags: ['rule-request', 'hooks-tested', 'audit-run', 'changelog'] } },
+    // (v2: the rule skill opened starts rule handling; no audit-run ask, since v2 runs the health check itself at the end
+    // and asks only when it fails)
+    expect: { block: true, tags: ['rule-request', 'hooks-tested', 'audit-run', 'changelog'] }, v2: { tools: [pb('project'), sk('project-rule')], expect: { block: true, tags: ['rule-request', 'hooks-tested', 'changelog'] } } },
   { name: 'stop-follow-on: a lesson placed in CLAUDE.md names the audit in round 1', prompt: 'you forgot the changelog again, this is annoying', files: { 'docs/CHANGELOG.md': 'x' },
-    answer: 'You\'re right: the changelog line was missing.\nLearned (rule): every change gets its changelog line → CLAUDE.md' + FIN, expect: { block: true, tags: ['upset-learned', 'audit-run'] } },
+    answer: 'You\'re right: the changelog line was missing.\nLearned (rule): every change gets its changelog line → CLAUDE.md' + FIN, expect: { block: true, tags: ['upset-learned', 'audit-run'] }, v2: { issue: true, expect: { block: true, tags: ['upset-learned'] } } },
   // (Lesson: a false complaint checked with nothing changed got "Then:" changelog and audit steps, waived as "no file changed")
   { name: 'stop-follow-on: an upset turn that changed no file names no changelog or audit after upset-learned', prompt: 'you keep making Bram left-handed!! he is right-handed', tools: [pb('project')],
-    files: { '.cache/turn-notes.md': 'Playbook: project.md\nLearned (none): no lesson\n' }, answer: 'Sorry, I will watch his hands.' + FIN, expect: { block: true, tags: ['upset-learned'], not: ['changelog', 'audit-run'] } },
+    files: { '.cache/turn-notes.md': 'Playbook: project.md\nLearned (none): no lesson\n' }, answer: 'Sorry, I will watch his hands.' + FIN, expect: { block: true, tags: ['upset-learned'], not: ['changelog', 'audit-run'] }, v2: { issue: true } },
   { ...MEAL_TURN, name: 'stop-follow-on: an upset turn that changed a file still names the runbook lesson\'s audit and changelog', prompt: 'ugh, you forgot the meal plan again!! plan meals for the week', files: { 'notes/meals.md': 'x' },
     answer: 'Playbook: meal-plan.md. You\'re right: the plan was missing. Done.' + FIN, expect: { block: true, tags: ['upset-learned', 'audit-run', 'changelog'] } },
   { name: 'stop-follow-on: a catalog step that writes data names its data check in round 1', edit: CATALOG_REQS, prompt: 'update the catalog with the new plants', files: { 'notes/catalog-notes.md': 'x' }, answer: 'Updated.' + FIN,
-    expect: { block: true, tags: ['catalog-updated', 'data-valid'], says: /Then: Run the validator/ } },
+    expect: { block: true, tags: ['catalog-updated', 'data-valid'], says: /Then: Run the validator/ }, v2: CATALOG_V2 },
   { name: 'stop-follow-on: a Spanish catalog request names its data check in round 1', edit: CATALOG_REQS, prompt: 'actualiza el catalogo con las plantas nuevas', files: { 'notes/catalog-notes.md': 'x' }, answer: 'Listo.' + FIN,
-    expect: { block: true, tags: ['catalog-updated', 'data-valid'] } },
+    expect: { block: true, tags: ['catalog-updated', 'data-valid'] }, v2: CATALOG_V2 },
   // nothing real is silenced: the named step still holds round 2 until it is done
   { ...MEAL_TURN, name: 'stop-follow-on: round 2 still holds the named audit when it did not run: blocked', files: { 'notes/meals.md': 'x', 'docs/playbooks/meal-plan.md': MEAL_LESSON },
     active: true, blocks: 1, failed: ['meal-ok', 'skill-learn'], failedExtra: { foreseen: ['audit-run', 'changelog'] }, drafts: ['Playbook: meal-plan.md. Done.' + FIN],
-    answer: 'Playbook: meal-plan.md. The meals planned for the week are in notes/meals.md.' + FIN, expect: { block: true, tags: ['audit-run'], not: ['skill-learn'] } },
+    answer: 'Playbook: meal-plan.md. The meals planned for the week are in notes/meals.md.' + FIN, expect: { block: true, tags: ['audit-run'], not: ['skill-learn'] },
+    // (v2 keeps no record of named steps and judges each round afresh; it runs the health check itself, so the named step
+    // that must still hold in round 2 is the changelog line. The turn's edits are in its transcript, as v2 reads them)
+    // (a repeat round, as v2 records it: the turn's start, blocked once already)
+    v2: { tools: [pb('meal-plan'), { name: 'Write', input: { file_path: 'notes/meals.md' } }, { name: 'Edit', input: { file_path: 'docs/playbooks/meal-plan.md' } }], hookInput: { session_id: 'round2' },
+      prep: d => { KNOWN(d); const at = new Date(Date.now() - 600_000).toISOString(); write(d, { 'tools/hooks/state/v2-turn.round2.json': JSON.stringify({ at, runbook: 'docs/playbooks/meal-plan.md', blocked: at, rounds: 1, lastBlock: Date.now() - 590_000 }) }); },
+      expect: { block: true, tags: ['changelog'] } } },
   { ...MEAL_TURN, name: 'stop-follow-on: round 2 with the named audit run: passes', files: { 'notes/meals.md': 'x', 'docs/playbooks/meal-plan.md': MEAL_LESSON, 'docs/CHANGELOG.md': 'x' },
     active: true, blocks: 1, failed: ['meal-ok', 'skill-learn'], drafts: ['Playbook: meal-plan.md. Done.' + FIN], later: [bash('node tools/audit.mjs')],
     answer: 'Playbook: meal-plan.md. The meals planned for the week are in notes/meals.md.' + FIN, expect: { block: false } },
@@ -4993,7 +5008,7 @@ const V2_ASKS = {
   'answer-traced': /^- (Did you make that up\?|\S+ cites \S+ for ")/m,
   'instructions-run': /^- The answer tells the user to run /m,
   'done-when-labeled': /^- (Every "Done when" item needs its proof|A "Done when" item names a check that doesn't exist)/m,
-  'hooks-tested': /^- (The hook logic changed: run|The checks [^\n]* changed: run|The last run of node tools\/hooks\/selfcheck\.mjs|the permission system refused `node tools\/hooks\/selfcheck|tools\/hooks\/config\.json does not parse)/m,
+  'hooks-tested': /^- (The hook logic changed: run|Then, if the fix changes the hook engine or its checks|The checks [^\n]* changed: run|The last run of node tools\/hooks\/selfcheck\.mjs|the permission system refused `node tools\/hooks\/selfcheck|tools\/hooks\/config\.json does not parse)/m,
   'headless-resume': /^- This run is headless/m,
   'notice-answer': /^- This run is headless \(claude -p or the SDK\): its caller gets only the last message/m,
   'data-valid': /docs\/checks\/always\.md item \d+: The validator passes/,
@@ -5026,7 +5041,9 @@ for (const s0 of STOP) {
   // (the v2 end check names no check: a behavior ported to v2 is recognized by what its message asks, V2_ASKS. The
   // scenario and its verdict stay as they were; only v1's wording goes. Plan: migrate every behavior, Task 3)
   const v2 = /^(Not done yet|Still not done)/.test(r.reason || '');
-  const named = t => (/Names: ([^\n]*)\.\s*$/.exec(r.reason || '')?.[1] || '').split(', ').includes(t) || (v2 && ((!!V2_ASKS[t] && V2_ASKS[t].test(r.reason || '')) || (!!ENGINE_MSG[t] && (r.reason || '').includes(`- Check: ${ENGINE_MSG[t]}`))));
+  // (a follow-on v2 names in this round, "Then, once <files> are written: <the ask>", names that ask, as v1's "Then:")
+  const v2r = String(r.reason || '').replace(/^- Then, once .+? (?:is|are) written: /gm, '- ');
+  const named = t => (/Names: ([^\n]*)\.\s*$/.exec(r.reason || '')?.[1] || '').split(', ').includes(t) || (v2 && ((!!V2_ASKS[t] && V2_ASKS[t].test(v2r)) || (!!ENGINE_MSG[t] && v2r.includes(`- Check: ${ENGINE_MSG[t]}`))));
   for (const t of s.expect.tags || []) if (!named(t)) why ||= `missing tag [${t}] in: ${r.reason || `(no block)${r.err ? ' stderr: ' + r.err.slice(0, 300) : ''}`}`;
   for (const t of s.expect.not || []) if (named(t)) why ||= `unexpected tag [${t}]`;
   // a scenario with nothing to judge would always pass. Lesson: a project scenario meant as a pass had only a name.
@@ -5280,7 +5297,7 @@ if (mineB() && (!TAGS || TAGS.includes('stop-follow-on'))) {
   // (the first "Names:" line: without hooks, the full steps follow it)
   // (v2 names no check: its listed items stand for them, each by its opening words, numbers left out, so a count that
   // went down is the same item)
-  const v2Items = r => /^(Not done yet|Still not done)/.test(r || '') ? [...String(r).split(/\nFix what isn't done\./)[0].matchAll(/^- (.+)$/gm)].map(m => m[1].replace(/\d+/g, 'N').slice(0, 48)) : null;
+  const v2Items = r => /^(Not done yet|Still not done)/.test(r || '') ? [...String(r).split(/\nFix what isn't done\./)[0].matchAll(/^- (.+)$/gm)].map(m => m[1].replace(/^Then, once .+? (?:is|are) written: /, '').replace(/\d+/g, 'N').slice(0, 48)) : null;
   const names = r => v2Items(r) || (/Names: ([^\n]*?)\.[ \t]*(\n|$)/.exec(r || '')?.[1] || '').split(', ').filter(Boolean);
   const LINE = '\n- Plans show what the work costs before it starts, so spending is never a surprise (2026-10-21).\n';
   const MEMORY = { '.memtest/plan-costs.md': () => '---\nname: plan-costs\n---\nPlans show costs.\n**Why:** no surprises.\n**How to apply:** a cost table in each plan.\n' };
@@ -5298,13 +5315,16 @@ if (mineB() && (!TAGS || TAGS.includes('stop-follow-on'))) {
       fix: { edit: { 'CLAUDE.md': s => (s || fs.readFileSync(path.join(B, 'AGENTS.md'), 'utf8')) + LINE, 'docs/checks/user-requirements.md': s => s + '| 99 | 2026-10-21 | Plans show costs | 2 | judgment |\n',
         'tools/hooks/hooks.mjs': s => s + '\n// plans show costs: judged by the plan skill\n', ...MEMORY }, answer: 'Playbook: project.md. The rule is in CLAUDE.md, in docs/checks/user-requirements.md and in the hook.' + FIN },
       last: { tools: [bash('node tools/hooks/selfcheck.mjs'), bash('node tools/audit.mjs')], edit: { 'docs/CHANGELOG.md': s => s + '\n- rule: plans show costs\n' },
-        answer: 'Playbook: project.md. The rule is in CLAUDE.md, in docs/checks/user-requirements.md and in the hook. Skill lesson: none - a new rule is new work, not a miss of the runbook.' + FIN } },
+        answer: 'Playbook: project.md. The rule is in CLAUDE.md, in docs/checks/user-requirements.md and in the hook. Skill lesson: none - a new rule is new work, not a miss of the runbook.' + FIN },
+      // (v2 starts rule handling from the agent's own judgment: the project-rule skill it opened)
+      v2: { tools: [pb('project'), sk('project-rule')] } },
     { name: 'a catalog step that writes data', edit: CATALOG_REQS, prompt: 'update the catalog with the new plants', files: { 'notes/catalog-notes.md': 'x' }, answer: 'Updated.' + NA + FIN,
       fix: { edit: { 'data/catalog.txt': () => '4 Tulip\n' }, answer: 'Updated data/catalog.txt.' + NA + FIN }, last: { tools: [bash('node tools/validate.mjs', 'RESULT: PASS')] } },
     { name: 'a Spanish catalog request', edit: CATALOG_REQS, prompt: 'actualiza el catalogo con las plantas nuevas', files: { 'notes/catalog-notes.md': 'x' }, answer: 'Listo.' + NA + FIN,
       fix: { edit: { 'data/catalog.txt': () => '4 Tulip\n' }, answer: 'Actualizado data/catalog.txt.' + NA + FIN }, last: { tools: [bash('node tools/validate.mjs', 'RESULT: PASS')] } }
   ];
-  for (const c of CASES) {
+  for (const c0 of CASES) {
+    const c = process.env.STARTER_ENGINE === 'v2' && c0.v2 ? { ...c0, ...c0.v2 } : c0;
     const dir = copyProject();
     try {
       ownChecksOff(dir);

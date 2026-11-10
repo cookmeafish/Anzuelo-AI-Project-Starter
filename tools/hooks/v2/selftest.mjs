@@ -2974,6 +2974,30 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   fs.rmSync(proj, { recursive: true, force: true });
 }
 
+// (with no transcript, any agent but Claude Code: "check --answer-file" judges the turn from the run log and the files
+// changed since "begin", not nothing. Lesson (the old suite under v2): an edited hook file got CHECK: PASS)
+{
+  const { spawnSync } = await import('node:child_process');
+  const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..');
+  const m = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-manual-'));
+  let got = {};
+  try {
+    for (const d of ['tools', 'docs', 'skills', 'AGENTS.md']) fs.cpSync(path.join(repoRoot, d), path.join(m, d), { recursive: true, filter: s => !/[\\/](state|\.cache)([\\/]|$)/.test(s) });
+    const env = { ...process.env, STARTER_ENGINE: 'v2', ANZUELO_SESSION_GATE: 'off', STARTER_MEMORY_DIR: path.join(m, '.memtest') };
+    delete env.CLAUDE_CODE_SESSION_ID; delete env.ANZUELO_ROOT; delete env.CLAUDE_PROJECT_DIR;
+    const hk = (...a) => spawnSync(process.execPath, [path.join(m, 'tools/hooks/hooks.mjs'), ...a], { cwd: m, encoding: 'utf8', env });
+    hk('begin', 'tune the hook messages');
+    fs.appendFileSync(path.join(m, 'tools/hooks/wire.mjs'), '\n// tuned\n');
+    fs.mkdirSync(path.join(m, '.cache'), { recursive: true }); fs.writeFileSync(path.join(m, '.cache/answer.md'), 'Tuned the wire message.\n\n**Finished**\n- tools/hooks/wire.mjs\n');
+    const c1 = hk('check', '--answer-file', '.cache/answer.md');
+    fs.appendFileSync(path.join(m, 'tools/hooks/state/runs.jsonl'), JSON.stringify({ at: new Date().toISOString(), cmd: 'node tools/hooks/selfcheck.mjs', out: 'selfcheck: ALL PASS (430 passed, 0 failed)', error: false }) + '\n');
+    const c2 = hk('check', '--answer-file', '.cache/answer.md');
+    got = { c1: c1.stdout.slice(0, 300), c1s: c1.status, c2: c2.stdout.slice(0, 300) };
+  } finally { fs.rmSync(m, { recursive: true, force: true }); }
+  report(got.c1s === 1 && /The hook logic changed: run node tools\/hooks\/selfcheck\.mjs/.test(got.c1 || '') && !/The hook logic changed/.test(got.c2 || ''),
+    'check: with no transcript, "check --answer-file" judges the files changed since "begin" and the run log: an edited hook file asks for the self-tests until the log holds a passing run', JSON.stringify(got));
+}
+
 // (the time verdict: alone, over the limit fails; beside another live self-test run, it is printed and not judged; a
 // run that only waits for its turn adds no load and does not count)
 {

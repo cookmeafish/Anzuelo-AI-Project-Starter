@@ -7,7 +7,7 @@ import { labelsEsHint } from '../labels.mjs';
 import { unansweredLate, asksOnly } from './late.mjs';
 import { PAUSE_ASK } from '../pause.mjs';
 import { wakeGaps } from '../wakeups.mjs';
-import { forbiddenGaps, codeRuleGaps, injectionGaps, verbatimGaps, CRASHED, crashLine, logStop, upgradeGaps, autoRuns, sessionStart, changedOf, projectConfig, inGlobs, priorCalls, filesMatching, withBackgroundOutputs } from './lib.mjs';
+import { forbiddenGaps, codeRuleGaps, injectionGaps, verbatimGaps, CRASHED, crashLine, logStop, upgradeGaps, autoRuns, sessionStart, changedOf, projectConfig, inGlobs, priorCalls, filesMatching, withBackgroundOutputs, hookTestsGaps, engineChecks, doneWhen } from './lib.mjs';
 import { ROOT, at, runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, questionGaps, noteGaps, quoteGaps, tail, helpersRunning, backgroundRuns, helperRuns, evidenceGaps, evidenceOf, skillBooks, alwaysGaps, scopeGaps, earlierPrompts, ALWAYS, engineCheckGaps, loadDirty, isSpanish } from './lib.mjs';
 // (the two data tables, one evaluator each: the project's always list and the engine's own checks)
 // (each check runs on its own: one that throws is named once with its error, and the rest still run)
@@ -342,6 +342,49 @@ export function upsetGaps(turn, acts) {
   }
   return out;
 }
+// REQ: stop-follow-on. An ask whose fix writes files (a rule, a lesson) sets off the checks on those files, such as the
+// runbook's changelog item once the turn changes files. They are named now, after the ask, judged as if those files
+// were written, so the next round brings nothing this one could have named. Lesson (the old engine): a lesson written
+// in round 1 made new steps appear only in round 2.
+const FIX_FILES = [
+  [/^Write the rule down\b/, () => ['CLAUDE.md', 'docs/checks/user-requirements.md']],
+  [/^Write the lesson where it stops the next miss\b/, (turn, acts) => {
+    // (a complaint in a turn that changed nothing may well not hold, and "Learned (none)" says it did not: no lesson file
+    // is foreseen. Lesson (the old engine): a false complaint, checked with nothing changed, got changelog and audit steps)
+    if (!changedOf(acts).length || /^[\s>*_-]*(learned|aprendido)\s*\((none|nothing|ninguno|ninguna|nada)\)\s*:/im.test(`${acts.said || ''}\n${turnNotes(acts)}`)) return [];
+    const named = [...String(acts.said || '').matchAll(/^[\s>*_-]*learned\s*\((?:one-off|lesson|rule|check|skill|engine)\)\s*:[^\n]*?(?:→|->)\s*`?([^`\s,;]+)/gim)].map(m => m[1].replace(/[.)]+$/, ''));
+    return named.length ? named : [chosen(turn, acts, runbooks())?.file || 'docs/playbooks/x.md'];
+  }],
+  // (a "Done when" item, of a runbook, a skill or the always list, that asks for a file: "(file: data/**)" as "data/x")
+  [/^[\w./-]+\.md item \d+: /, (turn, acts, s) => {
+    const [, f, n] = /^([\w./-]+\.md) item (\d+): /.exec(s);
+    const it = doneWhen((() => { try { return fs.readFileSync(at(f), 'utf8'); } catch { return ''; } })()).find(i => String(i.n) === n);
+    return it?.kind === 'file' ? String(it.arg || '').split('|').map(a => sampleOf(a.trim())).filter(Boolean) : [];
+  }],
+  // (an engine check that asks for files changed: one path of each of its globs)
+  [/^Check: /, (turn, acts, s) => {
+    const q = engineChecks().find(r => r && r.message && s.startsWith(`Check: ${r.message}`));
+    const globs = c => !c || typeof c !== 'object' ? [] : [...[].concat(c.filesChanged || []), ...(c.anyOf || []).flatMap(globs)];
+    return globs(q?.require).map(sampleOf);
+  }]
+];
+// a glob as one path it matches ("items/**/*.txt" -> "items/x/x.txt"), so the checks on it can be asked
+const sampleOf = g => String(g).replace(/\{([^,}]*)[^}]*\}/g, '$1').replace(/\*\*/g, 'x').replace(/[*?]/g, 'x');
+export function followOn(turn, acts, list) {
+  const done = new Set(changedOf(acts));
+  const files = [...new Set(list.flatMap(s => FIX_FILES.filter(([rx]) => rx.test(s)).flatMap(([, f]) => f(turn, acts, s))))].filter(f => !done.has(f));
+  if (!files.length) return [];
+  const sim = { ...acts, calls: [...acts.calls, ...files.map(f => ({ name: 'Edit', input: { file_path: at(f) } }))] };
+  const now = new Set(list);
+  const out = [...new Set([...missing(turn, sim), ...skillMissing(sim), ...alwaysGaps(sim), ...engineCheckGaps(sim), ...hookTestsGaps(sim)])].filter(s => !now.has(s))
+    .map(s => `Then, once ${files.slice(0, 2).join(' and ')} ${files.length > 1 ? 'are' : 'is'} written: ${s}`);
+  // (the self-tests: a fix that writes the hook or its checks, or a rule whose enforcement may be a check, is told once,
+  // plainly, as the old engine did; what a check's text will be is not known yet)
+  const HOOKISH = /^tools\/hooks\/([^/]+\.mjs|requirements\.json|config\.json)$|^docs\/checks\/always\.md$/;
+  if ((files.some(f => HOOKISH.test(f)) || list.some(s => /^Write the rule down\b/.test(s))) && ![...done].some(f => HOOKISH.test(f)) && !list.some(s => /^The (hook logic|checks\b[^\n]*) changed: run/.test(s)))
+    out.push('Then, if the fix changes the hook engine or its checks (tools/hooks/): run node tools/hooks/selfcheck.mjs (or --tags <the new or changed check>) until it prints ALL PASS.');
+  return out;
+}
 function judge(data, { shadow = false } = {}) {
   // (with no saved start, the turn starts at its request's own time. Lesson (a field report): the first turn after an
   // upgrade installed v2 had no saved start, so a file a script wrote did not count, and the request was blocked twice)
@@ -394,6 +437,7 @@ function judge(data, { shadow = false } = {}) {
   const list = [...resumedLost, ...late, ...autos, ...wakes, ...S('missing', () => [...emptyGaps(acts), ...missing(turn, acts), ...upsetGaps(turn, acts), ...ruleGaps(acts), ...watchedGaps(acts)]), ...extra, ...S('skillMissing', () => skillMissing(acts)), ...S('reviewGaps', () => reviewGaps(turn, acts)), ...S('testGaps', () => testGaps(acts, history)), ...S('gateGaps', () => gateGaps(acts)), ...S('screenGaps', () => screenGaps(acts)), ...S('healthGaps', () => [...healthGaps(acts, { run: !shadow }), ...upgradeGaps(turn, acts)]), ...S('knowledgeGaps', () => knowledgeGaps(acts)), ...S('securityGaps', () => securityGaps(acts)), ...S('questionGaps', () => [...questionGaps(acts), ...questionFileGaps(acts)]), ...S('noteGaps', () => noteGaps(acts)), ...S('quoteGaps', () => quoteGaps(acts)), ...S('claimGaps', () => claimGaps(acts, history)), ...S('scopeGaps', () => scopeGaps(acts)), ...S('tableGaps', () => tableGaps(acts))].filter((s, i, all) => all.indexOf(s) === i);
   // (the waiver tally: what this turn cleared with a reason is recorded; a check cleared in 3+ earlier turns is named)
   const full = list.splice(0, list.length); list.push(...full.filter(kept(acts)).filter(s => !(again && CRASHED.test(s))));
+  list.push(...S('followOn', () => followOn(turn, acts, list)).filter(kept(acts)));
   const often = shadow ? '' : tally(full, list, turn.at ? `${data.session_id || 'x'}|${turn.at}` : '');
   // (a turn that ran the check on its draft has seen the verify list: the real stop does not send it back for it again.
   // Lesson (the user, 2026-11-07): the list came in the draft check and then again as a send-back, and the user read a
