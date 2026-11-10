@@ -5205,6 +5205,7 @@ for (const s0 of PROMPT) {
     if ((m = /^If it changes files: ([\w-]+)$/.exec(h))) return m[1].replace(/-/g, ' ');
     if (/^plan-required \(a plan in docs\/plans\/ first\)$/.test(h)) return 'plan required (a plan in docs/plans/ first)';
     if (h === 'PRAISE') return 'Praise: the user liked something';
+    if (h === 'AUTONOMY') return 'Autonomy: the user wants the work done without their input';
     // (the old engine's line for relayed work is v2's caveat in the runbook line)
     if (/^RELAYED: this request was relayed\b/.test(h)) return 'only if this message asks for work here';
     return h; };

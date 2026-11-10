@@ -22,10 +22,6 @@ pretool: scope-change: a user message while a helper launched before it runs get
 prompt-digest: a session whose start gave the session checklist gets no rules digest on its prompts; one with no session start still does
 prompt: QA routes to the qa runbook
 prompt: a context summary that resumes the turn gets no hints
-prompt: autonomy-hint: "I don't want to be bothered" asks to set autonomy auto
-prompt: autonomy-hint: "do not ask me anything" asks to set autonomy auto
-prompt: autonomy-hint: "without my input" asks to set autonomy auto
-prompt: autonomy-hint: a Spanish setup request that says not to ask routes to the project runbook and gets AUTONOMY
 prompt: bootstrap hint when setup prompt is gone but brief is empty
 prompt: check-preview: Spanish, a route question with a line for its NOTES gets the CHECKS line with status-handoff
 prompt: check-preview: Spanish, a runbook fix names the same checks

@@ -101,3 +101,9 @@ export const stem = w => w.length <= 3 || /(ss|us|is)$/.test(w) ? w
 // Accents are folded first ("añade" is "anade", "línea" is "linea"). Lesson: accented letters split Spanish words into
 // fragments ("a", "ade", "l", "nea"), so a Spanish request could never meet a trigger by its key words.
 export const keyWords = s => fold(String(s).toLowerCase()).split(/[^a-z0-9]+/).filter(w => w && !STOP.has(w)).map(stem);
+
+// ---------- the user handing the work over (moved from hooks.mjs, shared with engine v2) ----------
+// The user handing the work over: "without my input", "don't ask me", "keep going until it's finished", "go go go".
+// ("don't ask me for the api key again" is about one thing, not the whole job. Lesson: "you decide", "I trust you",
+// "no need to check with me" and "without stopping" were missed, and that one false alarm counted)
+export const AUTONOMY_WORDS =/\byou decide\b|\bi trust you\b|\bno need to (ask|check with) me\b|\bwithout stopping\b|\bwithout (my|any) (input|approval|questions?|ok)\b|\bdon'?t (ask|bother) me\b(?!\s+(for|about)\b)|\bno (more )?questions\b|\bkeep going (until|till) (it'?s |you'?re |everything is )?(done|finished|complete)\b|\bgo,? go,? go\b|\bdon'?t stop (until|till|for)\b|\bdecide (everything|for me|yourself)\b|\bdon'?t want to be (bothered|asked|interrupted)\b|\b(handle|do|figure out) (it|this|everything|all of it|the rest) (yourself|on your own|without me)\b|\bwithout checking (in )?with me\b|\bi('?m| am) (going )?(away|offline|out)\b[^\n]{0,40}\b(keep|carry on|continue)\b|\bdo not (ask|bother) me\b(?!\s+(for|about)\b)|\b(not|won'?t be) (available|around) to (answer|reply|respond)\b|(?<![\p{L}])(decide (todo )?t[uú]|t[uú] decides|no me preguntes|sin preguntarme|no estoy disponible|no me molestes|sigue hasta (que )?(termines|acabes)|no pares hasta)(?![\p{L}])/iu;

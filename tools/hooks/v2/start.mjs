@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { route, skillBooks, saveTurn, loadTurn, isSpanish, ROOT, at, quoteCheckOn, projectConfig, checkOff, snapshotLater, runbooks, routeEnglish, engineChecks, doneWhen, ALWAYS } from './lib.mjs';
-import { closestRunbook, coreRunbook, isTaskRequest, userWords } from '../near.mjs';
+import { closestRunbook, coreRunbook, isTaskRequest, userWords, AUTONOMY_WORDS } from '../near.mjs';
 import { isPraise } from '../praise.mjs';
 import { NUMBERS_ASK } from '../trace.mjs';
 import { openPlansOf } from '../planreq.mjs';
@@ -165,7 +165,12 @@ function remind(prompt) {
   // REQ: answer-traced (at the request, a hint only). A request about numbers is told up front where its figures must
   // come from; the end check judges the figures the answer states, whatever was asked. Oversight decision 2026-11-10.
   const figures = !relayedRx.test(raw) && NUMBERS_ASK.test(String(userWords(prompt))) ? 'Figures: every figure in the answer comes from something read or run this turn; mark any other "(estimate)" or "(not verified)".' : '';
-  if (!book) return { book: null, text: [skill, praise, figures, pick, es, ...rulesFor(prompt).map(r => `The project's own rule here: ${r}`), isTaskRequest(prompt, taskVerbs, toOtherSession(prompt)) ? alsoChecked(sk && skill ? [sk.name] : []) : ''].filter(Boolean).slice(0, MAX_LINES).join('\n') };
+  // REQ: autonomy-recorded (at the request, a hint only). The user handing the work over ("without my input", "no me
+  // preguntes") is told to record it and decide from then on, as the old engine. Lesson (the old suite under v2): v2 said
+  // nothing, and the agent kept asking
+  const autonomy = !relayedRx.test(raw) && projectConfig().autonomy !== 'auto' && AUTONOMY_WORDS.test(String(userWords(prompt)))
+    ? `Autonomy: the user wants the work done without their input. Set "autonomy": "auto" in tools/hooks/config.json and record it in docs/DECISIONS.md (date, the choice, why), then decide instead of asking and record each choice as "Assumed: <choice> - <why> - <cost if wrong>". Outward actions, third-party installs and anything irreversible still need an OK.` : '';
+  if (!book) return { book: null, text: [skill, praise, figures, autonomy, pick, es, ...rulesFor(prompt).map(r => `The project's own rule here: ${r}`), isTaskRequest(prompt, taskVerbs, toOtherSession(prompt)) ? alsoChecked(sk && skill ? [sk.name] : []) : ''].filter(Boolean).slice(0, MAX_LINES).join('\n') };
   const own = rulesFor(prompt).map(r => `The project's own rule here: ${r}`);
   // (a message relayed from another session may only report: its runbook is for when it asks for work. Lesson (project
   // report): a note that a fix had landed got the bugfix runbook and its list, though it asked for nothing)
@@ -174,7 +179,7 @@ function remind(prompt) {
   // terms, in the runbook line itself: no extra line, and nothing on other turns. The end check catches a slip
   // (quoteGaps). On only with the quote check, quoteCheckOn)
   const lesson = quoteOn && (sore || ['project', 'learn-from-upset', 'runbook-create', 'project-rule'].includes(book.name)) ? ' Write any lesson in general terms, not in the user\'s own words.' : '';
-  const lines = [...(sore ? [sore] : []), ...(es ? [es] : []), ...(praise ? [praise] : []), ...(figures ? [figures] : []), ...own, `Runbook${relayedRx.test(raw) ? ', only if this message asks for work here' : ''}: open ${book.file} and follow it.${lesson}`];
+  const lines = [...(sore ? [sore] : []), ...(es ? [es] : []), ...(praise ? [praise] : []), ...(figures ? [figures] : []), ...(autonomy ? [autonomy] : []), ...own, `Runbook${relayedRx.test(raw) ? ', only if this message asks for work here' : ''}: open ${book.file} and follow it.${lesson}`];
   if (book.items.length) {
     // (and how to hold the answer until it passes, in the same line. Lesson (the user, 2026-11-07): an answer sent back
     // by the end check reached the user twice; the first version must already be the final one)

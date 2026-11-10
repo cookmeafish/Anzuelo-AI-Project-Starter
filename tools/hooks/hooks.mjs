@@ -31,7 +31,8 @@ export { doneWhenItems, DONE_LABEL, ledgerItems };
 import { makeProof } from './proof.mjs';
 import { makeHookTests } from './hooktests.mjs';
 import { makeSkillLearn } from './skilllearn.mjs';
-import { STOP_STEMS, fold, STOP, stem, keyWords, ES_EN, closestRunbook as closestOf, OPINION, QUESTION_LED, TASK_ES, isTaskEs, coreRunbook } from './near.mjs';
+import { STOP_STEMS, fold, STOP, stem, keyWords, AUTONOMY_WORDS, ES_EN, closestRunbook as closestOf, OPINION, QUESTION_LED, TASK_ES, isTaskEs, coreRunbook } from './near.mjs';
+export { AUTONOMY_WORDS };
 export { keyWords };
 import { MAKE_REQUEST, HOOK_MARK, HOOK_LINE, HOOK_BLOCK, RELAYED, relayedOut, userWords as userText } from './near.mjs';
 export { relayedOut, userText };
@@ -3383,10 +3384,7 @@ function cmdSession(data) {
 }
 
 // ---------- UserPromptSubmit ----------
-// The user handing the work over: "without my input", "don't ask me", "keep going until it's finished", "go go go".
-// ("don't ask me for the api key again" is about one thing, not the whole job. Lesson: "you decide", "I trust you",
-// "no need to check with me" and "without stopping" were missed, and that one false alarm counted)
-export const AUTONOMY_WORDS =/\byou decide\b|\bi trust you\b|\bno need to (ask|check with) me\b|\bwithout stopping\b|\bwithout (my|any) (input|approval|questions?|ok)\b|\bdon'?t (ask|bother) me\b(?!\s+(for|about)\b)|\bno (more )?questions\b|\bkeep going (until|till) (it'?s |you'?re |everything is )?(done|finished|complete)\b|\bgo,? go,? go\b|\bdon'?t stop (until|till|for)\b|\bdecide (everything|for me|yourself)\b|\bdon'?t want to be (bothered|asked|interrupted)\b|\b(handle|do|figure out) (it|this|everything|all of it|the rest) (yourself|on your own|without me)\b|\bwithout checking (in )?with me\b|\bi('?m| am) (going )?(away|offline|out)\b[^\n]{0,40}\b(keep|carry on|continue)\b|\bdo not (ask|bother) me\b(?!\s+(for|about)\b)|\b(not|won'?t be) (available|around) to (answer|reply|respond)\b|(?<![\p{L}])(decide (todo )?t[uú]|t[uú] decides|no me preguntes|sin preguntarme|no estoy disponible|no me molestes|sigue hasta (que )?(termines|acabes)|no pares hasta)(?![\p{L}])/iu;
+// (AUTONOMY_WORDS: tools/hooks/near.mjs, shared with engine v2)
 // Library skills the fit checklist left for later or skipped, whose own triggers the request matches.
 export function fitDueByRequest(text, cfg = config()) {
   if (!exists(FIT_FILE)) return [];
