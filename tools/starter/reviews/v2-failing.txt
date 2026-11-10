@@ -62,8 +62,6 @@ prompt: rule request hint: asks for the new check's own scenarios, not the whole
 prompt: rules digest on every prompt
 prompt: scope hint names the person (alias works)
 prompt: setup notice while SETUP-PROMPT.md is present (not the template)
-prompt: shared-steps: a list of three tasks asks to merge their shared steps
-prompt: shared-steps: a request with several tasks asks to merge their shared steps
 prompt: small-change: a request whose checks include a record step hears that a small fix skips them
 prompt: stale knowledge is announced
 prompt: starter-runbooks: a project never routes to the starter's own runbooks

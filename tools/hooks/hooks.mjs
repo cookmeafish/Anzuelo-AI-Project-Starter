@@ -38,7 +38,8 @@ import { makeSkillLearn } from './skilllearn.mjs';
 import { STOP_STEMS, fold, STOP, stem, keyWords, AUTONOMY_WORDS, ES_EN, closestRunbook as closestOf, OPINION, QUESTION_LED, TASK_ES, isTaskEs, coreRunbook } from './near.mjs';
 export { AUTONOMY_WORDS };
 export { keyWords };
-import { MAKE_REQUEST, HOOK_MARK, HOOK_LINE, HOOK_BLOCK, RELAYED, relayedOut, userWords as userText, PASTE_LONG, ownEnds, EXAMPLE_CLASS } from './near.mjs';
+import { MAKE_REQUEST, HOOK_MARK, HOOK_LINE, HOOK_BLOCK, RELAYED, relayedOut, userWords as userText, PASTE_LONG, ownEnds, EXAMPLE_CLASS, SHARED_HINT, multiPart } from './near.mjs';
+export { SHARED_HINT, multiPart };
 export { EXAMPLE_CLASS };
 export { relayedOut, userText };
 export { fold, isTaskEs };
@@ -4150,16 +4151,7 @@ export function briefLine(data, cfg = config()) {
 
 // A request that only asks: a question with no instruction and no change word. Lesson: a relayed instruction ("Add all
 // six checks with tests now") that mentioned a question was judged a question.
-// A request with several tasks: their shared steps (a read, a build, a test run, a helper) are done once. Lesson, the
-// user: "even if the user says to do x and also x2 and x3 and x4 but then to do x1 it must do x3 so it does both again
-// and is redundant. My worry is that it will take too long and waste tokens".
-export const SHARED_HINT = "SHARED STEPS: this request has several tasks. Before starting, list each one's steps, merge the steps they share (a task another one already does, the same read, build, test run or helper), and do each once, in one order (plan skill, \"Shared steps once\"). Repeat a step only where the user asked for it.";
-export function multiPart(p) {
-  const t = String(p);
-  const items = t.split(/\r?\n/).filter(l => /^\s*([-*\u2022]|\d+[.)])\s+\S/.test(l)).length;
-  const joins = (t.match(/(?<!\p{L})(and also|also|and then|as well as|además|también|y luego)(?!\p{L})/giu) || []).length;
-  return items >= 3 || joins >= 2;
-}
+// (SHARED_HINT, multiPart: tools/hooks/near.mjs, shared with engine v2)
 // A message that asks something: a question mark at its end, or a question word to open it (English and Spanish).
 // ("do" opens a request as often as a question: "do a review of ..." is work. It asks only before a subject, "do you",
 // "does it". A word ending in an accent needs a Unicode boundary. Lessons (field reports): a request opening with "do"

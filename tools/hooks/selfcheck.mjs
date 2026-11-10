@@ -5235,6 +5235,7 @@ for (const s0 of PROMPT) {
     if (/^plan-required \(a plan in docs\/plans\/ first\)$/.test(h)) return 'plan required (a plan in docs/plans/ first)';
     if (h === 'PRAISE') return 'Praise: the user liked something';
     if (h === 'AUTONOMY') return 'Autonomy: the user wants the work done without their input';
+    if (h === 'SHARED STEPS') return 'Shared steps: this request has several tasks';
     if (h === 'EXAMPLES:') return 'Examples: the items named are cases of a wider point';
     if (h === 'THE USER SOUNDS UPSET') return 'This sounds upset: open skills/learn-from-upset/SKILL.md';
     if ((m = /^MUST FOLLOW(: [\w-]+)?$/.exec(h))) return `Must follow${m[1] || ':'}`;

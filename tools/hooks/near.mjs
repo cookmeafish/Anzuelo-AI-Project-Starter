@@ -119,3 +119,15 @@ export const ownEnds = s => { const t = String(s || ''); return t.length > PASTE
 // too"): the named items are cases of it, and the work covers every case. Lesson (a field report): over many turns the
 // user named one or two items each time, with "there might be others", and each change fixed only the ones named.
 export const EXAMPLE_CLASS = /\b(or (something|anything|whatever) else|(there )?(might|may|could) (even )?be (even )?(other|more) [a-z]+|(and )?others? like (it|this|that|these|those|them)|ones? like (it|this|that|these|those)|(any|every) other [a-z]+ like)\b/i;
+
+// ---------- several tasks in one request (moved from hooks.mjs, shared with engine v2) ----------
+// A request with several tasks: their shared steps (a read, a build, a test run, a helper) are done once. Lesson, the
+// user: "even if the user says to do x and also x2 and x3 and x4 but then to do x1 it must do x3 so it does both again
+// and is redundant. My worry is that it will take too long and waste tokens".
+export const SHARED_HINT = "SHARED STEPS: this request has several tasks. Before starting, list each one's steps, merge the steps they share (a task another one already does, the same read, build, test run or helper), and do each once, in one order (plan skill, \"Shared steps once\"). Repeat a step only where the user asked for it.";
+export function multiPart(p) {
+  const t = String(p);
+  const items = t.split(/\r?\n/).filter(l => /^\s*([-*\u2022]|\d+[.)])\s+\S/.test(l)).length;
+  const joins = (t.match(/(?<!\p{L})(and also|also|and then|as well as|además|también|y luego)(?!\p{L})/giu) || []).length;
+  return items >= 3 || joins >= 2;
+}
