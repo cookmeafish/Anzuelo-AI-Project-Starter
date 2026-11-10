@@ -1504,6 +1504,7 @@ export function claimGaps(acts, history = '') {
   out.push(...workChangelogGaps(acts));
   // (REQ: count-honored, rule 8: "give me 5" means 5, said with the number. The shared tools/hooks/count.mjs on what the
   // user typed this turn against the agent's words. Lesson (the old suite under v2): a count asked for was never checked)
+  out.push(...skillReuseGaps(acts));
   if (!checkOff('count-honored') && !waivedTag('count-honored', acts)) out.push(...countGaps(userWords(String(acts.heard || '')), `${acts.said || ''}\n${acts.answer || ''}`));
   return out;
 }
@@ -1563,14 +1564,40 @@ export function aiCreditGaps(acts) {
 // REQ: worth-it, under v2: the shared tools/hooks/worth.mjs. A new skill, pack or dependency comes with its gain and its
 // cost, in the answer, a message of this turn or the turn notes. Lesson (the old suite under v2): v2 let a dependency in
 // with no weighing.
+// (a file made this turn: its first touch was a write, not an edit; the turn-start snapshot and git did not have it)
+const bornIn = acts => {
+  const since = Date.parse(acts.at || '') || 0, first = new Map(), snap = acts.startHashes?.files || {};
+  for (const c of acts.calls || []) if (/^(Write|Edit|MultiEdit|NotebookEdit)$/.test(c.name)) { const f = relp(c.input.file_path || c.input.notebook_path || ''); if (!first.has(f)) first.set(f, c.name); }
+  return f => { if (/^(Edit|MultiEdit|NotebookEdit)$/.test(first.get(f) || '') || Object.hasOwn(snap, f) || inGitBefore(f, since)) return false;
+    try { return fs.statSync(at(f)).birthtimeMs > since - 1000; } catch { return false; } };
+};
+// REQ: skill-reuse, under v2 (rule 2). A new hand-written runbook or skill is made only after looking for an existing
+// skill that already does the job: the skill-finder skill used this turn, or the answer saying where it looked
+// ("Existing skills checked: <where> - <result>"). A procedure only this project can have says so in its frontmatter
+// ("reuse: none - project-specific: <why>"). Not for files the starter or a pack ships, or generated mirrors. Lesson (the
+// old suite under v2): new runbooks were written with no search
+export function skillReuseGaps(acts) {
+  if (checkOff('skill-reuse') || waivedTag('skill-reuse', acts)) return [];
+  const cfg = projectConfig(), sd = cfg.skillsDir || 'skills', born = bornIn(acts);
+  const fm = f => /^---\n([\s\S]*?)\n---/.exec(read(f).replace(/\r\n?/g, '\n'))?.[1] || '';
+  let reg = {}; try { reg = JSON.parse(fs.readFileSync(at('tools/packs-registry.json'), 'utf8')); } catch { }
+  const shipped = f => Object.values(reg.packs || {}).some(p => (p.files || []).includes(f)) || /^docs\/playbooks\/(_TEMPLATE|_fallback|project|plan)\.md$/.test(f)
+    || (() => { try { return fs.readdirSync(at('packs')).some(p => fs.existsSync(at(`packs/${p}/files/${f}`))); } catch { return false; } })()
+    || (() => { const m = new RegExp(`^${sd.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/([^/]+)/SKILL\\.md$`).exec(f); return !!m && ([].concat(reg.library || []).includes(m[1]) || fs.existsSync(at(`library/skills/${m[1]}/SKILL.md`))); })();
+  const created = changedOf(acts).filter(f => (/^docs\/playbooks\/[^/_][^/]*\.md$/.test(f) || new RegExp(`^${sd.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/[^/]+/SKILL\\.md$`).test(f))
+    && fs.existsSync(at(f)) && born(f) && !/^generated:\s*true/m.test(fm(f)) && !/^reuse:\s*none\s*-\s*project-specific\s*:\s*\S+(\s+\S+){2,}/im.test(fm(f)) && !shipped(f));
+  if (!created.length) return [];
+  const searched = (acts.calls || []).some(c => (c.name === 'Skill' && /skill-finder/.test(JSON.stringify(c.input || {}))) || (c.name === 'Read' && /skill-finder\/SKILL\.md$/.test(String(c.input?.file_path || '').replace(/\\/g, '/'))));
+  if (searched || /existing skills?\b[^\n]*(checked|searched|looked|none|found|reused|installed|adapted)/i.test(`${acts.said || ''}\n${acts.answer || ''}`)) return [];
+  return [`New runbook or skill ${created.join(', ')}: first look for an existing skill that already does this (official skill repos and plugin ` +
+    'marketplaces, the agent\'s installed skills, reputable community collections). Reuse or adapt it when it fits, after reading every file it ' +
+    'contains, and install third-party skills only with the user\'s OK. Say what you found: "Existing skills checked: <where> - <result>". ' +
+    'A procedure only this project can have needs no search: put "reuse: none - project-specific: <why>" in its frontmatter.'];
+}
 export function worthV2(acts) {
   if (checkOff('worth-it') || waivedTag('worth-it', acts)) return [];
   const cfg = projectConfig(), since = Date.parse(acts.at || '') || 0, calls = acts.calls || [];
-  const first = new Map();
-  for (const c of calls) if (/^(Write|Edit|MultiEdit|NotebookEdit)$/.test(c.name)) { const f = relp(c.input.file_path || c.input.notebook_path || ''); if (!first.has(f)) first.set(f, c.name); }
-  const snap = acts.startHashes?.files || {};
-  const born = f => { if (/^(Edit|MultiEdit|NotebookEdit)$/.test(first.get(f) || '') || Object.hasOwn(snap, f) || inGitBefore(f, since)) return false;
-    try { return fs.statSync(at(f)).birthtimeMs > since - 1000; } catch { return false; } };
+  const born = bornIn(acts);
   const notes = since && mtime('.cache/turn-notes.md') > since ? read('.cache/turn-notes.md') : '';
   const runs = calls.filter(c => /^(Bash|PowerShell)$/.test(c.name) && typeof c.input?.command === 'string').map(c => ({ cmd: c.input.command, error: !!c.error }));
   return worthGaps({ changed: changedOf(acts), runs, uses: calls, toolsKnown: true, text: inEnglish(String(acts.answer || '') + '\n' + String(acts.said || ''), cfg) + '\n' + notes },

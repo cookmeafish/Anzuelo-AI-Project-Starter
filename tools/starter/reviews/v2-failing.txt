@@ -138,7 +138,6 @@ stop: name-var: a name typed out in a doc and in code: blocked
 stop: name-var: the name typed in code that is not the package's own name: blocked
 stop: new runbook missing triggers and sections: blocked
 stop: new runbook without a check: blocked
-stop: new runbook without checking for existing skills: blocked
 stop: note-linked: a new note in a knowledgeDirs folder that links to nothing: blocked
 stop: note-linked: a new note that links to nothing: blocked
 stop: parallel work still running in the background: the merge check waits
@@ -158,8 +157,6 @@ stop: runbook-ledger: a skip without a real reason does not drop a failing check
 stop: runbook-ledger: an item marked done whose evidence is missing comes back under its item
 stop: runbook-ledger: off by default, a skip line covers nothing
 stop: setup: the same runbook followed in a later turn: its checks apply
-stop: skill-reuse: a hand-written runbook made in the same turn is still new: blocked
-stop: skill-reuse: a new hand-written skill without a search: blocked
 stop: spec changed without CHANGELOG or release notes: blocked
 stop: stop form: Codex (its input has turn_id) gets the classic block with a one-line note for the user
 stop: stop form: a host that supports feedback gets it, with no "decision" and a one-line note for the user

@@ -2042,7 +2042,9 @@ STOP.push(
   // Lesson: an edited runbook was checked as new when the turn snapshot was older than the turn (no prompt hook ran)
   { name: 'skill-reuse: a runbook an older turn snapshot already had is not new: passes', prompt: 'add a pitfall to the meal planning runbook', tools: [pb('project'), bash('node tools/audit.mjs')],
     prep: dir => write(dir, { 'tools/hooks/state/turn.json': JSON.stringify({ at: new Date(Date.now() - 7200_000).toISOString(), prompt: 'earlier', runbooks: [...fs.readdirSync(path.join(dir, 'docs/playbooks')), 'meal-plan.md'], skills: fs.readdirSync(path.join(dir, 'skills')) }) }),
-    files: { 'docs/playbooks/meal-plan.md': NEWPB, 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.' + FIN, expect: { not: ['skill-reuse'] } },
+    files: { 'docs/playbooks/meal-plan.md': NEWPB, 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.' + FIN, expect: { not: ['skill-reuse'] },
+    // (under v2 the runbook was there before the turn, and the turn edits it)
+    v2: { mtimes: { 'docs/playbooks/meal-plan.md': -7200_000 }, tools: [pb('project'), editTool('docs/playbooks/meal-plan.md'), bash('node tools/audit.mjs')] } },
   // Lesson: a pack installed and a library skill enabled during setup made their shipped runbooks and skills "new", and
   // the agent had to waive skill-reuse. The turn-start snapshot here has neither, as when the install ran this turn.
   ...[['a pack\'s runbook and a library skill installed this turn are not new: passes', { 'docs/playbooks/ingest.md': '---\nname: ingest\nsummary: x\ntriggers: inbox\n---\n# Ingest\n- a new pitfall\n', 'skills/notes-vault/SKILL.md': '---\nname: notes-vault\ndescription: x. Use for notes.\ntriggers: my vault\n---\n# Notes vault\n- a new pitfall\n' }, { not: ['skill-reuse'] }],
@@ -5146,6 +5148,7 @@ const V2_ASKS = {
   'watcher-left': /^- (A watcher you started is|Watchers you started are) still armed: /m,
   'review-excuse': /^- The answer skips the independent review because no other reviewer is available/m,
   'count-honored': /^- The user asked for \d+ [^\n]*\. Deliver exactly that many/m,
+  'skill-reuse': /^- New runbook or skill [^\n]*: first look for an existing skill/m,
   'autonomy-decide': /^- The user asked for no questions: make each choice yourself/m,
   'worth-it': /^- You added [^\n]*\. Say why it makes this project better and what it costs/m,
   'gui-pack': /^- GUI files changed \([^\n]*\) but this project has no gui pack/m,
