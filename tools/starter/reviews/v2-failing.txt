@@ -3,12 +3,6 @@ agent-neutral: begin routes, check fails an incomplete answer and passes a compl
 begin-keeps-turn: a mid-turn begin in a hooked session shows the routing and keeps the turn start; a session without a hook record starts its turn
 bench-caches: a timing run keeps the caches it rebuilt and writes no session state
 check-preview guard: a line held to many checks stays within 400 characters (grouped, the rest as "+N more"), and a short line is left whole
-check-preview guard: a long route question with a line for its NOTES, in Spanish: Stop's round 1 holds only what the CHECKS line named, and the line names nothing that turn can't set off
-check-preview guard: a long route question with a line for its NOTES: Stop's round 1 holds only what the CHECKS line named, and the line names nothing that turn can't set off
-check-preview guard: a request that names no file, whose work changes a zorbel runbook: Stop's round 1 holds only what the CHECKS line named, and the line names nothing that turn can't set off
-check-preview guard: a runbook fix, in Spanish: Stop's round 1 holds only what the CHECKS line named, and the line names nothing that turn can't set off
-check-preview guard: a runbook fix: Stop's round 1 holds only what the CHECKS line named, and the line names nothing that turn can't set off
-check-preview: the advertised self-check runs in a hook-wired session, finds its request, and leaves its Stop state alone
 codex: a Codex transcript gives the request, the tool calls and their failures to the checks
 covers: agent-neutral is proven by "agent-neutral: begin routes"
 covers: autonomy-recorded is proven by "autonomy-recorded: "don't ask me" left only in the answer"

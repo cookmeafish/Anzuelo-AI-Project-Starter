@@ -5169,7 +5169,11 @@ for (const s0 of PROMPT) {
     if ((m = /^CLOSEST RUNBOOK: no trigger phrase matched, but (\S+)$/.exec(h))) return `Closest runbook: ${m[1]}`;
     if (/^NO RUNBOOK\b/.test(h)) return 'If this is real work, pick the runbook in DIRECTORY.md';
     // (the old check preview is v2's runbook list, or with no runbook, its "Also checked at the end" line)
-    if (/^CHECKS: this turn will be held to\b/.test(h)) return ['Done when (before answering', 'Also checked at the end if files change'];
+    if (/^CHECKS:( this turn will be held to\b|$)/.test(h)) return ['Done when (before answering', 'Also checked at the end if files change'];
+    // (the old preview's "if it changes files" names are v2's "Also checked" labels: the tag with spaces; the plan rule
+    // keeps its words)
+    if ((m = /^If it changes files: ([\w-]+)$/.exec(h))) return m[1].replace(/-/g, ' ');
+    if (/^plan-required \(a plan in docs\/plans\/ first\)$/.test(h)) return 'plan required (a plan in docs/plans/ first)';
     if (h === 'PRAISE') return 'Praise: the user liked something';
     // (the old engine's line for relayed work is v2's caveat in the runbook line)
     if (/^RELAYED: this request was relayed\b/.test(h)) return 'only if this message asks for work here';
@@ -5555,11 +5559,15 @@ if (mineB() && (!TAGS || TAGS.includes('check-preview'))) {
     const pr = run(dir, 'prompt', { prompt, session_id: 'hooked1', transcript_path: tp }).out;
     const cmd = (/node tools\/hooks\/hooks\.mjs check --answer-file <[^>]*>/.exec(pr) || [''])[0];
     write(dir, { 'notes.md': 'x', '.cache/answer.md': 'Done.' });
+    // (v2 judges the turn from its transcript: the agent's write of notes.md is in it, as in a real turn)
+    if (process.env.STARTER_ENGINE === 'v2') fs.appendFileSync(tp, [{ type: 'assistant', timestamp: new Date().toISOString(), message: { content: [{ type: 'tool_use', id: 'toolu_n1', name: 'Write', input: { file_path: path.join(dir, 'notes.md'), content: 'x' } }] } },
+      { type: 'user', timestamp: new Date().toISOString(), message: { content: [{ type: 'tool_result', tool_use_id: 'toolu_n1', content: 'File created successfully' }] } }].map(r => JSON.stringify(r)).join('\n') + '\n');
     const st = path.join(dir, 'tools/hooks/state'), touched = ['stop-blocks', 'stop-failed', 'turn-end', 'stop-log'];
     const argv = cmd.replace(/^node /, '').replace(/<[^>]*>$/, '.cache/answer.md').split(' ');
     const c = spawnSync(process.execPath, argv, { cwd: dir, encoding: 'utf8', env: { ...process.env, STARTER_MEMORY_DIR: path.join(dir, '.memtest') } });
     const wrote = fs.readdirSync(st).filter(f => touched.some(t => f.startsWith(t)));
-    report(cmd && c.status === 1 && /CHECK: FAIL/.test(c.stdout) && /Finished/.test(c.stdout) && !wrote.length,
+    // (v2's header is "CHECK: Not done yet:"; the old engine's "CHECK: FAIL")
+    report(cmd && c.status === 1 && /CHECK: (FAIL|Not done yet)/.test(c.stdout) && /Finished/.test(c.stdout) && !wrote.length,
       'check-preview: the advertised self-check runs in a hook-wired session, finds its request, and leaves its Stop state alone',
       `command: ${cmd || '(not in the preview)'} | exit ${c.status}: ${c.stdout.slice(0, 300)} | state written: ${wrote.join(', ') || 'none'}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
@@ -5776,6 +5784,44 @@ if (mineB() && (!TAGS || TAGS.includes('check-preview'))) {
     { name: 'a request that names no file, whose work changes a zorbel runbook', prompt: 'make my zorbel better', tools: [pb('zorbel-tune')], edit: { 'docs/playbooks/zorbel-tune.md': s => s + '2. Check the grobbles.\n' },
       answer: 'Your zorbel is better.', must: ['zorbel-sweeps-after-change'], never: ['plain-writing'] }
   ];
+  // (under v2 the guard is the same promise on v2's lines: the project's own checks are always.md items, converted as an
+  // upgrade converts them (tools/always.mjs); every line round 1 holds was named in the reminder, by its runbook's
+  // "Done when" list or the "Also checked at the end" line; and the reminder names nothing that turn can't set off.
+  // Oversight 2026-11-10, check-preview (e): "the round-1 test as proposed")
+  if (process.env.STARTER_ENGINE === 'v2') {
+    const { asItems } = await import('../always.mjs');
+    const ALWAYS_V2 = { 'docs/checks/always.md': () => '# Always\n\n## Done when\n' + [HOST_SWEEPS, HOST_SELFTEST].flatMap(r => asItems(r).lines || []).join('\n') + '\n' };
+    // (what each old tag is in v2's words: the always.md item's text, or the engine check's label)
+    // (status-handoff is left out: a one-line NOTES edit is a small change, which v2 holds to no handoff, the user's
+    // rule of 2026-10-25 (lib.mjs SMALL_SKIP))
+    const V2_NAME = { 'zorbel-sweeps-after-change': 'A zorbel runbook or the zorbel rules changed', 'zorbel-hooks-selftest': 'The zorbel rules changed: run python' };
+    for (const c of CASES) {
+      const dir = copyProject();
+      try {
+        write(dir, HOST_FIX);
+        applyEdits(dir, { ...cfgEdit({ externalHooks: ['tools/hooks/own_hooks.py'] }), ...ALWAYS_V2 }, Date.now() - 7200_000);
+        let preview = run(dir, 'prompt', { prompt: c.prompt, session_id: 'scenario' }).out; try { preview = JSON.parse(preview).hookSpecificOutput?.additionalContext ?? preview; } catch { }
+        const since = Date.now() - 1000;
+        applyEdits(dir, c.edit, Date.now());
+        const tp = transcript(dir, c, since);
+        const { out } = run(dir, 'stop', { transcript_path: tp, stop_hook_active: false, session_id: 'scenario' });
+        let d = null; try { d = out.trim() ? JSON.parse(out) : null; } catch { }
+        const reason = d ? d.reason || '' : '';
+        const held = [...reason.matchAll(/^- (.+)$/gm)].map(m => m[1]);
+        // (a held line is named when the reminder lists its runbook's items, or holds its always.md item's opening words)
+        const named = l => { const rb = /(docs\/playbooks\/[\w-]+\.md|tools\/starter\/runbooks\/[\w-]+\.md|skills\/[\w-]+\/SKILL\.md) item \d+/.exec(l)?.[1];
+          if (rb) return preview.includes(`open ${rb} and follow it`);
+          const al = /docs\/checks\/always\.md item \d+: (.{1,40})/.exec(l)?.[1]; return !!al && preview.includes(al.trim()); };
+        // (the "Also checked at the end if files change" part says when its checks apply, as the old line's "If it
+        // changes" part did: it is no claim about this turn, so only the rest is judged for checks that can't fire)
+        const firm = preview.replace(/ ?Also checked at the end if files change: [^\n]*/g, '');
+        const unnamed = held.filter(l => !named(l)), wrong = c.never.filter(t => V2_NAME[t] && firm.includes(V2_NAME[t]));
+        const notHeld = c.must.filter(t => V2_NAME[t] && !held.some(l => l.includes(V2_NAME[t].slice(0, 30))));
+        report(preview && !unnamed.length && !wrong.length && !notHeld.length, `check-preview guard: ${c.name}: Stop's round 1 holds only what the CHECKS line named, and the line names nothing that turn can't set off`,
+          `round 1: ${held.join(' | ') || '(no block)'}${unnamed.length ? ` || not named: ${unnamed.join(' | ')}` : ''}${wrong.length ? ` || named but can't fire: ${wrong.join(', ')}` : ''}${notHeld.length ? ` || not held: ${notHeld.join(', ')}` : ''} || reminder: ${preview.replace(/\n/g, ' / ').slice(0, 600)}`);
+      } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+    }
+  } else
   for (const c of CASES) {
     const dir = copyProject();
     try {

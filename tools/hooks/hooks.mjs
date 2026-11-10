@@ -6763,10 +6763,19 @@ function cmdStop(data) {
 // runbook's whole "Done when" list is for the agent to verify.
 async function v2Cli(cmd) {
   process.env.ANZUELO_ROOT ||= ROOT;
-  const sid = String(process.env.CLAUDE_CODE_SESSION_ID || 'manual').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
+  const lib = await import('./v2/lib.mjs');
+  // (the session: --session <id>, else the host's session id, else for "check" the newest turn the prompt hook recorded
+  // in the last day, as the old engine (hookedSession). Lesson (the old suite under v2): in a hook-wired session whose
+  // shell did not carry the session id, the self-check the reminder advertises said "no request recorded")
+  const si = process.argv.indexOf('--session'), clean = s => String(s || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
+  const newest = () => { const dirS = path.join(ROOT, 'tools/hooks/state'); let best = null;
+    try { for (const f of fs.readdirSync(dirS)) { const m = /^v2-turn\.([\w-]+)\.json$/.exec(f); if (!m || m[1] === 'manual') continue; const t = fs.statSync(path.join(dirS, f)).mtimeMs; if (Date.now() - t < 24 * 3600_000 && (!best || t > best.t)) best = { sid: m[1], t }; } } catch { }
+    return best?.sid || ''; };
+  const envSid = clean(process.env.CLAUDE_CODE_SESSION_ID);
+  const sid = clean(si > 0 ? process.argv[si + 1] : '') || (cmd === 'begin' ? envSid : (envSid && lib.loadTurn(envSid).at ? envSid : newest() || envSid)) || 'manual';
   let tp = '';
   try { const root = path.join(os.homedir(), '.claude', 'projects'); for (const d of fs.readdirSync(root)) { const f = path.join(root, d, `${sid}.jsonl`); if (fs.existsSync(f)) { tp = f; break; } } } catch { }
-  const lib = await import('./v2/lib.mjs');
+  if (!tp) { const rec = lib.loadTurn(sid).transcript; if (rec && fs.existsSync(rec)) tp = rec; }
   if (cmd === 'begin') {
     const req = process.argv.slice(3).join(' ').trim();
     if (!req) { console.log('usage: node tools/hooks/hooks.mjs begin "<the user\'s request>"'); return 1; }

@@ -182,9 +182,14 @@ function remind(prompt) {
   }
   // (what the end check also asks if files change: only when it fits under the cap, so it never pushes an item out)
   const also = alsoChecked([book.name]);
+  // (when it has no line of its own left, it goes at the end of the last line: the cap holds, and the agent still hears
+  // what will be checked. Lesson (the check-preview guard under v2): a long runbook list pushed it out, and round 1 then
+  // held the project's own check on the runbook being fixed, unannounced)
   if (also && lines.length < MAX_LINES) lines.push(also);
   // (more items than fit: the runbook has the rest)
-  const text = lines.length > MAX_LINES ? [...lines.slice(0, MAX_LINES - 1), `(${lines.length - MAX_LINES + 1} more in ${book.file})`].join('\n') : lines.join('\n');
+  const out = lines.length > MAX_LINES ? [...lines.slice(0, MAX_LINES - 1), `(${lines.length - MAX_LINES + 1} more in ${book.file})`] : lines;
+  if (also && !out.includes(also)) out[out.length - 1] += ` ${also}`;
+  const text = out.join('\n');
   return { book, text };
 }
 
@@ -205,9 +210,12 @@ export function onPrompt(data) {
   // (REQ: queued-messages: a request typed mid-turn that fits another runbook adds it, and its "Done when" is checked
   // too. Lesson (2026-11-08): v2 kept only the first runbook, and a typed request's own checks were dropped)
   const also = prev.runbook && book?.file && book.file !== prev.runbook && !(prev.also || []).includes(book.file) ? [...(prev.also || []), book.file] : prev.also;
-  if (prev.at && !prev.ended && Date.now() - Date.parse(prev.at) < 12 * 3600_000) saveTurn(data.session_id, { ...prev, runbook: prev.runbook || book?.file || null, ...(also ? { also } : {}), ...sore });
+  // (the session's transcript is kept with the turn, so the self-check run from the agent's shell can read it: REQ
+  // check-preview, hooks.mjs v2Cli)
+  const tx = data.transcript_path ? { transcript: String(data.transcript_path) } : {};
+  if (prev.at && !prev.ended && Date.now() - Date.parse(prev.at) < 12 * 3600_000) saveTurn(data.session_id, { ...prev, runbook: prev.runbook || book?.file || null, ...(also ? { also } : {}), ...sore, ...tx });
   // (a new turn notes its uncommitted files' contents in the background, so the end check can tell a file it only
   // touched from one it changed)
-  else { const at0 = new Date().toISOString(); saveTurn(data.session_id, { at: at0, runbook: book?.file || null, ...sore }); snapshotLater(data.session_id, at0); }
+  else { const at0 = new Date().toISOString(); saveTurn(data.session_id, { at: at0, runbook: book?.file || null, ...sore, ...tx }); snapshotLater(data.session_id, at0); }
   return text ? { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: text } } : null;
 }
