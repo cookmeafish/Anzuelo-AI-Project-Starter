@@ -66,27 +66,11 @@ prompt: goal-loop: "keep improving it until the tests never flake" routes to the
 prompt: inbox files are announced
 prompt: menu codes: codes joined by a comma or "and" both expand, an unknown one among them is asked about
 prompt: menu codes: two codes in one message both expand
-prompt: own-question: Spanish, "apunta que" still gets the note skill
-prompt: own-question: Spanish, a "quiero que añadas" request is work too
-prompt: own-question: Spanish, a route question with a line for its NOTES gets its own runbook, no research or note skill
-prompt: own-question: Spanish, the same with "notas" in lower case
-prompt: own-question: a note for the knowledge base still gets the note skill
-prompt: own-question: a route question about the user's own thing with a line for its NOTES gets its own runbook, no research or note skill
 prompt: paste-routing: a short angry message is still upset
 prompt: paste-routing: a short closing paragraph after the material still routes
 prompt: paste-routing: the same words in a short message still suggest the skill
 prompt: recall: Spanish, a close earlier request is recalled
 prompt: recall: a close earlier request is recalled
-prompt: relay-preview: Spanish, relayed small talk gets nothing
-prompt: relay-preview: Spanish, relayed work gets the preview, no rule
-prompt: relay-preview: a cross-session delivery notice gets nothing
-prompt: relay-preview: a cross-session idle notice gets nothing
-prompt: relay-preview: a relayed rule and praise set off nothing of the user's, the work still routes
-prompt: relay-preview: a sub-agent message asking for a note gets the note skill
-prompt: relay-preview: relayed small talk gets nothing
-prompt: relay-preview: relayed work gets its route and the check preview, no rule checks
-prompt: relayed turn: a "Separate note:" aside in a relayed message sets off no note capture
-prompt: relayed turn: a report of fixes that ends "upgrade again with node tools/starter.mjs update" routes to the engine runbook first
 prompt: requirement hint: the same words as the user's own requirement still count
 prompt: requirement: a lasting requirement fires ("cada factura debe mostrar el número de impuesto")
 prompt: requirement: a lasting requirement fires ("every invoice must show the tax number")
