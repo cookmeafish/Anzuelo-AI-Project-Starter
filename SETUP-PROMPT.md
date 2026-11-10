@@ -180,6 +180,11 @@ how it is released.
    In a monorepo pass a glob or a comma list (`--version-file "packages/*/package.json"`), not one package's file, or
    a change to any other package is asked for a bump it cannot make. With no file that holds the version (a Go
    module, releases named by git tags) pass `--version-file none`.
+
+   **Data folders:** folders that hold the user's own data (tables, scans, exports, collections) are content, not
+   project work, so editing them needs no changelog line. Offer the ones that look like data, list them with
+   `node -e "import('./tools/hooks/datadirs.mjs').then(m => console.log(m.dataLikeDirs('.')))"`, and set the ones that
+   are data as `"dataDirs": ["<folder>", ...]` in `tools/hooks/config.json`, with the choice in `docs/DECISIONS.md`.
 2. **The fit checklist: you fill it, not the user.** After the brief is written, `node tools/fit.mjs --auto-skip --setup`
    writes `docs/fit-checklist.md` with one row per candidate: every pack, every library skill, every tool in
    `docs/recommended-tools.md`, and the optional features (Obsidian vault, git hooks, autonomy auto, recall and memory,

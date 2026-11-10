@@ -26,13 +26,14 @@ import { createHash } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { CORE_SKILLS, today as localToday, usageOf, isEngineCheck, shippedChecks, checkKey, ENGINE_CHECKS_HISTORY, changelogSince, breakingItems, upgradeReport, withReviewBlock, fastestBench, probeEngine, noteEngineChange } from './hooks/hooks.mjs';
 import { wire } from './hooks/wire.mjs';
+import { dataLikeDirs } from './hooks/datadirs.mjs';
 
 const STARTER = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const starterHead = () => (spawnSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: STARTER, encoding: 'utf8' }).stdout || '').trim() || 'the newest starter';
 
 // Engine: generic machinery, replaced on --upgrade. Everything else is the project's own content.
 const ENGINE = [
-  'tools/hooks/hooks.mjs', 'tools/hooks/selfcheck.mjs', 'tools/hooks/selftest-cache.mjs', 'tools/hooks/trigger-cases.mjs', 'tools/hooks/git-guard.mjs', 'tools/hooks/statusline.mjs', 'tools/hooks/paths.mjs', 'tools/hooks/settings.mjs', 'tools/hooks/repo.mjs', 'tools/hooks/people.mjs', 'tools/hooks/labels.mjs', 'tools/hooks/base-checks.mjs', 'tools/hooks/wakeups.mjs', 'tools/hooks/injection.mjs', 'tools/hooks/jsonl.mjs', 'tools/hooks/selfcmds.mjs', 'tools/hooks/pause.mjs', 'tools/hooks/caps.mjs', 'tools/hooks/relay.mjs', 'tools/hooks/claims.mjs', 'tools/hooks/writing.mjs', 'tools/hooks/excuse.mjs', 'tools/hooks/extstop.mjs', 'tools/hooks/decide.mjs', 'tools/hooks/worth.mjs', 'tools/hooks/gui.mjs', 'tools/hooks/correct.mjs', 'tools/hooks/praise.mjs', 'tools/hooks/planreq.mjs', 'tools/hooks/near.mjs', 'tools/hooks/skilllearn.mjs', 'tools/hooks/hooktests.mjs', 'tools/hooks/donewhen.mjs', 'tools/hooks/gates.mjs', 'tools/hooks/launchers.mjs', 'tools/hooks/trace.mjs', 'tools/hooks/proof.mjs', 'tools/hooks/knowledge.mjs', 'tools/audit.mjs', 'tools/always.mjs', 'tools/packs.mjs',
+  'tools/hooks/hooks.mjs', 'tools/hooks/selfcheck.mjs', 'tools/hooks/selftest-cache.mjs', 'tools/hooks/trigger-cases.mjs', 'tools/hooks/git-guard.mjs', 'tools/hooks/statusline.mjs', 'tools/hooks/paths.mjs', 'tools/hooks/settings.mjs', 'tools/hooks/repo.mjs', 'tools/hooks/people.mjs', 'tools/hooks/labels.mjs', 'tools/hooks/base-checks.mjs', 'tools/hooks/wakeups.mjs', 'tools/hooks/injection.mjs', 'tools/hooks/jsonl.mjs', 'tools/hooks/selfcmds.mjs', 'tools/hooks/pause.mjs', 'tools/hooks/caps.mjs', 'tools/hooks/relay.mjs', 'tools/hooks/claims.mjs', 'tools/hooks/datadirs.mjs', 'tools/hooks/writing.mjs', 'tools/hooks/excuse.mjs', 'tools/hooks/extstop.mjs', 'tools/hooks/decide.mjs', 'tools/hooks/worth.mjs', 'tools/hooks/gui.mjs', 'tools/hooks/correct.mjs', 'tools/hooks/praise.mjs', 'tools/hooks/planreq.mjs', 'tools/hooks/near.mjs', 'tools/hooks/skilllearn.mjs', 'tools/hooks/hooktests.mjs', 'tools/hooks/donewhen.mjs', 'tools/hooks/gates.mjs', 'tools/hooks/launchers.mjs', 'tools/hooks/trace.mjs', 'tools/hooks/proof.mjs', 'tools/hooks/knowledge.mjs', 'tools/audit.mjs', 'tools/always.mjs', 'tools/packs.mjs',
   'tools/writing-check.mjs', 'tools/integrity-check.mjs',
   '.githooks/commit-msg', '.githooks/pre-commit', '.githooks/pre-push',
   'docs/checks/session-checklist.md', 'docs/checks/finish-checklist.md', 'docs/checks/runbook-standards.md',
@@ -765,6 +766,14 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   for (const tag of keptChecks) items.push(`check: ${tag}, kept your edited version; the starter's newer one differs (to take it, replace the entry with the one in tools/hooks/engine-checks.json)`);
   if (legacyScenarios.length) items.push(`scenarios: ${legacyScenarios.length} of this project's own test scenarios were in the retired test-hooks.mjs (${legacyScenarios.slice(0, 4).join('; ').replace(/: /g, ' - ')}${legacyScenarios.length > 4 ? '; ...' : ''}); move them into tools/hooks/project-scenarios.mjs from tools/hooks/legacy-scenarios.txt, then delete that file`);
   for (const [as, rel] of editedPayload) items.push(`file: ${as}, edited in this project so kept; the starter's newer version differs (compare it with ${rel} in the starter and take what fits)`);
+  // (REQ: changelog. The user's own data folders are content, not project work: a changelog line per data edit is noise.
+  // Offered once, for folders that look like data, by name or by holding mostly data files; the project decides.
+  // Oversight 2026-11-10)
+  {
+    let pc = {}; try { pc = JSON.parse(fs.readFileSync(path.join(dest, 'tools', 'hooks', 'config.json'), 'utf8')); } catch { }
+    const dataDirs = pc.dataDirs === undefined && !decided.includes('- data-dirs:') ? dataLikeDirs(dest) : [];
+    if (dataDirs.length) items.push(`data-dirs: ${dataDirs.map(d => `${d}/`).join(', ')} look like your own data; edits there are content, not project work, so they need no changelog line. To adopt, set "dataDirs" to ${JSON.stringify(dataDirs)} in tools/hooks/config.json`);
+  }
   // setup questions added since this project's interview: the setup check would ask for them with no warning
   // (Lesson: a new "Involvement" question failed audit --setup in an adopted project, and the review never named it)
   const iv = spawnSync(process.execPath, ['--input-type=module', '-e', `import * as h from ${JSON.stringify(pathToFileURL(path.join(dest, 'tools', 'hooks', 'hooks.mjs')).href)}; const f = h.setupInterview(); console.log(JSON.stringify(Object.keys(f).length ? [...h.INTERVIEW, ...h.INTERVIEW_AFTER, ...(h.config().packs || []).includes('app') ? h.INTERVIEW_APP : []].filter(k => !(k.toLowerCase() in f) && !${JSON.stringify(prevQuestions)}.includes(k)) : []));`], { cwd: dest, encoding: 'utf8' });

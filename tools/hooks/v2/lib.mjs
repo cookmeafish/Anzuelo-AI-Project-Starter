@@ -1500,7 +1500,25 @@ export function claimGaps(acts, history = '') {
   out.push(...aiCreditGaps(acts));
   out.push(...scopeGeneralGaps(acts));
   out.push(...plainWritingGaps(acts));
+  out.push(...workChangelogGaps(acts));
   return out;
+}
+
+// REQ: changelog (rule 12, as the user wrote it: "after real work, a docs/CHANGELOG.md line", a small fix exempt). The
+// shipped check covers rules, runbooks, checks, skills and tools; this covers the rest of the project's work too: past
+// the small-fix size, with no changelog line written this turn. Never for engine state or the engine's own folder
+// (.anzuelo/), for the user's own data (config "dataDirs", folders set at setup or upgrade), or in a project with no
+// docs/CHANGELOG.md. Oversight 2026-11-10, after a replay of real sessions: about 4% of work turns newly held, the
+// clear false asks being engine installs and data edits, both left out here.
+export function workChangelogGaps(acts) {
+  if (checkOff('changelog') || waivedTag('changelog', acts) || !fs.existsSync(at('docs/CHANGELOG.md'))) return [];
+  const cfg = projectConfig(), data = [].concat(cfg.dataDirs || []).map(d => String(d).replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/?\**$/, '/'));
+  const SHIPPED = /^(CLAUDE\.md|AGENTS\.md|docs\/playbooks\/|docs\/checks\/|skills\/|tools\/)/;
+  const changed = changedOf(acts).filter(p => !/^(\.cache|tools\/hooks\/state|\.anzuelo)\//.test(p) && !data.some(d => p.startsWith(d)) && !/^(\.\.|[a-z]:)/i.test(p));
+  if (!changed.length || changed.some(p => /(^|\/)(CHANGELOG|STARTER-CHANGELOG)\.md$/i.test(p))) return [];
+  // (the shipped check asks for the same line when any of these changed: asked once)
+  if (changed.some(p => SHIPPED.test(p)) || smallChange(acts, changed)) return [];
+  return ['Check: Add a dated line to docs/CHANGELOG.md for what changed in the project this turn (rule 12: after real work, beyond a small fix of up to 3 files and 40 lines).'];
 }
 
 // REQ: plain-writing, under v2 (rule 7): the shared tools/hooks/writing.mjs on the answer as written (not its English
