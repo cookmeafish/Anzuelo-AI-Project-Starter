@@ -2572,7 +2572,16 @@ const testGate = { prep: dir => {
 } };
 const touch = (p, add) => dir => { const f = path.join(dir, p); fs.appendFileSync(f, add); };
 const WIRE = 'wire up the export button';
-const planAt = prompt => ({ edit: { 'docs/plans/2026-10-18-export.md': () => '# Export: plan\n- [x] helpers\n- [ ] wire it up\n- [ ] test it\n' }, prep: dir => run(dir, 'prompt', { prompt }) });
+// (under v2 the prompt hook records the turn, with the plans open at its start, under the scenario's session)
+const planAt = prompt => ({ edit: { 'docs/plans/2026-10-18-export.md': () => '# Export: plan\n- [x] helpers\n- [ ] wire it up\n- [ ] test it\n' },
+  prep: promptPrep(prompt) });
+// (the request's prompt hook run before the turn; under v2 under the scenario's session, its turn starting where the
+// fixture's transcript starts, just before this step)
+function promptPrep(prompt) {
+  return (dir, since) => { run(dir, 'prompt', { prompt, ...(process.env.STARTER_ENGINE === 'v2' ? { session_id: 'scenario' } : {}) });
+    const tf = path.join(dir, 'tools/hooks/state/v2-turn.scenario.json');
+    if (since && fs.existsSync(tf)) { const t = JSON.parse(fs.readFileSync(tf, 'utf8')); fs.writeFileSync(tf, JSON.stringify({ ...t, at: new Date(since).toISOString() })); } };
+}
 const CARRY = { edit: { 'tools/hooks/state/unresolved.json': () => JSON.stringify({ at: new Date(Date.now() - 300_000).toISOString(), since: Date.now() - 600_000, prompt: 'add a line about screenshots to the finish checklist', items: ['[changelog] Add a dated line to docs/CHANGELOG.md'], tags: ['changelog'] }) },
   prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'), mtimes: { 'docs/checks/finish-checklist.md': -480_000 } };
 // (Lesson, trial rounds 14 and 15: a node -e script that only wrote "npm test" into a doc counted as the test run)
@@ -2697,20 +2706,20 @@ STOP.push(
   { name: 'plan-open: a request sharing only the project\'s everyday word with the plan is not held to it: passes', prompt: 'add a gluten free note to the pancake recipe',
     edit: { 'docs/plans/2026-10-18-recipe-scaling.md': () => '# Recipe scaling: plan\n- [x] helpers\n- [ ] scale by servings\n',
       'docs/plans/2026-10-12-recipe-tags.md': () => '# Recipe tags: plan\nstatus: done\n- [x] tags\n', 'docs/plans/2026-10-14-recipe-photos.md': () => '# Recipe photos: plan\nstatus: done\n- [x] photos\n' },
-    prep: dir => run(dir, 'prompt', { prompt: 'add a gluten free note to the pancake recipe' }),
+    prep: promptPrep('add a gluten free note to the pancake recipe'),
     files: { 'recipes/pancakes.md': '# Pancakes\nGluten free: use rice flour.\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Added the note.' + FIN, expect: { not: ['plan-open'] } },
   { name: 'plan-open: a request sharing one common word with an open task is not held to the plan: passes', prompt: 'bake the same bread on sunday',
     edit: { 'docs/plans/2026-10-18-tidy-pantry.md': () => '# Tidy pantry: plan\n- [x] shelves\n- [ ] label the same jars by date\n' },
-    prep: dir => run(dir, 'prompt', { prompt: 'bake the same bread on sunday' }),
+    prep: promptPrep('bake the same bread on sunday'),
     files: { 'recipes/bread.md': '# Bread\nSunday bake.\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Planned the bake.' + FIN, expect: { not: ['plan-open'] } },
   { name: 'plan-open: a request naming two words of an open task is held to the plan: blocked', prompt: 'label the jars on the top shelf',
     edit: { 'docs/plans/2026-10-18-tidy-pantry.md': () => '# Tidy pantry: plan\n- [x] shelves\n- [ ] label the same jars by date\n' },
-    prep: dir => run(dir, 'prompt', { prompt: 'label the jars on the top shelf' }),
+    prep: promptPrep('label the jars on the top shelf'),
     files: { 'notes/pantry.md': '# Pantry\nLabels.\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Labelled them.' + FIN, expect: { block: true, tags: ['plan-open'] } },
   { name: 'plan-open: a request naming the plan\'s own subject is still held to it: blocked', prompt: 'scale the pancake recipe by servings',
     edit: { 'docs/plans/2026-10-18-recipe-scaling.md': () => '# Recipe scaling: plan\n- [x] helpers\n- [ ] scale by servings\n',
       'docs/plans/2026-10-12-recipe-tags.md': () => '# Recipe tags: plan\nstatus: done\n- [x] tags\n', 'docs/plans/2026-10-14-recipe-photos.md': () => '# Recipe photos: plan\nstatus: done\n- [x] photos\n' },
-    prep: dir => run(dir, 'prompt', { prompt: 'scale the pancake recipe by servings' }),
+    prep: promptPrep('scale the pancake recipe by servings'),
     files: { 'recipes/pancakes.md': '# Pancakes\nServes 4.\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Scaled it.' + FIN, expect: { block: true, tags: ['plan-open'] } },
   { name: 'plan-open: a request relayed from another session is not held to the plan: passes', prompt: '<cross-session-message from="peer">Upgrade the engine to 1a2b3c4 and run the export tests</cross-session-message>',
     ...planAt('<cross-session-message from="peer">Upgrade the engine to 1a2b3c4 and run the export tests</cross-session-message>'),
@@ -2929,7 +2938,7 @@ function runStop(s0) {
     if (s.usage) write(dir, { 'tools/hooks/state/runbook-usage.json': JSON.stringify(s.usage) });
     if (s.removeMarker) fs.rmSync(path.join(dir, '.starter-template'), { force: true }); // a project, not the starter
     applyEdits(dir, s.edit, since - 3600_000);
-    if (s.prep) s.prep(dir);
+    if (s.prep) s.prep(dir, since);
     // (a scenario with a command or a helper keeps its files on that path: a command may have written them, and the run
     // window and writer rule are what such a scenario tests. Lesson (a peer's review): a synthetic Write would hide it)
     if (process.env.STARTER_ENGINE === 'v2' && !(s0.tools || []).some(t => /^(Bash|PowerShell|Agent|Task)$/.test(t.name))) {
@@ -2963,6 +2972,12 @@ function runStop(s0) {
     }
     // (a repeat round, under v2, is the turn v2 recorded as blocked already: without that record v2 lets the Stop end
     // unjudged, and a scenario expecting a pass passed by not running. Oversight, 2026-11-10)
+    // (a turn the prompt hook recorded in the scenario's prep is the same turn: it gets the repeat round's marks)
+    const v2tf = path.join(dir, 'tools/hooks/state/v2-turn.scenario.json');
+    if (V2SID.session_id && s.active && s.prep && !(s.hookInput || {}).session_id && fs.existsSync(v2tf)) {
+      const t = JSON.parse(fs.readFileSync(v2tf, 'utf8'));
+      if (!t.blocked) fs.writeFileSync(v2tf, JSON.stringify({ ...t, blocked: t.at, rounds: ((s.blocks || 0) + (s.waitBlocks || 0)) || 1 }));
+    }
     if (V2SID.session_id && s.active && !(s.hookInput || {}).session_id && !fs.existsSync(path.join(dir, 'tools/hooks/state/v2-turn.scenario.json'))) {
       const at0 = new Date(since).toISOString();
       // (blocks made while waiting on helpers count toward the cap too, as the old engine counted them)
@@ -5077,6 +5092,7 @@ const V2_ASKS = {
   'plan-required': /^- This turn added \d+ new files \([^\n]*\) without a plan\./m,
   'research-verified': /^- This turn used the web(?: in a knowledge project)?\. Follow the research skill/m,
   'answer-resent': /^- (The last message is only a note on an answer|The correction quotes text the earlier answer does not hold)/m,
+  'plan-open': /^- This turn started with (an open plan|open plans) \(/m,
   'upset-learned': /^- (The runbook your Issue line names|Give the point in general terms|Say the root cause|Say first whether it holds|Say what you checked to know it holds|Write the lesson where it stops the next miss|This is about the engine: send the lesson|The user is upset again in this session)/m,
 };
 // (an engine check from requirements.json is recognized by its own message, which v2's evaluator gives as "Check: ...")
@@ -5846,6 +5862,22 @@ if (mineB() && (!TAGS || TAGS.includes('check-preview'))) {
   }
   // the line stays short: a runbook held to many checks groups them, then gives the rest as "+N more"; a short line is
   // left as it is
+  // (under v2 the same promise on its "Also checked" line: many of the project's own file items give at most 4 labels and
+  // "+N more", within 400 characters; one item is left whole)
+  if (process.env.STARTER_ENGINE === 'v2') {
+    const got = [];
+    for (const n of [12, 1]) {
+      const dir = copyProject();
+      try {
+        applyEdits(dir, { 'docs/checks/always.md': () => '# Always\n\n## Done when\n' + Array.from({ length: n }, (_, i) => `- [ ] Meal plan portion check ${i + 1} keeps every portion within the weekly plan limits (when file: meals/**) (answer: portion ${i + 1})`).join('\n') + '\n' }, Date.now() - 7200_000);
+        let t = run(dir, 'prompt', { prompt: 'add the meal plans for next week', session_id: 'scenario' }).out; try { t = JSON.parse(t).hookSpecificOutput?.additionalContext ?? t; } catch { }
+        got.push((/Also checked at the end if files change: [^\n]*/.exec(t) || [''])[0]);
+      } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+    }
+    const [long, short] = got;
+    report(long.length > 0 && long.length <= 400 && /; \+\d+ more\.$/.test(long) && /Meal plan portion check 1 keeps every portion within the weekly plan limits/.test(short) && !/ more\./.test(short),
+      'check-preview guard: a line held to many checks stays within 400 characters (grouped, the rest as "+N more"), and a short line is left whole', `long(${long.length}): ${long} | short(${short.length}): ${short}`);
+  } else {
   const LONGREQS = Array.from({ length: 12 }, (_, i) => ({ tag: `meal-plan-portion-check-${i + 1}`, when: { playbookUsed: 'meal-plan' }, require: { answerMatches: `portion ${i + 1}` }, message: 'x' }));
   const lines = [];
   for (const reqs of [LONGREQS, []]) {
@@ -5860,6 +5892,7 @@ if (mineB() && (!TAGS || TAGS.includes('check-preview'))) {
   const [long, short] = lines;
   report(long.length > 0 && long.length <= 400 && /meal-plan-portion-check-\(/.test(long) && /node tools\/hooks\/hooks\.mjs check --answer-file </.test(long) && /meal-ok/.test(short) && !/ more\b|-\(/.test(short),
     'check-preview guard: a line held to many checks stays within 400 characters (grouped, the rest as "+N more"), and a short line is left whole', `long(${long.length}): ${long} | short(${short.length}): ${short}`);
+  }
 }
 // --- the cost of the self-tests in a project (tag selftest-speed): engine-result cache, one run at a time, helpers
 // scaled to the load, the audit's self-test sweep, the audit's reuse hash, and walks that skip dependency folders.
@@ -8880,10 +8913,16 @@ if (mineB() && (!TAGS || TAGS.includes('starter-tested'))) { // starter-tested: 
     fs.writeFileSync(lf, 'test one\ntest two\n'); const l0 = commit('a list'); proof(l0); commit('proof of the list');
     fs.writeFileSync(lf, 'test one\n'); const shrunk = guard(commit('the list shrank'));
     fs.writeFileSync(lf, 'test one\ntest two\ntest three\n'); const grown = guard(commit('the list grew'));
+    // (the count of tags with no v2 test, which the audit lowers itself: lowered is a record; raised is not)
+    fs.writeFileSync(lf, 'test one\ntest two\n'); const cf = path.join(dir, 'tools/starter/reviews/v2-untested.txt'); fs.writeFileSync(cf, '20\n');
+    const k0 = commit('a count'); proof(k0); commit('proof of the count');
+    fs.writeFileSync(cf, '19\n'); const lowered = guard(commit('the count went down'));
+    fs.writeFileSync(cf, '21\n'); const raised = guard(commit('the count went up'));
     report(/starter-tested/.test(none) && cleanA && dirty === null && recordsOnly && !/starter-tested/.test(proved) && /starter-tested[^\n]*changed 1 file/.test(changed) && !/starter-tested/.test(afterFail) && !/starter-tested/.test(del)
-      && /starter-tested[^\n]*never had its time limits judged[^\n]*\(v2:/.test(notedV2) && /starter-tested[^\n]*never had its time limits judged[^\n]*\(stop, v2:/.test(noSpeed) && !/starter-tested/.test(planOk) && !/starter-tested/.test(shrunk) && /starter-tested[^\n]*v2-failing\.txt/.test(grown),
+      && /starter-tested[^\n]*never had its time limits judged[^\n]*\(v2:/.test(notedV2) && /starter-tested[^\n]*never had its time limits judged[^\n]*\(stop, v2:/.test(noSpeed) && !/starter-tested/.test(planOk) && !/starter-tested/.test(shrunk) && /starter-tested[^\n]*v2-failing\.txt/.test(grown)
+      && !/starter-tested/.test(lowered) && /starter-tested[^\n]*v2-untested\.txt/.test(raised),
       'starter-tested: a push goes only for the commit the proof inside it names (or one differing only in the records), with its time limits judged; no proof, an engine change since, or time limits only noted beside other runs is refused; a failed run recorded later changes nothing',
-      JSON.stringify({ none: none.slice(0, 90), cleanA, dirty, recordsOnly, proved: proved.slice(0, 90), changed: changed.slice(0, 120), afterFail: afterFail.slice(0, 90), notedV2: notedV2.slice(0, 160), noSpeed: noSpeed.slice(0, 160), planOk: planOk.slice(0, 160), shrunk: shrunk.slice(0, 160), grown: grown.slice(0, 160) }));
+      JSON.stringify({ none: none.slice(0, 90), cleanA, dirty, recordsOnly, proved: proved.slice(0, 90), changed: changed.slice(0, 120), afterFail: afterFail.slice(0, 90), notedV2: notedV2.slice(0, 160), noSpeed: noSpeed.slice(0, 160), planOk: planOk.slice(0, 160), shrunk: shrunk.slice(0, 160), grown: grown.slice(0, 160), lowered: lowered.slice(0, 160), raised: raised.slice(0, 160) }));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 if (mineB() && (!TAGS || TAGS.includes('question-no-file'))) { // classifiers on real prompt shapes (field reports):
@@ -9552,7 +9591,25 @@ if (!TAGS && !HELPER && !REUSE) {
       'stop-budget: over its budget the verdict names the 3 slowest checks', JSON.stringify(tight));
   } finally { releaseLock(timingLock()); markWaiting(false); fs.rmSync(dir, { recursive: true, force: true }); }
 }
-if (!TAGS && !REUSE) for (const [tag, name] of Object.entries(COVERS)) if (hereSrc.includes(tag)) report(PASSED.some(n => n.includes(name)), `covers: ${tag} is proven by "${name}"`, 'no passing scenario with that name');
+// (under v2, a requirement the triage settled another way is proven by the v2 test it cites, which must exist in the v2
+// self-test (whose full pass the release chain requires first); one a dated decision of the user retired needs none.
+// Oversight 2026-11-10: only the user's dated decisions retire. tools/starter/reviews/2026-11-08-v2-triage.md)
+const V2_COVERS = {
+  'crash-visible': 'a v2 Stop hook that cannot load blocks once with the error',
+  'final-answer-source': 'the final answer the host hands over meets an answer item the transcript does not hold yet',
+  'playbook-format': 'a structural change runs the health check, and a failure is named',
+  'requirements-valid': 'a structural change runs the health check, and a failure is named',
+  'skill-valid': 'a structural change runs the health check, and a failure is named',
+  'twin-sync': 'a structural change runs the health check, and a failure is named',
+  'queued-messages': 'a request typed mid-turn that fits another runbook adds it, and its steps are checked too',
+  'runbook-read': 'work done without opening the runbook is named',
+  // (retired: docs/plans/2026-11-07-engine-v2-only.md Spec line (c); docs/checks/user-requirements.md row 42)
+  'autonomy-recorded': null, 'unresolved-carryover': null };
+const v2Src = (() => { try { return fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 'v2', 'selftest.mjs'), 'utf8'); } catch { return ''; } })();
+if (!TAGS && !REUSE) for (const [tag, name] of Object.entries(COVERS)) if (hereSrc.includes(tag)) {
+  if (process.env.STARTER_ENGINE === 'v2' && tag in V2_COVERS) { if (V2_COVERS[tag] !== null) report(v2Src.includes(V2_COVERS[tag]), `covers: ${tag} is proven by "${name}"`, `under v2 by the v2 test "${V2_COVERS[tag]}", not found in the v2 self-test`); continue; }
+  report(PASSED.some(n => n.includes(name)), `covers: ${tag} is proven by "${name}"`, 'no passing scenario with that name');
+}
 
 // The engine's part of a full run: every test that does not read the project. A pass of all of them is recorded for
 // this stamp; a failure in the project's own part does not stop that, so fixing a project scenario never needs the

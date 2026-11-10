@@ -5,7 +5,23 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { passLine } from './lines.mjs';
-import { planRequired, OPEN_WORK } from '../planreq.mjs';
+import { planRequired, OPEN_WORK, planOpen } from '../planreq.mjs';
+import { keyWords } from '../near.mjs';
+import { relayedBody } from '../relay.mjs';
+// REQ: plan-open, under v2: the shared planreq.mjs rule, on the plans the prompt hook found open when the turn began;
+// asked once (round 1), as the old engine. Lesson (the old suite under v2): a work turn that continued an open plan
+// and never touched it passed, and plans were left half done
+function planOpenGaps(turn, acts, again) {
+  if (again || checkOff('plan-open')) return [];
+  const startPlans = (turn.openPlans || []).filter(p => fs.existsSync(at(p)));
+  if (!startPlans.length) return [];
+  const changed = changedOf(acts), cmds = acts.calls.filter(c => /^(Bash|PowerShell)$/.test(c.name)).map(c => String(c.input?.command || ''));
+  const read = p => { try { return fs.readFileSync(at(p), 'utf8'); } catch { return ''; } };
+  let planNames = []; try { planNames = fs.readdirSync(at('docs/plans')); } catch { }
+  const msg = planOpen({ workTurn: worked(acts) || changed.length > 0, prompt: String(acts.heard || ''), changed, cmds, relayed: !!relayedBody(String(acts.heard || '')), startPlans },
+    { read, planNames, runbookNames: runbooks().map(b => b.name), keyWords });
+  return msg ? [msg] : [];
+}
 import { labelsEsHint } from '../labels.mjs';
 import { unansweredLate, asksOnly } from './late.mjs';
 import { PAUSE_ASK } from '../pause.mjs';
@@ -531,7 +547,7 @@ function judge(data, { shadow = false } = {}) {
   const wakes = wakeGaps(raw.split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean), final || acts.answer || '', acts.heard || '');
   const extra = (turn.also || []).flatMap(f => missing({ ...turn, runbook: f }, acts, runbooks().filter(b => b.file === f)));
   const resumedLost = [...(lost.length ? [headlessLine(lost)] : []), ...noticeAnswerGaps(rows, final || acts.answer, data.stop_hook_active)];
-  const list = [...resent, ...resumedLost, ...late, ...autos, ...wakes, ...S('missing', () => [...emptyGaps(acts), ...missing(turn, acts), ...upsetGaps(turn, acts), ...ruleGaps(acts), ...watchedGaps(acts)]), ...extra, ...S('skillMissing', () => skillMissing(acts)), ...S('reviewGaps', () => reviewGaps(turn, acts)), ...S('testGaps', () => testGaps(acts, history)), ...S('gateGaps', () => gateGaps(acts)), ...S('screenGaps', () => screenGaps(acts)), ...S('healthGaps', () => [...healthGaps(acts, { run: !shadow }), ...upgradeGaps(turn, acts)]), ...S('knowledgeGaps', () => knowledgeGaps(acts)), ...S('securityGaps', () => securityGaps(acts)), ...S('questionGaps', () => [...questionGaps(acts), ...questionFileGaps(acts)]), ...S('noteGaps', () => noteGaps(acts)), ...S('quoteGaps', () => quoteGaps(acts)), ...S('claimGaps', () => claimGaps(acts, history)), ...S('scopeGaps', () => scopeGaps(acts)), ...S('tableGaps', () => tableGaps(acts))].filter((s, i, all) => all.indexOf(s) === i);
+  const list = [...resent, ...resumedLost, ...late, ...autos, ...wakes, ...S('missing', () => [...emptyGaps(acts), ...missing(turn, acts), ...upsetGaps(turn, acts), ...ruleGaps(acts), ...watchedGaps(acts)]), ...extra, ...S('skillMissing', () => skillMissing(acts)), ...S('reviewGaps', () => reviewGaps(turn, acts)), ...S('testGaps', () => testGaps(acts, history)), ...S('gateGaps', () => gateGaps(acts)), ...S('screenGaps', () => screenGaps(acts)), ...S('healthGaps', () => [...healthGaps(acts, { run: !shadow }), ...upgradeGaps(turn, acts)]), ...S('knowledgeGaps', () => knowledgeGaps(acts)), ...S('securityGaps', () => securityGaps(acts)), ...S('questionGaps', () => [...questionGaps(acts), ...questionFileGaps(acts)]), ...S('noteGaps', () => noteGaps(acts)), ...S('quoteGaps', () => quoteGaps(acts)), ...S('claimGaps', () => claimGaps(acts, history)), ...S('scopeGaps', () => scopeGaps(acts)), ...S('tableGaps', () => tableGaps(acts)), ...S('planOpen', () => planOpenGaps(turn, acts, again))].filter((s, i, all) => all.indexOf(s) === i);
   // (the waiver tally: what this turn cleared with a reason is recorded; a check cleared in 3+ earlier turns is named)
   const full = list.splice(0, list.length); list.push(...full.filter(kept(acts)).filter(s => !(again && CRASHED.test(s))));
   list.push(...S('followOn', () => followOn(turn, acts, list)).filter(kept(acts)));

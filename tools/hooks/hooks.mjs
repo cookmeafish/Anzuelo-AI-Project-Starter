@@ -31,7 +31,8 @@ export { doneWhenItems, DONE_LABEL, ledgerItems };
 import { makeProof } from './proof.mjs';
 import { makeHookTests } from './hooktests.mjs';
 import { makeSkillLearn } from './skilllearn.mjs';
-import { STOP_STEMS, fold, ES_EN, closestRunbook as closestOf, OPINION, QUESTION_LED, TASK_ES, isTaskEs, coreRunbook } from './near.mjs';
+import { STOP_STEMS, fold, STOP, stem, keyWords, ES_EN, closestRunbook as closestOf, OPINION, QUESTION_LED, TASK_ES, isTaskEs, coreRunbook } from './near.mjs';
+export { keyWords };
 import { MAKE_REQUEST, HOOK_MARK, HOOK_LINE, HOOK_BLOCK, RELAYED, relayedOut, userWords as userText } from './near.mjs';
 export { relayedOut, userText };
 export { fold, isTaskEs };
@@ -361,26 +362,7 @@ export function skillHasCheck(s) {
 
 // Word match for multi-word triggers: every key word of the trigger appears in the message, in any order and with
 // simple endings ("why does this code exist" matches "explain why this code exists"). Exact phrases score higher.
-// (Spanish articles, prepositions and possessives too. Lesson: "una" and "sus" counted as key words, so a Spanish
-// trigger needed them typed and a Spanish request matched on them)
-const STOP = new Set(['a', 'an', 'the', 'this', 'that', 'these', 'to', 'of', 'for', 'in', 'on', 'at', 'my', 'me', 'it', 'its', 'is', 'are', 'be', 'do', 'does', 'did', 'and', 'or', 'with', 'from', 'by', 'i', 'we', 'our', 'you', 'your',
-  'un', 'una', 'unos', 'unas', 'el', 'la', 'los', 'las', 'de', 'del', 'al', 'en', 'y', 'o', 'que', 'mi', 'mis', 'tu', 'tus', 'su', 'sus', 'por', 'para', 'con', 'lo', 'le', 'se', 'es']);
-// Plural and past forms meet their base word: notes and noted are note, boxes is box, created is create, added is add.
-// Lesson: "-es" was cut from every word, so "notes" became "not", a common word, and "in my notes" could never route.
-// A four-letter word loses only a plural "s" ("bugs" is bug, "keys" is key), never "-ed" or "-ing" ("need", "ring" stay).
-// Lesson: words of four letters kept their "s", so "bugs", "keys", "logs" and "apps" never met their trigger.
-const stem = w => w.length <= 3 || /(ss|us|is)$/.test(w) ? w
-  : w.length === 4 ? (/s$/.test(w) ? w.slice(0, -1) : w)
-  : /ies$/.test(w) ? w.slice(0, -3) + 'y'
-  : /(s|x|z|ch|sh)es$/.test(w) ? w.slice(0, -2)
-  : /s$/.test(w) ? w.slice(0, -1)
-  : /ing$/.test(w) ? w.slice(0, -3)
-  : /ssed$/.test(w) ? w.slice(0, -2)
-  : /([aiou]t|[vcsz]|[aeiou]g|[nr]g)ed$/.test(w) ? w.slice(0, -1)
-  : /ed$/.test(w) ? w.slice(0, -2) : w;
-// Accents are folded first ("añade" is "anade", "línea" is "linea"). Lesson: accented letters split Spanish words into
-// fragments ("a", "ade", "l", "nea"), so a Spanish request could never meet a trigger by its key words.
-export const keyWords = s => fold(String(s).toLowerCase()).split(/[^a-z0-9]+/).filter(w => w && !STOP.has(w)).map(stem);
+// (STOP, stem and keyWords: tools/hooks/near.mjs, shared with engine v2)
 // Words too common to be evidence on their own. A trigger made only of these ("fix it", "i added", "look up") matches
 // ordinary sentences, so it never routes. Lesson: single generic words sent requests to the wrong runbook.
 const GENERIC = new Set(['fix', 'add', 'added', 'save', 'make', 'get', 'use', 'change', 'update', 'check', 'write', 'new', 'help', 'want', 'need',
@@ -4451,7 +4433,7 @@ export function ps51Notice(p, inp) {
 // needs a plan, so the plan comes before the work, not after. Lesson: reviewers found plans written once the work
 // was done, only to satisfy the Stop check.
 // What setup writes for itself (the starter's files, rules, packs, notes, dot-folders, root docs): not app work to plan.
-import { SETUP_OWN, planRequired } from './planreq.mjs';
+import { SETUP_OWN, planRequired, planOpen } from './planreq.mjs';
 export function planNotice(p, inp) {
   if (!p || p.startsWith('..') || !('content' in inp)) return null;
   // Setup counts too, but only the app files it writes (Lesson: a setup built a whole app with the notice silent, so
@@ -4672,29 +4654,12 @@ export function coreChecks(x, cfg) {
   // Lesson: the OPEN PLANS notice said "before new work", nothing held the agent to it, and plans were left half done.
   const snap = readJSON(stateFile('turn.json'), null);
   const startPlans = snap && Date.parse(snap.at) >= (x.since || 0) - 5000 ? (snap.openPlans || []).filter(p => exists(p)) : [];
-  // (only a request that continues a plan is held to it: one that shares a word with the plan's name, title or open
-  // tasks, or says to go on. Other work, or a message relayed from another session, leaves it for its own turn.
-  // Lesson (a field report): an engine upgrade a peer handed over was stopped to resume an unrelated open plan)
-  // (a word the project uses everywhere, in a runbook's name or in the names and titles of 3 or more of its plans, is
-  // its subject, not a sign of one plan. Lesson (a field report): in a project about one game nearly every request
-  // names the game's pieces, and each unrelated request was stopped twice to resume plans that shared one such word)
-  const planHead = p => `${path.basename(p, '.md').replace(/^\d{4}-\d\d-\d\d-/, '')} ${(read(abs(p)).match(/^# .*$/m) || [''])[0]}`;
-  const everyday = startPlans.length ? (() => {
-    const seen = {};
-    for (const n of list('docs/plans').filter(n => /\.md$/i.test(n))) for (const w of new Set(keyWords(planHead(`docs/plans/${n}`)))) seen[w] = (seen[w] || 0) + 1;
-    return new Set([...Object.keys(seen).filter(w => seen[w] >= 3), ...playbooks().flatMap(pb => keyWords(pb.name.replace(/[-_]/g, ' ')))]);
-  })() : new Set();
-  const wantWords = new Set(keyWords(x.prompt).filter(w => w.length > 2 && !everyday.has(w)));
-  const continues = p => /\b(keep going|go on|continue|carry on|resume|next step|finish (it|the plan|up)|the plan|sigue|contin[uú]a)\b/i.test(x.prompt)
-    || keyWords(planHead(p)).some(w => w.length > 2 && wantWords.has(w))
-    // (an open task is a sentence full of common words: it takes two of its words. Lesson (a field report): one word
-    // each from two plans' open tasks, such as "same", held an unrelated request to both)
-    || new Set(keyWords((read(abs(p)).match(/^\s*- \[ \] .*$/gm) || []).join(' ')).filter(w => w.length > 2 && wantWords.has(w))).size >= 2;
-  if (x.workTurn && startPlans.length && !relayedBody(x.prompt) && startPlans.some(continues) && !x.failedBefore?.includes('plan-open') && !x.changed.some(p => /^docs\/plans\//.test(p))
-    && ![...x.cmds, ...(x.runs || []).map(r => r.cmd || '')].some(c => /plan-tasks\.mjs/.test(c)))
-    add('plan-open', `This turn started with ${startPlans.length > 1 ? 'open plans' : 'an open plan'} (${startPlans.slice(0, 3).join(', ')}) and did not touch ${startPlans.length > 1 ? 'them' : 'it'}. Tell the user, then resume it ` +
-      '(node skills/plan/scripts/plan-tasks.mjs status <plan>), tick what this work finished, or close it with "status: done" or "status: dropped - <why>". ' +
-      'If this request is unrelated and the plan stays open on purpose, waive it: node tools/hooks/hooks.mjs waive plan-open "<why>".');
+  // (the rule: tools/hooks/planreq.mjs planOpen, shared with engine v2)
+  if (!x.failedBefore?.includes('plan-open')) {
+    const msg = planOpen({ workTurn: x.workTurn, prompt: x.prompt, changed: x.changed, cmds: [...x.cmds, ...(x.runs || []).map(r => r.cmd || '')], relayed: !!relayedBody(x.prompt), startPlans },
+      { read: p => read(abs(p)), planNames: list('docs/plans'), runbookNames: startPlans.length ? playbooks().map(pb => pb.name) : [], keyWords });
+    if (msg) add('plan-open', msg);
+  }
   lap('worth-it .. plan-open');
   // REQ: note-linked. A new note links to what it relates to, so Obsidian's graph (and the agent) can see how the
   // project's knowledge connects. A note that truly stands alone says why under "## Related".
@@ -6769,7 +6734,7 @@ async function v2Cli(cmd) {
   // shell did not carry the session id, the self-check the reminder advertises said "no request recorded")
   const si = process.argv.indexOf('--session'), clean = s => String(s || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
   const newest = () => { const dirS = path.join(ROOT, 'tools/hooks/state'); let best = null;
-    try { for (const f of fs.readdirSync(dirS)) { const m = /^v2-turn\.([\w-]+)\.json$/.exec(f); if (!m || m[1] === 'manual') continue; const t = fs.statSync(path.join(dirS, f)).mtimeMs; if (Date.now() - t < 24 * 3600_000 && (!best || t > best.t)) best = { sid: m[1], t }; } } catch { }
+    try { for (const f of fs.readdirSync(dirS)) { const m = /^v2-turn\.([\w-]+)\.json$/.exec(f); if (!m) continue; const t = fs.statSync(path.join(dirS, f)).mtimeMs; if (Date.now() - t < 24 * 3600_000 && (!best || t > best.t)) best = { sid: m[1], t }; } } catch { }
     return best?.sid || ''; };
   const envSid = clean(process.env.CLAUDE_CODE_SESSION_ID);
   const sid = clean(si > 0 ? process.argv[si + 1] : '') || (cmd === 'begin' ? envSid : (envSid && lib.loadTurn(envSid).at ? envSid : newest() || envSid)) || 'manual';

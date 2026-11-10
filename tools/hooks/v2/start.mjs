@@ -6,6 +6,7 @@ import { route, skillBooks, saveTurn, loadTurn, isSpanish, ROOT, at, quoteCheckO
 import { closestRunbook, coreRunbook, isTaskRequest, userWords } from '../near.mjs';
 import { isPraise } from '../praise.mjs';
 import { NUMBERS_ASK } from '../trace.mjs';
+import { openPlansOf } from '../planreq.mjs';
 
 // REQ: check-preview. What the end check will also ask for if the work changes files, beyond the runbook's own list: the
 // engine checks that name this runbook or skill and apply once files change, and the project's own always.md items that
@@ -216,6 +217,9 @@ export function onPrompt(data) {
   if (prev.at && !prev.ended && Date.now() - Date.parse(prev.at) < 12 * 3600_000) saveTurn(data.session_id, { ...prev, runbook: prev.runbook || book?.file || null, ...(also ? { also } : {}), ...sore, ...tx });
   // (a new turn notes its uncommitted files' contents in the background, so the end check can tell a file it only
   // touched from one it changed)
-  else { const at0 = new Date().toISOString(); saveTurn(data.session_id, { at: at0, runbook: book?.file || null, ...sore, ...tx }); snapshotLater(data.session_id, at0); }
+  // (and the plans open when it began: REQ plan-open, planreq.mjs)
+  else { const at0 = new Date().toISOString(); let openPlans = [];
+    try { openPlans = openPlansOf(fs.readdirSync(at('docs/plans')), p => { try { return fs.readFileSync(at(p), 'utf8'); } catch { return ''; } }).map(x => x.p); } catch { }
+    saveTurn(data.session_id, { at: at0, runbook: book?.file || null, ...sore, ...tx, ...(openPlans.length ? { openPlans } : {}) }); snapshotLater(data.session_id, at0); }
   return text ? { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: text } } : null;
 }

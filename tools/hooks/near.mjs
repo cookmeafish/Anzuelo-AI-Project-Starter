@@ -79,3 +79,25 @@ export function userWords(prompt) {
   }
   return out.join('\n');
 }
+
+// ---------- key words (moved from hooks.mjs, shared with engine v2) ----------
+// (Spanish articles, prepositions and possessives too. Lesson: "una" and "sus" counted as key words, so a Spanish
+// trigger needed them typed and a Spanish request matched on them)
+export const STOP = new Set(['a', 'an', 'the', 'this', 'that', 'these', 'to', 'of', 'for', 'in', 'on', 'at', 'my', 'me', 'it', 'its', 'is', 'are', 'be', 'do', 'does', 'did', 'and', 'or', 'with', 'from', 'by', 'i', 'we', 'our', 'you', 'your',
+  'un', 'una', 'unos', 'unas', 'el', 'la', 'los', 'las', 'de', 'del', 'al', 'en', 'y', 'o', 'que', 'mi', 'mis', 'tu', 'tus', 'su', 'sus', 'por', 'para', 'con', 'lo', 'le', 'se', 'es']);
+// Plural and past forms meet their base word: notes and noted are note, boxes is box, created is create, added is add.
+// Lesson: "-es" was cut from every word, so "notes" became "not", a common word, and "in my notes" could never route.
+// A four-letter word loses only a plural "s" ("bugs" is bug, "keys" is key), never "-ed" or "-ing" ("need", "ring" stay).
+// Lesson: words of four letters kept their "s", so "bugs", "keys", "logs" and "apps" never met their trigger.
+export const stem = w => w.length <= 3 || /(ss|us|is)$/.test(w) ? w
+  : w.length === 4 ? (/s$/.test(w) ? w.slice(0, -1) : w)
+  : /ies$/.test(w) ? w.slice(0, -3) + 'y'
+  : /(s|x|z|ch|sh)es$/.test(w) ? w.slice(0, -2)
+  : /s$/.test(w) ? w.slice(0, -1)
+  : /ing$/.test(w) ? w.slice(0, -3)
+  : /ssed$/.test(w) ? w.slice(0, -2)
+  : /([aiou]t|[vcsz]|[aeiou]g|[nr]g)ed$/.test(w) ? w.slice(0, -1)
+  : /ed$/.test(w) ? w.slice(0, -2) : w;
+// Accents are folded first ("añade" is "anade", "línea" is "linea"). Lesson: accented letters split Spanish words into
+// fragments ("a", "ade", "l", "nea"), so a Spanish request could never meet a trigger by its key words.
+export const keyWords = s => fold(String(s).toLowerCase()).split(/[^a-z0-9]+/).filter(w => w && !STOP.has(w)).map(stem);

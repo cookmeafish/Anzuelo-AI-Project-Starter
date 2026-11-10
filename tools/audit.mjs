@@ -20,7 +20,12 @@ import { listAll, split } from './hooks/paths.mjs';
 import { pending as alwaysPendingIn } from './always.mjs';
 // The v2 parity ratchet (see "every REQ tag is enforced and tested"): requirement tags no v2 test names yet, and the day
 // it began. Each port lowers the number in the same commit.
-const V2_UNTESTED = 114, V2_RATCHET_DAY = '2026-11-08';
+// (the number is a record, tools/starter/reviews/v2-untested.txt, that this audit lowers itself when fewer tags lack a
+// v2 test, as the v2 sweep shortens its list: the release run commits it with the proof, and the push guard takes it as
+// a record only when it went down. Lesson (oversight, 2026-11-10): two release runs passed every step and then failed
+// here for want of a code commit that only lowered the number)
+const V2_UNTESTED_FILE = 'tools/starter/reviews/v2-untested.txt', V2_RATCHET_DAY = '2026-11-08';
+const V2_UNTESTED = (() => { try { const n = parseInt(fs.readFileSync(path.join(ROOT, V2_UNTESTED_FILE), 'utf8'), 10); return Number.isFinite(n) ? n : 114; } catch { return 114; } })();
 // Engine checks that hold only on the user's words, retired with the date the user retired keyword forcing; and the
 // requirement keys v2's evaluator does not read yet ("<tag>.<key>"), which may only shrink.
 const PROMPT_ONLY_RETIRED = { 'incident-trigger': '2026-11-07, v2-only plan, Spec line: the agent picks, no keyword forcing',
@@ -368,7 +373,7 @@ sweep('every hard rule has an enforcement row', () => {
 });
 
 sweep('every REQ tag is enforced and tested', () => {
-  const fail = [];
+  const fail = [], lowered = [];
   const tagsIn = f => {
     const out = new Set();
     for (const line of read(abs(f)).split(/\r?\n/)) {
@@ -389,15 +394,16 @@ sweep('every REQ tag is enforced and tested', () => {
   // ratchet began needs its v2 test at once. At 0 it is a plain rule. (The user, 2026-11-08: everything works in v2)
   if (isTemplate && exists('tools/hooks/v2/selftest.mjs')) {
     const v2tests = read(abs('tools/hooks/v2/selftest.mjs')), untested = [...docTags].filter(t => !v2tests.includes(t));
-    if (untested.length > V2_UNTESTED) fail.push(`${untested.length} requirement tags have no v2 test, more than the ${V2_UNTESTED} allowed (tools/audit.mjs V2_UNTESTED): add the v2 test for the new one`);
-    if (untested.length < V2_UNTESTED) fail.push(`only ${untested.length} requirement tags lack a v2 test now: lower V2_UNTESTED in tools/audit.mjs from ${V2_UNTESTED} to ${untested.length} in this commit`);
+    if (untested.length > V2_UNTESTED) fail.push(`${untested.length} requirement tags have no v2 test, more than the ${V2_UNTESTED} allowed (${V2_UNTESTED_FILE}): add the v2 test for the new one`);
+    if (untested.length < V2_UNTESTED) { try { fs.writeFileSync(path.join(ROOT, V2_UNTESTED_FILE), `${untested.length}\n`); lowered.push(`${untested.length} requirement tags lack a v2 test now (was ${V2_UNTESTED}): ${V2_UNTESTED_FILE} lowered; commit it`); }
+      catch { fail.push(`only ${untested.length} requirement tags lack a v2 test now: write ${untested.length} to ${V2_UNTESTED_FILE}`); } }
     for (const line of read(abs('docs/checks/user-requirements.md')).split(/\r?\n/)) {
       const c = line.split('|').map(x => x.trim()), day = /^\d{4}-\d{2}-\d{2}$/.test(c[2] || '') ? c[2] : '';
       if (day > V2_RATCHET_DAY) for (const t of (c[c.length - 2] || '').split(/[,\s]+/).filter(x => /^[a-z][a-z0-9-]+$/.test(x))) if (!v2tests.includes(t)) fail.push(`requirement row ${c[1]} (${day}) tag ${t} has no v2 test`);
     }
   }
   const warn = legacyScenarios ? ['tools/hooks/legacy-scenarios.txt still holds scenarios from the retired test-hooks.mjs: move them into tools/hooks/project-scenarios.mjs (they do not run until then), then delete it'] : [];
-  return { fail, warn, note: `${coreTags.size} core + ${reqTags.size} project tags` };
+  return { fail, warn: [...warn, ...lowered], note: `${coreTags.size} core + ${reqTags.size} project tags` };
 });
 
 // REQ: check-sampled. A blocking check the project adds (a requirements.json entry, or a no-overwrite guard in
