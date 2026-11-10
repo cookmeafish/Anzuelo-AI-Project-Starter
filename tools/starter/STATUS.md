@@ -4,6 +4,13 @@ Where work on the starter itself stands, for the next session. Projects never ge
 docs/STATUS.md, which here is the template new projects start from).
 
 ## Now
+- 2026-11-10 (late): main and GitHub at 44c6b0c (field fixes: background runs dated by their end, plan check outside
+  the project, audit skills in .anzuelo, self-test fixes for that layout). All 3 projects notified; one's upgrade waits
+  on the user's permission. app-port ahead, not released: check-preview (9 tests off the list), v2-retired.txt and the
+  sweep keeping it in step. v2 list: 161 listed, 122 open, 37 retired, 2 another way. Next: the release of those, then
+  the open groups (route, check-proven, upset-acknowledged/learned, fit-checklist, name-var, note-linked, runbook-exists).
+  Not verified: agents finishing items past the first 3 of the short Stop text (baseline: 47% of holds with more than 3
+  items needed a 2nd round).
 - 2026-11-10 (after the restart): all 4 items below done on app-port, each with a failing-first test, plus the short
   held-answer text (a heading and at most 3 items; the full steps in tools/hooks/state/stop-details.md), the wakeup
   check accepting "stays on, every N minutes, next run", runs cut off by a restart not counted as failures (both
