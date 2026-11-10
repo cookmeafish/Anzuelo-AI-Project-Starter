@@ -184,6 +184,11 @@ state-no-transcript: a made-up session id with an empty, blank or unreadable tra
 stop rounds: round 1 lists every step, a waiver and markers from an earlier round hold, and later rounds bring nothing new
 stop-budget: over its budget the verdict names the 3 slowest checks
 stop-budget: the Stop hook stays within its 500 ms budget on a realistic work turn
+stop-follow-on guard: a Spanish catalog request: round 2 shows nothing round 1 did not name, and the named steps finish the turn
+stop-follow-on guard: a catalog step that writes data: round 2 shows nothing round 1 did not name, and the named steps finish the turn
+stop-follow-on guard: a lesson written into a runbook: round 2 shows nothing round 1 did not name, and the named steps finish the turn
+stop-follow-on guard: a lesson written into a skill: round 2 shows nothing round 1 did not name, and the named steps finish the turn
+stop-follow-on guard: a new rule written into CLAUDE.md and the hook: round 2 shows nothing round 1 did not name, and the named steps finish the turn
 stop-follow-on guard: without hooks (check --answer-file): the preview names the checks, round 1 names what the fix sets off, a bare "answer unchanged" fails, and the named steps pass
 stop-reblock: Spanish, blocks count per request across waits for background jobs, the cap ends the turn, and a new request starts at round 1
 stop-reblock: blocks count per request across waits for background jobs, the cap ends the turn, and a new request starts at round 1
@@ -207,9 +212,12 @@ stop: answer relies on a stale knowledge file without saying so: blocked
 stop: answer with an em dash: blocked
 stop: answer with filler: blocked
 stop: answer-language: a Spanish visual review with no verdict: blocked
+stop: answer-noise: a re-sent answer still missing what the round asked for: blocked
 stop: answer-noise: the Stop text steers waivers to the waive command, never to an N/A line in the answer
 stop: answer-noise: the re-answer instruction asks for no note about the steps or an earlier version
+stop: answer-resent: "Added:" that still lacks the missing part: blocked for that part, not for the form
 stop: answer-resent: "Added:" with no full answer earlier in the turn: blocked
+stop: answer-resent: a Corrected: line that leaves the answer still wrong: blocked
 stop: answer-resent: a Corrected: line whose old text the answer does not hold: blocked
 stop: answer-resent: a first answer that is only "answer unchanged": blocked
 stop: answer-resent: a round of file steps offers the short line
@@ -217,6 +225,7 @@ stop: answer-resent: a round of file-only steps asks for "Answer unchanged; also
 stop: answer-resent: no full answer was sent earlier in this turn: blocked
 stop: answer-resent: round 1 of a long answer asks for only what changed, not the answer again
 stop: answer-resent: round 1 of a short answer still asks for the whole answer
+stop: answer-resent: the earlier full answer is still checked: a missing marker blocks
 stop: answer-resent: the last round asked for changes to the answer itself: blocked
 stop: answer-traced: a figure that is no sum, difference or change of the read ones: blocked
 stop: answer-traced: a round figure that no tool output rounds to is still flagged
@@ -297,6 +306,7 @@ stop: plan-required: five new files with their plan: passes the plan check
 stop: prompt-visible: a work turn that passes shows the user a ✅ line with its runbook
 stop: promptMatches: the same words typed by the user still count: blocked
 stop: queued mid-turn rule request is enforced: blocked
+stop: records-once: the lesson from an upset user is still asked for in round 2
 stop: request about alice changed only alice's files: passes
 stop: requirement-enforced: a requirement said in passing, during work, with nothing enforcing it: blocked
 stop: requirement-enforced: a requirement written only into a runbook: blocked
@@ -330,7 +340,13 @@ stop: stop form: a host that supports feedback gets it, with no "decision" and a
 stop: stop form: an unknown host gets the bare classic block
 stop: stop form: stopStyle "block" forces the classic block even where feedback is supported
 stop: stop message: one short line per step, the details in "hooks.mjs why"
+stop: stop-follow-on: a Spanish catalog request names its data check in round 1
+stop: stop-follow-on: a catalog step that writes data names its data check in round 1
 stop: stop-follow-on: a lesson for a skill names the audit and the changelog in round 1
+stop: stop-follow-on: a lesson placed in CLAUDE.md names the audit in round 1
+stop: stop-follow-on: a new rule names the hook self-tests, the audit and the changelog in round 1
+stop: stop-follow-on: an upset turn that changed no file names no changelog or audit after upset-learned
+stop: stop-follow-on: round 2 still holds the named audit when it did not run: blocked
 stop: toolPassed: a two-command gate run as one group with its output sent to a file is judged on that file (not built): blocked
 stop: toolPassed: only a waiver named the validator, it never ran: blocked
 stop: toolPassed: validator ran but printed FAIL: blocked
