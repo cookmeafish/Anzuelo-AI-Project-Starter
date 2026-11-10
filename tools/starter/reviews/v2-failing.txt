@@ -37,66 +37,41 @@ pretool: overlap: a sweep started while another sweep runs in the background get
 pretool: runbook-ledger: a helper launched after a runbook checklist was handed over gets it, with one evidence line per item
 pretool: scope-change: a user message while a helper launched before it runs gets a heads-up to stop the obsolete ones
 prompt-digest: a session whose start gave the session checklist gets no rules digest on its prompts; one with no session start still does
-prompt: GUI request routes to the gui runbook
-prompt: NO RUNBOOK hint for an unrouted task
 prompt: QA routes to the qa runbook
 prompt: a context summary that resumes the turn gets no hints
-prompt: a fact check routes to the research skill
 prompt: autonomy-hint: "I don't want to be bothered" asks to set autonomy auto
 prompt: autonomy-hint: "do not ask me anything" asks to set autonomy auto
 prompt: autonomy-hint: "without my input" asks to set autonomy auto
 prompt: autonomy-hint: a Spanish setup request that says not to ask routes to the project runbook and gets AUTONOMY
 prompt: bootstrap hint when setup prompt is gone but brief is empty
-prompt: check-preview: 2 checks give no self-check clause
 prompt: check-preview: Spanish, a route question with a line for its NOTES gets the CHECKS line with status-handoff
 prompt: check-preview: Spanish, a runbook fix names the same checks
-prompt: check-preview: a Spanish request is previewed too
 prompt: check-preview: a check that applies only once files change is named under "If it changes files"
 prompt: check-preview: a data check keyed on the request, and the data check its fix sets off
-prompt: check-preview: a headless Claude Code run still gets the self-check
 prompt: check-preview: a new rule names what its fixes set off
 prompt: check-preview: a request that names no file lists the project's own file checks as "if it changes"
-prompt: check-preview: a routed request names its runbook's checks before work starts
 prompt: check-preview: a runbook fix names the project's own check on that runbook and the writing check, not checks it can't set off
-prompt: check-preview: in an interactive Claude Code session no self-check is offered
-prompt: check-preview: more than 2 checks offer the self-check command
 prompt: check-preview: the same play question in English gets the same CHECKS line
 prompt: check-preview: with the project's own hooks, runbook-exists says a runbook they name counts
 prompt: check-preview: without them, runbook-exists says nothing about the project's hooks
 prompt: check-preview: work hears that a plan comes first once it adds many files
 prompt: closest runbook: a request sharing one word or none still gets NO RUNBOOK
-prompt: closest runbook: other wording for a known job names that runbook instead of NO RUNBOOK
-prompt: closest runbook: plural words meet the runbook's singular ones
 prompt: debug skill routes on its own
 prompt: efficiency-review: "simple fixes turn into 20 minute things" routes to the review
-prompt: efficiency-review: "so many sweeps for something simple" routes to the review
 prompt: event-hint: a question that asks for a change still does
 prompt: event-hint: a request about sign-in names the security review before work starts
 prompt: fit-checklist: a request a deferred library skill is for asks to decide it again
 prompt: fit-checklist: one trigger plus a word of the condition asks to decide it again
-prompt: goal-loop: "iterate until the report is good enough" routes to the loop
 prompt: goal-loop: "keep improving it until the tests never flake" routes to the loop
 prompt: inbox files are announced
 prompt: menu codes: codes joined by a comma or "and" both expand, an unknown one among them is asked about
 prompt: menu codes: two codes in one message both expand
-prompt: obsidian skill routes on its own
-prompt: own-question: "note:" typed as a label still gets the note skill
-prompt: own-question: "what do sources say" still gets research
 prompt: own-question: Spanish, "apunta que" still gets the note skill
-prompt: own-question: Spanish, "qué dicen" still gets research
 prompt: own-question: Spanish, a "quiero que añadas" request is work too
-prompt: own-question: Spanish, a note for the knowledge base still gets the note skill
-prompt: own-question: Spanish, a request finds the closest runbook as in English
 prompt: own-question: Spanish, a route question with a line for its NOTES gets its own runbook, no research or note skill
-prompt: own-question: Spanish, an explicit research request still gets research
-prompt: own-question: Spanish, an infinitive request is a task too
 prompt: own-question: Spanish, the same with "notas" in lower case
-prompt: own-question: a best-choice question about no thing of the user's still gets research
 prompt: own-question: a note for the knowledge base still gets the note skill
 prompt: own-question: a route question about the user's own thing with a line for its NOTES gets its own runbook, no research or note skill
-prompt: own-question: an explicit research request still gets research
-prompt: own-question: looking up current prices still gets research
-prompt: own-question: the same with "notes" in lower case
 prompt: paste-routing: a short angry message is still upset
 prompt: paste-routing: a short closing paragraph after the material still routes
 prompt: paste-routing: the same words in a short message still suggest the skill
@@ -115,24 +90,13 @@ prompt: relayed turn: a report of fixes that ends "upgrade again with node tools
 prompt: requirement hint: the same words as the user's own requirement still count
 prompt: requirement: a lasting requirement fires ("cada factura debe mostrar el número de impuesto")
 prompt: requirement: a lasting requirement fires ("every invoice must show the tax number")
-prompt: research skill routes on its own
 prompt: route-precision: prompt-visible: a routed runbook shows the user the book line, with its checklist count
 prompt: route-precision: runbook-ledger: the routed runbook's checklist comes with the route
-prompt: route: "add an index page" routes to the feature runbook
-prompt: route: "add the starter to this folder" still routes to the engine runbook
 prompt: route: "fixed and pushed: GitHub main" with a starter upgrade routes to the engine runbook, not to release
-prompt: route: "las pruebas fallan ... por qué falla" gets the debug skill
-prompt: route: "make a plugin" still routes to the project runbook
 prompt: route: "remove the old starter from my project" still routes to the engine runbook
 prompt: route: "what are the best options for backups" still routes to research
 prompt: route: a Spanish debug request gets the debug skill
-prompt: route: a Spanish request routes like its English wording ("agrega una página de índice")
-prompt: route: a one-word trigger with a request still routes
 prompt: route: a phrase about the user's own notes routes ("add this fact to my notes")
-prompt: route: a real bug report still routes
-prompt: route: a relay that also asks for work still gets NO RUNBOOK
-prompt: routing: a question-word trigger routes with its question mark
-prompt: routing: the triggers left after triggers_removed still route
 prompt: rule request hint
 prompt: rule request hint: asks for the new check's own scenarios, not the whole self-test
 prompt: rules digest on every prompt
@@ -151,7 +115,6 @@ prompt: starter-runbooks: in the starter, a report from another session routes t
 prompt: trigger-words: the same word in capitals with other words still does
 prompt: unknown menu code asks
 prompt: unresolved checks from the last turn are announced
-prompt: word routing: key words in any order and with endings still route
 recall-hint: a request like an earlier one gets how it was solved; an unrelated one gets nothing; recall.mjs finds it
 records-once flow (check change): round 1 lists each step once; round 2 has no record step (the check still needs its proof); the lesson in memory counts; the open records reach the next related turn
 records-once flow (plain change): round 1 lists each step once; round 2 has no record step (the turn ends); the lesson in memory counts; the open records reach the next related turn
@@ -173,11 +136,6 @@ state-no-transcript: a made-up session id with an empty, blank or unreadable tra
 stop rounds: round 1 lists every step, a waiver and markers from an earlier round hold, and later rounds bring nothing new
 stop-budget: over its budget the verdict names the 3 slowest checks
 stop-budget: the Stop hook stays within its 500 ms budget on a realistic work turn
-stop-follow-on guard: a Spanish catalog request: round 2 shows nothing round 1 did not name, and the named steps finish the turn
-stop-follow-on guard: a catalog step that writes data: round 2 shows nothing round 1 did not name, and the named steps finish the turn
-stop-follow-on guard: a lesson written into a runbook: round 2 shows nothing round 1 did not name, and the named steps finish the turn
-stop-follow-on guard: a lesson written into a skill: round 2 shows nothing round 1 did not name, and the named steps finish the turn
-stop-follow-on guard: a new rule written into CLAUDE.md and the hook: round 2 shows nothing round 1 did not name, and the named steps finish the turn
 stop-follow-on guard: without hooks (check --answer-file): the preview names the checks, round 1 names what the fix sets off, a bare "answer unchanged" fails, and the named steps pass
 stop-reblock: Spanish, blocks count per request across waits for background jobs, the cap ends the turn, and a new request starts at round 1
 stop-reblock: blocks count per request across waits for background jobs, the cap ends the turn, and a new request starts at round 1
@@ -201,12 +159,9 @@ stop: answer relies on a stale knowledge file without saying so: blocked
 stop: answer with an em dash: blocked
 stop: answer with filler: blocked
 stop: answer-language: a Spanish visual review with no verdict: blocked
-stop: answer-noise: a re-sent answer still missing what the round asked for: blocked
 stop: answer-noise: the Stop text steers waivers to the waive command, never to an N/A line in the answer
 stop: answer-noise: the re-answer instruction asks for no note about the steps or an earlier version
-stop: answer-resent: "Added:" that still lacks the missing part: blocked for that part, not for the form
 stop: answer-resent: "Added:" with no full answer earlier in the turn: blocked
-stop: answer-resent: a Corrected: line that leaves the answer still wrong: blocked
 stop: answer-resent: a Corrected: line whose old text the answer does not hold: blocked
 stop: answer-resent: a first answer that is only "answer unchanged": blocked
 stop: answer-resent: a round of file steps offers the short line
@@ -214,7 +169,6 @@ stop: answer-resent: a round of file-only steps asks for "Answer unchanged; also
 stop: answer-resent: no full answer was sent earlier in this turn: blocked
 stop: answer-resent: round 1 of a long answer asks for only what changed, not the answer again
 stop: answer-resent: round 1 of a short answer still asks for the whole answer
-stop: answer-resent: the earlier full answer is still checked: a missing marker blocks
 stop: answer-resent: the last round asked for changes to the answer itself: blocked
 stop: answer-traced: a figure that is no sum, difference or change of the read ones: blocked
 stop: answer-traced: a round figure that no tool output rounds to is still flagged
@@ -292,7 +246,6 @@ stop: plan-open: an open plan ignored during a work turn: blocked
 stop: prompt-visible: a work turn that passes shows the user a ✅ line with its runbook
 stop: promptMatches: the same words typed by the user still count: blocked
 stop: queued mid-turn rule request is enforced: blocked
-stop: records-once: the lesson from an upset user is still asked for in round 2
 stop: request about alice changed only alice's files: passes
 stop: requirement-enforced: a requirement said in passing, during work, with nothing enforcing it: blocked
 stop: requirement-enforced: a requirement written only into a runbook: blocked
@@ -315,9 +268,6 @@ stop: runbook-ledger: off by default, a skip line covers nothing
 stop: scope-general: "or something else that doesn't fit" changed with no Scope line: blocked
 stop: security review without the item table: blocked
 stop: setup: the same runbook followed in a later turn: its checks apply
-stop: skill followed after a blocked draft, the skill's own check failed, no lesson: blocked
-stop: skill-learn: the followed skill's own check failed earlier this turn, no lesson written: blocked
-stop: skill-learn: the same turn with a real lesson owed: demanded
 stop: skill-reuse: a hand-written runbook made in the same turn is still new: blocked
 stop: skill-reuse: a new hand-written skill without a search: blocked
 stop: spec changed without CHANGELOG or release notes: blocked
@@ -326,13 +276,7 @@ stop: stop form: a host that supports feedback gets it, with no "decision" and a
 stop: stop form: an unknown host gets the bare classic block
 stop: stop form: stopStyle "block" forces the classic block even where feedback is supported
 stop: stop message: one short line per step, the details in "hooks.mjs why"
-stop: stop-follow-on: a Spanish catalog request names its data check in round 1
-stop: stop-follow-on: a catalog step that writes data names its data check in round 1
 stop: stop-follow-on: a lesson for a skill names the audit and the changelog in round 1
-stop: stop-follow-on: a lesson placed in CLAUDE.md names the audit in round 1
-stop: stop-follow-on: a new rule names the hook self-tests, the audit and the changelog in round 1
-stop: stop-follow-on: an upset turn that changed no file names no changelog or audit after upset-learned
-stop: stop-follow-on: round 2 still holds the named audit when it did not run: blocked
 stop: toolPassed: a two-command gate run as one group with its output sent to a file is judged on that file (not built): blocked
 stop: toolPassed: only a waiver named the validator, it never ran: blocked
 stop: toolPassed: validator ran but printed FAIL: blocked
