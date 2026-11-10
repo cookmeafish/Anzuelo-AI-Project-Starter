@@ -6,6 +6,8 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-10 (a live false hold: files outside the project): the plan check no longer counts files written outside the project folder (another checkout, a scratch folder) as the project's new files. 1 test; it failed under v2 before the change.
+
 - 2026-11-10 (a field report: the data-folder guess missed the main content folder): the folders setup and upgrade offer as "dataDirs" now include a content folder of item folders, each with its data files and its own CHANGELOG.md or notes (Markdown beside data files counts as that item's data), and any folder the project protects (protectedOriginals or newVersionOnly). Item folders of Markdown alone are still notes, not data. The test failed before the change.
 
 - 2026-11-10 (the AI-credit end check, every branch): a commit made this turn onto a branch that is not checked out (update-ref, another worktree) that credits an AI is now named too. The scan covers every local branch, not only HEAD's history, and v2's quick skip reads the newest reflog of HEAD and every local branch, not HEAD's alone. 1 test; it failed before, and again with the skip reading HEAD's reflog only.

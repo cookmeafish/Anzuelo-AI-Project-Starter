@@ -15,8 +15,10 @@ export const SETUP_OWN = /^(\.[^/]*(\/|$)|(tools|skills|docs|library|packs|inbox
 // and nothing records it, no plan and no STATUS.md line; during the work the PLAN notice asks for it in time. Lesson
 // (a field report): a finished build was blocked for a plan, and the agent wrote one about work already done)
 export const OPEN_WORK = /\b(still open|not (yet )?(done|finished)|left to do|to do next|next steps?|unfinished|remaining work|pendiente|falta(n)? por)\b/i;
+// (a path outside the project folder, "../" or another drive, is no new file of the project. Lesson (a live false
+// hold, 2026-11-10): edits to a separate working copy were counted as 20 new files and a plan was asked for)
 export function planRequired(x, newFiles) {
-  const born0 = x.changed.filter(p => !x.notWork(p) && !PLAN_FREE.test(p) && !x.generated.has(p) && x.exists(p) && x.born(p));
+  const born0 = x.changed.filter(p => !/^\.\.(\/|$)|^[A-Za-z]:\//.test(p) && !x.notWork(p) && !PLAN_FREE.test(p) && !x.generated.has(p) && x.exists(p) && x.born(p));
   const born = x.setup ? born0.filter(p => !SETUP_OWN.test(p) && x.wroteSelf.has(p)) : born0;
   const recorded = x.changed.some(p => /^docs\/plans\/.+\.md$/.test(p) || p === 'docs/STATUS.md');
   if (!(x.workTurn && born.length >= newFiles && OPEN_WORK.test(x.said) && !recorded)) return null;

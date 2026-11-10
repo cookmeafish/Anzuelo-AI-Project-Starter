@@ -996,6 +996,11 @@ const STOP = [
     files: { 'src/export/a.mjs': 'x', 'src/export/b.mjs': 'x', 'src/export/c.mjs': 'x', 'src/export/d.mjs': 'x', 'src/export/e.mjs': 'x', 'docs/CHANGELOG.md': 'x' },
     answer: 'Playbook: project.md. Added the export. Still open: wiring it into the CLI.\nN/A(verification-report): a test fixture.' + FIN, expect: { block: true, tags: ['plan-required'] } },
   // (a project that switched the plan check off (friction-suspend) is not asked for one, in either engine)
+  // (files outside the project folder are no new files of the project: another checkout, a scratch folder. Lesson (a
+  // live false hold, 2026-11-10): edits to a separate working copy were counted as 20 new files and a plan was asked)
+  { name: 'plan-required: files written outside the project folder are not its new files: no plan asked', prompt: 'add an export feature with its helpers', tools: [pb('project'), ...[1, 2, 3, 4, 5, 6].map(i => ({ name: 'Write', input: { file_path: `../outside-work/e${i}.js`, content: 'x' } }))],
+    prep: dir => { for (let i = 1; i <= 6; i++) { const f = path.join(dir, '..', 'outside-work', `e${i}.js`); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, 'x'); } },
+    files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md. Added the export. Still open: wiring it into the CLI.\nN/A(verification-report): a test fixture.' + FIN, expect: { not: ['plan-required'] } },
   { name: 'plan-required: switched off by the project: no plan asked', prompt: 'add an export feature with its helpers', tools: [pb('project'), bash('node tools/audit.mjs')],
     files: { 'src/export/a.mjs': 'x', 'src/export/b.mjs': 'x', 'src/export/c.mjs': 'x', 'src/export/d.mjs': 'x', 'src/export/e.mjs': 'x', 'docs/CHANGELOG.md': 'x' },
     edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), suspended: [{ item: 'check:plan-required', at: '2026-11-10', why: 'test' }] }) },
