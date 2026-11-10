@@ -3390,7 +3390,10 @@ STOP.push(
       expect: { block: true, tags: ['changelog'] } } },
   { ...MEAL_TURN, name: 'stop-follow-on: round 2 with the named audit run: passes', files: { 'notes/meals.md': 'x', 'docs/playbooks/meal-plan.md': MEAL_LESSON, 'docs/CHANGELOG.md': 'x' },
     active: true, blocks: 1, failed: ['meal-ok', 'skill-learn'], drafts: ['Playbook: meal-plan.md. Done.' + FIN], later: [bash('node tools/audit.mjs')],
-    answer: 'Playbook: meal-plan.md. The meals planned for the week are in notes/meals.md.' + FIN, expect: { block: false } },
+    answer: 'Playbook: meal-plan.md. The meals planned for the week are in notes/meals.md.' + FIN, expect: { block: false },
+    // (v2 reads the turn's edits from its transcript: the lesson went into the runbook there before the turn by an Edit,
+    // so it is no new runbook and asks for no skill search)
+    v2: { tools: [pb('meal-plan'), { name: 'Write', input: { file_path: 'notes/meals.md' } }, { name: 'Edit', input: { file_path: 'docs/playbooks/meal-plan.md' } }] } },
   // skill-learn and a runbook matched by mistake
   { ...MEAL_TURN, name: 'skill-learn: a runbook whose own check was waived as a wrong route gets no lesson', files: { 'notes/meals.md': 'x', 'docs/CHANGELOG.md': 'x' },
     active: true, blocks: 1, failed: ['meal-ok'], drafts: ['Playbook: meal-plan.md. Done.' + FIN],

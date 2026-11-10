@@ -1394,7 +1394,11 @@ export function engineCheckGaps(acts) {
     // (a branch of "anyOf" that is the request's words alone sets nothing off: keyword forcing is retired (2026-11-07),
     // and a check whose message says what happened would claim it from words. Lesson (the old suite under v2): "before we
     // make it public" set off "Something was published or deployed this turn" with nothing published)
-    const branches = Array.isArray(r0.when?.anyOf) ? r0.when.anyOf.filter(b => !promptOnly(b)) : null;
+    // (only when the rest of "when" is words too: next to an act such as the runbook opened, the words narrow it.
+    // Lesson (chain 3dc2c2c): "prepare a release" with release.md opened lost its release checks)
+    const rest = Object.fromEntries(Object.entries(r0.when || {}).filter(([k]) => k !== 'anyOf'));
+    const actBeside = Object.keys(rest).length > 0 && !promptOnly(rest);
+    const branches = Array.isArray(r0.when?.anyOf) && !actBeside ? r0.when.anyOf.filter(b => !promptOnly(b)) : null;
     if (branches && !branches.length) continue;
     const r1 = branches ? { ...r0, when: { ...r0.when, anyOf: branches } } : r0;
     const own = r1.forces ? ownedBy(r1.forces) : [], r = own.length ? { ...r1, when: ignoreOwned(r1.when, own) } : r1;

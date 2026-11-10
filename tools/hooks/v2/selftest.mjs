@@ -2580,16 +2580,29 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     for (const f of ['hooks.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'pause.mjs', 'caps.mjs', 'relay.mjs', 'claims.mjs', 'grant.mjs', 'count.mjs', 'datadirs.mjs', 'writing.mjs', 'excuse.mjs', 'extstop.mjs', 'decide.mjs', 'worth.mjs', 'gui.mjs', 'correct.mjs', 'praise.mjs', 'planreq.mjs', 'near.mjs', 'skilllearn.mjs', 'hooktests.mjs', 'donewhen.mjs', 'gates.mjs', 'launchers.mjs', 'trace.mjs', 'proof.mjs', 'knowledge.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
     fs.writeFileSync(path.join(c, 'docs/playbooks/export.md'), '---\nname: export\ntriggers: csv export\n---\n## Done when\n1. The answer says how it was checked (answer: How it was checked)\n');
     const tp = path.join(c, 't.jsonl'), at = new Date(Date.now() + 1000).toISOString();
-    const env = { ...process.env, STARTER_ENGINE: 'v2', ANZUELO_ROOT: c, CLAUDE_PROJECT_DIR: c };
-    const run = (cmd, extra) => spawnSync(process.execPath, [path.join(c, 'tools/hooks/hooks.mjs'), cmd], { cwd: c, encoding: 'utf8', input: JSON.stringify({ session_id: 'markline', transcript_path: tp, ...extra }), env }).stdout || '';
-    run('prompt', { prompt: 'add a csv export' });
+    const base = { ...process.env, STARTER_ENGINE: 'v2', ANZUELO_ROOT: c }; delete base.CLAUDE_PROJECT_DIR;
+    const cfgFile = path.join(c, 'tools/hooks/config.json'), cfg0 = fs.readFileSync(cfgFile, 'utf8');
     fs.writeFileSync(tp, [{ type: 'user', timestamp: at, message: { role: 'user', content: 'add a csv export' } },
       { type: 'assistant', timestamp: at, message: { role: 'assistant', content: [{ type: 'tool_use', id: 'mk1', name: 'Read', input: { file_path: path.join(c, 'docs/playbooks/export.md') } }, { type: 'tool_use', id: 'mk2', name: 'Write', input: { file_path: path.join(c, 'src/export.js'), content: 'x' } }] } },
       { type: 'assistant', timestamp: at, message: { role: 'assistant', content: [{ type: 'text', text: 'Added.' }] } }].map(r => JSON.stringify(r)).join('\n') + '\n');
-    const out = run('stop', { last_assistant_message: 'Added.' });
-    fs.rmSync(c, { recursive: true, force: true });
-    let j = {}; try { j = JSON.parse(out); } catch { }
-    report(j.decision === 'block' && !j.systemMessage, 'stop: a send-back adds no line of its own for the user', out.slice(0, 300));
+    // (each host in its own session, so each is a first round: Claude Code, Codex, a host the engine does not know, and
+    // Claude Code with "stopStyle": "block" in config.json)
+    const held = (sid, { claude = false, extra = {}, style } = {}) => {
+      fs.writeFileSync(cfgFile, style ? JSON.stringify({ ...JSON.parse(cfg0), stopStyle: style }) : cfg0);
+      const env = claude ? { ...base, CLAUDE_PROJECT_DIR: c } : base;
+      const run = (cmd, more) => spawnSync(process.execPath, [path.join(c, 'tools/hooks/hooks.mjs'), cmd], { cwd: c, encoding: 'utf8', input: JSON.stringify({ session_id: sid, transcript_path: tp, ...extra, ...more }), env }).stdout || '';
+      run('prompt', { prompt: 'add a csv export' });
+      const out = run('stop', { last_assistant_message: 'Added.' });
+      let j = {}; try { j = JSON.parse(out); } catch { }
+      return { j, out };
+    };
+    const cc = held('mark-cc', { claude: true }), cx = held('mark-cx', { extra: { turn_id: 't1' } }), other = held('mark-other'), forced = held('mark-forced', { claude: true, style: 'block' });
+    fs.rmSync(c, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+    const ctx = cc.j.hookSpecificOutput?.additionalContext || '';
+    report(cc.j.hookSpecificOutput?.hookEventName === 'Stop' && /check|done|answer/i.test(ctx) && !('decision' in cc.j) && !cc.j.systemMessage,
+      'stop: a send-back adds no line of its own for the user (Claude Code: non-error Stop feedback, no block, no systemMessage)', cc.out.slice(0, 300));
+    report([cx, other, forced].every(r => r.j.decision === 'block' && r.j.reason && !r.j.hookSpecificOutput && !r.j.systemMessage),
+      'stop: Codex, an unknown host and "stopStyle": "block" get the classic block, with no line of their own', [cx, other, forced].map(r => r.out.slice(0, 160)));
   }
   // (a new session never shows an "acknowledged" line from another session's old note; its own new one still shows.
   // Lesson (the user, in the desktop app): a plain question's first tool call showed another session's old issue)

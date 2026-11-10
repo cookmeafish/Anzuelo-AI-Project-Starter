@@ -6261,6 +6261,17 @@ export function stopOutput(d, cfg = config(), host = HOST) {
   // Codex documents systemMessage next to a block, so its user gets the same short line; unknown hosts get the bare block
   return host === 'codex' ? { decision: 'block', reason: d.reason, systemMessage: line } : { decision: 'block', reason: d.reason };
 }
+// REQ: stop-form, under v2. A held turn reaches the agent in the least visible form the host has: Claude Code's
+// non-error Stop feedback (hookSpecificOutput.additionalContext: the turn continues, no hook error is shown, the same loop
+// protection as a block), with no line of its own for the user (2026-11-07: the answer goes out once). Codex and unknown
+// hosts get the classic block. "stopStyle" ("feedback" or "block") in config.json forces either. Lesson (the user): the
+// classic block showed as a "Stop hook blocking error", which the user asked not to see. Oversight 2026-11-10, checked
+// against the Claude Code hooks documentation that day.
+export function v2StopForm(out, cfg = config(), host = HOST) {
+  if (!out || out.decision !== 'block') return out;
+  const style = cfg.stopStyle === 'feedback' || cfg.stopStyle === 'block' ? cfg.stopStyle : host === 'claude-code' ? 'feedback' : 'block';
+  return style === 'feedback' ? { hookSpecificOutput: { hookEventName: 'Stop', additionalContext: out.reason } } : { decision: 'block', reason: out.reason };
+}
 // Session and prompt notices: kept out of the visible chat where the host documents a way (Claude Code's
 // additionalContext); plain text elsewhere, which Codex documents as added to the agent's context.
 // A host shows a long hook output only as a short preview (Claude Code: past about 10,000 characters the agent gets
@@ -6880,7 +6891,7 @@ if (isMain) {
       process.env.ANZUELO_ROOT ||= ROOT;
       // (REQ: engine-parity: what the user saw under the old engine is shown, dropped with a reason, or open: v2/lines.mjs)
       const v2 = cmd === 'prompt' ? (await import('./v2/start.mjs')).onPrompt(data) : (await import('./v2/end.mjs')).onStop(data, { show: HOST === 'claude-code' });
-      if (v2) process.stdout.write(JSON.stringify(v2));
+      if (v2) process.stdout.write(JSON.stringify(cmd === 'stop' ? v2StopForm(v2) : v2));
     } catch (e) {
       process.stderr.write(`[hooks v2 ${cmd}] error: ${e && e.stack || e}\n`);
       // REQ: crash-visible, for v2 too: the agent sees the error once per session (prompt: as context; Stop: one
