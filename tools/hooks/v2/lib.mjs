@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { roots, resolver } from '../paths.mjs';
 import { people, personOf, peopleIn, peopleFor } from '../people.mjs';
 import { inEnglish } from '../labels.mjs';
-import { BASE_REQUIREMENTS, FAILED_RUN, MISSING_TOOL, PROBLEM_WORDS } from '../base-checks.mjs';
+import { BASE_REQUIREMENTS, FAILED_RUN, MISSING_TOOL, PROBLEM_WORDS, DEV_NEW_PROJECT } from '../base-checks.mjs';
 import { knowledgeFromFiles as knowledgeFromFilesOf, figureProblems as figureProblemsOf } from '../knowledge.mjs';
 import { forbiddenRe, secretHit } from '../settings.mjs';
 import { INJ_PLANTED, INJ_AIMED, INJ_WARNED } from '../injection.mjs';
@@ -969,7 +969,9 @@ export const engineChecks = () => {
   // under v2): every app-pack project was asked to raise its version number with no version file set)
   // (a check the project switched off after friction (friction-suspend) is skipped too, as the old engine skips it.
   // Lesson (the plan-required port): v2 read only "disabled", so a suspended check still held turns)
-  return [...BASE_REQUIREMENTS.filter(b => !own.some(r => r.tag === b.tag)), ...own].filter(r => r.tag !== 'security-code' && !off.has(r.tag) && r.enabled !== false && !checkOff(r.tag));
+  // (a development copy of the starter (.starter-dev) adds the trial check on how projects are made, as the old engine)
+  const dev = fs.existsSync(at('.starter-dev')) ? [DEV_NEW_PROJECT] : [];
+  return [...BASE_REQUIREMENTS.filter(b => !own.some(r => r.tag === b.tag)), ...dev, ...own].filter(r => r.tag !== 'security-code' && !off.has(r.tag) && r.enabled !== false && !checkOff(r.tag));
 };
 // (the runEach commands the engine ships, the only ones the end check runs on its own)
 const shippedRunEach = () => new Set((() => { try { return JSON.parse(fs.readFileSync(at('tools/hooks/engine-checks.json'), 'utf8')).requirements || []; } catch { return []; } })()

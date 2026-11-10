@@ -7,6 +7,13 @@ export const FAILED_RUN = /^\s*(FAIL(ED)?\b|not ok\b)|\b[1-9]\d* (tests? )?(fail
 export const MISSING_TOOL = /is not recognized as (an internal|the name)|command not found|: not found\b|No such file or directory.*(node_modules|bin)|Cannot find module|No module named|ModuleNotFoundError|could not determine executable|not installed/i;
 export const PROBLEM_WORDS = /\b(bugs?|broken|breaks?|crash(es|ed|ing)?|errors?|exceptions?|traceback|fail(s|ed|ing|ures?)?|doesn'?t work|does not work|not working|wrong|regression|fix(es)?|make (the )?(tests?|build) pass)\b|\b(falla|fallan|fallo|errores|roto|rota|no funciona|arregla|corrige)\b/i;
 
+// REQ: dev-new-project. In a development copy of the starter (.starter-dev), a change to how projects are made, linked or
+// upgraded needs the trial on sample projects. Both engines (moved from hooks.mjs DEV_REQUIREMENTS unchanged).
+export const DEV_NEW_PROJECT = { tag: 'dev-new-project', rule: '12', when: { filesChanged: ['tools/new-project.mjs', 'tools/starter.mjs', 'tools/hooks/wire.mjs', 'tools/packs.mjs', 'tools/skills.mjs'] },
+  // (a run of the script, not a command that names it: a "git add tools/trial.mjs" after a passing trial was its last run)
+  require: { toolPassed: { cmd: String.raw`\bnode\s+(\S*[\\/])?trial\.mjs`, pass: 'TRIAL: PASS' } },
+  message: 'Making, linking or upgrading projects changed: run node tools/trial.mjs until it prints "TRIAL: PASS". It proves on sample projects that nothing gets worse (files, rules, secrets, tests, git hooks, speed, repeat upgrades).' };
+
 // The baseline checks live here, not in requirements.json, so they can't be switched off by editing that file
 // (found by the ablation tests: an emptied requirements.json silently disabled every declarative check).
 // requirements.json adds checks or overrides one of these by tag; turning one off takes an explicit

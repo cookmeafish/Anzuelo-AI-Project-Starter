@@ -4,6 +4,13 @@ Where work on the starter itself stands, for the next session. Projects never ge
 docs/STATUS.md, which here is the template new projects start from).
 
 ## Now
+- 2026-11-10 (evening): main and GitHub at 433a5f7 (answer figures traced on the answer itself, research-verified,
+  toolPassed, answer-resent, praise, relay, plan-required, check-preview guard, self-check session fix). Both projects
+  sent the upgrade notice. Branch app-port at eae6e3e (plan-open, the v2-test counter as a record the audit lowers
+  itself, covers citing v2 tests); its chain is running. v2 list 266. Next, in triage order: covers ports (changelog,
+  dev-new-project, agent-neutral), then the largest remaining harm-3 groups. Open: answer-traced intermittent; the
+  stray branch app-port-head (deleting needs the user's OK); status-handoff is never named in the reminder (the
+  guard's cases are small changes, which skip it).
 - 2026-11-10 (later): main and GitHub at 77e164d (release of 69df17f: check preview line, v2 plan-required, skill
   hint on the user's own words; chain passed with time limits judged). Both projects sent the upgrade notice. Branch
   app-port at 883fb67, not released: the plan rule in the preview line, v2 honoring switched-off checks, praise hint

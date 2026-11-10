@@ -2622,7 +2622,9 @@ STOP.push(
   { pack: 'app', name: 'app-test-pass: npm --prefix <a subfolder> test is another package: still blocked', prompt: 'add a feature to export reports as csv', tools: [pb('feature'), bash('npm --prefix tools/site test', 'Tests: 3 passed, 3 total')], files: { ...SPEC, 'docs/x.md': 'x' }, mtimes: { 'docs/x.md': -3600_000 }, ...testGate,
     answer: 'Playbook: feature.md.\n' + VERIF + FIN, expect: { block: true, tags: ['app-test-pass'] } },
   { name: 'changelog: a check list changed without a CHANGELOG line: blocked', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
-    answer: 'Playbook: project.md. Added the line.' + FIN, expect: { block: true, tags: ['changelog'] } },
+    answer: 'Playbook: project.md. Added the line.' + FIN, expect: { block: true, tags: ['changelog'] },
+    // (v2 judges the turn's own edits: the checklist line is the agent's edit, as in a real turn)
+    v2: { tools: [pb('project'), editTool('docs/checks/finish-checklist.md')] } },
   { name: 'changelog: the same change with its CHANGELOG line: passes', prompt: 'add a line about screenshots to the finish checklist', tools: [pb('project')], prep: touch('docs/checks/finish-checklist.md', '\n- [ ] Screenshots of every changed screen were looked at.\n'),
     files: { 'docs/CHANGELOG.md': '# Changelog\n- 2026-10-19: finish checklist asks for screenshots of changed screens\n' }, answer: 'Playbook: project.md. Added the line.' + FIN, expect: { not: ['changelog'] } },
   // REQ: runbook-ledger. The runbook's "Done when" is the turn's checklist, kept as a record in the turn notes and judged
@@ -2673,7 +2675,9 @@ STOP.push(
   { name: 'twin-sync: one twin lost its twin note, so the two can\'t be synced: blocked', prompt: 'fix the wording in the hooks section of the agents file', tools: [pb('project')],
     files: { 'CLAUDE.md': TWIN, 'AGENTS.md': '# my own rules, rewritten\n', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md' + FIN, expect: { block: true, tags: ['twin-sync'] } },
   { name: 'dev-new-project: project making changed in a development copy without the trial: blocked', prompt: 'make new projects skip the empty inbox folder', edit: { '.starter-dev': () => 'development copy\n' },
-    prep: touch('tools/new-project.mjs', '\n// skip the empty inbox folder\n'), files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { block: true, tags: ['dev-new-project'] } },
+    prep: touch('tools/new-project.mjs', '\n// skip the empty inbox folder\n'), files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { block: true, tags: ['dev-new-project'] },
+    // (v2 judges the turn's own edits: the change to new-project.mjs is the agent's edit, as in a real turn)
+    v2: { tools: [editTool('tools/new-project.mjs')] } },
   { name: 'dev-new-project: the trial ran and passed: passes', prompt: 'make new projects skip the empty inbox folder', edit: { '.starter-dev': () => 'development copy\n' },
     prep: touch('tools/new-project.mjs', '\n// skip the empty inbox folder\n'), tools: [bash('node tools/trial.mjs', 'TRIAL: PASS (6 samples, nothing worse)')], files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Done.' + FIN, expect: { not: ['dev-new-project'] } },
   // (a command that only names the script, such as a git add of it, is no run of the trial. Lesson (this starter): a
@@ -5096,7 +5100,7 @@ const V2_ASKS = {
   'upset-learned': /^- (The runbook your Issue line names|Give the point in general terms|Say the root cause|Say first whether it holds|Say what you checked to know it holds|Write the lesson where it stops the next miss|This is about the engine: send the lesson|The user is upset again in this session)/m,
 };
 // (an engine check from requirements.json is recognized by its own message, which v2's evaluator gives as "Check: ...")
-const ENGINE_MSG = await (async () => { const out = {}; try { for (const q of (await import(pathToFileURL(path.join(ROOT, 'tools/hooks/base-checks.mjs')).href)).BASE_REQUIREMENTS) out[q.tag] = q.message; } catch { }
+const ENGINE_MSG = await (async () => { const out = {}; try { const b = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/base-checks.mjs')).href); for (const q of [...b.BASE_REQUIREMENTS, ...(b.DEV_NEW_PROJECT ? [b.DEV_NEW_PROJECT] : [])]) out[q.tag] = q.message; } catch { }
   // (pack checks are listed in engine-checks.json; a project gets them in its requirements.json when the pack is in)
   for (const f of ['tools/hooks/engine-checks.json', 'tools/hooks/requirements.json']) try { for (const q of JSON.parse(fs.readFileSync(path.join(ROOT, f), 'utf8')).requirements) out[q.tag] = q.message; } catch { }
   return out; })();
