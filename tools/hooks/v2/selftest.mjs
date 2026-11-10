@@ -1133,14 +1133,25 @@ report(onStop({ stop_hook_active: true, transcript_path: transcript([user('add a
     && /last check for this request/.test(third?.reason || '') && fourth === null,
     'end: an agent that ignores the block gets a second naming the same item (no verify list), a third that says to report what is not done, and no fourth', [first?.reason, later?.reason, third?.reason, fourth]);
   onPrompt({ session_id: 'fixed', prompt: 'add a csv export' });
-  // (REQ: skill-learn: the runbook's own item held round 1 and is met now, so round 2 asks only for its lesson; the lesson
-  // written into it, or "Skill lesson: none - <why>", ends the turn. User requirement row 18)
-  const f1 = onStop({ transcript_path: tp, session_id: 'fixed' }), f2 = onStop({ transcript_path: transcript(good), session_id: 'fixed', stop_hook_active: true });
+  // (REQ: skill-learn: round 1 names the runbook's own item and, in the same round, its lesson, so no later round brings
+  // it; once both are done (the lesson written into it, or "Skill lesson: none - <why>") the next stop passes. Done
+  // without the lesson, the next round holds only the lesson. User requirement row 18; oversight, 2026-11-10: no extra
+  // round after the work is done)
+  // (h: the runbook not opened before the first stop: its items failing then are no miss of it, so the work done right
+  // passes with no lesson asked)
+  const h1 = onStop({ transcript_path: tp, session_id: 'fixed' }), h2 = onStop({ transcript_path: transcript(good), session_id: 'fixed', stop_hook_active: true });
+  // (f, g: the runbook followed and its own item still missed)
+  const followed = transcript([user('add a csv export'), read, edit, say('Done.')]);
   const none = 'Done. How it was checked: npm test, 4 pass.\nSkill lesson: none - the tests were simply not run yet at the first check';
-  const f3 = onStop({ transcript_path: transcript([...good.slice(0, -1), say(none)]), session_id: 'fixed', stop_hook_active: true, last_assistant_message: none });
-  report(f1?.decision === 'block' && f2?.decision === 'block' && /^Still not done[^\n]*\n- This turn followed docs\/playbooks\/export\.md and its own check failed this turn\. Write the lesson into it/.test(f2?.reason || '')
-    && !/export\.md item/.test(f2?.reason || '') && f3 === null,
-    'end: once the missing work is done, the next round asks only for the runbook\'s lesson (its own item held round 1), and a lesson or "Skill lesson: none - <why>" ends the turn', [f1?.decision, f2?.reason, f3]);
+  onPrompt({ session_id: 'fixed1', prompt: 'add a csv export' });
+  const f1 = onStop({ transcript_path: followed, session_id: 'fixed1' });
+  const f2 = onStop({ transcript_path: transcript([...good.slice(0, -1), say(none)]), session_id: 'fixed1', stop_hook_active: true, last_assistant_message: none });
+  onPrompt({ session_id: 'fixed2', prompt: 'add a csv export' });
+  const g1 = onStop({ transcript_path: followed, session_id: 'fixed2' }), g2 = onStop({ transcript_path: transcript(good), session_id: 'fixed2', stop_hook_active: true });
+  report(h1?.decision === 'block' && !/Write the lesson/.test(h1?.reason || '') && h2 === null
+    && f1?.decision === 'block' && /export\.md item 1/.test(f1?.reason || '') && /This turn followed docs\/playbooks\/export\.md and its own check failed this turn\. Write the lesson into it/.test(f1?.reason || '') && f2 === null
+    && g1?.decision === 'block' && /^Still not done[^\n]*\n- This turn followed docs\/playbooks\/export\.md[^\n]*Write the lesson/.test(g2?.reason || '') && !/export\.md item/.test(g2?.reason || ''),
+    'end: a runbook followed and still missed gets its item and its lesson named together in round 1, and both done passes; done without the lesson, the next round holds only it; one not yet opened at the first stop owes no lesson', [h1?.reason, h2, f1?.reason, f2, g2?.reason]);
   onPrompt({ session_id: 'again', prompt: 'add a csv export' });
   const next = onStop({ transcript_path: tp, session_id: 'again' });
   // (a message typed while a turn runs joins it; after the turn's Stop passes, the next message starts a new turn)

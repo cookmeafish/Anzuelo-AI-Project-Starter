@@ -413,9 +413,13 @@ function skillLearnGaps(turn, acts, list, sid, request) {
   const books = runbooks().filter(b => opened(b, acts) && !authored(b, acts)).map(b => ({ name: b.name, file: b.file, front: b.front, items: b.items }));
   const skills = skillBooks({ parts: true }).filter(s => opened({ ...s, skills: [] }, acts) && !authored(s, acts)).map(s => ({ name: s.name, skillName: s.name, file: s.file, front: s.front, items: s.items }));
   if (!books.length && !skills.length) return [];
+  // (a round that asked to open a runbook had not followed it yet: its items failing then are no miss of the runbook.
+  // Oversight, 2026-11-10: no extra round after the work is done)
+  const unfollowed = steps => new Set(steps.map(s => (/^Open ([\w./-]+\.md) and /.exec(normStep(s)) || [])[1]).filter(Boolean));
+  const ownOf = (tags, steps) => { const skip = unfollowed(steps); return tags.filter(t => ![...skip].some(f => t.startsWith(`${f}#`))); };
   const earlier = (() => { try { return fs.readFileSync(at('tools/hooks/state/stop-log.jsonl'), 'utf8'); } catch { return ''; } })().split('\n')
-    .map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(e => e && e.session === sid && e.request === request && e.result === 'blocked').flatMap(e => e.steps || []);
-  const failedBefore = [...new Set(earlier.flatMap(stepTags))], failingNow = [...new Set(list.flatMap(stepTags))];
+    .map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(e => e && e.session === sid && e.request === request && e.result === 'blocked').flatMap(e => ownOf((e.steps || []).flatMap(stepTags), e.steps || []));
+  const failedBefore = [...new Set(earlier)], failingNow = [...new Set(ownOf(list.flatMap(stepTags), list))];
   if (!failedBefore.length && !failingNow.length) return [];
   const checks = engineChecks();
   const SL = skillLearnMemo ||= makeSkillLearn({ complaintDisproved: P.complaintDisproved, learnedNone: () => NONE,
