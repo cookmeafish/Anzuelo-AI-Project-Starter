@@ -2585,7 +2585,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     fs.writeFileSync(tp, [{ type: 'user', timestamp: at, message: { role: 'user', content: 'add a csv export' } },
       { type: 'assistant', timestamp: at, message: { role: 'assistant', content: [{ type: 'tool_use', id: 'mk1', name: 'Read', input: { file_path: path.join(c, 'docs/playbooks/export.md') } }, { type: 'tool_use', id: 'mk2', name: 'Write', input: { file_path: path.join(c, 'src/export.js'), content: 'x' } }] } },
       { type: 'assistant', timestamp: at, message: { role: 'assistant', content: [{ type: 'text', text: 'Added.' }] } }].map(r => JSON.stringify(r)).join('\n') + '\n');
-    // (each host in its own session, so each is a first round: Claude Code, Codex, a host the engine does not know, and
+    // (REQ stop-form: each host in its own session, so each is a first round: Claude Code, Codex, a host the engine does not know, and
     // Claude Code with "stopStyle": "block" in config.json)
     const held = (sid, { claude = false, extra = {}, style } = {}) => {
       fs.writeFileSync(cfgFile, style ? JSON.stringify({ ...JSON.parse(cfg0), stopStyle: style }) : cfg0);
