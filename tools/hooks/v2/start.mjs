@@ -2,7 +2,7 @@
 // "Done when" list, which the end hook checks. Nothing about the engine itself.
 import fs from 'node:fs';
 import path from 'node:path';
-import { route, skillBooks, saveTurn, loadTurn, isSpanish, ROOT, at, quoteCheckOn, projectConfig, snapshotLater, runbooks, routeEnglish, engineChecks, doneWhen, ALWAYS } from './lib.mjs';
+import { route, skillBooks, saveTurn, loadTurn, isSpanish, ROOT, at, quoteCheckOn, projectConfig, checkOff, snapshotLater, runbooks, routeEnglish, engineChecks, doneWhen, ALWAYS } from './lib.mjs';
 import { closestRunbook, coreRunbook, isTaskRequest, userWords } from '../near.mjs';
 
 // REQ: check-preview. What the end check will also ask for if the work changes files, beyond the runbook's own list: the
@@ -14,7 +14,9 @@ export function alsoChecked(names = []) {
   const files = c => JSON.stringify(c || {}).includes('"filesChanged"');
   const mine = engineChecks().filter(r => files(r.when) && [r.when?.playbookUsed, r.when?.playbookRouted, r.when?.skillUsed].some(n => n && names.includes(n))).map(r => r.tag.replace(/-/g, ' '));
   let own = []; try { own = doneWhen(fs.readFileSync(at(ALWAYS), 'utf8')).filter(it => it.kind && (it.whens || []).some(w => w.kind === 'file')).map(it => it.text.length <= 60 ? it.text : it.text.slice(0, it.text.lastIndexOf(' ', 57)) + '...'); } catch { }
-  const all = [...new Set([...mine, ...own])];
+  // (plan-required applies to any task: named as the old engine named it, with the project's own new-file limit)
+  const plan = checkOff('plan-required') ? [] : [`plan required (a plan in docs/plans/ first) if it adds ${Number(projectConfig().planNewFiles) || 5}+ new files`];
+  const all = [...new Set([...mine, ...own, ...plan])];
   return all.length ? `Also checked at the end if files change: ${all.slice(0, 4).join('; ')}${all.length > 4 ? `; +${all.length - 4} more` : ''}.` : '';
 }
 import { toOtherSession } from '../relay.mjs';

@@ -974,6 +974,11 @@ const STOP = [
   { name: 'plan-required: five new files and no plan: blocked', prompt: 'add an export feature with its helpers', tools: [pb('project'), bash('node tools/audit.mjs')],
     files: { 'src/export/a.mjs': 'x', 'src/export/b.mjs': 'x', 'src/export/c.mjs': 'x', 'src/export/d.mjs': 'x', 'src/export/e.mjs': 'x', 'docs/CHANGELOG.md': 'x' },
     answer: 'Playbook: project.md. Added the export. Still open: wiring it into the CLI.\nN/A(verification-report): a test fixture.' + FIN, expect: { block: true, tags: ['plan-required'] } },
+  // (a project that switched the plan check off (friction-suspend) is not asked for one, in either engine)
+  { name: 'plan-required: switched off by the project: no plan asked', prompt: 'add an export feature with its helpers', tools: [pb('project'), bash('node tools/audit.mjs')],
+    files: { 'src/export/a.mjs': 'x', 'src/export/b.mjs': 'x', 'src/export/c.mjs': 'x', 'src/export/d.mjs': 'x', 'src/export/e.mjs': 'x', 'docs/CHANGELOG.md': 'x' },
+    edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), suspended: [{ item: 'check:plan-required', at: '2026-11-10', why: 'test' }] }) },
+    answer: 'Playbook: project.md. Added the export. Still open: wiring it into the CLI.\nN/A(verification-report): a test fixture.' + FIN, expect: { not: ['plan-required'] } },
   // (finished work needs no plan written after it; open work recorded in STATUS.md is recorded. Lesson (a field report):
   // a finished order build was blocked for a plan, and the agent wrote one about work already done)
   { name: 'plan-required: five new files, the work finished, nothing open: no plan asked', prompt: 'add an export feature with its helpers', tools: [pb('project'), bash('node tools/audit.mjs')],

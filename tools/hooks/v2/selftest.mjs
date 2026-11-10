@@ -3022,6 +3022,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   const ALWAYS_FILE = 'docs/checks/always.md';
   const keepReq = fs.readFileSync(path.join(dir, 'tools/hooks/requirements.json'), 'utf8'), eng = path.join(dir, 'tools/hooks/engine-checks.json');
   const keepEng = fs.existsSync(eng) ? fs.readFileSync(eng, 'utf8') : null, alw = path.join(dir, ALWAYS_FILE), keepAlw = fs.existsSync(alw) ? fs.readFileSync(alw, 'utf8') : null;
+  const cfgFile = path.join(dir, 'tools/hooks/config.json'), keepCfg = fs.existsSync(cfgFile) ? fs.readFileSync(cfgFile, 'utf8') : null;
   const noted = { tag: 'export-noted', when: { playbookUsed: 'export', filesChanged: ['src/**'] }, require: { answerMatches: 'noted' }, message: 'Note the export.' };
   let got = {};
   try {
@@ -3030,14 +3031,21 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     const routed = reminder('can you add a CSV export for the orders page').text, question = reminder('what is the capital of peru?').text;
     const work = reminder('rename the vendor files to use dates').text;
     const lastLine = t => t.split('\n').at(-1);
-    got = { routed: lastLine(routed), work: lastLine(work), question, lines: routed.split('\n').length };
+    // (a project that switched plan-required off is not told of it)
+    put('tools/hooks/config.json', JSON.stringify({ ...JSON.parse(keepCfg || '{}'), suspended: [{ item: 'check:plan-required', why: 'fixture' }] }));
+    const off = lastLine(reminder('rename the vendor files to use dates').text);
+    got = { routed: lastLine(routed), work: lastLine(work), question, lines: routed.split('\n').length, off };
   } finally {
     put('tools/hooks/requirements.json', keepReq); keepEng === null ? fs.rmSync(eng, { force: true }) : put('tools/hooks/engine-checks.json', keepEng);
     keepAlw === null ? fs.rmSync(alw, { force: true }) : put(ALWAYS_FILE, keepAlw);
+    keepCfg === null ? fs.rmSync(cfgFile, { force: true }) : put('tools/hooks/config.json', keepCfg);
   }
-  report(/^Also checked at the end if files change: export noted; The data validator passes on the changed data\.$/.test(got.routed || '') && /^Also checked at the end if files change: The data validator passes on the changed data\.$/.test(got.work || '')
+  const plan = 'plan required \\(a plan in docs/plans/ first\\) if it adds \\d+\\+ new files';
+  report(new RegExp(`^Also checked at the end if files change: export noted; The data validator passes on the changed data; ${plan}\\.$`).test(got.routed || '')
+    && new RegExp(`^Also checked at the end if files change: The data validator passes on the changed data; ${plan}\\.$`).test(got.work || '')
+    && /^Also checked at the end if files change: The data validator passes on the changed data\.$/.test(got.off || '')
     && !/Also checked/.test(got.question || '') && got.lines <= MAX_LINES,
-    'start: the reminder\'s last line names what the end check also asks if files change (an engine check naming the runbook, the project\'s own file items), not for a question, within the line cap', JSON.stringify(got));
+    'start: the reminder\'s last line names what the end check also asks if files change (an engine check naming the runbook, the project\'s own file items, the plan rule unless switched off), not for a question, within the line cap', JSON.stringify(got));
 }
 
 // (the time verdict: alone, over the limit fails; beside another live self-test run, it is printed and not judged; a

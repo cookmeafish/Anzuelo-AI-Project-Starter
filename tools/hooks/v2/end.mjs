@@ -11,7 +11,7 @@ import { PAUSE_ASK } from '../pause.mjs';
 import { wakeGaps } from '../wakeups.mjs';
 import { makeSkillLearn } from '../skilllearn.mjs';
 import { makeProof } from '../proof.mjs';
-import { forbiddenGaps, codeRuleGaps, injectionGaps, verbatimGaps, CRASHED, crashLine, logStop, upgradeGaps, autoRuns, sessionStart, changedOf, projectConfig, inGlobs, priorCalls, filesMatching, withBackgroundOutputs, hookTestsGaps, engineChecks, doneWhen } from './lib.mjs';
+import { forbiddenGaps, codeRuleGaps, injectionGaps, verbatimGaps, CRASHED, crashLine, logStop, upgradeGaps, autoRuns, sessionStart, changedOf, projectConfig, checkOff, inGlobs, priorCalls, filesMatching, withBackgroundOutputs, hookTestsGaps, engineChecks, doneWhen } from './lib.mjs';
 import { ROOT, at, runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, questionGaps, noteGaps, quoteGaps, tail, helpersRunning, backgroundRuns, helperRuns, evidenceGaps, evidenceOf, skillBooks, alwaysGaps, scopeGaps, earlierPrompts, ALWAYS, engineCheckGaps, loadDirty, isSpanish } from './lib.mjs';
 // (the two data tables, one evaluator each: the project's always list and the engine's own checks)
 // (each check runs on its own: one that throws is named once with its error, and the rest still run)
@@ -22,7 +22,7 @@ const tableGaps = acts => [...alwaysGaps(acts), ...engineCheckGaps(acts), ...for
 // conditions already hold (enough changed files, open work said, no plan or status recorded).
 function planGaps(acts) {
   const cfg = projectConfig(), changed = changedOf(acts), n = Number(cfg.planNewFiles) || 5, said = String(acts.said || acts.answer || '');
-  if (changed.length < n || !OPEN_WORK.test(said) || changed.some(p => /^docs\/plans\/.+\.md$/.test(p) || p === 'docs/STATUS.md')) return [];
+  if (checkOff('plan-required') || changed.length < n || !OPEN_WORK.test(said) || changed.some(p => /^docs\/plans\/.+\.md$/.test(p) || p === 'docs/STATUS.md')) return [];
   const since = Date.parse(acts.at || '') || 0, start = acts.startHashes?.files || {};
   let head = null; const inHead = p => { if (head === null) { const r = spawnSync('git', ['ls-tree', '-r', '--name-only', 'HEAD'], { cwd: ROOT, encoding: 'utf8', timeout: 5000, maxBuffer: 1 << 26 }); head = new Set(r.status === 0 ? r.stdout.split('\n') : []); } return head.has(p); };
   const born = p => { if (start[p] || inHead(p)) return false; try { return fs.statSync(at(p)).birthtimeMs > since - 1000; } catch { return false; } };
