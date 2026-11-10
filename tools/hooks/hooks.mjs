@@ -391,11 +391,11 @@ const GENERIC = new Set(['fix', 'add', 'added', 'save', 'make', 'get', 'use', 'c
   // (the same common verbs in Spanish, without accents)
   'anade', 'anadir', 'agrega', 'agregar', 'haz', 'hacer', 'pon', 'poner', 'cambia', 'cambiar', 'quiero', 'puedes', 'necesito'].map(stem));
 // (RELAY, PEER_NOUN, PEER and the "also asks for work" test: in relay.mjs, shared with engine v2)
-import { RELAY, PEER_NOUN, PEER, ALSO_WORK } from './relay.mjs';
+import { RELAY, PEER_NOUN, PEER, ALSO_WORK, STARTER_UPGRADE, HANDBACK, RELAY_START, relayedBody, relayRouteText, relayRequestText as relayRequestTextOf, typedRouteText } from './relay.mjs';
+export { HANDBACK, relayedBody, relayRouteText, typedRouteText };
+export const relayRequestText = (s, cfg = config()) => relayRequestTextOf(s, cfg);
 // ...a relay unless it also asks for work ("tell the terminal, then fix the export"); toPeer adds the starter by name
 const isRelay = t => (RELAY.test(t) || toPeer(t)) && !ALSO_WORK.test(t);
-// An upgrade of this project's engine from its starter: the starter command, or "upgrade/update the engine/starter".
-const STARTER_UPGRADE = /\bstarter\.mjs\s+(update|upgrade)\b|\b(upgrade|update)\s+(the\s+|this\s+|your\s+)?(engine|starter)\b|\bactualiza\w*\s+(el\s+)?(motor|starter)\b/i;
 // The starter's own name (docs/names.json STARTER_NAME), unless the project's content is about a real thing of that name.
 const starterName = () => { const n = names().STARTER_NAME; return n && n.trim().length >= 3 && !/\{\{/.test(n) && !subjects().has('STARTER_NAME') ? n.trim() : ''; };
 export const toPeer = (text, starter = starterName()) => RELAY.test(text) || PEER.test(text) ||
@@ -697,10 +697,6 @@ const skipped = t => SKIP.some(s => String(t).trimStart().startsWith(s));
 // (the host's notice that a peer went idle, or held a message, also arrives on its own. Lesson, dogfood: an idle
 // notice kept the earlier turn open, and the one-line reply to it was told to list that turn's changed files)
 const RELAYED_TURN = /^\s*(<cross-session-message\b|Another Claude session sent a message|\[Cross-session (idle|delivery) notice\])/;
-// A helper this session launched, handing back its report: part of the task that launched it, not a new request (no
-// turn of its own, no hints, no cost row). Lesson (a field report): each hand-back of a build's own helpers got RELAYED,
-// NO RUNBOOK and SHARED STEPS hints, and the cost command split one 40-minute request into five rows.
-export const HANDBACK = /\[Subagent hand-back\]|a subagent this session delegated to|an agent working inside this same session/i;
 const relayedTurn = r => r?.type === 'user' && !isToolResult(r.message?.content) && RELAYED_TURN.test(textOf(r.message?.content)) && !HANDBACK.test(textOf(r.message?.content));
 
 // A real user prompt: text, or text + images. Not a tool result, notification, or meta entry.
@@ -3447,53 +3443,7 @@ export const isWhQuestion = p => { const t = userText(p).trim(); return QUESTION
 export const isRequirement = (p, cfg = config()) => !isWhQuestion(p) && re(cfg.requirementWords).test(ownWords(p));
 // (praise: tools/hooks/praise.mjs, shared with engine v2)
 export const isPraise = (p, cfg = config()) => isPraiseOf(p, cfg);
-// A message relayed from another session or agent, as the whole prompt: "<cross-session-message ...>BODY</...>",
-// "<agent-message ...>BODY</...>" or "Another Claude session sent a message: BODY". Its body ('' if it is not one).
-const RELAY_START = /^\s*(<(cross-session-message|agent-message)\b[^>]*>|Another Claude session sent a message\b[:.]?)/i;
-export function relayedBody(prompt) {
-  const s = String(prompt || ''), m = RELAY_START.exec(s);
-  if (!m) return '';
-  let body = s.slice(m[0].length);
-  if (m[2]) { const end = body.search(new RegExp(`</${m[2]}>`, 'i')); if (end >= 0) body = body.slice(0, end); }
-  return body.trim();
-}
-// What of a relayed message routes: its own words, not what it quotes or runs. Quoted text, code in backticks and
-// command lines describe or cite work (a test's name, the old behaviour, a command to run), so they are left out; a
-// starter upgrade command is kept as "upgrade the starter". Lesson: a message reporting fixes ("the old check read it as
-// a failure", test names in quotes, "node tools/starter.mjs update") routed to the bugfix runbook, a deliverable and
-// two library skills, while its job was a starter upgrade.
-// (a command, by its shape: "go to the store" or "a node in the graph" is prose)
-const CMD_LINE = /\b(?:node\s+[\w./\\-]+\.[cm]?[jt]s\b|(?:npm|pnpm|yarn)\s+(?:run|install|i|test|ci|publish)\b|npx\s+\S+|git\s+(?:add|commit|push|pull|fetch|log|status|diff|show|checkout|switch|merge|rebase|tag|stash|reset|clone|init)\b|python3?\s+(?:-m\s+\S+|[\w./\\-]+\.py\b)|py\s+(?:-m\s+\S+|[\w./\\-]+\.py\b)|pip3?\s+install\b|(?:pwsh|powershell)(?:\.exe)?\s+(?:-\w+|[\w./\\-]+\.ps1\b)|go\s+(?:build|test|run|vet|mod|get|install)\b|cargo\s+(?:build|test|run|install|publish)\b|dotnet\s+(?:build|test|run|publish)\b|(?:bash|sh)\s+[\w./\\-]+\.sh\b)(?:[^\n;.]|\.(?=\S))*/gi;
-const asRoute = c => STARTER_UPGRADE.test(c) ? ' upgrade the starter ' : ' ';
-// Work reported as done ("fixed and pushed:", "already released") is no request for that work. Lesson: "fixed and
-// pushed: GitHub main" routed to the release runbook and held the turn to its release checks.
-const DONE_REPORT = /\b(?:and|been|is|are|was|were|already|now|all|got)\s+(?:pushed|released|published|deployed|merged|tagged|shipped)\b|\b(?:pushed|released|published|deployed|merged|shipped)\s*:/gi;
-export const relayRouteText = s => String(s || '')
-  .replace(/```[\s\S]*?(```|$(?![\s\S]))/g, asRoute).replace(/`[^`\n]*`/g, asRoute)
-  .replace(/["“][^"”\n]*["”]/g, ' ').replace(CMD_LINE, asRoute).replace(DONE_REPORT, ' ')
-  // (a "note:" label is the sender's aside, not the user's shorthand for "save this". Lesson: "Separate note: your
-  // state file ..." set off the skill that records notes)
-  .replace(/\b(?:(?:side|separate|small|quick|one|a|another|final|last)\s+)?(?:notes?|nota|aviso)\s*:/gi, ' ').replace(/\s{2,}/g, ' ').trim();
-// The sentences of a relayed message that ask for something: one that starts with a task verb ("make me a report",
-// "please replay it"), or asks ("can you", "I need you to", "por favor"). The rest reports or explains, and routes
-// nothing. Lesson: "STATUS.md had changed since then" in a report of fixes routed to the refresh runbook.
-export function relayRequestText(s, cfg = config()) {
-  const lead = String.raw`^(?:[\s\-*>\d.)]*(?:hey|ok(?:ay)?|now|also|next|then|so|and|y|ahora|tambi[eé]n|luego|from now on|always|never|de ahora en adelante|siempre|nunca)\b[,\s]*)*(?:please\s+|por favor,?\s+)?`;
-  const startsEn = re(`${lead}(?:${cfg.taskVerbs})`), startsEs = new RegExp(`${lead}(?:${TASK_ES.source})`, 'i');
-  const starts = { test: x => startsEn.test(x) || startsEs.test(fold(x)) }, asks = /\b(can|could|would) you\b|\bplease\b|\bi (need|want) you to\b|\bpor favor\b|\b(puedes|podr[ií]as|necesito que)\b/i;
-  // (a bare "upgrade" from another session, with no object, is the engine's: "Upgrade when convenient" had routed to a
-  // project's own upgrade runbook)
-  const bare = /^(?:please\s+)?(?:upgrade|update|actualiza)\s*(?=$|[.!,]|\s+(?:when|once|now|again|after|before|at|if|whenever|cuando|ahora)\b)/i;
-  // (a label before a colon is no task verb: "Test: (fails on the old engine)" names a test, "Steps: commit ..." starts
-  // with its verb after it. Lesson (a field report): a relayed upgrade note's "Test:" line routed to the debug skill)
-  const unlabeled = x => x.trim().replace(/^[\s\-*>]*\**\p{L}[\p{L} ]{0,20}\**:\s*/u, '');
-  return String(s || '').split(/(?<=[.!?])\s+|\r?\n/).map(x => bare.test(x.trim()) ? 'upgrade the starter.' : x)
-    .filter(x => starts.test(unlabeled(x)) || asks.test(x) || /upgrade the starter/.test(x)).join(' ').trim();
-}
-// The user's own message routes on its words too: a command it names (in backticks or as a command line) and work it
-// reports as done are no request for that work; what it quotes stays (a user quotes the thing they mean). Lesson:
-// "upgrade with node tools/starter.mjs update" set off the dependency-update skill on "upgrade node".
-export const typedRouteText = s => String(s || '').replace(/`[^`\n]*`/g, asRoute).replace(CMD_LINE, asRoute).replace(DONE_REPORT, ' ').replace(/\s{2,}/g, ' ').trim();
+// (relayed messages: relayedBody, relayRouteText, relayRequestText, typedRouteText in tools/hooks/relay.mjs, shared with engine v2)
 // A short question about whether the work is done (English, Spanish), under 80 characters.
 const STATUS_ASK = /^(?=.{1,80}$)(?:(?:so|ok(?:ay)?|and|well|hey)[,\s]+)?(?:is|are|was) (?:it|that|this|everything|the \w+|they|we) (?:done|finished|ready|working|complete|still running)\b|^(?=.{1,80}$)(?:did|has|have) (?:it|that|this|the \w+|they|you) (?:finish(?:ed)?|complete(?:d)?|work(?:ed)?|pass(?:ed)?|end(?:ed)?)\b|^(?=.{1,80}$)(?:how(?:'s| is) it going|any (?:news|progress|update)|status\??$|where are we)|^(?=.{1,80}$)¿?\s*(?:ya )?(?:termin(?:ó|aste|aron)|acab(?:ó|aste|aron)|est[aá] (?:listo|lista|hecho|terminado))/i;
 const PASTE_LONG = 3000;

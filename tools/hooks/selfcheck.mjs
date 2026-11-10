@@ -5145,11 +5145,15 @@ for (const s0 of PROMPT) {
     if (not && /^NO RUNBOOK\b/.test(h)) return h;
     if (/^CLOSEST RUNBOOK$/.test(h)) return 'Closest runbook:';
     if ((m = /^SKILL: ([\w-]+)$/.exec(h))) return `skills/${m[1]}/SKILL.md`;
-    if ((m = /^ROUTE: ([\w-]+)$/.exec(h))) return `Runbook: open docs/playbooks/${m[1]}.md`;
+    // (v2's runbook line, typed ("Runbook: open X") or relayed ("Runbook, only if this message asks for work here: open X"))
+    if ((m = /^ROUTE: ([\w-]+)$/.exec(h))) return `open docs/playbooks/${m[1]}.md and follow it`;
     if ((m = /^CLOSEST RUNBOOK: no trigger phrase matched, but (\S+)$/.exec(h))) return `Closest runbook: ${m[1]}`;
     if (/^NO RUNBOOK\b/.test(h)) return 'If this is real work, pick the runbook in DIRECTORY.md';
-    if (/^CHECKS: this turn will be held to\b/.test(h)) return 'Done when (before answering';
+    // (the old check preview is v2's runbook list, or with no runbook, its "Also checked at the end" line)
+    if (/^CHECKS: this turn will be held to\b/.test(h)) return ['Done when (before answering', 'Also checked at the end if files change'];
     if (h === 'PRAISE') return 'Praise: the user liked something';
+    // (the old engine's line for relayed work is v2's caveat in the runbook line)
+    if (/^RELAYED: this request was relayed\b/.test(h)) return 'only if this message asks for work here';
     return h; };
   const s = process.env.STARTER_ENGINE === 'v2' && !(s0.v2 && (s0.v2.has || s0.v2.hasNot)) ? { ...s1, has: (s1.has || []).map(V2_SAY), hasNot: (s1.hasNot || []).map(h => V2_SAY(h, true)), v1has: s1.has } : s1;
   const routes = (s.v1has || s.has || []).map(h => /^ROUTE: ([\w-]+)$/.exec(h)?.[1]).filter(Boolean);
@@ -5172,9 +5176,11 @@ for (const s0 of PROMPT) {
     const out = ss.out + pr.out, seen = out + ctx(pr.out), err = ss.err + pr.err;
     let why = '';
     if (s.none && out.trim()) why = 'expected no output, got: ' + out.slice(0, 200);
-    for (const h of s.hasNot || []) if (seen.includes(h)) why ||= 'unexpected "' + h + '"';
+    // (an entry may be a list of v2 wordings, any of which says it: V2_SAY)
+    const sees = h => [].concat(h).some(x => seen.includes(x));
+    for (const h of s.hasNot || []) if (sees(h)) why ||= 'unexpected "' + [].concat(h).join('" or "') + '"';
     // (the CHECKS line, when there is one, is shown whole: it comes after the rules digest)
-    for (const h of s.has || []) if (!seen.includes(h)) why ||= `missing "${h}" in: ${out.slice(0, 400) || '(empty)'}${/CHECKS: /.test(out) && !out.slice(0, 400).includes('CHECKS: ') ? ` ... ${/CHECKS: .*/.exec(out)[0]}` : ''} ${err.slice(0, 200)}`;
+    for (const h of s.has || []) if (!sees(h)) why ||= `missing "${[].concat(h).join('" or "')}" in: ${out.slice(0, 400) || '(empty)'}${/CHECKS: /.test(out) && !out.slice(0, 400).includes('CHECKS: ') ? ` ... ${/CHECKS: .*/.exec(out)[0]}` : ''} ${err.slice(0, 200)}`;
     // routes: how many primary ROUTE lines (secondary ones say "ALSO ROUTE"); under v2, its "Runbook: open" lines
     const primary = (out.match(process.env.STARTER_ENGINE === 'v2' ? /Runbook: open docs\/playbooks\/[\w-]+\.md/g : /(?<!ALSO )\bROUTE: [\w-]+/g) || []).length;
     if (s.routes !== undefined && primary !== s.routes) why ||= `expected ${s.routes} primary ROUTE line(s), got ${primary}: ${out.slice(0, 400)}`;

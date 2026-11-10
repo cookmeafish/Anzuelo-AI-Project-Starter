@@ -393,12 +393,14 @@ report(/learn-from-upset/.test(reminder('WHY DID YOU BREAK THE EXPORT AGAIN').te
   if (hadR === null) fs.rmSync(cfgR); else fs.writeFileSync(cfgR, hadR);
 }
 { // a message relayed from another session gets its runbook only for when it asks for work
-  const relay = reminder('Another Claude session sent a message:\n<cross-session-message from="x">The fix to export the orders landed in 1a2b3c. Nothing to change.</cross-session-message>');
+  // (a relayed report that asks for nothing gets no reminder at all: relay-preview, as the old engine)
+  const report0 = reminder('Another Claude session sent a message:\n<cross-session-message from="x">The fix to export the orders landed in 1a2b3c. Nothing to change.</cross-session-message>');
+  const relay = reminder('Another Claude session sent a message:\n<cross-session-message from="x">Please export the orders for this week.</cross-session-message>');
   const asked = reminder('can you export the orders for this week');
   // (in the runbook line itself, not a line of its own: peer messages are frequent. Lesson (replay): the extra line was
   // most of the reminders' growth, on 136 and 89 peer messages)
-  report(/^Runbook, only if this message asks for work here: open docs\/playbooks\/export\.md and follow it\./m.test(relay.text) && relay.text.split('\n').length === reminder('export the orders for this week').text.split('\n').length && !/only if/.test(asked.text),
-    'start: a relayed message gets its runbook only for when it asks for work, in the runbook line itself; a typed request gets it plainly', { relay: relay.text, asked: asked.text });
+  report(/^Runbook, only if this message asks for work here: open docs\/playbooks\/export\.md and follow it\./m.test(relay.text) && relay.text.split('\n').length === reminder('export the orders for this week').text.split('\n').length && !/only if/.test(asked.text) && report0.text === '',
+    'start: a relayed message gets its runbook only for when it asks for work, in the runbook line itself; a relayed report gets nothing; a typed request gets it plainly', { relay: relay.text, asked: asked.text, report: report0.text });
 }
 { // the project's own standing rule that shares two words with the request is named in the reminder; others are not
   put('AGENTS.md', "# Rules\n\n## The user's standing preferences\n- Only the owner account may delete anything; staff accounts never may (2026-11-05).\n- Exports always list the totals row last (2026-11-05).\n");

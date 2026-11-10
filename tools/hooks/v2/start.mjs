@@ -20,7 +20,9 @@ export function alsoChecked(names = []) {
   const all = [...new Set([...mine, ...own, ...plan])];
   return all.length ? `Also checked at the end if files change: ${all.slice(0, 4).join('; ')}${all.length > 4 ? `; +${all.length - 4} more` : ''}.` : '';
 }
-import { toOtherSession } from '../relay.mjs';
+import { toOtherSession, RELAY_START, HANDBACK, relayedBody, relayRouteText, relayRequestText } from '../relay.mjs';
+// (the host's notice that a peer went idle or held a message: no request of anyone's)
+const NOTICE = /^\s*\[Cross-session (idle|delivery) notice\]/;
 import { asksOnly } from './late.mjs';
 import { PAUSE_ASK, PAUSE_HINT } from '../pause.mjs';
 import { capsUpset } from '../caps.mjs';
@@ -94,6 +96,21 @@ export function reminder(prompt, { midTurn = false } = {}) {
 }
 function remind(prompt) {
   const raw = String(prompt || '');
+  // REQ: relay-preview. A message relayed from another session or agent routes on the sentences that ask for work (what
+  // it quotes, runs or reports as done left out: relay.mjs, shared with the old engine), never on its wrapper; a helper's
+  // hand-back, a peer's idle or delivery notice and a message that only reports get no reminder. Lesson (the old suite
+  // under v2): the wrapper's own words ("cross-session message") routed to the field-report runbook, and small talk
+  // got the generic line.
+  if (RELAY_START.test(raw) || NOTICE.test(raw)) {
+    // (the host sends both wrappers, the sentence then the tag: each is peeled)
+    const peel = s => { const b = relayedBody(s); return b && RELAY_START.test(b) ? peel(b) : b; };
+    const body = HANDBACK.test(raw) ? '' : peel(raw);
+    const ask = body ? relayRequestText(relayRouteText(body), projectConfig()) : '';
+    if (!ask) return { book: null, text: '' };
+    // (its "from now on" or "always" sets no rule of the user's, so it does not route to the rules runbook: the work does.
+    // As the old engine. Lesson (the old suite under v2): "from now on always tune my zorbel weekly" went to project.md)
+    prompt = ask.replace(/\b(from now on|going forward|from here on|de ahora en adelante|a partir de ahora)\b,?\s*/gi, ' ').replace(/^(\s*)(always|never|siempre|nunca)\s+/i, '$1').trim() || ask;
+  }
   // (pasted text is not the user's words: it never routes and is never upset. Lesson (the old engine): words inside a
   // pasted text set off the complaint handling)
   prompt = String(prompt || '').replace(/<pasted_content\b[^>]*>[\s\S]*?<\/pasted_content(?:\s[^>]*)?>|<pasted_content\b[^>]*\/>/gi, ' ');
@@ -142,7 +159,7 @@ function remind(prompt) {
   // engine) names what to do with it; the end check never holds a turn for praise on its own. Oversight (2026-11-10):
   // "detection from the user's words is a reminder hint only". Lesson (the old suite under v2): v2 said nothing on praise,
   // so what the user liked was never written down to repeat.
-  const praise = !sore && isPraise(userWords(prompt), projectConfig()) ? 'Praise: the user liked something. If it should repeat, write what exactly worked into the runbook or skill it came from (a "What works" line); "keep doing this" is a standing rule (project-rule).' : '';
+  const praise = !sore && !relayedRx.test(raw) && isPraise(userWords(prompt), projectConfig()) ? 'Praise: the user liked something. If it should repeat, write what exactly worked into the runbook or skill it came from (a "What works" line); "keep doing this" is a standing rule (project-rule).' : '';
   if (!book) return { book: null, text: [skill, praise, pick, es, ...rulesFor(prompt).map(r => `The project's own rule here: ${r}`), isTaskRequest(prompt, taskVerbs, toOtherSession(prompt)) ? alsoChecked(sk && skill ? [sk.name] : []) : ''].filter(Boolean).slice(0, MAX_LINES).join('\n') };
   const own = rulesFor(prompt).map(r => `The project's own rule here: ${r}`);
   // (a message relayed from another session may only report: its runbook is for when it asks for work. Lesson (project
