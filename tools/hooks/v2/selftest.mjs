@@ -1028,6 +1028,23 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
     report(res.noResult === 1 && !res.table && !res.spanish && !res.notUsed && /src\/auth\.js: "password"/.test(opened[0] || '') && !reported.length && !plain.length && vague.length === 1 && !headless.length && mirrored === 0,
       'end: engine checks from requirements.json hold (a Spanish answer read with English labels); security-sensitive code names the file and words, only opening the review is no review, and a specific "does not apply" line or a headless turn-notes waiver clears it; the engine code an install copies into a skill mirror is not checked', JSON.stringify({ res, opened, reported, plain, vague, headless, mirrored }));
   }
+  // REQ: friction-reported: a check the user's complaints name in 3 of the last 6 turns is logged for the starter once
+  // and offered to the user once; nothing is switched off
+  {
+    const { frictionGaps, frictionHint } = await import('./friction.mjs');
+    const fr = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-fr-'));
+    try {
+      const tags = ['plain-writing', 'scope-general'], sore = 'Issue: the plain writing check held a letter twice | runbook: learn-from-upset | fixed when: letters pass';
+      const t = (i, text) => frictionGaps(fr, `2026-11-10T0${i}:00:00Z`, text, tags).length;
+      const r = { one: t(1, sore), calm: t(2, 'Issue: none - a question'), two: t(3, sore), sameTurn: t(3, sore), three: t(4, sore), again: t(5, sore), hint: frictionHint(fr), hintAgain: frictionHint(fr) };
+      const fr2 = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-fr-'));
+      fs.mkdirSync(path.join(fr2, 'docs')); fs.writeFileSync(path.join(fr2, 'docs/starter-feedback.md'), '- plain-writing held letters as filler\n');
+      r.logged = [1, 2, 3].map(i => frictionGaps(fr2, `2026-11-10T0${i}:00:00Z`, sore, tags).length).reduce((a, b) => a + b, 0);
+      fs.rmSync(fr2, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+      report(!r.one && !r.calm && !r.two && !r.sameTurn && r.three === 1 && !r.again && /plain-writing check in 3 of the last 6 turns[\s\S]*only they decide/.test(r.hint) && !r.hintAgain && !r.logged && !fs.existsSync(path.join(fr, 'tools/hooks/config.json')),
+        'end: a check the user\'s complaints name in 3 of the last 6 turns is logged for the starter once (not when already logged) and offered to the user once; nothing is turned off', JSON.stringify(r));
+    } finally { fs.rmSync(fr, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
+  }
   // REQ: changelog (rule 12 as written): real work past the small-fix size needs a changelog line, whatever folder it is
   // in; never the engine's own folder, the user's data folders ("dataDirs"), or a project without docs/CHANGELOG.md
   {

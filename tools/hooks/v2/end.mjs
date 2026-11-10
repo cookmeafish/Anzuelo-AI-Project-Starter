@@ -27,6 +27,7 @@ import { unansweredLate, asksOnly } from './late.mjs';
 import { PAUSE_ASK } from '../pause.mjs';
 import { externalStopSteps } from '../extstop.mjs';
 import { reviewExcuse } from '../excuse.mjs';
+import { frictionGaps } from './friction.mjs';
 import { waivedTag } from './lib.mjs';
 import { wakeGaps, watchersArmed, watcherLeft } from '../wakeups.mjs';
 import { makeSkillLearn } from '../skilllearn.mjs';
@@ -264,6 +265,13 @@ const excuseV2 = (acts, rows) => {
   const subagents = cfg.subagents === true || (cfg.subagents !== false && ((rows || []).some(r => typeof r?.entrypoint === 'string') || (acts.calls || []).some(c => /^(Agent|Task)$/.test(c.name))));
   const m = reviewExcuse(acts.answer, subagents);
   return m ? [m] : [];
+};
+// (REQ: friction-reported, tools/hooks/v2/friction.mjs: the turn's Issue lines, in its notes or its own text, against the
+// checks this project runs)
+const frictionV2 = acts => {
+  const since = Date.parse(acts.at || '') || 0, nf = at('.cache/turn-notes.md');
+  let notes = ''; try { if (since && fs.statSync(nf).mtimeMs > since) notes = fs.readFileSync(nf, 'utf8'); } catch { }
+  return frictionGaps(ROOT, acts.at || '', `${notes}\n${acts.said || ''}`, engineChecks().map(r => r && r.tag).filter(Boolean));
 };
 // A message the user typed this turn (the request, or one typed mid-turn) asks to pause, stop or restart.
 export const pausedTurn = acts => (acts.parts || []).some(p => PAUSE_ASK.test(p));
@@ -572,7 +580,7 @@ function judge(data, { shadow = false } = {}) {
   const wakes = [...wakeGaps(sessionRows, final || acts.answer || '', acts.heard || ''), ...(checkOff('watcher-left') ? [] : watcherLeft(watchersArmed(sessionRows), final || acts.answer || ''))];
   const extra = (turn.also || []).flatMap(f => missing({ ...turn, runbook: f }, acts, runbooks().filter(b => b.file === f)));
   const resumedLost = [...(lost.length ? [headlessLine(lost)] : []), ...noticeAnswerGaps(rows, final || acts.answer, data.stop_hook_active)];
-  const list = [...resent, ...resumedLost, ...late, ...autos, ...wakes, ...S('missing', () => [...emptyGaps(acts), ...missing(turn, acts), ...upsetGaps(turn, acts), ...ruleGaps(acts), ...watchedGaps(acts)]), ...extra, ...S('skillMissing', () => skillMissing(acts)), ...S('reviewGaps', () => reviewGaps(turn, acts)), ...S('testGaps', () => testGaps(acts, history)), ...S('gateGaps', () => gateGaps(acts)), ...S('screenGaps', () => screenGaps(acts)), ...S('healthGaps', () => [...healthGaps(acts, { run: !shadow }), ...upgradeGaps(turn, acts)]), ...S('knowledgeGaps', () => knowledgeGaps(acts)), ...S('securityGaps', () => securityGaps(acts)), ...S('questionGaps', () => [...questionGaps(acts), ...questionFileGaps(acts)]), ...S('noteGaps', () => noteGaps(acts)), ...S('quoteGaps', () => quoteGaps(acts)), ...S('claimGaps', () => claimGaps(acts, history)), ...S('scopeGaps', () => scopeGaps(acts)), ...S('tableGaps', () => tableGaps(acts)), ...S('planOpen', () => planOpenGaps(turn, acts, again)), ...S('externalStop', () => externalV2(data)), ...S('reviewExcuse', () => excuseV2(acts, rows))].filter((s, i, all) => all.indexOf(s) === i);
+  const list = [...resent, ...resumedLost, ...late, ...autos, ...wakes, ...S('missing', () => [...emptyGaps(acts), ...missing(turn, acts), ...upsetGaps(turn, acts), ...ruleGaps(acts), ...watchedGaps(acts)]), ...extra, ...S('skillMissing', () => skillMissing(acts)), ...S('reviewGaps', () => reviewGaps(turn, acts)), ...S('testGaps', () => testGaps(acts, history)), ...S('gateGaps', () => gateGaps(acts)), ...S('screenGaps', () => screenGaps(acts)), ...S('healthGaps', () => [...healthGaps(acts, { run: !shadow }), ...upgradeGaps(turn, acts)]), ...S('knowledgeGaps', () => knowledgeGaps(acts)), ...S('securityGaps', () => securityGaps(acts)), ...S('questionGaps', () => [...questionGaps(acts), ...questionFileGaps(acts)]), ...S('noteGaps', () => noteGaps(acts)), ...S('quoteGaps', () => quoteGaps(acts)), ...S('claimGaps', () => claimGaps(acts, history)), ...S('scopeGaps', () => scopeGaps(acts)), ...S('tableGaps', () => tableGaps(acts)), ...S('planOpen', () => planOpenGaps(turn, acts, again)), ...S('externalStop', () => externalV2(data)), ...S('reviewExcuse', () => excuseV2(acts, rows)), ...S('friction', () => frictionV2(acts))].filter((s, i, all) => all.indexOf(s) === i);
   // (the waiver tally: what this turn cleared with a reason is recorded; a check cleared in 3+ earlier turns is named)
   const full = list.splice(0, list.length); list.push(...full.filter(kept(acts)).filter(s => !(again && CRASHED.test(s))));
   list.push(...S('followOn', () => followOn(turn, acts, list)).filter(kept(acts)));

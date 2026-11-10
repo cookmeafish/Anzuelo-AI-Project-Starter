@@ -29,6 +29,7 @@ import { asksOnly } from './late.mjs';
 import { PAUSE_ASK, PAUSE_HINT } from '../pause.mjs';
 import { capsUpset, unquoted } from '../caps.mjs';
 import { BASE_REQUIREMENTS } from '../base-checks.mjs';
+import { frictionHint } from './friction.mjs';
 import { esLabelList } from '../labels.mjs';
 
 // REQ: question-answered (as it arrives). A message that only asks is answered first, in plain words; one typed while a
@@ -184,6 +185,9 @@ function remind(prompt) {
   // engine) names what to do with it; the end check never holds a turn for praise on its own. Oversight (2026-11-10):
   // "detection from the user's words is a reminder hint only". Lesson (the old suite under v2): v2 said nothing on praise,
   // so what the user liked was never written down to repeat.
+  // (REQ: friction-reported, tools/hooks/v2/friction.mjs: a check the user's complaints keep naming is offered to them to
+  // turn off, once; nothing is turned off silently)
+  const friction = relayedRx.test(raw) ? '' : frictionHint(ROOT);
   const praise = !sore && !relayedRx.test(raw) && isPraise(userWords(prompt), projectConfig()) ? 'Praise: the user liked something. If it should repeat, write what exactly worked into the runbook or skill it came from (a "What works" line); "keep doing this" is a standing rule (project-rule).' : '';
   // REQ: answer-traced (at the request, a hint only). A request about numbers is told up front where its figures must
   // come from; the end check judges the figures the answer states, whatever was asked. Oversight decision 2026-11-10.
@@ -210,7 +214,7 @@ function remind(prompt) {
   const must = relayedRx.test(raw) || asksOnly(String(userWords(prompt)), projectConfig().changeWords) ? [] : forcedBy(String(userWords(prompt)));
   const mustLines = must.filter(m => m.name !== book?.name).map(m => m.acted ? `Must follow: ${m.name} (the request mentions "${m.word.slice(0, 40)}"): open ${m.file} now and follow it from the start; the end check holds it once the work does what it covers.`
     : `Likely fits: ${m.name} (the request mentions "${m.word.slice(0, 40)}"): open ${m.file} if the work turns out to need it.`);
-  if (!book) return { book: null, text: [...mustLines, skill, praise, figures, autonomy, examples, shared, pick, es, ...rulesFor(prompt).map(r => `The project's own rule here: ${r}`), isTaskRequest(prompt, taskVerbs, toOtherSession(prompt)) ? alsoChecked(sk && skill ? [sk.name] : []) : ''].filter(Boolean).slice(0, MAX_LINES).join('\n') };
+  if (!book) return { book: null, text: [...mustLines, friction, skill, praise, figures, autonomy, examples, shared, pick, es, ...rulesFor(prompt).map(r => `The project's own rule here: ${r}`), isTaskRequest(prompt, taskVerbs, toOtherSession(prompt)) ? alsoChecked(sk && skill ? [sk.name] : []) : ''].filter(Boolean).slice(0, MAX_LINES).join('\n') };
   const own = rulesFor(prompt).map(r => `The project's own rule here: ${r}`);
   // (a message relayed from another session may only report: its runbook is for when it asks for work. Lesson (project
   // report): a note that a fix had landed got the bugfix runbook and its list, though it asked for nothing)
@@ -219,7 +223,7 @@ function remind(prompt) {
   // terms, in the runbook line itself: no extra line, and nothing on other turns. The end check catches a slip
   // (quoteGaps). On only with the quote check, quoteCheckOn)
   const lesson = quoteOn && (sore || ['project', 'learn-from-upset', 'runbook-create', 'project-rule'].includes(book.name)) ? ' Write any lesson in general terms, not in the user\'s own words.' : '';
-  const lines = [...(sore ? [sore] : []), ...mustLines, ...(es ? [es] : []), ...(praise ? [praise] : []), ...(figures ? [figures] : []), ...(autonomy ? [autonomy] : []), ...(examples ? [examples] : []), ...(shared ? [shared] : []), ...own, `Runbook${relayedRx.test(raw) ? ', only if this message asks for work here' : ''}: open ${book.file} and follow it.${lesson}`];
+  const lines = [...(sore ? [sore] : []), ...(friction ? [friction] : []), ...mustLines, ...(es ? [es] : []), ...(praise ? [praise] : []), ...(figures ? [figures] : []), ...(autonomy ? [autonomy] : []), ...(examples ? [examples] : []), ...(shared ? [shared] : []), ...own, `Runbook${relayedRx.test(raw) ? ', only if this message asks for work here' : ''}: open ${book.file} and follow it.${lesson}`];
   if (book.items.length) {
     // (and how to hold the answer until it passes, in the same line. Lesson (the user, 2026-11-07): an answer sent back
     // by the end check reached the user twice; the first version must already be the final one)
