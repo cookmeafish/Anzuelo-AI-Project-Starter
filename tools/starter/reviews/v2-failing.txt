@@ -101,8 +101,6 @@ stop: a new runbook gets its skill and DIRECTORY row generated
 stop: a question that only updated STATUS: passes
 stop: a runbook used through its generated skill counts as followed: passes
 stop: answer relies on a stale knowledge file without saying so: blocked
-stop: answer with an em dash: blocked
-stop: answer with filler: blocked
 stop: answer-language: a Spanish visual review with no verdict: blocked
 stop: answer-noise: the Stop text steers waivers to the waive command, never to an N/A line in the answer
 stop: answer-noise: the re-answer instruction asks for no note about the steps or an earlier version
@@ -179,7 +177,6 @@ stop: unresolved-carryover: block cap reached: the user is told at once that the
 stop: unresolved-carryover: the same work continues and last turn's CHANGELOG line is still missing: blocked
 stop: unrouted work turn with no runbook created: blocked
 stop: upset-acknowledged: the runbook opened, its checklist not recorded to the end: blocked
-stop: user-facing file with filler: blocked
 stop: waiting end: what the full check would ask stays on record for the next Stop
 stop: waive: a waiver the waive command refused does not count
 stop: waive: the same command with no record in the run log waives nothing
