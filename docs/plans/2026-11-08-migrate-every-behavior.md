@@ -80,6 +80,11 @@ replaces that with "port each one, or ask"), [clean exit](2026-11-08-clean-exit.
   (git, reported, improve, by hand, helpers' verdicts), check-proven and the never-again and enforced claims (shared
   proof.mjs), answer-traced (shared trace.mjs), instructions-run (shared launchers.mjs). Next: app-test-pass (the gate
   judgment moving to a shared gates.mjs), stop-follow-on, hooks-tested, done-when-labeled.
+  2026-11-10: app-test-pass, hooks-tested, done-when-labeled and stop-follow-on ported; the old suite now judges every
+  scenario under v2 (repeat rounds get v2's turn record; an unjudged scenario fails). Next: skill-learn, moved whole into
+  a shared skilllearn.mjs (its exclusions: waived checks, misrouted runbooks, wording and answer-only checks, disproved
+  complaints, setup, "Skill lesson: none"), its earlier-round failures read from v2's Stop log (the steps of this
+  request's blocked rounds, mapped to tags by engine-check message and the runbooks' "(hook: ...)" labels).
 - [ ] Port each group into its v2 module, with its test run under v2. The size budget (2,000 lines) still holds:
       when it does not fit, the overrun is reported, never solved by dropping behavior.
 - [ ] `V2_SHOWS` in `tools/hooks/v2/lines.mjs` has no "open" kind left.

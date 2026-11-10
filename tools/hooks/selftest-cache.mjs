@@ -108,13 +108,16 @@ export function writeProof(dir, engine, tests, commit = null, speed = null) {
 // The starter's records a passing run or a release writes after the tests: no engine change, so a commit that differs
 // from the tested one only in these is still the tested engine.
 export const PROOF_RECORDS = ['tools/hooks/engine-proof.json', 'tools/starter/STATUS.md', 'tools/starter/dogfood-log.md', 'tools/starter/STARTER-CHANGELOG.md', 'tools/starter/trials/rounds.json'];
+// (plans are records too, never engine code: a plan note written while a release runs does not undo its proof.
+// Oversight, 2026-11-10)
+export const isProofRecord = f => PROOF_RECORDS.includes(f) || /^docs\/plans\/[^/]+\.md$/.test(f);
 const gitIn = (dir, ...a) => { const r = spawnSync('git', ['-C', dir, ...a], { encoding: 'utf8' }); return r.status === 0 ? r.stdout : null; };
 // The commit a run tests: HEAD, when nothing but the records differs from it (tracked or new files). Otherwise null.
 export function testedCommit(dir) {
   const head = gitIn(dir, 'rev-parse', 'HEAD')?.trim(), st = gitIn(dir, 'status', '--porcelain');
   if (!head || st == null) return null;
   const changed = st.split('\n').filter(Boolean).map(l => l.slice(3).replace(/^"|"$/g, '').replace(/^.* -> /, ''));
-  return changed.every(f => PROOF_RECORDS.includes(f)) ? head : null;
+  return changed.every(isProofRecord) ? head : null;
 }
 // REQ: starter-tested. Is the commit `sha` proved? Its own copy of the proof must name a tested commit whose files differ
 // from `sha` only in the records. Read from the commit itself, so nothing a later or partial run writes can make it
@@ -130,7 +133,7 @@ export function proofCovers(dir, sha) {
   if (unjudged.length) return { ok: false, why: `the tested commit ${String(proof.commit).slice(0, 7)} never had its time limits judged with the machine to itself (${unjudged.join(', ')}: only noted beside other self-test runs, or not run). Run the release chain again when no other self-test runs` };
   const diff = gitIn(dir, 'diff', '--name-only', proof.commit, sha);
   if (diff == null) return { ok: false, why: `the tested commit ${String(proof.commit).slice(0, 7)} is not in this repository` };
-  const extra = diff.split('\n').filter(f => f && !PROOF_RECORDS.includes(f));
+  const extra = diff.split('\n').filter(f => f && !isProofRecord(f));
   return extra.length ? { ok: false, why: `${sha.slice(0, 7)} changed ${extra.length} file(s) since the tested commit ${proof.commit.slice(0, 7)}: ${extra.slice(0, 3).join(', ')}` } : { ok: true };
 }
 
