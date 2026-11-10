@@ -133,7 +133,12 @@ export function proofCovers(dir, sha) {
   if (unjudged.length) return { ok: false, why: `the tested commit ${String(proof.commit).slice(0, 7)} never had its time limits judged with the machine to itself (${unjudged.join(', ')}: only noted beside other self-test runs, or not run). Run the release chain again when no other self-test runs` };
   const diff = gitIn(dir, 'diff', '--name-only', proof.commit, sha);
   if (diff == null) return { ok: false, why: `the tested commit ${String(proof.commit).slice(0, 7)} is not in this repository` };
-  const extra = diff.split('\n').filter(f => f && !isProofRecord(f));
+  // (the list of tests v2 may still fail counts as a record only when it shrank: the release run removes the tests that
+  // pass now; a test added to it would weaken the run without a new one)
+  const V2_LIST = 'tools/starter/reviews/v2-failing.txt';
+  const lines = c => new Set(String(gitIn(dir, 'show', `${c}:${V2_LIST}`) || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean));
+  const shrank = () => { const was = lines(proof.commit); return [...lines(sha)].every(l => was.has(l)); };
+  const extra = diff.split('\n').filter(f => f && !isProofRecord(f) && !(f === V2_LIST && shrank()));
   return extra.length ? { ok: false, why: `${sha.slice(0, 7)} changed ${extra.length} file(s) since the tested commit ${proof.commit.slice(0, 7)}: ${extra.slice(0, 3).join(', ')}` } : { ok: true };
 }
 

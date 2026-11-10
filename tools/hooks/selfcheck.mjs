@@ -8769,10 +8769,15 @@ if (mineB() && (!TAGS || TAGS.includes('starter-tested'))) { // starter-tested: 
     // (a plan note after the tested commit is a record, not engine code: still covered)
     proof(c); commit('proof again'); fs.mkdirSync(path.join(dir, 'docs/plans'), { recursive: true }); fs.writeFileSync(path.join(dir, 'docs/plans/2026-01-01-x.md'), '# x\n');
     const pl = commit('a plan note'), planOk = guard(pl);
+    // (the list of tests v2 may fail: shrunk after the tested commit is a record; grown is not)
+    const lf = path.join(dir, 'tools/starter/reviews/v2-failing.txt'); fs.mkdirSync(path.dirname(lf), { recursive: true });
+    fs.writeFileSync(lf, 'test one\ntest two\n'); const l0 = commit('a list'); proof(l0); commit('proof of the list');
+    fs.writeFileSync(lf, 'test one\n'); const shrunk = guard(commit('the list shrank'));
+    fs.writeFileSync(lf, 'test one\ntest two\ntest three\n'); const grown = guard(commit('the list grew'));
     report(/starter-tested/.test(none) && cleanA && dirty === null && recordsOnly && !/starter-tested/.test(proved) && /starter-tested[^\n]*changed 1 file/.test(changed) && !/starter-tested/.test(afterFail) && !/starter-tested/.test(del)
-      && /starter-tested[^\n]*never had its time limits judged[^\n]*\(v2:/.test(notedV2) && /starter-tested[^\n]*never had its time limits judged[^\n]*\(stop, v2:/.test(noSpeed) && !/starter-tested/.test(planOk),
+      && /starter-tested[^\n]*never had its time limits judged[^\n]*\(v2:/.test(notedV2) && /starter-tested[^\n]*never had its time limits judged[^\n]*\(stop, v2:/.test(noSpeed) && !/starter-tested/.test(planOk) && !/starter-tested/.test(shrunk) && /starter-tested[^\n]*v2-failing\.txt/.test(grown),
       'starter-tested: a push goes only for the commit the proof inside it names (or one differing only in the records), with its time limits judged; no proof, an engine change since, or time limits only noted beside other runs is refused; a failed run recorded later changes nothing',
-      JSON.stringify({ none: none.slice(0, 90), cleanA, dirty, recordsOnly, proved: proved.slice(0, 90), changed: changed.slice(0, 120), afterFail: afterFail.slice(0, 90), notedV2: notedV2.slice(0, 160), noSpeed: noSpeed.slice(0, 160), planOk: planOk.slice(0, 160) }));
+      JSON.stringify({ none: none.slice(0, 90), cleanA, dirty, recordsOnly, proved: proved.slice(0, 90), changed: changed.slice(0, 120), afterFail: afterFail.slice(0, 90), notedV2: notedV2.slice(0, 160), noSpeed: noSpeed.slice(0, 160), planOk: planOk.slice(0, 160), shrunk: shrunk.slice(0, 160), grown: grown.slice(0, 160) }));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 if (mineB() && (!TAGS || TAGS.includes('question-no-file'))) { // classifiers on real prompt shapes (field reports):
