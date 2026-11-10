@@ -4,6 +4,14 @@ Where work on the starter itself stands, for the next session. Projects never ge
 docs/STATUS.md, which here is the template new projects start from).
 
 ## Now
+- 2026-11-10 (after the restart): all 4 items below done on app-port, each with a failing-first test, plus the short
+  held-answer text (a heading and at most 3 items; the full steps in tools/hooks/state/stop-details.md), the wakeup
+  check accepting "stays on, every N minutes, next run", runs cut off by a restart not counted as failures (both
+  engines), and the commit gate. Chain on 40c87d3 running. Next: release it, the notice from git log a8a0575..<proof>
+  to every engine project (rebuild the list first), and tell the two projects whose field reports were fixed which
+  commit has them. Then the remaining v2 list in triage order. Not proven: agents finishing every item from the short
+  text in live turns (the details file holds items past the first 2-3). Open: answer-traced intermittent; branches
+  app-port-head and rel-* (deleting needs the user's OK).
 - 2026-11-10 (pause for a restart): main and GitHub at a8a0575 (release of e30446c: Stop as non-error feedback on
   Claude Code, the changelog rule with dataDirs, friction reported, the new end checks). All 3 engine projects notified
   (the list is now rebuilt per notice: scan the projects folder plus ListAgents; tools/starter/watch.local.json). Two upgraded
