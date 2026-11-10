@@ -3015,6 +3015,31 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     'check: with no transcript, "check --answer-file" judges the files changed since "begin" and the run log: an edited hook file asks for the self-tests until the log holds a passing run', JSON.stringify(got));
 }
 
+// (REQ: check-preview: the reminder names, in one last line, what the end check also asks if files change: an engine check
+// naming the routed runbook, an always.md item that applies when a file changes; nothing for a question; never pushing a
+// "Done when" item out under the line cap)
+{
+  const ALWAYS_FILE = 'docs/checks/always.md';
+  const keepReq = fs.readFileSync(path.join(dir, 'tools/hooks/requirements.json'), 'utf8'), eng = path.join(dir, 'tools/hooks/engine-checks.json');
+  const keepEng = fs.existsSync(eng) ? fs.readFileSync(eng, 'utf8') : null, alw = path.join(dir, ALWAYS_FILE), keepAlw = fs.existsSync(alw) ? fs.readFileSync(alw, 'utf8') : null;
+  const noted = { tag: 'export-noted', when: { playbookUsed: 'export', filesChanged: ['src/**'] }, require: { answerMatches: 'noted' }, message: 'Note the export.' };
+  let got = {};
+  try {
+    put('tools/hooks/requirements.json', JSON.stringify({ requirements: [noted], disabled: BASE_OFF.disabled })); put('tools/hooks/engine-checks.json', JSON.stringify({ requirements: [noted] }));
+    put(ALWAYS_FILE, '# Always\n\n## Done when\n- [ ] The data validator passes on the changed data (when file: data/**) (ran: validate => PASS)\n- [ ] Plain words (answer: .)\n');
+    const routed = reminder('can you add a CSV export for the orders page').text, question = reminder('what is the capital of peru?').text;
+    const work = reminder('rename the vendor files to use dates').text;
+    const lastLine = t => t.split('\n').at(-1);
+    got = { routed: lastLine(routed), work: lastLine(work), question, lines: routed.split('\n').length };
+  } finally {
+    put('tools/hooks/requirements.json', keepReq); keepEng === null ? fs.rmSync(eng, { force: true }) : put('tools/hooks/engine-checks.json', keepEng);
+    keepAlw === null ? fs.rmSync(alw, { force: true }) : put(ALWAYS_FILE, keepAlw);
+  }
+  report(/^Also checked at the end if files change: export noted; The data validator passes on the changed data\.$/.test(got.routed || '') && /^Also checked at the end if files change: The data validator passes on the changed data\.$/.test(got.work || '')
+    && !/Also checked/.test(got.question || '') && got.lines <= MAX_LINES,
+    'start: the reminder\'s last line names what the end check also asks if files change (an engine check naming the runbook, the project\'s own file items), not for a question, within the line cap', JSON.stringify(got));
+}
+
 // (the time verdict: alone, over the limit fails; beside another live self-test run, it is printed and not judged; a
 // run that only waits for its turn adds no load and does not count)
 {

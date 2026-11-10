@@ -2,8 +2,21 @@
 // "Done when" list, which the end hook checks. Nothing about the engine itself.
 import fs from 'node:fs';
 import path from 'node:path';
-import { route, skillBooks, saveTurn, loadTurn, isSpanish, ROOT, at, quoteCheckOn, projectConfig, snapshotLater, runbooks, routeEnglish } from './lib.mjs';
+import { route, skillBooks, saveTurn, loadTurn, isSpanish, ROOT, at, quoteCheckOn, projectConfig, snapshotLater, runbooks, routeEnglish, engineChecks, doneWhen, ALWAYS } from './lib.mjs';
 import { closestRunbook, coreRunbook, isTaskRequest, userWords } from '../near.mjs';
+
+// REQ: check-preview. What the end check will also ask for if the work changes files, beyond the runbook's own list: the
+// engine checks that name this runbook or skill and apply once files change, and the project's own always.md items that
+// apply when a file changes. One line, last, so the line cap drops it first; each named by the check's own tag or item
+// text, never a list of its own. A hint only. (Oversight, 2026-11-10: "the start hook lists what must be done if X
+// happens". Lesson (the old suite under v2): the agent first heard of these checks when the end check held the turn)
+export function alsoChecked(names = []) {
+  const files = c => JSON.stringify(c || {}).includes('"filesChanged"');
+  const mine = engineChecks().filter(r => files(r.when) && [r.when?.playbookUsed, r.when?.playbookRouted, r.when?.skillUsed].some(n => n && names.includes(n))).map(r => r.tag.replace(/-/g, ' '));
+  let own = []; try { own = doneWhen(fs.readFileSync(at(ALWAYS), 'utf8')).filter(it => it.kind && (it.whens || []).some(w => w.kind === 'file')).map(it => it.text.length <= 60 ? it.text : it.text.slice(0, it.text.lastIndexOf(' ', 57)) + '...'); } catch { }
+  const all = [...new Set([...mine, ...own])];
+  return all.length ? `Also checked at the end if files change: ${all.slice(0, 4).join('; ')}${all.length > 4 ? `; +${all.length - 4} more` : ''}.` : '';
+}
 import { toOtherSession } from '../relay.mjs';
 import { asksOnly } from './late.mjs';
 import { PAUSE_ASK, PAUSE_HINT } from '../pause.mjs';
@@ -120,7 +133,7 @@ function remind(prompt) {
     ? closestRunbook(prompt, runbooks().map(b => ({ name: b.name, file: b.file, triggers: b.triggers || [], fm: { summary: (/^summary:\s*(.+)$/m.exec(b.front || '') || [])[1] || '' } })), coreRunbook) : null;
   const pick = near ? `Closest runbook: ${near.file} (shared words: ${near.words.join(', ')}). If it fits this job, open and follow it; if not, pick the one in DIRECTORY.md that fits.`
     : has('DIRECTORY.md') ? 'If this is real work, pick the runbook in DIRECTORY.md that fits and open it.' : '';
-  if (!book) return { book: null, text: [skill, pick, es, ...rulesFor(prompt).map(r => `The project's own rule here: ${r}`)].filter(Boolean).join('\n') };
+  if (!book) return { book: null, text: [skill, pick, es, ...rulesFor(prompt).map(r => `The project's own rule here: ${r}`), isTaskRequest(prompt, taskVerbs, toOtherSession(prompt)) ? alsoChecked(sk && skill ? [sk.name] : []) : ''].filter(Boolean).slice(0, MAX_LINES).join('\n') };
   const own = rulesFor(prompt).map(r => `The project's own rule here: ${r}`);
   // (a message relayed from another session may only report: its runbook is for when it asks for work. Lesson (project
   // report): a note that a fix had landed got the bugfix runbook and its list, though it asked for nothing)
@@ -136,6 +149,9 @@ function remind(prompt) {
     lines.push('Done when (before answering, check your draft: node tools/hooks/hooks.mjs check --answer-file <draft>):');
     for (const it of book.items) lines.push(`${it.n}. ${it.text.length > 140 ? it.text.slice(0, it.text.lastIndexOf(' ', 137)) + '...' : it.text}`);
   }
+  // (what the end check also asks if files change: only when it fits under the cap, so it never pushes an item out)
+  const also = alsoChecked([book.name]);
+  if (also && lines.length < MAX_LINES) lines.push(also);
   // (more items than fit: the runbook has the rest)
   const text = lines.length > MAX_LINES ? [...lines.slice(0, MAX_LINES - 1), `(${lines.length - MAX_LINES + 1} more in ${book.file})`].join('\n') : lines.join('\n');
   return { book, text };
