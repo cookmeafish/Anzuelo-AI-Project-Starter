@@ -61,8 +61,6 @@ prompt: rule request hint
 prompt: rule request hint: asks for the new check's own scenarios, not the whole self-test
 prompt: rules digest on every prompt
 prompt: scope hint names the person (alias works)
-prompt: scope-general: text between two contractions still counts ("doesn't ... don't")
-prompt: scope-general: the prompt hint names it for "there might be other ones too"
 prompt: setup notice while SETUP-PROMPT.md is present (not the template)
 prompt: shared-steps: a list of three tasks asks to merge their shared steps
 prompt: shared-steps: a request with several tasks asks to merge their shared steps
@@ -184,7 +182,6 @@ stop: runbook-exists: work that names an existing runbook it never opened is ask
 stop: runbook-ledger: a skip without a real reason does not drop a failing check
 stop: runbook-ledger: an item marked done whose evidence is missing comes back under its item
 stop: runbook-ledger: off by default, a skip line covers nothing
-stop: scope-general: "or something else that doesn't fit" changed with no Scope line: blocked
 stop: security review without the item table: blocked
 stop: setup: the same runbook followed in a later turn: its checks apply
 stop: skill-reuse: a hand-written runbook made in the same turn is still new: blocked

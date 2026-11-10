@@ -113,3 +113,9 @@ export const AUTONOMY_WORDS =/\byou decide\b|\bi trust you\b|\bno need to (ask|c
 // Lesson (a field report): a pasted session transcript with two calm lines read as an upset user.
 export const PASTE_LONG = 3000;
 export const ownEnds = s => { const t = String(s || ''); return t.length > PASTE_LONG ? `${t.slice(0, 600)} ... ${t.slice(-600)}` : t; };
+
+// ---------- examples of a wider point (moved from hooks.mjs, shared with engine v2) ----------
+// REQ: scope-general. A request that names examples of a wider point ("or something else", "there might be other ones
+// too"): the named items are cases of it, and the work covers every case. Lesson (a field report): over many turns the
+// user named one or two items each time, with "there might be others", and each change fixed only the ones named.
+export const EXAMPLE_CLASS = /\b(or (something|anything|whatever) else|(there )?(might|may|could) (even )?be (even )?(other|more) [a-z]+|(and )?others? like (it|this|that|these|those|them)|ones? like (it|this|that|these|those)|(any|every) other [a-z]+ like)\b/i;

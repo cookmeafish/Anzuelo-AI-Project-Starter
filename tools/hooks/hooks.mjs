@@ -36,7 +36,8 @@ import { makeSkillLearn } from './skilllearn.mjs';
 import { STOP_STEMS, fold, STOP, stem, keyWords, AUTONOMY_WORDS, ES_EN, closestRunbook as closestOf, OPINION, QUESTION_LED, TASK_ES, isTaskEs, coreRunbook } from './near.mjs';
 export { AUTONOMY_WORDS };
 export { keyWords };
-import { MAKE_REQUEST, HOOK_MARK, HOOK_LINE, HOOK_BLOCK, RELAYED, relayedOut, userWords as userText, PASTE_LONG, ownEnds } from './near.mjs';
+import { MAKE_REQUEST, HOOK_MARK, HOOK_LINE, HOOK_BLOCK, RELAYED, relayedOut, userWords as userText, PASTE_LONG, ownEnds, EXAMPLE_CLASS } from './near.mjs';
+export { EXAMPLE_CLASS };
 export { relayedOut, userText };
 export { fold, isTaskEs };
 export const closestRunbook = prompt => closestOf(prompt, playbooks(), coreRunbook);
@@ -5220,10 +5221,7 @@ const FIX_FILES = {
 // a glob as one path it matches ("items/**/*.txt" -> "items/x/x.txt"), so the checks on it can be asked
 const sampleOf = g => String(g).replace(/\{([^,}]*)[^}]*\}/g, '$1').replace(/\*\*/g, 'x').replace(/[*?]/g, 'x');
 const filesOfCond = c => !c || typeof c !== 'object' ? [] : [...[].concat(c.filesChanged || []), ...(c.anyOf || []).flatMap(filesOfCond)];
-// REQ: scope-general. A request that names examples of a wider point ("or something else", "there might be other ones
-// too"): the named items are cases of it, and the work covers every case. Lesson (a field report): over many turns the
-// user named one or two items each time, with "there might be others", and each change fixed only the ones named.
-export const EXAMPLE_CLASS = /\b(or (something|anything|whatever) else|(there )?(might|may|could) (even )?be (even )?(other|more) [a-z]+|(and )?others? like (it|this|that|these|those|them)|ones? like (it|this|that|these|those)|(any|every) other [a-z]+ like)\b/i;
+// (EXAMPLE_CLASS, REQ: scope-general: tools/hooks/near.mjs, shared with engine v2)
 // "Learned (<level>): <lesson> → <file>" lines: the level and the file the lesson went into
 // "Learned (none): the complaint didn't hold - <evidence>": nothing to learn (Spanish "Aprendido (nada): ...")
 export const LEARNED_NONE = /^[\s>*_-]*learned\s*\((none|nothing|ninguno|ninguna|nada)\)\s*:\s*\S.{8,}/im;

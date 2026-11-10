@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { route, skillBooks, saveTurn, loadTurn, isSpanish, ROOT, at, quoteCheckOn, projectConfig, checkOff, snapshotLater, runbooks, routeEnglish, engineChecks, doneWhen, ALWAYS } from './lib.mjs';
-import { closestRunbook, coreRunbook, isTaskRequest, userWords, AUTONOMY_WORDS, ownEnds } from '../near.mjs';
+import { closestRunbook, coreRunbook, isTaskRequest, userWords, AUTONOMY_WORDS, ownEnds, EXAMPLE_CLASS } from '../near.mjs';
 import { isPraise } from '../praise.mjs';
 import { NUMBERS_ASK } from '../trace.mjs';
 import { openPlansOf } from '../planreq.mjs';
@@ -197,10 +197,15 @@ function remind(prompt) {
   // (a trigger with "forces", like sign-in or payment code and the security review) says so as soon as the request shows
   // it is coming, so the work follows it from the start, as the old engine. Not for a request that only asks, nor a
   // relayed one, nor for words inside quotes. Lesson (the old suite under v2): v2 named it only at the end
+  // REQ: scope-general (at the request). Items named as cases of a wider point ("or something else", "there might be
+  // others") are told the work covers every case, as the old engine; the end check holds a work turn to a Scope line.
+  // Not beside the upset line, which leads to the same. Lesson (the old suite under v2): v2 said nothing
+  const examples = !sore && !relayedRx.test(raw) && EXAMPLE_CLASS.test(unquoted(String(userWords(prompt))))
+    ? 'Examples: the items named are cases of a wider point. Change every case, not only the ones named, and say which in a line "Scope: <the point in general terms> - <every case it covers, and how many you checked>".' : '';
   const must = relayedRx.test(raw) || asksOnly(String(userWords(prompt)), projectConfig().changeWords) ? [] : forcedBy(String(userWords(prompt)));
   const mustLines = must.filter(m => m.name !== book?.name).map(m => m.acted ? `Must follow: ${m.name} (the request mentions "${m.word.slice(0, 40)}"): open ${m.file} now and follow it from the start; the end check holds it once the work does what it covers.`
     : `Likely fits: ${m.name} (the request mentions "${m.word.slice(0, 40)}"): open ${m.file} if the work turns out to need it.`);
-  if (!book) return { book: null, text: [...mustLines, skill, praise, figures, autonomy, pick, es, ...rulesFor(prompt).map(r => `The project's own rule here: ${r}`), isTaskRequest(prompt, taskVerbs, toOtherSession(prompt)) ? alsoChecked(sk && skill ? [sk.name] : []) : ''].filter(Boolean).slice(0, MAX_LINES).join('\n') };
+  if (!book) return { book: null, text: [...mustLines, skill, praise, figures, autonomy, examples, pick, es, ...rulesFor(prompt).map(r => `The project's own rule here: ${r}`), isTaskRequest(prompt, taskVerbs, toOtherSession(prompt)) ? alsoChecked(sk && skill ? [sk.name] : []) : ''].filter(Boolean).slice(0, MAX_LINES).join('\n') };
   const own = rulesFor(prompt).map(r => `The project's own rule here: ${r}`);
   // (a message relayed from another session may only report: its runbook is for when it asks for work. Lesson (project
   // report): a note that a fix had landed got the bugfix runbook and its list, though it asked for nothing)
@@ -209,7 +214,7 @@ function remind(prompt) {
   // terms, in the runbook line itself: no extra line, and nothing on other turns. The end check catches a slip
   // (quoteGaps). On only with the quote check, quoteCheckOn)
   const lesson = quoteOn && (sore || ['project', 'learn-from-upset', 'runbook-create', 'project-rule'].includes(book.name)) ? ' Write any lesson in general terms, not in the user\'s own words.' : '';
-  const lines = [...(sore ? [sore] : []), ...mustLines, ...(es ? [es] : []), ...(praise ? [praise] : []), ...(figures ? [figures] : []), ...(autonomy ? [autonomy] : []), ...own, `Runbook${relayedRx.test(raw) ? ', only if this message asks for work here' : ''}: open ${book.file} and follow it.${lesson}`];
+  const lines = [...(sore ? [sore] : []), ...mustLines, ...(es ? [es] : []), ...(praise ? [praise] : []), ...(figures ? [figures] : []), ...(autonomy ? [autonomy] : []), ...(examples ? [examples] : []), ...own, `Runbook${relayedRx.test(raw) ? ', only if this message asks for work here' : ''}: open ${book.file} and follow it.${lesson}`];
   if (book.items.length) {
     // (and how to hold the answer until it passes, in the same line. Lesson (the user, 2026-11-07): an answer sent back
     // by the end check reached the user twice; the first version must already be the final one)

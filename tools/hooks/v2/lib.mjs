@@ -37,7 +37,7 @@ const knownCheck = tag => {
 import { SELF_KEY, approvedBefore } from '../selfcmds.mjs';
 import { capsWeight } from '../caps.mjs';
 import { toOtherSession } from '../relay.mjs';
-import { MAKE_REQUEST } from '../near.mjs';
+import { MAKE_REQUEST, EXAMPLE_CLASS, userWords } from '../near.mjs';
 // The time a session began: the first timestamp in its transcript (read from its start, never the whole file).
 export const sessionStart = file => { try { const fd = fs.openSync(file, 'r'), b = Buffer.alloc(65536), n = fs.readSync(fd, b, 0, b.length, 0); fs.closeSync(fd);
   return /"timestamp":"(\d{4}-\d\d-\d\dT[^"]+)"/.exec(b.toString('utf8', 0, n))?.[1] || null; } catch { return null; } };
@@ -1459,7 +1459,21 @@ export function claimGaps(acts, history = '') {
   out.push(...hookTestsGaps(acts));
   out.push(...worthV2(acts));
   out.push(...aiCreditGaps(acts));
+  out.push(...scopeGeneralGaps(acts));
   return out;
+}
+
+// REQ: scope-general, under v2. A request naming examples of a wider point ("or something else", "there might be
+// others", EXAMPLE_CLASS shared in near.mjs) that changed files says in a Scope line, in a message or the turn notes,
+// the point and every case it covers. Lesson (a field report, the old engine): over many turns the user named one or
+// two items each time, and each change fixed only those.
+export function scopeGeneralGaps(acts) {
+  if (checkOff('scope-general') || waivedTag('scope-general', acts) || !worked(acts)) return [];
+  const asked = String(acts.heard || '').replace(/<pasted_content\b[\s\S]*?(<\/pasted_content[^>]*>|\/>)/gi, ' ');
+  if (!EXAMPLE_CLASS.test(userWords(asked))) return [];
+  const since = Date.parse(acts.at || '') || 0, notes = since && mtime('.cache/turn-notes.md') > since ? read('.cache/turn-notes.md') : '';
+  if (/^[\s>*_-]*(scope|alcance)\s*:\s*\S.{15,}/im.test(`${acts.said || ''}\n${acts.answer || ''}\n${notes}`)) return [];
+  return ['The user named examples of a wider point ("or something else", "there might be others"). Write "Scope: <the point in general terms> - <every case it covers, and how many you checked>" in .cache/turn-notes.md or the answer, and change every case, not only the ones named.'];
 }
 
 // REQ: no-ai-attribution (at the end, always on). A commit made this turn that credits an AI (message or author), made

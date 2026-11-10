@@ -5117,6 +5117,7 @@ const V2_ASKS = {
   'plan-open': /^- This turn started with (an open plan|open plans) \(/m,
   'gui-review-loop': /^- (A screen changed: take screenshots|GUI files changed \([^\n]*\) and (were edited again|no screenshots)|Look at the latest round before judging it)/m,
   'no-ai-attribution': /^- Commits made this turn credit an AI agent: /m,
+  'scope-general': /^- The user named examples of a wider point/m,
   'autonomy-decide': /^- The user asked for no questions: make each choice yourself/m,
   'worth-it': /^- You added [^\n]*\. Say why it makes this project better and what it costs/m,
   'gui-pack': /^- GUI files changed \([^\n]*\) but this project has no gui pack/m,
@@ -5222,6 +5223,7 @@ for (const s0 of PROMPT) {
     if (/^plan-required \(a plan in docs\/plans\/ first\)$/.test(h)) return 'plan required (a plan in docs/plans/ first)';
     if (h === 'PRAISE') return 'Praise: the user liked something';
     if (h === 'AUTONOMY') return 'Autonomy: the user wants the work done without their input';
+    if (h === 'EXAMPLES:') return 'Examples: the items named are cases of a wider point';
     if (h === 'THE USER SOUNDS UPSET') return 'This sounds upset: open skills/learn-from-upset/SKILL.md';
     if ((m = /^MUST FOLLOW(: [\w-]+)?$/.exec(h))) return `Must follow${m[1] || ':'}`;
     // (the old engine's line for relayed work is v2's caveat in the runbook line)
