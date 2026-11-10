@@ -123,7 +123,6 @@ stop: done-when-labeled: items proven by markers (file:, ran:, answer:, with a w
 stop: feature done right: passes
 stop: fit-checklist: a turn adds a data file that a decided skip never answered: blocked
 stop: gate with no pass pattern chained to other commands: run it alone: blocked
-stop: grant-decided: a row changed this turn that grants staff deletes on a "decision" the user never wrote: blocked
 stop: gui-review-report: a bold "Revisión visual" list item with no verdict still asks for the line
 stop: helpers still running, but the answer claims they finished and pushed: still checked
 stop: image + text prompt is a real prompt

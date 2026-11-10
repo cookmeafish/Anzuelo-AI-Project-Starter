@@ -25,6 +25,7 @@ import { doneWhenGaps } from '../donewhen.mjs';
 import { worthGaps } from '../worth.mjs';
 import { endsAsking, OUTWARD } from '../decide.mjs';
 import { countGaps } from '../count.mjs';
+import { grantProblems } from '../grant.mjs';
 import { aiAttributedCommits } from '../repo.mjs';
 import { makeHookTests } from '../hooktests.mjs';
 import { testInputsHash as repoInputsHash } from '../repo.mjs';
@@ -1508,6 +1509,14 @@ export function claimGaps(acts, history = '') {
   // (REQ: count-honored, rule 8: "give me 5" means 5, said with the number. The shared tools/hooks/count.mjs on what the
   // user typed this turn against the agent's words. Lesson (the old suite under v2): a count asked for was never checked)
   out.push(...skillReuseGaps(acts));
+  // (REQ: grant-decided, the shared tools/hooks/grant.mjs: a "Who may do what" row this turn changed gives a destructive
+  // or sensitive action beyond the owner only on the user's own quoted words. Security-sensitive: always on. Lesson (the
+  // old suite under v2): a staff delete granted on a "decision" the user never wrote passed)
+  if (changedOf(acts).includes('docs/foundation.md') && fs.existsSync(at('docs/foundation.md'))) {
+    const rowOf = s => String(s || '').split(/\r?\n/).find(l => /^\|\s*who may do what/i.test(l)) || '';
+    const now = read('docs/foundation.md'), before = spawnSync('git', ['show', 'HEAD:docs/foundation.md'], { cwd: ROOT, encoding: 'utf8', timeout: 5000 });
+    if (rowOf(now) !== rowOf(before.status === 0 ? before.stdout : '')) out.push(...grantProblems(now, [acts.heard || '', ...(acts.earlier || [])].join('\n')));
+  }
   if (!checkOff('count-honored') && !waivedTag('count-honored', acts)) out.push(...countGaps(userWords(String(acts.heard || '')), `${acts.said || ''}\n${acts.answer || ''}`));
   return out;
 }
