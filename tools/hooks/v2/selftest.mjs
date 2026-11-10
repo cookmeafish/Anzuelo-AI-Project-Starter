@@ -3,6 +3,20 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { otherSuites, registerSuite } from '../selftest-cache.mjs';
+
+// (this run is listed with the machine's self-test runs, as the old suite's are, and a time limit is judged strictly
+// only when no other run shares the machine; with others, an over-limit time is printed, not failed. What a time
+// cannot hide (files walked, patterns built at load) is judged always. Lesson (oversight, 2026-11-09): a fixed limit
+// failed at 62 to 77 ms beside a release run, so every test run waited 30 to 40 minutes for the release run to end)
+const unregister = registerSuite({ suite: 'v2-selftest' });
+process.on('exit', unregister);
+const timeVerdict = (within, what, numbers) => {
+  if (within) return true;
+  const others = otherSuites(undefined, { busy: true });
+  if (others) console.log(`NOTE  ${what}: over its limit (${numbers}) while ${others} other self-test run(s) share the machine; not judged`);
+  return others > 0;
+};
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-'));
 process.env.ANZUELO_ROOT = dir;
@@ -355,7 +369,7 @@ report(/learn-from-upset/.test(reminder('WHY DID YOU BREAK THE EXPORT AGAIN').te
       console.log(JSON.stringify({ before, en, after: [H.routeEsBuilt(), L.routeEsBuilt()] }));`;
     const lazy = JSON.parse((spawnSync(process.execPath, ['--input-type=module', '-e', probe], { cwd: c, encoding: 'utf8', env }).stdout || '{}').trim().split('\n').pop() || '{}');
     const sp = { bare: Math.round(bare), prompt: Math.round(prompt), pretool: Math.round(pretool), lazy };
-    report(prompt < Math.max(75, 2.8 * bare) && pretool < Math.max(60, 2.2 * bare) && lazy.before?.join() === 'false,false' && lazy.after?.join() === 'true,true' && lazy.en?.every(x => x === 'add a page'),
+    report(timeVerdict(prompt < Math.max(75, 2.8 * bare) && pretool < Math.max(60, 2.2 * bare), 'speed: prompt and pretool', JSON.stringify(sp)) && lazy.before?.join() === 'false,false' && lazy.after?.join() === 'true,true' && lazy.en?.every(x => x === 'add a page'),
       'speed: the prompt and pretool hooks stay within budget over a bare node start (fastest of 5), and the Spanish routing patterns are built on first use, not at load', JSON.stringify(sp));
   }
   fs.rmSync(c, { recursive: true, force: true });
@@ -681,7 +695,7 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
         const helper = acts([user('tidy the notes'), call('Agent', { prompt: 'tidy the notes' }, 'done'), say('Done.')]); helper.at = wAt;
         const sp = { question: L.touchedSince(q).length, ran: L.touchedSince(b).filter(x => /^bulkwalk\//.test(x.f)).length, cat: L.touchedSince(cat).length >= 3000, helper: L.touchedSince(helper).length >= 3000, qMs: Math.round(qMs) };
         fs.rmSync(path.join(dir, 'bulkwalk'), { recursive: true, force: true });
-        report(sp.question === 0 && sp.ran === 3000 && sp.cat && sp.helper && sp.qMs < 60, 'speed: a question turn in a 3,000-file project walks no files and its whole end check takes under 60 ms; a turn that ran any shell command (even cat) or a helper walks once and finds what was written', JSON.stringify(sp));
+        report(sp.question === 0 && sp.ran === 3000 && sp.cat && sp.helper && timeVerdict(sp.qMs < 60, 'speed: a question turn\'s end check', `${sp.qMs} ms`), 'speed: a question turn in a 3,000-file project walks no files and its whole end check takes under 60 ms; a turn that ran any shell command (even cat) or a helper walks once and finds what was written', JSON.stringify(sp));
       }
       // (REQ: no-verbatim-examples: a run of the user's words a command copied into a root file is held (root files count
       // as changed: "**/" may be no folder); a name from the user's message written into a runbook is held; the
@@ -2949,6 +2963,24 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   report(/harvest item one/.test(a) && /invoice item one/.test(b) && state(path.join(loc, 'tools/hooks/state')).length === 2 && !state(path.join(proj, 'tools/hooks/state')).length && !state(path.join(eng, 'tools/hooks/state')).length,
     'paths: hooks run from .anzuelo/engine name local and engine runbooks, and keep their turn records in .anzuelo/local', { a: a.slice(0, 300), b: b.slice(0, 300), local: state(path.join(loc, 'tools/hooks/state')) });
   fs.rmSync(proj, { recursive: true, force: true });
+}
+
+// (the time verdict: alone, over the limit fails; beside another live self-test run, it is printed and not judged; a
+// run that only waits for its turn adds no load and does not count)
+{
+  const reg = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-reg-')), was = process.env.STARTER_SELFTEST_RUNNING;
+  process.env.STARTER_SELFTEST_RUNNING = reg;
+  const log = console.log; let said = ''; console.log = s => { said += s; };
+  let got;
+  try {
+    const alone = timeVerdict(false, 'probe', '99 ms'), fine = timeVerdict(true, 'probe', '1 ms');
+    fs.writeFileSync(path.join(reg, `${process.ppid}.json`), JSON.stringify({ waiting: true }));
+    const waiting = timeVerdict(false, 'probe', '99 ms');
+    fs.writeFileSync(path.join(reg, `${process.ppid}.json`), JSON.stringify({}));
+    const shared = timeVerdict(false, 'probe', '99 ms');
+    got = { alone, fine, waiting, shared, noted: /NOTE {2}probe: over its limit \(99 ms\) while 1 other/.test(said) };
+  } finally { console.log = log; process.env.STARTER_SELFTEST_RUNNING = was ?? ''; if (was === undefined) delete process.env.STARTER_SELFTEST_RUNNING; fs.rmSync(reg, { recursive: true, force: true }); }
+  report(!got.alone && got.fine && !got.waiting && got.shared && got.noted, 'speed: a time over its limit fails when the run is alone (or beside a run that only waits), and is printed, not failed, beside another working self-test run', JSON.stringify(got));
 }
 
 fs.rmSync(dir, { recursive: true, force: true });
