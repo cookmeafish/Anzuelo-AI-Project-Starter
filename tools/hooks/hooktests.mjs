@@ -72,8 +72,15 @@ export function makeHookTests(io) {
         const refused = x.toolsKnown && !passedSince() && tries.length && refusedOutright(tries[tries.length - 1]);
         if (refused) { if (!saysNotRun(x.said, 'selfcheck')) { const s = cantRunStep('refused', how); miss.push({ tag: 'hooks-tested', msg: `${s.detail}.`, short: s.short }); } }
         else if (!tests.length) { if (!passedSince()) add('hooks-tested',`${need.all ? 'The hook logic changed' : `The checks ${need.tags.join(', ')} changed`}: run ${how} and fix any FAIL (fix the hook, not the test) before finishing.`); }
-        else if (tests[tests.length - 1].out && !/ALL PASS|hook self-tests\s+\(passed earlier/.test(tests[tests.length - 1].out) && !passedSince())
-          add('hooks-tested', `The last run of ${how} did not print ALL PASS. Fix the failures (the hook, not the test) and run it again.`);
+        else if (tests[tests.length - 1].out && !/ALL PASS|hook self-tests\s+\(passed earlier/.test(tests[tests.length - 1].out) && !passedSince()) {
+          // (a run cut off before its summary, with no FAIL line, failed nothing: it is asked to run to the end, and a
+          // plain "stopped for <reason>, rerun after" in the answer clears it. Lesson (a field report, 2026-11-10): a run
+          // stopped for a restart was held twice as a failure, and its stated reason was not accepted)
+          const last = tests[tests.length - 1], cut = !/^\s*FAIL\b|^selfcheck: /m.test(last.out);
+          if (cut && /\b(stopped|interrupted|killed|cut off|cancell?ed)\b[^\n]*\b(rerun|run (it )?again|re-?run)\b|\b(rerun|run (it )?again)\b[^\n]*\b(after|once|later|when)\b/i.test(x.said || '')) { }
+          else add('hooks-tested', cut ? `The last run of ${how} did not finish (cut off before its summary line, with no FAIL): run it again to the end, or say in the answer that it was stopped and why, and that it will be rerun.`
+            : `The last run of ${how} did not print ALL PASS. Fix the failures (the hook, not the test) and run it again.`);
+        }
       }
     }
     return miss;

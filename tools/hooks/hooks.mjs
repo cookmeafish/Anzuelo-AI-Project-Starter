@@ -18,7 +18,7 @@ import { lines as jsonlLines } from './jsonl.mjs';
 import { people, personOf, peopleIn, peopleFor, pathsPeople } from './people.mjs';
 import { LABELS_ES, WORTH_IT, plainLabel, EN_COPIES, inEnglish, labelsEsHint, LABELS_ES_HINT } from './labels.mjs';
 export { labelsEsHint, LABELS_ES_HINT };
-import { BASE_REQUIREMENTS, FAILED_RUN, MISSING_TOOL, PROBLEM_WORDS, DEV_NEW_PROJECT } from './base-checks.mjs';
+import { BASE_REQUIREMENTS, FAILED_RUN, MISSING_TOOL, PROBLEM_WORDS, DEV_NEW_PROJECT, interruptedRun, rerunPassed } from './base-checks.mjs';
 import { knowledgeFromFiles as sharedKnowledgeFromFiles, figureProblems as sharedFigureProblems } from './knowledge.mjs';
 import { claimSentences, byHandClaim, describesClaim, groupVerdictClaim, IMPROVE_CLAIM, REPORTED, NOT_IN_GIT, gitHolds as sharedGitHolds, namedPaths as sharedNamedPaths, gitClaimContradicted as sharedGitClaim } from './claims.mjs';
 export { ROOT, bulkDir, today, usageOf, read, readJSON, abs, exists, list, walkStat, esc, config, re, secretRes, secretHit, privateTermsPath, privateTermsListFile, forbiddenTerms, forbiddenRe, testInputsHash, aiAttributedCommits, gitignoreProblems, people, personOf, peopleIn, peopleFor, pathsPeople, LABELS_ES, WORTH_IT, plainLabel, EN_COPIES, inEnglish, BASE_REQUIREMENTS };
@@ -5390,7 +5390,9 @@ export function holds(c, x) {
     // (a command refused before it started never ran, so it never failed, and a waiver only talks to the engine.
     // Lesson: Go's "This command requires approval" counted as a failed test, and a feature answer had to carry
     // "Root cause: the feature did not exist yet")
-    const fails = (x.runs || []).filter(rn => r(c.ranFailing).test(rn.cmd) && !neverRan(rn) && !engineNote(rn.cmd) && (rn.error || FAILED_RUN.test(rn.out || '')) && !MISSING_TOOL.test(rn.out || '') && !ownChecks(rn));
+    // (a run cut off before it finished, or one a rerun passed with no code changed between: base-checks.mjs)
+    const runs = x.runs || [], between = (i, j) => (runs[j].editedBefore || []).filter(p => !(runs[i].editedBefore || []).includes(p));
+    const fails = runs.filter((rn, i) => r(c.ranFailing).test(rn.cmd) && !neverRan(rn) && !engineNote(rn.cmd) && ((rn.error && !interruptedRun(rn.cmd, rn.out)) || FAILED_RUN.test(rn.out || '')) && !MISSING_TOOL.test(rn.out || '') && !ownChecks(rn) && !rerunPassed(runs, i, between));
     if (!fails.length) return false;
     const watched = p => counted(p) && (!c.filesChanged || match(p, globs(c.filesChanged)));
     if (!reportsProblem(x) && !fails.some(rn => !(rn.editedBefore || []).some(watched))) return false;

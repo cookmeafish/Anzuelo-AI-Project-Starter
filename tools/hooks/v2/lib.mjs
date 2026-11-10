@@ -10,7 +10,7 @@ import { roots, resolver } from '../paths.mjs';
 import { people, personOf, peopleIn, peopleFor } from '../people.mjs';
 import { inEnglish, EN_COPIES } from '../labels.mjs';
 import { writingProblems, plainWritingMsg } from '../writing.mjs';
-import { BASE_REQUIREMENTS, FAILED_RUN, MISSING_TOOL, PROBLEM_WORDS, DEV_NEW_PROJECT } from '../base-checks.mjs';
+import { BASE_REQUIREMENTS, FAILED_RUN, MISSING_TOOL, PROBLEM_WORDS, DEV_NEW_PROJECT, interruptedRun, rerunPassed } from '../base-checks.mjs';
 import { knowledgeFromFiles as knowledgeFromFilesOf, figureProblems as figureProblemsOf } from '../knowledge.mjs';
 import { forbiddenRe, secretHit, config as engineConfig } from '../settings.mjs';
 import { INJ_PLANTED, INJ_AIMED, INJ_WARNED } from '../injection.mjs';
@@ -1156,7 +1156,11 @@ export function holdsReq(c, acts, x) {
     // caused (no edit before the run), or the request reports a problem; a self-test run after editing the project's own
     // checks is that work in progress. Lesson (the old suite under v2): a failed test then fixed was never asked why)
     ranFailing: v => { const edits = (i, rx) => acts.calls.slice(0, i).some(e => /^(Edit|Write|MultiEdit)$/.test(e.name) && rx.test(relp(e.input.file_path || '')));
-      const fails = acts.calls.map((k, i) => [k, i]).filter(([k, i]) => /^(Bash|PowerShell)$/.test(k.name) && reqRe(v).test(String(k.input.command || '')) && (k.error || FAILED_RUN.test(k.out || '')) && !REFUSED_RUN.test(k.out || '') && !MISSING_TOOL.test(k.out || '')
+      // (a run cut off before it finished, or one a rerun passed with no code changed between: base-checks.mjs)
+      const shell = acts.calls.map((k, i) => [k, i]).filter(([k]) => /^(Bash|PowerShell)$/.test(k.name)), runs = shell.map(([k]) => ({ cmd: String(k.input.command || ''), out: k.out || '', error: !!k.error }));
+      const between = (a, b) => acts.calls.slice(shell[a][1] + 1, shell[b][1]).filter(e => /^(Edit|Write|MultiEdit)$/.test(e.name)).map(e => relp(e.input.file_path || ''));
+      const cleared = i => { const a = shell.findIndex(([, j]) => j === i); return a >= 0 && rerunPassed(runs, a, between); };
+      const fails = acts.calls.map((k, i) => [k, i]).filter(([k, i]) => /^(Bash|PowerShell)$/.test(k.name) && reqRe(v).test(String(k.input.command || '')) && ((k.error && !interruptedRun(k.input.command, k.out)) || FAILED_RUN.test(k.out || '')) && !REFUSED_RUN.test(k.out || '') && !MISSING_TOOL.test(k.out || '') && !cleared(i)
         && !(/selfcheck\.mjs/.test(String(k.input.command || '')) && edits(i, /^tools\/hooks\/(requirements\.json|project-scenarios\.mjs)$/)));
       return fails.length > 0 && !setupTurn(acts) && (PROBLEM_WORDS.test(acts.heard || '') || fails.some(([, i]) => !edits(i, /./))); },
     // (overlap: that many running at once, each from its call to its result, or to the turn's end when started in the

@@ -2913,6 +2913,27 @@ STOP.push(
   { name: 'debug-trigger: a reported crash whose test the turn wrote first: blocked', prompt: 'the export crashes on empty rows',
     tools: [W('src/export.test.js'), bash('npm test', 'not ok 1 empty rows\n1 failed'), W('src/export.js'), bash('npm test', 'ok 1 empty rows')],
     files: { 'src/export.test.js': 'x', 'src/export.js': 'x', 'docs/CHANGELOG.md': 'x' }, answer: 'Fixed.' + FIN, expect: { block: true, tags: ['debug-trigger'] } },
+  // (a run stopped or killed before it finished failed nothing: an error exit with no failure line and no summary line;
+  // and a failure that a rerun passed with no code changed between them was no fix. Lesson (two field reports,
+  // 2026-11-10): a self-test killed for a restart, then a clean rerun, was asked for a root cause)
+  { name: 'debug-trigger: a self-test run killed before its summary, then a clean rerun: no root cause asked', prompt: 'rerun the tests',
+    tools: [{ ...bash('node tools/hooks/selfcheck.mjs --full', 'PASS  stop: one\nPASS  stop: two'), error: true }, W('docs/STATUS.md'), W('src/app.js'), bash('node tools/hooks/selfcheck.mjs --full', 'selfcheck: ALL PASS (2 passed, 0 failed)')],
+    files: { 'docs/STATUS.md': 'x', 'src/app.js': 'x', 'docs/CHANGELOG.md': 'x' }, answer: 'The tests pass.' + FIN, expect: { not: ['debug-trigger'] } },
+  { name: 'debug-trigger: a failure a rerun passed with no code changed between them: no root cause asked', prompt: 'rerun the tests',
+    tools: [bash('npm test', 'not ok 1 flaky timer\n1 failed'), W('docs/STATUS.md'), bash('npm test', 'ok 1 flaky timer'), W('src/app.js')],
+    files: { 'docs/STATUS.md': 'x', 'src/app.js': 'x', 'docs/CHANGELOG.md': 'x' }, answer: 'The tests pass.' + FIN, expect: { not: ['debug-trigger'] } },
+  { name: 'debug-trigger: a failure, then code changed, then a pass: still a fix (blocked)', prompt: 'rerun the tests',
+    tools: [bash('npm test', 'not ok 1 rows\n1 failed'), W('src/app.js'), bash('npm test', 'ok 1 rows')],
+    files: { 'src/app.js': 'x', 'docs/CHANGELOG.md': 'x' }, answer: 'The tests pass.' + FIN, expect: { block: true, tags: ['debug-trigger'] } },
+  // (hooks-tested: a self-test run cut off before its summary is not a failing run, and an answer that says it was
+  // stopped and will be rerun is the plain reason the hold itself asks for. Lesson (a field report, 2026-11-10): a run
+  // stopped for a restart was held twice as "did not print ALL PASS", and the stated reason was not accepted)
+  { name: 'hooks-tested: a self-test cut off before its summary, the answer says it was stopped and will be rerun: passes', prompt: 'tidy the guard message',
+    tools: [W('tools/hooks/wire.mjs'), { ...bash('node tools/hooks/selfcheck.mjs', 'PASS  stop: one\nPASS  stop: two'), error: true }], prep: d => fs.appendFileSync(path.join(d, 'tools/hooks/wire.mjs'), '\n// a change to the hook logic\n'),
+    files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Tidied the guard message. The self-test run was stopped for the restart, and I will rerun it after.' + FIN, expect: { not: ['hooks-tested'] } },
+  { name: 'hooks-tested: a self-test cut off before its summary, nothing said about it: blocked', prompt: 'tidy the guard message',
+    tools: [W('tools/hooks/wire.mjs'), { ...bash('node tools/hooks/selfcheck.mjs', 'PASS  stop: one\nPASS  stop: two'), error: true }], prep: d => fs.appendFileSync(path.join(d, 'tools/hooks/wire.mjs'), '\n// a change to the hook logic\n'),
+    files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Tidied the guard message.' + FIN, expect: { block: true, tags: ['hooks-tested'], says: /did not finish|cut off/ } },
   // (two fixes, two causes under one heading. Lesson, dogfood: "Root causes:" over a list was asked for again)
   { name: 'debug-trigger: "Root causes:" over a list of two: passes', prompt: 'the export crashes on empty rows',
     tools: [W('src/export.test.js'), bash('npm test', 'not ok 1 empty rows\n1 failed'), W('src/export.js'), bash('npm test', 'ok 1 empty rows')],

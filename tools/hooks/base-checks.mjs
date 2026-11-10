@@ -5,6 +5,26 @@
 // counts like an error exit; a missing tool is setup, not a bug; problem words in the request make it a fix.
 export const FAILED_RUN = /^\s*(FAIL(ED)?\b|not ok\b)|\b[1-9]\d* (tests? )?(failed|failing|errors?)\b|Traceback \(most recent call last\)|AssertionError|\bERR!/m;
 export const MISSING_TOOL = /is not recognized as (an internal|the name)|command not found|: not found\b|No such file or directory.*(node_modules|bin)|Cannot find module|No module named|ModuleNotFoundError|could not determine executable|not installed/i;
+// (a run stopped or killed before it finished failed nothing: an error exit with no failure line that says it was
+// interrupted, or a self-test, trial or audit run cut off before its summary line; and a failure that a rerun of the
+// same command passed, with no code file changed between them, was no fix. Record files (Markdown, docs/, .cache/,
+// memory/) are not code. Lesson (two field reports, 2026-11-10): a self-test killed for a restart, then a clean rerun
+// after only STATUS and CHANGELOG lines, was asked for a root cause)
+export const INTERRUPTED_RUN = /\b(interrupted|killed|terminated|aborted|SIGINT|SIGTERM|SIGKILL|was stopped|stopped by|cancell?ed)\b|\bexit (code|status) (130|137|143)\b/i;
+const RUN_SUMMARY = [[/\bselfcheck\.mjs\b/, /^selfcheck: /m], [/\bv2[\\/]selftest\.mjs\b/, /^v2 selftest: /m], [/\btrial\.mjs\b/, /^TRIAL: /m], [/\baudit\.mjs\b/, /^audit: /m]];
+export function interruptedRun(cmd, out) {
+  const o = String(out || '');
+  if (FAILED_RUN.test(o)) return false;
+  if (INTERRUPTED_RUN.test(o)) return true;
+  const s = RUN_SUMMARY.find(([c]) => c.test(String(cmd || '')));
+  return !!s && !s[1].test(o);
+}
+export const RECORD_FILE = /\.md$|^(docs|\.cache|memory)\//i;
+// runs: [{ cmd, out, error }] in order; editedBetween(i, j): the files edited after run i and before run j
+export function rerunPassed(runs, i, editedBetween) {
+  const same = c => String(c || '').trim().replace(/\s+/g, ' ');
+  return runs.some((r, j) => j > i && same(r.cmd) === same(runs[i].cmd) && !r.error && !FAILED_RUN.test(r.out || '') && !editedBetween(i, j).some(f => !RECORD_FILE.test(f)));
+}
 export const PROBLEM_WORDS = /\b(bugs?|broken|breaks?|crash(es|ed|ing)?|errors?|exceptions?|traceback|fail(s|ed|ing|ures?)?|doesn'?t work|does not work|not working|wrong|regression|fix(es)?|make (the )?(tests?|build) pass)\b|\b(falla|fallan|fallo|errores|roto|rota|no funciona|arregla|corrige)\b/i;
 
 // REQ: dev-new-project. In a development copy of the starter (.starter-dev), a change to how projects are made, linked or
