@@ -7,6 +7,8 @@ import { labelsEsHint } from '../labels.mjs';
 import { unansweredLate, asksOnly } from './late.mjs';
 import { PAUSE_ASK } from '../pause.mjs';
 import { wakeGaps } from '../wakeups.mjs';
+import { makeSkillLearn } from '../skilllearn.mjs';
+import { makeProof } from '../proof.mjs';
 import { forbiddenGaps, codeRuleGaps, injectionGaps, verbatimGaps, CRASHED, crashLine, logStop, upgradeGaps, autoRuns, sessionStart, changedOf, projectConfig, inGlobs, priorCalls, filesMatching, withBackgroundOutputs, hookTestsGaps, engineChecks, doneWhen } from './lib.mjs';
 import { ROOT, at, runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, questionGaps, noteGaps, quoteGaps, tail, helpersRunning, backgroundRuns, helperRuns, evidenceGaps, evidenceOf, skillBooks, alwaysGaps, scopeGaps, earlierPrompts, ALWAYS, engineCheckGaps, loadDirty, isSpanish } from './lib.mjs';
 // (the two data tables, one evaluator each: the project's always list and the engine's own checks)
@@ -388,6 +390,44 @@ export function followOn(turn, acts, list) {
     out.push('Then, if the fix changes the hook engine or its checks (tools/hooks/): run node tools/hooks/selfcheck.mjs (or --tags <the new or changed check>) until it prints ALL PASS.');
   return out;
 }
+// REQ: skill-learn, under v2: the shared tools/hooks/skilllearn.mjs. The checks that held an earlier round of this request
+// come from the Stop log (its steps), each mapped to its check: an engine check by its message, a runbook's "Done when"
+// item as its own ("<file>#<n>"), the core rule and complaint asks by their words. A runbook's own checks are the engine
+// checks that name it, its frontmatter "checks:" and its items.
+const CORE_ASKS = [['rule-request', /^(Write the rule down|Say how the rule is enforced)\b/], ['rule-memory', /^Save the rule to memory\b/],
+  ['hooks-tested', /^The (hook logic|checks\b[^\n]*) changed: run\b/],
+  ['upset-learned', /^(The runbook your Issue line names|Give the point in general terms|Say the root cause|Say first whether it holds|Say what you checked|Write the lesson where it stops)/]];
+const normStep = s => String(s).replace(/\s+/g, ' ').slice(0, 80);
+function stepTags(step) {
+  const s = normStep(step);
+  if (/^Then\b/.test(s) || /^verify /.test(s)) return [];
+  const item = /^([\w./-]+\.md) item (\d+): /.exec(s);
+  if (item) { const it = doneWhen((() => { try { return fs.readFileSync(at(item[1]), 'utf8'); } catch { return ''; } })()).find(i => String(i.n) === item[2]); return it && it.kind !== 'answer' ? [`${item[1]}#${item[2]}`] : []; }
+  return [...CORE_ASKS.filter(([, rx]) => rx.test(s)).map(([t]) => t), ...engineChecks().filter(r => r?.message && normStep(`Check: ${r.message}`) === s.slice(0, normStep(`Check: ${r.message}`).length)).map(r => r.tag)];
+}
+let skillLearnMemo = null;
+function skillLearnGaps(turn, acts, list, sid, request) {
+  const NONE = /^[\s>*_-]*learned\s*\((none|nothing|ninguno|ninguna|nada)\)\s*:\s*\S.{8,}/im;
+  const P = makeProof({ LEARNED_NONE: NONE }), esc = t => String(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const fmChecks = front => String((/^checks:\s*(.+)$/m.exec(front || '') || [])[1] || '').replace(/^core:?/i, '').replace(/^none.*$/i, '').split(',').map(t => t.trim()).filter(Boolean);
+  const books = runbooks().filter(b => opened(b, acts) && !authored(b, acts)).map(b => ({ name: b.name, file: b.file, front: b.front, items: b.items }));
+  const skills = skillBooks({ parts: true }).filter(s => opened({ ...s, skills: [] }, acts) && !authored(s, acts)).map(s => ({ name: s.name, skillName: s.name, file: s.file, front: s.front, items: s.items }));
+  if (!books.length && !skills.length) return [];
+  const earlier = (() => { try { return fs.readFileSync(at('tools/hooks/state/stop-log.jsonl'), 'utf8'); } catch { return ''; } })().split('\n')
+    .map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(e => e && e.session === sid && e.request === request && e.result === 'blocked').flatMap(e => e.steps || []);
+  const failedBefore = [...new Set(earlier.flatMap(stepTags))], failingNow = [...new Set(list.flatMap(stepTags))];
+  if (!failedBefore.length && !failingNow.length) return [];
+  const checks = engineChecks();
+  const SL = skillLearnMemo ||= makeSkillLearn({ complaintDisproved: P.complaintDisproved, learnedNone: () => NONE,
+    promptGated: () => new Set(['rule-request', 'rule-memory', 'requirement-enforced', 'upset-learned', 'autonomy-recorded']),
+    waived: (tag, text) => new RegExp(`N/?A\\s*\\(\\s*${esc(tag)}\\s*\\)|N/?A:\\s*${esc(tag)}\\b`, 'i').test(text || ''),
+    ownChecks: item => [...engineChecks().filter(q => [q.when?.playbookUsed, q.when?.playbookRouted, q.when?.skillUsed].some(n => n && (n === item.name || n === item.skillName))).map(q => q.tag),
+      ...fmChecks(item.front), ...(item.items || []).filter(i => i.kind && i.kind !== 'answer').map(i => `${item.file}#${i.n}`)],
+    loadRequirements: () => ({ reqs: checks }), setupTurn: () => fs.existsSync(at('SETUP-PROMPT.md')) && !fs.existsSync(at('.starter-template')), esc });
+  // (what the agent said includes its turn notes, as the old engine read them: "Learned (none): ..." is often there)
+  const x = { said: `${acts.said || acts.answer || ''}\n${turnNotes(acts)}`, answer: String(acts.answer || ''), workTurn: worked(acts), changed: changedOf(acts), usedPb: books, usedSkills: skills, failedBefore, cmds: [], since: Date.parse(turn.at || '') || 0 };
+  return SL.skillLearnCheck(x, projectConfig(), failingNow).map(g => g.msg);
+}
 // The last answer the agent sent before the latest block (the host shows the block as a "Stop hook feedback" message).
 function answerBeforeBlock(rows) {
   let last = '', prev = '';
@@ -459,6 +499,7 @@ function judge(data, { shadow = false } = {}) {
   // (the waiver tally: what this turn cleared with a reason is recorded; a check cleared in 3+ earlier turns is named)
   const full = list.splice(0, list.length); list.push(...full.filter(kept(acts)).filter(s => !(again && CRASHED.test(s))));
   list.push(...S('followOn', () => followOn(turn, acts, list)).filter(kept(acts)));
+  list.push(...S('skillLearn', () => skillLearnGaps(turn, acts, list, data.session_id || '', decided.request || '')).filter(kept(acts)));
   const often = shadow ? '' : tally(full, list, turn.at ? `${data.session_id || 'x'}|${turn.at}` : '');
   // (a turn that ran the check on its draft has seen the verify list: the real stop does not send it back for it again.
   // Lesson (the user, 2026-11-07): the list came in the draft check and then again as a send-back, and the user read a

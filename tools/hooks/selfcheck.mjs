@@ -2949,6 +2949,10 @@ function runStop(s0) {
       const at0 = new Date(since).toISOString();
       // (blocks made while waiting on helpers count toward the cap too, as the old engine counted them)
       write(dir, { 'tools/hooks/state/v2-turn.scenario.json': JSON.stringify({ at: at0, runbook: null, blocked: at0, rounds: ((s.blocks || 0) + (s.waitBlocks || 0)) || 1 }) });
+      // (the checks that held the earlier round, as v2 logs them: the steps it showed, in its Stop log)
+      const V2_STEP = { 'rule-request': 'Write the rule down: node tools/hooks/hooks.mjs rule', 'rule-memory': 'Save the rule to memory too', 'upset-learned': 'Write the lesson where it stops the next miss', 'hooks-tested': 'The hook logic changed: run node tools/hooks/selfcheck.mjs' };
+      const steps = (s.failed || []).map(t => ENGINE_MSG[t] ? `Check: ${ENGINE_MSG[t]}` : V2_STEP[t]).filter(Boolean).map(x => x.replace(/\s+/g, ' ').slice(0, 80));
+      if (steps.length) write(dir, { 'tools/hooks/state/stop-log.jsonl': JSON.stringify({ at: at0, session: 'scenario', request: at0, round: 1, result: 'blocked', steps }) + '\n' });
     }
     const { out, err } = run(dir, 'stop', { transcript_path: tp, stop_hook_active: !!s.active, ...V2SID, ...(s.last ? { last_assistant_message: s.last } : {}), ...(s.hookInput || {}) }, s.host);
     let decision = ''; try { decision = fs.readFileSync(path.join(dir, 'tools/hooks/state/stop-log.jsonl'), 'utf8').trim().split('\n').pop() || ''; } catch { }
@@ -5033,6 +5037,7 @@ const V2_ASKS = {
   'watched-inputs': /^- \S+ was updated while you worked/m,
   'decision-logged': /item \d+: A choice the user made is logged in docs\/DECISIONS\.md/,
   'rule-request': /^- (Write the rule down|Say how the rule is enforced|Save the rule to memory)/m,
+  'skill-learn': /^- This turn followed \S+ and its own check failed this turn\. Write the lesson into it/m,
   'upset-learned': /^- (The runbook your Issue line names|Give the point in general terms|Say the root cause|Say first whether it holds|Say what you checked to know it holds|Write the lesson where it stops the next miss|This is about the engine: send the lesson|The user is upset again in this session)/m,
 };
 // (an engine check from requirements.json is recognized by its own message, which v2's evaluator gives as "Check: ...")
