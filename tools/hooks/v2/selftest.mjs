@@ -2868,7 +2868,13 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   // hard limits, and at 1e both ceilings come down to the measured size)
   const size = f => fs.readFileSync(f, 'utf8').split('\n').length;
   const v2 = f => path.join(here, f), base = n => path.join(here, '..', `${n}.mjs`);
-  const parts = { guard: [v2('guard.mjs'), v2('midturn.mjs')], reminder: [v2('start.mjs')], base: ['paths', 'settings', 'repo', 'people', 'labels', 'base-checks', 'wakeups', 'injection', 'claims', 'knowledge', 'proof', 'trace', 'launchers', 'gates', 'git-guard'].map(base) };
+  // (base is every shared module the engine loads, followed through their own imports, not a hand list: a hand list
+  // missed modules as they moved out of hooks.mjs. hooks.mjs itself is the old engine, never counted)
+  const baseNames = new Set(['git-guard']), seenF = new Set();
+  const follow = f => { if (seenF.has(f)) return; seenF.add(f); let t = ''; try { t = fs.readFileSync(f, 'utf8'); } catch { return; }
+    for (const m of t.matchAll(/from '(\.\.?)\/([\w-]+)\.mjs'/g)) { const inV2 = f.startsWith(here + path.sep) && m[1] === '.'; if (inV2 || m[2] === 'hooks' || m[2] === 'selftest') continue; baseNames.add(m[2]); follow(base(m[2])); } };
+  for (const f of fs.readdirSync(here).filter(f => f.endsWith('.mjs') && f !== 'selftest.mjs')) follow(v2(f));
+  const parts = { guard: [v2('guard.mjs'), v2('midturn.mjs')], reminder: [v2('start.mjs')], base: [...baseNames].filter(n => fs.existsSync(base(n))).sort().map(base) };
   parts.end = fs.readdirSync(here).filter(f => f.endsWith('.mjs') && f !== 'selftest.mjs' && !Object.values(parts).flat().includes(v2(f))).map(v2);
   const cap = { guard: 600, reminder: 400, end: 3200, base: 2600 }, ALL = 6000;
   const got = Object.fromEntries(Object.entries(parts).map(([k, fs_]) => [k, fs_.reduce((n, f) => n + size(f), 0)]));
