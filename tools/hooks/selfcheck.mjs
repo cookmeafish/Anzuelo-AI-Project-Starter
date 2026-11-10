@@ -814,7 +814,8 @@ const STOP = [
   { name: 'commit archaeology without a confidence label: blocked', prompt: 'why does this code exist in src/cache.py lines 40-72?', tools: [sk('commit-archaeologist')],
     answer: 'Skill: commit-archaeologist. It was added in a1b2c3d to fix a cache bug.', expect: { block: true, tags: ['history-confidence'] } },
   { name: 'commit archaeology with a confidence label: passes', prompt: 'why does this code exist in src/cache.py lines 40-72?', tools: [sk('commit-archaeologist')],
-    answer: 'Skill: commit-archaeologist. Bottom line: it keeps the old return type for empty input. Confidence: medium. Origin: a1b2c3d (2026-01-01).', expect: { block: false } },
+    answer: 'Skill: commit-archaeologist. Bottom line: it keeps the old return type for empty input. Confidence: medium. Origin: a1b2c3d (2026-01-01).', expect: { block: false },
+    v2: { tools: [sk('commit-archaeologist'), bash('git log -L 40,72:src/cache.py --format="%h %ad %s"', 'a1b2c3d 2026-01-01 keep old return type')] } },
   { name: 'compression without the guard check: blocked', prompt: 'compress the skills so they use fewer tokens', tools: [sk('compress-for-ai'), bash('node tools/audit.mjs')],
     files: { 'skills/debug/references.md': '# Debug references\nShort.', 'docs/CHANGELOG.md': 'x' }, answer: 'Skill: compress-for-ai. Compressed.' + FIN, expect: { block: true, tags: ['compress-verified'] } },
   { name: 'compression with the guard check: passes', prompt: 'compress the skills so they use fewer tokens',
@@ -933,15 +934,20 @@ const STOP = [
   { name: 'incident-response: no incident file: blocked', prompt: 'the site is down for users', tools: [sk('incident-response')],
     answer: 'Skill: incident-response. Rolled back the last release with your OK; the site is up.', expect: { block: true, tags: ['incident-logged'] } },
   { name: 'incident-response: the incident file named: passes', prompt: 'the site is down for users', tools: [sk('incident-response')],
-    answer: 'Skill: incident-response. Rolled back with your OK; timeline in docs/incidents/2026-10-18-site-down.md. Root cause: not found yet.', expect: { block: false } },
+    answer: 'Skill: incident-response. Rolled back with your OK; timeline in docs/incidents/2026-10-18-site-down.md. Root cause: not found yet.', expect: { block: false },
+    // (under v2 a named file must exist: the incident file is there, written earlier in the incident)
+    v2: { files: { 'docs/incidents/2026-10-18-site-down.md': '# Site down\n\nTimeline.\n' }, mtimes: { 'docs/incidents/2026-10-18-site-down.md': -600_000 } } },
   { name: 'incident-response: no Root cause line: blocked', prompt: 'the site is down for users', tools: [sk('incident-response')],
     answer: 'Skill: incident-response. Rolled back with your OK; timeline in docs/incidents/2026-10-18-site-down.md.', expect: { block: true, tags: ['incident-root-cause'] } },
   { name: 'incident-response: the Root cause line stated: passes', prompt: 'the site is down for users', tools: [sk('incident-response')],
-    answer: 'Skill: incident-response. Timeline in docs/incidents/2026-10-18-site-down.md. Root cause: a config push removed the database host.', expect: { block: false, not: ['incident-root-cause'] } },
+    answer: 'Skill: incident-response. Timeline in docs/incidents/2026-10-18-site-down.md. Root cause: a config push removed the database host.', expect: { block: false, not: ['incident-root-cause'] },
+    v2: { files: { 'docs/incidents/2026-10-18-site-down.md': '# Site down\n\nTimeline.\n' }, mtimes: { 'docs/incidents/2026-10-18-site-down.md': -600_000 } } },
   { name: 'commit archaeology with no commit hashes: blocked', prompt: 'why does this code exist in src/cache.py lines 40-72?', tools: [sk('commit-archaeologist')],
     answer: 'Skill: commit-archaeologist. Bottom line: it keeps the old return type for empty input. Confidence: medium. Origin: an early commit.', expect: { block: true, tags: ['history-hashes'] } },
   { name: 'commit archaeology backed by commit hashes: passes', prompt: 'why does this code exist in src/cache.py lines 40-72?', tools: [sk('commit-archaeologist')],
-    answer: 'Skill: commit-archaeologist. Bottom line: it keeps the old return type for empty input. Confidence: high. Origin: 9f3e2d1 (2026-01-01); kept by c0ffee42.', expect: { block: false, not: ['history-hashes'] } },
+    answer: 'Skill: commit-archaeologist. Bottom line: it keeps the old return type for empty input. Confidence: high. Origin: 9f3e2d1 (2026-01-01); kept by c0ffee42.', expect: { block: false, not: ['history-hashes'] },
+    // (under v2 a named commit must have been shown by a command this turn: the history is read, as the skill does)
+    v2: { tools: [sk('commit-archaeologist'), bash('git log -L 40,72:src/cache.py --format="%h %ad %s"', '9f3e2d1 2026-01-01 keep old return type\nc0ffee42 2026-02-03 keep empty-input path')] } },
   { name: 'data-analysis: numbers with no method: blocked', prompt: 'analyze this data in sales.csv', tools: [sk('data-analysis')],
     answer: 'Skill: data-analysis. Average order is 42.10 across 1,200 rows.', expect: { block: true, tags: ['data-computed'] } },
   { name: 'data-analysis: numbers with how they were computed: passes', prompt: 'analyze this data in sales.csv', tools: [sk('data-analysis'), bash('node skills/data-analysis/scripts/profile.mjs sales.csv', 'rows 1200\namount: mean 42.10')],
@@ -4867,7 +4873,9 @@ const B = base();
 // (every shared engine module, not only hooks.mjs: a rule moved to one, with its tag, still has its scenarios run.
 // Lesson (the move to shared modules): dev-new-project moved to base-checks.mjs, and its blocking scenario was skipped
 // as "packs not installed here" until the covers test noticed)
-const srcIn = b => [...fs.readdirSync(path.join(b, 'tools/hooks')).filter(f => f.endsWith('.mjs') && f !== 'selfcheck.mjs').map(f => fs.readFileSync(path.join(b, 'tools/hooks', f), 'utf8')),
+// (the engine's modules only: a project's own files there, like its scenarios, name checks it may not have. Lesson (a
+// release run): the scenario file named a missing check, so "no check named" was no longer said for it)
+const srcIn = b => [...fs.readdirSync(path.join(b, 'tools/hooks')).filter(f => f.endsWith('.mjs') && f !== 'selfcheck.mjs' && !/^project-/.test(f)).map(f => fs.readFileSync(path.join(b, 'tools/hooks', f), 'utf8')),
   fs.readFileSync(path.join(b, 'tools/hooks/requirements.json'), 'utf8')].join('\n');
 const hereSrc = srcIn(B);
 const INSTALLED = (() => { try { return JSON.parse(fs.readFileSync(path.join(B, 'tools/hooks/config.json'), 'utf8')).packs || []; } catch { return []; } })();
@@ -5208,6 +5216,7 @@ for (const s0 of PROMPT) {
     if (/^plan-required \(a plan in docs\/plans\/ first\)$/.test(h)) return 'plan required (a plan in docs/plans/ first)';
     if (h === 'PRAISE') return 'Praise: the user liked something';
     if (h === 'AUTONOMY') return 'Autonomy: the user wants the work done without their input';
+    if ((m = /^MUST FOLLOW(: [\w-]+)?$/.exec(h))) return `Must follow${m[1] || ':'}`;
     // (the old engine's line for relayed work is v2's caveat in the runbook line)
     if (/^RELAYED: this request was relayed\b/.test(h)) return 'only if this message asks for work here';
     return h; };

@@ -27,7 +27,8 @@ import { toOtherSession, RELAY_START, HANDBACK, relayedBody, relayRouteText, rel
 const NOTICE = /^\s*\[Cross-session (idle|delivery) notice\]/;
 import { asksOnly } from './late.mjs';
 import { PAUSE_ASK, PAUSE_HINT } from '../pause.mjs';
-import { capsUpset } from '../caps.mjs';
+import { capsUpset, unquoted } from '../caps.mjs';
+import { BASE_REQUIREMENTS } from '../base-checks.mjs';
 import { esLabelList } from '../labels.mjs';
 
 // REQ: question-answered (as it arrives). A message that only asks is answered first, in plain words; one typed while a
@@ -87,6 +88,21 @@ export function rulesFor(prompt) {
 // (a message relayed from another session, a helper or a task notice is not the user's: it is never upset and sets no
 // rule. Lesson (a peer session, live): a status report quoting a capital "NEVER" got "This sounds upset")
 const relayedRx = /^\s*Another Claude session sent a message|<(cross-session-message|agent-message|task-notification)\b/;
+// The skills and runbooks a check makes mandatory on what the request says (a requirement with "forces" and a "hint"
+// pattern, built-in or the project's own, minus the ones switched off), each once, with the words that set it off.
+function forcedBy(p) {
+  let j = {}; try { j = JSON.parse(fs.readFileSync(at('tools/hooks/requirements.json'), 'utf8')); } catch { }
+  const file = Array.isArray(j.requirements) ? j.requirements : [], off = new Set([...file.map(r => r && r.tag), ...(j.disabled || []).map(d => d && d.tag)]);
+  const out = new Map(), text = unquoted(p), cfg = projectConfig();
+  for (const q of [...BASE_REQUIREMENTS.filter(b => !off.has(b.tag)), ...file]) {
+    if (!q || q.enabled === false || !q.forces || !q.hint || out.has(q.forces) || checkOff(q.tag)) continue;
+    let hit = null; try { hit = new RegExp(q.hint, 'i').exec(text); } catch { }
+    if (!hit) continue;
+    const f = has(`${cfg.skillsDir || 'skills'}/${q.forces}/SKILL.md`) ? `${cfg.skillsDir || 'skills'}/${q.forces}/SKILL.md` : `docs/playbooks/${q.forces}.md`;
+    if (has(f)) out.set(q.forces, { name: q.forces, file: f, word: hit[0].trim() });
+  }
+  return [...out.values()];
+}
 export function reminder(prompt, { midTurn = false } = {}) {
   const raw = String(prompt || '');
   // (REQ: pause-stops: a request to pause, stop or restart wraps up now, whatever else the message says)
@@ -170,7 +186,13 @@ function remind(prompt) {
   // nothing, and the agent kept asking
   const autonomy = !relayedRx.test(raw) && projectConfig().autonomy !== 'auto' && AUTONOMY_WORDS.test(String(userWords(prompt)))
     ? `Autonomy: the user wants the work done without their input. Set "autonomy": "auto" in tools/hooks/config.json and record it in docs/DECISIONS.md (date, the choice, why), then decide instead of asking and record each choice as "Assumed: <choice> - <why> - <cost if wrong>". Outward actions, third-party installs and anything irreversible still need an OK.` : '';
-  if (!book) return { book: null, text: [skill, praise, figures, autonomy, pick, es, ...rulesFor(prompt).map(r => `The project's own rule here: ${r}`), isTaskRequest(prompt, taskVerbs, toOtherSession(prompt)) ? alsoChecked(sk && skill ? [sk.name] : []) : ''].filter(Boolean).slice(0, MAX_LINES).join('\n') };
+  // REQ: event-hint (at the request, a hint only). A check that makes a skill or runbook mandatory when something happens
+  // (a trigger with "forces", like sign-in or payment code and the security review) says so as soon as the request shows
+  // it is coming, so the work follows it from the start, as the old engine. Not for a request that only asks, nor a
+  // relayed one, nor for words inside quotes. Lesson (the old suite under v2): v2 named it only at the end
+  const must = relayedRx.test(raw) || asksOnly(String(userWords(prompt)), projectConfig().changeWords) ? [] : forcedBy(String(userWords(prompt)));
+  const mustLines = must.filter(m => m.name !== book?.name).map(m => `Must follow: ${m.name} (the request mentions "${m.word.slice(0, 40)}"): open ${m.file} now and follow it from the start; the end check holds it.`);
+  if (!book) return { book: null, text: [...mustLines, skill, praise, figures, autonomy, pick, es, ...rulesFor(prompt).map(r => `The project's own rule here: ${r}`), isTaskRequest(prompt, taskVerbs, toOtherSession(prompt)) ? alsoChecked(sk && skill ? [sk.name] : []) : ''].filter(Boolean).slice(0, MAX_LINES).join('\n') };
   const own = rulesFor(prompt).map(r => `The project's own rule here: ${r}`);
   // (a message relayed from another session may only report: its runbook is for when it asks for work. Lesson (project
   // report): a note that a fix had landed got the bugfix runbook and its list, though it asked for nothing)
@@ -179,7 +201,7 @@ function remind(prompt) {
   // terms, in the runbook line itself: no extra line, and nothing on other turns. The end check catches a slip
   // (quoteGaps). On only with the quote check, quoteCheckOn)
   const lesson = quoteOn && (sore || ['project', 'learn-from-upset', 'runbook-create', 'project-rule'].includes(book.name)) ? ' Write any lesson in general terms, not in the user\'s own words.' : '';
-  const lines = [...(sore ? [sore] : []), ...(es ? [es] : []), ...(praise ? [praise] : []), ...(figures ? [figures] : []), ...(autonomy ? [autonomy] : []), ...own, `Runbook${relayedRx.test(raw) ? ', only if this message asks for work here' : ''}: open ${book.file} and follow it.${lesson}`];
+  const lines = [...(sore ? [sore] : []), ...mustLines, ...(es ? [es] : []), ...(praise ? [praise] : []), ...(figures ? [figures] : []), ...(autonomy ? [autonomy] : []), ...own, `Runbook${relayedRx.test(raw) ? ', only if this message asks for work here' : ''}: open ${book.file} and follow it.${lesson}`];
   if (book.items.length) {
     // (and how to hold the answer until it passes, in the same line. Lesson (the user, 2026-11-07): an answer sent back
     // by the end check reached the user twice; the first version must already be the final one)

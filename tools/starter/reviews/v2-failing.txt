@@ -36,8 +36,6 @@ prompt: check-preview: without them, runbook-exists says nothing about the proje
 prompt: closest runbook: a request sharing one word or none still gets NO RUNBOOK
 prompt: debug skill routes on its own
 prompt: efficiency-review: "simple fixes turn into 20 minute things" routes to the review
-prompt: event-hint: a question that asks for a change still does
-prompt: event-hint: a request about sign-in names the security review before work starts
 prompt: fit-checklist: a request a deferred library skill is for asks to decide it again
 prompt: fit-checklist: one trigger plus a word of the condition asks to decide it again
 prompt: goal-loop: "keep improving it until the tests never flake" routes to the loop
@@ -133,8 +131,6 @@ stop: check-proven: a "**Probado:**" label alone, with no full line anywhere: bl
 stop: check-proven: a "Proven:" line with only one good sample: blocked
 stop: check-proven: good samples with no edge case from the project's own words: blocked
 stop: check-proven: the existing files covered but no count in the "Proven:" line: blocked
-stop: commit archaeology backed by commit hashes: passes
-stop: commit archaeology with a confidence label: passes
 stop: crash blocks once, then releases
 stop: debug skill matched but not opened: blocked
 stop: dev mode: an engine change with no self-tests, changelog or proof it works: blocked
@@ -153,8 +149,6 @@ stop: gui-flows: a page with a saved flow, flow not rerun: blocked
 stop: gui-review-report: a bold "Revisión visual" list item with no verdict still asks for the line
 stop: helpers still running, but the answer claims they finished and pushed: still checked
 stop: image + text prompt is a real prompt
-stop: incident-response: the Root cause line stated: passes
-stop: incident-response: the incident file named: passes
 stop: incident-trigger: production down without the incident skill: blocked
 stop: ingest-trigger: a file moved into sources/ (old time, new since the turn began): blocked
 stop: invalid skill frontmatter: blocked
