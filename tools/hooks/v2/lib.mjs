@@ -1522,7 +1522,8 @@ export function workChangelogGaps(acts) {
   if (checkOff('changelog') || waivedTag('changelog', acts) || !fs.existsSync(at('docs/CHANGELOG.md'))) return [];
   const cfg = projectConfig(), data = [].concat(cfg.dataDirs || []).map(d => String(d).replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/?\**$/, '/'));
   const SHIPPED = /^(CLAUDE\.md|AGENTS\.md|docs\/playbooks\/|docs\/checks\/|skills\/|tools\/)/;
-  const changed = changedOf(acts).filter(p => !/^(\.cache|tools\/hooks\/state|\.anzuelo)\//.test(p) && !data.some(d => p.startsWith(d)) && !/^(\.\.|[a-z]:)/i.test(p));
+  // (the project's records are no work of their own: plans, STATUS, DECISIONS, reviews and specs' notes, memory)
+  const changed = changedOf(acts).filter(p => !/^(\.cache|tools\/hooks\/state|\.anzuelo|memory|docs\/plans|docs\/reviews)\//.test(p) && !/^docs\/(STATUS|DECISIONS)\.md$/.test(p) && !data.some(d => p.startsWith(d)) && !/^(\.\.|[a-z]:)/i.test(p));
   if (!changed.length || changed.some(p => /(^|\/)(CHANGELOG|STARTER-CHANGELOG)\.md$/i.test(p))) return [];
   // (the shipped check asks for the same line when any of these changed: asked once)
   if (changed.some(p => SHIPPED.test(p)) || smallChange(acts, changed)) return [];

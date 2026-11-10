@@ -754,7 +754,7 @@ const STOP = [
     expect: { not: ['status-handoff'] } },
   { name: 'final answer not yet in the transcript: last_assistant_message is used', prompt: 'make a plan for the csv export', tools: [pb('plan'), bash('node skills/plan/scripts/plan-tasks.mjs check docs/plans/2026-10-17-export.md')],
     files: { 'docs/plans/2026-10-17-export.md': '# Export: plan' },
-    answer: null, last: 'Playbook: plan.md. Saved docs/plans/2026-10-17-export.md.' + FIN, expect: { block: false } },
+    answer: null, last: 'Playbook: plan.md. Saved docs/plans/2026-10-17-export.md.' + FIN, expect: { block: false, not: ['finished-summary'] } },
   { pack: 'knowledge', name: 'last_assistant_message is checked too: blocked when it lacks Finished', prompt: 'research desk prices', tools: [sk('research')],
     files: { 'docs/knowledge/desks.md': KNOW, 'docs/CHANGELOG.md': 'x' },
     drafts: ['Skill: research. Sources: https://a.com' + FIN], later: [{ name: 'Write', input: { file_path: 'docs/knowledge/desks.md', content: KNOW } }],
@@ -2955,7 +2955,8 @@ function runStop(s0) {
   // (the shared Finished line names docs/x.md; under v2 a claimed file that is not there is held (rule 4, triage: settled),
   // so a scenario using it gets that file, dated before the turn so it is no work of the turn. A scenario's own claim
   // of a file that is not there is still held)
-  if (process.env.STARTER_ENGINE === 'v2' && String(s0.answer || '').includes(FIN) && !(s0.files || {})['docs/x.md'])
+  // (the answer may come from the host's last message only: the same file then)
+  if (process.env.STARTER_ENGINE === 'v2' && String(s0.answer || s0.last || '').includes(FIN) && !(s0.files || {})['docs/x.md'])
     s0 = { ...s0, files: { ...(s0.files || {}), 'docs/x.md': '# x\n' }, mtimes: { ...(s0.mtimes || {}), 'docs/x.md': -3_600_000 } };
   // (a fixture file is written after the turn starts, so the old engine counts it as this turn's work. v2 counts a file
   // only when a call of the turn wrote it (a file changed with no writer is another session's), so under v2 each fixture

@@ -121,7 +121,6 @@ stop: done-when-labeled: a wrapped item labeled on its last line, and several ta
 stop: done-when-labeled: each item names its check or why only judgment can tell: passes that check
 stop: done-when-labeled: items proven by markers (file:, ran:, answer:, with a when condition): passes that check
 stop: feature done right: passes
-stop: final answer not yet in the transcript: last_assistant_message is used
 stop: fit-checklist: a turn adds a data file that a decided skip never answered: blocked
 stop: gate with no pass pattern chained to other commands: run it alone: blocked
 stop: grant-decided: a row changed this turn that grants staff deletes on a "decision" the user never wrote: blocked
