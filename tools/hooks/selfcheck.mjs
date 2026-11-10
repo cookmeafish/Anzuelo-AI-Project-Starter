@@ -474,6 +474,9 @@ const PEOPLE = { 'profiles/alice/PROFILE.md': () => '---\naliases: ali\n---\n# A
 const SCENARIO_TAGS = new Set();
 const withReqs = extra => { SCENARIO_TAGS.add(extra.tag); return { 'tools/hooks/requirements.json': s => JSON.stringify({ requirements: [...JSON.parse(s).requirements, extra] }) }; };
 const VALIDATOR = withReqs({ tag: 'data-valid', when: { filesChanged: ['data/**'] }, require: { toolPassed: { cmd: 'validate', pass: 'RESULT: PASS' } }, message: 'Run the validator until it passes.' });
+// (under v2 a project's own check is a "Done when" line in docs/checks/always.md, and the data file is the agent's own
+// edit, then validated: the validator reads it, it does not write it)
+const VALIDATOR_V2 = { 'docs/checks/always.md': () => '# Always\n\n## Done when\n- [ ] The validator passes on the changed data (when file: data/**) (ran: validate => RESULT: PASS)\n' };
 const RUNEACH = withReqs({ tag: 'json-valid', when: { filesChanged: ['data/*.json'] }, require: { runEach: { files: ['data/*.json'], cmd: 'node -e "JSON.parse(require(\'fs\').readFileSync(\'{file}\',\'utf8\'))"' } }, message: 'Every data file must be valid JSON.' });
 // docs/DECISIONS.md without a "## Setup interview" section (the hooks read the first one)
 // The project's own setup answers and upgrade reviews would leak into every fixture: the base has neither.
@@ -1185,7 +1188,8 @@ const STOP = [
     answer: 'Desk X was $300 per docs/knowledge/desks.md, but that is stale; want me to re-check?', expect: { block: false } },
   // project-defined validators
   { name: 'toolPassed: validator ran but printed FAIL: blocked', prompt: 'add the new vendor data', edit: VALIDATOR, tools: [pb('project'), bash('python tools/validate.py data/v.json', 'RESULT: FAIL bad price')],
-    files: { 'data/v.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md' + FIN, expect: { block: true, tags: ['data-valid'] } },
+    files: { 'data/v.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md' + FIN, expect: { block: true, tags: ['data-valid'] },
+    v2: { edit: VALIDATOR_V2, tools: [pb('project'), editTool('data/v.json'), bash('python tools/validate.py data/v.json', 'RESULT: FAIL bad price')] } },
   { name: 'toolPassed: validator PASS: passes', prompt: 'add the new vendor data', edit: VALIDATOR, tools: [pb('project'), bash('python tools/validate.py data/v.json', 'RESULT: PASS')],
     files: { 'data/v.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md' + FIN, expect: { block: false } },
   // (an echo that only names the tool runs nothing. Lesson (a field report): an echo of "validate PASS" into the notes
@@ -1198,6 +1202,9 @@ const STOP = [
     name: `toolPassed: a two-command gate run as one group with its output sent to a file is judged on that file (${/Built/.test(out) ? 'built' : 'not built'}): ${says}`, prompt: 'add the new vendor data',
     edit: withReqs({ tag: 'data-valid', when: { filesChanged: ['data/**'] }, require: { toolPassed: { cmd: 'python tools/build_menu.py && python tools/validate.py', pass: 'Built \\d+ menus' } }, message: 'Build and validate.' }),
     tools: [pb('project'), bash('(python tools/build_menu.py && python tools/validate.py) > .cache/build.txt 2>&1; echo built $?; python tools/prices.py', 'built 0\nprices: 12 checked\nRESULT: PASS')],
+    // (under v2: the project's check as an always.md item, the data file the agent's own edit)
+    v2: { edit: { 'docs/checks/always.md': () => '# Always\n\n## Done when\n- [ ] The validator passes after the menus build on the changed data (when file: data/**) (ran: build_menu => Built)\n' },
+      tools: [pb('project'), editTool('data/v.json'), bash('(python tools/build_menu.py && python tools/validate.py) > .cache/build.txt 2>&1; echo built $?; python tools/prices.py', 'built 0\nprices: 12 checked\nRESULT: PASS')] },
     files: { 'data/v.json': '{}', '.cache/build.txt': out, 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md' + FIN, expect })),
   // Lesson (this starter): "(selfcheck > sc.txt; ...) > chain.txt" was judged on chain.txt, not the self-test's own file
   { name: 'toolPassed: a gate command with its own file inside a group sent to another file is judged on its own file: passes', prompt: 'add the new vendor data', edit: VALIDATOR,
@@ -3706,7 +3713,8 @@ STOP.push(
     files: { 'data/v.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md' + FIN, expect: { not: ['data-valid'] } },
   { name: 'toolPassed: only a waiver named the validator, it never ran: blocked', prompt: 'add the new vendor data', edit: VALIDATOR,
     tools: [pb('project'), bash('node tools/hooks/hooks.mjs waive spec-written "data only; tools/validate.py covers it"', 'waived for this turn: spec-written (data only; tools/validate.py covers it)')],
-    files: { 'data/v.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md' + FIN, expect: { block: true, tags: ['data-valid'] } },
+    files: { 'data/v.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md' + FIN, expect: { block: true, tags: ['data-valid'] },
+    v2: { edit: VALIDATOR_V2, tools: [pb('project'), editTool('data/v.json'), bash('node tools/hooks/hooks.mjs waive spec-written "data only; tools/validate.py covers it"', 'waived for this turn: spec-written (data only; tools/validate.py covers it)')] } },
   // hooks-tested: the self-test command refused outright asks for the honest line too
   { name: 'hooks-tested: the self-tests were refused (approval) and the answer says NOT VERIFIED: passes', prompt: 'add a check for meal plans', tools: [pb('project'), bash('node tools/audit.mjs'), REFUSE('node tools/hooks/selfcheck.mjs --tags meal-ok')],
     prep: turnStart('requirements.json', NEW_CHECK), files: { 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md.\nNOT VERIFIED: the hook self-tests - the command needs an approval this session could not give.' + FIN, expect: { not: ['hooks-tested'] } },
@@ -4257,9 +4265,7 @@ PRETOOL.push(
 // A foreground command past its timeout is moved to the background: it runs on, like a background launch, and its
 // result is its output file and the notice's exit code. Files a running job makes are not this turn's.
 const SIX = Object.fromEntries(Array.from({ length: 6 }, (_, i) => [`fixtures/zz-sweep-${i + 1}.txt`, 'x']));
-// (under v2 a project's own check is a "Done when" line in docs/checks/always.md, and the data file is the agent's own
-// edit, then validated: the validator reads it, it does not write it)
-const VALIDATOR_V2 = { 'docs/checks/always.md': () => '# Always\n\n## Done when\n- [ ] The validator passes on the changed data (when file: data/**) (ran: validate => RESULT: PASS)\n' };
+// (VALIDATOR_V2: next to VALIDATOR)
 const gateV2 = run => ({ v2: { edit: VALIDATOR_V2, tools: [editTool('data/a.json'), run] } });
 STOP.push(
   { name: 'bg-moved: a foreground command moved to the background holds the Stop while it runs', prompt: 'run the full sweep over the notes', tools: [bash('node tools/sweep.mjs', MOVED('buj1w44ls', BG_OUT('a')))],

@@ -272,9 +272,6 @@ stop: stop form: an unknown host gets the bare classic block
 stop: stop form: stopStyle "block" forces the classic block even where feedback is supported
 stop: stop message: one short line per step, the details in "hooks.mjs why"
 stop: stop-follow-on: a lesson for a skill names the audit and the changelog in round 1
-stop: toolPassed: a two-command gate run as one group with its output sent to a file is judged on that file (not built): blocked
-stop: toolPassed: only a waiver named the validator, it never ran: blocked
-stop: toolPassed: validator ran but printed FAIL: blocked
 stop: turn-notes: notes left from an earlier turn do not count: blocked
 stop: twin-sync: one twin lost its twin note, so the two can't be synced: blocked
 stop: twin: editing AGENTS.md syncs CLAUDE.md, no block for twin
