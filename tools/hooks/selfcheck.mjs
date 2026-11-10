@@ -2747,9 +2747,14 @@ STOP.push(
   // pause-stops: the user asked to pause or restart, so the turn ends with no more steps (Lesson, a field report: after
   // "safe to restart", Stop blocked 3 rounds and the work went on)
   { name: 'pause-stops: code changed without a CHANGELOG line: blocked (the control)', prompt: 'add a csv export', files: { 'src/export.js': 'export const go = () => 1;\n' },
-    answer: 'Added the export.' + FIN, expect: { block: true, tags: ['changelog'] } },
+    answer: 'Added the export.' + FIN, expect: { block: true, tags: ['changelog'] },
+    // (under v2 the shipped changelog check covers rules, runbooks, checks, skills and tools, and a small fix (rule 12)
+    // skips it: the control changes a tool past the small-fix size, so the check that the pause lifts is there)
+    v2: { files: { 'tools/export.mjs': Array.from({ length: 45 }, (_, i) => `export const go${i} = () => ${i};`).join('\n') + '\n' } } },
   { name: 'pause-stops: the same turn, then "get to a good pausing point, I will restart": the turn ends, nothing more asked', prompt: 'add a csv export', queued: ['Get to a good pausing point. i will restart computer.'],
-    files: { 'src/export.js': 'export const go = () => 1;\n' }, answer: 'Safe to restart: the export is added; the changelog line is next.' + FIN, expect: { block: false } },
+    files: { 'src/export.js': 'export const go = () => 1;\n' }, answer: 'Safe to restart: the export is added; the changelog line is next.' + FIN, expect: { block: false },
+    // (the control's change under v2, so the pause is what lets it end)
+    v2: { files: { 'tools/export.mjs': Array.from({ length: 45 }, (_, i) => `export const go${i} = () => ${i};`).join('\n') + '\n' } } },
   // unresolved-carryover: a check the last work turn left failing (its tag saved in unresolved.json) runs again at the
   // first Stop of the next work turn. Last turn changed the finish checklist 8 minutes ago and ended without a CHANGELOG
   // line; this turn is other work.
