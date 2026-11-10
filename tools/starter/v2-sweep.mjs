@@ -97,6 +97,17 @@ if (newFails.length) {
   fs.writeFileSync(LIST, `# Old-suite tests engine v2 still fails (tools/starter/v2-sweep.mjs). It only shrinks: a port takes its names off.\n${keep.join('\n')}\n`);
   console.log(`v2-sweep: ${fixed.length} listed test(s) pass now and are taken off the list (${listed.length} -> ${keep.length}):\n- ${fixed.slice(0, 40).join('\n- ')}`);
 }
+// (v2-retired.txt beside the list: the listed tests that are not open work, each with its triage row. It follows the
+// list: a name that left the list leaves it too, so "open" is always listed minus retired. Oversight, 2026-11-10: report
+// the list as open and retired, so its length is not read as all the work left)
+const RETIRED = process.env.V2_SWEEP_RETIRED || path.join(path.dirname(LIST), 'v2-retired.txt');
+const onList = new Set(newFails.length ? listed : listed.filter(n => now.has(n)));
+let retiredN = 0;
+if (fs.existsSync(RETIRED)) {
+  const rl = fs.readFileSync(RETIRED, 'utf8').split(/\r?\n/), keepR = rl.filter(l => !l.trim() || l.startsWith('#') || onList.has(l.split('\t')[0].trim()));
+  retiredN = keepR.filter(l => l.trim() && !l.startsWith('#')).length;
+  if (keepR.length !== rl.length) { fs.writeFileSync(RETIRED, keepR.join('\n').replace(/\n*$/, '\n')); console.log(`v2-sweep: ${rl.length - keepR.length} name(s) left v2-retired.txt with the list`); }
+}
 release(!!newFails.length);
-console.log(`v2-sweep: ${newFails.length ? 'FAIL' : 'PASS'} (${total[1]} passed, ${total[2]} failed; ${newFails.length ? listed.length : listed.filter(n => now.has(n)).length} on the list)`);
+console.log(`v2-sweep: ${newFails.length ? 'FAIL' : 'PASS'} (${total[1]} passed, ${total[2]} failed; ${onList.size} on the list: ${onList.size - retiredN} open, ${retiredN} retired or proven another way)`);
 process.exit(newFails.length ? 1 : 0);

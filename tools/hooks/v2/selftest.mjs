@@ -955,9 +955,14 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
         // (a run where a listed test passes and nothing new fails passes, and takes that test off the list. Oversight,
         // 2026-11-09: chains failed only because ports made listed tests pass)
         fs.writeFileSync(path.join(sw, 'r3.txt'), 'PASS  stop: a\nPASS  stop: b\nFAIL  stop: c  -> y\nselfcheck: FAIL (2 passed, 1 failed)\n');
+        // (and the retired file beside the list follows it: a name off the list leaves it, and the summary counts open and
+        // retired. Oversight, 2026-11-10)
+        fs.writeFileSync(path.join(sw, 'v2-retired.txt'), '# retired\nstop: a\tretired: a dated decision\nstop: c\tretired: another\n');
         const shrink = run('--from', path.join(sw, 'r3.txt')), shrunk = fs.readFileSync(list, 'utf8').split('\n').filter(l => l && !l.startsWith('#'));
-        report(shrink.status === 0 && JSON.stringify(shrunk) === '["stop: c"]' && /taken off the list \(2 -> 1\)/.test(shrink.stdout) && worse.status === 1,
-          'chain: a sweep where a listed test passes and nothing new fails passes and takes that test off the list; a new failure still fails it and leaves the list as it was', JSON.stringify({ shrink: shrink.status, shrunk, out: shrink.stdout.slice(0, 200) }));
+        const retiredLeft = fs.readFileSync(path.join(sw, 'v2-retired.txt'), 'utf8').split('\n').filter(l => l && !l.startsWith('#')).map(l => l.split('\t')[0]);
+        report(shrink.status === 0 && JSON.stringify(shrunk) === '["stop: c"]' && /taken off the list \(2 -> 1\)/.test(shrink.stdout) && worse.status === 1
+          && JSON.stringify(retiredLeft) === '["stop: c"]' && /1 on the list: 0 open, 1 retired/.test(shrink.stdout),
+          'chain: a sweep where a listed test passes and nothing new fails passes and takes that test off the list (and off the retired file, counting open and retired); a new failure still fails it and leaves the list as it was', JSON.stringify({ shrink: shrink.status, shrunk, retiredLeft, out: shrink.stdout.slice(0, 300) }));
         // (the sweep runs on a frozen copy of the folder as it is now, uncommitted and new files included, so the main folder
         // stays free to edit; inside a frozen copy it runs in place)
         const repo = path.join(sw, 'repo'), frozenBase = path.join(sw, 'frozen'), g = (a, cwd = repo) => spawnSync('git', a, { cwd, encoding: 'utf8' });
