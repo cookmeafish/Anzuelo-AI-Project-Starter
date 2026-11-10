@@ -6,6 +6,8 @@ starter, `node tools/new-project.mjs "<project>" --upgrade`). Rule and runbook c
 print, or to a command or setting a project's own hooks or scripts may rely on, is marked **Breaking for project
 hooks:**, and an upgrade lists each one as its own review item.
 
+- 2026-11-10 (a field report: the self-test in the .anzuelo layout): a self-test fixture that adds a hook to the project's .claude/settings.json no longer crashes when the project has none (the engine's hooks live in settings.local.json there). The tool-flags test calls each script by its full path and prints its detail as text, not "[object Object]". Not verified in that layout here: the project's own rerun will show it.
+
 - 2026-11-10 (a field report: the audit in the .anzuelo layout): with the engine in .anzuelo/engine and the project's own skills in a folder of its own ("skillsDir"), the audit's references sweep called the engine's skills (project-rule, session-handoff and others) missing and failed. It now knows every skill folder the project can use. The layout test covers it; it failed with the old audit.
 
 - 2026-11-10 (a live false hold: files outside the project): the plan check no longer counts files written outside the project folder (another checkout, a scratch folder) as the project's new files. 1 test; it failed under v2 before the change.

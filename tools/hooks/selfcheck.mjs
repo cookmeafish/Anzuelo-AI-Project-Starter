@@ -6372,9 +6372,11 @@ if (mineB()) { // tool flags: an unknown flag prints the usage and runs nothing
   // (Lesson (2026-11-06): "--only" and "--help" each started a 20-minute self-check run. The time limit fails the test
   // instead of running a whole suite when a guard is missing)
   const tools = ['tools/hooks/selfcheck.mjs', 'tools/audit.mjs', 'tools/trial.mjs'].filter(f => fs.existsSync(path.join(ROOT, f)));
-  const got = tools.map(f => { const r = spawnSync(process.execPath, [f, '--no-such-flag'], { cwd: ROOT, encoding: 'utf8', timeout: 20000, env: { ...process.env, STARTER_ENGINE: 'v1' } });
-    return { f, status: r.status, said: /unknown flag --no-such-flag; nothing was run/.test(r.stderr || '') }; });
-  report(got.length >= 2 && got.every(g => g.status === 2 && g.said), 'tool flags: selfcheck, audit and trial refuse an unknown flag with the usage and exit 2, running nothing', got);
+  // (each script by its full path, and the detail as text: in a project with the engine in .anzuelo/engine the detail
+  // printed "[object Object]" and hid the cause. Lesson (a field report, 2026-11-10))
+  const got = tools.map(f => { const r = spawnSync(process.execPath, [path.join(ROOT, f), '--no-such-flag'], { cwd: ROOT, encoding: 'utf8', timeout: 20000, env: { ...process.env, STARTER_ENGINE: 'v1' } });
+    return { f, status: r.status, said: /unknown flag --no-such-flag; nothing was run/.test(r.stderr || ''), err: (r.stderr || r.error?.message || '').slice(0, 160) }; });
+  report(got.length >= 2 && got.every(g => g.status === 2 && g.said), 'tool flags: selfcheck, audit and trial refuse an unknown flag with the usage and exit 2, running nothing', JSON.stringify(got));
 }
 if (mineB() && SPEED) { // setup interview: an assumed always/never answer is the agent's guess, not the user's rule
   // (Lesson (trial v42): setup failed until the agent's own guesses were written as "the user's standing preferences")
@@ -7511,7 +7513,9 @@ if (mineB() && fs.existsSync(path.join(ROOT, '.starter-template'))) { // host-fi
     applyEdits(dir, { ...cfgEdit({ externalHooks: ['tools/hooks/own_hooks.py'], hookContract: 3 }),
       'docs/playbooks/project.md': s => s.replace(/^triggers:\s*(.*)$/m, (l, v) => `triggers: ${v}, anzuelo, upgrade anzuelo, shop project`),
       'tools/hooks/requirements.json': s => { const j = JSON.parse(s); j.requirements.push({ tag: 'shop-own-check', rule: '12', when: { filesChanged: ['tools/hooks/own_hooks.py'] }, require: { toolPassed: { cmd: 'test_own_hooks', pass: 'PASS' } }, message: 'Run the shop tests.' }); return JSON.stringify(j, null, 2); },
-      '.claude/settings.json': s => { const j = JSON.parse(s); j.hooks.UserPromptSubmit = [{ hooks: [{ type: 'command', command: `python "${dir.replace(/\\/g, '/')}/tools/hooks/own_hooks.py" prompt` }] }, ...(j.hooks.UserPromptSubmit || [])]; return JSON.stringify(j, null, 2); } });
+      // (a project with the engine in .anzuelo/engine may have no .claude/settings.json of its own: start from an empty
+      // one. Lesson (a field report, 2026-11-10): the self-test crashed here in that layout)
+      '.claude/settings.json': s => { const j = s ? JSON.parse(s) : {}; j.hooks ||= {}; j.hooks.UserPromptSubmit = [{ hooks: [{ type: 'command', command: `python "${dir.replace(/\\/g, '/')}/tools/hooks/own_hooks.py" prompt` }] }, ...(j.hooks.UserPromptSubmit || [])]; return JSON.stringify(j, null, 2); } });
     spawnSync(process.execPath, ['tools/hooks/hooks.mjs', 'sync'], { cwd: dir, encoding: 'utf8' });
     const sc = (...a) => spawnSync(process.execPath, [path.join(dir, 'tools/hooks/selfcheck.mjs'), ...a], { cwd: dir, encoding: 'utf8', timeout: 600000 });
     let fb = {}; const fbr = sc('--fixture-base'); try { fb = JSON.parse(fbr.stdout); } catch { }
