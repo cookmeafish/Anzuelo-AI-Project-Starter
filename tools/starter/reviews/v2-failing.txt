@@ -5,19 +5,8 @@ bench-caches: a timing run keeps the caches it rebuilt and writes no session sta
 check-preview guard: a line held to many checks stays within 400 characters (grouped, the rest as "+N more"), and a short line is left whole
 codex: a Codex transcript gives the request, the tool calls and their failures to the checks
 covers: agent-neutral is proven by "agent-neutral: begin routes"
-covers: autonomy-recorded is proven by "autonomy-recorded: "don't ask me" left only in the answer"
 covers: changelog is proven by "changelog: a check list changed without a CHANGELOG line"
-covers: crash-visible is proven by "crash blocks once"
 covers: dev-new-project is proven by "dev-new-project: project making changed in a development copy without the trial"
-covers: final-answer-source is proven by "last_assistant_message is used"
-covers: plan-open is proven by "plan-open: an open plan ignored during a work turn"
-covers: playbook-format is proven by "missing triggers and sections"
-covers: queued-messages is proven by "queued mid-turn rule request is enforced"
-covers: requirements-valid is proven by "broken requirements.json"
-covers: runbook-read is proven by "never opened its runbook"
-covers: skill-valid is proven by "invalid skill frontmatter"
-covers: twin-sync is proven by "twin-sync: one twin lost its twin note"
-covers: unresolved-carryover is proven by "unresolved checks are saved for the next prompt"
 engine-bypassed: a commit or push from a Claude Code session the hooks never saw is refused with the way through; after begin records the session it passes; a person's commit and a test harness never meet it
 engine-cache: a project reuses a recorded engine pass despite new notes and own scenarios, still runs those scenarios and a smoke set (once a day), and runs everything with --full or a changed engine file
 friction-suspend: 3 frustrated turns of 6 suspend a check, a safeguard stays and is flagged, 1 of 6 changes nothing, restore undoes it
