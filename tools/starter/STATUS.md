@@ -6,7 +6,7 @@ docs/STATUS.md, which here is the template new projects start from).
 ## Now
 - 2026-11-10 (pause for a restart): main and GitHub at a8a0575 (release of e30446c: Stop as non-error feedback on
   Claude Code, the changelog rule with dataDirs, friction reported, the new end checks). All 3 engine projects notified
-  (the list is now rebuilt per notice: scan C:/projects plus ListAgents; tools/starter/watch.local.json). Two upgraded
+  (the list is now rebuilt per notice: scan the projects folder plus ListAgents; tools/starter/watch.local.json). Two upgraded
   with 0 regressions; their full self-tests were cut by the restart and they rerun them. Branch app-port at 7d4dd38,
   not released, its chain stopped for the restart (rerun: frozen-chain.sh 7d4dd38; the script now stops on any
   pre-audit FAIL): the commit gate for REQ tags with no test (req-tested), Stop speed (AI-credit scan skipped by the
