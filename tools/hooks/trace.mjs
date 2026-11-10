@@ -96,7 +96,7 @@ export function makeTrace(io) {
   }
   // The Stop check: x is the old engine's turn record; opts.promptWords false (engine v2) leaves out the path the
   // prompt's words start (a question about the project's numbers), retired 2026-11-07 for both engines' new work.
-  function traceGaps(x, cfg, { ledgerRuns, knowledge, researched, promptWords = true } = {}) {
+  function traceGaps(x, cfg, { ledgerRuns, knowledge, researched, promptWords = true, answerFigures = false } = {}) {
     const miss = [], add = (tag, msg, short) => miss.push(short ? { tag, msg, short } : { tag, msg });
     // REQ: answer-traced. "Did I make that up?": every number in a factual answer, and every number written into the
     // knowledge base, appears in something read this turn; every project file the answer cites was opened.
@@ -113,9 +113,14 @@ export function makeTrace(io) {
     const kbWritten = x.toolsKnown && x.uses.some(u => /^(Write|Edit|MultiEdit)$/.test(u.name) && inKb.test(rel(u.input.file_path || '')));
     // A question about the project's own numbers ("how did we do last month") is traced too, in any project: its figures
     // must come from something read this turn. Lesson: "1,240 croissants, $4,300, up 12%" was answered from nothing.
-    const dataQuestion = promptWords && x.toolsKnown && /\b(how (much|many|did (we|i|it) do)|total|revenue|sales|profit|spend|spent|average|per (day|week|month)|last (week|month|quarter|year)|growth|grew|percent|numbers?|figures?|stats?|metrics?)\b/i.test(x.prompt)
+    const dataQuestion = promptWords && x.toolsKnown && NUMBERS_ASK.test(x.prompt)
       && /[$€£]\s?\d|\d\s?%|\b\d{1,3}(,\d{3})+\b|\b\d{3,}\b/.test(x.answer.replace(/`[^`]*`|https?:\/\/\S+|\b[\w.-]+\/[\w./-]+/g, ''));
-    const traceAnswer = (knowledge && (researched || cited.length)) || ledgerRuns.length || dataQuestion;
+    // (engine v2: the answer's own data figures start the trace, whatever the prompt said, and only those figures are
+    // traced when nothing else started it. Oversight decision 2026-11-10: words in the prompt force nothing; a figure the
+    // answer states as data is what needs a source, asked or not)
+    const dataFigs = answerFigures && x.toolsKnown ? dataFigures(x.answer) : [];
+    const traceAnswer = (knowledge && (researched || cited.length)) || ledgerRuns.length || dataQuestion || dataFigs.length;
+    const onlyFigures = !((knowledge && (researched || cited.length)) || ledgerRuns.length || dataQuestion);
     if (traceAnswer || kbWritten) {
       const ledgers = ledgerRuns.map(r => /claims\.mjs\s+check\s+"?([^"\s]+)/.exec(r.cmd)?.[1]).filter(Boolean);
       // A file the agent wrote this turn is a valid source for what it wrote (citing it is not citing something unread),
@@ -182,7 +187,9 @@ export function makeTrace(io) {
           return true;
         });
       };
-      const fromAnswer = traceAnswer ? computed(x.answer, untraced(x.answer, ownWrites)) : []; // what goes into the knowledge base itself must trace to a source
+      const numOf = s => String(s).replace(/[$€£%\s]/g, '').replace(/,(?=\d{3}\b)/g, '').replace(/[.,]$/, '');
+      const figNums = new Set(dataFigs.map(f => f.num));
+      const fromAnswer = traceAnswer ? computed(x.answer, untraced(x.answer, ownWrites)).filter(u => !onlyFigures || figNums.has(numOf(u))) : []; // what goes into the knowledge base itself must trace to a source
       // (in a data file, where a mark goes on a picture or a page - its box, point, size or crop - is layout, not a fact.
       // Lesson (a field report): helpers drew markup on pictures, and the box corners 0.28 and 0.6 were "made up")
       const LAYOUT = /"(box|at|x|y|w|h|x[12]|y[12]|width|height|max_width|max_height|left|top|right|bottom|size|font_size|scale|zoom|rotate|angle|opacity|crop|pos|position|points?|from|to|radius|stroke|thickness|padding|margin)"\s*:\s*(\[[-\d.,\s\[\]]*\]|-?\d+(?:\.\d+)?)/gi;
@@ -232,6 +239,34 @@ export function makeTrace(io) {
     return miss;
   }
   return { traceGaps, citedFile, citedClaimGaps, openedText };
+}
+
+// The data figures an answer states (engine v2's trigger for answer-traced): money, a percentage, a number with thousands
+// separators, or a count with a data unit, each 10 or more unless money or a percentage. Left out, as the trace leaves
+// them out: code, links, paths, list numbers, the Finished section and lines marked as worked out, estimated or not
+// verified. Incidental numbers ("3 options", "step 12", "line 245", "v1.2.3", dates, times) are none of these kinds.
+// { text, num } each, num as the trace compares it (no symbols, no thousands commas).
+const UNIT = String.raw`(?:orders?|sales|customers?|clients?|users?|visitors?|visits|members?|subscribers?|followers?|views?|clicks?|downloads?|installs?|sign-?ups?|leads?|tickets?|units?|items? sold|tokens?|calories|kcal|kg|kilos?|lbs?|pounds|tons?|tonnes?|km|miles?|hours?|hrs?|minutes? of|days? of|people|employees|staff|students|patients|cases|deaths|votes?|games? (?:won|lost|played)|wins?|losses|matches|copies|pedidos|ventas|clientes|usuarios|visitas|personas|horas)`;
+// A request about the project's numbers ("how did we do last month"): the old engine's trace trigger, and engine v2's
+// reminder hint only.
+export const NUMBERS_ASK = /\b(how (much|many|did (we|i|it) do)|total|revenue|sales|profit|spend|spent|average|per (day|week|month)|last (week|month|quarter|year)|growth|grew|percent|numbers?|figures?|stats?|metrics?)\b/i;
+// (a figure right after a data word: "sales were 4300", "revenue of 12000", "the total came to 830")
+const DATA_WORD = String.raw`(?:sales|revenue|income|profit|earnings|spend|spending|spent|costs?|total|average|median|turnover|margin|budget|ventas|ingresos|ganancias?|gastos?)`;
+export function dataFigures(answer) {
+  const body = String(answer || '').replace(/^---\n[\s\S]*?\n---\n/, '').split(/^#{1,6}\s*\**(?:finished|terminado)\b|^\**(?:finished|terminado)\**\s*$/im)[0];
+  const out = [];
+  for (const line of body.split(/\r?\n/)) {
+    if (/calculated|estimate|approx|not verified|my inference|my guess|rounded|not found|^\s*verified\s*:/i.test(line)) continue;
+    const clean = line.replace(/https?:\/\/\S+|`[^`]*`|\b[\w.-]+\/[\w./-]+|\[S\d+(?:,\s*S\d+)*\]|\bS\d+\b|\[\d+\]/g, ' ').replace(/^\s*(\d+\.|-|\*)\s+/, '');
+    const rx = new RegExp(String.raw`(?<![\w.])([$€£]\s?\d[\d,]*(?:\.\d+)?(?:\s?(?:k|m|bn|million|billion|thousand))?|\d[\d,]*(?:\.\d+)?\s?(?:%|percent\b|por ciento\b)|\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d[\d,]*(?:\.\d+)?\s?(?:USD|EUR|GBP|MXN|dollars?|euros?|pesos?)\b|\d[\d,]*(?:\.\d+)?\s(?:[a-z]+\s)?${UNIT}\b|${DATA_WORD}\s+(?:(?:was|were|is|are|came to|reached|hit|totaled|totalled|of|at)\s+)?(?:about\s+|around\s+|roughly\s+)?\d[\d,]*(?:\.\d+)?|\d[\d,]*(?:\.\d+)?\s(?:more|less|fewer|higher|lower)\s(?:than|from)\b)`, 'gi');
+    for (const m of clean.matchAll(rx)) {
+      const t = m[1].trim(), num = (/\d[\d,]*(?:\.\d+)?/.exec(t)?.[0] || '').replace(/,(?=\d{3}\b)/g, '').replace(/[.,]$/, '');
+      const money = /[$€£]|USD|EUR|GBP|MXN|dollar|euro|peso/i.test(t), pct = /%|percent|por ciento/i.test(t);
+      if (!num || (!money && !pct && Number(num) < 10)) continue;
+      out.push({ text: t, num });
+    }
+  }
+  return out;
 }
 
 // REQ: research-verified, shared by both engines (moved from hooks.mjs unchanged). Facts from the web go through the

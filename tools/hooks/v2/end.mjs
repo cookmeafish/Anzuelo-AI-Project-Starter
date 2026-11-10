@@ -1,5 +1,6 @@
 // Engine v2 end hook (Stop): the one check. It judges only what this session did in this turn, from its own
 // transcript, and blocks with a short plain list of what is really missing until it is done (at most MAX_BLOCKS times).
+import { withNote } from '../correct.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -502,9 +503,12 @@ function judge(data, { shadow = false } = {}) {
   // the note alone. Lesson (the old suite under v2): the note alone lacked the Finished section and the root cause, and
   // the turn was held again for what the first answer had.
   if (again) { const prev = answerBeforeBlock(rows), note = acts.answer || '';
-    if (prev && note && !note.includes(prev.trim().slice(0, 200)) && (/^\s*(added|corrected|añadido|corregido)\s*:/im.test(note) || (note.length <= 600 && !/^\s*(#{1,6}\s*|\*\*)?finished\b/im.test(note)))) acts.answer = `${prev.trim()}\n\n${note}`; }
+    if (prev && note && !note.includes(prev.trim().slice(0, 200)) && (/^\s*(added|corrected|añadido|corregido)\s*:/im.test(note) || (note.length <= 600 && !/^\s*(#{1,6}\s*|\*\*)?finished\b/im.test(note))))
+      // (its "Corrected:" lines are applied to the earlier answer, as the old engine does (correct.mjs): the withdrawn text
+      // is no longer part of the answer. Lesson (the old suite under v2): a corrected-away figure was traced as made up)
+      acts.answer = withNote(prev, note) ?? `${prev.trim()}\n\n${note}`; }
   const raw = tail(data.transcript_path, 5 << 20), history = evidenceOf(raw);
-  acts.earlier = earlierPrompts(raw, turn.at); acts.runbook = turn.runbook || '';
+  acts.earlier = earlierPrompts(raw, turn.at); acts.runbook = turn.runbook || ''; acts.transcriptPath = data.transcript_path || '';
   acts.issuesBefore = issuesBefore(raw, turn.at); acts.prior = priorCalls(raw, turn.at); acts.complaint = complaintTurn(acts);
   // (a declared self-test the turn needed and never ran is run here first, so every check below judges its output;
   // never in a preview)

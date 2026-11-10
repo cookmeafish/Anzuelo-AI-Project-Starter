@@ -1560,7 +1560,9 @@ export function proofGaps(acts) {
 // never traces to its own write. The path the prompt's words started (a question about the project's numbers) is left
 // out: no check starts from the user's words (retired 2026-11-07).
 let traceMemo = null;
-const textOfContent = c => typeof c === 'string' ? c : Array.isArray(c) ? c.map(b => (typeof b?.text === 'string' ? b.text : typeof b?.content === 'string' ? b.content : '')).join('\n') : '';
+// (a tool result's content may itself be a list of text parts: read those too. Lesson (the answer-figure replay): figures
+// read in earlier turns of the session were "found in nothing read", because their results came as part lists)
+const textOfContent = c => typeof c === 'string' ? c : Array.isArray(c) ? c.map(b => (typeof b?.text === 'string' ? b.text : typeof b?.content === 'string' ? b.content : Array.isArray(b?.content) ? textOfContent(b.content) : '')).join('\n') : '';
 const traceOf = () => traceMemo ||= makeTrace({ read: f => { try { return fs.readFileSync(f, 'utf8'); } catch { return ''; } }, abs: f => at(f), exists: f => fs.existsSync(at(f)), rel: p => relp(p),
   esc: s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), today: () => new Date().toISOString().slice(0, 10), textOf: textOfContent,
   knowledgeRe: cfg => `(?:${[].concat(cfg.knowledgeDirs || ['docs/knowledge']).map(d => String(d).replace(/\/+$/, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '/').join('|')})`,
@@ -1597,7 +1599,16 @@ export function traceGapsV2(acts, history = '') {
   // (REQ: research-verified: web use goes through the research ledger, the shared trace.mjs rule. Lesson (the old suite
   // under v2): v2 let web facts through with no ledger)
   const web = checkOff('research-verified') ? null : researchVerified(x, cfg, { ledgerRuns, knowledge, researched });
-  return [...(web ? [web] : []), ...traceOf().traceGaps(x, cfg, { ledgerRuns, knowledge, researched, promptWords: false }).map(g => g.msg)];
+  const opts = { ledgerRuns, knowledge, researched, promptWords: false, answerFigures: true };
+  let gaps = traceOf().traceGaps(x, cfg, opts).map(g => g.msg);
+  // (about to hold a figure as found in nothing read: the whole session is read first, not only the tail the end check
+  // keeps. Rare, so the cost is paid only then. Lesson (the answer-figure replay): figures read more than 5 MB back in a
+  // long session were asked for again)
+  if (gaps.some(g => /The answer states /.test(g)) && acts.transcriptPath && history) {
+    let whole = ''; try { const st = fs.statSync(acts.transcriptPath); if (st.size > String(history).length) whole = evidenceOf(fs.readFileSync(acts.transcriptPath, 'utf8')); } catch { }
+    if (whole) gaps = traceOf().traceGaps(traceTurn(acts, whole), cfg, opts).map(g => g.msg);
+  }
+  return [...(web ? [web] : []), ...gaps];
 }
 
 // Whether the turn opened the runbook (read it, or ran its skill).
