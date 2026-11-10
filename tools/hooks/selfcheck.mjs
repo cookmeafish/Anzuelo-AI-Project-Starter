@@ -4366,10 +4366,12 @@ STOP.push(
     expect: { block: true, tags: ['audit-run'] } },
   { name: 'gate-redirect: a foreground run into a file counts by the file, not by what the next command printed: passes', edit: VALIDATOR, prompt: 'validate the data files',
     tools: [bash('node tools/validate.mjs > .cache/validate.txt 2>&1; echo checked', 'checked')],
-    files: { 'data/a.json': '{}', 'docs/CHANGELOG.md': 'x', '.cache/validate.txt': 'checked 3 files\nRESULT: PASS\n' }, answer: 'Validated.' + FIN, expect: { not: ['data-valid'] } },
+    files: { 'data/a.json': '{}', 'docs/CHANGELOG.md': 'x', '.cache/validate.txt': 'checked 3 files\nRESULT: PASS\n' }, answer: 'Validated.' + FIN, expect: { not: ['data-valid'] },
+    ...gateV2(bash('node tools/validate.mjs > .cache/validate.txt 2>&1; echo checked', 'checked')) },
   { name: 'gate-redirect: a foreground run into a file that says FAIL: blocked', edit: VALIDATOR, prompt: 'validate the data files',
     tools: [bash('node tools/validate.mjs > .cache/validate.txt 2>&1; echo checked', 'checked')],
-    files: { 'data/a.json': '{}', 'docs/CHANGELOG.md': 'x', '.cache/validate.txt': 'checked 3 files\nRESULT: FAIL\n' }, answer: 'Validated.' + FIN, expect: { block: true, tags: ['data-valid'] } }
+    files: { 'data/a.json': '{}', 'docs/CHANGELOG.md': 'x', '.cache/validate.txt': 'checked 3 files\nRESULT: FAIL\n' }, answer: 'Validated.' + FIN, expect: { block: true, tags: ['data-valid'] },
+    ...gateV2(bash('node tools/validate.mjs > .cache/validate.txt 2>&1; echo checked', 'checked')) }
 );
 // check-preview: work learns at the prompt which checks its Stop will hold it to
 PROMPT.push(
