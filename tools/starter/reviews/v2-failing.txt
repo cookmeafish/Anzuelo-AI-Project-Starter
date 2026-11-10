@@ -145,10 +145,6 @@ stop: runbook-ledger: an item marked done whose evidence is missing comes back u
 stop: runbook-ledger: off by default, a skip line covers nothing
 stop: setup: the same runbook followed in a later turn: its checks apply
 stop: spec changed without CHANGELOG or release notes: blocked
-stop: stop form: Codex (its input has turn_id) gets the classic block with a one-line note for the user
-stop: stop form: a host that supports feedback gets it, with no "decision" and a one-line note for the user
-stop: stop form: an unknown host gets the bare classic block
-stop: stop form: stopStyle "block" forces the classic block even where feedback is supported
 stop: stop message: one short line per step, the details in "hooks.mjs why"
 stop: stop-follow-on: a lesson for a skill names the audit and the changelog in round 1
 stop: turn-notes: notes left from an earlier turn do not count: blocked

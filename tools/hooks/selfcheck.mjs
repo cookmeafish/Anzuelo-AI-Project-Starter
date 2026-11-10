@@ -519,16 +519,24 @@ const STOP = [
   { name: 'stop form: a host that supports feedback gets it, with no "decision" and a one-line note for the user', prompt: 'build me a weekly cleaning rota for the flat', files: { 'docs/rota.md': 'rota' }, answer: 'Done.' + FIN,
     host: { CLAUDE_PROJECT_DIR: '.' }, expect: { block: true, tags: ['runbook-exists'] },
     after: (dir, reason, d) => (d && !('decision' in d) && d.hookSpecificOutput?.hookEventName === 'Stop' && /Names: [^\n]*runbook-exists/.test(d.hookSpecificOutput.additionalContext || '')
-      && userNote(d.systemMessage)) || `got ${JSON.stringify(d).slice(0, 300)}` },
+      && userNote(d.systemMessage)) || `got ${JSON.stringify(d).slice(0, 300)}`,
+    // (v2: a turn it holds, in its own form: the short text, no separate note for the user (the answer goes out once))
+    v2: { answer: 'The rota is ready — one line per week.' + FIN, expect: { block: true, tags: ['plain-writing'] }, after: (dir, reason, d) => (d && !('decision' in d) && d.hookSpecificOutput?.hookEventName === 'Stop' && /^⚓ [^\n]* left before this is done\n- /.test(d.hookSpecificOutput.additionalContext || '') && !d.systemMessage) || `got ${JSON.stringify(d).slice(0, 300)}` } },
   { name: 'stop form: Codex (its input has turn_id) gets the classic block with a one-line note for the user', prompt: 'build me a weekly cleaning rota for the flat', files: { 'docs/rota.md': 'rota' }, answer: 'Done.' + FIN,
     hookInput: { turn_id: 'turn-1', model: 'gpt-x' }, expect: { block: true, tags: ['runbook-exists'] },
-    after: (dir, reason, d) => (d && d.decision === 'block' && /Names: [^\n]*runbook-exists/.test(d.reason || '') && !d.hookSpecificOutput && userNote(d.systemMessage)) || `got ${JSON.stringify(d).slice(0, 300)}` },
+    after: (dir, reason, d) => (d && d.decision === 'block' && /Names: [^\n]*runbook-exists/.test(d.reason || '') && !d.hookSpecificOutput && userNote(d.systemMessage)) || `got ${JSON.stringify(d).slice(0, 300)}`,
+    // (v2: a turn it holds, in its own form: the short text, no separate note for the user (the answer goes out once))
+    v2: { answer: 'The rota is ready — one line per week.' + FIN, expect: { block: true, tags: ['plain-writing'] }, after: (dir, reason, d) => (d && d.decision === 'block' && /^⚓ [^\n]* left before this is done\n- /.test(d.reason || '') && !d.hookSpecificOutput && !d.systemMessage) || `got ${JSON.stringify(d).slice(0, 300)}` } },
   { name: 'stop form: an unknown host gets the bare classic block', prompt: 'build me a weekly cleaning rota for the flat', files: { 'docs/rota.md': 'rota' }, answer: 'Done.' + FIN,
     expect: { block: true, tags: ['runbook-exists'] },
-    after: (dir, reason, d) => (d && d.decision === 'block' && /Names: [^\n]*runbook-exists/.test(d.reason || '') && !d.hookSpecificOutput && !d.systemMessage && !/Claude/.test(d.reason)) || `got ${JSON.stringify(d).slice(0, 300)}` },
+    after: (dir, reason, d) => (d && d.decision === 'block' && /Names: [^\n]*runbook-exists/.test(d.reason || '') && !d.hookSpecificOutput && !d.systemMessage && !/Claude/.test(d.reason)) || `got ${JSON.stringify(d).slice(0, 300)}`,
+    // (v2: a turn it holds, in its own form: the short text, no separate note for the user (the answer goes out once))
+    v2: { answer: 'The rota is ready — one line per week.' + FIN, expect: { block: true, tags: ['plain-writing'] }, after: (dir, reason, d) => (d && d.decision === 'block' && /^⚓ [^\n]* left before this is done\n- /.test(d.reason || '') && !d.hookSpecificOutput && !d.systemMessage) || `got ${JSON.stringify(d).slice(0, 300)}` } },
   { name: 'stop form: stopStyle "block" forces the classic block even where feedback is supported', prompt: 'build me a weekly cleaning rota for the flat', files: { 'docs/rota.md': 'rota' }, answer: 'Done.' + FIN,
     host: { CLAUDE_PROJECT_DIR: '.' }, edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), stopStyle: 'block' }) }, expect: { block: true, tags: ['runbook-exists'] },
-    after: (dir, reason, d) => (d && d.decision === 'block' && !d.hookSpecificOutput) || `got ${JSON.stringify(d).slice(0, 300)}` },
+    after: (dir, reason, d) => (d && d.decision === 'block' && !d.hookSpecificOutput) || `got ${JSON.stringify(d).slice(0, 300)}`,
+    // (v2: a turn it holds, in its own form: the short text, no separate note for the user (the answer goes out once))
+    v2: { answer: 'The rota is ready — one line per week.' + FIN, expect: { block: true, tags: ['plain-writing'] }, after: (dir, reason, d) => (d && d.decision === 'block' && !d.hookSpecificOutput && !d.systemMessage) || `got ${JSON.stringify(d).slice(0, 300)}` } },
   { name: 'unrouted work turn that creates + indexes a runbook: runbook-exists passes', prompt: 'build me a weekly meal plan for the family',
     files: { 'docs/playbooks/meal-plan.md': NEWPB, 'docs/CHANGELOG.md': 'x', ...COLD_MEAL },
     tools: [bash('node tools/audit.mjs')], answer: 'Playbook: meal-plan.md (created). Existing skills checked: installed skills and the official repo - none fit.' + FIN, expect: { block: false } },
