@@ -1,11 +1,6 @@
-// REQ: gui-review-loop, shared by both engines (moved from hooks.mjs unchanged). A changed GUI is screenshotted and
-// looked at AFTER its last edit, so every fix round is re-shot and re-checked; the loop ends only when a full round finds
-// nothing (or at guiMaxRounds, with what is left).
-// x: { changed: [rel], since: ms, reads: Set<rel>, toolsKnown, said }; cfg: { guiFiles, guiIgnore, guiShotDir, packs };
-// io: { list(rel): names, stat(rel): fs.Stats, read(rel): Buffer|null, exists(rel), match(rel, globs), shown(): the
-// last round's record {at, files}, saveShown(v) }.
-// Returns { gui: [rel], gaps: [{ tag, msg }], reviewed: a fresh round exists (the old engine then checks its report,
-// flows and warnings, which stay in hooks.mjs) }.
+// REQ: gui-review-loop, both engines (moved from hooks.mjs unchanged): a changed GUI is shot and looked at AFTER its
+// last edit, each fix round again. x: { changed, since, reads: Set, toolsKnown, said }; io: { list, stat, read, exists,
+// match, shown, saveShown }. Returns { gui, gaps: [{ tag, msg }], reviewed: a fresh round exists }.
 import { createHash } from 'node:crypto';
 
 export function guiReview(x, cfg, io) {
