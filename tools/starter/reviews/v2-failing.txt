@@ -109,11 +109,7 @@ stop: "keep doing this" with nothing written down: blocked
 stop: 2nd block in a turn still blocks
 stop: DIRECTORY.md lost its generated block: blocked
 stop: GUI PASS while the tool reported warnings: blocked
-stop: GUI changed, no screenshots: blocked
-stop: GUI edited AFTER the last screenshots (unchecked round): blocked
-stop: GUI files changed in a project without the gui pack: blocked
 stop: GUI reviewed but no Visual review verdict: blocked
-stop: GUI screenshots taken but not looked at: blocked
 stop: GUI warning on one address, a later clean run on another: still blocked
 stop: a commit made this turn credits an AI: blocked
 stop: a loose new file in the project root: blocked
@@ -162,11 +158,6 @@ stop: gate with no pass pattern chained to other commands: run it alone: blocked
 stop: gate-redirect: a foreground run into a file that says FAIL: blocked
 stop: grant-decided: a row changed this turn that grants staff deletes on a "decision" the user never wrote: blocked
 stop: gui-flows: a page with a saved flow, flow not rerun: blocked
-stop: gui-review-loop: a Flutter screen changed with no screenshots: blocked
-stop: gui-review-loop: a debug shot taken after a full round whose contact sheet was looked at: blocked
-stop: gui-review-loop: an older round's contact sheet opened, the newer shots not: blocked
-stop: gui-review-loop: the page written again after a reviewed round, with other content: blocked
-stop: gui-review-loop: two runs after the last edit, only the older one looked at: blocked
 stop: gui-review-report: a bold "Revisión visual" list item with no verdict still asks for the line
 stop: helpers still running, but the answer claims they finished and pushed: still checked
 stop: image + text prompt is a real prompt
