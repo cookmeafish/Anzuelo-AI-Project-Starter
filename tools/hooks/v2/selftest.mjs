@@ -2529,6 +2529,24 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     fs.rmSync(f, { force: true }); fs.rmSync(g, { recursive: true, force: true });
     report(before === 1 && after === 0, 'guard: a session the v2 prompt hook recorded may commit; one no hook saw is refused (engine-bypassed)', [before, after]);
   }
+  // (REQ req-tested: in the starter, a commit that adds a REQ tag to engine code with no test naming it is refused; the
+  // same commit with the test staged goes through. Each fixture tag is built here, so this file never names one)
+  {
+    const { spawnSync } = await import('node:child_process');
+    const g = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-reqtag-')), sidR = `v2req${process.pid}`, tag = ['zz', 'demo', 'check'].join('-');
+    const sh = (...a) => spawnSync('git', a, { cwd: g, encoding: 'utf8' });
+    sh('init', '-q'); fs.mkdirSync(path.join(g, 'tools/hooks/v2'), { recursive: true });
+    const st = path.join(repo, 'tools/hooks/state', `v2-turn.${sidR}.json`);
+    fs.writeFileSync(st, JSON.stringify({ at: new Date().toISOString(), runbook: null }));
+    const run = () => spawnSync(process.execPath, [path.join(repo, 'tools/hooks/git-guard.mjs'), 'pre-commit'], { cwd: g, encoding: 'utf8', env: { ...process.env, CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: sidR, ANZUELO_SESSION_GATE: '' } });
+    fs.writeFileSync(path.join(g, 'tools/hooks/v2/demo.mjs'), `// ${'REQ'}: ${tag}. A demo check.\nexport const x = 1;\n`); sh('add', '-A');
+    const bare = run();
+    fs.writeFileSync(path.join(g, 'tools/hooks/v2/selftest.mjs'), `// test for ${tag}\n`); sh('add', '-A');
+    const tested = run();
+    fs.rmSync(st, { force: true }); fs.rmSync(g, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+    report(bare.status === 1 && /req-tested/.test(bare.stderr) && bare.stderr.includes(tag) && tested.status === 0,
+      'guard: a starter commit adding a REQ tag with no test naming it is refused; with its test staged it goes through (req-tested)', [bare.status, bare.stderr.slice(0, 200), tested.status, tested.stderr.slice(0, 200)]);
+  }
   // (a resumed session whose last turn ended gets no "interrupted" notice; one whose last turn never ended does)
   {
     const { spawnSync } = await import('node:child_process');

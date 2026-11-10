@@ -62,6 +62,21 @@ if (mode === 'pre-commit') {
   if (hit) { console.error(`commit rejected (no-secrets): staged changes contain something that looks like a secret (pattern ${hit}). Move it to an ignored file such as .env.`); process.exit(1); }
   const stray = git('diff', '--cached', '--name-only', '--diff-filter=A').split(/\r?\n/).filter(f => /(^|\/)(nul|con|aux|prn|com\d|lpt\d)(\.[a-z0-9]+)?$/i.test(f));
   if (stray.length) { console.error(`commit rejected (shell-hygiene): Windows reserved-name files staged: ${stray.join(', ')}. Delete them; they come from "> nul" in Bash.`); process.exit(1); }
+  // REQ: req-tested. In the starter, a "REQ: <tag>" added to the engine's code in this commit is named by a test in the
+  // same commit (the audit's "every REQ tag is tested", checked at commit time on the staged files). Lesson (oversight,
+  // 2026-11-10): a release run lost about 35 minutes to a REQ tag with no test, which a commit could have caught.
+  if (fs.existsSync(new URL('../../.starter-template', import.meta.url))) {
+    const TESTS = ['tools/hooks/selfcheck.mjs', 'tools/hooks/v2/selftest.mjs', 'tools/hooks/project-scenarios.mjs', 'tools/hooks/legacy-scenarios.txt'];
+    const tags = new Set(); let cur = '';
+    for (const l of git('diff', '--cached', '-U0', '--', 'tools/hooks').split('\n')) {
+      if (l.startsWith('+++ ')) cur = l.slice(4).replace(/^b\//, '');
+      else if (l.startsWith('+') && /\.mjs$/.test(cur) && !TESTS.includes(cur)) for (const m of l.matchAll(/REQ: ([a-z0-9]+(?:-[a-z0-9]+)*)/g)) tags.add(m[1]);
+    }
+    if (tags.size) {
+      const src = TESTS.map(f => git('show', `:${f}`)).join('\n'), miss = [...tags].filter(t => !src.includes(t));
+      if (miss.length) { console.error(`commit rejected (req-tested): REQ tag${miss.length > 1 ? 's' : ''} ${miss.join(', ')} added with no test naming ${miss.length > 1 ? 'them' : 'it'}. Name the tag in its test in tools/hooks/v2/selftest.mjs or tools/hooks/selfcheck.mjs, stage it, and commit again.`); process.exit(1); }
+    }
+  }
   process.exit(0);
 }
 if (mode === 'pre-push' || mode === 'scan') {
