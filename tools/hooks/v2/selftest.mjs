@@ -1080,9 +1080,16 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
     try {
       const mk = (f, s = 'x') => { fs.mkdirSync(path.dirname(path.join(dd, f)), { recursive: true }); fs.writeFileSync(path.join(dd, f), s); };
       mk('catalog/a.txt'); for (let i = 0; i < 6; i++) mk(`scans/s${i}.pdf`); mk('src/app.js'); mk('notes/n.md'); for (let i = 0; i < 6; i++) mk(`tools2/t${i}.json`); mk('tools2/run.mjs'); mk('docs/x.csv');
+      // (a content folder of item folders, each with its data files and its own CHANGELOG.md, is data; item folders of
+      // Markdown alone are notes; a folder the project protects (protectedOriginals, newVersionOnly) is data. Lesson (a
+      // field report, 2026-11-10): a project's main content folder, with a CHANGELOG.md per item, was not offered)
+      for (const it of ['ash', 'birch', 'cedar', 'dune']) { mk(`cards/${it}/item.json`); mk(`cards/${it}/art.png`); mk(`cards/${it}/CHANGELOG.md`); }
+      for (const g of ['one', 'two', 'three']) { mk(`guides/${g}/README.md`); mk(`guides/${g}/steps.md`); }
+      mk('originals/a.md'); mk('originals/b.md'); mk('originals/c.pdf');
+      mk('tools/hooks/config.json', JSON.stringify({ protectedOriginals: ['originals/**'] }));
       wc.dataDirs = dataLikeDirs(dd).join(',');
     } finally { fs.rmSync(dd, { recursive: true, force: true }); }
-    report(wc.dataDirs === 'catalog,scans' && wc.code === 1 && !wc.logged && !wc.small && !wc.engine && !wc.shipped && !wc.data && wc.dataAndCode === 1 && !wc.noLogFile,
+    report(wc.dataDirs === 'cards,catalog,originals,scans' && wc.code === 1 && !wc.logged && !wc.small && !wc.engine && !wc.shipped && !wc.data && wc.dataAndCode === 1 && !wc.noLogFile,
       'end: real work past the small-fix size asks for a changelog line in any folder (rule 12), once (the shipped check owns tools and rules); not for the engine\'s folder, the user\'s data folders, or a project with no docs/CHANGELOG.md', JSON.stringify(wc));
   }
   // (retiring keyword-forced upset and rule handling removed the forcing, not the handling: a skill that is part of a
