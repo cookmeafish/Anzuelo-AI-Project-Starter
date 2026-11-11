@@ -2679,8 +2679,11 @@ const planAt = prompt => ({ edit: { 'docs/plans/2026-10-18-export.md': () => '# 
   prep: promptPrep(prompt) });
 // (the request's prompt hook run before the turn; under v2 under the scenario's session, its turn starting where the
 // fixture's transcript starts, just before this step)
+// (with the host's own transcript for the session, named after it and not written yet, as a real host passes one: a
+// run with none is a hand run, which keeps no session state)
+function hostTp(dir) { return path.join(dir, '.cache', 'host', 'scenario.jsonl'); }
 function promptPrep(prompt) {
-  return (dir, since) => { run(dir, 'prompt', { prompt, ...(process.env.STARTER_ENGINE === 'v2' ? { session_id: 'scenario' } : {}) });
+  return (dir, since) => { run(dir, 'prompt', { prompt, ...(process.env.STARTER_ENGINE === 'v2' ? { session_id: 'scenario', transcript_path: hostTp(dir) } : {}) });
     const tf = path.join(dir, 'tools/hooks/state/v2-turn.scenario.json');
     if (since && fs.existsSync(tf)) { const t = JSON.parse(fs.readFileSync(tf, 'utf8')); fs.writeFileSync(tf, JSON.stringify({ ...t, at: new Date(since).toISOString() })); } };
 }
@@ -6079,7 +6082,7 @@ if (mineB() && (!TAGS || TAGS.includes('check-preview'))) {
       try {
         write(dir, HOST_FIX);
         applyEdits(dir, { ...cfgEdit({ externalHooks: ['tools/hooks/own_hooks.py'] }), ...ALWAYS_V2 }, Date.now() - 7200_000);
-        let preview = run(dir, 'prompt', { prompt: c.prompt, session_id: 'scenario' }).out; try { preview = JSON.parse(preview).hookSpecificOutput?.additionalContext ?? preview; } catch { }
+        let preview = run(dir, 'prompt', { prompt: c.prompt, session_id: 'scenario', transcript_path: hostTp(dir) }).out; try { preview = JSON.parse(preview).hookSpecificOutput?.additionalContext ?? preview; } catch { }
         const since = Date.now() - 1000;
         applyEdits(dir, c.edit, Date.now());
         const tp = transcript(dir, c, since);
@@ -6133,7 +6136,7 @@ if (mineB() && (!TAGS || TAGS.includes('check-preview'))) {
       const dir = copyProject();
       try {
         applyEdits(dir, { 'docs/checks/always.md': () => '# Always\n\n## Done when\n' + Array.from({ length: n }, (_, i) => `- [ ] Meal plan portion check ${i + 1} keeps every portion within the weekly plan limits (when file: meals/**) (answer: portion ${i + 1})`).join('\n') + '\n' }, Date.now() - 7200_000);
-        let t = run(dir, 'prompt', { prompt: 'add the meal plans for next week', session_id: 'scenario' }).out; try { t = JSON.parse(t).hookSpecificOutput?.additionalContext ?? t; } catch { }
+        let t = run(dir, 'prompt', { prompt: 'add the meal plans for next week', session_id: 'scenario', transcript_path: hostTp(dir) }).out; try { t = JSON.parse(t).hookSpecificOutput?.additionalContext ?? t; } catch { }
         got.push((/Also checked at the end if files change: [^\n]*/.exec(t) || [''])[0]);
       } finally { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
     }

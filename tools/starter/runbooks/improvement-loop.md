@@ -45,7 +45,10 @@ updatedInput) is fixed in place.
    the next task in the same turn:** every long suite runs on a frozen copy, never in the main folder, so editing there
    is always safe: `node tools/starter/v2-sweep.mjs` freezes the folder as it is (uncommitted and new files included)
    by default; never wait to edit because a run reads the main folder (2026-11-09: sweeps run there kept the next fix
-   waiting). It removes its copy when the run ends and keeps only the last failed one; remove each chain's copy once
+   waiting). Only the chain's timed steps (the v2 self-test and the selfcheck, which judge time limits) need a quiet
+   machine: during them, read and edit but run no tests; watch the chain's step log (Monitor, until the selfcheck's
+   PASS or a FAIL line) and resume test runs the moment they report. Never end the turn to wait for the chain
+   (2026-11-11: two idle waits of 23 and 30 minutes behind timed steps already done). It removes its copy when the run ends and keeps only the last failed one; remove each chain's copy once
    its proof is pushed (`git worktree remove`, then `git worktree prune`): 2026-11-09, 31 old copies held 4.5 GB.
    **The main folder's engine is live:** every session there runs it on each hook. A change to the engine that takes
    more than one edit is made in a worktree and brought into the main folder only once `node tools/hooks/v2/selftest.mjs`
