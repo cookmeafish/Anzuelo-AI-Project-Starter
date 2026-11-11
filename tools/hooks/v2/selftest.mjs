@@ -714,6 +714,20 @@ report(missing({ runbook: null }, acts([user('fix it'), edit, say('Fixed.')])).l
   report(dry.length === 2 && afterDry.length === 1 && real.join('|') === 'node check.mjs "{file}"|node other.mjs "{file}"' && list.join('|') === 'npm test|node check.mjs "{file}"|node other.mjs "{file}"' && !again.length && !list.some(c => /planted/.test(c)),
     'upgrade: the project\'s committed runEach commands (anyOf too) are carried onto the approved list once; one added since the last commit is not; a dry run writes nothing', JSON.stringify({ dry, afterDry, real, list, again }));
 }
+// routing-only under v2: a runbook whose only change this turn is its triggers line counts as no change for a project
+// check on changed runbooks; a changed step still does, and a runbook with no known start is a change. (The old suite's
+// "routing-only" test)
+{
+  const { routingOnly, bodyHash, holdsReq } = await import('./lib.mjs');
+  const f = 'docs/playbooks/zz-route.md', TEXT = '---\nname: zz-route\nsummary: How to care for a plant\ntriggers: how to care, watering guide\n---\n# zz\n\n## Steps\n1. Read the plant notes.\n';
+  const once = (body, known = true) => { put(f, body); const a = acts([user('cuál es el mejor precio'), call('Edit', { file_path: path.join(dir, f), old_string: 'x', new_string: 'y' }), say('Listo.')]);
+    if (known) a.startHashes = { files: { [f]: 'a'.repeat(40) }, bodies: { [f]: bodyHash(TEXT) } };
+    return { only: routingOnly(a).has(f), holds: holdsReq({ filesChanged: 'docs/playbooks/*.md' }, a, { changed: [f] }) }; };
+  const trig = once(TEXT.replace('watering guide', 'watering guide, mejor precio')), step = once(TEXT.replace('1. Read the plant notes.', '1. Read the plant notes and the care sheets.')), unknown = once(TEXT.replace('watering guide', 'watering guide, riego'), false);
+  fs.rmSync(path.join(dir, f), { force: true });
+  report(trig.only && trig.holds === false && !step.only && step.holds === true && !unknown.only && unknown.holds === true,
+    'end: routing-only: a runbook whose only change is its triggers line sets off no project check on changed runbooks; a changed step, or one with no known start, still does', JSON.stringify({ trig, step, unknown }));
+}
 // REQ: name-var under v2: a name from docs/names.json typed out in a doc or in code text is held; in its marker, or read
 // from the file in code, it is not. (the old engine's check, through the shared tools/hooks/names.mjs)
 {

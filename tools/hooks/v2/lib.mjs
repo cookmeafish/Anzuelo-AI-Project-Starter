@@ -6,6 +6,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { createHash } from 'node:crypto';
 import { roots, resolver } from '../paths.mjs';
 import { people, personOf, peopleIn, peopleFor } from '../people.mjs';
 import { inEnglish, EN_COPIES } from '../labels.mjs';
@@ -1207,6 +1208,22 @@ export function citeWhy(acts, x) {
   if (!out.length) out.push('the links need numbers: a [n] after each fact, and a "Sources:" line followed by one "[n] <link>" line per number');
   return out.join('; ');
 }
+// Runbooks and skills this turn changed only in their "triggers:" line, against the turn's start: the turn-start
+// snapshot's body hash for a file already changed then, else the last commit's copy (a new file, or none known: none).
+export const ROUTED_DOC = /^docs\/playbooks\/[^/]+\.md$|(^|\/)SKILL\.md$/;
+export const bodyHash = text => createHash('sha1').update(String(text).replace(/\r\n/g, '\n').replace(/^triggers:.*$/m, '')).digest('hex');
+export function routingOnly(acts) {
+  if (acts._routingOnly) return acts._routingOnly;
+  const out = new Set(), snap = acts.startHashes || null;
+  for (const f of changedOf(acts).filter(p => ROUTED_DOC.test(p))) {
+    let now; try { now = fs.readFileSync(at(f), 'utf8'); } catch { continue; }
+    let before = null;
+    if (snap?.files && Object.hasOwn(snap.files, f)) before = snap.bodies?.[f] || null;
+    else { const r = spawnSync('git', ['show', `HEAD:${f}`], { cwd: ROOT, encoding: 'utf8', timeout: 5000 }); if (r.status === 0) before = bodyHash(r.stdout); }
+    if (before && before === bodyHash(now)) out.add(f);
+  }
+  return (acts._routingOnly = out);
+}
 export function holdsReq(c, acts, x) {
   const read = n => acts.calls.some(k => (k.name === 'Read' && n.test(String(k.input.file_path || '').replace(/\\/g, '/'))));
   const tests = {
@@ -1220,7 +1237,10 @@ export function holdsReq(c, acts, x) {
     // feature's review, spec and release notes)
     playbookUsed: v => read(new RegExp(`playbooks/${v}\\.md$`, 'i')) && (!(fs.existsSync(at('SETUP-PROMPT.md')) && !fs.existsSync(at('.starter-template')))
       || new RegExp(`\\b(?:playbook|runbook)s?\\s*:\\s*\`?(?:docs/playbooks/)?${v.replace(/[^\w-]/g, '')}(?:\\.md)?\\b`, 'i').test(`${acts.answer || ''}\n${acts.said || ''}`)),
-    filesChanged: v => x.changed.some(f => [].concat(v).some(g => globRx(g).test(f)) && ![].concat(c.filesIgnore || []).some(g => globRx(g).test(f))),
+    // (a runbook or skill whose only change this turn is its triggers line does not count: new routing words, the same
+    // procedure. Lesson (the old engine): a question taught a runbook its Spanish wording, and the project's sweeps for
+    // changed runbooks held the turn for 30 minutes)
+    filesChanged: v => x.changed.some(f => [].concat(v).some(g => globRx(g).test(f)) && ![].concat(c.filesIgnore || []).some(g => globRx(g).test(f)) && !routingOnly(acts).has(f)),
     filesIgnore: () => true,
     answerMatches: v => reqRe(v).test(acts.answer || ''), answerNotMatches: v => !reqRe(v).test(acts.answer || ''),
     promptMatches: v => reqRe(v).test(acts.heard || ''), promptNotMatches: v => !reqRe(v).test(acts.heard || ''),
@@ -2016,8 +2036,10 @@ export function snapshotDirty(sid, at0) {
   const hashes = names.length && names.length <= 2000 ? g(['hash-object', '--stdin-paths'], names.join('\n') + '\n') : [];
   // (the checks' own files as they were at the turn's start, each up to 256 KB: a change to them is judged against this
   // copy (REQ: hooks-tested). Oversight's design, 2026-11-09: the turn-start snapshot, no new hook)
+  // (each changed runbook and skill without its triggers line, to tell a change of routing words alone: routingOnly)
+  const bodies = Object.fromEntries(names.filter(f => ROUTED_DOC.test(f)).slice(0, 200).map(f => { try { return [f, bodyHash(fs.readFileSync(path.join(ROOT, f), 'utf8'))]; } catch { return null; } }).filter(Boolean));
   const texts = Object.fromEntries(SNAP_TEXTS.map(f => { try { const p = path.join(ROOT, f); return fs.statSync(p).size <= 256 << 10 ? [f, fs.readFileSync(p, 'utf8')] : null; } catch { return null; } }).filter(Boolean));
-  if (names.length <= 2000 && Date.now() - t0 <= 5000) try { fs.mkdirSync(STATE(), { recursive: true }); fs.writeFileSync(dirtyFile(sid), JSON.stringify({ at: at0, done: Date.now(), files: Object.fromEntries(names.map((f, i) => [f, hashes[i]]).filter(([, h]) => /^[0-9a-f]{40,64}$/.test(h || ''))), texts })); } catch { }
+  if (names.length <= 2000 && Date.now() - t0 <= 5000) try { fs.mkdirSync(STATE(), { recursive: true }); fs.writeFileSync(dirtyFile(sid), JSON.stringify({ at: at0, done: Date.now(), files: Object.fromEntries(names.map((f, i) => [f, hashes[i]]).filter(([, h]) => /^[0-9a-f]{40,64}$/.test(h || ''))), texts, bodies })); } catch { }
 }
 export const loadDirty = (sid, at0) => { try { const j = JSON.parse(fs.readFileSync(dirtyFile(sid), 'utf8')); return j.at === at0 ? j : null; } catch { return null; } };
 if (process.argv[2] === '--snapshot-dirty' && process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) snapshotDirty(process.argv[3], process.argv[4]);
