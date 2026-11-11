@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { ENGINE, split, kind } from '../paths.mjs';
-import { commitIds } from '../claims.mjs';
+import { commitIds, cutIds } from '../claims.mjs';
 import { selfListGrows, selfCmdWrites } from '../selfcmds.mjs';
 export { commitIds };
 // Shared helpers come from the loader (use(hooksModule)): an import cycle left the hook waiting forever.
@@ -235,6 +235,9 @@ export function pretoolHits(data, cfg) {
       const bad = missing.filter(h => !seen.includes(h));
       if (bad.length) add(`REQ: claim-checked. This message names commit ${bad.join(', ')}, which this repository does not have and no command here showed: read the id from the command's output (git log -1 --format=%h) and send it again.`);
     }
+    // (a shortened stand-in, "commit 72c...": never an id. Oversight, 2026-11-10)
+    const cut = cutIds(inp.message);
+    if (cut.length) add(`REQ: claim-checked. This message names commit ${cut.join(', ')}, a shortened stand-in, not an id: read the full id from git output (git log -1 --format=%h), or say "the next commit", and send it again.`);
   }
   if (isWakeTool(name, inp)) {
     if (typeof inp.prompt === 'string' && inp.prompt.trim()) {

@@ -163,24 +163,23 @@ export function unroutedGaps(turn, acts, again, books = runbooks()) {
   // it asked in 29% and 48% of two projects' work turns, every one a runbook read earlier in the session)
   const named = [...`${acts.said || ''}\n${acts.answer || ''}`.matchAll(/\bPlaybook:\s*(?:docs\/playbooks\/)?([\w-]+)\.md\b/gi)].map(m => m[1]).filter(n => n !== '_fallback');
   // (a runbook opened earlier in the session counts only for the same request chain: a message that goes on with the
-  // work (an image alone, "again", "continue", an interrupted request resumed), or a runbook among the 3 closest to this
-  // work. One read hours ago exempts nothing new. Lesson (oversight, 2026-11-10): "any earlier opening" turned the check
-  // off in long sessions, 0 asks in 245 turns, and hid a runbook that covered the work but was not opened (rule 1))
+  // work (an image alone, "again", "continue", an interrupted request resumed). A new request opens its runbook this turn
+  // (rule 1), even one read earlier. Lesson (oversight, 2026-11-10): "any earlier opening" turned the check off in long
+  // sessions, 0 asks in 245 turns; "or among the 3 closest" still hid a runbook that covered new work but was not opened)
   const heard = String(acts.heard || ''), goesOn = /^\s*\[Request interrupted/.test(heard) || !heard.replace(/\[Image[^\]]*\]/g, '').trim()
     || /\b(again|continue|keep going|go on|carry on|resume|same as before|otra vez|de nuevo|sigue|contin[uú]a)\b/i.test(heard);
   const pool = books.map(b => ({ name: b.name, file: b.file, triggers: b.triggers || [], fm: { summary: (/^summary:\s*(.+)$/m.exec(b.front || '') || [])[1] || '' } })), top = [];
   for (let i = 0; i < 3; i++) { const c = closestRunbook(heard, pool.filter(p => !top.includes(p.file)), coreRunbook); if (!c) break; top.push(c.file); }
   const readBefore = file => (acts.prior || []).some(c => c.name === 'Read' && String(c.input?.file_path || '').replace(/\\/g, '/').endsWith(file));
   const skillBefore = name => (acts.prior || []).some(c => (c.name === 'Skill' && JSON.stringify(c.input || {}).includes(name)) || (c.name === 'Read' && String(c.input?.file_path || '').replace(/\\/g, '/').endsWith(`skills/${name}/SKILL.md`)));
-  const earlierCounts = b => (goesOn || top.includes(b.file)) && (readBefore(b.file) || skillBefore(b.name));
+  const earlierCounts = b => goesOn && (readBefore(b.file) || skillBefore(b.name));
   const notOpened = books.filter(b => named.includes(b.name) && !opened(b, acts) && !earlierCounts(b) && b.file !== turn.runbook);
   if (notOpened.length) return notOpened.map(b => `Open ${b.file} and check the work against its steps.`);
   if (made || NONE_FITS.test(said)) return [];
   // (b)
   if (fallback) return ['This work followed docs/playbooks/_fallback.md: leave a runbook for this kind of task behind (rule 2, the runbook-create skill), or say in one line why none is needed (a one-off).'];
   // (c)
-  const openedBefore = goesOn ? (acts.prior || []).some(c => c.name === 'Skill' || (c.name === 'Read' && /(^|\/)docs\/playbooks\/[^/_][^/]*\.md$|(^|\/)skills\/[^/]+\/SKILL\.md$/.test(String(c.input?.file_path || '').replace(/\\/g, '/'))))
-    : books.some(b => top.includes(b.file) && earlierCounts(b));
+  const openedBefore = goesOn && (acts.prior || []).some(c => c.name === 'Skill' || (c.name === 'Read' && /(^|\/)docs\/playbooks\/[^/_][^/]*\.md$|(^|\/)skills\/[^/]+\/SKILL\.md$/.test(String(c.input?.file_path || '').replace(/\\/g, '/'))));
   if (turn.runbook || anyOpened || openedBefore || smallChange(acts, changedOf(acts))) return [];
   return [`No runbook was opened for this work. Open the closest one${top.length ? ` (${top.join(', ')})` : ' (DIRECTORY.md lists them)'} and check the work against it, leave a new runbook for this kind of task (rule 2, the runbook-create skill), or say in one line why none fits (a one-off).`];
 }

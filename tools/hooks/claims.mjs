@@ -24,6 +24,14 @@ export const commitIds = text => [...new Set([...String(text || '').matchAll(/(?
   if (/\b(sha-?256|sha-?1|hash|digest|checksum|uuid|guid|id:)\W{0,3}$/i.test(line)) return false;
   return /\b(commits?|committed(?: as)?|pushed(?: as)?|push|head(?: is| at)?|merged?(?: as)?|landed in|lands in|main is|main at|is at|in|at|on top of|reverts?|cherry-picked|commit id is|commit is|the id is)\W{0,4}(?:the )?(?:commit )?$/i.test(line) || /^\s*[-*]?\s*$/.test(line) && /^[0-9a-f]{7,40} \S/.test(text.slice(m.index));
 }).map(m => m[1]))];
+// A shortened stand-in for a commit id, "commit 72c..." or "fbd…": 3 to 6 hex digits ending in an ellipsis after a
+// commit word. No real id is that short, and a git range is full ids ("a8a0575..44c6b0c"), so this never names a real
+// one. Lesson (oversight, 2026-11-10): two such placeholders were sent to a peer in place of the id, just under the
+// 7-digit rule above.
+// (letters alone, "fbd…", count only with a commit word within 30 characters, so a word like "bad..." never does)
+export const cutIds = text => { const s = String(text || ''); return [...s.matchAll(/\b(commits?|committed(?: as)?|pushed(?: as)?|in|at|is)\s*[(`"']?([0-9a-f]{3,6})(\.{3}|…)/gi)]
+  .filter(m => /[a-f]/i.test(m[2]) && (/\d/.test(m[2]) || /\b(commit|committed|pushed|sha)\b/i.test(s.slice(Math.max(0, m.index - 30), m.index + m[0].length + 30).replace(m[0], ' '))))
+  .map(m => `${m[2]}${m[3]}`); };
 
 // io: { root, exists(rel), pathKey(s) }
 // REQ: claim-checked (git). A claim that git holds nothing, or no earlier version of a file: "nothing is committed yet",

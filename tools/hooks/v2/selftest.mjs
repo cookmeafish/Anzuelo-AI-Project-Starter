@@ -597,12 +597,14 @@ report(missing({ runbook: null }, acts([user('fix it'), edit, say('Fixed.')])).l
     namedBefore: u([user('do the export again with the totals row'), edit, say('Playbook: export.md. Added.')], false, before),
     // (a new request of another kind, an unrelated runbook read hours before: asked)
     newKind: u([user('build me a weekly cleaning rota for the flat'), edit, say('Built it.')], false, [{ name: 'Read', input: { file_path: path.join(dir, 'docs/playbooks/long.md') } }]),
+    // (a new request whose own runbook was read earlier in the session: opened this turn, rule 1, so asked)
+    relatedBefore: u([user('build the export report'), edit, say('Built it.')], false, before),
   };
   if (was === undefined) delete process.env.STARTER_NO_SMALL; else process.env.STARTER_NO_SMALL = was;
   const small = u([user('build the export report'), edit, say('Built it.')]);
   report(/^No runbook was opened for this work\. Open the closest one/.test(r.asked[0] || '') && !r.oneOff.length && !r.opened.length && !r.made.length && !r.round2.length
     && /^Open docs\/playbooks\/export\.md and check/.test(r.named[0] || '') && /followed docs\/playbooks\/_fallback\.md: leave a runbook/.test(r.fallback[0] || '') && !small.length
-    && !r.goesOn.length && !r.namedBefore.length && /^No runbook was opened/.test(r.newKind[0] || ''),
+    && !r.goesOn.length && !r.namedBefore.length && /^No runbook was opened/.test(r.newKind[0] || '') && /^No runbook was opened/.test(r.relatedBefore[0] || ''),
     'end: unrouted work is asked once to open the closest runbook, leave one, or say why none fits; a named runbook never opened is asked for; _fallback work is asked to leave one; a small fix and round 2 are not', JSON.stringify(r).slice(0, 600));
 }
 const chose = missing({ runbook: null }, acts([user('fix the orders file'), read, edit, say('Fixed.')]));
@@ -2446,6 +2448,12 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     msg.answer = claimGaps(acts([user('push it'), call('SendMessage', { to: 'peer', message: `Pushed ${fake}.` }, 'sent'), say(`Pushed ${fake}.`)])).join(' ');
     report(/REQ: claim-checked\. This message names commit/.test(msg.made) && msg.falseRefusals === 0 && msg.exampleRefusals === 0 && msg.exampleHolds === 0 && msg.plainHeld === 1 && !msg.real && !msg.relayed && !!head && new RegExp(`names commit ${fake}`).test(msg.answer),
       'pretool: a message naming a commit this repository lacks, that nothing here showed, is refused before it goes; a real one or one a received message named goes; a hex string outside commit context (anchor, color, hash, path, GUID, word) is never refused; placeholders and quoted examples are neither refused nor held', JSON.stringify({ head, fake, made: msg.made.slice(0, 90), real: msg.real.slice(0, 60), relayed: msg.relayed.slice(0, 60) }));
+    // (a shortened stand-in for an id, "commit 72c..." or "fbd…", is refused; a git range of full ids and an ellipsis
+    // after a plain word are not. Oversight, 2026-11-10: two were sent in place of the id)
+    const cut = { three: send('The fix is in commit 72c... on the branch.'), unicode: send('Fix, in fbd… (next commit after the last).'),
+      range: send(`Released ${head}...${head} with the notes.`), word: send('It is at the end... and more.'), next: send('The fix is in the next commit.') };
+    report(/shortened stand-in/.test(cut.three) && /shortened stand-in/.test(cut.unicode) && !cut.range && !cut.word && !cut.next,
+      'pretool: a message naming a shortened stand-in for a commit id ("commit 72c...") is refused; a range of full ids, a plain ellipsis and "the next commit" go', JSON.stringify(cut).slice(0, 400));
   }
   { // (a push to main goes after a "yes" to the agent's own push question, or a standing OK to push given earlier in the
     // session; with neither, or a "yes" to another question, it is refused. Lesson (the user, 2026-11-08): an approved
@@ -3126,7 +3134,9 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   // (base: 3,500 from 2026-11-10, set once for the whole move of the old engine's rules into shared modules, which takes
   // the same lines out of hooks.mjs; oversight's decision, no raise asked during the move, a ratchet at step 1e. ALL
   // counts v2's own files only, guard, reminder and end, and stays 6,000. It had been 2,600 and counted base in ALL)
-  const cap = { guard: 600, reminder: 400, end: 3200, base: 3500 }, ALL = 6000;
+  // (guard: 800 from 2026-11-10, raised once when a parity port needed it (the shortened commit id refused in messages),
+  // as oversight decided in advance; heavy guard work stays lazy, and the pretool timing is the real bar)
+  const cap = { guard: 800, reminder: 400, end: 3200, base: 3500 }, ALL = 6000;
   const got = Object.fromEntries(Object.entries(parts).map(([k, fs_]) => [k, fs_.reduce((n, f) => n + size(f), 0)]));
   const lines = got.guard + got.reminder + got.end;
   const checks = (/const list = \[([^\]]*)\]/.exec(fs.readFileSync(path.join(here, 'end.mjs'), 'utf8'))?.[1].match(/\.\.\.\w+\(/g) || []).length;
