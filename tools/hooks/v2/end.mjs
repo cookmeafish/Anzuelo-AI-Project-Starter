@@ -162,19 +162,26 @@ export function unroutedGaps(turn, acts, again, books = runbooks()) {
   // lines, retired 2026-11-05 (user-requirements row 40). Lesson (the replay over real sessions): read from the notes,
   // it asked in 29% and 48% of two projects' work turns, every one a runbook read earlier in the session)
   const named = [...`${acts.said || ''}\n${acts.answer || ''}`.matchAll(/\bPlaybook:\s*(?:docs\/playbooks\/)?([\w-]+)\.md\b/gi)].map(m => m[1]).filter(n => n !== '_fallback');
-  // (nor one opened earlier in the session: the work goes on with it)
-  const readBefore = b => (acts.prior || []).some(c => c.name === 'Read' && String(c.input?.file_path || '').replace(/\\/g, '/').endsWith(b.file));
-  const notOpened = books.filter(b => named.includes(b.name) && !opened(b, acts) && !readBefore(b) && b.file !== turn.runbook);
+  // (a runbook opened earlier in the session counts only for the same request chain: a message that goes on with the
+  // work (an image alone, "again", "continue", an interrupted request resumed), or a runbook among the 3 closest to this
+  // work. One read hours ago exempts nothing new. Lesson (oversight, 2026-11-10): "any earlier opening" turned the check
+  // off in long sessions, 0 asks in 245 turns, and hid a runbook that covered the work but was not opened (rule 1))
+  const heard = String(acts.heard || ''), goesOn = /^\s*\[Request interrupted/.test(heard) || !heard.replace(/\[Image[^\]]*\]/g, '').trim()
+    || /\b(again|continue|keep going|go on|carry on|resume|same as before|otra vez|de nuevo|sigue|contin[uú]a)\b/i.test(heard);
+  const pool = books.map(b => ({ name: b.name, file: b.file, triggers: b.triggers || [], fm: { summary: (/^summary:\s*(.+)$/m.exec(b.front || '') || [])[1] || '' } })), top = [];
+  for (let i = 0; i < 3; i++) { const c = closestRunbook(heard, pool.filter(p => !top.includes(p.file)), coreRunbook); if (!c) break; top.push(c.file); }
+  const readBefore = file => (acts.prior || []).some(c => c.name === 'Read' && String(c.input?.file_path || '').replace(/\\/g, '/').endsWith(file));
+  const skillBefore = name => (acts.prior || []).some(c => (c.name === 'Skill' && JSON.stringify(c.input || {}).includes(name)) || (c.name === 'Read' && String(c.input?.file_path || '').replace(/\\/g, '/').endsWith(`skills/${name}/SKILL.md`)));
+  const earlierCounts = b => (goesOn || top.includes(b.file)) && (readBefore(b.file) || skillBefore(b.name));
+  const notOpened = books.filter(b => named.includes(b.name) && !opened(b, acts) && !earlierCounts(b) && b.file !== turn.runbook);
   if (notOpened.length) return notOpened.map(b => `Open ${b.file} and check the work against its steps.`);
   if (made || NONE_FITS.test(said)) return [];
   // (b)
   if (fallback) return ['This work followed docs/playbooks/_fallback.md: leave a runbook for this kind of task behind (rule 2, the runbook-create skill), or say in one line why none is needed (a one-off).'];
-  // (c) (a runbook or skill opened earlier in the session counts as routed: the work goes on with it. Lesson (oversight's
-  // read of the replay, 2026-11-10): 4 of 5 asks were continuations, an image or "again" after routed work)
-  const openedBefore = (acts.prior || []).some(c => c.name === 'Skill' || (c.name === 'Read' && /(^|\/)docs\/playbooks\/[^/_][^/]*\.md$|(^|\/)skills\/[^/]+\/SKILL\.md$/.test(String(c.input?.file_path || '').replace(/\\/g, '/'))));
+  // (c)
+  const openedBefore = goesOn ? (acts.prior || []).some(c => c.name === 'Skill' || (c.name === 'Read' && /(^|\/)docs\/playbooks\/[^/_][^/]*\.md$|(^|\/)skills\/[^/]+\/SKILL\.md$/.test(String(c.input?.file_path || '').replace(/\\/g, '/'))))
+    : books.some(b => top.includes(b.file) && earlierCounts(b));
   if (turn.runbook || anyOpened || openedBefore || smallChange(acts, changedOf(acts))) return [];
-  const pool = books.map(b => ({ name: b.name, file: b.file, triggers: b.triggers || [], fm: { summary: (/^summary:\s*(.+)$/m.exec(b.front || '') || [])[1] || '' } })), top = [];
-  for (let i = 0; i < 3; i++) { const c = closestRunbook(acts.heard || '', pool.filter(p => !top.includes(p.file)), coreRunbook); if (!c) break; top.push(c.file); }
   return [`No runbook was opened for this work. Open the closest one${top.length ? ` (${top.join(', ')})` : ' (DIRECTORY.md lists them)'} and check the work against it, leave a new runbook for this kind of task (rule 2, the runbook-create skill), or say in one line why none fits (a one-off).`];
 }
 

@@ -593,14 +593,16 @@ report(missing({ runbook: null }, acts([user('fix it'), edit, say('Fixed.')])).l
     round2: u([user('build the export report'), edit, say('Built it.')], true),
     named: u([user('build the export report'), edit, say('Playbook: export.md. Built it.')]),
     fallback: u([user('build the export report'), fb, edit, say('Built it.')]),
-    goesOn: u([user('and the totals row too'), edit, say('Added.')], false, before),
-    namedBefore: u([user('and the totals row too'), edit, say('Playbook: export.md. Added.')], false, before),
+    goesOn: u([user('continue with the totals row'), edit, say('Added.')], false, before),
+    namedBefore: u([user('do the export again with the totals row'), edit, say('Playbook: export.md. Added.')], false, before),
+    // (a new request of another kind, an unrelated runbook read hours before: asked)
+    newKind: u([user('build me a weekly cleaning rota for the flat'), edit, say('Built it.')], false, [{ name: 'Read', input: { file_path: path.join(dir, 'docs/playbooks/long.md') } }]),
   };
   if (was === undefined) delete process.env.STARTER_NO_SMALL; else process.env.STARTER_NO_SMALL = was;
   const small = u([user('build the export report'), edit, say('Built it.')]);
   report(/^No runbook was opened for this work\. Open the closest one/.test(r.asked[0] || '') && !r.oneOff.length && !r.opened.length && !r.made.length && !r.round2.length
     && /^Open docs\/playbooks\/export\.md and check/.test(r.named[0] || '') && /followed docs\/playbooks\/_fallback\.md: leave a runbook/.test(r.fallback[0] || '') && !small.length
-    && !r.goesOn.length && !r.namedBefore.length,
+    && !r.goesOn.length && !r.namedBefore.length && /^No runbook was opened/.test(r.newKind[0] || ''),
     'end: unrouted work is asked once to open the closest runbook, leave one, or say why none fits; a named runbook never opened is asked for; _fallback work is asked to leave one; a small fix and round 2 are not', JSON.stringify(r).slice(0, 600));
 }
 const chose = missing({ runbook: null }, acts([user('fix the orders file'), read, edit, say('Fixed.')]));
