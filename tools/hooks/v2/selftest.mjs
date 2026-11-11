@@ -3433,7 +3433,8 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     put(ALWAYS_FILE, '# Always\n\n## Done when\n- [ ] The data validator passes on the changed data (when file: data/**) (ran: validate => PASS)\n- [ ] Plain words (answer: .)\n');
     const routed = reminder('can you add a CSV export for the orders page').text, question = reminder('what is the capital of peru?').text;
     const work = reminder('rename the vendor files to use dates').text;
-    const lastLine = t => t.split('\n').at(-1);
+    // (the "Also checked" line, and the small-fix line after it when one follows)
+    const lastLine = t => [t.split('\n').find(l => l.startsWith('Also checked')) || '', t.split('\n').find(l => l.startsWith('Small fix:')) || ''].filter(Boolean).join('\n');
     // (a project that switched plan-required off is not told of it)
     // (nor of an engine check it switched off: the end check reads the same list, engineChecks())
     put('tools/hooks/config.json', JSON.stringify({ ...JSON.parse(keepCfg || '{}'), suspended: [{ item: 'check:plan-required', why: 'fixture' }, { item: 'check:export-noted', why: 'fixture' }] }));
@@ -3446,6 +3447,11 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     keepCfg === null ? fs.rmSync(cfgFile, { force: true }) : put('tools/hooks/config.json', keepCfg);
   }
   const plan = 'plan required \\(a plan in docs/plans/ first\\) if it adds \\d+\\+ new files';
+  // (REQ: small-change: when the line names a step a small fix skips, the same line says so; with none named, it doesn't)
+  const SM = /\nSmall fix: if the change stays within \d+ files and \d+ edited lines, the record steps are skipped; tests still apply\.$/;
+  const small = { routed: SM.test(got.routed || ''), work: SM.test(got.work || ''), off: SM.test(got.off || ''), routedOff: SM.test(got.routedOff || '') };
+  for (const k of ['routed', 'work', 'off', 'routedOff']) got[k] = String(got[k] || '').replace(SM, '');
+  report(small.routed && small.work && small.off && !small.routedOff, 'start: small-change: the "Also checked" line says a small fix skips the record steps when it names one; not when it names none', small);
   report(new RegExp(`^Also checked at the end if files change: export noted; The data validator passes on the changed data; ${plan}\\.$`).test(got.routed || '')
     // (unrouted work hears the leave-a-runbook check too, first)
     && new RegExp(`^Also checked at the end if files change: runbook-exists: met once it follows a runbook, leaves one, or says why none fits; The data validator passes on the changed data; ${plan}\\.$`).test(got.work || '')

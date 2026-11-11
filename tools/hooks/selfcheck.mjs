@@ -4535,7 +4535,7 @@ PROMPT.push(
   { name: 'check-preview: a headless Claude Code run still gets the self-check', prompt: 'add a hook check for budget tables', env: { CLAUDE_CODE_ENTRYPOINT: 'sdk-cli' }, has: ['Self-check first: node tools/hooks/hooks.mjs check --answer-file'],
     v2: { has: ['Done when (before answering, check your draft: node tools/hooks/hooks.mjs check --answer-file <draft>)'] } },
   // (REQ small-change, said before the work. Lesson (the user, 2026-10-25): simple fixes turned into 20 minute things)
-  { name: 'small-change: a request whose checks include a record step hears that a small fix skips them', prompt: 'add a hook check for budget tables', has: ['SMALL FIX: if the change stays within 3 files and 40 edited lines'] },
+  { name: 'small-change: a request whose checks include a record step hears that a small fix skips them', prompt: 'add a hook check for budget tables', has: ['SMALL FIX: if the change stays within 3 files and 40 edited lines'], v2: { has: ['Small fix: if the change stays within 3 files and 40 edited lines'] } },
   // (a complaint about slow or wasteful turns routes to the efficiency review, which traces each cost to its source)
   { name: 'efficiency-review: "so many sweeps for something simple" routes to the review', prompt: 'why are you doing so many sweeps for something simple?', has: ['SKILL: efficiency-review'] },
   { name: 'efficiency-review: "simple fixes turn into 20 minute things" routes to the review', prompt: 'anzuelo makes my project simple fixes turn into 20 minute things which is super token inefficient', has: ['SKILL: efficiency-review'] },

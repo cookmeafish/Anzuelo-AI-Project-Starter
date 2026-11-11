@@ -2,7 +2,7 @@
 // "Done when" list, which the end hook checks. Nothing about the engine itself.
 import fs from 'node:fs';
 import path from 'node:path';
-import { route, skillBooks, saveTurn, loadTurn, isSpanish, ROOT, at, quoteCheckOn, projectConfig, checkOff, snapshotLater, runbooks, routeEnglish, engineChecks, doneWhen, ALWAYS } from './lib.mjs';
+import { route, skillBooks, saveTurn, loadTurn, isSpanish, ROOT, at, quoteCheckOn, projectConfig, checkOff, snapshotLater, runbooks, routeEnglish, engineChecks, doneWhen, ALWAYS, SMALL_SKIP } from './lib.mjs';
 import { closestRunbook, coreRunbook, isTaskRequest, userWords, AUTONOMY_WORDS, ownEnds, EXAMPLE_CLASS, multiPart } from '../near.mjs';
 import { isPraise } from '../praise.mjs';
 import { NUMBERS_ASK } from '../trace.mjs';
@@ -31,6 +31,15 @@ export function alsoChecked(names = [], { unrouted = false } = {}) {
   const whole = [...new Set([...rbx, ...mine, ...own, ...plan])], fits = whole.slice(0, 4).join('; ').length <= 300;
   const all = fits ? whole : [...new Set(whole.map(cut))];
   return all.length ? `Also checked at the end if files change: ${all.slice(0, 4).join('; ')}${all.length > 4 ? `; +${all.length - 4} more` : ''}.` : '';
+}
+// (REQ: small-change, said before the work so a small fix never starts a feature's ceremony: when the "Also checked"
+// line names a step a small fix skips, a line of its own follows, while the reminder has room. Lesson (the old suite
+// under v2): the old engine said it; v2 skipped the steps unannounced)
+export function smallLine(also) {
+  const names = [...String(also || '').matchAll(/(?:^|: |; )([a-z][a-z -]+?)(?=:|;|\.$| if | \()/g)].map(m => m[1].trim().replace(/ /g, '-'));
+  if (!names.some(t => SMALL_SKIP.test(t))) return '';
+  const pc = projectConfig();
+  return `Small fix: if the change stays within ${pc.smallFiles ?? 3} files and ${pc.smallLines ?? 40} edited lines, the record steps are skipped; tests still apply.`;
 }
 import { toOtherSession, RELAY_START, HANDBACK, relayedBody, relayRouteText, relayRequestText } from '../relay.mjs';
 // (the host's notice that a peer went idle or held a message: no request of anyone's)
@@ -235,7 +244,8 @@ function remind(prompt) {
   // tools/hooks/history.mjs; never for a relayed message, which is no request of the user's)
   const recall = relayedRx.test(raw) ? '' : recallLine(at('tools/hooks/state/history.jsonl'), String(userWords(prompt)));
   if (recall) menuL.push(recall);
-  if (!book) return { book: null, text: [...menuL, ...mustLines, friction, skill, praise, figures, autonomy, examples, shared, pick, es, ...rulesFor(prompt).map(r => `The project's own rule here: ${r}`), isTaskRequest(prompt, taskVerbs, toOtherSession(prompt)) ? alsoChecked(sk && skill ? [sk.name] : [], { unrouted: !(sk && skill) }) : ''].filter(Boolean).slice(0, MAX_LINES).join('\n') };
+  if (!book) { const al = isTaskRequest(prompt, taskVerbs, toOtherSession(prompt)) ? alsoChecked(sk && skill ? [sk.name] : [], { unrouted: !(sk && skill) }) : '';
+    return { book: null, text: [...menuL, ...mustLines, friction, skill, praise, figures, autonomy, examples, shared, pick, es, ...rulesFor(prompt).map(r => `The project's own rule here: ${r}`), al, smallLine(al)].filter(Boolean).slice(0, MAX_LINES).join('\n') }; }
   const own = rulesFor(prompt).map(r => `The project's own rule here: ${r}`);
   // (a message relayed from another session may only report: its runbook is for when it asks for work. Lesson (project
   // report): a note that a fix had landed got the bugfix runbook and its list, though it asked for nothing)
@@ -266,6 +276,8 @@ function remind(prompt) {
   // (more items than fit: the runbook has the rest)
   const out = lines.length > MAX_LINES ? [...lines.slice(0, MAX_LINES - 1), `(${lines.length - MAX_LINES + 1} more in ${book.file})`] : lines;
   if (also && !out.includes(also)) out[out.length - 1] += ` ${also}`;
+  const sm = smallLine(also);
+  if (sm) { if (out.length < MAX_LINES) out.push(sm); else out[out.length - 1] += ` ${sm}`; }
   const text = out.join('\n');
   return { book, text };
 }

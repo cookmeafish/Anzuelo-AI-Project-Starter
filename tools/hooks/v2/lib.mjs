@@ -1422,7 +1422,7 @@ export function verbatimGaps(acts) {
 // REQ: small-change. A small fix (config smallFiles files, smallLines lines, counted from this turn's own edits; a file a
 // command changed counts 10 lines) is held to being right, not to a feature's ceremony: no spec, review, release notes,
 // plan, STATUS handoff, changelog line, new runbook or lesson. Lesson (the user, 2026-10-25): simple fixes took 20 minutes.
-const SMALL_SKIP = /^(spec-written|review-verdict|verification-report|release-notes|release-ready|version-bump|plan-required|plan-saved|plan-checked|status-handoff|changelog|app-changelog|knowledge-changelog|skill-learn|runbook-exists|runbook-complete|done-when-labeled|playbook-format|worth-it|decision-logged|skill-harden|qa-report|install-matrix|perf-numbers|architecture-recorded|architecture-trigger)$/;
+export const SMALL_SKIP = /^(spec-written|review-verdict|verification-report|release-notes|release-ready|version-bump|plan-required|plan-saved|plan-checked|status-handoff|changelog|app-changelog|knowledge-changelog|skill-learn|runbook-exists|runbook-complete|done-when-labeled|playbook-format|worth-it|decision-logged|skill-harden|qa-report|install-matrix|perf-numbers|architecture-recorded|architecture-trigger)$/;
 export function smallChange(acts, changed) {
   // (STARTER_NO_SMALL turns it off, as in the old engine: the self-tests' scenarios are judged as full work)
   if (process.env.STARTER_NO_SMALL ?? process.env.KS_NO_SMALL) return false;
