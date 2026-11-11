@@ -966,7 +966,13 @@ export function knowledgeGaps(acts) {
 // in .cache/turn-notes.md, written this turn, the reason at least 4 words. Rule 7 keeps waivers out of the answer.
 // (or by the waive command, counted by the confirmation it printed this turn, one per step, so a loop or a chain of
 // waivers counts each, and a refused one none. Lesson (the v2 re-sweep): "hooks.mjs waive <step>" was not read)
-const waivedByCommand = (tag, acts) => acts.calls.some(c => /^(Bash|PowerShell)$/.test(c.name) && !c.error && new RegExp(`^waived for this turn: ${tag.replace(/[^\w-]/g, '')}\\b`, 'm').test(c.out || ''));
+// (also by its record in the run log since the turn began: the waive command logs itself, so its output thrown away
+// still counts, as in the old engine. Lesson (a field report): "waive x ... >/dev/null && git commit" was asked again)
+const waivedByCommand = (tag, acts) => { const rx = new RegExp(`^waived for this turn: ${tag.replace(/[^\w-]/g, '')}\\b`, 'm');
+  if (acts.calls.some(c => /^(Bash|PowerShell)$/.test(c.name) && !c.error && rx.test(c.out || ''))) return true;
+  const since = Date.parse(acts.at || '') || 0;
+  if (!since || !acts.calls.some(c => /^(Bash|PowerShell)$/.test(c.name) && /\bhooks\.mjs["']?\s+waive\b/.test(String(c.input?.command || '')))) return false;
+  return read('tools/hooks/state/runs.jsonl').split('\n').some(l => { let r; try { r = JSON.parse(l); } catch { return false; } return Date.parse(r?.at || '') >= since && !r.error && rx.test(String(r.out || '')); }); };
 export const waivedTag = (tag, acts) => { if (waivedByCommand(tag, acts)) return true; const since = Date.parse(acts.at || '') || 0; if (!since || mtime('.cache/turn-notes.md') <= since) return false;
   return read('.cache/turn-notes.md').split('\n').some(l => { const m = /^\s*N\/A\(([\w-]+)\):\s*(.+)$/.exec(l); return m && m[1] === tag && m[2].trim().split(/\s+/).length >= 4; }); };
 const securitySpec = () => { try { return JSON.parse(fs.readFileSync(at('tools/hooks/requirements.json'), 'utf8')).requirements.find(r => r.tag === 'security-code')?.when?.changedContentMatches || null; } catch { return null; } };

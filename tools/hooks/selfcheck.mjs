@@ -501,6 +501,9 @@ const SETUP_DONE = { 'docs/BRIEF.md': () => SETUP_BRIEF, 'CLAUDE.md': () => SETU
 // the user's note when an answer is held back: a heading with the count and round, then one short line per step
 // with an icon, at most eight lines, nothing cut mid-word
 const userNote = m => typeof m === 'string' && /^⚓ \S[^:\n]*: almost done, \d+ steps? left \(round \d+ of \d+\)(\n {3}\S+ [^\n]{3,90}){1,7}$/u.test(m);
+// (a change past the small-fix size (rule 12: up to 3 files and 40 lines), for v2 versions of tests whose step only a
+// bigger change is asked for)
+const BIG_EXPORT = Array.from({ length: 45 }, (_, i) => `export const go${i} = () => ${i};`).join('\n') + '\n';
 const STOP = [
   { name: 'small talk, no tools: passes', prompt: 'thanks, that looks great', answer: 'Glad it helps.', expect: { block: false } },
   { pack: 'knowledge', name: 'quick KB question with few tools: no runbook needed', prompt: 'hey whats the price we found for desk x', tools: [{ name: 'Read', input: { file_path: 'docs/knowledge/desks.md' } }, ...many(2)], edit: { 'docs/knowledge/desks.md': () => KNOW }, answer: '$300 (docs/knowledge/desks.md)', expect: { block: false } },
@@ -1088,15 +1091,20 @@ const STOP = [
     const log = JSON.stringify({ at: new Date(Date.now() + 3_600_000).toISOString(), cmd: 'node tools/hooks/hooks.mjs waive changelog "the user is restarting now, records go to the next session"', out: 'waived for this turn: changelog (the user is restarting now, records go to the next session)', error: false }) + '\n';
     return [
       { name: 'waive: a waiver whose output went to /dev/null counts by its record in the run log', prompt: 'add a csv export', files: { 'src/export.js': 'export const go = () => 1;\n', 'tools/hooks/state/runs.jsonl': log },
-        tools: [bash(cmd, '')], answer: 'Added the export.\n\n**Finished**\n- `src/export.js`', expect: { not: ['changelog'] } },
+        tools: [bash(cmd, '')], answer: 'Added the export.\n\n**Finished**\n- `src/export.js`', expect: { not: ['changelog'] },
+        // (under v2 a change past the small-fix size, so the changelog is asked and the waiver is what lets it pass)
+        v2: { files: { 'src/export.js': BIG_EXPORT, 'tools/hooks/state/runs.jsonl': log } } },
       { name: 'waive: the same command with no record in the run log waives nothing', prompt: 'add a csv export', files: { 'src/export.js': 'export const go = () => 1;\n' },
-        tools: [bash(cmd, '')], answer: 'Added the export.\n\n**Finished**\n- `src/export.js`', expect: { tags: ['changelog'] } },
+        tools: [bash(cmd, '')], answer: 'Added the export.\n\n**Finished**\n- `src/export.js`', expect: { tags: ['changelog'] },
+        v2: { files: { 'src/export.js': BIG_EXPORT } } },
     ]; })(),
   // (a waiver counts only when the waive command confirmed it. Lesson (the engine gap review): a refused waiver still
   // dropped its check)
   { name: 'waive: a waiver the waive command refused does not count', prompt: 'add a csv export', files: { 'src/export.js': 'export const go = () => 1;\n' },
     tools: [bash('node tools/hooks/hooks.mjs waive changelog "n/a"', 'not waived: give a reason of at least a few words')],
-    answer: 'Added the export.' + FIN, expect: { block: true, tags: ['changelog'] } },
+    answer: 'Added the export.' + FIN, expect: { block: true, tags: ['changelog'] },
+    // (under v2 a change past the small-fix size, so the changelog is asked: a small fix needs none, rule 12)
+    v2: { files: { 'src/export.js': BIG_EXPORT } } },
   { name: 'skill-learn: a complaint with no failed check of the skill demands no lesson: passes', prompt: 'you forgot the logs, debug the failing import', tools: [sk('debug')], files: { 'scratch-work/import.md': 'x', 'docs/CHANGELOG.md': 'x' },
     answer: 'Skill: debug. Root cause: the date parser.' + FIN, expect: { not: ['skill-learn'] } },
   { name: 'skill-learn: another check failed, not the followed skill\'s own: no lesson demanded', prompt: 'debug the failing import', tools: [sk('debug')], files: { 'scratch-work/import.md': 'x', 'docs/CHANGELOG.md': 'x' },
@@ -5211,6 +5219,7 @@ const V2_ASKS = {
   'injection-guard': /^- \S.* contain text that reads as instructions to an AI /m,
   'no-verbatim-examples': /^- These files copy the user's own words: /m,
   'name-var': /^- Names are written once, in docs\/names\.json/m,
+  'changelog': /^- Check: Add a dated line to docs\/CHANGELOG\.md for what changed/m,
   'note-linked': /^- New notes? \S.* links? to nothing\. /m,
   'waiver-tally': /waived in 3\+ earlier turns here/,
   'injection-flagged': /^- Something read this turn carries instructions aimed at an AI /m,

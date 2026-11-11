@@ -144,8 +144,6 @@ stop: unresolved-carryover: the same work continues and last turn's CHANGELOG li
 stop: unrouted work turn with no runbook created: blocked
 stop: upset-acknowledged: the runbook opened, its checklist not recorded to the end: blocked
 stop: waiting end: what the full check would ask stays on record for the next Stop
-stop: waive: a waiver the waive command refused does not count
-stop: waive: the same command with no record in the run log waives nothing
 trigger-words: a message that sets off the upset handling goes to the trigger log
 unresolved-carryover: notices once per turn, none for a mid-turn message, last turn's misses once
 unresolved-carryover: the first prompt does not repeat the session start's notices

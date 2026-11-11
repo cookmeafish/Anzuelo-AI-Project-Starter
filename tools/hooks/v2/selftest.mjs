@@ -634,6 +634,19 @@ report(missing({ runbook: null }, acts([user('fix it'), edit, say('Fixed.')])).l
   report(/docs\/zz-guide\.md: "Deskmate" is typed out; write <!--name:PROJECT_NAME-->/.test(r.doc[0] || '') && /src\/zz-title\.mjs: "Deskmate" is typed out; read it from docs\/names\.json/.test(r.code[0] || '') && !r.marker.length && !r.read.length,
     'end: name-var: a name typed out in a doc or in code is held with its fix; in its marker or read from docs/names.json it passes', JSON.stringify(r).slice(0, 400));
 }
+// waive: a waiver counts by the confirmation the waive command printed, or by its own record in the run log since the
+// turn began when the output was thrown away; a refused one, or a command with no record, waives nothing. (the old
+// engine's rule, ported)
+{
+  const { waivedTag } = await import('./lib.mjs');
+  const log = path.join(dir, 'tools/hooks/state/runs.jsonl'), keep = fs.existsSync(log) ? fs.readFileSync(log, 'utf8') : null;
+  const at = new Date(Date.now() - 2000).toISOString(), cmd = 'node tools/hooks/hooks.mjs waive changelog "the user is restarting now" >/dev/null && git status --short';
+  const w = (out, rec) => { fs.mkdirSync(path.dirname(log), { recursive: true }); fs.writeFileSync(log, rec ? JSON.stringify({ at: new Date().toISOString(), cmd: 'node tools/hooks/hooks.mjs waive changelog "x"', out: rec, error: false }) + '\n' : ''); const a = acts([user('add a csv export'), call('Bash', { command: cmd }, out), say('Added.')]); a.at = at; return waivedTag('changelog', a); };
+  const r = { printed: w('waived for this turn: changelog (the user is restarting now)'), logged: w('', 'waived for this turn: changelog (the user is restarting now)'),
+    refused: w('not waived: give a reason of at least a few words'), noRecord: w(''), otherTag: w('', 'waived for this turn: finished-summary (x y z w)') };
+  keep === null ? fs.rmSync(log, { force: true }) : fs.writeFileSync(log, keep);
+  report(r.printed && r.logged && !r.refused && !r.noRecord && !r.otherTag, 'end: waive: a waiver counts by its printed confirmation or, its output thrown away, by its record in the run log this turn; a refused one or no record waives nothing', JSON.stringify(r));
+}
 const chose = missing({ runbook: null }, acts([user('fix the orders file'), read, edit, say('Fixed.')]));
 report(chose.some(s => /export\.md item 1/.test(s)) && !chose.some(s => /^Open/.test(s)), 'end: with none routed, the runbook the agent opened is the one the turn is held to', chose);
 // (a runbook the turn wrote and read back is its work, not the procedure it chose. Lesson (trial v43))
