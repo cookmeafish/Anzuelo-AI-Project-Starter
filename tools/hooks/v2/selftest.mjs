@@ -3611,9 +3611,10 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     const okD = caseDir('ok'); const ok = child(okD, "const d = testDir('a-'); fs.writeFileSync(d + '/f.txt', 'x'); console.log(fs.existsSync(d));");
     const errD = caseDir('err'); child(errD, "testDir('b-'); throw new Error('boom');");
     const oldD = caseDir('old'); const oldR = child(oldD, "const a = testDir('kept-', { keep: true }), b = testDir('stale-', { keep: true }); const t = (Date.now() - 2 * 3600_000) / 1000; fs.utimesSync(b, t, t); console.log(cleanOld(3600_000), fs.existsSync(a), fs.existsSync(b));");
-    // (a whole tagged run of the old suite, in an empty temp folder)
+    // (a whole tagged run of the old suite, in an empty temp folder; plan-required writes files outside its project folder
+    // on purpose. Lesson (a release chain, 2026-11-11): that folder outlived the run)
     const runD = caseDir('run');
-    const run = spawnSync(process.execPath, [path.join(repoT, 'tools/hooks/selfcheck.mjs'), '--tags', 'stop-reblock'], { cwd: repoT, encoding: 'utf8', env: envT(runD), timeout: 600000 });
+    const run = spawnSync(process.execPath, [path.join(repoT, 'tools/hooks/selfcheck.mjs'), '--tags', 'stop-reblock,plan-required'], { cwd: repoT, encoding: 'utf8', env: envT(runD), timeout: 600000 });
     const res = { ok: [ok.stdout.trim(), left(okD)], err: left(errD), old: oldR.stdout.trim(), run: [/selfcheck: (ALL PASS|FAIL)/.exec(run.stdout || '')?.[0] || (run.stderr || '').slice(0, 120), left(runD)] };
     report(res.ok[0] === 'true' && !res.ok[1].length && !res.err.length && res.old === '1 true false' && /selfcheck:/.test(res.run[0]) && !res.run[1].length,
       'temp: test folders live under one root and are removed when their run ends, passed or failed; clean-tests removes only old leftovers; a test run leaves nothing in the temp folder', JSON.stringify(res));
