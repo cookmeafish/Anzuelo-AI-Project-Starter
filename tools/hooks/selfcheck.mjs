@@ -4441,7 +4441,10 @@ const gateV2 = run => ({ v2: { edit: VALIDATOR_V2, tools: [editTool('data/a.json
 STOP.push(
   { name: 'bg-moved: a foreground command moved to the background holds the Stop while it runs', prompt: 'run the full sweep over the notes', tools: [bash('node tools/sweep.mjs', MOVED('buj1w44ls', BG_OUT('a')))],
     files: { 'docs/rota.md': 'r' }, answer: 'Started the sweep.', expect: { block: false },
-    after: dir => { let j = {}; try { j = JSON.parse(fs.readFileSync(path.join(dir, 'tools/hooks/state/turn-end.json'), 'utf8')); } catch { } return j.pending >= 1 || `not held: ${JSON.stringify(j)}`; } },
+    after: dir => { let j = {}; try { j = JSON.parse(fs.readFileSync(path.join(dir, 'tools/hooks/state/turn-end.json'), 'utf8')); } catch { } return j.pending >= 1 || `not held: ${JSON.stringify(j)}`; },
+    // (under v2 the Stop's own record says it waited for the run: the last line of its stop log, which needs a session)
+    v2: { hookInput: { session_id: 'bgm-hold0' }, after: dir => { const l = (() => { try { return fs.readFileSync(path.join(dir, 'tools/hooks/state/stop-log.jsonl'), 'utf8').trim().split('\n').at(-1); } catch { return ''; } })();
+      let j = {}; try { j = JSON.parse(l); } catch { } return j.result === 'waiting' || `not held: ${l.slice(0, 200)}`; } } },
   { name: 'bg-moved: after its notice, the run counts by its output file: passes', edit: VALIDATOR, prompt: 'validate the data files', prep: () => fs.writeFileSync(BG_OUT('b'), 'checked 3 files\nRESULT: PASS\n'),
     tools: [bash('node tools/validate.mjs', MOVED('bv2a', BG_OUT('b')))], rows: [MOVED_DONE('bv2a', 0)], files: { 'data/a.json': '{}', 'docs/CHANGELOG.md': 'x' }, answer: 'Validated.' + FIN, expect: { not: ['data-valid'] },
     ...gateV2(bash('node tools/validate.mjs', MOVED('bv2a', BG_OUT('b')))) },
