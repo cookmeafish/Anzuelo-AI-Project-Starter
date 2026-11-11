@@ -1681,6 +1681,12 @@ report(/would run/.test(healthGaps(acts([user('add a step'), rule, say('Added.')
 }
 fs.rmSync(path.join(dir, 'tools/audit.mjs'));
 
+{ // (the starter's dev check: a run of the self-test counts, a look at one scenario (--explain, --route) does not)
+  const { DEV_SELF_TESTS } = await import('../base-checks.mjs');
+  const rx = new RegExp(DEV_SELF_TESTS.require.toolPassed.cmd);
+  const d = { run: rx.test('node tools/hooks/v2/selftest.mjs'), tags: rx.test('node tools/hooks/selfcheck.mjs --tags x'), explain: rx.test('node tools/hooks/selfcheck.mjs --explain "a"'), route: rx.test('node tools/hooks/selfcheck.mjs --route "a"') };
+  report(d.run && d.tags && !d.explain && !d.route, 'dev: the starter\'s self-test step counts a run of the self-test, never a look at one scenario (--explain, --route)', d);
+}
 { // (REQ: runbook-cold-read: a new hand-written runbook is read cold by one helper before it is relied on; a helper whose
   // brief names it, or "Cold read: <file> - ..." in the answer, meets it; a generated mirror asks for nothing)
   const { coldReadGaps } = await import('./lib.mjs');

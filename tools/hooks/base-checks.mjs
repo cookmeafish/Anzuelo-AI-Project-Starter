@@ -42,7 +42,9 @@ export const SELF_WRITTEN = ['tools/hooks/engine-proof.json', 'tools/starter/STA
 // (a run of the self-test, not a command that only names the file: "git add tools/hooks/selfcheck.mjs" read as a failed
 // run. Under v2 its own self-test, tools/hooks/v2/selftest.mjs, counts too: the release chain runs the whole old suite)
 export const DEV_SELF_TESTS = { tag: 'dev-self-tests', rule: '12', when: { filesChanged: ['tools/**', 'packs/**', 'library/**', 'skills/**', '.githooks/**'], filesIgnore: SELF_WRITTEN },
-  require: { toolPassed: { cmd: String.raw`\bnode\s+(\S*[\\/])?(selfcheck|selftest)\.mjs`, pass: 'ALL PASS' } },
+  // (a look at one scenario, --explain, --route or --contract, runs no tests: it is no run of them. Lesson (this starter's
+  // own turn): an --explain after a passing self-test brought the step back)
+  require: { toolPassed: { cmd: String.raw`\bnode\s+(\S*[\\/])?(selfcheck|selftest)\.mjs(?![^\n|;&]*--(explain|route|contract)\b)`, pass: 'ALL PASS' } },
   message: 'The starter\'s engine changed: run its self-test (node tools/hooks/v2/selftest.mjs, or node tools/hooks/selfcheck.mjs) until it prints "ALL PASS".' };
 export const DEV_CHANGELOG = { tag: 'dev-changelog', rule: '12', when: { filesChanged: ENGINE_FILES, filesIgnore: SELF_WRITTEN }, require: { filesChanged: ['tools/starter/STARTER-CHANGELOG.md'] },
   message: 'Projects learn what changed from tools/starter/STARTER-CHANGELOG.md: add what this turn changed to today\'s entry.' };
