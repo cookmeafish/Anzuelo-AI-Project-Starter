@@ -2009,12 +2009,13 @@ export const worked = acts => acts.calls.some(c => /^(Edit|Write|MultiEdit|Noteb
 const STATE = () => at('tools/hooks/state');
 const stateFile = sid => path.join(STATE(), `v2-turn.${String(sid || 'x').replace(/[^\w-]/g, '').slice(0, 64)}.json`);
 // (no session, no record: a run without a session id (the hook timing, a hand run) would share one made-up record)
-export const saveTurn = (sid, v) => { if (!sid) return; try { fs.mkdirSync(STATE(), { recursive: true }); fs.writeFileSync(stateFile(sid), JSON.stringify(v)); } catch { } };
+// (nor a session with no readable transcript, a hand run with a made-up id: V2_NO_STATE, set by hooks.mjs)
+export const saveTurn = (sid, v) => { if (!sid || process.env.V2_NO_STATE) return; try { fs.mkdirSync(STATE(), { recursive: true }); fs.writeFileSync(stateFile(sid), JSON.stringify(v)); } catch { } };
 // The Stop log: one line per Stop decision (time, session, request start, round, result, steps), capped at 64 KB (the
 // last 200 kept), read with "hooks.mjs last [N]". No session (a timing or hand run): nothing. Lesson (the old suite
 // under v2): v2 Stops were never logged, so "last" said none had run while every turn was being checked.
 export const logStop = (sid, entry) => {
-  if (!sid || process.env.STARTER_BENCH || process.env.KS_BENCH) return;
+  if (!sid || process.env.STARTER_BENCH || process.env.KS_BENCH || process.env.V2_NO_STATE) return;
   try {
     fs.mkdirSync(STATE(), { recursive: true });
     const f = path.join(STATE(), 'stop-log.jsonl');
@@ -2027,7 +2028,7 @@ export const loadTurn = sid => { if (!sid) return {}; try { return JSON.parse(fs
 // The uncommitted files' git hashes at turn start, by a detached process (git repos; not in timing runs or V2_NO_SNAPSHOT
 // tests; none past 2,000 files or 5 s; "done": when it ended; day-old ones removed). Lesson: HEAD missed earlier edits.
 const dirtyFile = sid => path.join(STATE(), `v2-dirty.${String(sid || 'x').replace(/[^\w-]/g, '').slice(0, 64)}.json`);
-export const snapshotLater = (sid, at0) => { if (sid && !process.env.STARTER_BENCH && !process.env.V2_NO_SNAPSHOT && fs.existsSync(path.join(ROOT, '.git'))) try { spawn(process.execPath, [fileURLToPath(import.meta.url), '--snapshot-dirty', sid, at0], { cwd: os.tmpdir(), detached: true, stdio: 'ignore', windowsHide: true, env: { ...process.env, ANZUELO_ROOT: ROOT } }).unref(); } catch { } };
+export const snapshotLater = (sid, at0) => { if (sid && !process.env.STARTER_BENCH && !process.env.V2_NO_SNAPSHOT && !process.env.V2_NO_STATE && fs.existsSync(path.join(ROOT, '.git'))) try { spawn(process.execPath, [fileURLToPath(import.meta.url), '--snapshot-dirty', sid, at0], { cwd: os.tmpdir(), detached: true, stdio: 'ignore', windowsHide: true, env: { ...process.env, ANZUELO_ROOT: ROOT } }).unref(); } catch { } };
 const SNAP_TEXTS = ['tools/hooks/requirements.json', 'tools/hooks/config.json', 'docs/checks/always.md'];
 export function snapshotDirty(sid, at0) {
   const t0 = Date.now(), g = (a, input) => String(spawnSync('git', ['-C', ROOT, ...a], { encoding: 'utf8', timeout: 5000, maxBuffer: 1 << 26, input }).stdout || '').split('\n').map(s => s.trim());

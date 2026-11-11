@@ -6791,6 +6791,9 @@ if (isMain) {
   if ((cmd === 'prompt' || cmd === 'stop') && ENGINE === 'v2') {
     try {
       process.env.ANZUELO_ROOT ||= ROOT;
+      // (a made-up session with no readable transcript (a hand run) keeps no session state under v2 either: no turn
+      // record, snapshot or Stop log line. Lesson (the old suite under v2): each hand run left a turn record behind)
+      if (NO_TRANSCRIPT) process.env.V2_NO_STATE = '1';
       // (REQ: engine-parity: what the user saw under the old engine is shown, dropped with a reason, or open: v2/lines.mjs)
       // (REQ: twin-sync: AGENTS.md and CLAUDE.md, when both carry the twin note, are synced before the end check, the newer
       // winning, as the old engine's Stop did; an edit made by a command reaches no post-tool hook. Lesson (the old suite

@@ -60,7 +60,10 @@ const ENGINE_IF_MISSING = ['tools/hooks/project-scenarios.mjs', 'docs/plans/READ
 // Engine skills merged into another (the old folder and its checks go on upgrade), and pack runbooks whose job an engine
 // skill took over (the upgrade review offers to merge them; the project may have tuned them).
 const RETIRED_CORE = { 'web-search': { into: 'research', tags: ['search-cited'] } };
-const RETIRED_FILES = ['tools/hooks/test-hooks.mjs'];
+// (tools/new-project.mjs: the starter's own project maker, which early installs copied into projects; nothing refreshed
+// it, and it stopped loading once the engine body moved to hooks-main.mjs. Projects run the starter's copy. Lesson (a
+// project's upgrade report, 2026-11-11))
+const RETIRED_FILES = ['tools/hooks/test-hooks.mjs', 'tools/new-project.mjs'];
 // Engine files that were renamed: references in the project's own docs move with them (paths only).
 const RENAMED_FILES = { 'tools/hooks/test-hooks.mjs': 'tools/hooks/selfcheck.mjs' };
 const MERGED_RUNBOOKS = { research: 'research', 'answer-question': 'research' };

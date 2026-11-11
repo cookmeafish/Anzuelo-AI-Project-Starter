@@ -443,7 +443,8 @@ if (cmd === 'link') {
   // Up to date means this project's engine matches the starter's, not that the pull brought nothing new.
   // Lesson: "update --dry-run" pulled, so the real update then said "already the newest" with the engine still old.
   const same = f => { try { return fs.readFileSync(path.join(link, f)).equals(fs.readFileSync(at(f))); } catch { return false; } };
-  const current = ['tools/hooks/hooks.mjs', 'tools/hooks/hooks-main.mjs', 'tools/hooks/engine-checks.json', 'tools/new-project.mjs', 'tools/audit.mjs'].every(same);
+  // (not tools/new-project.mjs: projects run the starter's copy, and an upgrade retires a stale one in the project)
+  const current = ['tools/hooks/hooks.mjs', 'tools/hooks/hooks-main.mjs', 'tools/hooks/engine-checks.json', 'tools/audit.mjs'].every(same);
   if (before === after && current && !process.argv.includes('--force')) { console.log('Done: this project already runs the newest starter, so there is nothing to upgrade. (--force upgrades anyway.)'); process.exit(0); }
   console.log(before === after ? 'Upgrading from the current starter (--force).' : `Got the newest starter (${g('rev-list', '--count', `${before}..${after}`).stdout.trim()} new change(s)). Upgrading this project from it.`);
   const r = spawnSync(process.execPath, [path.join(link, 'tools', 'new-project.mjs'), ROOT, '--upgrade', ...upgradeFlags()], { encoding: 'utf8', stdio: 'inherit' });

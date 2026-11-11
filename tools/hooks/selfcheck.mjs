@@ -7556,6 +7556,8 @@ if (mineB()) { // two sessions in one folder: each keeps its own turn record, so
   try {
     // (a real session has a transcript holding its request; a hook run by hand with a made-up id has none and keeps no
     // session state at all: NO_TRANSCRIPT in hooks.mjs)
+    // (under v2 the turn-start snapshot is git's view of the folder: the copy is a repository, as projects are)
+    if (process.env.STARTER_ENGINE === 'v2') gitInit(dir);
     const asked = { aaa: 'write the menu for spring', bbb: 'fix the login page' }, at0 = new Date(Date.now() - 1000).toISOString();
     const tps = Object.fromEntries(['aaa', 'bbb'].map(s => { const f = path.join(dir, `.cache/${s}.jsonl`); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, JSON.stringify({ type: 'user', timestamp: at0, message: { role: 'user', content: asked[s] } }) + '\n'); return [s, f]; }));
     run(dir, 'prompt', { prompt: 'write the menu for spring', session_id: 'aaa', transcript_path: tps.aaa });
@@ -7563,23 +7565,31 @@ if (mineB()) { // two sessions in one folder: each keeps its own turn record, so
     run(dir, 'prompt', { prompt: 'try the hook by hand', session_id: 'madeup' });
     run(dir, 'prompt', { prompt: 'try the hook by hand', session_id: 'missing', transcript_path: path.join(dir, 'no-such.jsonl') });
     const st = n => { try { return JSON.parse(fs.readFileSync(path.join(dir, 'tools/hooks/state', n), 'utf8')); } catch { return {}; } };
-    const a = st('turn.aaa.json'), b = st('turn.bbb.json');
-    report(/spring/.test(a.prompt || '') && !/login/.test(a.prompt || '') && /login/.test(b.prompt || '') && !!st('snapshot.aaa.json').files,
-      'sessions: two sessions in one folder keep separate turn records and snapshots', `${(a.prompt || '').slice(0, 60)} | ${(b.prompt || '').slice(0, 60)}`);
-    report(!fs.readdirSync(path.join(dir, 'tools/hooks/state')).some(f => /\.(madeup|missing)\.json$/.test(f)) && !!st('turn.aaa.json').prompt,
+    // (each engine's own files: v2 keeps v2-turn.<session>.json, naming the session's transcript, and its turn-start
+    // snapshot v2-dirty.<session>.json, written by a detached process a moment later)
+    const V2 = process.env.STARTER_ENGINE === 'v2';
+    const a = st(V2 ? 'v2-turn.aaa.json' : 'turn.aaa.json'), b = st(V2 ? 'v2-turn.bbb.json' : 'turn.bbb.json');
+    const own = (r, s, other) => V2 ? String(r.transcript || '').endsWith(`${s}.jsonl`) : new RegExp(s === 'aaa' ? 'spring' : 'login').test(r.prompt || '') && !new RegExp(other).test(r.prompt || '');
+    const snapA = V2 ? (() => { for (let i = 0; i < 30 && !fs.existsSync(path.join(dir, 'tools/hooks/state/v2-dirty.aaa.json')); i++) spawnSync(process.execPath, ['-e', 'setTimeout(()=>{},100)']); return !!st('v2-dirty.aaa.json').files; })() : !!st('snapshot.aaa.json').files;
+    report(own(a, 'aaa', 'login') && own(b, 'bbb', 'spring') && snapA,
+      'sessions: two sessions in one folder keep separate turn records and snapshots', `${JSON.stringify(a).slice(0, 120)} | ${JSON.stringify(b).slice(0, 120)}`);
+    report(!fs.readdirSync(path.join(dir, 'tools/hooks/state')).some(f => /\.(madeup|missing)\.json$/.test(f)) && (V2 ? !!a.at : !!st('turn.aaa.json').prompt),
       'state-hygiene: a hook run by hand with a made-up session id and no readable transcript writes no snapshot or turn record', fs.readdirSync(path.join(dir, 'tools/hooks/state')).join(', '));
     // each session's stop rounds are its own: a block in one never resets or adds to the other's count
     write(dir, { 'docs/menu.md': '# Spring menu\n' });
     // (each session wrote it with its own tool call: with two sessions in the folder, a file counts only for the one
     // that wrote or named it)
-    for (const s of ['aaa', 'bbb']) fs.appendFileSync(tps[s], JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', id: `toolu_menu_${s}`, name: 'Write', input: { file_path: path.join(dir, 'docs/menu.md'), content: '# Spring menu\n' } }] } }) + '\n'
-      + JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: `toolu_menu_${s}`, content: 'ok' }] } }) + '\n');
+    // (timed, as a host writes them: v2 reads a turn's calls by their time against the turn's start)
+    const ts = new Date().toISOString();
+    for (const s of ['aaa', 'bbb']) fs.appendFileSync(tps[s], JSON.stringify({ type: 'assistant', timestamp: ts, message: { content: [{ type: 'tool_use', id: `toolu_menu_${s}`, name: 'Write', input: { file_path: path.join(dir, 'docs/menu.md'), content: '# Spring menu\n' } }] } }) + '\n'
+      + JSON.stringify({ type: 'user', timestamp: ts, message: { content: [{ type: 'tool_result', tool_use_id: `toolu_menu_${s}`, content: 'ok' }] } }) + '\n');
     run(dir, 'stop', { session_id: 'aaa', transcript_path: tps.aaa, last_assistant_message: 'Wrote the menu.' });
     run(dir, 'stop', { session_id: 'bbb', transcript_path: tps.bbb, last_assistant_message: 'Fixed it.' });
     run(dir, 'stop', { session_id: 'aaa', transcript_path: tps.aaa, last_assistant_message: 'Wrote the menu.', stop_hook_active: true });
-    const count = n => Object.values(st(n))[0] || 0;
-    report(count('stop-blocks.aaa.json') === 2 && count('stop-blocks.bbb.json') === 1 && !fs.existsSync(path.join(dir, 'tools/hooks/state/stop-blocks.json')),
-      'sessions: each session counts its own stop rounds', `aaa ${count('stop-blocks.aaa.json')}, bbb ${count('stop-blocks.bbb.json')}`);
+    // (v2 counts a session's rounds in its own turn record)
+    const count = s => V2 ? st(`v2-turn.${s}.json`).rounds || 0 : Object.values(st(`stop-blocks.${s}.json`))[0] || 0;
+    report(count('aaa') === 2 && count('bbb') === 1 && !fs.existsSync(path.join(dir, 'tools/hooks/state/stop-blocks.json')),
+      'sessions: each session counts its own stop rounds', `aaa ${count('aaa')}, bbb ${count('bbb')}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
 }
 
@@ -7870,15 +7880,18 @@ if (mineB()) { // state-no-transcript: a hook run with a made-up session id and 
     run(dir, 'session', { session_id: 'headless1', transcript_path: headlessTp, source: 'startup' });
     run(dir, 'prompt', { session_id: 'headless1', transcript_path: headlessTp, prompt: 'what does the brief say' });
     const headless = ls().filter(f => !hb.has(f));
-    let hTurn = {}; try { hTurn = JSON.parse(fs.readFileSync(path.join(stDir, 'turn.headless1.json'), 'utf8')); } catch { }
+    // (each engine's own turn record: v2 keeps v2-turn.<session>.json, with no copy of the prompt, and its snapshot comes
+    // from git, so a folder that is no repository has none)
+    const V2 = process.env.STARTER_ENGINE === 'v2', turnF = s => V2 ? `v2-turn.${s}.json` : `turn.${s}.json`;
+    let hTurn = {}; try { hTurn = JSON.parse(fs.readFileSync(path.join(stDir, turnF('headless1')), 'utf8')); } catch { }
     // a session with no session start of its own (none ran, as in some hosts) starts its turn the same way
     const bareTp = path.join(dir, '.cache/tp/bare1.jsonl'); fs.writeFileSync(bareTp, '');
     run(dir, 'prompt', { session_id: 'bare1', transcript_path: bareTp, prompt: 'what does the brief say' });
-    let bTurn = {}; try { bTurn = JSON.parse(fs.readFileSync(path.join(stDir, 'turn.bare1.json'), 'utf8')); } catch { }
-    const newTurn = r => Date.now() - Date.parse(r.at || 0) < 600_000 && !/set up the project/.test(r.prompt || '') && /what does the brief say/.test(r.prompt || '');
+    let bTurn = {}; try { bTurn = JSON.parse(fs.readFileSync(path.join(stDir, turnF('bare1')), 'utf8')); } catch { }
+    const newTurn = r => Date.now() - Date.parse(r.at || 0) < 600_000 && (V2 || (!/set up the project/.test(r.prompt || '') && /what does the brief say/.test(r.prompt || '')));
     const ok = Object.values(quiet).every(r => !r.own.length && !r.snap.length && !r.logged)
-      && ['turn.realSession1.json', 'snapshot.realSession1.json', 'notices-shown.realSession1.json', 'turn-end.realSession1.json'].every(f => realRun.own.includes(f)) && realRun.logged
-      && ['turn.headless1.json', 'snapshot.headless1.json'].every(f => headless.includes(f)) && newTurn(hTurn) && newTurn(bTurn);
+      && (V2 ? ['v2-turn.realSession1.json'] : ['turn.realSession1.json', 'snapshot.realSession1.json', 'notices-shown.realSession1.json', 'turn-end.realSession1.json']).every(f => realRun.own.includes(f)) && realRun.logged
+      && (V2 ? ['v2-turn.headless1.json'] : ['turn.headless1.json', 'snapshot.headless1.json']).every(f => headless.includes(f)) && newTurn(hTurn) && newTurn(bTurn);
     report(ok, 'state-no-transcript: a made-up session id with an empty, blank or unreadable transcript (or none) writes no session state, snapshot or Stop log line; a real transcript still does, also a headless first prompt whose host-named transcript is still empty, which starts a new turn',
       JSON.stringify({ ...quiet, real: realRun, headless, hTurn: { at: hTurn.at, prompt: hTurn.prompt }, bTurn: { at: bTurn.at, prompt: bTurn.prompt } }).slice(0, 900));
   } finally { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }

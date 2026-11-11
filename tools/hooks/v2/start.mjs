@@ -321,7 +321,8 @@ export function onPrompt(data) {
   const sid = String(data.session_id || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
   // (no session id, as for an agent with no hooks: every prompt; a made-up id with no readable transcript writes no state)
   let digest = '';
-  const real = sid && data.transcript_path && fs.existsSync(String(data.transcript_path));
+  // (a readable transcript, as hooks.mjs judges it: an empty, blank or folder path is none: V2_NO_STATE)
+  const real = sid && !process.env.V2_NO_STATE && data.transcript_path && fs.existsSync(String(data.transcript_path));
   if (text && projectConfig().promptDigest !== false && !(sid && (fs.existsSync(at(`tools/hooks/state/checklist.${sid}.json`)) || fs.existsSync(at(`tools/hooks/state/digest.${sid}.json`))))) {
     digest = DIGEST; if (real) try { fs.mkdirSync(at('tools/hooks/state'), { recursive: true }); fs.writeFileSync(at(`tools/hooks/state/digest.${sid}.json`), '{}'); } catch { } }
   // (REQ: trigger-words: each message the upset, rule or praise handling fired on goes to the trigger log

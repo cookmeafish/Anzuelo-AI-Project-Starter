@@ -3004,6 +3004,8 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     const notes = path.join(c, '.cache/turn-notes.md'), old = new Date(Date.now() - 3600_000);
     fs.writeFileSync(notes, 'Issue: the export dropped rows with commas | runbook: learn-from-upset | fixed when: every row is in the export\n'); fs.utimesSync(notes, old, old);
     const env = { ...process.env, STARTER_ENGINE: 'v2', ANZUELO_ROOT: c, CLAUDE_PROJECT_DIR: c };
+    // (a real session's transcript: a hand run with no transcript keeps no session state)
+    fs.writeFileSync(path.join(c, 't.jsonl'), JSON.stringify({ type: 'user', timestamp: new Date().toISOString(), message: { role: 'user', content: 'what does the setup runbook do' } }) + '\n');
     const run = (cmd, extra) => spawnSync(process.execPath, [path.join(c, 'tools/hooks/hooks.mjs'), cmd], { cwd: c, encoding: 'utf8', input: JSON.stringify({ session_id: 'freshack', transcript_path: path.join(c, 't.jsonl'), ...extra }), env }).stdout || '';
     run('prompt', { prompt: 'what does the setup runbook do' });
     const first = run('pretool', { tool_name: 'Bash', tool_input: { command: 'ls docs' } });
@@ -3012,6 +3014,30 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     fs.rmSync(c, { recursive: true, force: true });
     report(!/acknowledged/.test(first) && /acknowledged: the summary named a file/.test(own),
       'pretool: a new session shows no other session\'s old "acknowledged" line; its own new Issue line still shows', { first: first.slice(0, 200), own: own.slice(0, 200) });
+  }
+  // (state-hygiene under v2: a hand run with a made-up session id and no readable transcript (none, empty, blank, a
+  // folder) keeps no turn record, snapshot or Stop log line; a real transcript does, and so does a host's own transcript
+  // named after the session that is not written yet (a headless first prompt). The old suite's state-hygiene tests)
+  {
+    const { spawnSync } = await import('node:child_process');
+    const c = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-v2-hyg-'));
+    fs.mkdirSync(path.join(c, 'tools/hooks/state'), { recursive: true }); fs.mkdirSync(path.join(c, '.cache/tp'), { recursive: true });
+    fs.cpSync(path.join(repo, 'tools/hooks/v2'), path.join(c, 'tools/hooks/v2'), { recursive: true });
+    for (const f of ['hooks.mjs', 'hooks-main.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'pause.mjs', 'caps.mjs', 'relay.mjs', 'claims.mjs', 'grant.mjs', 'count.mjs', 'datadirs.mjs', 'names.mjs', 'rootfiles.mjs', 'menu.mjs', 'history.mjs', 'writing.mjs', 'excuse.mjs', 'extstop.mjs', 'decide.mjs', 'worth.mjs', 'gui.mjs', 'correct.mjs', 'praise.mjs', 'planreq.mjs', 'near.mjs', 'skilllearn.mjs', 'hooktests.mjs', 'donewhen.mjs', 'gates.mjs', 'launchers.mjs', 'trace.mjs', 'proof.mjs', 'knowledge.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(c, 'tools/hooks', f));
+    const env = { ...process.env, STARTER_ENGINE: 'v2', ANZUELO_ROOT: c, CLAUDE_PROJECT_DIR: c };
+    const tp = n => path.join(c, '.cache/tp', n);
+    fs.writeFileSync(tp('empty.jsonl'), ''); fs.writeFileSync(tp('blank.jsonl'), '\n  \n');
+    fs.writeFileSync(tp('real.jsonl'), JSON.stringify({ type: 'user', timestamp: new Date().toISOString(), message: { role: 'user', content: 'what does the brief say' } }) + '\n');
+    const ls = () => fs.readdirSync(path.join(c, 'tools/hooks/state'));
+    const log = () => { try { return fs.readFileSync(path.join(c, 'tools/hooks/state/stop-log.jsonl'), 'utf8'); } catch { return ''; } };
+    const turn = (sid, t) => { for (const [cmd, extra] of [['prompt', { prompt: 'what does the brief say' }], ['stop', { last_assistant_message: 'It says what the project is for.' }]])
+      spawnSync(process.execPath, [path.join(c, 'tools/hooks/hooks.mjs'), cmd], { cwd: c, encoding: 'utf8', input: JSON.stringify({ session_id: sid, ...(t ? { transcript_path: t } : {}), ...extra }), env });
+      return { files: ls().filter(f => f.includes(sid)), logged: log().includes(`"session":"${sid}"`) }; };
+    const quiet = { none: turn('handNone'), empty: turn('handEmpty', tp('empty.jsonl')), blank: turn('handBlank', tp('blank.jsonl')), folder: turn('handFolder', path.join(c, '.cache/tp')) };
+    const real = turn('realOne', tp('real.jsonl')), headless = turn('headlessOne', tp('headlessOne.jsonl'));
+    fs.rmSync(c, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+    report(Object.values(quiet).every(r => !r.files.length && !r.logged) && real.files.includes('v2-turn.realOne.json') && real.logged && headless.files.includes('v2-turn.headlessOne.json'),
+      'state-hygiene: a hand run with a made-up session id and no readable transcript keeps no turn record, snapshot or Stop log line; a real transcript, or the host\'s own not yet written, does', JSON.stringify({ quiet, real, headless }));
   }
   // (the draft check: the health line alone is a pass on a first or a repeat check; a repeat's real item still fails)
   {
@@ -3486,7 +3512,8 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   for (const f of ['hooks.mjs', 'hooks-main.mjs', 'paths.mjs', 'settings.mjs', 'repo.mjs', 'people.mjs', 'labels.mjs', 'base-checks.mjs', 'wakeups.mjs', 'injection.mjs', 'jsonl.mjs', 'selfcmds.mjs', 'pause.mjs', 'caps.mjs', 'relay.mjs', 'claims.mjs', 'grant.mjs', 'count.mjs', 'datadirs.mjs', 'names.mjs', 'rootfiles.mjs', 'menu.mjs', 'history.mjs', 'writing.mjs', 'excuse.mjs', 'extstop.mjs', 'decide.mjs', 'worth.mjs', 'gui.mjs', 'correct.mjs', 'praise.mjs', 'planreq.mjs', 'near.mjs', 'skilllearn.mjs', 'hooktests.mjs', 'donewhen.mjs', 'gates.mjs', 'launchers.mjs', 'trace.mjs', 'proof.mjs', 'knowledge.mjs', 'defaults.json', 'config.json']) fs.copyFileSync(path.join(repo, 'tools/hooks', f), path.join(eng, 'tools/hooks', f));
   const book = (root, name, trig) => { fs.mkdirSync(path.join(root, 'docs/playbooks'), { recursive: true }); fs.writeFileSync(path.join(root, 'docs/playbooks', `${name}.md`), `---\nname: ${name}\nsummary: s\ntriggers: ${trig}\n---\n# ${name}\n\n## Done when\n- [ ] ${name} item one\n`); };
   book(eng, 'invoice', 'send the invoice'); book(loc, 'harvest', 'plan the harvest');
-  const ask = (prompt, sid) => spawnSync(process.execPath, [path.join(eng, 'tools/hooks/hooks.mjs'), 'prompt'], { cwd: proj, encoding: 'utf8', input: JSON.stringify({ session_id: sid, prompt }),
+  // (each with the host's transcript named after its session, not written yet: a hand run with no transcript keeps no state)
+  const ask = (prompt, sid) => spawnSync(process.execPath, [path.join(eng, 'tools/hooks/hooks.mjs'), 'prompt'], { cwd: proj, encoding: 'utf8', input: JSON.stringify({ session_id: sid, prompt, transcript_path: path.join(proj, '.cache', `${sid}.jsonl`) }),
     env: { ...process.env, STARTER_ENGINE: 'v2', ANZUELO_ROOT: proj, CLAUDE_PROJECT_DIR: proj } }).stdout || '';
   const a = ask('plan the harvest for next week', 'splitone'), b = ask('send the invoice to the shop', 'splittwo');
   const state = d => { try { return fs.readdirSync(d).filter(f => f.startsWith('v2-turn.')); } catch { return []; } };
