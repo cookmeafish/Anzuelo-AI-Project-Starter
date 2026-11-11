@@ -2092,7 +2092,10 @@ STOP.push(
     answer: 'Added. N/A(runbook-exists): test.' + FIN, expect: { not: ['fit-checklist'] } },
   // Lesson: in an adopted project, editing its own main.py asked to move it out of the root
   { name: 'root-tidy: editing a file that was already in the root: passes', prompt: 'save my notes',
-    prep: dir => { write(dir, { 'notes.txt': 'x' }); run(dir, 'prompt', { prompt: 'save my notes' }); }, files: { 'notes.txt': 'x2' }, answer: 'Saved. N/A(runbook-exists): test.' + FIN, expect: { not: ['root-tidy'] } },
+    prep: dir => { write(dir, { 'notes.txt': 'x' }); run(dir, 'prompt', { prompt: 'save my notes' }); }, files: { 'notes.txt': 'x2' }, answer: 'Saved. N/A(runbook-exists): test.' + FIN, expect: { not: ['root-tidy'] },
+    // (under v2 the file was there before the turn by git's last commit: v2 keeps no file list of its own outside git)
+    v2: { prep: dir => { write(dir, { 'notes.txt': 'x' }); const g = (...a) => spawnSync('git', a, { cwd: dir, env: { ...process.env, GIT_AUTHOR_DATE: '2026-01-01T00:00:00Z', GIT_COMMITTER_DATE: '2026-01-01T00:00:00Z' } });
+      g('init', '-q'); g('add', '-A'); g('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--no-verify', '-m', 'old'); run(dir, 'prompt', { prompt: 'save my notes' }); } } },
   // plain writing
   { name: 'answer with an em dash: blocked', prompt: 'hello', answer: 'Sure \u2014 here it is.', expect: { block: true, tags: ['plain-writing'] } },
   { name: 'answer with filler: blocked', prompt: 'hello', answer: 'Great question! I hope this helps.', expect: { block: true, tags: ['plain-writing'] } },
@@ -5219,6 +5222,7 @@ const V2_ASKS = {
   'injection-guard': /^- \S.* contain text that reads as instructions to an AI /m,
   'no-verbatim-examples': /^- These files copy the user's own words: /m,
   'name-var': /^- Names are written once, in docs\/names\.json/m,
+  'root-tidy': /^- New files sit loose in the project root: /m,
   'changelog': /^- Check: Add a dated line to docs\/CHANGELOG\.md for what changed/m,
   'note-linked': /^- New notes? \S.* links? to nothing\. /m,
   'waiver-tally': /waived in 3\+ earlier turns here/,

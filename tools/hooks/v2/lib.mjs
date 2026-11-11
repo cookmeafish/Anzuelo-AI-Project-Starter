@@ -1853,7 +1853,12 @@ export const opened = (book, acts) => acts.calls.some(c => (c.name === 'Read' &&
 const inRoot = f => { const r = path.relative(ROOT, path.resolve(ROOT, String(f || ''))); return !!f && !r.startsWith('..') && !path.isAbsolute(r); };
 // (edit tools only, for now: counting files a command changed held 24 passing old scenarios whose fixtures change files
 // with no edit call (the old suite under v2, 2026-11-09); open in the triage doc)
-export const worked = acts => acts.calls.some(c => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name) && inRoot(c.input?.file_path || c.input?.notebook_path));
+// (an edit only to the status or decisions record, or to the engine's notes and state, is bookkeeping, not work: rule
+// 12 counts them as records. Lesson (the old suite under v2): a question that only updated docs/STATUS.md was held to
+// its runbook's changelog line and Finished section)
+const BOOKKEEPING = /^(docs\/(STATUS|DECISIONS)\.md|tools\/starter\/STATUS\.md|\.cache\/.*|tools\/hooks\/state\/.*)$/;
+export const worked = acts => acts.calls.some(c => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name) && inRoot(c.input?.file_path || c.input?.notebook_path)
+  && !BOOKKEEPING.test(path.relative(ROOT, path.resolve(ROOT, String(c.input?.file_path || c.input?.notebook_path))).replace(/\\/g, '/')));
 
 const STATE = () => at('tools/hooks/state');
 const stateFile = sid => path.join(STATE(), `v2-turn.${String(sid || 'x').replace(/[^\w-]/g, '').slice(0, 64)}.json`);

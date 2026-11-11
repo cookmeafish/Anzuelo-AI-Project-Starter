@@ -30,6 +30,7 @@ import { reviewExcuse } from '../excuse.mjs';
 import { frictionGaps } from './friction.mjs';
 import { VERBATIM_ENGINE } from './verbatim.mjs';
 import { NAMES_FILE, NAME_FILES, namesIn, nameProblems, headsOf, newLinesOf } from '../names.mjs';
+import { rootToolchainFile } from '../rootfiles.mjs';
 import { waivedTag, gitClaimGaps } from './lib.mjs';
 import { wakeGaps, watchersArmed, watcherLeft } from '../wakeups.mjs';
 import { makeSkillLearn } from '../skilllearn.mjs';
@@ -42,7 +43,7 @@ import { ROOT, at, runbooks, turnRows, turnActs, met, applies, opened, worked, l
 const TIMES = process.env.ANZUELO_V2_TIMING ? [] : null;
 const laps = () => { let t = TIMES ? performance.now() : 0; return name => { if (!TIMES) return; const n = performance.now(); TIMES.push([name, Math.round((n - t) * 10) / 10]); t = n; }; };
 const S = (name, f) => { const t = TIMES ? performance.now() : 0; try { return f(); } catch (e) { return [crashLine(name, e)]; } finally { if (TIMES) TIMES.push([name, Math.round((performance.now() - t) * 10) / 10]); } };
-const tableGaps = acts => [...alwaysGaps(acts), ...engineCheckGaps(acts), ...forbiddenGaps(acts), ...codeRuleGaps(acts), ...injectionGaps(acts), ...verbatimGaps(acts), ...planGaps(acts), ...noteLinkedGaps(acts), ...nameVarGaps(acts)];
+const tableGaps = acts => [...alwaysGaps(acts), ...engineCheckGaps(acts), ...forbiddenGaps(acts), ...codeRuleGaps(acts), ...injectionGaps(acts), ...verbatimGaps(acts), ...planGaps(acts), ...noteLinkedGaps(acts), ...nameVarGaps(acts), ...rootTidyGaps(acts)];
 // REQ: plan-required, under v2: the shared tools/hooks/planreq.mjs. A file is new this turn when git's last commit and
 // the turn-start snapshot do not have it and it was made after the turn began. The git lookup runs only when the cheap
 // conditions already hold (enough changed files, open work said, no plan or status recorded).
@@ -78,6 +79,27 @@ export function noteLinkedGaps(acts) {
   const unlinked = notes.filter(p => { if (!born(p)) return false; let t = ''; try { t = fs.readFileSync(at(p), 'utf8'); } catch { return false; }
     return !/\]\([^)\s]+\.md(#[^)]*)?\)|\[\[[^\]]+\]\]/.test(t) && !(t.split(/^##\s+Related[^\n]*\n/m)[1] || '').trim(); });
   return unlinked.length ? [`New note${unlinked.length > 1 ? 's' : ''} ${unlinked.slice(0, 4).join(', ')} link${unlinked.length > 1 ? '' : 's'} to nothing. Link each to its related notes (in the text or under "## Related"; node skills/obsidian/scripts/notes.mjs suggest <note> finds candidates), or say under "## Related" why it stands alone (obsidian skill).`] : [];
+}
+
+// Whether a file is new this turn: not in git's last commit or the turn-start snapshot, and made after the turn began.
+const bornNow = acts => {
+  const since = Date.parse(acts.at || '') || 0, start = acts.startHashes?.files || {};
+  let head = null; const inHead = p => { if (head === null) head = new Set((r => r.status === 0 ? r.stdout.split('\n') : [])(spawnSync('git', ['ls-tree', '-r', '--name-only', 'HEAD'], { cwd: ROOT, encoding: 'utf8', timeout: 5000, maxBuffer: 1 << 26 }))); return head.has(p); };
+  // (a file the turn first touched with an edit, not a write, was there before it, as the proof check reads it. Lesson
+  // (the v2 self-test): an edited root file in a folder without git was taken for a new one)
+  const first = new Map(); for (const c of acts.calls || []) if (/^(Write|Edit|MultiEdit|NotebookEdit)$/.test(c.name)) { const f = path.relative(ROOT, path.resolve(ROOT, String(c.input?.file_path || c.input?.notebook_path || ''))).replace(/\\/g, '/'); if (!first.has(f)) first.set(f, c.name); }
+  return p => { if (start[p] || /^(Edit|MultiEdit|NotebookEdit)$/.test(first.get(p) || '') || inHead(p)) return false; try { return fs.statSync(at(p)).birthtimeMs > since - 1000; } catch { return false; } };
+};
+// REQ: root-tidy (rule 13), under v2, as the old engine judged it: a file new this turn sits loose in the project root
+// while the root holds only what people open first (rootAllowed) and what a language or tool needs there (the shared
+// tools/hooks/rootfiles.mjs). A file already in the root is the project's own layout.
+export function rootTidyGaps(acts) {
+  if (checkOff('root-tidy')) return [];
+  const cfg = projectConfig(), cands = changedOf(acts).filter(p => p && !p.includes('/') && !inGlobs(p, [].concat(cfg.rootAllowed || [])) && fs.existsSync(at(p)));
+  if (!cands.length) return [];
+  const born = bornNow(acts), rootFiles = () => { try { return fs.readdirSync(ROOT, { withFileTypes: true }).filter(e => e.isFile()).map(e => e.name); } catch { return []; } };
+  const loose = cands.filter(p => !rootToolchainFile(p, { match: (n, gs) => inGlobs(n, [].concat(gs || [])), rootFiles }) && born(p));
+  return loose.length ? [`New files sit loose in the project root: ${loose.join(', ')}. Move each into the folder that fits (docs/checks/layout-standards.md), or add it to rootAllowed in tools/hooks/config.json if it really must live in the root (toolchain config, the one start file).`] : [];
 }
 
 // REQ: name-var (rule 17), under v2: the shared tools/hooks/names.mjs, as the old engine judged it. A changeable name

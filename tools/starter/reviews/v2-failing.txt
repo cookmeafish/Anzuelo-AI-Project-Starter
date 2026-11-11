@@ -85,9 +85,7 @@ stop-reblock: blocks count per request across waits for background jobs, the cap
 stop: "keep doing this" with nothing written down: blocked
 stop: 2nd block in a turn still blocks
 stop: GUI reviewed but no Visual review verdict: blocked
-stop: a loose new file in the project root: blocked
 stop: a new runbook gets its skill and DIRECTORY row generated
-stop: a question that only updated STATUS: passes
 stop: a runbook used through its generated skill counts as followed: passes
 stop: answer relies on a stale knowledge file without saying so: blocked
 stop: answer-language: a Spanish visual review with no verdict: blocked
