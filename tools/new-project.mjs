@@ -36,6 +36,10 @@ const starterHead = () => (spawnSync('git', ['rev-parse', '--short', 'HEAD'], { 
 const ENGINE = [
   'tools/hooks/hooks.mjs', 'tools/hooks/hooks-main.mjs', 'tools/hooks/selfcheck.mjs', 'tools/hooks/selftest-cache.mjs', 'tools/hooks/trigger-cases.mjs', 'tools/hooks/git-guard.mjs', 'tools/hooks/statusline.mjs', 'tools/hooks/paths.mjs', 'tools/hooks/settings.mjs', 'tools/hooks/repo.mjs', 'tools/hooks/people.mjs', 'tools/hooks/labels.mjs', 'tools/hooks/base-checks.mjs', 'tools/hooks/wakeups.mjs', 'tools/hooks/injection.mjs', 'tools/hooks/jsonl.mjs', 'tools/hooks/selfcmds.mjs', 'tools/hooks/pause.mjs', 'tools/hooks/caps.mjs', 'tools/hooks/relay.mjs', 'tools/hooks/claims.mjs', 'tools/hooks/grant.mjs', 'tools/hooks/count.mjs', 'tools/hooks/datadirs.mjs', 'tools/hooks/names.mjs', 'tools/hooks/rootfiles.mjs', 'tools/hooks/menu.mjs', 'tools/hooks/history.mjs', 'tools/hooks/writing.mjs', 'tools/hooks/excuse.mjs', 'tools/hooks/extstop.mjs', 'tools/hooks/decide.mjs', 'tools/hooks/worth.mjs', 'tools/hooks/gui.mjs', 'tools/hooks/correct.mjs', 'tools/hooks/praise.mjs', 'tools/hooks/planreq.mjs', 'tools/hooks/near.mjs', 'tools/hooks/skilllearn.mjs', 'tools/hooks/hooktests.mjs', 'tools/hooks/donewhen.mjs', 'tools/hooks/gates.mjs', 'tools/hooks/launchers.mjs', 'tools/hooks/trace.mjs', 'tools/hooks/proof.mjs', 'tools/hooks/knowledge.mjs', 'tools/audit.mjs', 'tools/always.mjs', 'tools/packs.mjs',
   'tools/writing-check.mjs', 'tools/integrity-check.mjs',
+  // (the project maker itself: a project runs it for a self-install, as its SETUP-PROMPT.md says. Lesson (a project's
+  // upgrade report, 2026-11-11): upgrades never refreshed it, and once the engine body moved to hooks-main.mjs the
+  // project's old copy no longer loaded)
+  'tools/new-project.mjs',
   '.githooks/commit-msg', '.githooks/pre-commit', '.githooks/pre-push',
   'docs/checks/session-checklist.md', 'docs/checks/finish-checklist.md', 'docs/checks/runbook-standards.md',
   'docs/checks/writing-standards.md', 'docs/checks/layout-standards.md', 'docs/recommended-tools.md', 'docs/checks/better-or-worse.md',
@@ -60,10 +64,7 @@ const ENGINE_IF_MISSING = ['tools/hooks/project-scenarios.mjs', 'docs/plans/READ
 // Engine skills merged into another (the old folder and its checks go on upgrade), and pack runbooks whose job an engine
 // skill took over (the upgrade review offers to merge them; the project may have tuned them).
 const RETIRED_CORE = { 'web-search': { into: 'research', tags: ['search-cited'] } };
-// (tools/new-project.mjs: the starter's own project maker, which early installs copied into projects; nothing refreshed
-// it, and it stopped loading once the engine body moved to hooks-main.mjs. Projects run the starter's copy. Lesson (a
-// project's upgrade report, 2026-11-11))
-const RETIRED_FILES = ['tools/hooks/test-hooks.mjs', 'tools/new-project.mjs'];
+const RETIRED_FILES = ['tools/hooks/test-hooks.mjs'];
 // Engine files that were renamed: references in the project's own docs move with them (paths only).
 const RENAMED_FILES = { 'tools/hooks/test-hooks.mjs': 'tools/hooks/selfcheck.mjs' };
 const MERGED_RUNBOOKS = { research: 'research', 'answer-question': 'research' };

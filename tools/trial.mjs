@@ -195,8 +195,8 @@ for (const [name, s] of Object.entries(SAMPLES)) {
   }
   // a project made before engine v2 has no tools/hooks/v2 folder
   fs.rmSync(path.join(dir, 'tools/hooks/v2'), { recursive: true, force: true });
-  // (an early install left a copy of the starter's own project maker in the project; upgrades never refreshed it, and once
-  // the engine moved its body to hooks-main.mjs it no longer loaded. Lesson (a project's upgrade report))
+  // (a project's copy of the project maker as an early install left it: upgrades never refreshed it, and once the engine
+  // moved its body to hooks-main.mjs it no longer loaded. Lesson (a project's upgrade report))
   write(dir, { 'tools/new-project.mjs': "import { CORE_SKILLS } from './hooks/hooks.mjs';\nconsole.log(CORE_SKILLS);\n" });
   const mine = snapshot(dir);
   // the dry run's summary names the refreshed checks and their file, never a "(root)" file. Lesson (two field reports):
@@ -210,8 +210,8 @@ for (const [name, s] of Object.entries(SAMPLES)) {
     if (cited && !noPrev) check(name, 'a dry-run upgrade lists refreshed checks by name and file, not as a root file', !/\(root\)/.test(out) && /refresh .*research-cited.* in tools\/hooks\/requirements\.json/.test(out), out.slice(0, 400));
   }
   const u1 = starterRun(dir, '--upgrade', '--accept-findings');
-  check(name, 'an upgrade retires the stale project copy of the starter\'s project maker (tools/new-project.mjs), keeping a backup',
-    !fs.existsSync(path.join(dir, 'tools/new-project.mjs')) && /retired\s+tools\/new-project\.mjs/.test(u1.stdout || ''), (u1.stdout || '').split('\n').filter(l => /retired|new-project/.test(l)).join(' | ').slice(0, 300));
+  check(name, 'an upgrade refreshes the project\'s copy of the project maker (tools/new-project.mjs), which an old install left stale',
+    (() => { try { return fs.readFileSync(path.join(dir, 'tools/new-project.mjs')).equals(fs.readFileSync(path.join(STARTER, 'tools/new-project.mjs'))); } catch { return false; } })(), (u1.stdout || '').split('\n').filter(l => /new-project/.test(l)).join(' | ').slice(0, 300));
   const rq1 = JSON.parse(fs.readFileSync(rqPath, 'utf8')).requirements, starterRq = JSON.parse(fs.readFileSync(path.join(STARTER, 'tools/hooks/requirements.json'), 'utf8')).requirements;
   const review = (() => { try { return fs.readFileSync(path.join(dir, 'docs/DECISIONS.md'), 'utf8'); } catch { return ''; } })();
   if (cited && !noPrev) check(name, 'an upgrade refreshes an outdated core skill check the project never edited', JSON.stringify(rq1.find(r => r.tag === 'research-cited')?.require) === JSON.stringify(starterRq.find(r => r.tag === 'research-cited')?.require));

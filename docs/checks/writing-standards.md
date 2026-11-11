@@ -123,7 +123,7 @@ Changed `config.json` and `tests/config.test.mjs`.
 Or reply in your own words.
 ```
 A bare `Error: ENOENT` becomes: "**Problem:** `docs/BRIEF.md` is missing, so setup can't read the project's
-purpose. Run the setup again, or tell me what the project is for and I'll write it."
+purpose. Run `node tools/new-project.mjs` again, or tell me what the project is for and I'll write it."
 
 ### Answers with sources
 An answer built on facts (research, the knowledge base, a lookup) follows the research skill's answer format
