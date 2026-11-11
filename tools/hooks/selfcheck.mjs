@@ -2167,7 +2167,10 @@ STOP.push(
   { pack: 'app', name: 'code-rules: an XSS payload in a test file is not a pop-up call: passes', prompt: 'add a feature to export reports as csv', tools: [pb('feature')], files: { ...SPEC, 'tests/export.test.js': "const bad = '<script>alert(1)</script>';\n" },
     answer: 'Playbook: feature.md.\n' + VERIF + FIN, expect: { not: ['code-rules'] } },
   // app pack
-  { pack: 'app', name: 'feature done right: passes', prompt: 'add a feature to export reports as csv', tools: [pb('feature')], files: SPEC, answer: 'Playbook: feature.md.\n' + VERIF + FIN, expect: { block: false } },
+  { pack: 'app', name: 'feature done right: passes', prompt: 'add a feature to export reports as csv', tools: [pb('feature')], files: SPEC, answer: 'Playbook: feature.md.\n' + VERIF + FIN, expect: { block: false },
+    // (under v2 the runbook's items to verify come once: with the draft checked first, as the rules ask for real work,
+    // the answer goes out once. The user, 2026-11-07, docs/checks/user-requirements.md row 44)
+    v2: { tools: [pb('feature'), ...Object.entries(SPEC).filter(([, v]) => v !== undefined).map(([f, v]) => ({ name: 'Write', input: { file_path: f, content: String(v) } })), bash('node tools/hooks/hooks.mjs check --answer-file .cache/answer.md', 'CHECK: PASS - send this text as your answer as it stands')] } },
   // Lesson: a correct **Verification** block failed twice, because only a # heading counted
   { pack: 'app', name: 'verification-report: a bold Verification line counts like a heading: passes', prompt: 'add a feature to export reports as csv', tools: [pb('feature')], files: SPEC,
     answer: 'Playbook: feature.md.\n' + VERIF.replace(/^#{1,6}\s*Verification[^\n]*/m, '**Verification**') + FIN, expect: { not: ['verification-report'] } },
