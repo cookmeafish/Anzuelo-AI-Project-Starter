@@ -276,6 +276,9 @@ export function onPrompt(data) {
   // (so is a helper's report back: the words of its report route nowhere. Lesson (live): a review helper's report
   // routed to the project runbook, and the end check asked for its rule-request items)
   if (/^\s*(<(task-notification|system-reminder)\b|\[SYSTEM NOTIFICATION)/i.test(String(data.prompt || '')) || /<agent-message\b[^>]*>\s*\[Subagent hand-back\]/.test(String(data.prompt || ''))) return null;
+  // (so is the summary that resumes a session after its context ran out: the work goes on under the turn it continues,
+  // and the words it recaps route nowhere. Lesson (the old suite under v2): a resumed summary got a fresh reminder)
+  if (/^\s*This session is being continued from a previous conversation\b/i.test(String(data.prompt || ''))) return null;
   // (a message that arrives while a turn runs joins that turn: it gets its reminder, and the turn keeps its start and
   // its runbook. A turn ends when its Stop passes; one left open over 12 hours, as after a crash, does not hold.
   // Lesson (live): a mid-turn message moved the turn's start, and the end check lost the work done before it)

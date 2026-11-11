@@ -1411,7 +1411,10 @@ export function injectionGaps(acts) {
 // The user's own words in what was said: a message relayed from another session, a helper or the host is not theirs.
 // Lesson (the old suite under v2, once the safety checks read every changed file): a helper's sentence written into a
 // note was flagged as the user's words copied.
-export const ownWords = s => String(s || '').replace(/<(cross-session-message|agent-message|task-notification|system-reminder)\b[\s\S]*?(?:<\/\1>|$(?![\s\S]))/gi, ' ').split(/^\s*Another Claude session sent a message/m)[0];
+// (nor the summary that resumes a session after its context ran out: the host wrote it from the agent's own work, file
+// lists and lessons. Lesson (a live session): engine lesson comments and file lists were called the user's words)
+export const ownWords = s => String(s || '').replace(/<(cross-session-message|agent-message|task-notification|system-reminder)\b[\s\S]*?(?:<\/\1>|$(?![\s\S]))/gi, ' ').split(/^\s*Another Claude session sent a message/m)[0]
+  .split(/This session is being continued from a previous conversation/)[0];
 export function verbatimGaps(acts) {
   const hits = verbatimHits({ root: ROOT, cfg: projectConfig(), prompts: [...(acts.earlier || []), acts.heard].filter(Boolean).map(ownWords), changed: scanned(acts), calls: acts.calls });
   return hits.length ? [`These files copy the user's own words: ${hits.slice(0, 5).join('; ')}. Rephrase each as the general principle and why it matters (what goes wrong, for whom), without the user's examples, names or details.`] : [];

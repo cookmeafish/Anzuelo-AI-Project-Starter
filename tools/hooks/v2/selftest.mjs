@@ -192,6 +192,8 @@ report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/
   report(out === null && loadTurn('notice').runbook === 'docs/playbooks/export.md', 'start: a background-job notice mid-turn adds no reminder and keeps the runbook the turn was routed to', [out, loadTurn('notice').runbook]);
   const back = onPrompt({ session_id: 'notice', prompt: 'Another Claude session sent a message:\n<agent-message from="a1">\n[Subagent hand-back] The text below is the final report of a subagent.\n  Rule requests: none. The csv export review is written.\n</agent-message>' });
   report(back === null && loadTurn('notice').runbook === 'docs/playbooks/export.md', 'start: a helper\'s report back is not a request: no reminder, and the turn keeps its runbook', [back, loadTurn('notice').runbook]);
+  const resumed = onPrompt({ session_id: 'notice', prompt: 'This session is being continued from a previous conversation that ran out of context. Build me a cleaning rota for the flat.' });
+  report(resumed === null && loadTurn('notice').runbook === 'docs/playbooks/export.md', 'start: the summary that resumes a session after its context ran out gets no reminder, and the turn keeps its runbook', [resumed, loadTurn('notice').runbook]);
   // (a run with no session id, such as the hook timing, saves no turn record. Lesson (a field report): an upgrade's hook
   // timing left a turn record under a made-up id in the project's state folder)
   const { onStop } = await import('./end.mjs');
@@ -2037,8 +2039,7 @@ const { questionGaps } = await import('./lib.mjs');
   const reworded = lesson();
   const general = quoteGaps(acts([user(said), w('src/export.js', '// Lesson: the export dropped the totals row; keep it as the last row'), say('Fixed.')]));
   const dictated = quoteGaps(acts([user('add a footer that reads thanks for shopping with us today friends'), w('src/footer.html', '<p>thanks for shopping with us today friends</p>'), say('Added.')]));
-  const notes = quoteGaps(acts([user(said), w('.cache/turn-notes.md', 'Issue: "the totals row keeps vanishing every single time" | runbook: debug'), say('Fixed.')]));
-  if (had === null) fs.rmSync(cfgFile); else fs.writeFileSync(cfgFile, had);
+  const notes = quoteGaps(acts([user(said), w('.cache/turn-notes.md', 'Issue: "the totals row keeps vanishing every single time" | runbook: debug'), say('Fixed.')]));  if (had === null) fs.rmSync(cfgFile); else fs.writeFileSync(cfgFile, had);
   report(!unset.length && !off.length, 'end: the quote check is off in a project until the user turns it on ("quoteCheck": true), and off again with false', JSON.stringify({ unset, off }));
   report(quoted.length === 1 && /rule 14/.test(quoted[0]) && !reworded.length && !general.length && !dictated.length && !notes.length,
     'end: the user\'s own words written into a file as a quote are named once; one reworded since, a general lesson, a dictated line and a .cache note are not', JSON.stringify({ quoted, reworded, general, dictated, notes }));
@@ -2212,9 +2213,11 @@ report(madeUp.length === 2 && /9f8e7d6/.test(madeUp[0]) && /src\/missing\.js/.te
     const T0 = new Date(Date.now() - 60_000).toISOString();
     const relayed = Object.assign(acts([user(`tidy up\n<agent-message from="helper">${words}</agent-message>`), call('Write', { file_path: path.join(dir, 'docs/notes-a.md'), content: words }), say('Done.')]), { at: T0 });
     const typedT = Object.assign(acts([user(`tidy up: ${words}`), call('Write', { file_path: path.join(dir, 'docs/notes-a.md'), content: words }), say('Done.')]), { at: T0 });
-    const got = { relayed: verbatimGaps(relayed).length, typed: verbatimGaps(typedT).length };
+    // (nor is the summary that resumes a session after its context ran out: the host wrote it)
+    const resumed = Object.assign(acts([user(`This session is being continued from a previous conversation that ran out of context. Summary: ${words}`), call('Write', { file_path: path.join(dir, 'docs/notes-a.md'), content: words }), say('Done.')]), { at: T0 });
+    const got = { relayed: verbatimGaps(relayed).length, typed: verbatimGaps(typedT).length, resumed: verbatimGaps(resumed).length };
     fs.rmSync(path.join(dir, 'docs/notes-a.md'), { force: true });
-    report(got.relayed === 0 && got.typed > 0, 'end: a note copying a relayed helper message is not the user\'s words; one copying what the user typed is', got);
+    report(got.relayed === 0 && got.resumed === 0 && got.typed > 0, 'end: a note copying a relayed helper message, or a resumed session\'s summary, is not the user\'s words; one copying what the user typed is', got);
   }
   { // (Issue lines the agent wrote in earlier turns of the session count; the template's "<problem>", "none", and lines
     // after the turn's start do not)
