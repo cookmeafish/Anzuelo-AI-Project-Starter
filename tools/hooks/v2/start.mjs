@@ -7,6 +7,7 @@ import { closestRunbook, coreRunbook, isTaskRequest, userWords, AUTONOMY_WORDS, 
 import { isPraise } from '../praise.mjs';
 import { NUMBERS_ASK } from '../trace.mjs';
 import { openPlansOf } from '../planreq.mjs';
+import { expandMenuOf, menuLines } from '../menu.mjs';
 
 // REQ: check-preview. What the end check will also ask for if the work changes files, beyond the runbook's own list: the
 // engine checks that name this runbook or skill and apply once files change, and the project's own always.md items that
@@ -222,7 +223,11 @@ function remind(prompt) {
   const must = relayedRx.test(raw) || asksOnly(String(userWords(prompt)), projectConfig().changeWords) ? [] : forcedBy(String(userWords(prompt)));
   const mustLines = must.filter(m => m.name !== book?.name).map(m => m.acted ? `Must follow: ${m.name} (the request mentions "${m.word.slice(0, 40)}"): open ${m.file} now and follow it from the start; the end check holds it once the work does what it covers.`
     : `Likely fits: ${m.name} (the request mentions "${m.word.slice(0, 40)}"): open ${m.file} if the work turns out to need it.`);
-  if (!book) return { book: null, text: [...mustLines, friction, skill, praise, figures, autonomy, examples, shared, pick, es, ...rulesFor(prompt).map(r => `The project's own rule here: ${r}`), isTaskRequest(prompt, taskVerbs, toOtherSession(prompt)) ? alsoChecked(sk && skill ? [sk.name] : [], { unrouted: !(sk && skill) }) : ''].filter(Boolean).slice(0, MAX_LINES).join('\n') };
+  // (menu codes, several at once too, each said in full, and an unknown one asked about, as the old engine did; never in
+  // a relayed message, where a code is the other session's text. Lesson (the old suite under v2): only the first code
+  // routed, and an unknown one was guessed at)
+  const menuL = relayedRx.test(raw) ? [] : menuLines(expandMenuOf(String(userWords(prompt)), { root: ROOT }));
+  if (!book) return { book: null, text: [...menuL, ...mustLines, friction, skill, praise, figures, autonomy, examples, shared, pick, es, ...rulesFor(prompt).map(r => `The project's own rule here: ${r}`), isTaskRequest(prompt, taskVerbs, toOtherSession(prompt)) ? alsoChecked(sk && skill ? [sk.name] : [], { unrouted: !(sk && skill) }) : ''].filter(Boolean).slice(0, MAX_LINES).join('\n') };
   const own = rulesFor(prompt).map(r => `The project's own rule here: ${r}`);
   // (a message relayed from another session may only report: its runbook is for when it asks for work. Lesson (project
   // report): a note that a fix had landed got the bugfix runbook and its list, though it asked for nothing)
@@ -231,7 +236,7 @@ function remind(prompt) {
   // terms, in the runbook line itself: no extra line, and nothing on other turns. The end check catches a slip
   // (quoteGaps). On only with the quote check, quoteCheckOn)
   const lesson = quoteOn && (sore || ['project', 'learn-from-upset', 'runbook-create', 'project-rule'].includes(book.name)) ? ' Write any lesson in general terms, not in the user\'s own words.' : '';
-  const lines = [...(sore ? [sore] : []), ...(friction ? [friction] : []), ...mustLines, ...(es ? [es] : []), ...(praise ? [praise] : []), ...(figures ? [figures] : []), ...(autonomy ? [autonomy] : []), ...(examples ? [examples] : []), ...(shared ? [shared] : []), ...own, `Runbook${relayedRx.test(raw) ? ', only if this message asks for work here' : ''}: open ${book.file} and follow it.${lesson}`];
+  const lines = [...menuL, ...(sore ? [sore] : []), ...(friction ? [friction] : []), ...mustLines, ...(es ? [es] : []), ...(praise ? [praise] : []), ...(figures ? [figures] : []), ...(autonomy ? [autonomy] : []), ...(examples ? [examples] : []), ...(shared ? [shared] : []), ...own, `Runbook${relayedRx.test(raw) ? ', only if this message asks for work here' : ''}: open ${book.file} and follow it.${lesson}`];
   if (book.items.length) {
     // (and how to hold the answer until it passes, in the same line. Lesson (the user, 2026-11-07): an answer sent back
     // by the end check reached the user twice; the first version must already be the final one)

@@ -3,6 +3,7 @@
 // The docs say what the rules are; this file makes them automatic so nobody has to remind the agent.
 // Project-specific checks belong in requirements.json (data), not here. Core checks carry a "REQ: <tag>" comment that
 // docs/checks/rule-enforcement.md and tools/audit.mjs refer to. "Lesson:" marks a failure seen in an earlier project.
+import { menuOf, expandMenuOf } from './menu.mjs';
 import { ROOT_TOOLCHAINS, rootToolchainFile as sharedRootToolchain } from './rootfiles.mjs';
 export { ROOT_TOOLCHAINS };
 import { NAMES_FILE, NAME_MARK, NAME_DOCS, NAME_FILES, namesIn, subjectsIn, stampNames as sharedStamp, nameProblems as sharedNameProblems, codeIdentifiers as sharedCodeIds } from './names.mjs';
@@ -628,36 +629,9 @@ export function routeSkills(text, cfg = config(), routedPbs = null, { relayed = 
   return kept;
 }
 
-export function menu() {
-  const codes = {}, flags = {};
-  for (const line of read(abs('docs/MENU.md')).split(/\r?\n/)) {
-    const m = /^\|\s*`?([A-Z]\d{1,2})`?\s*\|\s*([^|]+?)\s*\|\s*`?([\w.-]+\.md)`?\s*\|\s*([^|]*?)\s*\|/.exec(line);
-    if (m) codes[m[1]] = { what: m[2], playbook: m[3], means: m[4] };
-    const f = /^\|\s*`?--([\w-]+)`?\s*\|\s*([^|]+?)\s*\|/.exec(line);
-    if (f) flags[f[1]] = f[2];
-  }
-  return { codes, flags };
-}
-
-// Menu codes are optional shortcuts: a code (and flags) stands for the full request written in docs/MENU.md.
-export function expandMenu(prompt) {
-  const { codes, flags } = menu();
-  const known = [], unknown = [], kflags = [], uflags = [];
-  // several codes at once ("A2 B4", "A2, B4", "A2+B4", "A2 and B4") each expand; an unknown one is asked about when it
-  // sits in the leading run of codes. Lesson: a project's menu took only the first of two codes.
-  const leadRun = /^\s*([A-Z]\d{1,2}(?:\s*(?:[,;/+&]|\band\b|\s)\s*[A-Z]\d{1,2})*)(?=$|[\s,.;:])/.exec(prompt || '');
-  const lead = new Set(leadRun ? leadRun[1].match(/[A-Z]\d{1,2}/g) : []);
-  for (const m of String(prompt || '').matchAll(/(?:^|[\s,;/+&])([A-Z]\d{1,2})(?=$|[\s,.;:/+&])/g)) {
-    if (codes[m[1]]) { if (!known.includes(m[1])) known.push(m[1]); } else if (lead.has(m[1]) && !unknown.includes(m[1])) unknown.push(m[1]);
-  }
-  if (known.length || lead.size) {
-    for (const m of String(prompt || '').matchAll(/(?:^|\s)--([\w-]+)(?:[ =]([^\s-][^\s]*))?/g)) {
-      if (flags[m[1]]) kflags.push([m[1], m[2] || '']); else uflags.push(m[1]);
-    }
-  }
-  const expanded = [prompt, ...known.map(c => codes[c].means), ...kflags.map(([f]) => flags[f]), ...(isSpanish(prompt) ? [routeEnglish(prompt)] : [])].join('\n');
-  return { known, unknown, kflags, uflags, expanded, codes, flags };
-}
+// (menu codes: tools/hooks/menu.mjs, shared with engine v2; moved whole 2026-11-10)
+export const menu = () => menuOf(ROOT);
+export const expandMenu = prompt => expandMenuOf(prompt, { root: ROOT, english: p => isSpanish(p) ? routeEnglish(p) : null });
 // A Spanish request routes like its English wording: its common task words in English, added for routing only (as
 // LABELS_ES does for the answer's labels), so runbooks need no Spanish triggers of their own. Phrases come before the
 // words in them. Lesson (trial round 10): "configura este proyecto" and "agrega una página de índice" got NO RUNBOOK,

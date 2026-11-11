@@ -27,8 +27,6 @@ prompt: fit-checklist: a request a deferred library skill is for asks to decide 
 prompt: fit-checklist: one trigger plus a word of the condition asks to decide it again
 prompt: goal-loop: "keep improving it until the tests never flake" routes to the loop
 prompt: inbox files are announced
-prompt: menu codes: codes joined by a comma or "and" both expand, an unknown one among them is asked about
-prompt: menu codes: two codes in one message both expand
 prompt: paste-routing: a short closing paragraph after the material still routes
 prompt: paste-routing: the same words in a short message still suggest the skill
 prompt: recall: Spanish, a close earlier request is recalled
@@ -54,7 +52,6 @@ prompt: starter-runbooks: a project never routes to the starter's own runbooks
 prompt: starter-runbooks: in the starter, "test it many times so nothing gets worse" routes to the improvement loop
 prompt: starter-runbooks: in the starter, "tests for hours, did it keep it on track or forget things" routes to the improvement loop
 prompt: starter-runbooks: in the starter, a report from another session routes to the field-report runbook
-prompt: unknown menu code asks
 prompt: unresolved checks from the last turn are announced
 recall-hint: a request like an earlier one gets how it was solved; an unrelated one gets nothing; recall.mjs finds it
 records-once flow (check change): round 1 lists each step once; round 2 has no record step (the check still needs its proof); the lesson in memory counts; the open records reach the next related turn
