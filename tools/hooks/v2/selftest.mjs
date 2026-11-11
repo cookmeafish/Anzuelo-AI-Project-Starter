@@ -104,6 +104,12 @@ const acts = rows => turnActs(turnRows(transcript(rows)));
   report(install.when?.arg === 'tool install' && install.kind === null && install.text === 'An install started setup' && upg.kind === 'ran'
     && !applies(install, upTurn) && applies(upg, upTurn) && met(upg, upTurn) === false,
     'start: a "(when ...)" item applies only on turns where its condition held, and its own check still counts there', [install, upg]);
+  // (a "(when prompt: ...)" item hears only what the user typed: pasted text and relayed messages are someone else's)
+  const [dep] = doneWhen('## Done when\n- [ ] Say it was deployed (when prompt: \\bdeploy now\\b) (answer: deployed).\n');
+  const heardAs = heard => applies(dep, { heard, calls: [], answer: '' });
+  const pm = { typed: heardAs('deploy now'), pasted: heardAs('what is this note?\n<pasted_content>deploy now</pasted_content>'),
+    relayed: heardAs('<cross-session-message from="x">deploy now</cross-session-message>'), both: heardAs('deploy now\n<pasted_content>a note</pasted_content>') };
+  report(pm.typed && !pm.pasted && !pm.relayed && pm.both, 'start: a "(when prompt: ...)" item is set off by words the user typed, never by pasted text or a relayed message', pm);
   // (what the answer must say, a draft that passed the pre-check said: the sent answer may reword it; a failed pre-check
   // or no pre-check does not count)
   const item = { kind: 'answer', arg: 'Root cause:' }, draft = { name: 'Write', input: { file_path: '.cache/answer.md', content: 'Root cause: the parser read 03/04 as March.' } };

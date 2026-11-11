@@ -6348,6 +6348,10 @@ async function v2Cli(cmd) {
     // still counts, and only shows the routing, as the old engine did. Lesson, trial round 19: a mid-turn begin made a
     // report already written look old, and the end check held it three times)
     const before = lib.loadTurn(sid), open = !!before.at && !before.ended && sid !== 'manual';
+    // (with no session (an agent with no hooks), each begin is a new request: the one before it is over, so a question
+    // is never read as typed mid-turn. Lesson (the release chain, 2026-11-10): the manual-path test failed whenever the
+    // run had no session id, as the second begin joined the turn the first had left open)
+    if (sid === 'manual' && before.at && !before.ended) lib.saveTurn(sid, { ...before, ended: true });
     // (an open turn: the routing for this text alone, with no session, so it neither joins the turn (which keeps the
     // turn's own runbook) nor saves anything. Lesson (the v2 sweep): the second begin in a session showed the first
     // request's runbook)

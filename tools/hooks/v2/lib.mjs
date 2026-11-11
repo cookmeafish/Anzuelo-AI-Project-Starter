@@ -599,7 +599,10 @@ export function met(item, acts) {
   // (an answer in the user's language meets it too, read with its labels in English, as the end checks read it)
   if (item.kind === 'answer') { const rx = new RegExp(item.arg, 'i'); return rx.test(acts.answer) || rx.test(inEnglish(acts.answer || '', projectConfig())) || passedDrafts(acts).some(d => rx.test(d)); }
   // (prompt: what the user typed this turn, mid-turn messages too; tool: a tool call whose name and input match)
-  if (item.kind === 'prompt') return new RegExp(item.arg, 'i').test(acts.heard || '');
+  // (pasted text, relayed messages and notices are someone else's words: only what the user typed counts, as the old
+  // engine's promptMatches judged it. Lesson (the old suite under v2): a pasted note saying "deploy now" set off a
+  // project's deploy item)
+  if (item.kind === 'prompt') return new RegExp(item.arg, 'i').test(String(acts.heard || '').replace(/<(pasted_content|cross-session-message|agent-message|task-notification)\b[\s\S]*?(?:<\/\1[^>]*>|$(?![\s\S]))/gi, ' '));
   if (item.kind === 'tool') { const rx = new RegExp(item.arg, 'i'); return acts.calls.some(c => rx.test(`${c.name} ${JSON.stringify(c.input || {})}`)); }
   if (item.kind === 'evidence') return evidenceGaps(acts).length === 0;
   // ("<command> => <output>": the run also printed that, such as a test's pass line)

@@ -2278,6 +2278,8 @@ const NEW_CHECK = s => JSON.stringify({ ...JSON.parse(s), requirements: [...JSON
 const MEAL_CHECK = { ...withReqs({ tag: 'meal-ok', when: { playbookUsed: 'meal-plan' }, require: { answerMatches: 'meals planned' }, message: 'Say the meals are planned.' }), 'docs/playbooks/meal-plan.md': () => NEWPB };
 const BUILD_GATE = withReqs({ tag: 'build-gate', when: { filesChanged: ['data/**'] }, require: { toolPassed: { cmd: 'npm run build', pass: '' } }, message: 'Run the build.' });
 const SAID = withReqs({ tag: 'deploy-said', when: { promptMatches: '\\bdeploy now\\b' }, require: { answerMatches: 'deployed' }, message: 'Say it was deployed.' });
+// (under v2 the same check is its converted always.md item, as tools/always.mjs writes it)
+const SAID_V2 = { 'docs/checks/always.md': () => '# Always\n\n## Done when\n- [ ] Say it was deployed (when prompt: \\bdeploy now\\b) (answer: deployed)\n' };
 const BG = { name: 'Agent', input: { prompt: 'Read AGENTS.md first and follow its rules. Write the export helpers.', run_in_background: true }, result: 'Async agent launched successfully.\nagentId: a1b2c3d4 (use it to check on the agent)' };
 const BG_DONE = { type: 'user', message: { role: 'user', content: '<task-notification>\n<task-id>a1b2c3d4</task-id>\n<status>completed</status>\n</task-notification>' } };
 const NO_KNOWLEDGE = { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), packs: (JSON.parse(s).packs || []).filter(p => p !== 'knowledge') }), 'tools/hooks/requirements.json': s => JSON.stringify({ ...JSON.parse(s), requirements: JSON.parse(s).requirements.filter(r => r.pack !== 'knowledge') }) };
@@ -2294,8 +2296,10 @@ STOP.push(
     answer: 'Ported the next group.', expect: { not: ['count-honored'] } },
   { name: 'count-honored: a count asked for beside a described one is still held: blocked', prompt: 'look at all 12 check results and give me 3 options',
     answer: 'Here are some: A, B.', expect: { block: true, tags: ['count-honored'], says: /asked for 3 options/ } },
-  { name: 'promptMatches: a check never fires on pasted text: passes', prompt: 'what is this note?\n<pasted_content>deploy now</pasted_content>', edit: SAID, answer: 'A note from the release list.', expect: { block: false, not: ['deploy-said'] } },
-  { name: 'promptMatches: the same words typed by the user still count: blocked', prompt: 'deploy now', edit: SAID, answer: 'Starting.', expect: { block: true, tags: ['deploy-said'] } },
+  { name: 'promptMatches: a check never fires on pasted text: passes', prompt: 'what is this note?\n<pasted_content>deploy now</pasted_content>', edit: SAID, answer: 'A note from the release list.', expect: { block: false, not: ['deploy-said'] },
+    v2: { edit: SAID_V2 } },
+  { name: 'promptMatches: the same words typed by the user still count: blocked', prompt: 'deploy now', edit: SAID, answer: 'Starting.', expect: { block: true, tags: ['deploy-said'] },
+    v2: { edit: SAID_V2, expect: { block: true, says: /always\.md item 1: Say it was deployed/ } } },
   // the block cap ends the turn quietly; a check that waits on background helpers is not carried over as a miss
   { name: 'block cap reached: a check that waits on background agents is not carried over', prompt: 'split the work across several agents', tools: [sk('parallel-agents')], files: { 'docs/rota.md': 'r' },
     answer: 'Skill: parallel-agents. Done.', active: true, blocks: 3, failed: ['finished-summary'], expect: { block: false },
