@@ -36,13 +36,9 @@ runbook-ledger: a notes file rewritten with other line endings during the turn c
 runbook-ledger: new records inserted above an earlier turn's lines count alone; the earlier lines stay out
 self-improve: an engine check that annoys a project is reported to the starter and announced there
 self-sent-prompt: a wakeup firing mid-turn keeps the request, its start and its snapshot, marked or not; a prompt the user types starts a new turn
-session and prompt notices: sent as hidden context where the host supports it, plain text elsewhere
-session: a resume after a turn that ended repeats no reminder and claims no interruption; a resume mid-turn checks the files
-session: the user sees nothing at the start (no "on duty", intact files or agent chores), only broken files; the agent still gets every notice
 stop rounds: round 1 lists every step, a waiver and markers from an earlier round hold, and later rounds bring nothing new
 stop-budget: over its budget the verdict names the 3 slowest checks
 stop-budget: the Stop hook stays within its 500 ms budget on a realistic work turn
-stop-follow-on guard: without hooks (check --answer-file): the preview names the checks, round 1 names what the fix sets off, a bare "answer unchanged" fails, and the named steps pass
 stop: "keep doing this" with nothing written down: blocked
 stop: 2nd block in a turn still blocks
 stop: GUI reviewed but no Visual review verdict: blocked
@@ -50,7 +46,6 @@ stop: answer-language: a Spanish visual review with no verdict: blocked
 stop: answer-noise: the Stop text steers waivers to the waive command, never to an N/A line in the answer
 stop: answer-noise: the re-answer instruction asks for no note about the steps or an earlier version
 stop: answer-resent: a round of file-only steps asks for "Answer unchanged; also updated", not a resend
-stop: audit-run self-run: a broken runbook link: the hooks run the audit, and its FAIL is the step
 stop: autonomy-recorded: "don't ask me" left only in the answer: blocked
 stop: block cap reached: a check that waits on background agents is not carried over
 stop: block cap reached: unresolved checks are saved for the next prompt
