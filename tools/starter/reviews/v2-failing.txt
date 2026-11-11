@@ -39,8 +39,6 @@ prompt: route: "remove the old starter from my project" still routes to the engi
 prompt: route: "what are the best options for backups" still routes to research
 prompt: route: a Spanish debug request gets the debug skill
 prompt: route: a phrase about the user's own notes routes ("add this fact to my notes")
-prompt: rule request hint
-prompt: rule request hint: asks for the new check's own scenarios, not the whole self-test
 prompt: rules digest on every prompt
 prompt: scope hint names the person (alias works)
 prompt: setup notice while SETUP-PROMPT.md is present (not the template)

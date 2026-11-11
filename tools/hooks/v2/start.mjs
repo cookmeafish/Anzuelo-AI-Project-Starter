@@ -241,7 +241,13 @@ function remind(prompt) {
   // terms, in the runbook line itself: no extra line, and nothing on other turns. The end check catches a slip
   // (quoteGaps). On only with the quote check, quoteCheckOn)
   const lesson = quoteOn && (sore || ['project', 'learn-from-upset', 'runbook-create', 'project-rule'].includes(book.name)) ? ' Write any lesson in general terms, not in the user\'s own words.' : '';
-  const lines = [...menuL, ...(sore ? [sore] : []), ...(friction ? [friction] : []), ...mustLines, ...(es ? [es] : []), ...(praise ? [praise] : []), ...(figures ? [figures] : []), ...(autonomy ? [autonomy] : []), ...(examples ? [examples] : []), ...(shared ? [shared] : []), ...own, `Runbook${relayedRx.test(raw) ? ', only if this message asks for work here' : ''}: open ${book.file} and follow it.${lesson}`];
+  // (REQ: rule-request: a standing rule routed to the project runbook hears, in the same line, the skill that records it
+  // and to test only its new check, as the old engine's hint said. Not on a complaint (the upset line leads there), nor
+  // in a relayed message. Lesson (the old suite under v2): the hint was gone, and agents ran the whole self-test for one
+  // new check)
+  const ruleNote = book.name === 'project' && !sore && !relayedRx.test(raw) && (book.matched === 'standing rule' || /\b(from now on|going forward|from here on|make (it|this|that) a rule|new rule|always|never|remember to|de ahora en adelante|a partir de ahora|desde ahora|siempre|nunca)\b/i.test(String(userWords(prompt))))
+    ? ' RULE REQUEST: record it with the project-rule skill, and run the new check\'s own scenarios (node tools/hooks/selfcheck.mjs --tags <tag>, not the whole self-test).' : '';
+  const lines = [...menuL, ...(sore ? [sore] : []), ...(friction ? [friction] : []), ...mustLines, ...(es ? [es] : []), ...(praise ? [praise] : []), ...(figures ? [figures] : []), ...(autonomy ? [autonomy] : []), ...(examples ? [examples] : []), ...(shared ? [shared] : []), ...own, `Runbook${relayedRx.test(raw) ? ', only if this message asks for work here' : ''}: open ${book.file} and follow it.${lesson}${ruleNote}`];
   if (book.items.length) {
     // (and how to hold the answer until it passes, in the same line. Lesson (the user, 2026-11-07): an answer sent back
     // by the end check reached the user twice; the first version must already be the final one)
