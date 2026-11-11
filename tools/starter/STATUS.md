@@ -17,6 +17,10 @@ Phase A, open v2 tests to 0, in batches of about 15 (one chain per batch, releas
   head once the budget passes.
 - [ ] Batch 4 on: the single-test tail (codex, engine-cache, host-fixtures, own-scenarios-run, overlap...), by file
 - A test that needs a user decision goes on one "for the user" list, sent to oversight; work goes on.
+- [ ] Field report (a project, 2026-11-10): a turn that changed no project file was held for 7 items because a peer
+  session edited a project file mid-turn. Likely path: the end check's walk of files changed since the turn began (on a
+  turn that ran shell commands) cannot tell another session's edit from this one's. Fix idea: each session's edit hook
+  logs the files it wrote; the walk leaves out a file another live session logged in the same window. Not reproduced.
 Phase B: engine-v2-only 1b to 1e (rest of hooks.mjs into modules, one v2 entry point, tests unpinned, hooks.mjs
 deleted). Done when git grep for hooks/hooks.mjs and STARTER_ENGINE finds nothing outside the changelog, and every
 project passes after upgrading.
