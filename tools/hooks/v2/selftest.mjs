@@ -599,12 +599,14 @@ report(missing({ runbook: null }, acts([user('fix it'), edit, say('Fixed.')])).l
     newKind: u([user('build me a weekly cleaning rota for the flat'), edit, say('Built it.')], false, [{ name: 'Read', input: { file_path: path.join(dir, 'docs/playbooks/long.md') } }]),
     // (a new request whose own runbook was read earlier in the session: opened this turn, rule 1, so asked)
     relatedBefore: u([user('build the export report'), edit, say('Built it.')], false, before),
+    // (a runbook written this turn and named as followed: its writer knows it, no ask)
+    namedMade: u([user('build the export report'), call('Write', { file_path: path.join(dir, 'docs/playbooks/export.md'), content: '# Export' }), edit, say('Playbook: export.md. Built it.')]),
   };
   if (was === undefined) delete process.env.STARTER_NO_SMALL; else process.env.STARTER_NO_SMALL = was;
   const small = u([user('build the export report'), edit, say('Built it.')]);
   report(/^No runbook was opened for this work\. Open the closest one/.test(r.asked[0] || '') && !r.oneOff.length && !r.opened.length && !r.made.length && !r.round2.length
     && /^Open docs\/playbooks\/export\.md and check/.test(r.named[0] || '') && /followed docs\/playbooks\/_fallback\.md: leave a runbook/.test(r.fallback[0] || '') && !small.length
-    && !r.goesOn.length && !r.namedBefore.length && /^No runbook was opened/.test(r.newKind[0] || '') && /^No runbook was opened/.test(r.relatedBefore[0] || ''),
+    && !r.goesOn.length && !r.namedBefore.length && /^No runbook was opened/.test(r.newKind[0] || '') && /^No runbook was opened/.test(r.relatedBefore[0] || '') && !r.namedMade.length,
     'end: unrouted work is asked once to open the closest runbook, leave one, or say why none fits; a named runbook never opened is asked for; _fallback work is asked to leave one; a small fix and round 2 are not', JSON.stringify(r).slice(0, 600));
 }
 const chose = missing({ runbook: null }, acts([user('fix the orders file'), read, edit, say('Fixed.')]));
@@ -779,16 +781,19 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
         fs.mkdirSync(path.join(dir, 'bulkwalk'), { recursive: true });
         for (let i = 0; i < 3000; i++) fs.writeFileSync(path.join(dir, 'bulkwalk', `n${i}.md`), 'x');
         const q = acts([user('what does the brief say'), call('Read', { file_path: path.join(dir, 'docs/BRIEF.md') }, 'The brief.'), say('It says what the project is for.')]); q.at = wAt;
-        const t0 = performance.now();
-        for (const n of ['testGaps', 'gateGaps', 'screenGaps', 'knowledgeGaps', 'securityGaps', 'claimGaps', 'questionGaps', 'noteGaps', 'quoteGaps', 'scopeGaps', 'alwaysGaps', 'engineCheckGaps', 'forbiddenGaps', 'codeRuleGaps', 'injectionGaps']) L[n](q, '');
-        const qMs = performance.now() - t0;
+        // (best of 3 fresh turns: load only adds time. Lesson (2026-11-10): the test failed about half its runs at 58 to 74
+        // ms against 60; the forbidden-words scan walked the whole project on a plain question, cached per turn, so a reused
+        // turn hid it (8 ms). Since read-only turns skip the scans: 2 to 3 ms)
+        // (a fresh turn each run: the walk is cached per turn, and a reused one would hide a walk)
+        const qRuns = Array.from({ length: 3 }, () => { const q = acts([user('what does the brief say'), call('Read', { file_path: path.join(dir, 'docs/BRIEF.md') }, 'The brief.'), say('It says what the project is for.')]); q.at = wAt; const t0 = performance.now(); for (const n of ['testGaps', 'gateGaps', 'screenGaps', 'knowledgeGaps', 'securityGaps', 'claimGaps', 'questionGaps', 'noteGaps', 'quoteGaps', 'scopeGaps', 'alwaysGaps', 'engineCheckGaps', 'forbiddenGaps', 'codeRuleGaps', 'injectionGaps']) L[n](q, ''); return performance.now() - t0; });
+        const qMs = Math.min(...qRuns);
         const b = acts([user('make the notes'), call('Bash', { command: 'node tools/notes.mjs' }, 'ok'), say('Done.')]); b.at = wAt;
         // (any shell command or helper may write, whatever its text: "cat" or "git log" too)
         const cat = acts([user('show the notes'), call('Bash', { command: 'cat docs/BRIEF.md' }, 'x'), say('Here.')]); cat.at = wAt;
         const helper = acts([user('tidy the notes'), call('Agent', { prompt: 'tidy the notes' }, 'done'), say('Done.')]); helper.at = wAt;
-        const sp = { question: L.touchedSince(q).length, ran: L.touchedSince(b).filter(x => /^bulkwalk\//.test(x.f)).length, cat: L.touchedSince(cat).length >= 3000, helper: L.touchedSince(helper).length >= 3000, qMs: Math.round(qMs) };
+        const sp = { question: L.touchedSince(q).length, ran: L.touchedSince(b).filter(x => /^bulkwalk\//.test(x.f)).length, cat: L.touchedSince(cat).length >= 3000, helper: L.touchedSince(helper).length >= 3000, qMs: Math.round(qMs), runs: qRuns.map(Math.round) };
         fs.rmSync(path.join(dir, 'bulkwalk'), { recursive: true, force: true });
-        report(sp.question === 0 && sp.ran === 3000 && sp.cat && sp.helper && timeVerdict(sp.qMs < 60, 'speed: a question turn\'s end check', `${sp.qMs} ms`), 'speed: a question turn in a 3,000-file project walks no files and its whole end check takes under 60 ms; a turn that ran any shell command (even cat) or a helper walks once and finds what was written', JSON.stringify(sp));
+        report(sp.question === 0 && sp.ran === 3000 && sp.cat && sp.helper && timeVerdict(sp.qMs < 30, 'speed: a question turn\'s end check', `${sp.qMs} ms`), 'speed: a question turn in a 3,000-file project walks no files and its end checks take under 30 ms; a turn that ran any shell command (even cat) or a helper walks once and finds what was written', JSON.stringify(sp));
       }
       // (REQ: no-verbatim-examples: a run of the user's words a command copied into a root file is held (root files count
       // as changed: "**/" may be no folder); a name from the user's message written into a runbook is held; the

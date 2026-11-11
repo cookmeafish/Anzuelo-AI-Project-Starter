@@ -173,7 +173,10 @@ export function unroutedGaps(turn, acts, again, books = runbooks()) {
   const readBefore = file => (acts.prior || []).some(c => c.name === 'Read' && String(c.input?.file_path || '').replace(/\\/g, '/').endsWith(file));
   const skillBefore = name => (acts.prior || []).some(c => (c.name === 'Skill' && JSON.stringify(c.input || {}).includes(name)) || (c.name === 'Read' && String(c.input?.file_path || '').replace(/\\/g, '/').endsWith(`skills/${name}/SKILL.md`)));
   const earlierCounts = b => goesOn && (readBefore(b.file) || skillBefore(b.name));
-  const notOpened = books.filter(b => named.includes(b.name) && !opened(b, acts) && !earlierCounts(b) && b.file !== turn.runbook);
+  // (a runbook the turn wrote is one its writer knows: made for this work, it counts as opened. Lesson (the v2 sweep): a
+  // runbook made for a new kind of task and named as followed was asked to be opened)
+  const wrote = b => acts.calls.some(c => ['Write', 'Edit'].includes(c.name) && String(c.input?.file_path || '').replace(/\\/g, '/').endsWith(b.file));
+  const notOpened = books.filter(b => named.includes(b.name) && !opened(b, acts) && !wrote(b) && !earlierCounts(b) && b.file !== turn.runbook);
   if (notOpened.length) return notOpened.map(b => `Open ${b.file} and check the work against its steps.`);
   if (made || NONE_FITS.test(said)) return [];
   // (b)
