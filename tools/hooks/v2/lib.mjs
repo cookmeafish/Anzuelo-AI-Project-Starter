@@ -1608,9 +1608,15 @@ export function claimGaps(acts, history = '') {
   // (in a session where helpers worked, "the other 21 passed" says who judged them, unless the turn's own run passed with
   // nothing failing or missing. Lesson (the old engine): a check that only found a helper's note per item was called a pass)
   const helped = [...acts.calls, ...(acts.prior || [])].some(c => /^(Agent|Task)$/.test(c.name));
-  const ownPass = () => acts.calls.some(c => /^(Bash|PowerShell)$/.test(c.name) && !c.error && /\b(PASS(ED)?|passed|all \d+ \w+ pass\w*)\b/i.test(c.out || '') && !/\bFAIL(ED|S|URES?)?\b|\b[1-9]\d* (failed|missing|errors?|wrong)\b|\bmissing\b|\bERROR\b/i.test(c.out || ''));
+  // (a zero count, "0 failed", is no failure. Lesson: "ALL PASS (1712 passed, 0 failed)" was read as a failing run)
+  const zeroFree = c => String(c.out || '').replace(/\b0 (failed|failures?|errors?|missing|wrong)\b/gi, '');
+  const ownPass = () => acts.calls.some(c => /^(Bash|PowerShell)$/.test(c.name) && !c.error && /\b(PASS(ED)?|passed|all \d+ \w+ pass\w*)\b/i.test(zeroFree(c)) && !/\bFAIL(ED|S|URES?)?\b|\b[1-9]\d* (failed|missing|errors?|wrong)\b|\bmissing\b|\bERROR\b/i.test(zeroFree(c)));
   const verdict = helped ? groupVerdictClaim(a) : '';
-  if (verdict && !ownPass()) out.push(`The answer says "${verdict.trim().slice(0, 80)}", but helpers worked this session, so that verdict may be theirs or come from a check that only found a record per item. Say who judged those items (you, re-checking each one, or a helper whose verdict you did not re-check) and what the check behind it tests, or check them yourself first.`);
+  // (nor when the verdict's own line names who judged it: a peer session's report, "your report", "according to ...".
+  // Oversight, 2026-11-11: a release verdict quoted from the coding session's report was held for earlier helpers)
+  const vLine = verdict ? (a.split('\n').find(l => l.includes(verdict.trim().slice(0, 40))) || verdict) : '';
+  const SOURCED = /\b(reports?|reported|according to|per (?:the|its|their|your)|as (?:the|your|its) [\w-]+ (?:says|said|reports?)|(?:says|said|told me|confirms?|confirmed) (?:that )?)\b|\b(?:informe|según|reporta|informa)\b/i;
+  if (verdict && !ownPass() && !SOURCED.test(vLine)) out.push(`The answer says "${verdict.trim().slice(0, 80)}", but helpers worked this session, so that verdict may be theirs or come from a check that only found a record per item. Say who judged those items (you, re-checking each one, or a helper whose verdict you did not re-check) and what the check behind it tests, or check them yourself first.`);
   // (a test "done by hand": nobody here tests by hand, so it says how it ran, or that it is for the user to try. Lesson
   // (the old engine): "Lo probé a mano" described a run a script drove)
   const handClaim = byHandClaim(a);

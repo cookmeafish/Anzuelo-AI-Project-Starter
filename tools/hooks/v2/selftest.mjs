@@ -2029,6 +2029,14 @@ const { questionGaps } = await import('./lib.mjs');
     own: gv([user('are the menus done?'), helper, call('Bash', { command: 'node check-menus.mjs' }, 'PASS: 21 menus'), say('All 21 menus passed.')]),
     describes: gv([user('what changed?'), helper, say('The check holds an answer that says all 21 menus passed.')]) };
   report(g.earlier && !g.none && !g.judged && g.missing && !g.own && !g.describes, 'end: claim-checked: after helpers, "all 21 passed" says who judged them, unless the turn\'s own run passed with nothing missing; a description of the check is not held', JSON.stringify(g));
+  // (a verdict whose own line names its source, a peer's report, is sourced; a claim this turn's own run checked too;
+  // helper notes from an earlier turn with no source named are still held. Oversight, 2026-11-11, option (a))
+  const prior = [{ name: 'Agent', input: {} }];
+  const src = { unsourced: gv([user('is the release out?'), say('A new release is on GitHub, and every check passed.')], prior),
+    peer: gv([user('is the release out?'), say('A new release is on GitHub; the coding session reports every check passed.')], prior),
+    yours: gv([user('is the release out?'), say('Every check passed, per your report.')], prior),
+    ran: gv([user('is the release out?'), call('Bash', { command: 'node tools/hooks/selfcheck.mjs' }, 'selfcheck: ALL PASS (1712 passed, 0 failed)'), say('Every check passed.')], prior) };
+  report(src.unsourced && !src.peer && !src.yours && !src.ran, 'end: claim-checked: a group verdict that names its source on its own line (a peer\'s report), or that this turn\'s own run checked, is not held for earlier helpers; one with no source still is', JSON.stringify(src));
   // (a requirement is no verdict: "must / should / will pass" says what is to be true. Lesson (oversight's live session,
   // 2026-11-10): a plan line was held; a real verdict in the same sentence still is)
   const rq = { must: gv([user('write the plan'), helper, say('Every project must pass after upgrading.')]), should: gv([user('write the plan'), helper, say('Done when every project should pass after the upgrade.')]),
