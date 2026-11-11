@@ -13,8 +13,12 @@ import { openPlansOf } from '../planreq.mjs';
 // apply when a file changes. One line, last, so the line cap drops it first; each named by the check's own tag or item
 // text, never a list of its own. A hint only. (Oversight, 2026-11-10: "the start hook lists what must be done if X
 // happens". Lesson (the old suite under v2): the agent first heard of these checks when the end check held the turn)
-export function alsoChecked(names = []) {
+export function alsoChecked(names = [], { unrouted = false } = {}) {
   const files = c => JSON.stringify(c || {}).includes('"filesChanged"');
+  // (no runbook routed: the end check's leave-a-runbook ask, said ahead, and that a runbook the project's own hooks name
+  // counts as one followed when they route. Lesson (the old suite under v2): the old preview named runbook-exists)
+  const ext = [].concat(projectConfig().externalHooks || []).length > 0;
+  const rbx = unrouted && !checkOff('runbook-exists') ? [`runbook-exists: met once it follows a runbook${ext ? ", such as one the project's own hooks name" : ''}, leaves one, or says why none fits`] : [];
   const mine = engineChecks().filter(r => files(r.when) && [r.when?.playbookUsed, r.when?.playbookRouted, r.when?.skillUsed].some(n => n && names.includes(n))).map(r => r.tag.replace(/-/g, ' '));
   let own = []; try { own = doneWhen(fs.readFileSync(at(ALWAYS), 'utf8')).filter(it => it.kind && (it.whens || []).some(w => w.kind === 'file')).map(it => it.text); } catch { }
   // (plan-required applies to any task: named as the old engine named it, with the project's own new-file limit)
@@ -22,7 +26,7 @@ export function alsoChecked(names = []) {
   // (an item is cut at about 60 characters only when the line would run long; a short line is left whole. Lesson (the
   // old suite under v2): one item was cut mid-sentence with room to spare)
   const cut = s => s.length <= 60 ? s : s.slice(0, s.lastIndexOf(' ', 57)) + '...';
-  const whole = [...new Set([...mine, ...own, ...plan])], fits = whole.slice(0, 4).join('; ').length <= 300;
+  const whole = [...new Set([...rbx, ...mine, ...own, ...plan])], fits = whole.slice(0, 4).join('; ').length <= 300;
   const all = fits ? whole : [...new Set(whole.map(cut))];
   return all.length ? `Also checked at the end if files change: ${all.slice(0, 4).join('; ')}${all.length > 4 ? `; +${all.length - 4} more` : ''}.` : '';
 }
@@ -218,7 +222,7 @@ function remind(prompt) {
   const must = relayedRx.test(raw) || asksOnly(String(userWords(prompt)), projectConfig().changeWords) ? [] : forcedBy(String(userWords(prompt)));
   const mustLines = must.filter(m => m.name !== book?.name).map(m => m.acted ? `Must follow: ${m.name} (the request mentions "${m.word.slice(0, 40)}"): open ${m.file} now and follow it from the start; the end check holds it once the work does what it covers.`
     : `Likely fits: ${m.name} (the request mentions "${m.word.slice(0, 40)}"): open ${m.file} if the work turns out to need it.`);
-  if (!book) return { book: null, text: [...mustLines, friction, skill, praise, figures, autonomy, examples, shared, pick, es, ...rulesFor(prompt).map(r => `The project's own rule here: ${r}`), isTaskRequest(prompt, taskVerbs, toOtherSession(prompt)) ? alsoChecked(sk && skill ? [sk.name] : []) : ''].filter(Boolean).slice(0, MAX_LINES).join('\n') };
+  if (!book) return { book: null, text: [...mustLines, friction, skill, praise, figures, autonomy, examples, shared, pick, es, ...rulesFor(prompt).map(r => `The project's own rule here: ${r}`), isTaskRequest(prompt, taskVerbs, toOtherSession(prompt)) ? alsoChecked(sk && skill ? [sk.name] : [], { unrouted: !(sk && skill) }) : ''].filter(Boolean).slice(0, MAX_LINES).join('\n') };
   const own = rulesFor(prompt).map(r => `The project's own rule here: ${r}`);
   // (a message relayed from another session may only report: its runbook is for when it asks for work. Lesson (project
   // report): a note that a fix had landed got the bugfix runbook and its list, though it asked for nothing)

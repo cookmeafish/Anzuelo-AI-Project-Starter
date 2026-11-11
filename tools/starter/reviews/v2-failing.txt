@@ -20,8 +20,6 @@ prompt-digest: a session whose start gave the session checklist gets no rules di
 prompt: QA routes to the qa runbook
 prompt: a context summary that resumes the turn gets no hints
 prompt: bootstrap hint when setup prompt is gone but brief is empty
-prompt: check-preview: with the project's own hooks, runbook-exists says a runbook they name counts
-prompt: check-preview: without them, runbook-exists says nothing about the project's hooks
 prompt: closest runbook: a request sharing one word or none still gets NO RUNBOOK
 prompt: debug skill routes on its own
 prompt: efficiency-review: "simple fixes turn into 20 minute things" routes to the review

@@ -218,7 +218,7 @@ export function missing(turn, acts, books = runbooks()) {
 // nothing behind, and a runbook the notes named was never opened.
 const NONE_FITS = /\b(no|none of the|not an?)\s+(existing\s+)?runbooks?\b[^.\n]{0,60}\b(fits?|applies|apply|needed|covers?)\b|\bone-?off\b|\bno runbook (is )?needed\b/i;
 export function unroutedGaps(turn, acts, again, books = runbooks()) {
-  if (again || !worked(acts) || /<(cross-session-message|agent-message|task-notification)\b|^This session is being continued from a previous conversation/m.test(acts.heard || '') || fs.existsSync(at('SETUP-PROMPT.md')) && !fs.existsSync(at('.starter-template'))) return [];
+  if (again || checkOff('runbook-exists') || !worked(acts) || /<(cross-session-message|agent-message|task-notification)\b|^This session is being continued from a previous conversation/m.test(acts.heard || '') || fs.existsSync(at('SETUP-PROMPT.md')) && !fs.existsSync(at('.starter-template'))) return [];
   const said = `${acts.said || ''}\n${acts.answer || ''}\n${(() => { try { const t = Date.parse(acts.at || '') || 0; return fs.statSync(at('.cache/turn-notes.md')).mtimeMs >= t ? fs.readFileSync(at('.cache/turn-notes.md'), 'utf8') : ''; } catch { return ''; } })()}`;
   const made = acts.calls.some(c => c.name === 'Write' && /(^|\/)docs\/playbooks\/[^/_][^/]*\.md$|(^|\/)skills\/[^/]+\/SKILL\.md$/.test(String(c.input?.file_path || '').replace(/\\/g, '/')));
   const fallback = acts.calls.some(c => c.name === 'Read' && /(^|\/)docs\/playbooks\/_fallback\.md$/.test(String(c.input?.file_path || '').replace(/\\/g, '/')));

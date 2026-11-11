@@ -3368,8 +3368,9 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
   }
   const plan = 'plan required \\(a plan in docs/plans/ first\\) if it adds \\d+\\+ new files';
   report(new RegExp(`^Also checked at the end if files change: export noted; The data validator passes on the changed data; ${plan}\\.$`).test(got.routed || '')
-    && new RegExp(`^Also checked at the end if files change: The data validator passes on the changed data; ${plan}\\.$`).test(got.work || '')
-    && /^Also checked at the end if files change: The data validator passes on the changed data\.$/.test(got.off || '')
+    // (unrouted work hears the leave-a-runbook check too, first)
+    && new RegExp(`^Also checked at the end if files change: runbook-exists: met once it follows a runbook, leaves one, or says why none fits; The data validator passes on the changed data; ${plan}\\.$`).test(got.work || '')
+    && /^Also checked at the end if files change: runbook-exists: met once it follows a runbook, leaves one, or says why none fits; The data validator passes on the changed data\.$/.test(got.off || '')
     && /^Also checked at the end if files change: The data validator passes on the changed data\.$/.test(got.routedOff || '') && got.endOff === false
     && !/Also checked/.test(got.question || '') && got.lines <= MAX_LINES,
     'start: the reminder\'s last line names what the end check also asks if files change (an engine check naming the runbook, the project\'s own file items, the plan rule unless switched off), not for a question, within the line cap', JSON.stringify(got));
