@@ -6,7 +6,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { passLine } from './lines.mjs';
 import { planRequired, OPEN_WORK, planOpen } from '../planreq.mjs';
-import { keyWords } from '../near.mjs';
+import { keyWords, closestRunbook, coreRunbook } from '../near.mjs';
 import { relayedBody } from '../relay.mjs';
 // REQ: plan-open, under v2: the shared planreq.mjs rule, on the plans the prompt hook found open when the turn began;
 // asked once (round 1), as the old engine. Lesson (the old suite under v2): a work turn that continued an open plan
@@ -32,7 +32,7 @@ import { waivedTag, gitClaimGaps } from './lib.mjs';
 import { wakeGaps, watchersArmed, watcherLeft } from '../wakeups.mjs';
 import { makeSkillLearn } from '../skilllearn.mjs';
 import { makeProof } from '../proof.mjs';
-import { forbiddenGaps, codeRuleGaps, injectionGaps, verbatimGaps, CRASHED, crashLine, logStop, upgradeGaps, autoRuns, sessionStart, changedOf, projectConfig, checkOff, inGlobs, priorCalls, filesMatching, withBackgroundOutputs, hookTestsGaps, engineChecks, doneWhen } from './lib.mjs';
+import { forbiddenGaps, codeRuleGaps, injectionGaps, verbatimGaps, CRASHED, crashLine, logStop, upgradeGaps, autoRuns, sessionStart, changedOf, projectConfig, checkOff, inGlobs, priorCalls, filesMatching, withBackgroundOutputs, hookTestsGaps, engineChecks, doneWhen, smallChange } from './lib.mjs';
 import { ROOT, at, runbooks, turnRows, turnActs, met, applies, opened, worked, loadTurn, saveTurn, testGaps, gateGaps, screenGaps, healthGaps, knowledgeGaps, securityGaps, claimGaps, questionGaps, noteGaps, quoteGaps, tail, helpersRunning, backgroundRuns, helperRuns, evidenceGaps, evidenceOf, skillBooks, alwaysGaps, scopeGaps, earlierPrompts, ALWAYS, engineCheckGaps, loadDirty, isSpanish } from './lib.mjs';
 // (the two data tables, one evaluator each: the project's always list and the engine's own checks)
 // (each check runs on its own: one that throws is named once with its error, and the rest still run)
@@ -140,6 +140,38 @@ export function missing(turn, acts, books = runbooks()) {
   for (const it of book.items) if ((asked ? it.kind === 'answer' || it.kind === 'evidence' : it.kind !== 'evidence') && applies(it, acts) && met(it, acts) === false)
     out.push(`${book.file} item ${it.n}: ${it.kind === 'evidence' ? evidenceGaps(acts).join(' ') : it.text}`);
   return out;
+}
+
+// REQ: runbook-exists, under v2 (rule 2, Step 0.3: "no runbook fits a real task: follow _fallback.md, then leave a
+// runbook and a check behind"; the approved engine-v2-only plan, Task 3: "if a work turn opened none, it asks once: open
+// the closest runbook (listed) or say in one line why none fits"). Three cases, each asked once (round 1):
+// (a) the notes or the answer name a runbook as followed ("Playbook: x.md") that the turn never opened: open it;
+// (b) the turn followed _fallback.md and left no new runbook: leave one, or say why none is needed;
+// (c) work past the small-fix size that opened no runbook or skill and made none: open the closest (the top 3 named),
+//     leave a new one, or say in one line why none fits. Not a question, a relayed message or the setup turn.
+// Oversight 2026-11-10, triage rows 144 and 147. Lesson (the old suite under v2): unrouted work and _fallback work left
+// nothing behind, and a runbook the notes named was never opened.
+const NONE_FITS = /\b(no|none of the|not an?)\s+(existing\s+)?runbooks?\b[^.\n]{0,60}\b(fits?|applies|apply|needed|covers?)\b|\bone-?off\b|\bno runbook (is )?needed\b/i;
+export function unroutedGaps(turn, acts, again, books = runbooks()) {
+  if (again || !worked(acts) || /<(cross-session-message|agent-message|task-notification)\b|^This session is being continued from a previous conversation/m.test(acts.heard || '') || fs.existsSync(at('SETUP-PROMPT.md')) && !fs.existsSync(at('.starter-template'))) return [];
+  const said = `${acts.said || ''}\n${acts.answer || ''}\n${(() => { try { const t = Date.parse(acts.at || '') || 0; return fs.statSync(at('.cache/turn-notes.md')).mtimeMs >= t ? fs.readFileSync(at('.cache/turn-notes.md'), 'utf8') : ''; } catch { return ''; } })()}`;
+  const made = acts.calls.some(c => c.name === 'Write' && /(^|\/)docs\/playbooks\/[^/_][^/]*\.md$|(^|\/)skills\/[^/]+\/SKILL\.md$/.test(String(c.input?.file_path || '').replace(/\\/g, '/')));
+  const fallback = acts.calls.some(c => c.name === 'Read' && /(^|\/)docs\/playbooks\/_fallback\.md$/.test(String(c.input?.file_path || '').replace(/\\/g, '/')));
+  const anyOpened = books.some(b => opened(b, acts)) || skillBooks({ parts: true }).some(b => opened(b, acts));
+  // (a) (from what the agent said this turn, never the turn notes: "Playbook:" lines there are the old engine's record
+  // lines, retired 2026-11-05 (user-requirements row 40). Lesson (the replay over real sessions): read from the notes,
+  // it asked in 29% and 48% of two projects' work turns, every one a runbook read earlier in the session)
+  const named = [...`${acts.said || ''}\n${acts.answer || ''}`.matchAll(/\bPlaybook:\s*(?:docs\/playbooks\/)?([\w-]+)\.md\b/gi)].map(m => m[1]).filter(n => n !== '_fallback');
+  const notOpened = books.filter(b => named.includes(b.name) && !opened(b, acts) && b.file !== turn.runbook);
+  if (notOpened.length) return notOpened.map(b => `Open ${b.file} and check the work against its steps.`);
+  if (made || NONE_FITS.test(said)) return [];
+  // (b)
+  if (fallback) return ['This work followed docs/playbooks/_fallback.md: leave a runbook for this kind of task behind (rule 2, the runbook-create skill), or say in one line why none is needed (a one-off).'];
+  // (c)
+  if (turn.runbook || anyOpened || smallChange(acts, changedOf(acts))) return [];
+  const pool = books.map(b => ({ name: b.name, file: b.file, triggers: b.triggers || [], fm: { summary: (/^summary:\s*(.+)$/m.exec(b.front || '') || [])[1] || '' } })), top = [];
+  for (let i = 0; i < 3; i++) { const c = closestRunbook(acts.heard || '', pool.filter(p => !top.includes(p.file)), coreRunbook); if (!c) break; top.push(c.file); }
+  return [`No runbook was opened for this work. Open the closest one${top.length ? ` (${top.join(', ')})` : ' (DIRECTORY.md lists them)'} and check the work against it, leave a new runbook for this kind of task (rule 2, the runbook-create skill), or say in one line why none fits (a one-off).`];
 }
 
 // The checkable items of each skill with a route of its own that the turn opened (beside the runbook): a rule a skill
@@ -602,7 +634,7 @@ function judge(data, { shadow = false } = {}) {
   lap('self-runs, late, session rows, wakeups');
   const extra = (turn.also || []).flatMap(f => missing({ ...turn, runbook: f }, acts, runbooks().filter(b => b.file === f)));
   const resumedLost = [...(lost.length ? [headlessLine(lost)] : []), ...noticeAnswerGaps(rows, final || acts.answer, data.stop_hook_active)];
-  const list = [...resent, ...resumedLost, ...late, ...autos, ...wakes, ...S('missing', () => [...emptyGaps(acts), ...missing(turn, acts), ...upsetGaps(turn, acts), ...ruleGaps(acts), ...watchedGaps(acts)]), ...extra, ...S('skillMissing', () => skillMissing(acts)), ...S('reviewGaps', () => reviewGaps(turn, acts)), ...S('testGaps', () => testGaps(acts, history)), ...S('gateGaps', () => gateGaps(acts)), ...S('screenGaps', () => screenGaps(acts)), ...S('healthGaps', () => [...healthGaps(acts, { run: !shadow }), ...upgradeGaps(turn, acts)]), ...S('knowledgeGaps', () => knowledgeGaps(acts)), ...S('securityGaps', () => securityGaps(acts)), ...S('questionGaps', () => [...questionGaps(acts), ...questionFileGaps(acts)]), ...S('noteGaps', () => noteGaps(acts)), ...S('quoteGaps', () => quoteGaps(acts)), ...S('claimGaps', () => claimGaps(acts, history)), ...S('scopeGaps', () => scopeGaps(acts)), ...S('tableGaps', () => tableGaps(acts)), ...S('planOpen', () => planOpenGaps(turn, acts, again)), ...S('externalStop', () => externalV2(data)), ...S('reviewExcuse', () => excuseV2(acts, rows)), ...S('friction', () => frictionV2(acts))].filter((s, i, all) => all.indexOf(s) === i);
+  const list = [...resent, ...resumedLost, ...late, ...autos, ...wakes, ...S('missing', () => [...emptyGaps(acts), ...missing(turn, acts), ...upsetGaps(turn, acts), ...ruleGaps(acts), ...watchedGaps(acts)]), ...S('unrouted', () => unroutedGaps(turn, acts, again)), ...extra, ...S('skillMissing', () => skillMissing(acts)), ...S('reviewGaps', () => reviewGaps(turn, acts)), ...S('testGaps', () => testGaps(acts, history)), ...S('gateGaps', () => gateGaps(acts)), ...S('screenGaps', () => screenGaps(acts)), ...S('healthGaps', () => [...healthGaps(acts, { run: !shadow }), ...upgradeGaps(turn, acts)]), ...S('knowledgeGaps', () => knowledgeGaps(acts)), ...S('securityGaps', () => securityGaps(acts)), ...S('questionGaps', () => [...questionGaps(acts), ...questionFileGaps(acts)]), ...S('noteGaps', () => noteGaps(acts)), ...S('quoteGaps', () => quoteGaps(acts)), ...S('claimGaps', () => claimGaps(acts, history)), ...S('scopeGaps', () => scopeGaps(acts)), ...S('tableGaps', () => tableGaps(acts)), ...S('planOpen', () => planOpenGaps(turn, acts, again)), ...S('externalStop', () => externalV2(data)), ...S('reviewExcuse', () => excuseV2(acts, rows)), ...S('friction', () => frictionV2(acts))].filter((s, i, all) => all.indexOf(s) === i);
   // (the waiver tally: what this turn cleared with a reason is recorded; a check cleared in 3+ earlier turns is named)
   const full = list.splice(0, list.length); list.push(...full.filter(kept(acts)).filter(s => !(again && CRASHED.test(s))));
   list.push(...S('followOn', () => followOn(turn, acts, list)).filter(kept(acts)));

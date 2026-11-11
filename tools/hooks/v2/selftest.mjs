@@ -574,6 +574,30 @@ report(noLog.length === 2 && noLog.some(s => /item 2/.test(s)) && noLog.some(s =
 const earlier = missing(turn, acts([user('add a csv export'), read, edit, call('Bash', { command: 'npm test' }), log, say('How it was checked: tests.'), user('and the totals row?'), edit, say('Added.')]));
 report(earlier.some(s => /item 1/.test(s)) && earlier.some(s => /Open/.test(s)), 'end: only this turn counts, not what an earlier turn did', earlier);
 report(missing({ runbook: null }, acts([user('fix it'), edit, say('Fixed.')])).length === 0, 'end: a turn no runbook fit, and that opened none, is not held to one');
+// (REQ runbook-exists: work past the small-fix size that opened no runbook and made none is asked once: open the closest
+// (named), leave a new one, or say in one line why none fits; any of the three clears it, as does a small fix or round 2.
+// Work that names a runbook it never opened is asked to open it; work that followed _fallback.md is asked to leave one.
+// Rule 2, Step 0.3, and the approved v2-only plan, Task 3; oversight 2026-11-10)
+{
+  const { unroutedGaps } = await import('./end.mjs');
+  const was = process.env.STARTER_NO_SMALL; process.env.STARTER_NO_SMALL = '1';
+  const u = (rows, again = false) => unroutedGaps({ runbook: null }, acts(rows), again);
+  const fb = call('Read', { file_path: path.join(dir, 'docs/playbooks/_fallback.md') }), newBook = call('Write', { file_path: path.join(dir, 'docs/playbooks/rota.md'), content: '# Rota' });
+  const r = {
+    asked: u([user('build the export report'), edit, say('Built it.')]),
+    oneOff: u([user('build the export report'), edit, say('Built it. No runbook fits this: a one-off rename for the user.')]),
+    opened: u([user('build the export report'), read, edit, say('Built it.')]),
+    made: u([user('build the export report'), newBook, edit, say('Built it, and left a runbook.')]),
+    round2: u([user('build the export report'), edit, say('Built it.')], true),
+    named: u([user('build the export report'), edit, say('Playbook: export.md. Built it.')]),
+    fallback: u([user('build the export report'), fb, edit, say('Built it.')]),
+  };
+  if (was === undefined) delete process.env.STARTER_NO_SMALL; else process.env.STARTER_NO_SMALL = was;
+  const small = u([user('build the export report'), edit, say('Built it.')]);
+  report(/^No runbook was opened for this work\. Open the closest one/.test(r.asked[0] || '') && !r.oneOff.length && !r.opened.length && !r.made.length && !r.round2.length
+    && /^Open docs\/playbooks\/export\.md and check/.test(r.named[0] || '') && /followed docs\/playbooks\/_fallback\.md: leave a runbook/.test(r.fallback[0] || '') && !small.length,
+    'end: unrouted work is asked once to open the closest runbook, leave one, or say why none fits; a named runbook never opened is asked for; _fallback work is asked to leave one; a small fix and round 2 are not', JSON.stringify(r).slice(0, 600));
+}
 const chose = missing({ runbook: null }, acts([user('fix the orders file'), read, edit, say('Fixed.')]));
 report(chose.some(s => /export\.md item 1/.test(s)) && !chose.some(s => /^Open/.test(s)), 'end: with none routed, the runbook the agent opened is the one the turn is held to', chose);
 // (a runbook the turn wrote and read back is its work, not the procedure it chose. Lesson (trial v43))
