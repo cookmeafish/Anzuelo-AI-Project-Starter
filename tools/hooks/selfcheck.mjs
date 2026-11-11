@@ -6524,7 +6524,8 @@ if (mineB()) { // session hook output
   const dir = copyProject();
   try {
     const { out } = run(dir, 'session', { source: 'startup' });
-    report(out.includes('ROUTE every message') && out.includes('docs/STATUS.md'), 'session: injects checklist and STATUS', out.slice(0, 200));
+    // (under v2 the session start gives its own short account of how the engine works, under its heading)
+    report((process.env.STARTER_ENGINE === 'v2' ? out.includes("How this project's engine works") && out.includes('Reminder, before each request') : out.includes('ROUTE every message')) && out.includes('docs/STATUS.md'), 'session: injects checklist and STATUS', out.slice(0, 200));
     // a host that documents a hidden context channel gets it; the text is the same
     const cc = run(dir, 'session', { source: 'startup' }, { CLAUDE_PROJECT_DIR: dir }).out;
     let j = null; try { j = JSON.parse(cc); } catch { }
