@@ -5314,7 +5314,7 @@ const V2_ASKS = {
   'upset-learned': /^- (The runbook your Issue line names|Give the point in general terms|Say the root cause|Say first whether it holds|Say what you checked to know it holds|Write the lesson where it stops the next miss|This is about the engine: send the lesson|The user is upset again in this session)/m,
 };
 // (an engine check from requirements.json is recognized by its own message, which v2's evaluator gives as "Check: ...")
-const ENGINE_MSG = await (async () => { const out = {}; try { const b = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/base-checks.mjs')).href); for (const q of [...b.BASE_REQUIREMENTS, ...(b.DEV_NEW_PROJECT ? [b.DEV_NEW_PROJECT] : [])]) out[q.tag] = q.message; } catch { }
+const ENGINE_MSG = await (async () => { const out = {}; try { const b = await import(pathToFileURL(path.join(ROOT, 'tools/hooks/base-checks.mjs')).href); for (const q of [...b.BASE_REQUIREMENTS, ...(b.DEV_CHECKS || (b.DEV_NEW_PROJECT ? [b.DEV_NEW_PROJECT] : []))]) out[q.tag] = q.message; } catch { }
   // (pack checks are listed in engine-checks.json; a project gets them in its requirements.json when the pack is in)
   for (const f of ['tools/hooks/engine-checks.json', 'tools/hooks/requirements.json']) try { for (const q of JSON.parse(fs.readFileSync(path.join(ROOT, f), 'utf8')).requirements) out[q.tag] = q.message; } catch { }
   return out; })();

@@ -10,7 +10,7 @@ import { roots, resolver } from '../paths.mjs';
 import { people, personOf, peopleIn, peopleFor } from '../people.mjs';
 import { inEnglish, EN_COPIES } from '../labels.mjs';
 import { writingProblems, plainWritingMsg } from '../writing.mjs';
-import { BASE_REQUIREMENTS, FAILED_RUN, MISSING_TOOL, PROBLEM_WORDS, DEV_NEW_PROJECT, interruptedRun, rerunPassed } from '../base-checks.mjs';
+import { BASE_REQUIREMENTS, FAILED_RUN, MISSING_TOOL, PROBLEM_WORDS, DEV_CHECKS, interruptedRun, rerunPassed } from '../base-checks.mjs';
 import { knowledgeFromFiles as knowledgeFromFilesOf, figureProblems as figureProblemsOf, knowledgeProblems as knowledgeProblemsOf, staleWhy } from '../knowledge.mjs';
 import { forbiddenRe, secretHit, config as engineConfig, EXTENDS } from '../settings.mjs';
 import { INJ_PLANTED, INJ_AIMED, INJ_WARNED } from '../injection.mjs';
@@ -1117,7 +1117,7 @@ export const engineChecks = () => {
   // under v2): every app-pack project was asked to raise its version number with no version file set)
   // (a check switched off after friction is skipped, and a development copy adds the trial check, as the old engine.
   // Lesson (the plan-required port): v2 read only "disabled", so a suspended check still held turns)
-  const dev = fs.existsSync(at('.starter-dev')) ? [DEV_NEW_PROJECT] : [];
+  const dev = fs.existsSync(at('.starter-dev')) ? DEV_CHECKS : [];
   return [...BASE_REQUIREMENTS.filter(b => !own.some(r => r.tag === b.tag)), ...dev, ...own].filter(r => r.tag !== 'security-code' && !off.has(r.tag) && r.enabled !== false && !checkOff(r.tag));
 };
 // (the runEach commands the engine ships, the only ones the end check runs on its own)

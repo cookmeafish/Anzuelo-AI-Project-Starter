@@ -24,7 +24,7 @@ import { lines as jsonlLines } from './jsonl.mjs';
 import { people, personOf, peopleIn, peopleFor, pathsPeople } from './people.mjs';
 import { LABELS_ES, WORTH_IT, plainLabel, EN_COPIES, inEnglish, labelsEsHint, LABELS_ES_HINT } from './labels.mjs';
 export { labelsEsHint, LABELS_ES_HINT };
-import { BASE_REQUIREMENTS, FAILED_RUN, MISSING_TOOL, PROBLEM_WORDS, DEV_NEW_PROJECT, interruptedRun, rerunPassed } from './base-checks.mjs';
+import { BASE_REQUIREMENTS, FAILED_RUN, MISSING_TOOL, PROBLEM_WORDS, DEV_NEW_PROJECT, DEV_CHECKS, interruptedRun, rerunPassed } from './base-checks.mjs';
 import { knowledgeFromFiles as sharedKnowledgeFromFiles, figureProblems as sharedFigureProblems, knowledgeProblems as sharedKnowledgeProblems, staleWhy as sharedStaleWhy } from './knowledge.mjs';
 import { claimSentences, byHandClaim, describesClaim, groupVerdictClaim, IMPROVE_CLAIM, REPORTED, NOT_IN_GIT, gitHolds as sharedGitHolds, namedPaths as sharedNamedPaths, gitClaimContradicted as sharedGitClaim } from './claims.mjs';
 export { ROOT, bulkDir, today, usageOf, read, readJSON, abs, exists, list, walkStat, esc, config, re, secretRes, secretHit, privateTermsPath, privateTermsListFile, forbiddenTerms, forbiddenRe, testInputsHash, aiAttributedCommits, gitignoreProblems, people, personOf, peopleIn, peopleFor, pathsPeople, LABELS_ES, WORTH_IT, plainLabel, EN_COPIES, inEnglish, BASE_REQUIREMENTS };
@@ -5339,25 +5339,8 @@ export function holds(c, x) {
 // Developing the starter itself (a .starter-dev copy): the checks a software project gets from the app pack, mapped to
 // the starter's own layout, so the starter is held to what it asks of every project. They never ship: projects are
 // made without .starter-dev, and these are not part of requirements.json.
-const ENGINE_FILES = ['tools/**', 'packs/**', 'library/**', 'skills/**', '.githooks/**', 'AGENTS.md', 'SETUP-PROMPT.md', 'docs/checks/**', 'docs/playbooks/**'];
-// (the proof the self-test writes when it passes is no engine change: a background run that finished made the next
-// turn look like one, asked to run the tests again and log it)
-// (nor are the starter's own records of where work stands: notes, not engine code. Lesson (this starter's own turns):
-// a status line asked for the self-test and a changelog entry)
-const SELF_WRITTEN = ['tools/hooks/engine-proof.json', 'tools/starter/STATUS.md', 'tools/starter/dogfood-log.md', 'tools/starter/STARTER-CHANGELOG.md', 'tools/starter/trials/rounds.json']; // (records, not engine: a changelog line asked for a 5-minute self-test, waived 3 turns running)
-export const DEV_REQUIREMENTS = [
-  { tag: 'dev-self-tests', rule: '12', when: { filesChanged: ['tools/**', 'packs/**', 'library/**', 'skills/**', '.githooks/**'], filesIgnore: SELF_WRITTEN },
-    // (a run of it, not a command that only names the file: "git add tools/hooks/selfcheck.mjs" read as a failed run)
-    require: { toolPassed: { cmd: String.raw`\bnode\s+(\S*[\\/])?selfcheck\.mjs`, pass: 'ALL PASS' } },
-    message: 'The starter\'s engine changed: run node tools/hooks/selfcheck.mjs until it prints "ALL PASS" (the app pack\'s gates, for the starter).' },
-  { tag: 'dev-changelog', rule: '12', when: { filesChanged: ENGINE_FILES, filesIgnore: SELF_WRITTEN }, require: { filesChanged: ['tools/starter/STARTER-CHANGELOG.md'] },
-    message: 'Projects learn what changed from tools/starter/STARTER-CHANGELOG.md: add what this turn changed to today\'s entry.' },
-  // (dev-new-project: tools/hooks/base-checks.mjs, shared with engine v2)
-  DEV_NEW_PROJECT,
-  { tag: 'dev-verification', rule: '4', when: { filesChanged: ['tools/*.mjs', 'tools/**/*.mjs', 'skills/**/*.mjs', 'library/**/*.mjs', 'packs/**/*.mjs'] },
-    require: { answerMatches: String.raw`\b(verif\w*|tests? (pass|ran)|ALL PASS|audit: PASS|checked by running)\b` },
-    message: 'Code changed: say how it was verified (the commands run and what they printed), like the app pack\'s verification report.' }
-];
+// (the checks moved whole into tools/hooks/base-checks.mjs, shared with engine v2: DEV_CHECKS)
+export const DEV_REQUIREMENTS = DEV_CHECKS;
 
 export function loadRequirements() {
   const raw = read(REQS());

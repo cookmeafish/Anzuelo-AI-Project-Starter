@@ -33,6 +33,23 @@ export const DEV_NEW_PROJECT = { tag: 'dev-new-project', rule: '12', when: { fil
   // (a run of the script, not a command that names it: a "git add tools/trial.mjs" after a passing trial was its last run)
   require: { toolPassed: { cmd: String.raw`\bnode\s+(\S*[\\/])?trial\.mjs`, pass: 'TRIAL: PASS' } },
   message: 'Making, linking or upgrading projects changed: run node tools/trial.mjs until it prints "TRIAL: PASS". It proves on sample projects that nothing gets worse (files, rules, secrets, tests, git hooks, speed, repeat upgrades).' };
+// The rest of the development copy's checks (.starter-dev), so the starter is held to what it asks of every project.
+// They never ship: projects are made without .starter-dev. Both engines (moved from hooks.mjs DEV_REQUIREMENTS).
+export const ENGINE_FILES = ['tools/**', 'packs/**', 'library/**', 'skills/**', '.githooks/**', 'AGENTS.md', 'SETUP-PROMPT.md', 'docs/checks/**', 'docs/playbooks/**'];
+// (the proof the self-test writes when it passes, and the starter's own records of where work stands, are no engine
+// change. Lesson (this starter's own turns): a status line asked for the self-test and a changelog entry)
+export const SELF_WRITTEN = ['tools/hooks/engine-proof.json', 'tools/starter/STATUS.md', 'tools/starter/dogfood-log.md', 'tools/starter/STARTER-CHANGELOG.md', 'tools/starter/trials/rounds.json'];
+// (a run of the self-test, not a command that only names the file: "git add tools/hooks/selfcheck.mjs" read as a failed
+// run. Under v2 its own self-test, tools/hooks/v2/selftest.mjs, counts too: the release chain runs the whole old suite)
+export const DEV_SELF_TESTS = { tag: 'dev-self-tests', rule: '12', when: { filesChanged: ['tools/**', 'packs/**', 'library/**', 'skills/**', '.githooks/**'], filesIgnore: SELF_WRITTEN },
+  require: { toolPassed: { cmd: String.raw`\bnode\s+(\S*[\\/])?(selfcheck|selftest)\.mjs`, pass: 'ALL PASS' } },
+  message: 'The starter\'s engine changed: run its self-test (node tools/hooks/v2/selftest.mjs, or node tools/hooks/selfcheck.mjs) until it prints "ALL PASS".' };
+export const DEV_CHANGELOG = { tag: 'dev-changelog', rule: '12', when: { filesChanged: ENGINE_FILES, filesIgnore: SELF_WRITTEN }, require: { filesChanged: ['tools/starter/STARTER-CHANGELOG.md'] },
+  message: 'Projects learn what changed from tools/starter/STARTER-CHANGELOG.md: add what this turn changed to today\'s entry.' };
+export const DEV_VERIFICATION = { tag: 'dev-verification', rule: '4', when: { filesChanged: ['tools/*.mjs', 'tools/**/*.mjs', 'skills/**/*.mjs', 'library/**/*.mjs', 'packs/**/*.mjs'] },
+  require: { answerMatches: String.raw`\b(verif\w*|tests? (pass|ran)|ALL PASS|audit: PASS|checked by running)\b` },
+  message: 'Code changed: say how it was verified (the commands run and what they printed), like the app pack\'s verification report.' };
+export const DEV_CHECKS = [DEV_SELF_TESTS, DEV_CHANGELOG, DEV_NEW_PROJECT, DEV_VERIFICATION];
 
 // The baseline checks live here, not in requirements.json, so they can't be switched off by editing that file
 // (found by the ablation tests: an emptied requirements.json silently disabled every declarative check).
