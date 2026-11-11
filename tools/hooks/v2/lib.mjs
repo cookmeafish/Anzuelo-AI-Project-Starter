@@ -1400,8 +1400,12 @@ export function movedInto(acts) {
 }
 // The files this turn changed: by the edit tools, and (with a turn start) any whose time is after it, so a command's
 // writes count too. Walked once per turn.
+// (a file outside the project, Claude's memory folder, a scratchpad, the temp folder, another checkout, is no work of
+// the project: no changelog, status or name marker is asked for it. Lesson (oversight's session, 2026-11-11): a turn
+// that only saved a memory note was held to six project steps)
+const outsideRoot = f => !f || /^\.\.(\/|$)/.test(f) || path.isAbsolute(f);
 export function changedOf(acts, any = false) {
-  return [...new Set([...acts.calls.filter(c => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name)).map(c => relp(c.input.file_path || '')), ...movedInto(acts), ...touchedSince(acts, any).map(x => x.f).filter(f => !/^(\.cache|tools\/hooks\/state)\//.test(f))])];
+  return [...new Set([...acts.calls.filter(c => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.name)).map(c => relp(c.input.file_path || '')), ...movedInto(acts), ...touchedSince(acts, any).map(x => x.f).filter(f => !/^(\.cache|tools\/hooks\/state)\//.test(f))])].filter(f => !outsideRoot(f));
 }
 // REQ: forbidden-terms (files a command changed: the guard sees only the edit tools). A name the file already had at
 // git's last commit is no new slip; ignored files and the engine's own list and state don't count.

@@ -65,7 +65,9 @@ export function wakeupsPending(rows, now = Date.now()) {
 // (or says that it stays on and when it runs: "stays on", "keeps running", "every half hour", "every 30 minutes", "next
 // run 11:58", "sigue activo", "cada 30 minutos". Lesson (a live false hold, 2026-11-10): "checks on the work every half
 // hour; next run 11:58" was held twice, though it said what the job does and when, as the message asks)
-export const WAKE_SAID = /\b(wake-?ups?|reminders?|cron|scheduled|recurring|recordatorios?|programad[oa]s?)\b|\b(stays? on|keeps? (running|going|checking)|next (run|check)|runs? again|every (half (an )?hour|hour|day|week|\d+\s*(min(ute)?s?|h(ours?)?|days?))|sigue (activ[oa]|corriendo)|cada (media hora|hora|d[ií]a|\d+\s*(min(utos)?|horas?)))\b/i;
+// (and "the 15-minute check-ins are back on", "every quarter hour": a check-in is a scheduled check. Lesson (oversight's
+// session, 2026-11-11): "the check-ins are back on" was held)
+export const WAKE_SAID = /\b(wake-?ups?|reminders?|cron|scheduled|recurring|check-?ins?|recordatorios?|programad[oa]s?)\b|\b(stays? on|keeps? (running|going|checking)|next (run|check)|runs? again|(?:is|are) back on|\d+-(?:minute|min|hour|day)|every (quarter( of an)? hour|half (an )?hour|hour|day|week|\d+\s*(min(ute)?s?|h(ours?)?|days?))|sigue (activ[oa]|corriendo)|cada (cuarto de hora|media hora|hora|d[ií]a|\d+\s*(min(utos)?|horas?)))\b/i;
 export function wakeGaps(rows, answer = '', prompt = '', now = Date.now()) {
   const headless = rows.some(r => /^sdk/.test(String(r?.entrypoint || ''))), forced = headless && !WAKE_ASK.test(prompt);
   const left = wakeupsPending(rows, now).filter(w => forced || (!(w.recurring && w.fired) && !((w.id && answer.includes(w.id)) || WAKE_SAID.test(answer))));

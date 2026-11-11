@@ -245,9 +245,12 @@ export function slowerThan(prev, cur, pct = 0.15) {
   if (!prev || !cur || !prev.machine || prev.machine !== cur.machine) return [];
   return ['prompt', 'pretool'].filter(k => Number(prev[k]) > 0 && Number(cur[k]) > Number(prev[k]) * (1 + pct)).map(k => `${k} ${cur[k]} ms against ${prev[k]} ms at the last release`);
 }
+// (the last run out removes the empty folder, so a finished run leaves nothing in the temp folder; a run that registers
+// while another removes it makes the folder again. Lesson (oversight, 2026-11-11): leftovers in the temp folder)
 export function registerSuite(info, dir = runningDir()) {
-  try { fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(path.join(dir, `${process.pid}.json`), JSON.stringify({ at: new Date().toISOString(), ...info })); } catch { }
-  return () => { try { fs.rmSync(path.join(dir, `${process.pid}.json`), { force: true }); } catch { } };
+  const f = path.join(dir, `${process.pid}.json`), body = JSON.stringify({ at: new Date().toISOString(), ...info });
+  for (let i = 0; i < 3; i++) try { fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(f, body); break; } catch { }
+  return () => { try { fs.rmSync(f, { force: true }); } catch { } try { fs.rmdirSync(dir); } catch { } };
 }
 // cpus: logical CPUs; others: suites already running; tests: how many will run here (40 per helper at least)
 export function shardCount({ cpus = os.cpus().length, others = 0, tests = 0, max = 12 } = {}) {

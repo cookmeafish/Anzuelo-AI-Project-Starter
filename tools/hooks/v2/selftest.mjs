@@ -285,6 +285,16 @@ report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/
       headless: pend.test(w('wk4', [{ type: 'system', entrypoint: 'sdk-cli', content: 'headless' }, wake, say('The review is done. A wakeup in 20 minutes checks it once more.')])),
     };
     report(wk.left && !wk.stopped && !wk.said && wk.headless, 'end: wakeup-left: a wakeup still pending after the work is held; cancelled, or said in the answer, it is not; headless, saying it is not enough', JSON.stringify(wk));
+    // (check-ins said to stay on, in the words a person uses, are said; a plain "done" still is not. Lesson (oversight's
+    // session, 2026-11-11): "the check-ins are back on every 15 minutes" was held)
+    const { WAKE_SAID } = await import('../wakeups.mjs');
+    const said = ['The check-ins are back on every 15 minutes.', 'The 15-minute check-ins are back on.', 'Check-ins run every quarter hour.', 'Los recordatorios siguen cada cuarto de hora.'].map(s => WAKE_SAID.test(s));
+    report(said.every(Boolean) && !WAKE_SAID.test('The review is done.') && !WAKE_SAID.test('All 15 tests pass.'), 'end: wakeup-left: "the check-ins are back on every 15 minutes", "15-minute check-ins", "every quarter hour" say the schedule stays on; a plain answer does not', JSON.stringify(said));
+    // (writes outside the project, Claude's memory folder or a scratchpad, are no work of the project: nothing changed)
+    const { changedOf } = await import('./lib.mjs');
+    const away = acts([user('save that as a memory'), call('Write', { file_path: path.join(os.homedir(), '.claude', 'projects', 'p', 'memory', 'note.md'), content: 'x' }), call('Write', { file_path: path.join(os.tmpdir(), 'scratchpad', 'n.md'), content: 'x' }), say('Saved.')]);
+    const inside = acts([user('add a note'), call('Write', { file_path: path.join(dir, 'docs/zz-note.md'), content: 'x' }), say('Added.')]);
+    report(changedOf(away).length === 0 && changedOf(inside).includes('docs/zz-note.md'), 'end: a turn that wrote only outside the project (memory folder, scratchpad) changed nothing in it; a write inside still counts', JSON.stringify({ away: changedOf(away), inside: changedOf(inside) }));
   }
   { // (a test run made by one of the session's helpers this turn counts; one from before the turn does not)
     const { saveTurn: sv } = await import('./lib.mjs');
@@ -1220,6 +1230,7 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
         // stays free to edit; inside a frozen copy it runs in place)
         const repo = path.join(sw, 'repo'), frozenBase = path.join(sw, 'frozen'), g = (a, cwd = repo) => spawnSync('git', a, { cwd, encoding: 'utf8' });
         fs.mkdirSync(path.join(repo, 'tools/starter'), { recursive: true }); fs.copyFileSync(tool, path.join(repo, 'tools/starter/v2-sweep.mjs'));
+        fs.mkdirSync(path.join(repo, 'tools/hooks'), { recursive: true }); fs.copyFileSync(path.join(path.dirname(tool), '..', 'hooks', 'hidewin.mjs'), path.join(repo, 'tools/hooks/hidewin.mjs')); // (the sweep starts its runs hidden)
         fs.writeFileSync(path.join(repo, 'engine.mjs'), 'v1\n');
         g(['init', '-q']); g(['add', '-A']); g(['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'base']);
         fs.writeFileSync(path.join(repo, 'engine.mjs'), 'v2 uncommitted\n'); fs.writeFileSync(path.join(repo, 'new-file.mjs'), 'new\n');
