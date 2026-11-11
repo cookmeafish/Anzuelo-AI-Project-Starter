@@ -3463,7 +3463,10 @@ STOP.push(
   { ...MEAL_TURN, name: 'stop-follow-on: a follow-on waived for this turn is not named', files: { 'notes/meals.md': 'x', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: meal-plan.md. Done.\nN/A(audit-run): the audit runs in CI for this project' + FIN,
     expect: { block: true, tags: ['skill-learn'], not: ['audit-run'] } },
   { name: 'stop-follow-on: a lesson for a skill names the audit and the changelog in round 1', prompt: 'debug the failing import', tools: [sk('debug')], files: { 'scratch-work/import.md': 'x', 'src/import.mjs': 'export const x = 1;\n' }, answer: 'Skill: debug. Fixed it.' + FIN,
-    expect: { block: true, tags: ['debug-test-added', 'skill-learn', 'audit-run', 'changelog'] } },
+    expect: { block: true, tags: ['debug-test-added', 'skill-learn', 'audit-run', 'changelog'] },
+    // (v2: no audit-run ask, since v2 runs the health check itself at the end and asks only when it fails, as the rule
+    // scenario below)
+    v2: { expect: { block: true, tags: ['debug-test-added', 'skill-learn', 'changelog'] } } },
   { name: 'stop-follow-on: a new rule names the hook self-tests, the audit and the changelog in round 1', prompt: 'from now on always include a budget table in plans', tools: [pb('project')], answer: 'Playbook: project.md. Noted.',
     // (v2: the rule skill opened starts rule handling; no audit-run ask, since v2 runs the health check itself at the end
     // and asks only when it fails)
