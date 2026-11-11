@@ -3,7 +3,25 @@
 Where work on the starter itself stands, for the next session. Projects never get this file (their own is
 docs/STATUS.md, which here is the template new projects start from).
 
+## Queue to the finish (oversight's plan, 2026-11-10; tick as done)
+Phase A, open v2 tests to 0, in batches of about 15 (one chain per batch, released when it passes):
+- [ ] Batch 1: name-var (done), note-linked (done), the "must pass" false hold (done), stop:a, check-proven (retired:
+  record lines), waive, runEach, runbook-exists remainder
+- [ ] Batch 2: prompt groups: check-preview, fit-checklist, menu, paste-routing, recall, rule
+- [ ] Batch 3: answer-noise, maintaining, begin-keeps-turn, notice-answer, notice replies, manual path, agent-neutral
+- [ ] Batch 4 on: the single-test tail (codex, engine-cache, host-fixtures, own-scenarios-run, overlap...), by file
+- A test that needs a user decision goes on one "for the user" list, sent to oversight; work goes on.
+Phase B: engine-v2-only 1b to 1e (rest of hooks.mjs into modules, one v2 entry point, tests unpinned, hooks.mjs
+deleted). Done when git grep for hooks/hooks.mjs and STARTER_ENGINE finds nothing outside the changelog, and every
+project passes after upgrading.
+Phase C: clean-exit Tasks 4 and 5. Phase D: hybrid-db-mcp with its ship bars.
+Every batch: the pre-chain quick runs; the next batch starts while a chain runs; after each release, one line to
+oversight (commit, open count, next batch).
+
 ## Now
+- 2026-11-10 (night): main and GitHub at 2648dc1 (proof for 63c2888: rule 2's runbook ask, the shortened-id guard,
+  read-only turns skip the file scans). Notices sent to all 3 projects. v2 list after its sweep: 118 open, 43 retired.
+  app-port ahead: note-linked, name-var (via tools/hooks/names.mjs), the requirement filter. Next: the rest of batch 1.
 - 2026-11-10 (late): main and GitHub at 44c6b0c (field fixes: background runs dated by their end, plan check outside
   the project, audit skills in .anzuelo, self-test fixes for that layout). All 3 projects notified; one's upgrade waits
   on the user's permission. app-port ahead, not released: check-preview (9 tests off the list), v2-retired.txt and the
