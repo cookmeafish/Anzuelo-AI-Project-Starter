@@ -234,6 +234,14 @@ export async function waitQuiet(ms, { dir = runningDir(), step = 5000 } = {}) {
 }
 // The v2 self-test's release-mode verdict on its time limits, read by the whole self-test into the proof: { commit, judged }
 export const SPEED_RECORD = '.cache/speed-judged.json';
+// The hooks that got slower than the last released proof's times on the same machine, by more than pct: a slowdown
+// that still sits under the fixed limit is caught too. prev and cur: { machine, prompt, pretool } (each hook's whole run,
+// fastest of its samples, in ms). A different machine, or no earlier times, compares nothing. Oversight, 2026-11-11.
+export const machineId = () => `${os.hostname()}|${(os.cpus()[0] || {}).model || ''}|${os.cpus().length}`;
+export function slowerThan(prev, cur, pct = 0.15) {
+  if (!prev || !cur || !prev.machine || prev.machine !== cur.machine) return [];
+  return ['prompt', 'pretool'].filter(k => Number(prev[k]) > 0 && Number(cur[k]) > Number(prev[k]) * (1 + pct)).map(k => `${k} ${cur[k]} ms against ${prev[k]} ms at the last release`);
+}
 export function registerSuite(info, dir = runningDir()) {
   try { fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(path.join(dir, `${process.pid}.json`), JSON.stringify({ at: new Date().toISOString(), ...info })); } catch { }
   return () => { try { fs.rmSync(path.join(dir, `${process.pid}.json`), { force: true }); } catch { } };

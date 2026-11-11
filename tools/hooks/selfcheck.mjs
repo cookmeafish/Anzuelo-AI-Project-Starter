@@ -9988,6 +9988,8 @@ if (WHOLE_RUN) try { fs.writeFileSync(LAST, JSON.stringify({ pid: process.pid, a
 // In the starter, a whole run where every test passed proves this engine for the projects made from it (PROOF_FILE,
 // hashed from the base the tests ran in, as the run started). A project made from it, or upgraded to it, reuses it.
 // (the time limits proven: this run's Stop timing, and the v2 self-test's release run on the same commit, SPEED_RECORD)
-const TIME_PROOF = (() => { let r = null; try { r = JSON.parse(fs.readFileSync(path.join(ROOT, SPEED_RECORD), 'utf8')); } catch { } return { stop: STOP_JUDGED, v2: !!TESTED0 && r?.commit === TESTED0 && r?.judged === true }; })();
+const TIME_PROOF = (() => { let r = null; try { r = JSON.parse(fs.readFileSync(path.join(ROOT, SPEED_RECORD), 'utf8')); } catch { } const v2ok = !!TESTED0 && r?.commit === TESTED0 && r?.judged === true;
+  // (with the hooks' times from that judged run, so the next release is compared with this one: selftest-cache.mjs slowerThan)
+  return { stop: STOP_JUDGED, v2: v2ok, ...(v2ok && r?.times ? { times: r.times } : {}) }; })();
 if (IS_STARTER && WHOLE_RUN && !fail) try { if (writeProof(ROOT, proofHash(B, CORE_SKILLS), pass, TESTED0, TIME_PROOF)) console.log(`proof: ${PROOF_FILE} now names this engine (${pass} tests passed${TESTED0 ? `, commit ${TESTED0.slice(0, 7)}` : ''}; time limits ${TIME_PROOF.stop && TIME_PROOF.v2 ? 'judged' : `NOT judged (${['stop', 'v2'].filter(k => !TIME_PROOF[k]).join(', ')}): a push of this commit will be refused`})`); } catch (e) { console.log(`proof: ${PROOF_FILE} could not be written (${e.message})`); }
 process.exit(fail ? 1 : 0);

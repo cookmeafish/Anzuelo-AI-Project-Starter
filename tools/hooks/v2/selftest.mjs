@@ -19,6 +19,8 @@ const quiet = RELEASE ? await waitQuiet(Number(process.env.ANZUELO_QUIET_WAIT_MS
 if (RELEASE && !quiet) console.log('NOTE  release: no quiet window in time (other self-test runs kept working); the time limits are noted, not judged, and the proof will not allow a push');
 process.on('exit', () => { if (quiet) releaseLock(timingLock()); unregister(); });
 let noted = 0;
+// (the prompt and pretool hooks' whole-run times, fastest of 9, with the machine they were measured on: for the proof)
+let HOOK_TIMES = null;
 const timeVerdict = (within, what, numbers) => {
   // (a time within its limit beside other runs still proves it: load only adds time)
   if (within) return true;
@@ -456,7 +458,9 @@ report(/learn-from-upset/.test(reminder('WHY DID YOU BREAK THE EXPORT AGAIN').te
     const tq = path.join(c, 'tq.jsonl'); fs.writeFileSync(tq, [user('fix the label on the builder page')].flat().map(r => JSON.stringify(r)).join('\n') + '\n');
     const env = { ...process.env, STARTER_ENGINE: 'v2', ANZUELO_ROOT: c, CLAUDE_PROJECT_DIR: c };
     const ms = (args, input) => { const t0 = performance.now(); spawnSync(process.execPath, args, { cwd: c, encoding: 'utf8', input, env }); return performance.now() - t0; };
-    const best = (args, input) => Math.min(...Array.from({ length: 5 }, () => ms(args, input)));
+    // (fastest of 9: one slow sample from the machine does not decide it. Oversight, 2026-11-11: the 75 ms limit stays,
+    // measured more carefully; four release chains had tripped on single noisy samples of unchanged code)
+    const best = (args, input) => Math.min(...Array.from({ length: 9 }, () => ms(args, input)));
     const bare = best(['-e', '']);
     const prompt = best([path.join(c, 'tools/hooks/hooks.mjs'), 'prompt'], JSON.stringify({ session_id: 'speedp', transcript_path: tq, prompt: 'fix the label on the builder page' })) - bare;
     const pretool = best([path.join(c, 'tools/hooks/hooks.mjs'), 'pretool'], JSON.stringify({ session_id: 'speedt', transcript_path: tq, tool_name: 'Bash', tool_input: { command: 'git status' } })) - bare;
@@ -467,7 +471,20 @@ report(/learn-from-upset/.test(reminder('WHY DID YOU BREAK THE EXPORT AGAIN').te
     const lazy = JSON.parse((spawnSync(process.execPath, ['--input-type=module', '-e', probe], { cwd: c, encoding: 'utf8', env }).stdout || '{}').trim().split('\n').pop() || '{}');
     const sp = { bare: Math.round(bare), prompt: Math.round(prompt), pretool: Math.round(pretool), lazy };
     report(timeVerdict(prompt < Math.max(75, 2.8 * bare) && pretool < Math.max(60, 2.2 * bare), 'speed: prompt and pretool', JSON.stringify(sp)) && lazy.before?.join() === 'false,false' && lazy.after?.join() === 'true,true' && lazy.en?.every(x => x === 'add a page'),
-      'speed: the prompt and pretool hooks stay within budget over a bare node start (fastest of 5), and the Spanish routing patterns are built on first use, not at load', JSON.stringify(sp));
+      'speed: the prompt and pretool hooks stay within budget over a bare node start (fastest of 9), and the Spanish routing patterns are built on first use, not at load', JSON.stringify(sp));
+    // (no hook more than 15% slower than the last released proof's times on this machine: a slowdown under the limit is
+    // caught too; the times go into this release's proof. A hook slowed on purpose (a 40 ms wait loaded before it) is
+    // flagged against this run's own times. Oversight, 2026-11-11)
+    const { slowerThan, machineId } = await import('../selftest-cache.mjs');
+    const promptInput = JSON.stringify({ session_id: 'speedp', transcript_path: tq, prompt: 'fix the label on the builder page' });
+    HOOK_TIMES = { machine: machineId(), prompt: Math.round(prompt + bare), pretool: Math.round(pretool + bare) };
+    const lastProof = (() => { try { return JSON.parse(fs.readFileSync(path.join(path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', '..', '..'), 'tools/hooks/engine-proof.json'), 'utf8')).speed?.times || null; } catch { return null; } })();
+    const slower = slowerThan(lastProof, HOOK_TIMES);
+    report(timeVerdict(!slower.length, 'speed: against the last release', JSON.stringify({ last: lastProof, now: HOOK_TIMES })),
+      'speed: the prompt and pretool hooks are no more than 15% slower than the last released proof on this machine', JSON.stringify({ last: lastProof, now: HOOK_TIMES, slower }));
+    const slowed = Math.round(best(['--import', 'data:text/javascript,const t=Date.now();while(Date.now()-t<40);', path.join(c, 'tools/hooks/hooks.mjs'), 'prompt'], promptInput));
+    const caught = slowerThan(HOOK_TIMES, { ...HOOK_TIMES, prompt: slowed }), same = slowerThan(HOOK_TIMES, HOOK_TIMES), other = slowerThan(HOOK_TIMES, { ...HOOK_TIMES, machine: 'elsewhere', prompt: slowed });
+    report(caught.length === 1 && !same.length && !other.length, 'speed: a hook slowed on purpose (40 ms) is caught as slower than the last release; the same times, or another machine, are not', JSON.stringify({ now: HOOK_TIMES.prompt, slowed, caught, other }));
   }
   fs.rmSync(c, { recursive: true, force: true });
   report(!/outward-gate/.test(earlier) && /outward-gate|git-safety/.test(none), 'pretool: the outward-action guard lets a push OK\'d earlier in the session run, and still refuses one nobody OK\'d', JSON.stringify({ earlier: earlier.slice(0, 200), none: none.slice(0, 200) }));
@@ -3531,7 +3548,7 @@ fs.rmSync(dir, { recursive: true, force: true });
   const rec = path.join(repoRoot, SPEED_RECORD);
   if (RELEASE) {
     const judged = quiet && !noted && !fail;
-    try { fs.mkdirSync(path.dirname(rec), { recursive: true }); fs.writeFileSync(rec, JSON.stringify({ commit: testedCommit(repoRoot), judged, quiet, noted, failed: fail })); } catch { }
+    try { fs.mkdirSync(path.dirname(rec), { recursive: true }); fs.writeFileSync(rec, JSON.stringify({ commit: testedCommit(repoRoot), judged, quiet, noted, failed: fail, ...(HOOK_TIMES ? { times: HOOK_TIMES } : {}) })); } catch { }
     console.log(`speed: ${judged ? 'judged with the machine to itself' : `NOT judged (${!quiet ? 'no quiet window' : noted ? `${noted} limit(s) only noted beside other runs` : 'tests failed'})`}`);
   }
 }
