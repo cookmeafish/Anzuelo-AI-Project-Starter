@@ -5,10 +5,16 @@ docs/STATUS.md, which here is the template new projects start from).
 
 ## Queue to the finish (oversight's plan, 2026-11-10; tick as done)
 Phase A, open v2 tests to 0, in batches of about 15 (one chain per batch, released when it passes):
-- [ ] Batch 1: name-var (done), note-linked (done), the "must pass" false hold (done), stop:a, check-proven (retired:
-  record lines), waive, runEach, runbook-exists remainder
-- [ ] Batch 2: prompt groups: check-preview, fit-checklist, menu, paste-routing, recall, rule
-- [ ] Batch 3: answer-noise, maintaining, begin-keeps-turn, notice-answer, notice replies, manual path, agent-neutral
+- [x] Batch 1: name-var, note-linked, the "must pass" false hold, stop:a, check-proven (retired: record lines), waive,
+  runEach (the user's rule), runbook-exists. Open in it: 2 "15+ calls" tests (rule ported with a v2 self-test; the
+  harness turn lacks the prompt's route)
+- [x] Batch 2: check-preview, menu, paste-routing (retired), recall, rule hint. Moved to Phase B: fit-checklist (the fit
+  code is all in hooks.mjs). Left: the rules digest (2 tests, harness work for v2's session start)
+- [ ] Batch 3: answer-noise (retired, rows 44/42), begin-keeps-turn, notice-answer and notice replies (another way),
+  session-checklist, engine-bypassed done. Left: maintaining (always.md's "runbook read" marker can't tell maintenance
+  from use), manual path, agent-neutral
+- Release: chains pass but the speed limits can't be judged under the machine's load (a game); one chain for the newest
+  head once the budget passes.
 - [ ] Batch 4 on: the single-test tail (codex, engine-cache, host-fixtures, own-scenarios-run, overlap...), by file
 - A test that needs a user decision goes on one "for the user" list, sent to oversight; work goes on.
 Phase B: engine-v2-only 1b to 1e (rest of hooks.mjs into modules, one v2 entry point, tests unpinned, hooks.mjs
