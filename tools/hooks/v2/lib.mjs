@@ -932,13 +932,18 @@ export function healthGaps(acts, { run = true } = {}) {
   const lastEdit = Math.max(-1, ...i.filter(([c]) => /^(Edit|Write|MultiEdit)$/.test(c.name) && own(c.input.file_path || '')).map(([, k]) => k));
   const lastWrite = Math.max(0, ...changedSince(acts, { test: own }).map(mtime));
   if (lastEdit < 0 && !lastWrite) return [];
-  if (i.some(([c, k]) => k > lastEdit && /^(Bash|PowerShell)$/.test(c.name) && !c.error && /audit\.mjs/.test(String(c.input.command || '')) && /audit: PASS/.test(c.out || '') && (!lastWrite || !c.done || c.done > lastWrite))) return [];
+  // (a run that sent its output to a file, "> .cache/audit.txt" or a background job's log, is judged on that file when
+  // the file was written this turn; an older file is not this run's output. Lesson (the old suite under v2, REQ
+  // gate-redirect): a background audit whose log said PASS was run again and held on the rerun's result)
+  const since = Date.parse(acts.at || '') || 0;
+  const auditOut = c => [c.out || '', ...redirectedTo(c.input.command).map(f => { try { return fs.statSync(at(f)).mtimeMs >= since - 1000 ? fs.readFileSync(at(f), 'utf8') : ''; } catch { return ''; } })].join('\n');
+  if (i.some(([c, k]) => k > lastEdit && /^(Bash|PowerShell)$/.test(c.name) && !c.error && /audit\.mjs/.test(String(c.input.command || '')) && /audit: PASS/.test(auditOut(c)) && !/audit: FAIL/.test(auditOut(c)) && (!lastWrite || !c.done || c.done > lastWrite))) return [];
   // (the agent's own audit run after the last change that printed a failure is the result: it is not run again. Lesson
   // (the old suite under v2): the rerun hit its time limit and a failing new runbook passed, and a rerun costs seconds)
-  const ownFail = i.filter(([c, k]) => k > lastEdit && /^(Bash|PowerShell)$/.test(c.name) && /audit\.mjs/.test(String(c.input.command || '')) && /audit: FAIL/.test(c.out || '') && (!lastWrite || !c.done || c.done > lastWrite)).pop()?.[0];
+  const ownFail = i.filter(([c, k]) => k > lastEdit && /^(Bash|PowerShell)$/.test(c.name) && /audit\.mjs/.test(String(c.input.command || '')) && /audit: FAIL/.test(auditOut(c)) && (!lastWrite || !c.done || c.done > lastWrite)).pop()?.[0];
   if (!run && !ownFail) return ['(the health check would run here)'];
   // (a hard limit: a slow audit never holds the end of a turn. Its time is kept, to see what it costs)
-  const t0 = Date.now(), r = ownFail ? { status: 1, stdout: String(ownFail.out || '') } : spawnSync(process.execPath, [at('tools/audit.mjs')], { cwd: ROOT, encoding: 'utf8', timeout: 30_000 });
+  const t0 = Date.now(), r = ownFail ? { status: 1, stdout: auditOut(ownFail) } : spawnSync(process.execPath, [at('tools/audit.mjs')], { cwd: ROOT, encoding: 'utf8', timeout: 30_000 });
   const ms = Date.now() - t0;
   if (r.status === 0 || r.error) { saveTurn('health', { ...loadTurn('health'), ms }); return []; }
   // (a failure reported on an earlier turn, or naming only files this turn did not change, is not this turn's. Lesson:
