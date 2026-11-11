@@ -6550,9 +6550,15 @@ if (mineB()) { // agent-neutral: an agent without hooks uses begin / check
       // and passes the complete one; nothing names the host)
       write(dir, { 'docs/plans/2026-10-17-export.md': '# Export: plan', '.cache/answer.md': 'Playbook: plan.md. Here it is.' });
       const v1 = node('check', '--answer-file', path.join(dir, '.cache/answer.md'));
-      write(dir, { '.cache/answer.md': 'Playbook: plan.md. Saved docs/plans/2026-10-17-export.md.' + FIN });
+      // (the work done as an agent without hooks does it: its commands through "hooks.mjs run", so the run log shows the
+      // runbook opened and the plan's check run; a plan the check passes. The check then holds nothing, at most the items
+      // to verify by hand, and exits 0)
+      node('run', 'cat docs/playbooks/plan.md');
+      write(dir, { 'docs/plans/2026-10-17-export.md': '# Export: plan\n\n**Goal:** a csv export of the orders.\n**Approach:** one script that writes the file.\n**Spec:** the request itself.\n\n## Constraints for every task\n- Keep the export under src/.\n\n## Watch for\n- none found\n\n### Task 1: Write the export\n**Files:** src/export.mjs\n- [ ] Write the export, then run `node --test` and see it pass.\n' });
+      node('run', 'node skills/plan/scripts/plan-tasks.mjs check docs/plans/2026-10-17-export.md');
+      write(dir, { '.cache/answer.md': 'Saved the plan in docs/plans/2026-10-17-export.md.\n\n## Finished\n- Done. Files: docs/plans/2026-10-17-export.md\n' });
       const v2c = node('check', '--answer-file', path.join(dir, '.cache/answer.md'));
-      report(/open docs\/playbooks\/plan\.md and follow it/.test(b.stdout) && v1.status === 1 && /CHECK: Not done yet:\n- /.test(v1.stdout) && !/Claude/.test(v1.stdout) && v2c.status === 0 && /CHECK: PASS/.test(v2c.stdout),
+      report(/open docs\/playbooks\/plan\.md and follow it/.test(b.stdout) && v1.status === 1 && /CHECK: Not done yet:\n- /.test(v1.stdout) && !/Claude/.test(v1.stdout) && v2c.status === 0 && !/Not done yet/.test(v2c.stdout),
         'agent-neutral: begin routes, check fails an incomplete answer and passes a complete one', `begin: ${b.stdout.slice(0, 160)} | c1: ${v1.stdout.slice(0, 300)} | c2: ${v2c.stdout.slice(0, 300)}`);
     } else {
     write(dir, { 'docs/plans/2026-10-17-export.md': '# Export: plan' });

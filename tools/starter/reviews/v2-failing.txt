@@ -1,8 +1,6 @@
 # Old-suite tests engine v2 still fails (tools/starter/v2-sweep.mjs). It only shrinks: a port takes its names off.
-agent-neutral: begin routes, check fails an incomplete answer and passes a complete one
 bench-caches: a timing run keeps the caches it rebuilt and writes no session state
 codex: a Codex transcript gives the request, the tool calls and their failures to the checks
-covers: agent-neutral is proven by "agent-neutral: begin routes"
 engine-cache: a project reuses a recorded engine pass despite new notes and own scenarios, still runs those scenarios and a smoke set (once a day), and runs everything with --full or a changed engine file
 friction-suspend: 3 frustrated turns of 6 suspend a check, a safeguard stays and is flagged, 1 of 6 changes nothing, restore undoes it
 host-fixtures: in a host project the engine's scenarios run without its own runbooks, skills, triggers, checks and hook files ("externalHooks"); its own scenarios keep them
