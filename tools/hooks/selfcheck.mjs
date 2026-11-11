@@ -5133,7 +5133,11 @@ function explain(query) {
   const q = String(query || '').toLowerCase().trim(), out = [];
   const hits = [...STOP.map(s => ['stop', s]), ...PRETOOL.map(s => ['pretool', s]), ...PROMPT.map(s => ['prompt', s])].filter(([, s]) => q && s.name.toLowerCase().includes(q));
   if (!hits.length) return [`no scenario name contains "${query}". Names: node tools/hooks/selfcheck.mjs prints them (PASS/FAIL lines).`];
-  for (const [kind, s] of hits) {
+  const V2 = process.env.STARTER_ENGINE === 'v2';
+  for (const [kind, s0] of hits) {
+    // (under v2, the scenario as the v2 run judges it: its own v2 overrides applied. Lesson (2026-11-11): explain showed
+    // the old setup's result, and a test fixed under v2 still looked failing here)
+    const s = V2 && s0.v2 ? { ...s0, ...s0.v2 } : s0;
     out.push(`${kind}: ${s.name}`);
     if (!packOk(s)) { out.push(`  skipped here: the ${s.pack} pack is not installed in the test base`); continue; }
     if (kind === 'stop') {
@@ -5146,7 +5150,14 @@ function explain(query) {
       const shorts = (r.reason.match(/^\d+\. .*$/gm) || []).map(l => l.replace(/^\d+\.\s*/, ''));
       const full = (r.details.match(/^\d+\. \[[^\]]+\] .*$/gm) || []).map(l => /^\d+\. \[([^\]]+)\] (.*)$/.exec(l));
       full.forEach((m, i) => out.push(`  - ${m[1]}: ${shorts[i] || ''}\n      satisfy it: ${m[2]}\n      or waive it if it truly does not apply: node tools/hooks/hooks.mjs waive ${m[1]} "<reason>"`));
-      if (!full.length) out.push(`  ${r.reason.replace(/\n/g, '\n  ')}`);
+      // (under v2 each open step is labeled with its check, read the way the scenarios read it: its tag, its first
+      // sentence, the whole step as what satisfies it, and the waive command)
+      const v2Items = !full.length && V2 ? String(r.details || r.reason).split('\n').filter(l => /^- \S/.test(l)).map(l => l.slice(2)) : [];
+      const tagOf = item => Object.keys(V2_ASKS).find(t => V2_ASKS[t].test(`- ${item}`)) || Object.keys(ENGINE_MSG).find(t => ENGINE_MSG[t] && item.includes(`Check: ${ENGINE_MSG[t]}`))
+        || Object.keys(SCENARIO_MSG).find(t => item.includes(`Check: ${SCENARIO_MSG[t]}`)) || 'check';
+      for (const item of v2Items) { const tag = tagOf(item), first = (/^(?:Check:\s*)?(.{10,}?[.!?])(\s|$)/.exec(item)?.[1] || item).slice(0, 160);
+        out.push(`  - ${tag}: ${first}\n      satisfy it: ${item}\n      or waive it if it truly does not apply: node tools/hooks/hooks.mjs waive ${tag} "<reason>"`); }
+      if (!full.length && !v2Items.length) out.push(`  ${r.reason.replace(/\n/g, '\n  ')}`);
     } else if (kind === 'pretool') {
       const dir = copyProject(!!s.own);
       try {
@@ -5160,16 +5171,17 @@ function explain(query) {
       } finally { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
     } else {
       const dir = copyProject(!!s.own);
-      try { write(dir, s.setup); applyEdits(dir, s.setupFn); const pr = run(dir, 'prompt', { prompt: s.prompt }); out.push(pr.out.trim() ? `  hints:\n    ${pr.out.trim().replace(/\n/g, '\n    ')}` : '  no hints'); }
+      try { write(dir, s.setup); applyEdits(dir, s.setupFn);
+        // (as the scenario loop sets the folder up: files removed, and the starter's marker when the scenario is a project's)
+        for (const f of s.remove || []) fs.rmSync(path.join(dir, f), { force: true });
+        if (s.removeMarker) fs.rmSync(path.join(dir, '.starter-template'), { force: true });
+        const pr = run(dir, 'prompt', { prompt: s.prompt }); out.push(pr.out.trim() ? `  hints:\n    ${pr.out.trim().replace(/\n/g, '\n    ')}` : '  no hints'); }
       finally { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
     }
   }
   return out;
 }
-{
-  const i = process.argv.indexOf('--explain');
-  if (i > 0) { console.log(explain(process.argv.slice(i + 1).join(' ')).join('\n')); process.exit(0); }
-}
+// (the --explain command runs below, once the v2 tag tables it labels items with are set: V2_ASKS, ENGINE_MSG)
 
 // With --tags, a scenario runs when it proves one of the tags: it expects the tag (or expects it absent), or its name
 // spells the tag (or the name COVERS gives for it). A tag no scenario proves at all is a FAIL: add one.
@@ -5328,6 +5340,10 @@ const ENGINE_MSG = await (async () => { const out = {}; try { const b = await im
   // (pack checks are listed in engine-checks.json; a project gets them in its requirements.json when the pack is in)
   for (const f of ['tools/hooks/engine-checks.json', 'tools/hooks/requirements.json']) try { for (const q of JSON.parse(fs.readFileSync(path.join(ROOT, f), 'utf8')).requirements) out[q.tag] = q.message; } catch { }
   return out; })();
+{
+  const i = process.argv.indexOf('--explain');
+  if (i > 0) { console.log(explain(process.argv.slice(i + 1).join(' ')).join('\n')); process.exit(0); }
+}
 for (const s0 of STOP) {
   if (!mine()) continue;
   // (under v2, a scenario's own v2 setup or expectations, as prompt scenarios have: v2 starts rule and complaint handling
@@ -6517,7 +6533,7 @@ if (mineB() && SPEED) { // bulk-dirs: the audit and the interrupted-work check s
 if (!TAGS) { // the standalone checks run in a full run only
 if (mineB()) { // --explain: every check that fires for a scenario at once, with its short label and what satisfies it
   const out = explain('unrouted work turn with no runbook created').join('\n'), none = explain('no such scenario xyz').join('\n');
-  report(/- runbook-exists: Leave a runbook behind/.test(out) && /satisfy it: /.test(out) && /hooks\.mjs waive runbook-exists "<reason>"/.test(out) && /no scenario name contains/.test(none),
+  report((process.env.STARTER_ENGINE === 'v2' ? /- runbook-exists: No runbook was opened/ : /- runbook-exists: Leave a runbook behind/).test(out) && /satisfy it: /.test(out) && /hooks\.mjs waive runbook-exists "<reason>"/.test(out) && /no scenario name contains/.test(none),
     'selfcheck --explain: lists every firing check with its label and what satisfies it', out.slice(0, 400));
 }
 if (mineB()) { // session hook output
