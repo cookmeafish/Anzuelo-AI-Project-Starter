@@ -43,11 +43,13 @@ Related: [improvement loop](../../tools/starter/runbooks/improvement-loop.md).
 
 ## Task 4: find what leaves the paged pool behind
 Done when: two chains back to back leave the paged pool within about 300 MB of where it started.
-- [ ] Chain 2 tells a leak from a cache that fills once: pool by tag before and after (scratch reader of
-      NtQuerySystemInformation pool tags, read-only).
-- [ ] Bisect on a quiet machine, pool before and after each, one step at a time: v2 self-test, `selfcheck --shard 1/12`,
-      the trial, the sweep, a git clone or worktree. Which step leaves the most paged pool per run.
-- [ ] For that step: which files outside TEMP survive (the frozen release copies, git objects, fixtures' state folders).
-      Frozen copies: keep only the last 3 after a release.
-- [ ] If deleted files still leave filter-manager and Defender records behind, cut file churn at the source: one fixture
-      copy per shard reused across scenarios instead of a new copy per scenario, and fewer, smaller files.
+- [x] Chain 2 tells a leak from a cache that fills once: paged 2,477 -> 3,935 MB, then flat for 20 idle minutes. It
+      accumulates and is held.
+- [x] Bisect, one step at a time: v2 self-test +305 MB paged in 224 s; `selfcheck --shard 1/12` +438 MB in 713 s.
+      20,000 files made and deleted: node leaves about 1-4 KB each; git, bash cp/rm and files open while deleted no more.
+- [x] Frozen release copies pruned to the last 3; the improvement-loop runbook says to check after each release.
+- [x] Cut the churn at its source: on Windows every scenario made a fresh whole copy of the fixture base (about 1,700 a
+      run). Now up to 16 copies per base take turns, each reused only after resting 16 s (past NTFS tunnelling).
+      Shard 1/12: 205 s and +28 MB paged (was 713 s, +438 MB). Test: a tagged run makes at most a third as many copies as
+      scenarios (18 for 24 with the old rule).
+- [ ] The full selfcheck and the v2 self-test measured with the fix; then two chains back to back within about 300 MB.

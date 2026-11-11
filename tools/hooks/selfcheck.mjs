@@ -93,6 +93,7 @@ const SKIP_DIRS = new Set(['.git', 'node_modules', 'state', '.cache', '.private-
 // triggers on the engine's project runbook, and the hook-contract test counted the project's real hook file.
 const IS_STARTER = fs.existsSync(path.join(ROOT, '.starter-template'));
 let FIX_BASE = null, HOST_BASE = null;
+let COPIES = 0, BASES = 0; // (whole fixture copies and bases this process made: SELFCHECK_COPIES_FILE, see copyProject)
 // The starter a test copy links to: this folder in the starter, the linked starter (or the kept .starter) in a project.
 // Lesson: run in a project, a test linked its copy to the project itself, so the copy took the project's own config
 // (its own Stop command, whose script the base had removed) and every smoke scenario blocked on that command.
@@ -111,6 +112,7 @@ cleanOld(6 * 3600_000);
 // The base: a copy of this project with every available pack installed and the generated files synced, so every
 // check can be exercised. Files are aged, so only what a scenario writes counts as changed this turn.
 function buildBase(host) {
+  BASES++;
   const BASE = testDir('starter-base-');
   // A project's build output, environments, engine caches and the folders its .gitignore lists are never test material:
   // left out of the copy, so each of the many test copies stays small. Lesson: in a large project the self-test took
@@ -336,21 +338,28 @@ function engineStampHere() {
   const obs = (spawnSync('git', ['ls-files', '.obsidian'], { cwd: ROOT, encoding: 'utf8' }).stdout || '').trim() ? 'tracked' : '';
   return engineStamp(base(), [['claims.mjs', rd('skills/research/scripts/claims.mjs')], ['obsidian', obs]]);
 }
+// (how many whole copies a run made, written at exit when SELFCHECK_COPIES_FILE names a file: the self-test holds it to
+// a few per base, see takeCopy)
+if (process.env.SELFCHECK_COPIES_FILE) process.on('exit', () => { try { fs.appendFileSync(process.env.SELFCHECK_COPIES_FILE, `${process.pid}\t${process.argv.slice(2).join(' ') || 'main'}\t${process.cwd()}\tbases ${BASES}\t${COPIES}\n`); } catch { } });
 function copyProject(host = false) {
+  COPIES++;
   const dir = testDir('starter-test-');
   fs.cpSync(base(host), dir, { recursive: true, preserveTimestamps: true });
   // (the scenarios test their own checks: the runbook checklist, on by default, stays off unless a scenario turns it
   // on, so a scenario written for another check is not sent back for checklist records it never meant to keep)
+  ledgerOff(dir);
+  return dir;
+}
+function ledgerOff(dir) {
   const cf = path.join(dir, 'tools/hooks/config.json');
   try { const c = JSON.parse(fs.readFileSync(cf, 'utf8')); if (!('runbookLedger' in c)) { const st = fs.statSync(cf); fs.writeFileSync(cf, JSON.stringify({ ...c, runbookLedger: false }, null, 2) + '\n'); fs.utimesSync(cf, st.atime, st.mtime); } } catch { }
-  return dir;
 }
 // One reusable copy per base for the scenario runners: after a scenario only what it touched is put back (files it
 // added go, files it changed or removed come back from the base), a walk instead of a whole copy. SELFCHECK_FRESH=1
 // copies afresh each time. Lesson, trial round 13: a project's 220 scenarios took 76 s, mostly copying the fixture base
 // once per scenario, and setups ran the self-test three or four times.
 const POOL = new Map();
-process.on('exit', () => { for (const p of POOL.values()) try { fs.rmSync(p.dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); } catch { } });
+process.on('exit', () => { for (const list of POOL.values()) for (const p of list) try { fs.rmSync(p.dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); } catch { } });
 function scanTree(root) {
   const files = new Map(), dirs = new Set();
   const walk = rel => { for (const e of fs.readdirSync(path.join(root, rel), { withFileTypes: true })) {
@@ -359,24 +368,33 @@ function scanTree(root) {
   walk('');
   return { files, dirs };
 }
-// (not on Windows: a file deleted and made again under the same name within about 15 s gets its old creation time back
-// there (NTFS tunnelling), so a check file a scenario writes looked older than the turn and "new check" tests read the
-// last scenario's file. Lesson, trial round 16: in tag mode six check-proven scenarios failed this way; the full run had
-// passed only by the order its scenarios ran in)
-function takeCopy(host = false) {
-  if (process.env.SELFCHECK_FRESH || process.platform === 'win32') return copyProject(host);
-  const b = base(host);
-  let p = POOL.get(b);
-  if (!p) { const dir = copyProject(host); p = { dir, ...scanTree(dir), busy: false }; POOL.set(b, p); }
-  if (p.busy) return copyProject(host);
-  p.busy = true;
-  return p.dir;
+// (on Windows a copy is reused only once it has rested REST_MS: a file deleted and made again under the same name within
+// about 15 s gets its old creation time back there (NTFS tunnelling), so a check file a scenario writes looked older
+// than the turn and "new check" tests read the last scenario's file. Lesson, trial round 16: in tag mode six
+// check-proven scenarios failed this way. So a few copies take turns, each resting past the tunnelling window.)
+// (and not a fresh copy per scenario there either: every file made and deleted leaves about 1 KB of kernel pool
+// (file-name and file records) that Windows does not give back. Lesson (oversight, 2026-11-11): a full run copied the
+// base about 1,700 times, and each release chain left 1.5 GB more paged pool)
+// (16 copies: a scenario takes about 1.5 s, so about 11 rest at any time; SELFCHECK_REST_MS sets the rest, for the
+// self-test of the reuse itself)
+const REST_MS = Number(process.env.SELFCHECK_REST_MS ?? (process.platform === 'win32' ? 16_000 : 0));
+const POOL_MAX = 16;
+function takeCopy(host = false, now = Date.now()) {
+  if (process.env.SELFCHECK_FRESH) return copyProject(host);
+  const b = base(host), list = POOL.get(b) || [];
+  POOL.set(b, list);
+  const p = list.find(q => !q.busy && now - q.freed >= REST_MS);
+  if (p) { p.busy = true; return p.dir; }
+  const dir = copyProject(host);
+  if (list.length < POOL_MAX) list.push({ dir, ...scanTree(dir), busy: true, freed: 0 });
+  return dir;
 }
 function giveBack(dir, host = false) {
-  const b = base(host), p = POOL.get(b);
-  if (!p || p.dir !== dir) { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); return; }
+  const b = base(host), p = (POOL.get(b) || []).find(q => q.dir === dir);
+  if (!p) { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); return; }
   const restore = r => { const from = path.join(b, r), to = path.join(dir, r); fs.mkdirSync(path.dirname(to), { recursive: true }); fs.copyFileSync(from, to);
-    const s = fs.statSync(from); fs.utimesSync(to, s.atime, s.mtime); const t = fs.lstatSync(to); p.files.set(r, `${t.size}:${t.mtimeMs}`); };
+    const s = fs.statSync(from); fs.utimesSync(to, s.atime, s.mtime); if (r === 'tools/hooks/config.json') ledgerOff(dir);
+    const t = fs.lstatSync(to); p.files.set(r, `${t.size}:${t.mtimeMs}`); };
   try {
     const now = scanTree(dir);
     for (const d of [...now.dirs].filter(d => !p.dirs.has(d)).sort((x, y) => x.length - y.length)) if (fs.existsSync(path.join(dir, d))) fs.rmSync(path.join(dir, d), { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
@@ -385,8 +403,8 @@ function giveBack(dir, host = false) {
     for (const d of p.dirs) if (!fs.existsSync(path.join(dir, d))) fs.mkdirSync(path.join(dir, d), { recursive: true });
     // (folders get their times back too: adding or removing a file stamps its folder, and the engine reads folder times)
     for (const d of [...p.dirs, ''].sort((x, y) => y.length - x.length)) { try { const s = fs.statSync(path.join(b, d)); fs.utimesSync(path.join(dir, d), s.atime, s.mtime); } catch { } }
-    p.busy = false;
-  } catch { POOL.delete(b); fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
+    p.busy = false; p.freed = Date.now();
+  } catch { POOL.set(b, (POOL.get(b) || []).filter(q => q !== p)); fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
 }
 
 let idc = 0;

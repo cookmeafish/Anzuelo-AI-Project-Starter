@@ -50,6 +50,9 @@ updatedInput) is fixed in place.
    PASS or a FAIL line) and resume test runs the moment they report. Never end the turn to wait for the chain
    (2026-11-11: two idle waits of 23 and 30 minutes behind timed steps already done). It removes its copy when the run ends and keeps only the last failed one; remove each chain's copy once
    its proof is pushed (`git worktree remove`, then `git worktree prune`): 2026-11-09, 31 old copies held 4.5 GB.
+   After each release, `ls -d ~/.anzuelo-frozen/rel-*` shows at most 3; remove the older ones (`--force` only for a copy
+   whose `git status` shows nothing but the proof files). 2026-11-11: 30 copies had piled up again, during a hunt for
+   what held 4.8 GB of kernel pool.
    **The main folder's engine is live:** every session there runs it on each hook. A change to the engine that takes
    more than one edit is made in a worktree and brought into the main folder only once `node tools/hooks/v2/selftest.mjs`
    passes there. A single edit in the main folder defines before it uses (a new function first, then its call), and

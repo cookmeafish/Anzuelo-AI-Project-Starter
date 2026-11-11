@@ -3614,10 +3614,28 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     // (a whole tagged run of the old suite, in an empty temp folder; plan-required writes files outside its project folder
     // on purpose. Lesson (a release chain, 2026-11-11): that folder outlived the run)
     const runD = caseDir('run');
-    const run = spawnSync(process.execPath, [path.join(repoT, 'tools/hooks/selfcheck.mjs'), '--tags', 'stop-reblock,plan-required'], { cwd: repoT, encoding: 'utf8', env: envT(runD), timeout: 600000 });
+    const copiesF = path.join(fresh, 'copies.txt');
+    const run = spawnSync(process.execPath, [path.join(repoT, 'tools/hooks/selfcheck.mjs'), '--tags', 'stop-reblock,plan-required'], { cwd: repoT, encoding: 'utf8', env: { ...envT(runD), SELFCHECK_COPIES_FILE: copiesF, SELFCHECK_REST_MS: '0' }, timeout: 600000 });
     const res = { ok: [ok.stdout.trim(), left(okD)], err: left(errD), old: oldR.stdout.trim(), run: [/selfcheck: (ALL PASS|FAIL)/.exec(run.stdout || '')?.[0] || (run.stderr || '').slice(0, 120), left(runD)] };
     report(res.ok[0] === 'true' && !res.ok[1].length && !res.err.length && res.old === '1 true false' && /selfcheck:/.test(res.run[0]) && !res.run[1].length,
       'temp: test folders live under one root and are removed when their run ends, passed or failed; clean-tests removes only old leftovers; a test run leaves nothing in the temp folder', JSON.stringify(res));
+    // (the scenarios take turns on a few fixture copies instead of a fresh copy each: every file made and deleted on
+    // Windows leaves kernel pool behind. Lesson (oversight, 2026-11-11): each release chain left 1.5 GB more paged pool)
+    const copies = (() => { try { return fs.readFileSync(copiesF, 'utf8').split('\n').filter(Boolean).reduce((a, l) => a + Number(l.split('\t').pop()), 0); } catch { return -1; } })();
+    const ran = Number(/\((\d+) passed/.exec(run.stdout || '')?.[1] || 0);
+    report(copies >= 1 && ran >= 20 && copies * 3 <= ran, 'temp: the old suite\'s scenarios share a few fixture copies (rested between uses), not a whole copy each', JSON.stringify({ copies, ran }));
+    // (a project's own tests, any language, run through "starter.mjs test-run": their temp folder is one of their own
+    // under anzuelo-tests/projects/<name>, removed when they end; the exit code is kept; what they still put in the real
+    // temp folder is listed, and --strict fails on it. Lesson (oversight, 2026-11-11): projects' own suites left about
+    // 15,000 folders in the temp folder)
+    const trD = caseDir('testrun'), proj = path.join(fresh, 'Garden Notes');
+    fs.mkdirSync(path.join(proj, 'docs'), { recursive: true }); fs.writeFileSync(path.join(proj, 'docs/names.json'), '{ "PROJECT_NAME": "Garden Notes" }');
+    const tr = (args, code) => spawnSync(process.execPath, [path.join(repoT, 'tools/starter.mjs'), 'test-run', ...args, '--', process.execPath, '-e', code, trD], { cwd: proj, encoding: 'utf8', env: envT(trD) });
+    const leak = tr([], "const fs=require('fs'),os=require('os'),p=require('path');fs.mkdtempSync(p.join(os.tmpdir(),'leak-'));console.log('TMP='+os.tmpdir());process.exit(3)");
+    const stray = tr(['--strict'], "require('fs').mkdirSync(require('path').join(process.argv[1],'stray'))");
+    const trRes = { leak: [leak.status, /TMP=.*anzuelo-tests[\\/]projects[\\/]garden-notes[\\/]run-/.test(leak.stdout), /left nothing/.test(leak.stdout)], stray: [stray.status, /left 1 new entry.*stray/.test(stray.stdout)], left: left(trD) };
+    report(JSON.stringify(trRes.leak) === '[3,true,true]' && JSON.stringify(trRes.stray) === '[1,true]' && JSON.stringify(trRes.left) === '["stray"]',
+      'temp: starter.mjs test-run gives a project\'s tests a temp folder of their own under anzuelo-tests/projects/<name>, removes it when they end, keeps their exit code, and lists (--strict: fails on) what they left in the real temp folder', JSON.stringify({ ...trRes, out: (leak.stdout + leak.stderr + stray.stdout).slice(0, 300) }));
   } finally { fs.rmSync(fresh, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
 }
 

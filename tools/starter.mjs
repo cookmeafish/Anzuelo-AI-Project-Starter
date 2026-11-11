@@ -32,6 +32,9 @@
 //                                                 ones. A project's "status" then shows how many of its reports are fixed.
 //   node tools/starter.mjs clean-tests [--hours N]  remove what killed test runs left under <temp>/anzuelo-tests, older
 //                                                 than 1 hour (or N); nothing else in the temp folder is touched
+//   node tools/starter.mjs test-run [--strict] -- <test command>  run the project's own tests with their temp folder
+//                                                 under <temp>/anzuelo-tests/projects/<name>, removed when they end, and
+//                                                 list what they still left in the temp folder (--strict: that fails)
 // The starter always lives in its own folder, outside every project it creates. The link is a path on this machine,
 // so it is kept in tools/starter.local.json, which git ignores. On another machine, run "link <folder>" again.
 import './hooks/hidewin.mjs'; // child processes start hidden (no console windows)
@@ -142,6 +145,20 @@ if (process.argv[2] === 'clean-tests') {
   const n = cleanOld(hours * 3600_000);
   console.log(`clean-tests: removed ${n} leftover test folder${n === 1 ? '' : 's'} older than ${hours} hour${hours === 1 ? '' : 's'} under ${TEST_ROOT}`);
   process.exit(0);
+}
+// test-run: a project's own test command, any language, with its temp folder pointed at a folder of its own under
+// <temp>/anzuelo-tests/projects/<name> that is removed when it ends; then what it still left in the real temp folder.
+// The command's exit code is kept; --strict also fails when it left something.
+if (process.argv[2] === 'test-run') {
+  const { runIsolated } = await import('./hooks/testtmp.mjs');
+  const rest = process.argv.slice(3), strict = rest[0] === '--strict', i = rest.indexOf('--');
+  const cmd = i >= 0 ? rest.slice(i + 1) : rest.filter(a => a !== '--strict');
+  if (!cmd.length) { console.error('usage: node tools/starter.mjs test-run [--strict] -- <test command>'); process.exit(2); }
+  const r = runIsolated(cmd);
+  console.log(r.added.length
+    ? `test-run: the command left ${r.added.length} new entr${r.added.length === 1 ? 'y' : 'ies'} in the temp folder (another program running now may have made some): ${r.added.slice(0, 10).join(', ')}${r.added.length > 10 ? ', ...' : ''}`
+    : 'test-run: the command left nothing in the temp folder');
+  process.exit(r.status || (strict && r.added.length ? 1 : 0));
 }
 if (fs.existsSync(at('.starter-template')) && process.argv[2] !== 'install') { console.error('This is the starter itself. These commands are for projects made from it.'); process.exit(1); }
 
