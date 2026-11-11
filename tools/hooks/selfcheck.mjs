@@ -5288,6 +5288,7 @@ const V2_ASKS = {
   'review-excuse': /^- The answer skips the independent review because no other reviewer is available/m,
   'count-honored': /^- The user asked for \d+ [^\n]*\. Deliver exactly that many/m,
   'skill-reuse': /^- New runbook or skill [^\n]*: first look for an existing skill/m,
+  'runbook-cold-read': /^- Read \S+(?:, \S+)* cold before relying on /m,
   'grant-decided': /^- docs\/foundation\.md "Who may do what" gives a destructive or sensitive action to someone other than the owner/m,
   // (a new runbook or skill that is not well-formed: named by the health check, by the audit sweep that failed)
   'runbook-complete': /^- The project's health check \(node tools\/audit\.mjs\) fails after this change: [^\n]*runbooks are well-formed/m,

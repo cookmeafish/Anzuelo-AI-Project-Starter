@@ -1681,6 +1681,20 @@ report(/would run/.test(healthGaps(acts([user('add a step'), rule, say('Added.')
 }
 fs.rmSync(path.join(dir, 'tools/audit.mjs'));
 
+{ // (REQ: runbook-cold-read: a new hand-written runbook is read cold by one helper before it is relied on; a helper whose
+  // brief names it, or "Cold read: <file> - ..." in the answer, meets it; a generated mirror asks for nothing)
+  const { coldReadGaps } = await import('./lib.mjs');
+  const mk = (f, text) => { put(f, text); return call('Write', { file_path: path.join(dir, f), content: text }); };
+  const book = '---\nname: zorbl-answer\nsummary: answer a zorbl question\ntriggers: zorbl question\n---\n# zorbl answer\n## Steps\n1. Answer.\n';
+  const cr = (calls, answer = 'Added the runbook.') => { const a = acts([user('every zorbl answer must cite its zorbl file'), ...calls, say(answer)]); a.at = new Date(Date.now() - 500).toISOString(); return coldReadGaps(a); };
+  const r = { bare: cr([mk('docs/playbooks/zorbl-answer.md', book)]),
+    helper: cr([mk('docs/playbooks/zorbl-answer.md', book), call('Agent', { prompt: 'Read docs/playbooks/zorbl-answer.md cold and list every step you could not do as written.' }, 'two gaps')]),
+    said: cr([mk('docs/playbooks/zorbl-answer.md', book)], 'Added the runbook.\nCold read: playbooks/zorbl-answer.md - 2 gaps, fixed'),
+    generated: cr([mk('skills/zorbl-mirror/SKILL.md', '---\nname: zorbl-mirror\ngenerated: true\n---\n# mirror\n')]) };
+  for (const f of ['docs/playbooks/zorbl-answer.md', 'skills/zorbl-mirror/SKILL.md']) fs.rmSync(path.join(dir, f), { force: true });
+  report(r.bare.length === 1 && /^Read docs\/playbooks\/zorbl-answer\.md cold before relying on it/.test(r.bare[0]) && !r.helper.length && !r.said.length && !r.generated.length,
+    'end: runbook-cold-read: a new runbook no helper read cold is named; a helper whose brief names it, or a "Cold read:" line, meets it; a generated mirror asks nothing', r);
+}
 // end: check 5, knowledge sources
 const { knowledgeGaps } = await import('./lib.mjs');
 { // (REQ: stale-cited: an answer that relies on a stale knowledge note says so, or the turn re-checked it; a fresh note,

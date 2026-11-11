@@ -1645,6 +1645,7 @@ export function claimGaps(acts, history = '') {
   // (REQ: count-honored, rule 8: "give me 5" means 5, said with the number. The shared tools/hooks/count.mjs on what the
   // user typed this turn against the agent's words. Lesson (the old suite under v2): a count asked for was never checked)
   out.push(...skillReuseGaps(acts));
+  out.push(...coldReadGaps(acts));
   // (REQ: grant-decided, the shared tools/hooks/grant.mjs: a "Who may do what" row this turn changed gives a destructive
   // or sensitive action beyond the owner only on the user's own quoted words. Security-sensitive: always on. Lesson (the
   // old suite under v2): a staff delete granted on a "decision" the user never wrote passed)
@@ -1736,16 +1737,20 @@ const bornIn = acts => {
 // ("Existing skills checked: <where> - <result>"). A procedure only this project can have says so in its frontmatter
 // ("reuse: none - project-specific: <why>"). Not for files the starter or a pack ships, or generated mirrors. Lesson (the
 // old suite under v2): new runbooks were written with no search
-export function skillReuseGaps(acts) {
-  if (checkOff('skill-reuse') || waivedTag('skill-reuse', acts)) return [];
-  const cfg = projectConfig(), sd = cfg.skillsDir || 'skills', born = bornIn(acts);
-  const fm = f => /^---\n([\s\S]*?)\n---/.exec(read(f).replace(/\r\n?/g, '\n'))?.[1] || '';
+const procFm = f => /^---\n([\s\S]*?)\n---/.exec(read(f).replace(/\r\n?/g, '\n'))?.[1] || '';
+// The hand-written runbooks and skills this turn created: not files the starter or a pack ships, nor generated mirrors.
+function newProcs(acts) {
+  const cfg = projectConfig(), sd = cfg.skillsDir || 'skills', born = bornIn(acts), fm = procFm;
   let reg = {}; try { reg = JSON.parse(fs.readFileSync(at('tools/packs-registry.json'), 'utf8')); } catch { }
   const shipped = f => Object.values(reg.packs || {}).some(p => (p.files || []).includes(f)) || /^docs\/playbooks\/(_TEMPLATE|_fallback|project|plan)\.md$/.test(f)
     || (() => { try { return fs.readdirSync(at('packs')).some(p => fs.existsSync(at(`packs/${p}/files/${f}`))); } catch { return false; } })()
     || (() => { const m = new RegExp(`^${sd.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/([^/]+)/SKILL\\.md$`).exec(f); return !!m && ([].concat(reg.library || []).includes(m[1]) || fs.existsSync(at(`library/skills/${m[1]}/SKILL.md`))); })();
-  const created = changedOf(acts).filter(f => (/^docs\/playbooks\/[^/_][^/]*\.md$/.test(f) || new RegExp(`^${sd.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/[^/]+/SKILL\\.md$`).test(f))
-    && fs.existsSync(at(f)) && born(f) && !/^generated:\s*true/m.test(fm(f)) && !/^reuse:\s*none\s*-\s*project-specific\s*:\s*\S+(\s+\S+){2,}/im.test(fm(f)) && !shipped(f));
+  return changedOf(acts).filter(f => (/^docs\/playbooks\/[^/_][^/]*\.md$/.test(f) || new RegExp(`^${sd.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/[^/]+/SKILL\\.md$`).test(f))
+    && fs.existsSync(at(f)) && born(f) && !/^generated:\s*true/m.test(fm(f)) && !shipped(f));
+}
+export function skillReuseGaps(acts) {
+  if (checkOff('skill-reuse') || waivedTag('skill-reuse', acts)) return [];
+  const created = newProcs(acts).filter(f => !/^reuse:\s*none\s*-\s*project-specific\s*:\s*\S+(\s+\S+){2,}/im.test(procFm(f)));
   if (!created.length) return [];
   const searched = (acts.calls || []).some(c => (c.name === 'Skill' && /skill-finder/.test(JSON.stringify(c.input || {}))) || (c.name === 'Read' && /skill-finder\/SKILL\.md$/.test(String(c.input?.file_path || '').replace(/\\/g, '/'))));
   if (searched || /existing skills?\b[^\n]*(checked|searched|looked|none|found|reused|installed|adapted)/i.test(`${acts.said || ''}\n${acts.answer || ''}`)) return [];
@@ -1753,6 +1758,21 @@ export function skillReuseGaps(acts) {
     'marketplaces, the agent\'s installed skills, reputable community collections). Reuse or adapt it when it fits, after reading every file it ' +
     'contains, and install third-party skills only with the user\'s OK. Say what you found: "Existing skills checked: <where> - <result>". ' +
     'A procedure only this project can have needs no search: put "reuse: none - project-specific: <why>" in its frontmatter.'];
+}
+// REQ: runbook-cold-read, under v2. A new runbook or skill is read cold before it is relied on: one helper with no context
+// gets only the file and the request it is for, and lists every step it could not do exactly as written. Met by a helper
+// whose brief names the file, or "Cold read: <file> - <gaps found>, fixed" in the answer or the turn's notes. Lesson (the
+// old suite under v2): new runbooks went out unread; the writer knows what was meant, the next agent only has the text.
+export function coldReadGaps(acts) {
+  if (checkOff('runbook-cold-read') || waivedTag('runbook-cold-read', acts)) return [];
+  const since = Date.parse(acts.at || '') || 0, notes = since && mtime('.cache/turn-notes.md') > since ? read('.cache/turn-notes.md') : '';
+  const said = `${acts.answer || ''}\n${acts.said || ''}\n${notes}`;
+  const tail = p => p.split('/').slice(-2).join('/');
+  const cold = p => (acts.calls || []).some(c => /^(Agent|Task)$/.test(c.name) && JSON.stringify(c.input || {}).includes(tail(p)))
+    || new RegExp(`^\\W*Cold read:[^\\n]*${tail(p).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'mi').test(said);
+  const uncold = newProcs(acts).filter(p => !cold(p));
+  return uncold.length ? [`Read ${uncold.join(', ')} cold before relying on ${uncold.length > 1 ? 'them' : 'it'}: give one helper agent only the file and the request it is for, and ask for every step it could not do exactly as written ` +
+    '(a missing file or command, an undefined word, a choice left open), every "Done when" item it could not prove, and every step whose result has no item. Fix each one, and say "Cold read: <file> - <how many gaps it found>, fixed" (runbook-create skill, step 5).'] : [];
 }
 export function worthV2(acts) {
   if (checkOff('worth-it') || waivedTag('worth-it', acts)) return [];
