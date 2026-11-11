@@ -11,10 +11,7 @@ own-scenarios-run: a project's "must block" scenarios run against its own checks
 pretool: overlap: a sweep started while another sweep runs in the background gets a heads-up, and still runs
 pretool: runbook-ledger: a helper launched after a runbook checklist was handed over gets it, with one evidence line per item
 pretool: scope-change: a user message while a helper launched before it runs gets a heads-up to stop the obsolete ones
-prompt-digest: a session whose start gave the session checklist gets no rules digest on its prompts; one with no session start still does
 prompt: QA routes to the qa runbook
-prompt: a context summary that resumes the turn gets no hints
-prompt: closest runbook: a request sharing one word or none still gets NO RUNBOOK
 prompt: debug skill routes on its own
 prompt: efficiency-review: "simple fixes turn into 20 minute things" routes to the review
 prompt: fit-checklist: a request a deferred library skill is for asks to decide it again
@@ -22,17 +19,12 @@ prompt: fit-checklist: one trigger plus a word of the condition asks to decide i
 prompt: goal-loop: "keep improving it until the tests never flake" routes to the loop
 prompt: paste-routing: a short closing paragraph after the material still routes
 prompt: paste-routing: the same words in a short message still suggest the skill
-prompt: requirement hint: the same words as the user's own requirement still count
 prompt: route-precision: prompt-visible: a routed runbook shows the user the book line, with its checklist count
 prompt: route-precision: runbook-ledger: the routed runbook's checklist comes with the route
-prompt: route: "fixed and pushed: GitHub main" with a starter upgrade routes to the engine runbook, not to release
 prompt: route: "remove the old starter from my project" still routes to the engine runbook
 prompt: route: "what are the best options for backups" still routes to research
 prompt: route: a Spanish debug request gets the debug skill
 prompt: route: a phrase about the user's own notes routes ("add this fact to my notes")
-prompt: rules digest on every prompt
-prompt: scope hint names the person (alias works)
-prompt: small-change: a request whose checks include a record step hears that a small fix skips them
 prompt: starter-runbooks: a project never routes to the starter's own runbooks
 prompt: starter-runbooks: in the starter, "test it many times so nothing gets worse" routes to the improvement loop
 prompt: starter-runbooks: in the starter, "tests for hours, did it keep it on track or forget things" routes to the improvement loop
@@ -98,7 +90,6 @@ stop: runbook-ledger: a skip without a real reason does not drop a failing check
 stop: runbook-ledger: an item marked done whose evidence is missing comes back under its item
 stop: runbook-ledger: off by default, a skip line covers nothing
 stop: setup: the same runbook followed in a later turn: its checks apply
-stop: spec changed without CHANGELOG or release notes: blocked
 stop: stop message: one short line per step, the details in "hooks.mjs why"
 stop: stop-follow-on: a lesson for a skill names the audit and the changelog in round 1
 stop: turn-notes: notes left from an earlier turn do not count: blocked
@@ -110,7 +101,6 @@ stop: upset-acknowledged: the runbook opened, its checklist not recorded to the 
 stop: waiting end: what the full check would ask stays on record for the next Stop
 trigger-words: a message that sets off the upset handling goes to the trigger log
 unresolved-carryover: notices once per turn, none for a mid-turn message, last turn's misses once
-unresolved-carryover: the first prompt does not repeat the session start's notices
 upset-acknowledged: a record covers a range or list of items ("Done 1-12:", "Skip 2, 4:"); only records written this turn count, not earlier turns' lines in the notes file
 upset-acknowledged: an Issue line shown in the agent's text is copied to the notes, and nothing is held without one (REQ quiet-work)
 upset-acknowledged: an upset message holds nothing during work (REQ quiet-work); the user still sees "acknowledged" once the Issue line is written, with no checklist pushed to the agent; "Issue: none" shows nothing
