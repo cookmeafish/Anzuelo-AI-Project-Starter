@@ -770,8 +770,12 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
     'end: a gate with no pass text chained before "; ..." is asked to run on its own; alone or before "&&" it counts', JSON.stringify(gt));
   // (rule 11, scope-separate: one person's data never mixes with another's, in the files a turn changed or in its answer)
   {
-    const { scopeGaps } = await import('./lib.mjs');
-    put('profiles/alice/PROFILE.md', '# Alice\n'); put('profiles/bob/PROFILE.md', '# Bob\n');
+    const { scopeGaps, scopeLine } = await import('./lib.mjs');
+    put('profiles/alice/PROFILE.md', '---\naliases: ali\n---\n# Alice\n'); put('profiles/bob/PROFILE.md', '# Bob\n');
+    // (said before the work too: a request naming a person, by name or alias, hears whose folder to stay in)
+    const sl = { alias: scopeLine("update ali's budget"), name: scopeLine('write bob a letter'), none: scopeLine('tidy the shared docs') };
+    report(/^Scope: this request is about alice\. Read and write only profiles\/alice\//.test(sl.alias) && /about bob\b/.test(sl.name) && !sl.none,
+      'start: scope-separate: a request naming a person (by name or alias) hears whose folder to stay in; one naming no one hears nothing', sl);
     const w = who => call('Write', { file_path: path.join(dir, `profiles/${who}/letter.md`), content: 'x' }, 'ok');
     const sg = (rows, earlier) => { const a = acts(rows); a.earlier = earlier || []; return scopeGaps(a).length; };
     const res = {

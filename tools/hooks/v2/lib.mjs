@@ -762,6 +762,13 @@ export const projectConfig = () => {
     configMemo = { key, v }; }
   return { ...configMemo.v };
 };
+// (REQ: scope-separate, said before the work: a request that names a person, by name or alias, hears whose folder to
+// stay in. Lesson (the old suite under v2): the old engine said it; v2 only guarded and checked after)
+export function scopeLine(words) {
+  const cfg = projectConfig(), ppl = people(cfg, { list: d => { try { return listAll(d); } catch { return []; } }, read, path: at });
+  const named = ppl.length ? peopleIn(String(words || ''), ppl) : [];
+  return named.length ? `Scope: this request is about ${named.join(', ')}. Read and write only ${named.map(n => `${cfg.scopesRoot}/${n}/`).join(', ')} (plus shared docs), and never mix people's data in one tool run.` : '';
+}
 export function scopeGaps(acts) {
   const cfg = projectConfig(), ppl = people(cfg, { list: d => { try { return listAll(d); } catch { return []; } }, read, path: at });
   // (setup: the setup prompt is there in a project, not the starter's own template, or this turn removed it. Lesson

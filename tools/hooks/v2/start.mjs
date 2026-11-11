@@ -2,7 +2,7 @@
 // "Done when" list, which the end hook checks. Nothing about the engine itself.
 import fs from 'node:fs';
 import path from 'node:path';
-import { route, skillBooks, saveTurn, loadTurn, isSpanish, ROOT, at, quoteCheckOn, projectConfig, checkOff, snapshotLater, runbooks, routeEnglish, engineChecks, doneWhen, ALWAYS, SMALL_SKIP } from './lib.mjs';
+import { route, skillBooks, saveTurn, loadTurn, isSpanish, ROOT, at, quoteCheckOn, projectConfig, checkOff, snapshotLater, runbooks, routeEnglish, engineChecks, doneWhen, ALWAYS, SMALL_SKIP, scopeLine } from './lib.mjs';
 import { closestRunbook, coreRunbook, isTaskRequest, userWords, AUTONOMY_WORDS, ownEnds, EXAMPLE_CLASS, multiPart } from '../near.mjs';
 import { isPraise } from '../praise.mjs';
 import { NUMBERS_ASK } from '../trace.mjs';
@@ -244,6 +244,8 @@ function remind(prompt) {
   // tools/hooks/history.mjs; never for a relayed message, which is no request of the user's)
   const recall = relayedRx.test(raw) ? '' : recallLine(at('tools/hooks/state/history.jsonl'), String(userWords(prompt)));
   if (recall) menuL.push(recall);
+  const scope = relayedRx.test(raw) ? '' : scopeLine(userWords(prompt));
+  if (scope) menuL.push(scope);
   if (!book) { const al = isTaskRequest(prompt, taskVerbs, toOtherSession(prompt)) ? alsoChecked(sk && skill ? [sk.name] : [], { unrouted: !(sk && skill) }) : '';
     return { book: null, text: [...menuL, ...mustLines, friction, skill, praise, figures, autonomy, examples, shared, pick, es, ...rulesFor(prompt).map(r => `The project's own rule here: ${r}`), al, smallLine(al)].filter(Boolean).slice(0, MAX_LINES).join('\n') }; }
   const own = rulesFor(prompt).map(r => `The project's own rule here: ${r}`);

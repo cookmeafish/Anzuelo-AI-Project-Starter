@@ -1452,7 +1452,7 @@ const PROMPT = [
   { name: 'bootstrap hint when setup prompt is gone but brief is empty', prompt: 'hello', removeMarker: true, remove: ['SETUP-PROMPT.md'], setup: { 'docs/BRIEF.md': '---\nstatus: not bootstrapped\n---\n# Brief\n' }, has: ['BOOTSTRAP NEEDED'], v2: { session: true } },
   { name: 'rules digest on every prompt', prompt: 'hello there', has: ['[rules] route'] },
   { name: 'praise hint', prompt: 'perfect, keep doing this', has: ['PRAISE'] },
-  { name: 'scope hint names the person (alias works)', prompt: 'update ali\'s budget', setupFn: PEOPLE, has: ['SCOPE: this request is about alice'] },
+  { name: 'scope hint names the person (alias works)', prompt: 'update ali\'s budget', setupFn: PEOPLE, has: ['SCOPE: this request is about alice'], v2: { has: ['Scope: this request is about alice'] } },
   // (a pause or restart request: wrap up now. Lesson (a field report): work went on after "safe to restart")
   { name: 'pause-stops: "get to a good pausing point, I will restart the computer" asks to wrap up', prompt: 'Get to a good pausing point. i will restart computer.', has: ['PAUSE: the user asked to pause'] },
   { name: 'pause-stops: Spanish, "voy a reiniciar la computadora" asks to wrap up', prompt: 'para aquí, voy a reiniciar la computadora', has: ['PAUSE: the user asked to pause'] },
