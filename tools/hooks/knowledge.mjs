@@ -9,6 +9,15 @@
 // knowledgeDirs }; io: { read(rel), exists(rel), match(rel, globs), rel(abs) }
 const SRC_EXT = /^[\w.@-]+\.(md|txt|csv|tsv|json|ya?ml|pdf|docx?|xlsx?|pptx?|py|js|mjs|ts|go|rs|java|cs|html?|toml|ini|log|png|jpe?g|gif|svg)$/i;
 const esc = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// REQ: knowledge-labels. A knowledge file, as a whole, carries an evidence label, a source and a date, for both engines
+// and the audit. Lesson: unlabeled guesses got reused as facts.
+export function knowledgeProblems(file, text, labels = []) {
+  const probs = [], low = String(text).toLowerCase();
+  if (!labels.some(l => low.includes(l))) probs.push(`${file}: no evidence label (${labels.join(' / ')})`);
+  if (!/https?:\/\/|\bsources?\b|\buser reported\b|\bsources\//i.test(text)) probs.push(`${file}: no source (a URL, a "Source:" line, sources/<file>, or "user reported")`);
+  if (!/\b20\d\d-\d\d-\d\d\b/.test(text)) probs.push(`${file}: no date (YYYY-MM-DD) for when the facts were checked`);
+  return probs;
+}
 export function knowledgeFromFiles(x, cfg, io) {
   const files = (x.changed || []).filter(p => /\.md$/i.test(p) && io.match(p, (cfg.knowledgeDirs || []).map(d => `${d.replace(/\/+$/, '')}/**`)) && !/(^|\/)(README|SOURCES|INDEX)\.md$/i.test(p) && io.exists(p));
   if (!files.length) return 'no knowledge file changed';

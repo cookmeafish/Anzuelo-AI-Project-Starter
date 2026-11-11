@@ -25,7 +25,7 @@ import { people, personOf, peopleIn, peopleFor, pathsPeople } from './people.mjs
 import { LABELS_ES, WORTH_IT, plainLabel, EN_COPIES, inEnglish, labelsEsHint, LABELS_ES_HINT } from './labels.mjs';
 export { labelsEsHint, LABELS_ES_HINT };
 import { BASE_REQUIREMENTS, FAILED_RUN, MISSING_TOOL, PROBLEM_WORDS, DEV_NEW_PROJECT, interruptedRun, rerunPassed } from './base-checks.mjs';
-import { knowledgeFromFiles as sharedKnowledgeFromFiles, figureProblems as sharedFigureProblems } from './knowledge.mjs';
+import { knowledgeFromFiles as sharedKnowledgeFromFiles, figureProblems as sharedFigureProblems, knowledgeProblems as sharedKnowledgeProblems } from './knowledge.mjs';
 import { claimSentences, byHandClaim, describesClaim, groupVerdictClaim, IMPROVE_CLAIM, REPORTED, NOT_IN_GIT, gitHolds as sharedGitHolds, namedPaths as sharedNamedPaths, gitClaimContradicted as sharedGitClaim } from './claims.mjs';
 export { ROOT, bulkDir, today, usageOf, read, readJSON, abs, exists, list, walkStat, esc, config, re, secretRes, secretHit, privateTermsPath, privateTermsListFile, forbiddenTerms, forbiddenRe, testInputsHash, aiAttributedCommits, gitignoreProblems, people, personOf, peopleIn, peopleFor, pathsPeople, LABELS_ES, WORTH_IT, plainLabel, EN_COPIES, inEnglish, BASE_REQUIREMENTS };
 // (the safety guard is v2/guard.mjs, loaded by the pretool hook itself: a guard that cannot load is then reported, not
@@ -1955,15 +1955,8 @@ export function knownCheck(tag) {
   return new RegExp(`["'\`]${esc(tag)}["'\`]|REQ: ${esc(tag)}\\b`).test(checkText);
 }
 
-export function knowledgeProblems(file, cfg) {
-  const text = read(abs(file));
-  const probs = [];
-  const low = text.toLowerCase();
-  if (!cfg.evidenceLabels.some(l => low.includes(l))) probs.push(`${file}: no evidence label (${cfg.evidenceLabels.join(' / ')})`);
-  if (!/https?:\/\/|\bsources?\b|\buser reported\b|\bsources\//i.test(text)) probs.push(`${file}: no source (a URL, a "Source:" line, sources/<file>, or "user reported")`);
-  if (!/\b20\d\d-\d\d-\d\d\b/.test(text)) probs.push(`${file}: no date (YYYY-MM-DD) for when the facts were checked`);
-  return probs;
-}
+// (moved to knowledge.mjs, shared with engine v2)
+export const knowledgeProblems = (file, cfg) => sharedKnowledgeProblems(file, read(abs(file)), cfg.evidenceLabels);
 
 // (the knowledge pack's source condition, "knowledgeFromFiles": in knowledge.mjs, shared with engine v2)
 export const knowledgeFromFiles = (x, cfg = config()) => sharedKnowledgeFromFiles(x, cfg, { read: f => read(abs(f)), exists, match, rel });

@@ -11,7 +11,7 @@ import { people, personOf, peopleIn, peopleFor } from '../people.mjs';
 import { inEnglish, EN_COPIES } from '../labels.mjs';
 import { writingProblems, plainWritingMsg } from '../writing.mjs';
 import { BASE_REQUIREMENTS, FAILED_RUN, MISSING_TOOL, PROBLEM_WORDS, DEV_NEW_PROJECT, interruptedRun, rerunPassed } from '../base-checks.mjs';
-import { knowledgeFromFiles as knowledgeFromFilesOf, figureProblems as figureProblemsOf } from '../knowledge.mjs';
+import { knowledgeFromFiles as knowledgeFromFilesOf, figureProblems as figureProblemsOf, knowledgeProblems as knowledgeProblemsOf } from '../knowledge.mjs';
 import { forbiddenRe, secretHit, config as engineConfig, EXTENDS } from '../settings.mjs';
 import { INJ_PLANTED, INJ_AIMED, INJ_WARNED } from '../injection.mjs';
 import { verbatimHits } from './verbatim.mjs';
@@ -990,7 +990,14 @@ export function knowledgeGaps(acts) {
     const added = facts(d.split('\n').filter(l => /^\+(?!\+\+)/.test(l)).map(l => l.slice(1)).join('\n'));
     if (added.trim().length > 80 && !SOURCED.test(added)) bare.push(f);
   }
-  return bare.length && !sourcesEdited && !sourcesWritten ? [`New facts in ${bare.slice(0, 3).join(', ')} name no source: add where each came from (a link read this turn, a project file, or the user).`] : [];
+  const out = bare.length && !sourcesEdited && !sourcesWritten ? [`New facts in ${bare.slice(0, 3).join(', ')} name no source: add where each came from (a link read this turn, a project file, or the user).`] : [];
+  // (REQ: knowledge-labels: each knowledge note the turn changed carries, as a whole, an evidence label, a source and a
+  // date, as the old engine and the audit judge it. Lesson (the old suite under v2): a short fact with no label, source
+  // or date was below the size the line check reads, and passed)
+  const labels = projectConfig().evidenceLabels || [];
+  const probs = changedOf(acts, true).filter(f => isK(f) && f.endsWith('.md') && fs.existsSync(at(f))).flatMap(f => knowledgeProblemsOf(f, read(f), labels));
+  if (probs.length) out.push(`Knowledge notes carry an evidence label, a source and a date: ${probs.slice(0, 3).join('; ')}.`);
+  return out;
 }
 
 // Check 6: security-sensitive code was written (the project's "security-code" pattern in requirements.json) and the

@@ -5282,6 +5282,7 @@ const V2_ASKS = {
   'runbook-complete': /^- The project's health check \(node tools\/audit\.mjs\) fails after this change: [^\n]*runbooks are well-formed/m,
   'playbook-format': /^- The project's health check \(node tools\/audit\.mjs\) fails after this change: [^\n]*runbooks are well-formed/m,
   'skill-valid': /^- The project's health check \(node tools\/audit\.mjs\) fails after this change: [^\n]*skills are valid/m,
+  'knowledge-labels': /^- Knowledge notes carry an evidence label, a source and a date: /m,
   'requirements-valid': /^- The project's health check \(node tools\/audit\.mjs\) fails after this change: [^\n]*requirements\.json is valid/m,
   'skill-complete': /^- The project's health check \(node tools\/audit\.mjs\) fails after this change: [^\n]*skills are valid/m,
   'directory-current': /^- The project's health check \(node tools\/audit\.mjs\) fails after this change: [^\n]*generated files are current/m,

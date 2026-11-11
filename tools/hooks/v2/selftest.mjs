@@ -1678,10 +1678,21 @@ report(knowledgeGaps(acts([user('fix a typo'), fact('Tides'), fact(plain, 'docs/
   await new Promise(r => setTimeout(r, 120));
   fs.appendFileSync(path.join(dir, 'docs/knowledge/pier.md'), plain + '\n');
   const merged = [user('merge the tide notes'), call('Bash', { command: 'python merge.py' }), say('Merged.')];
-  report(knowledgeGaps({ ...acts(merged), at: kStart }).length === 1, 'end: facts a script added to the knowledge base with no source are named (live turn)');
-  fs.appendFileSync(path.join(dir, 'docs/knowledge/pier.md'), 'Source: https://example.org/pier\n');
+  report(knowledgeGaps({ ...acts(merged), at: kStart }).some(s => /^New facts in docs\/knowledge\/pier\.md name no source/.test(s)), 'end: facts a script added to the knowledge base with no source are named (live turn)');
+  fs.appendFileSync(path.join(dir, 'docs/knowledge/pier.md'), 'Source: https://example.org/pier (observed, 2026-11-05)\n');
   report(knowledgeGaps({ ...acts(merged), at: kStart }).length === 0, 'end: a script that added the facts with their source passes');
   fs.rmSync(path.join(dir, '.git'), { recursive: true, force: true });
+}
+{ // (REQ: knowledge-labels: a knowledge note the turn changed carries, as a whole, an evidence label, a source and a date;
+  // a short fact is no exception. Notes outside the knowledge base and its index files ask for nothing)
+  const note = (text, f = 'docs/knowledge/desks.md') => { put(f, text); return call('Write', { file_path: path.join(dir, f), content: text }); };
+  const g = c => knowledgeGaps(acts([user('note the desk price'), c, say('Noted.')])).filter(s => /^Knowledge notes carry/.test(s));
+  const k = { bare: g(note('# Desks\nDesk X is $300.')), full: g(note('# Desks\nDesk X is $300 (observed, 2026-11-05, Source: https://example.org/desks).')),
+    noDate: g(note('# Desks\nDesk X is $300 (observed, Source: https://example.org/desks).')), index: g(note('# Index\nDesks', 'docs/knowledge/README.md')), outside: g(note('# Desks\nDesk X is $300.', 'notes/desks.md')) };
+  report(k.bare.length === 1 && /no evidence label/.test(k.bare[0]) && /no source/.test(k.bare[0]) && /no date/.test(k.bare[0]) && !k.full.length
+    && k.noDate.length === 1 && !/no evidence label|no source/.test(k.noDate[0]) && !k.index.length && !k.outside.length,
+    'end: knowledge-labels: a changed knowledge note with no evidence label, source or date is named, each missing part said; a full one, the index files and notes elsewhere are not', k);
+  for (const f of ['docs/knowledge/desks.md', 'notes/desks.md']) fs.rmSync(path.join(dir, f), { force: true });
 }
 
 // end: check 6, security review
