@@ -72,8 +72,19 @@ const read = f => { try { return fs.readFileSync(at(f), 'utf8').replace(/\r\n?/g
 // turn. Lesson (a field report): a project's rule kept in requirements.json looked enforced and was not read by v2.
 export const ALWAYS = 'docs/checks/always.md';
 export function alwaysGaps(acts) {
-  return doneWhen(read(ALWAYS)).filter(it => it.kind && it.kind !== 'evidence' && applies(it, acts) && met(it, acts) === false).map(it => `${ALWAYS} item ${it.n}: ${it.text}`);
+  return doneWhen(read(ALWAYS)).filter(it => it.kind && it.kind !== 'evidence' && applies(it, acts) && !maintained(it, acts) && met(it, acts) === false).map(it => `${ALWAYS} item ${it.n}: ${it.text}`);
 }
+// (an item set off by reading a runbook or skill (the convert's "used" marker) is off when the turn edited that same
+// file: reading it to change it is maintenance, not following it, unless the answer names it as followed ("Playbook:
+// x.md", "Skill: x"), as the old engine judged it. Lesson (the old suite under v2): fixing a typo in a runbook was held
+// to that runbook's own answer check)
+const maintained = (it, acts) => {
+  const edited = [...new Set(acts.calls.filter(c => /^(Edit|Write|MultiEdit)$/.test(c.name)).map(c => relp(c.input?.file_path || '')).filter(p => /^docs\/playbooks\/[^/]+\.md$|(^|\/)skills\/[^/]+\/SKILL\.md$/.test(p)))];
+  if (!edited.length) return false;
+  const said = `${acts.answer || ''}\n${acts.said || ''}`;
+  return (it.whens || []).some(w => w.kind === 'tool' && (() => { let rx; try { rx = new RegExp(w.arg, 'i'); } catch { return false; }
+    return edited.some(p => rx.test(`Read ${JSON.stringify({ file_path: p })}`) && !new RegExp(`\\b(?:playbook|runbook|skill)s?\\s*:\\s*\`?(?:docs/playbooks/|skills/)?${(/([\w-]+)(?:\.md|\/SKILL\.md)$/.exec(p)?.[1] || '').replace(/[^\w-]/g, '')}(?:\\.md)?\\b`, 'i').test(said)); })());
+};
 export function doneWhen(text) {
   // (Windows line endings too: "## Done when\r" matched nothing. Lesson (a project's report): any caller passing a
   // runbook's raw text got no items)

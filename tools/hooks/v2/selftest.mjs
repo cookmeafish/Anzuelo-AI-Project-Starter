@@ -726,8 +726,15 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
     ag([user('fix the soup'), recipe, say('Fixed.')]), ag([user('summarize the notes'), say('The notes cover soup.')])].map(g => g.length);
   const quiet = [ag([user('tidy the photos'), say('OK to delete photos/blur1.jpg?')]), ag([user('look up soup'), fetch, say('From https://example.com/soup.')]),
     ag([user('fix the soup'), recipe, say('Fixed; serves 4.')]), ag([user('summarize the notes'), say('Summary: soup.')]), ag([user('hello'), say('Hi.')])].map(g => g.length);
+  // (an item set off by reading a runbook, the convert's "used" marker: a read holds it; a read and an edit of that
+  // runbook is maintenance and does not, unless the answer names it as followed)
+  put('docs/checks/always.md', '# Always\n\n## Done when\n- [ ] Say the meals are planned (when tool: ^Read\\b.*playbooks[\\\\/]+meal-plan\\.md) (answer: meals planned) <!-- req: meal-ok -->\n');
+  const mp = path.join(dir, 'docs/playbooks/meal-plan.md'), rd = call('Read', { file_path: mp }, '# Meal plan'), ed = call('Edit', { file_path: mp, old_string: '1. a', new_string: '1. b' }, 'ok');
+  const mt = { read: ag([user('plan the meals'), rd, say('Done.')]).length, maintained: ag([user('fix the typo in that runbook'), rd, ed, say('Fixed the typo.')]).length,
+    named: ag([user('fix the typo in that runbook'), rd, ed, say('Playbook: meal-plan.md. Fixed the typo.')]).length };
   fs.rmSync(path.join(dir, 'docs/checks/always.md'));
   report(fired.every(n => n === 1) && quiet.every(n => n === 0), 'end: the project-wide always list is checked every turn, with answer, tool, file and prompt conditions', JSON.stringify({ fired, quiet }));
+  report(mt.read === 1 && mt.maintained === 0 && mt.named === 1, 'end: an always item set off by reading a runbook is off when the turn read it to edit it (maintenance), and on when the answer names it as followed', JSON.stringify(mt));
   // (rule 11, scope-separate: one person's data never mixes with another's, in the files a turn changed or in its answer)
   {
     const { scopeGaps } = await import('./lib.mjs');
