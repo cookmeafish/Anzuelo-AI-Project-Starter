@@ -111,11 +111,15 @@ const TEST_RUN = /\b(tests?|self-?tests?|selfcheck|suites?|builds?|lint|type-?ch
 // report): "on 2026-10-26 you said its draw was fine at 9" was blocked three times in one turn)
 // ("I ran every check myself" says who judged. Lesson (a field report): it was flagged until the turn's last round)
 const JUDGED_BY = /\b(you (said|wrote|told me|asked)|I (re-?)?ran [^.\n]{0,60}\bmyself|the user (said|wrote)|helpers?|sub-?agents?|agents?|I (re-?)?(checked|judged|read|compared|reviewed|scored) (each|every|all|them|it|this|these|that|those|one by one)|only (checks?|confirms?|found|means)|not (re-?)?(checked|judged|verified|read))\b|(?<!\p{L})(ayudantes?|sub-?agentes?|agentes?)(?!\p{L})/iu;
+// (a requirement is no verdict: "must / should / has to / needs to / will pass" says what is to be true, not what
+// passed. Lesson (oversight's live session, 2026-11-10): a plan line "every project must pass after upgrading" was held)
+const REQUIREMENT = /\b(must|should|shall|has to|have to|needs? to|ought to|will|would|is to|are to|going to)\s+(?:(?:all|still|also|each|then|always|now|first|again)\s+)?(pass(es)?|be (all )?(fine|ok|okay|good|correct|right|verified|sound)|check out|hold up)\b|(?<!\p{L})(debe[n]?|deber[ií]a[n]?|tiene[n]? que|ha[n]? de|necesita[n]?)\s+(?:(?:todos?|todas?|tambi[eé]n|siempre)\s+)?(pasar|estar bien)(?!\p{L})/iu;
+export const requirementSaid = s => REQUIREMENT.test(String(s || ''));
 export function groupVerdictClaim(answer) {
   // (a phrase in quotes is named, not claimed. Lesson, dogfood: an answer that quoted the misleading claims was flagged)
   const quoted = /"[^"\n]{1,600}"|“[^”\n]{1,600}”|«[^»\n]{1,600}»/g, notCount = /\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}:\d{2}\b|\bv?\d+(\.\d+)+\b/g;
   // (the sentence right after the verdict may say who judged it. Lesson (a field report): "The list passes the new checks.
   // I judged this myself this turn, with no helper." was flagged for two rounds after the correction said so)
   const ss = claimSentences(answer), clean = s => String(s || '').replace(quoted, ' ').replace(notCount, ' ');
-  return ss.find((s, i) => { const t = clean(s); return GROUP_VERDICT.test(t) && !TEST_RUN.test(t) && !describesClaim(t) && !JUDGED_BY.test(t) && !JUDGED_BY.test(clean(ss[i + 1])); }) || '';
+  return ss.find((s, i) => { const t = clean(s); return GROUP_VERDICT.test(t) && !TEST_RUN.test(t) && !describesClaim(t) && !REQUIREMENT.test(t) && !JUDGED_BY.test(t) && !JUDGED_BY.test(clean(ss[i + 1])); }) || '';
 }

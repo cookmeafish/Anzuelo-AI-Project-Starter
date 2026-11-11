@@ -1802,6 +1802,12 @@ const { questionGaps } = await import('./lib.mjs');
     own: gv([user('are the menus done?'), helper, call('Bash', { command: 'node check-menus.mjs' }, 'PASS: 21 menus'), say('All 21 menus passed.')]),
     describes: gv([user('what changed?'), helper, say('The check holds an answer that says all 21 menus passed.')]) };
   report(g.earlier && !g.none && !g.judged && g.missing && !g.own && !g.describes, 'end: claim-checked: after helpers, "all 21 passed" says who judged them, unless the turn\'s own run passed with nothing missing; a description of the check is not held', JSON.stringify(g));
+  // (a requirement is no verdict: "must / should / will pass" says what is to be true. Lesson (oversight's live session,
+  // 2026-11-10): a plan line was held; a real verdict in the same sentence still is)
+  const rq = { must: gv([user('write the plan'), helper, say('Every project must pass after upgrading.')]), should: gv([user('write the plan'), helper, say('Done when every project should pass after the upgrade.')]),
+    will: gv([user('write the plan'), helper, say('All 12 items will be fine once the fix lands.')]), es: gv([user('escribe el plan'), helper, say('Cada proyecto debe pasar después de actualizar.')]),
+    both: gv([user('write the plan'), helper, say('Every project must be upgraded, and all 5 passed.')]), plain: gv([user('write the plan'), helper, say('Every project passes after upgrading.')]) };
+  report(!rq.must && !rq.should && !rq.will && !rq.es && rq.both && rq.plain, 'end: claim-checked: "must / should / will pass" is a requirement, not a helper\'s verdict: not held; a verdict in the same sentence, or a plain "passes", still is', JSON.stringify(rq));
 }
 // (claim-checked: a test "done by hand" is held, in Spanish too; data "written by hand", asking the user to try it, or an
 // automated browser is not)
