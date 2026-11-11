@@ -28,6 +28,8 @@ import { PAUSE_ASK } from '../pause.mjs';
 import { externalStopSteps } from '../extstop.mjs';
 import { reviewExcuse } from '../excuse.mjs';
 import { frictionGaps } from './friction.mjs';
+import { VERBATIM_ENGINE } from './verbatim.mjs';
+import { NAMES_FILE, NAME_FILES, namesIn, nameProblems, headsOf, newLinesOf } from '../names.mjs';
 import { waivedTag, gitClaimGaps } from './lib.mjs';
 import { wakeGaps, watchersArmed, watcherLeft } from '../wakeups.mjs';
 import { makeSkillLearn } from '../skilllearn.mjs';
@@ -40,7 +42,7 @@ import { ROOT, at, runbooks, turnRows, turnActs, met, applies, opened, worked, l
 const TIMES = process.env.ANZUELO_V2_TIMING ? [] : null;
 const laps = () => { let t = TIMES ? performance.now() : 0; return name => { if (!TIMES) return; const n = performance.now(); TIMES.push([name, Math.round((n - t) * 10) / 10]); t = n; }; };
 const S = (name, f) => { const t = TIMES ? performance.now() : 0; try { return f(); } catch (e) { return [crashLine(name, e)]; } finally { if (TIMES) TIMES.push([name, Math.round((performance.now() - t) * 10) / 10]); } };
-const tableGaps = acts => [...alwaysGaps(acts), ...engineCheckGaps(acts), ...forbiddenGaps(acts), ...codeRuleGaps(acts), ...injectionGaps(acts), ...verbatimGaps(acts), ...planGaps(acts), ...noteLinkedGaps(acts)];
+const tableGaps = acts => [...alwaysGaps(acts), ...engineCheckGaps(acts), ...forbiddenGaps(acts), ...codeRuleGaps(acts), ...injectionGaps(acts), ...verbatimGaps(acts), ...planGaps(acts), ...noteLinkedGaps(acts), ...nameVarGaps(acts)];
 // REQ: plan-required, under v2: the shared tools/hooks/planreq.mjs. A file is new this turn when git's last commit and
 // the turn-start snapshot do not have it and it was made after the turn began. The git lookup runs only when the cheap
 // conditions already hold (enough changed files, open work said, no plan or status recorded).
@@ -76,6 +78,22 @@ export function noteLinkedGaps(acts) {
   const unlinked = notes.filter(p => { if (!born(p)) return false; let t = ''; try { t = fs.readFileSync(at(p), 'utf8'); } catch { return false; }
     return !/\]\([^)\s]+\.md(#[^)]*)?\)|\[\[[^\]]+\]\]/.test(t) && !(t.split(/^##\s+Related[^\n]*\n/m)[1] || '').trim(); });
   return unlinked.length ? [`New note${unlinked.length > 1 ? 's' : ''} ${unlinked.slice(0, 4).join(', ')} link${unlinked.length > 1 ? '' : 's'} to nothing. Link each to its related notes (in the text or under "## Related"; node skills/obsidian/scripts/notes.mjs suggest <note> finds candidates), or say under "## Related" why it stands alone (obsidian skill).`] : [];
+}
+
+// REQ: name-var (rule 17), under v2: the shared tools/hooks/names.mjs, as the old engine judged it. A changeable name
+// from docs/names.json typed out in a file this turn changed (outside a marker in docs, in text people read in code),
+// in the lines the turn wrote only (lines git's last commit had are not this turn's). The engine's own files and the
+// project's namesIgnore are skipped.
+export function nameVarGaps(acts) {
+  if (checkOff('name-var')) return [];
+  const files = changedOf(acts).filter(p => p !== NAMES_FILE && NAME_FILES.test(p) && fs.existsSync(at(p)));
+  if (!files.length) return [];
+  const nm = namesIn(ROOT);
+  if (!Object.keys(nm).length) return [];
+  const cfg = projectConfig(), starter = fs.existsSync(at('.starter-template')), heads = headsOf(ROOT, files, spawnSync);
+  const typed = files.flatMap(p => { let now = ''; try { now = fs.readFileSync(at(p), 'utf8'); } catch { return []; }
+    return nameProblems(p, newLinesOf(now, heads.get(p)), { root: ROOT, nm, skip: inGlobs(p, cfg.namesIgnore || []) || (!starter && inGlobs(p, VERBATIM_ENGINE)) }); });
+  return typed.length ? [`Names are written once, in ${NAMES_FILE}, so they can be changed in one place. ${typed.slice(0, 4).join('; ')}${typed.length > 4 ? ` (+${typed.length - 4} more)` : ''}. Use the marker in docs and read the file in code, or say in one line why it must stay typed out.`] : [];
 }
 
 // Check 1: the routed runbook, else the one the agent opened (not a skill it names), was followed and its checkable

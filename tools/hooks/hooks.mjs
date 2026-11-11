@@ -3,6 +3,8 @@
 // The docs say what the rules are; this file makes them automatic so nobody has to remind the agent.
 // Project-specific checks belong in requirements.json (data), not here. Core checks carry a "REQ: <tag>" comment that
 // docs/checks/rule-enforcement.md and tools/audit.mjs refer to. "Lesson:" marks a failure seen in an earlier project.
+import { NAMES_FILE, NAME_MARK, NAME_DOCS, NAME_FILES, namesIn, subjectsIn, stampNames as sharedStamp, nameProblems as sharedNameProblems, codeIdentifiers as sharedCodeIds } from './names.mjs';
+export { NAMES_FILE };
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -1842,66 +1844,15 @@ export function syncDirectory(cfg = config()) {
 // ---------- names: every name the user may change is written once, in docs/names.json ----------
 // Docs show a name inside a marker, <!--name:KEY-->value<!--/name-->, which sync refills from the file. Code reads the
 // file. Renaming is then one edit to docs/names.json plus a sync. Keys starting with "_" are notes, not names.
-export const NAMES_FILE = 'docs/names.json';
-const NAME_MARK = /<!--name:([A-Za-z0-9_]+)-->[\s\S]*?<!--\/name-->/g;
-export const names = () => Object.fromEntries(Object.entries(readJSON(abs(NAMES_FILE), {})).filter(([k, v]) => !k.startsWith('_') && typeof v === 'string'));
-// A name that is still a template placeholder ({{PROJECT_NAME}}) or too short to search for is not checked.
-// "_subjects": keys whose value is also a real-world thing the project's content talks about (a project named after a
-// city, a river or a product). Its mentions in content are the subject, not the project's name, so they are not flagged;
-// the markers still refill on a rename. Lesson: a project named after its subject flagged every mention of the subject.
-const subjects = () => new Set([].concat(readJSON(abs(NAMES_FILE), {})._subjects || []));
-const checkable = nm => { const sub = subjects(); return Object.entries(nm).filter(([k, v]) => !sub.has(k) && v.trim().length >= 3 && !/\{\{|<!--/.test(v)); };
-export const stampNames = (text, nm = names()) => text.replace(NAME_MARK, (m, k) => k in nm ? `<!--name:${k}-->${nm[k]}<!--/name-->` : m);
-// REQ: name-var. A changeable name typed out in a file: outside a marker in docs, or anywhere in code.
-// Lesson: a project named "pipe" flagged the engine's own files, "from pipe.clean import" and the user's README, and a
-// name inside an HTML <title> was told to take a marker that the browser would show as text.
+// (the name check, shared with v2 and the audit: tools/hooks/names.mjs, moved whole 2026-11-10)
+export const names = () => namesIn(ROOT);
+const subjects = () => subjectsIn(ROOT);
+export const stampNames = (text, nm = names()) => sharedStamp(text, nm);
 export function nameProblems(file, text, nm = names(), cfg = config()) {
-  if (file === NAMES_FILE || match(file, cfg.namesIgnore)) return [];
   // the engine's files belong to the starter, not the project (in the starter itself they are its own code)
-  if (!exists('.starter-template') && match(file, VERBATIM_ENGINE)) return [];
-  // a package manifest names the package itself, which a rename must change by hand anyway
-  // (Lesson: pyproject.toml and "python -m photodate" were flagged in a project named after its package.)
-  if (/(^|\/)(pyproject\.toml|setup\.(cfg|py)|package(-lock)?\.json|Cargo\.(toml|lock)|go\.(mod|sum)|pubspec\.yaml|composer\.json|Gemfile|[^/]+\.gemspec|[^/]+\.csproj)$/i.test(file)) return [];
-  text = String(text).replace(/(\s-m\s+|\bpython3?\s+)[\w.]+/g, '$1');
-  const doc = NAME_DOCS.test(file), html = /\.html?$/i.test(file);
-  // code: only text people read (strings and comments) counts, never an identifier, module or import path
-  let bare = text.replace(NAME_MARK, '');
-  if (!doc) bare = bare.split(/\r?\n/).filter(l => !/^\s*(import|from|export\s+\*|use|require|package|module|#include|using)\b/.test(l)).join('\n');
-  // docs: a package folder or command is written as it is (`python -m pkg`, pkg/x.py), so code spans, fenced blocks
-  // and path-like text don't count. Lesson: a Python project named after its package flagged its own install steps,
-  // and a marker inside a path breaks on a rename.
-  else bare = bare.replace(/```[\s\S]*?```|`[^`\n]*`/g, '');
-  const word = v => doc ? new RegExp(`(?<![\\w./\\\\-])${esc(v)}(?![\\w-]|[./\\\\]\\w)`) : new RegExp(`(?<![\\w./\\\\-])${esc(v)}(?![\\w./\\\\(-])`);
-  // in code, a name that is also the code's own package or command name is that identifier: the program name in a
-  // command-line parser ("prog") or its usage example must match the command people type, and a rename changes the
-  // package by hand anyway. Lesson: the check made a CLI drop its typed program name, and --help then showed
-  // "python.exe -m photodate" instead of the command the README teaches.
-  const ids = doc ? new Set() : codeIdentifiers();
-  // one finding per typed name, even when several keys hold it (Lesson: PROJECT_NAME and a second key holding the same name gave two)
-  const seen = new Set();
-  return checkable(nm).filter(([, v]) => !/^[a-z]+$/.test(v) || v.length > 5).filter(([, v]) => !ids.has(v.toLowerCase().replace(/-/g, '_')))
-    .filter(([, v]) => word(v).test(bare) && !seen.has(v) && seen.add(v))
-    .map(([k, v]) => `${file}: "${v}" is typed out; ${html && new RegExp(`<title>[^<]*${esc(v)}`, 'i').test(bare) ? `inside <title> or an attribute a marker would show: fill it from ${NAMES_FILE} when the page is built, or waive it: node tools/hooks/hooks.mjs waive name-var "<why>"`
-      : doc ? `write <!--name:${k}-->${v}<!--/name-->` : `read it from ${NAMES_FILE} (key ${k})`}`);
+  return sharedNameProblems(file, text, { root: ROOT, nm, skip: match(file, cfg.namesIgnore) || (!exists('.starter-template') && match(file, VERBATIM_ENGINE)) });
 }
-// The code's own package, module and command names (lowercase, "-" as "_"): a folder at the root or in src/ that holds
-// code, and the name the package manifest gives (pyproject.toml, package.json, Cargo.toml, go.mod).
-let CODE_IDS = null;
-export function codeIdentifiers() {
-  if (CODE_IDS) return CODE_IDS;
-  const out = CODE_IDS = new Set(), add = s => { if (s) out.add(String(s).toLowerCase().replace(/^@[^/]+\//, '').replace(/-/g, '_')); };
-  const CODE = /\.(py|js|mjs|cjs|ts|tsx|go|rs|rb|java|kt|cs|php|dart|swift)$/i;
-  for (const d of ['', 'src']) for (const n of list(d || '.')) { const p = d ? `${d}/${n}` : n; try { if (!/^[._]/.test(n) && fs.statSync(abs(p)).isDirectory() && list(p).some(f => CODE.test(f))) add(n); } catch { } }
-  const py = read(abs('pyproject.toml')), pj = readJSON(abs('package.json'), {}), cargo = read(abs('Cargo.toml')), gomod = read(abs('go.mod'));
-  add(/^\[(?:project|tool\.poetry)\][^[]*?^name\s*=\s*["']([^"']+)/m.exec(py)?.[1]);
-  for (const s of (/^\[project\.scripts\]([^[]*)/m.exec(py)?.[1] || '').match(/^[\w.-]+(?=\s*=)/gm) || []) add(s);
-  add(pj.name); for (const s of Object.keys(typeof pj.bin === 'object' && pj.bin || {})) add(s);
-  add(/^\[package\][^[]*?^name\s*=\s*["']([^"']+)/m.exec(cargo)?.[1]);
-  add(/^module\s+(\S+)/m.exec(gomod)?.[1]?.split('/').pop());
-  return out;
-}
-const NAME_DOCS = /\.(md|mdx|txt|html?)$/i; // markers are refilled only in docs: code reads the file
-const NAME_FILES = /\.(md|mdx|txt|html?|js|mjs|cjs|jsx|ts|tsx|py|json|ya?ml|css|vue|svelte|toml|ini|sh|ps1|bat)$/i;
+export const codeIdentifiers = () => sharedCodeIds(ROOT);
 export function nameFiles(cfg = config()) {
   const out = [];
   const walk = d => { for (const n of list(d)) { const p = d ? `${d}/${n}` : n; if (match(p, cfg.ignoreForChanges) || /^(\.git|node_modules)$/.test(n)) continue; let s; try { s = walkStat(p); } catch { continue; } if (s.isDirectory()) walk(p); else if (NAME_FILES.test(n)) out.push(p); } };
