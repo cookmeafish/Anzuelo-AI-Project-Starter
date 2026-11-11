@@ -581,7 +581,9 @@ report(missing({ runbook: null }, acts([user('fix it'), edit, say('Fixed.')])).l
 {
   const { unroutedGaps } = await import('./end.mjs');
   const was = process.env.STARTER_NO_SMALL; process.env.STARTER_NO_SMALL = '1';
-  const u = (rows, again = false) => unroutedGaps({ runbook: null }, acts(rows), again);
+  const u = (rows, again = false, prior) => { const a = acts(rows); if (prior) a.prior = prior; return unroutedGaps({ runbook: null }, a, again); };
+  // (a runbook opened earlier in the session: the work goes on with it, no ask. Oversight's read of the replay)
+  const before = [{ name: 'Read', input: { file_path: path.join(dir, 'docs/playbooks/export.md') } }];
   const fb = call('Read', { file_path: path.join(dir, 'docs/playbooks/_fallback.md') }), newBook = call('Write', { file_path: path.join(dir, 'docs/playbooks/rota.md'), content: '# Rota' });
   const r = {
     asked: u([user('build the export report'), edit, say('Built it.')]),
@@ -591,11 +593,14 @@ report(missing({ runbook: null }, acts([user('fix it'), edit, say('Fixed.')])).l
     round2: u([user('build the export report'), edit, say('Built it.')], true),
     named: u([user('build the export report'), edit, say('Playbook: export.md. Built it.')]),
     fallback: u([user('build the export report'), fb, edit, say('Built it.')]),
+    goesOn: u([user('and the totals row too'), edit, say('Added.')], false, before),
+    namedBefore: u([user('and the totals row too'), edit, say('Playbook: export.md. Added.')], false, before),
   };
   if (was === undefined) delete process.env.STARTER_NO_SMALL; else process.env.STARTER_NO_SMALL = was;
   const small = u([user('build the export report'), edit, say('Built it.')]);
   report(/^No runbook was opened for this work\. Open the closest one/.test(r.asked[0] || '') && !r.oneOff.length && !r.opened.length && !r.made.length && !r.round2.length
-    && /^Open docs\/playbooks\/export\.md and check/.test(r.named[0] || '') && /followed docs\/playbooks\/_fallback\.md: leave a runbook/.test(r.fallback[0] || '') && !small.length,
+    && /^Open docs\/playbooks\/export\.md and check/.test(r.named[0] || '') && /followed docs\/playbooks\/_fallback\.md: leave a runbook/.test(r.fallback[0] || '') && !small.length
+    && !r.goesOn.length && !r.namedBefore.length,
     'end: unrouted work is asked once to open the closest runbook, leave one, or say why none fits; a named runbook never opened is asked for; _fallback work is asked to leave one; a small fix and round 2 are not', JSON.stringify(r).slice(0, 600));
 }
 const chose = missing({ runbook: null }, acts([user('fix the orders file'), read, edit, say('Fixed.')]));
