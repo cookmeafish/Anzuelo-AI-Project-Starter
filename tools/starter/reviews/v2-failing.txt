@@ -1,6 +1,5 @@
 # Old-suite tests engine v2 still fails (tools/starter/v2-sweep.mjs). It only shrinks: a port takes its names off.
 agent-neutral: begin routes, check fails an incomplete answer and passes a complete one
-begin-keeps-turn: a mid-turn begin in a hooked session shows the routing and keeps the turn start; a session without a hook record starts its turn
 bench-caches: a timing run keeps the caches it rebuilt and writes no session state
 codex: a Codex transcript gives the request, the tool calls and their failures to the checks
 covers: agent-neutral is proven by "agent-neutral: begin routes"

@@ -5969,11 +5969,13 @@ if (mineB() && (!TAGS || TAGS.includes('begin-keeps-turn'))) {
     const tp = path.join(dir, '.cache', 'session-bk.jsonl');
     write(dir, { '.cache/session-bk.jsonl': JSON.stringify({ type: 'user', timestamp: new Date().toISOString(), message: { role: 'user', content: 'add a login page' } }) + '\n' });
     run(dir, 'prompt', { prompt: 'add a login page', session_id: 'hookedbk', transcript_path: tp });
-    const at0 = JSON.parse(readOr(path.join(st, 'turn.hookedbk.json'), '{}')).at;
+    // (each engine's own turn record: v2 keeps v2-turn.<session>.json)
+    const tf = sid => path.join(st, process.env.STARTER_ENGINE === 'v2' ? `v2-turn.${sid}.json` : `turn.${sid}.json`);
+    const at0 = JSON.parse(readOr(tf('hookedbk'), '{}')).at;
     const b = spawnSync(process.execPath, ['tools/hooks/hooks.mjs', 'begin', 'add a login page with passwords'], { cwd: dir, encoding: 'utf8', env: { ...process.env, CLAUDE_CODE_SESSION_ID: 'hookedbk' } });
-    const at1 = JSON.parse(readOr(path.join(st, 'turn.hookedbk.json'), '{}')).at;
+    const at1 = JSON.parse(readOr(tf('hookedbk'), '{}')).at;
     const n = spawnSync(process.execPath, ['tools/hooks/hooks.mjs', 'begin', 'add a login page'], { cwd: dir, encoding: 'utf8', env: { ...process.env, CLAUDE_CODE_SESSION_ID: 'freshbk' } });
-    const fresh = fs.existsSync(path.join(st, 'turn.freshbk.json'));
+    const fresh = fs.existsSync(tf('freshbk'));
     report(at0 === at1 && /keeps that start/.test(b.stdout) && /security-review/.test(b.stdout) && fresh && !/keeps that start/.test(n.stdout),
       'begin-keeps-turn: a mid-turn begin in a hooked session shows the routing and keeps the turn start; a session without a hook record starts its turn',
       `start ${at0} -> ${at1} | hooked: ${b.stdout.slice(0, 200)} | fresh turn recorded: ${fresh} | ${n.stdout.slice(0, 120)}`);

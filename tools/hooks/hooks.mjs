@@ -6344,9 +6344,15 @@ async function v2Cli(cmd) {
   if (cmd === 'begin') {
     const req = process.argv.slice(3).join(' ').trim();
     if (!req) { console.log('usage: node tools/hooks/hooks.mjs begin "<the user\'s request>"'); return 1; }
+    // (a begin in a session whose prompt hook already recorded an open request keeps that start, so the work done since
+    // still counts, and only shows the routing, as the old engine did. Lesson, trial round 19: a mid-turn begin made a
+    // report already written look old, and the end check held it three times)
+    const before = lib.loadTurn(sid), open = !!before.at && !before.ended && sid !== 'manual';
     const r = (await import('./v2/start.mjs')).onPrompt({ prompt: req, session_id: sid });
+    if (open) lib.saveTurn(sid, before);
     // (kept for a check with no transcript, which judges the turn from this request, v2/manual.mjs)
-    if (!tp) { const t = lib.loadTurn(sid); if (t.at) lib.saveTurn(sid, { ...t, request: req.slice(0, 4000) }); }
+    if (!tp && !open) { const t = lib.loadTurn(sid); if (t.at) lib.saveTurn(sid, { ...t, request: req.slice(0, 4000) }); }
+    if (open) console.log(`BEGIN: this session's prompt hook recorded the request at ${String(before.at).slice(11, 19)}; the turn keeps that start, so the work done since still counts. Routing for this text:`);
     console.log(r?.hookSpecificOutput?.additionalContext || 'BEGIN: recorded. No runbook named for this request.');
     return 0;
   }
