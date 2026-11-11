@@ -14,19 +14,15 @@ pretool: scope-change: a user message while a helper launched before it runs get
 prompt-digest: a session whose start gave the session checklist gets no rules digest on its prompts; one with no session start still does
 prompt: QA routes to the qa runbook
 prompt: a context summary that resumes the turn gets no hints
-prompt: bootstrap hint when setup prompt is gone but brief is empty
 prompt: closest runbook: a request sharing one word or none still gets NO RUNBOOK
 prompt: debug skill routes on its own
 prompt: efficiency-review: "simple fixes turn into 20 minute things" routes to the review
 prompt: fit-checklist: a request a deferred library skill is for asks to decide it again
 prompt: fit-checklist: one trigger plus a word of the condition asks to decide it again
 prompt: goal-loop: "keep improving it until the tests never flake" routes to the loop
-prompt: inbox files are announced
 prompt: paste-routing: a short closing paragraph after the material still routes
 prompt: paste-routing: the same words in a short message still suggest the skill
 prompt: requirement hint: the same words as the user's own requirement still count
-prompt: requirement: a lasting requirement fires ("cada factura debe mostrar el número de impuesto")
-prompt: requirement: a lasting requirement fires ("every invoice must show the tax number")
 prompt: route-precision: prompt-visible: a routed runbook shows the user the book line, with its checklist count
 prompt: route-precision: runbook-ledger: the routed runbook's checklist comes with the route
 prompt: route: "fixed and pushed: GitHub main" with a starter upgrade routes to the engine runbook, not to release
@@ -36,9 +32,7 @@ prompt: route: a Spanish debug request gets the debug skill
 prompt: route: a phrase about the user's own notes routes ("add this fact to my notes")
 prompt: rules digest on every prompt
 prompt: scope hint names the person (alias works)
-prompt: setup notice while SETUP-PROMPT.md is present (not the template)
 prompt: small-change: a request whose checks include a record step hears that a small fix skips them
-prompt: stale knowledge is announced
 prompt: starter-runbooks: a project never routes to the starter's own runbooks
 prompt: starter-runbooks: in the starter, "test it many times so nothing gets worse" routes to the improvement loop
 prompt: starter-runbooks: in the starter, "tests for hours, did it keep it on track or forget things" routes to the improvement loop
@@ -70,7 +64,6 @@ stop: "keep doing this" with nothing written down: blocked
 stop: 2nd block in a turn still blocks
 stop: GUI reviewed but no Visual review verdict: blocked
 stop: a new runbook gets its skill and DIRECTORY row generated
-stop: answer relies on a stale knowledge file without saying so: blocked
 stop: answer-language: a Spanish visual review with no verdict: blocked
 stop: answer-noise: the Stop text steers waivers to the waive command, never to an N/A line in the answer
 stop: answer-noise: the re-answer instruction asks for no note about the steps or an earlier version
