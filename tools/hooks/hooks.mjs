@@ -25,7 +25,7 @@ import { people, personOf, peopleIn, peopleFor, pathsPeople } from './people.mjs
 import { LABELS_ES, WORTH_IT, plainLabel, EN_COPIES, inEnglish, labelsEsHint, LABELS_ES_HINT } from './labels.mjs';
 export { labelsEsHint, LABELS_ES_HINT };
 import { BASE_REQUIREMENTS, FAILED_RUN, MISSING_TOOL, PROBLEM_WORDS, DEV_NEW_PROJECT, interruptedRun, rerunPassed } from './base-checks.mjs';
-import { knowledgeFromFiles as sharedKnowledgeFromFiles, figureProblems as sharedFigureProblems, knowledgeProblems as sharedKnowledgeProblems } from './knowledge.mjs';
+import { knowledgeFromFiles as sharedKnowledgeFromFiles, figureProblems as sharedFigureProblems, knowledgeProblems as sharedKnowledgeProblems, staleWhy as sharedStaleWhy } from './knowledge.mjs';
 import { claimSentences, byHandClaim, describesClaim, groupVerdictClaim, IMPROVE_CLAIM, REPORTED, NOT_IN_GIT, gitHolds as sharedGitHolds, namedPaths as sharedNamedPaths, gitClaimContradicted as sharedGitClaim } from './claims.mjs';
 export { ROOT, bulkDir, today, usageOf, read, readJSON, abs, exists, list, walkStat, esc, config, re, secretRes, secretHit, privateTermsPath, privateTermsListFile, forbiddenTerms, forbiddenRe, testInputsHash, aiAttributedCommits, gitignoreProblems, people, personOf, peopleIn, peopleFor, pathsPeople, LABELS_ES, WORTH_IT, plainLabel, EN_COPIES, inEnglish, BASE_REQUIREMENTS };
 // (the safety guard is v2/guard.mjs, loaded by the pretool hook itself: a guard that cannot load is then reported, not
@@ -2160,10 +2160,8 @@ export function staleKnowledge(cfg = config()) {
       let s; try { s = walkStat(p); } catch { continue; }
       if (s.isDirectory()) { walk(p); continue; }
       if (!/\.md$/i.test(n) || /^(README|SOURCES)\.md$/i.test(n)) continue;
-      const fm = noteMeta(p);
-      if (fm.next_check && Date.parse(fm.next_check) <= now) out.push({ file: p, why: `next_check ${fm.next_check} has passed` });
-      else if (/^y/i.test(fm.volatile || '') && fm.checked && (now - Date.parse(fm.checked)) / 864e5 > cfg.volatileMaxAgeDays)
-        out.push({ file: p, why: `volatile, last checked ${fm.checked}` });
+      const why = sharedStaleWhy(noteMeta(p), now, cfg.volatileMaxAgeDays);
+      if (why) out.push({ file: p, why });
     }
   };
   for (const d of cfg.knowledgeDirs) walk(d.replace(/\/+$/, ''));

@@ -11,7 +11,7 @@ import { people, personOf, peopleIn, peopleFor } from '../people.mjs';
 import { inEnglish, EN_COPIES } from '../labels.mjs';
 import { writingProblems, plainWritingMsg } from '../writing.mjs';
 import { BASE_REQUIREMENTS, FAILED_RUN, MISSING_TOOL, PROBLEM_WORDS, DEV_NEW_PROJECT, interruptedRun, rerunPassed } from '../base-checks.mjs';
-import { knowledgeFromFiles as knowledgeFromFilesOf, figureProblems as figureProblemsOf, knowledgeProblems as knowledgeProblemsOf } from '../knowledge.mjs';
+import { knowledgeFromFiles as knowledgeFromFilesOf, figureProblems as figureProblemsOf, knowledgeProblems as knowledgeProblemsOf, staleWhy } from '../knowledge.mjs';
 import { forbiddenRe, secretHit, config as engineConfig, EXTENDS } from '../settings.mjs';
 import { INJ_PLANTED, INJ_AIMED, INJ_WARNED } from '../injection.mjs';
 import { verbatimHits } from './verbatim.mjs';
@@ -970,6 +970,31 @@ export function evidenceGaps(acts) {
   return out;
 }
 
+// REQ: stale-cited. An answer that relies on a stale knowledge note (its next_check passed, or volatile and long
+// unchecked) says so, or the turn re-checked it. Only notes the answer names are read: no walk of the knowledge base
+// unless a bare file name needs finding. Lesson (the old suite under v2): a stale price was given as current.
+export function staleCitedGaps(acts) {
+  const ans = String(acts.answer || '');
+  const named = [...new Set(ans.match(/[\w./-]+\.md\b/g) || [])];
+  if (!named.length) return [];
+  const dirs = knowledgeDirs().map(d => d.replace(/\/+$/, ''));
+  const isNote = r => dirs.some(d => r.startsWith(d + '/')) && !/(^|\/)(README|SOURCES|INDEX)\.md$/i.test(r);
+  let files = named.map(n => n.replace(/^\.\//, '')).filter(isNote);
+  const bare = named.filter(n => !n.includes('/'));
+  if (bare.length) for (const d of dirs) { let all = []; try { all = fs.readdirSync(at(d), { recursive: true }).map(f => `${d}/${String(f).replace(/\\/g, '/')}`); } catch { }
+    files.push(...all.filter(f => isNote(f) && bare.includes(f.split('/').pop()))); }
+  files = [...new Set(files)].filter(f => fs.existsSync(at(f)));
+  if (!files.length) return [];
+  const said = `${ans}\n${acts.said || ''}`;
+  if (/\bstale|out of date|re-?check|as of\b/i.test(said)) return [];
+  const changed = new Set(changedOf(acts)), maxAge = projectConfig().volatileMaxAgeDays ?? 90, out = [];
+  for (const f of files) { if (changed.has(f)) continue;
+    const m = /^﻿?---\r?\n([\s\S]*?)\r?\n---/.exec(read(f)), fm = {};
+    for (const l of (m?.[1] || '').split(/\r?\n/)) { const kv = /^([\w-]+)\s*:\s*(.*?)\s*$/.exec(l); if (kv) fm[kv[1]] = kv[2].replace(/^["']|["']$/g, ''); }
+    const why = staleWhy(fm, Date.now(), maxAge);
+    if (why) out.push(`The answer relies on ${f}, which is stale (${why}). Re-check it now (and update its date) or tell the user it may be out of date.`); }
+  return out;
+}
 export function knowledgeGaps(acts) {
   const dirs = knowledgeDirs().map(d => d.replace(/\/+$/, '') + '/');
   const isK = r => dirs.some(d => r.startsWith(d)) && !/(^|\/)(README|SOURCES|INDEX)\.md$/i.test(r);

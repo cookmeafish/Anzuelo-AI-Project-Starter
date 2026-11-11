@@ -18,6 +18,13 @@ export function knowledgeProblems(file, text, labels = []) {
   if (!/\b20\d\d-\d\d-\d\d\b/.test(text)) probs.push(`${file}: no date (YYYY-MM-DD) for when the facts were checked`);
   return probs;
 }
+// Why a knowledge note is stale, from its frontmatter ({ next_check, volatile, checked }), or '' when it is not: its
+// next_check date has passed, or it is volatile and was last checked over maxAgeDays ago. For both engines and the audit.
+export function staleWhy(fm, now = Date.now(), maxAgeDays = 90) {
+  if (fm.next_check && Date.parse(fm.next_check) <= now) return `next_check ${fm.next_check} has passed`;
+  if (/^y/i.test(fm.volatile || '') && fm.checked && (now - Date.parse(fm.checked)) / 864e5 > maxAgeDays) return `volatile, last checked ${fm.checked}`;
+  return '';
+}
 export function knowledgeFromFiles(x, cfg, io) {
   const files = (x.changed || []).filter(p => /\.md$/i.test(p) && io.match(p, (cfg.knowledgeDirs || []).map(d => `${d.replace(/\/+$/, '')}/**`)) && !/(^|\/)(README|SOURCES|INDEX)\.md$/i.test(p) && io.exists(p));
   if (!files.length) return 'no knowledge file changed';

@@ -1654,6 +1654,20 @@ fs.rmSync(path.join(dir, 'tools/audit.mjs'));
 
 // end: check 5, knowledge sources
 const { knowledgeGaps } = await import('./lib.mjs');
+{ // (REQ: stale-cited: an answer that relies on a stale knowledge note says so, or the turn re-checked it; a fresh note,
+  // or one the answer does not name, asks for nothing)
+  const { staleCitedGaps } = await import('./lib.mjs');
+  put('docs/knowledge/chairs.md', '---\nnext_check: 2020-01-01\n---\n# Chairs\n'); put('docs/knowledge/lamps.md', '---\nnext_check: 2999-01-01\n---\n# Lamps\n');
+  put('docs/knowledge/rugs.md', '---\nvolatile: yes\nchecked: 2020-01-01\n---\n# Rugs\n');
+  const sc = (answer, calls = []) => staleCitedGaps(acts([user('what do we know about chairs'), ...calls, say(answer)]));
+  const r = { path: sc('Chair A is $80 (docs/knowledge/chairs.md).'), bare: sc('Chair A is $80, from chairs.md.'), volatile: sc('Rugs: see docs/knowledge/rugs.md.'),
+    said: sc('Chair A was $80 as of the last check (docs/knowledge/chairs.md), which may be out of date.'), fresh: sc('Lamp B is $20 (docs/knowledge/lamps.md).'),
+    unnamed: sc('Chair A is $80.'), rechecked: sc('Chair A is $80 (docs/knowledge/chairs.md).', [call('Edit', { file_path: path.join(dir, 'docs/knowledge/chairs.md'), old_string: 'a', new_string: 'b' })]) };
+  for (const f of ['chairs', 'lamps', 'rugs']) fs.rmSync(path.join(dir, `docs/knowledge/${f}.md`), { force: true });
+  report(r.path.length === 1 && /next_check 2020-01-01 has passed/.test(r.path[0]) && r.bare.length === 1 && /volatile, last checked/.test(r.volatile[0] || '')
+    && !r.said.length && !r.fresh.length && !r.unnamed.length && !r.rechecked.length,
+    'end: stale-cited: an answer naming a stale knowledge note (path or bare name, passed next_check or volatile and old) is held unless it says so or the turn re-checked it', r);
+}
 const fact = (text, f = 'docs/knowledge/tides.md') => call('Edit', { file_path: path.join(dir, f), old_string: 'a', new_string: text });
 const plain = 'The spring tide at the north pier reaches 4.2 metres in March, and the harbour closes for two days each year.';
 report(knowledgeGaps(acts([user('add the tide facts'), fact(plain), say('Added.')])).length === 1, 'end: new knowledge text with no source is named');

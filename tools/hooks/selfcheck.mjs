@@ -1447,9 +1447,9 @@ const PROMPT = [
   { name: 'menu codes: codes joined by a comma or "and" both expand, an unknown one among them is asked about', prompt: 'E1, E5 and Z8 please', has: ['MENU CODE E1', 'MENU CODE E5', 'UNKNOWN MENU CODE Z8'] },
   { name: 'menu codes: a code-like word inside a sentence is not asked about', prompt: 'the Z8 bus was late again today', hasNot: ['MENU CODE', 'UNKNOWN MENU CODE'] },
   { name: 'notification is not a prompt', prompt: '<task-notification>agent done</task-notification>', none: true },
-  { pack: 'knowledge', name: 'inbox files are announced', prompt: 'hello', setup: { 'inbox/scan.pdf': 'x' }, has: ['INBOX: 1 file'] },
-  { name: 'setup notice while SETUP-PROMPT.md is present (not the template)', prompt: 'hello', removeMarker: true, has: ['SETUP IN PROGRESS'] },
-  { name: 'bootstrap hint when setup prompt is gone but brief is empty', prompt: 'hello', removeMarker: true, remove: ['SETUP-PROMPT.md'], setup: { 'docs/BRIEF.md': '---\nstatus: not bootstrapped\n---\n# Brief\n' }, has: ['BOOTSTRAP NEEDED'] },
+  { pack: 'knowledge', name: 'inbox files are announced', prompt: 'hello', setup: { 'inbox/scan.pdf': 'x' }, has: ['INBOX: 1 file'], v2: { session: true } },
+  { name: 'setup notice while SETUP-PROMPT.md is present (not the template)', prompt: 'hello', removeMarker: true, has: ['SETUP IN PROGRESS'], v2: { session: true } },
+  { name: 'bootstrap hint when setup prompt is gone but brief is empty', prompt: 'hello', removeMarker: true, remove: ['SETUP-PROMPT.md'], setup: { 'docs/BRIEF.md': '---\nstatus: not bootstrapped\n---\n# Brief\n' }, has: ['BOOTSTRAP NEEDED'], v2: { session: true } },
   { name: 'rules digest on every prompt', prompt: 'hello there', has: ['[rules] route'] },
   { name: 'praise hint', prompt: 'perfect, keep doing this', has: ['PRAISE'] },
   { name: 'scope hint names the person (alias works)', prompt: 'update ali\'s budget', setupFn: PEOPLE, has: ['SCOPE: this request is about alice'] },
@@ -1515,7 +1515,7 @@ const PROMPT = [
   { name: 'skill-prune: core skills and kept runbooks are never announced', prompt: 'hello', session: true, removeMarker: true, setup: { 'docs/playbooks/meal-plan.md': NEWPB.replace('checks:', 'keep: 2099-01-01 - seasonal' + String.fromCharCode(10) + 'checks:'), 'tools/hooks/state/runbook-usage.json': JSON.stringify({ 'meal-plan': { uses: 1, last: '2020-01-01' }, debug: { uses: 1, last: '2020-01-01' } }) }, hasNot: ['SKILL CLEANUP DUE'] },
   // Lesson: "every Monday I'll make the order plan" was promised, and nothing ever made it happen
   { name: 'routines: a routine past its day is announced at session start', prompt: 'hello', session: true, setup: { 'docs/routines.md': '# Routines\n| Routine | Every | Runbook | Last run |\n|---|---|---|---|\n| Order plan | week | docs/playbooks/plan.md | 2020-01-06 |\n| Fresh one | month | docs/playbooks/plan.md | 2999-01-01 |\n' }, has: ['ROUTINES DUE: Order plan'], hasNot: ['Fresh one'] },
-  { pack: 'knowledge', name: 'stale knowledge is announced', prompt: 'hello', setup: { 'docs/knowledge/desks.md': '---\nnext_check: 2020-01-01\n---\n# x' }, has: ['STALE KNOWLEDGE'] },
+  { pack: 'knowledge', name: 'stale knowledge is announced', prompt: 'hello', setup: { 'docs/knowledge/desks.md': '---\nnext_check: 2020-01-01\n---\n# x' }, has: ['STALE KNOWLEDGE'], v2: { session: true } },
   { pack: 'gui', name: 'GUI request routes to the gui runbook', prompt: 'make the dashboard look more modern', has: ['ROUTE: gui'] }
 ];
 
@@ -5290,6 +5290,7 @@ const V2_ASKS = {
   'playbook-format': /^- The project's health check \(node tools\/audit\.mjs\) fails after this change: [^\n]*runbooks are well-formed/m,
   'skill-valid': /^- The project's health check \(node tools\/audit\.mjs\) fails after this change: [^\n]*skills are valid/m,
   'knowledge-labels': /^- Knowledge notes carry an evidence label, a source and a date: /m,
+  'stale-cited': /^- The answer relies on \S+, which is stale \(/m,
   'requirements-valid': /^- The project's health check \(node tools\/audit\.mjs\) fails after this change: [^\n]*requirements\.json is valid/m,
   'skill-complete': /^- The project's health check \(node tools\/audit\.mjs\) fails after this change: [^\n]*skills are valid/m,
   'directory-current': /^- The project's health check \(node tools\/audit\.mjs\) fails after this change: [^\n]*generated files are current/m,
