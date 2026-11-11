@@ -40,7 +40,6 @@ self-sent-prompt: a wakeup firing mid-turn keeps the request, its start and its 
 selfcheck --explain: lists every firing check with its label and what satisfies it
 session and prompt notices: sent as hidden context where the host supports it, plain text elsewhere
 session: a resume after a turn that ended repeats no reminder and claims no interruption; a resume mid-turn checks the files
-session: injects checklist and STATUS
 session: the user sees nothing at the start (no "on duty", intact files or agent chores), only broken files; the agent still gets every notice
 sessions: each session counts its own stop rounds
 sessions: two sessions in one folder keep separate turn records and snapshots
@@ -62,7 +61,6 @@ stop: answer-noise: the re-answer instruction asks for no note about the steps o
 stop: answer-resent: a round of file-only steps asks for "Answer unchanged; also updated", not a resend
 stop: audit-run self-run: a broken runbook link: the hooks run the audit, and its FAIL is the step
 stop: autonomy-recorded: "don't ask me" left only in the answer: blocked
-stop: bg-moved: a foreground command moved to the background holds the Stop while it runs
 stop: block cap reached: a check that waits on background agents is not carried over
 stop: block cap reached: unresolved checks are saved for the next prompt
 stop: check-proven: a "**Probado:**" label alone, with no full line anywhere: blocked, and the message gives the line filled in from the runs
@@ -71,8 +69,6 @@ stop: check-proven: good samples with no edge case from the project's own words:
 stop: check-proven: the existing files covered but no count in the "Proven:" line: blocked
 stop: crash blocks once, then releases
 stop: debug skill matched but not opened: blocked
-stop: dev mode: an engine change with no self-tests, changelog or proof it works: blocked
-stop: feature done right: passes
 stop: fit-checklist: a turn adds a data file that a decided skip never answered: blocked
 stop: gate with no pass pattern chained to other commands: run it alone: blocked
 stop: gui-review-report: a bold "Revisión visual" list item with no verdict still asks for the line
@@ -84,14 +80,11 @@ stop: queued mid-turn rule request is enforced: blocked
 stop: requirement-enforced: a requirement said in passing, during work, with nothing enforcing it: blocked
 stop: requirement-enforced: a requirement written only into a runbook: blocked
 stop: routed task that never opened its runbook: blocked
-stop: runbook-cold-read: a new runbook no helper read cold: blocked
 stop: runbook-exists: work that names an existing runbook it never opened is asked to open it, not to write one: blocked
 stop: runbook-ledger: a skip without a real reason does not drop a failing check
 stop: runbook-ledger: an item marked done whose evidence is missing comes back under its item
 stop: runbook-ledger: off by default, a skip line covers nothing
 stop: setup: the same runbook followed in a later turn: its checks apply
-stop: stop message: one short line per step, the details in "hooks.mjs why"
-stop: stop-follow-on: a lesson for a skill names the audit and the changelog in round 1
 stop: turn-notes: notes left from an earlier turn do not count: blocked
 stop: unresolved-carryover: a turn that ended while background work ran gets its full check at the next Stop, on any request
 stop: unresolved-carryover: an owed lesson is held even on an unrelated request
