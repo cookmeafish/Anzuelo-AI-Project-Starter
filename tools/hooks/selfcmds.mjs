@@ -25,7 +25,15 @@ export function selfListGrows(name, inp, root, read0 = f => { try { return fs.re
 // search that mentions either is fine).
 export const selfCmdWrites = cmd => { const c = String(cmd || '');
   // (the key spelled with an escape, "selfCommands", parses to the same name: a write with an escape counts too)
-  return /hooks\.mjs["']?\s+self-allow\b/.test(c) || (/\bselfCommands\b|\\u00[0-9a-f]{2}/i.test(c) && /config\.json/.test(c) && /(^|[^<\d&=-])>>?\s*\S|\bsed\b[^|;&]*\s-i|writeFile|appendFile|Set-Content|Add-Content|Out-File|\btee\b|\bcp\b|\bmv\b|Copy-Item|Move-Item/i.test(c)); };
+  if (/hooks\.mjs["']?\s+self-allow\b/.test(c)) return true;
+  if (!/\bselfCommands\b|\\u00[0-9a-f]{2}/i.test(c) || !/config\.json/.test(c)) return false;
+  // (a script's own write (node, python) names the file inside its code: any mention counts)
+  if (/writeFile|appendFile|\.write_text\(|open\([^)]*['"]w/i.test(c)) return true;
+  // (a shell write counts only when config.json is what that step writes: a quoted text that merely mentions the list
+  // and the file, such as a changelog line, is no target. Lesson (a project's report, 2026-11-10): `sed -i '4a ...
+  // carried onto selfCommands in tools/hooks/config.json ...' docs/CHANGELOG.md` was refused)
+  const bare = p => p.replace(/'([^']*)'|"((?:[^"\\]|\\.)*)"/g, (m, a, b) => /config\.json$/.test(a ?? b) ? m : ' ');
+  return c.split(/&&|\|\||;|\n/).some(p => /config\.json/.test(bare(p)) && /(^|[^<\d&=-])>>?\s*\S|\bsed\b[^|;&]*\s-i|Set-Content|Add-Content|Out-File|\btee\b|\bcp\b|\bmv\b|Copy-Item|Move-Item/i.test(p)); };
 // The list as it stood in the last commit made before `before` (an ISO time: the session's start), read from git, so
 // no change made during the session counts: an edit, a script, or a commit made since. Not a git project, or no such
 // commit: none. Lesson (a peer's security review): a script the agent wrote could edit the config without the guard
@@ -55,6 +63,9 @@ export function committedRunEach(root) {
 // still runs (REQ: self-run; the user's decision of 2026-11-10: the agent is not held back from doing its best work):
 // the hook runs a project's command on its own only from this list, and the agent can always run any command itself.
 // Returns the commands added; dry: none written. The caller records the DECISIONS line.
+// The upgrade's log line for it. A dry run says what would happen: it writes nothing. Lesson (a project's report,
+// 2026-11-10): "approved ... carried" read as done after a dry run that changed no file.
+export const carryLine = (carried, dry) => `${dry ? 'would approve' : 'approved'} ${carried.length} runEach command(s) the project's checks run on each changed file, ${dry ? 'to be carried' : 'carried'} onto selfCommands in tools/hooks/config.json: ${carried.join(' | ')}`;
 export function carryRunEach(root, { dry = false } = {}) {
   const f = path.join(root, 'tools/hooks/config.json');
   let j = {}; try { j = JSON.parse(fs.readFileSync(f, 'utf8')); } catch { }

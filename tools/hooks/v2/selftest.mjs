@@ -631,7 +631,9 @@ report(missing({ runbook: null }, acts([user('fix it'), edit, say('Fixed.')])).l
 // (the upgrade carries a project's committed runEach commands onto the approved list, so a check the old engine ran on
 // its own still runs: committed ones only (anyOf too), each once, none in a dry run. The user, 2026-11-10)
 {
-  const { carryRunEach } = await import('../selfcmds.mjs');
+  const { carryRunEach, carryLine } = await import('../selfcmds.mjs');
+  report(/^would approve 1 .* to be carried onto/.test(carryLine(['x'], true)) && /^approved 1 .* carried onto/.test(carryLine(['x'], false)) && !/approved|carried onto/.test(carryLine(['x'], true).replace(/would approve|to be carried onto/g, '')),
+    'upgrade: a dry run says the runEach commands would be carried; a real one says they were', [carryLine(['x'], true), carryLine(['x'], false)]);
   const p = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-carry-')), rq = path.join(p, 'tools/hooks/requirements.json'), cf = path.join(p, 'tools/hooks/config.json');
   const g = (...a) => spawnSync('git', a, { cwd: p, encoding: 'utf8' });
   fs.mkdirSync(path.dirname(rq), { recursive: true });
@@ -2160,6 +2162,9 @@ report(madeUp.length === 2 && /9f8e7d6/.test(madeUp[0]) && /src\/missing\.js/.te
     arrow: selfCmdWrites(`node mut.mjs tools/hooks/v2/lib.mjs "x.filter(c => selfCommands().includes(c)) at('tools/hooks/config.json')" "y"`),
     escaped: selfCmdWrites(String.raw`node -e "const f='tools/hooks/config.json',j=JSON.parse(require('fs').readFileSync(f));j['selfCommands']=['x'];require('fs').writeFileSync(f,JSON.stringify(j))"`),
     psWrite: selfCmdWrites('Set-Content tools/hooks/config.json \'{"selfCommands":["x"]}\''),
+    // (a changelog line that only mentions the list and the file is no write of it; a quoted path to it still is)
+    prose: selfCmdWrites("sed -i '4a - Upgraded: carried onto selfCommands in tools/hooks/config.json, kept running' docs/CHANGELOG.md && sed -i '29s/a/b/' docs/STATUS.md"),
+    quotedPath: selfCmdWrites(`sed -i 's/"selfCommands": \\[/&"x",/' "C:/projects/My Project/tools/hooks/config.json"`),
     escEdit: selfListGrows('Write', { file_path: P, content: '{"autonomy": "ask", "self\\u0043ommands": ["npm test", "x"]}' }, dir, rd),
   };
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'selfallow-')); fs.mkdirSync(path.join(tmp, 'tools/hooks'), { recursive: true }); fs.writeFileSync(path.join(tmp, 'tools/hooks/config.json'), '{"autonomy":"ask"}');
@@ -2167,7 +2172,7 @@ report(madeUp.length === 2 && /9f8e7d6/.test(madeUp[0]) && /src\/missing\.js/.te
   const sr = cmd => ({ tag: 't', require: { toolPassed: { cmd: 'x', selfRun: cmd, selfAuto: true } } });
   // (the last commit's own self-runs, from its requirements.json, a pack check's own version included, and its always.md)
   const conv = committedSelfRuns(JSON.stringify({ requirements: [{ ...sr('npm test'), tag: 'app-test-pass', pack: 'app' }, { tag: 'manual', require: { toolPassed: { cmd: 'x', selfRun: 'node manual.mjs' } } }] }), '## Done when\n- [ ] Walk (when file: w/**) (ran: verify) (self: node walk.mjs)\n').join();
-  report(g.editAdd && g.writeAdd && g.multiAdd && !g.otherKey && !g.remove && !g.otherFile && g.cli && g.sedW && g.escaped && g.psWrite && g.escEdit && !g.grep && !g.read && !g.arrow && a1.added && !a2.added && kept.autonomy === 'ask' && kept.selfCommands.join() === 'npm test' && conv === 'npm test,node walk.mjs',
+  report(g.editAdd && g.writeAdd && g.multiAdd && !g.otherKey && !g.remove && !g.otherFile && g.cli && g.sedW && g.escaped && g.psWrite && !g.prose && g.quotedPath && g.escEdit && !g.grep && !g.read && !g.arrow && a1.added && !a2.added && kept.autonomy === 'ask' && kept.selfCommands.join() === 'npm test' && conv === 'npm test,node walk.mjs',
     'guard: an agent edit, write or shell write that adds an approved self-run command, or runs self-allow, is refused; other config edits, removals and reads pass; self-allow adds once; the converter keeps only self-runs in the last commit', { ...g, a1: a1.msg, conv });
 }
 { // (REQ: upset-learned: after a complaint that held, the answer says so and what was checked, and the lesson is written

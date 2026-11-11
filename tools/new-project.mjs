@@ -27,7 +27,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { CORE_SKILLS, today as localToday, usageOf, isEngineCheck, shippedChecks, checkKey, ENGINE_CHECKS_HISTORY, changelogSince, breakingItems, upgradeReport, withReviewBlock, fastestBench, probeEngine, noteEngineChange } from './hooks/hooks.mjs';
 import { wire } from './hooks/wire.mjs';
 import { dataLikeDirs } from './hooks/datadirs.mjs';
-import { carryRunEach } from './hooks/selfcmds.mjs';
+import { carryRunEach, carryLine } from './hooks/selfcmds.mjs';
 
 const STARTER = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const starterHead = () => (spawnSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: STARTER, encoding: 'utf8' }).stdout || '').trim() || 'the newest starter';
@@ -682,7 +682,7 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   // project's command from on its own, so no check it had stops running. The user, 2026-11-10. Backed up for a rollback)
   const carried = carryRunEach(dest, { dry: true });
   if (carried.length) {
-    log.push(`approved ${carried.length} runEach command(s) the project's checks run on each changed file, carried onto selfCommands in tools/hooks/config.json: ${carried.join(' | ')}`);
+    log.push(carryLine(carried, dry));
     if (!dry) { const cf = path.join(dest, 'tools', 'hooks', 'config.json'), b = path.join(backupDir, 'tools', 'hooks', 'config.json.orig'); if (fs.existsSync(cf) && !fs.existsSync(b)) { fs.mkdirSync(path.dirname(b), { recursive: true }); fs.copyFileSync(cf, b); } carryRunEach(dest); }
   }
   log.push(...wire(dest, { dry })); // every agent's wiring, the git hooks and Obsidian (tools/hooks/wire.mjs)
