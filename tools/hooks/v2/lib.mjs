@@ -995,7 +995,7 @@ export function knowledgeGaps(acts) {
   // date, as the old engine and the audit judge it. Lesson (the old suite under v2): a short fact with no label, source
   // or date was below the size the line check reads, and passed)
   const labels = projectConfig().evidenceLabels || [];
-  const probs = changedOf(acts, true).filter(f => isK(f) && f.endsWith('.md') && fs.existsSync(at(f))).flatMap(f => knowledgeProblemsOf(f, read(f), labels));
+  const probs = scanned(acts).filter(f => isK(f) && f.endsWith('.md') && fs.existsSync(at(f))).flatMap(f => knowledgeProblemsOf(f, read(f), labels));
   if (probs.length) out.push(`Knowledge notes carry an evidence label, a source and a date: ${probs.slice(0, 3).join('; ')}.`);
   return out;
 }
