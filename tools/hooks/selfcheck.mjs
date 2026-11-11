@@ -3070,7 +3070,9 @@ function runStop(s0) {
       const ignored = p => spawnSync('git', ['check-ignore', '-q', '--no-index', p], { cwd: ROOT }).status === 0; // (the fixture copy has no git: the starter's own ignore rules, which it carries)
       // (a file whose time the scenario sets says itself when it changed and by whom, before the turn or by the user during
       // it: never the turn's own write)
-      const wrote = Object.keys(s0.files || {}).filter(p => !named.has(p) && !(p in (s0.mtimes || {})) && !/^(\.cache|tools\/hooks\/state)\//.test(p) && !same(p) && !ignored(p));
+      // (a file the scenario sets to undefined is one the turn did not write: it gets no Write call. Lesson (the old suite
+      // under v2): "docs/CHANGELOG.md": undefined read as a changelog written, so a missing one was never held)
+      const wrote = Object.keys(s0.files || {}).filter(p => s0.files[p] !== undefined && !named.has(p) && !(p in (s0.mtimes || {})) && !/^(\.cache|tools\/hooks\/state)\//.test(p) && !same(p) && !ignored(p));
       // (written first, with the fixture's own content, as the work the scenario's calls then test or review: a stub edit
       // after them read as code changed after its tests ran and hid the content the security check reads)
       if (wrote.length) s = { ...s0, tools: [...wrote.map(p => ({ name: 'Write', input: { file_path: p, content: String(s0.files[p]) } })), ...(s0.tools || [])] };
@@ -9180,9 +9182,14 @@ if (mineB() && (!TAGS || TAGS.includes('starter-tested'))) { // starter-tested: 
     const k0 = commit('a count'); proof(k0); commit('proof of the count');
     fs.writeFileSync(cf, '19\n'); const lowered = guard(commit('the count went down'));
     fs.writeFileSync(cf, '21\n'); const raised = guard(commit('the count went up'));
+    // (the retired list: shrunk after the tested commit (entries of tests that pass now dropped) is a record; grown is not)
+    fs.writeFileSync(cf, '20\n'); const rf = path.join(dir, 'tools/starter/reviews/v2-retired.txt'); fs.writeFileSync(rf, 'old one\tretired\nold two\tretired\n');
+    const r0 = commit('a retired list'); proof(r0); commit('proof of the retired list');
+    fs.writeFileSync(rf, 'old one\tretired\n'); const retShrunk = guard(commit('the retired list shrank'));
+    fs.writeFileSync(rf, 'old one\tretired\nold two\tretired\nold three\tretired\n'); const retGrown = guard(commit('the retired list grew'));
     report(/starter-tested/.test(none) && cleanA && dirty === null && recordsOnly && !/starter-tested/.test(proved) && /starter-tested[^\n]*changed 1 file/.test(changed) && !/starter-tested/.test(afterFail) && !/starter-tested/.test(del)
       && /starter-tested[^\n]*never had its time limits judged[^\n]*\(v2:/.test(notedV2) && /starter-tested[^\n]*never had its time limits judged[^\n]*\(stop, v2:/.test(noSpeed) && !/starter-tested/.test(planOk) && !/starter-tested/.test(shrunk) && /starter-tested[^\n]*v2-failing\.txt/.test(grown)
-      && !/starter-tested/.test(lowered) && /starter-tested[^\n]*v2-untested\.txt/.test(raised),
+      && !/starter-tested/.test(lowered) && /starter-tested[^\n]*v2-untested\.txt/.test(raised) && !/starter-tested/.test(retShrunk) && /starter-tested[^\n]*v2-retired\.txt/.test(retGrown),
       'starter-tested: a push goes only for the commit the proof inside it names (or one differing only in the records), with its time limits judged; no proof, an engine change since, or time limits only noted beside other runs is refused; a failed run recorded later changes nothing',
       JSON.stringify({ none: none.slice(0, 90), cleanA, dirty, recordsOnly, proved: proved.slice(0, 90), changed: changed.slice(0, 120), afterFail: afterFail.slice(0, 90), notedV2: notedV2.slice(0, 160), noSpeed: noSpeed.slice(0, 160), planOk: planOk.slice(0, 160), shrunk: shrunk.slice(0, 160), grown: grown.slice(0, 160), lowered: lowered.slice(0, 160), raised: raised.slice(0, 160) }));
   } finally { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }

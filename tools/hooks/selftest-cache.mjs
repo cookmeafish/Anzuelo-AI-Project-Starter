@@ -142,7 +142,12 @@ export function proofCovers(dir, sha) {
   const V2_COUNT = 'tools/starter/reviews/v2-untested.txt', count = c => parseInt(String(gitIn(dir, 'show', `${c}:${V2_COUNT}`) || ''), 10);
   // (a tested commit from before the file held the number in tools/audit.mjs: 114 then)
   const lowered = () => { const w = count(proof.commit), was = Number.isFinite(w) ? w : 114, now = count(sha); return Number.isFinite(now) && now < was; };
-  const extra = diff.split('\n').filter(f => f && !isProofRecord(f) && !(f === V2_LIST && shrank()) && !(f === V2_COUNT && lowered()));
+  // (so does the retired list, only when it shrank: the release run drops the entries of tests that pass now. Lesson
+  // (release of d880341): a run that dropped two such entries was refused, and the list had to be put back by hand)
+  const V2_RETIRED = 'tools/starter/reviews/v2-retired.txt';
+  const retiredShrank = () => { const was = new Set(String(gitIn(dir, 'show', `${proof.commit}:${V2_RETIRED}`) || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean));
+    return String(gitIn(dir, 'show', `${sha}:${V2_RETIRED}`) || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean).every(l => was.has(l)); };
+  const extra = diff.split('\n').filter(f => f && !isProofRecord(f) && !(f === V2_LIST && shrank()) && !(f === V2_COUNT && lowered()) && !(f === V2_RETIRED && retiredShrank()));
   return extra.length ? { ok: false, why: `${sha.slice(0, 7)} changed ${extra.length} file(s) since the tested commit ${proof.commit.slice(0, 7)}: ${extra.slice(0, 3).join(', ')}` } : { ok: true };
 }
 
