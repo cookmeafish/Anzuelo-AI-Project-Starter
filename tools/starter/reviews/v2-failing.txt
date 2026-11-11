@@ -80,7 +80,6 @@ stop: autonomy-recorded: "don't ask me" left only in the answer: blocked
 stop: bg-moved: a foreground command moved to the background holds the Stop while it runs
 stop: block cap reached: a check that waits on background agents is not carried over
 stop: block cap reached: unresolved checks are saved for the next prompt
-stop: broken requirements.json: blocked
 stop: check-proven: a "**Probado:**" label alone, with no full line anywhere: blocked, and the message gives the line filled in from the runs
 stop: check-proven: a "Proven:" line with only one good sample: blocked
 stop: check-proven: good samples with no edge case from the project's own words: blocked
@@ -97,7 +96,6 @@ stop: incident-trigger: production down without the incident skill: blocked
 stop: knowledge file without label/source/date: blocked
 stop: maintaining a runbook (read, then edit) is not following it: its checks stay off
 stop: maintaining a runbook the answer names as followed: its checks apply: blocked
-stop: promptMatches: the same words typed by the user still count: blocked
 stop: queued mid-turn rule request is enforced: blocked
 stop: requirement-enforced: a requirement said in passing, during work, with nothing enforcing it: blocked
 stop: requirement-enforced: a requirement written only into a runbook: blocked
