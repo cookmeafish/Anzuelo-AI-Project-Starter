@@ -784,6 +784,10 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
   // raw CRLF text had no items; a ")" in a marker's value cut it short)
   const edited = missing(turn, acts([user('add a marker to the export runbook'), read, call('Edit', { file_path: path.join(dir, 'docs/playbooks/export.md'), old_string: 'a', new_string: 'b' }), say('Added.')]));
   report(edited.length === 0, 'end: a turn that edited its own routed runbook is not held to that runbook', edited);
+  // (an agent with no hooks: no record of its reads, so the answer naming the runbook it followed stands for opening it;
+  // a session with hooks still opens it. The old suite's "stop-follow-on guard: without hooks")
+  const noHooks = sid => { const a = acts([user('export the invoices'), call('Edit', { file_path: path.join(dir, 'src/a.js'), old_string: 'a', new_string: 'b' }), say('Playbook: export.md. Exported.')]); a.session = sid; return missing(turn, a).some(s => /^Open docs\/playbooks\/export\.md/.test(s)); };
+  report(!noHooks('manual') && noHooks('abc123'), 'end: without hooks, the answer naming the runbook it followed stands for opening it; with hooks the runbook is still opened', JSON.stringify({ manual: noHooks('manual'), hooked: noHooks('abc123') }));
   const { waived } = await import('./end.mjs');
   const gaps = ['docs/playbooks/export.md item 1: The tests pass', 'docs/playbooks/export.md item 2: The change is in the changelog', 'Run the tests.'];
   const kept = waived({ answer: 'Done.\nItem 1 does not fit: no code changed, so there are no tests.' }, gaps);

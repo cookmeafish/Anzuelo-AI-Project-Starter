@@ -203,7 +203,11 @@ export function missing(turn, acts, books = runbooks()) {
     return [`Open ${book.file} and follow its steps: 15 or more tool calls is real work, files changed or not.`];
   if (!book || (!worked(acts) && !asked)) return [];
   const out = [];
-  if (!opened(book, acts)) out.push(`Open ${book.file} and ${asked ? 'answer by' : 'check the work against'} its steps.`);
+  // (an agent with no hooks: its reads leave no record, so the answer naming the runbook it followed ("Playbook:
+  // meal-plan.md") stands for opening it, as the old engine read it. Lesson (the old suite under v2): the no-hooks
+  // check asked to open the runbook again in every round, with no way to show it was)
+  const namedHere = acts.session === 'manual' && new RegExp(`\\b(?:playbook|runbook)s?\\s*:\\s*\`?(?:docs/playbooks/)?${book.name.replace(/[^\w-]/g, '')}(?:\\.md)?\\b`, 'i').test(String(acts.answer || ''));
+  if (!opened(book, acts) && !namedHere) out.push(`Open ${book.file} and ${asked ? 'answer by' : 'check the work against'} its steps.`);
   // (evidence is for answers: on a work turn, facts written into files have their own check, knowledgeGaps)
   for (const it of book.items) if ((asked ? it.kind === 'answer' || it.kind === 'evidence' : it.kind !== 'evidence') && applies(it, acts) && met(it, acts) === false)
     out.push(`${book.file} item ${it.n}: ${it.kind === 'evidence' ? evidenceGaps(acts).join(' ') : it.text}`);

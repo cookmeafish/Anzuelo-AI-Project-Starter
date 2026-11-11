@@ -5721,7 +5721,28 @@ if (mineB() && (!TAGS || TAGS.includes('stop-follow-on'))) {
   }
   // the same without hooks: check --answer-file, twice
   const dir = copyProject();
-  try {
+  // (under v2: the checks are "Done when" markers on the runbook, as v2 reads checks; the run has no session, as an agent
+  // without hooks has none (this run's own session id is not passed on); round 1 names the missing step, a bare note is
+  // refused, round 2 brings nothing new, and the answer naming the runbook stands for opening it)
+  if (process.env.STARTER_ENGINE === 'v2') try {
+    ownChecksOff(dir);
+    const env = { ...process.env, STARTER_MEMORY_DIR: path.join(dir, '.memtest') };
+    for (const k of Object.keys(env)) if (/SESSION_ID$|^CLAUDE_CODE_ENTRYPOINT$|^CLAUDECODE$/.test(k)) delete env[k];
+    const node = (...a) => spawnSync(process.execPath, [path.join(dir, 'tools', 'hooks', 'hooks.mjs'), ...a], { cwd: dir, encoding: 'utf8', env });
+    applyEdits(dir, { 'docs/playbooks/meal-plan.md': () => NEWPB.replace('checks: none - a test runbook\n', '').replace(/## Done when\n[\s\S]*$/, '## Done when\n- [ ] Say the meals are planned. (answer: meals planned) <!-- req: meal-ok -->\n- [ ] Save the plan for the week in plans/meals-<week>.md. (file: plans/meals-*.md) <!-- req: meal-file -->\n') }, Date.now() - 3600_000);
+    const b = node('begin', 'plan meals for the week');
+    const ans = t => { write(dir, { '.cache/answer.md': t }); return node('check', '--answer-file', path.join(dir, '.cache/answer.md')); };
+    const steps = r => (r.stdout || '').split('\n').filter(l => /^- /.test(l));
+    write(dir, { 'notes/meals.md': 'x' });
+    const A = 'Playbook: meal-plan.md. The meals planned for the week are in notes/meals.md.\n\n## Finished\n- Planned the week. Files: notes/meals.md, plans/meals-week43.md';
+    const c1 = ans(A), note = ans('Answer unchanged; done: the lesson.');
+    applyEdits(dir, { 'plans/meals-week43.md': () => '# Meals\n- Monday: soup\n' }, Date.now());
+    const c2 = ans(A), late = steps(c2).filter(l => !steps(c1).includes(l));
+    report(/Save the plan for the week/.test(b.stdout) && c1.status === 1 && steps(c1).some(l => /item 2: Save the plan/.test(l)) && !steps(c1).some(l => /^- Open /.test(l)) && note.status === 1 && /only a note on an answer/.test(note.stdout) && !late.length && c2.status === 0,
+      'stop-follow-on guard: without hooks (check --answer-file): the preview names the checks, round 1 names what the fix sets off, a bare "answer unchanged" fails, and the named steps pass',
+      `begin: ${b.stdout.slice(0, 200)} | c1: ${c1.stdout.slice(0, 300)} | note: ${note.stdout.slice(0, 150)} | late: ${late.join(' / ')} | c2: ${c2.stdout.slice(0, 200)}`);
+  } finally { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
+  else try {
     ownChecksOff(dir);
     const node = (...a) => spawnSync(process.execPath, [path.join(dir, 'tools', 'hooks', 'hooks.mjs'), ...a], { cwd: dir, encoding: 'utf8', env: { ...process.env, STARTER_MEMORY_DIR: path.join(dir, '.memtest') } });
     applyEdits(dir, { ...MEAL_CHECK, ...withReqs({ tag: 'meal-file', when: { playbookUsed: 'meal-plan' }, require: { filesChanged: ['plans/meals-*.md'] }, message: 'Save the plan for the week in plans/meals-<week>.md.' }) }, Date.now() - 3600_000);
