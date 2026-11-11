@@ -2798,11 +2798,16 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
       run('prompt', { prompt: 'add a csv export' });
       const out = run('stop', { last_assistant_message: 'Added.' });
       let j = {}; try { j = JSON.parse(out); } catch { }
-      let details = ''; try { details = fs.readFileSync(path.join(c, 'tools/hooks/state/stop-details.md'), 'utf8'); } catch { }
+      let details = ''; try { details = fs.readFileSync(path.join(c, `tools/hooks/state/stop-details.${sid}.md`), 'utf8'); } catch { }
       return { j, out, details };
     };
     const cc = held('mark-cc', { claude: true }), cx = held('mark-cx', { extra: { turn_id: 't1' } }), other = held('mark-other'), forced = held('mark-forced', { claude: true, style: 'block' });
+    // (each session keeps its own details file: another session's Stop in the same project leaves it alone. Lesson (a
+    // project's report, 2026-11-10): one shared file showed a session another session's steps as its own)
+    const ccAfter = (() => { try { return fs.readFileSync(path.join(c, 'tools/hooks/state/stop-details.mark-cc.md'), 'utf8'); } catch { return ''; } })();
+    const shared = fs.existsSync(path.join(c, 'tools/hooks/state/stop-details.md'));
     fs.rmSync(c, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+    report(cc.details && ccAfter === cc.details && cx.details && !shared, 'stop: each session keeps its own details file; another session\'s Stop in the same project leaves it as it was', JSON.stringify({ cc: cc.details.slice(0, 80), ccAfter: ccAfter.slice(0, 80), shared }));
     const ctx = cc.j.hookSpecificOutput?.additionalContext || '';
     report(cc.j.hookSpecificOutput?.hookEventName === 'Stop' && /check|done|answer/i.test(ctx) && !('decision' in cc.j) && !cc.j.systemMessage,
       'stop: a send-back adds no line of its own for the user (Claude Code: non-error Stop feedback, no block, no systemMessage)', cc.out.slice(0, 300));
@@ -2812,7 +2817,7 @@ report(!printed.length && logged.length === 2 && /Runbook: open docs\/playbooks\
     // to the agent. The full steps and instructions are in tools/hooks/state/stop-details.md. Lesson (the user,
     // 2026-11-10, many times): the instruction block shown there read as noise, and Claude Code cannot hide it)
     const shown = [ctx, cx.j.reason || ''];
-    report(shown.every(t => t.split('\n').length <= 5 && /^⚓ [^\n]* left before this is done\n- /.test(t) && !/\bitem \d+:/.test(t) && t.split('\n').slice(1, -1).every(l => l.length <= 82) && /\(details: tools\/hooks\/state\/stop-details\.md\)$/.test(t) && !/Fix what isn't done|Next time, run|resending the same answer|tell the user in a line/i.test(t))
+    report(shown.every(t => t.split('\n').length <= 5 && /^⚓ [^\n]* left before this is done\n- /.test(t) && !/\bitem \d+:/.test(t) && t.split('\n').slice(1, -1).every(l => l.length <= 82) && /\(details: tools\/hooks\/state\/stop-details\.mark-c[cx]\.md\)$/.test(t) && !/Fix what isn't done|Next time, run|resending the same answer|tell the user in a line/i.test(t))
       && /docs\/playbooks\/export\.md/.test(cc.details) && /Fix what isn't done/.test(cc.details),
       'stop: the text the user sees is at most 5 short lines with no instructions to the agent; the full steps are in the details file', JSON.stringify({ shown, details: cc.details.slice(0, 300) }));
   }

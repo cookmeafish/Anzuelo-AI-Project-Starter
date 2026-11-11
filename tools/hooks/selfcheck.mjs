@@ -42,6 +42,9 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.
 // (a state file a test inspects may not exist, e.g. under another engine: that test fails, the rest of its share runs.
 // Lesson (2026-11-08): 6 shares crashed on a missing state file, and their remaining tests were never counted)
 const readOr = (f, empty = '') => { try { return fs.readFileSync(f, 'utf8'); } catch { return empty; } };
+// (v2 keeps one Stop details file per session, tools/hooks/state/stop-details.<session>.md: the newest is the scenario's)
+const detailsPath = dir => { const st = path.join(dir, 'tools/hooks/state'); let fs0 = []; try { fs0 = fs.readdirSync(st).filter(n => /^stop-details(\.[\w-]+)?\.md$/.test(n)).map(n => ({ n, t: fs.statSync(path.join(st, n)).mtimeMs })).sort((a, b) => b.t - a.t); } catch { }
+  return path.join(st, fs0[0]?.n || 'stop-details.md'); };
 // The self-tests make throwaway projects from this copy on purpose, even when it is a development copy (.starter-dev).
 process.env.STARTER_ALLOW_DEV = '1';
 // (sample projects commit from this process: the engine-bypassed git gate is for real sessions, not test copies)
@@ -1562,7 +1565,7 @@ STOP.push(
   { name: 'research-cited: [2] used in the text but missing from Sources: blocked', prompt: 'search the web for standing desk weight limits', tools: [sk('research')],
     answer: 'Skill: research. Most hold 100 kg.[1] Some hold 150 kg.[2]\n\nSources:\n[1] https://example.com/desks', expect: { block: true, tags: ['research-cited'] },
     // (it says which: Lesson, trial round 13, the general message alone cost six check runs and a read of the engine)
-    after: (dir, reason) => /marker \[2\] has no/.test(readOr(path.join(dir, 'tools/hooks/state/stop-details.md'))) || 'no reason named for [2]',
+    after: (dir, reason) => /marker \[2\] has no/.test(readOr(detailsPath(dir))) || 'no reason named for [2]',
     // (v2 names it in the block message itself, not a details file)
     v2: { after: (dir, reason) => /marker \[2\] has no/.test(reason || '') || 'no reason named for [2]' } },
   // (Lesson, trial rounds 13 to 15: a bold label line with a marker was copied after the Sources list and failed)
@@ -1570,7 +1573,7 @@ STOP.push(
     answer: 'Skill: research.\n\n**Done:** most desks hold 100 kg.[1]\n\nSources:\n[1] https://example.com/desks', expect: { not: ['research-cited'] } },
   { name: 'research-cited: unnumbered links nothing opened: the unopened link is named', prompt: 'search the web for standing desk weight limits', tools: [sk('research')],
     answer: 'Skill: research. Most hold 100 kg.\n\nSources:\nhttps://example.com/desks', expect: { block: true, tags: ['research-cited'] },
-    after: (dir) => /no link it gives was opened this turn \(https:\/\/example\.com\/desks\)/.test(readOr(path.join(dir, 'tools/hooks/state/stop-details.md'))) || 'the unopened link was not named',
+    after: (dir) => /no link it gives was opened this turn \(https:\/\/example\.com\/desks\)/.test(readOr(detailsPath(dir))) || 'the unopened link was not named',
     v2: { after: (dir, reason) => /no link it gives was opened this turn \(https:\/\/example\.com\/desks\)/.test(reason || '') || 'the unopened link was not named' } },
   { name: 'research-cited: [1] and [2] each with a Sources line: passes', edit: { 'tools/hooks/config.json': s => JSON.stringify({ ...JSON.parse(s), packs: (JSON.parse(s).packs || []).filter(p => p !== 'knowledge') }), 'tools/hooks/requirements.json': s => JSON.stringify({ ...JSON.parse(s), requirements: JSON.parse(s).requirements.filter(r => r.pack !== 'knowledge') }) }, prompt: 'search the web for standing desk weight limits',
     tools: [sk('research'), { name: 'WebFetch', input: { url: 'https://example.com/desks' }, result: 'Rated load: 100 kg.' }, { name: 'WebFetch', input: { url: 'https://example.org/loads' }, result: 'Heavy-duty models: 150 kg.' }],
@@ -3102,7 +3105,7 @@ function runStop(s0) {
     const reason = v2Full(dir, d);
     const after = s.after ? s.after(dir, reason, d) : true;
     // the full steps behind the short message (hooks.mjs why)
-    let details = ''; try { details = fs.readFileSync(path.join(dir, 'tools/hooks/state/stop-details.md'), 'utf8'); } catch { }
+    let details = ''; try { details = fs.readFileSync(detailsPath(dir), 'utf8'); } catch { }
     return { blocked: !!(d && (d.decision === 'block' || d.hookSpecificOutput?.additionalContext)), reason, details, err, after, decision };
   } finally { giveBack(dir, !!s.own); }
 }
@@ -5596,7 +5599,7 @@ if ((!TAGS || TAGS.includes('status-bar')) && mineB()) {
 // level: the tests of several blocks use it. Lesson (chain 871c7b7): defined in one block, another's shard crashed)
 // (a function declaration, so the scenario runner above can use it too: its own checks read the full steps)
 function v2Full(dir, d) { const t = d ? d.reason || d.hookSpecificOutput?.additionalContext || '' : ''; if (!/^⚓ [^\n]* left before this is done/.test(t)) return t;
-  try { return fs.readFileSync(path.join(dir, 'tools/hooks/state/stop-details.md'), 'utf8').replace(/^# What is left before this is done\n\n/, '').trim(); } catch { return t; } }
+  try { return fs.readFileSync(detailsPath(dir), 'utf8').replace(/^# What is left before this is done\n\n/, '').trim(); } catch { return t; } }
 if (mineB() && (!TAGS || TAGS.includes('stop-follow-on'))) {
   // (the first "Names:" line: without hooks, the full steps follow it)
   // (v2 names no check: its listed items stand for them, each by its opening words, numbers left out, so a count that

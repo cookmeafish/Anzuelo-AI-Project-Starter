@@ -6129,8 +6129,12 @@ export function stopOutput(d, cfg = config(), host = HOST) {
 // it: a heading line and at most 3 short items, the full steps and instructions in tools/hooks/state/stop-details.md
 // ("hooks.mjs why" prints them), as the old engine kept them. A Stop that passes clears that file. Lesson (the user,
 // 2026-11-10, many times): the block of instructions there read as noise; Claude Code cannot hide it (checked that day).
-export function v2StopForm(out, cfg = config(), host = HOST, state = STATE) {
-  const details = path.join(state, 'stop-details.md');
+// (one details file per session: two sessions in one project wrote the same file, and the host showed each the other's
+// change, which the agent took as its own steps. Lesson (a project's report, 2026-11-10): a work turn was held to an
+// efficiency review another session of the project had run)
+export const detailsFile = sid => `stop-details${String(sid || '').replace(/[^\w-]/g, '').slice(0, 12) ? `.${String(sid).replace(/[^\w-]/g, '').slice(0, 12)}` : ''}.md`;
+export function v2StopForm(out, cfg = config(), host = HOST, state = STATE, sid = '') {
+  const details = path.join(state, detailsFile(sid));
   if (!out || out.decision !== 'block') { try { fs.rmSync(details, { force: true }); } catch { } return out; }
   try { fs.mkdirSync(state, { recursive: true }); fs.writeFileSync(details, `# What is left before this is done\n\n${out.reason}\n`); } catch { }
   const where = path.relative(PROJECT, details).split(path.sep).join('/');
@@ -6703,7 +6707,10 @@ if (isMain) {
     for (const q of loadRequirements().reqs.filter(Boolean)) console.log(`${q.tag}: ${String(q.message || q.rule || '').replace(/\s+/g, ' ').slice(0, 140)}`);
     process.exit(0);
   }
-  if (cmd === 'why') { const d = read(path.join(STATE, 'stop-details.md')).trim(); console.log(d || 'nothing pending: the last answer passed every check.'); process.exit(0); }
+  // (each session keeps its own details file: the newest is shown, or the one for a session named: why <session id>)
+  if (cmd === 'why') { const want = process.argv[3]; let files = []; try { files = fs.readdirSync(STATE).filter(n => /^stop-details(\.[\w-]+)?\.md$/.test(n)).map(n => ({ n, t: fs.statSync(path.join(STATE, n)).mtimeMs })).sort((a, b) => b.t - a.t); } catch { }
+    const pick = want ? files.find(f => f.n === detailsFile(want)) : files[0];
+    const d = pick ? read(path.join(STATE, pick.n)).trim() : ''; console.log(d || 'nothing pending: the last answer passed every check.'); process.exit(0); }
   // run a command and record its result in the run log, for agents whose tool history the hooks can't read
   if (cmd === 'run') {
     const line = process.argv.slice(3).join(' ');
@@ -6776,7 +6783,8 @@ if (isMain) {
       process.env.ANZUELO_ROOT ||= ROOT;
       // (REQ: engine-parity: what the user saw under the old engine is shown, dropped with a reason, or open: v2/lines.mjs)
       const v2 = cmd === 'prompt' ? (await import('./v2/start.mjs')).onPrompt(data) : (await import('./v2/end.mjs')).onStop(data, { show: HOST === 'claude-code' });
-      if (v2) process.stdout.write(JSON.stringify(cmd === 'stop' ? v2StopForm(v2) : v2));
+      if (cmd === 'stop' && !v2) try { fs.rmSync(path.join(STATE, detailsFile(data.session_id)), { force: true }); } catch { }
+      if (v2) process.stdout.write(JSON.stringify(cmd === 'stop' ? v2StopForm(v2, config(), HOST, STATE, data.session_id) : v2));
     } catch (e) {
       process.stderr.write(`[hooks v2 ${cmd}] error: ${e && e.stack || e}\n`);
       // REQ: crash-visible, for v2 too: the agent sees the error once per session (prompt: as context; Stop: one
