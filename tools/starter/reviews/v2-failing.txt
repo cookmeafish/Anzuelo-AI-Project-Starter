@@ -40,10 +40,6 @@ self-sent-prompt: a wakeup firing mid-turn keeps the request, its start and its 
 session and prompt notices: sent as hidden context where the host supports it, plain text elsewhere
 session: a resume after a turn that ended repeats no reminder and claims no interruption; a resume mid-turn checks the files
 session: the user sees nothing at the start (no "on duty", intact files or agent chores), only broken files; the agent still gets every notice
-sessions: each session counts its own stop rounds
-sessions: two sessions in one folder keep separate turn records and snapshots
-state-hygiene: a hook run by hand with a made-up session id and no readable transcript writes no snapshot or turn record
-state-no-transcript: a made-up session id with an empty, blank or unreadable transcript (or none) writes no session state, snapshot or Stop log line; a real transcript still does, also a headless first prompt whose host-named transcript is still empty, which starts a new turn
 stop rounds: round 1 lists every step, a waiver and markers from an earlier round hold, and later rounds bring nothing new
 stop-budget: over its budget the verdict names the 3 slowest checks
 stop-budget: the Stop hook stays within its 500 ms budget on a realistic work turn
