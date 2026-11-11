@@ -237,7 +237,9 @@ export const SPEED_RECORD = '.cache/speed-judged.json';
 // The hooks that got slower than the last released proof's times on the same machine, by more than pct: a slowdown
 // that still sits under the fixed limit is caught too. prev and cur: { machine, prompt, pretool } (each hook's whole run,
 // fastest of its samples, in ms). A different machine, or no earlier times, compares nothing. Oversight, 2026-11-11.
-export const machineId = () => `${os.hostname()}|${(os.cpus()[0] || {}).model || ''}|${os.cpus().length}`;
+// (the machine as a short hash: the proof is published, and the computer's name is a private detail. Lesson: the
+// publish-safety sweep caught the raw name in the first proof that kept times)
+export const machineId = () => createHash('sha1').update(`${os.hostname()}|${(os.cpus()[0] || {}).model || ''}|${os.cpus().length}`).digest('hex').slice(0, 12);
 export function slowerThan(prev, cur, pct = 0.15) {
   if (!prev || !cur || !prev.machine || prev.machine !== cur.machine) return [];
   return ['prompt', 'pretool'].filter(k => Number(prev[k]) > 0 && Number(cur[k]) > Number(prev[k]) * (1 + pct)).map(k => `${k} ${cur[k]} ms against ${prev[k]} ms at the last release`);

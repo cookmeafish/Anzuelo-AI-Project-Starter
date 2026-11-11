@@ -3095,6 +3095,12 @@ function runStop(s0) {
     if (s.failed) write(dir, { 'tools/hooks/state/stop-failed.json': JSON.stringify({ key: `${tp}|${since}`, tags: s.failed, ...(s.failedExtra || {}) }) });
     // (turnEnd: this request already ended cleanly once, with this record, e.g. the answer it ended with)
     if (s.turnEnd) write(dir, { 'tools/hooks/state/turn-end.json': JSON.stringify({ at: new Date().toISOString(), key: `${tp}|${since}`, clean: true, ...s.turnEnd }) });
+    // (a real session's prompt hook records when the turn started, so its Stop regenerates skills and DIRECTORY.md from a
+    // runbook the turn changed. Here the last sync is dated just before the scenario's own files, its turn's changes.
+    // Lesson: with neither, v2 synced nothing and a new runbook never got its skill)
+    if (process.env.STARTER_ENGINE === 'v2' && !fs.existsSync(path.join(dir, 'tools/hooks/state/synced-at.json'))) {
+      write(dir, { 'tools/hooks/state/synced-at.json': '{}' }); const t0 = (Date.now() - 20) / 1000; fs.utimesSync(path.join(dir, 'tools/hooks/state/synced-at.json'), t0, t0);
+    }
     write(dir, s.files);
     for (const [p, off] of Object.entries(s.mtimes || {})) { const t = (Date.now() + off) / 1000; fs.utimesSync(path.join(dir, p), t, t); }
     // (under v2 each scenario has a session, so its Stop decision is logged and a failing scenario says which way it went:

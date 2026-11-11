@@ -931,12 +931,16 @@ export function healthGaps(acts, { run = true } = {}) {
   const blocks = String(r.stdout || '').split(/\n(?=PASS|WARN|FAIL)/).filter(b => /^FAIL/.test(b));
   const touched = new Set([...acts.calls.filter(c => /^(Edit|Write|MultiEdit)$/.test(c.name)).map(c => relp(c.input.file_path || '')), ...changedSince(acts, { test: () => true })]);
   const others = b => { const named = [...b.matchAll(/^\s+- ([\w./-]+\.\w+):/gm)].map(m => m[1]); return named.length > 0 && named.every(f => !touched.has(f)); };
-  const fails = blocks.filter(b => !others(b)).map(b => b.split('\n')[0].replace(/^FAIL\s+/, '').replace(/\s*\(.*$/, '').trim());
+  const title = b => b.split('\n')[0].replace(/^FAIL\s+/, '').replace(/\s*\(.*$/, '').trim();
+  const mine = blocks.filter(b => !others(b)), fails = mine.map(title);
   if (!fails.length) { saveTurn('health', { ...loadTurn('health'), ms }); return []; }
   const known = new Set(loadTurn('health').fails || []), fresh = fails.filter(f => !known.has(f));
   saveTurn('health', { fails, ms });
   if (fails.length && !fresh.length) return [];
-  return [`The project's health check (node tools/audit.mjs) fails after this change: ${fresh.slice(0, 3).join('; ') || 'see its output'}. Fix it and run it again.`];
+  // (each failure with its first lines of detail, the files and what is wrong: the agent fixes it without rerunning the
+  // audit to find out. Lesson (the old suite under v2): the step named "relative links resolve" but not the broken link)
+  const said = mine.filter(b => fresh.includes(title(b))).slice(0, 3).map(b => { const d = [...b.matchAll(/^\s+- (.+)$/gm)].map(m => m[1].trim()).slice(0, 2); return d.length ? `${title(b)} (${d.join('; ')})` : title(b); });
+  return [`The project's health check (node tools/audit.mjs) fails after this change: ${said.join('; ') || 'see its output'}. Fix it and run it again.`];
 }
 
 // Check 5: new facts written into the knowledge base name where they came from. The outcome, not the process: each

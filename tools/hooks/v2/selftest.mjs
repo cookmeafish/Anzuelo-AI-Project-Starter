@@ -484,6 +484,7 @@ report(/learn-from-upset/.test(reminder('WHY DID YOU BREAK THE EXPORT AGAIN').te
       'speed: the prompt and pretool hooks are no more than 15% slower than the last released proof on this machine', JSON.stringify({ last: lastProof, now: HOOK_TIMES, slower }));
     const slowed = Math.round(best(['--import', 'data:text/javascript,const t=Date.now();while(Date.now()-t<40);', path.join(c, 'tools/hooks/hooks.mjs'), 'prompt'], promptInput));
     const caught = slowerThan(HOOK_TIMES, { ...HOOK_TIMES, prompt: slowed }), same = slowerThan(HOOK_TIMES, HOOK_TIMES), other = slowerThan(HOOK_TIMES, { ...HOOK_TIMES, machine: 'elsewhere', prompt: slowed });
+    report(/^[0-9a-f]{12}$/.test(HOOK_TIMES.machine) && !HOOK_TIMES.machine.includes(os.hostname()) && machineId() === HOOK_TIMES.machine, 'speed: the proof names the machine by a short hash, never the computer\'s name (the proof is published)', HOOK_TIMES.machine);
     report(caught.length === 1 && !same.length && !other.length, 'speed: a hook slowed on purpose (40 ms) is caught as slower than the last release; the same times, or another machine, are not', JSON.stringify({ now: HOOK_TIMES.prompt, slowed, caught, other }));
     // (the entry, hooks.mjs, turns on Node's compile cache before loading the body, in Node's default temp folder and
     // never in the project; a cache folder that is broken or unwritable, or a Node without the cache, still runs the
@@ -1719,7 +1720,7 @@ report(healthGaps(acts([user('add a step'), rule, call('Bash', { command: 'node 
 report(/would run/.test(healthGaps(acts([user('add a step'), rule, say('Added.')]), { run: false })[0] || '') && ranCount() === before, 'end: in shadow the health check is only noted, never run');
 { // (the agent's own audit run after the change that failed is the result: named from its output, not run again)
   const own = healthGaps(acts([user('add a step'), rule, call('Bash', { command: 'node tools/audit.mjs' }, 'FAIL   9. runbooks are well-formed, routed and checked\n        - docs/playbooks/export.md: no check\naudit: FAIL (30 sweeps, 1 failed)'), say('Added.')]));
-  report(own.length === 1 && /runbooks are well-formed/.test(own[0]) && ranCount() === before, 'end: a failing health check the agent ran after the change is named from its own output; it is not run again', JSON.stringify(own));
+  report(own.length === 1 && /runbooks are well-formed/.test(own[0]) && own[0].includes('docs/playbooks/export.md: no check') && ranCount() === before, 'end: a failing health check the agent ran after the change is named from its own output, with its detail lines (the file and what is wrong); it is not run again', JSON.stringify(own));
 }
 fs.rmSync(path.join(dir, 'tools/audit.mjs'));
 
