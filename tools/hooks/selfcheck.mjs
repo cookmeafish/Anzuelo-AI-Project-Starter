@@ -2361,7 +2361,14 @@ STOP.push(
       const r = reason.split('\n');
       const long = r.filter(l => l.length > 100 && !l.startsWith('For the agent:'));
       return (!long.length && /\[runbook-exists\]/.test(why) && /runbook-create/.test(why)) || `long lines: ${long.join(' | ').slice(0, 300)} | why: ${why.slice(0, 200)}`;
-    } },
+    },
+    // (under v2 the hook's own short text, one plain line per step, is what it returns; the full steps, read by the tags,
+    // are in the details file that "hooks.mjs why" prints)
+    v2: { after: (dir, reason, d) => {
+      const why = spawnSync(process.execPath, ['tools/hooks/hooks.mjs', 'why'], { cwd: dir, encoding: 'utf8' }).stdout;
+      const short = String(d?.reason || d?.hookSpecificOutput?.additionalContext || '');
+      const long = short.split('\n').filter(l => l.length > 100);
+      return (short && !long.length && /No runbook was opened/.test(why) && /runbook-create/.test(why)) || `long lines: ${long.join(' | ').slice(0, 300)} | short: ${short.slice(0, 200)} | why: ${why.slice(0, 200)}`; } } },
   // plain writing: a quoted list is a list
   { name: 'plain-writing: a quoted list is not one long paragraph: passes', prompt: 'hello', answer: QUOTED_LIST, expect: { block: false, not: ['plain-writing'] } },
   // Lesson: a 2-line progress answer whose first line had no final period ran into the markers line: one 47-word "sentence"

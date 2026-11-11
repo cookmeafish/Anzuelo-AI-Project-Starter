@@ -65,3 +65,4 @@ stop: routed task that never opened its runbook: blocked	another way: "end: work
 stop: debug skill matched but not opened: blocked	retired: 2026-11-07 docs/plans/2026-11-07-engine-v2-only.md Spec line (a skill forced by a keyword match: matched but not opened); triage row 125
 stop: answer-resent: a round of file-only steps asks for "Answer unchanged; also updated", not a resend	another way: "end: a preview on a draft records nothing (the real check comes fresh); a block asks for a short note on what changed, not the whole answer again"; triage row 76
 stop: crash blocks once, then releases	another way: "crash: a v2 Stop hook that cannot load blocks once with the error"; triage row 275
+stop: upset-acknowledged: the runbook opened, its checklist not recorded to the end: blocked	retired: 2026-11-05 docs/checks/user-requirements.md row 40 (done/skipped record lines); triage row 104
