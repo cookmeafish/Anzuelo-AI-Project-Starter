@@ -52,7 +52,7 @@ export function committedRunEach(root) {
   return [...new Set((j.requirements || []).flatMap(x => of(x?.require)).filter(c => typeof c === 'string' && c.trim()).map(c => c.trim()))];
 }
 // The upgrade carries each committed runEach command onto the approved list, so a check the old engine ran on its own
-// still runs (REQ: self-run; the user, 2026-11-10: "i just dont wanna restrict the ai agent from doing its best work"):
+// still runs (REQ: self-run; the user's decision of 2026-11-10: the agent is not held back from doing its best work):
 // the hook runs a project's command on its own only from this list, and the agent can always run any command itself.
 // Returns the commands added; dry: none written. The caller records the DECISIONS line.
 export function carryRunEach(root, { dry = false } = {}) {
