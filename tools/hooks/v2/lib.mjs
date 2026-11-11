@@ -1227,22 +1227,26 @@ export function citeWhy(acts, x) {
 // snapshot's body hash for a file already changed then, else the last commit's copy (a new file, or none known: none).
 export const ROUTED_DOC = /^docs\/playbooks\/[^/]+\.md$|(^|\/)SKILL\.md$/;
 export const bodyHash = text => createHash('sha1').update(String(text).replace(/\r\n/g, '\n').replace(/^triggers:.*$/m, '')).digest('hex');
-export function routingOnly(acts) {
-  if (acts._routingOnly) return acts._routingOnly;
-  const out = new Set(), snap = acts.startHashes || null;
-  for (const f of changedOf(acts).filter(p => ROUTED_DOC.test(p))) {
-    let now; try { now = fs.readFileSync(at(f), 'utf8'); } catch { continue; }
-    let before = null;
-    if (snap?.bodies && Object.hasOwn(snap.bodies, f)) before = snap.bodies[f];
-    else if (snap?.files && Object.hasOwn(snap.files, f)) before = null;
-    else { const r = spawnSync('git', ['show', `HEAD:${f}`], { cwd: ROOT, encoding: 'utf8', timeout: 5000 }); if (r.status === 0) before = bodyHash(r.stdout); }
-    if (before && before === bodyHash(now)) out.add(f);
-  }
-  return (acts._routingOnly = out);
+// (asked per file, and worked out only for a runbook or skill, once per turn: a check on other files costs nothing, and
+// no walk of the tree. Lesson (a project's timing after an upgrade): each check on changed files walked the tree again
+// for the routing-only pass, about 20 ms of Stop)
+const ROUTING_SEEN = new Map();
+export function routingWordsOnly(acts, f) {
+  if (!ROUTED_DOC.test(f)) return false;
+  let now; try { now = fs.readFileSync(at(f), 'utf8'); } catch { return false; }
+  const snap = acts.startHashes || null;
+  const start = snap?.bodies && Object.hasOwn(snap.bodies, f) ? snap.bodies[f] : snap?.files && Object.hasOwn(snap.files, f) ? 'changed-before' : 'head';
+  const key = `${ROOT}|${acts.at || ''}|${f}|${bodyHash(now)}|${start}`;
+  if (ROUTING_SEEN.has(key)) return ROUTING_SEEN.get(key);
+  let before = null;
+  if (snap?.bodies && Object.hasOwn(snap.bodies, f)) before = snap.bodies[f];
+  else if (snap?.files && Object.hasOwn(snap.files, f)) before = null;
+  else { const r = spawnSync('git', ['show', `HEAD:${f}`], { cwd: ROOT, encoding: 'utf8', timeout: 5000 }); if (r.status === 0) before = bodyHash(r.stdout); }
+  const only = !!before && before === bodyHash(now);
+  ROUTING_SEEN.set(key, only);
+  return only;
 }
-// (asked per file, and worked out only for a runbook or skill: a check on other files costs nothing. Lesson (a
-// project's timing after an upgrade): every check on changed files paid for the whole routing-only pass)
-export const routingWordsOnly = (acts, f) => { if (!ROUTED_DOC.test(f)) return false; try { return routingOnly(acts).has(f); } catch { return false; } };
+export function routingOnly(acts) { return new Set(changedOf(acts).filter(f => routingWordsOnly(acts, f))); }
 export function holdsReq(c, acts, x) {
   const read = n => acts.calls.some(k => (k.name === 'Read' && n.test(String(k.input.file_path || '').replace(/\\/g, '/'))));
   const tests = {
