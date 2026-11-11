@@ -32,6 +32,9 @@ Every batch: the pre-chain quick runs; the next batch starts while a chain runs;
 oversight (commit, open count, next batch).
 
 ## Now
+- 2026-11-11 (later): main and GitHub at ff46f04 (27 open). app-port: hooks.mjs is a small entry with Node's compile
+  cache, the body in hooks-main.mjs; prompt ~68 ms and pretool ~53 ms over bare against 75/60, measured. The Phase B
+  module split stays planned as the real speedup.
 - 2026-11-11: main and GitHub at d02602b (proof for 5021077). v2 list after its sweep: 33 open, 69 retired or
   proven another way (was 118 open on 2026-11-10). Released today: 67acac3, f134ecc, 234cdd3, d02602b; both upgraded
   projects reported 0 regressions each time. app-port ahead: selfcheck --explain under v2. Left: sessions and stop rounds,
