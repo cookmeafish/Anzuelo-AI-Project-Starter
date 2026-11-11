@@ -189,6 +189,13 @@ const STANDING = /(?:^|[.!?;]\s+)(?:every|each|all|no) (?:new |single )?[\p{L}-]
   // (the same in Spanish: "cada factura debe mostrar ...". Lesson (the old suite under v2): a Spanish standing rule got
   // no rule handling)
   STANDING_ES = /(?:^|[.!?;¡¿]\s*)(?:cada|todas? las?|todos? los?|ningún|ninguna) (?:nuev[oa]s? )?[\p{L}-]+ (?:debe|deben|tiene que|tienen que|lleva|llevan|incluye|incluyen|usa|usan|muestra|muestran|siempre|nunca)\b/iu;
+// ("make sure every invoice has a due date" is a standing rule, as the old engine read it; "run the tests and make sure
+// every test passes" is not: joined to a task in the same request, or about the work being checked right now. The old
+// engine read both as rules. Oversight, 2026-11-11: everything the old engine did works in v2, without its false reads)
+const MAKE_SURE = /(?:^|[.!?;]\s+)(?:please )?make sure (?:that )?(?:every|each|all(?: the)?) (?:new )?([\p{L}-]+)/iu,
+  MAKE_SURE_ES = /(?:^|[.!?;¡¿]\s*)(?:por favor,? )?aseg[uú]rate (?:de )?(?:que )?(?:cada|todas? las?|todos? los?) (?:nuev[oa]s? )?([\p{L}-]+)/iu,
+  WORK_NOW = /^(?:tests?|checks?|steps?|files?|changes?|runs?|commands?|builds?|edits?|fix(?:es)?|pruebas?|tests|pasos?|archivos?|cambios?|comprobaciones?|ejecuciones?|comandos?)$/i;
+const makeSureRule = s => { const m = MAKE_SURE.exec(s) || MAKE_SURE_ES.exec(s); return !!m && !WORK_NOW.test(m[1]); };
 export function route(prompt, books = runbooks()) {
   // (a menu code at the start, "B4 <args>", names its runbook outright)
   const code = /^\s*([A-Za-z]\d{1,2})(?=\s|$)/.exec(String(prompt))?.[1]?.toUpperCase();
@@ -243,7 +250,7 @@ export function route(prompt, books = runbooks()) {
   // (a message relayed from another session, a helper or a task notice sets no standing rule: its rule words are not the
   // user's. Lesson (a peer session, live): a status report quoting a capital "NEVER" read as a rule)
   const relayedMsg = /^\s*Another Claude session sent a message|<(cross-session-message|agent-message|task-notification)\b/.test(String(prompt));
-  const proj = books.find(b => b.file === 'docs/playbooks/project.md'), rule = proj && !relayedMsg && (STANDING.test(said) || STANDING_ES.test(said) || RULE_CUE.test(String(prompt)) || capsWeight(String(prompt)).rule || /\b(that|this|it) (should|must|can) never happen again\b/i.test(said) || /,\s*(always|never)\s*(?:[.!]+|$)/im.test(said));
+  const proj = books.find(b => b.file === 'docs/playbooks/project.md'), rule = proj && !relayedMsg && (STANDING.test(said) || STANDING_ES.test(said) || makeSureRule(said) || RULE_CUE.test(String(prompt)) || capsWeight(String(prompt)).rule || /\b(that|this|it) (should|must|can) never happen again\b/i.test(said) || /,\s*(always|never)\s*(?:[.!]+|$)/im.test(said));
   // (a question that asks to make nothing does not route on a one-word trigger alone: "no images in any guide???" asks no
   // guide. As the old engine. Lesson (the old suite under v2): a frustrated question routed to the deliverable runbook)
   const askOnly = best && !/\s/.test(best.phrase) && /\?/.test(String(prompt)) && !MAKE_REQUEST.test(String(prompt));

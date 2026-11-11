@@ -1441,7 +1441,7 @@ const PROMPT = [
   { name: 'praise hint: a question asking for a verdict is not praise', prompt: 'I saw the engine running. Is it doing a good job or a bad job? Tell me honestly', hasNot: ['PRAISE'] },
   { name: 'praise hint: praise followed by a question is still praise', prompt: 'Great job! Can you also add the price list?', has: ['PRAISE'] },
   { name: 'requirement hint: feedback to pass on to someone else is not a requirement here', prompt: 'Give that feedback to the starter and mention to do several tests to make sure it is fixed for any situation', hasNot: ['REQUIREMENT', 'RULE REQUEST'] },
-  { name: 'requirement hint: the same words as the user\'s own requirement still count', prompt: 'make sure every invoice has a due date', has: ['REQUIREMENT'] },
+  { name: 'requirement hint: the same words as the user\'s own requirement still count', prompt: 'make sure every invoice has a due date', has: ['REQUIREMENT'], v2: { has: ['Runbook: open docs/playbooks/project.md'] } },
   // Lesson: a project's menu took only the first of two codes
   { name: 'menu codes: two codes in one message both expand', prompt: 'E1 E5', has: ['MENU CODE E1', 'MENU CODE E5'] },
   { name: 'menu codes: codes joined by a comma or "and" both expand, an unknown one among them is asked about', prompt: 'E1, E5 and Z8 please', has: ['MENU CODE E1', 'MENU CODE E5', 'UNKNOWN MENU CODE Z8'] },

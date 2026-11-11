@@ -142,6 +142,13 @@ report(r.book?.name === 'export' && /^Runbook: open docs\/playbooks\/export\.md/
   const es = { rule: route('cada factura debe mostrar el número de impuesto', books)?.name, todas: route('Todas las facturas llevan la fecha de pago.', books)?.name,
     plain: route('revisa cada factura por errores', books)?.name, q: route('¿cada factura tiene fecha?', books)?.name };
   report(es.rule === 'project' && es.todas === 'project' && es.plain !== 'project' && es.q !== 'project', 'start: a Spanish standing rule ("cada factura debe ...") routes to the project runbook; a Spanish request or question about every item does not', es);
+  // ("make sure every X ..." about a kind of project thing is a standing rule; joined to a task, or about the work being
+  // checked now, it is not)
+  const ms = { rule: route('make sure every invoice has a due date', books)?.name, task: route('run the tests and make sure every test passes', books)?.name,
+    workNow: route('Make sure every file you changed is saved.', books)?.name, esRule: route('asegúrate de que cada factura tenga fecha de pago', books)?.name,
+    esTask: route('ejecuta las pruebas y asegúrate de que cada prueba pase', books)?.name };
+  report(ms.rule === 'project' && ms.esRule === 'project' && ms.task !== 'project' && ms.workNow !== 'project' && ms.esTask !== 'project',
+    'start: "make sure every invoice has ..." (English or Spanish) routes to the project runbook; joined to a task ("run the tests and make sure every test passes") or about the work being checked now, it does not', ms);
   // (it comes before a work trigger found mid-sentence; a request that starts with the trigger still goes there)
   const withFeature = [...books, { file: 'docs/playbooks/feature.md', name: 'feature', triggers: ['new field'], menu: [] }];
   const mid = route('you forgot the new field in the guide. every field has to be documented', withFeature)?.name, lead = route('new field for the due date. every field has a label', withFeature)?.name;
