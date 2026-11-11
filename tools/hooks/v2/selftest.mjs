@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { otherSuites, registerSuite, waitQuiet, releaseLock, timingLock, testedCommit, SPEED_RECORD } from '../selftest-cache.mjs';
 
 // (this run is listed with the machine's self-test runs, as the old suite's are, and a time limit is judged strictly
@@ -621,6 +622,22 @@ report(missing({ runbook: null }, acts([user('fix it'), edit, say('Fixed.')])).l
   report(/^New note docs\/zz-cables\.md links to nothing\./.test(r.bare[0] || '') && !r.link.length && !r.wiki.length && !r.related.length && !r.log.length,
     'end: note-linked: a new note that links to nothing is held; a link, a [[wiki link]] or a "## Related" reason passes, and a starter document is no note', JSON.stringify(r).slice(0, 400));
 }
+// (the upgrade carries a project's committed runEach commands onto the approved list, so a check the old engine ran on
+// its own still runs: committed ones only (anyOf too), each once, none in a dry run. The user, 2026-11-10)
+{
+  const { carryRunEach } = await import('../selfcmds.mjs');
+  const p = fs.mkdtempSync(path.join(os.tmpdir(), 'anzuelo-carry-')), rq = path.join(p, 'tools/hooks/requirements.json'), cf = path.join(p, 'tools/hooks/config.json');
+  const g = (...a) => spawnSync('git', a, { cwd: p, encoding: 'utf8' });
+  fs.mkdirSync(path.dirname(rq), { recursive: true });
+  fs.writeFileSync(rq, JSON.stringify({ requirements: [{ tag: 'json-valid', require: { runEach: { files: ['data/*.json'], cmd: 'node check.mjs "{file}"' } } }, { tag: 'either', require: { anyOf: [{ runEach: { files: ['x/*'], cmd: 'node other.mjs "{file}"' } }, { answerMatches: 'x' }] } }] }));
+  fs.writeFileSync(cf, JSON.stringify({ selfCommands: ['npm test'] }));
+  g('init', '-q'); g('add', '-A'); g('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--no-verify', '-m', 'project');
+  const j0 = JSON.parse(fs.readFileSync(rq, 'utf8')); j0.requirements.push({ tag: 'later', require: { runEach: { files: ['y/*'], cmd: 'node planted.mjs "{file}"' } } }); fs.writeFileSync(rq, JSON.stringify(j0));
+  const dry = carryRunEach(p, { dry: true }), afterDry = JSON.parse(fs.readFileSync(cf, 'utf8')).selfCommands, real = carryRunEach(p), list = JSON.parse(fs.readFileSync(cf, 'utf8')).selfCommands, again = carryRunEach(p);
+  fs.rmSync(p, { recursive: true, force: true });
+  report(dry.length === 2 && afterDry.length === 1 && real.join('|') === 'node check.mjs "{file}"|node other.mjs "{file}"' && list.join('|') === 'npm test|node check.mjs "{file}"|node other.mjs "{file}"' && !again.length && !list.some(c => /planted/.test(c)),
+    'upgrade: the project\'s committed runEach commands (anyOf too) are carried onto the approved list once; one added since the last commit is not; a dry run writes nothing', JSON.stringify({ dry, afterDry, real, list, again }));
+}
 // REQ: name-var under v2: a name from docs/names.json typed out in a doc or in code text is held; in its marker, or read
 // from the file in code, it is not. (the old engine's check, through the shared tools/hooks/names.mjs)
 {
@@ -990,9 +1007,26 @@ report(wrote.length === 0, 'end: with none routed, a runbook the turn wrote and 
           fs.mkdirSync(path.join(dir, 'notes'), { recursive: true });
           const each = (text, c = cmd) => { fs.writeFileSync(path.join(dir, 'notes/n.md'), text); const a = acts([user('add the note'), say('Saved.')]); return [holdsReq({ runEach: { files: ['notes/**'], cmd: c, pass: 'RESULT: PASS' } }, a, { ...x, changed: ['notes/n.md'] }), a.detail || '']; };
           const re = { linked: each('see [[other]]'), bare: each('no link here'), foreign: each('no link here', 'node evil.mjs "{file}"') };
+          // (a project's own command: the hook runs it only when it is on the approved list as committed before the
+          // session (the user, 2026-11-10); otherwise the agent is asked to run it, and its own passing run meets it)
+          const own = 'node each-check.cjs "{file}" --own', cf = path.join(dir, 'tools/hooks/config.json'), keptCf = fs.existsSync(cf) ? fs.readFileSync(cf, 'utf8') : null, hadGit = fs.existsSync(path.join(dir, '.git'));
+          const eachRan = (text, out) => { fs.writeFileSync(path.join(dir, 'notes/n.md'), text); const a = acts([user('add the note'), call('Bash', { command: own.replace('{file}', 'notes/n.md') }, out), say('Saved.')]); return [holdsReq({ runEach: { files: ['notes/**'], cmd: own, pass: 'RESULT: PASS' } }, a, { ...x, changed: ['notes/n.md'] }), a.detail || '']; };
+          const g = (...a) => spawnSync('git', a, { cwd: dir, encoding: 'utf8', env: { ...process.env, GIT_AUTHOR_DATE: '2026-01-01T00:00:00Z', GIT_COMMITTER_DATE: '2026-01-01T00:00:00Z' } });
+          const setList = list => { let j = {}; try { j = JSON.parse(keptCf || '{}'); } catch { } j.selfCommands = list; fs.mkdirSync(path.dirname(cf), { recursive: true }); fs.writeFileSync(cf, JSON.stringify(j)); };
+          const ownR = { unlisted: each('no link here', own), agentRan: eachRan('see [[other]]', 'RESULT: PASS'), agentRanBad: eachRan('no link here', 'RESULT: FAIL no link') };
+          if (!hadGit) { setList([own]); g('init', '-q'); g('add', 'tools/hooks/config.json'); g('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--no-verify', '-m', 'approved');
+            ownR.listedGood = each('see [[other]]', own); ownR.listedBad = each('no link here', own);
+            // (added during the session: on the file, but not in the commit before it)
+            setList([]); g('add', 'tools/hooks/config.json'); g('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--no-verify', '-m', 'none'); setList([own]);
+            ownR.sameTurn = each('see [[other]]', own);
+            fs.rmSync(path.join(dir, '.git'), { recursive: true, force: true }); }
+          keptCf === null ? fs.rmSync(cf, { force: true }) : fs.writeFileSync(cf, keptCf);
           keptEc === null ? fs.rmSync(ec, { force: true }) : fs.writeFileSync(ec, keptEc); fs.rmSync(path.join(dir, 'notes'), { recursive: true, force: true }); fs.rmSync(path.join(dir, 'each-check.cjs'), { force: true });
-          report(re.linked[0] === true && re.bare[0] === false && /RESULT: FAIL no link/.test(re.bare[1]) && re.foreign[0] === null,
-            'end: runEach: a shipped validator runs on each matching changed file (a failing one named); a command a project file adds never runs', JSON.stringify(re));
+          report(re.linked[0] === true && re.bare[0] === false && /RESULT: FAIL no link/.test(re.bare[1]) && re.foreign[0] === false && /run `node evil\.mjs "notes\/n\.md"`/.test(re.foreign[1]),
+            'end: runEach: a shipped validator runs on each matching changed file (a failing one named); a command a project file adds is the agent\'s to run, never run by the hook', JSON.stringify(re));
+          report(hadGit || (ownR.unlisted[0] === false && /run `node each-check\.cjs "notes\/n\.md" --own`/.test(ownR.unlisted[1]) && ownR.agentRan[0] === true && ownR.agentRanBad[0] === false
+            && ownR.listedGood?.[0] === true && ownR.listedBad?.[0] === false && /RESULT: FAIL no link/.test(ownR.listedBad?.[1] || '') && ownR.sameTurn?.[0] === false),
+            'end: runEach: a project\'s own command runs by the hook only from the approved list committed before the session; unlisted or added this session, the agent is asked to run it and its passing run counts', JSON.stringify(ownR));
         }
         const T = par.toolPassed; cites.toolPassedOk = cites.skillsOk && T.toFile === true && T.oldFile === false && T.selfOk === true && T.selfBad === false && T.audit === null;
         report(cites.toolPassedOk && par.seq === false && par.bg === true && par.plain === true && cites.plain && cites.ticks && cites.printed && !cites.unopened && !cites.own && cites.unknownBranch === null && cites.otherHolds === true,

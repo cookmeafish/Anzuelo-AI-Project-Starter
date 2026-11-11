@@ -39,6 +39,25 @@ export function approvedBefore(file, before) {
   const rel = path.relative(top, file).replace(/\\/g, '/'), text = git('show', `${sha}:${rel}`);
   return text == null ? [] : listOf(text) || [];
 }
+// The "runEach" commands a project's committed tools/hooks/requirements.json declares (anyOf branches too), from git's
+// last commit: a command added during a session is not carried. Not a git project: none.
+export function committedRunEach(root) {
+  const r = spawnSync('git', ['show', 'HEAD:tools/hooks/requirements.json'], { cwd: root, encoding: 'utf8', timeout: 10000 });
+  let j = {}; try { j = r.status === 0 ? JSON.parse(r.stdout) : {}; } catch { return []; }
+  const of = q => !q || typeof q !== 'object' ? [] : [q?.runEach?.cmd, ...(q.anyOf || []).flatMap(of)];
+  return [...new Set((j.requirements || []).flatMap(x => of(x?.require)).filter(c => typeof c === 'string' && c.trim()).map(c => c.trim()))];
+}
+// The upgrade carries each committed runEach command onto the approved list, so a check the old engine ran on its own
+// still runs (REQ: self-run; the user, 2026-11-10: "i just dont wanna restrict the ai agent from doing its best work"):
+// the hook runs a project's command on its own only from this list, and the agent can always run any command itself.
+// Returns the commands added; dry: none written. The caller records the DECISIONS line.
+export function carryRunEach(root, { dry = false } = {}) {
+  const f = path.join(root, 'tools/hooks/config.json');
+  let j = {}; try { j = JSON.parse(fs.readFileSync(f, 'utf8')); } catch { }
+  const list = [].concat(j[SELF_KEY] || []).map(s => String(s).trim()), add = committedRunEach(root).filter(c => !list.includes(c));
+  if (add.length && !dry) { j[SELF_KEY] = [...list, ...add]; fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, JSON.stringify(j, null, 2) + '\n'); }
+  return add;
+}
 // Adds a command to the list (the user's own command) and returns the line to record in docs/DECISIONS.md.
 export function allowSelf(root, cmd) {
   const f = path.join(root, 'tools/hooks/config.json');

@@ -1197,9 +1197,22 @@ export function holdsReq(c, acts, x) {
     // (runEach: a validator run on each changed file that matches, by the end check itself; a crash is a fail. Only a
     // command the engine ships runs, never one a project file adds or rewrites. Lesson (the old suite under v2): the key
     // was unknown, so the modularity and backlink checks never ran)
+    // (a project's own command runs too when it is on the user's approved list as committed before this session, the
+    // self-run rule: nothing added during the session counts. Any other is the agent's to run: each matching changed
+    // file's run of it this turn, exit 0, meets the check, and the step names the command. The user, 2026-11-10: "i
+    // just dont wanna restrict the ai agent from doing its best work": the rule limits only what the hook runs itself)
     runEach: spec => {
-      if (!spec?.cmd || !shippedRunEach().has(spec.cmd)) return null;
-      for (const f of (x.changed || []).filter(p => inGlobs(p, [].concat(spec.files || [])) && fs.existsSync(at(p)))) {
+      if (!spec?.cmd) return null;
+      const files = (x.changed || []).filter(p => inGlobs(p, [].concat(spec.files || [])) && fs.existsSync(at(p)));
+      const own = !shippedRunEach().has(spec.cmd) && !(files.length && approvedBefore(at('tools/hooks/config.json'), acts.sessionStart || null).includes(spec.cmd.trim()) && selfCommands().includes(spec.cmd.trim()));
+      if (own) {
+        const passRx = (() => { try { return spec.pass ? reqRe(spec.pass) : null; } catch { return null; } })();
+        const ranOk = f => acts.calls.some(k => /^(Bash|PowerShell)$/.test(k.name) && !k.error && String(k.input?.command || '').includes(spec.cmd.replaceAll('{file}', f)) && (!passRx || passRx.test(String(k.out || ''))));
+        const left = files.filter(f => !ranOk(f));
+        if (left.length) { acts.detail = `run \`${spec.cmd.replaceAll('{file}', left[0])}\`${left.length > 1 ? ` (and the same for ${left.slice(1, 4).join(', ')})` : ''} and see it pass (the hook runs a project's own command itself only from the approved list: node tools/hooks/hooks.mjs self-allow "<command>")`; return false; }
+        return true;
+      }
+      for (const f of files) {
         const cmd = spec.cmd.replaceAll('{file}', f), res = spawnSync(cmd, { shell: true, cwd: ROOT, encoding: 'utf8', timeout: (spec.timeout || 60) * 1000 }), out = `${res.stdout || ''}${res.stderr || ''}`;
         if (res.status !== 0 || (spec.pass && !reqRe(spec.pass).test(out))) { acts.detail = `${cmd} -> ${res.status === null ? 'timed out' : `exit ${res.status}`}: ${out.trim().split(/\r?\n/).slice(-3).join(' | ').slice(0, 300)}`; return false; }
       }

@@ -27,6 +27,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { CORE_SKILLS, today as localToday, usageOf, isEngineCheck, shippedChecks, checkKey, ENGINE_CHECKS_HISTORY, changelogSince, breakingItems, upgradeReport, withReviewBlock, fastestBench, probeEngine, noteEngineChange } from './hooks/hooks.mjs';
 import { wire } from './hooks/wire.mjs';
 import { dataLikeDirs } from './hooks/datadirs.mjs';
+import { carryRunEach } from './hooks/selfcmds.mjs';
 
 const STARTER = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const starterHead = () => (spawnSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: STARTER, encoding: 'utf8' }).stdout || '').trim() || 'the newest starter';
@@ -677,6 +678,13 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
       if (!dry) { const b = path.join(backupDir, path.relative(dest, p) + '.orig'); if (!fs.existsSync(b)) { fs.mkdirSync(path.dirname(b), { recursive: true }); fs.writeFileSync(b, text); } fs.writeFileSync(p, next); }
     }
   }
+  // (REQ: self-run. The project's committed runEach commands go onto the approved list, the one list the hook runs a
+  // project's command from on its own, so no check it had stops running. The user, 2026-11-10. Backed up for a rollback)
+  const carried = carryRunEach(dest, { dry: true });
+  if (carried.length) {
+    log.push(`approved ${carried.length} runEach command(s) the project's checks run on each changed file, carried onto selfCommands in tools/hooks/config.json: ${carried.join(' | ')}`);
+    if (!dry) { const cf = path.join(dest, 'tools', 'hooks', 'config.json'), b = path.join(backupDir, 'tools', 'hooks', 'config.json.orig'); if (fs.existsSync(cf) && !fs.existsSync(b)) { fs.mkdirSync(path.dirname(b), { recursive: true }); fs.copyFileSync(cf, b); } carryRunEach(dest); }
+  }
   log.push(...wire(dest, { dry })); // every agent's wiring, the git hooks and Obsidian (tools/hooks/wire.mjs)
   const done = () => { printLog(); console.log(`\n${dry ? 'Dry run, nothing written: this is what an upgrade of' : 'Upgraded the engine in'} ${dest}${dry ? ' would change' : ''}. The project's own content (AGENTS.md / CLAUDE.md, requirements.json, config.json, its own runbooks, knowledge, code) was not touched, apart from the merged checks listed above. ${unchanged} engine file(s) were already current.${backedUp ? ` ${backedUp} replaced file(s) are backed up in .cache/upgrade-backup/${stamp}/.` : ''}`); };
   if (dry) { done(); console.log('\nAn upgrade also audits and times the project before and after, and writes an upgrade review (docs/DECISIONS.md).'); process.exit(0); }
@@ -820,6 +828,7 @@ if (flag('--upgrade') || (auto && madeFromStarter)) {
   const probed = probeEngine(dest), wiringErrs = probed.filter(e => e.startsWith('wiring: ')), engineErrs = probed.filter(e => !e.startsWith('wiring: '));
   if (wiringErrs.length) { items.push(`wiring: ${wiringErrs.map(e => e.slice(8)).join('; ')}. Fix each (a broken git hooks path means commits go unchecked)`); console.log(`\nWIRING BROKEN: ${wiringErrs.map(e => e.slice(8)).join('; ')}`); }
   if (engineErrs.length) { items.push(`engine: the hooks fail to run in this project (${engineErrs.join('; ')}). Fix it before relying on the engine: tell the starter session`); console.log(`\nENGINE DOES NOT RUN HERE: ${engineErrs.join('; ')}`); }
+  if (carried.length) items.push(`selfCommands: ${carried.length} runEach command(s) the project's checks ran on their own were carried onto the approved list (tools/hooks/config.json), so the hook keeps running them: ${carried.join(' | ')}. Take one off to have the agent run it instead||carried (${today}, by the upgrade; they count once tools/hooks/config.json is committed)`);
   const dp = path.join(dest, 'docs', 'DECISIONS.md');
   fs.mkdirSync(path.dirname(dp), { recursive: true });
   // each pack and skill in plain words: what it does and what the user will notice

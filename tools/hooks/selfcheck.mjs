@@ -484,7 +484,15 @@ const V2_ONLY_CHANGED = /only what changed in the answer above/;
 // (under v2 a project's own check is a "Done when" line in docs/checks/always.md, and the data file is the agent's own
 // edit, then validated: the validator reads it, it does not write it)
 const VALIDATOR_V2 = { 'docs/checks/always.md': () => '# Always\n\n## Done when\n- [ ] The validator passes on the changed data (when file: data/**) (ran: validate => RESULT: PASS)\n' };
-const RUNEACH = withReqs({ tag: 'json-valid', when: { filesChanged: ['data/*.json'] }, require: { runEach: { files: ['data/*.json'], cmd: 'node -e "JSON.parse(require(\'fs\').readFileSync(\'{file}\',\'utf8\'))"' } }, message: 'Every data file must be valid JSON.' });
+const RUNEACH_CMD = 'node -e "JSON.parse(require(\'fs\').readFileSync(\'{file}\',\'utf8\'))"';
+const RUNEACH = withReqs({ tag: 'json-valid', when: { filesChanged: ['data/*.json'] }, require: { runEach: { files: ['data/*.json'], cmd: RUNEACH_CMD } }, message: 'Every data file must be valid JSON.' });
+// (under v2 the hook runs a project's own command itself only from the approved list as committed before the session:
+// the user, 2026-11-10. The command is put on it and committed, as an upgrade carries a project's runEach commands over)
+const approveRunEach = dir => { const f = path.join(dir, 'tools/hooks/config.json'); let j = {}; try { j = JSON.parse(fs.readFileSync(f, 'utf8')); } catch { }
+  j.selfCommands = [RUNEACH_CMD]; fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, JSON.stringify(j, null, 2) + '\n');
+  const g = (...a) => spawnSync('git', a, { cwd: dir, env: { ...process.env, GIT_AUTHOR_DATE: '2026-01-01T00:00:00Z', GIT_COMMITTER_DATE: '2026-01-01T00:00:00Z' } });
+  // (only the engine's settings and checks are committed: the turn's own data file stays its change)
+  g('init', '-q'); g('add', 'tools/hooks'); g('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--no-verify', '-m', 'approved'); };
 // docs/DECISIONS.md without a "## Setup interview" section (the hooks read the first one)
 // The project's own setup answers and upgrade reviews would leak into every fixture: the base has neither.
 function withoutInterview(s) { return s.replace(/^## Setup interview[^\n]*\n(?:(?!## )[^\n]*\n?)*/m, '').replace(/^## Upgrade review[^\n]*\n(?:(?!## )[^\n]*\n?)*/gm, ''); }
@@ -1255,9 +1263,9 @@ const STOP = [
     tools: [pb('project'), bash('(python tools/validate.py data/v.json > .cache/val.txt 2>&1; echo "v=$?") > .cache/chain.txt 2>&1', '')],
     files: { 'data/v.json': '{}', '.cache/val.txt': 'RESULT: PASS', '.cache/chain.txt': 'v=0', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md' + FIN, expect: { not: ['data-valid'] } },
   { name: 'runEach: the hook re-validates changed files itself (invalid JSON): blocked', prompt: 'add the new vendor data', edit: RUNEACH, tools: [pb('project')],
-    files: { 'data/v.json': '{ broken', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md' + FIN, expect: { block: true, tags: ['json-valid'] } },
+    files: { 'data/v.json': '{ broken', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md' + FIN, expect: { block: true, tags: ['json-valid'] }, v2: { prep: approveRunEach, tools: [pb('project'), { name: 'Write', input: { file_path: 'data/v.json', content: '{ broken' } }, bash('node tools/audit.mjs', 'audit: PASS (32 sweeps, 0 failed)'), bash('node tools/hooks/hooks.mjs check --answer-file .cache/answer.md', 'CHECK: PASS')] } },
   { name: 'runEach: valid JSON passes', prompt: 'add the new vendor data', edit: RUNEACH, tools: [pb('project')],
-    files: { 'data/v.json': '{"ok":1}', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md' + FIN, expect: { block: false } },
+    files: { 'data/v.json': '{"ok":1}', 'docs/CHANGELOG.md': 'x' }, answer: 'Playbook: project.md' + FIN, expect: { block: false }, v2: { prep: approveRunEach, tools: [pb('project'), { name: 'Write', input: { file_path: 'data/v.json', content: '{"ok":1}' } }, bash('node tools/audit.mjs', 'audit: PASS (32 sweeps, 0 failed)'), bash('node tools/hooks/hooks.mjs check --answer-file .cache/answer.md', 'CHECK: PASS')] } },
   // cap reached: the miss is carried over to the next prompt instead of vanishing
   { name: 'block cap reached: unresolved checks are saved for the next prompt', prompt: 'build me a weekly cleaning rota', files: { 'docs/rota.md': 'r' }, answer: 'Done.', active: true, blocks: 3,
     expect: { block: false }, after: dir => fs.existsSync(path.join(dir, 'tools/hooks/state/unresolved.json')) || 'unresolved.json was not written' },
