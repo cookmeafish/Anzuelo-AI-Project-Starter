@@ -21,6 +21,9 @@ Phase A, open v2 tests to 0, in batches of about 15 (one chain per batch, releas
   session edited a project file mid-turn. Likely path: the end check's walk of files changed since the turn began (on a
   turn that ran shell commands) cannot tell another session's edit from this one's. Fix idea: each session's edit hook
   logs the files it wrote; the walk leaves out a file another live session logged in the same window. Not reproduced.
+- [ ] Idea (a project, 2026-11-11, low): the "whose folder" reminder line without the engine's scope guard, for a project
+  whose own hooks already guard people's data (its people folder is not profiles/). Weigh first (rule 16): one reminder
+  line against a new setting; check whether switching off the scope-separate check already leaves the hint on.
 Phase B: engine-v2-only 1b to 1e (rest of hooks.mjs into modules, one v2 entry point, tests unpinned, hooks.mjs
 deleted). Done when git grep for hooks/hooks.mjs and STARTER_ENGINE finds nothing outside the changelog, and every
 project passes after upgrading.
