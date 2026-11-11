@@ -93,7 +93,6 @@ stop: gate with no pass pattern chained to other commands: run it alone: blocked
 stop: gui-review-report: a bold "Revisión visual" list item with no verdict still asks for the line
 stop: image + text prompt is a real prompt
 stop: incident-trigger: production down without the incident skill: blocked
-stop: knowledge file without label/source/date: blocked
 stop: maintaining a runbook (read, then edit) is not following it: its checks stay off
 stop: maintaining a runbook the answer names as followed: its checks apply: blocked
 stop: queued mid-turn rule request is enforced: blocked
