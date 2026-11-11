@@ -44,7 +44,6 @@ prompt: starter-runbooks: in the starter, "test it many times so nothing gets wo
 prompt: starter-runbooks: in the starter, "tests for hours, did it keep it on track or forget things" routes to the improvement loop
 prompt: starter-runbooks: in the starter, a report from another session routes to the field-report runbook
 prompt: unresolved checks from the last turn are announced
-recall-hint: a request like an earlier one gets how it was solved; an unrelated one gets nothing; recall.mjs finds it
 records-once flow (check change): round 1 lists each step once; round 2 has no record step (the check still needs its proof); the lesson in memory counts; the open records reach the next related turn
 records-once flow (plain change): round 1 lists each step once; round 2 has no record step (the turn ends); the lesson in memory counts; the open records reach the next related turn
 routing-only: a runbook whose only change is its triggers line sets off no project check on changed runbooks; a changed step still does
@@ -71,7 +70,6 @@ stop: "keep doing this" with nothing written down: blocked
 stop: 2nd block in a turn still blocks
 stop: GUI reviewed but no Visual review verdict: blocked
 stop: a new runbook gets its skill and DIRECTORY row generated
-stop: a runbook used through its generated skill counts as followed: passes
 stop: answer relies on a stale knowledge file without saying so: blocked
 stop: answer-language: a Spanish visual review with no verdict: blocked
 stop: answer-noise: the Stop text steers waivers to the waive command, never to an N/A line in the answer
@@ -103,7 +101,6 @@ stop: promptMatches: the same words typed by the user still count: blocked
 stop: queued mid-turn rule request is enforced: blocked
 stop: requirement-enforced: a requirement said in passing, during work, with nothing enforcing it: blocked
 stop: requirement-enforced: a requirement written only into a runbook: blocked
-stop: root-tidy: a Go file with no go.mod in the root: blocked
 stop: routed task that never opened its runbook: blocked
 stop: runbook-cold-read: a new runbook no helper read cold: blocked
 stop: runbook-exists: work that names an existing runbook it never opened is asked to open it, not to write one: blocked

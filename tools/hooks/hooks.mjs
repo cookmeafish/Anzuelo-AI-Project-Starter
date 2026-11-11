@@ -6348,7 +6348,10 @@ async function v2Cli(cmd) {
     // still counts, and only shows the routing, as the old engine did. Lesson, trial round 19: a mid-turn begin made a
     // report already written look old, and the end check held it three times)
     const before = lib.loadTurn(sid), open = !!before.at && !before.ended && sid !== 'manual';
-    const r = (await import('./v2/start.mjs')).onPrompt({ prompt: req, session_id: sid });
+    // (an open turn: the routing for this text alone, with no session, so it neither joins the turn (which keeps the
+    // turn's own runbook) nor saves anything. Lesson (the v2 sweep): the second begin in a session showed the first
+    // request's runbook)
+    const r = (await import('./v2/start.mjs')).onPrompt({ prompt: req, session_id: open ? '' : sid });
     if (open) lib.saveTurn(sid, before);
     // (kept for a check with no transcript, which judges the turn from this request, v2/manual.mjs)
     if (!tp && !open) { const t = lib.loadTurn(sid); if (t.at) lib.saveTurn(sid, { ...t, request: req.slice(0, 4000) }); }
