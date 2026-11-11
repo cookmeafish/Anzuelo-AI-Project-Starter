@@ -1850,8 +1850,12 @@ export function syncAll(cfg = config()) {
 }
 // syncAll only when a source of the generated files (a runbook, check doc, the menu, requirements.json, a skill) is newer
 // than the last sync: a few file times instead of a full sync at every Stop. Returns whether it synced.
-export function syncIfStale(cfg = config()) {
-  const stamp = path.join(STATE, 'synced-at.json'), since = (() => { try { return fs.statSync(stamp).mtimeMs; } catch { return 0; } })();
+// (newer than the last sync and than the turn's start: a source changed by this turn, never one older than the turn.
+// With neither known, nothing is synced. Lesson (the release sweep of dd35f04): with no sync record yet, every Stop
+// regenerated the files, and the end check counted them as the turn's own changes: five scenarios were held)
+export function syncIfStale(cfg = config(), turnAt = 0) {
+  const stamp = path.join(STATE, 'synced-at.json'), since = Math.max((() => { try { return fs.statSync(stamp).mtimeMs; } catch { return 0; } })(), Number(turnAt) || 0);
+  if (!since) return false;
   const mt = p => { try { return fs.statSync(abs(p)).mtimeMs; } catch { return 0; } };
   const sd = cfg.skillsDir || 'skills';
   const srcs = [...list('docs/playbooks').map(n => `docs/playbooks/${n}`), ...list('docs/checks').map(n => `docs/checks/${n}`), 'docs/MENU.md', 'tools/hooks/requirements.json',
@@ -6794,7 +6798,7 @@ if (isMain) {
       // newer than the last sync, as the old engine's Stop synced: a file a script, an agent without hooks or a test wrote
       // reaches no post-tool hook. Only then, to keep the Stop fast. Lesson (the old suite under v2): a new runbook got no
       // skill or DIRECTORY row)
-      if (cmd === 'stop') try { syncIfStale(); } catch { }
+      if (cmd === 'stop') try { syncIfStale(config(), Date.parse((await import('./v2/lib.mjs')).loadTurn(data.session_id).at || '') || 0); } catch { }
       const v2 = cmd === 'prompt' ? (await import('./v2/start.mjs')).onPrompt(data) : (await import('./v2/end.mjs')).onStop(data, { show: HOST === 'claude-code' });
       if (cmd === 'stop' && !v2) try { fs.rmSync(path.join(STATE, detailsFile(data.session_id)), { force: true }); } catch { }
       if (v2) process.stdout.write(JSON.stringify(cmd === 'stop' ? v2StopForm(v2, config(), HOST, STATE, data.session_id) : v2));
