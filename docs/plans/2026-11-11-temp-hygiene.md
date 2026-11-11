@@ -36,4 +36,18 @@ Related: [improvement loop](../../tools/starter/runbooks/improvement-loop.md).
 ## Task 3: measure
 - [ ] Kernel paged and nonpaged pool, and the temp folder's entry count, before and after one chain; numbers in the
       report to oversight. The user's existing temp files are not touched (the user decides about those).
-- [ ] The speed baseline is checked on a quiet machine (hidewin's import cost, compared with and without it).
+- [x] The speed baseline is checked on a quiet machine (hidewin adds about 3.5 ms; the chain's timed v2 self-test passed
+      its speed test on a quiet machine).
+- Measured, chain 1 (5de8737): TEMP 15,179 entries before and after, 0 new; paged pool 772 -> 2,489 MB, nonpaged
+  1,173 -> 1,660 MB, not decaying after 5 minutes. Top paged tags: FMfn, Ntff, MmSt, MPsc (per-file records).
+
+## Task 4: find what leaves the paged pool behind
+Done when: two chains back to back leave the paged pool within about 300 MB of where it started.
+- [ ] Chain 2 tells a leak from a cache that fills once: pool by tag before and after (scratch reader of
+      NtQuerySystemInformation pool tags, read-only).
+- [ ] Bisect on a quiet machine, pool before and after each, one step at a time: v2 self-test, `selfcheck --shard 1/12`,
+      the trial, the sweep, a git clone or worktree. Which step leaves the most paged pool per run.
+- [ ] For that step: which files outside TEMP survive (the frozen release copies, git objects, fixtures' state folders).
+      Frozen copies: keep only the last 3 after a release.
+- [ ] If deleted files still leave filter-manager and Defender records behind, cut file churn at the source: one fixture
+      copy per shard reused across scenarios instead of a new copy per scenario, and fewer, smaller files.
